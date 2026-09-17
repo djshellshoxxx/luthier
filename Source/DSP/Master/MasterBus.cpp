@@ -55,6 +55,8 @@ void MasterBus::reset() noexcept
     lufsAccum = 0.0;
     lufsCount = 0;
 
+    gainSmooth.snapToTarget();
+
     resetMeters();
 }
 

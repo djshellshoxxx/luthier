@@ -9,22 +9,29 @@ namespace
     constexpr double kReferenceScaleMm = 648.0;
 
     //==========================================================================
-    // name, density, Young's, woundMass, coreRatio, sustain, brightness, squeak,
-    // alwaysWound, plainTrebles
+    // name, density, woundDensity, Young's, woundMass, coreRatio, sustain,
+    // brightness, squeak, alwaysWound, plainTrebles
     const MaterialProperties kMaterials[(size_t) StringMaterial::NumMaterials] =
     {
-        { "Nickel-Plated Steel", 7900.0, 2.00e11, 0.78, 0.45, 5.0, 5600.0, 1.00, false, false },
-        { "Pure Nickel",         8900.0, 2.10e11, 0.76, 0.45, 4.6, 4400.0, 0.90, false, false },
-        { "Stainless Steel",     7900.0, 1.93e11, 0.79, 0.45, 5.6, 6600.0, 1.15, false, false },
-        { "Cobalt",              8400.0, 2.07e11, 0.78, 0.45, 5.3, 6200.0, 1.05, false, false },
-        { "Phosphor Bronze",     8800.0, 1.10e11, 0.74, 0.42, 4.8, 5000.0, 1.10, false, false },
-        { "80/20 Bronze",        8750.0, 1.15e11, 0.74, 0.42, 4.4, 5900.0, 1.12, false, false },
-        { "Silk & Steel",        6200.0, 9.00e10, 0.62, 0.40, 3.6, 3400.0, 0.70, false, false },
-        { "Nylon",               1150.0, 4.00e09, 0.70, 0.50, 3.4, 3000.0, 0.20, false, true  },
-        { "Fluorocarbon",        1780.0, 4.50e09, 0.72, 0.50, 3.8, 3900.0, 0.22, false, true  },
-        { "Flatwound",           8100.0, 1.95e11, 0.86, 0.55, 4.2, 2600.0, 0.18, true,  false },
-        { "Halfwound",           8000.0, 1.97e11, 0.82, 0.50, 4.5, 3600.0, 0.45, true,  false },
-        { "Coated",              7900.0, 2.00e11, 0.77, 0.45, 5.8, 4900.0, 0.55, false, false }
+        { "Nickel-Plated Steel", 7900.0, 7900.0, 2.00e11, 0.78, 0.45, 5.0, 5600.0, 1.00, false, false },
+        { "Pure Nickel",         8900.0, 8900.0, 2.10e11, 0.76, 0.45, 4.6, 4400.0, 0.90, false, false },
+        { "Stainless Steel",     7900.0, 7900.0, 1.93e11, 0.79, 0.45, 5.6, 6600.0, 1.15, false, false },
+        { "Cobalt",              8400.0, 8400.0, 2.07e11, 0.78, 0.45, 5.3, 6200.0, 1.05, false, false },
+        { "Phosphor Bronze",     8800.0, 8800.0, 1.10e11, 0.74, 0.42, 4.8, 5000.0, 1.10, false, false },
+        { "80/20 Bronze",        8750.0, 8750.0, 1.15e11, 0.74, 0.42, 4.4, 5900.0, 1.12, false, false },
+        { "Silk & Steel",        6200.0, 7400.0, 9.00e10, 0.62, 0.40, 3.6, 3400.0, 0.70, false, false },
+
+        // Nylon and fluorocarbon are the two materials where the plain trebles and
+        // the wound basses are made of entirely different things: the trebles are
+        // the polymer, the basses are silver-plated copper wound over a floss core.
+        // Using the polymer density for the basses makes a classical low E about
+        // eight times too light, and the instrument nearly silent.
+        { "Nylon",               1150.0, 7000.0, 4.00e09, 0.70, 0.50, 3.4, 3000.0, 0.20, false, true  },
+        { "Fluorocarbon",        1780.0, 7200.0, 4.50e09, 0.72, 0.50, 3.8, 3900.0, 0.22, false, true  },
+
+        { "Flatwound",           8100.0, 8100.0, 1.95e11, 0.86, 0.55, 4.2, 2600.0, 0.18, true,  false },
+        { "Halfwound",           8000.0, 8000.0, 1.97e11, 0.82, 0.50, 4.5, 3600.0, 0.45, true,  false },
+        { "Coated",              7900.0, 7900.0, 2.00e11, 0.77, 0.45, 5.8, 4900.0, 0.55, false, false }
     };
 
     //==========================================================================
@@ -154,7 +161,8 @@ StringSpec StringMaterials::computeSpec (StringMaterial material,
     // mu = rho * pi * r^2, reduced for wound strings because the winding does not
     // fill the cylinder the way a solid wire does.
     const double radiusM = spec.diameterMm * 0.0005;   // mm -> m, then /2
-    const double solidMu = mat.densityKgM3 * constants::kPi * radiusM * radiusM;
+    const double density = wound ? mat.woundDensityKgM3 : mat.densityKgM3;
+    const double solidMu = density * constants::kPi * radiusM * radiusM;
     spec.linearDensity = solidMu * (wound ? mat.woundMassFactor : 1.0);
 
     // ---- tension -------------------------------------------------------------
@@ -232,12 +240,14 @@ double StringMaterials::suggestDiameterInches (StringMaterial material,
     const auto& mat = get (material);
 
     // Invert the tension equation for the diameter that lands mid-range.
-    const double targetTension = 0.5 * (kMinPlayableTension + kMaxPlayableTension);
+    const auto range = getTensionRange (scaleLengthMm);
+    const double targetTension = 0.5 * (range.comfortableMin + range.comfortableMax);
     const double lengthM = juce::jmax (0.05, scaleLengthMm * 0.001);
     const double twoLf = 2.0 * lengthM * juce::jmax (1.0, targetHz);
 
     const double muNeeded = targetTension / juce::jmax (1.0e-9, twoLf * twoLf);
-    const double effectiveDensity = mat.densityKgM3 * (wound ? mat.woundMassFactor : 1.0);
+    const double effectiveDensity = (wound ? mat.woundDensityKgM3 * mat.woundMassFactor
+                                           : mat.densityKgM3);
 
     const double radiusM = std::sqrt (muNeeded / (effectiveDensity * constants::kPi));
 

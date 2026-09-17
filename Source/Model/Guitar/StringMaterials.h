@@ -66,6 +66,10 @@ struct MaterialProperties
 {
     const char* name;
     double densityKgM3;      ///< Bulk density of the wire.
+    double woundDensityKgM3; ///< Density of a WOUND string of this type. For nylon
+                             ///< and fluorocarbon the winding is silver-plated
+                             ///< copper over a floss core, which is nothing like
+                             ///< the density of the plain trebles.
     double youngsModulusPa;  ///< Stiffness, drives inharmonicity.
     double woundMassFactor;  ///< Effective density of a wound string vs a solid one.
     double coreRatio;        ///< Core diameter / outer diameter, for wound strings.
@@ -131,19 +135,46 @@ public:
 
     //==========================================================================
     /** Identity rule 1: a string must sit in a playable tension range.
-        Below ~30 N it flops and will not hold pitch; above ~90 N it is at the
-        edge of snapping on a 648 mm scale. */
-    static constexpr double kMinPlayableTension = 30.0;
-    static constexpr double kMaxPlayableTension = 90.0;
 
-    /** Hard limits before the model itself is in danger, used by the validator. */
-    static constexpr double kAbsoluteMinTension = 8.0;
-    static constexpr double kAbsoluteMaxTension = 180.0;
+        The engine spec quotes 30 to 90 N, which is the figure for an ELECTRIC
+        guitar. It is not universal: a medium acoustic set reaches about 130 N on
+        the low E, and a bass string normally runs 130 to 270 N - a bass neck is
+        built for it. Applying the electric figure to every instrument would flag
+        every bass in the factory bank as unplayable, which would be wrong.
 
-    static bool isTensionPlayable (double newtons) noexcept
+        So the range scales with the instrument, keyed on scale length. */
+    struct TensionRange
     {
-        return newtons >= kMinPlayableTension && newtons <= kMaxPlayableTension;
+        double comfortableMin;
+        double comfortableMax;
+        double absoluteMin;
+        double absoluteMax;
+    };
+
+    /** Scale lengths at or above this belong to bass instruments. */
+    static constexpr double kBassScaleThresholdMm = 760.0;
+
+    static TensionRange getTensionRange (double scaleLengthMm) noexcept
+    {
+        if (scaleLengthMm >= kBassScaleThresholdMm)
+            return { 110.0, 300.0, 40.0, 450.0 };
+
+        // The upper figure is set by a medium acoustic set, whose middle
+        // strings genuinely reach the mid 140s of newtons.
+        return { 25.0, 165.0, 8.0, 240.0 };
     }
+
+    static bool isTensionPlayable (double newtons, double scaleLengthMm = 648.0) noexcept
+    {
+        const auto range = getTensionRange (scaleLengthMm);
+        return newtons >= range.comfortableMin && newtons <= range.comfortableMax;
+    }
+
+    // Widest limits across every instrument, for the validator's hard clamp.
+    static constexpr double kMinPlayableTension = 25.0;
+    static constexpr double kMaxPlayableTension = 165.0;
+    static constexpr double kAbsoluteMinTension = 8.0;
+    static constexpr double kAbsoluteMaxTension = 450.0;
 
     /** Suggests a gauge whose tension lands in range for a given pitch and scale. */
     static double suggestDiameterInches (StringMaterial material,

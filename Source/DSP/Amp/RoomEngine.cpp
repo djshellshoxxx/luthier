@@ -84,6 +84,9 @@ void RoomEngine::reset() noexcept
     tapFilterR.reset();
     dcL.reset();
     dcR.reset();
+
+    blendSmooth.snapToTarget();
+    widthSmooth.snapToTarget();
 }
 
 //==============================================================================

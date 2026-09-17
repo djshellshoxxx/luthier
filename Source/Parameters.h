@@ -1,0 +1,288 @@
+#pragma once
+
+/*  The automatable parameter set, and the bridge that pushes it into the engine.
+
+    Design note: continuous parameters are polled once per block from their atomic
+    pointers and pushed straight into the engine. That is cheaper and far more
+    predictable than a listener per parameter, and it means automation always
+    arrives in block order.
+
+    Structural changes - a different guitar, a different pedal in a slot - can
+    allocate, so they are detected here but applied on the message thread through
+    an AsyncUpdater. The audio thread never allocates.
+*/
+
+#include <juce_audio_processors/juce_audio_processors.h>
+#include "LuthierEngine.h"
+
+namespace luthier
+{
+
+//==============================================================================
+namespace ParamIDs
+{
+    // --- macros ---------------------------------------------------------------
+    inline constexpr const char* macroAttack   = "macro_attack";
+    inline constexpr const char* macroBody     = "macro_body";
+    inline constexpr const char* macroDrive    = "macro_drive";
+    inline constexpr const char* macroTone     = "macro_tone";
+    inline constexpr const char* macroSpace    = "macro_space";
+    inline constexpr const char* macroHumanize = "macro_humanize";
+
+    // --- instrument -----------------------------------------------------------
+    inline constexpr const char* guitarType     = "guitar_type";
+    inline constexpr const char* tuningPreset   = "tuning_preset";
+    inline constexpr const char* temperament    = "temperament";
+    inline constexpr const char* concertA       = "concert_a";
+    inline constexpr const char* stringMaterial = "string_material";
+    inline constexpr const char* stringGauge    = "string_gauge";
+    inline constexpr const char* stringAge      = "string_age";
+    inline constexpr const char* realismDetune  = "realism_detune";
+    inline constexpr const char* intonationErr  = "intonation_error";
+    inline constexpr const char* tuningDrift    = "tuning_drift";
+    inline constexpr const char* fretless       = "fretless";
+    inline constexpr const char* fretAction     = "fret_action";
+    inline constexpr const char* fretBuzz       = "fret_buzz";
+    inline constexpr const char* sustainScale   = "sustain_scale";
+    inline constexpr const char* couplingAmount = "coupling_amount";
+
+    // --- right hand -----------------------------------------------------------
+    inline constexpr const char* useFingers    = "use_fingers";
+    inline constexpr const char* pickMaterial  = "pick_material";
+    inline constexpr const char* pickThickness = "pick_thickness";
+    inline constexpr const char* pickAngle     = "pick_angle";
+    inline constexpr const char* pluckPosition = "pluck_position";
+    inline constexpr const char* nailVsFlesh   = "nail_vs_flesh";
+
+    // --- string noise ---------------------------------------------------------
+    inline constexpr const char* slideNoise    = "noise_slide";
+    inline constexpr const char* fretNoise     = "noise_fret";
+    inline constexpr const char* releaseNoise  = "noise_release";
+    inline constexpr const char* bodyKnock     = "noise_body_knock";
+    inline constexpr const char* pickNoise     = "noise_pick";
+    inline constexpr const char* ampBuzz       = "noise_amp_buzz";
+
+    // --- body -----------------------------------------------------------------
+    inline constexpr const char* bodyMode      = "body_mode";
+    inline constexpr const char* bodyAmount    = "body_amount";
+    inline constexpr const char* bodyWidth     = "body_width";
+    inline constexpr const char* bodyDepth     = "body_depth";
+    inline constexpr const char* bodyTopThick  = "body_top_thickness";
+    inline constexpr const char* bodySoundhole = "body_soundhole";
+    inline constexpr const char* bodyBracing   = "body_bracing";
+    inline constexpr const char* bodyTopWood   = "body_top_wood";
+    inline constexpr const char* bodyBackWood  = "body_back_wood";
+    inline constexpr const char* bodyAge       = "body_age";
+    inline constexpr const char* bodyAirGain   = "body_air_gain";
+
+    // --- pickups --------------------------------------------------------------
+    inline constexpr const char* pickupSelector = "pickup_selector";
+    inline constexpr const char* pickupBlend    = "pickup_blend";
+    inline constexpr const char* guitarTone     = "guitar_tone";
+    inline constexpr const char* guitarVolume   = "guitar_volume";
+    inline constexpr const char* coilTap        = "coil_tap";
+    inline constexpr const char* piezoMicBlend  = "piezo_mic_blend";
+
+    juce::String pickupType (int slot);
+    juce::String pickupPosition (int slot);
+    juce::String pickupHeight (int slot);
+    juce::String pickupMagnet (int slot);
+    juce::String pickupVolume (int slot);
+
+    // --- performance ----------------------------------------------------------
+    inline constexpr const char* playingMode   = "playing_mode";
+    inline constexpr const char* mpeEnabled    = "mpe_enabled";
+    inline constexpr const char* bendRange     = "bend_range";
+    inline constexpr const char* strumSpeed    = "strum_speed";
+    inline constexpr const char* strumDir      = "strum_direction";
+    inline constexpr const char* chordWindow   = "chord_window";
+    inline constexpr const char* vibratoRate   = "vibrato_rate";
+    inline constexpr const char* vibratoDepth  = "vibrato_depth";
+    inline constexpr const char* vibratoShape  = "vibrato_shape";
+    inline constexpr const char* legatoWindow  = "legato_window";
+    inline constexpr const char* slideGuitar   = "slide_guitar";
+    inline constexpr const char* freeze        = "freeze";
+
+    // --- whammy ---------------------------------------------------------------
+    inline constexpr const char* bridgeType    = "bridge_type";
+    inline constexpr const char* whammyPos     = "whammy_position";
+    inline constexpr const char* whammyDown    = "whammy_down_range";
+    inline constexpr const char* whammyUp      = "whammy_up_range";
+    inline constexpr const char* whammySprings = "whammy_springs";
+    inline constexpr const char* transposeLock = "transpose_lock";
+
+    // --- cable ----------------------------------------------------------------
+    inline constexpr const char* cableOn     = "cable_on";
+    inline constexpr const char* cableLength = "cable_length";
+
+    // --- amp ------------------------------------------------------------------
+    inline constexpr const char* ampModel    = "amp_model";
+    inline constexpr const char* ampGain     = "amp_gain";
+    inline constexpr const char* ampBass     = "amp_bass";
+    inline constexpr const char* ampMid      = "amp_mid";
+    inline constexpr const char* ampTreble   = "amp_treble";
+    inline constexpr const char* ampPresence = "amp_presence";
+    inline constexpr const char* ampMaster   = "amp_master";
+    inline constexpr const char* ampBright   = "amp_bright";
+    inline constexpr const char* ampMidBoost = "amp_mid_boost";
+    inline constexpr const char* ampStandby  = "amp_standby";
+
+    // --- cabinet --------------------------------------------------------------
+    inline constexpr const char* cabOn         = "cab_on";
+    inline constexpr const char* cabType       = "cab_type";
+    inline constexpr const char* cabSpeaker    = "cab_speaker";
+    inline constexpr const char* cabSpeakerAge = "cab_speaker_age";
+    inline constexpr const char* micType       = "mic_type";
+    inline constexpr const char* micPosition   = "mic_position";
+    inline constexpr const char* micDistance   = "mic_distance";
+    inline constexpr const char* dualMic       = "dual_mic";
+    inline constexpr const char* micType2      = "mic_type_2";
+    inline constexpr const char* micPosition2  = "mic_position_2";
+    inline constexpr const char* micDistance2  = "mic_distance_2";
+    inline constexpr const char* micBlend      = "mic_blend";
+    inline constexpr const char* micWidth      = "mic_width";
+    inline constexpr const char* micPhaseAlign = "mic_phase_align";
+
+    // --- room -----------------------------------------------------------------
+    inline constexpr const char* roomOn       = "room_on";
+    inline constexpr const char* roomSize     = "room_size";
+    inline constexpr const char* roomMaterial = "room_material";
+    inline constexpr const char* roomBlend    = "room_blend";
+    inline constexpr const char* roomDecay    = "room_decay";
+    inline constexpr const char* roomWidth    = "room_width";
+
+    // --- master ---------------------------------------------------------------
+    inline constexpr const char* masterGain  = "master_gain";
+    inline constexpr const char* limiterOn   = "limiter_on";
+    inline constexpr const char* oversample  = "oversampling";
+
+    // --- humanisation ---------------------------------------------------------
+    inline constexpr const char* humTiming    = "hum_timing";
+    inline constexpr const char* humVelocity  = "hum_velocity";
+    inline constexpr const char* humDetune    = "hum_detune";
+    inline constexpr const char* humAttack    = "hum_attack";
+    inline constexpr const char* humNoise     = "hum_noise";
+    inline constexpr const char* humStrum     = "hum_strum";
+
+    // --- feedback and doubler --------------------------------------------------
+    inline constexpr const char* feedbackOn    = "feedback_on";
+    inline constexpr const char* feedbackThres = "feedback_threshold";
+    inline constexpr const char* feedbackSpeed = "feedback_speed";
+    inline constexpr const char* doublerOn     = "doubler_on";
+    inline constexpr const char* doublerAmount = "doubler_amount";
+
+    // --- the hidden effect ------------------------------------------------------
+    inline constexpr const char* secretOn       = "secret_on";
+    inline constexpr const char* secretRate     = "secret_rate";
+    inline constexpr const char* secretDepth    = "secret_depth";
+    inline constexpr const char* secretFeedback = "secret_feedback";
+    inline constexpr const char* secretMix      = "secret_mix";
+
+    // --- effect slots ----------------------------------------------------------
+    /** `post` selects the chain; `slot` 0-7; `param` 0-9. */
+    juce::String slotType (bool post, int slot);
+    juce::String slotBypass (bool post, int slot);
+    juce::String slotMix (bool post, int slot);
+    juce::String slotParam (bool post, int slot, int param);
+}
+
+//==============================================================================
+class Parameters
+{
+public:
+    static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
+
+    /** Human-readable names for every choice list, shared by the layout and the UI. */
+    static juce::StringArray guitarTypeNames();
+    static juce::StringArray tuningNames();
+    static juce::StringArray temperamentNames();
+    static juce::StringArray stringMaterialNames();
+    static juce::StringArray stringGaugeNames();
+    static juce::StringArray stringAgeNames();
+    static juce::StringArray pickMaterialNames();
+    static juce::StringArray bodyModeNames();
+    static juce::StringArray bracingNames();
+    static juce::StringArray woodNames();
+    static juce::StringArray pickupTypeNames();
+    static juce::StringArray magnetNames();
+    static juce::StringArray pickupSelectorNames();
+    static juce::StringArray playingModeNames();
+    static juce::StringArray strumDirectionNames();
+    static juce::StringArray vibratoShapeNames();
+    static juce::StringArray bridgeTypeNames();
+    static juce::StringArray ampModelNames();
+    static juce::StringArray cabinetNames();
+    static juce::StringArray speakerNames();
+    static juce::StringArray micNames();
+    static juce::StringArray micPositionNames();
+    static juce::StringArray micDistanceNames();
+    static juce::StringArray roomSizeNames();
+    static juce::StringArray roomMaterialNames();
+    static juce::StringArray pedalTypeNames();
+    static juce::StringArray oversamplingNames();
+};
+
+//==============================================================================
+/** Reads the parameter state each block and applies it to the engine. */
+class ParameterBridge : private juce::AsyncUpdater
+{
+public:
+    ParameterBridge (juce::AudioProcessorValueTreeState& state, LuthierEngine& engine);
+    ~ParameterBridge() override;
+
+    /** Caches every raw parameter pointer. Call once, after the APVTS is built. */
+    void cachePointers();
+
+    /** Called at the top of processBlock. Real-time safe. */
+    void applyToEngine() noexcept;
+
+    /** Applies everything including structural changes. Message thread only;
+        used after a preset load. */
+    void applyAllNow();
+
+    /** True while a structural change is pending. */
+    bool isStructuralChangePending() const noexcept { return structuralPending.load(); }
+
+private:
+    void handleAsyncUpdate() override;
+    void applyStructural();
+
+    std::atomic<float>* raw (const juce::String& id) const noexcept;
+    float value (const juce::String& id) const noexcept;
+
+    juce::AudioProcessorValueTreeState& apvts;
+    LuthierEngine& engine;
+
+    juce::HashMap<juce::String, std::atomic<float>*> pointers;
+
+    // Cached structural selections, so a change is detected exactly once.
+    int lastGuitarType = -1;
+    int lastTuning = -1;
+    int lastStringMaterial = -1;
+    int lastStringGauge = -1;
+    int lastStringAge = -1;
+    int lastBodyMode = -1;
+    int lastBracing = -1;
+    int lastTopWood = -1;
+    int lastBackWood = -1;
+    int lastAmpModel = -1;
+    int lastCabType = -1;
+    int lastSpeaker = -1;
+    int lastMicType = -1, lastMicPos = -1, lastMicDist = -1;
+    int lastMicType2 = -1, lastMicPos2 = -1, lastMicDist2 = -1;
+    int lastRoomSize = -1, lastRoomMaterial = -1;
+    int lastBridgeType = -1;
+    int lastPlayingMode = -1;
+    int lastTemperament = -1;
+    int lastOversample = -1;
+    int lastPickupType[PickupEngine::kMaxPickups] = { -1, -1, -1 };
+    int lastPickupMagnet[PickupEngine::kMaxPickups] = { -1, -1, -1 };
+    int lastSlotType[2][EffectsChain::kNumSlots] = {};
+    bool structuralInitialised = false;
+
+    std::atomic<bool> structuralPending { false };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ParameterBridge)
+};
+
+} // namespace luthier

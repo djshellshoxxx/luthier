@@ -101,10 +101,13 @@ void Excitation::trigger (const Params& p, RtRandom& rng) noexcept
     const double jitterMs = 0.5 + rng.nextDouble() * 1.5;
     pluckLen += (int) (jitterMs * 0.001 * sr * (rng.nextBipolar() * 0.35));
 
-    const int combDelay = 2 * pluckLen;
-    pluckLen = juce::jlimit (3, juce::jmax (3, (capacity - 8) / 3), pluckLen);
+    // Clamp BEFORE deriving anything from it. A very high note gives a pluck only
+    // a few samples long, and the jitter above can then take it negative - which
+    // would make the comb delay and the total length negative too.
+    pluckLen = juce::jlimit (3, juce::jmax (3, (capacity - 16) / 3), pluckLen);
 
-    const int total = juce::jmin (capacity - 1, pluckLen + combDelay + 8);
+    const int combDelay = 2 * pluckLen;
+    const int total = juce::jlimit (1, capacity - 1, pluckLen + combDelay + 8);
 
     // ---- 2. Triangle displacement -------------------------------------------
     // Apex position follows the pick angle: a parallel attack gives a sharp,
@@ -157,7 +160,10 @@ void Excitation::trigger (const Params& p, RtRandom& rng) noexcept
     // ---- 5. Material and velocity shaping ------------------------------------
     // Harder playing is brighter: the contact corner sharpens, so the effective
     // contact bandwidth rises. This is identity rule 5.
-    const double velBright = 0.55 + 0.75 * vel;
+    // A hard pluck deforms the string into a much sharper corner than a soft
+    // one, so the contact bandwidth moves by well over an octave across the
+    // velocity range. A narrower mapping makes velocity read as volume alone.
+    const double velBright = 0.45 + 1.15 * vel;
     const double brightTrim = 0.60 + 1.10 * juce::jlimit (0.0, 1.0, p.brightness);
     const double thicknessTrim = 1.25 - 0.55 * juce::jlimit (0.0, 1.0, p.pickThickness);
     const double angleTrim = 1.15 - 0.45 * juce::jlimit (0.0, 1.0, p.pickAngle);

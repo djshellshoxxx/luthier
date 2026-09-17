@@ -14,6 +14,7 @@
 */
 
 #include "../Common/DspCommon.h"
+#include "../Common/ConvolutionInstaller.h"
 #include <atomic>
 #include <memory>
 
@@ -120,9 +121,14 @@ private:
         std::unique_ptr<juce::dsp::Convolution> convolution;
         std::atomic<bool> loaded { false };
 
+        // Held while an impulse response is swapped in. The loading thread takes
+        // it and blocks; the audio thread try-locks and uses the fallback for the
+        // one block a swap can overlap, so neither ever waits on the other.
+        juce::SpinLock convolutionLock;
+
         // Procedural fallback: a speaker is a bandpass with a cone-breakup peak
         // and a sharp roll-off above it.
-        Biquad lowShelf, bodyPeak, presencePeak, topRoll, highpass;
+        Biquad lowShelf, bodyPeak, presencePeak, topRoll, topRoll2, highpass;
 
         void prepareFallback (double sr, const CabinetConfig& cfg) noexcept;
         void resetFallback() noexcept;
@@ -132,7 +138,10 @@ private:
             y = lowShelf.process (y);
             y = bodyPeak.process (y);
             y = presencePeak.process (y);
-            return topRoll.process (y);
+            // Two cascaded poles: a guitar speaker falls off far faster than
+            // 12 dB/octave above cone breakup, and that steepness is most of
+            // what separates a cabinet from a tweeter.
+            return topRoll2.process (topRoll.process (y));
         }
     };
 
@@ -140,6 +149,7 @@ private:
 
     double sr = 44100.0;
     int maxBlock = 512;
+    bool prepared = false;
     bool enabled = true;
     bool dualMic = false;
 

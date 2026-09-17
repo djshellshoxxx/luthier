@@ -80,6 +80,12 @@ void StringEngine::reset() noexcept
     harmonicPartial = 0;
     couplingReceptivity = 1.0;
 
+    // Reseed, so that resetting really does return to a known state. Without
+    // this the humanisation noise carries over and two renders of the same
+    // preset differ - which would make offline regression testing impossible.
+    rng.setSeed (0x51E3D00Dull + (uint64_t) stringIndex * 7919ull);
+    lastCoefficientHz = 0.0;
+
     smoothedDelay.snapTo (sr / juce::jmax (1.0, targetHz));
     needsLoopUpdate = true;
 }
@@ -220,6 +226,8 @@ void StringEngine::updateLoopCoefficients() noexcept
     needsLoopUpdate = false;
 
     const double f0 = juce::jmax (constants::kMinStringHz, getCurrentFrequency());
+    lastCoefficientHz = f0;
+
     const double loopSamples = sr / f0;
 
     // ---- loop filter cutoff -------------------------------------------------
@@ -308,11 +316,19 @@ double StringEngine::processSample (double couplingInput) noexcept
         stealGain = 1.0;
     }
 
-    // Recompute loop coefficients when the pitch or articulation has moved. The
-    // delay smoother moves every sample during a bend, so rate-limit on a real
-    // change in the target rather than on the smoother being busy.
-    if (needsLoopUpdate || smoothedDelay.isSmoothing())
+    // Recompute the loop coefficients only when they would actually change.
+    //
+    // The delay length is updated every sample, because that is the pitch and a
+    // step there would be audible. The loss gain and the filter cutoff are not:
+    // they move smoothly with pitch and each recomputation costs a pow() and two
+    // exp(). Bending a note used to redo that every sample on every string,
+    // which was most of the engine's CPU for no audible benefit. The 0.2%
+    // threshold is about three and a half cents.
+    if (needsLoopUpdate
+        || std::abs (targetHz - lastCoefficientHz) > lastCoefficientHz * 0.002)
+    {
         updateLoopCoefficients();
+    }
 
     // ---- read the waveguide --------------------------------------------------
     const double delaySamples = smoothedDelay.next();

@@ -31,6 +31,7 @@ void BodyEngine::prepare (double sampleRate, int maxBlockSize)
     spec.numChannels = 2;
 
     convolution->prepare (spec);
+    prepared = true;
 
     for (auto& r : resonators)
         r.prepare (sr);
@@ -54,7 +55,15 @@ void BodyEngine::prepare (double sampleRate, int maxBlockSize)
 
 void BodyEngine::reset() noexcept
 {
-    convolution->reset();
+    // A try-lock, so this is safe to call from anywhere. If a response is being
+    // swapped in right now there is nothing to clear: the swap resets the
+    // convolution itself once it completes.
+    {
+        const juce::SpinLock::ScopedTryLockType lock (convolutionLock);
+
+        if (lock.isLocked())
+            convolution->reset();
+    }
 
     for (auto& r : resonators)
         r.reset();
@@ -63,6 +72,9 @@ void BodyEngine::reset() noexcept
     dcLeft.reset();
     dcRight.reset();
     wetBuffer.clear();
+
+    amountSmooth.snapToTarget();
+    gainSmooth.snapToTarget();
 }
 
 //==============================================================================
@@ -152,11 +164,29 @@ bool BodyEngine::loadImpulseResponse (const juce::File& file)
         return false;
     }
 
+    // Until the response is actually installed the convolution is a unit impulse,
+    // which would pass the strings through with no body on them at all. Keep it
+    // out of the path until the swap has really happened.
+    irLoaded.store (false);
+
+    const juce::SpinLock::ScopedLockType lock (convolutionLock);
+
+    if (prepared)
+        ConvolutionInstaller::installUnitImpulse (*convolution, sr, 2, maxBlock);
+
     convolution->loadImpulseResponse (file,
                                       juce::dsp::Convolution::Stereo::yes,
                                       juce::dsp::Convolution::Trim::yes,
                                       0,
                                       juce::dsp::Convolution::Normalise::yes);
+
+    if (prepared)
+    {
+        if (! ConvolutionInstaller::pumpUntilInstalled (*convolution, 2, maxBlock, 1))
+            return false;
+
+        convolution->reset();
+    }
 
     loadedIrName = file.getFileNameWithoutExtension();
     irLoaded.store (true);
@@ -174,11 +204,26 @@ void BodyEngine::loadImpulseResponse (const float* samples, int numSamples, doub
     juce::AudioBuffer<float> ir (1, numSamples);
     ir.copyFrom (0, 0, samples, numSamples);
 
+    irLoaded.store (false);
+
+    const juce::SpinLock::ScopedLockType lock (convolutionLock);
+
+    if (prepared)
+        ConvolutionInstaller::installUnitImpulse (*convolution, sr, 2, maxBlock);
+
     convolution->loadImpulseResponse (std::move (ir),
                                       irSampleRate,
                                       juce::dsp::Convolution::Stereo::no,
                                       juce::dsp::Convolution::Trim::no,
                                       juce::dsp::Convolution::Normalise::yes);
+
+    if (prepared)
+    {
+        if (! ConvolutionInstaller::pumpUntilInstalled (*convolution, 2, maxBlock, 1))
+            return;
+
+        convolution->reset();
+    }
 
     irLoaded.store (true);
 }
@@ -227,10 +272,15 @@ void BodyEngine::processBlock (juce::dsp::AudioBlock<float>& block) noexcept
     auto wetSub = wet.getSubBlock (0, (size_t) numSamples);
 
     // ---- convolution path ---------------------------------------------------
-    if ((mode == Mode::Convolution || mode == Mode::Hybrid) && irLoaded.load())
+    if (mode == Mode::Convolution || mode == Mode::Hybrid)
     {
-        juce::dsp::ProcessContextReplacing<float> ctx (wetSub);
-        convolution->process (ctx);
+        const juce::SpinLock::ScopedTryLockType lock (convolutionLock);
+
+        if (irLoaded.load() && lock.isLocked())
+        {
+            juce::dsp::ProcessContextReplacing<float> ctx (wetSub);
+            convolution->process (ctx);
+        }
     }
 
     // ---- modal path ----------------------------------------------------------

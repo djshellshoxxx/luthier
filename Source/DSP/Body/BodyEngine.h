@@ -15,6 +15,7 @@
 */
 
 #include "../Common/DspCommon.h"
+#include "../Common/ConvolutionInstaller.h"
 #include "../../Model/Guitar/BodyModels.h"
 #include <atomic>
 #include <vector>
@@ -110,6 +111,7 @@ private:
 
     double sr = 44100.0;
     int maxBlock = 512;
+    bool prepared = false;
 
     Mode mode = Mode::Convolution;
     BodyConfig config;
@@ -118,6 +120,10 @@ private:
     std::unique_ptr<juce::dsp::Convolution> convolution;
     std::atomic<bool> irLoaded { false };
     juce::String loadedIrName;
+
+    // Held while a response is swapped in; the audio thread try-locks and leaves
+    // the convolution out of the path for the one block a swap can overlap.
+    juce::SpinLock convolutionLock;
 
     // --- modal ---------------------------------------------------------------
     std::array<ModalResonator, BodyModels::kMaxModes> resonators;

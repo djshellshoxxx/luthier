@@ -21,7 +21,16 @@ namespace luthier
 {
 
 //==============================================================================
-/** Second-order all-pass section of the form y[n] = a*(x[n] + y[n-2]) - x[n-2]. */
+/** Second-order all-pass section, H(z) = (a + z^-2) / (1 + a z^-2).
+
+    In difference-equation form that is
+
+        y[n] = a * (x[n] - y[n-2]) + x[n-2]
+
+    The signs matter. The mirror-image form `a*(x + y[n-2]) - x[n-2]` is also a
+    stable all-pass, but its phase response is not the one the half-band pair
+    needs, so the two branches stop being complementary and the filter passes the
+    images it is supposed to remove. There is a test that measures the aliasing. */
 struct PolyphaseSection
 {
     double a = 0.0;
@@ -29,7 +38,7 @@ struct PolyphaseSection
 
     inline double process (double x) noexcept
     {
-        const double y = a * (x + y2) - x2;
+        const double y = a * (x - y2) + x2;
         x2 = x1; x1 = x;
         y2 = y1; y1 = flushDenormal (y);
         return y;

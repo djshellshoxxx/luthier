@@ -1,0 +1,427 @@
+#pragma once
+
+/*  Overlays: help, options, debug, export, the preset browser, the chord library,
+    the tab display and the hidden effect.
+
+    Build spec: "Every overlay dismissible by Escape, click-outside, and visible
+    close button. Never stuck. Only one overlay visible at a time."
+
+    That is enforced structurally rather than by convention. OverlayHost owns the
+    scrim and shows exactly one panel; every panel derives from OverlayPanel, which
+    provides the title bar, the close button and the Escape handler. A panel cannot
+    be shown without them.
+*/
+
+#include <juce_gui_basics/juce_gui_basics.h>
+#include "Widgets.h"
+#include "../DSP/Common/DspCommon.h"
+
+namespace luthier
+{
+
+class LuthierAudioProcessor;
+
+//==============================================================================
+class OverlayPanel : public juce::Component
+{
+public:
+    explicit OverlayPanel (const juce::String& title);
+    ~OverlayPanel() override;
+
+    /** Called by the host when the panel is about to be shown. */
+    virtual void overlayShown() {}
+
+    /** Called when it is dismissed, however that happened. */
+    virtual void overlayHidden() {}
+
+    /** Preferred size; the host centres the panel at this size where it fits. */
+    virtual juce::Point<int> getPreferredSize() const { return { 720, 520 }; }
+
+    std::function<void()> onDismiss;
+
+    void paint (juce::Graphics&) override;
+    void resized() override;
+    bool keyPressed (const juce::KeyPress&) override;
+
+    /** The area inside the title bar and padding, where subclasses put content. */
+    juce::Rectangle<int> getContentBounds() const;
+
+protected:
+    /** Subclasses lay their content out here rather than in resized(). */
+    virtual void layoutContent (juce::Rectangle<int> content) { juce::ignoreUnused (content); }
+
+    juce::String title;
+
+private:
+    juce::TextButton closeButton { "Close" };
+
+    static constexpr int titleBarHeight = 40;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OverlayPanel)
+};
+
+//==============================================================================
+/** Owns the scrim and guarantees that at most one overlay is visible. */
+class OverlayHost : public juce::Component
+{
+public:
+    OverlayHost();
+    ~OverlayHost() override;
+
+    /** Shows a panel. Any panel already up is dismissed first. The host does not
+        take ownership; the caller keeps the panel alive. */
+    void show (OverlayPanel* panel);
+
+    void dismiss();
+
+    bool isShowingOverlay() const noexcept { return current != nullptr; }
+    OverlayPanel* getCurrentOverlay() const noexcept { return current; }
+
+    void paint (juce::Graphics&) override;
+    void resized() override;
+    void mouseDown (const juce::MouseEvent&) override;
+
+private:
+    OverlayPanel* current = nullptr;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OverlayHost)
+};
+
+//==============================================================================
+/** Help: what everything does, how to use it, licence, links and troubleshooting. */
+class HelpPanel : public OverlayPanel
+{
+public:
+    explicit HelpPanel (LuthierAudioProcessor& processor);
+
+    juce::Point<int> getPreferredSize() const override { return { 860, 600 }; }
+
+    std::function<void()> onOpenDebug;
+
+protected:
+    void layoutContent (juce::Rectangle<int> content) override;
+
+private:
+    void showSection (int index);
+
+    LuthierAudioProcessor& processor;
+
+    juce::ListBox sectionList;
+    juce::TextEditor body;
+    juce::TextButton debugButton { "Open Debug Tools" };
+    juce::TextButton githubButton { "GitHub" };
+    juce::TextButton homepageButton { "Homepage" };
+    juce::TextButton supportButton { "Email Support" };
+
+    class SectionListModel : public juce::ListBoxModel
+    {
+    public:
+        explicit SectionListModel (HelpPanel& o) : owner (o) {}
+        int getNumRows() override;
+        void paintListBoxItem (int row, juce::Graphics&, int width, int height, bool selected) override;
+        void selectedRowsChanged (int lastRow) override;
+
+    private:
+        HelpPanel& owner;
+    };
+
+    SectionListModel listModel { *this };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HelpPanel)
+};
+
+//==============================================================================
+/** The debug window: live internals, crash logging and the destructive reset. */
+class DebugPanel : public OverlayPanel,
+                   private juce::Timer
+{
+public:
+    explicit DebugPanel (LuthierAudioProcessor& processor);
+    ~DebugPanel() override;
+
+    juce::Point<int> getPreferredSize() const override { return { 900, 620 }; }
+
+    void overlayShown() override;
+    void overlayHidden() override;
+
+protected:
+    void layoutContent (juce::Rectangle<int> content) override;
+
+private:
+    void timerCallback() override;
+    void refreshState();
+
+    LuthierAudioProcessor& processor;
+
+    juce::TextEditor stateView, streamView;
+    juce::ToggleButton crashLogToggle { "Create log file on crash" };
+    juce::TextButton troubleshootButton { "Export troubleshooting file" };
+    juce::TextButton openFolderButton { "Open diagnostics folder" };
+    juce::TextButton hardResetButton { "Reset all settings and clear caches" };
+    juce::TextButton clearButton { "Clear stream" };
+    juce::Label explanation;
+
+    int lastStreamCount = 0;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DebugPanel)
+};
+
+//==============================================================================
+/** Options: tooltips, audio and MIDI device selection (standalone), folders. */
+class OptionsPanel : public OverlayPanel
+{
+public:
+    explicit OptionsPanel (LuthierAudioProcessor& processor);
+
+    juce::Point<int> getPreferredSize() const override { return { 720, 560 }; }
+
+    void overlayShown() override;
+
+protected:
+    void layoutContent (juce::Rectangle<int> content) override;
+
+private:
+    LuthierAudioProcessor& processor;
+
+    juce::ToggleButton tooltipsToggle { "Show tooltips on hover" };
+    juce::ToggleButton driftToggle { "Let the tuning drift while playing" };
+
+    LuthierChoice oversampling { "Oversampling" };
+    LuthierKnob chordWindow { "Chord Window" };
+
+    juce::TextButton openUserFolder { "Open user preset folder" };
+    juce::TextButton openRenderFolder { "Open render folder" };
+    juce::TextButton openFactoryFolder { "Open factory preset folder" };
+    juce::TextButton addFolderButton { "Add a preset folder..." };
+    juce::TextButton rescanButton { "Rescan presets" };
+    juce::TextButton audioSettingsButton { "Audio and MIDI settings..." };
+
+    juce::Label presetPathLabel, audioNote;
+    juce::ListBox folderList;
+
+    class FolderListModel : public juce::ListBoxModel
+    {
+    public:
+        explicit FolderListModel (OptionsPanel& o) : owner (o) {}
+        int getNumRows() override;
+        void paintListBoxItem (int row, juce::Graphics&, int width, int height, bool selected) override;
+
+    private:
+        OptionsPanel& owner;
+    };
+
+    FolderListModel folderModel { *this };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OptionsPanel)
+};
+
+//==============================================================================
+/** Audio export, with format, depth, rate, length, normalise and the source. */
+class ExportPanel : public OverlayPanel,
+                    private juce::Timer
+{
+public:
+    explicit ExportPanel (LuthierAudioProcessor& processor);
+    ~ExportPanel() override;
+
+    juce::Point<int> getPreferredSize() const override { return { 620, 480 }; }
+
+    void overlayShown() override;
+
+protected:
+    void layoutContent (juce::Rectangle<int> content) override;
+
+private:
+    void timerCallback() override;
+    void startExport();
+    void updateEstimate();
+
+    LuthierAudioProcessor& processor;
+
+    juce::ComboBox sourceBox, formatBox, bitDepthBox, sampleRateBox, phraseBox;
+    juce::Slider tailSlider;
+    juce::ToggleButton normaliseToggle { "Normalise" };
+    juce::Slider normaliseTarget;
+    juce::TextEditor fileNameEditor;
+    juce::TextButton chooseFolderButton { "Folder..." };
+    juce::TextButton exportButton { "Export" };
+    juce::TextButton cancelButton { "Cancel" };
+    juce::Label statusLabel, estimateLabel;
+    juce::ProgressBar progressBar { progress };
+
+    juce::File destinationFolder;
+    juce::File importedMidiFile;
+    double progress = 0.0;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ExportPanel)
+};
+
+//==============================================================================
+/** The preset browser: categories, search, tags, load, delete. */
+class PresetBrowserPanel : public OverlayPanel,
+                           private juce::ChangeListener
+{
+public:
+    explicit PresetBrowserPanel (LuthierAudioProcessor& processor);
+    ~PresetBrowserPanel() override;
+
+    juce::Point<int> getPreferredSize() const override { return { 780, 560 }; }
+
+    /** Raised when the user asks to save the current sound as a new preset. */
+    std::function<void()> saveAsPanelRequested;
+
+    void overlayShown() override;
+
+protected:
+    void layoutContent (juce::Rectangle<int> content) override;
+
+private:
+    void changeListenerCallback (juce::ChangeBroadcaster*) override;
+    void rebuildList();
+    void loadSelected();
+
+    LuthierAudioProcessor& processor;
+
+    juce::TextEditor searchBox;
+    juce::ComboBox categoryBox;
+    juce::ListBox list;
+    juce::Label description;
+    juce::TextButton loadButton { "Load" };
+    juce::TextButton deleteButton { "Delete" };
+    juce::TextButton saveAsButton { "Save As..." };
+
+    juce::Array<int> visibleIndices;
+
+    class PresetListModel : public juce::ListBoxModel
+    {
+    public:
+        explicit PresetListModel (PresetBrowserPanel& o) : owner (o) {}
+        int getNumRows() override;
+        void paintListBoxItem (int row, juce::Graphics&, int width, int height, bool selected) override;
+        void listBoxItemDoubleClicked (int row, const juce::MouseEvent&) override;
+        void selectedRowsChanged (int lastRow) override;
+
+    private:
+        PresetBrowserPanel& owner;
+    };
+
+    PresetListModel listModel { *this };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PresetBrowserPanel)
+};
+
+//==============================================================================
+/** Save As: name, category, description and tags. */
+class SaveAsPanel : public OverlayPanel
+{
+public:
+    explicit SaveAsPanel (LuthierAudioProcessor& processor);
+
+    juce::Point<int> getPreferredSize() const override { return { 520, 320 }; }
+
+    void overlayShown() override;
+
+protected:
+    void layoutContent (juce::Rectangle<int> content) override;
+
+private:
+    LuthierAudioProcessor& processor;
+
+    juce::TextEditor nameEditor, descriptionEditor, tagsEditor;
+    juce::ComboBox categoryBox;
+    juce::TextButton saveButton { "Save" };
+    juce::Label status;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SaveAsPanel)
+};
+
+//==============================================================================
+/** The chord library and the live tab display. */
+class ChordAndTabPanel : public OverlayPanel,
+                         private juce::Timer
+{
+public:
+    explicit ChordAndTabPanel (LuthierAudioProcessor& processor);
+    ~ChordAndTabPanel() override;
+
+    juce::Point<int> getPreferredSize() const override { return { 800, 560 }; }
+
+    void overlayShown() override;
+
+protected:
+    void layoutContent (juce::Rectangle<int> content) override;
+
+private:
+    void timerCallback() override;
+    void captureTabColumn();
+
+    LuthierAudioProcessor& processor;
+
+    juce::TextEditor searchBox;
+    juce::ListBox chordList;
+    juce::Component chordDiagram;
+    juce::TextEditor tabView;
+    juce::TextButton clearTabButton { "Clear tab" };
+    juce::TextButton exportTabButton { "Export tab" };
+    juce::ToggleButton recordTabToggle { "Capture what I play" };
+
+    juce::Array<int> matches;
+    int selectedChord = 0;
+
+    juce::StringArray tabLines;
+    std::array<int, kMaxStrings> lastNotes {};
+
+    class ChordListModel : public juce::ListBoxModel
+    {
+    public:
+        explicit ChordListModel (ChordAndTabPanel& o) : owner (o) {}
+        int getNumRows() override;
+        void paintListBoxItem (int row, juce::Graphics&, int width, int height, bool selected) override;
+        void selectedRowsChanged (int lastRow) override;
+
+    private:
+        ChordAndTabPanel& owner;
+    };
+
+    class DiagramComponent : public juce::Component
+    {
+    public:
+        explicit DiagramComponent (ChordAndTabPanel& o) : owner (o) {}
+        void paint (juce::Graphics&) override;
+
+    private:
+        ChordAndTabPanel& owner;
+    };
+
+    ChordListModel listModel { *this };
+    DiagramComponent diagram { *this };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChordAndTabPanel)
+};
+
+//==============================================================================
+/** The hidden effect, revealed by clicking one specific pixel. */
+class SecretPanel : public OverlayPanel
+{
+public:
+    explicit SecretPanel (LuthierAudioProcessor& processor);
+
+    juce::Point<int> getPreferredSize() const override { return { 560, 300 }; }
+
+protected:
+    void layoutContent (juce::Rectangle<int> content) override;
+
+private:
+    LuthierAudioProcessor& processor;
+
+    LuthierKnob rateKnob { "Warp Rate" };
+    LuthierKnob depthKnob { "Warp Depth" };
+    LuthierKnob feedbackKnob { "Regeneration" };
+    LuthierKnob mixKnob { "Mix" };
+    LuthierToggle enableToggle { "Engage" };
+    juce::Label blurb;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SecretPanel)
+};
+
+} // namespace luthier

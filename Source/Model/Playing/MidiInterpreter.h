@@ -1,0 +1,244 @@
+#pragma once
+
+/*  MIDI Interpreter (engine spec 2).
+
+    Turns the host's MidiBuffer into typed, string-addressed events. It owns the
+    three playing modes, MPE handling, the technique controller map, and the strum
+    simulation.
+
+    Chord grouping: in Poly mode, note-ons that land within a short window are
+    voiced together as one chord. The window is held across block boundaries so a
+    chord split by a buffer edge still voices as a chord; the cost is that Poly mode
+    carries up to `chordWindowMs` of extra latency (2 ms by default), which is
+    reported to the host along with everything else.
+*/
+
+#include "PlayingEvents.h"
+#include "TuningEngine.h"
+#include "TechniqueEngine.h"
+#include "ChordVoicer.h"
+#include <array>
+
+namespace luthier
+{
+
+//==============================================================================
+/** What a performance controller is wired to. These are the continuous gestures
+    that belong to the instrument, as distinct from generic parameter automation,
+    which the MIDI Learn system handles separately. */
+enum class MidiTarget
+{
+    None,
+    VibratoDepth,
+    VibratoRate,
+    WhammyBar,
+    Expression,
+    MasterLevel,
+    PalmMute,
+    MutedPick,
+    PickPosition,
+    SlideToggle,
+    SlideGuitarToggle,
+    PinchHarmonic,
+    NaturalHarmonic,
+    Tap,
+    StrumSpeed,
+    StrumDirection,
+    Humanize,
+    Drive,
+    Tone,
+    Space,
+    Body,
+    Attack,
+    NumTargets
+};
+
+const char* getMidiTargetName (MidiTarget t) noexcept;
+
+//==============================================================================
+class MidiInterpreter
+{
+public:
+    void prepare (double sampleRate, int numStrings);
+    void reset() noexcept;
+
+    void setNumStrings (int n) noexcept;
+    int getNumStrings() const noexcept { return numStrings; }
+
+    void setEngines (TuningEngine* tuning, TechniqueEngine* technique, ChordVoicer* voicer) noexcept;
+
+    //==========================================================================
+    void setPlayingMode (PlayingMode m) noexcept;
+    PlayingMode getPlayingMode() const noexcept { return mode; }
+
+    void setMpeEnabled (bool e) noexcept { mpeEnabled = e; }
+    bool isMpeEnabled() const noexcept { return mpeEnabled; }
+
+    /** Pitch-bend range in semitones. MPE controllers default to 48. */
+    void setPitchBendRange (double semitones) noexcept;
+    double getPitchBendRange() const noexcept { return bendRangeSemitones; }
+
+    /** Per-string bend range, for guitar controller mode. */
+    void setStringBendRange (int stringIndex, double semitones) noexcept;
+
+    //==========================================================================
+    void setCcTarget (int ccNumber, MidiTarget target) noexcept;
+    MidiTarget getCcTarget (int ccNumber) const noexcept;
+    void resetCcMapToDefaults() noexcept;
+
+    /** Aftertouch can drive vibrato depth (default) or bend. */
+    void setAftertouchTarget (MidiTarget t) noexcept { aftertouchTarget = t; }
+    MidiTarget getAftertouchTarget() const noexcept { return aftertouchTarget; }
+
+    //==========================================================================
+    void setChordWindowMs (double ms) noexcept;
+    double getChordWindowMs() const noexcept { return chordWindowMs; }
+
+    void setStrumSpeedMs (double msPerString) noexcept;
+    double getStrumSpeedMs() const noexcept { return strumSpeedMs; }
+
+    void setStrumDirection (StrumDirection d) noexcept { strumDirection = d; }
+    StrumDirection getStrumDirection() const noexcept { return strumDirection; }
+
+    /** Latency the chord window adds, in samples. */
+    int getLatencySamples() const noexcept;
+
+    //==========================================================================
+    /** Humanisation, applied to the events as they are generated. */
+    struct Humanisation
+    {
+        double timingJitterMs = 3.0;
+        double velocityVariation = 0.08;
+        double microDetuneCents = 2.5;
+        double attackVariation = 0.10;
+        double stringNoiseProbability = 0.25;
+        double strumSpeedVariation = 0.20;
+        double amount = 1.0;           ///< Master scaler on all of the above.
+    };
+
+    void setHumanisation (const Humanisation& h) noexcept { humanise = h; }
+    const Humanisation& getHumanisation() const noexcept { return humanise; }
+
+    //==========================================================================
+    /** Parses one block. `blockStartSample` is the absolute sample position of the
+        start of the block, used for technique timing across blocks. */
+    void processBlock (const juce::MidiBuffer& midi,
+                       int numSamples,
+                       int64_t blockStartSample,
+                       PlayEventQueue& out) noexcept;
+
+    //==========================================================================
+    // Live state the engine and UI read back.
+
+    bool isSustainPedalDown() const noexcept { return sustainDown; }
+    bool isSostenutoDown() const noexcept { return sostenutoDown; }
+    double getVibratoDepth() const noexcept { return vibratoDepth; }
+    double getVibratoRate() const noexcept { return vibratoRate; }
+    double getWhammyPosition() const noexcept { return whammyPosition; }
+    double getExpression() const noexcept { return expressionValue; }
+    double getPickPosition() const noexcept { return pickPosition; }
+
+    /** Per-string bend in cents, including MPE per-note bend. */
+    double getStringBendCents (int stringIndex) const noexcept;
+
+    /** True if any note arrived during the last block, for the MIDI-in LED. */
+    bool consumeActivityFlag() noexcept { const bool a = activity; activity = false; return a; }
+
+    /** Notes currently sounding, for the fretboard display. */
+    int getActiveNoteCount() const noexcept { return activeNoteCount; }
+
+    /** Which MIDI note is on a given string, or -1. */
+    int getStringMidiNote (int stringIndex) const noexcept;
+
+    /** The last chord the voicer identified, for the UI. */
+    juce::String getLastChordName() const { return lastChordName; }
+
+    /** Panic: releases everything. */
+    void allNotesOff (PlayEventQueue& out) noexcept;
+
+private:
+    struct PendingNote
+    {
+        int midiNote = 60;
+        int channel = 1;
+        double velocity = 0.8;
+        int64_t timestamp = 0;
+        bool used = false;
+    };
+
+    struct StringSlot
+    {
+        int midiNote = -1;
+        int channel = -1;
+        bool held = false;
+        bool sostenutoHeld = false;
+        double bendCents = 0.0;
+        double pressure = 0.0;
+        double timbre = 0.0;
+    };
+
+    void handleNoteOn (int midiNote, int channel, double velocity,
+                       int64_t timestamp, int blockOffset, PlayEventQueue& out) noexcept;
+    void handleNoteOff (int midiNote, int channel, int blockOffset, PlayEventQueue& out) noexcept;
+    void handleController (int cc, int value, int channel, int blockOffset, PlayEventQueue& out) noexcept;
+    void applyTarget (MidiTarget target, double value, int blockOffset, PlayEventQueue& out) noexcept;
+
+    void flushChordGroup (int64_t upToSample, int blockOffset, int numSamples, PlayEventQueue& out) noexcept;
+    void emitVoicedNote (const VoicedNote& note, int64_t timestamp, int blockOffset,
+                         int extraDelaySamples, PlayEventQueue& out) noexcept;
+
+    int stringForChannel (int channel) const noexcept;
+    void releaseString (int stringIndex, int blockOffset, PlayEventQueue& out) noexcept;
+
+    double sr = 44100.0;
+    int numStrings = 6;
+
+    TuningEngine* tuning = nullptr;
+    TechniqueEngine* technique = nullptr;
+    ChordVoicer* voicer = nullptr;
+
+    PlayingMode mode = PlayingMode::Poly;
+    bool mpeEnabled = false;
+
+    double bendRangeSemitones = 2.0;
+    std::array<double, kMaxStrings> stringBendRange {};
+
+    std::array<MidiTarget, 128> ccMap {};
+    MidiTarget aftertouchTarget = MidiTarget::VibratoDepth;
+
+    std::array<StringSlot, kMaxStrings> slots {};
+
+    // Chord grouping
+    static constexpr int kMaxPending = 16;
+    std::array<PendingNote, kMaxPending> pending {};
+    int numPending = 0;
+    double chordWindowMs = 2.0;
+    int chordWindowSamples = 96;
+
+    double strumSpeedMs = 9.0;
+    StrumDirection strumDirection = StrumDirection::Down;
+    bool nextStrumIsUp = false;
+
+    // Controller state
+    bool sustainDown = false;
+    bool sostenutoDown = false;
+    double vibratoDepth = 0.0;
+    double vibratoRate = 5.0;
+    double whammyPosition = 0.0;
+    double expressionValue = 0.5;
+    double pickPosition = 0.5;
+    double globalBendCents = 0.0;
+
+    bool activity = false;
+    int activeNoteCount = 0;
+    int lastMonoString = -1;
+
+    juce::String lastChordName;
+
+    RtRandom rng { 0x4D1D1ull };
+    Humanisation humanise;
+
+    JUCE_LEAK_DETECTOR (MidiInterpreter)
+};
+
+} // namespace luthier

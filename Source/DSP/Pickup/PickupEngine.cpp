@@ -170,6 +170,15 @@ void PickupEngine::reset() noexcept
     micBody.reset();
     outputDc.reset();
     humPhase = 0.0;
+
+    toneAmount.snapToTarget();
+    volumeAmount.snapToTarget();
+    blendAmount.snapToTarget();
+    piezoMicBlend.snapToTarget();
+    humLevel.snapToTarget();
+
+    for (auto& g : slotGain)
+        g.snapToTarget();
 }
 
 //==============================================================================

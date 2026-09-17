@@ -321,6 +321,11 @@ public:
 
     void setTarget (double t) noexcept { target = t; }
     void snapTo (double v) noexcept    { target = v; value = v; }
+
+    /** Jumps to wherever the target already is. Called from reset(), so that
+        resetting leaves no ramp in flight - two renders of the same state then
+        produce the same audio, which offline rendering depends on. */
+    void snapToTarget() noexcept       { value = target; }
     double getTarget() const noexcept  { return target; }
     double getCurrent() const noexcept { return value; }
 
@@ -361,6 +366,7 @@ public:
     }
 
     void snapTo (double v) noexcept     { value = target = v; countdown = 0; step = 0.0; }
+    void snapToTarget() noexcept        { value = target; countdown = 0; step = 0.0; }
     double getCurrent() const noexcept  { return value; }
     double getTarget() const noexcept   { return target; }
 

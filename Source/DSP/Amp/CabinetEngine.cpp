@@ -138,6 +138,7 @@ void CabinetEngine::MicPath::prepareFallback (double sr, const CabinetConfig& cf
         bodyPeak.setPeaking (sr, 300.0, 1.0, 0.0);
         presencePeak.setPeaking (sr, 4000.0, 0.8, 1.0);
         topRoll.setLowpass (sr, juce::jmin (18000.0, sr * 0.47), 0.707);
+        topRoll2.setLowpass (sr, juce::jmin (19000.0, sr * 0.48), 0.707);
         return;
     }
 
@@ -149,7 +150,9 @@ void CabinetEngine::MicPath::prepareFallback (double sr, const CabinetConfig& cf
 
     // The steep top-end roll-off is the single most recognisable feature of a
     // guitar cabinet; a 12" speaker is effectively a brick wall above 5 kHz.
-    topRoll.setLowpass (sr, juce::jmin (sp.topRollHz * topTrim, juce::jmin (mic.topHz, sr * 0.46)), 1.1);
+    const double corner = juce::jmin (sp.topRollHz * topTrim, juce::jmin (mic.topHz, sr * 0.46));
+    topRoll.setLowpass (sr, corner, 1.1);
+    topRoll2.setLowpass (sr, juce::jmin (corner * 1.15, sr * 0.47), 0.62);
 }
 
 void CabinetEngine::MicPath::resetFallback() noexcept
@@ -158,10 +161,19 @@ void CabinetEngine::MicPath::resetFallback() noexcept
     bodyPeak.reset();
     presencePeak.reset();
     topRoll.reset();
+    topRoll2.reset();
     highpass.reset();
 
     if (convolution != nullptr)
-        convolution->reset();
+    {
+        // A try-lock, so a reset is safe from any thread. If a response is being
+        // swapped in right now there is nothing to clear: the swap resets the
+        // convolution itself once it completes.
+        const juce::SpinLock::ScopedTryLockType lock (convolutionLock);
+
+        if (lock.isLocked())
+            convolution->reset();
+    }
 }
 
 //==============================================================================
@@ -177,6 +189,7 @@ void CabinetEngine::prepare (double sampleRate, int maxBlockSize)
 
     pathA.convolution->prepare (spec);
     pathB.convolution->prepare (spec);
+    prepared = true;
 
     blendSmooth.prepare (sr, constants::kParamSmoothSeconds);
     widthSmooth.prepare (sr, constants::kParamSmoothSeconds);
@@ -213,6 +226,9 @@ void CabinetEngine::reset() noexcept
 
     dcL.reset();
     dcR.reset();
+
+    blendSmooth.snapToTarget();
+    widthSmooth.snapToTarget();
 }
 
 void CabinetEngine::rebuildFallbacks() noexcept
@@ -267,11 +283,29 @@ bool CabinetEngine::loadImpulseResponse (int slot, const juce::File& file)
         return false;
     }
 
+    // The fallback carries the signal for as long as the swap takes, so the amp is
+    // never heard without a speaker on it.
+    path.loaded.store (false);
+
+    const juce::SpinLock::ScopedLockType lock (path.convolutionLock);
+
+    if (prepared)
+        ConvolutionInstaller::installUnitImpulse (*path.convolution, sr, 1, maxBlock);
+
     path.convolution->loadImpulseResponse (file,
                                            juce::dsp::Convolution::Stereo::no,
                                            juce::dsp::Convolution::Trim::yes,
                                            0,
                                            juce::dsp::Convolution::Normalise::yes);
+
+    if (prepared)
+    {
+        if (! ConvolutionInstaller::pumpUntilInstalled (*path.convolution, 1, maxBlock, 1))
+            return false;
+
+        path.convolution->reset();
+    }
+
     path.loaded.store (true);
     return true;
 }
@@ -289,11 +323,27 @@ void CabinetEngine::loadImpulseResponse (int slot, const float* samples, int num
     juce::AudioBuffer<float> ir (1, numSamples);
     ir.copyFrom (0, 0, samples, numSamples);
 
+    path.loaded.store (false);
+
+    const juce::SpinLock::ScopedLockType lock (path.convolutionLock);
+
+    if (prepared)
+        ConvolutionInstaller::installUnitImpulse (*path.convolution, sr, 1, maxBlock);
+
     path.convolution->loadImpulseResponse (std::move (ir),
                                            irSampleRate,
                                            juce::dsp::Convolution::Stereo::no,
                                            juce::dsp::Convolution::Trim::no,
                                            juce::dsp::Convolution::Normalise::yes);
+
+    if (prepared)
+    {
+        if (! ConvolutionInstaller::pumpUntilInstalled (*path.convolution, 1, maxBlock, 1))
+            return;
+
+        path.convolution->reset();
+    }
+
     path.loaded.store (true);
 }
 
@@ -345,23 +395,29 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
     }
 
     // ---- mic A ----------------------------------------------------------------
-    if (pathA.loaded.load())
     {
-        juce::dsp::AudioBlock<float> blockA (bufferA);
-        auto sub = blockA.getSubBlock (0, (size_t) numSamples);
-        juce::dsp::ProcessContextReplacing<float> ctx (sub);
-        pathA.convolution->process (ctx);
-    }
-    else
-    {
-        for (int i = 0; i < numSamples; ++i)
-            a[i] = (float) sanitise (pathA.processFallback ((double) a[i]));
+        const juce::SpinLock::ScopedTryLockType lock (pathA.convolutionLock);
+
+        if (pathA.loaded.load() && lock.isLocked())
+        {
+            juce::dsp::AudioBlock<float> blockA (bufferA);
+            auto sub = blockA.getSubBlock (0, (size_t) numSamples);
+            juce::dsp::ProcessContextReplacing<float> ctx (sub);
+            pathA.convolution->process (ctx);
+        }
+        else
+        {
+            for (int i = 0; i < numSamples; ++i)
+                a[i] = (float) sanitise (pathA.processFallback ((double) a[i]));
+        }
     }
 
     // ---- mic B ----------------------------------------------------------------
     if (dualMic)
     {
-        if (pathB.loaded.load())
+        const juce::SpinLock::ScopedTryLockType lock (pathB.convolutionLock);
+
+        if (pathB.loaded.load() && lock.isLocked())
         {
             juce::dsp::AudioBlock<float> blockB (bufferB);
             auto sub = blockB.getSubBlock (0, (size_t) numSamples);

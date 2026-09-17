@@ -19,6 +19,8 @@ void Pedal::prepareBase (double sampleRate, int maxBlockSize)
     dryL.assign ((size_t) maxBlock, 0.0);
     dryR.assign ((size_t) maxBlock, 0.0);
 
+    mixSmooth.snapToTarget();
+
     lastBypassState = bypassed;
 }
 
@@ -27,6 +29,21 @@ void Pedal::processWithBypass (double* left, double* right, int numSamples) noex
 {
     if (left == nullptr || right == nullptr || numSamples <= 0)
         return;
+
+    // The dry copy used for the bypass crossfade and the wet/dry mix is sized from
+    // maxBlockSize. If a host sends more than it promised, split rather than
+    // silently skipping the blend - which would leave a "bypassed" pedal audible.
+    if (numSamples > maxBlock)
+    {
+        for (int offset = 0; offset < numSamples;)
+        {
+            const int count = juce::jmin (maxBlock, numSamples - offset);
+            processWithBypass (left + offset, right + offset, count);
+            offset += count;
+        }
+
+        return;
+    }
 
     const bool needsDry = (mixTarget < 0.999) || bypassFade.isActive() || (bypassed != lastBypassState);
 

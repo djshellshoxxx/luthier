@@ -157,6 +157,7 @@ private:
     double    loopGain = 0.99;
     double    loopCutoffHz = 5000.0;
     double    loopFilterPole = 0.5;
+    double    lastCoefficientHz = 0.0;
     bool      needsLoopUpdate = true;
 
     DCBlocker dcBlocker;

@@ -1,0 +1,132 @@
+# Changelog
+
+## 1.0.0
+
+First release. Everything below is new, so rather than list every file this records
+the shape of what was built and — more usefully — the defects found along the way
+and what caused them.
+
+### The instrument
+
+- Extended Karplus–Strong waveguide strings: a fractional delay line, a one-pole
+  loop filter whose gain comes from a measured T60, and a cascade of first-order
+  all-pass sections for stiffness dispersion. Up to twelve strings.
+- Inharmonicity from the real coefficient, `B = π³Qd⁴/(64TL²)`, using the **core**
+  diameter of a wound string rather than its overall diameter.
+- Excitation models for pick, finger, nail, thumb and slide, each with its own
+  spectrum and its own contact noise.
+- Sympathetic coupling through a symmetric bridge matrix, per sample, with the
+  total energy capped so it can never run away.
+- Bodies as Helmholtz air resonance plus a thin-plate modal bank, or as
+  convolution against a body response.
+- Pickups as a positional comb plus an LCR tank, with the coil's own resonance
+  moving as the tone control loads it.
+- 25 instruments, from a Telecaster to a 12-string to a five-string bass.
+
+### The amplifier
+
+- Passive three-band tone stacks solved by nodal analysis and bilinear-transformed
+  to a third-order IIR, so the controls interact the way the real network does.
+- Valve stages with grid conduction, bias shift and supply sag.
+- Polyphase all-pass half-band oversampling, 1× to 8×, 4× by default.
+- Cabinets as dual-microphone convolution with time-of-flight alignment, falling
+  back to an analytic speaker model.
+- An FDN room with a Householder feedback matrix.
+
+### Playing
+
+- MIDI interpretation with four modes, MPE, per-string channels, a chord window
+  and strum modelling.
+- A chord voicer that only produces fingerings a hand can make, and that stays
+  near where the hand already was.
+- Techniques inferred from what you play: hammer-ons, pull-offs, slides, palm
+  mutes, harmonics, tapping.
+
+### The interface
+
+- Easy and Advanced panels, a drawn instrument that reflects the current build, a
+  live fretboard, a pedal rack.
+- 342 parameters, all automatable, all with proper names and text round-trips.
+- Presets, A/B, randomise with locks, MIDI learn on every control, audio and MIDI
+  export, a help section, a troubleshooting export, and a hidden effect.
+
+---
+
+## Defects found and fixed during the build
+
+Kept because the causes are more interesting than the fixes, and because anyone
+changing this code can walk into the same ones.
+
+**The oversampler passed aliasing.** The polyphase all-pass difference equation
+had a sign error: `a * (x - y2) + x2` had been written with the terms the other way
+round. It sounded almost right, which is why it needed a sweep test rather than an
+ear to find.
+
+**Every strummed chord was nearly silent.** Notes scheduled past the end of the
+current block were dropped instead of being carried, so a strum lost all but its
+first note. Fixed with a persistent scheduled-event array that survives the block
+boundary.
+
+**Two crashes.** One in the excitation, where a negative pluck length was derived
+before being clamped; one where a host block larger than the prepared size ran off
+the end of the scratch buffers. Both now clamp before deriving, and the engine
+splits oversized blocks.
+
+**Acoustic and classical presets were silent.** Wound nylon strings were being
+given nylon's density for the whole string, including the metal winding, which put
+the tension far outside anything playable. Wound strings now carry a separate
+winding density.
+
+**Every bass was flagged unplayable.** The validator applied guitar tension limits
+to a 34-inch scale. Tension range is now a function of scale length.
+
+**65% of real time on one instance.** The loop filter coefficients were being
+recomputed with `pow` and `exp` every sample. They are now recomputed only when the
+pitch has actually moved, which took it to about a third of real time.
+
+**Renders were not reproducible.** Three separate causes, all found by rendering
+the same state twice and comparing:
+
+- String and interpreter random state carried across a `reset()`. Both reseed now.
+- Parameter smoothers were left mid-ramp, so the first render had a 20 ms fade the
+  second did not. `reset()` now snaps them to their targets.
+- Articulation state — fret positions, string assignments, LFO phases and the chord
+  voicer's hand position — was not cleared by `reset()`, so the second note of a
+  session started from a slide rather than from the nut.
+
+**The first block after an impulse response changed was heard with no speaker on
+it.** `juce::dsp::Convolution` loads on its own thread and only installs the new
+response the next time `process()` is called, so for a block or two it is still a
+unit impulse — meaning the raw amp, which is the loudest and harshest thing the
+signal path can make, arriving exactly on the transient a preset change makes. It
+also made rendering non-deterministic, since whether the response was in yet
+depended on how many blocks had gone by.
+
+The loader now drives the swap to completion on the thread that asked for it, and
+the audio thread try-locks: for the one block a swap can overlap, it uses the
+analytic speaker and body models instead. See
+`Source/DSP/Common/ConvolutionInstaller.h`.
+
+**A read-only install folder left the preset browser empty.** The factory bank is
+written to the folder inside the installed bundle, which under Program Files a
+standard user cannot write to. Nothing failed loudly; the bank simply was not
+there. The folder is now probed by writing to it, and falls back to one under
+Documents, which is what the troubleshooting guide already said happened. The
+folder inside the bundle is still scanned, so a bank installed by hand beside the
+plugin is found either way.
+
+**The offline renderer listed no presets.** It set up the preset manager the way
+the plugin does but never installed the bank first, so `--list-presets` printed
+nothing and `--preset <name>` never matched.
+
+---
+
+## Testing
+
+98 tests, covering the DSP primitives, the string and body physics, the model
+layer, every parameter, every preset, a ten-thousand-state fuzz, and the whole
+signal path end to end.
+
+The suite found nine genuine defects, including both crashes above, the
+oversampler sign error and the silent-strum bug. Where a test was asserting the
+wrong thing it was changed and the reason written next to it.

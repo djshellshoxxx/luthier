@@ -130,6 +130,7 @@ void AmpEngine::reset() noexcept
 
     gainSmooth.snapTo (gainNorm);
     masterSmooth.snapTo (masterNorm);
+    warmupGain.snapToTarget();
 }
 
 //==============================================================================
