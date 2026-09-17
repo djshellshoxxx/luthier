@@ -231,8 +231,10 @@ preset round trip verified by comparing rendered audio rather than just numbers,
 and a mono-compatibility check. It returns a non-zero exit code on failure, so it
 drops straight into CI.
 
-For plugin-level validation, run [pluginval](https://github.com/Tracktion/pluginval)
-at strictness 10:
+For plugin-level validation, [pluginval](https://github.com/Tracktion/pluginval)
+1.0.3 passes at strictness 10 with nothing reported - including the parameter
+thread-safety, background-thread-state, bus-layout and parameter-fuzz tests, which
+are the ones that catch what a plugin does wrong outside its own audio path:
 
 ```bash
 pluginval --strictness-level 10 --validate Luthier.vst3

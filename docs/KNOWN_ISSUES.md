@@ -146,9 +146,9 @@ not produce signed installers, which need certificates that cannot be part of a
 source repository.
 
 **Verified host testing.** The automated suite covers the plugin's own behaviour
-thoroughly, and pluginval covers the plugin API contract, but the thirty-minutes-
-per-host matrix in the brief is a manual exercise that has not been carried out
-here. The same applies to testing against physical MIDI guitar and MPE controllers,
+thoroughly, and pluginval 1.0.3 passes at strictness 10, which covers the plugin
+API contract. The thirty-minutes-per-host matrix in the brief is a manual exercise
+that has not been carried out here. The same applies to testing against physical MIDI guitar and MPE controllers,
 and to the blind listening comparison against real guitars.
 
 **Drag-out export.** Audio and MIDI export work through the file dialogs; dragging
