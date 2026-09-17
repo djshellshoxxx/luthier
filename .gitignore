@@ -1,0 +1,6 @@
+build/
+ThirdParty/JUCE/
+*.user
+*.suo
+.vs/
+Renders/
