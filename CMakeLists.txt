@@ -43,6 +43,7 @@ target_sources(Luthier PRIVATE ${LUTHIER_SOURCES})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Source" FILES ${LUTHIER_SOURCES})
 
 target_compile_definitions(Luthier PUBLIC
+    LUTHIER_HEADLESS=0
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
@@ -93,16 +94,20 @@ luthier_copy_resources(Luthier_Standalone
 #==============================================================================
 # Test runner and offline renderer
 #
-# Both are console apps built from the engine sources - everything except the
-# plugin wrapper and the UI. That keeps them free of the plugin-client macros
-# while still exercising the real DSP, model, preset and parameter code.
+# Both are console apps built from the engine sources: everything except the UI.
 #==============================================================================
+#
+# PluginProcessor is included. It owns the undo stack, uiState, the A/B slots and
+# the snapshot and setlist flows, and state-model.md specifies all of them, so
+# leaving it out meant those contracts could only be inspected rather than tested.
+# It compiles with LUTHIER_HEADLESS=1, which removes its one reference to the
+# editor; Source/UI stays out.
 set(LUTHIER_ENGINE_SOURCES ${LUTHIER_SOURCES})
 list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "Source/UI/")
-list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginProcessor\.(cpp|h)$")
 list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor\.(cpp|h)$")
 
 set(LUTHIER_CONSOLE_DEFS
+    LUTHIER_HEADLESS=1
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_STANDALONE_APPLICATION=1

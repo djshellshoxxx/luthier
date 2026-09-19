@@ -115,7 +115,7 @@ said they were for.
 | Guitars | 25 |
 | Factory presets | 36 (17 electric, 7 acoustic, 5 bass, 5 utility, 2 classical) |
 | Impulse responses | 216 body, 504 cabinet (synthesised - see `docs/KNOWN_ISSUES.md`) |
-| Tests | 287 across 49 suites, 646 761 checks |
+| Tests | 296 across 52 suites, 647 206 checks |
 
 ### Phase 2 and beyond
 
@@ -155,6 +155,39 @@ level follows sqrt(wA^2 + wB^2) - about 3 dB of swing every cycle. Crossfading t
 seam once at capture and then reading a single head makes every cycle
 bit-identical, which is what "RMS varies less than 0.5 dB over sixty seconds"
 actually demands.
+
+### Phase 5: deep integration
+
+`INDEX.md` gained nine deep-integration specs. Two structural things have landed
+from them, both chosen because everything else rests on them.
+
+**The test target now builds `PluginProcessor`.** It was excluded, so the undo
+stack, `uiState`, the A/B slots and snapshot recall - all of which `state-model.md`
+specifies precisely - could be read in the source and never exercised. It compiles
+into both console targets under `LUTHIER_HEADLESS=1`, which removes its one
+reference to the editor. The coupling was two guards and a define; the old comment
+implied the plugin-client macros made it hard, and they did not. This is the same
+blind spot that let five suites sit unlinked earlier, and it is worth saying that
+the first tests written against it all pass - nothing was broken back there, but
+nothing was proving it either.
+
+**There is an error log.** `error-recovery.md` 5 asks for one and is explicit that
+it is not conditional on telemetry consent, which is the right call: a user who
+opted out of sending anything still deserves a local record, and support cannot
+ask for a log that was never written. `ErrorLog` writes JSON lines to
+`errors-<yyyymm>.log` - one object per line, so the file stays greppable and a
+truncated write costs one record rather than the file. `debug` and `info` are
+opt-in behind verbose; `warn` and `error` always land.
+
+Both the error log and the preset backups date their retention sweeps from the
+filename rather than the filesystem timestamp. Copying a diagnostics folder to
+send it to support rewrites every timestamp, and that should not decide what gets
+deleted.
+
+One judgement call to revisit: a preset from a newer schema is loaded rather than
+refused, against `error-recovery.md` 1's table, because 0.4 prefers partial
+success and every parameter has a default. It logs `NEWER_SCHEMA`, because a
+preset that half-loads and says nothing is the silent degradation 0.2 forbids.
 
 ### Targets
 

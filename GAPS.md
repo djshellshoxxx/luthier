@@ -198,6 +198,28 @@ of a dialog, so it should not be losable to a clumsy rebind.
 
 ## Fixed since the first audit
 
+- **`PluginProcessor` was excluded from the test target**, so everything the
+  processor alone owns - the undo stack, `uiState`, the A/B slots, snapshot recall
+  - could be read in the source but never exercised. `state-model.md` specifies
+  all of it precisely, and a specification nothing checks is a wish. It now
+  compiles into both console targets under `LUTHIER_HEADLESS=1`, which removes its
+  single reference to the editor; `Source/UI` stays out. The coupling turned out
+  to be two guards and one define, which is worth knowing: the old comment implied
+  the plugin-client macros made this hard, and they did not.
+
+  This is the same shape of blind spot that let five test suites sit unlinked
+  earlier in this session. The first `state-model.md` tests written against it
+  pass, so nothing was broken behind the exclusion - but nothing was proving it
+  either.
+
+- **There was no error log.** `error-recovery.md` 5 requires one, explicitly not
+  conditional on telemetry consent: a user who has opted out of sending anything
+  still deserves a local record, and support cannot ask for a log that was never
+  written. `Diagnostics` had an in-memory ring for the debug stream, gated behind
+  the debug-panel toggle, and nothing persistent. `ErrorLog` now writes JSON lines
+  to `errors-<yyyymm>.log`, and the preset load and save paths report through it
+  with the codes from sections 1 and 2.
+
 - **MIDI Learn was reachable only by right-click**, which broke ground rule 4 and
   left the section 19 header button and `Ctrl+L` unimplemented. There is now a
   global arm: the header **Learn** button or `Ctrl+L` arms it, a transparent layer

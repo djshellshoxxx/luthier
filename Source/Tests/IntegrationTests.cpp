@@ -13,6 +13,7 @@
 #include "../Presets/PresetManager.h"
 #include "../Presets/FactoryPresets.h"
 #include "../Support/AudioExporter.h"
+#include "../Support/ErrorLog.h"
 #include "../Support/MidiCapture.h"
 #include "../Support/MidiLearn.h"
 #include "../Support/Diagnostics.h"
@@ -1402,4 +1403,113 @@ LUTHIER_TEST (Presets, mutatedPresetsNeverCrashTheLoader)
         CHECK_MSG (std::isfinite (value) && value >= 0.0f && value <= 1.0f,
                    "a parameter left the normalised range after fuzzed loads");
     }
+}
+
+//==============================================================================
+/*  error-recovery.md 5 and 13: every failure writes a line to
+    errors-<yyyymm>.log, in a format a person can read and a support reply can be
+    written against, whether or not telemetry is enabled.
+
+    Ground rule 5 is deliberately not conditional on telemetry consent: a user who
+    has opted out of sending anything still deserves a local record, and support
+    cannot ask for a log that was never written. */
+LUTHIER_TEST (ErrorLog, failuresAreLoggedAsReadableJsonLines)
+{
+    auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                    .getChildFile ("LuthierErrorLogTest");
+
+    folder.deleteRecursively();
+    folder.createDirectory();
+
+    ErrorLog::setFolderForTesting (folder);
+    ErrorLog::setVerbose (false);
+
+    ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "MISSING_REFERENCE",
+                     "Preset referenced an IR that is not there",
+                     [&]
+                     {
+                         auto* context = new juce::DynamicObject();
+                         context->setProperty ("expected_path", "Cab-Match-A.wav");
+                         return juce::var (context);
+                     }());
+
+    // debug and info are dropped unless Diagnostics verbose is on.
+    ErrorLog::write (ErrorLog::Severity::info, "PresetSystem", "CHATTER", "Not important");
+    ErrorLog::write (ErrorLog::Severity::debug, "PresetSystem", "NOISE", "Less important");
+
+    auto file = ErrorLog::getLogFile();
+
+    CHECK_MSG (file.existsAsFile(), "no error log was written");
+
+    auto lines = juce::StringArray::fromLines (file.loadFileAsString().trim());
+
+    CHECK_MSG (lines.size() == 1,
+               "expected one line with verbose off, got " + juce::String (lines.size()));
+
+    const auto parsed = juce::JSON::parse (lines[0]);
+    auto* entry = parsed.getDynamicObject();
+
+    CHECK_MSG (entry != nullptr, "the log line was not a JSON object");
+
+    if (entry != nullptr)
+    {
+        CHECK (entry->getProperty ("severity").toString() == "warn");
+        CHECK (entry->getProperty ("module").toString() == "PresetSystem");
+        CHECK (entry->getProperty ("code").toString() == "MISSING_REFERENCE");
+        CHECK (entry->getProperty ("ts").toString().isNotEmpty());
+
+        if (auto* context = entry->getProperty ("context").getDynamicObject())
+            CHECK (context->getProperty ("expected_path").toString() == "Cab-Match-A.wav");
+        else
+            CHECK_MSG (false, "the context object was not written");
+    }
+
+    // With verbose on, the quiet severities land too.
+    ErrorLog::setVerbose (true);
+    ErrorLog::write (ErrorLog::Severity::info, "PresetSystem", "CHATTER", "Now it counts");
+
+    lines = juce::StringArray::fromLines (file.loadFileAsString().trim());
+    CHECK_MSG (lines.size() == 2,
+               "verbose did not enable info, got " + juce::String (lines.size()) + " lines");
+
+    ErrorLog::setVerbose (false);
+    ErrorLog::setFolderForTesting ({});
+    folder.deleteRecursively();
+}
+
+//==============================================================================
+/*  error-recovery.md 1: a refused load says why, in the log, and leaves the file
+    on disk untouched - ground rule 3. */
+LUTHIER_TEST (ErrorLog, arefusedPresetLoadIsRecordedAndChangesNothing)
+{
+    auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                    .getChildFile ("LuthierRefusedLoadTest");
+
+    folder.deleteRecursively();
+    folder.createDirectory();
+
+    ErrorLog::setFolderForTesting (folder);
+
+    HarnessProcessor processor;
+    FactoryPresets::setProcessorForRanges (&processor);
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto file = folder.getChildFile (juce::String ("Impostor") + PresetManager::kFileExtension);
+
+    const juce::String contents = "{\"schemaVersion\":1,\"name\":\"not ours\"}";
+    file.replaceWithText (contents);
+
+    CHECK_MSG (! processor.presets.loadPreset (file),
+               "a file with no magic marker was loaded");
+
+    CHECK_MSG (file.loadFileAsString() == contents,
+               "a refused load modified the file on disk");
+
+    const auto log = ErrorLog::getLogFile().loadFileAsString();
+
+    CHECK_MSG (log.contains ("BAD_MAGIC"),
+               "the refusal was not recorded with a code support could act on");
+
+    ErrorLog::setFolderForTesting ({});
+    folder.deleteRecursively();
 }

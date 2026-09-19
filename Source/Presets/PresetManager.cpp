@@ -1,6 +1,7 @@
 #include "PresetManager.h"
 #include "FactoryPresets.h"
 #include "../Support/IrLibrary.h"
+#include "../Support/ErrorLog.h"
 
 namespace luthier
 {
@@ -411,14 +412,50 @@ bool PresetManager::fromVar (const juce::var& data)
     const auto legacy = obj->getProperty ("format").toString();
 
     if (magic != kMagic && legacy != kLegacyMagic)
+    {
+        // error-recovery 1: "magic field missing or wrong".
+        ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "BAD_MAGIC",
+                         "File does not appear to be a Luthier preset",
+                         [&]
+                         {
+                             auto* context = new juce::DynamicObject();
+                             context->setProperty ("magic", magic);
+                             context->setProperty ("format", legacy);
+                             return juce::var (context);
+                         }());
+
         return false;
+    }
 
     // A file from a future schema is loaded as best we can rather than refused:
     // unknown keys are preserved, and every parameter has a default.
     const int schema = (int) obj->getProperty ("schemaVersion");
 
     if (schema <= 0)
+    {
+        ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "BAD_SCHEMA",
+                         "Preset has no usable schema version");
         return false;
+    }
+
+    if (schema > kSchemaVersion)
+    {
+        /*  error-recovery 1: "schema newer than the plugin supports".
+
+            Loaded rather than refused, because every parameter has a default and
+            section 0.4 prefers partial success - but it is recorded, because a
+            preset that half-loads and says nothing is exactly the silent
+            degradation ground rule 2 forbids. */
+        ErrorLog::write (ErrorLog::Severity::info, "PresetSystem", "NEWER_SCHEMA",
+                         "Preset was written by a newer version of Luthier",
+                         [&]
+                         {
+                             auto* context = new juce::DynamicObject();
+                             context->setProperty ("file_schema", schema);
+                             context->setProperty ("supported_schema", kSchemaVersion);
+                             return juce::var (context);
+                         }());
+    }
 
     /*  file-formats 0.3: hold on to every top-level key this build does not know
         about, so saving does not delete a newer version's work. */
@@ -569,13 +606,47 @@ bool PresetManager::loadPreset (int index)
 
 bool PresetManager::loadPreset (const juce::File& file)
 {
-    if (! file.existsAsFile())
-        return false;
+    auto context = [&file]
+    {
+        auto* object = new juce::DynamicObject();
+        object->setProperty ("path", file.getFullPathName());
+        return juce::var (object);
+    };
 
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    // error-recovery 1: "file does not exist at path". The current session is
+    // left alone rather than cleared.
+    if (! file.existsAsFile())
+    {
+        ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "FILE_NOT_FOUND",
+                         "Preset not found", context());
+        return false;
+    }
+
+    const auto text = file.loadFileAsString();
+
+    if (text.isEmpty())
+    {
+        ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "FILE_UNREADABLE",
+                         "Preset could not be read, or is empty", context());
+        return false;
+    }
+
+    const auto parsed = juce::JSON::parse (text);
+
+    if (! parsed.isObject())
+    {
+        // error-recovery 1: "file is not JSON".
+        ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "NOT_JSON",
+                         "Preset is not valid JSON", context());
+        return false;
+    }
 
     if (! fromVar (parsed))
+    {
+        ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "LOAD_REFUSED",
+                         "Preset was refused; the file is untouched", context());
         return false;
+    }
 
     currentName = file.getFileNameWithoutExtension();
     applyExtraState();
@@ -685,8 +756,32 @@ bool PresetManager::writeToFile (const juce::File& file, const juce::var& data) 
         stream->flush();
         stream.reset();
 
-        return temp.overwriteTargetFileWithTemporary();
+        if (temp.overwriteTargetFileWithTemporary())
+            return true;
+
+        // error-recovery 2: "save succeeded but rename failed". TemporaryFile's
+        // destructor removes the temp, so nothing partial is left behind.
+        ErrorLog::write (ErrorLog::Severity::error, "PresetSystem", "SAVE_RENAME_FAILED",
+                         "Could not replace the preset file; the previous version is intact",
+                         [&]
+                         {
+                             auto* context = new juce::DynamicObject();
+                             context->setProperty ("path", file.getFullPathName());
+                             return juce::var (context);
+                         }());
+
+        return false;
     }
+
+    // error-recovery 2: "destination folder not writable" / "disk full".
+    ErrorLog::write (ErrorLog::Severity::error, "PresetSystem", "SAVE_UNWRITABLE",
+                     "Could not open the preset for writing; nothing on disk changed",
+                     [&]
+                     {
+                         auto* context = new juce::DynamicObject();
+                         context->setProperty ("path", file.getFullPathName());
+                         return juce::var (context);
+                     }());
 
     return false;
 }

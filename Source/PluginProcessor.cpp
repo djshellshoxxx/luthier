@@ -1,6 +1,15 @@
 #include "PluginProcessor.h"
-#include "PluginEditor.h"
 #include "Presets/FactoryPresets.h"
+
+/*  The test runner and the offline renderer build this file, so that the things
+    only the processor owns - the undo stack, uiState, A/B slots, snapshot recall,
+    the state-model.md load flows - can be tested rather than only inspected.
+
+    They do not build Source/UI, so the editor is compiled out for them. This is
+    the only place the processor knows about the editor at all. */
+#if ! LUTHIER_HEADLESS
+ #include "PluginEditor.h"
+#endif
 
 namespace luthier
 {
@@ -1311,13 +1320,19 @@ void LuthierAudioProcessor::timerCallback()
 //==============================================================================
 juce::AudioProcessorEditor* LuthierAudioProcessor::createEditor()
 {
+   #if LUTHIER_HEADLESS
+    return nullptr;
+   #else
     return new LuthierAudioProcessorEditor (*this);
+   #endif
 }
 
 } // namespace luthier
 
 //==============================================================================
+#if ! LUTHIER_HEADLESS
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new luthier::LuthierAudioProcessor();
 }
+#endif
