@@ -1184,3 +1184,222 @@ LUTHIER_TEST (MidiLearn, disarmingCancelsAnInFlightLearn)
 
     CHECK (learn.getNumMappings() == 0);
 }
+
+//==============================================================================
+/*  file-formats.md 14.2: the magic marker is checked before anything is applied,
+    so a JSON file that is not a Luthier preset is refused rather than
+    half-loaded. */
+LUTHIER_TEST (Presets, aFileWithoutTheMagicMarkerIsRefused)
+{
+    HarnessProcessor processor;
+    FactoryPresets::setProcessorForRanges (&processor);
+    processor.prepareToPlay (kSr, kBlock);
+
+    processor.presets.captureExtraState();
+    const auto good = processor.presets.toVar ("Magic", "Test");
+
+    CHECK_MSG (processor.presets.fromVar (good),
+               "a preset this build just wrote did not load back");
+
+    // Well-formed JSON, plausible shape, not ours.
+    auto* impostor = new juce::DynamicObject();
+    impostor->setProperty ("schemaVersion", 1);
+    impostor->setProperty ("name", "Not a preset");
+
+    auto* params = new juce::DynamicObject();
+    params->setProperty (ParamIDs::macroDrive, 0.9);
+    impostor->setProperty ("parameters", juce::var (params));
+
+    CHECK_MSG (! processor.presets.fromVar (juce::var (impostor)),
+               "a JSON file with no magic marker was accepted as a preset");
+
+    // The canonical marker from file-formats 1 is what gets written.
+    if (auto* obj = good.getDynamicObject())
+        CHECK (obj->getProperty ("magic").toString() == PresetManager::kMagic);
+}
+
+//==============================================================================
+/*  file-formats.md 0.3: fields this build does not understand survive a load and
+    save, so opening a newer version's preset and re-saving it does not silently
+    delete whatever that version added. */
+LUTHIER_TEST (Presets, unknownFieldsSurviveARoundTrip)
+{
+    HarnessProcessor processor;
+    FactoryPresets::setProcessorForRanges (&processor);
+    processor.prepareToPlay (kSr, kBlock);
+
+    processor.presets.captureExtraState();
+    auto fromTheFuture = processor.presets.toVar ("Future", "Test");
+
+    auto* obj = fromTheFuture.getDynamicObject();
+    CHECK (obj != nullptr);
+
+    if (obj == nullptr)
+        return;
+
+    // Something a later schema added and this build knows nothing about.
+    auto* workshop = new juce::DynamicObject();
+    workshop->setProperty ("bridge", "tune-o-matic");
+    workshop->setProperty ("relief_mm", 0.25);
+
+    obj->setProperty ("workshop", juce::var (workshop));
+    obj->setProperty ("someFutureFlag", true);
+
+    CHECK (processor.presets.fromVar (fromTheFuture));
+
+    processor.presets.captureExtraState();
+    const auto written = processor.presets.toVar ("Future", "Test");
+
+    auto* out = written.getDynamicObject();
+    CHECK (out != nullptr);
+
+    if (out == nullptr)
+        return;
+
+    CHECK_MSG (out->hasProperty ("someFutureFlag"),
+               "a field from a newer schema was dropped on save");
+
+    if (auto* keptWorkshop = out->getProperty ("workshop").getDynamicObject())
+    {
+        CHECK (keptWorkshop->getProperty ("bridge").toString() == "tune-o-matic");
+        CHECK_NEAR ((double) keptWorkshop->getProperty ("relief_mm"), 0.25, 1.0e-9);
+    }
+    else
+    {
+        CHECK_MSG (false, "the nested block from a newer schema was dropped on save");
+    }
+}
+
+//==============================================================================
+/*  file-formats.md 13.4: the version being replaced is filed in a dated backup
+    folder, and 13's sweep prunes anything past the retention window. A backup
+    must not then reappear in the browser as a preset of its own. */
+LUTHIER_TEST (Presets, savingBacksUpTheVersionItReplaces)
+{
+    HarnessProcessor processor;
+    FactoryPresets::setProcessorForRanges (&processor);
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                    .getChildFile ("LuthierBackupTest");
+
+    folder.deleteRecursively();
+    folder.createDirectory();
+
+    auto target = folder.getChildFile (juce::String ("Backed Up") + PresetManager::kFileExtension);
+
+    // The version that will be replaced.
+    target.replaceWithText ("{\"magic\":\"luthier.preset\",\"schemaVersion\":1,\"name\":\"first\"}");
+
+    PresetManager::backupBeforeOverwrite (target);
+
+    const auto today = juce::Time::getCurrentTime().formatted ("%Y-%m-%d");
+    auto dated = folder.getChildFile ("Backup").getChildFile (today);
+
+    CHECK_MSG (dated.isDirectory(), "no dated backup folder was created");
+
+    auto kept = dated.getChildFile (target.getFileName());
+
+    CHECK_MSG (kept.existsAsFile(), "the replaced version was not kept");
+    CHECK (kept.loadFileAsString().contains ("first"));
+
+    // A second save the same day keeps both rather than overwriting the backup.
+    PresetManager::backupBeforeOverwrite (target);
+
+    int backupsToday = 0;
+
+    for (const auto& entry : juce::RangedDirectoryIterator (dated, false,
+                                                            juce::String ("*") + PresetManager::kFileExtension,
+                                                            juce::File::findFiles))
+    {
+        juce::ignoreUnused (entry);
+        ++backupsToday;
+    }
+
+    CHECK_MSG (backupsToday == 2,
+               "a second save the same day overwrote the first backup, so "
+               + juce::String (backupsToday) + " remain rather than 2");
+
+    folder.deleteRecursively();
+}
+
+//==============================================================================
+/*  file-formats.md 16: "Fuzz: 10 000 mutated bytes across a sample of factory
+    files; every load either succeeds or refuses cleanly with no crash."
+
+    The point is not that a mutated preset loads - most will not - but that a
+    malformed one never takes the plugin down or half-applies itself. A preset is
+    the one file type a user routinely receives from someone else. */
+LUTHIER_TEST (Presets, mutatedPresetsNeverCrashTheLoader)
+{
+    HarnessProcessor processor;
+    FactoryPresets::setProcessorForRanges (&processor);
+    processor.prepareToPlay (kSr, kBlock);
+
+    processor.presets.captureExtraState();
+
+    const auto original = juce::JSON::toString (processor.presets.toVar ("Fuzz", "Test"), false);
+
+    CHECK (original.isNotEmpty());
+
+    RtRandom rng { 0xF0F0BEEF };
+
+    auto bytes = original.toStdString();
+
+    int loaded = 0, refused = 0;
+
+    for (int iteration = 0; iteration < 10000; ++iteration)
+    {
+        auto mutated = bytes;
+
+        // One to four byte-level corruptions, which is what a truncated download
+        // or a bad edit actually looks like.
+        const int edits = 1 + (int) (rng.nextDouble() * 4.0);
+
+        for (int e = 0; e < edits; ++e)
+        {
+            const auto position = (size_t) (rng.nextDouble() * (double) (mutated.size() - 1));
+
+            switch ((int) (rng.nextDouble() * 3.0))
+            {
+                case 0:  mutated[position] = (char) (int) (rng.nextDouble() * 255.0); break;
+                case 1:  mutated[position] = '"'; break;
+                default: mutated = mutated.substr (0, position); break;
+            }
+
+            if (mutated.empty())
+                break;
+        }
+
+        const auto parsed = juce::JSON::parse (juce::String (mutated));
+
+        // A parse failure is a clean refusal in itself.
+        if (! parsed.isObject())
+        {
+            ++refused;
+            continue;
+        }
+
+        if (processor.presets.fromVar (parsed))
+            ++loaded;
+        else
+            ++refused;
+    }
+
+    // Reaching here at all is the assertion: nothing threw, nothing faulted.
+    CHECK_MSG (loaded + refused == 10000,
+               "the fuzz loop lost iterations: " + juce::String (loaded) + " loaded, "
+                 + juce::String (refused) + " refused");
+
+    CHECK_MSG (refused > 0, "every mutated preset was accepted, so the loader is "
+                            "not validating anything");
+
+    // Whatever the mutations did, the plugin is still in a usable state.
+    for (auto* p : processor.getParameters())
+    {
+        const float value = p->getValue();
+
+        CHECK_MSG (std::isfinite (value) && value >= 0.0f && value <= 1.0f,
+                   "a parameter left the normalised range after fuzzed loads");
+    }
+}

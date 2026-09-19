@@ -38,6 +38,25 @@ public:
     static constexpr int kSchemaVersion = 1;
     static const char* const kFileExtension;
 
+    /*  file-formats.md 0.5: every file carries a magic marker, so a JSON file
+        that is not one of ours is refused rather than half-loaded.
+
+        The canonical marker is `magic`. Files written before file-formats.md
+        existed carry `format` instead, with a different spelling, so both are
+        accepted on load; `magic` is what gets written. */
+    static const char* const kMagic;
+    static const char* const kLegacyMagic;
+
+    /** How long a superseded file is kept in the backup folder (file-formats 13). */
+    static constexpr int kBackupRetentionDays = 30;
+
+    /** file-formats 13.4: copies the file being replaced into the dated backup
+        folder before the new one lands on top of it. */
+    static void backupBeforeOverwrite (const juce::File& target);
+
+    /** Deletes backups older than kBackupRetentionDays. Called once on startup. */
+    static void pruneOldBackups();
+
     PresetManager (juce::AudioProcessor& processor,
                    juce::AudioProcessorValueTreeState& state,
                    LuthierEngine& engine);
@@ -150,6 +169,15 @@ public:
 private:
     void scanFolder (const juce::File& folder, bool factory);
     bool writeToFile (const juce::File& file, const juce::var& data) const;
+
+
+    /*  file-formats 0.3: fields this build does not understand are kept on load
+        and written back on save.
+
+        Without this, opening a preset written by a newer version and re-saving it
+        would silently delete whatever that version added - which is a data-loss
+        path that only shows up once two versions are in use. */
+    juce::var unknownFields;
 
     juce::AudioProcessor& processor;
     juce::AudioProcessorValueTreeState& apvts;

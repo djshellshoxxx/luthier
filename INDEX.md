@@ -2,7 +2,7 @@
 
 Companion documents to `spec.md`, `engine.md`, `include.md` and `theme.md`.
 
-Four groups:
+Five groups:
 
 - The eleven original extension specs (routing through telemetry).
 - The twelve realism specs (advanced-ranges through midi-export), which
@@ -15,6 +15,13 @@ Four groups:
   ambiguity-resolutions, qa-polish, onboarding, performance-budget,
   installer, CLAUDE_CODE_BRIEF and this file), which turn everything
   above into one $200 product.
+- The deep-integration specs (file-formats, factory-content,
+  error-recovery, state-model, gui-engine-dataflow,
+  guitar-illustration, input-routing, host-integration,
+  action-and-undo), which name every file schema, every shipped file,
+  every failure response, every intersection between concurrent
+  activities, every visual data flow, every part of the illustration,
+  every input consumer, every host quirk, and every undo rule.
 
 Read `CLAUDE_CODE_BRIEF.md` first if you are the implementer.
 
@@ -60,7 +67,18 @@ Read `CLAUDE_CODE_BRIEF.md` first if you are the implementer.
 31. `installer.md`
 32. `CLAUDE_CODE_BRIEF.md`
 
-### Phase 5: ship
+### Phase 5: deep-integration
+33. `file-formats.md` (canonical schemas for every .luthier* file)
+34. `factory-content.md` (every shipped preset, guitar, part, tune, pattern, kit, IR)
+35. `error-recovery.md` (every failure mode and its response)
+36. `state-model.md` (state layer nesting; intersection matrix for concurrent activities)
+37. `gui-engine-dataflow.md` (per live UI element: source, drain rate, staleness rule)
+38. `guitar-illustration.md` (deep spec: bodies, necks, bridges, pickups, strings, colours, finishes, family switching)
+39. `input-routing.md` (MIDI, mouse, keyboard, file-drop, host transport routing order)
+40. `host-integration.md` (VST3/AU/CLAP/AAX contract; per-host quirks)
+41. `action-and-undo.md` (undo entry taxonomy, grouping window, state boundaries)
+
+### Phase 6: ship
 Run `qa-polish.md` section 8 (bug bash) and section 12 (final human
 check). Neither is skippable.
 
@@ -101,6 +119,15 @@ check). Neither is skippable.
 | `qa-polish.md` | Ship gate: test matrix, crash policy, UI polish, audio polish, bug bash |
 | `installer.md` | Windows / macOS / Linux install, uninstall, updates, portable, enterprise |
 | `CLAUDE_CODE_BRIEF.md` | Front-door prompt: reading order, audit-then-build, conflict resolution, definition of done |
+| `file-formats.md` | Canonical JSON schemas for every .luthier* file, migration rules, save atomicity, load-error handling |
+| `factory-content.md` | Every preset, guitar, part, tune, pattern, kit, setlist, backing track, IR that ships |
+| `error-recovery.md` | Every failure mode and its named response; banner priority; error log format |
+| `state-model.md` | State layer hierarchy; load flows per layer; concurrent-activity intersection matrix |
+| `gui-engine-dataflow.md` | For every live UI element: source, audio schedule, UI drain rate, stale threshold, stale state |
+| `guitar-illustration.md` | Deep spec: coord system, rendering pipeline, body catalogue per family, necks/bridges/pickups/pickguards, string materials with hex colours, colours and finishes catalogue, family switching, workshop hit-tests |
+| `input-routing.md` | Consumer chains for MIDI, mouse, keyboard, file drops, host transport, sidechain audio |
+| `host-integration.md` | Format matrix, bus layouts, parameter model, state serialization, latency, per-host quirks (Ableton, Logic, Cubase, Studio One, Reaper, FL, Bitwig, Pro Tools, Standalone) |
+| `action-and-undo.md` | Undo entry taxonomy per action class; grouping window; state boundaries; what skips the stack |
 
 ## Global rules
 

@@ -1,4 +1,5 @@
 #include "FactoryPresets.h"
+#include "PresetManager.h"
 #include "../Parameters.h"
 
 namespace luthier
@@ -710,8 +711,9 @@ juce::var FactoryPresets::toVar (const Definition& def, const juce::AudioProcess
 {
     auto* root = new juce::DynamicObject();
 
-    root->setProperty ("format", "luthierpreset");
-    root->setProperty ("schemaVersion", 1);
+    // file-formats 1: the canonical marker, the same one PresetManager writes.
+    root->setProperty ("magic", PresetManager::kMagic);
+    root->setProperty ("schemaVersion", PresetManager::kSchemaVersion);
     root->setProperty ("pluginVersion", JucePlugin_VersionString);
     root->setProperty ("name", def.name);
     root->setProperty ("category", def.category);

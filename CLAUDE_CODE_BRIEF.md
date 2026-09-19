@@ -49,6 +49,16 @@ Your job is to close both gaps and bring every feature to $200 polish.
    - `performance-budget.md`
    - `qa-polish.md`
    - `installer.md`
+   - The nine deep-integration specs (phase 5 in INDEX):
+     - `file-formats.md`
+     - `factory-content.md`
+     - `error-recovery.md`
+     - `state-model.md`
+     - `gui-engine-dataflow.md`
+     - `guitar-illustration.md`
+     - `input-routing.md`
+     - `host-integration.md`
+     - `action-and-undo.md`
 
 2. Audit the current build against `gui-integration.md` section 19
    (the feature-to-location index). For every row where the location
@@ -164,7 +174,15 @@ If two specs disagree:
 9. `volume-knob-interaction.md` overrides on the pickup-to-amp path
    (`CableSim` from the older `engine.md` is removed, not deprecated).
 10. `engine.md` overrides on DSP ground rules.
-11. Otherwise, later spec numbers in `INDEX.md` override earlier ones.
+11. `file-formats.md` overrides on file schema, migration and atomicity.
+12. `error-recovery.md` overrides on failure response.
+13. `state-model.md` overrides on state layers and concurrent-activity intersections.
+14. `gui-engine-dataflow.md` overrides on live UI drain rates and staleness.
+15. `guitar-illustration.md` overrides on the visible guitar (parts, colours, string materials, family switching).
+16. `input-routing.md` overrides on input consumer order and veto rules.
+17. `host-integration.md` overrides on host contract and per-host quirks.
+18. `action-and-undo.md` overrides on undo grouping and state boundaries.
+19. Otherwise, later spec numbers in `INDEX.md` override earlier ones.
 
 If a genuine conflict cannot be resolved by this hierarchy, stop
 coding and produce a written question with proposed answers.

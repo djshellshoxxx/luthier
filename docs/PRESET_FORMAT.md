@@ -20,11 +20,34 @@ A factory preset is never overwritten. Saving one makes a copy in your user fold
 
 ---
 
+## Safety
+
+**Saves are atomic.** The file is written to a temporary name, flushed, and then
+renamed over the target. A crash mid-save leaves either the old file or the new
+one, never half of either.
+
+**The version you replace is kept.** Before a save lands, the file it is about to
+replace is copied to `Backup/<yyyy-mm-dd>/` beside it. Several saves in one day
+keep several versions. A sweep at startup deletes backups older than 30 days,
+dated by the folder name rather than the filesystem timestamp - copying a backup
+folder around should not resurrect it or expire it early.
+
+**Unknown fields survive.** A preset written by a newer version of Luthier keeps
+whatever that version added, even after this one loads and re-saves it. Opening
+someone else's preset does not quietly strip it.
+
+**Files that are not presets are refused.** The `magic` marker is checked before
+anything is applied, so a JSON file that happens to parse is not half-loaded.
+Presets written before the marker was named carry `"format": "luthierpreset"`
+instead and are still accepted.
+
+---
+
 ## Structure
 
 ```json
 {
-  "format": "luthierpreset",
+  "magic": "luthier.preset",
   "schemaVersion": 1,
   "pluginVersion": "1.0.0",
 

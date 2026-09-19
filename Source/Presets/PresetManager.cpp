@@ -6,6 +6,8 @@ namespace luthier
 {
 
 const char* const PresetManager::kFileExtension = ".luthierpreset";
+const char* const PresetManager::kMagic = "luthier.preset";
+const char* const PresetManager::kLegacyMagic = "luthierpreset";
 
 //==============================================================================
 PresetManager::PresetManager (juce::AudioProcessor& p,
@@ -33,6 +35,10 @@ PresetManager::PresetManager (juce::AudioProcessor& p,
         searchFolders.add (shipped);
 
     ensureFactoryPresetsInstalled();
+
+    // file-formats 13: the retention sweep runs once, at startup.
+    pruneOldBackups();
+
     refresh();
 }
 
@@ -217,6 +223,13 @@ void PresetManager::scanFolder (const juce::File& folder, bool factory)
     {
         const auto file = entry.getFile();
 
+        /*  The backup folder is inside the preset folder and this scan recurses,
+            so without this every superseded version would reappear in the browser
+            as a preset of its own - and the category, taken from the sub-folder
+            name, would be a date. */
+        if (file.getParentDirectory().getParentDirectory().getFileName() == "Backup")
+            continue;
+
         PresetInfo info;
         info.file = file;
         info.name = file.getFileNameWithoutExtension();
@@ -300,7 +313,14 @@ juce::var PresetManager::toVar (const juce::String& name,
 {
     auto* root = new juce::DynamicObject();
 
-    root->setProperty ("format", "luthierpreset");
+    /*  file-formats 0.3: anything this build did not recognise on load is written
+        back out first, so a newer version's fields survive a round trip through
+        this one. Known keys are set afterwards and therefore win. */
+    if (auto* preserved = unknownFields.getDynamicObject())
+        for (const auto& property : preserved->getProperties())
+            root->setProperty (property.name, property.value);
+
+    root->setProperty ("magic", kMagic);
     root->setProperty ("schemaVersion", kSchemaVersion);
     root->setProperty ("pluginVersion", JucePlugin_VersionString);
     root->setProperty ("name", name.isNotEmpty() ? name : currentName);
@@ -382,12 +402,43 @@ bool PresetManager::fromVar (const juce::var& data)
     if (obj == nullptr)
         return false;
 
+    /*  file-formats 14.2: the magic is checked before anything else, so a JSON
+        file that is not a Luthier preset is refused rather than half-applied.
+
+        `format` is the spelling used before file-formats.md named the field, and
+        is still accepted so existing user presets keep loading. */
+    const auto magic = obj->getProperty ("magic").toString();
+    const auto legacy = obj->getProperty ("format").toString();
+
+    if (magic != kMagic && legacy != kLegacyMagic)
+        return false;
+
     // A file from a future schema is loaded as best we can rather than refused:
-    // unknown keys are simply ignored, and every parameter has a default.
+    // unknown keys are preserved, and every parameter has a default.
     const int schema = (int) obj->getProperty ("schemaVersion");
 
     if (schema <= 0)
         return false;
+
+    /*  file-formats 0.3: hold on to every top-level key this build does not know
+        about, so saving does not delete a newer version's work. */
+    {
+        static const juce::StringArray known
+        {
+            "magic", "format", "schemaVersion", "pluginVersion", "name", "category",
+            "author", "description", "tags", "parameters", "strings", "extras",
+            "lockedParameters", "midiMappings", "modulation", "snapshots",
+            "rhythmEngine", "routing", "character", "toneMatch"
+        };
+
+        auto* preserved = new juce::DynamicObject();
+
+        for (const auto& property : obj->getProperties())
+            if (! known.contains (property.name.toString()))
+                preserved->setProperty (property.name, property.value);
+
+        unknownFields = juce::var (preserved);
+    }
 
     // ---- parameters ------------------------------------------------------------
     if (auto* params = obj->getProperty ("parameters").getDynamicObject())
@@ -552,9 +603,77 @@ bool PresetManager::loadPrevious()
 }
 
 //==============================================================================
+void PresetManager::backupBeforeOverwrite (const juce::File& target)
+{
+    /*  file-formats 13.4: the version being replaced is kept, filed by the day it
+        was replaced.
+
+        This is the step that makes "save" recoverable rather than final. The
+        temp-then-rename below already guarantees the file on disk is never a
+        half-written one; it does nothing for a user who saved over the sound they
+        wanted. */
+    if (! target.existsAsFile())
+        return;
+
+    const auto today = juce::Time::getCurrentTime().formatted ("%Y-%m-%d");
+
+    auto folder = target.getParentDirectory().getChildFile ("Backup").getChildFile (today);
+
+    if (! folder.createDirectory())
+        return;
+
+    auto destination = folder.getChildFile (target.getFileName());
+
+    // Several saves in one day keep several versions rather than one.
+    for (int i = 2; destination.existsAsFile() && i < 1000; ++i)
+        destination = folder.getChildFile (target.getFileNameWithoutExtension()
+                                             + "-" + juce::String (i) + kFileExtension);
+
+    target.copyFileTo (destination);
+}
+
+void PresetManager::pruneOldBackups()
+{
+    const auto cutoff = juce::Time::getCurrentTime()
+                          - juce::RelativeTime::days ((double) kBackupRetentionDays);
+
+    for (const auto& root : { getUserPresetFolder(), getFactoryPresetFolder() })
+    {
+        auto backups = root.getChildFile ("Backup");
+
+        if (! backups.isDirectory())
+            continue;
+
+        for (const auto& entry : juce::RangedDirectoryIterator (backups, false, "*",
+                                                                juce::File::findDirectories))
+        {
+            const auto folder = entry.getFile();
+
+            /*  Dated by name rather than by the filesystem's timestamp, because a
+                copy or a restore rewrites the timestamp and would either resurrect
+                expired backups or delete live ones. The name is what the sweep
+                promised to honour. */
+            const auto name = folder.getFileName();
+
+            if (name.length() != 10)
+                continue;
+
+            const juce::Time stamp (name.substring (0, 4).getIntValue(),
+                                    name.substring (5, 7).getIntValue() - 1,
+                                    name.substring (8, 10).getIntValue(),
+                                    0, 0);
+
+            if (stamp.toMilliseconds() > 0 && stamp < cutoff)
+                folder.deleteRecursively();
+        }
+    }
+}
+
 bool PresetManager::writeToFile (const juce::File& file, const juce::var& data) const
 {
     file.getParentDirectory().createDirectory();
+
+    backupBeforeOverwrite (file);
 
     juce::TemporaryFile temp (file);
 
