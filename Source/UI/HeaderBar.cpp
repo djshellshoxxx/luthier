@@ -96,6 +96,25 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
             onModeChanged (advancedMode);
     };
 
+    // ---- live mode ---------------------------------------------------------------
+    // live-performance 10: Live Mode is a header switch, and while it is on the
+    // Advanced toggle is locked so that a mis-hit on stage cannot swap the whole
+    // window out from under the player.
+    addAndMakeVisible (liveButton);
+    liveButton.setClickingTogglesState (true);
+    liveButton.setToggleState (processor.isLiveMode(), juce::dontSendNotification);
+    liveButton.setTooltip ("Live Mode: shows the snapshot, setlist, tap, morph, "
+                           "kill and monitor strip, and grows every control to a "
+                           "size that can be hit without looking.");
+
+    liveButton.onClick = [this]
+    {
+        processor.setLiveMode (liveButton.getToggleState());
+        modeButton.setEnabled (! liveButton.getToggleState());
+    };
+
+    modeButton.setEnabled (! processor.isLiveMode());
+
     processor.getPresetManager().addChangeListener (this);
     processor.getMidiLearn().addChangeListener (this);
 
@@ -364,6 +383,9 @@ void HeaderBar::resized()
 
     // ---- right-hand cluster ---------------------------------------------------------
     modeButton.setBounds (bounds.removeFromRight (84).reduced (2, 0));
+    bounds.removeFromRight (Metrics::gridHalf);
+
+    liveButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
     helpButton.setBounds (bounds.removeFromRight (30).reduced (2, 0));

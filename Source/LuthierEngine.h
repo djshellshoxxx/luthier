@@ -27,6 +27,10 @@
 #include "Model/Playing/MidiInterpreter.h"
 #include "Validator.h"
 #include "Support/IrLibrary.h"
+#include "Routing/TapBuffers.h"
+#include "Routing/MidiOutRouter.h"
+#include "Rhythm/RhythmEngine.h"
+#include "Character/CharacterEngine.h"
 
 #include <array>
 #include <atomic>
@@ -148,6 +152,63 @@ public:
 
     void setTempoBpm (double bpm) noexcept;
 
+    /** Host transport position, for the rhythm engine's grid. */
+    void setTransportPosition (double ppqPosition, bool isPlaying) noexcept
+    {
+        hostPpq = ppqPosition;
+        hostPlaying = isPlaying;
+    }
+
+    /** The rhythm engine sits between the interpreter and the technique engine
+        and rewrites the event stream when it is switched on. */
+    RhythmEngine& getRhythmEngine() noexcept { return rhythm; }
+    const RhythmEngine& getRhythmEngine() const noexcept { return rhythm; }
+
+    /** The instrument's physical imperfections (character-wear.md). Applied at
+        note-on for the per-position ones and per block for the drift, never per
+        sample - rule 2 of that spec's section 0. */
+    CharacterEngine& getCharacterEngine() noexcept { return character; }
+    const CharacterEngine& getCharacterEngine() const noexcept { return character; }
+
+    //==========================================================================
+    // Routing (routing-io.md). The engine fills tap buffers as it renders and
+    // records which strings started and stopped; the processor turns those into
+    // host buses and MIDI out. The engine itself knows nothing about either.
+
+    TapBuffers& getTapBuffers() noexcept { return taps; }
+    const TapBuffers& getTapBuffers() const noexcept { return taps; }
+
+    const StringActivityQueue& getStringActivity() const noexcept { return stringActivity; }
+
+    /** Points the engine at this block's sidechain input. The pointers belong to
+        the caller and must outlive the processBlock call; passing nullptr (or a
+        zero channel count) means "no sidechain this block", which is the normal
+        case. */
+    void setSidechainInput (const float* const* channels, int numChannels, int numSamples) noexcept;
+
+    /** Internal re-amp (routing-io 5B): the sidechain replaces the string
+        engine's contribution at the amp input. Off by default. */
+    void setSidechainToAmp (bool on) noexcept { sidechainToAmp = on; }
+    bool isSidechainToAmp() const noexcept { return sidechainToAmp; }
+
+    /** Envelope of the sidechain input, for the modulation matrix's
+        SidechainEnvFollower source. Zero when no sidechain is connected. */
+    double getSidechainEnvelope() const noexcept { return sidechainEnv.load (std::memory_order_relaxed); }
+
+    /** The summed, normalised string signal exactly as it enters the body. This
+        is the "main out pre-body" that routing-io 10 defines the per-string sum
+        test against, and it is what the body convolution is applied to.
+
+        Read-only, and valid for getLastSubBlockNumSamples() samples after a
+        render. When the host oversteps its promised block size the engine splits
+        the block, and this then describes the last slice only. */
+    const double* getPreBodyBuffer() const noexcept { return stringSumBuffer.data(); }
+    int getLastSubBlockNumSamples() const noexcept { return lastSubBlockNumSamples; }
+
+    /** Per-output latency, as routing-io 7 defines it. */
+    int getLatencySamples (AuxBus bus) const noexcept;
+    int getPerStringLatencySamples() const noexcept;
+
     //==========================================================================
     void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) noexcept;
 
@@ -203,7 +264,18 @@ private:
     ChordVoicer voicer;
     MidiInterpreter midi;
     PlayEventQueue events;
+    PlayEventQueue rhythmEvents;
+    RhythmEngine rhythm;
+    CharacterEngine character;
+
+    /** The drift last written into the tuning engine, so a block that did not
+        move it does not rewrite it. */
+    std::array<double, kMaxStrings> lastAppliedDrift {};
     Validator validator;
+
+    double hostPpq = 0.0;
+    bool hostPlaying = false;
+    double tempoBpm = 120.0;
 
     /** A strum spreads a chord over tens of milliseconds, which is far longer than
         one buffer. Events therefore have to survive past the block they arrived
@@ -247,6 +319,10 @@ private:
     std::vector<double> instrumentBuffer;
     juce::AudioBuffer<float> bodyBuffer;
     juce::AudioBuffer<float> workBuffer;
+
+    /** Holds the post-amp signal before the post-amp effects, so Aux 6 can be
+        the difference between the two - the tails on their own. */
+    juce::AudioBuffer<float> wetDryBuffer;
     std::vector<double> doublerBuffer;
     int doublerSize = 0, doublerMask = 0, doublerIndex = 0;
 
@@ -300,7 +376,49 @@ private:
 
     int64_t samplePosition = 0;
 
+    /** Sample offset, within the block being rendered, of the event currently
+        being fired. Lets triggerNote and applyNoteOff timestamp their string
+        activity exactly, rather than stacking a whole strum on sample zero. */
+    int activeSampleOffset = 0;
+
+    /** Absolute sample index of the first sample of the block being rendered. */
+    int64_t blockStartSample = 0;
+    int lastSubBlockNumSamples = 0;
+
     std::atomic<double> cpuEstimate { 0.0 };
+
+    // --- routing ----------------------------------------------------------------
+    TapBuffers taps;
+    StringActivityQueue stringActivity;
+
+    const float* const* sidechainChannels = nullptr;
+    int sidechainNumChannels = 0;
+    int sidechainNumSamples = 0;
+    int sidechainReadOffset = 0;
+    bool sidechainToAmp = false;
+    std::atomic<double> sidechainEnv { 0.0 };
+    EnvelopeFollower sidechainFollower;
+
+    /** Reads one mono sample of sidechain, summing the channels, or zero when
+        nothing is connected. */
+    inline double readSidechain (int index) const noexcept
+    {
+        if (sidechainChannels == nullptr || sidechainNumChannels <= 0)
+            return 0.0;
+
+        const int i = sidechainReadOffset + index;
+
+        if (i < 0 || i >= sidechainNumSamples)
+            return 0.0;
+
+        double sum = 0.0;
+
+        for (int ch = 0; ch < sidechainNumChannels; ++ch)
+            if (sidechainChannels[ch] != nullptr)
+                sum += (double) sidechainChannels[ch][i];
+
+        return sum / (double) sidechainNumChannels;
+    }
 
     RtRandom rng { 0xA11CE5ull };
 

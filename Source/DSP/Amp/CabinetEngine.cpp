@@ -375,7 +375,11 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
     const int numChannels = buffer.getNumChannels();
 
     if (! enabled || numSamples <= 0 || numChannels <= 0)
+    {
+        micTapsValid = false;
+        micTapSamples = 0;
         return;
+    }
 
     bufferA.setSize (1, numSamples, false, false, true);
     bufferB.setSize (1, numSamples, false, false, true);
@@ -475,6 +479,11 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
         if (numChannels > 1)
             inR[i] = (float) sanitise (dcR.process (outR));
     }
+
+    // The blend wrote to the caller's buffer, not to a[] and b[], so the two mic
+    // signals are still intact and can be handed out as tap points.
+    micTapsValid = true;
+    micTapSamples = numSamples;
 }
 
 //==============================================================================

@@ -89,6 +89,12 @@ public:
     /** Extra low-frequency emphasis for the air resonance, in dB. */
     void setAirResonanceGainDb (double db) noexcept;
 
+    /** The body's air resonance, in Hz, for the current configuration.
+
+        Read by the character engine: a dead spot is neck-body coupling, so how
+        much a note loses depends on how close it is to this (character-wear 2). */
+    double getAirResonanceHz() const noexcept;
+
     /** Overall output trim so that switching bodies is not a jump in level. */
     void setOutputGainDb (double db) noexcept;
 

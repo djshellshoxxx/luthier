@@ -1,0 +1,220 @@
+#pragma once
+
+/*  The rhythm engine (rhythm-engine.md).
+
+    A MIDI transformer, not a DSP module. It watches the notes the player is
+    holding, works out what chord they make, voices that chord onto the
+    fretboard, and then plays the voicing according to a pattern locked to the
+    host transport. Nothing here touches audio.
+
+    The six ground rules from section 0 are what the design is arranged around:
+
+      1. It rewrites the event stream between the interpreter and the technique
+         engine, so the rest of the instrument needs no knowledge of it.
+      2. Nothing allocates once prepare() has run. The scheduler's output goes
+         straight into the caller's PlayEventQueue, which is itself fixed-size.
+      3. Scheduling is sample-accurate: a step's position is computed in beats
+         from the host's own ppq position and converted to a sample offset.
+      4. With the transport stopped it is silent, unless free-run is switched on
+         deliberately.
+      5. Patterns hold exact grid positions; humanisation is applied when an
+         event is scheduled, never stored.
+      6. Bypassing takes effect on the next block and releases anything the
+         engine was holding, so it cannot leave a note ringing.
+*/
+
+#include "ChordDetector.h"
+#include "Patterns.h"
+
+#include "../Model/Playing/PlayingEvents.h"
+#include "../Model/Playing/ChordVoicer.h"
+#include "../Model/Playing/TuningEngine.h"
+
+#include <atomic>
+
+namespace luthier
+{
+
+//==============================================================================
+/** What the host says about the transport this block. */
+struct RhythmTransport
+{
+    double bpm = 120.0;
+    double ppqPosition = 0.0;
+    bool isPlaying = false;
+};
+
+//==============================================================================
+/** How much a real hand differs from the grid (rhythm-engine 4). Read from the
+    instrument's existing humanise settings rather than owned here. */
+struct RhythmHumanise
+{
+    double timingMs = 8.0;        ///< Gaussian sigma on event timing.
+    double velocityPercent = 12.0;
+    double missPercent = 0.0;     ///< Chance a scheduled stroke simply does not happen.
+    double ghostPercent = 0.0;    ///< Chance an extra muted stroke lands before a hit.
+    double amount = 1.0;          ///< Scales all of the above.
+};
+
+//==============================================================================
+/** Voicing preferences (rhythm-engine 3). */
+enum class VoicingStyle
+{
+    open = 0, barre, triad, shell, drop2, drop3, power, rootless, wide,
+    numStyles
+};
+
+const char* getVoicingStyleName (VoicingStyle style) noexcept;
+
+//==============================================================================
+class RhythmEngine
+{
+public:
+    RhythmEngine();
+
+    void prepare (double sampleRate, int maxBlockSize,
+                  TuningEngine* tuning, ChordVoicer* voicer) noexcept;
+
+    void reset() noexcept;
+
+    void setNumStrings (int n) noexcept { numStrings = juce::jlimit (1, kMaxStrings, n); }
+    int getNumStrings() const noexcept { return numStrings; }
+
+    //==========================================================================
+    void setEnabled (bool shouldBeEnabled) noexcept;
+    bool isEnabled() const noexcept { return enabled.load (std::memory_order_relaxed); }
+
+    /** rhythm-engine 0.4: with the transport stopped the engine is silent unless
+        this is switched on. */
+    void setFreeRun (bool shouldFreeRun) noexcept { freeRun.store (shouldFreeRun, std::memory_order_relaxed); }
+    bool isFreeRunning() const noexcept { return freeRun.load (std::memory_order_relaxed); }
+
+    /** Installs a pattern. Message thread; the audio thread sees it on its next
+        block through a double buffer. */
+    void setPattern (const RhythmPattern& pattern);
+    RhythmPattern getPattern() const;
+
+    void setHumanise (const RhythmHumanise& h) noexcept;
+    RhythmHumanise getHumanise() const noexcept;
+
+    void setVoicingStyle (VoicingStyle style) noexcept { voicingStyle.store ((int) style, std::memory_order_relaxed); }
+    VoicingStyle getVoicingStyle() const noexcept { return (VoicingStyle) voicingStyle.load (std::memory_order_relaxed); }
+
+    /** 0..100: how many of the held notes get voiced (rhythm-engine 3). */
+    void setVoicingDensity (double percent) noexcept { voicingDensity.store (juce::jlimit (0.0, 100.0, percent), std::memory_order_relaxed); }
+    double getVoicingDensity() const noexcept { return voicingDensity.load (std::memory_order_relaxed); }
+
+    void setHandPositionHint (int fret) noexcept { handPositionHint.store (juce::jlimit (0, 22, fret), std::memory_order_relaxed); }
+    int getHandPositionHint() const noexcept { return handPositionHint.load (std::memory_order_relaxed); }
+
+    /** Where the capo sits, 0 for none (rhythm-engine 3, 8.2). The voicer treats
+        it as the lowest fret in play; nothing is transposed. */
+    void setCapoFret (int fret) noexcept { capoFret.store (juce::jlimit (0, 12, fret), std::memory_order_relaxed); }
+    int getCapoFret() const noexcept { return capoFret.load (std::memory_order_relaxed); }
+
+    /** How even a strum is across its strings, 0..1 (rhythm-engine 4). */
+    void setStrumEvenness (double evenness) noexcept { strumEvenness.store (juce::jlimit (0.0, 1.0, evenness), std::memory_order_relaxed); }
+
+    /** How long one strum takes to cross the strings. */
+    void setStrumDurationMs (double ms) noexcept { strumDurationMs.store (juce::jlimit (1.0, 250.0, ms), std::memory_order_relaxed); }
+    double getStrumDurationMs() const noexcept { return strumDurationMs.load (std::memory_order_relaxed); }
+
+    void setSeed (uint64_t seed) noexcept;
+
+    //==========================================================================
+    /** Feeds the engine the block's MIDI so it can track held notes. Call before
+        processBlock. */
+    void handleMidi (const juce::MidiBuffer& midi, int64_t blockStartSample) noexcept;
+
+    /** Generates this block's events. Returns the number of note-ons written.
+        When the engine is bypassed or silent it writes nothing and returns 0,
+        and the caller uses the interpreter's own events instead. */
+    int processBlock (int numSamples, const RhythmTransport& transport,
+                      PlayEventQueue& out) noexcept;
+
+    /** True when the engine is producing the event stream this block, so the
+        caller knows to suppress the interpreter's. */
+    bool isDriving() const noexcept { return driving; }
+
+    //==========================================================================
+    // Live state, for the UI.
+
+    ChordSymbol getCurrentChord() const noexcept { return currentChord; }
+    const ChordVoicing& getCurrentVoicing() const noexcept { return currentVoicing; }
+    int getCurrentStep() const noexcept { return lastStepPlayed.load (std::memory_order_relaxed); }
+    StrumType getNextStrumType() const noexcept { return (StrumType) nextStrumType.load (std::memory_order_relaxed); }
+
+    //==========================================================================
+    juce::var toVar() const;
+    void fromVar (const juce::var& state);
+
+private:
+    /** Re-detects the chord and re-voices it. Audio thread; the voicer is
+        documented as running in microseconds. */
+    void revoice() noexcept;
+
+    /** Chooses which of the held notes to voice, according to the style and
+        density. Writes into `dest` and returns how many. */
+    int selectNotesForStyle (int* dest, int maxNotes) noexcept;
+
+    void scheduleStrum (const StrumStep& step, int sampleOffset,
+                        PlayEventQueue& out) noexcept;
+
+    void scheduleFingerpick (const FingerpickStep& step, int sampleOffset,
+                             PlayEventQueue& out) noexcept;
+
+    void emitNote (int stringIndex, double velocity, bool muted,
+                   int sampleOffset, PlayEventQueue& out) noexcept;
+
+    void releaseAll (int sampleOffset, PlayEventQueue& out) noexcept;
+
+    double sr = 44100.0;
+    int maxBlock = 512;
+    int numStrings = 6;
+
+    TuningEngine* tuning = nullptr;
+    ChordVoicer* voicer = nullptr;
+
+    ChordDetector detector;
+    ChordSymbol currentChord;
+    ChordVoicing currentVoicing;
+    bool voicingValid = false;
+
+    std::atomic<bool> enabled { false };
+    std::atomic<bool> freeRun { false };
+    std::atomic<int> voicingStyle { (int) VoicingStyle::open };
+    std::atomic<double> voicingDensity { 100.0 };
+    std::atomic<int> handPositionHint { 0 };
+    std::atomic<int> capoFret { 0 };
+    std::atomic<double> strumEvenness { 0.6 };
+    std::atomic<double> strumDurationMs { 22.0 };
+
+    // --- pattern, double buffered ------------------------------------------------
+    mutable juce::CriticalSection patternLock;
+    RhythmPattern patterns[2];
+    std::atomic<int> livePattern { 0 };
+
+    mutable juce::CriticalSection humaniseLock;
+    RhythmHumanise humanise;
+
+    // --- transport ------------------------------------------------------------------
+    double freeRunPpq = 0.0;
+    double lastPpq = -1.0;
+    bool wasPlaying = false;
+    bool pendingRelease = false;
+
+    /** Which strings the engine currently has ringing, so it can release them. */
+    uint16_t soundingMask = 0;
+
+    bool driving = false;
+
+    std::atomic<int> lastStepPlayed { -1 };
+    std::atomic<int> nextStrumType { (int) StrumType::rest };
+
+    RtRandom rng { 0x12345678ull };
+    uint64_t seed = 0x12345678ull;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RhythmEngine)
+};
+
+} // namespace luthier

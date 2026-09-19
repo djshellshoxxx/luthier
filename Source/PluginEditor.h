@@ -5,6 +5,8 @@
 #include "PluginProcessor.h"
 #include "UI/Theme.h"
 #include "UI/HeaderBar.h"
+#include "UI/LiveStrip.h"
+#include "UI/PracticePanel.h"
 #include "UI/EasyPanel.h"
 #include "UI/AdvancedPanel.h"
 #include "UI/Overlays.h"
@@ -36,6 +38,9 @@ private:
     void setAdvancedMode (bool advanced);
     void showOverlay (OverlayPanel* panel);
 
+    /** live-performance 10: shows or hides the live strip and re-lays out. */
+    void updateLiveStripVisibility();
+
     /** The easter egg's target: one specific pixel, inside the signature notch in
         the top-left corner. Clicking it opens the hidden effect. */
     juce::Rectangle<int> getSecretPixelBounds() const;
@@ -46,6 +51,8 @@ private:
     juce::TooltipWindow tooltips { this, Metrics::tooltipDelayMs };
 
     HeaderBar header;
+    LiveStrip liveStrip;
+    PracticePanel practicePanel;
     EasyPanel easyPanel;
     AdvancedPanel advancedPanel;
 
@@ -64,6 +71,9 @@ private:
 
     bool advancedMode = false;
     bool secretHovered = false;
+
+    /** Remembered so the layout is only redone when Live Mode actually changes. */
+    bool liveModeShown = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessorEditor)
 };

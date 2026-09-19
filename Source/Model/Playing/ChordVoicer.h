@@ -70,6 +70,13 @@ public:
     /** Highest fret the voicer will use. */
     void setMaxFret (int fret) noexcept { maxFret = juce::jlimit (5, 30, fret); }
 
+    /** Lowest fret the voicer will use. This is what a capo is: it does not
+        transpose anything, it simply removes every fret below it from play, and
+        the string that was open is now stopped at the capo. Fret positions stay
+        measured from the nut, which is what the string engine expects. */
+    void setMinFret (int fret) noexcept { minFret = juce::jlimit (0, 24, fret); }
+    int getMinFret() const noexcept { return minFret; }
+
     /** Prefer voicings near this fret, so a progression does not jump around the
         neck. Updated to the last chord's position after each call. */
     void setPreferredPosition (int fret) noexcept { preferredPosition = juce::jlimit (0, 24, fret); }
@@ -139,6 +146,7 @@ private:
     int numStrings = 6;
     int maxFretSpan = 4;
     int maxFret = 22;
+    int minFret = 0;
     int preferredPosition = 0;
     bool allowOpen = true;
 };

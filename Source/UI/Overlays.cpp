@@ -892,6 +892,63 @@ OptionsPanel::OptionsPanel (LuthierAudioProcessor& p)
     folderList.setModel (&folderModel);
     folderList.setRowHeight (22);
     folderList.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
+
+    //--------------------------------------------------------------------------
+    // The pages the extension specs add. Page 0 is General, which is the set of
+    // controls above rather than an OptionsPage, so `pages` runs one behind the
+    // tab strip: tab i shows pages[i - 1].
+    pages.add (new ControllersPage (processor));
+    pages.add (new ExpressionPage (processor));
+    pages.add (new AccessibilityPage (processor));
+    pages.add (new PrivacyPage (processor));
+
+    static const char* const tabNames[] =
+        { "GENERAL", "CONTROLLERS", "EXPRESSION", "ACCESSIBILITY", "PRIVACY" };
+
+    for (int i = 0; i < (int) (sizeof (tabNames) / sizeof (tabNames[0])); ++i)
+    {
+        auto* button = pageButtons.add (new juce::TextButton (tabNames[i]));
+
+        button->setClickingTogglesState (true);
+        button->setRadioGroupId (0x20);
+        button->onClick = [this, i] { showPage (i); };
+
+        addAndMakeVisible (*button);
+    }
+
+    for (auto* page : pages)
+        addChildComponent (*page);
+
+    showPage (0);
+}
+
+//==============================================================================
+std::vector<juce::Component*> OptionsPanel::generalControls()
+{
+    return { &tooltipsToggle, &driftToggle, &oversampling, &chordWindow,
+             &openUserFolder, &openRenderFolder, &openFactoryFolder,
+             &addFolderButton, &rescanButton, &audioSettingsButton,
+             &presetPathLabel, &audioNote, &folderList };
+}
+
+void OptionsPanel::showPage (int index)
+{
+    currentPage = juce::jlimit (0, pages.size(), index);
+
+    for (auto* c : generalControls())
+        c->setVisible (currentPage == 0);
+
+    for (int i = 0; i < pages.size(); ++i)
+        pages[i]->setVisible (currentPage == i + 1);
+
+    for (int i = 0; i < pageButtons.size(); ++i)
+        pageButtons[i]->setToggleState (i == currentPage, juce::dontSendNotification);
+
+    if (currentPage > 0)
+        pages[currentPage - 1]->refresh();
+
+    resized();
+    repaint();
 }
 
 void OptionsPanel::overlayShown()
@@ -909,10 +966,39 @@ void OptionsPanel::overlayShown()
         juce::dontSendNotification);
 
     folderList.updateContent();
+
+    // A page can be stale by the time the overlay comes back: a controller may
+    // have been unplugged, or telemetry consent changed from the header.
+    if (currentPage > 0)
+        pages[currentPage - 1]->refresh();
 }
 
 void OptionsPanel::layoutContent (juce::Rectangle<int> content)
 {
+    // The tab strip sits above every page, General included.
+    auto tabStrip = content.removeFromTop (Metrics::buttonHeight);
+
+    if (! pageButtons.isEmpty())
+    {
+        const int gap = Metrics::gridHalf;
+        const int width = (tabStrip.getWidth() - gap * (pageButtons.size() - 1))
+                            / pageButtons.size();
+
+        for (int i = 0; i < pageButtons.size(); ++i)
+        {
+            pageButtons[i]->setBounds (tabStrip.removeFromLeft (width));
+            tabStrip.removeFromLeft (gap);
+        }
+    }
+
+    content.removeFromTop (Metrics::grid);
+
+    if (currentPage > 0)
+    {
+        pages[currentPage - 1]->setBounds (content);
+        return;
+    }
+
     auto row = content.removeFromTop (Metrics::buttonHeight);
     tooltipsToggle.setBounds (row.removeFromLeft (240));
     driftToggle.setBounds (row.removeFromLeft (280));

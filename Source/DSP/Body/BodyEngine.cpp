@@ -108,6 +108,13 @@ void BodyEngine::setAirResonanceGainDb (double db) noexcept
     airShelf.setPeaking (sr, airHz > 0.0 ? airHz : 110.0, 1.1, airGainDb);
 }
 
+double BodyEngine::getAirResonanceHz() const noexcept
+{
+    const double airHz = BodyModels::computeAirResonance (config);
+
+    return airHz > 0.0 ? airHz : 110.0;
+}
+
 void BodyEngine::setOutputGainDb (double db) noexcept
 {
     outputGainDb = juce::jlimit (-24.0, 24.0, db);

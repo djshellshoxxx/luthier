@@ -115,6 +115,34 @@ public:
 
     int getLatencySamples() const noexcept;
 
+    //==========================================================================
+    /** Each mic on its own, as it was after its impulse response and the
+        time-of-flight alignment but before the blend and the stereo placement.
+        This is what routing-io's Aux 3 and Aux 4 carry.
+
+        The pointer is the cabinet's own working buffer, so it is valid only
+        until the next processBlock call, and only for as many samples as that
+        call was given. It costs nothing: both mics are rendered separately
+        anyway, and the blend is what throws the separation away. */
+    const float* getMicTap (int slot) const noexcept
+    {
+        if (! micTapsValid)
+            return nullptr;
+
+        const auto& buf = (slot <= 0) ? bufferA : bufferB;
+
+        return (buf.getNumChannels() > 0) ? buf.getReadPointer (0) : nullptr;
+    }
+
+    /** False when the cabinet is bypassed, or for slot 1 when the second mic is
+        not in use - in both cases there is no separate mic signal to hand out. */
+    bool hasMicTap (int slot) const noexcept
+    {
+        return micTapsValid && (slot <= 0 || dualMic);
+    }
+
+    int getMicTapNumSamples() const noexcept { return micTapSamples; }
+
 private:
     struct MicPath
     {
@@ -165,6 +193,11 @@ private:
     int alignSize = 0, alignMask = 0, alignIndex = 0, alignSamples = 0;
 
     juce::AudioBuffer<float> bufferA, bufferB;
+
+    // Set at the end of processBlock, cleared when the cabinet is bypassed, so a
+    // caller can never read a stale or never-written mic buffer.
+    bool micTapsValid = false;
+    int  micTapSamples = 0;
 
     DCBlocker dcL, dcR;
 

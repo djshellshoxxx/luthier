@@ -146,18 +146,21 @@ not produce signed installers, which need certificates that cannot be part of a
 source repository.
 
 **Verified host testing.** The automated suite covers the plugin's own behaviour
-thoroughly, and pluginval 1.0.3 passes at strictness 10, which covers the plugin
-API contract. The thirty-minutes-per-host matrix in the brief is a manual exercise
-that has not been carried out here. The same applies to testing against physical MIDI guitar and MPE controllers,
+thoroughly. pluginval 1.0.3 passed at strictness 10 against the 1.0.0 build, but
+that result predates the extension specs - the multi-out bus layouts, the Options
+pages and the character engine all landed afterwards - and it has not been re-run
+since, so treat it as stale rather than current. The thirty-minutes-per-host
+matrix in the brief is a manual exercise that has not been carried out here. The same applies to testing against physical MIDI guitar and MPE controllers,
 and to the blind listening comparison against real guitars.
 
 **Drag-out export.** Audio and MIDI export work through the file dialogs; dragging
 a rendered file directly out of the plugin window into a DAW track is not
 implemented.
 
-**Practice tools.** The metronome, chord-progression looper and backing-track
-player described in the brief are not present. The chord library and the live tab
-display are.
+**Backing-track file formats.** The backing-track player registers JUCE's basic
+formats, so WAV, AIFF, FLAC and Ogg Vorbis always load. MP3 and WMA rely on the
+platform decoder — Windows Media on Windows, CoreAudio on macOS — and are not
+compiled in directly, so a Linux build would reject them.
 
 ---
 

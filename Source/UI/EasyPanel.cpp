@@ -135,7 +135,102 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
 
     fretboard.onStringSelected = [this] (int s) { processor.getUiState().selectedString = s; };
 
+    buildRhythmStrip();
+
     startTimerHz (10);
+}
+
+//==============================================================================
+void EasyPanel::buildRhythmStrip()
+{
+    rhythmLabel.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
+    rhythmLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+    addAndMakeVisible (rhythmLabel);
+
+    processor.getGenreKits().refresh();
+
+    int itemId = 1;
+
+    for (const auto& name : processor.getGenreKits().getNames())
+        rhythmGenreBox.addItem (name, itemId++);
+
+    rhythmGenreBox.setTextWhenNothingSelected ("Style");
+    rhythmGenreBox.setTooltip ("Genre kit: sets the voicing, the pattern and the feel in one go.");
+
+    rhythmGenreBox.onChange = [this]
+    {
+        const int index = rhythmGenreBox.getSelectedId() - 1;
+
+        if (! juce::isPositiveAndBelow (index, processor.getGenreKits().getNumKits()))
+            return;
+
+        processor.applyGenreKit (index);
+
+        // Choosing a style in Easy mode is a request to hear it, so the engine
+        // comes on rather than waiting for a second click.
+        processor.getEngine().getRhythmEngine().setEnabled (true);
+
+        refreshRhythmStrip();
+    };
+
+    addAndMakeVisible (rhythmGenreBox);
+
+    // One knob for feel: it scales every humanisation amount at once, which is
+    // the only rhythm control Easy mode offers.
+    rhythmFeelSlider.setRange (0.0, 200.0, 1.0);
+    rhythmFeelSlider.setValue (100.0, juce::dontSendNotification);
+    rhythmFeelSlider.setDoubleClickReturnValue (true, 100.0);
+    rhythmFeelSlider.setTooltip ("Feel: how loose the playing is. Centre is the "
+                                 "style's own feel, left is machine-tight, right is sloppier.");
+
+    rhythmFeelSlider.onValueChange = [this]
+    {
+        auto& engine = processor.getEngine().getRhythmEngine();
+
+        auto humanise = engine.getHumanise();
+        humanise.amount = rhythmFeelSlider.getValue() / 100.0;
+        engine.setHumanise (humanise);
+    };
+
+    addAndMakeVisible (rhythmFeelSlider);
+
+    rhythmEnableButton.setClickingTogglesState (true);
+    rhythmEnableButton.setTooltip ("Turns the rhythm engine on and off.");
+
+    rhythmEnableButton.onClick = [this]
+    {
+        processor.getEngine().getRhythmEngine()
+                 .setEnabled (rhythmEnableButton.getToggleState());
+
+        refreshRhythmStrip();
+    };
+
+    addAndMakeVisible (rhythmEnableButton);
+
+    rhythmHintLabel.setFont (juce::Font (juce::FontOptions (9.0f)));
+    rhythmHintLabel.setColour (juce::Label::textColourId, Palette::warning);
+    addAndMakeVisible (rhythmHintLabel);
+
+    refreshRhythmStrip();
+}
+
+void EasyPanel::refreshRhythmStrip()
+{
+    auto& engine = processor.getEngine().getRhythmEngine();
+    const bool on = engine.isEnabled();
+
+    rhythmEnableButton.setToggleState (on, juce::dontSendNotification);
+    rhythmEnableButton.setButtonText (on ? "ON" : "OFF");
+
+    rhythmFeelSlider.setValue (engine.getHumanise().amount * 100.0, juce::dontSendNotification);
+
+    // rhythm-engine 8: Poly is the required mode, and the strip says so rather
+    // than leaving the user wondering why nothing strums.
+    const auto* modeParam = processor.getState().getRawParameterValue (ParamIDs::playingMode);
+    const bool isPoly = (modeParam != nullptr) && ((int) modeParam->load() == 1);
+
+    rhythmHintLabel.setText ((on && ! isPoly) ? "Needs Poly mode" : juce::String(),
+                             juce::dontSendNotification);
 }
 
 EasyPanel::~EasyPanel()
@@ -207,6 +302,8 @@ void EasyPanel::timerCallback()
 
     if (listIndex >= 0 && listIndex != styleBox.getSelectedItemIndex())
         styleBox.setSelectedItemIndex (listIndex, juce::dontSendNotification);
+
+    refreshRhythmStrip();
 }
 
 //==============================================================================
@@ -295,6 +392,29 @@ void EasyPanel::resized()
 
     auditionPhraseBox.setBounds (row.removeFromRight (juce::jmin (170, row.getWidth() / 2)).reduced (2, 13));
     auditionButton.setBounds (row.removeFromRight (100).reduced (2, 12));
+
+    // ---- rhythm strip -------------------------------------------------------------------
+    // rhythm-engine 8: genre kit, one feel knob, an on/off switch, nothing else.
+    auto rhythmRow = bottom.removeFromTop (juce::jmin (bottom.getHeight(), 26));
+
+    if (rhythmRow.getHeight() < 16)
+        return;
+
+    rhythmLabel.setBounds (rhythmRow.removeFromLeft (56));
+    rhythmEnableButton.setBounds (rhythmRow.removeFromLeft (52).reduced (2, 1));
+
+    rhythmRow.removeFromLeft (Metrics::gridHalf);
+
+    rhythmGenreBox.setBounds (rhythmRow.removeFromLeft (juce::jmax (140, rhythmRow.getWidth() / 4))
+                                .reduced (0, 1));
+
+    rhythmRow.removeFromLeft (Metrics::grid);
+
+    rhythmHintLabel.setBounds (rhythmRow.removeFromRight (juce::jmin (110, rhythmRow.getWidth() / 3)));
+
+    rhythmRow.removeFromRight (Metrics::gridHalf);
+
+    rhythmFeelSlider.setBounds (rhythmRow.reduced (0, 2));
 }
 
 } // namespace luthier

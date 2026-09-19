@@ -14,6 +14,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "Theme.h"
+#include "../Modulation/ModMatrix.h"
 
 namespace luthier
 {

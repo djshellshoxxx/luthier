@@ -82,6 +82,33 @@ public:
     void setStringBendRange (int stringIndex, double semitones) noexcept;
 
     //==========================================================================
+    /*  Which MIDI channel drives which string in guitar-controller mode
+        (controllers.md section 4).
+
+        The default is the common convention - channel 1 is the high E, and the
+        strings run upward from there - but it is only a convention: a Roland GK
+        puts the high E on channel 11, and a TriplePlay can be configured to put
+        it anywhere. So the map is data rather than arithmetic, and a controller
+        profile sets it.
+    */
+    void setChannelForString (int stringIndex, int channel) noexcept;
+    int getChannelForString (int stringIndex) const noexcept;
+
+    /** Restores the default map: channel 1 is string 0, and upward. */
+    void resetChannelMap() noexcept;
+
+    /*  controllers.md 5: some controllers emit a constant low-magnitude wobble
+        around a sustained note's pitch. Bends smaller than this are ignored. */
+    void setPitchDeadZoneCents (double cents) noexcept;
+    double getPitchDeadZoneCents() const noexcept { return pitchDeadZoneCents; }
+
+    /*  controllers.md 5: some controllers send lazy note-offs. A note is held for
+        at least this long regardless of when its note-off arrives, which stops a
+        stuttering controller from machine-gunning the string engine. */
+    void setMinimumNoteDurationMs (double ms) noexcept;
+    double getMinimumNoteDurationMs() const noexcept { return minNoteDurationMs; }
+
+    //==========================================================================
     void setCcTarget (int ccNumber, MidiTarget target) noexcept;
     MidiTarget getCcTarget (int ccNumber) const noexcept;
     void resetCcMapToDefaults() noexcept;
@@ -175,6 +202,17 @@ private:
         double bendCents = 0.0;
         double pressure = 0.0;
         double timbre = 0.0;
+
+        /*  When the note started, and when a note-off that arrived too early is
+            allowed to take effect (controllers.md 5).
+
+            Some controllers send a note-off almost immediately after the note-on
+            and then another when the player actually lets go. Obeying the first
+            one turns every note into a click. A minimum duration holds the note
+            open until it has at least sounded. */
+        int64_t startedAt = 0;
+        int64_t releaseDueAt = -1;
+        bool releaseWasLetRing = false;
     };
 
     void handleNoteOn (int midiNote, int channel, double velocity,
@@ -184,6 +222,11 @@ private:
     void applyTarget (MidiTarget target, double value, int blockOffset, PlayEventQueue& out) noexcept;
 
     void flushChordGroup (int64_t upToSample, int blockOffset, int numSamples, PlayEventQueue& out) noexcept;
+
+    /** Releases any note whose deferred note-off has now come due
+        (controllers.md 5). */
+    void flushDeferredReleases (int64_t blockStartSample, int numSamples,
+                                PlayEventQueue& out) noexcept;
     void emitVoicedNote (const VoicedNote& note, int64_t timestamp, int blockOffset,
                          int extraDelaySamples, PlayEventQueue& out) noexcept;
 
@@ -198,6 +241,16 @@ private:
     ChordVoicer* voicer = nullptr;
 
     PlayingMode mode = PlayingMode::Poly;
+
+    /** channelMap[stringIndex] is the 1-based MIDI channel that plays it. */
+    std::array<int, kMaxStrings> channelMap {};
+
+    double pitchDeadZoneCents = 0.0;
+    double minNoteDurationMs = 0.0;
+
+    /** The absolute sample position of the message being handled, so that a
+        note-off can tell how long its note has been sounding. */
+    int64_t currentTimestamp = 0;
     bool mpeEnabled = false;
 
     double bendRangeSemitones = 2.0;

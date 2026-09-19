@@ -1,5 +1,73 @@
 # Changelog
 
+## Unreleased
+
+The eleven extension specs in `INDEX.md`, built on top of 1.0.0. The version in
+`CMakeLists.txt` is still 1.0.0: this is recorded as unreleased rather than
+numbered, because what it should be called is a release decision.
+
+### Added
+
+- **Routing and IO** - a main stereo output plus seven auxiliary stereo buses and
+  twelve mono per-string buses, all created disabled so a stereo-only host still
+  sees layout A. Sidechain input, MIDI out, re-amp, per-output latency.
+- **Modulation matrix** - 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2
+  envelope followers, note/CC/macro/random sources and a 1024-route matrix.
+  Modulation is applied in one place, `ParameterBridge::value`, so every one of
+  the 342 parameters is a legal destination with no per-parameter plumbing.
+- **Rhythm engine** - chord detector, voicer, strum and fingerpick schedulers, 27
+  factory patterns, 28 genre kits.
+- **Live performance** - 128 snapshots with crossfade and morph, setlists, tap
+  tempo, kill switch, monitor mix, expression calibration.
+- **Controllers** - 9 profiles, per-string channel map, latency wizard, pitch dead
+  zone, lazy note-off handling, multi-controller merge.
+- **Practice tools** - metronome, looper, backing-track player, scale and ear
+  trainers, tab reader, progression looper, session recorder.
+- **Tone match** - user IR loading, cab match by sweep/MLS/burst, EQ match, capture.
+- **Notation export** - live TAB view, MusicXML, Guitar Pro, ASCII tab and MIDI,
+  with importers.
+- **Character and wear** - dead spots, fret wear, tuner drift, aged electronics,
+  body break-in, temperature and humidity.
+- **Accessibility** - screen reader, keyboard-only navigation, colourblind
+  palettes, UI scale, localisation.
+- **Updates and telemetry** - update checks, opt-in telemetry, crash reporting,
+  license activation, privacy dashboard.
+- **Options pages** - Controllers, Expression, Accessibility and Privacy, as tabs
+  inside the existing Options overlay.
+- `scripts/build.ps1`, which PROGRESS.md had referenced without it existing.
+
+### Fixed
+
+- **The ASCII tab importer read its own beat ruler as a string of the tab.**
+  `looksLikeTab` tested only for "mostly dashes" and never for a bar line, which
+  the writer's `1---2---3---4---` ruler passes. Every import therefore invented a
+  note per beat and shifted every real string index down by one. The function's own
+  comment had specified the bar-line rule; the code never implemented it.
+- **`Capture` could not be default-constructed.**
+  `JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR` declares a deleted copy
+  constructor, which suppresses the implicit default constructor. `PluginProcessor`
+  holds one by value, so this broke both the plugin and the test build.
+- **`TuningEngine::reset()` was missing braces**, leaving
+  `characterDriftCents = 0.0` outside the loop it belonged to, so character drift
+  survived a reset.
+
+### Fixed in the tests
+
+- `eqMatchFitsKnownCurves` expected a low shelf to reach full gain at its corner
+  frequency, which is by definition the half-gain point. The fit was correct to
+  0.07 dB; the expectation was wrong.
+- `deadSpotsReduceSustainWhereTheyAre` used a fixed eight-fret reference that could
+  land on a deeper dead spot, so it sometimes compared two dead notes.
+
+### Note on how these were found
+
+Five test suites - ToneMatch, Notation, Character, Accessibility and Telemetry -
+existed in the tree but had never been linked into a running binary, because the
+build that should have produced it failed and left the previous executable in
+place. `Source/UI/` is excluded from the test target, so eight new panels had never
+been compiled at all. Everything under "Fixed" above surfaced the first time that
+code actually ran.
+
 ## 1.0.0
 
 First release. Everything below is new, so rather than list every file this records

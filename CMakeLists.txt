@@ -57,6 +57,8 @@ target_include_directories(Luthier PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
 target_link_libraries(Luthier PRIVATE
     juce::juce_audio_utils
     juce::juce_dsp
+    # SHA-256, for the license activation proof (updates-telemetry 5).
+    juce::juce_cryptography
     PUBLIC
     juce::juce_recommended_config_flags
     juce::juce_recommended_lto_flags)
@@ -125,6 +127,7 @@ if (LUTHIER_BUILD_TESTS)
     target_link_libraries(LuthierTests PRIVATE
         juce::juce_audio_utils
         juce::juce_dsp
+        juce::juce_cryptography
         PUBLIC
         juce::juce_recommended_config_flags)
 
@@ -147,6 +150,7 @@ if (LUTHIER_BUILD_CLI)
     target_link_libraries(LuthierRender PRIVATE
         juce::juce_audio_utils
         juce::juce_dsp
+        juce::juce_cryptography
         PUBLIC
         juce::juce_recommended_config_flags)
 

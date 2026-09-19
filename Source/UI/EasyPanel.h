@@ -36,6 +36,8 @@ public:
 private:
     void timerCallback() override;
     void refreshStyleList();
+    void buildRhythmStrip();
+    void refreshRhythmStrip();
     void applyStylePreset (int presetIndex);
 
     LuthierAudioProcessor& processor;
@@ -65,6 +67,15 @@ private:
     DataStreamDisplay dataStream;
 
     juce::Label chordLabel;
+
+    /*  The compact rhythm strip (rhythm-engine 8): genre kit, one feel knob and
+        an on/off switch, and deliberately nothing else. The full editor is in
+        Advanced mode. */
+    juce::Label rhythmLabel { {}, "Rhythm" };
+    juce::ComboBox rhythmGenreBox;
+    juce::Slider rhythmFeelSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
+    juce::TextButton rhythmEnableButton { "OFF" };
+    juce::Label rhythmHintLabel;
 
     juce::Array<int> stylePresetIndices;
 

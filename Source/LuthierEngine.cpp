@@ -25,12 +25,32 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     sr = sampleRate;
     maxBlock = juce::jmax (1, maxBlockSize);
 
+    // --- routing -------------------------------------------------------------
+    taps.prepare (maxBlock);
+    stringActivity.clear();
+
+    sidechainFollower.prepare (sr);
+    // Fast enough to track a kick drum's attack, slow enough that the release
+    // does not chatter: the same shape a hardware sidechain detector has.
+    sidechainFollower.setTimes (0.003, 0.120);
+    sidechainEnv.store (0.0);
+
+    sidechainChannels = nullptr;
+    sidechainNumChannels = 0;
+    sidechainNumSamples = 0;
+    sidechainReadOffset = 0;
+
     // --- model ---------------------------------------------------------------
     tuning.prepare (sr);
     technique.prepare (sr, numStrings);
     voicer.prepare (&tuning, numStrings);
     midi.prepare (sr, numStrings);
     midi.setEngines (&tuning, &technique, &voicer);
+
+    rhythm.prepare (sr, maxBlock, &tuning, &voicer);
+    rhythm.setNumStrings (numStrings);
+
+    character.prepare (sr, numStrings);
 
     // --- instrument ----------------------------------------------------------
     for (int i = 0; i < kMaxStrings; ++i)
@@ -68,6 +88,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     instrumentBuffer.assign ((size_t) maxBlock, 0.0);
     bodyBuffer.setSize (1, maxBlock, false, true, true);
     workBuffer.setSize (2, maxBlock, false, true, true);
+    wetDryBuffer.setSize (2, maxBlock, false, true, true);
 
     // Doubler: up to 40 ms of delay for the second voice.
     doublerSize = juce::nextPowerOfTwo ((int) (sr * 0.05) + 8);
@@ -87,6 +108,10 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
 
 void LuthierEngine::reset() noexcept
 {
+    stringActivity.clear();
+    sidechainFollower.reset();
+    sidechainEnv.store (0.0);
+
     for (auto& s : strings)
         s.reset();
 
@@ -106,6 +131,8 @@ void LuthierEngine::reset() noexcept
     technique.reset();
     voicer.reset();
     midi.reset();
+    rhythm.reset();
+    character.reset();
     tuning.reset();
     validator.reset();
 
@@ -150,6 +177,24 @@ void LuthierEngine::releaseResources()
     doublerBuffer.clear();
     bodyBuffer.setSize (0, 0);
     workBuffer.setSize (0, 0);
+    wetDryBuffer.setSize (0, 0);
+
+    taps.releaseResources();
+    stringActivity.clear();
+
+    sidechainChannels = nullptr;
+    sidechainNumChannels = 0;
+    sidechainNumSamples = 0;
+    sidechainReadOffset = 0;
+}
+
+//==============================================================================
+void LuthierEngine::setSidechainInput (const float* const* channels, int numChannels, int numSamples) noexcept
+{
+    sidechainChannels = channels;
+    sidechainNumChannels = juce::jmax (0, numChannels);
+    sidechainNumSamples = juce::jmax (0, numSamples);
+    sidechainReadOffset = 0;
 }
 
 //==============================================================================
@@ -164,6 +209,8 @@ void LuthierEngine::setNumStrings (int n)
     coupling.setNumStrings (numStrings);
     pickups.setNumStrings (numStrings);
     whammy.setNumStrings (numStrings);
+    rhythm.setNumStrings (numStrings);
+    character.setNumStrings (numStrings);
 }
 
 //==============================================================================
@@ -475,6 +522,7 @@ void LuthierEngine::setOversamplingFactor (int factor) noexcept
 
 void LuthierEngine::setTempoBpm (double bpm) noexcept
 {
+    tempoBpm = bpm;
     preEffects.setTempoBpm (bpm);
     postEffects.setTempoBpm (bpm);
 }
@@ -515,6 +563,9 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     targetFret[(size_t) s] = fret;
     stringMidiNote[(size_t) s] = e.midiNote;
 
+    // Routing-io 6: what is actually ringing, at the sample it started.
+    stringActivity.push ({ activeSampleOffset, s, e.midiNote, (float) e.velocity, true });
+
     auto& str = strings[(size_t) s];
 
     // ---- pitch and glide ------------------------------------------------------
@@ -533,7 +584,36 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         str.snapToFrequency (e.pitchHz);
     }
 
-    str.setTargetFrequency (e.pitchHz);
+    /*  character-wear 2 and 3: the instrument's own imperfections, applied here
+        rather than per sample.
+
+        A dead spot and a worn fret are both properties of *where* the note is
+        being played, so this is the only place they can be applied: the position
+        is known, the note has not started yet, and nothing has to be recomputed
+        again until the next note. */
+    {
+        const double bodyResonance = body.getAirResonanceHz();
+
+        const double deadSpot = character.getSustainMultiplier (s, fret, e.pitchHz, bodyResonance);
+        const double fretWear = character.getFretSustainMultiplier (fret);
+
+        // An open string is stopped by the nut rather than by a fret, so it takes
+        // the nut's wear and the nut material's damping instead (character-wear 7).
+        const double nut = (fret <= 0.0)
+                             ? (1.0 - character.getNutDamping (s)) * character.getNutMaterialDamping()
+                             : 1.0;
+
+        str.setSustainScale (juce::jlimit (0.05, 4.0, deadSpot * fretWear * nut));
+
+        // A worn crown alters the effective string length by a few cents.
+        const double detune = character.getFretDetuneCents (fret);
+
+        if (detune != 0.0)
+            str.setTargetFrequency (e.pitchHz * std::pow (2.0, detune / 1200.0));
+        else
+            str.setTargetFrequency (e.pitchHz);
+    }
+
     currentFret[(size_t) s] = fret;
 
     // ---- damping from the technique --------------------------------------------
@@ -609,6 +689,13 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
 {
     const int s = juce::jlimit (0, numStrings - 1, e.stringIndex);
 
+    // Captured before it is cleared: the note-off has to name the note that was
+    // sounding, not the -1 that replaces it.
+    const int soundingNote = stringMidiNote[(size_t) s];
+
+    if (soundingNote >= 0)
+        stringActivity.push ({ activeSampleOffset, s, soundingNote, 0.0f, false });
+
     strings[(size_t) s].release (e.letRing || freeze);
     stringMidiNote[(size_t) s] = -1;
 
@@ -633,6 +720,9 @@ void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples)
         // The schedule is full, which takes a genuinely pathological amount of
         // simultaneous activity. Firing immediately is wrong-but-audible; dropping
         // would be silent, and a missing note is the worse failure.
+        activeSampleOffset = (int) juce::jlimit ((int64_t) 0, (int64_t) taps.getMaxBlockSize(),
+                                                 e.absoluteSample - blockStartSample);
+
         if (e.isNoteOn)
             triggerNote (e.noteOn);
         else
@@ -669,6 +759,12 @@ void LuthierEngine::fireScheduledEvents (int64_t absoluteSample) noexcept
             ++i;
             continue;
         }
+
+        // Where in this block the event landed, for MIDI out's string-activity
+        // stream. An event scheduled in an earlier block is already overdue and
+        // fires on this block's first sample, which is what the clamp expresses.
+        activeSampleOffset = (int) juce::jlimit ((int64_t) 0, (int64_t) taps.getMaxBlockSize(),
+                                                 e.absoluteSample - blockStartSample);
 
         if (e.isNoteOn)
             triggerNote (e.noteOn);
@@ -794,6 +890,12 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 {
     const int numSamples = buffer.getNumSamples();
 
+    // The routing taps and the string-activity stream span the whole host block,
+    // however many sub-blocks it takes to render it.
+    taps.beginBlock (numSamples);
+    stringActivity.clear();
+    sidechainReadOffset = 0;
+
     if (numSamples <= maxBlock)
     {
         processSubBlock (buffer, midiMessages);
@@ -806,6 +908,9 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     // allocating would be worse, and truncating would drop audio.
     const int numChannels = buffer.getNumChannels();
 
+    juce::MidiBuffer sliceMidi;
+    sliceMidi.ensureSize (2048);
+
     for (int offset = 0; offset < numSamples;)
     {
         const int count = juce::jmin (maxBlock, numSamples - offset);
@@ -814,7 +919,8 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         juce::AudioBuffer<float> slice (buffer.getArrayOfWritePointers(),
                                         numChannels, offset, count);
 
-        juce::MidiBuffer sliceMidi;
+        // Sized once, outside the loop, so splitting never allocates per slice.
+        sliceMidi.clear();
 
         for (const auto metadata : midiMessages)
         {
@@ -823,6 +929,11 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             if (position >= offset && position < offset + count)
                 sliceMidi.addEvent (metadata.getMessage(), position - offset);
         }
+
+        // Each slice's taps land after the previous slice's, so the aux buses
+        // come out contiguous rather than overwritten.
+        taps.setWriteOffset (offset);
+        sidechainReadOffset = offset;
 
         processSubBlock (slice, sliceMidi);
         offset += count;
@@ -841,19 +952,76 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     const auto startTicks = juce::Time::getHighResolutionTicks();
 
+    blockStartSample = samplePosition;
+    lastSubBlockNumSamples = numSamples;
+
     buffer.clear();
 
+    /*  character-wear 4 and 9: the instrument drifts out of tune as it is played.
+
+        Advanced once per block, not per sample. The drift moves over tens of
+        seconds, so a block's worth of resolution is thousands of times finer
+        than it needs, and it keeps the whole of character out of the inner loop
+        as rule 2 of that spec's section 0 requires. */
+    character.advance ((double) numSamples / juce::jmax (1.0, sr));
+
+    if (character.isEnabled())
+    {
+        for (int s = 0; s < numStrings; ++s)
+        {
+            const double drift = character.getTunerDriftCents (s);
+
+            if (drift != lastAppliedDrift[(size_t) s])
+            {
+                lastAppliedDrift[(size_t) s] = drift;
+                tuning.setCharacterDriftCents (s, drift);
+            }
+        }
+    }
+
+    // ---- 0. sidechain --------------------------------------------------------
+    // The envelope runs whether or not anything is listening: it is a modulation
+    // source, and a source that only updates when someone looks at it would lag.
+    for (int i = 0; i < numSamples; ++i)
+        sidechainFollower.process (readSidechain (i));
+
+    sidechainEnv.store (sanitise (sidechainFollower.current()), std::memory_order_relaxed);
+
     // ---- 1. MIDI -------------------------------------------------------------
+    // The rhythm engine sees the raw MIDI first, so it can track what is held
+    // even while it is switched off and be ready the moment it is switched on.
+    rhythm.handleMidi (midiMessages, samplePosition);
+
     midi.processBlock (midiMessages, numSamples, samplePosition, events);
 
     // Events go onto the schedule rather than being applied here, so a strum
     // that runs past the end of this block still sounds.
-    scheduleEvents (events, numSamples);
+    if (rhythm.isEnabled())
+    {
+        rhythmEvents.clear();
+
+        RhythmTransport transport;
+        transport.bpm = tempoBpm;
+        transport.ppqPosition = hostPpq;
+        transport.isPlaying = hostPlaying;
+
+        rhythm.processBlock (numSamples, transport, rhythmEvents);
+
+        // When the rhythm engine is driving, its stream replaces the
+        // interpreter's note events; the interpreter's bends and controllers
+        // still apply, because those are the player's hands, not the pattern's.
+        scheduleEvents (rhythm.isDriving() ? rhythmEvents : events, numSamples);
+    }
+    else
+    {
+        scheduleEvents (events, numSamples);
+    }
 
     updatePerBlockModulation (numSamples);
 
     // ---- 2. strings, coupling and the magnetic pickup ------------------------
     const bool anyPickupActive = ! pickups.isSilent();
+    const bool perStringTaps = taps.isPerStringWanted() && taps.getRoomAtOffset() >= numSamples;
 
     for (int i = 0; i < numSamples; ++i)
     {
@@ -888,6 +1056,14 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
             sum += out;
         }
+
+        // Per-string outputs (routing-io 3). Taken here, before the body, which
+        // is where section 10's test defines them: the body is convolved over
+        // the summed signal, so a post-body per-string tap would mean twelve
+        // body convolutions for a signal nobody asked to be coloured that way.
+        if (perStringTaps)
+            for (int s = 0; s < numStrings; ++s)
+                taps.stringWrite (s)[i] = (float) sanitise (stringOutputs[(size_t) s]);
 
         // Normalise by string count so a 12-string is not twice as loud as a 6.
         sum *= 1.0 / std::sqrt ((double) juce::jmax (1, numStrings));
@@ -950,9 +1126,18 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         instrument = cable.process (instrument);
         instrument = sanitise (instrument);
 
+        // Internal re-amp (routing-io 5B). The sidechain replaces the string
+        // engine's contribution entirely rather than mixing with it - a DI clip
+        // being re-amped should hear the amp, not the amp plus a ghost guitar.
+        if (sidechainToAmp)
+            instrument = sanitise (readSidechain (i));
+
         instrumentBuffer[(size_t) i] = instrument;
         blockPeak = juce::jmax (blockPeak, std::abs (instrument));
     }
+
+    // Aux 1: the DI, which is exactly what is about to enter the amp.
+    taps.writeAuxMono (AuxBus::di, instrumentBuffer.data(), numSamples);
 
     validator.checkPickupOutput (anyPickupActive || acoustic, blockPeak, samplePosition);
 
@@ -987,7 +1172,27 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             dr[(size_t) i] = amped;
         }
 
+        // Aux 2: the amp before the cabinet. Taken here, after the amp and
+        // before the post-amp effects, which is the point a real amp's DI or
+        // slave output sits at.
+        taps.writeAuxMono (AuxBus::ampPreCab, dl.data(), numSamples);
+
         // ---- 7. post-amp effects ----------------------------------------------
+        // Aux 6 is the tails alone, so the dry signal has to be kept to subtract.
+        const bool wantWetTap = taps.isAuxWanted (AuxBus::wetFx);
+
+        if (wantWetTap)
+        {
+            auto* dryL = wetDryBuffer.getWritePointer (0);
+            auto* dryR = wetDryBuffer.getWritePointer (1);
+
+            for (int i = 0; i < numSamples; ++i)
+            {
+                dryL[i] = (float) dl[(size_t) i];
+                dryR[i] = (float) dr[(size_t) i];
+            }
+        }
+
         postEffects.processStereo (dl.data(), dr.data(), numSamples);
 
         for (int i = 0; i < numSamples; ++i)
@@ -995,11 +1200,42 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             wl[i] = (float) dl[(size_t) i];
             wr[i] = (float) dr[(size_t) i];
         }
+
+        if (wantWetTap)
+            taps.writeAuxDifference (AuxBus::wetFx, wl, wr,
+                                     wetDryBuffer.getReadPointer (0),
+                                     wetDryBuffer.getReadPointer (1),
+                                     numSamples);
     }
 
     // ---- 8. cabinet and room --------------------------------------------------
+    // The room only builds its tap when someone is listening to Aux 5.
+    room.setRoomTapEnabled (taps.isAuxWanted (AuxBus::roomMic));
+
     cabinet.processBlock (workBuffer);
+
+    // Aux 3 and Aux 4: each mic alone, before the blend threw the separation
+    // away. Nothing extra was rendered to produce these.
+    for (int slot = 0; slot < 2; ++slot)
+    {
+        const auto bus = (slot == 0) ? AuxBus::cabMic1 : AuxBus::cabMic2;
+
+        if (! taps.isAuxWanted (bus))
+            continue;
+
+        if (const auto* mic = cabinet.hasMicTap (slot) ? cabinet.getMicTap (slot) : nullptr)
+            taps.writeAuxStereo (bus, mic, mic,
+                                 juce::jmin (numSamples, cabinet.getMicTapNumSamples()));
+    }
+
     room.processBlock (workBuffer);
+
+    // Aux 5: the room alone.
+    if (taps.isAuxWanted (AuxBus::roomMic) && room.hasRoomTap())
+        if (const auto* rl = room.getRoomTap (0))
+            if (const auto* rr = room.getRoomTap (1))
+                taps.writeAuxStereo (AuxBus::roomMic, rl, rr,
+                                     juce::jmin (numSamples, room.getRoomTapNumSamples()));
 
     // ---- 8b. the hidden effect --------------------------------------------------
     if (secret.isEnabled())
@@ -1065,6 +1301,16 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     master.processBlock (buffer);
 
+    // Aux 7: the monitor bus. Until live-performance.md gives the monitor path a
+    // mix of its own, it carries the post-master output, which is what a player
+    // monitoring the plugin hears.
+    if (taps.isAuxWanted (AuxBus::monitor))
+    {
+        const auto* ml = buffer.getReadPointer (0);
+        const auto* mr = (numChannels > 1) ? buffer.getReadPointer (1) : ml;
+        taps.writeAuxStereo (AuxBus::monitor, ml, mr, numSamples);
+    }
+
     processFeedback (juce::jmax (master.getPeakLeft(), master.getPeakRight()));
 
     samplePosition += numSamples;
@@ -1092,6 +1338,53 @@ int LuthierEngine::getLatencySamples() const noexcept
     latency += midi.getLatencySamples();
 
     return latency;
+}
+
+//==============================================================================
+/*  Per-output latency (routing-io 7). Each tap is only delayed by the modules
+    that actually sit in front of it, so a DI printed from Aux 1 lines up with
+    the take without the main output's convolution latency baked into it.
+
+    Hosts that accept only one latency value get the main output's, which is the
+    largest of these by construction - every aux tap is a prefix of the main
+    chain, so none of them can be later than it.
+*/
+int LuthierEngine::getLatencySamples (AuxBus bus) const noexcept
+{
+    // The instrument's own event latency is in front of every output.
+    const int engineLatency = midi.getLatencySamples();
+
+    switch (bus)
+    {
+        case AuxBus::di:
+            // Nothing but the oversampled front end and the body.
+            return engineLatency + body.getLatencySamples();
+
+        case AuxBus::ampPreCab:
+            return engineLatency + body.getLatencySamples()
+                     + preEffects.getLatencySamples() + amp.getLatencySamples();
+
+        case AuxBus::cabMic1:
+        case AuxBus::cabMic2:
+            // Post-cabinet but before the post-amp effects, which the mic taps
+            // are branched off ahead of.
+            return engineLatency + body.getLatencySamples()
+                     + preEffects.getLatencySamples() + amp.getLatencySamples()
+                     + cabinet.getLatencySamples();
+
+        case AuxBus::roomMic:
+        case AuxBus::wetFx:
+        case AuxBus::monitor:
+        default:
+            // These sit at or after the end of the chain.
+            return getLatencySamples();
+    }
+}
+
+int LuthierEngine::getPerStringLatencySamples() const noexcept
+{
+    // The per-string taps are pre-body and pre-everything-else: engine only.
+    return midi.getLatencySamples();
 }
 
 //==============================================================================

@@ -59,6 +59,30 @@ public:
 
     void processBlock (juce::AudioBuffer<float>& buffer) noexcept;
 
+    //==========================================================================
+    /** Captures the room's own contribution - early reflections plus late tail,
+        at the current blend, without the dry signal - into an internal buffer,
+        for routing-io's Aux 5. Off by default, because when nobody is listening
+        to that bus the copy is pure waste.
+
+        The tap is taken at the same point the blend is applied, so
+        `dry + tap` reproduces the room output exactly. */
+    void setRoomTapEnabled (bool e) noexcept { roomTapEnabled = e; }
+    bool isRoomTapEnabled() const noexcept { return roomTapEnabled; }
+
+    /** Valid until the next processBlock, and only when the tap is enabled and
+        the room is not bypassed. */
+    const float* getRoomTap (int channel) const noexcept
+    {
+        if (! roomTapValid || roomTap.getNumChannels() < 2)
+            return nullptr;
+
+        return roomTap.getReadPointer (juce::jlimit (0, 1, channel));
+    }
+
+    bool hasRoomTap() const noexcept { return roomTapValid; }
+    int getRoomTapNumSamples() const noexcept { return roomTapSamples; }
+
     static const char* getRoomSizeName (RoomSize s) noexcept;
     static const char* getMaterialName (RoomMaterial m) noexcept;
 
@@ -74,6 +98,12 @@ private:
     RoomSize roomSize = RoomSize::SmallStudio;
     RoomMaterial material = RoomMaterial::Wood;
     double decayScale = 1.0;
+
+    // Aux 5's room-only tap. Allocated in prepare, never in the audio callback.
+    juce::AudioBuffer<float> roomTap;
+    bool roomTapEnabled = false;
+    bool roomTapValid = false;
+    int  roomTapSamples = 0;
 
     // Early reflections.
     std::vector<double> erBuffer;

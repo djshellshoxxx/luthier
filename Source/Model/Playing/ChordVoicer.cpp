@@ -143,7 +143,14 @@ int ChordVoicer::findCandidates (int midiNote, Candidate* dest) const noexcept
         if (rounded < 0 || rounded > maxFret)
             continue;
 
-        if (rounded == 0 && ! allowOpen)
+        // A capo removes the frets below it from play entirely, including the
+        // open string.
+        if (rounded < minFret)
+            continue;
+
+        // "Open" means open relative to the capo, so with a capo fitted the fret
+        // it holds down is the one that counts as open.
+        if (rounded == minFret && ! allowOpen)
             continue;
 
         dest[count].stringIndex = s;
@@ -161,6 +168,8 @@ double ChordVoicer::scoreAssignment (const ChordVoicing& v) const noexcept
         return 1.0e9;
 
     // Fretted notes define the hand position; open strings cost the hand nothing.
+    // With a capo fitted, the capo fret is the one that costs nothing, because
+    // the capo is holding it rather than the hand.
     int lowest = 99, highest = -1;
     int frettedCount = 0;
 
@@ -171,7 +180,7 @@ double ChordVoicer::scoreAssignment (const ChordVoicing& v) const noexcept
 
         const int f = (int) v.notes[(size_t) i].fretPosition;
 
-        if (f <= 0)
+        if (f <= minFret)
             continue;
 
         lowest = juce::jmin (lowest, f);
@@ -195,9 +204,10 @@ double ChordVoicer::scoreAssignment (const ChordVoicing& v) const noexcept
         score += std::abs (lowest - preferredPosition) * 1.2;
 
     // Prefer lower positions all else being equal: that is where the guitar
-    // sounds fullest and where a player's hand rests.
+    // sounds fullest and where a player's hand rests. Measured from the capo,
+    // so a capo at the fifth fret does not make every voicing look expensive.
     if (frettedCount > 0)
-        score += lowest * 0.35;
+        score += (lowest - minFret) * 0.35;
 
     // Strongly prefer pitch order to follow string order. A voicing that puts a
     // low note on a high string and a high note on a low string is technically

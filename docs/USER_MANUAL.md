@@ -288,6 +288,10 @@ luthier-render --help
 
 ## Options
 
+Options has five tabs along the top.
+
+### General
+
 - **Tooltips** on or off.
 - **Tuning drift** - lets the guitar slowly go out of tune while you play.
 - **Oversampling** - 4x by default. 2x sounds very close and costs noticeably less.
@@ -296,6 +300,47 @@ luthier-render --help
   to scan; rescan.
 - **Audio and MIDI** - handled by your host when running as a plugin, and by the
   wrapper's own toolbar in the standalone.
+
+### Controllers
+
+- **Profile** - pick your controller and the channel map, pitch-bend range and
+  latency budget come with it. The notes underneath say what the profile assumes.
+- **Measure latency** - plays a short test and reports the round trip it actually
+  measured, with the scatter, so you can see whether the number is trustworthy. A
+  measured value overrides the profile's budget.
+- **Pitch dead zone** - how far a string has to move before it counts as a bend
+  rather than tracking noise.
+- **Minimum note length** - keeps a note alive long enough to be heard when a
+  controller sends an immediate note-off.
+- **Save as my profile** - stores your edits as a profile of your own.
+
+### Expression
+
+- **Calibrate** an expression pedal: it asks for heel and toe, then records the
+  range. Pedals that do not reach 0 or 127 are handled by the dead zones.
+- **Curve** - linear, logarithmic or exponential response.
+- The list shows every CC that has been calibrated.
+
+### Accessibility
+
+- **Screen reader verbosity**, **colourblind palette**, **UI scale** and
+  **font** - see the accessibility notes for what each palette changes.
+- **Reduced motion** - stops the animated meters and the data stream.
+- **Language** and a fallback, plus a custom string catalog if you want to supply
+  your own translation.
+- **Shortcuts** - every keyboard shortcut, searchable and rebindable. Click a row
+  and press the key you want.
+
+### Privacy
+
+- **Updates** - automatic checks on or off, beta releases on or off, and a
+  **Check now** button.
+- **Telemetry** - usage, diagnostics and crash reports are three separate opt-ins,
+  all off unless you turn them on, each with a plain description of what it sends.
+- **View last upload** shows exactly what was sent, and **Clear all local logs**
+  removes what is stored here.
+- The last button turns everything off and deletes every diagnostic file in one
+  action, for when you would rather not think about it again.
 
 ---
 

@@ -43,9 +43,14 @@ namespace
 }
 
 //==============================================================================
-void RoomEngine::prepare (double sampleRate, int /*maxBlockSize*/)
+void RoomEngine::prepare (double sampleRate, int maxBlockSize)
 {
     sr = sampleRate;
+
+    roomTap.setSize (2, juce::jmax (1, maxBlockSize), false, true, false);
+    roomTap.clear();
+    roomTapValid = false;
+    roomTapSamples = 0;
 
     // Longest early reflection we support: a cathedral's far wall.
     erSize = juce::nextPowerOfTwo ((int) (sr * 0.5) + 16);
@@ -70,6 +75,10 @@ void RoomEngine::prepare (double sampleRate, int /*maxBlockSize*/)
 
 void RoomEngine::reset() noexcept
 {
+    roomTap.clear();
+    roomTapValid = false;
+    roomTapSamples = 0;
+
     std::fill (erBuffer.begin(), erBuffer.end(), 0.0);
     erIndex = 0;
 
@@ -198,7 +207,19 @@ void RoomEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
     const int numChannels = buffer.getNumChannels();
 
     if (! enabled || numSamples <= 0 || numChannels <= 0 || erSize <= 0)
+    {
+        roomTapValid = false;
+        roomTapSamples = 0;
         return;
+    }
+
+    // The tap only runs when it fits the buffer prepare() allocated; a host that
+    // hands us a longer block than it promised gets no tap rather than a crash.
+    const bool tapping = roomTapEnabled && roomTap.getNumChannels() >= 2
+                           && roomTap.getNumSamples() >= numSamples;
+
+    auto* tapL = tapping ? roomTap.getWritePointer (0) : nullptr;
+    auto* tapR = tapping ? roomTap.getWritePointer (1) : nullptr;
 
     const auto& room = kRooms[(size_t) juce::jlimit (0, (int) RoomSize::NumRoomSizes - 1, (int) roomSize)];
 
@@ -287,7 +308,18 @@ void RoomEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
 
         if (numChannels > 1)
             right[n] = (float) sanitise (dryR * (1.0 - blend) + wetR * blend);
+
+        if (tapping)
+        {
+            // The room alone, at the blend it is being heard at, so that adding
+            // it back to the attenuated dry signal reconstructs the output.
+            tapL[n] = (float) sanitise (wetL * blend);
+            tapR[n] = (float) sanitise ((numChannels > 1) ? wetR * blend : wetL * blend);
+        }
     }
+
+    roomTapValid = tapping;
+    roomTapSamples = tapping ? numSamples : 0;
 }
 
 //==============================================================================

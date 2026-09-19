@@ -24,6 +24,7 @@
 #include "../Source/Presets/FactoryPresets.h"
 #include "../Source/Support/AudioExporter.h"
 #include "../Source/Support/IrLibrary.h"
+#include "../Source/Rhythm/GenreKit.h"
 
 using namespace luthier;
 
@@ -109,6 +110,8 @@ struct Options
     bool listGuitars = false;
     bool listPhrases = false;
     bool showHelp = false;
+
+    juce::File writeRhythmResourcesTo;
 };
 
 void printUsage()
@@ -176,6 +179,7 @@ bool parseArguments (int argc, char* argv[], Options& options)
         else if (arg == "--list-presets")              options.listPresets = true;
         else if (arg == "--list-guitars")              options.listGuitars = true;
         else if (arg == "--list-phrases")              options.listPhrases = true;
+        else if (arg == "--write-rhythm-resources")    options.writeRhythmResourcesTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
         else if (arg == "--normalise" || arg == "--normalize")
         {
             options.normalise = true;
@@ -221,6 +225,70 @@ int listPresets (RenderHost& host)
     }
 
     std::cout << std::endl;
+    return 0;
+}
+
+//==============================================================================
+/*  The factory patterns and genre kits are built in code, so that the plugin has
+    them whether or not its resource folder survived installation. rhythm-engine
+    sections 6 and 7 also want them on disk as editable files, and this writes
+    that copy from the same tables, so the two can never drift apart.
+*/
+int writeRhythmResources (const juce::File& root)
+{
+    const auto patternDirectory = root.getChildFile ("Rhythm");
+    const auto genreDirectory   = root.getChildFile ("Genres");
+
+    if (! patternDirectory.createDirectory() || ! genreDirectory.createDirectory())
+    {
+        std::cerr << "Could not create " << root.getFullPathName() << std::endl;
+        return 1;
+    }
+
+    luthier::PatternLibrary patterns;
+    int written = 0;
+
+    for (int i = 0; i < patterns.getNumPatterns(); ++i)
+    {
+        const auto& pattern = patterns.getPattern (i);
+
+        const auto file = patternDirectory
+                            .getChildFile (juce::File::createLegalFileName (pattern.getName())
+                                             + ".luthierpattern");
+
+        if (! pattern.saveTo (file))
+        {
+            std::cerr << "Failed to write " << file.getFullPathName() << std::endl;
+            return 1;
+        }
+
+        ++written;
+    }
+
+    luthier::GenreKitLibrary kits;
+    int kitsWritten = 0;
+
+    for (int i = 0; i < kits.getNumKits(); ++i)
+    {
+        const auto& kit = kits.getKit (i);
+
+        const auto file = genreDirectory
+                            .getChildFile (juce::File::createLegalFileName (kit.name) + ".json");
+
+        if (! kit.saveTo (file))
+        {
+            std::cerr << "Failed to write " << file.getFullPathName() << std::endl;
+            return 1;
+        }
+
+        ++kitsWritten;
+    }
+
+    std::cout << "Wrote " << written << " patterns to " << patternDirectory.getFullPathName() << "
+"
+              << "Wrote " << kitsWritten << " genre kits to " << genreDirectory.getFullPathName()
+              << std::endl;
+
     return 0;
 }
 
@@ -563,6 +631,9 @@ int main (int argc, char* argv[])
     if (options.listPresets) return listPresets (host);
     if (options.listGuitars) return listGuitars();
     if (options.listPhrases) return listPhrases();
+
+    if (options.writeRhythmResourcesTo != juce::File())
+        return writeRhythmResources (options.writeRhythmResourcesTo);
 
     if (options.outputFile == juce::File())
     {

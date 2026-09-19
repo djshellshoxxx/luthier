@@ -63,6 +63,16 @@ public:
         double detuneCents        = 0.0;   ///< Deliberate offset, -100..+100.
         double realismDetuneCents = 0.0;   ///< Randomised imperfection, persisted in the preset.
         double driftCents         = 0.0;   ///< Slow drift while playing.
+
+        /*  The character engine's own tuner drift (character-wear 4).
+
+            Kept separate from driftCents rather than sharing it: that one is a
+            bounded random walk driven by the Drift toggle, and this one is a
+            deterministic per-string LFO derived from the instrument's seed. They
+            are different models of different things - a string settling versus a
+            machine head slipping - and either writing into the other's field
+            would silently cancel it. */
+        double characterDriftCents = 0.0;
         double intonationSlope    = 0.30;  ///< Cents of sharpening per fret.
         double fineTuneCents      = 0.0;   ///< Per-string fine tuner.
         int    maxFrets           = 24;
@@ -86,6 +96,9 @@ public:
     void setOpenFrequency (int stringIndex, double hz) noexcept;
     void setDetuneCents (int stringIndex, double cents) noexcept;
     void setFineTuneCents (int stringIndex, double cents) noexcept;
+
+    /** The character engine's tuner drift, in cents (character-wear 4). */
+    void setCharacterDriftCents (int stringIndex, double cents) noexcept;
     void setIntonationSlope (int stringIndex, double centsPerFret) noexcept;
     void setMaxFrets (int stringIndex, int frets) noexcept;
 

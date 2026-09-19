@@ -93,7 +93,10 @@ void TuningEngine::reset() noexcept
     driftTargets.fill (0.0);
 
     for (auto& s : strings)
+    {
         s.driftCents = 0.0;
+        s.characterDriftCents = 0.0;
+    }
 }
 
 //==============================================================================
@@ -143,6 +146,12 @@ void TuningEngine::setDetuneCents (int stringIndex, double cents) noexcept
 {
     if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
         strings[(size_t) stringIndex].detuneCents = juce::jlimit (-100.0, 100.0, cents);
+}
+
+void TuningEngine::setCharacterDriftCents (int stringIndex, double cents) noexcept
+{
+    if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
+        strings[(size_t) stringIndex].characterDriftCents = juce::jlimit (-50.0, 50.0, cents);
 }
 
 void TuningEngine::setFineTuneCents (int stringIndex, double cents) noexcept
@@ -283,7 +292,8 @@ double TuningEngine::temperamentRatio (double semitonesFromRoot) const noexcept
 double TuningEngine::getEffectiveOpenFrequency (int stringIndex) const noexcept
 {
     const auto& s = getStringTuning (stringIndex);
-    const double cents = s.detuneCents + s.realismDetuneCents + s.driftCents + s.fineTuneCents;
+    const double cents = s.detuneCents + s.realismDetuneCents + s.driftCents
+                           + s.fineTuneCents + s.characterDriftCents;
     return s.openFrequencyHz * centsToRatio (cents);
 }
 

@@ -64,6 +64,7 @@ private:
     juce::TextButton panicButton { "Panic" };
     juce::TextButton helpButton { "?" };
     juce::TextButton modeButton { "Advanced" };
+    juce::TextButton liveButton { "Live" };
 
     bool advancedMode = false;
 

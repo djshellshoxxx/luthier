@@ -17,6 +17,11 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
+#include "RoutingPanel.h"
+#include "ModMatrixPanel.h"
+#include "RhythmPanel.h"
+#include "ToneMatchPanel.h"
+#include "CharacterPanel.h"
 #include "FretboardComponent.h"
 #include "GuitarBodyComponent.h"
 #include "PedalRack.h"
@@ -170,6 +175,12 @@ private:
 
     std::unique_ptr<LuthierToggle> cableOn;
     std::unique_ptr<LuthierKnob> cableLength;
+
+    std::unique_ptr<RoutingPanel> routingPanel;
+    std::unique_ptr<ModMatrixPanel> modMatrixPanel;
+    std::unique_ptr<RhythmPanel> rhythmPanel;
+    std::unique_ptr<ToneMatchPanel> toneMatchPanel;
+    std::unique_ptr<CharacterPanel> characterPanel;
 
     std::unique_ptr<LuthierChoice> bridgeType;
     std::unique_ptr<LuthierKnob> whammyPos, whammyDown, whammyUp, whammySprings, transposeLock;

@@ -42,6 +42,7 @@ void MidiInterpreter::prepare (double sampleRate, int strings)
     numStrings = juce::jlimit (1, kMaxStrings, strings);
 
     stringBendRange.fill (2.0);
+    resetChannelMap();
     setChordWindowMs (chordWindowMs);
     resetCcMapToDefaults();
     reset();
@@ -108,6 +109,37 @@ void MidiInterpreter::setStringBendRange (int stringIndex, double semitones) noe
         stringBendRange[(size_t) stringIndex] = juce::jlimit (0.5, 96.0, semitones);
 }
 
+//==============================================================================
+void MidiInterpreter::resetChannelMap() noexcept
+{
+    // The default convention: channel 1 is the high E, and the strings run
+    // upward from there.
+    for (int s = 0; s < kMaxStrings; ++s)
+        channelMap[(size_t) s] = s + 1;
+}
+
+void MidiInterpreter::setChannelForString (int stringIndex, int channel) noexcept
+{
+    if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
+        channelMap[(size_t) stringIndex] = juce::jlimit (0, 16, channel);
+}
+
+int MidiInterpreter::getChannelForString (int stringIndex) const noexcept
+{
+    return juce::isPositiveAndBelow (stringIndex, kMaxStrings)
+             ? channelMap[(size_t) stringIndex] : 0;
+}
+
+void MidiInterpreter::setPitchDeadZoneCents (double cents) noexcept
+{
+    pitchDeadZoneCents = juce::jlimit (0.0, 100.0, cents);
+}
+
+void MidiInterpreter::setMinimumNoteDurationMs (double ms) noexcept
+{
+    minNoteDurationMs = juce::jlimit (0.0, 1000.0, ms);
+}
+
 void MidiInterpreter::setChordWindowMs (double ms) noexcept
 {
     chordWindowMs = juce::jlimit (0.0, 50.0, ms);
@@ -167,9 +199,16 @@ MidiTarget MidiInterpreter::getCcTarget (int ccNumber) const noexcept
 //==============================================================================
 int MidiInterpreter::stringForChannel (int channel) const noexcept
 {
-    // Guitar controller convention: channel 1 = high E = string index 0.
-    const int index = channel - 1;
-    return juce::isPositiveAndBelow (index, numStrings) ? index : -1;
+    /*  The map rather than arithmetic (controllers.md 4).
+
+        The default map is the old convention - channel 1 is the high E - so
+        nothing changes for a controller that follows it. A Roland GK, which puts
+        the high E on channel 11, is now expressible without a special case. */
+    for (int s = 0; s < numStrings; ++s)
+        if (channelMap[(size_t) s] == channel)
+            return s;
+
+    return -1;
 }
 
 int MidiInterpreter::getStringMidiNote (int stringIndex) const noexcept
@@ -212,6 +251,7 @@ void MidiInterpreter::processBlock (const juce::MidiBuffer& midi,
         }
         else if (message.isNoteOff())
         {
+            currentTimestamp = timestamp;
             handleNoteOff (message.getNoteNumber(), channel, offset, out);
         }
         else if (message.isPitchWheel())
@@ -237,13 +277,32 @@ void MidiInterpreter::processBlock (const juce::MidiBuffer& midi,
                 if (target >= 0)
                 {
                     const double range = stringBendRange[(size_t) target];
-                    slots[(size_t) target].bendCents = normalised * range * 100.0;
+                    const double cents = normalised * range * 100.0;
 
-                    BendEvent e;
-                    e.stringIndex = target;
-                    e.cents = slots[(size_t) target].bendCents;
-                    e.sampleOffset = offset;
-                    out.addBend (e);
+                    /*  controllers.md 5: some hex pickups never stop hunting for
+                        the pitch of a sustained note, and emit a steady dribble
+                        of small bends around it. Passing those through would
+                        modulate the string engine's delay line continuously for
+                        a note the player is holding still.
+
+                        A bend inside the dead zone is ignored - but only while
+                        the current bend is also inside it, so that a real bend
+                        is never truncated on its way back to pitch. */
+                    const bool bothInsideDeadZone =
+                        pitchDeadZoneCents > 0.0
+                          && std::abs (cents) < pitchDeadZoneCents
+                          && std::abs (slots[(size_t) target].bendCents) < pitchDeadZoneCents;
+
+                    if (! bothInsideDeadZone)
+                    {
+                        slots[(size_t) target].bendCents = cents;
+
+                        BendEvent e;
+                        e.stringIndex = target;
+                        e.cents = cents;
+                        e.sampleOffset = offset;
+                        out.addBend (e);
+                    }
                 }
             }
             else
@@ -301,6 +360,9 @@ void MidiInterpreter::processBlock (const juce::MidiBuffer& midi,
     // Close any chord group whose window has expired.
     flushChordGroup (blockStartSample + numSamples - chordWindowSamples, 0, numSamples, out);
 
+    // And carry out any note-off that was held back for being too early.
+    flushDeferredReleases (blockStartSample, numSamples, out);
+
     activeNoteCount = 0;
 
     for (int s = 0; s < numStrings; ++s)
@@ -314,6 +376,8 @@ void MidiInterpreter::handleNoteOn (int midiNote, int channel, double velocity,
 {
     if (tuning == nullptr || voicer == nullptr || technique == nullptr)
         return;
+
+    currentTimestamp = timestamp;
 
     // Humanised velocity: no two strokes of a real hand are the same.
     const double velJitter = humanise.velocityVariation * humanise.amount;
@@ -519,6 +583,8 @@ void MidiInterpreter::emitVoicedNote (const VoicedNote& note, int64_t timestamp,
 
     slots[(size_t) s].midiNote = note.midiNote;
     slots[(size_t) s].held = true;
+    slots[(size_t) s].startedAt = timestamp;
+    slots[(size_t) s].releaseDueAt = -1;
 }
 
 //==============================================================================
@@ -540,6 +606,40 @@ void MidiInterpreter::handleNoteOff (int midiNote, int channel, int blockOffset,
     }
 }
 
+void MidiInterpreter::flushDeferredReleases (int64_t blockStartSample, int numSamples,
+                                             PlayEventQueue& out) noexcept
+{
+    for (int s = 0; s < numStrings; ++s)
+    {
+        auto& slot = slots[(size_t) s];
+
+        if (slot.releaseDueAt < 0 || ! slot.held)
+            continue;
+
+        if (slot.releaseDueAt >= blockStartSample + numSamples)
+            continue;
+
+        const int offset = juce::jlimit (0, juce::jmax (0, numSamples - 1),
+                                         (int) (slot.releaseDueAt - blockStartSample));
+
+        NoteOffEvent e;
+        e.stringIndex = s;
+        e.midiNote = slot.midiNote;
+        e.sampleOffset = offset;
+        e.letRing = slot.releaseWasLetRing;
+        out.addNoteOff (e);
+
+        slot.held = false;
+        slot.midiNote = -1;
+        slot.bendCents = 0.0;
+        slot.pressure = 0.0;
+        slot.releaseDueAt = -1;
+
+        if (technique != nullptr && ! slot.releaseWasLetRing)
+            technique->noteEnded (s, 0);
+    }
+}
+
 void MidiInterpreter::releaseString (int stringIndex, int blockOffset, PlayEventQueue& out) noexcept
 {
     if (! juce::isPositiveAndBelow (stringIndex, kMaxStrings))
@@ -554,6 +654,23 @@ void MidiInterpreter::releaseString (int stringIndex, int blockOffset, PlayEvent
     // that were down when the pedal was pressed.
     const bool letRing = sustainDown || slot.sostenutoHeld;
 
+    /*  controllers.md 5: a controller with lazy note-offs sends one far too
+        early. Rather than dropping it - which would leave the note hanging if no
+        second one ever came - it is deferred to the earliest moment the note is
+        allowed to end, and flushDeferredReleases carries it out then. */
+    if (minNoteDurationMs > 0.0)
+    {
+        const int64_t minimumSamples = (int64_t) (minNoteDurationMs * 0.001 * sr);
+        const int64_t dueAt = slot.startedAt + minimumSamples;
+
+        if (currentTimestamp < dueAt)
+        {
+            slot.releaseDueAt = dueAt;
+            slot.releaseWasLetRing = letRing;
+            return;
+        }
+    }
+
     NoteOffEvent e;
     e.stringIndex = stringIndex;
     e.midiNote = slot.midiNote;
@@ -565,6 +682,7 @@ void MidiInterpreter::releaseString (int stringIndex, int blockOffset, PlayEvent
     slot.midiNote = -1;
     slot.bendCents = 0.0;
     slot.pressure = 0.0;
+    slot.releaseDueAt = -1;
 
     if (technique != nullptr && ! letRing)
         technique->noteEnded (stringIndex, 0);

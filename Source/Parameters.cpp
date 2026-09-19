@@ -7,6 +7,22 @@ using APVTS = juce::AudioProcessorValueTreeState;
 
 namespace ParamIDs
 {
+const char* macroByIndex (int index) noexcept
+{
+    switch (index)
+    {
+        case 0:  return macroAttack;
+        case 1:  return macroBody;
+        case 2:  return macroDrive;
+        case 3:  return macroTone;
+        case 4:  return macroSpace;
+        case 5:  return macroHumanize;
+        case 6:  return macroAssignA;
+        case 7:  return macroAssignB;
+        default: return macroAttack;
+    }
+}
+
     juce::String pickupType (int slot)     { return "pickup" + juce::String (slot) + "_type"; }
     juce::String pickupPosition (int slot) { return "pickup" + juce::String (slot) + "_position"; }
     juce::String pickupHeight (int slot)   { return "pickup" + juce::String (slot) + "_height"; }
@@ -299,6 +315,12 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam (ParamIDs::macroSpace,    "Space",    0.0f, 1.0f, 0.25f));
     add (floatParam (ParamIDs::macroHumanize, "Humanize", 0.0f, 1.0f, 0.4f));
 
+    // The two spare macros drive nothing on their own. They exist so the
+    // modulation matrix has eight macro sources, as modulation-matrix 1.7 asks,
+    // and so a user can assemble a macro of their own out of routes.
+    add (floatParam (ParamIDs::macroAssignA,  "Macro 7",  0.0f, 1.0f, 0.0f));
+    add (floatParam (ParamIDs::macroAssignB,  "Macro 8",  0.0f, 1.0f, 0.0f));
+
     // --- instrument -----------------------------------------------------------
     add (choiceParam (ParamIDs::guitarType,     "Guitar",          guitarTypeNames(), 0));
     add (choiceParam (ParamIDs::tuningPreset,   "Tuning",          tuningNames(), 0));
@@ -491,15 +513,37 @@ ParameterBridge::~ParameterBridge()
 void ParameterBridge::cachePointers()
 {
     pointers.clear();
+    indices.clear();
 
-    for (auto* param : apvts.processor.getParameters())
+    const auto& parameters = apvts.processor.getParameters();
+
+    for (int i = 0; i < parameters.size(); ++i)
     {
-        if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (param))
+        if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameters[i]))
         {
             if (auto* ptr = apvts.getRawParameterValue (withId->paramID))
+            {
                 pointers.set (withId->paramID, ptr);
+
+                // The matrix addresses destinations by parameter index, so the
+                // audio thread never has to hash a string to apply modulation.
+                indices.set (withId->paramID, i);
+            }
         }
     }
+}
+
+int ParameterBridge::parameterIndex (const juce::String& id) const noexcept
+{
+    return indices.contains (id) ? indices[id] : -1;
+}
+
+float ParameterBridge::baseValue (const juce::String& id) const noexcept
+{
+    if (auto* ptr = raw (id))
+        return ptr->load (std::memory_order_relaxed);
+
+    return 0.0f;
 }
 
 std::atomic<float>* ParameterBridge::raw (const juce::String& id) const noexcept
@@ -509,10 +553,14 @@ std::atomic<float>* ParameterBridge::raw (const juce::String& id) const noexcept
 
 float ParameterBridge::value (const juce::String& id) const noexcept
 {
-    if (auto* ptr = raw (id))
-        return ptr->load (std::memory_order_relaxed);
+    const float base = baseValue (id);
 
-    return 0.0f;
+    // The common case is a preset with no modulation at all, and it costs one
+    // relaxed atomic read to find that out.
+    if (modMatrix == nullptr || ! modMatrix->isActive())
+        return base;
+
+    return modMatrix->apply (parameterIndex (id), base);
 }
 
 //==============================================================================

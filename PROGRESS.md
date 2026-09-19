@@ -41,18 +41,81 @@ Resumable build log. Update after every milestone.
 - [x] M29 Easter egg
 - [x] M30 Docs complete
 
+### Extension specs (INDEX.md build order)
+
+- [x] M31 routing-io.md   — multi-out buses, sidechain, re-amp, MIDI out, per-output latency
+- [x] M32 modulation-matrix.md — 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followers, note/CC/macro/random sources, 1024-route matrix, MOD panel
+- [x] M33 rhythm-engine.md — chord detector, voicer, strum and fingerpick schedulers, 27 factory patterns, 28 genre kits, RHYTHM panel, Easy-mode strip
+- [x] M34 live-performance.md — 128 snapshots with crossfade and morph, setlists, tap tempo, kill switch, monitor mix, expression calibration, Live strip
+- [x] M35 controllers.md — 9 profiles, per-string channel map, latency wizard, pitch dead zone, lazy note-off handling, multi-controller merge
+- [x] M36 practice-tools.md — metronome, looper, backing track, scale and ear trainers, tab reader, progression looper, session recorder, PRACTICE drawer with eight tabs
+- [x] M37 tone-match.md — user IR loading, sweep/MLS/burst cab match, EQ match, capture utility, TONE MATCH panel
+- [x] M38 notation-export.md — PerformanceScore, live TAB view, MusicXML, Guitar Pro, ASCII tab and MIDI export, with importers
+- [x] M39 character-wear.md — dead spots, fret wear, tuner drift, aged electronics, body break-in, temperature and humidity
+- [x] M40 accessibility.md — screen reader, keyboard-only navigation, colourblind palettes, UI scale, localisation
+- [x] M41 updates-telemetry.md — update checks, opt-in telemetry, crash reporting, license activation, privacy dashboard
+
 ## Current state
 
-Feature complete. 98 of 98 tests pass. VST3 and standalone build clean.
+All forty-one milestones are done. Both targets build clean and the whole suite
+passes: **278 tests, 645,081 checks**, exit code 0.
+
+The last stretch was less about writing the remaining specs than about finding out
+that the code written for them had never actually run. `LuthierTests` excludes
+`Source/UI/`, so eight new panels had never been compiled at all, and the test
+binary on disk was stale: the build that was supposed to produce it had failed and
+left the previous exe in place. Five whole suites - ToneMatch, Notation, Character,
+Accessibility and Telemetry - were sitting in the tree, compiled into object files,
+and never linked into anything that ran them. Running them for the first time is
+what produced the rest of this list.
+
+**`Capture` had no default constructor.** `JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR`
+declares a deleted copy constructor, and a user-declared constructor of any kind
+suppresses the implicit default one. `PluginProcessor` holds a `Capture` by value,
+so this broke the plugin build and the test build together. It is now asked for
+explicitly, with a comment saying why.
+
+**`TuningEngine::reset()` was missing its braces.** `characterDriftCents = 0.0` sat
+outside the range-for that was meant to contain it, so character drift was never
+cleared on reset. The compiler only caught it because the stray line happened to
+reference the loop variable; had it referenced anything else it would have compiled
+and quietly misbehaved. A sweep for the same shape across `Source/` found no others.
+
+**The ASCII tab importer read its own beat ruler as a string.** `looksLikeTab`
+tested for "contains a dash and is more than half dashes" and never tested for a
+bar line, which the writer's ruler - `1---2---3---4---` - passes. So every import
+invented a note per beat and shifted every real string index down by one. The
+comment above the function had described the correct rule all along; the code just
+did not implement it. This is the one defect here that would have corrupted user
+data rather than merely failing to build.
+
+Two of the three failing tests turned out to be wrong rather than the code:
+
+- `eqMatchFitsKnownCurves` expected a low shelf to reach its full gain at its
+  corner frequency. A shelf's corner is its half-gain point by definition - the RBJ
+  form sets `A = 10^(dB/40)` and the magnitude at w0 is exactly `A` - so the fit
+  returning 3.07 dB where the reference filter genuinely does +3.0 dB was accurate
+  to within 0.07 dB. The expectation now names the reference response.
+- `deadSpotsReduceSustainWhereTheyAre` compared a dead spot against a fret eight
+  away, which can sit under a different and deeper spot; the engine takes the worst
+  spot at each fret, so it was sometimes comparing two dead notes. It now measures
+  against the liveliest fret clear of the spot, and skips a pair the neck is too
+  crowded to measure.
+
+**The Options pages were implemented and instantiated nowhere.** `OptionsPages.cpp`
+is about eleven hundred lines defining four pages that no code constructed. They
+are now five tabs inside the one Options overlay - General plus Controllers,
+Expression, Accessibility and Privacy - which is what the file's own header comment
+said they were for.
 
 | | |
 |---|---|
-| Source | ~34 600 lines of C++ across 99 files |
+| Source | ~78 300 lines of C++ across 178 files |
 | Parameters | 342, every one automatable, named and text-round-tripping |
 | Guitars | 25 |
-| Factory presets | 36 |
-| Impulse responses | 216 body, 504 cabinet (synthesised — see `docs/KNOWN_ISSUES.md`) |
-| Tests | 98, covering DSP, model, parameters, presets, fuzz and integration |
+| Factory presets | 36 (17 electric, 7 acoustic, 5 bass, 5 utility, 2 classical) |
+| Impulse responses | 216 body, 504 cabinet (synthesised - see `docs/KNOWN_ISSUES.md`) |
+| Tests | 278 across 48 suites, 645 081 checks |
 
 ### Targets
 
@@ -70,11 +133,27 @@ cmake --build build --config Release
 build/LuthierTests_artefacts/Release/LuthierTests.exe
 ```
 
+`scripts/build.ps1` caps parallelism at two jobs by default, which is what fits in
+this machine's memory; `-Jobs` raises it. Note that a `cmake --build` whose output
+you redirect still needs its exit code checked - appending `echo` to the command
+masks it, which is how the failing test build above went unnoticed in the first
+place.
+
 ### Not done
 
 Listed honestly in `docs/KNOWN_ISSUES.md` under "Not yet implemented": CLAP and
-Linux builds, signed installers, the manual per-host test matrix, drag-out export,
-and the practice tools (metronome, looper, backing tracks).
+Linux builds, signed installers, the manual per-host test matrix, and drag-out
+export.
+
+Two things are worth calling out as unverified rather than missing:
+
+- **pluginval has not been re-run.** It passed at strictness 10 against 1.0.0, but
+  that predates the multi-out bus layouts, the Options pages and the character
+  engine. The claim is stale until someone runs it again.
+- **The editor is compile-verified, not run-verified.** The UI is excluded from the
+  test target, so nothing here constructs a `LuthierAudioProcessorEditor`. The new
+  Options tabs compile and are wired correctly by inspection, but no automated test
+  opens the window.
 
 ## History
 

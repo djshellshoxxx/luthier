@@ -7,6 +7,8 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     : AudioProcessorEditor (&p),
       processor (p),
       header (p),
+      liveStrip (p),
+      practicePanel (p),
       easyPanel (p),
       advancedPanel (p),
       helpPanel (p),
@@ -21,6 +23,12 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     setLookAndFeel (&lookAndFeel);
 
     addAndMakeVisible (header);
+    addChildComponent (liveStrip);
+    addAndMakeVisible (practicePanel);
+
+    // practice-tools 9: the drawer changes the space the panels have, so the
+    // window relays out when it opens or is dragged taller.
+    practicePanel.onHeightChanged = [this] { resized(); };
     addChildComponent (easyPanel);
     addChildComponent (advancedPanel);
 
@@ -210,8 +218,16 @@ void LuthierAudioProcessorEditor::resized()
 
     header.setBounds (bounds.removeFromTop (Metrics::headerHeight));
 
+    // live-performance 10: the live strip attaches under the header when Live
+    // Mode is on, and takes no space at all when it is off.
+    if (liveStrip.isVisible())
+        liveStrip.setBounds (bounds.removeFromTop (LiveStrip::preferredHeight));
+
     auto footer = bounds.removeFromBottom (Metrics::footerHeight);
     chordButton.setBounds (footer.withSizeKeepingCentre (110, Metrics::footerHeight - 2));
+
+    // practice-tools 9: the drawer sits above the footer.
+    practicePanel.setBounds (bounds.removeFromBottom (practicePanel.preferredHeight()));
 
     easyPanel.setBounds (bounds);
     advancedPanel.setBounds (bounds);
@@ -220,8 +236,32 @@ void LuthierAudioProcessorEditor::resized()
 }
 
 //==============================================================================
+void LuthierAudioProcessorEditor::updateLiveStripVisibility()
+{
+    const bool live = processor.isLiveMode();
+
+    if (live == liveModeShown)
+        return;
+
+    liveModeShown = live;
+    liveStrip.setVisible (live);
+
+    // live-performance 10: Live Mode locks the Advanced toggle, so that a
+    // mis-hit on stage cannot swap the whole window out from under the player.
+    if (live && advancedMode)
+    {
+        setAdvancedMode (false);
+        header.setAdvancedMode (false);
+    }
+
+    resized();
+}
+
+//==============================================================================
 void LuthierAudioProcessorEditor::timerCallback()
 {
+    updateLiveStripVisibility();
+
     // Tooltips are a user preference, so the window is created or torn down to
     // match rather than the tips being silently empty.
     tooltips.setMillisecondsBeforeTipAppears (
@@ -278,20 +318,90 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
-    if (key.getTextCharacter() == '[')
+    /*  live-performance 2 asks for [ and ] to step snapshots, and the plugin
+        already used them to step presets.
+
+        Live Mode decides which. Off, they keep doing what they always did; on,
+        they step snapshots, which is what a player with a preset open and eight
+        snapshots inside it means by "next". The preset keys are still reachable
+        as Cmd+[ and Cmd+] either way, so nothing is lost. */
+    if (key.getTextCharacter() == '[' || key.getTextCharacter() == ']')
     {
+        const bool forward = key.getTextCharacter() == ']';
+
+        if (processor.isLiveMode() && processor.getSnapshots().getNumSnapshots() > 0)
+        {
+            if (forward) processor.nextSnapshot();
+            else         processor.previousSnapshot();
+
+            return true;
+        }
+
         processor.pushUndoState ("Load preset");
-        processor.getPresetManager().loadPrevious();
+
+        if (forward) processor.getPresetManager().loadNext();
+        else         processor.getPresetManager().loadPrevious();
+
         processor.getParameterBridge().applyAllNow();
         return true;
     }
 
-    if (key.getTextCharacter() == ']')
+    // live-performance 2: digits recall snapshots directly, shifted for the
+    // second bank of nine.
+    if (const auto character = key.getTextCharacter();
+        character >= '1' && character <= '9')
     {
-        processor.pushUndoState ("Load preset");
-        processor.getPresetManager().loadNext();
-        processor.getParameterBridge().applyAllNow();
+        const int index = (character - '1') + (shift ? 9 : 0);
+
+        if (index < processor.getSnapshots().getNumSnapshots())
+        {
+            processor.recallSnapshot (index);
+            return true;
+        }
+    }
+
+    // live-performance 6: the kill switch. A keyboard cannot express "held", so
+    // from the keyboard it toggles; the on-screen pill and any MIDI footswitch
+    // are the momentary routes.
+    if (key.getTextCharacter() == '\\')
+    {
+        auto& kill = processor.getKillSwitch();
+        kill.setActive (! kill.isActive());
         return true;
+    }
+
+    // live-performance 9: panic.
+    if (key.getTextCharacter() == 'p' || key.getTextCharacter() == 'P')
+    {
+        if (! command)
+        {
+            processor.panic();
+            return true;
+        }
+    }
+
+    // live-performance 5: tap tempo.
+    if (key.getTextCharacter() == 't' || key.getTextCharacter() == 'T')
+    {
+        if (! command)
+        {
+            processor.tapTempoNow();
+            return true;
+        }
+    }
+
+    // live-performance 4: the setlist walks on PageUp and PageDown.
+    if (key == juce::KeyPress::pageUpKey || key == juce::KeyPress::pageDownKey)
+    {
+        const bool forward = (key == juce::KeyPress::pageDownKey);
+
+        if (forward ? processor.getSetlist().next() : processor.getSetlist().previous())
+        {
+            processor.applyCurrentSetlistEntry();
+            return true;
+        }
+
+        return false;
     }
 
     if (! command)

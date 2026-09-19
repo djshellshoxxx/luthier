@@ -766,6 +766,44 @@ void AdvancedPanel::buildRigColumn()
                "Safety limiter at -0.3 dBFS. Transparent until the signal would clip.");
     addChoice (oversampling, "Oversampling", ParamIDs::oversample,
                "Oversampling for the nonlinear stages. Higher is cleaner and costs more CPU.");
+
+    // ---- routing -------------------------------------------------------------------
+    // routing-io section 8. Last in the column because it describes where the
+    // finished signal goes, which is the end of the chain the column walks.
+    column.addSection ("Routing");
+
+    routingPanel = std::make_unique<RoutingPanel> (processor);
+    column.addControl (routingPanel.get(), routingPanel->preferredHeight());
+
+    // ---- modulation ------------------------------------------------------------------
+    // modulation-matrix section 5. The spec wants this as its own MOD tab; the
+    // column has no tab strip, so it is the last section, after routing.
+    column.addSection ("Mod Matrix");
+
+    modMatrixPanel = std::make_unique<ModMatrixPanel> (processor);
+    column.addControl (modMatrixPanel.get(), modMatrixPanel->preferredHeight());
+
+    // ---- rhythm ----------------------------------------------------------------------
+    // rhythm-engine section 8, likewise asked for as its own RHYTHM tab and
+    // likewise built as a section, after the matrix that can modulate it.
+    column.addSection ("Rhythm");
+
+    rhythmPanel = std::make_unique<RhythmPanel> (processor);
+    column.addControl (rhythmPanel.get(), rhythmPanel->preferredHeight());
+
+    // ---- tone match --------------------------------------------------------------------
+    // tone-match section 6, again a section rather than a tab.
+    column.addSection ("Tone Match");
+
+    toneMatchPanel = std::make_unique<ToneMatchPanel> (processor);
+    column.addControl (toneMatchPanel.get(), toneMatchPanel->preferredHeight());
+
+    // ---- character ----------------------------------------------------------------------
+    // character-wear section 10.
+    column.addSection ("Character");
+
+    characterPanel = std::make_unique<CharacterPanel> (processor);
+    column.addControl (characterPanel.get(), characterPanel->preferredHeight());
 }
 
 //==============================================================================

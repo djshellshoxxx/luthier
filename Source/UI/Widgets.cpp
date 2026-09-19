@@ -5,6 +5,14 @@ namespace luthier
 {
 
 //==============================================================================
+namespace
+{
+    /** Menu ids for the Modulate submenu start well past the fixed items, so a
+        source slot can be encoded directly in the id. */
+    constexpr int kModulateMenuBase = 1000;
+}
+
+//==============================================================================
 double ControlClipboard::value = 0.0;
 bool ControlClipboard::filled = false;
 
@@ -53,6 +61,55 @@ void showParameterContextMenu (juce::Component& owner,
     menu.addSeparator();
     menu.addItem (7, "Lock (exclude from randomise)", true, locked);
     menu.addItem (8, "Randomise this control", ! locked);
+
+    // ---- modulation (modulation-matrix 5) -------------------------------------
+    // Right-clicking any control offers every source, which is the quickest way
+    // to build a route: the destination is the control under the cursor, so the
+    // user only has to choose what should drive it.
+    auto& matrix = processor.getModMatrix();
+    const int existingRoutes = matrix.getRouteCountForDestination (parameterId);
+    const bool roomForMore = existingRoutes < ModMatrix::kMaxRoutesPerDestination;
+
+    juce::PopupMenu modulate;
+
+    auto addSourceGroup = [&modulate, roomForMore] (const juce::String& groupName,
+                                                    int firstSlot, int count)
+    {
+        juce::PopupMenu group;
+
+        for (int i = 0; i < count; ++i)
+            group.addItem (kModulateMenuBase + firstSlot + i,
+                           modSourceDisplayName (firstSlot + i), roomForMore);
+
+        modulate.addSubMenu (groupName, group);
+    };
+
+    addSourceGroup ("LFO", ModSourceSlots::lfoBase, ModSourceSlots::numLfos);
+    addSourceGroup ("Envelope", ModSourceSlots::envBase, ModSourceSlots::numEnvelopes);
+    addSourceGroup ("Sequencer", ModSourceSlots::seqBase, ModSourceSlots::numSequencers);
+    addSourceGroup ("Follower", ModSourceSlots::followerBase, ModSourceSlots::numFollowers);
+    addSourceGroup ("Macro", ModSourceSlots::macroBase, ModSourceSlots::numMacros);
+
+    {
+        juce::PopupMenu performance;
+
+        for (int slot : { ModSourceSlots::notePitch, ModSourceSlots::noteVelocity,
+                          ModSourceSlots::noteTrigger, ModSourceSlots::notesHeld,
+                          ModSourceSlots::aftertouch, ModSourceSlots::polyAftertouch,
+                          ModSourceSlots::pitchBend, ModSourceSlots::modWheel,
+                          ModSourceSlots::channelPressure, ModSourceSlots::randomPerNote,
+                          ModSourceSlots::randomPerBar, ModSourceSlots::randomSmooth })
+            performance.addItem (kModulateMenuBase + slot, modSourceDisplayName (slot), roomForMore);
+
+        modulate.addSubMenu ("Performance", performance);
+    }
+
+    menu.addSeparator();
+    menu.addSubMenu (roomForMore ? "Modulate"
+                                 : "Modulate (8 sources already routed)", modulate);
+
+    if (existingRoutes > 0)
+        menu.addItem (9, "Remove modulation (" + juce::String (existingRoutes) + ")");
 
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&owner),
                         [&processor, parameterId, param, onChanged, &owner] (int result)
@@ -130,8 +187,38 @@ void showParameterContextMenu (juce::Component& owner,
                 break;
             }
 
-            default:
+            case 9:
+            {
+                // Walk backwards so removing one does not shift the next.
+                auto& modMatrix = processor.getModMatrix();
+
+                for (int i = modMatrix.getNumRoutes(); --i >= 0;)
+                    if (modMatrix.getRoute (i).destinationId == parameterId)
+                        modMatrix.removeRoute (i);
+
                 break;
+            }
+
+            default:
+            {
+                if (result >= kModulateMenuBase
+                      && result < kModulateMenuBase + ModSourceSlots::count)
+                {
+                    ModRoute route;
+                    route.sourceId = modSourceIdForSlot (result - kModulateMenuBase);
+                    route.destinationId = parameterId;
+
+                    // A new route starts at a third of full depth: enough to be
+                    // obviously doing something, not so much that it swamps the
+                    // control the user just right-clicked.
+                    route.depth = 0.33f;
+                    route.enabled = true;
+
+                    processor.getModMatrix().addRoute (route);
+                }
+
+                break;
+            }
         }
 
         if (onChanged && result != 1)
@@ -320,6 +407,50 @@ void LuthierKnob::paint (juce::Graphics& g)
     g.setColour (hovering ? Palette::textPrimary : Palette::textMuted);
     g.setFont (Fonts::label());
     Fonts::drawTrackedText (g, labelText.toUpperCase(), labelArea, juce::Justification::centred);
+
+    // ---- modulation arc (modulation-matrix 5 and 7) -----------------------------
+    // Modulation does not move the control - that is what distinguishes it from
+    // automation - so it is drawn as an arc from where the knob is to where the
+    // modulation has pushed the value.
+    if (processor != nullptr && paramId.isNotEmpty())
+    {
+        auto& matrix = processor->getModMatrix();
+        const int index = processor->getParameterBridge().parameterIndex (paramId);
+
+        if (matrix.isDestinationModulated (index))
+        {
+            const auto range = processor->getState().getParameterRange (paramId);
+            const float span = juce::jmax (1.0e-9f, range.end - range.start);
+            const float base = (float) slider.getValue();
+
+            const float baseNorm = juce::jlimit (0.0f, 1.0f, (base - range.start) / span);
+            const float modNorm = juce::jlimit (0.0f, 1.0f,
+                                                (base + matrix.getOffsetFor (index) - range.start) / span);
+
+            // Same sweep the slider's rotary uses, so the arc lines up with the
+            // pointer rather than floating near it.
+            const float startAngle = juce::MathConstants<float>::pi * 1.2f;
+            const float endAngle = juce::MathConstants<float>::pi * 2.8f;
+
+            const auto knobArea = bounds.toFloat().reduced (3.0f);
+            const float radius = juce::jmin (knobArea.getWidth(), knobArea.getHeight()) * 0.5f - 1.0f;
+
+            if (radius > 2.0f && std::abs (modNorm - baseNorm) > 1.0e-4f)
+            {
+                const float a0 = startAngle + baseNorm * (endAngle - startAngle);
+                const float a1 = startAngle + modNorm * (endAngle - startAngle);
+
+                juce::Path arc;
+                arc.addCentredArc (knobArea.getCentreX(), knobArea.getCentreY(),
+                                   radius, radius, 0.0f,
+                                   juce::jmin (a0, a1), juce::jmax (a0, a1), true);
+
+                g.setColour (Palette::secondary.withAlpha (0.85f));
+                g.strokePath (arc, juce::PathStrokeType (2.5f, juce::PathStrokeType::curved,
+                                                         juce::PathStrokeType::rounded));
+            }
+        }
+    }
 
     // A mapped CC is shown as a small patina dot in the corner, so a player can
     // see at a glance which controls their pedalboard is driving.

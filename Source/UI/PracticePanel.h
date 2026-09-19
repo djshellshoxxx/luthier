@@ -1,0 +1,314 @@
+#pragma once
+
+/*  The practice drawer (practice-tools.md section 9).
+
+    A slide-out from the bottom of the window with eight tabs across it. Collapsed
+    it is a 32-pixel strip showing the tempo, the loop status and the track title,
+    which is the only part of it that exists when it is closed - practice-tools
+    0.1 says a closed tool consumes no CPU, so a collapsed drawer stops its timer
+    and the processor stops rendering the tools at all.
+*/
+
+#include <juce_gui_basics/juce_gui_basics.h>
+
+#include "Theme.h"
+#include "Widgets.h"
+#include "../Practice/Metronome.h"
+#include "../Practice/Looper.h"
+#include "../Practice/BackingTrack.h"
+#include "../Practice/Trainers.h"
+#include "../Notation/NotationExport.h"
+
+namespace luthier
+{
+
+class LuthierAudioProcessor;
+
+//==============================================================================
+/** The four-dot beat indicator (practice-tools 1). */
+class BeatIndicator : public juce::Component
+{
+public:
+    explicit BeatIndicator (LuthierAudioProcessor& processor);
+
+    void refresh();
+
+    void paint (juce::Graphics&) override;
+
+private:
+    LuthierAudioProcessor& processor;
+
+    int lastBeat = -1;
+    bool lastSilent = false;
+};
+
+//==============================================================================
+/** One tab's contents. Each is a plain component so the drawer can show one at
+    a time without them all being laid out at once. */
+class PracticeTab : public juce::Component
+{
+public:
+    explicit PracticeTab (LuthierAudioProcessor& p) : processor (p) {}
+
+    /** Called by the drawer's timer while this tab is the visible one. */
+    virtual void refresh() {}
+
+protected:
+    LuthierAudioProcessor& processor;
+};
+
+//==============================================================================
+class MetronomeTab final : public PracticeTab
+{
+public:
+    explicit MetronomeTab (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void resized() override;
+
+private:
+    Metronome& metronome();
+
+    std::unique_ptr<LuthierToggle> enableToggle;
+    juce::Slider tempoSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::ComboBox signatureBox, subdivisionBox, soundBox;
+    juce::Slider levelSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider silentBarsSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+
+    // Progressive tempo (practice-tools 1).
+    juce::Slider fromSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider toSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider overBarsSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::TextButton rampButton { "Ramp" };
+
+    /** One button per beat of the bar, cycling through the accent levels. */
+    juce::OwnedArray<juce::TextButton> accentButtons;
+
+    std::unique_ptr<BeatIndicator> indicator;
+
+    bool updatingControls = false;
+};
+
+//==============================================================================
+class LooperTab final : public PracticeTab
+{
+public:
+    explicit LooperTab (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void resized() override;
+
+private:
+    Looper& looper();
+
+    juce::TextButton transportButton { "Record" }, stopButton { "Stop" }, clearButton { "Clear" };
+    juce::Label statusLabel;
+
+    /** One strip per layer: select, mute, mode, level, pan, and undo. */
+    struct LayerStrip
+    {
+        std::unique_ptr<juce::TextButton> select, mute, reverse, halfSpeed, undo;
+        std::unique_ptr<juce::ComboBox> mode;
+        std::unique_ptr<juce::Slider> level, pan;
+    };
+
+    std::array<LayerStrip, Looper::kMaxLayers> layers;
+
+    juce::TextButton exportMix { "Bounce" }, exportStems { "Stems" };
+    juce::TextButton saveButton { "Save" }, loadButton { "Load" };
+
+    std::unique_ptr<juce::FileChooser> chooser;
+};
+
+//==============================================================================
+class TrackTab final : public PracticeTab
+{
+public:
+    explicit TrackTab (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void resized() override;
+
+private:
+    BackingTrackPlayer& track();
+
+    juce::TextButton openButton { "Open..." }, playButton { "Play" }, stopButton { "Stop" };
+    juce::Label titleLabel, positionLabel, tempoLabel;
+
+    juce::Slider positionSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
+    juce::Slider levelSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider pitchSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider tempoSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+
+    juce::TextButton loopButton { "Loop" }, monoButton { "Mono" };
+    juce::TextButton setLoopStart { "Loop in" }, setLoopEnd { "Loop out" };
+    juce::TextButton addMarker { "Mark" };
+    juce::ComboBox markerBox;
+
+    std::unique_ptr<juce::FileChooser> chooser;
+
+    bool draggingPosition = false;
+};
+
+//==============================================================================
+class ScaleTab final : public PracticeTab
+{
+public:
+    explicit ScaleTab (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void resized() override;
+
+private:
+    ScaleTrainer& trainer();
+
+    juce::ComboBox keyBox, scaleBox, modeBox;
+    juce::Label questionLabel, scoreLabel;
+    juce::TextButton nextButton { "Ask" };
+
+    /** The scale drawn on a fretboard, which is what "explore" means. */
+    juce::Component scaleView;
+
+    juce::Random random { 0x5ca1e5 };
+};
+
+//==============================================================================
+class EarTab final : public PracticeTab
+{
+public:
+    explicit EarTab (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void resized() override;
+
+private:
+    EarTrainer& trainer();
+
+    void playCurrentQuestion();
+
+    juce::ComboBox exerciseBox;
+    juce::TextButton playButton { "Play" }, nextButton { "New" };
+    juce::TextButton adaptiveButton { "Adaptive" };
+    juce::Label questionLabel, scoreLabel, feedbackLabel;
+
+    juce::OwnedArray<juce::TextButton> choiceButtons;
+
+    juce::Random random { 0xea12 };
+
+    int notes[EarTrainer::kMaxNotesInQuestion] {};
+    double offsets[EarTrainer::kMaxNotesInQuestion] {};
+    int numNotes = 0;
+};
+
+//==============================================================================
+class TabReaderTab final : public PracticeTab
+{
+public:
+    explicit TabReaderTab (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void resized() override;
+
+private:
+    juce::TextButton openButton { "Open..." }, exportButton { "Export..." };
+    juce::Label statusLabel;
+    juce::TextEditor tabView;
+    juce::ComboBox formatBox;
+    juce::Slider barsSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+
+    PerformanceScore score;
+    NotationExporter exporter;
+    NotationImporter importer;
+
+    std::unique_ptr<juce::FileChooser> chooser;
+};
+
+//==============================================================================
+class ProgressionTab final : public PracticeTab
+{
+public:
+    explicit ProgressionTab (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void resized() override;
+
+private:
+    juce::TextEditor entryBox;
+    juce::TextButton parseButton { "Set" }, playButton { "Play" };
+    juce::Label statusLabel, currentChordLabel;
+    juce::ComboBox genreBox;
+};
+
+//==============================================================================
+class SessionTab final : public PracticeTab
+{
+public:
+    explicit SessionTab (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void resized() override;
+
+private:
+    std::unique_ptr<LuthierToggle> enableToggle;
+    juce::TextButton saveButton { "Save last take" }, openFolderButton { "Open folder" };
+    juce::Label statusLabel, warningLabel;
+    juce::Slider lengthSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+};
+
+//==============================================================================
+class PracticePanel : public juce::Component,
+                      private juce::Timer
+{
+public:
+    /** practice-tools 9: 32 px collapsed, up to 360 open. */
+    static constexpr int collapsedHeight = 32;
+    static constexpr int defaultOpenHeight = 260;
+    static constexpr int maximumHeight = 360;
+
+    explicit PracticePanel (LuthierAudioProcessor& processor);
+    ~PracticePanel() override;
+
+    void setOpen (bool shouldBeOpen);
+    bool isOpen() const noexcept { return open; }
+
+    /** The height the editor should give it. */
+    int preferredHeight() const noexcept { return open ? openHeight : collapsedHeight; }
+
+    std::function<void()> onHeightChanged;
+
+    void paint (juce::Graphics&) override;
+    void resized() override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+
+private:
+    void timerCallback() override;
+
+    void showTab (int index);
+
+    LuthierAudioProcessor& processor;
+
+    bool open = false;
+    int openHeight = defaultOpenHeight;
+
+    /** The collapsed strip's readouts. */
+    juce::Label stripTempo, stripLoop, stripTrack;
+
+    juce::TextButton toggleButton { "PRACTICE" };
+
+    /** practice-tools 9: the drawer strip's own controls. */
+    juce::Slider practiceLevel { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
+    juce::TextButton tapButton { "Tap" }, panicButton { "Panic" };
+
+    juce::OwnedArray<juce::TextButton> tabButtons;
+    juce::OwnedArray<PracticeTab> tabs;
+
+    int currentTab = 0;
+
+    /** Where a resize drag started, so the drawer can be dragged taller. */
+    int dragStartHeight = 0;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PracticePanel)
+};
+
+} // namespace luthier

@@ -6,19 +6,76 @@ namespace luthier
 {
 
 //==============================================================================
+/*  Advertises layouts A to D of routing-io 1 as one superset of buses, and
+        lets the host disable the ones it cannot use.
+
+        Every bus past the main output is created disabled. A host that only does
+        stereo therefore sees layout A and never has to say so; a host with
+        flexible routing enables what it wants and gets B, C or D. The alternative
+        - four separately declared layouts - is not something the VST3 or AU bus
+    model can express.
+
+    The sidechain is an input bus rather than the main input because the plugin
+    is an instrument: its main input carries nothing, and a host should not have
+    to route audio into an instrument just to feed a detector.
+*/
+juce::AudioProcessor::BusesProperties LuthierAudioProcessor::buildBusesProperties()
+{
+    auto props = BusesProperties()
+                   .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
+                   .withInput ("Sidechain", juce::AudioChannelSet::stereo(), false);
+
+    for (int bus = 0; bus < kNumAuxBuses; ++bus)
+        props = props.withOutput (getAuxBusName (bus), juce::AudioChannelSet::stereo(), false);
+
+    for (int s = 0; s < kNumPerStringBuses; ++s)
+        props = props.withOutput ("String " + juce::String (s + 1),
+                                  juce::AudioChannelSet::mono(), false);
+
+    return props;
+}
+
 LuthierAudioProcessor::LuthierAudioProcessor()
-    : AudioProcessor (BusesProperties()
-                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+    : AudioProcessor (buildBusesProperties()),
       apvts (*this, nullptr, "LUTHIER", Parameters::createLayout()),
       bridge (apvts, engine),
       presets (*this, apvts, engine),
-      midiLearn (apvts)
+      midiLearn (apvts),
+      snapshots (*this)
 {
     FactoryPresets::setProcessorForRanges (this);
     presets.ensureFactoryPresetsInstalled();
     presets.refresh();
 
     bridge.cachePointers();
+    bridge.setModMatrix (&modMatrix);
+
+    // The bank stores the snapshot blobs for the modules it does not own, and
+    // hands them back at the crossfade midpoint for this to unpack.
+    snapshots.onNonParameterState = [this] (const Snapshot& snapshot)
+    {
+        applySnapshotModules (snapshot);
+    };
+
+    // live-performance 11: pedal calibrations are user-global, so they come from
+    // the user's config rather than from whatever preset happens to load first.
+    expression.load();
+
+    // accessibility 9 and updates-telemetry 6: both of these describe the person
+    // rather than the sound, so they are user-global too.
+    AccessibilitySettings::get().load();
+    Localisation::get().setLocale (Localisation::get().getLocale());
+
+    telemetry.loadSettings();
+    telemetry.setTransport (createHttpsTransport());
+    license.load();
+
+    // tone-match 5: the IR folder tree exists before the user goes looking for
+    // somewhere to put a file.
+    IrLibraryPaths::ensureExists();
+
+    // practice-tools 8: yesterday's unsaved session buffers go.
+    SessionRecorder::cleanUpOldTempFiles (SessionRecorder::getTempDirectory());
 
     // 30 Hz is fast enough for the meters and the data stream, and slow enough
     // that it costs nothing.
@@ -41,8 +98,43 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     currentBlockSize = samplesPerBlock;
 
     engine.prepare (sampleRate, samplesPerBlock);
+    sidechainCopy.setSize (2, juce::jmax (1, samplesPerBlock), false, true, false);
+    sidechainCopy.clear();
+    routing.prepare (sampleRate, samplesPerBlock);
+    routing.setActiveLayout (getNegotiatedLayout());
+    routing.setSidechainPresent (hasSidechainInput());
+    midiOutRouter.prepare (sampleRate, samplesPerBlock);
+    modMatrix.prepare (sampleRate, samplesPerBlock, apvts);
+    transportWasRunning = false;
     midiCapture.prepare (sampleRate, 60.0);
     diagnostics.prepare (sampleRate);
+
+    killSwitch.prepare (sampleRate);
+    monitorMix.prepare (sampleRate, samplesPerBlock);
+    monitorBuffer.setSize (2, juce::jmax (1, samplesPerBlock), false, true, false);
+    monitorBuffer.clear();
+
+    // ---- practice tools ------------------------------------------------------------
+    metronome.prepare (sampleRate, samplesPerBlock);
+
+    // A short loop by default: the whole maximum is a quarter of a gigabyte per
+    // layer, and a user who wants four minutes can ask for it.
+    looper.prepare (sampleRate, 30.0);
+
+    backingTrack.prepare (sampleRate, samplesPerBlock);
+
+    clickBuffer.setSize (1, juce::jmax (1, samplesPerBlock), false, true, false);
+    backingBuffer.setSize (2, juce::jmax (1, samplesPerBlock), false, true, false);
+    clickBuffer.clear();
+    backingBuffer.clear();
+
+    // ---- tone match ----------------------------------------------------------------
+    bodyIr.prepare (sampleRate, samplesPerBlock);
+
+    for (auto& slot : cabIr)
+        slot.prepare (sampleRate, samplesPerBlock);
+
+    capture.prepare (sampleRate);
 
     samplePosition = 0;
 
@@ -50,6 +142,7 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     presets.applyExtraState();
 
     updateLatency();
+    updateRoutingLatencyReport();
 
     Diagnostics::HostInfo info;
     info.hostName = juce::PluginHostType().getHostDescription();
@@ -68,13 +161,94 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 void LuthierAudioProcessor::releaseResources()
 {
     engine.releaseResources();
+    routing.reset();
+    midiOutRouter.reset();
+    modMatrix.reset();
+    killSwitch.reset();
+    monitorMix.reset();
+
+    metronome.reset();
+    looper.reset();
+    backingTrack.reset();
+
+    bodyIr.reset();
+
+    for (auto& slot : cabIr)
+        slot.reset();
 }
 
 bool LuthierAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    const auto out = layouts.getMainOutputChannelSet();
+    const auto main = layouts.getMainOutputChannelSet();
 
-    return out == juce::AudioChannelSet::stereo() || out == juce::AudioChannelSet::mono();
+    // Rule 2 of routing-io 0: the minimal stereo case must always work, so the
+    // main output is the only bus with a hard requirement.
+    if (main != juce::AudioChannelSet::stereo() && main != juce::AudioChannelSet::mono())
+        return false;
+
+    // The sidechain is optional; if the host enables it, it has to be mono or
+    // stereo, because that is all a detector can meaningfully read.
+    if (layouts.inputBuses.size() > 0)
+    {
+        const auto sc = layouts.getChannelSet (true, 0);
+
+        if (! sc.isDisabled()
+              && sc != juce::AudioChannelSet::mono()
+              && sc != juce::AudioChannelSet::stereo())
+            return false;
+    }
+
+    for (int bus = 1; bus < layouts.outputBuses.size(); ++bus)
+    {
+        const auto set = layouts.getChannelSet (false, bus);
+
+        if (set.isDisabled())
+            continue;
+
+        const bool isAuxBus = (bus - 1) < kNumAuxBuses;
+
+        // Aux buses are stereo pairs; per-string buses are mono. Accepting the
+        // wrong width would silently drop or duplicate a channel.
+        if (isAuxBus)
+        {
+            if (set != juce::AudioChannelSet::stereo())
+                return false;
+        }
+        else if (set != juce::AudioChannelSet::mono())
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+//==============================================================================
+BusLayout LuthierAudioProcessor::getNegotiatedLayout() const noexcept
+{
+    bool anyAux = false, anyPerString = false;
+
+    for (int bus = 1; bus < getBusCount (false); ++bus)
+    {
+        if (getChannelCountOfBus (false, bus) <= 0)
+            continue;
+
+        if ((bus - 1) < kNumAuxBuses)
+            anyAux = true;
+        else
+            anyPerString = true;
+    }
+
+    if (anyAux && anyPerString) return BusLayout::full;
+    if (anyAux)                 return BusLayout::studio;
+    if (anyPerString)           return BusLayout::perString;
+
+    return BusLayout::stereoOnly;
+}
+
+bool LuthierAudioProcessor::hasSidechainInput() const noexcept
+{
+    return getBusCount (true) > 0 && getChannelCountOfBus (true, 0) > 0;
 }
 
 double LuthierAudioProcessor::getTailLengthSeconds() const
@@ -92,6 +266,22 @@ void LuthierAudioProcessor::updateLatency()
         reportedLatency = latency;
         setLatencySamples (latency);
     }
+
+    updateRoutingLatencyReport();
+}
+
+void LuthierAudioProcessor::updateRoutingLatencyReport()
+{
+    // Routing-io 7. JUCE exposes a single latency value to the host, so this is
+    // what the ROUTING panel shows the user for each output; the number handed
+    // to the host stays the main output's, which is the largest.
+    RoutingMatrix::LatencyReport report;
+    report.mainOut = engine.getLatencySamples();
+    report.auxDi = engine.getLatencySamples (AuxBus::di);
+    report.auxPreCab = engine.getLatencySamples (AuxBus::ampPreCab);
+    report.perString = engine.getPerStringLatencySamples();
+
+    routing.setLatencyReport (report);
 }
 
 //==============================================================================
@@ -100,6 +290,43 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     juce::ScopedNoDenormals noDenormals;
 
     const int numSamples = buffer.getNumSamples();
+
+    // ---- routing, before anything reads or writes audio -----------------------
+    routing.setActiveLayout (getNegotiatedLayout());
+    routing.setSidechainPresent (hasSidechainInput());
+    routing.updateWantedTaps (engine.getTapBuffers(), engine.getNumStrings());
+
+    // The sidechain arrives on input bus 0, in channels the main output is about
+    // to be written into, so it is copied out first - see sidechainCopy.
+    auto sidechainIn = getBusBuffer (buffer, true, 0);
+    const int sidechainChannels = juce::jmin (sidechainIn.getNumChannels(),
+                                              sidechainCopy.getNumChannels());
+    const int sidechainSamples = juce::jmin (numSamples, sidechainCopy.getNumSamples());
+
+    if (hasSidechainInput() && sidechainChannels > 0 && sidechainSamples > 0)
+    {
+        for (int ch = 0; ch < sidechainChannels; ++ch)
+            sidechainCopy.copyFrom (ch, 0, sidechainIn, ch, 0, sidechainSamples);
+
+        engine.setSidechainInput (sidechainCopy.getArrayOfReadPointers(),
+                                  sidechainChannels, sidechainSamples);
+        routing.meterSidechain (sidechainCopy.getArrayOfReadPointers(),
+                                sidechainChannels, sidechainSamples);
+    }
+    else
+    {
+        engine.setSidechainInput (nullptr, 0, 0);
+        routing.meterSidechain (nullptr, 0, 0);
+    }
+
+    engine.setSidechainToAmp (routing.isSidechainToAmp() && hasSidechainInput());
+
+    // MIDI out echoes what the host sent, so it has to be copied before the
+    // engine reads the buffer and the router rewrites it.
+    const auto midiOutConfig = routing.getMidiOutConfig();
+
+    if (midiOutConfig.enabled)
+        midiOutRouter.captureInput (midiMessages);
 
     // Host tempo, for tempo-synced delays and tremolo.
     if (auto* playHead = getPlayHead())
@@ -113,8 +340,32 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 
     engine.setTempoBpm (hostTempo.load());
 
+    // The rhythm engine's grid is locked to the host's own position, which is
+    // what makes its scheduling sample-accurate rather than merely periodic.
+    {
+        double ppq = 0.0;
+        bool playing = false;
+
+        if (auto* playHead = getPlayHead())
+        {
+            if (auto position = playHead->getPosition())
+            {
+                playing = position->getIsPlaying();
+
+                if (auto value = position->getPpqPosition())
+                    ppq = *value;
+            }
+        }
+
+        engine.setTransportPosition (ppq, playing);
+    }
+
     // MIDI Learn gets first look, so a CC being learned is not also acted on.
     midiLearn.processMidi (midiMessages);
+
+    // live-performance 2: program change and bank select drive the live surface,
+    // and are consumed so nothing downstream sees them as musical events.
+    handleLiveMidi (midiMessages);
 
     midiCapture.capture (midiMessages, samplePosition);
     logMidiForDiagnostics (midiMessages);
@@ -135,15 +386,230 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         }
     }
 
+    // ---- modulation ------------------------------------------------------------
+    // Sources first, then the matrix, then the bridge: the bridge reads every
+    // parameter through ModMatrix::apply, so the offsets have to be current
+    // before it runs.
+    feedModulationSources (midiMessages);
+
+    {
+        ModBlockContext modContext;
+        buildModBlockContext (buffer, numSamples, modContext);
+        modMatrix.processBlock (numSamples, modContext);
+    }
+
     bridge.applyToEngine();
 
-    engine.processBlock (buffer, midiMessages);
+    // The engine only ever writes the main output pair; every other bus belongs
+    // to the routing matrix, and a bus nobody writes must be cleared rather than
+    // left holding the previous block.
+    {
+        auto mainOut = getBusBuffer (buffer, false, 0);
+        engine.processBlock (mainOut, midiMessages);
+    }
+
+    // ---- tone match ----------------------------------------------------------------
+    /*  tone-match 1: a user cabinet IR replaces the model's, so it goes on the
+        main output after the engine has produced it.
+
+        The body IR slot is handled inside the engine, where the body is; this is
+        the cabinet pair, which is the last thing before the master and therefore
+        the last thing this can reach. */
+    {
+        auto mainOut = getBusBuffer (buffer, false, 0);
+
+        for (auto& slot : cabIr)
+            slot.process (mainOut.getArrayOfWritePointers(),
+                          mainOut.getNumChannels(), numSamples);
+    }
+
+    // ---- the live surface --------------------------------------------------------
+    // The recall crossfade is carried by the audio thread's own clock, so that it
+    // takes the same time whatever the host's UI thread happens to be doing.
+    snapshots.advance ((double) numSamples / juce::jmax (1.0, currentSampleRate));
+
+    // live-performance 6: the kill switch cuts the main output only, and does it
+    // before the aux taps are distributed - the DI and per-string stems are for
+    // re-amping, and silencing them because the player hit a kill switch on stage
+    // would be wrong.
+    {
+        auto mainOut = getBusBuffer (buffer, false, 0);
+        killSwitch.processBlock (mainOut);
+    }
+
+    // ---- practice tools ----------------------------------------------------------
+    /*  practice-tools 0.1 and 0.2: a closed panel costs nothing, and the click
+        goes to the monitor rather than to the audience.
+
+        The looper sits here, after the kill switch, so that what it records is
+        what was heard. The metronome and the backing track are rendered into
+        their own buffers and mixed into the monitor below; only the backing
+        track reaches the main output, and only because playing along to one
+        through the main out is what a practising guitarist expects. */
+    bool haveClick = false;
+
+    if (practicePanelOpen)
+    {
+        auto mainOut = getBusBuffer (buffer, false, 0);
+
+        looper.processBlock (mainOut, numSamples);
+        looper.captureMidi (midiMessages, numSamples);
+
+        if (metronome.isEnabled())
+        {
+            metronome.processBlock (clickBuffer.getWritePointer (0), numSamples);
+            haveClick = true;
+        }
+
+        if (backingTrack.isPlaying())
+        {
+            backingTrack.processBlock (backingBuffer, numSamples);
+
+            for (int channel = 0; channel < juce::jmin (2, mainOut.getNumChannels()); ++channel)
+                mainOut.addFrom (channel, 0, backingBuffer, channel, 0, numSamples);
+        }
+
+        // practice-tools 8: the session recorder takes what the plugin produced.
+        sessionRecorder.processBlock (mainOut, numSamples);
+    }
+
+    routing.distribute (*this, buffer, engine.getTapBuffers(), engine.getNumStrings());
+
+    // live-performance 7: the monitor mix is the performer's own, so it goes to
+    // its own bus and never into the main output.
+    {
+        const bool haveSidechain = hasSidechainInput() && sidechainChannels > 0;
+
+        if (monitorMix.isActive (haveSidechain, haveClick))
+        {
+            auto mainOut = getBusBuffer (buffer, false, 0);
+
+            monitorMix.processBlock (monitorBuffer, mainOut,
+                                     haveSidechain ? &sidechainCopy : nullptr,
+                                     haveClick ? clickBuffer.getReadPointer (0) : nullptr,
+                                     numSamples);
+
+            routing.writeMonitorBus (*this, buffer, monitorBuffer, numSamples);
+        }
+    }
+
+    // ---- MIDI out --------------------------------------------------------------
+    // Always called: when MIDI out is off it clears the buffer, which is what
+    // stops the host's own events leaking back out as an accidental echo.
+    for (int m = 0; m < 6; ++m)
+        if (auto* raw = apvts.getRawParameterValue (ParamIDs::macroByIndex (m)))
+            midiOutRouter.setMacroValue (m, raw->load());
+
+    midiOutRouter.emit (midiMessages, midiOutConfig, engine.getStringActivity(), numSamples);
 
     samplePosition += numSamples;
 
     // The engine's latency can change when an IR finishes loading or the
     // oversampling factor changes, so it is re-reported rather than assumed fixed.
     updateLatency();
+}
+
+//==============================================================================
+void LuthierAudioProcessor::feedModulationSources (const juce::MidiBuffer& midi) noexcept
+{
+    for (const auto metadata : midi)
+    {
+        const auto message = metadata.getMessage();
+
+        if (message.isNoteOn())
+        {
+            modMatrix.noteOn (message.getNoteNumber(), message.getFloatVelocity());
+        }
+        else if (message.isNoteOff())
+        {
+            modMatrix.noteOff();
+        }
+        else if (message.isAllNotesOff() || message.isAllSoundOff())
+        {
+            modMatrix.allNotesOff();
+        }
+        else if (message.isController())
+        {
+            modMatrix.setControllerValue (message.getControllerNumber(),
+                                          (double) message.getControllerValue() / 127.0);
+        }
+        else if (message.isPitchWheel())
+        {
+            // Bipolar, because that is what a pitch wheel is: centre is zero,
+            // not a half.
+            modMatrix.setPitchBend (((double) message.getPitchWheelValue() - 8192.0) / 8192.0);
+        }
+        else if (message.isChannelPressure())
+        {
+            modMatrix.setAftertouch ((double) message.getChannelPressureValue() / 127.0);
+        }
+        else if (message.isAftertouch())
+        {
+            modMatrix.setPolyAftertouch ((double) message.getAfterTouchValue() / 127.0);
+        }
+    }
+
+    for (int m = 0; m < ParamIDs::kNumMacros; ++m)
+        if (auto* raw = apvts.getRawParameterValue (ParamIDs::macroByIndex (m)))
+            modMatrix.setMacroValue (m, (double) raw->load());
+}
+
+void LuthierAudioProcessor::buildModBlockContext (const juce::AudioBuffer<float>& output,
+                                                  int numSamples,
+                                                  ModBlockContext& context) noexcept
+{
+    context.bpm = hostTempo.load();
+    context.positionBeats = -1.0;
+    context.transportRunning = false;
+
+    if (auto* playHead = getPlayHead())
+    {
+        if (auto position = playHead->getPosition())
+        {
+            context.transportRunning = position->getIsPlaying();
+
+            if (auto ppq = position->getPpqPosition())
+                context.positionBeats = *ppq;
+        }
+    }
+
+    context.transportJustStarted = context.transportRunning && ! transportWasRunning;
+    transportWasRunning = context.transportRunning;
+
+    // The followers watch the previous block's output. Measuring this block
+    // would mean rendering it before deciding how to modulate it, which is
+    // circular; one block of lag is what every envelope follower in a plugin
+    // chain has, and at control rate it is inaudible.
+    double peak = 0.0, sumSquares = 0.0;
+    const int channels = juce::jmin (2, output.getNumChannels());
+
+    for (int ch = 0; ch < channels; ++ch)
+    {
+        const auto* data = output.getReadPointer (ch);
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            const double v = (double) data[i];
+            peak = juce::jmax (peak, std::abs (v));
+            sumSquares += v * v;
+        }
+    }
+
+    const double sampleCount = juce::jmax (1.0, (double) (numSamples * juce::jmax (1, channels)));
+
+    context.mainOutputPeak = peak;
+    context.mainOutputMeanSquare = sumSquares / sampleCount;
+
+    // The pickup tap is the DI, which the routing taps already carry when it is
+    // being rendered; when it is not, the main output stands in for it.
+    context.pickupPeak = peak;
+    context.pickupMeanSquare = context.mainOutputMeanSquare;
+
+    context.sidechainPeak = routing.getSidechainLevel();
+    context.sidechainMeanSquare = context.sidechainPeak * context.sidechainPeak * 0.5;
+
+    for (int st = 0; st < kMaxStrings; ++st)
+        context.perStringPeak[(size_t) st] = engine.getStringLevel (st);
 }
 
 //==============================================================================
@@ -259,6 +725,185 @@ void LuthierAudioProcessor::releasePreviewNote (int stringIndex)
 
     const juce::ScopedLock sl (previewLock);
     previewMidi.addEvent (juce::MidiMessage::noteOff (juce::jlimit (1, 16, stringIndex + 1), note), 0);
+}
+
+//==============================================================================
+juce::String LuthierAudioProcessor::applyGenreKit (int kitIndex)
+{
+    if (! juce::isPositiveAndBelow (kitIndex, genreKits.getNumKits()))
+        return {};
+
+    const auto& kit = genreKits.getKit (kitIndex);
+
+    GenreKitLibrary::apply (kit, engine.getRhythmEngine(), patternLibrary);
+
+    // rhythm-engine 7: the rig is a soft reference. It is reported, never loaded.
+    return kit.preferredPreset;
+}
+
+//==============================================================================
+// The live surface (live-performance.md).
+//==============================================================================
+
+void LuthierAudioProcessor::handleLiveMidi (juce::MidiBuffer& midi) noexcept
+{
+    if (midi.isEmpty())
+        return;
+
+    juce::MidiBuffer kept;
+
+    for (const auto metadata : midi)
+    {
+        const auto message = metadata.getMessage();
+
+        // live-performance 2: program change is the snapshot index.
+        if (message.isProgramChange())
+        {
+            pendingSnapshotRecall.store (message.getProgramChangeNumber(),
+                                         std::memory_order_relaxed);
+            continue;
+        }
+
+        // Bank select picks the preset. Loading one touches the file system, so
+        // the audio thread only records the request and the timer acts on it.
+        if (message.isController() && message.getControllerNumber() == 0)
+        {
+            pendingPresetSelect.store (message.getControllerValue(), std::memory_order_relaxed);
+            continue;
+        }
+
+        kept.addEvent (message, metadata.samplePosition);
+    }
+
+    midi.swapWith (kept);
+}
+
+void LuthierAudioProcessor::applySnapshotModules (const Snapshot& snapshot)
+{
+    if (snapshot.modMatrix.getDynamicObject() != nullptr)
+        modMatrix.fromVar (snapshot.modMatrix);
+
+    if (snapshot.rhythm.getDynamicObject() != nullptr)
+        engine.getRhythmEngine().fromVar (snapshot.rhythm);
+
+    if (snapshot.bypasses.getDynamicObject() != nullptr)
+        if (auto* object = snapshot.bypasses.getDynamicObject();
+            object != nullptr && object->hasProperty ("character"))
+            engine.getCharacterEngine().fromVar (object->getProperty ("character"));
+}
+
+bool LuthierAudioProcessor::captureSnapshot (int index, const juce::String& label, int colourTag)
+{
+    if (! snapshots.capture (index, label, colourTag))
+        return false;
+
+    // The modules that do not live in the parameter tree are captured alongside
+    // it, so that a snapshot is the whole instrument rather than just its knobs.
+    auto snapshot = snapshots.getSnapshot (index);
+
+    snapshot.modMatrix = modMatrix.toVar();
+    snapshot.rhythm = engine.getRhythmEngine().toVar();
+
+    // The character engine rides along in the blob the bank keeps for whatever
+    // else a snapshot needs, so that switching snapshots does not silently
+    // reroll the instrument.
+    {
+        auto* extras = new juce::DynamicObject();
+        extras->setProperty ("character", engine.getCharacterEngine().toVar());
+
+        snapshot.bypasses = juce::var (extras);
+    }
+
+    return snapshots.setSnapshot (index, snapshot);
+}
+
+bool LuthierAudioProcessor::recallSnapshot (int index)
+{
+    return snapshots.recall (index);
+}
+
+void LuthierAudioProcessor::nextSnapshot()
+{
+    const int count = snapshots.getNumSnapshots();
+
+    if (count > 0)
+        recallSnapshot ((snapshots.getCurrentSnapshot() + 1) % count);
+}
+
+void LuthierAudioProcessor::previousSnapshot()
+{
+    const int count = snapshots.getNumSnapshots();
+
+    if (count > 0)
+        recallSnapshot ((snapshots.getCurrentSnapshot() + count - 1) % count);
+}
+
+//==============================================================================
+void LuthierAudioProcessor::tapTempoNow()
+{
+    // The plugin's own clock, so that tapping works identically whether or not
+    // the host is running.
+    const double now = juce::Time::getMillisecondCounterHiRes() * 0.001;
+
+    if (tapTempo.tap (now))
+    {
+        // live-performance 5: a tapped tempo drives the rhythm engine when the
+        // host is stopped, so the engine is told about it straight away.
+        engine.setTempoBpm (getEffectiveTempo());
+    }
+}
+
+double LuthierAudioProcessor::getEffectiveTempo() const noexcept
+{
+    return tapTempo.getEffectiveBpm (hostTempo.load(), transportWasRunning);
+}
+
+//==============================================================================
+void LuthierAudioProcessor::setLiveMode (bool shouldBeLive)
+{
+    uiState.liveMode = shouldBeLive;
+}
+
+//==============================================================================
+bool LuthierAudioProcessor::loadSetlist (const juce::File& file)
+{
+    Setlist loaded;
+
+    if (! loaded.loadFrom (file))
+        return false;
+
+    setlist.setSetlist (loaded);
+
+    return applyCurrentSetlistEntry();
+}
+
+bool LuthierAudioProcessor::applyCurrentSetlistEntry()
+{
+    const auto* entry = setlist.getCurrentEntry();
+
+    if (entry == nullptr)
+        return false;
+
+    const auto& data = setlist.getCurrentEntryData();
+
+    if (data.getDynamicObject() == nullptr)
+        return false;
+
+    if (! presets.fromVar (data))
+        return false;
+
+    bridge.applyAllNow();
+
+    // The preset carries its own snapshot bank, so the entry's snapshot index
+    // only means anything once that bank has been loaded.
+    if (entry->snapshotIndex > 0)
+        recallSnapshot (entry->snapshotIndex);
+
+    // live-performance 4: the next entry is read now, so that stepping onto it
+    // costs nothing.
+    setlist.preloadNext();
+
+    return true;
 }
 
 //==============================================================================
@@ -520,6 +1165,31 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 
     root->setProperty ("lockedParameters", locks);
     root->setProperty ("slotBActive", slotBActive);
+    root->setProperty ("routing", routing.toVar());
+    root->setProperty ("modulation", modMatrix.toVar());
+    root->setProperty ("rhythm", engine.getRhythmEngine().toVar());
+
+    // live-performance 1: the snapshot bank travels inside the preset.
+    root->setProperty ("snapshots", snapshots.toVar());
+    root->setProperty ("liveMode", uiState.liveMode);
+
+    // character-wear 1: the seed and the wear map are the instrument's identity,
+    // so they belong to the preset rather than to the user.
+    root->setProperty ("character", engine.getCharacterEngine().toVar());
+
+    // tone-match 7: the IR slots store their file by path plus their settings.
+    {
+        auto* irs = new juce::DynamicObject();
+
+        irs->setProperty ("body", bodyIr.toVar());
+        irs->setProperty ("cab1", cabIr[0].toVar());
+        irs->setProperty ("cab2", cabIr[1].toVar());
+
+        root->setProperty ("toneMatch", juce::var (irs));
+    }
+
+    // practice-tools 1: the metronome's settings are part of the session.
+    root->setProperty ("metronome", metronome.toVar());
 
     const auto json = juce::JSON::toString (juce::var (root), false);
 
@@ -569,6 +1239,44 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
 
     slotBActive = root->getProperty ("slotBActive");
 
+    // Routing-io 9: mute, solo, gain, sidechain-to-amp and the MIDI-out
+    // assignments travel with the preset. The bus layout does not.
+    if (root->hasProperty ("routing"))
+        routing.fromVar (root->getProperty ("routing"));
+
+    // modulation-matrix 6: the full matrix travels with the preset. Unknown
+    // destinations are dropped and reported rather than refused.
+    if (root->hasProperty ("modulation"))
+        modMatrix.fromVar (root->getProperty ("modulation"));
+
+    // rhythm-engine 9: the pattern, voicing settings and genre kit travel with
+    // the preset as one blob.
+    if (root->hasProperty ("rhythm"))
+        engine.getRhythmEngine().fromVar (root->getProperty ("rhythm"));
+
+    // live-performance 1 and 11: the snapshots and the live-mode preference are
+    // both per-preset. A preset saved before snapshots existed simply has none,
+    // which the spec treats as one implicit snapshot equal to the preset.
+    if (root->hasProperty ("snapshots"))
+        snapshots.fromVar (root->getProperty ("snapshots"));
+    else
+        snapshots.clear();
+
+    uiState.liveMode = (bool) root->getProperty ("liveMode");
+
+    if (root->hasProperty ("character"))
+        engine.getCharacterEngine().fromVar (root->getProperty ("character"));
+
+    if (auto* irs = root->getProperty ("toneMatch").getDynamicObject())
+    {
+        bodyIr.fromVar (irs->getProperty ("body"));
+        cabIr[0].fromVar (irs->getProperty ("cab1"));
+        cabIr[1].fromVar (irs->getProperty ("cab2"));
+    }
+
+    if (root->hasProperty ("metronome"))
+        metronome.fromVar (root->getProperty ("metronome"));
+
     presets.applyExtraState();
     bridge.applyAllNow();
 }
@@ -576,6 +1284,20 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
 //==============================================================================
 void LuthierAudioProcessor::timerCallback()
 {
+    // live-performance 2: carry out whatever the MIDI thread asked for.
+    if (const int snapshot = pendingSnapshotRecall.exchange (-1, std::memory_order_relaxed);
+        snapshot >= 0)
+    {
+        recallSnapshot (snapshot);
+    }
+
+    if (const int bank = pendingPresetSelect.exchange (-1, std::memory_order_relaxed);
+        bank >= 0)
+    {
+        if (presets.loadPreset (bank))
+            bridge.applyAllNow();
+    }
+
     if (diagnostics.isCrashLogEnabled())
     {
         presets.captureExtraState();

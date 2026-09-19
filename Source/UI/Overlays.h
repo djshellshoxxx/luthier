@@ -14,6 +14,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
+#include "OptionsPages.h"
 #include "../DSP/Common/DspCommon.h"
 
 namespace luthier
@@ -173,7 +174,9 @@ class OptionsPanel : public OverlayPanel
 public:
     explicit OptionsPanel (LuthierAudioProcessor& processor);
 
-    juce::Point<int> getPreferredSize() const override { return { 720, 560 }; }
+    /*  Wider than the other overlays: the Controllers and Accessibility pages put
+        a label beside every control, which does not fit in 720. */
+    juce::Point<int> getPreferredSize() const override { return { 820, 600 }; }
 
     void overlayShown() override;
 
@@ -181,6 +184,22 @@ protected:
     void layoutContent (juce::Rectangle<int> content) override;
 
 private:
+    /*  The extension specs each ask for their own "Options -> Something" tab
+        (controllers 3 and 5, live-performance 8, accessibility 9,
+        updates-telemetry 1 and 6). They are pages of this one overlay rather than
+        six more overlays, which is what OptionsPages.h was written for.
+
+        Page 0 is General: the settings that were here before, which stay direct
+        members of this panel rather than moving into a page of their own. */
+    void showPage (int index);
+
+    /** The General page's controls, shown only while page 0 is selected. */
+    std::vector<juce::Component*> generalControls();
+
+    juce::OwnedArray<juce::TextButton> pageButtons;
+    juce::OwnedArray<OptionsPage> pages;
+    int currentPage = 0;
+
     LuthierAudioProcessor& processor;
 
     juce::ToggleButton tooltipsToggle { "Show tooltips on hover" };

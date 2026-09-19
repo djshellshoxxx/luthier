@@ -14,6 +14,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "LuthierEngine.h"
+#include "Modulation/ModMatrix.h"
 
 namespace luthier
 {
@@ -28,6 +29,20 @@ namespace ParamIDs
     inline constexpr const char* macroTone     = "macro_tone";
     inline constexpr const char* macroSpace    = "macro_space";
     inline constexpr const char* macroHumanize = "macro_humanize";
+
+    /*  modulation-matrix 1.7 asks for eight assignable macros. Six of them are
+        the named macros the instrument already had, which drive fixed groups of
+        engine controls; the last two exist purely as modulation sources, so a
+        user can build their own macro out of routes without having to give up
+        one of the six that already does something. */
+    inline constexpr const char* macroAssignA  = "macro_assign_a";
+    inline constexpr const char* macroAssignB  = "macro_assign_b";
+
+    inline constexpr int kNumMacros = 8;
+
+    /** The six macros in a fixed order, so the MIDI-out CC broadcast and the
+        modulation matrix can address them by index. */
+    const char* macroByIndex (int index) noexcept;
 
     // --- instrument -----------------------------------------------------------
     inline constexpr const char* guitarType     = "guitar_type";
@@ -243,6 +258,21 @@ public:
     /** True while a structural change is pending. */
     bool isStructuralChangePending() const noexcept { return structuralPending.load(); }
 
+    /** Points the bridge at the modulation matrix. Every parameter the engine
+        reads goes through value(), so this one hook is the whole of the
+        matrix's audio-path integration: automation writes the base value, and
+        modulation is added on top of it here, exactly as
+        modulation-matrix.md section 7 describes. */
+    void setModMatrix (ModMatrix* matrix) noexcept { modMatrix = matrix; }
+    ModMatrix* getModMatrix() const noexcept { return modMatrix; }
+
+    /** The unmodulated value, for the UI, which shows the control where
+        automation put it rather than where modulation has pushed it. */
+    float baseValue (const juce::String& id) const noexcept;
+
+    /** The parameter's index in the processor's parameter list, or -1. */
+    int parameterIndex (const juce::String& id) const noexcept;
+
 private:
     void handleAsyncUpdate() override;
     void applyStructural();
@@ -254,6 +284,9 @@ private:
     LuthierEngine& engine;
 
     juce::HashMap<juce::String, std::atomic<float>*> pointers;
+    juce::HashMap<juce::String, int> indices;
+
+    ModMatrix* modMatrix = nullptr;
 
     // Cached structural selections, so a change is detected exactly once.
     int lastGuitarType = -1;
