@@ -86,6 +86,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     // practice-tools 8: yesterday's unsaved session buffers go.
     SessionRecorder::cleanUpOldTempFiles (SessionRecorder::getTempDirectory());
 
+    // action-and-undo.md 3.1: one undo entry per parameter gesture.
+    for (auto* parameter : getParameters())
+        parameter->addListener (this);
+
     // 30 Hz is fast enough for the meters and the data stream, and slow enough
     // that it costs nothing.
     startTimerHz (30);
@@ -94,6 +98,9 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 LuthierAudioProcessor::~LuthierAudioProcessor()
 {
     stopTimer();
+
+    for (auto* parameter : getParameters())
+        parameter->removeListener (this);
 
     if (diagnostics.isCrashLogEnabled())
         diagnostics.flushCrashLog (diagnostics.buildTroubleshootingReport (
@@ -1049,6 +1056,86 @@ void LuthierAudioProcessor::setSlotBActive (bool b)
 }
 
 //==============================================================================
+//==============================================================================
+void LuthierAudioProcessor::parameterValueChanged (int, float)
+{
+    /*  Deliberately empty.
+
+        Every writer reaches a parameter through here - the user's mouse, host
+        automation, a learned CC, the modulation matrix - so there is nothing in a
+        value change that says who caused it. action-and-undo.md 3.1 only wants the
+        user's own edits, so the undo entry is driven by the gesture below
+        instead. */
+}
+
+void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool gestureIsStarting)
+{
+    const auto& all = getParameters();
+
+    if (! juce::isPositiveAndBelow (parameterIndex, all.size()))
+        return;
+
+    auto* parameter = all[parameterIndex];
+
+    if (parameter == nullptr)
+        return;
+
+    /*  section 11: the host owns its automation lane, and the user reverses a
+        host-written change with the host's own undo. A gesture arriving from
+        anywhere but the message thread is not the plugin's UI, and
+        captureStateBlock is not safe to call off it in any case. */
+    if (! juce::MessageManager::existsAndIsCurrentThread())
+    {
+        gestureParameterIndex = -1;
+        return;
+    }
+
+    if (gestureIsStarting)
+    {
+        // Captured now, while the value is still what it was before the drag.
+        gestureStartState = captureStateBlock();
+        gestureStartValue = parameter->getValue();
+        gestureParameterIndex = parameterIndex;
+        gestureParameterName = parameter->getName (64);
+        return;
+    }
+
+    // An end without a matching start, or a start we could not capture.
+    if (gestureParameterIndex != parameterIndex || gestureStartState.getSize() == 0)
+    {
+        gestureParameterIndex = -1;
+        return;
+    }
+
+    const float endValue = parameter->getValue();
+
+    gestureParameterIndex = -1;
+
+    /*  A click that selected a knob without moving it is not a change, and
+        pushing it would fill the stack with entries that undo to themselves. */
+    if (std::abs (endValue - gestureStartValue) < 1.0e-6f)
+    {
+        gestureStartState.reset();
+        return;
+    }
+
+    while (undoStack.size() > undoPosition + 1)
+        undoStack.removeLast();
+
+    UndoEntry entry;
+    entry.state = std::move (gestureStartState);
+    entry.description = "Change " + gestureParameterName;
+
+    gestureStartState.reset();
+
+    undoStack.add (std::move (entry));
+
+    while (undoStack.size() > kMaxUndoSteps)
+        undoStack.remove (0);
+
+    undoPosition = undoStack.size() - 1;
+}
+
 void LuthierAudioProcessor::pushUndoState (const juce::String& description)
 {
     // Drop anything ahead of the current position: a new edit after an undo
@@ -1129,6 +1216,12 @@ int LuthierAudioProcessor::getCurrentProgram()
 
 void LuthierAudioProcessor::setCurrentProgram (int index)
 {
+    /*  A program change arriving on the heels of a state restore is the host
+        tidying up after itself, not the user asking for a different sound. See
+        ignoreNextProgramChange. */
+    if (ignoreNextProgramChange.exchange (false))
+        return;
+
     if (presets.loadPreset (index))
         bridge.applyAllNow();
 }
@@ -1288,6 +1381,9 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
 
     presets.applyExtraState();
     bridge.applyAllNow();
+
+    // Whatever the host sends next, this state is the one the user saved.
+    ignoreNextProgramChange.store (true);
 }
 
 //==============================================================================

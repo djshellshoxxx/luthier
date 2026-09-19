@@ -115,7 +115,7 @@ said they were for.
 | Guitars | 25 |
 | Factory presets | 36 (17 electric, 7 acoustic, 5 bass, 5 utility, 2 classical) |
 | Impulse responses | 216 body, 504 cabinet (synthesised - see `docs/KNOWN_ISSUES.md`) |
-| Tests | 296 across 52 suites, 647 206 checks |
+| Tests | 297 across 52 suites, 647 208 checks |
 
 ### Phase 2 and beyond
 

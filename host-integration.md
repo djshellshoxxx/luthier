@@ -196,6 +196,16 @@ plugin handles each. This list will grow as bug bashes reveal more.
   cover this.
 - **Rack presets vs plugin presets**: Live's rack presets bypass
   the plugin's own preset system. Handle: nothing needed; both work.
+- **Program change after state restore**: Live calls
+  `setCurrentProgram(0)` immediately after `setStateInformation`, to
+  "restore" the plugin to its first program. Because section 12 makes
+  `setCurrentProgram` actually load a preset, obeying that call
+  overwrites the state Live has just restored - the user reopens a
+  project and gets a factory preset instead of the sound they saved.
+  Handle: the first program change after a state restore is swallowed.
+  State the host restored wins over the program change that follows
+  it; every later Program Change works normally, so section 12's
+  Program-Change addressing is unaffected.
 - **Send-only sidechain**: some Live versions don't route sidechain
   correctly to VST3 side inputs. Handle: user must configure the
   send in Live; the plugin can't force it.

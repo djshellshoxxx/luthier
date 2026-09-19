@@ -31,6 +31,7 @@ namespace luthier
 
 //==============================================================================
 class LuthierAudioProcessor : public juce::AudioProcessor,
+                              private juce::AudioProcessorParameter::Listener,
                               private juce::Timer
 {
 public:
@@ -372,6 +373,18 @@ private:
     juce::MemoryBlock slotA, slotB;
     bool slotBActive = false;
 
+    /*  action-and-undo.md 3.1: a parameter edit becomes one undo entry per
+        gesture, not one per intermediate value.
+
+        JUCE's gesture pair is what separates a user's hand from everything else
+        that writes to a parameter. A slider being dragged opens a gesture; host
+        automation, a learned MIDI CC and the modulation matrix all write values
+        without one. Section 3.1 says none of those three may generate an undo
+        entry, and listening to gestures rather than to value changes gets that
+        for free rather than by trying to guess the source afterwards. */
+    void parameterValueChanged (int parameterIndex, float newValue) override;
+    void parameterGestureChanged (int parameterIndex, bool gestureIsStarting) override;
+
     struct UndoEntry
     {
         juce::MemoryBlock state;
@@ -380,7 +393,31 @@ private:
 
     juce::Array<UndoEntry> undoStack;
     int undoPosition = -1;
-    static constexpr int kMaxUndoSteps = 64;
+
+    /** action-and-undo.md 2. */
+    static constexpr int kMaxUndoSteps = 200;
+
+    /*  The state as it was when the current gesture started, held until the
+        gesture ends and we know whether anything actually changed. */
+    /*  Ableton calls setCurrentProgram(0) immediately after setStateInformation,
+        to "restore" the plugin to its first program.
+
+        Luthier's setCurrentProgram actually loads a preset, so obeying that call
+        would overwrite the state the host had just restored - the user reopens a
+        project and finds factory preset 0 instead of the sound they saved. The
+        troubleshooting note that documents this
+        (troubleshooting/parameter-issues/ableton-preset-interference-state-restoration-JUCE-20251107.md)
+        suggests returning 0 from getNumPrograms, but host-integration.md 12
+        requires the program interface so Program Change can address presets. So
+        the call is swallowed once instead: the state a host restores wins over
+        the program change that follows it, and every later Program Change works
+        normally. */
+    std::atomic<bool> ignoreNextProgramChange { false };
+
+    juce::MemoryBlock gestureStartState;
+    juce::String gestureParameterName;
+    float gestureStartValue = 0.0f;
+    int gestureParameterIndex = -1;
 
     juce::StringArray lockedParameters;
 

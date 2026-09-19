@@ -184,3 +184,67 @@ LUTHIER_TEST (StateModel, loadingAPresetWhileRenderingProducesNoGarbage)
         }
     }
 }
+
+//==============================================================================
+/*  The Ableton program-change quirk.
+
+    Live calls setCurrentProgram(0) immediately after setStateInformation, to
+    "restore" the plugin to its first program. Luthier's setCurrentProgram really
+    does load a preset, so obeying that call overwrites the state the host just
+    restored: the user reopens a project and finds factory preset 0 instead of the
+    sound they saved.
+
+    Documented in troubleshooting/parameter-issues/
+    ableton-preset-interference-state-restoration-JUCE-20251107.md. That note's own
+    fix - return 0 from getNumPrograms - is not available here, because
+    host-integration.md 12 requires the program interface so Program Change can
+    address presets. So the first program change after a restore is swallowed
+    instead. */
+LUTHIER_TEST (StateModel, aProgramChangeRightAfterAStateRestoreDoesNotWipeIt)
+{
+    LuthierAudioProcessor source;
+    source.prepareToPlay (kSr, kBlock);
+
+    if (source.getPresetManager().getNumPresets() < 2)
+    {
+        CHECK_MSG (false, "not enough factory presets, so this proves nothing");
+        return;
+    }
+
+    source.getPresetManager().loadPreset (1);
+
+    juce::MemoryBlock block;
+    source.getStateInformation (block);
+
+    // ---- what the host does when the project reopens -----------------------------
+    LuthierAudioProcessor restored;
+    restored.prepareToPlay (kSr, kBlock);
+
+    restored.setStateInformation (block.getData(), (int) block.getSize());
+
+    /*  The probe is the selected preset index rather than a parameter value.
+
+        A parameter is the more obvious choice and it is the wrong one: whether
+        loading a preset moves a given parameter depends on what that preset
+        happens to contain, so the test would quietly stop proving anything if the
+        bank changed. loadPreset always sets the index, so the index always moves
+        when a program change is obeyed. */
+    const int afterRestore = restored.getPresetManager().getCurrentPresetIndex();
+    const int different = (afterRestore == 0) ? 1 : 0;
+
+    // Live's tidy-up call, which used to load a preset over the restored state.
+    restored.setCurrentProgram (different);
+
+    CHECK_MSG (restored.getPresetManager().getCurrentPresetIndex() == afterRestore,
+               "a program change straight after a state restore was obeyed: the user "
+               "reopens the project and gets a different preset than they saved");
+
+    /*  Only the first one is swallowed. A Program Change the user actually sends
+        still has to work, or the fix would break the feature host-integration.md
+        12 asks for. */
+    restored.setCurrentProgram (different);
+
+    CHECK_MSG (restored.getPresetManager().getCurrentPresetIndex() == different,
+               "a later program change was ignored too, so Program Change no longer "
+               "selects presets");
+}
