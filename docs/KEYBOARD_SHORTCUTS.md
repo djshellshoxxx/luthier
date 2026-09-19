@@ -4,30 +4,46 @@
 
 ---
 
+All of these are rebindable in **Options -> Accessibility**, which also lists
+them with a search box. The defaults are below.
+
 ## Global
 
 | Key | Action |
 |---|---|
 | `F1` | Help |
-| `Escape` | Close whatever overlay is open |
+| `Ctrl + Shift + /` | Show all shortcuts (opens the rebind table) |
+| `Escape` | Close whatever overlay is open - not rebindable, on purpose |
 | `Space` | Start or stop the audition phrase |
 | `Tab` | Switch between Easy and Advanced |
-| `0` | Panic - stop every string immediately |
-| `[` | Previous preset |
-| `]` | Next preset |
+| `L` | Live Mode on or off |
+| `D` | Open or close the Practice drawer |
+| `P` | Panic - stop every string immediately |
+| `T` | Tap tempo |
+| `\` | Kill switch |
+
+## Presets and snapshots
+
+| Key | Action |
+|---|---|
+| `[` / `]` | Previous / next preset, or snapshot while Live Mode is on |
+| `1` - `9` | Recall snapshot 1 to 9 |
+| `Shift + 1` - `9` | Recall snapshot 10 to 18 |
+| `PageUp` / `PageDown` | Previous / next setlist entry |
 
 ## File and edit
 
 | Key | Action |
 |---|---|
+| `Ctrl + O` | Preset browser |
 | `Ctrl + S` | Save the current preset |
 | `Ctrl + Shift + S` | Save As |
-| `Ctrl + P` | Preset browser |
 | `Ctrl + E` | Export audio |
 | `Ctrl + Z` | Undo |
 | `Ctrl + Shift + Z` | Redo |
-| `Ctrl + Y` | Redo |
 | `Ctrl + R` | Randomise |
+| `Ctrl + Shift + R` | Reset everything to defaults |
+| `Ctrl + /` | A / B compare |
 | `Ctrl + ,` | Options |
 | `Ctrl + D` | Debug tools |
 

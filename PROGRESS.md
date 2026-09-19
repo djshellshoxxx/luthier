@@ -115,7 +115,7 @@ said they were for.
 | Guitars | 25 |
 | Factory presets | 36 (17 electric, 7 acoustic, 5 bass, 5 utility, 2 classical) |
 | Impulse responses | 216 body, 504 cabinet (synthesised - see `docs/KNOWN_ISSUES.md`) |
-| Tests | 283 across 49 suites, 646 239 checks |
+| Tests | 285 across 49 suites, 646 689 checks |
 
 ### Phase 2 and beyond
 
@@ -127,7 +127,7 @@ ship phase, governed by `CLAUDE_CODE_BRIEF.md`.
 start. `GAPS.md` lists which, and what each one blocks. The audit of the build
 against `gui-integration.md` section 19 is done and lives there too.
 
-One piece of phase-4 work has landed early, because it was unblocked and it was
+Two pieces of phase-4 work have landed early, because it was unblocked and it was
 a genuine contradiction rather than a missing feature: **Freeze and E-Bow**.
 `ambiguity-resolutions.md` section 2 exists to settle whether infinite sustain is
 a captured loop or a feedback drive, and answers "both, as two features". The
@@ -135,7 +135,19 @@ build had one bool called Freeze that drove the feedback mechanism. There are no
 two, with a `FreezeOverlay` implementing the captured-loop half and a SUSTAIN
 section holding both.
 
-The interesting part was the loop itself. Two read heads half a window apart under
+The second is the **keyboard shortcuts**. Auditing them against
+`gui-integration.md` section 17 turned up three disagreeing sources of truth -
+the hard-coded comparisons in `PluginEditor::keyPressed`, the rebindable registry
+in `AccessibilitySettings`, and the document - and, because the editor never
+consulted the registry, rebinding a shortcut changed the row in the Options table
+and nothing else. "All rebindable" was decorative. The registry is now the only
+place a binding is defined and the editor reads from it, so the table works. Four
+actions that had no binding at all (A/B compare, Live Mode, the Practice drawer,
+Options) gained one, and two that were wrong were corrected: the preset browser
+was on Ctrl+P where the document says Ctrl+O, and Ctrl+Shift+R randomised instead
+of resetting.
+
+The interesting part of the freeze was the loop itself. Two read heads half a window apart under
 Hann windows is the obvious construction and it fails the spec's test: constant
 overlap-add makes the *windows* sum to one, but heads hundreds of milliseconds
 apart read uncorrelated material, so power adds rather than amplitude and the

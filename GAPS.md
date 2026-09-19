@@ -160,15 +160,42 @@ These secondary paths do not:
 - **Post-crash prompt** for crash reporting.
 - **Help > About** as a route to license.
 
-## A5 — Shortcuts in section 17 not audited row by row
+## A5 — Shortcuts: audited, mostly closed, five rows still open
 
-Section 17 is the canonical binding list. `docs/KEYBOARD_SHORTCUTS.md` and
-`PluginEditor::keyPressed` have not been checked against it. Section 19 alone
-names `Ctrl+O`, `Ctrl+G`, `Ctrl+L`, `Ctrl+/`, `Ctrl+S`, `Ctrl+E`, `P`, `Ctrl+R`,
-`Ctrl+Shift+R`, `F1`.
+The audit found something worse than drift. There were **three** sources of
+truth: the hard-coded key comparisons in `PluginEditor::keyPressed`, the
+rebindable registry in `AccessibilitySettings`, and section 17. They disagreed,
+and because the editor never consulted the registry, **rebinding a shortcut
+changed the row in the Options table and nothing else**. Section 17's "all
+rebindable" and accessibility.md 2's rebind table were both decorative.
 
-**Size.** Small. Worth doing as its own pass because it is cheap and it is the
-kind of thing that silently rots.
+The registry is now the single source of truth and the editor reads from it.
+Defaults match section 17, two tests hold them there, and `Ctrl + Shift + /`
+opens the table. Fixed on the way: the preset browser was `Ctrl+P` where section
+17 says `Ctrl+O`; `Ctrl+Shift+R` randomised instead of resetting; and A/B
+compare, Live Mode, the Practice drawer and Options had no binding at all.
+
+Still open:
+
+| Section 17 row | Why not done |
+|---|---|
+| MIDI Learn arm, `Ctrl+L` | Needs a global arm mode. MIDI Learn is currently armed only by right-clicking a control, which also breaks ground rule 4 (nothing discoverable only by right-click) and the section 19 row that wants a header button. Unblocked, but it is a feature, not a binding. |
+| New preset, `Ctrl+N` | No "new preset" action exists. `resetEverything()` is Reset All, which is a different thing. Needs an init-preset concept first. |
+| Reveal preset file, `Ctrl+Alt+E` | `PresetManager` tracks the current preset's name and index but not its file path, so there is nothing to reveal. |
+| Next / Prev Col 4 tab, `Ctrl+]` / `Ctrl+[` | Blocked on A2 - there are no Column 4 tabs to step. |
+| Workshop `W`, Slide `S`, Save As Guitar `Ctrl+G`, New Tune `Ctrl+T` | Blocked on the missing specs. Deliberately absent from the registry rather than present and dead. |
+
+Two deliberate deviations, both commented in the code:
+
+- **Snapshot digits are not in the registry.** Eighteen rows for eighteen digits
+  would bury the table, and the binding is positional - digit *n* recalls
+  snapshot *n* - so there is nothing meaningful to rebind it to.
+- **Space auditions rather than driving the tune transport.** Section 17 gives
+  Space to the transport, which does not exist. When `tune-builder.md` lands the
+  transport takes Space and audition moves.
+
+`Escape` is intentionally not rebindable: accessibility.md 2 makes it the way out
+of a dialog, so it should not be losable to a clumsy rebind.
 
 ## Fixed since the first audit
 
@@ -209,11 +236,11 @@ against the build. `gui-integration.md` sections 20 (discoverability), 21
 1. **A3**, as far as it can go — split the Options pages along the canonical
    seams, add AUDIO, MIDI, DIAGNOSTICS and FILE LOCATIONS, leave RANGES out and
    CONTROLLERS in place with a comment saying why.
-2. **A5** — the shortcut audit. Cheap, independent.
-3. **A1**, restricted to what is unblocked: the column restructure. The
+2. **A1**, restricted to what is unblocked: the column restructure. The
    SUSTAIN content itself is now built and sits after ROOM; it needs moving with
    the rest of the column, not rebuilding.
-4. **A2** once A1 lands, for the tabs that are not blocked: LIVE, PRACTICE,
+3. **A2** once A1 lands, for the tabs that are not blocked: LIVE, PRACTICE,
    NOTATION, MIDI OUT, CONTROLLERS, HELP.
-5. **A4** — secondary access paths, mostly independent.
-6. Everything else waits on the eleven missing specs.
+4. **A4** — secondary access paths, mostly independent. The MIDI Learn arm
+   mode from A5 belongs here too: it is the same kind of gap.
+5. Everything else waits on the eleven missing specs.

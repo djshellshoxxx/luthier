@@ -180,6 +180,10 @@ public:
 
     void overlayShown() override;
 
+    /** Opens the page holding the rebindable shortcut table (accessibility 2's
+        "show all shortcuts" surface). */
+    void showShortcutTable();
+
 protected:
     void layoutContent (juce::Rectangle<int> content) override;
 

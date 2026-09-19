@@ -538,3 +538,85 @@ LUTHIER_TEST (Accessibility, settingsRoundTrip)
     settings.setFontOverride ({});
     settings.resetAllShortcuts();
 }
+
+//==============================================================================
+/*  gui-integration.md section 17 is the canonical binding table, and section 17
+    says every one of them is rebindable. That is only true if the registry is
+    where the plugin actually looks, so this pins the defaults to the document.
+
+    The editor is not constructed here - Source/UI is not in this target - so what
+    is checked is the contract the editor depends on: that each action exists under
+    the id PluginEditor asks for, with section 17's default key. */
+LUTHIER_TEST (Accessibility, shortcutDefaultsMatchTheCanonicalTable)
+{
+    auto& settings = AccessibilitySettings::get();
+    settings.resetAllShortcuts();
+
+    using KP = juce::KeyPress;
+
+    const auto cmd   = juce::ModifierKeys::commandModifier;
+    const auto shift = juce::ModifierKeys::shiftModifier;
+
+    struct Expected { const char* id; juce::KeyPress key; };
+
+    const Expected expected[] =
+    {
+        { "help",            KP (KP::F1Key) },
+        { "showShortcuts",   KP ('/', cmd | shift, 0) },
+        { "toggleAdvanced",  KP (KP::tabKey) },
+        { "toggleLiveMode",  KP ('l', 0, 0) },
+        { "togglePractice",  KP ('d', 0, 0) },
+        { "panic",           KP ('p', 0, 0) },
+        { "tapTempo",        KP ('t', 0, 0) },
+        { "killSwitch",      KP ('\\', 0, 0) },
+        { "previousItem",    KP ('[', 0, 0) },
+        { "nextItem",        KP (']', 0, 0) },
+        { "setlistPrevious", KP (KP::pageUpKey) },
+        { "setlistNext",     KP (KP::pageDownKey) },
+        { "undo",            KP ('z', cmd, 0) },
+        { "redo",            KP ('z', cmd | shift, 0) },
+        { "save",            KP ('s', cmd, 0) },
+        { "saveAs",          KP ('s', cmd | shift, 0) },
+        { "presetBrowser",   KP ('o', cmd, 0) },
+        { "abCompare",       KP ('/', cmd, 0) },
+        { "randomise",       KP ('r', cmd, 0) },
+        { "resetAll",        KP ('r', cmd | shift, 0) },
+        { "export",          KP ('e', cmd, 0) },
+        { "options",         KP (',', cmd, 0) }
+    };
+
+    for (const auto& row : expected)
+    {
+        const auto* binding = settings.findShortcut (row.id);
+
+        CHECK_MSG (binding != nullptr,
+                   juce::String ("section 17 lists an action the registry does not "
+                                 "have: ") + row.id);
+
+        if (binding == nullptr)
+            continue;
+
+        CHECK_MSG (binding->key == row.key,
+                   juce::String (row.id) + " defaults to "
+                     + binding->key.getTextDescription() + ", but section 17 says "
+                     + row.key.getTextDescription());
+    }
+}
+
+//==============================================================================
+/*  A default table with a collision would leave one of the two actions
+    unreachable, and rebind() refuses collisions, so a clash would also make that
+    action impossible to rebind out of the way. */
+LUTHIER_TEST (Accessibility, noTwoShortcutsShareADefaultKey)
+{
+    auto& settings = AccessibilitySettings::get();
+    settings.resetAllShortcuts();
+
+    const auto& shortcuts = settings.getShortcuts();
+
+    for (size_t i = 0; i < shortcuts.size(); ++i)
+        for (size_t j = i + 1; j < shortcuts.size(); ++j)
+            CHECK_MSG (! (shortcuts[i].key == shortcuts[j].key),
+                       shortcuts[i].id + " and " + shortcuts[j].id
+                         + " both default to " + shortcuts[i].key.getTextDescription());
+}

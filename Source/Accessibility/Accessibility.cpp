@@ -472,62 +472,63 @@ void AccessibilitySettings::buildDefaultShortcuts()
 
     using KP = juce::KeyPress;
 
-    add ("help",            "accessibility.shortcut.help",
-         KP (KP::F1Key));
+    /*  These are gui-integration.md section 17's canonical defaults.
 
-    add ("audition",        "accessibility.shortcut.audition",
-         KP (KP::spaceKey));
+        That table is the single source of truth for what a key does, and this
+        registry is the single place the editor reads it from - PluginEditor asks
+        here rather than comparing key codes itself, which is what makes section
+        17's "all rebindable" true rather than decorative.
 
-    add ("toggleAdvanced",  "accessibility.shortcut.toggleAdvanced",
-         KP (KP::tabKey));
+        Where an action's feature does not exist yet the binding is simply absent,
+        rather than present and dead: Workshop (W), Slide Mode (S), Save As Guitar
+        (Ctrl+G), New Tune (Ctrl+T) and the Column 4 tab steps (Ctrl+[ / Ctrl+])
+        all wait on specs that are not written. GAPS.md tracks them.
+    */
 
-    add ("panic",           "accessibility.shortcut.panic",
-         KP ('p', 0, 0));
+    const auto cmd   = juce::ModifierKeys::commandModifier;
+    const auto shift = juce::ModifierKeys::shiftModifier;
 
-    add ("tapTempo",        "accessibility.shortcut.tapTempo",
-         KP ('t', 0, 0));
+    add ("help",             "accessibility.shortcut.help",             KP (KP::F1Key));
+    add ("showShortcuts",    "accessibility.shortcut.showShortcuts",    KP ('/', cmd | shift, 0));
 
-    add ("killSwitch",      "accessibility.shortcut.killSwitch",
-         KP ('\\', 0, 0));
+    add ("toggleAdvanced",   "accessibility.shortcut.toggleAdvanced",   KP (KP::tabKey));
+    add ("toggleLiveMode",   "accessibility.shortcut.toggleLiveMode",   KP ('l', 0, 0));
+    add ("togglePractice",   "accessibility.shortcut.togglePractice",   KP ('d', 0, 0));
 
-    add ("previousItem",    "accessibility.shortcut.previousItem",
-         KP ('[', 0, 0));
+    add ("panic",            "accessibility.shortcut.panic",            KP ('p', 0, 0));
+    add ("tapTempo",         "accessibility.shortcut.tapTempo",         KP ('t', 0, 0));
+    add ("killSwitch",       "accessibility.shortcut.killSwitch",       KP ('\\', 0, 0));
 
-    add ("nextItem",        "accessibility.shortcut.nextItem",
-         KP (']', 0, 0));
+    add ("previousItem",     "accessibility.shortcut.previousItem",     KP ('[', 0, 0));
+    add ("nextItem",         "accessibility.shortcut.nextItem",         KP (']', 0, 0));
 
-    add ("setlistPrevious", "accessibility.shortcut.setlistPrevious",
-         KP (KP::pageUpKey));
+    add ("setlistPrevious",  "accessibility.shortcut.setlistPrevious",  KP (KP::pageUpKey));
+    add ("setlistNext",      "accessibility.shortcut.setlistNext",      KP (KP::pageDownKey));
 
-    add ("setlistNext",     "accessibility.shortcut.setlistNext",
-         KP (KP::pageDownKey));
+    add ("undo",             "accessibility.shortcut.undo",             KP ('z', cmd, 0));
+    add ("redo",             "accessibility.shortcut.redo",             KP ('z', cmd | shift, 0));
 
-    add ("undo",            "accessibility.shortcut.undo",
-         KP ('z', juce::ModifierKeys::commandModifier, 0));
+    add ("save",             "accessibility.shortcut.save",             KP ('s', cmd, 0));
+    add ("saveAs",           "accessibility.shortcut.saveAs",           KP ('s', cmd | shift, 0));
 
-    add ("redo",            "accessibility.shortcut.redo",
-         KP ('z', juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier, 0));
+    add ("presetBrowser",    "accessibility.shortcut.presetBrowser",    KP ('o', cmd, 0));
+    add ("abCompare",        "accessibility.shortcut.abCompare",        KP ('/', cmd, 0));
 
-    add ("save",            "accessibility.shortcut.save",
-         KP ('s', juce::ModifierKeys::commandModifier, 0));
+    add ("randomise",        "accessibility.shortcut.randomise",        KP ('r', cmd, 0));
+    add ("resetAll",         "accessibility.shortcut.resetAll",         KP ('r', cmd | shift, 0));
 
-    add ("saveAs",          "accessibility.shortcut.saveAs",
-         KP ('s', juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier, 0));
+    add ("export",           "accessibility.shortcut.export",           KP ('e', cmd, 0));
+    add ("options",          "accessibility.shortcut.options",          KP (',', cmd, 0));
 
-    add ("randomise",       "accessibility.shortcut.randomise",
-         KP ('r', juce::ModifierKeys::commandModifier, 0));
+    /*  Not in section 17, kept because the debug panel is otherwise only reachable
+        through Help and a diagnostics session is exactly when a user cannot
+        navigate. Ctrl+D is free: section 17's D is unmodified. */
+    add ("debugPanel",       "accessibility.shortcut.debugPanel",       KP ('d', cmd, 0));
 
-    add ("export",          "accessibility.shortcut.export",
-         KP ('e', juce::ModifierKeys::commandModifier, 0));
-
-    add ("presetBrowser",   "accessibility.shortcut.presetBrowser",
-         KP ('p', juce::ModifierKeys::commandModifier, 0));
-
-    add ("debugPanel",      "accessibility.shortcut.debugPanel",
-         KP ('d', juce::ModifierKeys::commandModifier, 0));
-
-    add ("showShortcuts",   "accessibility.shortcut.showShortcuts",
-         KP ('/', juce::ModifierKeys::commandModifier, 0));
+    /*  Space auditions. Section 17 gives Space to the tune transport, which does
+        not exist yet; when tune-builder lands, that binding takes it and audition
+        moves. */
+    add ("audition",         "accessibility.shortcut.audition",         KP (KP::spaceKey));
 }
 
 bool AccessibilitySettings::rebind (const juce::String& actionId, const juce::KeyPress& key)

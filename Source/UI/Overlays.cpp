@@ -934,6 +934,19 @@ std::vector<juce::Component*> OptionsPanel::generalControls()
              &presetPathLabel, &audioNote, &folderList };
 }
 
+void OptionsPanel::showShortcutTable()
+{
+    // The shortcut table lives on the Accessibility page. Found by name rather
+    // than by a hard-coded index so the section 5 retab does not silently point
+    // this at the wrong page.
+    for (int i = 0; i < pageButtons.size(); ++i)
+        if (pageButtons[i]->getButtonText().containsIgnoreCase ("ACCESSIBILITY"))
+        {
+            showPage (i);
+            return;
+        }
+}
+
 void OptionsPanel::showPage (int index)
 {
     currentPage = juce::jlimit (0, pages.size(), index);

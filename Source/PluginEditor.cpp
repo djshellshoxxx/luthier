@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "Accessibility/Accessibility.h"
 
 namespace luthier
 {
@@ -273,11 +274,26 @@ void LuthierAudioProcessorEditor::timerCallback()
 //==============================================================================
 bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 {
-    const bool command = key.getModifiers().isCommandDown();
-    const bool shift = key.getModifiers().isShiftDown();
+    /*  Every binding is looked up in AccessibilitySettings rather than compared
+        against a key code here.
 
-    // Escape always closes whatever is open. An overlay handles this itself when
-    // it has focus; this is the backstop for when it does not.
+        gui-integration.md section 17 says all shortcuts are rebindable, and
+        accessibility.md section 2 puts a rebind table in Options. Both were true
+        of the table and false of the plugin: this function used to hard-code its
+        keys, so rebinding a shortcut changed the row in the table and nothing
+        else. Going through the registry is what connects them.
+    */
+    auto& shortcuts = AccessibilitySettings::get();
+
+    auto is = [&shortcuts, &key] (const char* actionId)
+    {
+        const auto* binding = shortcuts.findShortcut (actionId);
+        return binding != nullptr && binding->key == key;
+    };
+
+    // Escape always closes whatever is open, and is deliberately not rebindable:
+    // accessibility 2 makes it the way out of a dialog, so it cannot be lost to a
+    // clumsy rebind. An overlay handles it when focused; this is the backstop.
     if (key == juce::KeyPress::escapeKey)
     {
         if (overlayHost.isShowingOverlay())
@@ -289,13 +305,22 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return false;
     }
 
-    if (key == juce::KeyPress::F1Key)
+    if (is ("help"))            { showOverlay (&helpPanel);     return true; }
+    if (is ("options"))         { showOverlay (&optionsPanel);  return true; }
+    if (is ("presetBrowser"))   { showOverlay (&presetBrowser); return true; }
+    if (is ("export"))          { showOverlay (&exportPanel);   return true; }
+    if (is ("debugPanel"))      { showOverlay (&debugPanel);    return true; }
+
+    if (is ("showShortcuts"))
     {
-        showOverlay (&helpPanel);
+        // accessibility 2's "show all shortcuts" surface is the rebind table
+        // itself, so this opens Options on the page that holds it.
+        showOverlay (&optionsPanel);
+        optionsPanel.showShortcutTable();
         return true;
     }
 
-    if (key == juce::KeyPress::spaceKey)
+    if (is ("audition"))
     {
         if (processor.isAuditioning())
             processor.stopAudition();
@@ -305,16 +330,37 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
-    if (key == juce::KeyPress::tabKey)
+    if (is ("toggleAdvanced"))
     {
         setAdvancedMode (! advancedMode);
         header.setAdvancedMode (advancedMode);
         return true;
     }
 
-    if (key.getTextCharacter() == '0')
+    if (is ("toggleLiveMode"))
     {
-        processor.panic();
+        processor.setLiveMode (! processor.isLiveMode());
+        updateLiveStripVisibility();
+        return true;
+    }
+
+    if (is ("togglePractice"))
+    {
+        practicePanel.setOpen (! practicePanel.isOpen());
+        resized();
+        return true;
+    }
+
+    if (is ("panic"))     { processor.panic();       return true; }
+    if (is ("tapTempo"))  { processor.tapTempoNow(); return true; }
+
+    if (is ("killSwitch"))
+    {
+        // live-performance 6: a keyboard cannot express "held", so from the
+        // keyboard this toggles. The on-screen pill and a MIDI footswitch are the
+        // momentary routes.
+        auto& kill = processor.getKillSwitch();
+        kill.setActive (! kill.isActive());
         return true;
     }
 
@@ -323,11 +369,10 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
         Live Mode decides which. Off, they keep doing what they always did; on,
         they step snapshots, which is what a player with a preset open and eight
-        snapshots inside it means by "next". The preset keys are still reachable
-        as Cmd+[ and Cmd+] either way, so nothing is lost. */
-    if (key.getTextCharacter() == '[' || key.getTextCharacter() == ']')
+        snapshots inside it means by "next". */
+    if (is ("previousItem") || is ("nextItem"))
     {
-        const bool forward = key.getTextCharacter() == ']';
+        const bool forward = is ("nextItem");
 
         if (processor.isLiveMode() && processor.getSnapshots().getNumSnapshots() > 0)
         {
@@ -346,54 +391,9 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
-    // live-performance 2: digits recall snapshots directly, shifted for the
-    // second bank of nine.
-    if (const auto character = key.getTextCharacter();
-        character >= '1' && character <= '9')
+    if (is ("setlistPrevious") || is ("setlistNext"))
     {
-        const int index = (character - '1') + (shift ? 9 : 0);
-
-        if (index < processor.getSnapshots().getNumSnapshots())
-        {
-            processor.recallSnapshot (index);
-            return true;
-        }
-    }
-
-    // live-performance 6: the kill switch. A keyboard cannot express "held", so
-    // from the keyboard it toggles; the on-screen pill and any MIDI footswitch
-    // are the momentary routes.
-    if (key.getTextCharacter() == '\\')
-    {
-        auto& kill = processor.getKillSwitch();
-        kill.setActive (! kill.isActive());
-        return true;
-    }
-
-    // live-performance 9: panic.
-    if (key.getTextCharacter() == 'p' || key.getTextCharacter() == 'P')
-    {
-        if (! command)
-        {
-            processor.panic();
-            return true;
-        }
-    }
-
-    // live-performance 5: tap tempo.
-    if (key.getTextCharacter() == 't' || key.getTextCharacter() == 'T')
-    {
-        if (! command)
-        {
-            processor.tapTempoNow();
-            return true;
-        }
-    }
-
-    // live-performance 4: the setlist walks on PageUp and PageDown.
-    if (key == juce::KeyPress::pageUpKey || key == juce::KeyPress::pageDownKey)
-    {
-        const bool forward = (key == juce::KeyPress::pageDownKey);
+        const bool forward = is ("setlistNext");
 
         if (forward ? processor.getSetlist().next() : processor.getSetlist().previous())
         {
@@ -404,49 +404,53 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return false;
     }
 
-    if (! command)
-        return false;
+    if (is ("undo")) { processor.undo(); return true; }
+    if (is ("redo")) { processor.redo(); return true; }
 
-    switch (key.getKeyCode())
+    if (is ("save"))
     {
-        case 'Z':
-            if (shift) processor.redo();
-            else       processor.undo();
-            return true;
+        if (! processor.getPresetManager().saveCurrent())
+            showOverlay (&saveAsPanel);
 
-        case 'Y':
-            processor.redo();
-            return true;
+        return true;
+    }
 
-        case 'S':
-            if (shift)
-                showOverlay (&saveAsPanel);
-            else if (! processor.getPresetManager().saveCurrent())
-                showOverlay (&saveAsPanel);
-            return true;
+    if (is ("saveAs")) { showOverlay (&saveAsPanel); return true; }
 
-        case 'R':
-            processor.randomiseParameters();
-            return true;
+    if (is ("randomise")) { processor.randomiseParameters(); return true; }
 
-        case 'E':
-            showOverlay (&exportPanel);
-            return true;
+    if (is ("resetAll"))
+    {
+        processor.pushUndoState ("Reset everything");
+        processor.resetEverything();
+        return true;
+    }
 
-        case 'P':
-            showOverlay (&presetBrowser);
-            return true;
+    if (is ("abCompare"))
+    {
+        processor.setSlotBActive (! processor.isSlotBActive());
+        return true;
+    }
 
-        case 'D':
-            showOverlay (&debugPanel);
-            return true;
+    /*  live-performance 2: digits recall snapshots directly, shifted for the
+        second bank of nine.
 
-        case ',':
-            showOverlay (&optionsPanel);
-            return true;
+        These are not in the rebind registry. Eighteen rows for eighteen digits
+        would bury the table section 17 wants a user to be able to read, and the
+        binding is positional rather than nominal - digit n recalls snapshot n, so
+        there is nothing meaningful to rebind it to. GAPS.md records the
+        deviation. */
+    if (const auto character = key.getTextCharacter();
+        character >= '1' && character <= '9')
+    {
+        const int index = (character - '1')
+                            + (key.getModifiers().isShiftDown() ? 9 : 0);
 
-        default:
-            break;
+        if (index < processor.getSnapshots().getNumSnapshots())
+        {
+            processor.recallSnapshot (index);
+            return true;
+        }
     }
 
     return false;
