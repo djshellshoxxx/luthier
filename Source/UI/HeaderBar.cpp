@@ -79,6 +79,16 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     panicButton.setColour (juce::TextButton::textColourOffId, Palette::warning);
     panicButton.onClick = [this] { processor.panic(); };
 
+    addAndMakeVisible (midiLearnButton);
+    midiLearnButton.setTooltip ("Arm MIDI Learn, then click a control to assign it "
+                                "to the next CC you move (Ctrl+L)");
+    midiLearnButton.setClickingTogglesState (true);
+    midiLearnButton.onClick = [this]
+    {
+        if (onMidiLearnArmChanged)
+            onMidiLearnArmChanged (midiLearnButton.getToggleState());
+    };
+
     addAndMakeVisible (helpButton);
     helpButton.setTooltip ("Help, troubleshooting and debug tools");
     helpButton.onClick = [this] { if (onOpenHelp) onOpenHelp(); };
@@ -132,6 +142,16 @@ HeaderBar::~HeaderBar()
 }
 
 //==============================================================================
+void HeaderBar::setMidiLearnArmed (bool armed)
+{
+    midiLearnButton.setToggleState (armed, juce::dontSendNotification);
+
+    // Armed is a mode, so it gets the accent the other mode pills use.
+    midiLearnButton.setColour (juce::TextButton::textColourOffId,
+                               armed ? Palette::accent : Palette::textMuted);
+    midiLearnButton.repaint();
+}
+
 void HeaderBar::setAdvancedMode (bool advanced)
 {
     advancedMode = advanced;
@@ -390,6 +410,7 @@ void HeaderBar::resized()
 
     helpButton.setBounds (bounds.removeFromRight (30).reduced (2, 0));
     panicButton.setBounds (bounds.removeFromRight (56).reduced (2, 0));
+    midiLearnButton.setBounds (bounds.removeFromRight (54).reduced (2, 0));
 
     bounds.removeFromRight (Metrics::gridHalf);
 

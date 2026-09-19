@@ -934,6 +934,67 @@ std::vector<juce::Component*> OptionsPanel::generalControls()
              &presetPathLabel, &audioNote, &folderList };
 }
 
+//==============================================================================
+//  MidiLearnArmLayer
+//==============================================================================
+MidiLearnArmLayer::MidiLearnArmLayer()
+{
+    setAlwaysOnTop (true);
+    setMouseCursor (juce::MouseCursor::CrosshairCursor);
+    setInterceptsMouseClicks (true, false);
+}
+
+void MidiLearnArmLayer::paint (juce::Graphics& g)
+{
+    /*  Barely there on purpose.
+
+        The user has to be able to see and aim at the control they are about to
+        assign, so this cannot be a scrim. It is just enough tint to say the
+        plugin is in a mode, plus a border, which is the same language the kill
+        switch and record arm use elsewhere. */
+    g.fillAll (Palette::accent.withAlpha (0.06f));
+
+    g.setColour (Palette::accent.withAlpha (0.65f));
+    g.drawRect (getLocalBounds(), 2);
+
+    auto banner = getLocalBounds().removeFromTop (Metrics::buttonHeight + Metrics::grid)
+                                  .reduced (Metrics::grid, Metrics::gridHalf);
+
+    g.setColour (Palette::panel.withAlpha (0.92f));
+    g.fillRoundedRectangle (banner.toFloat(), Metrics::controlCorner);
+
+    g.setColour (Palette::accent);
+    g.setFont (Fonts::ui (12.0f));
+    g.drawText ("MIDI Learn armed - click a control to assign it, or press Escape",
+                banner, juce::Justification::centred, true);
+}
+
+void MidiLearnArmLayer::mouseDown (const juce::MouseEvent& e)
+{
+    juce::String parameterId;
+
+    /*  Hide to hit-test, because getComponentAt would otherwise find this layer.
+        The visibility flicker never reaches the screen: nothing repaints between
+        here and the setVisible below. */
+    setVisible (false);
+
+    if (auto* parent = getParentComponent())
+    {
+        auto* hit = parent->getComponentAt (e.getEventRelativeTo (parent).getPosition());
+
+        // A control's clickable part is usually a child - a Slider inside a knob -
+        // so walk up until something says what parameter it edits.
+        for (auto* c = hit; c != nullptr && parameterId.isEmpty(); c = c->getParentComponent())
+            if (auto* target = dynamic_cast<LearnTarget*> (c))
+                parameterId = target->getLearnParameterId();
+    }
+
+    setVisible (true);
+
+    if (onTargetPicked != nullptr)
+        onTargetPicked (parameterId);
+}
+
 void OptionsPanel::showShortcutTable()
 {
     // The shortcut table lives on the Accessibility page. Found by name rather

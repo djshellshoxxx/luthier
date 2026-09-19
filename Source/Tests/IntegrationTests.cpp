@@ -1101,3 +1101,86 @@ LUTHIER_TEST (Diagnostics, ringBufferAndSelfTestWork)
     CHECK_MSG (report.contains ("SELF TEST"), "the report has no self-test section");
     CHECK_MSG (report.contains ("CURRENT SETTINGS"), "the report has no settings section");
 }
+
+//==============================================================================
+/*  gui-integration.md section 19 puts MIDI Learn on a header button as well as on
+    the right-click menu, and its ground rule 4 forbids a feature being reachable
+    only by right-click. That needs a global arm: a state where no parameter has
+    been chosen yet and the next control clicked becomes the target.
+
+    The click itself belongs to the editor, which is not in this target, so what is
+    checked here is the state machine the editor drives. */
+LUTHIER_TEST (MidiLearn, armingIsSeparateFromLearningUntilAControlClaimsIt)
+{
+    HarnessProcessor processor;
+    MidiLearnManager learn (processor.apvts);
+
+    CHECK (! learn.isArmed());
+    CHECK (! learn.isLearning());
+
+    learn.setArmed (true);
+
+    // Armed but not yet learning: nothing has said which parameter.
+    CHECK (learn.isArmed());
+    CHECK_MSG (! learn.isLearning(),
+               "arming alone started learning, so the first CC would map itself to "
+               "whatever was learned last");
+
+    // A CC arriving while merely armed must not be captured.
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::controllerEvent (1, 42, 100), 0);
+    learn.processMidi (midi);
+
+    CHECK_MSG (learn.getNumMappings() == 0,
+               "a CC was captured while armed but before a control was chosen");
+
+    // A control claiming the arm is what picks the parameter.
+    CHECK (learn.claimArmedLearn (ParamIDs::macroDrive));
+
+    CHECK_MSG (! learn.isArmed(), "claiming the arm left it armed for the next click");
+    CHECK (learn.isLearning());
+    CHECK (learn.getLearningParameterId() == ParamIDs::macroDrive);
+
+    /*  The CC is now captured. The mapping itself is added on the message thread
+        - processMidi defers it, because mutating the array on the audio thread is
+        not allowed - and nothing here runs a dispatch loop, so what is observable
+        synchronously is that the learn has been consumed. */
+    learn.processMidi (midi);
+
+    CHECK_MSG (! learn.isLearning(),
+               "a CC arrived while learning and the learn was not consumed");
+}
+
+//==============================================================================
+/*  A second control cannot steal a claim that has already been made, and
+    disarming has to cancel a learn that is in flight - otherwise the plugin sits
+    waiting for a CC with nothing on screen saying so, and the next stray knob on
+    the user's controller maps itself. */
+LUTHIER_TEST (MidiLearn, disarmingCancelsAnInFlightLearn)
+{
+    HarnessProcessor processor;
+    MidiLearnManager learn (processor.apvts);
+
+    // Nothing to claim when not armed.
+    CHECK (! learn.claimArmedLearn (ParamIDs::macroDrive));
+    CHECK (! learn.isLearning());
+
+    learn.setArmed (true);
+    CHECK (learn.claimArmedLearn (ParamIDs::macroDrive));
+
+    // The arm is spent, so a second control clicked afterwards is not captured.
+    CHECK (! learn.claimArmedLearn (ParamIDs::macroTone));
+    CHECK (learn.getLearningParameterId() == ParamIDs::macroDrive);
+
+    learn.setArmed (false);
+
+    CHECK_MSG (! learn.isLearning(),
+               "disarming left a learn in flight, so the next CC would still be "
+               "captured with no visible sign of it");
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::controllerEvent (1, 42, 100), 0);
+    learn.processMidi (midi);
+
+    CHECK (learn.getNumMappings() == 0);
+}

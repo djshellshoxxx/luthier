@@ -581,6 +581,7 @@ LUTHIER_TEST (Accessibility, shortcutDefaultsMatchTheCanonicalTable)
         { "abCompare",       KP ('/', cmd, 0) },
         { "randomise",       KP ('r', cmd, 0) },
         { "resetAll",        KP ('r', cmd | shift, 0) },
+        { "midiLearnArm",    KP ('l', cmd, 0) },
         { "export",          KP ('e', cmd, 0) },
         { "options",         KP (',', cmd, 0) }
     };

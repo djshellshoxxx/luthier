@@ -41,6 +41,10 @@ private:
     /** live-performance 10: shows or hides the live strip and re-lays out. */
     void updateLiveStripVisibility();
 
+    /** gui-integration 19: arms MIDI Learn from the header or Ctrl+L, so the
+        feature is not reachable only by right-click (ground rule 4). */
+    void setMidiLearnArmed (bool armed);
+
     /** The easter egg's target: one specific pixel, inside the signature notch in
         the top-left corner. Clicking it opens the hidden effect. */
     juce::Rectangle<int> getSecretPixelBounds() const;
@@ -57,6 +61,7 @@ private:
     AdvancedPanel advancedPanel;
 
     OverlayHost overlayHost;
+    MidiLearnArmLayer midiLearnArmLayer;
 
     HelpPanel helpPanel;
     DebugPanel debugPanel;

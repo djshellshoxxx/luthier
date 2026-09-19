@@ -40,6 +40,29 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     // The overlay host sits on top of everything and is invisible until used.
     addChildComponent (overlayHost);
 
+    addChildComponent (midiLearnArmLayer);
+
+    header.onMidiLearnArmChanged = [this] (bool armed) { setMidiLearnArmed (armed); };
+
+    midiLearnArmLayer.onTargetPicked = [this] (juce::String parameterId)
+    {
+        const bool claimed = parameterId.isNotEmpty()
+                               && processor.getMidiLearn().claimArmedLearn (parameterId);
+
+        /*  A successful claim has already spent the arm and started the learn, so
+            the overlay comes down directly. Going through setMidiLearnArmed(false)
+            here would cancel the learn that was just started, because disarming
+            cancels a learn in flight - which is right for Escape and wrong here.
+
+            Clicking somewhere that is not a control disarms properly instead, so
+            the mode can always be left with a click. */
+        if (! claimed)
+            processor.getMidiLearn().setArmed (false);
+
+        midiLearnArmLayer.setVisible (false);
+        header.setMidiLearnArmed (false);
+    };
+
     // ---- header wiring -----------------------------------------------------------
     header.onModeChanged = [this] (bool advanced) { setAdvancedMode (advanced); };
     header.onOpenHelp = [this] { showOverlay (&helpPanel); };
@@ -234,9 +257,22 @@ void LuthierAudioProcessorEditor::resized()
     advancedPanel.setBounds (bounds);
 
     overlayHost.setBounds (getLocalBounds());
+    midiLearnArmLayer.setBounds (getLocalBounds());
 }
 
 //==============================================================================
+void LuthierAudioProcessorEditor::setMidiLearnArmed (bool armed)
+{
+    processor.getMidiLearn().setArmed (armed);
+
+    midiLearnArmLayer.setVisible (armed);
+
+    if (armed)
+        midiLearnArmLayer.toFront (false);
+
+    header.setMidiLearnArmed (armed);
+}
+
 void LuthierAudioProcessorEditor::updateLiveStripVisibility()
 {
     const bool live = processor.isLiveMode();
@@ -296,6 +332,12 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     // clumsy rebind. An overlay handles it when focused; this is the backstop.
     if (key == juce::KeyPress::escapeKey)
     {
+        if (processor.getMidiLearn().isArmed())
+        {
+            setMidiLearnArmed (false);
+            return true;
+        }
+
         if (overlayHost.isShowingOverlay())
         {
             overlayHost.dismiss();
@@ -348,6 +390,12 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     {
         practicePanel.setOpen (! practicePanel.isOpen());
         resized();
+        return true;
+    }
+
+    if (is ("midiLearnArm"))
+    {
+        setMidiLearnArmed (! processor.getMidiLearn().isArmed());
         return true;
     }
 

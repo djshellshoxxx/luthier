@@ -179,7 +179,6 @@ Still open:
 
 | Section 17 row | Why not done |
 |---|---|
-| MIDI Learn arm, `Ctrl+L` | Needs a global arm mode. MIDI Learn is currently armed only by right-clicking a control, which also breaks ground rule 4 (nothing discoverable only by right-click) and the section 19 row that wants a header button. Unblocked, but it is a feature, not a binding. |
 | New preset, `Ctrl+N` | No "new preset" action exists. `resetEverything()` is Reset All, which is a different thing. Needs an init-preset concept first. |
 | Reveal preset file, `Ctrl+Alt+E` | `PresetManager` tracks the current preset's name and index but not its file path, so there is nothing to reveal. |
 | Next / Prev Col 4 tab, `Ctrl+]` / `Ctrl+[` | Blocked on A2 - there are no Column 4 tabs to step. |
@@ -198,6 +197,22 @@ Two deliberate deviations, both commented in the code:
 of a dialog, so it should not be losable to a clumsy rebind.
 
 ## Fixed since the first audit
+
+- **MIDI Learn was reachable only by right-click**, which broke ground rule 4 and
+  left the section 19 header button and `Ctrl+L` unimplemented. There is now a
+  global arm: the header **Learn** button or `Ctrl+L` arms it, a transparent layer
+  takes the next click, walks up from whatever was hit to the nearest
+  `LearnTarget`, and starts learning for that parameter.
+
+  Consuming the click rather than observing it is the point. A global mouse
+  listener would see the press but the control would still act on it, so arming
+  and then clicking a knob would move the knob. Two tests cover the state machine,
+  and the second one caught a real bug: disarming has to cancel a learn in flight
+  even though `claimArmedLearn` has already cleared the armed flag, which is the
+  normal case rather than an edge - by the time the user presses Escape, armed is
+  false and learning is true. The editor therefore takes its overlay down directly
+  after a claim instead of going through the disarm path, which would cancel the
+  learn it had just started.
 
 - **Freeze and E-Bow were one control, implemented as E-Bow.** The build had a
   single `freeze` bool driving the resonance-drive mechanism under the Freeze
@@ -241,6 +256,7 @@ against the build. `gui-integration.md` sections 20 (discoverability), 21
    the rest of the column, not rebuilding.
 3. **A2** once A1 lands, for the tabs that are not blocked: LIVE, PRACTICE,
    NOTATION, MIDI OUT, CONTROLLERS, HELP.
-4. **A4** — secondary access paths, mostly independent. The MIDI Learn arm
-   mode from A5 belongs here too: it is the same kind of gap.
+4. **A4** — secondary access paths, mostly independent. Right-click → Modulate
+   is the remaining ground-rule-4 offender now that MIDI Learn has a header
+   route.
 5. Everything else waits on the eleven missing specs.

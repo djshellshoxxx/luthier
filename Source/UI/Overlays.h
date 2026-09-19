@@ -62,6 +62,34 @@ private:
 };
 
 //==============================================================================
+/*  The MIDI-learn arm layer.
+
+    While MIDI Learn is armed, this sits invisibly over the whole editor and takes
+    the next click. It finds what was underneath, walks up to the nearest
+    LearnTarget, and starts learning for that parameter.
+
+    Taking the click rather than merely observing it is the point: a global mouse
+    listener would see the press but the control would still act on it, so arming
+    and then clicking a knob would move the knob. Here the click is consumed and
+    the only thing that happens is the arm landing.
+*/
+class MidiLearnArmLayer : public juce::Component
+{
+public:
+    MidiLearnArmLayer();
+
+    /** Called with the parameter the user picked, or empty if they clicked
+        somewhere that is not a control. */
+    std::function<void (juce::String)> onTargetPicked;
+
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+
+private:
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MidiLearnArmLayer)
+};
+
+//==============================================================================
 /** Owns the scrim and guarantees that at most one overlay is visible. */
 class OverlayHost : public juce::Component
 {

@@ -36,6 +36,41 @@ void MidiLearnManager::cancelLearning()
     sendChangeMessage();
 }
 
+void MidiLearnManager::setArmed (bool shouldBeArmed)
+{
+    const bool wasArmed = armed.exchange (shouldBeArmed);
+
+    /*  Disarming cancels a learn in flight, and does so even when the arm flag was
+        already clear.
+
+        That case is the normal one rather than an edge: claimArmedLearn spends the
+        arm and starts the learn, so by the time the user presses Escape or toggles
+        the header button off, `armed` is false and `learning` is true. Keying this
+        off the flag changing would leave the plugin waiting for a CC with nothing
+        on screen saying so, and the next stray knob on the user's controller would
+        map itself to whatever they last clicked.
+
+        The editor therefore must not call setArmed(false) merely to take its arm
+        overlay down after a successful claim; it hides the overlay directly. */
+    if (! shouldBeArmed && learning.load())
+        cancelLearning();
+
+    if (wasArmed != shouldBeArmed)
+        sendChangeMessage();
+}
+
+bool MidiLearnManager::claimArmedLearn (const juce::String& parameterId)
+{
+    if (! armed.load() || parameterId.isEmpty())
+        return false;
+
+    armed.store (false);
+    startLearning (parameterId);
+
+    // startLearning already broadcasts, so the header sees both changes at once.
+    return true;
+}
+
 juce::String MidiLearnManager::getLearningParameterId() const
 {
     const juce::ScopedLock sl (lock);

@@ -39,6 +39,7 @@ them with a search box. The defaults are below.
 | `Ctrl + S` | Save the current preset |
 | `Ctrl + Shift + S` | Save As |
 | `Ctrl + E` | Export audio |
+| `Ctrl + L` | Arm MIDI Learn, then click a control |
 | `Ctrl + Z` | Undo |
 | `Ctrl + Shift + Z` | Redo |
 | `Ctrl + R` | Randomise |

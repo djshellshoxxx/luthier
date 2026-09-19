@@ -42,6 +42,7 @@ Always visible, in both modes.
 | **File** | save, open, import, export, options, randomise, reset. |
 | **A / B** | two comparison slots. `A>B` copies the current one across. |
 | **Undo / Redo** | 64 steps. |
+| **Learn** | arms MIDI Learn: the next control you click is assigned to the next CC you move. |
 | **Panic** | stops every string immediately. |
 | **?** | help, troubleshooting and the debug tools. |
 | **Advanced** | switches modes. |
@@ -127,7 +128,7 @@ Everything about the selected string, computed rather than stored: gauge in inch
 and millimetres, whether it is wound, its core diameter, its mass per metre, its
 tension, its inharmonicity coefficient, its T60 and its brightness.
 
-Below: fretless, slide guitar and freeze toggles, the action and buzz controls, the
+Below: fretless and slide guitar toggles, the action and buzz controls, the
 temperament, and the sympathetic coupling amount.
 
 ### Column 3 - Body, pickups and hand
@@ -150,8 +151,14 @@ amp buzz - each with its own control.
 ### Column 4 - The rig
 
 Bridge type and whammy, cable, the pre-amp pedalboard, the amplifier, the cabinet
-and microphones, the room, the effects loop, performance settings, humanisation,
-feedback, doubler and master.
+and microphones, the room, **sustain** (Freeze and E-Bow), the effects loop,
+performance settings, humanisation, feedback, doubler and master.
+
+**Sustain** holds a note after you have stopped playing it, two different ways.
+**Freeze** captures a window of what is sounding and loops it underneath whatever
+you play next - switch it on again to capture a new one. **E-Bow** drives the
+strings that are still ringing at their own resonance, so it sustains notes you
+are still holding rather than ones you have let go.
 
 ---
 
@@ -170,9 +177,18 @@ Every control behaves the same way.
 
 ### MIDI Learn
 
-Right-click a control, choose **MIDI Learn**, then move a knob or pedal on your
-controller. A small teal dot appears on any control that has a CC mapped.
-Right-click again to clear it.
+Two ways in, and they end in the same place.
+
+**From the header**: press **Learn** (or `Ctrl + L`). The window tints and the
+next control you click becomes the target - then move a knob or pedal on your
+controller and it is mapped. Clicking anywhere that is not a control cancels, and
+so does `Escape`.
+
+**From the control**: right-click it and choose **MIDI Learn**, then move your
+knob or pedal.
+
+A small teal dot appears on any control that has a CC mapped. Right-click again
+to clear it.
 
 Sustain and sostenuto are skipped while learning, so an accidental pedal press
 cannot steal the mapping.

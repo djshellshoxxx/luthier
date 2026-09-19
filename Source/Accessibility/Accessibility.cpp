@@ -517,6 +517,8 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("randomise",        "accessibility.shortcut.randomise",        KP ('r', cmd, 0));
     add ("resetAll",         "accessibility.shortcut.resetAll",         KP ('r', cmd | shift, 0));
 
+    add ("midiLearnArm",     "accessibility.shortcut.midiLearnArm",     KP ('l', cmd, 0));
+
     add ("export",           "accessibility.shortcut.export",           KP ('e', cmd, 0));
     add ("options",          "accessibility.shortcut.options",          KP (',', cmd, 0));
 

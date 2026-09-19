@@ -38,6 +38,20 @@ public:
     bool isLearning() const noexcept { return learning.load(); }
     juce::String getLearningParameterId() const;
 
+    /*  Global arm (gui-integration.md section 19, and its ground rule 4: nothing
+        may be reachable only by right-click).
+
+        Armed, the next control the user touches becomes the learn target, which
+        is what the header button and Ctrl+L drive. Arming does not pick a
+        parameter - a control does that by calling claimArmedLearn() when it is
+        clicked - so this is a separate state from `learning`. */
+    void setArmed (bool shouldBeArmed);
+    bool isArmed() const noexcept { return armed.load(); }
+
+    /** Called by a control when it is clicked. If armed, starts learning for this
+        parameter, disarms, and returns true so the control swallows the click. */
+    bool claimArmedLearn (const juce::String& parameterId);
+
     //==========================================================================
     void addMapping (const juce::String& parameterId, int ccNumber, int channel = 0);
     void removeMappingForParameter (const juce::String& parameterId);
@@ -72,6 +86,7 @@ private:
     juce::Array<Mapping> mappings;
 
     std::atomic<bool> learning { false };
+    std::atomic<bool> armed { false };
     juce::String learningParameter;
 
     // Lock-free lookup used on the audio thread: CC number to mapping index.

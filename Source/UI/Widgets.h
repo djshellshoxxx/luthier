@@ -42,9 +42,26 @@ private:
 };
 
 //==============================================================================
+/*  Anything a MIDI-learn arm can land on.
+
+    gui-integration.md section 19 puts MIDI Learn on a header button as well as on
+    the right-click menu, and ground rule 4 forbids a feature being reachable only
+    by right-click. Arming has to work without knowing which control comes next,
+    so the arm overlay finds its target by walking up from whatever was clicked
+    until it finds one of these. */
+struct LearnTarget
+{
+    virtual ~LearnTarget() = default;
+
+    /** The parameter this control edits, or empty if it is not attached yet. */
+    virtual juce::String getLearnParameterId() const = 0;
+};
+
+//==============================================================================
 /** A rotary control with its label below and its value above. */
 class LuthierKnob : public juce::Component,
-                    public juce::SettableTooltipClient
+                    public juce::SettableTooltipClient,
+                    public LearnTarget
 {
 public:
     enum class Size { Small, Normal, Large, Macro };
@@ -59,6 +76,7 @@ public:
 
     juce::Slider& getSlider() noexcept { return slider; }
     const juce::String& getParameterId() const noexcept { return paramId; }
+    juce::String getLearnParameterId() const override { return paramId; }
 
     void setLabelText (const juce::String& text);
     void setAccentColour (juce::Colour colour);
@@ -110,7 +128,8 @@ private:
 
 //==============================================================================
 /** A labelled combo box bound to a choice parameter. */
-class LuthierChoice : public juce::Component,
+class LuthierChoice : public LearnTarget,
+                      public juce::Component,
                       public juce::SettableTooltipClient
 {
 public:
@@ -121,6 +140,7 @@ public:
                    const juce::String& tooltip = {});
 
     juce::ComboBox& getComboBox() noexcept { return box; }
+    juce::String getLearnParameterId() const override { return paramId; }
     void setLabelText (const juce::String& text);
 
     /** Hides the label and gives the whole height to the box. */
@@ -145,7 +165,8 @@ private:
 
 //==============================================================================
 /** A toggle bound to a bool parameter, drawn as a flat button. */
-class LuthierToggle : public juce::Component,
+class LuthierToggle : public LearnTarget,
+                      public juce::Component,
                       public juce::SettableTooltipClient
 {
 public:
@@ -156,6 +177,7 @@ public:
                    const juce::String& tooltip = {});
 
     juce::TextButton& getButton() noexcept { return button; }
+    juce::String getLearnParameterId() const override { return paramId; }
 
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
@@ -172,7 +194,8 @@ private:
 
 //==============================================================================
 /** Horizontal or vertical slider bound to a float parameter, with a label. */
-class LuthierSlider : public juce::Component,
+class LuthierSlider : public LearnTarget,
+                      public juce::Component,
                       public juce::SettableTooltipClient
 {
 public:
@@ -183,6 +206,7 @@ public:
                    const juce::String& tooltip = {});
 
     juce::Slider& getSlider() noexcept { return slider; }
+    juce::String getLearnParameterId() const override { return paramId; }
 
     void paint (juce::Graphics&) override;
     void resized() override;

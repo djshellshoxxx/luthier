@@ -34,7 +34,13 @@ public:
     std::function<void()> onOpenPresetBrowser;
     std::function<void()> onSaveAs;
 
+    /** gui-integration 19: the header MIDI Learn button. */
+    std::function<void (bool)> onMidiLearnArmChanged;
+
     void setAdvancedMode (bool advanced);
+
+    /** Reflects the arm state; the editor owns it. */
+    void setMidiLearnArmed (bool armed);
     bool isAdvancedMode() const noexcept { return advancedMode; }
 
     void refreshPresetDisplay();
@@ -62,6 +68,7 @@ private:
     juce::TextButton compareA { "A" }, compareB { "B" }, copyAB { "A>B" };
     juce::TextButton undoButton { "Undo" }, redoButton { "Redo" };
     juce::TextButton panicButton { "Panic" };
+    juce::TextButton midiLearnButton { "Learn" };
     juce::TextButton helpButton { "?" };
     juce::TextButton modeButton { "Advanced" };
     juce::TextButton liveButton { "Live" };
