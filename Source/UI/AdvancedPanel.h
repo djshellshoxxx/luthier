@@ -139,7 +139,12 @@ private:
     // --- column 2 -----------------------------------------------------------------
     std::unique_ptr<LuthierChoice> temperament;
     std::unique_ptr<LuthierKnob> concertA, couplingAmount, fretAction, fretBuzz;
-    std::unique_ptr<LuthierToggle> fretlessToggle, slideGuitarToggle, freezeToggle;
+    std::unique_ptr<LuthierToggle> fretlessToggle, slideGuitarToggle;
+
+    // Sustain (ambiguity-resolutions 2.3): two rows, two mechanisms.
+    std::unique_ptr<LuthierToggle> freezeEnable, ebowToggle;
+    std::unique_ptr<LuthierKnob> freezeCapture, freezeLevel, freezeAttack,
+                                 freezeRelease, freezeLowPass, freezeHighPass;
     std::unique_ptr<juce::Label> stringInfoLabel;
 
     // --- column 3 -----------------------------------------------------------------
@@ -188,7 +193,8 @@ private:
     std::unique_ptr<PedalRack> preRack, postRack;
 
     std::unique_ptr<LuthierKnob> humTiming, humVelocity, humDetune, humAttack, humNoise, humStrum;
-    std::unique_ptr<LuthierKnob> vibratoRate, vibratoDepth, strumSpeed, bendRange, legatoWindow;
+    std::unique_ptr<LuthierKnob> vibratoRate, vibratoDepth, strumSpeed, bendRange, legatoWindow,
+                                 chordWindow;
     std::unique_ptr<LuthierChoice> vibratoShape, strumDirection;
     std::unique_ptr<LuthierToggle> feedbackOn, doublerOn, mpeToggle;
     std::unique_ptr<LuthierKnob> feedbackThreshold, feedbackSpeed, doublerAmount;

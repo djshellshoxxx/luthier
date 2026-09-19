@@ -81,6 +81,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     room.prepare (sr, maxBlock);
     secret.prepare (sr);
     master.prepare (sr, maxBlock);
+    freezeOverlay.prepare (sr, 2);
 
     // --- scratch --------------------------------------------------------------
     stringSumBuffer.assign ((size_t) maxBlock, 0.0);
@@ -127,6 +128,7 @@ void LuthierEngine::reset() noexcept
     room.reset();
     secret.reset();
     master.reset();
+    freezeOverlay.reset();
 
     technique.reset();
     voicer.reset();
@@ -696,7 +698,7 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
     if (soundingNote >= 0)
         stringActivity.push ({ activeSampleOffset, s, soundingNote, 0.0f, false });
 
-    strings[(size_t) s].release (e.letRing || freeze);
+    strings[(size_t) s].release (e.letRing || ebow);
     stringMidiNote[(size_t) s] = -1;
 
     // Lifting a finger makes a soft thump as the string is stopped.
@@ -818,7 +820,7 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
         // Freeze: drive the string toward a target level at its own resonance,
         // the way an E-Bow does. The loop gain never reaches unity, so this can
         // sustain forever without any possibility of runaway.
-        if (freeze && strings[(size_t) s].hasSounded())
+        if (ebow && strings[(size_t) s].hasSounded())
             strings[(size_t) s].setSustainScale (12.0);
         else
             strings[(size_t) s].setSustainScale (fretless ? 0.82 : 1.0);
@@ -1042,8 +1044,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
                               * feedbackAmount * 0.02;
 
             // Freeze drives the string up to a target level and no further.
-            if (freeze && strings[(size_t) s].hasSounded()
-                && strings[(size_t) s].getLevel() < freezeTargetLevel)
+            if (ebow && strings[(size_t) s].hasSounded()
+                && strings[(size_t) s].getLevel() < ebowTargetLevel)
             {
                 couplingIn += stringOutputs[(size_t) s] * 0.004;
             }
@@ -1298,6 +1300,13 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     if (numChannels == 1)
         buffer.addFrom (0, 0, workBuffer, 1, 0, numSamples, 0.5f);
+
+    /*  Freeze (ambiguity-resolutions 2.1) sits here, ahead of the master bus,
+        for two reasons: it captures the instrument as the player hears it, after
+        the amp and the room; and its layer then passes through the limiter like
+        everything else, so holding a freeze cannot push the output past the
+        ceiling. */
+    freezeOverlay.process (buffer);
 
     master.processBlock (buffer);
 

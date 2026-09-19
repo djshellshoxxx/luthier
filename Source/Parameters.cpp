@@ -397,7 +397,16 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (choiceParam (ParamIDs::vibratoShape, "Vibrato Shape", vibratoShapeNames(), 5));
     add (floatParam  (ParamIDs::legatoWindow, "Legato Window", 5.0f, 200.0f, 40.0f, 0.4f, "ms"));
     add (boolParam   (ParamIDs::slideGuitar,  "Slide Guitar",  false));
-    add (boolParam   (ParamIDs::freeze,       "Freeze",        false));
+    // --- sustain: freeze and e-bow (ambiguity-resolutions 2) ------------------
+    add (boolParam   (ParamIDs::ebowEnable,      "E-Bow",             false));
+
+    add (boolParam   (ParamIDs::freezeEnable,    "Freeze",            false));
+    add (floatParam  (ParamIDs::freezeCaptureMs, "Freeze Capture",   200.0f, 1000.0f, 400.0f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::freezeLevel,     "Freeze Level",     -60.0f,    0.0f,  -6.0f, 1.0f, "dB"));
+    add (floatParam  (ParamIDs::freezeAttackMs,  "Freeze Attack",      5.0f,  500.0f,  40.0f, 0.4f, "ms"));
+    add (floatParam  (ParamIDs::freezeReleaseMs, "Freeze Release",    20.0f, 2000.0f, 300.0f, 0.4f, "ms"));
+    add (floatParam  (ParamIDs::freezeLpCutoff,  "Freeze Low Pass",  200.0f, 20000.0f, 18000.0f, 0.3f, "Hz"));
+    add (floatParam  (ParamIDs::freezeHpCutoff,  "Freeze High Pass",  20.0f, 2000.0f,  20.0f, 0.3f, "Hz"));
 
     // --- whammy ---------------------------------------------------------------
     add (choiceParam (ParamIDs::bridgeType,    "Bridge",         bridgeTypeNames(), 1));
@@ -643,7 +652,20 @@ void ParameterBridge::applyToEngine() noexcept
 
     engine.setVibratoRate (value (ParamIDs::vibratoRate));
     engine.setVibratoDepthCents (value (ParamIDs::vibratoDepth));
-    engine.setFreeze (value (ParamIDs::freeze) > 0.5f);
+    engine.setEBow (value (ParamIDs::ebowEnable) > 0.5f);
+
+    // ---- freeze (ambiguity-resolutions 2.1) ------------------------------------
+    auto& freeze = engine.getFreezeOverlay();
+
+    // Capture length is read before the enable, so a rising edge this block
+    // captures the window length the user actually has dialled in.
+    freeze.setCaptureMs (value (ParamIDs::freezeCaptureMs));
+    freeze.setLevelDb   (value (ParamIDs::freezeLevel));
+    freeze.setAttackMs  (value (ParamIDs::freezeAttackMs));
+    freeze.setReleaseMs (value (ParamIDs::freezeReleaseMs));
+    freeze.setLowpassHz (value (ParamIDs::freezeLpCutoff));
+    freeze.setHighpassHz (value (ParamIDs::freezeHpCutoff));
+    freeze.setEnabled   (value (ParamIDs::freezeEnable) > 0.5f);
 
     // ---- whammy ---------------------------------------------------------------
     auto& wham = engine.getWhammyEngine();

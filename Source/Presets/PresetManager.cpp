@@ -704,7 +704,8 @@ bool PresetManager::isRandomisable (const juce::String& paramId)
     {
         ParamIDs::masterGain, ParamIDs::limiterOn, ParamIDs::oversample,
         ParamIDs::ampStandby, ParamIDs::concertA, ParamIDs::guitarVolume,
-        ParamIDs::whammyPos, ParamIDs::freeze, ParamIDs::mpeEnabled,
+        ParamIDs::whammyPos, ParamIDs::ebowEnable, ParamIDs::freezeEnable,
+        ParamIDs::mpeEnabled,
         ParamIDs::playingMode, ParamIDs::bendRange, ParamIDs::transposeLock,
         ParamIDs::tuningDrift, ParamIDs::chordWindow,
         ParamIDs::secretOn, ParamIDs::secretRate, ParamIDs::secretDepth,

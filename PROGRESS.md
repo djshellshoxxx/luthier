@@ -111,11 +111,38 @@ said they were for.
 | | |
 |---|---|
 | Source | ~78 300 lines of C++ across 178 files |
-| Parameters | 342, every one automatable, named and text-round-tripping |
+| Parameters | 349, every one automatable, named and text-round-tripping |
 | Guitars | 25 |
 | Factory presets | 36 (17 electric, 7 acoustic, 5 bass, 5 utility, 2 classical) |
 | Impulse responses | 216 body, 504 cabinet (synthesised - see `docs/KNOWN_ISSUES.md`) |
-| Tests | 278 across 48 suites, 645 081 checks |
+| Tests | 283 across 49 suites, 646 239 checks |
+
+### Phase 2 and beyond
+
+`INDEX.md` was extended after phase 1 landed. It now describes a realism phase
+(twelve specs), a composition phase (`tune-builder.md`), a gap-fill phase and a
+ship phase, governed by `CLAUDE_CODE_BRIEF.md`.
+
+**Eleven of the twelve realism specs are not on disk yet**, so that phase cannot
+start. `GAPS.md` lists which, and what each one blocks. The audit of the build
+against `gui-integration.md` section 19 is done and lives there too.
+
+One piece of phase-4 work has landed early, because it was unblocked and it was
+a genuine contradiction rather than a missing feature: **Freeze and E-Bow**.
+`ambiguity-resolutions.md` section 2 exists to settle whether infinite sustain is
+a captured loop or a feedback drive, and answers "both, as two features". The
+build had one bool called Freeze that drove the feedback mechanism. There are now
+two, with a `FreezeOverlay` implementing the captured-loop half and a SUSTAIN
+section holding both.
+
+The interesting part was the loop itself. Two read heads half a window apart under
+Hann windows is the obvious construction and it fails the spec's test: constant
+overlap-add makes the *windows* sum to one, but heads hundreds of milliseconds
+apart read uncorrelated material, so power adds rather than amplitude and the
+level follows sqrt(wA^2 + wB^2) - about 3 dB of swing every cycle. Crossfading the
+seam once at capture and then reading a single head makes every cycle
+bit-identical, which is what "RMS varies less than 0.5 dB over sixty seconds"
+actually demands.
 
 ### Targets
 

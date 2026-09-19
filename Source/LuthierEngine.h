@@ -23,6 +23,7 @@
 #include "DSP/Amp/CabinetEngine.h"
 #include "DSP/Amp/RoomEngine.h"
 #include "DSP/Master/MasterBus.h"
+#include "DSP/Master/FreezeOverlay.h"
 #include "Model/Guitar/GuitarLibrary.h"
 #include "Model/Playing/MidiInterpreter.h"
 #include "Validator.h"
@@ -98,6 +99,7 @@ public:
     CabinetEngine&   getCabinetEngine() noexcept   { return cabinet; }
     RoomEngine&      getRoomEngine() noexcept      { return room; }
     MasterBus&       getMasterBus() noexcept       { return master; }
+    FreezeOverlay&   getFreezeOverlay() noexcept   { return freezeOverlay; }
     Validator&       getValidator() noexcept       { return validator; }
 
     StringEngine& getString (int i) noexcept { return strings[(size_t) juce::jlimit (0, kMaxStrings - 1, i)]; }
@@ -131,11 +133,15 @@ public:
     void setVibratoShape (Lfo::Shape s) noexcept;
     void setVibratoDepthCents (double cents) noexcept { vibratoDepthCents = juce::jlimit (0.0, 100.0, cents); }
 
-    /** E-Bow style infinite sustain. Implemented the way an E-Bow works: the
-        string is driven at its own resonance up to a target level, so it sustains
-        without the loop gain ever reaching unity. */
-    void setFreeze (bool on) noexcept { freeze = on; }
-    bool isFrozen() const noexcept { return freeze; }
+    /*  E-Bow (ambiguity-resolutions 2.2): the string is driven at its own
+        resonance up to a target level, so it sustains without the loop gain ever
+        reaching unity.
+
+        This is not Freeze. Freeze (2.1) captures a window and loops it, and lives
+        in FreezeOverlay. The two were one control called "Freeze / E-Bow", which
+        is exactly the ambiguity section 2 was written to settle. */
+    void setEBow (bool on) noexcept { ebow = on; }
+    bool isEBowing() const noexcept { return ebow; }
 
     void setFeedbackEnabled (bool on) noexcept { feedbackEnabled = on; }
     void setFeedbackThreshold (double t) noexcept { feedbackThreshold = juce::jlimit (0.0, 1.0, t); }
@@ -312,6 +318,7 @@ private:
     RoomEngine room;
     SecretEffect secret;
     MasterBus master;
+    FreezeOverlay freezeOverlay;
 
     // --- per-block scratch (all pre-allocated) --------------------------------
     std::vector<double> stringSumBuffer;
@@ -356,8 +363,8 @@ private:
     double vibratoRate = 5.2;
     double vibratoDepthCents = 22.0;
 
-    bool   freeze = false;
-    double freezeTargetLevel = 0.09;
+    bool   ebow = false;
+    double ebowTargetLevel = 0.09;
 
     bool   feedbackEnabled = false;
     double feedbackThreshold = 0.65;

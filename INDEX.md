@@ -1,16 +1,26 @@
 # Luthier — full spec index
 
 Companion documents to `spec.md`, `engine.md`, `include.md` and `theme.md`.
-Each file extends a specific area of the plugin without contradicting what
-is already built. Written to match the voice and rigour of `engine.md` so
-Claude Code cannot misinterpret them.
 
-Read `CLAUDE_CODE_BRIEF.md` first if you are the implementer. It tells you
-how to use this set as a coherent whole rather than a pile of documents.
+Four groups:
+
+- The eleven original extension specs (routing through telemetry).
+- The twelve realism specs (advanced-ranges through midi-export), which
+  close the gap that made a modelled guitar sound and behave unlike a
+  real one, and which make every part of the guitar a thing the user
+  can change on a bench.
+- The composition spec (tune-builder), which turns Luthier into a
+  sketchpad for actual tunes and melodies, not just an instrument.
+- The build-integration specs (gui-integration, ui-wiring,
+  ambiguity-resolutions, qa-polish, onboarding, performance-budget,
+  installer, CLAUDE_CODE_BRIEF and this file), which turn everything
+  above into one $200 product.
+
+Read `CLAUDE_CODE_BRIEF.md` first if you are the implementer.
 
 ## Order to build in
 
-### Phase 1: foundational extensions (already tracked in PROGRESS.md)
+### Phase 1: original extensions
 1. `routing-io.md`
 2. `modulation-matrix.md`
 3. `rhythm-engine.md`
@@ -23,65 +33,99 @@ how to use this set as a coherent whole rather than a pile of documents.
 10. `accessibility.md`
 11. `updates-telemetry.md`
 
-### Phase 2: gap-filling and ship-ready
-12. `ambiguity-resolutions.md` — resolves the five underspecified items REVIEW.md flagged
-13. `gui-integration.md` — MASTER map: every backend feature to a concrete UI location
-14. `ui-wiring.md` — how UI attaches to backend, threading contract, undo/redo
-15. `onboarding.md` — first-run and returning-user experience
-16. `performance-budget.md` — per-module CPU and memory budgets, enforcement
-17. `qa-polish.md` — the ship gate; what "consumer-ready" means as a checklist
-18. `installer.md` — Windows/macOS/Linux install, uninstall, update, enterprise
+### Phase 2: realism
+12. `advanced-ranges.md` (mechanism every later file depends on)
+13. `volume-knob-interaction.md` (replaces CableSim; introduces GuitarCircuit)
+14. `pick-noise.md`
+15. `string-squeak.md`
+16. `fret-buzz.md`
+17. `slide-guitar.md`
+18. `guitar-workshop.md` (parts data model; factory guitars become part files)
+19. `part-acoustics.md` (every part's effect on the engine)
+20. `workshop-ui.md`
+21. `strum-dynamics.md`
+22. `bass-techniques.md`
+23. `midi-export.md` (last of the realism phase, captures every event class above)
 
-### Phase 3: polish pass
-Once every spec above is implemented, do the polish pass documented in
-`qa-polish.md` section 8 (bug bash) and section 12 (the final human
-check).
+### Phase 3: composition
+24. `tune-builder.md` (writes into rhythm engine and note engine, exports through midi-export)
+
+### Phase 4: gap-fills
+25. `ambiguity-resolutions.md`
+26. `gui-integration.md`
+27. `ui-wiring.md`
+28. `onboarding.md`
+29. `performance-budget.md`
+30. `qa-polish.md`
+31. `installer.md`
+32. `CLAUDE_CODE_BRIEF.md`
+
+### Phase 5: ship
+Run `qa-polish.md` section 8 (bug bash) and section 12 (final human
+check). Neither is skippable.
 
 ## What each file adds
 
 | File | Adds |
 |---|---|
 | `REVIEW.md` | Observations on the existing specs and where each new file plugs in |
-| `routing-io.md` | Multi-out bus layouts, sidechain, per-string outputs, MIDI out, re-amp |
+| `routing-io.md` | Multi-out bus layouts, sidechain, per-string outputs, MIDI out, re-amp, Aux 8 noise bus |
 | `modulation-matrix.md` | LFOs, EGs, step sequencers, envelope followers, macros, routing table |
 | `rhythm-engine.md` | Chord detector, voicer, strum and fingerpick pattern engines, genre kits |
 | `live-performance.md` | Snapshot banks, morph, setlist, tap tempo, kill switch, monitor mix, expression pedal calibration |
-| `controllers.md` | Profiles for MPE, GK, TriplePlay, Jamstik, Osmose, plus latency compensation |
+| `controllers.md` | Profiles for MPE, GK, TriplePlay, Jamstik, Osmose, latency compensation |
 | `practice-tools.md` | Metronome, looper, backing track player, scale trainer, ear training, tab reader, session recorder |
 | `tone-match.md` | User IR loading, cab match, EQ match, capture utility |
-| `notation-export.md` | Live TAB view, MusicXML, Guitar Pro, ASCII tab and MIDI export |
+| `notation-export.md` | Live TAB view, MusicXML, Guitar Pro, ASCII tab, MIDI export |
 | `character-wear.md` | Dead spots, fret wear, tuner drift, aged electronics, body break-in, environment |
 | `accessibility.md` | Screen reader, keyboard-only, colourblind palettes, UI scale, localization |
 | `updates-telemetry.md` | Update checks, opt-in telemetry, crash reporting, license activation, privacy dashboard |
-| `ambiguity-resolutions.md` | Resolves feedback, freeze/E-Bow, doubler, chord auto-fingering rubric, preset morph |
-| `gui-integration.md` | Master GUI spec: window structure, Easy/Advanced layout, every feature's UI location |
-| `ui-wiring.md` | Component-to-backend attachment pattern, threading, undo/redo, MIDI Learn plumbing |
-| `onboarding.md` | First-run experience, tour, sample content, discoverability |
-| `performance-budget.md` | Per-module CPU / memory budgets, latency, boot time, CPU relief |
-| `qa-polish.md` | Ship gate: test matrix, crash policy, UI polish checklist, audio polish checklist, bug bash procedure |
-| `installer.md` | Installer, uninstall, update delivery, portable install, enterprise deployment |
+| `advanced-ranges.md` | Stock vs advanced parameter ranges, per-preset opt-in, marking, clamping |
+| `volume-knob-interaction.md` | GuitarCircuit: pots, caps, treble bleed, cable / amp-input loading; amp cleanup |
+| `pick-noise.md` | Pick material / thickness / tip / bevel / angle / wear, click, chirp, scrape, fingerstyle |
+| `string-squeak.md` | Finger-slide squeak on wound strings, per-material spectra, pickup routing, style presets |
+| `fret-buzz.md` | Action, relief, nut depth, fret height, live buzz, setup styles |
+| `slide-guitar.md` | Bottleneck / lap steel / dobro / hybrid |
+| `guitar-workshop.md` | Bill-of-parts `GuitarSpec`, parts library |
+| `part-acoustics.md` | Every part-field-to-engine-parameter mapping |
+| `workshop-ui.md` | The bench: live-drawn guitar with hit-tested parts, inspector, spectrum delta, audition, A/B |
+| `strum-dynamics.md` | Crossing velocity, acceleration profile, strikers, chucks |
+| `bass-techniques.md` | Slap, pop, ghosts, double thump, fingerstyle, bass-specific defaults everywhere |
+| `midi-export.md` | Luthier and Generic MIDI profile export / import for every event class, live MIDI-out alignment |
+| `tune-builder.md` | Chord progression + melody + rhythm workflow; `.luthiertune` file; three-minute tune loop |
+| `ambiguity-resolutions.md` | Feedback, freeze / E-Bow, doubler, chord auto-fingering, preset morph, strum-velocity source, .luthierguitar compatibility |
+| `gui-integration.md` | Master GUI spec: window, Easy / Advanced, every feature's UI location, Workshop / Slide / Tune integration |
+| `ui-wiring.md` | Attachment pattern, threading, undo / redo, MIDI Learn, parts-swap and shadow-spec patterns |
+| `onboarding.md` | First-run, tour, sample content, Workshop / Slide / Tune discovery, advanced-range prompt |
+| `performance-budget.md` | Per-module CPU / memory budgets |
+| `qa-polish.md` | Ship gate: test matrix, crash policy, UI polish, audio polish, bug bash |
+| `installer.md` | Windows / macOS / Linux install, uninstall, updates, portable, enterprise |
+| `CLAUDE_CODE_BRIEF.md` | Front-door prompt: reading order, audit-then-build, conflict resolution, definition of done |
 
-## Global rules that apply across every new file
+## Global rules
 
-The rules from `engine.md` section 0 still hold everywhere: double-precision
+The rules from `engine.md` section 0 hold everywhere: double-precision
 DSP, no allocations in the audio callback, DC blockers, NaN guards,
-denormals off, sample-rate independence, seconds/Hz not samples, reset() on
-every module, module isolation, oversampling for nonlinear stages.
+denormals off, sample-rate independence, seconds/Hz not samples, reset()
+on every module, module isolation, oversampling for nonlinear stages.
 
-Anywhere a new module adds an audio-path stage, it must obey those rules.
-Anywhere a new module is control-only (rhythm engine, mod matrix control
-rate, notation export, practice tools UI), it must not touch the audio
-thread's DSP path.
+Three further rules for realism:
+- **Physical deltas only.** A part or setup change lands as a physical
+  parameter change (`part-acoustics.md`), never as a downstream EQ.
+- **Real ranges by default.** Every physical parameter declares stock
+  and advanced ranges (`advanced-ranges.md`).
+- **Honest magnitudes.** Small real effects are small, and the Workshop
+  shows them as small.
 
-`gui-integration.md` is the single source of truth for where every feature
-lives in the UI. If any other spec disagrees, gui-integration wins.
+Three rules for the composition layer:
+- **Tune Builder is a MIDI writer.** It never touches the audio path.
+- **Every event is undoable.** Regeneration preserves locked notes.
+- **Every output is exportable.** Audio, MIDI, notation, project.
 
-`ui-wiring.md` is the single source of truth for how UI attaches to
-backend. If any other spec disagrees on threading, attachment, or undo,
-ui-wiring wins.
-
-`qa-polish.md` is the ship gate. A feature marked complete in PROGRESS.md
-is not complete until it passes the checks in qa-polish.md for its area.
+Three rules for integration:
+- `gui-integration.md` is the single source of truth for UI location.
+- `ui-wiring.md` is the single source of truth for backend attachment.
+- `qa-polish.md` is the ship gate.
 
 Every new file has its own "Tests" section. Add those tests to the
 existing `LuthierTests` target.

@@ -1,62 +1,80 @@
 # UI WIRING SPEC
 
-How UI components attach to backend state. Written so a Claude Code
-implementer never has to guess the pattern; every panel wires the same way.
-
-If you are building a UI panel and this document does not answer a
-question, the answer is in `gui-integration.md` (what the panel is) or
-`engine.md` (what the module does). This file covers only the plumbing
-between the two.
+How UI components attach to backend state. If you are building a UI
+panel and this document does not answer a question, the answer is in
+`gui-integration.md` (what the panel is) or `engine.md` (what the module
+does). This file covers only the plumbing between the two, plus the
+patterns the realism specs need: physical-parameter wrapping, the
+`GuitarSpec` swap flow, shadow specs for Workshop audition, and the
+NoiseEngine pool.
 
 ## 0. Ground rules
 
 1. Every parameter lives in the single `AudioProcessorValueTreeState`
    (APVTS) owned by the processor. There is no side-channel state for
-   audible behaviour. Ever.
-2. UI components attach to APVTS via JUCE's `SliderAttachment`,
+   audible behaviour.
+2. UI components attach to APVTS via `SliderAttachment`,
    `ButtonAttachment`, `ComboBoxAttachment`. Never write to a parameter
    through a raw pointer set from the UI.
 3. Non-parameter UI state (which tab is selected, which snapshot slot is
-   showing) lives in a `ValueTree` called `uiState`, saved alongside the
-   preset in the same XML/binary blob.
+   showing, Workshop A / B slot, Slide Mode on/off) lives in a
+   `ValueTree` called `uiState`, saved alongside the preset.
 4. Every listener the UI attaches is removed in the component's
-   destructor. No exceptions. Leaked listeners crash on preset load.
+   destructor.
 5. Message-thread work stays on the message thread. Audio-thread work
    stays on the audio thread. Cross the boundary only through the
    documented mechanisms in section 4.
+6. Structural state (mod matrix, patterns, IRs, `GuitarSpec`, parts,
+   snapshot bank) never flows through parameters. It flows through the
+   command / result queue with atomic pointer swaps.
 
 ## 1. Parameter definition contract
 
 Every parameter is declared once, in `ParameterIDs.h` (constants) and
-`ParameterLayout.cpp` (the layout the APVTS is constructed from).
+`ParameterLayout.cpp` (the layout the APVTS is built from).
 
 Each parameter has:
-- **ID**: stable, snake_case, versioned when semantics change (e.g. `amp_gain_v2`).
+- **ID**: stable, snake_case, versioned when semantics change.
 - **Display name**: human-readable, translated via the i18n catalog.
-- **Range**: min, max, step, skew (log skew for time, frequency).
-- **Default**: the value on a fresh preset.
-- **Unit**: from a shared enum (Hz, dB, ms, %, semitones, cents, ratio,
-  count, index, boolean).
-- **Text -> value and value -> text** functions: for right-click value
-  entry and automation display.
-- **Category tag**: which section of the UI owns it (mirror of the
-  feature-to-location index in `gui-integration.md`).
+- **Range**: for a physical parameter, this is a `PhysicalRange`
+  (advanced-ranges.md), i.e. a pair of ranges (stock, advanced) plus a
+  default and unit. For a non-physical parameter, a single range as
+  before.
+- **Default**.
+- **Unit**: from the shared unit enum (Hz, dB, ms, %, semitones, cents,
+  H, F, ohm, mm, g, count, index, boolean).
+- **Text -> value / value -> text** functions.
+- **Category tag**: matches the feature-to-location index in
+  `gui-integration.md`.
 
-The 342 parameters PROGRESS.md reports are canonical. Any new parameter
-increments the count and appears in the index.
+`PhysicalRange` is the wrapper for the realism specs: at construction
+time the parameter's live min / max are set from the stock range; when
+the preset's `ranges` block flips a family to advanced, the parameter
+switches to the wider min / max in place, and the current value is left
+alone unless it was already at a clamped boundary. See
+`advanced-ranges.md` for the semantics; this file covers only the
+wiring.
+
+The 342 parameters PROGRESS.md reports are the baseline; realism specs
+add more as they land. Any new parameter appears in the feature-to-
+location index.
 
 ## 2. UI component base classes
 
-Three shared base classes handle 95% of the plumbing:
+Four shared base classes handle 95% of the plumbing.
 
 ### `AttachedKnob`
-- Wraps a `juce::Slider` in rotary mode with the theme knob look.
+- Wraps `juce::Slider` in rotary mode with the theme knob look.
 - Constructor takes APVTS reference and parameter ID.
 - Owns its own `SliderAttachment`.
 - Renders the value arc, mod arc (when routes exist), label and value.
-- Exposes `setLabel`, `setSize` (small/medium/large per theme.md),
+- If the parameter is a `PhysicalRange`, the arc portion past the stock
+  max is drawn in the warning colour and the readout gains a `*` suffix
+  (gui-integration.md 21).
+- Exposes `setLabel`, `setSize` (small / medium / large per theme.md),
   `setColour` (for grouping panels).
-- Provides right-click menu per gui-integration.md section 15.
+- Provides the right-click menu per gui-integration.md 16, including
+  the two per-control range-unlock items when the preset is locked.
 
 ### `AttachedSwitch`
 - Wraps `juce::TextButton` in toggle mode.
@@ -65,18 +83,26 @@ Three shared base classes handle 95% of the plumbing:
 
 ### `AttachedCombo`
 - Wraps `juce::ComboBox`.
-- Populates from a `juce::StringArray` supplied at construction; for
-  parameter changes (adding an amp model), the combo listens for
-  parameter metadata changes and rebuilds.
+- Populates from a `StringArray` at construction; for parameter-driven
+  option changes (adding an amp model, adding a pickup type when the
+  parts library changes), the combo listens for parameter metadata
+  changes and rebuilds.
 
-Every panel uses these three plus a small set of custom widgets (fretboard,
-step grid, meter). Custom widgets follow the same attachment pattern
-where they represent a parameter, and use the `uiState` ValueTree for
-non-parameter state.
+### `PartSlotWidget`
+- New: represents a slot in a `GuitarSpec` (a pickup slot, the bridge,
+  the nut, a string index).
+- Not backed by APVTS; backed by `uiState` (which part is selected) and
+  the command queue (a swap writes a new `GuitarSpec`).
+- Renders the card summary or the illustration hit region depending on
+  where it lives.
+
+Every panel uses these four plus a small set of custom widgets
+(fretboard, step grid, meter, spectrum-delta pane, buzz heatmap, noise-
+event strip).
 
 ## 3. Panel structure
 
-Every panel is a `juce::Component` subclass named `<Name>Panel`. Convention:
+Every panel is a `juce::Component` subclass named `<Name>Panel`:
 
 ```
 class AmpPanel : public juce::Component,
@@ -89,8 +115,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    // Panel API used by the workspace container:
-    static juce::String getPanelId();   // stable id for uiState
+    static juce::String getPanelId();
     juce::String getDisplayName() const;
     bool isCollapsed() const;
     void setCollapsed (bool);
@@ -100,235 +125,347 @@ private:
     juce::OwnedArray<AttachedKnob> knobs;
     juce::OwnedArray<AttachedSwitch> switches;
     juce::OwnedArray<AttachedCombo> combos;
-    // ... custom widgets
 
-    void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier&) override;
+    void valueTreePropertyChanged (juce::ValueTree&,
+                                   const juce::Identifier&) override;
 };
 ```
 
 Panels never own DSP state. They read parameter values through the
-attachment or the parameter tree; they read display state (meters, chord
-symbol readout, "current voice" indicators) through a lock-free FIFO
-described in section 4.
+attachment or the parameter tree; they read display state (meters,
+chord symbol, "current voice", noise events, buzz map) through the
+display FIFO in section 4.
 
 ## 4. Audio-to-UI communication
 
 The audio thread never touches UI. UI never touches audio-owned state.
-Communication crosses through three channels:
 
 ### 4.1 APVTS parameters (bidirectional)
-- Automation writes reach both threads with the standard APVTS lock-free
-  atomics.
-- UI reads happen on the message thread via `getRawParameterValue`.
+Automation reaches both threads through the standard APVTS lock-free
+atomics. UI reads on the message thread via `getRawParameterValue`.
 
 ### 4.2 The display FIFO (audio -> UI)
-- A `juce::AbstractFifo` per subsystem carries display data: meter values,
-  detected chord, mod-source current values, active-voice count,
-  per-string activity.
-- Structure: fixed-size ring buffer of `DisplaySample` records. The audio
-  thread writes at block rate (or lower, throttled per subsystem);
-  message thread drains at 30 Hz for meters, 60 Hz for the fretboard,
-  10 Hz for chord symbol and voice count.
-- Never blocks. Never allocates.
+A `juce::AbstractFifo` per subsystem carries display data: meters,
+chord symbol, mod-source values, active-voice count, per-string
+activity, per-string amplitude (for the buzz heatmap), noise events (a
+tagged event class: squeak, buzz, pick click, pick chirp, clank, slide
+noise, LH slap, ghost).
 
-### 4.3 The command queue (UI -> audio, for non-parameter changes)
-- A single-producer single-consumer lock-free queue.
-- Used for structural changes that are not parameters: adding a mod
-  route, changing a bus layout, loading an IR, arming MIDI Learn.
-- Commands are small POD structs; anything with heap ownership (a new IR
-  buffer, a new mod-matrix state) is passed by pointer to a memory pool
-  the audio thread swaps in and returns the old pointer to for
-  destruction on the message thread.
+Ring buffer of fixed-size `DisplaySample` records. Audio thread writes
+at block rate or lower (throttled per subsystem); message thread drains
+at 30 Hz for meters, 60 Hz for fretboard, 10 Hz for chord symbol and
+voice count, 15 Hz for the noise-event strip.
+
+Never blocks. Never allocates.
+
+### 4.3 The command / result queue (UI -> audio, structural changes)
+A single-producer single-consumer lock-free queue. Small POD commands;
+anything with heap ownership (a new IR, a new mod-matrix state, a new
+`GuitarSpec`, a new part) is passed by pointer to a memory pool. The
+audio thread swaps in the new pointer at the next block boundary and
+posts the old pointer back for message-thread destruction.
+
+Commands:
+- `LoadPresetCommand { pointer to PresetData }`
+- `RecallSnapshotCommand { index }`
+- `LoadGuitarCommand { pointer to GuitarSpec }`
+- `SwapPartCommand { slot_id, pointer to new part struct }`
+- `ShadowAuditionCommand { slot_id, pointer to new part, on / off }`
+- `AddModRouteCommand { source_id, dest_param_id, depth }`
+- `LoadIrCommand { slot_id, pointer to Ir buffer }`
+- `ArmMidiLearnCommand { on / off, param_id }`
 
 ## 5. Preset load and snapshot recall
 
 Preset load:
-1. Message thread: parse preset file into an in-memory `PresetData`.
-2. Post a `LoadPresetCommand` to the audio thread with the pointer.
-3. Audio thread: at the next block boundary, applies the parameter values
-   to the APVTS (which fires attachment updates on the message thread on
-   the next repaint) and swaps any structural state (mod-matrix, patterns,
-   IRs) in one atomic pointer swap per subsystem.
-4. Audio thread posts a `PresetLoadedResult` back with the old state
-   pointers.
-5. Message thread: releases the old state.
+1. Message thread: parse preset into `PresetData` (includes the
+   `ranges` block).
+2. Post `LoadPresetCommand`.
+3. Audio thread: at next block boundary, apply parameter values to APVTS
+   (which fires attachment updates on the message thread), swap
+   structural state (mod matrix, patterns, IRs, `GuitarSpec` reference,
+   `ranges`) in atomic pointer swaps per subsystem, then apply the
+   ranges block by switching `PhysicalRange` parameters to stock or
+   advanced mode.
+4. Audio thread posts `PresetLoadedResult` with the old pointers.
+5. Message thread releases old state.
 
-Snapshot recall follows the same pattern. Because snapshots are stored
-alongside the preset (see live-performance.md), the recall path never
-touches disk.
+Snapshot recall: same pattern; recall never touches disk. `ranges` block
+belongs to the preset, not the snapshot; a snapshot never widens or
+narrows a parameter's live range.
 
-UI never blocks on a preset load: while the swap is in flight, the UI
-shows the previous state; the update arrives when the audio thread has
-completed the swap.
+## 6. Workshop: `GuitarSpec` and part swap
 
-## 6. MIDI Learn
+The Workshop edits a `GuitarSpec` (guitar-workshop.md 3). The spec is a
+POD that describes every part slot; it is owned by the audio thread and
+lives outside the APVTS because most part fields are structural (they
+change coefficient sets, sample rates, IRs) rather than continuous.
+
+### 6.1 Loading a guitar
+Same pattern as a preset. `LoadGuitarCommand` carries a new `GuitarSpec`
+pointer; the audio thread swaps it in, refills string-engine coefficients
+from `part-acoustics.md`, and posts back the old pointer.
+
+### 6.2 Swapping a part
+`SwapPartCommand` carries the slot id (e.g. "pickup.neck", "strings.3",
+"bridge", "wiring") and a new part pointer.
+
+Audio thread:
+1. Builds a temporary new `GuitarSpec` by copying the current one and
+   replacing the slot's part.
+2. Runs the part-acoustics mapping to compute the new coefficient sets
+   for affected engines.
+3. Swaps the `GuitarSpec` pointer atomically at the next block.
+4. Crossfades affected coefficients over 5 ms.
+5. Posts the old pointer back.
+
+### 6.3 Shadow audition (Alt-hover on a part card)
+`ShadowAuditionCommand` with `on: true` and a candidate part:
+
+Audio thread:
+1. Keeps the committed `GuitarSpec` unchanged.
+2. Builds a shadow `GuitarSpec` with the candidate part in place.
+3. Renders the audio thread's next N blocks against the shadow (bypasses
+   the committed spec for as long as the audition holds).
+4. On `ShadowAuditionCommand { on: false }`, crossfades back to committed
+   over 30 ms, discards the shadow.
+
+The audition never mutates the committed spec or the undo stack.
+
+### 6.4 Spectrum delta
+A worker thread (message-thread pool) runs the fixture render against
+current and shadow specs in parallel, computes the magnitude spectra,
+posts the delta to the workshop bench's spectrum pane. Budget per
+delta is 40 ms per workshop-ui.md 6. Nothing on the audio thread.
+
+## 7. Advanced ranges
+
+The `ranges` block in a preset lists which parameter families are on
+advanced. Family = a set of related parameters (e.g. "circuit",
+"squeak", "buzz", "pick", "slide", "modulation", "amp").
+
+On preset load or per-preset toggle:
+1. Message thread sends `SetRangeModeCommand { family, mode }` for each
+   change.
+2. Audio thread receives; for each parameter in the family, swaps its
+   `PhysicalRange` mode from stock to advanced or vice versa.
+3. If the current value is outside the new range, it is clamped and a
+   `ClampNotification` posted for the UI banner.
+
+The AttachedKnob repaints on range change to show the warning-colour arc
+and `*` suffix.
+
+Per-control unlock: same command with a `single-parameter-id` field
+instead of `family`. Per-control state stored inside the preset's ranges
+block.
+
+## 8. MIDI Learn
 
 Arming:
-1. User clicks MIDI Learn in the header (or presses Ctrl+L).
-2. UI enters "arm" mode: the next control the user right-clicks receives
-   an `arm` flag.
-3. The audio thread listens for the next non-note MIDI event on any
-   channel; the first one becomes the mapping.
-4. UI updates to show the mapping.
+1. User clicks MIDI Learn in the header or presses Ctrl+L.
+2. UI enters arm mode; the next right-clicked control receives the arm
+   flag.
+3. `ArmMidiLearnCommand { on: true, param_id: X }` sent.
+4. Audio thread listens for the next non-note MIDI event; the first
+   becomes the mapping.
+5. `MidiLearnedResult { param_id, cc_number, channel }` posted.
+6. UI shows the mapping.
 
-Storage: mappings live in the preset (per gui-integration.md section 15)
-or, if the user chose "Save as global", in the plugin's user-global
-settings file.
+Mappings live in the preset by default; a "Save as global" flag moves a
+mapping to the user-global settings file.
 
-The mapping table itself is a `std::vector<MidiMapping>` owned by the
-audio thread; the UI reads a snapshot via the display FIFO for the MIDI
-Learn overlay list.
+## 9. Meters, indicators, buzz heatmap
 
-## 7. Meters and indicators
+Standard pattern:
+- Audio module computes per block into a state struct.
+- Written to display FIFO.
+- UI drains at rate documented in 4.2 and paints.
+- Peak hold is computed UI-side from drained values.
 
-Every meter follows the same pattern:
-- Audio-thread module computes peak / RMS per block into a `MeterState`
-  struct.
-- Struct is written to the display FIFO.
-- UI component drains and paints at 30 Hz.
-- Peak hold is computed on the UI side from the drained values (audio
-  side sends raw peaks only).
+Buzz heatmap: audio module writes per-string amplitude and per-fret
+clearance headroom; UI paints the map with the warning-colour /
+accent scheme in gui-integration.md 21.
 
-Every "LED" indicator (output LED, snapshot active, bypass state) reads
-either a parameter (for bypass) or a display FIFO field (for output).
+## 10. Noise event strip
 
-## 8. The scrolling data stream
+Audio side: NoiseEngine posts a tagged event on trigger (see 14) into
+the display FIFO. UI side: 24 px scrolling strip in the CHARACTER tab
+groups; each event is a small bar coloured by type. Hidden under reduced
+motion in favour of a static per-class count updated at 5 Hz.
 
-The "matrix stream" in empty panel areas per theme.md.
+## 11. Scrolling data stream
 
-Source: the display FIFO carries a `LogSample` field per subsystem tick
-containing short, human-readable strings like "note on 62 string 3" or
-"mod route lfo1 -> amp_gain +12%". A `LogStream` component subscribes to
-a filter of these, ring-buffers the last 200 lines, and paints them with
-the alpha-fade per theme.md.
+`LogStream` component subscribes to a filter of `LogSample` fields the
+subsystems tick (theme.md). Ring-buffers the last 200 lines, paints
+with alpha-fade. Stops when no new lines for 500 ms, resumes on next
+arrival. Disabled entirely under reduced motion.
 
-The stream stops when no lines have arrived for 500 ms and resumes on
-the next arrival, per theme.md.
+## 12. Modulation UI wiring
 
-If reduced-motion is on, the stream is disabled entirely.
-
-## 9. Modulation UI wiring
-
-The mod matrix subscribes to a snapshot of source current values and
-route depths via the display FIFO at 30 Hz for the mod-arc rendering. The
-route table itself is edited via commands to the audio thread; the audio
-thread returns the new state via the swap pattern in section 5.
+Mod matrix subscribes to a snapshot of source current values and route
+depths via the display FIFO at 30 Hz for mod-arc rendering. Route table
+is edited via commands to the audio thread; the audio thread returns
+updated matrix snapshot.
 
 Dragging a source card onto a control:
 1. UI captures the source ID at drag start.
-2. On drop, UI resolves the drop target's parameter ID via a hit test on
-   `AttachedKnob` / `AttachedSlider` under the mouse.
-3. UI sends `CreateRouteCommand { source_id, destination_param_id, depth: 0.25 }`.
+2. On drop, UI resolves drop target's parameter ID via hit-test on
+   `AttachedKnob` / slider under the mouse.
+3. UI sends `AddModRouteCommand { source_id, dest_param_id, depth: 0.25 }`.
 4. Audio thread applies, returns updated matrix snapshot.
 
-Drag preview is a ghost of the source card following the cursor with a
-subtle glow in the source's colour.
+Ghost drag: 60% opacity copy of the source card following the cursor
+with a glow in the source's colour.
 
-## 10. Guitar illustration
+## 13. Guitar illustration
 
 The `GuitarIllustration` component:
-- Reads `GuitarSpec` from the processor via a subscription (rebuilt on
-  spec change through the command / result pattern).
-- Renders a scalable vector illustration procedurally.
-- Overlays hit regions defined per gui-integration.md section 3.1.
-- Reads active fret / string data from the display FIFO to draw played
+- Reads `GuitarSpec` via a subscription (rebuilds on spec change).
+- Renders scalable vector illustration procedurally (workshop-ui.md 2).
+- Overlays hit regions per gui-integration.md 3.1 for Easy Mode and per
+  workshop-ui.md 4 for the Workshop bench.
+- Reads active fret / string data from display FIFO to draw played
   notes in real time.
+- Reads slide bar position and slant from display FIFO to draw the slide
+  overlay when Slide Mode is on.
+- Reads pick position and angle to draw the pick overlay.
 
-The illustration is not a static asset. It responds to instrument change,
-capo change, pickup drag, whammy assignment change.
+Same component subclass serves the Easy-Mode illustration and the
+Workshop bench, with a `interactionMode` flag.
 
-## 11. Fretboard component
+## 14. NoiseEngine
 
-Used in three places (guitar illustration, scale trainer, tab reader) and
-shares one component subclass with mode flags.
+Squeak, pick click / chirp / scrape, fret buzz, clank and slide noise
+share one pool structure (each with its own generator class but a
+common lifecycle):
 
-Data source:
-- Static: from `GuitarSpec` (string count, fret count, tuning).
-- Dynamic: per-string activity from the display FIFO.
+- Fixed pool of `N` generators (16 for squeak per string-squeak.md 12,
+  smaller for the others) allocated in `prepareToPlay`.
+- On trigger, oldest active generator is evicted if all in use.
+- Each generator writes into a small per-string bus that is summed into
+  the string's excitation input; also tapped into the Aux 8 noise-only
+  bus per routing-io.md 2.
+- Display FIFO event posted on trigger (type, string, intensity).
 
-Modes:
-- Play display (default).
-- Scale highlight (colours degrees or intervals).
-- Quiz (single fret highlighted, hides others).
-- Tab reader (moving cursor with upcoming notes).
+Zero allocations at trigger time.
 
-Every mode uses the same paint routine with different data layers.
+## 15. GuitarCircuit (replaces CableSim)
 
-## 12. Undo/redo wiring
+Coefficients recomputed at control rate when any circuit parameter
+moves. Update cost per rate-change event is under 0.05% CPU
+(volume-knob-interaction.md 13). Filters realise as biquads updated
+lock-free via a coefficient FIFO from message thread to audio thread
+for user-changed values, and inline on the audio thread for
+automation-driven changes.
 
-Every parameter change captured by APVTS emits an "undoable action" into
-the undo manager. Structural changes (mod routes, patterns) push a
-compound action.
+## 16. SlideEngine
 
-The undo manager is per-plugin-instance and owned by the processor. UI
-attaches to it as a listener for enable/disable of undo/redo shortcuts
-and for the "undo/redo" tooltip that shows the last action name.
+State machine for pressure (Lifted / Light / Normal / Heavy / Fretted).
+State transitions on MIDI or explicit control; audio thread applies the
+appropriate string-engine damping and reflection adjustments per
+slide-guitar.md. Slide bar position is a continuous parameter; the
+tuning engine reads it in place of fret indices on strings the slide
+contacts.
 
-## 13. Threading contract summary
+## 17. Preset load and snapshot recall integration for realism
+
+Full state serialized by `getStateInformation`:
+- APVTS state (parameters, including `PhysicalRange` current-mode
+  flags).
+- `uiState` VT (tab, mode, snapshot indices, Workshop A / B, Slide Mode
+  on / off).
+- Mod matrix, snapshot bank, setlist reference, MIDI mappings.
+- `ranges` block.
+- `GuitarSpec` reference (path if a saved `.luthierguitar`; inline blob
+  if edited without saving).
+- Circuit state (redundant with parameters but kept for
+  forward-compatibility).
+- MIDI export profile selection.
+
+`setStateInformation` restores using the swap pattern; missing parts
+fall back to factory defaults with a notification banner.
+
+## 18. Undo / redo
+
+Every parameter change captured by APVTS emits an undoable action.
+Structural changes (mod routes, patterns, part swaps, guitar loads)
+push a compound action.
+
+Workshop actions push high-level entries whose display strings match
+workshop-ui.md 8 ("Moved neck pickup 150 -> 142 mm").
+
+Undo manager per plugin instance, owned by the processor. UI attaches
+as a listener for enable / disable of shortcuts and the tooltip that
+shows the last action name.
+
+## 19. Threading contract summary
 
 | Thread | Owns | Reads from other |
 |---|---|---|
-| Audio | DSP state, meters, parameter atomics | APVTS values, command queue |
+| Audio | DSP state, meters, parameter atomics, `GuitarSpec`, NoiseEngine pool, CircuitEngine coefficients, SlideEngine state | APVTS values, command queue |
 | Message (UI) | Component tree, uiState VT | APVTS values, display FIFO |
-| Worker (loads, exports, matches) | Temporary buffers | File system, sends via command queue |
+| Worker (loads, exports, matches, spectrum delta) | Temporary buffers | File system, sends via command queue |
 
-The worker thread pool is a shared `juce::ThreadPool` with 2 threads.
-Long tasks (cab match, notation export, IR resample) run there.
+Worker pool: shared `juce::ThreadPool` with 2 threads. Long tasks (cab
+match, notation export, IR resample, spectrum delta, guitar / part
+file load) run there.
 
-## 14. Localization wiring
+## 20. Localization wiring
 
-Every user-visible string comes from `LocaleCatalog::get(id)`. Panels do
-not hold string literals except as parameter IDs.
+Every user-visible string comes from `LocaleCatalog::get(id)`. Panels
+do not hold string literals except as parameter IDs.
 
 Locale change:
 1. User picks locale in Options -> Localization.
 2. Catalog reloads.
-3. Every component listening (via a `LocaleChanged` broadcaster) receives
-   the change and calls its own `refreshStrings()` implementation.
+3. Every listening component (via `LocaleChanged` broadcaster) receives
+   the change and calls `refreshStrings()`.
 4. Layout re-runs on affected components.
 
 No plugin restart required.
 
-## 15. Accessibility wiring
+## 21. Accessibility wiring
 
-Every attachable component sets its accessibility handler in its
-constructor:
-- `AccessibleRole::slider` for knobs and sliders.
-- `AccessibleRole::button` for buttons and toggles.
-- `AccessibleRole::comboBox` for dropdowns.
-- Custom widgets (fretboard, step grid) provide `AccessibilityHandler`
-  subclasses with per-child accessibility per accessibility.md section 1.
+Every attachable component sets its `AccessibilityHandler` in its
+constructor. Custom widgets (fretboard, step grid, spectrum-delta
+pane, buzz heatmap, workshop illustration) provide subclass handlers
+with per-child accessibility per accessibility.md 1.
 
-Label text for accessibility comes from the same locale catalog as
-visible labels; value announcements use the parameter's value -> text
-function.
+Label text for accessibility comes from the locale catalog; value
+announcements use the parameter's value -> text function. Physical
+parameters include the unit in the announcement ("neck pickup, 3.5
+henries, mm 152, height 2.8 mm").
 
-## 16. Save on close
+## 22. Save on close
 
-The processor's `getStateInformation` serializes:
-- APVTS state (parameters).
-- `uiState` VT (which tab, which mode, snapshot indices, expression cal).
-- Mod matrix, snapshot bank, setlist reference, MIDI mappings.
+Processor's `getStateInformation` serializes everything listed in
+section 17. `setStateInformation` restores using swap. Preset files use
+the same serializer with the plugin-instance UI state stripped.
 
-`setStateInformation` restores all of the above, using the swap pattern
-for structural state.
-
-Preset files use the same serializer with the plugin-instance-specific
-UI state stripped.
-
-## 17. Tests
+## 23. Tests
 
 - Attachment leak test: instantiate every panel 100 times, verify no
   listener remains attached after destruction.
-- Cross-thread invariant: run with JUCE's message manager lock detector
-  through a 60-second synthetic session, verify no audio-thread access to
-  UI-owned state.
-- Preset load determinism: load 20 presets in random order 10 times each,
-  verify final DSP state matches offline render of the same sequence.
-- Undo/redo: 1000 random parameter changes with random undo/redo
-  interleaved, verify final state matches the equivalent forward-only
+- Cross-thread invariant: 60-second synthetic session with JUCE's
+  message-manager lock detector; verify no audio-thread access to UI
+  state.
+- Preset load determinism: load 20 presets in random order 10 times
+  each, verify final DSP state matches offline render of the same
   sequence.
-- MIDI Learn: arm, send each of 128 CCs, verify each maps to the intended
+- Undo / redo across all feature areas including Workshop swaps: 1000
+  random parameter changes with random undo / redo, verify final state
+  matches equivalent forward-only sequence.
+- MIDI Learn: arm, send each of 128 CCs, verify each maps to intended
   parameter within one block.
-- Display FIFO overflow: fire 10x the drain rate for 60 s, verify no
-  audio-thread stalls and no crashes (oldest data dropped silently).
+- Display FIFO overflow: fire 10x drain rate for 60 s, verify no audio
+  stalls and no crashes (oldest data dropped silently).
+- Shadow audition: Alt-hover on 100 random parts, verify committed
+  `GuitarSpec` is byte-identical after release.
+- PhysicalRange switch: for every physical parameter, toggle stock <->
+  advanced 100 times; verify clamped values match expected and no audio
+  thread allocation occurs.
+- Part swap crossfade: for every part slot, swap 100 times during
+  playback, verify peak sample-to-sample delta below the click
+  threshold.
+- Spectrum delta: fixture render on committed vs shadow produces the
+  same delta as an offline render within 0.2 dB.

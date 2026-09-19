@@ -641,7 +641,10 @@ void DebugPanel::refreshState()
          << "  Strings            " << engine.getNumStrings() << "\n"
          << "  Scale length       " << juce::String (engine.getGuitarSpec().scaleLengthMm, 1) << " mm\n"
          << "  Fretless           " << (engine.isFretless() ? "yes" : "no") << "\n"
-         << "  Frozen             " << (engine.isFrozen() ? "yes" : "no") << "\n"
+         << "  E-Bow              " << (engine.isEBowing() ? "yes" : "no") << "\n"
+         << "  Freeze             " << (engine.getFreezeOverlay().isHolding() ? "holding"
+                                          : engine.getFreezeOverlay().isEnabled() ? "capturing"
+                                                                                  : "off") << "\n"
          << "\nSTRINGS\n";
 
     for (int s = 0; s < engine.getNumStrings(); ++s)

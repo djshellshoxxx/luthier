@@ -1,26 +1,25 @@
 # INSTALLER AND DISTRIBUTION SPEC
 
-How Luthier gets from a CI build onto a user's machine and off again. Also
-what an update, a clean uninstall, and an enterprise deployment look
-like.
+How Luthier gets from a CI build onto a user's machine and off again.
+Also what an update, a clean uninstall, and an enterprise deployment
+look like.
 
 ## 0. Ground rules
 
-1. The installer never runs during the audio thread of a live host. It
-   is a separate app, not a component of the plugin itself.
+1. The installer never runs during the audio thread of a live host.
 2. Every installer is code-signed (Windows) or notarized (macOS). Linux
    packages carry a detached PGP signature.
 3. Uninstalling removes every file the installer wrote and preserves
    user data by default. Explicit "purge" removes user data too.
 4. No installer requires elevated privileges beyond what is strictly
-   necessary to write to the destination paths.
+   necessary to write to destination paths.
 5. Installers are deterministic: same source, same version, same
    platform produce byte-identical output.
 
 ## 1. Windows installer
 
-Format: NSIS or Inno Setup executable, `.exe`.
-Signing: Extended Validation code-signing certificate.
+Format: NSIS or Inno Setup, `.exe`.
+Signing: EV code-signing certificate.
 Naming: `Luthier-<version>-Setup-win64.exe`.
 
 ### 1.1 Install flow
@@ -28,10 +27,11 @@ Naming: `Luthier-<version>-Setup-win64.exe`.
 1. Splash: Luthier logo, version, "Preparing installer".
 2. Language: auto-detect from OS, offer override.
 3. Licence: display, require accept.
-4. Component picker (default: all selected):
+4. Component picker (all selected by default):
    - VST3 plugin (mandatory).
    - Standalone application.
-   - Factory content (presets, IRs, samples).
+   - Factory content (presets, IRs, samples, parts library, guitars,
+     tune templates, example tunes).
    - Documentation (PDF and HTML manual).
    - Uninstaller (mandatory).
 5. Install locations:
@@ -40,21 +40,23 @@ Naming: `Luthier-<version>-Setup-win64.exe`.
    - Factory content: `C:\ProgramData\Luthier\` (editable).
    - Docs: alongside standalone.
 6. Space check: refuse if less than required + 200 MB free.
-7. Version check: if a same or newer version is installed, ask (upgrade,
-   reinstall, cancel). If older, offer upgrade with a note that old
-   files will be removed.
-8. Install progress: file-by-file with a cancel that safely rolls back.
+7. Version check: same or newer installed = ask (upgrade, reinstall,
+   cancel). Older = offer upgrade with note that old files will be
+   removed.
+8. Install progress: file-by-file with safe cancel / rollback.
 9. Post-install:
    - Register uninstaller in Add/Remove Programs.
+   - Register file associations: `.luthierpreset`, `.luthierguitar`,
+     `.luthiertune`, `.luthierloop`, `.luthierset`, `.midprofile`.
    - Create Start menu entries.
    - Optionally launch standalone (default off).
-   - Show "Install complete" with a "What's new" link.
+   - Show "Install complete" with "What's new" link.
 
 ### 1.2 Silent install (enterprise)
 
-- `/S` flag: fully silent install, all defaults.
+- `/S` flag: fully silent, all defaults.
 - `/D=<path>` overrides standalone install path.
-- Exit codes: 0 success, non-zero failure with codes documented.
+- Exit codes documented.
 - Registry keys under `HKLM\Software\Luthier` record install location
   and version for scripted management.
 
@@ -63,9 +65,9 @@ Naming: `Luthier-<version>-Setup-win64.exe`.
 - Standard Windows uninstaller.
 - Removes every file it installed (tracked via install manifest).
 - Preserves `C:\Users\<user>\Documents\Luthier\` by default.
-- Explicit "Remove user data" checkbox.
-- Refuses to run while any DAW is running that has loaded the plugin
-  (detected by loaded DLL enumeration).
+- Explicit "Remove user data" checkbox (includes user parts, user
+  guitars, user tunes, presets, loops, setlists, IRs).
+- Refuses to run while any DAW that has loaded the plugin is running.
 
 ## 2. macOS installer
 
@@ -76,7 +78,7 @@ Naming: `Luthier-<version>-macOS.dmg`.
 
 ### 2.1 Install flow
 
-1. Mount `.dmg` shows the `.pkg` and a "Read me first" link.
+1. Mount `.dmg`; shows `.pkg` and a "Read me first" link.
 2. Standard macOS installer UI.
 3. Licence acceptance.
 4. Component picker: VST3, AU, Standalone, Content, Docs.
@@ -85,28 +87,32 @@ Naming: `Luthier-<version>-macOS.dmg`.
    - AU: `/Library/Audio/Plug-Ins/Components/Luthier.component`.
    - Standalone: `/Applications/Luthier.app`.
    - Factory content: `/Library/Application Support/Luthier/`.
-6. Admin password prompt only if writing to system paths.
-7. Post-install: "Open Luthier" button.
+6. Register Launch Services file associations for
+   `.luthierpreset`, `.luthierguitar`, `.luthiertune`,
+   `.luthierloop`, `.luthierset`, `.midprofile`.
+7. Admin password only if writing to system paths.
+8. Post-install: "Open Luthier" button.
 
 ### 2.2 Universal binary
 
-- One `.pkg` supports Intel and Apple Silicon.
-- Standalone is a fat binary; plugins are fat.
+One `.pkg` supports Intel and Apple Silicon. Standalone is fat; plugins
+are fat.
 
 ### 2.3 Uninstall
 
-- Uninstall script bundled: `/Applications/Luthier/Uninstall.command`.
-- Removes every file installed.
-- Preserves `~/Documents/Luthier/` by default; option to purge.
+Bundled script: `/Applications/Luthier/Uninstall.command`.
+Removes every installed file. Preserves `~/Documents/Luthier/` by
+default; option to purge.
 
 ## 3. Linux packaging
 
 Formats:
-- `.tar.gz` for manual install and non-Debian distros.
-- `.deb` for Debian, Ubuntu, and derivatives.
-- `.rpm` for Fedora, openSUSE (best-effort, not in every release).
+- `.tar.gz` for manual and non-Debian distros.
+- `.deb` for Debian, Ubuntu, derivatives.
+- `.rpm` for Fedora, openSUSE (best-effort).
 
-Naming: `Luthier-<version>-linux-x64.tar.gz`, `luthier_<version>_amd64.deb`.
+Naming: `Luthier-<version>-linux-x64.tar.gz`,
+`luthier_<version>_amd64.deb`.
 
 ### 3.1 File layout
 
@@ -114,12 +120,15 @@ Naming: `Luthier-<version>-linux-x64.tar.gz`, `luthier_<version>_amd64.deb`.
 - Standalone: `/usr/bin/luthier` or `~/.local/bin/luthier`.
 - Factory content: `/usr/share/luthier/` or `~/.local/share/luthier/`.
 - Desktop file: `/usr/share/applications/luthier.desktop`.
+- MIME types: `/usr/share/mime/packages/luthier.xml` for the six file
+  associations.
 - Icon: standard icon-theme paths.
 
 ### 3.2 Install
 
 `.deb`: standard `apt install ./luthier_<version>_amd64.deb`.
-Post-install script updates icon cache and desktop database.
+Post-install script updates icon cache, desktop database and MIME
+database.
 
 `.tar.gz`: extract, run `install.sh` which offers user or system
 install. Uninstall via `uninstall.sh`.
@@ -131,105 +140,123 @@ No bundled shared libraries beyond JUCE's static-linked pieces.
 
 ## 4. Standalone-only distribution
 
-Every platform ships a "Standalone only" bundle for users who do not use
-a DAW. Same installer with the plugin components deselected by default.
+Every platform ships a "Standalone only" bundle for users who do not
+use a DAW.
 
 ## 5. Update delivery
 
-Full installers are always available. Delta packages available where
-practical (updates-telemetry.md section 2).
+Full installers always available. Delta packages where practical
+(updates-telemetry.md 2).
 
 ### 5.1 Update check
 
 Per updates-telemetry.md. On finding an update:
 - Header banner shows "Version X.Y.Z available".
 - Click opens release notes in browser.
-- "Download" button fetches the platform-appropriate installer to the
-  user's Downloads folder.
-- Plugin does not auto-launch installers. User runs them manually.
+- "Download" button fetches the platform-appropriate installer to
+  Downloads.
+- Plugin does not auto-launch installers.
 
 ### 5.2 Delta patches
 
-- Where the delta is under 50% of the full installer size, offer both.
-- Delta patches are one-way: cannot skip versions.
-- Delta application verifies SHA-256 of the resulting installation
-  against the manifest.
-- Failed delta apply rolls back and prompts user to download the full
-  installer.
+- Under 50% of full installer size: offer both.
+- One-way; cannot skip versions.
+- SHA-256 verification against manifest.
+- Failed apply rolls back and prompts full download.
 
 ## 6. First-run detection
 
-After install, the plugin's first load creates:
+After install, first plugin load creates:
 - `~/Documents/Luthier/` folder tree per README.md.
-- User-global config file: `~/Documents/Luthier/config/plugin.json`.
-- Marker file: `~/Documents/Luthier/.installed_version` with version
-  string.
+- Subfolders: `Presets/User`, `Presets/Factory`, `Guitars/User`,
+  `Guitars/Factory`, `Parts/User`, `Parts/Factory`, `Tunes/User`,
+  `Tunes/Examples`, `IRs/`, `Loops/`, `Setlists/`, `Sessions/`,
+  `Renders/`, `Captures/`, `Practice/`, `Diagnostics/`, `config/`,
+  `ContentUpdates/`.
+- User-global config: `~/Documents/Luthier/config/plugin.json`.
+- Marker file: `~/Documents/Luthier/.installed_version`.
 
-Absence of the marker = first run: trigger onboarding.md flow.
+Absent marker = first run: trigger onboarding.md flow.
 Marker version differs from running version = upgrade: show upgrade
-banner.
+banner and run migrations (section 8).
 
 ## 7. Enterprise deployment
 
 - Managed installers accept command-line configuration.
-- A policy file `luthier-policy.json` per updates-telemetry.md section 7
-  can be pre-placed to enforce settings on first run.
-- MSI wrapper available on request for Windows deployment via Group
-  Policy.
+- Policy file `luthier-policy.json` per updates-telemetry.md 7
+  pre-placeable to enforce settings on first run.
+- MSI wrapper available on request for Windows Group Policy.
 
-## 8. Portable install (Windows only)
+## 8. Preset and guitar migrations
 
-Advanced users: a `.zip` distribution that unpacks to any folder and
-runs from there. No registry entries, no start menu, no auto-update.
-Useful for USB-drive setups and locked-down machines.
+Between minor versions, formats are forward-compatible.
 
-Portable install does not install VST3 to the system path; user must
-copy manually or point the DAW at the portable folder.
+Between major versions, the plugin migrates on load:
+- Old `.luthierpreset` without a `ranges` block: adds a stock-only
+  ranges block on load, writes back on save, moves the original to
+  `~/Documents/Luthier/Presets/Backup/<yyyy-mm-dd>/`.
+- Old hard-coded guitar reference (pre-parts model): resolves through
+  `Resources/Guitars/migration.json` to a shipped `.luthierguitar` per
+  ambiguity-resolutions.md 7. Same backup rule.
+- Old `.luthierloop` without event-class tags: loads with default tag
+  values; new tags reconstructed on next record.
+- Old `.mid` without the Luthier chunk: loads as Generic profile; user
+  is not surprised.
 
-## 9. Verification
+User sees a subtle info banner on the first affected load.
+
+## 9. Portable install (Windows only)
+
+`.zip` that unpacks to any folder. No registry entries, no start menu,
+no auto-update. Useful for USB drives and locked-down machines.
+
+Portable install does not install VST3 to the system path; user copies
+manually or points the DAW at the portable folder.
+
+## 10. Verification
 
 Every release publishes:
 - SHA-256 checksums for every installer.
 - PGP-signed manifest listing all installers and checksums.
-- Published at a canonical URL for automated verification.
+- Canonical URL for automated verification.
 
-## 10. Rollback plan
+## 11. Content updates without full install
 
-If a released version turns out broken:
-1. Update manifest is reverted to the previous version within 30
-   minutes of decision.
-2. Installers for the previous version remain available at their
-   original URLs.
-3. Users who already installed the broken version can downgrade via
-   the previous installer, which detects the newer install and prompts
-   to replace.
-4. Rollback communicated via a header banner in the running plugin
-   (via the same manifest that drives the update check).
-
-## 11. Content updates without a full install
-
-Factory presets, IR library additions, and translation catalog updates
-can ship as a "content update" package smaller than a full installer:
+Factory presets, guitars, tunes, parts, IR additions, translation
+catalog updates, and the guitar-migration table can ship as a
+`.luthiercontent` package smaller than a full installer:
 
 - Signed `.luthiercontent` file.
-- User drags onto the plugin window or opens via Options -> Updates.
-- Applied to
-  `~/Documents/Luthier/ContentUpdates/<name>/`, plugin picks up on
-  next load.
+- User drags onto the plugin or opens via Options -> Updates.
+- Applied to `~/Documents/Luthier/ContentUpdates/<name>/`; plugin
+  picks up on next load.
 
 Content updates never modify code; only data.
 
-## 12. Tests
+## 12. Rollback plan
 
-- Install / uninstall cycle on every platform: verify installed files
-  match manifest, uninstall removes exactly those files.
-- Upgrade: install version A, install version B, verify no A artefacts
-  remain.
-- Downgrade: install B, install A via A's installer, verify prompt and
-  clean downgrade.
-- Enterprise silent install with policy: verify policy takes effect on
-  first run.
+If a released version turns out broken:
+1. Update manifest reverts to previous version within 30 minutes.
+2. Installers for previous version remain at original URLs.
+3. Users on the broken version downgrade via previous installer;
+   installer detects newer install and prompts.
+4. Rollback communicated via header banner in the running plugin.
+
+## 13. Tests
+
+- Install / uninstall cycle on every platform: installed files match
+  manifest, uninstall removes exactly those.
+- Upgrade: install A, install B, no A artefacts remain.
+- Downgrade: install B, install A, clean downgrade.
+- Enterprise silent install with policy: policy takes effect on first
+  run.
 - Signature verification: every published installer verifies against
-  the published PGP manifest.
-- Portable Windows: unzip to arbitrary path, run, verify no writes
-  outside the portable folder.
+  the PGP manifest.
+- Portable Windows: unzip to arbitrary path, run, no writes outside
+  the portable folder.
+- File association: double-clicking `.luthierpreset`,
+  `.luthierguitar`, `.luthiertune` and the others in the file manager
+  launches Luthier and loads the file.
+- Migration: 200 fixture presets from the pre-parts-model build load
+  cleanly, back up correctly, and render within -60 dBFS RMS null of
+  the golden.

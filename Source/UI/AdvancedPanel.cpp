@@ -388,12 +388,6 @@ void AdvancedPanel::buildDetailColumn()
                                  "the instrument.");
     column.addControl (slideGuitarToggle.get(), Metrics::buttonHeight);
 
-    freezeToggle = std::make_unique<LuthierToggle> ("Freeze / E-Bow");
-    freezeToggle->attachTo (processor, ParamIDs::freeze,
-                            "Drives the ringing strings at their own resonance so they sustain "
-                            "indefinitely, the way an E-Bow does.");
-    column.addControl (freezeToggle.get(), Metrics::buttonHeight);
-
     column.addGap (Metrics::gridHalf);
 
     fretAction = std::make_unique<LuthierKnob> ("Action");
@@ -706,6 +700,37 @@ void AdvancedPanel::buildRigColumn()
     addKnob (roomDecay, "Decay", ParamIDs::roomDecay, "Scales the room's natural decay");
     addKnob (roomWidth, "Width", ParamIDs::roomWidth, "Stereo width of the room mics");
 
+    /*  ---- sustain (ambiguity-resolutions 2.3) --------------------------------------------
+        Two rows, because they are two mechanisms. Freeze captures a window of what
+        you just played and loops it; E-Bow drives the strings that are still
+        ringing at their own resonance. Freeze holds a chord you have stopped
+        playing, E-Bow sustains one you are still holding.
+    */
+    column.addGap (Metrics::grid);
+    column.addSection ("Sustain");
+
+    addToggle (freezeEnable, "Freeze", ParamIDs::freezeEnable,
+               "Captures a window of what is sounding and loops it under what you play "
+               "next, holding indefinitely. Switching it on again captures a new one.");
+    addKnob (freezeCapture, "Capture", ParamIDs::freezeCaptureMs,
+             "How much audio the freeze grabs. Longer catches a whole chord; shorter "
+             "is tighter and more of a texture.");
+    addKnob (freezeLevel, "Level", ParamIDs::freezeLevel,
+             "How loud the held layer sits under the live signal");
+    addKnob (freezeAttack, "Attack", ParamIDs::freezeAttackMs,
+             "How quickly the held layer fades in once captured");
+    addKnob (freezeRelease, "Release", ParamIDs::freezeReleaseMs,
+             "How quickly it fades out when freeze is switched off");
+    addKnob (freezeLowPass, "Low Pass", ParamIDs::freezeLpCutoff,
+             "Darkens the held layer so it sits behind what you are playing");
+    addKnob (freezeHighPass, "High Pass", ParamIDs::freezeHpCutoff,
+             "Thins the held layer so it does not muddy the low end");
+
+    addToggle (ebowToggle, "E-Bow", ParamIDs::ebowEnable,
+               "Drives the ringing strings at their own resonance so they sustain "
+               "indefinitely, the way an E-Bow does. Unlike Freeze, it only sustains "
+               "notes you are still holding.");
+
     // ---- post pedals -----------------------------------------------------------------------
     column.addGap (Metrics::grid);
     column.addSection ("Effects Loop (after the amp)");
@@ -724,6 +749,9 @@ void AdvancedPanel::buildRigColumn()
     addKnob (legatoWindow, "Legato Window", ParamIDs::legatoWindow,
              "Notes closer together than this on one string become a slide rather than "
              "two separate articulations");
+    addKnob (chordWindow, "Chord Window", ParamIDs::chordWindow,
+             "How long Poly mode waits to collect a chord. Longer catches chords split "
+             "across buffers; shorter has less latency.");
     addKnob (strumSpeed, "Strum Speed", ParamIDs::strumSpeed,
              "Time between strings as the pick crosses them");
     addChoice (strumDirection, "Strum", ParamIDs::strumDir, "Strum direction");

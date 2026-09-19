@@ -116,7 +116,23 @@ namespace ParamIDs
     inline constexpr const char* vibratoShape  = "vibrato_shape";
     inline constexpr const char* legatoWindow  = "legato_window";
     inline constexpr const char* slideGuitar   = "slide_guitar";
-    inline constexpr const char* freeze        = "freeze";
+
+    /*  Sustain (ambiguity-resolutions.md 2).
+
+        Freeze and E-Bow are two different mechanisms with two different enables.
+        Freeze captures a window and loops it; E-Bow drives the string at its own
+        resonance. The old single `freeze` bool drove the E-Bow mechanism under the
+        Freeze name, which is the ambiguity section 2 exists to settle, so it is
+        now `ebow_enable` and Freeze is the overlay below. */
+    inline constexpr const char* ebowEnable      = "ebow_enable";
+
+    inline constexpr const char* freezeEnable    = "freeze_enable";
+    inline constexpr const char* freezeCaptureMs = "freeze_capture_ms";
+    inline constexpr const char* freezeLevel     = "freeze_level";
+    inline constexpr const char* freezeAttackMs  = "freeze_attack_ms";
+    inline constexpr const char* freezeReleaseMs = "freeze_release_ms";
+    inline constexpr const char* freezeLpCutoff  = "freeze_lp_cutoff";
+    inline constexpr const char* freezeHpCutoff  = "freeze_hp_cutoff";
 
     // --- whammy ---------------------------------------------------------------
     inline constexpr const char* bridgeType    = "bridge_type";
