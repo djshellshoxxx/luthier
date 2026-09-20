@@ -35,6 +35,16 @@ numbered, because what it should be called is a release decision.
 - **Options pages** - Controllers, Expression, Accessibility and Privacy, as tabs
   inside the existing Options overlay.
 - `scripts/build.ps1`, which PROGRESS.md had referenced without it existing.
+- **Editor tests.** `Source/UI/` and `PluginEditor.cpp` now build into
+  `LuthierTests`, which compiles with `LUTHIER_HEADLESS=0`, and the new `Editor`
+  suite opens the window: the size the processor hands back, layout and paint at
+  940x560, 1200x720 and 1920x1080, every overlay shortcut opening its own overlay
+  and closing on escape, advanced mode and the practice drawer and Live Mode
+  flipping and flipping back, and all five Options tabs putting their own page on
+  screen. It renders into an offscreen image, so it needs no desktop window.
+  Before this, nothing in the repository constructed a
+  `LuthierAudioProcessorEditor` and the panels were verified only by running
+  pluginval or a host by hand.
 
 ### Fixed
 
@@ -47,6 +57,12 @@ numbered, because what it should be called is a release decision.
   `JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR` declares a deleted copy
   constructor, which suppresses the implicit default constructor. `PluginProcessor`
   holds one by value, so this broke both the plugin and the test build.
+- **`LuthierRender` did not compile.** `RenderCli.cpp` had a literal newline
+  inside a string constant where a newline escape was meant, so the offline
+  renderer had not built since the phase-1 extension commit. The executable on
+  disk was two days older than the source and nobody had noticed - the same
+  stale-binary trap as the test runner, and the reason the build script's exit
+  code is now checked rather than the build's output being read.
 - **`TuningEngine::reset()` was missing braces**, leaving
   `characterDriftCents = 0.0` outside the loop it belonged to, so character drift
   survived a reset.
@@ -64,9 +80,9 @@ numbered, because what it should be called is a release decision.
 Five test suites - ToneMatch, Notation, Character, Accessibility and Telemetry -
 existed in the tree but had never been linked into a running binary, because the
 build that should have produced it failed and left the previous executable in
-place. `Source/UI/` is excluded from the test target, so eight new panels had never
-been compiled at all. Everything under "Fixed" above surfaced the first time that
-code actually ran.
+place. `Source/UI/` was excluded from the test target at the time, so eight new
+panels had never been compiled at all. Everything under "Fixed" above surfaced
+the first time that code actually ran.
 
 ## 1.0.0
 

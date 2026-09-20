@@ -58,16 +58,16 @@ Resumable build log. Update after every milestone.
 ## Current state
 
 All forty-one milestones are done. Both targets build clean and the whole suite
-passes: **278 tests, 645,081 checks**, exit code 0.
+passes: **302 tests, 647,366 checks**, exit code 0.
 
 The last stretch was less about writing the remaining specs than about finding out
-that the code written for them had never actually run. `LuthierTests` excludes
-`Source/UI/`, so eight new panels had never been compiled at all, and the test
-binary on disk was stale: the build that was supposed to produce it had failed and
-left the previous exe in place. Five whole suites - ToneMatch, Notation, Character,
-Accessibility and Telemetry - were sitting in the tree, compiled into object files,
-and never linked into anything that ran them. Running them for the first time is
-what produced the rest of this list.
+that the code written for them had never actually run. `LuthierTests` excluded
+`Source/UI/` at the time, so eight new panels had never been compiled at all, and
+the test binary on disk was stale: the build that was supposed to produce it had
+failed and left the previous exe in place. Five whole suites - ToneMatch,
+Notation, Character, Accessibility and Telemetry - were sitting in the tree,
+compiled into object files, and never linked into anything that ran them. Running
+them for the first time is what produced the rest of this list.
 
 **`Capture` had no default constructor.** `JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR`
 declares a deleted copy constructor, and a user-declared constructor of any kind
@@ -164,12 +164,12 @@ from them, both chosen because everything else rests on them.
 **The test target now builds `PluginProcessor`.** It was excluded, so the undo
 stack, `uiState`, the A/B slots and snapshot recall - all of which `state-model.md`
 specifies precisely - could be read in the source and never exercised. It compiles
-into both console targets under `LUTHIER_HEADLESS=1`, which removes its one
-reference to the editor. The coupling was two guards and a define; the old comment
-implied the plugin-client macros made it hard, and they did not. This is the same
-blind spot that let five suites sit unlinked earlier, and it is worth saying that
-the first tests written against it all pass - nothing was broken back there, but
-nothing was proving it either.
+into both console targets now; the renderer builds it under `LUTHIER_HEADLESS=1`,
+which removes its one reference to the editor. The coupling was two guards and a
+define; the old comment implied the plugin-client macros made it hard, and they
+did not. This is the same blind spot that let five suites sit unlinked earlier,
+and it is worth saying that the first tests written against it all pass - nothing
+was broken back there, but nothing was proving it either.
 
 **There is an error log.** `error-recovery.md` 5 asks for one and is explicit that
 it is not conditional on telemetry consent, which is the right call: a user who
@@ -211,14 +211,21 @@ you redirect still needs its exit code checked - appending `echo` to the command
 masks it, which is how the failing test build above went unnoticed in the first
 place.
 
+Build all four, not just the two you are working on. `LuthierRender` had not
+compiled since the phase-1 extension commit: `RenderCli.cpp` carried a literal
+newline inside a string constant, and the exe sitting in `build/` was two days
+older than the source that could no longer produce it. It was found by building
+the renderer to check that adding the UI to the test target had not disturbed it,
+which is the only reason anything built it at all.
+
 ### Not done
 
 Listed honestly in `docs/KNOWN_ISSUES.md` under "Not yet implemented": CLAP and
 Linux builds, signed installers, the manual per-host test matrix, and drag-out
 export.
 
-One thing below was listed as unverified rather than missing, and has now been
-verified; the other is verified from outside the repository's own tests.
+Two things below were listed as unverified rather than missing. Both are now
+verified, and the second one is verified here rather than by an external tool.
 
 - **pluginval has been re-run.** 1.0.3 at strictness 10 against a Release build of
   `f18bf22`: twenty-five suites, exit 0, no failures and no warnings. The bus
@@ -229,13 +236,27 @@ verified; the other is verified from outside the repository's own tests.
   on disk predated `f18bf22` and was an exactly-2 MiB, non-executable file, which
   the rebuild replaced with a 9.6 MB one. Validating what was there would have
   certified code that did not contain the Ableton program-change fix.
-- **The editor is run-verified by pluginval, not by the test target.** The UI is
-  still excluded from `LuthierTests`, so nothing in this repository constructs a
-  `LuthierAudioProcessorEditor`. pluginval does: its `Editor`, `Editor Automation`
-  and `Open editor whilst processing` suites all pass, which opens a real window
-  with the Options tabs in it. That is real coverage, but it depends on an external
-  tool being run by hand, and it is not the same as a test here that opens the
-  window and asserts something about it.
+- **The editor is run-verified by the test target.** `Source/UI/` and
+  `PluginEditor.cpp` now build into `LuthierTests`, which is the one console
+  target that compiles with `LUTHIER_HEADLESS=0`, and `Source/Tests/EditorTests.cpp`
+  opens the window: it checks the size the processor hands back, lays the editor
+  out and paints it at 940x560, 1200x720 and 1920x1080, drives every overlay
+  shortcut through the registry and back out with escape, flips advanced mode,
+  the practice drawer and Live Mode and flips them back, and selects all five
+  Options tabs. Painting goes into an offscreen image through
+  `paintEntireComponent`, so none of it needs a desktop window. pluginval's
+  `Editor`, `Editor Automation` and `Open editor whilst processing` suites still
+  pass, and now cover the same ground from the outside rather than being the only
+  thing that covered it.
+
+  These are smoke tests and the file says so: they know whether a panel is on
+  screen and whether it drew anything, not whether it looks right. Both mutants
+  tried against them died - `showPage` with the page-visibility line replaced by
+  `setVisible (false)`, and `showOverlay` rewired to always open Help - which is
+  the reason the assertions read state as well as pixels. The first draft compared
+  renders of the whole Options panel and survived the first of those mutants,
+  because selecting a tab lights that tab up whether or not the page behind it
+  ever appears.
 
 ## History
 

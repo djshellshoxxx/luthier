@@ -198,12 +198,30 @@ of a dialog, so it should not be losable to a clumsy rebind.
 
 ## Fixed since the first audit
 
+- **`Source/UI` was excluded from every target that runs**, so nothing in this
+  repository ever constructed a `LuthierAudioProcessorEditor`. The panels were
+  compiled only into the plugin, and the only thing that opened the window was a
+  host: pluginval if someone remembered to run it, a DAW if they did not. That is
+  how eight panels once sat in the tree for a whole milestone without being
+  compiled at all. `LuthierTests` now builds the UI as well, with
+  `LUTHIER_HEADLESS=0`, and `Source/Tests/EditorTests.cpp` opens the editor, lays
+  it out at the minimum, default and a large size, drives every overlay shortcut
+  and every layout mode through the registry, and selects all five Options tabs.
+  Rendering goes into an offscreen image, so no desktop window is needed.
+
+  What it does not do is judge what it sees. These are smoke tests: they know
+  whether a panel is on screen and whether it painted, not whether it looks
+  right. The assertions read state rather than only pixels because the first
+  draft did the opposite and proved nothing - it compared renders of the whole
+  Options panel, and passed with `showPage` neutered to `setVisible (false)`,
+  since selecting a tab lights that tab up whether or not its page appears.
+
 - **`PluginProcessor` was excluded from the test target**, so everything the
   processor alone owns - the undo stack, `uiState`, the A/B slots, snapshot recall
   - could be read in the source but never exercised. `state-model.md` specifies
   all of it precisely, and a specification nothing checks is a wish. It now
-  compiles into both console targets under `LUTHIER_HEADLESS=1`, which removes its
-  single reference to the editor; `Source/UI` stays out. The coupling turned out
+  compiles into both console targets, the renderer under `LUTHIER_HEADLESS=1`,
+  which removes its single reference to the editor. The coupling turned out
   to be two guards and one define, which is worth knowing: the old comment implied
   the plugin-client macros made this hard, and they did not.
 

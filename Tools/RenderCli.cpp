@@ -284,10 +284,10 @@ int writeRhythmResources (const juce::File& root)
         ++kitsWritten;
     }
 
-    std::cout << "Wrote " << written << " patterns to " << patternDirectory.getFullPathName() << "
-"
-              << "Wrote " << kitsWritten << " genre kits to " << genreDirectory.getFullPathName()
-              << std::endl;
+    std::cout << "Wrote " << written << " patterns to "
+              << patternDirectory.getFullPathName() << "\n"
+              << "Wrote " << kitsWritten << " genre kits to "
+              << genreDirectory.getFullPathName() << std::endl;
 
     return 0;
 }

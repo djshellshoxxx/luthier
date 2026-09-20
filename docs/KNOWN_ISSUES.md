@@ -150,10 +150,14 @@ thoroughly. pluginval 1.0.3 passes at strictness 10 against the current build,
 re-run on 2026-09-19 after the extension specs landed: twenty-five suites, no
 failures and no warnings. The multi-out bus layouts are covered by it rather than
 merely present - the bus tests enumerate the full output set, then enable all
-buses, disable the non-main ones and restore the default layout. The
-thirty-minutes-per-host matrix in the brief is a manual exercise that has not been
-carried out here. The same applies to testing against physical MIDI guitar and MPE
-controllers, and to the blind listening comparison against real guitars.
+buses, disable the non-main ones and restore the default layout. The editor no
+longer depends on that run: the test suite builds the UI and opens the window
+itself, so the panels, the shortcuts and the Options tabs are exercised on every
+build rather than only when someone remembers to run an external tool.
+
+The thirty-minutes-per-host matrix in the brief is a manual exercise that has not
+been carried out here. The same applies to testing against physical MIDI guitar
+and MPE controllers, and to the blind listening comparison against real guitars.
 
 **Drag-out export.** Audio and MIDI export work through the file dialogs; dragging
 a rendered file directly out of the plugin window into a DAW track is not

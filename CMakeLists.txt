@@ -94,17 +94,26 @@ luthier_copy_resources(Luthier_Standalone
 #==============================================================================
 # Test runner and offline renderer
 #
-# Both are console apps built from the engine sources: everything except the UI.
+# Both are console apps. The renderer is built from the engine sources -
+# everything except the UI; the test runner is built from those and the UI too.
 #==============================================================================
 #
 # PluginProcessor is included. It owns the undo stack, uiState, the A/B slots and
 # the snapshot and setlist flows, and state-model.md specifies all of them, so
 # leaving it out meant those contracts could only be inspected rather than tested.
-# It compiles with LUTHIER_HEADLESS=1, which removes its one reference to the
-# editor; Source/UI stays out.
+# The renderer compiles it with LUTHIER_HEADLESS=1, which removes its one
+# reference to the editor.
 set(LUTHIER_ENGINE_SOURCES ${LUTHIER_SOURCES})
 list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "Source/UI/")
 list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor\.(cpp|h)$")
+
+# The UI, as its own list. The renderer does not want it - it renders offline and
+# has no window - but the test runner does. With Source/UI out of every target
+# that runs, nothing in this repository ever constructed a
+# LuthierAudioProcessorEditor, and the panels could be verified only by opening
+# the plugin in a host by hand.
+set(LUTHIER_UI_SOURCES ${LUTHIER_SOURCES})
+list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor\.(cpp|h)$")
 
 set(LUTHIER_CONSOLE_DEFS
     LUTHIER_HEADLESS=1
@@ -118,6 +127,13 @@ set(LUTHIER_CONSOLE_DEFS
     JucePlugin_Name="Luthier"
     JucePlugin_VersionString="${PROJECT_VERSION}")
 
+# The test runner is the one console target that is not headless: it builds the
+# editor, so LUTHIER_HEADLESS has to be 0 or PluginProcessor compiles out the
+# createEditor body these tests exist to call.
+set(LUTHIER_TEST_DEFS ${LUTHIER_CONSOLE_DEFS})
+list(REMOVE_ITEM LUTHIER_TEST_DEFS LUTHIER_HEADLESS=1)
+list(APPEND LUTHIER_TEST_DEFS LUTHIER_HEADLESS=0)
+
 if (LUTHIER_BUILD_TESTS)
     file(GLOB LUTHIER_TEST_SOURCES CONFIGURE_DEPENDS
          "${CMAKE_CURRENT_SOURCE_DIR}/Source/Tests/*.cpp"
@@ -125,9 +141,11 @@ if (LUTHIER_BUILD_TESTS)
 
     juce_add_console_app(LuthierTests PRODUCT_NAME "LuthierTests")
 
-    target_sources(LuthierTests PRIVATE ${LUTHIER_ENGINE_SOURCES} ${LUTHIER_TEST_SOURCES})
+    target_sources(LuthierTests PRIVATE ${LUTHIER_ENGINE_SOURCES}
+                                        ${LUTHIER_UI_SOURCES}
+                                        ${LUTHIER_TEST_SOURCES})
     target_include_directories(LuthierTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
-    target_compile_definitions(LuthierTests PRIVATE ${LUTHIER_CONSOLE_DEFS})
+    target_compile_definitions(LuthierTests PRIVATE ${LUTHIER_TEST_DEFS})
 
     target_link_libraries(LuthierTests PRIVATE
         juce::juce_audio_utils
