@@ -217,15 +217,25 @@ Listed honestly in `docs/KNOWN_ISSUES.md` under "Not yet implemented": CLAP and
 Linux builds, signed installers, the manual per-host test matrix, and drag-out
 export.
 
-Two things are worth calling out as unverified rather than missing:
+One thing below was listed as unverified rather than missing, and has now been
+verified; the other is verified from outside the repository's own tests.
 
-- **pluginval has not been re-run.** It passed at strictness 10 against 1.0.0, but
-  that predates the multi-out bus layouts, the Options pages and the character
-  engine. The claim is stale until someone runs it again.
-- **The editor is compile-verified, not run-verified.** The UI is excluded from the
-  test target, so nothing here constructs a `LuthierAudioProcessorEditor`. The new
-  Options tabs compile and are wired correctly by inspection, but no automated test
-  opens the window.
+- **pluginval has been re-run.** 1.0.3 at strictness 10 against a Release build of
+  `f18bf22`: twenty-five suites, exit 0, no failures and no warnings. The bus
+  suites enumerate the full multi-out set and then enable all buses, disable the
+  non-main ones and restore the default layout, so the extension work that made
+  the old result stale is covered rather than merely present. Worth recording why
+  the old claim was stale for a worse reason than its date: the Release artefact
+  on disk predated `f18bf22` and was an exactly-2 MiB, non-executable file, which
+  the rebuild replaced with a 9.6 MB one. Validating what was there would have
+  certified code that did not contain the Ableton program-change fix.
+- **The editor is run-verified by pluginval, not by the test target.** The UI is
+  still excluded from `LuthierTests`, so nothing in this repository constructs a
+  `LuthierAudioProcessorEditor`. pluginval does: its `Editor`, `Editor Automation`
+  and `Open editor whilst processing` suites all pass, which opens a real window
+  with the Options tabs in it. That is real coverage, but it depends on an external
+  tool being run by hand, and it is not the same as a test here that opens the
+  window and asserts something about it.
 
 ## History
 

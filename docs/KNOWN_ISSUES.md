@@ -146,12 +146,14 @@ not produce signed installers, which need certificates that cannot be part of a
 source repository.
 
 **Verified host testing.** The automated suite covers the plugin's own behaviour
-thoroughly. pluginval 1.0.3 passed at strictness 10 against the 1.0.0 build, but
-that result predates the extension specs - the multi-out bus layouts, the Options
-pages and the character engine all landed afterwards - and it has not been re-run
-since, so treat it as stale rather than current. The thirty-minutes-per-host
-matrix in the brief is a manual exercise that has not been carried out here. The same applies to testing against physical MIDI guitar and MPE controllers,
-and to the blind listening comparison against real guitars.
+thoroughly. pluginval 1.0.3 passes at strictness 10 against the current build,
+re-run on 2026-09-19 after the extension specs landed: twenty-five suites, no
+failures and no warnings. The multi-out bus layouts are covered by it rather than
+merely present - the bus tests enumerate the full output set, then enable all
+buses, disable the non-main ones and restore the default layout. The
+thirty-minutes-per-host matrix in the brief is a manual exercise that has not been
+carried out here. The same applies to testing against physical MIDI guitar and MPE
+controllers, and to the blind listening comparison against real guitars.
 
 **Drag-out export.** Audio and MIDI export work through the file dialogs; dragging
 a rendered file directly out of the plugin window into a DAW track is not
