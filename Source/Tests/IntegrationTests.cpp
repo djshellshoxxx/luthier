@@ -632,8 +632,18 @@ LUTHIER_TEST (Parameters, everyParameterHasAUniqueIdAndSaneDefault)
                    withId->paramID + " has an out-of-range default: " + juce::String (def));
     }
 
-    CHECK_MSG (seen.size() > 150,
-               "expected a large parameter set, got " + juce::String (seen.size()));
+    /*  The exact count, not "more than 150".
+
+        A host stores automation against the parameter list, so adding, removing
+        or reordering one silently rewrites what every saved session automates.
+        That makes the size of this list a compatibility surface rather than an
+        implementation detail, and something that should have to be changed on
+        purpose. docs/CHANGELOG.md quotes this number; if you change the set,
+        change it there too. */
+    CHECK_MSG (seen.size() == 351,
+               "the parameter list has changed size: " + juce::String (seen.size())
+                 + " parameters, expected 351 - saved host automation is indexed "
+                   "against this list");
 }
 
 LUTHIER_TEST (Parameters, everyParameterTextRoundTrips)

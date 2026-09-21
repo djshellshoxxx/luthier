@@ -14,9 +14,12 @@ numbered, because what it should be called is a release decision.
 - **Modulation matrix** - 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2
   envelope followers, note/CC/macro/random sources and a 1024-route matrix.
   Modulation is applied in one place, `ParameterBridge::value`, so every one of
-  the 342 parameters is a legal destination with no per-parameter plumbing.
-- **Rhythm engine** - chord detector, voicer, strum and fingerpick schedulers, 27
-  factory patterns, 28 genre kits.
+  the 351 parameters is a legal destination with no per-parameter plumbing. (The
+  set grew from 1.0.0's 342 as the extension specs landed; the count is now
+  asserted exactly by `Parameters::everyParameterHasAUniqueIdAndSaneDefault`,
+  because a host indexes its saved automation against this list.)
+- **Rhythm engine** - chord detector, voicer, strum and fingerpick schedulers, 37
+  factory patterns (26 strum, 11 fingerpick), 28 genre kits.
 - **Live performance** - 128 snapshots with crossfade and morph, setlists, tap
   tempo, kill switch, monitor mix, expression calibration.
 - **Controllers** - 9 profiles, per-string channel map, latency wizard, pitch dead

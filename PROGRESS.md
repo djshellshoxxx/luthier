@@ -45,7 +45,7 @@ Resumable build log. Update after every milestone.
 
 - [x] M31 routing-io.md   — multi-out buses, sidechain, re-amp, MIDI out, per-output latency
 - [x] M32 modulation-matrix.md — 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followers, note/CC/macro/random sources, 1024-route matrix, MOD panel
-- [x] M33 rhythm-engine.md — chord detector, voicer, strum and fingerpick schedulers, 27 factory patterns, 28 genre kits, RHYTHM panel, Easy-mode strip
+- [x] M33 rhythm-engine.md — chord detector, voicer, strum and fingerpick schedulers, 37 factory patterns, 28 genre kits, RHYTHM panel, Easy-mode strip
 - [x] M34 live-performance.md — 128 snapshots with crossfade and morph, setlists, tap tempo, kill switch, monitor mix, expression calibration, Live strip
 - [x] M35 controllers.md — 9 profiles, per-string channel map, latency wizard, pitch dead zone, lazy note-off handling, multi-controller merge
 - [x] M36 practice-tools.md — metronome, looper, backing track, scale and ear trainers, tab reader, progression looper, session recorder, PRACTICE drawer with eight tabs
