@@ -758,180 +758,53 @@ void DebugPanel::layoutContent (juce::Rectangle<int> content)
 //==============================================================================
 //  OptionsPanel
 //==============================================================================
-int OptionsPanel::FolderListModel::getNumRows()
-{
-    return owner.processor.getPresetManager().getSearchFolders().size();
-}
-
-void OptionsPanel::FolderListModel::paintListBoxItem (int row, juce::Graphics& g,
-                                                      int width, int height, bool selected)
-{
-    const auto folders = owner.processor.getPresetManager().getSearchFolders();
-
-    if (! juce::isPositiveAndBelow (row, folders.size()))
-        return;
-
-    if (selected)
-    {
-        g.setColour (Palette::accent.withAlpha (0.14f));
-        g.fillRect (0, 0, width, height);
-    }
-
-    g.setColour (Palette::textMuted);
-    g.setFont (Fonts::mono (11.0f));
-    g.drawText (folders[row].getFullPathName(), 8, 0, width - 12, height,
-                juce::Justification::centredLeft, true);
-}
-
 OptionsPanel::OptionsPanel (LuthierAudioProcessor& p)
     : OverlayPanel ("Options"), processor (p)
 {
-    addAndMakeVisible (tooltipsToggle);
-    tooltipsToggle.setTooltip ("Turn the hover tooltips on or off");
-    tooltipsToggle.onClick = [this]
+    /*  gui-integration.md section 5's tab list, in its order.
+
+        RANGES is absent: advanced-ranges.md specifies it and that file does not
+        exist. CONTROLLERS is present and section 5 does not list it - section 19
+        puts controller setup in the Advanced column 4 tab strip, which is not
+        built - so it sits in the slot RANGES will take, which keeps every tab
+        section 5 does name in the order it names them. GAPS.md A3 tracks both. */
+    auto add = [this] (const juce::String& name, OptionsPage* page)
     {
-        processor.getUiState().tooltipsEnabled = tooltipsToggle.getToggleState();
-    };
+        pages.add (page);
+        addChildComponent (*page);
 
-    addAndMakeVisible (driftToggle);
-    driftToggle.onClick = [this]
-    {
-        if (auto* param = processor.getState().getParameter (ParamIDs::tuningDrift))
-            param->setValueNotifyingHost (driftToggle.getToggleState() ? 1.0f : 0.0f);
-    };
-
-    addAndMakeVisible (oversampling);
-    oversampling.attachTo (processor, ParamIDs::oversample,
-                           "Oversampling for the amp and the drive pedals. 4x is the default; "
-                           "2x sounds very close and costs noticeably less.");
-
-    addAndMakeVisible (chordWindow);
-    chordWindow.attachTo (processor, ParamIDs::chordWindow,
-                          "How long Poly mode waits to collect a chord. Longer catches chords "
-                          "split across buffers; shorter has less latency.");
-
-    addAndMakeVisible (openUserFolder);
-    openUserFolder.onClick = [] { PresetManager::getUserPresetFolder().revealToUser(); };
-
-    addAndMakeVisible (openRenderFolder);
-    openRenderFolder.onClick = [] { PresetManager::getRenderFolder().revealToUser(); };
-
-    addAndMakeVisible (openFactoryFolder);
-    openFactoryFolder.onClick = [] { PresetManager::getFactoryPresetFolder().revealToUser(); };
-
-    addAndMakeVisible (addFolderButton);
-    addFolderButton.onClick = [this]
-    {
-        auto chooser = std::make_shared<juce::FileChooser> ("Choose a folder to scan for presets",
-                                                            PresetManager::getUserPresetFolder());
-
-        chooser->launchAsync (juce::FileBrowserComponent::openMode
-                                | juce::FileBrowserComponent::canSelectDirectories,
-                              [this, chooser] (const juce::FileChooser& fc)
-        {
-            const auto folder = fc.getResult();
-
-            if (folder.isDirectory())
-            {
-                processor.getPresetManager().addSearchFolder (folder);
-                folderList.updateContent();
-            }
-        });
-    };
-
-    addAndMakeVisible (rescanButton);
-    rescanButton.onClick = [this]
-    {
-        processor.getPresetManager().refresh();
-        folderList.updateContent();
-    };
-
-    addAndMakeVisible (audioSettingsButton);
-    audioSettingsButton.setTooltip ("Standalone only: choose the audio device and MIDI inputs");
-    audioSettingsButton.onClick = [this]
-    {
-        // In a plugin the host owns the devices; in the standalone build the
-        // wrapper does. Either way this plugin does not, so the honest thing is to
-        // say where the setting actually lives rather than offer a dead button.
-        const bool standalone =
-            (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone);
-
-        juce::NativeMessageBox::showAsync (
-            juce::MessageBoxOptions()
-                .withIconType (juce::MessageBoxIconType::InfoIcon)
-                .withTitle (standalone ? "Audio and MIDI settings"
-                                       : "Audio and MIDI are handled by your host")
-                .withMessage (standalone
-                                ? "Use the Options button in the standalone window's own toolbar "
-                                  "to choose the audio device, the sample rate, the buffer size "
-                                  "and which MIDI inputs are active.\n\nThose settings belong to "
-                                  "the wrapper rather than to the plugin, so they are remembered "
-                                  "separately from your presets."
-                                : "When Luthier runs as a plugin, your host chooses the audio "
-                                  "device, the sample rate, the buffer size and which MIDI inputs "
-                                  "reach the track.\n\nChange them in your host's audio "
-                                  "preferences. The standalone version has its own device "
-                                  "settings in its toolbar.")
-                .withButton ("OK"),
-            nullptr);
-    };
-
-    addAndMakeVisible (presetPathLabel);
-    presetPathLabel.setFont (Fonts::ui (11.0f));
-    presetPathLabel.setColour (juce::Label::textColourId, Palette::textMuted);
-    presetPathLabel.setJustificationType (juce::Justification::topLeft);
-
-    addAndMakeVisible (audioNote);
-    audioNote.setFont (Fonts::ui (11.0f));
-    audioNote.setColour (juce::Label::textColourId, Palette::textMuted);
-    audioNote.setJustificationType (juce::Justification::topLeft);
-    audioNote.setText ("Presets are plain JSON files with the extension .luthierpreset. The "
-                       "folder a preset sits in becomes its category. If a preset does not "
-                       "appear, press Rescan; if it still does not, check that it is in one of "
-                       "the folders listed here and that its extension is exactly right.",
-                       juce::dontSendNotification);
-
-    addAndMakeVisible (folderList);
-    folderList.setModel (&folderModel);
-    folderList.setRowHeight (22);
-    folderList.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
-
-    //--------------------------------------------------------------------------
-    // The pages the extension specs add. Page 0 is General, which is the set of
-    // controls above rather than an OptionsPage, so `pages` runs one behind the
-    // tab strip: tab i shows pages[i - 1].
-    pages.add (new ControllersPage (processor));
-    pages.add (new ExpressionPage (processor));
-    pages.add (new AccessibilityPage (processor));
-    pages.add (new PrivacyPage (processor));
-
-    static const char* const tabNames[] =
-        { "GENERAL", "CONTROLLERS", "EXPRESSION", "ACCESSIBILITY", "PRIVACY" };
-
-    for (int i = 0; i < (int) (sizeof (tabNames) / sizeof (tabNames[0])); ++i)
-    {
-        auto* button = pageButtons.add (new juce::TextButton (tabNames[i]));
+        auto* button = pageButtons.add (new juce::TextButton (name));
 
         button->setClickingTogglesState (true);
         button->setRadioGroupId (0x20);
-        button->onClick = [this, i] { showPage (i); };
+
+        const int index = pageButtons.size() - 1;
+        button->onClick = [this, index] { showPage (index); };
 
         addAndMakeVisible (*button);
-    }
+    };
+
+    add ("AUDIO",          new AudioPage (processor));
+    add ("MIDI",           new MidiPage (processor));
+    add ("APPEARANCE",     new AppearancePage (processor));
+    add ("ACCESSIBILITY",  new AccessibilityPage (processor));
+    add ("LOCALIZATION",   new LocalizationPage (processor));
+    add ("EXPRESSION",     new ExpressionPage (processor));
+    add ("CONTROLLERS",    new ControllersPage (processor));
+    add ("UPDATES",        new UpdatesPage (processor));
+    add ("PRIVACY",        new PrivacyPage (processor));
+    add ("DIAGNOSTICS",    new DiagnosticsPage (processor));
+    add ("FILE LOCATIONS", new FileLocationsPage (processor));
 
     for (auto* page : pages)
-        addChildComponent (*page);
+        if (auto* diagnostics = dynamic_cast<DiagnosticsPage*> (page))
+            diagnostics->onShowDebugWindow = [this]
+            {
+                if (onShowDebugWindow != nullptr)
+                    onShowDebugWindow();
+            };
 
     showPage (0);
-}
-
-//==============================================================================
-std::vector<juce::Component*> OptionsPanel::generalControls()
-{
-    return { &tooltipsToggle, &driftToggle, &oversampling, &chordWindow,
-             &openUserFolder, &openRenderFolder, &openFactoryFolder,
-             &addFolderButton, &rescanButton, &audioSettingsButton,
-             &presetPathLabel, &audioNote, &folderList };
 }
 
 //==============================================================================
@@ -998,8 +871,8 @@ void MidiLearnArmLayer::mouseDown (const juce::MouseEvent& e)
 void OptionsPanel::showShortcutTable()
 {
     // The shortcut table lives on the Accessibility page. Found by name rather
-    // than by a hard-coded index so the section 5 retab does not silently point
-    // this at the wrong page.
+    // than by a hard-coded index, so that reordering the tabs cannot silently
+    // point this at the wrong page.
     for (int i = 0; i < pageButtons.size(); ++i)
         if (pageButtons[i]->getButtonText().containsIgnoreCase ("ACCESSIBILITY"))
         {
@@ -1010,19 +883,18 @@ void OptionsPanel::showShortcutTable()
 
 void OptionsPanel::showPage (int index)
 {
-    currentPage = juce::jlimit (0, pages.size(), index);
+    if (pages.isEmpty())
+        return;
 
-    for (auto* c : generalControls())
-        c->setVisible (currentPage == 0);
+    currentPage = juce::jlimit (0, pages.size() - 1, index);
 
     for (int i = 0; i < pages.size(); ++i)
-        pages[i]->setVisible (currentPage == i + 1);
+        pages[i]->setVisible (i == currentPage);
 
     for (int i = 0; i < pageButtons.size(); ++i)
         pageButtons[i]->setToggleState (i == currentPage, juce::dontSendNotification);
 
-    if (currentPage > 0)
-        pages[currentPage - 1]->refresh();
+    pages[currentPage]->refresh();
 
     resized();
     repaint();
@@ -1030,91 +902,61 @@ void OptionsPanel::showPage (int index)
 
 void OptionsPanel::overlayShown()
 {
-    tooltipsToggle.setToggleState (processor.getUiState().tooltipsEnabled, juce::dontSendNotification);
-
-    if (auto* param = processor.getState().getParameter (ParamIDs::tuningDrift))
-        driftToggle.setToggleState (param->getValue() > 0.5f, juce::dontSendNotification);
-
-    presetPathLabel.setText (
-        "User presets   " + PresetManager::getUserPresetFolder().getFullPathName() + "\n"
-        "Factory        " + PresetManager::getFactoryPresetFolder().getFullPathName() + "\n"
-        "Renders        " + PresetManager::getRenderFolder().getFullPathName() + "\n"
-        "Diagnostics    " + Diagnostics::getDiagnosticsFolder().getFullPathName(),
-        juce::dontSendNotification);
-
-    folderList.updateContent();
-
     // A page can be stale by the time the overlay comes back: a controller may
     // have been unplugged, or telemetry consent changed from the header.
-    if (currentPage > 0)
-        pages[currentPage - 1]->refresh();
+    if (! pages.isEmpty())
+        pages[currentPage]->refresh();
 }
 
 void OptionsPanel::layoutContent (juce::Rectangle<int> content)
 {
-    // The tab strip sits above every page, General included.
-    auto tabStrip = content.removeFromTop (Metrics::buttonHeight);
+    /*  The tab strip wraps.
 
+        Section 5 asks for eleven tabs, and eleven across 820 points gives each
+        one 68 points - not enough for "ACCESSIBILITY" or "FILE LOCATIONS", which
+        would both come out as an ellipsis. So the strip takes as many rows as it
+        needs to keep every tab wide enough to read, and the page gets what is
+        left. */
     if (! pageButtons.isEmpty())
     {
         const int gap = Metrics::gridHalf;
-        const int width = (tabStrip.getWidth() - gap * (pageButtons.size() - 1))
-                            / pageButtons.size();
+        const int minimumTabWidth = 112;
 
-        for (int i = 0; i < pageButtons.size(); ++i)
+        const int perRow = juce::jlimit (1, pageButtons.size(),
+                                         (content.getWidth() + gap) / (minimumTabWidth + gap));
+
+        const int rows = (pageButtons.size() + perRow - 1) / perRow;
+
+        // Spread them evenly rather than filling the first row and leaving the
+        // last one short.
+        const int perRowBalanced = (pageButtons.size() + rows - 1) / rows;
+
+        for (int row = 0, done = 0; row < rows; ++row)
         {
-            pageButtons[i]->setBounds (tabStrip.removeFromLeft (width));
-            tabStrip.removeFromLeft (gap);
+            auto strip = content.removeFromTop (Metrics::buttonHeight);
+            content.removeFromTop (gap);
+
+            const int count = juce::jmin (perRowBalanced, pageButtons.size() - done);
+
+            if (count <= 0)
+                break;
+
+            const int width = (strip.getWidth() - gap * (count - 1)) / count;
+
+            for (int i = 0; i < count; ++i)
+            {
+                pageButtons[done + i]->setBounds (strip.removeFromLeft (width));
+                strip.removeFromLeft (gap);
+            }
+
+            done += count;
         }
     }
 
-    content.removeFromTop (Metrics::grid);
-
-    if (currentPage > 0)
-    {
-        pages[currentPage - 1]->setBounds (content);
-        return;
-    }
-
-    auto row = content.removeFromTop (Metrics::buttonHeight);
-    tooltipsToggle.setBounds (row.removeFromLeft (240));
-    driftToggle.setBounds (row.removeFromLeft (280));
-
-    content.removeFromTop (Metrics::grid);
-
-    auto controlRow = content.removeFromTop (LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
-    oversampling.setBounds (controlRow.removeFromLeft (200).withHeight (40));
-    controlRow.removeFromLeft (Metrics::grid);
-    chordWindow.setBounds (controlRow.removeFromLeft (LuthierKnob::preferredWidthFor (LuthierKnob::Size::Normal)));
-
-    controlRow.removeFromLeft (Metrics::grid);
-    audioSettingsButton.setBounds (controlRow.removeFromLeft (200).withHeight (Metrics::buttonHeight));
-
-    content.removeFromTop (Metrics::grid);
-
-    presetPathLabel.setBounds (content.removeFromTop (72));
     content.removeFromTop (Metrics::gridHalf);
 
-    auto folderButtons = content.removeFromTop (Metrics::buttonHeight);
-    openUserFolder.setBounds (folderButtons.removeFromLeft (170));
-    folderButtons.removeFromLeft (Metrics::gridHalf);
-    openFactoryFolder.setBounds (folderButtons.removeFromLeft (180));
-    folderButtons.removeFromLeft (Metrics::gridHalf);
-    openRenderFolder.setBounds (folderButtons.removeFromLeft (150));
-
-    content.removeFromTop (Metrics::gridHalf);
-
-    auto scanButtons = content.removeFromTop (Metrics::buttonHeight);
-    addFolderButton.setBounds (scanButtons.removeFromLeft (180));
-    scanButtons.removeFromLeft (Metrics::gridHalf);
-    rescanButton.setBounds (scanButtons.removeFromLeft (140));
-
-    content.removeFromTop (Metrics::grid);
-
-    audioNote.setBounds (content.removeFromBottom (64));
-    content.removeFromBottom (Metrics::gridHalf);
-
-    folderList.setBounds (content);
+    if (! pages.isEmpty())
+        pages[currentPage]->setBounds (content);
 }
 
 //==============================================================================

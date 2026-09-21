@@ -438,14 +438,24 @@ LUTHIER_TEST (Editor, everyOptionsPageSelectsAndPaints)
     options.setSize (preferred.x, preferred.y);
     options.overlayShown();
 
-    const juce::StringArray tabNames { "GENERAL", "CONTROLLERS", "EXPRESSION",
-                                       "ACCESSIBILITY", "PRIVACY" };
+    /*  gui-integration.md section 5's list, with the two departures GAPS.md A3
+        records: no RANGES, which advanced-ranges.md has not specified yet, and a
+        CONTROLLERS tab in its slot, because section 19's home for it does not
+        exist. If section 5 gains a tab, this list is where it fails first. */
+    const juce::StringArray tabNames { "AUDIO", "MIDI", "APPEARANCE", "ACCESSIBILITY",
+                                       "LOCALIZATION", "EXPRESSION", "CONTROLLERS",
+                                       "UPDATES", "PRIVACY", "DIAGNOSTICS",
+                                       "FILE LOCATIONS" };
 
     juce::Array<OptionsPage*> pages;
     collect<OptionsPage> (options, pages);
 
-    CHECK_MSG (pages.size() == tabNames.size() - 1,
-               "expected " + juce::String (tabNames.size() - 1) + " Options pages, found "
+    /*  One page per tab. There used to be an offset here - tab 0 was General,
+        whose controls were members of the panel rather than a page, so tab i
+        showed page i - 1 - and section 5's retab removed it along with General
+        itself. A test that still expected the offset is how that was noticed. */
+    CHECK_MSG (pages.size() == tabNames.size(),
+               "expected " + juce::String (tabNames.size()) + " Options pages, found "
                  + juce::String (pages.size()));
 
     juce::Array<juce::uint64> pageDigests;
@@ -481,20 +491,13 @@ LUTHIER_TEST (Editor, everyOptionsPageSelectsAndPaints)
             if (page->isVisible())
                 showing.add (page);
 
-        if (tab == 0)
-        {
-            // General is the panel's own controls, so no page should be up at all.
-            CHECK_MSG (showing.isEmpty(), "GENERAL left an extension page on screen");
-            continue;
-        }
-
         CHECK_MSG (showing.size() == 1,
                    name + " put " + juce::String (showing.size()) + " pages on screen");
 
         if (showing.size() != 1)
             continue;
 
-        CHECK_MSG (showing.getFirst() == pages[tab - 1],
+        CHECK_MSG (showing.getFirst() == pages[tab],
                    name + " showed a page belonging to another tab");
 
         auto* page = showing.getFirst();

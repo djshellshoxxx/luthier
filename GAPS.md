@@ -108,41 +108,53 @@ user-global settings" (section 4.4).
 
 **Size.** Large, and blocked on A1 for the column itself.
 
-## A3 — Options overlay tabs do not match section 5
+## A3 — Options overlay tabs: fixed, with two departures on the record
 
 **Canonical.** Eleven tabs:
 `AUDIO | MIDI | APPEARANCE | ACCESSIBILITY | LOCALIZATION | EXPRESSION | RANGES | UPDATES | PRIVACY | DIAGNOSTICS | FILE LOCATIONS`
 
-**Built.** Five: `GENERAL | CONTROLLERS | EXPRESSION | ACCESSIBILITY | PRIVACY`.
+**Built.** Eleven tabs, in that order:
+`AUDIO | MIDI | APPEARANCE | ACCESSIBILITY | LOCALIZATION | EXPRESSION | CONTROLLERS | UPDATES | PRIVACY | DIAGNOSTICS | FILE LOCATIONS`
 
-This is work from the session that produced this audit, and it does not match
-the canonical map. Everything is reachable; the structure is wrong.
+Every tab section 5 names is present except RANGES, and every one of them is in
+the order section 5 gives. `GENERAL`, which was not in the canonical list, is
+gone: its contents went to the tabs that do own them.
 
-| Canonical tab | Where it is now |
-|---|---|
-| AUDIO | GENERAL (a button explaining the host owns the devices) |
-| MIDI | nowhere |
-| APPEARANCE | split between GENERAL (tooltips) and ACCESSIBILITY (palette, scale, motion, font) |
-| ACCESSIBILITY | ACCESSIBILITY, mixed with APPEARANCE and LOCALIZATION content |
-| LOCALIZATION | ACCESSIBILITY |
-| EXPRESSION | EXPRESSION — matches |
-| RANGES | blocked on `advanced-ranges.md` |
-| UPDATES | PRIVACY |
-| PRIVACY | PRIVACY — matches, with UPDATES folded in |
-| DIAGNOSTICS | the separate Debug overlay, reached from Help |
-| FILE LOCATIONS | GENERAL |
-| *(CONTROLLERS)* | should not be here — section 19 puts it in Col 4 |
+Two departures, both deliberate:
 
-The class split is cleaner than the tab count suggests: `AccessibilityPage`
-already lays its controls out in three separate groups matching APPEARANCE,
-LOCALIZATION and ACCESSIBILITY, and `PrivacyPage` in two matching UPDATES and
-PRIVACY. Splitting them is mostly moving members, not rewriting layout.
+- **No RANGES.** `advanced-ranges.md` specifies its entire contents - the
+  per-preset toggle, the warning-colour preference, the stock-range preference,
+  the out-of-range summary - and that file does not exist. There is nothing to
+  build that would not be invented.
+- **A CONTROLLERS tab that section 5 does not list.** Section 19 puts controller
+  setup in the Advanced column 4 tab strip, which does not exist either (A1,
+  A2). Deleting the tab would strand controller setup completely, so it sits in
+  the slot RANGES will eventually take. When column 4 arrives it moves there,
+  and RANGES takes the slot back.
 
-**Caution.** CONTROLLERS cannot simply be deleted from Options — its Col 4 home
-does not exist yet (A2), and removing it would strand controller setup entirely.
-It has to move, not disappear, and the move is blocked on A1.
+Three controls sat on the old GENERAL tab and section 5's list has no slot for
+any of them. All three already have canonical homes in `AdvancedPanel` - see
+"`chordWindow` had no canonical home" below, which is the work that gave the
+last of them one - so every option here was safe: what was on GENERAL was a
+mirror, not the only way to reach the setting.
 
-**Size.** Medium, and the only structural gap that is fully actionable today.
+| Control | Now on | Why |
+|---|---|---|
+| Oversampling | AUDIO | An audio-quality setting, and AUDIO is the only audio tab section 5 has |
+| Chord window | MIDI | It decides how Luthier reads the MIDI it is given |
+| Tuning drift | *(dropped)* | Nothing on section 5's list is about the instrument, and the Advanced control is a better home than a tab it does not fit |
+
+What each new page could not build, because the thing behind it does not exist:
+the accent tint, the data-stream toggle and the noise-event strip toggle on
+APPEARANCE; the changelog viewer on UPDATES, which shows the manifest's links
+instead because the manifest carries no notes; the Workshop / Slide /
+advanced-ranges flag mirror on DIAGNOSTICS; and `Guitars/` and `Parts/` on FILE
+LOCATIONS. Each says so on the page rather than showing a dead control.
+
+**Covered by.** `Editor::everyOptionsPageSelectsAndPaints` walks the eleven tabs
+by name, and checks that each one puts its own page - and only its own page - on
+screen. The tab list in that test is a copy of the list above, so a tab that
+disappears or is renamed fails there.
 
 ## A4 — Section 19 rows whose secondary access is absent
 
@@ -288,9 +300,9 @@ against the build. `gui-integration.md` sections 20 (discoverability), 21
 
 ## Suggested order
 
-1. **A3**, as far as it can go — split the Options pages along the canonical
-   seams, add AUDIO, MIDI, DIAGNOSTICS and FILE LOCATIONS, leave RANGES out and
-   CONTROLLERS in place with a comment saying why.
+1. ~~**A3**~~ — done. The eleven tabs are built, RANGES is left out and
+   CONTROLLERS stays in its slot; see A3 for what each new page could not build
+   and why.
 2. **A1**, restricted to what is unblocked: the column restructure. The
    SUSTAIN content itself is now built and sits after ROOM; it needs moving with
    the rest of the column, not rebuilding.

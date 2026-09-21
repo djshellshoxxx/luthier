@@ -158,8 +158,8 @@ actually demands.
 
 ### Phase 5: deep integration
 
-`INDEX.md` gained nine deep-integration specs. Two structural things have landed
-from them, both chosen because everything else rests on them.
+`INDEX.md` gained nine deep-integration specs. Three structural things have
+landed from them, the first two because everything else rests on them.
 
 **The test target now builds `PluginProcessor`.** It was excluded, so the undo
 stack, `uiState`, the A/B slots and snapshot recall - all of which `state-model.md`
@@ -170,6 +170,30 @@ define; the old comment implied the plugin-client macros made it hard, and they
 did not. This is the same blind spot that let five suites sit unlinked earlier,
 and it is worth saying that the first tests written against it all pass - nothing
 was broken back there, but nothing was proving it either.
+
+**The Options overlay matches `gui-integration.md` section 5.** It had five tabs
+- GENERAL, CONTROLLERS, EXPRESSION, ACCESSIBILITY, PRIVACY - against a canonical
+eleven, with APPEARANCE and LOCALIZATION buried inside ACCESSIBILITY, UPDATES
+inside PRIVACY, and AUDIO, MIDI, DIAGNOSTICS and FILE LOCATIONS nowhere.
+`GAPS.md` called it the only structural gap that was fully actionable, and it
+now carries all eleven of section 5's tabs bar RANGES, in section 5's order.
+
+Two departures are on the record rather than hidden. RANGES is absent because
+`advanced-ranges.md` specifies every control on it and that file does not exist.
+CONTROLLERS is present although section 5 does not list it, because section 19's
+home for it is the Advanced column 4 tab strip, which does not exist either;
+deleting the tab would leave a MIDI guitar unconfigurable, so it sits in the slot
+RANGES will take. Both are in `GAPS.md` A3 with what moves when the blockers
+clear.
+
+The pages are where this gets interesting rather than mechanical. Section 5 asks
+each tab for things that have nothing behind them yet - an accent tint, a
+data-stream toggle, a changelog viewer, a mirror of feature flags for Workshop
+and Slide, the Workshop's own folders. Every one of those says on the page that
+it is not built, which is the ground rule about silent degradation applied to a
+control that would otherwise look real and do nothing. The changelog viewer is
+the interesting one: the update manifest carries links rather than notes, so the
+page shows the links it actually received.
 
 **There is an error log.** `error-recovery.md` 5 asks for one and is explicit that
 it is not conditional on telemetry consent, which is the right call: a user who

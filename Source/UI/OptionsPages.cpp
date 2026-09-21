@@ -546,30 +546,205 @@ void ExpressionPage::resized()
 }
 
 //==============================================================================
-AccessibilityPage::AccessibilityPage (LuthierAudioProcessor& p)
+AudioPage::AudioPage (LuthierAudioProcessor& p)
     : OptionsPage (p)
 {
-    auto& settings = AccessibilitySettings::get();
+    addAndMakeVisible (oversampling);
+    oversampling.attachTo (processor, ParamIDs::oversample,
+                           "Oversampling for the amp and the drive pedals. 4x is the default; "
+                           "2x sounds very close and costs noticeably less.");
 
-    setWantsKeyboardFocus (true);
-
-    for (int i = 0; i < (int) AccessibilitySettings::Verbosity::numLevels; ++i)
-        verbosityBox.addItem (AccessibilitySettings::getVerbosityName (
-                                  (AccessibilitySettings::Verbosity) i), i + 1);
-
-    verbosityBox.onChange = [this]
+    addAndMakeVisible (deviceButton);
+    deviceButton.setTooltip ("Where the device, sample rate and buffer settings actually live");
+    deviceButton.onClick = [this]
     {
-        if (! updatingControls)
-        {
-            AccessibilitySettings::get().setVerbosity (
-                (AccessibilitySettings::Verbosity) (verbosityBox.getSelectedId() - 1));
+        /*  In a plugin the host owns the devices; in the standalone build the
+            wrapper does. Either way this plugin does not, so the honest thing is
+            to say where the setting lives rather than offer a dead control. */
+        const bool standalone =
+            (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone);
 
-            AccessibilitySettings::get().save();
-        }
+        juce::NativeMessageBox::showAsync (
+            juce::MessageBoxOptions()
+                .withIconType (juce::MessageBoxIconType::InfoIcon)
+                .withTitle (standalone ? "Audio and MIDI settings"
+                                       : "Audio and MIDI are handled by your host")
+                .withMessage (standalone
+                                ? "Use the Options button in the standalone window's own toolbar "
+                                  "to choose the audio device, the sample rate, the buffer size "
+                                  "and which MIDI inputs are active.\n\nThose settings belong to "
+                                  "the wrapper rather than to the plugin, so they are remembered "
+                                  "separately from your presets."
+                                : "When Luthier runs as a plugin, your host chooses the audio "
+                                  "device, the sample rate, the buffer size and which MIDI inputs "
+                                  "reach the track.\n\nChange them in your host's audio "
+                                  "preferences. The standalone version has its own device "
+                                  "settings in its toolbar.")
+                .withButton ("OK"),
+            nullptr);
     };
 
-    addAndMakeVisible (verbosityBox);
+    styleNote (deviceNote, Palette::textMuted, 11.0f);
+    addAndMakeVisible (deviceNote);
 
+    styleNote (sidechainNote, Palette::textMuted, 11.0f);
+    sidechainNote.setText ("The sidechain input is an input bus, so your host decides what feeds "
+                           "it. Enable it in the host's routing, then pick what listens to it in "
+                           "the Routing panel.",
+                           juce::dontSendNotification);
+    addAndMakeVisible (sidechainNote);
+
+    styleNote (latencyLabel, Palette::textMuted, 11.0f);
+    addAndMakeVisible (latencyLabel);
+
+    refresh();
+}
+
+void AudioPage::refresh()
+{
+    const bool standalone =
+        (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone);
+
+    deviceNote.setText (standalone
+                          ? "The output device, the sample rate and the buffer size belong to the "
+                            "standalone wrapper, and are set from its own toolbar."
+                          : "The output device, the sample rate and the buffer size belong to your "
+                            "host. Luthier uses whatever the host gives it.",
+                        juce::dontSendNotification);
+
+    const double rate = processor.getSampleRate();
+    const int latency = processor.getLatencySamples();
+
+    latencyLabel.setText (
+        rate > 0.0
+          ? ("Running at " + juce::String (rate / 1000.0, 1) + " kHz, reporting "
+               + juce::String (latency) + " samples of latency ("
+               + juce::String (1000.0 * latency / rate, 2) + " ms) to the host.")
+          : juce::String ("Not playing yet, so there is no sample rate to report."),
+        juce::dontSendNotification);
+}
+
+void AudioPage::paint (juce::Graphics& g)
+{
+    auto bounds = getLocalBounds();
+
+    drawHeading (g, bounds.removeFromTop (18), "QUALITY");
+    drawHeading (g, { 0, 96, getWidth(), 18 }, "DEVICE, RATE AND BUFFER");
+    drawHeading (g, { 0, 214, getWidth(), 18 }, "SIDECHAIN");
+}
+
+void AudioPage::resized()
+{
+    auto bounds = getLocalBounds();
+
+    bounds.removeFromTop (22);
+
+    oversampling.setBounds (bounds.removeFromTop (40).removeFromLeft (200));
+
+    bounds = getLocalBounds().withTrimmedTop (118);
+
+    deviceNote.setBounds (bounds.removeFromTop (34));
+    bounds.removeFromTop (4);
+    deviceButton.setBounds (bounds.removeFromTop (Metrics::buttonHeight).removeFromLeft (240));
+    bounds.removeFromTop (4);
+    latencyLabel.setBounds (bounds.removeFromTop (18));
+
+    bounds = getLocalBounds().withTrimmedTop (236);
+    sidechainNote.setBounds (bounds.removeFromTop (48));
+}
+
+//==============================================================================
+MidiPage::MidiPage (LuthierAudioProcessor& p)
+    : OptionsPage (p)
+{
+    addAndMakeVisible (chordWindow);
+    chordWindow.attachTo (processor, ParamIDs::chordWindow,
+                          "How long Poly mode waits to collect a chord. Longer catches chords "
+                          "split across buffers; shorter has less latency.");
+
+    styleNote (portNote, Palette::textMuted, 11.0f);
+    addAndMakeVisible (portNote);
+
+    styleNote (outNote, Palette::textMuted, 11.0f);
+    outNote.setText ("MIDI out is a plugin output bus rather than a virtual port: enable it in "
+                     "your host and pick what it sends in the Routing panel. The standalone "
+                     "build has no virtual port of its own.",
+                     juce::dontSendNotification);
+    addAndMakeVisible (outNote);
+
+    styleNote (learnLabel, Palette::textMuted, 11.0f);
+    addAndMakeVisible (learnLabel);
+
+    addAndMakeVisible (clearLearnButton);
+    clearLearnButton.setTooltip ("Forgets every CC you have taught Luthier. This cannot be undone.");
+    clearLearnButton.onClick = [this]
+    {
+        processor.getMidiLearn().clearAllMappings();
+        refresh();
+    };
+
+    refresh();
+}
+
+void MidiPage::refresh()
+{
+    const bool standalone =
+        (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone);
+
+    portNote.setText (standalone
+                        ? "Which MIDI inputs are open belongs to the standalone wrapper, and is "
+                          "set from its own toolbar."
+                        : "Which MIDI reaches Luthier belongs to your host's track routing.",
+                      juce::dontSendNotification);
+
+    const int mappings = processor.getMidiLearn().getNumMappings();
+
+    learnLabel.setText (mappings == 0
+                          ? juce::String ("Nothing is mapped. Arm MIDI Learn from the header, or "
+                                          "with Ctrl+L, then move a control.")
+                          : (juce::String (mappings) + (mappings == 1 ? " control is" : " controls are")
+                               + " mapped to a CC."),
+                        juce::dontSendNotification);
+
+    clearLearnButton.setEnabled (mappings > 0);
+}
+
+void MidiPage::paint (juce::Graphics& g)
+{
+    auto bounds = getLocalBounds();
+
+    drawHeading (g, bounds.removeFromTop (18), "HOW LUTHIER READS MIDI");
+    drawHeading (g, { 0, 120, getWidth(), 18 }, "PORTS");
+    drawHeading (g, { 0, 220, getWidth(), 18 }, "MIDI LEARN");
+}
+
+void MidiPage::resized()
+{
+    auto bounds = getLocalBounds();
+
+    bounds.removeFromTop (22);
+
+    chordWindow.setBounds (bounds.removeFromTop (
+        LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal))
+            .removeFromLeft (LuthierKnob::preferredWidthFor (LuthierKnob::Size::Normal)));
+
+    bounds = getLocalBounds().withTrimmedTop (142);
+
+    portNote.setBounds (bounds.removeFromTop (30));
+    bounds.removeFromTop (4);
+    outNote.setBounds (bounds.removeFromTop (48));
+
+    bounds = getLocalBounds().withTrimmedTop (242);
+
+    learnLabel.setBounds (bounds.removeFromTop (32));
+    bounds.removeFromTop (4);
+    clearLearnButton.setBounds (bounds.removeFromTop (Metrics::buttonHeight).removeFromLeft (220));
+}
+
+//==============================================================================
+AppearancePage::AppearancePage (LuthierAudioProcessor& p)
+    : OptionsPage (p)
+{
     for (int i = 0; i < (int) PaletteId::numPalettes; ++i)
         paletteBox.addItem (getPaletteName ((PaletteId) i), i + 1);
 
@@ -604,6 +779,125 @@ AccessibilityPage::AccessibilityPage (LuthierAudioProcessor& p)
 
     addAndMakeVisible (scaleBox);
 
+    reducedMotionToggle.onClick = [this]
+    {
+        AccessibilitySettings::get().setReducedMotion (reducedMotionToggle.getToggleState());
+        AccessibilitySettings::get().save();
+    };
+
+    addAndMakeVisible (reducedMotionToggle);
+
+    tooltipsToggle.onClick = [this]
+    {
+        processor.getUiState().tooltipsEnabled = tooltipsToggle.getToggleState();
+    };
+
+    addAndMakeVisible (tooltipsToggle);
+
+    styleNote (contrastLabel, Palette::textMuted);
+    addAndMakeVisible (contrastLabel);
+
+    /*  Section 5 also asks for an accent tint, a scrolling data-stream toggle and
+        a noise-event strip toggle. None of the three has a setting behind it -
+        the noise strip waits on pick-noise.md - and a switch that does nothing is
+        worse than an absent one, so they are listed here rather than faked. */
+    styleNote (pendingLabel, Palette::textDisabled);
+    pendingLabel.setText ("Accent tint, the data-stream toggle and the noise-event strip toggle "
+                          "are not built yet.",
+                          juce::dontSendNotification);
+    addAndMakeVisible (pendingLabel);
+
+    refresh();
+}
+
+void AppearancePage::refresh()
+{
+    const juce::ScopedValueSetter<bool> guard (updatingControls, true);
+
+    auto& settings = AccessibilitySettings::get();
+
+    paletteBox.setSelectedId ((int) settings.getPalette() + 1, juce::dontSendNotification);
+    reducedMotionToggle.setToggleState (settings.isReducedMotion(), juce::dontSendNotification);
+    tooltipsToggle.setToggleState (processor.getUiState().tooltipsEnabled,
+                                   juce::dontSendNotification);
+
+    for (int i = 0; i < AccessibilitySettings::kNumScales; ++i)
+        if (std::abs (AccessibilitySettings::kScales[(size_t) i] - settings.getUiScale()) < 1.0e-6)
+            scaleBox.setSelectedId (i + 1, juce::dontSendNotification);
+
+    // accessibility 10: the palette's contrast is shown, so a user editing a
+    // theme file can see whether it still passes.
+    const double contrast = settings.getColours().getWorstTextContrast();
+
+    contrastLabel.setText ("Worst text contrast: " + juce::String (contrast, 2) + " to 1"
+                             + (contrast >= 4.5 ? "  (meets WCAG AA)" : "  (below WCAG AA)"),
+                           juce::dontSendNotification);
+
+    contrastLabel.setColour (juce::Label::textColourId,
+                             contrast >= 4.5 ? Palette::textMuted : Palette::warning);
+}
+
+void AppearancePage::paint (juce::Graphics& g)
+{
+    auto bounds = getLocalBounds();
+
+    drawHeading (g, bounds.removeFromTop (18), "THEME AND SIZE");
+    drawHeading (g, { 0, 130, getWidth(), 18 }, "NOT BUILT YET");
+}
+
+void AppearancePage::resized()
+{
+    auto bounds = getLocalBounds();
+
+    bounds.removeFromTop (20);
+
+    {
+        auto row = bounds.removeFromTop (26);
+
+        paletteBox.setBounds (row.removeFromLeft (180));
+        row.removeFromLeft (8);
+        scaleBox.setBounds (row.removeFromLeft (100));
+    }
+
+    bounds.removeFromTop (4);
+
+    {
+        auto row = bounds.removeFromTop (26);
+
+        tooltipsToggle.setBounds (row.removeFromLeft (220));
+        row.removeFromLeft (8);
+        reducedMotionToggle.setBounds (row.removeFromLeft (160));
+    }
+
+    bounds.removeFromTop (4);
+    contrastLabel.setBounds (bounds.removeFromTop (18));
+
+    pendingLabel.setBounds (getLocalBounds().withTrimmedTop (150).withHeight (32));
+}
+
+//==============================================================================
+AccessibilityPage::AccessibilityPage (LuthierAudioProcessor& p)
+    : OptionsPage (p)
+{
+    setWantsKeyboardFocus (true);
+
+    for (int i = 0; i < (int) AccessibilitySettings::Verbosity::numLevels; ++i)
+        verbosityBox.addItem (AccessibilitySettings::getVerbosityName (
+                                  (AccessibilitySettings::Verbosity) i), i + 1);
+
+    verbosityBox.onChange = [this]
+    {
+        if (! updatingControls)
+        {
+            AccessibilitySettings::get().setVerbosity (
+                (AccessibilitySettings::Verbosity) (verbosityBox.getSelectedId() - 1));
+
+            AccessibilitySettings::get().save();
+        }
+    };
+
+    addAndMakeVisible (verbosityBox);
+
     fontBox.addItem ("Theme default", 1);
     fontBox.addItem ("System default", 2);
 
@@ -632,94 +926,6 @@ AccessibilityPage::AccessibilityPage (LuthierAudioProcessor& p)
 
     addAndMakeVisible (fontBox);
 
-    reducedMotionToggle.onClick = [this]
-    {
-        AccessibilitySettings::get().setReducedMotion (reducedMotionToggle.getToggleState());
-        AccessibilitySettings::get().save();
-    };
-
-    addAndMakeVisible (reducedMotionToggle);
-
-    styleNote (contrastLabel, Palette::textMuted);
-    addAndMakeVisible (contrastLabel);
-
-    // ---- localisation ------------------------------------------------------------------
-    {
-        int itemId = 1;
-
-        for (const auto& locale : Localisation::getShipLocales())
-        {
-            localeBox.addItem (locale.englishName + "  (" + locale.nativeName + ")", itemId);
-            fallbackBox.addItem (locale.englishName, itemId);
-            ++itemId;
-        }
-    }
-
-    localeBox.onChange = [this]
-    {
-        if (updatingControls)
-            return;
-
-        const int index = localeBox.getSelectedId() - 1;
-        const auto& locales = Localisation::getShipLocales();
-
-        if (juce::isPositiveAndBelow (index, (int) locales.size()))
-        {
-            const bool loaded = Localisation::get().setLocale (locales[(size_t) index].code);
-
-            // accessibility 6: a locale with no catalog falls back rather than
-            // showing keys, and the user is told rather than left guessing.
-            localeNote.setText (loaded ? juce::String()
-                                       : ("No catalog for that language yet; "
-                                          "English is being used."),
-                                juce::dontSendNotification);
-
-            AccessibilitySettings::get().save();
-        }
-
-        refresh();
-    };
-
-    fallbackBox.onChange = [this]
-    {
-        if (updatingControls)
-            return;
-
-        const int index = fallbackBox.getSelectedId() - 1;
-        const auto& locales = Localisation::getShipLocales();
-
-        if (juce::isPositiveAndBelow (index, (int) locales.size()))
-        {
-            Localisation::get().setFallbackLocale (locales[(size_t) index].code);
-            AccessibilitySettings::get().save();
-        }
-    };
-
-    addAndMakeVisible (localeBox);
-    addAndMakeVisible (fallbackBox);
-
-    catalogButton.setTooltip ("Point Luthier at your own folder of translation files.");
-    catalogButton.onClick = [this]
-    {
-        chooser = std::make_unique<juce::FileChooser> (
-            "Choose a string catalog folder", Localisation::getCatalogDirectory());
-
-        chooser->launchAsync (juce::FileBrowserComponent::openMode
-                                | juce::FileBrowserComponent::canSelectDirectories,
-                              [this] (const juce::FileChooser& fc)
-        {
-            if (fc.getResult() != juce::File())
-                Localisation::get().setCustomCatalogDirectory (fc.getResult());
-
-            refresh();
-        });
-    };
-
-    addAndMakeVisible (catalogButton);
-
-    styleNote (localeNote, Palette::warning);
-    addAndMakeVisible (localeNote);
-
     // ---- shortcuts ------------------------------------------------------------------------
     shortcutList.setModel (&shortcutModel);
     shortcutList.setRowHeight (20);
@@ -742,8 +948,6 @@ AccessibilityPage::AccessibilityPage (LuthierAudioProcessor& p)
 
     styleNote (rebindHint);
     addAndMakeVisible (rebindHint);
-
-    juce::ignoreUnused (settings);
 
     rebuildShortcutList();
     refresh();
@@ -878,49 +1082,14 @@ void AccessibilityPage::refresh()
     auto& settings = AccessibilitySettings::get();
 
     verbosityBox.setSelectedId ((int) settings.getVerbosity() + 1, juce::dontSendNotification);
-    paletteBox.setSelectedId ((int) settings.getPalette() + 1, juce::dontSendNotification);
-    reducedMotionToggle.setToggleState (settings.isReducedMotion(), juce::dontSendNotification);
-
-    for (int i = 0; i < AccessibilitySettings::kNumScales; ++i)
-        if (std::abs (AccessibilitySettings::kScales[(size_t) i] - settings.getUiScale()) < 1.0e-6)
-            scaleBox.setSelectedId (i + 1, juce::dontSendNotification);
-
-    // accessibility 10: the palette's contrast is shown, so a user editing a
-    // theme file can see whether it still passes.
-    const double contrast = settings.getColours().getWorstTextContrast();
-
-    contrastLabel.setText ("Worst text contrast: " + juce::String (contrast, 2) + " to 1"
-                             + (contrast >= 4.5 ? "  (meets WCAG AA)" : "  (below WCAG AA)"),
-                           juce::dontSendNotification);
-
-    contrastLabel.setColour (juce::Label::textColourId,
-                             contrast >= 4.5 ? Palette::textMuted : Palette::warning);
-
-    // ---- locale ------------------------------------------------------------------------
-    {
-        const auto& locales = Localisation::getShipLocales();
-        const auto current = Localisation::get().getLocale();
-        const auto fallback = Localisation::get().getFallbackLocale();
-
-        for (int i = 0; i < (int) locales.size(); ++i)
-        {
-            if (locales[(size_t) i].code == current)
-                localeBox.setSelectedId (i + 1, juce::dontSendNotification);
-
-            if (locales[(size_t) i].code == fallback)
-                fallbackBox.setSelectedId (i + 1, juce::dontSendNotification);
-        }
-    }
 }
 
 void AccessibilityPage::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds();
 
-    drawHeading (g, bounds.removeFromTop (18), "APPEARANCE");
-
-    drawHeading (g, { 0, 150, getWidth(), 18 }, "LANGUAGE");
-    drawHeading (g, { 0, 232, getWidth(), 18 }, "KEYBOARD SHORTCUTS");
+    drawHeading (g, bounds.removeFromTop (18), "SCREEN READER AND TEXT");
+    drawHeading (g, { 0, 76, getWidth(), 18 }, "KEYBOARD SHORTCUTS");
 }
 
 void AccessibilityPage::resized()
@@ -932,28 +1101,145 @@ void AccessibilityPage::resized()
     {
         auto row = bounds.removeFromTop (26);
 
-        paletteBox.setBounds (row.removeFromLeft (180));
-        row.removeFromLeft (8);
-        scaleBox.setBounds (row.removeFromLeft (100));
-        row.removeFromLeft (8);
         verbosityBox.setBounds (row.removeFromLeft (140));
+        row.removeFromLeft (8);
+        fontBox.setBounds (row.removeFromLeft (220));
     }
 
-    bounds.removeFromTop (4);
+    // ---- shortcuts ---------------------------------------------------------------------
+    bounds = getLocalBounds().withTrimmedTop (96);
 
     {
         auto row = bounds.removeFromTop (26);
 
-        fontBox.setBounds (row.removeFromLeft (220));
+        searchBox.setBounds (row.removeFromLeft (200));
         row.removeFromLeft (8);
-        reducedMotionToggle.setBounds (row.removeFromLeft (160));
+        resetAllButton.setBounds (row.removeFromLeft (150));
     }
 
-    bounds.removeFromTop (4);
-    contrastLabel.setBounds (bounds.removeFromTop (18));
+    bounds.removeFromTop (2);
+    rebindHint.setBounds (bounds.removeFromBottom (18));
+    shortcutList.setBounds (bounds);
+}
 
-    // ---- language ---------------------------------------------------------------------
-    bounds = getLocalBounds().withTrimmedTop (170);
+//==============================================================================
+LocalizationPage::LocalizationPage (LuthierAudioProcessor& p)
+    : OptionsPage (p)
+{
+    {
+        int itemId = 1;
+
+        for (const auto& locale : Localisation::getShipLocales())
+        {
+            localeBox.addItem (locale.englishName + "  (" + locale.nativeName + ")", itemId);
+            fallbackBox.addItem (locale.englishName, itemId);
+            ++itemId;
+        }
+    }
+
+    localeBox.onChange = [this]
+    {
+        if (updatingControls)
+            return;
+
+        const int index = localeBox.getSelectedId() - 1;
+        const auto& locales = Localisation::getShipLocales();
+
+        if (juce::isPositiveAndBelow (index, (int) locales.size()))
+        {
+            const bool loaded = Localisation::get().setLocale (locales[(size_t) index].code);
+
+            // accessibility 6: a locale with no catalog falls back rather than
+            // showing keys, and the user is told rather than left guessing.
+            localeNote.setText (loaded ? juce::String()
+                                       : ("No catalog for that language yet; "
+                                          "English is being used."),
+                                juce::dontSendNotification);
+
+            AccessibilitySettings::get().save();
+        }
+
+        refresh();
+    };
+
+    fallbackBox.onChange = [this]
+    {
+        if (updatingControls)
+            return;
+
+        const int index = fallbackBox.getSelectedId() - 1;
+        const auto& locales = Localisation::getShipLocales();
+
+        if (juce::isPositiveAndBelow (index, (int) locales.size()))
+        {
+            Localisation::get().setFallbackLocale (locales[(size_t) index].code);
+            AccessibilitySettings::get().save();
+        }
+    };
+
+    addAndMakeVisible (localeBox);
+    addAndMakeVisible (fallbackBox);
+
+    catalogButton.setTooltip ("Point Luthier at your own folder of translation files.");
+    catalogButton.onClick = [this]
+    {
+        chooser = std::make_unique<juce::FileChooser> (
+            "Choose a string catalog folder", Localisation::getCatalogDirectory());
+
+        chooser->launchAsync (juce::FileBrowserComponent::openMode
+                                | juce::FileBrowserComponent::canSelectDirectories,
+                              [this] (const juce::FileChooser& fc)
+        {
+            if (fc.getResult() != juce::File())
+                Localisation::get().setCustomCatalogDirectory (fc.getResult());
+
+            refresh();
+        });
+    };
+
+    addAndMakeVisible (catalogButton);
+
+    styleNote (localeNote, Palette::warning);
+    addAndMakeVisible (localeNote);
+
+    styleNote (catalogLabel, Palette::textMuted);
+    addAndMakeVisible (catalogLabel);
+
+    refresh();
+}
+
+void LocalizationPage::refresh()
+{
+    const juce::ScopedValueSetter<bool> guard (updatingControls, true);
+
+    const auto& locales = Localisation::getShipLocales();
+    const auto current = Localisation::get().getLocale();
+    const auto fallback = Localisation::get().getFallbackLocale();
+
+    for (int i = 0; i < (int) locales.size(); ++i)
+    {
+        if (locales[(size_t) i].code == current)
+            localeBox.setSelectedId (i + 1, juce::dontSendNotification);
+
+        if (locales[(size_t) i].code == fallback)
+            fallbackBox.setSelectedId (i + 1, juce::dontSendNotification);
+    }
+
+    catalogLabel.setText ("Catalogs are read from "
+                            + Localisation::getCatalogDirectory().getFullPathName(),
+                          juce::dontSendNotification);
+}
+
+void LocalizationPage::paint (juce::Graphics& g)
+{
+    drawHeading (g, getLocalBounds().removeFromTop (18), "LANGUAGE");
+}
+
+void LocalizationPage::resized()
+{
+    auto bounds = getLocalBounds();
+
+    bounds.removeFromTop (20);
 
     {
         auto row = bounds.removeFromTop (26);
@@ -967,21 +1253,163 @@ void AccessibilityPage::resized()
 
     bounds.removeFromTop (2);
     localeNote.setBounds (bounds.removeFromTop (18));
+    catalogLabel.setBounds (bounds.removeFromTop (18));
+}
 
-    // ---- shortcuts ---------------------------------------------------------------------
-    bounds = getLocalBounds().withTrimmedTop (252);
+//==============================================================================
+UpdatesPage::UpdatesPage (LuthierAudioProcessor& p)
+    : OptionsPage (p)
+{
+    auto wire = [this] (juce::ToggleButton& toggle, std::function<void (bool)> setter)
+    {
+        toggle.onClick = [this, &toggle, setter]
+        {
+            if (updatingControls)
+                return;
+
+            setter (toggle.getToggleState());
+            telemetry().saveSettings();
+            refresh();
+        };
+
+        addAndMakeVisible (toggle);
+    };
+
+    wire (updateCheckToggle, [this] (bool on) { telemetry().setUpdateCheckEnabled (on); });
+    wire (betaToggle,        [this] (bool on) { telemetry().setBetaChannelEnabled (on); });
+
+    checkNowButton.onClick = [this] { checkForUpdate(); };
+    addAndMakeVisible (checkNowButton);
+
+    styleNote (updateStatus, Palette::textMuted);
+    addAndMakeVisible (updateStatus);
+
+    styleNote (policyLabel, Palette::warning);
+    addAndMakeVisible (policyLabel);
+
+    /*  Section 5 asks for a changelog viewer. There is no changelog endpoint in
+        the manifest, so what a check returns is the release note the manifest
+        carries, and that is what this shows. */
+    styleNote (changelogNote, Palette::textDisabled);
+    changelogNote.setText ("What the last check returned:", juce::dontSendNotification);
+    addAndMakeVisible (changelogNote);
+
+    releaseNotes.setMultiLine (true);
+    releaseNotes.setReadOnly (true);
+    releaseNotes.setScrollbarsShown (true);
+    releaseNotes.setCaretVisible (false);
+    releaseNotes.setFont (Fonts::ui (11.0f));
+    releaseNotes.setColour (juce::TextEditor::backgroundColourId, Palette::panelSunken);
+    addAndMakeVisible (releaseNotes);
+
+    refresh();
+}
+
+Telemetry& UpdatesPage::telemetry()
+{
+    return processor.getTelemetry();
+}
+
+void UpdatesPage::checkForUpdate()
+{
+    const auto running = Version::parse (JucePlugin_VersionString);
+
+    // updates-telemetry 0.4: never on the audio thread, and never blocking the
+    // message thread either - the check goes to a background job.
+    updateStatus.setText ("Checking...", juce::dontSendNotification);
+
+    juce::Thread::launch ([this, running]
+    {
+        const auto result = telemetry().checkForUpdate (running, true);
+
+        juce::MessageManager::callAsync ([this, result]
+        {
+            if (! result.checked)
+            {
+                // A failed check is reported here because the user asked for it.
+                // It is silent everywhere else (updates-telemetry 8).
+                updateStatus.setText (result.error.isNotEmpty()
+                                        ? result.error
+                                        : juce::String ("Could not check for updates."),
+                                      juce::dontSendNotification);
+                return;
+            }
+
+            updateStatus.setText (result.updateAvailable
+                                    ? ("Version " + result.available.toString() + " is available.")
+                                    : juce::String ("Luthier is up to date."),
+                                  juce::dontSendNotification);
+
+            /*  The manifest carries links rather than the text of a changelog,
+                so this shows what it actually returned. Fetching and rendering
+                the changelog itself would be a second network call that
+                updates-telemetry 8 does not ask for. */
+            juce::StringArray details;
+
+            details.add ("Latest version:  " + result.available.toString());
+
+            if (result.changelogUrl.isNotEmpty())
+                details.add ("Changelog:       " + result.changelogUrl);
+
+            if (result.downloadUrl.isNotEmpty())
+                details.add ("Download:        " + result.downloadUrl);
+
+            releaseNotes.setText (details.joinIntoString ("\n"), false);
+        });
+    });
+}
+
+void UpdatesPage::refresh()
+{
+    const juce::ScopedValueSetter<bool> guard (updatingControls, true);
+
+    auto& t = telemetry();
+
+    updateCheckToggle.setToggleState (t.isUpdateCheckEnabled(), juce::dontSendNotification);
+    betaToggle.setToggleState (t.isBetaChannelEnabled(), juce::dontSendNotification);
+    betaToggle.setEnabled (t.isUpdateCheckEnabled());
+
+    const auto& policy = t.getPolicy();
+
+    policyLabel.setText (policy.present && ! policy.allowUpdateCheck
+                           ? juce::String ("Update checks are switched off by your administrator.")
+                           : juce::String(),
+                         juce::dontSendNotification);
+
+    updateCheckToggle.setEnabled (policy.allowUpdateCheck);
+}
+
+void UpdatesPage::paint (juce::Graphics& g)
+{
+    auto bounds = getLocalBounds();
+
+    drawHeading (g, bounds.removeFromTop (18), "UPDATES");
+    drawHeading (g, { 0, 110, getWidth(), 18 }, "WHAT IS NEW");
+}
+
+void UpdatesPage::resized()
+{
+    auto bounds = getLocalBounds();
+
+    bounds.removeFromTop (20);
 
     {
-        auto row = bounds.removeFromTop (26);
+        auto row = bounds.removeFromTop (24);
 
-        searchBox.setBounds (row.removeFromLeft (200));
-        row.removeFromLeft (8);
-        resetAllButton.setBounds (row.removeFromLeft (150));
+        updateCheckToggle.setBounds (row.removeFromLeft (240));
+        betaToggle.setBounds (row.removeFromLeft (180));
+        checkNowButton.setBounds (row.removeFromLeft (100));
     }
 
     bounds.removeFromTop (2);
-    rebindHint.setBounds (bounds.removeFromBottom (18));
-    shortcutList.setBounds (bounds);
+    updateStatus.setBounds (bounds.removeFromTop (18));
+    policyLabel.setBounds (bounds.removeFromTop (18));
+
+    bounds = getLocalBounds().withTrimmedTop (130);
+
+    changelogNote.setBounds (bounds.removeFromTop (16));
+    bounds.removeFromTop (2);
+    releaseNotes.setBounds (bounds);
 }
 
 //==============================================================================
@@ -1003,9 +1431,6 @@ PrivacyPage::PrivacyPage (LuthierAudioProcessor& p)
         addAndMakeVisible (toggle);
     };
 
-    wire (updateCheckToggle, [this] (bool on) { telemetry().setUpdateCheckEnabled (on); });
-    wire (betaToggle,        [this] (bool on) { telemetry().setBetaChannelEnabled (on); });
-
     wire (usageToggle, [this] (bool on)
     {
         telemetry().setCategoryEnabled (Telemetry::Category::usage, on);
@@ -1017,12 +1442,6 @@ PrivacyPage::PrivacyPage (LuthierAudioProcessor& p)
     });
 
     wire (crashToggle, [this] (bool on) { telemetry().setCrashUploadEnabled (on); });
-
-    checkNowButton.onClick = [this] { checkForUpdate(); };
-    addAndMakeVisible (checkNowButton);
-
-    styleNote (updateStatus, Palette::textMuted);
-    addAndMakeVisible (updateStatus);
 
     // updates-telemetry 6: each category explained in plain English.
     styleNote (usageExplanation);
@@ -1079,24 +1498,25 @@ PrivacyPage::PrivacyPage (LuthierAudioProcessor& p)
     logView.setMultiLine (true);
     logView.setReadOnly (true);
     logView.setScrollbarsShown (true);
-    logView.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(),
-                                                    9.0f, juce::Font::plain)));
+    logView.setCaretVisible (false);
+    logView.setFont (Fonts::mono (10.5f));
     logView.setColour (juce::TextEditor::backgroundColourId, Palette::panelSunken);
-    logView.setColour (juce::TextEditor::textColourId, Palette::textMuted);
     addAndMakeVisible (logView);
 
-    // ---- endpoints -------------------------------------------------------------------
-    auto wireUrl = [this] (juce::TextEditor& box, std::function<void (const juce::String&)> setter)
+    auto wireUrl = [this] (juce::TextEditor& box, std::function<void (juce::String)> setter)
     {
-        box.setMultiLine (false);
+        box.setFont (Fonts::mono (10.5f));
         box.setColour (juce::TextEditor::backgroundColourId, Palette::panelSunken);
-        box.setFont (juce::Font (juce::FontOptions (9.0f)));
 
         box.onFocusLost = [this, &box, setter]
         {
-            if (updatingControls)
-                return;
+            setter (box.getText().trim());
+            telemetry().saveSettings();
+            refresh();
+        };
 
+        box.onReturnKey = [this, &box, setter]
+        {
             setter (box.getText().trim());
             telemetry().saveSettings();
             refresh();
@@ -1125,54 +1545,17 @@ Telemetry& PrivacyPage::telemetry()
     return processor.getTelemetry();
 }
 
-void PrivacyPage::checkForUpdate()
-{
-    const auto running = Version::parse (JucePlugin_VersionString);
-
-    // updates-telemetry 0.4: never on the audio thread, and never blocking the
-    // message thread either - the check goes to a background job.
-    updateStatus.setText ("Checking...", juce::dontSendNotification);
-
-    juce::Thread::launch ([this, running]
-    {
-        const auto result = telemetry().checkForUpdate (running, true);
-
-        juce::MessageManager::callAsync ([this, result]
-        {
-            if (! result.checked)
-            {
-                // A failed check is reported here because the user asked for it.
-                // It is silent everywhere else (updates-telemetry 8).
-                updateStatus.setText (result.error.isNotEmpty()
-                                        ? result.error
-                                        : juce::String ("Could not check for updates."),
-                                      juce::dontSendNotification);
-                return;
-            }
-
-            updateStatus.setText (result.updateAvailable
-                                    ? ("Version " + result.available.toString() + " is available.")
-                                    : juce::String ("Luthier is up to date."),
-                                  juce::dontSendNotification);
-        });
-    });
-}
-
 void PrivacyPage::refresh()
 {
     const juce::ScopedValueSetter<bool> guard (updatingControls, true);
 
     auto& t = telemetry();
 
-    updateCheckToggle.setToggleState (t.isUpdateCheckEnabled(), juce::dontSendNotification);
-    betaToggle.setToggleState (t.isBetaChannelEnabled(), juce::dontSendNotification);
     usageToggle.setToggleState (t.isCategoryEnabled (Telemetry::Category::usage),
                                 juce::dontSendNotification);
     diagnosticsToggle.setToggleState (t.isCategoryEnabled (Telemetry::Category::diagnostics),
                                       juce::dontSendNotification);
     crashToggle.setToggleState (t.isCrashUploadEnabled(), juce::dontSendNotification);
-
-    betaToggle.setEnabled (t.isUpdateCheckEnabled());
 
     manifestUrlBox.setText (t.getManifestUrl(), false);
     telemetryUrlBox.setText (t.getTelemetryUrl(), false);
@@ -1191,7 +1574,6 @@ void PrivacyPage::refresh()
     usageToggle.setEnabled (policy.allowUsageTelemetry);
     diagnosticsToggle.setEnabled (policy.allowDiagnosticsTelemetry);
     crashToggle.setEnabled (policy.allowCrashUpload);
-    updateCheckToggle.setEnabled (policy.allowUpdateCheck);
 
     manifestUrlBox.setEnabled (policy.updateManifestUrl.isEmpty());
     telemetryUrlBox.setEnabled (policy.telemetryUrl.isEmpty());
@@ -1202,9 +1584,8 @@ void PrivacyPage::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds();
 
-    drawHeading (g, bounds.removeFromTop (18), "UPDATES");
-    drawHeading (g, { 0, 96, getWidth(), 18 }, "WHAT LUTHIER WOULD SEND");
-    drawHeading (g, { 0, 300, getWidth(), 18 }, "LOCAL LOG");
+    drawHeading (g, bounds.removeFromTop (18), "WHAT LUTHIER WOULD SEND");
+    drawHeading (g, { 0, 210, getWidth(), 18 }, "LOCAL LOG");
 }
 
 void PrivacyPage::resized()
@@ -1212,22 +1593,6 @@ void PrivacyPage::resized()
     auto bounds = getLocalBounds();
 
     bounds.removeFromTop (20);
-
-    {
-        auto row = bounds.removeFromTop (24);
-
-        updateCheckToggle.setBounds (row.removeFromLeft (240));
-        betaToggle.setBounds (row.removeFromLeft (180));
-        checkNowButton.setBounds (row.removeFromLeft (100));
-    }
-
-    bounds.removeFromTop (2);
-    updateStatus.setBounds (bounds.removeFromTop (18));
-
-    policyLabel.setBounds (bounds.removeFromTop (18));
-
-    // ---- telemetry ----------------------------------------------------------------
-    bounds = getLocalBounds().withTrimmedTop (116);
 
     usageToggle.setBounds (bounds.removeFromTop (22));
     usageExplanation.setBounds (bounds.removeFromTop (34));
@@ -1238,8 +1603,10 @@ void PrivacyPage::resized()
     crashToggle.setBounds (bounds.removeFromTop (22));
     crashExplanation.setBounds (bounds.removeFromTop (34));
 
+    policyLabel.setBounds (bounds.removeFromTop (18));
+
     // ---- log and endpoints ------------------------------------------------------------
-    bounds = getLocalBounds().withTrimmedTop (320);
+    bounds = getLocalBounds().withTrimmedTop (230);
 
     {
         auto row = bounds.removeFromTop (26);
@@ -1262,6 +1629,322 @@ void PrivacyPage::resized()
     manifestUrlBox.setBounds (endpoints.removeFromTop (20).reduced (0, 1));
     telemetryUrlBox.setBounds (endpoints.removeFromTop (20).reduced (0, 1));
     crashUrlBox.setBounds (endpoints.removeFromTop (20).reduced (0, 1));
+}
+
+//==============================================================================
+DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
+    : OptionsPage (p)
+{
+    addAndMakeVisible (debugWindowButton);
+    debugWindowButton.setTooltip ("The live state and data-stream view (Ctrl+D)");
+    debugWindowButton.onClick = [this]
+    {
+        if (onShowDebugWindow != nullptr)
+            onShowDebugWindow();
+    };
+
+    addAndMakeVisible (crashLogToggle);
+    crashLogToggle.setTooltip ("Off on every load. Turning it on also turns on the live data stream.");
+    crashLogToggle.onClick = [this]
+    {
+        processor.getDiagnostics().setCrashLogEnabled (crashLogToggle.getToggleState());
+        refresh();
+    };
+
+    addAndMakeVisible (recorderToggle);
+    recorderToggle.setTooltip ("practice-tools 8: keeps the last hour so you can save a take "
+                               "you did not know you wanted.");
+    recorderToggle.onClick = [this]
+    {
+        processor.getSessionRecorder().setEnabled (recorderToggle.getToggleState());
+        refresh();
+    };
+
+    addAndMakeVisible (troubleshootButton);
+    troubleshootButton.setTooltip ("Writes a file describing the build, the host and the "
+                                   "current state, for a support thread.");
+    troubleshootButton.onClick = [this]
+    {
+        processor.getPresetManager().captureExtraState();
+
+        const auto file = processor.getDiagnostics().writeTroubleshootingReport (
+            juce::JSON::toString (processor.getPresetManager().toVar(), false),
+            processor.getEngine().getValidator().getSummary());
+
+        juce::NativeMessageBox::showAsync (
+            juce::MessageBoxOptions()
+                .withIconType (file != juce::File() ? juce::MessageBoxIconType::InfoIcon
+                                                    : juce::MessageBoxIconType::WarningIcon)
+                .withTitle (file != juce::File() ? "Troubleshooting file written"
+                                                 : "Could not write the file")
+                .withMessage (file != juce::File()
+                                ? ("Written to\n" + file.getFullPathName())
+                                : juce::String ("The diagnostics folder could not be written to."))
+                .withButton ("OK"),
+            nullptr);
+    };
+
+    addAndMakeVisible (openFolderButton);
+    openFolderButton.onClick = [] { Diagnostics::getDiagnosticsFolder().revealToUser(); };
+
+    addAndMakeVisible (hardResetButton);
+    hardResetButton.setColour (juce::TextButton::textColourOffId, Palette::clip);
+    hardResetButton.setTooltip ("Destructive: resets every setting, clears the MIDI map, deletes "
+                                "diagnostic files and cached data, and reinstalls the factory bank.");
+    hardResetButton.onClick = [this]
+    {
+        juce::NativeMessageBox::showAsync (
+            juce::MessageBoxOptions()
+                .withIconType (juce::MessageBoxIconType::WarningIcon)
+                .withTitle ("Reset everything?")
+                .withMessage ("This resets every setting, clears your MIDI mappings, deletes "
+                              "diagnostic files and cached data, and reinstalls the factory "
+                              "preset bank.\n\nYour own saved presets are NOT deleted.\n\n"
+                              "This cannot be undone.")
+                .withButton ("Reset everything")
+                .withButton ("Cancel"),
+            [this] (int result)
+            {
+                if (result == 1)
+                {
+                    processor.hardResetAndClearCaches();
+                    refresh();
+                }
+            });
+    };
+
+    styleNote (explanation, Palette::textMuted, 11.0f);
+    explanation.setText ("Everything here is off until you switch it on, and everything it "
+                         "writes stays on this machine until you send it somewhere.",
+                         juce::dontSendNotification);
+    addAndMakeVisible (explanation);
+
+    styleNote (recorderNote);
+    addAndMakeVisible (recorderNote);
+
+    /*  Section 5 wants the Workshop, Slide and advanced-ranges booleans mirrored
+        here, so a user can see what telemetry would report. None of the three
+        exists, so there is nothing to mirror and saying so beats three faked
+        rows that always read false. */
+    styleNote (mirrorNote, Palette::textDisabled);
+    mirrorNote.setText ("The Workshop, Slide and advanced-ranges feature flags are not built "
+                        "yet, so there is nothing to mirror here.",
+                        juce::dontSendNotification);
+    addAndMakeVisible (mirrorNote);
+
+    refresh();
+}
+
+void DiagnosticsPage::refresh()
+{
+    crashLogToggle.setToggleState (processor.getDiagnostics().isCrashLogEnabled(),
+                                   juce::dontSendNotification);
+
+    auto& recorder = processor.getSessionRecorder();
+
+    recorderToggle.setToggleState (recorder.isEnabled(), juce::dontSendNotification);
+
+    recorderNote.setText (
+        "Buffer: " + juce::String (recorder.getCapacityMinutes(), 1) + " minutes allocated, "
+          + juce::String (recorder.getRecordedSamples() > 0
+                            ? juce::String (recorder.getRecordedSamples()) + " samples held"
+                            : juce::String ("nothing recorded yet")),
+        juce::dontSendNotification);
+}
+
+void DiagnosticsPage::paint (juce::Graphics& g)
+{
+    auto bounds = getLocalBounds();
+
+    drawHeading (g, bounds.removeFromTop (18), "WHAT LUTHIER RECORDS FOR YOU");
+    drawHeading (g, { 0, 150, getWidth(), 18 }, "FILES AND WINDOWS");
+    drawHeading (g, { 0, 262, getWidth(), 18 }, "FEATURE FLAGS");
+}
+
+void DiagnosticsPage::resized()
+{
+    auto bounds = getLocalBounds();
+
+    bounds.removeFromTop (20);
+
+    explanation.setBounds (bounds.removeFromTop (30));
+    bounds.removeFromTop (4);
+
+    crashLogToggle.setBounds (bounds.removeFromTop (22));
+    recorderToggle.setBounds (bounds.removeFromTop (22));
+    recorderNote.setBounds (bounds.removeFromTop (16));
+
+    bounds = getLocalBounds().withTrimmedTop (172);
+
+    {
+        auto row = bounds.removeFromTop (Metrics::buttonHeight);
+
+        debugWindowButton.setBounds (row.removeFromLeft (200));
+        row.removeFromLeft (6);
+        openFolderButton.setBounds (row.removeFromLeft (200));
+    }
+
+    bounds.removeFromTop (6);
+
+    {
+        auto row = bounds.removeFromTop (Metrics::buttonHeight);
+
+        troubleshootButton.setBounds (row.removeFromLeft (220));
+        row.removeFromLeft (6);
+        hardResetButton.setBounds (row.removeFromLeft (280));
+    }
+
+    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (284).withHeight (32));
+}
+
+//==============================================================================
+FileLocationsPage::FileLocationsPage (LuthierAudioProcessor& p)
+    : OptionsPage (p)
+{
+    addAndMakeVisible (openUserFolder);
+    openUserFolder.onClick = [] { PresetManager::getUserPresetFolder().revealToUser(); };
+
+    addAndMakeVisible (openRenderFolder);
+    openRenderFolder.onClick = [] { PresetManager::getRenderFolder().revealToUser(); };
+
+    addAndMakeVisible (openFactoryFolder);
+    openFactoryFolder.onClick = [] { PresetManager::getFactoryPresetFolder().revealToUser(); };
+
+    addAndMakeVisible (openDiagnosticsFolder);
+    openDiagnosticsFolder.onClick = [] { Diagnostics::getDiagnosticsFolder().revealToUser(); };
+
+    addAndMakeVisible (addFolderButton);
+    addFolderButton.onClick = [this]
+    {
+        chooser = std::make_unique<juce::FileChooser> ("Choose a folder to scan for presets",
+                                                       PresetManager::getUserPresetFolder());
+
+        chooser->launchAsync (juce::FileBrowserComponent::openMode
+                                | juce::FileBrowserComponent::canSelectDirectories,
+                              [this] (const juce::FileChooser& fc)
+        {
+            const auto folder = fc.getResult();
+
+            if (folder.isDirectory())
+            {
+                processor.getPresetManager().addSearchFolder (folder);
+                folderList.updateContent();
+            }
+        });
+    };
+
+    addAndMakeVisible (rescanButton);
+    rescanButton.onClick = [this]
+    {
+        processor.getPresetManager().refresh();
+        folderList.updateContent();
+    };
+
+    addAndMakeVisible (pathLabel);
+    pathLabel.setFont (Fonts::ui (11.0f));
+    pathLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+    pathLabel.setJustificationType (juce::Justification::topLeft);
+
+    addAndMakeVisible (formatNote);
+    formatNote.setFont (Fonts::ui (11.0f));
+    formatNote.setColour (juce::Label::textColourId, Palette::textMuted);
+    formatNote.setJustificationType (juce::Justification::topLeft);
+    formatNote.setText ("Presets are plain JSON files with the extension .luthierpreset. The "
+                        "folder a preset sits in becomes its category. If a preset does not "
+                        "appear, press Rescan; if it still does not, check that it is in one of "
+                        "the folders listed here and that its extension is exactly right.",
+                        juce::dontSendNotification);
+
+    addAndMakeVisible (folderList);
+    folderList.setModel (&folderModel);
+    folderList.setRowHeight (22);
+    folderList.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
+
+    refresh();
+}
+
+int FileLocationsPage::FolderListModel::getNumRows()
+{
+    return owner.processor.getPresetManager().getSearchFolders().size();
+}
+
+void FileLocationsPage::FolderListModel::paintListBoxItem (int row, juce::Graphics& g,
+                                                           int width, int height, bool selected)
+{
+    const auto folders = owner.processor.getPresetManager().getSearchFolders();
+
+    if (! juce::isPositiveAndBelow (row, folders.size()))
+        return;
+
+    if (selected)
+    {
+        g.setColour (Palette::accent.withAlpha (0.14f));
+        g.fillRect (0, 0, width, height);
+    }
+
+    g.setColour (Palette::textMuted);
+    g.setFont (Fonts::mono (11.0f));
+    g.drawText (folders[row].getFullPathName(), 8, 0, width - 12, height,
+                juce::Justification::centredLeft, true);
+}
+
+void FileLocationsPage::refresh()
+{
+    pathLabel.setText (
+        "User presets   " + PresetManager::getUserPresetFolder().getFullPathName() + "\n"
+        "Factory        " + PresetManager::getFactoryPresetFolder().getFullPathName() + "\n"
+        "Renders        " + PresetManager::getRenderFolder().getFullPathName() + "\n"
+        "Diagnostics    " + Diagnostics::getDiagnosticsFolder().getFullPathName(),
+        juce::dontSendNotification);
+
+    folderList.updateContent();
+}
+
+void FileLocationsPage::paint (juce::Graphics& g)
+{
+    auto bounds = getLocalBounds();
+
+    drawHeading (g, bounds.removeFromTop (18), "WHERE LUTHIER KEEPS THINGS");
+    drawHeading (g, { 0, 178, getWidth(), 18 }, "PRESET SEARCH PATH");
+}
+
+void FileLocationsPage::resized()
+{
+    auto bounds = getLocalBounds();
+
+    bounds.removeFromTop (20);
+
+    pathLabel.setBounds (bounds.removeFromTop (72));
+    bounds.removeFromTop (Metrics::gridHalf);
+
+    {
+        auto row = bounds.removeFromTop (Metrics::buttonHeight);
+
+        openUserFolder.setBounds (row.removeFromLeft (170));
+        row.removeFromLeft (Metrics::gridHalf);
+        openFactoryFolder.setBounds (row.removeFromLeft (180));
+        row.removeFromLeft (Metrics::gridHalf);
+        openRenderFolder.setBounds (row.removeFromLeft (150));
+        row.removeFromLeft (Metrics::gridHalf);
+        openDiagnosticsFolder.setBounds (row.removeFromLeft (190));
+    }
+
+    bounds = getLocalBounds().withTrimmedTop (200);
+
+    {
+        auto row = bounds.removeFromTop (Metrics::buttonHeight);
+
+        addFolderButton.setBounds (row.removeFromLeft (180));
+        row.removeFromLeft (Metrics::gridHalf);
+        rescanButton.setBounds (row.removeFromLeft (140));
+    }
+
+    bounds.removeFromTop (Metrics::grid);
+
+    formatNote.setBounds (bounds.removeFromBottom (64));
+    bounds.removeFromBottom (Metrics::gridHalf);
+
+    folderList.setBounds (bounds);
 }
 
 } // namespace luthier

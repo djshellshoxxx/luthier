@@ -72,6 +72,10 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     header.onSaveAs = [this] { showOverlay (&saveAsPanel); };
 
     helpPanel.onOpenDebug = [this] { showOverlay (&debugPanel); };
+
+    // Options -> Diagnostics offers the same window. An overlay cannot show
+    // another overlay, so the request comes out to here.
+    optionsPanel.onShowDebugWindow = [this] { showOverlay (&debugPanel); };
     presetBrowser.saveAsPanelRequested = [this] { showOverlay (&saveAsPanel); };
 
     easyPanel.onOpenExport = [this] { showOverlay (&exportPanel); };

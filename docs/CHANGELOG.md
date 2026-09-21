@@ -35,8 +35,16 @@ numbered, because what it should be called is a release decision.
   palettes, UI scale, localisation.
 - **Updates and telemetry** - update checks, opt-in telemetry, crash reporting,
   license activation, privacy dashboard.
-- **Options pages** - Controllers, Expression, Accessibility and Privacy, as tabs
-  inside the existing Options overlay.
+- **Options pages** - the overlay now carries gui-integration.md section 5's tab
+  list in section 5's order: AUDIO, MIDI, APPEARANCE, ACCESSIBILITY,
+  LOCALIZATION, EXPRESSION, CONTROLLERS, UPDATES, PRIVACY, DIAGNOSTICS and FILE
+  LOCATIONS. RANGES is absent because advanced-ranges.md has not been written;
+  CONTROLLERS is present, in the slot RANGES will take, because section 19's
+  home for it - the Advanced column 4 tab strip - does not exist yet. The old
+  GENERAL tab is gone, its contents distributed to the tabs that own them.
+  Where a page could not build something section 5 lists - the accent tint, the
+  changelog viewer, the feature-flag mirror, the Workshop folders - it says so
+  instead of showing a dead control.
 - `scripts/build.ps1`, which PROGRESS.md had referenced without it existing.
 - **Editor tests.** `Source/UI/` and `PluginEditor.cpp` now build into
   `LuthierTests`, which compiles with `LUTHIER_HEADLESS=0`, and the new `Editor`

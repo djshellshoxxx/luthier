@@ -196,15 +196,22 @@ private:
 };
 
 //==============================================================================
-/** Options: tooltips, audio and MIDI device selection (standalone), folders. */
+/*  Options.
+
+    One overlay, one tab per page, in gui-integration.md section 5's order. The
+    pages themselves are in OptionsPages.h, which is also where the two
+    departures from section 5's list - no RANGES, an extra CONTROLLERS - are
+    explained.
+*/
 class OptionsPanel : public OverlayPanel
 {
 public:
     explicit OptionsPanel (LuthierAudioProcessor& processor);
 
-    /*  Wider than the other overlays: the Controllers and Accessibility pages put
-        a label beside every control, which does not fit in 720. */
-    juce::Point<int> getPreferredSize() const override { return { 820, 600 }; }
+    /*  Wider and taller than the other overlays: eleven tabs need two rows of
+        strip, and the Controllers, Accessibility and Privacy pages put a label
+        beside every control, which does not fit in 720. */
+    juce::Point<int> getPreferredSize() const override { return { 860, 620 }; }
 
     void overlayShown() override;
 
@@ -212,56 +219,22 @@ public:
         "show all shortcuts" surface). */
     void showShortcutTable();
 
+    /*  The Diagnostics page offers the debug window, and an overlay cannot put
+        another overlay on screen - only the editor can - so the request comes out
+        here and the editor wires it. */
+    std::function<void()> onShowDebugWindow;
+
 protected:
     void layoutContent (juce::Rectangle<int> content) override;
 
 private:
-    /*  The extension specs each ask for their own "Options -> Something" tab
-        (controllers 3 and 5, live-performance 8, accessibility 9,
-        updates-telemetry 1 and 6). They are pages of this one overlay rather than
-        six more overlays, which is what OptionsPages.h was written for.
-
-        Page 0 is General: the settings that were here before, which stay direct
-        members of this panel rather than moving into a page of their own. */
     void showPage (int index);
-
-    /** The General page's controls, shown only while page 0 is selected. */
-    std::vector<juce::Component*> generalControls();
 
     juce::OwnedArray<juce::TextButton> pageButtons;
     juce::OwnedArray<OptionsPage> pages;
     int currentPage = 0;
 
     LuthierAudioProcessor& processor;
-
-    juce::ToggleButton tooltipsToggle { "Show tooltips on hover" };
-    juce::ToggleButton driftToggle { "Let the tuning drift while playing" };
-
-    LuthierChoice oversampling { "Oversampling" };
-    LuthierKnob chordWindow { "Chord Window" };
-
-    juce::TextButton openUserFolder { "Open user preset folder" };
-    juce::TextButton openRenderFolder { "Open render folder" };
-    juce::TextButton openFactoryFolder { "Open factory preset folder" };
-    juce::TextButton addFolderButton { "Add a preset folder..." };
-    juce::TextButton rescanButton { "Rescan presets" };
-    juce::TextButton audioSettingsButton { "Audio and MIDI settings..." };
-
-    juce::Label presetPathLabel, audioNote;
-    juce::ListBox folderList;
-
-    class FolderListModel : public juce::ListBoxModel
-    {
-    public:
-        explicit FolderListModel (OptionsPanel& o) : owner (o) {}
-        int getNumRows() override;
-        void paintListBoxItem (int row, juce::Graphics&, int width, int height, bool selected) override;
-
-    private:
-        OptionsPanel& owner;
-    };
-
-    FolderListModel folderModel { *this };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OptionsPanel)
 };

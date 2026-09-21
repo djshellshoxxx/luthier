@@ -1,14 +1,22 @@
 #pragma once
 
-/*  The Options pages the extension specs add
-    (controllers 3 and 5, live-performance 8, accessibility 9, updates-telemetry 6).
+/*  The pages of the Options overlay.
 
-    Each spec asks for its own "Options -> Something" tab, and there are six of
-    them. Rather than six overlays, they are pages inside the one Options overlay,
-    which is where a user already goes looking.
+    gui-integration.md section 5 fixes the tab list:
 
-    Each page is a plain component with no knowledge of the others, so adding the
-    next one is adding a file rather than editing a switch.
+        AUDIO | MIDI | APPEARANCE | ACCESSIBILITY | LOCALIZATION | EXPRESSION
+        | RANGES | UPDATES | PRIVACY | DIAGNOSTICS | FILE LOCATIONS
+
+    Every one of those is a page here except RANGES, which is specified by
+    advanced-ranges.md and cannot be built until that file exists. CONTROLLERS is
+    a page that section 5 does not list: section 19 puts controller setup in the
+    Advanced column 4 tab strip, which does not exist yet, so it stays here until
+    that lands rather than leaving a MIDI guitar unconfigurable. Both departures
+    are recorded in GAPS.md A3.
+
+    Each page is a plain component that knows nothing about the others, so adding
+    the next one is adding a class rather than editing a switch. OptionsPanel owns
+    them in tab order and shows one at a time.
 */
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -35,6 +43,153 @@ public:
 
 protected:
     LuthierAudioProcessor& processor;
+};
+
+//==============================================================================
+/*  Options -> Audio (section 5).
+
+    "Output device, buffer, sample rate, sidechain input", all of which belong to
+    the host or to the standalone wrapper rather than to the plugin, so what this
+    page can honestly offer is an explanation of where they live plus the one
+    audio setting the plugin does own.
+
+    Oversampling is that setting. Section 5 does not list it anywhere, and it is
+    plainly an audio-quality choice rather than an appearance or a MIDI one, so
+    this is the nearest tab. Recorded in GAPS.md A3 as a judgement call.
+*/
+class AudioPage final : public OptionsPage
+{
+public:
+    explicit AudioPage (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+private:
+    LuthierChoice oversampling { "Oversampling" };
+
+    juce::TextButton deviceButton { "Where are the device settings?" };
+    juce::Label deviceNote, sidechainNote, latencyLabel;
+};
+
+//==============================================================================
+/*  Options -> MIDI (section 5).
+
+    The port picker and the virtual MIDI out belong to the wrapper, the same way
+    the audio devices do. What the plugin owns is how it reads the MIDI it is
+    given, and the chord window is the setting that decides it, so it is here
+    rather than on a tab of its own.
+*/
+class MidiPage final : public OptionsPage
+{
+public:
+    explicit MidiPage (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+private:
+    LuthierKnob chordWindow { "Chord Window" };
+
+    juce::Label portNote, outNote, learnLabel;
+    juce::TextButton clearLearnButton { "Clear all MIDI mappings" };
+};
+
+//==============================================================================
+/** Options -> Appearance (section 5): what the window looks like. */
+class AppearancePage final : public OptionsPage
+{
+public:
+    explicit AppearancePage (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+private:
+    juce::ComboBox paletteBox, scaleBox;
+    juce::ToggleButton reducedMotionToggle { "Reduced motion" };
+    juce::ToggleButton tooltipsToggle { "Show tooltips on hover" };
+
+    juce::Label contrastLabel, pendingLabel;
+
+    bool updatingControls = false;
+};
+
+//==============================================================================
+/*  Options -> Accessibility (section 5, accessibility.md 2 and 9).
+
+    Screen-reader verbosity, the font override, and the rebindable shortcut table
+    with search and reset. The palette, the UI scale and reduced motion used to
+    share this page; section 5 puts them under APPEARANCE and they moved there.
+*/
+class AccessibilityPage final : public OptionsPage
+{
+public:
+    explicit AccessibilityPage (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+private:
+    void rebuildShortcutList();
+
+    juce::ComboBox verbosityBox, fontBox;
+
+    // The rebind table (accessibility 2).
+    juce::ListBox shortcutList;
+    juce::TextEditor searchBox;
+    juce::TextButton resetAllButton { "Reset all shortcuts" };
+    juce::Label rebindHint;
+
+    juce::Array<int> visibleShortcuts;
+
+    class ShortcutModel : public juce::ListBoxModel
+    {
+    public:
+        explicit ShortcutModel (AccessibilityPage& o) : owner (o) {}
+
+        int getNumRows() override;
+        void paintListBoxItem (int row, juce::Graphics&, int width, int height, bool selected) override;
+        void listBoxItemClicked (int row, const juce::MouseEvent&) override;
+
+    private:
+        AccessibilityPage& owner;
+    };
+
+    ShortcutModel shortcutModel { *this };
+
+    /** Which row is waiting for a key, or -1. */
+    int capturingRow = -1;
+
+    bool updatingControls = false;
+
+    /** Catches the key press for a rebind. */
+    bool keyPressed (const juce::KeyPress& key) override;
+};
+
+//==============================================================================
+/** Options -> Localization (section 5, accessibility.md 6). */
+class LocalizationPage final : public OptionsPage
+{
+public:
+    explicit LocalizationPage (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+private:
+    juce::ComboBox localeBox, fallbackBox;
+    juce::TextButton catalogButton { "Custom catalog..." };
+    juce::Label localeNote, catalogLabel;
+
+    std::unique_ptr<juce::FileChooser> chooser;
+
+    bool updatingControls = false;
 };
 
 //==============================================================================
@@ -116,62 +271,33 @@ private:
 };
 
 //==============================================================================
-/** Options -> Accessibility and Options -> Localization (accessibility.md 9). */
-class AccessibilityPage final : public OptionsPage
+/** Options -> Updates (section 5, updates-telemetry.md 1). */
+class UpdatesPage final : public OptionsPage
 {
 public:
-    explicit AccessibilityPage (LuthierAudioProcessor& processor);
+    explicit UpdatesPage (LuthierAudioProcessor& processor);
 
     void refresh() override;
     void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
-    void rebuildShortcutList();
+    Telemetry& telemetry();
 
-    juce::ComboBox verbosityBox, paletteBox, scaleBox, fontBox;
-    juce::ToggleButton reducedMotionToggle { "Reduced motion" };
+    void checkForUpdate();
 
-    juce::ComboBox localeBox, fallbackBox;
-    juce::TextButton catalogButton { "Custom catalog..." };
-    juce::Label contrastLabel, localeNote;
+    juce::ToggleButton updateCheckToggle { "Check for updates automatically" };
+    juce::ToggleButton betaToggle { "Include beta releases" };
+    juce::TextButton checkNowButton { "Check now" };
+    juce::Label updateStatus, policyLabel, changelogNote;
 
-    // The rebind table (accessibility 2).
-    juce::ListBox shortcutList;
-    juce::TextEditor searchBox;
-    juce::TextButton resetAllButton { "Reset all shortcuts" };
-    juce::Label rebindHint;
-
-    juce::Array<int> visibleShortcuts;
-
-    class ShortcutModel : public juce::ListBoxModel
-    {
-    public:
-        explicit ShortcutModel (AccessibilityPage& o) : owner (o) {}
-
-        int getNumRows() override;
-        void paintListBoxItem (int row, juce::Graphics&, int width, int height, bool selected) override;
-        void listBoxItemClicked (int row, const juce::MouseEvent&) override;
-
-    private:
-        AccessibilityPage& owner;
-    };
-
-    ShortcutModel shortcutModel { *this };
-
-    /** Which row is waiting for a key, or -1. */
-    int capturingRow = -1;
-
-    std::unique_ptr<juce::FileChooser> chooser;
+    juce::TextEditor releaseNotes;
 
     bool updatingControls = false;
-
-    /** Catches the key press for a rebind. */
-    bool keyPressed (const juce::KeyPress& key) override;
 };
 
 //==============================================================================
-/** Options -> Updates and Options -> Privacy (updates-telemetry.md 1 and 6). */
+/** Options -> Privacy (section 5, updates-telemetry.md 6). */
 class PrivacyPage final : public OptionsPage
 {
 public:
@@ -183,14 +309,6 @@ public:
 
 private:
     Telemetry& telemetry();
-
-    void checkForUpdate();
-
-    // Updates.
-    juce::ToggleButton updateCheckToggle { "Check for updates automatically" };
-    juce::ToggleButton betaToggle { "Include beta releases" };
-    juce::TextButton checkNowButton { "Check now" };
-    juce::Label updateStatus;
 
     // Telemetry, each explained in plain English as the spec asks.
     juce::ToggleButton usageToggle { "Usage telemetry" };
@@ -211,6 +329,88 @@ private:
     juce::Label endpointsHeading, policyLabel;
 
     bool updatingControls = false;
+};
+
+//==============================================================================
+/*  Options -> Diagnostics (section 5).
+
+    The debug window itself stays an overlay - it is a live stream that wants the
+    whole window - and this page is the route to it, alongside the switches and
+    the one-shot actions the section lists. They call the same processor and
+    Diagnostics methods the debug window's own buttons do, so the two surfaces
+    cannot drift apart.
+
+    The Workshop / Slide / advanced-ranges mirror the section also asks for is
+    left out: those three booleans do not exist yet.
+*/
+class DiagnosticsPage final : public OptionsPage
+{
+public:
+    explicit DiagnosticsPage (LuthierAudioProcessor& processor);
+
+    /** Wired by the editor, which is the only thing that can open an overlay. */
+    std::function<void()> onShowDebugWindow;
+
+    void refresh() override;
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+private:
+    juce::TextButton debugWindowButton { "Open the debug window" };
+    juce::ToggleButton crashLogToggle { "Create a log file if Luthier crashes" };
+    juce::ToggleButton recorderToggle { "Keep the last hour of audio for the session recorder" };
+
+    juce::TextButton troubleshootButton { "Export troubleshooting file" };
+    juce::TextButton openFolderButton { "Open diagnostics folder" };
+    juce::TextButton hardResetButton { "Reset all settings and clear caches" };
+
+    juce::Label explanation, recorderNote, mirrorNote;
+};
+
+//==============================================================================
+/*  Options -> File locations (section 5).
+
+    Every user data folder, with a button that opens it, plus the preset search
+    path: the folders Luthier scans, and the buttons that add to or rescan them.
+
+    ~/Documents/Luthier/Guitars/ and /Parts/ are in the section's list and are
+    not here, because the Workshop that would write them does not exist yet.
+*/
+class FileLocationsPage final : public OptionsPage
+{
+public:
+    explicit FileLocationsPage (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+private:
+    juce::TextButton openUserFolder { "Open user preset folder" };
+    juce::TextButton openRenderFolder { "Open render folder" };
+    juce::TextButton openFactoryFolder { "Open factory preset folder" };
+    juce::TextButton openDiagnosticsFolder { "Open diagnostics folder" };
+    juce::TextButton addFolderButton { "Add a preset folder..." };
+    juce::TextButton rescanButton { "Rescan presets" };
+
+    juce::Label pathLabel, formatNote;
+    juce::ListBox folderList;
+
+    std::unique_ptr<juce::FileChooser> chooser;
+
+    class FolderListModel : public juce::ListBoxModel
+    {
+    public:
+        explicit FolderListModel (FileLocationsPage& o) : owner (o) {}
+
+        int getNumRows() override;
+        void paintListBoxItem (int row, juce::Graphics&, int width, int height, bool selected) override;
+
+    private:
+        FileLocationsPage& owner;
+    };
+
+    FolderListModel folderModel { *this };
 };
 
 } // namespace luthier
