@@ -37,6 +37,14 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     chordButton.setTooltip ("Chord library and the live tab display");
     chordButton.onClick = [this] { showOverlay (&chordPanel); };
 
+    /*  The notice is in the layout rather than over it, so when it takes itself
+        away the window has to give the space back. It goes in before the overlay
+        host deliberately: an overlay is the thing in front, and a status strip
+        that painted over an open dialog would be a worse bug than the silent
+        mode switch it exists to explain. */
+    addChildComponent (inlineNotice);
+    inlineNotice.onVisibilityChanged = [this] { resized(); };
+
     // The overlay host sits on top of everything and is invisible until used.
     addChildComponent (overlayHost);
 
@@ -95,8 +103,17 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     setSize (juce::jmax (minimumWidth, ui.editorWidth),
              juce::jmax (minimumHeight, ui.editorHeight));
 
+    /*  setAdvancedMode refuses if the restored size is too narrow for it, and
+        header.setAdvancedMode is given what it actually decided rather than what
+        was asked for - otherwise the switch reads "Advanced" over an Easy panel. */
     setAdvancedMode (ui.advancedMode);
-    header.setAdvancedMode (ui.advancedMode);
+    header.setAdvancedMode (advancedMode);
+
+    /*  On the way in, the refusal is silent. A window restored below 1000 points
+        is a window that was already this size last session, and a notice about a
+        mode the user has not touched yet is noise; the disabled toggle in the
+        header carries it instead. */
+    inlineNotice.dismiss();
 
     tooltips.setLookAndFeel (&lookAndFeel);
 
@@ -116,8 +133,30 @@ LuthierAudioProcessorEditor::~LuthierAudioProcessorEditor()
 }
 
 //==============================================================================
+bool LuthierAudioProcessorEditor::isAdvancedModeAvailable() const noexcept
+{
+    return getWidth() >= AdvancedPanel::minimumUsableWidth;
+}
+
+juce::String LuthierAudioProcessorEditor::advancedUnavailableMessage()
+{
+    return "Advanced Mode needs a window at least "
+             + juce::String (AdvancedPanel::minimumUsableWidth)
+             + " points wide. Widen the window to use it.";
+}
+
 void LuthierAudioProcessorEditor::setAdvancedMode (bool advanced)
 {
+    /*  4.5 again: the toggle forces Easy with an inline notice rather than
+        switching to a panel whose four columns cannot fit. Saying why matters -
+        a toggle that silently does nothing reads as a broken toggle, and ground
+        rule 0.2 is that degradation is never silent. */
+    if (advanced && ! isAdvancedModeAvailable())
+    {
+        inlineNotice.show (advancedUnavailableMessage(), InlineNotice::Level::warning);
+        advanced = false;
+    }
+
     advancedMode = advanced;
     processor.getUiState().advancedMode = advanced;
 
@@ -244,6 +283,27 @@ void LuthierAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds();
 
+    /*  4.5: a window dragged below the Advanced minimum forces Easy.
+
+        The flags are set here rather than by calling setAdvancedMode, which ends
+        in resized() and would re-enter this function. The layout below is the
+        same pass, so the panels land in the right place without a second one. */
+    const bool advancedAvailable = isAdvancedModeAvailable();
+
+    header.setAdvancedModeAvailable (advancedAvailable);
+
+    if (advancedMode && ! advancedAvailable)
+    {
+        advancedMode = false;
+        processor.getUiState().advancedMode = false;
+
+        easyPanel.setVisible (true);
+        advancedPanel.setVisible (false);
+        header.setAdvancedMode (false);
+
+        inlineNotice.show (advancedUnavailableMessage(), InlineNotice::Level::warning);
+    }
+
     header.setBounds (bounds.removeFromTop (Metrics::headerHeight));
 
     // live-performance 10: the live strip attaches under the header when Live
@@ -256,6 +316,12 @@ void LuthierAudioProcessorEditor::resized()
 
     // practice-tools 9: the drawer sits above the footer.
     practicePanel.setBounds (bounds.removeFromBottom (practicePanel.preferredHeight()));
+
+    // The notice takes space from the panel rather than floating over it, so it
+    // never covers a control the user is reaching for.
+    if (inlineNotice.isVisible())
+        inlineNotice.setBounds (bounds.removeFromBottom (InlineNotice::preferredHeight)
+                                  .reduced (Metrics::windowPadding, 2));
 
     easyPanel.setBounds (bounds);
     advancedPanel.setBounds (bounds);
@@ -286,6 +352,12 @@ void LuthierAudioProcessorEditor::updateLiveStripVisibility()
 
     liveModeShown = live;
     liveStrip.setVisible (live);
+
+    /*  The header carries the state as well as setting it. Live Mode can be
+        turned on from the shortcut as well as from the pill, and this used to
+        leave the pill dark and the Advanced toggle unlocked - the mode was on and
+        the header said it was off. */
+    header.setLiveMode (live);
 
     // live-performance 10: Live Mode locks the Advanced toggle, so that a
     // mis-hit on stage cannot swap the whole window out from under the player.
@@ -380,6 +452,19 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     {
         setAdvancedMode (! advancedMode);
         header.setAdvancedMode (advancedMode);
+        return true;
+    }
+
+    /*  Section 17's Column 4 tab steps, which were blocked until the workspace
+        had tabs to step. They are answered only in Advanced Mode: in Easy there
+        is no column 4, and swallowing the key there would make Ctrl+] look
+        broken rather than inapplicable. */
+    if (is ("previousWorkspaceTab") || is ("nextWorkspaceTab"))
+    {
+        if (! advancedMode)
+            return false;
+
+        advancedPanel.stepWorkspaceTab (is ("nextWorkspaceTab") ? 1 : -1);
         return true;
     }
 

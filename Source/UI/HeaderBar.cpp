@@ -120,10 +120,10 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     liveButton.onClick = [this]
     {
         processor.setLiveMode (liveButton.getToggleState());
-        modeButton.setEnabled (! liveButton.getToggleState());
+        updateModeButtonEnablement();
     };
 
-    modeButton.setEnabled (! processor.isLiveMode());
+    updateModeButtonEnablement();
 
     processor.getPresetManager().addChangeListener (this);
     processor.getMidiLearn().addChangeListener (this);
@@ -157,6 +157,38 @@ void HeaderBar::setAdvancedMode (bool advanced)
     advancedMode = advanced;
     modeButton.setToggleState (advanced, juce::dontSendNotification);
     modeButton.setButtonText (advanced ? "Easy" : "Advanced");
+}
+
+void HeaderBar::setAdvancedModeAvailable (bool available)
+{
+    if (available == advancedAvailable)
+        return;
+
+    advancedAvailable = available;
+    updateModeButtonEnablement();
+}
+
+void HeaderBar::setLiveMode (bool live)
+{
+    if (live == liveButton.getToggleState())
+        return;
+
+    liveButton.setToggleState (live, juce::dontSendNotification);
+    updateModeButtonEnablement();
+}
+
+void HeaderBar::updateModeButtonEnablement()
+{
+    const bool live = liveButton.getToggleState();
+
+    modeButton.setEnabled (advancedAvailable && ! live);
+
+    /*  A disabled control that does not say why is worse than an enabled one that
+        refuses: the tooltip is the only place the reason fits in the header. */
+    modeButton.setTooltip (live        ? "Locked while Live Mode is on"
+                           : ! advancedAvailable
+                                       ? "Advanced Mode needs a wider window"
+                                       : "Switch between Easy and Advanced");
 }
 
 void HeaderBar::refreshPresetDisplay()

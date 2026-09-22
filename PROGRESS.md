@@ -57,8 +57,10 @@ Resumable build log. Update after every milestone.
 
 ## Current state
 
-All forty-one milestones are done. Both targets build clean and the whole suite
-passes: **302 tests, 647,366 checks**, exit code 0.
+All forty-one milestones are done. All four targets build clean and the whole
+suite passes: **310 tests, 647,923 checks**, exit code 0 - including on a machine
+whose four cores are busy with something else, which was not true until the CPU
+budget test stopped measuring with a stopwatch.
 
 The last stretch was less about writing the remaining specs than about finding out
 that the code written for them had never actually run. `LuthierTests` excluded
@@ -110,12 +112,12 @@ said they were for.
 
 | | |
 |---|---|
-| Source | ~78 300 lines of C++ across 178 files |
+| Source | ~82 600 lines of C++ across 186 files |
 | Parameters | 349, every one automatable, named and text-round-tripping |
 | Guitars | 25 |
 | Factory presets | 36 (17 electric, 7 acoustic, 5 bass, 5 utility, 2 classical) |
 | Impulse responses | 216 body, 504 cabinet (synthesised - see `docs/KNOWN_ISSUES.md`) |
-| Tests | 297 across 52 suites, 647 208 checks |
+| Tests | 310 across 52 suites, 647 923 checks |
 
 ### Phase 2 and beyond
 
@@ -281,6 +283,249 @@ verified, and the second one is verified here rather than by an external tool.
   renders of the whole Options panel and survived the first of those mutants,
   because selecting a tab lights that tab up whether or not the page behind it
   ever appears.
+
+## A1: the Advanced Mode columns, and three things found wiring them up
+
+`GAPS.md` A1 and A2: the panel used its own column scheme, in which AMP/CAB/ROOM
+was called "column 4", with no tabbed workspace and the five extension panels
+stacked at the bottom of the rig column. It now has `gui-integration.md`
+section 4's four columns.
+
+- **Columns 1 to 3 hold what section 4.1 to 4.3 say they hold**, in that order.
+  The builders are `buildColumn1/2/3`, one per column, and the section blocks
+  moved between them wholesale. Column 3 also puts the post-effects rack
+  directly after the amp, which is 4.3's order and was not the old one.
+- **Column 4 is a tab strip**, with the five panels that exist behind it - MOD,
+  RHYTHM, ROUTING, TONE MATCH, CHARACTER - in section 4.4's relative order,
+  each in its own viewport. The other eight tabs 4.4 names are blocked or
+  unbuilt, and a tab that opens on nothing is worse than no tab.
+- **Section 4.5's widths**: 260 per column with a 220 floor, a 480 floor for the
+  workspace, and columns 2 and 3 stacked into one slot below 1280.
+- Sections section 4 has no slot for are kept, each on the nearest column with a
+  comment saying why: SELECTED STRING, NECK and SYMPATHETIC in column 1,
+  PLAYING HAND and STRING NOISE in column 2, PERFORMANCE, HUMANISE, FEEDBACK
+  and MASTER at the end of column 3. CABLE is still CABLE, because CIRCUIT is
+  specified by `volume-knob-interaction.md`, which does not exist.
+
+### The minimum width, and the window's first way of explaining itself
+
+`minimumUsableWidth` was declared and nothing called it. Section 4.5 makes
+Advanced Mode unavailable below 1000 points and the window's own minimum is 940,
+so this was not a theoretical size - it was one drag from the default, and
+crossing it laid out four columns too narrow to read.
+
+The toggle now refuses, a window dragged below it while Advanced is on is forced
+back to Easy, and the header's Easy/Advanced switch is disabled while it is too
+narrow with a tooltip saying which of the two reasons it is. `InlineNotice` is
+the new part: a transient strip in the layout, because the window had no way to
+say anything to the user that was not an overlay, and an overlay for "your window
+is too narrow" is far too much ceremony. It announces itself to a screen reader,
+takes itself away after six seconds and gives the space back.
+
+Two things fell out of enforcing it. The forcing happens inside `resized()`
+rather than by calling `setAdvancedMode`, which ends in `resized()` and would
+re-enter it. And the constructor now hands the header what `setAdvancedMode`
+actually decided rather than what it was asked for - restoring a session that was
+in Advanced Mode into a window too narrow for it used to leave the switch reading
+"Easy" over an Easy panel, which is to say reading as though Advanced was one
+click away.
+
+### Three defects found on the way, none of them in the column work
+
+**Every keyboard shortcut's description was its own key.** The rebind table in
+Options > ACCESSIBILITY and `getPrintableShortcuts` both read
+`tr (binding.descriptionKey)`, and not one of the twenty-five keys was in the
+English catalog. `Localisation::translate` returns the key when there is no
+string for it - deliberately, so a missing translation shows something - so
+every row of accessibility.md 2's table read `accessibility.shortcut.undo`
+where it should have read `Undo`. The table was built, ordered, searchable and
+rebindable, and every label in it was a key.
+
+The existing test asked whether each printed line `isNotEmpty`, which a key
+satisfies. The new one asks for the thing the fallback cannot fake: a
+description that is not the key it was looked up by. This is the same shape as
+the stale test binary and the unlinked suites - the surface existed, the test
+existed, and the test could not fail.
+
+**Live Mode from the keyboard left the header showing the old state.** `L` goes
+through `processor.setLiveMode` and `updateLiveStripVisibility`, which never
+touched the header, so the strip appeared, the mode was on, the Live pill stayed
+dark - and, because the pill's `onClick` was the only thing that locked the
+Easy/Advanced switch, live-performance 10's lock did not apply. Pressing `L` and
+then Tab could swap the whole window out mid-set, which is the exact thing that
+lock exists to prevent. The editor tells the header now, and the two reasons the
+switch can be locked go through one function instead of each overwriting the
+other's `setEnabled`.
+
+**Section 17's `Ctrl+[` and `Ctrl+]` were blocked on there being no tabs.** There
+are tabs now, so they are bound. They answer only in Advanced Mode - in Easy
+there is no column 4, and a key that returns true and does nothing is how a host
+stops passing it on to anything else - and they wrap.
+
+### The last-used tab, and where user-global UI settings live now
+
+Section 4.4 asks for the last-used tab to persist in the plugin's user-global
+settings, and there was nowhere to put it: `AccessibilitySettings` describes the
+person, `uiState` travels inside the preset. `UiPreferences` is the third case -
+a flat key/value file at `Documents/Luthier/config/ui.json`, beside the two
+config files that already live there - for settings global to this user's copy
+of the plugin and about the window rather than the sound. It is deliberately not
+a mirror of anything: every getter takes its default at the call site, so a fresh
+install with no file behaves exactly like one with a file full of defaults.
+
+### What this is covered by
+
+Four new editor tests and one accessibility test. The column 4 one is modelled on
+`everyOptionsPageSelectsAndPaints` and for the same reason: the workspace shows
+one panel at a time, so "the tab lit up" and "the panel is on screen" are two
+different facts and only the second is the feature. It drives the tabs through
+their buttons rather than through `setWorkspaceTab`, because a tab whose
+`onClick` was never wired would pass a test that called the method.
+
+`theWorkspaceTabWrapsAndIsRemembered` writes to the real config file, because
+that is where the feature has to write, and puts back whatever was there -
+including deleting the file if the run created it - so a test run does not decide
+which tab the user's next session opens on.
+
+### The one intermittent failure: a stopwatch measuring the wrong thing
+
+`Modulation::thousandRouteStressTest` failed once, passed three full runs, and
+then failed again. It measured wall-clock time across 2000 blocks and asserted
+the cost was under 1% of real time.
+
+The cause was on the machine, not in the matrix: an unrelated project was
+building on it - `wubforge-cli`, holding all four cores near 100% - and a
+stopwatch does not measure what this code costs. It measures what this code costs
+plus everything the scheduler preferred while it ran. Under that load the same
+unchanged matrix measured 1.29% to 2.34%; when the machine was quiet it measured
+under 1%. Nine runs in ten failed while the other build was up, and the reason
+the earlier full runs passed is simply that it was not.
+
+Finding it took a controlled comparison rather than a guess, and the first guess
+was wrong: sampling five times and taking the minimum did not help, because
+contention that never lets up raises the floor along with everything else. What
+fixes it is changing the instrument. `threadCpuSeconds` reads the thread's own
+CPU time - `GetThreadTimes` on Windows, `CLOCK_THREAD_CPUTIME_ID` elsewhere -
+which by construction excludes every interval the thread was not running.
+
+Measured that way, on the same saturated machine: **0.62% to 0.73% of a core**,
+a spread of about a tenth of a percentage point where the stopwatch spread was
+over a full point. Four consecutive runs at 93% external load pass, against nine
+failures in ten before.
+
+Two things are worth keeping from this. The minimum of several samples is still
+the right statistic, for a reason that survives the change of instrument: a
+stolen cache or a migration between cores costs real CPU time and can only ever
+add, so the fastest sample is the closest estimate, and a regression raises the
+floor rather than hiding in an average. And the honest reading of 0.65% is that
+it is under the spec's 1% without being the "well below" the spec claims - about
+a third of the budget is headroom. The bar stays at the spec's number rather than
+being tightened onto today's measurement, because a bar set just above the
+current figure fails on the next machine instead of on the next regression.
+
+One process note, since this file already makes the same point about build exit
+codes. The first failure was piped through `Select-Object -Last 45`, which kept
+the summary and dropped the `[FAIL]` line naming the test. That cost two hours of
+running the suite blind. Every run since has been captured whole and grepped
+afterwards.
+
+### Still open here
+
+- **CONTROLLERS has not moved to column 4.** Section 19 puts it there and the
+  column now exists, but `ControllersPage` owns a `ControllerProfileLibrary` by
+  value, so a second instance would scan the Controllers folder separately and go
+  stale against the first. Either the library moves somewhere shared, or the page
+  moves and Options is left ten tabs until `advanced-ranges.md` gives RANGES the
+  slot back. Both are small; neither is worth doing badly to close a table row,
+  and the feature works where it is. `GAPS.md` A2 has it.
+- **LIVE, PRACTICE, NOTATION and MIDI OUT** are the four tabs that are unbuilt
+  rather than blocked. Each has a working runtime half or a working engine and no
+  setup page in front of it.
+
+## A4: the Easy-mode instrument, and a preset field nobody could author
+
+`GAPS.md` A4's first row said `GuitarBodyComponent` "draws the instrument but is
+not hit-tested as a control surface". That was wrong, and reading the code rather
+than the gap list is what showed it: the volume knob, the tone knob, the selector
+switch and the pickups have all been live since the component was written, and its
+own header comment says so. Two of section 3.1's four regions were missing, not
+four. The right description was "half hit-tested".
+
+The two that were missing are built now.
+
+**The headstock opens a tuning popover.** Tuning preset, temperament, Concert A,
+and a detune slider per string.
+
+**The bridge opens a whammy popover**, and only when a bridge with an arm is
+fitted - index 0 of the bridge list is the hardtail. That condition is section
+3.1's own. What the section does not say, and what matters more, is that the
+affordance is not conditional even though the popover is: on a hardtail the
+bridge still describes itself on hover and says there is nothing to set, because
+a region that goes silent for a reason the user cannot see is indistinguishable
+from one that is broken.
+
+### The part that was not a UI gap
+
+The headstock popover is the only way in the plugin to author per-string detune.
+
+`TuningEngine::StringTuning::detuneCents` is written into the preset by
+`PresetManager` and read back out of it. It has always been saved and restored.
+No control anywhere could set it. The Advanced column has the tuning preset, the
+temperament and Concert A; it has never had the per-string offsets, and the only
+things that wrote them were the guitar loader and preset recall.
+
+A preset field with no way to author it is the same shape of gap as a panel
+nobody constructs - it looks complete from every direction except the one that
+matters - and it had been sitting there through all forty-one milestones.
+
+**The six sliders are not automatable**, and that is a real limitation rather
+than an oversight. There is no per-string tuning parameter to attach them to, so
+they write the engine directly and cost MIDI Learn and host automation on those
+controls. Closing it means adding per-string parameters, which is a parameter
+count change and a preset schema question rather than a UI one. It is in
+`GAPS.md` A4 rather than quietly absent.
+
+### Capo: documented, promised, and not built
+
+Section 3.1 asks the headstock for "per-string tuning, capo, temperament". There
+is no capo in this plugin - not a parameter, not a field in `TuningEngine`, not a
+line of code. Four specs describe it and `factory-content.md` ships three capo
+parts.
+
+The specs describing an unbuilt feature is the normal state here and `INDEX.md`
+tracks it. What is not normal is that **`docs/USER_MANUAL.md` and
+`docs/KEYBOARD_SHORTCUTS.md` both tell the user the right-click menu has a capo
+in it.** A user following the manual finds a menu without one and no explanation.
+That is a promise the build does not keep, and it is `GAPS.md` B1 now.
+
+The popover says on its face that capo is not built, which is ground rule 0.2
+applied to an absence rather than to a degradation. The two docs are left alone
+deliberately: correcting them is a decision about whether they describe the build
+or the plan, and that is not a gap to close silently on someone's behalf.
+
+### The test, and the two mutants that killed its first draft
+
+`everyHitRegionOnTheIllustrationDescribesItself` sweeps a grid over the whole
+component and collects what the tooltip says at every point, which is
+`guitar-illustration.md`'s own idea of how to test hit regions - it asks for ten
+thousand random clicks across each factory guitar. Sweeping rather than probing
+two coordinates is the point: the geometry is generated from the `GuitarSpec`, so
+there are no fixed coordinates to probe, and a region that shrank to nothing
+would still pass a test that asked it directly.
+
+The first draft opened both popovers and checked they did not throw. Two checks,
+and it would have passed with both hit regions deleted - the same failure the
+Options test had in its first draft, arrived at the same way. The version that
+landed makes twelve checks and dies to both mutants tried against it: the
+headstock branch disabled, which fails with "no point on the illustration offers
+the headstock tuning popover", and the hardtail case rewired to claim an arm,
+which fails with "on a hardtail the bridge region does not say why it does
+nothing".
+
+`theHeadstockPopoverEditsPerStringTuning` checks the sliders reach the engine,
+that each writes only its own string, and that a detune actually moves the pitch
+- without that last one it would pass on a popover wired to a field the engine
+never reads, which is exactly what the feature's absence looked like.
 
 ## History
 

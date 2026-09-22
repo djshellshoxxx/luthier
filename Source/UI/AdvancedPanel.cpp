@@ -1,5 +1,7 @@
 #include "AdvancedPanel.h"
+#include "UiPreferences.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Accessibility.h"
 
 namespace luthier
 {
@@ -216,6 +218,14 @@ void AdvancedPanel::Column::paint (juce::Graphics& g)
 //==============================================================================
 namespace
 {
+    /*  Section 4.5, the column widths: 260 each at 1280, a 220 floor for a
+        column and a 480 floor for the workspace, and columns 2 and 3 stacked
+        into one slot below 1280. */
+    constexpr int kColumnWidth = 260;
+    constexpr int kMinColumnWidth = 220;
+    constexpr int kMinWorkspaceWidth = 480;
+    constexpr int kStackBelowWidth = 1280;
+
     constexpr int kKnobRow = 0;   // placeholder to keep the helpers readable
 }
 
@@ -233,9 +243,9 @@ AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
     fretboard.onStringSelected = [this] (int s) { setSelectedString (s); };
     guitarBody.onPickupSelected = [this] (int) {};
 
-    const char* titles[4] = { "Strings", "String Detail", "Body / Pickups / Hand", "Rig" };
+    const char* titles[3] = { "Instrument", "Signal capture", "Amplification" };
 
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         columns[i] = std::make_unique<Column> (titles[i]);
 
@@ -245,10 +255,14 @@ AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
         addAndMakeVisible (viewports[i]);
     }
 
-    buildStringColumn();
-    buildDetailColumn();
-    buildBodyColumn();
-    buildRigColumn();
+    workspaceViewport.setScrollBarsShown (true, false);
+    workspaceViewport.setScrollBarThickness (8);
+    addAndMakeVisible (workspaceViewport);
+
+    buildColumn1();
+    buildColumn2();
+    buildColumn3();
+    buildWorkspace();
 
     setSelectedString (processor.getUiState().selectedString);
 }
@@ -295,9 +309,96 @@ void AdvancedPanel::setSelectedString (int index)
 }
 
 //==============================================================================
-void AdvancedPanel::buildStringColumn()
+/*  Column 1, section 4.1: GUITAR, BODY, STRINGS, WHAMMY.
+
+    Section 4.1 gives GUITAR an instrument library and an "Open in Workshop"
+    button as well; the library is an Easy-mode surface and the Workshop does
+    not exist, so what is here is the tuning and temperament half of it.
+
+    Three sections in this column are not in section 4.1, and are here because
+    they are the only home their parameters have: SELECTED STRING, NECK - whose
+    canonical home is the CHARACTER tab SETUP group, blocked on fret-buzz.md -
+    and SYMPATHETIC. GAPS.md A1 lists them.
+*/
+void AdvancedPanel::buildColumn1()
 {
     auto& column = *columns[0];
+
+    auto addKnob = [&column, this] (std::unique_ptr<LuthierKnob>& knob, const char* name,
+                                    const char* paramId, const char* tooltip)
+    {
+        knob = std::make_unique<LuthierKnob> (name);
+        knob->attachTo (processor, paramId, tooltip);
+        column.addControl (knob.get(), LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
+    };
+
+    auto addChoice = [&column, this] (std::unique_ptr<LuthierChoice>& choice, const char* name,
+                                      const char* paramId, const char* tooltip)
+    {
+        choice = std::make_unique<LuthierChoice> (name);
+        choice->attachTo (processor, paramId, tooltip);
+        column.addControl (choice.get(), 36);
+    };
+
+    auto addToggle = [&column, this] (std::unique_ptr<LuthierToggle>& toggle, const char* name,
+                                      const char* paramId, const char* tooltip)
+    {
+        toggle = std::make_unique<LuthierToggle> (name);
+        toggle->attachTo (processor, paramId, tooltip);
+        column.addControl (toggle.get(), Metrics::buttonHeight);
+    };
+
+    juce::ignoreUnused (addKnob, addChoice, addToggle);
+
+    column.addGap (Metrics::grid);
+    column.addSection ("Temperament");
+
+    temperament = std::make_unique<LuthierChoice> ("Temperament");
+    temperament->attachTo (processor, ParamIDs::temperament,
+                           "How the frets are spaced. Bends and fretless play stay continuous "
+                           "in every temperament.");
+    column.addControl (temperament.get(), 36);
+
+    concertA = std::make_unique<LuthierKnob> ("Concert A");
+    concertA->attachTo (processor, ParamIDs::concertA, "Reference pitch for A4");
+    column.addControl (concertA.get(), LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
+
+    // ---- body ------------------------------------------------------------------
+    column.addSection ("Body");
+
+    bodyMode = std::make_unique<LuthierChoice> ("Mode");
+    bodyMode->attachTo (processor, ParamIDs::bodyMode,
+                        "Convolution uses a measured impulse response. Modal builds the body "
+                        "from its dimensions, so changing the size really does change the "
+                        "resonances.");
+    column.addControl (bodyMode.get(), 36);
+    addKnob (bodyAmount, "Amount", ParamIDs::bodyAmount,
+             "How much body colour reaches the output");
+    addKnob (bodyWidth, "Size", ParamIDs::bodyWidth,
+             "Body width. In Modal mode a bigger body really does ring lower.");
+    addKnob (bodyDepth, "Depth", ParamIDs::bodyDepth,
+             "Body depth. Changes the enclosed volume and so the air resonance.");
+    addKnob (topThickness, "Top", ParamIDs::bodyTopThick,
+             "Top plate thickness. A thinner top is more responsive and pitched lower.");
+    addKnob (soundhole, "Sound Hole", ParamIDs::bodySoundhole,
+             "Sound hole size. Drives the Helmholtz air resonance directly.");
+    addKnob (bodyAge, "Age", ParamIDs::bodyAge,
+             "Seasoned wood has less internal damping, so the body rings longer.");
+    addKnob (airGain, "Air", ParamIDs::bodyAirGain,
+             "Emphasis on the air resonance: the boom of the box");
+
+    bracing = std::make_unique<LuthierChoice> ("Bracing");
+    bracing->attachTo (processor, ParamIDs::bodyBracing,
+                       "Bracing stiffens the top, which raises every plate mode");
+    column.addControl (bracing.get(), 36);
+
+    topWood = std::make_unique<LuthierChoice> ("Top Wood");
+    topWood->attachTo (processor, ParamIDs::bodyTopWood, "Top plate material");
+    column.addControl (topWood.get(), 36);
+
+    backWood = std::make_unique<LuthierChoice> ("Back / Sides");
+    backWood->attachTo (processor, ParamIDs::bodyBackWood, "Back and side material");
+    column.addControl (backWood.get(), 36);
 
     column.addSection ("Strings");
 
@@ -358,12 +459,6 @@ void AdvancedPanel::buildStringColumn()
     driftToggle->attachTo (processor, ParamIDs::tuningDrift,
                            "Lets the guitar slowly go out of tune while you play");
     column.addControl (driftToggle.get(), Metrics::buttonHeight);
-}
-
-//==============================================================================
-void AdvancedPanel::buildDetailColumn()
-{
-    auto& column = *columns[1];
 
     column.addSection ("Selected String");
 
@@ -403,19 +498,6 @@ void AdvancedPanel::buildDetailColumn()
     column.addControl (fretBuzz.get(), LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
 
     column.addGap (Metrics::grid);
-    column.addSection ("Temperament");
-
-    temperament = std::make_unique<LuthierChoice> ("Temperament");
-    temperament->attachTo (processor, ParamIDs::temperament,
-                           "How the frets are spaced. Bends and fretless play stay continuous "
-                           "in every temperament.");
-    column.addControl (temperament.get(), 36);
-
-    concertA = std::make_unique<LuthierKnob> ("Concert A");
-    concertA->attachTo (processor, ParamIDs::concertA, "Reference pitch for A4");
-    column.addControl (concertA.get(), LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
-
-    column.addGap (Metrics::grid);
     column.addSection ("Sympathetic");
 
     couplingAmount = std::make_unique<LuthierKnob> ("Coupling");
@@ -424,22 +506,39 @@ void AdvancedPanel::buildDetailColumn()
                               "Never fully off: this is a large part of why a guitar sounds "
                               "like a guitar.");
     column.addControl (couplingAmount.get(), LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
+
+    // ---- hardware -----------------------------------------------------------------
+    column.addSection ("Bridge");
+
+    addChoice (bridgeType, "Bridge", ParamIDs::bridgeType,
+               "A vintage trem detunes chords as you bend, because the bridge moves the "
+               "slack strings further than the tight ones. A TransTrem applies the same "
+               "ratio to every string, so chords stay in tune.");
+
+    addKnob (whammyPos, "Whammy", ParamIDs::whammyPos, "Bar position");
+    addKnob (whammyDown, "Down Range", ParamIDs::whammyDown, "Semitones at full dive");
+    addKnob (whammyUp, "Up Range", ParamIDs::whammyUp, "Semitones at full pull-up");
+    addKnob (whammySprings, "Springs", ParamIDs::whammySprings,
+             "Floyd Rose only: the spring cavity ringing as the bar snaps back");
+    addKnob (transposeLock, "Transpose", ParamIDs::transposeLock,
+             "TransTrem detente: locks the bar at a whole number of semitones");
 }
 
 //==============================================================================
-void AdvancedPanel::buildBodyColumn()
+/*  Column 2, section 4.2: PICKUPS, CIRCUIT, PRE-EFFECTS RACK.
+
+    CIRCUIT is specified by volume-knob-interaction.md 10 and replaces CABLE
+    outright. That file does not exist, so CABLE is still here, and still
+    called CABLE rather than relabelled as something it is not.
+
+    PLAYING HAND and STRING NOISE are not in section 4.2. Their canonical homes
+    are the CHARACTER tab PICK and STRING NOISE groups, both blocked on specs
+    that are not written; they describe the hand that drives the pickup, so
+    they wait here rather than in the rig. GAPS.md A1.
+*/
+void AdvancedPanel::buildColumn2()
 {
-    auto& column = *columns[2];
-
-    // ---- body ------------------------------------------------------------------
-    column.addSection ("Body");
-
-    bodyMode = std::make_unique<LuthierChoice> ("Mode");
-    bodyMode->attachTo (processor, ParamIDs::bodyMode,
-                        "Convolution uses a measured impulse response. Modal builds the body "
-                        "from its dimensions, so changing the size really does change the "
-                        "resonances.");
-    column.addControl (bodyMode.get(), 36);
+    auto& column = *columns[1];
 
     auto addKnob = [&column, this] (std::unique_ptr<LuthierKnob>& knob, const char* name,
                                     const char* paramId, const char* tooltip)
@@ -449,33 +548,23 @@ void AdvancedPanel::buildBodyColumn()
         column.addControl (knob.get(), LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
     };
 
-    addKnob (bodyAmount, "Amount", ParamIDs::bodyAmount,
-             "How much body colour reaches the output");
-    addKnob (bodyWidth, "Size", ParamIDs::bodyWidth,
-             "Body width. In Modal mode a bigger body really does ring lower.");
-    addKnob (bodyDepth, "Depth", ParamIDs::bodyDepth,
-             "Body depth. Changes the enclosed volume and so the air resonance.");
-    addKnob (topThickness, "Top", ParamIDs::bodyTopThick,
-             "Top plate thickness. A thinner top is more responsive and pitched lower.");
-    addKnob (soundhole, "Sound Hole", ParamIDs::bodySoundhole,
-             "Sound hole size. Drives the Helmholtz air resonance directly.");
-    addKnob (bodyAge, "Age", ParamIDs::bodyAge,
-             "Seasoned wood has less internal damping, so the body rings longer.");
-    addKnob (airGain, "Air", ParamIDs::bodyAirGain,
-             "Emphasis on the air resonance: the boom of the box");
+    auto addChoice = [&column, this] (std::unique_ptr<LuthierChoice>& choice, const char* name,
+                                      const char* paramId, const char* tooltip)
+    {
+        choice = std::make_unique<LuthierChoice> (name);
+        choice->attachTo (processor, paramId, tooltip);
+        column.addControl (choice.get(), 36);
+    };
 
-    bracing = std::make_unique<LuthierChoice> ("Bracing");
-    bracing->attachTo (processor, ParamIDs::bodyBracing,
-                       "Bracing stiffens the top, which raises every plate mode");
-    column.addControl (bracing.get(), 36);
+    auto addToggle = [&column, this] (std::unique_ptr<LuthierToggle>& toggle, const char* name,
+                                      const char* paramId, const char* tooltip)
+    {
+        toggle = std::make_unique<LuthierToggle> (name);
+        toggle->attachTo (processor, paramId, tooltip);
+        column.addControl (toggle.get(), Metrics::buttonHeight);
+    };
 
-    topWood = std::make_unique<LuthierChoice> ("Top Wood");
-    topWood->attachTo (processor, ParamIDs::bodyTopWood, "Top plate material");
-    column.addControl (topWood.get(), 36);
-
-    backWood = std::make_unique<LuthierChoice> ("Back / Sides");
-    backWood->attachTo (processor, ParamIDs::bodyBackWood, "Back and side material");
-    column.addControl (backWood.get(), 36);
+    juce::ignoreUnused (addKnob, addChoice, addToggle);
 
     // ---- pickups ------------------------------------------------------------------
     column.addGap (Metrics::grid);
@@ -536,6 +625,22 @@ void AdvancedPanel::buildBodyColumn()
     addKnob (guitarVolume, "Volume", ParamIDs::guitarVolume,
              "The guitar's volume control");
 
+    // ---- cable ---------------------------------------------------------------------
+    column.addGap (Metrics::grid);
+    column.addSection ("Cable");
+
+    addToggle (cableOn, "Cable", ParamIDs::cableOn, "Cable capacitance roll-off");
+    addKnob (cableLength, "Length", ParamIDs::cableLength,
+             "A long cable into a high-impedance pickup rolls the treble off. "
+             "Ten metres is obvious; one metre is not.");
+
+    // ---- pre-amp pedals ----------------------------------------------------------------
+    column.addGap (Metrics::grid);
+    column.addSection ("Pedalboard (before the amp)");
+
+    preRack = std::make_unique<PedalRack> (processor, false);
+    column.addControl (preRack.get(), preRack->getPreferredHeight());
+
     // ---- right hand ------------------------------------------------------------------
     column.addGap (Metrics::grid);
     column.addSection ("Playing Hand");
@@ -574,9 +679,19 @@ void AdvancedPanel::buildBodyColumn()
 }
 
 //==============================================================================
-void AdvancedPanel::buildRigColumn()
+/*  Column 3, section 4.3: AMP, POST-EFFECTS RACK, CAB, ROOM, SUSTAIN.
+
+    In section 4.3 order, which puts the post rack directly after the amp
+    rather than after the room.
+
+    PERFORMANCE, HUMANISE, FEEDBACK and MASTER follow them. Section 4 has no
+    slot for any of the four - it describes the instrument and the rig, not the
+    playing or the output stage - and they are the only home those parameters
+    have, so they sit at the end of the rig column. GAPS.md A1.
+*/
+void AdvancedPanel::buildColumn3()
 {
-    auto& column = *columns[3];
+    auto& column = *columns[2];
 
     auto addKnob = [&column, this] (std::unique_ptr<LuthierKnob>& knob, const char* name,
                                     const char* paramId, const char* tooltip)
@@ -602,37 +717,7 @@ void AdvancedPanel::buildRigColumn()
         column.addControl (toggle.get(), Metrics::buttonHeight);
     };
 
-    // ---- hardware -----------------------------------------------------------------
-    column.addSection ("Bridge");
-
-    addChoice (bridgeType, "Bridge", ParamIDs::bridgeType,
-               "A vintage trem detunes chords as you bend, because the bridge moves the "
-               "slack strings further than the tight ones. A TransTrem applies the same "
-               "ratio to every string, so chords stay in tune.");
-
-    addKnob (whammyPos, "Whammy", ParamIDs::whammyPos, "Bar position");
-    addKnob (whammyDown, "Down Range", ParamIDs::whammyDown, "Semitones at full dive");
-    addKnob (whammyUp, "Up Range", ParamIDs::whammyUp, "Semitones at full pull-up");
-    addKnob (whammySprings, "Springs", ParamIDs::whammySprings,
-             "Floyd Rose only: the spring cavity ringing as the bar snaps back");
-    addKnob (transposeLock, "Transpose", ParamIDs::transposeLock,
-             "TransTrem detente: locks the bar at a whole number of semitones");
-
-    // ---- cable ---------------------------------------------------------------------
-    column.addGap (Metrics::grid);
-    column.addSection ("Cable");
-
-    addToggle (cableOn, "Cable", ParamIDs::cableOn, "Cable capacitance roll-off");
-    addKnob (cableLength, "Length", ParamIDs::cableLength,
-             "A long cable into a high-impedance pickup rolls the treble off. "
-             "Ten metres is obvious; one metre is not.");
-
-    // ---- pre-amp pedals ----------------------------------------------------------------
-    column.addGap (Metrics::grid);
-    column.addSection ("Pedalboard (before the amp)");
-
-    preRack = std::make_unique<PedalRack> (processor, false);
-    column.addControl (preRack.get(), preRack->getPreferredHeight());
+    juce::ignoreUnused (addKnob, addChoice, addToggle);
 
     // ---- amp ----------------------------------------------------------------------------
     column.addGap (Metrics::grid);
@@ -658,6 +743,13 @@ void AdvancedPanel::buildRigColumn()
     addToggle (ampMidBoost, "Mid boost", ParamIDs::ampMidBoost, "Midrange lift ahead of the gain");
     addToggle (ampStandby, "Standby", ParamIDs::ampStandby,
                "Mutes the amp, and takes time to warm back up, like the real switch");
+
+    // ---- post pedals -----------------------------------------------------------------------
+    column.addGap (Metrics::grid);
+    column.addSection ("Effects Loop (after the amp)");
+
+    postRack = std::make_unique<PedalRack> (processor, true);
+    column.addControl (postRack.get(), postRack->getPreferredHeight());
 
     // ---- cabinet --------------------------------------------------------------------------
     column.addGap (Metrics::grid);
@@ -700,6 +792,7 @@ void AdvancedPanel::buildRigColumn()
     addKnob (roomDecay, "Decay", ParamIDs::roomDecay, "Scales the room's natural decay");
     addKnob (roomWidth, "Width", ParamIDs::roomWidth, "Stereo width of the room mics");
 
+
     /*  ---- sustain (ambiguity-resolutions 2.3) --------------------------------------------
         Two rows, because they are two mechanisms. Freeze captures a window of what
         you just played and loops it; E-Bow drives the strings that are still
@@ -730,13 +823,6 @@ void AdvancedPanel::buildRigColumn()
                "Drives the ringing strings at their own resonance so they sustain "
                "indefinitely, the way an E-Bow does. Unlike Freeze, it only sustains "
                "notes you are still holding.");
-
-    // ---- post pedals -----------------------------------------------------------------------
-    column.addGap (Metrics::grid);
-    column.addSection ("Effects Loop (after the amp)");
-
-    postRack = std::make_unique<PedalRack> (processor, true);
-    column.addControl (postRack.get(), postRack->getPreferredHeight());
 
     // ---- performance ------------------------------------------------------------------------
     column.addGap (Metrics::grid);
@@ -794,44 +880,121 @@ void AdvancedPanel::buildRigColumn()
                "Safety limiter at -0.3 dBFS. Transparent until the signal would clip.");
     addChoice (oversampling, "Oversampling", ParamIDs::oversample,
                "Oversampling for the nonlinear stages. Higher is cleaner and costs more CPU.");
+}
 
-    // ---- routing -------------------------------------------------------------------
-    // routing-io section 8. Last in the column because it describes where the
-    // finished signal goes, which is the end of the chain the column walks.
-    column.addSection ("Routing");
+/*  Column 4, section 4.4: the workspace.
 
-    routingPanel = std::make_unique<RoutingPanel> (processor);
-    column.addControl (routingPanel.get(), routingPanel->preferredHeight());
+    The tab order is section 4.4's own. Five of its thirteen tabs have a panel
+    behind them; the other eight - WORKSHOP, TUNE, LIVE, PRACTICE, NOTATION,
+    MIDI OUT, CONTROLLERS, HELP - are either blocked on a spec that is not
+    written or are surfaces nobody has built, and a tab that opens on nothing is
+    worse than no tab. GAPS.md A2 has the list.
 
-    // ---- modulation ------------------------------------------------------------------
-    // modulation-matrix section 5. The spec wants this as its own MOD tab; the
-    // column has no tab strip, so it is the last section, after routing.
-    column.addSection ("Mod Matrix");
-
+    These five used to be sections stacked at the bottom of the rig column, each
+    with a comment saying it should have been a tab. They are tabs now.
+*/
+void AdvancedPanel::buildWorkspace()
+{
     modMatrixPanel = std::make_unique<ModMatrixPanel> (processor);
-    column.addControl (modMatrixPanel.get(), modMatrixPanel->preferredHeight());
-
-    // ---- rhythm ----------------------------------------------------------------------
-    // rhythm-engine section 8, likewise asked for as its own RHYTHM tab and
-    // likewise built as a section, after the matrix that can modulate it.
-    column.addSection ("Rhythm");
-
-    rhythmPanel = std::make_unique<RhythmPanel> (processor);
-    column.addControl (rhythmPanel.get(), rhythmPanel->preferredHeight());
-
-    // ---- tone match --------------------------------------------------------------------
-    // tone-match section 6, again a section rather than a tab.
-    column.addSection ("Tone Match");
-
+    rhythmPanel    = std::make_unique<RhythmPanel> (processor);
+    routingPanel   = std::make_unique<RoutingPanel> (processor);
     toneMatchPanel = std::make_unique<ToneMatchPanel> (processor);
-    column.addControl (toneMatchPanel.get(), toneMatchPanel->preferredHeight());
-
-    // ---- character ----------------------------------------------------------------------
-    // character-wear section 10.
-    column.addSection ("Character");
-
     characterPanel = std::make_unique<CharacterPanel> (processor);
-    column.addControl (characterPanel.get(), characterPanel->preferredHeight());
+
+    const struct { const char* name; juce::Component* panel; } tabs[] =
+    {
+        { "MOD",        modMatrixPanel.get() },
+        { "RHYTHM",     rhythmPanel.get() },
+        { "ROUTING",    routingPanel.get() },
+        { "TONE MATCH", toneMatchPanel.get() },
+        { "CHARACTER",  characterPanel.get() }
+    };
+
+    for (const auto& tab : tabs)
+    {
+        auto* button = workspaceTabs.add (new juce::TextButton (tab.name));
+
+        button->setClickingTogglesState (true);
+        button->setRadioGroupId (0x21);
+
+        const int index = workspaceTabs.size() - 1;
+        button->onClick = [this, index] { showWorkspaceTab (index); };
+
+        button->setTooltip (juce::String (tab.name) + " workspace"
+                              + "  (Ctrl+[ / Ctrl+] step tabs)");
+
+        AccessibleSetup::configureButton (*button, tab.name,
+                                          "Workspace tab. Shows the " + juce::String (tab.name)
+                                            + " panel in column four.");
+
+        addAndMakeVisible (*button);
+
+        workspacePanels.add (tab.panel);
+    }
+
+    /*  Section 4.4: the last-used tab persists across sessions in the plugin's
+        user-global settings. Restored without writing back, so opening a window
+        and closing it again does not rewrite the file. An out-of-range value -
+        from a build with more tabs than this one - is clamped by showWorkspaceTab
+        rather than refused. */
+    showWorkspaceTab (UiPreferences::get().getInt (workspaceTabPreferenceKey, 0), false);
+}
+
+juce::String AdvancedPanel::getWorkspaceTabName (int index) const
+{
+    if (auto* button = workspaceTabs[index])
+        return button->getButtonText();
+
+    return {};
+}
+
+juce::Component* AdvancedPanel::getWorkspacePanel (int index) const
+{
+    return juce::isPositiveAndBelow (index, workspacePanels.size())
+             ? workspacePanels[index] : nullptr;
+}
+
+void AdvancedPanel::setWorkspaceTab (int index)
+{
+    showWorkspaceTab (index);
+}
+
+void AdvancedPanel::stepWorkspaceTab (int delta)
+{
+    const int count = workspacePanels.size();
+
+    if (count <= 0)
+        return;
+
+    showWorkspaceTab (((workspaceTab + delta) % count + count) % count);
+}
+
+void AdvancedPanel::showWorkspaceTab (int index, bool remember)
+{
+    if (workspacePanels.isEmpty())
+        return;
+
+    workspaceTab = juce::jlimit (0, workspacePanels.size() - 1, index);
+
+    if (remember)
+        UiPreferences::get().setInt (workspaceTabPreferenceKey, workspaceTab);
+
+    for (int i = 0; i < workspaceTabs.size(); ++i)
+        workspaceTabs[i]->setToggleState (i == workspaceTab, juce::dontSendNotification);
+
+    /*  Only the selected panel is on screen. Without this the four panels that
+        are not in the viewport keep whatever visibility they were built with, and
+        a test - or a screen reader walking the tree - finds five panels showing
+        at once. */
+    for (int i = 0; i < workspacePanels.size(); ++i)
+        workspacePanels[i]->setVisible (i == workspaceTab);
+
+    /*  The viewport owns nothing: the panels are unique_ptr members, and handing
+        one over with deleteWhenRemoved would delete it the next time the tab
+        changed. */
+    workspaceViewport.setViewedComponent (workspacePanels[workspaceTab], false);
+
+    resized();
 }
 
 //==============================================================================
@@ -839,17 +1002,14 @@ void AdvancedPanel::paint (juce::Graphics& g)
 {
     g.fillAll (Palette::background);
 
-    // Column dividers.
     auto bounds = getLocalBounds().reduced (Metrics::windowPadding, Metrics::grid);
     const int stripHeight = juce::roundToInt (bounds.getHeight() * 0.25f);
     auto columnsArea = bounds.withTrimmedTop (stripHeight + Metrics::grid);
 
-    const int columnWidth = columnsArea.getWidth() / 4;
-
     g.setColour (Palette::edge);
 
-    for (int i = 1; i < 4; ++i)
-        g.fillRect (columnsArea.getX() + columnWidth * i, columnsArea.getY(), 1, columnsArea.getHeight());
+    for (const auto x : dividerX)
+        g.fillRect (x, columnsArea.getY(), 1, columnsArea.getHeight());
 
     LuthierLookAndFeel::drawSeparator (
         g, { bounds.getX(), bounds.getY() + stripHeight + 2, bounds.getWidth(), 1 });
@@ -870,17 +1030,76 @@ void AdvancedPanel::resized()
 
     bounds.removeFromTop (Metrics::grid);
 
-    // ---- four columns ----------------------------------------------------------------
-    const int columnWidth = bounds.getWidth() / 4;
+    /*  ---- the columns, section 4.5 -------------------------------------------------
 
-    for (int i = 0; i < 4; ++i)
+        260 points each for columns 1 to 3 and the rest for the workspace, with
+        220 as the columns' floor and 480 as the workspace's. Below 1280 there is
+        not room for three of them beside a usable workspace, so columns 2 and 3
+        share one slot, stacked - which is what section 4.5 asks for, and keeps
+        every panel reachable rather than hiding one.
+    */
+    const bool stacked = getWidth() < kStackBelowWidth;
+    const int slots = stacked ? 2 : 3;
+
+    const int columnWidth = juce::jlimit (kMinColumnWidth, kColumnWidth,
+                                          (bounds.getWidth() - kMinWorkspaceWidth) / slots);
+
+    dividerX.clearQuick();
+
+    auto takeColumn = [&bounds, columnWidth, this]
     {
-        auto area = bounds.removeFromLeft (i == 3 ? bounds.getWidth() : columnWidth);
-        viewports[i].setBounds (area.reduced (1, 0));
+        auto area = bounds.removeFromLeft (columnWidth);
+        dividerX.add (bounds.getX());
+        return area;
+    };
 
+    viewports[0].setBounds (takeColumn().reduced (1, 0));
+
+    if (stacked)
+    {
+        auto shared = takeColumn();
+        auto top = shared.removeFromTop (shared.getHeight() / 2);
+
+        viewports[1].setBounds (top.reduced (1, 0));
+        viewports[2].setBounds (shared.reduced (1, Metrics::gridHalf));
+    }
+    else
+    {
+        viewports[1].setBounds (takeColumn().reduced (1, 0));
+        viewports[2].setBounds (takeColumn().reduced (1, 0));
+    }
+
+    for (int i = 0; i < 3; ++i)
         if (columns[i] != nullptr)
             columns[i]->layout (juce::jmax (80, viewports[i].getMaximumVisibleWidth()));
+
+    // ---- column 4: the tab strip, then whichever panel it selected ------------------
+    workspaceLeft = bounds.getX();
+
+    auto tabStrip = bounds.removeFromTop (Metrics::buttonHeight);
+
+    if (! workspaceTabs.isEmpty())
+    {
+        const int gap = Metrics::gridHalf;
+        const int width = (tabStrip.getWidth() - gap * (workspaceTabs.size() - 1))
+                            / workspaceTabs.size();
+
+        for (auto* tab : workspaceTabs)
+        {
+            tab->setBounds (tabStrip.removeFromLeft (width));
+            tabStrip.removeFromLeft (gap);
+        }
     }
+
+    bounds.removeFromTop (Metrics::gridHalf);
+
+    workspaceViewport.setBounds (bounds.reduced (1, 0));
+
+    // The panel keeps whatever height it asked for and takes the viewport's
+    // width, so the workspace scrolls vertically exactly as a column does.
+    if (auto* panel = workspaceViewport.getViewedComponent())
+        panel->setSize (juce::jmax (80, workspaceViewport.getMaximumVisibleWidth()),
+                        juce::jmax (80, panel->getHeight()));
 }
 
 } // namespace luthier

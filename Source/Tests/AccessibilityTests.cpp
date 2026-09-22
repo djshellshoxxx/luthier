@@ -495,6 +495,46 @@ LUTHIER_TEST (Accessibility, shortcutsRebindAndRefuseClashes)
 }
 
 //==============================================================================
+/*  Every binding has a string in the catalog.
+
+    This is the check that was missing when all twenty-five of them were not in
+    it. `translate` returns the key itself when there is no string for it, so the
+    rebind table in Options > ACCESSIBILITY rendered "accessibility.shortcut.undo"
+    as the description of Ctrl+Z, and getPrintableShortcuts printed the same. Both
+    surfaces looked built and worked: every row was there, every key was right,
+    and every label was a key.
+
+    Asserting `isNotEmpty` is what let that through - a key is not empty. So this
+    asks for the one thing the fallback cannot fake: a description that is not the
+    key it was looked up by.
+*/
+LUTHIER_TEST (Accessibility, everyShortcutHasADescriptionInTheCatalog)
+{
+    auto& settings = AccessibilitySettings::get();
+
+    for (const auto& binding : settings.getShortcuts())
+    {
+        CHECK_MSG (binding.descriptionKey.isNotEmpty(),
+                   "the shortcut \"" + binding.id + "\" has no description key");
+
+        CHECK_MSG (Localisation::get().hasKey (binding.descriptionKey),
+                   "no catalog string for \"" + binding.descriptionKey + "\", so the rebind "
+                     "table shows the key");
+
+        const auto description = tr (binding.descriptionKey);
+
+        CHECK_MSG (description != binding.descriptionKey,
+                   "the description of \"" + binding.id + "\" is its own key");
+    }
+
+    /*  And the printable list carries them, since that is what the manual and the
+        shortcut overlay read. */
+    for (const auto& line : settings.getPrintableShortcuts())
+        CHECK_MSG (! line.contains ("accessibility.shortcut."),
+                   "a printed shortcut is showing a raw key: " + line);
+}
+
+//==============================================================================
 /*  The settings are user-global and have to survive a restart. */
 LUTHIER_TEST (Accessibility, settingsRoundTrip)
 {

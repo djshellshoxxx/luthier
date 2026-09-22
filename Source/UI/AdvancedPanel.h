@@ -1,15 +1,18 @@
 #pragma once
 
-/*  Advanced mode (build spec, "ADVANCED MODE").
+/*  Advanced mode, gui-integration.md section 4.
 
-    A compressed guitar-and-fretboard strip across the top, then four scrollable
-    columns:
+    A compressed guitar-and-fretboard strip across the top, then the four columns
+    section 4 specifies:
 
-      1  String setup      - one row per string: tuning, material, gauge, age,
-                             computed tension, mute, select
-      2  Selected string   - every physical property of that one string
-      3  Body, pickups and the playing hand
-      4  Amp, cabinet, room, both effect chains and humanisation
+      1  GUITAR, BODY, STRINGS, WHAMMY          - the instrument
+      2  PICKUPS, CIRCUIT, PRE-EFFECTS RACK     - signal capture
+      3  AMP, POST-EFFECTS RACK, CAB, ROOM, SUSTAIN
+      4  a tabbed workspace
+
+    Columns 1 to 3 are fixed and independently scrollable; column 4 is chosen by
+    a tab strip at its top. What each column holds that section 4 does not name,
+    and what section 4 names that is not built, is in GAPS.md A1 and A2.
 
     Every control here is the same widget as in Easy mode, so right-click, MIDI
     Learn, lock and randomise work identically throughout.
@@ -79,7 +82,39 @@ public:
     void setSelectedString (int index);
     int getSelectedString() const noexcept { return selectedString; }
 
+    /*  Section 4.5: below 1000 points wide, Advanced Mode is unavailable. Three
+        220-point columns and a 480-point workspace do not fit, and shrinking
+        them further produces a column too narrow to read. The editor asks this
+        before it switches modes. */
+    static constexpr int minimumUsableWidth = 1000;
+
     FretboardComponent& getFretboard() noexcept { return fretboard; }
+
+    //==========================================================================
+    /*  Column 4's tab strip (section 4.4).
+
+        Public because two things outside the panel need it: the editor, which
+        binds Ctrl+[ and Ctrl+] to step the tabs, and the test that walks them.
+        Everything here is in tab order, which is section 4.4's order restricted
+        to the tabs that have a panel behind them.
+    */
+    int getNumWorkspaceTabs() const noexcept { return workspacePanels.size(); }
+    int getWorkspaceTab() const noexcept { return workspaceTab; }
+
+    juce::String getWorkspaceTabName (int index) const;
+
+    /** The panel behind a tab, or nullptr if the index is out of range. */
+    juce::Component* getWorkspacePanel (int index) const;
+
+    void setWorkspaceTab (int index);
+
+    /** Steps by delta, wrapping. Section 17's Ctrl+[ and Ctrl+] - wrapping
+        because a tab strip that stops at the end makes the last tab need two
+        different keys to leave. */
+    void stepWorkspaceTab (int delta);
+
+    /** The key the last-used tab is stored under in UiPreferences (4.4). */
+    static constexpr const char* workspaceTabPreferenceKey = "advanced.workspaceTab";
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -115,18 +150,37 @@ private:
         int contentHeight = 0;
     };
 
-    void buildStringColumn();
-    void buildDetailColumn();
-    void buildBodyColumn();
-    void buildRigColumn();
+    void buildColumn1();
+    void buildColumn2();
+    void buildColumn3();
+
+    /** Column 4: the tab strip and the panels behind it (section 4.4). */
+    void buildWorkspace();
+
+    /** @param remember  false while restoring, so reading the stored tab back
+                         does not immediately write it out again. */
+    void showWorkspaceTab (int index, bool remember = true);
 
     LuthierAudioProcessor& processor;
 
     GuitarBodyComponent guitarBody;
     FretboardComponent fretboard;
 
-    juce::Viewport viewports[4];
-    std::unique_ptr<Column> columns[4];
+    // Columns 1 to 3. Column 4 is the workspace below, which is not a Column:
+    // it shows one panel at a time rather than stacking them.
+    juce::Viewport viewports[3];
+    std::unique_ptr<Column> columns[3];
+
+    juce::OwnedArray<juce::TextButton> workspaceTabs;
+    juce::Array<juce::Component*> workspacePanels;
+    juce::Viewport workspaceViewport;
+    int workspaceTab = 0;
+
+    /*  Where resized() put the column dividers, so paint() draws them in the
+        same places. Below 1280 the layout stacks columns 2 and 3, and a paint
+        that recomputed the geometry itself would eventually disagree with it. */
+    juce::Array<int> dividerX;
+    int workspaceLeft = 0;
 
     int selectedString = 0;
 

@@ -481,8 +481,10 @@ void AccessibilitySettings::buildDefaultShortcuts()
 
         Where an action's feature does not exist yet the binding is simply absent,
         rather than present and dead: Workshop (W), Slide Mode (S), Save As Guitar
-        (Ctrl+G), New Tune (Ctrl+T) and the Column 4 tab steps (Ctrl+[ / Ctrl+])
-        all wait on specs that are not written. GAPS.md tracks them.
+        (Ctrl+G) and New Tune (Ctrl+T) all wait on specs that are not written.
+        GAPS.md tracks them. The Column 4 tab steps used to be on that list and
+        are not any more - the Advanced workspace has a tab strip now, so there
+        is something for them to step.
     */
 
     const auto cmd   = juce::ModifierKeys::commandModifier;
@@ -501,6 +503,12 @@ void AccessibilitySettings::buildDefaultShortcuts()
 
     add ("previousItem",     "accessibility.shortcut.previousItem",     KP ('[', 0, 0));
     add ("nextItem",         "accessibility.shortcut.nextItem",         KP (']', 0, 0));
+
+    /*  Section 17's Column 4 tab steps. The modified pair sits deliberately beside
+        the unmodified one above: unmodified steps what the whole plugin is playing,
+        modified steps which workspace tab is looking at it. */
+    add ("previousWorkspaceTab", "accessibility.shortcut.previousWorkspaceTab", KP ('[', cmd, 0));
+    add ("nextWorkspaceTab",     "accessibility.shortcut.nextWorkspaceTab",     KP (']', cmd, 0));
 
     add ("setlistPrevious",  "accessibility.shortcut.setlistPrevious",  KP (KP::pageUpKey));
     add ("setlistNext",      "accessibility.shortcut.setlistNext",      KP (KP::pageDownKey));

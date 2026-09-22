@@ -38,6 +38,15 @@ private:
     void setAdvancedMode (bool advanced);
     void showOverlay (OverlayPanel* panel);
 
+    /*  gui-integration 4.5: Advanced Mode is unavailable below 1000 points. The
+        window's own minimum is 940, so this is a state a user can reach by
+        dragging rather than a theoretical one, and the mode toggle has to refuse
+        rather than lay out three unreadable columns. */
+    bool isAdvancedModeAvailable() const noexcept;
+
+    /** The message the toggle and the resize both show when it is not. */
+    static juce::String advancedUnavailableMessage();
+
     /** live-performance 10: shows or hides the live strip and re-lays out. */
     void updateLiveStripVisibility();
 
@@ -56,6 +65,7 @@ private:
 
     HeaderBar header;
     LiveStrip liveStrip;
+    InlineNotice inlineNotice;
     PracticePanel practicePanel;
     EasyPanel easyPanel;
     AdvancedPanel advancedPanel;

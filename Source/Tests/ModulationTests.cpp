@@ -10,6 +10,23 @@
 #include "../Modulation/ModMatrix.h"
 #include "../Parameters.h"
 
+/*  For the thread CPU clock the budget test measures with. JUCE includes
+    windows.h internally but does not expose it, and this is the one place in the
+    project that needs an API from it directly. After the JUCE headers, so
+    JUCE_WINDOWS is defined, and with the two macros that keep windows.h from
+    redefining min/max out from under the standard library. */
+#if JUCE_WINDOWS
+ #ifndef NOMINMAX
+  #define NOMINMAX 1
+ #endif
+ #ifndef WIN32_LEAN_AND_MEAN
+  #define WIN32_LEAN_AND_MEAN 1
+ #endif
+ #include <windows.h>
+#else
+ #include <ctime>
+#endif
+
 using namespace luthier;
 using namespace luthier::tests;
 
@@ -17,6 +34,52 @@ namespace
 {
     constexpr double kSr = 48000.0;
     constexpr int kBlock = 512;
+
+    /*  CPU time this thread has actually been given, in seconds.
+
+        The CPU budget test used to measure wall-clock time, and wall-clock time
+        answers the wrong question. "What fraction of real time does this cost"
+        is a question about this code; a stopwatch measures this code plus every
+        other process the scheduler preferred while it ran. On a four-core
+        machine with an unrelated build on two of them, the same unchanged matrix
+        measured anywhere from under 1% to 2.3%, so the test failed on the
+        machine's mood rather than on a regression.
+
+        Thread CPU time excludes every interval the thread was not running, so it
+        is stable under load and still moves - which is the whole point - when
+        the code genuinely does more work.
+
+        Granularity is the scheduler tick, about 15.6 ms on Windows, so the
+        measured stretch has to be long enough that a tick does not matter. See
+        the sample count where it is used.
+    */
+    double threadCpuSeconds()
+    {
+       #if JUCE_WINDOWS
+        FILETIME creation {}, exited {}, kernel {}, user {};
+
+        if (GetThreadTimes (GetCurrentThread(), &creation, &exited, &kernel, &user) == 0)
+            return 0.0;
+
+        auto toSeconds = [] (const FILETIME& t)
+        {
+            ULARGE_INTEGER v;
+            v.LowPart = t.dwLowDateTime;
+            v.HighPart = t.dwHighDateTime;
+
+            return (double) v.QuadPart * 1.0e-7;   // FILETIME counts 100ns units
+        };
+
+        return toSeconds (kernel) + toSeconds (user);
+       #else
+        timespec ts {};
+
+        if (clock_gettime (CLOCK_THREAD_CPUTIME_ID, &ts) != 0)
+            return 0.0;
+
+        return (double) ts.tv_sec + (double) ts.tv_nsec * 1.0e-9;
+       #endif
+    }
 
     /** A processor carrying the real parameter tree, so destinations resolve to
         the same ids and ranges the plugin uses. */
@@ -490,24 +553,72 @@ LUTHIER_TEST (Modulation, thousandRouteStressTest)
     for (int i = 0; i < 32; ++i)
         matrix.processBlock (kBlock, context);
 
-    const int blocks = 2000;
-    const auto start = juce::Time::getHighResolutionTicks();
+    /*  Measured as thread CPU time, several times, and judged on the fastest run.
 
-    for (int i = 0; i < blocks; ++i)
-        matrix.processBlock (kBlock, context);
+        Two things were wrong with the single wall-clock sample this replaces.
 
-    const double elapsed = juce::Time::highResolutionTicksToSeconds (
-        juce::Time::getHighResolutionTicks() - start);
+        The instrument was wrong: a stopwatch measures this code plus whatever
+        else the scheduler ran instead of it, so an unrelated build on the same
+        machine moved the result from under 1% to 2.3% without a line of this
+        code changing. That is what threadCpuSeconds above is for.
+
+        And one sample is not enough even with the right instrument. A stolen
+        cache or a migration between cores costs real CPU time, and it can only
+        ever add: nothing makes a run finish in less work than it needs. So the
+        fastest of several samples is the closest estimate of what the code
+        costs, and it keeps the property the test exists for - work added to
+        processBlock raises the floor, so the minimum rises with it. A mean would
+        let the noise back in, and a bar raised to cover the worst sample would
+        stop catching a regression worth catching.
+
+        Eight thousand blocks is 85 seconds of audio per sample. The scheduler
+        tick is about 15.6 ms, so a sample has to be long enough that one tick of
+        quantisation is small against it; at the fractions of a percent this
+        actually costs, 85 seconds of audio puts the measured CPU time well above
+        that floor.
+    */
+    const int blocks = 8000;
+    const int samples = 3;
 
     const double audioSeconds = (double) blocks * (double) kBlock / kSr;
-    const double cpuPercent = (elapsed / audioSeconds) * 100.0;
 
-    // The spec's claim is "well below 1%". Measured on this machine it is a
-    // small fraction of that; the bar is set at 1% so the test fails on a real
-    // regression rather than on ordinary timing noise.
-    CHECK_MSG (cpuPercent < 1.0,
-               "1000 routes cost " + juce::String (cpuPercent, 4)
-                 + "% of real time, expected under 1%");
+    double bestPercent = 1.0e9;
+    juce::StringArray measured;
+
+    for (int sample = 0; sample < samples; ++sample)
+    {
+        const auto start = threadCpuSeconds();
+
+        for (int i = 0; i < blocks; ++i)
+            matrix.processBlock (kBlock, context);
+
+        const double cpuSeconds = threadCpuSeconds() - start;
+        const double cpuPercent = (cpuSeconds / audioSeconds) * 100.0;
+
+        bestPercent = juce::jmin (bestPercent, cpuPercent);
+        measured.add (juce::String (cpuPercent, 4) + "%");
+    }
+
+    /*  Measured at 0.62% to 0.73% of a core on this machine, across runs taken
+        while an unrelated build held the CPU at 100% - a spread of about a tenth
+        of a percentage point, where the wall-clock version of this measurement
+        spread from 1.29% to 2.34% over the same interval. That is the whole
+        argument for the change of instrument.
+
+        It leaves about a third of the budget as headroom, which is worth saying
+        plainly: the spec claims "well below 1%" and 0.65% is under 1% without
+        being well below it. The bar stays at the spec's number rather than being
+        tightened to the measurement, because a bar set just above today's figure
+        fails on the next machine rather than on the next regression.
+
+        Every sample goes in the failure message, so a run that does fail says
+        which kind of failure it is: a floor that moved is a regression, and every
+        sample being slow together is a machine that was busy.
+    */
+    CHECK_MSG (bestPercent < 1.0,
+               "1000 routes cost " + juce::String (bestPercent, 4)
+                 + "% of a core at best, expected under 1%. All "
+                 + juce::String (samples) + " samples: " + measured.joinIntoString (", "));
 }
 
 //==============================================================================

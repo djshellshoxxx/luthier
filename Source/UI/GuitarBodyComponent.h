@@ -25,6 +25,88 @@ namespace luthier
 class LuthierAudioProcessor;
 
 //==============================================================================
+/*  The headstock popover (gui-integration.md 3.1).
+
+    Section 3.1 asks the headstock for "per-string tuning, capo, temperament".
+    Two of those three are here; the third is not built anywhere in the plugin and
+    the popover says so rather than leaving a gap the user has to guess at.
+
+    Per-string tuning is the reason this exists rather than being a mirror of the
+    Advanced column. `TuningEngine::StringTuning::detuneCents` is round-tripped by
+    `PresetManager` - it is saved with the preset and restored from it - and until
+    now nothing in the UI could set it. A preset field with no way to author it is
+    the same class of gap as a panel nobody constructs.
+
+    The detune sliders write engine state rather than a parameter, because there
+    is no per-string parameter to attach to. That costs automation and MIDI Learn
+    on these six controls, which is a real limitation and is recorded in GAPS.md
+    rather than hidden: the fix is per-string parameters, which is a parameter
+    count change and a preset schema question, not a UI one.
+*/
+class TuningPopover : public juce::Component
+{
+public:
+    explicit TuningPopover (LuthierAudioProcessor& processor);
+    ~TuningPopover() override;
+
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+    static juce::Rectangle<int> preferredSize (int numStrings);
+
+private:
+    void refreshNoteNames();
+
+    LuthierAudioProcessor& processor;
+
+    std::unique_ptr<LuthierChoice> preset, temperament;
+    std::unique_ptr<LuthierKnob> concertA;
+
+    juce::OwnedArray<juce::Slider> detuneSliders;
+    juce::StringArray noteNames;
+
+    int numStrings = 6;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TuningPopover)
+};
+
+//==============================================================================
+/*  The bridge popover (gui-integration.md 3.1).
+
+    "Click opens the whammy popover (only if a whammy is fitted)". Fitted means
+    the bridge type is not the hardtail: a fixed bridge has no arm, and a popover
+    offering whammy range on an instrument that cannot whammy would be a control
+    that does nothing.
+
+    Every control here is bound to the same parameter as its twin in Advanced
+    column 1, so this is a legitimate second route under ground rule 1 rather than
+    a separate copy of the state.
+*/
+class WhammyPopover : public juce::Component
+{
+public:
+    explicit WhammyPopover (LuthierAudioProcessor& processor);
+    ~WhammyPopover() override;
+
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+    /** True when the fitted bridge has an arm, which is what section 3.1 makes
+        the popover conditional on. */
+    static bool isWhammyFitted (LuthierAudioProcessor& processor);
+
+    static juce::Rectangle<int> preferredSize();
+
+private:
+    LuthierAudioProcessor& processor;
+
+    std::unique_ptr<LuthierChoice> bridgeType;
+    std::unique_ptr<LuthierKnob> position, downRange, upRange, springs;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WhammyPopover)
+};
+
+//==============================================================================
 class GuitarBodyComponent : public juce::Component,
                             public juce::SettableTooltipClient,
                             private juce::Timer
@@ -45,9 +127,22 @@ public:
     /** Called when the user clicks a pickup, so the Advanced panel can follow. */
     std::function<void (int pickupSlot)> onPickupSelected;
 
+    /*  Section 3.1's two popovers. Public so a test can open them without
+        synthesising a mouse event on a component that has no desktop peer. */
+    void showTuningPopover();
+
+    /** Does nothing on a hardtail, which is what section 3.1 specifies. */
+    void showWhammyPopover();
+
 private:
     void timerCallback() override;
     void rebuildGeometry();
+
+    /** The tooltip for whatever is under the cursor, so every hit region says
+        what clicking it does before it is clicked (section 20). */
+    juce::String describeHoverTarget (juce::Point<float> position) const;
+
+    int getBridgeTypeIndex() const;
 
     struct Geometry
     {

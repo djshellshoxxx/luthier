@@ -1032,4 +1032,94 @@ void SectionPanel::paint (juce::Graphics& g)
     }
 }
 
+
+//==============================================================================
+//  InlineNotice
+//==============================================================================
+InlineNotice::InlineNotice()
+{
+    setVisible (false);
+    setInterceptsMouseClicks (true, false);
+
+    // It is a status message, not a control: a screen reader should read it when
+    // it appears and never have to be tabbed onto.
+    setWantsKeyboardFocus (false);
+}
+
+InlineNotice::~InlineNotice()
+{
+    stopTimer();
+}
+
+void InlineNotice::show (const juce::String& newMessage, Level newLevel, int millisecondsToLive)
+{
+    message = newMessage;
+    level = newLevel;
+
+    setVisible (true);
+    repaint();
+
+    /*  accessibility 1: announced rather than only drawn. A notice explaining why
+        the window changed shape is exactly the case where a user who cannot see
+        the window needs it most. */
+    juce::AccessibilityHandler::postAnnouncement (
+        message, juce::AccessibilityHandler::AnnouncementPriority::high);
+
+    if (millisecondsToLive > 0)
+        startTimer (millisecondsToLive);
+    else
+        stopTimer();
+}
+
+void InlineNotice::dismiss()
+{
+    stopTimer();
+
+    if (! isVisible())
+        return;
+
+    setVisible (false);
+
+    if (onVisibilityChanged != nullptr)
+        onVisibilityChanged();
+}
+
+void InlineNotice::timerCallback()
+{
+    dismiss();
+}
+
+void InlineNotice::mouseDown (const juce::MouseEvent&)
+{
+    dismiss();
+}
+
+void InlineNotice::paint (juce::Graphics& g)
+{
+    const auto tint = level == Level::warning ? Palette::warning : Palette::secondary;
+
+    auto bounds = getLocalBounds().toFloat().reduced (0.5f);
+
+    g.setColour (tint.withAlpha (0.12f));
+    g.fillRoundedRectangle (bounds, 3.0f);
+
+    g.setColour (tint.withAlpha (0.55f));
+    g.drawRoundedRectangle (bounds, 3.0f, 1.0f);
+
+    // A marker bar on the left, so the strip reads as a notice at a glance and
+    // not as another panel that happens to have text in it.
+    g.setColour (tint);
+    g.fillRect (bounds.withWidth (3.0f).reduced (0.0f, 4.0f));
+
+    g.setColour (Palette::textPrimary);
+    g.setFont (Fonts::ui (11.0f));
+    g.drawText (message, getLocalBounds().reduced (Metrics::grid + 2, 0),
+                juce::Justification::centredLeft, true);
+
+    g.setColour (Palette::textDisabled);
+    g.setFont (Fonts::ui (9.0f));
+    g.drawText ("click to dismiss", getLocalBounds().reduced (Metrics::grid, 0),
+                juce::Justification::centredRight, false);
+}
+
 } // namespace luthier

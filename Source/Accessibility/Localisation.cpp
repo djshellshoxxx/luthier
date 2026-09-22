@@ -407,6 +407,43 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "accessibility.fallback",   "Fallback language" },
         { "accessibility.catalogPath","Custom string catalog" },
 
+        /*  ---- shortcut descriptions -----------------------------------------------------
+            One per binding in AccessibilitySettings::buildDefaultShortcuts, keyed by
+            that binding's descriptionKey. These are the labels in the Options >
+            ACCESSIBILITY rebind table (accessibility 2) and in getPrintableShortcuts.
+            Without them the table rendered the key itself, so every row read
+            "accessibility.shortcut.undo" rather than "Undo". A binding added to the
+            registry needs its string added here, and shortcutsAllHaveDescriptions
+            fails if one does not.
+        */
+        { "accessibility.shortcut.help",            "Open help" },
+        { "accessibility.shortcut.showShortcuts",   "Show all shortcuts" },
+        { "accessibility.shortcut.toggleAdvanced",  "Switch Easy / Advanced mode" },
+        { "accessibility.shortcut.toggleLiveMode",  "Toggle Live Mode" },
+        { "accessibility.shortcut.togglePractice",  "Open the practice drawer" },
+        { "accessibility.shortcut.panic",           "Panic: silence all notes" },
+        { "accessibility.shortcut.tapTempo",        "Tap tempo" },
+        { "accessibility.shortcut.killSwitch",      "Kill switch" },
+        { "accessibility.shortcut.previousItem",    "Previous preset or snapshot" },
+        { "accessibility.shortcut.nextItem",        "Next preset or snapshot" },
+        { "accessibility.shortcut.previousWorkspaceTab", "Previous workspace tab" },
+        { "accessibility.shortcut.nextWorkspaceTab", "Next workspace tab" },
+        { "accessibility.shortcut.setlistPrevious", "Previous setlist entry" },
+        { "accessibility.shortcut.setlistNext",     "Next setlist entry" },
+        { "accessibility.shortcut.undo",            "Undo" },
+        { "accessibility.shortcut.redo",            "Redo" },
+        { "accessibility.shortcut.save",            "Save preset" },
+        { "accessibility.shortcut.saveAs",          "Save preset as..." },
+        { "accessibility.shortcut.presetBrowser",   "Open the preset browser" },
+        { "accessibility.shortcut.abCompare",       "A/B compare" },
+        { "accessibility.shortcut.randomise",       "Randomise" },
+        { "accessibility.shortcut.resetAll",        "Reset all" },
+        { "accessibility.shortcut.midiLearnArm",    "Arm MIDI Learn" },
+        { "accessibility.shortcut.export",          "Open export" },
+        { "accessibility.shortcut.options",         "Open options" },
+        { "accessibility.shortcut.debugPanel",      "Open the debug panel" },
+        { "accessibility.shortcut.audition",        "Audition" },
+
         // ---- accessible descriptions -----------------------------------------------------------
         { "a11y.knob.role",           "Rotary control" },
         { "a11y.fret.description",    "String {string}, fret {fret}, note {note}" },

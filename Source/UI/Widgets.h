@@ -326,4 +326,61 @@ private:
     juce::Colour accent = Palette::accent;
 };
 
+
+//==============================================================================
+/*  A transient message strip, for telling the user why the window just did
+    something they did not ask for.
+
+    gui-integration.md 4.5 needs one: below 1000 points Advanced Mode is
+    unavailable, so the window forces Easy, and a mode that changes itself
+    without saying why is the silent degradation ground rule 0.2 forbids.
+
+    It is a plain component rather than an overlay on purpose. An overlay steals
+    focus and has to be dismissed, which is far too much ceremony for "your
+    window is too narrow"; this sits in the layout, says its piece, and takes
+    itself away after a few seconds. Clicking it dismisses it early.
+
+    The auto-hide calls onVisibilityChanged, so the host can re-lay-out and give
+    the space back. Nothing here calls that from inside show(): the caller is
+    usually in the middle of its own resized(), and re-entering it would be a
+    loop.
+*/
+class InlineNotice : public juce::Component,
+                     private juce::Timer
+{
+public:
+    InlineNotice();
+    ~InlineNotice() override;
+
+    enum class Level { info, warning };
+
+    /** Shows the message. Does not call onVisibilityChanged - the caller decides
+        when to re-lay-out, because it may already be doing so. */
+    void show (const juce::String& message, Level level = Level::info,
+               int millisecondsToLive = defaultLifetimeMs);
+
+    /** Hides it and calls onVisibilityChanged. Safe to call when already hidden,
+        in which case it does nothing at all. */
+    void dismiss();
+
+    const juce::String& getMessage() const noexcept { return message; }
+
+    /** Called when the notice hides itself, so the host can reclaim the space. */
+    std::function<void()> onVisibilityChanged;
+
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+
+    static constexpr int preferredHeight = 26;
+    static constexpr int defaultLifetimeMs = 6000;
+
+private:
+    void timerCallback() override;
+
+    juce::String message;
+    Level level = Level::info;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (InlineNotice)
+};
+
 } // namespace luthier

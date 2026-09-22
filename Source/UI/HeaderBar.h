@@ -39,6 +39,18 @@ public:
 
     void setAdvancedMode (bool advanced);
 
+    /*  gui-integration 4.5: below 1000 points the Advanced toggle is disabled
+        rather than merely refusing when pressed. Two separate things lock it -
+        this and Live Mode - so neither sets `enabled` directly; both go through
+        updateModeButtonEnablement, which was how one of them used to silently
+        unlock the other. */
+    void setAdvancedModeAvailable (bool available);
+
+    /** Reflects Live Mode in the header. Called whenever it changes, including
+        from the shortcut - which used to change the mode and leave the pill
+        showing the old state. */
+    void setLiveMode (bool live);
+
     /** Reflects the arm state; the editor owns it. */
     void setMidiLearnArmed (bool armed);
     bool isAdvancedMode() const noexcept { return advancedMode; }
@@ -54,6 +66,7 @@ private:
 
     void showFileMenu();
     void updateUndoRedoState();
+    void updateModeButtonEnablement();
 
     LuthierAudioProcessor& processor;
 
@@ -74,6 +87,7 @@ private:
     juce::TextButton liveButton { "Live" };
 
     bool advancedMode = false;
+    bool advancedAvailable = true;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HeaderBar)
 };

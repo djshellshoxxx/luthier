@@ -35,12 +35,46 @@ numbered, because what it should be called is a release decision.
   palettes, UI scale, localisation.
 - **Updates and telemetry** - update checks, opt-in telemetry, crash reporting,
   license activation, privacy dashboard.
+- **Advanced Mode columns** - gui-integration.md section 4's scheme, in section
+  4's order: GUITAR/BODY/STRINGS/WHAMMY, PICKUPS/CABLE/PRE-FX,
+  AMP/POST-FX/CAB/ROOM/SUSTAIN, and a tabbed workspace. Section 4.5's widths
+  came with it - 260 points a column over a 220 floor, 480 for the workspace,
+  columns 2 and 3 stacked into one slot below 1280 rather than one of them being
+  hidden - and the mode is unavailable below 1000 points, where it now refuses
+  and says why instead of laying out four columns that do not fit. CIRCUIT is
+  still CABLE because `volume-knob-interaction.md` has not been written. The
+  sections section 4 has no slot for are kept on the nearest column, each with a
+  comment saying why: dropping a working control to match a layout list would
+  have cost a feature to close a table row.
+- **The column 4 tab strip** - MOD, RHYTHM, ROUTING, TONE MATCH and CHARACTER in
+  section 4.4's relative order, one on screen at a time, in place of the vertical
+  stack they were in. The eight tabs section 4.4 lists that have no panel behind
+  them are absent rather than present and empty. **The last-used tab persists
+  across sessions** (4.4) in `Documents/Luthier/config/ui.json`, through a new
+  `UiPreferences` store: settings global to this copy of the plugin, which is
+  neither what `AccessibilitySettings` holds (the person) nor what `uiState`
+  holds (the sound), and which had nowhere to live before.
+- **Easy mode instrument interactions** - section 3.1's headstock and bridge hit
+  regions on `GuitarBodyComponent`, joining the volume and tone knobs, the
+  selector switch and the pickups, which were already live. The headstock opens a
+  tuning popover carrying the six per-string offsets - a preset field that
+  loading a guitar and recalling a preset could write but no control anywhere
+  could author. The bridge opens the whammy setup, and on a hardtail says why it
+  does nothing. The popover's six sliders write the engine directly, so they are
+  not automatable and cost MIDI Learn on those controls: there is no per-string
+  tuning parameter to attach them to, and adding one is a parameter-count and
+  preset-schema change rather than a UI one. That is `GAPS.md` A4. The popover
+  also says on its face that capo is not built, which four specs describe and no
+  line of code implements.
 - **Options pages** - the overlay now carries gui-integration.md section 5's tab
   list in section 5's order: AUDIO, MIDI, APPEARANCE, ACCESSIBILITY,
   LOCALIZATION, EXPRESSION, CONTROLLERS, UPDATES, PRIVACY, DIAGNOSTICS and FILE
   LOCATIONS. RANGES is absent because advanced-ranges.md has not been written;
   CONTROLLERS is present, in the slot RANGES will take, because section 19's
-  home for it - the Advanced column 4 tab strip - does not exist yet. The old
+  home for it - the Advanced column 4 tab strip - did not exist when the overlay
+  was rebuilt. It does now, and the move is held up by one refactor rather than
+  by the column: `ControllersPage` owns its `ControllerProfileLibrary` by value,
+  so a second copy in column 4 would go stale against the first. The old
   GENERAL tab is gone, its contents distributed to the tabs that own them.
   Where a page could not build something section 5 lists - the accent tint, the
   changelog viewer, the feature-flag mirror, the Workshop folders - it says so
@@ -55,7 +89,13 @@ numbered, because what it should be called is a release decision.
   screen. It renders into an offscreen image, so it needs no desktop window.
   Before this, nothing in the repository constructed a
   `LuthierAudioProcessorEditor` and the panels were verified only by running
-  pluginval or a host by hand.
+  pluginval or a host by hand. The suite has since grown to cover the work above:
+  every workspace tab putting its own panel - and only its own - on screen, the
+  tab stepping and wrapping and surviving a round trip through the config file,
+  Advanced Mode refusing both routes in below 1000 points with the notice
+  painted, a grid swept over the whole illustration to collect what every hit
+  region says, and the headstock popover reaching the engine one string at a
+  time and actually moving the pitch.
 
 ### Fixed
 

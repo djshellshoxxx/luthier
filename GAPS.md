@@ -64,49 +64,96 @@ Section 19 rows whose backend module does not exist and cannot be built yet:
 `tune-builder.md` and `midi-export.md` are present and unblocked, but both are
 large and both sit behind the realism phase in the build order.
 
-## A1 — Advanced Mode column scheme does not match section 4
+## A1 — Advanced Mode column scheme — **done**
 
 **Canonical.** Column 1 GUITAR/BODY/STRINGS/WHAMMY, Column 2 PICKUPS/CIRCUIT/
 PRE-FX, Column 3 AMP/POST-FX/CAB/ROOM/SUSTAIN, Column 4 a tabbed workspace.
 
-**Built.** `AdvancedPanel` uses its own scheme in which AMP/CAB/ROOM is called
-"column 4" (`AdvancedPanel.h:162`). There is no tabbed workspace column, no
-CIRCUIT panel (CABLE is still there) and no SUSTAIN panel.
+**Built.** That, in that order. `AdvancedPanel` has `buildColumn1/2/3` and
+`buildWorkspace`, one per column of section 4, and the section blocks moved
+between them wholesale. Column 3 also puts the post-effects rack directly after
+the amp, which is 4.3's order and was not the old one. SUSTAIN's content was
+already right; only its column number was wrong, and it moved with the rest.
 
-SUSTAIN is built - see "Fixed since the first audit" - and currently sits after
-ROOM in the column the build calls 4. Its *content* is right; only its column
-number is wrong, and that moves with A1 rather than needing its own work.
+Section 4.5's widths are built too: 260 points per column with a 220 floor, a
+480 floor for the workspace, and columns 2 and 3 stacked into one slot below
+1280 rather than one of them being hidden.
 
-**Size.** Large. A restructure of `AdvancedPanel`, not a patch.
+**Two departures, both deliberate.**
 
-## A2 — Column 4 has no tab strip; ten of its thirteen tabs do not exist
+- **CIRCUIT is still CABLE.** `volume-knob-interaction.md` specifies the circuit
+  panel and that file does not exist. See "What this blocks".
+- **Sections section 4 has no slot for are kept**, each on the nearest column
+  with a comment in the source saying why: SELECTED STRING, NECK and SYMPATHETIC
+  on column 1; PLAYING HAND and STRING NOISE on column 2; PERFORMANCE, HUMANISE,
+  FEEDBACK and MASTER at the end of column 3. Dropping a built control to match
+  a column list would have removed working features to satisfy a layout.
+
+**Section 4.5's minimum width is enforced.** Advanced Mode is unavailable below
+1000 points. The window's own minimum is 940, so this is one drag from the
+default rather than a theoretical size: the mode toggle refuses and says why,
+a window dragged below it while Advanced is on is forced back to Easy with the
+same notice, and the header's Easy/Advanced switch is disabled while it is too
+narrow with a tooltip giving the reason. `InlineNotice` is the surface, and it
+is new - there was no way for the window to explain itself before.
+
+**Covered by.** `Editor::advancedModeIsRefusedBelowItsMinimumWidth` drives both
+routes into the mode at both sizes and checks the notice is on screen and has
+painted, and `Editor::itLaysOutAndPaintsAcrossItsResizeRange` still paints the
+window at 940, 1200 and 1920.
+
+## A2 — Column 4's tab strip — built, with eight tabs still absent
 
 **Canonical order.**
 `WORKSHOP | MOD | RHYTHM | TUNE | LIVE | ROUTING | TONE MATCH | CHARACTER | PRACTICE | NOTATION | MIDI OUT | CONTROLLERS | HELP`
 
-**Built.** Three of the thirteen exist as panels, stacked vertically in a
-scrollable column rather than tabbed (`AdvancedPanel.cpp:775-806`):
+**Built.** A tab strip across the top of column 4 with the five panels that exist
+behind it - `MOD | RHYTHM | ROUTING | TONE MATCH | CHARACTER` - in section 4.4's
+relative order, each in its own viewport, one on screen at a time. The other
+eight are listed below. A tab that opens on nothing is worse than no tab, so
+they are absent rather than present and empty.
 
 | Tab | State |
 |---|---|
 | WORKSHOP | blocked on `guitar-workshop.md` / `workshop-ui.md` |
-| MOD | `ModMatrixPanel` exists, stacked not tabbed |
-| RHYTHM | `RhythmPanel` exists, stacked not tabbed; STRUM group blocked |
+| MOD | **built** — `ModMatrixPanel` |
+| RHYTHM | **built** — `RhythmPanel`; STRUM group still blocked on `strum-dynamics.md` |
 | TUNE | not built (`tune-builder.md` is on disk, so unblocked but large) |
 | LIVE | no setup surface; `LiveStrip` is the runtime surface only |
-| ROUTING | `RoutingPanel` exists, stacked not tabbed |
-| TONE MATCH | `ToneMatchPanel` exists, stacked not tabbed |
-| CHARACTER | `CharacterPanel` exists, stacked not tabbed |
+| ROUTING | **built** — `RoutingPanel` |
+| TONE MATCH | **built** — `ToneMatchPanel` |
+| CHARACTER | **built** — `CharacterPanel` |
 | PRACTICE | no setup surface; the drawer is the runtime surface only |
 | NOTATION | not built — no live TAB view or chord-symbol history surface |
+| CONTROLLERS | exists, in the Options overlay rather than here — see below |
 | MIDI OUT | not built |
-| CONTROLLERS | exists, but in the Options overlay, which section 19 says is wrong |
-| HELP | exists as an overlay, not as a Col 4 tab |
+| HELP | exists as an overlay, reachable on F1, not as a tab here |
 
-Also unimplemented: "last-used tab persists across sessions in the plugin's
-user-global settings" (section 4.4).
+**The last-used tab persists** (4.4), in `Documents/Luthier/config/ui.json`
+through the new `UiPreferences`. That store is the thing that was missing when
+this was written down as needing a decision before it needed code:
+`AccessibilitySettings` describes the person and `uiState` travels with the
+preset, and a workspace tab is neither. `UiPreferences` is the third case -
+settings global to this user's copy of the plugin and about the window - and it
+is deliberately not a mirror of anything, so losing the file costs a preference
+and nothing else.
 
-**Size.** Large, and blocked on A1 for the column itself.
+**CONTROLLERS has not moved.** Section 19 puts controller setup here and it is
+still on the Options tab that holds RANGES' slot (A3). Moving it is now
+unblocked by the column but not free: `ControllersPage` owns a
+`ControllerProfileLibrary` by value, so a second instance in column 4 would scan
+the Controllers folder separately and go stale against the first one when either
+saved a profile. Either the library moves somewhere shared, or the page moves
+and Options is left ten tabs until `advanced-ranges.md` gives RANGES back the
+slot. Both are small; neither is a guess, and neither is worth doing badly to
+close a table row. The feature is reachable and works where it is.
+
+**Covered by.** `Editor::everyWorkspaceTabSelectsAndPaints` walks the five tabs
+by name and checks each one puts its own panel - and only its own panel - on
+screen, painted, and different from every other. `Editor::theWorkspaceTabWraps‑
+AndIsRemembered` covers the stepping, the clamping and the round trip through
+the config file. The tab list in the first of those is a copy of the list above,
+so a tab that disappears or is renamed fails there.
 
 ## A3 — Options overlay tabs: fixed, with two departures on the record
 
@@ -127,10 +174,11 @@ Two departures, both deliberate:
   the out-of-range summary - and that file does not exist. There is nothing to
   build that would not be invented.
 - **A CONTROLLERS tab that section 5 does not list.** Section 19 puts controller
-  setup in the Advanced column 4 tab strip, which does not exist either (A1,
-  A2). Deleting the tab would strand controller setup completely, so it sits in
-  the slot RANGES will eventually take. When column 4 arrives it moves there,
-  and RANGES takes the slot back.
+  setup in the Advanced column 4 tab strip, which did not exist either when this
+  was written (A1, A2). Deleting the tab would strand controller setup
+  completely, so it sits in the slot RANGES will eventually take. Column 4 has
+  arrived since, so the move is no longer blocked by it - what is left is one
+  refactor and one missing spec, both in A2's CONTROLLERS note.
 
 Three controls sat on the old GENERAL tab and section 5's list has no slot for
 any of them. All three already have canonical homes in `AdvancedPanel` - see
@@ -161,9 +209,30 @@ disappears or is renamed fails there.
 Primary locations exist for everything not listed under "What this blocks".
 These secondary paths do not:
 
-- **Easy mode instrument interactions** — headstock click (tuning), body click,
-  bridge click, pickup click. `GuitarBodyComponent` draws the instrument but is
-  not hit-tested as a control surface. Section 3.1 requires it.
+- ~~**Easy mode instrument interactions**~~ — done, and the entry above it was
+  wrong. `GuitarBodyComponent` *was* hit-tested: the volume and tone knobs, the
+  selector switch and the pickups have been live since it was written, and its
+  own header comment said so. What was missing was two of section 3.1's four
+  regions - the headstock and the bridge - so the right description was "half
+  hit-tested", not "not hit-tested".
+
+  Both are built now. The headstock opens a tuning popover and the bridge opens
+  a whammy popover, the latter only when a bridge with an arm is fitted, which is
+  section 3.1's own condition. Every region also describes itself on hover,
+  including the hardtail case, which says there is nothing to set rather than
+  going quiet: 3.1 makes the *popover* conditional, not the affordance.
+
+  The headstock popover is the only way to author per-string detune. That is the
+  part worth noticing - `TuningEngine::StringTuning::detuneCents` is written into
+  the preset by `PresetManager` and read back out of it, and no control anywhere
+  in the UI could set it. A preset field with no way to author it is the same
+  shape of gap as a panel nobody constructs, and it had been there all along.
+
+  **Its six detune sliders are not automatable.** There is no per-string tuning
+  parameter to attach them to, so they write `TuningEngine` directly and cost
+  MIDI Learn and host automation on those controls. Closing that is a parameter
+  count change and a preset schema question rather than a UI one, so it is here
+  rather than done: see B1.
 - **Right-click → Modulate** on any control. The right-click menu exists (MIDI
   Learn, value entry); the Modulate entry and drag-to-assign do not. Affects
   seven mod-matrix rows. Note ground rule 4: right-click may not be the *only*
@@ -172,7 +241,44 @@ These secondary paths do not:
 - **Post-crash prompt** for crash reporting.
 - **Help > About** as a route to license.
 
-## A5 — Shortcuts: audited, mostly closed, five rows still open
+## B1 — Capo is documented, promised by the UI spec, and does not exist
+
+Found while building section 3.1's headstock popover, which asks for "per-string
+tuning, capo, temperament".
+
+There is no capo. Not a parameter, not a field in `TuningEngine`, not a line of
+code anywhere in `Source/`. What exists is four specs that describe it and two
+user-facing documents that tell the user how to use it:
+
+| Where | What it says |
+|---|---|
+| `gui-integration.md` 3.1 | the headstock popover offers capo |
+| `gui-integration.md` 19 | "Capo (fret / partial) - TuningEngine - Adv Col 1 GUITAR, Workshop capo drag" |
+| `ambiguity-resolutions.md` 4.5 | how a capo and a partial capo behave |
+| `guitar-illustration.md` | drag a capo card onto a fret; drag it along the neck |
+| `factory-content.md` | three capo parts ship with the plugin |
+| **`docs/USER_MANUAL.md`** | "Right-click for mute, capo, string selection and scale overlays" |
+| **`docs/KEYBOARD_SHORTCUTS.md`** | right-click menu includes "set capo" |
+
+The last two are the problem. The specs describing an unbuilt feature is the
+normal state of this project and `INDEX.md` tracks it. The *manual* describing it
+is a promise to the user that the build does not keep, and a user following the
+manual finds a right-click menu with no capo in it and no explanation.
+
+**Size.** The engine half is small - `TuningEngine` already has per-string open
+frequency and max frets, and a capo is a per-string minimum fret plus a pitch
+offset, which `ambiguity-resolutions.md` 4.5 specifies exactly. The UI half has
+three named homes (Adv Col 1 GUITAR, the headstock popover, the Workshop drag),
+two of which exist. The partial-capo string mask depends on the capo *part*,
+which is Workshop, which is blocked.
+
+**Until it is built**, the headstock popover says on its face that capo is not
+built, rather than leaving a gap where section 3.1 says a control goes. The two
+docs have not been corrected here because changing them is a decision about
+whether to describe the build or the plan, and that is the user's call rather
+than a gap to close silently.
+
+## A5 — Shortcuts: audited, mostly closed, four rows still open
 
 The audit found something worse than drift. There were **three** sources of
 truth: the hard-coded key comparisons in `PluginEditor::keyPressed`, the
@@ -193,8 +299,24 @@ Still open:
 |---|---|
 | New preset, `Ctrl+N` | No "new preset" action exists. `resetEverything()` is Reset All, which is a different thing. Needs an init-preset concept first. |
 | Reveal preset file, `Ctrl+Alt+E` | `PresetManager` tracks the current preset's name and index but not its file path, so there is nothing to reveal. |
-| Next / Prev Col 4 tab, `Ctrl+]` / `Ctrl+[` | Blocked on A2 - there are no Column 4 tabs to step. |
 | Workshop `W`, Slide `S`, Save As Guitar `Ctrl+G`, New Tune `Ctrl+T` | Blocked on the missing specs. Deliberately absent from the registry rather than present and dead. |
+
+Closed since: **Next / Prev Col 4 tab, `Ctrl+]` / `Ctrl+[`**. They were blocked on
+A2 because there were no tabs to step, and there are now. They answer only in
+Advanced Mode - in Easy there is no column 4, and a key that returns true and
+does nothing is how a host stops passing it on - and they wrap, because a strip
+that stops dead at the end makes the last tab need a different key to leave than
+every other tab does.
+
+**Every binding now has a description.** The rebind table and
+`getPrintableShortcuts` both read `tr (binding.descriptionKey)`, and not one of
+the twenty-five keys was in the English catalog, so `translate` returned the key
+and every row of accessibility.md 2's table read
+`accessibility.shortcut.undo` rather than `Undo`. The table was built, ordered
+and rebindable, and every label in it was a key. The strings are in the catalog
+now, and `Accessibility::everyShortcutHasADescriptionInTheCatalog` asks for the
+one thing the fallback cannot fake - a description that is not its own key.
+The test that existed asserted `isNotEmpty`, which a key satisfies.
 
 Two deliberate deviations, both commented in the code:
 
@@ -303,12 +425,27 @@ against the build. `gui-integration.md` sections 20 (discoverability), 21
 1. ~~**A3**~~ — done. The eleven tabs are built, RANGES is left out and
    CONTROLLERS stays in its slot; see A3 for what each new page could not build
    and why.
-2. **A1**, restricted to what is unblocked: the column restructure. The
-   SUSTAIN content itself is now built and sits after ROOM; it needs moving with
-   the rest of the column, not rebuilding.
-3. **A2** once A1 lands, for the tabs that are not blocked: LIVE, PRACTICE,
-   NOTATION, MIDI OUT, CONTROLLERS, HELP.
-4. **A4** — secondary access paths, mostly independent. Right-click → Modulate
-   is the remaining ground-rule-4 offender now that MIDI Learn has a header
-   route.
-5. Everything else waits on the eleven missing specs.
+2. ~~**A1**~~ — done. Four columns in section 4's order, section 4.5's widths,
+   and the 1000-point minimum enforced with a notice rather than declared in a
+   constant nothing read.
+3. **A2**, the rest of it. The strip is built and the five panels that exist are
+   on it; what is left is the eight tabs that are not, and they split three ways:
+
+   - **CONTROLLERS** is a placement move, not a build. It needs the
+     `ControllerProfileLibrary` shared rather than owned per page, or RANGES to
+     exist so Options is not left with a hole. Smallest of the three.
+   - **LIVE, PRACTICE, NOTATION, MIDI OUT** are surfaces nobody has built. Each
+     has a working runtime half (the live strip, the practice drawer) or a
+     working engine (notation, MIDI out) and no setup page in front of it.
+   - **WORKSHOP, TUNE, HELP** wait on `guitar-workshop.md` / `workshop-ui.md`,
+     on `tune-builder.md` being large rather than missing, and on deciding
+     whether an overlay should also be a tab.
+4. **A4** — the rest of the secondary access paths. The Easy-mode instrument is
+   done; right-click → Modulate is the remaining ground-rule-4 offender now that
+   MIDI Learn has a header route, and the three notification routes (update
+   available, post-crash prompt, Help > About) are small and independent.
+5. **B1**, the capo, or at least the half of it the docs have already promised.
+   The engine side is specified exactly by `ambiguity-resolutions.md` 4.5 and two
+   of its three UI homes now exist. Whether to build it or to correct the manual
+   is a call for whoever owns the shipping story.
+6. Everything else waits on the eleven missing specs.

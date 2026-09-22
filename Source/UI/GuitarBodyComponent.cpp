@@ -1,5 +1,6 @@
 #include "GuitarBodyComponent.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Accessibility.h"
 
 namespace luthier
 {
@@ -571,11 +572,49 @@ void GuitarBodyComponent::mouseMove (const juce::MouseEvent& e)
         }
         else
         {
-            setTooltip ("Click a pickup to select it, drag the knobs, click the switch to change position.");
+            setTooltip (describeHoverTarget (e.position));
         }
 
         repaint();
     }
+    else if (hovered < 0)
+    {
+        /*  The headstock and the bridge are both outside every pickup, so moving
+            between them never changes hoveredPickup and the branch above never
+            fires. Without this the tooltip would keep saying "click a pickup"
+            while the cursor sat on the headstock - which is how a click target
+            nobody knows about stays unknown. Section 20 is discoverability. */
+        const auto wanted = describeHoverTarget (e.position);
+
+        if (wanted != getTooltip())
+            setTooltip (wanted);
+    }
+}
+
+juce::String GuitarBodyComponent::describeHoverTarget (juce::Point<float> position) const
+{
+    if (geometry.headstock.contains (position))
+        return "Click the headstock for tuning, temperament and per-string detune.";
+
+    if (geometry.bridgeBounds.contains (position))
+    {
+        const auto bridge = Parameters::bridgeTypeNames()[getBridgeTypeIndex()];
+
+        return WhammyPopover::isWhammyFitted (const_cast<LuthierAudioProcessor&> (processor))
+                 ? bridge + " - click the bridge for whammy range and spring tension."
+                 : bridge + " - no arm fitted, so there is nothing to set here.";
+    }
+
+    return "Click a pickup to select it, drag the knobs, click the switch to change position.";
+}
+
+int GuitarBodyComponent::getBridgeTypeIndex() const
+{
+    if (auto* param = processor.getState().getParameter (ParamIDs::bridgeType))
+        if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (param))
+            return choice->getIndex();
+
+    return 0;
 }
 
 void GuitarBodyComponent::mouseExit (const juce::MouseEvent&)
@@ -657,6 +696,60 @@ void GuitarBodyComponent::mouseDown (const juce::MouseEvent& e)
         repaint();
         return;
     }
+
+    /*  ---- headstock and bridge, section 3.1 -------------------------------------
+
+        These two come last on purpose. The knobs, the selector and the pickups are
+        small targets sitting on top of the body, and the headstock and bridge
+        paths are large; testing the large regions first would swallow clicks
+        meant for the controls drawn over them.
+
+        Both open a popover rather than acting directly, because both are a group
+        of settings rather than one value - which is what section 3.1 asks for.
+    */
+    if (geometry.headstock.contains (e.position))
+    {
+        showTuningPopover();
+        return;
+    }
+
+    if (geometry.bridgeBounds.contains (e.position))
+    {
+        showWhammyPopover();
+        return;
+    }
+}
+
+void GuitarBodyComponent::showTuningPopover()
+{
+    auto popover = std::make_unique<TuningPopover> (processor);
+
+    auto area = getScreenBounds();
+
+    // Anchored on the headstock rather than the whole component, so the callout
+    // points at the thing that was clicked.
+    if (! geometry.headstock.getBounds().isEmpty())
+        area = geometry.headstock.getBounds().toNearestInt() + getScreenPosition();
+
+    juce::CallOutBox::launchAsynchronously (std::move (popover), area, nullptr);
+}
+
+void GuitarBodyComponent::showWhammyPopover()
+{
+    /*  Section 3.1: "only if a whammy is fitted". On a hardtail the click does
+        nothing rather than opening a popover whose every control is inert - and
+        the tooltip under the cursor has already said which bridge is fitted, so
+        the silence is not unexplained. */
+    if (! WhammyPopover::isWhammyFitted (processor))
+        return;
+
+    auto popover = std::make_unique<WhammyPopover> (processor);
+
+    const auto area = geometry.bridgeBounds.isEmpty()
+                        ? getScreenBounds()
+                        : geometry.bridgeBounds.toNearestInt() + getScreenPosition();
+
+    juce::CallOutBox::launchAsynchronously (std::move (popover), area, nullptr);
 }
 
 void GuitarBodyComponent::mouseDrag (const juce::MouseEvent& e)
@@ -681,6 +774,245 @@ void GuitarBodyComponent::mouseUp (const juce::MouseEvent&)
 {
     draggingKnob = -1;
     repaint();
+}
+
+
+//==============================================================================
+//  TuningPopover
+//==============================================================================
+namespace
+{
+    constexpr int kPopoverPadding = 12;
+    constexpr int kRowHeight = 22;
+    constexpr int kNoteColumnWidth = 44;
+}
+
+TuningPopover::TuningPopover (LuthierAudioProcessor& p)
+    : processor (p)
+{
+    numStrings = juce::jlimit (1, 12, processor.getEngine().getNumStrings());
+
+    preset = std::make_unique<LuthierChoice> ("Tuning");
+    preset->attachTo (processor, ParamIDs::tuningPreset,
+                      "The open tuning every string starts from.");
+    addAndMakeVisible (*preset);
+
+    temperament = std::make_unique<LuthierChoice> ("Temperament");
+    temperament->attachTo (processor, ParamIDs::temperament,
+                           "How the twelve semitones are spaced. Equal is the modern default.");
+    addAndMakeVisible (*temperament);
+
+    concertA = std::make_unique<LuthierKnob> ("Concert A", LuthierKnob::Size::Small);
+    concertA->attachTo (processor, ParamIDs::concertA,
+                        "Reference pitch. 440 Hz is standard; 415 is baroque.");
+    addAndMakeVisible (*concertA);
+
+    /*  One detune slider per string, writing TuningEngine directly.
+
+        These are not parameters, so there is no attachment and no MIDI Learn on
+        them - see the note on the class. The value is read back from the engine
+        on construction rather than cached here, so a preset loaded behind this
+        popover and a popover opened after it agree. */
+    auto& tuning = processor.getEngine().getTuningEngine();
+
+    for (int i = 0; i < numStrings; ++i)
+    {
+        auto* slider = detuneSliders.add (new juce::Slider (juce::Slider::LinearHorizontal,
+                                                            juce::Slider::TextBoxRight));
+
+        slider->setRange (-100.0, 100.0, 0.1);
+        slider->setTextValueSuffix (" ct");
+        slider->setTextBoxStyle (juce::Slider::TextBoxRight, false, 52, 18);
+        slider->setDoubleClickReturnValue (true, 0.0);
+        slider->setValue (tuning.getStringTuning (i).detuneCents, juce::dontSendNotification);
+
+        slider->setTooltip ("Deliberate detune for this string, in cents. "
+                            "Double-click to return it to zero.");
+
+        AccessibleSetup::configureSlider (*slider, "String " + juce::String (i + 1) + " detune",
+                                          " cents");
+
+        /*  An undo entry per gesture rather than per value change: a drag is one
+            action to the user, and action-and-undo.md asks for the undo stack to
+            match what they think they did. */
+        slider->onDragStart = [this] { processor.pushUndoState ("Detune string"); };
+
+        slider->onValueChange = [this, i, slider]
+        {
+            processor.getEngine().getTuningEngine().setDetuneCents (i, slider->getValue());
+            refreshNoteNames();
+            repaint();
+        };
+
+        addAndMakeVisible (slider);
+    }
+
+    refreshNoteNames();
+
+    setSize (preferredSize (numStrings).getWidth(), preferredSize (numStrings).getHeight());
+}
+
+TuningPopover::~TuningPopover() = default;
+
+juce::Rectangle<int> TuningPopover::preferredSize (int numStrings)
+{
+    const int rows = juce::jlimit (1, 12, numStrings);
+
+    // Two choice rows, a knob, the string rows, and the capo line at the bottom.
+    const int height = kPopoverPadding * 2
+                         + LuthierChoice::labelHeight + kRowHeight          // tuning
+                         + LuthierChoice::labelHeight + kRowHeight          // temperament
+                         + LuthierKnob::preferredHeightFor (LuthierKnob::Size::Small)
+                         + 8
+                         + rows * kRowHeight
+                         + 8 + 28;
+
+    return { 0, 0, 300, height };
+}
+
+void TuningPopover::refreshNoteNames()
+{
+    const auto& tuning = processor.getEngine().getTuningEngine();
+
+    noteNames.clearQuick();
+
+    for (int i = 0; i < numStrings; ++i)
+        noteNames.add (TuningEngine::describeFrequency (tuning.getEffectiveOpenFrequency (i),
+                                                       tuning.getConcertA()));
+}
+
+void TuningPopover::paint (juce::Graphics& g)
+{
+    g.fillAll (Palette::panel);
+
+    auto bounds = getLocalBounds().reduced (kPopoverPadding);
+
+    // The note name beside each slider, so a detune is read as a pitch rather
+    // than as a number of cents.
+    auto rows = bounds.removeFromBottom (8 + 28 + numStrings * kRowHeight)
+                      .withTrimmedBottom (8 + 28);
+
+    g.setFont (Fonts::mono (10.0f));
+
+    for (int i = 0; i < numStrings; ++i)
+    {
+        auto row = rows.removeFromTop (kRowHeight);
+
+        g.setColour (Palette::textMuted);
+        g.drawText (noteNames[i], row.removeFromLeft (kNoteColumnWidth),
+                    juce::Justification::centredLeft, false);
+    }
+
+    /*  Capo is section 3.1's third item and it is not built - there is no capo
+        parameter, no capo in TuningEngine and no capo anywhere else in the
+        plugin. Saying so on the popover is ground rule 0.2: the alternative is a
+        user hunting for a control that was never written. GAPS.md carries it,
+        and so do the two docs that currently promise it. */
+    auto footer = getLocalBounds().reduced (kPopoverPadding).removeFromBottom (28);
+
+    g.setColour (Palette::edge);
+    g.fillRect (footer.removeFromTop (1));
+
+    g.setColour (Palette::textDisabled);
+    g.setFont (Fonts::ui (10.0f));
+    g.drawText ("Capo is not built yet.", footer, juce::Justification::centredLeft, true);
+}
+
+void TuningPopover::resized()
+{
+    auto bounds = getLocalBounds().reduced (kPopoverPadding);
+
+    preset->setBounds (bounds.removeFromTop (LuthierChoice::labelHeight + kRowHeight));
+    temperament->setBounds (bounds.removeFromTop (LuthierChoice::labelHeight + kRowHeight));
+
+    concertA->setBounds (bounds.removeFromTop (
+        LuthierKnob::preferredHeightFor (LuthierKnob::Size::Small)));
+
+    bounds.removeFromTop (8);
+    bounds.removeFromBottom (8 + 28);
+
+    for (auto* slider : detuneSliders)
+    {
+        auto row = bounds.removeFromTop (kRowHeight);
+        row.removeFromLeft (kNoteColumnWidth);          // the note name paint() draws
+        slider->setBounds (row);
+    }
+}
+
+//==============================================================================
+//  WhammyPopover
+//==============================================================================
+WhammyPopover::WhammyPopover (LuthierAudioProcessor& p)
+    : processor (p)
+{
+    bridgeType = std::make_unique<LuthierChoice> ("Bridge");
+    bridgeType->attachTo (processor, ParamIDs::bridgeType,
+                          "The bridge fitted to this instrument. A hardtail has no arm.");
+    addAndMakeVisible (*bridgeType);
+
+    auto addKnob = [this] (std::unique_ptr<LuthierKnob>& knob, const char* label,
+                           const char* paramId, const char* tooltip)
+    {
+        knob = std::make_unique<LuthierKnob> (label, LuthierKnob::Size::Small);
+        knob->attachTo (processor, paramId, tooltip);
+        addAndMakeVisible (*knob);
+    };
+
+    addKnob (position,  "Arm",     ParamIDs::whammyPos,
+             "Where the arm is right now. Centre is at rest.");
+    addKnob (downRange, "Down",    ParamIDs::whammyDown,
+             "How far down the arm bends, in semitones.");
+    addKnob (upRange,   "Up",      ParamIDs::whammyUp,
+             "How far up the arm pulls, in semitones. A hardtail-mounted vintage "
+             "tremolo pulls up very little.");
+    addKnob (springs,   "Springs", ParamIDs::whammySprings,
+             "Spring tension. Slacker springs make the bridge return more slowly "
+             "and pull the other strings further out of tune.");
+
+    setSize (preferredSize().getWidth(), preferredSize().getHeight());
+}
+
+WhammyPopover::~WhammyPopover() = default;
+
+bool WhammyPopover::isWhammyFitted (LuthierAudioProcessor& processor)
+{
+    /*  Index 0 of bridgeTypeNames is "Fixed / Hardtail" and every other entry is
+        a bridge with an arm. Read through the parameter rather than the engine so
+        this agrees with what the Bridge control is showing at the instant the
+        user clicks. */
+    if (auto* param = processor.getState().getParameter (ParamIDs::bridgeType))
+        if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (param))
+            return choice->getIndex() > 0;
+
+    return false;
+}
+
+juce::Rectangle<int> WhammyPopover::preferredSize()
+{
+    const int knobHeight = LuthierKnob::preferredHeightFor (LuthierKnob::Size::Small);
+
+    return { 0, 0, 4 * LuthierKnob::preferredWidthFor (LuthierKnob::Size::Small) + kPopoverPadding * 2,
+             kPopoverPadding * 2 + LuthierChoice::labelHeight + kRowHeight + 8 + knobHeight };
+}
+
+void WhammyPopover::paint (juce::Graphics& g)
+{
+    g.fillAll (Palette::panel);
+}
+
+void WhammyPopover::resized()
+{
+    auto bounds = getLocalBounds().reduced (kPopoverPadding);
+
+    bridgeType->setBounds (bounds.removeFromTop (LuthierChoice::labelHeight + kRowHeight));
+    bounds.removeFromTop (8);
+
+    const int width = bounds.getWidth() / 4;
+
+    position->setBounds  (bounds.removeFromLeft (width));
+    downRange->setBounds (bounds.removeFromLeft (width));
+    upRange->setBounds   (bounds.removeFromLeft (width));
+    springs->setBounds   (bounds);
 }
 
 } // namespace luthier
