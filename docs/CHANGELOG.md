@@ -15,9 +15,10 @@ numbered, because what it should be called is a release decision.
   envelope followers, note/CC/macro/random sources and a 1024-route matrix.
   Modulation is applied in one place, `ParameterBridge::value`, so every one of
   the 351 parameters is a legal destination with no per-parameter plumbing. (The
-  set grew from 1.0.0's 342 as the extension specs landed; the count is now
-  asserted exactly by `Parameters::everyParameterHasAUniqueIdAndSaneDefault`,
-  because a host indexes its saved automation against this list.)
+  set grew from 1.0.0's 342 as the extension specs landed and is 352 now that the
+  capo is one of them; the count is asserted exactly by
+  `Parameters::everyParameterHasAUniqueIdAndSaneDefault`, because a host indexes
+  its saved automation against this list.)
 - **Rhythm engine** - chord detector, voicer, strum and fingerpick schedulers, 37
   factory patterns (26 strum, 11 fingerpick), 28 genre kits.
 - **Live performance** - 128 snapshots with crossfade and morph, setlists, tap
@@ -35,6 +36,21 @@ numbered, because what it should be called is a release decision.
   palettes, UI scale, localisation.
 - **Updates and telemetry** - update checks, opt-in telemetry, crash reporting,
   license activation, privacy dashboard.
+- **A capo that changes the pitch** (ambiguity-resolutions.md 4.5). There were
+  already two capos in the build and neither did: RhythmEngine had one that moved
+  where chords were voiced, and the fretboard had one that drew itself and was
+  read by nothing. `ParamIDs::capoFret` is the one capo now, owned by
+  TuningEngine where section 19 puts it, automatable and saved with the preset.
+  Fret positions are measured from the capo, open strings sound the capo'd notes,
+  and the playable neck gets shorter by the capo. All three of section 19's UI
+  homes reach it: Advanced column 1 GUITAR, the headstock popover, and the
+  fretboard's right-click "Set capo here" - which `docs/USER_MANUAL.md` has
+  described all along, accurately, for a control that until now moved a line on a
+  picture and nothing else. The capo applies as a fret position rather than a
+  cent offset on the open string, which only differs under an unequal
+  temperament: a capo at 5 gives exactly what fret 5 gives. Partial capos take
+  their string mask from the Workshop's capo part and remain blocked.
+  The parameter count is 352.
 - **Advanced Mode columns** - gui-integration.md section 4's scheme, in section
   4's order: GUITAR/BODY/STRINGS/WHAMMY, PICKUPS/CABLE/PRE-FX,
   AMP/POST-FX/CAB/ROOM/SUSTAIN, and a tabbed workspace. Section 4.5's widths

@@ -802,6 +802,12 @@ TuningPopover::TuningPopover (LuthierAudioProcessor& p)
                            "How the twelve semitones are spaced. Equal is the modern default.");
     addAndMakeVisible (*temperament);
 
+    capo = std::make_unique<LuthierChoice> ("Capo");
+    capo->attachTo (processor, ParamIDs::capoFret,
+                    "Where the capo sits. The open strings become the capo'd notes, and "
+                    "the neck gets that much shorter.");
+    addAndMakeVisible (*capo);
+
     concertA = std::make_unique<LuthierKnob> ("Concert A", LuthierKnob::Size::Small);
     concertA->attachTo (processor, ParamIDs::concertA,
                         "Reference pitch. 440 Hz is standard; 415 is baroque.");
@@ -858,10 +864,11 @@ juce::Rectangle<int> TuningPopover::preferredSize (int numStrings)
 {
     const int rows = juce::jlimit (1, 12, numStrings);
 
-    // Two choice rows, a knob, the string rows, and the capo line at the bottom.
+    // Three choice rows, a knob, the string rows, and the footer.
     const int height = kPopoverPadding * 2
                          + LuthierChoice::labelHeight + kRowHeight          // tuning
                          + LuthierChoice::labelHeight + kRowHeight          // temperament
+                         + LuthierChoice::labelHeight + kRowHeight          // capo
                          + LuthierKnob::preferredHeightFor (LuthierKnob::Size::Small)
                          + 8
                          + rows * kRowHeight
@@ -903,11 +910,12 @@ void TuningPopover::paint (juce::Graphics& g)
                     juce::Justification::centredLeft, false);
     }
 
-    /*  Capo is section 3.1's third item and it is not built - there is no capo
-        parameter, no capo in TuningEngine and no capo anywhere else in the
-        plugin. Saying so on the popover is ground rule 0.2: the alternative is a
-        user hunting for a control that was never written. GAPS.md carries it,
-        and so do the two docs that currently promise it. */
+    /*  Section 3.1's third item used to be a line here saying capo was not built,
+        which was true of the pitch and wrong about the plugin: there was a capo
+        in RhythmEngine moving chord voicings and another on the fretboard drawing
+        itself, and neither changed a note. There is one capo now and it is the
+        control above. Partial capos are still absent - they need the capo part
+        from the Workshop - so that is what the footer says instead. */
     auto footer = getLocalBounds().reduced (kPopoverPadding).removeFromBottom (28);
 
     g.setColour (Palette::edge);
@@ -915,7 +923,8 @@ void TuningPopover::paint (juce::Graphics& g)
 
     g.setColour (Palette::textDisabled);
     g.setFont (Fonts::ui (10.0f));
-    g.drawText ("Capo is not built yet.", footer, juce::Justification::centredLeft, true);
+    g.drawText ("Partial capos need the Workshop, which is not built.",
+                footer, juce::Justification::centredLeft, true);
 }
 
 void TuningPopover::resized()
@@ -924,6 +933,7 @@ void TuningPopover::resized()
 
     preset->setBounds (bounds.removeFromTop (LuthierChoice::labelHeight + kRowHeight));
     temperament->setBounds (bounds.removeFromTop (LuthierChoice::labelHeight + kRowHeight));
+    capo->setBounds (bounds.removeFromTop (LuthierChoice::labelHeight + kRowHeight));
 
     concertA->setBounds (bounds.removeFromTop (
         LuthierKnob::preferredHeightFor (LuthierKnob::Size::Small)));

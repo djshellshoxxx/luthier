@@ -114,6 +114,20 @@ juce::StringArray Parameters::tuningNames()
     return names;
 }
 
+juce::StringArray Parameters::capoNames()
+{
+    /*  Twelve frets, which is the range RhythmEngine's own capo already used and
+        the point past which a capo stops being a capo. "Off" rather than "Fret 0"
+        because a capo at the nut is not a capo, and a host showing "Fret 0" would
+        read as a setting rather than as its absence. */
+    juce::StringArray names { "Off" };
+
+    for (int fret = 1; fret <= 12; ++fret)
+        names.add ("Fret " + juce::String (fret));
+
+    return names;
+}
+
 juce::StringArray Parameters::temperamentNames()
 {
     juce::StringArray names;
@@ -326,6 +340,7 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (choiceParam (ParamIDs::tuningPreset,   "Tuning",          tuningNames(), 0));
     add (choiceParam (ParamIDs::temperament,    "Temperament",     temperamentNames(), 0));
     add (floatParam  (ParamIDs::concertA,       "Concert A",       415.0f, 466.0f, 440.0f, 0.5f, "Hz"));
+    add (choiceParam (ParamIDs::capoFret,       "Capo",            capoNames(), 0));
     add (choiceParam (ParamIDs::stringMaterial, "String Material", stringMaterialNames(), 0));
     add (choiceParam (ParamIDs::stringGauge,    "String Gauge",    stringGaugeNames(), 2));
     add (choiceParam (ParamIDs::stringAge,      "String Age",      stringAgeNames(), 1));
@@ -785,6 +800,7 @@ void ParameterBridge::applyToEngine() noexcept
     structural |= changed (lastBridgeType,     (int) value (ParamIDs::bridgeType));
     structural |= changed (lastPlayingMode,    (int) value (ParamIDs::playingMode));
     structural |= changed (lastTemperament,    (int) value (ParamIDs::temperament));
+    structural |= changed (lastCapoFret,       (int) value (ParamIDs::capoFret));
     structural |= changed (lastOversample,     (int) value (ParamIDs::oversample));
 
     for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
@@ -836,6 +852,11 @@ void ParameterBridge::applyStructural()
     engine.getTuningEngine().setTemperament (
         (Temperament) juce::jlimit (0, (int) Temperament::NumTemperaments - 1, lastTemperament));
     engine.getTuningEngine().setConcertA (value (ParamIDs::concertA));
+
+    /*  ambiguity-resolutions 4.5. The choice index is the fret, because entry 0
+        is "Off" and entry n is "Fret n" - so no mapping table can drift out of
+        step with the names. */
+    engine.getTuningEngine().setCapoFret ((int) value (ParamIDs::capoFret));
     engine.getTuningEngine().setDriftEnabled (value (ParamIDs::tuningDrift) > 0.5f);
 
     for (int s = 0; s < engine.getNumStrings(); ++s)

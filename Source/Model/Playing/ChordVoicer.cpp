@@ -140,16 +140,26 @@ int ChordVoicer::findCandidates (int midiNote, Candidate* dest) const noexcept
         if (std::abs (fret - (double) rounded) > 0.08)
             continue;
 
-        if (rounded < 0 || rounded > maxFret)
+        /*  Two ceilings, and the lower one wins. `maxFret` is a voicing
+            preference - how far up the neck to reach - while the tuning engine's
+            playable span is the neck itself, which a capo shortens
+            (ambiguity-resolutions 4.5). Without the second one a capo at 12 on a
+            24-fret neck would still voice up to fret 22, which is ten frets past
+            where the neck ends. */
+        const int highest = juce::jmin (maxFret, tuningEngine->getHighestPlayableFret (s));
+
+        if (rounded < 0 || rounded > highest)
             continue;
 
-        // A capo removes the frets below it from play entirely, including the
-        // open string.
+        /*  Frets are measured from the capo, so everything below it is already
+            unreachable by construction - `rounded < 0` above is that check.
+            `minFret` is a floor on where to voice and is not the capo; it used to
+            be, when the capo lived in RhythmEngine and frets were absolute. */
         if (rounded < minFret)
             continue;
 
         // "Open" means open relative to the capo, so with a capo fitted the fret
-        // it holds down is the one that counts as open.
+        // it holds down is the one that counts as open - which is fret 0 here.
         if (rounded == minFret && ! allowOpen)
             continue;
 

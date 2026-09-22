@@ -202,7 +202,7 @@ private:
     std::unique_ptr<LuthierToggle> driftToggle;
 
     // --- column 2 -----------------------------------------------------------------
-    std::unique_ptr<LuthierChoice> temperament;
+    std::unique_ptr<LuthierChoice> temperament, capo;
     std::unique_ptr<LuthierKnob> concertA, couplingAmount, fretAction, fretBuzz;
     std::unique_ptr<LuthierToggle> fretlessToggle, slideGuitarToggle;
 

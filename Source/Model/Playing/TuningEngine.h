@@ -118,6 +118,37 @@ public:
     double getConcertA() const noexcept { return concertA; }
 
     //==========================================================================
+    /*  The capo (ambiguity-resolutions.md 4.5).
+
+        "Capo raises effective minimum fret to capo_fret. Open strings are the
+        capo'd notes." Three consequences, and they are the whole feature:
+
+          - getEffectiveOpenFrequency returns the capo'd note, so everything that
+            asks what a string sounds like open - the tuner, the string list, the
+            headstock popover, the engine setting up the string - gets the right
+            answer without having to know a capo exists.
+          - fret positions are measured *from the capo*, so fret 0 is the capo.
+          - the neck gets shorter: getHighestPlayableFret is maxFrets - capoFret.
+
+        A capo at 0 is no capo, and every path here reduces to the uncapo'd one.
+
+        The capo is applied as a fret position rather than as a cent offset on the
+        open string, which matters under an unequal temperament: the frets are at
+        fixed places, so a capo at 5 gives exactly the pitch fret 5 gives, not the
+        open string shifted by a tempered fourth. Under equal temperament the two
+        are identical, which is why it would have been easy to get wrong.
+
+        Partial capos are not built: 4.5 takes the string mask from the capo part
+        in the Workshop, and that is blocked on guitar-workshop.md. This is one
+        fret across all strings. GAPS.md B1 has it. */
+    void setCapoFret (int fret) noexcept;
+    int getCapoFret() const noexcept { return capoFret; }
+
+    /** The highest fret still reachable, counting from the capo. Zero when a capo
+        has been put past the end of the neck, which is legal and silly. */
+    int getHighestPlayableFret (int stringIndex) const noexcept;
+
+    //==========================================================================
     /** Re-randomises every string's realism detune within +/- `maxCents`.
         Called on preset load and from the "retune" button. Persisted so a preset
         sounds the same every time it is opened. */
@@ -170,7 +201,12 @@ public:
 private:
     double temperamentRatio (double semitonesFromRoot) const noexcept;
 
+    /** The open string with no capo on it: detune, drift and fine tuning, and
+        nothing else. The capo is a fret, so it belongs on the fret side. */
+    double getOpenFrequencyBeforeCapo (int stringIndex) const noexcept;
+
     int numStrings = 6;
+    int capoFret = 0;
     std::array<StringTuning, kMaxStrings> strings {};
 
     Temperament temperament = Temperament::EqualTemp12;

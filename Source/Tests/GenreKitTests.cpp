@@ -367,14 +367,35 @@ LUTHIER_TEST (GenreKits, everyKitSoundsWhenApplied)
 }
 
 //==============================================================================
-/*  A capo removes every fret below it from play (rhythm-engine 3). Nothing the
-    voicer produces may sit under the capo. */
-LUTHIER_TEST (GenreKits, capoRemovesFretsBelowIt)
+/*  A capo removes every fret below it from play, shortens the neck, and moves
+    the pitch (rhythm-engine 3, ambiguity-resolutions 4.5).
+
+    This test used to assert `fretPosition >= capo`, because the capo lived in
+    RhythmEngine, fret positions were absolute, and the voicer was filtered by a
+    minFret set to the capo. The capo is TuningEngine's now and fret positions are
+    measured from it, so "below the capo" is not expressible any more and that
+    assertion would only be re-stating the coordinate system.
+
+    What is worth checking in the new arrangement is what can still go wrong:
+
+      - nothing is voiced below the capo, which is now fret 0;
+      - nothing is voiced past the end of a neck the capo has shortened, which is
+        a real hazard because the voicer's own maxFret does not know about capos;
+      - the capo actually changes the pitch, which is the whole point and which
+        the old test could not see at all - it only ever looked at fret numbers,
+        and a capo that transposed nothing would have passed it.
+*/
+LUTHIER_TEST (GenreKits, capoRemovesFretsBelowItAndMovesThePitch)
 {
     for (int capo : { 0, 2, 5, 7 })
     {
         KitFixture fixture;
         fixture.engine.setCapoFret (capo);
+
+        CHECK_MSG (fixture.engine.getCapoFret() == capo,
+                   "the capo did not take: asked for " + juce::String (capo)
+                     + ", got " + juce::String (fixture.engine.getCapoFret()));
+
         fixture.holdChord();
         fixture.engine.setPattern (PatternLibrary().getPattern (
             PatternLibrary().indexOf ("Folk Down Up")));
@@ -388,17 +409,84 @@ LUTHIER_TEST (GenreKits, capoRemovesFretsBelowIt)
 
         const double beatsPerBlock = (double) kBlock / kSr * 2.0;
 
+        int notesSeen = 0;
+
         while (transport.ppqPosition < 4.0)
         {
             out.clear();
             fixture.engine.processBlock (kBlock, transport, out);
 
             for (int i = 0; i < out.getNumNoteOns(); ++i)
-                CHECK_MSG (out.getNoteOn (i).fretPosition >= (double) capo - 0.001,
+            {
+                const auto& note = out.getNoteOn (i);
+                ++notesSeen;
+
+                CHECK_MSG (note.fretPosition >= -0.001,
+                           "capo at " + juce::String (capo) + ": note below the capo, at fret "
+                             + juce::String (note.fretPosition));
+
+                /*  The neck is shorter by the capo. Checked per string because
+                    max frets is per string, and a note past the end would be a
+                    pitch no guitar can make. */
+                const int highest = fixture.tuning.getHighestPlayableFret (note.stringIndex);
+
+                CHECK_MSG (note.fretPosition <= (double) highest + 0.001,
                            "capo at " + juce::String (capo) + ": note at fret "
-                             + juce::String (out.getNoteOn (i).fretPosition));
+                             + juce::String (note.fretPosition)
+                             + " is past the end of a neck that stops at "
+                             + juce::String (highest));
+            }
 
             transport.ppqPosition += beatsPerBlock;
         }
+
+        CHECK_MSG (notesSeen > 0,
+                   "capo at " + juce::String (capo) + ": the bar produced no notes at all, "
+                   "so nothing above was actually checked");
+    }
+
+    //--------------------------------------------------------------------------
+    /*  The capo moves the pitch. Five frets is a fourth, so an open string with a
+        capo at 5 must sound exactly what fret 5 sounded without one - not merely
+        "higher", which a wrong-but-plausible implementation would also manage. */
+    {
+        TuningEngine tuning;
+        tuning.setNumStrings (6);
+
+        // No intonation slope: this is about the capo, and the slope would add a
+        // few cents that have nothing to do with it.
+        for (int s = 0; s < 6; ++s)
+            tuning.setIntonationSlope (s, 0.0);
+
+        const double fretFiveNoCapo = tuning.computeFrequency (0, 5.0);
+        const double openNoCapo     = tuning.getEffectiveOpenFrequency (0);
+
+        tuning.setCapoFret (5);
+
+        const double openWithCapo = tuning.getEffectiveOpenFrequency (0);
+
+        CHECK_MSG (std::abs (openWithCapo - fretFiveNoCapo) < 0.01,
+                   "a capo at 5 does not make the open string sound like fret 5: open is "
+                     + juce::String (openWithCapo) + " Hz, fret 5 was "
+                     + juce::String (fretFiveNoCapo) + " Hz");
+
+        CHECK_MSG (openWithCapo > openNoCapo * 1.3,
+                   "the capo did not raise the open string at all");
+
+        // And fret 0 with the capo on is that same note, because fret positions
+        // are measured from the capo.
+        CHECK_MSG (std::abs (tuning.computeFrequency (0, 0.0) - fretFiveNoCapo) < 0.01,
+                   "fret 0 with a capo at 5 is not the capo'd note");
+
+        // The neck lost five frets.
+        CHECK_MSG (tuning.getHighestPlayableFret (0)
+                     == tuning.getStringTuning (0).maxFrets - 5,
+                   "the playable span did not shrink by the capo");
+
+        // Taking it off puts everything back.
+        tuning.setCapoFret (0);
+
+        CHECK_MSG (std::abs (tuning.getEffectiveOpenFrequency (0) - openNoCapo) < 1.0e-9,
+                   "removing the capo did not restore the open string");
     }
 }

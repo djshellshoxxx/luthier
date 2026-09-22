@@ -364,6 +364,15 @@ void AdvancedPanel::buildColumn1()
     concertA->attachTo (processor, ParamIDs::concertA, "Reference pitch for A4");
     column.addControl (concertA.get(), LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
 
+    /*  gui-integration 19 names this column as the capo's home, alongside the
+        Workshop capo drag that does not exist. The headstock popover and the
+        fretboard's right-click reach the same parameter. */
+    capo = std::make_unique<LuthierChoice> ("Capo");
+    capo->attachTo (processor, ParamIDs::capoFret,
+                    "Where the capo sits. The open strings become the capo'd notes, and "
+                    "the neck gets that much shorter. Partial capos need the Workshop.");
+    column.addControl (capo.get(), 36);
+
     // ---- body ------------------------------------------------------------------
     column.addSection ("Body");
 

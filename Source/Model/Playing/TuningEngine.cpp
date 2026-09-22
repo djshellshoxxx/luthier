@@ -289,7 +289,7 @@ double TuningEngine::temperamentRatio (double semitonesFromRoot) const noexcept
 }
 
 //==============================================================================
-double TuningEngine::getEffectiveOpenFrequency (int stringIndex) const noexcept
+double TuningEngine::getOpenFrequencyBeforeCapo (int stringIndex) const noexcept
 {
     const auto& s = getStringTuning (stringIndex);
     const double cents = s.detuneCents + s.realismDetuneCents + s.driftCents
@@ -297,21 +297,59 @@ double TuningEngine::getEffectiveOpenFrequency (int stringIndex) const noexcept
     return s.openFrequencyHz * centsToRatio (cents);
 }
 
+double TuningEngine::getEffectiveOpenFrequency (int stringIndex) const noexcept
+{
+    /*  4.5: "open strings are the capo'd notes". Everything that asks what a
+        string sounds like open - the tuner, the string list, the headstock
+        popover, the engine setting up the string - wants the note it actually
+        sounds, so the capo is applied here rather than left for each caller to
+        remember. */
+    if (capoFret <= 0)
+        return getOpenFrequencyBeforeCapo (stringIndex);
+
+    return getOpenFrequencyBeforeCapo (stringIndex) * temperamentRatio ((double) capoFret);
+}
+
+void TuningEngine::setCapoFret (int fret) noexcept
+{
+    // A capo past the end of the neck is silly rather than illegal: the playable
+    // span clamps to zero and the string plays one note.
+    capoFret = juce::jlimit (0, 36, fret);
+}
+
+int TuningEngine::getHighestPlayableFret (int stringIndex) const noexcept
+{
+    return juce::jmax (0, getStringTuning (stringIndex).maxFrets - capoFret);
+}
+
 double TuningEngine::computeFrequency (int stringIndex, double fretPosition, double bendCents) const noexcept
 {
     const auto& s = getStringTuning (stringIndex);
 
-    const double openHz = getEffectiveOpenFrequency (stringIndex);
+    /*  Fret positions are measured from the capo, so the fret actually being
+        held is capoFret higher up the neck. Both the temperament and the
+        intonation are asked about that absolute position:
+
+        - the temperament, because the frets are at fixed places. A capo at 5
+          gives exactly what fret 5 gives, which under an unequal temperament is
+          not the open string shifted by a tempered fourth. Multiplying two
+          ratios instead of taking one at the sum would be wrong here, and
+          identical under equal temperament - which is what would have let it
+          ship.
+        - the intonation, because a capo is a fret: the string is stretched by
+          the whole distance from the nut, not just the part above the capo.
+    */
+    const double absoluteFret = (double) capoFret + fretPosition;
+
+    const double openHz = getOpenFrequencyBeforeCapo (stringIndex);
 
     // Real guitars go progressively sharp up the neck: pressing the string down
     // stretches it. The slope is per-string and adjustable.
-    const double intonation = s.intonationSlope * juce::jmax (0.0, fretPosition);
+    const double intonation = s.intonationSlope * juce::jmax (0.0, absoluteFret);
 
     const double totalCents = bendCents + intonation;
 
-    // The temperament describes the fret spacing, so it is applied to the fret
-    // position; everything else is a straight cent offset on top.
-    const double fretRatio = temperamentRatio (fretPosition);
+    const double fretRatio = temperamentRatio (absoluteFret);
 
     const double hz = openHz * fretRatio * centsToRatio (totalCents);
 
@@ -320,7 +358,12 @@ double TuningEngine::computeFrequency (int stringIndex, double fretPosition, dou
 
 double TuningEngine::frequencyToFretPosition (int stringIndex, double hz) const noexcept
 {
-    const double openHz = getEffectiveOpenFrequency (stringIndex);
+    /*  Solved in absolute frets - from the nut, ignoring the capo - because that
+        is the coordinate computeFrequency works in, and inverting it in any other
+        one would not round-trip under an unequal temperament. The capo is taken
+        off at the end, so what comes back is a position on the capo'd neck, which
+        is what every caller wants. */
+    const double openHz = getOpenFrequencyBeforeCapo (stringIndex);
 
     if (openHz <= 0.0 || hz <= 0.0)
         return -1.0;
@@ -352,15 +395,18 @@ double TuningEngine::frequencyToFretPosition (int stringIndex, double hz) const 
     if (std::abs (s.intonationSlope) > 1.0e-9)
         semis -= s.intonationSlope * juce::jmax (0.0, semis) / 100.0;
 
-    return semis;
+    return semis - (double) capoFret;
 }
 
 bool TuningEngine::canPlay (int stringIndex, double hz) const noexcept
 {
     const double fret = frequencyToFretPosition (stringIndex, hz);
-    const auto& s = getStringTuning (stringIndex);
 
-    return fret >= -0.01 && fret <= (double) s.maxFrets + 0.01;
+    /*  4.5's "raises effective minimum fret": below the capo is unreachable, and
+        the top of the neck comes down to meet it. A note that was playable open
+        is not playable with a capo on, which is the point of a capo. */
+    return fret >= -0.01
+             && fret <= (double) getHighestPlayableFret (stringIndex) + 0.01;
 }
 
 //==============================================================================

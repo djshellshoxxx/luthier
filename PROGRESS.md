@@ -875,6 +875,109 @@ not, one is blocked on `guitar-workshop.md` and one on `advanced-ranges.md`, and
 third listed trigger - missing guitar - cannot happen in this build at all, since
 there is no `.luthierguitar` file format for a preset to reference.
 
+
+## B1: three capos, none of which changed a note
+
+`GAPS.md` B1 opened with "There is no capo. Not a parameter, not a field in
+`TuningEngine`, not a line of code anywhere in `Source/`", and concluded that
+`docs/USER_MANUAL.md` and `docs/KEYBOARD_SHORTCUTS.md` made "a promise the build
+does not keep". Almost none of that was true.
+
+There were **three** capos:
+
+- **`RhythmEngine::capoFret`** moved `ChordVoicer::setMinFret`, so chords were
+  voiced above it. Persisted in the rhythm state. Reachable from the Rhythm
+  panel's up/down buttons.
+- **`FretboardComponent::capoFret`** drew a capo and shifted that component's own
+  fret display. Reachable from its right-click menu - **"Set capo here"** - and
+  read by nothing else in the plugin.
+- **`TuningEngine`** had none, which is the one place `gui-integration.md` 19
+  says the capo belongs.
+
+And the manual was not lying. The menu it describes - "Mute string, select
+string, set capo, scale overlay" - is `FretboardComponent`'s menu exactly, every
+item present. **Neither document needed a word changed.**
+
+The real gap was narrower and worse than the entry described: *no capo anywhere
+changed the pitch of a note*. A user following the manual got a capo that drew a
+line on a picture. A user pressing the Rhythm panel's capo buttons got chords
+voiced higher up a neck whose notes sounded exactly as before. Two half-features
+that each looked like the feature from one angle.
+
+This is the fourth entry in that file closed by reading the code rather than the
+entry, and the worst of the four, because it was the most confidently worded.
+
+### One capo, in the place the spec names
+
+`ParamIDs::capoFret`, a choice from Off to Fret 12, owned by `TuningEngine`. A
+parameter rather than engine state because a capo is something a player moves
+between songs and automates between sections, and because section 19 puts it in
+Advanced column 1, which is a column of parameters. The count moves 351 to 352,
+which the pinned assertion in `everyParameterHasAUniqueIdAndSaneDefault` now
+carries.
+
+`ambiguity-resolutions.md` 4.5 is three sentences and two are implemented
+exactly. Fret positions are measured **from the capo**: fret 0 is the capo,
+`getEffectiveOpenFrequency` returns the capo'd note so nothing downstream needs
+to know a capo exists, and `getHighestPlayableFret` is `maxFrets - capoFret`, so
+the neck genuinely gets shorter.
+
+### The subtlety that would have shipped
+
+The capo is applied as a **fret position**, not as a cent offset on the open
+string. Under an unequal temperament those are different: the frets are at fixed
+places, so a capo at 5 gives exactly what fret 5 gives, not the open string
+shifted by a tempered fourth. Under equal temperament - the default, and what
+anyone would test with - they are identical. That is exactly the shape of thing
+that gets written the easy way and never fails until someone loads Werckmeister.
+
+`frequencyToFretPosition` had to move with it: it solves in absolute frets, in
+the same coordinate `computeFrequency` works in, and subtracts the capo at the
+end. Inverting in any other coordinate would not round-trip once the temperament
+is unequal.
+
+### Unifying the three
+
+`RhythmEngine::setCapoFret` delegates to `TuningEngine` and its own field is
+gone. `ChordVoicer::minFret` goes back to meaning "a floor on where to voice"
+rather than doubling as the capo - with capo-relative frets, filtering below it a
+second time would subtract the capo twice. `FretboardComponent`'s right-click
+drives the parameter and reads it back on its timer, so the drawn capo cannot
+disagree with the sound.
+
+That unification exposed a real defect: `ChordVoicer` bounded candidates only by
+its own `maxFret` preference, default 22. With a capo at 12 on a 24-fret neck it
+would have voiced up to fret 22 from the capo - ten frets past where the neck
+ends. It is bounded by the playable span now as well.
+
+`RhythmEngine` stops writing `capoFret` into its own state, since the parameter
+carries it in the same preset and two copies could disagree. `fromVar` still
+reads an old one so a session saved by a previous build does not lose it, and
+does not write it back.
+
+### All three UI homes exist
+
+Advanced column 1 GUITAR (section 19), the headstock popover (section 3.1) and
+the fretboard right-click. The popover's footer used to read "Capo is not built
+yet"; it now names the part that genuinely is not - partial capos, which take
+their string mask from the Workshop's capo part, and the Workshop is blocked on
+`guitar-workshop.md`.
+
+### The test that passed on a capo which transposed nothing
+
+`capoRemovesFretsBelowIt` asserted `fretPosition >= capo` and nothing else. It
+never looked at pitch, so **a capo that did nothing to the sound passed it** -
+and for three milestones one did. That is the clearest example this build has
+produced of a test that checks the mechanism it happens to have rather than the
+behaviour anyone wanted.
+
+Its replacement, `capoRemovesFretsBelowItAndMovesThePitch`, keeps the parts that
+still mean something in capo-relative coordinates - nothing below the capo,
+nothing past the shortened neck, and a bar that actually produced notes so the
+loop is not vacuous - and adds the one that matters: an open string with a capo
+at 5 must sound *exactly* what fret 5 sounded without one, not merely higher,
+which a wrong-but-plausible implementation would also manage.
+
 ## History
 
 See `docs/CHANGELOG.md`.

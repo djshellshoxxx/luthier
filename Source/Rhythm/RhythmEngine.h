@@ -107,10 +107,22 @@ public:
     void setHandPositionHint (int fret) noexcept { handPositionHint.store (juce::jlimit (0, 22, fret), std::memory_order_relaxed); }
     int getHandPositionHint() const noexcept { return handPositionHint.load (std::memory_order_relaxed); }
 
-    /** Where the capo sits, 0 for none (rhythm-engine 3, 8.2). The voicer treats
-        it as the lowest fret in play; nothing is transposed. */
-    void setCapoFret (int fret) noexcept { capoFret.store (juce::jlimit (0, 12, fret), std::memory_order_relaxed); }
-    int getCapoFret() const noexcept { return capoFret.load (std::memory_order_relaxed); }
+    /*  Where the capo sits, 0 for none (rhythm-engine 3, 8.2).
+
+        This used to be the rhythm engine's own field, and it was one of three
+        capos in the build that did not know about each other: this one, which
+        only moved the voicer's lowest fret; the fretboard's right-click capo,
+        which only drew itself; and none at all in TuningEngine, so no capo
+        anywhere changed the pitch of a note. gui-integration 19 names
+        TuningEngine as the home, so that is where it lives now and this
+        delegates.
+
+        The setter is kept because rhythm-engine 8.2 asks for capo up/down here,
+        but it is a view: setting it moves the one capo, and everything that reads
+        a capo reads the same one. Before `prepare` there is no tuning engine to
+        delegate to and it is a no-op, which is the same as it was. */
+    void setCapoFret (int fret) noexcept;
+    int getCapoFret() const noexcept;
 
     /** How even a strum is across its strings, 0..1 (rhythm-engine 4). */
     void setStrumEvenness (double evenness) noexcept { strumEvenness.store (juce::jlimit (0.0, 1.0, evenness), std::memory_order_relaxed); }
@@ -185,7 +197,7 @@ private:
     std::atomic<int> voicingStyle { (int) VoicingStyle::open };
     std::atomic<double> voicingDensity { 100.0 };
     std::atomic<int> handPositionHint { 0 };
-    std::atomic<int> capoFret { 0 };
+    // No capoFret here any more: TuningEngine owns the one capo. See setCapoFret.
     std::atomic<double> strumEvenness { 0.6 };
     std::atomic<double> strumDurationMs { 22.0 };
 

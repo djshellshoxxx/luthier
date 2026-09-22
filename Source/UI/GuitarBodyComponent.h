@@ -59,7 +59,9 @@ private:
 
     LuthierAudioProcessor& processor;
 
-    std::unique_ptr<LuthierChoice> preset, temperament;
+    /*  Section 3.1 asks the headstock popover for "per-string tuning, capo,
+        temperament". Capo used to be a line here saying it was not built. */
+    std::unique_ptr<LuthierChoice> preset, temperament, capo;
     std::unique_ptr<LuthierKnob> concertA;
 
     juce::OwnedArray<juce::Slider> detuneSliders;

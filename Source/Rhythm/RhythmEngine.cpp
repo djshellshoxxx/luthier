@@ -94,6 +94,20 @@ void RhythmEngine::setSeed (uint64_t newSeed) noexcept
     rng.setSeed (seed);
 }
 
+//==============================================================================
+void RhythmEngine::setCapoFret (int fret) noexcept
+{
+    // rhythm-engine 8.2's capo up/down, moving the one capo TuningEngine owns.
+    if (tuning != nullptr)
+        tuning->setCapoFret (juce::jlimit (0, 12, fret));
+}
+
+int RhythmEngine::getCapoFret() const noexcept
+{
+    return tuning != nullptr ? tuning->getCapoFret() : 0;
+}
+
+//==============================================================================
 void RhythmEngine::setEnabled (bool shouldBeEnabled) noexcept
 {
     const bool was = enabled.exchange (shouldBeEnabled, std::memory_order_relaxed);
@@ -314,7 +328,12 @@ void RhythmEngine::revoice() noexcept
     voicer->setAllowOpenStrings (style != VoicingStyle::barre);
     voicer->setPreferredPosition (getHandPositionHint());
     voicer->setMaxFretSpan (style == VoicingStyle::wide ? 6 : 5);
-    voicer->setMinFret (getCapoFret());
+    /*  Zero, not the capo. TuningEngine measures fret positions from the capo now
+        (ambiguity-resolutions 4.5), so frequencyToFretPosition already hands the
+        voicer capo-relative frets, and filtering below the capo a second time here
+        would take those frets away twice. minFret is back to meaning what its name
+        says - a floor on where to voice - and nothing currently sets one. */
+    voicer->setMinFret (0);
 
     currentVoicing = voicer->voice (chosen.data(), nullptr, count);
     voicingValid = currentVoicing.numNotes > 0;
@@ -700,7 +719,11 @@ juce::var RhythmEngine::toVar() const
     root->setProperty ("voicingStyle", (int) getVoicingStyle());
     root->setProperty ("voicingDensity", getVoicingDensity());
     root->setProperty ("handPosition", getHandPositionHint());
-    root->setProperty ("capoFret", getCapoFret());
+
+    /*  No "capoFret" here any more. The capo is a parameter now (ParamIDs::capoFret),
+        so it is saved with every other parameter in the same preset, and writing
+        it twice would give a preset two capos that a later edit could disagree
+        about. fromVar still reads an old one - see below. */
     root->setProperty ("strumEvenness", strumEvenness.load (std::memory_order_relaxed));
     root->setProperty ("strumDurationMs", getStrumDurationMs());
     root->setProperty ("pattern", getPattern().toVar());
@@ -731,6 +754,13 @@ void RhythmEngine::fromVar (const juce::var& state)
     setVoicingDensity ((double) root->getProperty ("voicingDensity"));
     setHandPositionHint ((int) root->getProperty ("handPosition"));
 
+    /*  A capo saved by a build that kept one here. It is applied so an old
+        session does not silently lose it, and it is not written back: the
+        parameter owns it from now on, and re-saving this preset moves it across.
+
+        A preset whose parameters also carry a capo will have that one applied
+        afterwards by applyStructural, which is the right way round - the newer
+        field wins. */
     if (root->hasProperty ("capoFret"))
         setCapoFret ((int) root->getProperty ("capoFret"));
 

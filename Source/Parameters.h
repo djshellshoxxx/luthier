@@ -49,6 +49,14 @@ namespace ParamIDs
     inline constexpr const char* tuningPreset   = "tuning_preset";
     inline constexpr const char* temperament    = "temperament";
     inline constexpr const char* concertA       = "concert_a";
+
+    /*  ambiguity-resolutions 4.5, and gui-integration 19 names TuningEngine as
+        its home. A parameter rather than plain engine state because a capo is
+        something a player moves between songs and automates between sections,
+        and because section 19 puts it in Advanced column 1 GUITAR, which is a
+        column of parameters. */
+    inline constexpr const char* capoFret       = "capo_fret";
+
     inline constexpr const char* stringMaterial = "string_material";
     inline constexpr const char* stringGauge    = "string_gauge";
     inline constexpr const char* stringAge      = "string_age";
@@ -227,6 +235,10 @@ public:
     static juce::StringArray guitarTypeNames();
     static juce::StringArray tuningNames();
     static juce::StringArray temperamentNames();
+
+    /** "Off", then "Fret 1" to "Fret 12". Twelve is where a capo stops being a
+        capo and starts being a different instrument. */
+    static juce::StringArray capoNames();
     static juce::StringArray stringMaterialNames();
     static juce::StringArray stringGaugeNames();
     static juce::StringArray stringAgeNames();
@@ -323,6 +335,11 @@ private:
     int lastBridgeType = -1;
     int lastPlayingMode = -1;
     int lastTemperament = -1;
+
+    /*  The capo is structural: it changes what every open string sounds and how
+        many frets are left, so the engine has to be told rather than having it
+        fall out of the next note. -1 so the first apply always runs. */
+    int lastCapoFret = -1;
     int lastOversample = -1;
     int lastPickupType[PickupEngine::kMaxPickups] = { -1, -1, -1 };
     int lastPickupMagnet[PickupEngine::kMaxPickups] = { -1, -1, -1 };

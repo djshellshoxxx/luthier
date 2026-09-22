@@ -76,7 +76,21 @@ void FretboardComponent::setScaleOverlay (ScaleOverlay s, int root)
 
 void FretboardComponent::setCapoFret (int fret)
 {
-    capoFret = juce::jlimit (0, numFrets, fret);
+    /*  This used to set a number the fretboard drew and nothing else ever read.
+        docs/USER_MANUAL.md has promised a right-click capo since it was written,
+        and this was it: a capo that moved a line on a picture while every note
+        carried on sounding exactly as before.
+
+        It drives the parameter now, which is the one capo the build has
+        (ambiguity-resolutions 4.5, gui-integration 19). Twelve is the parameter's
+        range - the neck is usually longer, and a capo past the twelfth fret is a
+        different instrument rather than a capo. */
+    const int wanted = juce::jlimit (0, juce::jmin (12, numFrets), fret);
+
+    if (auto* p = processor.getState().getParameter (ParamIDs::capoFret))
+        p->setValueNotifyingHost ((float) wanted / 12.0f);
+
+    capoFret = wanted;
     repaint();
 }
 
@@ -120,7 +134,17 @@ void FretboardComponent::timerCallback()
     const int strings = engine.getNumStrings();
     const auto& spec = engine.getGuitarSpec();
 
-    bool changed = (strings != numStrings) || (spec.maxFrets != numFrets);
+    /*  The capo is read back rather than only written, so the drawn one follows
+        a preset load, host automation, the Advanced column's control and the
+        Rhythm panel's up/down buttons. Before it was a parameter this could not
+        move except by right-clicking this component, which is why it never
+        disagreed with anything - there was nothing to disagree with. */
+    const int engineCapo = engine.getTuningEngine().getCapoFret();
+
+    bool changed = (strings != numStrings) || (spec.maxFrets != numFrets)
+                     || (engineCapo != capoFret);
+
+    capoFret = engineCapo;
 
     numStrings = juce::jlimit (1, 12, strings);
     numFrets = juce::jlimit (12, 27, spec.maxFrets);

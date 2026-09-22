@@ -399,42 +399,83 @@ under the header. Two mutants: starting the timer unconditionally fails the
 actionable-banner check, and dropping the strip from the layout fails the height
 and position checks.
 
-## B1 — Capo is documented, promised by the UI spec, and does not exist
+## B1 — Capo — **built**, and this entry was wrong about almost all of it
 
-Found while building section 3.1's headstock popover, which asks for "per-string
-tuning, capo, temperament".
+**What this used to say.** "There is no capo. Not a parameter, not a field in
+`TuningEngine`, not a line of code anywhere in `Source/`." Then a table of four
+specs and two user docs describing a feature that did not exist, and a conclusion
+that `docs/USER_MANUAL.md` and `docs/KEYBOARD_SHORTCUTS.md` made "a promise the
+build does not keep".
 
-There is no capo. Not a parameter, not a field in `TuningEngine`, not a line of
-code anywhere in `Source/`. What exists is four specs that describe it and two
-user-facing documents that tell the user how to use it:
+**What was actually there.** Three capos, none of which knew about the others:
 
-| Where | What it says |
+| Where | What it did |
 |---|---|
-| `gui-integration.md` 3.1 | the headstock popover offers capo |
-| `gui-integration.md` 19 | "Capo (fret / partial) - TuningEngine - Adv Col 1 GUITAR, Workshop capo drag" |
-| `ambiguity-resolutions.md` 4.5 | how a capo and a partial capo behave |
-| `guitar-illustration.md` | drag a capo card onto a fret; drag it along the neck |
-| `factory-content.md` | three capo parts ship with the plugin |
-| **`docs/USER_MANUAL.md`** | "Right-click for mute, capo, string selection and scale overlays" |
-| **`docs/KEYBOARD_SHORTCUTS.md`** | right-click menu includes "set capo" |
+| `RhythmEngine::capoFret` | moved `ChordVoicer::setMinFret`, so chords were voiced above it. Persisted in the rhythm state. Reachable from the Rhythm panel's up/down buttons. |
+| `FretboardComponent::capoFret` | drew a capo, and shifted that component's own fret display. Reachable from its right-click menu — **"Set capo here"**. Read by nothing else. |
+| `TuningEngine` | nothing. |
 
-The last two are the problem. The specs describing an unbuilt feature is the
-normal state of this project and `INDEX.md` tracks it. The *manual* describing it
-is a promise to the user that the build does not keep, and a user following the
-manual finds a right-click menu with no capo in it and no explanation.
+So "not a line of code anywhere in `Source/`" was wrong twice over, and the
+manual was not lying: the right-click menu it describes - "Mute string, select
+string, set capo, scale overlay" - is exactly `FretboardComponent`'s menu, and
+every item in it was there. **Neither document needed correcting.**
 
-**Size.** The engine half is small - `TuningEngine` already has per-string open
-frequency and max frets, and a capo is a per-string minimum fret plus a pitch
-offset, which `ambiguity-resolutions.md` 4.5 specifies exactly. The UI half has
-three named homes (Adv Col 1 GUITAR, the headstock popover, the Workshop drag),
-two of which exist. The partial-capo string mask depends on the capo *part*,
-which is Workshop, which is blocked.
+The real gap was narrower and worse than the entry described: *no capo anywhere
+changed the pitch of a note*. Setting one on the fretboard moved a line on a
+picture. Setting one in the Rhythm panel moved where chords were voiced, which
+changes which notes are chosen but not what a fret sounds like. A user following
+the manual got a capo that drew itself and did nothing.
 
-**Until it is built**, the headstock popover says on its face that capo is not
-built, rather than leaving a gap where section 3.1 says a control goes. The two
-docs have not been corrected here because changing them is a decision about
-whether to describe the build or the plan, and that is the user's call rather
-than a gap to close silently.
+**Built.** One capo, in `TuningEngine`, which is where `gui-integration.md` 19
+says it belongs, behind `ParamIDs::capoFret` - a choice from Off to Fret 12, so
+it automates, saves with the preset and takes MIDI Learn.
+
+`ambiguity-resolutions.md` 4.5 is three sentences and two of them are implemented
+exactly: "capo raises effective minimum fret to `capo_fret`" and "open strings
+are the capo'd notes". Fret positions are measured **from the capo**, so fret 0
+is the capo, `getEffectiveOpenFrequency` returns the capo'd note without any
+caller having to know a capo exists, and `getHighestPlayableFret` is
+`maxFrets - capoFret` - the neck really does get shorter.
+
+**One subtlety worth naming.** The capo is applied as a *fret position*, not as a
+cent offset on the open string. Under an unequal temperament those differ: the
+frets are at fixed places, so a capo at 5 gives exactly what fret 5 gives, not
+the open string shifted by a tempered fourth. Under equal temperament they are
+identical, which is precisely what would have let the wrong one ship.
+
+**The three capos are one.** `RhythmEngine::setCapoFret` delegates to
+`TuningEngine` and its own field is gone; `ChordVoicer`'s `minFret` is back to
+meaning "a floor on where to voice" rather than doubling as the capo, because
+capo-relative frets make filtering below it a second time subtract the capo
+twice. `FretboardComponent`'s right-click drives the parameter and reads it back
+on its timer, so the drawn capo cannot disagree with the sound. `ChordVoicer` is
+now also bounded by the playable span, which fixes a real defect the unification
+exposed: with a capo at 12 on a 24-fret neck it would still have voiced up to its
+own `maxFret` of 22, ten frets past where the neck ends.
+
+**Three of the three UI homes exist.** Advanced column 1 GUITAR (section 19), the
+headstock popover (section 3.1) and the fretboard right-click. The popover's
+footer used to read "Capo is not built yet"; it now names the part that genuinely
+is not.
+
+**Still open: partial capos.** 4.5's third sentence takes the string mask from
+the capo part in the Workshop, and the Workshop is blocked on
+`guitar-workshop.md`. This is one fret across all strings. `factory-content.md`
+ships three capo parts that nothing can load yet, for the same reason.
+
+**A note on the rhythm state.** `RhythmEngine` no longer writes `capoFret` into
+its own state - the parameter carries it, in the same preset - but `fromVar`
+still reads an old one so a session saved by a previous build does not lose it.
+It is not written back; re-saving moves it to the parameter.
+
+**Covered by.** `GenreKits::capoRemovesFretsBelowItAndMovesThePitch`, which
+replaces `capoRemovesFretsBelowIt`. The old test asserted `fretPosition >= capo`,
+which under capo-relative coordinates only restates the coordinate system, and
+which never looked at pitch at all - **a capo that transposed nothing passed it**,
+and for three milestones one did. The new one checks that nothing is voiced below
+the capo or past the shortened neck, that a bar actually produced notes so the
+loop was not vacuous, and that an open string with a capo at 5 sounds exactly
+what fret 5 sounded without one.
 
 ## A5 — Shortcuts: audited, mostly closed, four rows still open
 
@@ -619,8 +660,14 @@ against the build. `gui-integration.md` sections 20 (discoverability), 21
    `.luthierguitar` format), missing-part is blocked on `guitar-workshop.md`, and
    advanced-range-clamped is blocked on `advanced-ranges.md`. Nothing here is
    waiting on work rather than on a spec.
-6. **B1**, the capo, or at least the half of it the docs have already promised.
-   The engine side is specified exactly by `ambiguity-resolutions.md` 4.5 and two
-   of its three UI homes now exist. Whether to build it or to correct the manual
-   is a call for whoever owns the shipping story.
+6. ~~**B1**~~ — done, and it was never the decision this list said it was. The
+   question was framed as "build the capo, or correct the manual", and the answer
+   was neither: the manual was accurate, the right-click menu it described had a
+   capo in it, and what was missing was any connection between that menu and the
+   pitch of a note. Full capo is built; partial capo needs the Workshop.
+
+   That makes **four** entries in this file closed by reading the code instead of
+   the entry, and this one was the worst of them - it opened with "not a line of
+   code anywhere in `Source/`" about a feature with two half-implementations and
+   a working menu item. Read a row here as a question.
 7. Everything else waits on the eleven missing specs.

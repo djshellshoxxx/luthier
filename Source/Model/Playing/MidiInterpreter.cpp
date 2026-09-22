@@ -401,9 +401,12 @@ void MidiInterpreter::handleNoteOn (int midiNote, int channel, double velocity,
         const double targetHz = midiToHz ((double) midiNote, tuning->getConcertA());
         double fret = tuning->frequencyToFretPosition (stringIndex, targetHz);
 
-        // Identity rule 2: a note that cannot be played on this string is clipped
-        // into range rather than producing a nonsense pitch.
-        fret = juce::jlimit (0.0, (double) tuning->getStringTuning (stringIndex).maxFrets, fret);
+        /*  Identity rule 2: a note that cannot be played on this string is clipped
+            into range rather than producing a nonsense pitch. The top of the range
+            is the capo'd one (ambiguity-resolutions 4.5) - a capo at 5 makes the
+            neck five frets shorter, and clamping to the raw fret count would put a
+            note off the end of it. */
+        fret = juce::jlimit (0.0, (double) tuning->getHighestPlayableFret (stringIndex), fret);
 
         VoicedNote v;
         v.midiNote = midiNote;
