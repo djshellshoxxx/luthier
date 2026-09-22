@@ -1033,6 +1033,80 @@ The test loads a different preset before pressing `Ctrl+N`, so that "it loaded
 Init" is not indistinguishable from "it did nothing". The mutant - making the
 lookup return -1 - reports the preset is still "DADGAD Drone".
 
+
+## LIVE: the first of section 4.4's unbuilt tabs
+
+Four tabs in column 4 had a working engine and no surface in front of it. LIVE is
+the first of them built.
+
+Section 4.4 is explicit about why it exists: "the live-strip in the bottom of the
+window is the runtime surface; this tab is the setup surface". That division is
+the design. `LiveStrip` is for a player mid-set who needs one thing to be one
+press away. This is for the hour beforehand, when the question is which of the
+128 snapshots exist, what they are called and what order they come in — and until
+now there was nowhere to ask it. Snapshots could be captured and recalled and
+never surveyed, renamed or reordered.
+
+Both read the same `SnapshotBank` and `SetlistPlayer`, so nothing is mirrored and
+the two surfaces cannot disagree. The panel re-reads on a timer rather than
+assuming it is the only writer, because a snapshot can be captured from the strip
+or recalled by a MIDI program change while this is on screen.
+
+### Two shapes, chosen rather than defaulted
+
+The bank is a **16x8 grid**, not a list. A list of 128 rows is a scroll, and what
+a player wants at a glance is which of their pads are filled — that is a shape,
+not a sequence. The setlist immediately below it *is* a list, because there the
+order is the entire content.
+
+Each pad carries three states and they are distinguishable without colour: filled
+is a solid fill, selected is a bright border, the one actually loaded gets a dot.
+accessibility.md 6 swaps the palette's hues out, so anything that said "filled" in
+colour alone would say nothing in one of them.
+
+### What was deliberately not built
+
+Section 4.4 also lists expression-pedal calibration on this tab. It is not here.
+It already exists as the Options EXPRESSION page, and `ExpressionCalibrationSet`
+is a user-global singleton with a file behind it — a second editor is a second
+writer to that file. That is the same shape of problem as `ControllersPage`
+owning its `ControllerProfileLibrary` by value, which this build has already been
+bitten by once this session.
+
+Section 5 does not list EXPRESSION among the Options tabs and section 4.4 does
+list it here, so the two sections of the spec disagree with each other. That is
+recorded in `GAPS.md` rather than resolved by building the page twice and hoping.
+
+### The test found three defects, none of which painting would have shown
+
+`theLiveTabEditsTheSnapshotBankAndTheSetlist` drives the panel's own operations
+and reads the results out of the engine rather than out of the panel.
+`everyWorkspaceTabSelectsAndPaints` already covers that the tab exists and paints,
+and that is a smoke test: **a panel of controls wired to nothing paints exactly as
+well as one wired correctly**, which is the failure mode every panel in this build
+has had at least once.
+
+On its first run it failed four checks, and three were real:
+
+- **`slotAt` returned pad 0 for a point above and left of the grid.** Integer
+  division truncates toward zero, so `-4 / cellW` is 0 and the top-left pad
+  claimed the whole quadrant outside itself. A user would have met this as
+  "clicking empty space selects slot 1".
+- **The crossfade slider offered 0–5000 ms against `SnapshotBank`'s own 0–500
+  clamp.** The slider would have shown a number the engine had silently refused,
+  which is the exact shape of ground rule 0.2 violation this project keeps
+  finding. The range is the engine's now.
+- **`juce::Button::triggerClick` posts a message**, and a console test has no
+  message loop pumping it, so the first version's clicks never happened and the
+  assertions after them failed for the wrong reason. The test helper calls the
+  same `onClick` a real click calls and refuses a disabled button, so a greyed-out
+  control still fails rather than being driven anyway.
+
+The fourth was the cascade from the second. The mutant — pointing every setlist
+entry at slot 0 — dies on "the setlist entry points at snapshot 1 rather than the
+selected 6", which is the check that stops "add" from looking correct because the
+count went up.
+
 ## History
 
 See `docs/CHANGELOG.md`.

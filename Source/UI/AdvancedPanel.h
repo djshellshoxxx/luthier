@@ -25,6 +25,7 @@
 #include "RhythmPanel.h"
 #include "ToneMatchPanel.h"
 #include "CharacterPanel.h"
+#include "LivePanel.h"
 #include "FretboardComponent.h"
 #include "GuitarBodyComponent.h"
 #include "PedalRack.h"
@@ -249,6 +250,7 @@ private:
     std::unique_ptr<RoutingPanel> routingPanel;
     std::unique_ptr<ModMatrixPanel> modMatrixPanel;
     std::unique_ptr<RhythmPanel> rhythmPanel;
+    std::unique_ptr<LivePanel> livePanel;
     std::unique_ptr<ToneMatchPanel> toneMatchPanel;
     std::unique_ptr<CharacterPanel> characterPanel;
 

@@ -39,6 +39,7 @@
 #include "../UI/GuitarBodyComponent.h"
 #include "../UI/Widgets.h"
 #include "../UI/Notifications.h"
+#include "../UI/LivePanel.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -127,6 +128,39 @@ namespace
         collect<T> (root, found);
 
         return found.isEmpty() ? nullptr : found.getFirst();
+    }
+
+    /*  A button by the text on it. Tests that drive a panel's buttons want the
+        one the user would click, and its member name is private to the panel. */
+    juce::Button* findButton (juce::Component& root, const juce::String& text)
+    {
+        juce::Array<juce::Button*> buttons;
+        collect<juce::Button> (root, buttons);
+
+        for (auto* button : buttons)
+            if (button->getButtonText().equalsIgnoreCase (text))
+                return button;
+
+        return nullptr;
+    }
+
+    /*  Presses it, and says whether there was anything to press.
+
+        Not triggerClick(): that posts a message, and a console test has no
+        message loop pumping it, so the click silently never happens and whatever
+        is asserted afterwards fails for the wrong reason - which is exactly how
+        this helper came to exist. This calls the same callback a real click
+        calls, and refuses a disabled button, so a greyed-out control still fails
+        the test rather than being driven anyway. */
+    bool clickButton (juce::Component& root, const juce::String& text)
+    {
+        auto* button = findButton (root, text);
+
+        if (button == nullptr || ! button->isEnabled() || button->onClick == nullptr)
+            return false;
+
+        button->onClick();
+        return true;
     }
 
     juce::KeyPress shortcutFor (const char* actionId)
@@ -548,7 +582,7 @@ LUTHIER_TEST (Editor, everyWorkspaceTabSelectsAndPaints)
     panel.setVisible (true);
     panel.setSize (1600, 900);
 
-    const juce::StringArray tabNames { "MOD", "RHYTHM", "ROUTING", "TONE MATCH",
+    const juce::StringArray tabNames { "MOD", "RHYTHM", "LIVE", "ROUTING", "TONE MATCH",
                                        "CHARACTER", "CONTROLLERS" };
 
     CHECK_MSG (panel.getNumWorkspaceTabs() == tabNames.size(),
@@ -1924,4 +1958,156 @@ LUTHIER_TEST (Editor, newPresetLoadsInitAndRevealSaysSoWhenThereIsNoFile)
                "loading Init left no file behind, so Reveal would have nothing to show");
 
     juce::ignoreUnused (before);
+}
+
+//==============================================================================
+/*  The LIVE tab, gui-integration.md section 4.4.
+
+    "Snapshot bank editor, setlist editor, morph configuration, expression-pedal
+    calibration. The live-strip in the bottom of the window is the runtime
+    surface; this tab is the setup surface."
+
+    Being in the tab strip and painting is covered by
+    everyWorkspaceTabSelectsAndPaints, which is a smoke test and says so. What
+    that cannot see is whether the editors edit anything - a panel of controls
+    wired to nothing paints exactly as well as one wired correctly, which is the
+    failure mode every panel in this build has had at least once.
+
+    So this drives the panel's own operations against the bank and the setlist and
+    reads the result back out of the engine, not out of the panel.
+*/
+LUTHIER_TEST (Editor, theLiveTabEditsTheSnapshotBankAndTheSetlist)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& bank = processor.getSnapshots();
+
+    AdvancedPanel panel (processor);
+    panel.setVisible (true);
+    panel.setSize (1600, 900);
+
+    CHECK_MSG (panel.setWorkspaceTabNamed ("LIVE"),
+               "there is no LIVE tab, so section 4.4's setup surface is still absent");
+
+    auto* live = findOne<LivePanel> (panel);
+
+    CHECK_MSG (live != nullptr, "the LIVE tab has no LivePanel behind it");
+
+    if (live == nullptr)
+        return;
+
+    auto* grid = findOne<SnapshotGrid> (*live);
+
+    CHECK_MSG (grid != nullptr, "the LIVE tab has no snapshot grid");
+
+    if (grid == nullptr)
+        return;
+
+    //--------------------------------------------------------------------------
+    /*  The grid covers the whole bank. 128 slots is what live-performance.md
+        asks for, and a grid that showed 64 would look entirely reasonable. */
+    CHECK_MSG (SnapshotGrid::kColumns * SnapshotGrid::kRows == SnapshotBank::kMaxSnapshots,
+               "the grid has "
+                 + juce::String (SnapshotGrid::kColumns * SnapshotGrid::kRows)
+                 + " cells for " + juce::String (SnapshotBank::kMaxSnapshots) + " snapshots");
+
+    //--------------------------------------------------------------------------
+    // Clicking a cell selects the slot under it, and the slots are distinct.
+    grid->setSize (320, 160);
+
+    const int first = grid->slotAt ({ 5, 5 });
+
+    CHECK_MSG (first == 0, "the top-left cell is not slot 0, it is " + juce::String (first));
+
+    const int second = grid->slotAt ({ 5 + 320 / SnapshotGrid::kColumns, 5 });
+
+    CHECK_MSG (second == 1,
+               "the cell next to the first is not slot 1, it is " + juce::String (second));
+
+    const int lower = grid->slotAt ({ 5, 5 + 160 / SnapshotGrid::kRows });
+
+    CHECK_MSG (lower == SnapshotGrid::kColumns,
+               "the cell below the first is not a row down, it is " + juce::String (lower));
+
+    CHECK_MSG (grid->slotAt ({ -4, -4 }) < 0, "a point outside the grid reported a slot");
+
+    //--------------------------------------------------------------------------
+    // Capture writes a snapshot into the selected slot.
+    bank.clear();
+
+    const int target = 5;
+    grid->setSelectedSlot (target);
+
+    CHECK (grid->getSelectedSlot() == target);
+
+    CHECK_MSG (bank.getNumSnapshots() <= target || bank.getSnapshot (target).isEmpty(),
+               "the slot was not empty before capturing into it, so the check below "
+               "would pass without the capture doing anything");
+
+    CHECK_MSG (clickButton (*live, "Capture"),
+               "the LIVE tab has no Capture button that can be pressed");
+
+    CHECK_MSG (bank.getNumSnapshots() > target && ! bank.getSnapshot (target).isEmpty(),
+               "Capture did not put a snapshot in the selected slot");
+
+    //--------------------------------------------------------------------------
+    /*  Adding to the setlist appends an entry pointing at that slot. The entry's
+        snapshot index is checked rather than only the count, because an "add"
+        that always added slot 0 would pass a count check. */
+    const int entriesBefore = processor.getSetlist().getSetlist().getNumEntries();
+
+    CHECK_MSG (clickButton (*live, "Add snapshot"),
+               "the LIVE tab has no Add snapshot button that can be pressed");
+
+    {
+        const auto& set = processor.getSetlist().getSetlist();
+
+        CHECK_MSG (set.getNumEntries() == entriesBefore + 1,
+                   "Add snapshot did not add an entry to the setlist");
+
+        if (set.getNumEntries() == entriesBefore + 1)
+            CHECK_MSG (set.getEntry (set.getNumEntries() - 1).snapshotIndex == target,
+                       "the setlist entry points at snapshot "
+                         + juce::String (set.getEntry (set.getNumEntries() - 1).snapshotIndex + 1)
+                         + " rather than the selected " + juce::String (target + 1));
+    }
+
+    //--------------------------------------------------------------------------
+    // Clear empties it again.
+    {
+        CHECK_MSG (clickButton (*live, "Clear"), "Clear could not be pressed");
+
+        CHECK_MSG (bank.getNumSnapshots() <= target || bank.getSnapshot (target).isEmpty(),
+                   "Clear left the snapshot in place");
+    }
+
+    //--------------------------------------------------------------------------
+    /*  The morph and crossfade controls reach the bank. The crossfade is engine
+        state rather than a parameter, so nothing else in the build would notice
+        if this slider were attached to nothing at all. */
+    bank.setCrossfadeMs (120.0);
+    live->refresh();
+
+    juce::Array<juce::Slider*> sliders;
+    collect<juce::Slider> (*live, sliders);
+
+    CHECK_MSG (! sliders.isEmpty(), "the LIVE tab has no crossfade slider");
+
+    if (! sliders.isEmpty())
+    {
+        CHECK_MSG (std::abs (sliders.getFirst()->getValue() - 120.0) < 0.5,
+                   "the crossfade slider did not read the bank's value back, it shows "
+                     + juce::String (sliders.getFirst()->getValue()));
+
+        /*  400, not 900: SnapshotBank clamps to 500 ms, and a test that asked for
+            more would be checking the clamp rather than the wiring. */
+        sliders.getFirst()->setValue (400.0, juce::sendNotificationSync);
+
+        CHECK_MSG (std::abs (bank.getCrossfadeMs() - 400.0) < 0.5,
+                   "moving the crossfade slider did not reach the snapshot bank, which "
+                   "still says " + juce::String (bank.getCrossfadeMs()));
+    }
+
+    bank.clear();
 }

@@ -102,16 +102,39 @@ routes into the mode at both sizes and checks the notice is on screen and has
 painted, and `Editor::itLaysOutAndPaintsAcrossItsResizeRange` still paints the
 window at 940, 1200 and 1920.
 
-## A2 — Column 4's tab strip — built, with seven tabs still absent
+## A2 — Column 4's tab strip — built, with six tabs still absent
 
 **Canonical order.**
 `WORKSHOP | MOD | RHYTHM | TUNE | LIVE | ROUTING | TONE MATCH | CHARACTER | PRACTICE | NOTATION | MIDI OUT | CONTROLLERS | HELP`
 
-**Built.** A tab strip across the top of column 4 with the six panels that exist
-behind it - `MOD | RHYTHM | ROUTING | TONE MATCH | CHARACTER | CONTROLLERS` - in
-section 4.4's relative order, each in its own viewport, one on screen at a time.
-The other seven are listed below. A tab that opens on nothing is worse than no
-tab, so they are absent rather than present and empty.
+**Built.** A tab strip across the top of column 4 with the seven panels that
+exist behind it - `MOD | RHYTHM | LIVE | ROUTING | TONE MATCH | CHARACTER |
+CONTROLLERS` - in section 4.4's relative order, each in its own viewport, one on
+screen at a time. The other six are listed below. A tab that opens on nothing is
+worse than no tab, so they are absent rather than present and empty.
+
+**LIVE is the one that was built rather than moved.** Section 4.4 calls it "the
+setup surface" against the live strip's runtime one, and that division is the
+whole design: `LiveStrip` is for a player mid-set who needs one thing one press
+away, and this is for the hour beforehand, when the question is which of the 128
+snapshots exist and what order they come in. Until now the bank had no editor at
+all - snapshots could be captured and recalled, and never surveyed, renamed or
+reordered.
+
+It has the snapshot bank as a 16x8 grid rather than a list, because 128 rows is a
+scroll and what a player wants at a glance is which pads are filled, which is a
+shape; the setlist as a list, because there the order *is* the content; and the
+crossfade and morph controls. Three states on each pad - filled, selected, loaded
+- are distinguishable without colour, since accessibility.md 6 swaps the hues.
+
+**Expression-pedal calibration is not on it**, and section 4.4 does list it there.
+It already exists as the Options EXPRESSION page, and `ExpressionCalibrationSet`
+is a user-global singleton with a file behind it, so a second editor is a second
+writer to that file - the same shape of problem as the CONTROLLERS page owning
+its library by value (see above), which is the one this build has already been
+bitten by. Section 5 does not list EXPRESSION in Options and section 4.4 does
+list it here, so the two sections disagree; that is recorded rather than resolved
+by building the page twice.
 
 | Tab | State |
 |---|---|
@@ -119,7 +142,7 @@ tab, so they are absent rather than present and empty.
 | MOD | **built** — `ModMatrixPanel` |
 | RHYTHM | **built** — `RhythmPanel`; STRUM group still blocked on `strum-dynamics.md` |
 | TUNE | not built (`tune-builder.md` is on disk, so unblocked but large) |
-| LIVE | no setup surface; `LiveStrip` is the runtime surface only |
+| LIVE | **built** — `LivePanel`; expression calibration stays in Options, see below |
 | ROUTING | **built** — `RoutingPanel` |
 | TONE MATCH | **built** — `ToneMatchPanel` |
 | CHARACTER | **built** — `CharacterPanel` |
@@ -158,7 +181,19 @@ as before.
 Options is ten tabs now - section 5's eleven minus RANGES, in section 5's order -
 which is A3's remaining departure and nothing else.
 
-**Covered by.** `Editor::everyWorkspaceTabSelectsAndPaints` walks the six tabs by
+`Editor::theLiveTabEditsTheSnapshotBankAndTheSetlist` covers LIVE, and covers the
+editing rather than the painting: a panel of controls wired to nothing paints
+exactly as well as one wired correctly, which is the failure every panel here has
+had at least once. It found three real defects on its first run — `slotAt`
+returned pad 0 for a point above and left of the grid, because integer division
+truncates toward zero; the crossfade slider offered five seconds against
+`SnapshotBank`'s own 500 ms clamp, so it could show a number the engine had
+silently refused; and `juce::Button::triggerClick` posts a message that a console
+test never pumps, so the first version's clicks quietly never happened. Its
+mutant points every setlist entry at slot 0 and dies on "the setlist entry points
+at snapshot 1 rather than the selected 6".
+
+**Covered by.** `Editor::everyWorkspaceTabSelectsAndPaints` walks the seven tabs by
 name and checks each one puts its own panel - and only its own panel - on screen,
 painted, and different from every other. `Editor::theWorkspaceTabWraps‑
 AndIsRemembered` covers the stepping, the clamping and the round trip through
@@ -654,13 +689,20 @@ against the build. `gui-integration.md` sections 20 (discoverability), 21
 2. ~~**A1**~~ — done. Four columns in section 4's order, section 4.5's widths,
    and the 1000-point minimum enforced with a notice rather than declared in a
    constant nothing read.
-3. **A2**, the rest of it. The strip is built and the six panels that exist are
-   on it; what is left is the seven tabs that are not, and they split two ways:
+3. **A2**, the rest of it. The strip is built and the seven panels that exist are
+   on it; what is left is the six tabs that are not, and they split two ways:
 
-   - **LIVE, PRACTICE, NOTATION, MIDI OUT** are surfaces nobody has built. Each
-     has a working runtime half (the live strip, the practice drawer) or a
-     working engine (notation, MIDI out) and no setup page in front of it.
-     Smallest first: LIVE and PRACTICE already have the state to show.
+   - **PRACTICE, NOTATION, MIDI OUT** are surfaces nobody has built. Each has a
+     working runtime half (the practice drawer) or a working engine (notation,
+     MIDI out) and no setup page in front of it. PRACTICE is the smallest - the
+     drawer already shows the state, so the setup page is arranging what the
+     drawer displays rather than inventing anything. MIDI OUT is spec'd in full
+     by `midi-export.md`, which is on disk, and is the largest of the three.
+   - **LIVE** is done. It was the first of this group and the pattern it set is
+     worth repeating: the engines were complete and tested, and the only thing
+     missing was a surface, so the work was almost entirely layout and wiring
+     with the interesting decisions being which control shape suits which data
+     (a grid for a bank, a list for an order) and what *not* to duplicate.
    - **WORKSHOP, TUNE, HELP** wait on `guitar-workshop.md` / `workshop-ui.md`,
      on `tune-builder.md` being large rather than missing, and on deciding
      whether an overlay should also be a tab.

@@ -894,14 +894,18 @@ void AdvancedPanel::buildColumn3()
 
 /*  Column 4, section 4.4: the workspace.
 
-    The tab order is section 4.4's own. Six of its thirteen tabs have a panel
-    behind them; the other seven - WORKSHOP, TUNE, LIVE, PRACTICE, NOTATION,
-    MIDI OUT, HELP - are either blocked on a spec that is not written or are
-    surfaces nobody has built, and a tab that opens on nothing is worse than no
-    tab. GAPS.md A2 has the list.
+    The tab order is section 4.4's own. Seven of its thirteen tabs have a panel
+    behind them; the other six - WORKSHOP, TUNE, PRACTICE, NOTATION, MIDI OUT,
+    HELP - are either blocked on a spec that is not written or are surfaces
+    nobody has built, and a tab that opens on nothing is worse than no tab.
+    GAPS.md A2 has the list.
 
-    Five of the six used to be sections stacked at the bottom of the rig column,
+    Five of the seven used to be sections stacked at the bottom of the rig column,
     each with a comment saying it should have been a tab. They are tabs now.
+
+    LIVE is new rather than moved. `LiveStrip` was the only live surface and it is
+    the runtime one - one press per thing, for a player mid-set - so the bank of
+    128 snapshots and the order they come in had nowhere to be edited at all.
 
     CONTROLLERS is the sixth, and it came from the other direction: section 19
     always put controller setup here, and it sat on the Options overlay only
@@ -915,6 +919,7 @@ void AdvancedPanel::buildWorkspace()
 {
     modMatrixPanel  = std::make_unique<ModMatrixPanel> (processor);
     rhythmPanel     = std::make_unique<RhythmPanel> (processor);
+    livePanel       = std::make_unique<LivePanel> (processor);
     routingPanel    = std::make_unique<RoutingPanel> (processor);
     toneMatchPanel  = std::make_unique<ToneMatchPanel> (processor);
     characterPanel  = std::make_unique<CharacterPanel> (processor);
@@ -924,6 +929,7 @@ void AdvancedPanel::buildWorkspace()
     {
         { "MOD",         modMatrixPanel.get() },
         { "RHYTHM",      rhythmPanel.get() },
+        { "LIVE",        livePanel.get() },
         { "ROUTING",     routingPanel.get() },
         { "TONE MATCH",  toneMatchPanel.get() },
         { "CHARACTER",   characterPanel.get() },

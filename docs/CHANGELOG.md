@@ -70,10 +70,19 @@ numbered, because what it should be called is a release decision.
   sections section 4 has no slot for are kept on the nearest column, each with a
   comment saying why: dropping a working control to match a layout list would
   have cost a feature to close a table row.
-- **The column 4 tab strip** - MOD, RHYTHM, ROUTING, TONE MATCH, CHARACTER and
-  CONTROLLERS in section 4.4's relative order, one on screen at a time, in place
-  of the vertical stack the first five were in. The seven tabs section 4.4 lists
-  that have no panel behind them are absent rather than present and empty. **The last-used tab persists
+- **The column 4 tab strip** - MOD, RHYTHM, LIVE, ROUTING, TONE MATCH, CHARACTER
+  and CONTROLLERS in section 4.4's relative order, one on screen at a time, in
+  place of the vertical stack five of them were in. The six tabs section 4.4
+  lists that have no panel behind them are absent rather than present and empty.
+- **The LIVE tab**, which is section 4.4's setup surface against the live strip's
+  runtime one. The snapshot bank had no editor at all before this: snapshots
+  could be captured and recalled, and never surveyed, renamed or reordered. It
+  shows the 128 slots as a grid rather than a list - what a player wants at a
+  glance is which pads are filled, which is a shape - with the setlist below it
+  as a list, because there the order is the content, plus the crossfade time and
+  morph configuration. Expression-pedal calibration, which section 4.4 also lists
+  here, stays on the Options page that already has it: it writes a user-global
+  file, and two editors would be two writers to it. **The last-used tab persists
   across sessions** (4.4) in `Documents/Luthier/config/ui.json`, through a new
   `UiPreferences` store: settings global to this copy of the plugin, which is
   neither what `AccessibilitySettings` holds (the person) nor what `uiState`
