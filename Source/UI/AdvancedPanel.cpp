@@ -970,6 +970,20 @@ void AdvancedPanel::setWorkspaceTab (int index)
     showWorkspaceTab (index);
 }
 
+bool AdvancedPanel::setWorkspaceTabNamed (const juce::String& tabName)
+{
+    for (int i = 0; i < workspaceTabs.size(); ++i)
+    {
+        if (workspaceTabs[i]->getButtonText().equalsIgnoreCase (tabName))
+        {
+            showWorkspaceTab (i);
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void AdvancedPanel::stepWorkspaceTab (int delta)
 {
     const int count = workspacePanels.size();

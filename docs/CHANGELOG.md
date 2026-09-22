@@ -97,6 +97,20 @@ numbered, because what it should be called is a release decision.
   not a reason to make a request someone declined. The other five triggers need
   the preset loader to report what it substituted, or advanced ranges, or a place
   for the audio thread to leave a sample-rate message; GAPS.md A6 has them.
+- **A preset that will not load now says so.** `loadPreset` already returned false
+  and wrote an error-log line, but most callers discard the bool - the header's
+  Open dialog worst of all, where a preset that would not load did nothing at all
+  with no message anywhere the user could see. `PresetManager::getLastLoadError`
+  carries a sentence naming the file, and the window raises it as a banner.
+- **A missing IR now says so too.** A preset naming an IR that is no longer on
+  disk already fell back to the built-in model with the reason recorded; nothing
+  displayed it. The banner offers a button to the TONE MATCH tab. Both of these
+  are read on the window's timer rather than pushed from the loader, because
+  presets load from five places, and they post only when the message changes, so
+  a dismissed banner stays dismissed.
+- `AdvancedPanel::setWorkspaceTabNamed`, the column 4 counterpart of
+  `showPageNamed`, for the same reason: a banner should not send the user to a
+  tab index that a future tab would shift.
 - `OptionsPanel::showPageNamed`, so a banner can send the user to a specific
   Options page by name rather than by an index that RANGES would shift.
 - `scripts/build.ps1`, which PROGRESS.md had referenced without it existing.

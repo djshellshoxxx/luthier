@@ -299,7 +299,7 @@ reposts - a countdown does, every time the window opens - replaces itself instea
 of stacking. Queued rather than stacked because two at 32 points is 64 points of
 window, and the startup triggers arrive together.
 
-**Four of the nine triggers are wired**, all at window open:
+**Six of the nine triggers are wired.** Four are checked when the window opens:
 
 | Trigger | Source |
 |---|---|
@@ -319,18 +319,56 @@ The crash banner says **Review**, not Send. `updates-telemetry.md` 4 asks for a
 viewer showing exactly what would be uploaded, and a single button that sent a
 crash dump would be the opt-in equivalent of a dark pattern.
 
-**Five triggers are not wired, and are not skipped - they are unreachable:**
+**Two more were wired next**, and the sentence that used to sit here - "preset
+load error, missing IR, missing guitar and missing part are one change to the
+preset loader" - was wrong on every count. It was written without checking, which
+is the failure this file keeps making. What is actually true:
 
-- **Preset load error, missing IR, missing guitar, missing part** — the loader
-  falls back silently and does not report what it substituted. Wiring these is a
-  change to the loader, not to the banner.
+- **Preset load error** — needed no loader change. `loadPreset` already returned
+  `false` and logged; what was missing was a message a *user* could read, because
+  most callers discard the bool. The header's Open dialog was the worst case: a
+  preset that would not load did nothing at all, silently, which is a ground rule
+  0.2 violation. `PresetManager::getLastLoadError` now carries a sentence naming
+  the file, cleared by the next load that works.
+- **Missing IR** — needed no loader change either. `IrSlot::fromVar` already fell
+  back to the built-in model and left `lastError` set, with a comment saying it
+  was there "so the header can show the banner the spec asks for". The banner did
+  not exist when that was written. It does now, and the banner offers a button to
+  the TONE MATCH tab.
+
+Both are **polled** on the editor's existing timer rather than pushed, because
+presets load from five places - the header, the browser, the Easy panel's style
+list, a host program change, and the processor's own state restore - and five
+call sites each remembering to report would be five chances to forget. They post
+only when the message changes, so a dismissed banner stays dismissed while the
+condition holds.
+
+**Three triggers are still not wired, and two of them are not reachable at all:**
+
+- **Missing guitar** — *cannot happen*. Section 15 describes a missing
+  `.luthierguitar` referenced by a preset, and there is no such file format:
+  `GuitarLibrary` is a compiled-in enum and a preset stores an index, which the
+  parameter clamps. This trigger presupposes user guitar files, which is a
+  Workshop feature that does not exist.
+- **Missing part** — blocked on `guitar-workshop.md`, same as WORKSHOP itself.
 - **Advanced-range clamped on save** — needs advanced ranges, which
   `advanced-ranges.md` has not specified (A3).
-- **Sample-rate change** — `prepareToPlay` knows, but it runs on the audio thread
-  and the editor may not exist when it does, so the message needs somewhere to
-  wait. That is a small piece of processor state, not a UI problem.
+- **Sample-rate change** — the only one that is merely awkward. `prepareToPlay`
+  knows, but it runs on the audio thread and the editor may not exist when it
+  does, so the message needs somewhere to wait. That is a small piece of processor
+  state, not a UI problem, and it is the one remaining piece of section 15 that
+  nothing else blocks.
 
-**Covered by.** `Editor::notificationBannersQueueDismissAndRespectTheirActions`
+**Covered by.** `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce`
+drives the two polled triggers through the paths a user takes - `loadPreset` on a
+file that is not there, `IrSlot::fromVar` on a path that is gone - and then
+dismisses and pumps the timer four more times to prove a dismissed banner stays
+dismissed. Its mutant is reposting every tick, which fails with "the preset
+banner came back after being dismissed, so it cannot be got rid of while the
+condition holds". It also checks the IR banner's button lands on a TONE MATCH tab
+that exists, and that `setWorkspaceTabNamed` returns false for an unbuilt one.
+
+`Editor::notificationBannersQueueDismissAndRespectTheirActions`
 drives the queue, the id-replacement, the dismissal and both halves of the
 five-second rule; `Editor::theWindowRaisesSectionFifteensTriggersAndIsQuietWhen‑
 ItShould` checks that a healthy plugin opens silently and that a licence put into
@@ -555,11 +593,12 @@ against the build. `gui-integration.md` sections 20 (discoverability), 21
    build it did not run, and a row here is a question to check rather than a fact
    to act on. A third row was closed by noticing that what it described was a
    symptom of something larger the file never mentioned.
-5. **A6**, the rest of it — the five section 15 triggers that have nowhere to
-   come from yet. Four of them are one change to the preset loader, which
-   currently substitutes a fallback without saying so; the fifth, the sample-rate
-   notice, needs a place for `prepareToPlay` to leave a message the editor can
-   pick up. Both are small and neither is blocked on a missing spec.
+5. **A6**, the rest of it — one trigger, not five. Six of section 15's nine are
+   wired; of the three that are not, missing-guitar cannot happen (there is no
+   `.luthierguitar` format), missing-part is blocked on `guitar-workshop.md` and
+   advanced-range-clamped is blocked on `advanced-ranges.md`. That leaves the
+   **sample-rate notice**, which needs somewhere for `prepareToPlay` to leave a
+   message the editor picks up, and nothing blocks it.
 6. **B1**, the capo, or at least the half of it the docs have already promised.
    The engine side is specified exactly by `ambiguity-resolutions.md` 4.5 and two
    of its three UI homes now exist. Whether to build it or to correct the manual

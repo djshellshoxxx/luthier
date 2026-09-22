@@ -599,8 +599,16 @@ bool PresetManager::loadPreset (int index)
             sendChangeMessage();
             return true;
         }
+
+        // The file overload has already said why, in lastLoadError.
+        return false;
     }
 
+    /*  No preset at that index. The list is rescanned whenever the folder
+        changes, so this is a caller holding an index from before a rescan rather
+        than a corrupt file - which is still worth saying, because from the user's
+        side a preset they clicked has vanished. */
+    lastLoadError = "That preset is no longer in the library.";
     return false;
 }
 
@@ -615,10 +623,17 @@ bool PresetManager::loadPreset (const juce::File& file)
 
     // error-recovery 1: "file does not exist at path". The current session is
     // left alone rather than cleared.
+    /*  Each failure below sets lastLoadError beside its log line, so the window
+        has something to put in a banner. The log is for support; this is for the
+        person at the keyboard, who otherwise watches a preset simply not load.
+        The wording names the file, because "could not load preset" about one of
+        several hundred is not useful. */
     if (! file.existsAsFile())
     {
         ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "FILE_NOT_FOUND",
                          "Preset not found", context());
+
+        lastLoadError = "Preset not found: " + file.getFileName();
         return false;
     }
 
@@ -628,6 +643,8 @@ bool PresetManager::loadPreset (const juce::File& file)
     {
         ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "FILE_UNREADABLE",
                          "Preset could not be read, or is empty", context());
+
+        lastLoadError = file.getFileName() + " could not be read, or is empty.";
         return false;
     }
 
@@ -638,6 +655,8 @@ bool PresetManager::loadPreset (const juce::File& file)
         // error-recovery 1: "file is not JSON".
         ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "NOT_JSON",
                          "Preset is not valid JSON", context());
+
+        lastLoadError = file.getFileName() + " is not a Luthier preset.";
         return false;
     }
 
@@ -645,11 +664,18 @@ bool PresetManager::loadPreset (const juce::File& file)
     {
         ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "LOAD_REFUSED",
                          "Preset was refused; the file is untouched", context());
+
+        /*  error-recovery 1 again: the session is left alone on a refusal, and
+            saying so is the difference between a refusal and an apparent freeze. */
+        lastLoadError = file.getFileName()
+                          + " was refused. The current sound is unchanged.";
         return false;
     }
 
     currentName = file.getFileNameWithoutExtension();
     applyExtraState();
+
+    lastLoadError.clear();
 
     modified = false;
     sendChangeMessage();

@@ -391,6 +391,7 @@ void LuthierAudioProcessorEditor::updateLiveStripVisibility()
 void LuthierAudioProcessorEditor::timerCallback()
 {
     updateLiveStripVisibility();
+    pollForNotifications();
 
     // Tooltips are a user preference, so the window is created or torn down to
     // match rather than the tips being silently empty.
@@ -743,6 +744,83 @@ void LuthierAudioProcessorEditor::postStartupNotifications()
         n.action = [this] { showOptionsPage ("PRIVACY"); };
 
         notifications.post (std::move (n));
+    }
+}
+
+
+//==============================================================================
+/*  gui-integration 15's two triggers that can arrive at any moment.
+
+    Both are conditions rather than events - a string that is set or is not - so
+    this reads them on the timer and posts when the message *changes*. Posting on
+    every tick would be harmless to the queue, because a repeated id replaces
+    itself rather than stacking, but it would make the banner undismissable: the
+    user clicks the cross and it is back a quarter of a second later.
+
+    The IR case was anticipated by the code it reads. IrSlot::fromVar falls back
+    to the built-in model when a preset names an IR that is no longer on disk, and
+    leaves lastError set with a comment saying it is there "so the header can show
+    the banner the spec asks for". The banner did not exist at the time. It does
+    now, and this is the thing that reads it.
+*/
+void LuthierAudioProcessorEditor::pollForNotifications()
+{
+    // ---- a preset that would not load ----------------------------------------
+    const auto presetError = processor.getPresetManager().getLastLoadError();
+
+    if (presetError != reportedPresetError)
+    {
+        reportedPresetError = presetError;
+
+        if (presetError.isNotEmpty())
+        {
+            Notification n;
+            n.id = "preset-load";
+            n.message = presetError;
+            n.level = Notification::Level::warning;
+
+            notifications.post (std::move (n));
+        }
+    }
+
+    // ---- an IR the preset asked for and could not have ------------------------
+    /*  Three slots, one banner. A preset that names three missing IRs has one
+        thing wrong with it - the folder moved - and three banners saying so in
+        turn would be three dismissals for one problem. The first slot with
+        something to say speaks for all of them; the error log has the detail. */
+    juce::String irError = processor.getBodyIrSlot().getLastError();
+
+    for (int slot = 0; slot < 2 && irError.isEmpty(); ++slot)
+        irError = processor.getCabIrSlot (slot).getLastError();
+
+    if (irError != reportedIrError)
+    {
+        reportedIrError = irError;
+
+        if (irError.isNotEmpty())
+        {
+            Notification n;
+            n.id = "ir-missing";
+            n.message = irError;
+            n.level = Notification::Level::warning;
+            n.actionText = "Tone Match";
+
+            /*  Somewhere to fix it. The IR slots live on the TONE MATCH tab of
+                column 4, which only exists in Advanced Mode - so this switches
+                mode on the way, and does nothing at all if the window is too
+                narrow for Advanced, which setAdvancedMode already refuses with
+                its own notice rather than laying out columns that do not fit. */
+            n.action = [this]
+            {
+                setAdvancedMode (true);
+                header.setAdvancedMode (advancedMode);
+
+                if (advancedMode)
+                    advancedPanel.setWorkspaceTabNamed ("TONE MATCH");
+            };
+
+            notifications.post (std::move (n));
+        }
     }
 }
 

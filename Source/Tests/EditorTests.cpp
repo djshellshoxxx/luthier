@@ -1612,3 +1612,124 @@ LUTHIER_TEST (Editor, theWindowRaisesSectionFifteensTriggersAndIsQuietWhenItShou
         }
     }
 }
+
+//==============================================================================
+/*  The two section 15 triggers that arrive while the window is already open.
+
+    A preset that will not load, and an IR a preset asked for that is not on disk
+    any more. Both are conditions the window polls rather than events it is told
+    about, because presets load from five places and five call sites remembering
+    to report would be five chances to forget.
+
+    The dismissal behaviour is the part worth pinning. Posting on every tick would
+    be harmless to the queue - a repeated id replaces itself - and would make the
+    banner impossible to get rid of: the cross works, and a quarter of a second
+    later it is back. So the window posts only when the message *changes*, and the
+    check below dismisses a banner and pumps the timer again to prove it stays
+    gone while the condition has not.
+*/
+LUTHIER_TEST (Editor, aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+
+    auto* window = dynamic_cast<LuthierAudioProcessorEditor*> (editor.get());
+
+    CHECK_MSG (window != nullptr, "no editor to raise banners on");
+
+    if (window == nullptr)
+        return;
+
+    editor->setSize (LuthierAudioProcessorEditor::defaultWidth,
+                     LuthierAudioProcessorEditor::defaultHeight);
+
+    auto& centre = window->getNotifications();
+    centre.clear();
+
+    //--------------------------------------------------------------------------
+    /*  A preset that is not there. Going through loadPreset rather than setting
+        the error by hand is the point: this checks the path a user takes, and it
+        would fail if loadPreset stopped recording why it refused. */
+    const auto missing = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                           .getChildFile ("luthier-no-such-preset-9d3f.luthier");
+
+    missing.deleteFile();
+
+    CHECK_MSG (! processor.getPresetManager().loadPreset (missing),
+               "loading a preset that does not exist reported success");
+
+    CHECK_MSG (processor.getPresetManager().getLastLoadError().isNotEmpty(),
+               "a failed preset load left no message for the user, only a log line");
+
+    CHECK_MSG (processor.getPresetManager().getLastLoadError().contains (missing.getFileName()),
+               "the failure message does not name the file that failed");
+
+    window->pollForNotifications();
+
+    CHECK_MSG (centre.contains ("preset-load"),
+               "a preset that would not load raised no banner, so the user saw nothing "
+               "happen at all");
+
+    //--------------------------------------------------------------------------
+    // Dismissed is dismissed: an unchanged condition must not repost.
+    while (centre.isShowingNotification())
+        centre.dismissCurrent();
+
+    for (int tick = 0; tick < 4; ++tick)
+        window->pollForNotifications();
+
+    CHECK_MSG (! centre.contains ("preset-load"),
+               "the preset banner came back after being dismissed, so it cannot be "
+               "got rid of while the condition holds");
+
+    //--------------------------------------------------------------------------
+    /*  A missing IR. IrSlot::fromVar is the path a preset restore takes, and it
+        falls back to the built-in model with lastError set - a comment in that
+        function says the error is left there for exactly this banner. */
+    auto* irState = new juce::DynamicObject();
+    irState->setProperty ("file", "user/no-such-ir-4a7b.wav");
+    irState->setProperty ("engaged", true);
+
+    processor.getBodyIrSlot().fromVar (juce::var (irState));
+
+    CHECK_MSG (processor.getBodyIrSlot().getLastError().isNotEmpty(),
+               "restoring a preset whose IR is gone recorded nothing");
+
+    CHECK_MSG (! processor.getBodyIrSlot().isEngaged(),
+               "a slot whose IR is missing stayed engaged, so it is convolving nothing");
+
+    window->pollForNotifications();
+
+    CHECK_MSG (centre.contains ("ir-missing"),
+               "a preset naming an IR that is not on disk raised no banner, and the "
+               "sound is quietly not the one that was saved");
+
+    //--------------------------------------------------------------------------
+    /*  It offers somewhere to fix it, and that somewhere has to exist. The action
+        opens Advanced Mode's TONE MATCH tab, so this checks the tab is findable
+        by the name the action uses rather than trusting the string. */
+    while (centre.isShowingNotification() && centre.getCurrentId() != "ir-missing")
+        centre.dismissCurrent();
+
+    CHECK_MSG (centre.getCurrentId() == "ir-missing", "the IR banner is not reachable");
+    CHECK_MSG (centre.currentHasAction(), "the IR banner offers no way to fix it");
+
+    centre.performCurrentAction();
+
+    if (auto* panel = findOne<AdvancedPanel> (*editor))
+    {
+        CHECK_MSG (panel->setWorkspaceTabNamed ("TONE MATCH"),
+                   "the IR banner sends the user to a TONE MATCH tab that does not exist");
+
+        CHECK_MSG (panel->getWorkspaceTabName (panel->getWorkspaceTab())
+                     .equalsIgnoreCase ("TONE MATCH"),
+                   "selecting TONE MATCH by name landed on "
+                     + panel->getWorkspaceTabName (panel->getWorkspaceTab()));
+
+        CHECK_MSG (! panel->setWorkspaceTabNamed ("NOTATION"),
+                   "an unbuilt tab reports that it was selected, so a caller cannot "
+                   "tell a missing panel from a shown one");
+    }
+}

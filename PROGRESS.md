@@ -765,6 +765,65 @@ Both mutants died:
   that is posted correctly and given no bounds is invisible and everything else
   about it still passes.
 
+
+### Two more triggers, and a claim of mine that was wrong one commit later
+
+The A6 entry above said the remaining five triggers were "one change to the
+preset loader, which currently substitutes a fallback without saying so". I wrote
+that without checking, which is the exact failure this file has been documenting
+in `GAPS.md` for three sections running. It was wrong about all four of the
+triggers it named.
+
+- **Preset load error** needed no loader change. `loadPreset` already returned
+  `false` and already wrote an error-log line. What was missing was a message a
+  *user* could read, because most callers discard the bool - the header's Open
+  dialog worst of all, where a preset that would not load did nothing at all,
+  silently. That is a ground rule 0.2 violation that had been sitting in the
+  header menu since it was written.
+- **Missing IR** needed no loader change either, and the code it reads had been
+  waiting for this banner. `IrSlot::fromVar` falls back to the built-in model when
+  a preset names an IR that is gone, and leaves `lastError` set with a comment
+  saying it is there "so the header can show the banner the spec asks for". The
+  banner did not exist when that comment was written.
+- **Missing guitar** cannot happen. Section 15 describes a missing
+  `.luthierguitar` referenced by a preset; there is no such file format.
+  `GuitarLibrary` is a compiled-in enum, a preset stores an index, and the
+  parameter clamps it. The trigger presupposes user guitar files, which is a
+  Workshop feature nobody has built.
+- **Missing part** is blocked on `guitar-workshop.md`, like WORKSHOP itself.
+
+So: two wired, two that were never reachable. `PresetManager::getLastLoadError`
+is the only new surface, and it carries a sentence naming the file rather than a
+code - "could not load preset" about one of several hundred is not useful.
+
+### Polled, not pushed
+
+Both new triggers are conditions the window reads on its existing 4 Hz timer
+rather than events the loader fires at it. Presets load from five places - the
+header, the browser, the Easy panel's style list, a host program change, and the
+processor's own state restore - and five call sites each remembering to report
+would be five chances to forget. One reader cannot forget.
+
+The cost of polling is the thing that had to be got right. Posting on every tick
+would be harmless to the queue, because a repeated id replaces itself rather than
+stacking - and it would make the banner **impossible to dismiss**: the cross
+works, and a quarter of a second later it is back. So the window remembers the
+last message it raised for each trigger and posts only when it changes. That is
+what the test's mutant checks, and it is the only mutant of the three tried here
+that a reasonable implementation would actually get wrong.
+
+Three IR slots share one banner. A preset naming three missing IRs has one thing
+wrong with it - the folder moved - and three banners in turn would be three
+dismissals for one problem. The first slot with something to say speaks for all
+of them, and the error log has the detail.
+
+The IR banner offers a button to Advanced Mode's TONE MATCH tab, through a new
+`AdvancedPanel::setWorkspaceTabNamed` - by name, for the same reason
+`OptionsPanel::showPageNamed` exists. Section 4.4 fixes the tab order, but the
+seven unbuilt tabs arriving would shift every index, and a banner that quietly
+opened the wrong panel is worse than one that did nothing. It returns false for a
+tab that is not built, so a caller can tell the difference, and the test checks
+that with NOTATION.
 ## History
 
 See `docs/CHANGELOG.md`.

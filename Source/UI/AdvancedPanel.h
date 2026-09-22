@@ -109,6 +109,16 @@ public:
 
     void setWorkspaceTab (int index);
 
+    /*  Selects a tab by the name on it. For callers that want a particular panel
+        and should not have to know where it sits - a notification banner offering
+        to show the user the IR slots, for one. Section 4.4 fixes the order, but
+        the eight unbuilt tabs arriving would shift every index, and a banner that
+        quietly opened the wrong panel is worse than one that did nothing.
+
+        Returns false when there is no such tab, which is how a caller learns the
+        panel it wanted has not been built yet. Case-insensitive. */
+    bool setWorkspaceTabNamed (const juce::String& tabName);
+
     /** Steps by delta, wrapping. Section 17's Ctrl+[ and Ctrl+] - wrapping
         because a tab strip that stops at the end makes the last tab need two
         different keys to leave. */

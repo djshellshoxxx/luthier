@@ -84,6 +84,22 @@ public:
     bool loadNext();
     bool loadPrevious();
 
+    /*  Why the last load failed, in a sentence a user can read, or empty if the
+        last one worked.
+
+        Every failure path already writes to the error log, which is right and is
+        not enough: ground rule 0.2 is that degradation is never silent, and most
+        callers here discard the bool. The header's Open dialog is the clearest
+        case - a preset that will not load currently does nothing at all, with no
+        message anywhere the user can see.
+
+        This is what gui-integration 15's "preset load error" banner reads. It is
+        a value the window polls rather than a callback the loader fires, because
+        presets are loaded from five places including a host program change, and
+        five call sites each remembering to report would be five chances to
+        forget. Cleared by the next load that succeeds. */
+    juce::String getLastLoadError() const { return lastLoadError; }
+
     /** Saves over the current user preset, or falls back to Save As behaviour if
         the current preset is a factory one. */
     bool saveCurrent();
@@ -169,6 +185,9 @@ public:
 private:
     void scanFolder (const juce::File& folder, bool factory);
     bool writeToFile (const juce::File& file, const juce::var& data) const;
+
+    /** Set on every load failure beside the error-log line, cleared on success. */
+    juce::String lastLoadError;
 
 
     /*  file-formats 0.3: fields this build does not understand are kept on load

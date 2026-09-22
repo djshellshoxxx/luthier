@@ -40,6 +40,18 @@ public:
         expiry or a real administrator. */
     void postStartupNotifications();
 
+    /*  gui-integration 15's triggers that can happen at any time rather than only
+        at startup: a preset that would not load, and an IR a preset asked for
+        that is no longer on disk. Called from the timer.
+
+        Polled rather than pushed because presets are loaded from five places -
+        the header, the browser, the Easy panel's style list, a host program
+        change, and the processor's own state restore - and five call sites each
+        remembering to report would be five chances to forget. It posts only when
+        the message changes, so a dismissed banner stays dismissed instead of
+        coming back four times a second. */
+    void pollForNotifications();
+
     NotificationCentre& getNotifications() noexcept { return notifications; }
 
     /*  Opens the Options overlay on one named page. Used by the banners, which
@@ -109,6 +121,11 @@ private:
 
     bool advancedMode = false;
     bool secretHovered = false;
+
+    /*  The last messages pollForNotifications raised, so an unchanged condition
+        is not reposted. Without these, dismissing a banner about a preset that
+        still will not load would put it straight back on screen. */
+    juce::String reportedPresetError, reportedIrError;
 
     /** Remembered so the layout is only redone when Live Mode actually changes. */
     bool liveModeShown = false;
