@@ -1107,6 +1107,45 @@ entry at slot 0 — dies on "the setlist entry points at snapshot 1 rather than 
 selected 6", which is the check that stops "add" from looking correct because the
 count went up.
 
+
+### The other three tabs, checked before starting one
+
+`GAPS.md` A2 described PRACTICE, NOTATION and MIDI OUT the way it described LIVE:
+"surfaces nobody has built... each has a working runtime half or a working engine
+and no setup page in front of it". For LIVE that was exactly right, and it took
+an afternoon. For the other three it is wrong, in three different ways, and each
+would have been discovered several hours into building the wrong thing.
+
+**PRACTICE has no spec.** `practice-tools.md` section 9 specifies the drawer -
+eight tabs, the 32-px collapsed strip, the global controls - and stops there.
+Only `gui-integration.md` 4.4 mentions a setup surface, and nothing anywhere says
+what would be on it. Practice stats, the loop and session folders, click-sample
+choice are all plausible and all invention, and `CLAUDE_CODE_BRIEF.md` is
+explicit that nothing may be improvised where a spec is meant to be explicit.
+This one is blocked on a decision rather than on work: either the drawer is the
+whole feature and 4.4's tab should be struck, or someone writes down the tab.
+
+**NOTATION has an export engine and nothing to export.** `NotationExporter`
+writes MusicXML, Guitar Pro, ASCII tab and MIDI, and it is tested. But
+`PerformanceScore` is only ever filled by `NotationImporter` reading a file, in
+the drawer's TAB tab - a grep for it across `Source/` finds exactly one owner,
+`PracticePanel`, and one writer, an import. Nothing captures what the player
+actually played. So "live TAB view" and "chord-symbol history" would display
+nothing and the export dialog would export nothing. The work here is engine work:
+capturing a performance into a score.
+
+**MIDI OUT is an unimplemented spec, not a missing panel.** `midi-export.md` is
+on disk and describes the whole thing - Luthier and Generic profiles, every event
+class round-tripping, a self-describing extension format. `MidiOutRouter` has
+none of it: no profile concept, no event classes. The tab would be the editor for
+a system nobody has written, and several event classes it would toggle (squeak,
+pick, buzz, slide, workshop) are blocked on the missing realism specs anyway.
+
+The useful conclusion is not about these three tabs. It is that **"needs a UI" and
+"needs an engine" look identical from a gap list**, and the only way to tell them
+apart is to open the code and find out who writes the data the UI would show.
+Twenty minutes of grepping here saved starting the wrong one of them.
+
 ## History
 
 See `docs/CHANGELOG.md`.

@@ -146,10 +146,10 @@ by building the page twice.
 | ROUTING | **built** — `RoutingPanel` |
 | TONE MATCH | **built** — `ToneMatchPanel` |
 | CHARACTER | **built** — `CharacterPanel` |
-| PRACTICE | no setup surface; the drawer is the runtime surface only |
-| NOTATION | not built — no live TAB view or chord-symbol history surface |
+| PRACTICE | no spec for what a setup surface would hold — see below |
+| NOTATION | needs live score capture, which does not exist — see below |
 | CONTROLLERS | **built** — `ControllersPage`, moved here from Options |
-| MIDI OUT | not built |
+| MIDI OUT | needs the profile system `midi-export.md` specifies — see below |
 | HELP | exists as an overlay, reachable on F1, not as a tab here |
 
 **The last-used tab persists** (4.4), in `Documents/Luthier/config/ui.json`
@@ -180,6 +180,34 @@ as before.
 
 Options is ten tabs now - section 5's eleven minus RANGES, in section 5's order -
 which is A3's remaining departure and nothing else.
+
+**The three tabs left are not "a surface in front of a working engine", which is
+what this entry used to say about all four.** LIVE was, and it took an afternoon.
+The others were checked before starting one of them, and each fails differently:
+
+- **PRACTICE.** `practice-tools.md` section 9 specifies the **drawer** - eight
+  tabs, the collapsed strip, the global controls - and nothing else. Only
+  `gui-integration.md` 4.4 says there is also a setup surface, and no spec
+  anywhere says what would be on it. Everything plausible (practice stats, the
+  loop and session folders, click-sample choice) is a guess, and
+  `CLAUDE_CODE_BRIEF.md` is explicit that nothing may be improvised where a spec
+  is meant to be explicit. **Blocked on a decision, not on work**: either the
+  drawer is the whole feature and 4.4's tab should go, or someone writes down
+  what the tab holds.
+- **NOTATION.** The export engine works - `NotationExporter` writes MusicXML,
+  Guitar Pro, ASCII tab and MIDI, and it is tested. What does not exist is
+  anything that captures what the player *played*: `PerformanceScore` is only
+  ever filled by `NotationImporter` reading a file, in the drawer's TAB tab.
+  There is no live score, so "live TAB view" and "chord-symbol history" have
+  nothing to display and the export dialog would have nothing to export.
+  **Needs engine work first**: capturing performance into a score.
+- **MIDI OUT.** `midi-export.md` is on disk and specifies the whole thing -
+  Luthier and Generic profiles, per-event-class round-tripping, a
+  self-describing extension format. `MidiOutRouter` has none of it: no profile,
+  no event classes. The tab is the editor for a system that has not been built,
+  and several of the event classes it would toggle (squeak, pick, buzz, slide,
+  workshop) are themselves blocked on the missing realism specs. **This is a
+  spec to implement, not a panel to draw.**
 
 `Editor::theLiveTabEditsTheSnapshotBankAndTheSetlist` covers LIVE, and covers the
 editing rather than the painting: a panel of controls wired to nothing paints
@@ -692,12 +720,12 @@ against the build. `gui-integration.md` sections 20 (discoverability), 21
 3. **A2**, the rest of it. The strip is built and the seven panels that exist are
    on it; what is left is the six tabs that are not, and they split two ways:
 
-   - **PRACTICE, NOTATION, MIDI OUT** are surfaces nobody has built. Each has a
-     working runtime half (the practice drawer) or a working engine (notation,
-     MIDI out) and no setup page in front of it. PRACTICE is the smallest - the
-     drawer already shows the state, so the setup page is arranging what the
-     drawer displays rather than inventing anything. MIDI OUT is spec'd in full
-     by `midi-export.md`, which is on disk, and is the largest of the three.
+   - **PRACTICE, NOTATION, MIDI OUT** are *not* surfaces waiting on a layout,
+     which is what this list said before they were checked. PRACTICE has no spec
+     for its contents and is blocked on a decision; NOTATION needs live score
+     capture, which does not exist; MIDI OUT needs the profile system
+     `midi-export.md` describes, which is an unimplemented spec rather than a
+     missing panel. None of the three is an afternoon's work. Details in A2.
    - **LIVE** is done. It was the first of this group and the pattern it set is
      worth repeating: the engines were complete and tested, and the only thing
      missing was a surface, so the work was almost entirely layout and wiring
