@@ -978,6 +978,61 @@ loop is not vacuous - and adds the one that matters: an open string with a capo
 at 5 must sound *exactly* what fret 5 sounded without one, not merely higher,
 which a wrong-but-plausible implementation would also manage.
 
+
+## A5's last two buildable rows, and two more reasons that were not true
+
+`GAPS.md` A5 listed four open shortcut rows. Two were blocked on specs that do
+not exist and still are. The other two came with reasons, and neither reason
+survived being checked - which makes **six** entries in that file now closed by
+reading the code instead of the entry.
+
+**"New preset, `Ctrl+N`: no new preset action exists. Needs an init-preset
+concept first."** There is an **Init** preset in the factory set, filed under
+Utility, and its own description calls it the place to start when building your
+own. The concept the entry asked for had shipped with the plugin.
+
+`Ctrl+N` loads it. Three small decisions around that:
+
+- It goes through a new `PresetManager::indexOfPreset`, which prefers a factory
+  preset over a user one of the same name. Without that, saving a user preset
+  called "Init" would quietly redefine what `Ctrl+N` does.
+- It pushes an undo state first. Losing an unsaved sound to a mistyped `Ctrl+N`
+  is the worst thing any shortcut in this window could do.
+- It is a **load**, not a reset. `resetEverything()` would leave the session at
+  defaults with no preset behind it; this leaves the preset named Init, with a
+  file, which is what makes the next row work.
+
+**"Reveal preset file, `Ctrl+Alt+E`: `PresetManager` tracks the current preset's
+name and index but not its file path, so there is nothing to reveal."** Half
+true, and the wrong half was the one that mattered. `PresetInfo` carries a
+`juce::File`, so a library preset's path was always reachable through the index.
+What the entry missed is that `loadPreset (File)` - the overload the header's
+Open dialog calls - never sets an index at all, so a preset opened from anywhere
+outside the library had nothing to map back from. Recording the file on load
+covers both cases in one member.
+
+With nothing loaded yet, the shortcut posts a banner saying so rather than
+opening some arbitrary folder. That is the same ground rule 0.2 reasoning as the
+rest of section 15's work, applied to a key that would otherwise appear broken.
+
+### A test that must not open File Explorer
+
+`revealToUser` puts a file manager window on screen. A test that pressed the
+successful branch would spawn Explorer on every run of the suite, on every
+machine, forever - which would be a worse thing to have done than leaving the row
+open.
+
+So `newPresetLoadsInitAndRevealSaysSoWhenThereIsNoFile` presses the key **only**
+in the state where there is nothing to reveal, which is the branch with the
+interesting behaviour anyway, and checks the file the other branch would use
+directly rather than by triggering it. The ordering is load-bearing and says so
+in the test: reveal is pressed before `Ctrl+N`, because `Ctrl+N` creates the very
+file that would make pressing it again open a window.
+
+The test loads a different preset before pressing `Ctrl+N`, so that "it loaded
+Init" is not indistinguishable from "it did nothing". The mutant - making the
+lookup return -1 - reports the preset is still "DADGAD Drone".
+
 ## History
 
 See `docs/CHANGELOG.md`.

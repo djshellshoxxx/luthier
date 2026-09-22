@@ -477,7 +477,7 @@ the capo or past the shortened neck, that a bar actually produced notes so the
 loop was not vacuous, and that an open string with a capo at 5 sounds exactly
 what fret 5 sounded without one.
 
-## A5 — Shortcuts: audited, mostly closed, four rows still open
+## A5 — Shortcuts: audited, closed except what the missing specs block
 
 The audit found something worse than drift. There were **three** sources of
 truth: the hard-coded key comparisons in `PluginEditor::keyPressed`, the
@@ -496,9 +496,36 @@ Still open:
 
 | Section 17 row | Why not done |
 |---|---|
-| New preset, `Ctrl+N` | No "new preset" action exists. `resetEverything()` is Reset All, which is a different thing. Needs an init-preset concept first. |
-| Reveal preset file, `Ctrl+Alt+E` | `PresetManager` tracks the current preset's name and index but not its file path, so there is nothing to reveal. |
 | Workshop `W`, Slide `S`, Save As Guitar `Ctrl+G`, New Tune `Ctrl+T` | Blocked on the missing specs. Deliberately absent from the registry rather than present and dead. |
+
+**Two more rows closed, and both of this entry's reasons were wrong.**
+
+- **New preset, `Ctrl+N`.** This said "no new preset action exists... needs an
+  init-preset concept first". The **Init** factory preset has been in the set the
+  whole time, filed under Utility, and its own blurb calls it the place to start
+  when building your own. `Ctrl+N` loads it, through a new
+  `PresetManager::indexOfPreset` which prefers a factory preset so that saving a
+  user preset called "Init" cannot redefine what the shortcut does. It pushes an
+  undo state first, because losing an unsaved sound to a mistyped `Ctrl+N` is the
+  worst thing a shortcut in this window could do. It is a load rather than a
+  reset, and the difference is visible: the preset name afterwards is "Init".
+- **Reveal preset file, `Ctrl+Alt+E`.** This said `PresetManager` "tracks the
+  current preset's name and index but not its file path". Half true, and the
+  wrong half: `PresetInfo` carries a `file`, so a library preset's path was
+  always reachable through the index - but `loadPreset (File)`, which is what the
+  header's Open dialog calls, never sets an index, so a preset opened from
+  anywhere else had nothing to map back from. `getCurrentPresetFile()` records it
+  on load and covers both. With no file yet, the shortcut says so in a banner
+  rather than opening some arbitrary folder.
+
+**Covered by** `Editor::newPresetLoadsInitAndRevealSaysSoWhenThereIsNoFile`,
+which loads a different preset first so that "it loaded Init" is not merely "it
+did nothing" - the mutant that makes the lookup fail reports the preset is still
+"DADGAD Drone". The successful reveal branch is deliberately never pressed:
+`revealToUser` opens a file manager, and a test that spawned Explorer on every
+run would be worse than the gap it closed. The test presses the key only in the
+state with nothing to reveal, and checks the file the other branch would use
+directly.
 
 Closed since: **Next / Prev Col 4 tab, `Ctrl+]` / `Ctrl+[`**. They were blocked on
 A2 because there were no tabs to step, and there are now. They answer only in

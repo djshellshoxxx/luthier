@@ -69,12 +69,28 @@ public:
     int getNumPresets() const noexcept { return presets.size(); }
     const PresetInfo* getPreset (int index) const noexcept;
 
+    /** The index of the preset with this name, or -1. Case-insensitive, and it
+        prefers a factory preset when a user preset shares the name, so "New
+        preset" cannot be redefined by saving a user preset called Init. */
+    int indexOfPreset (const juce::String& name) const noexcept;
+
     /** Indices of the presets in one category, or all of them if empty. */
     juce::Array<int> getPresetsInCategory (const juce::String& category) const;
     juce::StringArray getCategories() const;
 
     int getCurrentPresetIndex() const noexcept { return currentIndex; }
     juce::String getCurrentPresetName() const { return currentName; }
+
+    /*  The file the current preset was loaded from, or a file that does not exist
+        if the session has never loaded one.
+
+        GAPS.md A5 said this was why "Reveal preset file" could not be built -
+        "PresetManager tracks the current preset's name and index but not its file
+        path". The index half was true and not enough: `loadPreset (File)`, which
+        is what the header's Open dialog calls, does not set an index at all, so
+        for a preset opened from anywhere but the library there was nothing to map
+        back. Recording the file on load covers both. */
+    juce::File getCurrentPresetFile() const { return currentFile; }
     bool isCurrentPresetModified() const noexcept { return modified; }
     void markModified() noexcept;
 
@@ -188,6 +204,9 @@ private:
 
     /** Set on every load failure beside the error-log line, cleared on success. */
     juce::String lastLoadError;
+
+    /** Where the current preset came from. Empty until something is loaded. */
+    juce::File currentFile;
 
 
     /*  file-formats 0.3: fields this build does not understand are kept on load

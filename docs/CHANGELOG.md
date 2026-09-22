@@ -36,6 +36,14 @@ numbered, because what it should be called is a release decision.
   palettes, UI scale, localisation.
 - **Updates and telemetry** - update checks, opt-in telemetry, crash reporting,
   license activation, privacy dashboard.
+- **New preset (`Ctrl+N`) and Reveal preset file (`Ctrl+Alt+E`)**, the last two
+  rows of gui-integration.md section 17 that were not blocked on an unwritten
+  spec. New preset loads the Init factory preset, which had been in the set all
+  along, and pushes an undo state first. Reveal needed somewhere to reveal:
+  `PresetManager::getCurrentPresetFile` records where the current preset came
+  from, which the index alone could not give for a preset opened through the
+  header's Open dialog. With nothing loaded it says so rather than opening an
+  arbitrary folder.
 - **A capo that changes the pitch** (ambiguity-resolutions.md 4.5). There were
   already two capos in the build and neither did: RhythmEngine had one that moved
   where chords were voiced, and the fretboard had one that drew itself and was

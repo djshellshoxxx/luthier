@@ -489,6 +489,7 @@ void AccessibilitySettings::buildDefaultShortcuts()
 
     const auto cmd   = juce::ModifierKeys::commandModifier;
     const auto shift = juce::ModifierKeys::shiftModifier;
+    const auto alt   = juce::ModifierKeys::altModifier;
 
     add ("help",             "accessibility.shortcut.help",             KP (KP::F1Key));
     add ("showShortcuts",    "accessibility.shortcut.showShortcuts",    KP ('/', cmd | shift, 0));
@@ -519,7 +520,20 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("save",             "accessibility.shortcut.save",             KP ('s', cmd, 0));
     add ("saveAs",           "accessibility.shortcut.saveAs",           KP ('s', cmd | shift, 0));
 
+    /*  Section 17's "New preset". It loads the Init factory preset, which is what
+        a new preset means here. GAPS.md A5 said no such action existed and that
+        it "needs an init-preset concept first" - Init has been in the factory set
+        the whole time, described in its own blurb as the place to start when
+        building your own. It is not Reset All: that clears the session, this
+        loads a preset, and the difference shows in the preset name afterwards. */
+    add ("newPreset",        "accessibility.shortcut.newPreset",        KP ('n', cmd, 0));
+
     add ("presetBrowser",    "accessibility.shortcut.presetBrowser",    KP ('o', cmd, 0));
+
+    /*  Section 17's "Reveal preset file", which needed somewhere to reveal.
+        PresetManager::getCurrentPresetFile is that. */
+    add ("revealPreset",     "accessibility.shortcut.revealPreset",     KP ('e', cmd | alt, 0));
+
     add ("abCompare",        "accessibility.shortcut.abCompare",        KP ('/', cmd, 0));
 
     add ("randomise",        "accessibility.shortcut.randomise",        KP ('r', cmd, 0));

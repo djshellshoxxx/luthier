@@ -275,6 +275,29 @@ const PresetInfo* PresetManager::getPreset (int index) const noexcept
     return &presets.getReference (index);
 }
 
+int PresetManager::indexOfPreset (const juce::String& name) const noexcept
+{
+    int userMatch = -1;
+
+    for (int i = 0; i < presets.size(); ++i)
+    {
+        const auto& info = presets.getReference (i);
+
+        if (! info.name.equalsIgnoreCase (name))
+            continue;
+
+        // A factory preset wins outright; a user one is remembered in case there
+        // is no factory preset by that name at all.
+        if (info.isFactory)
+            return i;
+
+        if (userMatch < 0)
+            userMatch = i;
+    }
+
+    return userMatch;
+}
+
 juce::Array<int> PresetManager::getPresetsInCategory (const juce::String& category) const
 {
     juce::Array<int> result;
@@ -673,6 +696,7 @@ bool PresetManager::loadPreset (const juce::File& file)
     }
 
     currentName = file.getFileNameWithoutExtension();
+    currentFile = file;
     applyExtraState();
 
     lastLoadError.clear();

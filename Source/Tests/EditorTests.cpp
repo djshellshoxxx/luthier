@@ -1830,3 +1830,98 @@ LUTHIER_TEST (Editor, aSampleRateChangeIsAnnouncedOnceAndTheFirstOneIsNot)
                      + text + "\"");
     }
 }
+
+//==============================================================================
+/*  Section 17's last two buildable shortcuts: New preset and Reveal preset file.
+
+    GAPS.md A5 said neither could be built. Both claims were wrong in the same
+    way as the rest of that file: "no new preset action exists" missed the Init
+    factory preset, whose own description calls it the place to start when
+    building your own, and "PresetManager tracks the current preset's name and
+    index but not its file path" was half right - the index is there, but
+    loadPreset(File), which the header's Open dialog calls, never sets one, so a
+    preset opened from outside the library had no index either.
+
+    **The reveal branch that succeeds is deliberately never pressed here.**
+    revealToUser opens a file manager window, and a test that spawned Explorer on
+    every run would be a worse thing than the gap it closed. So the key is pressed
+    only in the state where there is nothing to reveal - which is the branch with
+    the interesting behaviour anyway, because the alternative to saying so is
+    opening some arbitrary folder - and the file that the other branch would use
+    is checked directly.
+*/
+LUTHIER_TEST (Editor, newPresetLoadsInitAndRevealSaysSoWhenThereIsNoFile)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    CHECK_MSG (processor.getPresetManager().indexOfPreset ("Init") >= 0,
+               "there is no Init preset, so Ctrl+N has nothing to load");
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+
+    auto* window = dynamic_cast<LuthierAudioProcessorEditor*> (editor.get());
+
+    CHECK (window != nullptr);
+
+    if (window == nullptr)
+        return;
+
+    editor->setSize (LuthierAudioProcessorEditor::defaultWidth,
+                     LuthierAudioProcessorEditor::defaultHeight);
+
+    auto& centre = window->getNotifications();
+    centre.clear();
+
+    //--------------------------------------------------------------------------
+    /*  Reveal first, while nothing has been loaded and so nothing can be opened.
+        Once Ctrl+N below has run there is a real file and pressing this would
+        put a file manager on screen. */
+    CHECK_MSG (! processor.getPresetManager().getCurrentPresetFile().existsAsFile(),
+               "a freshly constructed processor already has a preset file, so the "
+               "no-file branch cannot be tested");
+
+    const auto revealKey = shortcutFor ("revealPreset");
+
+    CHECK_MSG (revealKey.isValid(),
+               "revealPreset is not in the shortcut registry, so section 17's row "
+               "is still open");
+
+    CHECK_MSG (editor->keyPressed (revealKey),
+               "the reveal shortcut was not handled, so the host would get the key");
+
+    CHECK_MSG (centre.contains ("reveal-preset"),
+               "with nothing to reveal the window said nothing at all");
+
+    centre.clear();
+
+    //--------------------------------------------------------------------------
+    // New preset.
+    const auto newKey = shortcutFor ("newPreset");
+
+    CHECK_MSG (newKey.isValid(),
+               "newPreset is not in the shortcut registry, so section 17's row is "
+               "still open");
+
+    // Somewhere else first, so "it loaded Init" is not just "it did nothing".
+    const int somewhereElse = processor.getPresetManager().getNumPresets() > 1 ? 1 : 0;
+    processor.getPresetManager().loadPreset (somewhereElse);
+
+    const auto before = processor.getPresetManager().getCurrentPresetName();
+
+    CHECK_MSG (editor->keyPressed (newKey),
+               "the new-preset shortcut was not handled");
+
+    const auto after = processor.getPresetManager().getCurrentPresetName();
+
+    CHECK_MSG (after.equalsIgnoreCase ("Init"),
+               "Ctrl+N did not load Init, the preset is now \"" + after + "\"");
+
+    /*  And it is a load, not a reset: loading records the file it came from,
+        which is the thing Reveal needs and which resetEverything would not set.
+        This is also what makes the branch above untestable afterwards. */
+    CHECK_MSG (processor.getPresetManager().getCurrentPresetFile().existsAsFile(),
+               "loading Init left no file behind, so Reveal would have nothing to show");
+
+    juce::ignoreUnused (before);
+}

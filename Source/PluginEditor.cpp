@@ -447,6 +447,41 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     if (is ("export"))          { showOverlay (&exportPanel);   return true; }
     if (is ("debugPanel"))      { showOverlay (&debugPanel);    return true; }
 
+    /*  Section 17's "New preset": load Init, which is the factory preset whose own
+        description calls it the place to start when building your own. Undoable,
+        because losing an unsaved sound to a mistyped Ctrl+N would be the worst
+        thing a shortcut in this window can do. */
+    if (is ("newPreset"))
+    {
+        processor.pushUndoState ("New preset");
+
+        auto& presets = processor.getPresetManager();
+        const int init = presets.indexOfPreset ("Init");
+
+        if (init >= 0)
+            presets.loadPreset (init);
+
+        processor.getParameterBridge().applyAllNow();
+        return true;
+    }
+
+    /*  Section 17's "Reveal preset file". A factory preset has a file too, so this
+        works for both; a session that has not loaded one has nothing to show and
+        says so rather than opening the wrong folder. */
+    if (is ("revealPreset"))
+    {
+        const auto file = processor.getPresetManager().getCurrentPresetFile();
+
+        if (file.existsAsFile())
+            file.revealToUser();
+        else
+            notifications.post ({ "reveal-preset",
+                                  "This sound has not been saved yet, so there is no file to show.",
+                                  Notification::Level::info });
+
+        return true;
+    }
+
     if (is ("showShortcuts"))
     {
         // accessibility 2's "show all shortcuts" surface is the rebind table
