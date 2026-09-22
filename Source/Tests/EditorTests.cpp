@@ -1161,3 +1161,190 @@ LUTHIER_TEST (Editor, everyHitRegionOnTheIllustrationDescribesItself)
         CHECK (! WhammyPopover::isWhammyFitted (processor));
     }
 }
+
+//==============================================================================
+/*  Right-click -> Modulate (modulation-matrix.md section 5, GAPS.md A4).
+
+    This is the quick way to build a modulation route: the destination is the
+    control under the cursor, so the user only picks what should drive it. It is a
+    secondary path - the MOD tab cards are primary, which is ground rule 4 - and a
+    secondary path is exactly the kind of thing that can break without anything
+    noticing, because nothing else in the plugin goes through it.
+
+    Nothing did notice, for three milestones. GAPS.md A4 listed this row as "the
+    Modulate entry and drag-to-assign do not [exist]", and the menu had in fact
+    been built in 996f89d. The entry was read rather than the code - the same
+    mistake A4's Easy-mode row made - and the reason it survived is that there was
+    no test to disagree with it. Drag-to-assign really is absent; the menu is not.
+
+    Testing it needed the menu taken apart first. showParameterContextMenu built
+    the items and called showMenuAsync in one breath, so the only way to see an
+    item was to open the menu on screen and look at it. buildParameterContextMenu
+    returns the items without showing them, and applyParameterMenuResult performs
+    a result id, which is what the callback did - so the checks below walk the
+    real menu and drive the real handler rather than a copy of either.
+*/
+LUTHIER_TEST (Editor, rightClickOffersModulationAndBuildsTheRoute)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    // applyParameterMenuResult only uses the component to position the
+    // value-entry callout, which none of the results below opens.
+    juce::Component owner;
+
+    auto& matrix = processor.getModMatrix();
+    matrix.clearRoutes();
+
+    const juce::String destination (ParamIDs::masterGain);
+
+    /*  What a menu contains: the visible text and id of every item, including
+        inside sub-menus, and separately the text of each item that has a sub-menu
+        hanging off it. */
+    struct MenuContents
+    {
+        juce::StringArray items, subMenus;
+        juce::Array<int> ids;
+
+        bool has (const juce::String& text) const
+        {
+            for (const auto& item : items)
+                if (item.contains (text))
+                    return true;
+
+            return false;
+        }
+    };
+
+    auto readMenu = [] (const juce::PopupMenu& menu)
+    {
+        MenuContents found;
+
+        juce::PopupMenu::MenuItemIterator it (menu, true);
+
+        while (it.next())
+        {
+            const auto& item = it.getItem();
+
+            found.items.add (item.text);
+            found.ids.add (item.itemID);
+
+            if (item.subMenu != nullptr)
+                found.subMenus.add (item.text);
+        }
+
+        return found;
+    };
+
+    //--------------------------------------------------------------------------
+    // With no routes on the destination yet.
+    {
+        const auto found = readMenu (buildParameterContextMenu (processor, destination));
+
+        CHECK_MSG (found.has ("Modulate"),
+                   "the right-click menu has no Modulate entry");
+
+        CHECK_MSG (found.subMenus.contains ("Modulate"),
+                   "Modulate is in the menu but has no sources hanging off it");
+
+        /*  Section 5's source groups, by name. Naming them means a group quietly
+            dropped from the menu fails here, which counting items would miss if
+            another group grew at the same time. */
+        for (const auto* group : { "LFO", "Envelope", "Sequencer", "Follower",
+                                   "Macro", "Performance" })
+            CHECK_MSG (found.subMenus.contains (group),
+                       "the Modulate submenu has no " + juce::String (group) + " group");
+
+        /*  Every source is an item carrying its own id in the encoded range, which
+            is what pairs the source with the destination under the cursor. */
+        CHECK_MSG (found.ids.contains (kModulateMenuBase + ModSourceSlots::lfoBase),
+                   "LFO 1 is not offered as a modulation source");
+
+        CHECK_MSG (found.ids.contains (kModulateMenuBase + ModSourceSlots::modWheel),
+                   "the mod wheel is not offered as a modulation source");
+
+        // Nothing to remove yet, so the entry that removes it is not there.
+        CHECK_MSG (! found.has ("Remove modulation"),
+                   "the menu offers to remove modulation from an unmodulated control");
+    }
+
+    //--------------------------------------------------------------------------
+    // Choosing a source builds the route.
+    const int chosenSlot = ModSourceSlots::lfoBase + 2;
+
+    applyParameterMenuResult (kModulateMenuBase + chosenSlot, owner, processor, destination);
+
+    CHECK_MSG (matrix.getRouteCountForDestination (destination) == 1,
+               "choosing a modulation source did not create one route, the destination has "
+                 + juce::String (matrix.getRouteCountForDestination (destination)));
+
+    if (matrix.getRouteCountForDestination (destination) == 1)
+    {
+        // Found rather than assumed to be route 0, so this does not depend on the
+        // matrix being empty of everything else.
+        ModRoute built;
+
+        for (int i = 0; i < matrix.getNumRoutes(); ++i)
+            if (matrix.getRoute (i).destinationId == destination)
+                built = matrix.getRoute (i);
+
+        CHECK_MSG (built.sourceId == modSourceIdForSlot (chosenSlot),
+                   "the route was built from the wrong source: wanted "
+                     + modSourceIdForSlot (chosenSlot) + ", got " + built.sourceId);
+
+        CHECK_MSG (built.enabled,
+                   "the route was built disabled, so the control would never move");
+
+        /*  A third of full depth: enough to be obviously doing something, not so
+            much that it swamps the control the user just right-clicked. A route
+            built at zero depth is the failure worth catching here, because it
+            would look correct in the matrix and do nothing at all. */
+        CHECK_NEAR (built.depth, 0.33f, 1.0e-5);
+    }
+
+    //--------------------------------------------------------------------------
+    // Now the menu offers to take it away, and says how many.
+    {
+        const auto found = readMenu (buildParameterContextMenu (processor, destination));
+
+        CHECK_MSG (found.has ("Remove modulation (1)"),
+                   "with one route on the control the menu does not offer to remove it");
+    }
+
+    applyParameterMenuResult (9, owner, processor, destination);
+
+    CHECK_MSG (matrix.getRouteCountForDestination (destination) == 0,
+               "Remove modulation left "
+                 + juce::String (matrix.getRouteCountForDestination (destination))
+                 + " routes behind");
+
+    //--------------------------------------------------------------------------
+    /*  A destination is full at kMaxRoutesPerDestination. The menu says so on its
+        face rather than offering sources that would be silently dropped, which is
+        ground rule 0.2 applied to a limit. */
+    for (int i = 0; i < ModMatrix::kMaxRoutesPerDestination; ++i)
+        applyParameterMenuResult (kModulateMenuBase + ModSourceSlots::lfoBase + i,
+                                  owner, processor, destination);
+
+    CHECK_MSG (matrix.getRouteCountForDestination (destination)
+                 == ModMatrix::kMaxRoutesPerDestination,
+               "could not fill the destination to its route limit, it holds "
+                 + juce::String (matrix.getRouteCountForDestination (destination)));
+
+    {
+        const auto found = readMenu (buildParameterContextMenu (processor, destination));
+
+        CHECK_MSG (found.has ("already routed"),
+                   "a full destination does not say so in its Modulate entry");
+    }
+
+    // One more must not fit.
+    applyParameterMenuResult (kModulateMenuBase + ModSourceSlots::modWheel,
+                              owner, processor, destination);
+
+    CHECK_MSG (matrix.getRouteCountForDestination (destination)
+                 <= ModMatrix::kMaxRoutesPerDestination,
+               "the menu routed past the per-destination limit");
+
+    matrix.clearRoutes();
+}

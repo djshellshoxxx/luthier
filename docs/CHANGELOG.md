@@ -84,6 +84,14 @@ numbered, because what it should be called is a release decision.
   keep in sync. It refreshes when its tab is opened, as the overlay used to
   refresh it, because a controller can be unplugged while the tab is not looking.
 - `scripts/build.ps1`, which PROGRESS.md had referenced without it existing.
+- **Coverage for right-click → Modulate**, which had none. The menu itself is not
+  new - it has offered every modulation source since the phase 1 extension work -
+  but nothing in the plugin goes through it except a user, so every one of its
+  behaviours could have broken in a release without a failure anywhere. It is now
+  built by `buildParameterContextMenu` and performed by
+  `applyParameterMenuResult`, either side of `showMenuAsync`, so a test can walk
+  the real items and drive the real handler instead of a human opening the menu
+  and looking at it.
 - **Editor tests.** `Source/UI/` and `PluginEditor.cpp` now build into
   `LuthierTests`, which compiles with `LUTHIER_HEADLESS=0`, and the new `Editor`
   suite opens the window: the size the processor hands back, layout and paint at
@@ -101,7 +109,9 @@ numbered, because what it should be called is a release decision.
   Advanced Mode refusing both routes in below 1000 points with the notice
   painted, a grid swept over the whole illustration to collect what every hit
   region says, and the headstock popover reaching the engine one string at a
-  time and actually moving the pitch.
+  time and actually moving the pitch, and the right-click menu offering every
+  modulation source group by name, building a route at the depth it claims, and
+  refusing to route past a destination's limit.
 
 ### Fixed
 

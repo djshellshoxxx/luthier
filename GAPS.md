@@ -248,10 +248,28 @@ These secondary paths do not:
   MIDI Learn and host automation on those controls. Closing that is a parameter
   count change and a preset schema question rather than a UI one, so it is here
   rather than done: see B1.
-- **Right-click → Modulate** on any control. The right-click menu exists (MIDI
-  Learn, value entry); the Modulate entry and drag-to-assign do not. Affects
-  seven mod-matrix rows. Note ground rule 4: right-click may not be the *only*
-  path, so the MOD tab cards remain the primary surface.
+- ~~**Right-click → Modulate**~~ — **the menu exists and this row was wrong**,
+  in the same way and for the same reason as the Easy-mode row above it: the
+  entry was read instead of the code. `showParameterContextMenu` has offered
+  every modulation source since `996f89d`, grouped LFO / Envelope / Sequencer /
+  Follower / Macro / Performance, with the destination taken from the control
+  under the cursor, a new route built at a third of full depth, a "Remove
+  modulation (n)" entry when routes exist, and a full destination saying so on
+  its face rather than offering sources it would silently drop.
+
+  What let it stay wrong for three milestones is that **nothing tested it**.
+  Nothing else in the plugin goes through that menu, so a secondary path could
+  have broken in any release without a failure anywhere.
+  `Editor::rightClickOffersModulationAndBuildsTheRoute` covers it now, and
+  covering it needed the menu split into `buildParameterContextMenu` and
+  `applyParameterMenuResult`: a function that builds items and shows them in one
+  breath can only be checked by a human looking at the screen.
+
+  **Drag-to-assign is genuinely absent.** There is no `DragAndDropContainer`
+  anywhere in `Source/UI/` except `ToneMatchPanel`'s file drop. Ground rule 4 is
+  satisfied without it - the MOD tab cards are the primary surface and the menu
+  is a second route - so this is a convenience rather than a missing path, and it
+  is the only part of this row still open.
 - **Header notification** for an available update.
 - **Post-crash prompt** for crash reporting.
 - **Help > About** as a route to license.
@@ -458,10 +476,18 @@ against the build. `gui-integration.md` sections 20 (discoverability), 21
    than a build, and moving the page rather than sharing the library was what
    made it small. Options lost the tab and is ten, which is what section 5 asks
    for anyway.
-4. **A4** — the rest of the secondary access paths. The Easy-mode instrument is
-   done; right-click → Modulate is the remaining ground-rule-4 offender now that
-   MIDI Learn has a header route, and the three notification routes (update
-   available, post-crash prompt, Help > About) are small and independent.
+4. **A4** — the rest of the secondary access paths, and there is no ground-rule-4
+   offender left in it. The Easy-mode instrument is done, MIDI Learn has a header
+   route, and right-click → Modulate turned out to have been built all along.
+   What remains is the three notification routes (update available, post-crash
+   prompt, Help > About), which are small and independent, and drag-to-assign,
+   which is a convenience rather than a path.
+
+   Two of this entry's rows have now been closed by reading the code instead of
+   the list, which is worth saying out loud: **this file is the least trustworthy
+   document in the repository about what exists.** It was written in one pass
+   against a build it did not run, and a row here is a question to check rather
+   than a fact to act on.
 5. **B1**, the capo, or at least the half of it the docs have already promised.
    The engine side is specified exactly by `ambiguity-resolutions.md` 4.5 and two
    of its three UI homes now exist. Whether to build it or to correct the manual

@@ -566,6 +566,86 @@ that each writes only its own string, and that a detune actually moves the pitch
 - without that last one it would pass on a popover wired to a field the engine
 never reads, which is exactly what the feature's absence looked like.
 
+
+## A4 again: a row that was wrong, and the reason it stayed wrong
+
+`GAPS.md` A4 said "the Modulate entry and drag-to-assign do not [exist]". Half of
+that was false. `showParameterContextMenu` has offered every modulation source
+since `996f89d` - three milestones back - grouped LFO, Envelope, Sequencer,
+Follower, Macro and Performance, with the destination taken from the control
+under the cursor, a new route built at a third of full depth, a "Remove
+modulation (n)" entry once routes exist, and a full destination saying so in the
+submenu title rather than offering sources it would silently drop.
+
+This is the second A4 row closed by reading the code instead of the list, after
+the Easy-mode instrument. Both were written in one audit pass against a build the
+audit did not run, and both described something absent that was in fact present.
+That pattern is now recorded at the top of A4's suggested-order entry, because
+the useful conclusion is not "fix two rows" but **this file is the least
+trustworthy document in the repository about what exists** - a row in it is a
+question to check, not a fact to act on.
+
+### What actually let it stay wrong
+
+Not the audit. **Nothing tested the menu.** Nothing else in the plugin goes
+through it - it is a secondary path by design, with the MOD tab cards primary per
+ground rule 4 - so every one of its behaviours could have broken in any release
+and no test anywhere would have said a word. The audit being wrong was noticed in
+ten minutes by grepping; the absence of coverage is what made the row survive
+three milestones of people reading it.
+
+### Splitting the menu so it could be tested at all
+
+`showParameterContextMenu` built its items and called `showMenuAsync` in one
+breath. A function shaped like that can only be checked by a human opening the
+menu and looking at it, which is precisely how it went unchecked.
+
+It is three functions now. `buildParameterContextMenu` returns the items without
+showing them, `applyParameterMenuResult` performs a result id - which is exactly
+what the old callback body did - and `showParameterContextMenu` is those two
+either side of `showMenuAsync`, which is what every control still calls. The look
+and feel moved to the show step, since it belongs to the control rather than to
+the items, and an empty menu now returns early rather than putting an empty box
+under the cursor.
+
+`kModulateMenuBase` moved from an anonymous namespace in the .cpp to the header,
+because a test driving a result has to know where the encoded source range
+begins.
+
+### The test, and the two mutants
+
+`Editor::rightClickOffersModulationAndBuildsTheRoute` walks the real menu with
+`juce::PopupMenu::MenuItemIterator` and drives the real handler. Twenty checks:
+the Modulate entry exists and has sources under it, all six source groups are
+present *by name*, LFO 1 and the mod wheel carry ids in the encoded range,
+"Remove modulation" is absent until there is something to remove, choosing a
+source builds one route from the right source at depth 0.33 and enabled, the
+menu then offers to remove it and says how many, removing leaves none, and a
+destination filled to `kMaxRoutesPerDestination` says "already routed" and takes
+no more.
+
+The groups are checked by name rather than by counting items on purpose: a count
+passes if one group is dropped while another grows.
+
+Two mutants, both killed:
+
+- **`route.depth = 0.0f`** instead of `0.33f` fails with `built.depth = 0.000000,
+  expected 0.330000`. This is the one worth having. A route at zero depth looks
+  entirely correct in the matrix - right source, right destination, enabled - and
+  does nothing whatsoever to the control. A test that only asserted "a route
+  appeared" would pass on it.
+- **The Modulate submenu never added to the menu** fails eleven of the twenty
+  checks, naming each missing group and both encoded ids.
+
+### Still open in A4
+
+- **Drag-to-assign** does not exist - there is no `DragAndDropContainer` in
+  `Source/UI/` outside `ToneMatchPanel`'s file drop. Ground rule 4 is satisfied
+  without it, since the MOD cards are primary and the menu is a real second
+  route, so this is a convenience rather than a missing path.
+- **The three notification routes**: update available in the header, the
+  post-crash prompt, and Help > About as a route to the licence.
+
 ## History
 
 See `docs/CHANGELOG.md`.

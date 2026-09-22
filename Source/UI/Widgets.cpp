@@ -5,12 +5,9 @@ namespace luthier
 {
 
 //==============================================================================
-namespace
-{
-    /** Menu ids for the Modulate submenu start well past the fixed items, so a
-        source slot can be encoded directly in the id. */
-    constexpr int kModulateMenuBase = 1000;
-}
+// kModulateMenuBase is in the header now. Ids for the Modulate submenu start well
+// past the fixed items so a source slot is encoded directly in the id, and a test
+// driving a result needs to know where that range begins.
 
 //==============================================================================
 double ControlClipboard::value = 0.0;
@@ -21,22 +18,22 @@ bool ControlClipboard::hasValue() noexcept       { return filled; }
 double ControlClipboard::retrieve() noexcept     { return value; }
 
 //==============================================================================
-void showParameterContextMenu (juce::Component& owner,
-                               LuthierAudioProcessor& processor,
-                               const juce::String& parameterId,
-                               std::function<void()> onChanged)
+juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
+                                           const juce::String& parameterId)
 {
     auto* param = processor.getState().getParameter (parameterId);
 
     if (param == nullptr)
-        return;
+        return {};
 
     auto& midiLearn = processor.getMidiLearn();
     const int mappedCc = midiLearn.getCcForParameter (parameterId);
     const bool locked = processor.isParameterLocked (parameterId);
 
+    // The look and feel is the caller's: showParameterContextMenu sets it from the
+    // control the menu belongs to, and a test that only inspects the items does
+    // not need one at all.
     juce::PopupMenu menu;
-    menu.setLookAndFeel (&owner.getLookAndFeel());
 
     menu.addSectionHeader (param->getName (40));
     menu.addItem (1, "Enter value...");
@@ -111,8 +108,21 @@ void showParameterContextMenu (juce::Component& owner,
     if (existingRoutes > 0)
         menu.addItem (9, "Remove modulation (" + juce::String (existingRoutes) + ")");
 
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&owner),
-                        [&processor, parameterId, param, onChanged, &owner] (int result)
+    return menu;
+}
+
+//==============================================================================
+void applyParameterMenuResult (int result,
+                               juce::Component& owner,
+                               LuthierAudioProcessor& processor,
+                               const juce::String& parameterId,
+                               std::function<void()> onChanged)
+{
+    auto* param = processor.getState().getParameter (parameterId);
+
+    if (param == nullptr)
+        return;
+
     {
         auto& learn = processor.getMidiLearn();
 
@@ -223,6 +233,28 @@ void showParameterContextMenu (juce::Component& owner,
 
         if (onChanged && result != 1)
             onChanged();
+    }
+}
+
+//==============================================================================
+void showParameterContextMenu (juce::Component& owner,
+                               LuthierAudioProcessor& processor,
+                               const juce::String& parameterId,
+                               std::function<void()> onChanged)
+{
+    auto menu = buildParameterContextMenu (processor, parameterId);
+
+    /*  An empty menu means there is no such parameter. Showing it would put an
+        empty box under the cursor, which is worse than the click doing nothing. */
+    if (menu.getNumItems() == 0)
+        return;
+
+    menu.setLookAndFeel (&owner.getLookAndFeel());
+
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&owner),
+                        [&owner, &processor, parameterId, onChanged] (int result)
+    {
+        applyParameterMenuResult (result, owner, processor, parameterId, onChanged);
     });
 }
 

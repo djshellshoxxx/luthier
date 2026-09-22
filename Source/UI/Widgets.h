@@ -22,6 +22,41 @@ namespace luthier
 class LuthierAudioProcessor;
 
 //==============================================================================
+/*  The standard right-click menu for a parameter-backed control.
+
+    Split into build / apply / show rather than written as one function, because
+    a menu that can only be shown can only be tested by a human looking at it.
+    `buildParameterContextMenu` returns the menu without putting it on screen, so
+    a test can walk it with juce::PopupMenu::MenuItemIterator and fail when an
+    entry goes missing; `applyParameterMenuResult` is what the menu's callback
+    does with a result id, so a test can drive the outcome without a modal loop.
+    `showParameterContextMenu` is the two of them either side of showMenuAsync,
+    and is what every control actually calls.
+
+    Section 5 of modulation-matrix.md is the reason this matters: right-click is
+    the quick route to a modulation route, and it is a secondary path - the MOD
+    tab cards are primary, per ground rule 4 - so nothing else would have noticed
+    it break.
+*/
+
+/** The base id for the Modulate submenu. A result id in
+    [kModulateMenuBase, kModulateMenuBase + ModSourceSlots::count) selects a
+    modulation source for the parameter under the cursor. */
+constexpr int kModulateMenuBase = 1000;
+
+/** Builds the menu for a parameter without showing it. Empty if there is no such
+    parameter. */
+juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
+                                           const juce::String& parameterId);
+
+/** Performs what a menu result id means. `owner` positions the value-entry
+    callout; everything else ignores it. */
+void applyParameterMenuResult (int result,
+                               juce::Component& owner,
+                               LuthierAudioProcessor& processor,
+                               const juce::String& parameterId,
+                               std::function<void()> onChanged = {});
+
 /** Opens the standard right-click menu for a parameter-backed control. */
 void showParameterContextMenu (juce::Component& owner,
                                LuthierAudioProcessor& processor,
