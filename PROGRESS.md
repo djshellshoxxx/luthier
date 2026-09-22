@@ -824,6 +824,57 @@ seven unbuilt tabs arriving would shift every index, and a banner that quietly
 opened the wrong panel is worse than one that did nothing. It returns false for a
 tab that is not built, so a caller can tell the difference, and the test checks
 that with NOTATION.
+
+### The sample-rate notice, and a first draft the test caught
+
+The last section 15 trigger nothing blocked. It is the one where the interesting
+work is deciding when *not* to speak.
+
+`prepareToPlay` is called whenever the host feels like it. Changing the buffer
+size calls it. Some hosts call it when transport starts. So a banner per
+`prepareToPlay` would appear every time a user touched their audio settings, which
+is the fastest way to teach someone to dismiss banners without reading them. And
+the first prepare of all is not a change at all: opening a plugin at 48 kHz is the
+normal state of affairs, not news.
+
+So the rate is **claimed** rather than compared, and claiming clears it. That
+makes this an event rather than a condition, which is why it does not use the
+"post only when the message changes" rule the preset and IR banners beside it use
+- asking twice about one event must not answer twice. It also means two windows
+cannot both announce one change, and a closed window does not lose it: the next
+one to open picks it up, which is right, because the re-resampling happened
+whether anyone was watching or not.
+
+`prepareToPlay` gained one line - a relaxed store of the rate - and nothing else.
+The deciding is all on the message thread.
+
+**The first draft read `AudioProcessor::getSampleRate()` and the test failed.**
+That accessor is set by `setRateAndBufferSizeDetails`, which is a host's job;
+calling `prepareToPlay` directly leaves it stale, so the 48-to-96 change was never
+seen. In a real host it would have worked, which is exactly what makes it the kind
+of dependency worth removing: it was correct by accident, on something that is not
+`prepareToPlay`'s contract to provide. The processor now keeps its own
+`preparedSampleRate`, and the feature no longer depends on being driven by a host
+to work.
+
+The banner carries section 15's whole sentence, including the half that is easy to
+drop: "IRs and circuit filters re-resampled". Knowing a number changed does not
+explain the gap in the audio the user just heard. Knowing the convolution kernels
+were rebuilt does.
+
+**Covered by** `aSampleRateChangeIsAnnouncedOnceAndTheFirstOneIsNot`, which spends
+most of its checks on silence - unprepared, first prepare, same rate with a new
+block size - and two on the announcement. Its mutant records only the first rate
+ever seen, so a change reports on every poll forever; it dies on "the same rate
+change was reported twice, so two windows would both announce it". An earlier
+mutant that removed the store entirely also failed, but by never reporting at all,
+which is the less interesting half of the rule and was not worth keeping.
+
+With this, **seven of section 15's nine triggers are wired**. Of the two that are
+not, one is blocked on `guitar-workshop.md` and one on `advanced-ranges.md`, and a
+third listed trigger - missing guitar - cannot happen in this build at all, since
+there is no `.luthierguitar` file format for a preset to reference.
+
 ## History
 
 See `docs/CHANGELOG.md`.

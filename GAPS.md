@@ -299,7 +299,7 @@ reposts - a countdown does, every time the window opens - replaces itself instea
 of stacking. Queued rather than stacked because two at 32 points is 64 points of
 window, and the startup triggers arrive together.
 
-**Six of the nine triggers are wired.** Four are checked when the window opens:
+**Seven of the nine triggers are wired.** Four are checked when the window opens:
 
 | Trigger | Source |
 |---|---|
@@ -343,7 +343,23 @@ call sites each remembering to report would be five chances to forget. They post
 only when the message changes, so a dismissed banner stays dismissed while the
 condition holds.
 
-**Three triggers are still not wired, and two of them are not reachable at all:**
+**Sample-rate change** was the last one nothing blocked, and it is built.
+`prepareToPlay` records the rate and nothing else; `claimSampleRateChange` on the
+message thread decides whether it is worth saying, and returns the new rate once.
+Once matters twice over: `prepareToPlay` is called whenever the host feels like it
+- a buffer-size change alone does it - so a banner per call would appear every
+time a user touched their audio settings, and the first prepare of all is not a
+change, because opening a plugin at 48 kHz is the normal state rather than news.
+The claim clears the record, so two windows cannot both announce one change and a
+closed window does not lose it.
+
+It reads the processor's own `preparedSampleRate` rather than
+`AudioProcessor::getSampleRate()`, which is set by `setRateAndBufferSizeDetails`
+and so only by a host. The first draft used `getSampleRate()` and the test caught
+it: calling `prepareToPlay` directly leaves that accessor stale, which made the
+feature depend on something that is not `prepareToPlay`'s job to set.
+
+**The last two triggers are blocked, and a third cannot happen at all:**
 
 - **Missing guitar** — *cannot happen*. Section 15 describes a missing
   `.luthierguitar` referenced by a preset, and there is no such file format:
@@ -353,13 +369,18 @@ condition holds.
 - **Missing part** — blocked on `guitar-workshop.md`, same as WORKSHOP itself.
 - **Advanced-range clamped on save** — needs advanced ranges, which
   `advanced-ranges.md` has not specified (A3).
-- **Sample-rate change** — the only one that is merely awkward. `prepareToPlay`
-  knows, but it runs on the audio thread and the editor may not exist when it
-  does, so the message needs somewhere to wait. That is a small piece of processor
-  state, not a UI problem, and it is the one remaining piece of section 15 that
-  nothing else blocks.
 
-**Covered by.** `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce`
+So section 15 is as complete as the rest of the build allows: everything it asks
+for that has something to report is reporting.
+
+**Covered by.** `Editor::aSampleRateChangeIsAnnouncedOnceAndTheFirstOneIsNot`
+covers what must *not* raise a banner as well as what must: an unprepared
+processor, the first prepare, and a re-prepare at the same rate with a different
+block size all stay silent, and a real change is reported once with section 15's
+wording. Its mutant records only the first rate, so a change reports forever -
+"the same rate change was reported twice, so two windows would both announce it".
+
+`Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce`
 drives the two polled triggers through the paths a user takes - `loadPreset` on a
 file that is not there, `IrSlot::fromVar` on a path that is gone - and then
 dismisses and pumps the timer four more times to prove a dismissed banner stays
@@ -593,12 +614,11 @@ against the build. `gui-integration.md` sections 20 (discoverability), 21
    build it did not run, and a row here is a question to check rather than a fact
    to act on. A third row was closed by noticing that what it described was a
    symptom of something larger the file never mentioned.
-5. **A6**, the rest of it — one trigger, not five. Six of section 15's nine are
-   wired; of the three that are not, missing-guitar cannot happen (there is no
-   `.luthierguitar` format), missing-part is blocked on `guitar-workshop.md` and
-   advanced-range-clamped is blocked on `advanced-ranges.md`. That leaves the
-   **sample-rate notice**, which needs somewhere for `prepareToPlay` to leave a
-   message the editor picks up, and nothing blocks it.
+5. ~~**A6**~~ — done as far as the build allows. Seven of section 15's nine
+   triggers are wired; missing-guitar cannot happen (there is no
+   `.luthierguitar` format), missing-part is blocked on `guitar-workshop.md`, and
+   advanced-range-clamped is blocked on `advanced-ranges.md`. Nothing here is
+   waiting on work rather than on a spec.
 6. **B1**, the capo, or at least the half of it the docs have already promised.
    The engine side is specified exactly by `ambiguity-resolutions.md` 4.5 and two
    of its three UI homes now exist. Whether to build it or to correct the manual

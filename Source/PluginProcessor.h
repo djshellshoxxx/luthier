@@ -167,6 +167,22 @@ public:
     Telemetry& getTelemetry() noexcept { return telemetry; }
     License&   getLicense() noexcept   { return license; }
 
+    /*  gui-integration 15's sample-rate trigger, as a question the window asks
+        rather than a message the audio thread sends.
+
+        Returns the new rate once, and zero every other time. "Once" is the whole
+        point: prepareToPlay can be called repeatedly with the same rate - a
+        block-size change alone does it - and a banner per prepareToPlay would
+        appear every time a user touched their buffer size. It also returns zero
+        for the first prepare of all, because opening a plugin at 48 kHz is not
+        news; being moved from 48 to 96 is.
+
+        Message thread. Claiming the change is what clears it, so two windows
+        cannot both report it and a closed window does not lose it - the next one
+        to open picks it up, which is right, since re-resampling happened whether
+        anyone was watching or not. */
+    double claimSampleRateChange() noexcept;
+
     /** Which of the advertised layouts the host actually negotiated. */
     BusLayout getNegotiatedLayout() const noexcept;
 
@@ -353,6 +369,29 @@ private:
     double currentSampleRate = 44100.0;
     int currentBlockSize = 512;
     int reportedLatency = 0;
+
+    /*  gui-integration 15: "Sample rate changed to 96 kHz, IRs and circuit filters
+        re-resampled." The rate the window has already accounted for.
+
+        prepareToPlay is called from the host's thread with no editor guaranteed
+        to exist - a rate change while the window is closed is the ordinary case,
+        not the exotic one - so rather than have that thread push a message at a
+        window that may not be there, it records the rate and the window compares
+        when it next looks.
+
+        `preparedSampleRate` is the processor's own record rather than
+        AudioProcessor::getSampleRate(), which is set by setRateAndBufferSizeDetails
+        and therefore only by a host: calling prepareToPlay directly leaves it
+        stale, which is how a test caught this depending on something that is not
+        prepareToPlay's job to set.
+
+        `sampleRateKnownToUi` is zero until a window has accounted for a rate,
+        which is how the first prepare of all is told apart from a change: opening
+        a plugin at 48 kHz is not news, being moved from 48 to 96 is. Both atomic
+        because the writer is the host's thread and the reader is the message
+        thread; prepareToPlay may allocate, so a plain store costs nothing there. */
+    std::atomic<double> preparedSampleRate { 0.0 };
+    std::atomic<double> sampleRateKnownToUi { 0.0 };
 
     std::atomic<double> hostTempo { 120.0 };
     int64_t samplePosition = 0;

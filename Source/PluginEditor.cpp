@@ -765,6 +765,35 @@ void LuthierAudioProcessorEditor::postStartupNotifications()
 */
 void LuthierAudioProcessorEditor::pollForNotifications()
 {
+    /*  ---- the host moved the sample rate --------------------------------------
+
+        Claimed rather than compared, because the claim is what clears it: this is
+        an event that happened once, not a condition that is still true, so the
+        "post only when the message changes" rule the other two use does not
+        apply. Asking twice must not say it twice. */
+    if (const double changedTo = processor.claimSampleRateChange(); changedTo > 0.0)
+    {
+        Notification n;
+        n.id = "sample-rate";
+        n.level = Notification::Level::info;
+
+        /*  Section 15's own wording, and the second half of it is the part that
+            matters: the user needs to know the IRs and filters were rebuilt, not
+            merely that a number changed, because that is what explains the gap in
+            the audio they just heard. */
+        /*  One decimal, with a trailing ".0" dropped: 44.1 and 88.2 need it, 48
+            and 96 read wrong with it. */
+        auto khz = juce::String (changedTo / 1000.0, 1);
+
+        if (khz.endsWith (".0"))
+            khz = khz.dropLastCharacters (2);
+
+        n.message = "Sample rate changed to " + khz
+                      + " kHz. IRs and circuit filters re-resampled.";
+
+        notifications.post (std::move (n));
+    }
+
     // ---- a preset that would not load ----------------------------------------
     const auto presetError = processor.getPresetManager().getLastLoadError();
 

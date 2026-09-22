@@ -108,6 +108,11 @@ numbered, because what it should be called is a release decision.
   are read on the window's timer rather than pushed from the loader, because
   presets load from five places, and they post only when the message changes, so
   a dismissed banner stays dismissed.
+- **A sample-rate change says so**, with section 15's whole sentence including
+  the half that explains the gap in the audio: the IRs and circuit filters were
+  re-resampled. Announced once, and only for a real change - `prepareToPlay` is
+  called whenever the host feels like it, a buffer-size change alone does it, and
+  the first prepare of all is the rate the plugin opened at rather than news.
 - `AdvancedPanel::setWorkspaceTabNamed`, the column 4 counterpart of
   `showPageNamed`, for the same reason: a banner should not send the user to a
   tab index that a future tab would shift.

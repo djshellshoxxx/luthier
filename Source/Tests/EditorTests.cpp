@@ -1733,3 +1733,100 @@ LUTHIER_TEST (Editor, aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce)
                    "tell a missing panel from a shown one");
     }
 }
+
+//==============================================================================
+/*  The sample-rate trigger, gui-integration 15's last unblocked one.
+
+    "Sample rate changed to 96 kHz, IRs and circuit filters re-resampled."
+
+    The interesting part is what must *not* raise it. prepareToPlay is called
+    whenever the host feels like it - changing the buffer size alone does it, and
+    so does starting playback in some hosts - so a banner per prepareToPlay would
+    appear every time a user touched their audio settings. And the first prepare
+    of all is not a change: opening a plugin at 48 kHz is the normal state of
+    affairs, not news.
+
+    So the rate is claimed rather than compared, and the claim clears it. That
+    makes this an event rather than a condition, which is why it does not use the
+    same "post only when the message changes" rule as the preset and IR banners
+    beside it - asking twice about one event must not answer twice.
+*/
+LUTHIER_TEST (Editor, aSampleRateChangeIsAnnouncedOnceAndTheFirstOneIsNot)
+{
+    LuthierAudioProcessor processor;
+
+    //--------------------------------------------------------------------------
+    // Before anything is prepared there is nothing to claim.
+    CHECK_MSG (processor.claimSampleRateChange() == 0.0,
+               "an unprepared processor reported a sample-rate change");
+
+    //--------------------------------------------------------------------------
+    // The first prepare is the rate it opened at, not a change.
+    processor.prepareToPlay (48000.0, kBlock);
+
+    CHECK_MSG (processor.claimSampleRateChange() == 0.0,
+               "the first prepareToPlay was reported as a change, so every plugin "
+               "instance would open with a banner");
+
+    //--------------------------------------------------------------------------
+    // The same rate again is not a change either - this is the buffer-size case.
+    processor.prepareToPlay (48000.0, kBlock * 2);
+
+    CHECK_MSG (processor.claimSampleRateChange() == 0.0,
+               "re-preparing at the same rate was reported as a rate change, so "
+               "changing the buffer size would raise a banner");
+
+    //--------------------------------------------------------------------------
+    // A real change is reported, once, with the new rate.
+    processor.prepareToPlay (96000.0, kBlock);
+
+    CHECK_MSG (processor.claimSampleRateChange() == 96000.0,
+               "moving from 48 kHz to 96 kHz was not reported");
+
+    CHECK_MSG (processor.claimSampleRateChange() == 0.0,
+               "the same rate change was reported twice, so two windows would both "
+               "announce it");
+
+    //--------------------------------------------------------------------------
+    // And it reaches the banner, with section 15's wording.
+    processor.prepareToPlay (44100.0, kBlock);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+
+    auto* window = dynamic_cast<LuthierAudioProcessorEditor*> (editor.get());
+
+    CHECK (window != nullptr);
+
+    if (window == nullptr)
+        return;
+
+    editor->setSize (LuthierAudioProcessorEditor::defaultWidth,
+                     LuthierAudioProcessorEditor::defaultHeight);
+
+    window->pollForNotifications();
+
+    auto& centre = window->getNotifications();
+
+    CHECK_MSG (centre.contains ("sample-rate"),
+               "a sample-rate change raised no banner");
+
+    while (centre.isShowingNotification() && centre.getCurrentId() != "sample-rate")
+        centre.dismissCurrent();
+
+    if (centre.getCurrentId() == "sample-rate")
+    {
+        const auto text = centre.getCurrentMessage();
+
+        /*  44.1 rather than 44 or 44.10. A rate the user recognises is the whole
+            value of naming it, and "44 kHz" is not a sample rate anyone runs. */
+        CHECK_MSG (text.contains ("44.1 kHz"),
+                   "the banner does not name the new rate as 44.1 kHz: \"" + text + "\"");
+
+        /*  The second half of section 15's sentence. Knowing the number changed
+            does not explain the gap in the audio; knowing the IRs and filters
+            were rebuilt does. */
+        CHECK_MSG (text.containsIgnoreCase ("re-resampled"),
+                   "the banner does not say the IRs and filters were re-resampled: \""
+                     + text + "\"");
+    }
+}

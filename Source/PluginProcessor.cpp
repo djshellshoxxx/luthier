@@ -113,6 +113,10 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     currentSampleRate = sampleRate;
     currentBlockSize = samplesPerBlock;
 
+    // gui-integration 15: left for the window to find, because there may not be
+    // one right now. claimSampleRateChange decides whether it is worth saying.
+    preparedSampleRate.store (sampleRate, std::memory_order_relaxed);
+
     engine.prepare (sampleRate, samplesPerBlock);
     sidechainCopy.setSize (2, juce::jmax (1, samplesPerBlock), false, true, false);
     sidechainCopy.clear();
@@ -237,6 +241,25 @@ bool LuthierAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) 
     }
 
     return true;
+}
+
+//==============================================================================
+double LuthierAudioProcessor::claimSampleRateChange() noexcept
+{
+    const double now = preparedSampleRate.load (std::memory_order_relaxed);
+
+    /*  Not prepared yet. Recording zero here would make the first real rate look
+        like a change from nothing, so this leaves the stored value alone. */
+    if (now <= 0.0)
+        return 0.0;
+
+    const double known = sampleRateKnownToUi.exchange (now);
+
+    // The first rate the window ever sees is the rate it opened at, not a change.
+    if (known <= 0.0)
+        return 0.0;
+
+    return juce::approximatelyEqual (known, now) ? 0.0 : now;
 }
 
 //==============================================================================
