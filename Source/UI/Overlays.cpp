@@ -763,11 +763,15 @@ OptionsPanel::OptionsPanel (LuthierAudioProcessor& p)
 {
     /*  gui-integration.md section 5's tab list, in its order.
 
-        RANGES is absent: advanced-ranges.md specifies it and that file does not
-        exist. CONTROLLERS is present and section 5 does not list it - section 19
-        puts controller setup in the Advanced column 4 tab strip, which is not
-        built - so it sits in the slot RANGES will take, which keeps every tab
-        section 5 does name in the order it names them. GAPS.md A3 tracks both. */
+        Ten tabs, which is section 5's eleven minus RANGES: advanced-ranges.md
+        specifies RANGES and that file does not exist, so there is nothing to
+        build here that would not be invented. GAPS.md A3 tracks it.
+
+        CONTROLLERS used to sit in the slot RANGES will take, because section 19
+        puts controller setup in the Advanced column 4 tab strip and that strip
+        did not exist. It does now, and the page has moved there - see
+        AdvancedPanel::buildWorkspace. Every tab below is one section 5 names,
+        in the order it names them. */
     auto add = [this] (const juce::String& name, OptionsPage* page)
     {
         pages.add (page);
@@ -790,7 +794,6 @@ OptionsPanel::OptionsPanel (LuthierAudioProcessor& p)
     add ("ACCESSIBILITY",  new AccessibilityPage (processor));
     add ("LOCALIZATION",   new LocalizationPage (processor));
     add ("EXPRESSION",     new ExpressionPage (processor));
-    add ("CONTROLLERS",    new ControllersPage (processor));
     add ("UPDATES",        new UpdatesPage (processor));
     add ("PRIVACY",        new PrivacyPage (processor));
     add ("DIAGNOSTICS",    new DiagnosticsPage (processor));
@@ -912,11 +915,13 @@ void OptionsPanel::layoutContent (juce::Rectangle<int> content)
 {
     /*  The tab strip wraps.
 
-        Section 5 asks for eleven tabs, and eleven across 820 points gives each
-        one 68 points - not enough for "ACCESSIBILITY" or "FILE LOCATIONS", which
-        would both come out as an ellipsis. So the strip takes as many rows as it
-        needs to keep every tab wide enough to read, and the page gets what is
-        left. */
+        Section 5 asks for eleven tabs, ten of which are built, and ten across
+        820 points gives each one 74 points - not enough for "ACCESSIBILITY" or
+        "FILE LOCATIONS", which would both come out as an ellipsis. So the strip
+        takes as many rows as it needs to keep every tab wide enough to read, and
+        the page gets what is left. The arithmetic is done against the buttons
+        that exist rather than against the spec's count, so RANGES arriving does
+        not need this rewritten. */
     if (! pageButtons.isEmpty())
     {
         const int gap = Metrics::gridHalf;

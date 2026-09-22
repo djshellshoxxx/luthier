@@ -8,7 +8,7 @@
       1  GUITAR, BODY, STRINGS, WHAMMY          - the instrument
       2  PICKUPS, CIRCUIT, PRE-EFFECTS RACK     - signal capture
       3  AMP, POST-EFFECTS RACK, CAB, ROOM, SUSTAIN
-      4  a tabbed workspace
+      4  a tabbed workspace, which is also where section 19 puts CONTROLLERS
 
     Columns 1 to 3 are fixed and independently scrollable; column 4 is chosen by
     a tab strip at its top. What each column holds that section 4 does not name,
@@ -33,6 +33,7 @@ namespace luthier
 {
 
 class LuthierAudioProcessor;
+class ControllersPage;
 
 //==============================================================================
 /** One row of the string list. */
@@ -240,6 +241,13 @@ private:
     std::unique_ptr<RhythmPanel> rhythmPanel;
     std::unique_ptr<ToneMatchPanel> toneMatchPanel;
     std::unique_ptr<CharacterPanel> characterPanel;
+
+    /*  Section 19's home for controller setup. It is declared in OptionsPages.h
+        and still derives from OptionsPage, which is a Component that holds the
+        processor and can be told to refresh - nothing about it is specific to
+        the Options overlay. Held by pointer so this header does not have to pull
+        in every other Options page. */
+    std::unique_ptr<ControllersPage> controllersPage;
 
     std::unique_ptr<LuthierChoice> bridgeType;
     std::unique_ptr<LuthierKnob> whammyPos, whammyDown, whammyUp, whammySprings, transposeLock;

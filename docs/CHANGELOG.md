@@ -46,10 +46,10 @@ numbered, because what it should be called is a release decision.
   sections section 4 has no slot for are kept on the nearest column, each with a
   comment saying why: dropping a working control to match a layout list would
   have cost a feature to close a table row.
-- **The column 4 tab strip** - MOD, RHYTHM, ROUTING, TONE MATCH and CHARACTER in
-  section 4.4's relative order, one on screen at a time, in place of the vertical
-  stack they were in. The eight tabs section 4.4 lists that have no panel behind
-  them are absent rather than present and empty. **The last-used tab persists
+- **The column 4 tab strip** - MOD, RHYTHM, ROUTING, TONE MATCH, CHARACTER and
+  CONTROLLERS in section 4.4's relative order, one on screen at a time, in place
+  of the vertical stack the first five were in. The seven tabs section 4.4 lists
+  that have no panel behind them are absent rather than present and empty. **The last-used tab persists
   across sessions** (4.4) in `Documents/Luthier/config/ui.json`, through a new
   `UiPreferences` store: settings global to this copy of the plugin, which is
   neither what `AccessibilitySettings` holds (the person) nor what `uiState`
@@ -68,17 +68,21 @@ numbered, because what it should be called is a release decision.
   line of code implements.
 - **Options pages** - the overlay now carries gui-integration.md section 5's tab
   list in section 5's order: AUDIO, MIDI, APPEARANCE, ACCESSIBILITY,
-  LOCALIZATION, EXPRESSION, CONTROLLERS, UPDATES, PRIVACY, DIAGNOSTICS and FILE
-  LOCATIONS. RANGES is absent because advanced-ranges.md has not been written;
-  CONTROLLERS is present, in the slot RANGES will take, because section 19's
-  home for it - the Advanced column 4 tab strip - did not exist when the overlay
-  was rebuilt. It does now, and the move is held up by one refactor rather than
-  by the column: `ControllersPage` owns its `ControllerProfileLibrary` by value,
-  so a second copy in column 4 would go stale against the first. The old
-  GENERAL tab is gone, its contents distributed to the tabs that own them.
-  Where a page could not build something section 5 lists - the accent tint, the
-  changelog viewer, the feature-flag mirror, the Workshop folders - it says so
-  instead of showing a dead control.
+  LOCALIZATION, EXPRESSION, UPDATES, PRIVACY, DIAGNOSTICS and FILE LOCATIONS.
+  Ten tabs - section 5's eleven minus RANGES, which advanced-ranges.md has not
+  specified - with nothing present that section 5 does not name. The old GENERAL
+  tab is gone, its contents distributed to the tabs that own them. Where a page
+  could not build something section 5 lists - the accent tint, the changelog
+  viewer, the feature-flag mirror, the Workshop folders - it says so instead of
+  showing a dead control.
+- **CONTROLLERS moved to Advanced column 4**, which is where gui-integration.md
+  section 19 always put controller setup. It sat in RANGES' slot on the Options
+  overlay only because that tab strip did not exist. The page is moved rather
+  than copied: `ControllersPage` owns its `ControllerProfileLibrary` by value, so
+  two pages would scan the Controllers folder separately and go stale against
+  each other the moment either saved a profile - whereas one page has nothing to
+  keep in sync. It refreshes when its tab is opened, as the overlay used to
+  refresh it, because a controller can be unplugged while the tab is not looking.
 - `scripts/build.ps1`, which PROGRESS.md had referenced without it existing.
 - **Editor tests.** `Source/UI/` and `PluginEditor.cpp` now build into
   `LuthierTests`, which compiles with `LUTHIER_HEADLESS=0`, and the new `Editor`
@@ -90,7 +94,9 @@ numbered, because what it should be called is a release decision.
   Before this, nothing in the repository constructed a
   `LuthierAudioProcessorEditor` and the panels were verified only by running
   pluginval or a host by hand. The suite has since grown to cover the work above:
-  every workspace tab putting its own panel - and only its own - on screen, the
+  every workspace tab putting its own panel - and only its own - on screen (the
+  list there and the Options list are what stop CONTROLLERS existing in both
+  places at once), the
   tab stepping and wrapping and surviving a round trip through the config file,
   Advanced Mode refusing both routes in below 1000 points with the notice
   painted, a grid swept over the whole illustration to collect what every hit

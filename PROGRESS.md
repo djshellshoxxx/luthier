@@ -295,10 +295,12 @@ section 4's four columns.
   The builders are `buildColumn1/2/3`, one per column, and the section blocks
   moved between them wholesale. Column 3 also puts the post-effects rack
   directly after the amp, which is 4.3's order and was not the old one.
-- **Column 4 is a tab strip**, with the five panels that exist behind it - MOD,
-  RHYTHM, ROUTING, TONE MATCH, CHARACTER - in section 4.4's relative order,
-  each in its own viewport. The other eight tabs 4.4 names are blocked or
-  unbuilt, and a tab that opens on nothing is worse than no tab.
+- **Column 4 is a tab strip**, with the six panels that exist behind it - MOD,
+  RHYTHM, ROUTING, TONE MATCH, CHARACTER, CONTROLLERS - in section 4.4's
+  relative order, each in its own viewport. The other seven tabs 4.4 names are
+  blocked or unbuilt, and a tab that opens on nothing is worse than no tab.
+  CONTROLLERS arrived last and from the Options overlay rather than from
+  nothing; see "CONTROLLERS goes where section 19 always put it" below.
 - **Section 4.5's widths**: 260 per column with a 220 floor, a 480 floor for the
   workspace, and columns 2 and 3 stacked into one slot below 1280.
 - Sections section 4 has no slot for are kept, each on the nearest column with a
@@ -429,15 +431,52 @@ the summary and dropped the `[FAIL]` line naming the test. That cost two hours o
 running the suite blind. Every run since has been captured whole and grepped
 afterwards.
 
+### CONTROLLERS goes where section 19 always put it
+
+This was left open above as a choice between two small jobs: share the
+`ControllerProfileLibrary` so two pages can hold one, or move the page and let
+Options fall to ten tabs. Writing it down that way was the mistake. Only one of
+them is a real option.
+
+`ControllersPage` owns its library by value, so the staleness problem - two
+instances scanning the Controllers folder separately, each going stale the moment
+the other saves a profile - is a problem that **only exists if there are two
+pages**. Section 19 asks for one, in column 4. Moving it leaves a single instance
+and nothing to design around; sharing the library would have been work done to
+support a duplicate nobody asked for. The second option was never a trade-off, it
+was just the more expensive way to arrive somewhere worse.
+
+So the page moved. It is constructed in `buildWorkspace` and owned by
+`AdvancedPanel`, held by pointer behind a forward declaration so the panel's
+header does not pull in every other Options page. It still derives from
+`OptionsPage`, which turns out to be a `Component` that holds the processor and
+can be told to `refresh()` - nothing about it was ever specific to the overlay,
+and the name now says where the page came from rather than where it lives.
+
+`showWorkspaceTab` calls that `refresh()` when CONTROLLERS is the tab being
+opened, which is what `OptionsPanel` did for it: a controller can be unplugged
+while the tab is not looking. It is a named case rather than a virtual on every
+panel because the other five already track the processor on a timer.
+
+Nothing about the cost changed. `AdvancedPanel` and `OptionsPanel` are both
+members of the editor by value, so the folder is scanned exactly once per editor,
+exactly as before.
+
+Options is ten tabs now, which is not a hole - it is section 5's list minus
+RANGES, with nothing in it section 5 does not name. The tab strip's row
+arithmetic was already computed from the buttons that exist rather than from the
+spec's count, so RANGES arriving will not need it rewritten; only the comment
+claiming "eleven" did.
+
+**Covered by** the two tests that pin the lists, one at each end: the workspace
+list in `Editor::everyWorkspaceTabSelectsAndPaints` gained CONTROLLERS (56 checks
+to 70), and the Options list in `Editor::everyOptionsPageSelectsAndPaints` lost
+it (133 to 116). The second is what stops the duplicate coming back: a
+CONTROLLERS page added to the overlay while column 4 still has one fails that
+test's page count.
+
 ### Still open here
 
-- **CONTROLLERS has not moved to column 4.** Section 19 puts it there and the
-  column now exists, but `ControllersPage` owns a `ControllerProfileLibrary` by
-  value, so a second instance would scan the Controllers folder separately and go
-  stale against the first. Either the library moves somewhere shared, or the page
-  moves and Options is left ten tabs until `advanced-ranges.md` gives RANGES the
-  slot back. Both are small; neither is worth doing badly to close a table row,
-  and the feature works where it is. `GAPS.md` A2 has it.
 - **LIVE, PRACTICE, NOTATION and MIDI OUT** are the four tabs that are unbuilt
   rather than blocked. Each has a working runtime half or a working engine and no
   setup page in front of it.

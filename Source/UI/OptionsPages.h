@@ -8,11 +8,15 @@
         | RANGES | UPDATES | PRIVACY | DIAGNOSTICS | FILE LOCATIONS
 
     Every one of those is a page here except RANGES, which is specified by
-    advanced-ranges.md and cannot be built until that file exists. CONTROLLERS is
-    a page that section 5 does not list: section 19 puts controller setup in the
-    Advanced column 4 tab strip, which does not exist yet, so it stays here until
-    that lands rather than leaving a MIDI guitar unconfigurable. Both departures
-    are recorded in GAPS.md A3.
+    advanced-ranges.md and cannot be built until that file exists. That is the one
+    departure left, and GAPS.md A3 records it.
+
+    ControllersPage is declared here too and is no longer one of them. Section 19
+    puts controller setup in the Advanced column 4 tab strip; it sat on this
+    overlay while that strip did not exist, and AdvancedPanel owns it now. It
+    still derives from OptionsPage because that base is a Component holding the
+    processor with a refresh hook, which is all it ever needed of it - the name
+    says where the page came from, not where it lives.
 
     Each page is a plain component that knows nothing about the others, so adding
     the next one is adding a class rather than editing a switch. OptionsPanel owns
@@ -193,7 +197,8 @@ private:
 };
 
 //==============================================================================
-/** Options -> Controllers (controllers.md sections 3 and 5). */
+/** Advanced column 4 -> CONTROLLERS (controllers.md sections 3 and 5, and
+    gui-integration.md section 19). Owned by AdvancedPanel, not by OptionsPanel. */
 class ControllersPage final : public OptionsPage
 {
 public:

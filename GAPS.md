@@ -102,16 +102,16 @@ routes into the mode at both sizes and checks the notice is on screen and has
 painted, and `Editor::itLaysOutAndPaintsAcrossItsResizeRange` still paints the
 window at 940, 1200 and 1920.
 
-## A2 — Column 4's tab strip — built, with eight tabs still absent
+## A2 — Column 4's tab strip — built, with seven tabs still absent
 
 **Canonical order.**
 `WORKSHOP | MOD | RHYTHM | TUNE | LIVE | ROUTING | TONE MATCH | CHARACTER | PRACTICE | NOTATION | MIDI OUT | CONTROLLERS | HELP`
 
-**Built.** A tab strip across the top of column 4 with the five panels that exist
-behind it - `MOD | RHYTHM | ROUTING | TONE MATCH | CHARACTER` - in section 4.4's
-relative order, each in its own viewport, one on screen at a time. The other
-eight are listed below. A tab that opens on nothing is worse than no tab, so
-they are absent rather than present and empty.
+**Built.** A tab strip across the top of column 4 with the six panels that exist
+behind it - `MOD | RHYTHM | ROUTING | TONE MATCH | CHARACTER | CONTROLLERS` - in
+section 4.4's relative order, each in its own viewport, one on screen at a time.
+The other seven are listed below. A tab that opens on nothing is worse than no
+tab, so they are absent rather than present and empty.
 
 | Tab | State |
 |---|---|
@@ -125,7 +125,7 @@ they are absent rather than present and empty.
 | CHARACTER | **built** — `CharacterPanel` |
 | PRACTICE | no setup surface; the drawer is the runtime surface only |
 | NOTATION | not built — no live TAB view or chord-symbol history surface |
-| CONTROLLERS | exists, in the Options overlay rather than here — see below |
+| CONTROLLERS | **built** — `ControllersPage`, moved here from Options |
 | MIDI OUT | not built |
 | HELP | exists as an overlay, reachable on F1, not as a tab here |
 
@@ -138,47 +138,61 @@ settings global to this user's copy of the plugin and about the window - and it
 is deliberately not a mirror of anything, so losing the file costs a preference
 and nothing else.
 
-**CONTROLLERS has not moved.** Section 19 puts controller setup here and it is
-still on the Options tab that holds RANGES' slot (A3). Moving it is now
-unblocked by the column but not free: `ControllersPage` owns a
-`ControllerProfileLibrary` by value, so a second instance in column 4 would scan
-the Controllers folder separately and go stale against the first one when either
-saved a profile. Either the library moves somewhere shared, or the page moves
-and Options is left ten tabs until `advanced-ranges.md` gives RANGES back the
-slot. Both are small; neither is a guess, and neither is worth doing badly to
-close a table row. The feature is reachable and works where it is.
+**CONTROLLERS has moved**, and section 19 has its home back. The question this
+entry used to pose - share the library, or move the page - was answered by
+noticing that only one of them was ever a real choice. `ControllersPage` owns a
+`ControllerProfileLibrary` by value, so *two* pages would scan the Controllers
+folder separately and go stale against each other the moment either saved a
+profile. Moving the page leaves one instance and no staleness to design around,
+and it is what section 19 asked for in the first place. Sharing the library would
+have been work done to support a duplicate nobody wanted.
 
-**Covered by.** `Editor::everyWorkspaceTabSelectsAndPaints` walks the five tabs
-by name and checks each one puts its own panel - and only its own panel - on
-screen, painted, and different from every other. `Editor::theWorkspaceTabWraps‑
+The page is unchanged apart from where it is constructed: it still derives from
+`OptionsPage`, which is a `Component` holding the processor with a `refresh()`
+hook and nothing to do with the overlay. `AdvancedPanel::showWorkspaceTab` calls
+that `refresh()` on the way in, which is what `OptionsPanel` did for it, because
+a controller can be unplugged while the tab is not looking. Both panels are
+constructed once per editor either way, so the folder is scanned exactly as often
+as before.
+
+Options is ten tabs now - section 5's eleven minus RANGES, in section 5's order -
+which is A3's remaining departure and nothing else.
+
+**Covered by.** `Editor::everyWorkspaceTabSelectsAndPaints` walks the six tabs by
+name and checks each one puts its own panel - and only its own panel - on screen,
+painted, and different from every other. `Editor::theWorkspaceTabWraps‑
 AndIsRemembered` covers the stepping, the clamping and the round trip through
 the config file. The tab list in the first of those is a copy of the list above,
-so a tab that disappears or is renamed fails there.
+so a tab that disappears or is renamed fails there. CONTROLLERS appearing in
+*both* places fails `Editor::everyOptionsPageSelectsAndPaints` on its page count,
+so the duplicate this entry warned about cannot come back unnoticed.
 
-## A3 — Options overlay tabs: fixed, with two departures on the record
+## A3 — Options overlay tabs: fixed, with one departure on the record
 
 **Canonical.** Eleven tabs:
 `AUDIO | MIDI | APPEARANCE | ACCESSIBILITY | LOCALIZATION | EXPRESSION | RANGES | UPDATES | PRIVACY | DIAGNOSTICS | FILE LOCATIONS`
 
-**Built.** Eleven tabs, in that order:
-`AUDIO | MIDI | APPEARANCE | ACCESSIBILITY | LOCALIZATION | EXPRESSION | CONTROLLERS | UPDATES | PRIVACY | DIAGNOSTICS | FILE LOCATIONS`
+**Built.** Ten tabs, in that order:
+`AUDIO | MIDI | APPEARANCE | ACCESSIBILITY | LOCALIZATION | EXPRESSION | UPDATES | PRIVACY | DIAGNOSTICS | FILE LOCATIONS`
 
-Every tab section 5 names is present except RANGES, and every one of them is in
-the order section 5 gives. `GENERAL`, which was not in the canonical list, is
-gone: its contents went to the tabs that do own them.
+Every tab section 5 names is present except RANGES, every one of them is in the
+order section 5 gives, and nothing is here that section 5 does not name.
+`GENERAL`, which was not in the canonical list, is gone: its contents went to the
+tabs that do own them.
 
-Two departures, both deliberate:
+One departure, deliberate:
 
 - **No RANGES.** `advanced-ranges.md` specifies its entire contents - the
   per-preset toggle, the warning-colour preference, the stock-range preference,
   the out-of-range summary - and that file does not exist. There is nothing to
-  build that would not be invented.
-- **A CONTROLLERS tab that section 5 does not list.** Section 19 puts controller
-  setup in the Advanced column 4 tab strip, which did not exist either when this
-  was written (A1, A2). Deleting the tab would strand controller setup
-  completely, so it sits in the slot RANGES will eventually take. Column 4 has
-  arrived since, so the move is no longer blocked by it - what is left is one
-  refactor and one missing spec, both in A2's CONTROLLERS note.
+  build that would not be invented. The slot is simply absent rather than held
+  open by something else, so this list is ten tabs until that spec is written.
+
+**The second departure is closed.** A CONTROLLERS tab that section 5 does not
+list used to sit in RANGES' slot, because section 19's home for controller setup
+- the Advanced column 4 tab strip - did not exist, and deleting the tab would
+have stranded controller setup completely. The strip exists now and the page has
+moved there. A2 has the reasoning and what covers it.
 
 Three controls sat on the old GENERAL tab and section 5's list has no slot for
 any of them. All three already have canonical homes in `AdvancedPanel` - see
@@ -199,10 +213,11 @@ instead because the manifest carries no notes; the Workshop / Slide /
 advanced-ranges flag mirror on DIAGNOSTICS; and `Guitars/` and `Parts/` on FILE
 LOCATIONS. Each says so on the page rather than showing a dead control.
 
-**Covered by.** `Editor::everyOptionsPageSelectsAndPaints` walks the eleven tabs
-by name, and checks that each one puts its own page - and only its own page - on
+**Covered by.** `Editor::everyOptionsPageSelectsAndPaints` walks the ten tabs by
+name, and checks that each one puts its own page - and only its own page - on
 screen. The tab list in that test is a copy of the list above, so a tab that
-disappears or is renamed fails there.
+disappears or is renamed fails there - and so does a CONTROLLERS page added back
+here while column 4 still has one, because the count would no longer match.
 
 ## A4 — Section 19 rows whose secondary access is absent
 
@@ -422,24 +437,27 @@ against the build. `gui-integration.md` sections 20 (discoverability), 21
 
 ## Suggested order
 
-1. ~~**A3**~~ — done. The eleven tabs are built, RANGES is left out and
-   CONTROLLERS stays in its slot; see A3 for what each new page could not build
-   and why.
+1. ~~**A3**~~ — done. Ten tabs, section 5's order, nothing present that section 5
+   does not name; RANGES is the one thing left out. See A3 for what each new page
+   could not build and why.
 2. ~~**A1**~~ — done. Four columns in section 4's order, section 4.5's widths,
    and the 1000-point minimum enforced with a notice rather than declared in a
    constant nothing read.
-3. **A2**, the rest of it. The strip is built and the five panels that exist are
-   on it; what is left is the eight tabs that are not, and they split three ways:
+3. **A2**, the rest of it. The strip is built and the six panels that exist are
+   on it; what is left is the seven tabs that are not, and they split two ways:
 
-   - **CONTROLLERS** is a placement move, not a build. It needs the
-     `ControllerProfileLibrary` shared rather than owned per page, or RANGES to
-     exist so Options is not left with a hole. Smallest of the three.
    - **LIVE, PRACTICE, NOTATION, MIDI OUT** are surfaces nobody has built. Each
      has a working runtime half (the live strip, the practice drawer) or a
      working engine (notation, MIDI out) and no setup page in front of it.
+     Smallest first: LIVE and PRACTICE already have the state to show.
    - **WORKSHOP, TUNE, HELP** wait on `guitar-workshop.md` / `workshop-ui.md`,
      on `tune-builder.md` being large rather than missing, and on deciding
      whether an overlay should also be a tab.
+
+   CONTROLLERS was the third way and is done: it was a placement move rather
+   than a build, and moving the page rather than sharing the library was what
+   made it small. Options lost the tab and is ten, which is what section 5 asks
+   for anyway.
 4. **A4** — the rest of the secondary access paths. The Easy-mode instrument is
    done; right-click → Modulate is the remaining ground-rule-4 offender now that
    MIDI Learn has a header route, and the three notification routes (update

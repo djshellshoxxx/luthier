@@ -441,12 +441,16 @@ LUTHIER_TEST (Editor, everyOptionsPageSelectsAndPaints)
     options.setSize (preferred.x, preferred.y);
     options.overlayShown();
 
-    /*  gui-integration.md section 5's list, with the two departures GAPS.md A3
-        records: no RANGES, which advanced-ranges.md has not specified yet, and a
-        CONTROLLERS tab in its slot, because section 19's home for it does not
-        exist. If section 5 gains a tab, this list is where it fails first. */
+    /*  gui-integration.md section 5's list, with the one departure GAPS.md A3
+        still records: no RANGES, which advanced-ranges.md has not specified yet.
+        Every other tab is section 5's, in section 5's order. CONTROLLERS was in
+        the RANGES slot until column 4's tab strip gave it section 19's home, and
+        it is checked there instead, by everyWorkspaceTabSelectsAndPaints - if it
+        is ever added back here as well, the count below fails rather than the
+        plugin quietly running two profile libraries. If section 5 gains a tab,
+        this list is where it fails first. */
     const juce::StringArray tabNames { "AUDIO", "MIDI", "APPEARANCE", "ACCESSIBILITY",
-                                       "LOCALIZATION", "EXPRESSION", "CONTROLLERS",
+                                       "LOCALIZATION", "EXPRESSION",
                                        "UPDATES", "PRIVACY", "DIAGNOSTICS",
                                        "FILE LOCATIONS" };
 
@@ -543,7 +547,8 @@ LUTHIER_TEST (Editor, everyWorkspaceTabSelectsAndPaints)
     panel.setVisible (true);
     panel.setSize (1600, 900);
 
-    const juce::StringArray tabNames { "MOD", "RHYTHM", "ROUTING", "TONE MATCH", "CHARACTER" };
+    const juce::StringArray tabNames { "MOD", "RHYTHM", "ROUTING", "TONE MATCH",
+                                       "CHARACTER", "CONTROLLERS" };
 
     CHECK_MSG (panel.getNumWorkspaceTabs() == tabNames.size(),
                "expected " + juce::String (tabNames.size()) + " workspace tabs, found "

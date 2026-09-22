@@ -1,5 +1,6 @@
 #include "AdvancedPanel.h"
 #include "UiPreferences.h"
+#include "OptionsPages.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 
@@ -884,30 +885,40 @@ void AdvancedPanel::buildColumn3()
 
 /*  Column 4, section 4.4: the workspace.
 
-    The tab order is section 4.4's own. Five of its thirteen tabs have a panel
-    behind them; the other eight - WORKSHOP, TUNE, LIVE, PRACTICE, NOTATION,
-    MIDI OUT, CONTROLLERS, HELP - are either blocked on a spec that is not
-    written or are surfaces nobody has built, and a tab that opens on nothing is
-    worse than no tab. GAPS.md A2 has the list.
+    The tab order is section 4.4's own. Six of its thirteen tabs have a panel
+    behind them; the other seven - WORKSHOP, TUNE, LIVE, PRACTICE, NOTATION,
+    MIDI OUT, HELP - are either blocked on a spec that is not written or are
+    surfaces nobody has built, and a tab that opens on nothing is worse than no
+    tab. GAPS.md A2 has the list.
 
-    These five used to be sections stacked at the bottom of the rig column, each
-    with a comment saying it should have been a tab. They are tabs now.
+    Five of the six used to be sections stacked at the bottom of the rig column,
+    each with a comment saying it should have been a tab. They are tabs now.
+
+    CONTROLLERS is the sixth, and it came from the other direction: section 19
+    always put controller setup here, and it sat on the Options overlay only
+    because this strip did not exist. It is moved rather than copied, because two
+    pages would mean two ControllerProfileLibrary instances scanning the
+    Controllers folder separately and going stale against each other the moment
+    either one saved a profile. Options is ten tabs now, which is section 5's
+    list exactly, minus RANGES.
 */
 void AdvancedPanel::buildWorkspace()
 {
-    modMatrixPanel = std::make_unique<ModMatrixPanel> (processor);
-    rhythmPanel    = std::make_unique<RhythmPanel> (processor);
-    routingPanel   = std::make_unique<RoutingPanel> (processor);
-    toneMatchPanel = std::make_unique<ToneMatchPanel> (processor);
-    characterPanel = std::make_unique<CharacterPanel> (processor);
+    modMatrixPanel  = std::make_unique<ModMatrixPanel> (processor);
+    rhythmPanel     = std::make_unique<RhythmPanel> (processor);
+    routingPanel    = std::make_unique<RoutingPanel> (processor);
+    toneMatchPanel  = std::make_unique<ToneMatchPanel> (processor);
+    characterPanel  = std::make_unique<CharacterPanel> (processor);
+    controllersPage = std::make_unique<ControllersPage> (processor);
 
     const struct { const char* name; juce::Component* panel; } tabs[] =
     {
-        { "MOD",        modMatrixPanel.get() },
-        { "RHYTHM",     rhythmPanel.get() },
-        { "ROUTING",    routingPanel.get() },
-        { "TONE MATCH", toneMatchPanel.get() },
-        { "CHARACTER",  characterPanel.get() }
+        { "MOD",         modMatrixPanel.get() },
+        { "RHYTHM",      rhythmPanel.get() },
+        { "ROUTING",     routingPanel.get() },
+        { "TONE MATCH",  toneMatchPanel.get() },
+        { "CHARACTER",   characterPanel.get() },
+        { "CONTROLLERS", controllersPage.get() }
     };
 
     for (const auto& tab : tabs)
@@ -982,10 +993,10 @@ void AdvancedPanel::showWorkspaceTab (int index, bool remember)
     for (int i = 0; i < workspaceTabs.size(); ++i)
         workspaceTabs[i]->setToggleState (i == workspaceTab, juce::dontSendNotification);
 
-    /*  Only the selected panel is on screen. Without this the four panels that
-        are not in the viewport keep whatever visibility they were built with, and
-        a test - or a screen reader walking the tree - finds five panels showing
-        at once. */
+    /*  Only the selected panel is on screen. Without this the panels that are not
+        in the viewport keep whatever visibility they were built with, and a test
+        - or a screen reader walking the tree - finds all of them showing at
+        once. */
     for (int i = 0; i < workspacePanels.size(); ++i)
         workspacePanels[i]->setVisible (i == workspaceTab);
 
@@ -993,6 +1004,14 @@ void AdvancedPanel::showWorkspaceTab (int index, bool remember)
         one over with deleteWhenRemoved would delete it the next time the tab
         changed. */
     workspaceViewport.setViewedComponent (workspacePanels[workspaceTab], false);
+
+    /*  CONTROLLERS can be stale by the time it is opened - a controller may have
+        been unplugged, or a profile saved from somewhere else - so it reads the
+        world again on the way in. This is what OptionsPanel did for it when it
+        lived there, and the reason it is a named case rather than a virtual on
+        every panel is that the other five already track the processor on a timer. */
+    if (controllersPage != nullptr && workspacePanels[workspaceTab] == controllersPage.get())
+        controllersPage->refresh();
 
     resized();
 }
