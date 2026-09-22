@@ -83,6 +83,22 @@ numbered, because what it should be called is a release decision.
   each other the moment either saved a profile - whereas one page has nothing to
   keep in sync. It refreshes when its tab is opened, as the overlay used to
   refresh it, because a controller can be unplugged while the tab is not looking.
+- **Notification banners** (gui-integration.md section 15), which had not been
+  built at all. Non-modal, under the header strip, 32 points, dismissible, one at
+  a time with the rest queued. A banner auto-dismisses after five seconds unless
+  it carries an action button, in which case the clock is never started - a
+  banner offering to review a crash report should not evaporate while the user is
+  reaching for it. Four of section 15's nine triggers are wired, all checked when
+  the window opens: a crash dump from the last session (its button opens the
+  Privacy page, which shows exactly what would be uploaded - Review, not Send), a
+  licence in its grace period, settings managed by an administrator's policy
+  file, and an available update. The update check is the only one that touches
+  the network and runs only when the user has opted in, since opening a window is
+  not a reason to make a request someone declined. The other five triggers need
+  the preset loader to report what it substituted, or advanced ranges, or a place
+  for the audio thread to leave a sample-rate message; GAPS.md A6 has them.
+- `OptionsPanel::showPageNamed`, so a banner can send the user to a specific
+  Options page by name rather than by an index that RANGES would shift.
 - `scripts/build.ps1`, which PROGRESS.md had referenced without it existing.
 - **Coverage for right-click → Modulate**, which had none. The menu itself is not
   new - it has offered every modulation source since the phase 1 extension work -

@@ -224,6 +224,19 @@ public:
         here and the editor wires it. */
     std::function<void()> onShowDebugWindow;
 
+    /*  Opens a page by its tab name, for callers that want a specific page and
+        should not have to know its index. A notification banner sending the user
+        to PRIVACY is the case this exists for: section 5 fixes the order, but
+        RANGES arriving would still shift every index after it, and a banner that
+        quietly opened the wrong page would be worse than one that did nothing.
+
+        Returns false if there is no such tab, which is how a caller finds out
+        that the page it wanted has not been built. Case-insensitive. */
+    bool showPageNamed (const juce::String& tabName);
+
+    /** The tab names, in order, as the strip shows them. */
+    juce::StringArray getPageNames() const;
+
 protected:
     void layoutContent (juce::Rectangle<int> content) override;
 

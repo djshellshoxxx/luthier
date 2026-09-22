@@ -646,6 +646,125 @@ Two mutants, both killed:
 - **The three notification routes**: update available in the header, the
   post-crash prompt, and Help > About as a route to the licence.
 
+
+## A6: three missing routes that were one missing mechanism
+
+`GAPS.md` A4 ended with three rows that read like three small jobs: a header
+notification for an available update, a post-crash prompt, and Help > About as a
+route to the licence. Taken one at a time they would have been three ad-hoc bits
+of UI in three different places.
+
+They are not three jobs. `gui-integration.md` section 15 specifies a notification
+system - "non-modal banners under the header strip, 32 px, dismissible", nine
+triggers, "auto-dismiss after 5 s unless they contain an action" - and all three
+of A4's rows are triggers of it. **Section 15 was not built at all**, and A4
+listed three of its nine triggers without ever noting that they had nowhere to
+appear.
+
+That is a different failure from the two stale A4 rows above. Those described
+something absent that was present. This one described the symptoms of an absence
+correctly and missed the absence itself.
+
+### What the spec's two rules are actually for
+
+**Dismissible, always.** A banner that cannot be got rid of is a modal dialog
+wearing a different hat, and the triggers include one - managed by policy - that
+a user may not be able to do anything about at all.
+
+**Auto-dismiss after five seconds unless there is an action.** This is the rule
+with teeth, and it is implemented by never starting the timer for an actionable
+banner rather than by starting one and cancelling it. The difference matters: a
+banner offering to review a crash report that evaporates while the user is
+reaching for the button is worse than no banner, because they now know something
+happened and have no way back to it.
+
+Two things the spec does not say, decided here:
+
+- **Banners queue rather than stack.** Two at 32 px is 64 px of window, and the
+  startup triggers arrive together - a crash dump and a policy file are both
+  found in the same second. One shows, the rest wait, and the strip paints "+2"
+  so a burst does not look like a single notification that keeps regenerating.
+- **A banner has an id, not just text.** The countdown triggers repost every time
+  the window opens, and identity-by-text would either stack them or fail to
+  update the number. Posting an id that is already up rewrites it in place
+  without restarting its clock.
+
+### Why this did not fold into `InlineNotice`
+
+The window already had a dismissible auto-expiring notice, built for Advanced
+Mode refusing to open below 1000 points. Merging the two was the obvious move and
+is wrong. An `InlineNotice` answers something the user just did, at the place
+they did it - the reason the panel will not open belongs in the panel that will
+not open. A banner interrupts with something unrelated to whatever is being done
+at the time. Folding them together means either the mode refusal floating at the
+top of the window away from the control that caused it, or the crash report
+appearing at the bottom of a panel it has nothing to do with. They share a paint
+style so they read as one family, and nothing else.
+
+### The four triggers that could be wired, and the one that touches the network
+
+Crash on last session, licence grace countdown, managed by policy, and update
+available - all checked once, at window open. The crash banner is posted last so
+it shows first, because the queue is first-in-first-out and it is the only one of
+the four with something to do about it.
+
+The update check is the only one that leaves the machine, and it runs **only when
+the user has opted in**. `isUpdateCheckEnabled()` is false by default and a policy
+can switch it off but never on; opening a window is not a reason to make a request
+someone declined. It is not throttled at the call site because `checkForUpdate`
+is already throttled to 24 hours, so twenty window opens is still one request. It
+uses the same launch-then-`callAsync` shape as `UpdatesPage::checkForUpdate`
+deliberately - a second threading idiom for the same job in the same file set
+would be a worse thing to maintain than the one already there.
+
+The crash banner's button says **Review**, not Send, and opens the Privacy page.
+`updates-telemetry.md` 4 asks for a viewer showing exactly what would be
+uploaded. A crash dump is the most sensitive thing this plugin ever offers to
+transmit, and one button that sent it would be the opt-in equivalent of a dark
+pattern.
+
+Banners open Options by tab *name* through a new `OptionsPanel::showPageNamed`,
+not by index. Section 5 fixes the order, but RANGES arriving would shift every
+index after it, and a banner that quietly opened the wrong page would be worse
+than one that did nothing.
+
+### The five that are unreachable rather than skipped
+
+Four of them - preset load error, missing IR, missing guitar, missing part - want
+the loader to say what it substituted, and it currently falls back in silence.
+That is one change to the loader rather than five to the banner. The fifth,
+sample-rate change, is only awkward: `prepareToPlay` knows, but it runs on the
+audio thread and the editor may not exist when it does, so the message needs
+somewhere to wait. `GAPS.md` A6 has all five, and neither is blocked on a spec
+that has not been written.
+
+### The tests, and the two mutants
+
+`notificationBannersQueueDismissAndRespectTheirActions` drives the queue: posting,
+reposting the same id, queueing a second, dismissing through to the next, running
+an action, and `clear()`. `isAutoDismissScheduled()` exists so the five-second
+rule is checkable without a five-second sleep - without it, the one rule most
+worth having is the one rule no test can see.
+
+`theWindowRaisesSectionFifteensTriggersAndIsQuietWhenItShould` checks both
+directions. A healthy plugin must open **silently** - a window that shows a banner
+every time has trained the user to dismiss without reading - and that half is
+guarded rather than assumed, because a machine that really does have a policy file
+would otherwise fail a test that was not testing anything. The licence half
+arranges grace through `License::fromVar`, which takes the dates the state is
+derived from, so the licence is in grace by the plugin's own arithmetic rather
+than by a flag set to make the test pass.
+
+Both mutants died:
+
+- **Starting the auto-dismiss timer unconditionally** fails with "an actionable
+  banner is on the auto-dismiss clock, so its button disappears out from under
+  the user".
+- **Dropping the strip from the editor's layout** fails twice - no height, and
+  not under the header - which is the failure worth catching, because a banner
+  that is posted correctly and given no bounds is invisible and everything else
+  about it still passes.
+
 ## History
 
 See `docs/CHANGELOG.md`.

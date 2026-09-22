@@ -38,6 +38,7 @@
 #include "../UI/UiPreferences.h"
 #include "../UI/GuitarBodyComponent.h"
 #include "../UI/Widgets.h"
+#include "../UI/Notifications.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -1347,4 +1348,267 @@ LUTHIER_TEST (Editor, rightClickOffersModulationAndBuildsTheRoute)
                "the menu routed past the per-destination limit");
 
     matrix.clearRoutes();
+}
+
+//==============================================================================
+/*  Notification banners, gui-integration.md section 15.
+
+    Section 15 is nine triggers and four rules, and the rules are the part worth
+    testing: under the header strip, 32 px, dismissible, and auto-dismiss after
+    five seconds unless the banner contains an action.
+
+    The last of those is the one with teeth. A banner offering to review a crash
+    report that vanishes while the user is reaching for the button is worse than
+    no banner, because the user now knows something happened and has no way back
+    to it. The rule is implemented by never starting the timer for an actionable
+    banner rather than by starting and stopping one, and isAutoDismissScheduled
+    exists so that distinction is checkable without a five-second sleep.
+*/
+LUTHIER_TEST (Editor, notificationBannersQueueDismissAndRespectTheirActions)
+{
+    NotificationCentre centre;
+    centre.setSize (800, NotificationCentre::preferredHeight);
+
+    int visibilityChanges = 0;
+    centre.onVisibilityChanged = [&visibilityChanges] { ++visibilityChanges; };
+
+    CHECK_MSG (! centre.isShowingNotification(),
+               "the strip has a notification before anything was posted");
+
+    CHECK_MSG (! centre.isVisible(),
+               "the empty strip is visible, so it is taking 32 points of window for nothing");
+
+    //--------------------------------------------------------------------------
+    // One with no action: shown, and on the clock.
+    {
+        Notification n;
+        n.id = "first";
+        n.message = "Sample rate changed to 96 kHz.";
+
+        centre.post (std::move (n));
+    }
+
+    CHECK (centre.isShowingNotification());
+    CHECK (centre.isVisible());
+    CHECK_MSG (centre.getCurrentId() == "first", "the wrong notification is showing");
+    CHECK_MSG (visibilityChanges == 1,
+               "the window was not told the strip appeared, so it never made room for it");
+
+    CHECK_MSG (centre.isAutoDismissScheduled(),
+               "a banner with nothing to do about it is not on the auto-dismiss clock");
+
+    CHECK_MSG (drewSomething (render (centre)), "the banner painted nothing");
+
+    //--------------------------------------------------------------------------
+    /*  The same id again is the same news, not a second piece of it. This is the
+        case that matters for the countdown triggers, which repost themselves
+        every time the window opens. */
+    {
+        Notification n;
+        n.id = "first";
+        n.message = "Sample rate changed to 48 kHz.";
+
+        centre.post (std::move (n));
+    }
+
+    CHECK_MSG (centre.getNumQueued() == 0,
+               "reposting the same id queued a second copy of it");
+
+    CHECK_MSG (centre.getCurrentMessage().contains ("48 kHz"),
+               "reposting the same id did not update what it says");
+
+    //--------------------------------------------------------------------------
+    // A second, different one waits its turn rather than replacing what is up.
+    {
+        Notification n;
+        n.id = "second";
+        n.message = "Luthier did not shut down cleanly last time.";
+        n.actionText = "Review";
+        n.action = [] {};
+
+        centre.post (std::move (n));
+    }
+
+    CHECK_MSG (centre.getCurrentId() == "first",
+               "a newly posted banner shoved the one already on screen aside");
+
+    CHECK_MSG (centre.getNumQueued() == 1,
+               "the second banner was not queued, the queue holds "
+                 + juce::String (centre.getNumQueued()));
+
+    CHECK (centre.contains ("second"));
+
+    //--------------------------------------------------------------------------
+    // Dismissing the first brings the second up, and it is *not* on the clock.
+    centre.dismissCurrent();
+
+    CHECK_MSG (centre.getCurrentId() == "second",
+               "dismissing the first banner did not bring the queued one up");
+
+    CHECK_MSG (centre.currentHasAction(), "the queued banner lost its action");
+
+    CHECK_MSG (! centre.isAutoDismissScheduled(),
+               "an actionable banner is on the auto-dismiss clock, so its button "
+               "disappears out from under the user");
+
+    CHECK_MSG (centre.isVisible(), "the strip hid itself while a banner was still queued");
+
+    //--------------------------------------------------------------------------
+    // The action runs, and takes the banner with it.
+    bool actionRan = false;
+
+    {
+        Notification n;
+        n.id = "third";
+        n.message = "Luthier 1.1.0 is available.";
+        n.actionText = "Details";
+        n.action = [&actionRan] { actionRan = true; };
+
+        centre.post (std::move (n));
+    }
+
+    centre.dismissCurrent();                 // past "second", onto "third"
+
+    CHECK (centre.getCurrentId() == "third");
+
+    centre.performCurrentAction();
+
+    CHECK_MSG (actionRan, "the banner's action button did nothing");
+
+    CHECK_MSG (! centre.isShowingNotification(),
+               "running the action left the banner on screen");
+
+    CHECK_MSG (! centre.isVisible(),
+               "the strip kept its 32 points after the last banner went away");
+
+    CHECK_MSG (visibilityChanges >= 2,
+               "the window was never told the strip went away, so the space is lost");
+
+    //--------------------------------------------------------------------------
+    // clear() takes the queue with it, not just what is on screen.
+    for (const auto* id : { "a", "b", "c" })
+    {
+        Notification n;
+        n.id = id;
+        n.message = "queued";
+
+        centre.post (std::move (n));
+    }
+
+    CHECK (centre.getNumQueued() == 2);
+
+    centre.clear();
+
+    CHECK_MSG (! centre.isShowingNotification() && centre.getNumQueued() == 0,
+               "clear() left something behind");
+}
+
+//==============================================================================
+/*  Section 15's triggers, at the window.
+
+    Two halves. A processor with nothing wrong with it must produce no banners at
+    all - an empty strip is the normal state, and a window that opens with a
+    banner every time has trained the user to dismiss without reading. And a
+    licence sitting in its grace period must say so, because that is the one
+    trigger of the four whose state a test can arrange honestly: fromVar takes
+    the dates the state is derived from, so a licence last validated 35 days ago
+    is in grace by the same arithmetic the plugin uses, not by a flag set to make
+    the test pass.
+*/
+LUTHIER_TEST (Editor, theWindowRaisesSectionFifteensTriggersAndIsQuietWhenItShould)
+{
+    //--------------------------------------------------------------------------
+    // Nothing wrong: nothing said.
+    {
+        LuthierAudioProcessor processor;
+        processor.prepareToPlay (kSr, kBlock);
+
+        /*  Guarded rather than assumed. If the machine running this really does
+            have a policy file or a crash dump waiting, the quiet case is not
+            being tested and saying so is better than failing on it. */
+        const bool quiet = ! processor.getTelemetry().isManagedByPolicy()
+                             && ! processor.getTelemetry().hasPendingCrashReport()
+                             && processor.getLicense().getState() != License::State::grace;
+
+        if (quiet)
+        {
+            std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+
+            CHECK_MSG (editor != nullptr, "no editor to check for banners");
+
+            if (editor != nullptr)
+            {
+                auto* window = dynamic_cast<LuthierAudioProcessorEditor*> (editor.get());
+
+                CHECK (window != nullptr);
+
+                if (window != nullptr)
+                    CHECK_MSG (! window->getNotifications().isShowingNotification(),
+                               "a healthy plugin opened with a banner: \""
+                                 + window->getNotifications().getCurrentMessage() + "\"");
+            }
+        }
+    }
+
+    //--------------------------------------------------------------------------
+    // A licence in grace says so, and says it as a warning.
+    {
+        LuthierAudioProcessor processor;
+        processor.prepareToPlay (kSr, kBlock);
+
+        /*  30 days to revalidation and 14 of grace, so 35 days since the last
+            validation is inside the grace window by the plugin's own arithmetic.
+            In memory only - fromVar does not write the licence file. */
+        auto* dates = new juce::DynamicObject();
+        dates->setProperty ("keyHash", "test-key-hash");
+        dates->setProperty ("activatedAt",
+                            (juce::int64) (juce::Time::getCurrentTime()
+                                             - juce::RelativeTime::days (200)).toMilliseconds());
+        dates->setProperty ("lastValidated",
+                            (juce::int64) (juce::Time::getCurrentTime()
+                                             - juce::RelativeTime::days (35)).toMilliseconds());
+
+        processor.getLicense().fromVar (juce::var (dates));
+
+        CHECK_MSG (processor.getLicense().getState() == License::State::grace,
+                   "the test could not put the licence into its grace period, it is in "
+                     + juce::String (License::getStateName (processor.getLicense().getState())));
+
+        if (processor.getLicense().getState() == License::State::grace)
+        {
+            std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+
+            auto* window = dynamic_cast<LuthierAudioProcessorEditor*> (editor.get());
+
+            CHECK (window != nullptr);
+
+            if (window != nullptr)
+            {
+                auto& centre = window->getNotifications();
+
+                CHECK_MSG (centre.contains ("licence-grace"),
+                           "a licence in its grace period raised no banner, which is the "
+                           "one warning a user has to see before it stops working");
+
+                /*  The strip has to be laid out as well as populated. A banner
+                    that is posted but given no bounds is invisible, which is the
+                    failure this would otherwise miss entirely. */
+                editor->setSize (LuthierAudioProcessorEditor::defaultWidth,
+                                 LuthierAudioProcessorEditor::defaultHeight);
+
+                CHECK_MSG (centre.isVisible() && centre.getHeight() > 0,
+                           "the banner strip has no height, so nothing is on screen");
+
+                CHECK_MSG (centre.getHeight() <= NotificationCentre::preferredHeight,
+                           "the banner strip is taller than section 15's 32 points");
+
+                /*  Under the header strip, which is the other half of the
+                    section 15 sentence and the part a layout change would break
+                    without anything else noticing. */
+                if (auto* header = findOne<HeaderBar> (*editor))
+                    CHECK_MSG (centre.getY() >= header->getBottom(),
+                               "the banner strip is not under the header strip");
+            }
+        }
+    }
 }

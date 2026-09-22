@@ -884,6 +884,30 @@ void OptionsPanel::showShortcutTable()
         }
 }
 
+juce::StringArray OptionsPanel::getPageNames() const
+{
+    juce::StringArray names;
+
+    for (const auto* button : pageButtons)
+        names.add (button->getButtonText());
+
+    return names;
+}
+
+bool OptionsPanel::showPageNamed (const juce::String& tabName)
+{
+    for (int i = 0; i < pageButtons.size(); ++i)
+    {
+        if (pageButtons[i]->getButtonText().equalsIgnoreCase (tabName))
+        {
+            showPage (i);
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void OptionsPanel::showPage (int index)
 {
     if (pages.isEmpty())

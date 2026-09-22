@@ -10,6 +10,7 @@
 #include "UI/EasyPanel.h"
 #include "UI/AdvancedPanel.h"
 #include "UI/Overlays.h"
+#include "UI/Notifications.h"
 
 namespace luthier
 {
@@ -32,6 +33,20 @@ public:
     static constexpr int defaultHeight = 720;
     static constexpr int minimumWidth = 940;
     static constexpr int minimumHeight = 560;
+
+    /*  gui-integration 15: the triggers the plugin can raise on its own, checked
+        once when the window opens. Public so a test can drive it against a
+        processor it has arranged, rather than waiting for a real crash, a real
+        expiry or a real administrator. */
+    void postStartupNotifications();
+
+    NotificationCentre& getNotifications() noexcept { return notifications; }
+
+    /*  Opens the Options overlay on one named page. Used by the banners, which
+        send the user somewhere specific rather than just saying a thing happened.
+        Returns false when there is no such tab, so a caller can tell the
+        difference between "opened it" and "that page does not exist here". */
+    bool showOptionsPage (const juce::String& tabName);
 
 private:
     void timerCallback() override;
@@ -64,6 +79,14 @@ private:
     juce::TooltipWindow tooltips { this, Metrics::tooltipDelayMs };
 
     HeaderBar header;
+
+    /*  Section 15 puts the banner strip "under the header strip", so it is laid
+        out directly beneath the header and above the live strip: the live strip
+        is a permanent fixture of Live Mode and a banner is passing news, and news
+        that pushed the live controls up every time it arrived would move the
+        buttons under a player's hand mid-set. */
+    NotificationCentre notifications;
+
     LiveStrip liveStrip;
     InlineNotice inlineNotice;
     PracticePanel practicePanel;

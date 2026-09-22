@@ -270,9 +270,75 @@ These secondary paths do not:
   satisfied without it - the MOD tab cards are the primary surface and the menu
   is a second route - so this is a convenience rather than a missing path, and it
   is the only part of this row still open.
-- **Header notification** for an available update.
-- **Post-crash prompt** for crash reporting.
-- **Help > About** as a route to license.
+- ~~**Header notification** for an available update~~ — built, see A6.
+- ~~**Post-crash prompt** for crash reporting~~ — built, see A6.
+- ~~**Help > About** as a route to license~~ — built as a banner rather than as a
+  Help section, see A6. The Help overlay's "About and Licence" section already
+  existed and carries the licence *terms*; what was missing was any surface at
+  all for the licence *state*, which `License` has tracked since it was written -
+  activated, grace, expired, with a countdown - and which nothing displayed.
+
+## A6 — Section 15's notification banners
+
+Found while closing A4's last three rows. All three are triggers of the same
+mechanism, and the mechanism did not exist: **section 15 was entirely unbuilt**,
+and A4 listed three of its nine triggers without noticing they had nowhere to
+appear.
+
+**Canonical.** "Non-modal banners under the header strip, 32 px, dismissible."
+Nine triggers. "Banners auto-dismiss after 5 s unless they contain an action."
+
+**Built.** `NotificationCentre`, under the header and above the live strip, 32
+points, one banner at a time with the rest queued. Every banner is dismissible;
+the five-second clock runs only when there is no action button, and it is never
+started for an actionable banner rather than being started and cancelled, so
+there is no window in which a slow hand loses the button.
+
+Banners carry an id rather than being identified by their text, so a trigger that
+reposts - a countdown does, every time the window opens - replaces itself instead
+of stacking. Queued rather than stacked because two at 32 points is 64 points of
+window, and the startup triggers arrive together.
+
+**Four of the nine triggers are wired**, all at window open:
+
+| Trigger | Source |
+|---|---|
+| Crash on last session | `Telemetry::hasPendingCrashReport` — action opens PRIVACY |
+| License grace countdown | `License::State::grace` — warning level |
+| Managed by policy | `Telemetry::isManagedByPolicy` |
+| Update available | `Telemetry::checkForUpdate`, **only if the user opted in** — action opens UPDATES |
+
+The update check is the only one that touches the network, and it runs only when
+`isUpdateCheckEnabled()`, which is off by default and which a policy can switch
+off but never on. Opening a window is not a reason to make a request the user
+declined. It is unthrottled at the call site because `checkForUpdate` is itself
+throttled to 24 hours, so opening the window twenty times a day is still one
+request.
+
+The crash banner says **Review**, not Send. `updates-telemetry.md` 4 asks for a
+viewer showing exactly what would be uploaded, and a single button that sent a
+crash dump would be the opt-in equivalent of a dark pattern.
+
+**Five triggers are not wired, and are not skipped - they are unreachable:**
+
+- **Preset load error, missing IR, missing guitar, missing part** — the loader
+  falls back silently and does not report what it substituted. Wiring these is a
+  change to the loader, not to the banner.
+- **Advanced-range clamped on save** — needs advanced ranges, which
+  `advanced-ranges.md` has not specified (A3).
+- **Sample-rate change** — `prepareToPlay` knows, but it runs on the audio thread
+  and the editor may not exist when it does, so the message needs somewhere to
+  wait. That is a small piece of processor state, not a UI problem.
+
+**Covered by.** `Editor::notificationBannersQueueDismissAndRespectTheirActions`
+drives the queue, the id-replacement, the dismissal and both halves of the
+five-second rule; `Editor::theWindowRaisesSectionFifteensTriggersAndIsQuietWhen‑
+ItShould` checks that a healthy plugin opens silently and that a licence put into
+its grace period - by the dates `License` derives its state from, not by a flag -
+raises the banner, that the strip is laid out with a real height, and that it is
+under the header. Two mutants: starting the timer unconditionally fails the
+actionable-banner check, and dropping the strip from the layout fails the height
+and position checks.
 
 ## B1 — Capo is documented, promised by the UI spec, and does not exist
 
@@ -476,20 +542,26 @@ against the build. `gui-integration.md` sections 20 (discoverability), 21
    than a build, and moving the page rather than sharing the library was what
    made it small. Options lost the tab and is ten, which is what section 5 asks
    for anyway.
-4. **A4** — the rest of the secondary access paths, and there is no ground-rule-4
-   offender left in it. The Easy-mode instrument is done, MIDI Learn has a header
-   route, and right-click → Modulate turned out to have been built all along.
-   What remains is the three notification routes (update available, post-crash
-   prompt, Help > About), which are small and independent, and drag-to-assign,
-   which is a convenience rather than a path.
+4. ~~**A4**~~ — done, and there is no ground-rule-4 offender left in it. The
+   Easy-mode instrument is built, MIDI Learn has a header route, right-click →
+   Modulate turned out to have been built all along, and the three notification
+   routes turned out to be three triggers of section 15, which was not built at
+   all and now is (A6). Only drag-to-assign is still open, and it is a
+   convenience rather than a path.
 
-   Two of this entry's rows have now been closed by reading the code instead of
-   the list, which is worth saying out loud: **this file is the least trustworthy
-   document in the repository about what exists.** It was written in one pass
-   against a build it did not run, and a row here is a question to check rather
-   than a fact to act on.
-5. **B1**, the capo, or at least the half of it the docs have already promised.
+   Two of this entry's rows were closed by reading the code instead of the list,
+   which is worth saying out loud: **this file is the least trustworthy document
+   in the repository about what exists.** It was written in one pass against a
+   build it did not run, and a row here is a question to check rather than a fact
+   to act on. A third row was closed by noticing that what it described was a
+   symptom of something larger the file never mentioned.
+5. **A6**, the rest of it — the five section 15 triggers that have nowhere to
+   come from yet. Four of them are one change to the preset loader, which
+   currently substitutes a fallback without saying so; the fifth, the sample-rate
+   notice, needs a place for `prepareToPlay` to leave a message the editor can
+   pick up. Both are small and neither is blocked on a missing spec.
+6. **B1**, the capo, or at least the half of it the docs have already promised.
    The engine side is specified exactly by `ambiguity-resolutions.md` 4.5 and two
    of its three UI homes now exist. Whether to build it or to correct the manual
    is a call for whoever owns the shipping story.
-6. Everything else waits on the eleven missing specs.
+7. Everything else waits on the eleven missing specs.

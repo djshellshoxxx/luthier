@@ -45,6 +45,11 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     addChildComponent (inlineNotice);
     inlineNotice.onVisibilityChanged = [this] { resized(); };
 
+    // gui-integration 15: same arrangement, at the top of the window instead of
+    // the bottom. It reclaims its 32 px the moment the queue empties.
+    addChildComponent (notifications);
+    notifications.onVisibilityChanged = [this] { resized(); };
+
     // The overlay host sits on top of everything and is invisible until used.
     addChildComponent (overlayHost);
 
@@ -119,6 +124,11 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 
     setWantsKeyboardFocus (true);
     startTimerHz (4);
+
+    /*  gui-integration 15. Last in the constructor, because a banner posting
+        itself makes the strip visible and calls resized(), and everything it
+        lays out has to exist by then. */
+    postStartupNotifications();
 }
 
 LuthierAudioProcessorEditor::~LuthierAudioProcessorEditor()
@@ -305,6 +315,13 @@ void LuthierAudioProcessorEditor::resized()
     }
 
     header.setBounds (bounds.removeFromTop (Metrics::headerHeight));
+
+    /*  gui-integration 15: "under the header strip", and above the live strip.
+        A banner that pushed the live controls down every time one arrived would
+        move the buttons under a player's hand in the middle of a set. */
+    if (notifications.isVisible())
+        notifications.setBounds (bounds.removeFromTop (NotificationCentre::preferredHeight)
+                                   .reduced (Metrics::windowPadding, 2));
 
     // live-performance 10: the live strip attaches under the header when Live
     // Mode is on, and takes no space at all when it is off.
@@ -591,6 +608,142 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     }
 
     return false;
+}
+
+
+//==============================================================================
+bool LuthierAudioProcessorEditor::showOptionsPage (const juce::String& tabName)
+{
+    if (! optionsPanel.showPageNamed (tabName))
+        return false;
+
+    showOverlay (&optionsPanel);
+    return true;
+}
+
+//==============================================================================
+/*  gui-integration 15's triggers, as far as the build can raise them.
+
+    Section 15 lists nine. Four of them are things the plugin discovers about
+    itself with no network and no user action, and those are checked here, once,
+    when the window opens:
+
+      - Crash on last session       Telemetry::hasPendingCrashReport
+      - License grace countdown     License::State::grace
+      - Managed by policy           Telemetry::isManagedByPolicy
+      - Update available            only when the user has opted in, below
+
+    The other five are not skipped, they are unreachable. "Preset load error",
+    "missing IR", "missing guitar" and "missing part" need the loader to report
+    what it fell back to, and it currently swallows that. "Advanced-range clamped
+    on save" needs advanced ranges, which advanced-ranges.md has not specified.
+    "Sample-rate change" is the one that is merely awkward: prepareToPlay knows,
+    but it runs on the audio thread and the editor may not exist at the time, so
+    it needs somewhere to leave the message. GAPS.md has all five.
+
+    Ordered deliberately. A crash report is the only one of the four with
+    something to do about it, so it is posted last and therefore shown first -
+    the queue is first-in-first-out and the actionable banner is the one that
+    should not be behind a countdown the user has to clear.
+*/
+void LuthierAudioProcessorEditor::postStartupNotifications()
+{
+    auto& telemetry = processor.getTelemetry();
+    auto& license = processor.getLicense();
+
+    // ---- managed by policy ---------------------------------------------------
+    if (telemetry.isManagedByPolicy())
+    {
+        Notification n;
+        n.id = "policy";
+        n.message = "Some settings are managed by your organisation's policy file.";
+        n.level = Notification::Level::info;
+
+        notifications.post (std::move (n));
+    }
+
+    // ---- licence grace period ------------------------------------------------
+    if (license.getState() == License::State::grace)
+    {
+        const int days = license.getDaysUntilRevalidation();
+
+        Notification n;
+        n.id = "licence-grace";
+        n.level = Notification::Level::warning;
+
+        /*  The wording changes at one day because "1 days" is the kind of thing
+            that makes a user distrust everything else the plugin tells them, and
+            at zero because a countdown that reads "0 days left" is worse than
+            saying what actually happens next. */
+        n.message = days <= 0
+                      ? "Licence revalidation is due. Luthier keeps working; connect to "
+                        "revalidate."
+                      : "Licence revalidates in " + juce::String (days)
+                          + (days == 1 ? " day." : " days.");
+
+        notifications.post (std::move (n));
+    }
+
+    // ---- an update, if the user asked us to look ------------------------------
+    /*  updates-telemetry 1: the check is opt-in and off by default, and a policy
+        can switch it off but never on. Checking here without that opt-in would
+        make opening the window a network call the user declined.
+
+        checkForUpdate is throttled to once every 24 hours, so this is at most one
+        request a day however many times the window is opened. It blocks on the
+        network, which is why it goes to a background thread and posts back.
+    */
+    if (telemetry.isUpdateCheckEnabled())
+    {
+        const auto running = Version::parse (JucePlugin_VersionString);
+
+        /*  Same shape as UpdatesPage::checkForUpdate - launch, then back to the
+            message thread to touch the UI. Deliberately the same: a second
+            threading idiom for the same job, in the same file set, would be a
+            worse thing to maintain than the one this codebase already uses.
+
+            Unthrottled here, unlike the Options page's button, which forces. If
+            the 24-hour window has not elapsed this returns without a request. */
+        juce::Thread::launch ([this, running]
+        {
+            const auto result = processor.getTelemetry().checkForUpdate (running);
+
+            if (! result.updateAvailable)
+                return;
+
+            juce::MessageManager::callAsync ([this, result]
+            {
+                Notification n;
+                n.id = "update";
+                n.message = "Luthier " + result.available.toString() + " is available.";
+                n.level = Notification::Level::info;
+                n.actionText = "Details";
+                n.action = [this] { showOptionsPage ("UPDATES"); };
+
+                notifications.post (std::move (n));
+            });
+        });
+    }
+
+    // ---- a crash dump from last time -----------------------------------------
+    if (telemetry.hasPendingCrashReport())
+    {
+        Notification n;
+        n.id = "crash";
+        n.message = "Luthier did not shut down cleanly last time.";
+        n.level = Notification::Level::warning;
+        n.actionText = "Review";
+
+        /*  Review rather than Send. updates-telemetry 4 asks for a diff viewer
+            showing exactly what would be uploaded, and the Privacy page is where
+            that lives - so the button opens it rather than uploading on one
+            click. A crash dump is the most sensitive thing this plugin ever
+            offers to transmit, and a single button that sent it would be the
+            opt-in equivalent of a dark pattern. */
+        n.action = [this] { showOptionsPage ("PRIVACY"); };
+
+        notifications.post (std::move (n));
+    }
 }
 
 } // namespace luthier
