@@ -321,3 +321,25 @@ chosen") and `ambiguity-resolutions.md`.
   the previous guitar's when the setup arrived first). Controllers reset to
   their defaults like the sustain pedal already did; a held expression pedal
   is re-read on its next move.
+- **A poly-mode chord sounds one chord window after its first note**, on that
+  sample: the window is the latency the interpreter reports, so after host
+  compensation it lands where it was played. Before, every chord group started
+  on its block's first sample (up to a block early), and a note after a
+  group's window had closed still joined it. Found by the live PICK SysEx
+  test; `Controllers.chordGroupsSoundOneWindowAfterTheyWerePlayed`.
+- **More state a reset now clears**: the coupling matrix's designed pitches
+  (it skips moves under 0.5 Hz, so the receive filters kept the last render's
+  pitches), a pickup coil's cover EQ, and the tuning-drift RNG. With these the
+  first render after prepare matches the second exactly.
+- **MIDI OUT's Generic round-trip test runs at 3840 PPQ**: midi-export 12
+  checks the content; the tick grid is Generic's by design (3).
+- **Live character / noise events are SysEx per trigger**: squeak and pick
+  scrape as SQUEAK (trigger shift / drag), a pick click as PICK, fret buzz as
+  BUZZ, a slide landing as CLANK. A pick's chirp is the same pluck as its click
+  and is not sent twice. Workshop fits go out as WORKSHOP (slot id, fitted,
+  was) from a 16-entry lock-free queue, drained every block so switching the
+  source on never releases a backlog.
+- **Export defaults (Options -> MIDI) are user-global**, in UiPreferences as
+  .midprofile JSON: a preset must not change what an export writes. The
+  workspace tab is now remembered by name, since tabs are being added in the
+  middle of the fixed order.

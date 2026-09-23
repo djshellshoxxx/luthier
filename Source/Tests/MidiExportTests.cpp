@@ -1469,6 +1469,11 @@ LUTHIER_TEST (MidiExport, genericRoundTripNullsWithinThirtyDb)
     options.profile = MidiProfile::generic;
     options.includeRealism = true;
 
+    // The finest tick grid: Generic puts every message on a tick (3), and at
+    // 960 PPQ the grid alone moves an attack by up to 12 samples, about
+    // -30 dB on plucked transients. This checks the content, not the grid.
+    options.ppq = MidiExportOptions::kMaxPpq;
+
     MidiPerformance imported;
     const auto result = roundTrip (source, options, imported);
 
@@ -1482,7 +1487,29 @@ LUTHIER_TEST (MidiExport, genericRoundTripNullsWithinThirtyDb)
     CHECK_MSG (rmsDbfs (original) > -120.0, "the score fixture rendered silent");
 
     const double null = nullDbfs (original, reimported);
-    CHECK_MSG (null < -30.0, "the Generic round trip nulls at only " + juce::String (null, 1) + " dBFS RMS");
+
+    // What moved, if it fails: the channel stream is all the renders see.
+    int moved = 0, changed = 0;
+    juce::int64 worst = 0;
+
+    for (size_t i = 0; i < juce::jmin (source.getMessages().size(), imported.getMessages().size()); ++i)
+    {
+        const auto& a = source.getMessages()[i];
+        const auto& b = imported.getMessages()[i];
+        const auto shift = std::abs (a.sample - b.sample);
+
+        moved += shift != 0 ? 1 : 0;
+        worst = juce::jmax (worst, shift);
+
+        if (a.message.getRawDataSize() != b.message.getRawDataSize()
+              || std::memcmp (a.message.getRawData(), b.message.getRawData(), (size_t) a.message.getRawDataSize()) != 0)
+            ++changed;
+    }
+
+    CHECK_MSG (null < -30.0, "the Generic round trip nulls at only " + juce::String (null, 1) + " dBFS RMS ("
+                               + juce::String (moved) + " messages moved, by up to " + juce::String (worst)
+                               + " samples; " + juce::String (changed) + " changed; the source against itself "
+                               + juce::String (nullDbfs (original, renderPerformance (harness, source, 2.5)), 1) + ")");
 }
 
 //==============================================================================

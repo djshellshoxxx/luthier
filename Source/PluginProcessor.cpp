@@ -1052,6 +1052,7 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
             midiOutRouter.setMacroValue (m, raw->load());
 
     midiOutRouter.emit (midiMessages, midiOutConfig, engine.getStringActivity(), numSamples);
+    sendLuthierSysEx (midiOutConfig, midiMessages, numSamples);
 
     samplePosition += numSamples;
 
@@ -1956,6 +1957,106 @@ juce::AudioProcessorEditor* LuthierAudioProcessor::createEditor()
    #else
     return new LuthierAudioProcessorEditor (*this);
    #endif
+}
+
+//==============================================================================
+void LuthierAudioProcessor::postWorkshopChange (const juce::String& slotId, const juce::String& fitted,
+                                                const juce::String& was)
+{
+    int start1 = 0, size1 = 0, start2 = 0, size2 = 0;
+    workshopFifo.prepareToWrite (1, start1, size1, start2, size2);
+
+    if (size1 + size2 < 1)
+        return;   // sixteen part swaps inside one block: the oldest are enough
+
+    auto& change = workshopChanges[(size_t) (size1 > 0 ? start1 : start2)];
+    slotId.copyToUTF8 (change.slot, sizeof (change.slot));
+    fitted.copyToUTF8 (change.fit, sizeof (change.fit));
+    was.copyToUTF8 (change.was, sizeof (change.was));
+
+    workshopFifo.finishedWrite (1);
+}
+
+void LuthierAudioProcessor::sendLuthierSysEx (const MidiOutConfig& config, juce::MidiBuffer& midi,
+                                              int numSamples) noexcept
+{
+    using Field = LuthierSysExOut::Field;
+    const bool on = config.enabled;
+
+    // Drained every block whether or not they are sent, so switching the
+    // source on never releases a backlog of stale changes.
+    {
+        int start1 = 0, size1 = 0, start2 = 0, size2 = 0;
+        workshopFifo.prepareToRead (workshopFifo.getNumReady(), start1, size1, start2, size2);
+
+        auto send = [&] (int start, int count)
+        {
+            for (int i = 0; i < count; ++i)
+            {
+                const auto& change = workshopChanges[(size_t) (start + i)];
+
+                if (on && config.workshopChanges)
+                    sysExOut.push (LuthierEventClass::workshop, 0,
+                                   { Field::makeWord ("slot", change.slot), Field::makeWord ("fit", change.fit),
+                                     Field::makeWord ("was", change.was) });
+            }
+        };
+
+        send (start1, size1);
+        send (start2, size2);
+        workshopFifo.finishedRead (size1 + size2);
+    }
+
+    if (on && config.luthierEvents)
+    {
+        const auto& pool = engine.getNoisePool();
+        const int last = juce::jmax (0, numSamples - 1);
+
+        for (int i = 0; i < pool.getNumBlockTriggers(); ++i)
+        {
+            const auto& t = pool.getBlockTrigger (i);
+            const int at = juce::jlimit (0, last, t.offset);
+
+            switch (t.noiseClass)
+            {
+                case NoiseClass::squeak:
+                case NoiseClass::pickScrape:
+                    sysExOut.push (LuthierEventClass::squeak, at,
+                                   { Field::makeWord ("trigger", t.noiseClass == NoiseClass::squeak ? "shift" : "drag"),
+                                     Field::makeInt ("str", t.stringIndex),
+                                     Field::makeReal ("dur", t.durationMs),
+                                     Field::makeReal ("intensity", t.level) });
+                    break;
+
+                case NoiseClass::pickClick:
+                    sysExOut.push (LuthierEventClass::pick, at, { Field::makeInt ("str", t.stringIndex) });
+                    break;
+
+                case NoiseClass::fretBuzz:
+                    sysExOut.push (LuthierEventClass::buzz, at,
+                                   { Field::makeInt ("str", t.stringIndex),
+                                     Field::makeReal ("dur", t.durationMs),
+                                     Field::makeReal ("intensity", t.level) });
+                    break;
+
+                case NoiseClass::clank:
+                    sysExOut.push (LuthierEventClass::clank, at,
+                                   { Field::makeWord ("trigger", "land"),
+                                     Field::makeInt ("mask", 1 << juce::jlimit (0, 11, t.stringIndex)),
+                                     Field::makeReal ("intensity", t.level) });
+                    break;
+
+                case NoiseClass::pickChirp:    // the same pluck as its click
+                case NoiseClass::numClasses:
+                    break;
+            }
+        }
+    }
+
+    if (on)
+        sysExOut.appendTo (midi, numSamples);
+    else
+        sysExOut.clear();
 }
 
 } // namespace luthier

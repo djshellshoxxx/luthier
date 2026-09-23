@@ -48,10 +48,25 @@ struct MidiOutConfig
     bool stringActivity = false;
     bool ccBroadcast = false;
 
+    // midi-export.md 6's remaining sources.
+    bool tunePlayback = false;     ///< the tune builder's playback
+    bool luthierEvents = false;    ///< character / noise events as Luthier SysEx
+    bool workshopChanges = false;  ///< part swaps and bench moves as Luthier SysEx
+
     /** CC number each macro is echoed on, or -1 for "not assigned". */
     std::array<int, 6> macroCc { { -1, -1, -1, -1, -1, -1 } };
 
     int channel = 1;
+
+    bool operator== (const MidiOutConfig& o) const noexcept
+    {
+        return enabled == o.enabled && passThrough == o.passThrough && rhythmEngine == o.rhythmEngine
+            && stringActivity == o.stringActivity && ccBroadcast == o.ccBroadcast
+            && tunePlayback == o.tunePlayback && luthierEvents == o.luthierEvents
+            && workshopChanges == o.workshopChanges && macroCc == o.macroCc && channel == o.channel;
+    }
+
+    bool operator!= (const MidiOutConfig& o) const noexcept { return ! operator== (o); }
 };
 
 //==============================================================================

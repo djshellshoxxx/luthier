@@ -243,6 +243,8 @@ void MidiInterpreter::processBlock (const juce::MidiBuffer& midi,
                                     PlayEventQueue& out) noexcept
 {
     out.clear();
+    blockStart = blockStartSample;
+    blockLength = numSamples;
 
     for (const auto metadata : midi)
     {
@@ -443,6 +445,10 @@ void MidiInterpreter::handleNoteOn (int midiNote, int channel, double velocity,
     }
 
     // ---- Poly mode: collect into a chord group -------------------------------
+    // A note after the group's window has closed starts a group of its own.
+    if (numPending > 0 && timestamp - pending[0].timestamp > chordWindowSamples)
+        flushChordGroup (timestamp, blockOffset, blockOffset + 1, out);
+
     if (numPending >= kMaxPending)
         flushChordGroup (timestamp, blockOffset, blockOffset + 1, out);
 
@@ -483,6 +489,17 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
 
     const int64_t groupTimestamp = pending[0].timestamp;
     numPending = 0;
+
+    /*  The group sounds when its window closes: its first note's sample plus
+        the window, which is the latency getLatencySamples() reports, so after
+        the host's compensation it lands where it was played. That sample is
+        always inside the block doing the flush. (It used the flush's own
+        offset, which at the end-of-block flush is 0, so every chord started
+        at its block's first sample, up to a block early - found by
+        midi-export 6's live PICK event test.) */
+    blockOffset = (int) juce::jlimit ((int64_t) 0, (int64_t) juce::jmax (0, blockLength - 1),
+                                      groupTimestamp + chordWindowSamples - blockStart);
+    juce::ignoreUnused (numSamples);
 
     lastChordName = ChordVoicer::identifyChord (notes, count);
 

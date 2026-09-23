@@ -708,3 +708,57 @@ LUTHIER_TEST (Controllers, savingAProfileReplacesTheOneOfTheSameId)
     ControllerProfile empty;
     CHECK (! library.save (empty));
 }
+
+//==============================================================================
+/*  A chord group sounds one chord window after its first note - the latency
+    the interpreter reports - on that exact sample, not on its block's first
+    sample (which is where every chord used to land). */
+LUTHIER_TEST (Controllers, chordGroupsSoundOneWindowAfterTheyWerePlayed)
+{
+    InterpreterFixture f;
+    f.interpreter.setChordWindowMs (2.0);
+    f.interpreter.setStrumSpeedMs (0.0);   // the strum spreads a chord from here; not under test
+    const int window = f.interpreter.getLatencySamples();
+    CHECK (window == 96);
+
+    auto block = [&f] (std::initializer_list<std::pair<int, int>> notes, int64_t start)
+    {
+        juce::MidiBuffer midi;
+
+        for (const auto& n : notes)
+            midi.addEvent (juce::MidiMessage::noteOn (1, n.second, 0.8f), n.first);
+
+        PlayEventQueue out;
+        f.interpreter.processBlock (midi, 256, start, out);
+
+        juce::Array<int> offsets;
+
+        for (int i = 0; i < out.getNumNoteOns(); ++i)
+            offsets.add (out.getNoteOn (i).sampleOffset);
+
+        offsets.sort();
+        return offsets;
+    };
+
+    // One note, inside the block.
+    auto offsets = block ({ { 37, 52 } }, 1024);
+    CHECK (offsets.size() == 1 && offsets[0] == 37 + window);
+
+    // Two notes inside one window: one chord, strummed from its window's close.
+    f.interpreter.reset();
+    offsets = block ({ { 10, 48 }, { 40, 55 } }, 2048);
+    CHECK (offsets.size() == 2 && offsets[0] == 10 + window);
+
+    // Two notes further apart than the window: two groups, each on its own sample.
+    f.interpreter.reset();
+    offsets = block ({ { 10, 48 }, { 150, 60 } }, 4096);
+    CHECK_MSG (offsets.size() == 2 && offsets[0] == 10 + window && offsets[1] == 150 + window,
+               "notes 140 samples apart were grouped as one chord");
+
+    // A window that runs past the block closes in the next one, on its sample.
+    f.interpreter.reset();
+    offsets = block ({ { 220, 52 } }, 8192);
+    CHECK (offsets.isEmpty());
+    offsets = block ({}, 8192 + 256);
+    CHECK (offsets.size() == 1 && offsets[0] == 220 + window - 256);
+}

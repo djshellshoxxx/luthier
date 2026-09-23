@@ -120,13 +120,15 @@ private:
 
     // --- MIDI out ---------------------------------------------------------------
     std::unique_ptr<LuthierToggle> midiOutEnable, midiPassThrough, midiRhythm,
-                                   midiStringActivity, midiCcBroadcast;
+                                   midiStringActivity, midiCcBroadcast,
+                                   midiTunePlayback, midiLuthierEvents, midiWorkshop;
     juce::ComboBox midiChannel;
     juce::ComboBox macroCc[ParamIDs::kNumMacros];
     juce::Label macroCcLabels[ParamIDs::kNumMacros];
 
     BusLayout lastLayout = BusLayout::stereoOnly;
     bool updatingControls = false;
+    MidiOutConfig shownMidiOut;   ///< what the controls show; a difference means someone else changed it
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RoutingPanel)
 };

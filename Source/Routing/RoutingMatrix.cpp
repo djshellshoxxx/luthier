@@ -465,6 +465,9 @@ juce::var RoutingMatrix::toVar() const
     m->setProperty ("rhythm", cfg.rhythmEngine);
     m->setProperty ("stringActivity", cfg.stringActivity);
     m->setProperty ("ccBroadcast", cfg.ccBroadcast);
+    m->setProperty ("tunePlayback", cfg.tunePlayback);
+    m->setProperty ("luthierEvents", cfg.luthierEvents);
+    m->setProperty ("workshopChanges", cfg.workshopChanges);
     m->setProperty ("channel", cfg.channel);
 
     juce::Array<juce::var> ccArray;
@@ -536,6 +539,9 @@ void RoutingMatrix::fromVar (const juce::var& state)
         cfg.rhythmEngine = (bool) m->getProperty ("rhythm");
         cfg.stringActivity = (bool) m->getProperty ("stringActivity");
         cfg.ccBroadcast = (bool) m->getProperty ("ccBroadcast");
+        cfg.tunePlayback = (bool) m->getProperty ("tunePlayback");
+        cfg.luthierEvents = (bool) m->getProperty ("luthierEvents");
+        cfg.workshopChanges = (bool) m->getProperty ("workshopChanges");
         cfg.channel = juce::jlimit (1, 16, m->hasProperty ("channel") ? (int) m->getProperty ("channel") : 1);
 
         if (auto* ccArray = m->getProperty ("macroCc").getArray())

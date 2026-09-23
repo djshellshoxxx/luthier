@@ -28,6 +28,11 @@ void CouplingMatrix::reset() noexcept
     }
 
     lastLimiting = 0.0;
+
+    // Forget the designed pitches: setStringFrequency skips a move under 0.5 Hz,
+    // so the filters would otherwise be designed at wherever the last render
+    // left them, and the next render would depend on the one before.
+    frequencies.fill (0.0);
 }
 
 void CouplingMatrix::setNumStrings (int n) noexcept

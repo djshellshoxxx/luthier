@@ -95,7 +95,17 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       Model done and green (`Source/Export`, `MidiExportTests`: per-string
       export, Luthier / generic profiles, live MIDI out, round-trip null of
       every factory preset at <= -60 dBFS after the reset-determinism fixes,
-      DECISIONS). Remaining: the MIDI OUT tab. Residual: a brand-new engine's
+      DECISIONS). MIDI OUT tab done (`MidiOutPanel`, `MidiOutPanelTests`):
+      profile editor = Options -> MIDI defaults (8) with .midprofile save /
+      load (7), export of the retrospective capture (entire / last N s) with
+      preview (4.1), drag-out with Alt for Generic (4.2), live sources shared
+      with ROUTING (6) incl. EVENTS (noise triggers as Luthier SysEx on their
+      sample) and WORKSHOP (part fits); the header's "Save last MIDI take"
+      uses the defaults. Remaining: TUNE source (needs tune playback, 12),
+      CHARACTER seed / environment events, import UI (5: File -> Import,
+      drop a .mid, target choice), marked-region / current-section ranges,
+      drag from the session recorder's own Save button (practice drawer).
+      Residual: a brand-new engine's
       first 7-string render after a 6-string one differs from the next by
       ~1e-4 peak (about -80 dB) from ~27 ms in; under the bar, not yet found.
 - [ ] 11. `PracticeRoutines` and the PRACTICE tab.

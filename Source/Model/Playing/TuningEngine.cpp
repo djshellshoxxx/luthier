@@ -91,6 +91,7 @@ void TuningEngine::reset() noexcept
 {
     driftCounter = 0;
     driftTargets.fill (0.0);
+    driftRng.setSeed (kDriftSeed);   // the same walk from every reset
 
     for (auto& s : strings)
     {

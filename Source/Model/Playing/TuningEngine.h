@@ -236,7 +236,8 @@ private:
     int    driftCounter = 0;
     int    driftIntervalSamples = 44100 * 30;
     std::array<double, kMaxStrings> driftTargets {};
-    RtRandom driftRng { 0xD817F7Aull };
+    static constexpr uint64_t kDriftSeed = 0xD817F7Aull;
+    RtRandom driftRng { kDriftSeed };
 };
 
 } // namespace luthier

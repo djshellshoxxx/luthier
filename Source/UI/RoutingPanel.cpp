@@ -299,6 +299,13 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
                     "Sends a note per string that is actually ringing.");
     makeMidiToggle (midiCcBroadcast, "MACRO CC",
                     "Echoes each macro as a CC on the number assigned below.");
+    makeMidiToggle (midiTunePlayback, "TUNE",
+                    "Sends the tune builder's playback, each event on its own sample.");
+    makeMidiToggle (midiLuthierEvents, "EVENTS",
+                    "Sends character and noise events (squeaks, pick, buzz, clank) as Luthier SysEx. "
+                    "Other hosts drop SysEx; nothing else depends on it.");
+    makeMidiToggle (midiWorkshop, "WORKSHOP",
+                    "Sends Workshop part changes as Luthier SysEx, for automation lanes.");
 
     midiChannel.setTooltip ("MIDI channel for generated events. Pass-through keeps its own channel.");
 
@@ -339,12 +346,16 @@ void RoutingPanel::updateMidiOutFromControls()
     if (updatingControls)
         return;
 
-    MidiOutConfig cfg;
+    // From the current config: the MIDI OUT tab edits the same one.
+    auto cfg = processor.getRouting().getMidiOutConfig();
     cfg.enabled = midiOutEnable->getButton().getToggleState();
     cfg.passThrough = midiPassThrough->getButton().getToggleState();
     cfg.rhythmEngine = midiRhythm->getButton().getToggleState();
     cfg.stringActivity = midiStringActivity->getButton().getToggleState();
     cfg.ccBroadcast = midiCcBroadcast->getButton().getToggleState();
+    cfg.tunePlayback = midiTunePlayback->getButton().getToggleState();
+    cfg.luthierEvents = midiLuthierEvents->getButton().getToggleState();
+    cfg.workshopChanges = midiWorkshop->getButton().getToggleState();
     cfg.channel = juce::jlimit (1, 16, midiChannel.getSelectedId());
 
     for (int m = 0; m < ParamIDs::kNumMacros; ++m)
@@ -354,6 +365,7 @@ void RoutingPanel::updateMidiOutFromControls()
     }
 
     processor.getRouting().setMidiOutConfig (cfg);
+    shownMidiOut = cfg;
 }
 
 void RoutingPanel::refreshFromRouting()
@@ -369,6 +381,10 @@ void RoutingPanel::refreshFromRouting()
     midiRhythm->getButton().setToggleState (cfg.rhythmEngine, juce::dontSendNotification);
     midiStringActivity->getButton().setToggleState (cfg.stringActivity, juce::dontSendNotification);
     midiCcBroadcast->getButton().setToggleState (cfg.ccBroadcast, juce::dontSendNotification);
+    midiTunePlayback->getButton().setToggleState (cfg.tunePlayback, juce::dontSendNotification);
+    midiLuthierEvents->getButton().setToggleState (cfg.luthierEvents, juce::dontSendNotification);
+    midiWorkshop->getButton().setToggleState (cfg.workshopChanges, juce::dontSendNotification);
+    shownMidiOut = cfg;
     midiChannel.setSelectedId (juce::jlimit (1, 16, cfg.channel), juce::dontSendNotification);
 
     for (int m = 0; m < ParamIDs::kNumMacros; ++m)
@@ -429,7 +445,7 @@ void RoutingPanel::timerCallback()
     // The routing state can change underneath the UI when a preset loads.
     const auto cfg = processor.getRouting().getMidiOutConfig();
 
-    if (cfg.enabled != midiOutEnable->getButton().getToggleState()
+    if (cfg != shownMidiOut
           || processor.getRouting().isSidechainToAmp() != sidechainToAmp->getButton().getToggleState())
     {
         refreshFromRouting();
@@ -445,7 +461,7 @@ int RoutingPanel::preferredHeight() const
                  + Metrics::buttonHeight               // sidechain toggle
                  + 18                                  // sidechain meter row
                  + Metrics::grid
-                 + Metrics::buttonHeight * 2 + Metrics::gridHalf   // midi toggles
+                 + Metrics::buttonHeight * 3 + Metrics::gridHalf * 2   // midi toggles
                  + 44                                  // macro CC table
                  + Metrics::grid;
 
@@ -516,6 +532,16 @@ void RoutingPanel::resized()
         midiRhythm->setBounds (row.removeFromLeft (w).reduced (1));
         midiStringActivity->setBounds (row.removeFromLeft (w).reduced (1));
         midiCcBroadcast->setBounds (row.reduced (1));
+    }
+
+    bounds.removeFromTop (Metrics::gridHalf);
+
+    {
+        auto row = bounds.removeFromTop (Metrics::buttonHeight);
+        const int w = juce::jmax (1, row.getWidth() / 3);
+        midiTunePlayback->setBounds (row.removeFromLeft (w).reduced (1));
+        midiLuthierEvents->setBounds (row.removeFromLeft (w).reduced (1));
+        midiWorkshop->setBounds (row.reduced (1));
     }
 
     bounds.removeFromTop (Metrics::gridHalf);

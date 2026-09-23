@@ -37,6 +37,7 @@ namespace luthier
 
 class LuthierAudioProcessor;
 class ControllersPage;
+class MidiOutPanel;
 
 //==============================================================================
 /** One row of the string list. */
@@ -133,8 +134,12 @@ public:
         different keys to leave. */
     void stepWorkspaceTab (int delta);
 
-    /** The key the last-used tab is stored under in UiPreferences (4.4). */
+    /** The key the last-used tab is stored under in UiPreferences (4.4), by
+        name: tabs are added in the middle of the strip's fixed order, and an
+        index would then reopen a different tab. The index key is read only
+        when no name is stored (a file from an older build). */
     static constexpr const char* workspaceTabPreferenceKey = "advanced.workspaceTab";
+    static constexpr const char* workspaceTabNamePreferenceKey = "advanced.workspaceTabName";
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -274,6 +279,7 @@ private:
         the Options overlay. Held by pointer so this header does not have to pull
         in every other Options page. */
     std::unique_ptr<ControllersPage> controllersPage;
+    std::unique_ptr<MidiOutPanel> midiOutPanel;
 
     std::unique_ptr<LuthierChoice> bridgeType;
     std::unique_ptr<LuthierKnob> whammyPos, whammyDown, whammyUp, whammySprings, transposeLock;

@@ -191,6 +191,9 @@ public:
     /** The Aux 8 noise bus for the last block (routing-io.md). */
     const double* getNoiseBusData() const noexcept { return noiseBuffer.data(); }
 
+    /** This block's noise triggers, at their samples (midi-export.md 6). */
+    const NoiseEngine& getNoisePool() const noexcept { return playingNoise.getPool(); }
+
     /*  The circuit's controls and components, from the parameters. The coil
         fields are ignored: the engine fills them from the pickups the switch
         has selected, at the start of each block, because the selector can

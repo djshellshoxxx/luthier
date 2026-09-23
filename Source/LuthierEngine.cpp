@@ -4,6 +4,7 @@ namespace luthier
 {
 
 
+
 LuthierEngine::LuthierEngine()
 {
     spec = GuitarLibrary::get (guitarType);
@@ -1196,6 +1197,7 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     taps.beginBlock (numSamples);
     stringActivity.clear();
     sidechainReadOffset = 0;
+    playingNoise.getPool().beginBlockTriggers();
 
     // Parked behind a structural change: the message thread owns the engine.
     // Incoming MIDI is kept for the first block after (DECISIONS C-09).
@@ -1460,6 +1462,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     const bool perStringTaps = taps.isPerStringWanted() && taps.getRoomAtOffset() >= numSamples;
 
     playingNoise.getPool().setSamplePosition (samplePosition);
+    playingNoise.getPool().setTriggerOffset (sidechainReadOffset);
 
     // fret-buzz.md 2: sensed at block rate, not per sample - the envelope is
     // slow and a handful of sine evaluations per string is the whole budget.
@@ -1481,6 +1484,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     for (int i = 0; i < numSamples; ++i)
     {
         // Events land on their exact sample, whichever block they arrived in.
+        playingNoise.getPool().setTriggerOffset (sidechainReadOffset + i);
         fireScheduledEvents (samplePosition + i);
 
         coupling.process (bridgeOutputs.data(), couplingInputs.data());
@@ -1588,6 +1592,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             instrument = magneticBuffer[(size_t) i] * (1.0 - bodyAmount * 0.55)
                          + (double) bodyData[i] * bodyAmount * 0.55;
         }
+
 
 
         instrument = circuit.process (instrument);

@@ -255,6 +255,8 @@ void NoiseEngine::reset() noexcept
             g.stop();
 
     activeCount = 0;
+    numBlockTriggers = 0;
+    triggerOffset = 0;
 
     // Determinism is "the same event sequence from the same start": a reset is
     // a start, so the event indices the random choices hash on start again.
@@ -298,6 +300,11 @@ int NoiseEngine::trigger (const NoiseEvent& event) noexcept
     // Zero is silent and free: nothing is taken for an event nobody would hear.
     if (! (event.level > 0.0) || event.noiseClass == NoiseClass::numClasses)
         return -1;
+
+    if (numBlockTriggers < kMaxBlockTriggers)
+        blockTriggers[(size_t) numBlockTriggers++] = { event.noiseClass, event.stringIndex, triggerOffset,
+                                                       (float) event.level,
+                                                       (float) (event.attackMs + event.holdMs + event.decayMs) };
 
     auto& pool = pools[(size_t) event.noiseClass];
     const int limit = getPoolLimit (event.noiseClass);

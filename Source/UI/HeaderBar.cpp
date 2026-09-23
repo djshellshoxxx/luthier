@@ -1,4 +1,6 @@
 #include "HeaderBar.h"
+#include "MidiOutPanel.h"
+#include "MidiExportDefaults.h"
 #include "../PluginProcessor.h"
 
 namespace luthier
@@ -400,7 +402,10 @@ void HeaderBar::showFileMenu()
                     if (file == juce::File())
                         return;
 
-                    const bool ok = processor.getMidiCapture().writeToFile (file, processor.getHostTempo());
+                    // midi-export 8: the take goes out in the Options -> MIDI profile.
+                    juce::String error;
+                    const bool ok = MidiTakeExport::exportCapture (processor, file, MidiExportDefaults::load(),
+                                                                   0.0, &error);
 
                     juce::NativeMessageBox::showAsync (
                         juce::MessageBoxOptions()
@@ -408,7 +413,7 @@ void HeaderBar::showFileMenu()
                                               : juce::MessageBoxIconType::WarningIcon)
                             .withTitle (ok ? "MIDI saved" : "Could not save")
                             .withMessage (ok ? "Saved to\n" + file.getFullPathName()
-                                             : "There was nothing in the capture buffer to save.")
+                                             : error)
                             .withButton ("OK"),
                         nullptr);
                 });

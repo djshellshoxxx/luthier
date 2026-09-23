@@ -251,6 +251,10 @@ private:
     /** The absolute sample position of the message being handled, so that a
         note-off can tell how long its note has been sounding. */
     int64_t currentTimestamp = 0;
+
+    /** The block being interpreted, so a chord group sounds at its own sample. */
+    int64_t blockStart = 0;
+    int blockLength = 0;
     bool mpeEnabled = false;
 
     double bendRangeSemitones = 2.0;

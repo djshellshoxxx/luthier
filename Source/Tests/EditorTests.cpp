@@ -582,7 +582,7 @@ LUTHIER_TEST (Editor, everyWorkspaceTabSelectsAndPaints)
     panel.setSize (1600, 900);
 
     const juce::StringArray tabNames { "WORKSHOP", "MOD", "RHYTHM", "LIVE", "ROUTING", "TONE MATCH",
-                                       "CHARACTER", "CONTROLLERS" };
+                                       "CHARACTER", "MIDI OUT", "CONTROLLERS" };
 
     CHECK_MSG (panel.getNumWorkspaceTabs() == tabNames.size(),
                "expected " + juce::String (tabNames.size()) + " workspace tabs, found "

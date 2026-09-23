@@ -221,6 +221,31 @@ public:
     int drainEvents (EventRecord* destination, int maxRecords) noexcept;
 
     //==========================================================================
+    /*  midi-export.md 6: the same triggers, kept for the host block that made
+        them, each at its sample, so the processor can send them as Luthier
+        SysEx on the audio thread. Cleared by the engine at each block start;
+        the offset is set by the engine as it walks the block. */
+    struct BlockTrigger
+    {
+        NoiseClass noiseClass = NoiseClass::pickClick;
+        int stringIndex = 0;
+        int offset = 0;
+        float level = 0.0f;
+        float durationMs = 0.0f;
+    };
+
+    static constexpr int kMaxBlockTriggers = 32;
+
+    void beginBlockTriggers() noexcept           { numBlockTriggers = 0; }
+    void setTriggerOffset (int offset) noexcept  { triggerOffset = offset; }
+    int getNumBlockTriggers() const noexcept     { return numBlockTriggers; }
+
+    const BlockTrigger& getBlockTrigger (int index) const noexcept
+    {
+        return blockTriggers[(size_t) juce::jlimit (0, kMaxBlockTriggers - 1, index)];
+    }
+
+    //==========================================================================
     /** For tests: how many triggers each class has taken a generator for. */
     juce::int64 getTriggerCount (NoiseClass c) const noexcept { return triggerCounts[(size_t) c]; }
     int getStealCount (NoiseClass c) const noexcept { return stealCounts[(size_t) c]; }
@@ -247,6 +272,10 @@ private:
     static constexpr int kEventRing = 256;
     std::array<EventRecord, kEventRing> events {};
     std::atomic<int> eventWrite { 0 }, eventRead { 0 };
+
+    std::array<BlockTrigger, kMaxBlockTriggers> blockTriggers {};
+    int numBlockTriggers = 0;
+    int triggerOffset = 0;
 };
 
 /** A counter-based hash, for the deterministic per-event choices. */

@@ -2,6 +2,7 @@
 #include "UiPreferences.h"
 #include "RangesUi.h"
 #include "OptionsPages.h"
+#include "MidiOutPanel.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 
@@ -978,6 +979,7 @@ void AdvancedPanel::buildWorkspace()
     toneMatchPanel  = std::make_unique<ToneMatchPanel> (processor);
     characterPanel  = std::make_unique<CharacterPanel> (processor);
     controllersPage = std::make_unique<ControllersPage> (processor);
+    midiOutPanel    = std::make_unique<MidiOutPanel> (processor);
 
     const struct { const char* name; juce::Component* panel; } tabs[] =
     {
@@ -988,6 +990,7 @@ void AdvancedPanel::buildWorkspace()
         { "ROUTING",     routingPanel.get() },
         { "TONE MATCH",  toneMatchPanel.get() },
         { "CHARACTER",   characterPanel.get() },
+        { "MIDI OUT",    midiOutPanel.get() },
         { "CONTROLLERS", controllersPage.get() }
     };
 
@@ -1029,7 +1032,14 @@ void AdvancedPanel::buildWorkspace()
         and closing it again does not rewrite the file. An out-of-range value -
         from a build with more tabs than this one - is clamped by showWorkspaceTab
         rather than refused. */
-    showWorkspaceTab (UiPreferences::get().getInt (workspaceTabPreferenceKey, 0), false);
+    const auto savedName = UiPreferences::get().getString (workspaceTabNamePreferenceKey, {});
+    int saved = UiPreferences::get().getInt (workspaceTabPreferenceKey, 0);
+
+    for (int i = 0; i < workspaceTabs.size(); ++i)
+        if (savedName.isNotEmpty() && workspaceTabs[i]->getButtonText().equalsIgnoreCase (savedName))
+            saved = i;
+
+    showWorkspaceTab (saved, false);
 }
 
 juce::String AdvancedPanel::getWorkspaceTabName (int index) const
@@ -1083,7 +1093,10 @@ void AdvancedPanel::showWorkspaceTab (int index, bool remember)
     workspaceTab = juce::jlimit (0, workspacePanels.size() - 1, index);
 
     if (remember)
+    {
         UiPreferences::get().setInt (workspaceTabPreferenceKey, workspaceTab);
+        UiPreferences::get().setString (workspaceTabNamePreferenceKey, getWorkspaceTabName (workspaceTab));
+    }
 
     for (int i = 0; i < workspaceTabs.size(); ++i)
         workspaceTabs[i]->setToggleState (i == workspaceTab, juce::dontSendNotification);

@@ -11,6 +11,7 @@
 #include "Support/Diagnostics.h"
 #include "Routing/RoutingMatrix.h"
 #include "Routing/MidiOutRouter.h"
+#include "Export/LiveMidiOut.h"
 #include "Modulation/ModMatrix.h"
 #include "Rhythm/GenreKit.h"
 #include "Live/Snapshots.h"
@@ -84,6 +85,12 @@ public:
     RoutingMatrix&      getRouting() noexcept        { return routing; }
     const RoutingMatrix& getRouting() const noexcept { return routing; }
     MidiOutRouter&      getMidiOutRouter() noexcept  { return midiOutRouter; }
+
+    /** midi-export.md 6: a Workshop part change, sent as Luthier SysEx at the
+        next block when the routing's WORKSHOP source is on. Message thread. */
+    void postWorkshopChange (const juce::String& slotId, const juce::String& fitted, const juce::String& was);
+
+    const LuthierSysExOut& getLuthierSysExOut() const noexcept { return sysExOut; }
     ModMatrix&          getModMatrix() noexcept      { return modMatrix; }
     const ModMatrix&    getModMatrix() const noexcept { return modMatrix; }
 
@@ -430,6 +437,21 @@ private:
     Diagnostics diagnostics;
     RoutingMatrix routing;
     MidiOutRouter midiOutRouter;
+
+    // midi-export.md 6: character / noise and Workshop events as Luthier SysEx.
+    void sendLuthierSysEx (const MidiOutConfig& config, juce::MidiBuffer& midi, int numSamples) noexcept;
+
+    struct WorkshopChange
+    {
+        char slot[32] {};
+        char fit[96] {};
+        char was[96] {};
+    };
+
+    static constexpr int kWorkshopQueue = 16;
+    std::array<WorkshopChange, kWorkshopQueue> workshopChanges {};
+    juce::AbstractFifo workshopFifo { kWorkshopQueue };
+    LuthierSysExOut sysExOut;
     ModMatrix modMatrix;
     PatternLibrary patternLibrary;
     GenreKitLibrary genreKits;

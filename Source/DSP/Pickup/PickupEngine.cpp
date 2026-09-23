@@ -90,6 +90,7 @@ void PickupEngine::Coil::reset() noexcept
 
     writeIndex.fill (0);
     magnetEq.reset();
+    coverEq.reset();   // it kept the last render's tail, so the next one differed
 }
 
 //==============================================================================

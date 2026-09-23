@@ -149,6 +149,10 @@ bool WorkshopBench::fit (GuitarSlot slot, const PartPtr& part, const juce::Strin
         : "Fitted " + part->name + where + (old != nullptr ? " (was " + old->name + ")" : juce::String());
 
     commit (edited, sentence);
+
+    // midi-export.md 6: WORKSHOP events, for a host recording the performance.
+    processor.postWorkshopChange (getSlotId (slot), part != nullptr ? part->name : juce::String(),
+                                  old != nullptr ? old->name : juce::String());
     return true;
 }
 
