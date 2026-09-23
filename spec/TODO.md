@@ -41,6 +41,20 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       regions working (13). Drive it from the current `WorkshopGuitar` so the
       picture is the parts guitar that is playing. Check it by rendering to
       PNG in a test and looking at the result for each factory guitar.
+- [ ] **V. Visual appeal (user request, 2026-09-23; after G).** Specified
+      pieces, moved up from later in this list:
+      - Live playing overlays on the guitar (`guitar-illustration.md` 14):
+        vibrating/glowing strings, pick at true size and angle, slide bar.
+      - Preset-browser thumbnails of each guitar (`guitar-illustration.md` 15).
+      - Finish rendering - grain, bursts, sparkle, relic (11; part of G).
+      - Easy Mode rig strip (item 2e) and the Workshop bench (item 7) are
+        pulled forward to follow G.
+      New pieces, per `spec/proposals/visual-polish.md`: photographic
+      materials on the guitar (1), amp and pedal faces (2), knob caps on those
+      faces (3, needs theme.md owner's agreement), tube glow / VU meter /
+      room light (4), user and follow-the-guitar accent colour (5, needs
+      agreement; finish the Light and High-contrast palettes first if they
+      are not built). No motion/transition work - declined by the user.
 
 - [ ] 2e. **Easy Mode layout per gui-integration.md 3**: the build has the
       older three-band layout. Missing: the 280 px RIG STRIP (guitar circuit
