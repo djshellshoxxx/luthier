@@ -57,11 +57,6 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 - [ ] 2h. Easy rig strip polish: the amp card's knobs are cramped at 1200x720;
       give the amp card more height or two knob sizes.
-- [ ] 2f. **Aux 8 noise bus** (pick-noise.md 1.3; routing-io.md lists only 7
-      aux). Must be appended *after* the 12 per-string buses so existing bus
-      indices (sessions using layouts C/D) do not shift; update RoutingMatrix /
-      PluginProcessor bus arithmetic, routing-io.md table, latency (128-sample
-      allowance). Engine already fills `LuthierEngine::getNoiseBusData()`.
 - [ ] 2c. Feedback per `ambiguity-resolutions.md` 1 (mic-to-speaker loop,
       feedback_amount/distance/angle/focus/octave_bias params, post-circuit
       path, Adv Col 3 SUSTAIN feedback row). Currently a heuristic.

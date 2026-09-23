@@ -42,6 +42,9 @@ juce::AudioProcessor::BusesProperties LuthierAudioProcessor::buildBusesPropertie
         props = props.withOutput ("String " + juce::String (s + 1),
                                   juce::AudioChannelSet::mono(), false);
 
+    // Aux 8 (pick-noise 1.3), last so that no earlier bus number moves.
+    props = props.withOutput (getAuxBusName (kNoiseAux), juce::AudioChannelSet::stereo(), false);
+
     return props;
 }
 
@@ -237,7 +240,8 @@ bool LuthierAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) 
         if (set.isDisabled())
             continue;
 
-        const bool isAuxBus = (bus - 1) < kNumAuxBuses;
+        // Aux pairs, then the per-string buses, then Aux 8 (a pair again).
+        const bool isAuxBus = (bus - 1) < kNumAuxBuses || (bus - 1) >= kNumAuxBuses + kNumPerStringBuses;
 
         // Aux buses are stereo pairs; per-string buses are mono. Accepting the
         // wrong width would silently drop or duplicate a channel.
@@ -784,7 +788,7 @@ BusLayout LuthierAudioProcessor::getNegotiatedLayout() const noexcept
         if (getChannelCountOfBus (false, bus) <= 0)
             continue;
 
-        if ((bus - 1) < kNumAuxBuses)
+        if ((bus - 1) < kNumAuxBuses || (bus - 1) >= kNumAuxBuses + kNumPerStringBuses)
             anyAux = true;
         else
             anyPerString = true;
@@ -1024,7 +1028,8 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         sessionRecorder.processBlock (mainOut, numSamples);
     }
 
-    routing.distribute (*this, buffer, engine.getTapBuffers(), engine.getNumStrings());
+    routing.distribute (*this, buffer, engine.getTapBuffers(), engine.getNumStrings(),
+                        engine.getNoiseBusData());
 
     // live-performance 7: the monitor mix is the performer's own, so it goes to
     // its own bus and never into the main output.

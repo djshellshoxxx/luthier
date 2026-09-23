@@ -43,6 +43,13 @@ enum class AuxBus
 inline constexpr int kNumAuxBuses = 7;
 inline constexpr int kNumPerStringBuses = kMaxStrings;
 
+/*  pick-noise.md 1.3's Aux 8: the sum of every noise generator, pre-body.
+    Its output bus is declared after the twelve per-string buses so that the
+    bus numbers sessions already use (layouts C and D) do not move; its strip
+    in the routing panel is the eighth aux strip, index kNoiseAux. */
+inline constexpr int kNoiseAux = kNumAuxBuses;
+inline constexpr int kNumAuxStrips = kNumAuxBuses + 1;
+
 const char* getAuxBusName (int index) noexcept;
 const char* getAuxBusTapDescription (int index) noexcept;
 

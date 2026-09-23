@@ -147,7 +147,7 @@ void AuxStrip::mouseDown (const juce::MouseEvent& e)
         // Plain click is exclusive solo; a modifier adds to the solo group, which
         // is how every mixer behaves and what people's hands already expect.
         if (! e.mods.isCommandDown() && ! e.mods.isShiftDown())
-            for (int other = 0; other < kNumAuxBuses; ++other)
+            for (int other = 0; other < kNumAuxStrips; ++other)
                 routing().setAuxSoloed (other, false);
 
         routing().setAuxSoloed (bus, ! wasSoloed);
@@ -260,7 +260,7 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     configureLabel (latencyLabel, {});
     configureLabel (sidechainLabel, "SIDECHAIN");
 
-    for (int bus = 0; bus < kNumAuxBuses; ++bus)
+    for (int bus = 0; bus < kNumAuxStrips; ++bus)
         addAndMakeVisible (auxStrips.add (new AuxStrip (processor, bus)));
 
     perStringStrip = std::make_unique<PerStringStrip> (processor);
@@ -456,7 +456,7 @@ int RoutingPanel::preferredHeight() const
 {
     int height = 18                                   // layout readout
                  + 14                                 // latency readout
-                 + kNumAuxBuses * AuxStrip::preferredHeight
+                 + kNumAuxStrips * AuxStrip::preferredHeight
                  + Metrics::grid
                  + Metrics::buttonHeight               // sidechain toggle
                  + 18                                  // sidechain meter row

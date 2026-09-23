@@ -15,6 +15,7 @@ const char* getAuxBusName (int index) noexcept
         case (int) AuxBus::roomMic:   return "Room";
         case (int) AuxBus::wetFx:     return "Wet FX";
         case (int) AuxBus::monitor:   return "Monitor";
+        case kNoiseAux:               return "Noise";
         default:                      return "Aux";
     }
 }
@@ -30,6 +31,7 @@ const char* getAuxBusTapDescription (int index) noexcept
         case (int) AuxBus::roomMic:   return "Room mics alone, post-room";
         case (int) AuxBus::wetFx:     return "Reverb and delay tails alone";
         case (int) AuxBus::monitor:   return "Monitor mix, post-master";
+        case kNoiseAux:               return "Every playing-noise generator summed, pre-body";
         default:                      return "";
     }
 }
@@ -96,38 +98,38 @@ void RoutingMatrix::reset() noexcept
 //==============================================================================
 void RoutingMatrix::setAuxMuted (int bus, bool muted) noexcept
 {
-    if (juce::isPositiveAndBelow (bus, kNumAuxBuses))
+    if (juce::isPositiveAndBelow (bus, kNumAuxStrips))
         auxes[(size_t) bus].muted.store (muted, std::memory_order_relaxed);
 }
 
 bool RoutingMatrix::isAuxMuted (int bus) const noexcept
 {
-    return juce::isPositiveAndBelow (bus, kNumAuxBuses)
+    return juce::isPositiveAndBelow (bus, kNumAuxStrips)
              && auxes[(size_t) bus].muted.load (std::memory_order_relaxed);
 }
 
 void RoutingMatrix::setAuxSoloed (int bus, bool soloed) noexcept
 {
-    if (juce::isPositiveAndBelow (bus, kNumAuxBuses))
+    if (juce::isPositiveAndBelow (bus, kNumAuxStrips))
         auxes[(size_t) bus].soloed.store (soloed, std::memory_order_relaxed);
 }
 
 bool RoutingMatrix::isAuxSoloed (int bus) const noexcept
 {
-    return juce::isPositiveAndBelow (bus, kNumAuxBuses)
+    return juce::isPositiveAndBelow (bus, kNumAuxStrips)
              && auxes[(size_t) bus].soloed.load (std::memory_order_relaxed);
 }
 
 void RoutingMatrix::setAuxGainDb (int bus, double db) noexcept
 {
-    if (juce::isPositiveAndBelow (bus, kNumAuxBuses))
+    if (juce::isPositiveAndBelow (bus, kNumAuxStrips))
         auxes[(size_t) bus].gainDb.store ((float) juce::jlimit (-60.0, 12.0, db),
                                           std::memory_order_relaxed);
 }
 
 double RoutingMatrix::getAuxGainDb (int bus) const noexcept
 {
-    return juce::isPositiveAndBelow (bus, kNumAuxBuses)
+    return juce::isPositiveAndBelow (bus, kNumAuxStrips)
              ? (double) auxes[(size_t) bus].gainDb.load (std::memory_order_relaxed)
              : 0.0;
 }
@@ -143,7 +145,7 @@ bool RoutingMatrix::isAnyAuxSoloed() const noexcept
 
 bool RoutingMatrix::isAuxAudible (int bus) const noexcept
 {
-    if (! juce::isPositiveAndBelow (bus, kNumAuxBuses))
+    if (! juce::isPositiveAndBelow (bus, kNumAuxStrips))
         return false;
 
     if (isAnyAuxSoloed())
@@ -154,7 +156,7 @@ bool RoutingMatrix::isAuxAudible (int bus) const noexcept
 
 double RoutingMatrix::getAuxLevel (int bus) const noexcept
 {
-    return juce::isPositiveAndBelow (bus, kNumAuxBuses)
+    return juce::isPositiveAndBelow (bus, kNumAuxStrips)
              ? (double) auxes[(size_t) bus].level.load (std::memory_order_relaxed)
              : 0.0;
 }
@@ -299,7 +301,8 @@ void RoutingMatrix::writeMonitorBus (juce::AudioProcessor& processor,
 void RoutingMatrix::distribute (juce::AudioProcessor& processor,
                                 juce::AudioBuffer<float>& buffer,
                                 const TapBuffers& taps,
-                                int numStrings) noexcept
+                                int numStrings,
+                                const double* noiseBus) noexcept
 {
     const int numSamples = juce::jmin (buffer.getNumSamples(), taps.getNumSamples());
 
@@ -309,9 +312,12 @@ void RoutingMatrix::distribute (juce::AudioProcessor& processor,
     const int numOutputBuses = processor.getBusCount (false);
     const bool hasAux = layoutHasAux (activeLayout);
 
-    // Bus 0 is the main output and is already written by the engine. Buses 1..7
-    // are the aux pairs when the layout has them; anything after that is a
-    // per-string mono bus.
+    /*  Bus 0 is the main output and is already written by the engine. The rest
+        are told apart by the names they were declared with, not by position:
+        the plugin declares every bus and the host disables the ones it does not
+        want (so a string bus sits after seven disabled aux buses), while a
+        processor built for one layout may declare only that layout's buses.
+        Counting from 1 got the plugin's layout C wrong by seven strings. */
     for (int bus = 1; bus < numOutputBuses; ++bus)
     {
         auto out = processor.getBusBuffer (buffer, false, bus);
@@ -319,11 +325,46 @@ void RoutingMatrix::distribute (juce::AudioProcessor& processor,
         if (out.getNumChannels() <= 0)
             continue;
 
-        const int auxIndex = bus - 1;
-        const bool isAux = hasAux && auxIndex < kNumAuxBuses;
-        const int stringIndex = hasAux ? bus - 1 - kNumAuxBuses : bus - 1;
+        int auxIndex = -1, stringIndex = -1;
 
-        if (isAux)
+        if (const auto* declared = processor.getBus (false, bus))
+        {
+            const auto& name = declared->getName();
+
+            if (name.startsWith ("String "))
+                stringIndex = name.getTrailingIntValue() - 1;
+            else
+                for (int a = 0; a < kNumAuxStrips && auxIndex < 0; ++a)
+                    if (name == getAuxBusName (a))
+                        auxIndex = a;
+        }
+
+        const bool isAux = hasAux && auxIndex >= 0;
+
+        if (isAux && auxIndex == kNoiseAux)
+        {
+            // pick-noise 1.3: every generator summed, pre-body. Mono, on both sides.
+            auto& state = auxes[(size_t) kNoiseAux];
+            state.gain.setTarget (isAuxAudible (kNoiseAux)
+                                    ? juce::Decibels::decibelsToGain (
+                                          (double) state.gainDb.load (std::memory_order_relaxed))
+                                    : 0.0);
+
+            double peak = 0.0;
+
+            for (int i = 0; i < numSamples; ++i)
+            {
+                const double v = noiseBus != nullptr ? noiseBus[i] * state.gain.next() : (state.gain.next(), 0.0);
+
+                for (int ch = 0; ch < out.getNumChannels(); ++ch)
+                    out.setSample (ch, i, (float) sanitise (v));
+
+                peak = juce::jmax (peak, std::abs (v));
+            }
+
+            state.level.store ((float) peak, std::memory_order_relaxed);
+        }
+        else if (isAux)
         {
             // The monitor bus is built after the master rather than tapped, so
             // writeMonitorBus owns it. Falling through to the tap path here would
@@ -433,7 +474,7 @@ juce::var RoutingMatrix::toVar() const
 
     juce::Array<juce::var> auxArray;
 
-    for (int bus = 0; bus < kNumAuxBuses; ++bus)
+    for (int bus = 0; bus < kNumAuxStrips; ++bus)
     {
         auto* a = new juce::DynamicObject();
         a->setProperty ("mute", isAuxMuted (bus));
@@ -490,7 +531,7 @@ void RoutingMatrix::fromVar (const juce::var& state)
 
     // Anything the stored state does not mention goes back to its default, so
     // loading a preset never leaves a previous preset's mute behind.
-    for (int bus = 0; bus < kNumAuxBuses; ++bus)
+    for (int bus = 0; bus < kNumAuxStrips; ++bus)
     {
         setAuxMuted (bus, false);
         setAuxSoloed (bus, false);
@@ -505,7 +546,8 @@ void RoutingMatrix::fromVar (const juce::var& state)
 
     if (auto* auxArray = root->getProperty ("aux").getArray())
     {
-        for (int bus = 0; bus < juce::jmin (kNumAuxBuses, auxArray->size()); ++bus)
+        // A session from before Aux 8 has seven entries; the noise strip keeps its default.
+        for (int bus = 0; bus < juce::jmin (kNumAuxStrips, auxArray->size()); ++bus)
         {
             if (auto* a = auxArray->getReference (bus).getDynamicObject())
             {

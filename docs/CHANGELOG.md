@@ -21,6 +21,10 @@ numbered, because what it should be called is a release decision.
   profile (saved as your default, or as a `.midprofile`), exports or drags out
   the last take, and switches what goes out live - including squeaks, pick,
   buzz and clank events and Workshop part changes as Luthier SysEx.
+- **Aux 8: a noise output** (`pick-noise.md` 1.3) - every pick click, squeak,
+  buzz and clank on its own stereo bus, so noise can be gated or balanced
+  separately. It is added after the per-string outputs, so existing
+  sessions' bus numbers do not change; the ROUTING tab has a strip for it.
 - **The guitar-shop look** (`proposals/visual-polish.md` 6) - rosewood,
   walnut and brass, bell knobs, mini toggles, engraved plates, Lato and Bebas
   Neue. The colourblind, High-contrast and Light palettes now actually apply.
@@ -221,6 +225,9 @@ numbered, because what it should be called is a release decision.
   slide's long glide and last pitch on strings that were not played, MIDI
   controller values, the fret-buzz setup (it kept the previous guitar's scale),
   and a few others. Four factory presets did not even match themselves.
+- **Per-string outputs were wrong when only they were enabled.** With the
+  per-string buses on and the aux buses off, each string's audio went to the
+  wrong output or to none. Outputs are now matched by name.
 - **Chords played in Poly mode started early.** A chord (or single note) went
   out on the first sample of the audio block it arrived in rather than where
   it was played, up to a block early; and a note played just after a chord

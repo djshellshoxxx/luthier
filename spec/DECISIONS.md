@@ -343,3 +343,17 @@ chosen") and `ambiguity-resolutions.md`.
   .midprofile JSON: a preset must not change what an export writes. The
   workspace tab is now remembered by name, since tabs are being added in the
   middle of the fixed order.
+- **Aux 8 (pick-noise 1.3) is a stereo output declared after the twelve
+  per-string buses**, so no bus number a session already uses moves; its
+  strip is the eighth aux strip (trim, mute, solo, meter) and counts as aux
+  for layout negotiation. The noise sum is mono, sent to both sides. It has
+  no latency of its own beyond the per-string taps (under the 128-sample
+  allowance). routing-io.md's table still lists seven aux buses; this entry
+  is the record of the eighth.
+- **Output buses are told apart by their declared names**, not by position.
+  The plugin declares every bus and the host disables the unwanted ones, so
+  in layout C a string bus sits after seven disabled aux buses: counting from
+  bus 1 sent string N's audio to the wrong bus (or nowhere).
+  `PluginBuses.perStringLayoutPutsEachStringOnItsOwnBus` drives the real
+  processor; the routing harness declares only one layout's buses, which is
+  why the old tests passed.

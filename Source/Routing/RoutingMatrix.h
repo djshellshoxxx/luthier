@@ -153,7 +153,8 @@ public:
     void distribute (juce::AudioProcessor& processor,
                      juce::AudioBuffer<float>& buffer,
                      const TapBuffers& taps,
-                     int numStrings) noexcept;
+                     int numStrings,
+                     const double* noiseBus = nullptr) noexcept;
 
     /** Writes the monitor mix onto the monitor aux bus (live-performance 7).
 
@@ -204,7 +205,7 @@ private:
         ExpSmoother gain;
     };
 
-    std::array<AuxState, kNumAuxBuses> auxes;
+    std::array<AuxState, kNumAuxStrips> auxes;
 
     std::array<std::atomic<float>, kNumPerStringBuses> stringGainDb;
     std::array<std::atomic<bool>, kNumPerStringBuses> stringMuted;
