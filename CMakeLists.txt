@@ -39,6 +39,12 @@ file(GLOB_RECURSE LUTHIER_SOURCES CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/Source/*.h")
 list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "/Tests/")
 
+# Work in progress by the assistant agents (spec/DECISIONS.md): written without
+# a compiler, so kept out of the build until the lead integrates it. Remove a
+# line here when its feature is integrated.
+set(LUTHIER_WIP_REGEX "Source/Tune/|Source/Export/|Tests/TuneBuilderTests|Tests/MidiExportTests")
+list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "${LUTHIER_WIP_REGEX}")
+
 target_sources(Luthier PRIVATE ${LUTHIER_SOURCES})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Source" FILES ${LUTHIER_SOURCES})
 
@@ -138,6 +144,7 @@ if (LUTHIER_BUILD_TESTS)
     file(GLOB LUTHIER_TEST_SOURCES CONFIGURE_DEPENDS
          "${CMAKE_CURRENT_SOURCE_DIR}/Source/Tests/*.cpp"
          "${CMAKE_CURRENT_SOURCE_DIR}/Source/Tests/*.h")
+    list(FILTER LUTHIER_TEST_SOURCES EXCLUDE REGEX "${LUTHIER_WIP_REGEX}")
 
     juce_add_console_app(LuthierTests PRODUCT_NAME "LuthierTests")
 
