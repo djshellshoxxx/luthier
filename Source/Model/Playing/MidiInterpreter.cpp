@@ -59,13 +59,22 @@ void MidiInterpreter::reset() noexcept
         s.bendCents = 0.0;
         s.pressure = 0.0;
         s.timbre = 0.0;
+        s.startedAt = 0;
+        s.releaseDueAt = -1;
+        s.releaseWasLetRing = false;
     }
 
     numPending = 0;
+    currentTimestamp = 0;
     sustainDown = false;
     sostenutoDown = false;
     vibratoDepth = 0.0;
     whammyPosition = 0.0;
+    // Controller values go back to their defaults like the pedals above: left
+    // as they were, the first render after a preset whose CC routing differs
+    // starts from the old preset's last value and does not repeat.
+    expressionValue = 0.5;
+    pickPosition = 0.5;
     globalBendCents = 0.0;
     activeNoteCount = 0;
     lastMonoString = -1;

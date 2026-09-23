@@ -170,6 +170,10 @@ void PickupEngine::reset() noexcept
 
     for (auto& g : slotGain)
         g.snapToTarget();
+
+    // Finish a selector crossfade too (prepare leaves it idle), so a render
+    // after a preset that changed the selector does not open mid-fade.
+    selectorFade.prepare (sr);
 }
 
 //==============================================================================

@@ -483,6 +483,7 @@ public:
     {
         phase = 0.0;
         randCurrent = 0.0;
+        rng.setSeed (kSeed);   // so a reset LFO repeats its random walk
         randTarget = rng.nextBipolar();
     }
 
@@ -531,7 +532,8 @@ private:
     double sr = 44100.0, phase = 0.0, inc = 0.0;
     double randCurrent = 0.0, randTarget = 0.0;
     Shape shape = Shape::Sine;
-    RtRandom rng { 0xC0FFEE1234ull };
+    static constexpr uint64_t kSeed = 0xC0FFEE1234ull;
+    RtRandom rng { kSeed };
 };
 
 //==============================================================================

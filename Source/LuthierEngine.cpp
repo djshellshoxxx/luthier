@@ -3,6 +3,7 @@
 namespace luthier
 {
 
+
 LuthierEngine::LuthierEngine()
 {
     spec = GuitarLibrary::get (guitarType);
@@ -136,6 +137,9 @@ void LuthierEngine::reset() noexcept
     slide.reset();
     noteSustainScale.fill (1.0);
     shiftCount = 0;
+
+    // Rebuild a changed circuit now rather than in the first block after.
+    circuit.setComponents (getLiveCircuitComponents());
     circuit.reset();
     preEffects.reset();
     amp.reset();
@@ -160,6 +164,10 @@ void LuthierEngine::reset() noexcept
     stringDelays.fill (100.0);
     vibratoAmount.fill (0.0);
 
+    // tuning.reset() zeroes each string's character drift; this cache of what
+    // was last sent must agree, or an unchanged drift is never re-applied.
+    lastAppliedDrift.fill (0.0);
+
     // Articulation state has to go back to its initial value too. Without this a
     // reset leaves the last note's fret position and string assignment behind, so
     // the next note starts from a slide rather than from the nut and the first
@@ -173,6 +181,11 @@ void LuthierEngine::reset() noexcept
 
         vibratoLfo[(size_t) i].reset();
         vibratoLfo[(size_t) i].setPhase ((double) i * 0.137);
+
+        // Back to the open string, not wherever the last render's last note
+        // left it: an unplayed string still rings sympathetically, and its
+        // pitch would otherwise depend on the previous preset.
+        strings[(size_t) i].snapToFrequency (tuning.computeFrequency (i, 0.0));
     }
 
     std::fill (doublerBuffer.begin(), doublerBuffer.end(), 0.0);
@@ -185,6 +198,17 @@ void LuthierEngine::reset() noexcept
 
     numScheduled = 0;
     samplePosition = 0;
+
+    // The tone strip's ramps land where they are heading, like every smoother.
+    inputGainNow = inputGainTarget.load (std::memory_order_relaxed);
+    outputMixNow = outputMixTarget.load (std::memory_order_relaxed);
+    widthNow = widthTarget.load (std::memory_order_relaxed);
+
+    // A structural change applied with no audio running leaves a fade-in
+    // pending. Reset already starts from silence, so there is nothing to fade
+    // from, and leaving it would make the first render differ from the second.
+    if (swapState.load (std::memory_order_acquire) == swapIdle)
+        swapPhase = 1.0;
 }
 
 void LuthierEngine::releaseResources()
@@ -229,6 +253,11 @@ void LuthierEngine::setNumStrings (int n)
     whammy.setNumStrings (numStrings);
     rhythm.setNumStrings (numStrings);
     character.setNumStrings (numStrings);
+
+    // The buzz geometry carries the guitar's scale and string count; a setup
+    // applied before a guitar change would otherwise keep the old guitar's
+    // (the first render after a preset load buzzed where the next did not).
+    setSetupGeometry (requestedSetup);
 }
 
 //==============================================================================
@@ -866,6 +895,8 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
 //==============================================================================
 void LuthierEngine::setSetupGeometry (const SetupGeometry& geometry) noexcept
 {
+    requestedSetup = geometry;
+
     auto g = geometry;
     g.scaleLengthMm = spec.scaleLengthMm;
     g.numStrings = numStrings;
@@ -1557,6 +1588,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             instrument = magneticBuffer[(size_t) i] * (1.0 - bodyAmount * 0.55)
                          + (double) bodyData[i] * bodyAmount * 0.55;
         }
+
 
         instrument = circuit.process (instrument);
 

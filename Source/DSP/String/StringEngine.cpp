@@ -86,6 +86,10 @@ void StringEngine::reset() noexcept
     rng.setSeed (0x51E3D00Dull + (uint64_t) stringIndex * 7919ull);
     lastCoefficientHz = 0.0;
 
+    // A slide leaves a long glide behind; the next render must not inherit it.
+    slideSpeed = 0.0;
+    setGlideTime (0.002);
+
     smoothedDelay.snapTo (sr / juce::jmax (1.0, targetHz));
     needsLoopUpdate = true;
 }

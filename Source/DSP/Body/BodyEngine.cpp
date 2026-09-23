@@ -68,6 +68,10 @@ void BodyEngine::reset() noexcept
             convolution->reset();
     }
 
+    // A bank staged since the last block goes in now, not part-way into the
+    // next render (reset runs with the audio stopped).
+    applyStagedBank();
+
     for (auto& r : resonators)
         r.reset();
 

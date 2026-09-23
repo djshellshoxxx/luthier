@@ -92,8 +92,15 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       group, bass step grid).
 - [ ] 9. `PerformanceCapture`, then the NOTATION tab.
 - [ ] 10. MIDI export profiles (`midi-export.md`), then the MIDI OUT tab.
+      Model done and green (`Source/Export`, `MidiExportTests`: per-string
+      export, Luthier / generic profiles, live MIDI out, round-trip null of
+      every factory preset at <= -60 dBFS after the reset-determinism fixes,
+      DECISIONS). Remaining: the MIDI OUT tab. Residual: a brand-new engine's
+      first 7-string render after a 6-string one differs from the next by
+      ~1e-4 peak (about -80 dB) from ~27 ms in; under the bar, not yet found.
 - [ ] 11. `PracticeRoutines` and the PRACTICE tab.
-- [ ] 12. Tune Builder (`tune-builder.md`) and the TUNE tab.
+- [ ] 12. Tune Builder (`tune-builder.md`) and the TUNE tab. Model done
+      (`Source/Tune`, `TuneBuilderTests`, d284547). Remaining: the TUNE tab.
 - [ ] 13. HELP tab (column 4).
 - [ ] 13b. **Phase 5b technique specs (added 2026-09-23)**, in INDEX order:
       `string-scraping.md` (ScrapeEngine), `string-slap-technique.md`,

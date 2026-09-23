@@ -151,6 +151,17 @@ public:
 
     bool isBypassed() const noexcept { return bypassed; }
 
+    /** Settles the mix and bypass ramps where they are heading. The chain calls
+        this beside reset(): a pedal swapped in by a preset load gets its mix set
+        after prepare(), so without it the first render glides from full wet and
+        does not match the next one (MidiExport round-trip null). */
+    void resetBase() noexcept
+    {
+        mixSmooth.snapTo (mixTarget);
+        bypassFade.prepare (sr, 0.010);
+        lastBypassState = bypassed;
+    }
+
     /** Mix between the pedal's output and its input, 0 to 1. */
     void setMix (double m) noexcept { mixTarget = juce::jlimit (0.0, 1.0, m); }
     double getMix() const noexcept { return mixTarget; }

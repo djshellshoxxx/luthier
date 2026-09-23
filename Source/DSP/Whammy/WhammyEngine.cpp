@@ -42,6 +42,7 @@ void WhammyEngine::reset() noexcept
     lastPosition = 0.0;
     springBand1.reset();
     springBand2.reset();
+    springRng.setSeed (kSpringSeed);
 }
 
 //==============================================================================

@@ -111,7 +111,8 @@ private:
     double springDecay = 0.9995;
     double lastPosition = 0.0;
     Biquad springBand1, springBand2;
-    RtRandom springRng { 0x5B1A9E77ull };
+    static constexpr uint64_t kSpringSeed = 0x5B1A9E77ull;
+    RtRandom springRng { kSpringSeed };
 
     JUCE_LEAK_DETECTOR (WhammyEngine)
 };

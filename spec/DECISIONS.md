@@ -306,3 +306,18 @@ chosen") and `ambiguity-resolutions.md`.
   `PartLibrary::renamedFactoryPart` / `renamedFactoryGuitar`, the only place
   the old names appear (marked so the scan skips them). A final legal review
   is still a ship-gate item (qa-polish.md 11).
+- **A reset makes the next render repeat exactly, even across a preset
+  change** (midi-export.md 12's round-trip null, <= -60 dBFS for every
+  factory preset, found 4 presets failing against themselves at -25 to -48).
+  Reset now also: snaps drive/wah/secret-mix smoothers and the pedal base's
+  wet/dry and bypass fades (`Pedal::resetBase`); reseeds the LFO and whammy
+  spring RNGs; finishes the pickup selector crossfade and a pending
+  structural-change fade-in; installs a staged body modal bank; puts each
+  string back on its open pitch with the 2 ms glide (a slide left a long glide
+  and the old pitch on unplayed, sympathetically ringing strings); resets the
+  MIDI controller values expression and pick position, the note-release
+  timing and the tone strip ramps; clears the tuning-drift cache. The fret-buzz
+  setup is re-derived when the guitar's scale or string count changes (it kept
+  the previous guitar's when the setup arrived first). Controllers reset to
+  their defaults like the sustain pedal already did; a held expression pedal
+  is re-read on its next move.

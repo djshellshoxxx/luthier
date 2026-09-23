@@ -486,6 +486,10 @@ private:
 
     Excitation::Material pickMaterial = Excitation::Material::PickCelluloid;
     double pluckPosition = 0.16;
+
+    /** The setup as last asked for. Its scale length and string count come from
+        the guitar, so it is re-derived whenever those change (setNumStrings). */
+    SetupGeometry requestedSetup;
     double pickThickness = 0.5;
     double pickAngle = 0.35;
     double nailVsFlesh = 0.5;

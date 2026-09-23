@@ -39,8 +39,13 @@ void EffectsChain::reset() noexcept
     const juce::ScopedLock sl (swapLock);
 
     for (auto& slot : slots)
+    {
         if (slot.pedal != nullptr)
+        {
             slot.pedal->reset();
+            slot.pedal->resetBase();
+        }
+    }
 }
 
 //==============================================================================

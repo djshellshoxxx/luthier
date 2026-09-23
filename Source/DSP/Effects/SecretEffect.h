@@ -71,6 +71,7 @@ public:
         dcL.reset();
         dcR.reset();
         lfo.reset();
+        mixSmooth.snapToTarget();
     }
 
     void setEnabled (bool e) noexcept { enabled = e; }

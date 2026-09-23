@@ -201,6 +201,7 @@ void WahPedal::reset() noexcept
     filterL.reset();
     filterR.reset();
     lfo.reset();
+    sweep.snapToTarget();
     lastFreq = 0.0;
 }
 
@@ -594,6 +595,8 @@ void DrivePedalBase::reset() noexcept
     dcL.reset();   dcR.reset();
     oversampler.reset();
     oversamplerR.reset();
+    driveSmooth.snapToTarget();
+    levelSmooth.snapToTarget();
 }
 
 void DrivePedalBase::setOversamplingFactor (int factor) noexcept

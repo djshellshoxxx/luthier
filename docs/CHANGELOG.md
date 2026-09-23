@@ -15,6 +15,9 @@ numbered, because what it should be called is a release decision.
   overlay from the header): click parts, drag pickups and saddles, audition
   parts with Alt-hover, A-H bench slots, a spectrum delta that shows what a
   change did, and a family switch.
+- **MIDI export** (`midi-export.md`) - per-string MIDI files in the Luthier
+  profile (realism events ride along and round-trip) or a generic profile for
+  other instruments, and live MIDI out.
 - **The guitar-shop look** (`proposals/visual-polish.md` 6) - rosewood,
   walnut and brass, bell knobs, mini toggles, engraved plates, Lato and Bebas
   Neue. The colourblind, High-contrast and Light palettes now actually apply.
@@ -209,6 +212,12 @@ numbered, because what it should be called is a release decision.
 
 ### Fixed
 
+- **Rendering the same thing twice now gives the same audio**, including the
+  first render after a preset change. Several parts of the engine kept state
+  through a reset: pedal mix and bypass ramps, the pickup selector fade, a
+  slide's long glide and last pitch on strings that were not played, MIDI
+  controller values, the fret-buzz setup (it kept the previous guitar's scale),
+  and a few others. Four factory presets did not even match themselves.
 - Undo was off by one both ways: a single action could not be undone, and the
   first undo after two actions reverted both.
 - **The ASCII tab importer read its own beat ruler as a string of the tab.**
