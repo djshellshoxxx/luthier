@@ -142,6 +142,8 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     modMatrix.prepare (sampleRate, samplesPerBlock, apvts);
     transportWasRunning = false;
     midiCapture.prepare (sampleRate, 60.0);
+    performanceCapture.prepare (sampleRate);
+    captureStringCount = -1;   // re-sent at the next drain
     diagnostics.prepare (sampleRate);
 
     killSwitch.prepare (sampleRate);
@@ -976,10 +978,40 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     // The engine only ever writes the main output pair; every other bus belongs
     // to the routing matrix, and a bus nobody writes must be cleared rather than
     // left holding the previous block.
+    // notation-export 6.4: the block's place on the host's clock, for the capture.
+    {
+        CaptureClock clock;
+        clock.blockStartSample = samplePosition;
+        clock.sampleRate = currentSampleRate;
+        clock.bpm = hostTempo.load();
+
+        if (auto* playHead = getPlayHead())
+        {
+            if (auto position = playHead->getPosition())
+            {
+                clock.transportPlaying = position->getIsPlaying();
+
+                if (auto ppq = position->getPpqPosition())
+                    clock.blockStartPpq = *ppq;
+
+                if (auto signature = position->getTimeSignature())
+                {
+                    clock.timeSigNumerator = signature->numerator;
+                    clock.timeSigDenominator = signature->denominator;
+                }
+            }
+        }
+
+        performanceCapture.beginBlock (clock);
+    }
+
     {
         auto mainOut = getBusBuffer (buffer, false, 0);
         engine.processBlock (mainOut, midiMessages);
     }
+
+    // 6.1: what the engine actually played - string and fret, after voicing.
+    performanceCapture.captureStringActivity (engine.getStringActivity());
 
     // ---- tone match ----------------------------------------------------------------
     /*  tone-match 1: a user cabinet IR replaces the model's, so it goes on the
@@ -1946,8 +1978,36 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
 }
 
 //==============================================================================
+void LuthierAudioProcessor::drainPerformanceCapture()
+{
+    // The instrument the take is on, re-sent when it changes (a guitar, a
+    // tuning or a capo change between drains).
+    auto& tuning = engine.getTuningEngine();
+    const int strings = engine.getNumStrings();
+    const auto open = PerformanceCapture::getOpenNotes (tuning, strings);
+
+    if (strings != captureStringCount || open != captureOpenNotes
+          || tuning.getCapoFret() != captureCapo || tuning.getCapoStringMask() != captureCapoMask)
+    {
+        captureStringCount = strings;
+        captureOpenNotes = open;
+        captureCapo = tuning.getCapoFret();
+        captureCapoMask = tuning.getCapoStringMask();
+        performanceCapture.setTuning (open, strings, captureCapo, captureCapoMask);
+    }
+
+    performanceCapture.drain();
+}
+
 void LuthierAudioProcessor::timerCallback()
 {
+    // notation-export 6.2: the capture drains at 10 Hz.
+    if (++captureDrainTick >= 3)
+    {
+        captureDrainTick = 0;
+        drainPerformanceCapture();
+    }
+
     // live-performance 2: carry out whatever the MIDI thread asked for.
     if (const int snapshot = pendingSnapshotRecall.exchange (-1, std::memory_order_relaxed);
         snapshot >= 0)

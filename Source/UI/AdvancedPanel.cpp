@@ -3,6 +3,7 @@
 #include "RangesUi.h"
 #include "OptionsPages.h"
 #include "MidiOutPanel.h"
+#include "NotationPanel.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 
@@ -994,6 +995,7 @@ void AdvancedPanel::buildWorkspace()
     characterPanel  = std::make_unique<CharacterPanel> (processor);
     controllersPage = std::make_unique<ControllersPage> (processor);
     midiOutPanel    = std::make_unique<MidiOutPanel> (processor);
+    notationPanel   = std::make_unique<NotationPanel> (processor);
 
     const struct { const char* name; juce::Component* panel; } tabs[] =
     {
@@ -1004,6 +1006,7 @@ void AdvancedPanel::buildWorkspace()
         { "ROUTING",     routingPanel.get() },
         { "TONE MATCH",  toneMatchPanel.get() },
         { "CHARACTER",   characterPanel.get() },
+        { "NOTATION",    notationPanel.get() },
         { "MIDI OUT",    midiOutPanel.get() },
         { "CONTROLLERS", controllersPage.get() }
     };

@@ -582,7 +582,7 @@ LUTHIER_TEST (Editor, everyWorkspaceTabSelectsAndPaints)
     panel.setSize (1600, 900);
 
     const juce::StringArray tabNames { "WORKSHOP", "MOD", "RHYTHM", "LIVE", "ROUTING", "TONE MATCH",
-                                       "CHARACTER", "MIDI OUT", "CONTROLLERS" };
+                                       "CHARACTER", "NOTATION", "MIDI OUT", "CONTROLLERS" };
 
     CHECK_MSG (panel.getNumWorkspaceTabs() == tabNames.size(),
                "expected " + juce::String (tabNames.size()) + " workspace tabs, found "
@@ -1761,7 +1761,8 @@ LUTHIER_TEST (Editor, aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce)
                    "selecting TONE MATCH by name landed on "
                      + panel->getWorkspaceTabName (panel->getWorkspaceTab()));
 
-        CHECK_MSG (! panel->setWorkspaceTabNamed ("NOTATION"),
+        // A name no tab will ever have: the real tabs arrive one by one.
+        CHECK_MSG (! panel->setWorkspaceTabNamed ("NO SUCH TAB"),
                    "an unbuilt tab reports that it was selected, so a caller cannot "
                    "tell a missing panel from a shown one");
     }

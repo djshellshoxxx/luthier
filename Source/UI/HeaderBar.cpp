@@ -1,6 +1,7 @@
 #include "HeaderBar.h"
 #include "MidiOutPanel.h"
 #include "MidiExportDefaults.h"
+#include "NotationPanel.h"
 #include "../PluginProcessor.h"
 
 namespace luthier
@@ -303,6 +304,8 @@ void HeaderBar::showFileMenu()
     menu.addItem (6, "Export audio...");
     menu.addItem (7, "Save last MIDI take...",
                   processor.getMidiCapture().getCapturedSeconds() > 0.05);
+    // notation-export 5: "Export to Notation" beside the MIDI save.
+    menu.addItem (13, "Export notation...", ! processor.getPerformanceCapture().getNotes().empty());
     menu.addSeparator();
     menu.addItem (8, "Open user preset folder");
     menu.addItem (9, "Open render folder");
@@ -436,6 +439,39 @@ void HeaderBar::showFileMenu()
             case 11:
                 processor.randomiseParameters();
                 break;
+
+            case 13:
+            {
+                // The format follows the extension chosen; the NOTATION tab has the options.
+                auto chooser = std::make_shared<juce::FileChooser> (
+                    "Export the take as notation",
+                    PresetManager::getRenderFolder().getChildFile ("Luthier Take.musicxml"),
+                    "*.musicxml;*.gp;*.txt;*.mid");
+
+                chooser->launchAsync (juce::FileBrowserComponent::saveMode
+                                        | juce::FileBrowserComponent::warnAboutOverwriting,
+                                      [this, chooser] (const juce::FileChooser& fc)
+                {
+                    const auto file = fc.getResult();
+
+                    if (file == juce::File())
+                        return;
+
+                    juce::String error;
+                    const bool ok = NotationTakeExport::write (processor, NotationTakeExport::formatForFile (file),
+                                                               file, {}, {}, &error);
+
+                    juce::NativeMessageBox::showAsync (
+                        juce::MessageBoxOptions()
+                            .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
+                                              : juce::MessageBoxIconType::WarningIcon)
+                            .withTitle (ok ? "Notation exported" : "Could not export")
+                            .withMessage (ok ? "Saved to\n" + file.getFullPathName() : error)
+                            .withButton ("OK"),
+                        nullptr);
+                });
+                break;
+            }
 
             case 12:
                 processor.resetEverything();

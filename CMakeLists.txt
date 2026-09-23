@@ -42,7 +42,7 @@ list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "/Tests/")
 # Work in progress by the assistant agents (spec/DECISIONS.md): written without
 # a compiler, so kept out of the build until the lead integrates it. Remove a
 # line here when its feature is integrated.
-set(LUTHIER_WIP_REGEX "Source/WIP/|Source/Practice/PracticeRoutine|Source/Capture/|Source/UI/Faces/|Source/Tune/TunePlayer|Source/Tune/TuneSession|Source/UI/TunePanel|Tests/(PracticeRoutine|Capture|Faces|TunePlayer|TunePanel)[A-Za-z]*Tests")
+set(LUTHIER_WIP_REGEX "Source/WIP/|Source/Practice/PracticeRoutine|Source/UI/Faces/|Source/Tune/TunePlayer|Source/Tune/TuneSession|Source/UI/TunePanel|Tests/(PracticeRoutine|Faces|TunePlayer|TunePanel)[A-Za-z]*Tests")
 list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "${LUTHIER_WIP_REGEX}")
 
 target_sources(Luthier PRIVATE ${LUTHIER_SOURCES})

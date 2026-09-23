@@ -88,7 +88,18 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       primes around it.
 - [ ] 8. `StrumGesture` (RHYTHM STRUM group), then `BassTechniques` (SLAP
       group, bass step grid).
-- [ ] 9. `PerformanceCapture`, then the NOTATION tab.
+- [ ] 9. `PerformanceCapture`, then the NOTATION tab. Done: the capture
+      (assistant-built `Source/Capture`, 20 CaptureTests) is wired into the
+      processor - clocked from the host each block, fed from the engine's
+      string activity, drained at 10 Hz with its tuning kept current - and
+      the NOTATION tab (`NotationPanel`, `NotationPanelTests`): capture
+      state, live tab (bars, density, scroll speed), chord history, export of
+      MusicXML / Guitar Pro / ASCII / MIDI with range, quantise, per-format
+      options and preview; header "Export notation...". Remaining: techniques
+      in the capture (it reads string activity, which has string and fret but
+      not technique - the engine hook from triggerNote the capture's header
+      describes), marked-region range, the fretboard tablature dots (3), Mono
+      mode offline chord extraction (4).
 - [ ] 10. MIDI export profiles (`midi-export.md`), then the MIDI OUT tab.
       Model done and green (`Source/Export`, `MidiExportTests`: per-string
       export, Luthier / generic profiles, live MIDI out, round-trip null of

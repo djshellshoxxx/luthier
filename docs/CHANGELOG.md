@@ -43,6 +43,12 @@ numbered, because what it should be called is a release decision.
   out of tune, panned away from the original, with a mirror-image second take
   in stereo, and its own tone filters. It replaces the old Doubler switch
   (which sat after the cabinet); presets that used it get the pedal.
+- **The NOTATION tab** (`notation-export.md`) - everything you play is kept
+  (the last ten minutes by default, or arm a deliberate take) as what the
+  guitar actually played - string and fret - and shown as scrolling tab with
+  the chord changes. Export it as MusicXML, Guitar Pro, ASCII tab or MIDI,
+  whole or the last few seconds, optionally quantised, with a preview; also
+  from the header menu.
 - **The guitar-shop look** (`proposals/visual-polish.md` 6) - rosewood,
   walnut and brass, bell knobs, mini toggles, engraved plates, Lato and Bebas
   Neue. The colourblind, High-contrast and Light palettes now actually apply.

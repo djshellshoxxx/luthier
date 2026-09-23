@@ -411,3 +411,14 @@ chosen") and `ambiguity-resolutions.md`.
   runs in the suite (`Trademarks.sourceTreeHasNoUnmarkedBrandNames`); it had
   six unmarked hits in the retired-preset list that the script, run by hand,
   had not been run to catch.
+- **The performance capture is fed from the engine's string activity** until
+  the engine reports from triggerNote / applyNoteOff (notation-export 6.1
+  wants techniques too): activity has the string and fret the voicer chose
+  but not the technique, so captured notes carry no technique marks yet
+  (TODO 9). It is clocked per block from the host play-head (6.4) and drained
+  by the processor's own 30 Hz timer every third tick (6.2's 10 Hz), which
+  also re-sends the tuning when the guitar, tuning or capo changes. Rolling is
+  the default state (6.3). The NOTATION tab's scroll speed is how often the
+  live tab follows (1, ~3 or 10 Hz; Freeze stops), and MIDI export from it
+  goes through the MIDI OUT profile rather than NotationExporter's own
+  writer, so there is one MIDI path.

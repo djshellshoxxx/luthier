@@ -7,6 +7,7 @@
 #include "Presets/PresetManager.h"
 #include "Support/MidiLearn.h"
 #include "Support/MidiCapture.h"
+#include "Capture/PerformanceCapture.h"
 #include "Support/AudioExporter.h"
 #include "Support/Diagnostics.h"
 #include "Routing/RoutingMatrix.h"
@@ -80,6 +81,14 @@ public:
     PresetManager&      getPresetManager() noexcept { return presets; }
     MidiLearnManager&   getMidiLearn() noexcept     { return midiLearn; }
     MidiCapture&        getMidiCapture() noexcept   { return midiCapture; }
+
+    /** notation-export.md 6: what the engine played, voiced, for the NOTATION
+        tab, the live TAB view and notation / MIDI export. */
+    PerformanceCapture& getPerformanceCapture() noexcept { return performanceCapture; }
+
+    /** Drains the capture and keeps its tuning current (10 Hz on the message
+        thread; tests call it directly). */
+    void drainPerformanceCapture();
     AudioExporter&      getExporter() noexcept      { return exporter; }
     Diagnostics&        getDiagnostics() noexcept   { return diagnostics; }
     RoutingMatrix&      getRouting() noexcept        { return routing; }
@@ -433,6 +442,11 @@ private:
     PresetManager presets;
     MidiLearnManager midiLearn;
     MidiCapture midiCapture;
+    PerformanceCapture performanceCapture;
+    std::array<int, kMaxStrings> captureOpenNotes {};
+    int captureStringCount = -1, captureCapo = -1;
+    juce::uint32 captureCapoMask = 0;
+    int captureDrainTick = 0;
     AudioExporter exporter;
     Diagnostics diagnostics;
     RoutingMatrix routing;

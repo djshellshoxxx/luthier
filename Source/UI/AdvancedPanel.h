@@ -38,6 +38,7 @@ namespace luthier
 class LuthierAudioProcessor;
 class ControllersPage;
 class MidiOutPanel;
+class NotationPanel;
 
 //==============================================================================
 /** One row of the string list. */
@@ -280,6 +281,7 @@ private:
         in every other Options page. */
     std::unique_ptr<ControllersPage> controllersPage;
     std::unique_ptr<MidiOutPanel> midiOutPanel;
+    std::unique_ptr<NotationPanel> notationPanel;
 
     std::unique_ptr<LuthierChoice> bridgeType;
     std::unique_ptr<LuthierKnob> whammyPos, whammyDown, whammyUp, whammySprings, transposeLock;
