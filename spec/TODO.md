@@ -51,10 +51,12 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
         pulled forward to follow G.
       New pieces, per `spec/proposals/visual-polish.md`: photographic
       materials on the guitar (1), amp and pedal faces (2), knob caps on those
-      faces (3, needs theme.md owner's agreement), tube glow / VU meter /
-      room light (4), user and follow-the-guitar accent colour (5, needs
-      agreement; finish the Light and High-contrast palettes first if they
-      are not built). No motion/transition work - declined by the user.
+      faces (3), tube glow / VU meter / room light (4), user and
+      follow-the-guitar accent colour (5), and **the Luthier guitar-shop theme
+      (7) replacing theme.md's futuristic look for this plugin** - warm wood
+      palette, brass accent, vintage display type, amp-style knobs and mini
+      toggles. All approved by the user. Do the theme (7) first: the other
+      pieces are drawn in its palette. No motion/transition work - declined.
 
 - [ ] 2e. **Easy Mode layout per gui-integration.md 3**: the build has the
       older three-band layout. Missing: the 280 px RIG STRIP (guitar circuit

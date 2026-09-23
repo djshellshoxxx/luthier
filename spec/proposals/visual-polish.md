@@ -1,6 +1,9 @@
 # VISUAL POLISH PROPOSAL
 
-Status: **proposed, approved in principle by the user (2026-09-23)**. Written
+Status: **approved by the user (2026-09-23)**, including the knob caps (3)
+and the accent colour (5), and with a wider change the user asked for: this
+plugin replaces `theme.md`'s shared futuristic look with its own
+guitar-shop theme (section 7). Written
 as a proposal because `CLAUDE_CODE_BRIEF.md` says features not in the spec go
 to a proposal file before they go into code. Each section below is a
 separate piece of work; none of them changes the sound.
@@ -10,9 +13,11 @@ several of these share its rendering helpers (lighting, materials).
 
 ## 0. Ground rules
 
-1. **`theme.md` still governs.** Colours, type, control geometry and the
-   value-arc conventions do not change. Everything here is surface and
-   material, drawn inside the shapes `theme.md` fixes.
+1. **Section 7 replaces `theme.md` for Luthier.** `theme.md` is the house
+   style shared with the other plugins and is left unchanged for them; for
+   this plugin, where section 7 says something different, section 7 wins.
+   What section 7 does not mention (layout grid, spacing, the value arc's
+   role, the output LED, the data stream) still comes from `theme.md`.
 2. **Accessibility is not traded for looks.** Every textured surface keeps
    `accessibility.md`'s 4.5:1 text contrast on all three palettes (Default,
    High contrast, Light), and High contrast turns textures and sheen off.
@@ -68,8 +73,9 @@ top-hat, speed knob, witch-hat - while keeping `theme.md`'s value arc,
 indicator colour and hit area, so reading a value works the same
 everywhere. Every other panel keeps the standard knob.
 
-This is a deliberate, scoped exception to `theme.md` and needs the spec
-owner's agreement before it is built.
+Approved. With section 7's theme the exception widens: the model-specific
+caps are used on the amp and pedal faces, and section 7's standard knob is
+used everywhere else.
 
 ## 4. Stage and ambient touches
 
@@ -99,16 +105,75 @@ New:
 - **Follow the guitar**: an option that takes the accent from the current
   guitar's finish colour, adjusted to meet contrast.
 
-`theme.md` says a plugin re-tints only one accent for its identity; a
-user-chosen accent is a user preference layered on top of that identity,
-not a change to it. Needs the spec owner's agreement, as 3 does.
+Approved. The default accent is section 7's, not `theme.md`'s burnt orange.
 
-## 6. Tests
+## 7. The Luthier theme (replaces `theme.md`'s look for this plugin)
+
+`theme.md` gives every plugin in the family the same dark, futuristic
+styling. Luthier is an instrument rather than a studio tool, and the user
+has asked for it to look like one: a guitar shop and a workbench rather
+than a control room. **This section is a starting direction for review**;
+the exact values are to be tuned against rendered screenshots.
+
+### 7.1 Palette
+
+Warm and wooden instead of blue-black and neon:
+
+| Role | Default palette | Replaces |
+|---|---|---|
+| Window background | Dark rosewood brown, around #1E1511 | #0E1116 blue-black |
+| Panel | Dark walnut, around #2A1E17, with a faint wood grain | flat panel grey |
+| Raised surface | Tolex black with a subtle texture | flat raised grey |
+| Primary text | Warm ivory, around #EFE3CC (aged cream plastic) | cool white |
+| Muted text | Parchment tan, around #B9A58A | cool grey |
+| Primary accent | Aged brass / amber, around #D4A24C | burnt orange #E8532A |
+| Secondary accent | Vintage green-teal of old amp jewel lights, around #6FA58A | muted teal |
+| Warning | Tube-glow orange-red | unchanged role |
+
+Light palette: maple and cream (a blonde guitar and a tweed amp). High
+contrast: unchanged from `accessibility.md`, with textures off. Every pair
+still meets 4.5:1 for text.
+
+### 7.2 Type
+
+- Headings: a condensed vintage display face in the style of 1950s-60s amp
+  and guitar logos (an open-licence font, shipped with the plugin).
+- Body and labels: a clean, slightly warm sans for readability.
+- Numbers: tabular figures, as now.
+- Section headers: engraved-plate style (text on a small brass or ivory
+  plate) instead of the accent bar.
+
+### 7.3 Controls
+
+- **Standard knob**: a black "bell" or dome amp knob with a cream or brass
+  pointer line and a small skirt, with `theme.md`'s value arc kept outside
+  it (the arc is how values are read and marked for advanced ranges).
+- **Toggles**: mini toggle switches (the kind on a guitar or amp) for
+  on/off; pill buttons stay for tab strips and mode switches.
+- **Sliders**: fader-style with a brass cap.
+- **Panels**: framed like a cabinet or a pedalboard - a slightly raised
+  border with corner screws on the larger ones - not flat cards.
+
+### 7.4 Brand mark
+
+The diagonal accent notch becomes a small inlaid headstock outline in
+brass. The output LED stays (it is a function, not styling).
+
+### 7.5 What does not change
+
+Layout, column widths, the value arc's meaning and advanced-range
+marking, hit areas, keyboard focus rings (restyled to the new accent, still
+visible), and every accessibility rule.
+
+## 8. Tests
 
 - Every textured or lit surface renders identically twice (cached, not
   regenerated per frame).
 - High-contrast palette: no gradients, sheen or textures present.
 - Contrast: every accent option on every palette meets 4.5:1 for text.
 - Standby off/on and bypass on/off change the pilot light and pedal LEDs.
+- Theme: every palette's text pairs meet 4.5:1 (automated), and the
+  standard knob, toggle and slider render in all three palettes (PNG
+  renders reviewed by eye).
 - Performance: opening the Advanced window with every face visible stays
   inside `performance-budget.md`'s UI frame budget.

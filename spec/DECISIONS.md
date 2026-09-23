@@ -165,3 +165,10 @@ chosen") and `ambiguity-resolutions.md`.
 - **Magnet pull**: sustain x 1/(1 + 0.09 P), pitch -0.9 P cents, P the sum of
   pull x (damping/0.032) x (2.5 mm / height)^2 over the pickups - puts a close
   ceramic at ~25% shorter sustain and a few cents flat.
+- **2026-09-23 (user): Luthier gets its own guitar-shop theme, overriding
+  `theme.md` for this plugin only.** `theme.md` is the shared house style of
+  the plugin family and is left unchanged for the others;
+  `spec/proposals/visual-polish.md` section 7 wins where it differs, and
+  `theme.md` still supplies layout, spacing and the value arc's role. The
+  user also approved model-specific knob caps and a user/follow-the-guitar
+  accent colour.
