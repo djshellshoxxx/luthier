@@ -117,7 +117,13 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       Residual: a brand-new engine's
       first 7-string render after a 6-string one differs from the next by
       ~1e-4 peak (about -80 dB) from ~27 ms in; under the bar, not yet found.
-- [ ] 11. `PracticeRoutines` and the PRACTICE tab.
+- [ ] 11. `PracticeRoutines` and the PRACTICE tab. Model done and in the
+      build (assistant-built `Source/Practice/PracticeRoutine*`, 18
+      PracticeRoutine tests): routines and runner, progress stats, defaults,
+      library, session-recorder setup, count-ins, loop regions, speed
+      trainer. Remaining: the PRACTICE tab (assistant building
+      `PracticeSetupPanel`), and the processor hooks (activity tracking, the
+      runner driving the drawer).
 - [ ] 12. Tune Builder (`tune-builder.md`) and the TUNE tab. Model done
       (`Source/Tune`, `TuneBuilderTests`, d284547). Remaining: the TUNE tab.
 - [ ] 13. HELP tab (column 4).
