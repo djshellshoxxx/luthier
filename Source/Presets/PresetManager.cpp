@@ -382,6 +382,10 @@ juce::var PresetManager::toVar (const juce::String& name,
         mean anything - see the ordering note in fromVar. */
     root->setProperty ("ranges", ranges.toVar());
 
+    // guitar-workshop.md 8: which guitar, and the whole guitar if it was edited.
+    if (captureGuitarBlock != nullptr)
+        root->setProperty ("guitar", captureGuitarBlock());
+
     // ---- per-string extras ----------------------------------------------------
     auto* strings = new juce::DynamicObject();
 
@@ -631,6 +635,10 @@ bool PresetManager::fromVar (const juce::var& data)
                 interp.setCcTarget (cc, (MidiTarget) target);
         }
     }
+
+    // Last, so the guitar type parameter it may depend on has its new value.
+    if (onGuitarBlockLoaded != nullptr)
+        onGuitarBlockLoaded (obj->getProperty ("guitar"));
 
     currentName = obj->getProperty ("name").toString();
     currentCategory = obj->getProperty ("category").toString();
@@ -1025,6 +1033,10 @@ void PresetManager::resetToDefaults()
 
     engine.getMidiInterpreter().resetCcMapToDefaults();
     applyExtraState();
+
+    // The default guitar type's factory guitar, as shipped, under the defaults.
+    if (onGuitarBlockLoaded != nullptr)
+        onGuitarBlockLoaded ({});
 
     currentName = "Init";
     currentCategory = "User";

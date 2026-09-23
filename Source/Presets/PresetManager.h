@@ -62,6 +62,14 @@ public:
     struct LegacyPlacement { bool present = false; double positionFraction = 0.13; double heightMm = 2.5; };
     std::array<LegacyPlacement, 3> takeLegacyPickupPlacements();
 
+    /*  file-formats.md 2 / guitar-workshop.md 8: the preset's `guitar` block,
+        `{ "reference": ..., "override": ... }`. The guitar is the processor's,
+        so it supplies the block on save and is handed it at the end of every
+        load, after the parameters (void for a preset saved before the
+        Workshop). Message thread. */
+    std::function<juce::var()> captureGuitarBlock;
+    std::function<void (const juce::var&)> onGuitarBlockLoaded;
+
     /** Deletes backups older than kBackupRetentionDays. Called once on startup. */
     static void pruneOldBackups();
 

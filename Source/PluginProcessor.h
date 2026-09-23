@@ -203,7 +203,36 @@ public:
         the guitar that is playing. Missing-part and compatibility messages go
         to the notification queue and the error log. */
     void applyGuitar (const WorkshopGuitar& guitar, GuitarType standsFor,
-                      const PartLibrary::LoadReport& report);
+                      const PartLibrary::LoadReport& report, bool writeParameters = true);
+
+    /*  guitar-workshop.md 8: the Workshop's edits. The edited guitar becomes
+        the instrument and, until it is saved as a file, travels whole in the
+        preset's `guitar.override`. */
+    void applyEditedGuitar (const WorkshopGuitar& guitar);
+
+    /*  guitar-workshop.md 6 (Ctrl+G): writes the current guitar to the user
+        guitars folder by reference - or with its parts alongside when
+        `bundleParts` is set, for sharing - and points the preset at the new
+        file. Returns the file, or an empty File if the write failed. */
+    juce::File saveGuitarAs (const juce::String& name, bool bundleParts = false);
+
+    /*  guitar-workshop.md 7: saves a fitted part's current fields as a user
+        part under `name`, rescans the library and fits the saved part in its
+        slot. Returns the saved part, or nullptr if the slot is empty or the
+        write failed. */
+    PartPtr savePartAs (GuitarSlot slot, const juce::String& name);
+
+    /** The preset's `guitar` block for the current guitar (file-formats.md 2). */
+    juce::var getGuitarBlock() const;
+
+    /** "Factory/<Family>/<Name>.luthierguitar" or "User/<Name>.luthierguitar". */
+    const juce::String& getGuitarReference() const noexcept { return guitarReference; }
+
+    /** The file the reference resolves to, or an empty File. */
+    juce::File getGuitarFile() const { return resolveGuitarReference (guitarReference); }
+
+    /** True if the guitar was edited since it was loaded or saved. */
+    bool isGuitarEdited() const noexcept { return ! guitarOverride.isVoid(); }
 
     /** The notices applyGuitar raised since the last call (gui-integration 15). */
     juce::StringArray takeGuitarNotices();
@@ -423,12 +452,37 @@ private:
 
     // The guitar as parts (guitar-workshop.md).
     bool loadGuitarForType (GuitarType type);
+    bool loadGuitarFrom (const juce::String& reference, const juce::var& override,
+                         GuitarType type, bool writeParameters);
     void writeGuitarParameters (const DerivedAcoustics& derived);
+
+    /*  A state load hands over its `guitar` block here; the guitar is then
+        loaded (or kept) by loadGuitarForType when the bridge next applies. */
+    void takeGuitarBlock (const juce::var& block);
+
+    /** Resolves a preset's reference to a guitar file: user, then factory. */
+    static juce::File resolveGuitarReference (const juce::String& reference);
 
     PartLibrary partLibrary;
     WorkshopGuitar currentGuitar;
     bool partsGuitarLoaded = false;
     juce::StringArray guitarNotices;
+
+    /*  What the guitar is (file-formats.md 2): a reference to a guitar file,
+        plus the whole guitar when it has been edited since. `guitarSourceType`
+        is the guitar-type value this source goes with; the type moving away
+        from it means the user picked another factory guitar. The key names
+        what the engine has, so reapplying the same source is free and does
+        not overwrite the parameters that refine it. */
+    juce::String guitarReference;
+    juce::var guitarOverride;
+    int guitarSourceType = -1;
+    juce::String loadedGuitarKey;
+
+    /*  Set by a state load: its parameters were saved alongside this guitar
+        and are the refinements to keep, so the load must not overwrite them
+        with the guitar's own values. */
+    bool guitarParametersFromState = false;
 
     /*  live-performance 2: a program change or bank select arrives on the audio
         thread, but acting on either can allocate - a snapshot recall walks the

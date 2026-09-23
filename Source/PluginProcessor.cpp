@@ -62,6 +62,8 @@ LuthierAudioProcessor::LuthierAudioProcessor()
         ErrorLog::write (ErrorLog::Severity::warn, "Workshop", "PART_UNREADABLE", error);
 
     bridge.onLoadGuitarType = [this] (GuitarType type) { return loadGuitarForType (type); };
+    presets.captureGuitarBlock = [this] { return getGuitarBlock(); };
+    presets.onGuitarBlockLoaded = [this] (const juce::var& block) { takeGuitarBlock (block); };
     presets.ensureFactoryPresetsInstalled();
     presets.refresh();
 
@@ -306,33 +308,142 @@ juce::String LuthierAudioProcessor::getFactoryGuitarPath (GuitarType type)
     }
 }
 
+juce::File LuthierAudioProcessor::resolveGuitarReference (const juce::String& reference)
+{
+    if (reference.isEmpty())
+        return {};
+
+    // file-formats.md 2 writes "Factory/..." or "User/..."; the origin is a
+    // hint, not a rule - a user guitar of the same name wins, as a part does.
+    auto relative = reference;
+
+    for (const auto* prefix : { "Factory/", "User/" })
+        if (relative.startsWithIgnoreCase (prefix))
+            relative = relative.substring ((int) std::strlen (prefix));
+
+    for (const auto& root : { PartLibrary::getUserGuitarsFolder(), PartLibrary::getFactoryGuitarsFolder() })
+    {
+        const auto file = root.getChildFile (relative);
+
+        if (file.existsAsFile())
+            return file;
+    }
+
+    // A user guitar saved flat, referenced with its family folder, or the reverse.
+    const auto flat = PartLibrary::getUserGuitarsFolder().getChildFile (relative.fromLastOccurrenceOf ("/", false, false));
+    return flat.existsAsFile() ? flat : juce::File();
+}
+
+void LuthierAudioProcessor::takeGuitarBlock (const juce::var& block)
+{
+    const auto type = (int) apvts.getRawParameterValue (ParamIDs::guitarType)->load();
+
+    juce::String reference;
+    juce::var override;
+
+    if (auto* object = block.getDynamicObject())
+    {
+        reference = object->getProperty ("reference").toString();
+
+        if (object->getProperty ("override").getDynamicObject() != nullptr)
+            override = object->getProperty ("override");
+    }
+
+    // A preset saved before the Workshop names its guitar by type only.
+    if (reference.isEmpty() && override.isVoid())
+    {
+        const auto path = getFactoryGuitarPath ((GuitarType) type);
+        reference = path.isNotEmpty() ? "Factory/" + path : juce::String();
+    }
+
+    guitarReference = reference;
+    guitarOverride = override;
+    guitarSourceType = type;
+    guitarParametersFromState = true;
+}
+
+juce::var LuthierAudioProcessor::getGuitarBlock() const
+{
+    auto* block = new juce::DynamicObject();
+    block->setProperty ("reference", guitarReference);
+    block->setProperty ("override", guitarOverride.isVoid() ? juce::var() : guitarOverride);
+    return juce::var (block);
+}
+
 bool LuthierAudioProcessor::loadGuitarForType (GuitarType type)
 {
-    const auto path = getFactoryGuitarPath (type);
+    // The bridge asks on every full apply; only a new source loads anything.
+    const bool writeParameters = ! std::exchange (guitarParametersFromState, false);
 
-    if (path.isEmpty())
-        return false;
-
-    const auto file = PartLibrary::getFactoryGuitarsFolder().getChildFile (path);
-
-    if (! file.existsAsFile())
+    if ((int) type != guitarSourceType)
     {
-        // No factory content installed: the compiled guitar stands in, and the
-        // log says why the instrument is not the parts one.
-        ErrorLog::write (ErrorLog::Severity::warn, "Workshop", "FACTORY_GUITAR_MISSING",
-                         "Factory guitar " + path + " is not installed; using the built-in instrument.");
-        return false;
+        // The user picked a guitar type: its factory file, as shipped.
+        const auto path = getFactoryGuitarPath (type);
+        guitarReference = path.isNotEmpty() ? "Factory/" + path : juce::String();
+        guitarOverride = juce::var();
+        guitarSourceType = (int) type;
     }
+
+    return loadGuitarFrom (guitarReference, guitarOverride, type, writeParameters);
+}
+
+bool LuthierAudioProcessor::loadGuitarFrom (const juce::String& reference, const juce::var& override,
+                                            GuitarType type, bool writeParameters)
+{
+    const auto key = override.isVoid() ? reference
+                                       : reference + "|" + juce::String (juce::JSON::toString (override, true).hashCode64());
+
+    if (partsGuitarLoaded && key == loadedGuitarKey && (int) engine.getGuitarType() == (int) type)
+        return true;
 
     WorkshopGuitar guitar;
     PartLibrary::LoadReport report;
+    bool built = false;
 
-    if (! partLibrary.loadGuitar (file, guitar, report))
-        return false;
+    // 8: the override wins, and needs no files at all.
+    if (! override.isVoid())
+        built = partLibrary.buildGuitar (override, guitar, report);
+
+    if (! built)
+    {
+        auto file = resolveGuitarReference (reference);
+
+        if (! file.existsAsFile())
+        {
+            const auto path = getFactoryGuitarPath (type);
+
+            if (path.isEmpty())
+                return false;
+
+            file = PartLibrary::getFactoryGuitarsFolder().getChildFile (path);
+
+            if (! file.existsAsFile())
+            {
+                // No factory content installed: the compiled guitar stands in, and the
+                // log says why the instrument is not the parts one.
+                ErrorLog::write (ErrorLog::Severity::warn, "Workshop", "FACTORY_GUITAR_MISSING",
+                                 "Factory guitar " + path + " is not installed; using the built-in instrument.");
+                return false;
+            }
+
+            if (reference.isNotEmpty())
+            {
+                // error-recovery.md: the preset loads, on its type's factory guitar.
+                const auto message = "Guitar " + reference.fromLastOccurrenceOf ("/", false, false)
+                                       .upToLastOccurrenceOf (".", false, false)
+                                   + " not found, using the factory " + GuitarLibrary::getName (type);
+                report.missing.add (message);
+            }
+        }
+
+        if (! partLibrary.loadGuitar (file, guitar, report))
+            return false;
+    }
 
     // An old preset's pickup position and height parameters become this
     // guitar's placements (guitar-workshop.md 9's migration).
     const auto legacy = presets.takeLegacyPickupPlacements();
+    bool migrated = false;
 
     for (int engineSlot = 0; engineSlot < (int) legacy.size(); ++engineSlot)
     {
@@ -355,24 +466,126 @@ bool LuthierAudioProcessor::loadGuitarForType (GuitarType type)
 
                 placement.positionMm = legacy[(size_t) engineSlot].positionFraction * scale;
                 placement.heightTrebleMm = placement.heightBassMm = legacy[(size_t) engineSlot].heightMm;
+                migrated = true;
                 break;
             }
         }
     }
 
-    applyGuitar (guitar, type, report);
+    // The migrated placements are an edit of the file's guitar; the preset
+    // keeps them by carrying the guitar whole.
+    if (migrated)
+        guitarOverride = guitar.toEmbeddedVar();
+
+    applyGuitar (guitar, type, report, writeParameters);
+
+    loadedGuitarKey = guitarOverride.isVoid() ? reference
+                                              : reference + "|" + juce::String (juce::JSON::toString (guitarOverride, true).hashCode64());
     return true;
 }
 
+void LuthierAudioProcessor::applyEditedGuitar (const WorkshopGuitar& guitar)
+{
+    guitarOverride = guitar.toEmbeddedVar();
+    guitarSourceType = (int) engine.getGuitarType();
+
+    applyGuitar (guitar, engine.getGuitarType(), {}, true);
+
+    loadedGuitarKey = guitarReference + "|" + juce::String (juce::JSON::toString (guitarOverride, true).hashCode64());
+    presets.markModified();
+}
+
+juce::File LuthierAudioProcessor::saveGuitarAs (const juce::String& name, bool bundleParts)
+{
+    const auto safeName = juce::File::createLegalFileName (name.trim());
+
+    if (safeName.isEmpty() || ! partsGuitarLoaded)
+        return {};
+
+    auto guitar = currentGuitar;
+    guitar.name = name.trim();
+
+    const auto folder = PartLibrary::getUserGuitarsFolder();
+    folder.createDirectory();
+
+    const auto file = folder.getChildFile (safeName + WorkshopGuitar::kExtension);
+
+    if (! guitar.save (file))
+    {
+        ErrorLog::write (ErrorLog::Severity::warn, "Workshop", "GUITAR_SAVE_FAILED",
+                         "Could not write " + file.getFullPathName());
+        return {};
+    }
+
+    /*  6: "Bundle parts" writes the referenced parts beside the guitar, in
+        their category folders, so the folder is shareable on its own. */
+    if (bundleParts)
+    {
+        const auto bundle = folder.getChildFile (safeName + " parts");
+
+        for (const auto& part : guitar.parts)
+            if (part != nullptr)
+                part->save (bundle.getChildFile (getPartCategoryFolder (part->type))
+                                  .getChildFile (juce::File::createLegalFileName (part->name) + Part::kExtension));
+    }
+
+    currentGuitar = guitar;
+    guitarReference = "User/" + file.getFileName();
+    guitarOverride = juce::var();
+    loadedGuitarKey = guitarReference;
+    presets.markModified();
+    return file;
+}
+
+PartPtr LuthierAudioProcessor::savePartAs (GuitarSlot slot, const juce::String& name)
+{
+    const auto fitted = currentGuitar.get (slot);
+    const auto safeName = juce::File::createLegalFileName (name.trim());
+
+    if (fitted == nullptr || safeName.isEmpty())
+        return nullptr;
+
+    auto part = std::make_shared<Part> (*fitted);
+    part->name = name.trim();
+    part->isFactory = false;
+    part->isCategoryDefault = false;
+
+    const auto file = PartLibrary::getUserPartsFolder()
+                        .getChildFile (getPartCategoryFolder (part->type))
+                        .getChildFile (safeName + Part::kExtension);
+
+    if (! part->save (file))
+    {
+        ErrorLog::write (ErrorLog::Severity::warn, "Workshop", "PART_SAVE_FAILED",
+                         "Could not write " + file.getFullPathName());
+        return nullptr;
+    }
+
+    partLibrary.refresh();
+
+    auto saved = partLibrary.find (part->type, part->name);
+
+    if (saved == nullptr)
+        return nullptr;
+
+    // The guitar now names the saved part, so it is no longer an unsaved edit of it.
+    auto guitar = currentGuitar;
+    guitar.parts[(size_t) slot] = saved;
+    applyEditedGuitar (guitar);
+    return saved;
+}
+
 void LuthierAudioProcessor::applyGuitar (const WorkshopGuitar& guitar, GuitarType standsFor,
-                                         const PartLibrary::LoadReport& report)
+                                         const PartLibrary::LoadReport& report, bool writeParameters)
 {
     currentGuitar = guitar;
     partsGuitarLoaded = true;
 
     const auto derived = mapSpec (guitar);
     engine.applyWorkshopGuitar (derived, standsFor);
-    writeGuitarParameters (derived);
+
+    if (writeParameters)
+        writeGuitarParameters (derived);
 
     // gui-integration 15's missing-part banner, and the log (error-recovery.md).
     for (const auto& message : report.missing)
