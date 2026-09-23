@@ -1126,7 +1126,7 @@ void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool ge
         host-written change with the host's own undo. A gesture arriving from
         anywhere but the message thread is not the plugin's UI, and
         captureStateBlock is not safe to call off it in any case. */
-    if (! juce::MessageManager::existsAndIsCurrentThread())
+    if (! juce::MessageManager::existsAndIsCurrentThread() || gestureUndoSuppressed)
     {
         gestureParameterIndex = -1;
         return;

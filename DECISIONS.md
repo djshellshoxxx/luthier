@@ -102,3 +102,9 @@ chosen") and `ambiguity-resolutions.md`.
   (~30 dB under the note) and a squeak (20-30 dB under) through the engine.
 - **Engine reset restarts the noise event sequence**, so the same performance
   from the same start is sample-identical (the preset round-trip test).
+- **The CHARACTER tab's winding selector edits `string_material` directly** until
+  the Workshop exists; string-squeak.md 9 says it mirrors the Workshop's string
+  part and should edit that part once guitar-workshop lands.
+- **Multi-parameter actions are one undo step** via
+  `LuthierAudioProcessor::ScopedUndoAction`, which suppresses per-gesture undo
+  entries while it lives. Found when undoing a squeak style reverted one value.

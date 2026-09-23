@@ -10,11 +10,12 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## In progress
 
-- [ ] **3. Noise** — pool, pick click/chirp/scrape and squeak engine done
-      (3a-c). Next: 3e CHARACTER tab PICK and STRING NOISE groups (squeak
-      style presets incl. "Natural (modified)", material mirror, noise-event
-      strip at 30 Hz greying after 2 s, tab padlock), then 4 setup/buzz.
-      Also: a way to fire pick scrape (MIDI event class / Easy rake gesture).
+- [ ] **4. Setup geometry and fret buzz** (`fret-buzz.md`) — next: 16 params,
+      block-rate buzz sensing into the NoiseEngine buzz pool, sitar mode,
+      SETUP group on CHARACTER with the live buzz heatmap. Reconcile with the
+      existing `fret_action` / `fret_buzz` parameters.
+- [ ] 3f. A way to fire pick scrape (midi-export `pick_scrape` class / Easy rake
+      gesture); the engine API `triggerPickScrape` exists.
 
 ## Remaining
 
@@ -34,11 +35,6 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       path, Adv Col 3 SUSTAIN feedback row). Currently a heuristic.
 - [ ] 2d. Audit the rest of `ambiguity-resolutions.md` against the build
       (brief step 4).
-- [ ] 3. `NoiseEngine` pool, then `PickModel`, `SqueakModel`, buzz sensing
-      (`pick-noise.md`, `string-squeak.md`, `fret-buzz.md`); CHARACTER PICK /
-      STRING NOISE groups; noise-event strip; Aux 8 noise bus row. CHARACTER
-      tab-header padlock (gui-integration 21) via `RangesUi::drawPadlock`.
-- [ ] 4. `SetupGeometry` (`fret-buzz.md`).
 - [ ] 5. `SlideEngine` (`slide-guitar.md`), Slide mode.
 - [ ] 6. `PartLibrary` and `mapSpec` (`guitar-workshop.md`, `part-acoustics.md`),
       `.luthierguitar` / `.luthierpart` files, partial capo.
@@ -65,6 +61,10 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 - [ ] 18. Plugin targets (`Luthier_VST3`, `Luthier_Standalone`) build clean.
 
 ## Done
+
+- [x] 3. NoiseEngine pool; pick click/chirp/scrape; finger squeak; CHARACTER
+      tab STRING NOISE and PICK groups with style presets, noise-event strip
+      and the tab padlock. (Aux 8 is 2f; scrape trigger is 3f.)
 
 - [x] 2. `GuitarCircuit` replacing `CableSim`; 11 circuit params in the
       `circuit` family; CIRCUIT panel with live response view and standard-value

@@ -253,6 +253,29 @@ public:
     void setSlotBActive (bool b);
 
     void pushUndoState (const juce::String& description);
+
+    /*  One undo step for an action that writes several parameters (a style
+        preset, a snapshot of values). Pushes the entry, then stops each
+        write's change gesture from pushing its own until it goes out of
+        scope - otherwise undo would reverse only the last write. */
+    class ScopedUndoAction
+    {
+    public:
+        ScopedUndoAction (LuthierAudioProcessor& p, const juce::String& description)
+            : processor (p), wasSuppressed (p.gestureUndoSuppressed)
+        {
+            processor.pushUndoState (description);
+            processor.gestureUndoSuppressed = true;
+        }
+
+        ~ScopedUndoAction() { processor.gestureUndoSuppressed = wasSuppressed; }
+
+    private:
+        LuthierAudioProcessor& processor;
+        bool wasSuppressed;
+
+        JUCE_DECLARE_NON_COPYABLE (ScopedUndoAction)
+    };
     bool canUndo() const noexcept { return undoPosition >= 0; }
     bool canRedo() const noexcept { return undoPosition + 1 < undoStack.size(); }
     void undo();
@@ -470,6 +493,8 @@ private:
     };
 
     void addUndoEntry (UndoEntry&& entry);
+
+    bool gestureUndoSuppressed = false;
 
     juce::Array<UndoEntry> undoStack;
     int undoPosition = -1;

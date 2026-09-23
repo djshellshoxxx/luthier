@@ -101,6 +101,31 @@ namespace RangesUi
 
         void paintButton (juce::Graphics&, bool highlighted, bool down) override;
     };
+
+    /*  A workspace tab whose panel holds physical parameters (gui-integration
+        21, advanced-ranges.md 6.1): a padlock in the tab header while the
+        preset has any of its families unlocked or any of its values outside
+        stock - secondary accent when unlocked, muted when locked. */
+    class RangeTabButton : public juce::TextButton,
+                           private juce::Timer
+    {
+    public:
+        RangeTabButton (const juce::String& name, LuthierAudioProcessor& processor,
+                        juce::Array<RangeFamily> families);
+        ~RangeTabButton() override;
+
+        void paintButton (juce::Graphics&, bool highlighted, bool down) override;
+
+        /** 0 no padlock, 1 muted (locked, values outside), 2 unlocked. */
+        int getPadlockState() const;
+
+    private:
+        void timerCallback() override;
+
+        LuthierAudioProcessor& processor;
+        juce::Array<RangeFamily> families;
+        int shownState = 0;
+    };
 }
 
 } // namespace luthier

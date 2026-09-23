@@ -1,5 +1,6 @@
 #include "AdvancedPanel.h"
 #include "UiPreferences.h"
+#include "RangesUi.h"
 #include "OptionsPages.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
@@ -998,7 +999,18 @@ void AdvancedPanel::buildWorkspace()
 
     for (const auto& tab : tabs)
     {
-        auto* button = workspaceTabs.add (new juce::TextButton (tab.name));
+        // gui-integration 21: the tabs holding physical parameters carry a
+        // range padlock. WORKSHOP joins when it exists.
+        juce::TextButton* made = nullptr;
+
+        if (juce::String (tab.name) == "CHARACTER")
+            made = new RangesUi::RangeTabButton (tab.name, processor,
+                                                 { RangeFamily::pick, RangeFamily::squeak,
+                                                   RangeFamily::buzz, RangeFamily::slide });
+        else
+            made = new juce::TextButton (tab.name);
+
+        auto* button = workspaceTabs.add (made);
 
         button->setClickingTogglesState (true);
         button->setRadioGroupId (0x21);

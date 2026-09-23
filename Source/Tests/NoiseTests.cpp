@@ -12,6 +12,9 @@
 
 #include "../DSP/Noise/PlayingNoise.h"
 #include "../LuthierEngine.h"
+#include "../PluginProcessor.h"
+#include "../UI/NoiseGroups.h"
+#include "../UI/RangesUi.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -500,4 +503,73 @@ LUTHIER_TEST (Squeak, aShiftSitsTwentyToThirtyDecibelsUnderTheNote)
     CHECK_MSG (squeakPeak > 0.0, "the squeak never reached the output");
     CHECK_MSG (belowDb > 15.0 && belowDb < 35.0,
                "the squeak sits " + juce::String (belowDb, 1) + " dB under the note, not 20-30");
+}
+
+//==============================================================================
+LUTHIER_TEST (NoiseUi, squeakStylesApplyAndReadModified)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    NoiseGroups groups (processor);
+    groups.setSize (400, groups.preferredHeight());
+
+    // onboarding.md 1: the ship default is Natural with the amount at 0.25.
+    CHECK_MSG (groups.describeSqueakStyle() == "Natural (modified)",
+               "a fresh instance reads \"" + groups.describeSqueakStyle() + "\"");
+
+    groups.applySqueakStyle (4);
+    CHECK (groups.describeSqueakStyle() == "Exaggerated");
+
+    auto* amount = processor.getState().getParameter (ParamIDs::squeakAmount);
+    CHECK (std::abs (amount->getValue() - 1.0f) < 1.0e-4f);
+
+    // Moving one control marks the style modified; undo puts the style back.
+    amount->setValueNotifyingHost (0.5f);
+    CHECK (groups.describeSqueakStyle() == "Exaggerated (modified)");
+
+    processor.undo();
+    CHECK_MSG (groups.describeSqueakStyle() == "Natural (modified)",
+               "undo left the style as \"" + groups.describeSqueakStyle() + "\"");
+}
+
+LUTHIER_TEST (NoiseUi, theEventStripShowsWhatTheEngineTriggered)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    NoiseEventStrip strip (processor);
+    strip.setSize (300, NoiseEventStrip::preferredHeight);
+
+    CHECK (strip.pollNow() == 0);
+
+    NoiseEvent e;
+    e.level = 0.1;
+    e.noiseClass = NoiseClass::squeak;
+
+    for (int i = 0; i < 5; ++i)
+        processor.getEngine().getPlayingNoise().getPool().trigger (e);
+
+    CHECK_MSG (strip.pollNow() == 5, "the strip shows " + juce::String (strip.getNumShown()) + " of 5 events");
+    CHECK (! strip.isStale());
+}
+
+LUTHIER_TEST (NoiseUi, theCharacterTabCarriesAPadlockWhenUnlocked)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    RangesUi::RangeTabButton tab ("CHARACTER", processor, { RangeFamily::pick, RangeFamily::squeak });
+    CHECK (tab.getPadlockState() == 0);
+
+    RangeState unlocked;
+    unlocked.setFamilyAdvanced (RangeFamily::squeak, true);
+    processor.changeRanges (unlocked, "test");
+    CHECK (tab.getPadlockState() == 2);
+
+    // Unlocking the amp family is not the CHARACTER tab's business.
+    RangeState amp;
+    amp.setFamilyAdvanced (RangeFamily::amp, true);
+    processor.changeRanges (amp, "test");
+    CHECK (tab.getPadlockState() == 0);
 }

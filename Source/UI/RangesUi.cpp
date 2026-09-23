@@ -158,6 +158,64 @@ void PadlockButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
 }
 
 //==============================================================================
+RangeTabButton::RangeTabButton (const juce::String& name, LuthierAudioProcessor& p,
+                                juce::Array<RangeFamily> f)
+    : juce::TextButton (name), processor (p), families (std::move (f))
+{
+    startTimerHz (4);
+}
+
+RangeTabButton::~RangeTabButton()
+{
+    stopTimer();
+}
+
+int RangeTabButton::getPadlockState() const
+{
+    const auto& ranges = processor.getRanges();
+    auto& state = processor.getState();
+
+    bool unlocked = false, outside = false;
+
+    for (auto family : families)
+    {
+        unlocked = unlocked || ranges.isFamilyAdvanced (family);
+
+        for (const auto& id : RangeRegistry::idsInFamily (family))
+        {
+            unlocked = unlocked || ranges.isUnlockedIndividually (id);
+
+            if (auto* parameter = dynamic_cast<juce::AudioParameterFloat*> (state.getParameter (id)))
+                outside = outside || RangeRegistry::find (id)->isOutsideStock (parameter->get());
+        }
+    }
+
+    return unlocked ? 2 : (outside ? 1 : 0);
+}
+
+void RangeTabButton::timerCallback()
+{
+    const int now = getPadlockState();
+
+    if (now != shownState)
+    {
+        shownState = now;
+        repaint();
+    }
+}
+
+void RangeTabButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
+{
+    juce::TextButton::paintButton (g, highlighted, down);
+
+    if (shownState == 0)
+        return;
+
+    auto area = getLocalBounds().toFloat().removeFromRight (12.0f).withSizeKeepingCentre (9.0f, 11.0f);
+    drawPadlock (g, area, shownState == 2 ? Palette::secondary : Palette::textDisabled, shownState == 2);
+}
+
+//==============================================================================
 void resyncControls (juce::Component& root)
 {
     if (auto* knob = dynamic_cast<LuthierKnob*> (&root))

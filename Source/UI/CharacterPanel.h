@@ -16,6 +16,7 @@
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "NoiseGroups.h"
 #include "../Character/CharacterEngine.h"
 
 namespace luthier
@@ -144,6 +145,9 @@ private:
 
     // --- presets ------------------------------------------------------------------------
     juce::TextButton allFreshButton { "All fresh" }, allOldButton { "All old" };
+
+    // --- STRING NOISE and PICK (gui-integration 4.4) ----------------------------------
+    std::unique_ptr<NoiseGroups> noiseGroups;
 
     juce::Label seedHeading, mapsHeading, tunerHeading, electronicsHeading,
                 bodyHeading, environmentHeading;
