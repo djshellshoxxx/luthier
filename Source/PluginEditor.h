@@ -4,6 +4,7 @@
 
 #include "PluginProcessor.h"
 #include "UI/Theme.h"
+#include "Accessibility/Accessibility.h"
 #include "UI/HeaderBar.h"
 #include "UI/LiveStrip.h"
 #include "UI/PracticePanel.h"
@@ -17,7 +18,8 @@ namespace luthier
 
 //==============================================================================
 class LuthierAudioProcessorEditor : public juce::AudioProcessorEditor,
-                                    private juce::Timer
+                                    private juce::Timer,
+                                    private juce::ChangeListener
 {
 public:
     explicit LuthierAudioProcessorEditor (LuthierAudioProcessor&);
@@ -62,6 +64,9 @@ public:
 
 private:
     void timerCallback() override;
+
+    /** accessibility.md 6: a palette change reaches every panel at once. */
+    void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void setAdvancedMode (bool advanced);
     void showOverlay (OverlayPanel* panel);
 
@@ -137,6 +142,9 @@ private:
         preset load or a RANGES toggle swaps parameter ranges under attached
         sliders; the timer notices and re-attaches them (RangesUi). */
     juce::uint32 seenRangeGeneration = 0;
+
+    /** The palette this window's components were last coloured with. */
+    PaletteColours shownPalette;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessorEditor)
 };

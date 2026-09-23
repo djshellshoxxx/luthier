@@ -24,6 +24,9 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 {
     setLookAndFeel (&lookAndFeel);
 
+    shownPalette = Palette::current();
+    AccessibilitySettings::get().addChangeListener (this);
+
     addAndMakeVisible (header);
     addChildComponent (liveStrip);
     addAndMakeVisible (practicePanel);
@@ -142,6 +145,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 LuthierAudioProcessorEditor::~LuthierAudioProcessorEditor()
 {
     stopTimer();
+    AccessibilitySettings::get().removeChangeListener (this);
 
     processor.getUiState().editorWidth = getWidth();
     processor.getUiState().editorHeight = getHeight();
@@ -431,6 +435,20 @@ void LuthierAudioProcessorEditor::updateLiveStripVisibility()
 }
 
 //==============================================================================
+void LuthierAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaster*)
+{
+    auto& settings = AccessibilitySettings::get();
+    const auto& wanted = settings.getColours();
+
+    Palette::apply (wanted, settings.getPalette() != PaletteId::highContrast);
+    Palette::remap (*this, shownPalette, wanted);
+    shownPalette = wanted;
+
+    lookAndFeel.refreshColours();
+    sendLookAndFeelChange();
+    repaint();
+}
+
 void LuthierAudioProcessorEditor::timerCallback()
 {
     updateLiveStripVisibility();

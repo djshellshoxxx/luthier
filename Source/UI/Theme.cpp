@@ -1,8 +1,149 @@
 #include "Theme.h"
 #include "RangesUi.h"
+#include "../Accessibility/Accessibility.h"
+#include "../Support/IrLibrary.h"
 
 namespace luthier
 {
+
+//==============================================================================
+//  Palette
+//==============================================================================
+namespace
+{
+    PaletteColours& appliedPalette()
+    {
+        static PaletteColours applied;
+        return applied;
+    }
+
+    /** Every role, as pointers into a PaletteColours, in a fixed order. */
+    std::vector<const juce::Colour*> rolesOf (const PaletteColours& p)
+    {
+        return { &p.backgroundDeep, &p.background, &p.panel, &p.panelRaised, &p.panelSunken,
+                 &p.edge, &p.edgeBright, &p.accent, &p.accentBright, &p.accentDim,
+                 &p.secondary, &p.secondaryDim, &p.textPrimary, &p.textMuted, &p.textDisabled,
+                 &p.success, &p.warning, &p.clip, &p.dataStream };
+    }
+}
+
+void Palette::apply (const PaletteColours& c, bool texturedSurfaces)
+{
+    backgroundDeep = c.backgroundDeep;
+    background     = c.background;
+    panel          = c.panel;
+    panelRaised    = c.panelRaised;
+    panelSunken    = c.panelSunken;
+    edge           = c.edge;
+    edgeBright     = c.edgeBright;
+    accent         = c.accent;
+    accentBright   = c.accentBright;
+    accentDim      = c.accentDim;
+    secondary      = c.secondary;
+    secondaryDim   = c.secondaryDim;
+    textPrimary    = c.textPrimary;
+    textMuted      = c.textMuted;
+    textDisabled   = c.textDisabled;
+    success        = c.success;
+    warning        = c.warning;
+    clip           = c.clip;
+    dataStream     = c.dataStream;
+    shadow         = c.shadow;
+
+    textured = texturedSurfaces;
+
+    // Black bell knobs with cream pointers on every palette but High contrast,
+    // where the knob is black and the pointer is the text colour.
+    knobBody    = juce::Colour (0xff151312);
+    knobPointer = texturedSurfaces ? juce::Colour (0xffefe3cc) : c.textPrimary;
+
+    // Engraved plates are brass with dark lettering; High contrast uses the accent.
+    plate     = texturedSurfaces ? juce::Colour (0xffc9a25a) : c.accent;
+    plateText = juce::Colour (0xff2a1a0c);
+
+    appliedPalette() = c;
+}
+
+const PaletteColours& Palette::current()
+{
+    return appliedPalette();
+}
+
+void Palette::remap (juce::Component& root, const PaletteColours& from, const PaletteColours& to)
+{
+    const auto oldRoles = rolesOf (from);
+    const auto newRoles = rolesOf (to);
+
+    std::function<void (juce::Component&)> visit = [&] (juce::Component& c)
+    {
+        // Component colours live in properties named "jcclr_<id in hex>".
+        juce::Array<std::pair<int, juce::Colour>> changes;
+        const auto& props = c.getProperties();
+
+        for (int i = 0; i < props.size(); ++i)
+        {
+            const auto name = props.getName (i).toString();
+
+            if (! name.startsWith ("jcclr_"))
+                continue;
+
+            const juce::Colour colour ((juce::uint32) (int) props.getValueAt (i));
+
+            for (size_t r = 0; r < oldRoles.size(); ++r)
+            {
+                // A role used as is, or with its own alpha (withAlpha).
+                if ((oldRoles[r]->getARGB() & 0x00ffffffu) == (colour.getARGB() & 0x00ffffffu))
+                {
+                    changes.add ({ name.substring (6).getHexValue32(), newRoles[r]->withAlpha (colour.getAlpha()) });
+                    break;
+                }
+            }
+        }
+
+        for (auto& change : changes)
+            c.setColour (change.first, change.second);
+
+        for (auto* child : c.getChildren())
+            visit (*child);
+    };
+
+    visit (root);
+}
+
+//==============================================================================
+namespace
+{
+    /** The typefaces shipped in Resources/Fonts (visual-polish.md 6.2), loaded once. */
+    struct BundledFonts
+    {
+        juce::Typeface::Ptr regular, bold, display;
+
+        BundledFonts()
+        {
+            const auto dir = IrLibrary::getResourcesFolder().getChildFile ("Fonts");
+
+            auto load = [&dir] (const char* name) -> juce::Typeface::Ptr
+            {
+                juce::MemoryBlock data;
+
+                if (dir.getChildFile (name).loadFileAsData (data) && data.getSize() > 1024)
+                    return juce::Typeface::createSystemTypefaceFor (data.getData(), data.getSize());
+
+                return nullptr;
+            };
+
+            regular = load ("Lato-Regular.ttf");
+            bold    = load ("Lato-Bold.ttf");
+            display = load ("BebasNeue-Regular.ttf");
+        }
+    };
+
+    const BundledFonts& bundledFonts()
+    {
+        static const BundledFonts fonts;
+        return fonts;
+    }
+}
 
 //==============================================================================
 //  Fonts
@@ -23,6 +164,11 @@ juce::String Fonts::findAvailable (const juce::StringArray& candidates, const ju
 
 juce::Font Fonts::ui (float height, bool semiBold)
 {
+    const auto& bundled = bundledFonts();
+
+    if (auto typeface = semiBold ? bundled.bold : bundled.regular)
+        return juce::Font (juce::FontOptions (typeface).withHeight (height));
+
     static const juce::String family = findAvailable (
         { "Inter", "Space Grotesk", "Segoe UI Variable Text", "Segoe UI",
           "SF Pro Text", "Helvetica Neue", "DejaVu Sans" },
@@ -34,6 +180,14 @@ juce::Font Fonts::ui (float height, bool semiBold)
         options = options.withStyle ("Bold");
 
     return juce::Font (options);
+}
+
+juce::Font Fonts::display (float height)
+{
+    if (auto typeface = bundledFonts().display)
+        return juce::Font (juce::FontOptions (typeface).withHeight (height));
+
+    return ui (height, true);
 }
 
 juce::Font Fonts::mono (float height)
@@ -53,7 +207,7 @@ juce::Font Fonts::label()
 
 juce::Font Fonts::sectionHeader()
 {
-    return ui (12.0f, true);
+    return display (14.0f);
 }
 
 void Fonts::drawTrackedText (juce::Graphics& g, const juce::String& text,
@@ -95,6 +249,22 @@ void Fonts::drawTrackedText (juce::Graphics& g, const juce::String& text,
 //  LookAndFeel
 //==============================================================================
 LuthierLookAndFeel::LuthierLookAndFeel()
+{
+    // The first window opens in the palette the user chose (accessibility.md 6);
+    // later changes arrive through the editor's listener, not through here.
+    static bool applied = false;
+
+    if (! applied)
+    {
+        auto& settings = AccessibilitySettings::get();
+        Palette::apply (settings.getColours(), settings.getPalette() != PaletteId::highContrast);
+        applied = true;
+    }
+
+    refreshColours();
+}
+
+void LuthierLookAndFeel::refreshColours()
 {
     setColour (juce::ResizableWindow::backgroundColourId, Palette::background);
     setColour (juce::DocumentWindow::textColourId,        Palette::textPrimary);
@@ -201,25 +371,149 @@ void LuthierLookAndFeel::drawPanel (juce::Graphics& g, juce::Rectangle<float> bo
     g.setColour (raised ? Palette::panelRaised : Palette::panel);
     g.fillRoundedRectangle (bounds, corner);
 
+    if (Palette::textured && ! raised)
+    {
+        // Walnut: a faint grain, deterministic so repaints do not shimmer.
+        juce::Graphics::ScopedSaveState state (g);
+        g.reduceClipRegion (bounds.toNearestInt());
+        g.setColour (juce::Colours::black.withAlpha (0.10f));
+
+        float k = 0.0f;
+
+        for (float y = bounds.getY() + 3.0f; y < bounds.getBottom(); y += 5.0f + std::fmod (k * 7.3f, 6.0f))
+        {
+            juce::Path grain;
+            grain.startNewSubPath (bounds.getX(), y);
+            grain.cubicTo (bounds.getX() + bounds.getWidth() * 0.3f, y + std::sin (k) * 1.5f,
+                           bounds.getX() + bounds.getWidth() * 0.7f, y - std::cos (k) * 1.5f,
+                           bounds.getRight(), y + std::sin (k * 0.7f));
+            g.strokePath (grain, juce::PathStrokeType (0.8f));
+            k += 1.0f;
+        }
+    }
+
+    // A raised frame, like a cabinet or a pedalboard: light top edge, dark bottom edge.
     g.setColour (Palette::edge);
     g.drawRoundedRectangle (bounds.reduced (0.5f), corner, 1.0f);
+
+    if (Palette::textured)
+    {
+        g.setColour (juce::Colours::white.withAlpha (0.05f));
+        g.drawLine (bounds.getX() + corner, bounds.getY() + 1.5f, bounds.getRight() - corner, bounds.getY() + 1.5f, 1.0f);
+        g.setColour (juce::Colours::black.withAlpha (0.25f));
+        g.drawLine (bounds.getX() + corner, bounds.getBottom() - 1.5f, bounds.getRight() - corner, bounds.getBottom() - 1.5f, 1.0f);
+
+        if (bounds.getWidth() >= 220.0f && bounds.getHeight() >= 140.0f)
+            drawCornerScrews (g, bounds);
+    }
+}
+
+void LuthierLookAndFeel::drawCornerScrews (juce::Graphics& g, juce::Rectangle<float> bounds)
+{
+    if (! Palette::textured)
+        return;
+
+    const float inset = 7.0f, r = 2.6f;
+
+    for (auto c : { juce::Point<float> (bounds.getX() + inset, bounds.getY() + inset),
+                    juce::Point<float> (bounds.getRight() - inset, bounds.getY() + inset),
+                    juce::Point<float> (bounds.getX() + inset, bounds.getBottom() - inset),
+                    juce::Point<float> (bounds.getRight() - inset, bounds.getBottom() - inset) })
+    {
+        juce::ColourGradient head (juce::Colour (0xffd8d2c4), c.x - r, c.y - r, juce::Colour (0xff6e6860), c.x + r, c.y + r, false);
+        g.setGradientFill (head);
+        g.fillEllipse (c.x - r, c.y - r, r * 2.0f, r * 2.0f);
+
+        g.setColour (juce::Colours::black.withAlpha (0.6f));
+        g.drawLine (c.x - r * 0.7f, c.y + r * 0.7f, c.x + r * 0.7f, c.y - r * 0.7f, 0.8f);
+    }
+}
+
+void LuthierLookAndFeel::drawMiniToggle (juce::Graphics& g, juce::Rectangle<float> area, bool on, bool enabled)
+{
+    const auto c = area.getCentre();
+    const float bushing = juce::jmin (area.getWidth(), area.getHeight()) * 0.34f;
+
+    // The threaded bushing and its nut.
+    if (Palette::textured)
+    {
+        juce::ColourGradient nut (juce::Colour (0xffe2ddd2), c.x - bushing, c.y - bushing,
+                                  juce::Colour (0xff5d5850), c.x + bushing, c.y + bushing, false);
+        g.setGradientFill (nut);
+    }
+    else
+    {
+        g.setColour (Palette::edge);
+    }
+
+    g.fillEllipse (c.x - bushing, c.y - bushing, bushing * 2.0f, bushing * 2.0f);
+    g.setColour (juce::Colours::black.withAlpha (0.6f));
+    g.drawEllipse (c.x - bushing, c.y - bushing, bushing * 2.0f, bushing * 2.0f, 0.8f);
+
+    // The bat lever: up for on, down for off, with its rounded tip.
+    const float length = area.getHeight() * 0.48f;
+    const auto tip = c.translated (0.0f, on ? -length : length);
+    const auto leverColour = enabled ? (Palette::textured ? juce::Colour (0xffd9d4c8) : Palette::textPrimary)
+                                     : Palette::textDisabled;
+
+    g.setColour (leverColour.darker (0.3f));
+    g.drawLine ({ c, tip }, 3.2f);
+    g.setColour (leverColour);
+    g.drawLine ({ c, tip }, 2.0f);
+    g.fillEllipse (tip.x - 2.6f, tip.y - 2.6f, 5.2f, 5.2f);
+
+    // On also lights the accent at the bushing, so the state reads without the lever.
+    if (on && enabled)
+    {
+        g.setColour (Palette::accent);
+        g.fillEllipse (c.x - 1.8f, c.y - 1.8f, 3.6f, 3.6f);
+    }
 }
 
 void LuthierLookAndFeel::drawSectionHeader (juce::Graphics& g, juce::Rectangle<int> bounds,
                                             const juce::String& text, juce::Colour accent)
 {
     auto area = bounds;
+    const auto font = Fonts::sectionHeader();
+    const auto label = text.toUpperCase();
 
-    // The 2 px wide, 12 px tall accent bar to the left of every section header.
-    auto bar = area.removeFromLeft (2).withSizeKeepingCentre (2, 12);
-    g.setColour (accent);
-    g.fillRect (bar);
+    if (! Palette::textured)
+    {
+        // High contrast: theme.md's plain accent bar, no plate.
+        auto bar = area.removeFromLeft (2).withSizeKeepingCentre (2, 12);
+        g.setColour (accent);
+        g.fillRect (bar);
+        area.removeFromLeft (Metrics::grid);
+        g.setColour (Palette::textPrimary);
+        g.setFont (font);
+        Fonts::drawTrackedText (g, label, area, juce::Justification::centredLeft);
+        return;
+    }
 
-    area.removeFromLeft (Metrics::grid);
+    // An engraved brass plate sized to its text (visual-polish.md 6.2).
+    g.setFont (font);
+    float textWidth = 0.0f;
+    for (int i = 0; i < label.length(); ++i)
+        textWidth += font.getStringWidthFloat (label.substring (i, i + 1)) + font.getHeight() * 0.06f;
 
-    g.setColour (Palette::textPrimary);
-    g.setFont (Fonts::sectionHeader());
-    Fonts::drawTrackedText (g, text.toUpperCase(), area, juce::Justification::centredLeft);
+    const float plateW = juce::jmin ((float) area.getWidth(), textWidth + 16.0f);
+    const float plateH = juce::jmin ((float) area.getHeight(), font.getHeight() + 6.0f);
+    const auto plateArea = juce::Rectangle<float> ((float) area.getX(), (float) area.getCentreY() - plateH * 0.5f, plateW, plateH);
+
+    juce::ColourGradient brass (Palette::plate.brighter (0.3f), plateArea.getX(), plateArea.getY(),
+                                Palette::plate.darker (0.25f), plateArea.getX(), plateArea.getBottom(), false);
+    g.setGradientFill (brass);
+    g.fillRoundedRectangle (plateArea, 2.0f);
+    g.setColour (juce::Colours::black.withAlpha (0.55f));
+    g.drawRoundedRectangle (plateArea.reduced (0.5f), 2.0f, 1.0f);
+
+    // Engraved: a light line under the dark lettering.
+    const auto textArea = plateArea.reduced (8.0f, 0.0f).toNearestInt();
+    g.setColour (juce::Colours::white.withAlpha (0.35f));
+    Fonts::drawTrackedText (g, label, textArea.translated (0, 1), juce::Justification::centredLeft, 0.06f);
+    g.setColour (Palette::plateText);
+    Fonts::drawTrackedText (g, label, textArea, juce::Justification::centredLeft, 0.06f);
+    juce::ignoreUnused (accent);
 }
 
 void LuthierLookAndFeel::drawSeparator (juce::Graphics& g, juce::Rectangle<int> bounds)
@@ -231,15 +525,30 @@ void LuthierLookAndFeel::drawSeparator (juce::Graphics& g, juce::Rectangle<int> 
 void LuthierLookAndFeel::drawSignatureNotch (juce::Graphics& g, juce::Rectangle<int> windowBounds,
                                              juce::Colour accent)
 {
-    const float length = 12.0f;
-    const float inset = 6.0f;
+    // A small headstock outline inlaid in brass (visual-polish.md 6.4): an
+    // open-book 3+3 head with its six tuner posts, 12 x 18 px.
+    const float x = (float) windowBounds.getX() + 6.0f, y = (float) windowBounds.getY() + 5.0f;
+    const float w = 12.0f, h = 18.0f;
 
-    g.setColour (accent);
-    g.drawLine ((float) windowBounds.getX() + inset,
-                (float) windowBounds.getY() + inset + length,
-                (float) windowBounds.getX() + inset + length,
-                (float) windowBounds.getY() + inset,
-                2.0f);
+    juce::Path head;
+    head.startNewSubPath (x + w * 0.3f, y + h);
+    head.lineTo (x + w * 0.05f, y + h * 0.55f);
+    head.quadraticTo (x - w * 0.05f, y + h * 0.15f, x + w * 0.2f, y + h * 0.05f);
+    head.quadraticTo (x + w * 0.5f, y + h * 0.18f, x + w * 0.8f, y + h * 0.05f);
+    head.quadraticTo (x + w * 1.05f, y + h * 0.15f, x + w * 0.95f, y + h * 0.55f);
+    head.lineTo (x + w * 0.7f, y + h);
+    head.closeSubPath();
+
+    const auto brass = Palette::textured ? Palette::plate : accent;
+    g.setColour (brass);
+    g.strokePath (head, juce::PathStrokeType (1.4f));
+
+    for (int i = 0; i < 3; ++i)
+    {
+        const float py = y + h * (0.3f + 0.2f * (float) i);
+        g.fillEllipse (x + w * 0.2f - 1.0f, py - 1.0f, 2.0f, 2.0f);
+        g.fillEllipse (x + w * 0.8f - 1.0f, py - 1.0f, 2.0f, 2.0f);
+    }
 }
 
 //==============================================================================
@@ -370,34 +679,49 @@ void LuthierLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int 
         }
     }
 
-    // ---- body ------------------------------------------------------------------
-    juce::DropShadow (Palette::shadow, 6, { 0, 2 })
-        .drawForPath (g, [centre, radius]
-        {
-            juce::Path p;
-            p.addEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f);
-            return p;
-        }());
+    // ---- body: a black bell amp knob (visual-polish.md 6.3) ------------------------
+    juce::Path bodyPath;
+    bodyPath.addEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f);
+    juce::DropShadow (Palette::shadow, 6, { 0, 2 }).drawForPath (g, bodyPath);
 
-    const auto top = hover ? Palette::panelRaised.brighter (0.08f) : Palette::panelRaised;
-    const auto bottom = Palette::panelSunken;
+    const auto body = hover ? Palette::knobBody.brighter (0.12f) : Palette::knobBody;
 
-    juce::ColourGradient gradient (top, centre.x, centre.y - radius,
-                                   bottom, centre.x, centre.y + radius, false);
-    g.setGradientFill (gradient);
+    // The skirt: the full circle, knurled, rotating with the knob.
+    g.setColour (body.brighter (0.08f));
     g.fillEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f);
+    drawKnurledSkirt (g, centre, radius, angle, juce::Colours::black.withAlpha (enabled ? 0.7f : 0.35f));
 
-    // Knurled skirt, rotating with the knob.
-    drawKnurledSkirt (g, centre, radius, angle, Palette::edge.withAlpha (enabled ? 0.55f : 0.25f));
+    // The bell cap, lit from the top left.
+    const float cap = radius * 0.74f;
 
-    g.setColour (Palette::edge);
+    if (Palette::textured)
+    {
+        juce::ColourGradient gradient (body.brighter (0.55f), centre.x - cap * 0.6f, centre.y - cap * 0.7f,
+                                       body, centre.x + cap * 0.3f, centre.y + cap * 0.5f, true);
+        g.setGradientFill (gradient);
+    }
+    else
+    {
+        g.setColour (body);
+    }
+
+    g.fillEllipse (centre.x - cap, centre.y - cap, cap * 2.0f, cap * 2.0f);
+
+    if (Palette::textured)
+    {
+        // A soft highlight on the dome.
+        g.setColour (juce::Colours::white.withAlpha (hover ? 0.16f : 0.1f));
+        g.fillEllipse (centre.x - cap * 0.62f, centre.y - cap * 0.72f, cap * 0.8f, cap * 0.5f);
+    }
+
+    g.setColour (Palette::textured ? juce::Colours::black.withAlpha (0.8f) : Palette::edge);
     g.drawEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f, 1.0f);
 
-    // ---- pointer ----------------------------------------------------------------
-    const auto pointerOuter = centre.getPointOnCircumference (radius * 0.80f, angle);
-    const auto pointerInner = centre.getPointOnCircumference (radius * 0.18f, angle);
+    // ---- pointer: a cream line across cap and skirt ---------------------------------
+    const auto pointerOuter = centre.getPointOnCircumference (radius * 0.96f, angle);
+    const auto pointerInner = centre.getPointOnCircumference (radius * 0.22f, angle);
 
-    g.setColour (accent);
+    g.setColour (enabled ? Palette::knobPointer : Palette::textDisabled);
     g.drawLine ({ pointerInner, pointerOuter }, 2.0f);
 
     // ---- centre dot --------------------------------------------------------------
@@ -478,13 +802,30 @@ void LuthierLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int 
 
         juce::DropShadow (Palette::shadow, 5, { 0, 2 }).drawForRectangle (g, thumb.toNearestInt());
 
-        juce::ColourGradient gradient (Palette::panelRaised, thumb.getX(), thumb.getY(),
-                                        Palette::panelSunken, thumb.getX(), thumb.getBottom(), false);
-        g.setGradientFill (gradient);
+        // A brass fader cap with a grip line across it (visual-polish.md 6.3).
+        const auto brass = Palette::textured ? Palette::plate : Palette::panelRaised;
+
+        if (Palette::textured)
+        {
+            juce::ColourGradient gradient (brass.brighter (0.35f), thumb.getX(), thumb.getY(),
+                                           brass.darker (0.35f), thumb.getX(), thumb.getBottom(), false);
+            g.setGradientFill (gradient);
+        }
+        else
+        {
+            g.setColour (brass);
+        }
+
         g.fillRoundedRectangle (thumb, Metrics::controlCorner);
 
-        g.setColour (accent);
+        g.setColour (Palette::textured ? juce::Colours::black.withAlpha (0.55f) : accent);
         g.drawRoundedRectangle (thumb.reduced (0.5f), Metrics::controlCorner, 1.0f);
+
+        g.setColour (Palette::textured ? Palette::plateText : accent);
+        if (vertical)
+            g.fillRect (thumb.withSizeKeepingCentre (thumb.getWidth() - 6.0f, 1.5f));
+        else
+            g.fillRect (thumb.withSizeKeepingCentre (1.5f, thumb.getHeight() - 6.0f));
     }
 }
 
@@ -558,21 +899,10 @@ void LuthierLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton
 
     auto accent = button.findColour (juce::ToggleButton::tickColourId);
 
-    // A small square indicator rather than a tick: it matches the flat control
-    // language and stays legible at 11 px.
-    auto box = bounds.removeFromLeft (bounds.getHeight()).withSizeKeepingCentre (14, 14).toFloat();
-
-    g.setColour (on ? accent.withAlpha (0.18f) : Palette::panelSunken);
-    g.fillRoundedRectangle (box, Metrics::controlCorner);
-
-    g.setColour (on ? accent : (isHighlighted ? Palette::edgeBright : Palette::edge));
-    g.drawRoundedRectangle (box.reduced (0.5f), Metrics::controlCorner, 1.0f);
-
-    if (on)
-    {
-        g.setColour (accent);
-        g.fillRoundedRectangle (box.reduced (4.0f), 1.0f);
-    }
+    // A mini toggle switch, the kind on a guitar or an amp (visual-polish.md 6.3).
+    juce::ignoreUnused (accent, isHighlighted);
+    auto box = bounds.removeFromLeft (juce::jmax (14, bounds.getHeight())).withSizeKeepingCentre (14, 20).toFloat();
+    drawMiniToggle (g, box, on, button.isEnabled());
 
     bounds.removeFromLeft (Metrics::gridHalf);
 

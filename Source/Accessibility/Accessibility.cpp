@@ -205,7 +205,7 @@ PaletteColours AccessibilitySettings::buildPalette (PaletteId id)
     switch (id)
     {
         case PaletteId::defaultDark:
-            // theme.md's own palette, which is the struct's defaults.
+            // The guitar-shop palette, which is the struct's defaults.
             break;
 
         case PaletteId::deuteranopia:
@@ -279,24 +279,24 @@ PaletteColours AccessibilitySettings::buildPalette (PaletteId id)
             break;
 
         case PaletteId::light:
-            // Paper background, dark text, muted accents.
-            palette.backgroundDeep = juce::Colour (0xffe8e2d8);
-            palette.background     = juce::Colour (0xfff2ece2);
-            palette.panel          = juce::Colour (0xffe6dfd3);
-            palette.panelRaised    = juce::Colour (0xffeee7db);
-            palette.panelSunken    = juce::Colour (0xffd8d0c2);
-            palette.edge           = juce::Colour (0xffb8ae9c);
-            palette.edgeBright     = juce::Colour (0xff8f8676);
-            palette.accent         = juce::Colour (0xffa85a14);
-            palette.accentBright   = juce::Colour (0xffc9741f);
-            palette.accentDim      = juce::Colour (0xff7a4110);
-            palette.secondary      = juce::Colour (0xff2e6b66);
-            palette.secondaryDim   = juce::Colour (0xff1d4542);
-            palette.textPrimary    = juce::Colour (0xff1f1a14);
-            palette.textMuted      = juce::Colour (0xff5a5044);
-            palette.textDisabled   = juce::Colour (0xff8a8072);
-            palette.success        = juce::Colour (0xff2f6b1f);
-            palette.warning        = juce::Colour (0xff8a6300);
+            // Maple and cream: a blonde guitar and a tweed amp (visual-polish.md 6.1).
+            palette.backgroundDeep = juce::Colour (0xffe6d6b4);
+            palette.background     = juce::Colour (0xffefe3c8);
+            palette.panel          = juce::Colour (0xfff6edda);
+            palette.panelRaised    = juce::Colour (0xfffbf5e8);
+            palette.panelSunken    = juce::Colour (0xffe4d4b3);
+            palette.edge           = juce::Colour (0xffc2a878);
+            palette.edgeBright     = juce::Colour (0xffa88a58);
+            palette.accent         = juce::Colour (0xff7a3a0c);
+            palette.accentBright   = juce::Colour (0xff9a5418);
+            palette.accentDim      = juce::Colour (0xffb98c52);
+            palette.secondary      = juce::Colour (0xff2a5c48);
+            palette.secondaryDim   = juce::Colour (0xff7fa28f);
+            palette.textPrimary    = juce::Colour (0xff2a1e14);
+            palette.textMuted      = juce::Colour (0xff5e4a33);
+            palette.textDisabled   = juce::Colour (0xff9a8466);
+            palette.success        = juce::Colour (0xff1f5a17);
+            palette.warning        = juce::Colour (0xff8a3e0e);
             palette.clip           = juce::Colour (0xffa32213);
             palette.dataStream     = juce::Colour (0xff2f6b3a);
             palette.shadow         = juce::Colour (0x33000000);

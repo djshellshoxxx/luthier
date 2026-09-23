@@ -311,6 +311,71 @@ LUTHIER_TEST (WorkshopSwap, aPartSwapDuringANoteIsClickFree)
     CHECK_MSG (longestSilence >= 64, "no parked silence; longest run of zeros " + juce::String (longestSilence));
 }
 
+LUTHIER_TEST (WorkshopSwap, aNotePlayedWhileParkedIsKeptNotDropped)
+{
+    // DECISIONS C-09: MIDI arriving while a structural change parks the audio
+    // thread plays when the engine comes back, rather than being lost.
+    constexpr double sr = 48000.0;
+    constexpr int block = 256;
+
+    LuthierEngine engine;
+    engine.prepare (sr, block);
+
+    std::atomic<bool> stop { false }, sendNote { false }, noteSent { false };
+    std::atomic<int> blocksAfterNote { 0 };
+    float peakAfter = 0.0f;
+
+    std::thread audio ([&]
+    {
+        juce::AudioBuffer<float> buffer (2, block);
+
+        while (! stop.load())
+        {
+            juce::MidiBuffer midi;
+
+            if (sendNote.exchange (false))
+            {
+                midi.addEvent (juce::MidiMessage::noteOn (1, 57, 0.9f), 0);
+                noteSent = true;
+            }
+
+            engine.processBlock (buffer, midi);
+
+            if (noteSent.load())
+            {
+                peakAfter = juce::jmax (peakAfter, buffer.getMagnitude (0, 0, block));
+                ++blocksAfterNote;
+            }
+
+            std::this_thread::yield();
+        }
+    });
+
+    // Let the audio thread run, then park it and play a note into the parked engine.
+    std::this_thread::sleep_for (std::chrono::milliseconds (50));
+
+    {
+        LuthierEngine::ScopedStructuralChange change (engine);
+        sendNote = true;
+
+        while (! noteSent.load())
+            std::this_thread::yield();
+
+        // Stay parked for a few more blocks.
+        std::this_thread::sleep_for (std::chrono::milliseconds (20));
+    }
+
+    const int blocksAtUnpark = blocksAfterNote.load();
+
+    while (blocksAfterNote.load() < blocksAtUnpark + (int) (0.3 * sr / block))
+        std::this_thread::yield();
+
+    stop = true;
+    audio.join();
+
+    CHECK_MSG (peakAfter > 1.0e-3f, "the note played while parked never sounded (peak " + juce::String (peakAfter, 6) + ")");
+}
+
 LUTHIER_TEST (WorkshopSwap, aChangeFromTheAudioThreadItselfDoesNotWait)
 {
     // The offline renderer and most tests change the guitar on the thread

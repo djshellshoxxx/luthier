@@ -214,3 +214,41 @@ chosen") and `ambiguity-resolutions.md`.
   parallel on tasks that need no compiler (this machine can only run one
   build): `docs/spec-coverage.md`, and the body / headstock outline data in
   `Tools/body_outlines.py`. Only the lead builds, tests and commits.
+- **Conflicts from the coverage audit (`docs/spec-coverage.md`, 2026-09-23):**
+  - C-02 (nine phase-2b specs referenced but absent): stays **blocked**. Writing
+    nine physics specs from one-line INDEX summaries would be inventing
+    features, which the brief forbids without review. The dependent references
+    in the phase-5b specs are built without those modules and noted.
+  - C-09 (guitar swap parks the audio thread instead of ui-wiring 6's atomic
+    swap with a coefficient crossfade): keep the park for whole-guitar loads
+    (a string-count change cannot crossfade in one engine), but **queue**
+    notes that arrive while parked instead of dropping them. Part swaps that
+    keep the string count move to ui-wiring 6's off-thread build and
+    block-boundary swap when the Workshop bench (step 7) lands.
+  - C-16: ship `tune-builder.md` 10's **ten** tune templates; onboarding's
+    "12" is a miscount (it names no extra two).
+  - C-19: genre kits become `.luthierkit` files (magic `luthier.kit`) with
+    factory-content 6's fields, added to file-formats when kits are next
+    touched.
+  - C-32: the column-4 strip gets **14 tabs**, TECHNIQUES before HELP. The
+    techniques delta was written after the 13-tab rule and the brief says to
+    apply it on top of gui-integration.
+- **Guitar illustration materials.** `proposals/visual-polish.md` 1 (approved)
+  adds lighting to `guitar-illustration.md` 0.2's flat language: key light,
+  sheen, metal gradients, short shadows. Where the two differ the approved
+  proposal wins; High contrast renders flat.
+- **A burst follows the outline.** Section 11.2 draws bursts as one radial
+  gradient. A sprayed burst darkens along the body edge, which a circle
+  cannot do on a single-cut, so the renderer adds the radial centre plus
+  stacked edge strokes clipped to the body. It reads as a real burst.
+- **Strings draw over the neck.** Section 5 lists strings (14) under the neck
+  and fretboard (15-17), which would hide them along the neck. The renderer
+  draws neck, fretboard, frets, nut and headstock first, then the strings,
+  then the tuner posts over the string ends.
+- **No neck-plate bolts on the top view.** Section 6 asks for four bolt dots on
+  a bolt-on neck; they are on the back of a real guitar. The top view shows
+  the pocket seam instead, a set neck a rounded heel and a through-neck its
+  laminate lines under a see-through finish.
+- **Fanned frets** are drawn when the guitar is tagged `fanned`, the neck is a
+  multi-scale part, or it has `scale_length_treble_mm`; without that field
+  the treble scale is the bass scale less 38 mm, with fret 7 perpendicular.

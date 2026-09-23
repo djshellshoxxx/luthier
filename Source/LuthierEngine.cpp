@@ -29,6 +29,9 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     taps.prepare (maxBlock);
     stringActivity.clear();
 
+    parkedMidi.clear();
+    parkedMidi.ensureSize ((size_t) kParkedMidiBytes);
+
     sidechainFollower.prepare (sr);
     // Fast enough to track a kick drum's attack, slow enough that the release
     // does not chatter: the same shape a hardware sidechain detector has.
@@ -1145,10 +1148,21 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     sidechainReadOffset = 0;
 
     // Parked behind a structural change: the message thread owns the engine.
+    // Incoming MIDI is kept for the first block after (DECISIONS C-09).
     if (swapState.load (std::memory_order_acquire) == swapParked)
     {
+        for (const auto metadata : midiMessages)
+            if (parkedMidi.data.size() + metadata.numBytes + 8 <= kParkedMidiBytes)
+                parkedMidi.addEvent (metadata.data, metadata.numBytes, 0);
+
         buffer.clear();
         return;
+    }
+
+    if (! parkedMidi.isEmpty())
+    {
+        midiMessages.addEvents (parkedMidi, 0, -1, 0);
+        parkedMidi.clear();
     }
 
     if (numSamples <= maxBlock)

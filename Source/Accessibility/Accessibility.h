@@ -43,28 +43,30 @@ const char* getPaletteName (PaletteId id) noexcept;
     the same colour whichever palette is loaded. */
 struct PaletteColours
 {
-    juce::Colour backgroundDeep { 0xff120f0c };
-    juce::Colour background     { 0xff191512 };
-    juce::Colour panel          { 0xff221c17 };
-    juce::Colour panelRaised    { 0xff2a221b };
-    juce::Colour panelSunken    { 0xff15110e };
-    juce::Colour edge           { 0xff3e3226 };
-    juce::Colour edgeBright     { 0xff554330 };
+    // The Luthier guitar-shop palette (proposals/visual-polish.md 6.1, approved
+    // 2026-09-23): rosewood and walnut, Tolex black, ivory text, aged brass.
+    juce::Colour backgroundDeep { 0xff17100c };
+    juce::Colour background     { 0xff1e1511 };
+    juce::Colour panel          { 0xff2a1e17 };
+    juce::Colour panelRaised    { 0xff1d1a18 };
+    juce::Colour panelSunken    { 0xff140e0b };
+    juce::Colour edge           { 0xff4a3726 };
+    juce::Colour edgeBright     { 0xff6b5033 };
 
-    juce::Colour accent         { 0xffe08a3c };
-    juce::Colour accentBright   { 0xfff5ac63 };
-    juce::Colour accentDim      { 0xff8a5426 };
+    juce::Colour accent         { 0xffd4a24c };
+    juce::Colour accentBright   { 0xffe9be6e };
+    juce::Colour accentDim      { 0xff8c6a2e };
 
-    juce::Colour secondary      { 0xff6fa5a0 };
-    juce::Colour secondaryDim   { 0xff3f6663 };
+    juce::Colour secondary      { 0xff6fa58a };
+    juce::Colour secondaryDim   { 0xff3e6450 };
 
-    juce::Colour textPrimary    { 0xffede4d6 };
-    juce::Colour textMuted      { 0xff9c9082 };
-    juce::Colour textDisabled   { 0xff655c51 };
+    juce::Colour textPrimary    { 0xffefe3cc };
+    juce::Colour textMuted      { 0xffb9a58a };
+    juce::Colour textDisabled   { 0xff756650 };
 
     juce::Colour success        { 0xff8fbf6f };
-    juce::Colour warning        { 0xfff0c24e };
-    juce::Colour clip           { 0xffd9452f };
+    juce::Colour warning        { 0xfff0824a };
+    juce::Colour clip           { 0xffe0503a };
 
     juce::Colour dataStream     { 0xff7fd18a };
     juce::Colour shadow         { 0x99000000 };
@@ -201,12 +203,13 @@ public:
 
     static juce::File getConfigFile();
 
+    /** A built-in palette, ignoring any theme file that overrides it. */
+    static PaletteColours buildPalette (PaletteId id);
+
 private:
     AccessibilitySettings();
 
     void buildDefaultShortcuts();
-
-    static PaletteColours buildPalette (PaletteId id);
 
     PaletteId palette = PaletteId::defaultDark;
     PaletteColours colours;

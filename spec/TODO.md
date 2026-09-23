@@ -10,15 +10,26 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## In progress
 
-- [ ] **G. Realistic guitar illustration** - IN PROGRESS (see Remaining for
-      the full item). Body outlines are being authored as data by an
-      assistant agent in `Tools/body_outlines.py` -> generated
-      `Source/UI/Guitar/BodyOutlines.h` (with PNG previews); the renderer
-      (`GuitarRenderer.cpp`) draws everything else from the parts.
+- [ ] **G. Realistic guitar illustration** - IN PROGRESS. Built and green
+      (432 tests): `GuitarRenderer` draws every factory guitar from its parts
+      (body outline data, finishes with grain/burst/aging/sparkle, lighting
+      per visual-polish 1, bridges, tailpieces, pickups, pickguards, neck,
+      fretboard, inlays, frets, nut, headstock, tuners, strings by material),
+      hit regions with section 16 descriptions, overlays (played notes, slide
+      bar, hover); `GuitarBodyComponent` now uses it (Easy and Advanced).
+      Renders: `%TEMP%/luthier-guitar-renders/`. Remaining: headstock shapes
+      refined (assistant, `HeadstockOutlines.h`), body refinements
+      (assistant), sharktooth inlays too large, family switching (12), zoom /
+      pan (1), preset-browser thumbnails on a worker thread with a 200-entry
+      cache (15), per-string material override (10), capo drawing, reduced
+      motion crossfade rules (16), 60 ms note-dot timing test (19).
 - [ ] **C. `docs/spec-coverage.md`** (CLAUDE.md workflow) - IN PROGRESS, being
       built by an assistant agent: one row per actionable requirement across
       every `spec/*.md`, with location, verification and status. Keep it
       current after each step once it lands.
+- [ ] 6e. Part swaps that keep the string count move to an off-thread build
+      and block-boundary swap with step 7 (DECISIONS C-09). Notes arriving
+      while parked are now queued (done, `WorkshopSwap` test).
 - [ ] 5b. `slide-technique-controls.md`: position source (modwheel / bend /
       MPE Y / expression / CC / drag), absolute/relative, slant & pressure
       sources, contact string mask, speed limit, auto-vibrato on hold,
@@ -47,22 +58,19 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       point lists in neck-pocket mm, Catmull-Rom smoothed; pocket X from the
       neck-joint fret; headstock layout inferred from neck joint/family/
       string count; part `illustration` hints override inference (spec 18).
-- [ ] **V. Visual appeal (user request, 2026-09-23; after G).** Specified
-      pieces, moved up from later in this list:
-      - Live playing overlays on the guitar (`guitar-illustration.md` 14):
-        vibrating/glowing strings, pick at true size and angle, slide bar.
-      - Preset-browser thumbnails of each guitar (`guitar-illustration.md` 15).
-      - Finish rendering - grain, bursts, sparkle, relic (11; part of G).
-      - Easy Mode rig strip (item 2e) and the Workshop bench (item 7) are
-        pulled forward to follow G.
-      New pieces, per `spec/proposals/visual-polish.md`: photographic
-      materials on the guitar (1), amp and pedal faces (2), knob caps on those
-      faces (3), tube glow / VU meter / room light (4), user and
-      follow-the-guitar accent colour (5), and **the Luthier guitar-shop theme
-      (6) replacing theme.md's futuristic look for this plugin** - warm wood
-      palette, brass accent, vintage display type, amp-style knobs and mini
-      toggles. All approved by the user. Do the theme (6) first: the other
-      pieces are drawn in its palette. No motion/transition work - declined.
+- [ ] **V. Visual appeal (user request, 2026-09-23; after G).** Done: the
+      Luthier guitar-shop theme (visual-polish 6) - rosewood/walnut/Tolex
+      palette, maple-and-cream Light palette, black bell knobs with cream
+      pointers, mini toggles, brass fader caps, walnut panels with corner
+      screws, engraved brass section plates, brass headstock brand mark,
+      Lato + Bebas Neue shipped in `Resources/Fonts` (OFL); palettes now
+      actually reach the UI (they did not before) and switch live via
+      `Palette::remap`; `Theme` tests. Remaining: header plugin name in the
+      display face, Options -> Appearance accent choices + follow-the-guitar
+      (5), amp and pedal faces (2) with model knob caps (3), tube glow / VU
+      meter / room light (4), live overlays polish on the guitar (G 14),
+      preset-browser thumbnails (G 15), screenshots of every panel in all
+      three palettes reviewed by eye.
 
 - [ ] 2e. **Easy Mode layout per gui-integration.md 3**: the build has the
       older three-band layout. Missing: the 280 px RIG STRIP (guitar circuit

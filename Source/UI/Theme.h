@@ -1,25 +1,22 @@
 #pragma once
 
-/*  Visual identity.
+/*  Visual identity: the Luthier guitar-shop theme.
 
-    theme.md defines a cool, near-black, burnt-orange identity shared across a
-    family of plugins. This plugin keeps that spec's *structure* exactly - the 8 px
-    grid, the 270-degree value arcs drawn outside the knob body, the section rules,
-    the corner radii, the header layout, the signature notch, the output LED and
-    the scrolling data stream - and re-tints it for a guitar, which the brief
-    explicitly allows:
+    theme.md is the house style shared by a family of plugins. For this one,
+    proposals/visual-polish.md section 6 (approved by the user, 2026-09-23)
+    replaces its look with a guitar shop and a workbench: rosewood and walnut
+    panels, Tolex black, ivory text, an aged-brass accent, black bell knobs with
+    cream pointers, mini toggle switches, brass fader caps, engraved plates for
+    section headers, and a vintage display face. What section 6 does not
+    mention still comes from theme.md: the 8 px grid, the 270-degree value arcs
+    drawn outside the knob (they carry the value and the advanced-range
+    marking), the corner radii, the header layout, the output LED and the data
+    stream.
 
-      - the neutrals move from blue-black to walnut-black, the warm end of the
-        same darkness;
-      - the accent becomes aged amber, the colour of a tube amp's pilot lamp,
-        rather than burnt orange;
-      - the secondary becomes oxidised-brass patina rather than teal;
-      - text moves to aged ivory, the colour of old binding, rather than cool grey;
-      - knobs gain a knurled skirt and a pointer, like an amp's control, instead of
-        a plain disc.
-
-    It is still flat: the depth comes from gradients and shadows, never from faux
-    wood grain or fake metal.
+    The palette is live: the colours below are the ones in force, set from
+    AccessibilitySettings by Palette::apply(), so the colourblind, High-contrast
+    and Light palettes (accessibility.md 6) reach every panel. High contrast
+    turns textures and sheen off (visual-polish.md 0.2).
 */
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -28,41 +25,64 @@ namespace luthier
 {
 
 //==============================================================================
+struct PaletteColours;
+
 namespace Palette
 {
-    // --- neutrals (warm walnut, not blue-black) -------------------------------
-    inline const juce::Colour backgroundDeep  { 0xff120f0c };
-    inline const juce::Colour background      { 0xff191512 };
-    inline const juce::Colour panel           { 0xff221c17 };
-    inline const juce::Colour panelRaised     { 0xff2a221b };
-    inline const juce::Colour panelSunken     { 0xff15110e };
-    inline const juce::Colour edge            { 0xff3e3226 };
-    inline const juce::Colour edgeBright      { 0xff554330 };
+    // --- neutrals: rosewood, walnut and Tolex -----------------------------------
+    inline juce::Colour backgroundDeep  { 0xff17100c };
+    inline juce::Colour background      { 0xff1e1511 };
+    inline juce::Colour panel           { 0xff2a1e17 };
+    inline juce::Colour panelRaised     { 0xff1d1a18 };
+    inline juce::Colour panelSunken     { 0xff140e0b };
+    inline juce::Colour edge            { 0xff4a3726 };
+    inline juce::Colour edgeBright      { 0xff6b5033 };
 
     // --- accents ---------------------------------------------------------------
-    /** Aged amber: a tube amp's pilot lamp. */
-    inline const juce::Colour accent          { 0xffe08a3c };
-    inline const juce::Colour accentBright    { 0xfff5ac63 };
-    inline const juce::Colour accentDim       { 0xff8a5426 };
+    /** Aged brass. */
+    inline juce::Colour accent          { 0xffd4a24c };
+    inline juce::Colour accentBright    { 0xffe9be6e };
+    inline juce::Colour accentDim       { 0xff8c6a2e };
 
-    /** Oxidised brass, for secondary indicators and modulation. */
-    inline const juce::Colour secondary       { 0xff6fa5a0 };
-    inline const juce::Colour secondaryDim    { 0xff3f6663 };
+    /** The green-teal of an old amp's jewel light. */
+    inline juce::Colour secondary       { 0xff6fa58a };
+    inline juce::Colour secondaryDim    { 0xff3e6450 };
 
     // --- text -------------------------------------------------------------------
-    inline const juce::Colour textPrimary     { 0xffede4d6 };
-    inline const juce::Colour textMuted       { 0xff9c9082 };
-    inline const juce::Colour textDisabled    { 0xff655c51 };
+    inline juce::Colour textPrimary     { 0xffefe3cc };
+    inline juce::Colour textMuted       { 0xffb9a58a };
+    inline juce::Colour textDisabled    { 0xff756650 };
 
     // --- status -----------------------------------------------------------------
-    inline const juce::Colour success         { 0xff8fbf6f };
-    inline const juce::Colour warning         { 0xfff0c24e };
-    inline const juce::Colour clip            { 0xffd9452f };
+    inline juce::Colour success         { 0xff8fbf6f };
+    inline juce::Colour warning         { 0xfff0824a };
+    inline juce::Colour clip            { 0xffe0503a };
 
     /** The scrolling internals readout. */
-    inline const juce::Colour dataStream      { 0xff7fd18a };
+    inline juce::Colour dataStream      { 0xff7fd18a };
 
-    inline const juce::Colour shadow          { 0x99000000 };
+    inline juce::Colour shadow          { 0x99000000 };
+
+    // --- materials (visual-polish.md 6.3) ----------------------------------------
+    inline juce::Colour knobBody        { 0xff151312 };   ///< black bell knob
+    inline juce::Colour knobPointer     { 0xffefe3cc };   ///< cream pointer line
+    inline juce::Colour plate           { 0xffc9a25a };   ///< engraved brass plate
+    inline juce::Colour plateText       { 0xff2a1a0c };
+
+    /** False under High contrast: no grain, sheen, screws or gradients. */
+    inline bool textured = true;
+
+    /** Puts a palette in force. Components already built keep their own
+        colours; remap() moves those across. Message thread. */
+    void apply (const PaletteColours& colours, bool texturedSurfaces);
+
+    /** The palette last applied. */
+    const PaletteColours& current();
+
+    /** Walks a component tree and replaces every stored colour that was a role
+        of `from` with the same role of `to`, so a palette change reaches
+        colours set with setColour() when the panel was built. */
+    void remap (juce::Component& root, const PaletteColours& from, const PaletteColours& to);
 }
 
 //==============================================================================
@@ -102,8 +122,12 @@ namespace Metrics
 class Fonts
 {
 public:
-    /** Body and label font. Falls back through the list until something resolves. */
+    /** Body and label font: Lato, shipped in Resources/Fonts (visual-polish.md
+        6.2), falling back through the system list if it cannot be loaded. */
     static juce::Font ui (float height, bool semiBold = false);
+
+    /** Headings and plates: Bebas Neue, the condensed vintage display face. */
+    static juce::Font display (float height);
 
     /** Tabular numeric readouts. */
     static juce::Font mono (float height);
@@ -131,6 +155,9 @@ class LuthierLookAndFeel : public juce::LookAndFeel_V4
 public:
     LuthierLookAndFeel();
     ~LuthierLookAndFeel() override;
+
+    /** Re-reads the Palette into the LookAndFeel's colour ids (after apply()). */
+    void refreshColours();
 
     //==========================================================================
     void drawRotarySlider (juce::Graphics&, int x, int y, int width, int height,
@@ -192,7 +219,8 @@ public:
     static void drawPanel (juce::Graphics&, juce::Rectangle<float> bounds,
                            bool raised = false, float corner = Metrics::panelCorner);
 
-    /** A section header: uppercase text with the 2x12 px accent bar to its left. */
+    /** A section header: an engraved brass plate carrying the name
+        (visual-polish.md 6.2); a plain accent bar under High contrast. */
     static void drawSectionHeader (juce::Graphics&, juce::Rectangle<int> bounds,
                                    const juce::String& text,
                                    juce::Colour accent = Palette::accent);
@@ -200,7 +228,8 @@ public:
     /** The 1 px horizontal rule that separates sections. */
     static void drawSeparator (juce::Graphics&, juce::Rectangle<int> bounds);
 
-    /** The signature 12 px, 45-degree accent notch in the top-left corner. */
+    /** The brand mark (visual-polish.md 6.4): a small inlaid brass headstock
+        outline in the top-left corner, where theme.md's notch was. */
     static void drawSignatureNotch (juce::Graphics&, juce::Rectangle<int> windowBounds,
                                     juce::Colour accent = Palette::accent);
 
@@ -209,6 +238,12 @@ public:
 
     /** Whether this control should currently show its value instead of its label. */
     static bool shouldShowValue (const juce::Component&);
+
+    /** Four small screw heads in a panel's corners, for the larger frames. */
+    static void drawCornerScrews (juce::Graphics&, juce::Rectangle<float> bounds);
+
+    /** A mini toggle switch: a threaded bushing and a bat lever up (on) or down. */
+    static void drawMiniToggle (juce::Graphics&, juce::Rectangle<float> area, bool on, bool enabled);
 
 private:
     void drawKnurledSkirt (juce::Graphics&, juce::Point<float> centre, float radius,

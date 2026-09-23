@@ -523,6 +523,12 @@ private:
     int structuralDepth = 0;         ///< message thread
     bool structuralParked = false;   ///< message thread: this scope parked the audio thread
 
+    /*  MIDI that arrives while parked is kept and played at the start of the
+        first block after it (DECISIONS C-09), not dropped. Bounded: past the
+        reserve, further events wait for nothing and are lost. */
+    static constexpr int kParkedMidiBytes = 16384;
+    juce::MidiBuffer parkedMidi;
+
     std::atomic<double> cpuEstimate { 0.0 };
 
     // --- routing ----------------------------------------------------------------

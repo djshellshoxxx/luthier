@@ -4,10 +4,10 @@
 
     The brief asks for a photo-realistic image of the selected instrument. Shipping
     photographs would mean licensing images of trademarked instruments, so this
-    draws the guitar instead: a vector illustration whose silhouette, pickups,
-    hardware and control layout are generated from the *same* GuitarSpec the audio
-    engine is using. Change the guitar and the picture changes with it; change the
-    pickup positions in Advanced mode and the pickups move.
+    draws the guitar instead: GuitarRenderer (guitar-illustration.md) draws the
+    parts guitar the engine is playing - body, neck, headstock, bridge, pickups,
+    strings and finish each from its part. Change a part and the picture changes
+    with it; move a pickup in the Workshop and the pickup moves.
 
     That trade buys something a photograph could not give: the picture is always
     correct, including for a custom instrument the user just built.
@@ -18,6 +18,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
+#include "Guitar/GuitarRenderer.h"
 
 namespace luthier
 {
@@ -136,9 +137,23 @@ public:
     /** Does nothing on a hardtail, which is what section 3.1 specifies. */
     void showWhammyPopover();
 
+    /** What the illustration currently shows, for tests and the Workshop. */
+    const GuitarScene& getScene() const noexcept { return scene; }
+
 private:
     void timerCallback() override;
-    void rebuildGeometry();
+
+    /** Rebuilds the static scene when the guitar (or the palette) changed. */
+    void rebuildScene (bool force);
+    void rebuildCache();
+
+    juce::Point<float> toMm (juce::Point<float> px) const;
+    GuitarRegion regionAt (juce::Point<float> px) const;
+    int knobAt (juce::Point<float> px) const;
+    juce::String knobParameter (int knob) const;
+    int engineSlotFor (int fileIndex) const;
+    static int pickupIndexFor (GuitarRegion) noexcept;
+    juce::Rectangle<int> screenAreaOf (GuitarRegion) const;
 
     /** The tooltip for whatever is under the cursor, so every hit region says
         what clicking it does before it is clicked (section 20). */
@@ -146,51 +161,20 @@ private:
 
     int getBridgeTypeIndex() const;
 
-    struct Geometry
-    {
-        juce::Path body;
-        juce::Path soundHole;
-        juce::Path pickguard;
-        juce::Path neck;
-        juce::Path headstock;
-
-        juce::Rectangle<float> pickupBounds[3];
-        int numPickups = 0;
-
-        juce::Rectangle<float> bridgeBounds;
-        juce::Rectangle<float> volumeKnob;
-        juce::Rectangle<float> toneKnob;
-        juce::Rectangle<float> selectorSwitch;
-
-        bool acoustic = false;
-        bool hasSoundHole = false;
-        juce::Colour bodyColour;
-        juce::Colour topColour;
-    };
-
-    /** Generates a guitar outline from a handful of proportions. Every factory
-        shape is expressible this way, which is why a custom build still looks like
-        a guitar rather than like a missing asset. */
-    static juce::Path buildBodyOutline (juce::Rectangle<float> area,
-                                        float upperBout, float waist, float lowerBout,
-                                        float upperCutaway, float lowerCutaway,
-                                        float offsetSkew, float squareness);
-
-    static juce::Colour woodColourFor (int wood);
-
     LuthierAudioProcessor& processor;
-    Geometry geometry;
 
-    int cachedGuitarType = -1;
-    int cachedNumPickups = -1;
-    double cachedPickupPositions[3] = { -1.0, -1.0, -1.0 };
+    GuitarScene scene;
+    juce::AffineTransform mmToPx;
+    juce::Image cache;
+    float cacheScale = 1.0f;
+    int ticksSinceKeyCheck = 0;
 
-    int hoveredPickup = -1;
-    int draggingKnob = -1;      // 0 = volume, 1 = tone
+    GuitarOverlay overlay;
+    GuitarRegion hoveredRegion = GuitarRegion::none;
+
+    int draggingKnob = -1;
     double dragStartValue = 0.0;
     int dragStartY = 0;
-
-    std::array<double, 12> stringLevels {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GuitarBodyComponent)
 };
