@@ -1196,4 +1196,172 @@ void ParametricEqPedal::process (double* left, double* right, int numSamples) no
     }
 }
 
+//==============================================================================
+//  Doubler (ambiguity-resolutions.md 3)
+//==============================================================================
+namespace
+{
+    const char* const kDoublerWidth[] = { "Mono", "Stereo" };
+}
+
+void DoublerPedal::Voice::prepare (int maxDelaySamples, int windowSamples)
+{
+    size = juce::nextPowerOfTwo (juce::jmax (256, maxDelaySamples + windowSamples + 8));
+    mask = size - 1;
+    buffer.assign ((size_t) size, 0.0);
+    window = juce::jmax (16, windowSamples);
+    reset();
+}
+
+void DoublerPedal::Voice::reset() noexcept
+{
+    std::fill (buffer.begin(), buffer.end(), 0.0);
+    writeIndex = 0;
+
+    // Centred: at 0 cents the first head sits exactly on the delay and carries
+    // all the weight, so the take is a pure delay (3.2).
+    phase = (double) window * 0.5;
+}
+
+double DoublerPedal::Voice::process (double input, double delaySamples, double ratio) noexcept
+{
+    if (buffer.empty())
+        return 0.0;
+
+    buffer[(size_t) writeIndex] = flushDenormal (input);
+
+    // The read point drifts by the pitch offset; two heads half a window apart,
+    // crossfaded, hand over as one drifts out, as a tape ADT's varispeed did.
+    phase += (1.0 - ratio);
+
+    if (phase >= (double) window) phase -= (double) window;
+    if (phase < 0.0)               phase += (double) window;
+
+    auto readAt = [this] (double delay) noexcept
+    {
+        const double d = juce::jlimit (0.0, (double) (size - 2), delay);
+        const int i0 = (int) d;
+        const double frac = d - (double) i0;
+        const double a = buffer[(size_t) ((writeIndex - i0) & mask)];
+        const double b = buffer[(size_t) ((writeIndex - i0 - 1) & mask)];
+        return a * (1.0 - frac) + b * frac;
+    };
+
+    const double half = (double) window * 0.5;
+    const double otherPhase = phase + half >= (double) window ? phase + half - (double) window : phase + half;
+
+    const double w1 = 0.5 - 0.5 * std::cos (constants::kTwoPi * phase / (double) window);
+    const double w2 = 1.0 - w1;
+
+    const double out = readAt (delaySamples - half + phase) * w1
+                     + readAt (delaySamples - half + otherPhase) * w2;
+
+    writeIndex = (writeIndex + 1) & mask;
+    return out;
+}
+
+void DoublerPedal::prepare (double sampleRate, int maxBlockSize)
+{
+    prepareBase (sampleRate, maxBlockSize);
+
+    // A 10 ms window: half of it is the shortest delay (5 ms), so a head is
+    // never asked to read ahead of the write point.
+    const int window = juce::jmax (16, (int) (sr * 0.010));
+    const int maxDelay = (int) std::ceil (sr * 0.040 * 1.2) + 2;
+
+    first.prepare (maxDelay, window);
+    second.prepare (maxDelay, window);
+
+    resetParametersToDefault();
+    reset();
+}
+
+void DoublerPedal::reset() noexcept
+{
+    first.reset();
+    second.reset();
+    hp1.reset(); lp1.reset();
+    hp2.reset(); lp2.reset();
+}
+
+const PedalParam& DoublerPedal::getParameterDescriptor (int index) const noexcept
+{
+    static const PedalParam params[7] =
+    {
+        { "Delay",  "ms",     5.0,    40.0,   22.0, 1.0, false, 0, nullptr },
+        { "Pitch",  "cent", -25.0,    25.0,   -8.0, 1.0, false, 0, nullptr },
+        { "Pan",    "",      -1.0,     1.0,   -0.7, 1.0, false, 0, nullptr },
+        { "Width",  "",       0.0,     1.0,    1.0, 1.0, true,  2, kDoublerWidth },
+        { "Mix",    "%",      0.0,   100.0,   40.0, 1.0, false, 0, nullptr },
+        { "HP",     "Hz",    20.0,   500.0,  100.0, 0.5, false, 0, nullptr },
+        { "LP",     "Hz",  2000.0, 20000.0, 8000.0, 0.5, false, 0, nullptr }
+    };
+
+    return params[juce::jlimit (0, 6, index)];
+}
+
+void DoublerPedal::parameterChanged (int index, double value)
+{
+    switch (index)
+    {
+        case 0: delayMs = value; break;
+        case 1: cents = value; break;
+        case 2: pan = value; break;
+        case 3: stereo = value > 0.5; break;
+        case 4: mix = value * 0.01; break;
+        case 5: hpHz = value; updateFilters(); break;
+        case 6: lpHz = value; updateFilters(); break;
+        default: break;
+    }
+}
+
+void DoublerPedal::updateFilters() noexcept
+{
+    hp1.setHighpass (sr, hpHz, 0.707);
+    hp2.setHighpass (sr, hpHz, 0.707);
+    lp1.setLowpass (sr, lpHz, 0.707);
+    lp2.setLowpass (sr, lpHz, 0.707);
+}
+
+void DoublerPedal::process (double* left, double* right, int numSamples) noexcept
+{
+    const double delay1 = delayMs * 0.001 * sr;
+
+    // Stereo's second take mirrors the first: the other side, the other way
+    // out of tune, and a little later so the two do not comb against each other.
+    const double delay2 = delay1 * 1.18;
+    const double ratio1 = std::pow (2.0, cents / 1200.0);
+    const double ratio2 = std::pow (2.0, -cents / 1200.0);
+
+    // Equal-power pan, -1 hard left .. +1 hard right.
+    auto gains = [] (double p)
+    {
+        const double angle = (juce::jlimit (-1.0, 1.0, p) + 1.0) * juce::MathConstants<double>::pi * 0.25;
+        return std::make_pair (std::cos (angle), std::sin (angle));
+    };
+
+    const auto [l1, r1] = gains (pan);
+    const auto [l2, r2] = gains (-pan);
+    const double voices = stereo ? std::sqrt (0.5) : 1.0;
+
+    for (int i = 0; i < numSamples; ++i)
+    {
+        const double in = 0.5 * (left[i] + right[i]);
+
+        const double v1 = lp1.process (hp1.process (first.process (in, delay1, ratio1))) * voices;
+        double wetL = v1 * l1, wetR = v1 * r1;
+
+        if (stereo)
+        {
+            const double v2 = lp2.process (hp2.process (second.process (in, delay2, ratio2))) * voices;
+            wetL += v2 * l2;
+            wetR += v2 * r2;
+        }
+
+        // 3.2: mix 0 is the dry signal exactly; mix 100 the takes alone.
+        left[i] = sanitise (left[i] * (1.0 - mix) + wetL * mix);
+        right[i] = sanitise (right[i] * (1.0 - mix) + wetR * mix);
+    }
+}
+
 } // namespace luthier

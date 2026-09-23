@@ -38,6 +38,11 @@ numbered, because what it should be called is a release decision.
   drives (any held note, or particular strings that keep going after you let
   go), how hard, and which harmonic it brings out; switching it off stops the
   string within 200 ms. Three new parameters; the parameter count is 401.
+- **A Doubler pedal** (`ambiguity-resolutions.md` 3) - the classic studio
+  double-track in the post-amp rack, before the cabinet: delay, a few cents
+  out of tune, panned away from the original, with a mirror-image second take
+  in stereo, and its own tone filters. It replaces the old Doubler switch
+  (which sat after the cabinet); presets that used it get the pedal.
 - **The guitar-shop look** (`proposals/visual-polish.md` 6) - rosewood,
   walnut and brass, bell knobs, mini toggles, engraved plates, Lato and Bebas
   Neue. The colourblind, High-contrast and Light palettes now actually apply.

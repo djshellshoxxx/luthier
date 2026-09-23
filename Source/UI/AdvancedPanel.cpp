@@ -942,12 +942,7 @@ void AdvancedPanel::buildColumn3()
     addKnob (humStrum, "Strum", ParamIDs::humStrum, "Strum-speed variation");
 
     // ---- feedback, doubler, master ------------------------------------------------------------------
-    column.addGap (Metrics::grid);
-    column.addSection ("Doubler");
-
-    addToggle (doublerOn, "Doubler", ParamIDs::doublerOn,
-               "A second, slightly different take panned opposite");
-    addKnob (doublerAmount, "Amount", ParamIDs::doublerAmount, "Doubler level");
+    // The doubler is a pedal in the post-amp rack (ambiguity-resolutions 3.1).
 
     column.addGap (Metrics::grid);
     column.addSection ("Master");

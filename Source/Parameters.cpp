@@ -1029,8 +1029,8 @@ void ParameterBridge::applyToEngine() noexcept
         fb.octaveBias = juce::roundToInt (value (ParamIDs::feedbackOctaveBias));
         engine.setFeedback (fb);
     }
-    engine.setDoublerEnabled (value (ParamIDs::doublerOn) > 0.5f);
-    engine.setDoublerAmount (value (ParamIDs::doublerAmount));
+    // doubler_on / doubler_amount: kept for saved automation. The doubler is the
+    // post-amp Doubler pedal now (ambiguity-resolutions 3); see PresetManager.
 
     // ---- the hidden effect ---------------------------------------------------------
     auto& wolf = engine.getSecretEffect();

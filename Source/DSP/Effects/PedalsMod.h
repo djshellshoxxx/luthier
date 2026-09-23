@@ -64,6 +64,53 @@ private:
 };
 
 //==============================================================================
+/** ambiguity-resolutions.md 3: a classic ADT / hardware doubler. A second
+    performance, slightly late and slightly out of tune, panned away from the
+    first; stereo adds a mirror-image third. Post-amp and pre-cab, so the
+    cabinet colours both takes the same. At 0 cents a voice is an exact delay
+    (the crossfaded read heads are centred on it), which 3.2's cross-
+    correlation test relies on. */
+class DoublerPedal : public Pedal
+{
+public:
+    PedalType getType() const noexcept override { return PedalType::Doubler; }
+    const char* getName() const noexcept override { return "Doubler"; }
+
+    void prepare (double sampleRate, int maxBlockSize) override;
+    void reset() noexcept override;
+    void process (double* left, double* right, int numSamples) noexcept override;
+
+    int getNumParameters() const noexcept override { return 7; }
+    const PedalParam& getParameterDescriptor (int index) const noexcept override;
+
+protected:
+    void parameterChanged (int index, double value) override;
+
+private:
+    /** One take: a delay whose read point drifts by the pitch offset, with two
+        heads half a window apart crossfaded so the drift wraps without a click. */
+    struct Voice
+    {
+        std::vector<double> buffer;
+        int size = 0, mask = 0, writeIndex = 0;
+        double phase = 0.0;
+        int window = 480;
+
+        void prepare (int maxDelaySamples, int windowSamples);
+        void reset() noexcept;
+        double process (double input, double delaySamples, double ratio) noexcept;
+    };
+
+    void updateFilters() noexcept;
+
+    double delayMs = 22.0, cents = -8.0, pan = -0.7, mix = 0.4, hpHz = 100.0, lpHz = 8000.0;
+    bool stereo = true;
+
+    Voice first, second;
+    Biquad hp1, lp1, hp2, lp2;
+};
+
+//==============================================================================
 class PhaserPedal : public Pedal
 {
 public:

@@ -104,16 +104,6 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     workBuffer.setSize (2, maxBlock, false, true, true);
     wetDryBuffer.setSize (2, maxBlock, false, true, true);
 
-    // Doubler: up to 40 ms of delay for the second voice.
-    doublerSize = juce::nextPowerOfTwo ((int) (sr * 0.05) + 8);
-    doublerMask = doublerSize - 1;
-    doublerBuffer.assign ((size_t) doublerSize, 0.0);
-    doublerIndex = 0;
-
-    doublerLfo.prepare (sr);
-    doublerLfo.setShape (Lfo::Shape::RandomSmooth);
-    doublerLfo.setRate (0.31);
-
     feedbackLoop.prepare (sr, maxBlock);
     ebowDriver.prepare (sr);
     feedbackInjection.assign ((size_t) maxBlock, 0.0);
@@ -191,10 +181,6 @@ void LuthierEngine::reset() noexcept
         strings[(size_t) i].snapToFrequency (tuning.computeFrequency (i, 0.0));
     }
 
-    std::fill (doublerBuffer.begin(), doublerBuffer.end(), 0.0);
-    doublerIndex = 0;
-    doublerLfo.reset();
-
     feedbackLoop.reset();
 
     numScheduled = 0;
@@ -217,7 +203,6 @@ void LuthierEngine::releaseResources()
     stringSumBuffer.clear();
     magneticBuffer.clear();
     instrumentBuffer.clear();
-    doublerBuffer.clear();
     bodyBuffer.setSize (0, 0);
     workBuffer.setSize (0, 0);
     wetDryBuffer.setSize (0, 0);
@@ -1733,38 +1718,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         }
     }
 
-    // ---- 9. doubler -----------------------------------------------------------
-    if (doublerEnabled && doublerAmount > 1.0e-4 && doublerSize > 0)
-    {
-        for (int i = 0; i < numSamples; ++i)
-        {
-            const double mono = 0.5 * ((double) wl[i] + (double) wr[i]);
-
-            doublerBuffer[(size_t) doublerIndex] = flushDenormal (mono);
-
-            // A real double track is a second performance: slightly late, slightly
-            // out of tune, and never identical. A fixed delay would just comb.
-            const double wobble = doublerLfo.next();
-            const double delaySamples = juce::jlimit (2.0, (double) (doublerSize - 4),
-                                                      sr * (0.018 + wobble * 0.004));
-
-            const int i0 = (int) delaySamples;
-            const double frac = delaySamples - (double) i0;
-
-            const double a = doublerBuffer[(size_t) ((doublerIndex - i0) & doublerMask)];
-            const double b = doublerBuffer[(size_t) ((doublerIndex - i0 - 1) & doublerMask)];
-            const double doubled = a * (1.0 - frac) + b * frac;
-
-            doublerIndex = (doublerIndex + 1) & doublerMask;
-
-            // The double is panned opposite the original, which is what makes the
-            // classic wide guitar sound.
-            wl[i] = (float) sanitise ((double) wl[i] * (1.0 - doublerAmount * 0.3)
-                                      + doubled * doublerAmount * 0.0);
-            wr[i] = (float) sanitise ((double) wr[i] * (1.0 - doublerAmount * 0.3)
-                                      + doubled * doublerAmount * 0.85);
-        }
-    }
+    // ---- 9. (the doubler is a post-amp pedal now: ambiguity-resolutions 3) ------
 
     // ---- 10. master ------------------------------------------------------------
     for (int ch = 0; ch < juce::jmin (numChannels, 2); ++ch)

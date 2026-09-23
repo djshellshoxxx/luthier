@@ -30,6 +30,9 @@ enum class PedalType
     Chorus, Phaser, Flanger, Tremolo, RotarySpeaker,
     Delay, Reverb, SpringReverb, GraphicEQ, ParametricEQ,
 
+    // ambiguity-resolutions.md 3, appended so saved slot indices keep meaning.
+    Doubler,
+
     NumTypes
 };
 

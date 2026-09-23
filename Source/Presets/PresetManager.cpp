@@ -589,6 +589,35 @@ bool PresetManager::fromVar (const juce::var& data)
                 amount->setValueNotifyingHost (amount->convertTo0to1 (50.0f));
         }
 
+        /*  ambiguity-resolutions.md 3: the doubler became a post-amp pedal. A
+            preset that had the old engine doubler on gets a Doubler in its first
+            empty post-amp slot, at the pedal's own defaults (the old amount
+            meant something else); with no slot free it goes without. */
+        if ((double) params->getProperty (ParamIDs::doublerOn) > 0.5)
+        {
+            bool already = false;
+            int freeSlot = -1;
+
+            for (int slot = 0; slot < EffectsChain::kNumSlots; ++slot)
+            {
+                if (auto* type = apvts.getParameter (ParamIDs::slotType (true, slot)))
+                {
+                    const int index = juce::roundToInt (type->convertFrom0to1 (type->getValue()));
+                    already = already || index == (int) PedalType::Doubler;
+
+                    if (index == (int) PedalType::None && freeSlot < 0)
+                        freeSlot = slot;
+                }
+            }
+
+            if (! already && freeSlot >= 0)
+                if (auto* type = apvts.getParameter (ParamIDs::slotType (true, freeSlot)))
+                    type->setValueNotifyingHost (type->convertTo0to1 ((float) (int) PedalType::Doubler));
+
+            if (auto* old = apvts.getParameter (ParamIDs::doublerOn))
+                old->setValueNotifyingHost (0.0f);
+        }
+
         /*  No block: derive per family from the plain values the parameters now
             hold. The stored numbers cannot be used for this - a normalised
             value is always inside whatever range is live and so carries no

@@ -181,6 +181,7 @@ const char* Pedal::getTypeName (PedalType t) noexcept
         case PedalType::SpringReverb:   return "Spring Reverb";
         case PedalType::GraphicEQ:      return "Graphic EQ";
         case PedalType::ParametricEQ:   return "Parametric EQ";
+        case PedalType::Doubler:        return "Doubler";
         case PedalType::NumTypes:
         default:                        return "Empty";
     }
@@ -215,6 +216,7 @@ bool Pedal::isPostAmpPedal (PedalType t) noexcept
 {
     switch (t)
     {
+        case PedalType::Doubler:        // ambiguity-resolutions 3: post-amp, pre-cab
         case PedalType::Chorus:
         case PedalType::Phaser:
         case PedalType::Flanger:
@@ -260,6 +262,7 @@ std::unique_ptr<Pedal> Pedal::create (PedalType t)
         case PedalType::SpringReverb:   return std::make_unique<SpringReverbPedal>();
         case PedalType::GraphicEQ:      return std::make_unique<GraphicEqPedal>();
         case PedalType::ParametricEQ:   return std::make_unique<ParametricEqPedal>();
+        case PedalType::Doubler:        return std::make_unique<DoublerPedal>();
 
         case PedalType::None:
         case PedalType::NumTypes:

@@ -388,3 +388,15 @@ chosen") and `ambiguity-resolutions.md`.
   -28 dB after 200 ms. `ebow_intensity` is the E-Bow's own parameter rather
   than writing feedback_amount, so using the E-Bow does not switch on amp
   feedback too.
+- **The doubler is `PedalType::Doubler`, appended after ParametricEQ** so saved
+  slot indices keep their meaning (C-41 resolved in ambiguity-resolutions 3's
+  favour). Seven pedal parameters - delay 5-40 (22) ms, pitch +-25 (-8) c, pan
+  +-1 (-0.7), width mono / stereo, mix 0-100 (40)%, HP 20-500 (100) Hz, LP
+  2-20 (8) kHz; "enable" is the slot's bypass. Mix is a dry / wet crossfade so
+  mix 0 nulls (3.2). Each take is a delay with a two-head varispeed for the
+  pitch offset, the heads centred on the delay so 0 cents is an exact delay.
+  Stereo adds a mirrored take (other side, opposite cents, 1.18x the delay so
+  the two do not comb). The old engine doubler (after the cabinet, one voice)
+  is gone; `doubler_on` / `doubler_amount` stay for saved automation, and a
+  preset with `doubler_on` gets a Doubler in its first free post-amp slot at
+  the pedal's defaults, since the old amount meant something different.

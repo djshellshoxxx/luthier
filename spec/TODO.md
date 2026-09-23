@@ -56,10 +56,6 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 - [ ] 2h. Easy rig strip polish: the amp card's knobs are cramped at 1200x720;
       give the amp card more height or two knob sizes.
 - [ ] 2d. `ambiguity-resolutions.md` gaps (audited in spec-coverage.md 25):
-      - [ ] 3 Doubler as a post-amp pre-cab rack pedal, eight parameters
-            (delay 5-40 / 22 ms, pitch +-25 / -8 c, pan +-0.7, width, mix 40%,
-            HP 100, LP 8k); the engine doubler's two params stay for
-            automation; tests 3.2 (mix 0 nulls, mix 100 correlates at 22 ms).
       - [ ] 4.3 `Bass` voicing style; 4.4 transition bonus (+2 common note,
             +1 common position, -2 jump > 5); 4.7 tests (I-IV-V-I travel <= 3
             frets, determinism and tie-breaks, BEAD bass C7).

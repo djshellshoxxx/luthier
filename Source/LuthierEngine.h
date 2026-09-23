@@ -266,8 +266,6 @@ public:
     /** The hidden effect. Reached only through the easter egg in the UI. */
     SecretEffect& getSecretEffect() noexcept { return secret; }
 
-    void setDoublerEnabled (bool on) noexcept { doublerEnabled = on; }
-    void setDoublerAmount (double a) noexcept { doublerAmount = juce::jlimit (0.0, 1.0, a); }
 
     void setOversamplingFactor (int factor) noexcept;
     int getOversamplingFactor() const noexcept { return oversamplingFactor; }
@@ -446,8 +444,6 @@ private:
     /** Holds the post-amp signal before the post-amp effects, so Aux 6 can be
         the difference between the two - the tails on their own. */
     juce::AudioBuffer<float> wetDryBuffer;
-    std::vector<double> doublerBuffer;
-    int doublerSize = 0, doublerMask = 0, doublerIndex = 0;
 
     std::array<double, kMaxStrings> bridgeOutputs {};
     std::array<double, kMaxStrings> couplingInputs {};
@@ -519,14 +515,11 @@ private:
     FeedbackLoop feedbackLoop;
     std::vector<double> feedbackInjection;
 
-    bool   doublerEnabled = false;
-    double doublerAmount = 0.5;
 
     // gui-integration.md 3.4's tone strip (set from the parameters; smoothed per sample).
     std::atomic<double> inputGainTarget { 1.0 }, outputMixTarget { 1.0 }, widthTarget { 1.0 };
     double inputGainNow = 1.0, outputMixNow = 1.0, widthNow = 1.0;
     std::vector<double> dryBuffer;
-    Lfo    doublerLfo;
 
     double bodyAmount = 0.22;
     int    oversamplingFactor = 4;
