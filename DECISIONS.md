@@ -120,3 +120,20 @@ chosen") and `ambiguity-resolutions.md`.
 - **Relief test uses a high nut (1.0 mm).** With a normal nut, open strings buzz
   on the first frets whatever the relief - true of real guitars too; relief
   decides where a guitar rattles once the nut protects the low frets.
+- **`slide_guitar` is re-pointed as `slide_enabled`** (slide-guitar.md 7): two
+  switches for one mode would disagree. Slide is +7 parameters, not +8.
+- **Hybrid mode: one string is under the bar at a time.** A slide note on
+  another string while the bar's string sounds is played fretted (legato if it
+  came from somewhere, else a pluck), so it can squeak.
+- **Slide vibrato reads `vibrato_depth` as tenths of a millimetre** of bar
+  travel (its declared range is 0-80 "cents"; 3.2 says mm).
+- **The bar moves linearly and arrives when the move ends**, driven block by
+  block from SlideEngine, instead of riding the string's exponential glide.
+- **Per-note sustain scale**: per-block modulation used to reset every string's
+  sustain scale to 1.0 each block, silently undoing character-wear dead spots
+  and fret wear. It now multiplies a per-note value set at note-on (which also
+  carries the slide's damping).
+- **2026-09-23 spec update**: nine phase-5b technique specs landed and are
+  queued in TODO. The nine phase-2b specs INDEX and the brief now list
+  (string-aging ... tuning-stability) are **not on disk**; they are recorded as
+  blocked rather than written from their one-line INDEX descriptions.

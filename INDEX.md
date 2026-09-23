@@ -9,6 +9,17 @@ Five groups:
   close the gap that made a modelled guitar sound and behave unlike a
   real one, and which make every part of the guitar a thing the user
   can change on a bench.
+- The nine extended realism specs (string-aging, environment,
+  body-coupling, harmonic-realism, string-interaction,
+  fingerstyle-attack, noise-floor, sustain-and-decay,
+  tuning-stability), which fill the physical realism gaps the
+  original twelve don't cover.
+- The nine technique-control specs (string-scraping,
+  slide-technique-controls, string-slap-technique, muting-rhythm,
+  two-hand-tapping, microtonal-bends, technique-cascade,
+  gui-techniques-updates, engine-technique-layer), which give the
+  user real-time control over six playing techniques plus the
+  cascade rules that let them combine cleanly.
 - The composition spec (tune-builder), which turns Luthier into a
   sketchpad for actual tunes and melodies, not just an instrument.
 - The build-integration specs (gui-integration, ui-wiring,
@@ -41,16 +52,6 @@ Read `CLAUDE_CODE_BRIEF.md` first if you are the implementer.
 11. `updates-telemetry.md`
 
 ### Phase 2: realism
-
-**All twelve are on disk as of 2026-09-22.** Eleven of them were written
-after the phase-1 build rather than before it, which means each one is
-constrained by the specs that already referenced it — `gui-integration.md`,
-`ui-wiring.md`, `file-formats.md`, `performance-budget.md`,
-`state-model.md`, `action-and-undo.md` and `onboarding.md` had all
-committed to section numbers, schemas, budgets and defaults before the
-files they pointed at existed. Where one of those fixed a number, the
-realism spec matches it rather than restating it, and says so.
-
 12. `advanced-ranges.md` (mechanism every later file depends on)
 13. `volume-knob-interaction.md` (replaces CableSim; introduces GuitarCircuit)
 14. `pick-noise.md`
@@ -63,6 +64,17 @@ realism spec matches it rather than restating it, and says so.
 21. `strum-dynamics.md`
 22. `bass-techniques.md`
 23. `midi-export.md` (last of the realism phase, captures every event class above)
+
+### Phase 2b: extended realism (physical realism gaps)
+23a. `string-aging.md` (fresh vs dead strings; per-string oxidation, contamination, fatigue)
+23b. `environment.md` (temperature and humidity effects on tuning, action, resonance)
+23c. `body-coupling.md` (string-to-body-to-string energy; wolf notes; tap tones; sympathetic ring)
+23d. `harmonic-realism.md` (natural, pinch, tapped, artificial harmonics as boundary conditions)
+23e. `string-interaction.md` (air-path sympathetic ring, palm mute spread, chord release stagger, pickup crosstalk, muted-string thump)
+23f. `fingerstyle-attack.md` (nail vs pad, thumb, hybrid, Travis, classical rest/free stroke, slap/pop excitation profiles)
+23g. `noise-floor.md` (single-coil hum, amp hiss, tube microphonics, ground loop, radio, fluorescent buzz, cable movement)
+23h. `sustain-and-decay.md` (attack transient, two-stage decay, pitch drift under sustain, physical note-off release)
+23i. `tuning-stability.md` (settling, nut binding, tuner backlash, saddle creep, bend memory, capo bias, retune actions)
 
 ### Phase 3: composition
 24. `tune-builder.md` (writes into rhythm engine and note engine, exports through midi-export)
@@ -87,6 +99,17 @@ realism spec matches it rather than restating it, and says so.
 39. `input-routing.md` (MIDI, mouse, keyboard, file-drop, host transport routing order)
 40. `host-integration.md` (VST3/AU/CLAP/AAX contract; per-host quirks)
 41. `action-and-undo.md` (undo entry taxonomy, grouping window, state boundaries)
+
+### Phase 5b: user technique controls
+42. `string-scraping.md` (pick / nail scrape along wound strings)
+43. `slide-technique-controls.md` (user-facing slide controls; extends slide-guitar.md)
+44. `string-slap-technique.md` (generalised slap; extends bass-techniques.md to any guitar)
+45. `muting-rhythm.md` (mute as rhythmic voice; palm mute grid)
+46. `two-hand-tapping.md` (tap gestures, hammer-on, pull-off, multi-finger)
+47. `microtonal-bends.md` (bend sources, quantise, custom scales, pre-bend)
+48. `technique-cascade.md` (engine sub-spec: how techniques combine and resolve conflicts)
+49. `gui-techniques-updates.md` (GUI delta: Techniques tab, Playing strip pills, fretboard overlays)
+50. `engine-technique-layer.md` (engine delta: four new modules, cascade resolver, insertion points)
 
 ### Phase 6: ship
 Run `qa-polish.md` section 8 (bug bash) and section 12 (final human
@@ -120,6 +143,15 @@ check). Neither is skippable.
 | `strum-dynamics.md` | Crossing velocity, acceleration profile, strikers, chucks |
 | `bass-techniques.md` | Slap, pop, ghosts, double thump, fingerstyle, bass-specific defaults everywhere |
 | `midi-export.md` | Luthier and Generic MIDI profile export / import for every event class, live MIDI-out alignment |
+| `string-aging.md` | Fresh-to-dead string arc: oxidation, contamination, corrosion pits, core fatigue, per-string state, coated vs uncoated |
+| `environment.md` | Temperature and humidity effects on relief, action, tuning drift, body resonance shift, wolf-note shift; session drift profiles |
+| `body-coupling.md` | Bridge-mediated string-to-body-to-string coupling; body-mode bank; wolf notes and tap tones as emergent phenomena |
+| `harmonic-realism.md` | Natural, pinch, tapped, artificial harmonics as boundary-condition changes on the string engine |
+| `string-interaction.md` | Air-path sympathetic ring, palm mute spread, adjacent finger damping, chord release stagger, pickup crosstalk, muted-string thump |
+| `fingerstyle-attack.md` | Contact profiles for nail, pad, thumb, hybrid, Travis, classical tirando/apoyando, slap/pop; per-string tool assignment |
+| `noise-floor.md` | Single-coil hum, amp hiss, tube microphonics, ground loop, radio pickup, fluorescent buzz, cable movement, passive hiss; region + position |
+| `sustain-and-decay.md` | Attack transient, two-stage decay (fast/slow), amplitude-driven pitch drift, physical note-off release, sustain macros |
+| `tuning-stability.md` | String settling, nut binding, tuner backlash, saddle creep, bend memory, capo bias; per-string retune and auto-retune |
 | `tune-builder.md` | Chord progression + melody + rhythm workflow; `.luthiertune` file; three-minute tune loop |
 | `ambiguity-resolutions.md` | Feedback, freeze / E-Bow, doubler, chord auto-fingering, preset morph, strum-velocity source, .luthierguitar compatibility |
 | `gui-integration.md` | Master GUI spec: window, Easy / Advanced, every feature's UI location, Workshop / Slide / Tune integration |
@@ -138,6 +170,15 @@ check). Neither is skippable.
 | `input-routing.md` | Consumer chains for MIDI, mouse, keyboard, file drops, host transport, sidechain audio |
 | `host-integration.md` | Format matrix, bus layouts, parameter model, state serialization, latency, per-host quirks (Ableton, Logic, Cubase, Studio One, Reaper, FL, Bitwig, Pro Tools, Standalone) |
 | `action-and-undo.md` | Undo entry taxonomy per action class; grouping window; state boundaries; what skips the stack |
+| `string-scraping.md` | Per-winding physical scrape model; user-driven scrape gestures; new ScrapeEngine module |
+| `slide-technique-controls.md` | User-facing slide controls: source, range, slant, pressure, scripted gestures; extends slide-guitar.md |
+| `string-slap-technique.md` | Slap (thumb, pop, palm slap, body tap) with user controls; generalises bass-techniques.md to any guitar |
+| `muting-rhythm.md` | Mute as rhythm: 16-step grid, mute types, chuka, ghost; RhythmEngine integration |
+| `two-hand-tapping.md` | Tap gestures, auto pull-off, multi-finger tap, hammer-on / pull-off promotion |
+| `microtonal-bends.md` | Bend sources, per-string ranges, vibrato, quantise scales (.scala/.tun), pre-bend |
+| `technique-cascade.md` | Engine sub-spec: technique compatibility matrix, conflict resolution, cascade schedule |
+| `gui-techniques-updates.md` | Additive GUI delta: Techniques tab with 7 sub-tabs, Playing strip pills, fretboard overlays |
+| `engine-technique-layer.md` | Additive engine delta: four new modules and cascade resolver plus insertion point |
 
 ## Global rules
 
@@ -166,52 +207,3 @@ Three rules for integration:
 
 Every new file has its own "Tests" section. Add those tests to the
 existing `LuthierTests` target.
-
-## Engine modules the realism phase adds
-
-The specs above name these. None exists in the build yet; this is the
-implementation inventory, in dependency order.
-
-| Module | Spec | Replaces / extends |
-|---|---|---|
-| `PhysicalRange` | `advanced-ranges.md` 1 | Widens every physical parameter's range declaration |
-| `RangeFamily` + preset `ranges` block | `advanced-ranges.md` 2, 4 | New preset state |
-| `GuitarCircuit` | `volume-knob-interaction.md` | **Removes `CableSim`** |
-| `NoiseEngine` (6 pools) | `pick-noise.md` 1 | New; shared by pick, squeak, buzz, slide |
-| `PickModel` | `pick-noise.md` 2 | Extends the existing pick parameters |
-| `SqueakModel` | `string-squeak.md` | New |
-| `SetupGeometry` + buzz sensing | `fret-buzz.md` 1, 3 | New; feeds `StringEngine` |
-| `SlideEngine` | `slide-guitar.md` | New mode alongside `TechniqueEngine` |
-| `PartLibrary`, `Part`, `GuitarSpec` widening | `guitar-workshop.md` 3, 4 | Extends `GuitarLibrary` |
-| `mapSpec` → `DerivedAcoustics` | `part-acoustics.md` | New; the single part-to-engine function |
-| `WorkshopPanel` + `SpectrumDelta` | `workshop-ui.md` | New UI |
-| `StrumGesture` | `strum-dynamics.md` | Extends `RhythmEngine`'s scheduler |
-| `BassTechniques` | `bass-techniques.md` | New; family-gated |
-| `PerformanceCapture` | `notation-export.md` 6 | New; fills `PerformanceScore` from live play |
-| `PracticeRoutines` + stats | `practice-tools.md` 11 | New; the PRACTICE tab's contents |
-| MIDI export profiles | `midi-export.md` | Extends `MidiOutRouter`; spec already existed |
-
-### Build order for the engine work
-
-1. `PhysicalRange` and the `ranges` block. Everything physical depends on
-   it and it touches every parameter declaration, so it goes first and
-   alone.
-2. `GuitarCircuit`, replacing `CableSim`. Self-contained, immediately
-   audible, and the pickup fields it needs can come from a table until
-   the parts model lands.
-3. `NoiseEngine` pool, then `PickModel`, `SqueakModel` and the buzz
-   sensing on top of it. One pool, three consumers.
-4. `SetupGeometry`, which the buzz sensing needs and which `slide-guitar`
-   and `bass-techniques` both read.
-5. `SlideEngine`.
-6. `PartLibrary` and `mapSpec`. The largest single piece; it re-points
-   every table the four specs above used as a placeholder.
-7. `WorkshopPanel`.
-8. `StrumGesture`, then `BassTechniques`.
-9. `PerformanceCapture`, then the NOTATION tab.
-10. MIDI export profiles, then the MIDI OUT tab.
-11. `PracticeRoutines` and the PRACTICE tab.
-
-Steps 2-5 are each independently shippable and each makes the plugin
-audibly better on its own, which is why they come before the Workshop
-even though the Workshop is what the parts model is for.

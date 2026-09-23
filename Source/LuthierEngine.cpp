@@ -71,6 +71,8 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     whammy.prepare (sr, numStrings);
 
     playingNoise.prepare (sr);
+    slide.prepare (sr);
+    noteSustainScale.fill (1.0);
     playingNoise.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)));
 
     // --- signal chain ---------------------------------------------------------
@@ -126,6 +128,8 @@ void LuthierEngine::reset() noexcept
     whammy.reset();
     playingNoise.reset();
     fretBuzzModel.reset();
+    slide.reset();
+    noteSustainScale.fill (1.0);
     shiftCount = 0;
     circuit.reset();
     preEffects.reset();
@@ -564,6 +568,25 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
 {
     const int s = juce::jlimit (0, numStrings - 1, e.stringIndex);
 
+    /*  slide-guitar.md 1: in hybrid mode one string is under the bar and the
+        fingers fret the rest, so a slide note that the bar is not on is played
+        as the fretted note it is - a legato move if it came from somewhere,
+        a pluck if not. */
+    if (e.technique == Technique::SlideGuitar)
+    {
+        if (! slide.noteOn (s, numStrings))
+        {
+            auto fretted = e;
+            fretted.technique = e.slideFromFret >= 0.0 ? Technique::Slide : Technique::Pluck;
+            triggerNote (fretted);
+            return;
+        }
+
+        // 5.2: the bar landing on the strings clanks.
+        if (slide.isLanding())
+            playingNoise.getPool().trigger (slide.makeClank (s, e.velocity));
+    }
+
     // Validator check 2.
     bool accepted = true;
     const double fret = validator.checkFretRange (s, e.fretPosition,
@@ -587,8 +610,19 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         // Legato move: start from where the hand was and glide.
         str.snapToFrequency (tuning.computeFrequency (s, e.slideFromFret,
                                                       midi.getStringBendCents (s)));
-        str.setGlideTime (e.slideSeconds);
         str.setSlideSpeed (std::abs (fret - e.slideFromFret) / juce::jmax (0.001, e.slideSeconds));
+
+        // Under a bar the bar itself moves, block by block, and the string only
+        // smooths between blocks; otherwise the string glides on its own.
+        if (slide.isUnderBar (s))
+        {
+            slide.startMove (s, e.slideFromFret, fret, e.slideSeconds);
+            str.setGlideTime (256.0 / sr);
+        }
+        else
+        {
+            str.setGlideTime (e.slideSeconds);
+        }
     }
     else
     {
@@ -616,7 +650,13 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
                              ? (1.0 - character.getNutDamping (s)) * character.getNutMaterialDamping()
                              : 1.0;
 
-        str.setSustainScale (juce::jlimit (0.05, 4.0, deadSpot * fretWear * nut));
+        // Under a slide the frets are not touched, so their wear is irrelevant
+        // (slide-guitar.md 8); the bar's own damping takes its place.
+        const bool underBar = slide.isUnderBar (s);
+
+        noteSustainScale[(size_t) s] = juce::jlimit (0.05, 4.0, deadSpot * (underBar ? 1.0 : fretWear) * nut
+                                                                * slide.sustainScale (s));
+        str.setSustainScale (noteSustainScale[(size_t) s]);
 
         // A worn crown alters the effective string length by a few cents.
         const double detune = character.getFretDetuneCents (fret);
@@ -691,14 +731,19 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     // ---- playing noise (pick-noise.md, string-squeak.md) ------------------------
     // The string's own glide noise is a bottleneck's friction now; a finger's
     // squeak comes from PlayingNoise below.
+    // slide-guitar.md 5.1: friction, proportional to amount x material
+    // friction x bar speed. The string's glide noise is bar-speed driven.
     str.setNoiseAmount (e.technique == Technique::SlideGuitar
-                          ? slideNoise * stringSpecs[(size_t) s].squeak : 0.0,
+                          ? slide.getSettings().noiseAmount
+                              * getSlideMaterial (slide.getBar().material).friction * 2.5
+                              * stringSpecs[(size_t) s].squeak
+                          : 0.0,
                         fretNoise);
 
     {
         const auto info = StringNoiseInfo::fromSpec (stringSpecs[(size_t) s], spec.stringMaterial, stringAge);
 
-        if (e.technique == Technique::Slide && e.slideFromFret >= 0.0)
+        if (e.technique == Technique::Slide && e.slideFromFret >= 0.0 && ! slide.isUnderBar (s))
         {
             // The finger stayed down and travelled: that is the squeak's trigger
             // (string-squeak.md 2). A pluck at a new position is not.
@@ -778,6 +823,7 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
         stringActivity.push ({ activeSampleOffset, s, soundingNote, 0.0f, false });
 
     strings[(size_t) s].release (e.letRing || ebow);
+    slide.noteOff (s);
     stringMidiNote[(size_t) s] = -1;
 
     // Lifting a finger makes a soft thump as the string is stopped.
@@ -890,8 +936,25 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
         const double bend = midi.getStringBendCents (s);
         const double whammyCents = whammy.getCentOffset (s);
 
-        const double hz = tuning.computeFrequency (s, currentFret[(size_t) s],
-                                                   bend + whammyCents + vib);
+        double hz;
+
+        if (slide.isUnderBar (s))
+        {
+            /*  slide-guitar.md 3 and 4: the string is stopped where the bar
+                touches it, slant included; vibrato moves the bar (depth read
+                as tenths of a millimetre of travel, 3.2); and the intonation
+                assist pulls the result toward equal temperament. */
+            const double barFret = slide.advanceBar (s, currentFret[(size_t) s], numSamples);
+            const double contact = slide.contactFret (s, barFret, numStrings, spec.scaleLengthMm);
+            const double slideVibrato = SlideEngine::vibratoCents (vib / 10.0, contact, spec.scaleLengthMm);
+            const double raw = contact + (bend + whammyCents + slideVibrato) / 100.0;
+
+            hz = tuning.computeFrequency (s, slide.assist (s, raw, numSamples), 0.0);
+        }
+        else
+        {
+            hz = tuning.computeFrequency (s, currentFret[(size_t) s], bend + whammyCents + vib);
+        }
 
         strings[(size_t) s].setTargetFrequency (hz);
         coupling.setStringFrequency (s, hz);
@@ -902,8 +965,17 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
         if (ebow && strings[(size_t) s].hasSounded())
             strings[(size_t) s].setSustainScale (12.0);
         else
-            strings[(size_t) s].setSustainScale (fretless ? 0.82 : 1.0);
+            strings[(size_t) s].setSustainScale (noteSustainScale[(size_t) s] * (fretless ? 0.82 : 1.0));
     }
+
+    // The fretboard overlay draws the bar where the first string under it is.
+    double overlay = -1.0;
+
+    for (int s = 0; s < numStrings && overlay < 0.0; ++s)
+        if (slide.isUnderBar (s))
+            overlay = currentFret[(size_t) s];
+
+    slide.setOverlayFret (overlay);
 
     tuning.advanceDrift (numSamples);
 }

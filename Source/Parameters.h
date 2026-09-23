@@ -192,6 +192,16 @@ namespace ParamIDs
     inline constexpr const char* setupSitarMode    = "setup_sitar_mode";
     inline constexpr const char* setupStyle        = "setup_style";
 
+    // --- slide (slide-guitar.md 7) -------------------------------------------------------
+    // slide_enabled is the existing slide_guitar switch, re-pointed.
+    inline constexpr const char* slideMode             = "slide_mode";
+    inline constexpr const char* slidePressure         = "slide_pressure";
+    inline constexpr const char* slideSlant            = "slide_slant";
+    inline constexpr const char* slideDampingBehind    = "slide_damping_behind";
+    inline constexpr const char* slideNoiseAmount      = "slide_noise_amount";
+    inline constexpr const char* slideClankAmount      = "slide_clank_amount";
+    inline constexpr const char* slideIntonationAssist = "slide_intonation_assist";
+
     /** Nut slot depth for string 1 (highest) to 6. A 12-string's pairs share. */
     juce::String setupNutDepth (int stringNumber);
     inline constexpr int kNumNutDepths = 6;
@@ -295,6 +305,10 @@ public:
     static juce::StringArray cableQualityNames();
     static juce::StringArray squeakStyleNames();
     static juce::StringArray setupStyleNames();
+    static juce::StringArray slideModeNames();
+
+    /** slide-guitar.md 3: lap steel and dobro damp fully behind the bar. */
+    static double defaultDampingBehind (int slideModeIndex) noexcept;
 
     /*  The pick's existing thickness and angle parameters are declared 0-1
         (advanced-ranges.md 1.0 keeps them that way); these are the physical

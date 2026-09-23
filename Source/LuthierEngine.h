@@ -19,6 +19,7 @@
 #include "DSP/Circuit/GuitarCircuit.h"
 #include "DSP/Noise/PlayingNoise.h"
 #include "DSP/Noise/FretBuzz.h"
+#include "DSP/Slide/SlideEngine.h"
 #include "DSP/Effects/EffectsChain.h"
 #include "DSP/Effects/SecretEffect.h"
 #include "DSP/Amp/AmpEngine.h"
@@ -114,6 +115,11 @@ public:
     void setSetupGeometry (const SetupGeometry& geometry) noexcept;
     FretBuzz& getFretBuzz() noexcept { return fretBuzzModel; }
     const FretBuzz& getFretBuzz() const noexcept { return fretBuzzModel; }
+
+    /** slide-guitar.md: Slide Mode's settings, from the parameters. */
+    void setSlideSettings (const SlideSettings& settings) noexcept { slide.setSettings (settings); }
+    SlideEngine& getSlideEngine() noexcept { return slide; }
+    const SlideEngine& getSlideEngine() const noexcept { return slide; }
 
     /** pick-noise.md 5: a deliberate rake along the wound strings. */
     void triggerPickScrape (double seconds, bool downward) noexcept;
@@ -387,6 +393,14 @@ private:
     juce::uint32 shiftCount = 0;
 
     FretBuzz fretBuzzModel;
+    SlideEngine slide;
+
+    /*  Each note's own sustain multiplier - dead spots, fret wear, the nut, a
+        slide's damping - set when it starts. Per-block modulation multiplies
+        into this rather than overwriting it, which it used to do, silently
+        undoing every character-wear sustain change a block after the note
+        began. */
+    std::array<double, kMaxStrings> noteSustainScale {};
     std::array<double, kMaxStrings> stringDelays {};
 
     // --- articulation state ----------------------------------------------------

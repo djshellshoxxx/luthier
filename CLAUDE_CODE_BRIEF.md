@@ -41,6 +41,16 @@ Your job is to close both gaps and bring every feature to $200 polish.
    - Each of the 12 phase-2 realism specs, in order. `advanced-ranges.md`
      must come first because every physical parameter depends on its
      `PhysicalRange` wrapper.
+   - The 9 extended realism specs (phase 2b in INDEX):
+     - `string-aging.md`
+     - `environment.md`
+     - `body-coupling.md` (depends on `part-acoustics.md` for body modes)
+     - `harmonic-realism.md`
+     - `string-interaction.md` (depends on `body-coupling.md`)
+     - `fingerstyle-attack.md`
+     - `noise-floor.md`
+     - `sustain-and-decay.md`
+     - `tuning-stability.md`
    - `tune-builder.md` (phase 3).
    - `ambiguity-resolutions.md`
    - `gui-integration.md` (central; read it twice).
@@ -59,6 +69,16 @@ Your job is to close both gaps and bring every feature to $200 polish.
      - `input-routing.md`
      - `host-integration.md`
      - `action-and-undo.md`
+   - The nine technique-control specs (phase 5b in INDEX):
+     - `string-scraping.md`
+     - `slide-technique-controls.md`
+     - `string-slap-technique.md`
+     - `muting-rhythm.md`
+     - `two-hand-tapping.md`
+     - `microtonal-bends.md`
+     - `technique-cascade.md` (read after the six above)
+     - `gui-techniques-updates.md` (GUI delta; apply on top of gui-integration.md)
+     - `engine-technique-layer.md` (engine delta; apply on top of engine.md)
 
 2. Audit the current build against `gui-integration.md` section 19
    (the feature-to-location index). For every row where the location
@@ -182,7 +202,10 @@ If two specs disagree:
 16. `input-routing.md` overrides on input consumer order and veto rules.
 17. `host-integration.md` overrides on host contract and per-host quirks.
 18. `action-and-undo.md` overrides on undo grouping and state boundaries.
-19. Otherwise, later spec numbers in `INDEX.md` override earlier ones.
+19. `engine-technique-layer.md` overrides on the six technique modules' integration with the engine pipeline.
+20. `gui-techniques-updates.md` overrides on the Techniques tab layout and Playing strip pill row.
+21. `technique-cascade.md` overrides on technique compatibility, combination rules, and conflict resolution.
+22. Otherwise, later spec numbers in `INDEX.md` override earlier ones.
 
 If a genuine conflict cannot be resolved by this hierarchy, stop
 coding and produce a written question with proposed answers.

@@ -144,12 +144,17 @@ namespace
             { "setup_nut_depth_5",         { 0.0f,  1.2f, 0.0f,  4.0f,  0.45f, 1.0f, RangeFamily::buzz } },
             { "setup_nut_depth_6",         { 0.0f,  1.2f, 0.0f,  4.0f,  0.45f, 1.0f, RangeFamily::buzz } },
             { ParamIDs::setupFretHeight,   { 0.6f,  1.6f, 0.1f,  5.0f,  1.0f,  1.0f, RangeFamily::buzz } },
+
+            // --- slide (slide-guitar.md 7) ----------------------------------
+            { ParamIDs::slideSlant,        { -30.0f, 30.0f, -60.0f, 60.0f, 0.0f,  0.5f, RangeFamily::slide } },
+            { ParamIDs::slideNoiseAmount,  { 0.0f,   1.0f,  0.0f,   4.0f,  0.4f,  1.0f, RangeFamily::slide } },
+            { ParamIDs::slideClankAmount,  { 0.0f,   1.0f,  0.0f,   4.0f,  0.45f, 1.0f, RangeFamily::slide } },
         };
 
         return table[index];
     }
 
-    constexpr int kNumEntries = 29;
+    constexpr int kNumEntries = 32;
 }
 
 const PhysicalRange* RangeRegistry::find (const juce::String& parameterId)

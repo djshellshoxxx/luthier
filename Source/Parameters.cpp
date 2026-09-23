@@ -369,6 +369,17 @@ juce::StringArray Parameters::setupStyleNames()
     return names;
 }
 
+juce::StringArray Parameters::slideModeNames()
+{
+    // Matches SlideMode.
+    return { "Bottleneck", "Lap steel", "Dobro", "Hybrid" };
+}
+
+double Parameters::defaultDampingBehind (int slideModeIndex) noexcept
+{
+    return (slideModeIndex == (int) SlideMode::lapSteel || slideModeIndex == (int) SlideMode::dobro) ? 1.0 : 0.55;
+}
+
 double Parameters::pickThicknessMm (double normalised) noexcept
 {
     // Logarithmic across pick-noise.md 2's 0.38-3.0 mm: picks are sold in
@@ -504,6 +515,15 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::setupBuzzThreshold, "Buzz Threshold",  0.0f,  1.0f, 0.35f));
     add (boolParam   (ParamIDs::setupSitarMode,     "Sitar Mode",      false));
     add (choiceParam (ParamIDs::setupStyle,         "Setup Style",     setupStyleNames(), kDefaultSetupStyle));
+
+    // --- slide (slide-guitar.md 7) -----------------------------------------------------------
+    add (choiceParam (ParamIDs::slideMode,             "Slide Mode",          slideModeNames(), (int) SlideMode::hybrid));
+    add (floatParam  (ParamIDs::slidePressure,         "Slide Pressure",      0.0f,   1.0f,  0.55f));
+    add (floatParam  (ParamIDs::slideSlant,            "Slide Slant",        -30.0f, 30.0f,  0.0f, 0.5f, "deg"));
+    add (floatParam  (ParamIDs::slideDampingBehind,    "Slide Damping Behind", 0.0f,  1.0f,  0.55f));
+    add (floatParam  (ParamIDs::slideNoiseAmount,      "Slide Noise",         0.0f,   1.0f,  0.4f));
+    add (floatParam  (ParamIDs::slideClankAmount,      "Slide Clank",         0.0f,   1.0f,  0.45f));
+    add (floatParam  (ParamIDs::slideIntonationAssist, "Intonation Assist",   0.0f,   1.0f,  0.15f));
     add (floatParam (ParamIDs::ampBuzz,      "Amp Buzz",      0.0f, 1.0f, 0.12f));
 
     // --- body -----------------------------------------------------------------
@@ -803,6 +823,20 @@ void ParameterBridge::applyToEngine() noexcept
             setup.nutDepth[(size_t) s] = value (ParamIDs::setupNutDepth (s % ParamIDs::kNumNutDepths + 1));
 
         engine.setSetupGeometry (setup);
+    }
+
+    {
+        SlideSettings slide;
+        slide.enabled          = value (ParamIDs::slideGuitar) > 0.5f;
+        slide.mode             = (SlideMode) juce::jlimit (0, (int) SlideMode::numModes - 1,
+                                                           (int) value (ParamIDs::slideMode));
+        slide.pressure         = value (ParamIDs::slidePressure);
+        slide.slantDegrees     = value (ParamIDs::slideSlant);
+        slide.dampingBehind    = value (ParamIDs::slideDampingBehind);
+        slide.noiseAmount      = value (ParamIDs::slideNoiseAmount);
+        slide.clankAmount      = value (ParamIDs::slideClankAmount);
+        slide.intonationAssist = value (ParamIDs::slideIntonationAssist);
+        engine.setSlideSettings (slide);
     }
     engine.setFretBuzzAmount (value (ParamIDs::fretBuzz));
 

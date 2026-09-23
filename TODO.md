@@ -10,7 +10,16 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## In progress
 
-- [ ] **5. `SlideEngine`** (`slide-guitar.md`) — next.
+- [ ] **5. Slide** — `SlideEngine` done (modes, bar contact, slant, assist,
+      damping, clank, friction, squeak suppression). Next: UI - header Slide
+      toggle + `S` shortcut, CHARACTER SLIDE group (shown only in Slide Mode:
+      mode, pressure, slant, damping, assist marked as a playability aid,
+      material/mass mirror, noise, clank), the low-action message, fretboard
+      bar overlay (6 px, material colour, 80%, 80 ms ease).
+- [ ] 5b. `slide-technique-controls.md`: position source (modwheel / bend /
+      MPE Y / expression / CC / drag), absolute/relative, slant & pressure
+      sources, contact string mask, speed limit, auto-vibrato on hold,
+      scripted SlideGesture, presets; Techniques tab Slide sub-tab.
 - [ ] 3f. A way to fire pick scrape (midi-export `pick_scrape` class / Easy rake
       gesture); the engine API `triggerPickScrape` exists.
 
@@ -43,6 +52,16 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 - [ ] 11. `PracticeRoutines` and the PRACTICE tab.
 - [ ] 12. Tune Builder (`tune-builder.md`) and the TUNE tab.
 - [ ] 13. HELP tab (column 4).
+- [ ] 13b. **Phase 5b technique specs (added 2026-09-23)**, in INDEX order:
+      `string-scraping.md` (ScrapeEngine), `string-slap-technique.md`,
+      `muting-rhythm.md`, `two-hand-tapping.md`, `microtonal-bends.md`,
+      `technique-cascade.md`, `gui-techniques-updates.md` (Techniques tab,
+      Playing strip pills, fretboard overlays), `engine-technique-layer.md`.
+- [ ] 13c. **BLOCKED: phase 2b specs not on disk** - `string-aging.md`,
+      `environment.md`, `body-coupling.md`, `harmonic-realism.md`,
+      `string-interaction.md`, `fingerstyle-attack.md`, `noise-floor.md`,
+      `sustain-and-decay.md`, `tuning-stability.md`. Listed in INDEX and the
+      brief (2026-09-23) but the files do not exist. Asked the user.
 - [ ] 14. Audit `ui-wiring.md`, `onboarding.md`, `performance-budget.md`,
       `qa-polish.md`, `installer.md`, and gui-integration 20-22 against the
       build (GAPS.md "Not audited yet"); fix what they find.
