@@ -71,7 +71,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     whammy.prepare (sr, numStrings);
 
     // --- signal chain ---------------------------------------------------------
-    cable.prepare (sr);
+    circuit.prepare (sr);
     preEffects.prepare (sr, maxBlock);
     preEffects.setPosition (EffectsChain::Position::PreAmp);
     amp.prepare (sr, maxBlock);
@@ -120,7 +120,7 @@ void LuthierEngine::reset() noexcept
     body.reset();
     pickups.reset();
     whammy.reset();
-    cable.reset();
+    circuit.reset();
     preEffects.reset();
     amp.reset();
     postEffects.reset();
@@ -888,6 +888,28 @@ void LuthierEngine::processFeedback (double outputLevel) noexcept
 }
 
 //==============================================================================
+CircuitComponents LuthierEngine::getLiveCircuitComponents() const noexcept
+{
+    auto parts = circuitControls;
+
+    // An acoustic's transducers are a piezo and a mic behind a preamp: there
+    // is no coil for the pots and cable to load, whatever the pickup slots say.
+    const auto coil = pickups.getSelectedCoil();
+    const bool acoustic = (spec.category == GuitarCategory::Acoustic);
+
+    parts.hasCoil = coil.hasCoil && ! acoustic;
+
+    if (parts.hasCoil)
+    {
+        parts.coilInductance = coil.inductance;
+        parts.coilResistance = coil.resistance;
+        parts.coilCapacitance = coil.capacitance;
+    }
+
+    return parts;
+}
+
+//==============================================================================
 void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) noexcept
 {
     const int numSamples = buffer.getNumSamples();
@@ -1100,6 +1122,11 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     }
 
     // ---- 4. combine the transducer paths ------------------------------------
+    // The circuit is rebuilt only when something in it changed; a knob move is
+    // a small matrix inverse at block rate, and the network's history carries
+    // across so the move does not click.
+    circuit.setComponents (getLiveCircuitComponents());
+
     const bool acoustic = (spec.category == GuitarCategory::Acoustic);
     const double micBlend = pickups.getPiezoMicBlend();
 
@@ -1125,7 +1152,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
                          + (double) bodyData[i] * bodyAmount * 0.55;
         }
 
-        instrument = cable.process (instrument);
+        instrument = circuit.process (instrument);
         instrument = sanitise (instrument);
 
         // Internal re-amp (routing-io 5B). The sidechain replaces the string

@@ -3,7 +3,7 @@
 /*  The whole instrument, wired together (engine spec 1).
 
         MIDI -> interpreter -> technique -> tuning -> strings (+ coupling)
-             -> body -> pickups -> cable -> pre-effects -> amp
+             -> body -> pickups -> guitar circuit -> pre-effects -> amp
              -> post-effects -> cabinet -> room -> master
 
     This class owns every module and nothing else owns any of them. The plugin
@@ -16,7 +16,7 @@
 #include "DSP/Body/BodyEngine.h"
 #include "DSP/Pickup/PickupEngine.h"
 #include "DSP/Whammy/WhammyEngine.h"
-#include "DSP/Cable/CableSim.h"
+#include "DSP/Circuit/GuitarCircuit.h"
 #include "DSP/Effects/EffectsChain.h"
 #include "DSP/Effects/SecretEffect.h"
 #include "DSP/Amp/AmpEngine.h"
@@ -92,7 +92,17 @@ public:
     BodyEngine&      getBodyEngine() noexcept      { return body; }
     PickupEngine&    getPickupEngine() noexcept    { return pickups; }
     WhammyEngine&    getWhammyEngine() noexcept    { return whammy; }
-    CableSim&        getCableSim() noexcept        { return cable; }
+    GuitarCircuit&   getGuitarCircuit() noexcept   { return circuit; }
+
+    /*  The circuit's controls and components, from the parameters. The coil
+        fields are ignored: the engine fills them from the pickups the switch
+        has selected, at the start of each block, because the selector can
+        change between two calls to this. */
+    void setCircuitControls (const CircuitComponents& controls) noexcept { circuitControls = controls; }
+
+    /** What the circuit is actually running with, coil included - for the
+        visualiser, which draws the network the audio is going through. */
+    CircuitComponents getLiveCircuitComponents() const noexcept;
     EffectsChain&    getPreEffects() noexcept      { return preEffects; }
     AmpEngine&       getAmpEngine() noexcept       { return amp; }
     EffectsChain&    getPostEffects() noexcept     { return postEffects; }
@@ -310,7 +320,8 @@ private:
     WhammyEngine whammy;
 
     // --- signal chain ---------------------------------------------------------
-    CableSim cable;
+    GuitarCircuit circuit;
+    CircuitComponents circuitControls;
     EffectsChain preEffects;
     AmpEngine amp;
     EffectsChain postEffects;

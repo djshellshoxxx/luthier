@@ -127,6 +127,7 @@ private:
 
     void updateVoicing() noexcept;
     void updateFilters() noexcept;
+    void updateBeyondStock() noexcept;
 
     inline double preampStage (double x, int stageIndex) noexcept;
     inline double powerAmpStage (double x) noexcept;
@@ -154,6 +155,13 @@ private:
     OnePoleHP stageCoupling[kMaxStages];
     OnePoleLP stageSmoothing[kMaxStages];
     Biquad midBoostEq;
+
+    /*  advanced-ranges.md 3.1: bass, mid and treble past the ends of the
+        knob. The tone stack is a passive network and a pot position outside
+        0-1 is a negative resistance, so it stays on the knob's travel and the
+        part beyond is extra shelving after it - the "exaggerated" region is
+        honest about not being the circuit any more. */
+    Biquad bassBeyond, midBeyond, trebleBeyond;
 
     // Power amp
     OnePoleHP piCoupling;

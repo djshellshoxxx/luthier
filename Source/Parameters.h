@@ -154,6 +154,19 @@ namespace ParamIDs
     inline constexpr const char* cableOn     = "cable_on";
     inline constexpr const char* cableLength = "cable_length";
 
+    // --- guitar circuit (volume-knob-interaction.md 3) ---------------------------
+    inline constexpr const char* cableQuality       = "cable_quality";
+    inline constexpr const char* circuitVolumePot   = "circuit_volume_pot";
+    inline constexpr const char* circuitTonePot     = "circuit_tone_pot";
+    inline constexpr const char* circuitToneCap     = "circuit_tone_cap";
+    inline constexpr const char* circuitPotTaper    = "circuit_pot_taper";
+    inline constexpr const char* circuitTrebleBleed = "circuit_treble_bleed";
+    inline constexpr const char* circuitBleedR      = "circuit_bleed_r";
+    inline constexpr const char* circuitBleedC      = "circuit_bleed_c";
+    inline constexpr const char* circuitBleedMode   = "circuit_bleed_mode";
+    inline constexpr const char* circuitActive      = "circuit_active";
+    inline constexpr const char* ampInputImpedance  = "amp_input_impedance";
+
     // --- amp ------------------------------------------------------------------
     inline constexpr const char* ampModel    = "amp_model";
     inline constexpr const char* ampGain     = "amp_gain";
@@ -247,6 +260,14 @@ public:
     static juce::StringArray bracingNames();
     static juce::StringArray woodNames();
     static juce::StringArray pickupTypeNames();
+    static juce::StringArray potTaperNames();
+    static juce::StringArray trebleBleedNames();
+    static juce::StringArray bleedModeNames();
+    static juce::StringArray cableQualityNames();
+
+    /** "500k", "1.2M", "220" - how a guitarist writes a resistor. */
+    static juce::String formatOhms (double ohms);
+    static double parseOhms (const juce::String& text);
     static juce::StringArray magnetNames();
     static juce::StringArray pickupSelectorNames();
     static juce::StringArray playingModeNames();

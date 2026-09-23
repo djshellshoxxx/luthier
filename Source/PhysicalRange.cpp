@@ -107,14 +107,22 @@ namespace
             // Stock is 0.5-15 m because that is what this parameter already
             // ships with (advanced-ranges.md 1.0): presets store normalised
             // values, so narrowing a shipped range would silently re-map every
-            // saved preset. The rest of this family arrives with GuitarCircuit.
+            // saved preset.
             { ParamIDs::cableLength, { 0.5f, 15.0f, 0.0f, 100.0f, 3.0f, 0.4f, RangeFamily::circuit } },
+
+            // The rest of the family, new with GuitarCircuit and so declared
+            // fresh. Capacitors are in nF (see Parameters.cpp). The treble
+            // bleed's selector is non-physical and has no row.
+            { ParamIDs::circuitVolumePot,  { 100.0e3f, 1.0e6f, 1.0e3f,  10.0e6f, 500.0e3f, 0.24f, RangeFamily::circuit } },
+            { ParamIDs::circuitTonePot,    { 100.0e3f, 1.0e6f, 1.0e3f,  10.0e6f, 500.0e3f, 0.24f, RangeFamily::circuit } },
+            { ParamIDs::circuitToneCap,    { 10.0f,    100.0f, 1.0f,    1000.0f, 22.0f,    0.24f, RangeFamily::circuit } },
+            { ParamIDs::ampInputImpedance, { 220.0e3f, 1.0e6f, 10.0e3f, 10.0e6f, 1.0e6f,   0.32f, RangeFamily::circuit } },
         };
 
         return table[index];
     }
 
-    constexpr int kNumEntries = 7;
+    constexpr int kNumEntries = 11;
 }
 
 const PhysicalRange* RangeRegistry::find (const juce::String& parameterId)

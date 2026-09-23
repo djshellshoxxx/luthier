@@ -15,7 +15,6 @@
 #include "../DSP/Coupling/CouplingMatrix.h"
 #include "../DSP/Pickup/PickupEngine.h"
 #include "../DSP/Whammy/WhammyEngine.h"
-#include "../DSP/Cable/CableSim.h"
 #include "../DSP/Body/BodyEngine.h"
 #include "../DSP/Amp/AmpEngine.h"
 #include "../DSP/Amp/CabinetEngine.h"
@@ -742,7 +741,6 @@ LUTHIER_TEST (Pickup, positionCombNullsTheExpectedHarmonic)
         spec.capacitancePf = 0.0;
         p.setPickupSpec (0, spec);
         p.setSelector (PickupSelector::Bridge);
-        p.setToneControl (1.0);
 
         const int n = 16384;
         std::vector<double> out ((size_t) n);
@@ -856,28 +854,7 @@ LUTHIER_TEST (Whammy, fixedBridgeDoesNothing)
 //==============================================================================
 //  Cable, amp, cabinet, room, master
 //==============================================================================
-LUTHIER_TEST (Cable, longerCableIsDarker)
-{
-    auto brightnessFor = [] (double metres)
-    {
-        CableSim c;
-        c.prepare (kSr);
-        c.setLengthMetres (metres);
-
-        return c.getCutoffHz();
-    };
-
-    CHECK_MSG (brightnessFor (1.0) > brightnessFor (6.0),
-               "a longer cable must roll off more treble");
-    CHECK_MSG (brightnessFor (6.0) > brightnessFor (15.0),
-               "the roll-off must keep increasing with length");
-
-    // Engine spec 9 quotes about 15 kHz at 1 m and about 9 kHz at 6 m.
-    CHECK_MSG (brightnessFor (1.0) > 12000.0,
-               "1 m should be nearly transparent, got " + juce::String (brightnessFor (1.0), 0));
-    CHECK_MSG (brightnessFor (6.0) < 12000.0,
-               "6 m should be noticeably darker, got " + juce::String (brightnessFor (6.0), 0));
-}
+// The cable is part of GuitarCircuit now; its tests are in CircuitTests.cpp.
 
 LUTHIER_TEST (Amp, gainProducesHarmonicDistortion)
 {

@@ -88,6 +88,26 @@ namespace
             juce::AudioParameterFloatAttributes().withLabel (unit));
     }
 
+    /*  A resistance, shown and typed the way it is printed on a part. Declared
+        through floatParam's range rules, so the stock-range record is kept. */
+    std::unique_ptr<juce::AudioParameterFloat> ohmParam (const juce::String& id,
+                                                         const juce::String& name,
+                                                         float min, float max, float def,
+                                                         float skew)
+    {
+        juce::NormalisableRange<float> range (min, max);
+        range.setSkewForCentre (min + (max - min) * skew);
+
+        RangeRegistry::noteDeclaration (id, min, max);
+
+        return std::make_unique<juce::AudioParameterFloat> (
+            pid (id), name, range, def,
+            juce::AudioParameterFloatAttributes()
+                .withLabel ("ohm")
+                .withStringFromValueFunction ([] (float v, int) { return Parameters::formatOhms (v); })
+                .withValueFromStringFunction ([] (const juce::String& t) { return (float) Parameters::parseOhms (t); }));
+    }
+
     std::unique_ptr<juce::AudioParameterChoice> choiceParam (const juce::String& id,
                                                              const juce::String& name,
                                                              const juce::StringArray& choices,
@@ -326,6 +346,49 @@ juce::StringArray Parameters::oversamplingNames()
     return { "1x (Off)", "2x", "4x", "8x" };
 }
 
+// Orders match PotTaper, TrebleBleed and CableQuality in GuitarCircuit.h.
+juce::StringArray Parameters::potTaperNames()     { return { "Audio", "Linear", "50s Wiring" }; }
+juce::StringArray Parameters::trebleBleedNames()  { return { "None", "Kinman", "Fender", "Custom" }; }
+juce::StringArray Parameters::bleedModeNames()    { return { "Parallel", "Series" }; }
+juce::StringArray Parameters::cableQualityNames() { return { "Studio", "Standard", "Cheap", "Vintage" }; }
+
+juce::String Parameters::formatOhms (double ohms)
+{
+    auto trimmed = [] (double v)
+    {
+        // Three significant figures, and no trailing zeros: "470k", "1.5M".
+        auto text = juce::String (v, v < 10.0 ? 2 : (v < 100.0 ? 1 : 0));
+
+        if (text.containsChar ('.'))
+            text = text.trimCharactersAtEnd ("0").trimCharactersAtEnd (".");
+
+        return text;
+    };
+
+    if (ohms >= 1.0e6) return trimmed (ohms / 1.0e6) + "M";
+    if (ohms >= 1.0e3) return trimmed (ohms / 1.0e3) + "k";
+    return trimmed (ohms);
+}
+
+double Parameters::parseOhms (const juce::String& text)
+{
+    auto t = text.trim().toLowerCase().removeCharacters (" ");
+
+    for (const char* suffix : { "ohms", "ohm", "\xce\xa9" })
+        if (t.endsWith (juce::CharPointer_UTF8 (suffix)))
+            t = t.dropLastCharacters ((int) juce::String (juce::CharPointer_UTF8 (suffix)).length());
+
+    // Scale letters as a guitarist writes them: 500k, 1M, 1meg.
+    double scale = 1.0;
+
+    if (t.contains ("meg") || t.endsWithChar ('m'))
+        scale = 1.0e6;
+    else if (t.endsWithChar ('k'))
+        scale = 1.0e3;
+
+    return t.getDoubleValue() * scale;
+}
+
 //==============================================================================
 APVTS::ParameterLayout Parameters::createLayout()
 {
@@ -446,6 +509,22 @@ APVTS::ParameterLayout Parameters::createLayout()
     // --- cable ----------------------------------------------------------------
     add (boolParam  (ParamIDs::cableOn,     "Cable",        true));
     add (floatParam (ParamIDs::cableLength, "Cable Length", 0.5f, 15.0f, 3.0f, 0.4f, "m"));
+
+    // --- guitar circuit (volume-knob-interaction.md 3) ---------------------------
+    // Stock ranges are advanced-ranges.md 3.2's. Capacitors are declared in nF
+    // rather than farads: a float carrying 2.2e-8 prints as "0.00" in every
+    // host's automation lane, and nF is the unit on the part's own label.
+    add (choiceParam (ParamIDs::cableQuality,       "Cable Quality",       cableQualityNames(), 1));
+    add (ohmParam    (ParamIDs::circuitVolumePot,   "Volume Pot",          100.0e3f, 1.0e6f, 500.0e3f, 0.24f));
+    add (ohmParam    (ParamIDs::circuitTonePot,     "Tone Pot",            100.0e3f, 1.0e6f, 500.0e3f, 0.24f));
+    add (floatParam  (ParamIDs::circuitToneCap,     "Tone Cap",            10.0f, 100.0f, 22.0f, 0.24f, "nF"));
+    add (choiceParam (ParamIDs::circuitPotTaper,    "Pot Taper",           potTaperNames(), 0));
+    add (choiceParam (ParamIDs::circuitTrebleBleed, "Treble Bleed",        trebleBleedNames(), 0));
+    add (ohmParam    (ParamIDs::circuitBleedR,      "Bleed Resistor",      10.0e3f, 1.0e6f, 130.0e3f, 0.2f));
+    add (floatParam  (ParamIDs::circuitBleedC,      "Bleed Cap",           0.1f, 10.0f, 1.1f, 0.2f, "nF"));
+    add (choiceParam (ParamIDs::circuitBleedMode,   "Bleed Wiring",        bleedModeNames(), 0));
+    add (boolParam   (ParamIDs::circuitActive,      "Active Electronics",  false));
+    add (ohmParam    (ParamIDs::ampInputImpedance,  "Amp Input Impedance", 220.0e3f, 1.0e6f, 1.0e6f, 0.32f));
 
     // --- amp ------------------------------------------------------------------
     add (choiceParam (ParamIDs::ampModel,    "Amp",       ampModelNames(), 0));
@@ -640,9 +719,6 @@ void ParameterBridge::applyToEngine() noexcept
     pickups.setSelector ((PickupSelector) (int) value (ParamIDs::pickupSelector));
     pickups.setBlend (value (ParamIDs::pickupBlend));
 
-    // The Tone macro shapes the guitar's own tone control as well as the amp.
-    pickups.setToneControl (juce::jlimit (0.0, 1.0, value (ParamIDs::guitarTone) * (0.45 + macroTone * 1.1)));
-    pickups.setVolumeControl (value (ParamIDs::guitarVolume));
     pickups.setPiezoMicBlend (value (ParamIDs::piezoMicBlend));
 
     for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
@@ -700,20 +776,54 @@ void ParameterBridge::applyToEngine() noexcept
     wham.setSpringAmount (value (ParamIDs::whammySprings));
     wham.setTransposeLock ((int) value (ParamIDs::transposeLock));
 
-    // ---- cable ----------------------------------------------------------------
-    engine.getCableSim().setEnabled (value (ParamIDs::cableOn) > 0.5f);
-    engine.getCableSim().setLengthMetres (value (ParamIDs::cableLength));
+    // ---- guitar circuit (volume-knob-interaction.md) ------------------------------
+    {
+        CircuitComponents circuit;
+
+        circuit.volume = value (ParamIDs::guitarVolume);
+
+        // The Tone macro turns the guitar's own tone control as well as the amp.
+        circuit.tone = juce::jlimit (0.0, 1.0, value (ParamIDs::guitarTone) * (0.45 + macroTone * 1.1));
+
+        circuit.volumePot = value (ParamIDs::circuitVolumePot);
+        circuit.tonePot   = value (ParamIDs::circuitTonePot);
+        circuit.toneCap   = value (ParamIDs::circuitToneCap) * 1.0e-9;
+        circuit.taper     = (PotTaper) (int) value (ParamIDs::circuitPotTaper);
+
+        circuit.bleed            = (TrebleBleed) (int) value (ParamIDs::circuitTrebleBleed);
+        circuit.bleedResistance  = value (ParamIDs::circuitBleedR);
+        circuit.bleedCapacitance = value (ParamIDs::circuitBleedC) * 1.0e-9;
+        circuit.bleedSeries      = (int) value (ParamIDs::circuitBleedMode) == 1;
+
+        circuit.active = value (ParamIDs::circuitActive) > 0.5f;
+
+        circuit.cableOn           = value (ParamIDs::cableOn) > 0.5f;
+        circuit.cableLength       = value (ParamIDs::cableLength);
+        circuit.cableQuality      = (CableQuality) (int) value (ParamIDs::cableQuality);
+        circuit.ampInputImpedance = value (ParamIDs::ampInputImpedance);
+
+        engine.setCircuitControls (circuit);
+    }
 
     // ---- amp -------------------------------------------------------------------
     auto& ampEngine = engine.getAmpEngine();
 
     // Drive macro pushes the amp gain on top of its own control.
-    ampEngine.setGain (juce::jlimit (0.0, 1.0, value (ParamIDs::ampGain) + macroDrive * 0.55));
+    // The Drive macro pushes on top of the knob. It stays inside the stock
+    // travel unless the knob itself is already past it (advanced ranges).
+    {
+        const double knob = value (ParamIDs::ampGain);
+        ampEngine.setGain (juce::jlimit (0.0, juce::jmax (1.0, knob), knob + macroDrive * 0.55));
+    }
     ampEngine.setBass (value (ParamIDs::ampBass));
     ampEngine.setMid (value (ParamIDs::ampMid));
 
     // Tone macro tilts treble against bass, the way a single tone knob should.
-    ampEngine.setTreble (juce::jlimit (0.0, 1.0, value (ParamIDs::ampTreble) + (macroTone - 0.5) * 0.5));
+    {
+        const double knob = value (ParamIDs::ampTreble);
+        ampEngine.setTreble (juce::jlimit (juce::jmin (0.0, knob), juce::jmax (1.0, knob),
+                                           knob + (macroTone - 0.5) * 0.5));
+    }
     ampEngine.setPresence (value (ParamIDs::ampPresence));
     ampEngine.setMaster (value (ParamIDs::ampMaster));
     ampEngine.setBrightSwitch (value (ParamIDs::ampBright) > 0.5f);

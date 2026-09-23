@@ -89,7 +89,6 @@ void PickupEngine::Coil::reset() noexcept
         std::fill (h.begin(), h.end(), 0.0);
 
     writeIndex.fill (0);
-    tank.reset();
     magnetEq.reset();
 }
 
@@ -118,16 +117,11 @@ void PickupEngine::prepare (double sampleRate, int strings)
     specs[1] = PickupSpec::makeDefault (PickupType::SingleCoil, 0.25);
     specs[2] = PickupSpec::makeDefault (PickupType::SingleCoil, 0.40);
 
-    toneFilter.prepare (sr);
 
-    toneAmount.prepare (sr, constants::kCutoffSmoothSeconds);
-    volumeAmount.prepare (sr, constants::kParamSmoothSeconds);
     blendAmount.prepare (sr, constants::kParamSmoothSeconds);
     piezoMicBlend.prepare (sr, constants::kParamSmoothSeconds);
     humLevel.prepare (sr, constants::kParamSmoothSeconds);
 
-    toneAmount.snapTo (1.0);
-    volumeAmount.snapTo (1.0);
     blendAmount.snapTo (0.5);
     piezoMicBlend.snapTo (0.0);
     humLevel.snapTo (0.0);
@@ -162,7 +156,6 @@ void PickupEngine::reset() noexcept
         for (auto& c : slot)
             c.reset();
 
-    toneFilter.reset();
     piezoHp.reset();
     piezoLp.reset();
     piezoRes.reset();
@@ -171,8 +164,6 @@ void PickupEngine::reset() noexcept
     outputDc.reset();
     humPhase = 0.0;
 
-    toneAmount.snapToTarget();
-    volumeAmount.snapToTarget();
     blendAmount.snapToTarget();
     piezoMicBlend.snapToTarget();
     humLevel.snapToTarget();
@@ -232,14 +223,35 @@ void PickupEngine::setBlend (double blend) noexcept
     blendAmount.setTarget (juce::jlimit (0.0, 1.0, blend));
 }
 
-void PickupEngine::setToneControl (double amount) noexcept
+PickupEngine::SelectedCoil PickupEngine::getSelectedCoil() const noexcept
 {
-    toneAmount.setTarget (juce::jlimit (0.0, 1.0, amount));
-}
+    SelectedCoil result;
 
-void PickupEngine::setVolumeControl (double amount) noexcept
-{
-    volumeAmount.setTarget (juce::jlimit (0.0, 1.0, amount));
+    double inverseL = 0.0, inverseR = 0.0;
+
+    for (int slot = 0; slot < juce::jmin (numPickups, kMaxPickups); ++slot)
+    {
+        if (! slotOn[(size_t) slot])
+            continue;
+
+        const auto& s = specs[(size_t) slot];
+
+        if (s.inductanceHenries <= 1.0e-6)
+            continue;
+
+        result.hasCoil = true;
+        inverseL += 1.0 / s.inductanceHenries;
+        inverseR += 1.0 / juce::jmax (100.0, s.resistanceKOhm * 1000.0);
+        result.capacitance += s.capacitancePf * 1.0e-12;
+    }
+
+    if (result.hasCoil)
+    {
+        result.inductance = 1.0 / inverseL;
+        result.resistance = 1.0 / inverseR;
+    }
+
+    return result;
 }
 
 void PickupEngine::setHumAmount (double amount) noexcept
@@ -279,25 +291,9 @@ void PickupEngine::updateCoil (int slot, int coilIndex) noexcept
     const auto& s = specs[(size_t) slot];
     auto& coil = coils[(size_t) slot][(size_t) coilIndex];
 
-    // ---- LCR tank ------------------------------------------------------------
-    if (s.inductanceHenries > 1.0e-6 && s.capacitancePf > 1.0e-6)
-    {
-        const double L = s.inductanceHenries;
-        const double C = s.capacitancePf * 1.0e-12;
-        const double R = juce::jmax (100.0, s.resistanceKOhm * 1000.0);
-
-        const double fRes = 1.0 / (constants::kTwoPi * std::sqrt (L * C));
-
-        // Q = (1/R) * sqrt(L/C), which for real pickups lands between about 1 and 3.
-        const double q = juce::jlimit (0.5, 6.0, (1.0 / R) * std::sqrt (L / C));
-
-        // A resonant lowpass, not a peak: above resonance the coil rolls off.
-        coil.tank.setLowpass (sr, juce::jlimit (400.0, sr * 0.47, fRes), q);
-    }
-    else
-    {
-        coil.tank.setBypass();
-    }
+    // The coil's LCR resonance is not here any more. It depends on everything
+    // the pickup is loaded by - pots, cable, amp - so GuitarCircuit solves it
+    // as part of that network (volume-knob-interaction.md 0.1).
 
     applyMagnetEq (coil.magnetEq, s.magnet, sr);
 
@@ -359,6 +355,7 @@ void PickupEngine::updateSelection() noexcept
     for (int i = 0; i < kMaxPickups; ++i)
     {
         const bool active = on[i] && i < numPickups;
+        slotOn[(size_t) i] = active;
         slotGain[(size_t) i].setTarget (active ? userVolume[(size_t) i] * norm : 0.0);
     }
 }
@@ -440,7 +437,6 @@ double PickupEngine::processStrings (const double* stringOutputs,
 
             // The electrical stage runs once per coil on its summed string signal,
             // because a real coil has one winding for all the strings.
-            coilSum = coil.tank.process (coilSum);
             coilSum = coil.magnetEq.process (coilSum);
 
             slotSum += coilSum * coil.gain;
@@ -494,16 +490,9 @@ double PickupEngine::processStrings (const double* stringOutputs,
         }
     }
 
-    // ---- passive tone and volume controls -------------------------------------
-    const double tone = toneAmount.next();
-    const double vol = volumeAmount.next();
-
-    // A guitar tone pot is an RC lowpass: fully open it is nearly transparent,
-    // fully closed it sits around 500 Hz.
-    toneFilter.setCutoff (juce::jlimit (300.0, sr * 0.47, 500.0 * std::pow (40.0, tone)));
-    total = toneFilter.process (total);
-
-    total = outputDc.process (total * vol);
+    // Tone and volume are GuitarCircuit's: they are part of the network the
+    // coil is loaded by, not a filter after it.
+    total = outputDc.process (total);
 
     return sanitise (total);
 }

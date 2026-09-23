@@ -146,7 +146,9 @@ LUTHIER_TEST (Ranges, wideningPreservesEveryPlainValue)
                 if (p == nullptr)
                     continue;
 
-                CHECK_MSG (std::abs (p->get() - before[n]) < 1.0e-4f,
+                // Relative: a 1 M resistor stored as a float is only good to
+                // about 0.06 ohm, which is still one part in ten million.
+                CHECK_MSG (std::abs (p->get() - before[n]) <= 1.0e-4f * juce::jmax (1.0f, std::abs (before[n])),
                            ids[n] + " moved when its family was unlocked: "
                              + juce::String (before[n]) + " -> " + juce::String (p->get()));
             }

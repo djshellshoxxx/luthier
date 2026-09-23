@@ -537,9 +537,8 @@ void AdvancedPanel::buildColumn1()
 //==============================================================================
 /*  Column 2, section 4.2: PICKUPS, CIRCUIT, PRE-EFFECTS RACK.
 
-    CIRCUIT is specified by volume-knob-interaction.md 10 and replaces CABLE
-    outright. That file does not exist, so CABLE is still here, and still
-    called CABLE rather than relabelled as something it is not.
+    CIRCUIT is volume-knob-interaction.md 5 and replaced CABLE outright, the
+    way GuitarCircuit replaced CableSim.
 
     PLAYING HAND and STRING NOISE are not in section 4.2. Their canonical homes
     are the CHARACTER tab PICK and STRING NOISE groups, both blocked on specs
@@ -630,19 +629,80 @@ void AdvancedPanel::buildColumn2()
     addKnob (piezoMicBlend, "Piezo / Mic", ParamIDs::piezoMicBlend,
              "Acoustic instruments: balance between the under-saddle piezo and the "
              "internal condenser mic");
-    addKnob (guitarTone, "Tone", ParamIDs::guitarTone,
-             "The guitar's own tone control: a passive treble roll-off, not an EQ");
-    addKnob (guitarVolume, "Volume", ParamIDs::guitarVolume,
-             "The guitar's volume control");
-
-    // ---- cable ---------------------------------------------------------------------
+    // ---- circuit (volume-knob-interaction.md 5) --------------------------------------
     column.addGap (Metrics::grid);
-    column.addSection ("Cable");
+    column.addSection ("Circuit");
 
-    addToggle (cableOn, "Cable", ParamIDs::cableOn, "Cable capacitance roll-off");
+    circuitView = std::make_unique<CircuitResponseView> (processor);
+    circuitView->setTooltip ("What the pickup, pots, cable and amp input do together. "
+                             "Turn the volume down and watch the peak slide and flatten.");
+    column.addControl (circuitView.get(), 96);
+
+    // Large: these are played, not set.
+    auto addLargeKnob = [&column, this] (std::unique_ptr<LuthierKnob>& knob, const char* name,
+                                         const char* paramId, const char* tooltip)
+    {
+        knob = std::make_unique<LuthierKnob> (name, LuthierKnob::Size::Large);
+        knob->attachTo (processor, paramId, tooltip);
+        column.addControl (knob.get(), LuthierKnob::preferredHeightFor (LuthierKnob::Size::Large));
+    };
+
+    addLargeKnob (guitarVolume, "Volume", ParamIDs::guitarVolume,
+                  "The volume pot's wiper. On a passive guitar turning down also darkens, "
+                  "because the pot loads the pickup - the circuit view shows it.");
+    addLargeKnob (guitarTone, "Tone", ParamIDs::guitarTone,
+                  "The tone pot and cap: a passive treble cut, never a boost");
+
+    auto addStandard = [&column, this] (std::unique_ptr<StandardValueChoice>& choice, const char* name,
+                                        const char* paramId, juce::Array<double> values,
+                                        juce::StringArray names, const char* tooltip)
+    {
+        choice = std::make_unique<StandardValueChoice> (name, std::move (values), std::move (names));
+        choice->attachTo (processor, paramId, tooltip);
+        column.addControl (choice.get(), 36);
+    };
+
+    addStandard (volumePotChoice, "Volume pot", ParamIDs::circuitVolumePot,
+                 { 250.0e3, 500.0e3, 1.0e6 }, { "250k", "500k", "1M" },
+                 "250k for single coils, 500k for humbuckers is the convention. "
+                 "Bigger pots load the pickup less and sound brighter.");
+    addKnob (volumePot, "Custom", ParamIDs::circuitVolumePot, "Any volume pot value");
+
+    addStandard (tonePotChoice, "Tone pot", ParamIDs::circuitTonePot,
+                 { 250.0e3, 500.0e3, 1.0e6 }, { "250k", "500k", "1M" },
+                 "The tone pot also loads the pickup, even fully open");
+    addKnob (tonePot, "Custom", ParamIDs::circuitTonePot, "Any tone pot value");
+
+    addStandard (toneCapChoice, "Tone cap", ParamIDs::circuitToneCap,
+                 { 10.0, 22.0, 47.0 }, { "10n", "22n", "47n" },
+                 "A bigger cap reaches further down as the tone comes off");
+    addKnob (toneCap, "Custom", ParamIDs::circuitToneCap, "Any tone cap value, in nF");
+
+    addChoice (potTaper, "Taper", ParamIDs::circuitPotTaper,
+               "Audio or linear pots, or 50s wiring - the tone control taken off the "
+               "wiper, which keeps the top as the volume comes down");
+
+    addChoice (trebleBleed, "Treble bleed", ParamIDs::circuitTrebleBleed,
+               "A cap (and resistor) across the volume pot so turning down keeps the top. "
+               "Kinman is the gentle one, Fender the bright one.");
+    addKnob (bleedR, "Bleed R", ParamIDs::circuitBleedR, "Custom bleed resistor");
+    addKnob (bleedC, "Bleed C", ParamIDs::circuitBleedC, "Custom bleed cap, in nF");
+    addChoice (bleedMode, "Bleed wiring", ParamIDs::circuitBleedMode,
+               "Custom bleed: resistor and cap side by side, or one after the other");
+
+    addToggle (circuitActive, "Active", ParamIDs::circuitActive,
+               "A buffer straight after the pickup: the pots and cable stop loading it, "
+               "so turning down loses level and not top");
+
+    addToggle (cableOn, "Cable", ParamIDs::cableOn,
+               "Off is a zero-length cable, not silence");
     addKnob (cableLength, "Length", ParamIDs::cableLength,
-             "A long cable into a high-impedance pickup rolls the treble off. "
-             "Ten metres is obvious; one metre is not.");
+             "Cable capacitance grows with length. Ten metres of cheap cable moves "
+             "the resonance a long way; one metre of studio cable barely does.");
+    addChoice (cableQuality, "Cable", ParamIDs::cableQuality,
+               "Capacitance per metre: studio 52 pF, standard 98, cheap 160, coiled 220");
+    addKnob (ampInput, "Amp input", ParamIDs::ampInputImpedance,
+             "The amp's input impedance, the last load on the pickup");
 
     // ---- pre-amp pedals ----------------------------------------------------------------
     column.addGap (Metrics::grid);

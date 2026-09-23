@@ -32,3 +32,53 @@ chosen") and `ambiguity-resolutions.md`.
   gui-integration 21 names CHARACTER and WORKSHOP; today only `amp` and
   `circuit` have ranges and neither lives in a tab. `RangesUi::drawPadlock` is
   the shared glyph for when they do (TODO items 3 and 7).
+- **GuitarCircuit is a nodal (MNA) solver with trapezoidal companions, not a
+  biquad pair.** volume-knob-interaction 1.1 asks for H(s) bilinear-transformed;
+  trapezoidal companions *are* that transform, applied to the whole network
+  without factoring a 5th-order H(s) (coil, Cp, tone cap, bleed cap, cable).
+  Exact for a fixed knob, fixed-size, allocation-free.
+- **Recomputed on the audio thread between blocks, not the message thread.**
+  The parameter bridge runs there; a 5x5 inverse on change is allocation-free
+  and cheap. ground rule 0.5's real requirement - no audio-thread allocation -
+  holds.
+- **Pot sections under 1 k are wires.** A near-zero section between two
+  capacitive nodes maps to a pole beside z = -1 (Nyquist ringing that barely
+  decays). Shorting them changes nothing audible against 500 k-scale parts.
+- **The coil's resonance moved from PickupEngine into GuitarCircuit.** It
+  depends on the load, which is the point of the spec; the pickup engine now
+  produces EMF. Selected pickups combine as parallel impedances.
+- **50s wiring puts the tone control on the wiper.** 3.1's text says "input
+  side rather than wiper side", which is the modern wiring; the audible result
+  it describes (keeps its top as volume comes down) is what real 50s wiring -
+  tone on the wiper - does, so the physics was followed.
+- **Active tone corner** runs from the tone cap's resonance with the coil
+  (fully off) to above the audio band (fully open). 1.4 says "same nominal
+  corner" without defining it; this ties it to the parts the user chose.
+- **"Bypass is neutral" is measured against the bare coil.** Active with pots
+  at 1.0 cannot be flat outright while 1.4 keeps the coil's resonance "put";
+  the test asserts the buffered circuit adds nothing to the coil, and that a
+  coil-less (piezo) buffered circuit is flat outright.
+- **Level test's "taper prediction" is the loaded resistive divider** (wiper
+  against the amp input) - the pot's own behaviour at a frequency where the
+  coil and capacitors are out of the picture.
+- **Capacitor parameters are in nF**, not F: a float of 2.2e-8 prints "0.00" in
+  host automation lanes.
+- **The spec's "+9 parameters" is +11.** Its own table lists eleven new IDs;
+  the count test is 363.
+- **Pot/cap dropdowns are StandardValueChoice combos beside a knob.** The combo
+  offers the values people buy and reads "Custom" otherwise; the knob is how a
+  custom value is set.
+- **Circuit tests measure presence (4 kHz vs 100 Hz), not a -3 dB corner.**
+  On the spec's own reference parts, rolling 10 -> 7 takes the 4 kHz peak from
+  +7.0 to +1.2 dB and loses 3.8 dB at 5 kHz (ground rule 4's "a few dB"), but
+  flattening the resonance moves the -3 dB crossing *up* (6.9 -> 8.8 kHz). The
+  Kinman bleed holds presence within 0.1 dB. Tone at 0 honks near 600 Hz, so
+  its corner is not monotonic while its top is. The tests assert what the
+  spec's words mean ("darkens", "keeps top", "sweeps down").
+- **"No tone setting above unity" is read against the open guitar's peak.** The
+  loaded coil already peaks above the EMF; the check is that no tone setting
+  makes the loudest point louder.
+- **Advanced amp ranges: the tone stack stays on 0-1 and the part beyond is
+  extra shelving/peaking (18 dB per unit)**, because a pot position outside 0-1
+  is a negative resistance. Gain and master keep climbing past the knob at
+  24 dB and 12 dB per unit.

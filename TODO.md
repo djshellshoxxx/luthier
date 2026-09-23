@@ -10,13 +10,15 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## In progress
 
-- [ ] **2. `GuitarCircuit`** — next.
+- [ ] **3. `NoiseEngine` pool** — next.
 
 ## Remaining
 
-- [ ] 2. `GuitarCircuit` replacing `CableSim` (`volume-knob-interaction.md`),
-      and the Adv Col 2 CIRCUIT panel replacing CABLE. Register its params in
-      `RangeRegistry` (`circuit` family).
+- [ ] 2c. Feedback per `ambiguity-resolutions.md` 1 (mic-to-speaker loop,
+      feedback_amount/distance/angle/focus/octave_bias params, post-circuit
+      path, Adv Col 3 SUSTAIN feedback row). Currently a heuristic.
+- [ ] 2d. Audit the rest of `ambiguity-resolutions.md` against the build
+      (brief step 4).
 - [ ] 3. `NoiseEngine` pool, then `PickModel`, `SqueakModel`, buzz sensing
       (`pick-noise.md`, `string-squeak.md`, `fret-buzz.md`); CHARACTER PICK /
       STRING NOISE groups; noise-event strip; Aux 8 noise bus row. CHARACTER
@@ -48,6 +50,11 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 - [ ] 18. Plugin targets (`Luthier_VST3`, `Luthier_Standalone`) build clean.
 
 ## Done
+
+- [x] 2. `GuitarCircuit` replacing `CableSim`; 11 circuit params in the
+      `circuit` family; CIRCUIT panel with live response view and standard-value
+      dropdowns; coil resonance moved out of `PickupEngine`.
+- [x] 2b. Advanced amp ranges audible (AmpEngine accepts the advanced span).
 
 - [x] 1. Advanced ranges UI: Options RANGES page, warning arc and `*`,
       header padlock, right-click unlock/restrict, locked-edge notice,

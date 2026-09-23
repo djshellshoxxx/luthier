@@ -26,6 +26,7 @@
 #include "ToneMatchPanel.h"
 #include "CharacterPanel.h"
 #include "LivePanel.h"
+#include "CircuitPanel.h"
 #include "FretboardComponent.h"
 #include "GuitarBodyComponent.h"
 #include "PedalRack.h"
@@ -244,7 +245,12 @@ private:
     std::unique_ptr<LuthierChoice> roomSize, roomMaterial;
     std::unique_ptr<LuthierKnob> roomBlend, roomDecay, roomWidth;
 
-    std::unique_ptr<LuthierToggle> cableOn;
+    // CIRCUIT (volume-knob-interaction.md 5), which replaced CABLE.
+    std::unique_ptr<CircuitResponseView> circuitView;
+    std::unique_ptr<StandardValueChoice> volumePotChoice, tonePotChoice, toneCapChoice;
+    std::unique_ptr<LuthierKnob> volumePot, tonePot, toneCap, bleedR, bleedC, ampInput;
+    std::unique_ptr<LuthierChoice> potTaper, trebleBleed, bleedMode, cableQuality;
+    std::unique_ptr<LuthierToggle> circuitActive, cableOn;
     std::unique_ptr<LuthierKnob> cableLength;
 
     std::unique_ptr<RoutingPanel> routingPanel;

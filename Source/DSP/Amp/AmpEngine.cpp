@@ -110,6 +110,9 @@ void AmpEngine::reset() noexcept
     toneStack.reset();
     brightShelf.reset();
     midBoostEq.reset();
+    bassBeyond.reset();
+    midBeyond.reset();
+    trebleBeyond.reset();
 
     for (int i = 0; i < kMaxStages; ++i)
     {
@@ -171,6 +174,7 @@ void AmpEngine::updateVoicing() noexcept
 void AmpEngine::updateFilters() noexcept
 {
     toneStack.setControls (bassNorm, midNorm, trebleNorm);
+    updateBeyondStock();
 
     // Bright switch: a cap across the volume pot. Its effect is strongest at low
     // gain settings and disappears as the pot is opened, exactly as in the circuit.
@@ -207,13 +211,27 @@ void AmpEngine::updateFilters() noexcept
     transformerLf.setCutoff (juce::jmin (22.0, osRate * 0.45));
 }
 
+void AmpEngine::updateBeyondStock() noexcept
+{
+    // 18 dB per unit of travel past the end: the advanced limits (-0.5, 1.5)
+    // are 9 dB of extra cut or boost, on top of the stack's own extreme.
+    auto beyondDb = [] (double v) { return 18.0 * (v > 1.0 ? v - 1.0 : (v < 0.0 ? v : 0.0)); };
+
+    bassBeyond.setLowShelf (osRate, 120.0, 0.7, beyondDb (bassNorm));
+    midBeyond.setPeaking (osRate, 650.0, 0.8, beyondDb (midNorm));
+    trebleBeyond.setHighShelf (osRate, 3200.0, 0.7, beyondDb (trebleNorm));
+}
+
 //==============================================================================
-void AmpEngine::setGain (double n) noexcept      { gainNorm = juce::jlimit (0.0, 1.0, n); gainSmooth.setTarget (gainNorm); updateFilters(); }
-void AmpEngine::setMaster (double n) noexcept    { masterNorm = juce::jlimit (0.0, 1.0, n); masterSmooth.setTarget (masterNorm); }
-void AmpEngine::setBass (double n) noexcept      { bassNorm = juce::jlimit (0.0, 1.0, n); toneStack.setControls (bassNorm, midNorm, trebleNorm); }
-void AmpEngine::setMid (double n) noexcept       { midNorm = juce::jlimit (0.0, 1.0, n); toneStack.setControls (bassNorm, midNorm, trebleNorm); }
-void AmpEngine::setTreble (double n) noexcept    { trebleNorm = juce::jlimit (0.0, 1.0, n); toneStack.setControls (bassNorm, midNorm, trebleNorm); }
-void AmpEngine::setPresence (double n) noexcept  { presenceNorm = juce::jlimit (0.0, 1.0, n); updateFilters(); }
+//  Setters take the advanced ranges (advanced-ranges.md 3.1); the stock range
+//  is 0-1 and the knob's own travel. Clamped to the advanced limits so a
+//  malformed value still cannot reach the DSP.
+void AmpEngine::setGain (double n) noexcept      { gainNorm = juce::jlimit (0.0, 2.0, n); gainSmooth.setTarget (gainNorm); updateFilters(); }
+void AmpEngine::setMaster (double n) noexcept    { masterNorm = juce::jlimit (0.0, 2.0, n); masterSmooth.setTarget (masterNorm); }
+void AmpEngine::setBass (double n) noexcept      { bassNorm = juce::jlimit (-0.5, 1.5, n); toneStack.setControls (bassNorm, midNorm, trebleNorm); updateBeyondStock(); }
+void AmpEngine::setMid (double n) noexcept       { midNorm = juce::jlimit (-0.5, 1.5, n); toneStack.setControls (bassNorm, midNorm, trebleNorm); updateBeyondStock(); }
+void AmpEngine::setTreble (double n) noexcept    { trebleNorm = juce::jlimit (-0.5, 1.5, n); toneStack.setControls (bassNorm, midNorm, trebleNorm); updateBeyondStock(); }
+void AmpEngine::setPresence (double n) noexcept  { presenceNorm = juce::jlimit (0.0, 2.0, n); updateFilters(); }
 void AmpEngine::setBrightSwitch (bool on) noexcept { brightSwitch = on; updateFilters(); }
 void AmpEngine::setMidBoost (bool on) noexcept   { midBoost = on; updateFilters(); }
 
@@ -359,8 +377,13 @@ double AmpEngine::processSample (double x) noexcept
 
     // Preamp drive spans about 45 dB. Below about a third of the knob most amps
     // here are clean, which matches where the useful range sits on the real thing.
-    const double preGain = voicing.inputGain * dbToGain (juce::jmap (gain, 0.0, 1.0, -6.0, 40.0));
-    const double postGain = dbToGain (juce::jmap (master, 0.0, 1.0, -40.0, 8.0));
+    // Past the knob's end (advanced ranges) the gain keeps climbing, more
+    // gently: another 24 dB of drive and 12 dB of master at the limit.
+    const double preGainDb = gain <= 1.0 ? juce::jmap (gain, 0.0, 1.0, -6.0, 40.0) : 40.0 + (gain - 1.0) * 24.0;
+    const double postGainDb = master <= 1.0 ? juce::jmap (master, 0.0, 1.0, -40.0, 8.0) : 8.0 + (master - 1.0) * 12.0;
+
+    const double preGain = voicing.inputGain * dbToGain (preGainDb);
+    const double postGain = dbToGain (postGainDb);
 
     const int stages = voicing.preampStages;
 
@@ -384,6 +407,9 @@ double AmpEngine::processSample (double x) noexcept
 
         // ---- tone stack -------------------------------------------------------
         v = toneStack.process (v);
+        v = bassBeyond.process (v);
+        v = midBeyond.process (v);
+        v = trebleBeyond.process (v);
 
         // ---- master volume, then the power amp -------------------------------
         v = piCoupling.process (v);

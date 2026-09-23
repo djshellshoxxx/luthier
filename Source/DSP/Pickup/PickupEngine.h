@@ -102,9 +102,22 @@ public:
         Used by the Easy-mode blend knob. */
     void setBlend (double blend) noexcept;
 
-    /** Guitar tone control: a passive treble roll-off, not a digital EQ. */
-    void setToneControl (double amount) noexcept;   ///< 1 = wide open, 0 = fully rolled off.
-    void setVolumeControl (double amount) noexcept;
+    /*  The coil the switch has selected, as the guitar's circuit sees it
+        (volume-knob-interaction.md 4). Pickups switched in together are in
+        parallel: inductances and resistances combine as parallel impedances,
+        capacitances add. `hasCoil` is false when nothing inductive is selected.
+
+        The tone and volume controls, and the coil's loaded resonance, belong to
+        GuitarCircuit now. This engine produces the coils' EMF. */
+    struct SelectedCoil
+    {
+        bool hasCoil = false;
+        double inductance = 0.0;     ///< H
+        double resistance = 0.0;     ///< ohm
+        double capacitance = 0.0;    ///< F
+    };
+
+    SelectedCoil getSelectedCoil() const noexcept;
 
     /** 60 Hz hum, present on single coils and cancelled by humbuckers. */
     void setHumAmount (double amount) noexcept;
@@ -147,7 +160,6 @@ private:
         std::array<std::vector<double>, kMaxStrings> history;
         std::array<int, kMaxStrings> writeIndex {};
 
-        Biquad tank;          ///< LCR resonance.
         Biquad magnetEq;      ///< Magnet character.
         double gain = 1.0;
         double positionOffset = 0.0;   ///< Fraction of string length from the slot centre.
@@ -174,9 +186,10 @@ private:
     PickupSelector selector = PickupSelector::Bridge;
     SwitchCrossfade selectorFade;
 
-    // Guitar tone/volume: a passive RC roll-off whose corner moves with the pot.
-    OnePoleLP toneFilter;
-    ExpSmoother toneAmount, volumeAmount, blendAmount;
+    ExpSmoother blendAmount;
+
+    /** Which slots the selector has switched in, for getSelectedCoil. */
+    std::array<bool, kMaxPickups> slotOn { { true, false, false } };
 
     // Piezo and internal mic paths.
     Biquad piezoHp, piezoLp, piezoRes;

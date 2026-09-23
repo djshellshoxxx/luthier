@@ -8,6 +8,18 @@ numbered, because what it should be called is a release decision.
 
 ### Added
 
+- **Advanced ranges** (`advanced-ranges.md`) - every physical parameter has a
+  stock range and an advanced one. Options -> RANGES, the header padlock,
+  right-click unlock and restrict, the warning-colour arc and `*` readout, and
+  a one-time explainer. Presets carry a `ranges` block, applied before their
+  values. Past-the-knob amp settings are now audible.
+- **GuitarCircuit** (`volume-knob-interaction.md`) - the pickup, volume and
+  tone pots, tone cap, treble bleed, cable and amp input solved as one
+  network, replacing `CableSim`. Turning the volume down darkens a passive
+  guitar the way a real one does; an Active toggle buffers it. The CIRCUIT
+  panel replaces CABLE, with a live response view. Eleven new parameters: the
+  parameter count is 363.
+
 - **Routing and IO** - a main stereo output plus seven auxiliary stereo buses and
   twelve mono per-string buses, all created disabled so a stereo-only host still
   sees layout A. Sidechain input, MIDI out, re-amp, per-output latency.
@@ -184,6 +196,8 @@ numbered, because what it should be called is a release decision.
 
 ### Fixed
 
+- Undo was off by one both ways: a single action could not be undone, and the
+  first undo after two actions reverted both.
 - **The ASCII tab importer read its own beat ruler as a string of the tab.**
   `looksLikeTab` tested only for "mostly dashes" and never for a bar line, which
   the writer's `1---2---3---4---` ruler passes. Every import therefore invented a
