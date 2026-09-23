@@ -132,12 +132,24 @@ namespace
             // --- squeak (string-squeak.md 9) ----------------------------------
             { ParamIDs::squeakAmount,     { 0.0f, 1.0f,  0.0f,   4.0f,   0.25f, 1.0f, RangeFamily::squeak } },
             { ParamIDs::squeakMinTravel,  { 1.0f, 4.0f,  0.25f,  12.0f,  1.5f,  1.0f, RangeFamily::squeak } },
+
+            // --- buzz (fret-buzz.md 7) ------------------------------------------
+            { ParamIDs::setupActionTreble, { 1.0f,  3.0f, 0.2f,  10.0f, 1.6f,  1.0f, RangeFamily::buzz } },
+            { ParamIDs::setupActionBass,   { 1.2f,  3.5f, 0.2f,  12.0f, 2.0f,  1.0f, RangeFamily::buzz } },
+            { ParamIDs::setupRelief,       { -0.05f, 0.5f, -0.5f, 2.0f, 0.2f,  1.0f, RangeFamily::buzz } },
+            { "setup_nut_depth_1",         { 0.0f,  1.2f, 0.0f,  4.0f,  0.45f, 1.0f, RangeFamily::buzz } },
+            { "setup_nut_depth_2",         { 0.0f,  1.2f, 0.0f,  4.0f,  0.45f, 1.0f, RangeFamily::buzz } },
+            { "setup_nut_depth_3",         { 0.0f,  1.2f, 0.0f,  4.0f,  0.45f, 1.0f, RangeFamily::buzz } },
+            { "setup_nut_depth_4",         { 0.0f,  1.2f, 0.0f,  4.0f,  0.45f, 1.0f, RangeFamily::buzz } },
+            { "setup_nut_depth_5",         { 0.0f,  1.2f, 0.0f,  4.0f,  0.45f, 1.0f, RangeFamily::buzz } },
+            { "setup_nut_depth_6",         { 0.0f,  1.2f, 0.0f,  4.0f,  0.45f, 1.0f, RangeFamily::buzz } },
+            { ParamIDs::setupFretHeight,   { 0.6f,  1.6f, 0.1f,  5.0f,  1.0f,  1.0f, RangeFamily::buzz } },
         };
 
         return table[index];
     }
 
-    constexpr int kNumEntries = 19;
+    constexpr int kNumEntries = 29;
 }
 
 const PhysicalRange* RangeRegistry::find (const juce::String& parameterId)

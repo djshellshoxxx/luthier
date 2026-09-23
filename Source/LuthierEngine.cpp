@@ -125,6 +125,7 @@ void LuthierEngine::reset() noexcept
     pickups.reset();
     whammy.reset();
     playingNoise.reset();
+    fretBuzzModel.reset();
     shiftCount = 0;
     circuit.reset();
     preEffects.reset();
@@ -726,6 +727,21 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
 }
 
 //==============================================================================
+void LuthierEngine::setSetupGeometry (const SetupGeometry& geometry) noexcept
+{
+    auto g = geometry;
+    g.scaleLengthMm = spec.scaleLengthMm;
+    g.numStrings = numStrings;
+    fretBuzzModel.setGeometry (g);
+
+    // The string's own contact clipper (the older, in-loop half of buzz) takes
+    // its threshold from the same setup, so the two never disagree.
+    fretActionMm = juce::jlimit (0.5, 4.0, 0.5 * (g.actionTreble + g.actionBass));
+
+    for (int i = 0; i < numStrings; ++i)
+        strings[(size_t) i].setFretBuzz (fretless ? 0.0 : fretBuzzAmount, fretActionMm);
+}
+
 void LuthierEngine::triggerPickScrape (double seconds, bool downward) noexcept
 {
     std::array<bool, kMaxStrings> wound {};
@@ -1111,6 +1127,23 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     const bool perStringTaps = taps.isPerStringWanted() && taps.getRoomAtOffset() >= numSamples;
 
     playingNoise.getPool().setSamplePosition (samplePosition);
+
+    // fret-buzz.md 2: sensed at block rate, not per sample - the envelope is
+    // slow and a handful of sine evaluations per string is the whole budget.
+    // A fretless neck has nothing to buzz against.
+    if (! fretless)
+    {
+        std::array<double, kMaxStrings> levels {}, fundamentals {};
+
+        for (int s = 0; s < numStrings; ++s)
+        {
+            levels[(size_t) s] = strings[(size_t) s].getLevel();
+            fundamentals[(size_t) s] = strings[(size_t) s].getCurrentFrequency();
+        }
+
+        fretBuzzModel.process (playingNoise.getPool(), levels.data(), currentFret.data(),
+                               fundamentals.data(), numStrings, pluckPosition);
+    }
 
     for (int i = 0; i < numSamples; ++i)
     {

@@ -183,6 +183,19 @@ namespace ParamIDs
     inline constexpr const char* squeakMinTravel   = "squeak_min_travel";
     inline constexpr const char* squeakStyle       = "squeak_style";
 
+    // --- setup and fret buzz (fret-buzz.md 7) ------------------------------------------
+    inline constexpr const char* setupActionTreble = "setup_action_treble";
+    inline constexpr const char* setupActionBass   = "setup_action_bass";
+    inline constexpr const char* setupRelief       = "setup_relief";
+    inline constexpr const char* setupFretHeight   = "setup_fret_height";
+    inline constexpr const char* setupBuzzThreshold = "setup_buzz_threshold";
+    inline constexpr const char* setupSitarMode    = "setup_sitar_mode";
+    inline constexpr const char* setupStyle        = "setup_style";
+
+    /** Nut slot depth for string 1 (highest) to 6. A 12-string's pairs share. */
+    juce::String setupNutDepth (int stringNumber);
+    inline constexpr int kNumNutDepths = 6;
+
     // --- amp ------------------------------------------------------------------
     inline constexpr const char* ampModel    = "amp_model";
     inline constexpr const char* ampGain     = "amp_gain";
@@ -281,6 +294,7 @@ public:
     static juce::StringArray bleedModeNames();
     static juce::StringArray cableQualityNames();
     static juce::StringArray squeakStyleNames();
+    static juce::StringArray setupStyleNames();
 
     /*  The pick's existing thickness and angle parameters are declared 0-1
         (advanced-ranges.md 1.0 keeps them that way); these are the physical

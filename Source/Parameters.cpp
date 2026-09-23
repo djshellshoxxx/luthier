@@ -29,6 +29,7 @@ const char* macroByIndex (int index) noexcept
     juce::String pickupHeight (int slot)   { return "pickup" + juce::String (slot) + "_height"; }
     juce::String pickupMagnet (int slot)   { return "pickup" + juce::String (slot) + "_magnet"; }
     juce::String pickupVolume (int slot)   { return "pickup" + juce::String (slot) + "_volume"; }
+    juce::String setupNutDepth (int n)     { return "setup_nut_depth_" + juce::String (n); }
 
     static juce::String chainPrefix (bool post, int slot)
     {
@@ -358,6 +359,16 @@ juce::StringArray Parameters::squeakStyleNames()
     return { "Silent", "Studio (polished)", "Natural", "Folk / close-mic", "Exaggerated" };
 }
 
+juce::StringArray Parameters::setupStyleNames()
+{
+    juce::StringArray names;
+
+    for (int i = 0; i < kNumSetupStyles; ++i)
+        names.add (getSetupStyle (i).name);
+
+    return names;
+}
+
 double Parameters::pickThicknessMm (double normalised) noexcept
 {
     // Logarithmic across pick-noise.md 2's 0.38-3.0 mm: picks are sold in
@@ -479,6 +490,20 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::squeakPressure,    "Finger Pressure",     0.0f, 1.0f, 0.5f));
     add (floatParam  (ParamIDs::squeakMinTravel,   "Squeak Min Travel",   1.0f, 4.0f, 1.5f, 1.0f, "frets"));
     add (choiceParam (ParamIDs::squeakStyle,       "Squeak Style",        squeakStyleNames(), 2));
+
+    // --- setup and fret buzz (fret-buzz.md 7) -----------------------------------------
+    // Defaults are the Player-friendly style, onboarding.md 1's ship default.
+    add (floatParam  (ParamIDs::setupActionTreble,  "Action Treble",   1.0f,  3.0f, 1.6f, 1.0f, "mm"));
+    add (floatParam  (ParamIDs::setupActionBass,    "Action Bass",     1.2f,  3.5f, 2.0f, 1.0f, "mm"));
+    add (floatParam  (ParamIDs::setupRelief,        "Neck Relief",    -0.05f, 0.5f, 0.2f, 1.0f, "mm"));
+
+    for (int n = 1; n <= ParamIDs::kNumNutDepths; ++n)
+        add (floatParam (ParamIDs::setupNutDepth (n), "Nut Depth " + juce::String (n), 0.0f, 1.2f, 0.45f, 1.0f, "mm"));
+
+    add (floatParam  (ParamIDs::setupFretHeight,    "Fret Height",     0.6f,  1.6f, 1.0f, 1.0f, "mm"));
+    add (floatParam  (ParamIDs::setupBuzzThreshold, "Buzz Threshold",  0.0f,  1.0f, 0.35f));
+    add (boolParam   (ParamIDs::setupSitarMode,     "Sitar Mode",      false));
+    add (choiceParam (ParamIDs::setupStyle,         "Setup Style",     setupStyleNames(), kDefaultSetupStyle));
     add (floatParam (ParamIDs::ampBuzz,      "Amp Buzz",      0.0f, 1.0f, 0.12f));
 
     // --- body -----------------------------------------------------------------
@@ -762,7 +787,23 @@ void ParameterBridge::applyToEngine() noexcept
     }
     engine.setPickAngle (value (ParamIDs::pickAngle));
     engine.setNailVsFlesh (value (ParamIDs::nailVsFlesh));
-    engine.setFretAction (value (ParamIDs::fretAction));
+    // fret_action is superseded by the setup geometry below (fret-buzz.md);
+    // it stays declared because host automation is indexed against the list.
+
+    {
+        SetupGeometry setup;
+        setup.actionTreble  = value (ParamIDs::setupActionTreble);
+        setup.actionBass    = value (ParamIDs::setupActionBass);
+        setup.relief        = value (ParamIDs::setupRelief);
+        setup.fretHeight    = value (ParamIDs::setupFretHeight);
+        setup.buzzThreshold = value (ParamIDs::setupBuzzThreshold);
+        setup.sitarMode     = value (ParamIDs::setupSitarMode) > 0.5f;
+
+        for (int s = 0; s < SetupGeometry::kMaxStrings; ++s)
+            setup.nutDepth[(size_t) s] = value (ParamIDs::setupNutDepth (s % ParamIDs::kNumNutDepths + 1));
+
+        engine.setSetupGeometry (setup);
+    }
     engine.setFretBuzzAmount (value (ParamIDs::fretBuzz));
 
     engine.setNoiseAmounts (value (ParamIDs::slideNoise),

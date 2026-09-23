@@ -641,9 +641,9 @@ LUTHIER_TEST (Parameters, everyParameterHasAUniqueIdAndSaneDefault)
         implementation detail, and something that should have to be changed on
         purpose. docs/CHANGELOG.md quotes this number; if you change the set,
         change it there too. */
-    CHECK_MSG (seen.size() == 375,
+    CHECK_MSG (seen.size() == 388,
                "the parameter list has changed size: " + juce::String (seen.size())
-                 + " parameters, expected 375 - saved host automation is indexed "
+                 + " parameters, expected 388 - saved host automation is indexed "
                    "against this list");
 }
 

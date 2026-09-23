@@ -18,6 +18,7 @@
 #include "DSP/Whammy/WhammyEngine.h"
 #include "DSP/Circuit/GuitarCircuit.h"
 #include "DSP/Noise/PlayingNoise.h"
+#include "DSP/Noise/FretBuzz.h"
 #include "DSP/Effects/EffectsChain.h"
 #include "DSP/Effects/SecretEffect.h"
 #include "DSP/Amp/AmpEngine.h"
@@ -107,6 +108,12 @@ public:
         tests and the offline renderer, which need a note on a named string at
         a named fret. Audio thread. */
     void triggerNoteNow (const NoteOnEvent& e) noexcept { triggerNote (e); }
+
+    /*  fret-buzz.md: the setup. The scale length and string count are the
+        guitar's and are filled in here; the rest comes from the parameters. */
+    void setSetupGeometry (const SetupGeometry& geometry) noexcept;
+    FretBuzz& getFretBuzz() noexcept { return fretBuzzModel; }
+    const FretBuzz& getFretBuzz() const noexcept { return fretBuzzModel; }
 
     /** pick-noise.md 5: a deliberate rake along the wound strings. */
     void triggerPickScrape (double seconds, bool downward) noexcept;
@@ -378,6 +385,8 @@ private:
     std::array<double, kMaxStrings> excitationNoise {}, surfaceNoise {};
     std::vector<double> noiseBuffer;
     juce::uint32 shiftCount = 0;
+
+    FretBuzz fretBuzzModel;
     std::array<double, kMaxStrings> stringDelays {};
 
     // --- articulation state ----------------------------------------------------

@@ -108,3 +108,15 @@ chosen") and `ambiguity-resolutions.md`.
 - **Multi-parameter actions are one undo step** via
   `LuthierAudioProcessor::ScopedUndoAction`, which suppresses per-gesture undo
   entries while it lives. Found when undoing a squeak style reverted one value.
+- **Fret buzz is +13 parameters, not +16**: fret-buzz.md 7 lists 13 IDs (six
+  nut depths among them). A 12-string's pairs share nut depths (string % 6).
+- **`fret_action` is superseded by the setup geometry** and stays declared
+  only for host automation compatibility; the string's in-loop contact clipper
+  now takes its threshold from the setup's mean action, and `fret_buzz` stays
+  as that clipper's amount.
+- **Buzz calibration: 2.4 mm of displacement per unit of string level**, chosen
+  so fret-buzz.md 6.1's styles behave as described (Needs a tech buzzes at
+  velocity 100, Player-friendly only at 127, Clean / high never).
+- **Relief test uses a high nut (1.0 mm).** With a normal nut, open strings buzz
+  on the first frets whatever the relief - true of real guitars too; relief
+  decides where a guitar rattles once the nut protects the low frets.
