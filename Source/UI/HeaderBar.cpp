@@ -113,6 +113,18 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     // live-performance 10: Live Mode is a header switch, and while it is on the
     // Advanced toggle is locked so that a mis-hit on stage cannot swap the whole
     // window out from under the player.
+    addAndMakeVisible (slideButton);
+    slideButton.setClickingTogglesState (true);
+    slideButton.setTooltip ("Slide Mode: play with a bar instead of frets (S)");
+    slideButton.setTitle ("Slide Mode");
+    slideButton.onClick = [this]
+    {
+        auto* p = processor.getState().getParameter (ParamIDs::slideGuitar);
+
+        if (p != nullptr && (p->getValue() > 0.5f) != slideButton.getToggleState())
+            toggleSlideMode (processor);
+    };
+
     addAndMakeVisible (liveButton);
     liveButton.setClickingTogglesState (true);
     liveButton.setToggleState (processor.isLiveMode(), juce::dontSendNotification);
@@ -161,6 +173,19 @@ void HeaderBar::setAdvancedMode (bool advanced)
     modeButton.setToggleState (advanced, juce::dontSendNotification);
     modeButton.setButtonText (advanced ? "Easy" : "Advanced");
     updateRangePadlock();
+}
+
+void HeaderBar::toggleSlideMode (LuthierAudioProcessor& processor)
+{
+    if (auto* p = processor.getState().getParameter (ParamIDs::slideGuitar))
+    {
+        const bool on = p->getValue() > 0.5f;
+        const LuthierAudioProcessor::ScopedUndoAction undo (processor, on ? "Slide Mode off" : "Slide Mode on");
+
+        p->beginChangeGesture();
+        p->setValueNotifyingHost (on ? 0.0f : 1.0f);
+        p->endChangeGesture();
+    }
 }
 
 void HeaderBar::updateRangePadlock()
@@ -244,6 +269,9 @@ void HeaderBar::timerCallback()
 {
     updateUndoRedoState();
     updateRangePadlock();
+
+    if (auto* p = processor.getState().getParameter (ParamIDs::slideGuitar))
+        slideButton.setToggleState (p->getValue() > 0.5f, juce::dontSendNotification);
 
     // The MIDI-in indicator blinks when notes arrive.
     if (processor.getEngine().consumeMidiActivity())
@@ -455,6 +483,7 @@ void HeaderBar::resized()
     bounds.removeFromRight (Metrics::gridHalf);
 
     liveButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
+    slideButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
     helpButton.setBounds (bounds.removeFromRight (30).reduced (2, 0));

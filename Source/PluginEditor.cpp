@@ -535,6 +535,12 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
+    if (is ("toggleSlideMode"))
+    {
+        HeaderBar::toggleSlideMode (processor);
+        return true;
+    }
+
     if (is ("toggleLiveMode"))
     {
         processor.setLiveMode (! processor.isLiveMode());

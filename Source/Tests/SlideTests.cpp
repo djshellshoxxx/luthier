@@ -4,6 +4,10 @@
 
 #include "../DSP/Slide/SlideEngine.h"
 #include "../LuthierEngine.h"
+#include "../PluginProcessor.h"
+#include "../UI/AdvancedPanel.h"
+#include "../UI/CharacterPanel.h"
+#include "../UI/SlideGroup.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -297,4 +301,66 @@ LUTHIER_TEST (Slide, switchingModeMidNoteIsClean)
 
     CHECK_MSG (gainToDb (worst) < -60.0,
                "switching Slide Mode mid-note moved the output by " + juce::String (gainToDb (worst), 1) + " dBFS");
+}
+
+//==============================================================================
+namespace
+{
+    template <typename T>
+    T* findChild (juce::Component& root)
+    {
+        if (auto* hit = dynamic_cast<T*> (&root))
+            return hit;
+
+        for (auto* child : root.getChildren())
+            if (auto* hit = findChild<T> (*child))
+                return hit;
+
+        return nullptr;
+    }
+}
+
+LUTHIER_TEST (SlideUi, theSlideGroupAppearsWithSlideModeAndTheTabFitsIt)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    AdvancedPanel panel (processor);
+    panel.setVisible (true);
+    panel.setSize (1600, 900);
+    CHECK (panel.setWorkspaceTabNamed ("CHARACTER"));
+
+    auto* character = findChild<CharacterPanel> (panel);
+    auto* slide = findChild<SlideGroup> (panel);
+    CHECK (character != nullptr && slide != nullptr);
+
+    if (character == nullptr || slide == nullptr)
+        return;
+
+    // The tab is as tall as what is on it - it used to sit at 80 points.
+    CHECK_MSG (character->getHeight() >= character->preferredHeight(),
+               "CHARACTER is " + juce::String (character->getHeight()) + " tall for "
+                 + juce::String (character->preferredHeight()) + " of content");
+
+    CHECK_MSG (! slide->isVisible(), "the SLIDE group showed with Slide Mode off");
+    const int before = character->getHeight();
+
+    processor.getState().getParameter (ParamIDs::slideGuitar)->setValueNotifyingHost (1.0f);
+    processor.getState().getParameter (ParamIDs::setupActionBass)->setValueNotifyingHost (0.0f);
+
+    slide->refresh();
+
+    CHECK_MSG (slide->isVisible(), "the SLIDE group did not appear in Slide Mode");
+    CHECK (character->getHeight() > before);
+
+    // 1.2 mm of bass action is not a slide setup, and the plugin says so without changing it.
+    CHECK_MSG (slide->isLowActionWarningShowing(), "no low-action warning at 1.2 mm");
+    CHECK (std::abs (processor.getState().getParameter (ParamIDs::setupActionBass)->getValue()) < 1.0e-6f);
+}
+
+LUTHIER_TEST (SlideUi, pressureSaysWhatItMeans)
+{
+    CHECK (SlideGroup::describePressure (0.1).startsWith ("Rattling"));
+    CHECK (SlideGroup::describePressure (0.55) == "Seated");
+    CHECK (SlideGroup::describePressure (0.95).startsWith ("Choking"));
 }

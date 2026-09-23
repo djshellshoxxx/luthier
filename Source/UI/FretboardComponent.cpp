@@ -165,6 +165,37 @@ void FretboardComponent::timerCallback()
         liveNote[(size_t) s] = note;
     }
 
+    // ---- the slide bar ----------------------------------------------------------
+    {
+        const auto& slide = engine.getSlideEngine();
+        const double target = slide.getOverlayFret();
+
+        // 80 ms ease at the 30 Hz this runs at.
+        const double ease = 1.0 - std::exp (-(1.0 / 30.0) / 0.080);
+
+        if (target >= 0.0)
+        {
+            barFret = barFret < 0.0 ? target : barFret + (target - barFret) * ease;
+            barOpacity += (1.0f - barOpacity) * (float) ease;
+        }
+        else
+        {
+            barOpacity -= barOpacity * (float) ease;
+
+            if (barOpacity < 0.01f)
+            {
+                barOpacity = 0.0f;
+                barFret = -1.0;
+            }
+        }
+
+        barSlantDegrees = (float) slide.getSettings().slantDegrees;
+        barColour = juce::Colour (getSlideMaterial (slide.getBar().material).colour);
+
+        if (barOpacity > 0.0f)
+            changed = true;
+    }
+
     if (changed)
         repaint();
 }
@@ -335,6 +366,24 @@ void FretboardComponent::paint (juce::Graphics& g)
 
         g.setColour (Palette::accent);
         g.drawRect (x - 3.0f, (float) boardArea.getY() - 2.0f, 6.0f, (float) boardArea.getHeight() + 4.0f, 1.0f);
+    }
+
+    // ---- slide bar (gui-integration 21) -------------------------------------------
+    // A 6 px rounded bar in the material's colour at 80%, over the strings at
+    // the bar's position and rotated by its slant.
+    if (barOpacity > 0.0f && barFret >= 0.0)
+    {
+        const float x = fretX (barFret);
+        const auto centre = juce::Point<float> (x, (float) boardArea.getCentreY());
+        const float height = (float) boardArea.getHeight() + 6.0f;
+
+        juce::Path bar;
+        bar.addRoundedRectangle (-3.0f, -height * 0.5f, 6.0f, height, 3.0f);
+        bar.applyTransform (juce::AffineTransform::rotation (juce::degreesToRadians (barSlantDegrees))
+                              .translated (centre));
+
+        g.setColour (barColour.withAlpha (0.8f * barOpacity));
+        g.fillPath (bar);
     }
 
     // ---- strings ---------------------------------------------------------------

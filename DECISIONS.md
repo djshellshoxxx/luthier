@@ -137,3 +137,12 @@ chosen") and `ambiguity-resolutions.md`.
   queued in TODO. The nine phase-2b specs INDEX and the brief now list
   (string-aging ... tuning-stability) are **not on disk**; they are recorded as
   blocked rather than written from their one-line INDEX descriptions.
+- **CharacterPanel sizes itself to its content.** Nothing ever set its height,
+  so the workspace viewport held it at its 80-point minimum. It now fits on
+  construction and whenever the SLIDE group appears or disappears.
+- **The SLIDE group carries mode, damping and assist as well as spec 7's
+  list** - those parameters need a home and the group is it; assist is
+  labelled "(aid)" per slide-guitar.md 4. Changing the mode resets damping
+  behind to that mode's default (lap steel/dobro 1.0, others 0.55).
+- **The low-action warning offers a "Use Slide setup" button** that applies
+  the style only when clicked; the setup is never changed automatically (6).

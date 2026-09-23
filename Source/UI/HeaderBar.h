@@ -37,6 +37,9 @@ public:
 
     /** For tests: whether the range-lock padlock is showing. */
     bool isRangePadlockShowing() const noexcept { return rangePadlock.isVisible(); }
+
+    /** Flips Slide Mode as one undoable action - the header button and the S shortcut. */
+    static void toggleSlideMode (LuthierAudioProcessor& processor);
     std::function<void()> onOpenExport;
     std::function<void()> onOpenPresetBrowser;
     std::function<void()> onSaveAs;
@@ -94,6 +97,9 @@ private:
     juce::TextButton helpButton { "?" };
     juce::TextButton modeButton { "Advanced" };
     juce::TextButton liveButton { "Live" };
+
+    /** slide-guitar.md 7: Slide Mode is a header toggle (shortcut S). */
+    juce::TextButton slideButton { "Slide" };
 
     bool advancedMode = false;
     bool advancedAvailable = true;

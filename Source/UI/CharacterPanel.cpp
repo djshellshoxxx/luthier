@@ -321,6 +321,13 @@ CharacterPanel::CharacterPanel (LuthierAudioProcessor& p)
     setupGroup = std::make_unique<SetupGroup> (processor);
     addAndMakeVisible (*setupGroup);
 
+    // SLIDE appears only in Slide Mode, so the panel re-fits when it does.
+    slideGroup = std::make_unique<SlideGroup> (processor);
+    addChildComponent (*slideGroup);
+    slideGroup->onShownChanged = [this] { fitToContent(); };
+
+    fitToContent();
+
     styleHeading (seedHeading,        "CHARACTER");
     styleHeading (mapsHeading,        "DEAD SPOTS AND FRET WEAR");
     styleHeading (tunerHeading,       "TUNERS");
@@ -564,6 +571,12 @@ void CharacterPanel::timerCallback()
 }
 
 //==============================================================================
+void CharacterPanel::fitToContent()
+{
+    setSize (juce::jmax (getWidth(), 200), preferredHeight());
+    resized();
+}
+
 int CharacterPanel::preferredHeight() const
 {
     return 16 + Metrics::buttonHeight + 22            // enable and amount
@@ -576,7 +589,8 @@ int CharacterPanel::preferredHeight() const
          + 16 + 26 + 12                               // environment
          + 26 + 24                                    // presets
          + 8 + noiseGroups->preferredHeight()         // STRING NOISE and PICK
-         + 8 + setupGroup->preferredHeight();         // SETUP
+         + 8 + setupGroup->preferredHeight()          // SETUP
+         + 8 + slideGroup->preferredHeight();         // SLIDE, only in Slide Mode
 }
 
 void CharacterPanel::paint (juce::Graphics& g)
@@ -669,6 +683,9 @@ void CharacterPanel::resized()
 
     bounds.removeFromTop (8);
     setupGroup->setBounds (bounds.removeFromTop (setupGroup->preferredHeight()));
+
+    bounds.removeFromTop (8);
+    slideGroup->setBounds (bounds.removeFromTop (slideGroup->preferredHeight()));
 }
 
 } // namespace luthier

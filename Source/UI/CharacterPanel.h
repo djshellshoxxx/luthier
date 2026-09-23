@@ -18,6 +18,7 @@
 #include "Widgets.h"
 #include "NoiseGroups.h"
 #include "SetupGroup.h"
+#include "SlideGroup.h"
 #include "../Character/CharacterEngine.h"
 
 namespace luthier
@@ -150,7 +151,12 @@ private:
     // --- STRING NOISE and PICK (gui-integration 4.4) ----------------------------------
     std::unique_ptr<NoiseGroups> noiseGroups;
     std::unique_ptr<SetupGroup> setupGroup;
+    std::unique_ptr<SlideGroup> slideGroup;
 
+    /*  Sizes the panel to its content. The workspace viewport keeps whatever
+        height a panel gives itself, and this one never gave itself one - so it
+        sat at the viewport's 80-point minimum and scrolled nothing. */
+    void fitToContent();
     juce::Label seedHeading, mapsHeading, tunerHeading, electronicsHeading,
                 bodyHeading, environmentHeading;
 

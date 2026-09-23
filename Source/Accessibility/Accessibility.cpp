@@ -480,7 +480,7 @@ void AccessibilitySettings::buildDefaultShortcuts()
         17's "all rebindable" true rather than decorative.
 
         Where an action's feature does not exist yet the binding is simply absent,
-        rather than present and dead: Workshop (W), Slide Mode (S), Save As Guitar
+        rather than present and dead: Workshop (W), Save As Guitar
         (Ctrl+G) and New Tune (Ctrl+T) all wait on specs that are not written.
         GAPS.md tracks them. The Column 4 tab steps used to be on that list and
         are not any more - the Advanced workspace has a tab strip now, so there
@@ -496,6 +496,7 @@ void AccessibilitySettings::buildDefaultShortcuts()
 
     add ("toggleAdvanced",   "accessibility.shortcut.toggleAdvanced",   KP (KP::tabKey));
     add ("toggleLiveMode",   "accessibility.shortcut.toggleLiveMode",   KP ('l', 0, 0));
+    add ("toggleSlideMode",  "accessibility.shortcut.toggleSlideMode",  KP ('s', 0, 0));
     add ("togglePractice",   "accessibility.shortcut.togglePractice",   KP ('d', 0, 0));
 
     add ("panic",            "accessibility.shortcut.panic",            KP ('p', 0, 0));

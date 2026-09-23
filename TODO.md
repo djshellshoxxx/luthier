@@ -10,12 +10,7 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## In progress
 
-- [ ] **5. Slide** — `SlideEngine` done (modes, bar contact, slant, assist,
-      damping, clank, friction, squeak suppression). Next: UI - header Slide
-      toggle + `S` shortcut, CHARACTER SLIDE group (shown only in Slide Mode:
-      mode, pressure, slant, damping, assist marked as a playability aid,
-      material/mass mirror, noise, clank), the low-action message, fretboard
-      bar overlay (6 px, material colour, 80%, 80 ms ease).
+- [ ] **6. `PartLibrary` and `mapSpec`** — next (INDEX phase 2 order).
 - [ ] 5b. `slide-technique-controls.md`: position source (modwheel / bend /
       MPE Y / expression / CC / drag), absolute/relative, slant & pressure
       sources, contact string mask, speed limit, auto-vibrato on hold,
@@ -41,7 +36,7 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       path, Adv Col 3 SUSTAIN feedback row). Currently a heuristic.
 - [ ] 2d. Audit the rest of `ambiguity-resolutions.md` against the build
       (brief step 4).
-- [ ] 6. `PartLibrary` and `mapSpec` (`guitar-workshop.md`, `part-acoustics.md`),
+- [ ] 6. (detail) `PartLibrary` and `mapSpec` (`guitar-workshop.md`, `part-acoustics.md`),
       `.luthierguitar` / `.luthierpart` files, partial capo.
 - [ ] 7. `WorkshopPanel` and the WORKSHOP tab (`workshop-ui.md`), with its
       tab-header padlock.
@@ -76,6 +71,9 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 - [ ] 18. Plugin targets (`Luthier_VST3`, `Luthier_Standalone`) build clean.
 
 ## Done
+
+- [x] 5. Slide Mode: SlideEngine, header toggle and `S` shortcut, CHARACTER
+      SLIDE group with the low-action warning, fretboard bar overlay.
 
 - [x] 4. Setup geometry, sensed fret buzz, sitar mode, SETUP group with the
       live heatmap and setup styles. (Character fret wear moving buzz,

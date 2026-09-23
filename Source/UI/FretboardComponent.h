@@ -87,6 +87,21 @@ private:
     ScaleOverlay scale = ScaleOverlay::None;
     int scaleRoot = 4;   // E
     int capoFret = 0;
+
+    /*  slide-guitar.md 7 and gui-integration 21: the bar, drawn where it is
+        and eased toward it over 80 ms, fading in and out as it lands and
+        lifts. */
+    double barFret = -1.0;
+    float barOpacity = 0.0f;
+    float barSlantDegrees = 0.0f;
+    juce::Colour barColour;
+
+public:
+    /** For tests: where the bar is drawn, and how visible it is (0-1). */
+    double getDrawnBarFret() const noexcept { return barFret; }
+    float getBarOpacity() const noexcept { return barOpacity; }
+
+private:
     int selectedString = 0;
 
     std::array<bool, 12> muted {};
