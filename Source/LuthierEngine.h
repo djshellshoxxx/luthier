@@ -20,6 +20,7 @@
 #include "DSP/Noise/PlayingNoise.h"
 #include "DSP/Noise/FretBuzz.h"
 #include "DSP/Slide/SlideEngine.h"
+#include "DSP/Feedback/FeedbackLoop.h"
 #include "Model/Workshop/PartAcoustics.h"
 #include "DSP/Effects/EffectsChain.h"
 #include "DSP/Effects/SecretEffect.h"
@@ -253,9 +254,12 @@ public:
     void setEBow (bool on) noexcept { ebow = on; }
     bool isEBowing() const noexcept { return ebow; }
 
-    void setFeedbackEnabled (bool on) noexcept { feedbackEnabled = on; }
-    void setFeedbackThreshold (double t) noexcept { feedbackThreshold = juce::jlimit (0.0, 1.0, t); }
-    void setFeedbackSpeed (double s) noexcept { feedbackSpeed = juce::jlimit (0.0, 1.0, s); }
+    /** ambiguity-resolutions.md 1: the physical feedback loop. */
+    void setFeedback (const FeedbackSettings& settings) noexcept { feedbackLoop.setSettings (settings); }
+    const FeedbackLoop& getFeedbackLoop() const noexcept { return feedbackLoop; }
+
+    /** The last block's feedback, summed over the strings, per sample. */
+    const double* getFeedbackInjection() const noexcept { return feedbackInjection.data(); }
 
     /** The hidden effect. Reached only through the easter egg in the UI. */
     SecretEffect& getSecretEffect() noexcept { return secret; }
@@ -363,7 +367,6 @@ private:
     void triggerNote (const NoteOnEvent& e) noexcept;
     void applyNoteOff (const NoteOffEvent& e) noexcept;
     void updatePerBlockModulation (int numSamples) noexcept;
-    void processFeedback (double outputLevel) noexcept;
     void rebuildBodyFromSpec();
     void rebuildPickupsFromSpec();
 
@@ -512,13 +515,8 @@ private:
     bool   ebow = false;
     double ebowTargetLevel = 0.09;
 
-    bool   feedbackEnabled = false;
-    double feedbackThreshold = 0.65;
-    double feedbackSpeed = 0.4;
-    double feedbackAmount = 0.0;
-    int    feedbackString = -1;
-    int    feedbackPartial = 2;
-    Biquad feedbackFilter;
+    FeedbackLoop feedbackLoop;
+    std::vector<double> feedbackInjection;
 
     bool   doublerEnabled = false;
     double doublerAmount = 0.5;

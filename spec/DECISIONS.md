@@ -357,3 +357,20 @@ chosen") and `ambiguity-resolutions.md`.
   `PluginBuses.perStringLayoutPutsEachStringOnItsOwnBus` drives the real
   processor; the routing harness declares only one layout's buses, which is
   why the old tests passed.
+- **Feedback is the physical loop of ambiguity-resolutions 1** (`FeedbackLoop`).
+  The amp's output, delayed one block plus distance / 343 m/s, reaches every
+  ringing string through a band-pass at its note times 2^octave_bias (focus
+  sets Q from 2 to 30), scaled by k_couple = amount x distance (0.5 m / d,
+  capped at 4) x directivity (0.25 + 0.75 x (1 + cos angle) / 2) x 0.7 for a
+  wound string, and injected at the excitation point, so the pickups, the
+  circuit and the volume knob are inside the loop. The injection is linear in
+  the amp output (1.1's "gain-scaled by the amp output level" read as the amp
+  output carrying its own level: an extra envelope factor would make the loop
+  fall at twice the knob's attenuation, against 1.4) and soft-limited with
+  tanh at 0.02, so a runaway loop saturates instead of growing. The
+  indicator lights at 8% of that ceiling: measured, a loud high-gain rig at
+  full amount settles near 19% (the amp saturates first) and a clean amp at
+  20% stays under 2%. `kInjectionGain` 0.012 is calibrated by the same test.
+  feedback_on / _threshold / _speed stay in the layout for saved automation
+  and do nothing; a preset that switched feedback on without an amount loads
+  at 50%. Shred Lead uses 45% at 0.8 m.

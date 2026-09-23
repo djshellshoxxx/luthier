@@ -882,6 +882,23 @@ void AdvancedPanel::buildColumn3()
                "indefinitely, the way an E-Bow does. Unlike Freeze, it only sustains "
                "notes you are still holding.");
 
+    // ambiguity-resolutions 1.3: the feedback row. The amp's sound reaching the
+    // strings through the air, so pickups, volume knob and amp gain all matter.
+    feedbackLed = std::make_unique<FeedbackLed> (processor);
+    column.addControl (feedbackLed.get(), 22);
+
+    addKnob (feedbackAmount, "Feedback", ParamIDs::feedbackAmount,
+             "How much of the amp's sound reaches the strings. Loud amp, ringing note, "
+             "and it takes over; roll the guitar's volume back to tame it.");
+    addKnob (feedbackDistance, "Distance", ParamIDs::feedbackDistance,
+             "How far the guitar is from the speaker. Closer feeds back sooner.");
+    addKnob (feedbackAngle, "Angle", ParamIDs::feedbackAngle,
+             "Which way the guitar faces the speaker. Turning away loses most of it.");
+    addKnob (feedbackFocus, "Focus", ParamIDs::feedbackFocus,
+             "How narrowly each string hears its own note. High focus locks to one pitch.");
+    addKnob (feedbackOctave, "Octave", ParamIDs::feedbackOctaveBias,
+             "Which octave of the note the feedback settles on.");
+
     // ---- performance ------------------------------------------------------------------------
     column.addGap (Metrics::grid);
     column.addSection ("Performance");
@@ -918,13 +935,7 @@ void AdvancedPanel::buildColumn3()
 
     // ---- feedback, doubler, master ------------------------------------------------------------------
     column.addGap (Metrics::grid);
-    column.addSection ("Amp Feedback and Doubler");
-
-    addToggle (feedbackOn, "Feedback", ParamIDs::feedbackOn,
-               "With the amp loud and a note sustaining, feedback builds at a harmonic "
-               "and gradually takes over");
-    addKnob (feedbackThreshold, "Threshold", ParamIDs::feedbackThres, "How loud it has to be");
-    addKnob (feedbackSpeed, "Speed", ParamIDs::feedbackSpeed, "How fast it builds");
+    column.addSection ("Doubler");
 
     addToggle (doublerOn, "Doubler", ParamIDs::doublerOn,
                "A second, slightly different take panned opposite");

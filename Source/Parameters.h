@@ -250,6 +250,15 @@ namespace ParamIDs
     inline constexpr const char* outputMix      = "output_mix";      ///< wet/dry: 1 = all rig, 0 = all DI
     inline constexpr const char* stereoWidth    = "stereo_width";    ///< 0 mono, 1 as is, 2 wide
     inline constexpr const char* macroCharacter = "macro_character"; ///< character-wear amount
+
+    // ambiguity-resolutions.md 1.2: the physical feedback loop. feedback_on,
+    // feedback_threshold and feedback_speed above belong to the heuristic it
+    // replaced; they stay in the layout (automation is indexed) but do nothing.
+    inline constexpr const char* feedbackAmount     = "feedback_amount";
+    inline constexpr const char* feedbackDistance   = "feedback_distance";
+    inline constexpr const char* feedbackAngle      = "feedback_angle";
+    inline constexpr const char* feedbackFocus      = "feedback_focus";
+    inline constexpr const char* feedbackOctaveBias = "feedback_octave_bias";
     inline constexpr const char* limiterOn   = "limiter_on";
     inline constexpr const char* oversample  = "oversampling";
 

@@ -254,8 +254,8 @@ namespace
                 r.values.emplace_back (P::playingMode, MonoMode);
                 r.values.emplace_back (P::bridgeType, FloydRose);
                 r.values.emplace_back (P::whammyDown, 24.0);
-                r.values.emplace_back (P::feedbackOn, 1.0);
-                r.values.emplace_back (P::feedbackThres, 0.55);
+                r.values.emplace_back (P::feedbackAmount, 45.0);
+                r.values.emplace_back (P::feedbackDistance, 0.8);
                 addPedal (r, false, 0, OD, { 0.30, 0.55, 0.65, 0.50, 0.0 });
                 addPedal (r, true, 0, DelayP, { 0.26, 0.38, 0.28, 0.50, 0.0, 5.0, 0.0 });
                 addPedal (r, true, 1, ReverbP, { 0.55, 0.30, 0.45, 0.10, 1.0, 0.18 });

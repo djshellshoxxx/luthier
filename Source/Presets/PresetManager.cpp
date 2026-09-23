@@ -578,6 +578,17 @@ bool PresetManager::fromVar (const juce::var& data)
             }
         }
 
+        /*  ambiguity-resolutions.md 1: a preset from before the physical loop
+            switched feedback on with feedback_on, which no longer does anything;
+            the loop is on when it has an amount. Half is where the old switch's
+            default threshold began to sustain a loud note. */
+        if (! params->hasProperty (ParamIDs::feedbackAmount)
+              && (double) params->getProperty (ParamIDs::feedbackOn) > 0.5)
+        {
+            if (auto* amount = apvts.getParameter (ParamIDs::feedbackAmount))
+                amount->setValueNotifyingHost (amount->convertTo0to1 (50.0f));
+        }
+
         /*  No block: derive per family from the plain values the parameters now
             hold. The stored numbers cannot be used for this - a normalised
             value is always inside whatever range is live and so carries no

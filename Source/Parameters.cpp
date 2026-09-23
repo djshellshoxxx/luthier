@@ -699,6 +699,13 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::stereoWidth, "Stereo Width", 0.0f, 2.0f, 1.0f));
     add (floatParam  (ParamIDs::macroCharacter, "Character", 0.0f, 1.0f, 0.25f));
 
+    // ambiguity-resolutions.md 1.2 (2026-09-23), appended likewise.
+    add (floatParam  (ParamIDs::feedbackAmount,     "Feedback Amount",   0.0f, 100.0f, 0.0f, 1.0f, "%"));
+    add (floatParam  (ParamIDs::feedbackDistance,   "Feedback Distance", 0.0f, 3.0f, 0.5f, 1.0f, "m"));
+    add (floatParam  (ParamIDs::feedbackAngle,      "Feedback Angle", -180.0f, 180.0f, 0.0f, 1.0f, "deg"));
+    add (floatParam  (ParamIDs::feedbackFocus,      "Feedback Focus",    0.0f, 100.0f, 60.0f, 1.0f, "%"));
+    add (floatParam  (ParamIDs::feedbackOctaveBias, "Feedback Octave Bias", -2.0f, 2.0f, 0.0f));
+
     return layout;
 }
 
@@ -999,9 +1006,15 @@ void ParameterBridge::applyToEngine() noexcept
     engine.getMasterBus().setLimiterEnabled (value (ParamIDs::limiterOn) > 0.5f);
 
     // ---- feedback and doubler ------------------------------------------------------
-    engine.setFeedbackEnabled (value (ParamIDs::feedbackOn) > 0.5f);
-    engine.setFeedbackThreshold (value (ParamIDs::feedbackThres));
-    engine.setFeedbackSpeed (value (ParamIDs::feedbackSpeed));
+    {
+        FeedbackSettings fb;
+        fb.amount = value (ParamIDs::feedbackAmount) * 0.01;
+        fb.distanceMetres = value (ParamIDs::feedbackDistance);
+        fb.angleDegrees = value (ParamIDs::feedbackAngle);
+        fb.focus = value (ParamIDs::feedbackFocus) * 0.01;
+        fb.octaveBias = juce::roundToInt (value (ParamIDs::feedbackOctaveBias));
+        engine.setFeedback (fb);
+    }
     engine.setDoublerEnabled (value (ParamIDs::doublerOn) > 0.5f);
     engine.setDoublerAmount (value (ParamIDs::doublerAmount));
 

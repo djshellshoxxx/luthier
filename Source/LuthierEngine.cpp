@@ -114,7 +114,8 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     doublerLfo.setShape (Lfo::Shape::RandomSmooth);
     doublerLfo.setRate (0.31);
 
-    feedbackFilter.setBandpass (sr, 440.0, 8.0);
+    feedbackLoop.prepare (sr, maxBlock);
+    feedbackInjection.assign ((size_t) maxBlock, 0.0);
 
     setGuitarType (guitarType);
     reset();
@@ -193,9 +194,7 @@ void LuthierEngine::reset() noexcept
     doublerIndex = 0;
     doublerLfo.reset();
 
-    feedbackAmount = 0.0;
-    feedbackString = -1;
-    feedbackFilter.reset();
+    feedbackLoop.reset();
 
     numScheduled = 0;
     samplePosition = 0;
@@ -675,8 +674,7 @@ void LuthierEngine::panic() noexcept
         stringMidiNote[(size_t) i] = -1;
     }
 
-    feedbackAmount = 0.0;
-    feedbackString = -1;
+    feedbackLoop.reset();
     numScheduled = 0;
 }
 
@@ -1105,64 +1103,6 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
 }
 
 //==============================================================================
-void LuthierEngine::processFeedback (double outputLevel) noexcept
-{
-    if (! feedbackEnabled)
-    {
-        feedbackAmount *= 0.995;
-        return;
-    }
-
-    // Feedback needs a loud amp and a note that is already ringing. It builds
-    // gradually and then takes over, which is the behaviour that makes it musical
-    // rather than a squeal that arrives all at once.
-    if (outputLevel > feedbackThreshold)
-    {
-        const double rate = 0.00002 + feedbackSpeed * 0.00035;
-        feedbackAmount = juce::jmin (1.0, feedbackAmount + rate);
-    }
-    else
-    {
-        feedbackAmount *= 0.9995;
-    }
-
-    if (feedbackAmount < 1.0e-4)
-    {
-        feedbackString = -1;
-        return;
-    }
-
-    // Pick the loudest ringing string to feed back.
-    if (feedbackString < 0 || strings[(size_t) feedbackString].getLevel() < 1.0e-4)
-    {
-        double best = 1.0e-4;
-        feedbackString = -1;
-
-        for (int s = 0; s < numStrings; ++s)
-        {
-            const double level = strings[(size_t) s].getLevel();
-
-            if (level > best)
-            {
-                best = level;
-                feedbackString = s;
-            }
-        }
-
-        // As the feedback grows it climbs to a higher harmonic, which is what a
-        // guitar in front of a loud amp actually does.
-        feedbackPartial = 2 + (int) (feedbackAmount * 3.0);
-    }
-
-    if (feedbackString >= 0)
-    {
-        const double f0 = strings[(size_t) feedbackString].getCurrentFrequency();
-        const double target = juce::jlimit (60.0, sr * 0.45, f0 * (double) feedbackPartial);
-        feedbackFilter.setBandpass (sr, target, 12.0);
-    }
-}
-
-//==============================================================================
 CircuitComponents LuthierEngine::getLiveCircuitComponents() const noexcept
 {
     auto parts = circuitControls;
@@ -1459,6 +1399,25 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     // ---- 2. strings, coupling and the magnetic pickup ------------------------
     const bool anyPickupActive = ! pickups.isSilent();
+
+    // ambiguity-resolutions 1: which strings are ringing, and at what, for the
+    // feedback loop's per-string peaks. Skipped entirely at amount 0 (1.2).
+    const bool feedbackOn = feedbackLoop.isActive();
+
+    if (feedbackOn)
+    {
+        std::array<double, kMaxStrings> hz {}, levels {};
+        std::array<bool, kMaxStrings> wound {};
+
+        for (int s = 0; s < numStrings; ++s)
+        {
+            hz[(size_t) s] = strings[(size_t) s].getCurrentFrequency();
+            levels[(size_t) s] = strings[(size_t) s].getLevel();
+            wound[(size_t) s] = stringSpecs[(size_t) s].wound;
+        }
+
+        feedbackLoop.beginBlock (hz.data(), levels.data(), wound.data(), numStrings);
+    }
     const bool perStringTaps = taps.isPerStringWanted() && taps.getRoomAtOffset() >= numSamples;
 
     playingNoise.getPool().setSamplePosition (samplePosition);
@@ -1487,6 +1446,9 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         playingNoise.getPool().setTriggerOffset (sidechainReadOffset + i);
         fireScheduledEvents (samplePosition + i);
 
+        const double fbAmp = feedbackOn ? feedbackLoop.delayedAmp (i) : 0.0;
+        double fbSum = 0.0;
+
         coupling.process (bridgeOutputs.data(), couplingInputs.data());
 
         noiseBuffer[(size_t) i] = playingNoise.processSample (excitationNoise.data(), surfaceNoise.data(),
@@ -1499,10 +1461,14 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             // The click is part of the excitation: it goes into the string.
             double couplingIn = couplingInputs[(size_t) s] + excitationNoise[(size_t) s];
 
-            // Acoustic feedback re-excites the string at a harmonic.
-            if (feedbackAmount > 1.0e-4 && s == feedbackString)
-                couplingIn += feedbackFilter.process (stringOutputs[(size_t) s])
-                              * feedbackAmount * 0.02;
+            // Acoustic feedback (ambiguity-resolutions 1): the amp's output,
+            // through the air, at this string's own note.
+            if (feedbackOn)
+            {
+                const double fb = feedbackLoop.process (s, fbAmp);
+                couplingIn += fb;
+                fbSum += fb;
+            }
 
             // Freeze drives the string up to a target level and no further.
             if (ebow && strings[(size_t) s].hasSounded()
@@ -1537,6 +1503,9 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         sum += whammy.processSpringNoise();
 
         stringSumBuffer[(size_t) i] = sanitise (sum);
+
+        if (i < (int) feedbackInjection.size())
+            feedbackInjection[(size_t) i] = fbSum;
         magneticBuffer[(size_t) i] = anyPickupActive
                                        ? pickups.processStrings (stringOutputs.data(),
                                                                  stringDelays.data(),
@@ -1650,6 +1619,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             dl[(size_t) i] = amped;
             dr[(size_t) i] = amped;
         }
+
+        // What the speaker puts into the room, for the feedback loop's next blocks.
+        if (feedbackLoop.isActive())
+            feedbackLoop.pushAmpOutput (dl.data(), numSamples);
 
         // Aux 2: the amp before the cabinet. Taken here, after the amp and
         // before the post-amp effects, which is the point a real amp's DI or
@@ -1826,7 +1799,6 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         taps.writeAuxStereo (AuxBus::monitor, ml, mr, numSamples);
     }
 
-    processFeedback (juce::jmax (master.getPeakLeft(), master.getPeakRight()));
 
     samplePosition += numSamples;
 

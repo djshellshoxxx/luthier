@@ -1087,6 +1087,61 @@ void OutputLed::paint (juce::Graphics& g)
 }
 
 //==============================================================================
+//  FeedbackLed
+//==============================================================================
+FeedbackLed::FeedbackLed (LuthierAudioProcessor& p)
+    : processor (p)
+{
+    setTooltip ("Feedback: glows as the amp feeds the strings, and lights fully "
+                "when the loop is sustaining a note on its own");
+    AccessibleSetup::configureDescriptive (*this, "Feedback indicator",
+                                           "Lights when the feedback loop is sustaining a note");
+    startTimerHz (20);
+}
+
+FeedbackLed::~FeedbackLed()
+{
+    stopTimer();
+}
+
+void FeedbackLed::refresh()
+{
+    const auto& loop = processor.getEngine().getFeedbackLoop();
+    const float nowActivity = loop.isActive() ? (float) loop.getActivity() : 0.0f;
+    const bool nowResonant = loop.isActive() && loop.isResonant();
+
+    if (std::abs (nowActivity - activity) > 0.01f || nowResonant != resonant)
+    {
+        activity = nowActivity;
+        resonant = nowResonant;
+        repaint();
+    }
+}
+
+void FeedbackLed::paint (juce::Graphics& g)
+{
+    auto bounds = getLocalBounds().toFloat().reduced (2.0f);
+    const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
+    const auto centre = bounds.getCentre();
+
+    const auto dark = juce::Colour (0xff4a4640);
+    const auto colour = resonant ? Palette::warning
+                                 : dark.interpolatedWith (Palette::accent, juce::jlimit (0.0f, 1.0f, activity * 4.0f));
+
+    if (resonant || activity > 0.02f)
+    {
+        g.setColour (colour.withAlpha (resonant ? 0.35f : 0.25f * juce::jmin (1.0f, activity * 4.0f)));
+        g.fillEllipse (centre.x - radius * 1.9f, centre.y - radius * 1.9f, radius * 3.8f, radius * 3.8f);
+    }
+
+    g.setColour (colour);
+    g.fillEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f);
+
+    g.setColour (Palette::edge);
+    g.drawEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f, 1.0f);
+}
+
+//==============================================================================
 //  DataStreamDisplay
 //==============================================================================
 DataStreamDisplay::DataStreamDisplay()

@@ -290,8 +290,13 @@ private:
     std::unique_ptr<LuthierKnob> vibratoRate, vibratoDepth, strumSpeed, bendRange, legatoWindow,
                                  chordWindow;
     std::unique_ptr<LuthierChoice> vibratoShape, strumDirection;
-    std::unique_ptr<LuthierToggle> feedbackOn, doublerOn, mpeToggle;
-    std::unique_ptr<LuthierKnob> feedbackThreshold, feedbackSpeed, doublerAmount;
+    std::unique_ptr<LuthierToggle> doublerOn, mpeToggle;
+    std::unique_ptr<LuthierKnob> doublerAmount;
+
+    // ambiguity-resolutions.md 1.3: the SUSTAIN card's feedback row.
+    std::unique_ptr<LuthierKnob> feedbackAmount, feedbackDistance, feedbackAngle,
+                                 feedbackFocus, feedbackOctave;
+    std::unique_ptr<FeedbackLed> feedbackLed;
 
     std::unique_ptr<LuthierKnob> masterGain;
     std::unique_ptr<LuthierToggle> limiterOn;

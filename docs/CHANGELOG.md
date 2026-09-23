@@ -25,11 +25,20 @@ numbered, because what it should be called is a release decision.
   buzz and clank on its own stereo bus, so noise can be gated or balanced
   separately. It is added after the per-string outputs, so existing
   sessions' bus numbers do not change; the ROUTING tab has a strip for it.
+- **Feedback that behaves like feedback** (`ambiguity-resolutions.md` 1) - the
+  amp's sound reaches the strings through the air: stand closer or face the
+  speaker and it comes sooner, and each string sustains at its own note (or an
+  octave of it). The guitar's pickups, volume knob and the amp's gain are all
+  inside the loop, so rolling the volume back tames it. Five new parameters in
+  the SUSTAIN card - Feedback, Distance, Angle, Focus, Octave - with an
+  indicator that lights when the loop takes over; the parameter count is 398.
+  The old Feedback switch, Threshold and Speed remain for saved automation but
+  do nothing; presets that used them get a moderate amount.
 - **The guitar-shop look** (`proposals/visual-polish.md` 6) - rosewood,
   walnut and brass, bell knobs, mini toggles, engraved plates, Lato and Bebas
   Neue. The colourblind, High-contrast and Light palettes now actually apply.
 - **Easy mode's rig strip and tone strip** (`gui-integration.md` 3) - four new
-  parameters, appended at the end of the list (393 in all): Input Gain,
+  parameters, appended at the end of the list: Input Gain,
   Wet/Dry, Stereo Width and the Character macro.
 - **Advanced ranges** (`advanced-ranges.md`) - every physical parameter has a
   stock range and an advanced one. Options -> RANGES, the header padlock,

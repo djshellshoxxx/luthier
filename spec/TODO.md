@@ -36,8 +36,6 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       MPE Y / expression / CC / drag), absolute/relative, slant & pressure
       sources, contact string mask, speed limit, auto-vibrato on hold,
       scripted SlideGesture, presets; Techniques tab Slide sub-tab.
-- [ ] 3f. A way to fire pick scrape (midi-export `pick_scrape` class / Easy rake
-      gesture); the engine API `triggerPickScrape` exists.
 
 ## Remaining
 
@@ -57,9 +55,6 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 - [ ] 2h. Easy rig strip polish: the amp card's knobs are cramped at 1200x720;
       give the amp card more height or two knob sizes.
-- [ ] 2c. Feedback per `ambiguity-resolutions.md` 1 (mic-to-speaker loop,
-      feedback_amount/distance/angle/focus/octave_bias params, post-circuit
-      path, Adv Col 3 SUSTAIN feedback row). Currently a heuristic.
 - [ ] 2d. Audit the rest of `ambiguity-resolutions.md` against the build
       (brief step 4).
 - [ ] **7. Workshop bench** - IN PROGRESS. Done and green (457 tests):
@@ -108,7 +103,7 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       (`Source/Tune`, `TuneBuilderTests`, d284547). Remaining: the TUNE tab.
 - [ ] 13. HELP tab (column 4).
 - [ ] 13b. **Phase 5b technique specs (added 2026-09-23)**, in INDEX order:
-      `string-scraping.md` (ScrapeEngine), `string-slap-technique.md`,
+      `string-scraping.md` (ScrapeEngine; also the pick-scrape trigger pick-noise 5 asks for - folded in from 3f), `string-slap-technique.md`,
       `muting-rhythm.md`, `two-hand-tapping.md`, `microtonal-bends.md`,
       `technique-cascade.md`, `gui-techniques-updates.md` (Techniques tab,
       Playing strip pills, fretboard overlays), `engine-technique-layer.md`.

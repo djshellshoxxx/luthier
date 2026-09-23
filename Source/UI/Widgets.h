@@ -335,6 +335,36 @@ private:
 };
 
 //==============================================================================
+/** ambiguity-resolutions.md 1.3: the "Feedback" indicator. Dark with no loop,
+    glowing amber as the loop feeds the strings, and lit solid when it has
+    entered a resonant state and is sustaining a note by itself. */
+class FeedbackLed : public juce::Component,
+                    public juce::SettableTooltipClient,
+                    private juce::Timer
+{
+public:
+    explicit FeedbackLed (LuthierAudioProcessor& processor);
+    ~FeedbackLed() override;
+
+    void paint (juce::Graphics&) override;
+
+    float getShownActivity() const noexcept { return activity; }
+    bool isShowingResonance() const noexcept { return resonant; }
+
+    /** What the timer does, for the tests. */
+    void refresh();
+
+private:
+    void timerCallback() override { refresh(); }
+
+    LuthierAudioProcessor& processor;
+    float activity = 0.0f;
+    bool resonant = false;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FeedbackLed)
+};
+
+//==============================================================================
 /** The scrolling readout of the plugin's internals: a real data stream, faded at
     the top and bottom, that stops when nothing is happening. */
 class DataStreamDisplay : public juce::Component,
