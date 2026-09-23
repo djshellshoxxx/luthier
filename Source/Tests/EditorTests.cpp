@@ -581,7 +581,7 @@ LUTHIER_TEST (Editor, everyWorkspaceTabSelectsAndPaints)
     panel.setVisible (true);
     panel.setSize (1600, 900);
 
-    const juce::StringArray tabNames { "MOD", "RHYTHM", "LIVE", "ROUTING", "TONE MATCH",
+    const juce::StringArray tabNames { "WORKSHOP", "MOD", "RHYTHM", "LIVE", "ROUTING", "TONE MATCH",
                                        "CHARACTER", "CONTROLLERS" };
 
     CHECK_MSG (panel.getNumWorkspaceTabs() == tabNames.size(),

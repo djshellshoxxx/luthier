@@ -85,8 +85,8 @@ LUTHIER_TEST (WorkshopBench, aDragIsOneUndoEntryWithItsBeforeAndAfter)
     CHECK_MSG (b.processor.getNumUndoSteps() == stepsBefore + 1,
                juce::String (b.processor.getNumUndoSteps() - stepsBefore) + " undo entries for one drag");
 
-    const auto expected = "Moved neck pickup " + juce::String (start, 0) + " " + juce::String::fromUTF8 ("\xe2\x86\x92")
-                        + " " + juce::String (start - 8.0, 0) + " mm";
+    const auto expected = "Moved neck pickup " + juce::String (juce::roundToInt (start)) + " " + juce::String::fromUTF8 ("\xe2\x86\x92")
+                        + " " + juce::String (juce::roundToInt (start - 8.0)) + " mm";
     CHECK_MSG (b.processor.getUndoDescription() == expected,
                "undo reads \"" + b.processor.getUndoDescription() + "\", want \"" + expected + "\"");
     CHECK (std::abs (b.guitar().placements[0].positionMm - (start - 8.0)) < 1.0e-6);

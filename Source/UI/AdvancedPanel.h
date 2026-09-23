@@ -27,6 +27,7 @@
 #include "CharacterPanel.h"
 #include "LivePanel.h"
 #include "CircuitPanel.h"
+#include "WorkshopPanel.h"
 #include "FretboardComponent.h"
 #include "GuitarBodyComponent.h"
 #include "PedalRack.h"
@@ -108,6 +109,12 @@ public:
 
     /** The panel behind a tab, or nullptr if the index is out of range. */
     juce::Component* getWorkspacePanel (int index) const;
+
+    /** The WORKSHOP tab's bench (gui-integration.md 6). */
+    WorkshopPanel* getWorkshopPanel() const noexcept { return workshopPanel.get(); }
+
+    /** True while the WORKSHOP tab has taken over columns 3 and 4. */
+    bool isWorkshopShowing() const noexcept;
 
     void setWorkspaceTab (int index);
 
@@ -254,6 +261,7 @@ private:
     std::unique_ptr<LuthierKnob> cableLength;
 
     std::unique_ptr<RoutingPanel> routingPanel;
+    std::unique_ptr<WorkshopPanel> workshopPanel;
     std::unique_ptr<ModMatrixPanel> modMatrixPanel;
     std::unique_ptr<RhythmPanel> rhythmPanel;
     std::unique_ptr<LivePanel> livePanel;

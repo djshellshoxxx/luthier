@@ -71,23 +71,27 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       path, Adv Col 3 SUSTAIN feedback row). Currently a heuristic.
 - [ ] 2d. Audit the rest of `ambiguity-resolutions.md` against the build
       (brief step 4).
-- [ ] **7. Workshop bench** - IN PROGRESS. 7a done (model, green):
-      `Source/Workshop/WorkshopBench` (fit / revert / remove with section 8
-      undo sentences, drag gestures as one undo entry, pickup travel limits
-      with reasons, heights, intonation, nut slots, snap, 8 A/B slots in
-      uiState, shadow audition via `processor.auditionGuitar`), live pickup
-      moves without a swap (`LuthierEngine::setPickupPlacementLive`), and
-      `SpectrumDelta` (worker thread, latest wins, committed render cached,
-      null change flat, under the 40 ms budget). Next: 7b the panel -
-      `WorkshopPanel` with header (name, modified, Save As Guitar, A-H
-      slots), bench illustration (ruler, hover/select, drags, zoom/pan),
-      inspector (fields, Swap, Revert, Save as user part), parts drawer with
-      Alt-hover audition, setup strip, spectrum pane; 7c WORKSHOP tab first
-      in column 4 (takes over cols 3+4), header wrench opens it as an Easy
-      overlay, tab-header padlock; keyboard parity and accessibility (10).
-      Known issue: the first note after a body/cab IR load renders slightly
-      differently from later ones (~0.02 peak, at the onset); the spectrum
-      fixture primes around it. Worth finding in juce::dsp::Convolution use.
+- [ ] **7. Workshop bench** - IN PROGRESS. Done and green (457 tests):
+      7a model (`WorkshopBench`, `SpectrumDelta`, live pickup moves); 7b
+      `WorkshopPanel` - header with name/modified/Save As Guitar/A-H slots,
+      `BenchIllustration` (hover names, click selects, pickup drags with
+      snap and limits, saddle drags, scroll for height, Ctrl-scroll zoom,
+      pan, ruler with pickup rail, Tab/arrow keyboard parity), inspector,
+      13-category parts drawer (fit on click, Alt-hover audition, user
+      section empty state, slide needs Slide Mode), setup strip, spectrum
+      pane (+-12 dB / auto-zoom, comb notches, summary sentence); 7c WORKSHOP
+      is column 4's first tab and takes over columns 3+4; the header's
+      Workshop button opens it (Advanced) or the Easy overlay.
+      Remaining: inline field editing in the inspector (the model has
+      `WorkshopBench::editField`), per-string string overrides (3.3), nut
+      slot drag on the nut, pick/slide/capo overlays and drags on the bench
+      (4), family selector in the drawer (guitar-illustration 12.1 + the
+      once-per-session confirm), WORKSHOP tab padlock when part fields gain
+      ranges, an editor-level test of the wrench in Easy mode, spectrum
+      summary announced to screen readers, slide material in the engine
+      (5b). Known issue: the first note after a body/cab IR load renders
+      slightly differently (~0.02 peak at the onset); the spectrum fixture
+      primes around it.
 - [ ] 8. `StrumGesture` (RHYTHM STRUM group), then `BassTechniques` (SLAP
       group, bass step grid).
 - [ ] 9. `PerformanceCapture`, then the NOTATION tab.

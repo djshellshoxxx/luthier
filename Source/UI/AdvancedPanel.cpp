@@ -962,8 +962,15 @@ void AdvancedPanel::buildColumn3()
     either one saved a profile. Options is ten tabs now, which is section 5's
     list exactly, minus RANGES.
 */
+bool AdvancedPanel::isWorkshopShowing() const noexcept
+{
+    return workshopPanel != nullptr && juce::isPositiveAndBelow (workspaceTab, workspacePanels.size())
+        && workspacePanels[workspaceTab] == workshopPanel.get();
+}
+
 void AdvancedPanel::buildWorkspace()
 {
+    workshopPanel   = std::make_unique<WorkshopPanel> (processor);
     modMatrixPanel  = std::make_unique<ModMatrixPanel> (processor);
     rhythmPanel     = std::make_unique<RhythmPanel> (processor);
     livePanel       = std::make_unique<LivePanel> (processor);
@@ -974,6 +981,7 @@ void AdvancedPanel::buildWorkspace()
 
     const struct { const char* name; juce::Component* panel; } tabs[] =
     {
+        { "WORKSHOP",    workshopPanel.get() },
         { "MOD",         modMatrixPanel.get() },
         { "RHYTHM",      rhythmPanel.get() },
         { "LIVE",        livePanel.get() },
@@ -1092,6 +1100,9 @@ void AdvancedPanel::showWorkspaceTab (int index, bool remember)
         changed. */
     workspaceViewport.setViewedComponent (workspacePanels[workspaceTab], false);
 
+    // The WORKSHOP tab changes the column layout, not just what column 4 shows.
+    resized();
+
     /*  CONTROLLERS can be stale by the time it is opened - a controller may have
         been unplugged, or a profile saved from somewhere else - so it reads the
         world again on the way in. This is what OptionsPanel did for it when it
@@ -1145,7 +1156,11 @@ void AdvancedPanel::resized()
         every panel reachable rather than hiding one.
     */
     const bool stacked = getWidth() < kStackBelowWidth;
-    const int slots = stacked ? 2 : 3;
+
+    // gui-integration.md 6: the Workshop takes over columns 3 and 4 (and, when
+    // 2 and 3 share a slot, that slot).
+    const bool workshop = isWorkshopShowing();
+    const int slots = workshop ? (stacked ? 1 : 2) : (stacked ? 2 : 3);
 
     const int columnWidth = juce::jlimit (kMinColumnWidth, kColumnWidth,
                                           (bounds.getWidth() - kMinWorkspaceWidth) / slots);
@@ -1161,7 +1176,15 @@ void AdvancedPanel::resized()
 
     viewports[0].setBounds (takeColumn().reduced (1, 0));
 
-    if (stacked)
+    viewports[1].setVisible (! (workshop && stacked));
+    viewports[2].setVisible (! workshop);
+
+    if (workshop)
+    {
+        if (! stacked)
+            viewports[1].setBounds (takeColumn().reduced (1, 0));
+    }
+    else if (stacked)
     {
         auto shared = takeColumn();
         auto top = shared.removeFromTop (shared.getHeight() / 2);
@@ -1202,10 +1225,12 @@ void AdvancedPanel::resized()
     workspaceViewport.setBounds (bounds.reduced (1, 0));
 
     // The panel keeps whatever height it asked for and takes the viewport's
-    // width, so the workspace scrolls vertically exactly as a column does.
+    // width, so the workspace scrolls vertically exactly as a column does. The
+    // bench fills the space instead: it is one surface, not a list.
     if (auto* panel = workspaceViewport.getViewedComponent())
         panel->setSize (juce::jmax (80, workspaceViewport.getMaximumVisibleWidth()),
-                        juce::jmax (80, panel->getHeight()));
+                        workshop ? juce::jmax (560, workspaceViewport.getMaximumVisibleHeight())
+                                 : juce::jmax (80, panel->getHeight()));
 }
 
 } // namespace luthier

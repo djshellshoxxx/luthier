@@ -262,6 +262,10 @@ chosen") and `ambiguity-resolutions.md`.
   strings.** A bass gets its bass tuning (it used to keep Standard and play
   six guitar-tuned strings); Drop D survives a change between six-strings. A
   12-string's preset tunes its six courses instead of cutting it to six.
+- **A third assistant (user request, 2026-09-23)** writes whole model features
+  in new files without compiling (Tune Builder first); the coverage assistant
+  moves on to midi-export.md's model the same way; the outline assistant owns
+  the headstock data. The lead compiles, integrates, tests and commits.
 - **Pickup heights clamp at 0.8 - 6 mm.** workshop-ui.md 4 says 0.5 - 6.0;
   guitar-illustration.md 19 says not below 0.8 without advanced ranges, and
   the illustration spec ranks higher on the visible guitar. 0.8 it is until

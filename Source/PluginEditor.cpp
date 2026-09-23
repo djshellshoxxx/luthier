@@ -20,6 +20,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
       presetBrowser (p),
       saveAsPanel (p),
       chordPanel (p),
+      workshopOverlay (p),
       secretPanel (p)
 {
     setLookAndFeel (&lookAndFeel);
@@ -83,6 +84,21 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     // ---- header wiring -----------------------------------------------------------
     header.onModeChanged = [this] (bool advanced) { setAdvancedMode (advanced); };
     header.onOpenHelp = [this] { showOverlay (&helpPanel); };
+
+    // gui-integration.md 6: the wrench opens the WORKSHOP tab in Advanced mode
+    // and the same bench as an overlay in Easy mode.
+    header.onOpenWorkshop = [this]
+    {
+        if (advancedMode)
+            advancedPanel.setWorkspaceTabNamed ("WORKSHOP");
+        else
+            showOverlay (&workshopOverlay);
+    };
+
+    workshopOverlay.getPanel().onSaveAsGuitar = [this] { showSaveGuitarDialog(); };
+
+    if (auto* bench = advancedPanel.getWorkshopPanel())
+        bench->onSaveAsGuitar = [this] { showSaveGuitarDialog(); };
     header.onOpenOptions = [this] { showOverlay (&optionsPanel); };
     header.onOpenRanges = [this] { showOptionsPage ("RANGES"); };
     header.onOpenExport = [this] { showOverlay (&exportPanel); };

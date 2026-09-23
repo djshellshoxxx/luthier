@@ -113,6 +113,11 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     // live-performance 10: Live Mode is a header switch, and while it is on the
     // Advanced toggle is locked so that a mis-hit on stage cannot swap the whole
     // window out from under the player.
+    addAndMakeVisible (workshopButton);
+    workshopButton.setTooltip ("The Workshop: take the guitar apart, swap parts, move pickups");
+    workshopButton.setTitle ("Workshop");
+    workshopButton.onClick = [this] { if (onOpenWorkshop) onOpenWorkshop(); };
+
     addAndMakeVisible (slideButton);
     slideButton.setClickingTogglesState (true);
     slideButton.setTooltip ("Slide Mode: play with a bar instead of frets (S)");
@@ -484,6 +489,7 @@ void HeaderBar::resized()
 
     liveButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
     slideButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
+    workshopButton.setBounds (bounds.removeFromRight (82).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
     helpButton.setBounds (bounds.removeFromRight (30).reduced (2, 0));

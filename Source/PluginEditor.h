@@ -123,6 +123,7 @@ private:
     PresetBrowserPanel presetBrowser;
     SaveAsPanel saveAsPanel;
     ChordAndTabPanel chordPanel;
+    WorkshopOverlay workshopOverlay;
     SecretPanel secretPanel;
 
     juce::TextButton chordButton { "Chords / Tab" };

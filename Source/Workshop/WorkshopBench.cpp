@@ -23,7 +23,8 @@ namespace
         return a;
     }
 
-    juce::String mm (double v, int decimals = 1)          { return juce::String (v, decimals); }
+    /** juce::String (v, 0) means "all the digits", not none, hence the rounding. */
+    juce::String mm (double v, int decimals = 1)          { return decimals == 0 ? juce::String (juce::roundToInt (v)) : juce::String (v, decimals); }
     juce::String signedMm (double v)                      { return (v >= 0.0 ? "+" : "") + juce::String (v, 1); }
 
     /** Guitar strings are numbered for people from 1 = high E, as the engine counts from 0. */
@@ -97,7 +98,35 @@ void WorkshopBench::commit (const WorkshopGuitar& edited, const juce::String& de
     processor.applyEditedGuitar (edited);
 }
 
-bool WorkshopBench::fit (GuitarSlot slot, const PartPtr& part)
+bool WorkshopBench::editField (GuitarSlot slot, const juce::String& field, const juce::var& value)
+{
+    const auto old = processor.getCurrentGuitar().get (slot);
+
+    if (old == nullptr)
+        return false;
+
+    const auto before = old->fields.getProperty (field, {});
+
+    if (before.toString() == value.toString())
+        return false;
+
+    // A factory part is never written to: the edit is a new, unsaved user part
+    // (guitar-workshop.md 7), which "Save as user part" can then keep.
+    auto copy = std::make_shared<Part> (*old);
+    copy->fields = juce::JSON::parse (juce::JSON::toString (old->fields));
+    copy->isFactory = false;
+    copy->file = juce::File();
+
+    if (auto* object = copy->fields.getDynamicObject())
+        object->setProperty (field, value);
+    else
+        return false;
+
+    return fit (slot, copy, "Set " + field.replaceCharacter ('_', ' ') + " of " + old->name + " "
+                              + before.toString() + " " + arrow() + " " + value.toString());
+}
+
+bool WorkshopBench::fit (GuitarSlot slot, const PartPtr& part, const juce::String& customSentence)
 {
     endAudition();
 
@@ -114,12 +143,70 @@ bool WorkshopBench::fit (GuitarSlot slot, const PartPtr& part)
     const auto edited = withPart (slot, part);
     const auto where = pickupIndexOf (slot) >= 0 ? " in the " + describeSlot (slot) + " slot" : juce::String();
 
-    const auto sentence = part == nullptr
+    const auto sentence = customSentence.isNotEmpty() ? customSentence
+        : part == nullptr
         ? "Removed " + describeSlot (slot) + (old != nullptr ? " (was " + old->name + ")" : juce::String())
         : "Fitted " + part->name + where + (old != nullptr ? " (was " + old->name + ")" : juce::String());
 
     commit (edited, sentence);
     return true;
+}
+
+bool WorkshopBench::fitAccessory (const PartPtr& part)
+{
+    if (part == nullptr)
+        return false;
+
+    auto setPlain = [this] (const char* id, double plain)
+    {
+        if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (processor.getState().getParameter (id)))
+            p->setValueNotifyingHost (p->convertTo0to1 ((float) plain));
+    };
+
+    if (part->type == PartType::capo)
+    {
+        const auto old = processor.getCapoPart();
+        processor.pushUndoState ("Fitted " + part->name + (old != nullptr ? " (was " + old->name + ")" : juce::String()));
+        processor.setCapoPart (part);
+        return true;
+    }
+
+    if (part->type == PartType::pick)
+    {
+        processor.pushUndoState ("Fitted " + part->name + (pickPart != nullptr ? " (was " + pickPart->name + ")" : juce::String()));
+        pickPart = part;
+
+        // pick-noise.md 2 through the parameters it already has (DECISIONS: the
+        // 12-choice material list stays; ultex plays as delrin, brass as metal).
+        const auto m = part->text ("material", "celluloid");
+        const int material = m == "nylon" ? 0 : m == "delrin" || m == "ultex" ? 2
+                           : m == "brass" || m == "steel" || m == "metal" ? 3 : m == "wood" ? 4 : m == "felt" ? 5 : 1;
+        setPlain (ParamIDs::pickMaterial, material);
+
+        const double thickness = juce::jlimit (0.38, 3.0, part->number ("thickness_mm", 0.73));
+        setPlain (ParamIDs::pickThickness, std::log (thickness / 0.38) / std::log (3.0 / 0.38));
+        setPlain (ParamIDs::pickTipRadius, part->number ("tip_radius_mm", 1.0));
+        setPlain (ParamIDs::pickBevel, part->number ("bevel", 0.2));
+        setPlain (ParamIDs::pickWear, part->number ("wear", 0.1));
+        return true;
+    }
+
+    if (part->type == PartType::slide)
+    {
+        processor.pushUndoState ("Fitted " + part->name + (slidePart != nullptr ? " (was " + slidePart->name + ")" : juce::String()));
+        slidePart = part;
+        return true;
+    }
+
+    return false;
+}
+
+PartPtr WorkshopBench::getAccessory (PartType type) const
+{
+    if (type == PartType::capo)   return processor.getCapoPart();
+    if (type == PartType::pick)   return pickPart;
+    if (type == PartType::slide)  return slidePart;
+    return nullptr;
 }
 
 bool WorkshopBench::revert (GuitarSlot slot)
@@ -243,9 +330,11 @@ WorkshopBench::Travel WorkshopBench::getPickupTravel (int index) const
     const auto neck = g.get (GuitarSlot::neck);
     const double scale = neck != nullptr ? neck->number ("scale_length_mm", 648.0) : 648.0;
     const int frets = neck != nullptr ? (int) neck->number ("frets", 22.0) : 22;
-    const double fretboardEnd = scale * std::pow (2.0, -((double) frets + 0.45) / 12.0) - 6.0;
+    // The board runs about 6 mm past its last fret; a neck pickup's ring may tuck
+    // a few millimetres under it, as a Les Paul's does.
+    const double fretboardEnd = scale * std::pow (2.0, -(double) frets / 12.0) - 6.0;
 
-    t.max = fretboardEnd - half - 2.0;
+    t.max = fretboardEnd - half + 4.0;
     t.aboveMax = "the fretboard ends there";
 
     for (int j = index - 1; j >= 0; --j)

@@ -40,8 +40,19 @@ public:
     //==========================================================================
     // Commits (section 8): one undo entry each.
 
-    /** Fits a part in a slot (nullptr removes an optional part). False if nothing changed. */
-    bool fit (GuitarSlot slot, const PartPtr& part);
+    /** Fits a part in a slot (nullptr removes an optional part). False if nothing changed.
+        `sentence` replaces the "Fitted X (was Y)" undo text, for field edits. */
+    bool fit (GuitarSlot slot, const PartPtr& part, const juce::String& sentence = {});
+
+    /** A copy of the slot's part with one field changed, fitted as a user edit (section 5). */
+    bool editField (GuitarSlot slot, const juce::String& field, const juce::var& value);
+
+    /*  The player's accessories (the drawer's Pick, Slide and Capo cards).
+        A pick writes the pick parameters; a capo is the processor's capo part;
+        a slide is remembered (the engine has no slide material yet - TODO 5b).
+        One undo entry each. */
+    bool fitAccessory (const PartPtr& part);
+    PartPtr getAccessory (PartType type) const;
 
     /** Puts a slot back to what the guitar file had ("Revert", section 5). */
     bool revert (GuitarSlot slot);
@@ -130,6 +141,7 @@ private:
     };
 
     std::optional<Gesture> gesture;
+    PartPtr pickPart, slidePart;
     std::optional<WorkshopGuitar> audition;
 };
 

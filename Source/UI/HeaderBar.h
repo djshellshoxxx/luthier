@@ -30,6 +30,9 @@ public:
     //==========================================================================
     std::function<void (bool advanced)> onModeChanged;
     std::function<void()> onOpenHelp;
+
+    /** The wrench (gui-integration.md 6): the Workshop tab, or the Easy overlay. */
+    std::function<void()> onOpenWorkshop;
     std::function<void()> onOpenOptions;
 
     /** gui-integration 2: the range-lock padlock opens Options -> Ranges. */
@@ -100,6 +103,7 @@ private:
 
     /** slide-guitar.md 7: Slide Mode is a header toggle (shortcut S). */
     juce::TextButton slideButton { "Slide" };
+    juce::TextButton workshopButton { "Workshop" };
 
     bool advancedMode = false;
     bool advancedAvailable = true;

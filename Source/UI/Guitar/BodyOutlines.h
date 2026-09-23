@@ -180,12 +180,11 @@ inline constexpr Pt single_cutaway_arched_outline[] = {
     { 0.0072f, 0.0984f }, { 0.0035f, 0.0946f }, { 0.0015f, 0.0900f }, { 0.0007f, 0.0839f }
 };
 inline constexpr Pt single_cutaway_arched_pickguard[] = {
-    { 0.1924f, 0.1109f, true }, { 0.1931f, 0.1413f }, { 0.2015f, 0.1918f }, { 0.2104f, 0.2214f },
-    { 0.2217f, 0.2412f }, { 0.2350f, 0.2548f }, { 0.2517f, 0.2638f }, { 0.3032f, 0.2765f },
-    { 0.3544f, 0.2758f }, { 0.3901f, 0.2669f }, { 0.4190f, 0.2498f }, { 0.4502f, 0.2188f },
-    { 0.4766f, 0.1837f }, { 0.4856f, 0.1631f }, { 0.4890f, 0.1439f }, { 0.4884f, 0.1360f },
-    { 0.4852f, 0.1271f }, { 0.4788f, 0.1182f }, { 0.4707f, 0.1125f }, { 0.4639f, 0.1109f },
-    { 0.3430f, 0.1109f }
+    { 0.1924f, 0.1109f, true }, { 0.1931f, 0.1368f }, { 0.2015f, 0.1858f }, { 0.2115f, 0.2146f },
+    { 0.2260f, 0.2333f }, { 0.2471f, 0.2458f }, { 0.2963f, 0.2579f }, { 0.3475f, 0.2578f },
+    { 0.3886f, 0.2497f }, { 0.4179f, 0.2347f }, { 0.4456f, 0.2098f }, { 0.4729f, 0.1762f },
+    { 0.4813f, 0.1580f }, { 0.4844f, 0.1409f }, { 0.4834f, 0.1318f }, { 0.4784f, 0.1214f },
+    { 0.4696f, 0.1133f }, { 0.4616f, 0.1109f }, { 0.3430f, 0.1109f }
 };
 inline constexpr Pt single_cutaway_arched_controls[] = {
     { 0.6281f, 0.2158f }, { 0.6738f, 0.3417f }, { 0.7331f, 0.2218f }, { 0.7787f, 0.3477f }
@@ -368,11 +367,11 @@ inline constexpr Pt double_cutaway_semi_outline[] = {
     { 0.0782f, 0.0979f }, { 0.0591f, 0.0690f, true }
 };
 inline constexpr Pt double_cutaway_semi_pickguard[] = {
-    { 0.1546f, 0.0936f, true }, { 0.1558f, 0.1253f }, { 0.1629f, 0.1478f }, { 0.1745f, 0.1650f },
-    { 0.1890f, 0.1763f }, { 0.2128f, 0.1847f }, { 0.2654f, 0.1944f }, { 0.3083f, 0.1970f },
-    { 0.3499f, 0.1945f }, { 0.3778f, 0.1867f }, { 0.4039f, 0.1724f }, { 0.4249f, 0.1542f },
-    { 0.4346f, 0.1389f }, { 0.4392f, 0.1231f }, { 0.4391f, 0.1163f }, { 0.4364f, 0.1084f },
-    { 0.4303f, 0.1002f }, { 0.4226f, 0.0949f }, { 0.4163f, 0.0936f }, { 0.2876f, 0.0936f }
+    { 0.1546f, 0.1108f, true }, { 0.1559f, 0.1318f }, { 0.1629f, 0.1527f }, { 0.1734f, 0.1681f },
+    { 0.1871f, 0.1786f }, { 0.2128f, 0.1872f }, { 0.2604f, 0.1949f }, { 0.3083f, 0.1970f },
+    { 0.3470f, 0.1944f }, { 0.3737f, 0.1868f }, { 0.3997f, 0.1724f }, { 0.4251f, 0.1532f },
+    { 0.4320f, 0.1431f }, { 0.4350f, 0.1330f }, { 0.4350f, 0.1284f }, { 0.4333f, 0.1237f },
+    { 0.4288f, 0.1180f }, { 0.4204f, 0.1126f }, { 0.4122f, 0.1108f }, { 0.2876f, 0.1108f }
 };
 inline constexpr Pt double_cutaway_semi_controls[] = {
     { 0.5825f, 0.2069f }, { 0.6282f, 0.3152f }, { 0.6781f, 0.2167f }, { 0.7237f, 0.3251f }
@@ -1567,7 +1566,7 @@ inline constexpr BodyStyle kBodyStyles[] = {
       438.3267f, 333.6096f, 50.0000f,                   // length, width, depth (mm)
       0.5734f, 0.1810f, false,                          // saddleU, neckU, angular
       single_cutaway_arched_outline, 92,                // outline
-      single_cutaway_arched_pickguard, 21,              // pickguard
+      single_cutaway_arched_pickguard, 19,              // pickguard
       Hole::none, { 0.0f, 0.0f }, 0.0000f, 0.0000f,     // hole, centre, along, across (mm)
       single_cutaway_arched_controls, 4,                // controls
       { 0.1285f, -0.2698f }, true,                      // selector
@@ -1596,7 +1595,7 @@ inline constexpr BodyStyle kBodyStyles[] = {
       double_cutaway_thin_pickguard, 50,                // pickguard
       Hole::none, { 0.0f, 0.0f }, 0.0000f, 0.0000f,     // hole, centre, along, across (mm)
       double_cutaway_thin_controls, 4,                  // controls
-      { 0.2983f, 0.3230f }, true,                       // selector
+      { 0.2786f, 0.3012f }, true,                       // selector
       { 0.8675f, 0.4099f },                             // jack
       { { 0.0087f, -0.2888f }, { 0.9975f, 0.0000f } },  // strap buttons
       double_cutaway_thin_arch, 97, true,               // arch, closed
@@ -1609,7 +1608,7 @@ inline constexpr BodyStyle kBodyStyles[] = {
       double_cutaway_semi_pickguard, 20,                         // pickguard
       Hole::fHoles, { 0.2543f, -0.2561f }, 138.0000f, 38.0000f,  // hole, centre, along, across (mm)
       double_cutaway_semi_controls, 4,                           // controls
-      { 0.1422f, 0.2857f }, true,                                // selector
+      { 0.0757f, 0.3005f }, true,                                // selector
       { 0.8110f, 0.4433f },                                      // jack
       { { 0.0051f, -0.2561f }, { 0.9979f, 0.0000f } },           // strap buttons
       double_cutaway_semi_arch, 102, true,                       // arch, closed
