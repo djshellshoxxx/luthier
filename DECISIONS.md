@@ -23,3 +23,12 @@ chosen") and `ambiguity-resolutions.md`.
 - **Fixed the processor undo stack's off-by-one** rather than working around
   it: one action could not be undone and the first undo after two reverted
   both. Each entry now holds its before-state and, once undone, its after-state.
+- **No separate "advanced-range clamped" banner (gui-integration 15).** A preset
+  load cannot clamp here: values are stored normalised against the file's own
+  `ranges` block, which is applied first. The only clamps are explicit narrowings
+  (RANGES lock, right-click restrict, per-row Clamp), and each reports at the
+  place it happened - a confirmation with the count, or a bubble at the control.
+- **Tab-header padlocks wait for their tabs to hold physical parameters.**
+  gui-integration 21 names CHARACTER and WORKSHOP; today only `amp` and
+  `circuit` have ranges and neither lives in a tab. `RangesUi::drawPadlock` is
+  the shared glyph for when they do (TODO items 3 and 7).

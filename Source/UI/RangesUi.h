@@ -85,6 +85,22 @@ namespace RangesUi
     /** A plain value formatted with the parameter's own text function. */
     juce::String formatValue (const LuthierAudioProcessor& processor,
                               const juce::String& parameterId, float plain);
+
+    /*  The padlock glyph shared by the header and the tab headers
+        (gui-integration 2, 21). Open shackle = the preset opts in. */
+    void drawPadlock (juce::Graphics& g, juce::Rectangle<float> bounds,
+                      juce::Colour colour, bool open);
+
+    /*  The header's range-lock indicator (gui-integration 2): shown next to
+        the preset name while the preset has anything unlocked, secondary
+        accent, and a click opens Options -> Ranges. */
+    class PadlockButton : public juce::Button
+    {
+    public:
+        PadlockButton();
+
+        void paintButton (juce::Graphics&, bool highlighted, bool down) override;
+    };
 }
 
 } // namespace luthier

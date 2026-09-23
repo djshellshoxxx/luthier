@@ -10,23 +10,23 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## In progress
 
-- [ ] **1. Advanced ranges UI** (`advanced-ranges.md` 5-7): Options RANGES
-      page, warning-colour arc and `*` readout, header padlock, right-click
-      unlock/restrict items, clamp notification (gui-integration 15),
-      first-unlock explainer (onboarding.md).
+- [ ] **2. `GuitarCircuit`** — next.
 
 ## Remaining
 
 - [ ] 2. `GuitarCircuit` replacing `CableSim` (`volume-knob-interaction.md`),
-      and the Adv Col 2 CIRCUIT panel replacing CABLE.
+      and the Adv Col 2 CIRCUIT panel replacing CABLE. Register its params in
+      `RangeRegistry` (`circuit` family).
 - [ ] 3. `NoiseEngine` pool, then `PickModel`, `SqueakModel`, buzz sensing
       (`pick-noise.md`, `string-squeak.md`, `fret-buzz.md`); CHARACTER PICK /
-      STRING NOISE groups; noise-event strip; Aux 8 noise bus row.
+      STRING NOISE groups; noise-event strip; Aux 8 noise bus row. CHARACTER
+      tab-header padlock (gui-integration 21) via `RangesUi::drawPadlock`.
 - [ ] 4. `SetupGeometry` (`fret-buzz.md`).
 - [ ] 5. `SlideEngine` (`slide-guitar.md`), Slide mode.
 - [ ] 6. `PartLibrary` and `mapSpec` (`guitar-workshop.md`, `part-acoustics.md`),
       `.luthierguitar` / `.luthierpart` files, partial capo.
-- [ ] 7. `WorkshopPanel` and the WORKSHOP tab (`workshop-ui.md`).
+- [ ] 7. `WorkshopPanel` and the WORKSHOP tab (`workshop-ui.md`), with its
+      tab-header padlock.
 - [ ] 8. `StrumGesture` (RHYTHM STRUM group), then `BassTechniques` (SLAP
       group, bass step grid).
 - [ ] 9. `PerformanceCapture`, then the NOTATION tab.
@@ -37,6 +37,10 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 - [ ] 14. Audit `ui-wiring.md`, `onboarding.md`, `performance-budget.md`,
       `qa-polish.md`, `installer.md`, and gui-integration 20-22 against the
       build (GAPS.md "Not audited yet"); fix what they find.
+- [ ] 14b. `action-and-undo.md`: audit entry classes, grouping and state
+      boundaries against the snapshot undo stack (fixed off-by-one in c0b05eb).
+- [ ] 14c. Onboarding: "Restore first-run experience" in Options ->
+      Diagnostics must also clear `ranges_first_unlock_explained`.
 - [ ] 15. Polish pass, performance pass, onboarding pass (brief steps 7-9).
 - [ ] 16. Installer pass (brief step 10). The platform matrix cannot be run
       from this Windows-only machine; see DECISIONS.md when reached.
@@ -44,6 +48,10 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 - [ ] 18. Plugin targets (`Luthier_VST3`, `Luthier_Standalone`) build clean.
 
 ## Done
+
+- [x] 1. Advanced ranges UI: Options RANGES page, warning arc and `*`,
+      header padlock, right-click unlock/restrict, locked-edge notice,
+      first-unlock explainer, randomise-in-stock, control resync on range swap.
 
 - [x] `PhysicalRange`, `RangeRegistry`, `RangeState` (commit 2ef230b).
 - [x] `RangeState` wired into preset save and load, ranges block applied

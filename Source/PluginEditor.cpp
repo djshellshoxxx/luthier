@@ -81,6 +81,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     header.onModeChanged = [this] (bool advanced) { setAdvancedMode (advanced); };
     header.onOpenHelp = [this] { showOverlay (&helpPanel); };
     header.onOpenOptions = [this] { showOverlay (&optionsPanel); };
+    header.onOpenRanges = [this] { showOptionsPage ("RANGES"); };
     header.onOpenExport = [this] { showOverlay (&exportPanel); };
     header.onOpenPresetBrowser = [this] { showOverlay (&presetBrowser); };
     header.onSaveAs = [this] { showOverlay (&saveAsPanel); };

@@ -10,6 +10,7 @@
 #include "TestFramework.h"
 
 #include "../PluginProcessor.h"
+#include "../UI/HeaderBar.h"
 #include "../UI/OptionsPages.h"
 #include "../UI/RangesUi.h"
 #include "../UI/UiPreferences.h"
@@ -299,4 +300,29 @@ LUTHIER_TEST (Undo, stepsOneActionAtATimeBothWays)
 
     processor.undo();
     CHECK (std::abs (plainOf (processor, gain) - 0.2f) < 1.0e-3f);
+}
+
+//==============================================================================
+/*  gui-integration 2: the header padlock shows while the preset has anything
+    unlocked, only in Advanced Mode (3.6), and opens Options -> Ranges. */
+LUTHIER_TEST (RangesUi, theHeaderPadlockShowsOnlyWhenSomethingIsUnlocked)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    HeaderBar header (processor);
+    header.setSize (1600, 48);
+    header.setAdvancedMode (true);
+
+    CHECK_MSG (! header.isRangePadlockShowing(), "the padlock showed on a stock preset");
+
+    RangeState unlocked;
+    unlocked.setUnlockedIndividually (ParamIDs::ampGain, true);
+    processor.changeRanges (unlocked, "test");
+
+    header.setAdvancedMode (true);
+    CHECK_MSG (header.isRangePadlockShowing(), "one unlocked control did not show the padlock");
+
+    header.setAdvancedMode (false);
+    CHECK_MSG (! header.isRangePadlockShowing(), "the padlock showed in Easy Mode");
 }

@@ -109,6 +109,55 @@ juce::String familyDisplayName (RangeFamily family)
 }
 
 //==============================================================================
+void drawPadlock (juce::Graphics& g, juce::Rectangle<float> bounds, juce::Colour colour, bool open)
+{
+    const float size = juce::jmin (bounds.getWidth(), bounds.getHeight());
+    auto area = bounds.withSizeKeepingCentre (size * 0.8f, size);
+
+    auto body = area.withTrimmedTop (area.getHeight() * 0.45f);
+
+    g.setColour (colour);
+    g.fillRoundedRectangle (body, size * 0.08f);
+
+    // The shackle: a U over the body, lifted and swung aside when open.
+    const float shackleWidth = body.getWidth() * 0.62f;
+    const float shackleLeft = body.getCentreX() - shackleWidth * 0.5f + (open ? shackleWidth * 0.45f : 0.0f);
+    const float shackleTop = area.getY() + (open ? -size * 0.08f : 0.0f);
+    const float shackleBottom = body.getY() + 1.0f - (open ? size * 0.12f : 0.0f);
+
+    juce::Path shackle;
+    shackle.startNewSubPath (shackleLeft, shackleBottom);
+    shackle.lineTo (shackleLeft, shackleTop + shackleWidth * 0.5f);
+    shackle.addCentredArc (shackleLeft + shackleWidth * 0.5f, shackleTop + shackleWidth * 0.5f,
+                           shackleWidth * 0.5f, shackleWidth * 0.5f, 0.0f,
+                           -juce::MathConstants<float>::halfPi, juce::MathConstants<float>::halfPi);
+    shackle.lineTo (shackleLeft + shackleWidth, open ? shackleTop + shackleWidth * 0.9f : shackleBottom);
+
+    g.strokePath (shackle, juce::PathStrokeType (juce::jmax (1.2f, size * 0.12f)));
+}
+
+PadlockButton::PadlockButton()
+    : juce::Button ("Advanced ranges")
+{
+    setTooltip ("This preset uses advanced ranges. Click for Options -> Ranges.");
+    setTitle ("Advanced ranges unlocked");
+    setDescription ("This preset has advanced ranges unlocked. Opens Options, Ranges.");
+}
+
+void PadlockButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
+{
+    auto colour = Palette::secondary;
+
+    if (highlighted)
+        colour = colour.brighter (0.2f);
+
+    if (down)
+        colour = colour.darker (0.2f);
+
+    drawPadlock (g, getLocalBounds().toFloat().reduced (3.0f), colour, true);
+}
+
+//==============================================================================
 void resyncControls (juce::Component& root)
 {
     if (auto* knob = dynamic_cast<LuthierKnob*> (&root))

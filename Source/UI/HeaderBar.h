@@ -11,6 +11,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
+#include "RangesUi.h"
 
 namespace luthier
 {
@@ -30,6 +31,12 @@ public:
     std::function<void (bool advanced)> onModeChanged;
     std::function<void()> onOpenHelp;
     std::function<void()> onOpenOptions;
+
+    /** gui-integration 2: the range-lock padlock opens Options -> Ranges. */
+    std::function<void()> onOpenRanges;
+
+    /** For tests: whether the range-lock padlock is showing. */
+    bool isRangePadlockShowing() const noexcept { return rangePadlock.isVisible(); }
     std::function<void()> onOpenExport;
     std::function<void()> onOpenPresetBrowser;
     std::function<void()> onSaveAs;
@@ -67,6 +74,7 @@ private:
     void showFileMenu();
     void updateUndoRedoState();
     void updateModeButtonEnablement();
+    void updateRangePadlock();
 
     LuthierAudioProcessor& processor;
 
@@ -76,6 +84,7 @@ private:
 
     juce::TextButton presetPrev { "<" }, presetNext { ">" };
     juce::TextButton presetName;
+    RangesUi::PadlockButton rangePadlock;
     juce::TextButton fileMenuButton { "File" };
 
     juce::TextButton compareA { "A" }, compareB { "B" }, copyAB { "A>B" };

@@ -44,6 +44,9 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     presetName.setTooltip ("Click to browse the preset bank");
     presetName.onClick = [this] { if (onOpenPresetBrowser) onOpenPresetBrowser(); };
 
+    addChildComponent (rangePadlock);
+    rangePadlock.onClick = [this] { if (onOpenRanges) onOpenRanges(); };
+
     addAndMakeVisible (fileMenuButton);
     fileMenuButton.setTooltip ("Save, open, import, export and options");
     fileMenuButton.onClick = [this] { showFileMenu(); };
@@ -157,6 +160,19 @@ void HeaderBar::setAdvancedMode (bool advanced)
     advancedMode = advanced;
     modeButton.setToggleState (advanced, juce::dontSendNotification);
     modeButton.setButtonText (advanced ? "Easy" : "Advanced");
+    updateRangePadlock();
+}
+
+void HeaderBar::updateRangePadlock()
+{
+    // gui-integration 3.6: Easy Mode leaves the padlock out.
+    const bool show = advancedMode && processor.getRanges().isAnythingAdvanced();
+
+    if (show != rangePadlock.isVisible())
+    {
+        rangePadlock.setVisible (show);
+        resized();
+    }
 }
 
 void HeaderBar::setAdvancedModeAvailable (bool available)
@@ -227,6 +243,7 @@ void HeaderBar::changeListenerCallback (juce::ChangeBroadcaster*)
 void HeaderBar::timerCallback()
 {
     updateUndoRedoState();
+    updateRangePadlock();
 
     // The MIDI-in indicator blinks when notes arrive.
     if (processor.getEngine().consumeMidiActivity())
@@ -470,6 +487,10 @@ void HeaderBar::resized()
 
     presetPrev.setBounds (bounds.removeFromLeft (24).reduced (1, 3));
     presetNext.setBounds (bounds.removeFromRight (24).reduced (1, 3));
+
+    if (rangePadlock.isVisible())
+        rangePadlock.setBounds (bounds.removeFromRight (22).reduced (1, 3));
+
     presetName.setBounds (bounds.reduced (2, 3));
 }
 
