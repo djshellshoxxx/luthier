@@ -36,7 +36,8 @@ namespace luthier::ConvolutionInstaller
                                     int numChannels,
                                     int blockSize,
                                     int sizeBefore,
-                                    int timeoutMs = 4000)
+                                    int timeoutMs = 4000,
+                                    int settleSamples = 0)
     {
         juce::AudioBuffer<float> silence (juce::jmax (1, numChannels),
                                           juce::jlimit (16, 4096, blockSize));
@@ -52,7 +53,21 @@ namespace luthier::ConvolutionInstaller
             convolution.process (context);
 
             if ((int) convolution.getCurrentIRSize() != sizeBefore)
+            {
+                /*  Installed - but juce::dsp::Convolution then crossfades from the
+                    old response to the new one over its first ~50 ms of audio.
+                    Pump that through too, so the first real block hears only the
+                    new response and two renders of the same guitar match. */
+                for (int done = 0; done < settleSamples; done += silence.getNumSamples())
+                {
+                    silence.clear();
+                    juce::dsp::AudioBlock<float> settleBlock (silence);
+                    juce::dsp::ProcessContextReplacing<float> settleContext (settleBlock);
+                    convolution.process (settleContext);
+                }
+
                 return true;
+            }
 
             if (juce::Time::getMillisecondCounter() >= deadline)
                 return false;

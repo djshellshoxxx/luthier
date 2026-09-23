@@ -25,6 +25,7 @@
 #include "Updates/Telemetry.h"
 #include "PhysicalRange.h"
 #include "Model/Workshop/PartAcoustics.h"
+#include "Workshop/WorkshopBench.h"
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
 
@@ -191,6 +192,14 @@ public:
         parameter is a shortcut to a factory guitar file (0.6); the Workshop
         edits the current guitar directly. Message thread. */
     PartLibrary& getPartLibrary() noexcept { return partLibrary; }
+
+    /** The Workshop bench's model (workshop-ui.md). */
+    WorkshopBench& getBench() noexcept { return bench; }
+
+    /*  workshop-ui.md 3.2 / ui-wiring.md 6.3: plays `candidate` without
+        committing it - the committed guitar, its override, the parameters and
+        the undo stack are untouched. nullptr puts the committed guitar back. */
+    void auditionGuitar (const WorkshopGuitar* candidate);
     const WorkshopGuitar& getCurrentGuitar() const noexcept { return currentGuitar; }
     bool hasPartsGuitar() const noexcept { return partsGuitarLoaded; }
 
@@ -342,6 +351,9 @@ public:
         JUCE_DECLARE_NON_COPYABLE (ScopedUndoAction)
     };
     bool canUndo() const noexcept { return undoPosition >= 0; }
+
+    /** How many actions can be undone (tests, and the Edit menu's count). */
+    int getNumUndoSteps() const noexcept { return undoPosition + 1; }
     bool canRedo() const noexcept { return undoPosition + 1 < undoStack.size(); }
     void undo();
     void redo();
@@ -362,6 +374,9 @@ public:
         int  editorWidth = 1200;
         int  editorHeight = 720;
         AuditionPhrase::Type auditionType = AuditionPhrase::Type::MajorScale;
+
+        /** workshop-ui.md 7: the bench's eight A/B guitars, workspace not preset. */
+        std::array<juce::var, 8> benchSlots;
     };
 
     UiState& getUiState() noexcept { return uiState; }
@@ -480,6 +495,7 @@ private:
     PartLibrary partLibrary;
     PartPtr capoPart;
     WorkshopGuitar currentGuitar;
+    WorkshopBench bench { *this };
     bool partsGuitarLoaded = false;
     juce::StringArray guitarNotices;
 

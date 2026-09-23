@@ -73,6 +73,9 @@ public:
 
     //==========================================================================
     void setEnabled (bool e) noexcept { enabled = e; }
+
+    /** How many responses have really been loaded into either mic path. */
+    int getIrLoadCount() const noexcept { return pathA.loadCount + pathB.loadCount; }
     bool isEnabled() const noexcept { return enabled; }
 
     /** Primary mic. */
@@ -148,6 +151,10 @@ private:
     {
         std::unique_ptr<juce::dsp::Convolution> convolution;
         std::atomic<bool> loaded { false };
+
+        /** The file behind the installed response; see BodyEngine::loadedIrFile. */
+        juce::File loadedFile;
+        int loadCount = 0;
 
         // Held while an impulse response is swapped in. The loading thread takes
         // it and blocks; the audio thread try-locks and uses the fallback for the

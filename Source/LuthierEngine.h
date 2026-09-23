@@ -154,6 +154,15 @@ public:
         return partsPickups[(size_t) juce::jlimit (0, 2, slot)];
     }
 
+    /*  workshop-ui.md 4: a pickup dragged on the bench moves while it is
+        dragged, without a structural swap. Message thread; the audio thread
+        applies it at its next block (a lock-free hand-over, no park).
+        `position` is a fraction of the scale from the saddle. */
+    void setPickupPlacementLive (int slot, double position, double heightMm) noexcept;
+
+    /** Body and cabinet responses really loaded so far (a rebuild that keeps them loads none). */
+    int getIrLoadCount() const noexcept { return body.getIrLoadCount() + cabinet.getIrLoadCount(); }
+
     /** Whether the instrument is a parts guitar rather than a compiled type. */
     bool isWorkshopGuitar() const noexcept { return hasPartsOverride; }
 
@@ -452,6 +461,11 @@ private:
     bool hasPartsOverride = false;
     BodyConfig partsBody;
     std::array<PickupSpec, 3> partsPickups {};
+
+    // setPickupPlacementLive's hand-over: written by the message thread, read at block start.
+    std::array<std::atomic<double>, 3> livePickupPosition {}, livePickupHeight {};
+    std::atomic<int> livePickupDirty { 0 };   ///< bit per slot
+    void applyLivePickupPlacements() noexcept;
     double partsSustain = 1.0;
     double fretBrightnessFactor = 1.0, nutBrightnessFactor = 1.0;
     double magnetSustain = 1.0, magnetDetuneCents = 0.0;

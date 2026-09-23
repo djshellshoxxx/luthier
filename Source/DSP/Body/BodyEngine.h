@@ -127,6 +127,18 @@ private:
     std::atomic<bool> irLoaded { false };
     juce::String loadedIrName;
 
+    /** The file behind the installed response, so a guitar rebuild that keeps
+        the body does not reload it (a part swap parks the audio thread while
+        it runs). Cleared by prepare() and by a response given as samples. */
+    juce::File loadedIrFile;
+
+public:
+    /** How many responses have really been loaded (cached reloads do not count). */
+    int getIrLoadCount() const noexcept { return irLoadCount; }
+
+private:
+    int irLoadCount = 0;
+
     // Held while a response is swapped in; the audio thread try-locks and leaves
     // the convolution out of the path for the one block a swap can overlap.
     juce::SpinLock convolutionLock;

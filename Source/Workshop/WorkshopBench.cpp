@@ -1,0 +1,418 @@
+#include "WorkshopBench.h"
+#include "../PluginProcessor.h"
+
+namespace luthier
+{
+
+namespace
+{
+    int pickupIndexOf (GuitarSlot slot) noexcept
+    {
+        return slot == GuitarSlot::pickupNeck ? 0 : slot == GuitarSlot::pickupMiddle ? 1 : slot == GuitarSlot::pickupBridge ? 2 : -1;
+    }
+
+    const char* pickupName (int index) noexcept
+    {
+        return index == 0 ? "neck pickup" : index == 1 ? "middle pickup" : "bridge pickup";
+    }
+
+    /** workshop-ui.md 8's arrow: "Moved neck pickup 150 -> 142 mm", with a real arrow. */
+    const juce::String& arrow()
+    {
+        static const juce::String a = juce::String::fromUTF8 ("\xe2\x86\x92");
+        return a;
+    }
+
+    juce::String mm (double v, int decimals = 1)          { return juce::String (v, decimals); }
+    juce::String signedMm (double v)                      { return (v >= 0.0 ? "+" : "") + juce::String (v, 1); }
+
+    /** Guitar strings are numbered for people from 1 = high E, as the engine counts from 0. */
+    juce::String stringLabel (int engineIndex)            { return "string " + juce::String (engineIndex + 1); }
+
+    double valueAt (const juce::Array<double>& values, int i, double fallback)
+    {
+        return juce::isPositiveAndBelow (i, values.size()) ? values[i] : fallback;
+    }
+}
+
+//==============================================================================
+WorkshopBench::WorkshopBench (LuthierAudioProcessor& p) : processor (p) {}
+
+const WorkshopGuitar& WorkshopBench::current() const
+{
+    return gesture ? gesture->live : processor.getCurrentGuitar();
+}
+
+bool WorkshopBench::isModified() const
+{
+    return processor.isGuitarEdited();
+}
+
+juce::String WorkshopBench::describeSlot (GuitarSlot slot)
+{
+    switch (slot)
+    {
+        case GuitarSlot::pickupNeck:    return "neck pickup";
+        case GuitarSlot::pickupMiddle:  return "middle pickup";
+        case GuitarSlot::pickupBridge:  return "bridge pickup";
+        case GuitarSlot::body:          return "body";
+        case GuitarSlot::top:           return "top";
+        case GuitarSlot::neck:          return "neck";
+        case GuitarSlot::fretboard:     return "fretboard";
+        case GuitarSlot::frets:         return "frets";
+        case GuitarSlot::nut:           return "nut";
+        case GuitarSlot::bridge:        return "bridge";
+        case GuitarSlot::tailpiece:     return "tailpiece";
+        case GuitarSlot::tuners:        return "tuners";
+        case GuitarSlot::wiring:        return "wiring";
+        case GuitarSlot::strings:       return "strings";
+        case GuitarSlot::pickguard:     return "pickguard";
+        case GuitarSlot::numSlots:      break;
+    }
+
+    return "part";
+}
+
+double WorkshopBench::pickupDepthMm (const Part* pickup, bool bass)
+{
+    if (pickup == nullptr)
+        return 0.0;
+
+    const auto family = pickup->text ("family", "single_coil");
+
+    if (family == "humbucker")       return bass ? 40.0 : 39.0;
+    if (family == "p90")             return 32.0;
+    if (family == "mini_humbucker")  return 30.0;
+    if (family == "active")          return 38.0;
+    if (family == "split_coil")      return 48.0;
+    if (family == "soundhole")       return 20.0;
+    if (family == "piezo")           return 0.0;
+    return bass ? 20.0 : 18.0;
+}
+
+//==============================================================================
+void WorkshopBench::commit (const WorkshopGuitar& edited, const juce::String& description)
+{
+    processor.pushUndoState (description);
+    processor.applyEditedGuitar (edited);
+}
+
+bool WorkshopBench::fit (GuitarSlot slot, const PartPtr& part)
+{
+    endAudition();
+
+    const auto& committed = processor.getCurrentGuitar();
+    const auto old = committed.get (slot);
+
+    if (old == part || (old != nullptr && part != nullptr && old->name == part->name
+                        && juce::JSON::toString (old->fields) == juce::JSON::toString (part->fields)))
+        return false;
+
+    if (part == nullptr && isSlotRequired (slot))
+        return false;
+
+    const auto edited = withPart (slot, part);
+    const auto where = pickupIndexOf (slot) >= 0 ? " in the " + describeSlot (slot) + " slot" : juce::String();
+
+    const auto sentence = part == nullptr
+        ? "Removed " + describeSlot (slot) + (old != nullptr ? " (was " + old->name + ")" : juce::String())
+        : "Fitted " + part->name + where + (old != nullptr ? " (was " + old->name + ")" : juce::String());
+
+    commit (edited, sentence);
+    return true;
+}
+
+bool WorkshopBench::revert (GuitarSlot slot)
+{
+    // The slot as the guitar file has it, ignoring the preset's edits.
+    WorkshopGuitar original;
+    PartLibrary::LoadReport report;
+    const auto file = processor.getGuitarFile();
+
+    if (! file.existsAsFile() || ! processor.getPartLibrary().loadGuitar (file, original, report))
+        return false;
+
+    return fit (slot, original.get (slot));
+}
+
+WorkshopGuitar WorkshopBench::withPart (GuitarSlot slot, const PartPtr& candidate) const
+{
+    auto g = processor.getCurrentGuitar();
+    g.parts[(size_t) slot] = candidate;
+
+    // A pickup going into an empty slot needs somewhere to sit: the usual
+    // place for that slot, scaled to this guitar's scale length.
+    if (const int i = pickupIndexOf (slot); i >= 0 && processor.getCurrentGuitar().get (slot) == nullptr && candidate != nullptr)
+    {
+        const double scale = g.get (GuitarSlot::neck) != nullptr ? g.get (GuitarSlot::neck)->number ("scale_length_mm", 648.0) : 648.0;
+        const double usual[] = { 150.0, 95.0, 40.0 };
+        g.placements[(size_t) i].positionMm = usual[i] * scale / 648.0;
+        g.placements[(size_t) i].heightTrebleMm = 2.4;
+        g.placements[(size_t) i].heightBassMm = 2.7;
+    }
+
+    return g;
+}
+
+//==============================================================================
+void WorkshopBench::beginGesture()
+{
+    if (gesture)
+        return;
+
+    endAudition();
+
+    Gesture g;
+    g.before = processor.getCurrentGuitar();
+    g.live = g.before;
+    gesture = std::move (g);
+}
+
+void WorkshopBench::endGesture()
+{
+    if (! gesture)
+        return;
+
+    const auto& before = gesture->before;
+    const auto& after = gesture->live;
+    juce::StringArray sentences;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        const auto& a = before.placements[(size_t) i];
+        const auto& b = after.placements[(size_t) i];
+
+        if (std::abs (a.positionMm - b.positionMm) > 0.01)
+            sentences.add ("Moved " + juce::String (pickupName (i)) + " " + mm (a.positionMm, 0) + " " + arrow() + " " + mm (b.positionMm, 0) + " mm");
+
+        auto height = [&] (const char* side, double from, double to)
+        {
+            if (std::abs (from - to) > 0.001)
+                sentences.add (juce::String (to < from ? "Raised " : "Lowered ") + pickupName (i) + " " + side + " side "
+                               + mm (from) + " " + arrow() + " " + mm (to) + " mm");
+        };
+
+        height ("treble", a.heightTrebleMm, b.heightTrebleMm);
+        height ("bass", a.heightBassMm, b.heightBassMm);
+    }
+
+    const int n = juce::jmax (before.getStringCount(), after.getStringCount());
+
+    for (int s = 0; s < n; ++s)
+    {
+        const double ia = valueAt (before.setup.intonationMm, s, 0.0), ib = valueAt (after.setup.intonationMm, s, 0.0);
+        if (std::abs (ia - ib) > 0.001)
+            sentences.add ("Moved " + stringLabel (s) + " saddle " + signedMm (ia) + " " + arrow() + " " + signedMm (ib) + " mm");
+
+        const double na = valueAt (before.setup.nutSlotDepthsMm, s, 0.5), nb = valueAt (after.setup.nutSlotDepthsMm, s, 0.5);
+        if (std::abs (na - nb) > 0.0001)
+            sentences.add ("Set " + stringLabel (s) + " nut slot " + mm (na, 2) + " " + arrow() + " " + mm (nb, 2) + " mm");
+    }
+
+    const auto live = gesture->live;
+    gesture.reset();
+
+    if (sentences.isEmpty())
+        return;   // a click without a move changes nothing and pushes nothing
+
+    commit (live, sentences.joinIntoString ("; "));
+}
+
+WorkshopBench::Travel WorkshopBench::getPickupTravel (int index) const
+{
+    Travel t;
+    const auto& g = current();
+    const bool bass = g.family == "bass";
+
+    const auto self = g.get (WorkshopGuitar::pickupSlot (index));
+    const double half = pickupDepthMm (self.get(), bass) * 0.5;
+
+    // Toward the bridge: the bridge, or the next pickup that way.
+    t.min = half + 12.0;
+    t.belowMin = "it would run into the bridge";
+
+    for (int j = index + 1; j < 3; ++j)
+        if (auto other = g.get (WorkshopGuitar::pickupSlot (j)); other != nullptr && other->text ("family") != "piezo")
+        {
+            t.min = g.placements[(size_t) j].positionMm + pickupDepthMm (other.get(), bass) * 0.5 + half + 2.0;
+            t.belowMin = "it would hit the " + juce::String (pickupName (j));
+            break;
+        }
+
+    // Toward the neck: the next pickup that way, or where the fretboard ends.
+    const auto neck = g.get (GuitarSlot::neck);
+    const double scale = neck != nullptr ? neck->number ("scale_length_mm", 648.0) : 648.0;
+    const int frets = neck != nullptr ? (int) neck->number ("frets", 22.0) : 22;
+    const double fretboardEnd = scale * std::pow (2.0, -((double) frets + 0.45) / 12.0) - 6.0;
+
+    t.max = fretboardEnd - half - 2.0;
+    t.aboveMax = "the fretboard ends there";
+
+    for (int j = index - 1; j >= 0; --j)
+        if (auto other = g.get (WorkshopGuitar::pickupSlot (j)); other != nullptr && other->text ("family") != "piezo")
+        {
+            t.max = g.placements[(size_t) j].positionMm - pickupDepthMm (other.get(), bass) * 0.5 - half - 2.0;
+            t.aboveMax = "it would hit the " + juce::String (pickupName (j));
+            break;
+        }
+
+    if (t.max < t.min)
+        t.max = t.min;
+
+    return t;
+}
+
+double WorkshopBench::movePickup (int index, double positionMm, juce::String* stoppedBecause)
+{
+    if (! juce::isPositiveAndBelow (index, 3) || current().get (WorkshopGuitar::pickupSlot (index)) == nullptr)
+        return 0.0;
+
+    const bool own = ! gesture;
+    beginGesture();
+
+    const auto travel = getPickupTravel (index);
+    const double clamped = juce::jlimit (travel.min, travel.max, positionMm);
+
+    if (stoppedBecause != nullptr)
+        *stoppedBecause = positionMm < travel.min - 1.0e-6 ? travel.belowMin
+                        : positionMm > travel.max + 1.0e-6 ? travel.aboveMax : juce::String();
+
+    gesture->live.placements[(size_t) index].positionMm = clamped;
+    applyLive();
+
+    if (own)
+        endGesture();
+
+    return clamped;
+}
+
+void WorkshopBench::setPickupHeights (int index, double trebleMm, double bassMm)
+{
+    if (! juce::isPositiveAndBelow (index, 3) || current().get (WorkshopGuitar::pickupSlot (index)) == nullptr)
+        return;
+
+    const bool own = ! gesture;
+    beginGesture();
+
+    auto& p = gesture->live.placements[(size_t) index];
+    p.heightTrebleMm = juce::jlimit (kMinPickupHeight, kMaxPickupHeight, trebleMm);
+    p.heightBassMm = juce::jlimit (kMinPickupHeight, kMaxPickupHeight, bassMm);
+    applyLive();
+
+    if (own)
+        endGesture();
+}
+
+void WorkshopBench::setIntonation (int stringIndex, double mmValue)
+{
+    if (! juce::isPositiveAndBelow (stringIndex, current().getStringCount()))
+        return;
+
+    const bool own = ! gesture;
+    beginGesture();
+
+    auto& values = gesture->live.setup.intonationMm;
+    while (values.size() <= stringIndex)
+        values.add (0.0);
+
+    values.set (stringIndex, juce::jlimit (-kMaxIntonation, kMaxIntonation, mmValue));
+
+    if (own)
+        endGesture();
+}
+
+void WorkshopBench::setNutSlotDepth (int stringIndex, double mmValue)
+{
+    if (! juce::isPositiveAndBelow (stringIndex, current().getStringCount()))
+        return;
+
+    const bool own = ! gesture;
+    beginGesture();
+
+    auto& values = gesture->live.setup.nutSlotDepthsMm;
+    while (values.size() <= stringIndex)
+        values.add (0.5);
+
+    values.set (stringIndex, juce::jlimit (0.0, kMaxNutSlot, mmValue));
+
+    if (own)
+        endGesture();
+}
+
+void WorkshopBench::applyLive()
+{
+    // A pickup that moves is heard moving (ground rule 3), without a swap per step.
+    // The engine numbers its pickups from the bridge (PartAcoustics.cpp).
+    const auto& g = gesture->live;
+    const auto neck = g.get (GuitarSlot::neck);
+    const double scale = neck != nullptr ? neck->number ("scale_length_mm", 648.0) : 648.0;
+    int engineSlot = 0;
+
+    for (int i = 2; i >= 0; --i)
+    {
+        auto p = g.get (WorkshopGuitar::pickupSlot (i));
+
+        if (p == nullptr || p->text ("family") == "piezo")
+            continue;
+
+        const auto& pl = g.placements[(size_t) i];
+        processor.getEngine().setPickupPlacementLive (engineSlot++, pl.positionMm / scale,
+                                                      0.5 * (pl.heightTrebleMm + pl.heightBassMm));
+    }
+}
+
+//==============================================================================
+bool WorkshopBench::hasSlot (int index) const
+{
+    return juce::isPositiveAndBelow (index, kNumSlots) && ! processor.getUiState().benchSlots[(size_t) index].isVoid();
+}
+
+void WorkshopBench::storeSlot (int index)
+{
+    if (juce::isPositiveAndBelow (index, kNumSlots))
+        processor.getUiState().benchSlots[(size_t) index] = processor.getCurrentGuitar().toEmbeddedVar();
+}
+
+bool WorkshopBench::recallSlot (int index)
+{
+    if (! hasSlot (index))
+        return false;
+
+    endAudition();
+
+    WorkshopGuitar stored;
+    PartLibrary::LoadReport report;
+
+    if (! processor.getPartLibrary().buildGuitar (processor.getUiState().benchSlots[(size_t) index], stored, report))
+        return false;
+
+    commit (stored, "Recalled bench slot " + slotName (index));
+    return true;
+}
+
+void WorkshopBench::clearSlot (int index)
+{
+    if (juce::isPositiveAndBelow (index, kNumSlots))
+        processor.getUiState().benchSlots[(size_t) index] = juce::var();
+}
+
+//==============================================================================
+void WorkshopBench::beginAudition (GuitarSlot slot, const PartPtr& candidate)
+{
+    if (gesture)
+        return;
+
+    audition = withPart (slot, candidate);
+    processor.auditionGuitar (&*audition);
+}
+
+void WorkshopBench::endAudition()
+{
+    if (! audition)
+        return;
+
+    audition.reset();
+    processor.auditionGuitar (nullptr);
+}
+
+} // namespace luthier

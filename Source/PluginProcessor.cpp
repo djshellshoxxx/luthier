@@ -530,6 +530,15 @@ void LuthierAudioProcessor::applyEditedGuitar (const WorkshopGuitar& guitar)
     presets.markModified();
 }
 
+void LuthierAudioProcessor::auditionGuitar (const WorkshopGuitar* candidate)
+{
+    if (! partsGuitarLoaded)
+        return;
+
+    // The engine plays the candidate; nothing else learns of it.
+    engine.applyWorkshopGuitar (mapSpec (candidate != nullptr ? *candidate : currentGuitar), engine.getGuitarType());
+}
+
 bool LuthierAudioProcessor::switchGuitarFamily (const juce::String& family)
 {
     WorkshopGuitar switched;

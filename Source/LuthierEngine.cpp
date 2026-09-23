@@ -1309,9 +1309,43 @@ void LuthierEngine::endStructuralChange()
     structuralParked = false;
 }
 
+void LuthierEngine::setPickupPlacementLive (int slot, double position, double heightMm) noexcept
+{
+    if (! juce::isPositiveAndBelow (slot, 3))
+        return;
+
+    livePickupPosition[(size_t) slot].store (juce::jlimit (0.02, 0.48, position), std::memory_order_relaxed);
+    livePickupHeight[(size_t) slot].store (juce::jlimit (0.1, 10.0, heightMm), std::memory_order_relaxed);
+    livePickupDirty.fetch_or (1 << slot, std::memory_order_release);
+
+    // With no audio running (tests, the offline renderer) nothing else would apply it.
+    const auto since = juce::Time::getMillisecondCounter() - lastProcessMs.load (std::memory_order_relaxed);
+
+    if (lastProcessMs.load (std::memory_order_relaxed) == 0 || since > 200)
+        applyLivePickupPlacements();
+}
+
+void LuthierEngine::applyLivePickupPlacements() noexcept
+{
+    const int dirty = livePickupDirty.exchange (0, std::memory_order_acquire);
+
+    for (int slot = 0; slot < 3; ++slot)
+    {
+        if ((dirty & (1 << slot)) == 0)
+            continue;
+
+        partsPickups[(size_t) slot].position = livePickupPosition[(size_t) slot].load (std::memory_order_relaxed);
+        partsPickups[(size_t) slot].heightMm = livePickupHeight[(size_t) slot].load (std::memory_order_relaxed);
+        pickups.setPickupSpec (slot, partsPickups[(size_t) slot]);
+    }
+}
+
 void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) noexcept
 {
     juce::ScopedNoDenormals noDenormals;
+
+    if (livePickupDirty.load (std::memory_order_relaxed) != 0)
+        applyLivePickupPlacements();
 
     const int numSamples = buffer.getNumSamples();
     const int numChannels = buffer.getNumChannels();

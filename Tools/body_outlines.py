@@ -160,7 +160,7 @@ def resample(segs, closed=True, max_len=40.0, max_turn=24.0):
                     j += 1
                 seg_pts.append(d[j + 1])
         for m, p in enumerate(seg_pts):
-            if m == 0 or dist(p, pts[-1]) > 0.8:
+            if m == 0 or (dist(p, pts[-1]) > 0.8 and dist(p, d[-1]) > 0.8):    # knots win over samples
                 pts.append(p)
                 flags.append(corner[i] if m == 0 else False)
     if not closed:
@@ -2293,8 +2293,9 @@ class Head:
         if not Polygon(self.smooth[:-1]).is_valid:
             warn.append("outline self-intersects")
         post_r = 5.0 if self.bass else 3.8
+        margin = 0.0 if self.layout == "headless" else post_r + 1.5
         for i, p in enumerate(self.posts):
-            if not face.buffer(-post_r - 1.5).contains(Point(p)):
+            if not face.buffer(-margin).contains(Point(p)):
                 warn.append("post %d at (%.0f, %.0f) is not well inside the face" % (i, p[0], p[1]))
         side_keys = self.layout not in ("headless",)
         if self.buttons and side_keys and self.layout != "slotted":
@@ -2311,7 +2312,7 @@ class Head:
             if outside.length > 1.0:
                 warn.append("string %d leaves the face for %.1f mm" % (i, outside.length))
             # a string should not run through another string's post
-            for j, q in enumerate(self.posts):
+            for j, q in enumerate(self.posts if self.layout != "slotted" else []):
                 if j != i and ln.distance(Point(q)) < post_r - 0.5 and dist(q, (0.0, y)) < dist(p, (0.0, y)):
                     warn.append("string %d runs through post %d" % (i, j))
         for i in range(len(lines)):
@@ -2444,13 +2445,19 @@ def offset_inline6():
                 tree=(98, 12.5))
 
 
-def pointy(length, posts_n, first, last, spacing_note=""):
-    """Pointed in-line headstock (superstrat family): straight bass edge, long treble sweep
-    curving up to a point on the bass side."""
-    L = length
-    edge0 = (34.0, -30.0)
-    tip = (L, -13.0)
-    edge1 = (L - 22.0, -20.0 + (first[1] - (-18.0)) * 0)
+def pointy(L, n, first, slant=6.0, spacing=22.4):
+    """Pointed in-line headstock (superstrat family): posts on a line slanting `slant`
+    degrees toward the treble side, a straight bass edge parallel to it, and a long treble
+    sweep curving up to a point at the end of the bass edge. Returns (outline, posts, keys)."""
+    tn = math.tan(math.radians(slant))
+    last = (first[0] + spacing * (n - 1), first[1] + tn * spacing * (n - 1))
+    posts = straight_pull(first, last, n)
+
+    def edge_b(a):
+        return first[1] - 11.5 / math.cos(math.radians(slant)) + tn * (a - first[0])
+
+    tip = (L, edge_b(L))
+    back = 180.0 + slant
     outline = [
         K(0, 21.5, 90, ao=4, h=0.3),
         K(20, 24.5, 20),
@@ -2458,38 +2465,36 @@ def pointy(length, posts_n, first, last, spacing_note=""):
         K(L * 0.55, 29.0, 0),
         K(L * 0.80, 24.0, -18),
         K(L * 0.93, 10.0, -45),
-        K(tip[0], tip[1], -62, ao=175, hin=0.35, hout=0.3),
-        K(L * 0.86, -27.5, 190, h=0.3),
-        K(L * 0.62, -31.0, 182),
-        K(edge0[0], edge0[1], 182),
-        K(18, -31, 165),
+        K(tip[0], tip[1], -62, ao=back, hin=0.35, hout=0),
+        K(34, edge_b(34), back, hin=0),
+        K(18, edge_b(34) - 0.5, 165),
         K(7, -24.5, 118),
         K(0, -21.5, 90, h=0.3),
     ]
-    posts = straight_pull(first, last, posts_n)
-    return outline, posts
+    keys = [key_out(p, slant - 90.0, 25) for p in posts]
+    return outline, posts, keys
 
 
 @head
 def superstrat_inline6():
-    # Pointed, drooping in-line headstock: long treble sweep curving up to a point on the
-    # bass side; posts on a gently slanted line.
-    outline, posts = pointy(204.0, 6, (40, -18.5), (152, -2))
-    return Head("superstrat_inline6", "inline6", outline, posts, [key_out(p, -90, 25) for p in posts], (14, 10))
+    # Pointed, drooping in-line headstock: long treble sweep curving up to a point at the
+    # end of a straight bass edge; posts on a line slanting 6 deg toward the treble side.
+    outline, posts, keys = pointy(204.0, 6, (40, -18.5))
+    return Head("superstrat_inline6", "inline6", outline, posts, keys, (14, 10))
 
 
 @head
 def inline7():
     # Seven-string pointed in-line headstock.
-    outline, posts = pointy(226.0, 7, (38, -19), (164, -3))
-    return Head("inline7", "inline6", outline, posts, [key_out(p, -90, 25) for p in posts], (14, 10))
+    outline, posts, keys = pointy(226.0, 7, (38, -19.5), slant=6.5, spacing=21.0)
+    return Head("inline7", "inline6", outline, posts, keys, (14, 10))
 
 
 @head
 def inline8():
     # Eight-string pointed in-line headstock.
-    outline, posts = pointy(248.0, 8, (36, -19.5), (180, -4))
-    return Head("inline8", "inline6", outline, posts, [key_out(p, -90, 25) for p in posts], (14, 10))
+    outline, posts, keys = pointy(248.0, 8, (36, -20.0), slant=7.0, spacing=20.5)
+    return Head("inline8", "inline6", outline, posts, keys, (14, 10))
 
 
 @head
@@ -2831,7 +2836,7 @@ def bass_inline4():
     posts = straight_pull((52, -15.5), (190, 14.5), 4)
     n = edge_normal(edge0, edge1)
     return Head("bass_inline4", "fourInline", outline, posts, [key_out(p, n, 36) for p in posts], (22, 18),
-                tree=(150, 9.0), bass=True)
+                tree=(118, 10.0), bass=True)
 
 
 @head
@@ -2862,7 +2867,7 @@ def bass_inline5():
     posts = straight_pull((50, -16.5), (222, 16.0), 5)
     n = edge_normal(edge0, edge1)
     return Head("bass_inline5", "fourInline", outline, posts, [key_out(p, n, 36) for p in posts], (22, 18),
-                tree=(170, 10.0), bass=True)
+                tree=(154, 12.0), bass=True)
 
 
 @head
@@ -3234,6 +3239,10 @@ def main(argv):
     if png:
         os.makedirs(PREVIEWS, exist_ok=True)
         render_heads(heads, os.path.join(PREVIEWS, "headstocks.png"))
+        for h in heads:
+            if only and h.id not in only:
+                continue
+            render_heads([h], os.path.join(PREVIEWS, "styles", "head_" + h.id + ".png"), s=3.2, cols=1)
         os.makedirs(os.path.join(PREVIEWS, "styles"), exist_ok=True)
         fams = {}
         for s in styles:

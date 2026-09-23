@@ -262,3 +262,20 @@ chosen") and `ambiguity-resolutions.md`.
   strings.** A bass gets its bass tuning (it used to keep Standard and play
   six guitar-tuned strings); Drop D survives a change between six-strings. A
   12-string's preset tunes its six courses instead of cutting it to six.
+- **Pickup heights clamp at 0.8 - 6 mm.** workshop-ui.md 4 says 0.5 - 6.0;
+  guitar-illustration.md 19 says not below 0.8 without advanced ranges, and
+  the illustration spec ranks higher on the visible guitar. 0.8 it is until
+  pickup height joins an advanced-range family.
+- **A bench drag moves the pickup live and commits once.** Rebuilding the
+  engine per mouse move would park the audio 30 times a second; the move
+  goes to the pickup engine lock-free each step and the guitar is committed
+  (one undo entry, one swap) on release.
+- **Body and cab impulse responses are reloaded only when the file changes,
+  and a load settles JUCE's 50 ms crossfade before returning.** A guitar
+  rebuild took 66 ms (all of it silent, parked) and now takes ~14 ms; the
+  cabinet's reset() now clears its convolution tails too (it did not).
+- **The spectrum delta measures after the amp and cab** (what the player
+  hears), on a fixed pluck of 4096 samples with the committed render cached,
+  and ignores bands 60 dB under the loudest. A string-material swap reads as
+  small because part-acoustics.md 8 maps material to brightness and squeak
+  only, not to the pickup's pull on the string; that is the spec's call.

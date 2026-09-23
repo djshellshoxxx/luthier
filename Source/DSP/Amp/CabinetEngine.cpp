@@ -180,6 +180,9 @@ void CabinetEngine::MicPath::resetFallback() noexcept
 //==============================================================================
 void CabinetEngine::prepare (double sampleRate, int maxBlockSize)
 {
+    pathA.loadedFile = juce::File();
+    pathB.loadedFile = juce::File();
+
     sr = sampleRate;
     maxBlock = juce::jmax (1, maxBlockSize);
 
@@ -218,6 +221,16 @@ void CabinetEngine::reset() noexcept
 {
     pathA.resetFallback();
     pathB.resetFallback();
+
+    // The loaded responses' tails too; a try-lock, as BodyEngine::reset does,
+    // because a response being swapped in resets itself when the swap lands.
+    for (auto* path : { &pathA, &pathB })
+    {
+        const juce::SpinLock::ScopedTryLockType lock (path->convolutionLock);
+
+        if (lock.isLocked() && path->convolution != nullptr)
+            path->convolution->reset();
+    }
 
     std::fill (alignBuffer.begin(), alignBuffer.end(), 0.0);
     alignIndex = 0;
@@ -276,9 +289,13 @@ void CabinetEngine::setPhaseAlignMm (double mm) noexcept
 //==============================================================================
 bool CabinetEngine::loadImpulseResponse (int slot, const juce::File& file)
 {
-    ThreadProbe::noteFileAccess();
-
     auto& path = (slot == 0) ? pathA : pathB;
+
+    if (path.loaded.load() && file == path.loadedFile && file.existsAsFile())
+        return true;
+
+    ThreadProbe::noteFileAccess();
+    path.loadedFile = juce::File();
 
     if (! file.existsAsFile())
     {
@@ -303,12 +320,14 @@ bool CabinetEngine::loadImpulseResponse (int slot, const juce::File& file)
 
     if (prepared)
     {
-        if (! ConvolutionInstaller::pumpUntilInstalled (*path.convolution, 1, maxBlock, 1))
+        if (! ConvolutionInstaller::pumpUntilInstalled (*path.convolution, 1, maxBlock, 1, 4000, (int) (0.06 * sr)))
             return false;
 
         path.convolution->reset();
     }
 
+    path.loadedFile = file;
+    ++path.loadCount;
     path.loaded.store (true);
     return true;
 }
@@ -316,6 +335,7 @@ bool CabinetEngine::loadImpulseResponse (int slot, const juce::File& file)
 void CabinetEngine::loadImpulseResponse (int slot, const float* samples, int numSamples, double irSampleRate)
 {
     auto& path = (slot == 0) ? pathA : pathB;
+    path.loadedFile = juce::File();
 
     if (samples == nullptr || numSamples <= 0)
     {
@@ -341,7 +361,7 @@ void CabinetEngine::loadImpulseResponse (int slot, const float* samples, int num
 
     if (prepared)
     {
-        if (! ConvolutionInstaller::pumpUntilInstalled (*path.convolution, 1, maxBlock, 1))
+        if (! ConvolutionInstaller::pumpUntilInstalled (*path.convolution, 1, maxBlock, 1, 4000, (int) (0.06 * sr)))
             return;
 
         path.convolution->reset();

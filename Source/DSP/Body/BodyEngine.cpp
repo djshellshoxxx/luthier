@@ -23,6 +23,8 @@ BodyEngine::~BodyEngine() = default;
 //==============================================================================
 void BodyEngine::prepare (double sampleRate, int maxBlockSize)
 {
+    loadedIrFile = juce::File();
+
     sr = sampleRate;
     maxBlock = juce::jmax (1, maxBlockSize);
 
@@ -166,7 +168,11 @@ void BodyEngine::applyStagedBank() noexcept
 //==============================================================================
 bool BodyEngine::loadImpulseResponse (const juce::File& file)
 {
+    if (irLoaded.load() && file == loadedIrFile && file.existsAsFile())
+        return true;
+
     ThreadProbe::noteFileAccess();
+    loadedIrFile = juce::File();
 
     if (! file.existsAsFile())
     {
@@ -192,19 +198,23 @@ bool BodyEngine::loadImpulseResponse (const juce::File& file)
 
     if (prepared)
     {
-        if (! ConvolutionInstaller::pumpUntilInstalled (*convolution, 2, maxBlock, 1))
+        if (! ConvolutionInstaller::pumpUntilInstalled (*convolution, 2, maxBlock, 1, 4000, (int) (0.06 * sr)))
             return false;
 
         convolution->reset();
     }
 
     loadedIrName = file.getFileNameWithoutExtension();
+    loadedIrFile = file;
+    ++irLoadCount;
     irLoaded.store (true);
     return true;
 }
 
 void BodyEngine::loadImpulseResponse (const float* samples, int numSamples, double irSampleRate)
 {
+    loadedIrFile = juce::File();
+
     if (samples == nullptr || numSamples <= 0)
     {
         irLoaded.store (false);
@@ -229,7 +239,7 @@ void BodyEngine::loadImpulseResponse (const float* samples, int numSamples, doub
 
     if (prepared)
     {
-        if (! ConvolutionInstaller::pumpUntilInstalled (*convolution, 2, maxBlock, 1))
+        if (! ConvolutionInstaller::pumpUntilInstalled (*convolution, 2, maxBlock, 1, 4000, (int) (0.06 * sr)))
             return;
 
         convolution->reset();
