@@ -454,6 +454,10 @@ LUTHIER_TEST (WorkshopCapo, aPartialCapoClampsOnlyItsStrings)
 
     auto& tuning = processor.getEngine().getTuningEngine();
 
+    // The first full apply sets the tuning preset and the seeded realism detune,
+    // so the open pitches are read after it, not before.
+    processor.getParameterBridge().applyAllNow();
+
     double open[6];
     for (int s = 0; s < 6; ++s)
         open[s] = tuning.getEffectiveOpenFrequency (s);

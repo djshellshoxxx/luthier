@@ -10,20 +10,15 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## In progress
 
-- [ ] **6. Workshop parts** — IN PROGRESS. Done: 6a part model + library,
-      6b factory content (148 parts, 27 guitars via Tools/generate_factory_parts.py),
-      6c mapSpec + engine applyWorkshopGuitar, 6d processor loader (suite
-      green, 15a6d03), preset `guitar.reference`/`override` (0adcc40), Save
-      As Guitar + Save As Part on the processor, Ctrl+G dialog and
-      Ctrl+Shift+E reveal, 5 ms click-free swap (audio thread parked).
-      Also done and green (413 tests): legacy-placement migration test,
-      "mapping runs once" and "no file access on the audio thread" tests
-      (Support/ThreadProbe.h).
-      **NEXT ACTION (session stopped here, 2026-09-23):** the partial capo
-      (TuningEngine capo string mask, processor setCapoPart, capo name in the
-      preset guitar block, WorkshopCapo tests) is written and committed but
-      **not yet built or tested** - build LuthierTests, run `WorkshopCapo`,
-      then the full suite, and fix fallout. Then step 6 is complete.
+- [ ] **G. Realistic guitar illustration** - IN PROGRESS (see Remaining for
+      the full item). Body outlines are being authored as data by an
+      assistant agent in `Tools/body_outlines.py` -> generated
+      `Source/UI/Guitar/BodyOutlines.h` (with PNG previews); the renderer
+      (`GuitarRenderer.cpp`) draws everything else from the parts.
+- [ ] **C. `docs/spec-coverage.md`** (CLAUDE.md workflow) - IN PROGRESS, being
+      built by an assistant agent: one row per actionable requirement across
+      every `spec/*.md`, with location, verification and status. Keep it
+      current after each step once it lands.
 - [ ] 5b. `slide-technique-controls.md`: position source (modwheel / bend /
       MPE Y / expression / CC / drag), absolute/relative, slant & pressure
       sources, contact string mask, speed limit, auto-vibrato on hold,
@@ -85,8 +80,6 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       path, Adv Col 3 SUSTAIN feedback row). Currently a heuristic.
 - [ ] 2d. Audit the rest of `ambiguity-resolutions.md` against the build
       (brief step 4).
-- [ ] 6. (detail) `PartLibrary` and `mapSpec` (`guitar-workshop.md`, `part-acoustics.md`),
-      `.luthierguitar` / `.luthierpart` files, partial capo.
 - [ ] 7. `WorkshopPanel` and the WORKSHOP tab (`workshop-ui.md`), with its
       tab-header padlock.
 - [ ] 8. `StrumGesture` (RHYTHM STRUM group), then `BassTechniques` (SLAP
@@ -120,6 +113,12 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 - [ ] 18. Plugin targets (`Luthier_VST3`, `Luthier_Standalone`) build clean.
 
 ## Done
+
+- [x] 6. Workshop parts: part model + library, 148 factory parts and 27
+      guitars, mapSpec, processor loader, preset `guitar.reference` /
+      `override`, Save As Guitar / Save As Part, Ctrl+G and Ctrl+Shift+E,
+      click-free swap, and the partial capo (TuningEngine string mask, capo in
+      the preset guitar block). 415 tests green.
 
 - [x] 5. Slide Mode: SlideEngine, header toggle and `S` shortcut, CHARACTER
       SLIDE group with the low-action warning, fretboard bar overlay.
