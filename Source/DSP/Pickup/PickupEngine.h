@@ -60,6 +60,12 @@ struct PickupSpec
     double heightMm          = 2.5;    ///< Distance from the strings.
     double outputTrimDb      = 0.0;
 
+    /*  part-acoustics.md 6: a metal cover's eddy currents cost top end (nickel
+        -0.8 dB at 4 kHz), and the pole pieces' do too (steel dulls, ceramic is
+        brightest, as a multiplier on the top). */
+    double coverLossDbAt4k   = 0.0;
+    double poleBrightness    = 1.0;
+
     bool   coilTapped        = false;  ///< Humbucker split to one coil.
     bool   reverseWound      = false;
 
@@ -161,6 +167,7 @@ private:
         std::array<int, kMaxStrings> writeIndex {};
 
         Biquad magnetEq;      ///< Magnet character.
+        Biquad coverEq;       ///< Cover and pole-piece eddy losses.
         double gain = 1.0;
         double positionOffset = 0.0;   ///< Fraction of string length from the slot centre.
 

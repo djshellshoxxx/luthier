@@ -20,6 +20,7 @@
 #include "DSP/Noise/PlayingNoise.h"
 #include "DSP/Noise/FretBuzz.h"
 #include "DSP/Slide/SlideEngine.h"
+#include "Model/Workshop/PartAcoustics.h"
 #include "DSP/Effects/EffectsChain.h"
 #include "DSP/Effects/SecretEffect.h"
 #include "DSP/Amp/AmpEngine.h"
@@ -115,6 +116,19 @@ public:
     void setSetupGeometry (const SetupGeometry& geometry) noexcept;
     FretBuzz& getFretBuzz() noexcept { return fretBuzzModel; }
     const FretBuzz& getFretBuzz() const noexcept { return fretBuzzModel; }
+
+    /*  guitar-workshop.md: builds the instrument from a parts guitar's derived
+        acoustics (part-acoustics.md). Message thread, like setGuitarType -
+        it allocates. Replaces the compiled guitar's body, pickups, strings
+        and termination with what the parts say. */
+    void applyWorkshopGuitar (const DerivedAcoustics& derived);
+
+    /** Whether the instrument is a parts guitar rather than a compiled type. */
+    bool isWorkshopGuitar() const noexcept { return hasPartsOverride; }
+
+    /** part-acoustics.md 6.2's magnet pull, for the tests: sustain multiplier and cents. */
+    double getMagnetSustainScale() const noexcept { return magnetSustain; }
+    double getMagnetDetuneCents() const noexcept { return magnetDetuneCents; }
 
     /** slide-guitar.md: Slide Mode's settings, from the parameters. */
     void setSlideSettings (const SlideSettings& settings) noexcept { slide.setSettings (settings); }
@@ -401,6 +415,15 @@ private:
         undoing every character-wear sustain change a block after the note
         began. */
     std::array<double, kMaxStrings> noteSustainScale {};
+
+    // A parts guitar's values the compiled spec has no slot for.
+    void applySpec();
+    bool hasPartsOverride = false;
+    BodyConfig partsBody;
+    std::array<PickupSpec, 3> partsPickups {};
+    double partsSustain = 1.0;
+    double fretBrightnessFactor = 1.0, nutBrightnessFactor = 1.0;
+    double magnetSustain = 1.0, magnetDetuneCents = 0.0;
     std::array<double, kMaxStrings> stringDelays {};
 
     // --- articulation state ----------------------------------------------------

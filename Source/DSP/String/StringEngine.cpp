@@ -233,7 +233,8 @@ void StringEngine::updateLoopCoefficients() noexcept
     // ---- loop filter cutoff -------------------------------------------------
     // Engine spec 4 gives the physical reading: damping lowers the cutoff.
     // ~5 kHz open down to ~800 Hz under the palm.
-    double cutoff = physical.openBrightnessHz;
+    const double open = physical.openBrightnessHz * terminationBrightness;
+    double cutoff = open;
     double t60Scale = 1.0;
 
     switch (damping)
@@ -242,17 +243,17 @@ void StringEngine::updateLoopCoefficients() noexcept
             break;
 
         case Damping::LightTouch:
-            cutoff = juce::jmap (dampingAmount, physical.openBrightnessHz, 2000.0);
+            cutoff = juce::jmap (dampingAmount, open, 2000.0);
             t60Scale = juce::jmap (dampingAmount, 1.0, 0.35);
             break;
 
         case Damping::PalmMute:
-            cutoff = juce::jmap (dampingAmount, physical.openBrightnessHz, 800.0);
+            cutoff = juce::jmap (dampingAmount, open, 800.0);
             t60Scale = juce::jmap (dampingAmount, 1.0, 0.11);
             break;
 
         case Damping::Released:
-            cutoff = juce::jmap (dampingAmount, physical.openBrightnessHz, 1200.0);
+            cutoff = juce::jmap (dampingAmount, open, 1200.0);
             t60Scale = juce::jmap (dampingAmount, 1.0, 0.13);
             break;
 

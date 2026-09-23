@@ -297,6 +297,11 @@ void PickupEngine::updateCoil (int slot, int coilIndex) noexcept
 
     applyMagnetEq (coil.magnetEq, s.magnet, sr);
 
+    // A high shelf at 4 kHz is half its gain there, so the shelf is twice the
+    // loss the part states at 4 kHz. The pole pieces tilt the same region.
+    coil.coverEq.setHighShelf (sr, juce::jmin (4000.0, sr * 0.45), 0.7,
+                               2.0 * s.coverLossDbAt4k + gainToDb (juce::jlimit (0.5, 1.5, s.poleBrightness)));
+
     // ---- geometry -------------------------------------------------------------
     // The two coils of a humbucker sit either side of the nominal position. Their
     // spacing is expressed as a fraction of a 648 mm string.
@@ -438,6 +443,7 @@ double PickupEngine::processStrings (const double* stringOutputs,
             // The electrical stage runs once per coil on its summed string signal,
             // because a real coil has one winding for all the strings.
             coilSum = coil.magnetEq.process (coilSum);
+            coilSum = coil.coverEq.process (coilSum);
 
             slotSum += coilSum * coil.gain;
         }

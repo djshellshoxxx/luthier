@@ -232,6 +232,65 @@ void LuthierEngine::setGuitarType (GuitarType type)
     guitarType = type;
     spec = GuitarLibrary::get (type);
 
+    // A compiled type: no parts, so every part-derived value is neutral. The
+    // gauges are the strings part's only when leaving a parts guitar; a
+    // preset's own per-string gauges survive a type change as they always did.
+    if (hasPartsOverride)
+        customGauges.fill (0.0);
+
+    hasPartsOverride = false;
+    partsSustain = fretBrightnessFactor = nutBrightnessFactor = magnetSustain = 1.0;
+    magnetDetuneCents = 0.0;
+
+    applySpec();
+}
+
+void LuthierEngine::applyWorkshopGuitar (const DerivedAcoustics& d)
+{
+    spec = d.spec;
+    hasPartsOverride = true;
+
+    for (int i = 0; i < kMaxStrings; ++i)
+        customGauges[(size_t) i] = i < (int) d.gaugesIn.size() ? d.gaugesIn[(size_t) i] : 0.0;
+
+    partsBody = d.body;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        partsPickups[(size_t) i] = d.pickups[(size_t) i].spec;
+        partsPickups[(size_t) i].coverLossDbAt4k = d.pickups[(size_t) i].coverLossDbAt4k;
+        partsPickups[(size_t) i].poleBrightness = d.pickups[(size_t) i].poleBrightness;
+    }
+
+    partsSustain = d.sustainScale;
+
+    // part-acoustics.md 4, against the reference parts - nickel-silver frets,
+    // a bone nut - so a guitar of reference parts sounds as a compiled one does.
+    fretBrightnessFactor = d.fretBrightness / 0.70;
+    nutBrightnessFactor = d.nutBrightness / 0.75;
+
+    /*  6.2: magnet pull damps the string and pulls it flat, as the square of
+        how close the pole pieces are. A ceramic pickup at 1.5 mm is the
+        "Stratitis" case; alnico 3 at 3.5 mm barely touches the string. The
+        constants put a strong close magnet at about a quarter off the sustain
+        and a few cents flat, which is the order real ones measure at. */
+    double pull = 0.0;
+
+    for (int i = 0; i < d.numPickups; ++i)
+    {
+        const auto& p = d.pickups[(size_t) i];
+        const double proximity = 2.5 / juce::jmax (0.5, p.heightMm);
+        pull += p.magnetPull * (p.magnetDamping / 0.032) * proximity * proximity;
+    }
+
+    magnetSustain = 1.0 / (1.0 + 0.09 * pull);
+    magnetDetuneCents = -0.9 * pull;
+
+    applySpec();
+}
+
+void LuthierEngine::applySpec()
+{
     setNumStrings (spec.numStrings);
 
     // --- tuning ---------------------------------------------------------------
@@ -301,7 +360,7 @@ void LuthierEngine::setGuitarType (GuitarType type)
 //==============================================================================
 void LuthierEngine::rebuildBodyFromSpec()
 {
-    auto cfg = GuitarLibrary::makeBodyConfig (spec);
+    auto cfg = hasPartsOverride ? partsBody : GuitarLibrary::makeBodyConfig (spec);
     body.setBodyConfig (cfg);
 
     // Solid-body electrics have no cavity to convolve, so modal synthesis is the
@@ -356,7 +415,8 @@ void LuthierEngine::rebuildPickupsFromSpec()
     pickups.setNumPickups (juce::jmax (1, spec.numPickups));
 
     for (int i = 0; i < PickupEngine::kMaxPickups; ++i)
-        pickups.setPickupSpec (i, GuitarLibrary::makePickupSpec (spec, i));
+        pickups.setPickupSpec (i, hasPartsOverride && i < 3 ? partsPickups[(size_t) i]
+                                                          : GuitarLibrary::makePickupSpec (spec, i));
 
     pickups.setSelector (spec.defaultSelector);
     pickups.setPiezoMicBlend (spec.hasInternalMic && ! spec.hasPiezo ? 1.0 : 0.35);
@@ -655,7 +715,12 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         const bool underBar = slide.isUnderBar (s);
 
         noteSustainScale[(size_t) s] = juce::jlimit (0.05, 4.0, deadSpot * (underBar ? 1.0 : fretWear) * nut
-                                                                * slide.sustainScale (s));
+                                                                * slide.sustainScale (s)
+                                                                * partsSustain * magnetSustain);
+
+        // part-acoustics.md 4: an open string rings off the nut, a fretted one
+        // off a fret, and they are different materials.
+        str.setTerminationBrightness (fret <= 0.0 ? nutBrightnessFactor : fretBrightnessFactor);
         str.setSustainScale (noteSustainScale[(size_t) s]);
 
         // A worn crown alters the effective string length by a few cents.
@@ -953,7 +1018,7 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
         }
         else
         {
-            hz = tuning.computeFrequency (s, currentFret[(size_t) s], bend + whammyCents + vib);
+            hz = tuning.computeFrequency (s, currentFret[(size_t) s], bend + whammyCents + vib + magnetDetuneCents);
         }
 
         strings[(size_t) s].setTargetFrequency (hz);

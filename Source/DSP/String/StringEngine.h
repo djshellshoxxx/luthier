@@ -93,6 +93,15 @@ public:
     /** Extra decay scaling from string age, coating and user sustain control. */
     void setSustainScale (double scale) noexcept { sustainScale = juce::jlimit (0.05, 4.0, scale); needsLoopUpdate = true; }
 
+    /*  part-acoustics.md 4: what the string is stopped against - a fret's
+        material, or the nut for an open string - scales the loop filter's
+        cutoff. 1 is the reference (nickel-silver fret, bone nut). */
+    void setTerminationBrightness (double factor) noexcept
+    {
+        terminationBrightness = juce::jlimit (0.5, 1.5, factor);
+        needsLoopUpdate = true;
+    }
+
     /** Restricts the string to one partial, for natural/artificial harmonics.
         0 disables. */
     void setHarmonicRestriction (int partial) noexcept;
@@ -174,6 +183,7 @@ private:
     double  sustainScale = 1.0;
     int     harmonicPartial = 0;
 
+    double  terminationBrightness = 1.0;
     double  fretBuzzAmount = 0.0;
     double  fretActionMm = 1.6;
     double  buzzPhase = 0.0;

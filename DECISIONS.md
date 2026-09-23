@@ -146,3 +146,22 @@ chosen") and `ambiguity-resolutions.md`.
   behind to that mode's default (lap steel/dobro 1.0, others 0.55).
 - **The low-action warning offers a "Use Slide setup" button** that applies
   the style only when clicked; the setup is never changed automatically (6).
+- **Factory guitars: factory-content.md's 15 plus one per remaining
+  GuitarType (27 files).** guitar-workshop.md 0.6 says every enum entry ships
+  as a guitar file; factory-content.md 2 lists 15. Both hold this way.
+- **Part names avoid `:` and `/`** ("Kluson 15 to 1", "80-20 Bronze"): they
+  are file names and those characters are illegal on Windows.
+- **`WorkshopGuitar` is guitar-workshop.md 3's `GuitarSpec`.** The build's
+  `GuitarSpec` is the compiled engine description; mapSpec re-points it
+  (3.1's "widening, not replacement") rather than renaming it.
+- **Part fields not yet consumed**: tuners (ratio, mass, stability, locking),
+  nut friction and width, fretboard radius and thickness, pickup coil_turns and
+  pole shape, bridge spring_count, pickguard plies. Their consumers are
+  tuning-stability.md (not on disk), board-radius clearance, and bench UI;
+  part-acoustics 11's "every field moves something" test covers the mapped
+  fields and these are tracked here rather than faked.
+- **Termination brightness is normalised to nickel-silver frets and a bone
+  nut**, so a guitar of reference parts sounds as its compiled type did.
+- **Magnet pull**: sustain x 1/(1 + 0.09 P), pitch -0.9 P cents, P the sum of
+  pull x (damping/0.032) x (2.5 mm / height)^2 over the pickups - puts a close
+  ceramic at ~25% shorter sustain and a few cents flat.
