@@ -14,6 +14,12 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## Remaining
 
+- [ ] 2e. **Easy Mode layout per gui-integration.md 3**: the build has the
+      older three-band layout. Missing: the 280 px RIG STRIP (guitar circuit
+      compact card with `CircuitResponseView` miniature, compact pre/post racks
+      with popover slots, amp card, cab card, room card), the PLAYING strip
+      (mode, humanize, character macro, whammy display), the TONE strip (input,
+      output, wet/dry, width), rhythm strip dice + chord/next-strum readout.
 - [ ] 2c. Feedback per `ambiguity-resolutions.md` 1 (mic-to-speaker loop,
       feedback_amount/distance/angle/focus/octave_bias params, post-circuit
       path, Adv Col 3 SUSTAIN feedback row). Currently a heuristic.
