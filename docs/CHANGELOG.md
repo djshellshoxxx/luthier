@@ -17,7 +17,10 @@ numbered, because what it should be called is a release decision.
   change did, and a family switch.
 - **MIDI export** (`midi-export.md`) - per-string MIDI files in the Luthier
   profile (realism events ride along and round-trip) or a generic profile for
-  other instruments, and live MIDI out.
+  other instruments, and live MIDI out. The MIDI OUT tab sets the export
+  profile (saved as your default, or as a `.midprofile`), exports or drags out
+  the last take, and switches what goes out live - including squeaks, pick,
+  buzz and clank events and Workshop part changes as Luthier SysEx.
 - **The guitar-shop look** (`proposals/visual-polish.md` 6) - rosewood,
   walnut and brass, bell knobs, mini toggles, engraved plates, Lato and Bebas
   Neue. The colourblind, High-contrast and Light palettes now actually apply.
@@ -218,6 +221,10 @@ numbered, because what it should be called is a release decision.
   slide's long glide and last pitch on strings that were not played, MIDI
   controller values, the fret-buzz setup (it kept the previous guitar's scale),
   and a few others. Four factory presets did not even match themselves.
+- **Chords played in Poly mode started early.** A chord (or single note) went
+  out on the first sample of the audio block it arrived in rather than where
+  it was played, up to a block early; and a note played just after a chord
+  could be swallowed into it. They now sound where they were played.
 - Undo was off by one both ways: a single action could not be undone, and the
   first undo after two actions reverted both.
 - **The ASCII tab importer read its own beat ruler as a string of the tab.**
