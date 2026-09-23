@@ -17,6 +17,7 @@
 #include "DSP/Pickup/PickupEngine.h"
 #include "DSP/Whammy/WhammyEngine.h"
 #include "DSP/Circuit/GuitarCircuit.h"
+#include "DSP/Noise/PlayingNoise.h"
 #include "DSP/Effects/EffectsChain.h"
 #include "DSP/Effects/SecretEffect.h"
 #include "DSP/Amp/AmpEngine.h"
@@ -93,6 +94,29 @@ public:
     PickupEngine&    getPickupEngine() noexcept    { return pickups; }
     WhammyEngine&    getWhammyEngine() noexcept    { return whammy; }
     GuitarCircuit&   getGuitarCircuit() noexcept   { return circuit; }
+    PlayingNoise&    getPlayingNoise() noexcept    { return playingNoise; }
+    const PlayingNoise& getPlayingNoise() const noexcept { return playingNoise; }
+
+    /*  pick-noise.md and string-squeak.md settings, from the parameters. The
+        pick's material, fingers and position are the engine's own and are
+        filled in at each pluck, because the guitar type can change them. */
+    void setPickNoise (const PickSettings& settings) noexcept   { playingNoise.setPick (settings); }
+    void setSqueak (const SqueakSettings& settings) noexcept    { playingNoise.setSqueak (settings); }
+
+    /*  Starts a note now, bypassing MIDI interpretation and scheduling. For the
+        tests and the offline renderer, which need a note on a named string at
+        a named fret. Audio thread. */
+    void triggerNoteNow (const NoteOnEvent& e) noexcept { triggerNote (e); }
+
+    /** pick-noise.md 5: a deliberate rake along the wound strings. */
+    void triggerPickScrape (double seconds, bool downward) noexcept;
+
+    /** Sets the pick material and whether it is fingers. The two parameters
+        are one decision: a finger material is fingers whatever the switch says. */
+    void setPickMaterialAndFingers (Excitation::Material material, bool fingers) noexcept;
+
+    /** The Aux 8 noise bus for the last block (routing-io.md). */
+    const double* getNoiseBusData() const noexcept { return noiseBuffer.data(); }
 
     /*  The circuit's controls and components, from the parameters. The coil
         fields are ignored: the engine fills them from the pickups the switch
@@ -347,6 +371,13 @@ private:
     std::array<double, kMaxStrings> bridgeOutputs {};
     std::array<double, kMaxStrings> couplingInputs {};
     std::array<double, kMaxStrings> stringOutputs {};
+
+    // Playing noise (pick-noise.md 1.2): the click into each string's
+    // excitation input, everything else onto its output before the body.
+    PlayingNoise playingNoise;
+    std::array<double, kMaxStrings> excitationNoise {}, surfaceNoise {};
+    std::vector<double> noiseBuffer;
+    juce::uint32 shiftCount = 0;
     std::array<double, kMaxStrings> stringDelays {};
 
     // --- articulation state ----------------------------------------------------

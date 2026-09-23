@@ -352,6 +352,24 @@ juce::StringArray Parameters::trebleBleedNames()  { return { "None", "Kinman", "
 juce::StringArray Parameters::bleedModeNames()    { return { "Parallel", "Series" }; }
 juce::StringArray Parameters::cableQualityNames() { return { "Studio", "Standard", "Cheap", "Vintage" }; }
 
+// string-squeak.md 8, in its order.
+juce::StringArray Parameters::squeakStyleNames()
+{
+    return { "Silent", "Studio (polished)", "Natural", "Folk / close-mic", "Exaggerated" };
+}
+
+double Parameters::pickThicknessMm (double normalised) noexcept
+{
+    // Logarithmic across pick-noise.md 2's 0.38-3.0 mm: picks are sold in
+    // steps that are roughly even ratios, not even millimetres.
+    return 0.38 * std::pow (3.0 / 0.38, normalised);
+}
+
+double Parameters::pickAngleDegrees (double normalised) noexcept
+{
+    return 60.0 * normalised;
+}
+
 juce::String Parameters::formatOhms (double ohms)
 {
     auto trimmed = [] (double v)
@@ -442,6 +460,25 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam (ParamIDs::releaseNoise, "Release Noise", 0.0f, 1.0f, 0.25f));
     add (floatParam (ParamIDs::bodyKnock,    "Body Knock",    0.0f, 1.0f, 0.0f));
     add (floatParam (ParamIDs::pickNoise,    "Pick Attack",   0.0f, 1.0f, 0.30f));
+
+    // --- pick noise (pick-noise.md 7) -------------------------------------------------
+    // pick_material, pick_thickness and pick_angle already exist and are
+    // re-pointed rather than duplicated.
+    add (floatParam (ParamIDs::pickTipRadius,    "Pick Tip Radius",    0.2f, 4.0f, 1.0f, 0.3f, "mm"));
+    add (floatParam (ParamIDs::pickBevel,        "Pick Bevel",         0.0f, 1.0f, 0.2f));
+    add (floatParam (ParamIDs::pickWear,         "Pick Wear",          0.0f, 1.0f, 0.1f));
+    add (floatParam (ParamIDs::pickClickAmount,  "Pick Click",         0.0f, 1.0f, 0.5f));
+    add (floatParam (ParamIDs::pickChirpAmount,  "Pick Chirp",         0.0f, 1.0f, 0.4f));
+    add (floatParam (ParamIDs::pickScrapeAmount, "Pick Scrape",        0.0f, 1.0f, 0.25f));
+
+    // --- finger squeak (string-squeak.md 9) -------------------------------------------
+    // onboarding.md 1: the ship default amount is 0.25, not Natural's 0.35.
+    add (floatParam  (ParamIDs::squeakAmount,      "Squeak",              0.0f, 1.0f, 0.25f));
+    add (floatParam  (ParamIDs::squeakProbability, "Squeak Probability",  0.0f, 1.0f, 0.65f));
+    add (floatParam  (ParamIDs::squeakMoisture,    "Finger Moisture",     0.0f, 1.0f, 0.35f));
+    add (floatParam  (ParamIDs::squeakPressure,    "Finger Pressure",     0.0f, 1.0f, 0.5f));
+    add (floatParam  (ParamIDs::squeakMinTravel,   "Squeak Min Travel",   1.0f, 4.0f, 1.5f, 1.0f, "frets"));
+    add (choiceParam (ParamIDs::squeakStyle,       "Squeak Style",        squeakStyleNames(), 2));
     add (floatParam (ParamIDs::ampBuzz,      "Amp Buzz",      0.0f, 1.0f, 0.12f));
 
     // --- body -----------------------------------------------------------------
@@ -696,6 +733,33 @@ void ParameterBridge::applyToEngine() noexcept
     engine.setAttackBrightness (macroAttack);
     engine.setPluckPosition (value (ParamIDs::pluckPosition));
     engine.setPickThickness (value (ParamIDs::pickThickness));
+
+    // pick-noise.md 2: these two were declared and shown and never read.
+    engine.setPickMaterialAndFingers ((Excitation::Material) juce::jlimit (
+                                          0, (int) Excitation::Material::NumMaterials - 1,
+                                          (int) value (ParamIDs::pickMaterial)),
+                                      value (ParamIDs::useFingers) > 0.5f);
+
+    {
+        PickSettings pick;
+        pick.thicknessMm  = Parameters::pickThicknessMm (value (ParamIDs::pickThickness));
+        pick.angleDegrees = Parameters::pickAngleDegrees (value (ParamIDs::pickAngle));
+        pick.tipRadiusMm  = value (ParamIDs::pickTipRadius);
+        pick.bevel        = value (ParamIDs::pickBevel);
+        pick.wear         = value (ParamIDs::pickWear);
+        pick.clickAmount  = value (ParamIDs::pickClickAmount);
+        pick.chirpAmount  = value (ParamIDs::pickChirpAmount);
+        pick.scrapeAmount = value (ParamIDs::pickScrapeAmount);
+        engine.setPickNoise (pick);
+
+        SqueakSettings squeak;
+        squeak.amount         = value (ParamIDs::squeakAmount);
+        squeak.probability    = value (ParamIDs::squeakProbability);
+        squeak.moisture       = value (ParamIDs::squeakMoisture);
+        squeak.pressure       = value (ParamIDs::squeakPressure);
+        squeak.minTravelFrets = value (ParamIDs::squeakMinTravel);
+        engine.setSqueak (squeak);
+    }
     engine.setPickAngle (value (ParamIDs::pickAngle));
     engine.setNailVsFlesh (value (ParamIDs::nailVsFlesh));
     engine.setFretAction (value (ParamIDs::fretAction));

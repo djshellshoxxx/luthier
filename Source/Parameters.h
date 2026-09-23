@@ -167,6 +167,22 @@ namespace ParamIDs
     inline constexpr const char* circuitActive      = "circuit_active";
     inline constexpr const char* ampInputImpedance  = "amp_input_impedance";
 
+    // --- pick noise (pick-noise.md 7) ------------------------------------------------
+    inline constexpr const char* pickTipRadius    = "pick_tip_radius";
+    inline constexpr const char* pickBevel        = "pick_bevel";
+    inline constexpr const char* pickWear         = "pick_wear";
+    inline constexpr const char* pickClickAmount  = "pick_click_amount";
+    inline constexpr const char* pickChirpAmount  = "pick_chirp_amount";
+    inline constexpr const char* pickScrapeAmount = "pick_scrape_amount";
+
+    // --- finger squeak (string-squeak.md 9) --------------------------------------------
+    inline constexpr const char* squeakAmount      = "squeak_amount";
+    inline constexpr const char* squeakProbability = "squeak_probability";
+    inline constexpr const char* squeakMoisture    = "squeak_finger_moisture";
+    inline constexpr const char* squeakPressure    = "squeak_finger_pressure";
+    inline constexpr const char* squeakMinTravel   = "squeak_min_travel";
+    inline constexpr const char* squeakStyle       = "squeak_style";
+
     // --- amp ------------------------------------------------------------------
     inline constexpr const char* ampModel    = "amp_model";
     inline constexpr const char* ampGain     = "amp_gain";
@@ -264,6 +280,14 @@ public:
     static juce::StringArray trebleBleedNames();
     static juce::StringArray bleedModeNames();
     static juce::StringArray cableQualityNames();
+    static juce::StringArray squeakStyleNames();
+
+    /*  The pick's existing thickness and angle parameters are declared 0-1
+        (advanced-ranges.md 1.0 keeps them that way); these are the physical
+        values pick-noise.md 2 is written in. Both extend past the ends for the
+        advanced range. */
+    static double pickThicknessMm (double normalised) noexcept;
+    static double pickAngleDegrees (double normalised) noexcept;
 
     /** "500k", "1.2M", "220" - how a guitarist writes a resistor. */
     static juce::String formatOhms (double ohms);

@@ -10,7 +10,11 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## In progress
 
-- [ ] **3. `NoiseEngine` pool** — next.
+- [ ] **3. Noise** — pool, pick click/chirp/scrape and squeak engine done
+      (3a-c). Next: 3e CHARACTER tab PICK and STRING NOISE groups (squeak
+      style presets incl. "Natural (modified)", material mirror, noise-event
+      strip at 30 Hz greying after 2 s, tab padlock), then 4 setup/buzz.
+      Also: a way to fire pick scrape (MIDI event class / Easy rake gesture).
 
 ## Remaining
 
@@ -20,6 +24,11 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       with popover slots, amp card, cab card, room card), the PLAYING strip
       (mode, humanize, character macro, whammy display), the TONE strip (input,
       output, wet/dry, width), rhythm strip dice + chord/next-strum readout.
+- [ ] 2f. **Aux 8 noise bus** (pick-noise.md 1.3; routing-io.md lists only 7
+      aux). Must be appended *after* the 12 per-string buses so existing bus
+      indices (sessions using layouts C/D) do not shift; update RoutingMatrix /
+      PluginProcessor bus arithmetic, routing-io.md table, latency (128-sample
+      allowance). Engine already fills `LuthierEngine::getNoiseBusData()`.
 - [ ] 2c. Feedback per `ambiguity-resolutions.md` 1 (mic-to-speaker loop,
       feedback_amount/distance/angle/focus/octave_bias params, post-circuit
       path, Adv Col 3 SUSTAIN feedback row). Currently a heuristic.

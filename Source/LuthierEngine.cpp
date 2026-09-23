@@ -70,6 +70,9 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     pickups.prepare (sr, numStrings);
     whammy.prepare (sr, numStrings);
 
+    playingNoise.prepare (sr);
+    playingNoise.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)));
+
     // --- signal chain ---------------------------------------------------------
     circuit.prepare (sr);
     preEffects.prepare (sr, maxBlock);
@@ -85,6 +88,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
 
     // --- scratch --------------------------------------------------------------
     stringSumBuffer.assign ((size_t) maxBlock, 0.0);
+    noiseBuffer.assign ((size_t) maxBlock, 0.0);
     magneticBuffer.assign ((size_t) maxBlock, 0.0);
     instrumentBuffer.assign ((size_t) maxBlock, 0.0);
     bodyBuffer.setSize (1, maxBlock, false, true, true);
@@ -120,6 +124,8 @@ void LuthierEngine::reset() noexcept
     body.reset();
     pickups.reset();
     whammy.reset();
+    playingNoise.reset();
+    shiftCount = 0;
     circuit.reset();
     preEffects.reset();
     amp.reset();
@@ -499,8 +505,12 @@ void LuthierEngine::setNoiseAmounts (double slide, double fret, double release,
     bodyKnockAmount = juce::jlimit (0.0, 1.0, knock);
     pickAttackNoise = juce::jlimit (0.0, 1.0, pickAttack);
 
+    /*  Finger squeak is PlayingNoise's now (string-squeak.md): the string's
+        own glide noise would squeak a second time on every legato slide. The
+        Slide Noise control keeps its meaning for a bottleneck, which is set
+        per note in triggerNote. */
     for (int i = 0; i < numStrings; ++i)
-        strings[(size_t) i].setNoiseAmount (slideNoise * stringSpecs[(size_t) i].squeak, fretNoise);
+        strings[(size_t) i].setNoiseAmount (0.0, fretNoise);
 }
 
 void LuthierEngine::setAmpBuzzAmount (double amount) noexcept
@@ -677,6 +687,35 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
 
     str.excite (p);
 
+    // ---- playing noise (pick-noise.md, string-squeak.md) ------------------------
+    // The string's own glide noise is a bottleneck's friction now; a finger's
+    // squeak comes from PlayingNoise below.
+    str.setNoiseAmount (e.technique == Technique::SlideGuitar
+                          ? slideNoise * stringSpecs[(size_t) s].squeak : 0.0,
+                        fretNoise);
+
+    {
+        const auto info = StringNoiseInfo::fromSpec (stringSpecs[(size_t) s], spec.stringMaterial, stringAge);
+
+        if (e.technique == Technique::Slide && e.slideFromFret >= 0.0)
+        {
+            // The finger stayed down and travelled: that is the squeak's trigger
+            // (string-squeak.md 2). A pluck at a new position is not.
+            playingNoise.onShift (s, info, spec.scaleLengthMm, e.slideFromFret, fret,
+                                  e.slideSeconds > 0.0 ? e.slideSeconds : 0.12, shiftCount++);
+        }
+        else if (p.kind == Excitation::Kind::Pluck || p.kind == Excitation::Kind::PinchHarmonic)
+        {
+            auto pickNow = playingNoise.getPick();
+            pickNow.material = pickMaterial;
+            pickNow.fingers = usingFingers || ! PlayingNoise::getPickMaterial (pickMaterial).isPick;
+            pickNow.pluckPosition = pluckPosition;
+            playingNoise.setPick (pickNow);
+
+            playingNoise.onPluck (s, info, e.velocity);
+        }
+    }
+
     // A finger landing on a fret clicks; a hammer-on clicks harder.
     if (! fretless && fretNoise > 0.001)
     {
@@ -684,6 +723,30 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
                                  || e.technique == Technique::Tap) ? 0.9 : 0.45;
         str.triggerFretNoise (strength * e.velocity * fretNoise);
     }
+}
+
+//==============================================================================
+void LuthierEngine::triggerPickScrape (double seconds, bool downward) noexcept
+{
+    std::array<bool, kMaxStrings> wound {};
+
+    for (int s = 0; s < numStrings; ++s)
+        wound[(size_t) s] = stringSpecs[(size_t) s].wound;
+
+    playingNoise.startScrape (seconds, downward, wound.data(), numStrings);
+}
+
+void LuthierEngine::setPickMaterialAndFingers (Excitation::Material material, bool fingers) noexcept
+{
+    pickMaterial = material;
+    setUseFingers (fingers);
+
+    // setUseFingers(false) resets a finger material to a pick; a finger
+    // material chosen on purpose keeps its name and plays as fingers.
+    if (! fingers)
+        pickMaterial = material;
+
+    usingFingers = fingers || ! PlayingNoise::getPickMaterial (material).isPick;
 }
 
 //==============================================================================
@@ -1047,6 +1110,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     const bool anyPickupActive = ! pickups.isSilent();
     const bool perStringTaps = taps.isPerStringWanted() && taps.getRoomAtOffset() >= numSamples;
 
+    playingNoise.getPool().setSamplePosition (samplePosition);
+
     for (int i = 0; i < numSamples; ++i)
     {
         // Events land on their exact sample, whichever block they arrived in.
@@ -1054,11 +1119,15 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         coupling.process (bridgeOutputs.data(), couplingInputs.data());
 
+        noiseBuffer[(size_t) i] = playingNoise.processSample (excitationNoise.data(), surfaceNoise.data(),
+                                                              numStrings);
+
         double sum = 0.0;
 
         for (int s = 0; s < numStrings; ++s)
         {
-            double couplingIn = couplingInputs[(size_t) s];
+            // The click is part of the excitation: it goes into the string.
+            double couplingIn = couplingInputs[(size_t) s] + excitationNoise[(size_t) s];
 
             // Acoustic feedback re-excites the string at a harmonic.
             if (feedbackAmount > 1.0e-4 && s == feedbackString)
@@ -1072,7 +1141,9 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
                 couplingIn += stringOutputs[(size_t) s] * 0.004;
             }
 
-            const double out = strings[(size_t) s].processSample (couplingIn);
+            // Everything else is surface noise, on the string's output before
+            // the body and the pickups, so the instrument colours it.
+            const double out = strings[(size_t) s].processSample (couplingIn) + surfaceNoise[(size_t) s];
 
             stringOutputs[(size_t) s] = out;
             bridgeOutputs[(size_t) s] = strings[(size_t) s].getBridgeOutput();

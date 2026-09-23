@@ -82,3 +82,23 @@ chosen") and `ambiguity-resolutions.md`.
   extra shelving/peaking (18 dB per unit)**, because a pot position outside 0-1
   is a negative resistance. Gain and master keep climbing past the knob at
   24 dB and 12 dB per unit.
+- **`pick_material` keeps its shipped 12-choice list.** Adding Ultex, Tortex
+  and stone (pick-noise.md 2.1) would change every saved preset's normalised
+  choice value. Felt gets the softest numbers; thumbpick plays as celluloid;
+  finger, thumb, brush and slide materials play as fingers.
+- **`pick_thickness` / `pick_angle` stay declared 0-1** (advanced-ranges 1.0)
+  and map to mm (log, 0.38-3.0) and degrees (0-60); their advanced ranges are
+  where the mapping reaches 0.1-10 mm and 89 degrees.
+- **`pick_material` and `use_fingers` were dead parameters** (shown, never
+  read). They are now applied every block; a finger material plays as fingers
+  whatever the switch says.
+- **Chirp fires as the pick leaves the string at the pluck**, not at note-off:
+  "release" in pick-noise.md 4 is the pick's release of the string.
+- **Finger squeak replaces the string's own glide noise.** `noise_slide` now
+  only drives bottleneck friction (Technique::SlideGuitar); otherwise every
+  legato slide would squeak twice.
+- **Noise levels are calibrated at the output**, not assumed: a note-reference
+  constant and a click injection gain are held by tests that measure the click
+  (~30 dB under the note) and a squeak (20-30 dB under) through the engine.
+- **Engine reset restarts the noise event sequence**, so the same performance
+  from the same start is sample-identical (the preset round-trip test).

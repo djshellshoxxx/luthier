@@ -117,12 +117,27 @@ namespace
             { ParamIDs::circuitTonePot,    { 100.0e3f, 1.0e6f, 1.0e3f,  10.0e6f, 500.0e3f, 0.24f, RangeFamily::circuit } },
             { ParamIDs::circuitToneCap,    { 10.0f,    100.0f, 1.0f,    1000.0f, 22.0f,    0.24f, RangeFamily::circuit } },
             { ParamIDs::ampInputImpedance, { 220.0e3f, 1.0e6f, 10.0e3f, 10.0e6f, 1.0e6f,   0.32f, RangeFamily::circuit } },
+
+            // --- pick (pick-noise.md 7) -------------------------------------
+            // Thickness and angle keep their shipped 0-1 declarations (1.0);
+            // the advanced ends are where the physical mapping reaches the
+            // spec's 0.1-10 mm and 89 degrees.
+            { ParamIDs::pickThickness,    { 0.0f, 1.0f, -0.647f, 1.585f, 0.5f,  1.0f, RangeFamily::pick } },
+            { ParamIDs::pickAngle,        { 0.0f, 1.0f,  0.0f,   1.483f, 0.35f, 1.0f, RangeFamily::pick } },
+            { ParamIDs::pickTipRadius,    { 0.2f, 4.0f,  0.05f,  20.0f,  1.0f,  0.3f, RangeFamily::pick } },
+            { ParamIDs::pickClickAmount,  { 0.0f, 1.0f,  0.0f,   4.0f,   0.5f,  1.0f, RangeFamily::pick } },
+            { ParamIDs::pickChirpAmount,  { 0.0f, 1.0f,  0.0f,   4.0f,   0.4f,  1.0f, RangeFamily::pick } },
+            { ParamIDs::pickScrapeAmount, { 0.0f, 1.0f,  0.0f,   4.0f,   0.25f, 1.0f, RangeFamily::pick } },
+
+            // --- squeak (string-squeak.md 9) ----------------------------------
+            { ParamIDs::squeakAmount,     { 0.0f, 1.0f,  0.0f,   4.0f,   0.25f, 1.0f, RangeFamily::squeak } },
+            { ParamIDs::squeakMinTravel,  { 1.0f, 4.0f,  0.25f,  12.0f,  1.5f,  1.0f, RangeFamily::squeak } },
         };
 
         return table[index];
     }
 
-    constexpr int kNumEntries = 11;
+    constexpr int kNumEntries = 19;
 }
 
 const PhysicalRange* RangeRegistry::find (const juce::String& parameterId)
