@@ -250,6 +250,17 @@ int LuthierAudioProcessor::setRanges (const RangeState& newState)
     return ranges.applyTo (apvts);
 }
 
+int LuthierAudioProcessor::changeRanges (const RangeState& newState, const juce::String& undoDescription)
+{
+    pushUndoState (undoDescription);
+
+    const int clamped = setRanges (newState);
+    bridge.applyAllNow();
+
+    diagnostics.logValue (LogCategory::Engine, "ranges changed, values clamped", clamped, samplePosition);
+    return clamped;
+}
+
 //==============================================================================
 double LuthierAudioProcessor::claimSampleRateChange() noexcept
 {
@@ -1019,7 +1030,8 @@ void LuthierAudioProcessor::randomiseParameters()
 {
     pushUndoState ("Randomise");
 
-    presets.randomise ((uint64_t) juce::Time::currentTimeMillis(), lockedParameters);
+    presets.randomise ((uint64_t) juce::Time::currentTimeMillis(), lockedParameters,
+                       randomiseRespectsStock);
     bridge.applyAllNow();
 
     diagnostics.log (LogCategory::Engine, "randomised", samplePosition);
@@ -1149,33 +1161,38 @@ void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool ge
         return;
     }
 
-    while (undoStack.size() > undoPosition + 1)
-        undoStack.removeLast();
-
     UndoEntry entry;
     entry.state = std::move (gestureStartState);
     entry.description = "Change " + gestureParameterName;
 
     gestureStartState.reset();
 
-    undoStack.add (std::move (entry));
-
-    while (undoStack.size() > kMaxUndoSteps)
-        undoStack.remove (0);
-
-    undoPosition = undoStack.size() - 1;
+    addUndoEntry (std::move (entry));
 }
 
 void LuthierAudioProcessor::pushUndoState (const juce::String& description)
 {
-    // Drop anything ahead of the current position: a new edit after an undo
-    // starts a new branch.
-    while (undoStack.size() > undoPosition + 1)
-        undoStack.removeLast();
-
     UndoEntry entry;
     entry.state = captureStateBlock();
     entry.description = description;
+
+    addUndoEntry (std::move (entry));
+}
+
+/*  The stack holds one entry per action, each carrying the state from before
+    that action. undoPosition is the index of the entry the next undo reverses,
+    or -1 when there is nothing to undo.
+
+    This replaced a version that kept "the current state" as an extra entry
+    appended on the first undo and indexed around it, which was off by one both
+    ways: a single action could not be undone at all (canUndo wanted a position
+    above zero) and the first undo after two actions reverted both. Nothing
+    tested it until advanced-ranges.md 7 needed a lock to be undoable. */
+void LuthierAudioProcessor::addUndoEntry (UndoEntry&& entry)
+{
+    // A new edit after an undo starts a new branch: the redo tail goes.
+    while (undoStack.size() > undoPosition + 1)
+        undoStack.removeLast();
 
     undoStack.add (std::move (entry));
 
@@ -1190,19 +1207,13 @@ void LuthierAudioProcessor::undo()
     if (! canUndo())
         return;
 
-    // The first undo has to capture where we are now, or there would be nothing
-    // to redo back to.
-    if (undoPosition == undoStack.size() - 1)
-    {
-        UndoEntry current;
-        current.state = captureStateBlock();
-        current.description = "Current";
-        undoStack.add (std::move (current));
-    }
+    auto& entry = undoStack.getReference (undoPosition);
+
+    // Where we are now is what redo comes back to.
+    entry.redoState = captureStateBlock();
 
     --undoPosition;
 
-    const auto& entry = undoStack.getReference (undoPosition);
     setStateInformation (entry.state.getData(), (int) entry.state.getSize());
 }
 
@@ -1214,7 +1225,7 @@ void LuthierAudioProcessor::redo()
     ++undoPosition;
 
     const auto& entry = undoStack.getReference (undoPosition);
-    setStateInformation (entry.state.getData(), (int) entry.state.getSize());
+    setStateInformation (entry.redoState.getData(), (int) entry.redoState.getSize());
 }
 
 juce::String LuthierAudioProcessor::getUndoDescription() const

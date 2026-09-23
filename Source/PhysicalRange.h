@@ -161,6 +161,16 @@ public:
     /** The values a narrowing `applyTo` would clamp, without applying it. */
     juce::StringArray findValuesOutsideStock (const juce::AudioProcessorValueTreeState& state) const;
 
+    /*  Bumped by every `applyTo`, from whichever caller.
+
+        A SliderAttachment copies its parameter's range once, when it is made,
+        so a control attached before a range swap keeps drawing and dragging
+        against the old one. The editor compares this against the last value
+        it saw and re-attaches its controls when it moves. A counter rather
+        than a broadcaster because the swap happens inside a preset load that
+        knows nothing about windows. */
+    static juce::uint32 getGeneration() noexcept;
+
     //==========================================================================
     juce::var toVar() const;
 

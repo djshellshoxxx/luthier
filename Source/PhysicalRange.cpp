@@ -295,8 +295,20 @@ void RangeState::reset()
 }
 
 //==============================================================================
+namespace
+{
+    std::atomic<juce::uint32> rangeGeneration { 0 };
+}
+
+juce::uint32 RangeState::getGeneration() noexcept
+{
+    return rangeGeneration.load();
+}
+
 int RangeState::applyTo (juce::AudioProcessorValueTreeState& state) const
 {
+    ++rangeGeneration;
+
     int clamped = 0;
 
     for (const auto& id : RangeRegistry::allIds())

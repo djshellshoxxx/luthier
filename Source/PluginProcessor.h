@@ -181,6 +181,17 @@ public:
         Message thread. */
     int setRanges (const RangeState& newState);
 
+    /*  setRanges as a user action: pushes an undo state first, so undoing a
+        lock brings back the values it clamped (advanced-ranges.md 7), and
+        pushes the result to the engine. Every UI route goes through this. */
+    int changeRanges (const RangeState& newState, const juce::String& undoDescription);
+
+    /*  advanced-ranges.md 5: randomise stays inside stock by default. The
+        preference is user-global and lives in UiPreferences, which the engine
+        cannot see, so the editor mirrors it here. */
+    void setRandomiseRespectsStock (bool shouldRespect) noexcept { randomiseRespectsStock = shouldRespect; }
+    bool getRandomiseRespectsStock() const noexcept              { return randomiseRespectsStock; }
+
     /*  gui-integration 15's sample-rate trigger, as a question the window asks
         rather than a message the audio thread sends.
 
@@ -242,7 +253,7 @@ public:
     void setSlotBActive (bool b);
 
     void pushUndoState (const juce::String& description);
-    bool canUndo() const noexcept { return undoPosition > 0; }
+    bool canUndo() const noexcept { return undoPosition >= 0; }
     bool canRedo() const noexcept { return undoPosition + 1 < undoStack.size(); }
     void undo();
     void redo();
@@ -363,6 +374,7 @@ private:
         because it has to be applied to the APVTS before a preset's parameter
         values are written - see PresetManager::fromVar. */
     RangeState ranges;
+    bool randomiseRespectsStock = true;
 
     /*  live-performance 2: a program change or bank select arrives on the audio
         thread, but acting on either can allocate - a snapshot recall walks the
@@ -448,9 +460,16 @@ private:
 
     struct UndoEntry
     {
+        /** The state before the action. */
         juce::MemoryBlock state;
+
+        /** The state after it, filled in when the action is undone. */
+        juce::MemoryBlock redoState;
+
         juce::String description;
     };
+
+    void addUndoEntry (UndoEntry&& entry);
 
     juce::Array<UndoEntry> undoStack;
     int undoPosition = -1;

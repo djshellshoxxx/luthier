@@ -130,6 +130,11 @@ private:
     /** Remembered so the layout is only redone when Live Mode actually changes. */
     bool liveModeShown = false;
 
+    /*  RangeState::getGeneration() when the controls were last re-attached. A
+        preset load or a RANGES toggle swaps parameter ranges under attached
+        sliders; the timer notices and re-attaches them (RangesUi). */
+    juce::uint32 seenRangeGeneration = 0;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessorEditor)
 };
 

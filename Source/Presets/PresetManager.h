@@ -198,8 +198,12 @@ public:
     void resetToDefaults();
 
     /** Randomises the parameters, honouring locks. Each press starts from the
-        defaults so the results do not compound. */
-    void randomise (uint64_t seed, const juce::StringArray& lockedParameters);
+        defaults so the results do not compound.
+
+        `respectStockRanges` keeps a physical parameter inside its stock range
+        even when its family is unlocked (advanced-ranges.md 5). */
+    void randomise (uint64_t seed, const juce::StringArray& lockedParameters,
+                    bool respectStockRanges = true);
 
     /** Parameters excluded from randomisation because randomising them produces
         something unusable rather than something interesting. */

@@ -761,13 +761,9 @@ void DebugPanel::layoutContent (juce::Rectangle<int> content)
 OptionsPanel::OptionsPanel (LuthierAudioProcessor& p)
     : OverlayPanel ("Options"), processor (p)
 {
-    /*  gui-integration.md section 5's tab list, in its order.
+    /*  gui-integration.md section 5's tab list, all eleven, in its order.
 
-        Ten tabs, which is section 5's eleven minus RANGES: advanced-ranges.md
-        specifies RANGES and that file does not exist, so there is nothing to
-        build here that would not be invented. GAPS.md A3 tracks it.
-
-        CONTROLLERS used to sit in the slot RANGES will take, because section 19
+        CONTROLLERS used to sit in the slot RANGES now takes, because section 19
         puts controller setup in the Advanced column 4 tab strip and that strip
         did not exist. It does now, and the page has moved there - see
         AdvancedPanel::buildWorkspace. Every tab below is one section 5 names,
@@ -794,6 +790,7 @@ OptionsPanel::OptionsPanel (LuthierAudioProcessor& p)
     add ("ACCESSIBILITY",  new AccessibilityPage (processor));
     add ("LOCALIZATION",   new LocalizationPage (processor));
     add ("EXPRESSION",     new ExpressionPage (processor));
+    add ("RANGES",         new RangesPage (processor));
     add ("UPDATES",        new UpdatesPage (processor));
     add ("PRIVACY",        new PrivacyPage (processor));
     add ("DIAGNOSTICS",    new DiagnosticsPage (processor));

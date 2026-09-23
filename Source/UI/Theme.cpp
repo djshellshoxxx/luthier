@@ -1,4 +1,5 @@
 #include "Theme.h"
+#include "RangesUi.h"
 
 namespace luthier
 {
@@ -314,6 +315,59 @@ void LuthierLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int 
         g.strokePath (valueArc, juce::PathStrokeType (Metrics::arcThickness,
                                                       juce::PathStrokeType::curved,
                                                       juce::PathStrokeType::rounded));
+
+        /*  advanced-ranges.md 6.1: the part of the value arc beyond stock is
+            drawn in the warning colour. The slider carries its stock pair as
+            properties (RangesUi::tagSlider); a non-physical slider has none and
+            draws nothing here. Marking follows the value, so an unlocked
+            control sitting inside stock shows no warning at all. */
+        const auto& properties = slider.getProperties();
+
+        if (enabled && properties.contains (RangesUi::kStockMaxProperty) && RangesUi::markInWarningColour())
+        {
+            const double stockMin = properties[RangesUi::kStockMinProperty];
+            const double stockMax = properties[RangesUi::kStockMaxProperty];
+            const double value = slider.getValue();
+
+            auto angleOf = [&] (double plain)
+            {
+                const double clamped = juce::jlimit (slider.getMinimum(), slider.getMaximum(), plain);
+                return rotaryStartAngle + (float) slider.valueToProportionOfLength (clamped)
+                                            * (rotaryEndAngle - rotaryStartAngle);
+            };
+
+            auto strokeWarning = [&] (float a0, float a1)
+            {
+                juce::Path warningArc;
+                warningArc.addCentredArc (centre.x, centre.y, arcRadius, arcRadius, 0.0f,
+                                          juce::jmin (a0, a1), juce::jmax (a0, a1), true);
+
+                g.setColour (Palette::warning);
+                g.strokePath (warningArc, juce::PathStrokeType (Metrics::arcThickness,
+                                                                juce::PathStrokeType::curved,
+                                                                juce::PathStrokeType::butt));
+            };
+
+            // The filled arc intersected with the two out-of-stock bands, so a
+            // bipolar control filling from the centre is marked correctly too.
+            const float filledLo = juce::jmin (from, angle);
+            const float filledHi = juce::jmax (from, angle);
+
+            if (value > stockMax)
+            {
+                const float lo = juce::jmax (filledLo, angleOf (stockMax));
+
+                if (filledHi > lo)
+                    strokeWarning (lo, filledHi);
+            }
+            else if (value < stockMin)
+            {
+                const float hi = juce::jmin (filledHi, angleOf (stockMin));
+
+                if (hi > filledLo)
+                    strokeWarning (filledLo, hi);
+            }
+        }
     }
 
     // ---- body ------------------------------------------------------------------

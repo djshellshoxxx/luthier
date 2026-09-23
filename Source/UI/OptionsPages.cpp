@@ -1,4 +1,5 @@
 #include "OptionsPages.h"
+#include "RangesUi.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
@@ -1254,6 +1255,291 @@ void LocalizationPage::resized()
     bounds.removeFromTop (2);
     localeNote.setBounds (bounds.removeFromTop (18));
     catalogLabel.setBounds (bounds.removeFromTop (18));
+}
+
+//==============================================================================
+//==============================================================================
+//  RangesPage
+//==============================================================================
+namespace
+{
+    /*  One row of the out-of-stock summary: name, value, stock range, and the
+        button that clamps that one parameter (advanced-ranges.md 6.2 item 4). */
+    class RangeSummaryRow : public juce::Component
+    {
+    public:
+        RangeSummaryRow()
+        {
+            clampButton.onClick = [this] { if (onClamp) onClamp (parameterId); };
+            addAndMakeVisible (clampButton);
+        }
+
+        void setRow (const juce::String& id, const juce::String& name,
+                     const juce::String& value, const juce::String& stock)
+        {
+            parameterId = id;
+            nameText = name;
+            valueText = value;
+            stockText = stock;
+
+            clampButton.setTitle ("Clamp " + name + " to stock");
+            repaint();
+        }
+
+        void paint (juce::Graphics& g) override
+        {
+            auto bounds = getLocalBounds().withTrimmedRight (clampButton.getWidth() + 8);
+
+            g.setFont (Fonts::ui (12.0f));
+            g.setColour (Palette::textPrimary);
+            g.drawText (nameText, bounds.removeFromLeft (bounds.getWidth() * 2 / 5),
+                        juce::Justification::centredLeft, true);
+
+            g.setFont (Fonts::mono (12.0f));
+            g.setColour (Palette::warning);
+            g.drawText (valueText, bounds.removeFromLeft (bounds.getWidth() / 2),
+                        juce::Justification::centredLeft, true);
+
+            g.setColour (Palette::textMuted);
+            g.drawText (stockText, bounds, juce::Justification::centredLeft, true);
+        }
+
+        void resized() override
+        {
+            clampButton.setBounds (getLocalBounds().removeFromRight (70).reduced (0, 2));
+        }
+
+        std::function<void (const juce::String&)> onClamp;
+
+    private:
+        juce::String parameterId, nameText, valueText, stockText;
+        juce::TextButton clampButton { "Clamp" };
+    };
+}
+
+RangesPage::RangesPage (LuthierAudioProcessor& p)
+    : OptionsPage (p)
+{
+    masterToggle.onClick = [this] { if (! updatingControls) masterToggled(); };
+    addAndMakeVisible (masterToggle);
+
+    warningToggle.onClick = [this]
+    {
+        if (updatingControls)
+            return;
+
+        RangesUi::setMarkInWarningColour (warningToggle.getToggleState());
+
+        // Every knob on screen has to redraw its arc in the new colour.
+        if (auto* top = getTopLevelComponent())
+            top->repaint();
+    };
+    addAndMakeVisible (warningToggle);
+
+    randomiseToggle.onClick = [this]
+    {
+        if (! updatingControls)
+            RangesUi::setRandomiseRespectsStock (processor, randomiseToggle.getToggleState());
+    };
+    addAndMakeVisible (randomiseToggle);
+
+    styleNote (masterNote, Palette::textMuted, 11.0f);
+    addAndMakeVisible (masterNote);
+
+    styleNote (emptyNote, Palette::textMuted, 11.0f);
+    emptyNote.setText ("Every value in this preset is inside its stock range.",
+                       juce::dontSendNotification);
+    addAndMakeVisible (emptyNote);
+
+    summary.setModel (&summaryModel);
+    summary.setRowHeight (26);
+    summary.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
+    summary.setTitle ("Values outside their stock range");
+    addAndMakeVisible (summary);
+
+    refresh();
+}
+
+int RangesPage::setAllFamilies (bool advanced)
+{
+    RangeState next;
+
+    for (int i = 0; i < (int) RangeFamily::numFamilies; ++i)
+        next.setFamilyAdvanced ((RangeFamily) i, advanced);
+
+    // Per-control unlocks are subsumed by an unlocked family and are exactly
+    // what a lock is meant to take away, so the master toggle clears them.
+    const int clamped = RangesUi::apply (processor, next,
+                                         advanced ? "Unlock all ranges" : "Lock all ranges",
+                                         &masterToggle);
+    refresh();
+    return clamped;
+}
+
+void RangesPage::masterToggled()
+{
+    const bool wantAdvanced = masterToggle.getToggleState();
+
+    if (wantAdvanced)
+    {
+        setAllFamilies (true);
+        return;
+    }
+
+    // 6.2 item 1: locking shows the clamp count before it commits.
+    const int wouldClamp = processor.getRanges().findValuesOutsideStock (processor.getState()).size();
+
+    if (wouldClamp == 0)
+    {
+        setAllFamilies (false);
+        return;
+    }
+
+    {
+        const juce::ScopedValueSetter<bool> guard (updatingControls, true);
+        masterToggle.setToggleState (true, juce::dontSendNotification);
+    }
+
+    const auto message = juce::String (wouldClamp)
+                       + (wouldClamp == 1 ? " value is" : " values are")
+                       + " outside the stock range and will be moved to the nearest stock value."
+                         " Undo brings them back.";
+
+    juce::AlertWindow::showAsync (juce::MessageBoxOptions()
+                                    .withIconType (juce::MessageBoxIconType::WarningIcon)
+                                    .withTitle ("Lock to stock ranges?")
+                                    .withMessage (message)
+                                    .withButton ("Lock and clamp")
+                                    .withButton ("Cancel")
+                                    .withAssociatedComponent (this),
+                                  [safeThis = juce::Component::SafePointer<RangesPage> (this)] (int result)
+    {
+        if (safeThis != nullptr && result == 1)
+            safeThis->setAllFamilies (false);
+    });
+}
+
+void RangesPage::clampOne (const juce::String& parameterId)
+{
+    const auto* physical = RangeRegistry::find (parameterId);
+    auto* parameter = dynamic_cast<juce::AudioParameterFloat*> (processor.getState().getParameter (parameterId));
+
+    if (physical == nullptr || parameter == nullptr)
+        return;
+
+    processor.pushUndoState ("Clamp " + parameter->getName (40) + " to stock");
+
+    const float clamped = juce::jlimit (physical->stockMin, physical->stockMax, parameter->get());
+
+    parameter->beginChangeGesture();
+    parameter->setValueNotifyingHost (parameter->convertTo0to1 (clamped));
+    parameter->endChangeGesture();
+
+    refresh();
+}
+
+void RangesPage::refresh()
+{
+    const juce::ScopedValueSetter<bool> guard (updatingControls, true);
+
+    const auto& ranges = processor.getRanges();
+
+    int unlockedFamilies = 0;
+
+    for (int i = 0; i < (int) RangeFamily::numFamilies; ++i)
+        if (ranges.isFamilyAdvanced ((RangeFamily) i))
+            ++unlockedFamilies;
+
+    const bool allUnlocked = unlockedFamilies == (int) RangeFamily::numFamilies;
+
+    masterToggle.setToggleState (allUnlocked, juce::dontSendNotification);
+    warningToggle.setToggleState (RangesUi::markInWarningColour(), juce::dontSendNotification);
+    randomiseToggle.setToggleState (RangesUi::randomiseRespectsStock(), juce::dontSendNotification);
+
+    juce::String note;
+
+    if (allUnlocked)
+        note = "Every control in this preset can use its advanced range.";
+    else if (ranges.isAnythingAdvanced())
+        note = "Some controls in this preset are unlocked: "
+             + juce::String (unlockedFamilies) + " of "
+             + juce::String ((int) RangeFamily::numFamilies) + " families, plus any unlocked one at a time.";
+    else
+        note = "Stock: every control is limited to what a real guitar can do.";
+
+    masterNote.setText (note, juce::dontSendNotification);
+
+    const auto nowOutside = ranges.findValuesOutsideStock (processor.getState());
+
+    if (nowOutside != outside)
+    {
+        outside = nowOutside;
+        summary.updateContent();
+    }
+
+    summary.repaint();
+    emptyNote.setVisible (outside.isEmpty());
+}
+
+void RangesPage::paint (juce::Graphics& g)
+{
+    drawHeading (g, getLocalBounds().removeFromTop (18), "RANGES");
+    drawHeading (g, { 0, 140, getWidth(), 18 }, "OUTSIDE STOCK");
+}
+
+void RangesPage::resized()
+{
+    auto bounds = getLocalBounds();
+
+    bounds.removeFromTop (20);
+    masterToggle.setBounds (bounds.removeFromTop (24).removeFromLeft (320));
+    masterNote.setBounds (bounds.removeFromTop (18));
+
+    bounds.removeFromTop (8);
+    warningToggle.setBounds (bounds.removeFromTop (24).removeFromLeft (360));
+    randomiseToggle.setBounds (bounds.removeFromTop (24).removeFromLeft (360));
+
+    bounds = getLocalBounds().withTrimmedTop (160);
+    emptyNote.setBounds (bounds.removeFromTop (20));
+    summary.setBounds (getLocalBounds().withTrimmedTop (160));
+}
+
+int RangesPage::SummaryModel::getNumRows()
+{
+    return owner.outside.size();
+}
+
+juce::Component* RangesPage::SummaryModel::refreshComponentForRow (int row, bool,
+                                                                   juce::Component* existing)
+{
+    if (! juce::isPositiveAndBelow (row, owner.outside.size()))
+    {
+        delete existing;
+        return nullptr;
+    }
+
+    auto* rowComponent = dynamic_cast<RangeSummaryRow*> (existing);
+
+    if (rowComponent == nullptr)
+    {
+        delete existing;
+        rowComponent = new RangeSummaryRow();
+    }
+
+    const auto& id = owner.outside[row];
+    const auto* physical = RangeRegistry::find (id);
+    auto* parameter = dynamic_cast<juce::AudioParameterFloat*> (owner.processor.getState().getParameter (id));
+
+    if (physical == nullptr || parameter == nullptr)
+        return rowComponent;
+
+    rowComponent->setRow (id, parameter->getName (40),
+                          RangesUi::formatValue (owner.processor, id, parameter->get()) + "*",
+                          "stock " + RangesUi::formatValue (owner.processor, id, physical->stockMin)
+                            + " - " + RangesUi::formatValue (owner.processor, id, physical->stockMax));
+
+    rowComponent->onClamp = [this] (const juce::String& parameterId) { owner.clampOne (parameterId); };
+    return rowComponent;
 }
 
 //==============================================================================

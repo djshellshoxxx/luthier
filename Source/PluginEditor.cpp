@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "UI/RangesUi.h"
 #include "Accessibility/Accessibility.h"
 
 namespace luthier
@@ -123,6 +124,12 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     tooltips.setLookAndFeel (&lookAndFeel);
 
     setWantsKeyboardFocus (true);
+
+    // The processor cannot read UiPreferences, so it is told (advanced-ranges.md 5).
+    processor.setRandomiseRespectsStock (RangesUi::randomiseRespectsStock());
+
+    // Controls attached during construction already see the live ranges.
+    seenRangeGeneration = RangeState::getGeneration();
     startTimerHz (4);
 
     /*  gui-integration 15. Last in the constructor, because a banner posting
@@ -392,6 +399,12 @@ void LuthierAudioProcessorEditor::timerCallback()
 {
     updateLiveStripVisibility();
     pollForNotifications();
+
+    if (const auto generation = RangeState::getGeneration(); generation != seenRangeGeneration)
+    {
+        seenRangeGeneration = generation;
+        RangesUi::resyncControls (*this);
+    }
 
     // Tooltips are a user preference, so the window is created or torn down to
     // match rather than the tips being silently empty.

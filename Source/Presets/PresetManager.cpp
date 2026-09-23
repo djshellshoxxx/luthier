@@ -1022,7 +1022,8 @@ bool PresetManager::isRandomisable (const juce::String& paramId)
     return ! excluded.contains (paramId);
 }
 
-void PresetManager::randomise (uint64_t seed, const juce::StringArray& lockedParameters)
+void PresetManager::randomise (uint64_t seed, const juce::StringArray& lockedParameters,
+                               bool respectStockRanges)
 {
     // Each press starts from the defaults, so repeated presses give genuinely new
     // sounds rather than drifting further from anything usable.
@@ -1063,6 +1064,17 @@ void PresetManager::randomise (uint64_t seed, const juce::StringArray& lockedPar
 
         if (dynamic_cast<juce::AudioParameterFloat*> (p) != nullptr)
             v = juce::jlimit (0.0, 1.0, 0.5 + rng.nextGaussian() * 0.26);
+
+        // A physical parameter on its advanced range draws from the stock part
+        // of it, so "random" still means "a guitar that could exist".
+        if (respectStockRanges)
+            if (const auto* physical = RangeRegistry::find (id))
+                if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (p))
+                {
+                    const double lo = ranged->convertTo0to1 (physical->stockMin);
+                    const double hi = ranged->convertTo0to1 (physical->stockMax);
+                    v = lo + v * (hi - lo);
+                }
 
         p->setValueNotifyingHost ((float) v);
     }

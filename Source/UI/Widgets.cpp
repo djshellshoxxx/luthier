@@ -1,4 +1,5 @@
 #include "Widgets.h"
+#include "RangesUi.h"
 #include "../PluginProcessor.h"
 
 namespace luthier
@@ -108,6 +109,27 @@ juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
     if (existingRoutes > 0)
         menu.addItem (9, "Remove modulation (" + juce::String (existingRoutes) + ")");
 
+    // ---- advanced ranges (gui-integration 16 items 9-10) ------------------------
+    // Only on a physical control, and only the item that would change something:
+    // unlocking a control whose family is already unlocked is redundant, and
+    // restricting is offered only for a control unlocked on its own
+    // (advanced-ranges.md 4).
+    if (const auto* physical = RangeRegistry::find (parameterId))
+    {
+        const auto& ranges = processor.getRanges();
+
+        if (ranges.isUnlockedIndividually (parameterId))
+        {
+            menu.addSeparator();
+            menu.addItem (kRestrictRangeMenuId, "Restrict to stock range for this control");
+        }
+        else if (! ranges.isFamilyAdvanced (physical->family))
+        {
+            menu.addSeparator();
+            menu.addItem (kUnlockRangeMenuId, "Unlock advanced range for this control");
+        }
+    }
+
     return menu;
 }
 
@@ -193,7 +215,48 @@ void applyParameterMenuResult (int result,
             case 8:
             {
                 juce::Random r;
-                param->setValueNotifyingHost (r.nextFloat());
+                float v = r.nextFloat();
+
+                // advanced-ranges.md 5: stock unless the user said otherwise.
+                if (RangesUi::randomiseRespectsStock())
+                    if (const auto* physical = RangeRegistry::find (parameterId))
+                        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (param))
+                            v = juce::jmap (v, ranged->convertTo0to1 (physical->stockMin),
+                                               ranged->convertTo0to1 (physical->stockMax));
+
+                param->setValueNotifyingHost (v);
+                break;
+            }
+
+            case kUnlockRangeMenuId:
+            case kRestrictRangeMenuId:
+            {
+                const bool unlock = (result == kUnlockRangeMenuId);
+                auto next = processor.getRanges();
+                next.setUnlockedIndividually (parameterId, unlock);
+
+                const int clamped = RangesUi::apply (processor, next,
+                                                     (unlock ? "Unlock " : "Lock ")
+                                                       + param->getName (40) + " range",
+                                                     &owner);
+
+                // A restrict that moved the value says so where it happened,
+                // rather than letting the knob jump without a word.
+                if (clamped > 0 && owner.isShowing())
+                    if (auto* top = owner.getTopLevelComponent())
+                    {
+                        auto* bubble = new juce::BubbleMessageComponent();
+                        top->addChildComponent (bubble);
+
+                        juce::AttributedString text;
+                        text.append ("Moved back inside the stock range: now "
+                                       + param->getCurrentValueAsText() + ".",
+                                     Fonts::ui (12.0f), Palette::textPrimary);
+
+                        // Deletes itself when it fades (the last argument).
+                        bubble->showAt (&owner, text, 3500, true, true);
+                    }
+
                 break;
             }
 
@@ -234,6 +297,41 @@ void applyParameterMenuResult (int result,
         if (onChanged && result != 1)
             onChanged();
     }
+}
+
+//==============================================================================
+bool showLockedRangeNoticeIfAtEdge (juce::Component& owner,
+                                    LuthierAudioProcessor& processor,
+                                    const juce::String& parameterId,
+                                    const juce::Slider& slider)
+{
+    if (RangeRegistry::find (parameterId) == nullptr
+          || processor.getRanges().isParameterAdvanced (parameterId))
+        return false;
+
+    const double span = slider.getMaximum() - slider.getMinimum();
+    const double value = slider.getValue();
+
+    const bool atEdge = value >= slider.getMaximum() - span * 1.0e-4
+                     || value <= slider.getMinimum() + span * 1.0e-4;
+
+    auto* top = owner.getTopLevelComponent();
+
+    if (! atEdge || top == nullptr || ! owner.isShowing())
+        return false;
+
+    // An inline notice at the control, not a banner (advanced-ranges.md 6.3):
+    // it answers something the user just did, where they did it.
+    auto* bubble = new juce::BubbleMessageComponent();
+    top->addChildComponent (bubble);
+
+    juce::AttributedString text;
+    text.append (RangesUi::kLockedNoticeText, Fonts::ui (12.0f), Palette::textPrimary);
+    text.setWordWrap (juce::AttributedString::byWord);
+
+    // Deletes itself when it fades (the last argument).
+    bubble->showAt (&owner, text, 4500, true, true);
+    return true;
 }
 
 //==============================================================================
@@ -314,6 +412,8 @@ void LuthierKnob::attachTo (LuthierAudioProcessor& p, const juce::String& id, co
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         p.getState(), id, slider);
 
+    RangesUi::tagSlider (slider, id);
+
     if (tooltip.isNotEmpty())
     {
         slider.setTooltip (tooltip);
@@ -344,6 +444,21 @@ void LuthierKnob::setShowDiceAndLock (bool shouldShow)
 {
     showDiceAndLock = shouldShow;
     resized();
+    repaint();
+}
+
+void LuthierKnob::resyncRange()
+{
+    if (processor == nullptr || paramId.isEmpty())
+        return;
+
+    // The old attachment goes first: two on one slider would fight over it for
+    // as long as both existed.
+    attachment.reset();
+    attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        processor->getState(), paramId, slider);
+
+    RangesUi::tagSlider (slider, paramId);
     repaint();
 }
 
@@ -398,6 +513,10 @@ void LuthierKnob::paint (juce::Graphics& g)
 
         if (text.isEmpty())
             text = juce::String (slider.getValue(), 2);
+
+        // advanced-ranges.md 6.1: a value outside stock carries a `*`.
+        if (processor != nullptr)
+            text = RangesUi::markReadout (*processor, paramId, text);
 
         g.drawText (text, valueRow, juce::Justification::centred, true);
     }
@@ -554,6 +673,7 @@ void LuthierKnob::KnobSlider::mouseDown (const juce::MouseEvent& e)
         return;
     }
 
+    noticeShownThisDrag = false;
     juce::Slider::mouseDown (e);
     owner.repaint();
 }
@@ -569,6 +689,12 @@ void LuthierKnob::KnobSlider::mouseDrag (const juce::MouseEvent& e)
         setMouseDragSensitivity (180);
 
     juce::Slider::mouseDrag (e);
+
+    // advanced-ranges.md 6.3: the knob stops at the stock edge and says why.
+    if (! noticeShownThisDrag && owner.processor != nullptr && e.getDistanceFromDragStartY() != 0)
+        noticeShownThisDrag = showLockedRangeNoticeIfAtEdge (owner, *owner.processor,
+                                                             owner.paramId, *this);
+
     owner.repaint();
 }
 
@@ -732,6 +858,21 @@ void LuthierSlider::attachTo (LuthierAudioProcessor& p, const juce::String& id, 
 
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         p.getState(), id, slider);
+
+    RangesUi::tagSlider (slider, id);
+}
+
+void LuthierSlider::resyncRange()
+{
+    if (processor == nullptr || paramId.isEmpty())
+        return;
+
+    attachment.reset();
+    attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        processor->getState(), paramId, slider);
+
+    RangesUi::tagSlider (slider, paramId);
+    repaint();
 }
 
 void LuthierSlider::resized()

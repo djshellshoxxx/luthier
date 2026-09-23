@@ -476,16 +476,15 @@ LUTHIER_TEST (Editor, everyOptionsPageSelectsAndPaints)
     options.setSize (preferred.x, preferred.y);
     options.overlayShown();
 
-    /*  gui-integration.md section 5's list, with the one departure GAPS.md A3
-        still records: no RANGES, which advanced-ranges.md has not specified yet.
-        Every other tab is section 5's, in section 5's order. CONTROLLERS was in
-        the RANGES slot until column 4's tab strip gave it section 19's home, and
-        it is checked there instead, by everyWorkspaceTabSelectsAndPaints - if it
-        is ever added back here as well, the count below fails rather than the
-        plugin quietly running two profile libraries. If section 5 gains a tab,
-        this list is where it fails first. */
+    /*  gui-integration.md section 5's list, all eleven, in section 5's order.
+        CONTROLLERS was in the RANGES slot until column 4's tab strip gave it
+        section 19's home, and it is checked there instead, by
+        everyWorkspaceTabSelectsAndPaints - if it is ever added back here as
+        well, the count below fails rather than the plugin quietly running two
+        profile libraries. If section 5 gains a tab, this list is where it fails
+        first. */
     const juce::StringArray tabNames { "AUDIO", "MIDI", "APPEARANCE", "ACCESSIBILITY",
-                                       "LOCALIZATION", "EXPRESSION",
+                                       "LOCALIZATION", "EXPRESSION", "RANGES",
                                        "UPDATES", "PRIVACY", "DIAGNOSTICS",
                                        "FILE LOCATIONS" };
 

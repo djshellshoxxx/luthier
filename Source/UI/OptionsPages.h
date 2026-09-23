@@ -7,9 +7,7 @@
         AUDIO | MIDI | APPEARANCE | ACCESSIBILITY | LOCALIZATION | EXPRESSION
         | RANGES | UPDATES | PRIVACY | DIAGNOSTICS | FILE LOCATIONS
 
-    Every one of those is a page here except RANGES, which is specified by
-    advanced-ranges.md and cannot be built until that file exists. That is the one
-    departure left, and GAPS.md A3 records it.
+    Every one of those is a page here.
 
     ControllersPage is declared here too and is no longer one of them. Section 19
     puts controller setup in the Advanced column 4 tab strip; it sat on this
@@ -271,6 +269,61 @@ private:
     };
 
     ListModel listModel { *this };
+
+    bool updatingControls = false;
+};
+
+//==============================================================================
+/*  Options -> Ranges (section 5, advanced-ranges.md 6.2).
+
+    Four things, in the spec's order: the per-preset master toggle, the two
+    user-global preferences, and the out-of-stock summary. The master toggle
+    shows the clamp count before a lock commits, because a lock that moves
+    values without saying so is the silent change ground rule 0.2 forbids.
+*/
+class RangesPage final : public OptionsPage
+{
+public:
+    explicit RangesPage (LuthierAudioProcessor& processor);
+
+    void refresh() override;
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+    /** The ids the summary is listing, for tests. */
+    const juce::StringArray& getListedParameters() const noexcept { return outside; }
+
+    /** What the master toggle does, without the confirmation. For tests and for
+        the confirmation's own callback. Returns the clamp count. */
+    int setAllFamilies (bool advanced);
+
+private:
+    void masterToggled();
+    void clampOne (const juce::String& parameterId);
+
+    juce::ToggleButton masterToggle { "Advanced ranges for this preset" };
+    juce::ToggleButton warningToggle { "Always show marked values as warning colour" };
+    juce::ToggleButton randomiseToggle { "Randomise respects stock range" };
+    juce::Label masterNote, emptyNote;
+
+    juce::StringArray outside;
+    juce::ListBox summary;
+
+    class SummaryModel : public juce::ListBoxModel
+    {
+    public:
+        explicit SummaryModel (RangesPage& o) : owner (o) {}
+
+        int getNumRows() override;
+        void paintListBoxItem (int, juce::Graphics&, int, int, bool) override {}
+        juce::Component* refreshComponentForRow (int row, bool selected,
+                                                 juce::Component* existing) override;
+
+    private:
+        RangesPage& owner;
+    };
+
+    SummaryModel summaryModel { *this };
 
     bool updatingControls = false;
 };

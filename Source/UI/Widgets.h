@@ -57,6 +57,20 @@ void applyParameterMenuResult (int result,
                                const juce::String& parameterId,
                                std::function<void()> onChanged = {});
 
+/** Result ids for advanced-ranges.md's two right-click items (gui-integration
+    16 items 9 and 10). */
+constexpr int kUnlockRangeMenuId = 10;
+constexpr int kRestrictRangeMenuId = 11;
+
+/*  advanced-ranges.md 6.3: a drag on a physical control that has reached the
+    edge of its stock range while that range is locked. Shows the fixed inline
+    notice at `owner`; the control itself simply stops at the edge. Returns
+    true if it showed. */
+bool showLockedRangeNoticeIfAtEdge (juce::Component& owner,
+                                    LuthierAudioProcessor& processor,
+                                    const juce::String& parameterId,
+                                    const juce::Slider& slider);
+
 /** Opens the standard right-click menu for a parameter-backed control. */
 void showParameterContextMenu (juce::Component& owner,
                                LuthierAudioProcessor& processor,
@@ -119,6 +133,10 @@ public:
     /** Shows a small dice under the knob, for the macro row. */
     void setShowDiceAndLock (bool shouldShow);
 
+    /** Re-attaches, because the parameter's live range may have been swapped
+        since the attachment was made (advanced-ranges.md 1.2). See RangesUi. */
+    void resyncRange();
+
     void paint (juce::Graphics&) override;
     void resized() override;
     void mouseEnter (const juce::MouseEvent&) override;
@@ -142,6 +160,9 @@ private:
 
     private:
         LuthierKnob& owner;
+
+        /** One locked-range notice per drag, not one per mouse move. */
+        bool noticeShownThisDrag = false;
     };
 
     KnobSlider slider { *this };
@@ -242,6 +263,9 @@ public:
 
     juce::Slider& getSlider() noexcept { return slider; }
     juce::String getLearnParameterId() const override { return paramId; }
+
+    /** As LuthierKnob::resyncRange. */
+    void resyncRange();
 
     void paint (juce::Graphics&) override;
     void resized() override;
