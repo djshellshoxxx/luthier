@@ -287,11 +287,11 @@ def bill(body, neck, fretboard, frets, nut, bridge, tuners, wiring_ref, strings_
 guitar("Electric", "Vintage Single-Cut", "electric", "single_cutaway_arched",
        bill(B["mahogany_sc"], N["mahogany_set"], F["rosewood"], FR["mj"], NU["bone43"], BR["abr1"], TU["kluson"], W["lp50"], S["10"], top=T["flame"], tailpiece=TP["stopbar"], pickguard=PG["cream"]),
        {"neck": pu(P["paf57"], 152, 2.8, 3.1), "middle": None, "bridge": pu(P["paf59"], 38, 2.4, 2.6)},
-       setup(1.4, 1.7, 0.25, 0.9), finish("burst", "#7A2E1B", "#F2C441", "diagonal", 0.9, 0.15), 428913, ["vintage", "humbucker"])
+       setup(1.6, 2.0, 0.2, 0.9), finish("burst", "#7A2E1B", "#F2C441", "diagonal", 0.9, 0.15), 428913, ["vintage", "humbucker"])
 guitar("Electric", "Vintage Double-Cut", "electric", "double_cutaway_offset",
        bill(B["alder_dc"], N["maple_c"], F["rosewood"], FR["vintage"], NU["bone42"], BR["vintage_trem"], TU["kluson"], W["strat_vintage"], S["9"], pickguard=PG["white"]),
        {"neck": pu(P["sc54"], 159, 2.4, 2.8), "middle": pu(P["sc54"], 99, 2.4, 2.8), "bridge": pu(P["sc54"], 41, 2.0, 2.4)},
-       setup(1.6, 2.0, 0.25), finish("burst", "#2B1A0F", "#E3A33C", "radial", 0.9, 0.1), 115003, ["vintage", "single coil"])
+       setup(1.6, 2.0, 0.2), finish("burst", "#2B1A0F", "#E3A33C", "radial", 0.9, 0.1), 115003, ["vintage", "single coil"])
 guitar("Electric", "Classic T-Style", "electric", "single_cutaway_slab",
        bill(B["ash_t"], N["maple_c"], F["maple"], FR["vintage"], NU["bone42"], BR["hardtail"], TU["kluson"], W["t_style"], S["10"], pickguard=PG["black"]),
        {"neck": pu(P["t_neck"], 165, 2.4, 2.4), "middle": None, "bridge": pu(P["t_bridge"], 36, 1.8, 2.0)},

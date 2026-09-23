@@ -247,7 +247,10 @@ LUTHIER_TEST (BuzzUi, setupStylesApplyAsOneStepAndReadModified)
     group.setSize (400, group.preferredHeight());
 
     CHECK_MSG (group.describeSetupStyle() == "Player-friendly",
-               "a fresh instance reads \"" + group.describeSetupStyle() + "\"");
+               "a fresh instance reads \"" + group.describeSetupStyle() + "\" (action "
+                 + processor.getState().getParameter (ParamIDs::setupActionTreble)->getCurrentValueAsText() + " / "
+                 + processor.getState().getParameter (ParamIDs::setupActionBass)->getCurrentValueAsText() + ", relief "
+                 + processor.getState().getParameter (ParamIDs::setupRelief)->getCurrentValueAsText() + ")");
 
     group.applySetupStyle (5);
     CHECK (group.describeSetupStyle() == "Needs a tech");

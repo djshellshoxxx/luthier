@@ -79,7 +79,7 @@
   "setup": {
     "action_treble_mm": 1.6,
     "action_bass_mm": 2.0,
-    "relief_mm": 0.25,
+    "relief_mm": 0.2,
     "nut_slot_depths_mm": [
       0.45,
       0.45,
