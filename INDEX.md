@@ -41,6 +41,16 @@ Read `CLAUDE_CODE_BRIEF.md` first if you are the implementer.
 11. `updates-telemetry.md`
 
 ### Phase 2: realism
+
+**All twelve are on disk as of 2026-09-22.** Eleven of them were written
+after the phase-1 build rather than before it, which means each one is
+constrained by the specs that already referenced it — `gui-integration.md`,
+`ui-wiring.md`, `file-formats.md`, `performance-budget.md`,
+`state-model.md`, `action-and-undo.md` and `onboarding.md` had all
+committed to section numbers, schemas, budgets and defaults before the
+files they pointed at existed. Where one of those fixed a number, the
+realism spec matches it rather than restating it, and says so.
+
 12. `advanced-ranges.md` (mechanism every later file depends on)
 13. `volume-knob-interaction.md` (replaces CableSim; introduces GuitarCircuit)
 14. `pick-noise.md`
@@ -156,3 +166,52 @@ Three rules for integration:
 
 Every new file has its own "Tests" section. Add those tests to the
 existing `LuthierTests` target.
+
+## Engine modules the realism phase adds
+
+The specs above name these. None exists in the build yet; this is the
+implementation inventory, in dependency order.
+
+| Module | Spec | Replaces / extends |
+|---|---|---|
+| `PhysicalRange` | `advanced-ranges.md` 1 | Widens every physical parameter's range declaration |
+| `RangeFamily` + preset `ranges` block | `advanced-ranges.md` 2, 4 | New preset state |
+| `GuitarCircuit` | `volume-knob-interaction.md` | **Removes `CableSim`** |
+| `NoiseEngine` (6 pools) | `pick-noise.md` 1 | New; shared by pick, squeak, buzz, slide |
+| `PickModel` | `pick-noise.md` 2 | Extends the existing pick parameters |
+| `SqueakModel` | `string-squeak.md` | New |
+| `SetupGeometry` + buzz sensing | `fret-buzz.md` 1, 3 | New; feeds `StringEngine` |
+| `SlideEngine` | `slide-guitar.md` | New mode alongside `TechniqueEngine` |
+| `PartLibrary`, `Part`, `GuitarSpec` widening | `guitar-workshop.md` 3, 4 | Extends `GuitarLibrary` |
+| `mapSpec` → `DerivedAcoustics` | `part-acoustics.md` | New; the single part-to-engine function |
+| `WorkshopPanel` + `SpectrumDelta` | `workshop-ui.md` | New UI |
+| `StrumGesture` | `strum-dynamics.md` | Extends `RhythmEngine`'s scheduler |
+| `BassTechniques` | `bass-techniques.md` | New; family-gated |
+| `PerformanceCapture` | `notation-export.md` 6 | New; fills `PerformanceScore` from live play |
+| `PracticeRoutines` + stats | `practice-tools.md` 11 | New; the PRACTICE tab's contents |
+| MIDI export profiles | `midi-export.md` | Extends `MidiOutRouter`; spec already existed |
+
+### Build order for the engine work
+
+1. `PhysicalRange` and the `ranges` block. Everything physical depends on
+   it and it touches every parameter declaration, so it goes first and
+   alone.
+2. `GuitarCircuit`, replacing `CableSim`. Self-contained, immediately
+   audible, and the pickup fields it needs can come from a table until
+   the parts model lands.
+3. `NoiseEngine` pool, then `PickModel`, `SqueakModel` and the buzz
+   sensing on top of it. One pool, three consumers.
+4. `SetupGeometry`, which the buzz sensing needs and which `slide-guitar`
+   and `bass-techniques` both read.
+5. `SlideEngine`.
+6. `PartLibrary` and `mapSpec`. The largest single piece; it re-points
+   every table the four specs above used as a placeholder.
+7. `WorkshopPanel`.
+8. `StrumGesture`, then `BassTechniques`.
+9. `PerformanceCapture`, then the NOTATION tab.
+10. MIDI export profiles, then the MIDI OUT tab.
+11. `PracticeRoutines` and the PRACTICE tab.
+
+Steps 2-5 are each independently shippable and each makes the plugin
+audibly better on its own, which is why they come before the Workshop
+even though the Workshop is what the parts model is for.

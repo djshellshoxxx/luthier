@@ -158,7 +158,105 @@ Global practice controls in the drawer strip:
 | Session temp buffer | `~/Documents/Luthier/Sessions/tmp/` |
 | Session saves | `~/Documents/Luthier/Sessions/` |
 
-## 11. Tests
+## 11. The PRACTICE setup surface
+
+`gui-integration.md` 4.4 lists a PRACTICE tab in Advanced column 4 and
+describes it only as "setup surface for practice-tools.md; the drawer is
+the runtime surface". Section 9 above specifies the drawer in full and
+says nothing about a second surface, which left the tab with no contents.
+
+This section decides what is on it.
+
+### 11.1 The split
+
+The drawer is for **during** practice: it is 32-360 px, it is in the way
+of the guitar on purpose, and everything on it is something a player
+touches while an instrument is in their hands. Tempo, start, stop, loop,
+next exercise.
+
+The tab is for **before and after**: arranging what practice will be, and
+looking at what it was. Nothing on it needs to be reachable one-handed
+while playing, which is exactly why it does not belong in the drawer.
+
+That split decides every item below. The test for "does this go on the
+tab" is: *would a player touch this with a guitar on their lap?* If yes,
+it is drawer.
+
+### 11.2 Contents
+
+**Progress** — the reason the tab is worth building.
+
+- Practice time per day for the last 90 days, read from
+  `~/Documents/Luthier/Practice/stats.json` (section 10).
+- Per-tool breakdown: metronome minutes, looper minutes, trainer sessions.
+- Scale trainer and ear trainer accuracy over time, per exercise.
+- Tempo progress: for each looped phrase, the best clean tempo achieved.
+- A streak count, because it works.
+
+Read-only, with an "Export as CSV" and a "Clear history" that confirms.
+
+**Routines** — a named, ordered list of exercises.
+
+- A routine is a sequence of entries, each naming a tool, its settings and
+  a duration or repetition count.
+- Starting a routine drives the drawer: it sets the tool, loads the
+  settings, runs the timer and advances.
+- Ships with three factory routines (`factory-content.md` gains them):
+  "Warm-up, 10 minutes", "Scales and modes, 20 minutes", "Timing and
+  feel, 15 minutes".
+- Saved to `~/Documents/Luthier/Practice/Routines/*.json`.
+
+This is the feature that makes the practice tools a practice *system*
+rather than seven widgets.
+
+**Defaults** — per-tool starting settings.
+
+- Metronome: default tempo, subdivision, accent pattern, click sample
+  choice from `Resources/Practice/Clicks/`.
+- Looper: default length, count-in, overdub mode.
+- Trainers: default key, scale set, range, question count.
+- Backing track: default folder, shuffle, level.
+
+**Library** — the files.
+
+- Saved loops, with play and delete.
+- Saved sessions from the session recorder, with reveal-in-folder.
+- Backing tracks folder picker.
+- Tab files opened recently.
+
+Each with a button that opens the folder, which is where
+`gui-integration.md` 5's FILE LOCATIONS entries for practice point.
+
+**Session recorder setup** — the settings, not the transport.
+
+- Ring length in minutes (the transport is in the drawer).
+- Whether to record audio, MIDI or both.
+- Auto-save on stop.
+- The size warning: `performance-budget.md` 3 notes the default 60-minute
+  ring is ~1.4 GB and sits outside the memory cap because it is off by
+  default. The tab says so in plain words next to the control.
+
+### 11.3 What is deliberately not on it
+
+- **Any transport control.** Start, stop, tempo and loop points stay in
+  the drawer. A duplicate transport is a second source of truth about
+  whether the metronome is running.
+- **The trainers themselves.** Their question-and-answer loop is a runtime
+  activity.
+- **The live TAB view.** That is `notation-export.md` 3 and belongs to the
+  NOTATION tab and the drawer.
+
+### 11.4 Empty states
+
+- No stats yet: "No practice recorded yet. The metronome, looper and
+  trainers all count time once you start them."
+- No routines: the three factory routines are always present, so this
+  state cannot occur; the user section reads "Your own routines appear
+  here."
+- No saved loops or sessions: "Saved loops appear here" with the folder
+  button still offered.
+
+## 12. Tests
 
 - Metronome accuracy: verify inter-click interval is +/- 0.5 ms at 48 kHz
   for 60 s at 120 bpm.
@@ -169,3 +267,20 @@ Global practice controls in the drawer strip:
 - Tab reader: parse the 50 most-downloaded Guitar Pro files from a fixture
   set, verify no crashes and note count matches published counts.
 - Session recorder: verify ring buffer never allocates in the audio thread.
+
+### 12.1 Setup surface tests
+
+- **Stats accumulate.** Run the metronome for 60 s; assert `stats.json`
+  gains 60 s against today and that the tab reads it back.
+- **A routine drives the drawer.** Start a factory routine; assert the
+  drawer's active tool, settings and timer match each entry in turn and
+  that it advances on time.
+- **Routines round-trip.** Save a routine with five entries, reload,
+  assert identical.
+- **Defaults apply.** Set a default tempo, close and reopen the plugin,
+  assert the metronome starts at it.
+- **No transport on the tab.** Assert the tab exposes no control that
+  starts or stops any tool, so the drawer remains the single source of
+  truth.
+- **Clear history confirms** and, on confirm, empties `stats.json` without
+  deleting saved loops or sessions.

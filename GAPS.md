@@ -10,38 +10,91 @@ during the session that produced this audit** — the Options tab list went from
 ten tabs to eleven and the Column 4 tab list from ten to thirteen — so check the
 spec dates before trusting any row here.
 
-## B0 — Eleven specs referenced by `INDEX.md` are not on disk
+## B0 — The eleven missing specs — **written**
 
-This is the blocking finding and it comes before everything else.
+This was the blocking finding and it is closed. All twelve of `INDEX.md`
+Phase 2's realism specs are on disk as of 2026-09-22.
 
-`INDEX.md` Phase 2 lists twelve realism specs. Eleven of them do not exist:
-
-| Spec | On disk |
+| Spec | Status |
 |---|---|
-| `advanced-ranges.md` | **missing** |
-| `volume-knob-interaction.md` | **missing** |
-| `pick-noise.md` | **missing** |
-| `string-squeak.md` | **missing** |
-| `fret-buzz.md` | **missing** |
-| `slide-guitar.md` | **missing** |
-| `guitar-workshop.md` | **missing** |
-| `part-acoustics.md` | **missing** |
-| `workshop-ui.md` | **missing** |
-| `strum-dynamics.md` | **missing** |
-| `bass-techniques.md` | **missing** |
-| `midi-export.md` | present |
+| `advanced-ranges.md` | written — `PhysicalRange`, families, the `ranges` block |
+| `volume-knob-interaction.md` | written — `GuitarCircuit`, removes `CableSim` |
+| `pick-noise.md` | written — click, chirp, scrape, and the shared `NoiseEngine` pool |
+| `string-squeak.md` | written — wound-string finger squeak |
+| `fret-buzz.md` | written — setup geometry and buzz sensing |
+| `slide-guitar.md` | written — `SlideEngine`, four modes |
+| `guitar-workshop.md` | written — parts model, `GuitarSpec` |
+| `part-acoustics.md` | written — every part field's engine effect |
+| `workshop-ui.md` | written — the bench |
+| `strum-dynamics.md` | written — crossing velocity, strikers, chucks |
+| `bass-techniques.md` | written — slap, pop, ghosts, bass defaults |
+| `midi-export.md` | was already present |
 
-`tune-builder.md` (Phase 3) and all seven Phase 4 gap-fill specs are present.
+### How they were written
 
-Phase 2 cannot be implemented until these are written. `CLAUDE_CODE_BRIEF.md`
-is explicit that `advanced-ranges.md` must land first because every physical
-parameter depends on its `PhysicalRange` wrapper, and that nothing may be
-improvised where a spec is meant to be explicit. So the correct action is to
-wait for the files, not to guess at their contents.
+Not from nothing. Each of the eleven was already referenced by specs that
+had shipped — 29 references to `advanced-ranges.md` alone — and those
+references had **already fixed** section numbers, schemas, budgets,
+defaults and wording:
 
-## What this blocks
+- `file-formats.md` fixed the `ranges` block schema and the
+  `.luthierguitar` / `.luthierpart` files.
+- `ui-wiring.md` fixed `PhysicalRange`'s shape, the `GuitarSpec` swap
+  protocol and the shadow-audition flow.
+- `performance-budget.md` fixed the `NoiseEngine` class list, pool sizes
+  and CPU budgets.
+- `gui-integration.md` fixed every panel's contents and the Workshop
+  bench layout.
+- `onboarding.md` fixed the first-unlock explainer's exact words and the
+  ship defaults.
+- `action-and-undo.md` fixed the undo entry classes.
+- `state-model.md` fixed what happens when a range narrows under
+  automation.
+- `ambiguity-resolutions.md` 6 had already chosen where strum crossing
+  velocity comes from.
 
-Section 19 rows whose backend module does not exist and cannot be built yet:
+So the specs were written to **match** those commitments rather than to
+invent alongside them. Where a referencing spec named a section number,
+the new file has that section: `string-squeak.md` 9 is the STRING NOISE
+group because `gui-integration.md` says so, and `workshop-ui.md` 6 is the
+spectrum delta because `ui-wiring.md` says so.
+
+### Decisions made where nothing had chosen
+
+Four places needed a judgement rather than a transcription:
+
+1. **Legacy presets and the `ranges` block** (`advanced-ranges.md` 4.1).
+   Treating old presets as stock would clamp and change the sound of
+   every preset already saved; treating them all as advanced would
+   padlock ordinary ones. Chosen: derive per family from the file — a
+   family is advanced if and only if a stored value is actually outside
+   stock. Sound preserved, padlock honest, derivation runs once.
+2. **Compatibility is advisory** (`guitar-workshop.md` 5). A bass bridge
+   on an electric warns and fits. The Workshop's value is in building
+   things that do not exist.
+3. **The PRACTICE tab's contents** (`practice-tools.md` 11). No spec said
+   what a setup surface held. Chosen split: the drawer is for during
+   practice, the tab is for arranging it and reviewing it, and the test
+   for any item is "would a player touch this with a guitar on their
+   lap?"
+4. **`PerformanceCapture`** (`notation-export.md` 6). Sections 3 and 4
+   assumed a captured score and nothing produced one. Specified as a
+   lock-free ring filled from voiced notes — not incoming MIDI, because
+   the score should record the string and fret the voicer chose.
+
+### What is still genuinely blocked
+
+Nothing in phase 2. The specs are the input to the engine work, and
+`INDEX.md` now carries the module inventory and the build order for it.
+
+`tune-builder.md` (phase 3) and the phase 4 and 5 specs were already
+present throughout.
+
+## What this blocked
+
+Section 19 rows whose backend module does not exist. Every one of them now
+has a written spec and a place in `INDEX.md`'s engine build order; what
+remains is the implementation, not the decision:
 
 - **`GuitarCircuit`** — guitar volume / tone, pot values, tone cap, treble
   bleed, cable, active/passive. Replaces the existing `CableSim`, which
@@ -61,8 +114,8 @@ Section 19 rows whose backend module does not exist and cannot be built yet:
   header range-lock padlock, and the warning-colour marking in ground rule 9.
 - **Bass techniques** — blocks the SLAP group and the bass step grid.
 
-`tune-builder.md` and `midi-export.md` are present and unblocked, but both are
-large and both sit behind the realism phase in the build order.
+`tune-builder.md` and `midi-export.md` were present and unblocked all along;
+both are large and both sit behind the realism phase in the build order.
 
 ## A1 — Advanced Mode column scheme — **done**
 
@@ -81,8 +134,8 @@ Section 4.5's widths are built too: 260 points per column with a 220 floor, a
 
 **Two departures, both deliberate.**
 
-- **CIRCUIT is still CABLE.** `volume-knob-interaction.md` specifies the circuit
-  panel and that file does not exist. See "What this blocks".
+- **CIRCUIT is still CABLE.** `volume-knob-interaction.md` now exists and
+  specifies `GuitarCircuit`; the panel follows the module. See B0.
 - **Sections section 4 has no slot for are kept**, each on the nearest column
   with a comment in the source saying why: SELECTED STRING, NECK and SYMPATHETIC
   on column 1; PLAYING HAND and STRING NOISE on column 2; PERFORMANCE, HUMANISE,
@@ -284,7 +337,7 @@ here while column 4 still has one, because the count would no longer match.
 
 ## A4 — Section 19 rows whose secondary access is absent
 
-Primary locations exist for everything not listed under "What this blocks".
+Primary locations exist for everything not listed under "What this blocked".
 These secondary paths do not:
 
 - ~~**Easy mode instrument interactions**~~ — done, and the entry above it was
