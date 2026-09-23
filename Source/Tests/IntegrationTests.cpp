@@ -36,7 +36,7 @@ namespace
                                 .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
               apvts (*this, nullptr, "LUTHIER", Parameters::createLayout()),
               bridge (apvts, engine),
-              presets (*this, apvts, engine)
+              presets (*this, apvts, engine, ranges)
         {
             bridge.cachePointers();
         }
@@ -71,6 +71,7 @@ namespace
         void setStateInformation (const void*, int) override {}
 
         LuthierEngine engine;
+        RangeState ranges;
         juce::AudioProcessorValueTreeState apvts;
         ParameterBridge bridge;
         PresetManager presets;
@@ -757,6 +758,41 @@ LUTHIER_TEST (Presets, stateRoundTripsExactly)
 
     CHECK_MSG (mismatches == 0,
                juce::String (mismatches) + " parameters did not survive the round trip");
+}
+
+LUTHIER_TEST (Presets, anAdvancedValueSurvivesTheRoundTrip)
+{
+    /*  advanced-ranges.md 4: the ranges block has to be applied before the
+        parameter values, because the values are stored normalised. Load it
+        after and an amp gain of 1.8 comes back as 0.9. */
+    HarnessProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    RangeState unlocked;
+    unlocked.setFamilyAdvanced (RangeFamily::amp, true);
+    processor.ranges = unlocked;
+    CHECK (processor.ranges.applyTo (processor.apvts) == 0);
+
+    auto* gain = processor.apvts.getParameter (ParamIDs::ampGain);
+    CHECK (gain != nullptr);
+    gain->setValueNotifyingHost (gain->convertTo0to1 (1.8f));
+    CHECK (std::abs (gain->convertFrom0to1 (gain->getValue()) - 1.8f) < 1.0e-3f);
+
+    processor.presets.captureExtraState();
+    const auto saved = processor.presets.toVar ("Advanced", "Test");
+
+    // A stock preset in between, so the load has to widen the range itself.
+    processor.presets.resetToDefaults();
+    processor.ranges.reset();
+    processor.ranges.applyTo (processor.apvts);
+
+    CHECK (processor.presets.fromVar (saved));
+    CHECK_MSG (processor.ranges.isFamilyAdvanced (RangeFamily::amp),
+               "the amp family did not come back unlocked");
+
+    const float plain = gain->convertFrom0to1 (gain->getValue());
+    CHECK_MSG (std::abs (plain - 1.8f) < 1.0e-3f,
+               "amp gain came back as " + juce::String (plain) + ", not 1.8");
 }
 
 LUTHIER_TEST (Presets, audioIsIdenticalAfterARoundTrip)
