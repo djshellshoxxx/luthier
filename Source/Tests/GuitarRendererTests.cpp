@@ -383,3 +383,41 @@ LUTHIER_TEST (GuitarIllustration, fullRenderIsFastEnough)
 
     CHECK_MSG (best < 120.0, "static render took " + juce::String (best, 1) + " ms");
 }
+
+//==============================================================================
+LUTHIER_TEST (GuitarIllustration, aFamilySwitchGivesTheTargetFamilysGuitar)
+{
+    // Section 12 / 19: every family to every other produces a valid guitar with
+    // the target family's defaults, keeping the character seed.
+    const juce::StringArray families { "electric", "acoustic", "classical", "bass", "resonator" };
+
+    for (const auto& from : families)
+    {
+        auto start = factory (PartLibrary::getFamilyTemplate (from));
+        start.seed = 987654321;
+
+        for (const auto& to : families)
+        {
+            if (to == from)
+                continue;
+
+            WorkshopGuitar out;
+            juce::String banner;
+            CHECK (library().switchFamily (start, to, out, banner));
+
+            const auto label = from + " -> " + to;
+            CHECK_MSG (out.family == to, label + ": family is " + out.family);
+            CHECK_MSG (out.seed == start.seed, label + ": character seed lost");
+            CHECK_MSG (out.getStringCount() >= 4, label + ": " + juce::String (out.getStringCount()) + " strings");
+            CHECK_MSG (banner.startsWith ("Family changed to"), label + ": banner \"" + banner + "\"");
+
+            for (int i = 0; i < kNumGuitarSlots; ++i)
+                if (auto p = out.parts[(size_t) i])
+                    CHECK_MSG (p->suits (to), label + ": kept a " + p->name + " that does not suit " + to);
+
+            // And it draws as that family.
+            const auto scene = GuitarRenderer::build (out);
+            CHECK_MSG (scene.family == to, label + ": drew a " + scene.family);
+        }
+    }
+}

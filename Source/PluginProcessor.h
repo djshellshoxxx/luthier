@@ -210,6 +210,13 @@ public:
         preset's `guitar.override`. */
     void applyEditedGuitar (const WorkshopGuitar& guitar);
 
+    /*  guitar-illustration.md 12: changes the guitar's family. Parts that suit
+        the new family stay, the rest come from the family's template, and the
+        guitar type follows the template (so bass mode and the type's defaults
+        follow too). The banner line (12.1) is queued with the guitar notices.
+        Undoable. False if the family is unknown. */
+    bool switchGuitarFamily (const juce::String& family);
+
     /*  guitar-workshop.md 6 (Ctrl+G): writes the current guitar to the user
         guitars folder by reference - or with its parts alongside when
         `bundleParts` is set, for sharing - and points the preset at the new

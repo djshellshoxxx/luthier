@@ -151,6 +151,19 @@ public:
 
     bool loadGuitar (const juce::File& file, WorkshopGuitar& out, LoadReport& report) const;
 
+    /*  guitar-illustration.md 12.2: a family change. Starts from the family's
+        default template, keeps every part of `from` that suits the new family
+        (its compatibility list), and takes the template's part everywhere
+        else, with the template's body style, setup, finish and the pickup
+        placements of the pickups it fits. The character seed survives (12.4).
+        `replaced` gets 12.1's banner line. False if the family has no
+        template. */
+    bool switchFamily (const WorkshopGuitar& from, const juce::String& family,
+                       WorkshopGuitar& out, juce::String& replaced) const;
+
+    /** The template a family switches to, relative to the factory guitars folder (12.2). */
+    static juce::String getFamilyTemplate (const juce::String& family);
+
     /** Every guitar file in the factory and user folders, user last. */
     juce::Array<juce::File> getGuitarFiles() const;
 

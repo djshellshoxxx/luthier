@@ -2213,7 +2213,8 @@ namespace
                 }
                 else
                 {
-                    const float d = between * 0.6f, h = width * 0.38f;
+                    // A sharktooth: a slim right triangle leaning toward the nut, most of the board wide.
+                    const float d = between * 0.42f, h = width * 0.32f;
                     inlays.addPath (polygon ({ { c.x - d * 0.5f, c.y - h }, { c.x + d * 0.5f, c.y + h }, { c.x - d * 0.5f, c.y + h } }));
                 }
             }

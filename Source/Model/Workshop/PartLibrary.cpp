@@ -257,6 +257,89 @@ bool WorkshopGuitar::save (const juce::File& destination) const
     return temp.moveFileTo (destination);
 }
 
+juce::String PartLibrary::getFamilyTemplate (const juce::String& family)
+{
+    // guitar-illustration.md 12.2's templates are the factory guitars they name.
+    const auto f = family.toLowerCase();
+
+    if (f == "electric")   return "Electric/Vintage Double-Cut.luthierguitar";
+    if (f == "acoustic")   return "Acoustic/Grand Auditorium.luthierguitar";
+    if (f == "classical")  return "Classical/Classical.luthierguitar";
+    if (f == "bass")       return "Bass/P-Style Bass.luthierguitar";
+    if (f == "resonator")  return "Resonator/Resonator Steel.luthierguitar";
+    return {};
+}
+
+bool PartLibrary::switchFamily (const WorkshopGuitar& from, const juce::String& family,
+                                WorkshopGuitar& out, juce::String& replaced) const
+{
+    const auto path = getFamilyTemplate (family);
+
+    if (path.isEmpty())
+        return false;
+
+    WorkshopGuitar templ;
+    LoadReport report;
+
+    if (! loadGuitar (getFactoryGuitarsFolder().getChildFile (path), templ, report))
+        return false;
+
+    out = templ;
+    out.seed = from.seed;
+
+    int pickupsReplaced = 0;
+    juce::StringArray others;
+
+    for (int i = 0; i < kNumGuitarSlots; ++i)
+    {
+        const auto slot = (GuitarSlot) i;
+        const auto& mine = from.parts[(size_t) i];
+        const bool isPickup = slot == GuitarSlot::pickupNeck || slot == GuitarSlot::pickupMiddle
+                           || slot == GuitarSlot::pickupBridge;
+
+        if (mine != nullptr && mine->suits (templ.family))
+        {
+            out.parts[(size_t) i] = mine;
+
+            if (isPickup)
+            {
+                const int p = slot == GuitarSlot::pickupNeck ? 0 : slot == GuitarSlot::pickupMiddle ? 1 : 2;
+                out.placements[(size_t) p] = from.placements[(size_t) p];
+            }
+
+            continue;
+        }
+
+        // Replaced (or removed, where the template has nothing in this slot).
+        if (mine == nullptr && templ.parts[(size_t) i] == nullptr)
+            continue;
+
+        const bool same = mine != nullptr && templ.parts[(size_t) i] != nullptr
+                       && mine->name == templ.parts[(size_t) i]->name;
+
+        if (same)
+            continue;
+
+        if (isPickup)
+            ++pickupsReplaced;
+        else
+            others.add (juce::String (getSlotId (slot)));
+    }
+
+    // 12.1: "Family changed to Bass. Replaced parts: pickups (2), bridge, strings, ..."
+    juce::StringArray list;
+
+    if (pickupsReplaced > 0)
+        list.add ("pickups (" + juce::String (pickupsReplaced) + ")");
+
+    list.addArray (others);
+
+    replaced = "Family changed to " + family.substring (0, 1).toUpperCase() + family.substring (1).toLowerCase() + "."
+             + (list.isEmpty() ? juce::String() : " Replaced parts: " + list.joinIntoString (", ") + ".");
+
+    return true;
+}
+
 bool WorkshopGuitar::operator== (const WorkshopGuitar& o) const
 {
     if (name != o.name || family != o.family || bodyStyle != o.bodyStyle || seed != o.seed

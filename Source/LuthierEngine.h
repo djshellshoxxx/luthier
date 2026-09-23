@@ -85,6 +85,9 @@ public:
     const GuitarSpec& getGuitarSpec() const noexcept { return spec; }
 
     void setTuningPreset (TuningPreset preset);
+
+    /** A 12-string's courses from spec.tuning: unison top two, octaves below. */
+    void applyTwelveStringTuning();
     void setStringMaterial (StringMaterial m);
     void setStringGauge (StringGauge g);
     void setStringAge (StringAge a);

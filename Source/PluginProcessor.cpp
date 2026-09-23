@@ -530,6 +530,40 @@ void LuthierAudioProcessor::applyEditedGuitar (const WorkshopGuitar& guitar)
     presets.markModified();
 }
 
+bool LuthierAudioProcessor::switchGuitarFamily (const juce::String& family)
+{
+    WorkshopGuitar switched;
+    juce::String banner;
+
+    if (! partLibrary.switchFamily (currentGuitar, family, switched, banner))
+        return false;
+
+    pushUndoState ("Change guitar family");
+
+    // The guitar now stands for its template's type.
+    const auto path = PartLibrary::getFamilyTemplate (family);
+    auto type = engine.getGuitarType();
+
+    for (int t = 0; t < (int) GuitarType::NumTypes; ++t)
+        if (getFactoryGuitarPath ((GuitarType) t) == path)
+            type = (GuitarType) t;
+
+    guitarReference = "Factory/" + path;
+    guitarOverride = switched.toEmbeddedVar();
+    guitarSourceType = (int) type;
+
+    applyGuitar (switched, type, {}, true);
+    loadedGuitarKey = guitarReference + "|" + juce::String (juce::JSON::toString (guitarOverride, true).hashCode64());
+
+    // The type parameter follows, so the bridge sees nothing new to load.
+    if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (ParamIDs::guitarType)))
+        p->setValueNotifyingHost (p->convertTo0to1 ((float) (int) type));
+
+    guitarNotices.addIfNotAlreadyThere (banner);
+    presets.markModified();
+    return true;
+}
+
 juce::File LuthierAudioProcessor::saveGuitarAs (const juce::String& name, bool bundleParts)
 {
     const auto safeName = juce::File::createLegalFileName (name.trim());
@@ -660,6 +694,19 @@ void LuthierAudioProcessor::writeGuitarParameters (const DerivedAcoustics& d)
 
     write (ParamIDs::stringMaterial, (int) d.stringMaterial);
     write (ParamIDs::fretless, d.spec.fretless ? 1.0 : 0.0);
+
+    /*  The tuning follows the guitar only when it cannot hold the guitar's
+        strings: a Drop D survives a change between six-strings, a bass gets a
+        bass tuning. Before this a bass type kept Standard and played six
+        guitar-tuned strings. A 12-string's tuning names its six courses. */
+    {
+        auto* choice = dynamic_cast<juce::AudioParameterChoice*> (apvts.getParameter (ParamIDs::tuningPreset));
+        const auto current = (TuningPreset) (choice != nullptr ? choice->getIndex() : 0);
+        const int courses = d.numStrings == 12 ? 6 : d.numStrings;
+
+        if (TuningEngine::getPresetStringCount (current) != courses)
+            write (ParamIDs::tuningPreset, (int) d.spec.tuning);
+    }
     write (ParamIDs::bridgeType, (int) d.spec.bridge);
 
     write (ParamIDs::bodyTopWood, (int) d.body.topWood);

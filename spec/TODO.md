@@ -19,7 +19,9 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       bar, hover); `GuitarBodyComponent` now uses it (Easy and Advanced).
       Renders: `%TEMP%/luthier-guitar-renders/`. Remaining: headstock shapes
       refined (assistant, `HeadstockOutlines.h`), body refinements
-      (assistant), sharktooth inlays too large, family switching (12), zoom /
+      (assistant), family-switch UI in the Workshop drawer (mechanics done:
+      `PartLibrary::switchFamily`, `switchGuitarFamily`; amp defaults per
+      family, 12.3, not yet), zoom /
       pan (1), preset-browser thumbnails on a worker thread with a 200-entry
       cache (15), per-string material override (10), capo drawing, reduced
       motion crossfade rules (16), 60 ms note-dot timing test (19).
@@ -39,25 +41,6 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## Remaining
 
-- [ ] **G. Realistic guitar illustration (user request, 2026-09-23; high
-      priority).** The current `GuitarBodyComponent` drawing does not read as a
-      real guitar. Rebuild it to `spec/guitar-illustration.md`: per-model body
-      outlines for every family (4: electric, acoustic, classical, bass,
-      resonator) drawn from real proportions, the layered z-order (5), necks
-      and headstocks with tuners (6), bridges and tailpieces (7), pickups with
-      covers and pole pieces (8), pickguards (9), strings by material and gauge
-      (10), finishes - solid, burst, transparent grain, natural, metallic,
-      sparkle, relic (11) and hardware colour. Static geometry cached, live
-      overlays per frame (2); family switching (12); keep the existing hit
-      regions working (13). Drive it from the current `WorkshopGuitar` so the
-      picture is the parts guitar that is playing. Check it by rendering to
-      PNG in a test and looking at the result for each factory guitar.
-      Started: `Source/UI/Guitar/GuitarRenderer.h` (API only: GuitarScene in
-      saddle-origin mm, GuitarOverlay, build/fitTransform/paint/hitTest/
-      render). The .cpp is not written. Plan: body outlines as per-style
-      point lists in neck-pocket mm, Catmull-Rom smoothed; pocket X from the
-      neck-joint fret; headstock layout inferred from neck joint/family/
-      string count; part `illustration` hints override inference (spec 18).
 - [ ] **V. Visual appeal (user request, 2026-09-23; after G).** Done: the
       Luthier guitar-shop theme (visual-polish 6) - rosewood/walnut/Tolex
       palette, maple-and-cream Light palette, black bell knobs with cream

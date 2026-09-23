@@ -571,3 +571,74 @@ LUTHIER_TEST (WorkshopCapo, theCapoTravelsWithThePreset)
     LuthierAudioProcessor fresh;
     CHECK (fresh.getEngine().getTuningEngine().getCapoStringMask() == TuningEngine::kAllStrings);
 }
+
+LUTHIER_TEST (WorkshopFamily, aFamilySwitchKeepsWhatSection12_4Keeps)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    setPlain (processor, ParamIDs::roomSize, 2.0f);
+    const float room = plainValue (processor, ParamIDs::roomSize);
+    const auto presetName = processor.getPresetManager().getCurrentPresetName();
+    const auto seed = processor.getCurrentGuitar().seed;
+    processor.takeGuitarNotices();
+
+    CHECK (processor.switchGuitarFamily ("bass"));
+    processor.getParameterBridge().applyAllNow();
+
+    CHECK (processor.getCurrentGuitar().family == "bass");
+    CHECK (processor.getCurrentGuitar().getStringCount() == 4);
+    CHECK (processor.getEngine().getNumStrings() == 4);
+    CHECK (processor.getCurrentGuitar().seed == seed);
+    CHECK (processor.getPresetManager().getCurrentPresetName() == presetName);
+    CHECK_MSG (std::abs (plainValue (processor, ParamIDs::roomSize) - room) < 1.0e-4f, "the room changed with the family");
+
+    // The banner (section 12.1) says what was replaced.
+    const auto notices = processor.takeGuitarNotices().joinIntoString ("|");
+    CHECK_MSG (notices.contains ("Family changed to Bass. Replaced parts:"), "notices: " + notices);
+
+    // A full re-apply keeps the switched guitar rather than reloading the old one.
+    processor.getParameterBridge().applyAllNow();
+    CHECK (processor.getCurrentGuitar().family == "bass");
+
+    // And it round-trips through the state.
+    juce::MemoryBlock state;
+    processor.getStateInformation (state);
+    LuthierAudioProcessor restored;
+    restored.prepareToPlay (48000.0, 512);
+    restored.setStateInformation (state.getData(), (int) state.getSize());
+    CHECK (restored.getCurrentGuitar().family == "bass");
+}
+
+LUTHIER_TEST (WorkshopPresets, choosingATypeGivesItsStringCount)
+{
+    // A bass type plays four strings, not six guitar-tuned ones: picking a type
+    // brings a tuning that can hold its strings, and a full apply keeps it.
+    struct Case { GuitarType type; int strings; };
+
+    for (auto c : { Case { GuitarType::PrecisionBass, 4 }, Case { GuitarType::FiveStringBass, 5 },
+                    Case { GuitarType::SevenString, 7 }, Case { GuitarType::EightString, 8 },
+                    Case { GuitarType::TwelveString, 12 }, Case { GuitarType::Stratocaster, 6 } })
+    {
+        LuthierAudioProcessor processor;
+        processor.prepareToPlay (48000.0, 512);
+
+        auto* type = processor.getState().getParameter (ParamIDs::guitarType);
+        type->setValueNotifyingHost (type->convertTo0to1 ((float) c.type));
+        processor.getParameterBridge().applyAllNow();
+        processor.getParameterBridge().applyAllNow();
+
+        CHECK_MSG (processor.getEngine().getNumStrings() == c.strings,
+                   juce::String (GuitarLibrary::getName (c.type)) + " plays " + juce::String (processor.getEngine().getNumStrings())
+                     + " strings, want " + juce::String (c.strings));
+    }
+
+    // A tuning that fits is kept: Drop D survives a change between 6-string guitars.
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    setPlain (processor, ParamIDs::tuningPreset, (float) (int) TuningPreset::DropD);
+    auto* type = processor.getState().getParameter (ParamIDs::guitarType);
+    type->setValueNotifyingHost (type->convertTo0to1 ((float) GuitarType::LesPaul));
+    processor.getParameterBridge().applyAllNow();
+    CHECK ((int) plainValue (processor, ParamIDs::tuningPreset) == (int) TuningPreset::DropD);
+}

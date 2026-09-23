@@ -252,3 +252,13 @@ chosen") and `ambiguity-resolutions.md`.
 - **Fanned frets** are drawn when the guitar is tagged `fanned`, the neck is a
   multi-scale part, or it has `scale_length_treble_mm`; without that field
   the treble scale is the bass scale less 38 mm, with fret 7 perpendicular.
+- **Family templates are the factory guitars 12.2 names** (Vintage Double-Cut,
+  Grand Auditorium, Classical, P-Style Bass, Resonator Steel). There is no
+  `extended` family in the parts model (`getGuitarFamilies`), so the
+  7-String Modern is an electric, not a family template. A family switch
+  takes the template's body style, setup, finish and hardware; keeps the
+  character seed and every part that suits the new family.
+- **Picking a guitar changes the tuning only when the tuning cannot hold its
+  strings.** A bass gets its bass tuning (it used to keep Standard and play
+  six guitar-tuned strings); Drop D survives a change between six-strings. A
+  12-string's preset tunes its six courses instead of cutting it to six.

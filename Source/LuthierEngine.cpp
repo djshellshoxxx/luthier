@@ -308,20 +308,8 @@ void LuthierEngine::applySpec()
     for (int i = 0; i < numStrings; ++i)
         tuning.setMaxFrets (i, spec.maxFrets);
 
-    // A 12-string's second string in each of the lower four courses is an octave up.
     if (spec.twelveString)
-    {
-        double base[6];
-        TuningEngine::getPresetFrequencies (spec.tuning, base, 6);
-
-        for (int i = 0; i < numStrings; ++i)
-        {
-            const int course = GuitarLibrary::courseForString (i);
-            const double offset = GuitarLibrary::twelveStringOctaveOffset (i);
-            tuning.setOpenFrequency (i, base[juce::jlimit (0, 5, course)] * semitonesToRatio (offset));
-            tuning.setMaxFrets (i, spec.maxFrets);
-        }
-    }
+        applyTwelveStringTuning();
 
     voicer.setMaxFret (spec.maxFrets);
     voicer.setNumStrings (spec.numStrings);
@@ -433,6 +421,16 @@ void LuthierEngine::rebuildPickupsFromSpec()
 //==============================================================================
 void LuthierEngine::setTuningPreset (TuningPreset preset)
 {
+    // A 12-string's preset names its six courses; the pairs are rebuilt from it
+    // rather than the guitar collapsing to the preset's six strings.
+    if (spec.twelveString && TuningEngine::getPresetStringCount (preset) == 6)
+    {
+        spec.tuning = preset;
+        applyTwelveStringTuning();
+        refreshStringPhysics();
+        return;
+    }
+
     tuning.setTuningPreset (preset);
     tuning.setNumStrings (juce::jmax (1, TuningEngine::getPresetStringCount (preset)));
 
@@ -442,6 +440,25 @@ void LuthierEngine::setTuningPreset (TuningPreset preset)
         tuning.setMaxFrets (i, spec.maxFrets);
 
     refreshStringPhysics();
+}
+
+void LuthierEngine::applyTwelveStringTuning()
+{
+    tuning.setTuningPreset (spec.tuning);
+    tuning.setNumStrings (12);
+    setNumStrings (12);
+
+    // A 12-string's second string in each of the lower four courses is an octave up.
+    double base[6];
+    TuningEngine::getPresetFrequencies (spec.tuning, base, 6);
+
+    for (int i = 0; i < numStrings; ++i)
+    {
+        const int course = GuitarLibrary::courseForString (i);
+        const double offset = GuitarLibrary::twelveStringOctaveOffset (i);
+        tuning.setOpenFrequency (i, base[juce::jlimit (0, 5, course)] * semitonesToRatio (offset));
+        tuning.setMaxFrets (i, spec.maxFrets);
+    }
 }
 
 void LuthierEngine::setStringMaterial (StringMaterial m)
