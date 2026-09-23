@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Spalted Maple",
+    "part_type": "top",
+    "author": "Factory",
+    "tags": [
+      "maple",
+      "figured"
+    ],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "wood": "maple_soft",
+    "density_kg_m3": 545,
+    "thickness_mm": 6.0,
+    "carve": "flat"
+  }
+}

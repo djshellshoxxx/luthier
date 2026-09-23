@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Classical Cedar Neck",
+    "part_type": "neck",
+    "author": "Factory",
+    "tags": [
+      "classical"
+    ],
+    "compatibility": [
+      "classical"
+    ]
+  },
+  "fields": {
+    "wood": "cedar",
+    "density_kg_m3": 350,
+    "profile": "D",
+    "scale_length_mm": 650.0,
+    "joint": "set",
+    "truss": "none",
+    "strings": 6,
+    "frets": 19
+  }
+}

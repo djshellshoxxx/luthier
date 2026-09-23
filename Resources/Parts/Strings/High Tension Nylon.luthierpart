@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "High Tension Nylon",
+    "part_type": "strings",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "classical"
+    ]
+  },
+  "fields": {
+    "gauges_in": [
+      0.029,
+      0.033,
+      0.041,
+      0.03,
+      0.036,
+      0.044
+    ],
+    "winding": "round",
+    "winding_material": "nylon",
+    "core": "round"
+  }
+}

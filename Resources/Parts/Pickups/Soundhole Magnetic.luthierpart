@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Soundhole Magnetic",
+    "part_type": "pickup",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "acoustic"
+    ]
+  },
+  "fields": {
+    "family": "soundhole",
+    "inductance_h": 5.0,
+    "dc_resistance_k": 7.5,
+    "capacitance_pf": 220,
+    "magnet": "alnico5",
+    "coil_turns": 6000,
+    "pole_piece_material": "steel",
+    "cover": "none",
+    "output_dbfs_reference": -8.0
+  }
+}

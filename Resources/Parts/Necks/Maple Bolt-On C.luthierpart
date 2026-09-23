@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Maple Bolt-On C",
+    "part_type": "neck",
+    "author": "Factory",
+    "tags": [
+      "bolt-on",
+      "25.5"
+    ],
+    "compatibility": [
+      "electric"
+    ],
+    "is_default": true
+  },
+  "fields": {
+    "wood": "maple_hard",
+    "density_kg_m3": 705,
+    "profile": "C",
+    "scale_length_mm": 648.0,
+    "joint": "bolt",
+    "truss": "single",
+    "strings": 6,
+    "frets": 22
+  }
+}

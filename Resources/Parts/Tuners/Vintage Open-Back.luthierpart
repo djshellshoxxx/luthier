@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Vintage Open-Back",
+    "part_type": "tuners",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "ratio": 14,
+    "mass_g": 22,
+    "stability": 0.6,
+    "locking": false
+  }
+}

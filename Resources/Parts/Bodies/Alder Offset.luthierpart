@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Alder Offset",
+    "part_type": "body",
+    "author": "Factory",
+    "tags": [
+      "solid",
+      "offset"
+    ],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "wood": "alder",
+    "density_kg_m3": 420,
+    "chambering": "solid",
+    "thickness_mm": 44.5,
+    "area_cm2": 1230,
+    "bracing": "none"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Music Man-Style Ceramic Humbucker 13k",
+    "part_type": "pickup",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "bass"
+    ]
+  },
+  "fields": {
+    "family": "humbucker",
+    "inductance_h": 6.5,
+    "dc_resistance_k": 13.0,
+    "capacitance_pf": 200,
+    "magnet": "ceramic",
+    "coil_turns": 7500,
+    "pole_piece_material": "steel",
+    "cover": "plastic",
+    "output_dbfs_reference": -3.0
+  }
+}

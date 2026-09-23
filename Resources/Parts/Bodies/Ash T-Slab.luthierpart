@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Ash T-Slab",
+    "part_type": "body",
+    "author": "Factory",
+    "tags": [
+      "solid",
+      "ash"
+    ],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "wood": "ash_swamp",
+    "density_kg_m3": 480,
+    "chambering": "solid",
+    "thickness_mm": 44.5,
+    "area_cm2": 1100,
+    "bracing": "none"
+  }
+}

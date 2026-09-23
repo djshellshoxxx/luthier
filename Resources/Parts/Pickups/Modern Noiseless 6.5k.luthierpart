@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Modern Noiseless 6.5k",
+    "part_type": "pickup",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "family": "single_coil",
+    "inductance_h": 2.9,
+    "dc_resistance_k": 6.5,
+    "capacitance_pf": 130,
+    "magnet": "alnico5",
+    "coil_turns": 8200,
+    "pole_piece_material": "alnico",
+    "cover": "plastic",
+    "output_dbfs_reference": -7.8
+  }
+}

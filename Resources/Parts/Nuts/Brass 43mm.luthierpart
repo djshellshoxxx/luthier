@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Brass 43mm",
+    "part_type": "nut",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "material": "brass",
+    "width_mm": 43.0,
+    "slot_depths_mm": [
+      0.45,
+      0.45,
+      0.45,
+      0.45,
+      0.45,
+      0.45
+    ],
+    "friction": 0.4
+  }
+}

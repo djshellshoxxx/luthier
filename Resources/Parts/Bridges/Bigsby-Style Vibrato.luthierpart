@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Bigsby-Style Vibrato",
+    "part_type": "bridge",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "type": "bigsby",
+    "mass_g": 480,
+    "coupling": 0.35,
+    "has_tremolo": true,
+    "tremolo_type": "bigsby",
+    "spring_count": 1,
+    "piezo": false,
+    "strings": 6
+  }
+}

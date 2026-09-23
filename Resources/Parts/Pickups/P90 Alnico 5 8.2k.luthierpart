@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "P90 Alnico 5 8.2k",
+    "part_type": "pickup",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "family": "p90",
+    "inductance_h": 4.0,
+    "dc_resistance_k": 8.2,
+    "capacitance_pf": 200,
+    "magnet": "alnico5",
+    "coil_turns": 10000,
+    "pole_piece_material": "steel",
+    "cover": "plastic",
+    "output_dbfs_reference": -6.0
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "12-53 Phosphor Bronze",
+    "part_type": "strings",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "acoustic",
+      "resonator"
+    ]
+  },
+  "fields": {
+    "gauges_in": [
+      0.012,
+      0.016,
+      0.024,
+      0.032,
+      0.042,
+      0.053
+    ],
+    "winding": "round",
+    "winding_material": "phosphor_bronze",
+    "core": "hex"
+  }
+}

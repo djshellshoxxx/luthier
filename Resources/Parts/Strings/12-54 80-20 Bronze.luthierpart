@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "12-54 80-20 Bronze",
+    "part_type": "strings",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "acoustic",
+      "resonator"
+    ]
+  },
+  "fields": {
+    "gauges_in": [
+      0.012,
+      0.016,
+      0.025,
+      0.032,
+      0.042,
+      0.054
+    ],
+    "winding": "round",
+    "winding_material": "bronze_8020",
+    "core": "hex"
+  }
+}

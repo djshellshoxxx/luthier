@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "T-Style Wiring",
+    "part_type": "wiring",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "volume_pot_ohm": 250000.0,
+    "tone_pot_ohm": 250000.0,
+    "tone_cap_f": 4.7e-08,
+    "taper": "audio",
+    "treble_bleed": "fender",
+    "switching": "3way",
+    "active": false
+  }
+}

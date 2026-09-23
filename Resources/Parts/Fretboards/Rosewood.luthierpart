@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Rosewood",
+    "part_type": "fretboard",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ],
+    "is_default": true
+  },
+  "fields": {
+    "wood": "rosewood",
+    "density_kg_m3": 830,
+    "radius_mm": 305.0,
+    "thickness_mm": 6.0
+  }
+}

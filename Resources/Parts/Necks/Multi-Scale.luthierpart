@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Multi-Scale",
+    "part_type": "neck",
+    "author": "Factory",
+    "tags": [
+      "extended range",
+      "fanned"
+    ],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "wood": "maple_hard",
+    "density_kg_m3": 705,
+    "profile": "thin D",
+    "scale_length_mm": 698.5,
+    "joint": "through",
+    "truss": "dual",
+    "strings": 8,
+    "frets": 24
+  }
+}

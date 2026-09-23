@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Modern Strat Wiring",
+    "part_type": "wiring",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "volume_pot_ohm": 250000.0,
+    "tone_pot_ohm": 250000.0,
+    "tone_cap_f": 2.2e-08,
+    "taper": "audio",
+    "treble_bleed": "kinman",
+    "switching": "5way",
+    "active": false
+  }
+}

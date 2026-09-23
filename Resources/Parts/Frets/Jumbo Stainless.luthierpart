@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Jumbo Stainless",
+    "part_type": "frets",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "material": "stainless",
+    "height_mm": 1.4,
+    "width_mm": 2.79,
+    "count": 24,
+    "stainless": true
+  }
+}

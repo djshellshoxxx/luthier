@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Wood Resonator Body",
+    "part_type": "body",
+    "author": "Factory",
+    "tags": [
+      "resonator"
+    ],
+    "compatibility": [
+      "resonator"
+    ]
+  },
+  "fields": {
+    "wood": "maple_soft",
+    "density_kg_m3": 545,
+    "chambering": "acoustic",
+    "thickness_mm": 85.0,
+    "area_cm2": 1800,
+    "bracing": "ladder"
+  }
+}

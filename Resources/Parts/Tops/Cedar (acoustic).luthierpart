@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Cedar (acoustic)",
+    "part_type": "top",
+    "author": "Factory",
+    "tags": [
+      "acoustic top"
+    ],
+    "compatibility": [
+      "acoustic",
+      "classical"
+    ]
+  },
+  "fields": {
+    "wood": "cedar",
+    "density_kg_m3": 350,
+    "thickness_mm": 2.7,
+    "carve": "flat"
+  }
+}

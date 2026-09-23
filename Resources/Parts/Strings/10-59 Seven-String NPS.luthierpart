@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "10-59 Seven-String NPS",
+    "part_type": "strings",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "gauges_in": [
+      0.01,
+      0.013,
+      0.017,
+      0.026,
+      0.036,
+      0.046,
+      0.059
+    ],
+    "winding": "round",
+    "winding_material": "nickel_plated_steel",
+    "core": "hex"
+  }
+}

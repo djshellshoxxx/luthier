@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "magic": "luthier.guitar",
+  "meta": {
+    "name": "Full Hollow Bass",
+    "family": "bass",
+    "body_style": "bass_hollow",
+    "author": "Factory",
+    "tags": [
+      "bass",
+      "hollow"
+    ],
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "parts": {
+    "body": {
+      "reference": "Factory/Bodies/Thinline Hollow Bass Body.luthierpart"
+    },
+    "top": null,
+    "neck": {
+      "reference": "Factory/Necks/Bass P-Style Neck.luthierpart"
+    },
+    "fretboard": {
+      "reference": "Factory/Fretboards/Rosewood.luthierpart"
+    },
+    "frets": {
+      "reference": "Factory/Frets/Medium-Jumbo Nickel-Silver.luthierpart"
+    },
+    "nut": {
+      "reference": "Factory/Nuts/Bone Bass 38mm.luthierpart"
+    },
+    "bridge": {
+      "reference": "Factory/Bridges/Bass P-Style Bridge.luthierpart"
+    },
+    "tailpiece": {
+      "reference": "Factory/Tailpieces/Trapeze.luthierpart"
+    },
+    "tuners": {
+      "reference": "Factory/Tuners/Bass 20 to 1.luthierpart"
+    },
+    "wiring": {
+      "reference": "Factory/Wiring/Bass Passive 2V1T.luthierpart"
+    },
+    "strings": {
+      "reference": "Factory/Strings/50-105 Flatwound.luthierpart"
+    },
+    "pickguard": null,
+    "pickups": {
+      "neck": {
+        "reference": "Factory/Pickups/Music Man-Style Ceramic Humbucker 13k.luthierpart",
+        "position_mm": 150,
+        "height_treble_mm": 3.0,
+        "height_bass_mm": 3.4
+      },
+      "middle": null,
+      "bridge": null
+    },
+    "hardware_color": "chrome",
+    "finish": {
+      "type": "burst",
+      "color_a": "#3B1F10",
+      "color_b": "#D89B45",
+      "burst_shape": "radial",
+      "gloss": 0.9,
+      "aging": 0.0
+    }
+  },
+  "setup": {
+    "action_treble_mm": 2.2,
+    "action_bass_mm": 2.6,
+    "relief_mm": 0.3,
+    "nut_slot_depths_mm": [
+      0.6,
+      0.6,
+      0.6,
+      0.6
+    ],
+    "intonation_mm": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "character_seed": "181020"
+}

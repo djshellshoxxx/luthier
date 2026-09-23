@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Mini-Humbucker Alnico 5 6.8k",
+    "part_type": "pickup",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "family": "mini_humbucker",
+    "inductance_h": 3.2,
+    "dc_resistance_k": 6.8,
+    "capacitance_pf": 120,
+    "magnet": "alnico5",
+    "coil_turns": 4400,
+    "pole_piece_material": "steel",
+    "cover": "chrome",
+    "output_dbfs_reference": -7.0
+  }
+}

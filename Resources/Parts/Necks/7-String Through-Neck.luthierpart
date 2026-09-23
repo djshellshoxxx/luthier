@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "7-String Through-Neck",
+    "part_type": "neck",
+    "author": "Factory",
+    "tags": [
+      "extended range"
+    ],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "wood": "maple_hard",
+    "density_kg_m3": 705,
+    "profile": "thin D",
+    "scale_length_mm": 673.0,
+    "joint": "through",
+    "truss": "dual",
+    "strings": 7,
+    "frets": 24
+  }
+}

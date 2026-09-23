@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "magic": "luthier.guitar",
+  "meta": {
+    "name": "Flamenca Blanca",
+    "family": "classical",
+    "body_style": "classical",
+    "author": "Factory",
+    "tags": [
+      "flamenco"
+    ],
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "parts": {
+    "body": {
+      "reference": "Factory/Bodies/Flamenca Cypress Body.luthierpart"
+    },
+    "top": {
+      "reference": "Factory/Tops/Sitka Spruce (acoustic).luthierpart"
+    },
+    "neck": {
+      "reference": "Factory/Necks/Classical Cedar Neck.luthierpart"
+    },
+    "fretboard": {
+      "reference": "Factory/Fretboards/Flat Rosewood (classical).luthierpart"
+    },
+    "frets": {
+      "reference": "Factory/Frets/Vintage Small Nickel-Silver.luthierpart"
+    },
+    "nut": {
+      "reference": "Factory/Nuts/Bone 43mm.luthierpart"
+    },
+    "bridge": {
+      "reference": "Factory/Bridges/Classical Tie Bridge.luthierpart"
+    },
+    "tailpiece": null,
+    "tuners": {
+      "reference": "Factory/Tuners/Vintage Open-Back.luthierpart"
+    },
+    "wiring": {
+      "reference": "Factory/Wiring/Acoustic Preamp.luthierpart"
+    },
+    "strings": {
+      "reference": "Factory/Strings/High Tension Nylon.luthierpart"
+    },
+    "pickguard": null,
+    "pickups": {
+      "neck": null,
+      "middle": null,
+      "bridge": null
+    },
+    "hardware_color": "nickel",
+    "finish": {
+      "type": "natural",
+      "color_a": "#F0D7A4",
+      "color_b": "#000000",
+      "burst_shape": "radial",
+      "gloss": 0.5,
+      "aging": 0.0
+    }
+  },
+  "setup": {
+    "action_treble_mm": 2.2,
+    "action_bass_mm": 2.8,
+    "relief_mm": 0.2,
+    "nut_slot_depths_mm": [
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5
+    ],
+    "intonation_mm": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "character_seed": "131015"
+}

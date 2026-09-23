@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Stopbar",
+    "part_type": "tailpiece",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ],
+    "is_default": true
+  },
+  "fields": {
+    "type": "stopbar",
+    "mass_g": 60,
+    "break_angle_deg": 14
+  }
+}

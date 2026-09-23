@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Cream 3-Ply",
+    "part_type": "pickguard",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "material": "pvc",
+    "plies": 3,
+    "mass_g": 45
+  }
+}

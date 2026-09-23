@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Selmer-Style Walnut Body",
+    "part_type": "body",
+    "author": "Factory",
+    "tags": [
+      "gypsy jazz"
+    ],
+    "compatibility": [
+      "acoustic"
+    ]
+  },
+  "fields": {
+    "wood": "walnut",
+    "density_kg_m3": 610,
+    "chambering": "acoustic",
+    "thickness_mm": 100.0,
+    "area_cm2": 2200,
+    "bracing": "ladder"
+  }
+}

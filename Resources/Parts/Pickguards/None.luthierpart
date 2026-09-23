@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "None",
+    "part_type": "pickguard",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "material": "none",
+    "plies": 0,
+    "mass_g": 0
+  }
+}

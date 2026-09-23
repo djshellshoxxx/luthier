@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Vintage 6-Point Trem",
+    "part_type": "bridge",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ],
+    "is_default": true
+  },
+  "fields": {
+    "type": "vintage_tremolo",
+    "mass_g": 165,
+    "coupling": 0.45,
+    "has_tremolo": true,
+    "tremolo_type": "vintage",
+    "spring_count": 3,
+    "piezo": false,
+    "strings": 6
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Vibrola-Style",
+    "part_type": "tailpiece",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "type": "vibrola",
+    "mass_g": 110,
+    "break_angle_deg": 10
+  }
+}

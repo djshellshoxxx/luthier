@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Acoustic Mahogany Neck",
+    "part_type": "neck",
+    "author": "Factory",
+    "tags": [
+      "acoustic"
+    ],
+    "compatibility": [
+      "acoustic"
+    ]
+  },
+  "fields": {
+    "wood": "mahogany",
+    "density_kg_m3": 550,
+    "profile": "C",
+    "scale_length_mm": 645.0,
+    "joint": "set",
+    "truss": "single",
+    "strings": 6,
+    "frets": 20
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Hardtail 7-String",
+    "part_type": "bridge",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "type": "hardtail",
+    "mass_g": 125,
+    "coupling": 0.7,
+    "has_tremolo": false,
+    "tremolo_type": "none",
+    "spring_count": 0,
+    "piezo": false,
+    "strings": 7
+  }
+}

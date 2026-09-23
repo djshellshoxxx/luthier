@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Resonator Biscuit Cone",
+    "part_type": "bridge",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "resonator"
+    ]
+  },
+  "fields": {
+    "type": "resonator_spider",
+    "mass_g": 45,
+    "coupling": 0.88,
+    "has_tremolo": false,
+    "tremolo_type": "none",
+    "spring_count": 0,
+    "piezo": false,
+    "strings": 6
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "PAF 57 Alnico 2 7.6k",
+    "part_type": "pickup",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "family": "humbucker",
+    "inductance_h": 4.5,
+    "dc_resistance_k": 7.6,
+    "capacitance_pf": 150,
+    "magnet": "alnico2",
+    "coil_turns": 5000,
+    "pole_piece_material": "steel",
+    "cover": "nickel",
+    "output_dbfs_reference": -6.2
+  }
+}

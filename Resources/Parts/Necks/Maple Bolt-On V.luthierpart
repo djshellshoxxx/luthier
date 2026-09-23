@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Maple Bolt-On V",
+    "part_type": "neck",
+    "author": "Factory",
+    "tags": [
+      "bolt-on",
+      "vintage"
+    ],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "wood": "maple_hard",
+    "density_kg_m3": 705,
+    "profile": "V",
+    "scale_length_mm": 648.0,
+    "joint": "bolt",
+    "truss": "single",
+    "strings": 6,
+    "frets": 21
+  }
+}

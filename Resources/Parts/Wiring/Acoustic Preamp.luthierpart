@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Acoustic Preamp",
+    "part_type": "wiring",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "acoustic",
+      "classical",
+      "resonator"
+    ]
+  },
+  "fields": {
+    "volume_pot_ohm": 25000.0,
+    "tone_pot_ohm": 25000.0,
+    "tone_cap_f": 2.2e-08,
+    "taper": "audio",
+    "treble_bleed": "none",
+    "switching": "single",
+    "active": true
+  }
+}

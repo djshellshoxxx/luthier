@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Floating Archtop Bridge",
+    "part_type": "bridge",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "acoustic",
+      "electric"
+    ]
+  },
+  "fields": {
+    "type": "floating",
+    "mass_g": 30,
+    "coupling": 0.8,
+    "has_tremolo": false,
+    "tremolo_type": "none",
+    "spring_count": 0,
+    "piezo": false,
+    "strings": 6
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Black 3-Ply",
+    "part_type": "pickguard",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ],
+    "is_default": true
+  },
+  "fields": {
+    "material": "pvc",
+    "plies": 3,
+    "mass_g": 45
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "magic": "luthier.guitar",
+  "meta": {
+    "name": "Fretless Bass",
+    "family": "bass",
+    "body_style": "bass_offset",
+    "author": "Factory",
+    "tags": [
+      "bass",
+      "fretless"
+    ],
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "parts": {
+    "body": {
+      "reference": "Factory/Bodies/Bass P-Style Body.luthierpart"
+    },
+    "top": null,
+    "neck": {
+      "reference": "Factory/Necks/Bass J-Style Neck.luthierpart"
+    },
+    "fretboard": {
+      "reference": "Factory/Fretboards/Ebony.luthierpart"
+    },
+    "frets": {
+      "reference": "Factory/Frets/Fretless (unlined).luthierpart"
+    },
+    "nut": {
+      "reference": "Factory/Nuts/Bone Bass 38mm.luthierpart"
+    },
+    "bridge": {
+      "reference": "Factory/Bridges/Bass BadAss-Style.luthierpart"
+    },
+    "tailpiece": null,
+    "tuners": {
+      "reference": "Factory/Tuners/Bass 20 to 1.luthierpart"
+    },
+    "wiring": {
+      "reference": "Factory/Wiring/Bass Passive 2V1T.luthierpart"
+    },
+    "strings": {
+      "reference": "Factory/Strings/50-105 Flatwound.luthierpart"
+    },
+    "pickguard": null,
+    "pickups": {
+      "neck": {
+        "reference": "Factory/Pickups/J-Neck Alnico 5 7.5k.luthierpart",
+        "position_mm": 160,
+        "height_treble_mm": 2.6,
+        "height_bass_mm": 3.0
+      },
+      "middle": null,
+      "bridge": {
+        "reference": "Factory/Pickups/J-Bridge Alnico 5 8.0k.luthierpart",
+        "position_mm": 42,
+        "height_treble_mm": 2.4,
+        "height_bass_mm": 2.8
+      }
+    },
+    "hardware_color": "chrome",
+    "finish": {
+      "type": "natural",
+      "color_a": "#C9A26B",
+      "color_b": "#000000",
+      "burst_shape": "radial",
+      "gloss": 0.3,
+      "aging": 0.0
+    }
+  },
+  "setup": {
+    "action_treble_mm": 1.8,
+    "action_bass_mm": 2.2,
+    "relief_mm": 0.2,
+    "nut_slot_depths_mm": [
+      0.6,
+      0.6,
+      0.6,
+      0.6
+    ],
+    "intonation_mm": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "character_seed": "191028"
+}

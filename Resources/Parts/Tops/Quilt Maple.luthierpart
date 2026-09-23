@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Quilt Maple",
+    "part_type": "top",
+    "author": "Factory",
+    "tags": [
+      "maple"
+    ],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "wood": "maple_hard",
+    "density_kg_m3": 705,
+    "thickness_mm": 6.0,
+    "carve": "flat"
+  }
+}

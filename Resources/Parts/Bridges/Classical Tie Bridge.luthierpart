@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Classical Tie Bridge",
+    "part_type": "bridge",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "classical"
+    ]
+  },
+  "fields": {
+    "type": "tie_block",
+    "mass_g": 22,
+    "coupling": 0.94,
+    "has_tremolo": false,
+    "tremolo_type": "none",
+    "spring_count": 0,
+    "piezo": false,
+    "strings": 6
+  }
+}

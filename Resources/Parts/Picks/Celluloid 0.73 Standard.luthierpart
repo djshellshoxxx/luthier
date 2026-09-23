@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Celluloid 0.73 Standard",
+    "part_type": "pick",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ],
+    "is_default": true
+  },
+  "fields": {
+    "material": "celluloid",
+    "thickness_mm": 0.73,
+    "tip_radius_mm": 1.0,
+    "bevel": 0.2,
+    "wear": 0.1
+  }
+}

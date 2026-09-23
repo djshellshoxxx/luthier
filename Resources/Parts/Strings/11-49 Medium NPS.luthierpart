@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "11-49 Medium NPS",
+    "part_type": "strings",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "gauges_in": [
+      0.011,
+      0.014,
+      0.018,
+      0.028,
+      0.038,
+      0.049
+    ],
+    "winding": "round",
+    "winding_material": "nickel_plated_steel",
+    "core": "hex"
+  }
+}

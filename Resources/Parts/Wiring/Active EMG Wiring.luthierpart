@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Active EMG Wiring",
+    "part_type": "wiring",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "volume_pot_ohm": 25000.0,
+    "tone_pot_ohm": 25000.0,
+    "tone_cap_f": 4.7e-08,
+    "taper": "audio",
+    "treble_bleed": "none",
+    "switching": "3way",
+    "active": true
+  }
+}

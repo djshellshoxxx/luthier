@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Mahogany Thin",
+    "part_type": "neck",
+    "author": "Factory",
+    "tags": [
+      "set neck",
+      "thin"
+    ],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "wood": "mahogany",
+    "density_kg_m3": 550,
+    "profile": "slim taper",
+    "scale_length_mm": 628.0,
+    "joint": "set",
+    "truss": "single",
+    "strings": 6,
+    "frets": 22
+  }
+}

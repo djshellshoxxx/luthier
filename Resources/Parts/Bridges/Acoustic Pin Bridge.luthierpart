@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Acoustic Pin Bridge",
+    "part_type": "bridge",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "acoustic"
+    ]
+  },
+  "fields": {
+    "type": "pin_bridge",
+    "mass_g": 28,
+    "coupling": 0.92,
+    "has_tremolo": false,
+    "tremolo_type": "none",
+    "spring_count": 0,
+    "piezo": true,
+    "strings": 6
+  }
+}

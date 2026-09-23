@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Tortoise 3-Ply",
+    "part_type": "pickguard",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "material": "celluloid",
+    "plies": 3,
+    "mass_g": 48
+  }
+}

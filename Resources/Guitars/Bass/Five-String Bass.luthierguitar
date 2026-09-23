@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "magic": "luthier.guitar",
+  "meta": {
+    "name": "Five-String Bass",
+    "family": "bass",
+    "body_style": "bass_offset",
+    "author": "Factory",
+    "tags": [
+      "bass",
+      "extended range"
+    ],
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "parts": {
+    "body": {
+      "reference": "Factory/Bodies/Bass P-Style Body.luthierpart"
+    },
+    "top": null,
+    "neck": {
+      "reference": "Factory/Necks/Bass 5-String Neck.luthierpart"
+    },
+    "fretboard": {
+      "reference": "Factory/Fretboards/Ebony.luthierpart"
+    },
+    "frets": {
+      "reference": "Factory/Frets/Jumbo Stainless.luthierpart"
+    },
+    "nut": {
+      "reference": "Factory/Nuts/Bone Bass 38mm.luthierpart"
+    },
+    "bridge": {
+      "reference": "Factory/Bridges/Bass 5-String Bridge.luthierpart"
+    },
+    "tailpiece": null,
+    "tuners": {
+      "reference": "Factory/Tuners/Bass 20 to 1.luthierpart"
+    },
+    "wiring": {
+      "reference": "Factory/Wiring/Bass 3-Band Active Preamp.luthierpart"
+    },
+    "strings": {
+      "reference": "Factory/Strings/45-130 Five-String Nickel.luthierpart"
+    },
+    "pickguard": null,
+    "pickups": {
+      "neck": {
+        "reference": "Factory/Pickups/J-Neck Alnico 5 7.5k.luthierpart",
+        "position_mm": 160,
+        "height_treble_mm": 2.6,
+        "height_bass_mm": 3.0
+      },
+      "middle": null,
+      "bridge": {
+        "reference": "Factory/Pickups/Music Man-Style Ceramic Humbucker 13k.luthierpart",
+        "position_mm": 45,
+        "height_treble_mm": 2.4,
+        "height_bass_mm": 2.8
+      }
+    },
+    "hardware_color": "chrome",
+    "finish": {
+      "type": "solid",
+      "color_a": "#1B1B1B",
+      "color_b": "#000000",
+      "burst_shape": "radial",
+      "gloss": 0.3,
+      "aging": 0.0
+    }
+  },
+  "setup": {
+    "action_treble_mm": 2.0,
+    "action_bass_mm": 2.5,
+    "relief_mm": 0.3,
+    "nut_slot_depths_mm": [
+      0.6,
+      0.6,
+      0.6,
+      0.6,
+      0.6
+    ],
+    "intonation_mm": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "character_seed": "191027"
+}

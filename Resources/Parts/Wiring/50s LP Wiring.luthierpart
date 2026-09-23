@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "50s LP Wiring",
+    "part_type": "wiring",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "volume_pot_ohm": 500000.0,
+    "tone_pot_ohm": 500000.0,
+    "tone_cap_f": 2.2e-08,
+    "taper": "fifties",
+    "treble_bleed": "none",
+    "switching": "3way_independent",
+    "active": false
+  }
+}

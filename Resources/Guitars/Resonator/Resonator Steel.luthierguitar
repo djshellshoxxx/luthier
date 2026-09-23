@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "magic": "luthier.guitar",
+  "meta": {
+    "name": "Resonator Steel",
+    "family": "resonator",
+    "body_style": "resonator",
+    "author": "Factory",
+    "tags": [
+      "slide",
+      "resonator"
+    ],
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "parts": {
+    "body": {
+      "reference": "Factory/Bodies/Steel Resonator Body.luthierpart"
+    },
+    "top": null,
+    "neck": {
+      "reference": "Factory/Necks/Resonator Round Neck.luthierpart"
+    },
+    "fretboard": {
+      "reference": "Factory/Fretboards/Rosewood.luthierpart"
+    },
+    "frets": {
+      "reference": "Factory/Frets/Vintage Small Nickel-Silver.luthierpart"
+    },
+    "nut": {
+      "reference": "Factory/Nuts/Bone 43mm.luthierpart"
+    },
+    "bridge": {
+      "reference": "Factory/Bridges/Resonator Biscuit Cone.luthierpart"
+    },
+    "tailpiece": null,
+    "tuners": {
+      "reference": "Factory/Tuners/Vintage Open-Back.luthierpart"
+    },
+    "wiring": {
+      "reference": "Factory/Wiring/Acoustic Preamp.luthierpart"
+    },
+    "strings": {
+      "reference": "Factory/Strings/12-53 Phosphor Bronze.luthierpart"
+    },
+    "pickguard": null,
+    "pickups": {
+      "neck": null,
+      "middle": null,
+      "bridge": null
+    },
+    "hardware_color": "nickel",
+    "finish": {
+      "type": "metal",
+      "color_a": "#B9BEC4",
+      "color_b": "#000000",
+      "burst_shape": "radial",
+      "gloss": 0.95,
+      "aging": 0.3
+    }
+  },
+  "setup": {
+    "action_treble_mm": 2.8,
+    "action_bass_mm": 3.2,
+    "relief_mm": 0.3,
+    "nut_slot_depths_mm": [
+      0.8,
+      0.8,
+      0.8,
+      0.8,
+      0.8,
+      0.8
+    ],
+    "intonation_mm": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "character_seed": "141016"
+}

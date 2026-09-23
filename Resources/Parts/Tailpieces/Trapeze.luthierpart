@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Trapeze",
+    "part_type": "tailpiece",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric",
+      "acoustic"
+    ]
+  },
+  "fields": {
+    "type": "trapeze",
+    "mass_g": 70,
+    "break_angle_deg": 8
+  }
+}

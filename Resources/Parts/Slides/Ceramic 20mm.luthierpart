@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Ceramic 20mm",
+    "part_type": "slide",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "material": "ceramic",
+    "mass_g": 55,
+    "length_mm": 60,
+    "diameter_mm": 20
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Bass P-Style Neck",
+    "part_type": "neck",
+    "author": "Factory",
+    "tags": [
+      "bass",
+      "34"
+    ],
+    "compatibility": [
+      "bass"
+    ]
+  },
+  "fields": {
+    "wood": "maple_hard",
+    "density_kg_m3": 705,
+    "profile": "C",
+    "scale_length_mm": 864.0,
+    "joint": "bolt",
+    "truss": "single",
+    "strings": 4,
+    "frets": 20
+  }
+}

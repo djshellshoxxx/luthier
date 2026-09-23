@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "White 1-Ply",
+    "part_type": "pickguard",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "material": "pvc",
+    "plies": 1,
+    "mass_g": 25
+  }
+}

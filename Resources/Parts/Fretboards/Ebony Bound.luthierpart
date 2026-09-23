@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Ebony Bound",
+    "part_type": "fretboard",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "wood": "ebony",
+    "density_kg_m3": 1040,
+    "radius_mm": 305.0,
+    "thickness_mm": 6.5
+  }
+}

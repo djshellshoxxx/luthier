@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Dreadnought Mahogany Body",
+    "part_type": "body",
+    "author": "Factory",
+    "tags": [
+      "acoustic",
+      "dreadnought"
+    ],
+    "compatibility": [
+      "acoustic"
+    ]
+  },
+  "fields": {
+    "wood": "mahogany",
+    "density_kg_m3": 550,
+    "chambering": "acoustic",
+    "thickness_mm": 120.0,
+    "area_cm2": 2300,
+    "bracing": "x"
+  }
+}

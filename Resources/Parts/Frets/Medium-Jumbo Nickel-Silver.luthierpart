@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Medium-Jumbo Nickel-Silver",
+    "part_type": "frets",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ],
+    "is_default": true
+  },
+  "fields": {
+    "material": "nickel_silver",
+    "height_mm": 1.14,
+    "width_mm": 2.54,
+    "count": 22,
+    "stainless": false
+  }
+}

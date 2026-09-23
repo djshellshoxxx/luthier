@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Steel Bar Lap Steel",
+    "part_type": "slide",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "material": "steel",
+    "mass_g": 210,
+    "length_mm": 80,
+    "diameter_mm": 24
+  }
+}

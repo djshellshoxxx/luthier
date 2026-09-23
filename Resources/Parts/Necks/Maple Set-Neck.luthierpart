@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Maple Set-Neck",
+    "part_type": "neck",
+    "author": "Factory",
+    "tags": [
+      "set neck"
+    ],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "wood": "maple_hard",
+    "density_kg_m3": 705,
+    "profile": "C",
+    "scale_length_mm": 628.0,
+    "joint": "set",
+    "truss": "single",
+    "strings": 6,
+    "frets": 22
+  }
+}

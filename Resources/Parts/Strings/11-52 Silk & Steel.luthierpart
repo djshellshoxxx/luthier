@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "11-52 Silk & Steel",
+    "part_type": "strings",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "acoustic"
+    ]
+  },
+  "fields": {
+    "gauges_in": [
+      0.011,
+      0.015,
+      0.022,
+      0.03,
+      0.042,
+      0.052
+    ],
+    "winding": "round",
+    "winding_material": "silk_steel",
+    "core": "round"
+  }
+}

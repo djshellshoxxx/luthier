@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Bass 5-String Neck",
+    "part_type": "neck",
+    "author": "Factory",
+    "tags": [
+      "bass"
+    ],
+    "compatibility": [
+      "bass"
+    ]
+  },
+  "fields": {
+    "wood": "maple_hard",
+    "density_kg_m3": 705,
+    "profile": "D",
+    "scale_length_mm": 864.0,
+    "joint": "bolt",
+    "truss": "dual",
+    "strings": 5,
+    "frets": 21
+  }
+}

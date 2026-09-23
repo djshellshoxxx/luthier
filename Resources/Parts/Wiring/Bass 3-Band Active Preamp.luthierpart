@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Bass 3-Band Active Preamp",
+    "part_type": "wiring",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "bass"
+    ]
+  },
+  "fields": {
+    "volume_pot_ohm": 25000.0,
+    "tone_pot_ohm": 25000.0,
+    "tone_cap_f": 2.2e-08,
+    "taper": "audio",
+    "treble_bleed": "none",
+    "switching": "blend",
+    "active": true
+  }
+}

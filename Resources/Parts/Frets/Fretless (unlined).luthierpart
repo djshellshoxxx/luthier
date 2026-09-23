@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Fretless (unlined)",
+    "part_type": "frets",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "material": "none",
+    "height_mm": 0.0,
+    "width_mm": 0.0,
+    "count": 0,
+    "stainless": false
+  }
+}

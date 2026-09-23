@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Under-Saddle Piezo",
+    "part_type": "pickup",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "acoustic",
+      "classical"
+    ]
+  },
+  "fields": {
+    "family": "piezo",
+    "inductance_h": 0.0,
+    "dc_resistance_k": 1.0,
+    "capacitance_pf": 0.0,
+    "magnet": "none",
+    "coil_turns": 0,
+    "pole_piece_material": "none",
+    "cover": "none",
+    "output_dbfs_reference": -9.0
+  }
+}

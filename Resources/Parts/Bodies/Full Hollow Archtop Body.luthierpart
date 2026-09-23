@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Full Hollow Archtop Body",
+    "part_type": "body",
+    "author": "Factory",
+    "tags": [
+      "hollow",
+      "archtop"
+    ],
+    "compatibility": [
+      "electric",
+      "acoustic"
+    ]
+  },
+  "fields": {
+    "wood": "maple_soft",
+    "density_kg_m3": 545,
+    "chambering": "hollow",
+    "thickness_mm": 76.0,
+    "area_cm2": 1800,
+    "bracing": "x"
+  }
+}

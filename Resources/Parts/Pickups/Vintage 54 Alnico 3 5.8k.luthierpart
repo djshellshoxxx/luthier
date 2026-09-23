@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Vintage 54 Alnico 3 5.8k",
+    "part_type": "pickup",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "family": "single_coil",
+    "inductance_h": 2.3,
+    "dc_resistance_k": 5.8,
+    "capacitance_pf": 110,
+    "magnet": "alnico3",
+    "coil_turns": 7600,
+    "pole_piece_material": "alnico",
+    "cover": "plastic",
+    "output_dbfs_reference": -8.5
+  }
+}

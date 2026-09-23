@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Thumbpick Standard",
+    "part_type": "pick",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "material": "celluloid",
+    "thickness_mm": 1.0,
+    "tip_radius_mm": 1.2,
+    "bevel": 0.2,
+    "wear": 0.1
+  }
+}

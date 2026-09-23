@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Thinline Hollow Bass Body",
+    "part_type": "body",
+    "author": "Factory",
+    "tags": [
+      "bass",
+      "hollow"
+    ],
+    "compatibility": [
+      "bass"
+    ]
+  },
+  "fields": {
+    "wood": "maple_soft",
+    "density_kg_m3": 545,
+    "chambering": "semi_hollow",
+    "thickness_mm": 50.0,
+    "area_cm2": 1700,
+    "bracing": "none"
+  }
+}

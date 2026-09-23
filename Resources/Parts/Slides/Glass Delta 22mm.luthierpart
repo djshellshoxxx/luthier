@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Glass Delta 22mm",
+    "part_type": "slide",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ],
+    "is_default": true
+  },
+  "fields": {
+    "material": "glass",
+    "mass_g": 65,
+    "length_mm": 70,
+    "diameter_mm": 22
+  }
+}

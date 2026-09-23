@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Floating Jazz Humbucker",
+    "part_type": "pickup",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric",
+      "acoustic"
+    ]
+  },
+  "fields": {
+    "family": "humbucker",
+    "inductance_h": 5.5,
+    "dc_resistance_k": 9.0,
+    "capacitance_pf": 170,
+    "magnet": "alnico5",
+    "coil_turns": 5600,
+    "pole_piece_material": "steel",
+    "cover": "none",
+    "output_dbfs_reference": -7.5
+  }
+}

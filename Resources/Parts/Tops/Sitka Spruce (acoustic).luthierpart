@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Sitka Spruce (acoustic)",
+    "part_type": "top",
+    "author": "Factory",
+    "tags": [
+      "acoustic top"
+    ],
+    "compatibility": [
+      "acoustic",
+      "classical"
+    ]
+  },
+  "fields": {
+    "wood": "spruce",
+    "density_kg_m3": 400,
+    "thickness_mm": 2.8,
+    "carve": "flat"
+  }
+}

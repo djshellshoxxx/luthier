@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Flat Rosewood (classical)",
+    "part_type": "fretboard",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "classical"
+    ]
+  },
+  "fields": {
+    "wood": "rosewood",
+    "density_kg_m3": 830,
+    "radius_mm": 10000.0,
+    "thickness_mm": 6.0
+  }
+}

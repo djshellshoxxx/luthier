@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "magic": "luthier.guitar",
+  "meta": {
+    "name": "Baritone Electric",
+    "family": "electric",
+    "body_style": "offset",
+    "author": "Factory",
+    "tags": [
+      "baritone"
+    ],
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "parts": {
+    "body": {
+      "reference": "Factory/Bodies/Alder Offset.luthierpart"
+    },
+    "top": null,
+    "neck": {
+      "reference": "Factory/Necks/Baritone Bolt-On.luthierpart"
+    },
+    "fretboard": {
+      "reference": "Factory/Fretboards/Rosewood.luthierpart"
+    },
+    "frets": {
+      "reference": "Factory/Frets/Medium-Jumbo Nickel-Silver.luthierpart"
+    },
+    "nut": {
+      "reference": "Factory/Nuts/Bone 43mm.luthierpart"
+    },
+    "bridge": {
+      "reference": "Factory/Bridges/Hardtail String-Thru.luthierpart"
+    },
+    "tailpiece": null,
+    "tuners": {
+      "reference": "Factory/Tuners/Modern Sealed 18 to 1.luthierpart"
+    },
+    "wiring": {
+      "reference": "Factory/Wiring/T-Style Wiring.luthierpart"
+    },
+    "strings": {
+      "reference": "Factory/Strings/14-68 Baritone NPS.luthierpart"
+    },
+    "pickguard": {
+      "reference": "Factory/Pickguards/Black 3-Ply.luthierpart"
+    },
+    "pickups": {
+      "neck": {
+        "reference": "Factory/Pickups/Modern Noiseless 6.5k.luthierpart",
+        "position_mm": 170,
+        "height_treble_mm": 2.6,
+        "height_bass_mm": 3.0
+      },
+      "middle": null,
+      "bridge": {
+        "reference": "Factory/Pickups/T-Style Bridge 8.5k.luthierpart",
+        "position_mm": 40,
+        "height_treble_mm": 2.2,
+        "height_bass_mm": 2.6
+      }
+    },
+    "hardware_color": "nickel",
+    "finish": {
+      "type": "solid",
+      "color_a": "#2C2C2C",
+      "color_b": "#000000",
+      "burst_shape": "radial",
+      "gloss": 0.6,
+      "aging": 0.0
+    }
+  },
+  "setup": {
+    "action_treble_mm": 1.8,
+    "action_bass_mm": 2.3,
+    "relief_mm": 0.25,
+    "nut_slot_depths_mm": [
+      0.45,
+      0.45,
+      0.45,
+      0.45,
+      0.45,
+      0.45
+    ],
+    "intonation_mm": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "character_seed": "191024"
+}

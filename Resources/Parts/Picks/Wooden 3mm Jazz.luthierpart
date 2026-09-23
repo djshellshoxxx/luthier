@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Wooden 3mm Jazz",
+    "part_type": "pick",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "material": "wood",
+    "thickness_mm": 3.0,
+    "tip_radius_mm": 1.5,
+    "bevel": 0.5,
+    "wear": 0.2
+  }
+}

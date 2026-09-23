@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Bass 5-String Bridge",
+    "part_type": "bridge",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "bass"
+    ]
+  },
+  "fields": {
+    "type": "hardtail",
+    "mass_g": 150,
+    "coupling": 0.63,
+    "has_tremolo": false,
+    "tremolo_type": "none",
+    "spring_count": 0,
+    "piezo": false,
+    "strings": 5
+  }
+}

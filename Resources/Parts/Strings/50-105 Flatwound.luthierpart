@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "50-105 Flatwound",
+    "part_type": "strings",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "bass"
+    ]
+  },
+  "fields": {
+    "gauges_in": [
+      0.05,
+      0.07,
+      0.085,
+      0.105
+    ],
+    "winding": "flat",
+    "winding_material": "stainless",
+    "core": "round"
+  }
+}

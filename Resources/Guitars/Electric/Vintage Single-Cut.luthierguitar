@@ -1,0 +1,100 @@
+{
+  "schema": 1,
+  "magic": "luthier.guitar",
+  "meta": {
+    "name": "Vintage Single-Cut",
+    "family": "electric",
+    "body_style": "single_cutaway_arched",
+    "author": "Factory",
+    "tags": [
+      "vintage",
+      "humbucker"
+    ],
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "parts": {
+    "body": {
+      "reference": "Factory/Bodies/Mahogany Single-Cut.luthierpart"
+    },
+    "top": {
+      "reference": "Factory/Tops/Flame Maple.luthierpart"
+    },
+    "neck": {
+      "reference": "Factory/Necks/Mahogany Set-Neck.luthierpart"
+    },
+    "fretboard": {
+      "reference": "Factory/Fretboards/Rosewood.luthierpart"
+    },
+    "frets": {
+      "reference": "Factory/Frets/Medium-Jumbo Nickel-Silver.luthierpart"
+    },
+    "nut": {
+      "reference": "Factory/Nuts/Bone 43mm.luthierpart"
+    },
+    "bridge": {
+      "reference": "Factory/Bridges/ABR-1 Tune-o-Matic.luthierpart"
+    },
+    "tailpiece": {
+      "reference": "Factory/Tailpieces/Stopbar.luthierpart"
+    },
+    "tuners": {
+      "reference": "Factory/Tuners/Kluson 15 to 1.luthierpart"
+    },
+    "wiring": {
+      "reference": "Factory/Wiring/50s LP Wiring.luthierpart"
+    },
+    "strings": {
+      "reference": "Factory/Strings/10-46 Regular NPS.luthierpart"
+    },
+    "pickguard": {
+      "reference": "Factory/Pickguards/Cream 3-Ply.luthierpart"
+    },
+    "pickups": {
+      "neck": {
+        "reference": "Factory/Pickups/PAF 57 Alnico 2 7.6k.luthierpart",
+        "position_mm": 152,
+        "height_treble_mm": 2.8,
+        "height_bass_mm": 3.1
+      },
+      "middle": null,
+      "bridge": {
+        "reference": "Factory/Pickups/PAF 59 Alnico 5 8.1k.luthierpart",
+        "position_mm": 38,
+        "height_treble_mm": 2.4,
+        "height_bass_mm": 2.6
+      }
+    },
+    "hardware_color": "nickel",
+    "finish": {
+      "type": "burst",
+      "color_a": "#7A2E1B",
+      "color_b": "#F2C441",
+      "burst_shape": "diagonal",
+      "gloss": 0.9,
+      "aging": 0.15
+    }
+  },
+  "setup": {
+    "action_treble_mm": 1.4,
+    "action_bass_mm": 1.7,
+    "relief_mm": 0.25,
+    "nut_slot_depths_mm": [
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9,
+      0.9
+    ],
+    "intonation_mm": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "character_seed": "428913"
+}

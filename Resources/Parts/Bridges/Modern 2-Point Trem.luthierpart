@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Modern 2-Point Trem",
+    "part_type": "bridge",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "type": "two_point_tremolo",
+    "mass_g": 150,
+    "coupling": 0.48,
+    "has_tremolo": true,
+    "tremolo_type": "two_point",
+    "spring_count": 3,
+    "piezo": false,
+    "strings": 6
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Resonator Round Neck",
+    "part_type": "neck",
+    "author": "Factory",
+    "tags": [
+      "resonator"
+    ],
+    "compatibility": [
+      "resonator"
+    ]
+  },
+  "fields": {
+    "wood": "mahogany",
+    "density_kg_m3": 550,
+    "profile": "C",
+    "scale_length_mm": 635.0,
+    "joint": "set",
+    "truss": "single",
+    "strings": 6,
+    "frets": 19
+  }
+}

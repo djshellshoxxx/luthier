@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Jumbo Maple Body",
+    "part_type": "body",
+    "author": "Factory",
+    "tags": [
+      "acoustic",
+      "jumbo"
+    ],
+    "compatibility": [
+      "acoustic"
+    ]
+  },
+  "fields": {
+    "wood": "maple_hard",
+    "density_kg_m3": 705,
+    "chambering": "acoustic",
+    "thickness_mm": 125.0,
+    "area_cm2": 2600,
+    "bracing": "scalloped_x"
+  }
+}

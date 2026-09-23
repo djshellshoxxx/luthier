@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "10-47 12-String Phosphor Bronze",
+    "part_type": "strings",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "acoustic"
+    ]
+  },
+  "fields": {
+    "gauges_in": [
+      0.01,
+      0.01,
+      0.014,
+      0.014,
+      0.023,
+      0.008,
+      0.03,
+      0.012,
+      0.039,
+      0.018,
+      0.047,
+      0.027
+    ],
+    "winding": "round",
+    "winding_material": "phosphor_bronze",
+    "core": "hex"
+  }
+}

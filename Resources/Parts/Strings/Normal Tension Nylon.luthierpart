@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Normal Tension Nylon",
+    "part_type": "strings",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "classical"
+    ]
+  },
+  "fields": {
+    "gauges_in": [
+      0.028,
+      0.032,
+      0.04,
+      0.029,
+      0.035,
+      0.043
+    ],
+    "winding": "round",
+    "winding_material": "nylon",
+    "core": "round"
+  }
+}

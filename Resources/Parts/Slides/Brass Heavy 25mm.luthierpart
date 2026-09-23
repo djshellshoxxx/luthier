@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Brass Heavy 25mm",
+    "part_type": "slide",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "material": "brass",
+    "mass_g": 150,
+    "length_mm": 65,
+    "diameter_mm": 25
+  }
+}

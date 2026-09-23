@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Trigger Capo",
+    "part_type": "capo",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ],
+    "is_default": true
+  },
+  "fields": {
+    "type": "full",
+    "mass_g": 60,
+    "string_mask": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "pressure": 0.7
+  }
+}

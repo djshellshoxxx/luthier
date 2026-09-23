@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Basswood Superstrat",
+    "part_type": "body",
+    "author": "Factory",
+    "tags": [
+      "basswood",
+      "modern"
+    ],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "wood": "basswood",
+    "density_kg_m3": 420,
+    "chambering": "solid",
+    "thickness_mm": 40.0,
+    "area_cm2": 1120,
+    "bracing": "none"
+  }
+}

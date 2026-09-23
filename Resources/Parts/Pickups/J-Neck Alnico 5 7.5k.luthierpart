@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "J-Neck Alnico 5 7.5k",
+    "part_type": "pickup",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "bass"
+    ]
+  },
+  "fields": {
+    "family": "single_coil",
+    "inductance_h": 3.5,
+    "dc_resistance_k": 7.5,
+    "capacitance_pf": 170,
+    "magnet": "alnico5",
+    "coil_turns": 8600,
+    "pole_piece_material": "alnico",
+    "cover": "plastic",
+    "output_dbfs_reference": -6.5
+  }
+}

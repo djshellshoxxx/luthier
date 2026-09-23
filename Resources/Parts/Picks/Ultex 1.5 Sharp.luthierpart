@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Ultex 1.5 Sharp",
+    "part_type": "pick",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "any"
+    ]
+  },
+  "fields": {
+    "material": "ultex",
+    "thickness_mm": 1.5,
+    "tip_radius_mm": 0.5,
+    "bevel": 0.1,
+    "wear": 0.0
+  }
+}

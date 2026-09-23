@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Classical Rosewood Body",
+    "part_type": "body",
+    "author": "Factory",
+    "tags": [
+      "classical"
+    ],
+    "compatibility": [
+      "classical"
+    ]
+  },
+  "fields": {
+    "wood": "rosewood",
+    "density_kg_m3": 830,
+    "chambering": "acoustic",
+    "thickness_mm": 100.0,
+    "area_cm2": 2000,
+    "bracing": "fan"
+  }
+}
