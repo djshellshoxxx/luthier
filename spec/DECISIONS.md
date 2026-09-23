@@ -168,7 +168,7 @@ chosen") and `ambiguity-resolutions.md`.
 - **2026-09-23 (user): Luthier gets its own guitar-shop theme, overriding
   `theme.md` for this plugin only.** `theme.md` is the shared house style of
   the plugin family and is left unchanged for the others;
-  `spec/proposals/visual-polish.md` section 7 wins where it differs, and
+  `spec/proposals/visual-polish.md` section 6 wins where it differs, and
   `theme.md` still supplies layout, spacing and the value arc's role. The
   user also approved model-specific knob caps and a user/follow-the-guitar
   accent colour.

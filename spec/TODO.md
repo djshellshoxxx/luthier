@@ -53,9 +53,9 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       materials on the guitar (1), amp and pedal faces (2), knob caps on those
       faces (3), tube glow / VU meter / room light (4), user and
       follow-the-guitar accent colour (5), and **the Luthier guitar-shop theme
-      (7) replacing theme.md's futuristic look for this plugin** - warm wood
+      (6) replacing theme.md's futuristic look for this plugin** - warm wood
       palette, brass accent, vintage display type, amp-style knobs and mini
-      toggles. All approved by the user. Do the theme (7) first: the other
+      toggles. All approved by the user. Do the theme (6) first: the other
       pieces are drawn in its palette. No motion/transition work - declined.
 
 - [ ] 2e. **Easy Mode layout per gui-integration.md 3**: the build has the

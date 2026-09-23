@@ -3,7 +3,7 @@
 Status: **approved by the user (2026-09-23)**, including the knob caps (3)
 and the accent colour (5), and with a wider change the user asked for: this
 plugin replaces `theme.md`'s shared futuristic look with its own
-guitar-shop theme (section 7). Written
+guitar-shop theme (section 6). Written
 as a proposal because `CLAUDE_CODE_BRIEF.md` says features not in the spec go
 to a proposal file before they go into code. Each section below is a
 separate piece of work; none of them changes the sound.
@@ -13,10 +13,10 @@ several of these share its rendering helpers (lighting, materials).
 
 ## 0. Ground rules
 
-1. **Section 7 replaces `theme.md` for Luthier.** `theme.md` is the house
+1. **Section 6 replaces `theme.md` for Luthier.** `theme.md` is the house
    style shared with the other plugins and is left unchanged for them; for
-   this plugin, where section 7 says something different, section 7 wins.
-   What section 7 does not mention (layout grid, spacing, the value arc's
+   this plugin, where section 6 says something different, section 6 wins.
+   What section 6 does not mention (layout grid, spacing, the value arc's
    role, the output LED, the data stream) still comes from `theme.md`.
 2. **Accessibility is not traded for looks.** Every textured surface keeps
    `accessibility.md`'s 4.5:1 text contrast on all three palettes (Default,
@@ -73,8 +73,8 @@ top-hat, speed knob, witch-hat - while keeping `theme.md`'s value arc,
 indicator colour and hit area, so reading a value works the same
 everywhere. Every other panel keeps the standard knob.
 
-Approved. With section 7's theme the exception widens: the model-specific
-caps are used on the amp and pedal faces, and section 7's standard knob is
+Approved. With section 6's theme the exception widens: the model-specific
+caps are used on the amp and pedal faces, and section 6's standard knob is
 used everywhere else.
 
 ## 4. Stage and ambient touches
@@ -100,14 +100,14 @@ not part of this proposal.
 New:
 
 - **User accent**: Options -> Appearance offers a small set of accent
-  colours (the default burnt orange plus five others, each checked for
+  colours (the theme's aged brass plus five others, each checked for
   4.5:1 contrast on every palette).
 - **Follow the guitar**: an option that takes the accent from the current
   guitar's finish colour, adjusted to meet contrast.
 
-Approved. The default accent is section 7's, not `theme.md`'s burnt orange.
+Approved. The default accent is section 6's, not `theme.md`'s burnt orange.
 
-## 7. The Luthier theme (replaces `theme.md`'s look for this plugin)
+## 6. The Luthier theme (replaces `theme.md`'s look for this plugin)
 
 `theme.md` gives every plugin in the family the same dark, futuristic
 styling. Luthier is an instrument rather than a studio tool, and the user
@@ -115,7 +115,7 @@ has asked for it to look like one: a guitar shop and a workbench rather
 than a control room. **This section is a starting direction for review**;
 the exact values are to be tuned against rendered screenshots.
 
-### 7.1 Palette
+### 6.1 Palette
 
 Warm and wooden instead of blue-black and neon:
 
@@ -134,7 +134,7 @@ Light palette: maple and cream (a blonde guitar and a tweed amp). High
 contrast: unchanged from `accessibility.md`, with textures off. Every pair
 still meets 4.5:1 for text.
 
-### 7.2 Type
+### 6.2 Type
 
 - Headings: a condensed vintage display face in the style of 1950s-60s amp
   and guitar logos (an open-licence font, shipped with the plugin).
@@ -143,7 +143,7 @@ still meets 4.5:1 for text.
 - Section headers: engraved-plate style (text on a small brass or ivory
   plate) instead of the accent bar.
 
-### 7.3 Controls
+### 6.3 Controls
 
 - **Standard knob**: a black "bell" or dome amp knob with a cream or brass
   pointer line and a small skirt, with `theme.md`'s value arc kept outside
@@ -154,18 +154,18 @@ still meets 4.5:1 for text.
 - **Panels**: framed like a cabinet or a pedalboard - a slightly raised
   border with corner screws on the larger ones - not flat cards.
 
-### 7.4 Brand mark
+### 6.4 Brand mark
 
 The diagonal accent notch becomes a small inlaid headstock outline in
 brass. The output LED stays (it is a function, not styling).
 
-### 7.5 What does not change
+### 6.5 What does not change
 
 Layout, column widths, the value arc's meaning and advanced-range
 marking, hit areas, keyboard focus rings (restyled to the new accent, still
 visible), and every accessibility rule.
 
-## 8. Tests
+## 7. Tests
 
 - Every textured or lit surface renders identically twice (cached, not
   regenerated per frame).
