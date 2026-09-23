@@ -10,7 +10,15 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## In progress
 
-- [ ] **6. `PartLibrary` and `mapSpec`** — next (INDEX phase 2 order).
+- [ ] **6. Workshop parts** — IN PROGRESS. Done: 6a part model + library,
+      6b factory content (148 parts, 27 guitars via Tools/generate_factory_parts.py),
+      6c mapSpec + engine applyWorkshopGuitar. Commit b9a9b5d (WIP): 6d
+      processor loader - guitar_type loads its factory file, parts written into
+      overlapping params, pickup position/height params retired (count 389)
+      with legacy preset migration, missing-part banner. **It compiles but the
+      test suite has NOT been run on it** - run it first and fix fallout.
+      Still to do in 6: preset `guitar.reference`/`override` save+load, Save As
+      Guitar (Ctrl+G), Save As Part, 5 ms click-free swap, loader/migration tests.
 - [ ] 5b. `slide-technique-controls.md`: position source (modwheel / bend /
       MPE Y / expression / CC / drag), absolute/relative, slant & pressure
       sources, contact string mask, speed limit, auto-vibrato on hold,

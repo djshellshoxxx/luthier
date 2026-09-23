@@ -1278,6 +1278,31 @@ readout, the padlock, the right-click unlock items, and the wiring of
 `RangeState` into preset save and load. Those are the next commit; the
 mechanism is what this one is.
 
+
+## Autonomous run, 2026-09-22/23 (stopped by the user during item 6)
+
+Tracking is in `TODO.md` (what is left, in order) and `DECISIONS.md` (every
+judgement call). Done in this run:
+
+- Preset ranges block applied before values; harness fixed.
+- Options RANGES, arc marking, right-click unlock/restrict, header padlock,
+  first-unlock explainer. Fixed an off-by-one in the processor undo stack.
+- GuitarCircuit replaces CableSim; CIRCUIT panel with live response view;
+  advanced amp ranges made audible.
+- NoiseEngine pool, pick click/chirp/scrape, finger squeak (calibrated
+  through the engine); CHARACTER STRING NOISE and PICK groups.
+- Setup geometry, sensed fret buzz, SETUP group with live heatmap.
+- SlideEngine and Slide Mode UI. Fixed per-block sustain scale overwriting
+  character wear; CharacterPanel now sizes itself.
+- Workshop parts model, library, factory content, mapSpec, engine apply.
+- WIP (b9a9b5d): processor guitar loader and retirement of the pickup
+  position/height parameters. Compiles; test suite not yet run on it.
+
+Spec update 2026-09-23: the nine phase-5b technique specs are queued in TODO.
+The nine phase-2b specs INDEX lists are not on disk and are blocked.
+
+Last full green run: 401 tests at ba17b40.
+
 ## History
 
 See `docs/CHANGELOG.md`.
