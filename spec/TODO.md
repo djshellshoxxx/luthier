@@ -28,6 +28,20 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## Remaining
 
+- [ ] **G. Realistic guitar illustration (user request, 2026-09-23; high
+      priority).** The current `GuitarBodyComponent` drawing does not read as a
+      real guitar. Rebuild it to `spec/guitar-illustration.md`: per-model body
+      outlines for every family (4: electric, acoustic, classical, bass,
+      resonator) drawn from real proportions, the layered z-order (5), necks
+      and headstocks with tuners (6), bridges and tailpieces (7), pickups with
+      covers and pole pieces (8), pickguards (9), strings by material and gauge
+      (10), finishes - solid, burst, transparent grain, natural, metallic,
+      sparkle, relic (11) and hardware colour. Static geometry cached, live
+      overlays per frame (2); family switching (12); keep the existing hit
+      regions working (13). Drive it from the current `WorkshopGuitar` so the
+      picture is the parts guitar that is playing. Check it by rendering to
+      PNG in a test and looking at the result for each factory guitar.
+
 - [ ] 2e. **Easy Mode layout per gui-integration.md 3**: the build has the
       older three-band layout. Missing: the 280 px RIG STRIP (guitar circuit
       compact card with `CircuitResponseView` miniature, compact pre/post racks
