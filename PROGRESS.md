@@ -1146,6 +1146,138 @@ The useful conclusion is not about these three tabs. It is that **"needs a UI" a
 apart is to open the code and find out who writes the data the UI would show.
 Twenty minutes of grepping here saved starting the wrong one of them.
 
+
+## Phase 2 begins: the eleven specs, then `PhysicalRange`
+
+`GAPS.md` B0 had been the blocking finding since the audit: `INDEX.md`'s
+phase 2 lists twelve realism specs and eleven were not on disk, so the
+phase could not start and `CLAUDE_CODE_BRIEF.md` forbids improvising where
+a spec is meant to be explicit.
+
+They are written — 2873 lines — and the first of them is built.
+
+### Writing eleven specs that were already half-decided
+
+None of them was written from nothing. Every one was already referenced by
+specs that had shipped, and those references had **already fixed** section
+numbers, schemas, budgets, defaults and exact wording. `advanced-ranges.md`
+alone had 29 references across twelve files.
+
+- `file-formats.md` fixed the `ranges` block and both Workshop file
+  schemas.
+- `ui-wiring.md` fixed `PhysicalRange`'s shape, the `GuitarSpec` swap
+  protocol and the shadow-audition flow.
+- `performance-budget.md` fixed the `NoiseEngine` class list, its pool
+  sizes and its CPU budgets.
+- `gui-integration.md` fixed every panel's contents and the whole Workshop
+  bench layout.
+- `onboarding.md` fixed the first-unlock explainer's exact words.
+- `ambiguity-resolutions.md` 6 had already chosen where strum crossing
+  velocity comes from, and pointed at a section of a file that did not
+  exist.
+
+So the work was mostly **reconciliation**: finding what had already been
+committed to and writing a file that matches it. Where a referencing spec
+named a section number, the new file has that section — `string-squeak.md`
+9 is the STRING NOISE group and `workshop-ui.md` 6 is the spectrum delta
+because other files say so.
+
+Four places needed a judgement instead, and they are listed in `GAPS.md`
+B0 rather than buried here.
+
+### Then the spec met the code
+
+Writing `advanced-ranges.md` produced a clean design. Implementing it
+found two things the design had assumed and the build did not do, and one
+of them was serious.
+
+**The amp parameters are normalised 0-1, not 0-10.** The spec's table had
+them as a printed front panel. Correcting the build instead would have
+changed the meaning of every saved automation lane for a cosmetic gain, so
+the spec was corrected.
+
+**The modulation family has no parameters at all.** LFO rate, envelope
+times and sequencer rate are `ModMatrix` structural state serialised in
+the preset's `modulation` block — not APVTS parameters. So one of the
+seven families `file-formats.md` fixes cannot work by swapping a
+parameter's range, and is implemented as clamps in the mod-source setters
+instead. `advanced-ranges.md` 2.1 now says so.
+
+### The serious one: presets store normalised values
+
+`PresetManager` writes `parameter->getValue()`, which is 0-1 against
+whatever range was live at save time.
+
+That means **changing a shipped parameter's range silently re-maps every
+preset ever saved**. A preset storing 0.8 against a 0.5-15 m cable range
+means 12.1 m; re-declare that range as 1-10 m and the same 0.8 now means
+8.2 m. Nothing errors, no test fails, the preset just sounds different.
+
+The spec had assumed plain storage and specified a stock range of 1-10 m
+for the cable — which would have done exactly that to every preset in the
+factory set and every preset any user had saved.
+
+The fix is a rule, now `advanced-ranges.md` 1.0:
+
+> For a parameter that already exists, the stock range **is** its current
+> declared range. Advanced extends beyond it. New parameters declare both
+> fresh.
+
+This is principled rather than convenient. The ranges in the build were
+chosen as the sensible full travel of each control, which is what "stock"
+means. Honouring them means no preset re-maps, no schema migration is
+needed, and the legacy derivation becomes trivially correct: a preset
+saved before advanced ranges existed used only stock ranges, because there
+was nothing else to use.
+
+It also fixes a constraint going forward. **Once a parameter ships, its
+stock range cannot change without a preset migration.** Widening into
+advanced is always safe; moving a stock boundary is not.
+
+### A test that proved itself
+
+`Ranges::stockMatchesTheDeclaredRange` is the test that enforces 1.0. Its
+first version compared each parameter's live range against the registry's
+stock pair — and passed a mutant that set `cable_length`'s stock to
+1-10 m against a 0.5-15 m declaration.
+
+It passed because `floatParam` had just *copied* that range from the
+registry, so the test compared the registry with itself. The `jassert`
+that was supposed to catch the disagreement is a no-op in Release, which
+is what the test suite is.
+
+The fix was to stop `floatParam` overwriting anything. The declaration is
+the source of truth; `RangeRegistry::noteDeclaration` records what each
+parameter was actually declared with, and the test reads that back. The
+mutant now fails with "cable_length declared 0.5..15 but stock is 1..10 -
+every saved preset would re-map".
+
+Two lessons worth keeping. **A jassert is not a test** when the suite
+builds Release. And a check is worthless if the thing it checks was
+derived from the thing it checks against — which is easy to do by accident
+when tightening a mechanism, because the tightening is what creates the
+tautology.
+
+### What landed
+
+`PhysicalRange`, `RangeRegistry` and `RangeState`: the two ranges, the
+seven families, the preset block with its round trip and legacy
+derivation, the apply-with-clamp-count, and the out-of-stock summary the
+Options page will read.
+
+Registered for the six amp parameters and `cable_length`. The registry is
+sparse and additive by design — a parameter with no entry is non-physical
+and keeps its single range, a family with no members reads as stock, and
+each later realism spec adds its rows without touching the mechanism.
+
+Seven tests, 91 checks. Two mutants killed: a stock pair disagreeing with
+its declaration, and the tautology above.
+
+Not yet built: the Options RANGES page, the warning-colour arc and `*`
+readout, the padlock, the right-click unlock items, and the wiring of
+`RangeState` into preset save and load. Those are the next commit; the
+mechanism is what this one is.
+
 ## History
 
 See `docs/CHANGELOG.md`.

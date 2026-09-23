@@ -1,4 +1,5 @@
 #include "Parameters.h"
+#include "PhysicalRange.h"
 
 namespace luthier
 {
@@ -70,6 +71,17 @@ namespace
 
         if (skew != 1.0f)
             range.setSkewForCentre (min + (max - min) * skew);
+
+        /*  advanced-ranges.md 0.1 and 1.0: a physical parameter is constructed
+            on its stock range, and its stock range is the one declared here.
+
+            The declaration stays the source of truth and is recorded rather
+            than overwritten. Taking the range from the registry instead would
+            make `Ranges::stockMatchesTheDeclaredRange` compare the registry
+            with itself - which it did, and which let a deliberately wrong
+            stock pair pass. Presets store normalised values, so that
+            disagreement would silently re-map every preset ever saved. */
+        RangeRegistry::noteDeclaration (id, min, max);
 
         return std::make_unique<juce::AudioParameterFloat> (
             pid (id), name, range, def,

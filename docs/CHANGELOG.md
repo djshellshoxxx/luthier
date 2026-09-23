@@ -66,7 +66,8 @@ numbered, because what it should be called is a release decision.
   columns 2 and 3 stacked into one slot below 1280 rather than one of them being
   hidden - and the mode is unavailable below 1000 points, where it now refuses
   and says why instead of laying out four columns that do not fit. CIRCUIT is
-  still CABLE because `volume-knob-interaction.md` has not been written. The
+  still CABLE: `volume-knob-interaction.md` is written now and the panel follows
+  the `GuitarCircuit` module rather than preceding it. The
   sections section 4 has no slot for are kept on the nearest column, each with a
   comment saying why: dropping a working control to match a layout list would
   have cost a feature to close a table row.
@@ -97,13 +98,13 @@ numbered, because what it should be called is a release decision.
   not automatable and cost MIDI Learn on those controls: there is no per-string
   tuning parameter to attach them to, and adding one is a parameter-count and
   preset-schema change rather than a UI one. That is `GAPS.md` A4. The popover
-  also says on its face that capo is not built, which four specs describe and no
-  line of code implements.
+  said on its face that capo was not built; it now carries the capo control, and
+  says instead that partial capos need the Workshop.
 - **Options pages** - the overlay now carries gui-integration.md section 5's tab
   list in section 5's order: AUDIO, MIDI, APPEARANCE, ACCESSIBILITY,
   LOCALIZATION, EXPRESSION, UPDATES, PRIVACY, DIAGNOSTICS and FILE LOCATIONS.
-  Ten tabs - section 5's eleven minus RANGES, which advanced-ranges.md has not
-  specified - with nothing present that section 5 does not name. The old GENERAL
+  Ten tabs - section 5's eleven minus RANGES, whose page follows the
+  `PhysicalRange` mechanism - with nothing present that section 5 does not name. The old GENERAL
   tab is gone, its contents distributed to the tabs that own them. Where a page
   could not build something section 5 lists - the accent tint, the changelog
   viewer, the feature-flag mirror, the Workshop folders - it says so instead of
@@ -349,3 +350,22 @@ signal path end to end.
 The suite found nine genuine defects, including both crashes above, the
 oversampler sign error and the silent-strum bug. Where a test was asserting the
 wrong thing it was changed and the reason written next to it.
+
+### Added — realism phase
+
+- **The eleven missing realism specs** (`advanced-ranges.md`,
+  `volume-knob-interaction.md`, `pick-noise.md`, `string-squeak.md`,
+  `fret-buzz.md`, `slide-guitar.md`, `guitar-workshop.md`,
+  `part-acoustics.md`, `workshop-ui.md`, `strum-dynamics.md`,
+  `bass-techniques.md`), plus `notation-export.md` 6 (performance capture)
+  and `practice-tools.md` 11 (the PRACTICE setup surface). `INDEX.md` gains
+  the engine module inventory and an eleven-step build order.
+- **`PhysicalRange`** (advanced-ranges.md), the first of that build order.
+  Every physical parameter now declares a stock range - what the real
+  object does - and an advanced range - what the model will do. Stock is
+  the default and advanced is opt-in per preset, carried in the preset's
+  `ranges` block. Widening a family is silent and leaves every value
+  alone; narrowing clamps and reports how many values it moved, because a
+  silent clamp is the failure ground rule 0.2 exists to prevent.
+  Registered for the amp family and `cable_length` so far; the other five
+  families acquire their parameters with their own specs' modules.

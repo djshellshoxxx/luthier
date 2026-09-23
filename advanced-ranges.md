@@ -67,6 +67,35 @@ A parameter is **live** in one of two modes. In stock mode its host-visible
 range is `[stockMin, stockMax]`; in advanced mode it is
 `[advancedMin, advancedMax]`.
 
+### 1.0 Stock is the range the parameter already shipped with
+
+**Presets store normalised values, not plain ones.** `PresetManager`
+writes `parameter->getValue()`, which is 0-1 against whatever range was
+live when it was saved, and reads it back the same way.
+
+That has a consequence which governs this whole file: **changing a shipped
+parameter's range silently re-maps every preset ever saved.** A preset
+storing 0.8 against a 0.5-15 m cable range means 12.1 m; re-declare that
+range as 1-10 m and the same 0.8 now means 8.2 m. Nothing errors. The
+preset just sounds different.
+
+So the rule is:
+
+> For a parameter that already exists, the **stock range is exactly its
+> current declared range**. The advanced range extends beyond it. New
+> parameters, arriving with the later realism specs, declare both fresh.
+
+This is principled rather than merely convenient. The ranges in the build
+were chosen as the sensible full travel of each control, which is what
+"stock" means. Honouring them means no preset ever re-maps, no schema
+migration is needed, and the legacy derivation in 4.1 becomes trivially
+correct: a preset saved before advanced ranges existed used only stock
+ranges, because there was nothing else.
+
+It also fixes a constraint going forward: **once a parameter ships, its
+stock range cannot change without a preset migration.** Widening into
+advanced is always safe; moving `stockMin` or `stockMax` is not.
+
 ### 1.1 Normalisation and host automation
 
 This is the part that has to be got right, because hosts store automation
@@ -148,13 +177,28 @@ belongs to the `GuitarSpec` and the Workshop
 (`guitar-workshop.md`), not to the parameter list, and is ranged by
 `part-acoustics.md` rather than here.
 
-### 2.1 The `modulation` family is the odd one
+### 2.1 The `modulation` family is the odd one, twice over
 
-An LFO rate is not a physical object, and it is in the list because the
-same argument applies: 0.01-20 Hz is what a player uses, and 0.001-200 Hz is
+First, an LFO rate is not a physical object. It is in the list because the
+same argument applies: 0.01-20 Hz is what a player uses, 0.001-200 Hz is
 what a sound designer occasionally wants. Its stock range is a taste
-judgement rather than a measurement, and this file says so rather than
-pretending otherwise.
+judgement rather than a measurement, and this file says so.
+
+Second, and more importantly for the implementation: **the modulation
+sources are not parameters.** LFO rate, envelope times and sequencer rate
+live in the `ModMatrix` as structural state and are serialised in the
+preset's `modulation` block (`file-formats.md` 2), not in `parameters`.
+
+So the `modulation` family cannot work by swapping a parameter's
+`NormalisableRange`. It works by **clamping the mod-source setters**:
+`ModMatrix::setLfoRate` and its siblings clamp to the stock pair unless
+the family is advanced. The observable behaviour is the same - a value
+outside stock is refused while locked, and preserved while unlocked - but
+the mechanism is a clamp in a setter rather than a range swap.
+
+`file-formats.md` fixes the seven family keys, so the family stays; this
+section records that one of the seven is implemented differently from the
+other six.
 
 ## 3. Stock and advanced values
 
@@ -165,12 +209,21 @@ named after.
 
 ### 3.1 `amp`
 
+The amp controls are normalised 0-1 in the build, not 0-10 as a front
+panel would be printed. That is deliberate and it stays: re-scaling them
+would change the meaning of every saved automation lane and every stored
+preset value for a cosmetic gain. The stock range is therefore the panel's
+full travel, and advanced is past the end of the knob.
+
 | Parameter | Stock | Advanced | Unit |
 |---|---|---|---|
-| `amp_gain` | 0 – 10 | 0 – 20 | index |
-| `amp_bass`, `amp_mid`, `amp_treble` | 0 – 10 | -5 – 15 | index |
-| `amp_presence` | 0 – 10 | 0 – 20 | index |
-| `amp_master` | 0 – 10 | 0 – 20 | index |
+| `amp_gain` | 0 – 1 | 0 – 2 | normalised |
+| `amp_bass`, `amp_mid`, `amp_treble` | 0 – 1 | -0.5 – 1.5 | normalised |
+| `amp_presence` | 0 – 1 | 0 – 2 | normalised |
+| `amp_master` | 0 – 1 | 0 – 2 | normalised |
+
+Negative EQ is cut beyond what the tone stack can do; gain and master
+above 1 drive the stage past its modelled maximum.
 
 ### 3.2 `circuit` (see `volume-knob-interaction.md`)
 
@@ -180,7 +233,7 @@ named after.
 | `circuit_tone_pot` | 100k – 1M | 1k – 10M | ohm |
 | `circuit_tone_cap` | 10n – 100n | 1n – 1µ | F |
 | `circuit_treble_bleed` | 0 – 1 | 0 – 1 | ratio (non-physical within family) |
-| `cable_length` | 1 – 10 | 0 – 100 | m |
+| `cable_length` | 0.5 – 15 | 0 – 100 | m |
 | `amp_input_impedance` | 220k – 1M | 10k – 10M | ohm |
 
 ### 3.3 `squeak`, `pick`, `buzz`, `slide`
@@ -195,12 +248,26 @@ twice and a note saying why.
 
 ### 3.4 `modulation`
 
-| Parameter | Stock | Advanced | Unit |
+Applied as setter clamps, not range swaps — see 2.1.
+
+| Field | Stock | Advanced | Unit |
 |---|---|---|---|
 | LFO rate | 0.01 – 20 | 0.001 – 200 | Hz |
 | Envelope attack / decay / release | 0.1 – 5000 | 0.01 – 60000 | ms |
 | Sequencer rate | 0.1 – 40 | 0.01 – 400 | Hz |
 | Follower attack / release | 0.1 – 1000 | 0.01 – 10000 | ms |
+
+### 3.5 What exists today
+
+Of the seven families, only `amp` and `circuit` have parameters in the
+current build, and `circuit` has only `cable_length` until
+`volume-knob-interaction.md` lands. `squeak`, `buzz`, `pick` and `slide`
+acquire their parameters with their own specs' modules.
+
+The registry is therefore built to be **sparse and additive**: a parameter
+with no `PhysicalRange` entry is non-physical and keeps its single range,
+and a family with no members is legal and reads as stock. Each later
+realism spec adds its rows without touching this mechanism.
 
 ## 4. The preset's `ranges` block
 
@@ -248,6 +315,20 @@ Neither is acceptable, so the rule is per family and derived from the file:
 
 The preset sounds exactly as it did, and the padlock tells the truth. The
 block is written on the next save, so the derivation happens once.
+
+Because of 1.0, a preset written before this spec existed can only contain
+values inside stock - its ranges *were* the stock ranges - so in practice
+the derivation returns all-stock for every legacy file. The rule is
+written generally anyway, because it is also what should happen to a
+preset hand-edited to hold an out-of-stock value, and because a later
+parameter whose stock range is genuinely narrower than something already
+shipped would need it.
+
+**The derivation reads plain values, not the stored normalised ones.** A
+normalised value carries no information about which range it was written
+against; it is always in 0-1 and therefore always "inside" whatever range
+is live. So the derivation runs *after* the parameters have been set, on
+what they actually hold.
 
 `error-recovery.md`'s load path gains no new failure mode: a malformed
 `ranges` block is treated as absent and the derivation above runs.
