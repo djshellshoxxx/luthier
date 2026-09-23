@@ -1087,6 +1087,98 @@ void OutputLed::paint (juce::Graphics& g)
 }
 
 //==============================================================================
+//  StringMaskSelector
+//==============================================================================
+StringMaskSelector::StringMaskSelector (LuthierAudioProcessor& p, const juce::String& parameterId)
+    : processor (p), parameter (p.getState().getParameter (parameterId))
+{
+    setTooltip ("Which strings the E-Bow drives: HELD is any string with a note down; "
+                "or pick strings, and they keep going after the note is released");
+    AccessibleSetup::configureDescriptive (*this, "E-Bow strings", "Which strings the E-Bow drives");
+    timerCallback();
+    startTimerHz (10);
+}
+
+StringMaskSelector::~StringMaskSelector()
+{
+    stopTimer();
+}
+
+juce::Rectangle<int> StringMaskSelector::cellBounds (int cell) const
+{
+    auto bounds = getLocalBounds().reduced (1);
+    const int heldWidth = 40;
+
+    if (cell < 0)
+        return bounds.removeFromLeft (heldWidth);
+
+    bounds.removeFromLeft (heldWidth + 3);
+    const int w = juce::jmax (1, bounds.getWidth() / juce::jmax (1, numStrings));
+    return { bounds.getX() + cell * w, bounds.getY(), w, bounds.getHeight() };
+}
+
+void StringMaskSelector::toggle (int cell)
+{
+    if (parameter == nullptr)
+        return;
+
+    const int next = cell < 0 ? 0 : (mask ^ (1 << cell));
+
+    parameter->beginChangeGesture();
+    parameter->setValueNotifyingHost (parameter->convertTo0to1 ((float) next));
+    parameter->endChangeGesture();
+
+    timerCallback();
+}
+
+void StringMaskSelector::mouseDown (const juce::MouseEvent& e)
+{
+    if (cellBounds (-1).contains (e.getPosition()))
+    {
+        toggle (-1);
+        return;
+    }
+
+    for (int s = 0; s < numStrings; ++s)
+        if (cellBounds (s).contains (e.getPosition()))
+            toggle (s);
+}
+
+void StringMaskSelector::timerCallback()
+{
+    const int nowMask = parameter != nullptr ? juce::roundToInt (parameter->convertFrom0to1 (parameter->getValue())) : 0;
+    const int nowStrings = processor.getEngine().getNumStrings();
+
+    if (nowMask != mask || nowStrings != numStrings)
+    {
+        mask = nowMask;
+        numStrings = nowStrings;
+        repaint();
+    }
+}
+
+void StringMaskSelector::paint (juce::Graphics& g)
+{
+    auto drawCell = [&g] (juce::Rectangle<int> r, const juce::String& text, bool on)
+    {
+        const auto area = r.toFloat().reduced (1.0f);
+        g.setColour (on ? Palette::accent : Palette::panelSunken);
+        g.fillRoundedRectangle (area, Metrics::controlCorner);
+        g.setColour (on ? Palette::accentBright : Palette::edge);
+        g.drawRoundedRectangle (area, Metrics::controlCorner, 1.0f);
+        g.setColour (on ? Palette::backgroundDeep : Palette::textMuted);
+        g.setFont (Fonts::ui (10.0f, true));
+        g.drawFittedText (text, r, juce::Justification::centred, 1);
+    };
+
+    drawCell (cellBounds (-1), "HELD", mask == 0);
+
+    // Strings as the guitar shows them: 1 is the high E.
+    for (int s = 0; s < numStrings; ++s)
+        drawCell (cellBounds (s), juce::String (s + 1), (mask & (1 << s)) != 0);
+}
+
+//==============================================================================
 //  FeedbackLed
 //==============================================================================
 FeedbackLed::FeedbackLed (LuthierAudioProcessor& p)

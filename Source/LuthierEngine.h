@@ -21,6 +21,7 @@
 #include "DSP/Noise/FretBuzz.h"
 #include "DSP/Slide/SlideEngine.h"
 #include "DSP/Feedback/FeedbackLoop.h"
+#include "DSP/Feedback/EBowDriver.h"
 #include "Model/Workshop/PartAcoustics.h"
 #include "DSP/Effects/EffectsChain.h"
 #include "DSP/Effects/SecretEffect.h"
@@ -251,8 +252,9 @@ public:
         This is not Freeze. Freeze (2.1) captures a window and loops it, and lives
         in FreezeOverlay. The two were one control called "Freeze / E-Bow", which
         is exactly the ambiguity section 2 was written to settle. */
-    void setEBow (bool on) noexcept { ebow = on; }
-    bool isEBowing() const noexcept { return ebow; }
+    void setEBow (const EBowSettings& settings) noexcept { ebowDriver.setSettings (settings); }
+    bool isEBowing() const noexcept { return ebowDriver.getSettings().enabled; }
+    const EBowDriver& getEBow() const noexcept { return ebowDriver; }
 
     /** ambiguity-resolutions.md 1: the physical feedback loop. */
     void setFeedback (const FeedbackSettings& settings) noexcept { feedbackLoop.setSettings (settings); }
@@ -512,8 +514,7 @@ private:
     double vibratoRate = 5.2;
     double vibratoDepthCents = 22.0;
 
-    bool   ebow = false;
-    double ebowTargetLevel = 0.09;
+    EBowDriver ebowDriver;
 
     FeedbackLoop feedbackLoop;
     std::vector<double> feedbackInjection;

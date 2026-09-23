@@ -706,6 +706,13 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::feedbackFocus,      "Feedback Focus",    0.0f, 100.0f, 60.0f, 1.0f, "%"));
     add (floatParam  (ParamIDs::feedbackOctaveBias, "Feedback Octave Bias", -2.0f, 2.0f, 0.0f));
 
+    // ambiguity-resolutions.md 2.2, appended likewise.
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::ebowStringMask), "E-Bow Strings",
+                                                    0, (1 << kMaxStrings) - 1, 0));
+    add (floatParam  (ParamIDs::ebowIntensity, "E-Bow Intensity", 0.0f, 100.0f, 50.0f, 1.0f, "%"));
+    add (choiceParam (ParamIDs::ebowHarmonic, "E-Bow Harmonic",
+                      { "Fundamental", "2nd", "3rd", "4th", "5th" }, 0));
+
     return layout;
 }
 
@@ -902,7 +909,14 @@ void ParameterBridge::applyToEngine() noexcept
 
     engine.setVibratoRate (value (ParamIDs::vibratoRate));
     engine.setVibratoDepthCents (value (ParamIDs::vibratoDepth));
-    engine.setEBow (value (ParamIDs::ebowEnable) > 0.5f);
+    {
+        EBowSettings ebow;
+        ebow.enabled = value (ParamIDs::ebowEnable) > 0.5f;
+        ebow.stringMask = juce::roundToInt (value (ParamIDs::ebowStringMask));
+        ebow.intensity = value (ParamIDs::ebowIntensity) * 0.01;
+        ebow.harmonic = 1 + juce::roundToInt (value (ParamIDs::ebowHarmonic));
+        engine.setEBow (ebow);
+    }
 
     // ---- freeze (ambiguity-resolutions 2.1) ------------------------------------
     auto& freeze = engine.getFreezeOverlay();

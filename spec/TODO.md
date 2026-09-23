@@ -55,8 +55,21 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 - [ ] 2h. Easy rig strip polish: the amp card's knobs are cramped at 1200x720;
       give the amp card more height or two knob sizes.
-- [ ] 2d. Audit the rest of `ambiguity-resolutions.md` against the build
-      (brief step 4).
+- [ ] 2d. `ambiguity-resolutions.md` gaps (audited in spec-coverage.md 25):
+      - [ ] 3 Doubler as a post-amp pre-cab rack pedal, eight parameters
+            (delay 5-40 / 22 ms, pitch +-25 / -8 c, pan +-0.7, width, mix 40%,
+            HP 100, LP 8k); the engine doubler's two params stay for
+            automation; tests 3.2 (mix 0 nulls, mix 100 correlates at 22 ms).
+      - [ ] 4.3 `Bass` voicing style; 4.4 transition bonus (+2 common note,
+            +1 common position, -2 jump > 5); 4.7 tests (I-IV-V-I travel <= 3
+            frets, determinism and tie-breaks, BEAD bass C7).
+      - [ ] 5 Preset morph: A/B slots, continuous interpolation, discrete and
+            structural at 0.5, automatable `preset_morph_position`, browser
+            toggle; tests 5.3.
+      - [ ] 6 Crossing velocity from the pattern (with strum-dynamics, item 8).
+      - [ ] 7 `Resources/Guitars/migration.json` for old guitar names; 7.1.
+      - [ ] 8 Feedback / freeze / E-Bow as mod destinations; snapshot recall
+            cancels a morph; Aux 1 pre/post-circuit toggle.
 - [ ] **7. Workshop bench** - IN PROGRESS. Done and green (457 tests):
       7a model (`WorkshopBench`, `SpectrumDelta`, live pickup moves); 7b
       `WorkshopPanel` - header with name/modified/Save As Guitar/A-H slots,

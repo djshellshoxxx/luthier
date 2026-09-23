@@ -31,9 +31,13 @@ numbered, because what it should be called is a release decision.
   octave of it). The guitar's pickups, volume knob and the amp's gain are all
   inside the loop, so rolling the volume back tames it. Five new parameters in
   the SUSTAIN card - Feedback, Distance, Angle, Focus, Octave - with an
-  indicator that lights when the loop takes over; the parameter count is 398.
+  indicator that lights when the loop takes over.
   The old Feedback switch, Threshold and Speed remain for saved automation but
   do nothing; presets that used them get a moderate amount.
+- **A real E-Bow** (`ambiguity-resolutions.md` 2.2) - choose which strings it
+  drives (any held note, or particular strings that keep going after you let
+  go), how hard, and which harmonic it brings out; switching it off stops the
+  string within 200 ms. Three new parameters; the parameter count is 401.
 - **The guitar-shop look** (`proposals/visual-polish.md` 6) - rosewood,
   walnut and brass, bell knobs, mini toggles, engraved plates, Lato and Bebas
   Neue. The colourblind, High-contrast and Light palettes now actually apply.

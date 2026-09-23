@@ -51,7 +51,8 @@ public:
         LightTouch,    ///< Left hand resting: muted picking.
         PalmMute,      ///< Right-hand palm on the bridge.
         Released,      ///< Note off, no sustain pedal: finger lifted.
-        Choked         ///< Fully stopped.
+        Choked,        ///< Fully stopped.
+        Silenced       ///< A hand flat on the string: gone in 80 ms whatever its sustain.
     };
 
     //==========================================================================

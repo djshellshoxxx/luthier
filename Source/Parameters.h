@@ -259,6 +259,11 @@ namespace ParamIDs
     inline constexpr const char* feedbackAngle      = "feedback_angle";
     inline constexpr const char* feedbackFocus      = "feedback_focus";
     inline constexpr const char* feedbackOctaveBias = "feedback_octave_bias";
+
+    // ambiguity-resolutions.md 2.2: the E-Bow's own controls.
+    inline constexpr const char* ebowStringMask = "ebow_string_mask";   ///< 0 = strings with a held note
+    inline constexpr const char* ebowIntensity  = "ebow_intensity";
+    inline constexpr const char* ebowHarmonic   = "ebow_harmonic";
     inline constexpr const char* limiterOn   = "limiter_on";
     inline constexpr const char* oversample  = "oversampling";
 

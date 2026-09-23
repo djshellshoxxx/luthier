@@ -298,6 +298,11 @@ private:
                                  feedbackFocus, feedbackOctave;
     std::unique_ptr<FeedbackLed> feedbackLed;
 
+    // ambiguity-resolutions.md 2.3: the E-Bow row's own controls.
+    std::unique_ptr<LuthierKnob> ebowIntensity;
+    std::unique_ptr<LuthierChoice> ebowHarmonic;
+    std::unique_ptr<StringMaskSelector> ebowStrings;
+
     std::unique_ptr<LuthierKnob> masterGain;
     std::unique_ptr<LuthierToggle> limiterOn;
     std::unique_ptr<LuthierChoice> oversampling;

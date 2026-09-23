@@ -882,6 +882,14 @@ void AdvancedPanel::buildColumn3()
                "indefinitely, the way an E-Bow does. Unlike Freeze, it only sustains "
                "notes you are still holding.");
 
+    ebowStrings = std::make_unique<StringMaskSelector> (processor, ParamIDs::ebowStringMask);
+    column.addControl (ebowStrings.get(), 26);
+
+    addKnob (ebowIntensity, "Intensity", ParamIDs::ebowIntensity,
+             "How hard the E-Bow drives: how loud the sustained note settles");
+    addChoice (ebowHarmonic, "Harmonic", ParamIDs::ebowHarmonic,
+               "Which partial of the note the E-Bow sustains - the fundamental, or a harmonic above it");
+
     // ambiguity-resolutions 1.3: the feedback row. The amp's sound reaching the
     // strings through the air, so pickups, volume knob and amp gain all matter.
     feedbackLed = std::make_unique<FeedbackLed> (processor);

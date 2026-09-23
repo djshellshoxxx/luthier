@@ -115,6 +115,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     doublerLfo.setRate (0.31);
 
     feedbackLoop.prepare (sr, maxBlock);
+    ebowDriver.prepare (sr);
     feedbackInjection.assign ((size_t) maxBlock, 0.0);
 
     setGuitarType (guitarType);
@@ -675,6 +676,7 @@ void LuthierEngine::panic() noexcept
     }
 
     feedbackLoop.reset();
+    ebowDriver.reset();
     numScheduled = 0;
 }
 
@@ -944,7 +946,12 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
     if (soundingNote >= 0)
         stringActivity.push ({ activeSampleOffset, s, soundingNote, 0.0f, false });
 
-    strings[(size_t) s].release (e.letRing || ebow);
+    // An E-Bow on explicitly chosen strings keeps them going after the note is
+    // released; on "held strings" (mask 0) releasing is exactly what lets go.
+    const auto& ebow = ebowDriver.getSettings();
+    const bool ebowHolds = ebow.enabled && (ebow.stringMask & (1 << s)) != 0;
+
+    strings[(size_t) s].release (e.letRing || ebowHolds);
     slide.noteOff (s);
     stringMidiNote[(size_t) s] = -1;
 
@@ -1081,13 +1088,7 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
         strings[(size_t) s].setTargetFrequency (hz);
         coupling.setStringFrequency (s, hz);
 
-        // Freeze: drive the string toward a target level at its own resonance,
-        // the way an E-Bow does. The loop gain never reaches unity, so this can
-        // sustain forever without any possibility of runaway.
-        if (ebow && strings[(size_t) s].hasSounded())
-            strings[(size_t) s].setSustainScale (12.0);
-        else
-            strings[(size_t) s].setSustainScale (noteSustainScale[(size_t) s] * (fretless ? 0.82 : 1.0));
+        strings[(size_t) s].setSustainScale (noteSustainScale[(size_t) s] * (fretless ? 0.82 : 1.0));
     }
 
     // The fretboard overlay draws the bar where the first string under it is.
@@ -1418,6 +1419,29 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         feedbackLoop.beginBlock (hz.data(), levels.data(), wound.data(), numStrings);
     }
+
+    // The E-Bow's strings for this block; the ones it has just let go of are
+    // damped, so they stop within 200 ms (2.4) rather than ringing on.
+    const bool ebowOn = ebowDriver.getSettings().enabled || ebowDriver.isDrivingAny();
+
+    if (ebowOn)
+    {
+        std::array<double, kMaxStrings> hz {}, levels {};
+        std::array<bool, kMaxStrings> held {}, letGo {};
+
+        for (int s = 0; s < numStrings; ++s)
+        {
+            hz[(size_t) s] = strings[(size_t) s].getCurrentFrequency();
+            levels[(size_t) s] = strings[(size_t) s].getLevel();
+            held[(size_t) s] = stringMidiNote[(size_t) s] >= 0;
+        }
+
+        ebowDriver.beginBlock (hz.data(), levels.data(), held.data(), numStrings, letGo);
+
+        for (int s = 0; s < numStrings; ++s)
+            if (letGo[(size_t) s])
+                strings[(size_t) s].setDamping (StringEngine::Damping::Silenced, 1.0);
+    }
     const bool perStringTaps = taps.isPerStringWanted() && taps.getRoomAtOffset() >= numSamples;
 
     playingNoise.getPool().setSamplePosition (samplePosition);
@@ -1470,12 +1494,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
                 fbSum += fb;
             }
 
-            // Freeze drives the string up to a target level and no further.
-            if (ebow && strings[(size_t) s].hasSounded()
-                && strings[(size_t) s].getLevel() < ebowTargetLevel)
-            {
-                couplingIn += stringOutputs[(size_t) s] * 0.004;
-            }
+            // The E-Bow (ambiguity-resolutions 2.2): the string's own partial,
+            // driven up to its intensity's level and held there.
+            if (ebowOn)
+                couplingIn += ebowDriver.process (s, stringOutputs[(size_t) s]);
 
             // Everything else is surface noise, on the string's output before
             // the body and the pickups, so the instrument colours it.

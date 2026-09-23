@@ -365,6 +365,38 @@ private:
 };
 
 //==============================================================================
+/** ambiguity-resolutions.md 2.2's `ebow_string_mask`: HELD (the default: any
+    string with a note down), or particular strings, one button each for the
+    strings the current guitar has. Writes the integer parameter directly. */
+class StringMaskSelector : public juce::Component,
+                           public juce::SettableTooltipClient,
+                           private juce::Timer
+{
+public:
+    StringMaskSelector (LuthierAudioProcessor& processor, const juce::String& parameterId);
+    ~StringMaskSelector() override;
+
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+
+    int getMask() const noexcept { return mask; }
+
+    /** What a click on a cell does: -1 is HELD, otherwise a string index. */
+    void toggle (int cell);
+
+private:
+    void timerCallback() override;
+    juce::Rectangle<int> cellBounds (int cell) const;
+
+    LuthierAudioProcessor& processor;
+    juce::RangedAudioParameter* parameter = nullptr;
+    int mask = 0;
+    int numStrings = 6;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (StringMaskSelector)
+};
+
+//==============================================================================
 /** The scrolling readout of the plugin's internals: a real data stream, faded at
     the top and bottom, that stops when nothing is happening. */
 class DataStreamDisplay : public juce::Component,

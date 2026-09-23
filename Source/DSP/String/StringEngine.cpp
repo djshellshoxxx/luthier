@@ -170,7 +170,8 @@ void StringEngine::setDamping (Damping d, double amount) noexcept
 
     // A damped string still receives sympathetic energy (engine spec 5.6) - it
     // just dissipates it quickly - but a choked one accepts very little.
-    couplingReceptivity = (d == Damping::Choked) ? 0.15
+    couplingReceptivity = (d == Damping::Silenced) ? 0.0
+                        : (d == Damping::Choked) ? 0.15
                         : (d == Damping::PalmMute) ? 0.45
                         : (harmonicPartial > 0) ? 0.35
                         : 1.0;
@@ -265,6 +266,10 @@ void StringEngine::updateLoopCoefficients() noexcept
             cutoff = 500.0;
             t60Scale = 0.035;
             break;
+
+        case Damping::Silenced:
+            cutoff = 400.0;
+            break;
     }
 
     // Harmonics ring clean but die noticeably sooner than a stopped note.
@@ -287,6 +292,12 @@ void StringEngine::updateLoopCoefficients() noexcept
     // sustain is scaled down as the fundamental rises.
     const double pitchScale = std::pow (110.0 / f0, 0.40);
     double t60 = physical.sustainSeconds * sustainScale * t60Scale * pitchScale;
+
+    // Silenced is an absolute time: the E-Bow letting go (ambiguity-resolutions
+    // 2.4) has to be inaudible in 200 ms on a string of any sustain.
+    if (damping == Damping::Silenced)
+        t60 = 0.08;
+
     t60 = juce::jlimit (0.01, 60.0, t60);
 
     loopGain = std::exp (-kT60Constant * loopSamples / (t60 * sr));

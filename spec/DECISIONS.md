@@ -374,3 +374,17 @@ chosen") and `ambiguity-resolutions.md`.
   feedback_on / _threshold / _speed stay in the layout for saved automation
   and do nothing; a preset that switched feedback on without an amount loads
   at 50%. Shred Lead uses 45% at 0.8 m.
+- **The E-Bow drives each string from itself, through section 1's per-string
+  narrowband injection** (`EBowDriver`), not from the amp's output: 2.2 says
+  "the feedback path" with a fixed narrowband profile, but an E-Bow sustains
+  the same through any amp, and 2.4's "steady within 500 ms at 50%" could not
+  hold if it depended on amp gain and the volume knob. Q 30 at the chosen
+  partial of the string's note; gain proportional to the shortfall from a
+  target level (0.02 + 0.10 x intensity), so it swells and holds. Mask 0 is
+  "strings with a held note" (2.2's default): releasing the note lets go;
+  explicitly chosen strings keep going after release. A string the E-Bow lets
+  go of gets a new `Silenced` damping - an absolute 80 ms T60 - since Choked
+  scales with the string's sustain and a long-sustaining note was still at
+  -28 dB after 200 ms. `ebow_intensity` is the E-Bow's own parameter rather
+  than writing feedback_amount, so using the E-Bow does not switch on amp
+  feedback too.
