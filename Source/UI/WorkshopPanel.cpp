@@ -552,7 +552,9 @@ namespace
     };
 
     // Section 1's drawer. Preamp shows the wiring parts that are active.
+    // "Guitar" is the family selector (guitar-illustration.md 12.1), not a part type.
     const Category kCategories[] = {
+        { "Guitar", PartType::numTypes },
         { "Body", PartType::body },         { "Neck", PartType::neck },       { "Frets", PartType::frets },
         { "Nut", PartType::nut },           { "Bridge", PartType::bridge },   { "Tuners", PartType::tuners },
         { "Strings", PartType::strings },   { "Pickups", PartType::pickup },  { "Wiring", PartType::wiring },
@@ -589,11 +591,11 @@ namespace
             case PartType::pick:     return p.text ("material") + ", " + num ("thickness_mm", 2) + " mm";
             case PartType::slide:    return p.text ("material") + ", " + num ("mass_g", 0) + " g";
             case PartType::capo:     return p.text ("type") + ", pressure " + num ("pressure", 2);
+            case PartType::numTypes: return "Rebuild as a " + p.text ("family") + " guitar (12.1)";
             case PartType::top:
             case PartType::fretboard:
             case PartType::tailpiece:
-            case PartType::pickguard:
-            case PartType::numTypes: break;
+            case PartType::pickguard: break;
         }
 
         return p.text ("wood", p.text ("material", p.text ("type")));
@@ -834,6 +836,23 @@ void WorkshopPanel::refreshDrawer()
     if (c == nullptr)
         return;
 
+    if (c->type == PartType::numTypes)
+    {
+        // One card per family; the card is a stand-in, never fitted as a part.
+        for (auto family : { "electric", "acoustic", "classical", "bass", "resonator" })
+        {
+            auto card = std::make_shared<Part>();
+            card->name = juce::String (family).substring (0, 1).toUpperCase() + juce::String (family).substring (1);
+            card->type = PartType::numTypes;
+            card->fields = juce::var (new juce::DynamicObject());
+            card->fields.getDynamicObject()->setProperty ("family", juce::String (family));
+            card->isFactory = true;
+            drawerParts.add (card);
+        }
+
+        return;
+    }
+
     for (const auto& p : processor.getPartLibrary().getParts (c->type))
     {
         if (juce::String (c->name) == "Preamp" && ! p->flag ("active"))
@@ -851,6 +870,70 @@ void WorkshopPanel::refreshDrawer()
     });
 }
 
+bool WorkshopPanel::switchFamily (const juce::String& family, bool confirmed)
+{
+    if (family == processor.getCurrentGuitar().family)
+        return false;
+
+    if (! confirmed && ! familyConfirmedThisSession)
+    {
+        // 12.1's one-time question, the first time in a session.
+        auto options = juce::MessageBoxOptions::makeOptionsOkCancel (juce::MessageBoxIconType::QuestionIcon,
+                           "Change guitar family?",
+                           "This will replace incompatible parts with defaults for the new family.",
+                           "Change", "Cancel", this);
+
+        juce::AlertWindow::showAsync (options, [safe = juce::Component::SafePointer<WorkshopPanel> (this), family] (int result)
+        {
+            if (safe != nullptr && result == 1)
+            {
+                safe->familyConfirmedThisSession = true;
+                safe->switchFamily (family, true);
+            }
+        });
+
+        return false;
+    }
+
+    familyConfirmedThisSession = true;
+    const bool ok = processor.switchGuitarFamily (family);
+
+    // The banner (12.1) lists what changed.
+    for (const auto& notice : processor.takeGuitarNotices())
+    {
+        limitMessage = notice;
+        limitShownAt = juce::Time::getMillisecondCounter();
+    }
+
+    refreshAll();
+    return ok;
+}
+
+bool WorkshopPanel::editInspectorField (const juce::String& field, const juce::String& text)
+{
+    const auto slot = slotForRegion (illustration.getSelected());
+
+    if (slot == GuitarSlot::numSlots || field.isEmpty())
+        return false;
+
+    // Numbers stay numbers, true/false stay flags, lists stay lists; anything else is text.
+    const auto trimmed = text.trim();
+    juce::var value;
+
+    if (trimmed.startsWithChar ('['))
+        value = juce::JSON::parse (trimmed);
+    else if (trimmed.equalsIgnoreCase ("true") || trimmed.equalsIgnoreCase ("false"))
+        value = trimmed.equalsIgnoreCase ("true");
+    else if (trimmed.containsOnly ("0123456789.-+eE") && trimmed.isNotEmpty())
+        value = trimmed.getDoubleValue();
+    else
+        value = trimmed;
+
+    const bool ok = bench.editField (slot, field, value);
+    refreshAll();
+    return ok;
+}
+
 void WorkshopPanel::clickCard (int index)
 {
     if (! juce::isPositiveAndBelow (index, drawerParts.size()))
@@ -859,6 +942,12 @@ void WorkshopPanel::clickCard (int index)
     const auto part = drawerParts[index];
     bench.endAudition();
     auditioning = false;
+
+    if (part->type == PartType::numTypes)
+    {
+        switchFamily (part->text ("family"), false);
+        return;
+    }
 
     if (part->type == PartType::pick || part->type == PartType::slide || part->type == PartType::capo)
     {
@@ -979,6 +1068,7 @@ void WorkshopPanel::refreshHeader()
 void WorkshopPanel::refreshInspector()
 {
     inspectorLines.clear();
+    inspectorFields.clear();
 
     const auto region = illustration.getSelected();
     const auto slot = slotForRegion (region);
@@ -1009,7 +1099,14 @@ void WorkshopPanel::refreshInspector()
 
         if (auto* object = part->fields.getDynamicObject())
             for (auto& prop : object->getProperties())
+            {
                 inspectorLines.add (prop.name.toString().replaceCharacter ('_', ' ') + ": " + fieldText (prop.value));
+
+                while (inspectorFields.size() < inspectorLines.size() - 1)
+                    inspectorFields.add ({});
+
+                inspectorFields.add (prop.name.toString());
+            }
     }
 
     if (const int i = pickupIndexOfRegion (region); i >= 0 && part != nullptr)
@@ -1101,6 +1198,33 @@ void WorkshopPanel::mouseExit (const juce::MouseEvent&)
 
 void WorkshopPanel::mouseDown (const juce::MouseEvent& e)
 {
+    if (e.getNumberOfClicks() >= 2)
+    {
+        for (int i = 0; i < inspectorRows.size(); ++i)
+        {
+            if (! inspectorRows[i].contains (e.getPosition()) || inspectorFields[i].isEmpty())
+                continue;
+
+            editingField = inspectorFields[i];
+            fieldEditor = std::make_unique<juce::TextEditor>();
+            addAndMakeVisible (*fieldEditor);
+            fieldEditor->setBounds (inspectorRows[i]);
+            fieldEditor->setText (inspectorLines[i].fromFirstOccurrenceOf (": ", false, false), false);
+            fieldEditor->selectAll();
+            fieldEditor->grabKeyboardFocus();
+            fieldEditor->onReturnKey = [this]
+            {
+                const auto text = fieldEditor->getText();
+                const auto field = editingField;
+                fieldEditor.reset();
+                editInspectorField (field, text);
+            };
+            fieldEditor->onEscapeKey = [this] { fieldEditor.reset(); repaint(); };
+            fieldEditor->onFocusLost = [this] { fieldEditor.reset(); repaint(); };
+            return;
+        }
+    }
+
     if (const int card = cardAt (e.getPosition()); card >= 0)
         clickCard (card);
 }
@@ -1237,7 +1361,8 @@ void WorkshopPanel::paintDrawer (juce::Graphics& g, juce::Rectangle<int> area)
 
         cardBounds.add (card);
 
-        const bool isFitted = (fitted != nullptr && fitted->name == part.name) || (accessory != nullptr && accessory->name == part.name);
+        const bool isFitted = (fitted != nullptr && fitted->name == part.name) || (accessory != nullptr && accessory->name == part.name)
+                           || (part.type == PartType::numTypes && part.text ("family") == bench.current().family);
         const bool hover = i == hoveredCard;
 
         g.setColour (isFitted ? Palette::accent.withAlpha (0.18f) : hover ? Palette::panelRaised.brighter (0.1f) : Palette::panelRaised);
@@ -1253,7 +1378,8 @@ void WorkshopPanel::paintDrawer (juce::Graphics& g, juce::Rectangle<int> area)
         g.setFont (Fonts::ui (10.5f));
         g.setColour (Palette::textMuted);
         auto line = summaryOf (part);
-        if (! part.suits (bench.current().family) && part.type != PartType::pick && part.type != PartType::slide && part.type != PartType::capo)
+        if (! part.suits (bench.current().family) && part.type != PartType::pick && part.type != PartType::slide
+            && part.type != PartType::capo && part.type != PartType::numTypes)
             line = "Unusual here - " + line;
         if (! part.isFactory)
             line = "yours - " + line;
@@ -1290,15 +1416,29 @@ void WorkshopPanel::paintInspector (juce::Graphics& g, juce::Rectangle<int> area
     g.drawFittedText (inspectorTitle, inner.removeFromTop (34), juce::Justification::topLeft, 2);
 
     g.setFont (Fonts::ui (11.5f));
+    inspectorRows.clearQuick();
 
-    for (const auto& line : inspectorLines)
+    for (int i = 0; i < inspectorLines.size(); ++i)
     {
         if (inner.getHeight() < 14)
             break;
 
+        const auto& line = inspectorLines[i];
+        const auto row = inner.removeFromTop (16);
+        inspectorRows.add (row);
+
         const bool note = line.startsWith ("AUDITIONING") || line.startsWith ("Unusual");
-        g.setColour (note ? Palette::accent : Palette::textMuted);
-        g.drawFittedText (line, inner.removeFromTop (16), juce::Justification::centredLeft, 1);
+        const bool editable = inspectorFields[i].isNotEmpty();
+        g.setColour (note ? Palette::accent : editable ? Palette::textPrimary : Palette::textMuted);
+        g.drawFittedText (line, row, juce::Justification::centredLeft, 1);
+    }
+
+    if (inspectorFields.joinIntoString ("").isNotEmpty() && inner.getHeight() > 16)
+    {
+        g.setColour (Palette::textDisabled);
+        g.setFont (Fonts::ui (10.5f));
+        g.drawFittedText ("Double-click a value to edit it. A factory part becomes your own copy.",
+                          inner.removeFromTop (28), juce::Justification::topLeft, 2);
     }
 }
 

@@ -292,3 +292,47 @@ LUTHIER_TEST (WorkshopPanel, itPaintsAndTheWorkshopTabTakesOverColumnsThreeAndFo
     CHECK (advanced.setWorkspaceTabNamed ("MOD"));
     CHECK (! advanced.isWorkshopShowing());
 }
+
+LUTHIER_TEST (WorkshopPanel, theGuitarCategorySwitchesFamily)
+{
+    // guitar-illustration.md 12.1: the drawer's first category is the family.
+    Bench b;
+    CHECK (WorkshopPanel::drawerCategories()[0] == "Guitar");
+
+    b.panel->showCategory ("Guitar");
+    CHECK (b.panel->getDrawerParts().size() == 5);
+
+    // Confirmed (the dialog's answer), the guitar becomes a bass.
+    CHECK (b.panel->switchFamily ("bass", true));
+    CHECK (b.processor.getCurrentGuitar().family == "bass");
+    CHECK (b.processor.getUndoDescription() == "Change guitar family");
+
+    // After the first confirmation in a session, a card click goes straight through.
+    int acoustic = -1;
+    for (int i = 0; i < b.panel->getDrawerParts().size(); ++i)
+        if (b.panel->getDrawerParts()[i]->text ("family") == "acoustic")
+            acoustic = i;
+
+    b.panel->clickCard (acoustic);
+    CHECK (b.processor.getCurrentGuitar().family == "acoustic");
+}
+
+LUTHIER_TEST (WorkshopPanel, editingAFieldMakesAUserCopy)
+{
+    // workshop-ui.md 5: editing a factory part fits an edited user copy, one undo entry.
+    Bench b;
+    b.panel->getIllustration().select (GuitarRegion::pickupBridge);
+    const auto before = b.processor.getCurrentGuitar().get (GuitarSlot::pickupBridge);
+    const int steps = b.processor.getNumUndoSteps();
+
+    CHECK (b.panel->editInspectorField ("dc_resistance_k", "9.4"));
+
+    const auto after = b.processor.getCurrentGuitar().get (GuitarSlot::pickupBridge);
+    CHECK (after != nullptr && ! after->isFactory);
+    CHECK_NEAR (after->number ("dc_resistance_k", 0.0), 9.4, 1.0e-9);
+    CHECK (before->isFactory);
+    CHECK_NEAR (before->number ("dc_resistance_k", 0.0), 8.1, 1.0e-9);   // the factory part is untouched
+    CHECK (b.processor.getNumUndoSteps() == steps + 1);
+    CHECK (b.processor.getUndoDescription().startsWith ("Set dc resistance k of " + before->name));
+    CHECK (b.processor.isGuitarEdited());
+}

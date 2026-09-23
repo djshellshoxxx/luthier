@@ -139,6 +139,15 @@ public:
     /** The slot a card in the current category goes into. */
     GuitarSlot targetSlot() const;
 
+    /*  guitar-illustration.md 12.1: the drawer's first category changes the
+        guitar's family. The first change in a session asks first; tests and
+        the second change go straight through. */
+    bool switchFamily (const juce::String& family, bool confirmed);
+    bool familyConfirmedThisSession = false;
+
+    /** Section 5: edits one field of the selected part (a user copy of it). */
+    bool editInspectorField (const juce::String& field, const juce::String& text);
+
     /** What the inspector is showing: "Bridge: ABR-1 Tune-o-Matic" etc. */
     juce::String getInspectorTitle() const { return inspectorTitle; }
     juce::StringArray getInspectorLines() const { return inspectorLines; }
@@ -194,6 +203,10 @@ private:
 
     juce::String inspectorTitle;
     juce::StringArray inspectorLines;
+    juce::StringArray inspectorFields;          ///< the part field behind each line, or empty
+    juce::Array<juce::Rectangle<int>> inspectorRows;
+    std::unique_ptr<juce::TextEditor> fieldEditor;
+    juce::String editingField;
     juce::String limitMessage;
     juce::uint32 limitShownAt = 0;
 
