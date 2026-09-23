@@ -1,0 +1,159 @@
+{
+  "schema": 1,
+  "magic": "luthier.tune",
+  "meta": {
+    "title": "AABA jazz standard",
+    "artist": "",
+    "author": "Factory",
+    "tempo_bpm": 132.0,
+    "time_sig": "4/4",
+    "key": "C",
+    "mode": "ionian",
+    "swing": 60.0,
+    "feel_pct": 0.0,
+    "tags": [
+      "template",
+      "jazz"
+    ],
+    "notes": "32-bar AABA: I-vi-ii-V and iii-VI-ii-V-I in the A, III7-VI7-II7-V7 in the bridge.",
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "sections": [
+    {
+      "name": "A",
+      "length_bars": 8,
+      "rhythm_pattern": "Freddie Green",
+      "genre_kit": "Jazz Comping",
+      "chords": [
+        {
+          "root": "C",
+          "quality": "maj7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "m7",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "m7",
+          "beats": 4.0
+        },
+        {
+          "root": "G",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "m7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "m7",
+          "beats": 2.0
+        },
+        {
+          "root": "G",
+          "quality": "7",
+          "beats": 2.0
+        },
+        {
+          "root": "C",
+          "quality": "maj7",
+          "beats": 4.0
+        }
+      ],
+      "bass": {
+        "mode": "walking"
+      },
+      "role": "verse",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.5,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    },
+    {
+      "name": "B",
+      "length_bars": 8,
+      "rhythm_pattern": "Freddie Green",
+      "genre_kit": "Jazz Comping",
+      "chords": [
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "G",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "G",
+          "quality": "7",
+          "beats": 4.0
+        }
+      ],
+      "bass": {
+        "mode": "walking"
+      },
+      "role": "bridge",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.5,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    }
+  ],
+  "setlist": [
+    {
+      "section": "A",
+      "repeats": 2
+    },
+    {
+      "section": "B",
+      "repeats": 1
+    },
+    {
+      "section": "A",
+      "repeats": 1
+    }
+  ]
+}

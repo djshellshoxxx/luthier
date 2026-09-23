@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "magic": "luthier.tune",
+  "meta": {
+    "title": "Punk two-chord",
+    "artist": "",
+    "author": "Factory",
+    "tempo_bpm": 176.0,
+    "time_sig": "4/4",
+    "key": "E",
+    "mode": "ionian",
+    "swing": 0.0,
+    "feel_pct": 0.0,
+    "tags": [
+      "template",
+      "punk"
+    ],
+    "notes": "I-IV power chords, downstrokes.",
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "sections": [
+    {
+      "name": "Verse",
+      "length_bars": 8,
+      "rhythm_pattern": "Punk Downstroke",
+      "genre_kit": "Punk Downstroke",
+      "chords": [
+        {
+          "root": "E",
+          "quality": "5",
+          "beats": 8.0
+        },
+        {
+          "root": "A",
+          "quality": "5",
+          "beats": 8.0
+        }
+      ],
+      "bass": {
+        "mode": "genre"
+      },
+      "role": "verse",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.5,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    }
+  ],
+  "setlist": []
+}

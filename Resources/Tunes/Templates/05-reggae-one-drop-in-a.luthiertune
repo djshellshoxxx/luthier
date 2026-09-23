@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "magic": "luthier.tune",
+  "meta": {
+    "title": "Reggae one-drop in A",
+    "artist": "",
+    "author": "Factory",
+    "tempo_bpm": 76.0,
+    "time_sig": "4/4",
+    "key": "A",
+    "mode": "ionian",
+    "swing": 0.0,
+    "feel_pct": 0.0,
+    "tags": [
+      "template",
+      "reggae"
+    ],
+    "notes": "Verse and chorus over the skank.",
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "sections": [
+    {
+      "name": "Verse",
+      "length_bars": 8,
+      "rhythm_pattern": "Reggae Skank",
+      "genre_kit": "Reggae Skank",
+      "chords": [
+        {
+          "root": "A",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "maj",
+          "beats": 4.0
+        }
+      ],
+      "bass": {
+        "mode": "genre"
+      },
+      "role": "verse",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.5,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    },
+    {
+      "name": "Chorus",
+      "length_bars": 8,
+      "rhythm_pattern": "Reggae Skank",
+      "genre_kit": "Reggae Skank",
+      "chords": [
+        {
+          "root": "D",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "F#",
+          "quality": "min",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "maj",
+          "beats": 4.0
+        }
+      ],
+      "bass": {
+        "mode": "genre"
+      },
+      "role": "chorus",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.5,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    }
+  ],
+  "setlist": [
+    {
+      "section": "Verse",
+      "repeats": 1
+    },
+    {
+      "section": "Chorus",
+      "repeats": 1
+    }
+  ]
+}

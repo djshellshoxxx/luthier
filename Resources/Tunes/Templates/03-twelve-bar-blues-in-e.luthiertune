@@ -1,0 +1,272 @@
+{
+  "schema": 1,
+  "magic": "luthier.tune",
+  "meta": {
+    "title": "12-bar blues in E",
+    "artist": "",
+    "author": "Factory",
+    "tempo_bpm": 96.0,
+    "time_sig": "4/4",
+    "key": "E",
+    "mode": "ionian",
+    "swing": 50.0,
+    "feel_pct": 0.0,
+    "tags": [
+      "template",
+      "blues"
+    ],
+    "notes": "Classic 12-bar form: head (quick change), middle for solos, out ending on the I.",
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "sections": [
+    {
+      "name": "Head",
+      "length_bars": 12,
+      "rhythm_pattern": "Chicago Shuffle",
+      "genre_kit": "Chicago Blues",
+      "chords": [
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "B",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "B",
+          "quality": "7",
+          "beats": 4.0
+        }
+      ],
+      "bass": {
+        "mode": "genre"
+      },
+      "role": "intro",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.5,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    },
+    {
+      "name": "Middle",
+      "length_bars": 12,
+      "rhythm_pattern": "Chicago Shuffle",
+      "genre_kit": "Chicago Blues",
+      "chords": [
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "B",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "B",
+          "quality": "7",
+          "beats": 4.0
+        }
+      ],
+      "bass": {
+        "mode": "genre"
+      },
+      "role": "verse",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.5,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    },
+    {
+      "name": "Out",
+      "length_bars": 12,
+      "rhythm_pattern": "Chicago Shuffle",
+      "genre_kit": "Chicago Blues",
+      "chords": [
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "B",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        }
+      ],
+      "bass": {
+        "mode": "genre"
+      },
+      "role": "outro",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.5,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    }
+  ],
+  "setlist": [
+    {
+      "section": "Head",
+      "repeats": 1
+    },
+    {
+      "section": "Middle",
+      "repeats": 2
+    },
+    {
+      "section": "Out",
+      "repeats": 1
+    }
+  ]
+}

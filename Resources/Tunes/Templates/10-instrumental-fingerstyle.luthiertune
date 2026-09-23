@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "magic": "luthier.tune",
+  "meta": {
+    "title": "Instrumental fingerstyle",
+    "artist": "",
+    "author": "Factory",
+    "tempo_bpm": 88.0,
+    "time_sig": "4/4",
+    "key": "C",
+    "mode": "ionian",
+    "swing": 0.0,
+    "feel_pct": 0.0,
+    "tags": [
+      "template",
+      "fingerstyle"
+    ],
+    "notes": "No chord section; an empty melody ready for capture.",
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "sections": [
+    {
+      "name": "Melody",
+      "length_bars": 8,
+      "rhythm_pattern": "",
+      "genre_kit": "Contemporary Fingerstyle",
+      "chords": [],
+      "melody": [],
+      "melody_track": {
+        "string_hint": "auto",
+        "articulation": "natural",
+        "source": "record",
+        "seed": 1,
+        "density": 4.0,
+        "range_low": 48,
+        "range_high": 79,
+        "follow_chords": false
+      },
+      "role": "verse",
+      "rhythm_on": false,
+      "rhythm_link": "",
+      "feel": 0.5,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    }
+  ],
+  "setlist": []
+}

@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "magic": "luthier.tune",
+  "meta": {
+    "title": "Bossa Nova",
+    "artist": "",
+    "author": "Factory",
+    "tempo_bpm": 132.0,
+    "time_sig": "4/4",
+    "key": "Eb",
+    "mode": "ionian",
+    "swing": 0.0,
+    "feel_pct": 0.0,
+    "tags": [
+      "template",
+      "latin",
+      "bossa"
+    ],
+    "notes": "I-vi-ii-V in Eb: Ebmaj7 Cm7 Fm7 Bb7.",
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "sections": [
+    {
+      "name": "A",
+      "length_bars": 8,
+      "rhythm_pattern": "Bossa Comp",
+      "genre_kit": "Bossa Nova",
+      "chords": [
+        {
+          "root": "Eb",
+          "quality": "maj7",
+          "beats": 4.0
+        },
+        {
+          "root": "C",
+          "quality": "m7",
+          "beats": 4.0
+        },
+        {
+          "root": "F",
+          "quality": "m7",
+          "beats": 4.0
+        },
+        {
+          "root": "Bb",
+          "quality": "7",
+          "beats": 4.0
+        }
+      ],
+      "bass": {
+        "mode": "genre"
+      },
+      "role": "verse",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.5,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    }
+  ],
+  "setlist": []
+}
