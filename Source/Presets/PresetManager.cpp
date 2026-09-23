@@ -13,8 +13,9 @@ const char* const PresetManager::kLegacyMagic = "luthierpreset";
 //==============================================================================
 PresetManager::PresetManager (juce::AudioProcessor& p,
                               juce::AudioProcessorValueTreeState& state,
-                              LuthierEngine& e)
-    : processor (p), apvts (state), engine (e)
+                              LuthierEngine& e,
+                              RangeState& r)
+    : processor (p), apvts (state), engine (e), ranges (r)
 {
     extra.customGaugeInches.fill (0.0);
     extra.detuneCents.fill (0.0);
@@ -368,6 +369,11 @@ juce::var PresetManager::toVar (const juce::String& name,
 
     root->setProperty ("parameters", juce::var (params));
 
+    /*  advanced-ranges.md 4: which families this preset has unlocked. Written
+        beside the parameters because it is what makes their normalised values
+        mean anything - see the ordering note in fromVar. */
+    root->setProperty ("ranges", ranges.toVar());
+
     // ---- per-string extras ----------------------------------------------------
     auto* strings = new juce::DynamicObject();
 
@@ -503,6 +509,28 @@ bool PresetManager::fromVar (const juce::var& data)
     // ---- parameters ------------------------------------------------------------
     if (auto* params = obj->getProperty ("parameters").getDynamicObject())
     {
+        /*  advanced-ranges.md 4: the ranges block is applied BEFORE the
+            parameter values, and the order is load-bearing.
+
+            Parameters are stored normalised. A preset saved with `amp`
+            unlocked and its gain at the advanced maximum stored 1.0; writing
+            that 1.0 while the parameter is still on its stock range would
+            produce stockMax and silently halve the value. Widening first means
+            the normalised number lands where it was written.
+
+            A preset with no block is left on stock here and derived from
+            afterwards, which is 4.1: its values were saved against the stock
+            ranges because there was nothing else to save them against. */
+        const bool hasRangesBlock = obj->hasProperty ("ranges");
+
+        RangeState incoming;
+
+        if (hasRangesBlock)
+            incoming.fromVar (obj->getProperty ("ranges"), {});
+
+        ranges = incoming;
+        ranges.applyTo (apvts);
+
         for (auto* p : processor.getParameters())
         {
             if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
@@ -512,6 +540,21 @@ bool PresetManager::fromVar (const juce::var& data)
                     const double v = (double) params->getProperty (withId->paramID);
                     withId->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, v));
                 }
+            }
+        }
+
+        /*  No block: derive per family from the plain values the parameters now
+            hold. The stored numbers cannot be used for this - a normalised
+            value is always inside whatever range is live and so carries no
+            information about which one it was written against. */
+        if (! hasRangesBlock)
+        {
+            incoming.deriveFromCurrentValues (apvts);
+
+            if (incoming.isAnythingAdvanced())
+            {
+                ranges = incoming;
+                ranges.applyTo (apvts);
             }
         }
     }

@@ -23,6 +23,7 @@
 #include "Practice/Trainers.h"
 #include "ToneMatch/ToneMatch.h"
 #include "Updates/Telemetry.h"
+#include "PhysicalRange.h"
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
 
@@ -166,6 +167,19 @@ public:
 
     Telemetry& getTelemetry() noexcept { return telemetry; }
     License&   getLicense() noexcept   { return license; }
+
+    //==========================================================================
+    /** advanced-ranges.md: the preset's stock/advanced state. */
+    RangeState&       getRanges() noexcept       { return ranges; }
+    const RangeState& getRanges() const noexcept { return ranges; }
+
+    /*  Applies a new range state and reports how many values it had to clamp
+        (advanced-ranges.md 1.3). Widening always reports zero; narrowing
+        reports what it moved, and the caller says so rather than letting a
+        clamp happen silently.
+
+        Message thread. */
+    int setRanges (const RangeState& newState);
 
     /*  gui-integration 15's sample-rate trigger, as a question the window asks
         rather than a message the audio thread sends.
@@ -341,6 +355,14 @@ private:
     // --- updates and privacy ---------------------------------------------------------------
     Telemetry telemetry;
     License license;
+
+    /*  advanced-ranges.md: which parameter families this preset has unlocked.
+
+        Preset state rather than user state (0.4), so it travels in the preset
+        file and a preset sounds the same on someone else's machine. Owned here
+        because it has to be applied to the APVTS before a preset's parameter
+        values are written - see PresetManager::fromVar. */
+    RangeState ranges;
 
     /*  live-performance 2: a program change or bank select arrives on the audio
         thread, but acting on either can allocate - a snapshot recall walks the

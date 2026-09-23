@@ -15,6 +15,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "../Parameters.h"
+#include "../PhysicalRange.h"
 
 namespace luthier
 {
@@ -57,9 +58,15 @@ public:
     /** Deletes backups older than kBackupRetentionDays. Called once on startup. */
     static void pruneOldBackups();
 
+    /*  `ranges` is the processor's RangeState (advanced-ranges.md). It is
+        passed by reference rather than reached through the processor because
+        this class deliberately holds a generic juce::AudioProcessor& - it
+        knows about parameters and the engine, not about Luthier's processor
+        type, and coupling it to that for one field would be a step backwards. */
     PresetManager (juce::AudioProcessor& processor,
                    juce::AudioProcessorValueTreeState& state,
-                   LuthierEngine& engine);
+                   LuthierEngine& engine,
+                   RangeState& ranges);
     ~PresetManager() override;
 
     //==========================================================================
@@ -219,6 +226,10 @@ private:
 
     juce::AudioProcessor& processor;
     juce::AudioProcessorValueTreeState& apvts;
+
+    /** advanced-ranges.md: the processor's range state, applied on load and
+        written on save. */
+    RangeState& ranges;
     LuthierEngine& engine;
 
     juce::Array<PresetInfo> presets;

@@ -48,7 +48,7 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     : AudioProcessor (buildBusesProperties()),
       apvts (*this, nullptr, "LUTHIER", Parameters::createLayout()),
       bridge (apvts, engine),
-      presets (*this, apvts, engine),
+      presets (*this, apvts, engine, ranges),
       midiLearn (apvts),
       snapshots (*this)
 {
@@ -241,6 +241,13 @@ bool LuthierAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) 
     }
 
     return true;
+}
+
+//==============================================================================
+int LuthierAudioProcessor::setRanges (const RangeState& newState)
+{
+    ranges = newState;
+    return ranges.applyTo (apvts);
 }
 
 //==============================================================================

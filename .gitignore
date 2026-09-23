@@ -4,3 +4,4 @@ ThirdParty/JUCE/
 *.suo
 .vs/
 Renders/
+.claude/ralph-loop.local.md
