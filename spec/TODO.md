@@ -12,13 +12,18 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 - [ ] **6. Workshop parts** — IN PROGRESS. Done: 6a part model + library,
       6b factory content (148 parts, 27 guitars via Tools/generate_factory_parts.py),
-      6c mapSpec + engine applyWorkshopGuitar. Commit b9a9b5d (WIP): 6d
-      processor loader - guitar_type loads its factory file, parts written into
-      overlapping params, pickup position/height params retired (count 389)
-      with legacy preset migration, missing-part banner. **It compiles but the
-      test suite has NOT been run on it** - run it first and fix fallout.
-      Still to do in 6: preset `guitar.reference`/`override` save+load, Save As
-      Guitar (Ctrl+G), Save As Part, 5 ms click-free swap, loader/migration tests.
+      6c mapSpec + engine applyWorkshopGuitar, 6d processor loader (suite
+      green, 15a6d03), preset `guitar.reference`/`override` (0adcc40), Save
+      As Guitar + Save As Part on the processor, Ctrl+G dialog and
+      Ctrl+Shift+E reveal, 5 ms click-free swap (audio thread parked).
+      Also done and green (413 tests): legacy-placement migration test,
+      "mapping runs once" and "no file access on the audio thread" tests
+      (Support/ThreadProbe.h).
+      **NEXT ACTION (session stopped here, 2026-09-23):** the partial capo
+      (TuningEngine capo string mask, processor setCapoPart, capo name in the
+      preset guitar block, WorkshopCapo tests) is written and committed but
+      **not yet built or tested** - build LuthierTests, run `WorkshopCapo`,
+      then the full suite, and fix fallout. Then step 6 is complete.
 - [ ] 5b. `slide-technique-controls.md`: position source (modwheel / bend /
       MPE Y / expression / CC / drag), absolute/relative, slant & pressure
       sources, contact string mask, speed limit, auto-vibrato on hold,
@@ -41,6 +46,12 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       regions working (13). Drive it from the current `WorkshopGuitar` so the
       picture is the parts guitar that is playing. Check it by rendering to
       PNG in a test and looking at the result for each factory guitar.
+      Started: `Source/UI/Guitar/GuitarRenderer.h` (API only: GuitarScene in
+      saddle-origin mm, GuitarOverlay, build/fitTransform/paint/hitTest/
+      render). The .cpp is not written. Plan: body outlines as per-style
+      point lists in neck-pocket mm, Catmull-Rom smoothed; pocket X from the
+      neck-joint fret; headstock layout inferred from neck joint/family/
+      string count; part `illustration` hints override inference (spec 18).
 - [ ] **V. Visual appeal (user request, 2026-09-23; after G).** Specified
       pieces, moved up from later in this list:
       - Live playing overlays on the guitar (`guitar-illustration.md` 14):

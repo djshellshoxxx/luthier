@@ -1,4 +1,5 @@
 #include "Part.h"
+#include "../../Support/ThreadProbe.h"
 
 namespace luthier
 {
@@ -189,6 +190,8 @@ std::shared_ptr<Part> Part::load (const juce::File& file, juce::String& error)
         return nullptr;
     }
 
+    ThreadProbe::noteFileAccess();
+
     juce::var json;
     const auto result = juce::JSON::parse (file.loadFileAsString(), json);
 
@@ -210,6 +213,7 @@ std::shared_ptr<Part> Part::load (const juce::File& file, juce::String& error)
 
 bool Part::save (const juce::File& destination) const
 {
+    ThreadProbe::noteFileAccess();
     destination.getParentDirectory().createDirectory();
 
     // Written beside and moved into place, so a crash mid-write never leaves

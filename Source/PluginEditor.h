@@ -65,6 +65,9 @@ private:
     void setAdvancedMode (bool advanced);
     void showOverlay (OverlayPanel* panel);
 
+    /** guitar-workshop.md 6 (Ctrl+G): asks for a name and saves the guitar. */
+    void showSaveGuitarDialog();
+
     /*  gui-integration 4.5: Advanced Mode is unavailable below 1000 points. The
         window's own minimum is 940, so this is a state a user can reach by
         dragging rather than a theoretical one, and the mode toggle has to refuse

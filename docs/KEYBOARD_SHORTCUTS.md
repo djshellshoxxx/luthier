@@ -38,6 +38,8 @@ them with a search box. The defaults are below.
 | `Ctrl + O` | Preset browser |
 | `Ctrl + S` | Save the current preset |
 | `Ctrl + Shift + S` | Save As |
+| `Ctrl + G` | Save the guitar as a `.luthierguitar` file |
+| `Ctrl + Shift + E` | Show the guitar file on disk |
 | `Ctrl + E` | Export audio |
 | `Ctrl + L` | Arm MIDI Learn, then click a control |
 | `Ctrl + Z` | Undo |

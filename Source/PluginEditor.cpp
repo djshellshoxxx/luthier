@@ -192,6 +192,41 @@ void LuthierAudioProcessorEditor::showOverlay (OverlayPanel* panel)
     overlayHost.show (panel);
 }
 
+void LuthierAudioProcessorEditor::showSaveGuitarDialog()
+{
+    auto* dialog = new juce::AlertWindow (tr ("workshop.saveGuitar.title"),
+                                          tr ("workshop.saveGuitar.prompt"),
+                                          juce::MessageBoxIconType::NoIcon, this);
+
+    const auto& current = processor.getCurrentGuitar();
+    dialog->addTextEditor ("name", current.name, tr ("workshop.saveGuitar.name"));
+
+    // 6: "Bundle parts" is the sharing option, so it is a second way to save.
+    dialog->addButton (tr ("workshop.saveGuitar.save"), 1, juce::KeyPress (juce::KeyPress::returnKey));
+    dialog->addButton (tr ("workshop.saveGuitar.bundle"), 2);
+    dialog->addButton (tr ("common.cancel"), 0, juce::KeyPress (juce::KeyPress::escapeKey));
+
+    dialog->enterModalState (true, juce::ModalCallbackFunction::create (
+        [safeThis = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this), dialog] (int result)
+        {
+            const auto name = dialog->getTextEditorContents ("name").trim();
+            const bool bundleParts = result == 2;
+
+            if (safeThis == nullptr || result == 0 || name.isEmpty())
+                return;
+
+            safeThis->processor.pushUndoState ("Save As Guitar");
+            const auto file = safeThis->processor.saveGuitarAs (name, bundleParts);
+
+            if (file.existsAsFile())
+                safeThis->notifications.post ({ "save-guitar", tr ("workshop.saveGuitar.saved", { { "name", name } }),
+                                                Notification::Level::info });
+            else
+                safeThis->notifications.post ({ "save-guitar", tr ("workshop.saveGuitar.failed"),
+                                                Notification::Level::warning });
+        }), true);
+}
+
 //==============================================================================
 juce::Rectangle<int> LuthierAudioProcessorEditor::getSecretPixelBounds() const
 {
@@ -491,6 +526,26 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         else
             notifications.post ({ "reveal-preset",
                                   "This sound has not been saved yet, so there is no file to show.",
+                                  Notification::Level::info });
+
+        return true;
+    }
+
+    if (is ("saveGuitarAs"))
+    {
+        showSaveGuitarDialog();
+        return true;
+    }
+
+    if (is ("revealGuitar"))
+    {
+        // A factory guitar is a file too; an edited one is not until it is saved.
+        const auto file = processor.getGuitarFile();
+
+        if (file.existsAsFile() && ! processor.isGuitarEdited())
+            file.revealToUser();
+        else
+            notifications.post ({ "reveal-guitar", tr ("workshop.revealGuitar.none"),
                                   Notification::Level::info });
 
         return true;

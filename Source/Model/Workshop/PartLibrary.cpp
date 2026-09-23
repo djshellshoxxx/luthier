@@ -1,4 +1,5 @@
 #include "PartLibrary.h"
+#include "../../Support/ThreadProbe.h"
 #include "../../Support/IrLibrary.h"
 
 namespace luthier
@@ -246,6 +247,7 @@ juce::var WorkshopGuitar::toEmbeddedVar() const
 
 bool WorkshopGuitar::save (const juce::File& destination) const
 {
+    ThreadProbe::noteFileAccess();
     destination.getParentDirectory().createDirectory();
     const auto temp = destination.getSiblingFile (destination.getFileName() + ".tmp");
 
@@ -327,6 +329,7 @@ void PartLibrary::refreshFrom (const juce::File& factoryParts, const juce::File&
 
 void PartLibrary::scanFolder (const juce::File& root, bool factory)
 {
+    ThreadProbe::noteFileAccess();
     if (! root.isDirectory())
         return;
 
@@ -519,6 +522,7 @@ bool PartLibrary::buildGuitar (const juce::var& json, WorkshopGuitar& out, LoadR
 
 bool PartLibrary::loadGuitar (const juce::File& file, WorkshopGuitar& out, LoadReport& report) const
 {
+    ThreadProbe::noteFileAccess();
     juce::var json;
     const auto result = juce::JSON::parse (file.loadFileAsString(), json);
 

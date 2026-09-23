@@ -1295,13 +1295,24 @@ judgement call). Done in this run:
 - SlideEngine and Slide Mode UI. Fixed per-block sustain scale overwriting
   character wear; CharacterPanel now sizes itself.
 - Workshop parts model, library, factory content, mapSpec, engine apply.
-- WIP (b9a9b5d): processor guitar loader and retirement of the pickup
-  position/height parameters. Compiles; test suite not yet run on it.
+- Processor guitar loader and retirement of the pickup position/height
+  parameters (b9a9b5d); its test fallout fixed (15a6d03).
+- Presets carry the guitar (`guitar.reference` / `guitar.override`), Save As
+  Guitar (Ctrl+G, with "Save with parts"), Save As Part, reveal guitar file
+  (Ctrl+Shift+E). Fixed: every full apply used to overwrite the preset's
+  setup/pickup/circuit values with the guitar file's.
+- Click-free guitar swap: the audio thread is parked behind a 5 ms fade out
+  and in while the engine is rebuilt, which also stops the rebuild racing
+  the audio thread. A negative check (fade removed) steps by 0.285 and fails.
+- Surfaced: the full suite's wall-clock CPU test fails when the machine is
+  busy (made best-of-three); the box pages at ~200 MB free, tripling suite
+  time.
+- Partial capo written but not yet built or tested (see TODO step 6).
 
 Spec update 2026-09-23: the nine phase-5b technique specs are queued in TODO.
 The nine phase-2b specs INDEX lists are not on disk and are blocked.
 
-Last full green run: 401 tests at ba17b40.
+Last full green run: 413 tests, 2026-09-23 (before the partial capo).
 
 ## History
 

@@ -229,6 +229,8 @@ void LuthierEngine::setNumStrings (int n)
 //==============================================================================
 void LuthierEngine::setGuitarType (GuitarType type)
 {
+    const ScopedStructuralChange change (*this);
+
     guitarType = type;
     spec = GuitarLibrary::get (type);
 
@@ -247,6 +249,8 @@ void LuthierEngine::setGuitarType (GuitarType type)
 
 void LuthierEngine::applyWorkshopGuitar (const DerivedAcoustics& d, GuitarType standsFor)
 {
+    const ScopedStructuralChange change (*this);
+
     guitarType = standsFor;
     spec = d.spec;
     hasPartsOverride = true;
@@ -1131,15 +1135,26 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 {
     const int numSamples = buffer.getNumSamples();
 
+    audioThreadId.store (juce::Thread::getCurrentThreadId(), std::memory_order_relaxed);
+    lastProcessMs.store (juce::Time::getMillisecondCounter(), std::memory_order_relaxed);
+
     // The routing taps and the string-activity stream span the whole host block,
     // however many sub-blocks it takes to render it.
     taps.beginBlock (numSamples);
     stringActivity.clear();
     sidechainReadOffset = 0;
 
+    // Parked behind a structural change: the message thread owns the engine.
+    if (swapState.load (std::memory_order_acquire) == swapParked)
+    {
+        buffer.clear();
+        return;
+    }
+
     if (numSamples <= maxBlock)
     {
         processSubBlock (buffer, midiMessages);
+        applySwapFade (buffer);
         return;
     }
 
@@ -1179,6 +1194,88 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         processSubBlock (slice, sliceMidi);
         offset += count;
     }
+
+    applySwapFade (buffer);
+}
+
+void LuthierEngine::applySwapFade (juce::AudioBuffer<float>& buffer) noexcept
+{
+    const int state = swapState.load (std::memory_order_acquire);
+
+    if (state == swapIdle && swapPhase >= 1.0)
+        return;
+
+    // Idle with a fade in progress only happens when a change applied without
+    // parking (no audio running then); the fade-in finishes regardless.
+    const bool out = state == swapFadingOut;
+    const double step = 1.0 / juce::jmax (1.0, kSwapFadeSeconds * sr);
+
+    const int numSamples = buffer.getNumSamples();
+    const int numChannels = buffer.getNumChannels();
+
+    for (int i = 0; i < numSamples; ++i)
+    {
+        swapPhase = out ? juce::jmax (0.0, swapPhase - step) : juce::jmin (1.0, swapPhase + step);
+
+        // A raised cosine: no corner at either end of the fade.
+        const auto gain = (float) (0.5 - 0.5 * std::cos (juce::MathConstants<double>::pi * swapPhase));
+
+        for (int c = 0; c < numChannels; ++c)
+            buffer.getWritePointer (c)[i] *= gain;
+    }
+
+    if (out && swapPhase <= 0.0)
+    {
+        // Silent: hand the engine over. The message thread waits for this.
+        int expected = swapFadingOut;
+        swapState.compare_exchange_strong (expected, swapParked, std::memory_order_acq_rel);
+    }
+    else if (state == swapFadingIn && swapPhase >= 1.0)
+    {
+        int expected = swapFadingIn;
+        swapState.compare_exchange_strong (expected, swapIdle, std::memory_order_acq_rel);
+    }
+}
+
+void LuthierEngine::beginStructuralChange()
+{
+    if (structuralDepth++ > 0)
+        return;
+
+    structuralParked = false;
+
+    /*  Only park an audio thread that is actually running, and never the
+        caller's own thread: waiting for yourself to render is a deadlock. */
+    const auto since = juce::Time::getMillisecondCounter() - lastProcessMs.load (std::memory_order_relaxed);
+    const bool audioRunning = lastProcessMs.load (std::memory_order_relaxed) != 0 && since < 200
+                           && audioThreadId.load (std::memory_order_relaxed) != juce::Thread::getCurrentThreadId();
+
+    if (! audioRunning)
+        return;
+
+    swapState.store (swapFadingOut, std::memory_order_release);
+    structuralParked = true;
+
+    // Bounded: a stalled host must not hang the UI. 250 ms covers the largest
+    // buffer sizes; past it the change goes ahead as it always used to.
+    const auto start = juce::Time::getMillisecondCounter();
+
+    while (swapState.load (std::memory_order_acquire) != swapParked
+           && juce::Time::getMillisecondCounter() - start < 250)
+        juce::Thread::sleep (1);
+}
+
+void LuthierEngine::endStructuralChange()
+{
+    if (--structuralDepth > 0)
+        return;
+
+    structuralDepth = 0;
+
+    if (structuralParked)
+        swapState.store (swapFadingIn, std::memory_order_release);
+
+    structuralParked = false;
 }
 
 void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) noexcept

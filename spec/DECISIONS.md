@@ -172,3 +172,36 @@ chosen") and `ambiguity-resolutions.md`.
   `theme.md` still supplies layout, spacing and the value arc's role. The
   user also approved model-specific knob caps and a user/follow-the-guitar
   accent colour.
+- **The default guitars ship Player-friendly.** Type 0 (Vintage Double-Cut) and
+  onboarding's Les Paul (Vintage Single-Cut) carry 1.6 / 2.0 / 0.20, so a
+  fresh instance and a fresh install read fret-buzz.md 6.1's ship default.
+- **`cpuStaysWithinBudget` takes the best of three renders.** Wall-clock time
+  on this shared laptop picked up a virus scan once (92% of real time in the
+  full run, 28% alone); the fastest run measures the engine.
+- **A state load keeps its own parameters; picking a guitar type writes the
+  guitar's.** The parameters overlapping parts are refinements saved with the
+  preset. 6d reloaded the guitar file on every `applyAllNow` and wrote over
+  them (randomise, range changes, every preset load). The loader now keys on
+  reference + override and does nothing when the same guitar is re-applied.
+- **Preset `guitar.reference` is "Factory/<Family>/<Name>" or "User/<Name>"**,
+  resolved user first, like parts. A missing file falls back to the type's
+  factory guitar and raises the missing-part notice.
+- **Old presets' migrated pickup placements become `guitar.override`**: they
+  are an edit of the file's guitar and must survive a re-save.
+- **Reset loads the default type's factory guitar under the defaults.**
+- **Save As Guitar's "Bundle parts" is a second button** ("Save with parts")
+  writing the parts to `<name> parts/<Category>/` beside the guitar file.
+- **Save As Part fits the saved part**, so the inspector stops showing the
+  slot as an unsaved edit.
+- **Workshop edits write the guitar's values over the overlapping
+  parameters** (as a type change does). Known limit until the bench's setup
+  section exists: a setup tweak made on the SETUP controls is replaced by
+  the guitar's setup when a part is swapped.
+- **The 5 ms click-free swap parks the audio thread.** A true crossfade
+  would need two engines. Instead a guitar change fades the output out over
+  5 ms (raised cosine), the audio thread renders silence without entering
+  the engine while the message thread rebuilds it, then fades in over 5 ms.
+  This also stops the rebuild racing the audio thread, which it did before.
+  No wait when no audio is running or the caller is the audio thread; a
+  250 ms cap if the host stalls. Notes arriving while parked (a few ms) are
+  dropped.

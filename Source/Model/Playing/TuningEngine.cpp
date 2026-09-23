@@ -304,10 +304,12 @@ double TuningEngine::getEffectiveOpenFrequency (int stringIndex) const noexcept
         popover, the engine setting up the string - wants the note it actually
         sounds, so the capo is applied here rather than left for each caller to
         remember. */
-    if (capoFret <= 0)
+    const int capo = getCapoFretFor (stringIndex);
+
+    if (capo <= 0)
         return getOpenFrequencyBeforeCapo (stringIndex);
 
-    return getOpenFrequencyBeforeCapo (stringIndex) * temperamentRatio ((double) capoFret);
+    return getOpenFrequencyBeforeCapo (stringIndex) * temperamentRatio ((double) capo);
 }
 
 void TuningEngine::setCapoFret (int fret) noexcept
@@ -319,7 +321,7 @@ void TuningEngine::setCapoFret (int fret) noexcept
 
 int TuningEngine::getHighestPlayableFret (int stringIndex) const noexcept
 {
-    return juce::jmax (0, getStringTuning (stringIndex).maxFrets - capoFret);
+    return juce::jmax (0, getStringTuning (stringIndex).maxFrets - getCapoFretFor (stringIndex));
 }
 
 double TuningEngine::computeFrequency (int stringIndex, double fretPosition, double bendCents) const noexcept
@@ -339,7 +341,7 @@ double TuningEngine::computeFrequency (int stringIndex, double fretPosition, dou
         - the intonation, because a capo is a fret: the string is stretched by
           the whole distance from the nut, not just the part above the capo.
     */
-    const double absoluteFret = (double) capoFret + fretPosition;
+    const double absoluteFret = (double) getCapoFretFor (stringIndex) + fretPosition;
 
     const double openHz = getOpenFrequencyBeforeCapo (stringIndex);
 
@@ -395,7 +397,7 @@ double TuningEngine::frequencyToFretPosition (int stringIndex, double hz) const 
     if (std::abs (s.intonationSlope) > 1.0e-9)
         semis -= s.intonationSlope * juce::jmax (0.0, semis) / 100.0;
 
-    return semis - (double) capoFret;
+    return semis - (double) getCapoFretFor (stringIndex);
 }
 
 bool TuningEngine::canPlay (int stringIndex, double hz) const noexcept

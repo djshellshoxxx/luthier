@@ -1,4 +1,5 @@
 #include "BodyEngine.h"
+#include "../../Support/ThreadProbe.h"
 
 namespace luthier
 {
@@ -165,6 +166,8 @@ void BodyEngine::applyStagedBank() noexcept
 //==============================================================================
 bool BodyEngine::loadImpulseResponse (const juce::File& file)
 {
+    ThreadProbe::noteFileAccess();
+
     if (! file.existsAsFile())
     {
         irLoaded.store (false);

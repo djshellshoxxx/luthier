@@ -1,4 +1,5 @@
 #include "PartAcoustics.h"
+#include "../../Support/ThreadProbe.h"
 
 namespace luthier
 {
@@ -312,6 +313,8 @@ bool DerivedAcoustics::operator== (const DerivedAcoustics& o) const
 //==============================================================================
 DerivedAcoustics mapSpec (const WorkshopGuitar& g)
 {
+    ThreadProbe::noteMapSpec();
+
     DerivedAcoustics d;
 
     const auto* body = g.get (GuitarSlot::body).get();

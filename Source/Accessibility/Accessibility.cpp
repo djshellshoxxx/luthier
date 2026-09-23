@@ -535,6 +535,10 @@ void AccessibilitySettings::buildDefaultShortcuts()
         PresetManager::getCurrentPresetFile is that. */
     add ("revealPreset",     "accessibility.shortcut.revealPreset",     KP ('e', cmd | alt, 0));
 
+    // guitar-workshop.md 6 and section 17's guitar-file pair.
+    add ("saveGuitarAs",     "accessibility.shortcut.saveGuitarAs",     KP ('g', cmd, 0));
+    add ("revealGuitar",     "accessibility.shortcut.revealGuitar",     KP ('e', cmd | shift, 0));
+
     add ("abCompare",        "accessibility.shortcut.abCompare",        KP ('/', cmd, 0));
 
     add ("randomise",        "accessibility.shortcut.randomise",        KP ('r', cmd, 0));

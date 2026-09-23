@@ -62,6 +62,7 @@ LuthierAudioProcessor::LuthierAudioProcessor()
         ErrorLog::write (ErrorLog::Severity::warn, "Workshop", "PART_UNREADABLE", error);
 
     bridge.onLoadGuitarType = [this] (GuitarType type) { return loadGuitarForType (type); };
+    setCapoPart (partLibrary.getDefault (PartType::capo));
     presets.captureGuitarBlock = [this] { return getGuitarBlock(); };
     presets.onGuitarBlockLoaded = [this] (const juce::var& block) { takeGuitarBlock (block); };
     presets.ensureFactoryPresetsInstalled();
@@ -360,6 +361,15 @@ void LuthierAudioProcessor::takeGuitarBlock (const juce::var& block)
     guitarOverride = override;
     guitarSourceType = type;
     guitarParametersFromState = true;
+
+    // Old placements to migrate edit the guitar, even when it is already loaded.
+    if (presets.hasLegacyPickupPlacements())
+        loadedGuitarKey.clear();
+
+    // The capo travels with the guitar; a preset without one gets the default.
+    const auto capoName = block.getProperty ("capo", {}).toString();
+    auto capo = capoName.isNotEmpty() ? partLibrary.find (PartType::capo, capoName) : nullptr;
+    setCapoPart (capo != nullptr ? capo : partLibrary.getDefault (PartType::capo));
 }
 
 juce::var LuthierAudioProcessor::getGuitarBlock() const
@@ -367,7 +377,32 @@ juce::var LuthierAudioProcessor::getGuitarBlock() const
     auto* block = new juce::DynamicObject();
     block->setProperty ("reference", guitarReference);
     block->setProperty ("override", guitarOverride.isVoid() ? juce::var() : guitarOverride);
+
+    if (capoPart != nullptr)
+        block->setProperty ("capo", capoPart->name);
+
     return juce::var (block);
+}
+
+void LuthierAudioProcessor::setCapoPart (const PartPtr& capo)
+{
+    capoPart = capo;
+
+    juce::uint32 mask = TuningEngine::kAllStrings;
+
+    if (capo != nullptr && capo->text ("type", "full") == "partial")
+    {
+        // String 0 is the lowest, as everywhere in the engine.
+        const auto strings = capo->fields.getProperty ("string_mask", {});
+        mask = 0;
+
+        if (auto* flags = strings.getArray())
+            for (int s = 0; s < juce::jmin (32, flags->size()); ++s)
+                if ((bool) (*flags)[s])
+                    mask |= (1u << s);
+    }
+
+    engine.getTuningEngine().setCapoStringMask (mask);
 }
 
 bool LuthierAudioProcessor::loadGuitarForType (GuitarType type)

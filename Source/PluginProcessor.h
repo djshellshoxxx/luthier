@@ -225,6 +225,13 @@ public:
     /** The preset's `guitar` block for the current guitar (file-formats.md 2). */
     juce::var getGuitarBlock() const;
 
+    /*  ambiguity-resolutions.md 4.5: the capo is the player's accessory
+        (guitar-workshop.md 2) and a partial one clamps only the strings in
+        its part's `string_mask`. The capo fret stays the `capo_fret`
+        parameter; the part travels in the preset's guitar block. */
+    void setCapoPart (const PartPtr& capo);
+    PartPtr getCapoPart() const noexcept { return capoPart; }
+
     /** "Factory/<Family>/<Name>.luthierguitar" or "User/<Name>.luthierguitar". */
     const juce::String& getGuitarReference() const noexcept { return guitarReference; }
 
@@ -464,6 +471,7 @@ private:
     static juce::File resolveGuitarReference (const juce::String& reference);
 
     PartLibrary partLibrary;
+    PartPtr capoPart;
     WorkshopGuitar currentGuitar;
     bool partsGuitarLoaded = false;
     juce::StringArray guitarNotices;

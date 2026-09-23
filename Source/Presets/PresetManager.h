@@ -61,6 +61,11 @@ public:
         loads next takes them. */
     struct LegacyPlacement { bool present = false; double positionFraction = 0.13; double heightMm = 2.5; };
     std::array<LegacyPlacement, 3> takeLegacyPickupPlacements();
+    bool hasLegacyPickupPlacements() const noexcept
+    {
+        return std::any_of (legacyPlacements.begin(), legacyPlacements.end(),
+                            [] (const LegacyPlacement& p) { return p.present; });
+    }
 
     /*  file-formats.md 2 / guitar-workshop.md 8: the preset's `guitar` block,
         `{ "reference": ..., "override": ... }`. The guitar is the processor's,

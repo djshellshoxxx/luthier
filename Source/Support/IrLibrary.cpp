@@ -1,4 +1,5 @@
 #include "IrLibrary.h"
+#include "ThreadProbe.h"
 
 namespace luthier
 {
@@ -130,6 +131,7 @@ juce::File IrLibrary::getCabIrFolder()
 //==============================================================================
 juce::File IrLibrary::findBodyIr (const BodyConfig& config)
 {
+    ThreadProbe::noteFileAccess();
     const auto root = getBodyIrFolder();
 
     if (! root.isDirectory())
@@ -155,6 +157,7 @@ juce::File IrLibrary::findBodyIr (const BodyConfig& config)
 
 juce::File IrLibrary::findCabIr (const CabinetConfig& config)
 {
+    ThreadProbe::noteFileAccess();
     const auto root = getCabIrFolder();
 
     if (! root.isDirectory())

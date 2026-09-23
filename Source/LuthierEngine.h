@@ -57,6 +57,28 @@ public:
     double getSampleRate() const noexcept { return sr; }
 
     //==========================================================================
+    /*  guitar-workshop.md 10: a guitar or part swap is click-free. For the
+        scope of one of these the audio thread is parked: it fades the output
+        out over 5 ms, then renders silence without touching the engine while
+        the message thread rebuilds it, and fades back in over 5 ms when the
+        scope ends. That also keeps the rebuild off an engine the audio thread
+        is inside. With no audio thread running - not processing lately, or
+        the caller is the audio thread itself, as in the offline renderer and
+        the tests - the change just applies. Message thread; nests. */
+    class ScopedStructuralChange
+    {
+    public:
+        explicit ScopedStructuralChange (LuthierEngine& e) : engine (e) { engine.beginStructuralChange(); }
+        ~ScopedStructuralChange() { engine.endStructuralChange(); }
+
+    private:
+        LuthierEngine& engine;
+        JUCE_DECLARE_NON_COPYABLE (ScopedStructuralChange)
+    };
+
+    /** The fade either side of a structural change, each way. */
+    static constexpr double kSwapFadeSeconds = 0.005;
+
     /** Loads a factory instrument: body, strings, pickups, tuning, amp and cab. */
     void setGuitarType (GuitarType type);
     GuitarType getGuitarType() const noexcept { return guitarType; }
@@ -485,6 +507,21 @@ private:
     /** Absolute sample index of the first sample of the block being rendered. */
     int64_t blockStartSample = 0;
     int lastSubBlockNumSamples = 0;
+
+    // --- click-free structural changes (ScopedStructuralChange) --------------------
+    void beginStructuralChange();
+    void endStructuralChange();
+
+    /** Audio thread: the fade for the block just rendered, and the hand-offs. */
+    void applySwapFade (juce::AudioBuffer<float>& buffer) noexcept;
+
+    enum SwapState : int { swapIdle = 0, swapFadingOut, swapParked, swapFadingIn };
+    std::atomic<int> swapState { swapIdle };
+    std::atomic<juce::Thread::ThreadID> audioThreadId { nullptr };
+    std::atomic<juce::uint32> lastProcessMs { 0 };
+    double swapPhase = 1.0;          ///< audio thread; 1 = full level, 0 = silent
+    int structuralDepth = 0;         ///< message thread
+    bool structuralParked = false;   ///< message thread: this scope parked the audio thread
 
     std::atomic<double> cpuEstimate { 0.0 };
 

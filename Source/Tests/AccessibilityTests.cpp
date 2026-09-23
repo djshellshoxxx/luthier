@@ -623,6 +623,8 @@ LUTHIER_TEST (Accessibility, shortcutDefaultsMatchTheCanonicalTable)
         { "resetAll",        KP ('r', cmd | shift, 0) },
         { "midiLearnArm",    KP ('l', cmd, 0) },
         { "export",          KP ('e', cmd, 0) },
+        { "saveGuitarAs",    KP ('g', cmd, 0) },
+        { "revealGuitar",    KP ('e', cmd | shift, 0) },
         { "options",         KP (',', cmd, 0) }
     };
 

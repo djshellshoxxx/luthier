@@ -138,11 +138,23 @@ public:
         open string shifted by a tempered fourth. Under equal temperament the two
         are identical, which is why it would have been easy to get wrong.
 
-        Partial capos are not built: 4.5 takes the string mask from the capo part
-        in the Workshop, and that is blocked on guitar-workshop.md. This is one
-        fret across all strings. GAPS.md B1 has it. */
+        A partial capo (4.5) clamps only the strings in its mask, bit n for
+        string n (0 = the lowest); the others stay open to the nut and every
+        path above answers for them as if there were no capo. */
     void setCapoFret (int fret) noexcept;
     int getCapoFret() const noexcept { return capoFret; }
+
+    static constexpr juce::uint32 kAllStrings = 0xFFFFFFFFu;
+    void setCapoStringMask (juce::uint32 mask) noexcept { capoMask = mask; }
+    juce::uint32 getCapoStringMask() const noexcept     { return capoMask; }
+
+    /** The capo fret this string sees: capoFret if the capo clamps it, else 0. */
+    int getCapoFretFor (int stringIndex) const noexcept
+    {
+        const bool clamped = stringIndex >= 0 && stringIndex < 32
+                          && ((getCapoStringMask() >> stringIndex) & 1u) != 0;
+        return clamped ? capoFret : 0;
+    }
 
     /** The highest fret still reachable, counting from the capo. Zero when a capo
         has been put past the end of the neck, which is legal and silly. */
@@ -207,6 +219,7 @@ private:
 
     int numStrings = 6;
     int capoFret = 0;
+    juce::uint32 capoMask = kAllStrings;
     std::array<StringTuning, kMaxStrings> strings {};
 
     Temperament temperament = Temperament::EqualTemp12;

@@ -1,4 +1,5 @@
 #include "CabinetEngine.h"
+#include "../../Support/ThreadProbe.h"
 
 namespace luthier
 {
@@ -275,6 +276,8 @@ void CabinetEngine::setPhaseAlignMm (double mm) noexcept
 //==============================================================================
 bool CabinetEngine::loadImpulseResponse (int slot, const juce::File& file)
 {
+    ThreadProbe::noteFileAccess();
+
     auto& path = (slot == 0) ? pathA : pathB;
 
     if (! file.existsAsFile())
