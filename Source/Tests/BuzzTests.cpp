@@ -9,6 +9,8 @@
 
 #include "../DSP/Noise/FretBuzz.h"
 #include "../LuthierEngine.h"
+#include "../PluginProcessor.h"
+#include "../UI/SetupGroup.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -233,4 +235,34 @@ LUTHIER_TEST (Buzz, playerFriendlyBuzzesOnlyWhenAttackedHard)
 
     CHECK_MSG (! anyBuzz (gentle, 0, gentle.size()), "Player-friendly buzzed at velocity 100");
     CHECK_MSG (anyBuzz (hard, 0, hard.size()), "Player-friendly never buzzed, even at 127");
+}
+
+//==============================================================================
+LUTHIER_TEST (BuzzUi, setupStylesApplyAsOneStepAndReadModified)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    SetupGroup group (processor);
+    group.setSize (400, group.preferredHeight());
+
+    CHECK_MSG (group.describeSetupStyle() == "Player-friendly",
+               "a fresh instance reads \"" + group.describeSetupStyle() + "\"");
+
+    group.applySetupStyle (5);
+    CHECK (group.describeSetupStyle() == "Needs a tech");
+
+    auto* treble = processor.getState().getParameter (ParamIDs::setupActionTreble);
+    treble->setValueNotifyingHost (treble->convertTo0to1 (1.5f));
+    CHECK (group.describeSetupStyle() == "Needs a tech (modified)");
+
+    processor.undo();
+    CHECK (group.describeSetupStyle() == "Player-friendly");
+}
+
+LUTHIER_TEST (BuzzUi, heatmapCellsReadInMonochromeTerms)
+{
+    CHECK (BuzzHeatmap::stateFor (0.1f) == BuzzHeatmap::CellState::buzzing);
+    CHECK (BuzzHeatmap::stateFor (-0.02f) == BuzzHeatmap::CellState::near);
+    CHECK (BuzzHeatmap::stateFor (-0.5f) == BuzzHeatmap::CellState::clear);
 }

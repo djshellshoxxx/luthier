@@ -318,6 +318,9 @@ CharacterPanel::CharacterPanel (LuthierAudioProcessor& p)
     noiseGroups = std::make_unique<NoiseGroups> (processor);
     addAndMakeVisible (*noiseGroups);
 
+    setupGroup = std::make_unique<SetupGroup> (processor);
+    addAndMakeVisible (*setupGroup);
+
     styleHeading (seedHeading,        "CHARACTER");
     styleHeading (mapsHeading,        "DEAD SPOTS AND FRET WEAR");
     styleHeading (tunerHeading,       "TUNERS");
@@ -572,7 +575,8 @@ int CharacterPanel::preferredHeight() const
          + 16 + 22                                    // body
          + 16 + 26 + 12                               // environment
          + 26 + 24                                    // presets
-         + 8 + noiseGroups->preferredHeight();        // STRING NOISE and PICK
+         + 8 + noiseGroups->preferredHeight()         // STRING NOISE and PICK
+         + 8 + setupGroup->preferredHeight();         // SETUP
 }
 
 void CharacterPanel::paint (juce::Graphics& g)
@@ -662,6 +666,9 @@ void CharacterPanel::resized()
 
     bounds.removeFromTop (8);
     noiseGroups->setBounds (bounds.removeFromTop (noiseGroups->preferredHeight()));
+
+    bounds.removeFromTop (8);
+    setupGroup->setBounds (bounds.removeFromTop (setupGroup->preferredHeight()));
 }
 
 } // namespace luthier

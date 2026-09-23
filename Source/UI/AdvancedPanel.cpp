@@ -496,16 +496,12 @@ void AdvancedPanel::buildColumn1()
 
     column.addGap (Metrics::gridHalf);
 
-    fretAction = std::make_unique<LuthierKnob> ("Action");
-    fretAction->attachTo (processor, ParamIDs::fretAction,
-                          "String height above the frets. Low action buzzes more and makes "
-                          "bends catch more easily.");
-    column.addControl (fretAction.get(), LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
-
-    fretBuzz = std::make_unique<LuthierKnob> ("Buzz");
+    // The action is the setup's now (CHARACTER -> SETUP, fret-buzz.md); the
+    // old single Action knob would be a second control that did nothing.
+    fretBuzz = std::make_unique<LuthierKnob> ("Contact");
     fretBuzz->attachTo (processor, ParamIDs::fretBuzz,
-                        "How readily the string slaps the frets. Clips the loud peaks and adds "
-                        "a bright rattle, exactly as the real thing does.");
+                        "How much a string loses when it slaps a fret. Where and when it buzzes "
+                        "is set by the setup in CHARACTER -> SETUP.");
     column.addControl (fretBuzz.get(), LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
 
     column.addGap (Metrics::grid);

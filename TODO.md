@@ -10,10 +10,7 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## In progress
 
-- [ ] **4. Setup geometry and fret buzz** (`fret-buzz.md`) — next: 16 params,
-      block-rate buzz sensing into the NoiseEngine buzz pool, sitar mode,
-      SETUP group on CHARACTER with the live buzz heatmap. Reconcile with the
-      existing `fret_action` / `fret_buzz` parameters.
+- [ ] **5. `SlideEngine`** (`slide-guitar.md`) — next.
 - [ ] 3f. A way to fire pick scrape (midi-export `pick_scrape` class / Easy rake
       gesture); the engine API `triggerPickScrape` exists.
 
@@ -35,7 +32,6 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       path, Adv Col 3 SUSTAIN feedback row). Currently a heuristic.
 - [ ] 2d. Audit the rest of `ambiguity-resolutions.md` against the build
       (brief step 4).
-- [ ] 5. `SlideEngine` (`slide-guitar.md`), Slide mode.
 - [ ] 6. `PartLibrary` and `mapSpec` (`guitar-workshop.md`, `part-acoustics.md`),
       `.luthierguitar` / `.luthierpart` files, partial capo.
 - [ ] 7. `WorkshopPanel` and the WORKSHOP tab (`workshop-ui.md`), with its
@@ -61,6 +57,10 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 - [ ] 18. Plugin targets (`Luthier_VST3`, `Luthier_Standalone`) build clean.
 
 ## Done
+
+- [x] 4. Setup geometry, sensed fret buzz, sitar mode, SETUP group with the
+      live heatmap and setup styles. (Character fret wear moving buzz,
+      fret-buzz.md 8, waits on a per-fret wear height from CharacterEngine.)
 
 - [x] 3. NoiseEngine pool; pick click/chirp/scrape; finger squeak; CHARACTER
       tab STRING NOISE and PICK groups with style presets, noise-event strip

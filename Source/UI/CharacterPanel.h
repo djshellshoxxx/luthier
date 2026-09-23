@@ -17,6 +17,7 @@
 #include "Theme.h"
 #include "Widgets.h"
 #include "NoiseGroups.h"
+#include "SetupGroup.h"
 #include "../Character/CharacterEngine.h"
 
 namespace luthier
@@ -148,6 +149,7 @@ private:
 
     // --- STRING NOISE and PICK (gui-integration 4.4) ----------------------------------
     std::unique_ptr<NoiseGroups> noiseGroups;
+    std::unique_ptr<SetupGroup> setupGroup;
 
     juce::Label seedHeading, mapsHeading, tunerHeading, electronicsHeading,
                 bodyHeading, environmentHeading;
