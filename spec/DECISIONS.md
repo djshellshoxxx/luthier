@@ -400,3 +400,14 @@ chosen") and `ambiguity-resolutions.md`.
   is gone; `doubler_on` / `doubler_amount` stay for saved automation, and a
   preset with `doubler_on` gets a Doubler in its first free post-amp slot at
   the pedal's defaults, since the old amount meant something different.
+- **`Resources/Guitars/migration.json`** (ambiguity-resolutions 7): magic
+  `luthier.guitar-migration`, schema 1, version 2, with `renamed` (factory
+  files the trademark sweep renamed) and `names` (every guitar-type name ever
+  shipped - the pre-sweep ones included - to its .luthierguitar). It is read
+  once; `renamedFactoryGuitar` keeps its two hard-coded renames as a fallback
+  when the file is not installed. A reference that resolves nowhere loads the
+  type's factory guitar with 7's banner text verbatim. The legacy names live
+  only in this file and in lines marked for the trademark scan, which now also
+  runs in the suite (`Trademarks.sourceTreeHasNoUnmarkedBrandNames`); it had
+  six unmarked hits in the retired-preset list that the script, run by hand,
+  had not been run to catch.

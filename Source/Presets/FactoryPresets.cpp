@@ -773,9 +773,9 @@ void FactoryPresets::writeAll (const juce::File& folder)
         DECISIONS 2g). Their old files are moved aside rather than deleted, so a
         user who edited one can still find it; the folder is not scanned. */
     static const char* const retired[][2] = {
-        { "Electric", "Clean Strat Funk" }, { "Electric", "Tele Country Twang" },
-        { "Electric", "Les Paul Crunch" },  { "Bass", "Jazz Bass Fingerstyle" },
-        { "Bass", "Rickenbacker Grind" },   { "Electric", "TransTrem Chords" },
+        { "Electric", "Clean Strat Funk" }, { "Electric", "Tele Country Twang" },     // legacy name (trademark scan skips it)
+        { "Electric", "Les Paul Crunch" },  { "Bass", "Jazz Bass Fingerstyle" },      // legacy name (trademark scan skips it)
+        { "Bass", "Rickenbacker Grind" },   { "Electric", "TransTrem Chords" },       // legacy name (trademark scan skips it)
     };
 
     for (const auto& r : retired)

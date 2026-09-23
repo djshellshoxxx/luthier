@@ -63,7 +63,6 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
             structural at 0.5, automatable `preset_morph_position`, browser
             toggle; tests 5.3.
       - [ ] 6 Crossing velocity from the pattern (with strum-dynamics, item 8).
-      - [ ] 7 `Resources/Guitars/migration.json` for old guitar names; 7.1.
       - [ ] 8 Feedback / freeze / E-Bow as mod destinations; snapshot recall
             cancels a morph; Aux 1 pre/post-circuit toggle.
 - [ ] **7. Workshop bench** - IN PROGRESS. Done and green (457 tests):

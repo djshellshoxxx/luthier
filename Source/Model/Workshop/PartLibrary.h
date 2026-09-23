@@ -138,6 +138,14 @@ public:
     static juce::String renamedFactoryPart (const juce::String& name);
     static juce::String renamedFactoryGuitar (const juce::String& relativePath);
 
+    /** ambiguity-resolutions.md 7: the shipped guitar a name from an older
+        preset stands for (an old guitar-type name, a current one, or a renamed
+        file), from Resources/Guitars/migration.json. Empty if it knows none. */
+    static juce::String migratedGuitar (const juce::String& nameOrRelativePath);
+
+    /** The migration table's version, or 0 when it is not installed. */
+    static int getGuitarMigrationVersion();
+
     /** The factory default for a type (4.1); any factory part if none is flagged. */
     PartPtr getDefault (PartType type) const;
 

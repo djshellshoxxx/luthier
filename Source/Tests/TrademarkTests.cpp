@@ -112,3 +112,59 @@ LUTHIER_TEST (Trademarks, oldNamesStillLoad)
 
     CHECK (PartLibrary::renamedFactoryGuitar ("Acoustic/Selmer-Style.luthierguitar") == "Acoustic/Gypsy Jazz.luthierguitar");
 }
+
+/*  Tools/trademark_scan.py's source check, in the suite so a regression fails
+    the build rather than waiting for someone to run the script: string literals
+    in Source/ (not tests, not comments, not lines marked "legacy name"). */
+LUTHIER_TEST (Trademarks, sourceTreeHasNoUnmarkedBrandNames)
+{
+    const auto source = juce::File (__FILE__).getParentDirectory().getParentDirectory();
+
+    if (! source.getChildFile ("PluginProcessor.cpp").existsAsFile())
+        return;   // built from somewhere the sources are not
+
+    juce::StringArray hits;
+
+    for (const auto& entry : juce::RangedDirectoryIterator (source, true, "*.cpp;*.h"))
+    {
+        const auto file = entry.getFile();
+
+        if (file.getFullPathName().contains ("Tests"))
+            continue;
+
+        juce::StringArray lines;
+        lines.addLines (file.loadFileAsString());
+
+        for (int n = 0; n < lines.size(); ++n)
+        {
+            const auto line = lines[n];
+            const auto trimmed = line.trimStart();
+
+            if (trimmed.startsWith ("//") || trimmed.startsWith ("*") || trimmed.startsWith ("/*")
+                  || line.contains ("legacy name"))
+                continue;
+
+            // Each "..." literal on the line.
+            for (int at = line.indexOfChar ('"'); at >= 0;)
+            {
+                int end = at + 1;
+
+                while (end < line.length() && ! (line[end] == '"' && line[end - 1] != '\\'))
+                    ++end;
+
+                if (end >= line.length())
+                    break;
+
+                const auto literal = line.substring (at + 1, end);
+                const auto brand = brandIn (literal);
+
+                if (brand.isNotEmpty())
+                    hits.add (file.getRelativePathFrom (source) + ":" + juce::String (n + 1) + " " + brand);
+
+                at = line.indexOfChar (end + 1, '"');
+            }
+        }
+    }
+
+    CHECK_MSG (hits.isEmpty(), "brand names in shipped strings: " + hits.joinIntoString ("; "));
+}

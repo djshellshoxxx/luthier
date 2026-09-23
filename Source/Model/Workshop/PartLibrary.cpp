@@ -492,8 +492,61 @@ juce::String PartLibrary::renamedFactoryPart (const juce::String& name)
     return it != renamed.end() ? it->second : name;
 }
 
+namespace
+{
+    /** Resources/Guitars/migration.json, read once. */
+    const juce::var& guitarMigrationTable()
+    {
+        static const juce::var table = []
+        {
+            const auto file = PartLibrary::getFactoryGuitarsFolder().getChildFile ("migration.json");
+            const auto parsed = file.existsAsFile() ? juce::JSON::parse (file) : juce::var();
+            return parsed.getProperty ("magic", {}).toString() == "luthier.guitar-migration" ? parsed : juce::var();
+        }();
+
+        return table;
+    }
+
+    juce::String lookUp (const juce::var& section, const juce::String& key)
+    {
+        if (auto* object = section.getDynamicObject())
+            for (const auto& entry : object->getProperties())
+                if (entry.name.toString().equalsIgnoreCase (key))
+                    return entry.value.toString();
+
+        return {};
+    }
+}
+
+juce::String PartLibrary::migratedGuitar (const juce::String& nameOrRelativePath)
+{
+    const auto& table = guitarMigrationTable();
+    const auto renamed = lookUp (table.getProperty ("renamed", {}), nameOrRelativePath);
+
+    if (renamed.isNotEmpty())
+        return renamed;
+
+    // A bare name, or a path whose file name is a known guitar's.
+    const auto name = nameOrRelativePath.fromLastOccurrenceOf ("/", false, false)
+                                        .upToLastOccurrenceOf (".luthierguitar", false, true);
+
+    return lookUp (table.getProperty ("names", {}), name.isNotEmpty() ? name : nameOrRelativePath);
+}
+
+int PartLibrary::getGuitarMigrationVersion()
+{
+    return (int) guitarMigrationTable().getProperty ("version", 0);
+}
+
 juce::String PartLibrary::renamedFactoryGuitar (const juce::String& relativePath)
 {
+    // The migration table first (it is what the installer updates); the two
+    // renames below are the fallback when it is not installed.
+    const auto renamed = lookUp (guitarMigrationTable().getProperty ("renamed", {}), relativePath);
+
+    if (renamed.isNotEmpty())
+        return renamed;
+
     if (relativePath.endsWithIgnoreCase ("Selmer-Style.luthierguitar"))   // legacy name (trademark scan skips it)
         return relativePath.replace ("Selmer-Style", "Gypsy Jazz");   // legacy name (trademark scan skips it)
 

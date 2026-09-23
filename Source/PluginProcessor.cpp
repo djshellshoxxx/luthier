@@ -339,7 +339,23 @@ juce::File LuthierAudioProcessor::resolveGuitarReference (const juce::String& re
 
     // A user guitar saved flat, referenced with its family folder, or the reverse.
     const auto flat = PartLibrary::getUserGuitarsFolder().getChildFile (relative.fromLastOccurrenceOf ("/", false, false));
-    return flat.existsAsFile() ? flat : juce::File();
+
+    if (flat.existsAsFile())
+        return flat;
+
+    // ambiguity-resolutions 7: a name from before the parts model, through the
+    // migration table.
+    const auto migrated = PartLibrary::migratedGuitar (relative);
+
+    if (migrated.isNotEmpty())
+    {
+        const auto file = PartLibrary::getFactoryGuitarsFolder().getChildFile (migrated);
+
+        if (file.existsAsFile())
+            return file;
+    }
+
+    return {};
 }
 
 void LuthierAudioProcessor::takeGuitarBlock (const juce::var& block)
@@ -470,11 +486,13 @@ bool LuthierAudioProcessor::loadGuitarFrom (const juce::String& reference, const
 
             if (reference.isNotEmpty())
             {
-                // error-recovery.md: the preset loads, on its type's factory guitar.
-                const auto message = "Guitar " + reference.fromLastOccurrenceOf ("/", false, false)
-                                       .upToLastOccurrenceOf (".", false, false)
-                                   + " not found, using the factory " + GuitarLibrary::getName (type);
-                report.missing.add (message);
+                // ambiguity-resolutions 7 / gui-integration 15: the preset loads,
+                // on its type's factory guitar, and says so in the spec's words.
+                const auto name = reference.fromLastOccurrenceOf ("/", false, false)
+                                           .upToLastOccurrenceOf (".luthierguitar", false, true);
+                report.missing.add ("Guitar '" + (name.isNotEmpty() ? name : reference)
+                                    + "' not found, loaded closest factory match. "
+                                      "Open Workshop to save your customization as a guitar.");
             }
         }
 
