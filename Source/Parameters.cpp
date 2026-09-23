@@ -551,8 +551,7 @@ APVTS::ParameterLayout Parameters::createLayout()
     {
         const juce::String n (slot + 1);
         add (choiceParam (ParamIDs::pickupType (slot),     "Pickup " + n + " Type",     pickupTypeNames(), 0));
-        add (floatParam  (ParamIDs::pickupPosition (slot), "Pickup " + n + " Position", 0.02f, 0.48f, 0.13f + 0.13f * (float) slot));
-        add (floatParam  (ParamIDs::pickupHeight (slot),   "Pickup " + n + " Height",   1.0f, 6.0f, 2.5f, 0.5f, "mm"));
+        // Position and height are the guitar's placement now (guitar-workshop.md 9).
         add (choiceParam (ParamIDs::pickupMagnet (slot),   "Pickup " + n + " Magnet",   magnetNames(), 2));
         add (floatParam  (ParamIDs::pickupVolume (slot),   "Pickup " + n + " Volume",   0.0f, 1.5f, 1.0f));
     }
@@ -862,11 +861,6 @@ void ParameterBridge::applyToEngine() noexcept
 
     for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
     {
-        auto pspec = pickups.getPickupSpec (slot);
-        pspec.position = value (ParamIDs::pickupPosition (slot));
-        pspec.heightMm = value (ParamIDs::pickupHeight (slot));
-        pspec.coilTapped = value (ParamIDs::coilTap) > 0.5f;
-        pickups.setPickupSpec (slot, pspec);
         pickups.setPickupVolume (slot, value (ParamIDs::pickupVolume (slot)));
     }
 
@@ -1027,6 +1021,17 @@ void ParameterBridge::applyToEngine() noexcept
     }
 
     // ---- structural change detection ---------------------------------------------
+    const bool structural = readStructuralValues() || ! structuralInitialised;
+
+    if (structural)
+    {
+        structuralPending.store (true);
+        triggerAsyncUpdate();
+    }
+}
+
+bool ParameterBridge::readStructuralValues() noexcept
+{
     auto changed = [] (int& cached, int current) noexcept
     {
         if (cached == current)
@@ -1036,7 +1041,7 @@ void ParameterBridge::applyToEngine() noexcept
         return true;
     };
 
-    bool structural = ! structuralInitialised;
+    bool structural = false;
 
     structural |= changed (lastGuitarType,     (int) value (ParamIDs::guitarType));
     structural |= changed (lastTuning,         (int) value (ParamIDs::tuningPreset));
@@ -1075,11 +1080,7 @@ void ParameterBridge::applyToEngine() noexcept
             structural |= changed (lastSlotType[chain][slot],
                                    (int) value (ParamIDs::slotType (chain == 1, slot)));
 
-    if (structural)
-    {
-        structuralPending.store (true);
-        triggerAsyncUpdate();
-    }
+    return structural;
 }
 
 //==============================================================================
@@ -1106,7 +1107,14 @@ void ParameterBridge::applyStructural()
     // Loading a guitar type resets a lot of downstream state, so it goes first and
     // the explicit parameters below then override whatever it set.
     if (firstTime || lastGuitarType != (int) engine.getGuitarType())
-        engine.setGuitarType ((GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1, lastGuitarType));
+    {
+        const auto type = (GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1, lastGuitarType);
+
+        if (onLoadGuitarType != nullptr && onLoadGuitarType (type))
+            readStructuralValues();   // the guitar's parts are in the parameters now
+        else
+            engine.setGuitarType (type);
+    }
 
     engine.setTuningPreset ((TuningPreset) juce::jlimit (0, (int) TuningPreset::NumPresets - 1, lastTuning));
 
@@ -1157,12 +1165,34 @@ void ParameterBridge::applyStructural()
     // ---- pickups ----------------------------------------------------------------
     for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
     {
-        auto pspec = PickupSpec::makeDefault (
-            (PickupType) juce::jlimit (0, (int) PickupType::NumTypes - 1, lastPickupType[slot]),
-            value (ParamIDs::pickupPosition (slot)));
+        const auto type = (PickupType) juce::jlimit (0, (int) PickupType::NumTypes - 1, lastPickupType[slot]);
+
+        /*  A parts guitar's pickup - its L, R, C, placement, cover - stands
+            unless the pickup type has been changed away from the part's;
+            then the type's defaults stand in, at the part's placement
+            (guitar-workshop.md 9: placement is the guitar's, not a parameter). */
+        PickupSpec pspec;
+
+        if (engine.isWorkshopGuitar() && slot < 3)
+        {
+            const auto& part = engine.getPartsPickup (slot);
+
+            if (part.type == type)
+            {
+                pspec = part;
+            }
+            else
+            {
+                pspec = PickupSpec::makeDefault (type, part.position);
+                pspec.heightMm = part.heightMm;
+            }
+        }
+        else
+        {
+            pspec = PickupSpec::makeDefault (type, engine.getGuitarSpec().pickupPositions[juce::jmin (slot, 2)]);
+        }
 
         pspec.magnet = (MagnetType) juce::jlimit (0, (int) MagnetType::NumMagnets - 1, lastPickupMagnet[slot]);
-        pspec.heightMm = value (ParamIDs::pickupHeight (slot));
         pspec.coilTapped = value (ParamIDs::coilTap) > 0.5f;
 
         engine.getPickupEngine().setPickupSpec (slot, pspec);

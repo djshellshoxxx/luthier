@@ -55,6 +55,13 @@ public:
         folder before the new one lands on top of it. */
     static void backupBeforeOverwrite (const juce::File& target);
 
+    /*  guitar-workshop.md 9: pickup position and height were parameters and are
+        placements now. A preset saved before stores them in `parameters`; the
+        load keeps them here, in engine slot order, until the guitar that
+        loads next takes them. */
+    struct LegacyPlacement { bool present = false; double positionFraction = 0.13; double heightMm = 2.5; };
+    std::array<LegacyPlacement, 3> takeLegacyPickupPlacements();
+
     /** Deletes backups older than kBackupRetentionDays. Called once on startup. */
     static void pruneOldBackups();
 
@@ -234,6 +241,7 @@ private:
     /** advanced-ranges.md: the processor's range state, applied on load and
         written on save. */
     RangeState& ranges;
+    std::array<LegacyPlacement, 3> legacyPlacements {};
     LuthierEngine& engine;
 
     juce::Array<PresetInfo> presets;

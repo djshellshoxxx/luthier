@@ -245,8 +245,9 @@ void LuthierEngine::setGuitarType (GuitarType type)
     applySpec();
 }
 
-void LuthierEngine::applyWorkshopGuitar (const DerivedAcoustics& d)
+void LuthierEngine::applyWorkshopGuitar (const DerivedAcoustics& d, GuitarType standsFor)
 {
+    guitarType = standsFor;
     spec = d.spec;
     hasPartsOverride = true;
 

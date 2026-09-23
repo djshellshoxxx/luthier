@@ -849,6 +849,16 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         notifications.post (std::move (n));
     }
 
+    // ---- a part a guitar asked for and could not have (gui-integration 15) -----
+    for (const auto& message : processor.takeGuitarNotices())
+    {
+        Notification n;
+        n.id = "missing-part";
+        n.message = message;
+        n.level = Notification::Level::warning;
+        notifications.post (std::move (n));
+    }
+
     // ---- a preset that would not load ----------------------------------------
     const auto presetError = processor.getPresetManager().getLastLoadError();
 

@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "Presets/FactoryPresets.h"
+#include "Support/ErrorLog.h"
 
 /*  The test runner and the offline renderer build this file, so that the things
     only the processor owns - the undo stack, uiState, A/B slots, snapshot recall,
@@ -53,6 +54,14 @@ LuthierAudioProcessor::LuthierAudioProcessor()
       snapshots (*this)
 {
     FactoryPresets::setProcessorForRanges (this);
+
+    // guitar-workshop.md 0.6: a guitar type loads its factory guitar file.
+    partLibrary.refresh();
+
+    for (const auto& error : partLibrary.getScanErrors())
+        ErrorLog::write (ErrorLog::Severity::warn, "Workshop", "PART_UNREADABLE", error);
+
+    bridge.onLoadGuitarType = [this] (GuitarType type) { return loadGuitarForType (type); };
     presets.ensureFactoryPresetsInstalled();
     presets.refresh();
 
@@ -259,6 +268,184 @@ int LuthierAudioProcessor::changeRanges (const RangeState& newState, const juce:
 
     diagnostics.logValue (LogCategory::Engine, "ranges changed, values clamped", clamped, samplePosition);
     return clamped;
+}
+
+//==============================================================================
+juce::String LuthierAudioProcessor::getFactoryGuitarPath (GuitarType type)
+{
+    // guitar-workshop.md 0.6: the enum survives as a shortcut to a file.
+    switch (type)
+    {
+        case GuitarType::Stratocaster:     return "Electric/Vintage Double-Cut.luthierguitar";
+        case GuitarType::Telecaster:       return "Electric/Classic T-Style.luthierguitar";
+        case GuitarType::LesPaul:          return "Electric/Vintage Single-Cut.luthierguitar";
+        case GuitarType::SG:               return "Electric/Double-Cut Devil.luthierguitar";
+        case GuitarType::ES335:            return "Electric/Semi-Hollow 335.luthierguitar";
+        case GuitarType::Jazzmaster:       return "Electric/Offset Modern.luthierguitar";
+        case GuitarType::Explorer:         return "Electric/Angular Korina.luthierguitar";
+        case GuitarType::IbanezRG:         return "Electric/Superstrat Floyd.luthierguitar";
+        case GuitarType::SevenString:      return "Electric/7-String Modern.luthierguitar";
+        case GuitarType::EightString:      return "Electric/8-String Modern.luthierguitar";
+        case GuitarType::BaritoneElectric: return "Electric/Baritone Electric.luthierguitar";
+        case GuitarType::Dreadnought:      return "Acoustic/Dreadnought.luthierguitar";
+        case GuitarType::Auditorium:       return "Acoustic/Grand Auditorium.luthierguitar";
+        case GuitarType::Jumbo:            return "Acoustic/Jumbo.luthierguitar";
+        case GuitarType::Parlor:           return "Acoustic/Parlor.luthierguitar";
+        case GuitarType::Classical:        return "Classical/Classical.luthierguitar";
+        case GuitarType::Flamenco:         return "Classical/Flamenca Blanca.luthierguitar";
+        case GuitarType::TwelveString:     return "Acoustic/12-String Jumbo.luthierguitar";
+        case GuitarType::Resonator:        return "Resonator/Resonator Steel.luthierguitar";
+        case GuitarType::PrecisionBass:    return "Bass/P-Style Bass.luthierguitar";
+        case GuitarType::JazzBass:         return "Bass/J-Style Bass.luthierguitar";
+        case GuitarType::Rickenbacker:     return "Bass/Hollow Violin-Style Bass.luthierguitar";
+        case GuitarType::FiveStringBass:   return "Bass/Five-String Bass.luthierguitar";
+        case GuitarType::FretlessBass:     return "Bass/Fretless Bass.luthierguitar";
+        case GuitarType::Custom:
+        case GuitarType::NumTypes:
+        default:                           return {};
+    }
+}
+
+bool LuthierAudioProcessor::loadGuitarForType (GuitarType type)
+{
+    const auto path = getFactoryGuitarPath (type);
+
+    if (path.isEmpty())
+        return false;
+
+    const auto file = PartLibrary::getFactoryGuitarsFolder().getChildFile (path);
+
+    if (! file.existsAsFile())
+    {
+        // No factory content installed: the compiled guitar stands in, and the
+        // log says why the instrument is not the parts one.
+        ErrorLog::write (ErrorLog::Severity::warn, "Workshop", "FACTORY_GUITAR_MISSING",
+                         "Factory guitar " + path + " is not installed; using the built-in instrument.");
+        return false;
+    }
+
+    WorkshopGuitar guitar;
+    PartLibrary::LoadReport report;
+
+    if (! partLibrary.loadGuitar (file, guitar, report))
+        return false;
+
+    // An old preset's pickup position and height parameters become this
+    // guitar's placements (guitar-workshop.md 9's migration).
+    const auto legacy = presets.takeLegacyPickupPlacements();
+
+    for (int engineSlot = 0; engineSlot < (int) legacy.size(); ++engineSlot)
+    {
+        if (! legacy[(size_t) engineSlot].present)
+            continue;
+
+        // Engine slot 0 is the bridge-most fitted pickup.
+        int seen = 0;
+
+        for (int fileIndex = 2; fileIndex >= 0; --fileIndex)
+        {
+            if (guitar.get (WorkshopGuitar::pickupSlot (fileIndex)) == nullptr)
+                continue;
+
+            if (seen++ == engineSlot)
+            {
+                auto& placement = guitar.placements[(size_t) fileIndex];
+                const double scale = guitar.get (GuitarSlot::neck) != nullptr
+                                       ? guitar.get (GuitarSlot::neck)->number ("scale_length_mm", 648.0) : 648.0;
+
+                placement.positionMm = legacy[(size_t) engineSlot].positionFraction * scale;
+                placement.heightTrebleMm = placement.heightBassMm = legacy[(size_t) engineSlot].heightMm;
+                break;
+            }
+        }
+    }
+
+    applyGuitar (guitar, type, report);
+    return true;
+}
+
+void LuthierAudioProcessor::applyGuitar (const WorkshopGuitar& guitar, GuitarType standsFor,
+                                         const PartLibrary::LoadReport& report)
+{
+    currentGuitar = guitar;
+    partsGuitarLoaded = true;
+
+    const auto derived = mapSpec (guitar);
+    engine.applyWorkshopGuitar (derived, standsFor);
+    writeGuitarParameters (derived);
+
+    // gui-integration 15's missing-part banner, and the log (error-recovery.md).
+    for (const auto& message : report.missing)
+    {
+        guitarNotices.addIfNotAlreadyThere (message);
+        ErrorLog::write (ErrorLog::Severity::warn, "Workshop", "PART_MISSING", message);
+    }
+
+    for (const auto& message : report.errors)
+        ErrorLog::write (ErrorLog::Severity::warn, "Workshop", "GUITAR_UNREADABLE", message);
+
+    if (report.stringExcess > 0)
+        ErrorLog::write (ErrorLog::Severity::info, "Workshop", "STRING_COUNT_MISMATCH",
+                         "The neck and bridge disagree by " + juce::String (report.stringExcess)
+                           + " strings; the guitar has " + juce::String (derived.numStrings) + ".");
+}
+
+juce::StringArray LuthierAudioProcessor::takeGuitarNotices()
+{
+    auto out = guitarNotices;
+    guitarNotices.clear();
+    return out;
+}
+
+void LuthierAudioProcessor::writeGuitarParameters (const DerivedAcoustics& d)
+{
+    /*  Parts are the instrument; the parameters that overlap them are live
+        refinements, initialised from the parts on every guitar load so the
+        controls show the guitar that is playing. Written without gestures:
+        a guitar load is one action, and its own undo entry (if any) is the
+        caller's. Values outside a parameter's range clamp to it. */
+    auto write = [this] (const juce::String& id, double plain)
+    {
+        if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (id)))
+            p->setValueNotifyingHost (p->convertTo0to1 ((float) plain));
+    };
+
+    write (ParamIDs::stringMaterial, (int) d.stringMaterial);
+    write (ParamIDs::fretless, d.spec.fretless ? 1.0 : 0.0);
+    write (ParamIDs::bridgeType, (int) d.spec.bridge);
+
+    write (ParamIDs::bodyTopWood, (int) d.body.topWood);
+    write (ParamIDs::bodyBackWood, (int) d.body.backWood);
+    write (ParamIDs::bodyBracing, (int) d.body.bracing);
+    write (ParamIDs::bodyWidth, d.body.scaleWidth);
+    write (ParamIDs::bodyDepth, d.body.scaleDepth);
+    write (ParamIDs::bodyAge, d.body.age);
+
+    if (d.body.topThicknessMm > 0.0)
+        write (ParamIDs::bodyTopThick, d.body.topThicknessMm);
+
+    for (int slot = 0; slot < juce::jmin (3, d.numPickups); ++slot)
+    {
+        write (ParamIDs::pickupType (slot), (int) d.pickups[(size_t) slot].spec.type);
+        write (ParamIDs::pickupMagnet (slot), (int) d.pickups[(size_t) slot].spec.magnet);
+    }
+
+    // The wiring part is the circuit (part-acoustics.md 7).
+    write (ParamIDs::circuitVolumePot, d.wiring.volumePot);
+    write (ParamIDs::circuitTonePot, d.wiring.tonePot);
+    write (ParamIDs::circuitToneCap, d.wiring.toneCap * 1.0e9);
+    write (ParamIDs::circuitPotTaper, (int) d.wiring.taper);
+    write (ParamIDs::circuitTrebleBleed, (int) d.wiring.bleed);
+    write (ParamIDs::circuitActive, d.wiring.active ? 1.0 : 0.0);
+
+    // The setup is the guitar's (fret-buzz.md), measured by its tech.
+    write (ParamIDs::setupActionTreble, d.setup.actionTreble);
+    write (ParamIDs::setupActionBass, d.setup.actionBass);
+    write (ParamIDs::setupRelief, d.setup.relief);
+    write (ParamIDs::setupFretHeight, d.setup.fretHeight);
+
+    for (int n = 1; n <= ParamIDs::kNumNutDepths; ++n)
+        write (ParamIDs::setupNutDepth (n), d.setup.nutDepth[(size_t) (n - 1)]);
 }
 
 //==============================================================================

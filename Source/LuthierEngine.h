@@ -121,7 +121,13 @@ public:
         acoustics (part-acoustics.md). Message thread, like setGuitarType -
         it allocates. Replaces the compiled guitar's body, pickups, strings
         and termination with what the parts say. */
-    void applyWorkshopGuitar (const DerivedAcoustics& derived);
+    void applyWorkshopGuitar (const DerivedAcoustics& derived, GuitarType standsFor = GuitarType::Custom);
+
+    /** A parts guitar's pickup as its part describes it (engine slot order). */
+    const PickupSpec& getPartsPickup (int slot) const noexcept
+    {
+        return partsPickups[(size_t) juce::jlimit (0, 2, slot)];
+    }
 
     /** Whether the instrument is a parts guitar rather than a compiled type. */
     bool isWorkshopGuitar() const noexcept { return hasPartsOverride; }

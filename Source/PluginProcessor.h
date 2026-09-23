@@ -24,6 +24,7 @@
 #include "ToneMatch/ToneMatch.h"
 #include "Updates/Telemetry.h"
 #include "PhysicalRange.h"
+#include "Model/Workshop/PartAcoustics.h"
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
 
@@ -185,6 +186,27 @@ public:
         lock brings back the values it clamped (advanced-ranges.md 7), and
         pushes the result to the engine. Every UI route goes through this. */
     int changeRanges (const RangeState& newState, const juce::String& undoDescription);
+
+    /*  guitar-workshop.md: the guitar as a bill of parts. The guitar-type
+        parameter is a shortcut to a factory guitar file (0.6); the Workshop
+        edits the current guitar directly. Message thread. */
+    PartLibrary& getPartLibrary() noexcept { return partLibrary; }
+    const WorkshopGuitar& getCurrentGuitar() const noexcept { return currentGuitar; }
+    bool hasPartsGuitar() const noexcept { return partsGuitarLoaded; }
+
+    /** The factory file a guitar type stands for, relative to Resources/Guitars. */
+    static juce::String getFactoryGuitarPath (GuitarType type);
+
+    /*  Makes `guitar` the instrument: maps it, applies it to the engine and
+        writes its parts into the parameters that overlap them (string
+        material, body, pickup types, circuit, setup), so the controls show
+        the guitar that is playing. Missing-part and compatibility messages go
+        to the notification queue and the error log. */
+    void applyGuitar (const WorkshopGuitar& guitar, GuitarType standsFor,
+                      const PartLibrary::LoadReport& report);
+
+    /** The notices applyGuitar raised since the last call (gui-integration 15). */
+    juce::StringArray takeGuitarNotices();
 
     /*  advanced-ranges.md 5: randomise stays inside stock by default. The
         preference is user-global and lives in UiPreferences, which the engine
@@ -398,6 +420,15 @@ private:
         values are written - see PresetManager::fromVar. */
     RangeState ranges;
     bool randomiseRespectsStock = true;
+
+    // The guitar as parts (guitar-workshop.md).
+    bool loadGuitarForType (GuitarType type);
+    void writeGuitarParameters (const DerivedAcoustics& derived);
+
+    PartLibrary partLibrary;
+    WorkshopGuitar currentGuitar;
+    bool partsGuitarLoaded = false;
+    juce::StringArray guitarNotices;
 
     /*  live-performance 2: a program change or bank select arrives on the audio
         thread, but acting on either can allocate - a snapshot recall walks the

@@ -593,18 +593,8 @@ void AdvancedPanel::buildColumn2()
                                     "it sound like a humbucker.");
         column.addControl (pickupType[slot].get(), 36);
 
-        pickupPosition[slot] = std::make_unique<LuthierKnob> ("Position " + n);
-        pickupPosition[slot]->attachTo (processor, ParamIDs::pickupPosition (slot),
-                                        "Distance from the bridge as a fraction of the string. "
-                                        "A pickup at 1/N of the string nulls the Nth harmonic.");
-        column.addControl (pickupPosition[slot].get(),
-                           LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
-
-        pickupHeight[slot] = std::make_unique<LuthierKnob> ("Height " + n);
-        pickupHeight[slot]->attachTo (processor, ParamIDs::pickupHeight (slot),
-                                      "Closer is louder and brighter");
-        column.addControl (pickupHeight[slot].get(),
-                           LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
+        // Position and height are placement on the guitar, set on the Workshop
+        // bench (guitar-workshop.md 9, gui-integration 19).
 
         pickupMagnet[slot] = std::make_unique<LuthierChoice> ("Magnet " + n);
         pickupMagnet[slot]->attachTo (processor, ParamIDs::pickupMagnet (slot),

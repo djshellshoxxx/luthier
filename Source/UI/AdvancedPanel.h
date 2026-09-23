@@ -222,7 +222,7 @@ private:
     std::unique_ptr<LuthierChoice> pickupSelector;
     std::unique_ptr<LuthierChoice> pickupType[3];
     std::unique_ptr<LuthierChoice> pickupMagnet[3];
-    std::unique_ptr<LuthierKnob> pickupPosition[3], pickupHeight[3], pickupVolume[3];
+    std::unique_ptr<LuthierKnob> pickupVolume[3];
     std::unique_ptr<LuthierToggle> coilTap;
     std::unique_ptr<LuthierKnob> piezoMicBlend, guitarTone, guitarVolume;
 

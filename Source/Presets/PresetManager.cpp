@@ -11,6 +11,14 @@ const char* const PresetManager::kMagic = "luthier.preset";
 const char* const PresetManager::kLegacyMagic = "luthierpreset";
 
 //==============================================================================
+std::array<PresetManager::LegacyPlacement, 3> PresetManager::takeLegacyPickupPlacements()
+{
+    auto out = legacyPlacements;
+    legacyPlacements = {};
+    return out;
+}
+
+//==============================================================================
 PresetManager::PresetManager (juce::AudioProcessor& p,
                               juce::AudioProcessorValueTreeState& state,
                               LuthierEngine& e,
@@ -522,6 +530,29 @@ bool PresetManager::fromVar (const juce::var& data)
             afterwards, which is 4.1: its values were saved against the stock
             ranges because there was nothing else to save them against. */
         const bool hasRangesBlock = obj->hasProperty ("ranges");
+
+        // guitar-workshop.md 9: retired placement parameters, kept for the guitar.
+        for (int slot = 0; slot < 3; ++slot)
+        {
+            const auto positionId = ParamIDs::pickupPosition (slot);
+            const auto heightId = ParamIDs::pickupHeight (slot);
+
+            auto& legacy = legacyPlacements[(size_t) slot];
+            legacy = {};
+
+            if (params->hasProperty (positionId))
+            {
+                // Their old ranges: 0.02-0.48 linear, and 1-6 mm skewed to 3.5.
+                legacy.present = true;
+                legacy.positionFraction = juce::jmap ((double) params->getProperty (positionId), 0.02, 0.48);
+
+                juce::NormalisableRange<float> heightRange (1.0f, 6.0f);
+                heightRange.setSkewForCentre (3.5f);
+                legacy.heightMm = params->hasProperty (heightId)
+                                    ? (double) heightRange.convertFrom0to1 ((float) (double) params->getProperty (heightId))
+                                    : 2.5;
+            }
+        }
 
         RangeState incoming;
 

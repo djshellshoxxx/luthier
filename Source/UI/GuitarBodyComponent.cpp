@@ -674,7 +674,9 @@ void GuitarBodyComponent::mouseDown (const juce::MouseEvent& e)
 
         if (e.mods.isPopupMenu())
         {
-            showParameterContextMenu (*this, processor, ParamIDs::pickupPosition (i));
+            // Placement is the Workshop's now; the pickup's own type is what a
+            // right-click on it can change.
+            showParameterContextMenu (*this, processor, ParamIDs::pickupType (i));
             return;
         }
 

@@ -374,9 +374,21 @@ public:
     /** The parameter's index in the processor's parameter list, or -1. */
     int parameterIndex (const juce::String& id) const noexcept;
 
+    /*  guitar-workshop.md 0.6: a guitar type is a shortcut to a factory
+        guitar file. When the type changes the bridge asks this to load it;
+        returning true means the parts guitar was applied and its parts were
+        written into the overlapping parameters, and the bridge re-reads them
+        before applying the rest. Returning false (no file, or no loader, as
+        in the offline renderer) falls back to the compiled guitar. Message
+        thread. */
+    std::function<bool (GuitarType)> onLoadGuitarType;
+
 private:
     void handleAsyncUpdate() override;
     void applyStructural();
+
+    /** Reads every structural selection into its cache; true if any moved. */
+    bool readStructuralValues() noexcept;
 
     std::atomic<float>* raw (const juce::String& id) const noexcept;
     float value (const juce::String& id) const noexcept;
