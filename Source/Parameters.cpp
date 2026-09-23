@@ -692,6 +692,13 @@ APVTS::ParameterLayout Parameters::createLayout()
         }
     }
 
+    // gui-integration.md 3.3 / 3.4 (2026-09-23). Appended, never inserted: a
+    // host may address automation by parameter index.
+    add (floatParam  (ParamIDs::inputGain,  "Input Gain",  -24.0f, 24.0f, 0.0f, 1.0f, "dB"));
+    add (floatParam  (ParamIDs::outputMix,  "Wet/Dry",     0.0f, 1.0f, 1.0f));
+    add (floatParam  (ParamIDs::stereoWidth, "Stereo Width", 0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::macroCharacter, "Character", 0.0f, 1.0f, 0.25f));
+
     return layout;
 }
 
@@ -982,6 +989,13 @@ void ParameterBridge::applyToEngine() noexcept
 
     // ---- master ------------------------------------------------------------------
     engine.getMasterBus().setGainDb (value (ParamIDs::masterGain));
+    engine.setInputGainDb (value (ParamIDs::inputGain));
+    engine.setOutputMix (value (ParamIDs::outputMix));
+    engine.setStereoWidth (value (ParamIDs::stereoWidth));
+
+    // The character macro is the character-wear amount (character-wear.md 0.3),
+    // so the CHARACTER tab's amount and Easy's macro are one control.
+    engine.getCharacterEngine().setAmount (value (ParamIDs::macroCharacter));
     engine.getMasterBus().setLimiterEnabled (value (ParamIDs::limiterOn) > 0.5f);
 
     // ---- feedback and doubler ------------------------------------------------------

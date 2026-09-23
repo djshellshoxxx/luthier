@@ -244,6 +244,12 @@ namespace ParamIDs
 
     // --- master ---------------------------------------------------------------
     inline constexpr const char* masterGain  = "master_gain";
+
+    // gui-integration.md 3.4's tone strip and 3.3's character macro.
+    inline constexpr const char* inputGain      = "input_gain";      ///< dB, into the rig
+    inline constexpr const char* outputMix      = "output_mix";      ///< wet/dry: 1 = all rig, 0 = all DI
+    inline constexpr const char* stereoWidth    = "stereo_width";    ///< 0 mono, 1 as is, 2 wide
+    inline constexpr const char* macroCharacter = "macro_character"; ///< character-wear amount
     inline constexpr const char* limiterOn   = "limiter_on";
     inline constexpr const char* oversample  = "oversampling";
 

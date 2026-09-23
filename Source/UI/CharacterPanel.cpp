@@ -390,10 +390,13 @@ void CharacterPanel::buildControls()
 
     styleSlider (amountSlider, 0.0, 100.0, 1.0, " %");
     amountSlider.setTooltip ("How pronounced every character effect is.");
+    // The amount is the character macro parameter (gui-integration.md 3.3), so
+    // Easy's macro and this slider are one control, automatable and saved.
     amountSlider.onValueChange = [this]
     {
         if (! updatingControls)
-            character().setAmount (amountSlider.getValue() * 0.01);
+            if (auto* p = processor.getState().getParameter (ParamIDs::macroCharacter))
+                p->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, (float) (amountSlider.getValue() * 0.01)));
     };
     addAndMakeVisible (amountSlider);
 
@@ -533,7 +536,8 @@ void CharacterPanel::refreshFromEngine()
                        juce::dontSendNotification);
 
     enableToggle->getButton().setToggleState (engine.isEnabled(), juce::dontSendNotification);
-    amountSlider.setValue (engine.getAmount() * 100.0, juce::dontSendNotification);
+    if (auto* p = processor.getState().getParameter (ParamIDs::macroCharacter))
+        amountSlider.setValue (p->getValue() * 100.0, juce::dontSendNotification);
 
     loosenessSlider.setValue (engine.getTunerLooseness(), juce::dontSendNotification);
     potLinearitySlider.setValue (engine.getPotLinearityAmount() * 100.0, juce::dontSendNotification);

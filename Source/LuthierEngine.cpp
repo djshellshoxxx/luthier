@@ -32,6 +32,8 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     parkedMidi.clear();
     parkedMidi.ensureSize ((size_t) kParkedMidiBytes);
 
+    dryBuffer.assign ((size_t) maxBlock, 0.0);
+
     sidechainFollower.prepare (sr);
     // Fast enough to track a kick drum's attack, slow enough that the release
     // does not chatter: the same shape a hardware sidechain detector has.
@@ -1557,7 +1559,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         }
 
         instrument = circuit.process (instrument);
-        instrument = sanitise (instrument);
+
+        // Input gain (3.4): the trim into the rig, after the guitar's own circuit.
+        inputGainNow += (inputGainTarget.load (std::memory_order_relaxed) - inputGainNow) * 0.002;
+        instrument = sanitise (instrument * inputGainNow);
 
         // Internal re-amp (routing-io 5B). The sidechain replaces the string
         // engine's contribution entirely rather than mixing with it - a DI clip
@@ -1571,6 +1576,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     // Aux 1: the DI, which is exactly what is about to enter the amp.
     taps.writeAuxMono (AuxBus::di, instrumentBuffer.data(), numSamples);
+
+    // The dry side of the wet/dry control is this DI.
+    for (int i = 0; i < juce::jmin (numSamples, (int) dryBuffer.size()); ++i)
+        dryBuffer[(size_t) i] = instrumentBuffer[(size_t) i];
 
     validator.checkPickupOutput (anyPickupActive || acoustic, blockPeak, samplePosition);
 
@@ -1738,6 +1747,35 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         everything else, so holding a freeze cannot push the output past the
         ceiling. */
     freezeOverlay.process (buffer);
+
+    /*  The tone strip's width and wet/dry (gui-integration.md 3.4), ahead of the
+        master bus so its limiter still guards the ceiling whatever the blend
+        (DECISIONS). Width is mid/side; dry is the DI, centred. */
+    {
+        auto* ol = buffer.getWritePointer (0);
+        auto* orr = numChannels > 1 ? buffer.getWritePointer (1) : nullptr;
+        const double mixTarget = outputMixTarget.load (std::memory_order_relaxed);
+        const double wTarget = widthTarget.load (std::memory_order_relaxed);
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            outputMixNow += (mixTarget - outputMixNow) * 0.002;
+            widthNow += (wTarget - widthNow) * 0.002;
+
+            double l = ol[i], r = orr != nullptr ? orr[i] : ol[i];
+            const double mid = 0.5 * (l + r), side = 0.5 * (l - r) * widthNow;
+            l = mid + side;
+            r = mid - side;
+
+            const double dry = i < (int) dryBuffer.size() ? dryBuffer[(size_t) i] : 0.0;
+            l = l * outputMixNow + dry * (1.0 - outputMixNow);
+            r = r * outputMixNow + dry * (1.0 - outputMixNow);
+
+            ol[i] = (float) sanitise (l);
+            if (orr != nullptr)
+                orr[i] = (float) sanitise (r);
+        }
+    }
 
     master.processBlock (buffer);
 

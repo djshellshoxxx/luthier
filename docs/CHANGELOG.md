@@ -8,6 +8,19 @@ numbered, because what it should be called is a release decision.
 
 ### Added
 
+- **The real guitar on screen** (`guitar-illustration.md`) - every guitar is
+  drawn from its parts: body outline, finish (bursts, grain, sparkle, aging),
+  bridge, pickups, pickguard, neck, headstock and strings by material.
+- **The Workshop** (`workshop-ui.md`) - the WORKSHOP tab (and an Easy-mode
+  overlay from the header): click parts, drag pickups and saddles, audition
+  parts with Alt-hover, A-H bench slots, a spectrum delta that shows what a
+  change did, and a family switch.
+- **The guitar-shop look** (`proposals/visual-polish.md` 6) - rosewood,
+  walnut and brass, bell knobs, mini toggles, engraved plates, Lato and Bebas
+  Neue. The colourblind, High-contrast and Light palettes now actually apply.
+- **Easy mode's rig strip and tone strip** (`gui-integration.md` 3) - four new
+  parameters, appended at the end of the list (393 in all): Input Gain,
+  Wet/Dry, Stereo Width and the Character macro.
 - **Advanced ranges** (`advanced-ranges.md`) - every physical parameter has a
   stock range and an advanced one. Options -> RANGES, the header padlock,
   right-click unlock and restrict, the warning-colour arc and `*` readout, and

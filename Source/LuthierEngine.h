@@ -163,6 +163,12 @@ public:
     /** Body and cabinet responses really loaded so far (a rebuild that keeps them loads none). */
     int getIrLoadCount() const noexcept { return body.getIrLoadCount() + cabinet.getIrLoadCount(); }
 
+    /*  gui-integration.md 3.4: input trim into the rig, wet/dry against the DI,
+        stereo width. Any thread; smoothed on the audio thread. */
+    void setInputGainDb (double db) noexcept   { inputGainTarget.store (juce::Decibels::decibelsToGain (juce::jlimit (-60.0, 36.0, db))); }
+    void setOutputMix (double wet) noexcept    { outputMixTarget.store (juce::jlimit (0.0, 1.0, wet)); }
+    void setStereoWidth (double width) noexcept { widthTarget.store (juce::jlimit (0.0, 2.0, width)); }
+
     /** Whether the instrument is a parts guitar rather than a compiled type. */
     bool isWorkshopGuitar() const noexcept { return hasPartsOverride; }
 
@@ -509,6 +515,11 @@ private:
 
     bool   doublerEnabled = false;
     double doublerAmount = 0.5;
+
+    // gui-integration.md 3.4's tone strip (set from the parameters; smoothed per sample).
+    std::atomic<double> inputGainTarget { 1.0 }, outputMixTarget { 1.0 }, widthTarget { 1.0 };
+    double inputGainNow = 1.0, outputMixNow = 1.0, widthNow = 1.0;
+    std::vector<double> dryBuffer;
     Lfo    doublerLfo;
 
     double bodyAmount = 0.22;

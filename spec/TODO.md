@@ -55,12 +55,15 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       preset-browser thumbnails (G 15), screenshots of every panel in all
       three palettes reviewed by eye.
 
-- [ ] 2e. **Easy Mode layout per gui-integration.md 3**: the build has the
-      older three-band layout. Missing: the 280 px RIG STRIP (guitar circuit
-      compact card with `CircuitResponseView` miniature, compact pre/post racks
-      with popover slots, amp card, cab card, room card), the PLAYING strip
-      (mode, humanize, character macro, whammy display), the TONE strip (input,
-      output, wet/dry, width), rhythm strip dice + chord/next-strum readout.
+- [ ] **2g. Trademark sweep (found 2026-09-23).** The UI shows real brand and
+      model names - guitar types ("Stratocaster", "Les Paul"...), amp models
+      ("Fender Twin"...), microphones ("Shure SM57", "Royer R-121"), maybe
+      pedals and cabs. factory-content.md / guitar-illustration.md ask for
+      generic names. Rename the display names (keep parameter choice indices
+      so presets and automation stay valid) and add a test that no user-
+      visible list contains a trademark from a banned list.
+- [ ] 2h. Easy rig strip polish: the amp card's knobs are cramped at 1200x720;
+      give the amp card more height or two knob sizes.
 - [ ] 2f. **Aux 8 noise bus** (pick-noise.md 1.3; routing-io.md lists only 7
       aux). Must be appended *after* the 12 per-string buses so existing bus
       indices (sessions using layouts C/D) do not shift; update RoutingMatrix /
@@ -82,11 +85,11 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       pane (+-12 dB / auto-zoom, comb notches, summary sentence); 7c WORKSHOP
       is column 4's first tab and takes over columns 3+4; the header's
       Workshop button opens it (Advanced) or the Easy overlay.
-      Remaining: inline field editing in the inspector (the model has
-      `WorkshopBench::editField`), per-string string overrides (3.3), nut
+      Also done: the Guitar (family) category with the once-per-session
+      confirm, and double-click field editing in the inspector.
+      Remaining: per-string string overrides (3.3), nut
       slot drag on the nut, pick/slide/capo overlays and drags on the bench
-      (4), family selector in the drawer (guitar-illustration 12.1 + the
-      once-per-session confirm), WORKSHOP tab padlock when part fields gain
+      (4), WORKSHOP tab padlock when part fields gain
       ranges, an editor-level test of the wrench in Easy mode, spectrum
       summary announced to screen readers, slide material in the engine
       (5b). Known issue: the first note after a body/cab IR load renders

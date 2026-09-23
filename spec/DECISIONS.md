@@ -283,3 +283,17 @@ chosen") and `ambiguity-resolutions.md`.
   and ignores bands 60 dB under the loudest. A string-material swap reads as
   small because part-acoustics.md 8 maps material to brightness and squeak
   only, not to the pickup's pull on the string; that is the spec's call.
+- **Easy mode keeps its five older macro knobs** (Attack, Body, Drive, Tone,
+  Space) in the Playing strip beside Humanize and Character. gui-integration
+  3 does not place them and 3.6 does not omit them; spec.md's Easy mode has
+  them, and the brief forbids dropping a feature silently.
+- **Easy mode's separate fretboard is gone**; 3.1 has the illustration's own
+  fretboard show played notes. The fretboard stays in Advanced mode.
+- **Wet/dry mixes the DI against the rig before the master limiter**, not
+  after it (3.4 says "post-master"): after the limiter the dry signal could
+  push the output over the ceiling. Width is mid/side at the same point.
+- **The character macro is `macro_character`, a parameter**: the CHARACTER
+  tab's amount slider writes it too, so the amount is automatable and there
+  is one writer.
+- **New parameters are appended at the end of the layout** (393 now): hosts
+  may address automation by index.
