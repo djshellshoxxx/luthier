@@ -253,7 +253,7 @@ part("slide", "Chrome Standard 22mm", {"material": "steel", "mass_g": 90, "lengt
 
 part("capo", "Trigger Capo", {"type": "full", "mass_g": 60, "string_mask": [True] * 6, "pressure": 0.7}, compat=("any",), default=True)
 part("capo", "Screw Capo", {"type": "full", "mass_g": 45, "string_mask": [True] * 6, "pressure": 0.5}, compat=("any",))
-part("capo", "Partial 3-String Capo", {"type": "partial", "mass_g": 35, "string_mask": [False, True, True, True, False, False], "pressure": 0.6}, compat=("any",))
+part("capo", "Partial 3-String Capo", {"type": "partial", "mass_g": 35, "string_mask": [False, False, True, True, True, False], "pressure": 0.6}, compat=("any",))
 
 # ======================================================================================================================
 #  Guitars

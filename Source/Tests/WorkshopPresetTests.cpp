@@ -448,7 +448,8 @@ LUTHIER_TEST (WorkshopSwap, noFileIsTouchedFromTheAudioThreadDuringASwap)
 //==============================================================================
 LUTHIER_TEST (WorkshopCapo, aPartialCapoClampsOnlyItsStrings)
 {
-    // ambiguity-resolutions.md 4.5: the Partial 3-String Capo covers A, D and G.
+    // ambiguity-resolutions.md 4.5: the Partial 3-String Capo covers A, D and G,
+    // which are strings 4, 3 and 2 with string 0 the high E (engine.md 1).
     LuthierAudioProcessor processor;
     processor.prepareToPlay (48000.0, 512);
 
@@ -474,7 +475,7 @@ LUTHIER_TEST (WorkshopCapo, aPartialCapoClampsOnlyItsStrings)
 
     for (int s = 0; s < 6; ++s)
     {
-        const bool clamped = s >= 1 && s <= 3;
+        const bool clamped = s >= 2 && s <= 4;
         const double expected = open[s] * (clamped ? wholeTone : 1.0);
 
         CHECK_MSG (std::abs (tuning.getEffectiveOpenFrequency (s) / expected - 1.0) < 1.0e-6,
@@ -499,7 +500,7 @@ LUTHIER_TEST (WorkshopCapo, theCapoTravelsWithThePreset)
     restored.setStateInformation (state.getData(), (int) state.getSize());
 
     CHECK (restored.getCapoPart() != nullptr && restored.getCapoPart()->name == "Partial 3-String Capo");
-    CHECK (restored.getEngine().getTuningEngine().getCapoStringMask() == 0b1110u);
+    CHECK (restored.getEngine().getTuningEngine().getCapoStringMask() == 0b11100u);
 
     // A full capo, and a preset that names none, clamp every string.
     LuthierAudioProcessor fresh;

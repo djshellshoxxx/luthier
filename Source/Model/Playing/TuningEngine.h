@@ -139,7 +139,7 @@ public:
         are identical, which is why it would have been easy to get wrong.
 
         A partial capo (4.5) clamps only the strings in its mask, bit n for
-        string n (0 = the lowest); the others stay open to the nut and every
+        string n (0 = the high E, engine.md 1); the others stay open to the nut and every
         path above answers for them as if there were no capo. */
     void setCapoFret (int fret) noexcept;
     int getCapoFret() const noexcept { return capoFret; }

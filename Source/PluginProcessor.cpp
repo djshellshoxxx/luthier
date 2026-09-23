@@ -392,7 +392,7 @@ void LuthierAudioProcessor::setCapoPart (const PartPtr& capo)
 
     if (capo != nullptr && capo->text ("type", "full") == "partial")
     {
-        // String 0 is the lowest, as everywhere in the engine.
+        // Indexed as everywhere in the engine: string 0 is the high E (engine.md 1).
         const auto strings = capo->fields.getProperty ("string_mask", {});
         mask = 0;
 

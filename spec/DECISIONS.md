@@ -205,3 +205,12 @@ chosen") and `ambiguity-resolutions.md`.
   No wait when no audio is running or the caller is the audio thread; a
   250 ms cap if the host stalls. Notes arriving while parked (a few ms) are
   dropped.
+- **Per-string arrays in part files use the engine's string order: index 0 is
+  the high E** (engine.md 1: "channel 1 = high E (string index 0)"). The
+  factory `gauges_in` lists were already in that order; the partial capo's
+  `string_mask` was written low-string-first and clamped B, G, D. It now reads
+  `[F, F, T, T, T, F]`, which is A, D and G, the usual 3-string partial capo.
+- **Assistant agents (user request, 2026-09-23).** Two helper agents work in
+  parallel on tasks that need no compiler (this machine can only run one
+  build): `docs/spec-coverage.md`, and the body / headstock outline data in
+  `Tools/body_outlines.py`. Only the lead builds, tests and commits.

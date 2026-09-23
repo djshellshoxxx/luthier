@@ -15,10 +15,10 @@
     "mass_g": 35,
     "string_mask": [
       false,
-      true,
-      true,
-      true,
       false,
+      true,
+      true,
+      true,
       false
     ],
     "pressure": 0.6
