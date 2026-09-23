@@ -286,7 +286,7 @@ juce::String LuthierAudioProcessor::getFactoryGuitarPath (GuitarType type)
         case GuitarType::ES335:            return "Electric/Semi-Hollow 335.luthierguitar";
         case GuitarType::Jazzmaster:       return "Electric/Offset Modern.luthierguitar";
         case GuitarType::Explorer:         return "Electric/Angular Korina.luthierguitar";
-        case GuitarType::IbanezRG:         return "Electric/Superstrat Floyd.luthierguitar";
+        case GuitarType::IbanezRG:         return "Electric/Superstrat Locking.luthierguitar";
         case GuitarType::SevenString:      return "Electric/7-String Modern.luthierguitar";
         case GuitarType::EightString:      return "Electric/8-String Modern.luthierguitar";
         case GuitarType::BaritoneElectric: return "Electric/Baritone Electric.luthierguitar";
@@ -321,6 +321,9 @@ juce::File LuthierAudioProcessor::resolveGuitarReference (const juce::String& re
     for (const auto* prefix : { "Factory/", "User/" })
         if (relative.startsWithIgnoreCase (prefix))
             relative = relative.substring ((int) std::strlen (prefix));
+
+    // Guitars renamed by the trademark sweep keep loading under their old names.
+    relative = PartLibrary::renamedFactoryGuitar (relative);
 
     for (const auto& root : { PartLibrary::getUserGuitarsFolder(), PartLibrary::getFactoryGuitarsFolder() })
     {

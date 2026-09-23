@@ -363,7 +363,7 @@ LUTHIER_TEST (GuitarIllustration, accessibleDescriptionsNameTheParts)
 
     CHECK (texts.joinIntoString ("|").contains ("Body: mahogany"));
     CHECK (texts.joinIntoString ("|").contains ("Neck pickup: PAF 57 Alnico 2 7.6k; position 152 mm from saddle"));
-    CHECK (texts.joinIntoString ("|").contains ("Bridge: ABR-1 Tune-o-Matic"));
+    CHECK (texts.joinIntoString ("|").contains ("Bridge: Vintage Adjustable Bridge"));
     CHECK (texts.joinIntoString ("|").contains ("Nut: bone, 43 mm width"));
 }
 

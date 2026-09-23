@@ -9,18 +9,18 @@ namespace
     // brightCap, transformerHz, lowCutHz
     const AmpVoicing kVoicings[(size_t) AmpModel::NumModels] =
     {
-        { "Fender Twin",      2, 0.85, 0.15, 1.35, PowerTube::Tube6L6, 0, 0.85, 0.10, 6.0,  9500.0, 28.0 },
-        { "Fender Tweed",     3, 1.10, 0.30, 1.55, PowerTube::Tube6L6, 0, 0.35, 0.45, 3.0,  7200.0, 34.0 },
-        { "Fender Deluxe",    2, 1.05, 0.26, 1.50, PowerTube::Tube6V6, 0, 0.55, 0.40, 5.0,  7800.0, 32.0 },
-        { "Fender Champ",     2, 1.25, 0.34, 1.60, PowerTube::Tube6V6, 0, 0.15, 0.60, 2.0,  6200.0, 45.0 },
-        { "Marshall Plexi",   3, 1.15, 0.28, 1.70, PowerTube::EL34,    1, 0.55, 0.35, 7.0,  8200.0, 38.0 },
-        { "Marshall JCM800",  4, 1.40, 0.24, 1.85, PowerTube::EL34,    1, 0.65, 0.22, 4.0,  8800.0, 52.0 },
-        { "Vox AC30",         2, 1.00, 0.32, 1.45, PowerTube::EL84,    2, 0.05, 0.55, 5.0, 10500.0, 30.0 },
-        { "Mesa Rectifier",   5, 1.60, 0.18, 1.95, PowerTube::Tube6L6, 3, 0.45, 0.30, 2.0,  9000.0, 72.0 },
-        { "Bogner Ecstasy",   4, 1.45, 0.22, 1.82, PowerTube::EL34,    1, 0.60, 0.25, 3.5,  9200.0, 58.0 },
-        { "Diezel VH4",       5, 1.55, 0.16, 1.92, PowerTube::EL34,    3, 0.70, 0.18, 2.0,  9600.0, 80.0 },
-        { "Orange OR120",     3, 1.20, 0.34, 1.68, PowerTube::EL34,    1, 0.40, 0.38, 3.0,  7000.0, 26.0 },
-        { "Ampeg SVT",        3, 0.95, 0.20, 1.40, PowerTube::KT88,    0, 0.75, 0.20, 2.0,  6500.0, 18.0 },
+        { "American Twin",      2, 0.85, 0.15, 1.35, PowerTube::Tube6L6, 0, 0.85, 0.10, 6.0,  9500.0, 28.0 },
+        { "Tweed Combo",     3, 1.10, 0.30, 1.55, PowerTube::Tube6L6, 0, 0.35, 0.45, 3.0,  7200.0, 34.0 },
+        { "Blackface Combo 22",    2, 1.05, 0.26, 1.50, PowerTube::Tube6V6, 0, 0.55, 0.40, 5.0,  7800.0, 32.0 },
+        { "Small Tweed",     2, 1.25, 0.34, 1.60, PowerTube::Tube6V6, 0, 0.15, 0.60, 2.0,  6200.0, 45.0 },
+        { "British Plexi",   3, 1.15, 0.28, 1.70, PowerTube::EL34,    1, 0.55, 0.35, 7.0,  8200.0, 38.0 },
+        { "British 800",  4, 1.40, 0.24, 1.85, PowerTube::EL34,    1, 0.65, 0.22, 4.0,  8800.0, 52.0 },
+        { "British Top-Boost 30",         2, 1.00, 0.32, 1.45, PowerTube::EL84,    2, 0.05, 0.55, 5.0, 10500.0, 30.0 },
+        { "California Rectified",   5, 1.60, 0.18, 1.95, PowerTube::Tube6L6, 3, 0.45, 0.30, 2.0,  9000.0, 72.0 },
+        { "Boutique Lead",   4, 1.45, 0.22, 1.82, PowerTube::EL34,    1, 0.60, 0.25, 3.5,  9200.0, 58.0 },
+        { "German Four-Channel",       5, 1.55, 0.16, 1.92, PowerTube::EL34,    3, 0.70, 0.18, 2.0,  9600.0, 80.0 },
+        { "British Crunch 120",     3, 1.20, 0.34, 1.68, PowerTube::EL34,    1, 0.40, 0.38, 3.0,  7000.0, 26.0 },
+        { "Classic Bass 300",        3, 0.95, 0.20, 1.40, PowerTube::KT88,    0, 0.75, 0.20, 2.0,  6500.0, 18.0 },
         { "Acoustic DI",      1, 0.70, 0.02, 1.05, PowerTube::KT88,    0, 1.00, 0.00, 1.0, 16000.0, 20.0 },
         { "Custom",           3, 1.10, 0.25, 1.60, PowerTube::EL34,    1, 0.50, 0.30, 4.0,  8500.0, 40.0 }
     };

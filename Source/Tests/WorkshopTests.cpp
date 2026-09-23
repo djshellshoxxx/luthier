@@ -139,7 +139,7 @@ LUTHIER_TEST (Workshop, incompatiblePartsFitWithAWarning)
     CHECK (library.loadGuitar (PartLibrary::getFactoryGuitarsFolder().getChildFile ("Electric/Vintage Double-Cut.luthierguitar"),
                                guitar, report));
 
-    guitar.parts[(size_t) GuitarSlot::bridge] = library.find (PartType::bridge, "Bass BadAss-Style");
+    guitar.parts[(size_t) GuitarSlot::bridge] = library.find (PartType::bridge, "Bass High-Mass Bridge");
     CHECK (guitar.get (GuitarSlot::bridge) != nullptr);
 
     const auto warnings = guitar.getCompatibilityWarnings();

@@ -259,7 +259,7 @@ juce::StringArray Parameters::vibratoShapeNames()
 
 juce::StringArray Parameters::bridgeTypeNames()
 {
-    return { "Fixed / Hardtail", "Vintage Tremolo", "Floyd Rose", "TransTrem", "Bigsby" };
+    return { "Fixed / Hardtail", "Vintage Tremolo", "Locking Tremolo", "Transposing Tremolo", "Vintage Vibrato" };
 }
 
 juce::StringArray Parameters::ampModelNames()
@@ -349,7 +349,7 @@ juce::StringArray Parameters::oversamplingNames()
 
 // Orders match PotTaper, TrebleBleed and CableQuality in GuitarCircuit.h.
 juce::StringArray Parameters::potTaperNames()     { return { "Audio", "Linear", "50s Wiring" }; }
-juce::StringArray Parameters::trebleBleedNames()  { return { "None", "Kinman", "Fender", "Custom" }; }
+juce::StringArray Parameters::trebleBleedNames()  { return { "None", "Modern RC", "Vintage Cap", "Custom" }; }
 juce::StringArray Parameters::bleedModeNames()    { return { "Parallel", "Series" }; }
 juce::StringArray Parameters::cableQualityNames() { return { "Studio", "Standard", "Cheap", "Vintage" }; }
 
@@ -372,7 +372,7 @@ juce::StringArray Parameters::setupStyleNames()
 juce::StringArray Parameters::slideModeNames()
 {
     // Matches SlideMode.
-    return { "Bottleneck", "Lap steel", "Dobro", "Hybrid" };
+    return { "Bottleneck", "Lap steel", "Resonator", "Hybrid" };
 }
 
 double Parameters::defaultDampingBehind (int slideModeIndex) noexcept

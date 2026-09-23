@@ -132,6 +132,12 @@ public:
         user part of the same name wins wherever the reference was written. */
     PartPtr resolve (const juce::String& reference, PartType expected) const;
 
+    /*  Factory parts and guitars renamed to drop trademarks (2026-09-23): the
+        new name for an old one, or the name unchanged. Saved sessions and
+        guitar files written before the rename keep resolving. */
+    static juce::String renamedFactoryPart (const juce::String& name);
+    static juce::String renamedFactoryGuitar (const juce::String& relativePath);
+
     /** The factory default for a type (4.1); any factory part if none is flagged. */
     PartPtr getDefault (PartType type) const;
 

@@ -2,22 +2,21 @@
   "schema": 1,
   "magic": "luthier.part",
   "meta": {
-    "name": "Vintage Strat Wiring",
+    "name": "50s Single-Cut Wiring",
     "part_type": "wiring",
     "author": "Factory",
     "tags": [],
     "compatibility": [
       "electric"
-    ],
-    "is_default": true
+    ]
   },
   "fields": {
-    "volume_pot_ohm": 250000.0,
-    "tone_pot_ohm": 250000.0,
-    "tone_cap_f": 4.7e-08,
-    "taper": "audio",
+    "volume_pot_ohm": 500000.0,
+    "tone_pot_ohm": 500000.0,
+    "tone_cap_f": 2.2e-08,
+    "taper": "fifties",
     "treble_bleed": "none",
-    "switching": "5way",
+    "switching": "3way_independent",
     "active": false
   }
 }

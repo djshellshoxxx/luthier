@@ -35,10 +35,10 @@
     },
     "tailpiece": null,
     "tuners": {
-      "reference": "Factory/Tuners/Kluson 15 to 1.luthierpart"
+      "reference": "Factory/Tuners/Vintage Keystone 15 to 1.luthierpart"
     },
     "wiring": {
-      "reference": "Factory/Wiring/Vintage Strat Wiring.luthierpart"
+      "reference": "Factory/Wiring/Vintage Double-Cut Wiring.luthierpart"
     },
     "strings": {
       "reference": "Factory/Strings/9-42 Super Light NPS.luthierpart"

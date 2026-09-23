@@ -33,16 +33,16 @@
       "reference": "Factory/Nuts/Bone 43mm.luthierpart"
     },
     "bridge": {
-      "reference": "Factory/Bridges/ABR-1 Tune-o-Matic.luthierpart"
+      "reference": "Factory/Bridges/Vintage Adjustable Bridge.luthierpart"
     },
     "tailpiece": {
       "reference": "Factory/Tailpieces/Stopbar.luthierpart"
     },
     "tuners": {
-      "reference": "Factory/Tuners/Kluson 15 to 1.luthierpart"
+      "reference": "Factory/Tuners/Vintage Keystone 15 to 1.luthierpart"
     },
     "wiring": {
-      "reference": "Factory/Wiring/50s LP Wiring.luthierpart"
+      "reference": "Factory/Wiring/50s Single-Cut Wiring.luthierpart"
     },
     "strings": {
       "reference": "Factory/Strings/10-46 Regular NPS.luthierpart"

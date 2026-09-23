@@ -45,7 +45,7 @@
     "pickguard": null,
     "pickups": {
       "neck": {
-        "reference": "Factory/Pickups/Music Man-Style Ceramic Humbucker 13k.luthierpart",
+        "reference": "Factory/Pickups/Bass Ceramic Humbucker 13k.luthierpart",
         "position_mm": 120,
         "height_treble_mm": 3.0,
         "height_bass_mm": 3.4

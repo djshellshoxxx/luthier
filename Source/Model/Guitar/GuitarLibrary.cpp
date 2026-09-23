@@ -28,7 +28,7 @@ namespace
         //======================================================================
         // ELECTRIC
         //======================================================================
-        { "Stratocaster", "Alder body, maple neck, three single-coils, 25.5\" scale",
+        { "Vintage Double-Cut", "Alder body, maple neck, three single-coils, 25.5\" scale",
           GuitarCategory::Electric,
           6, false, kFenderScale, 22, 1.6, false,
           BodyShape::SolidStandard, Wood::Alder, Wood::Alder, Wood::Alder, Wood::Maple,
@@ -42,7 +42,7 @@ namespace
           AmpModel::FenderTwin, CabinetType::Cab2x12Open, SpeakerType::JensenC12, MicType::SM57,
           0.16, 0.22, 0.85 },
 
-        { "Telecaster", "Ash body, maple neck, two single-coils, 25.5\" scale",
+        { "Classic T-Style", "Ash body, maple neck, two single-coils, 25.5\" scale",
           GuitarCategory::Electric,
           6, false, kFenderScale, 22, 1.5, false,
           BodyShape::SolidStandard, Wood::Ash, Wood::Ash, Wood::Ash, Wood::Maple,
@@ -56,7 +56,7 @@ namespace
           AmpModel::FenderTweed, CabinetType::Cab1x12Open, SpeakerType::JensenC12, MicType::SM57,
           0.13, 0.20, 0.80 },
 
-        { "Les Paul", "Mahogany body with maple cap, two humbuckers, 24.75\" scale",
+        { "Vintage Single-Cut", "Mahogany body with maple cap, two humbuckers, 24.75\" scale",
           GuitarCategory::Electric,
           6, false, kGibsonScale, 22, 1.7, false,
           BodyShape::SolidHeavy, Wood::Maple, Wood::Mahogany, Wood::Mahogany, Wood::Mahogany,
@@ -84,7 +84,7 @@ namespace
           AmpModel::MarshallPlexi, CabinetType::Cab4x12, SpeakerType::Greenback, MicType::SM57,
           0.17, 0.26, 0.92 },
 
-        { "ES-335", "Semi-hollow maple with a centre block, two humbuckers",
+        { "Semi-Hollow 335", "Semi-hollow maple with a centre block, two humbuckers",
           GuitarCategory::Electric,
           6, false, kGibsonScale, 22, 1.7, false,
           BodyShape::SemiHollow, Wood::Maple, Wood::Maple, Wood::Maple, Wood::Mahogany,
@@ -98,7 +98,7 @@ namespace
           AmpModel::FenderTwin, CabinetType::Cab2x12Open, SpeakerType::AlnicoBlue, MicType::RibbonR121,
           0.22, 0.48, 1.00 },
 
-        { "Jazzmaster", "Offset alder body, two wide single-coils, floating trem",
+        { "Offset Modern", "Offset alder body, two wide single-coils, floating trem",
           GuitarCategory::Electric,
           6, false, kFenderScale, 21, 1.8, false,
           BodyShape::Offset, Wood::Alder, Wood::Alder, Wood::Alder, Wood::Maple,
@@ -112,7 +112,7 @@ namespace
           AmpModel::FenderDeluxe, CabinetType::Cab1x12Open, SpeakerType::JensenC12, MicType::MD421,
           0.19, 0.24, 0.88 },
 
-        { "Explorer", "Korina body, two humbuckers, long upper horn",
+        { "Angular Korina", "Korina body, two humbuckers, long upper horn",
           GuitarCategory::Electric,
           6, false, kGibsonScale, 22, 1.6, false,
           BodyShape::SolidStandard, Wood::Korina, Wood::Korina, Wood::Korina, Wood::Mahogany,
@@ -126,7 +126,7 @@ namespace
           AmpModel::MarshallJCM800, CabinetType::Cab4x12, SpeakerType::Vintage30, MicType::SM57,
           0.15, 0.23, 0.86 },
 
-        { "Ibanez RG", "Basswood body, HSH pickups, thin neck, locking trem",
+        { "Superstrat", "Basswood body, HSH pickups, thin neck, locking trem",
           GuitarCategory::Electric,
           6, false, kFenderScale, 24, 1.3, false,
           BodyShape::SolidStandard, Wood::Basswood, Wood::Basswood, Wood::Basswood, Wood::Maple,
@@ -300,7 +300,7 @@ namespace
         //======================================================================
         // BASS
         //======================================================================
-        { "Precision Bass", "Alder body, split-coil pickup, 34\" scale",
+        { "P-Style Bass", "Alder body, split-coil pickup, 34\" scale",
           GuitarCategory::Bass,
           4, false, kBassScale, 20, 2.2, false,
           BodyShape::BassSolid, Wood::Alder, Wood::Alder, Wood::Alder, Wood::Maple,
@@ -314,7 +314,7 @@ namespace
           AmpModel::AmpegSVT, CabinetType::Cab8x10Bass, SpeakerType::BassCeramic, MicType::D112,
           0.18, 0.16, 0.70 },
 
-        { "Jazz Bass", "Alder body, two single-coils, slim neck",
+        { "J-Style Bass", "Alder body, two single-coils, slim neck",
           GuitarCategory::Bass,
           4, false, kBassScale, 20, 2.0, false,
           BodyShape::BassSolid, Wood::Alder, Wood::Alder, Wood::Alder, Wood::Maple,
@@ -328,7 +328,7 @@ namespace
           AmpModel::AmpegSVT, CabinetType::Cab4x10Bass, SpeakerType::BassCeramic, MicType::D112,
           0.15, 0.15, 0.72 },
 
-        { "Rickenbacker", "Maple through-neck, bright and cutting",
+        { "Violin-Style Bass", "Maple through-neck, bright and cutting",
           GuitarCategory::Bass,
           4, false, kRickScale, 20, 2.1, false,
           BodyShape::BassHollow, Wood::Maple, Wood::Maple, Wood::Maple, Wood::Maple,

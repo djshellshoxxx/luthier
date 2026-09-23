@@ -53,7 +53,7 @@
       },
       "middle": null,
       "bridge": {
-        "reference": "Factory/Pickups/Music Man-Style Ceramic Humbucker 13k.luthierpart",
+        "reference": "Factory/Pickups/Bass Ceramic Humbucker 13k.luthierpart",
         "position_mm": 45,
         "height_treble_mm": 2.4,
         "height_bass_mm": 2.8

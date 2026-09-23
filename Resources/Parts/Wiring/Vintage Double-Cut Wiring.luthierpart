@@ -2,21 +2,22 @@
   "schema": 1,
   "magic": "luthier.part",
   "meta": {
-    "name": "50s LP Wiring",
+    "name": "Vintage Double-Cut Wiring",
     "part_type": "wiring",
     "author": "Factory",
     "tags": [],
     "compatibility": [
       "electric"
-    ]
+    ],
+    "is_default": true
   },
   "fields": {
-    "volume_pot_ohm": 500000.0,
-    "tone_pot_ohm": 500000.0,
-    "tone_cap_f": 2.2e-08,
-    "taper": "fifties",
+    "volume_pot_ohm": 250000.0,
+    "tone_pot_ohm": 250000.0,
+    "tone_cap_f": 4.7e-08,
+    "taper": "audio",
     "treble_bleed": "none",
-    "switching": "3way_independent",
+    "switching": "5way",
     "active": false
   }
 }

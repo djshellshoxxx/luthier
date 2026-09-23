@@ -519,16 +519,16 @@ void AdvancedPanel::buildColumn1()
 
     addChoice (bridgeType, "Bridge", ParamIDs::bridgeType,
                "A vintage trem detunes chords as you bend, because the bridge moves the "
-               "slack strings further than the tight ones. A TransTrem applies the same "
+               "slack strings further than the tight ones. A transposing tremolo applies the same "
                "ratio to every string, so chords stay in tune.");
 
     addKnob (whammyPos, "Whammy", ParamIDs::whammyPos, "Bar position");
     addKnob (whammyDown, "Down Range", ParamIDs::whammyDown, "Semitones at full dive");
     addKnob (whammyUp, "Up Range", ParamIDs::whammyUp, "Semitones at full pull-up");
     addKnob (whammySprings, "Springs", ParamIDs::whammySprings,
-             "Floyd Rose only: the spring cavity ringing as the bar snaps back");
+             "Locking tremolo only: the spring cavity ringing as the bar snaps back");
     addKnob (transposeLock, "Transpose", ParamIDs::transposeLock,
-             "TransTrem detente: locks the bar at a whole number of semitones");
+             "Transposing-tremolo detente: locks the bar at a whole number of semitones");
 }
 
 //==============================================================================
@@ -603,7 +603,7 @@ void AdvancedPanel::buildColumn2()
 
         pickupVolume[slot] = std::make_unique<LuthierKnob> ("Volume " + n);
         pickupVolume[slot]->attachTo (processor, ParamIDs::pickupVolume (slot),
-                                      "Per-pickup volume, as on a Les Paul");
+                                      "Per-pickup volume, as on a vintage single-cut");
         column.addControl (pickupVolume[slot].get(),
                            LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
     }
@@ -671,7 +671,7 @@ void AdvancedPanel::buildColumn2()
 
     addChoice (trebleBleed, "Treble bleed", ParamIDs::circuitTrebleBleed,
                "A cap (and resistor) across the volume pot so turning down keeps the top. "
-               "Kinman is the gentle one, Fender the bright one.");
+               "Modern RC is the gentle one, Vintage Cap the bright one.");
     addKnob (bleedR, "Bleed R", ParamIDs::circuitBleedR, "Custom bleed resistor");
     addKnob (bleedC, "Bleed C", ParamIDs::circuitBleedC, "Custom bleed cap, in nF");
     addChoice (bleedMode, "Bleed wiring", ParamIDs::circuitBleedMode,
@@ -791,7 +791,7 @@ void AdvancedPanel::buildColumn3()
     addKnob (ampTreble, "Treble", ParamIDs::ampTreble, "Passive tone stack treble");
     addKnob (ampPresence, "Presence", ParamIDs::ampPresence,
              "Works inside the power amp's feedback loop, so it does more on amps that "
-             "have plenty of feedback and almost nothing on a Vox");
+             "have plenty of feedback and almost nothing on a British top-boost combo");
     addKnob (ampMaster, "Master", ParamIDs::ampMaster,
              "Power amp drive. Turn it up for power-tube saturation and sag.");
 

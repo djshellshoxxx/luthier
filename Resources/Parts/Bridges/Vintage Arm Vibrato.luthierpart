@@ -2,7 +2,7 @@
   "schema": 1,
   "magic": "luthier.part",
   "meta": {
-    "name": "Floyd Rose Style",
+    "name": "Vintage Arm Vibrato",
     "part_type": "bridge",
     "author": "Factory",
     "tags": [],
@@ -11,12 +11,12 @@
     ]
   },
   "fields": {
-    "type": "floyd_rose",
-    "mass_g": 320,
-    "coupling": 0.3,
+    "type": "bigsby",
+    "mass_g": 480,
+    "coupling": 0.35,
     "has_tremolo": true,
-    "tremolo_type": "floyd",
-    "spring_count": 3,
+    "tremolo_type": "bigsby",
+    "spring_count": 1,
     "piezo": false,
     "strings": 6
   }

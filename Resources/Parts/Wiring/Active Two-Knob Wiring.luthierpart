@@ -2,7 +2,7 @@
   "schema": 1,
   "magic": "luthier.part",
   "meta": {
-    "name": "Active EMG Wiring",
+    "name": "Active Two-Knob Wiring",
     "part_type": "wiring",
     "author": "Factory",
     "tags": [],

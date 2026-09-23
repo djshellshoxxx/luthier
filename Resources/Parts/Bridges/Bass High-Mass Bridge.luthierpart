@@ -2,22 +2,22 @@
   "schema": 1,
   "magic": "luthier.part",
   "meta": {
-    "name": "ABR-1 Tune-o-Matic",
+    "name": "Bass High-Mass Bridge",
     "part_type": "bridge",
     "author": "Factory",
     "tags": [],
     "compatibility": [
-      "electric"
+      "bass"
     ]
   },
   "fields": {
-    "type": "tune_o_matic",
-    "mass_g": 95,
-    "coupling": 0.55,
+    "type": "hardtail",
+    "mass_g": 230,
+    "coupling": 0.6,
     "has_tremolo": false,
     "tremolo_type": "none",
     "spring_count": 0,
     "piezo": false,
-    "strings": 6
+    "strings": 4
   }
 }

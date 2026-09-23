@@ -562,7 +562,9 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
     d.wiring.taper = taper == "linear" ? PotTaper::linear : (taper == "fifties" ? PotTaper::fiftiesWiring : PotTaper::audio);
 
     const auto bleed = str (wiring, "treble_bleed", "none");
-    d.wiring.bleed = bleed == "kinman" ? TrebleBleed::kinman : (bleed == "fender" ? TrebleBleed::fender : TrebleBleed::none);
+    // "modern" / "vintage" since the trademark sweep; the old names still read.
+    d.wiring.bleed = (bleed == "modern" || bleed == "kinman") ? TrebleBleed::kinman
+                   : (bleed == "vintage" || bleed == "fender") ? TrebleBleed::fender : TrebleBleed::none;
 
     // ---- setup, frets and nut (fret-buzz.md) --------------------------------------------------------------------
     d.setup.actionTreble = g.setup.actionTrebleMm;

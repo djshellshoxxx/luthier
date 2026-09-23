@@ -157,8 +157,8 @@ namespace
             // ELECTRIC
             //==================================================================
             {
-                auto& r = make ("Clean Strat Funk", "Electric",
-                                "Position 4 Strat into a blackface Twin. Tight, glassy, "
+                auto& r = make ("Clean Double-Cut Funk", "Electric",
+                                "Position 4 double-cut into a blackface combo. Tight, glassy, "
                                 "and picked close to the bridge for attack.", "clean,funk,strat");
                 addCommon (r, Strat, StdTune, Twin, C2x12Open, Jensen, SM57, CapEdge, CloseMic);
                 addAmp (r, 0.16, 0.45, 0.40, 0.70, 0.55, 0.72);
@@ -171,8 +171,8 @@ namespace
             }
 
             {
-                auto& r = make ("Tele Country Twang", "Electric",
-                                "Bridge Tele, tweed breakup, slapback delay. Hybrid picked "
+                auto& r = make ("T-Style Country Twang", "Electric",
+                                "Bridge single-coil, tweed breakup, slapback delay. Hybrid picked "
                                 "near the bridge.", "country,tele,twang");
                 addCommon (r, Tele, StdTune, Tweed, C1x12Open, Jensen, SM57, AxisCentre, CloseMic);
                 addAmp (r, 0.34, 0.42, 0.55, 0.72, 0.62, 0.66);
@@ -186,7 +186,7 @@ namespace
             }
 
             {
-                auto& r = make ("Les Paul Crunch", "Electric",
+                auto& r = make ("Single-Cut Crunch", "Electric",
                                 "Bridge humbucker into a cranked Plexi. The sound of a "
                                 "4x12 in a room with the volume up.", "rock,crunch,marshall");
                 addCommon (r, LesPaul, StdTune, Plexi, C4x12, Greenback, SM57, CapEdge, CloseMic);
@@ -199,7 +199,7 @@ namespace
 
             {
                 auto& r = make ("Modern Metal Chug", "Electric",
-                                "7-string into a Diezel, gated and tight. Palm-mute CC 67 "
+                                "7-string into a German high-gain head, gated and tight. Palm-mute CC 67 "
                                 "for the chug.", "metal,high gain,djent");
                 addCommon (r, SevenStr, SevenTune, Diezel, C4x12, V30, SM57, CapEdge, CloseMic);
                 addAmp (r, 0.82, 0.48, 0.34, 0.68, 0.66, 0.62);
@@ -215,7 +215,7 @@ namespace
 
             {
                 auto& r = make ("Jazz Hollowbody", "Electric",
-                                "ES-335 neck pickup, flatwounds, tone rolled back. Thumb "
+                                "Semi-hollow neck pickup, flatwounds, tone rolled back. Thumb "
                                 "over the fingerboard.", "jazz,warm,hollow");
                 addCommon (r, ES335, StdTune, Twin, C1x12Open, AlnicoBlue, R121, Off45, MediumMic);
                 addAmp (r, 0.14, 0.58, 0.60, 0.34, 0.25, 0.70);
@@ -263,7 +263,7 @@ namespace
 
             {
                 auto& r = make ("Fuzz Face Lead", "Electric",
-                                "Strat neck pickup into a germanium fuzz and a Plexi. "
+                                "Double-cut neck pickup into a germanium fuzz and a plexi head. "
                                 "Roll the guitar volume back and it cleans up.", "fuzz,vintage,lead");
                 addCommon (r, Strat, StdTune, Plexi, C4x12Vintage, Greenback, SM57, Off45, CloseMic);
                 addAmp (r, 0.48, 0.55, 0.58, 0.52, 0.48, 0.66);
@@ -276,7 +276,7 @@ namespace
 
             {
                 auto& r = make ("Surf Reverb", "Electric",
-                                "Jazzmaster, spring tank drowned, tremolo on. Pick hard "
+                                "Offset guitar, spring tank drowned, tremolo on. Pick hard "
                                 "and let the trem do the rest.", "surf,vintage,spring");
                 addCommon (r, Jazzmaster, StdTune, DeluxeAmp, C1x12Open, Jensen, SM57, AxisCentre, CloseMic);
                 addAmp (r, 0.26, 0.50, 0.48, 0.70, 0.60, 0.68);
@@ -290,7 +290,7 @@ namespace
 
             {
                 auto& r = make ("Semi-Hollow Chime", "Electric",
-                                "ES-335 through an AC30 with both pickups on. All the "
+                                "Semi-hollow through a top-boost combo with both pickups on. All the "
                                 "top-end sparkle the box has.", "clean,chime,vox");
                 addCommon (r, ES335, StdTune, AC30, C2x12Open, AlnicoBlue, C414, CapEdge, MediumMic);
                 addAmp (r, 0.34, 0.42, 0.50, 0.72, 0.30, 0.70);
@@ -303,7 +303,7 @@ namespace
 
             {
                 auto& r = make ("Drop C Riff", "Electric",
-                                "Baritone in drop C, Bogner, tight low end. Built for "
+                                "Baritone in drop C, boutique head, tight low end. Built for "
                                 "single-note riffing under a vocal.", "metal,drop,riff");
                 addCommon (r, BaritoneE, DropCTune, Bogner, C4x12, V30, SM57, CapEdge, CloseMic);
                 addAmp (r, 0.70, 0.42, 0.46, 0.62, 0.62, 0.64);
@@ -316,7 +316,7 @@ namespace
 
             {
                 auto& r = make ("Wah Funk Rhythm", "Electric",
-                                "Strat into an auto-wah and a compressor. Sixteenth-note "
+                                "Double-cut into an auto-wah and a compressor. Sixteenth-note "
                                 "chord work.", "funk,wah,rhythm");
                 addCommon (r, Strat, StdTune, Twin, C2x12Open, Jensen, SM57, CapEdge, CloseMic);
                 addAmp (r, 0.22, 0.48, 0.45, 0.65, 0.52, 0.70);
@@ -331,7 +331,7 @@ namespace
 
             {
                 auto& r = make ("Octave Fuzz Stoner", "Electric",
-                                "SG into a Muff and an Orange, tuned down a whole step. "
+                                "Devil double-cut into a fuzz and a British crunch head, tuned down a whole step. "
                                 "Thick and slow.", "stoner,fuzz,doom");
                 addCommon (r, SG, FullDown, Orange, C4x12Vintage, G12H, MD421, AxisCentre, CloseMic);
                 addAmp (r, 0.64, 0.66, 0.44, 0.50, 0.42, 0.62);
@@ -373,7 +373,7 @@ namespace
 
             {
                 auto& r = make ("Rockabilly Slap", "Electric",
-                                "Tele bridge, tape slapback, fresh strings and a hard "
+                                "T-style bridge, tape slapback, fresh strings and a hard "
                                 "pick attack.", "rockabilly,vintage,slapback");
                 addCommon (r, Tele, StdTune, Tweed, C1x12Open, Jensen, SM57, AxisCentre, CloseMic);
                 addAmp (r, 0.42, 0.40, 0.58, 0.72, 0.62, 0.64);
@@ -526,7 +526,7 @@ namespace
             //==================================================================
             {
                 auto& r = make ("P-Bass Flatwound", "Bass",
-                                "Precision with flats and the tone rolled off. Motown "
+                                "P-style bass with flats and the tone rolled off. Motown "
                                 "in one preset.", "bass,motown,flats");
                 addCommon (r, PBass, BassTune, SVT, C8x10, BassSpk, D112, AxisCentre, CloseMic);
                 addAmp (r, 0.25, 0.60, 0.50, 0.35, 0.25, 0.72);
@@ -539,7 +539,7 @@ namespace
             }
 
             {
-                auto& r = make ("Jazz Bass Fingerstyle", "Bass",
+                auto& r = make ("J-Style Fingerstyle", "Bass",
                                 "Both pickups, roundwounds, played over the neck pickup. "
                                 "Growly and articulate.", "bass,jazz,fingerstyle");
                 addCommon (r, JBass, BassTune, SVT, C4x10, BassSpk, D112, AxisCentre, CloseMic);
@@ -567,7 +567,7 @@ namespace
             }
 
             {
-                auto& r = make ("Rickenbacker Grind", "Bass",
+                auto& r = make ("Violin Bass Grind", "Bass",
                                 "Bright maple, picked hard, a little grit. Cuts through "
                                 "a loud band.", "bass,rock,pick");
                 addCommon (r, Rick, BassTune, SVT, C8x10, BassSpk, D112, CapEdge, CloseMic);
@@ -638,7 +638,7 @@ namespace
             }
 
             {
-                auto& r = make ("TransTrem Chords", "Utility",
+                auto& r = make ("Transposing Trem Chords", "Utility",
                                 "Steinberger-style bridge: bend the bar and the chord "
                                 "stays in tune. Try it with the whammy parameter.", "demo,transtrem");
                 addCommon (r, CustomGtr, StdTune, Twin, C2x12Open, Jensen, SM57, CapEdge, CloseMic);
@@ -768,6 +768,30 @@ void FactoryPresets::writeAll (const juce::File& folder)
         return;
 
     folder.createDirectory();
+
+    /*  Factory presets renamed since an earlier install (the trademark sweep,
+        DECISIONS 2g). Their old files are moved aside rather than deleted, so a
+        user who edited one can still find it; the folder is not scanned. */
+    static const char* const retired[][2] = {
+        { "Electric", "Clean Strat Funk" }, { "Electric", "Tele Country Twang" },
+        { "Electric", "Les Paul Crunch" },  { "Bass", "Jazz Bass Fingerstyle" },
+        { "Bass", "Rickenbacker Grind" },   { "Electric", "TransTrem Chords" },
+    };
+
+    for (const auto& r : retired)
+    {
+        for (const auto& category : { juce::String (r[0]), juce::String ("Bass"), juce::String ("Electric") })
+        {
+            const auto old = folder.getChildFile (category).getChildFile (juce::String (r[1]) + ".luthierpreset");
+
+            if (old.existsAsFile())
+            {
+                const auto aside = folder.getParentDirectory().getChildFile ("Retired Factory Presets");
+                aside.createDirectory();
+                old.moveFileTo (aside.getNonexistentChildFile (old.getFileNameWithoutExtension(), ".luthierpreset", false));
+            }
+        }
+    }
 
     for (int i = 0; i < getNumPresets(); ++i)
     {

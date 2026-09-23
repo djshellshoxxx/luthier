@@ -2,7 +2,7 @@
   "schema": 1,
   "magic": "luthier.part",
   "meta": {
-    "name": "Modern Strat Wiring",
+    "name": "Modern Double-Cut Wiring",
     "part_type": "wiring",
     "author": "Factory",
     "tags": [],
@@ -15,7 +15,7 @@
     "tone_pot_ohm": 250000.0,
     "tone_cap_f": 2.2e-08,
     "taper": "audio",
-    "treble_bleed": "kinman",
+    "treble_bleed": "modern",
     "switching": "5way",
     "active": false
   }

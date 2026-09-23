@@ -2,7 +2,7 @@
   "schema": 1,
   "magic": "luthier.guitar",
   "meta": {
-    "name": "Superstrat Floyd",
+    "name": "Superstrat Locking",
     "family": "electric",
     "body_style": "superstrat",
     "author": "Factory",
@@ -30,14 +30,14 @@
       "reference": "Factory/Nuts/Graphite Locking 42mm.luthierpart"
     },
     "bridge": {
-      "reference": "Factory/Bridges/Floyd Rose Style.luthierpart"
+      "reference": "Factory/Bridges/Locking Double Tremolo.luthierpart"
     },
     "tailpiece": null,
     "tuners": {
       "reference": "Factory/Tuners/Locking 21 to 1.luthierpart"
     },
     "wiring": {
-      "reference": "Factory/Wiring/Modern Strat Wiring.luthierpart"
+      "reference": "Factory/Wiring/Modern Double-Cut Wiring.luthierpart"
     },
     "strings": {
       "reference": "Factory/Strings/9-42 Super Light NPS.luthierpart"

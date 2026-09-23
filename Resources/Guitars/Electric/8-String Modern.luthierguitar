@@ -38,7 +38,7 @@
       "reference": "Factory/Tuners/Locking 21 to 1.luthierpart"
     },
     "wiring": {
-      "reference": "Factory/Wiring/Active EMG Wiring.luthierpart"
+      "reference": "Factory/Wiring/Active Two-Knob Wiring.luthierpart"
     },
     "strings": {
       "reference": "Factory/Strings/10-74 Eight-String NPS.luthierpart"
@@ -46,14 +46,14 @@
     "pickguard": null,
     "pickups": {
       "neck": {
-        "reference": "Factory/Pickups/EMG-Style 60 Active.luthierpart",
+        "reference": "Factory/Pickups/Active Neck Humbucker 10k.luthierpart",
         "position_mm": 160,
         "height_treble_mm": 2.8,
         "height_bass_mm": 3.4
       },
       "middle": null,
       "bridge": {
-        "reference": "Factory/Pickups/EMG-Style 81 Active.luthierpart",
+        "reference": "Factory/Pickups/Active Bridge Humbucker 10k.luthierpart",
         "position_mm": 45,
         "height_treble_mm": 2.6,
         "height_bass_mm": 3.2

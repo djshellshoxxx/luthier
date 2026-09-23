@@ -3,11 +3,13 @@
 Audit of every Markdown file under `spec/` against the build, as
 `CLAUDE.md` requires before and during implementation.
 
-- **Audited:** 2026-09-23, starting at commit `173a292` (branch `master`);
-  `819be5b` and `d8893b5` (partial capo) landed during the audit and are
-  reflected. The lead was changing `Source/` concurrently; rows cite what
-  was on disk when each section was written, and uncommitted guitar-renderer
-  work seen at the end is marked "(WIP)" in section 38.
+- **Audited:** 2026-09-23, starting at commit `173a292` (branch `master`).
+  **Refreshed** for `a406915` (guitar renderer, guitar-shop theme, queued
+  MIDI while parked), `e60d708` (family switching, string counts per type)
+  and `0d225f0` (Workshop bench model, spectrum delta, IR caching). Rows cite
+  what was on disk when written; uncommitted work (e.g.
+  `Source/UI/WorkshopPanel.h`) is not counted, except the MIDI export model
+  (`Source/Export/*`, section 23), whose rows say it is unbuilt and untested.
 - **Spec set:** `spec/` (CLAUDE.md says `specs/`; the folder on disk is
   `spec/`). Inventory command: `rg --files spec -g '*.md'` - 63 files.
 - **Precedence:** `spec/CLAUDE_CODE_BRIEF.md` "Handling conflicts between
@@ -15,13 +17,10 @@ Audit of every Markdown file under `spec/` against the build, as
   `spec/proposals/visual-polish.md` section 6 overrides `theme.md` for
   this plugin.
 - **Test evidence:** the last recorded full-suite run was green at
-  `819be5b` (415 tests, per its commit message and `spec/TODO.md`), which
-  includes the two `WorkshopCapo` tests. Existing tests are treated as
-  passing. `d8893b5` then changed the capo mask order and its test with no
-  recorded run, so the capo rows stay `implemented`. The ten
-  `GuitarIllustration::*` tests in the uncommitted
-  `Source/Tests/GuitarRendererTests.cpp` have not been run. No build or test
-  was run for this audit.
+  `0d225f0` (448 tests, per the lead), which includes `WorkshopCapo`,
+  `GuitarIllustration`, `Theme`, `WorkshopFamily`, `WorkshopBench` and
+  `WorkshopSpectrum`. Existing tests are treated as passing. No build or
+  test was run for this audit.
 
 ## How to read this file
 
@@ -55,47 +54,50 @@ test passing, human check, READY TO SHIP marker) is unmet.
 
 | | Rows | Share |
 |---|---|---|
-| verified | 527 | 25% |
-| implemented (no proving test) | 425 | 20% |
-| partial | 351 | 17% |
-| pending | 721 | 35% |
+| verified | 566 | 27% |
+| implemented (no proving test) | 434 | 21% |
+| partial | 374 | 18% |
+| pending | 650 | 31% |
 | blocked | 28 | 1% |
 | deferred | 4 | <1% |
 | n/a | 25 | 1% |
 | **Total** | **2081** | |
 
-1,525 required rows (everything except `verified`, `deferred`, `n/a`) lack
+1,486 required rows (everything except `verified`, `deferred`, `n/a`) lack
 evidence. Phase 1 and the built realism specs (advanced ranges, circuit,
 pick/squeak/buzz noise, slide, parts model, part acoustics) are in good
 shape; everything after them is largely unbuilt.
 
 Biggest unimplemented areas, roughly in order of size and ship impact:
 
-1. **Phase 2b specs missing** (9 files; Conflict C-02). They block the
-   reading order and five phase-5b dependencies (Body Tap, multi-source
-   excitation, fretting-hand mutes, fingerstyle tools, nut/tuner physics).
+1. **Phase 2b specs missing** (9 files; Conflict C-02, kept blocked by
+   DECISIONS). They block the reading order and five phase-5b dependencies
+   (Body Tap, multi-source excitation, fretting-hand mutes, fingerstyle
+   tools, nut/tuner physics).
 2. **Phase 5b technique layer absent** (~170 rows): ScrapeEngine,
    SlapEngine, TapEngine, MuteEngine, CascadeResolver, slide technique
    controls, microtonal bends, TECHNIQUES tab and Playing-strip pills.
-3. **Workshop bench** (`workshop-ui.md`, 34 rows pending; GI WORKSHOP tab,
-   inspector, parts drawer, audition, spectrum delta, A/B). The parts model
-   underneath is built (TODO 6 done at `819be5b`, 415 tests green).
-4. **Guitar illustration rebuild** (`guitar-illustration.md`, 20 pending,
-   26 implemented but unverified; TODO G). A 2,815-line renderer and ten
-   tests appeared uncommitted during the audit, not built or run, and not
-   wired in: the on-screen guitar is still the compiled type, not the parts
-   guitar that is playing. Family switching, zoom, live overlays and
-   Workshop interactions are not started.
+3. **Workshop bench UI** (`workshop-ui.md`, 17 pending, 9 partial): the
+   model (`WorkshopBench`, `SpectrumDelta`) is built and tested since
+   `0d225f0`; the WORKSHOP tab, drawer, inspector, spectrum pane, ruler,
+   keyboard parity and accessibility are not committed.
+4. **Guitar illustration remainder** (`guitar-illustration.md`, 10
+   pending, 12 partial): the renderer, family switching and 11 tests landed
+   (`a406915`, `e60d708`); zoom and pan, heatmap / pick / pickup-pulse
+   overlays, browser thumbnails and Workshop drag targets remain.
 5. **Tune Builder** (43 pending) and the TUNE tab, templates, `.luthiertune`.
-6. **MIDI export / import profiles** (26 pending), MIDI OUT tab, drag-out;
-   the plugin also declares `NEEDS_MIDI_OUTPUT FALSE` (`CMakeLists.txt:29`)
+6. **MIDI export / import**: the model is written but not yet built or
+   tested (`Source/Export/*`); the dialog, MIDI OUT tab, drag gesture,
+   import targets and live wiring are pending, and the plugin also declares `NEEDS_MIDI_OUTPUT FALSE` (`CMakeLists.txt:29`)
    while `producesMidi()` returns true.
 7. **Performance capture and NOTATION tab**: nothing records live playing,
    so live TAB and notation export of a performance do not work.
 8. **Strum dynamics and bass techniques** (51 pending): crossing velocity,
    strikers, chucks, slap/pop/ghost, bass defaults.
 9. **ui-wiring threading contract**: no command/result queue, no display
-   FIFO; guitar swaps park the audio thread and drop notes (Conflict C-09).
+   FIFO; guitar swaps still park the audio thread (notes are now queued,
+   not dropped; the off-thread part swap DECISIONS C-09 promises is
+   pending).
 10. **Easy Mode layout and column-4 tabs** (GI 3, 4.4, 19): no rig strip,
     playing or tone strip; 6 of 13 (or 14) tabs missing; GI section 22 tests
     absent.
@@ -122,8 +124,9 @@ Biggest unimplemented areas, roughly in order of size and ship impact:
 16. **Undo and error handling**: no state boundaries or 200 ms grouping,
     most structural edits push no undo entry; no crash-dump writer; banner
     policy, MIDI-flood, device-loss and corrupt-config responses missing.
-17. **Visual polish** (user priority, TODO V): guitar-shop theme, amp and
-    pedal faces, accent picker all pending.
+17. **Visual polish** (user priority, TODO V): the guitar-shop theme and
+    guitar lighting landed (`a406915`); amp and pedal faces, model knob
+    caps, tube glow / VU / room light and the accent picker are pending.
 
 Also open from TODO: Aux 8 noise bus (2f), pick-scrape trigger (3f),
 slide technique controls (5b), audit items 14/14b/14c.
@@ -150,22 +153,22 @@ phase-2b files INDEX names that are not on disk. Counts are coverage rows
 | `advanced-ranges.md` | 12 (phase 2) | 42 | 28 | 8 | 2 | 4 | 0 | 0 | 0 |
 | `volume-knob-interaction.md` | 13 (phase 2) | 32 | 23 | 5 | 0 | 4 | 0 | 0 | 0 |
 | `pick-noise.md` | 14 (phase 2) | 32 | 17 | 8 | 4 | 3 | 0 | 0 | 0 |
-| `string-squeak.md` | 15 (phase 2) | 37 | 22 | 5 | 7 | 3 | 0 | 0 | 0 |
+| `string-squeak.md` | 15 (phase 2) | 37 | 22 | 5 | 8 | 2 | 0 | 0 | 0 |
 | `fret-buzz.md` | 16 (phase 2) | 30 | 19 | 5 | 1 | 5 | 0 | 0 | 0 |
-| `slide-guitar.md` | 17 (phase 2) | 36 | 23 | 9 | 0 | 4 | 0 | 0 | 0 |
-| `guitar-workshop.md` | 18 (phase 2) | 35 | 25 | 3 | 6 | 1 | 0 | 0 | 0 |
+| `slide-guitar.md` | 17 (phase 2) | 36 | 23 | 9 | 1 | 3 | 0 | 0 | 0 |
+| `guitar-workshop.md` | 18 (phase 2) | 35 | 26 | 2 | 6 | 1 | 0 | 0 | 0 |
 | `part-acoustics.md` | 19 (phase 2) | 37 | 24 | 5 | 6 | 1 | 0 | 1 | 0 |
-| `workshop-ui.md` | 20 (phase 2) | 34 | 0 | 0 | 0 | 34 | 0 | 0 | 0 |
+| `workshop-ui.md` | 20 (phase 2) | 34 | 8 | 0 | 9 | 17 | 0 | 0 | 0 |
 | `strum-dynamics.md` | 21 (phase 2) | 26 | 0 | 0 | 3 | 23 | 0 | 0 | 0 |
 | `bass-techniques.md` | 22 (phase 2) | 28 | 0 | 0 | 0 | 28 | 0 | 0 | 0 |
-| `midi-export.md` | 23 (phase 2) | 30 | 0 | 0 | 4 | 26 | 0 | 0 | 0 |
-| 9 phase-2b files (missing) | 23a-23i (phase 2b) | 9 | 0 | 0 | 0 | 0 | 0 | 9 | 0 |
+| `midi-export.md` | 23 (phase 2) | 30 | 0 | 16 | 13 | 1 | 0 | 0 | 0 |
+| `9 phase-2b files (missing)` | 23a-23i (phase 2b) | 9 | 0 | 0 | 0 | 0 | 0 | 9 | 0 |
 | `tune-builder.md` | 24 (phase 3) | 43 | 0 | 0 | 0 | 43 | 0 | 0 | 0 |
-| `ambiguity-resolutions.md` | 25 (phase 4) | 29 | 4 | 5 | 7 | 13 | 0 | 0 | 0 |
-| `gui-integration.md` | 26 (phase 4) | 184 | 25 | 34 | 70 | 54 | 0 | 0 | 1 |
-| `ui-wiring.md` | 27 (phase 4) | 45 | 3 | 4 | 24 | 14 | 0 | 0 | 0 |
+| `ambiguity-resolutions.md` | 25 (phase 4) | 29 | 5 | 4 | 7 | 13 | 0 | 0 | 0 |
+| `gui-integration.md` | 26 (phase 4) | 184 | 26 | 34 | 72 | 51 | 0 | 0 | 1 |
+| `ui-wiring.md` | 27 (phase 4) | 45 | 4 | 4 | 23 | 14 | 0 | 0 | 0 |
 | `onboarding.md` | 28 (phase 4) | 30 | 5 | 3 | 4 | 18 | 0 | 0 | 0 |
-| `performance-budget.md` | 29 (phase 4) | 26 | 0 | 1 | 3 | 22 | 0 | 0 | 0 |
+| `performance-budget.md` | 29 (phase 4) | 26 | 0 | 1 | 4 | 21 | 0 | 0 | 0 |
 | `qa-polish.md` | 30 (phase 4) | 50 | 4 | 1 | 11 | 31 | 0 | 3 | 0 |
 | `installer.md` | 31 (phase 4) | 21 | 0 | 0 | 3 | 14 | 1 | 3 | 0 |
 | `CLAUDE_CODE_BRIEF.md` | 32 (phase 4) | 16 | 0 | 1 | 4 | 8 | 0 | 1 | 2 |
@@ -174,7 +177,7 @@ phase-2b files INDEX names that are not on disk. Counts are coverage rows
 | `error-recovery.md` | 35 (phase 5) | 38 | 7 | 6 | 12 | 13 | 0 | 0 | 0 |
 | `state-model.md` | 36 (phase 5) | 26 | 2 | 3 | 11 | 10 | 0 | 0 | 0 |
 | `gui-engine-dataflow.md` | 37 (phase 5) | 34 | 0 | 15 | 10 | 9 | 0 | 0 | 0 |
-| `guitar-illustration.md` | 38 (phase 5) | 54 | 0 | 26 | 8 | 20 | 0 | 0 | 0 |
+| `guitar-illustration.md` | 38 (phase 5) | 54 | 18 | 14 | 12 | 10 | 0 | 0 | 0 |
 | `input-routing.md` | 39 (phase 5) | 21 | 1 | 7 | 8 | 5 | 0 | 0 | 0 |
 | `host-integration.md` | 40 (phase 5) | 31 | 1 | 8 | 15 | 6 | 1 | 0 | 0 |
 | `action-and-undo.md` | 41 (phase 5) | 40 | 1 | 8 | 9 | 22 | 0 | 0 | 0 |
@@ -191,7 +194,7 @@ phase-2b files INDEX names that are not on disk. Counts are coverage rows
 | `engine.md` | companion | 94 | 40 | 40 | 7 | 5 | 0 | 0 | 2 |
 | `theme.md` | companion (overridden by VP 6) | 21 | 0 | 11 | 2 | 0 | 1 | 0 | 7 |
 | `include.md` | companion | 23 | 2 | 16 | 4 | 0 | 0 | 0 | 1 |
-| `proposals/visual-polish.md` | approved proposal | 34 | 0 | 4 | 3 | 25 | 0 | 0 | 2 |
+| `proposals/visual-polish.md` | approved proposal | 34 | 9 | 11 | 0 | 12 | 0 | 0 | 2 |
 | `README.md` | project readme | 10 | 0 | 7 | 2 | 0 | 0 | 0 | 1 |
 | `JUCE_CLAUDE_GUIDELINES.md` | dev guidelines | 15 | 3 | 8 | 2 | 1 | 0 | 0 | 1 |
 | `INDEX.md` | index | 11 | 1 | 1 | 3 | 3 | 0 | 1 | 2 |
@@ -200,7 +203,7 @@ phase-2b files INDEX names that are not on disk. Counts are coverage rows
 | `GAPS.md` | process doc, no requirements | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `PROGRESS.md` | process doc, no requirements | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `REVIEW.md` | process doc, no requirements | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **Total** | 63 files on disk + 9 missing | **2081** | **527** | **425** | **351** | **721** | **4** | **28** | **25** |
+| **Total** | 63 files on disk + 9 missing | **2081** | **566** | **434** | **374** | **650** | **4** | **28** | **25** |
 
 Every file was read in full. Granularity note: related lines are collapsed
 into one row where they would share a location and a status (for example a
@@ -215,15 +218,20 @@ precedence list is `CLAUDE_CODE_BRIEF.md` "Handling conflicts between docs"
 whether the code follows the resolution. D-refs point at `spec/DECISIONS.md`
 entries by their bold lead-in.
 
-## Unresolved (need an answer before the affected part is built)
+## Decided by the lead (formerly unresolved)
 
-| ID | Conflict | Why precedence does not settle it | Proposed answers |
+The first audit flagged five conflicts that precedence could not settle.
+`spec/DECISIONS.md` "Conflicts from the coverage audit" (2026-09-23,
+committed in `a406915`) decides all five. No conflict is currently
+unresolved.
+
+| ID | Conflict | Decision (DECISIONS.md) | Build |
 |---|---|---|---|
-| C-02 | **UNRESOLVED.** `INDEX.md` phase 2b and `CLAUDE_CODE_BRIEF.md` reading order name nine specs (string-aging ... tuning-stability) that are not on disk; five later specs depend on them (string-slap 2 Body Tap -> `body-coupling`; engine-technique-layer 3.2 -> `harmonic-realism` 2; muting-rhythm 3 -> `string-interaction`; string-slap 6 / gui-techniques 5 / technique-cascade 1 -> `fingerstyle-attack`; part-acoustics 4 nut friction -> `tuning-stability`). | Nothing to rank: the documents do not exist. D: "2026-09-23 spec update" records them as blocked; the user was asked. | (a) User supplies the nine files. (b) Write them as `spec/proposals/*.md` from the INDEX one-liners and get approval first (BRIEF: features not in spec go to proposals). (c) Remove them from INDEX and the brief, and strip the dependent references from the phase-5b specs. Recommended: (a), else (b). |
-| C-09 | **UNRESOLVED.** `ui-wiring.md` 6.1-6.2 (rank 3) and the BRIEF ("follow the threading contract exactly") require guitar loads and part swaps to be applied on the audio thread by atomic pointer swap with a 5 ms coefficient crossfade. D: "The 5 ms click-free swap parks the audio thread" instead rebuilds on the message thread behind a 5 ms fade-out / silence / fade-in, and drops notes that arrive while parked. | Precedence says ui-wiring wins, but D argues the spec's crossfade needs two engines. It is a real engineering trade-off the spec did not anticipate, and the chosen fix drops MIDI. | (a) Keep the park, amend ui-wiring 6 via a proposal, and queue (not drop) notes that arrive while parked. (b) Implement the spec: build the new `DerivedAcoustics` off-thread and swap coefficient sets at a block boundary with per-module crossfades (no second engine needed for coefficient-only changes; string-count changes still need a short fade). Recommended: (b) for part swaps, (a)'s note queueing for full guitar loads. |
-| C-16 | **UNRESOLVED.** `onboarding.md` 6 ships "12 tune templates (tune-builder.md 10)"; `tune-builder.md` 10 lists ten. | Rank 22 would make onboarding (INDEX 28) win over tune-builder (24), but onboarding names no extra templates, so there is nothing to build. | (a) Ship tune-builder's ten and correct onboarding to 10. (b) Add two named templates (proposal needed). Recommended: (a). |
-| C-19 | **UNRESOLVED.** `factory-content.md` 6 ships genre kits as `.luthierkit` files; `rhythm-engine.md` 7 says "JSON file under `Resources/Genres/`"; `file-formats.md` 1 (rank 11, file schemas) defines no kit type. | file-formats is authoritative for schemas but is silent, so there is no schema to follow. | (a) Add `.luthierkit` (magic `luthier.kit`) to file-formats via proposal, with the fields factory-content 6 lists. (b) Keep kits compiled in. Recommended: (a). |
-| C-32 | **UNRESOLVED.** `gui-techniques-updates.md` 0.2 adds a 14th column-4 tab (TECHNIQUES before HELP). The BRIEF rules say the 13-tab order is fixed and `gui-integration.md` ranks 2 on UI location; the same BRIEF lists gui-techniques-updates as a "GUI delta; apply on top of gui-integration.md" and ranks it 20 on "the Techniques tab layout". | Two BRIEF statements point opposite ways; rank 2 vs rank 20 applies only if tab position is "UI location" rather than "Techniques tab layout". | (a) Adopt the 14-tab order (the delta was written after the 13-tab rule and the brief says to apply it on top). (b) Put the technique sub-tabs inside an existing tab (e.g. CHARACTER). Recommended: (a); update the BRIEF's fixed-order line and the `Editor::everyWorkspaceTabSelectsAndPaints` list together. |
+| C-02 | Nine phase-2b specs named by INDEX and the brief are not on disk; five phase-5b specs depend on them. | Stays **blocked**: writing nine physics specs from one-line summaries would invent features. Phase-5b work is built without those modules and the gaps are noted. | Blocked rows stay `blocked` |
+| C-09 | ui-wiring 6 wants audio-thread atomic swaps with a 5 ms crossfade; the build parks the audio thread and dropped notes. | Keep the park for whole-guitar loads (a string-count change cannot crossfade in one engine) but **queue** notes that arrive while parked; same-string-count part swaps move to ui-wiring 6's off-thread build and block-boundary swap with the bench. | Queueing done (`a406915`, `WorkshopSwap::aNotePlayedWhileParkedIsKeptNotDropped`); off-thread part swap pending |
+| C-16 | Onboarding says 12 tune templates; tune-builder lists 10. | Ship tune-builder's **ten**; onboarding's 12 is a miscount. | Tune Builder not built |
+| C-19 | Genre kits: `.luthierkit` (factory-content) vs "JSON under Resources/Genres" (rhythm-engine) vs no kit type in file-formats. | `.luthierkit` files, magic `luthier.kit`, factory-content 6's fields; added to file-formats when kits are next touched. | Kits still compiled in |
+| C-32 | TECHNIQUES tab makes column 4 a 14-tab strip vs the brief's fixed 13. | **14 tabs**, TECHNIQUES before HELP. | TECHNIQUES tab not built |
 
 ## Resolved by precedence or recorded decision
 
@@ -248,8 +256,8 @@ entries by their bold lead-in.
 | C-21 | guitar-workshop 0.4/5 (and GAPS B0 decision 2): incompatible parts fit with a warning; error-recovery 5: not offered for the slot, refused via API with a banner. | Rank 8 guitar-workshop over rank 12 | Advisory: warn and fit. error-recovery 5's refusal row does not apply. | Follows |
 | C-22 | error-recovery 14: up to 3 banners visible, a 4th replaces the oldest, priority errors > warnings > info. Build: one banner visible, rest queued with "+N" (PROGRESS A6). GI 15 is silent on count. | Rank 12 error-recovery (failure responses) | Show up to three with priority ordering. | Deviates |
 | C-23 | Noise-event strip: string-squeak 9.1 (last 8 s, 30 Hz, grey after 2 s) vs gui-engine-dataflow 10 (15 Hz, events fall off after 1 s, reduced-motion static count at 5 Hz) and ui-wiring 4.2 (15 Hz). | Rank 14 gui-engine-dataflow (drain rates, staleness) | 15 Hz drain, 1 s per-event staleness; reduced-motion per-class count. | Deviates (follows string-squeak) |
-| C-24 | guitar-illustration 3 adds an `extended` family; guitar-workshop 5 lists electric, acoustic, bass, classical, resonator, any. | Rank 8 guitar-workshop (data model) | No `extended` family value; 7/8-string and multi-scale guitars are `electric`, and the illustration keys its extended template on string count. | n/a (not built) |
-| C-25 | guitar-illustration 0.2 (flat language, no faux metal beyond one highlight) vs visual-polish 1 (baked lighting, lacquer sheen, metal reflections, drop shadows). | User approval of visual-polish (TODO V: "All approved by the user") | visual-polish 1 applies to the Luthier guitar. Recommend recording this explicitly in DECISIONS (the recorded decision names only section 6 vs theme.md). | Not built |
+| C-24 | guitar-illustration 3 adds an `extended` family; guitar-workshop 5 lists electric, acoustic, bass, classical, resonator, any. | Rank 8 guitar-workshop (data model); D: "Family templates are the factory guitars 12.2 names" | No `extended` family value; the 7-String Modern is an electric, not a family template. | Follows (`e60d708`) |
+| C-25 | guitar-illustration 0.2 (flat language, no faux metal beyond one highlight) vs visual-polish 1 (baked lighting, lacquer sheen, metal reflections, drop shadows). | User approval; D: "Guitar illustration materials" | visual-polish 1 wins where they differ; High contrast renders flat. | Follows (`a406915`) |
 | C-26 | host-integration 2 rejects a mono main output; `JUCE_CLAUDE_GUIDELINES.md` 6 says support mono-in/mono-out. | host-integration rank 17; guidelines unranked | Reject mono main. | Deviates (accepts mono) |
 | C-27 | action-and-undo 0.3/4 (200 ms same-class same-target grouping, stack 200) vs gui-integration 18 (200 ms, stack 64). Build: one entry per host gesture, stack 200. | Rank 18 action-and-undo on undo grouping | 200 ms grouping, stack of 200. | Stack follows; grouping deviates |
 | C-28 | Undo across a boundary: GI 18 "holding Shift"; action-and-undo 0.2/5 "Shift-Ctrl-Z"; action-and-undo 9 "Ctrl-Shift-Z = redo, Ctrl-Alt-Z = undo across boundary"; GI 17 "Redo = Ctrl+Shift+Z". | Only reading without a key collision | Redo = `Ctrl+Shift+Z` (and `Ctrl+Y` on Windows); cross-boundary undo = `Ctrl+Alt+Z` with a confirmation banner. | Not built |
@@ -269,6 +277,11 @@ entries by their bold lead-in.
 | C-43 | engine.md 4 legato inference (slide if < 40 ms; hammer/pull if velocity < 80) vs two-hand-tapping 5 (hammer-on within 150 ms, velocity < 40). | Rank 19 engine-technique-layer defers to the technique specs; rank 22 later spec | Proposal: < 40 ms stays a slide (engine.md); 40-150 ms below the tapping threshold is a hammer-on. | Follows engine.md only |
 | C-44 | gui-integration 0.8 minimum 1280x800 vs GI 4.5 / 13 reflow below 1280 and Advanced unavailable below 1000. | Internal to GI | 1280x800 is the design size; smaller windows reflow per 13 (window minimum 940x560 is compatible). | Follows |
 | C-45 | modulation-matrix 1.7 and GI 19 "Macros 1..8" host names vs the build's six named macros plus two assign slots (`Parameters.h:33-41`). | Rank 2 GI (UI) / modulation-matrix | Eight macros, user-nameable. The build's reuse of six named macros is a deviation without a DECISIONS entry. | Deviates |
+| C-46 | workshop-ui 4 pickup height range 0.5-6.0 mm vs guitar-illustration 19 "not below 0.8 mm without advanced ranges". | Rank 15 guitar-illustration (visible guitar); D: "Pickup heights clamp at 0.8 - 6 mm" | 0.8-6 mm until pickup height joins an advanced-range family. | Follows (`0d225f0`) |
+| C-47 | guitar-illustration 5 layer order puts strings (14) under neck, fretboard and frets (15-17), which would hide them along the neck. | Internal to one spec; D: "Strings draw over the neck" | Neck, fretboard, frets, nut and headstock first, then strings, then tuner posts. | Follows |
+| C-48 | guitar-illustration 6 draws four bolt dots on a bolt-on neck; they are on the back of a real guitar. | D: "No neck-plate bolts on the top view" | Top view shows the pocket seam; set neck a rounded heel; through-neck laminate lines. | Follows |
+| C-49 | guitar-illustration 11.2 draws bursts as one radial gradient, which cannot darken along a single-cut's edge. | D: "A burst follows the outline" | Radial centre plus stacked edge strokes clipped to the body. | Follows |
+| C-50 | string-squeak 11: Generic drops squeak events. midi-export 3, 4.1 and 8: Generic writes realism as `LUTHIER:` text metas when "include realism" is on. | Judgement (coverage assistant), for the lead to confirm | Both hold: realism is off by default, so squeaks are dropped; turned on, they are text for a person to read, which no DAW plays and which leaves the file readable elsewhere. | Follows (model) |
 
 Editorial slips noted while reading (no behaviour decision needed):
 gui-integration 3.2 and 4.2 cite "volume-knob-interaction.md 10" (the UI is
@@ -743,7 +756,7 @@ exists on disk.
 | ACC-2-03 | F1 context help for focused control | accessibility §2 | F1 opens Help overlay (GAPS A2) | none | `partial` - not context-sensitive |
 | ACC-2-04 | Every action reachable by shortcut | accessibility §2 | registry | `AccessibilityTests.cpp` `Accessibility::shortcutDefaultsMatchTheCanonicalTable` | `verified` |
 | ACC-2-05 | "Show all shortcuts" overlay with search | accessibility §2 | `Ctrl+Shift+/` table (GAPS A5) | none | `implemented` |
-| ACC-3-01 | Palettes Default, Deuteranopia, Protanopia, Tritanopia, High contrast, Light in Options -> Appearance | accessibility §3 | `Accessibility.cpp` palettes | `AccessibilityTests.cpp` `Accessibility::colourblindPalettesSeparateTheStatesTheyTarget`, `Accessibility::palettesMeetContrastRequirements` | `verified` |
+| ACC-3-01 | Palettes Default, Deuteranopia, Protanopia, Tritanopia, High contrast, Light in Options -> Appearance | accessibility §3 | `Accessibility.cpp` palettes, now applied to the UI live (`a406915`) | `AccessibilityTests.cpp` `Accessibility::colourblindPalettesSeparateTheStatesTheyTarget`, `Accessibility::palettesMeetContrastRequirements`; `ThemeTests.cpp` `Theme::aPaletteChangeReachesBuiltComponents` | `verified` |
 | ACC-3-02 | Palettes ship as `Resources/Themes/*.json` | accessibility §3 | loader `Accessibility.cpp:342`; no files on disk | `AccessibilityTests.cpp` `Accessibility::palettesRoundTripThroughJson` | `partial` - built-in only |
 | ACC-3-03 | Meters use shape too: narrow strip below -18 dB, bracket icon over 0 dB | accessibility §3 | not found in `Widgets.cpp` | none | `pending` |
 | ACC-4-01 | Scales 75-200; min 10 px effective font | accessibility §4 | `Accessibility.cpp:8` | `AccessibilityTests.cpp` `Accessibility::uiScaleStepsAndFontFloor` | `verified` |
@@ -983,7 +996,7 @@ glide noise; CHARACTER winding selector edits `string_material` directly
 | SQ-10-02 | Slide Mode replaces finger squeak | string-squeak §10 | `SlideEngine` | `NoiseTests.cpp` `Squeak::zeroIsFreeAndSlideModeSuppressesIt`; `SlideTests.cpp` `Slide::squeakStopsUnderTheBarButNotBesideIt` | `verified` |
 | SQ-10-03 | Fret wear raises squeak slightly | string-squeak §10 | not found | none | `pending` |
 | SQ-10-04 | Old strings: roughness up to x1.4 | string-squeak §10 | `PlayingNoise.cpp:24` | none | `implemented` |
-| SQ-11-01 | MIDI `squeak` event class (string, start, end, duration, level); exact in Luthier profile, dropped in Generic | string-squeak §11 | midi-export profiles not built | none | `pending` |
+| SQ-11-01 | MIDI `squeak` event class (string, start, end, duration, level); exact in Luthier profile, dropped in Generic | string-squeak §11 | SQUEAK fields `str`, `start`, `end`, `dur`, `intensity` (the level) with midi-export's `trigger` and `material` (`LuthierMidiEvents.cpp`); Generic leaves it out unless realism text is turned on (C-50); the engine does not report squeaks yet | `MidiExportTests.cpp` `MidiExport::everyEventClassRoundTripsWithEveryField` (not yet run) | `partial` - no engine capture |
 | SQ-12-01 | 16-generator pool; degradation to 8 | string-squeak §12 | `kPoolSizes` | `NoiseTests.cpp` `NoisePool::aFullPoolStealsTheOldest` | `verified` |
 | SQ-13-01 | Test: plain strings never squeak on every factory guitar | string-squeak §13 | - | `NoiseTests.cpp` `Squeak::flatwoundIsNearlySilentAndPlainIsSilent` (confirm factory sweep) | `verified` |
 | SQ-13-02 | Test: 300 mm/s on 6.5 wraps/mm within 10% of 1.95 kHz; double speed doubles | string-squeak §13 | - | `NoiseTests.cpp` `Squeak::pitchTracksSpeedAndWinding` | `verified` |
@@ -1073,7 +1086,7 @@ carries mode, damping and assist. User-facing slide controls are extended by
 | SG-7-05 | Workshop Slide category enabled in Slide Mode | slide-guitar §7 | WORKSHOP tab not built | none | `pending` |
 | SG-7-06 | Fretboard bar overlay: 6 px rounded, material colour at 80%, 80 ms ease, at position and slant | slide-guitar §7 | `FretboardComponent.cpp:168-183` | none | `implemented` - slant drawing not verified |
 | SG-7-07 | Tuning popover shows continuous pitch | slide-guitar §7 | not found | none | `pending` |
-| SG-8-01 | MIDI `slide` class: bar position over time, slant, pressure; Luthier round-trips, Generic as pitch bend | slide-guitar §8 | midi-export profiles not built | none | `pending` |
+| SG-8-01 | MIDI `slide` class: bar position over time, slant, pressure; Luthier round-trips, Generic as pitch bend | slide-guitar §8 | SLIDE_BAR fields `pos`, `path` (ms:frets over time), `pressure`, `slant`, `material` (`LuthierMidiEvents.cpp`); Generic carries the performance's own pitch bend; the engine does not report bar events yet | `MidiExportTests.cpp` `MidiExport::everyEventClassRoundTripsWithEveryField` (not yet run) | `partial` - no engine capture |
 | SG-9-01 | Test: bar sweep fret 3->5 monotonic, unquantised at assist 0 | slide-guitar §9 | - | `SlideTests.cpp` `Slide::pitchIsContinuous` | `verified` |
 | SG-9-02 | Test: assist 1.0 settles 40 c sharp to within 5 c in 400 ms | slide-guitar §9 | - | `SlideTests.cpp` `Slide::theAssistPullsToPitch` | `verified` |
 | SG-9-03 | Test: lap-steel slide T60 >= 25% shorter than fretted | slide-guitar §9 | - | `SlideTests.cpp` `Slide::theSegmentBehindIsDamped` | `verified` |
@@ -1102,7 +1115,7 @@ fields not yet consumed; swap parks the audio thread behind a 5 ms fade
 | GW-0-02 | Parts are files; factory read-only, user in `~/Documents/Luthier/Parts/` | guitar-workshop §0.2, §4 | `PartLibrary.h:5` | `WorkshopTests.cpp` `Workshop::theFactoryLibraryIsThere`, `Workshop::aUserPartBeatsTheFactoryOne` | `verified` |
 | GW-0-03 | Every part swap is audible (or field does not belong) | guitar-workshop §0.3 | several fields unconsumed (tuners, nut friction/width, fretboard radius/thickness, coil turns, pole shape, spring count, plies; DECISIONS) | `PartAcousticsTests.cpp` `PartAcoustics::everyMappedFieldMovesSomething` (mapped fields only) | `partial` |
 | GW-0-04 | Compatibility advisory: warn, never refuse | guitar-workshop §0.4, §5 | `getCompatibilityWarnings` `PartLibrary.h:93` | `WorkshopTests.cpp` `Workshop::incompatiblePartsFitWithAWarning` | `verified` |
-| GW-0-05 | Committed spec owned by audio thread; edits as commands, atomic swap | guitar-workshop §0.5, §3 | rebuild on message thread with audio parked (DECISIONS) | `WorkshopPresetTests.cpp` `WorkshopSwap::aPartSwapDuringANoteIsClickFree` | `partial` - mechanism deviates (Conflict C-09) |
+| GW-0-05 | Committed spec owned by audio thread; edits as commands, atomic swap | guitar-workshop §0.5, §3 | rebuild on message thread with audio parked; MIDI arriving while parked is queued (DECISIONS C-09); IR reloads skipped when unchanged (~14 ms park) | `WorkshopPresetTests.cpp` `WorkshopSwap::aPartSwapDuringANoteIsClickFree`, `WorkshopSwap::aNotePlayedWhileParkedIsKeptNotDropped` | `partial` - part swaps still park until the bench's off-thread swap (C-09) |
 | GW-0-06 | Factory guitars ship as `.luthierguitar`; enum is a browser shortcut | guitar-workshop §0.6 | `PluginProcessor::getFactoryGuitarPath` (27 files) | `WorkshopPresetTests.cpp` `WorkshopPresets::choosingAGuitarTypeFitsItsParts` | `verified` |
 | GW-1-01 | Slots body, top, neck, fretboard, frets, nut, bridge, tailpiece, tuners, pickups x3, wiring, strings, pickguard with cardinalities | guitar-workshop §1 | `GuitarSlot`, `PartType` `Part.h:22-28` | `WorkshopTests.cpp` `Workshop::everyFactoryGuitarLoadsAndRoundTrips` | `verified` |
 | GW-1-02 | Guitar fields hardware_color, finish, setup, character_seed; zero pickups legal | guitar-workshop §1 | `WorkshopGuitar` | `WorkshopTests.cpp` `Workshop::anEmbeddedGuitarNeedsNoPartFiles` | `implemented` |
@@ -1122,7 +1135,7 @@ fields not yet consumed; swap parks the audio thread behind a 5 ms fade
 | GW-8-01 | Preset `guitar.reference` + `guitar.override`; override wins | guitar-workshop §8 | `getGuitarBlock` `PluginProcessor.h:226` | `WorkshopPresetTests.cpp` `WorkshopPresets::anEditedGuitarTravelsWholeInTheState` | `verified` |
 | GW-9-01 | Workshop adds no parameters; part fields structural | guitar-workshop §9 | - | `IntegrationTests.cpp` `Parameters::everyParameterHasAUniqueIdAndSaneDefault` | `verified` |
 | GW-9-02 | Retire pickup position/height params (-9) with migration into placements | guitar-workshop §9 | retired in `b9a9b5d` (PROGRESS) | `WorkshopPresetTests.cpp` `WorkshopPresets::oldPickupPlacementParametersBecomeTheGuitars` | `verified` |
-| GW-CAPO-01 | Capo part (full/partial, string_mask, pressure); partial capo clamps only masked strings; travels with preset | guitar-workshop §2; AMB 4.5 | `TuningEngine` capo mask, `setCapoPart` `PluginProcessor.h:232`; `Resources/Parts/Capos/Partial 3-String Capo.luthierpart` | `WorkshopPresetTests.cpp` `WorkshopCapo::aPartialCapoClampsOnlyItsStrings`, `WorkshopCapo::theCapoTravelsWithThePreset` - green at `819be5b`; mask order and test changed in `d8893b5` with no recorded run | `implemented` - re-run the suite to mark `verified` |
+| GW-CAPO-01 | Capo part (full/partial, string_mask, pressure); partial capo clamps only masked strings; travels with preset | guitar-workshop §2; AMB 4.5 | `TuningEngine` capo mask, `setCapoPart` `PluginProcessor.h:232`; `Resources/Parts/Capos/Partial 3-String Capo.luthierpart` | `WorkshopPresetTests.cpp` `WorkshopCapo::aPartialCapoClampsOnlyItsStrings`, `WorkshopCapo::theCapoTravelsWithThePreset` - green at `0d225f0` (448 tests) | `verified` |
 | GW-10-01 | Test: every factory guitar round-trips | guitar-workshop §10 | - | `WorkshopTests.cpp` `Workshop::everyFactoryGuitarLoadsAndRoundTrips` | `verified` |
 | GW-10-02 | Test: each slot swap changes spectrum; swap back within -80 dBFS | guitar-workshop §10 | - | none found per slot | `pending` |
 | GW-10-03 | Test: swap during a note, no discontinuity above -60 dBFS | guitar-workshop §10 | - | `WorkshopPresetTests.cpp` `WorkshopSwap::aPartSwapDuringANoteIsClickFree` | `verified` |
@@ -1182,46 +1195,51 @@ nickel-silver + bone; magnet pull formula; unconsumed fields listed.
 
 ## 20. workshop-ui.md (phase 2)
 
-**Not built** (TODO 7: `WorkshopPanel` and the WORKSHOP tab). Backend
-pieces it needs exist (part library, Save As Guitar/Part, click-free swap);
-the illustration rebuild it depends on is TODO G (API only in
-`Source/UI/Guitar/GuitarRenderer.h`). No shadow-spec audition path exists.
+**Model built, UI not committed** (TODO 7). `0d225f0` added
+`Source/Workshop/WorkshopBench.*` (fit / revert / remove with real-unit undo
+sentences, single-entry drags, pickup travel limits with reasons, heights,
+saddles, nut slots, snap, eight A/B slots, shadow audition) and
+`Source/Workshop/SpectrumDelta.*` (worker-thread fixture render, coalescing,
+comb notches, summary sentence), with `WorkshopBench::*` and
+`WorkshopSpectrum::*` tests; 448 tests passed at `0d225f0`. The bench UI
+(`Source/UI/WorkshopPanel.h`) was in the working tree, uncommitted, at this
+refresh, so UI rows stay `pending`.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
 | WUI-0-01 | Direct manipulation first; fields are the precise path | workshop-ui §0.1 | - | none | `pending` |
 | WUI-0-02 | Illustration authoritative: drawn = loaded | workshop-ui §0.2 | `GuitarBodyComponent` draws compiled spec, not the parts guitar | none | `pending` - TODO G |
 | WUI-0-03 | Three feedbacks per interaction (visual, numeric, audible) | workshop-ui §0.3 | - | none | `pending` |
-| WUI-0-04 | Audition never commits (shadow GuitarSpec) | workshop-ui §0.4 | no shadow spec | none | `pending` |
-| WUI-0-05 | Each committed change one undo entry in real units | workshop-ui §0.5, §8 | - | none | `pending` |
+| WUI-0-04 | Audition never commits (shadow GuitarSpec) | workshop-ui §0.4 | `WorkshopBench` shadow audition (`Source/Workshop/WorkshopBench.*`) | `WorkshopBenchTests.cpp` `WorkshopBench::auditionNeverCommits` | `verified` |
+| WUI-0-05 | Each committed change one undo entry in real units | workshop-ui §0.5, §8 | `WorkshopBench` fit / revert / remove / drag commits | `WorkshopBenchTests.cpp` `WorkshopBench::aDragIsOneUndoEntryWithItsBeforeAndAfter`, `WorkshopBench::fittingAPartSaysWhatItReplaced`, `WorkshopBench::heightsAndSetupEditsAreOneEntryEach` | `verified` |
 | WUI-0-06 | Bench not modal; instrument keeps playing | workshop-ui §0.6 | - | none | `pending` |
 | WUI-1-01 | Layout: header (name, modified, Save As Guitar, A/B), illustration, inspector, parts drawer (13 categories), setup strip, spectrum delta; takes Advanced columns 3+4; Easy overlay via header wrench | workshop-ui §1; GI 6 | - | none | `pending` |
 | WUI-1-02 | Min width 900; inspector collapses below 900; drawer to dropdown below 700; Easy overlay to window minimum | workshop-ui §1 | - | none | `pending` |
 | WUI-2-01 | Ruler in mm from saddle; hover/selection outlines; live overlays (pick, slide, capo, buzz heatmap) | workshop-ui §2 | - | none | `pending` |
 | WUI-2-02 | Repaint budget full < 8 ms, overlay < 2 ms; overlay layer separate | workshop-ui §2 | - | none | `pending` |
 | WUI-3.1-01 | Hover outlines at 60% accent with name + summary tooltip; does not select; click selects (sticky) | workshop-ui §3.1 | - | none | `pending` |
-| WUI-3.2-01 | Alt-hover drawer card auditions on shadow spec; greyed inspector; delta vs committed; 30 ms crossfade back | workshop-ui §3.2 | - | none | `pending` |
+| WUI-3.2-01 | Alt-hover drawer card auditions on shadow spec; greyed inspector; delta vs committed; 30 ms crossfade back | workshop-ui §3.2 | shadow audition in `WorkshopBench`; drawer UI not committed | `WorkshopBenchTests.cpp` `WorkshopBench::auditionNeverCommits` (model) | `partial` - UI and 30 ms crossfade not built |
 | WUI-3.3-01 | Per-string selection shows set + override; override drawn in its material colour | workshop-ui §3.3 | - | none | `pending` |
-| WUI-4-01 | Drag table: pickup position/height/tilt, saddles, nut slots, fret wear brush, pick, slide, capo with snaps and ranges | workshop-ui §4 | - | none | `pending` |
-| WUI-4-02 | Drag rules: axis-constrained, snap default / Shift fine / Alt free, live inspector value, live comb notches, collision stop with reason | workshop-ui §4 | - | none | `pending` |
-| WUI-5-01 | Inspector: name, origin, fields with units, compatibility; editable; factory edits mark modified and offer Save as user part; Swap; Revert; tooltips and accessibility | workshop-ui §5 | `savePartAs` exists in processor | none | `pending` |
+| WUI-4-01 | Drag table: pickup position/height/tilt, saddles, nut slots, fret wear brush, pick, slide, capo with snaps and ranges | workshop-ui §4 | `WorkshopBench` pickup position, heights (0.8-6 mm, DECISIONS), saddle intonation, nut slots; live pickup placement path | `WorkshopBenchTests.cpp` `WorkshopBench::heightsAndSetupEditsAreOneEntryEach`, `WorkshopBench::aPickupStopsBeforeItOverlapsAndSaysWhy` | `partial` - fret wear, pick, slide and capo drags and the UI not built |
+| WUI-4-02 | Drag rules: axis-constrained, snap default / Shift fine / Alt free, live inspector value, live comb notches, collision stop with reason | workshop-ui §4 | `WorkshopBench` snap and limits; `SpectrumDelta` comb notches | `WorkshopBenchTests.cpp` `WorkshopBench::snapIsOneMillimetreFineWithShiftFreeWithAlt`, `WorkshopBench::aPickupStopsBeforeItOverlapsAndSaysWhy`, `WorkshopSpectrum::combNotchesSitWhereThePickupIsANode` | `partial` - model verified; live inspector value needs the UI |
+| WUI-5-01 | Inspector: name, origin, fields with units, compatibility; editable; factory edits mark modified and offer Save as user part; Swap; Revert; tooltips and accessibility | workshop-ui §5 | `WorkshopBench` fit / revert / remove; `savePartAs`; inspector UI not committed | `WorkshopBenchTests.cpp` `WorkshopBench::fittingAPartSaysWhatItReplaced` | `partial` - model only |
 | WUI-5-02 | Part fields plain-clamped from part-acoustics tables; no stock/advanced marking | workshop-ui §5 | - | none | `pending` |
-| WUI-6-01 | Spectrum delta: fixture render committed vs candidate; flat when nothing changed; ±12 dB fixed axis + auto-zoom; worker pool; 40 ms; coalesced; comb notches during pickup drag | workshop-ui §6 | - | none | `pending` |
-| WUI-7-01 | Eight A/B GuitarSpec slots in bench header; recall = undoable swap; stored in uiState; Shift-click clears | workshop-ui §7 | - | none | `pending` |
-| WUI-8-01 | Drag = one entry (mouse-down to up); swaps never grouped; audition pushes nothing | workshop-ui §8 | - | none | `pending` |
+| WUI-6-01 | Spectrum delta: fixture render committed vs candidate; flat when nothing changed; ±12 dB fixed axis + auto-zoom; worker pool; 40 ms; coalesced; comb notches during pickup drag | workshop-ui §6 | `Source/Workshop/SpectrumDelta.*` (measures after amp and cab, DECISIONS) | `WorkshopBenchTests.cpp` `WorkshopSpectrum::aNullChangeIsFlat`, `WorkshopSpectrum::aRealChangeShowsAndIsDescribed`, `WorkshopSpectrum::combNotchesSitWhereThePickupIsANode`, `WorkshopSpectrum::theWorkerCoalescesAndStaysInBudget` | `partial` - computation verified; pane (axis, auto-zoom) not built |
+| WUI-7-01 | Eight A/B GuitarSpec slots in bench header; recall = undoable swap; stored in uiState; Shift-click clears | workshop-ui §7 | `WorkshopBench` slots | `WorkshopBenchTests.cpp` `WorkshopBench::abRecallRoundTrips` | `partial` - model verified; header UI and uiState persistence not |
+| WUI-8-01 | Drag = one entry (mouse-down to up); swaps never grouped; audition pushes nothing | workshop-ui §8 | `WorkshopBench` | `WorkshopBenchTests.cpp` `WorkshopBench::aDragIsOneUndoEntryWithItsBeforeAndAfter`, `WorkshopBench::aClickWithoutAMoveChangesNothing`, `WorkshopBench::auditionNeverCommits` | `verified` |
 | WUI-9-01 | Empty/blocked states: no user parts, Slide category off, single-option type, incompatible hover warning | workshop-ui §9 | - | none | `pending` |
 | WUI-10-01 | Hit regions focusable in builder order; arrow-key nudges; spectrum delta announced as summary; keyboard parity | workshop-ui §10 | - | none | `pending` |
 | WUI-11-01 | Test: every part hit-testable on every factory guitar, no phantom parts | workshop-ui §11 | - | none | `pending` |
 | WUI-11-02 | Test: hover does not select or push undo | workshop-ui §11 | - | none | `pending` |
-| WUI-11-03 | Test: audition does not commit; audio back within 30 ms | workshop-ui §11 | - | none | `pending` |
-| WUI-11-04 | Test: drag = one undo entry with before/after values | workshop-ui §11 | - | none | `pending` |
-| WUI-11-05 | Test: drag constrained at collision with reason | workshop-ui §11 | - | none | `pending` |
-| WUI-11-06 | Test: snap 7.4 -> 7 mm; Shift 7.4 | workshop-ui §11 | - | none | `pending` |
-| WUI-11-07 | Test: three feedbacks per draggable part | workshop-ui §11 | - | none | `pending` |
-| WUI-11-08 | Test: null audition delta within ±0.05 dB | workshop-ui §11 | - | none | `pending` |
-| WUI-11-09 | Test: delta within 40 ms for every factory swap | workshop-ui §11 | - | none | `pending` |
+| WUI-11-03 | Test: audition does not commit; audio back within 30 ms | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopBench::auditionNeverCommits` (commit and undo parts) | `partial` - 30 ms audio return not tested |
+| WUI-11-04 | Test: drag = one undo entry with before/after values | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopBench::aDragIsOneUndoEntryWithItsBeforeAndAfter` | `verified` |
+| WUI-11-05 | Test: drag constrained at collision with reason | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopBench::aPickupStopsBeforeItOverlapsAndSaysWhy` | `verified` |
+| WUI-11-06 | Test: snap 7.4 -> 7 mm; Shift 7.4 | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopBench::snapIsOneMillimetreFineWithShiftFreeWithAlt` | `verified` |
+| WUI-11-07 | Test: three feedbacks per draggable part | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopBench::aMovedPickupIsSeenReadAndHeard` (pickup only) | `partial` - other draggable parts not tested |
+| WUI-11-08 | Test: null audition delta within ±0.05 dB | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopSpectrum::aNullChangeIsFlat` | `verified` |
+| WUI-11-09 | Test: delta within 40 ms for every factory part swap | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopSpectrum::theWorkerCoalescesAndStaysInBudget` (one fixture swap) | `partial` - not every factory swap |
 | WUI-11-10 | Test: nothing on the audio thread during bench interaction | workshop-ui §11 | - | none | `pending` |
-| WUI-11-11 | Test: A/B recall round-trips after six changes | workshop-ui §11 | - | none | `pending` |
+| WUI-11-11 | Test: A/B recall round-trips after six changes | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopBench::abRecallRoundTrips` | `verified` |
 | WUI-11-12 | Test: keyboard parity with drags | workshop-ui §11 | - | none | `pending` |
 
 ## 21. strum-dynamics.md (phase 2)
@@ -1298,51 +1316,60 @@ not the collision model. Bass-family defaults elsewhere are not applied.
 
 ## 23. midi-export.md (phase 2)
 
-**Not built** (TODO 10: profiles, then the MIDI OUT tab). What exists: raw
-MIDI capture to `.mid` (`Source/Support/MidiCapture.*`), a per-string
-notation MIDI writer (`NotationExport.cpp:839-919`), and `MidiOutRouter`
-with pass-through / rhythm / string activity / CC broadcast (routing-io 6).
-No profile concept, no extension event classes, no importer to the engine.
+**Model built, not wired** (uncommitted `Source/Export/*` from the coverage
+assistant, written without a compiler; `Source/Tests/MidiExportTests.cpp`
+has 25 tests that have not been built or run, so nothing here is `verified`).
+`LuthierMidiEvents` encodes the 18 classes as tagged 7-bit text (text meta and
+checksummed SysEx); `MidiPerformance` holds the channel stream at exact
+samples plus the events and converts to and from `PerformanceScore` and
+`MidiCapture`; `MidiProfiles` writes and reads both profiles (header,
+`LUTHIER-AT` sample corrections, splits, ranges, `.midprofile`, drag-out file,
+preview) and refuses damaged files with a byte reference; `LiveMidiOut` adds
+the beat clock and the SysEx source for live MIDI out. The encoding is in
+`docs/MIDI_EXPORT_LUTHIER_PROFILE.md`. Not done: the dialog, MIDI OUT tab,
+drag gesture, import targets, Options page, `processBlock` wiring, Tune path,
+and engine capture of realism events.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
-| MX-0-01 | Export on a worker thread from PerformanceScore or Tune | midi-export §0.1 | no capture score (NOT-6), no Tune | none | `pending` |
-| MX-0-02 | Import parses to PerformanceScore or Tune; delivered via swap | midi-export §0.2 | not built | none | `pending` |
-| MX-0-03 | Luthier profile self-describing with schema version | midi-export §0.3 | not built | none | `pending` |
-| MX-0-04 | Sample-accurate internal, beat-accurate ticks at 960 PPQ default | midi-export §0.4 | notation MIDI writer uses its own PPQ | none | `pending` |
-| MX-1-01 | SMF format 1; PPQ 96-3840; meta track (title, copyright, tempo, time sig, key); per-instrument or per-string tracks; 14-bit bend | midi-export §1 | `NotationExport.cpp` per-string tracks | `NotationTests.cpp` `Notation::midiExportIsPerString` | `partial` - notation path only |
-| MX-2-01 | LUTHIER header chunk; `LUTHIER-BEGIN <class> <ver>` / `LUTHIER-END` markers; stripped file plays as Generic | midi-export §2 | not built | none | `pending` |
-| MX-2.1-01 | Event classes NOTE, BEND, SLIDE, VIBRATO, WHAMMY, STRUM, RASGUEADO, PICK, SQUEAK, BUZZ, SLIDE_BAR, CLANK, CHARACTER, WORKSHOP, BASS_TECH, RANGES, SNAPSHOT, SECTION | midi-export §2.1 | not built | none | `pending` |
-| MX-2.1-02 | Byte-level encoding documented in `docs/MIDI_EXPORT_LUTHIER_PROFILE.md` | midi-export §2.1 | file absent | none | `pending` |
-| MX-2.2-01 | Round-trip within -60 dBFS RMS null; unknown classes preserved as opaque blobs | midi-export §2.2 | not built | none | `pending` |
-| MX-2.3-01 | Every extension event as text meta + SysEx; reader accepts either | midi-export §2.3 | not built | none | `pending` |
-| MX-3-01 | Generic profile: notes, bend, CC 1/11/64/74; `LUTHIER:` text metas; bend range RPN at track start | midi-export §3 | not built | none | `pending` |
-| MX-4.1-01 | Export dialog (profile, range, track split, include realism, PPQ, destination, preview) from MIDI OUT tab, tune builder, File -> Export -> MIDI | midi-export §4.1 | not built | none | `pending` |
-| MX-4.2-01 | Drag-out from session recorder "Save last take" (Alt forces Generic) | midi-export §4.2 | drag-out not implemented (`docs/KNOWN_ISSUES.md`) | none | `pending` |
-| MX-5-01 | Import via File menu or window drop; auto-detect profile; target session / tune / looper | midi-export §5 | export dialog accepts a MIDI file as a render source only (`Overlays.cpp:1023`) | none | `pending` |
-| MX-6-01 | Live MIDI-out sources incl. tune playback, character/noise SysEx, workshop changes | midi-export §6 | `MidiOutRouter` covers four routing-io sources | `RoutingTests.cpp` `Routing::midiOutPassThroughIsSampleExact` | `partial` - tune, SysEx and workshop sources absent |
-| MX-7-01 | `.mid`/`.midi` for both; `.midprofile` JSON user export configs, registered by installers | midi-export §7 | not built | none | `pending` |
-| MX-8-01 | Options -> MIDI: default profile, PPQ, track split, realism in Generic, SysEx redundancy | midi-export §8 | not on MIDI page | none | `pending` |
-| MX-9-01 | Cross-spec: shares PerformanceScore with notation; tune export; session `.mid`; snapshots; macro CCs; strums; BASS_TECH; range annotations | midi-export §9 | session recorder writes `.mid` (`Looper.cpp:995`) | none | `partial` |
-| MX-10-01 | Older files load with missing events reconstructed and a notification | midi-export §10 | not built | none | `pending` |
-| MX-11-01 | No personal data; Generic omits seed/guitar/preset names; "strip identifiers" option | midi-export §11 | not built | none | `pending` |
+| MX-0-01 | Export on a worker thread from PerformanceScore or Tune | midi-export §0.1 | `MidiPerformance::fromScore`, `MidiPerformance::fromCapture`, `MidiProfiles::exportToMemory` (`Source/Export/`; nothing on the audio thread); no Tune, no call site | `MidiExportTests.cpp` `MidiExport::aScoreSurvivesBothProfiles`, `MidiExport::captureBecomesAPerformanceAtItsOwnSamples` (not yet run) | `partial` - model only; Tune and worker call site pending |
+| MX-0-02 | Import parses to PerformanceScore or Tune; delivered via swap | midi-export §0.2 | `MidiProfiles::importFromMemory` -> `MidiPerformance`, `MidiPerformance::toScore`; `MidiPerformance::renderBlock` plays it on the audio thread; no swap into the engine, no Tune | `MidiExport::aScoreSurvivesBothProfiles` (not yet run) | `partial` - swap and Tune pending |
+| MX-0-03 | Luthier profile self-describing with schema version | midi-export §0.3 | header wire version and `LUTHIER-BEGIN <class> <schema>` (`MidiProfiles.cpp` `makeHeader`, `writeExtensionEvent`); newer schemas read with a warning | `MidiExport::importWarnsOfAdvancedRangesAndNewerSchemas` (not yet run) | `implemented` |
+| MX-0-04 | Sample-accurate internal, beat-accurate ticks at 960 PPQ default | midi-export §0.4 | `MidiPerformance` holds samples; ticks through the file tempo map; `LUTHIER-AT dt=` restores the sample (`MidiProfiles.cpp` `FileTempoMap`); another sample rate falls back to the tick with a warning | `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit`, `MidiExport::anotherSampleRateFallsBackToTheTick` (not yet run) | `implemented` |
+| MX-1-01 | SMF format 1; PPQ 96-3840; meta track (title, copyright, tempo, time sig, key); per-instrument or per-string tracks; 14-bit bend | midi-export §1 | `MidiProfiles::exportToMemory` (meta track, four splits, PPQ clamp); notation writer `NotationExport.cpp` | `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit`, `MidiExport::trackSplitsNameTheirTracks`, `MidiExport::genericProfileIsPlainMidi` (not yet run); `NotationTests.cpp` `Notation::midiExportIsPerString` | `implemented` |
+| MX-2-01 | LUTHIER header chunk; `LUTHIER-BEGIN <class> <ver>` / `LUTHIER-END` markers; stripped file plays as Generic | midi-export §2 | `MidiProfiles.cpp` `makeHeader` (FF 7F, 7D "LUTHIER", checksum), `writeExtensionEvent` | `MidiExport::headerStrippedFileLoadsAsGenericWithoutWarning` (not yet run) | `implemented` |
+| MX-2.1-01 | Event classes NOTE, BEND, SLIDE, VIBRATO, WHAMMY, STRUM, RASGUEADO, PICK, SQUEAK, BUZZ, SLIDE_BAR, CLANK, CHARACTER, WORKSHOP, BASS_TECH, RANGES, SNAPSHOT, SECTION | midi-export §2.1 | `LuthierMidiEvents.cpp` `kClasses`, `getFields`; NOTE / BEND / SLIDE / VIBRATO / WHAMMY / SECTION filled from `PerformanceScore` | `MidiExport::everyEventClassRoundTripsWithEveryField` (not yet run) | `partial` - encoded and round-tripped; the engine does not yet report realism events (STRUM, PICK, SQUEAK, BUZZ, CLANK, SLIDE_BAR, ...) for capture |
+| MX-2.1-02 | Byte-level encoding documented in `docs/MIDI_EXPORT_LUTHIER_PROFILE.md` | midi-export §2.1 | `docs/MIDI_EXPORT_LUTHIER_PROFILE.md` | document review | `implemented` |
+| MX-2.2-01 | Round-trip within -60 dBFS RMS null; unknown classes preserved as opaque blobs | midi-export §2.2 | exact channel stream plus events; an unknown class is kept as fields, or as bytes when it is not tagged text (`MidiProfiles.cpp` `finishEvent`) | `MidiExport::luthierRoundTripNullsEveryFactoryPreset`, `MidiExport::everyEventClassRoundTripsWithEveryField` (not yet run) | `implemented` - realism events ride as data; the engine re-derives its own |
+| MX-2.3-01 | Every extension event as text meta + SysEx; reader accepts either | midi-export §2.3 | `writeExtensionEvent`; `finishEvent` reads either and refuses copies that disagree | `MidiExport::eitherCopyOfAnEventIsEnough`, `MidiExport::damagedExtensionEventsAreRefused` (not yet run) | `implemented` |
+| MX-3-01 | Generic profile: notes, bend, CC 1/11/64/74; `LUTHIER:` text metas; bend range RPN at track start | midi-export §3 | `MidiProfiles.cpp` Generic path; CC 101/100/6/38 then null RPN per channel; realism text without timing or identifiers | `MidiExport::genericProfileIsPlainMidi` (not yet run) | `implemented` |
+| MX-4.1-01 | Export dialog (profile, range, track split, include realism, PPQ, destination, preview) from MIDI OUT tab, tune builder, File -> Export -> MIDI | midi-export §4.1 | model: `MidiExportOptions`, `MidiPerformance::getSectionRange` / `getLastSecondsRange` / `extractRange`, `MidiProfiles::describeOpeningBar`; no dialog | `MidiExport::extractRangeRestatesStateAndClosesNotes`, `MidiExport::previewDescribesTheOpeningBar` (not yet run) | `partial` - UI not built |
+| MX-4.2-01 | Drag-out from session recorder "Save last take" (Alt forces Generic) | midi-export §4.2 | `MidiProfiles::writeDragOutFile` (Luthier, or Generic with Alt); no drag gesture (`docs/KNOWN_ISSUES.md`) | `MidiExport::dragOutWritesAValidMidiFile` (not yet run) | `partial` - UI not built |
+| MX-5-01 | Import via File menu or window drop; auto-detect profile; target session / tune / looper | midi-export §5 | `MidiProfiles::importFromFile` detects the profile by header; no File menu entry, drop target or session / tune / looper target | `MidiExport::headerStrippedFileLoadsAsGenericWithoutWarning` (not yet run) | `partial` - UI and targets pending |
+| MX-6-01 | Live MIDI-out sources incl. tune playback, character/noise SysEx, workshop changes | midi-export §6 | `MidiOutRouter` (four sources) + `LiveMidiClock` (beats to samples) + `LuthierSysExOut` (character / noise / workshop SysEx), `Source/Export/LiveMidiOut.*`; not called from `processBlock`; `MidiOutConfig` has no SysEx flag; `NEEDS_MIDI_OUTPUT FALSE` leaves the VST3 without a MIDI out bus | `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` (not yet run) | `partial` - wiring pending |
+| MX-7-01 | `.mid`/`.midi` for both; `.midprofile` JSON user export configs, registered by installers | midi-export §7 | `MidiProfiles::saveProfile` / `loadProfile` / `profileFromVar`; installers do not register `.midprofile` | `MidiExport::midprofileSavesAndLoads`, `MidiExport::classMaskLimitsWhatIsWritten` (not yet run) | `partial` - installer registration pending |
+| MX-8-01 | Options -> MIDI: default profile, PPQ, track split, realism in Generic, SysEx redundancy | midi-export §8 | `MidiExportOptions` holds all five; not on the Options page, not persisted | none | `partial` - UI and persistence pending |
+| MX-9-01 | Cross-spec: shares PerformanceScore with notation; tune export; session `.mid`; snapshots; macro CCs; strums; BASS_TECH; range annotations | midi-export §9 | `fromScore` / `toScore` use NotationExporter's layout; SNAPSHOT, BASS_TECH, RANGES classes; `fromCapture` for the session take (still written by `MidiCapture`) | `MidiExport::aScoreSurvivesBothProfiles` (not yet run) | `partial` - tune, snapshot and macro-CC sources not wired |
+| MX-10-01 | Older files load with missing events reconstructed and a notification | midi-export §10 | `MidiImportResult::defaultedFields` ("CLASS.field") and newer-schema warnings; whole missing events are not reconstructed from the plain MIDI | `MidiExport::importWarnsOfAdvancedRangesAndNewerSchemas`, `MidiExport::stripIdentifiersLeavesNoNamesOrSeeds` (not yet run) | `partial` - event reconstruction pending |
+| MX-11-01 | No personal data; Generic omits seed/guitar/preset names; "strip identifiers" option | midi-export §11 | `MidiExportOptions::stripIdentifiers`; identifier fields (`LuthierFieldSpec::isIdentifier`); Generic never writes them | `MidiExport::stripIdentifiersLeavesNoNamesOrSeeds`, `MidiExport::genericProfileIsPlainMidi` (not yet run) | `implemented` |
 | MX-UI-01 | MIDI OUT tab in column 4 | GI 4.4 | not built | none | `pending` |
-| MX-12-01 | Test: Luthier round trip for every factory preset and fixture within -60 dBFS | midi-export §12 | - | none | `pending` |
-| MX-12-02 | Test: Generic round trip within -30 dBFS | midi-export §12 | - | none | `pending` |
-| MX-12-03 | Test: SysEx off still round-trips via text metas | midi-export §12 | - | none | `pending` |
-| MX-12-04 | Test: PPQ 96/480/960/3840 timing within 1 sample | midi-export §12 | - | none | `pending` |
-| MX-12-05 | Test: drag-out produces valid MIDI in a DAW fixture | midi-export §12 | - | none | `pending` |
-| MX-12-06 | Test: stripped Luthier file loads as Generic silently | midi-export §12 | - | none | `pending` |
-| MX-12-07 | Test: byte-flip corrupt import refuses gracefully with banner | midi-export §12 | - | none | `pending` |
-| MX-12-08 | Test: live MIDI-out 10 000-event fuzz within 1 sample across all sources | midi-export §12 | - | `RoutingTests.cpp` `Routing::midiOutPassThroughIsSampleExact` (pass-through only) | `partial` |
-| MX-12-09 | Test: non-Luthier host drops SysEx; second instance parses | midi-export §12 | - | none | `pending` |
+| MX-12-01 | Test: Luthier round trip for every factory preset and fixture within -60 dBFS | midi-export §12 | one render fixture (sub-tick notes, bend, CC 1/11/64, pressure) through every factory preset | `MidiExport::luthierRoundTripNullsEveryFactoryPreset` (not yet run) | `implemented` |
+| MX-12-02 | Test: Generic round trip within -30 dBFS | midi-export §12 | score fixture on the tick grid | `MidiExport::genericRoundTripNullsWithinThirtyDb` (not yet run) | `implemented` |
+| MX-12-03 | Test: SysEx off still round-trips via text metas | midi-export §12 | - | `MidiExport::eitherCopyOfAnEventIsEnough` (not yet run) | `implemented` |
+| MX-12-04 | Test: PPQ 96/480/960/3840 timing within 1 sample | midi-export §12 | exact (0 samples) in the Luthier profile at every PPQ and split | `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit` (not yet run) | `implemented` |
+| MX-12-05 | Test: drag-out produces valid MIDI in a DAW fixture | midi-export §12 | JUCE's `MidiFile` reader stands in for the DAW; no drag gesture to start from | `MidiExport::dragOutWritesAValidMidiFile` (not yet run) | `partial` - no session-recorder drag |
+| MX-12-06 | Test: stripped Luthier file loads as Generic silently | midi-export §12 | - | `MidiExport::headerStrippedFileLoadsAsGenericWithoutWarning` (not yet run) | `implemented` |
+| MX-12-07 | Test: byte-flip corrupt import refuses gracefully with banner | midi-export §12 | every refusal starts "Byte 0x..." with the offset; no banner UI | `MidiExport::everyFlippedByteIsRefusedGracefully`, `MidiExport::damagedExtensionEventsAreRefused` (not yet run) | `partial` - banner not built |
+| MX-12-08 | Test: live MIDI-out 10 000-event fuzz within 1 sample across all sources | midi-export §12 | router, beat clock and SysEx out driven as `processBlock` would drive them | `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` (not yet run); `RoutingTests.cpp` `Routing::midiOutPassThroughIsSampleExact` | `implemented` - see MX-6-01 for wiring |
+| MX-12-09 | Test: non-Luthier host drops SysEx; second instance parses | midi-export §12 | host simulated by dropping SysEx from the buffer | `MidiExport::liveSysExIsDroppedByOtherHostsAndReadByLuthier` (not yet run) | `implemented` |
 
 ## Phase 2b (INDEX 23a-23i): referenced but missing
 
 `INDEX.md` (phase 2b list and the "What each file adds" table) and
 `CLAUDE_CODE_BRIEF.md` (reading order, step 1) list nine extended-realism
 specs. **None of them exists on disk** (`rg --files spec -g '*.md'`,
-2026-09-23). `DECISIONS.md` (2026-09-23 spec update) and `TODO.md` 13c
+2026-09-23). DECISIONS (C-02) keeps them blocked rather than written from
+the one-line summaries. `DECISIONS.md` (2026-09-23 spec update) and `TODO.md` 13c
 record them as blocked rather than written from one-line descriptions; the
 user was asked. Their requirements cannot be enumerated, so each file is one
 row. Known downstream consumers are listed so nothing waits silently.
@@ -1440,7 +1467,7 @@ the rest) are open; this section is that audit.
 | AMB-4.3-01 | Style bias values per style incl. `Bass` style | ambiguity §4.3 | `VoicingStyle` has no `Bass` entry (`RhythmEngine.h:61`) | none | `partial` |
 | AMB-4.4-01 | Transition bonus (+2 common note, +1 common position, -2 jump > 5) | ambiguity §4.4 | not found (rg `transition` in `ChordVoicer.cpp`) | none | `pending` |
 | AMB-4.5-01 | Capo raises minimum fret; open strings are capo'd notes | ambiguity §4.5 | `capo_fret` in `TuningEngine` (GAPS B1) | `GenreKitTests.cpp` `GenreKits::capoRemovesFretsBelowItAndMovesThePitch` | `verified` |
-| AMB-4.5-02 | Partial capo from Workshop capo part's string mask | ambiguity §4.5 | `TuningEngine` capo mask (`d8893b5`) | `WorkshopPresetTests.cpp` `WorkshopCapo::aPartialCapoClampsOnlyItsStrings` - green at `819be5b`; changed in `d8893b5` | `implemented` - re-run to mark `verified` |
+| AMB-4.5-02 | Partial capo from Workshop capo part's string mask | ambiguity §4.5 | `TuningEngine` capo mask (`d8893b5`) | `WorkshopPresetTests.cpp` `WorkshopCapo::aPartialCapoClampsOnlyItsStrings` - green at `0d225f0` | `verified` |
 | AMB-4.6-01 | Determinism with tie-breaks (string count desc, fret sum asc) | ambiguity §4.6 | `ChordVoicer` | none | `implemented` - tie-break order not asserted |
 | AMB-4.7-01 | Tests: 84 templates every key and style; I-IV-V-I travel <= 3 frets; determinism; BEAD bass C7 root / root-fifth | ambiguity §4.7 | - | `RhythmSchedulerTests.cpp` `RhythmPatterns::voicerHandlesEveryChordOnEveryGuitar` (templates) | `partial` - travel, determinism, bass cases missing |
 | AMB-5.1-01 | Preset morph: continuous interpolate; discrete, structural and guitar switch at 0.5 | ambiguity §5.1 | not built (rg `presetMorph`) | none | `pending` |
@@ -1479,7 +1506,7 @@ audits; rows below re-check them against the code at `173a292`.
 | GI-2-04 | Range padlock beside preset name opens Options -> Ranges | GI §2 | `rangePadlock` `HeaderBar.h:90` | `RangesUiTests.cpp` `RangesUi::theHeaderPadlockShowsOnlyWhenSomethingIsUnlocked` | `verified` |
 | GI-3-01 | Easy layout: illustration + rig strip (280 px) + playing, tone, rhythm strips | GI §3 | older three-band `EasyPanel.cpp` (TODO 2e) | none | `pending` |
 | GI-3.1-01 | Illustration hit regions: headstock tuning popover (tuning, capo, temperament), pickup select, bridge whammy popover (only if fitted), fretboard notes | GI §3.1 | `GuitarBodyComponent.cpp`; headstock and bridge popovers | `EditorTests.cpp` `Editor::everyHitRegionOnTheIllustrationDescribesItself`, `Editor::theHeadstockPopoverEditsPerStringTuning`, `Editor::theBridgePopoverAppearsOnlyWhenAWhammyIsFitted` | `verified` |
-| GI-3.1-02 | Illustration live-rendered from the (parts) GuitarSpec | GI §3.1 | draws compiled spec; rebuild TODO G | none | `pending` |
+| GI-3.1-02 | Illustration live-rendered from the (parts) GuitarSpec | GI §3.1 | `GuitarBodyComponent` draws with `GuitarRenderer` (`a406915`) | `GuitarRendererTests.cpp` `GuitarIllustration::everyFactoryGuitarHasItsParts` | `verified` |
 | GI-3.2-01 | Rig strip cards: circuit (vol, tone, visualiser mini), pre rack, amp, post rack, cab, room; slots open pedal popovers | GI §3.2 | not built | none | `pending` |
 | GI-3.3-01 | Playing strip: mode, humanize macro, character macro, whammy display | GI §3.3 | not built (character macro absent) | none | `pending` |
 | GI-3.4-01 | Tone strip: input gain, output gain, wet/dry post-master, stereo width | GI §3.4 | not built (no input gain / wet-dry / width params found) | none | `pending` |
@@ -1554,8 +1581,8 @@ and works; secondary access is noted.
 | GI-19-08 | String age -> Col 1 STRINGS; Easy character macro | Col 1 STRINGS | none | `partial` - no character macro |
 | GI-19-09 | Whammy -> Col 1 WHAMMY, Workshop bridge; Easy bridge click | Col 1 WHAMMY; bridge popover | `EditorTests.cpp` `Editor::theBridgePopoverAppearsOnlyWhenAWhammyIsFitted` | `partial` - no Workshop |
 | GI-19-10 | Pickup model / coil / magnet -> Workshop pickup part; Col 2 summary | Col 2 PICKUPS | none | `partial` |
-| GI-19-11 | Pickup position -> Workshop drag | params retired; no bench | none | `pending` |
-| GI-19-12 | Pickup height / tilt -> Workshop screws | params retired; no bench | none | `pending` |
+| GI-19-11 | Pickup position -> Workshop drag | `WorkshopBench` drag with live placement; bench UI not committed | `WorkshopBenchTests.cpp` `WorkshopBench::aMovedPickupIsSeenReadAndHeard` | `partial` |
+| GI-19-12 | Pickup height / tilt -> Workshop screws | `WorkshopBench` heights; bench UI not committed | `WorkshopBenchTests.cpp` `WorkshopBench::heightsAndSetupEditsAreOneEntryEach` | `partial` |
 | GI-19-13 | Pickup selector -> Col 2 PICKUPS; Easy pickup click | present | `EditorTests.cpp` `Editor::everyHitRegionOnTheIllustrationDescribesItself` | `verified` |
 | GI-19-14 | Guitar volume / tone -> Col 2 CIRCUIT, Easy rig strip; CHARACTER CIRCUIT mirror | Col 2 CIRCUIT; Easy body knobs | none | `partial` - no rig strip or CHARACTER mirror |
 | GI-19-15 | Pots / cap / bleed / cable / active -> Col 2 CIRCUIT | `CircuitPanel` | none | `implemented` |
@@ -1693,8 +1720,8 @@ thread, DECISIONS). The BRIEF says to follow this threading contract
 | UW-4.3-01 | SPSC command queue; pointer payloads from a pool; old pointers returned for message-thread destruction; eight commands | ui-wiring §4.3 | not built | none | `pending` |
 | UW-5-01 | Preset load: parse on message thread, apply at audio block boundary, swap structural state, apply ranges, post result | ui-wiring §5 | applied on message thread (ranges before values, TODO done) | `StateModelTests.cpp` `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` | `partial` - mechanism differs; no-garbage property tested |
 | UW-5-02 | Snapshot recall never touches disk or ranges | ui-wiring §5 | `SnapshotBank` | `StateModelTests.cpp` `StateModel::recallingASnapshotStaysInsideThePreset` | `verified` |
-| UW-6.1-01 | LoadGuitarCommand swaps spec on audio thread | ui-wiring §6.1 | message-thread rebuild behind 5 ms park (DECISIONS) | `WorkshopPresetTests.cpp` `WorkshopSwap::aPartSwapDuringANoteIsClickFree` | `partial` - Conflict C-09 |
-| UW-6.2-01 | SwapPartCommand: copy spec, map, atomic swap, 5 ms coefficient crossfade, return old | ui-wiring §6.2 | same as above | `WorkshopPresetTests.cpp` `WorkshopSwap::aSwapMapsOnceNotPerBlock` | `partial` |
+| UW-6.1-01 | LoadGuitarCommand swaps spec on audio thread | ui-wiring §6.1 | message-thread rebuild behind a park; kept for whole-guitar loads by DECISIONS C-09; notes queued | `WorkshopPresetTests.cpp` `WorkshopSwap::aPartSwapDuringANoteIsClickFree`, `WorkshopSwap::aNotePlayedWhileParkedIsKeptNotDropped` | `verified` - as amended by C-09 |
+| UW-6.2-01 | SwapPartCommand: copy spec, map, atomic swap, 5 ms coefficient crossfade, return old | ui-wiring §6.2 | still the park path; DECISIONS C-09 moves same-string-count part swaps to the off-thread swap with the bench | `WorkshopPresetTests.cpp` `WorkshopSwap::aSwapMapsOnceNotPerBlock` | `partial` |
 | UW-6.3-01 | Shadow audition: render against shadow spec, 30 ms crossfade back, never mutates committed/undo | ui-wiring §6.3 | not built | none | `pending` |
 | UW-6.4-01 | Spectrum delta on worker pool within 40 ms | ui-wiring §6.4 | not built | none | `pending` |
 | UW-7-01 | SetRangeModeCommand per family / per control; clamp posts ClampNotification | ui-wiring §7 | `processor.changeRanges` on message thread | `RangeTests.cpp` `Ranges::narrowingClampsAndReportsTheCount` | `partial` - mechanism differs |
@@ -1786,7 +1813,7 @@ no heap or lock trap, no relief mechanism. Two tests touch CPU:
 | PB-2-01 | No pedal > 0.5 units; per-pedal budgets; eco Quality option above | performance-budget §2 | - | none | `pending` |
 | PB-3-01 | RSS: baseline <= 350 MB ... cap 900 MB; breakdown | performance-budget §3 | - | none | `pending` |
 | PB-4-01 | Latency: main <= 128 samples excl. oversampling; per-string, DI <= 32; Aux 8 <= 128; reported per routing-io 7 | performance-budget §4 | `PluginProcessor.cpp:759` | `IntegrationTests.cpp` `Engine::latencyIsReportedAndPlausible`; `RoutingTests.cpp` `Routing::perOutputLatencyIsConsistent` | `partial` - reporting verified; values vs budget not asserted |
-| PB-5-01 | Boot: cold <= 400 ms, warm <= 200, standalone <= 1.5 s, guitar load <= 300, tune <= 100, part swap <= 50, delta <= 40 ms | performance-budget §5 | - | none | `pending` |
+| PB-5-01 | Boot: cold <= 400 ms, warm <= 200, standalone <= 1.5 s, guitar load <= 300, tune <= 100, part swap <= 50, delta <= 40 ms | performance-budget §5 | guitar rebuild ~14 ms parked after IR caching (DECISIONS, `0d225f0`) | `WorkshopBenchTests.cpp` `WorkshopSpectrum::theWorkerCoalescesAndStaysInBudget` (delta < 40 ms) | `partial` - only the delta budget is asserted |
 | PB-6-01 | Voice-count scaling curve | performance-budget §6 | - | none | `pending` |
 | PB-7-01 | Sample-rate scaling; oversampling downgrades above 96 kHz | performance-budget §7 | not found | none | `pending` |
 | PB-8-01 | CPU relief ladder at 85% rolling 200 ms (7 steps; step 7 opt-out with banner) | performance-budget §8 | only `NoiseEngine::setDegraded` exists, nothing calls it on load | none | `pending` |
@@ -1917,7 +1944,7 @@ rows; the reading order and conflict list are used by this file.
 | BRF-DONE-03 | Every qa-polish section 0 gate green | BRIEF §When you are done | see QA-0-* | - | `pending` |
 | BRF-DONE-04 | Final human check performed and passed | BRIEF §When you are done | - | - | `pending` |
 | BRF-DONE-05 | PROGRESS.md "READY TO SHIP" marker and signed-off checklist | BRIEF §When you are done | absent | - | `pending` |
-| BRF-CON-01 | Genuine unresolved conflict: stop and write a question with proposed answers | BRIEF §Handling conflicts | see Conflicts section (UNRESOLVED items) | - | `implemented` (this file) |
+| BRF-CON-01 | Genuine unresolved conflict: stop and write a question with proposed answers | BRIEF §Handling conflicts | see Conflicts section (UNRESOLVED items) | - | `implemented` (this file; all five flagged conflicts since decided in DECISIONS) |
 
 ## 33. file-formats.md (phase 5)
 
@@ -2119,74 +2146,74 @@ greying exists only on the noise-event strip and buzz heatmap. No
 
 ## 38. guitar-illustration.md (phase 5)
 
-Precedence 15 (the visible guitar). TODO G (user request, high priority) is
-the rebuild, **in progress in the working tree during this audit**:
-`Source/UI/Guitar/GuitarRenderer.cpp` (2,815 lines), `GuitarRenderer.h`,
-generated `BodyOutlines.h` (from `Tools/body_outlines.py`) and
-`Source/Tests/GuitarRendererTests.cpp` (10 `GuitarIllustration::*` tests)
-appeared uncommitted, not built and not run. Rows that the renderer covers
-are `implemented` with "(WIP)"; none can be `verified` until the tests run.
-The renderer is not yet wired in: users still see `GuitarBodyComponent`,
-drawn from the compiled `GuitarSpec`, not the parts guitar. Visual-polish
-section 1 (approved) adds lighting beyond section 0.2's flat rule
-(Conflict C-25); the renderer already has a `materials` switch for it.
+Precedence 15 (the visible guitar). TODO G landed in `a406915`:
+`Source/UI/Guitar/GuitarRenderer.*`, generated `BodyOutlines.h` and
+`HeadstockOutlines.h`, and `GuitarBodyComponent` now draws the parts guitar
+that is playing. Family switching landed in `e60d708`
+(`PartLibrary::switchFamily`, `LuthierAudioProcessor::switchGuitarFamily`).
+Tests: `GuitarRendererTests.cpp` (11 `GuitarIllustration::*`) and
+`WorkshopFamily::aFamilySwitchKeepsWhatSection12_4Keeps`; 448 tests passed at
+`0d225f0`. DECISIONS amends four points: visual-polish 1 lighting (C-25),
+bursts follow the outline (C-49), strings over the neck (C-47), no bolt dots
+on the top view (C-48). Still open: zoom and pan, live overlays beyond notes
+and slide, thumbnails in the browser, Workshop drag targets.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
-| GIL-0-01 | Procedurally drawn from GuitarSpec; one renderer for Easy, Workshop, thumbnails | guitar-illustration §0.1 | `Source/UI/Guitar/GuitarRenderer.cpp` (WIP); not yet used by `GuitarBodyComponent` | none run | `partial` - renderer written, not wired in |
-| GIL-0-02 | Flat visual language: fills, single highlight, low-opacity grain, one gradient per burst | guitar-illustration §0.2 | renderer `materials` switch (`GuitarRenderer.h:138`) separates flat from lit layers (WIP) | `GuitarRendererTests.cpp` `GuitarIllustration::highContrastHasNoLighting` (written, not run) | `implemented` - see C-25 |
-| GIL-0-03 | Every part a first-class visual that changes on swap | guitar-illustration §0.3 | renderer draws from the parts guitar (WIP) | `GuitarRendererTests.cpp` `GuitarIllustration::everyFactoryGuitarHasItsParts`, `GuitarIllustration::theKeyChangesWithEveryVisibleChange` (written, not run) | `implemented` |
-| GIL-0-04 | Family switch rebuilds the whole illustration | guitar-illustration §0.4, §12 | not built | none | `pending` |
-| GIL-0-05 | Drawn = loaded (never a visible pickup the engine lacks) | guitar-illustration §0.5 | renderer reads `WorkshopGuitar` (WIP); on-screen component still the compiled type | none run | `partial` - not wired in |
-| GIL-0-07 | Full repaint < 8 ms; overlay < 2 ms | guitar-illustration §0.7, §17 | renderer (WIP) | `GuitarRendererTests.cpp` `GuitarIllustration::fullRenderIsFastEnough` (written, not run) | `implemented` |
-| GIL-1-01 | mm coordinates, origin at saddle, X to headstock, Y to treble; fit zoom; Ctrl-scroll zoom to 4x with pan | guitar-illustration §1 | `GuitarRenderer.h` scene in saddle-origin mm; `BodyOutlines.h` mapping (WIP); zoom/pan not found | none run | `partial` - zoom and pan missing |
-| GIL-2.1-01 | Static scene cached by GuitarSpec hash; invalidated on swap/position/finish change | guitar-illustration §2.1 | renderer scene key (WIP) | `GuitarRendererTests.cpp` `GuitarIllustration::theKeyChangesWithEveryVisibleChange` (written, not run) | `implemented` |
-| GIL-2.2-01 | Live overlays per frame from display FIFO; never invalidate the cache | guitar-illustration §2.2 | - | none | `pending` |
-| GIL-2.3-01 | Thumbnails 128x256 on worker, hash cache, ~40 ms first render | guitar-illustration §2.3, §15 | renderer thumbnail path (WIP); preset browser does not show them | none run | `partial` |
-| GIL-3-01 | Families electric/acoustic/classical/bass/resonator/extended with defaults; incompatible parts replaced with a banner | guitar-illustration §3 | family field on parts guitar; no switch UI | none | `pending` - `extended` family see Conflict C-24 |
-| GIL-4.1-01 | Electric bodies: single-cut arched, double-cut offset, T slab, thin double-cut, offset contoured, angular, V, reverse, superstrat, semi-hollow, archtop, multi-scale with the listed dimensions | guitar-illustration §4.1 | `BodyOutlines.h` + renderer (WIP) | `GuitarRendererTests.cpp` `GuitarIllustration::everyFactoryGuitarRendersWithoutClipping`, `GuitarIllustration::contactSheetForReview` (written, not run; contact sheet is by eye) | `implemented` |
-| GIL-4.2-01 | Acoustic bodies: dreadnought, GA, OM, 000, parlor, jumbo, 12-string jumbo, Selmer-style (oval/D hole) | guitar-illustration §4.2 | `BodyOutlines.h` + renderer (WIP) | as GIL-4.1-01 | `implemented` |
-| GIL-4.3-01 | Classical, flamenca (golpeador, wooden pegs), cutaway classical | guitar-illustration §4.3 | `BodyOutlines.h` + renderer (WIP) | as GIL-4.1-01 | `implemented` |
-| GIL-4.4-01 | Bass bodies: P, J, MM-style, T-bird-style, hollow, multi-scale, acoustic bass, headless | guitar-illustration §4.4 | `BodyOutlines.h` + renderer (WIP) | as GIL-4.1-01 | `implemented` |
-| GIL-4.5-01 | Resonators: steel body, wood body, square-neck | guitar-illustration §4.5 | `BodyOutlines.h` + renderer (WIP) | as GIL-4.1-01 | `implemented` |
-| GIL-5-01 | 25-layer z-order (shadow ... truss rod cover) | guitar-illustration §5 | renderer layer order (WIP) | `GuitarRendererTests.cpp` `GuitarIllustration::hitTestingFindsThePartOnTop` (written, not run) | `implemented` |
-| GIL-5-02 | Live layers 26-32 (notes, heatmap, slide, pick, pickup pulse, hover, drag ghost) | guitar-illustration §5 | fretboard component has notes/slide | none | `pending` |
-| GIL-6-01 | Neck joints (bolt dots, set heel, neck-through seam); radius shading; fretboard wood colours; inlay styles; headstock layouts (3+3, 6-in-line, reverse, 4-in-line, 2+2, slotted, 6+6); truss cover; faint "L" mark | guitar-illustration §6 | renderer necks, inlays, headstocks, tuners (WIP) | none run | `implemented` |
-| GIL-7-01 | Bridge drawings: TOM + stopbar, vintage trem with arm, 2-point, Floyd with locking nut, hardtail ferrules, wraparound, Bigsby; pin, pinless, floating + trapeze, moustache, tie-block, biscuit/spider; bass vintage, high-mass, mutes | guitar-illustration §7 | renderer bridges (WIP) | none run | `implemented` |
-| GIL-8-01 | Pickup drawings (single open/covered, humbucker open/closed, P90, mini, Firebird, split-P, J, MM, piezo indicator, soundhole); pole spacing; cover colour; rings | guitar-illustration §8 | renderer pickups (WIP) | none run | `implemented` |
-| GIL-9-01 | Pickguard colours and per-body default outlines | guitar-illustration §9 | renderer + `BodyOutlines.h` pickguards (WIP) | none run | `implemented` |
-| GIL-10-01 | String colours and styles per material (16 rows with hex); counts per family; 12-string pairs; per-string override colour | guitar-illustration §10 | renderer strings (WIP) | `GuitarRendererTests.cpp` `GuitarIllustration::stringColoursFollowSection10` (written, not run) | `implemented` |
+| GIL-0-01 | Procedurally drawn from GuitarSpec; one renderer for Easy, Workshop, thumbnails | guitar-illustration §0.1 | `Source/UI/Guitar/GuitarRenderer.*`; `GuitarBodyComponent` draws with it | `GuitarRendererTests.cpp` `GuitarIllustration::everyFactoryGuitarRendersWithoutClipping` | `partial` - bench and preset-browser thumbnails not wired |
+| GIL-0-02 | Flat visual language: fills, single highlight, low-opacity grain, one gradient per burst | guitar-illustration §0.2 | superseded by visual-polish 1 lighting (DECISIONS "Guitar illustration materials"); flat under High contrast | `GuitarRendererTests.cpp` `GuitarIllustration::highContrastHasNoLighting` | `verified` - as amended |
+| GIL-0-03 | Every part a first-class visual that changes on swap | guitar-illustration §0.3 | `GuitarRenderer` | `GuitarRendererTests.cpp` `GuitarIllustration::everyFactoryGuitarHasItsParts`, `GuitarIllustration::theKeyChangesWithEveryVisibleChange` | `verified` |
+| GIL-0-04 | Family switch rebuilds the whole illustration | guitar-illustration §0.4, §12 | `PartLibrary::switchFamily`, `LuthierAudioProcessor::switchGuitarFamily` (`e60d708`) | `GuitarRendererTests.cpp` `GuitarIllustration::aFamilySwitchGivesTheTargetFamilysGuitar` | `verified` |
+| GIL-0-05 | Drawn = loaded (never a visible pickup the engine lacks) | guitar-illustration §0.5 | renderer reads the playing `WorkshopGuitar` | `GuitarRendererTests.cpp` `GuitarIllustration::everyFactoryGuitarHasItsParts` | `verified` |
+| GIL-0-07 | Full repaint < 8 ms; overlay < 2 ms | guitar-illustration §0.7, §17 | cached static scene | `GuitarRendererTests.cpp` `GuitarIllustration::fullRenderIsFastEnough` (asserts static render < 120 ms) | `partial` - test bar looser than the 8 ms / 40 ms budgets |
+| GIL-1-01 | mm coordinates, origin at saddle, X to headstock, Y to treble; fit zoom; Ctrl-scroll zoom to 4x with pan | guitar-illustration §1 | `GuitarRenderer` scene in saddle-origin mm; zoom/pan only in the uncommitted `WorkshopPanel.h` | none | `partial` - zoom and pan not committed |
+| GIL-2.1-01 | Static scene cached by GuitarSpec hash; invalidated on swap/position/finish change | guitar-illustration §2.1 | `GuitarRenderer::keyFor` | `GuitarRendererTests.cpp` `GuitarIllustration::theKeyChangesWithEveryVisibleChange` | `verified` |
+| GIL-2.2-01 | Live overlays per frame from display FIFO; never invalidate the cache | guitar-illustration §2.2 | overlays for played notes, slide bar, hover, selection (`a406915`), read by polling (no FIFO) | none | `partial` |
+| GIL-2.3-01 | Thumbnails 128x256 on worker, hash cache, ~40 ms first render | guitar-illustration §2.3, §15 | renderer thumbnail path; preset browser does not show them | none | `partial` |
+| GIL-3-01 | Families electric/acoustic/classical/bass/resonator/extended with defaults; incompatible parts replaced with a banner | guitar-illustration §3 | `PartLibrary::switchFamily`; no `extended` family (DECISIONS, C-24) | `GuitarRendererTests.cpp` `GuitarIllustration::aFamilySwitchGivesTheTargetFamilysGuitar`; `WorkshopPresetTests.cpp` `WorkshopFamily::aFamilySwitchKeepsWhatSection12_4Keeps` | `verified` |
+| GIL-4.1-01 | Electric bodies: single-cut arched, double-cut offset, T slab, thin double-cut, offset contoured, angular, V, reverse, superstrat, semi-hollow, archtop, multi-scale with the listed dimensions | guitar-illustration §4.1 | `Source/UI/Guitar/BodyOutlines.h` (from `Tools/body_outlines.py`) | `GuitarRendererTests.cpp` `GuitarIllustration::everyFactoryGuitarRendersWithoutClipping` (factory guitars only), `GuitarIllustration::contactSheetForReview` (by eye) | `implemented` - styles without a factory guitar are not exercised |
+| GIL-4.2-01 | Acoustic bodies: dreadnought, GA, OM, 000, parlor, jumbo, 12-string jumbo, Selmer-style (oval/D hole) | guitar-illustration §4.2 | `BodyOutlines.h` | as GIL-4.1-01 | `implemented` |
+| GIL-4.3-01 | Classical, flamenca (golpeador, wooden pegs), cutaway classical | guitar-illustration §4.3 | `BodyOutlines.h`, `HeadstockOutlines.h` | as GIL-4.1-01 | `implemented` |
+| GIL-4.4-01 | Bass bodies: P, J, MM-style, T-bird-style, hollow, multi-scale, acoustic bass, headless | guitar-illustration §4.4 | `BodyOutlines.h` | as GIL-4.1-01 | `implemented` |
+| GIL-4.5-01 | Resonators: steel body, wood body, square-neck | guitar-illustration §4.5 | `BodyOutlines.h` | as GIL-4.1-01 | `implemented` |
+| GIL-5-01 | 25-layer z-order (shadow ... truss rod cover) | guitar-illustration §5 | `GuitarRenderer` layer order; strings drawn over the neck (DECISIONS "Strings draw over the neck", C-47) | `GuitarRendererTests.cpp` `GuitarIllustration::hitTestingFindsThePartOnTop` | `verified` - as amended |
+| GIL-5-02 | Live layers 26-32 (notes, heatmap, slide, pick, pickup pulse, hover, drag ghost) | guitar-illustration §5 | notes, slide bar, hover, selection overlays; no heatmap, pick, pickup pulse, drag ghost | none | `partial` |
+| GIL-6-01 | Neck joints (bolt dots, set heel, neck-through seam); radius shading; fretboard wood colours; inlay styles; headstock layouts (3+3, 6-in-line, reverse, 4-in-line, 2+2, slotted, 6+6); truss cover; faint "L" mark | guitar-illustration §6 | `GuitarRenderer`, `HeadstockOutlines.h`; pocket seam instead of bolt dots (DECISIONS, C-48) | `GuitarRendererTests.cpp` `GuitarIllustration::everyFactoryGuitarHasItsParts` | `implemented` |
+| GIL-7-01 | Bridge drawings: TOM + stopbar, vintage trem with arm, 2-point, Floyd with locking nut, hardtail ferrules, wraparound, Bigsby; pin, pinless, floating + trapeze, moustache, tie-block, biscuit/spider; bass vintage, high-mass, mutes | guitar-illustration §7 | `GuitarRenderer` bridges and tailpieces by type | `GuitarRendererTests.cpp` `GuitarIllustration::everyFactoryGuitarHasItsParts` | `implemented` - per-type drawings not individually asserted |
+| GIL-8-01 | Pickup drawings (single open/covered, humbucker open/closed, P90, mini, Firebird, split-P, J, MM, piezo indicator, soundhole); pole spacing; cover colour; rings | guitar-illustration §8 | `GuitarRenderer` pickups by family and cover | `GuitarRendererTests.cpp` `GuitarIllustration::everyFactoryGuitarHasItsParts` | `implemented` |
+| GIL-9-01 | Pickguard colours and per-body default outlines | guitar-illustration §9 | `GuitarRenderer`, `BodyOutlines.h` pickguards | none | `implemented` |
+| GIL-10-01 | String colours and styles per material (16 rows with hex); counts per family; 12-string pairs; per-string override colour | guitar-illustration §10 | `GuitarRenderer` strings | `GuitarRendererTests.cpp` `GuitarIllustration::stringColoursFollowSection10` | `verified` |
 | GIL-11-01 | Finish block: type, color_a/b, burst_shape, gloss, aging | guitar-illustration §11 | finish in `.luthierguitar`; renderer finishes (WIP) | `WorkshopTests.cpp` `Workshop::everyFactoryGuitarLoadsAndRoundTrips` (data) | `implemented` |
 | GIL-11.1-01 | Solid finish palette (18 named colours with hex) | guitar-illustration §11.1 | renderer (WIP) | none run | `implemented` |
-| GIL-11.2-01 | Bursts (8 styles with stops); grain over burst | guitar-illustration §11.2 | renderer (WIP) | none run | `implemented` |
+| GIL-11.2-01 | Bursts (8 styles with stops); grain over burst | guitar-illustration §11.2 | burst follows the outline (DECISIONS "A burst follows the outline", C-49) | none | `implemented` - as amended |
 | GIL-11.3-01 | Transparent 60% tint; natural; metallic highlight; sparkle 3% dots | guitar-illustration §11.3-11.6 | renderer (WIP) | none run | `implemented` |
-| GIL-11.7-01 | Relic aging: edge wear, buckle wear, fade, yellowing, seeded dings, checking | guitar-illustration §11.7 | renderer (WIP) | `GuitarRendererTests.cpp` `GuitarIllustration::agingIsSeededAndStable` (written, not run) | `implemented` |
+| GIL-11.7-01 | Relic aging: edge wear, buckle wear, fade, yellowing, seeded dings, checking | guitar-illustration §11.7 | `GuitarRenderer` aging seeded by the character seed | `GuitarRendererTests.cpp` `GuitarIllustration::agingIsSeededAndStable` | `verified` |
 | GIL-11.8-01 | Hardware colours nickel/chrome/gold/black/aged nickel/aged gold applied to all metal parts | guitar-illustration §11.8 | renderer (WIP) | none run | `implemented` |
-| GIL-12.1-01 | Family change from drawer: session-first confirmation, 250 ms crossfade, banner listing replaced parts | guitar-illustration §12.1 | - | none | `pending` |
-| GIL-12.2-01 | Family change mechanics with per-family default templates (6 `*_default_template.luthierguitar`) | guitar-illustration §12.2 | no template files in `Resources/Guitars` | none | `pending` |
-| GIL-12.3-01 | What changes on family switch (body, strings, scale, bridge, pickups, nut, frets, tuners, wiring, amp defaults; triggers bass mode, slide hint, MIDI profile default) | guitar-illustration §12.3 | - | none | `pending` |
-| GIL-12.4-01 | Preserved across switch: preset meta, effects, amp, mod matrix, snapshots, seed | guitar-illustration §12.4 | - | none | `pending` |
-| GIL-13.1-01 | Hit regions from part polygons; top-of-z wins; Alt audition, Shift below-top, Ctrl string override drag | guitar-illustration §13.1 | renderer hit test (WIP); live UI still four regions | `GuitarRendererTests.cpp` `GuitarIllustration::hitTestingFindsThePartOnTop` (written, not run); `EditorTests.cpp` `Editor::everyHitRegionOnTheIllustrationDescribesItself` (old component) | `partial` - modifier behaviours need the bench |
+| GIL-12.1-01 | Family change from drawer: session-first confirmation, 250 ms crossfade, banner listing replaced parts | guitar-illustration §12.1 | `switchGuitarFamily` posts the banner; undoable; no drawer, confirmation or crossfade yet | `WorkshopPresetTests.cpp` `WorkshopFamily::aFamilySwitchKeepsWhatSection12_4Keeps` (banner text) | `partial` |
+| GIL-12.2-01 | Family change mechanics with per-family default templates (6 `*_default_template.luthierguitar`) | guitar-illustration §12.2 | templates are the named factory guitars (DECISIONS "Family templates"); no `extended` template (C-24) | `GuitarRendererTests.cpp` `GuitarIllustration::aFamilySwitchGivesTheTargetFamilysGuitar` | `verified` - as amended |
+| GIL-12.3-01 | What changes on family switch (body, strings, scale, bridge, pickups, nut, frets, tuners, wiring, amp defaults; triggers bass mode, slide hint, MIDI profile default) | guitar-illustration §12.3 | template body, setup, finish, hardware and non-suiting parts replaced; string count and tuning follow | `WorkshopPresetTests.cpp` `WorkshopFamily::aFamilySwitchKeepsWhatSection12_4Keeps`, `WorkshopPresets::choosingATypeGivesItsStringCount` | `partial` - amp defaults, bass mode, slide hint, MIDI profile default not done |
+| GIL-12.4-01 | Preserved across switch: preset meta, effects, amp, mod matrix, snapshots, seed | guitar-illustration §12.4 | `switchGuitarFamily` | `WorkshopPresetTests.cpp` `WorkshopFamily::aFamilySwitchKeepsWhatSection12_4Keeps` | `verified` |
+| GIL-13.1-01 | Hit regions from part polygons; top-of-z wins; Alt audition, Shift below-top, Ctrl string override drag | guitar-illustration §13.1 | `GuitarRenderer` hit test | `GuitarRendererTests.cpp` `GuitarIllustration::hitTestingFindsThePartOnTop` | `partial` - modifier behaviours need the bench UI |
 | GIL-13.2-01 | Drag targets for part cards (pickup, bridge, string, body, pick, slide, capo) | guitar-illustration §13.2 | - | none | `pending` |
 | GIL-13.3-01 | Direct drags (pickup position, heights, saddles, nut slots, capo, pick, slide) with snap and modifiers | guitar-illustration §13.3 | - | none | `pending` |
 | GIL-14-01 | Frequency-band warm/cool tint during audition; static label under reduced motion | guitar-illustration §14 | - | none | `pending` |
 | GIL-15-01 | Thumbnail reduced detail rules | guitar-illustration §15 | - | none | `pending` |
-| GIL-16-01 | Accessible child per part with documented strings; announce selection; arrow/Tab navigation; Enter to inspector; reduced-motion rules | guitar-illustration §16 | per-part `description` in the scene (`GuitarRenderer.h:84`, WIP); no accessibility handlers | `GuitarRendererTests.cpp` `GuitarIllustration::accessibleDescriptionsNameTheParts` (written, not run) | `partial` |
+| GIL-16-01 | Accessible child per part with documented strings; announce selection; arrow/Tab navigation; Enter to inspector; reduced-motion rules | guitar-illustration §16 | per-part descriptions in the scene; builder-order Tab walk only in the uncommitted `WorkshopPanel.h` | `GuitarRendererTests.cpp` `GuitarIllustration::accessibleDescriptionsNameTheParts` | `partial` - no accessibility handlers committed |
 | GIL-17-01 | Performance: cache miss <= 40 ms, hit <= 2 ms, overlay <= 2 ms, family switch <= 120 ms, thumbnail <= 100 ms, cache ~2.4 MB | guitar-illustration §17 | - | none | `pending` |
 | GIL-18-01 | New shapes as data (parts), families enumerated in code | guitar-illustration §18 | part `illustration` hints (`file-formats` 4) | none | `partial` |
-| GIL-19-01 | Test: every factory guitar at 5 widths without clipping or missing parts | guitar-illustration §19 | - | `GuitarRendererTests.cpp` `GuitarIllustration::everyFactoryGuitarRendersWithoutClipping`, `GuitarIllustration::everyFactoryGuitarHasItsParts` (written, not run) | `implemented` |
-| GIL-19-02 | Test: SVG hash changes on every swap and > 0.5 mm move | guitar-illustration §19 | - | `GuitarRendererTests.cpp` `GuitarIllustration::theKeyChangesWithEveryVisibleChange` (written, not run) | `implemented` |
-| GIL-19-03 | Test: every family to every family gives a valid spec | guitar-illustration §19 | - | none | `pending` |
-| GIL-19-04 | Test: 10 000 random clicks per factory guitar select the intended part | guitar-illustration §19 | - | `GuitarRendererTests.cpp` `GuitarIllustration::hitTestingFindsThePartOnTop` (written, not run) | `implemented` |
+| GIL-19-01 | Test: every factory guitar at 5 widths without clipping or missing parts | guitar-illustration §19 | - | `GuitarRendererTests.cpp` `GuitarIllustration::everyFactoryGuitarRendersWithoutClipping`, `GuitarIllustration::everyFactoryGuitarHasItsParts` | `verified` |
+| GIL-19-02 | Test: SVG hash changes on every swap and > 0.5 mm move | guitar-illustration §19 | - | `GuitarRendererTests.cpp` `GuitarIllustration::theKeyChangesWithEveryVisibleChange` | `verified` |
+| GIL-19-03 | Test: every family to every family gives a valid spec | guitar-illustration §19 | - | `GuitarRendererTests.cpp` `GuitarIllustration::aFamilySwitchGivesTheTargetFamilysGuitar` | `verified` |
+| GIL-19-04 | Test: 10 000 random clicks per factory guitar select the intended part | guitar-illustration §19 | - | `GuitarRendererTests.cpp` `GuitarIllustration::hitTestingFindsThePartOnTop` | `verified` |
 | GIL-19-05 | Test: drag bounds (route, 0.8 mm height) | guitar-illustration §19 | - | none | `pending` |
-| GIL-19-06 | Test: string colours within 1 hex step | guitar-illustration §19 | - | `GuitarRendererTests.cpp` `GuitarIllustration::stringColoursFollowSection10` (written, not run) | `implemented` |
+| GIL-19-06 | Test: string colours within 1 hex step | guitar-illustration §19 | - | `GuitarRendererTests.cpp` `GuitarIllustration::stringColoursFollowSection10` | `verified` |
 | GIL-19-07 | Test: 3-tone burst vs reference SVG | guitar-illustration §19 | - | none | `pending` |
-| GIL-19-08 | Test: seeded aging dings repeat | guitar-illustration §19 | - | `GuitarRendererTests.cpp` `GuitarIllustration::agingIsSeededAndStable` (written, not run) | `implemented` |
+| GIL-19-08 | Test: seeded aging dings repeat | guitar-illustration §19 | - | `GuitarRendererTests.cpp` `GuitarIllustration::agingIsSeededAndStable` | `verified` |
 | GIL-19-09 | Test: played-note dot within 60 ms, 60 ms decay | guitar-illustration §19 | - | none | `pending` |
-| GIL-19-10 | Test: family switch preserves name, rack, matrix, seed | guitar-illustration §19 | - | none | `pending` |
+| GIL-19-10 | Test: family switch preserves name, rack, matrix, seed | guitar-illustration §19 | - | `WorkshopPresetTests.cpp` `WorkshopFamily::aFamilySwitchKeepsWhatSection12_4Keeps` | `verified` |
 | GIL-19-11 | Test: reduced motion static overlays | guitar-illustration §19 | - | none | `pending` |
 | GIL-19-12 | Test: thumbnail cold < 100 ms, hit < 1 ms, eviction at 200 | guitar-illustration §19 | - | none | `pending` |
-| GIL-19-13 | Test: every part Tab-reachable; announcements match fixture strings | guitar-illustration §19 | - | `GuitarRendererTests.cpp` `GuitarIllustration::accessibleDescriptionsNameTheParts` covers the strings only (written, not run) | `partial` |
+| GIL-19-13 | Test: every part Tab-reachable; announcements match fixture strings | guitar-illustration §19 | - | `GuitarRendererTests.cpp` `GuitarIllustration::accessibleDescriptionsNameTheParts` (strings only) | `partial` |
 
 ## 39. input-routing.md (phase 5)
 
@@ -2565,7 +2592,7 @@ Precedence 19 (the six technique modules' integration). **Not built**
 | ETL-8-01 | Undo classes `technique-arm`, `technique-param` (200 ms), `mute-grid-paint` (200 ms); triggers not undoable | engine-technique-layer §8 | - | none | `pending` |
 | ETL-9-01 | Budgets: idle < 0.1%, single ~0.5-1%, all six ~2.5%; low CPU class defaults off with warning banner | engine-technique-layer §9 | - | none | `pending` |
 | ETL-10-01 | Test: pipeline order via instrumented counters | engine-technique-layer §10 | - | none | `pending` |
-| ETL-10-02 | Test: zero regressions in existing suites | engine-technique-layer §10 | existing suite | last recorded green: 415 at `819be5b` | `n/a` - regression guard |
+| ETL-10-02 | Test: zero regressions in existing suites | engine-technique-layer §10 | existing suite | last recorded green: 448 at `0d225f0` | `n/a` - regression guard |
 | ETL-10-03 | Test: 100 pre-delta presets byte-identical playback | engine-technique-layer §10 | - | none | `pending` |
 | ETL-10-04 | Test: 1000 commands/s without audio-thread allocation | engine-technique-layer §10 | - | none | `pending` |
 | ETL-10-05 | Test: old bass-slap preset maps to SlapEngine | engine-technique-layer §10 | - | none | `pending` |
@@ -2819,8 +2846,10 @@ C-03..C-06.
 wherever section 6 speaks (user decision 2026-09-23, DECISIONS.md). Rows
 section 6 replaces are `n/a` here and tracked under visual-polish. What
 section 6 does not mention (grid, spacing, value arc role, output LED, data
-stream, header, version footer) still comes from theme.md. The as-built
-look is recorded in `docs/THEME_AS_BUILT.md` (walnut re-tint of theme.md).
+stream, header, version footer) still comes from theme.md. Since `a406915`
+the UI uses the guitar-shop theme (`Source/UI/Theme.*`);
+`docs/THEME_AS_BUILT.md` still describes the older walnut re-tint and needs
+updating.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
@@ -2878,21 +2907,23 @@ look is recorded in `docs/THEME_AS_BUILT.md` (walnut re-tint of theme.md).
 
 Approved by the user in full (knob caps, accent, guitar-shop theme); section 6
 overrides `theme.md` for Luthier. Ordered after `guitar-illustration.md`
-rebuild (TODO G) and before other visual work (TODO V). Only section 1's
-guitar lighting exists, in the uncommitted renderer (WIP, not run). The
-current palette (`Source/UI/Theme.h:34-63`) is the walnut re-tint of
-theme.md, accent `#E08A3C`, not brass `#D4A24C`.
+rebuild (TODO G) and before other visual work (TODO V). `a406915` built
+section 1 (lighting in `GuitarRenderer`) and section 6 (guitar-shop and
+maple palettes, bell knobs, mini toggles, brass fader caps, framed panels,
+engraved plates, brass headstock mark, Lato and Bebas Neue bundled under OFL)
+with `Theme::*` tests. Sections 2-5 (amp and pedal faces, knob caps, tube
+glow / VU / room light, accent picker) are not built.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
-| VP-0-01 | Section 6 replaces theme.md for Luthier; theme.md still supplies grid, spacing, value arc role, LED, data stream | visual-polish §0.1 | - | - | `pending` |
-| VP-0-02 | Textures keep 4.5:1 text contrast on Default, High contrast, Light; High contrast turns textures/sheen off | visual-polish §0.2 | `Accessibility.cpp` palettes | `AccessibilityTests.cpp` `Accessibility::palettesMeetContrastRequirements` (palettes only, no textures yet) | `pending` |
-| VP-0-03 | Textures/lighting cached; redrawn only when depicted thing changes | visual-polish §0.3 | - | none | `pending` |
+| VP-0-01 | Section 6 replaces theme.md for Luthier; theme.md still supplies grid, spacing, value arc role, LED, data stream | visual-polish §0.1 | `Source/UI/Theme.*` guitar-shop theme (`a406915`) | `ThemeTests.cpp` `Theme::theDefaultIsTheGuitarShop` | `verified` |
+| VP-0-02 | Textures keep 4.5:1 text contrast on Default, High contrast, Light; High contrast turns textures/sheen off | visual-polish §0.2 | `Theme.*` palettes, `Palette::textured` | `ThemeTests.cpp` `Theme::everyTextPairMeetsContrastOnTheThreePalettes`, `Theme::highContrastIsFlat` | `verified` |
+| VP-0-03 | Textures/lighting cached; redrawn only when depicted thing changes | visual-polish §0.3 | cached renders | `ThemeTests.cpp` `Theme::controlsRenderInEveryPaletteAndRepeatExactly` (repeatability) | `implemented` - redraw-on-change not measured |
 | VP-0-04 | No new motion/transitions | visual-polish §0.4 | - | - | `n/a` - constraint |
-| VP-1-01 | Key + fill light; baked body shading; specular edge | visual-polish §1 | `GuitarRenderer.cpp:797-830` (WIP, uncommitted) | none run | `implemented` |
-| VP-1-02 | Lacquer sheen by `finish.gloss`: gloss band, satin faint, oil/natural none | visual-polish §1 | `GuitarRenderer.cpp:812-827` (WIP) | none run | `implemented` |
-| VP-1-03 | Metal hardware reflection gradients per `hardware_color` | visual-polish §1 | renderer hardware drawing (WIP) | none run | `implemented` - not checked in detail |
-| VP-1-04 | Drop shadows from pickups, bridge, pickguard | visual-polish §1 | `GuitarRenderer.cpp:381` (WIP) | none run | `implemented` |
+| VP-1-01 | Key + fill light; baked body shading; specular edge | visual-polish §1 | `GuitarRenderer.cpp` lighting | `GuitarRendererTests.cpp` `GuitarIllustration::highContrastHasNoLighting` (presence of lit layers) | `implemented` |
+| VP-1-02 | Lacquer sheen by `finish.gloss`: gloss band, satin faint, oil/natural none | visual-polish §1 | `GuitarRenderer.cpp` sheen | none | `implemented` |
+| VP-1-03 | Metal hardware reflection gradients per `hardware_color` | visual-polish §1 | `GuitarRenderer.cpp` hardware | none | `implemented` |
+| VP-1-04 | Drop shadows from pickups, bridge, pickguard | visual-polish §1 | `GuitarRenderer.cpp` shadows | none | `implemented` |
 | VP-2-01 | Amp faces per family: Tolex, grille, faceplate, generic logo plate, pilot light follows Standby | visual-polish §2 | - | none | `pending` |
 | VP-2-02 | Pedal faces: enclosure colour, footswitch, bypass LED, knob layout, generic name; same params/locations | visual-polish §2 | `Source/UI/PedalRack.cpp` (plain knobs) | none | `pending` |
 | VP-3-01 | Model-specific knob caps on amp/pedal faces only, keeping value arc, indicator colour, hit area | visual-polish §3 | - | none | `pending` |
@@ -2902,22 +2933,22 @@ theme.md, accent `#E08A3C`, not brass `#D4A24C`.
 | VP-4-04 | Live touches update at dataflow meter rates and grey out when stale | visual-polish §4 | - | none | `pending` |
 | VP-5-01 | Options > Appearance accent picker: brass + five others, each 4.5:1 on every palette | visual-polish §5 | APPEARANCE page says accent tint unbuilt (GAPS A3) | none | `pending` |
 | VP-5-02 | "Follow the guitar" accent from finish colour, contrast-adjusted | visual-polish §5 | - | none | `pending` |
-| VP-5-03 | Default accent is section 6's brass | visual-polish §5 | `Theme.h:44` still `#E08A3C` | none | `pending` |
-| VP-6.1-01 | Palette: rosewood bg ~#1E1511, walnut panel with grain, Tolex raised, ivory text ~#EFE3CC, tan muted ~#B9A58A, brass accent ~#D4A24C, jewel green-teal ~#6FA58A, tube-glow warning | visual-polish §6.1 | `Theme.h:34-63` (close in tone; values differ; no grain/Tolex) | none | `partial` |
-| VP-6.1-02 | Light palette maple/cream; High contrast unchanged with textures off; all pairs 4.5:1 | visual-polish §6.1 | `Accessibility.cpp` | `AccessibilityTests.cpp` `Accessibility::palettesMeetContrastRequirements` | `partial` - light palette not re-themed |
-| VP-6.2-01 | Condensed vintage display face for headings (open licence, shipped); warm sans body; tabular numbers | visual-polish §6.2 | `Theme.cpp:27` (Inter) | none | `pending` |
-| VP-6.2-02 | Section headers as engraved brass/ivory plates | visual-polish §6.2 | - | none | `pending` |
-| VP-6.3-01 | Standard knob: black bell/dome, cream/brass pointer, skirt, value arc outside | visual-polish §6.3 | - | none | `pending` |
-| VP-6.3-02 | Mini toggle switches for on/off; pills for tabs and modes | visual-polish §6.3 | - | none | `pending` |
-| VP-6.3-03 | Fader sliders with brass cap | visual-polish §6.3 | - | none | `pending` |
-| VP-6.3-04 | Panels framed like cabinet/pedalboard; corner screws on larger panels | visual-polish §6.3 | - | none | `pending` |
-| VP-6.4-01 | Brand mark: brass headstock inlay replaces diagonal notch; LED stays | visual-polish §6.4 | - | none | `pending` |
+| VP-5-03 | Default accent is section 6's brass | visual-polish §5 | `Theme.*` accent `#D4A24C` | `ThemeTests.cpp` `Theme::theDefaultIsTheGuitarShop` | `verified` |
+| VP-6.1-01 | Palette: rosewood bg ~#1E1511, walnut panel with grain, Tolex raised, ivory text ~#EFE3CC, tan muted ~#B9A58A, brass accent ~#D4A24C, jewel green-teal ~#6FA58A, tube-glow warning | visual-polish §6.1 | `Theme.*` guitar-shop palette | `ThemeTests.cpp` `Theme::theDefaultIsTheGuitarShop` (background, panel, text, accent) | `verified` |
+| VP-6.1-02 | Light palette maple/cream; High contrast unchanged with textures off; all pairs 4.5:1 | visual-polish §6.1 | `Theme.*` maple palette | `ThemeTests.cpp` `Theme::everyTextPairMeetsContrastOnTheThreePalettes`, `Theme::highContrastIsFlat` | `verified` - maple colours by eye |
+| VP-6.2-01 | Condensed vintage display face for headings (open licence, shipped); warm sans body; tabular numbers | visual-polish §6.2 | Bebas Neue + Lato bundled (`Resources/Fonts`, OFL) | `ThemeTests.cpp` `Theme::theBundledFontsLoad` | `verified` |
+| VP-6.2-02 | Section headers as engraved brass/ivory plates | visual-polish §6.2 | `Theme.*` / `Widgets.*` engraved plates | `ThemeTests.cpp` `Theme::controlsRenderInEveryPaletteAndRepeatExactly` (render only) | `implemented` |
+| VP-6.3-01 | Standard knob: black bell/dome, cream/brass pointer, skirt, value arc outside | visual-polish §6.3 | bell knobs | `ThemeTests.cpp` `Theme::controlsRenderInEveryPaletteAndRepeatExactly` (render only) | `implemented` |
+| VP-6.3-02 | Mini toggle switches for on/off; pills for tabs and modes | visual-polish §6.3 | mini toggles | as VP-6.3-01 | `implemented` |
+| VP-6.3-03 | Fader sliders with brass cap | visual-polish §6.3 | brass fader caps | as VP-6.3-01 | `implemented` |
+| VP-6.3-04 | Panels framed like cabinet/pedalboard; corner screws on larger panels | visual-polish §6.3 | framed walnut panels | as VP-6.3-01 | `implemented` |
+| VP-6.4-01 | Brand mark: brass headstock inlay replaces diagonal notch; LED stays | visual-polish §6.4 | brass headstock mark | none | `implemented` |
 | VP-6.5-01 | Layout, widths, arc meaning, hit areas, focus rings (restyled), accessibility unchanged | visual-polish §6.5 | - | - | `n/a` - constraint |
-| VP-7-01 | Test: textured/lit surfaces render identically twice (cached) | visual-polish §7 | - | none | `pending` |
-| VP-7-02 | Test: High contrast has no gradients/sheen/textures | visual-polish §7 | - | `GuitarRendererTests.cpp` `GuitarIllustration::highContrastHasNoLighting` (guitar only; written, not run) | `partial` - other surfaces not covered |
+| VP-7-01 | Test: textured/lit surfaces render identically twice (cached, not regenerated per frame) | visual-polish §7 | - | `ThemeTests.cpp` `Theme::controlsRenderInEveryPaletteAndRepeatExactly`; `GuitarRendererTests.cpp` `GuitarIllustration::theKeyChangesWithEveryVisibleChange` | `verified` |
+| VP-7-02 | Test: High contrast has no gradients/sheen/textures | visual-polish §7 | - | `ThemeTests.cpp` `Theme::highContrastIsFlat`; `GuitarRendererTests.cpp` `GuitarIllustration::highContrastHasNoLighting` | `verified` |
 | VP-7-03 | Test: every accent option on every palette meets 4.5:1 | visual-polish §7 | - | none | `pending` |
 | VP-7-04 | Test: Standby and bypass change pilot light and pedal LEDs | visual-polish §7 | - | none | `pending` |
-| VP-7-05 | Test: palette text pairs 4.5:1 (automated); standard controls render in three palettes (PNG, by eye) | visual-polish §7 | - | `AccessibilityTests.cpp` `Accessibility::palettesMeetContrastRequirements` covers current palettes only | `pending` |
+| VP-7-05 | Test: palette text pairs 4.5:1 (automated); standard controls render in three palettes (PNG, by eye) | visual-polish §7 | - | `ThemeTests.cpp` `Theme::everyTextPairMeetsContrastOnTheThreePalettes`, `Theme::controlsRenderInEveryPaletteAndRepeatExactly` | `verified` |
 | VP-7-06 | Test: Advanced window with every face visible within UI frame budget | visual-polish §7 | - | none | `pending` |
 
 ## README.md (spec/README.md: project readme)
@@ -2985,8 +3016,8 @@ the Conflicts section cites it.
 
 | File | Role | Requirements | Notes used in this audit |
 |---|---|---|---|
-| `spec/TODO.md` | Work list | none (`n/a`) | Step 6 done at `819be5b`; G and C (this file) in progress; 13c phase-2b blocked; items V, 2c-2f, 5b, 7-18 open |
+| `spec/TODO.md` | Work list | none (`n/a`) | Step 6 done; G landed (`a406915`), bench model (`0d225f0`), bench UI in progress; 13c phase-2b blocked; items V, 2c-2f, 5b, 7-18 open |
 | `spec/DECISIONS.md` | Judgement calls | none (`n/a`) | Cited as D-refs in Conflicts; the visual-polish override decision |
 | `spec/GAPS.md` | Gap audit (2026-09-18, partly stale) | none (`n/a`) | Self-described as least trustworthy about what exists; rows re-checked against code |
-| `spec/PROGRESS.md` | Build log | none (`n/a`) | 413 tests green at `753fb05` (415 at `819be5b` per TODO); pluginval 2026-09-19 at `f18bf22` |
+| `spec/PROGRESS.md` | Build log | none (`n/a`) | 413 tests green at `753fb05` (448 at `0d225f0`); pluginval 2026-09-19 at `f18bf22` |
 | `spec/REVIEW.md` | Review of the four base specs | none (`n/a`) | Its five ambiguities are resolved by `ambiguity-resolutions.md` |

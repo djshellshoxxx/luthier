@@ -71,7 +71,7 @@ B["parlor"] = part("body", "Parlor Mahogany Body", wood("mahogany", chambering="
 B["jumbo"] = part("body", "Jumbo Maple Body", wood("maple_hard", chambering="acoustic", thickness_mm=125.0, area_cm2=2600, bracing="scalloped_x"), compat=("acoustic",), tags=["acoustic", "jumbo"])
 B["classical"] = part("body", "Classical Rosewood Body", wood("rosewood", chambering="acoustic", thickness_mm=100.0, area_cm2=2000, bracing="fan"), compat=("classical",), tags=["classical"])
 B["flamenca"] = part("body", "Flamenca Cypress Body", wood("cypress", chambering="acoustic", thickness_mm=90.0, area_cm2=1950, bracing="fan"), compat=("classical",), tags=["flamenco"])
-B["selmer"] = part("body", "Selmer-Style Walnut Body", wood("walnut", chambering="acoustic", thickness_mm=100.0, area_cm2=2200, bracing="ladder"), compat=("acoustic",), tags=["gypsy jazz"])
+B["selmer"] = part("body", "Gypsy Jazz Walnut Body", wood("walnut", chambering="acoustic", thickness_mm=100.0, area_cm2=2200, bracing="ladder"), compat=("acoustic",), tags=["gypsy jazz"])
 B["hollow_bass"] = part("body", "Thinline Hollow Bass Body", wood("maple_soft", chambering="semi_hollow", thickness_mm=50.0, area_cm2=1700, bracing="none"), compat=("bass",), tags=["bass", "hollow"])
 
 # --- tops (5) --------------------------------------------------------------------------
@@ -127,18 +127,18 @@ NU["bass"] = part("nut", "Bone Bass 38mm", {"material": "bone", "width_mm": 38.0
 
 # --- bridges (10) -- part-acoustics.md 5's table ---------------------------------------------------
 BR = {}
-BR["abr1"] = part("bridge", "ABR-1 Tune-o-Matic", {"type": "tune_o_matic", "mass_g": 95, "coupling": 0.55, "has_tremolo": False, "tremolo_type": "none", "spring_count": 0, "piezo": False, "strings": 6})
+BR["abr1"] = part("bridge", "Vintage Adjustable Bridge", {"type": "tune_o_matic", "mass_g": 95, "coupling": 0.55, "has_tremolo": False, "tremolo_type": "none", "spring_count": 0, "piezo": False, "strings": 6})
 BR["modern_tom"] = part("bridge", "Modern TOM", {"type": "tune_o_matic", "mass_g": 100, "coupling": 0.58, "has_tremolo": False, "tremolo_type": "none", "spring_count": 0, "piezo": False, "strings": 6})
 BR["vintage_trem"] = part("bridge", "Vintage 6-Point Trem", {"type": "vintage_tremolo", "mass_g": 165, "coupling": 0.45, "has_tremolo": True, "tremolo_type": "vintage", "spring_count": 3, "piezo": False, "strings": 6}, default=True)
 BR["two_point"] = part("bridge", "Modern 2-Point Trem", {"type": "two_point_tremolo", "mass_g": 150, "coupling": 0.48, "has_tremolo": True, "tremolo_type": "two_point", "spring_count": 3, "piezo": False, "strings": 6})
-BR["floyd"] = part("bridge", "Floyd Rose Style", {"type": "floyd_rose", "mass_g": 320, "coupling": 0.30, "has_tremolo": True, "tremolo_type": "floyd", "spring_count": 3, "piezo": False, "strings": 6})
+BR["floyd"] = part("bridge", "Locking Double Tremolo", {"type": "floyd_rose", "mass_g": 320, "coupling": 0.30, "has_tremolo": True, "tremolo_type": "floyd", "spring_count": 3, "piezo": False, "strings": 6})
 BR["hardtail"] = part("bridge", "Hardtail String-Thru", {"type": "hardtail", "mass_g": 110, "coupling": 0.70, "has_tremolo": False, "tremolo_type": "none", "spring_count": 0, "piezo": False, "strings": 6})
 BR["hardtail7"] = part("bridge", "Hardtail 7-String", {"type": "hardtail", "mass_g": 125, "coupling": 0.70, "has_tremolo": False, "tremolo_type": "none", "spring_count": 0, "piezo": False, "strings": 7})
 BR["hardtail8"] = part("bridge", "Hardtail 8-String Fanned", {"type": "hardtail", "mass_g": 140, "coupling": 0.70, "has_tremolo": False, "tremolo_type": "none", "spring_count": 0, "piezo": False, "strings": 8})
 BR["wrap"] = part("bridge", "Wraparound", {"type": "wraparound", "mass_g": 85, "coupling": 0.60, "has_tremolo": False, "tremolo_type": "none", "spring_count": 0, "piezo": False, "strings": 6})
-BR["bigsby"] = part("bridge", "Bigsby-Style Vibrato", {"type": "bigsby", "mass_g": 480, "coupling": 0.35, "has_tremolo": True, "tremolo_type": "bigsby", "spring_count": 1, "piezo": False, "strings": 6})
+BR["bigsby"] = part("bridge", "Vintage Arm Vibrato", {"type": "bigsby", "mass_g": 480, "coupling": 0.35, "has_tremolo": True, "tremolo_type": "bigsby", "spring_count": 1, "piezo": False, "strings": 6})
 BR["bass_p"] = part("bridge", "Bass P-Style Bridge", {"type": "hardtail", "mass_g": 120, "coupling": 0.65, "has_tremolo": False, "tremolo_type": "none", "spring_count": 0, "piezo": False, "strings": 4}, compat=("bass",))
-BR["bass_badass"] = part("bridge", "Bass BadAss-Style", {"type": "hardtail", "mass_g": 230, "coupling": 0.60, "has_tremolo": False, "tremolo_type": "none", "spring_count": 0, "piezo": False, "strings": 4}, compat=("bass",))
+BR["bass_badass"] = part("bridge", "Bass High-Mass Bridge", {"type": "hardtail", "mass_g": 230, "coupling": 0.60, "has_tremolo": False, "tremolo_type": "none", "spring_count": 0, "piezo": False, "strings": 4}, compat=("bass",))
 BR["bass_5"] = part("bridge", "Bass 5-String Bridge", {"type": "hardtail", "mass_g": 150, "coupling": 0.63, "has_tremolo": False, "tremolo_type": "none", "spring_count": 0, "piezo": False, "strings": 5}, compat=("bass",))
 BR["pin"] = part("bridge", "Acoustic Pin Bridge", {"type": "pin_bridge", "mass_g": 28, "coupling": 0.92, "has_tremolo": False, "tremolo_type": "none", "spring_count": 0, "piezo": True, "strings": 6}, compat=("acoustic",))
 BR["pin12"] = part("bridge", "Acoustic 12-String Pin Bridge", {"type": "pin_bridge", "mass_g": 34, "coupling": 0.90, "has_tremolo": False, "tremolo_type": "none", "spring_count": 0, "piezo": True, "strings": 12}, compat=("acoustic",))
@@ -154,7 +154,7 @@ TP["vibrola"] = part("tailpiece", "Vibrola-Style", {"type": "vibrola", "mass_g":
 
 # --- tuners (5) --------------------------------------------------------------------------------------------
 TU = {}
-TU["kluson"] = part("tuners", "Kluson 15 to 1", {"ratio": 15, "mass_g": 30, "stability": 0.7, "locking": False}, compat=("any",), default=True)
+TU["kluson"] = part("tuners", "Vintage Keystone 15 to 1", {"ratio": 15, "mass_g": 30, "stability": 0.7, "locking": False}, compat=("any",), default=True)
 TU["sealed"] = part("tuners", "Modern Sealed 18 to 1", {"ratio": 18, "mass_g": 40, "stability": 0.85, "locking": False}, compat=("any",))
 TU["locking"] = part("tuners", "Locking 21 to 1", {"ratio": 21, "mass_g": 42, "stability": 0.95, "locking": True}, compat=("any",))
 TU["open"] = part("tuners", "Vintage Open-Back", {"ratio": 14, "mass_g": 22, "stability": 0.6, "locking": False}, compat=("any",))
@@ -171,18 +171,18 @@ P["paf57"] = pickup("PAF 57 Alnico 2 7.6k", "humbucker", 4.5, 7.6, 150, "alnico2
 P["paf59"] = pickup("PAF 59 Alnico 5 8.1k", "humbucker", 4.8, 8.1, 160, "alnico5", 5200, "steel", "nickel", -5.4, default=True)
 P["hot"] = pickup("Modern High-Output Ceramic 15k", "humbucker", 8.2, 15.0, 190, "ceramic", 8000, "steel", "none", -1.5)
 P["mini"] = pickup("Mini-Humbucker Alnico 5 6.8k", "mini_humbucker", 3.2, 6.8, 120, "alnico5", 4400, "steel", "chrome", -7.0)
-P["firebird"] = pickup("Firebird-Style Mini", "mini_humbucker", 2.6, 6.0, 110, "alnico5", 3600, "alnico", "chrome", -8.0)
+P["firebird"] = pickup("Chrome Mini Bar", "mini_humbucker", 2.6, 6.0, 110, "alnico5", 3600, "alnico", "chrome", -8.0)
 P["sc54"] = pickup("Vintage 54 Alnico 3 5.8k", "single_coil", 2.3, 5.8, 110, "alnico3", 7600, "alnico", "plastic", -8.5)
 P["noiseless"] = pickup("Modern Noiseless 6.5k", "single_coil", 2.9, 6.5, 130, "alnico5", 8200, "alnico", "plastic", -7.8)
 P["t_neck"] = pickup("T-Style Neck 7.5k", "single_coil", 2.8, 7.5, 150, "alnico5", 8200, "alnico", "chrome", -8.2)
 P["t_bridge"] = pickup("T-Style Bridge 8.5k", "single_coil", 3.3, 8.5, 140, "alnico5", 9200, "alnico", "none", -7.0)
 P["p90"] = pickup("P90 Alnico 5 8.2k", "p90", 4.0, 8.2, 200, "alnico5", 10000, "steel", "plastic", -6.0)
-P["emg81"] = pickup("EMG-Style 81 Active", "active", 1.2, 10.0, 60, "ceramic", 1500, "steel", "plastic", -2.0)
-P["emg60"] = pickup("EMG-Style 60 Active", "active", 1.1, 10.0, 60, "ceramic", 1500, "steel", "plastic", -3.0)
+P["emg81"] = pickup("Active Bridge Humbucker 10k", "active", 1.2, 10.0, 60, "ceramic", 1500, "steel", "plastic", -2.0)
+P["emg60"] = pickup("Active Neck Humbucker 10k", "active", 1.1, 10.0, 60, "ceramic", 1500, "steel", "plastic", -3.0)
 P["split_p"] = pickup("Split-P Alnico 5 11k", "split_coil", 7.0, 11.0, 220, "alnico5", 10000, "alnico", "plastic", -4.0, compat=("bass",))
 P["j_neck"] = pickup("J-Neck Alnico 5 7.5k", "single_coil", 3.5, 7.5, 170, "alnico5", 8600, "alnico", "plastic", -6.5, compat=("bass",))
 P["j_bridge"] = pickup("J-Bridge Alnico 5 8.0k", "single_coil", 3.8, 8.0, 175, "alnico5", 9000, "alnico", "plastic", -6.0, compat=("bass",))
-P["mm"] = pickup("Music Man-Style Ceramic Humbucker 13k", "humbucker", 6.5, 13.0, 200, "ceramic", 7500, "steel", "plastic", -3.0, compat=("bass",))
+P["mm"] = pickup("Bass Ceramic Humbucker 13k", "humbucker", 6.5, 13.0, 200, "ceramic", 7500, "steel", "plastic", -3.0, compat=("bass",))
 P["piezo"] = pickup("Under-Saddle Piezo", "piezo", 0.0, 1.0, 0.0, "none", 0, "none", "none", -9.0, compat=("acoustic", "classical"))
 P["soundhole"] = pickup("Soundhole Magnetic", "soundhole", 5.0, 7.5, 220, "alnico5", 6000, "steel", "none", -8.0, compat=("acoustic",))
 P["floating_hb"] = pickup("Floating Jazz Humbucker", "humbucker", 5.5, 9.0, 170, "alnico5", 5600, "steel", "none", -7.5, compat=("electric", "acoustic"))
@@ -193,12 +193,12 @@ def wiring(name, vol, tone, cap, taper, bleed, switching, active=False, compat=(
     return part("wiring", name, {"volume_pot_ohm": vol, "tone_pot_ohm": tone, "tone_cap_f": cap, "taper": taper,
                                  "treble_bleed": bleed, "switching": switching, "active": active}, compat=compat, default=default)
 
-W["lp50"] = wiring("50s LP Wiring", 500e3, 500e3, 22e-9, "fifties", "none", "3way_independent")
+W["lp50"] = wiring("50s Single-Cut Wiring", 500e3, 500e3, 22e-9, "fifties", "none", "3way_independent")
 W["lp_modern"] = wiring("Modern LP Wiring", 500e3, 500e3, 22e-9, "audio", "none", "3way_independent")
-W["strat_vintage"] = wiring("Vintage Strat Wiring", 250e3, 250e3, 47e-9, "audio", "none", "5way", default=True)
-W["strat_modern"] = wiring("Modern Strat Wiring", 250e3, 250e3, 22e-9, "audio", "kinman", "5way")
-W["t_style"] = wiring("T-Style Wiring", 250e3, 250e3, 47e-9, "audio", "fender", "3way")
-W["emg"] = wiring("Active EMG Wiring", 25e3, 25e3, 47e-9, "audio", "none", "3way", True)
+W["strat_vintage"] = wiring("Vintage Double-Cut Wiring", 250e3, 250e3, 47e-9, "audio", "none", "5way", default=True)
+W["strat_modern"] = wiring("Modern Double-Cut Wiring", 250e3, 250e3, 22e-9, "audio", "modern", "5way")
+W["t_style"] = wiring("T-Style Wiring", 250e3, 250e3, 47e-9, "audio", "vintage", "3way")
+W["emg"] = wiring("Active Two-Knob Wiring", 25e3, 25e3, 47e-9, "audio", "none", "3way", True)
 W["bass_passive"] = wiring("Bass Passive 2V1T", 250e3, 250e3, 47e-9, "audio", "none", "independent_volumes", compat=("bass",))
 W["bass_active"] = wiring("Bass 3-Band Active Preamp", 25e3, 25e3, 22e-9, "audio", "none", "blend", True, compat=("bass",))
 W["acoustic"] = wiring("Acoustic Preamp", 25e3, 25e3, 22e-9, "audio", "none", "single", True, compat=("acoustic", "classical", "resonator"))
@@ -344,7 +344,7 @@ guitar("Resonator", "Resonator Steel", "resonator", "resonator",
        bill(B["steel_reso"], N["reso"], F["rosewood"], FR["vintage"], NU["bone43"], BR["biscuit"], TU["open"], W["acoustic"], S["pb"]),
        {"neck": None, "middle": None, "bridge": None},
        setup(2.8, 3.2, 0.3, 0.8), finish("metal", "#B9BEC4", gloss=0.95, aging=0.3), 141016, ["slide", "resonator"])
-guitar("Acoustic", "Selmer-Style", "acoustic", "gypsy_jazz",
+guitar("Acoustic", "Gypsy Jazz", "acoustic", "gypsy_jazz",
        bill(B["selmer"], N["acoustic"], F["ebony"], FR["vintage"], NU["bone43"], BR["floating"], TU["open"], W["acoustic"], S["silk"], top=T["spruce"], tailpiece=TP["trapeze"]),
        {"neck": None, "middle": None, "bridge": None},
        setup(2.0, 2.6, 0.2), finish("natural", "#E0B97E", gloss=0.8, aging=0.2), 151017, ["gypsy jazz"])
@@ -370,7 +370,7 @@ guitar("Electric", "Angular Korina", "electric", "angular",
        bill(B["mahogany_sc"], N["mahogany_set"], F["rosewood"], FR["mj"], NU["bone43"], BR["abr1"], TU["sealed"], W["lp_modern"], S["10"], tailpiece=TP["stopbar"]),
        {"neck": pu(P["paf59"], 150, 2.4, 2.7), "middle": None, "bridge": pu(P["hot"], 40, 2.0, 2.3)},
        setup(1.5, 1.8, 0.2), finish("natural", "#E3C48B", gloss=0.9), 191022, ["rock"])
-guitar("Electric", "Superstrat Floyd", "electric", "superstrat",
+guitar("Electric", "Superstrat Locking", "electric", "superstrat",
        bill(B["basswood_ss"], N["maple_c"], F["rosewood"], FR["jumbo_ss"], NU["graphite"], BR["floyd"], TU["locking"], W["strat_modern"], S["9"]),
        {"neck": pu(P["paf59"], 150, 2.4, 2.8), "middle": pu(P["noiseless"], 99, 2.4, 2.8), "bridge": pu(P["hot"], 38, 2.0, 2.4)},
        setup(1.3, 1.6, 0.15, 0.4), finish("solid", "#1C3F8A", gloss=0.9), 191023, ["shred"])

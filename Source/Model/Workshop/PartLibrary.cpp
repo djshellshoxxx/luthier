@@ -469,13 +469,53 @@ PartPtr PartLibrary::find (PartType type, const juce::String& name) const
     return it != map.end() ? it->second : nullptr;
 }
 
+juce::String PartLibrary::renamedFactoryPart (const juce::String& name)
+{
+    static const std::map<juce::String, juce::String> renamed {
+        { "Selmer-Style Walnut Body", "Gypsy Jazz Walnut Body" },   // legacy name (trademark scan skips it)
+        { "ABR-1 Tune-o-Matic", "Vintage Adjustable Bridge" },   // legacy name (trademark scan skips it)
+        { "Floyd Rose Style", "Locking Double Tremolo" },   // legacy name (trademark scan skips it)
+        { "Bigsby-Style Vibrato", "Vintage Arm Vibrato" },   // legacy name (trademark scan skips it)
+        { "Bass BadAss-Style", "Bass High-Mass Bridge" },   // legacy name (trademark scan skips it)
+        { "Kluson 15 to 1", "Vintage Keystone 15 to 1" },   // legacy name (trademark scan skips it)
+        { "Firebird-Style Mini", "Chrome Mini Bar" },   // legacy name (trademark scan skips it)
+        { "EMG-Style 81 Active", "Active Bridge Humbucker 10k" },   // legacy name (trademark scan skips it)
+        { "EMG-Style 60 Active", "Active Neck Humbucker 10k" },   // legacy name (trademark scan skips it)
+        { "Music Man-Style Ceramic Humbucker 13k", "Bass Ceramic Humbucker 13k" },   // legacy name (trademark scan skips it)
+        { "Vintage Strat Wiring", "Vintage Double-Cut Wiring" },   // legacy name (trademark scan skips it)
+        { "Modern Strat Wiring", "Modern Double-Cut Wiring" },   // legacy name (trademark scan skips it)
+        { "Active EMG Wiring", "Active Two-Knob Wiring" },   // legacy name (trademark scan skips it)
+        { "50s LP Wiring", "50s Single-Cut Wiring" },   // legacy name (trademark scan skips it)
+    };
+
+    const auto it = renamed.find (name);
+    return it != renamed.end() ? it->second : name;
+}
+
+juce::String PartLibrary::renamedFactoryGuitar (const juce::String& relativePath)
+{
+    if (relativePath.endsWithIgnoreCase ("Selmer-Style.luthierguitar"))   // legacy name (trademark scan skips it)
+        return relativePath.replace ("Selmer-Style", "Gypsy Jazz");   // legacy name (trademark scan skips it)
+
+    if (relativePath.endsWithIgnoreCase ("Superstrat Floyd.luthierguitar"))   // legacy name (trademark scan skips it)
+        return relativePath.replace ("Superstrat Floyd", "Superstrat Locking");   // legacy name (trademark scan skips it)
+
+    return relativePath;
+}
+
 PartPtr PartLibrary::resolve (const juce::String& reference, PartType expected) const
 {
     // "Factory/Bodies/Alder Double-Cut.luthierpart" -> "Alder Double-Cut".
     const auto name = reference.fromLastOccurrenceOf ("/", false, false)
                                .upToLastOccurrenceOf (Part::kExtension, false, true);
 
-    return find (expected, name.isNotEmpty() ? name : reference);
+    const auto wanted = name.isNotEmpty() ? name : reference;
+
+    if (auto part = find (expected, wanted))
+        return part;
+
+    // A factory part renamed since the reference was written.
+    return find (expected, renamedFactoryPart (wanted));
 }
 
 PartPtr PartLibrary::getDefault (PartType type) const

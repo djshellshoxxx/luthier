@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "magic": "luthier.part",
+  "meta": {
+    "name": "Locking Double Tremolo",
+    "part_type": "bridge",
+    "author": "Factory",
+    "tags": [],
+    "compatibility": [
+      "electric"
+    ]
+  },
+  "fields": {
+    "type": "floyd_rose",
+    "mass_g": 320,
+    "coupling": 0.3,
+    "has_tremolo": true,
+    "tremolo_type": "floyd",
+    "spring_count": 3,
+    "piezo": false,
+    "strings": 6
+  }
+}

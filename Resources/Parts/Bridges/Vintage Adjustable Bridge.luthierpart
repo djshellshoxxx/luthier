@@ -2,7 +2,7 @@
   "schema": 1,
   "magic": "luthier.part",
   "meta": {
-    "name": "Bigsby-Style Vibrato",
+    "name": "Vintage Adjustable Bridge",
     "part_type": "bridge",
     "author": "Factory",
     "tags": [],
@@ -11,12 +11,12 @@
     ]
   },
   "fields": {
-    "type": "bigsby",
-    "mass_g": 480,
-    "coupling": 0.35,
-    "has_tremolo": true,
-    "tremolo_type": "bigsby",
-    "spring_count": 1,
+    "type": "tune_o_matic",
+    "mass_g": 95,
+    "coupling": 0.55,
+    "has_tremolo": false,
+    "tremolo_type": "none",
+    "spring_count": 0,
     "piezo": false,
     "strings": 6
   }

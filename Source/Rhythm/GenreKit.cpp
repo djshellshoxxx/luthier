@@ -191,13 +191,13 @@ void GenreKitLibrary::addFactoryKits()
                              "Nashville Strum,Country Boom Chick,Country Rake",
                              "Boom Chick,Travis Picking",
                              { 7.0, 10.0, 0.5, 6.0 }, 20.0, 0.62,
-                             "Tele Country Twang", "country acoustic"));
+                             "T-Style Country Twang", "country acoustic"));
 
     kits.push_back (makeKit ("Modern Country", V::open, 80, 2,
                              "Modern Country,Nashville Strum,Country Boom Chick",
                              "Boom Chick",
                              { 5.0, 9.0, 0.3, 4.0 }, 18.0, 0.70,
-                             "Tele Country Twang", "country electric modern"));
+                             "T-Style Country Twang", "country electric modern"));
 
     kits.push_back (makeKit ("Bluegrass Flatpick", V::open, 90, 0,
                              "Bluegrass Flatpick,Nashville Strum,Country Rake",
@@ -216,13 +216,13 @@ void GenreKitLibrary::addFactoryKits()
                              "Chicago Shuffle,Blues Shuffle",
                              "Delta Blues Thumb",
                              { 10.0, 16.0, 1.0, 12.0 }, 22.0, 0.52,
-                             "Les Paul Crunch", "blues chicago electric"));
+                             "Single-Cut Crunch", "blues chicago electric"));
 
     kits.push_back (makeKit ("Modern Blues Rhythm", V::barre, 60, 5,
                              "Modern Blues Rhythm,Chicago Shuffle",
                              "Delta Blues Thumb",
                              { 8.0, 14.0, 0.6, 9.0 }, 20.0, 0.58,
-                             "Les Paul Crunch", "blues modern electric"));
+                             "Single-Cut Crunch", "blues modern electric"));
 
     // ---- folk and fingerstyle ------------------------------------------------------
     kits.push_back (makeKit ("Folk Fingerstyle", V::open, 85, 0,
@@ -267,13 +267,13 @@ void GenreKitLibrary::addFactoryKits()
                              "Reggae Skank,Rocksteady Skank",
                              "",
                              { 5.0, 10.0, 0.4, 3.0 }, 12.0, 0.82,
-                             "Clean Strat Funk", "reggae offbeat skank"));
+                             "Clean Double-Cut Funk", "reggae offbeat skank"));
 
     kits.push_back (makeKit ("Rocksteady", V::triad, 50, 5,
                              "Rocksteady Skank,Reggae Skank",
                              "",
                              { 7.0, 11.0, 0.5, 4.0 }, 14.0, 0.78,
-                             "Clean Strat Funk", "reggae rocksteady offbeat"));
+                             "Clean Double-Cut Funk", "reggae rocksteady offbeat"));
 
     kits.push_back (makeKit ("Dub", V::triad, 40, 5,
                              "Dub Skank,Reggae Skank",
@@ -286,7 +286,7 @@ void GenreKitLibrary::addFactoryKits()
                              "Funk Sixteenth,Funk Wah Rhythm",
                              "",
                              { 4.0, 14.0, 0.5, 10.0 }, 11.0, 0.85,
-                             "Clean Strat Funk", "funk sixteenth tight"));
+                             "Clean Double-Cut Funk", "funk sixteenth tight"));
 
     kits.push_back (makeKit ("Funk Wah Rhythm", V::triad, 45, 7,
                              "Funk Wah Rhythm,Funk Sixteenth",
@@ -299,7 +299,7 @@ void GenreKitLibrary::addFactoryKits()
                              "Punk Downstroke,Classic Strum",
                              "",
                              { 6.0, 8.0, 0.2, 2.0 }, 14.0, 0.88,
-                             "Les Paul Crunch", "punk electric fast power"));
+                             "Single-Cut Crunch", "punk electric fast power"));
 
     kits.push_back (makeKit ("Metal Chug", V::power, 20, 0,
                              "Metal Chug,Djent Grid",

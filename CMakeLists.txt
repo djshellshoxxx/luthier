@@ -82,7 +82,13 @@ set(LUTHIER_RESOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Resources")
 
 function(luthier_copy_resources target destination)
     if (TARGET ${target})
+        # Our folders are cleared first: copy_directory_if_different never deletes,
+        # and a part or guitar removed from Resources/ must not linger beside its
+        # replacement. Only ours - a VST3 bundle's Resources also holds JUCE's
+        # moduleinfo.json.
         add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E rm -rf "${destination}/Parts" "${destination}/Guitars"
+                    "${destination}/Presets" "${destination}/Tunes" "${destination}/Fonts"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${destination}"
             COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
                     "${LUTHIER_RESOURCES}" "${destination}"

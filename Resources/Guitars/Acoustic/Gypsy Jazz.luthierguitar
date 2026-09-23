@@ -2,7 +2,7 @@
   "schema": 1,
   "magic": "luthier.guitar",
   "meta": {
-    "name": "Selmer-Style",
+    "name": "Gypsy Jazz",
     "family": "acoustic",
     "body_style": "gypsy_jazz",
     "author": "Factory",
@@ -14,7 +14,7 @@
   },
   "parts": {
     "body": {
-      "reference": "Factory/Bodies/Selmer-Style Walnut Body.luthierpart"
+      "reference": "Factory/Bodies/Gypsy Jazz Walnut Body.luthierpart"
     },
     "top": {
       "reference": "Factory/Tops/Sitka Spruce (acoustic).luthierpart"

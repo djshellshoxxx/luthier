@@ -2380,7 +2380,7 @@ namespace
 
         // Tuners: shafts and buttons on the face, posts over the strings.
         const bool classicalRollers = head->layout == outlines::HeadLayout::slotted;
-        const bool keystone = partName (GuitarSlot::tuners).containsIgnoreCase ("kluson") && joint != "bolt";
+        const bool keystone = partName (GuitarSlot::tuners).containsIgnoreCase ("keystone") && joint != "bolt";
         const bool plasticButtons = keystone || classicalRollers;
         const auto buttonColour = classicalRollers ? juce::Colour (0xfff0e6d2) : keystone ? juce::Colour (0xffe8dcbc) : hardware;
 

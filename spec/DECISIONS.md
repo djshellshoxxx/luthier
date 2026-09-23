@@ -297,3 +297,12 @@ chosen") and `ambiguity-resolutions.md`.
   is one writer.
 - **New parameters are appended at the end of the layout** (393 now): hosts
   may address automation by index.
+- **Trademarks out of every shipped name (factory-content.md 0.1).** Display
+  names change, choice indices do not, so presets and automation are
+  unaffected. Internal enum identifiers (`GuitarType::Stratocaster`,
+  `TrebleBleed::kinman`) are not shown and stay. "American Twin" is kept: it
+  is qa-polish.md 11's own example of an acceptable name. Renamed factory
+  parts and guitars keep loading under their old names through
+  `PartLibrary::renamedFactoryPart` / `renamedFactoryGuitar`, the only place
+  the old names appear (marked so the scan skips them). A final legal review
+  is still a ship-gate item (qa-polish.md 11).

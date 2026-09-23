@@ -15,7 +15,7 @@
     "tone_pot_ohm": 250000.0,
     "tone_cap_f": 4.7e-08,
     "taper": "audio",
-    "treble_bleed": "fender",
+    "treble_bleed": "vintage",
     "switching": "3way",
     "active": false
   }
