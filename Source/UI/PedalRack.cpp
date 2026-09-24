@@ -463,6 +463,17 @@ void PedalRack::reorder (int fromSlot, int toSlot)
 
     auto& state = processor.getState();
 
+    /*  action-and-undo.md 3.13 `pedal-move`: one entry for the whole shuffle.
+        The writes below are plain setValueNotifyingHost calls with no gesture,
+        so this is the only entry the drop makes. */
+    juce::String pedalName = "pedal";
+
+    if (auto* type = state.getParameter (ParamIDs::slotType (postChain, fromSlot)))
+        pedalName = type->getCurrentValueAsText();
+
+    LuthierAudioProcessor::ScopedUndoAction undoAction (
+        processor, "Move " + pedalName + " to slot " + juce::String (toSlot + 1));
+
     // Reordering has to move the parameters, not just the engine's pedals, or the
     // next state save would put everything back where it started.
     auto readSlot = [&state, this] (int slot)

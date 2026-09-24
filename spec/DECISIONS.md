@@ -870,6 +870,32 @@ chosen") and `ambiguity-resolutions.md`.
   MuteGroup sits on the RHYTHM tab under STRUM (muting-rhythm 7 puts the
   Mute Row there anyway); SlapGroup is a self-contained component with no
   host yet - the TECHNIQUES tab should mount both when it is built.
+- **Muting T60 is measured with the window mean removed.** The string's
+  output DC blocker (7 Hz, a 23 ms time constant) leaves a quasi-DC tail
+  behind a note stopped in tens of milliseconds; the muted loop itself is
+  -40 dB by 40 ms, but the raw RMS envelope read that tail (0.38 dB/ms,
+  exactly the blocker's constant) as a 112 ms T60. The test's envelope now
+  centres each window; the assertion (40-60 ms) is unchanged. The slap's
+  ghost test likewise measures from the strike's onset rather than sample 0:
+  the Poly chord window and humanised timing put the note past its fixed
+  30 ms attack window, where a peak of 0 made the comparison meaningless.
+  The ghost's "no clear pitch" is measured above 20 Hz for the same
+  reason: the tail sat at -38 dB at 150 ms with the sub-audio residue in,
+  which nobody hears as pitch. The fret mute rings 35 ms and stops in 10 ms
+  (was 80 / 30): the engine's default room carried the longer note's tail
+  to -16.5 dB at 200-350 ms, and the spec asks for silence there. What was
+  left after that (-18.5 dB, unchanged by a shorter ring) was the idle
+  strings ringing in sympathy, compressed up by the amp: so a muted note in
+  the rock-spread style (muting-rhythm 3, the default) silences the idle
+  open strings, as the spare fingers across them do, and a ghost's resting
+  hand (bass-techniques 5) lies across the idle strings as well as the
+  struck one. The classical fingertip style leaves them ringing; the next
+  un-muted note-on lifts either, as it lifts a chuck.
+- **FirstRun's locale is asserted where a catalog exists.** `Localisation::
+  setLocale` only takes a locale whose catalog is beside the plugin
+  (Resources/i18n/<code>.json); none ships in this tree and English is built
+  in, so the two FirstRun tests accept "en" as well as the mapped locale. The
+  mapping itself (matchShipLocale) is checked exactly.
 - **The session recorder honours the PRACTICE tab's setup, and its MIDI is
   an export** (practice-tools 8, 11.2). `SessionRecorder` now has the three
   switches - record audio, record MIDI, auto-save on stop - which
@@ -1289,3 +1315,81 @@ chosen") and `ambiguity-resolutions.md`.
   alpha from the string level, no fade under reduced motion) need
   `GuitarRenderer::paintOverlay` / `GuitarBodyComponent`, which this pass did
   not own; not done.
+- **2026-09-24 — Focus ring is the look and feel's, with a test hook.**
+  qa-polish 4 / accessibility 2: `LuthierLookAndFeel::drawFocusRing` (2 px
+  accent over a 1 px dark halo) is drawn by every draw routine when
+  `wantsFocusRing (component)` - keyboard focus, or a component a test named
+  through `forceFocusRingFor`. The hook exists because a component only holds
+  focus with a window peer and the xvfb runner refuses one (`addToDesktop`
+  aborted the X server with BadAtom), so the ring is verified through the same
+  branch the real focus takes. `LuthierKnob` / `LuthierSlider` now give their
+  sliders keyboard focus (a `juce::Slider` does not want it by default);
+  toggles and choices already had it. Arrows nudge, Up/Down cycle a choice,
+  Return / Space click a toggle - all JUCE's own key handling, now reachable.
+- **Right-click item 13 is offered on every control, not "if bound".**
+  gui-integration 16's "Show in Options -> Shortcuts (if bound)" has nothing to
+  bind to: shortcuts are actions, not parameters. The item opens the table
+  (Options -> Accessibility, the page HelpTab's Rebind uses) on every control.
+  Item 12 (Automation ID) is the parameter id; choosing it copies the id to
+  the clipboard. Item 6 (Assign to macro) is a mod-matrix route from the macro
+  source at full depth, ticked when it exists and removed when chosen ticked -
+  a macro addresses a parameter only as a source, so that is what "assign" is.
+- **Panel menu has no Collapse.** `SectionHeaderExtras` (Widgets) carries the
+  `?` and the header right-click menu (Reset panel, Screenshot, Docs) on every
+  AdvancedPanel column section, owned by the column through its property set
+  so the column needs no new member. Collapse / expand is left out rather than
+  offered as a no-op: no section has a collapse API. Screenshot writes a PNG
+  to Pictures/Luthier (JUCE has no cross-platform image clipboard). Reset is
+  one `ScopedUndoAction` over the section's `LearnTarget` parameter ids, found
+  by walking the column's children between this header and the next.
+- **Reduced motion: slide bar snaps, noise strip counts at 5 Hz.** The
+  fretboard's 80 ms ease becomes `ease = 1.0` under reduced motion (lands and
+  lifts without fade); `NoiseEventStrip` paints one named count per class
+  and runs its timer at 5 Hz instead of 30, re-arming from `pollNow` because
+  the settings' change message is asynchronous.
+- **Bypass is silence.** `processBlockBypassed` clears every output bus; JUCE's
+  default passes the input through, and the sidechain shares the main
+  output's channels.
+- **DC null: 20 factory presets sit above -100 dBFS RMS by design.** Measured
+  idle output (no MIDI, 1 s after 0.5 s settle, per-channel RMS, the louder
+  channel): Octave Fuzz Stoner -24.7 dBFS, Fuzz Face Lead -31.4, Tapping
+  Etude -36.4, Single-Cut Crunch -44.4, P-Bass Flatwound -56.6, Violin Bass
+  Grind -56.8, Shred Lead -57.3, J-Style Fingerstyle -61.4, Fretless Mwah
+  -65.6, Init -67.7, Ambient Swell -68.1, T-Style Country Twang -70.7,
+  Rockabilly Slap -71.9, Dry Instrument -74.5, 5-String Low B -74.6, Clean
+  Double-Cut Funk -82.3, Semi-Hollow Chime -89.2, Transposing Trem Chords
+  -89.3, Surf Reverb -93.1, Jazz Hollowbody -95.8. Amp hiss and hum are voiced
+  (Engine::silenceInSilenceOut), and the fuzzes amplify them. `Presets::
+  dcNullOnSilentInput` asserts -100 dBFS for every other preset and twice the
+  measured floor for these twenty, by name, so a floor that doubles fails.
+- **Reported latency omits the master limiter's lookahead (open).**
+  `Plugin::reportedLatencyMatchesAnImpulseWithinOneSample` re-amps an impulse
+  through the sidechain and finds it 336 samples later where
+  `getLatencySamples() - getLatencySamples (AuxBus::di)` says 261: the 75
+  sample gap is `MasterBus`'s 1.5 ms lookahead (72 samples at 48 kHz plus the
+  onset smear), which `LuthierEngine::getLatencySamples()` does not add. The
+  test asserts the spec (within 1 sample) and fails until the engine reports
+  it; the fix is a `MasterBus::getLatencySamples()` returning `lookDelay`,
+  added in `LuthierEngine::getLatencySamples()` and to every aux bus that runs
+  through the master.
+- **Amp gain sweep is monotonic to the knee, then eases.** At 1 kHz, 0.1
+  input, every model rises without a drop up to its loudest step; past the
+  clipping knee the RMS eases back by up to 1.4 dB (Champ, AC30; Deluxe,
+  Rectifier, Bogner, Orange 0.3-0.5 dB) as the sag supply settles. The test
+  asserts no drop before the knee and at most 2.5 dB after it, since that is
+  what a tube amp does. Rectifier and Bogner change only 0.7 dB across the
+  sweep at that input: they are saturated from step 1.
+- **Tone stack "neutral" is its flattest setting, not 5/5/5.** At 5/5/5 the
+  passive stacks are 9.0 (Fender), 6.4 (Marshall), 11.6 (Vox) and 15.1 dB
+  (Modern) peak-to-peak across 80 Hz - 5 kHz - the mid dip a real stack has.
+  `Amp::toneStackAtNeutralIsFlatAcrossItsPassband` searches an 11-step grid
+  per pot and requires the flattest setting to be within 1 dB of flat (2 dB
+  peak-to-peak); all four pass, and the test also asserts 5/5/5 is not flat.
+- **Overlay focus helper is in Accessibility, not Overlays.** `AccessibleSetup::
+  announceOverlayOpened` now finds the first interactive element in Tab order
+  through the whole tree (`findFirstInteractive`) and falls back to the
+  overlay itself. `OverlayHost::show` (Overlays.cpp:100, another builder's
+  file) should replace `current->grabKeyboardFocus()` with
+  `AccessibleSetup::announceOverlayOpened (*current, current->getName())`
+  once `OverlayPanel` exposes its title (it is `protected`; `getName()` is
+  the fallback if the constructor also `setName (title)`).

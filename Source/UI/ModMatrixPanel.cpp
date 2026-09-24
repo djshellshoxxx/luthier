@@ -603,12 +603,13 @@ void ModRouteTable::cellClicked (int row, int columnId, const juce::MouseEvent& 
 
     switch (columnId)
     {
+        // action-and-undo.md 3.6: each edit is one undo entry, pushed by the processor.
         case ColumnId::enabled:
-            matrix.setRouteEnabled (row, ! cached[(size_t) row].enabled);
+            processor.setModRouteEnabled (row, ! cached[(size_t) row].enabled);
             break;
 
         case ColumnId::remove:
-            matrix.removeRoute (row);
+            processor.removeModRoute (row);
             break;
 
         case ColumnId::depth:
@@ -626,7 +627,7 @@ void ModRouteTable::cellClicked (int row, int columnId, const juce::MouseEvent& 
 
             editor->onReturnKey = [this, editor, row, &box]
             {
-                processor.getModMatrix().setRouteDepth (row, editor->getText().getFloatValue());
+                processor.setModRouteDepth (row, editor->getText().getFloatValue());
                 refresh();
 
                 if (onRoutesChanged)
@@ -734,7 +735,7 @@ ModMatrixPanel::ModMatrixPanel (LuthierAudioProcessor& p)
 
     clearButton.onClick = [this]
     {
-        processor.getModMatrix().clearRoutes();
+        processor.clearModRoutes();   // one undo entry (action-and-undo.md 3.6 / 6)
         routeTable->refresh();
 
         if (routeTable->onRoutesChanged)
@@ -820,7 +821,7 @@ void ModMatrixPanel::showAddRouteMenu()
         route.depth = 0.33f;
         route.enabled = true;
 
-        processor.getModMatrix().addRoute (route);
+        processor.addModRoute (route);   // action-and-undo.md 3.6: "Add [source] to [destination] depth X"
         routeTable->refresh();
 
         if (routeTable->onRoutesChanged)

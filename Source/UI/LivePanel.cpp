@@ -151,6 +151,10 @@ void SnapshotGrid::captureSlot (int slot)
     const juce::String existing = isFilled (slot) ? bank.getSnapshot (slot).label : juce::String();
     const int tag = isFilled (slot) ? bank.getSnapshot (slot).colourTag : -1;
 
+    // action-and-undo.md 3.7 snapshot-save: the bank is in the state block, so
+    // the entry holds whatever the slot held before the capture.
+    processor.pushUndoState ("Save snapshot " + juce::String (slot + 1)
+                               + (existing.isNotEmpty() ? " " + existing : juce::String()));
     processor.getSnapshots().capture (slot, existing, tag);
     bankChanged();
 }
@@ -159,7 +163,9 @@ void SnapshotGrid::recallSlot (int slot)
 {
     if (isFilled (slot))
     {
-        processor.getSnapshots().recall (slot);
+        // Through the processor, which pushes the recall's undo entry
+        // (action-and-undo.md 3.7) and cancels a running preset morph.
+        processor.recallSnapshot (slot);
         bankChanged();
     }
 }
@@ -168,6 +174,7 @@ void SnapshotGrid::clearSlot (int slot)
 {
     if (isFilled (slot))
     {
+        processor.pushUndoState ("Delete snapshot " + juce::String (slot + 1));   // 3.7 snapshot-delete
         processor.getSnapshots().remove (slot);
         bankChanged();
     }
@@ -177,6 +184,7 @@ void SnapshotGrid::setSlotColourTag (int slot, int tag)
 {
     if (isFilled (slot))
     {
+        processor.pushUndoState ("Change snapshot " + juce::String (slot + 1) + " colour");   // 3.7 snapshot-color
         processor.getSnapshots().setColourTag (slot, tag);
         bankChanged();
     }
@@ -441,7 +449,7 @@ LivePanel::LivePanel (LuthierAudioProcessor& p)
     addButton (recallButton, "Load the selected slot, crossfading over the time below",
                [this]
                {
-                   processor.getSnapshots().recall (grid.getSelectedSlot());
+                   processor.recallSnapshot (grid.getSelectedSlot());   // pushes the undo entry (3.7)
                    refresh();
                });
 
@@ -677,6 +685,8 @@ void LivePanel::renameSlot (int slot, juce::Rectangle<int> screenAnchor)
 
     editor->onReturnKey = [this, editor, slot, &box]
     {
+        // 3.7 snapshot-rename: one entry per committed name (Return), not per keystroke.
+        processor.pushUndoState ("Rename snapshot " + juce::String (slot + 1) + " to " + editor->getText());
         processor.getSnapshots().setLabel (slot, editor->getText());
         refresh();
         box.dismiss();
