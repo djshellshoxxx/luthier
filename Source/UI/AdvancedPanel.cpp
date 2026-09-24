@@ -1054,13 +1054,16 @@ void AdvancedPanel::buildWorkspace()
     for (const auto& tab : tabs)
     {
         // gui-integration 21: the tabs holding physical parameters carry a
-        // range padlock. WORKSHOP joins when it exists.
+        // range padlock.
         juce::TextButton* made = nullptr;
 
         if (juce::String (tab.name) == "CHARACTER")
             made = new RangesUi::RangeTabButton (tab.name, processor,
                                                  { RangeFamily::pick, RangeFamily::squeak,
                                                    RangeFamily::buzz, RangeFamily::slide });
+        else if (juce::String (tab.name) == "WORKSHOP")   // gui-integration 21: the bench's setup strip, pick and slide
+            made = new RangesUi::RangeTabButton (tab.name, processor,
+                                                 { RangeFamily::buzz, RangeFamily::pick, RangeFamily::slide });
         else
             made = new juce::TextButton (tab.name);
 

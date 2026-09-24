@@ -86,7 +86,7 @@ public:
     /** Moves a pickup; returns where it ended up, and the reason if it was stopped. */
     double movePickup (int index, double positionMm, juce::String* stoppedBecause = nullptr);
 
-    /** Sets a pickup's heights (0.8 - 6 mm, guitar-illustration.md 19). */
+    /** Sets a pickup's heights (0.8 - 6 mm, or from 0.5 with ranges unlocked; guitar-illustration.md 19). */
     void setPickupHeights (int index, double trebleMm, double bassMm);
 
     /** Saddle intonation for a string (engine index), +-6 mm. */
@@ -107,6 +107,10 @@ public:
     }
 
     static constexpr double kMinPickupHeight = 0.8, kMaxPickupHeight = 6.0;
+    static constexpr double kAdvancedMinPickupHeight = 0.5;
+
+    /** 0.8 mm, or 0.5 mm with the setup (buzz) range family unlocked (guitar-illustration.md 19). */
+    double getMinPickupHeight() const;
     static constexpr double kMaxIntonation = 6.0, kMaxNutSlot = 1.2;
 
     //==========================================================================

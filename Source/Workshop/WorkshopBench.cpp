@@ -433,8 +433,9 @@ void WorkshopBench::setPickupHeights (int index, double trebleMm, double bassMm)
     beginGesture();
 
     auto& p = gesture->live.placements[(size_t) index];
-    p.heightTrebleMm = juce::jlimit (kMinPickupHeight, kMaxPickupHeight, trebleMm);
-    p.heightBassMm = juce::jlimit (kMinPickupHeight, kMaxPickupHeight, bassMm);
+    const double lowest = getMinPickupHeight();
+    p.heightTrebleMm = juce::jlimit (lowest, kMaxPickupHeight, trebleMm);
+    p.heightBassMm = juce::jlimit (lowest, kMaxPickupHeight, bassMm);
     applyLive();
 
     if (own)
@@ -497,6 +498,13 @@ void WorkshopBench::applyLive()
         processor.getEngine().setPickupPlacementLive (engineSlot++, pl.positionMm / scale,
                                                       0.5 * (pl.heightTrebleMm + pl.heightBassMm));
     }
+}
+
+double WorkshopBench::getMinPickupHeight() const
+{
+    // guitar-illustration.md 19: not below 0.8 mm without advanced ranges; with
+    // the setup family (buzz) unlocked, down to workshop-ui.md 4's 0.5 mm.
+    return processor.getRanges().isFamilyAdvanced (RangeFamily::buzz) ? kAdvancedMinPickupHeight : kMinPickupHeight;
 }
 
 //==============================================================================

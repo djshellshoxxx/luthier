@@ -8,6 +8,8 @@
 
 #include "../PluginProcessor.h"
 #include "../UI/WorkshopPanel.h"
+#include "../UI/AdvancedPanel.h"
+#include "../UI/RangesUi.h"
 #include "../UI/Guitar/GuitarRenderer.h"
 #include "../Model/Workshop/PartAcoustics.h"
 
@@ -430,4 +432,46 @@ LUTHIER_TEST (WorkshopAccessories, theSlideTurnsOnTheBenchAndItsMaterialIsPlayed
     CHECK (b.processor.getGuitarBlock().getProperty ("slide", {}).toString() == brass->name);
     b.processor.undo();
     CHECK (b.processor.getEngine().getSlideEngine().getBar().material == SlideMaterial::glass);
+}
+
+//==============================================================================
+/*  gui-integration.md 21: the WORKSHOP tab carries the range padlock for the
+    families its controls use (the setup strip's buzz, the pick, the slide);
+    guitar-illustration.md 19: pickup height stops at 0.8 mm unless ranges are
+    unlocked. */
+LUTHIER_TEST (WorkshopRanges, theTabCarriesAPadlockAndHeightsStopAtStock)
+{
+    Bench b;
+    AdvancedPanel panel (b.processor);
+    panel.setSize (1600, 900);
+
+    RangesUi::RangeTabButton* tab = nullptr;
+    for (auto* child : panel.getChildren())
+        if (auto* t = dynamic_cast<RangesUi::RangeTabButton*> (child))
+            if (t->getButtonText() == "WORKSHOP")
+                tab = t;
+
+    CHECK_MSG (tab != nullptr, "the WORKSHOP tab has no range padlock");
+
+    if (tab != nullptr)
+    {
+        CHECK (tab->getPadlockState() == 0);
+
+        RangeState unlocked;
+        unlocked.setFamilyAdvanced (RangeFamily::buzz, true);
+        b.processor.changeRanges (unlocked, "test");
+        CHECK (tab->getPadlockState() == 2);
+
+        b.processor.changeRanges (RangeState(), "test");
+        CHECK (tab->getPadlockState() == 0);
+    }
+
+    b.bench().setPickupHeights (0, 0.1, 0.1);
+    CHECK_NEAR (b.guitar().placements[0].heightTrebleMm, 0.8, 1.0e-9);
+
+    RangeState unlocked;
+    unlocked.setFamilyAdvanced (RangeFamily::buzz, true);
+    b.processor.changeRanges (unlocked, "test");
+    b.bench().setPickupHeights (0, 0.1, 0.1);
+    CHECK_NEAR (b.guitar().placements[0].heightTrebleMm, 0.5, 1.0e-9);
 }
