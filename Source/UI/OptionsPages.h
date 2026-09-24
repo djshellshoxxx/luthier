@@ -115,7 +115,12 @@ private:
     juce::ToggleButton reducedMotionToggle { "Reduced motion" };
     juce::ToggleButton tooltipsToggle { "Show tooltips on hover" };
 
-    juce::Label contrastLabel, pendingLabel;
+    // gui-integration 5 / visual-polish.md 5: the accent, the data stream, the noise strip.
+    juce::ComboBox accentBox;
+    juce::ToggleButton dataStreamToggle { "Scrolling data stream in the footer" };
+    juce::ToggleButton noiseStripToggle { "Noise-event strip (CHARACTER)" };
+
+    juce::Label contrastLabel, accentNote;
 
     bool updatingControls = false;
 };

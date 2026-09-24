@@ -194,6 +194,7 @@ AccessibilitySettings& AccessibilitySettings::get()
 AccessibilitySettings::AccessibilitySettings()
 {
     colours = buildPalette (PaletteId::defaultDark);
+    baseColours = colours;
     buildDefaultShortcuts();
 }
 
@@ -322,6 +323,8 @@ void AccessibilitySettings::setPalette (PaletteId id)
     if (! colours.loadFrom (file))
         colours = buildPalette (palette);
 
+    baseColours = colours;
+    applyAccent();
     sendChangeMessage();
 }
 
@@ -330,8 +333,81 @@ bool AccessibilitySettings::loadPaletteFromFile (const juce::File& file)
     if (! colours.loadFrom (file))
         return false;
 
+    baseColours = colours;
+    applyAccent();
     sendChangeMessage();
     return true;
+}
+
+//==============================================================================
+juce::StringArray AccessibilitySettings::getAccentNames()
+{
+    return { "Aged brass", "Tube amber", "Jewel red", "Seafoam green", "Sonic blue", "Pearl ivory" };
+}
+
+double AccessibilitySettings::accentContrast (juce::Colour c, const PaletteColours& p) noexcept
+{
+    double worst = 21.0;
+
+    for (auto bg : { p.background, p.panel, p.panelRaised, p.panelSunken })
+        worst = juce::jmin (worst, PaletteColours::contrastRatio (c, bg));
+
+    return worst;
+}
+
+juce::Colour AccessibilitySettings::accentFor (int choice, const PaletteColours& p, juce::Colour guitarFinish)
+{
+    static const juce::uint32 bases[kNumAccents] = { 0, 0xffe8913a, 0xffd2574a, 0xff5fb39a, 0xff6ca6d9, 0xffdcd0b4 };
+
+    juce::Colour c = choice == kFollowGuitar ? guitarFinish.withAlpha (1.0f)
+                   : juce::isPositiveAndBelow (choice, kNumAccents) && choice > 0 ? juce::Colour (bases[choice])
+                                                                                  : p.accent;
+
+    // Toward the text colour until it reads on every background: lighter on a
+    // dark palette, darker on the Light one (visual-polish.md 5, accessibility 10).
+    for (int i = 0; i < 40 && accentContrast (c, p) < 4.5; ++i)
+        c = c.interpolatedWith (p.textPrimary, 0.1f);
+
+    return c;
+}
+
+void AccessibilitySettings::applyAccent()
+{
+    colours = baseColours;
+
+    if (accentChoice == 0)
+        return;
+
+    const auto a = accentFor (accentChoice, baseColours, guitarAccent);
+    colours.accent = a;
+    colours.accentBright = a.interpolatedWith (baseColours.textPrimary, 0.3f);
+    colours.accentDim = a.interpolatedWith (baseColours.background, 0.45f);
+}
+
+void AccessibilitySettings::setAccent (int choice)
+{
+    choice = choice == kFollowGuitar ? kFollowGuitar : juce::jlimit (0, kNumAccents - 1, choice);
+
+    if (choice == accentChoice)
+        return;
+
+    accentChoice = choice;
+    applyAccent();
+    sendChangeMessage();
+}
+
+void AccessibilitySettings::setGuitarAccentSource (juce::Colour finish)
+{
+    if (finish == guitarAccent)
+        return;
+
+    guitarAccent = finish;
+
+    if (accentChoice == kFollowGuitar)
+    {
+        applyAccent();
+        sendChangeMessage();
+    }
 }
 
 juce::File AccessibilitySettings::getThemeDirectory()
@@ -639,6 +715,7 @@ juce::var AccessibilitySettings::toVar() const
     auto* root = new juce::DynamicObject();
 
     root->setProperty ("palette", (int) palette);
+    root->setProperty ("accent", accentChoice);   // visual-polish.md 5
     root->setProperty ("uiScale", uiScale);
     root->setProperty ("reducedMotion", reducedMotion);
     root->setProperty ("verbosity", (int) verbosity);
@@ -669,6 +746,7 @@ void AccessibilitySettings::fromVar (const juce::var& state)
     setPalette ((PaletteId) juce::jlimit (0, (int) PaletteId::numPalettes - 1,
                                           (int) root->getProperty ("palette")));
 
+    setAccent (root->hasProperty ("accent") ? (int) root->getProperty ("accent") : 0);
     setUiScale (root->hasProperty ("uiScale") ? (double) root->getProperty ("uiScale") : 1.0);
     setReducedMotion ((bool) root->getProperty ("reducedMotion"));
 

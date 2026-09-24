@@ -3,6 +3,7 @@
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
+#include "NoiseGroups.h"
 
 namespace luthier
 {
@@ -798,15 +799,37 @@ AppearancePage::AppearancePage (LuthierAudioProcessor& p)
     styleNote (contrastLabel, Palette::textMuted);
     addAndMakeVisible (contrastLabel);
 
-    /*  Section 5 also asks for an accent tint, a scrolling data-stream toggle and
-        a noise-event strip toggle. None of the three has a setting behind it -
-        the noise strip waits on pick-noise.md - and a switch that does nothing is
-        worse than an absent one, so they are listed here rather than faked. */
-    styleNote (pendingLabel, Palette::textDisabled);
-    pendingLabel.setText ("Accent tint, the data-stream toggle and the noise-event strip toggle "
-                          "are not built yet.",
-                          juce::dontSendNotification);
-    addAndMakeVisible (pendingLabel);
+    // Section 5's accent tint (visual-polish.md 5): six accents, each held to
+    // 4.5:1 on every palette, or the guitar's own finish colour.
+    {
+        const auto names = AccessibilitySettings::getAccentNames();
+        for (int i = 0; i < names.size(); ++i)
+            accentBox.addItem (names[i], i + 1);
+        accentBox.addSeparator();
+        accentBox.addItem ("Follow the guitar", 100);
+    }
+
+    accentBox.setTooltip ("The accent colour: the aged brass, five others, or the current guitar's finish");
+    accentBox.onChange = [this]
+    {
+        if (updatingControls)
+            return;
+
+        const int id = accentBox.getSelectedId();
+        AccessibilitySettings::get().setAccent (id == 100 ? AccessibilitySettings::kFollowGuitar : id - 1);
+        AccessibilitySettings::get().save();
+        refresh();
+    };
+    addAndMakeVisible (accentBox);
+
+    dataStreamToggle.onClick = [this] { DataStreamDisplay::setEnabledByUser (dataStreamToggle.getToggleState()); };
+    addAndMakeVisible (dataStreamToggle);
+
+    noiseStripToggle.onClick = [this] { NoiseEventStrip::setEnabledByUser (noiseStripToggle.getToggleState()); };
+    addAndMakeVisible (noiseStripToggle);
+
+    styleNote (accentNote, Palette::textMuted);
+    addAndMakeVisible (accentNote);
 
     refresh();
 }
@@ -818,6 +841,13 @@ void AppearancePage::refresh()
     auto& settings = AccessibilitySettings::get();
 
     paletteBox.setSelectedId ((int) settings.getPalette() + 1, juce::dontSendNotification);
+    accentBox.setSelectedId (settings.getAccent() == AccessibilitySettings::kFollowGuitar ? 100 : settings.getAccent() + 1,
+                             juce::dontSendNotification);
+    dataStreamToggle.setToggleState (DataStreamDisplay::isEnabledByUser(), juce::dontSendNotification);
+    noiseStripToggle.setToggleState (NoiseEventStrip::isEnabledByUser(), juce::dontSendNotification);
+    accentNote.setText ("Accent contrast: " + juce::String (AccessibilitySettings::accentContrast (settings.getColours().accent,
+                                                                                                     settings.getColours()), 2)
+                          + " to 1 on this palette's panels", juce::dontSendNotification);
     reducedMotionToggle.setToggleState (settings.isReducedMotion(), juce::dontSendNotification);
     tooltipsToggle.setToggleState (processor.getUiState().tooltipsEnabled,
                                    juce::dontSendNotification);
@@ -843,7 +873,7 @@ void AppearancePage::paint (juce::Graphics& g)
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "THEME AND SIZE");
-    drawHeading (g, { 0, 130, getWidth(), 18 }, "NOT BUILT YET");
+    drawHeading (g, { 0, 136, getWidth(), 18 }, "ACCENT AND LIVE DISPLAYS");
 }
 
 void AppearancePage::resized()
@@ -873,7 +903,16 @@ void AppearancePage::resized()
     bounds.removeFromTop (4);
     contrastLabel.setBounds (bounds.removeFromTop (18));
 
-    pendingLabel.setBounds (getLocalBounds().withTrimmedTop (150).withHeight (32));
+    auto lower = getLocalBounds().withTrimmedTop (158);
+    {
+        auto row = lower.removeFromTop (26);
+        accentBox.setBounds (row.removeFromLeft (220));
+        row.removeFromLeft (8);
+        accentNote.setBounds (row);
+    }
+    lower.removeFromTop (4);
+    dataStreamToggle.setBounds (lower.removeFromTop (26).removeFromLeft (300));
+    noiseStripToggle.setBounds (lower.removeFromTop (26).removeFromLeft (300));
 }
 
 //==============================================================================

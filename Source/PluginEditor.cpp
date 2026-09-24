@@ -39,6 +39,12 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     addChildComponent (advancedPanel);
 
     addAndMakeVisible (chordButton);
+
+    // gui-integration 12: the footer's data stream, one line of the internals.
+    addChildComponent (dataStream);
+    dataStream.setNumLines (1);
+    dataStream.setSource (&processor);
+    dataStream.setVisible (DataStreamDisplay::isEnabledByUser());
     chordButton.setTooltip ("Chord library and the live tab display");
     chordButton.onClick = [this] { showOverlay (&chordPanel); };
 
@@ -431,6 +437,9 @@ void LuthierAudioProcessorEditor::resized()
     auto footer = bounds.removeFromBottom (Metrics::footerHeight);
     chordButton.setBounds (footer.withSizeKeepingCentre (110, Metrics::footerHeight - 2));
 
+    // 12: the data stream runs between the CPU readout and the chords button.
+    dataStream.setBounds (footer.withTrimmedLeft (230).withRight (chordButton.getX() - Metrics::grid));
+
     // practice-tools 9: the drawer sits above the footer.
     practicePanel.setBounds (bounds.removeFromBottom (practicePanel.preferredHeight()));
 
@@ -506,6 +515,10 @@ void LuthierAudioProcessorEditor::timerCallback()
 {
     updateLiveStripVisibility();
     pollForNotifications();
+
+    // visual-polish.md 5: "Follow the guitar" takes the accent from the finish.
+    AccessibilitySettings::get().setGuitarAccentSource (
+        juce::Colour::fromString ("ff" + processor.getCurrentGuitar().finish.colourA.trimCharactersAtStart ("#")));
 
     // practice-tools 11.2: the PRACTICE tab's START opens the drawer on the
     // routine's first tool.

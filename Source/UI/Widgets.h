@@ -407,9 +407,22 @@ public:
     ~DataStreamDisplay() override;
 
     void setSource (LuthierAudioProcessor* processor);
-    void setNumLines (int lines) { numLines = juce::jlimit (4, 24, lines); }
+    void setNumLines (int lines) { numLines = juce::jlimit (1, 24, lines); }
 
     void paint (juce::Graphics&) override;
+
+    /*  ui-wiring.md 11: the stream keeps the last 200 lines, stops scrolling
+        500 ms after the last record, and does no work under reduced motion.
+        gui-integration 5: Options -> Appearance can hide it. */
+    static constexpr int kMaxLines = 200;
+    static constexpr double kStopAfterMs = 500.0;
+    static bool isEnabledByUser();
+    static void setEnabledByUser (bool enabled);
+
+    /** One tick of the timer, with the clock passed in (tests). */
+    void update (double nowMs);
+    bool isScrolling() const noexcept { return scrolling; }
+    int getNumLinesKept() const noexcept { return lines.size(); }
 
 private:
     void timerCallback() override;
@@ -420,6 +433,7 @@ private:
     int lastRecordCount = 0;
     float scrollOffset = 0.0f;
     bool scrolling = false;
+    double lastArrivalMs = 0.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DataStreamDisplay)
 };

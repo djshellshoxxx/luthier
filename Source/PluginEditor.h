@@ -137,6 +137,10 @@ private:
 
     juce::TextButton chordButton { "Chords / Tab" };
 
+    /** gui-integration 1 / 12: the footer's scrolling data stream (Options ->
+        Appearance can hide it). VISUAL-WORKSHOP-QA. */
+    DataStreamDisplay dataStream;
+
     bool advancedMode = false;
     bool secretHovered = false;
 

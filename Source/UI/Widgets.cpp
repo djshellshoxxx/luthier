@@ -1,5 +1,6 @@
 #include "Widgets.h"
 #include "RangesUi.h"
+#include "UiPreferences.h"
 #include "../PluginProcessor.h"
 
 namespace luthier
@@ -1256,18 +1257,38 @@ void DataStreamDisplay::setSource (LuthierAudioProcessor* p)
         processor->getDiagnostics().setEnabled (true);
 }
 
+bool DataStreamDisplay::isEnabledByUser()
+{
+    return UiPreferences::get().getBool ("appearance.dataStream", true);
+}
+
+void DataStreamDisplay::setEnabledByUser (bool enabled)
+{
+    UiPreferences::get().setBool ("appearance.dataStream", enabled);
+}
+
 void DataStreamDisplay::timerCallback()
 {
-    if (processor == nullptr)
+    update (juce::Time::getMillisecondCounterHiRes());
+}
+
+void DataStreamDisplay::update (double nowMs)
+{
+    // Options -> Appearance's switch, followed here so no one else has to.
+    if (const bool wanted = isEnabledByUser(); wanted != isVisible() && getParentComponent() != nullptr)
+        setVisible (wanted);
+
+    // ui-wiring 11: a moving readout is motion; under reduced motion it holds still.
+    if (processor == nullptr || ! isVisible() || AccessibilitySettings::get().isReducedMotion())
         return;
 
     auto& diagnostics = processor->getDiagnostics();
     const int total = diagnostics.getTotalRecords();
 
-    // The stream stops when nothing is happening, and starts again on new data.
+    // The stream stops 500 ms after the last record, and starts again on new data.
     if (total == lastRecordCount)
     {
-        if (scrolling)
+        if (scrolling && nowMs - lastArrivalMs >= kStopAfterMs)
         {
             scrolling = false;
             repaint();
@@ -1275,8 +1296,9 @@ void DataStreamDisplay::timerCallback()
         return;
     }
 
-    const int newRecords = juce::jmin (total - lastRecordCount, numLines);
+    const int newRecords = juce::jmin (total - lastRecordCount, kMaxLines);
     lastRecordCount = total;
+    lastArrivalMs = nowMs;
     scrolling = true;
 
     std::vector<Diagnostics::Record> records ((size_t) juce::jmax (1, newRecords));
@@ -1286,7 +1308,7 @@ void DataStreamDisplay::timerCallback()
         lines.add (Diagnostics::formatRecord (records[(size_t) i],
                                               processor->getEngine().getSampleRate()));
 
-    while (lines.size() > numLines)
+    while (lines.size() > kMaxLines)
         lines.remove (0);
 
     repaint();
@@ -1301,16 +1323,21 @@ void DataStreamDisplay::paint (juce::Graphics& g)
 
     g.setFont (Fonts::mono (juce::jlimit (7.0f, 11.0f, lineHeight * 0.78f)));
 
-    for (int i = 0; i < lines.size(); ++i)
+    // The newest numLines of the 200 kept.
+    const int first = juce::jmax (0, lines.size() - numLines);
+
+    for (int i = first; i < lines.size(); ++i)
     {
-        // The top two and bottom two lines fade away, as specified.
-        const int fromTop = i;
+        // The top two and bottom two lines fade away, as specified - when
+        // there are lines enough to fade (the footer shows one).
+        const int fromTop = i - first;
         const int fromBottom = lines.size() - 1 - i;
 
         float alpha = 1.0f;
 
-        if (fromTop == 0 || fromBottom == 0)       alpha = 0.12f;
-        else if (fromTop == 1 || fromBottom == 1)  alpha = 0.38f;
+        if (numLines <= 2)                          alpha = 0.62f;
+        else if (fromTop == 0 || fromBottom == 0)   alpha = 0.12f;
+        else if (fromTop == 1 || fromBottom == 1)   alpha = 0.38f;
         else                                        alpha = 0.62f;
 
         if (! scrolling)
@@ -1318,7 +1345,7 @@ void DataStreamDisplay::paint (juce::Graphics& g)
 
         g.setColour (Palette::dataStream.withAlpha (alpha * 0.85f));
 
-        const juce::Rectangle<int> row (0, juce::roundToInt ((float) i * lineHeight),
+        const juce::Rectangle<int> row (0, juce::roundToInt ((float) fromTop * lineHeight),
                                         getWidth(), juce::roundToInt (lineHeight));
 
         g.drawText (lines[i], row.reduced (4, 0), juce::Justification::centredLeft, false);

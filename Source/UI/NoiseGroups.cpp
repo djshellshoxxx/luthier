@@ -1,5 +1,6 @@
 #include "NoiseGroups.h"
 #include "../PluginProcessor.h"
+#include "UiPreferences.h"
 
 namespace luthier
 {
@@ -69,12 +70,53 @@ int NoiseEventStrip::pollNow()
     return shown.size();
 }
 
+bool NoiseEventStrip::isEnabledByUser()
+{
+    return UiPreferences::get().getBool ("appearance.noiseStrip", true);
+}
+
+void NoiseEventStrip::setEnabledByUser (bool enabled)
+{
+    UiPreferences::get().setBool ("appearance.noiseStrip", enabled);
+}
+
+std::array<int, (size_t) NoiseClass::numClasses> NoiseEventStrip::getClassCounts() const
+{
+    std::array<int, (size_t) NoiseClass::numClasses> counts {};
+
+    for (const auto& tick : shown)
+        if (juce::isPositiveAndBelow ((int) tick.noiseClass, (int) NoiseClass::numClasses))
+            ++counts[(size_t) tick.noiseClass];
+
+    return counts;
+}
+
 void NoiseEventStrip::timerCallback()
 {
+    // gui-integration 5: Options -> Appearance can hide the strip.
+    if (const bool wanted = isEnabledByUser(); wanted != isVisible() && getParentComponent() != nullptr)
+        setVisible (wanted);
+
     // Drained even when hidden, or the ring fills and the first thing a user
     // sees on opening the tab is a burst of stale events.
     const int before = shown.size();
     pollNow();
+
+    // gui-integration 21 / ui-wiring 10: under reduced motion the strip is a
+    // static count, redrawn at most five times a second and only on change.
+    if (AccessibilitySettings::get().isReducedMotion())
+    {
+        const auto counts = getClassCounts();
+
+        if (isShowing() && counts != shownCounts && juce::Time::getMillisecondCounter() - lastStaticPaint >= 200)
+        {
+            shownCounts = counts;
+            lastStaticPaint = juce::Time::getMillisecondCounter();
+            repaint();
+        }
+
+        return;
+    }
 
     if (isShowing() && (shown.size() != before || ! shown.isEmpty()))
         repaint();
@@ -86,6 +128,24 @@ void NoiseEventStrip::paint (juce::Graphics& g)
 
     g.setColour (Palette::panelSunken);
     g.fillRoundedRectangle (bounds, 3.0f);
+
+    // Reduced motion: a static count per kind instead of scrolling ticks.
+    if (AccessibilitySettings::get().isReducedMotion())
+    {
+        static const char* const names[] = { "squeak", "click", "chirp", "scrape", "buzz", "clank" };
+        const auto counts = getClassCounts();
+        auto area = bounds.reduced (6.0f, 0.0f);
+        g.setFont (Fonts::mono (10.0f));
+
+        for (int c = 0; c < (int) NoiseClass::numClasses && c < 6; ++c)
+        {
+            const auto cell = area.removeFromLeft (area.getWidth() / (float) juce::jmax (1, 6 - c));
+            g.setColour (counts[(size_t) c] > 0 ? colourFor ((NoiseClass) c) : Palette::textDisabled);
+            g.drawText (juce::String (names[c]) + " " + juce::String (counts[(size_t) c]), cell, juce::Justification::centredLeft, true);
+        }
+
+        return;
+    }
 
     const bool stale = isStale();
     const double now = juce::Time::getMillisecondCounterHiRes() * 0.001;
