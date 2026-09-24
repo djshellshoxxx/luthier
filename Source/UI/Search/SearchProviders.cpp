@@ -104,10 +104,16 @@ bool ParameterText::isInertSlotParameter (LuthierAudioProcessor& processor, cons
     bool post = false;
     int slot = 0, param = 0;
 
-    if (! ParameterLocations::parseSlotParameter (parameterId, post, slot, param) || param < 0)
+    if (! ParameterLocations::parseSlotParameter (parameterId, post, slot, param))
         return false;
 
     const int type = slotTypeIndex (processor, post, slot);
+
+    // An empty slot's bypass and mix do nothing either; its type is how a
+    // pedal gets in, so that one always counts.
+    if (param < 0)
+        return type <= 0 && ! parameterId.endsWith ("_type");
+
     const auto& knobs = pedalKnobNames();
 
     return type <= 0 || type >= (int) knobs.size() || param >= knobs[(size_t) type].size();
@@ -1038,11 +1044,12 @@ void HelpProvider::collect (std::vector<SearchItem>& out) const
         item.kind = ItemKind::help;
         item.target = topic.id;
         item.index = i;
-        item.title = "Help: " + juce::String (topic.title);
+        // The row's "?" glyph and "Help" breadcrumb say what it is; the title
+        // stays the topic's own, so "help" does not tie every topic (GS-05).
+        item.title = topic.title;
         item.englishTitle = item.title;
         item.breadcrumb = "Help";
-        item.keywords = HelpContent::getAliases (topic);
-        item.keywords.add (topic.title);
+        item.synonyms = HelpContent::getAliases (topic);   // an alias is another name (2)
         item.keywords.add (topic.id);
 
         out.push_back (std::move (item));

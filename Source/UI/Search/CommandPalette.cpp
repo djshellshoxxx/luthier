@@ -257,6 +257,11 @@ void CommandPalette::open (const juce::String& initialText)
 {
     focusBeforeOpen = juce::Component::getCurrentlyFocusedComponent();
 
+    // Without a desktop peer nothing holds real focus; what search last asked
+    // to focus stands in for it, so closing still returns there.
+    if (focusBeforeOpen == nullptr)
+        focusBeforeOpen = navigator.getLastFocusRequest();
+
     setVisible (true);
     toFront (false);
     updateLayout();
@@ -272,7 +277,7 @@ void CommandPalette::open (const juce::String& initialText)
     updatingField = false;
 
     rebuildRows();
-    field.grabKeyboardFocus();
+    navigator.requestFocus (&field);
 
     startTimerHz (10);
     announce (SearchCatalog::text ("search.announce.open"));
@@ -294,8 +299,8 @@ void CommandPalette::close (bool restoreFocus)
     setVisible (false);
 
     // accessibility 1: focus goes back where it was.
-    if (restoreFocus && focusBeforeOpen != nullptr && focusBeforeOpen->isShowing())
-        focusBeforeOpen->grabKeyboardFocus();
+    if (restoreFocus && focusBeforeOpen != nullptr)
+        navigator.requestFocus (focusBeforeOpen);
 }
 
 void CommandPalette::visibilityChanged()
@@ -306,8 +311,21 @@ void CommandPalette::visibilityChanged()
 
 void CommandPalette::setQuery (const juce::String& text)
 {
-    field.setText (text, juce::sendNotificationSync);
+    // A copy: `text` may be a row's, and the rows are rebuilt below.
+    const juce::String query (text.substring (0, SearchMatcher::kMaxQueryLength));
+
+    // TextEditor's own change message is asynchronous; a query set from code
+    // (a recent search, did-you-mean) filters now, as typing does.
+    updatingField = true;
+    field.setText (query, false);
     field.moveCaretToEnd();
+    updatingField = false;
+
+    lastTypedMs = juce::Time::getMillisecondCounterHiRes();
+    announcePending = true;
+    pendingConfirmId.clear();
+    allowInlineId.clear();
+    rebuildRows();
 }
 
 void CommandPalette::setScope (SearchIndex::Scope newScope)

@@ -25,7 +25,7 @@ public:
             if (typed.isEmpty())
                 return;
 
-            setText ({}, juce::dontSendNotification);
+            setText ({}, false);
 
             if (onOpen)
                 onOpen (typed);

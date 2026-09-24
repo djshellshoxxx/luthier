@@ -225,6 +225,7 @@ SearchNavigator::SearchNavigator (LuthierAudioProcessorEditor& e, LuthierAudioPr
 
 SearchNavigator::~SearchNavigator()
 {
+    processor.getPresetManager().removeChangeListener (this);
     stopTimer();
     endNudgeGesture();
 }
@@ -235,6 +236,7 @@ void SearchNavigator::initialise()
     registerActions();
 
     addDefaultProviders (index, processor, this, &actions);
+    processor.getPresetManager().addChangeListener (this);
 
     // 4.1: +40 for an item visible in the current mode without switching.
     index.isVisibleNow = [this] (const SearchItem& item)
@@ -341,12 +343,21 @@ void SearchNavigator::tagSurfaces()
             SearchAnchors::tag (*c, id, {}, title);
     };
 
-    tagGroup (findFirst<SetupGroup> (adv),    "group:CHARACTER:SETUP", "Setup");
-    tagGroup (findFirst<NoiseGroups> (adv),   "group:CHARACTER:NOISE", "Noise");
-    tagGroup (findFirst<SlideGroup> (adv),    "group:CHARACTER:SLIDE", "Slide");
-    tagGroup (findFirst<SlapGroup> (adv),     "group:CHARACTER:SLAP", "Slap");
-    tagGroup (findFirst<StrumGroup> (adv),    "group:RHYTHM:STRUM", "Strum");
-    tagGroup (findFirst<BassGridGroup> (adv), "group:RHYTHM:BASS GRID", "Bass grid");
+    // The tabs' panels, not the AdvancedPanel: only the selected one is its child.
+    for (int i = 0; i < adv.getNumWorkspaceTabs(); ++i)
+    {
+        auto* panel = adv.getWorkspacePanel (i);
+
+        if (panel == nullptr)
+            continue;
+
+        tagGroup (findFirst<SetupGroup> (*panel),    "group:CHARACTER:SETUP", "Setup");
+        tagGroup (findFirst<NoiseGroups> (*panel),   "group:CHARACTER:NOISE", "Noise");
+        tagGroup (findFirst<SlideGroup> (*panel),    "group:CHARACTER:SLIDE", "Slide");
+        tagGroup (findFirst<SlapGroup> (*panel),     "group:CHARACTER:SLAP", "Slap");
+        tagGroup (findFirst<StrumGroup> (*panel),    "group:RHYTHM:STRUM", "Strum");
+        tagGroup (findFirst<BassGridGroup> (*panel), "group:RHYTHM:BASS GRID", "Bass grid");
+    }
 }
 
 void SearchNavigator::registerActions()
@@ -593,6 +604,14 @@ bool SearchNavigator::isLiveMode() const
     return processor.isLiveMode();
 }
 
+void SearchNavigator::requestFocus (juce::Component* c)
+{
+    lastFocusRequest = c;
+
+    if (c != nullptr)
+        c->grabKeyboardFocus();
+}
+
 void SearchNavigator::announce (const juce::String& text)
 {
     if (text.isEmpty())
@@ -623,16 +642,31 @@ void SearchNavigator::rebuildControlMap()
     controlMapChangeCount = LiveControls::getChangeCount();
 }
 
+bool SearchNavigator::isWorkspacePanel (const juce::Component* c) const
+{
+    auto& adv = editor.advancedPanel;
+
+    for (int i = 0; i < adv.getNumWorkspaceTabs(); ++i)
+        if (adv.getWorkspacePanel (i) == c)
+            return true;
+
+    return false;
+}
+
 bool SearchNavigator::belongsToEditor (juce::Component& c) const
 {
     if (editor.isParentOf (&c))
         return true;
 
-    // An overlay that is not up has no parent; a popover is its own window.
+    // An overlay that is not up has no parent, nor has a workspace tab that
+    // is not selected (the viewport holds one panel); a popover is its own window.
     auto* top = &c;
 
     while (top->getParentComponent() != nullptr)
         top = top->getParentComponent();
+
+    if (isWorkspacePanel (top))
+        return true;
 
     if (dynamic_cast<OverlayPanel*> (top) != nullptr)
         for (auto* o : std::initializer_list<juce::Component*> { &editor.optionsPanel, &editor.presetBrowser, &editor.helpPanel,
@@ -686,10 +720,23 @@ OverlayPanel* SearchNavigator::overlayNamed (const juce::String& name) const
     return nullptr;
 }
 
+bool SearchNavigator::canShowPopovers() const
+{
+    // A popover is its own desktop window (a CallOutBox), which needs the
+    // editor on screen; without one (a test with no desktop peer) the
+    // canonical Advanced control is used instead.
+    return editor.isShowing();
+}
+
 SearchNavigator::Mode SearchNavigator::modeOf (juce::Component& c) const
 {
     if (editor.easyPanel.isParentOf (&c))     return Mode::easy;
     if (editor.advancedPanel.isParentOf (&c)) return Mode::advanced;
+
+    for (auto* p = &c; p != nullptr; p = p->getParentComponent())
+        if (isWorkspacePanel (p))
+            return Mode::advanced;
+
     return Mode::either;
 }
 
@@ -730,7 +777,7 @@ juce::Component* SearchNavigator::chooseControl (const juce::String& parameterId
 
     // A control that exists only in the other mode, while this mode has a
     // popover that holds it (the headstock, a rack slot), stays in this mode.
-    if (bestRank >= 20 && current == Mode::easy
+    if (bestRank >= 20 && current == Mode::easy && canShowPopovers()
           && ! ParameterLocations::popoverLocationFor (parameterId, processor).isEmpty())
         return nullptr;
 
@@ -886,8 +933,9 @@ bool SearchNavigator::switchModeFor (Mode wanted, const juce::String& name, bool
     const auto* binding = AccessibilitySettings::get().findShortcut ("toggleAdvanced");
     const auto key = binding != nullptr && binding->key.isValid() ? binding->key.getTextDescription() : juce::String ("Tab");
 
-    editor.inlineNotice.show (SearchCatalog::text (wanted == Mode::advanced ? "search.switchedToAdvanced" : "search.switchedToEasy",
-                                                   { { "name", name }, { "key", key } }));
+    lastNotice = SearchCatalog::text (wanted == Mode::advanced ? "search.switchedToAdvanced" : "search.switchedToEasy",
+                                      { { "name", name }, { "key", key } });
+    editor.inlineNotice.show (lastNotice);
     editor.resized();
     return true;
 }
@@ -943,7 +991,7 @@ void SearchNavigator::focusAndHighlight (juce::Component& control, juce::Rectang
     if (inner != nullptr)
     {
         inner->setWantsKeyboardFocus (true);
-        inner->grabKeyboardFocus();
+        requestFocus (inner);
     }
 
     last.focused = inner;
@@ -1037,7 +1085,7 @@ SearchNavigator::Outcome SearchNavigator::goToParameterControl (const SearchItem
         // A control that exists only when its popover is open (3.2).
         const auto location = ParameterLocations::popoverLocationFor (id, processor);
 
-        if (! location.isEmpty() && ! editor.advancedMode)
+        if (! location.isEmpty() && ! editor.advancedMode && canShowPopovers())
         {
             for (const auto& step : location.steps)
                 runStep (step);
@@ -1121,6 +1169,18 @@ void SearchNavigator::pumpPending()
     pending = p;
 }
 
+void SearchNavigator::changeListenerCallback (juce::ChangeBroadcaster*)
+{
+    if (palette->isOpen())
+        palette->refresh();
+}
+
+std::vector<juce::Component*> SearchNavigator::getOwnedOverlays() const
+{
+    return { &editor.optionsPanel, &editor.presetBrowser, &editor.helpPanel, &editor.exportPanel, &editor.chordPanel,
+             &editor.debugPanel, &editor.saveAsPanel, &editor.workshopOverlay, &editor.secretPanel };
+}
+
 void SearchNavigator::timerCallback()
 {
     pumpPending();
@@ -1159,7 +1219,7 @@ bool SearchNavigator::runStep (const LocationStep& step)
                 return adv.revealColumnSection (name);
 
             if (kind == "group")
-                if (auto* group = SearchAnchors::findPlace (adv, "group:" + name))
+                if (auto* group = SearchAnchors::findPlace (*editor.advancedPanel.getWorkspacePanel (adv.getWorkspaceTab()), "group:" + name))
                 {
                     scrollIntoView (*group);
                     return group->isVisible();
@@ -1303,6 +1363,13 @@ SearchNavigator::Outcome SearchNavigator::goToPlace (const SearchItem& item, boo
     const auto placeTag = item.id.fromFirstOccurrenceOf ("place:", false, false);
     juce::Component* target = SearchAnchors::findPlace (editor, placeTag);
     juce::Rectangle<int> area;
+
+    for (int i = 0; target == nullptr && i < editor.advancedPanel.getNumWorkspaceTabs(); ++i)
+        if (auto* panel = editor.advancedPanel.getWorkspacePanel (i))
+            target = SearchAnchors::findPlace (*panel, placeTag);
+
+    if (placeTag == "overlay:workshop" && editor.advancedMode)
+        target = workshopPanelShown();
 
     if (target == nullptr)
         for (auto* o : { overlayNamed ("options"), overlayNamed ("presetBrowser"), overlayNamed ("help"), overlayNamed ("export"),
@@ -1776,7 +1843,7 @@ bool SearchNavigator::openSetting (const SearchItem& item)
             {
                 scrollIntoView (*c);
                 c->setWantsKeyboardFocus (true);
-                c->grabKeyboardFocus();
+                requestFocus (c);
                 highlighter.flash (c);
                 last.focused = c;
                 last.control = c;
@@ -1838,6 +1905,7 @@ void SearchNavigator::postNotice (const juce::String& text)
     if (text.isEmpty())
         return;
 
+    lastNotice = text;
     editor.inlineNotice.show (text);
     editor.resized();
 }

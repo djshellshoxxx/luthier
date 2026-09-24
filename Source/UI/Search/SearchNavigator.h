@@ -85,7 +85,8 @@ private:
 //==============================================================================
 class SearchNavigator : public SearchServices,
                         public SearchContext,
-                        private juce::Timer
+                        private juce::Timer,
+                        private juce::ChangeListener
 {
 public:
     SearchNavigator (LuthierAudioProcessorEditor& editor, LuthierAudioProcessor& processor);
@@ -190,9 +191,21 @@ public:
     /** Replaces the MIDI OUT export's file chooser, so tests do not open one. */
     std::function<void()> onExportMidiPressed;
 
+    /** Gives a component keyboard focus, and remembers that it was asked
+        for: a window with no desktop peer (the tests, under xvfb) cannot take
+        focus, so the request is what they check. */
+    void requestFocus (juce::Component* c);
+    juce::Component* getLastFocusRequest() const noexcept { return lastFocusRequest.getComponent(); }
+
     /** Every announcement the palette or navigator made (14, GS-36). */
     std::function<void (const juce::String&)> onAnnouncement;
     void announce (const juce::String& text);
+
+    /** The overlays this editor owns, tagged "overlay:<name>" (GS-03). */
+    std::vector<juce::Component*> getOwnedOverlays() const;
+
+    /** The last notice search put in the window's notice strip. */
+    const juce::String& getLastNotice() const noexcept { return lastNotice; }
 
     /** Commands with no key, run by LuthierAudioProcessorEditor::performAction. */
     bool performExtendedAction (const juce::String& actionId);
@@ -226,10 +239,15 @@ public:
 private:
     void timerCallback() override;
 
+    /** 12: a preset load (host, program change) re-runs the open palette's query. */
+    void changeListenerCallback (juce::ChangeBroadcaster*) override;
+
     void tagSurfaces();
     void registerActions();
 
     bool belongsToEditor (juce::Component& c) const;
+    bool canShowPopovers() const;
+    bool isWorkspacePanel (const juce::Component* c) const;
     bool isOnScreen (juce::Component& c) const;
     OverlayPanel* overlayContaining (juce::Component& c) const;
     OverlayPanel* overlayNamed (const juce::String& name) const;
@@ -259,7 +277,9 @@ private:
     std::unique_ptr<CommandPalette> palette;
 
     LastNavigation last;
-    juce::String footerMessage;   ///< the last showFooterMessage, for activate()'s outcome
+    juce::Component::SafePointer<juce::Component> lastFocusRequest;
+    juce::String footerMessage;
+    juce::String lastNotice;   ///< the last showFooterMessage, for activate()'s outcome
 
     /** A navigation waiting for a popover or a group to appear. */
     struct Pending

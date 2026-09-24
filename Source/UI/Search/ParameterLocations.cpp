@@ -37,7 +37,7 @@ const std::vector<Row>& rows()
 
         // slide-technique-controls / gui-integration 7: the SLIDE group shows
         // only in Slide Mode.
-        { "slide_pressure|slide_slant|slide_damping_behind|slide_intonation_assist|slide_noise_amount|slide_clank_amount",
+        { "slide_mode|slide_pressure|slide_slant|slide_damping_behind|slide_intonation_assist|slide_noise_amount|slide_clank_amount",
           {}, Gate::slideMode, {} },
 
         // string-slap-technique / bass-techniques: SLAP and the bass grid show
