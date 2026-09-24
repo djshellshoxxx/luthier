@@ -1336,6 +1336,21 @@ void ParameterBridge::applyToEngine() noexcept
         shape.advanced = shape.tensionMod > 1.5 || shape.attackTransient > 1.0 || shape.fastShare > 0.9;
         engine.setSustainShape (shape);
     }
+
+    // tuning-stability.md 4.
+    {
+        StabilitySettings st;
+        st.amount      = value (ParamIDs::stabilityAmount);
+        st.settling    = value (ParamIDs::stabilitySettling);
+        st.nutBinding  = value (ParamIDs::stabilityNutBinding);
+        st.backlash    = value (ParamIDs::stabilityBacklash);
+        st.saddleCreep = value (ParamIDs::stabilitySaddleCreep);
+        st.bendMemory  = value (ParamIDs::stabilityBendMemory);
+        st.capoBias    = value (ParamIDs::stabilityCapoBias);
+        st.autoRetune  = (AutoRetune) juce::jlimit (0, (int) AutoRetune::numModes - 1,
+                                                    (int) value (ParamIDs::stabilityAutoRetune));
+        engine.getStabilityModel().setSettings (st);
+    }
     // ==== END REALISM-C params ====
 
     // ---- structural change detection ---------------------------------------------
@@ -1634,6 +1649,12 @@ void ParameterBridge::applyStructural()
 
     // Anything that depends on the string physics has to be recomputed last.
     engine.refreshStringPhysics();
+
+    // ==== BEGIN REALISM-C params ====
+    // tuning-stability.md 7: a preset's own tuning changes are applied by now;
+    // later ones are the player's, and events again.
+    engine.getStabilityModel().endStructuralApply();
+    // ==== END REALISM-C params ====
 }
 
 } // namespace luthier

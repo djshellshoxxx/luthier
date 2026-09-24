@@ -97,6 +97,7 @@ void TuningEngine::reset() noexcept
     {
         s.driftCents = 0.0;
         s.characterDriftCents = 0.0;
+        s.stabilityCents = 0.0;   // tuning-stability.md 5
     }
 }
 
@@ -153,6 +154,22 @@ void TuningEngine::setCharacterDriftCents (int stringIndex, double cents) noexce
 {
     if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
         strings[(size_t) stringIndex].characterDriftCents = juce::jlimit (-50.0, 50.0, cents);
+}
+
+void TuningEngine::setStabilityCents (int stringIndex, double cents) noexcept
+{
+    if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
+        strings[(size_t) stringIndex].stabilityCents = juce::jlimit (-200.0, 200.0, cents);
+}
+
+void TuningEngine::clearDrift (int stringIndex) noexcept
+{
+    // tuning-stability.md 3: the walk restarts from in tune on this string.
+    if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
+    {
+        strings[(size_t) stringIndex].driftCents = 0.0;
+        driftTargets[(size_t) stringIndex] = 0.0;
+    }
 }
 
 void TuningEngine::setFineTuneCents (int stringIndex, double cents) noexcept
@@ -294,7 +311,8 @@ double TuningEngine::getOpenFrequencyBeforeCapo (int stringIndex) const noexcept
 {
     const auto& s = getStringTuning (stringIndex);
     const double cents = s.detuneCents + s.realismDetuneCents + s.driftCents
-                           + s.fineTuneCents + s.characterDriftCents;
+                           + s.fineTuneCents + s.characterDriftCents
+                           + s.stabilityCents;   // tuning-stability.md 1
     return s.openFrequencyHz * centsToRatio (cents);
 }
 

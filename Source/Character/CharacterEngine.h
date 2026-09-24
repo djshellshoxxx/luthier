@@ -132,6 +132,9 @@ public:
     /** character-wear 9: back to zero, and drifting again from there. */
     void retune() noexcept;
 
+    /** tuning-stability.md 3: Retune string n clears that string's drift only. */
+    void retuneString (int stringIndex) noexcept;
+
     /** How long the instrument has been "played" since the last retune. */
     double getSessionSeconds() const noexcept { return sessionSeconds; }
 

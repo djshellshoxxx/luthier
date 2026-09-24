@@ -84,6 +84,8 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     scrapeMidi.ensureSize (8192);
     techniqueMidi.ensureSize (8192);
     slap.prepare (sr);
+    stability.prepare (sr);                       // tuning-stability.md 5
+    stability.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)) ^ 0x57AB1Eu);
     noiseFloor.prepare (sr, maxBlock);            // noise-floor.md 4
     noiseFloor.setSeed (character.getSeed());
     slapBodyDrive.assign ((size_t) maxBlock, 0.0);
@@ -141,6 +143,7 @@ void LuthierEngine::reset() noexcept
     slap.reset();
     noiseFloor.setSeed (character.getSeed());     // noise-floor.md 0.3: reset reseeds
     noiseFloor.reset();
+    stability.reset();                            // tuning-stability.md 0.4
     techniqueTriggers.reset();
     scrapeWasActive.fill (false);
     ebowWasDriving.fill (false);
@@ -280,6 +283,13 @@ void LuthierEngine::setGuitarType (GuitarType type)
 
     hasPartsOverride = false;
     partsSustain = fretBrightnessFactor = nutBrightnessFactor = magnetSustain = 1.0;
+
+    // tuning-stability.md 5: a compiled guitar's hardware - modern sealed
+    // tuners, a bone nut (a Floyd's locking nut follows from the bridge).
+    partsTunerRatio = 18.0;
+    partsTunerStability = 0.85;
+    partsTunerLocking = false;
+    partsNutFriction = 0.35;
     magnetDetuneCents = 0.0;
 
     applySpec();
@@ -306,6 +316,12 @@ void LuthierEngine::applyWorkshopGuitar (const DerivedAcoustics& d, GuitarType s
     }
 
     partsSustain = d.sustainScale;
+
+    // tuning-stability.md 1: the tuners' and the nut's fields.
+    partsTunerRatio = d.tunerRatio;
+    partsTunerStability = d.tunerStability;
+    partsTunerLocking = d.tunerLocking;
+    partsNutFriction = d.nutFriction;
 
     // part-acoustics.md 4, against the reference parts - nickel-silver frets,
     // a bone nut - so a guitar of reference parts sounds as a compiled one does.
@@ -458,6 +474,23 @@ void LuthierEngine::rebuildPickupsFromSpec()
 //==============================================================================
 void LuthierEngine::setTuningPreset (TuningPreset preset)
 {
+    // tuning-stability.md 5: what each string was before, for the events.
+    std::array<double, kMaxStrings> before {};
+
+    for (int i = 0; i < kMaxStrings; ++i)
+        before[(size_t) i] = getStabilityBasePitch (i);
+
+    const auto report = [this, &before]
+    {
+        for (int i = 0; i < numStrings; ++i)
+        {
+            const double now = getStabilityBasePitch (i);
+
+            if (before[(size_t) i] > 0.0 && now != before[(size_t) i])
+                stability.onTuningChanged (i, before[(size_t) i], now);
+        }
+    };
+
     // A 12-string's preset names its six courses; the pairs are rebuilt from it
     // rather than the guitar collapsing to the preset's six strings.
     if (spec.twelveString && TuningEngine::getPresetStringCount (preset) == 6)
@@ -465,6 +498,7 @@ void LuthierEngine::setTuningPreset (TuningPreset preset)
         spec.tuning = preset;
         applyTwelveStringTuning();
         refreshStringPhysics();
+        report();
         return;
     }
 
@@ -477,6 +511,7 @@ void LuthierEngine::setTuningPreset (TuningPreset preset)
         tuning.setMaxFrets (i, spec.maxFrets);
 
     refreshStringPhysics();
+    report();
 }
 
 void LuthierEngine::applyTwelveStringTuning()
@@ -512,6 +547,10 @@ void LuthierEngine::setStringGauge (StringGauge g)
 
 void LuthierEngine::setStringAge (StringAge a)
 {
+    // tuning-stability.md 2.1: a new set of strings starts stretching again.
+    if (a != stringAge)
+        stability.setStringAge (a);
+
     stringAge = a;
     refreshStringPhysics();
 }
@@ -572,6 +611,98 @@ void LuthierEngine::refreshStringPhysics()
             tuning.setFineTuneCents (i, r.nextBipolar() * s.ageDetuneCents);
         }
     }
+
+    refreshStabilityHardware();   // tuning-stability.md 5
+}
+
+//==============================================================================
+double LuthierEngine::getStabilityBasePitch (int i) const noexcept
+{
+    if (! juce::isPositiveAndBelow (i, kMaxStrings))
+        return 0.0;
+
+    const auto& t = tuning.getStringTuning (i);
+    return t.openFrequencyHz * centsToRatio (t.detuneCents + t.fineTuneCents);
+}
+
+void LuthierEngine::setCapoHardware (double pressure, double gapMm) noexcept
+{
+    capoPressure = juce::jlimit (0.0, 1.0, pressure);
+    capoGapMm = juce::jlimit (0.5, 20.0, gapMm);
+    refreshStabilityHardware();
+}
+
+void LuthierEngine::refreshStabilityHardware() noexcept
+{
+    // tuning-stability.md 5: the parts' figures and each string's EA/T.
+    TuningHardware hw;
+    hw.tunerRatio = partsTunerRatio;
+    hw.tunerStability = partsTunerStability;
+    hw.tunerLocking = partsTunerLocking;
+    hw.nutFriction = partsNutFriction;
+    hw.bridge = whammy.getBridgeType();
+    hw.acoustic = spec.category == GuitarCategory::Acoustic;
+    hw.capoPressure = capoPressure;
+    hw.capoGapMm = capoGapMm;
+    hw.fretHeightMm = requestedSetup.fretHeight > 0.0 ? requestedSetup.fretHeight : 1.0;
+    hw.scaleLengthMm = spec.scaleLengthMm;
+    hw.material = spec.stringMaterial;
+    hw.numStrings = numStrings;
+
+    const double youngs = StringMaterials::get (spec.stringMaterial).youngsModulusPa;
+
+    for (int i = 0; i < numStrings; ++i)
+    {
+        const auto& s = stringSpecs[(size_t) i];
+        const double core = s.coreDiameterMm * 0.001;
+        const double ea = youngs * constants::kPi * 0.25 * core * core;
+        hw.tensionN[(size_t) i] = s.tensionNewtons;
+        hw.eaOverT[(size_t) i] = s.tensionNewtons > 0.0 ? ea / s.tensionNewtons : 0.0;
+        hw.openHz[(size_t) i] = getStabilityBasePitch (i);
+    }
+
+    stability.setHardware (hw);
+}
+
+void LuthierEngine::runStability (int numSamples) noexcept
+{
+    // tuning-stability.md 5: once per block, before the frequency loop.
+    if (stabilityBypassed)
+        return;
+
+    std::array<double, kMaxStrings> levels {}, bends {}, whammyCents {};
+    std::array<int, kMaxStrings> capo {};
+
+    for (int s = 0; s < numStrings; ++s)
+    {
+        levels[(size_t) s] = strings[(size_t) s].getLevel();
+        bends[(size_t) s] = midi.getStringBendCents (s);
+        whammyCents[(size_t) s] = whammy.getCentOffset (s);
+        capo[(size_t) s] = tuning.getCapoFretFor (s);
+    }
+
+    StabilityModel::BlockInput in;
+    in.numSamples = numSamples;
+    in.levels = levels.data();
+    in.bendCents = bends.data();
+    in.whammyCents = whammyCents.data();
+    in.capoFret = capo.data();
+    in.transportPlaying = hostPlaying;
+
+    const auto out = stability.advance (in, tuning);
+
+    // 3: a retune clears the drift walk and the character engine's tuner drift.
+    for (int s = 0; s < numStrings; ++s)
+        if ((out.retunedMask >> s) & 1u)
+        {
+            tuning.clearDrift (s);
+
+            if (! out.retunedAll)
+                character.retuneString (s);
+        }
+
+    if (out.retunedAll)
+        character.retune();
 }
 
 //==============================================================================
@@ -754,6 +885,9 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     // noise-floor.md 2.4: a note-on rolls for a cable event.
     if (! noiseFloorBypassed)
         noiseFloor.onNoteOn (e.velocity);
+
+    // tuning-stability.md 2.2 / 2.3: the nut's ping and the backlash.
+    stability.onPluck (s, e.velocity);
 
     // Routing-io 6: what is actually ringing, at the sample it started.
     stringActivity.push ({ activeSampleOffset, s, e.midiNote, (float) e.velocity, true });
@@ -1079,7 +1213,11 @@ void LuthierEngine::playSlapStrike (const SlapStrike& strike, double pitchHz, do
 //==============================================================================
 void LuthierEngine::setSetupGeometry (const SetupGeometry& geometry) noexcept
 {
+    const bool fretHeightMoved = geometry.fretHeight != requestedSetup.fretHeight;
     requestedSetup = geometry;
+
+    if (fretHeightMoved)
+        refreshStabilityHardware();   // tuning-stability.md 2.6: the capo's h
 
     auto g = geometry;
     g.scaleLengthMm = spec.scaleLengthMm;
@@ -1223,6 +1361,8 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
 {
     whammy.setPosition (midi.getWhammyPosition());
     whammy.updateBlock (numSamples);
+
+    runStability (numSamples);   // tuning-stability.md 5
 
     // string-scraping.md 2: while the mod wheel or aftertouch sweeps a scrape,
     // it is the pick's, not the vibrato's.

@@ -519,6 +519,7 @@ void NoiseFloor::beginBlock (int numSamples, double singleCoilShare, const Circu
     const double humRms = humForMeter * 0.0022 * shareNow * posGain * 0.757 * kMagneticPathGain;
     const double total = sumSq / juce::jmax (1, n) + humRms * humRms;
     meterDb.store (gainToDb (std::sqrt (total) / kReferencePluckPeak), std::memory_order_relaxed);
+    meterUpdates.fetch_add (1, std::memory_order_relaxed);
 }
 
 void NoiseFloor::pushAmpOutput (const double* data, int numSamples) noexcept

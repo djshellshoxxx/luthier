@@ -138,6 +138,9 @@ public:
     /** Summed noise-floor RMS in dB re the reference-pluck peak, last block. */
     double getMeterDb() const noexcept { return meterDb.load (std::memory_order_relaxed); }
 
+    /** Blocks the meter was updated in; it stops moving while idle. */
+    juce::uint32 getMeterUpdates() const noexcept { return meterUpdates.load (std::memory_order_relaxed); }
+
     /** Monotonic count of cable events started, for the UI and NF-10. */
     int getCableEventCount() const noexcept { return cableEvents; }
 
@@ -238,6 +241,7 @@ private:
     // --- meter --------------------------------------------------------------------
     double humForMeter = 0.0, shareNow = 0.0;
     std::atomic<double> meterDb { -240.0 };
+    std::atomic<juce::uint32> meterUpdates { 0 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NoiseFloor)
 };

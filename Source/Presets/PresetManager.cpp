@@ -2,6 +2,7 @@
 #include "FactoryPresets.h"
 #include "../Support/IrLibrary.h"
 #include "../Support/ErrorLog.h"
+#include "../UI/UiPreferences.h"   // REALISM-C
 
 namespace luthier
 {
@@ -714,6 +715,11 @@ bool PresetManager::fromVar (const juce::var& data)
     if (onGuitarBlockLoaded != nullptr)
         onGuitarBlockLoaded (obj->getProperty ("guitar"));
 
+    // tuning-stability.md 7 (REALISM-C): sigma from the preset's string age,
+    // capoComp cleared, every offset cleared.
+    if (auto* age = dynamic_cast<juce::AudioParameterChoice*> (apvts.getParameter (ParamIDs::stringAge)))
+        engine.getStabilityModel().beginPresetLoad ((StringAge) juce::jlimit (0, (int) StringAge::NumAges - 1, age->getIndex()));
+
     currentName = obj->getProperty ("name").toString();
     currentCategory = obj->getProperty ("category").toString();
 
@@ -1089,6 +1095,21 @@ bool PresetManager::exportPreset (const juce::File& destination)
 }
 
 //==============================================================================
+bool PresetManager::defaultMainsRegionIs50Hz()
+{
+    // noise-floor.md 3: Auto from the OS region, or the user's 50 / 60.
+    const int pref = UiPreferences::get().getInt ("defaultMainsRegion", 0);
+
+    if (pref == 1) return true;
+    if (pref == 2) return false;
+
+    static const juce::StringArray sixtyHz { "US", "CA", "MX", "BR", "CO", "VE", "KR", "TW", "PH", "SA",
+                                             "CR", "PA", "GT", "HN", "NI", "SV", "DO", "PR", "CU", "EC",
+                                             "PE", "JP", "LR", "BS", "BZ", "GU", "AS", "TT" };
+    const auto region = juce::SystemStats::getUserRegion().toUpperCase();
+    return region.isNotEmpty() && ! sixtyHz.contains (region);
+}
+
 void PresetManager::resetToDefaults()
 {
     for (auto* p : processor.getParameters())
@@ -1107,6 +1128,11 @@ void PresetManager::resetToDefaults()
 
     engine.getMidiInterpreter().resetCcMapToDefaults();
     applyExtraState();
+
+    // noise-floor.md 3 (REALISM-C): the user's default mains region seeds an
+    // Init preset. A loaded preset keeps its own.
+    if (auto* mains = apvts.getParameter (ParamIDs::noiseMainsHz))
+        mains->setValueNotifyingHost (mains->convertTo0to1 (defaultMainsRegionIs50Hz() ? 1.0f : 0.0f));
 
     // The default guitar type's factory guitar, as shipped, under the defaults.
     if (onGuitarBlockLoaded != nullptr)

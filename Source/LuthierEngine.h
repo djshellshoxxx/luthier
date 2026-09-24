@@ -21,6 +21,7 @@
 #include "DSP/Noise/FretBuzz.h"
 #include "DSP/Noise/ScrapeEngine.h"
 #include "DSP/Noise/NoiseFloor.h"   // noise-floor.md
+#include "Model/Playing/StabilityModel.h"   // tuning-stability.md
 #include "DSP/Slap/SlapEngine.h"
 #include "Model/Playing/TechniqueTriggers.h"
 #include "DSP/Slide/SlideEngine.h"
@@ -226,6 +227,19 @@ public:
         for (auto& str : strings)
             str.setShapeBypassedForTest (b);
     }
+
+    /** tuning-stability.md 5: the event-driven tuning offsets and the retunes. */
+    StabilityModel& getStabilityModel() noexcept { return stability; }
+    const StabilityModel& getStabilityModel() const noexcept { return stability; }
+
+    /** 2.6: the capo part's pressure and gap (message thread). */
+    void setCapoHardware (double pressure, double gapMm) noexcept;
+
+    /** TS-01's test hook: the model removed from the block entirely. */
+    void setStabilityBypassedForTest (bool b) noexcept { stabilityBypassed = b; }
+
+    /** The open pitch a stability event compares: open, detune and fine tune. */
+    double getStabilityBasePitch (int stringIndex) const noexcept;
 
     /** NF-01's test hook: the render with the module removed entirely. */
     void setNoiseFloorBypassedForTest (bool b) noexcept { noiseFloorBypassed = b; }
@@ -523,6 +537,15 @@ private:
     // sustain-and-decay.md 7, and 3's clock restart when the E-Bow engages.
     StringEngine::SustainShape sustainShape;
     std::array<bool, kMaxStrings> ebowWasDriving {};
+
+    // tuning-stability.md 5.
+    StabilityModel stability;
+    bool stabilityBypassed = false;
+    double partsTunerRatio = 18.0, partsTunerStability = 0.85, partsNutFriction = 0.35;
+    bool partsTunerLocking = false;
+    double capoPressure = 0.7, capoGapMm = 6.0;
+    void refreshStabilityHardware() noexcept;
+    void runStability (int numSamples) noexcept;
 
     /*  string-scraping.md 3: after the MIDI, before the strings. Its keyswitches
         come out of the MIDI (into scrapeMidi) before the rhythm engine and the
