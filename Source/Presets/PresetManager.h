@@ -189,6 +189,9 @@ public:
     ExtraState& getExtraState() noexcept { return extra; }
     const ExtraState& getExtraState() const noexcept { return extra; }
 
+    /** Sets the extra state to its defaults (does not push it). */
+    void resetExtraState();
+
     /** Pushes the extra state into the engine. */
     void applyExtraState();
 

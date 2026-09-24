@@ -201,6 +201,7 @@ private:
         double velocity = 0.8;
         int64_t timestamp = 0;
         bool used = false;
+        int64_t releasedAt = -1;   ///< note-off seen while still waiting, or -1
     };
 
     struct StringSlot

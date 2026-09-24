@@ -58,6 +58,9 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 {
     FactoryPresets::setProcessorForRanges (this);
 
+    for (int m = 0; m < ParamIDs::kNumMacros; ++m)
+        macroValues[(size_t) m] = apvts.getRawParameterValue (ParamIDs::macroByIndex (m));
+
     // guitar-workshop.md 0.6: a guitar type loads its factory guitar file.
     partLibrary.refresh();
 
@@ -185,6 +188,10 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     for (auto* tuneBuffer : { &tuneToEngine, &tuneToMidiOut, &tuneDirect })
         tuneBuffer->ensureSize (TunePlayer::kRecommendedMidiBytes);
+
+    sliceMidi.ensureSize (8192);
+    sliceMidiOut.ensureSize (8192);
+    liveMidiKept.ensureSize (8192);
     captureStringCount = -1;   // re-sent at the next drain
     diagnostics.prepare (sampleRate);
 
@@ -977,6 +984,42 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     juce::ScopedNoDenormals noDenormals;
 
     const int numSamples = buffer.getNumSamples();
+    const int maxSlice = juce::jmax (1, currentBlockSize);
+
+    if (numSamples <= maxSlice)
+    {
+        processSlice (buffer, midiMessages);
+        return;
+    }
+
+    // Bigger than prepareToPlay promised: rendered in slices, each slice's MIDI
+    // at its own offset, and what each slice leaves in its MIDI buffer (the MIDI
+    // out) put back at the slice's place in the host block.
+    sliceMidiOut.clear();
+
+    for (int offset = 0; offset < numSamples;)
+    {
+        const int count = juce::jmin (maxSlice, numSamples - offset);
+
+        // A view onto the host's memory: this constructor does not allocate.
+        juce::AudioBuffer<float> slice (buffer.getArrayOfWritePointers(),
+                                        buffer.getNumChannels(), offset, count);
+
+        sliceMidi.clear();
+        sliceMidi.addEvents (midiMessages, offset, count, -offset);
+
+        processSlice (slice, sliceMidi);
+
+        sliceMidiOut.addEvents (sliceMidi, 0, count, offset);
+        offset += count;
+    }
+
+    midiMessages.swapWith (sliceMidiOut);
+}
+
+void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+{
+    const int numSamples = buffer.getNumSamples();
 
     // ---- routing, before anything reads or writes audio -----------------------
     routing.setActiveLayout (getNegotiatedLayout());
@@ -1016,16 +1059,24 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         midiOutRouter.captureInput (midiMessages);
 
     // Host tempo, for tempo-synced delays and tremolo.
+    bool hostPlaying = false;
+
     if (auto* playHead = getPlayHead())
     {
         if (auto position = playHead->getPosition())
         {
             if (auto bpm = position->getBpm())
                 hostTempo.store (*bpm);
+
+            hostPlaying = position->getIsPlaying();
         }
     }
 
-    engine.setTempoBpm (hostTempo.load());
+    // live-performance 5: a tapped tempo wins while the host is stopped (or the
+    // plugin is off the host's clock). Setting only the host's tempo here
+    // overwrote the tap on the very next block.
+    blockTempo = tapTempo.getEffectiveBpm (hostTempo.load(), hostPlaying);
+    engine.setTempoBpm (blockTempo);
 
     // The rhythm engine's grid is locked to the host's own position, which is
     // what makes its scheduling sample-accurate rather than merely periodic.
@@ -1191,6 +1242,22 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         for (auto& slot : cabIr)
             slot.process (mainOut.getArrayOfWritePointers(),
                           mainOut.getNumChannels(), numSamples);
+
+        // tone-match 4: the capture takes what the plugin produced, or the
+        // reference return on the sidechain. It was never fed, so every
+        // tone-match wizard waited at "Recording..." for ever.
+        if (capture.isRecording())
+        {
+            if (capture.getSource() == Capture::Source::sidechain)
+            {
+                if (hasSidechainInput() && sidechainChannels > 0 && sidechainSamples >= numSamples)
+                    capture.processBlock (sidechainCopy.getArrayOfReadPointers(), sidechainChannels, numSamples);
+            }
+            else
+            {
+                capture.processBlock (mainOut.getArrayOfReadPointers(), mainOut.getNumChannels(), numSamples);
+            }
+        }
     }
 
     // ---- the live surface --------------------------------------------------------
@@ -1310,8 +1377,10 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     // ---- MIDI out --------------------------------------------------------------
     // Always called: when MIDI out is off it clears the buffer, which is what
     // stops the host's own events leaking back out as an accidental echo.
-    for (int m = 0; m < 6; ++m)
-        if (auto* raw = apvts.getRawParameterValue (ParamIDs::macroByIndex (m)))
+    static_assert (MidiOutConfig::kNumMacroCcs == ParamIDs::kNumMacros, "one MIDI-out CC per macro");
+
+    for (int m = 0; m < ParamIDs::kNumMacros; ++m)
+        if (auto* raw = macroValues[(size_t) m])
             midiOutRouter.setMacroValue (m, raw->load());
 
     midiOutRouter.emit (midiMessages, midiOutConfig, engine.getStringActivity(), numSamples);
@@ -1369,7 +1438,7 @@ void LuthierAudioProcessor::feedModulationSources (const juce::MidiBuffer& midi)
     }
 
     for (int m = 0; m < ParamIDs::kNumMacros; ++m)
-        if (auto* raw = apvts.getRawParameterValue (ParamIDs::macroByIndex (m)))
+        if (auto* raw = macroValues[(size_t) m])
             modMatrix.setMacroValue (m, (double) raw->load());
 }
 
@@ -1377,7 +1446,7 @@ void LuthierAudioProcessor::buildModBlockContext (const juce::AudioBuffer<float>
                                                   int numSamples,
                                                   ModBlockContext& context) noexcept
 {
-    context.bpm = hostTempo.load();
+    context.bpm = blockTempo;
     context.positionBeats = -1.0;
     context.transportRunning = false;
 
@@ -1569,7 +1638,25 @@ void LuthierAudioProcessor::handleLiveMidi (juce::MidiBuffer& midi) noexcept
     if (midi.isEmpty())
         return;
 
-    juce::MidiBuffer kept;
+    auto isLiveControl = [] (const juce::MidiMessage& m)
+    {
+        return m.isProgramChange() || (m.isController() && m.getControllerNumber() == 0);
+    };
+
+    // Most blocks carry neither: nothing to take out, nothing to copy.
+    bool any = false;
+
+    for (const auto metadata : midi)
+        if (isLiveControl (metadata.getMessage()))
+            any = true;
+
+    if (! any)
+        return;
+
+    // A member sized in prepareToPlay: a local MidiBuffer allocated on the
+    // audio thread on every block that had MIDI.
+    auto& kept = liveMidiKept;
+    kept.clear();
 
     for (const auto metadata : midi)
     {
@@ -1716,6 +1803,7 @@ bool LuthierAudioProcessor::applyCurrentSetlistEntry()
     if (! presets.fromVar (data))
         return false;
 
+    presets.applyExtraState();   // as setStateInformation and loadPreset do
     bridge.applyAllNow();
 
     // The preset carries its own snapshot bank, so the entry's snapshot index

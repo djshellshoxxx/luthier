@@ -86,6 +86,35 @@ namespace
         return juce::MidiMessage::textMetaEvent (1, text);
     }
 
+    /** Strict UTF-8: every continuation byte is 10xxxxxx and nothing is NUL.
+        CharPointer_UTF8::isValidString accepts a lead byte followed by a NUL
+        (C3 00 passes its range check), and walking such a String reads past its
+        terminator - found by ASan on a byte-flipped file. */
+    bool isStrictUtf8 (const juce::uint8* bytes, size_t size) noexcept
+    {
+        for (size_t i = 0; i < size;)
+        {
+            const auto lead = bytes[i];
+
+            if (lead == 0)
+                return false;
+
+            const int extra = lead < 0x80 ? 0 : lead < 0xc2 ? -1 : lead < 0xe0 ? 1
+                            : lead < 0xf0 ? 2 : lead < 0xf5 ? 3 : -1;
+
+            if (extra < 0 || i + (size_t) extra >= size)
+                return false;
+
+            for (int k = 1; k <= extra; ++k)
+                if ((bytes[i + (size_t) k] & 0xc0) != 0x80)
+                    return false;
+
+            i += (size_t) extra + 1;
+        }
+
+        return true;
+    }
+
     /** A meta's text: UTF-8 when it is, Latin-1 when it is not, never an assertion. */
     juce::String readText (const juce::uint8* data, const MidiProfiles::SmfEvent& event)
     {
@@ -94,7 +123,8 @@ namespace
 
         const auto* text = reinterpret_cast<const char*> (data + event.dataOffset);
 
-        if (juce::CharPointer_UTF8::isValidString (text, (int) event.dataSize))
+        if (isStrictUtf8 (data + event.dataOffset, event.dataSize)
+              && juce::CharPointer_UTF8::isValidString (text, (int) event.dataSize))
             return juce::String::fromUTF8 (text, (int) event.dataSize);
 
         juce::String latin;

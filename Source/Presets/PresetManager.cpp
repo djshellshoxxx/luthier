@@ -726,6 +726,13 @@ bool PresetManager::fromVar (const juce::var& data)
             for (int i = 0; i < juce::jmin (a->size(), kMaxStrings); ++i)
                 extra.stringMuted[(size_t) i] = (bool) (*a)[i];
     }
+    else
+    {
+        // No block (every factory preset): the defaults, over every string, not
+        // whatever detune, gauges and temperament the last preset left.
+        resetExtraState();
+        extra.numStrings = kMaxStrings;
+    }
 
     // ---- MIDI map ----------------------------------------------------------------
     if (auto* midiMap = obj->getProperty ("midiMap").getDynamicObject())
@@ -742,6 +749,10 @@ bool PresetManager::fromVar (const juce::var& data)
                 && juce::isPositiveAndBelow (target, (int) MidiTarget::NumTargets))
                 interp.setCcTarget (cc, (MidiTarget) target);
         }
+    }
+    else
+    {
+        engine.getMidiInterpreter().resetCcMapToDefaults();   // not the last preset's map
     }
 
     // Last, so the guitar type parameter it may depend on has its new value.
@@ -1124,11 +1135,8 @@ bool PresetManager::exportPreset (const juce::File& destination)
 }
 
 //==============================================================================
-void PresetManager::resetToDefaults()
+void PresetManager::resetExtraState()
 {
-    for (auto* p : processor.getParameters())
-        p->setValueNotifyingHost (p->getDefaultValue());
-
     extra = ExtraState {};
     extra.customGaugeInches.fill (0.0);
     extra.detuneCents.fill (0.0);
@@ -1139,6 +1147,14 @@ void PresetManager::resetToDefaults()
 
     for (int i = 0; i < 12; ++i)
         extra.customTemperament[(size_t) i] = std::pow (2.0, i / 12.0);
+}
+
+void PresetManager::resetToDefaults()
+{
+    for (auto* p : processor.getParameters())
+        p->setValueNotifyingHost (p->getDefaultValue());
+
+    resetExtraState();
 
     engine.getMidiInterpreter().resetCcMapToDefaults();
     applyExtraState();

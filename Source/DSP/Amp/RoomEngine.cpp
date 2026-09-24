@@ -59,6 +59,9 @@ void RoomEngine::prepare (double sampleRate, int maxBlockSize)
     erIndex = 0;
 
     for (int i = 0; i < kFdnSize; ++i)
+        lines[i].assign ((size_t) (sr * 0.45) + 1, 0.0);   // rebuild's longest line
+
+    for (int i = 0; i < kFdnSize; ++i)
         lineDamp[i].prepare (sr);
 
     blendSmooth.prepare (sr, constants::kParamSmoothSeconds);
@@ -124,8 +127,15 @@ void RoomEngine::setRoomBlend (double blend) noexcept
 
 void RoomEngine::setDecayScale (double scale) noexcept
 {
-    decayScale = juce::jlimit (0.25, 4.0, scale);
-    rebuild();
+    const double clamped = juce::jlimit (0.25, 4.0, scale);
+
+    // Sent every block by the parameter bridge: only the loop gain depends on it,
+    // and rebuilding would clear the late reverb every block.
+    if (clamped == decayScale)
+        return;
+
+    decayScale = clamped;
+    updateFeedbackGain();
 }
 
 void RoomEngine::setWidth (double width) noexcept
@@ -181,10 +191,25 @@ void RoomEngine::rebuild()
     for (int i = 0; i < kFdnSize; ++i)
     {
         lineLengths[i] = juce::jlimit (64, (int) (sr * 0.45), (int) (primes[i] * scale));
-        lines[i].assign ((size_t) lineLengths[i], 0.0);
+
+        // Sized in prepare for the longest line, so a room change never
+        // reallocates under the audio thread.
+        if (lines[i].size() < (size_t) lineLengths[i])
+            lines[i].assign ((size_t) lineLengths[i], 0.0);
+        else
+            std::fill (lines[i].begin(), lines[i].begin() + lineLengths[i], 0.0);
+
         lineIndex[i] = 0;
         lineDamp[i].setCutoff (juce::jmin (mat.dampingHz, sr * 0.46));
     }
+
+    updateFeedbackGain();
+}
+
+void RoomEngine::updateFeedbackGain() noexcept
+{
+    const auto& room = kRooms[(size_t) juce::jlimit (0, (int) RoomSize::NumRoomSizes - 1, (int) roomSize)];
+    const auto& mat = kMaterials[(size_t) juce::jlimit (0, (int) RoomMaterial::NumMaterials - 1, (int) material)];
 
     double avgLength = 0.0;
 

@@ -829,8 +829,14 @@ void ModMatrix::processBlock (int numSamples, const ModBlockContext& context) no
                 const auto previous = targetOffsets[(size_t) route.destinationIndex]
                                         .load (std::memory_order_relaxed);
 
+                // In parameter units, so the guard is the destination's own span
+                // (eight routes at full depth plus offset), not the audio
+                // guard's +-4, which would pin a Hz or ms destination.
+                const double sum = (double) previous + contribution;
+                const double limit = 16.0 * (double) info.range;
+
                 targetOffsets[(size_t) route.destinationIndex]
-                    .store ((float) sanitise ((double) previous + contribution),
+                    .store ((float) (std::isfinite (sum) ? juce::jlimit (-limit, limit, sum) : 0.0),
                             std::memory_order_relaxed);
             }
 
@@ -887,13 +893,19 @@ float ModMatrix::apply (int parameterIndex, float baseValue) const noexcept
         // modulation-matrix 4: a discrete destination only changes when the
         // modulated position crosses an integer boundary.
         const float normalised = (value - info.minimum) / info.range;
+        // Rounded to the nearest of the numSteps positions 0 .. numSteps - 1.
         const int index = juce::jlimit (0, info.numSteps - 1,
-                                        (int) std::floor (normalised * (float) info.numSteps + 0.5f));
+                                        juce::roundToInt (normalised * (float) (info.numSteps - 1)));
 
         value = info.minimum + (float) index * (info.range / (float) juce::jmax (1, info.numSteps - 1));
     }
 
-    return juce::jlimit (info.minimum, info.maximum, (float) sanitise ((double) value));
+    // Not sanitise(): its +-4 is an audio-sample guard, and this is a value in
+    // the parameter's own units (Hz, ms, a choice index).
+    if (! std::isfinite (value))
+        value = baseValue;
+
+    return juce::jlimit (info.minimum, info.maximum, value);
 }
 
 //==============================================================================
