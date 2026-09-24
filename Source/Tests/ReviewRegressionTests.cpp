@@ -730,3 +730,15 @@ LUTHIER_TEST (ReviewRegression, resendingTheSameOversamplingFactorDoesNotReset)
 
     CHECK_MSG (maxDiff == 0.0, "diverged by " + juce::String (maxDiff));
 }
+
+/*  R-036: snapshot recall and preset morph blended integer parameters (string
+    bitmasks, CC numbers) like continuous ones, passing through unrelated masks
+    and controllers mid-fade. */
+LUTHIER_TEST (ReviewRegression, integerParametersSwitchRatherThanBlend)
+{
+    juce::AudioParameterInt mask (juce::ParameterID { "mask", 1 }, "Mask", 0, 4095, 0);
+    CHECK (SnapshotBank::isDiscrete (mask));
+
+    juce::AudioParameterFloat level (juce::ParameterID { "level", 1 }, "Level", 0.0f, 1.0f, 0.5f);
+    CHECK (! SnapshotBank::isDiscrete (level));
+}
