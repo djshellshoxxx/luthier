@@ -628,6 +628,18 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
+    // riff-library 7.1: R selects the RIFFS tab in Advanced and toggles the
+    // Riff drawer in Easy.
+    if (is ("riffs"))
+    {
+        if (advancedMode)
+            advancedPanel.setWorkspaceTabNamed ("RIFFS");
+        else
+            easyPanel.setRiffDrawerOpen (! easyPanel.isRiffDrawerOpen());
+
+        return true;
+    }
+
     if (is ("toggleAdvanced"))
     {
         setAdvancedMode (! advancedMode);

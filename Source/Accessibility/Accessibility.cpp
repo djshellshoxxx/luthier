@@ -558,6 +558,9 @@ void AccessibilitySettings::buildDefaultShortcuts()
         not exist yet; when tune-builder lands, that binding takes it and audition
         moves. */
     add ("audition",         "accessibility.shortcut.audition",         KP (KP::spaceKey));
+
+    // riff-library 7.1: R opens the RIFFS tab (Advanced) or the Riff drawer (Easy).
+    add ("riffs",            "accessibility.shortcut.riffs",            KP ('r', 0, 0));
 }
 
 bool AccessibilitySettings::rebind (const juce::String& actionId, const juce::KeyPress& key)

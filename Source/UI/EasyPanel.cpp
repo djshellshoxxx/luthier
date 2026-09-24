@@ -261,7 +261,70 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     buildRigStrip();
     buildRhythmStrip();
 
+    // riff-library 7.3: the Riffs button, and the drawer as the session left it.
+    riffsButton.setTooltip ("Riff library (R)");
+    riffsButton.onClick = [this] { setRiffDrawerOpen (! isRiffDrawerOpen()); };
+    AccessibleSetup::configureButton (riffsButton, "Riffs", "Opens the riff drawer to browse and audition riffs.");
+    addAndMakeVisible (riffsButton);
+
+    if (RiffUiState::fromVar (processor.getUiState().riffs).drawerOpen)
+        setRiffDrawerOpen (true);
+
     startTimerHz (10);
+}
+
+juce::Rectangle<int> EasyPanel::getRiffDrawerBounds() const
+{
+    const auto area = getLocalBounds().reduced (Metrics::windowPadding, Metrics::grid);
+    return area.withLeft (juce::jmax (area.getX(), area.getRight() - kRiffDrawerWidth));
+}
+
+void EasyPanel::setRiffDrawerOpen (bool shouldBeOpen)
+{
+    if (shouldBeOpen && riffDrawer == nullptr)
+    {
+        riffDrawer = std::make_unique<RiffBrowser> (processor, true);
+        riffDrawer->onCloseRequested = [this]
+        {
+            setRiffDrawerOpen (false);
+            riffsButton.grabKeyboardFocus();   // accessibility 1: focus goes back where it came from
+        };
+        addChildComponent (*riffDrawer);
+    }
+
+    if (riffDrawer == nullptr)
+        return;
+
+    riffDrawerOpen = shouldBeOpen;
+    riffsButton.setToggleState (shouldBeOpen, juce::dontSendNotification);
+
+    auto uiState = RiffUiState::fromVar (processor.getUiState().riffs);
+    uiState.drawerOpen = shouldBeOpen;
+    processor.getUiState().riffs = uiState.toVar();
+    riffDrawer->getState().drawerOpen = shouldBeOpen;
+
+    const auto target = getRiffDrawerBounds();
+    const int ms = AccessibilitySettings::get().getAnimationMs (150);
+    auto& animator = juce::Desktop::getInstance().getAnimator();
+
+    if (shouldBeOpen)
+    {
+        riffDrawer->setBounds (ms > 0 ? target.translated (target.getWidth(), 0) : target);
+        riffDrawer->setVisible (true);
+        riffDrawer->toFront (false);
+
+        if (ms > 0)
+            animator.animateComponent (riffDrawer.get(), target, 1.0f, ms, false, 0.0, 0.0);
+
+        riffDrawer->ensureLibraryLoaded();
+        AccessibleSetup::announceOverlayOpened (*riffDrawer, "Riff drawer");
+        riffDrawer->getSearchBox().grabKeyboardFocus();
+    }
+    else
+    {
+        animator.cancelAnimation (riffDrawer.get(), false);
+        riffDrawer->setVisible (false);
+    }
 }
 
 EasyPanel::~EasyPanel()
@@ -652,10 +715,15 @@ void EasyPanel::resized()
         r.removeFromLeft (Metrics::grid);
         rhythmEnableButton.setBounds (r.removeFromLeft (52));
         r.removeFromLeft (Metrics::grid);
+        riffsButton.setBounds (r.removeFromRight (64).reduced (2, 0));   // riff-library 7.3
+        r.removeFromRight (Metrics::gridHalf);
         rhythmReadout.setBounds (r.removeFromRight (110));
         rhythmHintLabel.setBounds (r.removeFromRight (110));
         rhythmFeelSlider.setBounds (r);
     }
+
+    if (riffDrawer != nullptr && riffDrawerOpen)
+        riffDrawer->setBounds (getRiffDrawerBounds());
 }
 
 void EasyPanel::paint (juce::Graphics& g)

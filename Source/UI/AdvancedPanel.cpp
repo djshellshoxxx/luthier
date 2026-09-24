@@ -1024,6 +1024,7 @@ void AdvancedPanel::buildWorkspace()
     modMatrixPanel  = std::make_unique<ModMatrixPanel> (processor);
     rhythmPanel     = std::make_unique<RhythmPanel> (processor);
     tunePanel       = std::make_unique<TunePanel> (processor, processor.getTunePlayer(), processor.getTuneSession());
+    riffsPanel      = std::make_unique<RiffBrowser> (processor, false);   // riff-library 7.1
     livePanel       = std::make_unique<LivePanel> (processor);
     routingPanel    = std::make_unique<RoutingPanel> (processor);
     toneMatchPanel  = std::make_unique<ToneMatchPanel> (processor);
@@ -1040,6 +1041,7 @@ void AdvancedPanel::buildWorkspace()
         { "MOD",         modMatrixPanel.get() },
         { "RHYTHM",      rhythmPanel.get() },
         { "TUNE",        tunePanel.get() },
+        { "RIFFS",       riffsPanel.get() },   // riff-library 7.1: between TUNE and LIVE
         { "LIVE",        livePanel.get() },
         { "ROUTING",     routingPanel.get() },
         { "TONE MATCH",  toneMatchPanel.get() },
@@ -1079,9 +1081,18 @@ void AdvancedPanel::buildWorkspace()
                                           "Workspace tab. Shows the " + juce::String (tab.name)
                                             + " panel in column four.");
 
-        addAndMakeVisible (*button);
-
         workspacePanels.add (tab.panel);
+    }
+
+    // FEAT-RIFFS: the strip lays the buttons out, scrolling when they overflow.
+    {
+        juce::Array<juce::Button*> buttons;
+
+        for (auto* b : workspaceTabs)
+            buttons.add (b);
+
+        workspaceStrip.setTabs (buttons);
+        addAndMakeVisible (workspaceStrip);
     }
 
     /*  Section 4.4: the last-used tab persists across sessions in the plugin's
@@ -1157,6 +1168,8 @@ void AdvancedPanel::showWorkspaceTab (int index, bool remember)
 
     for (int i = 0; i < workspaceTabs.size(); ++i)
         workspaceTabs[i]->setToggleState (i == workspaceTab, juce::dontSendNotification);
+
+    workspaceStrip.setSelectedIndex (workspaceTab);
 
     /*  Only the selected panel is on screen. Without this the panels that are not
         in the viewport keep whatever visibility they were built with, and a test
@@ -1277,18 +1290,9 @@ void AdvancedPanel::resized()
 
     auto tabStrip = bounds.removeFromTop (Metrics::buttonHeight);
 
-    if (! workspaceTabs.isEmpty())
-    {
-        const int gap = Metrics::gridHalf;
-        const int width = (tabStrip.getWidth() - gap * (workspaceTabs.size() - 1))
-                            / workspaceTabs.size();
-
-        for (auto* tab : workspaceTabs)
-        {
-            tab->setBounds (tabStrip.removeFromLeft (width));
-            tabStrip.removeFromLeft (gap);
-        }
-    }
+    // FEAT-RIFFS: WorkspaceTabStrip shares the width when the tabs fit and
+    // scrolls (arrows and an overflow menu) when they do not.
+    workspaceStrip.setBounds (tabStrip);
 
     bounds.removeFromTop (Metrics::gridHalf);
 
@@ -1300,7 +1304,8 @@ void AdvancedPanel::resized()
     if (auto* panel = workspaceViewport.getViewedComponent())
         panel->setSize (juce::jmax (80, workspaceViewport.getMaximumVisibleWidth()),
                         workshop ? juce::jmax (560, workspaceViewport.getMaximumVisibleHeight())
-                                 : panel == helpTab.get() ? juce::jmax (360, workspaceViewport.getMaximumVisibleHeight())
+                                 : (panel == helpTab.get() || panel == riffsPanel.get())
+                                       ? juce::jmax (panel == helpTab.get() ? 360 : 480, workspaceViewport.getMaximumVisibleHeight())
                                                           : juce::jmax (80, panel->getHeight()));
 }
 

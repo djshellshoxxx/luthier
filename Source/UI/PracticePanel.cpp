@@ -1165,6 +1165,17 @@ bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFil
     return read;
 }
 
+void TabReaderTab::openScore (const PerformanceScore& newScore, const juce::String& title)
+{
+    // riff-library 6.4: a riff opened with Learn It.
+    score = newScore;
+    scoreTitle = title;
+    statusLabel.setText (title + " - " + juce::String (score.getTotalNoteCount()) + " notes",
+                         juce::dontSendNotification);
+    statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+    refresh();
+}
+
 //==============================================================================
 TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
     : PracticeTab (p)

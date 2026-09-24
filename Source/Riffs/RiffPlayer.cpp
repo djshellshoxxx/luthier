@@ -440,6 +440,7 @@ void RiffPlayer::advance (Output& out, double sampleFrom, double samplesPerBeat,
             {
                 position = 0.0;
                 relocate (0.0);
+                loopCount.fetch_add (1, std::memory_order_relaxed);
             }
             else
             {
@@ -495,6 +496,7 @@ void RiffPlayer::renderSubBlock (int numSamples, double hostPpq, bool hostPlayin
 
         hostLocked = (ClockMode) clockMode.load (std::memory_order_relaxed) == ClockMode::automatic && hostUsable;
         position = 0.0;
+        loopCount.store (0, std::memory_order_relaxed);
         relocate (0.0);
 
         if (hostLocked)

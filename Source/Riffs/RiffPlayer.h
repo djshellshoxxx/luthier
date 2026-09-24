@@ -114,6 +114,8 @@ public:
     double getPlayingBpm() const noexcept   { return playingBpm.load (std::memory_order_relaxed); }
     bool isFollowingHost() const noexcept   { return followingHostFlag.load (std::memory_order_relaxed); }
     int getOverflowCount() const noexcept   { return overflowCount.load (std::memory_order_relaxed); }
+    /** Loops completed since the last play (Learn It's speed trainer counts passes). */
+    int getLoopCount() const noexcept       { return loopCount.load (std::memory_order_relaxed); }
     /** Strings the player has a note sounding on, as a mask (bit 0 = string 0). */
     int getSoundingMask() const noexcept    { return soundingFlag.load (std::memory_order_relaxed); }
 
@@ -172,7 +174,7 @@ private:
     std::atomic<bool> playingFlag { false }, waitingFlag { false }, followingHostFlag { false };
     std::atomic<double> beatPosition { -1.0 }, playingBpm { 0.0 };
     std::atomic<juce::uint32> positionStamp { 0 };
-    std::atomic<int> overflowCount { 0 }, soundingFlag { 0 };
+    std::atomic<int> overflowCount { 0 }, soundingFlag { 0 }, loopCount { 0 };
 
     JUCE_DECLARE_NON_COPYABLE (RiffPlayer)
 };
