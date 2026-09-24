@@ -1,5 +1,7 @@
 #include "RhythmPanel.h"
 #include "../PluginProcessor.h"
+#include "MuteGroup.h"                  // TECHNIQUES: the Mute Row
+#include "Techniques/TechniqueUi.h"
 
 namespace luthier
 {
@@ -595,6 +597,23 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
     fingerpickGrid->onPatternEdited = [this] { refreshFromEngine(); };
 
     addAndMakeVisible (*strumGrid);
+
+    // gui-techniques-updates.md 6 (TECHNIQUES): the Mute Row, one cell per step.
+    // A pattern without mute_type shows all open; painting writes the pattern.
+    muteRow = std::make_unique<MuteGridEditor>();
+    muteRow->getNumCells = [this] { return processor.getEngine().getRhythmEngine().getPattern().getLength(); };
+    muteRow->getCell = [this] (int i) { return processor.getEngine().getRhythmEngine().getPattern().getMuteStep (i).type; };
+    muteRow->setCell = [this] (int i, MuteType t) { TechniqueUndo::paintPatternMuteStep (processor, i, t); };
+    muteRow->setBrush (MuteType::palmHeavy);
+    muteRow->setTooltip ("Mute Row: each step's mute (muting-rhythm). Click or drag paints palm mute heavy; "
+                         "right-click a cell for any type.");
+    AccessibleSetup::configureDescriptive (*muteRow, "Mute Row", "The pattern's mute type per step");
+    addAndMakeVisible (*muteRow);
+
+    muteRowLabel.setText ("MUTE ROW", juce::dontSendNotification);
+    muteRowLabel.setFont (Fonts::ui (10.0f, true));
+    muteRowLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+    addAndMakeVisible (muteRowLabel);
     addAndMakeVisible (*fingerpickGrid);
 
     buildFeelControls();
@@ -956,6 +975,7 @@ void RhythmPanel::refreshFromEngine()
     ghostSlider.setValue (humanise.ghostPercent, juce::dontSendNotification);
 
     strumGrid->refresh();
+    muteRow->repaint();   // TECHNIQUES
     fingerpickGrid->refresh();
     strumGroup->refresh();
 }
@@ -966,6 +986,7 @@ void RhythmPanel::timerCallback()
     const int step = rhythm().getCurrentStep();
 
     strumGrid->setPlayingStep (step);
+    muteRow->setPlayingCell (step);   // TECHNIQUES
     fingerpickGrid->setPlayingStep (step);
 
     indicators->refresh();
@@ -991,6 +1012,7 @@ int RhythmPanel::preferredHeight() const
          + 12                                    // rig hint
          + 16 + 26 + 22 + 22 + 26                // voicing heading + controls
          + 16 + StrumGrid::preferredHeight       // strum grid
+         + 14 + MuteGridEditor::preferredHeight + 2   // Mute Row (TECHNIQUES)
          + 16 + FingerpickGrid::preferredHeight  // fingerpick grid
          + 16 + 22 * 5                           // feel heading + five sliders
          + StrumGroup::preferredHeight + 4       // STRUM group
@@ -1054,6 +1076,8 @@ void RhythmPanel::resized()
     // ---- pattern editors -----------------------------------------------------------
     strumHeading.setBounds (row (16));
     strumGrid->setBounds (row (StrumGrid::preferredHeight));
+    muteRowLabel.setBounds (row (14, 0));                          // TECHNIQUES
+    muteRow->setBounds (row (MuteGridEditor::preferredHeight));
 
     pickHeading.setBounds (row (16));
     fingerpickGrid->setBounds (row (FingerpickGrid::preferredHeight));

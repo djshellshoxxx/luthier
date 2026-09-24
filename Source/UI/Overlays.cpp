@@ -1,4 +1,5 @@
 #include "Overlays.h"
+#include "../Presets/TechniquePresets.h"   // TECHNIQUES
 #include "../PluginProcessor.h"
 
 namespace luthier
@@ -1073,6 +1074,43 @@ PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (categoryBox);
     categoryBox.onChange = [this] { rebuildList(); };
 
+    // gui-techniques-updates.md 7 (TECHNIQUES): click toggles the filter;
+    // right-click (or the chip's menu) picks which techniques.
+    addAndMakeVisible (techniqueChip);
+    techniqueChip.setClickingTogglesState (true);
+    techniqueChip.setTooltip ("Shows only presets that arm a technique. The arrow beside it chooses which.");
+    AccessibleSetup::configureButton (techniqueChip, "Uses Techniques filter",
+                                      "Filters the list to presets that arm scrape, slide, slap, mute, tap or bend");
+    techniqueChip.onClick = [this] { rebuildList(); };
+    addAndMakeVisible (techniqueMenu);
+    techniqueMenu.setTooltip ("Which techniques the Uses Techniques chip filters for (any of those ticked)");
+    AccessibleSetup::configureButton (techniqueMenu, "Choose techniques", "Picks which techniques the chip filters for");
+    techniqueMenu.onClick = [this]
+    {
+        juce::PopupMenu menu;
+        const auto ids = getTechniqueArmParameterIds();
+        const char* const names[] = { "Scrape", "Slap", "Mute", "Tap", "Bend", "Slide" };
+
+        for (int i = 0; i < ids.size(); ++i)
+            menu.addItem (i + 1, names[i], true, techniqueFilter.contains (ids[i]));
+
+        menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&techniqueChip),
+                            [this, ids] (int result)
+        {
+            if (result <= 0)
+                return;
+
+            const auto id = ids[result - 1];
+
+            if (techniqueFilter.contains (id))
+                techniqueFilter.removeString (id);
+            else
+                techniqueFilter.add (id);
+
+            setTechniqueFilter (true, techniqueFilter);
+        });
+    };
+
     addAndMakeVisible (list);
     list.setModel (&listModel);
     list.setRowHeight (26);
@@ -1218,6 +1256,18 @@ void PresetBrowserPanel::rebuildList()
         if (category.isNotEmpty() && info->category != category)
             continue;
 
+        // gui-techniques-updates.md 7 (TECHNIQUES): the chip.
+        if (techniqueChip.getToggleState())
+        {
+            bool uses = false;
+
+            for (const auto& id : info->armedTechniques)
+                uses = uses || techniqueFilter.isEmpty() || techniqueFilter.contains (id);
+
+            if (! uses)
+                continue;
+        }
+
         if (query.isNotEmpty())
         {
             const bool matches = info->name.toLowerCase().contains (query)
@@ -1284,10 +1334,22 @@ void PresetBrowserPanel::refreshMorph()
     slotBButton.setToggleState (morph.getCurrentSlot() == PresetMorph::slotB, juce::dontSendNotification);
 }
 
+void PresetBrowserPanel::setTechniqueFilter (bool on, const juce::StringArray& armIds)
+{
+    techniqueFilter = armIds;
+    techniqueChip.setToggleState (on, juce::dontSendNotification);
+    techniqueChip.setButtonText (on && ! armIds.isEmpty() ? "Uses Techniques (" + juce::String (armIds.size()) + ")"
+                                                          : juce::String ("Uses Techniques"));
+    rebuildList();
+}
+
 void PresetBrowserPanel::layoutContent (juce::Rectangle<int> content)
 {
     auto top = content.removeFromTop (26);
     categoryBox.setBounds (top.removeFromRight (180));
+    top.removeFromRight (Metrics::gridHalf);
+    techniqueMenu.setBounds (top.removeFromRight (22));    // TECHNIQUES
+    techniqueChip.setBounds (top.removeFromRight (130));
     top.removeFromRight (Metrics::gridHalf);
     searchBox.setBounds (top);
 

@@ -1,4 +1,5 @@
 #include "PresetManager.h"
+#include "TechniquePresets.h"   // TECHNIQUES
 #include "FactoryPresets.h"
 #include "../Support/IrLibrary.h"
 #include "../Support/ErrorLog.h"
@@ -269,6 +270,12 @@ void PresetManager::scanFolder (const juce::File& folder, bool factory)
             if (auto* tagArray = obj->getProperty ("tags").getArray())
                 for (const auto& t : *tagArray)
                     info.tags.add (t.toString());
+
+            // gui-techniques-updates.md 7 (TECHNIQUES): which techniques it arms.
+            if (auto* params = obj->getProperty ("parameters").getDynamicObject())
+                for (const auto& id : getTechniqueArmParameterIds())
+                    if (params->hasProperty (id) && (double) params->getProperty (id) > 0.5)
+                        info.armedTechniques.add (id);
         }
 
         presets.add (info);

@@ -326,6 +326,11 @@ CharacterPanel::CharacterPanel (LuthierAudioProcessor& p)
     addChildComponent (*slideGroup);
     slideGroup->onShownChanged = [this] { fitToContent(); };
 
+    // gui-techniques-updates.md 5 (TECHNIQUES): Tapping and Microtonal mirrors.
+    techniqueMirrors = std::make_unique<TechniqueMirrors> (processor);
+    techniqueMirrors->onHeightChanged = [this] { fitToContent(); };
+    addAndMakeVisible (*techniqueMirrors);
+
     fitToContent();
 
     styleHeading (seedHeading,        "CHARACTER");
@@ -594,7 +599,8 @@ int CharacterPanel::preferredHeight() const
          + 26 + 24                                    // presets
          + 8 + noiseGroups->preferredHeight()         // STRING NOISE and PICK
          + 8 + setupGroup->preferredHeight()          // SETUP
-         + 8 + slideGroup->preferredHeight();         // SLIDE, only in Slide Mode
+         + 8 + slideGroup->preferredHeight()          // SLIDE, only in Slide Mode
+         + 8 + techniqueMirrors->getHeightForWidth (juce::jmax (200, getWidth() - 2 * Metrics::gridHalf));   // TECHNIQUES
 }
 
 void CharacterPanel::paint (juce::Graphics& g)
@@ -690,6 +696,9 @@ void CharacterPanel::resized()
 
     bounds.removeFromTop (8);
     slideGroup->setBounds (bounds.removeFromTop (slideGroup->preferredHeight()));
+
+    bounds.removeFromTop (8);   // TECHNIQUES
+    techniqueMirrors->setBounds (bounds.removeFromTop (techniqueMirrors->getHeightForWidth (bounds.getWidth())));
 }
 
 } // namespace luthier

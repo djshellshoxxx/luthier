@@ -303,6 +303,19 @@ private:
 
     juce::TextEditor searchBox;
     juce::ComboBox categoryBox;
+
+    // gui-techniques-updates.md 7 (TECHNIQUES): the "Uses Techniques" chip, multi-select.
+    juce::TextButton techniqueChip { "Uses Techniques" }, techniqueMenu { "v" };
+    juce::StringArray techniqueFilter;   ///< arm parameter ids; empty with the chip on = any technique
+
+public:
+    /** For the tests: the chip, and the presets it lets through. */
+    juce::TextButton& getTechniqueChip() noexcept { return techniqueChip; }
+    void setTechniqueFilter (bool on, const juce::StringArray& armIds);
+    int getNumVisiblePresets() const noexcept { return visibleIndices.size(); }
+    int getVisiblePresetIndex (int row) const noexcept { return visibleIndices[row]; }
+
+private:
     juce::ListBox list;
     juce::Label description;
     juce::TextButton loadButton { "Load" };

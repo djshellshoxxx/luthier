@@ -30,6 +30,9 @@ struct PresetInfo
     juce::StringArray tags;
     juce::File file;
     bool isFactory = false;
+
+    /** gui-techniques-updates.md 7 (TECHNIQUES): the techniques the preset arms, by their arm parameter id. */
+    juce::StringArray armedTechniques;
 };
 
 //==============================================================================

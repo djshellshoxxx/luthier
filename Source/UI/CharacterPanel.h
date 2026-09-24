@@ -19,6 +19,7 @@
 #include "NoiseGroups.h"
 #include "SetupGroup.h"
 #include "SlideGroup.h"
+#include "Techniques/TechniqueMirrors.h"   // gui-techniques-updates.md 5 (TECHNIQUES)
 #include "../Character/CharacterEngine.h"
 
 namespace luthier
@@ -152,6 +153,7 @@ private:
     std::unique_ptr<NoiseGroups> noiseGroups;
     std::unique_ptr<SetupGroup> setupGroup;
     std::unique_ptr<SlideGroup> slideGroup;
+    std::unique_ptr<TechniqueMirrors> techniqueMirrors;   // TECHNIQUES
 
     /*  Sizes the panel to its content. The workspace viewport keeps whatever
         height a panel gives itself, and this one never gave itself one - so it

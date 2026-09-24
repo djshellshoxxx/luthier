@@ -171,6 +171,15 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     whammyKnob.attachTo (processor, ParamIDs::whammyPos, "The whammy arm's position.");
 
     addAndMakeVisible (playingModeSelector);
+
+    // gui-techniques-updates.md 2 (TECHNIQUES): the Techniques pill row.
+    techniquePills = std::make_unique<TechniquePillRow> (processor);
+    techniquePills->onOpenSubTab = [this] (int subTab)
+    {
+        if (onOpenTechniqueSubTab != nullptr)
+            onOpenTechniqueSubTab (subTab);
+    };
+    addAndMakeVisible (*techniquePills);
     playingModeSelector.attachTo (processor, ParamIDs::playingMode,
                                   "Mono routes every note to one string with legato between them. "
                                   "Poly voices chords across the strings. Guitar Controller maps "
@@ -605,6 +614,10 @@ void EasyPanel::resized()
     {
         auto r = playingArea.reduced (4, 2);
         r.removeFromTop (14);
+
+        // gui-techniques-updates.md 2 (TECHNIQUES): the pill row along the strip's foot.
+        techniquePills->setBounds (r.removeFromBottom (TechniquePillRow::preferredHeight));
+
         playingModeSelector.setBounds (r.removeFromLeft (130).withSizeKeepingCentre (130, juce::jmin (48, r.getHeight())));
         r.removeFromLeft (Metrics::grid);
 

@@ -100,7 +100,17 @@ int ControlFlow::layout (int width, bool apply)
         if (item.heading || item.wide)
         {
             newRow();
-            const juce::Rectangle<int> r (0, y, width, item.height);
+
+            // A nested flow takes the height its content needs; a hidden one none.
+            int height = item.height;
+
+            if (auto* nested = dynamic_cast<ControlFlow*> (item.component))
+                height = nested->isVisible() ? nested->getHeightForWidth (width) : 0;
+
+            if (height <= 0)
+                continue;
+
+            const juce::Rectangle<int> r (0, y, width, height);
 
             if (apply)
             {
@@ -110,7 +120,7 @@ int ControlFlow::layout (int width, bool apply)
                     item.component->setBounds (r);
             }
 
-            y += item.height + gap;
+            y += height + gap;
             continue;
         }
 
