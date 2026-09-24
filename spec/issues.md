@@ -1,0 +1,11 @@
+-none of the effects work
+-the pickup changes dont appear to do much if anything?
+-effects before amp dont work. pettal board non functional. tried turning all the effects on and no change. 
+-fingers vs non fingers makes no difference
+- cannot do chords. playing two notes at the same time does not work
+- picture of the guitar is really really ugly. it should look like anything except that. needs to be fixed.
+the scroll bars need to be more colorful and obvious. i thought the gui was broken because i could not get down to the other effects because when i scrolled that changed the value of the nob rather than scrolled down to the rest of the effects. there should be arrow indicators as well as tool tip hover-over telling you to scroll up and down in the colums in the advanced mode
+-in the mod and rhythm sections the gui is actually broken. cannot read the squished dropdowns. also is the live section suposed to look like that? with really tiny boxes? its not obvous how this works, again, more tool tip hover over need to be made. see screenshots in root of folder to see what i mean.
+-there needs to be a 'reset an stop' button that truely resets to default settings and stops all effecs and ouptut. had a loop that would not stop even after hitting reset and panic a bunch of times
+-midi import function not working.. needs a basic internal sequencer
+-a small piano roll that mirrors the strings gettng plucked and vice versa should be a feature
