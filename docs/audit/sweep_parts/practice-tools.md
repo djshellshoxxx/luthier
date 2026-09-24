@@ -69,4 +69,4 @@ The drawer (eight tabs, strip readouts, practice level, tap, panic) and the PRAC
 | PT-63 (§12) | Test: session recorder never allocates on audio thread | - | n/a | `PracticeSession::ringBufferNeverGrows`, `PracticeGaps::theSessionRecorderTakesMidiWithoutAllocating` | DONE |
 | PT-64 (§12.1) | Tests: stats accumulate, routine drives drawer, round-trip, defaults apply, clear confirms | - | n/a | `PracticeRoutine::sixtySecondsOfMetronomeAddSixtySecondsAgainstToday`, `PracticeRoutine::aRoutineDrivesTheDrawerEntryByEntryOnTime`, `PracticeRoutine::aFiveEntryRoutineRoundTripsIdentically`, `PracticeRoutine::defaultsSurviveAReopenAndStartTheMetronomeAtThem`, `PracticeSetupPanel::clearHistoryEmptiesStatsButKeepsLoopsAndSessions` | DONE |
 
-<!-- counts DONE=26 NO-GUI=3 NO-TEST=15 PARTIAL=13 MISSING=9 OWNED=0 -->
+<!-- counts DONE=25 NO-GUI=3 NO-TEST=15 PARTIAL=12 MISSING=9 OWNED=0 -->
