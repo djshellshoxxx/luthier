@@ -28,7 +28,8 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 
     // onboarding.md 5 (TUNE-HELP-ONBOARDING): the OS-following defaults, once per
     // install, before anything reads the palette.
-    FirstRun::applyIfFirstRun();
+    if (FirstRun::applyIfFirstRun())
+        applyFirstRunPreset();
 
     shownPalette = Palette::current();
     AccessibilitySettings::get().addChangeListener (this);
@@ -174,6 +175,9 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     // Controls attached during construction already see the live ranges.
     seenRangeGeneration = RangeState::getGeneration();
     startTimerHz (4);
+
+    // onboarding.md 2-4 (TUNE-HELP-ONBOARDING): banner, tour, first-week hints.
+    setupOnboarding();
 
     /*  gui-integration 15. Last in the constructor, because a banner posting
         itself makes the strip visible and calls resized(), and everything it
@@ -410,6 +414,11 @@ void LuthierAudioProcessorEditor::resized()
         notifications.setBounds (bounds.removeFromTop (NotificationCentre::preferredHeight)
                                    .reduced (Metrics::windowPadding, 2));
 
+    // onboarding.md 2: the welcome banner, also under the header.
+    if (welcomeBanner.isVisible())
+        welcomeBanner.setBounds (bounds.removeFromTop (WelcomeBanner::preferredHeight)
+                                   .reduced (Metrics::windowPadding, 2));
+
     // live-performance 10: the live strip attaches under the header when Live
     // Mode is on, and takes no space at all when it is off.
     if (liveStrip.isVisible())
@@ -432,6 +441,8 @@ void LuthierAudioProcessorEditor::resized()
 
     overlayHost.setBounds (getLocalBounds());
     midiLearnArmLayer.setBounds (getLocalBounds());
+    discovery.setBounds (getLocalBounds());
+    tour.setBounds (getLocalBounds());
 }
 
 //==============================================================================
@@ -541,6 +552,13 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     // clumsy rebind. An overlay handles it when focused; this is the backstop.
     if (key == juce::KeyPress::escapeKey)
     {
+        // onboarding 3: "Escape ends the tour."
+        if (tour.isRunning())
+        {
+            tour.skip();
+            return true;
+        }
+
         if (processor.getMidiLearn().isArmed())
         {
             setMidiLearnArmed (false);

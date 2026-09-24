@@ -12,6 +12,7 @@
 #include "UI/AdvancedPanel.h"
 #include "UI/Overlays.h"
 #include "UI/Notifications.h"
+#include "UI/Onboarding.h"
 
 namespace luthier
 {
@@ -61,6 +62,25 @@ public:
         Returns false when there is no such tab, so a caller can tell the
         difference between "opened it" and "that page does not exist here". */
     bool showOptionsPage (const juce::String& tabName);
+
+    //==========================================================================
+    // onboarding.md 2-4 (TUNE-HELP-ONBOARDING; PluginEditorOnboarding.cpp).
+
+    /** Starts the tour (the welcome banner's Yes, Help -> Take the tour). */
+    void startTour();
+    TourOverlay& getTour() noexcept                { return tour; }
+    WelcomeBanner& getWelcomeBanner() noexcept     { return welcomeBanner; }
+    DiscoveryLayer& getDiscoveryLayer() noexcept   { return discovery; }
+    DiscoveryTooltip& getRandomiseTooltip() noexcept { return randomiseTooltip; }
+
+    /** Where a tour stop points, in this component's coordinates. */
+    juce::Rectangle<int> findTourTarget (const juce::String& stepId);
+
+    /** Makes a stop's target visible: Advanced for the column stops, LIVE for snapshots. */
+    void prepareTourStep (const juce::String& stepId);
+
+    /** Records the launch and puts up the welcome banner if one is due. */
+    void runWelcome();
 
 private:
     void timerCallback() override;
@@ -129,6 +149,16 @@ private:
     ChordAndTabPanel chordPanel;
     WorkshopOverlay workshopOverlay;
     SecretPanel secretPanel;
+
+    // onboarding.md 2-4 (TUNE-HELP-ONBOARDING).
+    void setupOnboarding();
+
+    /** onboarding 1: a fresh install starts on the rock overdrive preset. */
+    void applyFirstRunPreset();
+    WelcomeBanner welcomeBanner;
+    TourOverlay tour;
+    DiscoveryLayer discovery;
+    DiscoveryTooltip randomiseTooltip;
 
     juce::TextButton chordButton { "Chords / Tab" };
 

@@ -72,6 +72,12 @@ HelpTab::HelpTab (LuthierAudioProcessor& p)
                                       "Live internals, crash logging, the troubleshooting file and the hard reset");
     addAndMakeVisible (debugButton);
 
+    // onboarding 2: Help -> Take the tour.
+    tourButton.setTooltip ("The two-minute guided tour of the window");
+    tourButton.onClick = [this] { if (onTakeTour) onTakeTour(); };
+    AccessibleSetup::configureButton (tourButton, "Take the tour", "Starts the guided tour of the window.");
+    addAndMakeVisible (tourButton);
+
     sourceButton.setTooltip (HelpContent::sourceUrl);
     sourceButton.onClick = [] { juce::URL (HelpContent::sourceUrl).launchInDefaultBrowser(); };
     AccessibleSetup::configureButton (sourceButton, "GitHub", "Opens the source repository in your browser");
@@ -357,6 +363,7 @@ void HelpTab::resized()
 
     headerBounds = bounds.removeFromTop (kHeader);
     versionBounds = headerBounds.removeFromRight (juce::jmin (160, headerBounds.getWidth() / 2));
+    tourButton.setBounds (headerBounds.removeFromRight (110).reduced (0, 2));
     bounds.removeFromTop (kRowGap);
 
     layoutFooter (bounds.removeFromBottom (button));

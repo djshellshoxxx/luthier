@@ -43,7 +43,7 @@ namespace
           "Every topic in this list is also reachable from the panel it describes: {key:help} opens Help on the "
           "panel you are working in." },
 
-        { "interface", "The Interface", "GUI|window|header|EASY|Easy mode|ADVANCED|Advanced mode",
+        { "interface", "The Interface", "GUI|window|header|EASY|Easy mode|ADVANCED|Advanced mode|Tone",
           "HEADER (always visible)\n"
           "- Output LED, top left: dark when silent, brightening as the level approaches 0 dBFS, red while the "
           "signal is over.\n"
@@ -77,7 +77,7 @@ namespace
           "Below 1000 points wide the window cannot fit four columns, so Advanced is unavailable and says so. "
           "The practice drawer ({key:togglePractice}) opens along the bottom in either mode." },
 
-        { "controls", "Controls", "control|knob|right-click|MIDI LEARN|lock|locks",
+        { "controls", "Controls", "control|knob|right-click|MIDI LEARN|lock|locks|Playing|macros strip",
           "Every control behaves the same way.\n\n"
           "- Drag: adjust, vertically or horizontally, whichever you start with.\n"
           "- Shift-drag: coarse. Ctrl-drag (Cmd on macOS): ultra-fine.\n"
@@ -133,7 +133,7 @@ namespace
           "with its own amount." },
 
         { "amplification", "Column 3: Amplification",
-          "Amplification|AMP|Amplifier|POST-FX|POST-EFFECTS RACK|Effects Loop (after the amp)|Effects Loop|CAB|"
+          "Amplification|Rig|AMP|Amplifier|POST-FX|POST-EFFECTS RACK|Effects Loop (after the amp)|Effects Loop|CAB|"
           "Cabinet and Mic|Cabinet|ROOM|Room|SUSTAIN|Sustain|Performance|Humanise|Humanize|Master",
           "- Amplifier: the model and its face - gain, bass, mid, treble, presence, master - with the bright, "
           "mid boost and standby switches. Standby mutes the amp.\n"
@@ -436,6 +436,42 @@ namespace
           "presets.\n\n"
           "If Luthier is hard-crashing, send BOTH the crash log and the troubleshooting file to support, with a "
           "description of what you were doing when it happened." },
+
+        // ==== BEGIN TUNE-HELP-ONBOARDING topics ====
+        { "first-steps", "First Steps and the Tour", "tour|take the tour|first run|first-run|onboarding|"
+          "welcome banner|restore first-run experience|hints",
+          "THREE WAYS IN (onboarding)\n"
+          "- 30 seconds: play. The default preset is a finished sound; nothing needs setting up.\n"
+          "- 2 minutes: take the tour, then press Randomise a few times for fresh sounds.\n"
+          "- 5 minutes: take the tour, open one of the example tunes in the TUNE tab (Load, then the Examples "
+          "folder), press play, and swap the guitar in the Workshop while it loops.\n\n"
+          "THE TOUR\n"
+          "Twelve stops, one callout each, pointing at the control it describes: playing, presets, Advanced "
+          "mode, the guitar, the rig, the workspace, the Workshop, the TUNE tab, snapshots, the practice drawer, "
+          "Slide Mode and Options. Next and Back move between stops, Skip or Escape ends it, and the Take the "
+          "tour button at the top of this page starts it again at any time.\n\n"
+          "THE FIRST WEEK\n"
+          "For your first seven launches (or seven days, whichever comes first) new things are marked: a ? "
+          "pulses the first time you see it, every workspace tab you have not opened yet carries a small dot, "
+          "and the Workshop wrench, the TUNE tab and the Slide switch pulse once. After that the hints go "
+          "quiet.\n\n"
+          "STARTING OVER\n"
+          "Options -> Diagnostics -> Restore first-run experience puts your settings back to a fresh install's "
+          "and brings back the welcome banner, the tour offer and every one-time hint. Your presets, guitars, "
+          "tunes and parts are kept." },
+
+        { "whats-new", "What's New", "what's new|whats new|changelog|release notes|NEW|upgrade",
+          "Each release lists what it added in CHANGELOG.md, installed beside this manual. Anything a new "
+          "version adds is marked NEW where you reach it for a week after you first run that version.\n\n"
+          "RECENT ADDITIONS\n"
+          "- The real guitar on screen, drawn from its parts.\n"
+          "- The Workshop: swap bodies, necks, pickups, bridges and strings, and hear what changed.\n"
+          "- MIDI export with realism events, and live MIDI out.\n"
+          "- Feedback that behaves like feedback, and a real E-Bow.\n"
+          "- The TUNE tab: sketch a whole tune, with a melody, bass and layers, and export it as audio, MIDI or "
+          "notation from one dialog.\n"
+          "- The welcome tour, and first-week hints." },
+        // ==== END TUNE-HELP-ONBOARDING topics ====
 
         { "about", "About and Licence", "about|licence|license|version|links|support|homepage|github|source",
           "Luthier - a physically-modelled guitar. No samples.\n\n"
