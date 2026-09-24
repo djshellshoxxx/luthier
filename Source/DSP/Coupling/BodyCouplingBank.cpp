@@ -366,17 +366,36 @@ void BodyCouplingBank::driveDirect (double impulse, int position) noexcept
     tapSample = 0;
 }
 
-template <int Groups>
-void BodyCouplingBank::runModes (double force, double* lane) noexcept
+double BodyCouplingBank::runModes (double force) noexcept
 {
-    for (int k = 0; k < Groups * 4; ++k)
-    {
-        const double bx = cb0[(size_t) k] * force;
-        const double y = bx + z1[(size_t) k];
-        z1[(size_t) k] = z2[(size_t) k] - ca1[(size_t) k] * y;
-        z2[(size_t) k] = -bx - ca2[(size_t) k] * y;
-        lane[k & 3] += y;
-    }
+    // Every mode takes the same input: three element-wise passes over all
+    // sixteen (unused ones have zero coefficients), which vectorise, then one
+    // pairwise sum.
+    constexpr int K = BodyCouplingDesign::kMaxModes;
+    alignas (32) double y[K];
+
+    double* __restrict s1 = z1.data();
+    double* __restrict s2 = z2.data();
+    const double* __restrict b0 = cb0.data();
+    const double* __restrict a1 = ca1.data();
+    const double* __restrict a2 = ca2.data();
+
+    for (int k = 0; k < K; ++k)
+        y[k] = b0[k] * force + s1[k];
+
+    for (int k = 0; k < K; ++k)
+        s1[k] = s2[k] - a1[k] * y[k];
+
+    for (int k = 0; k < K; ++k)
+        s2[k] = -b0[k] * force - a2[k] * y[k];
+
+    for (int k = 0; k < K / 2; ++k)
+        y[k] += y[k + K / 2];
+
+    for (int k = 0; k < K / 4; ++k)
+        y[k] += y[k + K / 4];
+
+    return (y[0] + y[2]) + (y[1] + y[3]);
 }
 
 void BodyCouplingBank::processSample (const double* bridgeWaves, double* couplingInputs, int numStrings) noexcept
@@ -427,15 +446,7 @@ void BodyCouplingBank::processSample (const double* bridgeWaves, double* couplin
     }
     else
     {
-        // The common case, unrolled for each mode count (4, 8, 12, 16).
-        switch (groups)
-        {
-            case 1:  runModes<1> (force, lane); break;
-            case 2:  runModes<2> (force, lane); break;
-            case 3:  runModes<3> (force, lane); break;
-            case 4:  runModes<4> (force, lane); break;
-            default: break;
-        }
+        lane[0] = runModes (force);
     }
 
     const double v = (lane[0] + lane[1]) + (lane[2] + lane[3]);
