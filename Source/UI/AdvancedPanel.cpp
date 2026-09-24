@@ -6,6 +6,7 @@
 #include "NotationPanel.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
+#include "Search/LiveControls.h"   // global-search.md 3.2 (FEAT-SEARCH)
 
 namespace luthier
 {
@@ -257,6 +258,19 @@ AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
         viewports[i].setScrollBarsShown (true, false);
         viewports[i].setScrollBarThickness (8);
         addAndMakeVisible (viewports[i]);
+
+        // global-search.md 3.2 (FEAT-SEARCH): the column is a place; opening
+        // it leaves WORKSHOP, which takes columns 2 and 3 over.
+        search::SearchAnchors::tag (viewports[i], "column:" + juce::String (i + 1), [this]
+        {
+            if (isWorkshopShowing())
+                for (int t = 0; t < workspacePanels.size(); ++t)
+                    if (workspacePanels[t] != workshopPanel.get())
+                    {
+                        showWorkspaceTab (t);
+                        break;
+                    }
+        });
     }
 
     workspaceViewport.setScrollBarsShown (true, false);
@@ -1010,6 +1024,71 @@ juce::String AdvancedPanel::Column::getSectionContaining (const juce::Component*
     }
 
     return {};
+}
+
+//==============================================================================
+// global-search.md 3.2 (FEAT-SEARCH)
+juce::StringArray AdvancedPanel::Column::getSections() const
+{
+    juce::StringArray headings;
+
+    for (const auto& item : items)
+        if (item.heading.isNotEmpty())
+            headings.add (item.heading);
+
+    return headings;
+}
+
+int AdvancedPanel::Column::getSectionY (const juce::String& heading) const
+{
+    int y = Metrics::grid;
+
+    for (const auto& item : items)
+    {
+        if (item.heading.equalsIgnoreCase (heading))
+            return y;
+
+        y += item.height + Metrics::gridHalf;
+    }
+
+    return -1;
+}
+
+juce::StringArray AdvancedPanel::getColumnSections (int column) const
+{
+    return juce::isPositiveAndBelow (column - 1, 3) && columns[column - 1] != nullptr
+             ? columns[column - 1]->getSections() : juce::StringArray();
+}
+
+juce::String AdvancedPanel::getColumnSectionFor (const juce::Component* c, int& column) const
+{
+    for (int i = 0; i < 3; ++i)
+        if (columns[i] != nullptr && c != nullptr && columns[i]->isParentOf (c))
+        {
+            column = i + 1;
+            return columns[i]->getSectionContaining (c);
+        }
+
+    column = 0;
+    return {};
+}
+
+bool AdvancedPanel::revealColumnSection (const juce::String& heading)
+{
+    for (int i = 0; i < 3; ++i)
+    {
+        const int y = columns[i] != nullptr ? columns[i]->getSectionY (heading) : -1;
+
+        if (y < 0)
+            continue;
+
+        search::SearchAnchors::open (viewports[i]);
+        resized();
+        viewports[i].setViewPosition (0, juce::jmax (0, y - Metrics::grid));
+        return true;
+    }
+
+    return false;
 }
 
 bool AdvancedPanel::isWorkshopShowing() const noexcept

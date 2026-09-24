@@ -29,6 +29,7 @@
 #include "../UI/PracticePanel.h"
 #include "../UI/Widgets.h"
 #include "../UI/GuitarBodyComponent.h"
+#include "../UI/Search/ParameterVisibility.h"   // FEAT-SEARCH
 
 #include <set>
 
@@ -38,22 +39,12 @@ using namespace luthier::combo;
 
 namespace
 {
-    /*  Parameters with no visible control on purpose. Each needs a reason a
-        reviewer would accept; anything not here that has no control fails. */
+    /*  Parameters with no visible control on purpose. The list lives in
+        ParameterVisibility.h so the search index leaves out exactly the same
+        ones (global-search.md 2, FEAT-SEARCH). */
     const std::map<juce::String, juce::String>& intentionallyHidden()
     {
-        static const std::map<juce::String, juce::String> m
-        {
-            { "feedback_on",        "superseded by feedback_amount (ambiguity-resolutions 1.2); kept for automation indices" },
-            { "feedback_threshold", "superseded by the physical feedback loop (ambiguity-resolutions 1.2)" },
-            { "feedback_speed",     "superseded by the physical feedback loop (ambiguity-resolutions 1.2)" },
-            { "fret_action",        "superseded by the setup geometry (DECISIONS.md, fret-buzz 7); inert, kept for automation indices" },
-            { "doubler_on",         "legacy engine doubler: a load migrates it to a Doubler pedal (PresetManager::fromVar)" },
-            { "doubler_amount",     "legacy engine doubler; the Doubler pedal's own knobs replace it" },
-            { "strum_speed",        "superseded by strum_crossing_sps (strum-dynamics 7); kept for automation indices" },
-        };
-
-        return m;
+        return ParameterVisibility::intentionallyHidden();
     }
 
     template <typename T>
