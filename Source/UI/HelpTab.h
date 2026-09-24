@@ -34,6 +34,7 @@
 
 #include "Theme.h"
 #include "HelpContent.h"
+#include "Search/HelpSearchField.h"   // global-search.md 6.1 (FEAT-SEARCH)
 
 #include <vector>
 
@@ -90,6 +91,11 @@ public:
     /** Rebind...: the editor opens Options on the shortcut table. */
     std::function<void()> onOpenShortcutTable;
 
+    /** global-search.md 6.1 (FEAT-SEARCH): the Search field opens the palette
+        on the ? scope with what was typed. */
+    std::function<void (const juce::String&)> onOpenSearch;
+    juce::TextEditor& getSearchField() noexcept { return searchField; }
+
     int getPreferredHeight() const noexcept { return 640; }
 
     //==========================================================================
@@ -137,6 +143,8 @@ private:
     };
 
     std::vector<SheetLine> sheetLines;
+
+    search::HelpSearchField searchField;   // FEAT-SEARCH
 
     // --- footer ---------------------------------------------------------------------
     juce::TextButton debugButton { "Open Debug Tools" };

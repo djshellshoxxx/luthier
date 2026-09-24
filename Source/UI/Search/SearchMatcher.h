@@ -82,7 +82,7 @@ namespace luthier::search::SearchMatcher
         maxDistance + 1) as soon as it cannot be within maxDistance. No heap
         allocation for words up to 48 characters; longer ones return
         maxDistance + 1. */
-    int damerauLevenshtein (const std::u32string& a, const std::u32string& b, int maxDistance) noexcept;
+    int damerauLevenshtein (std::u32string_view a, std::u32string_view b, int maxDistance) noexcept;
 
     /** The typo budget for a token (4.1): 0 below 4 characters, 1 from 4, 2 from 8. */
     int typoBudget (size_t tokenLength) noexcept;

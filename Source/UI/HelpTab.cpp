@@ -20,6 +20,10 @@ namespace
 HelpTab::HelpTab (LuthierAudioProcessor& p)
     : processor (p)
 {
+    // global-search.md 6.1 (FEAT-SEARCH).
+    searchField.onOpen = [this] (const juce::String& typed) { if (onOpenSearch) onOpenSearch (typed); };
+    addAndMakeVisible (searchField);
+
     // --- topics -----------------------------------------------------------------------
     topicList.setModel (&topicModel);
     topicList.setRowHeight (24);
@@ -357,6 +361,7 @@ void HelpTab::resized()
 
     headerBounds = bounds.removeFromTop (kHeader);
     versionBounds = headerBounds.removeFromRight (juce::jmin (160, headerBounds.getWidth() / 2));
+    searchField.setBounds (headerBounds.removeFromRight (juce::jmin (220, headerBounds.getWidth() / 2)).reduced (4, 2));   // FEAT-SEARCH
     bounds.removeFromTop (kRowGap);
 
     layoutFooter (bounds.removeFromBottom (button));

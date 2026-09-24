@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <set>
 
 namespace luthier::search
 {
@@ -223,7 +222,22 @@ void SearchIndex::prepareItem (SearchItem& item)
         if (k.isNotEmpty())
             item.preparedKeywords.push_back (SearchMatcher::prepare (k));
 
-    item.breadcrumbWords = SearchMatcher::tokenise (SearchMatcher::normaliseToUtf32 (item.breadcrumb));
+    item.preparedBreadcrumb = SearchMatcher::prepare (item.breadcrumb);
+
+    item.charMask = 0;
+
+    auto addMask = [&item] (const SearchItem::Prepared& p)
+    {
+        for (auto c : p.text)
+            item.charMask |= (juce::uint64) 1 << (c % 64);
+    };
+
+    addMask (item.preparedTitle);
+    addMask (item.preparedEnglish);
+    addMask (item.preparedBreadcrumb);
+
+    for (const auto& p : item.preparedSynonyms) addMask (p);
+    for (const auto& p : item.preparedKeywords) addMask (p);
 }
 
 void SearchIndex::refreshIfNeeded()
@@ -269,7 +283,6 @@ void SearchIndex::rebuildFlat()
     owner.clear();
     duplicateLog.clear();
 
-    std::vector<std::u32string> words;
     byId.reserve (total);
 
     for (auto& slot : providers)
@@ -289,15 +302,10 @@ void SearchIndex::rebuildFlat()
             byId[item.id] = &item;
             owner[&item] = slot.provider.get();
 
-            for (const auto& w : item.preparedTitle.words)
-                if (w.size() >= 3)
-                    words.push_back (w);
         }
     }
 
-    std::sort (words.begin(), words.end());
-    words.erase (std::unique (words.begin(), words.end()), words.end());
-    vocabulary = std::move (words);
+    vocabulary.clear();   // built on demand by didYouMean
     flatDirty = false;
 }
 
@@ -372,7 +380,9 @@ bool SearchIndex::before (const Result& a, const Result& b) noexcept
     if (ka != kb)
         return ka < kb;
 
-    if (const int c = a.item->title.compareNatural (b.item->title); c != 0)
+    // Title order on the normalised title: case and accents do not reorder
+    // ties, and it is a plain code-point compare (no allocation, 11).
+    if (const int c = a.item->preparedTitle.text.compare (b.item->preparedTitle.text); c != 0)
         return c < 0;
 
     return a.item->id < b.item->id;
@@ -414,6 +424,13 @@ std::vector<SearchIndex::Result> SearchIndex::query (const juce::String& rawQuer
     const double weight = englishWeight ? englishWeight()
                                         : (Localisation::get().getLocale().startsWith ("en") ? 1.0 : 0.8);
 
+    // The recent store, looked up once per query rather than per item.
+    const auto now = nowMs();
+    std::unordered_map<juce::String, const RecentStore::Entry*, StringHash> recent;
+
+    for (const auto& e : RecentStore::get().getItems())
+        recent.emplace (e.id, &e);
+
     for (const auto* item : flat)
     {
         if (! scopeIncludes (chip, item->kind) || ! scopeIncludes (prefixScope, item->kind))
@@ -435,7 +452,15 @@ std::vector<SearchIndex::Result> SearchIndex::query (const juce::String& rawQuer
         auto* provider = found != owner.end() ? found->second : nullptr;
         r.availability = provider != nullptr ? provider->availabilityOf (*item) : Availability::available;
 
-        double score = match + recencyBonus (item->id) + frequencyBonus (item->id);
+        double score = match;
+
+        if (! recent.empty())
+            if (auto found = recent.find (item->id); found != recent.end())
+            {
+                const auto* e = found->second;
+                const double days = juce::jmax (0.0, (double) (now - e->lastUsedMs) / 86400000.0);
+                score += 150.0 * std::pow (0.5, days / 7.0) + juce::jmin (100.0, 20.0 * std::log2 (1.0 + (double) e->uses));
+            }
 
         if (isVisibleNow && isVisibleNow (*item))
             score += 40.0;
@@ -448,6 +473,9 @@ std::vector<SearchIndex::Result> SearchIndex::query (const juce::String& rawQuer
         r.score = score;
 
         if (score < SearchMatcher::Score::minimumToShow)
+            continue;
+
+        if ((int) results.size() >= SearchMatcher::kMaxResults && score < results.back().score)
             continue;
 
         // Keep the best 50, in order, without growing past the reservation.
@@ -548,6 +576,19 @@ std::vector<const SearchItem*> SearchIndex::getRecentItems (int maxItems)
 juce::String SearchIndex::didYouMean (const juce::String& rawQuery)
 {
     refreshIfNeeded();
+
+    // The vocabulary is only needed when a query found nothing, so it is
+    // built then, not on every index build (11).
+    if (vocabulary.empty())
+    {
+        for (const auto* item : flat)
+            for (size_t w = 0; w < item->preparedTitle.numWords(); ++w)
+                if (item->preparedTitle.word (w).size() >= 3)
+                    vocabulary.emplace_back (item->preparedTitle.word (w));
+
+        std::sort (vocabulary.begin(), vocabulary.end());
+        vocabulary.erase (std::unique (vocabulary.begin(), vocabulary.end()), vocabulary.end());
+    }
 
     Scope unused = Scope::all;
     const auto q = SearchMatcher::makeQuery (parseScope (rawQuery, unused));

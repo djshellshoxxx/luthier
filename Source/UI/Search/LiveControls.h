@@ -39,6 +39,9 @@ namespace LiveControls
 
     int getNumRegistered();
 
+    /** Bumped on every add and remove: the window's controls changed. */
+    int getChangeCount();
+
     /** Every registered control editing `parameterId`, as components. */
     std::vector<juce::Component*> find (const juce::String& parameterId);
 

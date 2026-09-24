@@ -13,6 +13,7 @@
 #include <juce_core/juce_core.h>
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace luthier::search
@@ -137,16 +138,26 @@ struct SearchItem
     // only its result vector.
     struct Prepared
     {
-        std::u32string text;                 ///< normalised
-        std::vector<int> wordStarts;         ///< code-point offsets into text
-        std::vector<std::u32string> words;   ///< the words, in order
+        std::u32string text;                        ///< normalised
+        std::vector<std::pair<int, int>> spans;     ///< each word's [start, end) in text, in order
         std::u32string acronym;
+
+        size_t numWords() const noexcept { return spans.size(); }
+
+        std::u32string_view word (size_t i) const noexcept
+        {
+            return std::u32string_view (text).substr ((size_t) spans[i].first, (size_t) (spans[i].second - spans[i].first));
+        }
     };
 
     Prepared preparedTitle, preparedEnglish;
     std::vector<Prepared> preparedSynonyms;   ///< curated synonyms (search.syn.*)
     std::vector<Prepared> preparedKeywords;   ///< id words, units, tags
-    std::vector<std::u32string> breadcrumbWords;
+    Prepared preparedBreadcrumb;
+
+    /** One bit per character (mod 64) in every prepared text: a token with
+        more characters missing than its typo budget cannot match (11). */
+    juce::uint64 charMask = 0;
 };
 
 } // namespace luthier::search

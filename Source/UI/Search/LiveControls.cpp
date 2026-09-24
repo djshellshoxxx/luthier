@@ -25,8 +25,15 @@ namespace
     }
 }
 
-void LiveControls::add (LearnTarget* target)       { registry().insert (target); }
-void LiveControls::remove (LearnTarget* target)    { registry().erase (target); }
+int& changeCounter()
+{
+    static int count = 0;
+    return count;
+}
+
+void LiveControls::add (LearnTarget* target)       { registry().insert (target); ++changeCounter(); }
+void LiveControls::remove (LearnTarget* target)    { registry().erase (target); ++changeCounter(); }
+int LiveControls::getChangeCount()                 { return changeCounter(); }
 int LiveControls::getNumRegistered()               { return (int) registry().size(); }
 
 std::vector<juce::Component*> LiveControls::find (const juce::String& parameterId)

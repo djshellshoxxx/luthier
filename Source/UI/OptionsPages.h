@@ -171,6 +171,9 @@ private:
 
     /** Catches the key press for a rebind. */
     bool keyPressed (const juce::KeyPress& key) override;
+
+    /** global-search.md 7 (FEAT-SEARCH): the "Search" group. */
+    std::unique_ptr<juce::Component> searchGroup;
 };
 
 //==============================================================================
