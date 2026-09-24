@@ -795,19 +795,20 @@ LUTHIER_TEST (BodyCoupling, BC13_budgetAndSafety)
         const long allocations = luthierAllocationCount();
         const auto start = juce::Time::getHighResolutionTicks();
 
-        for (int i = 0; i < samples; ++i)
+        for (int i = 0; i < samples; i += kBlock)
         {
-            if (i % kBlock == 0)
-            {
-                // A part swap's staged design arrives mid-run.
-                if (i == samples / 2)
-                    rig.bank.stage (rig.design);
+            // A part swap's staged design arrives mid-run.
+            if (i == (samples / 2 / kBlock) * kBlock)
+                rig.bank.stage (rig.design);
 
-                rig.bank.beginBlock();
-            }
+            rig.bank.beginBlock();
 
-            rig.bank.processSample (waves.data(), inputs.data(), 12);
-            waves[(size_t) (i % 12)] = -0.5 * waves[(size_t) (i % 12)] + 1.0e-3 * inputs[(size_t) (i % 12)];
+            for (int n = 0; n < kBlock; ++n)
+                rig.bank.processSample (waves.data(), inputs.data(), 12);
+
+            // Keep the input moving without costing the loop a division per sample.
+            for (int s = 0; s < 12; ++s)
+                waves[(size_t) s] = -0.5 * waves[(size_t) s] + 1.0e-3 * inputs[(size_t) s];
         }
 
         best = juce::jmin (best, juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - start));

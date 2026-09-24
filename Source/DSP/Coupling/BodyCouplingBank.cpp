@@ -366,6 +366,19 @@ void BodyCouplingBank::driveDirect (double impulse, int position) noexcept
     tapSample = 0;
 }
 
+template <int Groups>
+void BodyCouplingBank::runModes (double force, double* lane) noexcept
+{
+    for (int k = 0; k < Groups * 4; ++k)
+    {
+        const double bx = cb0[(size_t) k] * force;
+        const double y = bx + z1[(size_t) k];
+        z1[(size_t) k] = z2[(size_t) k] - ca1[(size_t) k] * y;
+        z2[(size_t) k] = -bx - ca2[(size_t) k] * y;
+        lane[k & 3] += y;
+    }
+}
+
 void BodyCouplingBank::processSample (const double* bridgeWaves, double* couplingInputs, int numStrings) noexcept
 {
     // At zero, and settled there, the bank is out of the loop entirely (BC-04).
@@ -379,36 +392,49 @@ void BodyCouplingBank::processSample (const double* bridgeWaves, double* couplin
 
     const int n = juce::jmin (numStrings, active.numStrings);
 
-    double force = 0.0;
+    double f4[4] = { 0.0, 0.0, 0.0, 0.0 };
+    int j = 0;
 
-    for (int j = 0; j < n; ++j)
-        force += 2.0 * active.z0[(size_t) j] * bridgeWaves[j];
+    for (; j + 4 <= n; j += 4)
+        for (int l = 0; l < 4; ++l)
+            f4[l] += active.z0[(size_t) (j + l)] * bridgeWaves[j + l];
 
-    double tap = 0.0;
+    for (; j < n; ++j)
+        f4[0] += active.z0[(size_t) j] * bridgeWaves[j];
 
-    if (tapSample < tapLength)
-    {
-        tap = tapAmplitude * std::sin (constants::kPi * ((double) tapSample + 0.5) / (double) tapLength);
-        ++tapSample;
-    }
+    const double force = 2.0 * ((f4[0] + f4[1]) + (f4[2] + f4[3]));
 
     // Four lanes at a time, summed per lane: element-wise work the compiler
     // vectorises, with the one reduction left to the end.
     double lane[4] = { 0.0, 0.0, 0.0, 0.0 };
     const int groups = (runningCount + 3) / 4;
 
-    for (int g = 0; g < groups; ++g)
+    if (tapSample < tapLength)
     {
-        const int base = g * 4;
+        const double tap = tapAmplitude * std::sin (constants::kPi * ((double) tapSample + 0.5) / (double) tapLength);
+        ++tapSample;
 
-        for (int j = 0; j < 4; ++j)
+        for (int g = 0; g < groups; ++g)
+            for (int l = 0; l < 4; ++l)
+            {
+                const int k = g * 4 + l;
+                const double x = force + tap * tapWeight[(size_t) k];
+                const double y = cb0[(size_t) k] * x + z1[(size_t) k];
+                z1[(size_t) k] = z2[(size_t) k] - ca1[(size_t) k] * y;
+                z2[(size_t) k] = -cb0[(size_t) k] * x - ca2[(size_t) k] * y;
+                lane[l] += y;
+            }
+    }
+    else
+    {
+        // The common case, unrolled for each mode count (4, 8, 12, 16).
+        switch (groups)
         {
-            const int k = base + j;
-            const double x = force + tap * tapWeight[(size_t) k];
-            const double y = cb0[(size_t) k] * x + z1[(size_t) k];
-            z1[(size_t) k] = z2[(size_t) k] - ca1[(size_t) k] * y;
-            z2[(size_t) k] = -cb0[(size_t) k] * x - ca2[(size_t) k] * y;
-            lane[j] += y;
+            case 1:  runModes<1> (force, lane); break;
+            case 2:  runModes<2> (force, lane); break;
+            case 3:  runModes<3> (force, lane); break;
+            case 4:  runModes<4> (force, lane); break;
+            default: break;
         }
     }
 

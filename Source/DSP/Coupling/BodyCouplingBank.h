@@ -189,6 +189,7 @@ private:
         mode), transposed direct form II with b1 = 0 and b2 = -b0. Every mode
         takes the same input, so the per-sample loop vectorises. */
     void resetState() noexcept;
+    template <int Groups> void runModes (double force, double* lane) noexcept;
     alignas (32) std::array<double, BodyCouplingDesign::kMaxModes> cb0 {}, ca1 {}, ca2 {}, z1 {}, z2 {};
     std::array<double, BodyCouplingDesign::kMaxModes> modeHz {}, modeQ {}, modeGain {};
     std::array<double, BodyCouplingDesign::kMaxModes> tapWeight {};
