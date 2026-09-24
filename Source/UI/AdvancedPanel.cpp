@@ -453,6 +453,10 @@ void AdvancedPanel::buildColumn1()
                        "low ones, as they do on a real instrument.");
     column.addControl (sustain.get(), LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
 
+    // sustain-and-decay.md 8: the DECAY row - the style and the decay sketch.
+    decayRow = std::make_unique<DecayRow> (processor);
+    column.addControl (decayRow.get(), DecayRow::preferredHeight);
+
     column.addGap (Metrics::grid);
     column.addSection ("Tuning Realism");
 

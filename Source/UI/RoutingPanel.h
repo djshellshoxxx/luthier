@@ -115,6 +115,7 @@ private:
 
     // --- sidechain --------------------------------------------------------------
     std::unique_ptr<LuthierToggle> sidechainToAmp;
+    std::unique_ptr<LuthierToggle> noiseFloorToAux8;   // noise-floor.md 5: mirrors CHARACTER's (REALISM-C)
     juce::Rectangle<int> sidechainMeterBounds;
     float sidechainLevel = 0.0f;
 

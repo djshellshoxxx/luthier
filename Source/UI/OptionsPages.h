@@ -71,6 +71,10 @@ public:
 private:
     LuthierChoice oversampling { "Oversampling" };
 
+    // noise-floor.md 3: the user-global default mains region (REALISM-C).
+    juce::ComboBox mainsRegion;
+    juce::Label mainsLabel;
+
     juce::TextButton deviceButton { "Where are the device settings?" };
     juce::Label deviceNote, sidechainNote, latencyLabel;
 };

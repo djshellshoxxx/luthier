@@ -1,5 +1,6 @@
 #include "OptionsPages.h"
 #include "RangesUi.h"
+#include "UiPreferences.h"   // REALISM-C
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
@@ -555,6 +556,20 @@ AudioPage::AudioPage (LuthierAudioProcessor& p)
                            "Oversampling for the amp and the drive pedals. 4x is the default; "
                            "2x sounds very close and costs noticeably less.");
 
+    // noise-floor.md 3: seeds noise_mains_hz for new (Init) presets only; a
+    // loaded preset keeps its own, so a render is the same on every machine.
+    mainsRegion.addItem ("Auto (from your region)", 1);
+    mainsRegion.addItem ("50 Hz", 2);
+    mainsRegion.addItem ("60 Hz", 3);
+    mainsRegion.setSelectedId (1 + juce::jlimit (0, 2, UiPreferences::get().getInt ("defaultMainsRegion", 0)),
+                               juce::dontSendNotification);
+    mainsRegion.setTooltip ("The mains frequency an Init preset's hum starts at. Loaded presets keep their own.");
+    mainsRegion.onChange = [this] { UiPreferences::get().setInt ("defaultMainsRegion", mainsRegion.getSelectedId() - 1); };
+    addAndMakeVisible (mainsRegion);
+    mainsLabel.setText ("Default mains region", juce::dontSendNotification);
+    styleNote (mainsLabel, Palette::textMuted, 11.0f);
+    addAndMakeVisible (mainsLabel);
+
     addAndMakeVisible (deviceButton);
     deviceButton.setTooltip ("Where the device, sample rate and buffer settings actually live");
     deviceButton.onClick = [this]
@@ -640,7 +655,13 @@ void AudioPage::resized()
 
     bounds.removeFromTop (22);
 
-    oversampling.setBounds (bounds.removeFromTop (40).removeFromLeft (200));
+    {
+        auto row = bounds.removeFromTop (40);
+        oversampling.setBounds (row.removeFromLeft (200));
+        row.removeFromLeft (16);
+        mainsLabel.setBounds (row.removeFromTop (14).removeFromLeft (200));
+        mainsRegion.setBounds (row.removeFromTop (24).removeFromLeft (200));
+    }
 
     bounds = getLocalBounds().withTrimmedTop (118);
 

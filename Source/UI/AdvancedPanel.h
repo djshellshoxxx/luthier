@@ -233,6 +233,7 @@ private:
     juce::OwnedArray<StringRow> stringRows;
     std::unique_ptr<LuthierChoice> stringMaterial, stringGauge, stringAge;
     std::unique_ptr<LuthierKnob> realismDetune, intonation, sustain;
+    std::unique_ptr<DecayRow> decayRow;   // sustain-and-decay.md 8 (REALISM-C)
     std::unique_ptr<LuthierToggle> driftToggle;
 
     // --- column 2 -----------------------------------------------------------------
