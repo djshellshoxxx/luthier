@@ -1,6 +1,7 @@
 #include "GuitarBodyComponent.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
+#include "PerformanceAssistUi.h"   // FEAT-ASSIST
 
 namespace luthier
 {
@@ -9,6 +10,16 @@ namespace luthier
 GuitarBodyComponent::GuitarBodyComponent (LuthierAudioProcessor& p)
     : processor (p)
 {
+    // auto-articulation.md 7.3 (FEAT-ASSIST): where a played note shows on the neck.
+    assistLabels = std::make_unique<AssistLabelOverlay> (processor, *this, [this] (int s, double fret)
+    {
+        if (! juce::isPositiveAndBelow (s, (int) scene.nutPoints.size()))
+            return juce::Point<float>();
+
+        const auto mm = fret > 0.05 ? scene.stringAt (s, (float) fret - 0.5f) : scene.nutPoints[(size_t) s];
+        return mm.transformedBy (mmToPx);
+    });
+
     startTimerHz (30);
 }
 

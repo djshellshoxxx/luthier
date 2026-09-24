@@ -16,6 +16,7 @@ namespace luthier
 {
 
 class LuthierAudioProcessor;
+class AssistLabelOverlay;   // FEAT-ASSIST: auto-articulation.md 7.3
 
 //==============================================================================
 enum class ScaleOverlay
@@ -128,6 +129,12 @@ private:
     std::array<int, 12> liveNote {};
 
     int hoverString = -1;
+
+    // auto-articulation.md 7.3 (FEAT-ASSIST): Performance Assist's labels, on top.
+    std::unique_ptr<AssistLabelOverlay> assistLabels;
+public:
+    AssistLabelOverlay* getAssistLabels() const noexcept { return assistLabels.get(); }
+private:
     int hoverFret = -1;
     int playingString = -1;
 

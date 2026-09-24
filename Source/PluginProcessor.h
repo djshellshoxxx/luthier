@@ -4,6 +4,7 @@
 
 #include "LuthierEngine.h"
 #include "Parameters.h"
+#include "Model/Playing/AssistDecisionLog.h"   // FEAT-ASSIST
 #include "Presets/PresetManager.h"
 #include "Support/MidiLearn.h"
 #include "Support/MidiCapture.h"
@@ -442,9 +443,16 @@ public:
 
         /** workshop-ui.md 7: the bench's eight A/B guitars, workspace not preset. */
         std::array<juce::var, 8> benchSlots;
+
+        /** auto-articulation.md 8 (FEAT-ASSIST): the RHYTHM tab's PLAYING group. */
+        bool playingGroupCollapsed = false;
     };
 
     UiState& getUiState() noexcept { return uiState; }
+
+    /** auto-articulation.md 7 (FEAT-ASSIST): what Performance Assist decided,
+        drained from the engine's feed by whichever view is showing it. */
+    AssistDecisionLog& getAssistLog() noexcept { return assistLog; }
 
     /** Host tempo, updated each block. */
     double getHostTempo() const noexcept { return hostTempo.load(); }
@@ -460,6 +468,8 @@ private:
         protected in AudioProcessor, and because it is needed in the constructor's
         initialiser list, before any instance exists. */
     static BusesProperties buildBusesProperties();
+
+    AssistDecisionLog assistLog;   // FEAT-ASSIST: session state, never saved
 
     void timerCallback() override;
     void updateLatency();

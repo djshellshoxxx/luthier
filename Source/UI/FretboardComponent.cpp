@@ -1,4 +1,5 @@
 #include "FretboardComponent.h"
+#include "PerformanceAssistUi.h"   // FEAT-ASSIST
 #include "../PluginProcessor.h"
 
 namespace luthier
@@ -58,6 +59,13 @@ FretboardComponent::FretboardComponent (LuthierAudioProcessor& p)
     liveNote.fill (-1);
 
     setTooltip ("Click a fret to hear that note. Right-click for string options.");
+    // auto-articulation.md 7.3 (FEAT-ASSIST): a label sits where the live note's dot does.
+    assistLabels = std::make_unique<AssistLabelOverlay> (processor, *this, [this] (int s, double fret)
+    {
+        const float x = (fret < 0.05) ? fretX (0.0) - 6.0f : (fretX (juce::jmax (0.0, fret - 1.0)) + fretX (fret)) * 0.5f;
+        return juce::Point<float> (x, stringY (s));
+    });
+
     startTimerHz (30);
 }
 

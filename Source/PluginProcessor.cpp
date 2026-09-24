@@ -2198,6 +2198,7 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     ui->setProperty ("editorWidth", uiState.editorWidth);
     ui->setProperty ("editorHeight", uiState.editorHeight);
     ui->setProperty ("auditionType", (int) uiState.auditionType);
+    ui->setProperty ("playingGroupCollapsed", uiState.playingGroupCollapsed);   // FEAT-ASSIST
     root->setProperty ("ui", juce::var (ui));
 
     juce::Array<juce::var> locks;
@@ -2284,6 +2285,7 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
         uiState.tooltipsEnabled = ui->hasProperty ("tooltipsEnabled") ? (bool) ui->getProperty ("tooltipsEnabled") : true;
         uiState.selectedString = (int) ui->getProperty ("selectedString");
         uiState.advancedTab = (int) ui->getProperty ("advancedTab");
+        uiState.playingGroupCollapsed = (bool) ui->getProperty ("playingGroupCollapsed");   // FEAT-ASSIST
         uiState.easterEggFound = ui->getProperty ("easterEggFound");
         uiState.editorWidth = juce::jmax (900, (int) ui->getProperty ("editorWidth"));
         uiState.editorHeight = juce::jmax (540, (int) ui->getProperty ("editorHeight"));

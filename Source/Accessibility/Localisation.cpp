@@ -422,6 +422,7 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "accessibility.shortcut.toggleLiveMode",  "Toggle Live Mode" },
         { "accessibility.shortcut.toggleSlideMode", "Toggle Slide Mode" },
         { "accessibility.shortcut.togglePractice",  "Open the practice drawer" },
+        { "accessibility.shortcut.toggleAssist",    "Turn Performance Assist on or off" },   // FEAT-ASSIST
         { "accessibility.shortcut.panic",           "Panic: silence all notes" },
         { "accessibility.shortcut.tapTempo",        "Tap tempo" },
         { "accessibility.shortcut.killSwitch",      "Kill switch" },

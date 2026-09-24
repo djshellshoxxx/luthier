@@ -22,6 +22,7 @@
 #include "GuitarBodyComponent.h"
 #include "CircuitPanel.h"
 #include "AmpFacePanel.h"
+#include "PerformanceAssistUi.h"   // auto-articulation.md 7.1 (FEAT-ASSIST)
 
 namespace luthier
 {
@@ -71,6 +72,11 @@ public:
 
     std::function<void()> onOpenExport;
 
+    /** auto-articulation.md 7.1 (FEAT-ASSIST): the AUTO popover's "More in RHYTHM tab". */
+    std::function<void()> onOpenAssistRhythmTab;
+    AssistPill& getAssistPill() noexcept { return *assistPill; }
+    AssistStyleBox& getAssistStyleBox() noexcept { return *assistStyle; }
+
     void paint (juce::Graphics&) override;
     void resized() override;
 
@@ -116,6 +122,10 @@ private:
     LuthierKnob whammyKnob    { "Whammy",    LuthierKnob::Size::Small };
 
     LuthierChoice playingModeSelector { "Mode" };
+
+    // auto-articulation.md 7.1 (FEAT-ASSIST): the mode column's second row.
+    std::unique_ptr<AssistPill> assistPill;
+    std::unique_ptr<AssistStyleBox> assistStyle;
 
     // ---- tone strip (3.4) --------------------------------------------------------------
     LuthierKnob inputKnob  { "Input",   LuthierKnob::Size::Small };

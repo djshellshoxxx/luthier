@@ -498,6 +498,7 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("toggleLiveMode",   "accessibility.shortcut.toggleLiveMode",   KP ('l', 0, 0));
     add ("toggleSlideMode",  "accessibility.shortcut.toggleSlideMode",  KP ('s', 0, 0));
     add ("togglePractice",   "accessibility.shortcut.togglePractice",   KP ('d', 0, 0));
+    add ("toggleAssist",     "accessibility.shortcut.toggleAssist",     KP ('a', 0, 0));   // auto-articulation.md 7.5
 
     add ("panic",            "accessibility.shortcut.panic",            KP ('p', 0, 0));
     add ("tapTempo",         "accessibility.shortcut.tapTempo",         KP ('t', 0, 0));

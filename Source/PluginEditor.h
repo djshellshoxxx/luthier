@@ -73,6 +73,14 @@ public:
         difference between "opened it" and "that page does not exist here". */
     bool showOptionsPage (const juce::String& tabName);
 
+    // ==== BEGIN FEAT-ASSIST ====
+    /** auto-articulation.md 7.5: the PLAYING group's ?. */
+    void openHelpTopic (const juce::String& topic) { openHelp (topic); }
+
+    /** 7.1: the AUTO popover's "More in RHYTHM tab" - Advanced, RHYTHM. */
+    void openAssistInRhythmTab();
+    // ==== END FEAT-ASSIST ====
+
 private:
     void timerCallback() override;
 

@@ -118,6 +118,11 @@ private:
     juce::Label contrastLabel, pendingLabel;
 
     bool updatingControls = false;
+
+    // auto-articulation.md 7.4 (FEAT-ASSIST): Visual aids.
+    juce::ToggleButton assistLabelsToggle { "Show Performance Assist labels" };
+public:
+    juce::ToggleButton& getAssistLabelsToggle() noexcept { return assistLabelsToggle; }
 };
 
 //==============================================================================

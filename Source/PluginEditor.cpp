@@ -129,6 +129,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     presetBrowser.saveAsPanelRequested = [this] { showOverlay (&saveAsPanel); };
 
     easyPanel.onOpenExport = [this] { showOverlay (&exportPanel); };
+    easyPanel.onOpenAssistRhythmTab = [this] { openAssistInRhythmTab(); };   // FEAT-ASSIST
 
     // ---- window --------------------------------------------------------------------
     auto& ui = processor.getUiState();
@@ -197,6 +198,16 @@ juce::String LuthierAudioProcessorEditor::advancedUnavailableMessage()
     return "Advanced Mode needs a window at least "
              + juce::String (AdvancedPanel::minimumUsableWidth)
              + " points wide. Widen the window to use it.";
+}
+
+void LuthierAudioProcessorEditor::openAssistInRhythmTab()
+{
+    // FEAT-ASSIST (auto-articulation.md 7.1): the PLAYING group lives in RHYTHM.
+    setAdvancedMode (true);
+    header.setAdvancedMode (advancedMode);
+
+    if (advancedMode)
+        advancedPanel.setWorkspaceTabNamed ("RHYTHM");
 }
 
 void LuthierAudioProcessorEditor::setAdvancedMode (bool advanced)
@@ -645,6 +656,13 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
             return false;
 
         advancedPanel.stepWorkspaceTab (is ("nextWorkspaceTab") ? 1 : -1);
+        return true;
+    }
+
+    // auto-articulation.md 7.5 (FEAT-ASSIST): A toggles Performance Assist.
+    if (is ("toggleAssist"))
+    {
+        AssistUi::toggle (processor);
         return true;
     }
 

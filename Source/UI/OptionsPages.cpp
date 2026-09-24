@@ -3,6 +3,7 @@
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
+#include "PerformanceAssistUi.h"   // FEAT-ASSIST
 
 namespace luthier
 {
@@ -746,6 +747,13 @@ void MidiPage::resized()
 AppearancePage::AppearancePage (LuthierAudioProcessor& p)
     : OptionsPage (p)
 {
+    // auto-articulation.md 7.4 (FEAT-ASSIST): a UiPreferences entry, not preset data.
+    assistLabelsToggle.setTooltip ("Label Performance Assist's decisions on the fretboard: H, P, slides, vibrato, "
+                                   "palm mutes, strokes and bends. The PLAYING group's list fills either way.");
+    assistLabelsToggle.setToggleState (AssistUi::showLabels(), juce::dontSendNotification);
+    assistLabelsToggle.onClick = [this] { AssistUi::setShowLabels (assistLabelsToggle.getToggleState()); };
+    addAndMakeVisible (assistLabelsToggle);
+
     for (int i = 0; i < (int) PaletteId::numPalettes; ++i)
         paletteBox.addItem (getPaletteName ((PaletteId) i), i + 1);
 
@@ -874,6 +882,9 @@ void AppearancePage::resized()
     contrastLabel.setBounds (bounds.removeFromTop (18));
 
     pendingLabel.setBounds (getLocalBounds().withTrimmedTop (150).withHeight (32));
+
+    // auto-articulation.md 7.4 (FEAT-ASSIST): the Visual aids switch, at the foot.
+    assistLabelsToggle.setBounds (getLocalBounds().removeFromBottom (26).removeFromLeft (300));
 }
 
 //==============================================================================
