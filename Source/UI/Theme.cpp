@@ -1,4 +1,5 @@
 #include "Theme.h"
+#include "NewFeatureDots.h"
 #include "RangesUi.h"
 #include "../Accessibility/Accessibility.h"
 #include "../Support/IrLibrary.h"
@@ -916,6 +917,9 @@ void LuthierLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& bu
     g.setFont (getTextButtonFont (button, button.getHeight()));
     Fonts::drawTrackedText (g, button.getButtonText().toUpperCase(),
                             button.getLocalBounds().reduced (3, 0), juce::Justification::centred);
+
+    // gui-integration 20: a feature new in this version carries a dot for its first week.
+    NewFeatureDots::paintDot (g, button);
 }
 
 void LuthierLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button,

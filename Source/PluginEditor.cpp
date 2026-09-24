@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "UI/NewFeatureDots.h"
 #include "UI/RangesUi.h"
 #include "Accessibility/Accessibility.h"
 
@@ -31,6 +32,9 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     // accessibility.md 4: the UI scale (75-200 %) was stored and offered but
     // never applied; the host is told through the editor's scale factor.
     setScaleFactor ((float) AccessibilitySettings::get().getUiScale());
+
+    // gui-integration 20's NEW dots: the first launch of this version starts the week.
+    NewFeatureDots::noteLaunch (JucePlugin_VersionString, juce::Time::getCurrentTime());
 
     addAndMakeVisible (header);
     addChildComponent (liveStrip);
@@ -543,6 +547,13 @@ void LuthierAudioProcessorEditor::timerCallback()
 {
     updateLiveStripVisibility();
     pollForNotifications();
+
+    // gui-integration 20: mark this version's new entry points, once the window is built.
+    if (! newDotsApplied)
+    {
+        newDotsApplied = true;
+        NewFeatureDots::apply (*this, JucePlugin_VersionString, juce::Time::getCurrentTime());
+    }
 
     // visual-polish.md 5: "Follow the guitar" takes the accent from the finish.
     AccessibilitySettings::get().setGuitarAccentSource (

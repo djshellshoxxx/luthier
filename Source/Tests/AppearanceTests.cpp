@@ -16,6 +16,7 @@
 #include "../UI/OptionsPages.h"
 #include "../UI/RangesUi.h"
 #include "../UI/HelpContent.h"
+#include "../UI/NewFeatureDots.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -635,4 +636,37 @@ LUTHIER_TEST (Reflow, noControlHangsOutsideItsParentAtAnyWidthOrScale)
 
     AccessibilitySettings::get().setUiScale (originalScale);
     AccessibilitySettings::get().dispatchPendingMessages();
+}
+
+//==============================================================================
+/*  gui-integration 20: a feature added after 1.0 carries a NEW dot on its entry
+    point for a week after the first launch of the version that introduced it. */
+LUTHIER_TEST (NewDots, anEntryPointIsMarkedForItsFirstWeekOnly)
+{
+    const std::vector<NewFeatureDots::Entry> table { { "TECHNIQUES", "9.9.9-test" } };
+    const auto key = juce::String ("newFeatures.firstLaunch.9.9.9-test");
+    const auto saved = UiPreferences::get().getString (key, {});
+    UiPreferences::get().setString (key, {});
+
+    const auto start = juce::Time::getCurrentTime();
+    CHECK (NewFeatureDots::isNew ("TECHNIQUES", "9.9.9-test", start, table));   // before the first launch is noted
+    NewFeatureDots::noteLaunch ("9.9.9-test", start);
+    CHECK (NewFeatureDots::isNew ("TECHNIQUES", "9.9.9-test", start + juce::RelativeTime::days (6.9), table));
+    CHECK (! NewFeatureDots::isNew ("TECHNIQUES", "9.9.9-test", start + juce::RelativeTime::days (7.1), table));
+    CHECK (! NewFeatureDots::isNew ("TECHNIQUES", "9.9.10", start, table));
+    CHECK (! NewFeatureDots::isNew ("MOD", "9.9.9-test", start, table));
+
+    // Applied to a button with that text, and drawn.
+    juce::Component root;
+    juce::TextButton techniques ("TECHNIQUES"), mod ("MOD");
+    root.addAndMakeVisible (techniques);
+    root.addAndMakeVisible (mod);
+    NewFeatureDots::apply (root, "9.9.9-test", start + juce::RelativeTime::days (1.0), table);
+    CHECK ((bool) techniques.getProperties()[NewFeatureDots::kProperty]);
+    CHECK (! (bool) mod.getProperties()[NewFeatureDots::kProperty]);
+
+    // 1.0 introduced everything it has: nothing is marked in this build.
+    CHECK (NewFeatureDots::getTable().empty());
+
+    UiPreferences::get().setString (key, saved);
 }
