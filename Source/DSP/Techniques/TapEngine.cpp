@@ -309,19 +309,19 @@ void TapEngine::tapOff (int s, int slot, int offset, const double* lhFrets, cons
     {
         // Another tap is still down: the string falls to it (a pull-off onto a finger).
         e.revealFret = soundingFret (s, juce::jmax (0.0, fretted));
-        e.strength = settings.autoPullOff ? settings.lateralFlick * lifted.strength : 0.0;
+        e.strength = settings.autoPullOff ? settings.lateralFlick * (0.5 + 0.5 * lifted.strength) : 0.0;
     }
     else if (fretted >= 0.0)
     {
         // 2: back to the fretted note. Auto pull-off flicks it; off, the pitch only falls.
         e.revealFret = fretted;
-        e.strength = (settings.autoPullOff && lifted.pullOff) ? settings.lateralFlick * lifted.strength : 0.0;
+        e.strength = (settings.autoPullOff && lifted.pullOff) ? settings.lateralFlick * (0.5 + 0.5 * lifted.strength) : 0.0;
     }
     else if (settings.autoPullOff && lifted.pullOff && settings.lateralFlick > 0.0)
     {
         // Nothing fretted: a pull-off to the open string rings it.
         e.revealFret = 0.0;
-        e.strength = settings.lateralFlick * lifted.strength;
+        e.strength = settings.lateralFlick * (0.5 + 0.5 * lifted.strength);
     }
     else
     {

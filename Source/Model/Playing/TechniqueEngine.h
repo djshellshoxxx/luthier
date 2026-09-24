@@ -58,6 +58,12 @@ public:
     void setLegatoVelocityThreshold (double v) noexcept { legatoVelocity = juce::jlimit (0.0, 1.0, v); }
 
     void setHammerOnEnabled (bool e) noexcept { hammerOnEnabled = e; }
+
+    /*  two-hand-tapping.md 5 (TECHNIQUES): with tapping armed, a soft note on
+        a ringing string within this many ms of the last is a hammer-on or
+        pull-off before it is a slide. 0 (the default) leaves the rules as
+        they were. */
+    void setHammerOnWindowMs (double ms) noexcept { hammerOnWindowMs = juce::jmax (0.0, ms); }
     void setSlideEnabled (bool e) noexcept { slideEnabled = e; }
 
     //==========================================================================
@@ -126,6 +132,7 @@ private:
     double legatoVelocity = 0.63;
 
     bool hammerOnEnabled = true;
+    double hammerOnWindowMs = 0.0;   // TECHNIQUES
     bool slideEnabled = true;
 };
 

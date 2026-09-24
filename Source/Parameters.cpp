@@ -1393,8 +1393,7 @@ void ParameterBridge::applyToEngine() noexcept
         auto& legato = engine.getTechniqueEngine();
         legato.setLegatoVelocityThreshold (tap.armed ? tap.hammerOnThreshold / 127.0 : 0.63);
 
-        if (tap.armed)
-            legato.setLegatoWindowMs (TapSettings::kHammerOnWindowMs);
+        legato.setHammerOnWindowMs (tap.armed ? TapSettings::kHammerOnWindowMs : 0.0);
 
         // microtonal-bends.md 2
         BendSettings bend;
