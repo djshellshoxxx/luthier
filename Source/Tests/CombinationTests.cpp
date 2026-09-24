@@ -471,9 +471,11 @@ LUTHIER_TEST (Combo, everyRhythmPatternAndGenreKit)
 
     auto run = [&] (const juce::String& label)
     {
+        rig.apply();
+        const double idle = rig.renderEvents ({}, 0, 0.3).tailRms;   // the kit's rig, nothing playing
+
         rhythm.setFreeRun (true);
         rhythm.setEnabled (true);
-        rig.apply();
 
         std::vector<TimedMidi> events;
         for (int n : { 48, 52, 55 })
@@ -491,10 +493,12 @@ LUTHIER_TEST (Combo, everyRhythmPatternAndGenreKit)
         rig.quiet();
         stats = rig.renderEvents ({}, 0, 3.0);
         ++ctx.checks;
-        if (stats.tailRms > 1.0e-3)   // -60 dBFS; the default rig's hum and hiss floor is about -68
+        // -60 dBFS, or within 3 dB of what this rig hisses with nothing played.
+        if (stats.tailRms > juce::jmax (1.0e-3, idle * 1.41))
         {
             ctx.fail ("rhythm engine keeps sounding after it is switched off | " + label);
-            log.add (label, "keeps sounding after off, tail " + juce::String (stats.tailRms, 6));
+            log.add (label, "keeps sounding after off (tail " + juce::String (juce::Decibels::gainToDecibels (stats.tailRms), 1)
+                              + " dBFS, idle floor " + juce::String (juce::Decibels::gainToDecibels (idle), 1) + " dBFS)");
         }
     };
 
@@ -1133,4 +1137,86 @@ LUTHIER_TEST (Combo, structuralChangesWhileAudioRuns)
 
     CHECK_MSG (blocks.load() > iterations, "the audio thread stalled: " + juce::String (blocks.load()) + " blocks");
     CHECK_MSG (! nonFinite.load(), "non-finite output while structural changes raced the audio thread (seed 99)");
+}
+
+//==============================================================================
+/*  Found by everyRhythmPatternAndGenreKit: after a strum pattern, with the
+    engine off and panic() called, the output GREW from -42 to -14 dBFS over
+    eight seconds with nothing playing. Two strings had been left ringing at the
+    same pitch (130.8 and 130.9 Hz) with no damping, and the sympathetic
+    coupling passed energy between them faster than the loops lose it.
+
+    Two ways in, both checked: the rhythm engine's voicing, and a player
+    holding the same pitch on two strings in Guitar Controller mode. A held
+    note may sustain; it may never get louder. And panic must stop it. */
+LUTHIER_TEST (Combo, unisonStringsNeverGrowAndPanicSilencesThem)
+{
+    FindingLog log { "Combo.unison" };
+
+    auto measure = [&] (Rig& rig, const juce::String& label)
+    {
+        const auto s = rig.renderEvents ({}, 0, 6.0);
+        const double early = Rig::windowRms (s.mono, (int) (0.5 * kSr), (int) (0.5 * kSr));
+        const double late  = Rig::windowRms (s.mono, (int) (5.0 * kSr), (int) (0.5 * kSr));
+
+        ++ctx.checks;
+        if (late > early * 1.12 && late > 1.0e-3)
+        {
+            const auto why = "energy grows with nothing played: " + juce::String (juce::Decibels::gainToDecibels (early), 1)
+                             + " dBFS at 0.5 s -> " + juce::String (juce::Decibels::gainToDecibels (late), 1) + " dBFS at 5 s";
+            ctx.fail (why + " | " + label);
+            log.add (label, why);
+        }
+
+        rig.p().panic();
+        const auto after = rig.renderEvents ({}, 0, 1.0);
+        ++ctx.checks;
+        if (after.tailRms > juce::jmax (1.0e-3, s.idleRms * 1.41) && after.tailRms > 2.0e-3)
+        {
+            const auto why = "panic() did not silence it: " + juce::String (juce::Decibels::gainToDecibels (after.tailRms), 1) + " dBFS 1 s later";
+            ctx.fail (why + " | " + label);
+            log.add (label, why);
+        }
+    };
+
+    // 1. The rhythm engine, on each factory pattern, then off and panic.
+    {
+        Rig rig;
+        auto& rhythm = rig.p().getEngine().getRhythmEngine();
+        auto& library = rig.p().getPatternLibrary();
+
+        for (int i = 0; i < juce::jmin (library.getNumPatterns(), juce::jmax (3, (int) std::round (library.getNumPatterns() * scale()))); ++i)
+        {
+            rig.p().resetEverything();
+            rhythm.setPattern (library.getPattern (i));
+            rig.apply();
+            rhythm.setFreeRun (true);
+            rhythm.setEnabled (true);
+
+            std::vector<TimedMidi> ev;
+            for (int n : { 48, 52, 55 }) ev.push_back ({ 0, juce::MidiMessage::noteOn (1, n, (juce::uint8) 100) });
+            for (int n : { 48, 52, 55 }) ev.push_back ({ (int) (2.0 * kSr), juce::MidiMessage::noteOff (1, n) });
+            rig.renderEvents (ev, (int) (2.0 * kSr), 0.05);
+
+            rhythm.setEnabled (false);
+            rig.quiet();
+            measure (rig, "after pattern#" + juce::String (i) + " \"" + library.getPattern (i).getName() + "\", engine off, all notes off, panic");
+        }
+    }
+
+    // 2. The same pitch held on two strings (Guitar Controller: a channel per string).
+    {
+        Rig rig;
+        rig.p().resetEverything();
+        rig.setIndex (ParamIDs::playingMode, 2);
+        rig.apply();
+
+        // G3 = string 3 open (channel 3) and string 4 at the fifth fret (channel 4).
+        std::vector<TimedMidi> ev { { 0, juce::MidiMessage::noteOn (3, 55, (juce::uint8) 100) },
+                                    { 0, juce::MidiMessage::noteOn (4, 55, (juce::uint8) 100) } };
+        rig.renderEvents (ev, 0, 0.05);
+        measure (rig, "G3 held on two strings, Guitar Controller mode, channels 3 and 4");
+    }
+
+    log.flush();
 }
