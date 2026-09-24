@@ -1,4 +1,6 @@
 #include "CabinetEngine.h"
+#include "CabinetVoices.h"
+#include "MicPlacement.h"
 #include "../../Support/ThreadProbe.h"
 
 namespace luthier
@@ -8,50 +10,6 @@ namespace
 {
     constexpr int kCabPartitionSize = 128;
     constexpr double kSpeedOfSoundMmPerSample = 343.0;   // scaled by sample rate below
-
-    struct SpeakerVoice
-    {
-        const char* name;
-        double lowCornerHz;    ///< Below this the cone stops moving air.
-        double bodyHz;         ///< The chest-thump resonance.
-        double bodyDb;
-        double presenceHz;     ///< Cone breakup: the bite.
-        double presenceDb;
-        double topRollHz;      ///< Above this a guitar speaker is essentially deaf.
-    };
-
-    const SpeakerVoice kSpeakers[(size_t) SpeakerType::NumSpeakers] =
-    {
-        { "British 25 W Vintage",  95.0, 200.0,  3.0, 2100.0,  5.5, 4600.0 },
-        { "British 60 W Modern", 88.0, 180.0,  2.5, 2600.0,  7.0, 5200.0 },
-        { "British 30 W Heavy",       82.0, 165.0,  3.5, 2300.0,  6.0, 5000.0 },
-        { "British 75 W",    92.0, 210.0,  2.0, 3000.0,  4.5, 5400.0 },
-        { "American Alnico 12",          105.0, 240.0,  2.2, 1900.0,  5.0, 5600.0 },
-        { "British Alnico 15 W",         110.0, 260.0,  1.8, 2400.0,  6.5, 6200.0 },
-        { "American 300 W Heavy",              70.0, 150.0,  1.2, 3200.0,  3.0, 5800.0 },
-        { "Bass Ceramic",         42.0,  95.0,  2.6, 1400.0,  2.0, 3600.0 }
-    };
-
-    struct MicVoice
-    {
-        const char* name;
-        double proximityHz;    ///< Where the proximity bump sits.
-        double proximityDb;
-        double presenceHz;
-        double presenceDb;
-        double topHz;
-    };
-
-    const MicVoice kMics[(size_t) MicType::NumMics] =
-    {
-        { "Classic Dynamic",      140.0,  2.0, 5500.0,  5.0, 14000.0 },
-        { "Broadcast Dynamic",      120.0,  2.5, 4200.0,  2.5, 15000.0 },
-        { "Wide Dynamic",130.0,  3.5, 3800.0,  3.5, 16000.0 },
-        { "Large Condenser",      95.0,  1.5, 9000.0,  3.0, 20000.0 },
-        { "Ribbon",     110.0,  3.0, 6000.0, -3.5,  9000.0 },
-        { "Studio Condenser",         90.0,  1.2, 10000.0, 3.5, 20000.0 },
-        { "Kick Dynamic",         70.0,  4.0, 3200.0,  3.0,  9000.0 }
-    };
 
     juce::String slug (const char* s)
     {
@@ -68,16 +26,34 @@ CabinetEngine::CabinetEngine()
         juce::dsp::Convolution::Latency { kCabPartitionSize });
     pathB.convolution = std::make_unique<juce::dsp::Convolution> (
         juce::dsp::Convolution::Latency { kCabPartitionSize });
+
+    // mic-placement.md 5.
+    for (auto* path : { &pathA, &pathB })
+    {
+        path->stage = std::make_unique<MicPlacementStage>();
+        path->tof = std::make_unique<SlewedDelayLine>();
+    }
+
+    tofMode = TofMode::Aligned;
+
+    // Mic 2's defaults are the mapping of its legacy defaults, Off-Axis 45 and
+    // Medium (mic-placement.md 7).
+    MicPlacement second;
+    second.distCm = 15.0;
+    second.angleDeg = 45.0;
+    pathB.stage->setPlacement (second);
 }
 
 CabinetEngine::~CabinetEngine() = default;
 
 //==============================================================================
-void CabinetEngine::MicPath::prepareFallback (double sr, const CabinetConfig& cfg) noexcept
+void CabinetEngine::MicPath::prepareFallback (double sr, const CabinetConfig& cfgIn) noexcept
 {
-    const auto& sp = kSpeakers[(size_t) juce::jlimit (0, (int) SpeakerType::NumSpeakers - 1,
-                                                      (int) cfg.speaker)];
-    const auto& mic = kMics[(size_t) juce::jlimit (0, (int) MicType::NumMics - 1, (int) cfg.mic)];
+    // mic-placement.md 5: the fallback always uses the anchor terms, so it and
+    // the IR path share one placement stage.
+    const auto cfg = CabinetEngine::anchorConfig (cfgIn);
+    const auto& sp = speakerVoice (cfg.speaker);
+    const auto& mic = micVoice (cfg.mic);
 
     // A broken-in speaker has a looser surround: it goes lower and is less peaky.
     const double age = juce::jlimit (0.0, 1.0, cfg.speakerAge);
@@ -210,6 +186,13 @@ void CabinetEngine::prepare (double sampleRate, int maxBlockSize)
     bufferA.setSize (1, maxBlock, false, true, true);
     bufferB.setSize (1, maxBlock, false, true, true);
 
+    // mic-placement.md 5: 12 ms covers 200 cm of path at any rate.
+    for (auto* path : { &pathA, &pathB })
+    {
+        path->stage->prepare (sr, maxBlock);
+        path->tof->prepare (sr, 0.012);
+    }
+
     dcL.prepare (sr, 10.0);
     dcR.prepare (sr, 10.0);
 
@@ -235,6 +218,12 @@ void CabinetEngine::reset() noexcept
     std::fill (alignBuffer.begin(), alignBuffer.end(), 0.0);
     alignIndex = 0;
 
+    for (auto* path : { &pathA, &pathB })
+    {
+        path->stage->reset();
+        path->tof->reset();
+    }
+
     bufferA.clear();
     bufferB.clear();
 
@@ -256,12 +245,90 @@ void CabinetEngine::setConfigA (const CabinetConfig& cfg)
 {
     configA = cfg;
     pathA.prepareFallback (sr, configA);
+    updateStageVoice (pathA, configA);
 }
 
 void CabinetEngine::setConfigB (const CabinetConfig& cfg)
 {
     configB = cfg;
     pathB.prepareFallback (sr, configB);
+    updateStageVoice (pathB, configB);
+}
+
+//==============================================================================
+CabinetConfig CabinetEngine::anchorConfig (const CabinetConfig& cfg) noexcept
+{
+    if (cfg.cabinet == CabinetType::AcousticDI)
+        return cfg;
+
+    auto anchor = cfg;
+    anchor.position = MicPosition::OnAxisCapEdge;
+    anchor.distance = MicDistance::Close;
+    return anchor;
+}
+
+void CabinetEngine::updateStageVoice (MicPath& path, const CabinetConfig& cfg) noexcept
+{
+    path.stage->setVoice (cfg.cabinet, cfg.speaker, cfg.mic);
+
+    // The Acoustic DI has no speaker to mic: placement lives upstream, in
+    // AcousticMicModel (mic-placement.md 3).
+    path.stage->setBypassed (cfg.cabinet == CabinetType::AcousticDI || path.userIrBypass);
+}
+
+void CabinetEngine::setMicPlacement (int slot, const MicPlacement& placement) noexcept
+{
+    ((slot <= 0) ? pathA : pathB).stage->setPlacement (placement);
+}
+
+const MicPlacement& CabinetEngine::getMicPlacement (int slot) const noexcept
+{
+    return ((slot <= 0) ? pathA : pathB).stage->getPlacement();
+}
+
+void CabinetEngine::setTimeOfFlightMode (TofMode mode) noexcept
+{
+    tofMode = mode;
+
+    // Physical leaves a rear mic's polarity inverted - the back of the cone;
+    // Aligned flips it back, the way an engineer would (mic-placement.md 2.3).
+    for (auto* path : { &pathA, &pathB })
+        path->stage->setInvertRearPolarity (mode == TofMode::Physical);
+}
+
+void CabinetEngine::setLevelMatch (bool on) noexcept
+{
+    pathA.stage->setLevelMatch (on);
+    pathB.stage->setLevelMatch (on);
+}
+
+void CabinetEngine::setRoomMaterialForFloor (RoomMaterial material, bool roomOn) noexcept
+{
+    const double rho = MicPlacementModel::floorRhoFor ((int) material, roomOn);
+    pathA.stage->setFloorReflectivity (rho);
+    pathB.stage->setFloorReflectivity (rho);
+}
+
+void CabinetEngine::setPlacementBypassed (int slot, bool bypassed) noexcept
+{
+    auto& path = (slot <= 0) ? pathA : pathB;
+    path.userIrBypass = bypassed;
+    updateStageVoice (path, (slot <= 0) ? configA : configB);
+}
+
+bool CabinetEngine::isPlacementBypassed (int slot) const noexcept
+{
+    return ((slot <= 0) ? pathA : pathB).stage->isBypassed();
+}
+
+MicPlacementStage& CabinetEngine::getPlacementStage (int slot) noexcept
+{
+    return *((slot <= 0) ? pathA : pathB).stage;
+}
+
+const SlewedDelayLine& CabinetEngine::getTofLine (int slot) const noexcept
+{
+    return *((slot <= 0) ? pathA : pathB).tof;
 }
 
 void CabinetEngine::setDualMicEnabled (bool e) noexcept
@@ -439,6 +506,9 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
         }
     }
 
+    // mic-placement.md 5 step 2: where the mic is, after its anchor response.
+    pathA.stage->process (a, numSamples);
+
     // ---- mic B ----------------------------------------------------------------
     if (dualMic)
     {
@@ -457,6 +527,8 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
                 b[i] = (float) sanitise (pathB.processFallback ((double) b[i]));
         }
 
+        pathB.stage->process (b, numSamples);
+
         // Time-of-flight alignment: the further mic hears the cabinet later, and
         // summing them without compensating comb-filters the result.
         if (alignSamples > 0 && alignSize > 0)
@@ -468,6 +540,38 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
                 b[i] = (float) alignBuffer[(size_t) readIndex];
                 alignIndex = (alignIndex + 1) & alignMask;
             }
+        }
+    }
+
+    // ---- time of arrival (mic-placement.md 2.3) ----------------------------------
+    // Physical: the farther mic hears the cabinet later and is delayed by the
+    // path difference; the nearer one is not, so no latency is added. Aligned,
+    // or a single mic: no relative delay. The delay glides under a slew limit.
+    {
+        double delayA = 0.0, delayB = 0.0;
+
+        if (dualMic && tofMode == TofMode::Physical)
+        {
+            const double diff = (pathB.stage->getPathLengthM() - pathA.stage->getPathLengthM())
+                                / MicPlacementModel::kSpeedOfSound * sr;
+            delayA = juce::jmax (0.0, -diff);
+            delayB = juce::jmax (0.0, diff);
+        }
+
+        pathA.tof->setTargetDelaySamples (delayA);
+        pathA.tof->process (a, numSamples);
+
+        if (dualMic)
+        {
+            pathB.tof->setTargetDelaySamples (delayB);
+            pathB.tof->process (b, numSamples);
+        }
+        else
+        {
+            // Nothing is rendered on mic 2: it starts from its target when it
+            // is switched on, rather than gliding in from wherever it was.
+            pathB.tof->setTargetDelaySamples (0.0);
+            pathB.tof->snapToTarget();
         }
     }
 

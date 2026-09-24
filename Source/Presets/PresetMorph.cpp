@@ -1,5 +1,6 @@
 #include "PresetMorph.h"
 #include "../PluginProcessor.h"
+#include "MicPlacementMigration.h"   // mic-placement.md 4
 
 namespace luthier
 {
@@ -37,6 +38,13 @@ void PresetMorph::setSlot (Slot slot, const juce::var& presetState, const juce::
 {
     slots[(size_t) slot] = presetState;
     names[(size_t) slot] = name;
+
+    // mic-placement.md 4: an endpoint from an older file morphs from its
+    // mapped continuous placement, not from wherever the mic happens to be.
+    {
+        auto params = slots[(size_t) slot].getProperty ("parameters", {});
+        MicPlacementMigration::apply (params, processor.getState());
+    }
 
     // The side whose structure is loaded may just have changed underneath.
     loadedSide = -1;

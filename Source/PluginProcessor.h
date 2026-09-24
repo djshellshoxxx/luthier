@@ -9,6 +9,7 @@
 #include "Support/MidiCapture.h"
 #include "Capture/PerformanceCapture.h"
 #include "Presets/PresetMorph.h"
+#include "Presets/MicPlacementMigration.h"   // mic-placement.md 4
 #include "Tune/TuneSession.h"
 #include "Support/AudioExporter.h"
 #include "Support/Diagnostics.h"
@@ -82,6 +83,10 @@ public:
     //==========================================================================
     LuthierEngine&      getEngine() noexcept        { return engine; }
     juce::AudioProcessorValueTreeState& getState() noexcept { return apvts; }
+
+    /** mic-placement.md 4: follows a session still automating the legacy mic
+        Position / Distance. */
+    MicLegacyAutomation& getMicLegacyAutomation() noexcept { return *micLegacyAutomation; }
     PresetManager&      getPresetManager() noexcept { return presets; }
     MidiLearnManager&   getMidiLearn() noexcept     { return midiLearn; }
     MidiCapture&        getMidiCapture() noexcept   { return midiCapture; }
@@ -490,6 +495,7 @@ private:
     ParameterBridge bridge;
     PresetManager presets;
     MidiLearnManager midiLearn;
+    std::unique_ptr<MicLegacyAutomation> micLegacyAutomation;   // mic-placement.md 4
     MidiCapture midiCapture;
     PerformanceCapture performanceCapture;
     bool tabDotsOnFretboard = false;   // MODEL-GAPS

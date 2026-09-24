@@ -104,6 +104,12 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     postEffects.setPosition (EffectsChain::Position::PostAmp);
     cabinet.prepare (sr, maxBlock);
     room.prepare (sr, maxBlock);
+    acMic.prepare (sr, maxBlock);                                // mic-placement.md 3
+    acMic.setBody (computeAcousticLandmarks (body.getBodyConfig().shape, spec.scaleLengthMm),
+                   body.getAirResonanceHz());
+    acMicMixSmooth.prepare (sr, 0.020);
+    acMicMixSmooth.snapTo (acMicMixTarget);
+    acMicBuffer.assign ((size_t) maxBlock, 0.0);
     secret.prepare (sr);
     master.prepare (sr, maxBlock);
     freezeOverlay.prepare (sr, 2);
@@ -162,6 +168,8 @@ void LuthierEngine::reset() noexcept
     postEffects.reset();
     cabinet.reset();
     room.reset();
+    acMic.reset();
+    acMicMixSmooth.snapTo (acMicMixTarget);
     secret.reset();
     master.reset();
     freezeOverlay.reset();
@@ -548,6 +556,10 @@ void LuthierEngine::rebuildBodyFromSpec()
     body.setAmount (bodyAmount);
 
     reloadBodyIr();
+
+    // mic-placement.md 3: the acoustic mics' landmarks move with the body, so a
+    // Workshop body swap keeps "12th fret" at the 12th fret.
+    acMic.setBody (computeAcousticLandmarks (cfg.shape, spec.scaleLengthMm), body.getAirResonanceHz());
 }
 
 //==============================================================================
@@ -573,12 +585,14 @@ void LuthierEngine::reloadBodyIr()
 
 void LuthierEngine::reloadCabinetIrs()
 {
-    const auto fileA = IrLibrary::findCabIr (cabinet.getConfigA());
+    // mic-placement.md 5: each mic always loads its anchor IR; placement is a
+    // continuous stage after it and never reloads anything (MP-13).
+    const auto fileA = IrLibrary::findCabIr (CabinetEngine::anchorConfig (cabinet.getConfigA()));
 
     if (fileA.existsAsFile())
         cabinet.loadImpulseResponse (0, fileA);
 
-    const auto fileB = IrLibrary::findCabIr (cabinet.getConfigB());
+    const auto fileB = IrLibrary::findCabIr (CabinetEngine::anchorConfig (cabinet.getConfigB()));
 
     if (fileB.existsAsFile())
         cabinet.loadImpulseResponse (1, fileB);
@@ -2178,6 +2192,16 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     const double micBlend = pickups.getPiezoMicBlend();
     const bool diPreCircuit = auxDiPreCircuit.load (std::memory_order_relaxed) && taps.isAuxWanted (AuxBus::di);
 
+    // mic-placement.md 3: the external mics, rendered only while they are
+    // heard. At ac_mic_mix = 0, settled, nothing below is touched (MP-20).
+    acMicMixSmooth.setTarget (acoustic ? acMicMixTarget : 0.0);
+    acMicActive = acoustic && (acMicMixSmooth.getTarget() > 0.0 || acMicMixSmooth.getCurrent() > 0.0);
+
+    if (acMicActive)
+        acMic.processBlock (bodyData, stringSumBuffer.data(), acMicBuffer.data(), numSamples);
+    else
+        acMicMixSmooth.snapToTarget();
+
     double blockPeak = 0.0;
 
     for (int i = 0; i < numSamples; ++i)
@@ -2207,6 +2231,11 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             preCircuitBuffer[(size_t) i] = sanitise (instrument);
 
         instrument = circuit.process (instrument);
+
+        // mic-placement.md 3: a microphone does not go through the guitar's
+        // electronics, so it mixes in after the circuit, before the input gain.
+        if (acMicActive)
+            instrument += acMicMixSmooth.next() * (acMicBuffer[(size_t) i] - instrument);
 
         // Input gain (3.4): the trim into the rig, after the guitar's own circuit.
         inputGainNow += (inputGainTarget.load (std::memory_order_relaxed) - inputGainNow) * 0.002;
@@ -2317,6 +2346,16 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         if (! taps.isAuxWanted (bus))
             continue;
+
+        // mic-placement.md 5: on an acoustic guitar with its external mics
+        // heard, Aux 3 and 4 carry those mics.
+        if (acMicActive)
+        {
+            if (const auto* acTap = acMic.getMicTap (slot))
+                taps.writeAuxMono (bus, acTap, numSamples);
+
+            continue;
+        }
 
         if (const auto* mic = cabinet.hasMicTap (slot) ? cabinet.getMicTap (slot) : nullptr)
             taps.writeAuxStereo (bus, mic, mic,

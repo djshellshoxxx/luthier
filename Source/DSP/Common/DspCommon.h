@@ -12,6 +12,7 @@
 #include <juce_dsp/juce_dsp.h>
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <cstdint>
 
 namespace luthier
@@ -563,6 +564,150 @@ public:
 
 private:
     int total = 64, remaining = 0;
+};
+
+//==============================================================================
+/** Topology-preserving-transform state-variable filter (Zavalishin / Simper),
+    in double precision (mic-placement.md 0.4, 5).
+
+    Unlike the direct-form `Biquad`, its state is the integrators' charge, so
+    its coefficients can be changed every few samples under modulation without
+    zipper noise or a transient blow-up. The output is a mix of the input and
+    the band and low outputs, which covers the bell, the shelves and the
+    low-pass one class needs. A bell or shelf at 0 dB has mix (1, 0, 0) and so
+    passes its input through exactly. */
+class TptSvf
+{
+public:
+    void reset() noexcept { ic1 = 0.0; ic2 = 0.0; }
+
+    void setBell (double sr, double hz, double q, double gainDb) noexcept
+    {
+        const double A = std::pow (10.0, gainDb / 40.0);
+        design (std::tan (constants::kPi * clampHz (sr, hz) / sr), 1.0 / (juce::jmax (0.05, q) * A));
+        m0 = 1.0; m1 = k * (A * A - 1.0); m2 = 0.0;
+    }
+
+    void setHighShelf (double sr, double hz, double q, double gainDb) noexcept
+    {
+        const double A = std::pow (10.0, gainDb / 40.0);
+        design (std::tan (constants::kPi * clampHz (sr, hz) / sr) * std::sqrt (A), 1.0 / juce::jmax (0.05, q));
+        m0 = A * A; m1 = k * (1.0 - A) * A; m2 = 1.0 - A * A;
+    }
+
+    void setLowShelf (double sr, double hz, double q, double gainDb) noexcept
+    {
+        const double A = std::pow (10.0, gainDb / 40.0);
+        design (std::tan (constants::kPi * clampHz (sr, hz) / sr) / std::sqrt (A), 1.0 / juce::jmax (0.05, q));
+        m0 = 1.0; m1 = k * (A - 1.0); m2 = A * A - 1.0;
+    }
+
+    void setLowpass (double sr, double hz, double q) noexcept
+    {
+        design (std::tan (constants::kPi * clampHz (sr, hz) / sr), 1.0 / juce::jmax (0.05, q));
+        m0 = 0.0; m1 = 0.0; m2 = 1.0;
+    }
+
+    void setHighpass (double sr, double hz, double q) noexcept
+    {
+        design (std::tan (constants::kPi * clampHz (sr, hz) / sr), 1.0 / juce::jmax (0.05, q));
+        m0 = 1.0; m1 = -k; m2 = -1.0;
+    }
+
+    /** True when the filter is an exact pass-through. */
+    bool isIdentity() const noexcept { return m0 == 1.0 && m1 == 0.0 && m2 == 0.0 && rampLeft == 0; }
+
+    /** Glides this filter's coefficients to `target`'s over `samples`, one
+        step per processed sample, landing exactly on them. Control-rate
+        updates then change the sound continuously rather than in 32-sample
+        steps (mic-placement.md 0.4). */
+    void rampTo (const TptSvf& target, int samples) noexcept
+    {
+        if (target.g == g && target.k == k && target.m0 == m0 && target.m1 == m1 && target.m2 == m2)
+        {
+            rampLeft = 0;
+            return;
+        }
+
+        endG = target.g; endK = target.k; endM0 = target.m0; endM1 = target.m1; endM2 = target.m2;
+        rampLeft = juce::jmax (1, samples);
+        const double inv = 1.0 / rampLeft;
+        dG = (endG - g) * inv; dK = (endK - k) * inv;
+        dM0 = (endM0 - m0) * inv; dM1 = (endM1 - m1) * inv; dM2 = (endM2 - m2) * inv;
+    }
+
+    /** Takes `other`'s coefficients at once, keeping this filter's state. */
+    void copyCoefficientsFrom (const TptSvf& other) noexcept
+    {
+        g = other.g; k = other.k; a1 = other.a1; a2 = other.a2; a3 = other.a3;
+        m0 = other.m0; m1 = other.m1; m2 = other.m2;
+        rampLeft = 0;
+    }
+
+    inline double process (double x) noexcept
+    {
+        if (rampLeft > 0)
+        {
+            if (--rampLeft == 0)
+            {
+                g = endG; k = endK; m0 = endM0; m1 = endM1; m2 = endM2;
+            }
+            else
+            {
+                g += dG; k += dK; m0 += dM0; m1 += dM1; m2 += dM2;
+            }
+
+            a1 = 1.0 / (1.0 + g * (g + k));
+            a2 = g * a1;
+            a3 = g * a2;
+        }
+
+        const double v3 = x - ic2;
+        const double v1 = a1 * ic1 + a2 * v3;
+        const double v2 = ic2 + a2 * ic1 + a3 * v3;
+        ic1 = flushDenormal (2.0 * v1 - ic1);
+        ic2 = flushDenormal (2.0 * v2 - ic2);
+
+        // A non-finite state (a NaN input) would otherwise latch for ever.
+        if (! std::isfinite (ic1) || ! std::isfinite (ic2))
+        {
+            reset();
+            return 0.0;
+        }
+
+        return m0 * x + m1 * v1 + m2 * v2;
+    }
+
+    /** The exact digital response at `hz`, for plots and tests. A TPT SVF is
+        the bilinear transform of its analogue prototype, so the response is the
+        prototype's at the prewarped normalised frequency. */
+    std::complex<double> response (double sr, double hz) const noexcept
+    {
+        const double w = std::tan (constants::kPi * juce::jlimit (0.0, sr * 0.4999, hz) / sr) / g;
+        const std::complex<double> s (0.0, w);
+        const auto den = s * s + k * s + 1.0;
+        return m0 + m1 * (s / den) + m2 * (1.0 / den);
+    }
+
+private:
+    static double clampHz (double sr, double hz) noexcept { return juce::jlimit (1.0, sr * 0.49, hz); }
+
+    void design (double gIn, double kIn) noexcept
+    {
+        g = gIn;
+        k = kIn;
+        a1 = 1.0 / (1.0 + g * (g + k));
+        a2 = g * a1;
+        a3 = g * a2;
+    }
+
+    double g = 0.1, k = 1.4, a1 = 1.0, a2 = 0.0, a3 = 0.0;
+    double m0 = 1.0, m1 = 0.0, m2 = 0.0;
+    double ic1 = 0.0, ic2 = 0.0;
+
+    int rampLeft = 0;
+    double endG = 0.0, endK = 0.0, endM0 = 1.0, endM1 = 0.0, endM2 = 0.0;
+    double dG = 0.0, dK = 0.0, dM0 = 0.0, dM1 = 0.0, dM2 = 0.0;
 };
 
 //==============================================================================

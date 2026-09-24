@@ -16,6 +16,7 @@ const char* getRangeFamilyName (RangeFamily family) noexcept
         case RangeFamily::pick:       return "pick";
         case RangeFamily::slide:      return "slide";
         case RangeFamily::modulation: return "modulation";
+        case RangeFamily::mic:        return "mic";   // mic-placement.md 7
         case RangeFamily::numFamilies:
         default:                      return "none";
     }
@@ -149,12 +150,22 @@ namespace
             { ParamIDs::slideSlant,        { -30.0f, 30.0f, -60.0f, 60.0f, 0.0f,  0.5f, RangeFamily::slide } },
             { ParamIDs::slideNoiseAmount,  { 0.0f,   1.0f,  0.0f,   4.0f,  0.4f,  1.0f, RangeFamily::slide } },
             { ParamIDs::slideClankAmount,  { 0.0f,   1.0f,  0.0f,   4.0f,  0.45f, 1.0f, RangeFamily::slide } },
+
+            // --- mic (mic-placement.md 7, FEAT-MIC) -------------------------
+            { ParamIDs::micDist,     { 0.0f, 100.0f, 0.0f, 200.0f, 2.5f,  0.4f, RangeFamily::mic } },
+            { ParamIDs::micAngle,    { 0.0f,  90.0f, 0.0f, 180.0f, 0.0f,  1.0f, RangeFamily::mic } },
+            { ParamIDs::micDist2,    { 0.0f, 100.0f, 0.0f, 200.0f, 15.0f, 0.4f, RangeFamily::mic } },
+            { ParamIDs::micAngle2,   { 0.0f,  90.0f, 0.0f, 180.0f, 45.0f, 1.0f, RangeFamily::mic } },
+            { ParamIDs::acMicDist,   { 0.0f, 100.0f, 0.0f, 300.0f, 20.0f, 0.4f, RangeFamily::mic } },
+            { ParamIDs::acMicAngle,  { 0.0f,  90.0f, 0.0f, 180.0f, 15.0f, 1.0f, RangeFamily::mic } },
+            { ParamIDs::acMicDist2,  { 0.0f, 100.0f, 0.0f, 300.0f, 30.0f, 0.4f, RangeFamily::mic } },
+            { ParamIDs::acMicAngle2, { 0.0f,  90.0f, 0.0f, 180.0f, 0.0f,  1.0f, RangeFamily::mic } },
         };
 
         return table[index];
     }
 
-    constexpr int kNumEntries = 32;
+    constexpr int kNumEntries = 32 + 8;   // + 8 FEAT-MIC
 }
 
 const PhysicalRange* RangeRegistry::find (const juce::String& parameterId)

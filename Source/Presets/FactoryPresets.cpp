@@ -756,6 +756,14 @@ juce::var FactoryPresets::toVar (const Definition& def, const juce::AudioProcess
         }
     }
 
+    // mic-placement.md 4: the recipes are written in the discrete Position /
+    // Distance terms, so the continuous placement is left out and the load
+    // maps it, exactly as for any other file that predates it.
+    for (const char* id : { ParamIDs::micX, ParamIDs::micY, ParamIDs::micDist, ParamIDs::micAngle,
+                            ParamIDs::micSpeaker, ParamIDs::micRear, ParamIDs::micX2, ParamIDs::micY2,
+                            ParamIDs::micDist2, ParamIDs::micAngle2, ParamIDs::micSpeaker2, ParamIDs::micRear2 })
+        params->removeProperty (id);
+
     root->setProperty ("parameters", juce::var (params));
 
     return juce::var (root);

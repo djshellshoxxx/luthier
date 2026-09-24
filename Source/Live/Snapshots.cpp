@@ -1,4 +1,5 @@
 #include "Snapshots.h"
+#include "../Presets/MicPlacementMigration.h"   // mic-placement.md 4
 
 namespace luthier
 {
@@ -482,7 +483,12 @@ void SnapshotBank::fromVar (const juce::var& state)
     if (const auto* array = root->getProperty ("snapshots").getArray())
         for (const auto& item : *array)
             if ((int) snapshots.size() < kMaxSnapshots)
+            {
                 snapshots.push_back (Snapshot::fromVar (item));
+
+                // mic-placement.md 4: a snapshot from before continuous placement.
+                MicPlacementMigration::apply (snapshots.back().parameters, processor);
+            }
 
     if (root->hasProperty ("crossfadeMs"))
         setCrossfadeMs ((double) root->getProperty ("crossfadeMs"));

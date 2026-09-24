@@ -35,6 +35,7 @@ enum class RangeFamily
     pick,
     slide,
     modulation,
+    mic,            // mic-placement.md 7 (FEAT-MIC)
     numFamilies,
 
     /** Returned for a parameter that has no PhysicalRange. */
