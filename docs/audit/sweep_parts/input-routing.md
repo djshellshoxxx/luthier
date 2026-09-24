@@ -22,7 +22,7 @@ Only the outer shape of the MIDI chain is in place: MIDI-out pass-through is cap
 | IR-16 (§1.6) | MIDI clock / Start / Stop / Continue / SPP -> tap tempo and rhythm transport | - | - | - | MISSING |
 | IR-17 (§2, §2.1) | Mouse z-order: overlays consume, scrim click dismisses; popovers eat the outside click — untested | `UI/Overlays.cpp:OverlayHost::mouseDown` | overlays | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` (Escape only) | NO-TEST |
 | IR-18 (§2.2) | Drag consumers: part cards -> illustration, pedals in rack, snapshots in strip, presets -> setlist, mod source -> control — pedal drag only; snapshot/preset drags absent; mod-source drag on visual | `PedalRack.cpp:PedalSlotComponent::mouseDrag` | FX rack | - | PARTIAL |
-| IR-19 (§4) | Root file-drop by extension (preset, guitar, tune, part, set, loop, content, midprofile, mid, wav/aiff/flac, mp3) + unknown-type banner + batch — only `.mid/.midi` (editor) and IR slot; visual's `FileOpenRouter` routes 6 extensions for standalone open, not drops | `PluginEditor::isInterestedInFileDrag/filesDropped` | whole window (MIDI only) | `MidiImport` editor drop check (MidiImportTests.cpp:134) | PARTIAL |
+| IR-19 (§4) | Root file-drop by extension (preset, guitar, tune, part, set, loop, content, midprofile, mid, wav/aiff/flac, mp3) + unknown-type banner + batch — only `.mid/.midi` (editor) and IR slot; visual's `FileOpenRouter` routes 6 extensions for standalone open, not drops | `PluginEditor::isInterestedInFileDrag/filesDropped` | whole window (MIDI only) | `MidiImport::aDropOnTheWindowImports` | PARTIAL |
 | IR-20 (§3, §3.1) | Focused text field consumes keys; Escape passes; global shortcuts inactive — JUCE focus order; untested | `PluginEditor::keyPressed` (reached only if unhandled) | n/a | - | NO-TEST |
 | IR-21 (§3) | Global shortcut table with rebinding | `AccessibilitySettings` | Options > ACCESSIBILITY Rebind | `Accessibility::shortcutsRebindAndRefuseClashes`, `Accessibility::shortcutDefaultsMatchTheCanonicalTable` | DONE |
 | IR-22 (§3.2) | Rebind conflict detected at rebind time (inline refusal instead of modal) | `AccessibilitySettings::rebind`, `OptionsPages.cpp:1059` | Options | `Accessibility::shortcutsRebindAndRefuseClashes` | DONE |
@@ -30,9 +30,9 @@ Only the outer shape of the MIDI chain is in place: MIDI-out pass-through is cap
 | IR-24 (§5) | Host transport: rhythm start/stop/reposition, tune sync, tap defers, metronome grid, recorder regardless — metronome not transport-synced | `processSlice` playhead read, `RhythmTransport` | n/a | `RhythmPatterns::silentWhenStoppedUnlessFreeRunning`, `LiveTapTempo::respectsRangeSnapAndHostPriority` | PARTIAL |
 | IR-25 (§6) | Sidechain consumers: followers, sidechain compressor, sidechain-to-amp, EQ/cab match — no sidechain compressor pedal | `ModEnvelopeFollower`, `engine.setSidechainToAmp`, ToneMatch capture | ROUTING, MOD | `Routing::sidechainToAmpReplacesTheInstrument` | PARTIAL |
 | IR-26 (§6) | Sidechain never reaches main path unless consumed — untested | `processSlice` sidechainCopy | n/a | - | NO-TEST |
-| IR-27 (§7) | Standalone audio input: sidechain, sung melody, trainer input — hum capture on tune-help; no trainer input | `humCapture` (tune-help) | - | - | PARTIAL |
+| IR-27 (§7) | Standalone audio input: sidechain, sung melody, trainer input — sung-melody capture is on tune-help (`humCapture`, tune-builder 13); no trainer input here | - | - | - | PARTIAL |
 | IR-28 (§8) | Options > Diagnostics "Inject fixture MIDI / audio" at chain front | - | - | - | MISSING |
 | IR-29 (§9) | `Tests/InputRouting/` suite for every consumer / veto rule | - | n/a | - | MISSING |
 | IR-30 (§9) | 60 s scripted integration session | - | n/a | - | MISSING |
 
-<!-- counts DONE=9 NO-GUI=0 NO-TEST=7 PARTIAL=11 MISSING=9 OWNED=0 -->
+<!-- counts DONE=7 NO-GUI=0 NO-TEST=6 PARTIAL=9 MISSING=8 OWNED=0 -->

@@ -25,7 +25,7 @@ The generalised `SlapEngine` is complete here: four slap types, five trigger sou
 | SS-19 (§4) | Five presets (Bass Standard, Bass Aggressive, Funk Guitar Palm Slap, Acoustic Body Tap, Percussive Fingerstyle) loadable — `SlapSettings::fromPreset` called only by tests on every branch | `SlapSettings::fromPreset` | none | `Slap.theFactorySlapsAreWhatSectionFourSays` | PARTIAL |
 | SS-20 (§5) | Cascade: compatible with palm mute and bend — MuteEngine/BendEngine only on techniques (`Muting.aSlappedNoteCarriesItsMute`, `Bend.aBentSlapPitchesCorrectly`) | n/a here | n/a | (branch) tests named | OWNED |
 | SS-21 (§5) | Cascade: tap alternation — TapEngine only on techniques (`Cascade.everyPairResolvesAsDocumented`) | n/a here | n/a | (branch) `Cascade.everyPairResolvesAsDocumented` | OWNED |
-| SS-22 (§5) | Not compatible with slide (bar under string) or scraping the same string | `SlapEngine::classify(e, slide.isUnderBar)`; `scrape.preempt`/`slap.preempt` | n/a | `SlapWiring.slapAndScrapeTakeTheStringFromEachOther` | DONE |
+| SS-22 (§5) | Not compatible with slide (bar under string) or scraping the same string — scrape conflict tested; the slide gate (`classify(e, underBar)`) has no test | `SlapEngine::classify(e, slide.isUnderBar)`; `scrape.preempt`/`slap.preempt` | n/a | `SlapWiring.slapAndScrapeTakeTheStringFromEachOther` (scrape only) | NO-TEST |
 | SS-23 (§6) | GUI: TECHNIQUES > Slap sub-tab — none here; on techniques: `TechniquesPanel` SLAP page | n/a | (branch) TECHNIQUES > SLAP | (branch) `TechniquesUi.everySubTabRendersItsControls` | OWNED |
 | SS-24 (§6) | Playing strip Tool selector gains Slap / Pop — on realism-b: `RhTool::slap/pop`, `RightHandToolSelector`, test FA13 | n/a here | (branch) Easy tool selector | (branch) `FA13_slapAndPopTools` | OWNED |
 | SS-T1 (§7) | Test: thumb slap 60 mm force 0.6 within 1 dB of the bass reference (all trigger paths agree) | | n/a | `SlapWiring.aThumbSlapIsTheSameHoweverItIsFired` | DONE |
@@ -37,4 +37,4 @@ The generalised `SlapEngine` is complete here: four slap types, five trigger sou
 | SS-T7 (§7) | Test: CPU idle < 0.05 %, active < 0.6 % | | n/a | `Slap.idleAndActiveStayInBudget` | DONE |
 | SS-T8 (§7) | Test: preset save/restore round-trips every added field | | n/a | `SlapPresets.everySlapFieldRoundTrips` | DONE |
 
-<!-- counts DONE=16 NO-GUI=0 NO-TEST=0 PARTIAL=2 MISSING=0 OWNED=14 -->
+<!-- counts DONE=15 NO-GUI=0 NO-TEST=1 PARTIAL=2 MISSING=0 OWNED=14 -->
