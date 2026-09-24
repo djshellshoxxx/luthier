@@ -46,6 +46,10 @@ public:
     /** Called once at startup by the processor so writeAll has ranges to work with. */
     static void setProcessorForRanges (const juce::AudioProcessor* processor) noexcept;
 
+    /** The processor currently lending its ranges (FEAT-BROWSER: a processor
+        clears it on destruction so the pointer never dangles). */
+    static const juce::AudioProcessor* getProcessorForRanges() noexcept { return rangeSource; }
+
 private:
     static const juce::AudioProcessor* rangeSource;
 };

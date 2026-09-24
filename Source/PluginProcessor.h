@@ -34,6 +34,7 @@
 #include "Workshop/WorkshopBench.h"
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
+#include "Presets/Preview/PreviewPlayer.h"   // preset-browser-previews.md 4
 
 namespace luthier
 {
@@ -455,6 +456,40 @@ public:
     /** Factory used by the exporter to make an offline instance. */
     static std::unique_ptr<juce::AudioProcessor> createOfflineInstance();
 
+    // ==== BEGIN FEAT-BROWSER (preset-browser-previews.md) ====
+    /** 3.2: an instance that renders previews. Stops the UI timer and the
+        library hooks, so the offline instance never touches the live one's
+        recent list or runs message-thread work under the render. */
+    void setOfflineRenderMode();
+
+    /** Constructing inside this scope makes a render instance: it skips the
+        user-global loads (accessibility, locale, telemetry, licence, practice
+        history), the factory-bank scan and the UI timer, so one can be built on
+        the preview worker without touching state the UI reads. */
+    struct ScopedOfflineRenderConstruction
+    {
+        ScopedOfflineRenderConstruction()  { flag() = true; }
+        ~ScopedOfflineRenderConstruction() { flag() = false; }
+        static bool& flag() noexcept { static thread_local bool f = false; return f; }
+    };
+    bool isOfflineRenderInstance() const noexcept { return offlineRenderInstance; }
+
+    /** Resolves a preset's guitar reference the way a load does (5.1 hash). */
+    static juce::File resolveGuitarFile (const juce::String& reference) { return resolveGuitarReference (reference); }
+
+    /** 4.1: the preview player and the clips it may hold (message thread adds). */
+    PreviewPlayer&   getPreviewPlayer() noexcept   { return previewPlayer; }
+    PreviewClipPool& getPreviewClipPool() noexcept { return previewClipPool; }
+
+    /** 3.3 / 5.6: the preset index and the render service, created lazily on
+        the message thread so an offline instance never starts a worker. */
+    class PresetLibrary& getPresetLibrary();
+    bool hasPresetLibrary() const noexcept { return presetLibrary != nullptr; }
+
+    /** 4.3: whether the tune transport is running (it blocks previews). */
+    bool isTuneTransportRunning() const noexcept;
+    // ==== END FEAT-BROWSER ====
+
 private:
     /** The advertised bus layout. A static member because BusesProperties is
         protected in AudioProcessor, and because it is needed in the constructor's
@@ -785,6 +820,14 @@ private:
     int gestureParameterIndex = -1;
 
     juce::StringArray lockedParameters;
+
+    // ==== BEGIN FEAT-BROWSER (preset-browser-previews.md 4.1 / 4.2) ====
+    PreviewClipPool previewClipPool;          // before the player: outlives it
+    PreviewPlayer previewPlayer;
+    std::unique_ptr<class PresetLibrary> presetLibrary;     // after the player: goes first
+    bool offlineRenderInstance = false;
+    int previewHeldNotes = 0;                 // audio thread: live notes held (4.3)
+    // ==== END FEAT-BROWSER ====
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessor)
 };

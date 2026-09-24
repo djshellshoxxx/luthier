@@ -1,4 +1,5 @@
 #include "PresetManager.h"
+#include "Search/PresetFeatures.h"   // FEAT-BROWSER
 #include "FactoryPresets.h"
 #include "../Support/IrLibrary.h"
 #include "../Support/ErrorLog.h"
@@ -269,7 +270,27 @@ void PresetManager::scanFolder (const juce::File& folder, bool factory)
             if (auto* tagArray = obj->getProperty ("tags").getArray())
                 for (const auto& t : *tagArray)
                     info.tags.add (t.toString());
+
+            // preset-browser-previews 5.4 / 5.6 (FEAT-BROWSER): the uid keys
+            // favourites and ratings; the gear names feed search.
+            info.uid = obj->getProperty ("uid").toString();
+
+            if (info.uid.isEmpty() && factory)
+                info.uid = "factory:" + info.name;
+
+            if (featureReader == nullptr)
+                featureReader = std::make_unique<PresetFeatureReader> (processor);
+
+            if (obj->getProperty ("parameters").getDynamicObject() != nullptr)
+            {
+                const auto features = featureReader->read (parsed);
+                info.guitarName = features.guitarName;
+                info.ampName = features.ampName;
+                info.family = PresetFeatures::getFamilyName (features.family);
+            }
         }
+
+        info.modified = file.getLastModificationTime();
 
         presets.add (info);
     }
@@ -367,6 +388,13 @@ juce::var PresetManager::toVar (const juce::String& name,
         tagArray.add (t);
 
     root->setProperty ("tags", tagArray);
+
+    // preset-browser-previews 5.4 (FEAT-BROWSER): optional, beside the name.
+    if (currentUid.isNotEmpty() && ! currentUid.startsWith ("factory:"))
+        root->setProperty ("uid", currentUid);
+
+    if (currentPreviewPhrase.isNotEmpty())
+        root->setProperty ("previewPhrase", currentPreviewPhrase);
 
     // ---- parameters ----------------------------------------------------------
     auto* params = new juce::DynamicObject();
@@ -542,7 +570,8 @@ bool PresetManager::fromVar (const juce::var& data)
             "rhythmEngine", "routing", "character", "toneMatch",
             // Written by this build too (a known key read back as unknown moved
             // to the front of the next save, so save -> load -> save differed).
-            "ranges", "guitar", "midiMap"
+            "ranges", "guitar", "midiMap",
+            "uid", "previewPhrase"   // preset-browser-previews 5.4 (FEAT-BROWSER)
         };
 
         auto* preserved = new juce::DynamicObject();
@@ -761,6 +790,8 @@ bool PresetManager::fromVar (const juce::var& data)
 
     currentName = obj->getProperty ("name").toString();
     currentCategory = obj->getProperty ("category").toString();
+    currentUid = obj->getProperty ("uid").toString();                       // FEAT-BROWSER (5.4)
+    currentPreviewPhrase = obj->getProperty ("previewPhrase").toString();
 
     if (currentName.isEmpty())
         currentName = "Untitled";
@@ -1106,10 +1137,20 @@ bool PresetManager::saveCurrent()
 
     captureExtraState();
 
+    // preset-browser-previews 5.4: a uid on the first save of a user preset.
+    if (currentUid.isEmpty() || currentUid.startsWith ("factory:"))
+        currentUid = info->uid.isNotEmpty() && ! info->uid.startsWith ("factory:") ? info->uid
+                                                                                   : juce::Uuid().toString();
+
     if (writeToFile (info->file, toVar (info->name, info->category, info->description, info->tags)))
     {
         modified = false;
+        const auto savedFile = info->file;
         sendChangeMessage();
+
+        if (onPresetSaved)
+            onPresetSaved (savedFile);   // 2: a high-priority preview render
+
         return true;
     }
 
@@ -1131,8 +1172,23 @@ bool PresetManager::saveAs (const juce::String& name, const juce::String& catego
 
     captureExtraState();
 
-    if (! writeToFile (file, toVar (name, safeCategory, description, tags)))
-        return false;
+    // preset-browser-previews 5.4: a new file gets a new uid; saving over an
+    // existing one keeps its uid, so its favourite and rating stay with it.
+    {
+        const auto previousUid = currentUid;
+        juce::String existingUid;
+
+        if (file.existsAsFile())
+            existingUid = juce::JSON::parse (file.loadFileAsString()).getProperty ("uid", {}).toString();
+
+        currentUid = existingUid.isNotEmpty() ? existingUid : juce::Uuid().toString();
+
+        if (! writeToFile (file, toVar (name, safeCategory, description, tags)))
+        {
+            currentUid = previousUid;
+            return false;
+        }
+    }
 
     currentName = name;
     currentCategory = safeCategory;
@@ -1150,6 +1206,10 @@ bool PresetManager::saveAs (const juce::String& name, const juce::String& catego
     }
 
     sendChangeMessage();
+
+    if (onPresetSaved)
+        onPresetSaved (file);   // preset-browser-previews 2 (FEAT-BROWSER)
+
     return true;
 }
 
