@@ -318,6 +318,26 @@ void ModSourceCard::timerCallback()
     repaint (scopeBounds);
 }
 
+juce::var ModSourceCard::dragDescriptionFor (int s)
+{
+    return juce::String (kModSourceDragPrefix) + juce::String (s);
+}
+
+void ModSourceCard::mouseDrag (const juce::MouseEvent& e)
+{
+    // Only from the header row, where nothing else takes the mouse.
+    if (e.getMouseDownY() > 16 || e.getDistanceFromDragStart() < 4)
+        return;
+
+    if (auto* container = juce::DragAndDropContainer::findParentDragContainerFor (this))
+        if (! container->isDragAndDropActive())
+        {
+            auto ghost = createComponentSnapshot (getLocalBounds().withHeight (juce::jmin (getHeight(), 70)));
+            ghost.multiplyAllAlphas (0.6f);
+            container->startDragging (dragDescriptionFor (slot), this, juce::ScaledImage (ghost), true);
+        }
+}
+
 void ModSourceCard::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds();

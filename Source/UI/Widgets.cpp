@@ -146,6 +146,39 @@ juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
 std::function<void (const juce::String&)> showShortcutInOptions;
 std::function<void (const juce::String&)> openHelpForPanel;
 
+int modSourceSlotFromDrag (const juce::var& description)
+{
+    const auto text = description.toString();
+
+    if (! text.startsWith (kModSourceDragPrefix))
+        return -1;
+
+    const int slot = text.fromFirstOccurrenceOf (kModSourceDragPrefix, false, false).getIntValue();
+    return juce::isPositiveAndBelow (slot, (int) ModSourceSlots::count) ? slot : -1;
+}
+
+bool addModulationFromDrop (LuthierAudioProcessor& processor, int sourceSlot, const juce::String& parameterId)
+{
+    if (sourceSlot < 0 || parameterId.isEmpty() || processor.getState().getParameter (parameterId) == nullptr)
+        return false;
+
+    auto& matrix = processor.getModMatrix();
+
+    if (matrix.getRouteCountForDestination (parameterId) >= ModMatrix::kMaxRoutesPerDestination)
+        return false;
+
+    ModRoute route;
+    route.sourceId = modSourceIdForSlot (sourceSlot);
+    route.destinationId = parameterId;
+    route.depth = 0.25f;   // gui-integration 11.2: "default depth 25%"
+    route.enabled = true;
+
+    // One undo entry, in words (action-and-undo.md).
+    processor.pushUndoState ("Modulate " + processor.getState().getParameter (parameterId)->getName (40)
+                             + " from " + modSourceDisplayName (sourceSlot) + " at 25%");
+    return matrix.addRoute (route);
+}
+
 PanelHelpButton::PanelHelpButton (const juce::String& panelName)
     : juce::Button ("?"), panel (panelName)
 {
@@ -684,6 +717,13 @@ void LuthierKnob::paint (juce::Graphics& g)
     {
         g.setColour (Palette::secondary.withAlpha (0.65f));
         g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (1.0f), Metrics::panelCorner, 1.5f);
+    }
+
+    // gui-integration 11.2: the drop target a dragged source would route to.
+    if (dropHighlight)
+    {
+        g.setColour (Palette::accent);
+        g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (1.0f), Metrics::panelCorner, 2.0f);
     }
 }
 

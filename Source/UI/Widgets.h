@@ -92,6 +92,16 @@ private:
 void labelForScreenReaders (juce::Component& control, LuthierAudioProcessor& processor,
                             const juce::String& parameterId, const juce::String& tooltip);
 
+/** gui-integration 11.2: a MOD source card's drag description is this prefix and its slot. */
+inline constexpr const char* kModSourceDragPrefix = "luthier.modsource:";
+
+/** The source slot a drag carries, or -1 if it is not a mod source. */
+int modSourceSlotFromDrag (const juce::var& description);
+
+/*  gui-integration 11.2: a dropped source becomes a route at 25% depth - one
+    undo entry. Returns false when the control's routes are full. */
+bool addModulationFromDrop (LuthierAudioProcessor& processor, int sourceSlot, const juce::String& parameterId);
+
 /** The shortcut action that drives a parameter (Slide Mode's S), or empty. */
 juce::String shortcutActionForParameter (const juce::String& parameterId);
 
@@ -146,10 +156,24 @@ struct LearnTarget
 /** A rotary control with its label below and its value above. */
 class LuthierKnob : public juce::Component,
                     public juce::SettableTooltipClient,
-                    public LearnTarget
+                    public LearnTarget,
+                    public juce::DragAndDropTarget   // gui-integration 11.2
 {
 public:
     enum class Size { Small, Normal, Large, Macro };
+
+    // gui-integration 11.2: a MOD source dropped here routes to this knob at 25%.
+    bool isInterestedInDragSource (const SourceDetails& d) override { return processor != nullptr && modSourceSlotFromDrag (d.description) >= 0; }
+    void itemDragEnter (const SourceDetails&) override { dropHighlight = true; repaint(); }
+    void itemDragExit (const SourceDetails&) override  { dropHighlight = false; repaint(); }
+    void itemDropped (const SourceDetails& d) override
+    {
+        dropHighlight = false;
+        repaint();
+
+        if (processor != nullptr)
+            addModulationFromDrop (*processor, modSourceSlotFromDrag (d.description), paramId);
+    }
 
     LuthierKnob (const juce::String& labelText, Size size = Size::Normal);
     ~LuthierKnob() override;
@@ -211,6 +235,7 @@ private:
 
     bool showDiceAndLock = false;
     bool hovering = false;
+    bool dropHighlight = false;   // a mod source is being dragged over (11.2)
     int mappedCc = -1;
 
     juce::Rectangle<int> diceBounds, lockBounds;
@@ -288,9 +313,17 @@ private:
 /** Horizontal or vertical slider bound to a float parameter, with a label. */
 class LuthierSlider : public LearnTarget,
                       public juce::Component,
-                      public juce::SettableTooltipClient
+                      public juce::SettableTooltipClient,
+                      public juce::DragAndDropTarget   // gui-integration 11.2
 {
 public:
+    bool isInterestedInDragSource (const SourceDetails& d) override { return processor != nullptr && modSourceSlotFromDrag (d.description) >= 0; }
+    void itemDropped (const SourceDetails& d) override
+    {
+        if (processor != nullptr)
+            addModulationFromDrop (*processor, modSourceSlotFromDrag (d.description), paramId);
+    }
+
     LuthierSlider (const juce::String& labelText, bool vertical = false);
     ~LuthierSlider() override;
 

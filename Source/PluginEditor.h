@@ -18,6 +18,7 @@ namespace luthier
 
 //==============================================================================
 class LuthierAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                    public juce::DragAndDropContainer,   // gui-integration 11.2: drag-to-modulate
                                     private juce::Timer,
                                     private juce::ChangeListener
 {

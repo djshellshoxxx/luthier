@@ -17,6 +17,7 @@
 #include "../UI/RangesUi.h"
 #include "../UI/HelpContent.h"
 #include "../UI/NewFeatureDots.h"
+#include "../UI/ModMatrixPanel.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -669,4 +670,46 @@ LUTHIER_TEST (NewDots, anEntryPointIsMarkedForItsFirstWeekOnly)
     CHECK (NewFeatureDots::getTable().empty());
 
     UiPreferences::get().setString (key, saved);
+}
+
+//==============================================================================
+/*  gui-integration 11.2 / ui-wiring 12: a MOD source card dragged onto a
+    control makes a route at 25% depth, one undo entry; the card is the drag
+    source and every attached knob and slider a target. */
+LUTHIER_TEST (DragToModulate, aDroppedSourceRoutesAt25PercentAsOneEntry)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    const auto description = ModSourceCard::dragDescriptionFor (ModSourceSlots::lfoBase + 1);
+    CHECK (modSourceSlotFromDrag (description) == ModSourceSlots::lfoBase + 1);
+    CHECK (modSourceSlotFromDrag ("something else") == -1);
+
+    juce::Component root;
+    LuthierKnob knob ("Gain");
+    root.addAndMakeVisible (knob);
+    knob.attachTo (processor, ParamIDs::ampGain);
+
+    juce::DragAndDropTarget::SourceDetails details (description, nullptr, {});
+    CHECK (knob.isInterestedInDragSource (details));
+    CHECK (! knob.isInterestedInDragSource (juce::DragAndDropTarget::SourceDetails ("text", nullptr, {})));
+
+    auto& matrix = processor.getModMatrix();
+    const int routesBefore = matrix.getRouteCountForDestination (ParamIDs::ampGain);
+    const int steps = processor.getNumUndoSteps();
+
+    knob.itemDropped (details);
+
+    CHECK (matrix.getRouteCountForDestination (ParamIDs::ampGain) == routesBefore + 1);
+    CHECK (processor.getNumUndoSteps() == steps + 1);
+    CHECK (processor.getUndoDescription().contains ("at 25%"));
+
+    bool found = false;
+    for (const auto& r : matrix.getRoutes())
+        if (r.destinationId == ParamIDs::ampGain)
+            found = found || std::abs (r.depth - 0.25f) < 1.0e-6f;
+    CHECK (found);
+
+    processor.undo();
+    CHECK (matrix.getRouteCountForDestination (ParamIDs::ampGain) == routesBefore);
 }
