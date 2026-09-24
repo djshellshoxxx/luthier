@@ -298,6 +298,12 @@ void LuthierLookAndFeel::refreshColours()
     setColour (juce::Label::backgroundWhenEditingColourId, Palette::panelSunken);
     setColour (juce::Label::outlineWhenEditingColourId,   Palette::accent);
 
+    // Table headers (the mod matrix's routes) were JUCE's light grey on every palette (TODO V).
+    setColour (juce::TableHeaderComponent::backgroundColourId, Palette::panelRaised);
+    setColour (juce::TableHeaderComponent::textColourId,       Palette::textMuted);
+    setColour (juce::TableHeaderComponent::outlineColourId,    Palette::edge);
+    setColour (juce::TableHeaderComponent::highlightColourId,  Palette::accent.withAlpha (0.25f));
+
     setColour (juce::Slider::rotarySliderFillColourId,    Palette::accent);
     setColour (juce::Slider::rotarySliderOutlineColourId, Palette::edge);
     setColour (juce::Slider::thumbColourId,               Palette::accent);

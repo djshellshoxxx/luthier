@@ -2054,15 +2054,17 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
     styleNote (recorderNote);
     addAndMakeVisible (recorderNote);
 
-    /*  Section 5 wants the Workshop, Slide and advanced-ranges booleans mirrored
-        here, so a user can see what telemetry would report. None of the three
-        exists, so there is nothing to mirror and saying so beats three faked
-        rows that always read false. */
-    styleNote (mirrorNote, Palette::textDisabled);
-    mirrorNote.setText ("The Workshop, Slide and advanced-ranges feature flags are not built "
-                        "yet, so there is nothing to mirror here.",
+    /*  Section 5's Workshop / Slide / advanced-ranges mirror and section 20's
+        live audio path, in one view: the flags as telemetry would see them,
+        under the stages that are sounding (VISUAL-WORKSHOP-QA). */
+    styleNote (mirrorNote, Palette::textMuted);
+    mirrorNote.setText ("Lit stages are doing something; dim ones are off, bypassed or empty. "
+                        "The last line is what telemetry would report for the three feature flags.",
                         juce::dontSendNotification);
     addAndMakeVisible (mirrorNote);
+
+    audioPath = std::make_unique<AudioPathView> (processor);
+    addAndMakeVisible (*audioPath);
 
     refresh();
 }
@@ -2090,7 +2092,7 @@ void DiagnosticsPage::paint (juce::Graphics& g)
 
     drawHeading (g, bounds.removeFromTop (18), "WHAT LUTHIER RECORDS FOR YOU");
     drawHeading (g, { 0, 150, getWidth(), 18 }, "FILES AND WINDOWS");
-    drawHeading (g, { 0, 262, getWidth(), 18 }, "FEATURE FLAGS");
+    drawHeading (g, { 0, 262, getWidth(), 18 }, "WHAT'S ON THE AUDIO PATH RIGHT NOW");
 }
 
 void DiagnosticsPage::resized()
@@ -2126,7 +2128,10 @@ void DiagnosticsPage::resized()
         hardResetButton.setBounds (row.removeFromLeft (280));
     }
 
-    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (284).withHeight (32));
+    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (282).withHeight (18));
+
+    if (audioPath != nullptr)
+        audioPath->setBounds (getLocalBounds().withTrimmedTop (304).withHeight (juce::jmax (80, juce::jmin (130, getHeight() - 308))));
 }
 
 //==============================================================================
@@ -2144,6 +2149,21 @@ FileLocationsPage::FileLocationsPage (LuthierAudioProcessor& p)
 
     addAndMakeVisible (openDiagnosticsFolder);
     openDiagnosticsFolder.onClick = [] { Diagnostics::getDiagnosticsFolder().revealToUser(); };
+
+    // Section 5: "including ~/Documents/Luthier/Guitars/ and ~/Documents/Luthier/Parts/".
+    addAndMakeVisible (openGuitarsFolder);
+    openGuitarsFolder.onClick = []
+    {
+        PartLibrary::getUserGuitarsFolder().createDirectory();
+        PartLibrary::getUserGuitarsFolder().revealToUser();
+    };
+
+    addAndMakeVisible (openPartsFolder);
+    openPartsFolder.onClick = []
+    {
+        PartLibrary::getUserPartsFolder().createDirectory();
+        PartLibrary::getUserPartsFolder().revealToUser();
+    };
 
     addAndMakeVisible (addFolderButton);
     addFolderButton.onClick = [this]
@@ -2226,7 +2246,9 @@ void FileLocationsPage::refresh()
         "User presets   " + PresetManager::getUserPresetFolder().getFullPathName() + "\n"
         "Factory        " + PresetManager::getFactoryPresetFolder().getFullPathName() + "\n"
         "Renders        " + PresetManager::getRenderFolder().getFullPathName() + "\n"
-        "Diagnostics    " + Diagnostics::getDiagnosticsFolder().getFullPathName(),
+        "Diagnostics    " + Diagnostics::getDiagnosticsFolder().getFullPathName() + "\n"
+        "Guitars        " + PartLibrary::getUserGuitarsFolder().getFullPathName() + "\n"
+        "Parts          " + PartLibrary::getUserPartsFolder().getFullPathName(),
         juce::dontSendNotification);
 
     folderList.updateContent();
@@ -2237,7 +2259,7 @@ void FileLocationsPage::paint (juce::Graphics& g)
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "WHERE LUTHIER KEEPS THINGS");
-    drawHeading (g, { 0, 178, getWidth(), 18 }, "PRESET SEARCH PATH");
+    drawHeading (g, { 0, 232, getWidth(), 18 }, "PRESET SEARCH PATH");
 }
 
 void FileLocationsPage::resized()
@@ -2246,7 +2268,7 @@ void FileLocationsPage::resized()
 
     bounds.removeFromTop (20);
 
-    pathLabel.setBounds (bounds.removeFromTop (72));
+    pathLabel.setBounds (bounds.removeFromTop (100));
     bounds.removeFromTop (Metrics::gridHalf);
 
     {
@@ -2261,7 +2283,17 @@ void FileLocationsPage::resized()
         openDiagnosticsFolder.setBounds (row.removeFromLeft (190));
     }
 
-    bounds = getLocalBounds().withTrimmedTop (200);
+    bounds.removeFromTop (Metrics::gridHalf);
+
+    {
+        auto row = bounds.removeFromTop (Metrics::buttonHeight);
+
+        openGuitarsFolder.setBounds (row.removeFromLeft (170));
+        row.removeFromLeft (Metrics::gridHalf);
+        openPartsFolder.setBounds (row.removeFromLeft (180));
+    }
+
+    bounds = getLocalBounds().withTrimmedTop (254);
 
     {
         auto row = bounds.removeFromTop (Metrics::buttonHeight);

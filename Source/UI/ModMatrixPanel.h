@@ -41,7 +41,8 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    static constexpr int preferredHeight = 150;
+    static constexpr int kRowHeight = 24, kLabelWidth = 66;
+    static constexpr int preferredHeight = 16 + 36 + 2 + 7 * kRowHeight + 4;   ///< the LFO's seven rows fit
 
 private:
     void timerCallback() override;

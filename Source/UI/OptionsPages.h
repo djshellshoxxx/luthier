@@ -25,6 +25,7 @@
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "AudioPathView.h"
 #include "../Controllers/ControllerProfile.h"
 #include "../Updates/Telemetry.h"
 
@@ -429,6 +430,12 @@ private:
     juce::TextButton hardResetButton { "Reset all settings and clear caches" };
 
     juce::Label explanation, recorderNote, mirrorNote;
+
+    /** gui-integration 20: "What's on the audio path right now", with section 5's flags mirror. */
+    std::unique_ptr<AudioPathView> audioPath;
+
+public:
+    AudioPathView* getAudioPathView() const noexcept { return audioPath.get(); }
 };
 
 //==============================================================================
@@ -437,8 +444,7 @@ private:
     Every user data folder, with a button that opens it, plus the preset search
     path: the folders Luthier scans, and the buttons that add to or rescan them.
 
-    ~/Documents/Luthier/Guitars/ and /Parts/ are in the section's list and are
-    not here, because the Workshop that would write them does not exist yet.
+    ~/Documents/Luthier/Guitars/ and /Parts/ have their own buttons.
 */
 class FileLocationsPage final : public OptionsPage
 {
@@ -454,6 +460,8 @@ private:
     juce::TextButton openRenderFolder { "Open render folder" };
     juce::TextButton openFactoryFolder { "Open factory preset folder" };
     juce::TextButton openDiagnosticsFolder { "Open diagnostics folder" };
+    juce::TextButton openGuitarsFolder { "Open guitars folder" };   // gui-integration 5
+    juce::TextButton openPartsFolder { "Open parts folder" };
     juce::TextButton addFolderButton { "Add a preset folder..." };
     juce::TextButton rescanButton { "Rescan presets" };
 

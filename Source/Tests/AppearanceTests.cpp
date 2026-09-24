@@ -12,6 +12,7 @@
 #include "../UI/UiPreferences.h"
 #include "../UI/Theme.h"
 #include "../UI/StageTouches.h"
+#include "../UI/AudioPathView.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -285,4 +286,48 @@ LUTHIER_TEST (StageTouches, theRoomLightFollowsSizeAndWet)
     set (ParamIDs::roomOn, 0.0f);
     light.refresh();
     CHECK (light.getWarmth() == 0.0f);
+}
+
+//==============================================================================
+/*  gui-integration 20: Options -> Diagnostics shows what is on the audio path
+    right now, and 5: it mirrors the Workshop / Slide / advanced-ranges flags. */
+LUTHIER_TEST (Diagnostics, theAudioPathShowsWhatIsSoundingAndTheFlags)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    AudioPathView view (processor);
+
+    auto stage = [&view] (const juce::String& name)
+    {
+        for (auto& s : view.readStages())
+            if (s.name == name)
+                return s;
+        return AudioPathView::Stage {};
+    };
+
+    auto set = [&processor] (const juce::String& id, float plain)
+    {
+        auto* p = dynamic_cast<juce::RangedAudioParameter*> (processor.getState().getParameter (id));
+        p->setValueNotifyingHost (p->convertTo0to1 (plain));
+    };
+
+    set (ParamIDs::cabOn, 1.0f);
+    CHECK (stage ("Cabinet").active);
+    set (ParamIDs::cabOn, 0.0f);
+    CHECK (! stage ("Cabinet").active);
+
+    CHECK (! stage ("Pre FX").active);
+    set (ParamIDs::slotType (false, 0), 1.0f);
+    set (ParamIDs::slotBypass (false, 0), 0.0f);
+    CHECK (stage ("Pre FX").active && stage ("Pre FX").detail == "1 pedal");
+
+    CHECK (view.describeFlags().contains ("Slide Mode: off"));
+    set (ParamIDs::slideGuitar, 1.0f);
+    CHECK (view.describeFlags().contains ("Slide Mode: on"));
+
+    RangeState unlocked;
+    unlocked.setFamilyAdvanced (RangeFamily::amp, true);
+    processor.changeRanges (unlocked, "test");
+    CHECK (view.describeFlags().contains ("Advanced ranges: amp"));
+    CHECK (view.describeFlags().contains ("Workshop edit: no"));
 }
