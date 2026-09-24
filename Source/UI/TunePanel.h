@@ -218,6 +218,18 @@ public:
     bool exportMidiTo (const juce::File& file, juce::String& error);
     void newFromTemplate (int templateIndex);
 
+    /** midi-export 5: a `.mid` as a new tune (TuneImport). Stops the player,
+        replaces the tune as a state boundary, and reports what the importer
+        guessed through onNotification. False, with `error`, leaves the tune. */
+    bool importMidiFrom (const juce::File& file, juce::String& error);
+
+    /** The NEW button's template picker; the header's "New Tune..." too. */
+    void showTemplateMenu();
+
+    /** Where an import's report goes: the editor's banner strip when wired,
+        else a message box. `warning` marks news the user should act on. */
+    std::function<void (const juce::String& message, bool warning)> onNotification;
+
     /** The progression field's parse result. */
     juce::String getProgressionError() const   { return progressionError; }
     int getProgressionErrorPosition() const    { return progressionErrorPosition; }
@@ -234,6 +246,7 @@ public:
     juce::TextEditor& getTitleEditor() noexcept      { return titleEditor; }
     juce::TextButton& getNewButton() noexcept        { return newButton; }
     juce::TextButton& getLoadButton() noexcept       { return loadButton; }
+    juce::TextButton& getImportButton() noexcept     { return importButton; }
     juce::TextButton& getSaveButton() noexcept       { return saveButton; }
     juce::TextButton& getExportButton() noexcept     { return exportButton; }
     juce::Slider& getTempoSlider() noexcept          { return tempoSlider; }
@@ -277,8 +290,9 @@ private:
     void chooseAndLoad();
     void chooseAndSave();
     void chooseAndExport();
-    void showTemplateMenu();
+    void chooseAndImportMidi();
     void showError (const juce::String& title, const juce::String& message);
+    void notify (const juce::String& message, bool warning);
 
     LuthierAudioProcessor& processor;
     TunePlayer& player;
@@ -289,7 +303,8 @@ private:
 
     // --- header -------------------------------------------------------------------
     juce::TextEditor titleEditor;
-    juce::TextButton newButton { "NEW" }, loadButton { "LOAD" }, saveButton { "SAVE" }, exportButton { "EXPORT" };
+    juce::TextButton newButton { "NEW" }, loadButton { "LOAD" }, importButton { "IMPORT" },
+                     saveButton { "SAVE" }, exportButton { "EXPORT" };
     juce::Slider tempoSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxLeft };
     juce::ComboBox keyBox, modeBox;
 

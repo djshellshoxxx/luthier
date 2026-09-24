@@ -1,5 +1,6 @@
 #include "TunePanel.h"
 #include "../PluginProcessor.h"
+#include "../Tune/TuneImport.h"
 #include "../Tune/TuneTemplates.h"
 
 namespace luthier
@@ -876,21 +877,26 @@ void TunePanel::buildHeader()
         }, kTitleTarget);
     };
 
-    for (auto* b : { &newButton, &loadButton, &saveButton, &exportButton })
+    for (auto* b : { &newButton, &loadButton, &importButton, &saveButton, &exportButton })
         addAndMakeVisible (b);
 
     newButton.setTooltip ("A new tune from a template (Ctrl+T)");
     loadButton.setTooltip ("Open a .luthiertune");
+    importButton.setTooltip ("Import a MIDI file (.mid) as a new tune: its chords are strummed by "
+                             "each section's rhythm pattern, its melody and bass play as written");
     saveButton.setTooltip ("Save the tune (Ctrl+S)");
     exportButton.setTooltip ("Export the tune as a MIDI file (Ctrl+E)");
 
     AccessibleSetup::configureButton (newButton, "New tune", "Starts a new tune from a template.");
     AccessibleSetup::configureButton (loadButton, "Load tune");
+    AccessibleSetup::configureButton (importButton, "Import MIDI file",
+                                      "Imports a MIDI file as a new tune. Chords are strummed by the rhythm pattern.");
     AccessibleSetup::configureButton (saveButton, "Save tune");
     AccessibleSetup::configureButton (exportButton, "Export tune as MIDI");
 
     newButton.onClick = [this] { showTemplateMenu(); };
     loadButton.onClick = [this] { chooseAndLoad(); };
+    importButton.onClick = [this] { chooseAndImportMidi(); };
     saveButton.onClick = [this] { chooseAndSave(); };
     exportButton.onClick = [this] { chooseAndExport(); };
 
@@ -1447,6 +1453,74 @@ bool TunePanel::loadFrom (const juce::File& file, juce::String& error)
     return session.load (file, error);
 }
 
+bool TunePanel::importMidiFrom (const juce::File& file, juce::String& error)
+{
+    player.stop();
+
+    Tune imported;
+    juce::StringArray warnings;
+    TuneImportOptions options;
+    options.midi = session.getMidiOptions();   // the channels our own export used
+
+    // error-recovery 1: a refused file changes nothing, so the import goes
+    // into a tune of its own and only a success reaches the session.
+    if (! importMidiFile (file, imported, options, error, &warnings))
+        return false;
+
+    // A new tune, not an edit: the undo stack belongs to one tune (TuneSession).
+    session.newTune (imported);
+
+    // Say plainly what an import is (midi-export 5): the chords are re-strummed,
+    // the file's own chord track is a layer. The importer's warnings say which
+    // tracks became what and what was defaulted.
+    juce::StringArray lines;
+    lines.add ("Imported " + file.getFileName() + " into the Tune Builder: "
+               + juce::String (imported.getNumSections()) + " section(s), "
+               + juce::String (imported.meta.tempoBpm, 0) + " bpm. Chords are strummed by each section's "
+               "rhythm pattern; the melody and bass play as written.");
+    lines.addArray (warnings);
+
+    notify (lines.joinIntoString ("\n"), ! warnings.isEmpty());
+    return true;
+}
+
+void TunePanel::notify (const juce::String& message, bool warning)
+{
+    if (onNotification != nullptr)
+    {
+        onNotification (message, warning);
+        return;
+    }
+
+    juce::NativeMessageBox::showAsync (juce::MessageBoxOptions()
+                                           .withIconType (warning ? juce::MessageBoxIconType::WarningIcon
+                                                                  : juce::MessageBoxIconType::InfoIcon)
+                                           .withTitle ("MIDI imported")
+                                           .withMessage (message)
+                                           .withButton ("OK"),
+                                       nullptr);
+}
+
+void TunePanel::chooseAndImportMidi()
+{
+    chooser = std::make_unique<juce::FileChooser> ("Import a MIDI file as a tune",
+                                                   PresetManager::getRenderFolder(), "*.mid;*.midi");
+
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                          [safe = juce::Component::SafePointer<TunePanel> (this)] (const juce::FileChooser& fc)
+    {
+        const auto file = fc.getResult();
+
+        if (safe == nullptr || file == juce::File())
+            return;
+
+        juce::String error;
+
+        if (! safe->importMidiFrom (file, error))
+            safe->showError ("Could not import the MIDI file", error);
+    });
+}
+
 bool TunePanel::exportMidiTo (const juce::File& file, juce::String& error)
 {
     TuneMidiFileOptions options;
@@ -1672,7 +1746,7 @@ void TunePanel::resized()
         titleEditor.setBounds (r);
     }
 
-    split (row(), { &newButton, &loadButton, &saveButton, &exportButton });
+    split (row(), { &newButton, &loadButton, &importButton, &saveButton, &exportButton });
 
     {
         auto r = row();

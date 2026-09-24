@@ -684,8 +684,19 @@ ExportPanel::ExportPanel (LuthierAudioProcessor& p)
         {
             importedMidiFile = fc.getResult();
 
+            // The box shows which file was chosen, so "MIDI file..." is not
+            // all the user has to go on; cancelling goes back to the phrase.
             if (importedMidiFile == juce::File())
+            {
+                sourceBox.changeItemText (2, "MIDI file...");
                 sourceBox.setSelectedId (1, juce::dontSendNotification);
+            }
+            else
+            {
+                sourceBox.changeItemText (2, "MIDI: " + importedMidiFile.getFileName());
+                sourceBox.setSelectedId (2, juce::dontSendNotification);
+                sourceBox.setTooltip (importedMidiFile.getFullPathName());
+            }
 
             updateEstimate();
         });

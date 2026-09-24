@@ -598,3 +598,69 @@ LUTHIER_TEST (TunePanel, rendersWithTheLookAndFeel)
 
     f.panel->setLookAndFeel (nullptr);
 }
+
+//==============================================================================
+LUTHIER_TEST (TunePanel, importMidiReplacesTheTuneStopsThePlayerAndReportsWhatItDid)
+{
+    Fixture f;
+
+    // Something to import: the verse with chords, exported the way EXPORT does.
+    type (*f.panel, "Am F C G");
+    f.session.edit (TuneEditClass::other, "Title", [] (Tune& t) { t.meta.title = "Exported Sketch"; return true; });
+
+    const auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("LuthierTunePanelImport");
+    folder.createDirectory();
+    const auto midi = folder.getChildFile ("sketch.mid");
+
+    juce::String error;
+    CHECK_MSG (f.panel->exportMidiTo (midi, error), error);
+
+    // Now a different tune is loaded and playing.
+    startWithAVerse (f.session);
+    CHECK (f.session.getTune().meta.title == "Sketch");
+    press (f.panel->getPlayButton());
+    f.renderBlocks (4);
+
+    juce::String report;
+    bool reportedWarning = false;
+    f.panel->onNotification = [&] (const juce::String& message, bool warning)
+    {
+        report = message;
+        reportedWarning = warning;
+    };
+
+    CHECK_MSG (f.panel->importMidiFrom (midi, error), error);
+
+    // 15-08 through the panel: the export came back as the tune it was.
+    CHECK (f.session.getTune().meta.title == "Exported Sketch");
+    CHECK (f.verse().chords.size() == 4);
+    CHECK (f.verse().chords.size() == 4 && f.verse().chords[0].root == 9 && f.verse().chords[0].quality == "m");
+    CHECK (f.verse().chords.size() == 4 && f.verse().chords[3].root == 7 && f.verse().chords[3].quality.isEmpty());
+
+    // A state boundary: no undo into the previous tune, no file, not dirty.
+    CHECK (! f.session.canUndo());
+    CHECK (f.session.getFile() == juce::File());
+    CHECK (! f.session.isDirty());
+    CHECK (! f.player.isPlaying());
+
+    // The report names the file and says what an import is.
+    CHECK (report.contains ("sketch.mid"));
+    CHECK (report.contains ("strummed"));
+    juce::ignoreUnused (reportedWarning);
+
+    // A refused file: the tune stays, the error names the file.
+    const auto corrupt = folder.getChildFile ("corrupt.mid");
+    corrupt.replaceWithText ("nothing like a midi file");
+    error.clear();
+    CHECK (! f.panel->importMidiFrom (corrupt, error));
+    CHECK (error.contains ("corrupt.mid"));
+    CHECK (f.session.getTune().meta.title == "Exported Sketch");
+
+    // The button is there, beside LOAD, and does the same thing.
+    CHECK (f.panel->getImportButton().isVisible());
+    CHECK (f.panel->getImportButton().onClick != nullptr);
+    CHECK (f.panel->getImportButton().getBounds().getX() > f.panel->getLoadButton().getBounds().getX());
+    CHECK (f.panel->getImportButton().getBounds().getY() == f.panel->getLoadButton().getBounds().getY());
+
+    folder.deleteRecursively();
+}
