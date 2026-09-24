@@ -8,6 +8,10 @@
 #include "../DSP/Effects/PedalsDrive.h"
 #include "../DSP/Effects/PedalsMod.h"
 #include "../DSP/Amp/RoomEngine.h"
+#include "../Model/Playing/MidiInterpreter.h"
+#include "../Model/Playing/TechniqueEngine.h"
+#include "../Model/Playing/RubricVoicer.h"
+#include "../Model/Playing/TuningEngine.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -207,4 +211,104 @@ LUTHIER_TEST (ReviewRegression, theRoomTailSurvivesRepeatedDecaySends)
     }
 
     CHECK_MSG (lateEnergy > 1.0e-7, "late energy " + juce::String (lateEnergy));
+}
+
+//==============================================================================
+/*  R-012: in Poly mode a note waits in the chord window before it is voiced. A
+    note-off arriving inside that window looked only at the voiced strings, found
+    nothing and was dropped; the note then sounded and was never released. */
+LUTHIER_TEST (ReviewRegression, aNoteReleasedInsideTheChordWindowIsReleased)
+{
+    constexpr double sr = 48000.0;
+    constexpr int block = 256;
+
+    TuningEngine tuning;
+    tuning.prepare (sr);
+    tuning.setNumStrings (6);
+    tuning.setTuningPreset (TuningPreset::Standard);
+
+    RubricVoicer voicer;
+    voicer.prepare (&tuning, 6);
+    TechniqueEngine technique;
+    technique.prepare (sr, 6);
+
+    MidiInterpreter interpreter;
+    interpreter.prepare (sr, 6);
+    interpreter.setEngines (&tuning, &technique, &voicer);
+    interpreter.setNumStrings (6);
+    interpreter.setPlayingMode (PlayingMode::Poly);
+    interpreter.setChordWindowMs (20.0);
+
+    MidiInterpreter::Humanisation flat;
+    flat.amount = 0.0;
+    interpreter.setHumanisation (flat);
+
+    int ons = 0, offs = 0;
+    int64_t start = 0;
+
+    for (int b = 0; b < 40; ++b, start += block)
+    {
+        juce::MidiBuffer midi;
+
+        // A 2 ms stab near the end of the first block: both inside the window.
+        if (b == 0)
+        {
+            midi.addEvent (juce::MidiMessage::noteOn (1, 64, 0.8f), 200);
+            midi.addEvent (juce::MidiMessage::noteOff (1, 64), 250);
+        }
+
+        PlayEventQueue out;
+        out.clear();
+        interpreter.processBlock (midi, block, start, out);
+        ons += out.getNumNoteOns();
+        offs += out.getNumNoteOffs();
+    }
+
+    CHECK_MSG (ons == 1, "note-ons: " + juce::String (ons));
+    CHECK_MSG (offs == 1, "note-offs: " + juce::String (offs));
+    CHECK (interpreter.getActiveNoteCount() == 0);
+}
+
+/*  R-013: in guitar-controller mode a note-off released the first string holding
+    that note number, whatever channel it came on. */
+LUTHIER_TEST (ReviewRegression, aControllerNoteOffReleasesItsOwnString)
+{
+    constexpr double sr = 48000.0;
+    constexpr int block = 256;
+
+    TuningEngine tuning;
+    tuning.prepare (sr);
+    tuning.setNumStrings (6);
+    tuning.setTuningPreset (TuningPreset::Standard);
+    RubricVoicer voicer;
+    voicer.prepare (&tuning, 6);
+    TechniqueEngine technique;
+    technique.prepare (sr, 6);
+
+    MidiInterpreter interpreter;
+    interpreter.prepare (sr, 6);
+    interpreter.setEngines (&tuning, &technique, &voicer);
+    interpreter.setNumStrings (6);
+    interpreter.setPlayingMode (PlayingMode::GuitarController);
+    MidiInterpreter::Humanisation flat;
+    flat.amount = 0.0;
+    interpreter.setHumanisation (flat);
+
+    // E4 open on the high E (channel 1) and at the fifth fret of the B (channel 2).
+    juce::MidiBuffer on;
+    on.addEvent (juce::MidiMessage::noteOn (1, 64, 0.8f), 0);
+    on.addEvent (juce::MidiMessage::noteOn (2, 64, 0.8f), 0);
+    PlayEventQueue out;
+    out.clear();
+    interpreter.processBlock (on, block, 0, out);
+    CHECK (out.getNumNoteOns() == 2);
+
+    juce::MidiBuffer off;
+    off.addEvent (juce::MidiMessage::noteOff (2, 64), 0);
+    out.clear();
+    interpreter.processBlock (off, block, block * 40, out);
+
+    CHECK (out.getNumNoteOffs() == 1);
+    CHECK_MSG (out.getNumNoteOffs() == 1 && out.getNoteOff (0).stringIndex == 1,
+               "released string " + juce::String (out.getNoteOff (0).stringIndex));
 }

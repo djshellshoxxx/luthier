@@ -463,6 +463,7 @@ void MidiInterpreter::handleNoteOn (int midiNote, int channel, double velocity,
         p.velocity = velocity;
         p.timestamp = timestamp;
         p.used = false;
+        p.releasedAt = -1;
     }
 
     if (chordWindowSamples == 0)
@@ -483,6 +484,7 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
     int notes[kMaxPending];
     double velocities[kMaxPending];
     int64_t arrivals[kMaxPending];
+    int64_t releases[kMaxPending];
     const int count = numPending;
 
     for (int i = 0; i < count; ++i)
@@ -490,6 +492,7 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
         notes[i] = pending[(size_t) i].midiNote;
         velocities[i] = pending[(size_t) i].velocity;
         arrivals[i] = pending[(size_t) i].timestamp;
+        releases[i] = pending[(size_t) i].releasedAt;
     }
 
     const int64_t groupTimestamp = pending[0].timestamp;
@@ -613,6 +616,23 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
         humanised.velocity = juce::jlimit (0.02, 1.0, note.velocity * velocityScale);
 
         emitVoicedNote (humanised, groupTimestamp, blockOffset, delaySamples, out);
+
+        // Released before its window closed: it still sounds, for as long as it
+        // was held, and flushDeferredReleases ends it. The floor keeps the
+        // note-off after the note-on whatever strum delay or jitter moved it.
+        for (int k = 0; k < count; ++k)
+        {
+            if (notes[k] != note.midiNote || releases[k] < 0)
+                continue;
+
+            auto& slot = slots[(size_t) juce::jlimit (0, numStrings - 1, note.stringIndex)];
+            const int64_t heldFor = juce::jmax (releases[k] - arrivals[k], (int64_t) (0.010 * sr));
+
+            slot.releaseDueAt = groupTimestamp + chordWindowSamples + delaySamples + heldFor;
+            slot.releaseWasLetRing = sustainDown || slot.sostenutoHeld;
+            releases[k] = -1;
+            break;
+        }
     }
 
     juce::ignoreUnused (numSamples);
@@ -678,7 +698,19 @@ void MidiInterpreter::emitVoicedNote (const VoicedNote& note, int64_t timestamp,
 void MidiInterpreter::handleNoteOff (int midiNote, int channel, int blockOffset,
                                      PlayEventQueue& out) noexcept
 {
-    juce::ignoreUnused (channel);
+    // The string that played this note on this channel first: a hex pickup
+    // playing a unison on two strings sends the same note on two channels, and
+    // releasing one must not stop the other.
+    for (int s = 0; s < numStrings; ++s)
+    {
+        const auto& slot = slots[(size_t) s];
+
+        if (slot.held && slot.midiNote == midiNote && slot.channel == channel)
+        {
+            releaseString (s, blockOffset, out);
+            return;
+        }
+    }
 
     // A note still waiting in the chord window that is released before the window
     // closes was a mistake or a very short stab; let it through anyway so it sounds,
@@ -688,6 +720,19 @@ void MidiInterpreter::handleNoteOff (int midiNote, int channel, int blockOffset,
         if (slots[(size_t) s].held && slots[(size_t) s].midiNote == midiNote)
         {
             releaseString (s, blockOffset, out);
+            return;
+        }
+    }
+
+    // Still waiting in the chord window: remembered, and ended once voiced
+    // (flushChordGroup). Dropping it left the note sounding for ever.
+    for (int i = 0; i < numPending; ++i)
+    {
+        auto& p = pending[(size_t) i];
+
+        if (p.midiNote == midiNote && p.releasedAt < 0)
+        {
+            p.releasedAt = currentTimestamp;
             return;
         }
     }
