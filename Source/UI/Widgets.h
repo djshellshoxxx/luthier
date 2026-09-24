@@ -354,6 +354,10 @@ public:
     /** What the timer does, for the tests. */
     void refresh();
 
+    /** gui-engine-dataflow.md 22: the LED drains at 30 Hz (MODEL-GAPS, TODO 2k). */
+    static constexpr int kRefreshHz = 30;
+    int getRefreshIntervalMs() const noexcept { return getTimerInterval(); }
+
 private:
     void timerCallback() override { refresh(); }
 

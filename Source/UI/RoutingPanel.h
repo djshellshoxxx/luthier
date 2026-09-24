@@ -115,6 +115,14 @@ private:
 
     // --- sidechain --------------------------------------------------------------
     std::unique_ptr<LuthierToggle> sidechainToAmp;
+
+    // ambiguity-resolutions 8 / routing-io 2 (MODEL-GAPS): Aux 1 before or after the circuit.
+    std::unique_ptr<LuthierToggle> aux1PreCircuit;
+
+public:
+    LuthierToggle* getAux1PreCircuitToggle() const noexcept { return aux1PreCircuit.get(); }
+
+private:
     juce::Rectangle<int> sidechainMeterBounds;
     float sidechainLevel = 0.0f;
 

@@ -66,6 +66,11 @@ struct NoteOnEvent
     /** strum-dynamics 5: what struck the string, as an Excitation::Material
         index, or -1 for the player's own pick (the PICK group). */
     int    strikerMaterial = -1;
+
+    /** bass-techniques 9 (MODEL-GAPS): the technique the bass step grid (or an
+        imported BASS_TECH event) names for this note, as a BassStepType index;
+        -1 lets the slap's own triggers decide. Inert on a guitar. */
+    int    bassTechnique = -1;
 };
 
 struct NoteOffEvent

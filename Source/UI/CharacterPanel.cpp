@@ -326,6 +326,11 @@ CharacterPanel::CharacterPanel (LuthierAudioProcessor& p)
     addChildComponent (*slideGroup);
     slideGroup->onShownChanged = [this] { fitToContent(); };
 
+    // bass-techniques 9 (MODEL-GAPS): SLAP appears only on a bass.
+    slapGroup = std::make_unique<SlapGroup> (processor);
+    addChildComponent (*slapGroup);
+    slapGroup->onShownChanged = [this] { fitToContent(); };
+
     fitToContent();
 
     styleHeading (seedHeading,        "CHARACTER");
@@ -594,7 +599,8 @@ int CharacterPanel::preferredHeight() const
          + 26 + 24                                    // presets
          + 8 + noiseGroups->preferredHeight()         // STRING NOISE and PICK
          + 8 + setupGroup->preferredHeight()          // SETUP
-         + 8 + slideGroup->preferredHeight();         // SLIDE, only in Slide Mode
+         + 8 + slideGroup->preferredHeight()          // SLIDE, only in Slide Mode
+         + 8 + slapGroup->preferredHeight();          // SLAP, only on a bass (MODEL-GAPS)
 }
 
 void CharacterPanel::paint (juce::Graphics& g)
@@ -690,6 +696,9 @@ void CharacterPanel::resized()
 
     bounds.removeFromTop (8);
     slideGroup->setBounds (bounds.removeFromTop (slideGroup->preferredHeight()));
+
+    bounds.removeFromTop (8);
+    slapGroup->setBounds (bounds.removeFromTop (slapGroup->preferredHeight()));
 }
 
 } // namespace luthier
