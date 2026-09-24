@@ -454,6 +454,7 @@ private:
     void chooseAndLoad();
     void chooseAndSave();
     void chooseAndExport();
+    void chooseAndExportMidiFile();
     void showTemplateMenu();
     void showError (const juce::String& title, const juce::String& message);
 

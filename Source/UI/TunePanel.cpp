@@ -3,6 +3,7 @@
 #include "../Tune/TuneTemplates.h"
 #include "../Tune/TuneExamples.h"
 #include "../Tune/TuneHarmony.h"
+#include "TuneExportDialog.h"
 
 namespace luthier
 {
@@ -644,12 +645,12 @@ void TunePanel::buildHeader()
     newButton.setTooltip ("A new tune from a template (Ctrl+T)");
     loadButton.setTooltip ("Open a .luthiertune");
     saveButton.setTooltip ("Save the tune (Ctrl+S)");
-    exportButton.setTooltip ("Export the tune as a MIDI file (Ctrl+E)");
+    exportButton.setTooltip ("Export the tune: audio (with stems), MIDI, notation or the project (Ctrl+E)");
 
     AccessibleSetup::configureButton (newButton, "New tune", "Starts a new tune from a template.");
     AccessibleSetup::configureButton (loadButton, "Load tune");
     AccessibleSetup::configureButton (saveButton, "Save tune");
-    AccessibleSetup::configureButton (exportButton, "Export tune as MIDI");
+    AccessibleSetup::configureButton (exportButton, "Export tune", "Opens the export dialog: audio, MIDI, notation or project.");
 
     newButton.onClick = [this] { showTemplateMenu(); };
     loadButton.onClick = [this] { chooseAndLoad(); };
@@ -1464,6 +1465,16 @@ void TunePanel::chooseAndSave()
 }
 
 void TunePanel::chooseAndExport()
+{
+    // tune-builder 2.6 and 9: one screen, four destinations (TUNE-HELP-ONBOARDING).
+    if (isShowing())
+    {
+        TuneExportDialog::launch (processor, this);
+        return;
+    }
+}
+
+void TunePanel::chooseAndExportMidiFile()
 {
     const auto name = juce::File::createLegalFileName (session.getTune().meta.title.isNotEmpty()
                                                          ? session.getTune().meta.title : juce::String ("Untitled Tune"));

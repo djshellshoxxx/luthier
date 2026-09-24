@@ -9,6 +9,7 @@
 #include "../Tune/TuneHarmony.h"
 #include "../UI/TunePanel.h"
 #include "../Support/TuneExport.h"
+#include "../UI/TuneExportDialog.h"
 #include "../Tune/TuneFile.h"
 
 using namespace luthier;
@@ -385,4 +386,62 @@ LUTHIER_TEST (TuneIntegration, notationAndProjectExportKeepSectionsChordsAndTheB
     CHECK (TuneExport::exportProject (tune, project.getFile(), false, {}, {}, error));
     CHECK (TuneFile::load (project.getFile(), back).ok());
     CHECK (TuneExport::getBundledPreset (back).isVoid());
+}
+
+//==============================================================================
+/*  2.6 / 9: "the export dialog is one screen" with four destinations. */
+LUTHIER_TEST (TuneIntegration, theExportDialogWritesEachDestinationFromOneScreen)
+{
+    auto live = livePlugin (fullTune());
+    TuneExportDialog dialog (*live);
+    dialog.setSize (560, 360);
+
+    juce::TemporaryFile folderHandle;
+    const auto folder = folderHandle.getFile();
+    folder.createDirectory();
+    dialog.setFolder (folder);
+    dialog.getNameEditor().setText ("Dialog", false);
+
+    // Only the chosen destination's settings are on show.
+    CHECK (dialog.getFormatBox().isVisible() && ! dialog.getProfileBox().isVisible());
+    dialog.getDestinationButton (TuneExportDialog::Destination::midi).onClick();
+    CHECK (dialog.getDestination() == TuneExportDialog::Destination::midi);
+    CHECK (dialog.getProfileBox().isVisible() && ! dialog.getFormatBox().isVisible());
+
+    juce::String message;
+
+    // MIDI, Generic, per section.
+    dialog.getProfileBox().setSelectedId (2, juce::dontSendNotification);
+    dialog.getSplitBox().setSelectedId (2, juce::dontSendNotification);
+    CHECK (dialog.getMidiOptions().profile.profile == MidiProfile::generic);
+    CHECK (dialog.getMidiOptions().profile.split == MidiTrackSplit::perSection);
+    auto files = dialog.exportNow (message);
+    CHECK_MSG (files.size() == 1 && files[0].getFileName() == "Dialog.mid" && files[0].getSize() > 0, message);
+
+    // Notation, ASCII tab.
+    dialog.setDestination (TuneExportDialog::Destination::notation);
+    dialog.getNotationBox().setSelectedId (3, juce::dontSendNotification);
+    files = dialog.exportNow (message);
+    CHECK_MSG (files.size() == 1 && files[0].getSize() > 0, message);
+
+    // Project, bundled.
+    dialog.setDestination (TuneExportDialog::Destination::project);
+    dialog.getBundleToggle().setToggleState (true, juce::dontSendNotification);
+    files = dialog.exportNow (message);
+    CHECK_MSG (files.size() == 1 && files[0].hasFileExtension ("luthiertune"), message);
+
+    Tune back;
+    CHECK (files.size() == 1 && TuneFile::load (files[0], back).ok());
+    CHECK (TuneExport::getBundledGuitar (back).isObject());
+
+    // Audio: 16-bit WAV at 44.1 kHz, no stems.
+    dialog.setDestination (TuneExportDialog::Destination::audio);
+    dialog.getBitDepthBox().setSelectedId (16, juce::dontSendNotification);
+    dialog.getSampleRateBox().setSelectedId (2, juce::dontSendNotification);
+    dialog.getTailSlider().setValue (0.0, juce::dontSendNotification);
+    CHECK_NEAR (dialog.getAudioOptions().sampleRate, 44100.0, 1.0e-9);
+    files = dialog.exportNow (message);
+    CHECK_MSG (files.size() == 1 && files[0].getFileName() == "Dialog.wav", message);
+
+    folder.deleteRecursively();
 }
