@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "UI/NewFeatureDots.h"
+#include "UI/CpuReliefUi.h"
 #include "UI/RangesUi.h"
 #include "Accessibility/Accessibility.h"
 
@@ -194,6 +195,9 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     tooltips.setLookAndFeel (&lookAndFeel);
 
     setWantsKeyboardFocus (true);
+
+    // performance-budget.md 8: relief 7's opt-out is a user preference.
+    CpuReliefUi::applySavedChoice (processor);
 
     // The processor cannot read UiPreferences, so it is told (advanced-ranges.md 5).
     processor.setRandomiseRespectsStock (RangesUi::randomiseRespectsStock());
@@ -1071,6 +1075,34 @@ void LuthierAudioProcessorEditor::pollForNotifications()
                       + " kHz. IRs and circuit filters re-resampled.";
 
         notifications.post (std::move (n));
+    }
+
+    // ---- CPU limit (performance-budget.md 8, relief 7) ------------------------
+    {
+        const bool due = processor.getEngine().getCpuRelief().isCpuLimitBannerDue();
+
+        switch (CpuReliefUi::bannerAction (due, cpuLimitEpisode))
+        {
+            case CpuReliefUi::BannerAction::post:
+            {
+                Notification n;
+                n.id = CpuReliefUi::kBannerId;
+                n.message = CpuReliefUi::bannerMessage();
+                n.level = Notification::Level::warning;
+                notifications.post (std::move (n));
+                break;
+            }
+
+            case CpuReliefUi::BannerAction::withdraw:
+                if (notifications.getCurrentId() == CpuReliefUi::kBannerId)
+                    notifications.dismissCurrent();
+                break;
+
+            case CpuReliefUi::BannerAction::none:
+                break;
+        }
+
+        cpuLimitEpisode = due;
     }
 
     // ---- a part a guitar asked for and could not have (gui-integration 15) -----

@@ -115,6 +115,7 @@ private:
 
     // --- sidechain --------------------------------------------------------------
     std::unique_ptr<LuthierToggle> sidechainToAmp;
+    std::unique_ptr<LuthierToggle> aux1PreCircuit;   ///< performance-budget.md 4.4 (VISUAL-WORKSHOP-QA)
     juce::Rectangle<int> sidechainMeterBounds;
     float sidechainLevel = 0.0f;
 

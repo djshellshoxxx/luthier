@@ -24,6 +24,9 @@ int CpuRelief::update (double load, int numSamples) noexcept
     if (numSamples <= 0)
         return getStep();
 
+    if (const double forced = loadOverride.load (std::memory_order_relaxed); forced >= 0.0)
+        load = forced;
+
     if (! std::isfinite (load) || load < 0.0)
         load = 0.0;
 

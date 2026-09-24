@@ -648,6 +648,12 @@ private:
     std::atomic<double> cpuEstimate { 0.0 };
     CpuRelief cpuRelief;                 // performance-budget.md 8
     int appliedReliefStep = 0;
+    int reliefDropCountdown = 0;         // performance-budget.md 8 step 7: samples to the next drop
+    int reliefDroppedStrings = 0;        // strings dropped this episode (tests, diagnostics)
+public:
+    /** Strings relief 7 has dropped since the load last fell below it. */
+    int getReliefDroppedStrings() const noexcept { return reliefDroppedStrings; }
+private:
 
     // --- routing ----------------------------------------------------------------
     TapBuffers taps;

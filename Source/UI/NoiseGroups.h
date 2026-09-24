@@ -66,6 +66,7 @@ private:
     double lastEventTime = -1.0e9;
     std::array<int, (size_t) NoiseClass::numClasses> shownCounts {};
     juce::uint32 lastStaticPaint = 0;
+    int reliefTick = 0;   ///< performance-budget.md 8 step 1: every other tick under CPU load
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NoiseEventStrip)
 };

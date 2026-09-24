@@ -75,7 +75,8 @@ private:
         again back to the tab or window it came from. VISUAL-WORKSHOP-QA. */
     void toggleWorkshop();
     int tabBeforeWorkshop = -1;
-    bool newDotsApplied = false;   // gui-integration 20
+    bool newDotsApplied = false;   // gui-integration 20
+    bool cpuLimitEpisode = false;   ///< performance-budget.md 8: the CPU limit banner, once per episode
 
     /** guitar-workshop.md 6 (Ctrl+G): asks for a name and saves the guitar. */
     void showSaveGuitarDialog();

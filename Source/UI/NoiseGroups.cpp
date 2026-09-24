@@ -99,6 +99,10 @@ void NoiseEventStrip::timerCallback()
 
     // Drained even when hidden, or the ring fills and the first thing a user
     // sees on opening the tab is a burst of stale events.
+    // performance-budget.md 8 step 1: under CPU load the display drain halves.
+    if (processor.getEngine().getCpuRelief().getStep() >= CpuRelief::slowDisplay && (++reliefTick & 1) != 0)
+        return;
+
     const int before = shown.size();
     pollNow();
 

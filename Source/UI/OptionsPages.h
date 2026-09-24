@@ -441,6 +441,7 @@ private:
     juce::TextButton debugWindowButton { "Open the debug window" };
     juce::ToggleButton crashLogToggle { "Create a log file if Luthier crashes" };
     juce::ToggleButton recorderToggle { "Keep the last hour of audio for the session recorder" };
+    juce::ToggleButton cpuDropToggle { "Under CPU overload, drop the least active strings" };   // performance-budget.md 8
 
     juce::TextButton troubleshootButton { "Export troubleshooting file" };
     juce::TextButton openFolderButton { "Open diagnostics folder" };

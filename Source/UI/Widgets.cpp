@@ -1401,6 +1401,17 @@ void DataStreamDisplay::update (double nowMs)
     if (processor == nullptr || ! isVisible() || AccessibilitySettings::get().isReducedMotion())
         return;
 
+    // performance-budget.md 8 step 2: the scrolling stream is suspended under CPU load.
+    if (processor->getEngine().getCpuRelief().getStep() >= CpuRelief::suspendScrolling)
+    {
+        if (scrolling)
+        {
+            scrolling = false;
+            repaint();
+        }
+        return;
+    }
+
     auto& diagnostics = processor->getDiagnostics();
     const int total = diagnostics.getTotalRecords();
 

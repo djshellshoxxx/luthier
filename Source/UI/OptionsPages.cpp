@@ -5,6 +5,7 @@
 #include "../Accessibility/Localisation.h"
 #include "NoiseGroups.h"
 #include "StageTouches.h"
+#include "CpuReliefUi.h"
 
 namespace luthier
 {
@@ -2073,6 +2074,17 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
         refresh();
     };
 
+    // performance-budget.md 8: relief 7 is opt-out here, default on.
+    addAndMakeVisible (cpuDropToggle);
+    cpuDropToggle.setTitle ("Drop strings under CPU overload");
+    cpuDropToggle.setTooltip ("The last resort when the computer cannot keep up: the least recently "
+                              "played strings go quiet and a CPU limit banner says so. Off: nothing "
+                              "is dropped and the audio may glitch instead.");
+    cpuDropToggle.onClick = [this]
+    {
+        CpuReliefUi::setStringDropAllowed (processor, cpuDropToggle.getToggleState());
+    };
+
     addAndMakeVisible (troubleshootButton);
     troubleshootButton.setTooltip ("Writes a file describing the build, the host and the "
                                    "current state, for a support thread.");
@@ -2158,6 +2170,7 @@ void DiagnosticsPage::refresh()
     auto& recorder = processor.getSessionRecorder();
 
     recorderToggle.setToggleState (recorder.isEnabled(), juce::dontSendNotification);
+    cpuDropToggle.setToggleState (CpuReliefUi::isStringDropAllowed(), juce::dontSendNotification);
 
     recorderNote.setText (
         "Buffer: " + juce::String (recorder.getCapacityMinutes(), 1) + " minutes allocated, "
@@ -2188,6 +2201,7 @@ void DiagnosticsPage::resized()
     crashLogToggle.setBounds (bounds.removeFromTop (22));
     recorderToggle.setBounds (bounds.removeFromTop (22));
     recorderNote.setBounds (bounds.removeFromTop (16));
+    cpuDropToggle.setBounds (bounds.removeFromTop (22));
 
     bounds = getLocalBounds().withTrimmedTop (172);
 

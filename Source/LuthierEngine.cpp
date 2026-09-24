@@ -2155,6 +2155,39 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         playingNoise.getPool().setDegraded (reliefStep >= CpuRelief::halveNoisePools);
 
     appliedReliefStep = reliefStep;
+
+    // Step 7: one string at a time, every 200 ms while it holds, the quietest
+    // sounding one first - the one that has been ringing longest, so the least
+    // recently played. Only strings that are sounding are candidates.
+    if (reliefStep >= CpuRelief::dropStrings)
+    {
+        reliefDropCountdown -= numSamples;
+
+        if (reliefDropCountdown <= 0)
+        {
+            reliefDropCountdown = (int) (sr * CpuRelief::kStepUpSeconds);
+            int quietest = -1;
+            double lowest = 1.0e9;
+
+            for (int s = 0; s < numStrings; ++s)
+                if (const double level = getStringLevel (s); level > 1.0e-4 && level < lowest)
+                {
+                    lowest = level;
+                    quietest = s;
+                }
+
+            if (quietest >= 0)
+            {
+                strings[(size_t) quietest].setDamping (StringEngine::Damping::Choked, 1.0);
+                ++reliefDroppedStrings;
+            }
+        }
+    }
+    else
+    {
+        reliefDropCountdown = 0;
+        reliefDroppedStrings = 0;
+    }
 }
 
 //==============================================================================

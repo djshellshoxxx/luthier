@@ -278,6 +278,13 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     };
     addAndMakeVisible (*sidechainToAmp);
 
+    // performance-budget.md 4.4: Aux 1 as a true DI, tapped before the guitar circuit.
+    aux1PreCircuit = std::make_unique<LuthierToggle> ("AUX 1 PRE-CIRCUIT");
+    aux1PreCircuit->attachTo (processor, ParamIDs::aux1PreCircuit,
+                              "Takes Aux 1 (DI) from the pickups before the volume and tone "
+                              "circuit, for re-amping the rawest signal. Off: after the circuit.");
+    addAndMakeVisible (*aux1PreCircuit);
+
     // --- MIDI out -------------------------------------------------------------
     auto makeMidiToggle = [this] (std::unique_ptr<LuthierToggle>& toggle,
                                   const juce::String& text, const juce::String& tip)
@@ -512,7 +519,11 @@ void RoutingPanel::resized()
         sidechainMeterBounds = row.reduced (0, 3);
     }
 
-    sidechainToAmp->setBounds (bounds.removeFromTop (Metrics::buttonHeight));
+    {
+        auto row = bounds.removeFromTop (Metrics::buttonHeight);
+        sidechainToAmp->setBounds (row.removeFromLeft (row.getWidth() / 2).reduced (1, 0));
+        aux1PreCircuit->setBounds (row.reduced (1, 0));
+    }
 
     bounds.removeFromTop (Metrics::grid);
 

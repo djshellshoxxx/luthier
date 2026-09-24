@@ -62,6 +62,9 @@ public:
     void setStringDropAllowed (bool allowed) noexcept { stringDropAllowed.store (allowed, std::memory_order_relaxed); }
     bool isStringDropAllowed() const noexcept { return stringDropAllowed.load (std::memory_order_relaxed); }
 
+    /** Tests: every later update() sees this load instead of the measured one; negative clears it. */
+    void setLoadOverrideForTest (double load) noexcept { loadOverride.store (load, std::memory_order_relaxed); }
+
     /** The "CPU limit" banner is due while strings are being dropped. */
     bool isCpuLimitBannerDue() const noexcept { return getStep() >= dropStrings; }
 
@@ -72,6 +75,7 @@ private:
     std::atomic<double> average { 0.0 };
     std::atomic<int> step { 0 };
     std::atomic<bool> stringDropAllowed { true };
+    std::atomic<double> loadOverride { -1.0 };
 };
 
 } // namespace luthier
