@@ -261,7 +261,8 @@ PickupEngine::SelectedCoil PickupEngine::getSelectedCoil() const noexcept
 
 void PickupEngine::setHumAmount (double amount) noexcept
 {
-    humLevel.setTarget (juce::jlimit (0.0, 1.0, amount));
+    // noise-floor.md 3: the advanced range reaches 4.
+    humLevel.setTarget (juce::jlimit (0.0, 4.0, amount));
 }
 
 void PickupEngine::setMainsFrequency (double hz) noexcept
@@ -464,28 +465,13 @@ double PickupEngine::processStrings (const double* stringOutputs,
     // coil cancels it. So the hum is scaled by how much of the active signal is
     // coming from single-coil-style pickups.
     const double hum = humLevel.next();
+    lastHum = 0.0;
 
     if (hum > 1.0e-5)
     {
-        double singleCoilShare = 0.0;
-        double totalShare = 0.0;
+        const double share = getSingleCoilShare();
 
-        for (int slot = 0; slot < numPickups; ++slot)
-        {
-            const double g = slotGain[(size_t) slot].getCurrent();
-            totalShare += g;
-
-            const auto& spec = specs[(size_t) slot];
-            const bool hums = (spec.type == PickupType::SingleCoil
-                               || spec.type == PickupType::P90
-                               || spec.type == PickupType::MagneticSoundhole
-                               || (spec.type == PickupType::Humbucker && spec.coilTapped));
-
-            if (hums)
-                singleCoilShare += g;
-        }
-
-        if (totalShare > 1.0e-6 && singleCoilShare > 1.0e-6)
+        if (share > 0.0)
         {
             humPhase += humIncrement;
 
@@ -497,7 +483,14 @@ double PickupEngine::processStrings (const double* stringOutputs,
                                 + 0.35 * std::sin (constants::kTwoPi * 3.0 * humPhase)
                                 + 0.15 * std::sin (constants::kTwoPi * 5.0 * humPhase);
 
-            total += buzz * hum * 0.0022 * (singleCoilShare / totalShare);
+            double h = buzz * hum * 0.0022 * share;
+
+            // noise-floor.md 2.1: only when not 1, so the legacy hum is bit-identical.
+            if (humPositionGain != 1.0)
+                h *= humPositionGain;
+
+            lastHum = h;
+            total += h;
         }
     }
 
@@ -506,6 +499,33 @@ double PickupEngine::processStrings (const double* stringOutputs,
     total = outputDc.process (total);
 
     return sanitise (total);
+}
+
+//==============================================================================
+double PickupEngine::getSingleCoilShare() const noexcept
+{
+    // Single coils pick up the mains field; a humbucker's reverse-wound second
+    // coil cancels it. So the hum is scaled by how much of the active signal is
+    // coming from single-coil-style pickups (noise-floor.md 4.1 factors it out).
+    double singleCoilShare = 0.0;
+    double totalShare = 0.0;
+
+    for (int slot = 0; slot < numPickups; ++slot)
+    {
+        const double g = slotGain[(size_t) slot].getCurrent();
+        totalShare += g;
+
+        const auto& spec = specs[(size_t) slot];
+        const bool hums = (spec.type == PickupType::SingleCoil
+                           || spec.type == PickupType::P90
+                           || spec.type == PickupType::MagneticSoundhole
+                           || (spec.type == PickupType::Humbucker && spec.coilTapped));
+
+        if (hums)
+            singleCoilShare += g;
+    }
+
+    return (totalShare > 1.0e-6 && singleCoilShare > 1.0e-6) ? singleCoilShare / totalShare : 0.0;
 }
 
 //==============================================================================

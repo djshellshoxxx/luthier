@@ -35,6 +35,7 @@ enum class RangeFamily
     pick,
     slide,
     modulation,
+    strings,        // Phase 2b (DECISIONS "Phase 2b range families"): sustain-and-decay, tuning-stability
     numFamilies,
 
     /** Returned for a parameter that has no PhysicalRange. */

@@ -84,6 +84,8 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     scrapeMidi.ensureSize (8192);
     techniqueMidi.ensureSize (8192);
     slap.prepare (sr);
+    noiseFloor.prepare (sr, maxBlock);            // noise-floor.md 4
+    noiseFloor.setSeed (character.getSeed());
     slapBodyDrive.assign ((size_t) maxBlock, 0.0);
     noteSustainScale.fill (1.0);
     playingNoise.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)));
@@ -137,6 +139,8 @@ void LuthierEngine::reset() noexcept
     slide.reset();
     scrape.reset();
     slap.reset();
+    noiseFloor.setSeed (character.getSeed());     // noise-floor.md 0.3: reset reseeds
+    noiseFloor.reset();
     techniqueTriggers.reset();
     scrapeWasActive.fill (false);
     noteSustainScale.fill (1.0);
@@ -739,6 +743,10 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
 
     targetFret[(size_t) s] = fret;
     stringMidiNote[(size_t) s] = e.midiNote;
+
+    // noise-floor.md 2.4: a note-on rolls for a cable event.
+    if (! noiseFloorBypassed)
+        noiseFloor.onNoteOn (e.velocity);
 
     // Routing-io 6: what is actually ringing, at the sample it started.
     stringActivity.push ({ activeSampleOffset, s, e.midiNote, (float) e.velocity, true });
@@ -1662,6 +1670,37 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     // ---- 2. strings, coupling and the magnetic pickup ------------------------
     const bool anyPickupActive = ! pickups.isSilent();
 
+    // noise-floor.md 4.1: the rig's noise floor, rendered for the block. Idle
+    // (every new source at 0) it is skipped, so the render is the legacy one.
+    const bool noiseFloorOn = ! noiseFloorBypassed && ! noiseFloor.isIdle();
+    const bool noiseFloorAux8 = ! noiseFloorBypassed && noiseFloor.getSettings().toAux8;
+
+    if (noiseFloorBypassed)
+    {
+        pickups.setHumPositionGain (1.0);
+    }
+    else
+    {
+        noiseFloor.setSeed (character.getSeed());
+        pickups.setHumPositionGain (NoiseFloor::positionGain (noiseFloor.getSettings().angleDegrees,
+                                                              noiseFloor.getSettings().distanceMetres));
+    }
+
+    if (noiseFloorOn)
+    {
+        bool anyRinging = false;
+
+        for (int s = 0; s < numStrings && ! anyRinging; ++s)
+            anyRinging = strings[(size_t) s].getLevel() > 1.0e-3;
+
+        const auto cabType = cabinet.getConfigA().cabinet;
+        const bool separateHead = cabType == CabinetType::Cab4x12 || cabType == CabinetType::Cab4x12Vintage
+                               || cabType == CabinetType::Cab8x10Bass;
+
+        noiseFloor.beginBlock (numSamples, pickups.getSingleCoilShare(), getLiveCircuitComponents(),
+                               anyRinging, separateHead);
+    }
+
     // ambiguity-resolutions 1: which strings are ringing, and at what, for the
     // feedback loop's per-string peaks. Skipped entirely at amount 0 (1.2).
     const bool feedbackOn = feedbackLoop.isActive();
@@ -1821,6 +1860,14 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
                                                                  stringDelays.data(),
                                                                  numStrings)
                                        : 0.0;
+
+        // noise-floor.md 2.2: the fluorescent buzz is magnetic, beside the hum.
+        if (noiseFloorOn)
+            magneticBuffer[(size_t) i] += noiseFloor.pickupSample (i);
+
+        // 4.6: the identification stem on Aux 8, opt-in.
+        if (noiseFloorAux8)
+            noiseBuffer[(size_t) i] += pickups.getLastHumSample() + (noiseFloorOn ? noiseFloor.stemSample (i) : 0.0);
     }
 
     validator.reportCouplingLimiting (coupling.getLastLimiting(), samplePosition);
@@ -1874,7 +1921,14 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
 
 
+        // noise-floor.md 2.3 / 2.4: the passive hiss at the EMF, the cable after the pots.
+        if (noiseFloorOn)
+            instrument += noiseFloor.circuitInSample (i);
+
         instrument = circuit.process (instrument);
+
+        if (noiseFloorOn)
+            instrument += noiseFloor.diSample (i);
 
         // Input gain (3.4): the trim into the rig, after the guitar's own circuit.
         inputGainNow += (inputGainTarget.load (std::memory_order_relaxed) - inputGainNow) * 0.002;
@@ -1924,11 +1978,22 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         // ---- 6. amp (mono) ----------------------------------------------------
         for (int i = 0; i < numSamples; ++i)
         {
-            const double mono = (dl[(size_t) i] + dr[(size_t) i]) * 0.5;
+            double mono = (dl[(size_t) i] + dr[(size_t) i]) * 0.5;
+
+            // noise-floor.md 2.5-2.8: ground loop, radio, hiss and microphonics.
+            if (noiseFloorOn)
+            {
+                mono += noiseFloor.ampInSample (i);
+                noiseFloor.recordAmpInput (i, mono);
+            }
+
             const double amped = amp.processSample (mono);
             dl[(size_t) i] = amped;
             dr[(size_t) i] = amped;
         }
+
+        if (noiseFloorOn)
+            noiseFloor.pushAmpOutput (dl.data(), numSamples);
 
         // What the speaker puts into the room, for the feedback loop's next blocks.
         if (feedbackLoop.isActive())

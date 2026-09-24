@@ -354,6 +354,43 @@ namespace ParamIDs
     juce::String slotBypass (bool post, int slot);
     juce::String slotMix (bool post, int slot);
     juce::String slotParam (bool post, int slot, int param);
+
+    // ==== BEGIN REALISM-C params ====
+    // noise-floor.md 3 (noise_amp_buzz, "Single-coil Hum", is ampBuzz above).
+    inline constexpr const char* noiseMainsHz         = "noise_mains_hz";
+    inline constexpr const char* noisePlayerAngle     = "noise_player_angle";
+    inline constexpr const char* noisePlayerDistance  = "noise_player_distance";
+    inline constexpr const char* noiseFluorescent     = "noise_fluorescent";
+    inline constexpr const char* noisePassiveHiss     = "noise_passive_hiss";
+    inline constexpr const char* noiseCableMovement   = "noise_cable_movement";
+    inline constexpr const char* noiseRadio           = "noise_radio";
+    inline constexpr const char* noiseGroundLoop      = "noise_ground_loop";
+    inline constexpr const char* noiseAmpHiss         = "noise_amp_hiss";
+    inline constexpr const char* noiseMicrophonics    = "noise_microphonics";
+    inline constexpr const char* noiseFloorToAux8     = "noise_floor_to_aux8";
+    inline constexpr const char* noiseFloorStyle      = "noise_floor_style";
+
+    // sustain-and-decay.md 6.
+    inline constexpr const char* sustainAttackTransient = "sustain_attack_transient";
+    inline constexpr const char* sustainAttackTime      = "sustain_attack_time";
+    inline constexpr const char* sustainFastShare       = "sustain_fast_share";
+    inline constexpr const char* sustainFastRatio       = "sustain_fast_ratio";
+    inline constexpr const char* sustainTensionMod      = "sustain_tension_mod";
+    inline constexpr const char* sustainReleaseTime     = "sustain_release_time";
+    inline constexpr const char* sustainReleaseSag      = "sustain_release_sag";
+    inline constexpr const char* sustainReleaseRing     = "sustain_release_ring";
+    inline constexpr const char* sustainStyle           = "sustain_style";
+
+    // tuning-stability.md 4.
+    inline constexpr const char* stabilityAmount      = "stability_amount";
+    inline constexpr const char* stabilitySettling    = "stability_settling";
+    inline constexpr const char* stabilityNutBinding  = "stability_nut_binding";
+    inline constexpr const char* stabilityBacklash    = "stability_backlash";
+    inline constexpr const char* stabilitySaddleCreep = "stability_saddle_creep";
+    inline constexpr const char* stabilityBendMemory  = "stability_bend_memory";
+    inline constexpr const char* stabilityCapoBias    = "stability_capo_bias";
+    inline constexpr const char* stabilityAutoRetune  = "stability_auto_retune";
+    // ==== END REALISM-C params ====
 }
 
 //==============================================================================

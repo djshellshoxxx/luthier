@@ -20,6 +20,7 @@
 #include "DSP/Noise/PlayingNoise.h"
 #include "DSP/Noise/FretBuzz.h"
 #include "DSP/Noise/ScrapeEngine.h"
+#include "DSP/Noise/NoiseFloor.h"   // noise-floor.md
 #include "DSP/Slap/SlapEngine.h"
 #include "Model/Playing/TechniqueTriggers.h"
 #include "DSP/Slide/SlideEngine.h"
@@ -209,6 +210,14 @@ public:
     /** Sets the pick material and whether it is fingers. The two parameters
         are one decision: a finger material is fingers whatever the switch says. */
     void setPickMaterialAndFingers (Excitation::Material material, bool fingers) noexcept;
+
+    /** noise-floor.md: the rig's steady noise sources. */
+    NoiseFloor& getNoiseFloor() noexcept { return noiseFloor; }
+    const NoiseFloor& getNoiseFloor() const noexcept { return noiseFloor; }
+    void setNoiseFloorSettings (const NoiseFloorSettings& s) noexcept { noiseFloor.setSettings (s); }
+
+    /** NF-01's test hook: the render with the module removed entirely. */
+    void setNoiseFloorBypassedForTest (bool b) noexcept { noiseFloorBypassed = b; }
 
     /** The Aux 8 noise bus for the last block (routing-io.md). */
     const double* getNoiseBusData() const noexcept { return noiseBuffer.data(); }
@@ -495,6 +504,10 @@ private:
 
     FretBuzz fretBuzzModel;
     SlideEngine slide;
+
+    // noise-floor.md 4: owned next to playingNoise.
+    NoiseFloor noiseFloor;
+    bool noiseFloorBypassed = false;
 
     /*  string-scraping.md 3: after the MIDI, before the strings. Its keyswitches
         come out of the MIDI (into scrapeMidi) before the rhythm engine and the

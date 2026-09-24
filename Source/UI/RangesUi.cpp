@@ -103,6 +103,7 @@ juce::String familyDisplayName (RangeFamily family)
         case RangeFamily::pick:       return "Pick";
         case RangeFamily::slide:      return "Slide";
         case RangeFamily::modulation: return "Modulation";
+        case RangeFamily::strings:    return "Strings";
         case RangeFamily::numFamilies:
         default:                      return {};
     }
