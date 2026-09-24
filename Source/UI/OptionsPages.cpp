@@ -4,6 +4,7 @@
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
 #include "NoiseGroups.h"
+#include "StageTouches.h"
 
 namespace luthier
 {
@@ -828,6 +829,10 @@ AppearancePage::AppearancePage (LuthierAudioProcessor& p)
     noiseStripToggle.onClick = [this] { NoiseEventStrip::setEnabledByUser (noiseStripToggle.getToggleState()); };
     addAndMakeVisible (noiseStripToggle);
 
+    // visual-polish.md 4: the needle meter is optional.
+    vuToggle.onClick = [this] { VuMeter::setEnabledByUser (vuToggle.getToggleState()); };
+    addAndMakeVisible (vuToggle);
+
     styleNote (accentNote, Palette::textMuted);
     addAndMakeVisible (accentNote);
 
@@ -845,6 +850,7 @@ void AppearancePage::refresh()
                              juce::dontSendNotification);
     dataStreamToggle.setToggleState (DataStreamDisplay::isEnabledByUser(), juce::dontSendNotification);
     noiseStripToggle.setToggleState (NoiseEventStrip::isEnabledByUser(), juce::dontSendNotification);
+    vuToggle.setToggleState (VuMeter::isEnabledByUser(), juce::dontSendNotification);
     accentNote.setText ("Accent contrast: " + juce::String (AccessibilitySettings::accentContrast (settings.getColours().accent,
                                                                                                      settings.getColours()), 2)
                           + " to 1 on this palette's panels", juce::dontSendNotification);
@@ -913,6 +919,7 @@ void AppearancePage::resized()
     lower.removeFromTop (4);
     dataStreamToggle.setBounds (lower.removeFromTop (26).removeFromLeft (300));
     noiseStripToggle.setBounds (lower.removeFromTop (26).removeFromLeft (300));
+    vuToggle.setBounds (lower.removeFromTop (26).removeFromLeft (300));
 }
 
 //==============================================================================

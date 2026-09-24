@@ -120,7 +120,9 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     : processor (p),
       guitarBody (p),
       preRack (p, false),
-      postRack (p, true)
+      postRack (p, true),
+      vuMeter (p),
+      roomLight (p)
 {
     addAndMakeVisible (guitarBody);
 
@@ -251,6 +253,12 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
 
     // ---- meter and chord readout -------------------------------------------------------
     addAndMakeVisible (meter);
+
+    // visual-polish.md 4: the room light sits behind the ROOM card's controls.
+    addAndMakeVisible (roomLight);
+    roomLight.toBack();
+    addChildComponent (vuMeter);
+    vuMeter.setVisible (VuMeter::isEnabledByUser());
     meter.setSource (&processor);
 
     addAndMakeVisible (chordLabel);
@@ -547,7 +555,9 @@ void EasyPanel::resized()
             return inner;
         };
 
-        auto circuit = card (0.20f, "Guitar");
+        // TODO 2h: the amp card gets the height the racks' second rows did not
+        // need, so its six knobs sit full size on the face at 1200 x 720.
+        auto circuit = card (0.15f, "Guitar");
         {
             auto knobs = circuit.removeFromLeft (circuit.getWidth() / 2);
             guitarVolumeKnob.setBounds (knobs.removeFromLeft (knobs.getWidth() / 2));
@@ -555,22 +565,22 @@ void EasyPanel::resized()
             circuitView->setBounds (circuit.reduced (2));
         }
 
-        preRack.setBounds (card (0.12f, "Pre-effects"));
+        preRack.setBounds (card (0.09f, "Pre-effects"));
 
-        auto amp = card (0.26f, "Amp");
+        auto amp = card (0.34f, "Amp");
         {
-            // TODO 2h: the knobs sit on the face in one row, each with the card's
-            // full width to share, rather than two cramped rows of three.
-            ampModel.setBounds (amp.removeFromTop (juce::jmin (amp.getHeight() / 3, 44)));
+            ampCardArea = amp;
+            ampModel.setBounds (amp.removeFromTop (26));
             amp.removeFromTop (2);
             ampFace.setBounds (amp);
         }
 
-        postRack.setBounds (card (0.12f, "Post-effects"));
+        postRack.setBounds (card (0.09f, "Post-effects"));
 
-        auto cab = card (0.17f, "Cabinet");
+        auto cab = card (0.20f, "Cabinet");
         {
-            auto top = cab.removeFromTop (cab.getHeight() / 2);
+            // The blend knob gets the taller top row, so it is a knob and not a dot (TODO V).
+            auto top = cab.removeFromTop (cab.getHeight() * 11 / 20);
             cabModel.setBounds (top.removeFromLeft (top.getWidth() / 2));
             micBlend.setBounds (top);
             mic1.setBounds (cab.removeFromLeft (cab.getWidth() / 2));
@@ -579,6 +589,7 @@ void EasyPanel::resized()
 
         auto room = card (0.13f, "Room");
         {
+            roomLight.setBounds (rigCards.getLast().first);
             roomSize.setBounds (room.removeFromLeft (room.getWidth() / 2));
             roomMix.setBounds (room);
         }
@@ -600,6 +611,9 @@ void EasyPanel::resized()
     meter.setBounds (meterColumn.reduced (4, Metrics::grid));
     chordLabel.setBounds (guitarArea.removeFromTop (20).removeFromRight (120));
     guitarBody.setBounds (guitarArea);
+
+    // visual-polish.md 4: the VU needle over the guitar's top-left corner, beside the level meter's column.
+    vuMeter.setBounds (guitarArea.getX() + 4, guitarArea.getY() - 16, 128, 66);
 
     // 3.3 playing strip: mode, then the macros, then the whammy if fitted.
     {

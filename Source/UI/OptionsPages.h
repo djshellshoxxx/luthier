@@ -119,6 +119,7 @@ private:
     juce::ComboBox accentBox;
     juce::ToggleButton dataStreamToggle { "Scrolling data stream in the footer" };
     juce::ToggleButton noiseStripToggle { "Noise-event strip (CHARACTER)" };
+    juce::ToggleButton vuToggle { "VU meter (Easy window)" };
 
     juce::Label contrastLabel, accentNote;
 

@@ -11,6 +11,7 @@
 #include "../UI/NoiseGroups.h"
 #include "../UI/UiPreferences.h"
 #include "../UI/Theme.h"
+#include "../UI/StageTouches.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -224,4 +225,64 @@ LUTHIER_TEST (NoiseStrip, reducedMotionShowsAStaticCountAndAppearanceHidesIt)
     NoiseEventStrip::setEnabledByUser (false);
     strip.timerCallbackForTest();
     CHECK (! strip.isVisible());
+}
+
+//==============================================================================
+/*  visual-polish.md 4: the VU needle reads the master output with VU
+    ballistics (300 ms to settle, 0 VU at -18 dBFS) and greys when stale; the
+    room light warms with the wet level and widens with the room. */
+LUTHIER_TEST (StageTouches, theVuNeedleHasBallisticsAndGreysWhenStale)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    VuMeter vu (processor);
+
+    const double zeroVu = juce::Decibels::decibelsToGain (VuMeter::kReferenceDbfs);
+    double t = 0.0;
+    vu.update (zeroVu, t);
+
+    // After 100 ms it is on its way, after 300 ms within half a dB of 0 VU.
+    for (; t < 100.0; t += 10.0)
+        vu.update (zeroVu, t);
+    CHECK (vu.getNeedleVu() < -1.0 && vu.getNeedleVu() > VuMeter::kMinVu);
+
+    for (; t < 300.0; t += 10.0)
+        vu.update (zeroVu, t);
+    CHECK_NEAR (vu.getNeedleVu(), 0.0, 0.5);
+    CHECK (! vu.isStale());
+
+    // An unchanging, non-silent reading for over a second is stale.
+    vu.update (zeroVu, t + 1500.0);
+    CHECK (vu.isStale());
+
+    // The scale is VU's, compressed at the bottom: -10 sits well below halfway.
+    CHECK (VuMeter::scalePosition (-10.0) < 0.3f && VuMeter::scalePosition (0.0) > 0.6f);
+}
+
+LUTHIER_TEST (StageTouches, theRoomLightFollowsSizeAndWet)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    RoomLight light (processor);
+
+    auto set = [&processor] (const char* id, float normalised)
+    {
+        processor.getState().getParameter (id)->setValueNotifyingHost (normalised);
+    };
+
+    set (ParamIDs::roomOn, 1.0f);
+    set (ParamIDs::roomBlend, 0.1f);
+    set (ParamIDs::roomSize, 0.0f);
+    light.refresh();
+    const float dryWarmth = light.getWarmth(), smallSpread = light.getSpread();
+
+    set (ParamIDs::roomBlend, 0.8f);
+    set (ParamIDs::roomSize, 1.0f);
+    light.refresh();
+    CHECK (light.getWarmth() > dryWarmth);
+    CHECK (light.getSpread() > smallSpread);
+
+    set (ParamIDs::roomOn, 0.0f);
+    light.refresh();
+    CHECK (light.getWarmth() == 0.0f);
 }
