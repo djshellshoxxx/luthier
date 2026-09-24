@@ -743,6 +743,9 @@ void AdvancedPanel::buildColumn2()
                            LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
     }
 
+    refreshPickupSlots();
+    startTimerHz (2);
+
     coilTap = std::make_unique<LuthierToggle> ("Coil tap");
     coilTap->attachTo (processor, ParamIDs::coilTap,
                        "Splits every humbucker to a single coil");
@@ -1482,6 +1485,69 @@ int AdvancedPanel::workspacePanelHeight (juce::Component* panel)
     else if (auto* p = dynamic_cast<PracticeSetupPanel*> (panel)) preferred = p->getPreferredHeight();
 
     return juce::jmax (80, preferred > 0 ? preferred : panel->getHeight());
+}
+
+//==============================================================================
+void AdvancedPanel::timerCallback()
+{
+    refreshPickupSlots();
+}
+
+void AdvancedPanel::refreshPickupSlots()
+{
+    const int fitted = processor.getEngine().getNumFittedPickups();   // 1..3
+
+    if (fitted == lastFittedPickups)
+        return;
+
+    lastFittedPickups = fitted;
+
+    // Engine slot 0 is the bridge, the last fitted slot the neck, the middle
+    // only exists with three (PartAcoustics, GuitarBodyComponent agree).
+    for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
+    {
+        const bool present = slot < fitted;
+        const char* position = slot == 0 ? "Bridge"
+                             : (slot == fitted - 1 && fitted > 1) ? "Neck" : "Middle";
+        const juce::String n (slot + 1);
+        const juce::String suffix = present ? juce::String (position) : juce::String ("not fitted");
+
+        pickupType[slot]->setLabelText ("Pickup " + n + " (" + suffix + ")");
+        pickupMagnet[slot]->setLabelText ("Magnet " + n + " (" + suffix + ")");
+        pickupType[slot]->setEnabled (present);
+        pickupMagnet[slot]->setEnabled (present);
+        pickupVolume[slot]->setEnabled (present);
+
+        if (! present)
+        {
+            pickupType[slot]->setTooltip ("This guitar has no pickup in this slot; fit one on the Workshop bench.");
+            pickupMagnet[slot]->setTooltip (pickupType[slot]->getTooltip());
+            pickupVolume[slot]->setTooltip (pickupType[slot]->getTooltip());
+        }
+    }
+
+    /*  Selector positions the guitar cannot realise: PickupEngine::updateSelection
+        folds them onto the pickups that exist, so offering them only confuses.
+        The ComboBoxAttachment keeps ids = index + 1, so ids stay stable and the
+        list is just filtered. */
+    auto& box = pickupSelector->getComboBox();
+    const auto names = Parameters::pickupSelectorNames();
+    const int current = box.getSelectedId();
+    box.clear (juce::dontSendNotification);
+
+    for (int i = 0; i < names.size(); ++i)
+    {
+        const auto s = (PickupSelector) i;
+        const bool realisable = fitted >= 3
+                             || (fitted == 2 && (s == PickupSelector::Bridge || s == PickupSelector::Neck
+                                                 || s == PickupSelector::All || s == PickupSelector::BridgeNeck))
+                             || (fitted == 1 && s == PickupSelector::Bridge);
+        if (realisable)
+            box.addItem (names[i], i + 1);
+    }
+
+    box.setSelectedId (current, juce::dontSendNotification);
+    repaint();
 }
 
 //==============================================================================

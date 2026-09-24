@@ -2128,6 +2128,33 @@ LUTHIER_TEST (Editor, theLiveTabEditsTheSnapshotBankAndTheSetlist)
 /*  spec/issues.md: "a small piano roll that mirrors the strings". The Advanced
     strip offers FRETS | ROLL; the choice shows one component, hides the other,
     and survives a new panel through UiPreferences. */
+/*  spec/issues.md "the pickup changes don't appear to do much": a slot the
+    guitar has no pickup in is disabled and says so, and the selector offers
+    only positions the guitar can realise. */
+LUTHIER_TEST (Editor, pickupSlotsFollowTheFittedGuitar)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    AdvancedPanel panel (processor);
+    panel.setVisible (true);
+    panel.setSize (1600, 900);
+    panel.refreshPickupSlots();
+
+    const int fitted = processor.getEngine().getNumFittedPickups();
+    CHECK (fitted >= 1 && fitted <= PickupEngine::kMaxPickups);
+    CHECK (panel.getFittedPickupsShown() == fitted);
+
+    const auto names = Parameters::pickupSelectorNames();
+    const int offered = panel.getPickupSelectorItemCount();
+    const int expected = fitted >= 3 ? names.size() : fitted == 2 ? 4 : 1;
+    CHECK_MSG (offered == expected,
+               "selector offers " + juce::String (offered) + " positions for " + juce::String (fitted) + " pickups");
+
+    for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
+        CHECK (panel.isPickupSlotEnabled (slot) == (slot < fitted));
+}
+
 LUTHIER_TEST (Editor, theStripSwitchesBetweenFretsAndTheStringRoll)
 {
     UiPreferences::get().reset();

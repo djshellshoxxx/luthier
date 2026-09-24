@@ -122,7 +122,8 @@ private:
 };
 
 //==============================================================================
-class AdvancedPanel : public juce::Component
+class AdvancedPanel : public juce::Component,
+                      private juce::Timer
 {
 public:
     explicit AdvancedPanel (LuthierAudioProcessor& processor);
@@ -142,6 +143,15 @@ public:
     StringRollComponent& getStringRoll() noexcept { return stringRoll; }
     bool isStripShowingRoll() const noexcept { return stripShowsRoll; }
     void setStripShowsRoll (bool showRoll);
+
+    /** Pickup slots the fitted guitar does not have are disabled and named, and
+        the selector offers only the positions the guitar can realise
+        (spec/issues.md "pickup changes don't do much"). Called from the timer;
+        public so tests can force it. */
+    void refreshPickupSlots();
+    int getFittedPickupsShown() const noexcept { return lastFittedPickups; }
+    int getPickupSelectorItemCount() const { return pickupSelector->getComboBox().getNumItems(); }
+    bool isPickupSlotEnabled (int slot) const { return pickupType[slot]->isEnabled(); }
 
     //==========================================================================
     /*  Column 4's tab strip (section 4.4).
@@ -306,6 +316,8 @@ private:
     std::unique_ptr<LuthierChoice> pickupMagnet[3];
     std::unique_ptr<LuthierKnob> pickupVolume[3];
     std::unique_ptr<LuthierToggle> coilTap;
+    int lastFittedPickups = 0;
+    void timerCallback() override;
     std::unique_ptr<LuthierKnob> piezoMicBlend, guitarTone, guitarVolume;
 
     std::unique_ptr<LuthierToggle> useFingers;
