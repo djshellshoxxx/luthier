@@ -157,6 +157,14 @@ public:
         from the other strings through the bridge for this sample. */
     double processSample (double couplingInput) noexcept;
 
+    /*  processSample in two halves, for body-coupling.md 3: beginSample reads
+        the loop and leaves the wave arriving at the bridge in getBridgeWave();
+        endSample injects and writes. A bank that needs every string's
+        current bridge wave before any string is written sits between them,
+        with no lag. processSample is exactly the two in a row. */
+    void beginSample() noexcept;
+    double endSample (double couplingInput) noexcept;
+
     /** Level tap the coupling matrix reads. Already includes couplingSend. */
     double getBridgeOutput() const noexcept { return bridgeOut; }
 
@@ -218,6 +226,7 @@ private:
     double  terminationBrightness = 1.0;
     double  agingBrightness = 1.0, agingSustain = 1.0, agingDispersion = 1.0;   // string-aging.md 5
     double  bridgeWave = 0.0;                                                     // body-coupling.md 3
+    double  pendingDelayOut = 0.0;
     double  fretBuzzAmount = 0.0;
     double  fretActionMm = 1.6;
     double  buzzPhase = 0.0;

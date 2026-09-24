@@ -1935,8 +1935,20 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         coupling.process (bridgeOutputs.data(), couplingInputs.data());
 
         // body-coupling.md 3: the body's return path, next to the saddle path.
-        if (bodyCoupling.isActive())
+        // Every string's loop is read first, so the bank answers this
+        // sample's bridge waves with no lag - which is what keeps it passive.
+        const bool bodyCouplingOn = bodyCoupling.isActive();
+
+        if (bodyCouplingOn)
+        {
+            for (int s = 0; s < numStrings; ++s)
+            {
+                strings[(size_t) s].beginSample();
+                bridgeWaves[(size_t) s] = strings[(size_t) s].getBridgeWave();
+            }
+
             bodyCoupling.processSample (bridgeWaves.data(), couplingInputs.data(), numStrings);
+        }
 
         noiseBuffer[(size_t) i] = playingNoise.processSample (excitationNoise.data(), surfaceNoise.data(),
                                                               numStrings);
@@ -1975,11 +1987,12 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
             // Everything else is surface noise, on the string's output before
             // the body and the pickups, so the instrument colours it.
-            const double out = strings[(size_t) s].processSample (couplingIn) + surfaceNoise[(size_t) s];
+            const double out = (bodyCouplingOn ? strings[(size_t) s].endSample (couplingIn)
+                                               : strings[(size_t) s].processSample (couplingIn))
+                               + surfaceNoise[(size_t) s];
 
             stringOutputs[(size_t) s] = out;
             bridgeOutputs[(size_t) s] = strings[(size_t) s].getBridgeOutput();
-            bridgeWaves[(size_t) s] = strings[(size_t) s].getBridgeWave();
             stringDelays[(size_t) s] = strings[(size_t) s].getCurrentDelaySamples();
 
             sum += out;

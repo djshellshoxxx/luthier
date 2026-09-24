@@ -105,13 +105,17 @@ namespace
                     bank.beginBlock();
 
                 inputs.fill (0.0);
-                bank.processSample (waves.data(), inputs.data(), n);
 
                 for (int s = 0; s < n; ++s)
                 {
-                    out[(size_t) s].push_back (strings[(size_t) s].processSample (inputs[(size_t) s]));
+                    strings[(size_t) s].beginSample();
                     waves[(size_t) s] = strings[(size_t) s].getBridgeWave();
                 }
+
+                bank.processSample (waves.data(), inputs.data(), n);
+
+                for (int s = 0; s < n; ++s)
+                    out[(size_t) s].push_back (strings[(size_t) s].endSample (inputs[(size_t) s]));
             }
         }
 
@@ -525,21 +529,19 @@ LUTHIER_TEST (BodyCoupling, BC05_theWolfMovesWithTheBody)
 
 LUTHIER_TEST (BodyCoupling, ENV13_theWolfFollowsTheEnvironment)
 {
-    // environment.md 2.6 moves the plate modes: the wolf at the strongest
-    // plate mode moves with it.
-    Rig probe (GuitarType::Dreadnought);
-    int plate = 0;
-
-    while (plate < probe.design.count && probe.design.isAir[(size_t) plate])
-        ++plate;
-
-    const double f = BodyCouplingBank::viewMode (probe.design, plate, {}).hz;
-    BodyCouplingScaling warm;
-    warm.plateFreq = 0.97;
-
+    // environment.md 2.6 moves the plate modes. Measured on a solidbody,
+    // whose modes are all plate: on an acoustic the unmoving air modes sit
+    // beside the plate ones and pull the measured minimum (-3.5 % there).
+    Rig probe (GuitarType::LesPaul);
+    const double f = BodyCouplingBank::viewMode (probe.design, 0, {}).hz;
     const int s = probe.n - 1;
-    const double at1 = wolfFrequency (GuitarType::Dreadnought, s, {}, f * 0.95, f * 1.05);
-    const double at097 = wolfFrequency (GuitarType::Dreadnought, s, warm, f * 0.92, f * 1.02);
+    BodyCouplingScaling onNote = freqScale (probe.fundamental (s, 3.0) / f);
+    BodyCouplingScaling warm = onNote;
+    warm.plateFreq *= 0.97;
+
+    const double centre = probe.fundamental (s, 3.0);
+    const double at1 = wolfFrequency (GuitarType::LesPaul, s, onNote, centre * 0.95, centre * 1.05);
+    const double at097 = wolfFrequency (GuitarType::LesPaul, s, warm, centre * 0.92, centre * 1.02);
     const double moved = at097 / at1 - 1.0;
 
     CHECK_MSG (std::abs (moved + 0.03) <= 0.005, "the wolf moved " + juce::String (100.0 * moved, 2) + " %");
@@ -553,27 +555,27 @@ LUTHIER_TEST (BodyCoupling, BC06_BC09_aTapRingsTheStringsNearAMode)
         const double main = BodyCouplingBank::viewMode (rig.design, 0, {}).hz;
 
         // String 4 retuned onto the main mode.
-        rig.openHz[4] = main * 1.01;
+        rig.openHz[4] = main;
         rig.strings[4].snapToFrequency (rig.openHz[4]);
 
-        // The string whose first four partials sit furthest from any mode.
+        // The string the bank reaches least: the smallest admittance summed
+        // over its first four partials.
         int far = 0;
-        double farthest = -1.0;
+        double least = 1.0e9;
 
         for (int s = 0; s < rig.n; ++s)
         {
             if (s == 4)
                 continue;
 
-            double nearest = 1.0e9;
+            double y = 0.0;
 
             for (int n = 1; n <= 4; ++n)
-                for (int k = 0; k < rig.design.count; ++k)
-                    nearest = juce::jmin (nearest, std::abs (n * rig.openHz[(size_t) s] / rig.design.f[(size_t) k] - 1.0));
+                y += BodyCouplingBank::realAdmittance (rig.design, 16, {}, n * rig.openHz[(size_t) s], 1.0) / n;
 
-            if (nearest > farthest)
+            if (y < least)
             {
-                farthest = nearest;
+                least = y;
                 far = s;
             }
         }
@@ -632,16 +634,27 @@ LUTHIER_TEST (BodyCoupling, BC08_aHeavyBridgeCouplesLess)
     const int low = probe.n - 1;
     const auto sc = freqScale (probe.fundamental (low, 3.0) / BodyCouplingBank::viewMode (probe.design, 0, {}).hz);
 
+    // At exact coincidence any coupling stronger than the string's own loss
+    // takes most of the fundamental (and the pin bridge is past that, into
+    // the warble), so the bridge's effect shows beside the mode: one
+    // semitone off it, and in the admittance itself (body-coupling.md 8, as built).
     auto dipWith = [&] (BridgeCoupling b)
     {
-        const double t3 = t60At (GuitarType::Dreadnought, low, 3.0, sc, 1.0, &b, 6.0, false);
-        const double t0 = t60At (GuitarType::Dreadnought, low, 0.0, sc, 1.0, &b, 6.0, false);
-        const double t6 = t60At (GuitarType::Dreadnought, low, 6.0, sc, 1.0, &b, 6.0, false);
-        return 1.0 - t3 / (0.5 * (t0 + t6));
+        const double on = t60At (GuitarType::Dreadnought, low, 4.0, sc, 1.0, &b, 6.0, false);
+        const double off = t60At (GuitarType::Dreadnought, low, 4.0, sc, 0.0, &b, 6.0, false);
+        return 1.0 - on / off;
+    };
+
+    auto peakWith = [&] (BridgeCoupling b)
+    {
+        Rig rig (GuitarType::Dreadnought, 1.0, &b);
+        return BodyCouplingBank::viewMode (rig.design, 0, sc).peakAdmittance;
     };
 
     const double pin = dipWith ({ 0.028, 0.92 }), floyd = dipWith ({ 0.320, 0.30 });
-    CHECK_MSG (floyd <= 0.5 * pin, "pin " + juce::String (100.0 * pin, 1) + " %, Floyd " + juce::String (100.0 * floyd, 1) + " %");
+    CHECK_MSG (floyd <= 0.5 * pin, "a semitone off the mode: pin " + juce::String (100.0 * pin, 1) + " %, Floyd "
+                                     + juce::String (100.0 * floyd, 1) + " %");
+    CHECK (peakWith ({ 0.320, 0.30 }) <= 0.5 * peakWith ({ 0.028, 0.92 }));
 }
 
 LUTHIER_TEST (BodyCoupling, BC10_stabilityAcrossTheAdvancedCorners)

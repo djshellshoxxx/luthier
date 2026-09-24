@@ -319,6 +319,12 @@ void StringEngine::updateLoopCoefficients() noexcept
 //==============================================================================
 double StringEngine::processSample (double couplingInput) noexcept
 {
+    beginSample();
+    return endSample (couplingInput);
+}
+
+void StringEngine::beginSample() noexcept
+{
     // ---- voice stealing ------------------------------------------------------
     if (stealPending)
     {
@@ -398,6 +404,13 @@ double StringEngine::processSample (double couplingInput) noexcept
         driving the body from it advances the body path by tens of degrees at
         the fundamental, which is enough to make it active. */
     bridgeWave = fb;
+    pendingDelayOut = delayOut;
+}
+
+double StringEngine::endSample (double couplingInput) noexcept
+{
+    const double delayOut = pendingDelayOut;
+    const double fb = bridgeWave;
 
     // ---- injections ----------------------------------------------------------
     const double exc = excitation.next();

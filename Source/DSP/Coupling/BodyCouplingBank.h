@@ -133,16 +133,17 @@ public:
     /** True when processSample would do anything. */
     bool isActive() const noexcept { return amountTarget > 0.0 || amountNow > 0.0; }
 
-    /*  Per sample. `bridgeWaves` are the strings' previous-sample bridge waves;
-        the bank ADDS into `couplingInputs`. */
+    /*  Per sample. `bridgeWaves` are this sample's waves arriving at the
+        bridge (StringEngine::beginSample), so there is no lag; the bank ADDS
+        into `couplingInputs`, which the strings then take in endSample. */
     void processSample (const double* bridgeWaves, double* couplingInputs, int numStrings) noexcept;
 
     //==========================================================================
     // Readouts.
     int getNumActiveModes() const noexcept { return juce::jmin (modeCount, active.count); }
-    double getModeFrequency (int k) const noexcept { return resonators[(size_t) juce::jlimit (0, BodyCouplingDesign::kMaxModes - 1, k)].getFrequency(); }
-    double getModeGain (int k) const noexcept { return resonators[(size_t) juce::jlimit (0, BodyCouplingDesign::kMaxModes - 1, k)].getGain(); }
-    double getModeLoadedQ (int k) const noexcept { return resonators[(size_t) juce::jlimit (0, BodyCouplingDesign::kMaxModes - 1, k)].getQ(); }
+    double getModeFrequency (int k) const noexcept { return modeHz[(size_t) juce::jlimit (0, BodyCouplingDesign::kMaxModes - 1, k)]; }
+    double getModeGain (int k) const noexcept { return modeGain[(size_t) juce::jlimit (0, BodyCouplingDesign::kMaxModes - 1, k)]; }
+    double getModeLoadedQ (int k) const noexcept { return modeQ[(size_t) juce::jlimit (0, BodyCouplingDesign::kMaxModes - 1, k)]; }
 
     /** Fraction of processed samples where the cap engaged, since reset. */
     double getCapFraction() const noexcept { return samplesRun > 0 ? (double) samplesCapped / (double) samplesRun : 0.0; }
@@ -183,7 +184,13 @@ private:
     std::atomic<bool> stagedReady { false };
     juce::SpinLock stageLock;
 
-    std::array<ModalResonator, BodyCouplingDesign::kMaxModes> resonators;
+    /*  The modes as one structure-of-arrays bank of constant-peak band-passes
+        (the same RBJ design ModalResonator uses, bilinear, pre-warped at each
+        mode), transposed direct form II with b1 = 0 and b2 = -b0. Every mode
+        takes the same input, so the per-sample loop vectorises. */
+    void resetState() noexcept;
+    alignas (32) std::array<double, BodyCouplingDesign::kMaxModes> cb0 {}, ca1 {}, ca2 {}, z1 {}, z2 {};
+    std::array<double, BodyCouplingDesign::kMaxModes> modeHz {}, modeQ {}, modeGain {};
     std::array<double, BodyCouplingDesign::kMaxModes> tapWeight {};
     int modeCount = 8, runningCount = 0;
 

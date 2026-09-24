@@ -72,9 +72,6 @@ void BodyCouplingBank::prepare (double sampleRate) noexcept
 {
     sr = juce::jmax (1.0, sampleRate);
 
-    for (auto& r : resonators)
-        r.prepare (sr);
-
     tapLength = juce::jmax (2, (int) std::lround (kTapSeconds * sr));
     amountStep = 1.0 / juce::jmax (1.0, kAmountRampSeconds * sr);
     needsRedesign = true;
@@ -85,8 +82,7 @@ void BodyCouplingBank::reset() noexcept
 {
     beginBlock();
 
-    for (auto& r : resonators)
-        r.reset();
+    resetState();
 
     scalingNow = scalingTarget;
     amountNow = amountTarget;
@@ -218,6 +214,12 @@ void BodyCouplingBank::wolfMap (const BodyCouplingDesign& d, int k, const BodyCo
 }
 
 //==============================================================================
+void BodyCouplingBank::resetState() noexcept
+{
+    z1.fill (0.0);
+    z2.fill (0.0);
+}
+
 void BodyCouplingBank::redesignResonators() noexcept
 {
     runningCount = juce::jmin (modeCount, active.count);
@@ -227,21 +229,35 @@ void BodyCouplingBank::redesignResonators() noexcept
     {
         if (k >= runningCount)
         {
-            resonators[(size_t) k].reset();
+            cb0[(size_t) k] = ca1[(size_t) k] = ca2[(size_t) k] = 0.0;
+            z1[(size_t) k] = z2[(size_t) k] = 0.0;
+            modeHz[(size_t) k] = modeQ[(size_t) k] = modeGain[(size_t) k] = 0.0;
             continue;
         }
 
         const auto v = viewMode (active, k, scalingNow);
 
-        // The constant-peak band-pass peaks at 1; its gain is Y' at the peak.
-        // A backstop keeps the loaded peak under unity even where the resonator
-        // has had to clamp Q (advanced extremes only).
+        // The band-pass peaks at 1; its gain is Y' at the peak. A backstop
+        // keeps the loaded peak under unity where the design has had to
+        // clamp Q (advanced extremes only).
         double gain = v.peakAdmittance;
 
         if (zTot > 0.0)
             gain = juce::jmin (gain, kMaxKappa / zTot);
 
-        resonators[(size_t) k].set (v.hz, juce::jmax (0.5, v.loadedQ), gain);
+        const double hz = juce::jlimit (20.0, sr * 0.47, v.hz);
+        const double q = juce::jlimit (0.05, 1250.0, v.loadedQ);
+        const double w0 = constants::kTwoPi * hz / sr;
+        const double alpha = std::sin (w0) / (2.0 * q);
+        const double a0 = 1.0 + alpha;
+
+        cb0[(size_t) k] = gain * alpha / a0;
+        ca1[(size_t) k] = -2.0 * std::cos (w0) / a0;
+        ca2[(size_t) k] = (1.0 - alpha) / a0;
+
+        modeHz[(size_t) k] = hz;
+        modeQ[(size_t) k] = q;
+        modeGain[(size_t) k] = gain;
     }
 
     scalingDesigned = scalingNow;
@@ -331,8 +347,14 @@ void BodyCouplingBank::processSample (const double* bridgeWaves, double* couplin
 
     double v = 0.0;
 
-    for (int k = 0; k < runningCount; ++k)
-        v += resonators[(size_t) k].process (force + tap * tapWeight[(size_t) k]);
+    for (int k = 0; k < BodyCouplingDesign::kMaxModes; ++k)
+    {
+        const double x = force + tap * tapWeight[(size_t) k];
+        const double y = cb0[(size_t) k] * x + z1[(size_t) k];
+        z1[(size_t) k] = -ca1[(size_t) k] * y + z2[(size_t) k];
+        z2[(size_t) k] = -cb0[(size_t) k] * x - ca2[(size_t) k] * y;
+        v += y;
+    }
 
     double c = -sanitise (v) * amountNow;
 
@@ -349,8 +371,7 @@ void BodyCouplingBank::processSample (const double* bridgeWaves, double* couplin
 
     // Settled at zero: clear the modes so switching back on starts clean.
     if (amountTarget <= 0.0 && amountNow <= 0.0)
-        for (auto& r : resonators)
-            r.reset();
+        resetState();
 }
 
 } // namespace luthier
