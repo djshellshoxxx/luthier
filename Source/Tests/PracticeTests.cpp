@@ -945,3 +945,419 @@ LUTHIER_TEST (PracticeTrainers, progressionParsing)
     CHECK (! looper.parse ("!!!"));
     CHECK (looper.getNumChords() == 2);
 }
+
+//==============================================================================
+namespace
+{
+    juce::File sessionTestFolder (const char* name)
+    {
+        auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile (name);
+        folder.deleteRecursively();
+        folder.createDirectory();
+        return folder;
+    }
+
+    int countFiles (const juce::File& folder, const char* pattern)
+    {
+        return folder.findChildFiles (juce::File::findFiles, false, pattern).size();
+    }
+
+    /** Runs `blocks` blocks of a constant signal through the recorder, with
+        `events` (block, offset, message) dropped into the blocks they name. */
+    struct PlayedEvent { int block; int offset; juce::MidiMessage message; };
+
+    void feed (SessionRecorder& recorder, int blocks, const std::vector<PlayedEvent>& events, float level = 0.3f)
+    {
+        juce::AudioBuffer<float> buffer (2, 512);
+
+        for (int channel = 0; channel < 2; ++channel)
+            juce::FloatVectorOperations::fill (buffer.getWritePointer (channel), level, 512);
+
+        for (int b = 0; b < blocks; ++b)
+        {
+            juce::MidiBuffer midi;
+
+            for (const auto& e : events)
+                if (e.block == b)
+                    midi.addEvent (e.message, e.offset);
+
+            recorder.captureMidi (midi, 512);
+            recorder.processBlock (buffer, 512);
+        }
+    }
+}
+
+/*  practice-tools 11.2 "Session recorder setup": record audio, MIDI or both,
+    and auto-save on stop. */
+LUTHIER_TEST (PracticeSession, recordsOnlyWhatItIsAskedToAndAutoSavesOnStop)
+{
+    const auto folder = sessionTestFolder ("LuthierSessionSwitches");
+
+    SessionRecorder recorder;
+    CHECK (recorder.prepare (kSr, 1.0));
+    recorder.setSaveDirectory (folder);
+
+    // The built-in defaults: both, no auto-save.
+    CHECK (recorder.isRecordingAudio() && recorder.isRecordingMidi() && ! recorder.isAutoSaveOnStop());
+
+    const std::vector<PlayedEvent> phrase =
+    {
+        { 0, 10, juce::MidiMessage::noteOn (1, 52, (juce::uint8) 100) },
+        { 3, 0,  juce::MidiMessage::noteOff (1, 52) }
+    };
+
+    // ---- MIDI only: the clock runs, the audio side stays out --------------------
+    recorder.setRecordAudio (false);
+    recorder.setRecordMidi (true);
+    recorder.setAutoSaveOnStop (true);
+    recorder.setEnabled (true);
+
+    feed (recorder, 10, phrase);
+
+    CHECK_MSG (recorder.getRecordedSamples() == 5120,
+               "a MIDI-only take lost its length: " + juce::String (recorder.getRecordedSamples()));
+    CHECK (recorder.getRecordedMidiEvents() == 2);
+
+    SessionRecorder::SavedTake saved;
+    CHECK_MSG (recorder.stop (&saved), "auto-save on stop wrote nothing");
+    CHECK (! recorder.isEnabled());
+    CHECK_MSG (saved.wav == juce::File(), "audio was written although it was not recorded");
+    CHECK_MSG (saved.midi.existsAsFile(), "the MIDI file was not written");
+    CHECK (countFiles (folder, "*.wav") == 0 && countFiles (folder, "*.mid") == 1);
+
+    // ---- audio only ---------------------------------------------------------------
+    recorder.reset();
+    recorder.setRecordAudio (true);
+    recorder.setRecordMidi (false);
+    recorder.setEnabled (true);
+
+    feed (recorder, 10, phrase);
+
+    CHECK_MSG (recorder.getRecordedMidiEvents() == 0, "MIDI was kept although it was not recorded");
+    CHECK (recorder.stop (&saved));
+    CHECK (saved.wav.existsAsFile() && saved.midi == juce::File());
+    CHECK (countFiles (folder, "*.wav") == 1 && countFiles (folder, "*.mid") == 1);
+
+    // ---- no auto-save: a stop writes nothing, and neither does stopping a
+    //      recorder that is already off ---------------------------------------------
+    recorder.reset();
+    recorder.setRecordMidi (true);
+    recorder.setAutoSaveOnStop (false);
+    recorder.setEnabled (true);
+    feed (recorder, 10, phrase);
+
+    CHECK (! recorder.stop (&saved));
+    CHECK (saved.isEmpty());
+    CHECK (countFiles (folder, "*.wav") == 1 && countFiles (folder, "*.mid") == 1);
+
+    recorder.setAutoSaveOnStop (true);
+    CHECK (! recorder.stop (&saved));
+    CHECK (countFiles (folder, "*.wav") == 1 && countFiles (folder, "*.mid") == 1);
+
+    // Disabled, nothing more goes in on either side.
+    feed (recorder, 4, phrase);
+    CHECK (recorder.getRecordedSamples() == 5120 && recorder.getRecordedMidiEvents() == 2);
+
+    folder.deleteRecursively();
+}
+
+/*  practice-tools 8 with midi-export 2: a saved take is a WAV beside a
+    Luthier-profile MIDI file whose notes sit at the samples they were played,
+    against the WAV's first sample. */
+LUTHIER_TEST (PracticeSession, aSavedTakeIsALuthierProfileMidiFileAtThePlayedSamples)
+{
+    const auto folder = sessionTestFolder ("LuthierSessionTake");
+
+    SessionRecorder recorder;
+    CHECK (recorder.prepare (kSr, 1.0));
+    recorder.setTempoBpm (100.0);
+    recorder.setEnabled (true);
+
+    const std::vector<PlayedEvent> phrase =
+    {
+        { 2, 37,  juce::MidiMessage::noteOn (1, 52, (juce::uint8) 100) },
+        { 5, 0,   juce::MidiMessage::noteOff (1, 52) },
+        { 7, 100, juce::MidiMessage::noteOn (1, 57, (juce::uint8) 90) },
+        { 9, 0,   juce::MidiMessage::noteOff (1, 57) }
+    };
+
+    const juce::int64 expectedSamples[] = { 2 * 512 + 37, 5 * 512, 7 * 512 + 100, 9 * 512 };
+    const int expectedNotes[] = { 52, 52, 57, 57 };
+
+    feed (recorder, 12, phrase);
+
+    SessionRecorder::SavedTake saved;
+    CHECK (recorder.saveLastTake (folder, &saved));
+
+    CHECK_MSG (saved.wav.existsAsFile() && saved.midi.existsAsFile(), "the take is missing a file");
+    CHECK_MSG (saved.wav.getFileName().startsWith ("session-") && saved.wav.hasFileExtension ("wav"),
+               "unexpected WAV name " + saved.wav.getFileName());
+    CHECK_MSG (saved.midi.getFileNameWithoutExtension() == saved.wav.getFileNameWithoutExtension(),
+               "the WAV and MIDI files do not share a name");
+
+    // ---- the WAV is the whole take ---------------------------------------------------
+    {
+        juce::WavAudioFormat wav;
+        std::unique_ptr<juce::AudioFormatReader> reader (wav.createReaderFor (saved.wav.createInputStream().release(), true));
+
+        CHECK_MSG (reader != nullptr, "the WAV could not be read back");
+
+        if (reader != nullptr)
+        {
+            CHECK (reader->lengthInSamples == 12 * 512);
+            CHECK (reader->numChannels == 2);
+            CHECK_NEAR (reader->sampleRate, kSr, 1.0);
+        }
+    }
+
+    // ---- the MIDI comes back through the export reader as a Luthier file ---------
+    auto verify = [&] (const juce::File& file, juce::int64 offset, const char* what)
+    {
+        MidiPerformance back (kSr);
+        const auto result = MidiProfiles::importFromFile (file, back, kSr);
+
+        CHECK_MSG (result.ok, juce::String (what) + ": " + result.error);
+        CHECK_MSG (result.detectedProfile == MidiProfile::luthier, juce::String (what) + ": not a Luthier-profile file");
+
+        std::vector<PerformanceMessage> notes;
+
+        for (const auto& m : back.getMessages())
+            if (m.message.isNoteOnOrOff())
+                notes.push_back (m);
+
+        CHECK_MSG (notes.size() == 4, juce::String (what) + ": " + juce::String ((int) notes.size()) + " note messages, not 4");
+
+        for (size_t i = 0; i < notes.size() && i < 4; ++i)
+        {
+            CHECK_MSG (notes[i].message.getNoteNumber() == expectedNotes[i],
+                       juce::String (what) + ": note " + juce::String ((int) i) + " is "
+                         + juce::String (notes[i].message.getNoteNumber()));
+            CHECK_MSG (notes[i].sample == expectedSamples[i] - offset,
+                       juce::String (what) + ": note " + juce::String ((int) i) + " at sample "
+                         + juce::String (notes[i].sample) + ", played at " + juce::String (expectedSamples[i] - offset));
+        }
+
+        CHECK_NEAR (back.getTempoAt (0.0), 100.0, 0.01);
+    };
+
+    verify (saved.midi, 0, "whole take");
+
+    // "Save last N seconds" keeps the notes at their place against the shorter WAV.
+    SessionRecorder::SavedTake tail;
+    CHECK (recorder.saveLastTake (folder, &tail, 5200.0 / kSr));
+    CHECK_MSG (tail.wav != saved.wav, "a second save in the same second overwrote the first");
+    verify (tail.midi, 12 * 512 - 5200, "last 5200 samples");
+
+    // ---- the drag-out files, Luthier or Generic ----------------------------------------
+    const auto dragged = recorder.writeDragOutFiles (false);
+    CHECK_MSG (dragged.size() == 2, "a drag hands over " + juce::String (dragged.size()) + " files, not 2");
+
+    for (const auto& f : dragged)
+    {
+        CHECK_MSG (f.existsAsFile(), "drag file missing: " + f.getFullPathName());
+        CHECK_MSG (f.getParentDirectory() == SessionRecorder::getTempDirectory(),
+                   "drag file outside the session temp folder: " + f.getFullPathName());
+    }
+
+    const auto generic = recorder.writeDragOutFiles (true);
+
+    for (const auto& f : generic)
+    {
+        if (f.hasFileExtension ("mid"))
+        {
+            MidiPerformance back (kSr);
+            const auto result = MidiProfiles::importFromFile (f, back, kSr);
+            CHECK (result.ok && result.detectedProfile == MidiProfile::generic);
+        }
+    }
+
+    for (const auto& f : dragged)  f.deleteFile();
+    for (const auto& f : generic)  f.deleteFile();
+
+    folder.deleteRecursively();
+}
+
+//==============================================================================
+/*  practice-tools 11.2 "Looper: default length": the first recording closes
+    itself at the length the PRACTICE tab set. */
+LUTHIER_TEST (PracticeLooper, theDefaultLengthClosesTheFirstRecordingOnItsOwn)
+{
+    Looper looper;
+    looper.prepare (kSr, 10.0);
+
+    juce::AudioBuffer<float> buffer (2, 512);
+
+    for (int channel = 0; channel < 2; ++channel)
+        juce::FloatVectorOperations::fill (buffer.getWritePointer (channel), 0.2f, 512);
+
+    auto play = [&] (double seconds)
+    {
+        for (int b = 0; b < (int) (seconds * kSr / 512.0); ++b)
+        {
+            buffer.clear();
+            looper.processBlock (buffer, 512);
+        }
+    };
+
+    // Two seconds, free: the loop closes at exactly two seconds.
+    looper.setDefaultLengthSeconds (2.0);
+    CHECK (looper.getDefaultLengthTargetSamples() == (int) (2.0 * kSr));
+
+    looper.press();
+    CHECK (looper.getState() == Looper::State::recordingFirst);
+
+    play (3.0);
+
+    CHECK_MSG (looper.getState() == Looper::State::playing, "the loop did not close itself");
+    CHECK_MSG (looper.getLoopLengthSamples() == (int) (2.0 * kSr),
+               "the loop closed at " + juce::String (looper.getLoopLengthSamples()) + " samples");
+    CHECK (looper.getLayer (0).hasContent());
+
+    // With the metronome quantising, to the nearest bar: 2 s at 0.75 s bars is
+    // 2.67 bars, so three.
+    looper.clear();
+    looper.setBarLengthSamples ((int) (0.75 * kSr));
+    CHECK (looper.getDefaultLengthTargetSamples() == 3 * (int) (0.75 * kSr));
+
+    looper.press();
+    play (3.0);
+    CHECK (looper.getState() == Looper::State::playing);
+    CHECK (looper.getLoopLengthSamples() == 3 * (int) (0.75 * kSr));
+
+    // Zero leaves the length to the second press, as before.
+    looper.clear();
+    looper.setBarLengthSamples (0);
+    looper.setDefaultLengthSeconds (0.0);
+    CHECK (looper.getDefaultLengthTargetSamples() == 0);
+
+    looper.press();
+    play (3.0);
+    CHECK_MSG (looper.getState() == Looper::State::recordingFirst, "a zero default closed the loop");
+
+    looper.press();
+    looper.processBlock (buffer, 512);
+    CHECK (looper.getState() == Looper::State::playing);
+    CHECK (looper.getLoopLengthSamples() > (int) (3.0 * kSr) - 512);
+
+    // A press before the default length is reached still closes early.
+    looper.clear();
+    looper.setDefaultLengthSeconds (4.0);
+    looper.press();
+    play (1.0);
+    looper.press();
+    looper.processBlock (buffer, 512);
+    CHECK (looper.getState() == Looper::State::playing);
+    CHECK (looper.getLoopLengthSamples() < (int) (1.5 * kSr));
+}
+
+//==============================================================================
+/*  practice-tools 11.2 "Trainers: range, question count". */
+LUTHIER_TEST (PracticeTrainers, theTrainersTakeANoteRangeAndAQuestionCount)
+{
+    juce::Random random (0x7a1e);
+
+    // ---- the scale quiz --------------------------------------------------------------
+    ScaleTrainer scale;
+    scale.setKey (0);
+    scale.setScale (ScaleType::ionian);
+    scale.setMode (ScaleTrainer::Mode::quiz);
+
+    // Off until set: the whole keyboard, no limit.
+    CHECK (scale.getLowestNote() == 0 && scale.getHighestNote() == 127 && scale.getQuestionCount() == 0);
+    CHECK (! scale.isSessionComplete());
+
+    scale.setNoteRange (76, 40);   // reversed is swapped
+    CHECK (scale.getLowestNote() == 40 && scale.getHighestNote() == 76);
+    scale.setQuestionCount (3);
+
+    for (int i = 0; i < 3; ++i)
+    {
+        CHECK (! scale.isSessionComplete());
+        scale.nextQuestion (random);
+
+        const int expected = scale.getExpectedPitchClass();
+        const int note = scale.getExpectedNote();
+
+        CHECK_MSG (note >= 40 && note <= 76 && note % 12 == expected,
+                   "the expected note " + juce::String (note) + " is not in the range or the class");
+
+        // Right in the range, in any octave inside it; wrong outside it.
+        CHECK (scale.answer (note));
+        CHECK (note + 12 > 76 || scale.answer (note + 12));
+        CHECK_MSG (! scale.answer (84 + expected), "a note above the range was accepted");
+        CHECK_MSG (! scale.answer (expected + (expected >= 4 ? 24 : 36)), "a note below the range was accepted");
+    }
+
+    CHECK (scale.isSessionComplete());
+    CHECK (scale.getAsked() == 3);
+
+    // Complete, it reports rather than asks.
+    const auto summary = scale.nextQuestion (random);
+    CHECK_MSG (summary.contains ("Session complete"), summary);
+    CHECK (scale.getAsked() == 3);
+    CHECK (scale.getExpectedPitchClass() == -1);
+    CHECK (! scale.answer (60));
+
+    scale.resetScore();
+    CHECK (! scale.isSessionComplete());
+    scale.nextQuestion (random);
+    CHECK (scale.getAsked() == 1 && scale.getExpectedPitchClass() >= 0);
+
+    // ---- the ear trainer ---------------------------------------------------------------
+    EarTrainer ear;
+    ear.setAdaptive (false);
+    ear.setDifficulty (4);
+
+    CHECK (ear.getLowestNote() == 0 && ear.getHighestNote() == 127 && ear.getQuestionCount() == 0);
+
+    int notes[EarTrainer::kMaxNotesInQuestion] {};
+    double offsets[EarTrainer::kMaxNotesInQuestion] {};
+
+    // Every exercise fits inside a range wide enough for it.
+    ear.setNoteRange (40, 76);
+
+    for (int e = 0; e < (int) EarTrainer::Exercise::numExercises; ++e)
+    {
+        ear.setExercise ((EarTrainer::Exercise) e);
+
+        for (int trial = 0; trial < 30; ++trial)
+        {
+            const int count = ear.nextQuestion (random, notes, offsets, EarTrainer::kMaxNotesInQuestion);
+            CHECK (count >= 2);
+
+            for (int i = 0; i < count; ++i)
+                CHECK_MSG (notes[i] >= 40 && notes[i] <= 76,
+                           "exercise " + juce::String (e) + " played note " + juce::String (notes[i])
+                             + " outside 40-76");
+        }
+    }
+
+    // A range too narrow for the question sits it at the bottom of the range.
+    ear.setExercise (EarTrainer::Exercise::chordQuality);
+    ear.setNoteRange (60, 64);
+
+    for (int trial = 0; trial < 10; ++trial)
+    {
+        const int count = ear.nextQuestion (random, notes, offsets, EarTrainer::kMaxNotesInQuestion);
+        CHECK (count >= 2 && notes[0] == 60);
+    }
+
+    // The question count.
+    ear.resetScore();
+    ear.setExercise (EarTrainer::Exercise::interval);
+    ear.setQuestionCount (2);
+
+    CHECK (ear.nextQuestion (random, notes, offsets, EarTrainer::kMaxNotesInQuestion) == 2);
+    CHECK (! ear.isSessionComplete());
+    CHECK (ear.nextQuestion (random, notes, offsets, EarTrainer::kMaxNotesInQuestion) == 2);
+    CHECK (ear.isSessionComplete());
+
+    CHECK (ear.nextQuestion (random, notes, offsets, EarTrainer::kMaxNotesInQuestion) == 0);
+    CHECK (ear.getChoices().isEmpty());
+    CHECK_MSG (ear.getQuestionText().contains ("Session complete"), ear.getQuestionText());
+    CHECK (ear.getAsked() == 2);
+
+    ear.resetScore();
+    CHECK (ear.nextQuestion (random, notes, offsets, EarTrainer::kMaxNotesInQuestion) == 2);
+    CHECK (ear.getAsked() == 1);
+}

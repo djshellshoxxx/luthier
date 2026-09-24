@@ -446,6 +446,25 @@ void Looper::press() noexcept
     }
 }
 
+int Looper::getDefaultLengthTargetSamples() const noexcept
+{
+    const double seconds = defaultLengthSeconds.load (std::memory_order_relaxed);
+
+    if (seconds <= 0.0 || capacity <= 0)
+        return 0;
+
+    int target = (int) std::llround (juce::jlimit (kMinLoopSeconds, kMaxLoopSeconds, seconds) * sr);
+
+    // practice-tools 2: quantised to bars when the metronome is active, and
+    // never less than one bar.
+    const int bar = barLengthSamples.load (std::memory_order_relaxed);
+
+    if (bar > 0)
+        target = juce::jmax (1, (int) std::llround ((double) target / (double) bar)) * bar;
+
+    return juce::jlimit (1, capacity, target);
+}
+
 void Looper::stop() noexcept
 {
     state.store ((int) State::stopped, std::memory_order_relaxed);
@@ -519,6 +538,18 @@ void Looper::processBlock (juce::AudioBuffer<float>& buffer, int numSamples) noe
             pendingClose.store (false, std::memory_order_relaxed);
             state.store ((int) State::playing, std::memory_order_relaxed);
 
+            next = 0;
+        }
+        else if (const int target = getDefaultLengthTargetSamples(); target > 0 && next >= target)
+        {
+            /*  practice-tools 11.2, the looper's default length: the first
+                recording closes itself at the length the PRACTICE tab set, so
+                a player who knows they want four bars does not have to hit the
+                button on the bar line. Quantised to the bar like a pressed
+                close when the metronome is running. */
+            loopLength.store (target, std::memory_order_relaxed);
+            layers[(size_t) getActiveLayer()].setRecordedSamples (target);
+            state.store ((int) State::playing, std::memory_order_relaxed);
             next = 0;
         }
         else if (next >= capacity)
@@ -858,10 +889,17 @@ bool SessionRecorder::prepare (double sampleRate, double minutes)
     try
     {
         ring.setSize (2, capacity, false, true, false);
+
+        // The MIDI ring is sized with the audio, so a take's MIDI is never
+        // shorter than its audio: 60 events a second for the whole ring.
+        midiCapacity = (int) juce::jmax ((int64_t) 256,
+                                         (int64_t) ((double) capacity / sr * kMidiEventsPerSecond));
+        midiRing.assign ((size_t) midiCapacity, MidiEvent {});
     }
     catch (...)
     {
         capacity = 0;
+        midiCapacity = 0;
         return false;
     }
 
@@ -875,62 +913,178 @@ void SessionRecorder::reset() noexcept
 {
     writePosition.store (0, std::memory_order_relaxed);
     recorded.store (0, std::memory_order_relaxed);
-    samplesSeen = 0;
-
-    const juce::ScopedLock sl (midiLock);
-    midi.clear();
+    midiWriteIndex.store (0, std::memory_order_relaxed);
+    midiWritten.store (0, std::memory_order_relaxed);
+    samplesSeen.store (0, std::memory_order_relaxed);
 }
 
-void SessionRecorder::processBlock (const juce::AudioBuffer<float>& buffer, int numSamples) noexcept
+int SessionRecorder::getRecordedMidiEvents() const noexcept
 {
-    if (! isEnabled() || capacity <= 0 || buffer.getNumChannels() < 1)
-        return;
-
-    // Nothing here allocates: the ring exists, and this is a copy into it.
-    int position = writePosition.load (std::memory_order_relaxed);
-
-    const auto* srcL = buffer.getReadPointer (0);
-    const auto* srcR = buffer.getNumChannels() > 1 ? buffer.getReadPointer (1) : srcL;
-
-    auto* destL = ring.getWritePointer (0);
-    auto* destR = ring.getWritePointer (1);
-
-    for (int i = 0; i < numSamples; ++i)
-    {
-        destL[position] = srcL[i];
-        destR[position] = srcR[i];
-
-        if (++position >= capacity)
-            position = 0;
-    }
-
-    writePosition.store (position, std::memory_order_relaxed);
-    recorded.store (juce::jmin (capacity, recorded.load (std::memory_order_relaxed) + numSamples),
-                    std::memory_order_relaxed);
-
-    samplesSeen += numSamples;
+    return juce::jmin (midiWritten.load (std::memory_order_relaxed), midiCapacity);
 }
 
 void SessionRecorder::captureMidi (const juce::MidiBuffer& incoming, int numSamples) noexcept
 {
     juce::ignoreUnused (numSamples);
 
-    if (! isEnabled())
+    if (! isEnabled() || ! isRecordingMidi() || midiCapacity <= 0)
         return;
 
-    // The MIDI sequence does allocate, so it is guarded rather than written from
-    // the audio thread. The caller passes this from the message thread's copy.
-    const juce::ScopedTryLock sl (midiLock);
-
-    if (! sl.isLocked())
-        return;
-
+    // A fixed ring of three-byte events: channel-voice messages fit, and those
+    // are the ones a take is made of. SysEx and the rest are the MIDI OUT tab's.
     for (const auto metadata : incoming)
-        midi.addEvent (metadata.getMessage(),
-                       (double) (samplesSeen + metadata.samplePosition));
+    {
+        const auto message = metadata.getMessage();
+        const int size = message.getRawDataSize();
+
+        if (size <= 0 || size > 3 || ! MidiPerformance::isChannelVoiceMessage (message))
+            continue;
+
+        const int index = midiWriteIndex.load (std::memory_order_relaxed);
+        auto& e = midiRing[(size_t) index];
+
+        e.sample = samplesSeen.load (std::memory_order_relaxed) + metadata.samplePosition;
+        e.numBytes = (juce::uint8) size;
+
+        const auto* data = message.getRawData();
+
+        for (int i = 0; i < size; ++i)
+            e.bytes[i] = data[i];
+
+        midiWriteIndex.store ((index + 1) % midiCapacity, std::memory_order_relaxed);
+        midiWritten.store (juce::jmin (midiCapacity, midiWritten.load (std::memory_order_relaxed) + 1),
+                           std::memory_order_relaxed);
+    }
 }
 
-bool SessionRecorder::saveLastTake (const juce::File& directory, double seconds) const
+void SessionRecorder::processBlock (const juce::AudioBuffer<float>& buffer, int numSamples) noexcept
+{
+    if (! isEnabled() || capacity <= 0 || buffer.getNumChannels() < 1 || numSamples <= 0)
+        return;
+
+    // Nothing here allocates: the ring exists, and this is a copy into it.
+    int position = writePosition.load (std::memory_order_relaxed);
+
+    if (isRecordingAudio())
+    {
+        const auto* srcL = buffer.getReadPointer (0);
+        const auto* srcR = buffer.getNumChannels() > 1 ? buffer.getReadPointer (1) : srcL;
+
+        auto* destL = ring.getWritePointer (0);
+        auto* destR = ring.getWritePointer (1);
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            destL[position] = srcL[i];
+            destR[position] = srcR[i];
+
+            if (++position >= capacity)
+                position = 0;
+        }
+    }
+    else
+    {
+        // 11.2 "record MIDI only": the clock still runs, so the take keeps its
+        // length and its MIDI stays at the samples it was played.
+        position = (int) ((position + (int64_t) numSamples) % capacity);
+    }
+
+    writePosition.store (position, std::memory_order_relaxed);
+    recorded.store (juce::jmin (capacity, recorded.load (std::memory_order_relaxed) + numSamples),
+                    std::memory_order_relaxed);
+
+    samplesSeen.store (samplesSeen.load (std::memory_order_relaxed) + numSamples, std::memory_order_relaxed);
+}
+
+//==============================================================================
+MidiPerformance SessionRecorder::takeMidi (int wanted) const
+{
+    MidiPerformance performance (sr);
+    performance.setTempo (getTempoBpm());
+    performance.getMeta().title = "Luthier session";
+
+    const int count = getRecordedMidiEvents();
+
+    if (count <= 0 || midiCapacity <= 0)
+        return performance;
+
+    // The take is the last `wanted` samples the recorder saw, and its MIDI is
+    // whatever was stamped inside that window, moved to start at zero so it
+    // lines up with the WAV's first sample.
+    const int64_t end = samplesSeen.load (std::memory_order_relaxed);
+    const int64_t begin = end - wanted;
+
+    // Oldest first: the ring is walked from the slot after the newest write
+    // when it has wrapped, or from zero when it has not.
+    const int newest = midiWriteIndex.load (std::memory_order_relaxed);
+    const int start = (midiWritten.load (std::memory_order_relaxed) >= midiCapacity) ? newest : 0;
+
+    for (int i = 0; i < count; ++i)
+    {
+        const auto& e = midiRing[(size_t) ((start + i) % midiCapacity)];
+
+        if (e.numBytes == 0 || e.sample < begin || e.sample >= end)
+            continue;
+
+        performance.addMessage (e.sample - begin, juce::MidiMessage (e.bytes, (int) e.numBytes));
+    }
+
+    return performance;
+}
+
+bool SessionRecorder::writeTake (const juce::File& wav, const juce::File& mid, int wanted,
+                                 const MidiExportOptions& options, SavedTake& saved) const
+{
+    saved = {};
+
+    if (wanted <= 0 || capacity <= 0)
+        return false;
+
+    // ---- the audio, unwrapped from the ring, oldest first --------------------------
+    if (isRecordingAudio() && wav != juce::File())
+    {
+        juce::AudioBuffer<float> take (2, wanted);
+
+        const int writeAt = writePosition.load (std::memory_order_relaxed);
+        int readAt = writeAt - wanted;
+
+        while (readAt < 0)
+            readAt += capacity;
+
+        for (int i = 0; i < wanted; ++i)
+        {
+            take.setSample (0, i, ring.getSample (0, readAt));
+            take.setSample (1, i, ring.getSample (1, readAt));
+
+            if (++readAt >= capacity)
+                readAt = 0;
+        }
+
+        if (writeWav (wav, take, wanted, sr))
+            saved.wav = wav;
+    }
+
+    // ---- the MIDI beside it, through the export writer ----------------------------
+    if (isRecordingMidi() && mid != juce::File())
+    {
+        const auto performance = takeMidi (wanted);
+
+        if (! performance.getMessages().empty())
+        {
+            auto chosen = options;
+            chosen.range = {};
+
+            juce::String error;
+
+            if (MidiProfiles::exportToFile (performance, chosen, mid, &error))
+                saved.midi = mid;
+        }
+    }
+
+    return ! saved.isEmpty();
+}
+
+bool SessionRecorder::saveLastTake (const juce::File& directory, SavedTake* saved, double seconds) const
 {
     const int available = recorded.load (std::memory_order_relaxed);
 
@@ -943,67 +1097,74 @@ bool SessionRecorder::saveLastTake (const juce::File& directory, double seconds)
 
     directory.createDirectory();
 
+    // practice-tools 8: named by timestamp. Two saves inside a second get a
+    // counter rather than the second one overwriting the first.
     const auto stamp = juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M%S");
+    juce::String stem = "session-" + stamp;
 
-    // Unwrap the ring into a linear buffer, oldest first.
-    juce::AudioBuffer<float> take (2, wanted);
+    for (int n = 2; directory.getChildFile (stem + ".wav").exists()
+                      || directory.getChildFile (stem + ".mid").exists(); ++n)
+        stem = "session-" + stamp + "-" + juce::String (n);
 
-    const int writeAt = writePosition.load (std::memory_order_relaxed);
-    int readAt = writeAt - wanted;
+    SavedTake result;
+    const bool wrote = writeTake (directory.getChildFile (stem + ".wav"),
+                                  directory.getChildFile (stem + ".mid"),
+                                  wanted, exportOptions, result);
 
-    while (readAt < 0)
-        readAt += capacity;
+    if (saved != nullptr)
+        *saved = result;
 
-    for (int i = 0; i < wanted; ++i)
-    {
-        take.setSample (0, i, ring.getSample (0, readAt));
-        take.setSample (1, i, ring.getSample (1, readAt));
+    return wrote;
+}
 
-        if (++readAt >= capacity)
-            readAt = 0;
-    }
+bool SessionRecorder::stop (SavedTake* saved)
+{
+    const bool wasOn = isEnabled();
+    setEnabled (false);
 
-    const bool wroteAudio = writeWav (directory.getChildFile ("session-" + stamp + ".wav"),
-                                      take, wanted, sr);
+    if (saved != nullptr)
+        *saved = {};
 
-    // And the MIDI beside it.
-    bool wroteMidi = false;
+    if (! wasOn || ! isAutoSaveOnStop())
+        return false;
 
-    {
-        const juce::ScopedLock sl (midiLock);
+    return saveLastTake (saveDirectory, saved);
+}
 
-        if (midi.getNumEvents() > 0)
-        {
-            juce::MidiFile midiFile;
-            juce::MidiMessageSequence sequence (midi);
+juce::Array<juce::File> SessionRecorder::writeDragOutFiles (bool forceGeneric) const
+{
+    juce::Array<juce::File> files;
 
-            // A MIDI file's timebase is ticks, not samples.
-            constexpr int ticksPerQuarter = 960;
-            const double ticksPerSample = (double) ticksPerQuarter * 2.0 / sr;
+    const int available = recorded.load (std::memory_order_relaxed);
 
-            juce::MidiMessageSequence scaled;
+    if (available <= 0 || capacity <= 0)
+        return files;
 
-            for (int i = 0; i < sequence.getNumEvents(); ++i)
-                if (const auto* event = sequence.getEventPointer (i))
-                    scaled.addEvent (event->message,
-                                     event->message.getTimeStamp() * ticksPerSample
-                                       - event->message.getTimeStamp());
+    // Under the session temp folder (practice-tools 10), which the 24-hour
+    // cleanup sweeps: a dragged copy is the host's once dropped.
+    const auto folder = getTempDirectory();
+    folder.createDirectory();
 
-            midiFile.setTicksPerQuarterNote (ticksPerQuarter);
-            midiFile.addTrack (scaled);
+    const auto stamp = "Luthier session " + juce::Time::getCurrentTime().formatted ("%Y-%m-%d %H-%M-%S");
+    juce::String stem = stamp;
 
-            const auto midiTarget = directory.getChildFile ("session-" + stamp + ".mid");
-            midiTarget.deleteFile();
+    for (int n = 2; folder.getChildFile (stem + ".wav").exists()
+                      || folder.getChildFile (stem + ".mid").exists(); ++n)
+        stem = stamp + " (" + juce::String (n) + ")";
 
-            if (std::unique_ptr<juce::FileOutputStream> stream (midiTarget.createOutputStream());
-                stream != nullptr)
-                wroteMidi = midiFile.writeTo (*stream);
-        }
-    }
+    auto options = exportOptions;
 
-    juce::ignoreUnused (wroteMidi);
+    if (forceGeneric)
+        options.profile = MidiProfile::generic;
 
-    return wroteAudio;
+    SavedTake written;
+    writeTake (folder.getChildFile (stem + ".wav"), folder.getChildFile (stem + ".mid"),
+               available, options, written);
+
+    if (written.wav != juce::File())  files.add (written.wav);
+    if (written.midi != juce::File()) files.add (written.midi);
+
+    return files;
 }
 
 void SessionRecorder::cleanUpOldTempFiles (const juce::File& directory, double olderThanHours)

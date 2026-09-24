@@ -243,12 +243,44 @@ int ScaleTrainer::getPitchClassOfDegree (int degree) const noexcept
 }
 
 //==============================================================================
+void ScaleTrainer::setNoteRange (int low, int high) noexcept
+{
+    low = juce::jlimit (0, 127, low);
+    high = juce::jlimit (0, 127, high);
+    lowestNote = juce::jmin (low, high);
+    highestNote = juce::jmax (low, high);
+}
+
+int ScaleTrainer::getExpectedNote() const noexcept
+{
+    if (expectedPitchClass < 0)
+        return -1;
+
+    for (int note = lowestNote; note <= highestNote; ++note)
+        if (note % 12 == expectedPitchClass)
+            return note;
+
+    // A range narrower than an octave can miss the pitch class; the nearest
+    // note of that class above the range is still the honest answer.
+    return highestNote + ((expectedPitchClass - highestNote % 12) + 12) % 12;
+}
+
 juce::String ScaleTrainer::nextQuestion (juce::Random& random)
 {
     if (numIntervals <= 0)
     {
         expectedPitchClass = -1;
         question = "No scale selected.";
+        return question;
+    }
+
+    // 11.2: a session is a set number of questions. Once it is done the
+    // trainer says so and waits for a reset rather than quietly carrying on.
+    if (isSessionComplete())
+    {
+        expectedPitchClass = -1;
+        question = "Session complete: " + juce::String (correct) + " of " + juce::String (asked)
+                     + " right. Press New to start again.";
         return question;
     }
 
@@ -297,7 +329,11 @@ bool ScaleTrainer::answer (int midiNote)
     if (expectedPitchClass < 0)
         return false;
 
-    const bool right = (((midiNote % 12) + 12) % 12) == expectedPitchClass;
+    // The right pitch class, inside the range the trainer is working in: the
+    // range is what makes "play the 5th" a question about the neck in front of
+    // the player rather than about any E anywhere.
+    const bool right = (((midiNote % 12) + 12) % 12) == expectedPitchClass
+                         && midiNote >= lowestNote && midiNote <= highestNote;
 
     if (right)
         ++correct;
@@ -323,6 +359,23 @@ void EarTrainer::resetScore() noexcept
     asked = 0;
     streak = 0;
     rollingRate = 0.5;
+}
+
+void EarTrainer::setNoteRange (int low, int high) noexcept
+{
+    low = juce::jlimit (0, 127, low);
+    high = juce::jlimit (0, 127, high);
+    lowestNote = juce::jmin (low, high);
+    highestNote = juce::jmax (low, high);
+}
+
+int EarTrainer::pickRoot (juce::Random& random, int span) const noexcept
+{
+    // The root can sit anywhere the whole question still fits under the top of
+    // the range; a range too narrow for the question puts it at the bottom,
+    // and the notes above it are clamped by the caller.
+    const int highestRoot = juce::jmax (lowestNote, highestNote - span);
+    return lowestNote + random.nextInt (highestRoot - lowestNote + 1);
 }
 
 //==============================================================================
@@ -353,7 +406,7 @@ int EarTrainer::buildIntervalQuestion (juce::Random& random, int* notes,
 
     presentation = (Presentation) random.nextInt ((int) Presentation::numPresentations);
 
-    const int rootNote = 52 + random.nextInt (12);
+    const int rootNote = pickRoot (random, semitones);
 
     switch (presentation)
     {
@@ -406,6 +459,9 @@ int EarTrainer::buildIntervalQuestion (juce::Random& random, int* notes,
                  : (presentation == Presentation::descending) ? "Name the descending interval"
                  : "Name the ascending interval";
 
+    notes[0] = juce::jlimit (0, 127, notes[0]);
+    notes[1] = juce::jlimit (0, 127, notes[1]);
+
     return 2;
 }
 
@@ -421,13 +477,18 @@ int EarTrainer::buildChordQuestion (juce::Random& random, int* notes,
 
     const auto& quality = kChordQualities[chosen];
 
-    const int rootNote = 48 + random.nextInt (12);
-
     const int count = juce::jmin (maxNotes, quality.count);
+
+    int span = 0;
+
+    for (int i = 0; i < count; ++i)
+        span = juce::jmax (span, quality.intervals[i]);
+
+    const int rootNote = pickRoot (random, span);
 
     for (int i = 0; i < count; ++i)
     {
-        notes[i] = rootNote + quality.intervals[i];
+        notes[i] = juce::jlimit (0, 127, rootNote + quality.intervals[i]);
 
         // Strummed rather than blocked, so it arrives as a guitar chord.
         beatOffsets[i] = (double) i * 0.02;
@@ -454,7 +515,9 @@ int EarTrainer::buildProgressionQuestion (juce::Random& random, int* notes,
 
     const auto& progression = kProgressions[chosen];
 
-    const int keyRoot = 48 + random.nextInt (12);
+    // The highest note a progression reaches is the fifth of the flat-seven
+    // chord, a minor fourteenth above the key.
+    const int keyRoot = pickRoot (random, 10 + 7);
 
     int written = 0;
 
@@ -471,13 +534,13 @@ int EarTrainer::buildProgressionQuestion (juce::Random& random, int* notes,
 
         const int chordRoot = keyRoot + semitones;
 
-        notes[written] = chordRoot;
+        notes[written] = juce::jlimit (0, 127, chordRoot);
         beatOffsets[written++] = (double) chord * 2.0;
 
-        notes[written] = chordRoot + (minor ? 3 : 4);
+        notes[written] = juce::jlimit (0, 127, chordRoot + (minor ? 3 : 4));
         beatOffsets[written++] = (double) chord * 2.0 + 0.02;
 
-        notes[written] = chordRoot + 7;
+        notes[written] = juce::jlimit (0, 127, chordRoot + 7);
         beatOffsets[written++] = (double) chord * 2.0 + 0.04;
     }
 
@@ -496,6 +559,16 @@ int EarTrainer::nextQuestion (juce::Random& random, int* notes, double* beatOffs
 {
     if (notes == nullptr || beatOffsets == nullptr || maxNotes <= 0)
         return 0;
+
+    // 11.2: the session's question count. Done, it reports rather than asks.
+    if (isSessionComplete())
+    {
+        choices.clear();
+        correctChoice = 0;
+        questionText = "Session complete: " + juce::String (correct) + " of " + juce::String (asked)
+                         + " right. Press New to start again.";
+        return 0;
+    }
 
     ++asked;
 

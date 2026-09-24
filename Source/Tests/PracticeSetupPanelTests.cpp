@@ -702,3 +702,42 @@ LUTHIER_TEST (PracticeSetupPanel, renders)
     CHECK (png.existsAsFile());
     panel.setLookAndFeel (nullptr);
 }
+
+//==============================================================================
+/*  11.2: what the recorder records and whether stopping saves cost nothing to
+    change, so the tab applies them to a running recorder at once; only the
+    ring length waits, because resizing drops the take. */
+LUTHIER_TEST (PracticeSetupPanel, recordWhatAndAutoSaveReachARunningRecorderAtOnce)
+{
+    Rig rig ("SessionSwitches");
+    PracticeSetupPanel panel (rig.context());
+
+    CHECK (rig.recorder.prepare (48000.0, 1.0));
+    rig.recorder.setEnabled (true);
+
+    choose (panel.getRecordWhatBox(), 3);   // MIDI only
+    CHECK (! rig.recorder.isRecordingAudio());
+    CHECK (rig.recorder.isRecordingMidi());
+
+    CHECK (press (panel.getAutoSaveToggle()));
+    CHECK (rig.recorder.isAutoSaveOnStop());
+
+    choose (panel.getRecordWhatBox(), 2);   // audio only
+    CHECK (rig.recorder.isRecordingAudio() && ! rig.recorder.isRecordingMidi());
+
+    choose (panel.getRecordWhatBox(), 1);   // both
+    CHECK (rig.recorder.isRecordingAudio() && rig.recorder.isRecordingMidi());
+
+    CHECK (press (panel.getAutoSaveToggle()));
+    CHECK (! rig.recorder.isAutoSaveOnStop());
+
+    // None of that resized the ring, which still holds the take.
+    CHECK_NEAR (rig.recorder.getCapacityMinutes(), 1.0, 0.01);
+
+    // A reopened tab hands a fresh recorder the same switches as it goes on.
+    rig.recorder.setEnabled (false);
+    SessionRecorder fresh;
+    PracticeSetupPanel reopened (rig.context());
+    reopened.getSessionSetup().applyTo (fresh, 48000.0);
+    CHECK (fresh.isRecordingAudio() && fresh.isRecordingMidi() && ! fresh.isAutoSaveOnStop());
+}

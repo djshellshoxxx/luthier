@@ -822,3 +822,429 @@ chosen") and `ambiguity-resolutions.md`.
   labels, and below about 1280 the guitar and tuning selectors give way first
   (to floors of 112 / 96 px) so the preset name keeps at least ~70 px.
   Below 1200 the row still truncates from the middle, as it always did.
+- **The technique front runs ahead of the scrape's own MIDI handler.**
+  engine-technique-layer 3.1 wants one MIDI read for every technique;
+  `TechniqueTriggers` (WIP, now integrated) serves the slap, and the scrape
+  keeps `ScrapeEngine::handleMidi` behind it rather than being re-plumbed
+  through the front in the same step - its keyswitch table entry (12-14) is
+  reserved in `TechniqueKeyswitch` so no later technique can claim the keys.
+  Moving the scrape onto the front is a follow-up, not a behaviour change.
+- **Slap parameters are 426-450, muting 451-458; the count is 458.** The WIP
+  header's numbering assumed the strum group's nine had landed (count 425),
+  which they had, so the slap's ids are appended exactly as planned and the
+  eight MUTE controls follow. The mute grids (the pattern's row and the live
+  grid) are not parameters: they travel in `RhythmEngine::toVar` like the
+  strum grid, and a pattern step writes `mute_type` only when it is not open,
+  so an existing `.luthierpattern` reads and plays exactly as before.
+- **Muting is `StringEngine::Damping::Muted`, an absolute T60.** The spec's
+  figures (150 / 50 / 20 ms) are times, not scalings of the string's own
+  sustain, so a new damping mode takes a T60 and a cutoff directly (like
+  Silenced) rather than a scale of the note's sustain (like PalmMute).
+  `release()` keeps it, as it keeps a chuck: the note-offs a re-strike sends
+  arrive with the strike and Released's T60 (x0.13 of the sustain, hundreds
+  of ms) would lengthen the mute, not shorten it. A fret mute is scheduled
+  in `LuthierEngine` (80 ms of ring, then Muted at 30 ms); the spec gives no
+  figures and those are a classical staccato at any tempo.
+- **A palm slap stops the strings with the chuck's damping (amount 1).**
+  string-slap 1 says it lands "across muted strings"; over ringing strings it
+  is the funk chuck, and Damping::Chuck at 1 is the hand flat on the string.
+  The strings are not excited: the event is the hand (a broad thump) and the
+  frets (one short clack per string), both from the fret-buzz generator.
+- **A scrape starting on a string drops the slap's queued up-stroke on a
+  rising edge only.** technique-cascade 2 makes scrape x slap conflict; the
+  engine watches each string's scrape activity per block and preempts the
+  slap when a scrape *starts*. A level check would also fire while a scrape
+  is fading out under the strike that took the string, and drop the strike's
+  own rebound.
+- **The five HelpContent corrections were never itemised.** TODO 14c and the
+  WIP headers name them but no list exists on disk or in the history, so the
+  five made are the ones this integration made wrong or incomplete: Getting
+  Started and The Interface said six macros (Easy mode has seven, Character
+  included) and the Easy playing strip now has the Mute button; RHYTHM gains
+  the Mute Row and MUTE group; Options' DIAGNOSTICS line and the Debug Tools
+  topic gain Restore first-run experience. The techniques topic does not yet
+  list the slap's keyswitches (C0-F#0); that is for the TECHNIQUES tab's
+  own text.
+- **MuteGroup and SlapGroup are hosted where a tab exists.** gui-techniques
+  puts both on the TECHNIQUES tab, which AdvancedPanel does not build yet.
+  MuteGroup sits on the RHYTHM tab under STRUM (muting-rhythm 7 puts the
+  Mute Row there anyway); SlapGroup is a self-contained component with no
+  host yet - the TECHNIQUES tab should mount both when it is built.
+- **The session recorder honours the PRACTICE tab's setup, and its MIDI is
+  an export** (practice-tools 8, 11.2). `SessionRecorder` now has the three
+  switches - record audio, record MIDI, auto-save on stop - which
+  `SessionRecorderSetup::applyTo` sets with the ring length and
+  `applySwitchesTo` sets on their own (they cost nothing, so the tab applies
+  them to a running recorder at once; only a changed length reallocates).
+  "Neither" is not a setting: it is the recorder being off, so it records
+  audio. With audio off the clock still runs and the take keeps its length,
+  so a MIDI-only take's notes stay at the samples they were played. The MIDI
+  side is a lock-free ring of three-byte channel-voice events sized with the
+  audio (60 events a second), replacing a `MidiMessageSequence` that
+  allocated under a try-lock on the audio thread; a take's MIDI is built as
+  a `MidiPerformance` at the samples against the WAV's first sample and
+  written by `MidiProfiles::exportToFile` with the MIDI OUT defaults
+  (midi-export 8) and the tempo in force, so a saved take is a
+  Luthier-profile file that imports back through the same reader. Files are
+  `session-YYYYMMDD-HHMMSS.wav` / `.mid` in `Documents/Luthier/Sessions`
+  (a `-2` on a same-second clash); "Auto-save on stop" is the drawer's
+  SESSION stop calling `SessionRecorder::stop`, which writes the take when
+  the switch is set and nothing otherwise (Panic / Reset & Stop only switch
+  it off, deliberately: a panic is not a stop the player meant to keep). A
+  MIDI-only take is listed by its `.mid`; a WAV's `.mid` is counted into
+  its size instead of listed twice. The processor feeds the recorder every
+  block, drawer open or not, because it is switched on in Options as well
+  as in the drawer and off (the default) it returns at once; MIDI is
+  captured before the audio so a block's events are stamped at the block
+  they arrived in.
+- **The drawer's Save button is the session recorder's drag-out** (midi-
+  export 4.2, "drag from the session recorder's own Save button"). A click
+  saves to Sessions; pressing and dragging six pixels writes the take under
+  `Sessions/tmp` (the 24-hour sweep's folder) as the WAV and the MIDI, the
+  MIDI in the Luthier profile or Generic with Alt as the MIDI OUT tab's
+  drag does, and hands both to the host. A drag is not a click, so the
+  take is not also saved.
+- **The looper's default length is the looper's** (11.2 "Looper: default
+  length"). `Looper::setDefaultLengthSeconds` makes the first recording
+  close itself at that length - rounded to the bar and at least one bar
+  when the metronome quantises, exactly as a pressed close is - so a player
+  who knows they want four bars need not hit the button on the bar line;
+  zero (the built-in default) leaves the length to the second press, as a
+  pedal does. A press before the length is reached still closes early.
+  `loopCountInBars` stays a routine entry's count-in, which the runner
+  counts.
+- **The trainers' range and question count are the trainers'** (11.2
+  "Trainers: range, question count"). `ScaleTrainer` and `EarTrainer` take
+  a note range and a question count, both off (0-127, unlimited) until the
+  PRACTICE tab's defaults set them (40-76 / 20). The scale quiz's right
+  answer is the pitch class inside the range - out of it is wrong even in
+  the right class, so "play the 5th" is about the neck in front of the
+  player - and `getExpectedNote` names one note that answers. The ear
+  trainer places every question inside the range when it fits (an octave
+  for intervals, a fourteenth for progressions) and as low as the range
+  allows when it does not. A complete session makes `nextQuestion` report
+  the score instead of asking; the drawer shows that once, and the press
+  after it files the session in the history and starts the next.
+- **Undo entries and A/B slots carry no tune (action-and-undo 0.5 / 3.9).**
+  `captureStateBlock (excludeTune)` writes the state block without the
+  `tune` property, and `setStateInformation` leaves the Tune Builder alone
+  when the property is absent. Before, undoing a knob went through
+  `TuneSession::restoreState`, which is a load boundary that clears the
+  tune's own history, so one Ctrl-Z reverted every tune edit and emptied
+  the tune's undo. Ctrl-Z still goes to the tune's stack only while the
+  TUNE tab has focus (`TunePanel::keyPressed`).
+- **The Tune's load boundary stays a wipe, not an undoable entry.** 3.9
+  wants a boundary; TuneSession clears its history on `newTune` / `load`.
+  With the processor stack no longer restoring the tune, the wipe happens
+  only on a real load, which is acceptable and left as built.
+- **A boundary is undoable, and undo stops once it has been undone.**
+  Section 5: the boundary entry reverses the load; the entries older than
+  it are on the far side, so `undo()` refuses when the entry just undone
+  is a boundary (`isUndoBlockedByBoundary`) and `undo (true)` - Ctrl+Alt+Z,
+  `undoAcrossBoundary` in the registry - crosses with a section-15 banner.
+  Ctrl+Y is a separate `redoAlt` action because the registry binds one key
+  per action. Boundaries: preset load (header arrows, browser, [ ] keys,
+  open / import), family switch (with a section-8 warning banner about
+  lost parts), setlist step (`applyCurrentSetlistEntry`, which owns the
+  snapshot recall inside it).
+- **3.3 vs 3.17: 3.17 wins - Easy/Advanced, Live and Slide mode toggles are
+  view state and push nothing.** Slide Mode's header toggle does push
+  today (`HeaderBar.cpp`); left as is, it changes a parameter.
+- **Gesture entries merge on the parameter id within 200 ms of the previous
+  entry's clock (3.1 / 3.2 / 4).** The older entry keeps its before-state
+  and takes the new after-value; the description is rebuilt as "Change X
+  from A to B" from the parameter's own value text. A drag that pauses
+  inside one JUCE gesture is still one entry: JUCE reports one begin/end
+  per drag, and splitting on pauses would need per-value timestamps.
+- **Snapshot recall, save, rename, colour and delete push entries from the
+  processor or the LIVE surfaces (3.7); mod-route create / delete / depth /
+  enable / clear go through `LuthierAudioProcessor::addModRoute` and
+  friends (3.6); a pedal reorder is one `ScopedUndoAction` (3.13).** The
+  matrix and the bank know nothing about undo; the state block carries
+  both, so an entry is the whole pre-edit state.
+- **"Show Undo Depth" is a UiPreferences key (`diagnostics.showUndoDepth`),
+  toggled on Options -> Diagnostics and read by the footer.** It is about
+  the window, not the sound or the person.
+- **2026-09-24 — Linux packaging (installer.md 3, TODO 16): CPack from the
+  same build tree, `LUTHIER_BUILD_PACKAGES=OFF` by default.** The rules live
+  in `installer/linux/Packaging.cmake`; the top-level CMakeLists only gains the
+  option, so nothing changes for the other targets or for the Windows build.
+  Two component sets (`sys_*` for the .deb, `tgz_*` EXCLUDE_FROM_ALL for the
+  tarballs) because the two packages want different shapes and install()
+  destinations are fixed at configure time.
+- **Factory content installs once, to `/opt/Luthier/Resources`, not
+  `/usr/share/luthier`.** installer.md 3.1 says `/usr/share/luthier/`, but
+  `IrLibrary::searchForResources` looks beside the binary and then in
+  `commonApplicationDataDirectory/Luthier/Resources`, which JUCE maps to
+  `/opt` on Linux; `/usr/share/luthier` would need a code change in Source/,
+  which the packaging pass does not own. The standalone therefore lives at
+  `/opt/Luthier/Luthier` with `/usr/bin/luthier` a symlink (JUCE resolves
+  `/proc/self/exe`, so the walk starts in `/opt/Luthier`), and the VST3 at
+  `/usr/lib/vst3/Luthier.vst3` gets a `Resources` symlink at the bundle's top,
+  the same place `luthier_copy_resources` puts the folder in the build tree.
+  The user install of the tarball mirrors this under `~/.local/share/luthier`,
+  `~/.local/bin` and `~/.vst3`.
+- **`.installed_version` (installer.md 6) is written by the package, at
+  `/opt/Luthier/.installed_version` (postinst) or beside the tarball install
+  (install.sh); the per-user `~/Documents/Luthier/.installed_version` is the
+  plugin's to write on first load.** A postinst runs as root and cannot know
+  which user's Documents to write, and writing the per-user marker from an
+  installer would make `FirstRun::isFirstRun` skip onboarding. FirstRun does
+  not read either marker yet (FirstRun.h says so); when it does, the per-user
+  one decides first run, and the package one can be compared against the
+  running version to show the upgrade banner.
+- **Nine MIME types, not installer.md's "six".** file-formats.md 1 owns nine
+  Luthier extensions (`.luthierpreset`, `.luthierguitar`, `.luthierpart`,
+  `.luthiertune`, `.luthierpattern`, `.luthierset`, `.luthierloop`,
+  `.luthiercontent`, `.midprofile`); the six predates the parts model. All
+  nine are registered in `installer/linux/luthier.xml` and the desktop
+  entry. The association only launches Luthier: the standalone does not open
+  a file from argv yet, so installer.md 13's double-click test is pending
+  on Source/.
+- **Uninstall keeps user data; the tarball's uninstaller removes exactly its
+  manifest.** installer.md 0.3 and 13: `install.sh` records every path it
+  writes in `install-manifest.txt`, `uninstall.sh` removes those and only
+  those (`--purge` adds `~/Documents/Luthier` and `~/.config/Luthier`). The
+  .deb's postrm removes only the marker it wrote and refreshes caches; a
+  package script does not enter home directories, so `apt purge` equals
+  `apt remove` for user data and the docs say so.
+- **Standalone-only bundle (installer.md 4) is the same tarball minus the
+  VST3 component** (`cpack -G TGZ -D LUTHIER_STANDALONE_ONLY=ON`), not a
+  separate install rule set. Portable install (installer.md 9, Windows only)
+  has its Linux form in "run in place": the extracted folder runs as is, with
+  a relative `Luthier.vst3/Resources` link, but user data still goes to
+  `~/Documents/Luthier`.
+- **Signing and reproducibility are hooks, not done.** `scripts/release.sh`
+  signs when `LUTHIER_SIGNING_KEY` or `LUTHIER_SIGN_HOOK` is set (keys stay
+  outside the repo) and otherwise says UNSIGNED in `manifest.json`;
+  `SOURCE_DATE_EPOCH` follows the commit, but LTO output and CPack staging
+  are not byte-identical between runs (installer.md 0.5 not met).
+- **Not applicable on Linux, left to the platform passes:** installer.md 1
+  (Windows .exe, registry, Start menu, `/S`), 2 (macOS .pkg, notarisation,
+  universal, AU), 3's `.rpm` (best-effort in the spec; no rpmbuild here), 5.2
+  delta patches, 7 enterprise policy placement (policy file reader exists;
+  packaging it is a per-site matter), 11 `.luthiercontent` packages, 12
+  rollback (a hosting matter), and 13's cross-version upgrade / downgrade
+  (one version builds at a time; the tarball tests cover re-install over
+  itself).
+- **Chambering on the feedback loop is a gain on k_couple, 0 to +12 dB.**
+  part-acoustics 2.1 says chambering "feeds" the loop's gain without a
+  number. `FeedbackLoop::bodyCouplingFromChambering` maps PartAcoustics'
+  0..1 feedback column (solid 0.1, chambered 0.25, semi-hollow 0.5, hollow
+  0.8) to 0 dB for solid and +12 dB for hollow, linear in dB between (+2.6,
+  +6.9), and floors an acoustic's "n/a" 0 at solid rather than below it. A
+  hollow top is a soundboard the room drives directly; +12 dB is the
+  conservative end of what archtop players describe, and solid stays at
+  unity so the existing Shred Lead / Clean Double-Cut calibration (both
+  solid) is unchanged. Compiled guitars go through the same table by body
+  shape (`chamberingFeedbackForShape`), in `rebuildBodyFromSpec`, with the
+  body it belongs to.
+- **The capture's chord track reads the detector's held set, with its own
+  30 ms stability wait.** notation-export 4 wants the detector's output
+  "where it changes". `ChordDetector::advance` is the rhythm engine's, so the
+  capture does not call it: `captureChord` watches the held notes after each
+  block, waits the detector's burst window after the last change (a strum is
+  one chord), then `detect`s and writes a known symbol that differs from the
+  last one written, stamped at the block the set last changed. Unknown (too
+  few notes, none) is a gap, not a symbol, and the same chord re-struck is
+  not a new one. `ChordSymbol::format` renders into the record's 16 bytes
+  without a String.
+- **BASS_TECH rides the string-activity queue.** The slap classification
+  happens inside `LuthierEngine::triggerNote`, after the note-on push, so
+  rather than a second queue the engine pushes a `Kind::bassTechnique`
+  record onto the same per-block queue (routing-io 6); the capture turns it
+  into the event and `MidiOutRouter` skips anything that is not a note. The
+  names are midi-export's: ghost, thump (the double thump's up-stroke), pop,
+  else slap. The bar (`captureSlideBar`) is read from the slide engine's
+  overlay fret and pressure after each block and written on landing, lift, a
+  quarter-fret move or a pressure-class change (light under 0.5).
+- **A migration backup is a copy, not the spec's move.** file-formats 2
+  says the original is "moved" to Backup/<date>/<name>-v<schema>. A load
+  does not rewrite the file - the migrated form reaches disk only when the
+  user saves - so moving it would empty the browser of the preset just
+  loaded. `PresetManager::backupMigratedOriginal` copies it beside the file
+  (the user folder's Backup, the same one saves use), once per day per
+  original. What counts as a migration: the legacy `format` marker, a missing
+  ranges block, retired pickup placements, feedback_on without an amount,
+  strum_speed, the engine doubler.
+- **Notation export runs on a `juce::Thread` per task with stage-level
+  progress.** `NotationExportTask` takes a copy of the score (or the take's
+  MidiPerformance for MIDI) and renders and writes on its own thread; the
+  renderers are one call each, so progress is per stage (start, rendered,
+  written) and cancel is honoured between stages - a cancel after the
+  atomic write finds a finished export. Callbacks post to the message thread
+  through a weak reference, so a task destroyed with the panel drops them.
+- **`RhythmEngine::selectNotesForStyle` is gone.** The rubric voicer takes
+  every held note and applies the style's bias and note cap itself
+  (ambiguity-resolutions 4), so the engine's own per-style note picker had no
+  caller. The Bass style's pattern (root / root-fifth / walking) is now
+  `RhythmEngine::setBassPattern`, saved as `bassPattern` in the engine's
+  state (absent = root) and handed to the voicer on every revoice.
+- **TUNE tab editors (tune-builder 3.2-3.4, 6, 7; TODO 12).** The chord
+  pill's popover is a CallOutBox holding `TuneChordEditor` (root, quality,
+  bass, beats or hold-to-end, extensions, emphasis, lock); every control is a
+  `tune-chord-edit` on the cell, grouped within 200 ms. The qualities offered
+  are a fixed list of common spellings resolved through TuneTheory, so every
+  one is a chord the rhythm engine detects. A chord cell gained `locked`
+  (written as `locked: true`): Reharmonize and the substitution offers leave a
+  locked cell as written, the way generators leave a locked note. Dragging a
+  section tab reorders the sections *and* sorts the setlist to match, so the
+  drag is heard, not just seen (TuneModel's moveSection alone keeps play
+  order). Vary (`varySection`) inserts "<name> var" after the section with its
+  melody regenerated on the next seed (locked notes kept), its countermelody
+  reseeded, its rhythm stepped to the kit's next pattern, and a setlist entry
+  after the original's. The piano roll edits one part at a time - MELODY,
+  BASS or LAYER (the countermelody) - through `Tune::setPartNotes`, which
+  canonicalises and writes to the melody track, a Manual bass, or the
+  countermelody layer; a bass in a derived mode is shown grey and a first
+  edit turns it Manual with the derived line kept, so nothing the user heard
+  vanishes. Draw on empty space; with Draw off, or Shift held, a drag boxes a
+  selection; Shift-click adds; a drag on a note moves the selection by rows
+  (semitones) and grid steps. Arrow keys nudge by a grid step or a scale
+  step (a semitone when chromatic), Shift by a bar or an octave (seven scale
+  steps, twelve semitones chromatic), Ctrl+Up/Down by ten of velocity.
+  Ctrl+C/X/V go through a roll-wide clipboard and paste at the cursor (where
+  the roll was last clicked, snapped). The panel forwards those keys to the
+  roll when the panel itself has focus. Velocity is drawn as brightness and
+  a lock as a border mark, so neither is colour alone.
+- **Kit suggested tempo (tune-builder 2.1).** GenreKit has no tempo field, so
+  `getKitSuggestedTempo` reads the kit's name (as the density does): ballad
+  72, reggae 76, blues 88, folk 96, funk 104, country 112, bossa 128, jazz
+  132, metal 140, bluegrass 150, punk 168, else 120. Choosing a kit sets the
+  tune's tempo only while the tempo is untouched - still 120 or the previous
+  kit's suggestion - so a tempo the user set is never overwritten.
+- **One-screen export (tune-builder 9, DECISIONS C-53).** `TuneExportPanel`
+  is an OverlayPanel the editor's host can show (`TunePanel::onShowOverlay`,
+  to be wired by the editor; until then the panel opens it in a DialogWindow)
+  with four ticked destinations: audio (WAV / AIFF / FLAC - JUCE ships no MP3
+  encoder, so 9.1's MP3 is not offered), MIDI, notation, project. Audio reuses
+  `AudioExporter`: the offline instance restores the live state, and
+  `TuneSession::setRenderIntent` writes `render: true` into that state so the
+  restored session plays the tune itself once from the top, no count-in, no
+  click, no loop, with the message-thread service run from the render through
+  `TunePlayer::setOfflineServiceHook` (rhythm changes at section starts, the
+  next improvised pass). The exporter's sequence is a single all-notes-off at
+  the tune's end, which fixes the render's length. Stems are the same render
+  once per bus, chained on the exporter's completion, through
+  `TuneBusRenderProcessor`, which enables every bus on the inner instance and
+  copies one output bus to the stereo pair the exporter records. MIDI goes
+  through `MidiProfiles::exportToFile` over `buildTunePerformance` (the
+  timeline as a MidiPerformance: channel messages at their samples, the bass
+  as part 1, a SECTION event per section occurrence), so the Luthier profile
+  is available to a tune (C-53 closed); the older Generic-only
+  `writeTuneMidiFile` stays for callers that want the plain file.
+  `TuneExportTests` renders a tune offline from the state and nulls it
+  against live playback (15-07), restores a saved tune with its file from
+  the plugin state and plays it (15-10), and checks the state boundary flag
+  reaches the processor on the section's first block (8).
+- **Ctrl+T is registered** (`newTune`, gui-integration 17) with a catalog
+  description. The TUNE panel answers it while focused (the template picker);
+  the editor should forward `is ("newTune")` to `header.onNewTune` so it works
+  from anywhere - a one-line hook in PluginEditor::keyPressed.
+- **Per-string overrides ride on the strings entry** (guitar-workshop.md 3.3).
+  `WorkshopGuitar::stringOverrides` serialises as the strings entry's
+  `per_string_override` list, the key file-formats.md 3's example already
+  names, numbered for people (1 = the high E) with `gauge_in`, `material`
+  and `wound` each optional. No list means no overrides, so every guitar file
+  written before this loads unchanged and a file with overrides loads on an
+  older build minus them; no schema bump. The engine takes the gauge today
+  (`DerivedAcoustics::gaugesIn`); the per-string material is computed into
+  `DerivedAcoustics::stringMaterials` and waits on an engine hook
+  (LuthierEngine reads one `stringMaterial`). The illustration renderer is
+  not edited for it: `BenchIllustration` paints an overridden string over the
+  scene in its material's colour, from the same section-10 table.
+- **Accessory drags are undo entries in real units through a put-back.** The
+  pick's position and angle, the slide's slant and the capo's fret are
+  parameters, and an undo entry carries the state from before the gesture,
+  which the processor captures only at push time. `WorkshopBench::endGesture`
+  therefore sets the parameters back to their gesture-start values, pushes the
+  entry with the sentence ("Moved capo fret 3 -> 5"), and sets them again. The
+  audio thread reads parameters at block start, so a block that begins between
+  the two writes plays the old placement once; no gesture notifications reach
+  the host. Chosen over pushing at gesture start (the sentence is not known
+  then) and over a processor change (not this builder's file).
+- **The slide's bench position is the bench's.** slide-technique-controls.md
+  (TODO 5b) owns the bar's position sources; until then `WorkshopBench` keeps
+  the fret the bench draws the bar at, the slant goes to `slide_slant`, and
+  the fitted slide part maps to the engine's `SlideBar` in
+  `WorkshopBench::getSlideBar()` for the hook that will take it.
+- **The WORKSHOP tab's padlock is the buzz family's.** Part fields have no
+  ranges (workshop-ui.md 5); the parameters the bench holds are the setup
+  strip's, which PhysicalRange.cpp puts in `RangeFamily::buzz`, and a family
+  is the unit of locking. `WorkshopPanel::rangeFamilies()` says so and
+  AdvancedPanel builds the tab as a `RangeTabButton` from it.
+- **A convolution swap is primed with the note that was playing.** The cabinet
+  and body convolvers run with `juce::dsp::Convolution::Latency`, and
+  `ConvolutionInstaller` installs a response by pumping silence through them:
+  the convolver's latency buffer then holds silence, and its first
+  `getLatency()` samples after the swap are zeros - one block of hole with a
+  hard edge at each end, under whatever note is sounding, on every cabinet or
+  body change (a preset load, a guitar pick, a morph crossing 0.5). It was
+  always there; `PresetMorph.aFourSecondSweepDoesNotClick` passed by the luck
+  of where the chord's waveform sat when the hole opened, and ac7ecca's 15 ms
+  chord window moved the chord 13 ms and turned a 0.08 step into 0.17. The
+  suspect, the immediate pedal build on a type pick, was cleared by
+  measurement (the step was identical with it disabled), and the strings, the
+  pedals and the amp were continuous through the crossing; only the cabinet's
+  output went to zero. So `CabinetEngine` and `BodyEngine` keep the last
+  16384 samples of what their convolver sees, and a freshly installed
+  response is run over that history (output discarded) before the audio
+  thread gets it: its first real block is the tail of the note under the new
+  response. The sweep's worst step is now 0.074 against A/B alone at 0.050.
+  The history is written by the audio thread and read on the loading thread
+  without a lock; a torn sample is a rounding error in the primed tail. In a
+  host the engine's 5 ms swap fade also covers the timbre change itself; on
+  one thread (the tests) that change is the residual step.
+- **The feedback volume-knob test holds a moderate note.** The amp at gain 0
+  still compresses a little on a velocity-110 attack, so the loop fell
+  0.4-0.5 dB less than the circuit and the 0.5 dB tolerance held by luck of
+  where the 0.1-0.6 s window met the attack; the 15 ms chord window delayed
+  the note 13 ms, put more attack in the window, and 0.41 became 0.51. The
+  loop's own ceiling is not it (its RMS is 1e-4 against a 0.02 tanh ceiling,
+  and a smaller amount made the gap larger, not smaller), and the pedals are
+  bypassed as intended (removing them changed nothing). Measured with the
+  onset pinned (chord window 0): velocity 110 0.39 dB, 90 0.25, 70 0.08,
+  50 -0.06. The fixture now pins the window and plays velocity 70, which is
+  the linear regime the test's comment already claimed; the physics and the
+  tolerance are untouched. Note for the product: the 15 ms default window
+  delays every note by 15 ms (reported as latency, so a host compensates).
+- **The scrape budget is measured in thread CPU time.** `Scrape.
+  anActiveScrapeStaysInBudget` was wall-clock, best of five, and read 6.6 ms
+  against a 5 ms budget while four cores compiled next to it (3-4 ms quiet).
+  It now takes `CLOCK_THREAD_CPUTIME_ID` (GetThreadTimes on Windows), still
+  best of five, and reports the wall-clock beside it; time the scheduler
+  gives to a neighbour no longer counts, the budget does not move.
+- **2026-09-24 — `use_fingers` follows the guitar only on a player's pick.**
+  The instrument pass wrote it from the guitar's category on every guitar
+  change but the first, so a snapshot, a setlist entry or automation pairing
+  an acoustic with a pick came back with fingers, and the write landed on the
+  host mid-crossfade. A pick is a parameter gesture (the header selector's
+  attachment sends one; a snapshot or automation does not): `HeaderBar`
+  listens for the gesture's end and arms `ParameterBridge::
+  followGuitarHandOnNextLoad`, which the pass consumes once. Chosen over
+  setting the hand in the picker itself because the category comes from the
+  guitar the pass loads (a Workshop file), not from a table by type.
+- **`EffectsChain::resetFromAudioThread` mirrors `BodyEngine::reset`.** Panic
+  and reset run at the top of the audio callback, and `reset()` blocked on
+  `swapLock`, which `setSlotType` (a pedal pick, synchronously from the
+  bridge's listener) holds on the message thread. A try-lock resets now or
+  leaves it pending; `processStereo` carries a pending reset out under its own
+  try-lock before it processes, so no pre-panic tail reaches the output.
+- **`requestStop` records the request before it tests for an active audio
+  thread, and does not park.** A callback the host resumes inside the 200 ms
+  idle window takes the request at the top of its block and the caller's
+  exchange then finds nothing to run against the render. Parking through
+  `beginStructuralChange` keys on the same idle test and does not park a
+  thread it cannot see, so it would not have closed the window.
+- **A string ringing under the sustain or sostenuto pedal is taken, until a
+  group needs it.** `MidiInterpreter` keeps a `ringing` flag past a let-ring
+  release and folds it into the occupied mask, so a new note is voiced around
+  it rather than onto it; when fewer free strings remain than the group has
+  notes, the ringing ones are offered again, since a note taking a ringing
+  string beats a note that never sounds. The pedal coming up frees them.
+- **A marker section rounded to whole bars keeps only its own span; rounded
+  down with notes in the cut-off tail it grows a bar.** The rounded bar count
+  reached past the next marker (notes duplicated into both sections) or short
+  of it (tail notes dropped). `Region` now carries the marker's end, notes and
+  chart entries are clipped to it, and a chart from several tracks is sorted
+  by time before its entries are read as successive.

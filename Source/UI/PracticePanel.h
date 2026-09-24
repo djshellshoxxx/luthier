@@ -173,6 +173,10 @@ private:
     juce::Component scaleView;
 
     juce::Random random { 0x5ca1e5 };
+
+    /** 11.2 question count: the press after the session's summary starts the
+        next session, once the completed one is in the history. */
+    bool summaryShown = false;
 };
 
 //==============================================================================
@@ -201,6 +205,8 @@ private:
     int notes[EarTrainer::kMaxNotesInQuestion] {};
     double offsets[EarTrainer::kMaxNotesInQuestion] {};
     int numNotes = 0;
+
+    bool summaryShown = false;
 };
 
 //==============================================================================
@@ -209,11 +215,22 @@ class TabReaderTab final : public PracticeTab
 public:
     explicit TabReaderTab (LuthierAudioProcessor& processor);
 
+    /** Reads a tab file into the view - what Open... does once a file is
+        chosen - and notes it in the PRACTICE tab's recent list (11.2
+        "Tab files opened recently"). False, with the reason in the status
+        line, when it could not be read; an unreadable file is not "recent". */
+    bool openTabFile (const juce::File& file);
+
+    /** Where the recent list is kept: the user's library.json unless a test
+        points it elsewhere. */
+    void setLibraryFile (const juce::File& file) { libraryFile = file; }
+
     void refresh() override;
     void resized() override;
 
 private:
     juce::TextButton openButton { "Open..." }, exportButton { "Export..." };
+    juce::File libraryFile { PracticeLibrary::getLibraryFile() };
     juce::Label statusLabel;
     juce::TextEditor tabView;
     juce::ComboBox formatBox;
@@ -248,18 +265,38 @@ class SessionTab final : public PracticeTab
 public:
     explicit SessionTab (LuthierAudioProcessor& processor);
 
+    /** The transport: on sizes the ring from the PRACTICE tab's setup and
+        starts; off stops and, with auto-save set there, writes the take. */
+    juce::Button& getEnableButton() noexcept { return enableToggle->getButton(); }
+
+    /** "Save last take": a click writes the take to the Sessions folder; a
+        drag out of the window carries it as files (midi-export 4.2). */
+    juce::Button& getSaveButton() noexcept;
+
+    juce::String getStatusText() const { return statusLabel.getText(); }
+
+    /** Where the PRACTICE tab's setup is read from: defaults.json unless a
+        test points it elsewhere. */
+    void setDefaultsFile (const juce::File& file) { defaultsFile = file; }
+
     void refresh() override;
     void resized() override;
 
 private:
+    class SaveButton;
+
     /** practice-tools 11.2: the ring length and what to record are set on the
         PRACTICE tab ("the settings, not the transport"), saved in
         defaults.json; the drawer applies them when the recorder goes on. */
-    static SessionRecorderSetup storedSetup();
+    SessionRecorderSetup storedSetup() const;
+
+    void setRecorderEnabled (bool on);
 
     std::unique_ptr<LuthierToggle> enableToggle;
-    juce::TextButton saveButton { "Save last take" }, openFolderButton { "Open folder" };
+    std::unique_ptr<SaveButton> saveButton;
+    juce::TextButton openFolderButton { "Open folder" };
     juce::Label lengthLabel, statusLabel, warningLabel;
+    juce::File defaultsFile { PracticeDefaults::getDefaultsFile() };
     double requestedMinutes = 0.0;
     double storedMinutes = SessionRecorder::kDefaultMinutes;   ///< read when shown, not per refresh
 
@@ -285,6 +322,18 @@ public:
     /** Shows a tool's tab (a routine entry, or the PRACTICE tab's START). */
     void showTool (PracticeTool tool) { showTab ((int) tool); }
     int getCurrentTab() const noexcept { return currentTab; }
+
+    /** The TAB tab's Open..., without the chooser: reads the file and notes it
+        in the recent list. */
+    bool openTabFile (const juce::File& file);
+
+    /** The SESSION tab's controls, for tests and the editor. */
+    SessionTab& getSessionTab() noexcept;
+
+    /** Points the drawer's own files - the recent-tab library and the session
+        setup it reads - at a test folder instead of Documents/Luthier. */
+    void setLibraryFile (const juce::File& file);
+    void setDefaultsFile (const juce::File& file);
 
     /** The drawer's clock, for tests: counts `seconds` of practice as the
         20 Hz timer would - the routine advances, the tools in use gain

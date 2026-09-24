@@ -1,5 +1,7 @@
 #include "PracticePanel.h"
+#include "MidiExportDefaults.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Accessibility.h"
 
 namespace luthier
 {
@@ -910,9 +912,31 @@ ScaleTab::ScaleTab (LuthierAudioProcessor& p)
     styleReadout (scoreLabel);
     addAndMakeVisible (scoreLabel);
 
+    nextButton.setTooltip ("Ask the next question. After the session's question count "
+                           "(set on the PRACTICE tab) it shows the score, and the next press "
+                           "starts a new session.");
     nextButton.onClick = [this]
     {
-        questionLabel.setText (trainer().nextQuestion (random), juce::dontSendNotification);
+        auto& t = trainer();
+
+        // 11.2 question count: the summary is shown once; the press after it
+        // files the completed session in the history and starts the next.
+        if (t.isSessionComplete())
+        {
+            if (summaryShown)
+            {
+                processor.getPracticeActivityTracker().recordScaleTrainer (t, processor.getPracticeStats(),
+                                                                           PracticeStats::today());
+                t.resetScore();
+                summaryShown = false;
+            }
+            else
+            {
+                summaryShown = true;
+            }
+        }
+
+        questionLabel.setText (t.nextQuestion (random), juce::dontSendNotification);
         refresh();
     };
     addAndMakeVisible (nextButton);
@@ -931,12 +955,19 @@ void ScaleTab::refresh()
 {
     auto& t = trainer();
 
+    // "3 of 5" against the session's count when there is one, "3 of 5 asked"
+    // when the trainer runs open-ended.
+    const juce::String asked = t.getQuestionCount() > 0
+                                 ? juce::String (t.getAsked()) + "/" + juce::String (t.getQuestionCount())
+                                 : juce::String (t.getAsked());
+
     scoreLabel.setText (t.getAsked() > 0
-                          ? (juce::String (t.getScore()) + " of " + juce::String (t.getAsked())
+                          ? (juce::String (t.getScore()) + " of " + asked
                                + "   " + juce::String (t.getSuccessRate() * 100.0, 0) + "%")
                           : juce::String(),
                         juce::dontSendNotification);
 
+    nextButton.setButtonText (t.isSessionComplete() && summaryShown ? "New" : "Ask");
     nextButton.setEnabled (t.getMode() != ScaleTrainer::Mode::explore);
 
     repaint();
@@ -980,10 +1011,29 @@ EarTab::EarTab (LuthierAudioProcessor& p)
 
     addAndMakeVisible (exerciseBox);
 
+    nextButton.setTooltip ("Play a new question. After the session's question count "
+                           "(set on the PRACTICE tab) it shows the score, and the next press "
+                           "starts a new session.");
     nextButton.onClick = [this]
     {
-        numNotes = trainer().nextQuestion (random, notes, offsets,
-                                           EarTrainer::kMaxNotesInQuestion);
+        auto& t = trainer();
+
+        if (t.isSessionComplete())
+        {
+            if (summaryShown)
+            {
+                processor.getPracticeActivityTracker().recordEarTrainer (t, processor.getPracticeStats(),
+                                                                         PracticeStats::today());
+                t.resetScore();
+                summaryShown = false;
+            }
+            else
+            {
+                summaryShown = true;
+            }
+        }
+
+        numNotes = t.nextQuestion (random, notes, offsets, EarTrainer::kMaxNotesInQuestion);
         feedbackLabel.setText ({}, juce::dontSendNotification);
         playCurrentQuestion();
         refresh();
@@ -1066,10 +1116,16 @@ void EarTab::refresh()
 
     questionLabel.setText (t.getQuestionText(), juce::dontSendNotification);
 
-    scoreLabel.setText (juce::String (t.getCorrect()) + " of " + juce::String (t.getAsked())
+    const juce::String asked = t.getQuestionCount() > 0
+                                 ? juce::String (t.getAsked()) + "/" + juce::String (t.getQuestionCount())
+                                 : juce::String (t.getAsked());
+
+    scoreLabel.setText (juce::String (t.getCorrect()) + " of " + asked
                           + "    level " + juce::String (t.getDifficulty() + 1)
                           + "    streak " + juce::String (t.getStreak()),
                         juce::dontSendNotification);
+
+    nextButton.setButtonText (t.isSessionComplete() && summaryShown ? "Again" : "New");
 
     const auto choices = t.getChoices();
 
@@ -1147,36 +1203,15 @@ TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
                                 | juce::FileBrowserComponent::canSelectFiles,
                               [this] (const juce::FileChooser& fc)
         {
-            const auto file = fc.getResult();
-
-            if (file == juce::File())
-                return;
-
-            if (importer.read (file, score))
-            {
-                // practice-tools 11.2: the PRACTICE tab lists recent tab files.
-                PracticeLibrary library;
-                library.load (PracticeLibrary::getLibraryFile());
-                library.noteTabOpened (file);
-
-                juce::String error;
-                library.save (PracticeLibrary::getLibraryFile(), error);
-
-                statusLabel.setText (juce::String (score.getTotalNoteCount()) + " notes from "
-                                       + file.getFileName(),
-                                     juce::dontSendNotification);
-
-                statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
-            }
-            else
-            {
-                statusLabel.setText (importer.getLastError(), juce::dontSendNotification);
-                statusLabel.setColour (juce::Label::textColourId, Palette::warning);
-            }
-
-            refresh();
+            if (fc.getResult() != juce::File())
+                openTabFile (fc.getResult());
         });
     };
+
+    openButton.setTooltip ("Open a tab file (ASCII tab or MusicXML) to play along to. "
+                           "It is added to the recent list on the PRACTICE tab.");
+    AccessibleSetup::configureButton (openButton, "Open tab file",
+                                      "Open a tab file to play along to.");
 
     exportButton.onClick = [this]
     {
@@ -1241,6 +1276,38 @@ TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
     addAndMakeVisible (tabView);
 
     refresh();
+}
+
+bool TabReaderTab::openTabFile (const juce::File& file)
+{
+    const bool read = importer.read (file, score);
+
+    if (read)
+    {
+        // practice-tools 11.2: the PRACTICE tab lists recent tab files. The
+        // list is read back first, so two windows' opens merge rather than the
+        // last one winning.
+        PracticeLibrary library;
+        library.load (libraryFile);
+        library.noteTabOpened (file);
+
+        juce::String error;
+        library.save (libraryFile, error);
+
+        statusLabel.setText (juce::String (score.getTotalNoteCount()) + " notes from "
+                               + file.getFileName(),
+                             juce::dontSendNotification);
+
+        statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+    }
+    else
+    {
+        statusLabel.setText (importer.getLastError(), juce::dontSendNotification);
+        statusLabel.setColour (juce::Label::textColourId, Palette::warning);
+    }
+
+    refresh();
+    return read;
 }
 
 void TabReaderTab::refresh()
@@ -1390,58 +1457,118 @@ void ProgressionTab::resized()
 }
 
 //==============================================================================
+/*  midi-export 4.2 for the session recorder: "drag from the session recorder's
+    own Save button". A click saves to the Sessions folder; pressing and dragging
+    out of the window carries the take as files - the WAV and the MIDI, the MIDI
+    in the Luthier profile or Generic with Alt - written when the drag starts, so
+    it is the take as it stands. */
+class SessionTab::SaveButton final : public juce::TextButton
+{
+public:
+    explicit SaveButton (SessionTab& t)
+        : juce::TextButton ("Save last take"), tab (t)
+    {
+        setTooltip ("Freeze what is in the buffer to a WAV and a MIDI file in your Sessions "
+                    "folder. Drag this button into your DAW or a folder to drop the take there "
+                    "instead; hold Alt while dragging for Generic MIDI.");
+        AccessibleSetup::configureButton (*this, "Save last take",
+                                          "Save the recorder's buffer as WAV and MIDI files, "
+                                          "or drag it out of the plugin as files.");
+    }
+
+    void mouseDown (const juce::MouseEvent& e) override
+    {
+        dragStarted = false;
+        juce::TextButton::mouseDown (e);
+    }
+
+    void mouseDrag (const juce::MouseEvent& e) override
+    {
+        if (dragStarted || e.getDistanceFromDragStart() < 6 || ! isEnabled())
+        {
+            juce::TextButton::mouseDrag (e);
+            return;
+        }
+
+        dragStarted = true;
+        setState (buttonNormal);
+
+        const auto files = tab.processor.getSessionRecorder().writeDragOutFiles (e.mods.isAltDown());
+
+        if (files.isEmpty())
+            return;
+
+        juce::StringArray paths;
+
+        for (const auto& f : files)
+            paths.add (f.getFullPathName());
+
+        juce::DragAndDropContainer::performExternalDragDropOfFiles (paths, false, this);
+    }
+
+    void mouseUp (const juce::MouseEvent& e) override
+    {
+        // A drag is not a click: the take went with the drag, not to Sessions.
+        if (dragStarted)
+        {
+            dragStarted = false;
+            setState (buttonNormal);
+            return;
+        }
+
+        juce::TextButton::mouseUp (e);
+    }
+
+private:
+    SessionTab& tab;
+    bool dragStarted = false;
+};
+
+//==============================================================================
 SessionTab::SessionTab (LuthierAudioProcessor& p)
     : PracticeTab (p)
 {
     enableToggle = std::make_unique<LuthierToggle> ("SESSION RECORDER");
     enableToggle->getButton().setClickingTogglesState (true);
+    enableToggle->getButton().onClick = [this] { setRecorderEnabled (enableToggle->getButton().getToggleState()); };
 
-    enableToggle->getButton().onClick = [this]
-    {
-        auto& recorder = processor.getSessionRecorder();
-        const bool on = enableToggle->getButton().getToggleState();
-
-        // The ring is sized from the PRACTICE tab's setup as it goes on, never
-        // while it records.
-        if (on)
-        {
-            const auto setup = storedSetup();
-            requestedMinutes = storedMinutes = setup.ringMinutes;
-            setup.applyTo (recorder, processor.getSampleRate());
-        }
-
-        recorder.setEnabled (on);
-        refresh();
-    };
-
-    enableToggle->setTooltip ("Continuously record everything the plugin plays into a "
-                              "ring buffer, so you can keep a take after playing it.");
+    enableToggle->setTooltip ("Continuously record everything the plugin plays, and the MIDI "
+                              "that played it, into a ring buffer so you can keep a take after "
+                              "playing it. Stopping saves the take when auto-save is set on the "
+                              "PRACTICE tab.");
+    AccessibleSetup::configureButton (enableToggle->getButton(), "Session recorder",
+                                      "Start or stop the session recorder.");
 
     addAndMakeVisible (*enableToggle);
 
     styleReadout (lengthLabel);
-    lengthLabel.setTooltip ("How much the recorder keeps. Set it on the PRACTICE tab.");
+    lengthLabel.setTooltip ("How much the recorder keeps, and what. Set it on the PRACTICE tab.");
     addAndMakeVisible (lengthLabel);
 
-    saveButton.setTooltip ("Freeze what is in the buffer to a WAV and a MIDI file.");
-    saveButton.onClick = [this]
+    saveButton = std::make_unique<SaveButton> (*this);
+    saveButton->onClick = [this]
     {
-        const bool saved = processor.getSessionRecorder()
-                             .saveLastTake (SessionRecorder::getSessionDirectory());
+        SessionRecorder::SavedTake saved;
+        const bool ok = processor.getSessionRecorder().saveLastTake (processor.getSessionRecorder().getSaveDirectory(),
+                                                                     &saved);
 
-        statusLabel.setText (saved ? "Saved to your Sessions folder."
-                                   : "There is nothing recorded to save.",
+        statusLabel.setText (ok ? ("Saved " + (saved.wav != juce::File() ? saved.wav : saved.midi).getFileName()
+                                     + " to your Sessions folder.")
+                                : "There is nothing recorded to save.",
                              juce::dontSendNotification);
     };
 
+    openFolderButton.setTooltip ("Open your Sessions folder, where saved takes go.");
+    AccessibleSetup::configureButton (openFolderButton, "Open sessions folder",
+                                      "Open the folder saved takes are written to.");
     openFolderButton.onClick = [this]
     {
-        const auto folder = SessionRecorder::getSessionDirectory();
+        const auto folder = processor.getSessionRecorder().getSaveDirectory();
         folder.createDirectory();
         folder.revealToUser();
     };
 
-    addAndMakeVisible (saveButton);
+    addAndMakeVisible (*saveButton);
     addAndMakeVisible (openFolderButton);
 
     styleReadout (statusLabel);
@@ -1449,6 +1576,52 @@ SessionTab::SessionTab (LuthierAudioProcessor& p)
 
     styleReadout (warningLabel, Palette::warning);
     addAndMakeVisible (warningLabel);
+
+    refresh();
+}
+
+juce::Button& SessionTab::getSaveButton() noexcept
+{
+    return *saveButton;
+}
+
+void SessionTab::setRecorderEnabled (bool on)
+{
+    auto& recorder = processor.getSessionRecorder();
+
+    if (on)
+    {
+        // The ring is sized from the PRACTICE tab's setup as it goes on, never
+        // while it records; what it records and whether stopping saves come
+        // from the same place. The MIDI file takes the MIDI OUT defaults and
+        // the tempo in force, so a take opens in a DAW on the right grid.
+        const auto setup = storedSetup();
+        requestedMinutes = storedMinutes = setup.ringMinutes;
+
+        if (! recorder.isEnabled())
+            setup.applyTo (recorder, processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0);
+        else
+            setup.applySwitchesTo (recorder);
+
+        recorder.setTempoBpm (processor.getEffectiveTempo());
+        recorder.setMidiExportOptions (MidiExportDefaults::load());
+        recorder.setEnabled (true);
+        statusLabel.setText ({}, juce::dontSendNotification);
+    }
+    else
+    {
+        // 11.2 "Auto-save on stop": the stop writes the take when it is set.
+        SessionRecorder::SavedTake saved;
+        const bool wasOn = recorder.isEnabled();
+        const bool wrote = recorder.stop (&saved);
+
+        if (wrote)
+            statusLabel.setText ("Auto-saved " + (saved.wav != juce::File() ? saved.wav : saved.midi).getFileName()
+                                   + " to your Sessions folder.",
+                                 juce::dontSendNotification);
+        else if (wasOn && recorder.isAutoSaveOnStop())
+            statusLabel.setText ("Nothing was recorded, so nothing was auto-saved.", juce::dontSendNotification);
+    }
 
     refresh();
 }
@@ -1462,12 +1635,12 @@ void SessionTab::visibilityChanged()
     }
 }
 
-SessionRecorderSetup SessionTab::storedSetup()
+SessionRecorderSetup SessionTab::storedSetup() const
 {
     PracticeDefaults defaults;
     juce::String error;
 
-    if (! PracticeDefaults::load (PracticeDefaults::getDefaultsFile(), defaults, error))
+    if (! PracticeDefaults::load (defaultsFile, defaults, error))
         return {};
 
     return SessionRecorderSetup::fromVar (defaults.extra["session_recorder"]);
@@ -1483,14 +1656,19 @@ void SessionTab::refresh()
     const double recorded = (double) recorder.getRecordedSamples()
                               / juce::jmax (1.0, processor.getSampleRate()) / 60.0;
 
-    statusLabel.setText (juce::String (recorded, 1) + " of " + juce::String (minutes, 1)
-                           + " minutes held",
-                         juce::dontSendNotification);
+    if (recorder.isEnabled() || statusLabel.getText().isEmpty()
+        || statusLabel.getText().endsWith ("minutes held"))
+        statusLabel.setText (juce::String (recorded, 1) + " of " + juce::String (minutes, 1)
+                               + " minutes held",
+                             juce::dontSendNotification);
 
     // practice-tools 8 sizes the default at 1.4 GB, which this machine will not
     // allocate. The capacity is reported rather than the request, and the
     // difference is stated rather than hidden.
-    lengthLabel.setText ("Keeps " + juce::String (storedMinutes, 0) + " min",
+    const juce::String what = recorder.isRecordingAudio() && recorder.isRecordingMidi() ? "audio + MIDI"
+                            : recorder.isRecordingMidi() ? "MIDI only" : "audio only";
+
+    lengthLabel.setText ("Keeps " + juce::String (storedMinutes, 0) + " min, " + what,
                          juce::dontSendNotification);
 
     warningLabel.setText (recorder.isEnabled() && requestedMinutes > minutes + 0.5
@@ -1508,8 +1686,8 @@ void SessionTab::resized()
         RowLayout r { bounds.removeFromTop (Metrics::buttonHeight) };
 
         enableToggle->setBounds (r.take (170));
-        lengthLabel.setBounds (r.take (110));
-        saveButton.setBounds (r.take (120));
+        lengthLabel.setBounds (r.take (150));
+        saveButton->setBounds (r.take (120));
         openFolderButton.setBounds (r.take (100));
     }
 
@@ -1659,6 +1837,7 @@ void PracticePanel::setOpen (bool shouldBeOpen)
         metronome, the looper and the backing track altogether. Leaving them
         running behind a hidden panel is exactly what the rule forbids. */
     processor.setPracticePanelOpen (open);
+    processor.getUiState().practiceDrawerOpen = open;   // onboarding 11: saved with the session
 
     // practice-tools 0.1: a closed drawer pauses the routine it was running,
     // and opening it again carries on - unless the player had paused it.
@@ -1722,6 +1901,26 @@ void PracticePanel::showTab (int index)
 
     resized();
     repaint();
+}
+
+bool PracticePanel::openTabFile (const juce::File& file)
+{
+    return static_cast<TabReaderTab*> (tabs[(int) PracticeTool::tabReader])->openTabFile (file);
+}
+
+SessionTab& PracticePanel::getSessionTab() noexcept
+{
+    return *static_cast<SessionTab*> (tabs[(int) PracticeTool::sessionRecorder]);
+}
+
+void PracticePanel::setLibraryFile (const juce::File& file)
+{
+    static_cast<TabReaderTab*> (tabs[(int) PracticeTool::tabReader])->setLibraryFile (file);
+}
+
+void PracticePanel::setDefaultsFile (const juce::File& file)
+{
+    getSessionTab().setDefaultsFile (file);
 }
 
 void PracticePanel::tick (double seconds)

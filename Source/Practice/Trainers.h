@@ -67,6 +67,25 @@ public:
     Mode getMode() const noexcept { return mode; }
 
     //==========================================================================
+    // practice-tools 11.2 "Trainers: range, question count", set from the
+    // PRACTICE tab's defaults. Both are off (whole keyboard, no limit) until
+    // they are set, so the trainer on its own is the quiz the spec describes.
+
+    /** The MIDI notes the quiz asks for and accepts: the note the question
+        wants is placed inside it, and an answer outside it is wrong even in
+        the right pitch class. Clamped to 0-127; a reversed range is swapped. */
+    void setNoteRange (int lowestNote, int highestNote) noexcept;
+    int getLowestNote() const noexcept  { return lowestNote; }
+    int getHighestNote() const noexcept { return highestNote; }
+
+    /** Questions in a session; zero means no limit. Once that many have been
+        asked the session is complete, nextQuestion() reports the score instead
+        of asking, and resetScore() starts the next session. */
+    void setQuestionCount (int count) noexcept { questionCount = juce::jmax (0, count); }
+    int getQuestionCount() const noexcept      { return questionCount; }
+    bool isSessionComplete() const noexcept    { return questionCount > 0 && asked >= questionCount; }
+
+    //==========================================================================
     /** True when this pitch class is in the current scale. */
     bool containsPitchClass (int pitchClass) const noexcept;
 
@@ -84,6 +103,10 @@ public:
 
     /** The pitch class the current question wants, or -1 if there is none. */
     int getExpectedPitchClass() const noexcept { return expectedPitchClass; }
+
+    /** One MIDI note that answers the current question, inside the note range
+        (the lowest one of that pitch class there), or -1 if there is none. */
+    int getExpectedNote() const noexcept;
 
     /** Scores a played note. Returns true if it was right. */
     bool answer (int midiNote);
@@ -117,6 +140,9 @@ private:
     juce::String question;
     int expectedPitchClass = -1;
 
+    int lowestNote = 0, highestNote = 127;
+    int questionCount = 0;
+
     int correct = 0, asked = 0;
 };
 
@@ -149,6 +175,24 @@ public:
 
     void setAdaptive (bool shouldAdapt) noexcept { adaptive = shouldAdapt; }
     bool isAdaptive() const noexcept { return adaptive; }
+
+    //==========================================================================
+    // practice-tools 11.2 "Trainers: range, question count", as ScaleTrainer.
+
+    /** The MIDI notes the exercises are played in: every note of a question
+        lies inside it when it is wide enough for the question (an octave for
+        the intervals, a fourteenth for the progressions), and the question is
+        pushed down to fit when it is not. Clamped to 0-127; reversed is swapped. */
+    void setNoteRange (int lowestNote, int highestNote) noexcept;
+    int getLowestNote() const noexcept  { return lowestNote; }
+    int getHighestNote() const noexcept { return highestNote; }
+
+    /** Questions in a session; zero means no limit. When the session is
+        complete nextQuestion() writes the score into the question text, offers
+        no choices and returns 0; resetScore() starts the next session. */
+    void setQuestionCount (int count) noexcept { questionCount = juce::jmax (0, count); }
+    int getQuestionCount() const noexcept      { return questionCount; }
+    bool isSessionComplete() const noexcept    { return questionCount > 0 && asked >= questionCount; }
 
     //==========================================================================
     /** Chooses the next question. Returns the number of notes to play, written
@@ -192,11 +236,18 @@ private:
 
     void adapt (bool wasCorrect) noexcept;
 
+    /** A root for a question spanning `span` semitones, inside the note range
+        when it fits and as low as the range allows when it does not. */
+    int pickRoot (juce::Random& random, int span) const noexcept;
+
     Exercise exercise = Exercise::interval;
     Presentation presentation = Presentation::ascending;
 
     int difficulty = 0;
     bool adaptive = true;
+
+    int lowestNote = 0, highestNote = 127;
+    int questionCount = 0;
 
     juce::StringArray choices;
     int correctChoice = 0;
