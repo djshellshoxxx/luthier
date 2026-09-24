@@ -49,7 +49,12 @@ void MidiLearnManager::servicePendingLearn()
     const auto target = getLearningParameterId();
 
     if (target.isNotEmpty())
+    {
+        if (onBeforeLearn != nullptr)   // action-and-undo: the learn is one undo entry
+            onBeforeLearn (target, cc);
+
         addMapping (target, cc);
+    }
 
     cancelLearning();
 }

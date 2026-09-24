@@ -55,6 +55,26 @@ void LoopLayer::reset() noexcept
     highCutL.reset(); highCutR.reset();
 }
 
+void LoopLayer::clearKeepingUndo()
+{
+    const bool had = recordedSamples > 0;
+
+    if (had)
+        pushUndo();
+
+    audio.clear();
+    midi.clear();
+    recordedSamples = 0;
+    readPosition = 0.0;
+    playedOnce = false;
+
+    if (! had)
+    {
+        undoFilled = false;
+        redoFilled = false;
+    }
+}
+
 void LoopLayer::setRecordedSamples (int samples) noexcept
 {
     recordedSamples = juce::jlimit (0, capacity, samples);
@@ -372,12 +392,36 @@ void Looper::reset() noexcept
 
 void Looper::clear()
 {
-    drainPendingMidi();   // then wiped with the layers
+    drainPendingMidi();   // then emptied with the layers, which keep their audio for undo
+
+    const int length = loopLength.load (std::memory_order_relaxed);
+
+    // Stopped first, so the audio thread is not writing while the layers are copied.
+    reset();
 
     for (auto& layer : layers)
-        layer.reset();
+        layer.clearKeepingUndo();
 
-    reset();
+    if (length > 0)
+        clearedLoopLength = length;
+}
+
+bool Looper::restoreCleared()
+{
+    stop();
+
+    // Only the layers the clear emptied hold an undo buffer (clearKeepingUndo).
+    bool restored = false;
+
+    for (auto& layer : layers)
+        if (layer.canUndo())
+            restored = layer.undo() || restored;
+
+    if (clearedLoopLength > 0)
+        loopLength.store (clearedLoopLength, std::memory_order_relaxed);
+
+    clearedLoopLength = 0;
+    return restored;
 }
 
 LoopLayer& Looper::getLayer (int index) noexcept

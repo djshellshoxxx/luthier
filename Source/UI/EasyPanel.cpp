@@ -495,9 +495,7 @@ void EasyPanel::applyStylePreset (int listIndex)
     if (! juce::isPositiveAndBelow (listIndex, stylePresetIndices.size()))
         return;
 
-    processor.pushUndoState ("Load style");
-    processor.getPresetManager().loadPreset (stylePresetIndices[listIndex]);
-    processor.getParameterBridge().applyAllNow();
+    processor.loadPresetAsUserAction (stylePresetIndices[listIndex]);   // action-and-undo.md 3.8
 }
 
 //==============================================================================

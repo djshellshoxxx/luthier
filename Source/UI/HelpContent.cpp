@@ -482,7 +482,7 @@ namespace
                                  "togglePractice|midiLearnArm" },
         { "Presets, snapshots and setlists", "previousItem|nextItem|setlistPrevious|setlistNext|abCompare|"
                                  "randomise|resetAll|newPreset|presetBrowser" },
-        { "Files and editing",   "undo|redo|save|saveAs|revealPreset|saveGuitarAs|revealGuitar|export" }
+        { "Files and editing",   "undo|redo|redoAlt|undoAcrossBoundary|save|saveAs|revealPreset|saveGuitarAs|revealGuitar|export" }
     };
 
     constexpr const char* kOtherGroup = "Other";

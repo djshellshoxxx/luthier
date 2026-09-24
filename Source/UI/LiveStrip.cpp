@@ -166,10 +166,11 @@ void SnapshotStrip::mouseDown (const juce::MouseEvent& event)
         return;
     }
 
+    // action-and-undo.md 3.7
     if (! processor.getSnapshots().getSnapshot (index).isEmpty())
-        processor.recallSnapshot (index);
+        processor.recallSnapshotAsUserAction (index);
     else
-        processor.captureSnapshot (index);
+        processor.captureSnapshotAsUserAction (index);
 
     refresh();
 }
@@ -203,7 +204,7 @@ void SnapshotStrip::showSlotMenu (int index)
 
         if (result == 1)
         {
-            processor.captureSnapshot (index);
+            processor.captureSnapshotAsUserAction (index, processor.getSnapshots().getSnapshot (index).label);
         }
         else if (result == 2)
         {
@@ -222,6 +223,8 @@ void SnapshotStrip::showSlotMenu (int index)
 
             editor->onReturnKey = [this, editor, index, &box]
             {
+                processor.pushUndoAction ("Rename snapshot " + juce::String (index + 1), "snapshot-rename",
+                                          juce::String (index));   // action-and-undo.md 3.7
                 processor.getSnapshots().setLabel (index, editor->getText());
                 refresh();
                 repaint();
@@ -233,10 +236,12 @@ void SnapshotStrip::showSlotMenu (int index)
         }
         else if (result == 3)
         {
+            processor.pushUndoAction ("Delete snapshot " + juce::String (index + 1), "snapshot-delete", {});
             processor.getSnapshots().setSnapshot (index, Snapshot {});
         }
         else if (result >= 100 && result < 100 + Snapshot::kNumColourTags)
         {
+            processor.pushUndoAction ("Change snapshot " + juce::String (index + 1) + " colour", "snapshot-color", {});
             processor.getSnapshots().setColourTag (index, result - 100);
         }
 

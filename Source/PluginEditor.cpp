@@ -633,7 +633,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         thing a shortcut in this window can do. */
     if (is ("newPreset"))
     {
-        processor.pushUndoState ("New preset");
+        processor.pushUndoBoundary ("New preset");   // action-and-undo.md 5
 
         auto& presets = processor.getPresetManager();
         const int init = presets.indexOfPreset ("Init");
@@ -786,12 +786,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
             return true;
         }
 
-        processor.pushUndoState ("Load preset");
-
-        if (forward) processor.getPresetManager().loadNext();
-        else         processor.getPresetManager().loadPrevious();
-
-        processor.getParameterBridge().applyAllNow();
+        processor.stepPresetAsUserAction (forward);   // action-and-undo.md 3.8
         return true;
     }
 
@@ -808,8 +803,43 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return false;
     }
 
-    if (is ("undo")) { processor.undo(); return true; }
-    if (is ("redo")) { processor.redo(); return true; }
+    if (is ("undo"))
+    {
+        // action-and-undo.md 5: plain undo stops at a boundary and says how to cross it.
+        if (processor.isUndoStoppedAtBoundary())
+            notifications.post ({ "undo-boundary",
+                                  "Undo stopped at a preset or guitar load. Ctrl+Alt+Z goes further back.",
+                                  Notification::Level::info });
+        else
+            processor.undo();
+
+        return true;
+    }
+
+    if (is ("undoAcrossBoundary"))
+    {
+        // action-and-undo.md 9: crossing a boundary asks first, in a banner.
+        if (! processor.isUndoStoppedAtBoundary())
+        {
+            processor.undo();
+            return true;
+        }
+
+        Notification n;
+        n.id = "undo-boundary";
+        n.message = "Undo past the load, back to \"" + processor.getUndoHistory (1)[0].description + "\"?";
+        n.level = Notification::Level::warning;
+        n.actionText = "Undo";
+        n.action = [safeThis = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)]
+        {
+            if (safeThis != nullptr)
+                safeThis->processor.undoAcrossBoundary();
+        };
+        notifications.post (n);
+        return true;
+    }
+
+    if (is ("redo") || is ("redoAlt")) { processor.redo(); return true; }   // action-and-undo.md 9
 
     if (is ("save"))
     {
@@ -825,7 +855,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
     if (is ("resetAll"))
     {
-        processor.pushUndoState ("Reset everything");
+        // action-and-undo.md 0.1: resetEverything pushes its own entry.
         processor.resetEverything();
         return true;
     }

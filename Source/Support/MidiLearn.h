@@ -60,6 +60,10 @@ public:
         parameter, disarms, and returns true so the control swallows the click. */
     bool claimArmedLearn (const juce::String& parameterId);
 
+    /*  action-and-undo.md 3.12: called on the message thread just before a
+        learn completes (parameter, CC), so the owner can push an undo entry. */
+    std::function<void (const juce::String&, int)> onBeforeLearn;
+
     //==========================================================================
     void addMapping (const juce::String& parameterId, int ccNumber, int channel = 0);
     void removeMappingForParameter (const juce::String& parameterId);

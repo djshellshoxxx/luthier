@@ -74,6 +74,14 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     presets.captureGuitarBlock = [this] { return getGuitarBlock(); };
     presets.onGuitarBlockLoaded = [this] (const juce::var& block) { takeGuitarBlock (block); };
 
+    // action-and-undo.md 3.12: a completed learn is one entry.
+    midiLearn.onBeforeLearn = [this] (const juce::String& id, int cc)
+    {
+        auto* parameter = apvts.getParameter (id);
+        pushUndoAction ("Learn CC " + juce::String (cc) + " -> " + (parameter != nullptr ? parameter->getName (64) : id),
+                        "midi-learn", {});
+    };
+
     // A preset's pedals come with their settings; build them keeping those.
     presets.onPedalTypesLoaded = [this] { bridge.adoptPedalTypesFromParameters(); };
     presets.ensureFactoryPresetsInstalled();
@@ -665,7 +673,7 @@ bool LuthierAudioProcessor::switchGuitarFamily (const juce::String& family)
     if (! partLibrary.switchFamily (currentGuitar, family, switched, banner))
         return false;
 
-    pushUndoState ("Change guitar family");
+    pushUndoBoundary ("Change guitar family to " + family);   // action-and-undo.md 3.4 / 5
 
     // The guitar now stands for its template's type.
     const auto path = PartLibrary::getFamilyTemplate (family);
@@ -1685,6 +1693,24 @@ bool LuthierAudioProcessor::recallSnapshot (int index)
     return snapshots.recall (index);
 }
 
+// action-and-undo.md 3.7
+bool LuthierAudioProcessor::captureSnapshotAsUserAction (int index, const juce::String& label)
+{
+    pushUndoAction ("Save snapshot " + juce::String (index + 1) + (label.isNotEmpty() ? " " + label : juce::String()),
+                    "snapshot-save", {});
+    return captureSnapshot (index, label);
+}
+
+bool LuthierAudioProcessor::recallSnapshotAsUserAction (int index)
+{
+    if (! juce::isPositiveAndBelow (index, snapshots.getNumSnapshots()) || snapshots.getSnapshot (index).isEmpty())
+        return false;
+
+    pushUndoAction ("Recall snapshot " + juce::String (index + 1) + " " + snapshots.getSnapshot (index).label,
+                    "snapshot-recall", {});
+    return recallSnapshot (index);
+}
+
 void LuthierAudioProcessor::nextSnapshot()
 {
     const int count = snapshots.getNumSnapshots();
@@ -1735,12 +1761,17 @@ bool LuthierAudioProcessor::loadSetlist (const juce::File& file)
     if (! loaded.loadFrom (file))
         return false;
 
-    setlist.setSetlist (loaded);
+    // action-and-undo.md 3.10 / 5: one boundary entry for the load and the
+    // preset load it implies.
+    pushUndoBoundary ("Load setlist " + file.getFileNameWithoutExtension());
 
-    return applyCurrentSetlistEntry();
+    setlist.setSetlist (loaded);
+    setlistFile = file;
+
+    return applyCurrentSetlistEntry (false);
 }
 
-bool LuthierAudioProcessor::applyCurrentSetlistEntry()
+bool LuthierAudioProcessor::applyCurrentSetlistEntry (bool asUndoStep)
 {
     const auto* entry = setlist.getCurrentEntry();
 
@@ -1751,6 +1782,10 @@ bool LuthierAudioProcessor::applyCurrentSetlistEntry()
 
     if (data.getDynamicObject() == nullptr)
         return false;
+
+    // action-and-undo.md 3.10: a setlist step drives a preset-load boundary.
+    if (asUndoStep)
+        pushUndoBoundary ("Setlist step " + juce::String (setlist.getPosition() + 1) + ": " + entry->getDisplayName());
 
     if (! presets.fromVar (data))
         return false;
@@ -1783,7 +1818,7 @@ void LuthierAudioProcessor::panic()
 
 void LuthierAudioProcessor::resetEverything()
 {
-    pushUndoState ("Reset");
+    pushUndoState ("Reset everything");
 
     panic();
     presets.resetToDefaults();
@@ -1821,8 +1856,7 @@ void LuthierAudioProcessor::hardResetAndClearCaches()
     diagnostics.setEnabled (false);
     diagnostics.reset();
 
-    undoStack.clear();
-    undoPosition = -1;
+    undoHistory.clear();
     slotA.reset();
     slotB.reset();
     slotBActive = false;
@@ -1945,6 +1979,7 @@ void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool ge
         gestureStartValue = parameter->getValue();
         gestureParameterIndex = parameterIndex;
         gestureParameterName = parameter->getName (64);
+        gestureStartMs = undoHistory.now();
         return;
     }
 
@@ -1967,71 +2002,189 @@ void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool ge
         return;
     }
 
-    UndoEntry entry;
-    entry.state = std::move (gestureStartState);
-    entry.description = "Change " + gestureParameterName;
+    // action-and-undo.md 3.1 / 3.3: "Change X from A to B", "Turn on/off X".
+    auto textOf = [parameter] (float v)
+    {
+        const auto label = parameter->getLabel();
+        return parameter->getText (v, 32) + (label.isNotEmpty() ? " " + label : juce::String());
+    };
+
+    /*  3.1 / 3.2 / 4: gestures on the same parameter within 200 ms (wheel
+        ticks, a scroll through a choice) merge. A toggle never groups (3.3).
+        One gesture stays one entry however long it pauses: workshop-ui.md 8's
+        "gesture = one entry" rule, applied to every control alike. */
+    UndoHistory::Entry entry;
+    entry.before = std::move (gestureStartState);
+    entry.startMs = gestureStartMs;
+    entry.timeMs = undoHistory.now();
+
+    if (parameter->isBoolean())
+    {
+        entry.description = (endValue >= 0.5f ? "Turn on " : "Turn off ") + gestureParameterName;
+    }
+    else
+    {
+        entry.actionClass = "param";
+        entry.target = parameter->getName (64);
+
+        if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameter))
+            entry.target = withId->paramID;
+
+        entry.subject = "Change " + gestureParameterName;
+        entry.fromText = textOf (gestureStartValue);
+        entry.toText = textOf (endValue);
+        entry.description = entry.subject + " from " + entry.fromText + " to " + entry.toText;
+
+        // action-and-undo.md 5: choosing a guitar is a guitar load, a boundary.
+        if (entry.target == ParamIDs::guitarType)
+        {
+            entry.boundary = true;
+            entry.description = "Load guitar " + entry.toText;
+        }
+    }
 
     gestureStartState.reset();
 
-    addUndoEntry (std::move (entry));
+    undoHistory.push (std::move (entry));
 }
 
+/*  The stack (Support/UndoHistory) holds one entry per action, each carrying
+    the state from before that action. An earlier version kept "the current
+    state" as an extra entry and was off by one both ways; Undo.
+    stepsOneActionAtATimeBothWays pins the fix. */
 void LuthierAudioProcessor::pushUndoState (const juce::String& description)
 {
-    UndoEntry entry;
-    entry.state = captureStateBlock();
+    pushUndoAction (description, {}, {});
+}
+
+void LuthierAudioProcessor::pushUndoAction (const juce::String& description,
+                                            const juce::String& actionClass, const juce::String& target)
+{
+    UndoHistory::Entry entry;
     entry.description = description;
+    entry.actionClass = actionClass;
+    entry.target = target;
+    entry.startMs = entry.timeMs = undoHistory.now();
 
-    addUndoEntry (std::move (entry));
+    // A repeat within 200 ms merges and keeps the first before-state, so
+    // capturing another would be wasted work on every slider tick.
+    if (! undoHistory.wouldMerge (actionClass, target, entry.startMs))
+        entry.before = captureStateBlock();
+
+    undoHistory.push (std::move (entry));
 }
 
-/*  The stack holds one entry per action, each carrying the state from before
-    that action. undoPosition is the index of the entry the next undo reverses,
-    or -1 when there is nothing to undo.
-
-    This replaced a version that kept "the current state" as an extra entry
-    appended on the first undo and indexed around it, which was off by one both
-    ways: a single action could not be undone at all (canUndo wanted a position
-    above zero) and the first undo after two actions reverted both. Nothing
-    tested it until advanced-ranges.md 7 needed a lock to be undoable. */
-void LuthierAudioProcessor::addUndoEntry (UndoEntry&& entry)
+void LuthierAudioProcessor::pushUndoBoundary (const juce::String& description)
 {
-    // A new edit after an undo starts a new branch: the redo tail goes.
-    while (undoStack.size() > undoPosition + 1)
-        undoStack.removeLast();
+    UndoHistory::Entry entry;
+    entry.before = captureStateBlock();
+    entry.description = description;
+    entry.boundary = true;
+    entry.startMs = entry.timeMs = undoHistory.now();
 
-    undoStack.add (std::move (entry));
-
-    while (undoStack.size() > kMaxUndoSteps)
-        undoStack.remove (0);
-
-    undoPosition = undoStack.size() - 1;
+    undoHistory.push (std::move (entry));
 }
 
-void LuthierAudioProcessor::undo()
+void LuthierAudioProcessor::pushUndoCallback (const juce::String& description, const juce::String& actionClass,
+                                              const juce::String& target, std::function<void()> undoFn,
+                                              std::function<void()> redoFn)
 {
-    if (! canUndo())
+    UndoHistory::Entry entry;
+    entry.description = description;
+    entry.actionClass = actionClass;
+    entry.target = target;
+    entry.undoAction = std::move (undoFn);
+    entry.redoAction = std::move (redoFn);
+    entry.startMs = entry.timeMs = undoHistory.now();
+
+    undoHistory.push (std::move (entry));
+}
+
+void LuthierAudioProcessor::undoOnce (bool crossBoundary)
+{
+    auto* entry = undoHistory.stepBack (crossBoundary);
+
+    if (entry == nullptr)
         return;
 
-    auto& entry = undoStack.getReference (undoPosition);
+    if (entry->undoAction != nullptr)
+    {
+        entry->undoAction();
+        return;
+    }
 
     // Where we are now is what redo comes back to.
-    entry.redoState = captureStateBlock();
+    entry->after = captureStateBlock();
+    applyUndoState (entry->before);
+}
 
-    --undoPosition;
+void LuthierAudioProcessor::undo()               { undoOnce (false); }
+void LuthierAudioProcessor::undoAcrossBoundary() { undoOnce (true); }
 
-    setStateInformation (entry.state.getData(), (int) entry.state.getSize());
+void LuthierAudioProcessor::undoSteps (int steps)
+{
+    // Step by step, so every entry gets its redo state and callback entries
+    // (outside the blob) run their own undo.
+    for (int i = 0; i < steps && undoHistory.canUndoAcrossBoundary(); ++i)
+        undoOnce (true);
 }
 
 void LuthierAudioProcessor::redo()
 {
-    if (! canRedo())
-        return;
+    if (const auto* entry = undoHistory.stepForward())
+    {
+        if (entry->redoAction != nullptr)
+            entry->redoAction();
+        else
+            applyUndoState (entry->after);
+    }
+}
 
-    ++undoPosition;
+// action-and-undo.md 3.17 / 7: see UndoState::withSessionLayers.
+void LuthierAudioProcessor::applyUndoState (const juce::MemoryBlock& state)
+{
+    juce::Array<juce::var> locks;
 
-    const auto& entry = undoStack.getReference (undoPosition);
-    setStateInformation (entry.redoState.getData(), (int) entry.redoState.getSize());
+    for (const auto& id : lockedParameters)
+        locks.add (id);
+
+    juce::NamedValueSet keep;
+    keep.set ("liveMode", uiState.liveMode);
+    keep.set ("slotBActive", slotBActive);
+    keep.set ("lockedParameters", locks);
+    keep.set ("clickToMain", isClickToMain());
+
+    const auto restored = UndoState::withSessionLayers (state, keep, { "ui", "tune", "metronome" });
+
+    const juce::ScopedValueSetter<bool> guard (restoringForUndo, true);
+    setStateInformation (restored.getData(), (int) restored.getSize());
+}
+
+// action-and-undo.md 3.8
+bool LuthierAudioProcessor::loadPresetAsUserAction (int index)
+{
+    if (presets.getPreset (index) == nullptr)
+        return false;
+
+    pushUndoBoundary ("Load preset " + presets.getPreset (index)->name);   // action-and-undo.md 5
+
+    if (! presets.loadPreset (index))
+        return false;
+
+    bridge.applyAllNow();
+    return true;
+}
+
+bool LuthierAudioProcessor::stepPresetAsUserAction (bool forward)
+{
+    const int count = presets.getNumPresets();
+    const int current = presets.getCurrentPresetIndex();
+
+    if (count <= 0)
+        return false;
+
+    return loadPresetAsUserAction (forward ? (current + 1) % count
+                                           : (current <= 0 ? count - 1 : current - 1));
 }
 
 juce::String LuthierAudioProcessor::getUndoDescription() const
@@ -2039,15 +2192,13 @@ juce::String LuthierAudioProcessor::getUndoDescription() const
     if (! canUndo())
         return {};
 
-    return undoStack.getReference (undoPosition).description;
+    return undoHistory.peekUndo()->description;
 }
 
 juce::String LuthierAudioProcessor::getRedoDescription() const
 {
-    if (! canRedo())
-        return {};
-
-    return undoStack.getReference (undoPosition + 1).description;
+    const auto* entry = undoHistory.peekRedo();
+    return entry != nullptr ? entry->description : juce::String();
 }
 
 //==============================================================================
@@ -2105,7 +2256,31 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     ui->setProperty ("editorWidth", uiState.editorWidth);
     ui->setProperty ("editorHeight", uiState.editorHeight);
     ui->setProperty ("auditionType", (int) uiState.auditionType);
+
+    // ui-wiring 17 / workshop-ui 7: the bench's A/B slots are workspace - in
+    // the plugin state, not in presets, and not restored by undo ("ui" is a
+    // session layer there).
+    {
+        juce::Array<juce::var> bench;
+
+        for (const auto& slot : uiState.benchSlots)
+            bench.add (slot);
+
+        ui->setProperty ("benchSlots", bench);
+    }
+
     root->setProperty ("ui", juce::var (ui));
+
+    // ui-wiring 17: the setlist reference, with its entries inline so a missing
+    // file or an unsaved edit still restores (and setlist edits can be undone,
+    // action-and-undo.md 3.10).
+    {
+        auto* set = new juce::DynamicObject();
+        set->setProperty ("file", setlistFile.getFullPathName());
+        set->setProperty ("data", setlist.getSetlist().toVar());
+        set->setProperty ("position", setlist.getPosition());
+        root->setProperty ("setlist", juce::var (set));
+    }
 
     juce::Array<juce::var> locks;
 
@@ -2182,6 +2357,32 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
         uiState.auditionType = (AuditionPhrase::Type) juce::jlimit (
             0, (int) AuditionPhrase::Type::NumTypes - 1, (int) ui->getProperty ("auditionType"));
         auditionType = uiState.auditionType;
+
+        if (auto* bench = ui->getProperty ("benchSlots").getArray())   // ui-wiring 17
+            for (int i = 0; i < juce::jmin (bench->size(), (int) uiState.benchSlots.size()); ++i)
+                uiState.benchSlots[(size_t) i] = bench->getReference (i);
+    }
+
+    // ui-wiring 17: the setlist. Re-applied only when it differs, because
+    // setSetlist reads the entries' preset files.
+    if (auto* set = root->getProperty ("setlist").getDynamicObject())
+    {
+        const auto data = set->getProperty ("data");
+        const int position = (int) set->getProperty ("position");
+
+        if (juce::JSON::toString (data, true) != juce::JSON::toString (setlist.getSetlist().toVar(), true)
+              || position != setlist.getPosition())
+        {
+            Setlist restored;
+            restored.fromVar (data);
+            setlist.setSetlist (restored);
+
+            if (position > 0)
+                setlist.goTo (position);
+        }
+
+        const auto path = set->getProperty ("file").toString();
+        setlistFile = juce::File::isAbsolutePath (path) ? juce::File (path) : juce::File();
     }
 
     lockedParameters.clear();
@@ -2239,7 +2440,9 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
     bridge.applyAllNow();
 
     // Whatever the host sends next, this state is the one the user saved.
-    ignoreNextProgramChange.store (true);
+    // (An undo is not a host restore: action-and-undo.md.)
+    if (! restoringForUndo)
+        ignoreNextProgramChange.store (true);
 }
 
 //==============================================================================

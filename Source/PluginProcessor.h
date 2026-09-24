@@ -6,6 +6,7 @@
 #include "Parameters.h"
 #include "Presets/PresetManager.h"
 #include "Support/MidiLearn.h"
+#include "Support/UndoHistory.h"
 #include "Support/MidiCapture.h"
 #include "Capture/PerformanceCapture.h"
 #include "Presets/PresetMorph.h"
@@ -164,6 +165,12 @@ public:
         clock, so this returns before the fade has finished. */
     bool recallSnapshot (int index);
 
+    /*  action-and-undo.md 3.7: the UI's save and recall, each one entry
+        ("Save snapshot [i] [name]", "Recall snapshot [i] [name]"). MIDI and
+        setlist recalls use recallSnapshot and push nothing. */
+    bool captureSnapshotAsUserAction (int index, const juce::String& label = {});
+    bool recallSnapshotAsUserAction (int index);
+
     void nextSnapshot();
     void previousSnapshot();
 
@@ -179,10 +186,11 @@ public:
 
     /** Loads a setlist file and moves to its first entry. */
     bool loadSetlist (const juce::File& file);
+    const juce::File& getSetlistFile() const noexcept { return setlistFile; }
 
     /** Applies the setlist's current entry - its preset and its snapshot - and
         pre-loads the one after it. */
-    bool applyCurrentSetlistEntry();
+    bool applyCurrentSetlistEntry (bool asUndoStep = true);   // action-and-undo.md 3.10
 
     //==========================================================================
     // The practice tools (practice-tools.md).
@@ -420,15 +428,40 @@ public:
 
         JUCE_DECLARE_NON_COPYABLE (ScopedUndoAction)
     };
-    bool canUndo() const noexcept { return undoPosition >= 0; }
+    bool canUndo() const noexcept { return undoHistory.canUndo(); }
 
     /** How many actions can be undone (tests, and the Edit menu's count). */
-    int getNumUndoSteps() const noexcept { return undoPosition + 1; }
-    bool canRedo() const noexcept { return undoPosition + 1 < undoStack.size(); }
+    int getNumUndoSteps() const noexcept { return undoHistory.getNumUndoSteps(); }
+    bool canRedo() const noexcept { return undoHistory.canRedo(); }
     void undo();
     void redo();
+
+    // ---- action-and-undo.md 1, 4, 5, 9, 12 (the stack lives in Support/UndoHistory) ----
+    /** An entry with a class and target, so repeats within 200 ms group (4). */
+    void pushUndoAction (const juce::String& description, const juce::String& actionClass,
+                         const juce::String& target);
+    /** A state boundary (5): preset / guitar load, family switch, setlist step. */
+    void pushUndoBoundary (const juce::String& description);
+    /** An entry for state outside the blob: undo/redo call the functions. */
+    void pushUndoCallback (const juce::String& description, const juce::String& actionClass,
+                           const juce::String& target, std::function<void()> undoFn,
+                           std::function<void()> redoFn);
+    bool isUndoStoppedAtBoundary() const noexcept { return undoHistory.isStoppedAtBoundary(); }
+    /** Ctrl-Alt-Z: one undo that may cross a boundary. */
+    void undoAcrossBoundary();
+    int getNumRedoSteps() const noexcept { return undoHistory.getNumRedoSteps(); }
+    /** Newest first; stepsBack undos reach the state before each entry. */
+    juce::Array<UndoHistory::Item> getUndoHistory (int maxItems = UndoHistory::kMaxEntries) const { return undoHistory.getHistory (maxItems); }
+    /** Undoes `steps` entries, crossing boundaries (the history list's click). */
+    void undoSteps (int steps);
+    void setUndoClock (std::function<double()> clock) { undoHistory.setClock (std::move (clock)); }
     juce::String getUndoDescription() const;
     juce::String getRedoDescription() const;
+
+    /*  action-and-undo.md 3.8: a preset load from the UI - one entry named
+        "Load preset [name]", the load, then the engine update. */
+    bool loadPresetAsUserAction (int index);
+    bool stepPresetAsUserAction (bool forward);
 
     //==========================================================================
     // UI state that belongs with the plugin rather than with the editor.
@@ -719,26 +752,18 @@ private:
     void parameterValueChanged (int parameterIndex, float newValue) override;
     void parameterGestureChanged (int parameterIndex, bool gestureIsStarting) override;
 
-    struct UndoEntry
-    {
-        /** The state before the action. */
-        juce::MemoryBlock state;
+    void undoOnce (bool crossBoundary);
 
-        /** The state after it, filled in when the action is undone. */
-        juce::MemoryBlock redoState;
-
-        juce::String description;
-    };
-
-    void addUndoEntry (UndoEntry&& entry);
+    /*  action-and-undo.md 3.17 / 7: restores an entry's state but leaves the
+        session layers (view, Live Mode, A/B, locks, tune, metronome) alone. */
+    void applyUndoState (const juce::MemoryBlock& state);
+    bool restoringForUndo = false;
 
     bool gestureUndoSuppressed = false;
 
-    juce::Array<UndoEntry> undoStack;
-    int undoPosition = -1;
-
-    /** action-and-undo.md 2. */
-    static constexpr int kMaxUndoSteps = 200;
+    UndoHistory undoHistory;   // action-and-undo.md
+    juce::File setlistFile;    // ui-wiring 17: the loaded setlist's reference
+    double gestureStartMs = 0.0;
 
     /*  The state as it was when the current gesture started, held until the
         gesture ends and we know whether anything actually changed. */

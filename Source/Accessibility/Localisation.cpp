@@ -434,6 +434,8 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "accessibility.shortcut.setlistNext",     "Next setlist entry" },
         { "accessibility.shortcut.undo",            "Undo" },
         { "accessibility.shortcut.redo",            "Redo" },
+        { "accessibility.shortcut.redoAlt",         "Redo (Ctrl+Y)" },
+        { "accessibility.shortcut.undoAcrossBoundary", "Undo past a preset or guitar load" },
         { "accessibility.shortcut.save",            "Save preset" },
         { "accessibility.shortcut.saveAs",          "Save preset as..." },
         { "accessibility.shortcut.newPreset",       "New preset (loads Init)" },

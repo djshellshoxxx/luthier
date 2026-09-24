@@ -594,6 +594,10 @@ void AccessibilitySettings::buildDefaultShortcuts()
 
     add ("undo",             "accessibility.shortcut.undo",             KP ('z', cmd, 0));
     add ("redo",             "accessibility.shortcut.redo",             KP ('z', cmd | shift, 0));
+    add ("undoAcrossBoundary", "accessibility.shortcut.undoAcrossBoundary", KP ('z', cmd | alt, 0));   // action-and-undo.md 9
+   #if ! JUCE_MAC
+    add ("redoAlt",          "accessibility.shortcut.redoAlt",          KP ('y', cmd, 0));   // action-and-undo.md 9: Ctrl-Y
+   #endif
 
     add ("save",             "accessibility.shortcut.save",             KP ('s', cmd, 0));
     add ("saveAs",           "accessibility.shortcut.saveAs",           KP ('s', cmd | shift, 0));

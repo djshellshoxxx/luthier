@@ -7,6 +7,15 @@ namespace luthier
 
 namespace
 {
+    /*  action-and-undo.md 3.9: "same note within 200 ms" groups, so a drawn or
+        deleted note's grouping target is the note itself - its section, grid
+        start and pitch - kept clear of the small indices the lock edit uses. */
+    int melodyNoteTarget (int sectionIndex, double startBeat, int pitch)
+    {
+        const int ticks = (int) std::lround (juce::jmax (0.0, startBeat) * 48.0);
+        return 0x10000000 + ((sectionIndex & 0x3f) << 21) + ((ticks & 0x3fff) << 7) + (pitch & 0x7f);
+    }
+
     constexpr int kHeader = 26;
     constexpr int kRowGap = 6;
     constexpr int kStripHeight = 34;
@@ -635,7 +644,8 @@ bool TunePianoRoll::addNote (double beat, int pitch, double durationBeats)
     const auto note = MelodyNote::make (start, juce::jmin (length, sectionBeats() - start), snapped, 100);
 
     return session.edit (TuneEditClass::melodyEdit, "Draw note",
-                         [sectionIndex, note] (Tune& t) { return t.addMelodyNote (sectionIndex, note) >= 0; });
+                         [sectionIndex, note] (Tune& t) { return t.addMelodyNote (sectionIndex, note) >= 0; },
+                         melodyNoteTarget (sectionIndex, start, snapped));   // action-and-undo.md 3.9
 }
 
 bool TunePianoRoll::deleteNoteAt (double beat, int pitch)
@@ -646,8 +656,11 @@ bool TunePianoRoll::deleteNoteAt (double beat, int pitch)
     if (index < 0)
         return false;
 
+    const auto& deleted = session.getTune().getSection (sectionIndex)->melody->notes[(size_t) index];
+
     return session.edit (TuneEditClass::melodyEdit, "Delete note",
-                         [sectionIndex, index] (Tune& t) { return t.removeMelodyNotes (sectionIndex, { index }); });
+                         [sectionIndex, index] (Tune& t) { return t.removeMelodyNotes (sectionIndex, { index }); },
+                         melodyNoteTarget (sectionIndex, deleted.startBeat, deleted.pitch.value));   // action-and-undo.md 3.9
 }
 
 bool TunePianoRoll::toggleLockAt (double beat, int pitch)

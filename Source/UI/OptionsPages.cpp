@@ -1507,7 +1507,8 @@ void RangesPage::clampOne (const juce::String& parameterId)
     if (physical == nullptr || parameter == nullptr)
         return;
 
-    processor.pushUndoState ("Clamp " + parameter->getName (40) + " to stock");
+    // action-and-undo.md 0.1: one entry - the gesture below must not push a second.
+    const LuthierAudioProcessor::ScopedUndoAction undo (processor, "Clamp " + parameter->getName (40) + " to stock");
 
     const float clamped = juce::jlimit (physical->stockMin, physical->stockMax, parameter->get());
 
