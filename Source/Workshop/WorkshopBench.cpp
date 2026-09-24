@@ -197,8 +197,10 @@ bool WorkshopBench::fitAccessory (const PartPtr& part)
 
     if (part->type == PartType::slide)
     {
-        processor.pushUndoState ("Fitted " + part->name + (slidePart != nullptr ? " (was " + slidePart->name + ")" : juce::String()));
-        slidePart = part;
+        // The engine plays the bar's material and mass (slide-guitar.md 2.1).
+        const auto old = processor.getSlidePart();
+        processor.pushUndoState ("Fitted " + part->name + (old != nullptr ? " (was " + old->name + ")" : juce::String()));
+        processor.setSlidePart (part);
         return true;
     }
 
@@ -209,7 +211,7 @@ PartPtr WorkshopBench::getAccessory (PartType type) const
 {
     if (type == PartType::capo)   return processor.getCapoPart();
     if (type == PartType::pick)   return pickPart;
-    if (type == PartType::slide)  return slidePart;
+    if (type == PartType::slide)  return processor.getSlidePart();
     return nullptr;
 }
 

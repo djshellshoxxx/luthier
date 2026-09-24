@@ -423,6 +423,10 @@ void LuthierAudioProcessor::takeGuitarBlock (const juce::var& block)
     const auto capoName = block.getProperty ("capo", {}).toString();
     auto capo = capoName.isNotEmpty() ? partLibrary.find (PartType::capo, capoName) : nullptr;
     setCapoPart (capo != nullptr ? capo : partLibrary.getDefault (PartType::capo));
+
+    // The slide travels the same way; a preset without one keeps the default bar.
+    const auto slideName = block.getProperty ("slide", {}).toString();
+    setSlidePart (slideName.isNotEmpty() ? partLibrary.find (PartType::slide, slideName) : nullptr);
 }
 
 juce::var LuthierAudioProcessor::getGuitarBlock() const
@@ -434,7 +438,45 @@ juce::var LuthierAudioProcessor::getGuitarBlock() const
     if (capoPart != nullptr)
         block->setProperty ("capo", capoPart->name);
 
+    if (slidePart != nullptr)
+        block->setProperty ("slide", slidePart->name);
+
     return juce::var (block);
+}
+
+SlideBar LuthierAudioProcessor::slideBarFor (const Part* part)
+{
+    SlideBar bar;
+
+    if (part == nullptr)
+        return bar;
+
+    // slide-guitar.md 2.1's materials, by the part's `material` field.
+    const auto m = part->text ("material", "glass").toLowerCase();
+    bar.material = m == "glass_thick" || m == "thick_glass" ? SlideMaterial::glassThick
+                 : m == "brass"                           ? SlideMaterial::brass
+                 : m == "steel" || m == "chrome"          ? SlideMaterial::steel
+                 : m == "ceramic" || m == "porcelain"     ? SlideMaterial::ceramic
+                 : m == "bone"                            ? SlideMaterial::bone
+                 : m == "dobro_bar" || m == "brass_plated_steel" ? SlideMaterial::dobroBar
+                                                          : SlideMaterial::glass;
+    bar.massGrams = juce::jlimit (5.0, 500.0, part->number ("mass_g", bar.massGrams));
+    bar.lengthMm = juce::jlimit (20.0, 150.0, part->number ("length_mm", bar.lengthMm));
+    bar.diameterMm = juce::jlimit (8.0, 40.0, part->number ("diameter_mm", bar.diameterMm));
+    return bar;
+}
+
+void LuthierAudioProcessor::setSlidePart (const PartPtr& part)
+{
+    slidePart = part;
+
+    // Only a different bar is a structural change: a state load passes here every time.
+    const auto bar = slideBarFor (part.get());
+    const auto& now = engine.getSlideEngine().getBar();
+
+    if (bar.material != now.material || bar.massGrams != now.massGrams
+        || bar.lengthMm != now.lengthMm || bar.diameterMm != now.diameterMm)
+        engine.setSlideBar (bar);
 }
 
 void LuthierAudioProcessor::setCapoPart (const PartPtr& capo)

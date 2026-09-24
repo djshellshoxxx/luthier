@@ -307,6 +307,16 @@ public:
     void setCapoPart (const PartPtr& capo);
     PartPtr getCapoPart() const noexcept { return capoPart; }
 
+    /*  The fitted slide (guitar-workshop.md 2, the drawer's Slide card): the
+        engine plays its material, mass and size (slide-guitar.md 2.1). Travels
+        in the preset's guitar block like the capo; nullptr is the engine's own
+        default bar, which is what a preset without one gets (VISUAL-WORKSHOP-QA). */
+    void setSlidePart (const PartPtr& slidePart);
+    PartPtr getSlidePart() const noexcept { return slidePart; }
+
+    /** A slide part's bar as the engine takes it; the default bar for nullptr. */
+    static SlideBar slideBarFor (const Part* slidePart);
+
     /** "Factory/<Family>/<Name>.luthierguitar" or "User/<Name>.luthierguitar". */
     const juce::String& getGuitarReference() const noexcept { return guitarReference; }
 
@@ -598,6 +608,7 @@ private:
 
     PartLibrary partLibrary;
     PartPtr capoPart;
+    PartPtr slidePart;   // VISUAL-WORKSHOP-QA: the fitted slide
     WorkshopGuitar currentGuitar;
     WorkshopBench bench { *this };
     bool partsGuitarLoaded = false;

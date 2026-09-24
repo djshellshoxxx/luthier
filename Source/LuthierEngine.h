@@ -185,6 +185,15 @@ public:
     /** slide-guitar.md: Slide Mode's settings, from the parameters. */
     void setSlideSettings (const SlideSettings& settings) noexcept { slide.setSettings (settings); }
     SlideEngine& getSlideEngine() noexcept { return slide; }
+
+    /*  guitar-workshop.md 2 / TODO 5b (VISUAL-WORKSHOP-QA): the fitted slide
+        part's bar - material, mass, length, diameter. Message thread; parks the
+        audio thread for the swap like any structural change. */
+    void setSlideBar (const SlideBar& bar)
+    {
+        const ScopedStructuralChange change (*this);
+        slide.setBar (bar);
+    }
     const SlideEngine& getSlideEngine() const noexcept { return slide; }
 
     /** pick-noise.md 5: a deliberate rake along the wound strings. */

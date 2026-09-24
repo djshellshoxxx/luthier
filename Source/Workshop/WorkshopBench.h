@@ -49,7 +49,7 @@ public:
 
     /*  The player's accessories (the drawer's Pick, Slide and Capo cards).
         A pick writes the pick parameters; a capo is the processor's capo part;
-        a slide is remembered (the engine has no slide material yet - TODO 5b).
+        a slide is the processor's slide part, whose bar the engine plays.
         One undo entry each. */
     bool fitAccessory (const PartPtr& part);
     PartPtr getAccessory (PartType type) const;
@@ -150,7 +150,7 @@ private:
     };
 
     std::optional<Gesture> gesture;
-    PartPtr pickPart, slidePart;
+    PartPtr pickPart;
     std::optional<WorkshopGuitar> audition;
 };
 

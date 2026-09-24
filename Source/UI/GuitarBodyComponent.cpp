@@ -148,6 +148,22 @@ void GuitarBodyComponent::timerCallback()
         changed = true;
     }
 
+    // The capo on the neck (TODO G) and the slide's slant and material
+    // (gui-integration.md 21), as the bench draws them.
+    const int capoFret = engine.getTuningEngine().getCapoFret();
+    const auto capoMask = engine.getTuningEngine().getCapoStringMask();
+    const auto slant = (float) engine.getSlideEngine().getSettings().slantDegrees;
+    const auto slideColour = juce::Colour (getSlideMaterial (engine.getSlideEngine().getBar().material).colour);
+
+    if (capoFret != overlay.capoFret || capoMask != overlay.capoMask || slant != overlay.slideSlantDeg || slideColour != overlay.slideColour)
+    {
+        overlay.capoFret = capoFret;
+        overlay.capoMask = capoMask;
+        overlay.slideSlantDeg = slant;
+        overlay.slideColour = slideColour;
+        changed = true;
+    }
+
     const bool reduced = AccessibilitySettings::get().isReducedMotion();
     changed = changed || reduced != overlay.reducedMotion;
     overlay.reducedMotion = reduced;
@@ -236,6 +252,9 @@ juce::String GuitarBodyComponent::describeHoverTarget (juce::Point<float> positi
         case GuitarRegion::neck:
         case GuitarRegion::fretboard:
         case GuitarRegion::jack:
+        case GuitarRegion::pick:
+        case GuitarRegion::slideBar:
+        case GuitarRegion::capo:
         case GuitarRegion::numRegions:
             break;
     }

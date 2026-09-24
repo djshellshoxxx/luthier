@@ -208,3 +208,226 @@ LUTHIER_TEST (WorkshopStrings, aCardOntoAStringOverridesItAndASetClearsOverrides
     CHECK (b.guitar().get (GuitarSlot::strings)->name != setName);
     CHECK (! b.guitar().stringOverrides[5].isSet());
 }
+
+//==============================================================================
+namespace
+{
+    struct BenchPanel : Bench
+    {
+        std::unique_ptr<WorkshopPanel> panel;
+
+        explicit BenchPanel (GuitarType type = GuitarType::LesPaul) : Bench (type)
+        {
+            panel = std::make_unique<WorkshopPanel> (processor);
+            panel->setVisible (true);
+            panel->setSize (1200, 760);
+        }
+
+        BenchIllustration& ill() { return panel->getIllustration(); }
+
+        juce::MouseEvent event (juce::Point<float> p, juce::ModifierKeys mods = {})
+        {
+            auto& target = ill();
+            auto source = juce::Desktop::getInstance().getMainMouseSource();
+            return juce::MouseEvent (source, p, mods, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                     &target, &target, juce::Time::getCurrentTime(), p,
+                                     juce::Time::getCurrentTime(), 1, false);
+        }
+
+        double plain (const char* id)
+        {
+            auto* p = dynamic_cast<juce::RangedAudioParameter*> (processor.getState().getParameter (id));
+            return p != nullptr ? p->convertFrom0to1 (p->getValue()) : 0.0;
+        }
+
+        /** Pixels per mm along the strings; negative, since X runs right to left on screen. */
+        float pxPerMm() { return ill().toPx ({ 1.0f, 0.0f }).x - ill().toPx ({ 0.0f, 0.0f }).x; }
+    };
+}
+
+/*  workshop-ui.md 4: a nut slot is dragged down per string, 0.05 mm snap,
+    0 - 1.2 mm, one undo entry that names the string and both depths; the
+    engine's nut depth parameter follows (the three feedbacks). */
+LUTHIER_TEST (WorkshopNut, aSlotDragIsOneEntryInRealUnitsAndReachesTheEngine)
+{
+    BenchPanel b;
+    auto& ill = b.ill();
+    const int steps = b.processor.getNumUndoSteps();
+
+    // The nut's slot for the low E (engine string 5).
+    const auto nut = ill.toPx (ill.getScene().nutPoints[5]);
+    ill.mouseDown (b.event (nut));
+    CHECK (ill.getSelected() == GuitarRegion::nut && ill.getSelectedString() == 5);
+
+    const double start = b.plain ("setup_nut_depth_6");
+
+    for (int i = 1; i <= 20; ++i)
+        ill.mouseDrag (b.event (nut + juce::Point<float> (0.0f, (float) i)));   // 20 px down: 0.2 mm deeper
+
+    ill.mouseUp (b.event (nut + juce::Point<float> (0.0f, 20.0f)));
+
+    CHECK (b.processor.getNumUndoSteps() == steps + 1);
+    CHECK_MSG (b.processor.getUndoDescription().startsWith ("Set string 6 nut slot"), b.processor.getUndoDescription());
+    const auto& depths = b.guitar().setup.nutSlotDepthsMm;
+    CHECK (depths.size() > 5 && std::abs (depths[5] - (start + 0.2)) < 0.026);
+    CHECK_NEAR (b.plain ("setup_nut_depth_6"), depths[5], 1.0e-3);
+
+    // Keyboard parity: Down deepens by one snap.
+    const double now = depths[5];
+    ill.keyPressed (juce::KeyPress (juce::KeyPress::downKey));
+    CHECK_NEAR (b.guitar().setup.nutSlotDepthsMm[5], juce::jmin (1.2, now + 0.05), 1.0e-6);
+
+    // And it never cuts past 1.2 mm.
+    for (int i = 0; i < 40; ++i)
+        ill.keyPressed (juce::KeyPress (juce::KeyPress::downKey));
+    CHECK_NEAR (b.guitar().setup.nutSlotDepthsMm[5], 1.2, 1.0e-6);
+}
+
+/*  workshop-ui.md 4 and gui-integration.md 21: the pick lies on the strings at
+    its position and angle, is dragged along the string axis (1 mm snap) and
+    turned at its corner (1 degree), one undo entry per drag, and its
+    accessible sentence follows guitar-illustration.md 16. */
+LUTHIER_TEST (WorkshopAccessories, thePickIsDraggedAndTurnedOnTheBench)
+{
+    BenchPanel b;
+    auto& ill = b.ill();
+    b.panel->showCategory ("Pick");
+    CHECK (ill.isPickShown());
+
+    const auto o = ill.currentOverlay();
+    CHECK (o.pickPositionMm > 0.0f);
+
+    const auto centre = ill.toPx (GuitarRenderer::pickPath (ill.getScene(), o.pickPositionMm, o.pickAngleDeg, o.pickSizeMm)
+                                      .getBounds().getCentre());
+    const int steps = b.processor.getNumUndoSteps();
+
+    ill.mouseDown (b.event (centre));
+    CHECK (ill.getSelected() == GuitarRegion::pick);
+
+    // 12 mm toward the headstock (left on screen), in steps.
+    for (int i = 1; i <= 12; ++i)
+        ill.mouseDrag (b.event (centre + juce::Point<float> (b.pxPerMm() * (float) i, 0.0f)));
+    ill.mouseUp (b.event (centre));
+
+    CHECK (b.processor.getNumUndoSteps() == steps + 1);
+    const double scale = ill.getScene().scaleMm;
+    CHECK_NEAR (b.plain (ParamIDs::pluckPosition) * scale, (double) std::round (o.pickPositionMm + 12.0f), 1.5);
+
+    // Turned at its corner handle.
+    const auto o2 = ill.currentOverlay();
+    const auto handle = ill.toPx (GuitarRenderer::pickHandle (ill.getScene(), o2.pickPositionMm, o2.pickAngleDeg, o2.pickSizeMm));
+    const double angleBefore = Parameters::pickAngleDegrees (b.plain (ParamIDs::pickAngle));
+    ill.mouseDown (b.event (handle));
+    ill.mouseDrag (b.event (handle + juce::Point<float> (0.0f, 25.0f)));
+    ill.mouseUp (b.event (handle + juce::Point<float> (0.0f, 25.0f)));
+
+    const double angleAfter = Parameters::pickAngleDegrees (b.plain (ParamIDs::pickAngle));
+    CHECK (std::abs (angleAfter - angleBefore) >= 1.0);
+    CHECK (b.processor.getNumUndoSteps() == steps + 2);
+
+    // Section 16's sentence.
+    const auto sentence = ill.describeAccessory (GuitarRegion::pick);
+    CHECK_MSG (sentence.startsWith ("Pick: ") && sentence.contains ("mm from saddle, angle ") && sentence.endsWith (" degrees."), sentence);
+
+    // Keyboard parity: Left moves it 1 mm further from the saddle.
+    const double before = b.plain (ParamIDs::pluckPosition) * scale;
+    ill.keyPressed (juce::KeyPress (juce::KeyPress::leftKey));
+    CHECK_NEAR (b.plain (ParamIDs::pluckPosition) * scale, before + 1.0, 0.02);
+}
+
+/*  The capo (TODO G / workshop-ui.md 4): drawn at its fret on the illustration
+    and on the bench, dragged along the neck a fret at a time (0 - 12), and
+    taken off by dragging it past the nut. */
+LUTHIER_TEST (WorkshopAccessories, theCapoIsDrawnAndDraggedByFrets)
+{
+    BenchPanel b;
+    b.setPlain (ParamIDs::capoFret, 3.0f);
+    auto& ill = b.ill();
+
+    // Drawn: the renderer's overlay changes with it, on any illustration.
+    const auto& scene = ill.getScene();
+    juce::Image without (juce::Image::ARGB, 800, 400, true, juce::SoftwareImageType()), with (without.createCopy());
+    const auto t = GuitarRenderer::fitTransform (scene, { 0.0f, 0.0f, 800.0f, 400.0f });
+    {
+        juce::Graphics g (without);
+        GuitarRenderer::paintOverlay (g, scene, t, GuitarOverlay {});
+    }
+    {
+        GuitarOverlay o;
+        o.capoFret = 3;
+        juce::Graphics g (with);
+        GuitarRenderer::paintOverlay (g, scene, t, o);
+    }
+    CHECK (digest (with) != digest (without));
+
+    CHECK (ill.currentOverlay().capoFret == 3);
+    const auto capo = ill.toPx (GuitarRenderer::capoPath (scene, 3).getBounds().getCentre());
+    const int steps = b.processor.getNumUndoSteps();
+
+    ill.mouseDown (b.event (capo));
+    CHECK (ill.getSelected() == GuitarRegion::capo);
+
+    // To just behind fret 5.
+    const auto fret5 = ill.toPx (scene.stringAt (0, 4.7f));
+    ill.mouseDrag (b.event ({ fret5.x, capo.y }));
+    ill.mouseUp (b.event ({ fret5.x, capo.y }));
+
+    CHECK_MSG (juce::roundToInt (b.plain (ParamIDs::capoFret)) == 5, juce::String (b.plain (ParamIDs::capoFret)));
+    CHECK (b.processor.getNumUndoSteps() == steps + 1);
+
+    // Keyboard: Left moves it a fret toward the nut.
+    ill.keyPressed (juce::KeyPress (juce::KeyPress::leftKey));
+    CHECK (juce::roundToInt (b.plain (ParamIDs::capoFret)) == 4);
+
+    // Off the end: past the nut takes it off.
+    const auto capoNow = ill.toPx (GuitarRenderer::capoPath (scene, 4).getBounds().getCentre());
+    const auto pastNut = ill.toPx ({ (float) scene.scaleMm + 30.0f, 0.0f });
+    ill.mouseDown (b.event (capoNow));
+    ill.mouseDrag (b.event ({ pastNut.x, capoNow.y }));
+    ill.mouseUp (b.event ({ pastNut.x, capoNow.y }));
+    CHECK (juce::roundToInt (b.plain (ParamIDs::capoFret)) == 0);
+}
+
+/*  Slide Mode on: the bar shows on the bench in its material's colour at its
+    slant; turning it at its end handle is the slant parameter, one entry. */
+LUTHIER_TEST (WorkshopAccessories, theSlideTurnsOnTheBenchAndItsMaterialIsPlayed)
+{
+    BenchPanel b;
+    b.setPlain (ParamIDs::slideGuitar, 1.0f);
+    auto& ill = b.ill();
+
+    auto o = ill.currentOverlay();
+    CHECK (o.slideFret >= 0.0f);
+
+    const auto handle = ill.toPx (GuitarRenderer::slideHandle (ill.getScene(), o.slideFret, o.slideSlantDeg));
+    const int steps = b.processor.getNumUndoSteps();
+    ill.mouseDown (b.event (handle));
+    CHECK (ill.getSelected() == GuitarRegion::slideBar);
+    ill.mouseDrag (b.event (handle + juce::Point<float> (30.0f, 0.0f)));
+    ill.mouseUp (b.event (handle + juce::Point<float> (30.0f, 0.0f)));
+
+    CHECK (std::abs (b.plain (ParamIDs::slideSlant)) >= 1.0);
+    CHECK (b.processor.getNumUndoSteps() == steps + 1);
+    CHECK (ill.describeAccessory (GuitarRegion::slideBar).startsWith ("Slide: "));
+
+    // The fitted slide is the engine's bar (TODO 5b): brass, 150 g.
+    PartPtr brass;
+    for (const auto& p : b.processor.getPartLibrary().getParts (PartType::slide))
+        if (p->text ("material") == "brass")
+            brass = p;
+
+    CHECK (brass != nullptr);
+    if (brass == nullptr)
+        return;
+
+    const auto glassRender = b.render ({ 52 });
+    CHECK (b.bench().fitAccessory (brass));
+    CHECK (b.processor.getEngine().getSlideEngine().getBar().material == SlideMaterial::brass);
+    CHECK_NEAR (b.processor.getEngine().getSlideEngine().getBar().massGrams, 150.0, 1.0e-9);
+    CHECK (difference (b.render ({ 52 }), glassRender) > 1.0e-4);
+
+    // It travels with the preset's guitar block, and undo takes it off again.
+    CHECK (b.processor.getGuitarBlock().getProperty ("slide", {}).toString() == brass->name);
+    b.processor.undo();
+    CHECK (b.processor.getEngine().getSlideEngine().getBar().material == SlideMaterial::glass);
+}

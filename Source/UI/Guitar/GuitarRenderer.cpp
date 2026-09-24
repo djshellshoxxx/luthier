@@ -31,6 +31,9 @@ const char* getGuitarRegionName (GuitarRegion r) noexcept
         case GuitarRegion::controls:      return "Controls";
         case GuitarRegion::selector:      return "Pickup selector";
         case GuitarRegion::jack:          return "Output jack";
+        case GuitarRegion::pick:          return "Pick";
+        case GuitarRegion::slideBar:      return "Slide";
+        case GuitarRegion::capo:          return "Capo";
         case GuitarRegion::none:
         case GuitarRegion::numRegions:    break;
     }
@@ -2775,6 +2778,19 @@ void GuitarRenderer::paintOverlay (juce::Graphics& g, const GuitarScene& scene,
     juce::Graphics::ScopedSaveState save (g);
     g.addTransform (mmToPx);
 
+    // The capo (TODO G): clamped over the strings behind its fret, rubber over a
+    // metal bar, before the played notes so a note above it glows over it.
+    if (overlay.capoFret > 0)
+    {
+        const auto capo = capoPath (scene, overlay.capoFret, overlay.capoMask);
+        g.setColour (juce::Colours::black.withAlpha (0.35f));
+        g.fillPath (capo, juce::AffineTransform::translation (-0.8f, 0.8f));
+        g.setColour (juce::Colour (0xff232323));
+        g.fillPath (capo);
+        g.setColour (juce::Colour (0xffb9bec4));
+        g.strokePath (capo, juce::PathStrokeType (juce::jmax (0.5f, 1.0f / pxPerMm)));
+    }
+
     // 26: played notes - the string glows where it vibrates, a dot where it is stopped.
     for (auto& s : scene.strings)
     {
@@ -2809,17 +2825,46 @@ void GuitarRenderer::paintOverlay (juce::Graphics& g, const GuitarScene& scene,
         }
     }
 
-    // 28: the slide bar across the strings.
+    // 28: the slide bar across the strings, in its material's colour at 80%,
+    // turned by its slant (gui-integration.md 21).
     if (overlay.slideFret >= 0.0f && scene.numStrings > 0)
     {
-        const auto a = scene.stringAt (scene.numStrings - 1, overlay.slideFret);
-        const auto b = scene.stringAt (0, overlay.slideFret);
-        juce::Path bar;
-        bar.addRoundedRectangle (juce::jmin (a.x, b.x) - 5.0f, a.y - 8.0f, 10.0f + std::abs (a.x - b.x), (b.y - a.y) + 16.0f, 5.0f);
-        g.setColour (juce::Colour (0xffcfe3e8).withAlpha (0.55f));
+        const auto bar = slidePath (scene, overlay.slideFret, overlay.slideSlantDeg);
+        g.setColour (overlay.slideColour.withAlpha (0.8f));
         g.fillPath (bar);
         g.setColour (juce::Colours::white.withAlpha (0.7f));
-        g.strokePath (bar, juce::PathStrokeType (0.8f));
+        g.strokePath (bar, juce::PathStrokeType (juce::jmax (0.5f, 1.0f / pxPerMm)));
+    }
+
+    // 29: the pick at true size, turned by its attack angle.
+    if (overlay.pickPositionMm >= 0.0f)
+    {
+        const auto pick = pickPath (scene, overlay.pickPositionMm, overlay.pickAngleDeg, overlay.pickSizeMm);
+        g.setColour (juce::Colours::black.withAlpha (0.3f));
+        g.fillPath (pick, juce::AffineTransform::translation (-1.0f, 1.0f));
+        g.setColour (juce::Colour (0xffc8742c).withAlpha (0.85f));   // tortoiseshell celluloid
+        g.fillPath (pick);
+        g.setColour (juce::Colour (0xff5a3212));
+        g.strokePath (pick, juce::PathStrokeType (juce::jmax (0.4f, 1.0f / pxPerMm)));
+    }
+
+    // The bench's drag handles: 8 px accent circles (gui-integration.md 21).
+    if (overlay.handles)
+    {
+        const float r = 4.0f / pxPerMm;
+        g.setColour (overlay.accent);
+
+        if (overlay.pickPositionMm >= 0.0f)
+        {
+            const auto h = pickHandle (scene, overlay.pickPositionMm, overlay.pickAngleDeg, overlay.pickSizeMm);
+            g.fillEllipse (h.x - r, h.y - r, r * 2.0f, r * 2.0f);
+        }
+
+        if (overlay.slideFret >= 0.0f)
+        {
+            const auto h = slideHandle (scene, overlay.slideFret, overlay.slideSlantDeg);
+            g.fillEllipse (h.x - r, h.y - r, r * 2.0f, r * 2.0f);
+        }
     }
 
     // 30 / 31: pickup highlight, hover and selection outlines.
@@ -2841,6 +2886,146 @@ void GuitarRenderer::paintOverlay (juce::Graphics& g, const GuitarScene& scene,
         else if (h.region == overlay.hovered && overlay.hovered != GuitarRegion::none)
             outline (h.area, overlay.accent.withAlpha (0.6f), 1.5f);
     }
+
+    // The accessories are overlays, not scene parts, so they outline here.
+    auto accessory = [&] (GuitarRegion r) -> juce::Path
+    {
+        if (r == GuitarRegion::capo)     return capoPath (scene, overlay.capoFret, overlay.capoMask);
+        if (r == GuitarRegion::slideBar) return slidePath (scene, overlay.slideFret, overlay.slideSlantDeg);
+        if (r == GuitarRegion::pick)     return pickPath (scene, overlay.pickPositionMm, overlay.pickAngleDeg, overlay.pickSizeMm);
+        return {};
+    };
+
+    outline (accessory (overlay.selected), overlay.accent, 2.5f);
+
+    if (overlay.hovered != overlay.selected)
+        outline (accessory (overlay.hovered), overlay.accent.withAlpha (0.6f), 1.5f);
+}
+
+//==============================================================================
+namespace
+{
+    /** The outermost strings' y at `x` mm from the saddle: bass (negative) and treble. */
+    juce::Range<float> stringSpanAt (const GuitarScene& scene, float x)
+    {
+        if (scene.saddlePoints.empty())
+            return { -26.0f, 26.0f };
+
+        float lo = 1.0e9f, hi = -1.0e9f;
+
+        for (size_t s = 0; s < scene.saddlePoints.size() && s < scene.nutPoints.size(); ++s)
+        {
+            const auto a = scene.saddlePoints[s], b = scene.nutPoints[s];
+            const float t = juce::jlimit (0.0f, 1.2f, (x - a.x) / juce::jmax (1.0f, b.x - a.x));
+            const float y = a.y + (b.y - a.y) * t;
+            lo = juce::jmin (lo, y);
+            hi = juce::jmax (hi, y);
+        }
+
+        return { lo, hi };
+    }
+
+    /** A point on string `s` at fret `f`, with the fret 0.25 behind for a capo's clamp line. */
+    juce::Point<float> across (const GuitarScene& scene, int s, float fret)
+    {
+        return scene.stringAt (s, fret);
+    }
+}
+
+juce::Path GuitarRenderer::capoPath (const GuitarScene& scene, int fret, juce::uint32 mask)
+{
+    juce::Path p;
+
+    if (fret <= 0 || scene.numStrings <= 0)
+        return p;
+
+    // Just behind the fret, toward the nut, where a capo clamps.
+    const float f = (float) fret - 0.22f;
+    int lo = -1, hi = -1;
+
+    for (int s = 0; s < scene.numStrings; ++s)
+        if ((mask >> juce::jmin (31, s)) & 1u)
+        {
+            if (lo < 0) lo = s;
+            hi = s;
+        }
+
+    if (lo < 0)
+        return p;
+
+    const auto treble = across (scene, lo, f), bass = across (scene, hi, f);
+    const auto dir = (bass - treble) / juce::jmax (0.001f, bass.getDistanceFrom (treble));
+    const auto a = treble - dir * 5.0f, b = bass + dir * 5.0f;
+    const float half = 5.5f;
+    const juce::Point<float> n { -dir.y, dir.x };
+
+    p.startNewSubPath (a + n * half);
+    p.lineTo (b + n * half);
+    p.lineTo (b - n * half);
+    p.lineTo (a - n * half);
+    p.closeSubPath();
+    return p.createPathWithRoundedCorners (2.5f);
+}
+
+juce::Path GuitarRenderer::slidePath (const GuitarScene& scene, float fret, float slantDeg)
+{
+    juce::Path bar;
+
+    if (scene.numStrings <= 0 || fret < 0.0f)
+        return bar;
+
+    const auto a = scene.stringAt (scene.numStrings - 1, fret), b = scene.stringAt (0, fret);
+    const auto c = (a + b) * 0.5f;
+    const float length = std::abs (b.y - a.y) + 16.0f;
+
+    bar.addRoundedRectangle (c.x - 5.0f, c.y - length * 0.5f, 10.0f, length, 5.0f);
+    bar.applyTransform (juce::AffineTransform::rotation (juce::degreesToRadians (slantDeg), c.x, c.y));
+    return bar;
+}
+
+juce::Point<float> GuitarRenderer::slideHandle (const GuitarScene& scene, float fret, float slantDeg)
+{
+    if (scene.numStrings <= 0 || fret < 0.0f)
+        return {};
+
+    const auto a = scene.stringAt (scene.numStrings - 1, fret), b = scene.stringAt (0, fret);
+    const auto c = (a + b) * 0.5f;
+    const juce::Point<float> end { c.x, c.y - (std::abs (b.y - a.y) * 0.5f + 8.0f) };
+    const float r = juce::degreesToRadians (slantDeg);
+    const auto d = end - c;
+    return { c.x + d.x * std::cos (r) - d.y * std::sin (r), c.y + d.x * std::sin (r) + d.y * std::cos (r) };
+}
+
+juce::Path GuitarRenderer::pickPath (const GuitarScene& scene, float positionMm, float angleDeg, float sizeMm)
+{
+    juce::Path pick;
+
+    if (positionMm < 0.0f)
+        return pick;
+
+    // A standard pick: a rounded triangle, as wide as 0.85 of its height,
+    // its tip toward the treble strings.
+    const auto span = stringSpanAt (scene, positionMm);
+    const juce::Point<float> c { positionMm, span.getStart() + span.getLength() * 0.35f };
+    const float h = sizeMm, w = sizeMm * 0.85f;
+
+    pick.startNewSubPath (c.x, c.y + h * 0.55f);                   // the tip
+    pick.cubicTo (c.x - w * 0.30f, c.y + h * 0.20f, c.x - w * 0.55f, c.y - h * 0.10f, c.x - w * 0.45f, c.y - h * 0.35f);
+    pick.cubicTo (c.x - w * 0.30f, c.y - h * 0.50f, c.x + w * 0.30f, c.y - h * 0.50f, c.x + w * 0.45f, c.y - h * 0.35f);
+    pick.cubicTo (c.x + w * 0.55f, c.y - h * 0.10f, c.x + w * 0.30f, c.y + h * 0.20f, c.x, c.y + h * 0.55f);
+    pick.closeSubPath();
+    pick.applyTransform (juce::AffineTransform::rotation (juce::degreesToRadians (angleDeg), c.x, c.y));
+    return pick;
+}
+
+juce::Point<float> GuitarRenderer::pickHandle (const GuitarScene& scene, float positionMm, float angleDeg, float sizeMm)
+{
+    const auto span = stringSpanAt (scene, positionMm);
+    const juce::Point<float> c { positionMm, span.getStart() + span.getLength() * 0.35f };
+    const juce::Point<float> corner { c.x + sizeMm * 0.85f * 0.45f, c.y - sizeMm * 0.35f };
+    const float r = juce::degreesToRadians (angleDeg);
+    const auto d = corner - c;
+    return { c.x + d.x * std::cos (r) - d.y * std::sin (r), c.y + d.x * std::sin (r) + d.y * std::cos (r) };
 }
 
 const GuitarScene::Hit* GuitarRenderer::hitTest (const GuitarScene& scene, juce::Point<float> mm)

@@ -76,6 +76,20 @@ public:
 
     float getZoom() const noexcept { return zoom; }
 
+    /** workshop-ui.md 2: the pick shows on the bench while its tool is in use
+        (the drawer's Pick category, or the pick selected). */
+    void setPickShown (bool shown);
+    bool isPickShown() const noexcept { return pickShown; }
+
+    /** The overlay the bench paints now: capo, slide and pick from the parameters. */
+    GuitarOverlay currentOverlay() const;
+
+    /** Where the slide rests on the bench when no note holds it (fret). */
+    float getSlideRestFret() const noexcept { return slideRestFret; }
+
+    /** Section 16's sentence for an accessory region. */
+    juce::String describeAccessory (GuitarRegion region) const;
+
 private:
     void timerCallback() override;
     GuitarRegion regionAt (juce::Point<float> px, int* stringIndex = nullptr) const;
@@ -97,11 +111,23 @@ private:
     int selectedString = -1;
 
     // Drag state
-    enum class Drag { none, pickup, saddle, pan };
+    enum class Drag { none, pickup, saddle, pan, nut, pick, pickRotate, slide, slideRotate, capo };
     Drag drag = Drag::none;
     int dragIndex = -1;
     juce::Point<float> dragStartMm;
-    double dragStartValue = 0.0;
+    double dragStartValue = 0.0, dragStartValue2 = 0.0;
+
+    // The accessories (workshop-ui.md 4): parameters, dragged with a gesture each.
+    bool pickShown = false;
+    float slideRestFret = 7.0f;
+    GuitarRegion accessoryAt (juce::Point<float> px, bool* onHandle = nullptr) const;
+    void beginParameterGesture (const char* id);
+    void endParameterGestures();
+    void setParameterPlain (const char* id, double plain);
+    double getParameterPlain (const char* id) const;
+    juce::StringArray gestureIds;
+    double lastOverlaySignature = 0.0;
+    double scaleMm() const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BenchIllustration)
 };
