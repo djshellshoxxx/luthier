@@ -1005,3 +1005,650 @@ LUTHIER_TEST (AutoArticulation, assistDrawsNothingFromTheInterpretersRandom)
     for (size_t i = 0; i < juce::jmin (a.size(), b.size()); ++i)
         CHECK_NEAR (a[i], b[i], 1.0e-6);
 }
+
+//==============================================================================
+//  Engine and processor level.
+//==============================================================================
+#include "ComboHarness.h"
+#include "../Capture/PerformanceCapture.h"
+#include "../Notation/NotationExport.h"
+#include "../Export/MidiProfiles.h"
+#include "../Export/MidiImportTargets.h"
+#include "../Support/Edition.h"
+#include "../UI/PerformanceAssistUi.h"
+
+namespace luthier::tests
+{
+    long allocationsOnThisThread() noexcept;
+}
+
+namespace
+{
+    /** A bare engine with Assist set, rendering MIDI in blocks. */
+    struct EngineRig
+    {
+        std::unique_ptr<LuthierEngine> engine = std::make_unique<LuthierEngine>();
+        std::vector<float> out;
+
+        EngineRig (AutoArticulationSettings s, PlayingMode mode = PlayingMode::Mono,
+                   GuitarType type = GuitarType::Stratocaster, int block = 256)
+        {
+            engine->prepare (kSr, block);
+            engine->setGuitarType (type);
+
+            MidiInterpreter::Humanisation flat;
+            flat.amount = 0.0;
+            engine->getMidiInterpreter().setHumanisation (flat);
+            engine->getMidiInterpreter().setPlayingMode (mode);
+            engine->setAutoArticulation (s);
+            engine->reset();
+        }
+
+        void render (std::vector<Ev> events, juce::int64 total, std::vector<int> blocks = { 256 },
+                     std::function<void (juce::int64)> afterBlock = {})
+        {
+            std::stable_sort (events.begin(), events.end(), [] (const Ev& a, const Ev& b) { return a.sample < b.sample; });
+            juce::AudioBuffer<float> buffer (2, 4096);
+            size_t next = 0, bi = 0;
+
+            for (juce::int64 pos = 0; pos < total;)
+            {
+                const int n = (int) juce::jmin ((juce::int64) blocks[bi++ % blocks.size()], total - pos);
+                juce::MidiBuffer midi;
+
+                while (next < events.size() && events[next].sample < pos + n)
+                {
+                    midi.addEvent (events[next].message, (int) (events[next].sample - pos));
+                    ++next;
+                }
+
+                buffer.setSize (2, n, false, false, true);
+                buffer.clear();
+                engine->processBlock (buffer, midi);
+
+                for (int i = 0; i < n; ++i)
+                    out.push_back (buffer.getSample (0, i));
+
+                pos += n;
+
+                if (afterBlock)
+                    afterBlock (pos);
+            }
+        }
+
+        std::vector<AutoArticulationFeedEntry> feed()
+        {
+            std::vector<AutoArticulationFeedEntry> entries;
+            engine->getAutoArticulator().getFeed().drain ([&] (const AutoArticulationFeedEntry& e) { entries.push_back (e); });
+            return entries;
+        }
+    };
+
+    AutoArticulationSettings assistOn (AssistStyle style, int rules = AssistRule::all, double amount = 0.6)
+    {
+        AutoArticulationSettings s;
+        s.enabled = true;
+        s.style = (int) style;
+        s.rules = rules;
+        s.amount = amount;
+        return s;
+    }
+
+    std::vector<Ev> allComboPhrases()
+    {
+        std::vector<Ev> events;
+        juce::int64 offset = 0;
+
+        for (int ph = 0; ph < (int) combo::Phrase::numPhrases; ++ph)
+        {
+            int released = 0;
+
+            for (const auto& e : combo::makePhrase ((combo::Phrase) ph, released))
+                events.push_back ({ offset + e.sample, e.message });
+
+            offset += released + (juce::int64) (1.5 * combo::kSr);
+        }
+
+        return events;
+    }
+}
+
+// AA-01 (in-suite half; scripts/assist_off_golden_check.sh compares against the
+// pre-feature build): off, Amount 0 and rules 0 render the same samples and
+// the same events as a processor whose aa_* were never touched.
+LUTHIER_TEST (AutoArticulationEngine, offAmountZeroAndNoRulesAreTheSameAsNothing)
+{
+    const auto events = allComboPhrases();
+    const juce::int64 total = events.back().sample + (juce::int64) combo::kSr;
+
+    for (const char* preset : { "Init", "Modern Metal Chug", "P-Bass Flatwound" })
+    {
+        std::vector<std::vector<float>> renders;
+
+        for (int variant = 0; variant < 4; ++variant)
+        {
+            combo::Rig rig;
+            auto& presets = rig.p().getPresetManager();
+            rig.p().resetEverything();
+            CHECK (presets.loadPreset (presets.indexOfPreset (preset)));
+
+            if (variant == 1) { rig.setIndex (ParamIDs::aaEnabled, 0); rig.setIndex (ParamIDs::aaStyle, 3); }
+            if (variant == 2) { rig.setIndex (ParamIDs::aaEnabled, 1); rig.setPlain (ParamIDs::aaAmount, 0.0f); }
+            if (variant == 3) { rig.setIndex (ParamIDs::aaEnabled, 1); rig.setIndex (ParamIDs::aaRules, 0); }
+
+            rig.apply();
+            rig.processSilence (2);
+
+            std::vector<combo::TimedMidi> timed;
+            for (const auto& e : events)
+                timed.push_back ({ (int) e.sample, e.message });
+
+            renders.push_back (rig.renderEvents (timed, (int) total, 0.0).mono);
+        }
+
+        for (int v = 1; v < 4; ++v)
+            CHECK_MSG (renders[(size_t) v] == renders[0], juce::String (preset) + " variant " + juce::String (v) + " differs");
+    }
+}
+
+// AA-03
+LUTHIER_TEST (AutoArticulationEngine, latencyDoesNotDependOnAssist)
+{
+    for (float window : { 0.0f, 2.0f, 20.0f })
+    {
+        int latency[2] = {};
+
+        for (int on = 0; on < 2; ++on)
+        {
+            combo::Rig rig;
+            rig.setIndex (ParamIDs::playingMode, (int) PlayingMode::Poly);
+            rig.setPlain (ParamIDs::chordWindow, window);
+            rig.setIndex (ParamIDs::aaEnabled, on);
+            rig.apply();
+            rig.processSilence (2);
+            latency[on] = rig.p().getEngine().getLatencySamples();
+        }
+
+        CHECK_MSG (latency[0] == latency[1], "window " + juce::String (window) + ": " + juce::String (latency[0])
+                                               + " vs " + juce::String (latency[1]));
+    }
+}
+
+// AA-15
+LUTHIER_TEST (AutoArticulationEngine, anAutoMuteLiftsWhenHeld)
+{
+    EngineRig rig (assistOn (AssistStyle::rock));
+    const auto s = rig.engine->getNumStrings() - 1;
+    StringEngine::Damping dampingAt[3] {};
+
+    const juce::int64 lift = ms (125) + ms (220);   // max (1.5 x 125 ms, 220 ms) after the second note
+
+    rig.render ({ noteOn (0, 40), noteOff (75, 40), noteOn (125, 40), noteOff (1200, 40) }, ms (1300), { 256 },
+                [&] (juce::int64 pos)
+                {
+                    if (pos <= ms (200) && pos + 256 > ms (200))          dampingAt[0] = rig.engine->getString (s).getDamping();
+                    if (pos <= lift + ms (60) + 256 && pos + 256 > lift + ms (60) + 256) dampingAt[1] = rig.engine->getString (s).getDamping();
+                });
+
+    bool lifted = false;
+
+    for (const auto& e : rig.feed())
+        if (e.label == (juce::uint8) AssistLabel::muteLift)
+        {
+            lifted = true;
+            CHECK_NEAR ((double) e.sample, (double) lift, 1.0);
+        }
+
+    CHECK (lifted);
+    CHECK (dampingAt[0] == StringEngine::Damping::PalmMute);
+    CHECK (dampingAt[1] == StringEngine::Damping::Open);
+}
+
+// AA-28 (the engine's feed)
+LUTHIER_TEST (AutoArticulationEngine, theFeedDoesNotDependOnTheBlockSize)
+{
+    std::vector<Ev> events;
+
+    for (int i = 0; i < 12; ++i)
+    {
+        events.push_back (noteOn (125.0 * i, 40 + (i % 3) * 5, 90 + (i % 4) * 10));
+        events.push_back (noteOff (125.0 * i + 70.0, 40 + (i % 3) * 5));
+    }
+
+    events.push_back (noteOn (2000, 60));
+    events.push_back (noteOn (2150, 62));
+    events.push_back (noteOff (2160, 60));
+    events.push_back (noteOff (2500, 62));
+
+    std::vector<AutoArticulationFeedEntry> reference;
+
+    for (auto blocks : std::vector<std::vector<int>> { { 256 }, { 32 }, { 64 }, { 512 }, { 1024 }, { 2048 }, { 100, 37, 511 } })
+    {
+        int maxBlock = 0;
+        for (int b : blocks) maxBlock = juce::jmax (maxBlock, b);
+
+        EngineRig rig (assistOn (AssistStyle::rock), PlayingMode::Mono, GuitarType::Stratocaster, maxBlock);
+        rig.render (events, ms (3000), blocks);
+        auto entries = rig.feed();
+
+        if (reference.empty())
+        {
+            reference = entries;
+            CHECK (reference.size() > 10);
+            continue;
+        }
+
+        bool same = entries.size() == reference.size();
+
+        for (size_t i = 0; same && i < entries.size(); ++i)
+            same = entries[i].sample == reference[i].sample && entries[i].string == reference[i].string
+                && entries[i].label == reference[i].label;
+
+        CHECK_MSG (same, "block " + juce::String (blocks[0]) + ": " + juce::String ((int) entries.size())
+                           + " entries vs " + juce::String ((int) reference.size()));
+    }
+}
+
+// AA-29
+LUTHIER_TEST (AutoArticulationEngine, realtimeAndOfflineRendersAreIdentical)
+{
+    const auto events = allComboPhrases();
+    const juce::int64 total = juce::jmin ((juce::int64) (30.0 * kSr), events.back().sample + (juce::int64) kSr);
+    std::vector<float> renders[2];
+
+    for (int offline = 0; offline < 2; ++offline)
+    {
+        combo::Rig rig;
+        rig.p().setNonRealtime (offline == 1);
+        rig.setIndex (ParamIDs::aaEnabled, 1);
+        rig.setIndex (ParamIDs::aaStyle, (int) AssistStyle::blues);
+        rig.apply();
+        rig.processSilence (2);
+
+        std::vector<combo::TimedMidi> timed;
+        for (const auto& e : events)
+            timed.push_back ({ (int) e.sample, e.message });
+
+        renders[offline] = rig.renderEvents (timed, (int) total, 0.0).mono;
+    }
+
+    CHECK (renders[0] == renders[1]);
+}
+
+// AA-30
+LUTHIER_TEST (AutoArticulationEngine, noAllocationInProcessBlockInAnyStyle)
+{
+    const auto events = allComboPhrases();
+
+    for (int style = 0; style < AutoArticulationStyles::kNumStyles; ++style)
+    {
+        EngineRig rig (assistOn ((AssistStyle) style), style % 2 == 0 ? PlayingMode::Mono : PlayingMode::Poly);
+        rig.engine->getAutoArticulator().setProbabilityOverride (1.0);
+
+        // MidiBuffers are built outside the measured call.
+        std::vector<juce::MidiBuffer> blocks;
+        const juce::int64 total = events.back().sample + (juce::int64) kSr;
+        size_t next = 0;
+
+        for (juce::int64 pos = 0; pos < total; pos += 256)
+        {
+            juce::MidiBuffer midi;
+            midi.ensureSize (4096);
+
+            while (next < events.size() && events[next].sample < pos + 256)
+            {
+                midi.addEvent (events[next].message, (int) (events[next].sample - pos));
+                ++next;
+            }
+
+            blocks.push_back (std::move (midi));
+        }
+
+        juce::AudioBuffer<float> buffer (2, 256);
+        long allocations = 0;
+
+        for (auto& midi : blocks)
+        {
+            buffer.clear();
+            const auto before = allocationsOnThisThread();
+            rig.engine->processBlock (buffer, midi);
+            allocations += allocationsOnThisThread() - before;
+        }
+
+        CHECK_MSG (allocations == 0, juce::String (AutoArticulationStyles::get (style).name) + ": "
+                                       + juce::String (allocations) + " allocations");
+    }
+}
+
+// AA-31
+LUTHIER_TEST (AutoArticulationEngine, assistCostsAlmostNothing)
+{
+    // A 16-voice stress: two 8-note chords a beat, every beat, for 4 s, Poly.
+    std::vector<Ev> events;
+
+    for (int beat = 0; beat < 8; ++beat)
+        for (int n : { 40, 45, 50, 55, 59, 64, 67, 71 })
+        {
+            events.push_back (noteOn (500.0 * beat, n + (beat % 3)));
+            events.push_back (noteOff (500.0 * beat + 450.0, n + (beat % 3)));
+        }
+
+    auto timeIt = [&] (bool on)
+    {
+        double best = 1.0e9;
+
+        for (int run = 0; run < 3; ++run)
+        {
+            EngineRig rig (on ? assistOn (AssistStyle::rock) : AutoArticulationSettings {}, PlayingMode::Poly);
+            const auto t0 = std::chrono::steady_clock::now();
+            rig.render (events, ms (4500));
+            best = juce::jmin (best, std::chrono::duration<double> (std::chrono::steady_clock::now() - t0).count());
+        }
+
+        return best;
+    };
+
+    const double off = timeIt (false), on = timeIt (true);
+
+    // performance-budget.md 9's unit is 1 % of one core at 48 kHz; 0.02 units
+    // of a 4.5 s render is 0.9 ms. Timing noise on a shared runner is larger
+    // than that, so the bound is 3 % of the render (recorded in the coverage
+    // doc), and the per-note cost is also measured directly below.
+    CHECK_MSG (on <= off * 1.03 + 0.002, "off " + juce::String (off, 4) + " s, on " + juce::String (on, 4) + " s");
+
+    AutoArticulator aa;
+    TuningEngine tuning;
+    tuning.prepare (kSr);
+    tuning.setNumStrings (12);
+    aa.prepare (kSr, 12);
+    aa.setTuning (&tuning);
+    aa.setSettings (assistOn (AssistStyle::rock));
+
+    const auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < 10000; ++i)
+        juce::ignoreUnused (aa.planSingle (40 + i % 40, 0.8, (juce::int64) i * 2000, false, 0));
+    const double perNoteUs = std::chrono::duration<double, std::micro> (std::chrono::steady_clock::now() - t0).count() / 10000.0;
+
+    CHECK_MSG (perNoteUs < 3.0, juce::String (perNoteUs, 3) + " us per note-on");
+}
+
+// AA-32
+LUTHIER_TEST (AutoArticulationEngine, anAssistedPhraseExportsWithItsTechniques)
+{
+    auto processor = std::make_unique<LuthierAudioProcessor>();
+    processor->prepareToPlay (kSr, 256);
+
+    auto set = [&] (const char* id, float plain)
+    {
+        auto* p = processor->getState().getParameter (id);
+        p->setValueNotifyingHost (p->convertTo0to1 (plain));
+    };
+
+    set (ParamIDs::aaEnabled, 1.0f);
+    set (ParamIDs::aaStyle, (float) AssistStyle::rock);
+    set (ParamIDs::playingMode, (float) PlayingMode::Mono);
+    set (ParamIDs::macroHumanize, 0.0f);
+    processor->getParameterBridge().applyAllNow();
+    processor->getEngine().getAutoArticulator().setProbabilityOverride (1.0);
+
+    // Palm-muted chugs with alternate strokes, a hammer-on, a pull-off, a slide,
+    // an accented bend-into held for vibrato.
+    std::vector<Ev> events;
+
+    for (int i = 0; i < 4; ++i)
+    {
+        events.push_back (noteOn (125.0 * i, 40, 110));
+        events.push_back (noteOff (125.0 * i + 70.0, 40));
+    }
+
+    for (const auto& e : legatoPair (60, 62, 150.0, 10.0, 90, 90)) events.push_back ({ e.sample + ms (1000), e.message });
+    for (const auto& e : legatoPair (62, 60, 150.0, 10.0, 90, 90)) events.push_back ({ e.sample + ms (2000), e.message });
+    for (const auto& e : legatoPair (60, 62, 150.0, 60.0, 90, 90)) events.push_back ({ e.sample + ms (3000), e.message });
+    events.push_back (noteOn (4500, 69, 120));
+    events.push_back (noteOff (5500, 69));
+
+    std::stable_sort (events.begin(), events.end(), [] (const Ev& a, const Ev& b) { return a.sample < b.sample; });
+
+    juce::AudioBuffer<float> buffer (2, 256);
+    size_t next = 0;
+
+    for (juce::int64 pos = 0; pos < ms (6200); pos += 256)
+    {
+        juce::MidiBuffer midi;
+
+        while (next < events.size() && events[next].sample < pos + 256)
+        {
+            midi.addEvent (events[next].message, (int) (events[next].sample - pos));
+            ++next;
+        }
+
+        buffer.clear();
+        processor->processBlock (buffer, midi);
+    }
+
+    auto& capture = processor->getPerformanceCapture();
+    capture.drain();
+
+    PerformanceScore score;
+    capture.toScore (score);
+
+    const auto xml = NotationExporter().renderMusicXml (score);
+
+    for (const char* element : { "<hammer-on", "<pull-off", "palm-mute", "<wavy-line", "<bend>",
+                                 "<accent/>", "<up-bow/>" })
+        CHECK_MSG (xml.contains (element), juce::String ("MusicXML has no ") + element);
+
+    // A legato slide is MusicXML's glissando; a shift or a slide-in is <slide>.
+    CHECK_MSG (xml.contains ("<slide") || xml.contains ("<glissando"), "MusicXML has no slide");
+
+    // The Luthier profile carries aa= on the assisted NOTEs.
+    const auto performance = capture.toPerformance (kSr);
+    int tagged = 0;
+
+    for (const auto& e : performance.getEvents())
+        if (e.eventClass == LuthierEventClass::note && e.has ("aa"))
+            ++tagged;
+
+    CHECK_MSG (tagged >= 5, juce::String (tagged) + " NOTE events carry aa=");
+}
+
+// AA-33
+LUTHIER_TEST (AutoArticulationEngine, aLuthierRoundTripIsNotArticulatedTwice)
+{
+    // A performance with NOTE events (the Luthier profile's) renders the same
+    // with Assist on as with it off: its notes are pre-articulated.
+    MidiPerformance performance (kSr);
+    const int keys[] = { 60, 62, 64, 62, 60 };
+
+    for (int i = 0; i < 5; ++i)
+    {
+        const auto at = (juce::int64) (i * 0.15 * kSr);
+        performance.addMessage (at, juce::MidiMessage::noteOn (1, keys[i], (juce::uint8) 100));
+        performance.addMessage (at + (juce::int64) (0.16 * kSr), juce::MidiMessage::noteOff (1, keys[i]));
+
+        auto note = LuthierEvent::make (LuthierEventClass::note, at);
+        note.setInt ("ch", 1).setInt ("key", keys[i]).setInt ("str", 1).setInt ("fret", keys[i] - 59);
+        performance.addEvent (note);
+    }
+
+    const auto off = MidiImportTargets::render (performance, GuitarType::Stratocaster, kSr, 3.0);
+    const auto on = MidiImportTargets::render (performance, GuitarType::Stratocaster, kSr, 3.0, assistOn (AssistStyle::blues));
+
+    double diff = 0.0, ref = 0.0;
+
+    for (int i = 0; i < off.getNumSamples(); ++i)
+    {
+        const double d = off.getSample (0, i) - on.getSample (0, i);
+        diff += d * d;
+        ref += (double) off.getSample (0, i) * off.getSample (0, i);
+    }
+
+    const double nullDb = 10.0 * std::log10 ((diff + 1.0e-30) / (ref + 1.0e-30));
+    CHECK_MSG (nullDb <= -60.0, "null " + juce::String (nullDb, 1) + " dB");
+    CHECK (ref > 0.0);
+}
+
+// AA-34
+LUTHIER_TEST (AutoArticulationEngine, theFourParametersAreLastAndInOrder)
+{
+    combo::Rig rig;
+    juce::StringArray ids;
+
+    for (auto* p : rig.p().getParameters())
+        if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (p))
+            ids.add (r->getParameterID());
+
+    CHECK (ids.size() >= 4);
+    const juce::StringArray expected { "aa_enabled", "aa_style", "aa_amount", "aa_rules" };
+
+    // Other workstreams append after these; the four keep their order and are
+    // together, after every parameter that existed before them.
+    const int first = ids.indexOf ("aa_enabled");
+    CHECK (first >= 0);
+
+    for (int i = 0; i < 4; ++i)
+        CHECK_MSG (ids[first + i] == expected[i], ids[first + i]);
+
+    CHECK_MSG (first > ids.indexOf ("aux1_pre_circuit"), "aa_* is not after aux1_pre_circuit");
+
+    // The defaults (6).
+    auto* enabled = rig.param ("aa_enabled");
+    auto* amount = rig.param ("aa_amount");
+    auto* rules = rig.param ("aa_rules");
+    CHECK (enabled->getDefaultValue() < 0.5f);
+    CHECK_NEAR (amount->convertFrom0to1 (amount->getDefaultValue()), 60.0, 1.0e-3);
+    CHECK_NEAR (rules->convertFrom0to1 (rules->getDefaultValue()), 511.0, 1.0e-3);
+    CHECK (rules->isDiscrete());
+}
+
+// AA-35
+LUTHIER_TEST (AutoArticulationEngine, presetSnapshotAndHostStateKeepTheFourValues)
+{
+    combo::Rig rig;
+    rig.setIndex (ParamIDs::aaEnabled, 1);
+    rig.setIndex (ParamIDs::aaStyle, (int) AssistStyle::jazz);
+    rig.setPlain (ParamIDs::aaAmount, 35.0f);
+    rig.setIndex (ParamIDs::aaRules, 0b101010101);
+
+    auto check = [&] (combo::Rig& r, const juce::String& where)
+    {
+        CHECK_MSG (r.param ("aa_enabled")->getValue() > 0.5f, where);
+        CHECK_MSG ((int) std::lround (r.param ("aa_style")->convertFrom0to1 (r.param ("aa_style")->getValue())) == (int) AssistStyle::jazz, where);
+        CHECK_NEAR (r.param ("aa_amount")->convertFrom0to1 (r.param ("aa_amount")->getValue()), 35.0, 0.01);
+        CHECK_MSG ((int) std::lround (r.param ("aa_rules")->convertFrom0to1 (r.param ("aa_rules")->getValue())) == 0b101010101, where);
+    };
+
+    // Preset.
+    const auto preset = rig.p().getPresetManager().toVar ("AA-35");
+    {
+        combo::Rig other;
+        CHECK (other.p().getPresetManager().fromVar (preset));
+        check (other, "preset");
+    }
+
+    // Host state.
+    juce::MemoryBlock state;
+    rig.p().getStateInformation (state);
+    {
+        combo::Rig other;
+        other.p().setStateInformation (state.getData(), (int) state.getSize());
+        check (other, "host state");
+    }
+
+    // A preset without aa_* loads as off.
+    {
+        auto stripped = juce::JSON::parse (juce::JSON::toString (preset));
+
+        if (auto* params = stripped.getProperty ("parameters", {}).getDynamicObject())
+            for (const char* id : { "aa_enabled", "aa_style", "aa_amount", "aa_rules" })
+                params->removeProperty (id);
+
+        combo::Rig other;
+        other.setIndex (ParamIDs::aaEnabled, 1);
+        CHECK (other.p().getPresetManager().fromVar (stripped));
+        CHECK_MSG (other.param ("aa_enabled")->getValue() < 0.5f, "an old preset left Assist on");
+    }
+
+    // Snapshots: switches at the midpoint, Amount interpolates (6).
+    {
+        auto& bank = rig.p().getSnapshots();
+        bank.capture (0);
+        rig.setIndex (ParamIDs::aaEnabled, 0);
+        rig.setIndex (ParamIDs::aaStyle, (int) AssistStyle::rock);
+        rig.setPlain (ParamIDs::aaAmount, 85.0f);
+        rig.setIndex (ParamIDs::aaRules, 511);
+        bank.capture (1);
+
+        bank.setMorphSlots (0, 1);
+        bank.setMorphEnabled (true);
+        bank.setMorphPosition (0.25);
+
+        CHECK (rig.param ("aa_enabled")->getValue() > 0.5f);
+        CHECK_NEAR (rig.param ("aa_amount")->convertFrom0to1 (rig.param ("aa_amount")->getValue()), 35.0 + 0.25 * 50.0, 0.5);
+        CHECK ((int) std::lround (rig.param ("aa_rules")->convertFrom0to1 (rig.param ("aa_rules")->getValue())) == 0b101010101);
+
+        bank.setMorphPosition (0.75);
+        CHECK (rig.param ("aa_enabled")->getValue() < 0.5f);
+        CHECK ((int) std::lround (rig.param ("aa_rules")->convertFrom0to1 (rig.param ("aa_rules")->getValue())) == 511);
+    }
+}
+
+// AA-36
+LUTHIER_TEST (AutoArticulationEngine, freePlaysMetalAsRockAndKeepsMetal)
+{
+    // The effective settings.
+    const auto free = Parameters::effectiveAssistSettings (true, (int) AssistStyle::metal, 60.0f, 3, Edition::free);
+    CHECK (free.style == (int) AssistStyle::rock);
+    CHECK (free.rules == AssistRule::all);
+    CHECK (Parameters::effectiveAssistSettings (true, (int) AssistStyle::jazz, 60.0f, 3, Edition::free).style == (int) AssistStyle::cleanPop);
+    CHECK (Parameters::effectiveAssistSettings (true, (int) AssistStyle::metal, 60.0f, 3, Edition::pro).style == (int) AssistStyle::metal);
+
+    // The decision feed of Metal-in-Free equals Rock's.
+    std::vector<Ev> events;
+    for (int i = 0; i < 8; ++i)
+    {
+        events.push_back (noteOn (125.0 * i, 40 + (i % 2) * 7, 100));
+        events.push_back (noteOff (125.0 * i + 70.0, 40 + (i % 2) * 7));
+    }
+
+    std::vector<AutoArticulationFeedEntry> feeds[2];
+
+    for (int variant = 0; variant < 2; ++variant)
+    {
+        Editions::set (variant == 0 ? Edition::free : Edition::pro);
+        combo::Rig rig;
+        rig.setIndex (ParamIDs::aaEnabled, 1);
+        rig.setIndex (ParamIDs::aaStyle, variant == 0 ? (int) AssistStyle::metal : (int) AssistStyle::rock);
+        rig.setIndex (ParamIDs::playingMode, (int) PlayingMode::Mono);
+        rig.setPlain (ParamIDs::macroHumanize, 0.0f);
+        rig.apply();
+
+        std::vector<combo::TimedMidi> timed;
+        for (const auto& e : events)
+            timed.push_back ({ (int) e.sample, e.message });
+
+        rig.renderEvents (timed, (int) ms (1500), 0.0);
+        rig.p().getEngine().getAutoArticulator().getFeed().drain ([&] (const AutoArticulationFeedEntry& e) { feeds[variant].push_back (e); });
+
+        if (variant == 0)
+        {
+            // Saving writes Metal back unchanged; aa_rules is not automatable.
+            const auto saved = rig.p().getPresetManager().toVar ("free");
+            const auto style = saved.getProperty ("parameters", {}).getProperty ("aa_style", -1.0);
+            CHECK_MSG ((int) std::lround (rig.param ("aa_style")->convertFrom0to1 ((float) (double) style)) == (int) AssistStyle::metal,
+                       "saved style " + style.toString());
+            CHECK ((int) std::lround (rig.param ("aa_style")->convertFrom0to1 (rig.param ("aa_style")->getValue())) == (int) AssistStyle::metal);
+            CHECK (! rig.param ("aa_rules")->isAutomatable());
+            CHECK (rig.param ("aa_rules")->getName (64).endsWith ("(Pro)"));
+        }
+    }
+
+    Editions::set (Edition::pro);
+
+    CHECK (! feeds[1].empty());
+    CHECK (feeds[0].size() == feeds[1].size());
+
+    for (size_t i = 0; i < juce::jmin (feeds[0].size(), feeds[1].size()); ++i)
+        CHECK (feeds[0][i].sample == feeds[1][i].sample && feeds[0][i].label == feeds[1][i].label
+               && feeds[0][i].string == feeds[1][i].string);
+}

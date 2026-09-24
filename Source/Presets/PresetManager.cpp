@@ -641,6 +641,14 @@ bool PresetManager::fromVar (const juce::var& data)
             }
         }
 
+        /*  auto-articulation.md 8 (FEAT-ASSIST): a preset from before Performance
+            Assist has no aa_* keys and loads with the defaults - off, which is
+            the sound it was saved with - whatever the last preset had. */
+        for (const char* id : { ParamIDs::aaEnabled, ParamIDs::aaStyle, ParamIDs::aaAmount, ParamIDs::aaRules })
+            if (! params->hasProperty (id))
+                if (auto* p = apvts.getParameter (id))
+                    p->setValueNotifyingHost (p->getDefaultValue());
+
         /*  ambiguity-resolutions.md 3: the doubler became a post-amp pedal. A
             preset that had the old engine doubler on gets a Doubler in its first
             empty post-amp slot, at the pedal's own defaults (the old amount
