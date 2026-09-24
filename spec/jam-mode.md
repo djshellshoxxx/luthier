@@ -209,12 +209,9 @@ The kit is applied via `GenreKitLibrary::apply` only if the preset's
    fills twice as often.
 
 **Dynamics follow** (`jam_dynamics_follow`) moves the *effective*
-intensity by one step:
-- -1 when the mean note-on velocity over the last 2 bars is below 55;
-- +1 when it is above 105;
-- 8 points of hysteresis, and the result stays within 1-5.
-
-The status line shows this as "3 (+1)".
+intensity by -1 when the mean note-on velocity over the last 2 bars is
+below 55, and +1 above 105, with 8 points of hysteresis, clamped to 1-5.
+The status line shows it as "3 (+1)".
 
 ### 4.3 Fills, humanise, swing
 
@@ -450,13 +447,11 @@ is stale: the playhead hides and the status line shows "-".
 
 - **Live MIDI out.** `MidiOutConfig` gains `jamParts` (default off),
   shown as the checkbox "Jam band" next to "Tune-builder playback".
-  - Drums go out on GM channel 10: kick 36, rim 37, snare 38, closed hat
-    42, pedal hat 44, open hat 46, toms 45/47/50, crash 49, ride 51,
-    bell 53, shaker 82.
-  - Bass goes out on channel 11.
-  - Both channels are editable in MIDI OUT and saved with the preset's
-    MIDI-out config.
-  - Events are sample-accurate, including the `L` offset of rule 0.6.
+  Drums go out on GM channel 10 (kick 36, rim 37, snare 38, closed hat
+  42, pedal hat 44, open hat 46, toms 45/47/50, crash 49, ride 51, bell
+  53, shaker 82), bass on channel 11. Both channels are editable in MIDI
+  OUT and saved with the preset's MIDI-out config. Events are
+  sample-accurate, including the `L` offset of rule 0.6.
 - **Capture.** `JamCapture` is a fixed ring of 8192 events (at most the
   last 64 bars), written on the audio thread without allocation.
 - **Drag-out.** The lanes' handle drags the last 4, 8, 16 or 32 bars, or
@@ -580,14 +575,12 @@ on. Net new: **+34**.
 "link_rhythm_kit": false, "seed": 4849997}`. It stays schema 3, and a
 missing block means defaults. Snapshots store the block too.
 
-**`.luthierjam`** is a new row in file-formats 1. It is JSON with:
-- `"magic": "luthier.jam"`, `"schema": 1`, `meta`;
-- `meters`, `grid`, `swing`;
-- `kit`, `bass_voice`, `rhythm_kit`, `follow`;
-- `grooves.{A,B}.{1..5}` with drum lanes as step strings: `.` rest, `g`
-  ghost 30, `x` 90, `X` 118, `?` 50 % chance of 90, `o` open hat;
-- `bass` token strings;
-- `fills`, `ending`, `double_time`, `half_time`.
+**`.luthierjam`** is a new row in file-formats 1: JSON with
+`"magic": "luthier.jam"`, `"schema": 1`, `meta`, `meters`, `grid`,
+`swing`, `kit`, `bass_voice`, `rhythm_kit`, `follow`,
+`grooves.{A,B}.{1..5}` (drum lanes as step strings: `.` rest, `g` ghost
+30, `x` 90, `X` 118, `?` 50 % chance of 90, `o` open hat; `bass` token
+strings), `fills`, `ending`, `double_time`, `half_time`.
 
 Factory styles are built in code (`JamStyleLibrary::addFactoryStyles`)
 and can be overridden by name from `Resources/Jam/`. User styles live in
