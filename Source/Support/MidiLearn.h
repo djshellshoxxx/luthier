@@ -15,7 +15,8 @@
 namespace luthier
 {
 
-class MidiLearnManager : public juce::ChangeBroadcaster
+class MidiLearnManager : public juce::ChangeBroadcaster,
+                         private juce::AsyncUpdater
 {
 public:
     struct Mapping
@@ -75,6 +76,10 @@ public:
         writes use setValueNotifyingHost, which is designed for this. */
     void processMidi (const juce::MidiBuffer& midi) noexcept;
 
+    /** Message thread: finishes a learn the audio thread caught now, rather than
+        when the async update arrives (tests, and anything that cannot wait). */
+    void dispatchPendingLearn() { handleUpdateNowIfNeeded(); }
+
     //==========================================================================
     juce::var toVar() const;
     void fromVar (const juce::var& data);
@@ -89,10 +94,28 @@ private:
     std::atomic<bool> armed { false };
     juce::String learningParameter;
 
-    // Lock-free lookup used on the audio thread: CC number to mapping index.
-    std::array<std::atomic<int>, 128> ccToMapping {};
+    /*  What the audio thread reads: one plain entry per CC, rebuilt on the
+        message thread under tableLock, which the audio thread only try-locks.
+        It used to index `mappings` itself without the lock, while the message
+        thread cleared or reallocated it (a crash on a CC during a state reload
+        or a mapping edit), and to look the parameter up by its String id. */
+    struct LookupEntry
+    {
+        juce::AudioProcessorParameter* parameter = nullptr;
+        int    channel = 0;
+        double rangeMin = 0.0;
+        double rangeMax = 1.0;
+        bool   inverted = false;
+    };
+
+    juce::SpinLock tableLock;
+    std::array<LookupEntry, 128> lookup {};
+
+    /** A CC caught while learning, handed to the message thread (-1 = none). */
+    std::atomic<int> learnedCc { -1 };
 
     void rebuildLookup() noexcept;
+    void handleAsyncUpdate() override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MidiLearnManager)
 };

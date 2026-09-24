@@ -33,6 +33,10 @@ void CouplingMatrix::reset() noexcept
     // so the filters would otherwise be designed at wherever the last render
     // left them, and the next render would depend on the one before.
     frequencies.fill (0.0);
+
+    // Pitches unknown: every pair at full strength until they arrive.
+    for (auto& row : unisonScale)
+        row.fill (1.0);
 }
 
 void CouplingMatrix::setNumStrings (int n) noexcept
@@ -106,6 +110,26 @@ void CouplingMatrix::setStringFrequency (int stringIndex, double hz) noexcept
     // A fairly wide resonance: the receiving string responds to anything near its
     // fundamental and its low partials, not just an exact match.
     receiveFilter[(size_t) stringIndex].setBandpass (sr, f, 1.1);
+
+    updateUnisonScale (stringIndex);
+}
+
+void CouplingMatrix::updateUnisonScale (int i) noexcept
+{
+    for (int j = 0; j < kMaxStrings; ++j)
+    {
+        double scale = 1.0;
+
+        if (j != i && frequencies[(size_t) i] > 0.0 && frequencies[(size_t) j] > 0.0)
+        {
+            const double cents = std::abs (1200.0 * std::log2 (frequencies[(size_t) i] / frequencies[(size_t) j]));
+            const double t = juce::jlimit (0.0, 1.0, cents / kUnisonCents);
+            scale = kUnisonFloor + (1.0 - kUnisonFloor) * t * t;
+        }
+
+        unisonScale[(size_t) i][(size_t) j] = scale;
+        unisonScale[(size_t) j][(size_t) i] = scale;
+    }
 }
 
 //==============================================================================
@@ -125,7 +149,7 @@ void CouplingMatrix::process (const double* bridgeOutputs, double* couplingInput
             if (i == j)
                 continue;
 
-            sum += matrix[(size_t) i][(size_t) j] * bridgeOutputs[j];
+            sum += matrix[(size_t) i][(size_t) j] * unisonScale[(size_t) i][(size_t) j] * bridgeOutputs[j];
         }
 
         sum *= globalAmount;

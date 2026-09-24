@@ -11,6 +11,7 @@
 #include "../Model/Playing/MidiInterpreter.h"
 #include "../Practice/Looper.h"
 #include "../Notation/NotationExport.h"
+#include "../DSP/Whammy/WhammyEngine.h"
 #include "../Model/Playing/TechniqueEngine.h"
 #include "../Model/Playing/RubricVoicer.h"
 #include "../Model/Playing/TuningEngine.h"
@@ -485,3 +486,179 @@ LUTHIER_TEST (ReviewRegression, aPresetWithoutAStringsBlockClearsThePreviousDetu
 
     CHECK_NEAR (processor.getEngine().getTuningEngine().getStringTuning (0).detuneCents, 0.0, 1.0e-9);
 }
+
+//==============================================================================
+/*  R-205: ModMatrix::prepare reset every step sequencer's steps and every LFO's
+    custom shape to the defaults. Hosts restore state before prepareToPlay, and
+    prepare again on a rate change or an offline bounce, so a programmed
+    sequence came back as the default ramp. */
+LUTHIER_TEST (ReviewRegression, prepareKeepsTheSequencerSteps)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 256);
+
+    auto& sequencer = processor.getModMatrix().getSequencer (0);
+    auto step = sequencer.getStep (3);
+    step.value = 0.123;
+    sequencer.setStep (3, step);
+
+    processor.prepareToPlay (96000.0, 512);
+
+    CHECK_NEAR (processor.getModMatrix().getSequencer (0).getStep (3).value, 0.123, 1.0e-9);
+}
+
+//==============================================================================
+/*  R-216: a click fires when the position crosses an integer, and the position
+    started at exactly 0, so beat one never sounded: the first click was beat
+    two, a beat late, unaccented. */
+LUTHIER_TEST (ReviewRegression, theMetronomeStartsOnBeatOne)
+{
+    Metronome metronome;
+    metronome.prepare (48000.0, 512);
+    metronome.setTempo (120.0);
+    metronome.setEnabled (true);
+
+    std::vector<float> out (512);
+    metronome.processBlock (out.data(), 512);
+
+    // A click in the first 10 ms, not half a second later.
+    float early = 0.0f;
+
+    for (int i = 0; i < 480; ++i)
+        early = juce::jmax (early, std::abs (out[(size_t) i]));
+
+    CHECK_MSG (early > 1.0e-3f, "no click at the start: " + juce::String (early));
+}
+
+//==============================================================================
+/*  R-222: a Fixed bridge zeroed the whammy range, but the parameter bridge sets
+    the user's ranges every block, so a hardtail still bent with the arm. */
+LUTHIER_TEST (ReviewRegression, aHardtailIgnoresTheWhammyRanges)
+{
+    WhammyEngine whammy;
+    whammy.prepare (48000.0, 6);
+    whammy.setBridgeType (WhammyEngine::BridgeType::Fixed);
+    whammy.setRange (2.0, 1.0);   // what the bridge sends every block
+
+    CHECK (whammy.getDownRange() == 0.0);
+    CHECK (whammy.getUpRange() == 0.0);
+}
+
+//==============================================================================
+/*  R-201: MIDI Learn read its mapping array on the audio thread without the
+    lock the message thread held while clearing or reallocating it, looked the
+    parameter up by String id there, and finished a learn with a callAsync that
+    captured a raw this. The audio thread now reads a plain table under a
+    try-lock; a learn is finished by the manager's own AsyncUpdater. */
+LUTHIER_TEST (ReviewRegression, midiLearnLearnsAppliesAndSurvivesAClear)
+{
+    LuthierAudioProcessor processor;
+    auto& learn = processor.getMidiLearn();
+    auto* target = processor.getParameters()[0];
+    auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (target);
+    CHECK (withId != nullptr);
+
+    if (withId == nullptr)
+        return;
+
+    learn.startLearning (withId->paramID);
+
+    juce::MidiBuffer cc;
+    cc.addEvent (juce::MidiMessage::controllerEvent (1, 21, 64), 0);
+    learn.processMidi (cc);
+
+    // The message thread finishes the learn.
+    learn.dispatchPendingLearn();
+    CHECK_MSG (learn.getCcForParameter (withId->paramID) == 21, "the CC was not learned");
+
+    juce::MidiBuffer full;
+    full.addEvent (juce::MidiMessage::controllerEvent (1, 21, 127), 0);
+    learn.processMidi (full);
+    CHECK_NEAR (target->getValue(), 1.0f, 1.0e-6f);
+
+    // Cleared, the CC no longer reaches the parameter (and nothing indexes an
+    // empty array).
+    learn.clearAllMappings();
+    juce::MidiBuffer zero;
+    zero.addEvent (juce::MidiMessage::controllerEvent (1, 21, 0), 0);
+    learn.processMidi (zero);
+    CHECK_NEAR (target->getValue(), 1.0f, 1.0e-6f);
+}
+
+//==============================================================================
+/*  R-210: two strings in unison exchange energy through the coupling matrix,
+    wired the way LuthierEngine wires it. The matrix added each string's motion
+    to the other without taking it from the sender, so at the default amount
+    the pair grew to the +-4 guard and stayed there. A passive bridge cannot
+    add energy: the pair must decay. */
+#include "../DSP/String/StringEngine.h"
+#include "../DSP/Coupling/CouplingMatrix.h"
+
+namespace
+{
+    std::vector<double> coupledPairEnvelope (double amount, double hzA, double hzB)
+    {
+        constexpr double sr = 48000.0;
+        StringEngine strings[2];
+        CouplingMatrix coupling;
+        coupling.prepare (sr, 2);
+        coupling.setAmount (amount);
+        coupling.buildDefault (0.020);
+
+        const double hz[2] = { hzA, hzB };
+
+        for (int s = 0; s < 2; ++s)
+        {
+            strings[s].prepare (sr, 512);
+            strings[s].setIndex (s);
+            strings[s].snapToFrequency (hz[s]);
+            coupling.setStringFrequency (s, hz[s]);
+        }
+
+        Excitation::Params pluck;
+        pluck.delaySamples = sr / hzA;
+        strings[0].excite (pluck);
+
+        double bridge[kMaxStrings] {}, in[kMaxStrings] {};
+        std::vector<double> perSecond;
+        double peak = 0.0;
+
+        for (int i = 0; i < (int) sr * 8; ++i)
+        {
+            coupling.process (bridge, in);
+
+            for (int s = 0; s < 2; ++s)
+            {
+                const double out = strings[s].processSample (in[s]);
+                bridge[s] = strings[s].getBridgeOutput();
+                peak = std::max (peak, std::abs (out));
+            }
+
+            if ((i + 1) % (int) sr == 0)
+            {
+                perSecond.push_back (peak);
+                peak = 0.0;
+            }
+        }
+
+        return perSecond;
+    }
+}
+
+LUTHIER_TEST (ReviewRegression, aUnisonPairDecays)
+{
+    const auto coupled = coupledPairEnvelope (0.85, 329.63, 329.63);
+    const auto alone = coupledPairEnvelope (0.0, 329.63, 329.63);
+
+    juce::String trace;
+
+    for (size_t i = 0; i < coupled.size(); ++i)
+        trace << juce::String (coupled[i], 4) << "/" << juce::String (alone[i], 4) << " ";
+
+    CHECK_MSG (coupled.back() < coupled.front() * 0.1, "coupled/alone per second: " + trace);
+
+    // Three cents apart ran away too; well apart, the sympathetic ring is kept.
+    const auto nearly = coupledPairEnvelope (0.85, 329.63, 329.63 * std::pow (2.0, 3.0 / 1200.0));
+    CHECK (nearly.back() < nearly.front() * 0.1);
+}
+

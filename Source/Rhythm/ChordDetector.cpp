@@ -209,6 +209,34 @@ juce::String ChordSymbol::toString() const
     return name;
 }
 
+int ChordSymbol::writeName (char* dest, int capacity) const noexcept
+{
+    if (dest == nullptr || capacity <= 0)
+        return 0;
+
+    int n = 0;
+    auto append = [&] (const char* text)
+    {
+        for (; text != nullptr && *text != 0 && n < capacity - 1; ++text)
+            dest[n++] = *text;
+    };
+
+    if (isKnown())
+    {
+        append (getPitchClassName (root));
+        append (getChordTemplate (templateIndex).suffix);
+
+        if (isSlash())
+        {
+            append ("/");
+            append (getPitchClassName (bass));
+        }
+    }
+
+    dest[n] = 0;
+    return n;
+}
+
 //==============================================================================
 void ChordDetector::prepare (double sampleRate) noexcept
 {

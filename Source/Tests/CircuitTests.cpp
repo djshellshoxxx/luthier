@@ -21,17 +21,25 @@ using namespace luthier::tests;
     lives here once; everything else in the suite just pays one increment. */
 namespace
 {
-    thread_local long allocationsOnThisThread = 0;
+    thread_local long threadAllocationCount = 0;
+}
+
+/*  notation-export 7.1 (MODEL-GAPS, TODO 2k): the counter the other suites'
+    no-allocation checks read; CMake defines LUTHIER_ALLOCATION_COUNTER for the
+    test target so those checks compile in. */
+namespace luthier::tests
+{
+    long allocationsOnThisThread() noexcept { return threadAllocationCount; }
 }
 
 struct AllocationCounter
 {
-    static long count() noexcept { return allocationsOnThisThread; }
+    static long count() noexcept { return threadAllocationCount; }
 };
 
 void* operator new (std::size_t size)
 {
-    ++allocationsOnThisThread;
+    ++threadAllocationCount;
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
         return p;
@@ -41,7 +49,7 @@ void* operator new (std::size_t size)
 
 void* operator new[] (std::size_t size)
 {
-    ++allocationsOnThisThread;
+    ++threadAllocationCount;
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
         return p;

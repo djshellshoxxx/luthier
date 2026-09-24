@@ -92,6 +92,20 @@ juce::File IrLibrary::searchForResources()
     candidates.add (juce::File::getSpecialLocation (juce::File::commonApplicationDataDirectory)
                       .getChildFile ("Luthier").getChildFile ("Resources"));
 
+    // Where the release installers put the factory content (installer.md 1-3,
+    // docs/RELEASING.md): the plugin bundles ship without it, so every format
+    // shares one copy.
+   #if JUCE_MAC
+    candidates.add (juce::File ("/Library/Application Support/Luthier/Resources"));
+    candidates.add (juce::File::getSpecialLocation (juce::File::userHomeDirectory)
+                      .getChildFile ("Library/Application Support/Luthier/Resources"));
+   #elif JUCE_LINUX || JUCE_BSD
+    candidates.add (juce::File::getSpecialLocation (juce::File::userHomeDirectory)
+                      .getChildFile (".local/share/luthier/Resources"));
+    candidates.add (juce::File ("/usr/local/share/luthier/Resources"));
+    candidates.add (juce::File ("/usr/share/luthier/Resources"));
+   #endif
+
     for (const auto& candidate : candidates)
         if (looksRight (candidate))
             return candidate;

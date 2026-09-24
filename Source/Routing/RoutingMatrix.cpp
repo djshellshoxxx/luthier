@@ -218,13 +218,13 @@ void RoutingMatrix::meterSidechain (const float* const* channels, int numChannel
 //==============================================================================
 void RoutingMatrix::setMidiOutConfig (const MidiOutConfig& cfg)
 {
-    const juce::ScopedLock sl (midiOutLock);
+    const juce::SpinLock::ScopedLockType sl (midiOutLock);
     midiOut = cfg;
 }
 
 MidiOutConfig RoutingMatrix::getMidiOutConfig() const
 {
-    const juce::ScopedLock sl (midiOutLock);
+    const juce::SpinLock::ScopedLockType sl (midiOutLock);
     return midiOut;
 }
 

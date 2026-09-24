@@ -266,6 +266,15 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     perStringStrip = std::make_unique<PerStringStrip> (processor);
     addAndMakeVisible (*perStringStrip);
 
+    // ambiguity-resolutions 8 (MODEL-GAPS): Aux 1's tap before or after the
+    // guitar's circuit - a saved parameter, off (post-circuit, the DI the amp
+    // hears) by default.
+    aux1PreCircuit = std::make_unique<LuthierToggle> ("AUX 1 PRE-CIRCUIT");
+    aux1PreCircuit->attachTo (processor, ParamIDs::aux1PreCircuit,
+                              "Aux 1 (DI) taps the pickup before the guitar's volume, tone and cable "
+                              "instead of after them - so what the knobs do to feedback can be heard.");
+    addAndMakeVisible (*aux1PreCircuit);
+
     // --- sidechain ------------------------------------------------------------
     sidechainToAmp = std::make_unique<LuthierToggle> ("SIDECHAIN TO AMP");
     sidechainToAmp->setTooltip ("Feeds the sidechain input into the amp in place of the "
@@ -457,6 +466,7 @@ int RoutingPanel::preferredHeight() const
     int height = 18                                   // layout readout
                  + 14                                 // latency readout
                  + kNumAuxStrips * AuxStrip::preferredHeight
+                 + Metrics::buttonHeight + Metrics::gridHalf   // Aux 1 pre-circuit (MODEL-GAPS)
                  + Metrics::grid
                  + Metrics::buttonHeight               // sidechain toggle
                  + 18                                  // sidechain meter row
@@ -497,6 +507,9 @@ void RoutingPanel::resized()
 
     for (auto* strip : auxStrips)
         strip->setBounds (bounds.removeFromTop (AuxStrip::preferredHeight));
+
+    bounds.removeFromTop (Metrics::gridHalf);
+    aux1PreCircuit->setBounds (bounds.removeFromTop (Metrics::buttonHeight));
 
     if (perStringStrip->isVisible())
     {
