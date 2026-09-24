@@ -956,6 +956,10 @@ void LuthierAudioProcessor::updateRoutingLatencyReport()
     report.auxPreCab = engine.getLatencySamples (AuxBus::ampPreCab);
     report.perString = engine.getPerStringLatencySamples();
 
+    // performance-budget.md 4: Aux 8 sums the noise generators at the string
+    // stage (pre-body), so it carries the per-string taps' latency.
+    report.auxNoise = engine.getPerStringLatencySamples();
+
     routing.setLatencyReport (report);
 }
 

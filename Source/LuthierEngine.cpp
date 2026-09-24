@@ -107,6 +107,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     noiseBuffer.assign ((size_t) maxBlock, 0.0);
     magneticBuffer.assign ((size_t) maxBlock, 0.0);
     instrumentBuffer.assign ((size_t) maxBlock, 0.0);
+    preCircuitBuffer.assign ((size_t) maxBlock, 0.0);
     bodyBuffer.setSize (1, maxBlock, false, true, true);
     workBuffer.setSize (2, maxBlock, false, true, true);
     wetDryBuffer.setSize (2, maxBlock, false, true, true);
@@ -215,6 +216,7 @@ void LuthierEngine::releaseResources()
     stringSumBuffer.clear();
     magneticBuffer.clear();
     instrumentBuffer.clear();
+    preCircuitBuffer.clear();
     bodyBuffer.setSize (0, 0);
     workBuffer.setSize (0, 0);
     wetDryBuffer.setSize (0, 0);
@@ -1874,6 +1876,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
 
 
+        // performance-budget.md 4: the pre-circuit DI is the pickup signal
+        // itself (or the re-amped sidechain, which has no guitar circuit).
+        preCircuitBuffer[(size_t) i] = sidechainToAmp ? sanitise (readSidechain (i)) : sanitise (instrument);
+
         instrument = circuit.process (instrument);
 
         // Input gain (3.4): the trim into the rig, after the guitar's own circuit.
@@ -1891,7 +1897,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     }
 
     // Aux 1: the DI, which is exactly what is about to enter the amp.
-    taps.writeAuxMono (AuxBus::di, instrumentBuffer.data(), numSamples);
+    // performance-budget.md 4: or the pickup before the circuit.
+    taps.writeAuxMono (AuxBus::di, isDiPreCircuit() ? preCircuitBuffer.data() : instrumentBuffer.data(), numSamples);
 
     // The dry side of the wet/dry control is this DI.
     for (int i = 0; i < juce::jmin (numSamples, (int) dryBuffer.size()); ++i)
@@ -2102,6 +2109,7 @@ int LuthierEngine::getLatencySamples() const noexcept
     latency += postEffects.getLatencySamples();
     latency += amp.getLatencySamples();
     latency += midi.getLatencySamples();
+    latency += master.getLatencySamples();   // performance-budget.md 10.6: the limiter's lookahead
 
     return latency;
 }

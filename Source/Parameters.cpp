@@ -774,6 +774,12 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::slapSnapBack,       "Snap-Back",           0.0f, 1.0f, 0.5f));
     add (choiceParam (ParamIDs::slapBodyPart,       "Body Tap Resonance", { "Top", "Side", "Back" }, 0));
 
+    // ==== BEGIN VISUAL-WORKSHOP-QA params ====
+    // performance-budget.md 4: DI aux pre/post GuitarCircuit (param 451). Off is
+    // today's post-circuit DI.
+    add (boolParam   (ParamIDs::aux1PreCircuit,     "Aux 1 Pre-Circuit", false));
+    // ==== END VISUAL-WORKSHOP-QA params ====
+
     return layout;
 }
 
@@ -1352,6 +1358,10 @@ void ParameterBridge::applyToEngine() noexcept
             }
         }
     }
+
+    // ==== BEGIN VISUAL-WORKSHOP-QA params ====
+    engine.setDiPreCircuit (value (ParamIDs::aux1PreCircuit) > 0.5f);   // performance-budget.md 4
+    // ==== END VISUAL-WORKSHOP-QA params ====
 
     // ---- structural change detection ---------------------------------------------
     const bool structural = readStructuralValues() || ! structuralInitialised;

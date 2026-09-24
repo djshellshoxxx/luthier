@@ -331,6 +331,11 @@ public:
     void setSidechainToAmp (bool on) noexcept { sidechainToAmp = on; }
     bool isSidechainToAmp() const noexcept { return sidechainToAmp; }
 
+    /** performance-budget.md 4: Aux 1 (DI) before the GuitarCircuit rather than
+        after it. Off, the default, is the post-circuit DI. */
+    void setDiPreCircuit (bool pre) noexcept { diPreCircuit.store (pre, std::memory_order_relaxed); }
+    bool isDiPreCircuit() const noexcept { return diPreCircuit.load (std::memory_order_relaxed); }
+
     /** Envelope of the sidechain input, for the modulation matrix's
         SidechainEnvFollower source. Zero when no sidechain is connected. */
     double getSidechainEnvelope() const noexcept { return sidechainEnv.load (std::memory_order_relaxed); }
@@ -475,6 +480,8 @@ private:
     std::vector<double> stringSumBuffer;
     std::vector<double> magneticBuffer;
     std::vector<double> instrumentBuffer;
+    std::vector<double> preCircuitBuffer;            // performance-budget.md 4: the pre-circuit DI
+    std::atomic<bool> diPreCircuit { false };
     juce::AudioBuffer<float> bodyBuffer;
     juce::AudioBuffer<float> workBuffer;
 

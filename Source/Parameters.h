@@ -354,6 +354,11 @@ namespace ParamIDs
     juce::String slotBypass (bool post, int slot);
     juce::String slotMix (bool post, int slot);
     juce::String slotParam (bool post, int slot, int param);
+
+    // ==== BEGIN VISUAL-WORKSHOP-QA params ====
+    // performance-budget.md 4: Aux 1 (DI) taps before the GuitarCircuit when on.
+    inline constexpr const char* aux1PreCircuit = "aux1_pre_circuit";
+    // ==== END VISUAL-WORKSHOP-QA params ====
 }
 
 //==============================================================================
