@@ -1,0 +1,245 @@
+defaults author L origin original date 2026-09-24
+
+# Metal: 12 riffs, 6 licks, 2 strums, 6 bass lines. All original.
+
+# ---------------------------------------------------------------- riffs
+
+riff metal.riff.anvil-gallop-1 "Anvil Gallop 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E phrygian   tempo 160   meter 4/4   feel driving
+  difficulty 2   tags gallop palm-mute power-chord   free yes
+  chords 0:E5 2:G5 3:A5 4:E5 5:B5 6:Bb5 7:A5
+  play:
+    e: 6.0pm s: 6.0pm 6.0pm  e: 6.0pm s: 6.0pm 6.0pm  e: [35xxxx]! s: 6.0pm 6.0pm  e: [57xxxx]! s: 6.0pm 6.0pm |
+    e: 6.0pm s: 6.0pm 6.0pm  e: [79xxxx]! s: 6.0pm 6.0pm  q: [68xxxx]!  e: [57xxxx]! [35xxxx]! |
+
+riff metal.riff.grinder-chug-1 "Grinder Chug 1"
+  type riff   instrument guitar6   tuning drop_d   capo 0
+  key D aeolian   tempo 140   meter 4/4   feel driving
+  difficulty 2   tags drop-d chug dead-note syncopation
+  chords 0:D5 2:G5 3:F5 4:D5 6:Ab5 7:G5
+  play:
+    s: 6.0pm 6.0pm e: 6.0pm  s: 6.x 6.0pm e: 6.0pm  e: [555xxx] 6.0pm  [333xxx] 6.0pm |
+    s: 6.0pm 6.0pm e: 6.0pm  s: 6.x 6.0pm e: 6.0pm  q: [666xxx]  e: [555xxx] [111xxx] |
+
+riff metal.riff.serrated-tremolo-1 "Serrated Tremolo 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E phrygian   tempo 170   meter 4/4   feel driving
+  difficulty 3   tags tremolo-picking single-note
+  chords 0:Em 4:Em 5:Em 6:C
+  play:
+    s: 5.7 5.7 5.7 5.7  5.8 5.8 5.8 5.8  5.10 5.10 5.10 5.10  5.8 5.8 5.8 5.8 |
+    s: 5.7 5.7 5.7 5.7  4.9 4.9 4.9 4.9  4.10 4.10 4.10 4.10  4.9 4.9 5.10 5.10 |
+
+riff metal.riff.pinch-squeal-chug-1 "Pinch Squeal Chug 1"
+  type riff   instrument guitar6   tuning drop_d   capo 0
+  key D aeolian   tempo 130   meter 4/4   feel driving
+  difficulty 3   tags drop-d pinch-harmonic chug
+  chords 0:D5 4:D5 5:F5 6:Eb5
+  play:
+    e: 6.0pm s: 6.0pm 6.0pm  e: 6.0pm 6.0pm  s: 6.0pm 6.0pm e: 6.0pm  q: 3.7*~ |
+    e: 6.0pm s: 6.0pm 6.0pm  e: [33xxxx] 6.0pm  s: 6.0pm 6.0pm e: [11xxxx]  q: 4.3*~ |
+
+riff metal.riff.seven-string-stagger-1 "Seven-String Stagger 1"
+  type riff   instrument guitar7   tuning standard   capo 0
+  key B aeolian   tempo 120   meter 4/4   feel straight
+  difficulty 3   tags seven-string syncopation string-skip
+  chords 0:B5 2:D5 3:C5 4:B5 6:E5 7:C5
+  play:
+    s: 7.0pm 7.0pm r 7.0pm  r 7.0pm 7.0pm r  e: [35xxxxx]! s: 7.0pm 7.0pm  e: 7.0pm [13xxxxx]! |
+    s: 7.0pm r 7.0pm 7.0pm  r 7.0pm r 7.0pm  e: [57xxxxx]! [35xxxxx]!  q: [13xxxxx]! |
+
+riff metal.riff.abyss-pulse-1 "Abyss Pulse 1"
+  type riff   instrument guitar7   tuning drop_a   capo 0
+  key A phrygian   tempo 110   meter 4/4   feel half_time
+  difficulty 4   tags seven-string drop-a polyrhythm dead-note
+  chords 0:A5 2:Bb5 3:C5 4:A5 6:D5 7:Bb5
+  play:
+    s: 7.0pm 7.x 7.0pm 7.0pm  r 7.0pm 7.x 7.0pm  e: [111xxxx]! s: 7.0pm 7.0pm  e: r [333xxxx]! |
+    s: 7.0pm 7.0pm 7.x 7.0pm  7.0pm r 7.0pm 7.x  e: [555xxxx]! s: 7.0pm 7.0pm  [111xxxx]! r e: [888xxxx]! |
+
+riff metal.riff.whammy-dive-riff-1 "Whammy Dive Riff 1"
+  type riff   instrument guitar6   tuning drop_d   capo 0
+  key D aeolian   tempo 150   meter 4/4   feel driving
+  difficulty 4   tags drop-d whammy pinch-harmonic
+  chords 0:D5 1:G5 3:Ab5 4:D5 5:F5 6:D5
+  play:
+    e: 6.0pm 6.0pm [555xxx] 6.0pm  6.0pm 6.0pm [666xxx] 6.0pm |
+    e: 6.0pm 6.0pm [333xxx] 6.0pm  h: 5.3*wb-2 |
+
+riff metal.riff.dirge-crawl-1 "Dirge Crawl 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 70   meter 4/4   feel half_time
+  difficulty 1   tags doom slow power-chord
+  chords 0:E5 2:G5 3:F5 4:G5 5.5:F#5 6:E5
+  play:
+    h: [022xxx]~  q: [355xxx]  e: [133xxx] 6.1s/3 |
+    q.: [355xxx]  e: [244xxx]  h: [022xxx]~ |
+
+riff metal.riff.thrash-skip-riff-1 "Thrash Skip Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E phrygian   tempo 180   meter 4/4   feel driving
+  difficulty 4   tags string-skip sixteenths palm-mute
+  chords 0:E5 4:E5 6:F5 6.5:G5 7:Bb5 7.5:A5
+  play:
+    s: 6.0pm 6.0pm 4.2 6.0pm  6.0pm 4.3 6.0pm 6.0pm  6.0pm 4.5 6.0pm 4.3  6.0pm 4.2 6.0pm 5.3 |
+    s: 6.0pm 6.0pm 4.2 6.0pm  6.0pm 4.3 6.0pm 6.0pm  e: [13xxxx]! [35xxxx]! [68xxxx]! [57xxxx]! |
+
+riff metal.riff.chromatic-grind-1 "Chromatic Grind 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E phrygian   tempo 135   meter 4/4   feel straight
+  difficulty 3   tags chromatic legato palm-mute
+  chords 0:E5 3.5:Bb5 4:E5 7:B5 7.5:Bb5
+  play:
+    s: 6.0pm 6.0pm 6.1 h6.3  6.0pm 6.0pm 6.4 p6.3  6.0pm 6.0pm 6.1 h6.2  e: 6.0pm [68xxxx]! |
+    s: 6.0pm 6.0pm 5.1 h5.2  6.0pm 6.0pm 5.3 p5.2  6.0pm 5.2 p5.1 6.0pm  e: [79xxxx] [68xxxx] |
+
+riff metal.riff.iron-stomp-1 "Iron Stomp 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 100   meter 4/4   feel straight
+  difficulty 1   tags power-chord beginner   free yes
+  chords 0:E5 1.5:G5 2:A5 3:G5 4:E5 5.5:G5 6:Bb5 6.5:A5 7:G5
+  play:
+    q: [02xxxx]  e: [02xxxx] [35xxxx]  q: [57xxxx] [35xxxx] |
+    q: [02xxxx]  e: [02xxxx] [35xxxx]  e: [68xxxx] [57xxxx]  q: [35xxxx] |
+
+riff metal.riff.molten-octave-riff-1 "Molten Octave Riff 1"
+  type riff   instrument guitar6   tuning drop_d   capo 0
+  key D aeolian   tempo 125   meter 4/4   feel straight
+  difficulty 2   tags drop-d octaves palm-mute
+  chords 0:D5 1:G5 2:F5 3:Eb5 4:D5 5:G5 6:Bb5 7:A5
+  play:
+    e: 6.0pm 6.0pm [5x5xxx] 6.0pm  [3x3xxx] 6.0pm [1x1xxx] 6.0pm |
+    e: 6.0pm 6.0pm [5x5xxx] 6.0pm  q: [8x8xxx] [7x7xxx] |
+
+# ---------------------------------------------------------------- licks
+
+riff metal.lick.harmonic-minor-run-1 "Harmonic Minor Run 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E harmonic_minor   tempo 110   meter 4/4   feel straight
+  difficulty 3   tags neoclassical descending legato
+  chords 0:Em 3:B7 4:Em 7:Em
+  play:
+    s: 1.12 p1.11 1.8 1.7  2.10 p2.8 2.7 h2.8  3.9 h3.11 3.8 3.9  e: 1.7 1.8 |
+    s: 1.11 1.12 1.11 1.8  1.7 h1.8 p1.7 2.10  e: 2.8 2.7  q: 3.9~ |
+
+riff metal.lick.tapped-arpeggio-cascade-1 "Tapped Arpeggio Cascade 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 110   meter 4/4   feel straight
+  difficulty 5   tags tapping arpeggio shred
+  chords 0:Em 1:C 2:D 3:B 4:Em 5:C 6:Em
+  play:
+    t16: 2.17T p2.8 h2.12 2.17T p2.8 h2.12  2.20T p2.13 h2.17 2.20T p2.13 h2.17  2.22T p2.15 h2.19 2.22T p2.15 h2.19  2.19T p2.12 h2.16 2.19T p2.12 h2.16 |
+    t16: 2.17T p2.8 h2.12 2.17T p2.8 h2.12  2.20T p2.13 h2.17 2.20T p2.13 h2.17  e: 2.24T p2.12  q: h2.17~ |
+
+riff metal.lick.trill-wail-lick-1 "Trill Wail Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 90   meter 4/4   feel straight
+  difficulty 3   tags trill bend lead
+  chords 0:Em 4:Am 6:Em
+  play:
+    q: 1.15tr17  e: 1.15 1.12  2.15b2 ~  q: 1.12~ |
+    e: 1.12 2.15 2.12 3.14  s: 3.12 3.14 3.12 4.14  q: 3.14b2~ |
+
+riff metal.lick.harmonic-scream-lick-1 "Harmonic Scream Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 100   meter 4/4   feel straight
+  difficulty 4   tags harmonics whammy dive
+  chords 0:Em 4:Em 6:C 7:Em
+  play:
+    e: 3.12<> 2.12<>  q: 3.7<>wb2  h: 3.5<>wb-3 |
+    s: 1.12 1.15 1.12 1.10  2.12 2.15 2.12 2.13  q: 1.12~ 6.0wb-7 |
+
+riff metal.lick.pinch-bend-howl-1 "Pinch Bend Howl 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 90   meter 4/4   feel straight
+  difficulty 2   tags pinch-harmonic bend low-lead   free yes
+  chords 0:Em 2:Am 4:Em
+  play:
+    e: 5.7 5.5 4.7 4.5  h: 4.7*b2~ |
+    e: 4.5 4.7 5.5 5.7  q: 6.0 4.9*~ |
+
+riff metal.lick.tap-harmonic-shred-1 "Tap Harmonic Shred 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 95   meter 4/4   feel straight
+  difficulty 4   tags tapped-harmonic tapping slide
+  chords 0:Em 4:Em 6:Em
+  play:
+    q: [022xxx]lr  e: 5.2tah 4.2tah 3.4tah 2.5tah  q: 1.7tah |
+    s: 1.12T p1.7 1.15T p1.7  1.12T p1.7 h1.8 p1.7  e: 1.7/12  q.: 1.12~ |
+
+# ---------------------------------------------------------------- strums
+
+riff metal.strum.crushed-chord-strum-1 "Crushed Chord Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 100   meter 4/4   feel straight
+  difficulty 1   tags power-chord beginner accents   free yes
+  chords 0:E5 2:G5 4:A5 6:G5 7:E5
+  play:
+    q: D[022xxx]!  e: D[022xxx] U[022xxx]  q: D[355xxx]!  e: D[355xxx] U[355xxx] |
+    q: D[577xxx]!  e: D[577xxx] U[577xxx]  e: D[355xxx]! D[355xxx]  q: D[022xxx]! |
+
+riff metal.strum.anvil-chug-strum-1 "Anvil Chug Strum 1"
+  type strum   instrument guitar6   tuning drop_d   capo 0
+  key D aeolian   tempo 130   meter 4/4   feel driving
+  difficulty 2   tags drop-d palm-mute chuck
+  chords 0:D5 2:G5 3:F5 4:D5 6:A5 7:G5 7.5:F5
+  play:
+    e: D[000xxx]pm D[000xxx]pm Dx[000xxx] D[000xxx]pm  D[555xxx]! Dx[555xxx] D[333xxx]pm U[333xxx]pm |
+    e: D[000xxx]pm D[000xxx]pm Dx[000xxx] D[000xxx]pm  q: D[777xxx]!  s: D[555xxx] U[555xxx] D[333xxx] U[333xxx] |
+
+# ---------------------------------------------------------------- bass
+
+riff metal.bass.anvil-gallop-bass-1 "Anvil Gallop Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key E phrygian   tempo 150   meter 4/4   feel driving
+  difficulty 2   tags gallop root-notes   free yes
+  chords 0:E5 2:G5 3:A5 4:E5 6:Bb5 7:G5
+  play:
+    e: 4.0 s: 4.0 4.0  e: 4.0 s: 4.0 4.0  e: 4.3 s: 4.3 4.3  e: 4.5 s: 4.5 4.5 |
+    e: 4.0 s: 4.0 4.0  e: 4.0 s: 4.0 4.0  e: 3.1 s: 3.1 3.1  e: 4.3 s: 4.1 4.0 |
+
+riff metal.bass.drop-grinder-bass-1 "Drop Grinder Bass 1"
+  type bass   instrument bass4   tuning drop_d   capo 0
+  key D phrygian   tempo 140   meter 4/4   feel driving
+  difficulty 2   tags drop-d dead-note chug
+  chords 0:D5 3:C5 3.5:D5 4:D5 6:G5 7:F5 7.5:Eb5
+  play:
+    s: 4.0pm 4.0pm 4.x 4.0pm  e: 4.0pm 4.x  s: 4.0pm 4.0pm 4.x 4.0pm  e: 3.3 4.0pm |
+    s: 4.0pm 4.0pm 4.x 4.0pm  e: 4.0pm 4.x  q: 4.5  e: 4.3 4.1 |
+
+riff metal.bass.low-b-pulse-bass-1 "Low-B Pulse Bass 1"
+  type bass   instrument bass5   tuning standard   capo 0
+  key B aeolian   tempo 115   meter 4/4   feel straight
+  difficulty 3   tags five-string syncopation low-b
+  chords 0:B5 2:G5 4:B5 6:A5 6.5:G5 7:F#5
+  play:
+    s: 5.0 5.0 r 5.0  r 5.0 5.0 r  e: 4.3 5.0  s: 5.0 r 4.2 4.3 |
+    s: 5.0 5.0 r 5.0  r 5.0 5.0 r  e: 4.5 4.3  q: 4.2~ |
+
+riff metal.bass.abyss-doom-bass-1 "Abyss Doom Bass 1"
+  type bass   instrument bass5   tuning standard   capo 0
+  key B phrygian   tempo 65   meter 4/4   feel half_time
+  difficulty 1   tags five-string doom slow
+  chords 0:B5 2:D5 3:C5 3.5:D5 4:E5 5.5:D5 6:B5
+  play:
+    h: 5.0~  q: 5.3  e: 5.1s/3 5.3 |
+    q.: 5.5  e: 5.3  h: 5.0 |
+
+riff metal.bass.phrygian-crawl-bass-1 "Phrygian Crawl Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key E phrygian   tempo 120   meter 4/4   feel straight
+  difficulty 2   tags chromatic root-notes
+  chords 0:E5 4:E5 5:Bb5 6:A5 7:G5
+  play:
+    e: 4.0 4.0 4.1 4.0 4.3 4.0 4.2 4.1 |
+    e: 4.0 4.0 3.1 3.0 4.5 4.4  q: 4.3 |
+
+riff metal.bass.thrash-bass-run-1 "Thrash Bass Run 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key E phrygian   tempo 170   meter 4/4   feel driving
+  difficulty 4   tags sixteenths pedal-tone fast
+  chords 0:E5 4:E5 6:C5 7:F5
+  play:
+    s: 4.0 4.0 3.2 4.0  4.0 3.3 4.0 4.0  3.5 4.0 3.3 4.0  3.2 4.0 4.3 4.1 |
+    s: 4.0 4.0 2.2 4.0  4.0 2.3 4.0 2.5  e: 3.3 3.5 2.3 2.2 |

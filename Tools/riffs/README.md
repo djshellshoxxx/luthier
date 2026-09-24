@@ -19,7 +19,7 @@ riff blues.lick.delta-turnaround-3 "Delta Turnaround 3"
     t8: 1.8b2~ 1.8 1.5 2.8b1r 2.5 3.7/9 3.9~ ~ r e: 3.7 h3.9 |
 ```
 
-`#` starts a comment. Header words (any order, any number of lines):
+`#` at the start of a word starts a comment (so `F#m7` is a chord). Header words (any order, any number of lines):
 
 | Word | Values |
 |---|---|
@@ -32,7 +32,7 @@ riff blues.lick.delta-turnaround-3 "Delta Turnaround 3"
 | `meter` | e.g. `4/4` `3/4` `6/8` `12/8` |
 | `feel` | `straight` `shuffle` `swing` `half_time` `laid_back` `driving` (a tag: the timings already hold the feel) |
 | `difficulty` | 1-5 |
-| `tags` | lower-case words joined by `-` |
+| `tags` | lower-case words joined by `-` (a tag cannot be a header word such as `capo`) |
 | `free` | `yes` puts the item in the Free set |
 | `chords` | `<beat>:<symbol>` ... |
 | `author`, `origin`, `date` | usually from `defaults`; origin must be `original` |

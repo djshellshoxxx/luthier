@@ -352,7 +352,8 @@ def read_riffdefs(paths):
         current = None
         in_play = False
         for number, raw in enumerate(lines, 1):
-            line = raw.split("#", 1)[0].rstrip()
+            # A comment is a '#' that starts a word, so F#m7 stays a chord.
+            line = re.split(r"(?:^|(?<=\s))#", raw, maxsplit=1)[0].rstrip()
             where = "%s:%d" % (os.path.relpath(path, REPO).replace(os.sep, "/"), number)
             if not line.strip():
                 continue
@@ -507,9 +508,9 @@ def compile_item(item):
 
     for number, line in item.play:
         source_parts.append(line.strip())
-        text = line.replace("|", " | ")
-        col_base = 0
-        for token_match in re.finditer(r"\S+", text):
+        # A chord may hold spaces ([6.3 5.2 4.0]); it is one token with its
+        # prefix and suffixes.
+        for token_match in re.finditer(r"[^\s\[|]*\[[^\]]*\][^\s|]*|\||[^\s|]+", line):
             tok = token_match.group(0)
             col = token_match.start() + 1
             if tok == "|":

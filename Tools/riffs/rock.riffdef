@@ -1,0 +1,273 @@
+defaults author L origin original date 2026-09-24
+
+# ---------------------------------------------------------------- riffs
+
+riff rock.riff.crunch-power-riff-1 "Crunch Power Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 112   meter 4/4   feel straight
+  difficulty 1   tags power-chords beginner   free yes
+  chords 0:E5 1.5:G5 2:A5 3:G5 3.5:E5 4:D5 5.5:C5 6:B5
+  play:
+    q: [022xxx] e: [022xxx] [355xxx] q: [577xxx] e: [355xxx] [022xxx] |
+    q.: [x577xx] e: [x355xx] h: [x244xx] |
+
+riff rock.riff.arena-mute-riff-1 "Arena Mute Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A aeolian   tempo 128   meter 4/4   feel driving
+  difficulty 2   tags palm-mute open-a power-chords
+  chords 0:A5 6:G5 7:A5
+  play:
+    e: 5.0pm 5.0pm [x02xxx]! 5.0pm 5.0pm [x35xxx]! 5.0pm [x57xxx]! |
+    e: 5.0pm 5.0pm [x02xxx]! 5.0pm q: [35xxxx]! e: [57xxxx]! [x02xxx]! |
+
+riff rock.riff.drop-d-stomp-riff-1 "Drop-D Stomp Riff 1"
+  type riff   instrument guitar6   tuning drop_d   capo 0
+  key D aeolian   tempo 100   meter 4/4   feel straight
+  difficulty 2   tags drop-d palm-mute heavy
+  chords 0:D5 1:F5 1.5:D5 3:G5 3.5:F5 4:D5 5:Eb5 5.5:D5 6:G5 7.5:F5
+  play:
+    s: 6.0pm 6.0pm 6.x 6.0pm e: [333xxx] [000xxx] s: 6.0pm 6.0pm 6.x 6.0pm e: [555xxx] [333xxx] |
+    s: 6.0pm 6.0pm 6.x 6.0pm e: [111xxx] [000xxx] q.: [555xxx] e: [333xxx] |
+
+riff rock.riff.stadium-pedal-riff-1 "Stadium Pedal Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A mixolydian   tempo 104   meter 4/4   feel straight
+  difficulty 3   tags open-a pedal legato
+  chords 0:A5 7:G5
+  play:
+    e: 5.0 h5.2 4.0 h4.2 s: 3.2 p3.0 4.2 4.0 e: 5.0 [x022xx] |
+    e: 5.0 h5.3 4.0 h4.2 s: 4.0 h4.2 p4.0 5.2 q: [355xxx] |
+
+riff rock.riff.crunch-slide-riff-1 "Crunch Slide Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 96   meter 4/4   feel straight
+  difficulty 2   tags slides low-strings   free yes
+  chords 0:E5 4:E5
+  play:
+    e: 6.0 6.0 5.2/5 5.5 q: 6.3 e: 6.5s/7 6.7 |
+    e: 6.0 6.0 5.2/5 5.5 5.7 5.5 6.3/5 6.5 |
+
+riff rock.riff.half-down-grind-riff-1 "Half-Down Grind Riff 1"
+  type riff   instrument guitar6   tuning half_down   capo 0
+  key Eb minor_pentatonic   tempo 92   meter 4/4   feel half_time
+  difficulty 3   tags half-down palm-mute pinch
+  chords 0:Eb5 4:Eb5 7:Gb5
+  play:
+    s: 6.0pm 6.0pm 6.0pm 6.0pm e: 6.3 6.0pm s: 6.0pm 6.0pm e: 6.5 q: 4.2*~ |
+    s: 6.0pm 6.0pm 6.0pm 6.0pm e: 6.3 6.5 6.6 6.5 q: [355xxx] |
+
+riff rock.riff.arena-double-stop-riff-1 "Arena Double-Stop Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A mixolydian   tempo 116   meter 4/4   feel straight
+  difficulty 2   tags double-stops open-a
+  chords 0:A 4:D 6:A
+  play:
+    e: [xxx23x] [xxx23x] [xxx45x] q: [xxx23x] e: 5.0 [xxx23x] 5.0 |
+    e: [x-x-x-9-10-x] [xxx78x] [xxx67x] [xxx45x] h: [x-0-2-2-2-0]lr |
+
+riff rock.riff.stadium-gallop-riff-1 "Stadium Gallop Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A aeolian   tempo 138   meter 4/4   feel driving
+  difficulty 3   tags gallop palm-mute open-a
+  chords 0:A5 2:F5 3:G5 4:A5 6:F5 7:E5
+  play:
+    e: 5.0pm s: 5.0pm 5.0pm e: 5.0pm s: 5.0pm 5.0pm e: [13xxxx] s: 5.0pm 5.0pm e: [35xxxx] s: 5.0pm 5.0pm |
+    e: [x02xxx] s: 5.0pm 5.0pm e: [x02xxx] s: 5.0pm 5.0pm e: [13xxxx] s: 6.1pm 6.1pm e: [02xxxx] s: 6.0pm 6.0pm |
+
+riff rock.riff.crunch-rake-riff-1 "Crunch Rake Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key G mixolydian   tempo 108   meter 4/4   feel straight
+  difficulty 2   tags dead-notes power-chords
+  chords 0:G5 1.5:C5 3:D5 4:G5 5.5:A5 7:F5 7.5:G5
+  play:
+    e: [355xxx]! s: 5.x 5.x e: [355xxx] [x355xx]! s: 5.x 5.x e: [x355xx] [x577xx]! [x577xx] |
+    e: [355xxx]! s: 5.x 5.x e: [355xxx] [577xxx]! q: r e: [133xxx] [355xxx]! |
+
+riff rock.riff.stadium-octave-riff-1 "Stadium Octave Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key D mixolydian   tempo 120   meter 4/4   feel straight
+  difficulty 2   tags octaves slides
+  chords 0:D5 2.5:C5 3:D5 4:F5 5:E5 5.5:D5 6:C5 7:D5
+  play:
+    e: [x5x7xx] [x5x7xx] r [x5x7xx] [x3x5xx] r [x5x7xx] [x5x7xx]/out |
+    q: [x-8-x-10-x-x]\in e: [x7x9xx] [x5x7xx] q: [x3x5xx] e: [x5x7xx] r |
+
+# ---------------------------------------------------------------- licks
+
+riff rock.lick.arena-bend-lick-1 "Arena Bend Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A minor_pentatonic   tempo 92   meter 4/4   feel straight
+  difficulty 2   tags bends box-1   free yes
+  chords 0:Am 4:Am
+  play:
+    e: 2.5 1.5 2.8 q: 3.7b2 e: 2.5 q: 1.5~ |
+    e: 3.7 3.5 4.7 3.5 q: 4.7~ ~ |
+
+riff rock.lick.stadium-release-lick-1 "Stadium Release Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E minor_pentatonic   tempo 100   meter 4/4   feel straight
+  difficulty 3   tags bends legato twelfth-fret
+  chords 0:Em 4:Em
+  play:
+    s: 1.15 p1.12 2.15 p2.12 e: 3.14b2r 3.12 q: 2.15b2r e: 2.12 h2.15 |
+    s: 1.12 2.15 p2.12 3.14 e: 3.12 h3.14 4.12 q.: h4.14~ |
+
+riff rock.lick.stadium-run-lick-1 "Stadium Run Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A minor_pentatonic   tempo 108   meter 4/4   feel straight
+  difficulty 3   tags triplets legato box-1
+  chords 0:Am 4:Am
+  play:
+    t8: 1.8 p1.5 2.8 2.5 3.7 p3.5 4.7 p4.5 5.7 5.5 h5.7 4.5 |
+    t8: 4.5 h4.7 3.5 h3.7 2.5 3.7b2 h: ~ |
+
+riff rock.lick.arena-tapping-lick-1 "Arena Tapping Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 120   meter 4/4   feel straight
+  difficulty 4   tags tapping arpeggio
+  chords 0:Em 2:C 4:D 6:Em
+  play:
+    t8: 2.17T p2.8 h2.12 2.17T p2.8 h2.12 2.17T p2.8 h2.13 2.17T p2.8 h2.13 |
+    t8: 2.19T p2.10 h2.15 2.19T p2.10 h2.15 2.17T p2.8 h2.12 q: 2.17T~ |
+
+riff rock.lick.arena-harmonic-lick-1 "Arena Harmonic Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 84   meter 4/4   feel laid_back
+  difficulty 3   tags harmonics chime
+  chords 0:G 4:G
+  play:
+    q: 3.12<> 2.12<> e: 1.12<> 1.7<> q: 4.7<> |
+    e: 2.3ah 3.4ah 2.3ah 1.3ah q: 3.4tah 2.3tah |
+
+riff rock.lick.stadium-dive-lick-1 "Stadium Dive Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E minor_pentatonic   tempo 116   meter 4/4   feel straight
+  difficulty 4   tags whammy bends descending
+  chords 0:Em 4:Em
+  play:
+    s: 1.15 1.12 2.15 2.12 3.14 3.12 4.14 4.12 q: 3.14b2 e: 3.12 2.12 |
+    q: 1.12~ e: r 5.7 h: 6.0wb-5 |
+
+riff rock.lick.arena-trill-lick-1 "Arena Trill Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A aeolian   tempo 100   meter 4/4   feel straight
+  difficulty 4   tags trills slides
+  chords 0:Am 4:Am
+  play:
+    q: 3.7/in e: 3.5 2.5 q: 2.8tr10 e: 2.5 1.5 |
+    s: 1.8 1.7 1.5 2.8 e: 2.5 3.7 q: 3.5tr7 4.7\out |
+
+riff rock.lick.stadium-scream-lick-1 "Stadium Scream Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E minor_pentatonic   tempo 88   meter 4/4   feel straight
+  difficulty 3   tags bends vibrato twelfth-fret
+  chords 0:Em 4:Em
+  play:
+    e: 2.15b2 ~ 2.15b2r 1.15 q: 1.12~ e: 2.15 2.12 |
+    q: 3.14b2 e: 3.12 2.12 4.12b2r 3.12 q: 4.14~ |
+
+# ---------------------------------------------------------------- strums
+
+riff rock.strum.arena-open-strum-1 "Arena Open Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 100   meter 4/4   feel straight
+  difficulty 1   tags open-chords beginner   free yes
+  chords 0:G 4:D 8:Em 12:C
+  play:
+    q: D[320003] e: D[320003] U[320003] q.: D[320003] e: U[320003] |
+    q: D[xx0232] e: D[xx0232] U[xx0232] e: r U[xx0232] D[xx0232] U[xx0232] |
+    q: D[022000] e: D[022000] U[022000] q.: D[022000] e: U[022000] |
+    q: D[x32010] e: D[x32010] U[x32010] h: D[x32010] |
+
+riff rock.strum.crunch-chuck-strum-1 "Crunch Chuck Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key A aeolian   tempo 116   meter 4/4   feel driving
+  difficulty 2   tags chucks accents
+  chords 0:Am 2:F 4:C 6:G
+  play:
+    e: D[x02210]! U[x02210] Dx[x02210] U[x02210] D[133211]! U[133211] Dx[133211] U[133211] |
+    e: D[x32010]! U[x32010] Dx[x32010] U[x32010] D[320003]! D[320003] Dx[320003] U[320003] |
+
+riff rock.strum.stadium-ring-strum-1 "Stadium Ring Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key D ionian   tempo 88   meter 4/4   feel laid_back
+  difficulty 2   tags suspended let-ring
+  chords 0:D 1:Dsus4 2:D 3:Dsus2 4:A 5:Asus4 6:A 7:Asus2 8:G 10:Cadd9 12:D
+  play:
+    q: D[xx0232]lr e: D[xx0233] U[xx0233] q: D[xx0232] e: U[xx0230] D[xx0230] |
+    q: D[x02220]lr e: D[x02230] U[x02230] q: D[x02220] e: D[x02200] U[x02200] |
+    h: D[320033]lr q: D[x32033] e: D[x32033] U[x32033] |
+    w: D[xx0232]lr |
+
+riff rock.strum.arena-barre-strum-1 "Arena Barre Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key D ionian   tempo 104   meter 4/4   feel straight
+  difficulty 3   tags barre-chords syncopation
+  chords 0:G 3.5:A 7.5:Bm 11.5:A 14:D
+  play:
+    e.: D[3-5-5-4-3-3]! s: U[3-5-5-4-3-3] e: r U[3-5-5-4-3-3] q: D[3-5-5-4-3-3] e: Dx[3-5-5-4-3-3] U[5-7-7-6-5-5] |
+    e.: D[5-7-7-6-5-5]! s: U[5-7-7-6-5-5] e: r U[5-7-7-6-5-5] q: D[5-7-7-6-5-5] e: Dx[5-7-7-6-5-5] U[x-2-4-4-3-2] |
+    e.: D[x-2-4-4-3-2]! s: U[x-2-4-4-3-2] e: r U[x-2-4-4-3-2] D[x-2-4-4-3-2] U[x-2-4-4-3-2] Dx[x-2-4-4-3-2] U[5-7-7-6-5-5] |
+    h: D[5-7-7-6-5-5] q: D[x-5-7-7-7-5] e: Dx[x-5-7-7-7-5] U[x-5-7-7-7-5] |
+
+# ---------------------------------------------------------------- bass
+
+riff rock.bass.arena-root-bass-1 "Arena Root Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key E aeolian   tempo 112   meter 4/4   feel straight
+  difficulty 1   tags root-notes beginner   free yes
+  chords 0:Em 2:G 4:Am 6:D 7:C
+  play:
+    q: 4.0 e: 4.0 4.0 q: 4.3 e: 3.0 3.2 |
+    q: 3.0 e: 3.0 3.0 q: 2.0 e: 3.3 3.2 |
+
+riff rock.bass.stadium-octave-bass-1 "Stadium Octave Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key A aeolian   tempo 120   meter 4/4   feel driving
+  difficulty 2   tags octaves eighths
+  chords 0:A5 2:G5 4:F5 6:G5 7:A5
+  play:
+    e: 3.0 1.2 3.0 1.2 4.3 2.5 4.3 2.5 |
+    e: 4.1 2.3 4.1 2.3 4.3 2.5 q: 3.0 |
+
+riff rock.bass.arena-climb-bass-1 "Arena Climb Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key G ionian   tempo 104   meter 4/4   feel straight
+  difficulty 2   tags root-fifth approach-notes
+  chords 0:G 4:C 8:D 12:G
+  play:
+    e: 4.3 4.3 3.5 4.3 2.5 4.3 3.5 3.2 |
+    e: 3.3 3.3 2.5 3.3 2.2 2.0 3.5 3.4 |
+    q: 3.5 e: 3.5 2.4 q: 2.0 e: 3.5 4.2 |
+    q: 4.3 e: 4.3 2.0 q: 2.5 4.3 |
+
+riff rock.bass.drop-d-pedal-bass-1 "Drop-D Pedal Bass 1"
+  type bass   instrument bass4   tuning drop_d   capo 0
+  key D aeolian   tempo 132   meter 4/4   feel driving
+  difficulty 1   tags drop-d pedal eighths
+  chords 0:D5 2:F5 3:G5 4:D5 6:C5 7:F5
+  play:
+    e: 4.0 4.0 4.0 4.0 q: 4.3 4.5 |
+    e: 4.0 4.0 4.0 4.0 q: 3.3 e: 4.3 4.1 |
+
+riff rock.bass.stadium-slide-bass-1 "Stadium Slide Bass 1"
+  type bass   instrument bass5   tuning standard   capo 0
+  key A aeolian   tempo 90   meter 4/4   feel laid_back
+  difficulty 3   tags slides five-string
+  chords 0:Am 4:G 6:Dm 8:Dm 10:G 12:Am
+  play:
+    q: 3.0 e: 3.0 4.3 q: 3.3 e: 3.5/7 3.7 |
+    q: 2.5 e: 2.5 2.3 q: 3.5 e: 3.3 3.2 |
+    q: 5.3 e: 5.3 5.5 q: 4.3 e: 4.5 4.3 |
+    e: 4.3 4.3 q: 5.3/5 e: 5.5 4.3 q: 4.5~ |
+
+riff rock.bass.arena-syncopation-bass-1 "Arena Syncopation Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key E aeolian   tempo 104   meter 4/4   feel straight
+  difficulty 4   tags sixteenths legato syncopation
+  chords 0:Em 4:G 8:Am 12:B7
+  play:
+    e.: 4.0 s: 4.0 e: r 4.0 s: 3.0 h3.2 e: 2.0 s: 2.2 p2.0 e: 3.2 |
+    e.: 4.3 s: 4.3 e: r 4.3 s: 3.0 h3.2 e: 2.0 s: 2.2 h2.4 e: p2.2 |
+    s: 3.0 3.0 r 3.0 e: 3.3 3.0 s: 2.0 h2.2 p2.0 3.2 e: 3.0 4.3 |
+    q.: 3.2 e: 3.2 s: 2.0 h2.1 p2.0 3.2 q: 4.0 |

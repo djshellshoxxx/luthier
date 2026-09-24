@@ -1,0 +1,268 @@
+defaults author L origin original date 2026-09-24
+
+# Note: explicit chords are written as shape strings ([xxx55x]) because the
+# generator splits tokens on spaces, so the '[3.5 2.5]' form cannot be read.
+
+# ---------------------------------------------------------------- riffs
+
+riff soul.riff.thirds-hammer-riff-1 "Thirds Hammer Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 72   meter 4/4   feel laid_back
+  difficulty 1   tags double-stops thirds beginner   free yes
+  chords 0:C 4:F 7:G
+  play:
+    e: [xxx55x] r [xxx55x] [xxx78x] q: [xxx55x] e: 3.4 h3.5 |
+    e: [xxx21x] r [xxx21x] [xxx56x] q: [xxx21x] e: [xxx43x] r |
+
+riff soul.riff.chapel-hammer-riff-1 "Chapel Hammer Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 80   meter 4/4   feel laid_back
+  difficulty 2   tags hammer-on pull-off embellishment
+  chords 0:G 4:C
+  play:
+    e: 3.2 h3.4 2.3 s: 3.4 p3.2 e: 4.5 3.2 q: [xxx43x] |
+    e: 3.5 h3.7 2.5 s: 3.7 p3.5 e: 4.5 3.4 q: [xxx55x] |
+
+riff soul.riff.triad-chop-riff-1 "Triad Chop Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key D dorian   tempo 96   meter 4/4   feel straight
+  difficulty 3   tags triads stabs sixteenths
+  chords 0:Dm 2.5:G 3.5:C 4:Dm 6:G 7:C 7.5:F
+  play:
+    s: [xxx765]' r r [xxx765]g r r [xxx765]' r e: r [xxx787]' s: r [xxx787]g e: [xxx553]' |
+    s: [xxx765]' r r [xxx765]g r r [xxx765]' r q: [xxx787] e: [xxx553]' [xxx565] |
+
+riff soul.riff.slow-slide-riff-1 "Slow Slide Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A ionian   tempo 70   meter 4/4   feel laid_back
+  difficulty 2   tags slides vibrato ballad
+  chords 0:A 4:A6
+  play:
+    e: 3.4/6 q: 3.6 e: 2.5 3.6 q: 4.7~ e: r |
+    e: 3.4/6 q: 3.6 e: 2.5 2.7 q: 2.5~ e: 3.6 |
+
+riff soul.riff.syncopated-sixth-riff-1 "Syncopated Sixth Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E mixolydian   tempo 100   meter 4/4   feel straight
+  difficulty 4   tags double-stops sixteenths dead-notes
+  chords 0:E 1:A 1.5:E 4:E 7:D
+  play:
+    s: [xxxx97] r [xxxx97]' 1.x [x-x-x-x-10-9] r [xxxx97] r 3.9 3.x 3.11 r [xxxx97]! r 3.11 p3.9 |
+    s: [xxxx97] r [xxxx97]' 1.x [x-x-x-x-10-9] r [xxxx97] r 3.9 3.x 3.7 r [xxxx75]! r 3.7 h3.9 |
+
+riff soul.riff.ringing-arpeggio-riff-1 "Ringing Arpeggio Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key D ionian   tempo 84   meter 4/4   feel laid_back
+  difficulty 2   tags arpeggio let-ring
+  chords 0:D 2:Bm 4:G 6:A
+  play:
+    e: 4.0lr 3.2lr 2.3lr 1.2lr 5.2lr 4.4lr 3.4lr 2.3lr |
+    e: 6.3lr 5.2lr 4.0lr 2.3lr 5.0lr 4.2lr 3.2lr 2.2 |
+
+# ---------------------------------------------------------------- licks
+
+riff soul.lick.major-pentatonic-lick-1 "Major Pentatonic Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key C major_pentatonic   tempo 76   meter 4/4   feel laid_back
+  difficulty 1   tags beginner melodic   free yes
+  chords 0:C
+  play:
+    e: 2.5 2.3 3.5 3.2 q: 4.5 e: 3.2 2.3 |
+    q: 2.5 e: 2.3 3.2 h: 3.5 |
+
+riff soul.lick.vibrato-answer-lick-1 "Vibrato Answer Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A ionian   tempo 72   meter 4/4   feel laid_back
+  difficulty 2   tags vibrato call-response
+  chords 0:A 4:A6
+  play:
+    e: 1.5 2.7 1.5 2.5 q: 2.7~ e: 3.6 3.4 |
+    q: 3.6 e: 3.4 4.4 h: 4.7~ |
+
+riff soul.lick.sliding-sixth-lick-1 "Sliding Sixth Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 80   meter 4/4   feel straight
+  difficulty 2   tags slides melodic
+  chords 0:C
+  play:
+    e: 3.2/5 3.5 2.5 r s: 1.3 2.5 3.5 3.2 e: 4.5 r |
+    e: 4.2/5 4.5 3.2 3.5 q: 2.5 3.5 |
+
+riff soul.lick.chapel-pull-off-lick-1 "Chapel Pull-Off Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 88   meter 4/4   feel laid_back
+  difficulty 3   tags triplets pull-off hammer-on
+  chords 0:G
+  play:
+    t8: 1.5 p1.3 2.3 2.5 p2.3 3.4 q: 4.5 3.2 |
+    t8: 3.4 h3.5 p3.4 4.5 4.4 4.2 h: 4.5~ |
+
+riff soul.lick.sweet-bend-lick-1 "Sweet Bend Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key D ionian   tempo 84   meter 4/4   feel laid_back
+  difficulty 4   tags bends vibrato sixteenths
+  chords 0:D
+  play:
+    s: 2.10 1.10 2.10 3.11 e: 2.12b2 2.10 s: 1.10 1.12 2.10 3.11 e: 3.9 r |
+    s: 3.9 r 3.11 3.9g e: 4.12 3.9 s: 4.12 3.9 4.12 4.9 q: 4.12~ |
+
+riff soul.lick.brass-line-lick-1 "Brass-Line Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key F ionian   tempo 100   meter 4/4   feel straight
+  difficulty 3   tags staccato punches
+  chords 0:F 4:C7 7:F
+  play:
+    s: 3.10' r 3.10' 3.x e: 2.10' r s: 3.10 3.12 2.10 r e: 2.8' 2.10 |
+    s: 1.8' r 1.8' 1.x e: 2.10' r s: 2.11 r 2.10 2.8 q: 3.10 |
+
+riff soul.lick.mellow-thirds-lick-1 "Mellow Thirds Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A ionian   tempo 70   meter 4/4   feel laid_back
+  difficulty 1   tags double-stops thirds descending
+  chords 0:A 5:E7 6:A
+  play:
+    q: [x-x-x-11-10-x] [xxx99x] h: [xxx77x] |
+    q: [xxx65x] e: [xxx43x] [xxx65x] h: [xxx22x] |
+
+riff soul.lick.grace-note-turn-lick-1 "Grace-Note Turn Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 84   meter 4/4   feel straight
+  difficulty 2   tags hammer-on melodic
+  chords 0:G 4:Em
+  play:
+    e: 3.2 h3.4 2.3 1.3 q: 2.3 e: 2.5 r |
+    e: 1.3 2.5 2.3 3.4 q: 4.5' r |
+
+# ---------------------------------------------------------------- strums
+
+riff soul.strum.sunday-strum-1 "Sunday Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 72   meter 4/4   feel laid_back
+  difficulty 1   tags open-chords four-bar beginner   free yes
+  chords 0:C 4:Am 8:Fmaj7 12:G
+  play:
+    q: D[x32010] e: D[x32010] U[x32010] r U[x32010] q: D[x32010] |
+    q: D[x02210] e: D[x02210] U[x02210] r U[x02210] D[x02210] U[x02210] |
+    q: D[xx3210] e: D[xx3210] U[xx3210] q: D[xx3210] ~ |
+    q: D[320003] e: D[320003] U[320003] r U[320003] D[320003] U[320003] |
+
+riff soul.strum.maj-seven-glide-strum-1 "Maj-Seven Glide Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key D ionian   tempo 84   meter 4/4   feel laid_back
+  difficulty 2   tags major-seventh sixteenths
+  chords 0:Dmaj7 4:Gmaj7 7.5:Dmaj7
+  play:
+    e: D[xx0222] s: r U[xx0222] e: D[xx0222] U[xx0222] s: Dx[xx0222] U[xx0222] e: D[xx0222] q: D[xx0222] |
+    e: D[3x443x] s: r U[3x443x] e: D[3x443x] U[3x443x] s: Dx[3x443x] U[3x443x] e: D[3x443x] U[3x443x] s: D[xx0222] U[xx0222] |
+
+riff soul.strum.minor-ninth-chop-strum-1 "Minor Ninth Chop Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key E dorian   tempo 96   meter 4/4   feel straight
+  difficulty 3   tags ninth-chords sixteenths chucks
+  chords 0:Em9 3:A13 4:Em9 6:A13
+  play:
+    s: D[x7577x]' Dx[x7577x] U[x7577x] Dx[x7577x] e: r U[x7577x]' s: D[x7577x] Dx[x7577x] U[x7577x] r e: D[5x5677]' U[5x5677] |
+    s: D[x7577x]' Dx[x7577x] U[x7577x] Dx[x7577x] e: r U[x7577x]' s: D[5x5677] Dx[5x5677] U[5x5677] r q: D[5x5677] |
+
+riff soul.strum.twelve-eight-ballad-strum-1 "Twelve-Eight Ballad Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 60   meter 12/8   feel laid_back
+  difficulty 2   tags ballad twelve-eight open-chords
+  chords 0:G 3:Em 6:C 9:D
+  play:
+    e: D[320003] r U[320003] D[320003] U[320003] D[320003] D[022000] r U[022000] D[022000] U[022000] U[022000] |
+    e: D[x32010] r U[x32010] D[x32010] U[x32010] D[x32010] q.: D[xx0232] e: U[xx0232] D[xx0232] U[xx0232] |
+
+riff soul.strum.minor-to-ninth-strum-1 "Minor-to-Ninth Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key B dorian   tempo 92   meter 4/4   feel straight
+  difficulty 3   tags syncopation ninth-chords chucks
+  chords 0:Bm7 3.25:E9 6:Bm7
+  play:
+    s: D[x2423x]! r U[x2423x] r Dx[x2423x] U[x2423x] D[x2423x] r e: U[x2423x] D[x2423x] s: Dx[x2423x] U[x7677x] e: D[x7677x] |
+    s: D[x7677x]! r U[x7677x] r Dx[x7677x] U[x7677x] D[x7677x] r q: D[x2423x] e: Dx[x2423x] U[x2423x] |
+
+riff soul.strum.gospel-passing-strum-1 "Gospel Passing Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 88   meter 4/4   feel straight
+  difficulty 4   tags passing-chords four-bar diminished
+  chords 0:F 3:Gbdim7 4:C/G 6.5:A7 8:Dm7 10:G7 12:C
+  play:
+    s: D[xx3211]! Dx[xx3211] U[xx3211] D[xx3211] r U[xx3211] D[xx3211] U[xx3211] D[xx4545]! Dx[xx4545] U[xx4545] r e: D[xx4545] U[xx4545] |
+    e: D[xx5553]! s: Dx[xx5553] U[xx5553] e: D[xx5553] U[xx5553] s: r U[xx5553] D[xx7685]! U[xx7685] e: Dx[xx7685] D[xx7685] |
+    q: D[xx0565]! s: Dx[xx0565] U[xx0565] D[xx0565] U[xx0565] e: D[xx3431]! U[xx3431] s: Dx[xx3431] U[xx3431] D[xx3431] U[xx3431] |
+    e: D[xx2010]! U[xx2010] s: Dx[xx2010] U[xx2010] D[xx2010] U[xx2010] q: D[xx2010] ~ |
+
+# ---------------------------------------------------------------- bass
+
+riff soul.bass.steady-root-bass-1 "Steady Root Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key C ionian   tempo 76   meter 4/4   feel laid_back
+  difficulty 1   tags fingerstyle roots beginner   free yes
+  chords 0:C 4:F 6:G
+  play:
+    q.: 3.3 e: 2.2 q: 2.5 e: 2.2 2.0 |
+    q.: 4.1 e: 3.0 q: 4.3 e: 3.0 3.2 |
+
+riff soul.bass.melodic-walk-bass-1 "Melodic Walk Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key F ionian   tempo 100   meter 4/4   feel straight
+  difficulty 2   tags fingerstyle eighths ghost-notes
+  chords 0:F 4:Bb 6:C
+  play:
+    e: 4.1 4.1g 3.0 3.3 2.3 3.3 3.0 4.1 |
+    e: 3.1 3.1g 2.0 2.3 4.8 4.8g 2.2 4.0 |
+
+riff soul.bass.syncopated-pickup-bass-1 "Syncopated Pickup Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key A dorian   tempo 90   meter 4/4   feel straight
+  difficulty 3   tags fingerstyle hammer-on slides
+  chords 0:Am7 4:Dm7 7:Am7
+  play:
+    e.: 3.0 s: 3.0 e: 3.3 s: 3.5 r e: 2.2 h2.4 2.5 s: 2.2 r |
+    e.: 2.0 s: 2.0 e: 2.3 s: 2.5 r e: 1.2 h1.4 2.5/7 s: 2.7 r |
+
+riff soul.bass.popped-groove-bass-1 "Popped Groove Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key D dorian   tempo 96   meter 4/4   feel straight
+  difficulty 3   tags slap ghost-notes sixteenths
+  chords 0:Dm7
+  play:
+    s: sl3.5 r po1.7 r sl3.5 3.5g po1.7 r sl3.3 r po1.5 r sl3.5 r 3.x po1.7 |
+    s: sl3.5 r po1.7 r sl3.5 3.5g po1.7 r sl4.5 r po2.7 r sl4.3 r sl4.5 po2.7 |
+
+riff soul.bass.deep-five-bass-1 "Deep Five Bass 1"
+  type bass   instrument bass5   tuning standard   capo 0
+  key D ionian   tempo 80   meter 4/4   feel laid_back
+  difficulty 2   tags five-string fingerstyle
+  chords 0:D 4:G 7:A
+  play:
+    q: 5.3 e.: 5.3 s: 4.0 e: 4.2 4.0 q: 4.5 |
+    q: 5.8 e.: 5.8 s: 5.7 e: 5.5 5.7 q: 5.10 |
+
+riff soul.bass.easy-thumb-bass-1 "Easy Thumb Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key G ionian   tempo 88   meter 4/4   feel straight
+  difficulty 2   tags slap eighths   free yes
+  chords 0:G 4:C
+  play:
+    e: sl4.3 r po2.5 sl4.3 s: r sl4.5 e: po2.7 r sl3.2 |
+    e: sl3.3 r po1.5 sl3.3 s: r sl3.5 e: po1.7 r sl4.2 |
+
+riff soul.bass.sixteenth-chapel-bass-1 "Sixteenth Chapel Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key A ionian   tempo 104   meter 4/4   feel straight
+  difficulty 4   tags fingerstyle fills pull-off
+  chords 0:A 4:D 6:E
+  play:
+    e: 3.0 s: r 3.0 e: 2.2 s: 2.4 r s: 2.2 2.4 1.2 1.4 s: 2.4 p2.2 3.4 3.2 |
+    e: 2.0 s: r 2.0 e: 2.4 s: 1.2 r s: 2.2 r 4.4 4.0 s: h4.2 4.4 e: 4.5~ |
+
+riff soul.bass.lilting-ballad-bass-1 "Lilting Ballad Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key G ionian   tempo 60   meter 12/8   feel laid_back
+  difficulty 2   tags ballad twelve-eight
+  chords 0:G 3:Em 6:C 9:D
+  play:
+    q.: 4.3 e: 4.3 3.2 2.0 q.: 4.0 e: 4.0 3.2 2.2 |
+    q.: 3.3 e: 3.3 2.2 2.5 q.: 3.5 e: 2.4 2.0 4.2 |
