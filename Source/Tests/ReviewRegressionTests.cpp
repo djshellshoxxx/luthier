@@ -742,3 +742,24 @@ LUTHIER_TEST (ReviewRegression, integerParametersSwitchRatherThanBlend)
     juce::AudioParameterFloat level (juce::ParameterID { "level", 1 }, "Level", 0.0f, 1.0f, 0.5f);
     CHECK (! SnapshotBank::isDiscrete (level));
 }
+
+/*  R-037: a tempo-synced LFO retriggered on the sync boundary free-runs when the
+    host gives no position, but its phase was never wrapped, so it grew without
+    bound and sample-and-hold never picked a new value. */
+#include "../Modulation/ModSources.h"
+
+LUTHIER_TEST (ReviewRegression, aSyncedLfoWithTheTransportStoppedStillCycles)
+{
+    ModLfo lfo;
+    lfo.prepare (1000.0, 7);
+    lfo.setShape (ModLfo::Shape::sampleAndHold);
+    lfo.setSynced (true);
+    lfo.setRetrigger (ModLfo::Retrigger::onSyncBoundary);
+
+    juce::SortedSet<double> values;
+
+    for (int i = 0; i < 20000; ++i)
+        values.add (lfo.tick (0.01, -1.0));   // no host position
+
+    CHECK_MSG (values.size() > 2, juce::String (values.size()) + " distinct values");
+}
