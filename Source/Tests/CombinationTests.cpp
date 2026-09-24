@@ -1220,3 +1220,40 @@ LUTHIER_TEST (Combo, unisonStringsNeverGrowAndPanicSilencesThem)
 
     log.flush();
 }
+
+//==============================================================================
+/*  performance-budget.md 1: the heaviest named preset is 22 units (22% of one
+    core) on the reference CPU. This prints each factory preset's cost playing a
+    six-string chord at 48 kHz / 256, and fails only past 50% - this machine is
+    not the reference machine, and other jobs may share it; the table is for the
+    report (docs/audit/BETA_TEST_REPORT.md). */
+LUTHIER_TEST (Combo, cpuPerFactoryPreset)
+{
+    Rig rig;
+    auto& presets = rig.p().getPresetManager();
+
+    std::vector<std::pair<double, juce::String>> costs;
+
+    for (int i = 0; i < presets.getNumPresets(); ++i)
+    {
+        rig.p().resetEverything();
+        presets.loadPreset (i);
+        rig.apply();
+        rig.processSilence (8);
+
+        const auto idle = rig.renderEvents ({}, 0, 1.0);
+        const auto busy = rig.render (Phrase::chord, 0.5);
+
+        costs.push_back ({ busy.cpuPercent, presetLabel (rig, i) + "  idle " + juce::String (idle.cpuPercent, 1) + "%"
+                                            + "  max block " + juce::String (busy.maxBlockMs, 2) + " ms" });
+
+        CHECK_MSG (busy.cpuPercent < 50.0, presetLabel (rig, i) + " costs " + juce::String (busy.cpuPercent, 1) + "% of a core");
+        rig.quiet();
+    }
+
+    std::sort (costs.begin(), costs.end(), [] (auto& a, auto& b) { return a.first > b.first; });
+
+    std::cout << "    CPU per factory preset (chord, 48 kHz / 256, % of one core; budget heaviest 22):\n";
+    for (auto& [c, label] : costs)
+        std::cout << "      " << juce::String (c, 1).paddedLeft (' ', 5) << "%  " << label << "\n";
+}
