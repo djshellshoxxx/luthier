@@ -234,6 +234,7 @@ private:
     std::unique_ptr<LuthierChoice> stringMaterial, stringGauge;
     std::unique_ptr<LuthierKnob> stringAgeHours, bodyCoupling;   // REALISM-A
     std::unique_ptr<LuthierKnob> realismDetune, intonation, sustain;
+    std::unique_ptr<DecayRow> decayRow;   // sustain-and-decay.md 8 (REALISM-C)
     std::unique_ptr<LuthierToggle> driftToggle;
 
     // --- column 2 -----------------------------------------------------------------

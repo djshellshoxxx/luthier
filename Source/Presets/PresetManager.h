@@ -277,6 +277,12 @@ private:
     juce::AudioProcessor& processor;
     juce::AudioProcessorValueTreeState& apvts;
 
+public:
+    /** noise-floor.md 3: the Options default mains region, resolved (REALISM-C). */
+    static bool defaultMainsRegionIs50Hz();
+
+private:
+
     /** advanced-ranges.md: the processor's range state, applied on load and
         written on save. */
     RangeState& ranges;

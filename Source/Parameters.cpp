@@ -1,6 +1,7 @@
 #include "Parameters.h"
 #include "PhysicalRange.h"
 #include "Rhythm/StrumGesture.h"
+#include "Presets/RealismStyles.h"   // REALISM-C
 
 namespace luthier
 {
@@ -543,7 +544,7 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::slideNoiseAmount,      "Slide Noise",         0.0f,   1.0f,  0.4f));
     add (floatParam  (ParamIDs::slideClankAmount,      "Slide Clank",         0.0f,   1.0f,  0.45f));
     add (floatParam  (ParamIDs::slideIntonationAssist, "Intonation Assist",   0.0f,   1.0f,  0.15f));
-    add (floatParam (ParamIDs::ampBuzz,      "Amp Buzz",      0.0f, 1.0f, 0.12f));
+    add (floatParam (ParamIDs::ampBuzz,      "Single-coil Hum", 0.0f, 1.0f, 0.12f));   // noise-floor.md 1: relabelled, same ID
 
     // --- body -----------------------------------------------------------------
     add (choiceParam (ParamIDs::bodyMode,      "Body Mode",     bodyModeNames(), 0));
@@ -855,6 +856,41 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::thumbPalmMute,        "Thumb Palm Mute", 0.0f, 1.0f, 0.0f));
     add (floatParam  (ParamIDs::hybridSnap,           "Hybrid Snap",     0.0f, 1.0f, 0.3f));
     // ==== END REALISM-B params ====
+    // ==== BEGIN REALISM-C params ====
+    // Every default is neutral: existing presets render as before
+    // (noise-floor.md 0.5, sustain-and-decay.md 0.3, tuning-stability.md 0).
+    add (choiceParam (ParamIDs::noiseMainsHz,        "Mains Region",        { "60 Hz", "50 Hz" }, 0));
+    add (floatParam  (ParamIDs::noisePlayerAngle,    "Facing Angle",        0.0f, 90.0f, 0.0f, 1.0f, "deg"));
+    add (floatParam  (ParamIDs::noisePlayerDistance, "Distance to Amp",     0.3f, 5.0f, 1.0f, 0.149f, "m"));
+    add (floatParam  (ParamIDs::noiseFluorescent,    "Fluorescent Buzz",    0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noisePassiveHiss,    "Passive Hiss",        0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseCableMovement,  "Cable Movement",      0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseRadio,          "Radio Pickup",        0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseGroundLoop,     "Ground Loop",         0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseAmpHiss,        "Amp Hiss",            0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseMicrophonics,   "Microphonics",        0.0f, 1.0f, 0.0f));
+    add (boolParam   (ParamIDs::noiseFloorToAux8,    "Noise Floor on Aux 8", false));
+    add (choiceParam (ParamIDs::noiseFloorStyle,     "Noise Floor Style",   RealismStyles::noiseFloorStyleNames(), 0));
+
+    add (floatParam  (ParamIDs::sustainAttackTransient, "Attack Transient", 0.0f,  1.0f,  0.0f));
+    add (floatParam  (ParamIDs::sustainAttackTime,      "Attack Time",      5.0f,  80.0f, 30.0f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::sustainFastShare,       "Fast Decay Share", 0.0f,  0.9f,  0.0f));
+    add (floatParam  (ParamIDs::sustainFastRatio,       "Fast Decay Ratio", 0.05f, 0.5f,  0.2f));
+    add (floatParam  (ParamIDs::sustainTensionMod,      "Tension Pitch",    0.0f,  1.5f,  0.0f));
+    add (floatParam  (ParamIDs::sustainReleaseTime,     "Release Time",     0.0f,  60.0f, 0.0f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::sustainReleaseSag,      "Release Sag",      0.0f,  8.0f,  0.0f, 1.0f, "mm"));
+    add (floatParam  (ParamIDs::sustainReleaseRing,     "Release Ring",     0.0f,  0.3f,  0.0f));
+    add (choiceParam (ParamIDs::sustainStyle,           "Sustain Style",    RealismStyles::sustainStyleNames(), 0));
+
+    add (floatParam  (ParamIDs::stabilityAmount,      "Tuning Instability", 0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::stabilitySettling,    "String Settling",    0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilityNutBinding,  "Nut Binding",        0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilityBacklash,    "Tuner Backlash",     0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilitySaddleCreep, "Bridge / Saddle",    0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilityBendMemory,  "Bend Memory",        0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilityCapoBias,    "Capo Bias",          0.0f, 2.0f, 1.0f));
+    add (choiceParam (ParamIDs::stabilityAutoRetune,  "Auto Retune",        { "Off", "Idle", "Transport Stop", "Idle + Stop" }, 1));
+    // ==== END REALISM-C params ====
 
     return layout;
 }
@@ -1564,6 +1600,60 @@ void ParameterBridge::applyToEngine() noexcept
         engine.setAuxDiPreCircuit (value (ParamIDs::aux1PreCircuit) > 0.5f);
     }
     // ==== END MODEL-GAPS params ====
+    // ==== BEGIN REALISM-C params ====
+    // noise-floor.md 4.5: the settings once per block; the region drives the
+    // pickups' hum and the noise floor together.
+    {
+        NoiseFloorSettings nf;
+        nf.mainsHz        = (int) value (ParamIDs::noiseMainsHz) == 1 ? 50.0 : 60.0;
+        nf.angleDegrees   = value (ParamIDs::noisePlayerAngle);
+        nf.distanceMetres = value (ParamIDs::noisePlayerDistance);
+        nf.fluorescent    = value (ParamIDs::noiseFluorescent);
+        nf.passiveHiss    = value (ParamIDs::noisePassiveHiss);
+        nf.cableMovement  = value (ParamIDs::noiseCableMovement);
+        nf.radio          = value (ParamIDs::noiseRadio);
+        nf.groundLoop     = value (ParamIDs::noiseGroundLoop);
+        nf.ampHiss        = value (ParamIDs::noiseAmpHiss);
+        nf.microphonics   = value (ParamIDs::noiseMicrophonics);
+        nf.toAux8         = value (ParamIDs::noiseFloorToAux8) > 0.5f;
+        engine.setNoiseFloorSettings (nf);
+        engine.getNoiseFloor().setHumForMeter (value (ParamIDs::ampBuzz));
+        engine.getPickupEngine().setMainsFrequency (nf.mainsHz);
+    }
+
+    // sustain-and-decay.md 7: the shape, set at block rate.
+    {
+        StringEngine::SustainShape shape;
+        shape.attackTransient   = value (ParamIDs::sustainAttackTransient);
+        shape.attackTimeSeconds = value (ParamIDs::sustainAttackTime) * 0.001;
+        shape.fastShare         = value (ParamIDs::sustainFastShare);
+        shape.fastRatio         = value (ParamIDs::sustainFastRatio);
+        shape.tensionMod        = value (ParamIDs::sustainTensionMod);
+        shape.releaseSeconds    = value (ParamIDs::sustainReleaseTime) * 0.001;
+        shape.releaseSagMm      = value (ParamIDs::sustainReleaseSag);
+        shape.releaseRing       = value (ParamIDs::sustainReleaseRing);
+
+        // 4: +25 c in stock, +50 c in advanced. A value past its stock end is
+        // only reachable with the strings family unlocked.
+        shape.advanced = shape.tensionMod > 1.5 || shape.attackTransient > 1.0 || shape.fastShare > 0.9;
+        engine.setSustainShape (shape);
+    }
+
+    // tuning-stability.md 4.
+    {
+        StabilitySettings st;
+        st.amount      = value (ParamIDs::stabilityAmount);
+        st.settling    = value (ParamIDs::stabilitySettling);
+        st.nutBinding  = value (ParamIDs::stabilityNutBinding);
+        st.backlash    = value (ParamIDs::stabilityBacklash);
+        st.saddleCreep = value (ParamIDs::stabilitySaddleCreep);
+        st.bendMemory  = value (ParamIDs::stabilityBendMemory);
+        st.capoBias    = value (ParamIDs::stabilityCapoBias);
+        st.autoRetune  = (AutoRetune) juce::jlimit (0, (int) AutoRetune::numModes - 1,
+                                                    (int) value (ParamIDs::stabilityAutoRetune));
+        engine.getStabilityModel().setSettings (st);
+    }
+    // ==== END REALISM-C params ====
 
     // ---- structural change detection ---------------------------------------------
     const bool structural = readStructuralValues() || ! structuralInitialised;
@@ -1931,6 +2021,12 @@ void ParameterBridge::applyStructural()
 
     // Anything that depends on the string physics has to be recomputed last.
     engine.refreshStringPhysics();
+
+    // ==== BEGIN REALISM-C params ====
+    // tuning-stability.md 7: a preset's own tuning changes are applied by now;
+    // later ones are the player's, and events again.
+    engine.getStabilityModel().endStructuralApply();
+    // ==== END REALISM-C params ====
 }
 
 } // namespace luthier

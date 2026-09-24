@@ -20,6 +20,8 @@
 #include "DSP/Noise/PlayingNoise.h"
 #include "DSP/Noise/FretBuzz.h"
 #include "DSP/Noise/ScrapeEngine.h"
+#include "DSP/Noise/NoiseFloor.h"   // noise-floor.md
+#include "Model/Playing/StabilityModel.h"   // tuning-stability.md
 #include "DSP/Slap/SlapEngine.h"
 #include "DSP/Slap/BassFingerstyle.h"
 #include "Model/Playing/TechniqueTriggers.h"
@@ -238,6 +240,38 @@ public:
     /** Sets the pick material and whether it is fingers. The two parameters
         are one decision: a finger material is fingers whatever the switch says. */
     void setPickMaterialAndFingers (Excitation::Material material, bool fingers) noexcept;
+
+    /** noise-floor.md: the rig's steady noise sources. */
+    NoiseFloor& getNoiseFloor() noexcept { return noiseFloor; }
+    const NoiseFloor& getNoiseFloor() const noexcept { return noiseFloor; }
+    void setNoiseFloorSettings (const NoiseFloorSettings& s) noexcept { noiseFloor.setSettings (s); }
+
+    /** sustain-and-decay.md 7: the decay's shape, for every string, at block rate. */
+    void setSustainShape (const StringEngine::SustainShape& s) noexcept { sustainShape = s; }
+    const StringEngine::SustainShape& getSustainShape() const noexcept { return sustainShape; }
+
+    /** SUS-01's test hook: the shape code removed from every string. */
+    void setSustainShapeBypassedForTest (bool b) noexcept
+    {
+        for (auto& str : strings)
+            str.setShapeBypassedForTest (b);
+    }
+
+    /** tuning-stability.md 5: the event-driven tuning offsets and the retunes. */
+    StabilityModel& getStabilityModel() noexcept { return stability; }
+    const StabilityModel& getStabilityModel() const noexcept { return stability; }
+
+    /** 2.6: the capo part's pressure and gap (message thread). */
+    void setCapoHardware (double pressure, double gapMm) noexcept;
+
+    /** TS-01's test hook: the model removed from the block entirely. */
+    void setStabilityBypassedForTest (bool b) noexcept { stabilityBypassed = b; }
+
+    /** The open pitch a stability event compares: open, detune and fine tune. */
+    double getStabilityBasePitch (int stringIndex) const noexcept;
+
+    /** NF-01's test hook: the render with the module removed entirely. */
+    void setNoiseFloorBypassedForTest (bool b) noexcept { noiseFloorBypassed = b; }
 
     /** The Aux 8 noise bus for the last block (routing-io.md). */
     const double* getNoiseBusData() const noexcept { return noiseBuffer.data(); }
@@ -657,6 +691,24 @@ private:
 
     FretBuzz fretBuzzModel;
     SlideEngine slide;
+
+    // noise-floor.md 4: owned next to playingNoise.
+    NoiseFloor noiseFloor;
+    bool noiseFloorBypassed = false;
+
+    // sustain-and-decay.md 7, and 3's clock restart when the E-Bow engages.
+    StringEngine::SustainShape sustainShape;
+    std::array<bool, kMaxStrings> ebowWasDriving {};
+    bool feedbackWasOn = false;
+
+    // tuning-stability.md 5.
+    StabilityModel stability;
+    bool stabilityBypassed = false;
+    double partsTunerRatio = 18.0, partsTunerStability = 0.85, partsNutFriction = 0.35;
+    bool partsTunerLocking = false;
+    double capoPressure = 0.7, capoGapMm = 6.0;
+    void refreshStabilityHardware() noexcept;
+    void runStability (int numSamples) noexcept;
 
     /*  string-scraping.md 3: after the MIDI, before the strings. Its keyswitches
         come out of the MIDI (into scrapeMidi) before the rhythm engine and the

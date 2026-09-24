@@ -97,6 +97,10 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     scrapeMidi.ensureSize (8192);
     techniqueMidi.ensureSize (8192);
     slap.prepare (sr);
+    stability.prepare (sr);                       // tuning-stability.md 5
+    stability.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)) ^ 0x57AB1Eu);
+    noiseFloor.prepare (sr, maxBlock);            // noise-floor.md 4
+    noiseFloor.setSeed (character.getSeed());
     slapBodyDrive.assign ((size_t) maxBlock, 0.0);
     noteSustainScale.fill (1.0);
     playingNoise.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)));
@@ -156,8 +160,13 @@ void LuthierEngine::reset() noexcept
     lastCapturedChord = ChordSymbol {};
     lastCapturedBarFret = -2.0;
     lastCapturedBarPressure = -1;
+    noiseFloor.setSeed (character.getSeed());     // noise-floor.md 0.3: reset reseeds
+    noiseFloor.reset();
+    stability.reset();                            // tuning-stability.md 0.4
     techniqueTriggers.reset();
     scrapeWasActive.fill (false);
+    ebowWasDriving.fill (false);
+    feedbackWasOn = false;
     noteSustainScale.fill (1.0);
     shiftCount = 0;
 
@@ -318,6 +327,13 @@ void LuthierEngine::setGuitarType (GuitarType type)
 
     hasPartsOverride = false;
     partsSustain = fretBrightnessFactor = nutBrightnessFactor = magnetSustain = 1.0;
+
+    // tuning-stability.md 5: a compiled guitar's hardware - modern sealed
+    // tuners, a bone nut (a Floyd's locking nut follows from the bridge).
+    partsTunerRatio = 18.0;
+    partsTunerStability = 0.85;
+    partsTunerLocking = false;
+    partsNutFriction = 0.35;
     magnetDetuneCents = 0.0;
     feedbackLoop.setBodyCoupling (1.0);   // part-acoustics 2.1: a compiled guitar is the solid reference (MODEL-GAPS)
 
@@ -351,6 +367,11 @@ void LuthierEngine::applyWorkshopGuitar (const DerivedAcoustics& d, GuitarType s
     // body-coupling.md 3: a parts guitar's bridge, tailpiece and joint.
     partsBridge.massKg = juce::jmax (0.0, d.terminationMassG) * 0.001;
     partsBridge.coupling = juce::jlimit (0.0, 1.0, d.couplingFraction);
+    // tuning-stability.md 1: the tuners' and the nut's fields.
+    partsTunerRatio = d.tunerRatio;
+    partsTunerStability = d.tunerStability;
+    partsTunerLocking = d.tunerLocking;
+    partsNutFriction = d.nutFriction;
 
     // part-acoustics.md 4, against the reference parts - nickel-silver frets,
     // a bone nut - so a guitar of reference parts sounds as a compiled one does.
@@ -461,6 +482,11 @@ void LuthierEngine::applyPartSwapLive (const PendingPartSwap& swap) noexcept
     // bank itself is redesigned on the message thread once the swap is taken.
     partsBridge.massKg = juce::jmax (0.0, d.terminationMassG) * 0.001;
     partsBridge.coupling = juce::jlimit (0.0, 1.0, d.couplingFraction);
+    // tuning-stability.md 1 (REALISM-C): the tuners' and the nut's fields.
+    partsTunerRatio = d.tunerRatio;
+    partsTunerStability = d.tunerStability;
+    partsTunerLocking = d.tunerLocking;
+    partsNutFriction = d.nutFriction;
     fretBrightnessFactor = d.fretBrightness / 0.70;
     nutBrightnessFactor = d.nutBrightness / 0.75;
 
@@ -509,6 +535,7 @@ void LuthierEngine::applyPartSwapLive (const PendingPartSwap& swap) noexcept
     for (int i = 0; i < PickupEngine::kMaxPickups; ++i)
         pickups.setPickupSpec (i, i < 3 ? partsPickups[(size_t) i] : GuitarLibrary::makePickupSpec (spec, i));
 
+    refreshStabilityHardware();   // tuning-stability.md 5 (REALISM-C), as applySpec
     slap.setInstrument (spec.numStrings, spec.scaleLengthMm, spec.maxFrets, spec.category == GuitarCategory::Bass);
 }
 
@@ -685,6 +712,23 @@ void LuthierEngine::rebuildPickupsFromSpec()
 //==============================================================================
 void LuthierEngine::setTuningPreset (TuningPreset preset)
 {
+    // tuning-stability.md 5: what each string was before, for the events.
+    std::array<double, kMaxStrings> before {};
+
+    for (int i = 0; i < kMaxStrings; ++i)
+        before[(size_t) i] = getStabilityBasePitch (i);
+
+    const auto report = [this, &before]
+    {
+        for (int i = 0; i < numStrings; ++i)
+        {
+            const double now = getStabilityBasePitch (i);
+
+            if (before[(size_t) i] > 0.0 && now != before[(size_t) i])
+                stability.onTuningChanged (i, before[(size_t) i], now);
+        }
+    };
+
     // A 12-string's preset names its six courses; the pairs are rebuilt from it
     // rather than the guitar collapsing to the preset's six strings.
     if (spec.twelveString && TuningEngine::getPresetStringCount (preset) == 6)
@@ -692,6 +736,7 @@ void LuthierEngine::setTuningPreset (TuningPreset preset)
         spec.tuning = preset;
         applyTwelveStringTuning();
         refreshStringPhysics();
+        report();
         return;
     }
 
@@ -704,6 +749,7 @@ void LuthierEngine::setTuningPreset (TuningPreset preset)
         tuning.setMaxFrets (i, spec.maxFrets);
 
     refreshStringPhysics();
+    report();
 }
 
 void LuthierEngine::applyTwelveStringTuning()
@@ -739,6 +785,10 @@ void LuthierEngine::setStringGauge (StringGauge g)
 
 void LuthierEngine::setStringAge (StringAge a)
 {
+    // tuning-stability.md 2.1: a new set of strings starts stretching again.
+    if (a != stringAge)
+        stability.setStringAge (a);
+
     stringAge = a;
     refreshStringPhysics();
 }
@@ -816,6 +866,12 @@ void LuthierEngine::refreshStringPhysics()
         stringSpecs[(size_t) i] = s;
 
         auto physical = StringMaterials::toPhysical (s, spec.scaleLengthMm);
+
+        // sustain-and-decay.md 7: the core, the tension and the material's
+        // stiffness, for the tension pitch and the longitudinal ping.
+        physical.coreDiameterMm = s.coreDiameterMm;
+        physical.tensionNewtons = s.tensionNewtons;
+        physical.youngsModulus = StringMaterials::get (spec.stringMaterial).youngsModulusPa;
         strings[(size_t) i].setPhysical (physical);
         strings[(size_t) i].setNoiseAmount (slideNoise * s.squeak * aging.getFactors (i).squeakScale, fretNoise);
         strings[(size_t) i].setFretBuzz (fretless ? 0.0 : fretBuzzAmount, fretActionMm);
@@ -829,6 +885,97 @@ void LuthierEngine::refreshStringPhysics()
     aging.markDirty();
     setupChanged.store (true);
     rebuildBodyCoupling();   // body-coupling.md 3: Z0 moved
+    refreshStabilityHardware();   // tuning-stability.md 5
+}
+
+//==============================================================================
+double LuthierEngine::getStabilityBasePitch (int i) const noexcept
+{
+    if (! juce::isPositiveAndBelow (i, kMaxStrings))
+        return 0.0;
+
+    const auto& t = tuning.getStringTuning (i);
+    return t.openFrequencyHz * centsToRatio (t.detuneCents + t.fineTuneCents);
+}
+
+void LuthierEngine::setCapoHardware (double pressure, double gapMm) noexcept
+{
+    capoPressure = juce::jlimit (0.0, 1.0, pressure);
+    capoGapMm = juce::jlimit (0.5, 20.0, gapMm);
+    refreshStabilityHardware();
+}
+
+void LuthierEngine::refreshStabilityHardware() noexcept
+{
+    // tuning-stability.md 5: the parts' figures and each string's EA/T.
+    TuningHardware hw;
+    hw.tunerRatio = partsTunerRatio;
+    hw.tunerStability = partsTunerStability;
+    hw.tunerLocking = partsTunerLocking;
+    hw.nutFriction = partsNutFriction;
+    hw.bridge = whammy.getBridgeType();
+    hw.acoustic = spec.category == GuitarCategory::Acoustic;
+    hw.capoPressure = capoPressure;
+    hw.capoGapMm = capoGapMm;
+    hw.fretHeightMm = requestedSetup.fretHeight > 0.0 ? requestedSetup.fretHeight : 1.0;
+    hw.scaleLengthMm = spec.scaleLengthMm;
+    hw.material = spec.stringMaterial;
+    hw.numStrings = numStrings;
+
+    const double youngs = StringMaterials::get (spec.stringMaterial).youngsModulusPa;
+
+    for (int i = 0; i < numStrings; ++i)
+    {
+        const auto& s = stringSpecs[(size_t) i];
+        const double core = s.coreDiameterMm * 0.001;
+        const double ea = youngs * constants::kPi * 0.25 * core * core;
+        hw.tensionN[(size_t) i] = s.tensionNewtons;
+        hw.eaOverT[(size_t) i] = s.tensionNewtons > 0.0 ? ea / s.tensionNewtons : 0.0;
+        hw.openHz[(size_t) i] = getStabilityBasePitch (i);
+    }
+
+    stability.setHardware (hw);
+}
+
+void LuthierEngine::runStability (int numSamples) noexcept
+{
+    // tuning-stability.md 5: once per block, before the frequency loop.
+    if (stabilityBypassed)
+        return;
+
+    std::array<double, kMaxStrings> levels {}, bends {}, whammyCents {};
+    std::array<int, kMaxStrings> capo {};
+
+    for (int s = 0; s < numStrings; ++s)
+    {
+        levels[(size_t) s] = strings[(size_t) s].getLevel();
+        bends[(size_t) s] = midi.getStringBendCents (s);
+        whammyCents[(size_t) s] = whammy.getCentOffset (s);
+        capo[(size_t) s] = tuning.getCapoFretFor (s);
+    }
+
+    StabilityModel::BlockInput in;
+    in.numSamples = numSamples;
+    in.levels = levels.data();
+    in.bendCents = bends.data();
+    in.whammyCents = whammyCents.data();
+    in.capoFret = capo.data();
+    in.transportPlaying = hostPlaying;
+
+    const auto out = stability.advance (in, tuning);
+
+    // 3: a retune clears the drift walk and the character engine's tuner drift.
+    for (int s = 0; s < numStrings; ++s)
+        if ((out.retunedMask >> s) & 1u)
+        {
+            tuning.clearDrift (s);
+
+            if (! out.retunedAll)
+                character.retuneString (s);
+        }
+
+    if (out.retunedAll)
+        character.retune();
 }
 
 //==============================================================================
@@ -1050,6 +1197,13 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
 
     targetFret[(size_t) s] = fret;
 
+    // noise-floor.md 2.4: a note-on rolls for a cable event.
+    if (! noiseFloorBypassed)
+        noiseFloor.onNoteOn (e.velocity);
+
+    // tuning-stability.md 2.2 / 2.3: the nut's ping and the backlash.
+    stability.onPluck (s, e.velocity);
+
     // REALISM-B: a muted-string thump (string-interaction.md 6) is struck but
     // never reported as a note.
     if (! e.deadStrike)
@@ -1157,6 +1311,9 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     }
 
     currentFret[(size_t) s] = fret;
+
+    // sustain-and-decay.md 7: the vibrating length, for the ping and the tension.
+    str.setStoppedFret (fret + (double) tuning.getCapoFretFor (s));
 
     // ---- damping from the technique --------------------------------------------
     switch (e.technique)
@@ -1517,7 +1674,11 @@ void LuthierEngine::captureBlockState() noexcept
 //==============================================================================
 void LuthierEngine::setSetupGeometry (const SetupGeometry& geometry) noexcept
 {
+    const bool fretHeightMoved = geometry.fretHeight != requestedSetup.fretHeight;
     requestedSetup = geometry;
+
+    if (fretHeightMoved)
+        refreshStabilityHardware();   // tuning-stability.md 2.6: the capo's h
 
     auto g = geometry;
     g.scaleLengthMm = spec.scaleLengthMm;
@@ -1600,7 +1761,9 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
     const auto& ebow = ebowDriver.getSettings();
     const bool ebowHolds = ebow.enabled && (ebow.stringMask & (1 << s)) != 0;
 
-    strings[(size_t) s].release (e.letRing || ebowHolds);
+    // sustain-and-decay.md 5: open strings, a bar and a fretless neck do not sag.
+    const double releaseFret = (fretless || slide.isUnderBar (s)) ? 0.0 : currentFret[(size_t) s];
+    strings[(size_t) s].release (e.letRing || ebowHolds, releaseFret);
     slide.noteOff (s);
     stringMidiNote[(size_t) s] = -1;
 
@@ -1779,6 +1942,8 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
     whammy.setPosition (midi.getWhammyPosition());
     whammy.updateBlock (numSamples);
 
+    runStability (numSamples);   // tuning-stability.md 5
+
     // string-scraping.md 2: while the mod wheel or aftertouch sweeps a scrape,
     // it is the pick's, not the vibrato's.
     const double vibratoDepthFromCc = scrape.ownsVibratoControllers() ? 0.0 : midi.getVibratoDepth();
@@ -1833,6 +1998,7 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
         coupling.setStringFrequency (s, hz);
 
         strings[(size_t) s].setSustainScale (noteSustainScale[(size_t) s] * (fretless ? 0.82 : 1.0));
+        strings[(size_t) s].setSustainShape (sustainShape);   // sustain-and-decay.md 7
     }
 
     // The fretboard overlay draws the bar where the first string under it is.
@@ -2278,9 +2444,48 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     // ---- 2. strings, coupling and the magnetic pickup ------------------------
     const bool anyPickupActive = ! pickups.isSilent();
 
+    // noise-floor.md 4.1: the rig's noise floor, rendered for the block. Idle
+    // (every new source at 0) it is skipped, so the render is the legacy one.
+    const bool noiseFloorOn = ! noiseFloorBypassed && ! noiseFloor.isIdle();
+    const bool noiseFloorAux8 = ! noiseFloorBypassed && noiseFloor.getSettings().toAux8;
+
+    if (noiseFloorBypassed)
+    {
+        pickups.setHumPositionGain (1.0);
+    }
+    else
+    {
+        noiseFloor.setSeed (character.getSeed());
+        pickups.setHumPositionGain (NoiseFloor::positionGain (noiseFloor.getSettings().angleDegrees,
+                                                              noiseFloor.getSettings().distanceMetres));
+    }
+
+    if (noiseFloorOn)
+    {
+        bool anyRinging = false;
+
+        for (int s = 0; s < numStrings && ! anyRinging; ++s)
+            anyRinging = strings[(size_t) s].getLevel() > 1.0e-3;
+
+        const auto cabType = cabinet.getConfigA().cabinet;
+        const bool separateHead = cabType == CabinetType::Cab4x12 || cabType == CabinetType::Cab4x12Vintage
+                               || cabType == CabinetType::Cab8x10Bass;
+
+        noiseFloor.beginBlock (numSamples, pickups.getSingleCoilShare(), getLiveCircuitComponents(),
+                               anyRinging, separateHead);
+    }
+
     // ambiguity-resolutions 1: which strings are ringing, and at what, for the
     // feedback loop's per-string peaks. Skipped entirely at amount 0 (1.2).
     const bool feedbackOn = feedbackLoop.isActive();
+
+    // sustain-and-decay.md 3: the feedback path adds energy, so engaging it
+    // restarts every string's decay clock.
+    if (feedbackOn && ! feedbackWasOn)
+        for (int s = 0; s < numStrings; ++s)
+            strings[(size_t) s].restartShapeClock();
+
+    feedbackWasOn = feedbackOn;
 
     if (feedbackOn)
     {
@@ -2316,8 +2521,18 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         ebowDriver.beginBlock (hz.data(), levels.data(), held.data(), numStrings, letGo);
 
         for (int s = 0; s < numStrings; ++s)
+        {
             if (letGo[(size_t) s])
                 strings[(size_t) s].setDamping (StringEngine::Damping::Silenced, 1.0);
+
+            // sustain-and-decay.md 3: the E-Bow adds energy, so it restarts the clock.
+            const bool driving = ebowDriver.isDriving (s);
+
+            if (driving && ! ebowWasDriving[(size_t) s])
+                strings[(size_t) s].restartShapeClock();
+
+            ebowWasDriving[(size_t) s] = driving;
+        }
     }
     const bool perStringTaps = taps.isPerStringWanted() && taps.getRoomAtOffset() >= numSamples;
 
@@ -2458,6 +2673,14 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
                                                                  stringDelays.data(),
                                                                  numStrings)
                                        : 0.0;
+
+        // noise-floor.md 2.2: the fluorescent buzz is magnetic, beside the hum.
+        if (noiseFloorOn)
+            magneticBuffer[(size_t) i] += noiseFloor.pickupSample (i);
+
+        // 4.6: the identification stem on Aux 8, opt-in.
+        if (noiseFloorAux8)
+            noiseBuffer[(size_t) i] += pickups.getLastHumSample() + (noiseFloorOn ? noiseFloor.stemSample (i) : 0.0);
     }
 
     validator.reportCouplingLimiting (coupling.getLastLimiting(), samplePosition);
@@ -2516,7 +2739,14 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         if (diPreCircuit)
             preCircuitBuffer[(size_t) i] = sanitise (instrument);
 
+        // noise-floor.md 2.3 / 2.4: the passive hiss at the EMF, the cable after the pots.
+        if (noiseFloorOn)
+            instrument += noiseFloor.circuitInSample (i);
+
         instrument = circuit.process (instrument);
+
+        if (noiseFloorOn)
+            instrument += noiseFloor.diSample (i);
 
         // Input gain (3.4): the trim into the rig, after the guitar's own circuit.
         inputGainNow += (inputGainTarget.load (std::memory_order_relaxed) - inputGainNow) * 0.002;
@@ -2567,11 +2797,22 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         // ---- 6. amp (mono) ----------------------------------------------------
         for (int i = 0; i < numSamples; ++i)
         {
-            const double mono = (dl[(size_t) i] + dr[(size_t) i]) * 0.5;
+            double mono = (dl[(size_t) i] + dr[(size_t) i]) * 0.5;
+
+            // noise-floor.md 2.5-2.8: ground loop, radio, hiss and microphonics.
+            if (noiseFloorOn)
+            {
+                mono += noiseFloor.ampInSample (i);
+                noiseFloor.recordAmpInput (i, mono);
+            }
+
             const double amped = amp.processSample (mono);
             dl[(size_t) i] = amped;
             dr[(size_t) i] = amped;
         }
+
+        if (noiseFloorOn)
+            noiseFloor.pushAmpOutput (dl.data(), numSamples);
 
         // What the speaker puts into the room, for the feedback loop's next blocks.
         if (feedbackLoop.isActive())

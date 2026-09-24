@@ -495,6 +495,12 @@ void LuthierAudioProcessor::setCapoPart (const PartPtr& capo)
     }
 
     engine.getTuningEngine().setCapoStringMask (mask);
+
+    // tuning-stability.md 2.6 (REALISM-C): the capo's pressure, and its gap -
+    // trigger 6 mm, screw 4 mm, partial 6 mm; 5 mm with no capo part.
+    const auto name = capo != nullptr ? capo->name.toLowerCase() : juce::String();
+    const double gap = capo == nullptr ? 5.0 : name.contains ("screw") ? 4.0 : 6.0;
+    engine.setCapoHardware (capo != nullptr ? capo->number ("pressure", 0.7) : 0.7, gap);
 }
 
 bool LuthierAudioProcessor::loadGuitarForType (GuitarType type)
@@ -2241,6 +2247,9 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
         character->setProperty ("aging", engine.getStringAging().toVar());
         character->setProperty ("environment", engine.getEnvironment().toVar());
     }
+    // tuning-stability.md 7 (REALISM-C): the strings' wear and the capo
+    // compensation are the session's, not the preset's.
+    root->setProperty ("stability", engine.getStabilityModel().toVar());
 
     // tone-match 7: the IR slots store their file by path plus their settings.
     {
@@ -2397,6 +2406,9 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
         engine.getCharacterEngine().fromVar (root->getProperty ("character"));
 
     applyRealismCharacterBlock (root->getProperty ("character"));   // REALISM-A
+    // tuning-stability.md 7 (REALISM-C): after the preset, whose load reset them.
+    if (root->hasProperty ("stability"))
+        engine.getStabilityModel().fromVar (root->getProperty ("stability"));
 
     if (auto* irs = root->getProperty ("toneMatch").getDynamicObject())
     {

@@ -50,6 +50,7 @@ void StringEngine::prepare (double sampleRate, int /*maxBlockSize*/)
 
     snapToFrequency (targetHz);
     needsLoopUpdate = true;
+    updateShapeConstants();
     updateDispersion();
     updateLoopCoefficients();
     reset();
@@ -108,12 +109,30 @@ void StringEngine::reset() noexcept
 
     smoothedDelay.snapTo (sr / juce::jmax (1.0, targetHz));
     needsLoopUpdate = true;
+
+    // sustain-and-decay.md 9: the per-string runtime state is not saved and
+    // reset() zeroes it (engine rule 8).
+    samplesSinceExcite = 0;
+    exciteStrength = 0.0;
+    tickCounter = 0;
+    brightMul = decayMul = 1.0;
+    pitchRatio = pitchRatioTarget = tensionRatio = ringRatio = 1.0;
+    pitchRatioStep = 0.0;
+    releaseActive = false;
+    releaseRamp = sagTargetCents = 0.0;
+    ringSamplesLeft = 0;
+    ringGain = 1.0;
+    ping1.reset();
+    ping2.reset();
+    pingSamplesLeft = 0;
+    tensionCentsUi.store (0.0f, std::memory_order_relaxed);
 }
 
 //==============================================================================
 void StringEngine::setPhysical (const Physical& p) noexcept
 {
     physical = p;
+    updateShapeConstants();
     updateDispersion();
     needsLoopUpdate = true;
 }
@@ -135,7 +154,11 @@ void StringEngine::snapToFrequency (double hz) noexcept
 double StringEngine::getCurrentFrequency() const noexcept
 {
     const double d = smoothedDelay.getCurrent();
-    return d > 1.0 ? sr / d : targetHz;
+    const double hz = d > 1.0 ? sr / d : targetHz;
+
+    // sustain-and-decay.md 4: tuners and the coupling matrix see what the
+    // string actually plays.
+    return pitchRatio != 1.0 ? hz * pitchRatio : hz;
 }
 
 void StringEngine::setGlideTime (double seconds) noexcept
@@ -167,6 +190,7 @@ void StringEngine::excite (const Excitation::Params& params) noexcept
 
     excitation.trigger (p, rng);
     sounded = true;
+    onShapeExcite (p);
 
     // A fresh pluck refreshes the loop coefficients, as the harmonic reset it
     // replaced always did: a render without harmonics stays bit-identical.
@@ -184,10 +208,259 @@ void StringEngine::touch (double depth) noexcept
     touchSamplesLeft = (int) (sr / juce::jmax (constants::kMinStringHz, getCurrentFrequency())) + (int) (0.006 * sr);
 }
 
-void StringEngine::release (bool letRing) noexcept
+void StringEngine::release (bool letRing, double fret) noexcept
 {
-    if (! letRing)
+    if (letRing)
+        return;
+
+    // A harmonic is not stopped by a fret: it neither sags nor rings open.
+    if (harmonicPartial > 0)
+        fret = 0.0;
+
+    // sustain-and-decay.md 5: T_r = 0 with no sag and no ring is exactly
+    // today's path.
+    if (! shapeActive || shapeBypassed
+        || (shape.releaseSeconds <= 0.0 && shape.releaseSagMm <= 0.0 && shape.releaseRing <= 0.0))
+    {
         setDamping (Damping::Released, 1.0);
+        return;
+    }
+
+    // 5.3: a clumsy lift is a small accidental pull-off. The pitch snaps to
+    // the open string, the loop takes one period at R, and a light touch
+    // damps what rings on until the next note chokes it.
+    if (shape.releaseRing > 0.0 && fret > 0.0)
+    {
+        ringRatio = std::pow (2.0, -fret / 12.0);
+        ringGain = juce::jlimit (0.0, 1.0, shape.releaseRing);
+        // One period of the open string: the loop is about to be that long,
+        // and every sample in it passes the gain once.
+        ringSamplesLeft = juce::jmax (1, juce::roundToInt (smoothedDelay.getCurrent() / ringRatio));
+        releaseActive = false;
+        setDamping (Damping::LightTouch, 0.6);
+        updateShapeTick();
+        return;
+    }
+
+    // 5.1: the damping ramps over T_r rather than landing at once.
+    if (shape.releaseSeconds <= 0.0)
+    {
+        setDamping (Damping::Released, 1.0);
+        return;
+    }
+
+    // 5.2: the fingertip rides the string behind the fret as it lifts.
+    sagTargetCents = 0.0;
+
+    if (fret > 0.0 && shape.releaseSagMm > 0.0)
+    {
+        // The stopped length from the nut, so a capo is counted.
+        const double lf = physical.scaleLengthMm * std::pow (2.0, -juce::jmax (fret, stoppedFret) / 12.0);
+        sagTargetCents = -1200.0 * std::log2 ((lf + shape.releaseSagMm) / juce::jmax (1.0, lf));
+    }
+
+    releaseActive = true;
+    releaseRamp = 0.0;
+    setDamping (Damping::Released, 0.0);
+    updateShapeTick();
+}
+
+//==============================================================================
+void StringEngine::setSustainShape (const SustainShape& s) noexcept
+{
+    if (s == shape)
+        return;
+
+    shape = s;
+    const bool wasActive = shapeActive;
+    shapeActive = ! shape.isNeutral();
+
+    if (wasActive && ! shapeActive)
+    {
+        // Back to the legacy path: every multiplier at exactly 1.
+        brightMul = decayMul = 1.0;
+        pitchRatio = pitchRatioTarget = tensionRatio = ringRatio = 1.0;
+        pitchRatioStep = 0.0;
+        releaseActive = false;
+        ringSamplesLeft = 0;
+        pingSamplesLeft = 0;
+        tensionCentsUi.store (0.0f, std::memory_order_relaxed);
+        needsLoopUpdate = true;
+    }
+}
+
+void StringEngine::updateShapeConstants() noexcept
+{
+    /*  4: kappa = S (E A_core pi^2 k^2) / (8 T L^2), with k the build's level-
+        to-displacement calibration (FretBuzz::kMmPerLevelUnit, 2.4 mm). 2.2:
+        f_L = (1 / 2L) sqrt (E A_core / mu). Both at the open length; a fret
+        rescales them at each pluck. */
+    constexpr double kMetresPerLevelUnit = 2.4e-3;
+
+    const double lengthM = juce::jmax (0.05, physical.scaleLengthMm * 0.001);
+    const double coreM = physical.coreDiameterMm * 0.001;
+    const double ea = physical.youngsModulus * constants::kPi * 0.25 * coreM * coreM;
+
+    if (coreM > 0.0 && physical.tensionNewtons > 0.0)
+    {
+        kappa0 = ea * constants::kPi * constants::kPi * kMetresPerLevelUnit * kMetresPerLevelUnit
+                   / (8.0 * physical.tensionNewtons * lengthM * lengthM);
+        longitudinalHz = std::sqrt (ea / juce::jmax (1.0e-6, physical.linearDensity)) / (2.0 * lengthM);
+    }
+    else
+    {
+        kappa0 = 0.0;
+        longitudinalHz = 0.0;
+    }
+}
+
+void StringEngine::onShapeExcite (const Excitation::Params& p) noexcept
+{
+    if (! shapeActive || shapeBypassed)
+        return;
+
+    const bool legato = (p.kind == Excitation::Kind::HammerOn
+                         || p.kind == Excitation::Kind::PullOff
+                         || p.kind == Excitation::Kind::Tap);
+    const double v = juce::jlimit (0.0, 1.0, p.velocity);
+
+    // 2.1: the clock restarts at every excite; a legato one at half strength.
+    samplesSinceExcite = 0;
+    tickCounter = 0;
+    exciteStrength = legato ? 0.5 * v : v;
+
+    // A new note ends the last one's release.
+    releaseActive = false;
+    releaseRamp = sagTargetCents = 0.0;
+    ringRatio = 1.0;
+    ringSamplesLeft = 0;
+
+    // 2.2: the longitudinal ping, pitch-independent, rescaled by the stopped
+    // length. Two poles ringing tau = 15 ms at f_L, and 2 f_L 6 dB down.
+    const double lengthRatio = std::pow (2.0, stoppedFret / 12.0);
+    const double fl = longitudinalHz * lengthRatio;
+
+    if (shape.attackTransient > 0.0 && fl > 20.0 && ! legato)
+    {
+        const double amplitude = 0.03 * shape.attackTransient * v * v * excitation.getPeak();
+        const double r = std::exp (-1.0 / (0.015 * sr));
+
+        auto strike = [this, r] (Resonator& res, double hz, double amp)
+        {
+            res.reset();
+
+            if (hz >= sr * 0.45)
+            {
+                res.c1 = res.c2 = 0.0;
+                return;
+            }
+
+            const double w = constants::kTwoPi * hz / sr;
+            res.c1 = 2.0 * r * std::cos (w);
+            res.c2 = r * r;
+            res.y1 = amp * std::sin (w);   // y[n] = amp r^n sin (w (n + 1)): unit-peak ringing
+        };
+
+        strike (ping1, fl, amplitude);
+        strike (ping2, 2.0 * fl, 0.5 * amplitude);
+        pingSamplesLeft = (int) (0.015 * sr * 14.0);   // ~120 dB down
+    }
+
+    updateShapeTick();
+}
+
+void StringEngine::updateShapeTick() noexcept
+{
+    const double t = (double) samplesSinceExcite / sr;
+    const double f0 = juce::jmax (constants::kMinStringHz, targetHz);
+
+    // ---- 2.1 brightness overshoot ---------------------------------------------
+    double b = 1.0;
+
+    if (shape.attackTransient > 0.0)
+    {
+        b = 1.0 + 0.8 * shape.attackTransient * exciteStrength
+                    * std::exp (-t / juce::jmax (1.0e-4, shape.attackTimeSeconds));
+
+        if (b - 1.0 <= 1.0e-4)
+            b = 1.0;
+    }
+
+    // ---- 3 two-stage decay ----------------------------------------------------
+    double m = 1.0;
+
+    if (shape.fastShare > 0.0)
+    {
+        const double pitchScale = std::pow (110.0 / f0, 0.40);
+        const double t60 = juce::jlimit (0.01, 60.0, physical.sustainSeconds * sustainScale * pitchScale);
+        const double tauS = t60 / 6.907755278982137;
+        const double tauF = juce::jmax (1.0e-4, shape.fastRatio * tauS);
+        const double a = juce::jlimit (0.0, 0.999, shape.fastShare);
+
+        const double e1 = std::exp (-2.0 * t / tauF);
+        const double e2 = std::exp (-2.0 * t / tauS);
+        const double energy = a * e1 + (1.0 - a) * e2;
+
+        if (energy > 1.0e-300)
+            m = tauS * ((a / tauF) * e1 + ((1.0 - a) / tauS) * e2) / energy;
+
+        if (m < 1.0005)
+            m = 1.0;
+    }
+
+    // ---- 4 amplitude-driven pitch ---------------------------------------------
+    double tension = 1.0;
+
+    if (shape.tensionMod > 0.0 && kappa0 > 0.0)
+    {
+        const double lengthRatio = std::pow (2.0, stoppedFret / 12.0);   // L / L_vib
+        const double kappa = shape.tensionMod * kappa0 * lengthRatio * lengthRatio;
+        const double level = levelFollower.current();
+        const double maxRatio = std::pow (2.0, (shape.advanced ? 50.0 : 25.0) / 1200.0);
+        tension = juce::jlimit (1.0, maxRatio, 1.0 + kappa * level * level);
+    }
+
+    tensionRatio = tension;
+    tensionCentsUi.store ((float) (1200.0 * std::log2 (tension)), std::memory_order_relaxed);
+
+    // ---- 5 release ramp and sag -------------------------------------------------
+    double sag = 1.0;
+
+    if (releaseActive)
+    {
+        releaseRamp = juce::jmin (1.0, releaseRamp + (double) kShapeTick / juce::jmax (1.0, shape.releaseSeconds * sr));
+        damping = Damping::Released;
+        dampingAmount = releaseRamp;
+        needsLoopUpdate = true;
+
+        if (sagTargetCents != 0.0)
+            sag = std::pow (2.0, sagTargetCents * releaseRamp / 1200.0);
+
+        if (releaseRamp >= 1.0)
+            releaseActive = false, sag = sagTargetCents != 0.0 ? std::pow (2.0, sagTargetCents / 1200.0) : 1.0;
+    }
+    else if (sagTargetCents != 0.0)
+    {
+        sag = std::pow (2.0, sagTargetCents / 1200.0);
+    }
+
+    // ---- apply -----------------------------------------------------------------------
+    if (std::abs (b - brightMul) > 1.0e-6 || std::abs (m - decayMul) > 1.0e-6)
+    {
+        brightMul = b;
+        decayMul = m;
+        needsLoopUpdate = true;
+    }
+
+    const double target = tension * sag * ringRatio;
+
+    if (target != pitchRatioTarget)
+    {
+        pitchRatioTarget = target;
+
+        // Ramps linearly across the tick (4); the ring's 1 ms glide is one tick.
+        pitchRatioStep = (pitchRatioTarget - pitchRatio) / (double) kShapeTick;
+    }
 }
 
 void StringEngine::setDamping (Damping d, double amount) noexcept
@@ -521,6 +794,10 @@ void StringEngine::updateLoopCoefficients() noexcept
     // harmonic-realism.md 2: no harmonic decay factor. A harmonic's decay is
     // the loop filter's at n f0, shorter for the physical reason.
 
+    // sustain-and-decay.md 2.1: the attack's brightness overshoot.
+    if (brightMul != 1.0)
+        cutoff *= brightMul;
+
     loopCutoffHz = juce::jlimit (120.0, sr * 0.48, cutoff);
     loopFilter.setCutoff (loopCutoffHz);
     loopFilterPole = std::exp (-constants::kTwoPi * loopCutoffHz / sr);
@@ -537,6 +814,10 @@ void StringEngine::updateLoopCoefficients() noexcept
     // sustain is scaled down as the fundamental rises.
     const double pitchScale = std::pow (110.0 / f0, 0.40);
     double t60 = physical.sustainSeconds * agingSustain * sustainScale * t60Scale * pitchScale;   // string-aging.md 5
+
+    // sustain-and-decay.md 3: the fast stage, as a time-varying decay rate.
+    if (decayMul != 1.0)
+        t60 /= decayMul;
 
     // Silenced is an absolute time: the E-Bow letting go (ambiguity-resolutions
     // 2.4) has to be inaudible in 200 ms on a string of any sustain.
@@ -580,6 +861,7 @@ void StringEngine::beginSample() noexcept
         {
             excitation.trigger (pendingParams, rng);
             sounded = true;
+            onShapeExcite (pendingParams);
             stealPending = false;
             stealGain = 1.0;
 
@@ -593,6 +875,19 @@ void StringEngine::beginSample() noexcept
         stealGain = 1.0;
     }
 
+    // sustain-and-decay.md 7: the shape's control-rate tick. Neutral, this is
+    // one branch.
+    if (shapeActive && ! shapeBypassed)
+    {
+        ++samplesSinceExcite;
+
+        if (++tickCounter >= kShapeTick)
+        {
+            tickCounter = 0;
+            updateShapeTick();
+        }
+    }
+
     // Recompute the loop coefficients only when they would actually change.
     //
     // The delay length is updated every sample, because that is the pitch and a
@@ -601,14 +896,33 @@ void StringEngine::beginSample() noexcept
     // exp(). Bending a note used to redo that every sample on every string,
     // which was most of the engine's CPU for no audible benefit. The 0.2%
     // threshold is about three and a half cents.
+    // The shape's pitch ratio is part of the pitch the coefficients follow.
+    const double wantHz = pitchRatio != 1.0 ? targetHz * pitchRatio : targetHz;
+
     if (needsLoopUpdate
-        || std::abs (targetHz - lastCoefficientHz) > lastCoefficientHz * 0.002)
+        || std::abs (wantHz - lastCoefficientHz) > lastCoefficientHz * 0.002)
     {
         updateLoopCoefficients();
     }
 
     // ---- read the waveguide --------------------------------------------------
-    const double delaySamples = smoothedDelay.next();
+    double delaySamples = smoothedDelay.next();
+
+    // sustain-and-decay.md 4-5: the pitch ratio divides the smoothed delay.
+    if (pitchRatioStep != 0.0)
+    {
+        pitchRatio += pitchRatioStep;
+
+        if ((pitchRatioStep > 0.0 && pitchRatio >= pitchRatioTarget)
+            || (pitchRatioStep < 0.0 && pitchRatio <= pitchRatioTarget))
+        {
+            pitchRatio = pitchRatioTarget;
+            pitchRatioStep = 0.0;
+        }
+    }
+
+    if (pitchRatio != 1.0)
+        delaySamples /= pitchRatio;
     const double compensated = juce::jmax (2.0, delaySamples - filterDelayCompensation());
 
     const double delayOut = delayLine.read (compensated);
@@ -623,6 +937,13 @@ void StringEngine::beginSample() noexcept
         fb = dispersion[i].process (fb);
 
     fb *= loopGain * stealGain;
+
+    // sustain-and-decay.md 5.3: the accidental pull-off's one period at R.
+    if (ringSamplesLeft > 0)
+    {
+        fb *= ringGain;
+        --ringSamplesLeft;
+    }
 
     // ---- fret buzz -----------------------------------------------------------
     // Low action plus light fretting lets the string slap the frets: the peaks
@@ -717,6 +1038,13 @@ double StringEngine::endSample (double couplingInput, double directInput) noexce
 
     levelFollower.process (out);
     bridgeOut = out * physical.couplingSend * couplingSendScale;
+
+    // sustain-and-decay.md 2.2: the ping, on the output with the surface noise.
+    if (pingSamplesLeft > 0)
+    {
+        --pingSamplesLeft;
+        out = sanitise (out + ping1.process (0.0) + ping2.process (0.0));
+    }
 
     return out;
 }

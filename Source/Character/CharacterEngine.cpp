@@ -425,6 +425,15 @@ void CharacterEngine::retune() noexcept
         driftPhase[(size_t) s] = 0.0;
 }
 
+void CharacterEngine::retuneString (int stringIndex) noexcept
+{
+    if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
+    {
+        driftCents[(size_t) stringIndex] = 0.0;
+        driftPhase[(size_t) stringIndex] = 0.0;
+    }
+}
+
 //==============================================================================
 void CharacterEngine::setPotLinearityAmount (double newAmount) noexcept
 {

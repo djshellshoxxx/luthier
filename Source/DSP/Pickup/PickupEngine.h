@@ -129,6 +129,17 @@ public:
     void setHumAmount (double amount) noexcept;
     void setMainsFrequency (double hz) noexcept;
 
+    /*  noise-floor.md 2.1: the player's position and angle scale the hum, as a
+        loop antenna in the room's field. 1 (the default) is the legacy path. */
+    void setHumPositionGain (double g) noexcept { humPositionGain = g; }
+
+    /** noise-floor.md 4.1: the share of the active magnetic signal that hears
+        hum (single coils, P90s, soundhole pickups, a tapped humbucker). */
+    double getSingleCoilShare() const noexcept;
+
+    /** The hum this sample carried, for noise-floor.md 4.6's Aux 8 stem. */
+    double getLastHumSample() const noexcept { return lastHum; }
+
     /** Identity rule 4: with every pickup off the instrument is silent and the UI
         must say so. */
     bool isSilent() const noexcept { return activeCount == 0; }
@@ -238,6 +249,7 @@ private:
     double humPhase = 0.0;
     double humIncrement = 0.0;
     ExpSmoother humLevel;
+    double humPositionGain = 1.0, lastHum = 0.0;   // noise-floor.md 2.1
 
     DCBlocker outputDc;
 

@@ -1,6 +1,7 @@
 #include "WorkshopPanel.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
+#include "RealismGroupsC.h"   // REALISM-C
 
 namespace luthier
 {
@@ -1108,6 +1109,9 @@ void WorkshopPanel::refreshInspector()
                 inspectorFields.add (prop.name.toString());
             }
     }
+
+    // tuning-stability.md 6: the tuners' and the nut's derived figures (REALISM-C).
+    inspectorLines.addArray (describeTuningFigures (processor, slot, part.get()));
 
     if (const int i = pickupIndexOfRegion (region); i >= 0 && part != nullptr)
     {

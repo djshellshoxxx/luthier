@@ -24,6 +24,7 @@
 #include "HarmonicsGroup.h"          // REALISM-B: harmonic-realism.md 7
 #include "StringInteractionGroup.h"  // REALISM-B: string-interaction.md 9
 #include "RightHandGroup.h"          // REALISM-B: fingerstyle-attack.md 7
+#include "RealismGroupsC.h"   // REALISM-C
 #include "../Character/CharacterEngine.h"
 
 namespace luthier
@@ -136,7 +137,7 @@ private:
 
     // --- tuners -------------------------------------------------------------------
     juce::Slider loosenessSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::TextButton retuneButton { "Retune" };
+    juce::TextButton retuneButton { "Retune all" };   // tuning-stability.md 3
     juce::Label driftLabel;
 
     // --- electronics ----------------------------------------------------------------
@@ -175,6 +176,19 @@ private:
     std::unique_ptr<HarmonicsGroup> harmonicsGroup;
     std::unique_ptr<RightHandGroup> rightHandGroup;
     std::unique_ptr<StringInteractionGroup> interactionGroup;
+
+    // REALISM-C: tuning-stability.md 6, noise-floor.md 5, sustain-and-decay.md 8.
+    std::unique_ptr<TuningStabilityGroup> tuningStabilityGroup;
+    std::unique_ptr<NoiseFloorGroup> noiseFloorGroup;
+    std::unique_ptr<SustainShapeGroup> sustainShapeGroup;
+
+public:
+    TuningStabilityGroup* getTuningStabilityGroup() noexcept { return tuningStabilityGroup.get(); }
+    NoiseFloorGroup* getNoiseFloorGroup() noexcept { return noiseFloorGroup.get(); }
+    SustainShapeGroup* getSustainShapeGroup() noexcept { return sustainShapeGroup.get(); }
+    juce::TextButton& getRetuneAllButton() noexcept { return retuneButton; }
+
+private:
 
     /*  Sizes the panel to its content. The workspace viewport keeps whatever
         height a panel gives itself, and this one never gave itself one - so it

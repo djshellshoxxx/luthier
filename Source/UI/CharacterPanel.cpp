@@ -325,6 +325,13 @@ CharacterPanel::CharacterPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (*harmonicsGroup);
     addAndMakeVisible (*rightHandGroup);
     addAndMakeVisible (*interactionGroup);
+    // REALISM-C (tuning-stability.md 6, noise-floor.md 5, sustain-and-decay.md 8).
+    tuningStabilityGroup = std::make_unique<TuningStabilityGroup> (processor);
+    addAndMakeVisible (*tuningStabilityGroup);
+    noiseFloorGroup = std::make_unique<NoiseFloorGroup> (processor);
+    addAndMakeVisible (*noiseFloorGroup);
+    sustainShapeGroup = std::make_unique<SustainShapeGroup> (processor);
+    addAndMakeVisible (*sustainShapeGroup);
 
     setupGroup = std::make_unique<SetupGroup> (processor);
     addAndMakeVisible (*setupGroup);
@@ -351,7 +358,7 @@ CharacterPanel::CharacterPanel (LuthierAudioProcessor& p)
 
     styleHeading (seedHeading,        "CHARACTER");
     styleHeading (mapsHeading,        "DEAD SPOTS AND FRET WEAR");
-    styleHeading (tunerHeading,       "TUNERS");
+    styleHeading (tunerHeading,       "TUNING STABILITY");   // tuning-stability.md 6
     styleHeading (electronicsHeading, "AGED ELECTRONICS");
     styleHeading (bodyHeading,        "BODY");
 
@@ -435,9 +442,20 @@ void CharacterPanel::buildControls()
     };
     addAndMakeVisible (loosenessSlider);
 
-    retuneButton.setTooltip ("Puts every string back in tune and starts drifting again.");
-    // environment.md 3.2: one Retune for the tuners and the room.
-    retuneButton.onClick = [this] { environmentGroup->retune(); refreshFromEngine(); };
+    retuneButton.setTooltip ("Puts every string back in tune - the tuner drift, the room's pull "
+                             "and every tuning-stability offset - lowest string first, as a tech would. "
+                             "Not undoable: it is tuning, not an edit.");
+    retuneButton.onClick = [this]
+    {
+        // environment.md 3.2 (REALISM-A): one Retune for the tuners and the room.
+        environmentGroup->retune();
+        // tuning-stability.md 3 (REALISM-C): the command reaches the audio thread at
+        // the next block, which also clears the character drift; the direct call
+        // keeps the readout honest when no audio is running.
+        processor.getEngine().getStabilityModel().requestRetuneAll();
+        character().retune();
+        refreshFromEngine();
+    };
     addAndMakeVisible (retuneButton);
 
     driftLabel.setFont (juce::Font (juce::FontOptions (9.0f)));
@@ -582,7 +600,10 @@ int CharacterPanel::preferredHeight() const
          + 16 + DeadSpotMap::preferredHeight
          + FretWearMap::preferredHeight + 26          // maps and refret
          + 16 + 22 + 26 + 12                          // tuners
+         + 4 + tuningStabilityGroup->preferredHeight()  // TUNING STABILITY (REALISM-C)
          + 16 + 22 + 22 + 26                          // electronics
+         + 8 + noiseFloorGroup->preferredHeight()     // NOISE FLOOR (REALISM-C)
+         + 8 + sustainShapeGroup->preferredHeight()   // SUSTAIN SHAPE (REALISM-C)
          + 16 + 22                                    // body
          + 12                                         // session readout
          + 8 + environmentGroup->preferredHeight()    // ENVIRONMENT (environment.md 7)
@@ -647,6 +668,9 @@ void CharacterPanel::resized()
 
     driftLabel.setBounds (row (12));
 
+    bounds.removeFromTop (4);
+    tuningStabilityGroup->setBounds (bounds.removeFromTop (tuningStabilityGroup->preferredHeight()));
+
     // ---- electronics ---------------------------------------------------------------
     electronicsHeading.setBounds (row (16));
     potLinearitySlider.setBounds (row (22));
@@ -658,6 +682,12 @@ void CharacterPanel::resized()
         r.removeFromLeft (4);
         boneNutToggle.setBounds (r);
     }
+
+    // noise-floor.md 5: after aged electronics.
+    bounds.removeFromTop (8);
+    noiseFloorGroup->setBounds (bounds.removeFromTop (noiseFloorGroup->preferredHeight()));
+    bounds.removeFromTop (8);
+    sustainShapeGroup->setBounds (bounds.removeFromTop (sustainShapeGroup->preferredHeight()));
 
     // ---- body ----------------------------------------------------------------------
     bodyHeading.setBounds (row (16));
