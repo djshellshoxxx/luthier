@@ -1133,6 +1133,10 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             if (parkedMidi.data.size() + metadata.numBytes + 8 <= kParkedMidiBytes)
                 parkedMidi.addEvent (metadata.data, metadata.numBytes, 0);
 
+        // Direct notes are not kept: the tune player restarts what is held
+        // after a swap. The pointer must not outlive this call either.
+        directMidi = nullptr;
+
         buffer.clear();
         return;
     }
@@ -1145,7 +1149,10 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 
     if (numSamples <= maxBlock)
     {
+        directForSubBlock = directMidi;
         processSubBlock (buffer, midiMessages);
+        directMidi = nullptr;
+        directForSubBlock = nullptr;
         applySwapFade (buffer);
         return;
     }
@@ -1158,6 +1165,7 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 
     juce::MidiBuffer sliceMidi;
     sliceMidi.ensureSize (2048);
+    directSlice.ensureSize (2048);
 
     for (int offset = 0; offset < numSamples;)
     {
@@ -1178,6 +1186,16 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                 sliceMidi.addEvent (metadata.getMessage(), position - offset);
         }
 
+        // The direct notes are sliced the same way.
+        directSlice.clear();
+
+        if (directMidi != nullptr)
+            for (const auto metadata : *directMidi)
+                if (metadata.samplePosition >= offset && metadata.samplePosition < offset + count)
+                    directSlice.addEvent (metadata.getMessage(), metadata.samplePosition - offset);
+
+        directForSubBlock = &directSlice;
+
         // Each slice's taps land after the previous slice's, so the aux buses
         // come out contiguous rather than overwritten.
         taps.setWriteOffset (offset);
@@ -1186,6 +1204,9 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         processSubBlock (slice, sliceMidi);
         offset += count;
     }
+
+    directMidi = nullptr;
+    directForSubBlock = nullptr;
 
     applySwapFade (buffer);
 }
@@ -1379,6 +1400,13 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     else
     {
         scheduleEvents (events, numSamples);
+    }
+
+    // Direct notes play as written whether or not the rhythm engine drives.
+    if (directForSubBlock != nullptr && ! directForSubBlock->isEmpty())
+    {
+        midi.processBlock (*directForSubBlock, numSamples, samplePosition, directEvents);
+        scheduleEvents (directEvents, numSamples);
     }
 
     updatePerBlockModulation (numSamples);

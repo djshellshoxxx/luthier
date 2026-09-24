@@ -75,6 +75,11 @@ public:
     std::function<juce::var()> captureGuitarBlock;
     std::function<void (const juce::var&)> onGuitarBlockLoaded;
 
+    /** After a load has written its pedal types and their parameters, so the
+        pedals can be built with the loaded settings rather than their defaults
+        (ParameterBridge::adoptPedalTypesFromParameters). */
+    std::function<void()> onPedalTypesLoaded;
+
     /** Deletes backups older than kBackupRetentionDays. Called once on startup. */
     static void pruneOldBackups();
 

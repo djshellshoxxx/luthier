@@ -1,8 +1,33 @@
 #include "PedalRack.h"
+#include "Faces/FaceMaterials.h"
 #include "../PluginProcessor.h"
+
+#include <cmath>
 
 namespace luthier
 {
+
+namespace
+{
+    constexpr int slotGutter = 14;      // the slot number, down the left
+    constexpr int headerHeight = 26;    // the type selector, above the face
+
+    /** LuthierKnob keeps a value row above its knob and a label row below it (Widgets.cpp). */
+    constexpr float knobRow = 14.0f;
+
+    EffectsChain& chainFor (LuthierAudioProcessor& processor, bool postChain)
+    {
+        return postChain ? processor.getEngine().getPostEffects() : processor.getEngine().getPreEffects();
+    }
+
+    /** A knob on a face shows no label of its own (the face prints it), and only the
+        knob itself takes clicks, so the rows it hangs over the face never cover a neighbour. */
+    void prepareForFace (LuthierKnob& knob)
+    {
+        knob.setLabelText ({});
+        knob.setInterceptsMouseClicks (false, true);
+    }
+}
 
 //==============================================================================
 //  PedalSlotComponent
@@ -10,49 +35,71 @@ namespace luthier
 PedalSlotComponent::PedalSlotComponent (LuthierAudioProcessor& p, bool post, int slot)
     : processor (p), postChain (post), slotIndex (slot)
 {
+    setLookAndFeel (&faceLookAndFeel);
+
     addAndMakeVisible (typeSelector);
     typeSelector.setLabelVisible (false);
     typeSelector.attachTo (processor, ParamIDs::slotType (postChain, slotIndex),
                            "The pedal in this slot. Empty slots cost nothing.");
 
+    // visual-polish.md 2: bypass is the pedal's footswitch; its LED is on the face.
     addAndMakeVisible (bypassToggle);
     bypassToggle.attachTo (processor, ParamIDs::slotBypass (postChain, slotIndex),
                            "Bypass this pedal. The switch crossfades over 10 ms, so it never clicks.");
+    faces::setFaceSwitch (bypassToggle.getButton(), faces::FaceSwitch::footswitch);
 
+    // The mix knob is the last knob on the face, labelled MIX.
     addAndMakeVisible (mixKnob);
     mixKnob.attachTo (processor, ParamIDs::slotMix (postChain, slotIndex),
                       "Blend between this pedal's output and its input");
+    prepareForFace (mixKnob);
+
+    shownBypass = bypassFromParameter();
 
     rebuildControls();
-    startTimerHz (4);
+    startTimerHz (10);
 }
 
 PedalSlotComponent::~PedalSlotComponent()
 {
     stopTimer();
+    setLookAndFeel (nullptr);
 }
 
-void PedalSlotComponent::timerCallback()
+bool PedalSlotComponent::bypassFromParameter() const
 {
-    auto& chain = postChain ? processor.getEngine().getPostEffects()
-                            : processor.getEngine().getPreEffects();
+    if (auto* value = processor.getState().getRawParameterValue (ParamIDs::slotBypass (postChain, slotIndex)))
+        return value->load() > 0.5f;
 
-    if (chain.getSlotType (slotIndex) != cachedType)
+    return false;
+}
+
+void PedalSlotComponent::refresh()
+{
+    if (chainFor (processor, postChain).getSlotType (slotIndex) != cachedType)
         rebuildControls();
+
+    // visual-polish.md 2: the LED follows bypass.
+    if (const bool bypassed = bypassFromParameter(); bypassed != shownBypass)
+    {
+        shownBypass = bypassed;
+        repaint (getFaceBounds().getSmallestIntegerContainer());
+    }
 }
 
 void PedalSlotComponent::rebuildControls()
 {
-    auto& chain = postChain ? processor.getEngine().getPostEffects()
-                            : processor.getEngine().getPreEffects();
+    auto& chain = chainFor (processor, postChain);
 
     cachedType = chain.getSlotType (slotIndex);
 
     paramKnobs.clear();
+    faceLabels.clear();
 
     if (auto* pedal = chain.getPedal (slotIndex))
     {
         const int numParams = juce::jmin (pedal->getNumParameters(), Pedal::kMaxParams);
+        faceLabels = faces::PedalFaceState::from (*pedal).labels;
 
         for (int i = 0; i < numParams; ++i)
         {
@@ -68,8 +115,33 @@ void PedalSlotComponent::rebuildControls()
                 tooltip += " (" + juce::String (descriptor.unit) + ")";
 
             knob->attachTo (processor, ParamIDs::slotParam (postChain, slotIndex, i), tooltip);
+            prepareForFace (*knob);
         }
     }
+
+    // Every pedal declares fewer than kMaxParams, which leaves the mix a place on the face.
+    jassert (paramKnobs.size() < Pedal::kMaxParams);
+
+    if (paramKnobs.size() < Pedal::kMaxParams)
+        faceLabels.add ("BLEND");   // not "MIX": several pedals have a Mix of their own
+
+    // visual-polish.md 3: the type's knob caps. The graphic EQ's face is a bank of
+    // sliders, so its controls are faders.
+    faceLookAndFeel.setCap (faces::knobCapFor (cachedType));
+
+    const bool faders = faces::layoutPedalFace ({ 0.0f, 0.0f, 300.0f, 120.0f }, cachedType, 1,
+                                                faces::PedalOrientation::onItsSide).sliders;
+
+    auto setStyle = [faders] (LuthierKnob& knob)
+    {
+        knob.getSlider().setSliderStyle (faders ? juce::Slider::LinearVertical
+                                                : juce::Slider::RotaryHorizontalVerticalDrag);
+    };
+
+    for (auto* knob : paramKnobs)
+        setStyle (*knob);
+
+    setStyle (mixKnob);
 
     // The bypass toggle is meaningless on an empty slot.
     const bool hasPedal = (cachedType != PedalType::None);
@@ -85,13 +157,83 @@ void PedalSlotComponent::rebuildControls()
 
 int PedalSlotComponent::getPreferredHeight() const
 {
+    return getPreferredHeightFor (getWidth() > 0 ? getWidth() : nominalWidth);
+}
+
+int PedalSlotComponent::getPreferredHeightFor (int width) const
+{
     if (cachedType == PedalType::None)
         return 34;
 
-    const int knobRows = (paramKnobs.size() + 3) / 4;   // four knobs per row
+    // The header, then a face tall enough that every knob on it keeps a usable size.
+    const float faceWidth = (float) (width - Metrics::gridHalf * 2 - slotGutter);
+    const float face = faces::preferredHeightOnItsSide (faceWidth, cachedType,
+                                                        juce::jmin (faceLabels.size(), Pedal::kMaxParams));
 
-    return 34 + juce::jmax (1, knobRows) * (LuthierKnob::preferredHeightFor (LuthierKnob::Size::Small) + 4)
-           + Metrics::gridHalf;
+    return Metrics::gridHalf * 3 + headerHeight + (int) std::ceil (face);
+}
+
+//==============================================================================
+juce::Rectangle<float> PedalSlotComponent::getFaceBounds() const
+{
+    auto bounds = getLocalBounds().reduced (Metrics::gridHalf);
+    bounds.removeFromLeft (slotGutter);
+    bounds.removeFromTop (headerHeight + Metrics::gridHalf);
+    return bounds.toFloat();
+}
+
+faces::PedalFaceLayout PedalSlotComponent::getFaceLayout() const
+{
+    return faces::layoutPedalFace (getFaceBounds(), cachedType, juce::jmin (faceLabels.size(), Pedal::kMaxParams),
+                                   faces::PedalOrientation::onItsSide);
+}
+
+faces::PedalFaceState PedalSlotComponent::faceState() const
+{
+    faces::PedalFaceState state;
+    state.bypassed = shownBypass;
+    state.numKnobs = juce::jmin (faceLabels.size(), Pedal::kMaxParams);
+    state.labels = faceLabels;
+    state.drawKnobs = false;         // the live knobs sit on the face
+    state.drawFootswitch = false;    // and the bypass toggle is the footswitch
+    state.enabled = isEnabled();
+    state.orientation = faces::PedalOrientation::onItsSide;
+    return state;
+}
+
+PedalSlotComponent::CacheKey PedalSlotComponent::keyFor (float scale) const
+{
+    const auto face = getFaceBounds();
+
+    CacheKey key;
+    key.type = cachedType;
+    key.bypassed = shownBypass;
+    key.enabled = isEnabled();
+    key.knobs = faceLabels.size();
+    key.width = juce::roundToInt (face.getWidth());
+    key.height = juce::roundToInt (face.getHeight());
+    key.scale = scale;
+    key.palette = faces::paletteDigest();
+    return key;
+}
+
+void PedalSlotComponent::renderFace (float scale)
+{
+    const auto face = getFaceBounds();
+    const int w = juce::jmax (1, juce::roundToInt (face.getWidth() * scale));
+    const int h = juce::jmax (1, juce::roundToInt (face.getHeight() * scale));
+
+    // A software image: it draws the same in the plugin, in the tests and in the PNG renders.
+    faceImage = juce::Image (juce::Image::ARGB, w, h, true, juce::SoftwareImageType());
+
+    {
+        juce::Graphics g (faceImage);
+        g.addTransform (juce::AffineTransform::scale (scale));
+        faces::paintPedalFace (g, face.withZeroOrigin(), cachedType, faceState());
+    }
+
+    cachedKey = keyFor (scale);
+    ++faceRenders;
 }
 
 //==============================================================================
@@ -112,43 +254,73 @@ void PedalSlotComponent::paint (juce::Graphics& g)
     g.setFont (Fonts::mono (10.0f));
     g.drawText (juce::String (slotIndex + 1), getLocalBounds().removeFromLeft (16),
                 juce::Justification::centred, false);
+
+    const auto face = getFaceBounds();
+
+    if (empty || face.isEmpty())
+        return;
+
+    // visual-polish.md 0.3: the pedal is drawn once, and again only when what it depicts changes.
+    const float scale = juce::jlimit (1.0f, 4.0f, g.getInternalContext().getPhysicalPixelScaleFactor());
+
+    if (faceImage.isNull() || keyFor (scale) != cachedKey)
+        renderFace (scale);
+
+    g.drawImage (faceImage, face);
 }
 
 void PedalSlotComponent::resized()
 {
     auto bounds = getLocalBounds().reduced (Metrics::gridHalf);
 
-    bounds.removeFromLeft (14);   // slot number gutter
+    bounds.removeFromLeft (slotGutter);
 
-    auto header = bounds.removeFromTop (26);
+    auto header = bounds.removeFromTop (headerHeight);
 
-    bypassToggle.setBounds (header.removeFromRight (48).reduced (1));
-    mixKnob.setBounds (header.removeFromRight (LuthierKnob::preferredWidthFor (LuthierKnob::Size::Small))
-                             .withHeight (header.getHeight()));
+    // Only if a pedal ever declares kMaxParams parameters is there no room for the mix on the face.
+    const bool mixOnFace = paramKnobs.size() < Pedal::kMaxParams;
 
-    header.removeFromRight (Metrics::gridHalf);
+    if (! mixOnFace)
+        mixKnob.setBounds (header.removeFromRight (LuthierKnob::preferredWidthFor (LuthierKnob::Size::Small)));
+
     typeSelector.setBounds (header.reduced (1));
 
-    if (paramKnobs.isEmpty())
+    if (cachedType == PedalType::None)
         return;
 
-    bounds.removeFromTop (Metrics::gridHalf);
+    const auto l = getFaceLayout();
 
-    const int knobWidth = LuthierKnob::preferredWidthFor (LuthierKnob::Size::Small);
-    const int knobHeight = LuthierKnob::preferredHeightFor (LuthierKnob::Size::Small);
-    const int perRow = juce::jmax (1, bounds.getWidth() / juce::jmax (1, knobWidth));
-
-    int index = 0;
-
-    while (index < paramKnobs.size() && bounds.getHeight() >= knobHeight)
+    auto place = [&l] (LuthierKnob& knob, int index)
     {
-        auto row = bounds.removeFromTop (knobHeight);
+        const auto r = l.knobs[(size_t) index];
 
-        for (int i = 0; i < perRow && index < paramKnobs.size(); ++i, ++index)
-            paramKnobs[index]->setBounds (row.removeFromLeft (knobWidth));
+        if (l.sliders)
+        {
+            // A fader: the travel fills the slot, with the knob's value row at its top.
+            knob.setBounds (r.withHeight (r.getHeight() + knobRow).toNearestInt());
+            return;
+        }
 
-        bounds.removeFromTop (4);
-    }
+        // The slider lands exactly on the face's knob; the knob's rows hang above and below it.
+        const auto column = l.labels[(size_t) index].isEmpty() ? r : l.labels[(size_t) index];
+        knob.setBounds (juce::Rectangle<float> (column.getX(), r.getY() - knobRow,
+                                                column.getWidth(), r.getHeight() + knobRow * 2.0f).toNearestInt());
+    };
+
+    for (int i = 0; i < paramKnobs.size() && i < l.numKnobs; ++i)
+        place (*paramKnobs[i], i);
+
+    if (mixOnFace && paramKnobs.size() < l.numKnobs)
+        place (mixKnob, paramKnobs.size());
+
+    bypassToggle.setBounds (l.footswitch.toNearestInt());
+}
+
+void PedalSlotComponent::lookAndFeelChanged()
+{
+    // A palette change (accessibility.md 6) reaches the caps and the footswitch.
+    faceLookAndFeel.refreshColours();
+    repaint();
 }
 
 //==============================================================================
@@ -254,10 +426,11 @@ PedalRack::~PedalRack() = default;
 
 int PedalRack::getPreferredHeight() const
 {
+    const int width = getWidth() > 0 ? getWidth() : PedalSlotComponent::nominalWidth;
     int total = 0;
 
     for (auto* slot : slots)
-        total += slot->getPreferredHeight() + Metrics::gridHalf;
+        total += slot->getPreferredHeightFor (width) + Metrics::gridHalf;
 
     return total;
 }
@@ -334,7 +507,7 @@ void PedalRack::resized()
 
     for (auto* slot : slots)
     {
-        slot->setBounds (bounds.removeFromTop (slot->getPreferredHeight()));
+        slot->setBounds (bounds.removeFromTop (slot->getPreferredHeightFor (getWidth())));
         bounds.removeFromTop (Metrics::gridHalf);
     }
 }

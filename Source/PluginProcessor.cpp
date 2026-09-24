@@ -68,6 +68,9 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     setCapoPart (partLibrary.getDefault (PartType::capo));
     presets.captureGuitarBlock = [this] { return getGuitarBlock(); };
     presets.onGuitarBlockLoaded = [this] (const juce::var& block) { takeGuitarBlock (block); };
+
+    // A preset's pedals come with their settings; build them keeping those.
+    presets.onPedalTypesLoaded = [this] { bridge.adoptPedalTypesFromParameters(); };
     presets.ensureFactoryPresetsInstalled();
     presets.refresh();
 
@@ -1426,6 +1429,11 @@ bool LuthierAudioProcessor::captureSnapshot (int index, const juce::String& labe
 
 bool LuthierAudioProcessor::recallSnapshot (int index)
 {
+    // ambiguity-resolutions 8: a snapshot recall during a preset morph cancels
+    // the morph and settles on the recalled state.
+    if (presetMorph.isEnabled())
+        presetMorph.cancel();
+
     return snapshots.recall (index);
 }
 
@@ -1999,8 +2007,20 @@ void LuthierAudioProcessor::drainPerformanceCapture()
     performanceCapture.drain();
 }
 
+void LuthierAudioProcessor::updatePresetMorph()
+{
+    if (! presetMorph.isEnabled())
+        return;
+
+    if (auto* position = apvts.getRawParameterValue (ParamIDs::presetMorphPosition))
+        presetMorph.apply ((double) position->load());
+}
+
 void LuthierAudioProcessor::timerCallback()
 {
+    // ambiguity-resolutions 5.2: the morph follows its (automatable) slider.
+    updatePresetMorph();
+
     // notation-export 6.2: the capture drains at 10 Hz.
     if (++captureDrainTick >= 3)
     {

@@ -1425,6 +1425,36 @@ PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
     loadButton.setColour (juce::TextButton::textColourOffId, Palette::accent);
     loadButton.onClick = [this] { loadSelected(); };
 
+    // ambiguity-resolutions 5.2: with Morph on, two slots and a slider; a
+    // preset loads into whichever slot is selected, and the sound follows.
+    addAndMakeVisible (morphToggle);
+    morphToggle.setClickingTogglesState (true);
+    morphToggle.setTooltip ("Morph between two presets: continuous settings glide, "
+                            "switches change at the midpoint.");
+    morphToggle.onClick = [this]
+    {
+        processor.getPresetMorph().setEnabled (morphToggle.getToggleState());
+        processor.updatePresetMorph();
+        refreshMorph();
+    };
+
+    for (auto* slot : { &slotAButton, &slotBButton })
+    {
+        addChildComponent (*slot);
+        slot->setClickingTogglesState (true);
+        slot->setRadioGroupId (0x4d52);
+        slot->setTooltip ("Load presets into this slot");
+    }
+
+    slotAButton.onClick = [this] { processor.getPresetMorph().setCurrentSlot (PresetMorph::slotA); };
+    slotBButton.onClick = [this] { processor.getPresetMorph().setCurrentSlot (PresetMorph::slotB); };
+
+    addChildComponent (morphSlider);
+    morphSlider.setTooltip ("From A to B. Automatable as Preset Morph.");
+    morphAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        processor.getState(), ParamIDs::presetMorphPosition, morphSlider);
+    morphSlider.onValueChange = [this] { processor.updatePresetMorph(); };
+
     addAndMakeVisible (deleteButton);
     deleteButton.setColour (juce::TextButton::textColourOffId, Palette::clip);
     deleteButton.setEnabled (false);
@@ -1557,8 +1587,39 @@ void PresetBrowserPanel::loadSelected()
         return;
 
     processor.pushUndoState ("Load preset");
-    processor.getPresetManager().loadPreset (visibleIndices[row]);
+
+    auto& presets = processor.getPresetManager();
+    presets.loadPreset (visibleIndices[row]);
     processor.getParameterBridge().applyAllNow();
+
+    // 5.2: while morphing, a load fills the selected slot, and the sound goes
+    // back to wherever the slider is between A and B.
+    auto& morph = processor.getPresetMorph();
+
+    if (morph.isEnabled())
+    {
+        morph.setSlot (morph.getCurrentSlot(), presets.toVar (presets.getCurrentPresetName()),
+                       presets.getCurrentPresetName());
+        refreshMorph();
+    }
+}
+
+void PresetBrowserPanel::refreshMorph()
+{
+    auto& morph = processor.getPresetMorph();
+    const bool on = morph.isEnabled();
+
+    morphToggle.setToggleState (on, juce::dontSendNotification);
+    slotAButton.setVisible (on);
+    slotBButton.setVisible (on);
+    morphSlider.setVisible (on);
+
+    slotAButton.setButtonText ("A: " + (morph.getSlotName (PresetMorph::slotA).isNotEmpty()
+                                          ? morph.getSlotName (PresetMorph::slotA) : juce::String ("empty")));
+    slotBButton.setButtonText ("B: " + (morph.getSlotName (PresetMorph::slotB).isNotEmpty()
+                                          ? morph.getSlotName (PresetMorph::slotB) : juce::String ("empty")));
+    slotAButton.setToggleState (morph.getCurrentSlot() == PresetMorph::slotA, juce::dontSendNotification);
+    slotBButton.setToggleState (morph.getCurrentSlot() == PresetMorph::slotB, juce::dontSendNotification);
 }
 
 void PresetBrowserPanel::layoutContent (juce::Rectangle<int> content)
@@ -1579,10 +1640,24 @@ void PresetBrowserPanel::layoutContent (juce::Rectangle<int> content)
 
     content.removeFromBottom (Metrics::grid);
 
+    // 5.2's morph row: the toggle always, the slots and slider when it is on.
+    {
+        auto morphRow = content.removeFromBottom (Metrics::buttonHeight);
+        morphToggle.setBounds (morphRow.removeFromLeft (80));
+        morphRow.removeFromLeft (Metrics::gridHalf);
+        slotAButton.setBounds (morphRow.removeFromLeft (170));
+        morphRow.removeFromLeft (Metrics::gridHalf);
+        slotBButton.setBounds (morphRow.removeFromRight (170));
+        morphRow.removeFromRight (Metrics::gridHalf);
+        morphSlider.setBounds (morphRow);
+        content.removeFromBottom (Metrics::gridHalf);
+    }
+
     description.setBounds (content.removeFromBottom (80));
     content.removeFromBottom (Metrics::gridHalf);
 
     list.setBounds (content);
+    refreshMorph();
 }
 
 //==============================================================================

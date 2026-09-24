@@ -332,6 +332,14 @@ public:
     //==========================================================================
     void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) noexcept;
 
+    /** Notes for the next processBlock that are always played as written, even
+        while the rhythm engine is driving (which otherwise replaces every
+        interpreted note with its own stream). The tune builder's melody, bass
+        and layers come this way; its chords go in the normal MIDI, where the
+        rhythm engine can strum them (tune-builder 8). The buffer must outlive
+        the next processBlock call; pass nullptr for none. Audio thread. */
+    void setDirectMidi (const juce::MidiBuffer* direct) noexcept { directMidi = direct; }
+
     /** The real work. processBlock splits anything larger than the block size
         the engine was prepared for and calls this for each piece. */
     void processSubBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) noexcept;
@@ -384,6 +392,10 @@ private:
     MidiInterpreter midi;
     PlayEventQueue events;
     PlayEventQueue rhythmEvents;
+    PlayEventQueue directEvents;
+    const juce::MidiBuffer* directMidi = nullptr;      ///< for the current processBlock
+    const juce::MidiBuffer* directForSubBlock = nullptr;
+    juce::MidiBuffer directSlice;
     RhythmEngine rhythm;
     CharacterEngine character;
 

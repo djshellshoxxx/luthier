@@ -713,6 +713,9 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (choiceParam (ParamIDs::ebowHarmonic, "E-Bow Harmonic",
                       { "Fundamental", "2nd", "3rd", "4th", "5th" }, 0));
 
+    // ambiguity-resolutions.md 5.2, appended likewise.
+    add (floatParam  (ParamIDs::presetMorphPosition, "Preset Morph", 0.0f, 1.0f, 0.0f));
+
     return layout;
 }
 
@@ -725,6 +728,29 @@ ParameterBridge::ParameterBridge (APVTS& state, LuthierEngine& e)
 ParameterBridge::~ParameterBridge()
 {
     cancelPendingUpdate();
+
+    for (auto* p : watched)
+        p->removeListener (this);
+}
+
+void ParameterBridge::parameterValueChanged (int parameterIndex, float)
+{
+    if (! juce::isPositiveAndBelow (parameterIndex, (int) slotOfParameter.size()))
+        return;
+
+    const int code = slotOfParameter[(size_t) parameterIndex];
+
+    if (code < 0)
+        return;
+
+    const int which = code % 16;
+    const int chain = (code / 16) / EffectsChain::kNumSlots, slot = (code / 16) % EffectsChain::kNumSlots;
+    const auto serial = ++writeSerial;
+
+    if (which == 15)
+        typeWritten[(size_t) chain][(size_t) slot].store (serial, std::memory_order_relaxed);
+    else
+        paramsWritten[(size_t) chain][(size_t) slot].store (serial, std::memory_order_relaxed);
 }
 
 void ParameterBridge::cachePointers()
@@ -746,6 +772,39 @@ void ParameterBridge::cachePointers()
                 // audio thread never has to hash a string to apply modulation.
                 indices.set (withId->paramID, i);
             }
+        }
+    }
+
+    // The pedal slots' write order (see parameterValueChanged).
+    for (auto* p : watched)
+        p->removeListener (this);
+
+    watched.clear();
+    slotOfParameter.assign ((size_t) parameters.size(), -1);
+
+    static_assert (Pedal::kMaxParams < 15, "the slot code keeps 15 for the type");
+
+    auto watch = [this, &parameters] (const juce::String& id, int code)
+    {
+        const int index = parameterIndex (id);
+
+        if (juce::isPositiveAndBelow (index, parameters.size()))
+        {
+            slotOfParameter[(size_t) index] = code;
+            parameters[index]->addListener (this);
+            watched.add (parameters[index]);
+        }
+    };
+
+    for (int chain = 0; chain < 2; ++chain)
+    {
+        for (int slot = 0; slot < EffectsChain::kNumSlots; ++slot)
+        {
+            const int base = (chain * EffectsChain::kNumSlots + slot) * 16;
+            watch (ParamIDs::slotType (chain == 1, slot), base + 15);
+
+            for (int p = 0; p < Pedal::kMaxParams; ++p)
+                watch (ParamIDs::slotParam (chain == 1, slot, p), base + p);
         }
     }
 }
@@ -1125,6 +1184,43 @@ bool ParameterBridge::readStructuralValues() noexcept
 }
 
 //==============================================================================
+void ParameterBridge::adoptPedalTypesFromParameters()
+{
+    for (int chain = 0; chain < 2; ++chain)
+    {
+        const bool post = (chain == 1);
+        auto& fx = post ? engine.getPostEffects() : engine.getPreEffects();
+
+        for (int slot = 0; slot < EffectsChain::kNumSlots; ++slot)
+        {
+            const int type = juce::jlimit (0, (int) PedalType::NumTypes - 1,
+                                           (int) value (ParamIDs::slotType (post, slot)));
+
+            // Recorded as seen, so the structural path does not treat it as a
+            // fresh pick and write the defaults.
+            lastSlotType[chain][slot] = type;
+
+            if (fx.getSlotType (slot) != (PedalType) type)
+            {
+                fx.setSlotType (slot, (PedalType) type);
+                pushSlotParameters (post, slot);
+            }
+        }
+    }
+}
+
+void ParameterBridge::pushSlotParameters (bool post, int slot)
+{
+    // A pedal built after this block's parameter pass would otherwise run at
+    // its constructor defaults until the next one.
+    auto& fx = post ? engine.getPostEffects() : engine.getPreEffects();
+
+    if (auto* pedal = fx.getPedal (slot))
+        for (int p = 0; p < juce::jmin (pedal->getNumParameters(), Pedal::kMaxParams); ++p)
+            pedal->setParameterNormalised (p, value (ParamIDs::slotParam (post, slot, p)));
+}
+
+//==============================================================================
 void ParameterBridge::handleAsyncUpdate()
 {
     applyStructural();
@@ -1294,11 +1390,17 @@ void ParameterBridge::applyStructural()
             {
                 fx.setSlotType (slot, type);
 
-                if (auto* pedal = fx.getPedal (slot))
+                // A pedal whose settings were written with it (a preset, a
+                // snapshot, a morph) keeps them; one the player has just picked
+                // starts at its own defaults, written back into the parameters
+                // so the UI and the preset agree with what is loaded.
+                const bool settingsCameWithIt = paramsWritten[(size_t) chain][(size_t) slot].load (std::memory_order_relaxed)
+                                              > typeWritten[(size_t) chain][(size_t) slot].load (std::memory_order_relaxed);
+
+                if (settingsCameWithIt)
+                    pushSlotParameters (post, slot);
+                else if (auto* pedal = fx.getPedal (slot))
                 {
-                    // A new pedal starts at its own defaults, and those defaults are
-                    // written back into the parameters so the UI and the preset agree
-                    // with what is actually loaded.
                     for (int p = 0; p < juce::jmin (pedal->getNumParameters(), Pedal::kMaxParams); ++p)
                     {
                         const auto& d = pedal->getParameterDescriptor (p);

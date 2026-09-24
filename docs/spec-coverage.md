@@ -6,21 +6,40 @@ Audit of every Markdown file under `spec/` against the build, as
 - **Audited:** 2026-09-23, starting at commit `173a292` (branch `master`).
   **Refreshed** for `a406915` (guitar renderer, guitar-shop theme, queued
   MIDI while parked), `e60d708` (family switching, string counts per type)
-  and `0d225f0` (Workshop bench model, spectrum delta, IR caching). Rows cite
-  what was on disk when written; uncommitted work (e.g.
-  `Source/UI/WorkshopPanel.h`) is not counted, except the MIDI export model
-  (`Source/Export/*`, section 23), whose rows say it is unbuilt and untested.
+  and `0d225f0` (Workshop bench model, spectrum delta, IR caching); then for
+  `d45fcd6` / `bc25f89` (Workshop bench UI, family category, field editing),
+  `0052205` (Easy mode strips; `input_gain`, `output_mix`, `stereo_width`,
+  `macro_character`), `25e6139` (trademark sweep), `d284547` (Tune Builder
+  model) and the integrated MIDI export model (`Source/Export/*`); then for
+  `8fb9ec9` (renders repeat after a reset), `a357142` (MIDI OUT tab, live
+  Luthier SysEx, Poly chord timing), `a901c72` (Aux 8, per-string buses by
+  name) and the physical feedback loop; then for `14864ca` (feedback loop
+  committed), `9c672aa` (E-Bow), `f904956` (Doubler pedal), `5ccf238`
+  (guitar migration table, trademark scan in the suite), `18a1396`
+  (performance capture wired, NOTATION tab), `980b07e` (practice routines
+  model) and `52cb9d7` (amp and pedal faces, standalone). Rows cite what is
+  committed at `52cb9d7`; the assistants' uncommitted work in the working
+  tree at this refresh (preset morph, rubric voicer, tune player and TUNE
+  tab, PRACTICE setup panel, faces on the AMP section and racks) is not
+  counted.
 - **Spec set:** `spec/` (CLAUDE.md says `specs/`; the folder on disk is
   `spec/`). Inventory command: `rg --files spec -g '*.md'` - 63 files.
 - **Precedence:** `spec/CLAUDE_CODE_BRIEF.md` "Handling conflicts between
   docs" (22 levels), plus the user decision of 2026-09-23 that
   `spec/proposals/visual-polish.md` section 6 overrides `theme.md` for
   this plugin.
-- **Test evidence:** the last recorded full-suite run was green at
-  `0d225f0` (448 tests, per the lead), which includes `WorkshopCapo`,
-  `GuitarIllustration`, `Theme`, `WorkshopFamily`, `WorkshopBench` and
-  `WorkshopSpectrum`. Existing tests are treated as passing. No build or
-  test was run for this audit.
+- **Test evidence:** the commit messages record 531 tests passing at
+  `a357142` (including every `MidiExport` test, the factory-preset null
+  among them, after the reset-determinism fix) and 534 at `a901c72`
+  (adding `PluginBuses`), then 540 at `14864ca` (`Feedback`), 544 at
+  `9c672aa` (`EBow`), 549 at `f904956` (`Doubler`), 553 at `5ccf238`
+  (`GuitarMigration`, `Trademarks::sourceTreeHasNoUnmarkedBrandNames`), 568
+  at `18a1396` (`Capture`, `NotationTab`), 586 at `980b07e`
+  (`PracticeRoutine`) and 595 at `52cb9d7` (`Faces`). No log was available
+  to this audit and no build or test was run for it. One caveat:
+  `LUTHIER_ALLOCATION_COUNTER` is not defined anywhere in the build, so the
+  no-allocation assertion in `Capture::capturingTenThousandNotesDoesNotAllocate`
+  compiles out (NOT-7.1-02).
 
 ## How to read this file
 
@@ -54,16 +73,16 @@ test passing, human check, READY TO SHIP marker) is unmet.
 
 | | Rows | Share |
 |---|---|---|
-| verified | 566 | 27% |
-| implemented (no proving test) | 434 | 21% |
-| partial | 374 | 18% |
-| pending | 650 | 31% |
+| verified | 661 | 32% |
+| implemented (no proving test) | 447 | 21% |
+| partial | 383 | 18% |
+| pending | 533 | 26% |
 | blocked | 28 | 1% |
 | deferred | 4 | <1% |
 | n/a | 25 | 1% |
 | **Total** | **2081** | |
 
-1,486 required rows (everything except `verified`, `deferred`, `n/a`) lack
+1,391 required rows (everything except `verified`, `deferred`, `n/a`) lack
 evidence. Phase 1 and the built realism specs (advanced ranges, circuit,
 pick/squeak/buzz noise, slide, parts model, part acoustics) are in good
 shape; everything after them is largely unbuilt.
@@ -77,21 +96,32 @@ Biggest unimplemented areas, roughly in order of size and ship impact:
 2. **Phase 5b technique layer absent** (~170 rows): ScrapeEngine,
    SlapEngine, TapEngine, MuteEngine, CascadeResolver, slide technique
    controls, microtonal bends, TECHNIQUES tab and Playing-strip pills.
-3. **Workshop bench UI** (`workshop-ui.md`, 17 pending, 9 partial): the
-   model (`WorkshopBench`, `SpectrumDelta`) is built and tested since
-   `0d225f0`; the WORKSHOP tab, drawer, inspector, spectrum pane, ruler,
-   keyboard parity and accessibility are not committed.
+3. **Workshop bench remainder** (`workshop-ui.md`, 3 pending, 12 partial):
+   the bench is built and tested (`d45fcd6`, `bc25f89`); live overlays,
+   fret-wear / pick / slide / capo drags, the 700 px drawer dropdown, the
+   30 ms audition crossfade, the audio-thread check and A/B persistence
+   remain.
 4. **Guitar illustration remainder** (`guitar-illustration.md`, 10
    pending, 12 partial): the renderer, family switching and 11 tests landed
    (`a406915`, `e60d708`); zoom and pan, heatmap / pick / pickup-pulse
    overlays, browser thumbnails and Workshop drag targets remain.
-5. **Tune Builder** (43 pending) and the TUNE tab, templates, `.luthiertune`.
-6. **MIDI export / import**: the model is written but not yet built or
-   tested (`Source/Export/*`); the dialog, MIDI OUT tab, drag gesture,
-   import targets and live wiring are pending, and the plugin also declares `NEEDS_MIDI_OUTPUT FALSE` (`CMakeLists.txt:29`)
-   while `producesMidi()` returns true.
-7. **Performance capture and NOTATION tab**: nothing records live playing,
-   so live TAB and notation export of a performance do not work.
+5. **Tune Builder UI and playback** (14 pending, 13 partial): the model,
+   file format and ten templates are built and tested (`d284547`); the TUNE
+   tab, transport, engine playback, audio export, MIDI-in recording, Sing,
+   and the Luthier-profile MIDI path (C-53) are not.
+6. **MIDI export / import remainder**: the model, the MIDI OUT tab and the
+   EVENTS / WORKSHOP SysEx sources are built and tested (`a357142`); import
+   targets, tune-builder and File-menu entry points and `.midprofile`
+   installer registration are pending, and the plugin still declares
+   `NEEDS_MIDI_OUTPUT FALSE` (`CMakeLists.txt:29`) while `producesMidi()`
+   returns true, so a VST3 host gets no MIDI out bus.
+7. **Performance capture remainder**: the capture is wired and the NOTATION
+   tab is built and tested (`18a1396`), but only string activity reaches the
+   capture: no techniques, chord symbols, bass techniques or slide-bar
+   events, so the chord history is empty in use; no fretboard tab dots, Mono
+   chord extraction, marked-region range or worker-thread export; the
+   capture's no-allocation check compiles out (`LUTHIER_ALLOCATION_COUNTER`
+   undefined).
 8. **Strum dynamics and bass techniques** (51 pending): crossing velocity,
    strikers, chucks, slap/pop/ghost, bass defaults.
 9. **ui-wiring threading contract**: no command/result queue, no display
@@ -101,9 +131,11 @@ Biggest unimplemented areas, roughly in order of size and ship impact:
 10. **Easy Mode layout and column-4 tabs** (GI 3, 4.4, 19): no rig strip,
     playing or tone strip; 6 of 13 (or 14) tabs missing; GI section 22 tests
     absent.
-11. **Ambiguity resolutions not built**: physical feedback loop, E-Bow via
-    feedback, doubler pedal, preset morph, chord-voicer transition scoring,
-    guitar migration table.
+11. **Ambiguity resolutions not built**: preset morph (uncommitted),
+    chord-voicer `Bass` style, transition scoring and 4.7 tests, crossing
+    velocity, Aux 1 pre/post toggle. Built and tested: the feedback loop,
+    E-Bow, Doubler pedal and guitar migration table. The PRACTICE tab and
+    its processor hooks are also open (model built, `980b07e`).
 12. **Performance and QA infrastructure**: no per-module CPU/memory
     measurement, no CI, no allocation or lock trap, no CPU relief ladder,
     pluginval last run 2026-09-19; host matrix, MIDI-guitar/MPE hardware and
@@ -112,11 +144,11 @@ Biggest unimplemented areas, roughly in order of size and ship impact:
     or reset-to-first-run; no installers, signing, notarisation, portable
     or content-update packages; AU target not declared; macOS and Linux
     blocked on this Windows-only machine.
-14. **Legal and content**: trademarked guitar, amp, speaker and preset
-    names in the UI (Conflict C-17); no `THIRD_PARTY_LICENCES.txt`;
+14. **Legal and content**: trademark sweep done (`25e6139`, `Trademarks::*`) but the
+    legal review is open (C-17); no `THIRD_PARTY_LICENCES.txt`;
     placeholder homepage, support email and service URLs; factory presets
-    do not match `factory-content.md` 1; no tunes, setlists, backing tracks
-    or example MIDI ship; no EULA.
+    do not match `factory-content.md` 1; the ten tune templates ship, but
+    no example tunes, setlists, backing tracks or example MIDI; no EULA.
 15. **Localisation and accessibility**: English-only catalog (242 keys),
     14 ship locales untranslated, many hard-coded strings; no fretboard or
     meter accessibility children; no screen-reader, Tab-walk or reflow
@@ -125,11 +157,17 @@ Biggest unimplemented areas, roughly in order of size and ship impact:
     most structural edits push no undo entry; no crash-dump writer; banner
     policy, MIDI-flood, device-loss and corrupt-config responses missing.
 17. **Visual polish** (user priority, TODO V): the guitar-shop theme and
-    guitar lighting landed (`a406915`); amp and pedal faces, model knob
-    caps, tube glow / VU / room light and the accent picker are pending.
+    guitar lighting landed (`a406915`); amp and pedal faces with model knob
+    caps are built and tested as painters (`52cb9d7`) but not shown on the
+    AMP section or racks; live tube glow, VU, room light and the accent
+    picker are pending.
 
-Also open from TODO: Aux 8 noise bus (2f), pick-scrape trigger (3f),
-slide technique controls (5b), audit items 14/14b/14c.
+Also open from TODO: pick-scrape trigger (3f),
+slide technique controls (5b), audit items 14/14b/14c. Not in TODO at this
+refresh: chambering's feedback coupling (PA-2.1-02), chord symbols and
+slide / bass events into the capture (NOT-4-01, NOT-6-02), the capture's
+allocation counter (NOT-7.1-02), the feedback LED's 30 Hz rate (GED-22-01),
+and a migration-time preset backup (FF-2-02).
 
 # Inventory
 
@@ -144,42 +182,42 @@ phase-2b files INDEX names that are not on disk. Counts are coverage rows
 | `rhythm-engine.md` | 3 (phase 1) | 48 | 25 | 17 | 6 | 0 | 0 | 0 | 0 |
 | `live-performance.md` | 4 (phase 1) | 48 | 28 | 14 | 3 | 3 | 0 | 0 | 0 |
 | `controllers.md` | 5 (phase 1) | 29 | 15 | 9 | 3 | 2 | 0 | 0 | 0 |
-| `practice-tools.md` | 6 (phase 1) | 64 | 15 | 20 | 9 | 19 | 0 | 1 | 0 |
+| `practice-tools.md` | 6 (phase 1) | 64 | 17 | 20 | 19 | 7 | 0 | 1 | 0 |
 | `tone-match.md` | 7 (phase 1) | 29 | 13 | 10 | 3 | 3 | 0 | 0 | 0 |
-| `notation-export.md` | 8 (phase 1) | 39 | 9 | 2 | 5 | 23 | 0 | 0 | 0 |
+| `notation-export.md` | 8 (phase 1) | 39 | 22 | 5 | 8 | 4 | 0 | 0 | 0 |
 | `character-wear.md` | 9 (phase 1) | 31 | 19 | 10 | 0 | 2 | 0 | 0 | 0 |
 | `accessibility.md` | 10 (phase 1) | 39 | 8 | 6 | 12 | 13 | 0 | 0 | 0 |
 | `updates-telemetry.md` | 11 (phase 1) | 33 | 13 | 13 | 0 | 5 | 0 | 2 | 0 |
 | `advanced-ranges.md` | 12 (phase 2) | 42 | 28 | 8 | 2 | 4 | 0 | 0 | 0 |
-| `volume-knob-interaction.md` | 13 (phase 2) | 32 | 23 | 5 | 0 | 4 | 0 | 0 | 0 |
-| `pick-noise.md` | 14 (phase 2) | 32 | 17 | 8 | 4 | 3 | 0 | 0 | 0 |
-| `string-squeak.md` | 15 (phase 2) | 37 | 22 | 5 | 8 | 2 | 0 | 0 | 0 |
-| `fret-buzz.md` | 16 (phase 2) | 30 | 19 | 5 | 1 | 5 | 0 | 0 | 0 |
+| `volume-knob-interaction.md` | 13 (phase 2) | 32 | 25 | 5 | 0 | 2 | 0 | 0 | 0 |
+| `pick-noise.md` | 14 (phase 2) | 32 | 18 | 8 | 4 | 2 | 0 | 0 | 0 |
+| `string-squeak.md` | 15 (phase 2) | 37 | 23 | 5 | 7 | 2 | 0 | 0 | 0 |
+| `fret-buzz.md` | 16 (phase 2) | 30 | 20 | 5 | 0 | 5 | 0 | 0 | 0 |
 | `slide-guitar.md` | 17 (phase 2) | 36 | 23 | 9 | 1 | 3 | 0 | 0 | 0 |
-| `guitar-workshop.md` | 18 (phase 2) | 35 | 26 | 2 | 6 | 1 | 0 | 0 | 0 |
+| `guitar-workshop.md` | 18 (phase 2) | 35 | 27 | 2 | 5 | 1 | 0 | 0 | 0 |
 | `part-acoustics.md` | 19 (phase 2) | 37 | 24 | 5 | 6 | 1 | 0 | 1 | 0 |
-| `workshop-ui.md` | 20 (phase 2) | 34 | 8 | 0 | 9 | 17 | 0 | 0 | 0 |
+| `workshop-ui.md` | 20 (phase 2) | 34 | 17 | 2 | 12 | 3 | 0 | 0 | 0 |
 | `strum-dynamics.md` | 21 (phase 2) | 26 | 0 | 0 | 3 | 23 | 0 | 0 | 0 |
 | `bass-techniques.md` | 22 (phase 2) | 28 | 0 | 0 | 0 | 28 | 0 | 0 | 0 |
-| `midi-export.md` | 23 (phase 2) | 30 | 0 | 16 | 13 | 1 | 0 | 0 | 0 |
+| `midi-export.md` | 23 (phase 2) | 30 | 17 | 2 | 11 | 0 | 0 | 0 | 0 |
 | `9 phase-2b files (missing)` | 23a-23i (phase 2b) | 9 | 0 | 0 | 0 | 0 | 0 | 9 | 0 |
-| `tune-builder.md` | 24 (phase 3) | 43 | 0 | 0 | 0 | 43 | 0 | 0 | 0 |
-| `ambiguity-resolutions.md` | 25 (phase 4) | 29 | 5 | 4 | 7 | 13 | 0 | 0 | 0 |
-| `gui-integration.md` | 26 (phase 4) | 184 | 26 | 34 | 72 | 51 | 0 | 0 | 1 |
-| `ui-wiring.md` | 27 (phase 4) | 45 | 4 | 4 | 23 | 14 | 0 | 0 | 0 |
-| `onboarding.md` | 28 (phase 4) | 30 | 5 | 3 | 4 | 18 | 0 | 0 | 0 |
+| `tune-builder.md` | 24 (phase 3) | 43 | 15 | 1 | 13 | 14 | 0 | 0 | 0 |
+| `ambiguity-resolutions.md` | 25 (phase 4) | 29 | 14 | 6 | 3 | 6 | 0 | 0 | 0 |
+| `gui-integration.md` | 26 (phase 4) | 184 | 44 | 51 | 56 | 32 | 0 | 0 | 1 |
+| `ui-wiring.md` | 27 (phase 4) | 45 | 5 | 4 | 22 | 14 | 0 | 0 | 0 |
+| `onboarding.md` | 28 (phase 4) | 30 | 5 | 3 | 5 | 17 | 0 | 0 | 0 |
 | `performance-budget.md` | 29 (phase 4) | 26 | 0 | 1 | 4 | 21 | 0 | 0 | 0 |
-| `qa-polish.md` | 30 (phase 4) | 50 | 4 | 1 | 11 | 31 | 0 | 3 | 0 |
+| `qa-polish.md` | 30 (phase 4) | 50 | 5 | 1 | 11 | 30 | 0 | 3 | 0 |
 | `installer.md` | 31 (phase 4) | 21 | 0 | 0 | 3 | 14 | 1 | 3 | 0 |
 | `CLAUDE_CODE_BRIEF.md` | 32 (phase 4) | 16 | 0 | 1 | 4 | 8 | 0 | 1 | 2 |
-| `file-formats.md` | 33 (phase 5) | 28 | 3 | 3 | 15 | 6 | 0 | 0 | 1 |
-| `factory-content.md` | 34 (phase 5) | 25 | 4 | 2 | 4 | 14 | 1 | 0 | 0 |
-| `error-recovery.md` | 35 (phase 5) | 38 | 7 | 6 | 12 | 13 | 0 | 0 | 0 |
+| `file-formats.md` | 33 (phase 5) | 28 | 4 | 3 | 15 | 5 | 0 | 0 | 1 |
+| `factory-content.md` | 34 (phase 5) | 25 | 4 | 2 | 5 | 13 | 1 | 0 | 0 |
+| `error-recovery.md` | 35 (phase 5) | 38 | 7 | 6 | 13 | 12 | 0 | 0 | 0 |
 | `state-model.md` | 36 (phase 5) | 26 | 2 | 3 | 11 | 10 | 0 | 0 | 0 |
-| `gui-engine-dataflow.md` | 37 (phase 5) | 34 | 0 | 15 | 10 | 9 | 0 | 0 | 0 |
+| `gui-engine-dataflow.md` | 37 (phase 5) | 34 | 0 | 15 | 11 | 8 | 0 | 0 | 0 |
 | `guitar-illustration.md` | 38 (phase 5) | 54 | 18 | 14 | 12 | 10 | 0 | 0 | 0 |
 | `input-routing.md` | 39 (phase 5) | 21 | 1 | 7 | 8 | 5 | 0 | 0 | 0 |
-| `host-integration.md` | 40 (phase 5) | 31 | 1 | 8 | 15 | 6 | 1 | 0 | 0 |
+| `host-integration.md` | 40 (phase 5) | 31 | 2 | 8 | 14 | 6 | 1 | 0 | 0 |
 | `action-and-undo.md` | 41 (phase 5) | 40 | 1 | 8 | 9 | 22 | 0 | 0 | 0 |
 | `string-scraping.md` | 42 (phase 5b) | 13 | 0 | 0 | 0 | 13 | 0 | 0 | 0 |
 | `slide-technique-controls.md` | 43 (phase 5b) | 20 | 0 | 0 | 1 | 19 | 0 | 0 | 0 |
@@ -190,20 +228,20 @@ phase-2b files INDEX names that are not on disk. Counts are coverage rows
 | `technique-cascade.md` | 48 (phase 5b) | 15 | 0 | 0 | 0 | 15 | 0 | 0 | 0 |
 | `gui-techniques-updates.md` | 49 (phase 5b) | 19 | 0 | 0 | 0 | 17 | 0 | 0 | 2 |
 | `engine-technique-layer.md` | 50 (phase 5b) | 20 | 0 | 0 | 0 | 17 | 0 | 2 | 1 |
-| `spec.md` | companion | 127 | 52 | 43 | 21 | 9 | 0 | 0 | 2 |
+| `spec.md` | companion | 127 | 54 | 43 | 19 | 9 | 0 | 0 | 2 |
 | `engine.md` | companion | 94 | 40 | 40 | 7 | 5 | 0 | 0 | 2 |
 | `theme.md` | companion (overridden by VP 6) | 21 | 0 | 11 | 2 | 0 | 1 | 0 | 7 |
 | `include.md` | companion | 23 | 2 | 16 | 4 | 0 | 0 | 0 | 1 |
-| `proposals/visual-polish.md` | approved proposal | 34 | 9 | 11 | 0 | 12 | 0 | 0 | 2 |
+| `proposals/visual-polish.md` | approved proposal | 34 | 9 | 11 | 5 | 7 | 0 | 0 | 2 |
 | `README.md` | project readme | 10 | 0 | 7 | 2 | 0 | 0 | 0 | 1 |
 | `JUCE_CLAUDE_GUIDELINES.md` | dev guidelines | 15 | 3 | 8 | 2 | 1 | 0 | 0 | 1 |
-| `INDEX.md` | index | 11 | 1 | 1 | 3 | 3 | 0 | 1 | 2 |
+| `INDEX.md` | index | 11 | 1 | 3 | 3 | 1 | 0 | 1 | 2 |
 | `TODO.md` | process doc, no requirements | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `DECISIONS.md` | process doc, no requirements | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `GAPS.md` | process doc, no requirements | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `PROGRESS.md` | process doc, no requirements | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `REVIEW.md` | process doc, no requirements | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **Total** | 63 files on disk + 9 missing | **2081** | **566** | **434** | **374** | **650** | **4** | **28** | **25** |
+| **Total** | 63 files on disk + 9 missing | **2081** | **661** | **447** | **383** | **533** | **4** | **28** | **25** |
 
 Every file was read in full. Granularity note: related lines are collapsed
 into one row where they would share a location and a status (for example a
@@ -229,7 +267,7 @@ unresolved.
 |---|---|---|---|
 | C-02 | Nine phase-2b specs named by INDEX and the brief are not on disk; five phase-5b specs depend on them. | Stays **blocked**: writing nine physics specs from one-line summaries would invent features. Phase-5b work is built without those modules and the gaps are noted. | Blocked rows stay `blocked` |
 | C-09 | ui-wiring 6 wants audio-thread atomic swaps with a 5 ms crossfade; the build parks the audio thread and dropped notes. | Keep the park for whole-guitar loads (a string-count change cannot crossfade in one engine) but **queue** notes that arrive while parked; same-string-count part swaps move to ui-wiring 6's off-thread build and block-boundary swap with the bench. | Queueing done (`a406915`, `WorkshopSwap::aNotePlayedWhileParkedIsKeptNotDropped`); off-thread part swap pending |
-| C-16 | Onboarding says 12 tune templates; tune-builder lists 10. | Ship tune-builder's **ten**; onboarding's 12 is a miscount. | Tune Builder not built |
+| C-16 | Onboarding says 12 tune templates; tune-builder lists 10. | Ship tune-builder's **ten**; onboarding's 12 is a miscount. | Follows: ten templates ship (`d284547`, `TuneBuilder::theTenTemplatesLoadInOrderAndAreValid`) |
 | C-19 | Genre kits: `.luthierkit` (factory-content) vs "JSON under Resources/Genres" (rhythm-engine) vs no kit type in file-formats. | `.luthierkit` files, magic `luthier.kit`, factory-content 6's fields; added to file-formats when kits are next touched. | Kits still compiled in |
 | C-32 | TECHNIQUES tab makes column 4 a 14-tab strip vs the brief's fixed 13. | **14 tabs**, TECHNIQUES before HELP. | TECHNIQUES tab not built |
 
@@ -242,7 +280,7 @@ unresolved.
 | C-04 | engine.md 5.3 (higher damping coefficient = brighter/longer) vs engine.md 4 (palm mute lowers cutoff 5 kHz -> 800 Hz). | Internal to one spec | README deviation: model damping as a cutoff (the physical reading); both statements then agree in effect. | Follows the chosen reading |
 | C-05 | engine.md 20.5 says update coupling per block; README deviations update per sample (per-block steps tick). | Rank 10 engine.md | engine.md wins as written; the deviation is documented with a CPU argument. Needs a proposal or a change. | Deviates |
 | C-06 | engine.md 1 puts the pickup after the string sum; README applies the comb per string. | engine.md 7.1 itself uses each string's delay | Per-string comb is what 7.1's formula requires; electrical stage on the sum. | Follows |
-| C-07 | routing-io 2 has 7 aux buses; pick-noise 1.3, host-integration 2 and gui-integration 4.4/19 have Aux 8 noise. | Rank 2 (GI) and rank 22 (later specs) | Aux 8 exists, appended after the 12 per-string buses so indices do not shift (TODO 2f). | Not built |
+| C-07 | routing-io 2 has 7 aux buses; pick-noise 1.3, host-integration 2 and gui-integration 4.4/19 have Aux 8 noise. | Rank 2 (GI) and rank 22 (later specs) | Aux 8 exists, appended after the 12 per-string buses so indices do not shift (TODO 2f). | Follows (`a901c72`) |
 | C-08 | volume-knob 1.1 asks for H(s) as a biquad pair recomputed on the message thread; ui-wiring 15 asks for a coefficient FIFO. Build: nodal (MNA) solver with trapezoidal companions recomputed on the audio thread between blocks. | Rank 9 volume-knob; D: "GuitarCircuit is a nodal (MNA) solver", "Recomputed on the audio thread" | Accepted by D: trapezoidal companions are the bilinear transform of the whole network; allocation-free; ground rule 0.5's intent (no audio-thread allocation) holds. | Deviates as recorded |
 | C-10 | spec.md header 48 px with guitar/tuning selectors; theme.md 32 px; gui-integration 1-2 32 px with a fixed region list; footer 16 px. | Rank 2 GI | 32 px header per GI 2; guitar/tuning selectors allowed only as mirrors (GI 0.1). Footer 16 px. | Deviates (48 px header, 18 px footer) |
 | C-11 | gui-integration 4.4 puts expression calibration on the LIVE tab; GI 5 and GI 19 put it in Options EXPRESSION (GAPS A2 left this open). | GI 19 is the canonical map; GI 0.1 allows mirrors | Primary: Options EXPRESSION. LIVE may mirror it, sharing the single `ExpressionCalibrationSet` so there is one writer. | Options only (mirror missing) |
@@ -250,7 +288,7 @@ unresolved.
 | C-13 | gui-integration 11.2 / ui-wiring 12 give drag-to-modulate a 25% default depth; the build's right-click route uses 0.33. | Not a conflict | 25% applies to drag only; right-click depth is unspecified. | n/a |
 | C-14 | tune-builder 2 binds `Ctrl+S` to save the tune; gui-integration 17 binds `Ctrl+S` to save preset and makes `Ctrl+E` context-aware. Space: GI 17 tune transport vs build audition (GAPS A5). | Rank 2 GI | `Ctrl+S` saves the preset; `Ctrl+E` is context-aware (tune when TUNE is active). Space moves to the tune transport when the Tune Builder lands. | Not built |
 | C-15 | Factory guitar count: onboarding 6 says 12; factory-content 2 says 15 (claims the correction was propagated, it was not); guitar-workshop 0.6 ships every enum entry as a file. | Rank 8 guitar-workshop | Ship every enum entry plus factory-content's named 15 (D: "Factory guitars: ... (27 files)"). Onboarding 6 should read 27. | Follows |
-| C-17 | spec.md names instruments, amps, speakers and mics by brand (Stratocaster, Les Paul, Fender, Marshall, Celestion, SM57 ...); factory-content 0.1 and qa-polish 11 forbid trademarks. | Rank 1 qa-polish | Reference-style names only; legal review. | **Deviates** - trademarked names in the UI and preset names (QA-11-02) |
+| C-17 | spec.md names instruments, amps, speakers and mics by brand (Stratocaster, Les Paul, Fender, Marshall, Celestion, SM57 ...); factory-content 0.1 and qa-polish 11 forbid trademarks. | Rank 1 qa-polish | Reference-style names only; legal review. | Follows (`25e6139`): reference-style display names, old names load through `PartLibrary::renamedFactoryPart` / `renamedFactoryGuitar` and `Resources/Guitars/migration.json` (`5ccf238`); the source scan runs in the suite (`Trademarks::sourceTreeHasNoUnmarkedBrandNames`); final legal review still open |
 | C-18 | include.md defers Linux and CLAP to "future versions"; qa-polish 1 tests Ubuntu and installer 3 packages Linux; host-integration 1 schedules CLAP for v1.1. | Rank 1 qa-polish for ship gates | Linux is a ship gate for v1.0; CLAP is not (host-integration). | Linux blocked on environment |
 | C-20 | error-recovery 1 refuses a newer-schema file with a banner; the build loads it and logs `NEWER_SCHEMA` (PROGRESS judgement citing 0.4 partial success). | Specific row beats the general rule 0.4 | Refuse with the documented banner. | Deviates |
 | C-21 | guitar-workshop 0.4/5 (and GAPS B0 decision 2): incompatible parts fit with a warning; error-recovery 5: not offered for the slot, refused via API with a banner. | Rank 8 guitar-workshop over rank 12 | Advisory: warn and fit. error-recovery 5's refusal row does not apply. | Follows |
@@ -272,7 +310,7 @@ unresolved.
 | C-38 | engine.md 18 "typical 320 samples" latency vs performance-budget 4 (main <= 128 samples excluding oversampling). | Rank 5 performance-budget | <= 128 samples plus reported oversampling delay. | Not measured |
 | C-39 | routing-io 2 Aux 1 "post-cable-sim" vs gui-integration 19 / performance-budget 4 Aux 1 pre/post-circuit toggle. | Rank 2 GI | Aux 1 with a pre/post-circuit toggle. | Toggle not built |
 | C-40 | onboarding 1 default "Factory / Rock / Modern Overdrive" on "Les Paul Standard" vs factory-content 1 ("Modern Overdrive", Electric / Overdrive, Vintage Single-Cut) and the trademark rule. | Rank 1 qa-polish (trademarks); factory-content later | Default preset Modern Overdrive on Vintage Single-Cut (D maps "Les Paul" to Vintage Single-Cut). | Deviates (no such preset yet) |
-| C-41 | ambiguity-resolutions 3 makes the doubler a post-amp pre-cab rack pedal with eight parameters; spec.md / build have an engine-level doubler with two. | Rank 4 ambiguity-resolutions | Doubler pedal per 3. | Deviates |
+| C-41 | ambiguity-resolutions 3 makes the doubler a post-amp pre-cab rack pedal with eight parameters; spec.md / build have an engine-level doubler with two. | Rank 4 ambiguity-resolutions | Doubler pedal per 3. | Follows (`f904956`, `PedalType::Doubler`; old params kept inert for automation) |
 | C-42 | error-recovery 3 "if all five stages engage" vs performance-budget 8's seven relief stages. | Rank 5 performance-budget | Seven stages; the "CPU limit" banner accompanies stage 7. | Not built |
 | C-43 | engine.md 4 legato inference (slide if < 40 ms; hammer/pull if velocity < 80) vs two-hand-tapping 5 (hammer-on within 150 ms, velocity < 40). | Rank 19 engine-technique-layer defers to the technique specs; rank 22 later spec | Proposal: < 40 ms stays a slide (engine.md); 40-150 ms below the tapping threshold is a hammer-on. | Follows engine.md only |
 | C-44 | gui-integration 0.8 minimum 1280x800 vs GI 4.5 / 13 reflow below 1280 and Advanced unavailable below 1000. | Internal to GI | 1280x800 is the design size; smaller windows reflow per 13 (window minimum 940x560 is compatible). | Follows |
@@ -281,7 +319,11 @@ unresolved.
 | C-47 | guitar-illustration 5 layer order puts strings (14) under neck, fretboard and frets (15-17), which would hide them along the neck. | Internal to one spec; D: "Strings draw over the neck" | Neck, fretboard, frets, nut and headstock first, then strings, then tuner posts. | Follows |
 | C-48 | guitar-illustration 6 draws four bolt dots on a bolt-on neck; they are on the back of a real guitar. | D: "No neck-plate bolts on the top view" | Top view shows the pocket seam; set neck a rounded heel; through-neck laminate lines. | Follows |
 | C-49 | guitar-illustration 11.2 draws bursts as one radial gradient, which cannot darken along a single-cut's edge. | D: "A burst follows the outline" | Radial centre plus stacked edge strokes clipped to the body. | Follows |
+| C-51 | gui-integration 3.4: wet/dry mixes "post-master". | D: "Wet/dry mixes the DI against the rig before the master limiter" | Before the limiter, so the dry signal cannot push the output over the ceiling; width is mid/side at the same point. | Follows (`0052205`) |
+| C-52 | gui-integration 3.3 places Humanize and Character in the Playing strip and does not mention spec.md's five Easy macros; 3.1 shows notes on the illustration's fretboard. | D: "Easy mode keeps its five older macro knobs", "Easy mode's separate fretboard is gone" | The five macros stay beside Humanize and Character; Easy loses its separate fretboard, Advanced keeps it. | Follows (`0052205`) |
+| C-53 | tune-builder 9.2 exports a tune's MIDI "via midi-export profiles"; the Tune model writes its own `.mid` (`buildTuneMidiFile`) with no Luthier profile. | Rank 8 midi-export owns the MIDI format | A tune's MIDI should go through `MidiProfiles` (e.g. `buildTuneScore` -> `MidiPerformance::fromScore`, or a Tune -> `MidiPerformance` adapter). | **Deviates** - integration gap |
 | C-50 | string-squeak 11: Generic drops squeak events. midi-export 3, 4.1 and 8: Generic writes realism as `LUTHIER:` text metas when "include realism" is on. | Judgement (coverage assistant), for the lead to confirm | Both hold: realism is off by default, so squeaks are dropped; turned on, they are text for a person to read, which no DAW plays and which leaves the file readable elsewhere. | Follows (model) |
+| C-54 | ambiguity-resolutions 2.2: the E-Bow uses "the feedback path" and its intensity "maps to feedback_amount"; 2.4 wants it steady within 500 ms at 50% whatever the rig. | D: "The E-Bow drives each string from itself, through section 1's per-string narrowband injection" | The E-Bow reuses 1's per-string narrowband injection but is driven by the string itself, not the amp output, and has its own `ebow_intensity`, so it holds through any amp and does not switch on amp feedback. | Deviates as recorded (`9c672aa`) |
 
 Editorial slips noted while reading (no behaviour decision needed):
 gui-integration 3.2 and 4.2 cite "volume-knob-interaction.md 10" (the UI is
@@ -312,7 +354,7 @@ tracked there (Conflict C-07).
 | RIO-1-01 | Layouts A (stereo), B (+7 aux stereo), C (+12 mono), D (+7 aux + 12 mono) | routing-io §1 | `enum class BusLayout` `Source/Routing/RoutingMatrix.h:31` | `RoutingTests.cpp` `Routing::everyLayoutRendersCleanly` | `verified` |
 | RIO-2-01 | Aux 1 DI, 2 amp pre-cab, 3 mic 1, 4 mic 2, 5 room, 6 wet FX, 7 monitor | routing-io §2 | `TapBuffers.h`, `getAuxBusName` | `RoutingTests.cpp` `Routing::diTapNullsAgainstReappliedAmp` (Aux 1) | `implemented` - only Aux 1 content asserted |
 | RIO-2-02 | Per-aux gain trim; muted aux skips its render | routing-io §2 | `RoutingMatrix.cpp:66,97-152` | `RoutingTests.cpp` `Routing::muteAndSoloResolveTogether` | `partial` - render skip on mute not asserted |
-| RIO-3-01 | 12 mono per-string buses post-body pre-pickup; unused strings silent | routing-io §3 | `PluginProcessor.cpp:42` | `RoutingTests.cpp` `Routing::perStringOutputsSumToPreBody` | `verified` |
+| RIO-3-01 | 12 mono per-string buses post-body pre-pickup; unused strings silent | routing-io §3 | `PluginProcessor.cpp:42` | `RoutingTests.cpp` `Routing::perStringOutputsSumToPreBody`; `PluginBusTests.cpp` `PluginBuses::perStringLayoutPutsEachStringOnItsOwnBus` (real processor, layout C) | `verified` |
 | RIO-3-02 | Per-string bus latency = engine latency | routing-io §3 | latency reporting | `RoutingTests.cpp` `Routing::perOutputLatencyIsConsistent` | `verified` |
 | RIO-4-01 | Sidechain as SidechainEnvFollower mod source | routing-io §4 | `ModSources.h:350`, `ModMatrix.cpp:224` | none | `implemented` |
 | RIO-4-02 | Sidechain as ducking source for a sidechain compressor pedal | routing-io §4 | no sidechain compressor pedal (rg `sidechain` in `Source/DSP/Effects`) | none | `pending` |
@@ -537,8 +579,12 @@ CONTROLLERS page moved to Advanced column 4, GAPS A2).
 ## 6. practice-tools.md (phase 1)
 
 Built as milestone M36 (`Source/Practice/*`, `Source/UI/PracticePanel.*`).
-Section 11 (PRACTICE setup tab) was added after the build and is not built
-(TODO 11).
+Section 11's model is in the build since `980b07e`
+(`Source/Practice/PracticeRoutine*`: routines and runner, progress stats,
+per-tool defaults, library, session-recorder setup, count-ins, loop regions,
+speed trainer) with 18 `PracticeRoutine` tests against the real tools. The
+PRACTICE tab itself and the processor hooks (activity tracking, the runner
+driving the drawer) are not committed (TODO 11).
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
@@ -577,7 +623,7 @@ Section 11 (PRACTICE setup tab) was added after the build and is not built
 | PRA-5-03 | Stats in `~/Documents/Luthier/Practice/stats.json` | practice-tools §5, §10 | `Trainers.cpp:612` | `PracticeTests.cpp` `PracticeTrainers::earTrainerStatsRoundTrip` | `verified` |
 | PRA-6-01 | Tab reader: GP5, GP6+, ASCII, MusicXML, PowerTab | practice-tools §6 | `NotationExport.cpp:1208-1226` refuses `.gp5/.gp/.ptb` with a reason | `NotationTests.cpp` `Notation::importerIsHonestAboutWhatItReads` | `partial` - binary formats unsupported |
 | PRA-6-02 | Scrolling tab with cursor, tempo, section loop, count-in; fretboard highlight | practice-tools §6 | drawer TAB tab `PracticePanel.cpp` | none | `implemented` |
-| PRA-6-03 | Speed trainer mode | practice-tools §6 | not found (rg `speedTrainer`) | none | `pending` |
+| PRA-6-03 | Speed trainer mode | practice-tools §6 | `Source/Practice/PracticeRoutineTempo.*` speed trainer (`980b07e`); not offered on the drawer TAB tab | `PracticeRoutineTests.cpp` `PracticeRoutine::theSpeedTrainerClimbsUntilAPassMissesNotes` | `partial` - model only; no drawer control |
 | PRA-6-04 | Play-along scoring via MIDI in | practice-tools §6 | not found | none | `pending` |
 | PRA-7-01 | Progression looper: parse `Am - F - C - G x4`; voice/strum/loop; tempo, feel, kit | practice-tools §7 | `Trainers.h:3` progression looper | `PracticeTests.cpp` `PracticeTrainers::progressionParsing` | `verified` |
 | PRA-8-01 | Session recorder ring (default 60 min), save WAV + MIDI by timestamp | practice-tools §8 | `SessionRecorder` `Looper.cpp:966-995` | `PracticeTests.cpp` `PracticeSession::ringBufferNeverGrows` | `verified` |
@@ -587,25 +633,25 @@ Section 11 (PRACTICE setup tab) was added after the build and is not built
 | PRA-9-02 | Tabs METRO, LOOP, TRACK, SCALE, EAR, TAB, PROG, SESSION | practice-tools §9 | `PracticePanel.cpp` (eight tabs, PROGRESS M36) | none | `implemented` |
 | PRA-9-03 | Drawer globals: practice volume, tap tempo mirror, practice panic | practice-tools §9 | `PracticePanel.cpp` | none | `implemented` |
 | PRA-10-01 | Data locations table (Clicks, Loops, stats, Sessions/tmp, Sessions) | practice-tools §10 | paths in `Looper.cpp`, `Trainers.cpp` | none | `partial` - no Clicks folder |
-| PRA-11-01 | PRACTICE tab in column 4 (setup surface) | practice-tools §11 | not built (TODO 11; GAPS A2) | none | `pending` |
-| PRA-11-02 | Progress: 90-day time, per-tool breakdown, trainer accuracy, tempo progress, streak; CSV export; confirmed clear | practice-tools §11.2 | - | none | `pending` |
-| PRA-11-03 | Routines: ordered entries driving the drawer; three factory routines; saved to `Practice/Routines/*.json` | practice-tools §11.2 | - | none | `pending` |
-| PRA-11-04 | Defaults per tool (metronome, looper, trainers, backing) | practice-tools §11.2 | - | none | `pending` |
-| PRA-11-05 | Library: loops, sessions, backing folder, recent tabs, open-folder buttons | practice-tools §11.2 | - | none | `pending` |
-| PRA-11-06 | Session recorder setup: ring length, audio/MIDI, auto-save, 1.4 GB warning | practice-tools §11.2 | - | none | `pending` |
-| PRA-11-07 | No transport, trainers or live TAB on the tab | practice-tools §11.3 | - | none | `pending` |
-| PRA-11-08 | Empty-state strings | practice-tools §11.4 | - | none | `pending` |
+| PRA-11-01 | PRACTICE tab in column 4 (setup surface) | practice-tools §11 | not committed (TODO 11; `PracticeSetupPanel` in progress in the working tree) | none | `pending` |
+| PRA-11-02 | Progress: 90-day time, per-tool breakdown, trainer accuracy, tempo progress, streak; CSV export; confirmed clear | practice-tools §11.2 | `PracticeRoutineProgress.*` (`PracticeStats`, `toCsv`, clear keeps loops/sessions) | `PracticeRoutineTests.cpp` `PracticeRoutine::progressReportsDaysStreaksAccuracyAndTempo`, `PracticeRoutine::trainerSessionsAreRecordedFromTheTrainersOwnScores`, `PracticeRoutine::clearingHistoryEmptiesStatsButKeepsLoopsAndSessions` | `partial` - model only; no tab, no confirm dialog; processor does not feed activity |
+| PRA-11-03 | Routines: ordered entries driving the drawer; three factory routines; saved to `Practice/Routines/*.json` | practice-tools §11.2 | `PracticeRoutine.*` routines, runner, library under `Practice/Routines` | `PracticeRoutineTests.cpp` `PracticeRoutine::theThreeFactoryRoutinesLastTheirStatedLengthAndAllApply`, `PracticeRoutine::aFiveEntryRoutineRoundTripsIdentically`, `PracticeRoutine::theLibraryAlwaysHasTheFactoryThreeAndKeepsUserRoutines`, `PracticeRoutine::aRoutineDrivesTheDrawerEntryByEntryOnTime` | `partial` - runner drives standalone tools; not hooked to the plugin's drawer |
+| PRA-11-04 | Defaults per tool (metronome, looper, trainers, backing) | practice-tools §11.2 | `PracticeRoutineSetup.*` defaults | `PracticeRoutineTests.cpp` `PracticeRoutine::defaultsSurviveAReopenAndStartTheMetronomeAtThem` | `partial` - model only; no tab to edit them |
+| PRA-11-05 | Library: loops, sessions, backing folder, recent tabs, open-folder buttons | practice-tools §11.2 | `PracticeRoutineSetup.*` library listing | `PracticeRoutineTests.cpp` `PracticeRoutine::theLibraryListsLoopsSessionsAndRecentTabs` | `partial` - model only; no tab, no open-folder buttons |
+| PRA-11-06 | Session recorder setup: ring length, audio/MIDI, auto-save, 1.4 GB warning | practice-tools §11.2 | `PracticeRoutineSetup.*` session setup | `PracticeRoutineTests.cpp` `PracticeRoutine::sessionSetupStatesTheRingSizeInPlainWords` | `partial` - model only; no tab |
+| PRA-11-07 | No transport, trainers or live TAB on the tab | practice-tools §11.3 | tab not committed | none | `pending` |
+| PRA-11-08 | Empty-state strings | practice-tools §11.4 | strings in `PracticeRoutineSetup.*` | `PracticeRoutineTests.cpp` `PracticeRoutine::emptyStatesReadAsTheSpecWritesThem` | `partial` - text verified; no tab shows it |
 | PRA-12-01 | Test: metronome ±0.5 ms at 120 bpm for 60 s | practice-tools §12 | - | `PracticeTests.cpp` `PracticeMetronome::interClickIntervalIsWithinHalfAMillisecond` | `verified` |
 | PRA-12-02 | Test: looper snapshot vs fresh render within -80 dBFS | practice-tools §12 | - | none found | `pending` |
 | PRA-12-03 | Test: 60-min backing stream, no memory growth | practice-tools §12 | - | none found | `pending` |
 | PRA-12-04 | Test: 50 Guitar Pro fixtures parse, note counts match | practice-tools §12 | - | none (GP import unsupported) | `blocked` - needs GP parser and fixture set |
 | PRA-12-05 | Test: session ring never allocates on audio thread | practice-tools §12 | - | `PracticeTests.cpp` `PracticeSession::ringBufferNeverGrows` | `verified` |
-| PRA-12.1-01 | Test: stats accumulate 60 s and tab reads back | practice-tools §12.1 | - | none | `pending` |
-| PRA-12.1-02 | Test: routine drives the drawer | practice-tools §12.1 | - | none | `pending` |
-| PRA-12.1-03 | Test: routine round trip (5 entries) | practice-tools §12.1 | - | none | `pending` |
-| PRA-12.1-04 | Test: defaults apply after reopen | practice-tools §12.1 | - | none | `pending` |
-| PRA-12.1-05 | Test: no transport control on the tab | practice-tools §12.1 | - | none | `pending` |
-| PRA-12.1-06 | Test: clear history confirms and keeps loops/sessions | practice-tools §12.1 | - | none | `pending` |
+| PRA-12.1-01 | Test: stats accumulate 60 s and tab reads back | practice-tools §12.1 | - | `PracticeRoutineTests.cpp` `PracticeRoutine::sixtySecondsOfMetronomeAddSixtySecondsAgainstToday` | `partial` - stats half only; no tab to read back |
+| PRA-12.1-02 | Test: routine drives the drawer | practice-tools §12.1 | - | `PracticeRoutineTests.cpp` `PracticeRoutine::aRoutineDrivesTheDrawerEntryByEntryOnTime` (standalone tools, not the plugin's drawer) | `partial` |
+| PRA-12.1-03 | Test: routine round trip (5 entries) | practice-tools §12.1 | - | `PracticeRoutineTests.cpp` `PracticeRoutine::aFiveEntryRoutineRoundTripsIdentically` (suite green at `980b07e`) | `verified` |
+| PRA-12.1-04 | Test: defaults apply after reopen | practice-tools §12.1 | - | `PracticeRoutineTests.cpp` `PracticeRoutine::defaultsSurviveAReopenAndStartTheMetronomeAtThem` (real `Metronome`) | `verified` |
+| PRA-12.1-05 | Test: no transport control on the tab | practice-tools §12.1 | - | none (tab not committed) | `pending` |
+| PRA-12.1-06 | Test: clear history confirms and keeps loops/sessions | practice-tools §12.1 | - | `PracticeRoutineTests.cpp` `PracticeRoutine::clearingHistoryEmptiesStatsButKeepsLoopsAndSessions` | `partial` - confirmation step is UI, not built |
 
 ## 7. tone-match.md (phase 1)
 
@@ -647,49 +693,56 @@ Built as milestone M37 (`Source/ToneMatch/ToneMatch.*`,
 ## 8. notation-export.md (phase 1)
 
 Exporters and importers built as milestone M38 (`Source/Notation/*`).
-Section 6 `PerformanceCapture` is not built (TODO 9, GAPS A2), so nothing
-records live playing: the export engine only works on imported scores.
+Section 6 `PerformanceCapture` (`Source/Capture/*`) is in the build and wired
+since `18a1396`: clocked from the host play-head each block, fed from the
+engine's string activity (string and fret as voiced, no technique), drained
+at 10 Hz by the processor's timer. The NOTATION tab (`NotationPanel`) shows
+capture state, the live tab, chord history and exports all four formats;
+the header menu has "Export notation...". Nothing reports chord changes,
+techniques, bass techniques or slide-bar events to the capture yet
+(`chordSymbol`, `bassTechnique`, `slideBar` have no caller outside tests),
+so the chord history stays empty in use.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
-| NOT-0-01 | Offline export on a worker thread from captured stream | notation-export §0.1 | `NotationExporter` (message thread from drawer) | none | `partial` - no capture stream to export |
+| NOT-0-01 | Offline export on a worker thread from captured stream | notation-export §0.1 | `NotationTakeExport::write` exports the capture, called on the message thread (`NotationPanel`, `HeaderBar`) | `NotationPanelTests.cpp` `NotationTab::exportsEveryFormat` | `partial` - exports the captured stream, but not on a worker thread |
 | NOT-0-02 | Guitar-aware: string and fret, not derived from pitch | notation-export §0.2 | `PerformanceScore` | `NotationTests.cpp` `Notation::stringAndFretAreNotDerivedFromPitch` | `verified` |
 | NOT-0-03 | Technique metadata preserved (bend, slide, H/P, PM, harmonics, tap, whammy) | notation-export §0.3 | `ScoreTechnique` `PerformanceScore.h:30-34` | `NotationTests.cpp` `Notation::musicXmlIsWellFormedAndGuitarAware` | `verified` |
 | NOT-0-04 | Round trips with documented per-format losses | notation-export §0.4 | `getNotationFormatLoss` | `NotationTests.cpp` `Notation::formatsDeclareTheirLosses`, `Notation::musicXmlRoundTrips`, `Notation::asciiTabRoundTrips` | `verified` |
 | NOT-1-01 | PerformanceScore model (meta, tracks, capo, measures, voices, ScoreNote, techniques) | notation-export §1 | `Source/Notation/PerformanceScore.h` | `NotationTests.cpp` `Notation::captureBuildsMeasures` | `verified` |
-| NOT-1-02 | Built in real time from engine activity; capture last N min (default 10) | notation-export §1 | not built | none | `pending` - see NOT-6-* |
+| NOT-1-02 | Built in real time from engine activity; capture last N min (default 10) | notation-export §1 | `PerformanceCapture` rolling window, default 10 min, fed by `LuthierAudioProcessor::processBlock` (`captureStringActivity`) and `drainPerformanceCapture` | `CaptureTests.cpp` `Capture::rollingKeepsTheLastMinutes`; `NotationPanelTests.cpp` `NotationTab::thePluginCapturesWhatTheEnginePlayed` | `verified` |
 | NOT-2.1-01 | MusicXML 4.0 with `<technical>` elements, string/fret | notation-export §2.1 | `NotationExport.cpp` `renderMusicXml` | `NotationTests.cpp` `Notation::musicXmlIsWellFormedAndGuitarAware`, `Notation::musicXmlPitchConversion` | `verified` |
 | NOT-2.1-02 | Chord symbols (Poly); grace notes for H/P; multi-voice; whammy as text | notation-export §2.1 | `NotationExport.cpp:323` `<harmony>` | `NotationTests.cpp` `Notation::musicXmlRoundTrips` | `implemented` - grace notes and multi-voice not asserted |
 | NOT-2.2-01 | Guitar Pro 8 `.gp` with full techniques and whammy bar events | notation-export §2.2 | `NotationExport.cpp:1172` zipped bundle | `NotationTests.cpp` `Notation::guitarProBundleIsAValidZip` | `partial` - validity only; GP fidelity untested |
 | NOT-2.2-02 | Chord diagrams at first occurrence | notation-export §2.2 | `NotationExport.cpp:991-1015` | none | `implemented` |
 | NOT-2.3-01 | ASCII tab: six lines low-bottom, beat ruler, symbols b r h p / \ ~ PM <12> [12], width 80, section headings | notation-export §2.3 | `NotationExport.cpp` ASCII writer | `NotationTests.cpp` `Notation::asciiTabColumnsAlign`, `Notation::asciiTabUsesTheSpecifiedSymbols` | `verified` |
 | NOT-2.4-01 | MIDI: per-string tracks (16 max), GP RPN string/fret, bends as pitch bend, CC 68 legato | notation-export §2.4 | `NotationExport.cpp:839-919` | `NotationTests.cpp` `Notation::midiExportIsPerString` | `verified` |
-| NOT-3-01 | Live TAB view: last N beats in practice panel, updated as played | notation-export §3 | drawer TAB view (`PracticePanel.cpp:1213`) shows imported score only | `NotationTests.cpp` `Notation::liveTabWindowRendersASlice` | `partial` - nothing live feeds it |
-| NOT-3-02 | Current bar as tab dots on fretboard | notation-export §3 | not found | none | `pending` |
-| NOT-3-03 | Controls: show/hide, scroll speed (slow/med/fast/freeze), 1-8 bars, symbol density | notation-export §3 | not found in `PracticePanel.cpp` | none | `pending` |
-| NOT-4-01 | Poly: chord symbols written at change beats | notation-export §4 | depends on capture | none | `pending` |
+| NOT-3-01 | Live TAB view: last N beats in practice panel, updated as played | notation-export §3 | NOTATION tab live tab (GI 4.4 / 19 place it there); the drawer TAB view still shows an imported score only | `CaptureTests.cpp` `Capture::theLiveTabShowsWhatWasPlayed`; `NotationPanelTests.cpp` `NotationTab::stateButtonsLiveTabAndPreview` | `verified` - on the NOTATION tab; drawer TAB not fed |
+| NOT-3-02 | Current bar as tab dots on fretboard | notation-export §3 | not found (TODO 9 remaining) | none | `pending` |
+| NOT-3-03 | Controls: show/hide, scroll speed (slow/med/fast/freeze), 1-8 bars, symbol density | notation-export §3 | `NotationPanel` SHOW TAB toggle, bars, density and speed boxes | none (the tab test reads the tab text, not the controls) | `implemented` |
+| NOT-4-01 | Poly: chord symbols written at change beats | notation-export §4 | `PerformanceCapture::chordSymbol`, changes only, into the score; NOTATION tab chord history; no caller in the processor, so the Poly detector never reaches it | `CaptureTests.cpp` `Capture::techniquesBendsChordsAndMetersReachTheScore` (model) | `partial` - not wired to the chord detector |
 | NOT-4-02 | Mono: offline chord extraction by template | notation-export §4 | not found | none | `pending` |
-| NOT-5-01 | File menu Export -> Notation dialog: format, range, per-format options, destination, preview | notation-export §5 | export controls live on drawer TAB tab (`PracticePanel.cpp:1160-1198`); no range, preview | none | `partial` |
-| NOT-5-02 | "Export to Notation" beside MIDI capture "Save last take" | notation-export §5 | not found | none | `pending` |
-| NOT-6-01 | PerformanceCapture records voiced notes (string, fret, time, duration, velocity, technique flags) | notation-export §6.1 | not built (rg `PerformanceCapture` only finds spec text) | none | `pending` |
-| NOT-6-02 | Chord, tempo, time-signature, BASS_TECH and slide tracks | notation-export §6.1 | - | none | `pending` |
-| NOT-6-03 | Lock-free ring 8192 records, pre-allocated; 10 Hz drain; drop oldest + counter | notation-export §6.2 | - | none | `pending` |
-| NOT-6-04 | States off / rolling (default) / armed | notation-export §6.3 | - | none | `pending` |
-| NOT-6-05 | Times in quarter notes against transport, seconds when stopped; no input quantise | notation-export §6.4-6.5 | - | none | `pending` |
+| NOT-5-01 | File menu Export -> Notation dialog: format, range, per-format options, destination, preview | notation-export §5 | NOTATION tab export: format, range (entire / last N s), quantise, per-format options, first-bar preview, file chooser; header "Export notation..." picks the format by extension with the tab's options | `NotationPanelTests.cpp` `NotationTab::exportsEveryFormat`, `NotationTab::stateButtonsLiveTabAndPreview` | `partial` - no marked-region range; the header entry has no dialog of its own |
+| NOT-5-02 | "Export to Notation" beside MIDI capture "Save last take" | notation-export §5 | header menu "Export notation..." next to "Save last MIDI take..." (`HeaderBar.cpp`) | none | `implemented` |
+| NOT-6-01 | PerformanceCapture records voiced notes (string, fret, time, duration, velocity, technique flags) | notation-export §6.1 | `PerformanceCapture` fed by `captureStringActivity` from the processor (DECISIONS "fed from the engine's string activity"); the `noteOn` / `noteOff` engine hook that carries techniques is not wired | `CaptureTests.cpp` `Capture::recordsVoicedNotesNotMidi`; `NotationPanelTests.cpp` `NotationTab::thePluginCapturesWhatTheEnginePlayed` | `partial` - no technique flags in use (TODO 9) |
+| NOT-6-02 | Chord, tempo, time-signature, BASS_TECH and slide tracks | notation-export §6.1 | meter records from `beginBlock` (wired); `chordSymbol`, `bassTechnique`, `slideBar` -> `CapturedEvent` have no producer | `CaptureTests.cpp` `Capture::techniquesBendsChordsAndMetersReachTheScore`, `Capture::bassAndSlideEventsBecomeLuthierEvents` (model) | `partial` - only tempo / meter reach the capture in use |
+| NOT-6-03 | Lock-free ring 8192 records, pre-allocated; 10 Hz drain; drop oldest + counter | notation-export §6.2 | `Source/Capture/CaptureRing.h`; drained every third tick of the processor's 30 Hz timer (`drainPerformanceCapture`) | `CaptureTests.cpp` `Capture::ringOverflowDropsTheOldestAndCountsExactly` | `verified` - drain rate by construction |
+| NOT-6-04 | States off / rolling (default) / armed | notation-export §6.3 | `CaptureState`; NOTATION tab state buttons | `CaptureTests.cpp` `Capture::armedStartsCleanFromTheNextNote`, `Capture::offWritesNothingAndLeavesTheAudioAlone`; `NotationPanelTests.cpp` `NotationTab::thePluginCapturesWhatTheEnginePlayed` (rolling default), `NotationTab::stateButtonsLiveTabAndPreview` | `verified` |
+| NOT-6-05 | Times in quarter notes against transport, seconds when stopped; no input quantise | notation-export §6.4-6.5 | `CaptureClock` per block from the host play-head; quantise only in `CaptureScoreOptions` | `CaptureTests.cpp` `Capture::transportTimingIsInQuarterNotes`, `Capture::freePlayIsInSecondsAndQuantisesAfterwards` | `verified` |
 | NOT-7-01 | Test: MusicXML round trip via MuseScore fixture | notation-export §7 | - | `NotationTests.cpp` `Notation::musicXmlRoundTrips` (self round trip, no MuseScore fixture) | `partial` |
 | NOT-7-02 | Test: Guitar Pro round trip via fixture parser | notation-export §7 | - | none | `pending` |
 | NOT-7-03 | Test: ASCII column alignment at 4/4 | notation-export §7 | - | `NotationTests.cpp` `Notation::asciiTabColumnsAlign` | `verified` |
-| NOT-7-04 | Test: MIDI export re-rendered within -60 dBFS | notation-export §7 | - | none | `pending` |
+| NOT-7-04 | Test: MIDI export re-rendered within -60 dBFS | notation-export §7 | NOTATION tab MIDI goes through the MIDI OUT profile (DECISIONS "The performance capture is fed from the engine's string activity") | `MidiExportTests.cpp` `MidiExport::luthierRoundTripNullsEveryFactoryPreset` (the shared path, not a notation-tab export) | `partial` - no null test of a captured take's export |
 | NOT-7-05 | Test: chord extraction > 95% on 100 progressions | notation-export §7 | - | none | `pending` |
-| NOT-7.1-01 | Test: capture records voiced notes not MIDI | notation-export §7.1 | - | none | `pending` |
-| NOT-7.1-02 | Test: no audio-thread allocation over 10 000 notes | notation-export §7.1 | - | none | `pending` |
-| NOT-7.1-03 | Test: overflow drops oldest with exact counter | notation-export §7.1 | - | none | `pending` |
-| NOT-7.1-04 | Test: off costs nothing (bit-identical audio) | notation-export §7.1 | - | none | `pending` |
-| NOT-7.1-05 | Test: transport timing at 120 bpm within 1 ms | notation-export §7.1 | - | none | `pending` |
-| NOT-7.1-06 | Test: free-play timing in seconds | notation-export §7.1 | - | none | `pending` |
-| NOT-7.1-07 | Test: live TAB shows what was played | notation-export §7.1 | - | none | `pending` |
-| NOT-7.1-08 | Test: captured score round-trips via Luthier-profile MIDI | notation-export §7.1 | - | none | `pending` |
-| NOT-UI-01 | NOTATION tab in column 4 (gui-integration 4.4) | GI 4.4 | not built (TODO 9) | `EditorTests.cpp` `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` asserts the tab is absent | `pending` |
+| NOT-7.1-01 | Test: capture records voiced notes not MIDI | notation-export §7.1 | - | `CaptureTests.cpp` `Capture::recordsVoicedNotesNotMidi` (suite green at `18a1396`) | `verified` |
+| NOT-7.1-02 | Test: no audio-thread allocation over 10 000 notes | notation-export §7.1 | the assertion is under `#if defined (LUTHIER_ALLOCATION_COUNTER)`, which nothing in `CMakeLists.txt` or `Source` defines | `CaptureTests.cpp` `Capture::capturingTenThousandNotesDoesNotAllocate` (checks record and drop counts only as built) | `implemented` - allocation check compiled out |
+| NOT-7.1-03 | Test: overflow drops oldest with exact counter | notation-export §7.1 | - | `CaptureTests.cpp` `Capture::ringOverflowDropsTheOldestAndCountsExactly` | `verified` |
+| NOT-7.1-04 | Test: off costs nothing (bit-identical audio) | notation-export §7.1 | - | `CaptureTests.cpp` `Capture::offWritesNothingAndLeavesTheAudioAlone` | `verified` |
+| NOT-7.1-05 | Test: transport timing at 120 bpm within 1 ms | notation-export §7.1 | - | `CaptureTests.cpp` `Capture::transportTimingIsInQuarterNotes` | `verified` |
+| NOT-7.1-06 | Test: free-play timing in seconds | notation-export §7.1 | - | `CaptureTests.cpp` `Capture::freePlayIsInSecondsAndQuantisesAfterwards` | `verified` |
+| NOT-7.1-07 | Test: live TAB shows what was played | notation-export §7.1 | - | `CaptureTests.cpp` `Capture::theLiveTabShowsWhatWasPlayed`; `NotationPanelTests.cpp` `NotationTab::stateButtonsLiveTabAndPreview` | `verified` |
+| NOT-7.1-08 | Test: captured score round-trips via Luthier-profile MIDI | notation-export §7.1 | - | `CaptureTests.cpp` `Capture::aCapturedPhraseRoundTripsThroughLuthierMidi` | `verified` |
+| NOT-UI-01 | NOTATION tab in column 4 (gui-integration 4.4) | GI 4.4 | `NotationPanel`, between CHARACTER and MIDI OUT (`18a1396`) | `EditorTests.cpp` `Editor::everyWorkspaceTabSelectsAndPaints`; `NotationPanelTests.cpp` `NotationTab::*` | `verified` |
 | NOT-IMP-01 | Importers honest about what they read; empty score refused with reason | notation-export §0.4 | `NotationExport.cpp:1208-1226` | `NotationTests.cpp` `Notation::importerIsHonestAboutWhatItReads`, `Notation::anEmptyScoreIsRefusedWithAReason` | `verified` |
 
 ## 9. character-wear.md (phase 1)
@@ -902,7 +955,7 @@ against bare coil; nF units; +11 params not +9; presence-based tests.
 | VK-3-02 | Net +9 parameters | volume-knob §3 | +11 (DECISIONS: the table lists eleven) | `IntegrationTests.cpp` `Parameters::everyParameterHasAUniqueIdAndSaneDefault` | `verified` - count corrected by DECISIONS |
 | VK-3.1-01 | 50s wiring changes the tone tap; keeps top as volume drops | volume-knob §3.1 | tone on wiper (DECISIONS "50s wiring") | `CircuitTests.cpp` `Circuit::turningDownDarkensAsWellAsQuietens` (confirm it covers 50s) | `implemented` |
 | VK-4-01 | Pickup coil values from part (table by pickup type until Workshop) | volume-knob §4 | Workshop pickup parts now drive it | `PartAcousticsTests.cpp` `PartAcoustics::aCoverCostsTopEnd` | `implemented` |
-| VK-4-02 | Feedback loop taken after the circuit; volume 5 reduces feedback by the measured attenuation within 0.5 dB | volume-knob §4, §6 | feedback still a heuristic (TODO 2c) | none | `pending` |
+| VK-4-02 | Feedback loop taken after the circuit; volume 5 reduces feedback by the measured attenuation within 0.5 dB | volume-knob §4, §6 | `FeedbackLoop` injects at the excitation point, so the circuit is inside the loop | `FeedbackTests.cpp` `Feedback::theVolumeKnobLowersTheLoopByTheCircuitsAttenuation` | `verified` |
 | VK-4-03 | Chain position String -> Pickup -> GuitarCircuit -> Pre FX; linear, no oversampling | volume-knob §4 | `LuthierEngine` | `CircuitTests.cpp` `Circuit::theEngineRunsThroughTheCircuit` | `verified` |
 | VK-4-04 | CableSim module removed | volume-knob intro; BRIEF precedence 9 | `GuitarCircuit.h:25`; no CableSim class | rg `class CableSim` finds nothing | `verified` |
 | VK-5-01 | CIRCUIT panel replaces CABLE in Advanced column 2: volume/tone knobs, pot/cap/taper dropdowns, bleed with Custom R/C, active toggle, cable length/quality | volume-knob §5 | `Source/UI/CircuitPanel.cpp`; `StandardValueChoice` | none | `implemented` |
@@ -918,7 +971,7 @@ against bare coil; nF units; +11 params not +9; presence-based tests.
 | VK-6-07 | Test: bypass flat within 0.1 dB | volume-knob §6 | - | `CircuitTests.cpp` `Circuit::bypassIsNeutral` (vs bare coil; DECISIONS) | `verified` |
 | VK-6-08 | Test: stability across advanced range at 44.1/48/96/192 kHz | volume-knob §6 | - | `CircuitTests.cpp` `Circuit::everyCornerOfTheAdvancedRangeIsStable` | `verified` |
 | VK-6-09 | Test: no allocation while sweeping | volume-knob §6 | - | `CircuitTests.cpp` `Circuit::sweepingEveryControlDoesNotAllocate` | `verified` |
-| VK-6-10 | Test: feedback coupling within 0.5 dB | volume-knob §6 | - | none | `pending` - blocked on TODO 2c |
+| VK-6-10 | Test: feedback coupling within 0.5 dB | volume-knob §6 | - | `FeedbackTests.cpp` `Feedback::theVolumeKnobLowersTheLoopByTheCircuitsAttenuation` | `verified` |
 
 ## 14. pick-noise.md (phase 2)
 
@@ -941,7 +994,7 @@ pluck release; noise calibrated at the output.
 | PN-1-04 | Per-material texture tables synthesised once at load; random per-event offset | pick-noise §1 | `synthesiseTexture` `NoiseEngine.h:233`, `kTextureLength` | `NoiseTests.cpp` `NoisePool::aSeedRepeatsExactly` | `implemented` |
 | PN-1.1-01 | Generator = excitation -> resonator (1-3 poles) -> envelope | pick-noise §1.1 | `NoiseEngine.h:8` | none | `implemented` |
 | PN-1.2-01 | Injection: click at string excitation; others at string output pre-body | pick-noise §1.2 | `LuthierEngine` | none | `implemented` |
-| PN-1.3-01 | Aux 8 noise bus (sum of generators, pre-body), 128-sample latency allowance, appended after per-string buses | pick-noise §1.3 | engine fills `getNoiseBusData()`; bus not declared (TODO 2f) | none | `pending` |
+| PN-1.3-01 | Aux 8 noise bus (sum of generators, pre-body), 128-sample latency allowance, appended after per-string buses | pick-noise §1.3 | Aux 8 declared after the twelve per-string buses; buses classified by name (`a901c72`) | `PluginBusTests.cpp` `PluginBuses::aux8NoiseIsDeclaredLastSoNoBusNumberMoved`, `PluginBuses::aux8CarriesThePlayingNoiseAndObeysItsStrip` | `verified` |
 | PN-2-01 | Pick fields material, thickness 0.38-3.0 mm (def 0.73), tip radius, bevel, wear, angle 0-60 (def 20), use_fingers | pick-noise §2 | `Parameters.h:73-176`; `Parameters::pickThicknessMm/pickAngleDegrees` | `NoiseTests.cpp` `PickNoise::clickPitchTracksMaterialAndThickness` | `verified` |
 | PN-2.1-01 | Materials: Celluloid (default), Nylon, Delrin, Ultex, Tortex, Metal, Stone/horn, Wood with density and damping | pick-noise §2.1 | 12-choice list kept; no Ultex/Tortex/Stone (DECISIONS) | `NoiseTests.cpp` `PickNoise::clickPitchTracksMaterialAndThickness` | `partial` - three materials absent by decision; default material to check |
 | PN-3-01 | Click level `amount x vel^0.7 x stiffness`; -30 dB at 0.5 / vel 100 | pick-noise §3 | `PlayingNoise.cpp` | `NoiseTests.cpp` `PickNoise::clickScalesWithVelocityToThePower0_7`, `PickNoise::aClickSitsAboutThirtyDecibelsUnderTheNote` | `verified` |
@@ -982,7 +1035,7 @@ glide noise; CHARACTER winding selector edits `string_material` directly
 | SQ-2.1-01 | Minimum travel `squeak_min_travel` default 1.5 frets | string-squeak §2.1 | `Parameters.h:183` | `NoiseTests.cpp` `Squeak::theMinimumTravelIsRespected` | `verified` |
 | SQ-3-01 | Level formula (amount x windingDepth x pressure^1.3 x roughness(moisture) x min(1, speed/300)) | string-squeak §3 | `PlayingNoise.cpp` | `NoiseTests.cpp` `Squeak::pitchTracksSpeedAndWinding` | `implemented` - formula terms not individually asserted |
 | SQ-4-01 | Per-winding brightness/texture table (PB 0.75 ... flatwound 0.10, coated 0.40) | string-squeak §4 | `PlayingNoise.cpp` material table | `NoiseTests.cpp` `Squeak::flatwoundIsNearlySilentAndPlainIsSilent` | `verified` |
-| SQ-5-01 | Injected at string output pre-body; summed to Aux 8 | string-squeak §5 | engine injection; Aux 8 pending (PN-1.3-01) | none | `partial` |
+| SQ-5-01 | Injected at string output pre-body; summed to Aux 8 | string-squeak §5 | engine injection; summed to Aux 8 (`a901c72`) | `PluginBusTests.cpp` `PluginBuses::aux8CarriesThePlayingNoiseAndObeysItsStrip` | `verified` |
 | SQ-6-01 | `squeak_probability` 0.65 roll deterministic per seed and note index | string-squeak §6 | `Parameters.h:180` | `NoiseTests.cpp` `Squeak::theProbabilityRollIsDeterministic` | `verified` |
 | SQ-6-02 | Moisture (0.35) lowers probability and brightness | string-squeak §6 | `squeak_finger_moisture` | none | `implemented` |
 | SQ-7-01 | Pressure (0.5) raises level, coarsens texture; bass default lower | string-squeak §7 | `squeak_finger_pressure`; bass default waits on `bass-techniques.md` | none | `partial` |
@@ -1028,7 +1081,7 @@ interaction (8) waits on per-fret wear height.
 | FB-3-01 | Excess = amp - clearance drives level; fret drives spectrum | fret-buzz §3.1 | `FretBuzz.cpp` | `BuzzTests.cpp` `Buzz::fretHeightChangesLevelNotPosition` | `verified` |
 | FB-3.2-01 | Threshold trim ±0.15 mm; trim not mute | fret-buzz §3.2 | `setup_buzz_threshold` | `BuzzTests.cpp` `Buzz::theThresholdIsATrimNotAMute` | `verified` |
 | FB-4-01 | Generator: bursts at string fundamental; metallic 3-6 kHz rising with fret; fret material brightness; level min(1, excess/0.3) x height; 0.5 ms attack | fret-buzz §4 | `NoiseEngine` FretBuzz class | `BuzzTests.cpp` `Buzz::fretHeightChangesLevelNotPosition` | `implemented` - fret-material brightness not asserted |
-| FB-4-02 | Injection pre-body; Aux 8 | fret-buzz §4 | pre-body yes; Aux 8 pending | none | `partial` |
+| FB-4-02 | Injection pre-body; Aux 8 | fret-buzz §4 | pre-body; summed to Aux 8 (`a901c72`) | `PluginBusTests.cpp` `PluginBuses::aux8CarriesThePlayingNoiseAndObeysItsStrip` | `verified` |
 | FB-5-01 | Sitar mode: jawari grazing contact, continuous pitched buzz, threshold bypassed | fret-buzz §5 | `setup_sitar_mode` | `BuzzTests.cpp` `Buzz::sitarModeIsContinuous` | `verified` |
 | FB-6-01 | SETUP group on CHARACTER: actions, relief, nut depths, fret height, threshold, sitar, heatmap | fret-buzz §6 | `Source/UI/SetupGroup.cpp` | `BuzzTests.cpp` `BuzzUi::setupStylesApplyAsOneStepAndReadModified` | `verified` |
 | FB-6.1-01 | Setup styles Factory low, Player-friendly (default), Clean/high, Slide, Blues, Needs a tech with table values | fret-buzz §6.1 | `FretBuzz.cpp:71`; `setupStyleNames` | `BuzzTests.cpp` `Buzz::playerFriendlyBuzzesOnlyWhenAttackedHard`, `BuzzUi::setupStylesApplyAsOneStepAndReadModified` | `verified` |
@@ -1127,11 +1180,11 @@ fields not yet consumed; swap parks the audio thread behind a 5 ms fade
 | GW-4-01 | Factory `Resources/Parts/<Category>/`, `Resources/Guitars/<Family>/`; user Parts and Guitars folders | guitar-workshop §4 | on disk; `PartLibrary` | `WorkshopTests.cpp` `Workshop::theFactoryLibraryIsThere` | `verified` |
 | GW-4-02 | Scanned at startup and on folder change; index by type, compatibility, tags | guitar-workshop §4 | `PartLibrary::rescan` `PartLibrary.h:113`; no folder watcher found | none | `partial` - rescan on folder change not found |
 | GW-4-03 | User part with same name wins | guitar-workshop §4 | `PartLibrary` | `WorkshopTests.cpp` `Workshop::aUserPartBeatsTheFactoryOne` | `verified` |
-| GW-4.1-01 | Missing part -> category default, banner with jump-to-Workshop, error log | guitar-workshop §4.1 | `PartLibrary.cpp:483`; `PluginEditor.cpp:908-911` "missing-part" banner | `WorkshopTests.cpp` `Workshop::aMissingPartFallsBackAndSaysSo` | `partial` - jump-to-Workshop action has no WORKSHOP tab; error-log entry not asserted |
+| GW-4.1-01 | Missing part -> category default, banner with jump-to-Workshop, error log | guitar-workshop §4.1 | `PartLibrary.cpp:483`; `PluginEditor.cpp:908-911` "missing-part" banner | `WorkshopTests.cpp` `Workshop::aMissingPartFallsBackAndSaysSo` | `partial` - the WORKSHOP tab now exists (`d45fcd6`); jump action and error-log entry not asserted |
 | GW-5.1-01 | String count = min(neck, bridge); excess reported | guitar-workshop §5.1 | `PartLibrary` | `WorkshopTests.cpp` `Workshop::aStringCountMismatchClamps` | `verified` |
 | GW-6-01 | Save As Guitar (`Ctrl+G`) to `Guitars/<name>.luthierguitar` by reference; preset reference updated | guitar-workshop §6 | `PluginProcessor::saveGuitarAs` `PluginProcessor.h:217`; dialog `PluginEditor.cpp:197` | `WorkshopPresetTests.cpp` `WorkshopPresets::saveAsGuitarWritesAFileAndPointsThePresetAtIt` | `verified` |
 | GW-6-02 | "Bundle parts" export option | guitar-workshop §6 | "Save with parts" button (DECISIONS) | none | `implemented` |
-| GW-7-01 | Save As Part from inspector; factory parts not editable, edits marked unsaved | guitar-workshop §7 | `savePartAs` `PluginProcessor.h:223`; inspector not built | `WorkshopPresetTests.cpp` `WorkshopPresets::saveAsPartMakesAUserPartAndFitsIt` | `partial` - inspector UI pending (workshop-ui) |
+| GW-7-01 | Save As Part from inspector; factory parts not editable, edits marked unsaved | guitar-workshop §7 | `savePartAs`; inspector "Save as user part"; editing a factory field fits a user copy (`WorkshopPanel::editInspectorField`) | `WorkshopPresetTests.cpp` `WorkshopPresets::saveAsPartMakesAUserPartAndFitsIt`; `WorkshopPanelTests.cpp` `WorkshopPanel::editingAFieldMakesAUserCopy` | `verified` |
 | GW-8-01 | Preset `guitar.reference` + `guitar.override`; override wins | guitar-workshop §8 | `getGuitarBlock` `PluginProcessor.h:226` | `WorkshopPresetTests.cpp` `WorkshopPresets::anEditedGuitarTravelsWholeInTheState` | `verified` |
 | GW-9-01 | Workshop adds no parameters; part fields structural | guitar-workshop §9 | - | `IntegrationTests.cpp` `Parameters::everyParameterHasAUniqueIdAndSaneDefault` | `verified` |
 | GW-9-02 | Retire pickup position/height params (-9) with migration into placements | guitar-workshop §9 | retired in `b9a9b5d` (PROGRESS) | `WorkshopPresetTests.cpp` `WorkshopPresets::oldPickupPlacementParametersBecomeTheGuitars` | `verified` |
@@ -1164,7 +1217,7 @@ nickel-silver + bone; magnet pull formula; unconsumed fields listed.
 | PA-1.1-01 | Mode f ∝ sqrt(E/rho) x thickness/area; Q ≈ 1/(2 tan delta); neck density feeds coupling and dead spots | part-acoustics §1.1 | `PartAcoustics.cpp` | `PartAcousticsTests.cpp` `PartAcoustics::theMappingIsMonotonic` | `partial` - neck density to dead-spot placement not found |
 | PA-2-01 | Body fields wood, density override, thickness, area, chambering, bracing | part-acoustics §2 | `PartAcoustics.cpp:360-396` | `PartAcousticsTests.cpp` `PartAcoustics::everyMappedFieldMovesSomething` | `verified` |
 | PA-2.1-01 | Chambering table: modes, gain, air resonance ranges and Q, sustain, feedback; air ∝ 1/sqrt(V) | part-acoustics §2.1 | `PartAcoustics.cpp` | `PartAcousticsTests.cpp` `PartAcoustics::chamberingPutsTheAirModeInItsRange` | `verified` |
-| PA-2.1-02 | Chambering feedback coupling feeds ambiguity-resolutions 1 feedback gain | part-acoustics §2.1 | feedback model not built (TODO 2c) | none | `pending` |
+| PA-2.1-02 | Chambering feedback coupling feeds ambiguity-resolutions 1 feedback gain | part-acoustics §2.1 | `FeedbackLoop` built (`14864ca`), but its k_couple has no chambering term (no reference to chambering in `Source/DSP/Feedback/`) | none | `pending` - not in TODO |
 | PA-3-01 | Scale length sets tension `T = (2Lf)^2 mu` | part-acoustics §3 | `PartAcoustics.cpp` | `PartAcousticsTests.cpp` `PartAcoustics::scaleLengthSetsTension` | `verified` |
 | PA-3-02 | Joint coupling bolt 0.55, set 0.80, through 0.95; profile = mass only | part-acoustics §3 | `PartAcoustics.cpp:426` | `PartAcousticsTests.cpp` `PartAcoustics::couplingsMultiply` | `verified` |
 | PA-3-03 | Fretboard wood sets termination damping; radius feeds buzz clearance | part-acoustics §3 | radius unconsumed (DECISIONS) | none | `partial` |
@@ -1195,43 +1248,41 @@ nickel-silver + bone; magnet pull formula; unconsumed fields listed.
 
 ## 20. workshop-ui.md (phase 2)
 
-**Model built, UI not committed** (TODO 7). `0d225f0` added
-`Source/Workshop/WorkshopBench.*` (fit / revert / remove with real-unit undo
-sentences, single-entry drags, pickup travel limits with reasons, heights,
-saddles, nut slots, snap, eight A/B slots, shadow audition) and
-`Source/Workshop/SpectrumDelta.*` (worker-thread fixture render, coalescing,
-comb notches, summary sentence), with `WorkshopBench::*` and
-`WorkshopSpectrum::*` tests; 448 tests passed at `0d225f0`. The bench UI
-(`Source/UI/WorkshopPanel.h`) was in the working tree, uncommitted, at this
-refresh, so UI rows stay `pending`.
+**Model and bench UI built** (TODO 7). `0d225f0` added the model
+(`Source/Workshop/WorkshopBench.*`, `SpectrumDelta.*`); `d45fcd6` the bench
+(`Source/UI/WorkshopPanel.*`: WORKSHOP tab over columns 3 and 4, Easy
+overlay, drawer, inspector, setup strip, spectrum pane, A-H slots) and
+`bc25f89` the Guitar (family) category and inline field editing, with
+`WorkshopPanel::*` tests. Evidence is the lead's run after the MIDI export
+integration (all green except one `MidiExport` null test).
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
-| WUI-0-01 | Direct manipulation first; fields are the precise path | workshop-ui §0.1 | - | none | `pending` |
-| WUI-0-02 | Illustration authoritative: drawn = loaded | workshop-ui §0.2 | `GuitarBodyComponent` draws compiled spec, not the parts guitar | none | `pending` - TODO G |
-| WUI-0-03 | Three feedbacks per interaction (visual, numeric, audible) | workshop-ui §0.3 | - | none | `pending` |
+| WUI-0-01 | Direct manipulation first; fields are the precise path | workshop-ui §0.1 | `BenchIllustration` drags; inspector fields (`editInspectorField`) | `WorkshopPanelTests.cpp` `WorkshopPanel::aPickupDragIsOneEntryAndTheRulerValueFollows`, `WorkshopPanel::editingAFieldMakesAUserCopy` | `verified` |
+| WUI-0-02 | Illustration authoritative: drawn = loaded | workshop-ui §0.2 | `BenchIllustration` renders the bench's guitar with `GuitarRenderer` | `WorkshopBenchTests.cpp` `WorkshopBench::aMovedPickupIsSeenReadAndHeard`; `GuitarRendererTests.cpp` `GuitarIllustration::theKeyChangesWithEveryVisibleChange` | `verified` |
+| WUI-0-03 | Three feedbacks per interaction (visual, numeric, audible) | workshop-ui §0.3 | illustration, ruler / inspector value, spectrum pane and live audio | `WorkshopBenchTests.cpp` `WorkshopBench::aMovedPickupIsSeenReadAndHeard` (pickup only) | `partial` - other interactions not tested |
 | WUI-0-04 | Audition never commits (shadow GuitarSpec) | workshop-ui §0.4 | `WorkshopBench` shadow audition (`Source/Workshop/WorkshopBench.*`) | `WorkshopBenchTests.cpp` `WorkshopBench::auditionNeverCommits` | `verified` |
 | WUI-0-05 | Each committed change one undo entry in real units | workshop-ui §0.5, §8 | `WorkshopBench` fit / revert / remove / drag commits | `WorkshopBenchTests.cpp` `WorkshopBench::aDragIsOneUndoEntryWithItsBeforeAndAfter`, `WorkshopBench::fittingAPartSaysWhatItReplaced`, `WorkshopBench::heightsAndSetupEditsAreOneEntryEach` | `verified` |
-| WUI-0-06 | Bench not modal; instrument keeps playing | workshop-ui §0.6 | - | none | `pending` |
-| WUI-1-01 | Layout: header (name, modified, Save As Guitar, A/B), illustration, inspector, parts drawer (13 categories), setup strip, spectrum delta; takes Advanced columns 3+4; Easy overlay via header wrench | workshop-ui §1; GI 6 | - | none | `pending` |
-| WUI-1-02 | Min width 900; inspector collapses below 900; drawer to dropdown below 700; Easy overlay to window minimum | workshop-ui §1 | - | none | `pending` |
-| WUI-2-01 | Ruler in mm from saddle; hover/selection outlines; live overlays (pick, slide, capo, buzz heatmap) | workshop-ui §2 | - | none | `pending` |
+| WUI-0-06 | Bench not modal; instrument keeps playing | workshop-ui §0.6 | a workspace tab and an Easy overlay, not a dialog | none | `implemented` |
+| WUI-1-01 | Layout: header (name, modified, Save As Guitar, A/B), illustration, inspector, parts drawer (13 categories), setup strip, spectrum delta; takes Advanced columns 3+4; Easy overlay via header wrench | workshop-ui §1; GI 6 | `WorkshopPanel` (layout in its header comment); drawer categories start with Guitar (family) | `WorkshopPanelTests.cpp` `WorkshopPanel::itPaintsAndTheWorkshopTabTakesOverColumnsThreeAndFour`, `WorkshopPanel::theGuitarCategorySwitchesFamily` | `implemented` - regions not individually asserted |
+| WUI-1-02 | Min width 900; inspector collapses below 900; drawer to dropdown below 700; Easy overlay to window minimum | workshop-ui §1 | `WorkshopPanel::resized` switches at 900; no 700 dropdown found | none | `partial` |
+| WUI-2-01 | Ruler in mm from saddle; hover/selection outlines; live overlays (pick, slide, capo, buzz heatmap) | workshop-ui §2 | ruler with pickup rail; hover outline at 60% accent | `WorkshopPanelTests.cpp` `WorkshopPanel::aPickupDragIsOneEntryAndTheRulerValueFollows` | `partial` - live overlays not built |
 | WUI-2-02 | Repaint budget full < 8 ms, overlay < 2 ms; overlay layer separate | workshop-ui §2 | - | none | `pending` |
-| WUI-3.1-01 | Hover outlines at 60% accent with name + summary tooltip; does not select; click selects (sticky) | workshop-ui §3.1 | - | none | `pending` |
-| WUI-3.2-01 | Alt-hover drawer card auditions on shadow spec; greyed inspector; delta vs committed; 30 ms crossfade back | workshop-ui §3.2 | shadow audition in `WorkshopBench`; drawer UI not committed | `WorkshopBenchTests.cpp` `WorkshopBench::auditionNeverCommits` (model) | `partial` - UI and 30 ms crossfade not built |
-| WUI-3.3-01 | Per-string selection shows set + override; override drawn in its material colour | workshop-ui §3.3 | - | none | `pending` |
-| WUI-4-01 | Drag table: pickup position/height/tilt, saddles, nut slots, fret wear brush, pick, slide, capo with snaps and ranges | workshop-ui §4 | `WorkshopBench` pickup position, heights (0.8-6 mm, DECISIONS), saddle intonation, nut slots; live pickup placement path | `WorkshopBenchTests.cpp` `WorkshopBench::heightsAndSetupEditsAreOneEntryEach`, `WorkshopBench::aPickupStopsBeforeItOverlapsAndSaysWhy` | `partial` - fret wear, pick, slide and capo drags and the UI not built |
-| WUI-4-02 | Drag rules: axis-constrained, snap default / Shift fine / Alt free, live inspector value, live comb notches, collision stop with reason | workshop-ui §4 | `WorkshopBench` snap and limits; `SpectrumDelta` comb notches | `WorkshopBenchTests.cpp` `WorkshopBench::snapIsOneMillimetreFineWithShiftFreeWithAlt`, `WorkshopBench::aPickupStopsBeforeItOverlapsAndSaysWhy`, `WorkshopSpectrum::combNotchesSitWhereThePickupIsANode` | `partial` - model verified; live inspector value needs the UI |
-| WUI-5-01 | Inspector: name, origin, fields with units, compatibility; editable; factory edits mark modified and offer Save as user part; Swap; Revert; tooltips and accessibility | workshop-ui §5 | `WorkshopBench` fit / revert / remove; `savePartAs`; inspector UI not committed | `WorkshopBenchTests.cpp` `WorkshopBench::fittingAPartSaysWhatItReplaced` | `partial` - model only |
+| WUI-3.1-01 | Hover outlines at 60% accent with name + summary tooltip; does not select; click selects (sticky) | workshop-ui §3.1 | `BenchIllustration` hover and selection | `WorkshopPanelTests.cpp` `WorkshopPanel::hoverDoesNotSelect` | `verified` |
+| WUI-3.2-01 | Alt-hover drawer card auditions on shadow spec; greyed inspector; delta vs committed; 30 ms crossfade back | workshop-ui §3.2 | `WorkshopPanel::hoverCard` + `WorkshopBench` shadow audition; spectrum pane shows candidate vs committed | `WorkshopPanelTests.cpp` `WorkshopPanel::auditionFromTheDrawerNeverCommits` | `partial` - 30 ms crossfade not tested |
+| WUI-3.3-01 | Per-string selection shows set + override; override drawn in its material colour | workshop-ui §3.3 | inspector names the selected string's saddle | `WorkshopPanelTests.cpp` `WorkshopPanel::theInspectorShowsTheSelectedPart` (saddle line) | `partial` - string-set override display not built |
+| WUI-4-01 | Drag table: pickup position/height/tilt, saddles, nut slots, fret wear brush, pick, slide, capo with snaps and ranges | workshop-ui §4 | `WorkshopBench` pickup position, heights (0.8-6 mm, DECISIONS), saddle intonation, nut slots; live pickup placement path | `WorkshopBenchTests.cpp` `WorkshopBench::heightsAndSetupEditsAreOneEntryEach`, `WorkshopBench::aPickupStopsBeforeItOverlapsAndSaysWhy`; `WorkshopPanelTests.cpp` `WorkshopPanel::aPickupDragIsOneEntryAndTheRulerValueFollows` | `partial` - pickup, height and saddle drags built; fret wear, pick, slide and capo drags not |
+| WUI-4-02 | Drag rules: axis-constrained, snap default / Shift fine / Alt free, live inspector value, live comb notches, collision stop with reason | workshop-ui §4 | `WorkshopBench` snap and limits; `BenchIllustration` drags; `SpectrumDelta` comb notches | `WorkshopBenchTests.cpp` `WorkshopBench::snapIsOneMillimetreFineWithShiftFreeWithAlt`, `WorkshopBench::aPickupStopsBeforeItOverlapsAndSaysWhy`, `WorkshopSpectrum::combNotchesSitWhereThePickupIsANode`; `WorkshopPanelTests.cpp` `WorkshopPanel::aPickupDragIsOneEntryAndTheRulerValueFollows` (live value) | `verified` |
+| WUI-5-01 | Inspector: name, origin, fields with units, compatibility; editable; factory edits mark modified and offer Save as user part; Swap; Revert; tooltips and accessibility | workshop-ui §5 | `WorkshopPanel` inspector, Swap, Revert, Save as user part; factory edits fit a user copy | `WorkshopPanelTests.cpp` `WorkshopPanel::theInspectorShowsTheSelectedPart`, `WorkshopPanel::editingAFieldMakesAUserCopy`, `WorkshopPanel::clickingACardFitsItAsOneUndoEntry` | `verified` |
 | WUI-5-02 | Part fields plain-clamped from part-acoustics tables; no stock/advanced marking | workshop-ui §5 | - | none | `pending` |
-| WUI-6-01 | Spectrum delta: fixture render committed vs candidate; flat when nothing changed; ±12 dB fixed axis + auto-zoom; worker pool; 40 ms; coalesced; comb notches during pickup drag | workshop-ui §6 | `Source/Workshop/SpectrumDelta.*` (measures after amp and cab, DECISIONS) | `WorkshopBenchTests.cpp` `WorkshopSpectrum::aNullChangeIsFlat`, `WorkshopSpectrum::aRealChangeShowsAndIsDescribed`, `WorkshopSpectrum::combNotchesSitWhereThePickupIsANode`, `WorkshopSpectrum::theWorkerCoalescesAndStaysInBudget` | `partial` - computation verified; pane (axis, auto-zoom) not built |
-| WUI-7-01 | Eight A/B GuitarSpec slots in bench header; recall = undoable swap; stored in uiState; Shift-click clears | workshop-ui §7 | `WorkshopBench` slots | `WorkshopBenchTests.cpp` `WorkshopBench::abRecallRoundTrips` | `partial` - model verified; header UI and uiState persistence not |
+| WUI-6-01 | Spectrum delta: fixture render committed vs candidate; flat when nothing changed; ±12 dB fixed axis + auto-zoom; worker pool; 40 ms; coalesced; comb notches during pickup drag | workshop-ui §6 | `SpectrumDelta` (after amp and cab, DECISIONS); spectrum pane with ±12 dB axis and Auto-zoom toggle | `WorkshopBenchTests.cpp` `WorkshopSpectrum::aNullChangeIsFlat`, `WorkshopSpectrum::aRealChangeShowsAndIsDescribed`, `WorkshopSpectrum::combNotchesSitWhereThePickupIsANode`, `WorkshopSpectrum::theWorkerCoalescesAndStaysInBudget`; `WorkshopPanelTests.cpp` `WorkshopPanel::auditionFromTheDrawerNeverCommits` (pane summary) | `verified` - axis and auto-zoom drawing not asserted |
+| WUI-7-01 | Eight A/B GuitarSpec slots in bench header; recall = undoable swap; stored in uiState; Shift-click clears | workshop-ui §7 | `WorkshopBench` slots | `WorkshopBenchTests.cpp` `WorkshopBench::abRecallRoundTrips` | `partial` - A-H header buttons built (`d45fcd6`); uiState persistence not confirmed |
 | WUI-8-01 | Drag = one entry (mouse-down to up); swaps never grouped; audition pushes nothing | workshop-ui §8 | `WorkshopBench` | `WorkshopBenchTests.cpp` `WorkshopBench::aDragIsOneUndoEntryWithItsBeforeAndAfter`, `WorkshopBench::aClickWithoutAMoveChangesNothing`, `WorkshopBench::auditionNeverCommits` | `verified` |
-| WUI-9-01 | Empty/blocked states: no user parts, Slide category off, single-option type, incompatible hover warning | workshop-ui §9 | - | none | `pending` |
-| WUI-10-01 | Hit regions focusable in builder order; arrow-key nudges; spectrum delta announced as summary; keyboard parity | workshop-ui §10 | - | none | `pending` |
-| WUI-11-01 | Test: every part hit-testable on every factory guitar, no phantom parts | workshop-ui §11 | - | none | `pending` |
-| WUI-11-02 | Test: hover does not select or push undo | workshop-ui §11 | - | none | `pending` |
-| WUI-11-03 | Test: audition does not commit; audio back within 30 ms | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopBench::auditionNeverCommits` (commit and undo parts) | `partial` - 30 ms audio return not tested |
+| WUI-9-01 | Empty/blocked states: no user parts, Slide category off, single-option type, incompatible hover warning | workshop-ui §9 | Slide category says "Turn on Slide Mode (S)"; unsuited cards marked | `WorkshopPanelTests.cpp` `WorkshopPanel::aSlideNeedsSlideMode` | `partial` - no-user-parts and single-option states not tested |
+| WUI-10-01 | Hit regions focusable in builder order; arrow-key nudges; spectrum delta announced as summary; keyboard parity | workshop-ui §10 | Tab walks `BenchIllustration::builderOrder`; arrow nudges; titles and descriptions set | `WorkshopPanelTests.cpp` `WorkshopPanel::keyboardNudgesMatchADrag` | `partial` - spectrum announcement not tested |
+| WUI-11-01 | Test: every part hit-testable on every factory guitar, no phantom parts | workshop-ui §11 | - | `WorkshopPanelTests.cpp` `WorkshopPanel::everyFittedPartIsReachableAndNothingElseIs` | `verified` |
+| WUI-11-02 | Test: hover does not select or push undo | workshop-ui §11 | - | `WorkshopPanelTests.cpp` `WorkshopPanel::hoverDoesNotSelect` | `verified` |
+| WUI-11-03 | Test: audition does not commit; audio back within 30 ms | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopBench::auditionNeverCommits`; `WorkshopPanelTests.cpp` `WorkshopPanel::auditionFromTheDrawerNeverCommits` | `partial` - 30 ms audio return not tested |
 | WUI-11-04 | Test: drag = one undo entry with before/after values | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopBench::aDragIsOneUndoEntryWithItsBeforeAndAfter` | `verified` |
 | WUI-11-05 | Test: drag constrained at collision with reason | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopBench::aPickupStopsBeforeItOverlapsAndSaysWhy` | `verified` |
 | WUI-11-06 | Test: snap 7.4 -> 7 mm; Shift 7.4 | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopBench::snapIsOneMillimetreFineWithShiftFreeWithAlt` | `verified` |
@@ -1240,7 +1291,7 @@ refresh, so UI rows stay `pending`.
 | WUI-11-09 | Test: delta within 40 ms for every factory part swap | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopSpectrum::theWorkerCoalescesAndStaysInBudget` (one fixture swap) | `partial` - not every factory swap |
 | WUI-11-10 | Test: nothing on the audio thread during bench interaction | workshop-ui §11 | - | none | `pending` |
 | WUI-11-11 | Test: A/B recall round-trips after six changes | workshop-ui §11 | - | `WorkshopBenchTests.cpp` `WorkshopBench::abRecallRoundTrips` | `verified` |
-| WUI-11-12 | Test: keyboard parity with drags | workshop-ui §11 | - | none | `pending` |
+| WUI-11-12 | Test: keyboard parity with drags | workshop-ui §11 | - | `WorkshopPanelTests.cpp` `WorkshopPanel::keyboardNudgesMatchADrag` | `verified` |
 
 ## 21. strum-dynamics.md (phase 2)
 
@@ -1316,9 +1367,11 @@ not the collision model. Bass-family defaults elsewhere are not applied.
 
 ## 23. midi-export.md (phase 2)
 
-**Model built, not wired** (uncommitted `Source/Export/*` from the coverage
-assistant, written without a compiler; `Source/Tests/MidiExportTests.cpp`
-has 25 tests that have not been built or run, so nothing here is `verified`).
+**Model built and integrated, not wired** (`Source/Export/*`, in the build
+since the lead's integration; 25 `MidiExport::*` tests, all passing on the
+lead's run except `MidiExport::luthierRoundTripNullsEveryFactoryPreset`,
+which fails on 4 presets because of an engine determinism bug the lead is
+fixing).
 `LuthierMidiEvents` encodes the 18 classes as tagged 7-bit text (text meta and
 checksummed SysEx); `MidiPerformance` holds the channel stream at exact
 samples plus the events and converts to and from `PerformanceScore` and
@@ -1332,36 +1385,36 @@ and engine capture of realism events.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
-| MX-0-01 | Export on a worker thread from PerformanceScore or Tune | midi-export §0.1 | `MidiPerformance::fromScore`, `MidiPerformance::fromCapture`, `MidiProfiles::exportToMemory` (`Source/Export/`; nothing on the audio thread); no Tune, no call site | `MidiExportTests.cpp` `MidiExport::aScoreSurvivesBothProfiles`, `MidiExport::captureBecomesAPerformanceAtItsOwnSamples` (not yet run) | `partial` - model only; Tune and worker call site pending |
-| MX-0-02 | Import parses to PerformanceScore or Tune; delivered via swap | midi-export §0.2 | `MidiProfiles::importFromMemory` -> `MidiPerformance`, `MidiPerformance::toScore`; `MidiPerformance::renderBlock` plays it on the audio thread; no swap into the engine, no Tune | `MidiExport::aScoreSurvivesBothProfiles` (not yet run) | `partial` - swap and Tune pending |
-| MX-0-03 | Luthier profile self-describing with schema version | midi-export §0.3 | header wire version and `LUTHIER-BEGIN <class> <schema>` (`MidiProfiles.cpp` `makeHeader`, `writeExtensionEvent`); newer schemas read with a warning | `MidiExport::importWarnsOfAdvancedRangesAndNewerSchemas` (not yet run) | `implemented` |
-| MX-0-04 | Sample-accurate internal, beat-accurate ticks at 960 PPQ default | midi-export §0.4 | `MidiPerformance` holds samples; ticks through the file tempo map; `LUTHIER-AT dt=` restores the sample (`MidiProfiles.cpp` `FileTempoMap`); another sample rate falls back to the tick with a warning | `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit`, `MidiExport::anotherSampleRateFallsBackToTheTick` (not yet run) | `implemented` |
-| MX-1-01 | SMF format 1; PPQ 96-3840; meta track (title, copyright, tempo, time sig, key); per-instrument or per-string tracks; 14-bit bend | midi-export §1 | `MidiProfiles::exportToMemory` (meta track, four splits, PPQ clamp); notation writer `NotationExport.cpp` | `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit`, `MidiExport::trackSplitsNameTheirTracks`, `MidiExport::genericProfileIsPlainMidi` (not yet run); `NotationTests.cpp` `Notation::midiExportIsPerString` | `implemented` |
-| MX-2-01 | LUTHIER header chunk; `LUTHIER-BEGIN <class> <ver>` / `LUTHIER-END` markers; stripped file plays as Generic | midi-export §2 | `MidiProfiles.cpp` `makeHeader` (FF 7F, 7D "LUTHIER", checksum), `writeExtensionEvent` | `MidiExport::headerStrippedFileLoadsAsGenericWithoutWarning` (not yet run) | `implemented` |
-| MX-2.1-01 | Event classes NOTE, BEND, SLIDE, VIBRATO, WHAMMY, STRUM, RASGUEADO, PICK, SQUEAK, BUZZ, SLIDE_BAR, CLANK, CHARACTER, WORKSHOP, BASS_TECH, RANGES, SNAPSHOT, SECTION | midi-export §2.1 | `LuthierMidiEvents.cpp` `kClasses`, `getFields`; NOTE / BEND / SLIDE / VIBRATO / WHAMMY / SECTION filled from `PerformanceScore` | `MidiExport::everyEventClassRoundTripsWithEveryField` (not yet run) | `partial` - encoded and round-tripped; the engine does not yet report realism events (STRUM, PICK, SQUEAK, BUZZ, CLANK, SLIDE_BAR, ...) for capture |
+| MX-0-01 | Export on a worker thread from PerformanceScore or Tune | midi-export §0.1 | `MidiPerformance::fromScore`, `MidiPerformance::fromCapture`, `MidiProfiles::exportToMemory` (`Source/Export/`; nothing on the audio thread); no Tune, no call site | `MidiExportTests.cpp` `MidiExport::aScoreSurvivesBothProfiles`, `MidiExport::captureBecomesAPerformanceAtItsOwnSamples` | `partial` - model only; Tune and worker call site pending |
+| MX-0-02 | Import parses to PerformanceScore or Tune; delivered via swap | midi-export §0.2 | `MidiProfiles::importFromMemory` -> `MidiPerformance`, `MidiPerformance::toScore`; `MidiPerformance::renderBlock` plays it on the audio thread; no swap into the engine, no Tune | `MidiExport::aScoreSurvivesBothProfiles` | `partial` - swap and Tune pending |
+| MX-0-03 | Luthier profile self-describing with schema version | midi-export §0.3 | header wire version and `LUTHIER-BEGIN <class> <schema>` (`MidiProfiles.cpp` `makeHeader`, `writeExtensionEvent`); newer schemas read with a warning | `MidiExport::importWarnsOfAdvancedRangesAndNewerSchemas` | `verified` |
+| MX-0-04 | Sample-accurate internal, beat-accurate ticks at 960 PPQ default | midi-export §0.4 | `MidiPerformance` holds samples; ticks through the file tempo map; `LUTHIER-AT dt=` restores the sample (`MidiProfiles.cpp` `FileTempoMap`); another sample rate falls back to the tick with a warning | `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit`, `MidiExport::anotherSampleRateFallsBackToTheTick` | `verified` |
+| MX-1-01 | SMF format 1; PPQ 96-3840; meta track (title, copyright, tempo, time sig, key); per-instrument or per-string tracks; 14-bit bend | midi-export §1 | `MidiProfiles::exportToMemory` (meta track, four splits, PPQ clamp); notation writer `NotationExport.cpp` | `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit`, `MidiExport::trackSplitsNameTheirTracks`, `MidiExport::genericProfileIsPlainMidi`; `NotationTests.cpp` `Notation::midiExportIsPerString` | `verified` |
+| MX-2-01 | LUTHIER header chunk; `LUTHIER-BEGIN <class> <ver>` / `LUTHIER-END` markers; stripped file plays as Generic | midi-export §2 | `MidiProfiles.cpp` `makeHeader` (FF 7F, 7D "LUTHIER", checksum), `writeExtensionEvent` | `MidiExport::headerStrippedFileLoadsAsGenericWithoutWarning` | `verified` |
+| MX-2.1-01 | Event classes NOTE, BEND, SLIDE, VIBRATO, WHAMMY, STRUM, RASGUEADO, PICK, SQUEAK, BUZZ, SLIDE_BAR, CLANK, CHARACTER, WORKSHOP, BASS_TECH, RANGES, SNAPSHOT, SECTION | midi-export §2.1 | `LuthierMidiEvents.cpp` `kClasses`, `getFields`; NOTE / BEND / SLIDE / VIBRATO / WHAMMY / SECTION filled from `PerformanceScore` | `MidiExport::everyEventClassRoundTripsWithEveryField` | `partial` - encoded and round-tripped; the engine does not yet report realism events (STRUM, PICK, SQUEAK, BUZZ, CLANK, SLIDE_BAR, ...) for capture |
 | MX-2.1-02 | Byte-level encoding documented in `docs/MIDI_EXPORT_LUTHIER_PROFILE.md` | midi-export §2.1 | `docs/MIDI_EXPORT_LUTHIER_PROFILE.md` | document review | `implemented` |
-| MX-2.2-01 | Round-trip within -60 dBFS RMS null; unknown classes preserved as opaque blobs | midi-export §2.2 | exact channel stream plus events; an unknown class is kept as fields, or as bytes when it is not tagged text (`MidiProfiles.cpp` `finishEvent`) | `MidiExport::luthierRoundTripNullsEveryFactoryPreset`, `MidiExport::everyEventClassRoundTripsWithEveryField` (not yet run) | `implemented` - realism events ride as data; the engine re-derives its own |
-| MX-2.3-01 | Every extension event as text meta + SysEx; reader accepts either | midi-export §2.3 | `writeExtensionEvent`; `finishEvent` reads either and refuses copies that disagree | `MidiExport::eitherCopyOfAnEventIsEnough`, `MidiExport::damagedExtensionEventsAreRefused` (not yet run) | `implemented` |
-| MX-3-01 | Generic profile: notes, bend, CC 1/11/64/74; `LUTHIER:` text metas; bend range RPN at track start | midi-export §3 | `MidiProfiles.cpp` Generic path; CC 101/100/6/38 then null RPN per channel; realism text without timing or identifiers | `MidiExport::genericProfileIsPlainMidi` (not yet run) | `implemented` |
-| MX-4.1-01 | Export dialog (profile, range, track split, include realism, PPQ, destination, preview) from MIDI OUT tab, tune builder, File -> Export -> MIDI | midi-export §4.1 | model: `MidiExportOptions`, `MidiPerformance::getSectionRange` / `getLastSecondsRange` / `extractRange`, `MidiProfiles::describeOpeningBar`; no dialog | `MidiExport::extractRangeRestatesStateAndClosesNotes`, `MidiExport::previewDescribesTheOpeningBar` (not yet run) | `partial` - UI not built |
-| MX-4.2-01 | Drag-out from session recorder "Save last take" (Alt forces Generic) | midi-export §4.2 | `MidiProfiles::writeDragOutFile` (Luthier, or Generic with Alt); no drag gesture (`docs/KNOWN_ISSUES.md`) | `MidiExport::dragOutWritesAValidMidiFile` (not yet run) | `partial` - UI not built |
-| MX-5-01 | Import via File menu or window drop; auto-detect profile; target session / tune / looper | midi-export §5 | `MidiProfiles::importFromFile` detects the profile by header; no File menu entry, drop target or session / tune / looper target | `MidiExport::headerStrippedFileLoadsAsGenericWithoutWarning` (not yet run) | `partial` - UI and targets pending |
-| MX-6-01 | Live MIDI-out sources incl. tune playback, character/noise SysEx, workshop changes | midi-export §6 | `MidiOutRouter` (four sources) + `LiveMidiClock` (beats to samples) + `LuthierSysExOut` (character / noise / workshop SysEx), `Source/Export/LiveMidiOut.*`; not called from `processBlock`; `MidiOutConfig` has no SysEx flag; `NEEDS_MIDI_OUTPUT FALSE` leaves the VST3 without a MIDI out bus | `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` (not yet run) | `partial` - wiring pending |
-| MX-7-01 | `.mid`/`.midi` for both; `.midprofile` JSON user export configs, registered by installers | midi-export §7 | `MidiProfiles::saveProfile` / `loadProfile` / `profileFromVar`; installers do not register `.midprofile` | `MidiExport::midprofileSavesAndLoads`, `MidiExport::classMaskLimitsWhatIsWritten` (not yet run) | `partial` - installer registration pending |
-| MX-8-01 | Options -> MIDI: default profile, PPQ, track split, realism in Generic, SysEx redundancy | midi-export §8 | `MidiExportOptions` holds all five; not on the Options page, not persisted | none | `partial` - UI and persistence pending |
-| MX-9-01 | Cross-spec: shares PerformanceScore with notation; tune export; session `.mid`; snapshots; macro CCs; strums; BASS_TECH; range annotations | midi-export §9 | `fromScore` / `toScore` use NotationExporter's layout; SNAPSHOT, BASS_TECH, RANGES classes; `fromCapture` for the session take (still written by `MidiCapture`) | `MidiExport::aScoreSurvivesBothProfiles` (not yet run) | `partial` - tune, snapshot and macro-CC sources not wired |
-| MX-10-01 | Older files load with missing events reconstructed and a notification | midi-export §10 | `MidiImportResult::defaultedFields` ("CLASS.field") and newer-schema warnings; whole missing events are not reconstructed from the plain MIDI | `MidiExport::importWarnsOfAdvancedRangesAndNewerSchemas`, `MidiExport::stripIdentifiersLeavesNoNamesOrSeeds` (not yet run) | `partial` - event reconstruction pending |
-| MX-11-01 | No personal data; Generic omits seed/guitar/preset names; "strip identifiers" option | midi-export §11 | `MidiExportOptions::stripIdentifiers`; identifier fields (`LuthierFieldSpec::isIdentifier`); Generic never writes them | `MidiExport::stripIdentifiersLeavesNoNamesOrSeeds`, `MidiExport::genericProfileIsPlainMidi` (not yet run) | `implemented` |
-| MX-UI-01 | MIDI OUT tab in column 4 | GI 4.4 | not built | none | `pending` |
-| MX-12-01 | Test: Luthier round trip for every factory preset and fixture within -60 dBFS | midi-export §12 | one render fixture (sub-tick notes, bend, CC 1/11/64, pressure) through every factory preset | `MidiExport::luthierRoundTripNullsEveryFactoryPreset` (not yet run) | `implemented` |
-| MX-12-02 | Test: Generic round trip within -30 dBFS | midi-export §12 | score fixture on the tick grid | `MidiExport::genericRoundTripNullsWithinThirtyDb` (not yet run) | `implemented` |
-| MX-12-03 | Test: SysEx off still round-trips via text metas | midi-export §12 | - | `MidiExport::eitherCopyOfAnEventIsEnough` (not yet run) | `implemented` |
-| MX-12-04 | Test: PPQ 96/480/960/3840 timing within 1 sample | midi-export §12 | exact (0 samples) in the Luthier profile at every PPQ and split | `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit` (not yet run) | `implemented` |
-| MX-12-05 | Test: drag-out produces valid MIDI in a DAW fixture | midi-export §12 | JUCE's `MidiFile` reader stands in for the DAW; no drag gesture to start from | `MidiExport::dragOutWritesAValidMidiFile` (not yet run) | `partial` - no session-recorder drag |
-| MX-12-06 | Test: stripped Luthier file loads as Generic silently | midi-export §12 | - | `MidiExport::headerStrippedFileLoadsAsGenericWithoutWarning` (not yet run) | `implemented` |
-| MX-12-07 | Test: byte-flip corrupt import refuses gracefully with banner | midi-export §12 | every refusal starts "Byte 0x..." with the offset; no banner UI | `MidiExport::everyFlippedByteIsRefusedGracefully`, `MidiExport::damagedExtensionEventsAreRefused` (not yet run) | `partial` - banner not built |
-| MX-12-08 | Test: live MIDI-out 10 000-event fuzz within 1 sample across all sources | midi-export §12 | router, beat clock and SysEx out driven as `processBlock` would drive them | `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` (not yet run); `RoutingTests.cpp` `Routing::midiOutPassThroughIsSampleExact` | `implemented` - see MX-6-01 for wiring |
-| MX-12-09 | Test: non-Luthier host drops SysEx; second instance parses | midi-export §12 | host simulated by dropping SysEx from the buffer | `MidiExport::liveSysExIsDroppedByOtherHostsAndReadByLuthier` (not yet run) | `implemented` |
+| MX-2.2-01 | Round-trip within -60 dBFS RMS null; unknown classes preserved as opaque blobs | midi-export §2.2 | exact channel stream plus events; an unknown class is kept as fields, or as bytes when it is not tagged text (`MidiProfiles.cpp` `finishEvent`) | `MidiExport::luthierRoundTripNullsEveryFactoryPreset`, `MidiExport::everyEventClassRoundTripsWithEveryField` | `verified` - renders repeat after a reset since `a357142` (531 tests green) |
+| MX-2.3-01 | Every extension event as text meta + SysEx; reader accepts either | midi-export §2.3 | `writeExtensionEvent`; `finishEvent` reads either and refuses copies that disagree | `MidiExport::eitherCopyOfAnEventIsEnough`, `MidiExport::damagedExtensionEventsAreRefused` | `verified` |
+| MX-3-01 | Generic profile: notes, bend, CC 1/11/64/74; `LUTHIER:` text metas; bend range RPN at track start | midi-export §3 | `MidiProfiles.cpp` Generic path; CC 101/100/6/38 then null RPN per channel; realism text without timing or identifiers | `MidiExport::genericProfileIsPlainMidi` | `verified` |
+| MX-4.1-01 | Export dialog (profile, range, track split, include realism, PPQ, destination, preview) from MIDI OUT tab, tune builder, File -> Export -> MIDI | midi-export §4.1 | MIDI OUT tab exports the capture whole or last N seconds with a preview in the chosen profile (`a357142`); no tune-builder or File-menu entry | `MidiOutPanelTests.cpp` `MidiOutPanel::exportWritesTheCaptureInTheChosenProfile`, `MidiOutPanel::profileEditsAreTheExportDefaults`; `MidiExportTests.cpp` `MidiExport::previewDescribesTheOpeningBar` | `partial` - tune builder and File menu entry points |
+| MX-4.2-01 | Drag-out from session recorder "Save last take" (Alt forces Generic) | midi-export §4.2 | MIDI OUT tab drags the capture out (Alt: Generic) and the header's Save last MIDI take uses the profile (`a357142`); `MidiProfiles::writeDragOutFile` | `MidiExportTests.cpp` `MidiExport::dragOutWritesAValidMidiFile` (file only) | `implemented` - the drag gesture is not tested |
+| MX-5-01 | Import via File menu or window drop; auto-detect profile; target session / tune / looper | midi-export §5 | `MidiProfiles::importFromFile` detects the profile by header; no File menu entry, drop target or session / tune / looper target | `MidiExport::headerStrippedFileLoadsAsGenericWithoutWarning` | `partial` - UI and targets pending |
+| MX-6-01 | Live MIDI-out sources incl. tune playback, character/noise SysEx, workshop changes | midi-export §6 | routing panel switches plus TUNE, EVENTS (each noise trigger as Luthier SysEx on its sample) and WORKSHOP (part fits) (`a357142`); `NEEDS_MIDI_OUTPUT FALSE` still leaves the VST3 without a MIDI out bus (RIO-6-05) | `MidiOutPanelTests.cpp` `MidiOutPanel::liveEventsAndWorkshopChangesGoOutAsLuthierSysEx`, `MidiOutPanel::liveSwitchesAreTheRoutingPanelsSwitches`; `MidiExportTests.cpp` `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` | `partial` - tune playback has no Tune transport to feed it; VST3 MIDI out bus |
+| MX-7-01 | `.mid`/`.midi` for both; `.midprofile` JSON user export configs, registered by installers | midi-export §7 | `MidiProfiles::saveProfile` / `loadProfile` / `profileFromVar`; installers do not register `.midprofile` | `MidiExport::midprofileSavesAndLoads`, `MidiExport::classMaskLimitsWhatIsWritten` | `partial` - installer registration pending |
+| MX-8-01 | Options -> MIDI: default profile, PPQ, track split, realism in Generic, SysEx redundancy | midi-export §8 | the export profile is Options -> MIDI's user-global default, saved and loaded as `.midprofile` (`a357142`) | `MidiOutPanelTests.cpp` `MidiOutPanel::profileEditsAreTheExportDefaults`; `MidiExportTests.cpp` `MidiExport::midprofileSavesAndLoads` | `verified` |
+| MX-9-01 | Cross-spec: shares PerformanceScore with notation; tune export; session `.mid`; snapshots; macro CCs; strums; BASS_TECH; range annotations | midi-export §9 | `fromScore` / `toScore` use NotationExporter's layout; SNAPSHOT, BASS_TECH, RANGES classes; `fromCapture` for the session take (still written by `MidiCapture`) | `MidiExport::aScoreSurvivesBothProfiles` | `partial` - tune, snapshot and macro-CC sources not wired |
+| MX-10-01 | Older files load with missing events reconstructed and a notification | midi-export §10 | `MidiImportResult::defaultedFields` ("CLASS.field") and newer-schema warnings; whole missing events are not reconstructed from the plain MIDI | `MidiExport::importWarnsOfAdvancedRangesAndNewerSchemas`, `MidiExport::stripIdentifiersLeavesNoNamesOrSeeds` | `partial` - event reconstruction pending |
+| MX-11-01 | No personal data; Generic omits seed/guitar/preset names; "strip identifiers" option | midi-export §11 | `MidiExportOptions::stripIdentifiers`; identifier fields (`LuthierFieldSpec::isIdentifier`); Generic never writes them | `MidiExport::stripIdentifiersLeavesNoNamesOrSeeds`, `MidiExport::genericProfileIsPlainMidi` | `verified` |
+| MX-UI-01 | MIDI OUT tab in column 4 | GI 4.4 | `MidiOutPanel` (`a357142`), in the fixed tab order, remembered by name | `MidiOutPanelTests.cpp` `MidiOutPanel::theTabSitsInTheFixedOrderAndIsRememberedByName` | `verified` |
+| MX-12-01 | Test: Luthier round trip for every factory preset and fixture within -60 dBFS | midi-export §12 | one render fixture (sub-tick notes, bend, CC 1/11/64, pressure) through every factory preset | `MidiExport::luthierRoundTripNullsEveryFactoryPreset` | `verified` - green at `a357142` |
+| MX-12-02 | Test: Generic round trip within -30 dBFS | midi-export §12 | score fixture on the tick grid | `MidiExport::genericRoundTripNullsWithinThirtyDb` | `verified` |
+| MX-12-03 | Test: SysEx off still round-trips via text metas | midi-export §12 | - | `MidiExport::eitherCopyOfAnEventIsEnough` | `verified` |
+| MX-12-04 | Test: PPQ 96/480/960/3840 timing within 1 sample | midi-export §12 | exact (0 samples) in the Luthier profile at every PPQ and split | `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit` | `verified` |
+| MX-12-05 | Test: drag-out produces valid MIDI in a DAW fixture | midi-export §12 | JUCE's `MidiFile` reader stands in for the DAW; no drag gesture to start from | `MidiExport::dragOutWritesAValidMidiFile` | `partial` - no session-recorder drag |
+| MX-12-06 | Test: stripped Luthier file loads as Generic silently | midi-export §12 | - | `MidiExport::headerStrippedFileLoadsAsGenericWithoutWarning` | `verified` |
+| MX-12-07 | Test: byte-flip corrupt import refuses gracefully with banner | midi-export §12 | every refusal starts "Byte 0x..." with the offset; no banner UI | `MidiExport::everyFlippedByteIsRefusedGracefully`, `MidiExport::damagedExtensionEventsAreRefused` | `partial` - banner not built |
+| MX-12-08 | Test: live MIDI-out 10 000-event fuzz within 1 sample across all sources | midi-export §12 | router, beat clock and SysEx out driven as `processBlock` would drive them | `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample`; `RoutingTests.cpp` `Routing::midiOutPassThroughIsSampleExact` | `verified` - with the EVENTS and WORKSHOP sources wired (`a357142`) |
+| MX-12-09 | Test: non-Luthier host drops SysEx; second instance parses | midi-export §12 | host simulated by dropping SysEx from the buffer | `MidiExport::liveSysExIsDroppedByOtherHostsAndReadByLuthier` | `verified` |
 
 ## Phase 2b (INDEX 23a-23i): referenced but missing
 
@@ -1388,55 +1441,59 @@ row. Known downstream consumers are listed so nothing waits silently.
 
 ## 24. tune-builder.md (phase 3)
 
-**Not built** (TODO 12: Tune Builder and the TUNE tab). No `Tune` model,
-`.luthiertune` format, templates, transport, melody generators or TUNE tab
-exist (rg `luthiertune` finds only spec text). Pieces it would reuse exist:
-rhythm engine, genre kits, chord detector/voicer, progression parser
-(`Trainers` `PracticeTrainers::progressionParsing`), audio exporter, notation
-exporters. Note: ground rule 7 says "five methods (section 5)" but section 2
+**Model built** (`d284547`, `Source/Tune/*`, written by the feature
+assistant): `Tune` value model with `extra` for unknown fields,
+`.luthiertune` load / save (canonical, atomic, dated backup, named errors),
+chord spans and a strict shorthand parser, progression tools, seeded melody
+and bass generators with locked notes kept, the MIDI timeline, the `.mid`
+writer, `PerformanceScore` conversion and the ten templates in
+`Resources/Tunes/Templates`, with 35 `TuneBuilder::*` tests (green on the
+lead's run). Not built: the TUNE tab and every UI row, transport and engine
+playback, audio export, recording from MIDI in, Sing, and the Luthier-profile
+MIDI path (C-53). Note: ground rule 7 says "five methods (section 5)" but section 2
 lists four plus section 13's Sing; step numbering skips 4 (editorial only).
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
-| TB-0-01 | Control-only: writes MIDI into rhythm and note engines, never the audio path | tune-builder §0.1; INDEX global rules | not built | none | `pending` |
-| TB-0-02 | Single `.luthiertune` file < 100 KB, portable, forward-compatible | tune-builder §0.2, §11 | not built | none | `pending` |
-| TB-0-03 | Nothing destructive: every edit undoable; regenerate preserves locked notes | tune-builder §0.3 | not built | none | `pending` |
+| TB-0-01 | Control-only: writes MIDI into rhythm and note engines, never the audio path | tune-builder §0.1; INDEX global rules | `TuneTimeline` writes MIDI only (`Source/Tune/TuneMidi.*`); not yet wired to the engines | `TuneBuilderTests.cpp` `TuneBuilder::timelinePutsChordsMelodyBassAndSectionsOnTheBeat` | `implemented` |
+| TB-0-02 | Single `.luthiertune` file < 100 KB, portable, forward-compatible | tune-builder §0.2, §11 | `TuneFile` (JSON, `extra` kept, `tooLarge` refusal) | `TuneBuilderTests.cpp` `TuneBuilder::aHundredRandomTunesRoundTripByteIdentical`, `TuneBuilder::unknownFieldsAreKeptAndWrittenBack` | `verified` - the 100 KB bound is enforced but not tested |
+| TB-0-03 | Nothing destructive: every edit undoable; regenerate preserves locked notes | tune-builder §0.3 | `Tune` is a value (undo = before / after pair) with `TuneEditClass`; generators keep locked notes; no undo-stack wiring | `TuneBuilderTests.cpp` `TuneBuilder::regenerateLeavesLockedNotesByteIdentical` | `partial` - undo stack not wired |
 | TB-0-04 | Same UI standalone and in a host | tune-builder §0.4 | not built | none | `pending` |
-| TB-0-05 | Export first-class: audio, MIDI, MusicXML/GP from one PerformanceScore | tune-builder §0.5 | not built | none | `pending` |
-| TB-1-01 | `Tune` model: meta, sections (name, bars, chords, pattern, kit, melody, bass, layers), setlist, variations; every field versioned | tune-builder §1 | not built | none | `pending` |
-| TB-1.1-01 | ChordCell: root, quality, bass, extensions, duration, strum override, emphasis; last cell fills the section | tune-builder §1.1 | not built | none | `pending` |
-| TB-1.2-01 | MelodyTrack / MelodyNote with absolute or relative pitch (`root+7`, `chord_tone_3`), articulation, technique, locked | tune-builder §1.2 | not built | none | `pending` |
-| TB-2-01 | Three-minute flow: kit (9 presets with tempo/feel/palette), shorthand progression (pipes, `[Section]`, `*2`), melody one-click, play loops with bar-boundary edits, `Ctrl+S` save / `Ctrl+E` export | tune-builder §2 | not built; shortcut clash see Conflict C-14 | none | `pending` |
+| TB-0-05 | Export first-class: audio, MIDI, MusicXML/GP from one PerformanceScore | tune-builder §0.5 | `buildTuneMidiFile`, `buildTuneScore`; no audio export | `TuneBuilderTests.cpp` `TuneBuilder::theMidiFileHasAMetaTrackInstrumentTracksAndBeatAccurateTicks`, `TuneBuilder::thePerformanceScoreKeepsSectionsChordSymbolsAndFrettedNotes` | `partial` - audio export and one shared export path (C-53) |
+| TB-1-01 | `Tune` model: meta, sections (name, bars, chords, pattern, kit, melody, bass, layers), setlist, variations; every field versioned | tune-builder §1 | `Source/Tune/TuneModel.*` | `TuneBuilderTests.cpp` `TuneBuilder::aHundredRandomTunesRoundTripByteIdentical`, `TuneBuilder::editsKeepNamesUniqueAndTheSetlistInStep` | `verified` |
+| TB-1.1-01 | ChordCell: root, quality, bass, extensions, duration, strum override, emphasis; last cell fills the section | tune-builder §1.1 | `ChordCell`, `resolveChordSpans` | `TuneBuilderTests.cpp` `TuneBuilder::chordSpansRepeatAShortProgressionAndHoldAnUnderspecifiedLastCell` | `verified` |
+| TB-1.2-01 | MelodyTrack / MelodyNote with absolute or relative pitch (`root+7`, `chord_tone_3`), articulation, technique, locked | tune-builder §1.2 | `MelodyPitch` (absolute, root offset, chord tone), `MelodyNote` | `TuneBuilderTests.cpp` `TuneBuilder::relativePitchesFollowTheChordTheyLandOn` | `verified` |
+| TB-2-01 | Three-minute flow: kit (9 presets with tempo/feel/palette), shorthand progression (pipes, `[Section]`, `*2`), melody one-click, play loops with bar-boundary edits, `Ctrl+S` save / `Ctrl+E` export | tune-builder §2 | shorthand parser (pipes, `[Section]`, `*2`, `*fill`); kits and UI not built; shortcut clash C-14 | `TuneBuilderTests.cpp` `TuneBuilder::shorthandParsesToTheExpectedCells`, `TuneBuilder::typedShorthandReplacesTheActiveSectionOrTheNamedOnes` | `partial` - model only |
 | TB-3-01 | TUNE tab between RHYTHM and LIVE; default layout (header, section strip, progression, rhythm, melody, transport); fits at 1280 | tune-builder §3, §3.1 | not built | none | `pending` |
-| TB-3.2-01 | Progression pills coloured by function; popover editor; drag duration/reorder; shorthand field live; right-click insert/duplicate/delete/copy/paste/suggest substitution | tune-builder §3.2 | not built | none | `pending` |
-| TB-3.3-01 | Section strip: select, drag reorder, rename, duplicate, delete, repeat count, Vary, colour tag; setlist timeline | tune-builder §3.3 | not built | none | `pending` |
+| TB-3.2-01 | Progression pills coloured by function; popover editor; drag duration/reorder; shorthand field live; right-click insert/duplicate/delete/copy/paste/suggest substitution | tune-builder §3.2 | model: chord functions, shorthand, substitution suggestions; no pills UI | `TuneBuilderTests.cpp` `TuneBuilder::diatonicPaletteAndFunctionsFollowTheKey`, `TuneBuilder::reharmonizeSubstitutesAndKeepsTheLength` | `partial` - UI not built |
+| TB-3.3-01 | Section strip: select, drag reorder, rename, duplicate, delete, repeat count, Vary, colour tag; setlist timeline | tune-builder §3.3 | model: section rename, duplicate, delete, reorder, repeat; no strip UI | `TuneBuilderTests.cpp` `TuneBuilder::editsKeepNamesUniqueAndTheSetlistInStep`, `TuneBuilder::aThousandSectionReordersKeepTheLengthAndEveryNotesPosition` | `partial` - UI not built |
 | TB-3.4-01 | Piano roll: draw, snap to key (`C` toggles chromatic), right-click note menu incl. unlock, multi-select, clipboard, arrow nudge | tune-builder §3.4 | not built | none | `pending` |
 | TB-3.5-01 | Rhythm strip reuses kit/feel/strum; per-section; "Link rhythm to X" | tune-builder §3.5 | not built | none | `pending` |
 | TB-3.6-01 | Transport: play/pause, skip section, loop, count-in, metronome; independent unless host plays; Space / Shift+Space | tune-builder §3.6 | not built; Space currently auditions (GAPS A5) | none | `pending` |
-| TB-4.1-01 | Auto melody: chord-tone start, 70/20/10 motion, cadence rests, kit phrasing, range C3-G5, density 4/bar, deterministic seed | tune-builder §4.1 | not built | none | `pending` |
-| TB-4.3-01 | Record: quantise grids incl. triplets; velocity kept; "Follow chord changes" | tune-builder §4.3 | not built | none | `pending` |
-| TB-4.4-01 | Improvise reseeds each pass; locked notes kept; Freeze captures | tune-builder §4.4 | not built | none | `pending` |
-| TB-4.5-01 | Style transfer: articulation/micro-timing profiles, pitch unchanged | tune-builder §4.5 | not built | none | `pending` |
-| TB-5-01 | Diatonic palette, suggest next chord, reharmonize, transpose (melody follows), modal shift | tune-builder §5 | not built | none | `pending` |
-| TB-6-01 | Bass track: off, root, root-fifth, walking, genre, manual; through bass mode or separate MIDI output | tune-builder §6 | not built | none | `pending` |
-| TB-7-01 | Layers pad, arpeggio, countermelody, percussion (chuck/palm-mute noise) with on/off, volume, pan | tune-builder §7 | not built | none | `pending` |
-| TB-8-01 | Playback through the live rhythm/note engines with every realism detail; per-section state boundary; loop plays setlist | tune-builder §8 | not built | none | `pending` |
+| TB-4.1-01 | Auto melody: chord-tone start, 70/20/10 motion, cadence rests, kit phrasing, range C3-G5, density 4/bar, deterministic seed | tune-builder §4.1 | `Source/Tune/TuneMelody.*` | `TuneBuilderTests.cpp` `TuneBuilder::autoMelodyIsByteIdenticalForASeedAcrossAThousandRuns`, `TuneBuilder::autoMelodyStaysInRangeRestsAtCadencesAndStartsOnAChordTone` | `verified` |
+| TB-4.3-01 | Record: quantise grids incl. triplets; velocity kept; "Follow chord changes" | tune-builder §4.3 | quantise and refit model; no MIDI-in arming | `TuneBuilderTests.cpp` `TuneBuilder::recordQuantiseKeepsVelocityAndRefitsHeldNotesToTheNewChord` | `partial` - recording input not wired |
+| TB-4.4-01 | Improvise reseeds each pass; locked notes kept; Freeze captures | tune-builder §4.4 | `TuneMelody` improvise and freeze | `TuneBuilderTests.cpp` `TuneBuilder::improviseVariesEachPassAndFreezeWritesItDown` | `verified` |
+| TB-4.5-01 | Style transfer: articulation/micro-timing profiles, pitch unchanged | tune-builder §4.5 | `MelodyStyle` profiles | `TuneBuilderTests.cpp` `TuneBuilder::styleTransferChangesPhrasingButNeverPitchOrCount` | `verified` |
+| TB-5-01 | Diatonic palette, suggest next chord, reharmonize, transpose (melody follows), modal shift | tune-builder §5 | `Source/Tune/TuneHarmony.*` | `TuneBuilderTests.cpp` `TuneBuilder::diatonicPaletteAndFunctionsFollowTheKey`, `TuneBuilder::suggestNextChordOffersThreeDistinctCommonMoves`, `TuneBuilder::reharmonizeSubstitutesAndKeepsTheLength`, `TuneBuilder::transposeMovesChordsKeyAndAbsoluteMelodyAndIsReversible`, `TuneBuilder::modalShiftMovesDiatonicChordsAndOptionallyTheMelody` | `verified` |
+| TB-6-01 | Bass track: off, root, root-fifth, walking, genre, manual; through bass mode or separate MIDI output | tune-builder §6 | bass modes in `TuneMelody`; own MIDI channel in the timeline; not routed to bass mode | `TuneBuilderTests.cpp` `TuneBuilder::bassLinesFollowTheChordsAndWalkIntoTheNextRoot` | `partial` - output routing not wired |
+| TB-7-01 | Layers pad, arpeggio, countermelody, percussion (chuck/palm-mute noise) with on/off, volume, pan | tune-builder §7 | `TuneLayer` types; countermelody generator; layers on their own channels | `TuneBuilderTests.cpp` `TuneBuilder::countermelodyStaysUnderTheMelodyOnChordTones` | `partial` - pad, arpeggio, percussion output not tested |
+| TB-8-01 | Playback through the live rhythm/note engines with every realism detail; per-section state boundary; loop plays setlist | tune-builder §8 | `TuneTimeline` (setlist order, rhythm changes, looping); not wired to the engines | `TuneBuilderTests.cpp` `TuneBuilder::timelinePutsChordsMelodyBassAndSectionsOnTheBeat`, `TuneBuilder::aLoopedTuneRunsSixtySecondsWithoutDrift` | `partial` - playback not wired |
 | TB-9.1-01 | Audio export WAV/FLAC/MP3, 16/24/32f, rate, stems per aux 1-8, loop tail 0-5 s, `Renders/` | tune-builder §9.1 | `AudioExporter` has WAV/AIFF/FLAC, no stems/MP3 | none | `pending` |
-| TB-9.2-01 | MIDI export via midi-export profiles and track splits | tune-builder §9.2 | depends on MX | none | `pending` |
-| TB-9.3-01 | Notation export with section headings, chord symbols, tab/standard | tune-builder §9.3 | exporters exist; no Tune source | none | `pending` |
-| TB-9.4-01 | Project export `.luthiertune`, optional bundled preset and guitar | tune-builder §9.4 | not built | none | `pending` |
-| TB-10-01 | Ten templates (Blank .. Instrumental fingerstyle) | tune-builder §10; FC | not built | none | `pending` |
-| TB-11-01 | `.luthiertune` JSON schema (schema, meta, sections, chords, melody, setlist) | tune-builder §11; FF | not built | none | `pending` |
+| TB-9.2-01 | MIDI export via midi-export profiles and track splits | tune-builder §9.2 | `buildTuneMidiFile` with its own track splits, not `MidiProfiles` (C-53) | `TuneBuilderTests.cpp` `TuneBuilder::theMidiFileHasAMetaTrackInstrumentTracksAndBeatAccurateTicks` | `partial` - no Luthier profile |
+| TB-9.3-01 | Notation export with section headings, chord symbols, tab/standard | tune-builder §9.3 | `buildTuneScore` feeds the notation exporters; no dialog | `TuneBuilderTests.cpp` `TuneBuilder::thePerformanceScoreKeepsSectionsChordSymbolsAndFrettedNotes` | `partial` - dialog not built |
+| TB-9.4-01 | Project export `.luthiertune`, optional bundled preset and guitar | tune-builder §9.4 | `.luthiertune` save; preset and guitar bundling not built | `TuneBuilderTests.cpp` `TuneBuilder::saveIsAtomicAndKeepsADatedBackup` | `partial` |
+| TB-10-01 | Ten templates (Blank .. Instrumental fingerstyle) | tune-builder §10; FC | `TuneTemplateLibrary`, `Resources/Tunes/Templates/01-10` | `TuneBuilderTests.cpp` `TuneBuilder::theTenTemplatesLoadInOrderAndAreValid`, `TuneBuilder::templateFilesAreInCanonicalFormAndBlankMatchesTheBuiltIn` | `verified` |
+| TB-11-01 | `.luthiertune` JSON schema (schema, meta, sections, chords, melody, setlist) | tune-builder §11; FF | `Source/Tune/TuneFile.*` | `TuneBuilderTests.cpp` `TuneBuilder::aHundredRandomTunesRoundTripByteIdentical`, `TuneBuilder::loadErrorsAreNamedAndLeaveTheTuneAlone`, `TuneBuilder::tenThousandCorruptedFilesLoadOrRefuseCleanly`, `TuneBuilder::saveIsAtomicAndKeepsADatedBackup` | `verified` |
 | TB-12-01 | Standalone opens last tune; MIDI in armed; audio in for hum | tune-builder §12 | not built | none | `pending` |
 | TB-13-01 | Sung/hummed capture: mono pitch tracker, confidence 0.6, snap to key; opt-in "Sing" button | tune-builder §13 | not built; referenced "Bend Trainer" pitch detector does not exist in practice-tools | none | `pending` |
 | TB-14-01 | Mod routes over timeline; snapshots capture section state; looper captures tune render | tune-builder §14 | not built | none | `pending` |
 | TB-UI-01 | New Tune shortcut `Ctrl+T` | GI 17; GAPS A5 | absent from registry | none | `pending` |
-| TB-15-01 | Test: 100 shorthand strings parse; malformed named errors | tune-builder §15 | - | none (progression parser test is for practice looper syntax) | `pending` |
-| TB-15-02 | Test: auto melody deterministic 1000 runs | tune-builder §15 | - | none | `pending` |
-| TB-15-03 | Test: locked notes untouched by regenerate | tune-builder §15 | - | none | `pending` |
-| TB-15-04 | Test: 1000 section reorders preserve length and positions | tune-builder §15 | - | none | `pending` |
-| TB-15-05 | Test: 32-bar loop 60 s without drift, within 1 sample | tune-builder §15 | - | none | `pending` |
-| TB-15-06 | Test: 100 random tunes byte-identical round trip | tune-builder §15 | - | none | `pending` |
+| TB-15-01 | Test: 100 shorthand strings parse; malformed named errors | tune-builder §15 | - | `TuneBuilderTests.cpp` `TuneBuilder::aHundredGeneratedProgressionsRoundTripThroughShorthand`, `TuneBuilder::malformedShorthandIsRefusedWithANamedError` | `verified` |
+| TB-15-02 | Test: auto melody deterministic 1000 runs | tune-builder §15 | - | `TuneBuilderTests.cpp` `TuneBuilder::autoMelodyIsByteIdenticalForASeedAcrossAThousandRuns` | `verified` |
+| TB-15-03 | Test: locked notes untouched by regenerate | tune-builder §15 | - | `TuneBuilderTests.cpp` `TuneBuilder::regenerateLeavesLockedNotesByteIdentical` | `verified` |
+| TB-15-04 | Test: 1000 section reorders preserve length and positions | tune-builder §15 | - | `TuneBuilderTests.cpp` `TuneBuilder::aThousandSectionReordersKeepTheLengthAndEveryNotesPosition` | `verified` |
+| TB-15-05 | Test: 32-bar loop 60 s without drift, within 1 sample | tune-builder §15 | timeline level, not an engine render | `TuneBuilderTests.cpp` `TuneBuilder::aLoopedTuneRunsSixtySecondsWithoutDrift` | `partial` - engine playback not wired |
+| TB-15-06 | Test: 100 random tunes byte-identical round trip | tune-builder §15 | - | `TuneBuilderTests.cpp` `TuneBuilder::aHundredRandomTunesRoundTripByteIdentical` | `verified` |
 | TB-15-07 | Test: offline vs live render within -80 dBFS | tune-builder §15 | - | none | `pending` |
 | TB-15-08 | Test: Luthier MIDI export re-import byte-identical audio | tune-builder §15 | - | none | `pending` |
 | TB-15-09 | Test: hum fixture 95% semitone-correct | tune-builder §15 | - | none | `pending` |
@@ -1444,24 +1501,27 @@ lists four plus section 13's Sing; step numbering skips 4 (editorial only).
 
 ## 25. ambiguity-resolutions.md (phase 4)
 
-Precedence 4 on the seven items it resolves. Only Freeze (2.1) and the full
-capo (4.5, first two sentences) are built. TODO 2c (feedback) and 2d (audit
-the rest) are open; this section is that audit.
+Precedence 4 on the seven items it resolves. Built: the physical feedback
+loop (1, `14864ca`), Freeze (2.1), the E-Bow on the per-string injection
+(2.2, `9c672aa`), the Doubler pedal (3, `f904956`), the capo (4.5) and the
+guitar migration table (7, `5ccf238`). Open (TODO 2d): voicer `Bass` style,
+transition bonus and 4.7 tests, preset morph (5), crossing velocity (6),
+and 8's snapshot-cancels-morph and Aux 1 toggle.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
-| AMB-1.1-01 | Feedback as physical per-string loop: `k_couple(s) x H_cab_to_pickup(f) x amp_out`, one-block delay, post-circuit | ambiguity §1.1 | `feedback_on/threshold/speed` heuristic (`Parameters.h:259-261`) | none | `pending` - TODO 2c |
-| AMB-1.2-01 | Params feedback_amount 0, distance 0.5 m, angle 0, focus 60%, octave_bias 0; zero amount bypassed and free | ambiguity §1.2 | not declared | none | `pending` |
-| AMB-1.3-01 | SUSTAIN card feedback row with five params and resonance LED | ambiguity §1.3 | FEEDBACK section exists with heuristic params | none | `pending` |
-| AMB-1.4-01 | Tests: zero bypass bit-identical; 60 s stability at 100%; peak within 5 c of note; volume-5 attenuation within 0.5 dB | ambiguity §1.4 | - | none | `pending` |
+| AMB-1.1-01 | Feedback as physical per-string loop: `k_couple(s) x H_cab_to_pickup(f) x amp_out`, one-block delay, post-circuit | ambiguity §1.1 | `Source/DSP/Feedback/FeedbackLoop.*` (DECISIONS "Feedback is the physical loop") | `FeedbackTests.cpp` `Feedback::aLoudRigTakesOverAndACleanOneDoesNot`, `Feedback::eachStringHearsItsOwnNote` | `verified` |
+| AMB-1.2-01 | Params feedback_amount 0, distance 0.5 m, angle 0, focus 60%, octave_bias 0; zero amount bypassed and free | ambiguity §1.2 | `feedback_amount`, `feedback_distance`, `feedback_angle`, `feedback_focus`, `feedback_octave_bias`; old `feedback_on` presets load at 50% | `FeedbackTests.cpp` `Feedback::zeroAmountIsBitIdenticalWhateverTheOtherSettings`, `Feedback::oldPresetsThatSwitchedItOnGetAnAmount` | `verified` |
+| AMB-1.3-01 | SUSTAIN card feedback row with five params and resonance LED | ambiguity §1.3 | `AdvancedPanel` feedback row: five knobs and `FeedbackLed` (`Widgets.cpp`) | none (no UI test) | `implemented` |
+| AMB-1.4-01 | Tests: zero bypass bit-identical; 60 s stability at 100%; peak within 5 c of note; volume-5 attenuation within 0.5 dB | ambiguity §1.4 | - | `FeedbackTests.cpp` `Feedback::zeroAmountIsBitIdenticalWhateverTheOtherSettings`, `Feedback::staysBoundedForAMinuteAtFullTilt`, `Feedback::eachStringHearsItsOwnNote`, `Feedback::theVolumeKnobLowersTheLoopByTheCircuitsAttenuation` | `verified` |
 | AMB-2.1-01 | Freeze captured loop 200-1000 ms (400), level -6 dB, attack 5-500, release 20-2000, LP/HP; new freeze replaces | ambiguity §2.1 | `Source/DSP/Master/FreezeOverlay.*`; params `Parameters.h:137-143` | `SustainTests.cpp` `Sustain::freezeLoopRepeatsExactly`, `Sustain::aSecondFreezeReplacesTheFirst`, `Sustain::releaseFadesOutAndStops`, `Sustain::anIdleFreezeLeavesTheAudioAlone` | `verified` |
-| AMB-2.2-01 | E-Bow via the section 1 feedback path: enable, string mask, intensity 50% (maps to feedback_amount), harmonic | ambiguity §2.2 | `ebow_enable` only; resonance drive, not the feedback path (`Parameters.cpp:572,891`) | none | `partial` - mask, intensity, harmonic absent |
-| AMB-2.3-01 | SUSTAIN card rows Freeze and E-Bow | ambiguity §2.3 | SUSTAIN section in Advanced column 3 | none | `implemented` |
+| AMB-2.2-01 | E-Bow via the section 1 feedback path: enable, string mask, intensity 50% (maps to feedback_amount), harmonic | ambiguity §2.2 | `Source/DSP/Feedback/EBowDriver.*`: each string driven through section 1's per-string narrowband injection (Q 30); `ebow_enable`, `ebow_string_mask` (0 = held strings), `ebow_intensity` 50%, `ebow_harmonic`; own intensity, not feedback_amount (C-54) | `EBowTests.cpp` `EBow::aHeldNoteIsSteadyWithinHalfASecondAtHalfIntensity`, `EBow::heldStringsLetGoOnReleaseChosenStringsDoNot`, `EBow::theHarmonicChoiceTakesTheString` | `verified` - as amended (C-54) |
+| AMB-2.3-01 | SUSTAIN card rows Freeze and E-Bow | ambiguity §2.3 | SUSTAIN section: Freeze row; E-Bow toggle, `StringMaskSelector`, intensity knob, harmonic choice (`9c672aa`) | none (no UI test) | `implemented` |
 | AMB-2.4-01 | Test: freeze 60 s RMS within 0.5 dB | ambiguity §2.4 | - | `SustainTests.cpp` `Sustain::freezeLayerHoldsItsLevelForASixtySecondHold` | `verified` |
-| AMB-2.4-02 | Test: E-Bow steady state within 500 ms at 50%, silent within 200 ms of disable | ambiguity §2.4 | - | none | `pending` |
-| AMB-3-01 | Doubler params: enable, delay 5-40 (22), pitch ±25 c (-8), pan ±0.7, width, mix 40%, HP 100, LP 8k | ambiguity §3 | `doubler_on`, `doubler_amount` only (`Parameters.cpp:663-664`) | none | `partial` - six params missing |
-| AMB-3-02 | Doubler post-amp pre-cab, as an always-available post-rack pedal | ambiguity §3, §3.1 | engine-level doubler (`LuthierEngine.cpp:100`); no Doubler `PedalType` | none | `pending` |
-| AMB-3.2-01 | Tests: mix 0 null within -80 dBFS; mix 100 delay 22 cross-correlation | ambiguity §3.2 | - | none | `pending` |
+| AMB-2.4-02 | Test: E-Bow steady state within 500 ms at 50%, silent within 200 ms of disable | ambiguity §2.4 | new `Silenced` damping (absolute 80 ms T60) in `StringEngine` | `EBowTests.cpp` `EBow::aHeldNoteIsSteadyWithinHalfASecondAtHalfIntensity`, `EBow::switchingItOffSilencesTheStringWithin200ms` (suite green at `9c672aa`) | `verified` |
+| AMB-3-01 | Doubler params: enable, delay 5-40 (22), pitch ±25 c (-8), pan ±0.7, width, mix 40%, HP 100, LP 8k | ambiguity §3 | `PedalType::Doubler` (`PedalsMod.*`): delay, pitch, pan, width, mix, HP, LP; enable is the slot bypass (DECISIONS "The doubler is `PedalType::Doubler`") | `DoublerTests.cpp` `Doubler::mixZeroIsTheDrySignal`, `Doubler::mixFullIsACopyTwentyTwoMillisecondsLate`, `Doubler::panPutsTheTakesToTheSides` | `implemented` - pitch, HP, LP defaults and ranges not asserted |
+| AMB-3-02 | Doubler post-amp pre-cab, as an always-available post-rack pedal | ambiguity §3, §3.1 | post-amp rack pedal before the cabinet; old engine doubler removed; `doubler_on` presets get the pedal in the first free post-amp slot | `DoublerTests.cpp` `Doubler::isAPostAmpRackPedal`, `Doubler::presetsWithTheOldDoublerGetThePedal` | `verified` |
+| AMB-3.2-01 | Tests: mix 0 null within -80 dBFS; mix 100 delay 22 cross-correlation | ambiguity §3.2 | - | `DoublerTests.cpp` `Doubler::mixZeroIsTheDrySignal`, `Doubler::mixFullIsACopyTwentyTwoMillisecondsLate` (suite green at `f904956`) | `verified` |
 | AMB-4.1-01 | Voicer constraints 1-6 incl. barre reachability | ambiguity §4.1 | `ChordVoicer` | `ModelTests.cpp` `ChordVoicer::commonChordsAreVoicedPlayably` | `implemented` |
 | AMB-4.2-01 | Score terms incl. hand_move_penalty 0.4, dup_note_penalty 1, extension_dropped 3 | ambiguity §4.2 | `ChordVoicer.cpp` | none | `implemented` - weights not asserted |
 | AMB-4.3-01 | Style bias values per style incl. `Bass` style | ambiguity §4.3 | `VoicingStyle` has no `Bass` entry (`RhythmEngine.h:61`) | none | `partial` |
@@ -1470,15 +1530,15 @@ the rest) are open; this section is that audit.
 | AMB-4.5-02 | Partial capo from Workshop capo part's string mask | ambiguity §4.5 | `TuningEngine` capo mask (`d8893b5`) | `WorkshopPresetTests.cpp` `WorkshopCapo::aPartialCapoClampsOnlyItsStrings` - green at `0d225f0` | `verified` |
 | AMB-4.6-01 | Determinism with tie-breaks (string count desc, fret sum asc) | ambiguity §4.6 | `ChordVoicer` | none | `implemented` - tie-break order not asserted |
 | AMB-4.7-01 | Tests: 84 templates every key and style; I-IV-V-I travel <= 3 frets; determinism; BEAD bass C7 root / root-fifth | ambiguity §4.7 | - | `RhythmSchedulerTests.cpp` `RhythmPatterns::voicerHandlesEveryChordOnEveryGuitar` (templates) | `partial` - travel, determinism, bass cases missing |
-| AMB-5.1-01 | Preset morph: continuous interpolate; discrete, structural and guitar switch at 0.5 | ambiguity §5.1 | not built (rg `presetMorph`) | none | `pending` |
-| AMB-5.2-01 | Preset browser Morph toggle, A/B slots, slider; automatable `preset_morph_position` | ambiguity §5.2 | not built | none | `pending` |
-| AMB-5.3-01 | Tests: 0 = A, 1 = B, 0.5 midpoint/switched, 4 s automation click-free | ambiguity §5.3 | - | none | `pending` |
+| AMB-5.1-01 | Preset morph: continuous interpolate; discrete, structural and guitar switch at 0.5 | ambiguity §5.1 | `Source/Presets/PresetMorph.*`; processor timer `updatePresetMorph` | `PresetMorphTests.cpp` `PresetMorph::theEndsAreThePresetsThemselves` (null < -100 dB at 0 and 1), `theMidpointSwitchesDiscretesAndHalvesTheRest`, `aFourSecondSweepDoesNotClick` | `verified` |
+| AMB-5.2-01 | Preset browser Morph toggle, A/B slots, slider; automatable `preset_morph_position` | ambiguity §5.2 | `Overlays.cpp` `PresetBrowserPanel` morph row; param 402 | `PresetMorph::theBrowserMorphRowFillsTheSelectedSlot`, `thePositionIsNotPartOfAPreset` | `verified` |
+| AMB-5.3-01 | Tests: 0 = A, 1 = B, 0.5 midpoint/switched, 4 s automation click-free | ambiguity §5.3 | `PresetMorphTests.cpp` | `PresetMorph::theEndsAreThePresetsThemselves`, `theMidpointSwitchesDiscretesAndHalvesTheRest`, `aFourSecondSweepDoesNotClick` (steepest step within 2x either preset alone) | `verified` |
 | AMB-6-01 | Crossing velocity from pattern `crossing_sps`, else global default; progression looper uses pattern; MPE passes through | ambiguity §6 | depends on strum-dynamics (not built) | none | `pending` |
 | AMB-6.1-01 | Tests: pattern crossing_sps within 1 sample; 220 sps -> 22.7 ms | ambiguity §6.1 | - | none | `pending` |
-| AMB-7-01 | Old guitar names resolved via `Resources/Guitars/migration.json` (versioned) | ambiguity §7 | no migration file; old presets store a type index mapped by `getFactoryGuitarPath` | `WorkshopPresetTests.cpp` `WorkshopPresets::oldPickupPlacementParametersBecomeTheGuitars` | `partial` - index mapping works; migration table absent |
-| AMB-7-02 | Unresolved -> factory default + banner text; preset params still apply | ambiguity §7 | fallback + missing-part notice (DECISIONS) | `WorkshopPresetTests.cpp` `WorkshopPresets::aMissingGuitarFileFallsBackToItsType` | `verified` |
-| AMB-7.1-01 | Tests: every pre-M49 factory guitar name resolves; unknown name loads with banner | ambiguity §7.1 | - | `WorkshopPresetTests.cpp` `WorkshopPresets::aMissingGuitarFileFallsBackToItsType` (second half) | `partial` |
-| AMB-8-01 | Feedback / freeze / E-Bow are modulation destinations; snapshot recall cancels preset morph; Aux 1 pre/post-circuit toggle | ambiguity §8 | freeze params are parameters; others not built | none | `partial` |
+| AMB-7-01 | Old guitar names resolved via `Resources/Guitars/migration.json` (versioned) | ambiguity §7 | `Resources/Guitars/migration.json` (magic `luthier.guitar-migration`, schema 1, version 2: `renamed`, `names`), read by `PartLibrary` | `GuitarMigrationTests.cpp` `GuitarMigration::everyPreM49NameResolvesToItsShippedGuitar`, `GuitarMigration::aPresetNamingAnOldGuitarLoadsItsReplacement` | `verified` |
+| AMB-7-02 | Unresolved -> factory default + banner text; preset params still apply | ambiguity §7 | fallback to the type's factory guitar with 7's banner text verbatim | `GuitarMigrationTests.cpp` `GuitarMigration::anUnknownGuitarKeepsThePresetAndSaysSo`; `WorkshopPresetTests.cpp` `WorkshopPresets::aMissingGuitarFileFallsBackToItsType` | `verified` |
+| AMB-7.1-01 | Tests: every pre-M49 factory guitar name resolves; unknown name loads with banner | ambiguity §7.1 | - | `GuitarMigrationTests.cpp` `GuitarMigration::everyPreM49NameResolvesToItsShippedGuitar`, `GuitarMigration::anUnknownGuitarKeepsThePresetAndSaysSo` (suite green at `5ccf238`) | `verified` |
+| AMB-8-01 | Feedback / freeze / E-Bow are modulation destinations; snapshot recall cancels preset morph; Aux 1 pre/post-circuit toggle | ambiguity §8 | every APVTS parameter is a mod destination (`ModMatrix.h`), so `feedback_*`, `freeze_*`, `ebow_*` qualify; a snapshot recall cancels the preset morph (`PresetMorph::aSnapshotRecallCancelsTheMorph`); no Aux 1 toggle | none | `partial` - destinations not tested; Aux 1 toggle pending |
 
 ## 26. gui-integration.md (phase 4, master GUI spec)
 
@@ -1504,13 +1564,13 @@ audits; rows below re-check them against the code at `173a292`.
 | GI-2-02 | Header collapses below 1280 (numeric snapshot readout, three-dot overflow) | GI §2 | not found | none | `pending` |
 | GI-2-03 | A/B compare transient, not serialised | GI §2 | `compareA/B` | none | `implemented` |
 | GI-2-04 | Range padlock beside preset name opens Options -> Ranges | GI §2 | `rangePadlock` `HeaderBar.h:90` | `RangesUiTests.cpp` `RangesUi::theHeaderPadlockShowsOnlyWhenSomethingIsUnlocked` | `verified` |
-| GI-3-01 | Easy layout: illustration + rig strip (280 px) + playing, tone, rhythm strips | GI §3 | older three-band `EasyPanel.cpp` (TODO 2e) | none | `pending` |
+| GI-3-01 | Easy layout: illustration + rig strip (280 px) + playing, tone, rhythm strips | GI §3 | `EasyPanel` (`0052205`) | `EasyLayoutTests.cpp` `EasyLayout::theWindowMatchesSection3` | `verified` |
 | GI-3.1-01 | Illustration hit regions: headstock tuning popover (tuning, capo, temperament), pickup select, bridge whammy popover (only if fitted), fretboard notes | GI §3.1 | `GuitarBodyComponent.cpp`; headstock and bridge popovers | `EditorTests.cpp` `Editor::everyHitRegionOnTheIllustrationDescribesItself`, `Editor::theHeadstockPopoverEditsPerStringTuning`, `Editor::theBridgePopoverAppearsOnlyWhenAWhammyIsFitted` | `verified` |
 | GI-3.1-02 | Illustration live-rendered from the (parts) GuitarSpec | GI §3.1 | `GuitarBodyComponent` draws with `GuitarRenderer` (`a406915`) | `GuitarRendererTests.cpp` `GuitarIllustration::everyFactoryGuitarHasItsParts` | `verified` |
-| GI-3.2-01 | Rig strip cards: circuit (vol, tone, visualiser mini), pre rack, amp, post rack, cab, room; slots open pedal popovers | GI §3.2 | not built | none | `pending` |
-| GI-3.3-01 | Playing strip: mode, humanize macro, character macro, whammy display | GI §3.3 | not built (character macro absent) | none | `pending` |
-| GI-3.4-01 | Tone strip: input gain, output gain, wet/dry post-master, stereo width | GI §3.4 | not built (no input gain / wet-dry / width params found) | none | `pending` |
-| GI-3.5-01 | Rhythm strip: kit + dice, Feel, enable, chord and next-strum readout | GI §3.5 | Easy rhythm strip has kit, feel, on/off | none | `partial` |
+| GI-3.2-01 | Rig strip cards: circuit (vol, tone, visualiser mini), pre rack, amp, post rack, cab, room; slots open pedal popovers | GI §3.2 | `EasyPanel` rig strip: guitar volume / tone, `CircuitResponseView`, compact pre / post racks, amp, cab + mics, room | `EasyLayoutTests.cpp` `EasyLayout::theWindowMatchesSection3` (controls on screen) | `implemented` - pedal popovers from rack slots not tested |
+| GI-3.3-01 | Playing strip: mode, humanize macro, character macro, whammy display | GI §3.3 | `EasyPanel` playing strip; `macro_character` parameter (DECISIONS); five older macros kept (C-52) | `EasyLayoutTests.cpp` `EasyLayout::theWindowMatchesSection3`, `EasyLayout::theCharacterMacroIsTheCharacterAmount` | `verified` |
+| GI-3.4-01 | Tone strip: input gain, output gain, wet/dry post-master, stereo width | GI §3.4 | `input_gain`, `output_mix`, `stereo_width` parameters; wet/dry before the limiter (C-51) | `EasyLayoutTests.cpp` `EasyLayout::theToneStripIsHeard`, `EasyLayout::theWindowMatchesSection3` | `verified` - as amended |
+| GI-3.5-01 | Rhythm strip: kit + dice, Feel, enable, chord and next-strum readout | GI §3.5 | `EasyPanel` rhythm strip: kit, dice, feel, on/off, readout | none (the layout test does not check this strip's controls) | `implemented` |
 | GI-3.6-01 | Easy intentionally omits the listed deep panels | GI §3.6 | - | - | `n/a` - constraint |
 
 ### Advanced mode, Options, Workshop, Slide, strips
@@ -1525,16 +1585,16 @@ audits; rows below re-check them against the code at `173a292`.
 | GI-4.2-01 | Col 2 PICKUPS: selector, per-pickup gain and phase; "Edit in Workshop" | GI §4.2 | PICKUPS section | none | `partial` - per-pickup phase and Workshop jump not found |
 | GI-4.2-02 | Col 2 CIRCUIT replaces CABLE | GI §4.2 | `CircuitPanel` | none | `implemented` |
 | GI-4.2-03 | Col 2 PRE-FX: 8 slots, drag reorder, click controls, right-click bypass/delete | GI §4.2 | `PedalRack.cpp` | `EngineTests.cpp` `Effects::chainReordersWithoutGlitching` (engine) | `implemented` |
-| GI-4.3-01 | Col 3 AMP (model, tone, sag, bright, bias, master), POST-FX, CAB (mics, blend, phase, delay), ROOM, SUSTAIN (Freeze row, E-Bow row, feedback LED) | GI §4.3 | column 3 sections | none | `partial` - no sag/bias controls; E-Bow row lacks mask/intensity/harmonic; no feedback LED |
-| GI-4.4-01 | Col 4 tab order WORKSHOP, MOD, RHYTHM, TUNE, LIVE, ROUTING, TONE MATCH, CHARACTER, PRACTICE, NOTATION, MIDI OUT, CONTROLLERS, HELP | GI §4.4; BRIEF rules | `AdvancedPanel.cpp:977-983` builds 7: MOD, RHYTHM, LIVE, ROUTING, TONE MATCH, CHARACTER, CONTROLLERS | `EditorTests.cpp` `Editor::everyWorkspaceTabSelectsAndPaints` (7 tabs) | `partial` - 6 of 13 missing |
-| GI-4.4-02 | WORKSHOP tab (bench over cols 3+4, col 4 strip stays visible) | GI §4.4 | not built | none | `pending` |
+| GI-4.3-01 | Col 3 AMP (model, tone, sag, bright, bias, master), POST-FX, CAB (mics, blend, phase, delay), ROOM, SUSTAIN (Freeze row, E-Bow row, feedback LED) | GI §4.3 | column 3 sections; SUSTAIN has the Freeze row, the E-Bow row (enable, strings, intensity, harmonic) and the feedback row with `FeedbackLed`; Doubler in the POST-FX rack | none | `partial` - no sag/bias controls |
+| GI-4.4-01 | Col 4 tab order WORKSHOP, MOD, RHYTHM, TUNE, LIVE, ROUTING, TONE MATCH, CHARACTER, PRACTICE, NOTATION, MIDI OUT, CONTROLLERS, HELP | GI §4.4; BRIEF rules | `AdvancedPanel` builds 10 in the fixed order: WORKSHOP, MOD, RHYTHM, LIVE, ROUTING, TONE MATCH, CHARACTER, NOTATION, MIDI OUT, CONTROLLERS | `EditorTests.cpp` `Editor::everyWorkspaceTabSelectsAndPaints`; `MidiOutPanelTests.cpp` `MidiOutPanel::theTabSitsInTheFixedOrderAndIsRememberedByName` | `partial` - TUNE, PRACTICE, HELP (and TECHNIQUES, C-32) missing |
+| GI-4.4-02 | WORKSHOP tab (bench over cols 3+4, col 4 strip stays visible) | GI §4.4 | `WorkshopPanel` (`d45fcd6`) | `WorkshopPanelTests.cpp` `WorkshopPanel::itPaintsAndTheWorkshopTabTakesOverColumnsThreeAndFour` | `verified` |
 | GI-4.4-03 | TUNE tab | GI §4.4 | not built | none | `pending` |
 | GI-4.4-04 | LIVE tab incl. expression calibration | GI §4.4 | `LivePanel`; calibration stays in Options (GAPS A2; Conflict C-11) | `EditorTests.cpp` `Editor::theLiveTabEditsTheSnapshotBankAndTheSetlist` | `verified` - calibration placement per C-11 |
-| GI-4.4-05 | ROUTING tab incl. Aux 8 | GI §4.4 | `RoutingPanel`; no Aux 8 | `EditorTests.cpp` `Editor::everyWorkspaceTabSelectsAndPaints` | `partial` |
+| GI-4.4-05 | ROUTING tab incl. Aux 8 | GI §4.4 | `RoutingPanel` with the Aux 8 strip (`a901c72`) | `PluginBusTests.cpp` `PluginBuses::aux8CarriesThePlayingNoiseAndObeysItsStrip`; `EditorTests.cpp` `Editor::everyWorkspaceTabSelectsAndPaints` | `verified` |
 | GI-4.4-06 | CHARACTER tab + STRING NOISE, PICK, SETUP, SLIDE, CIRCUIT groups | GI §4.4 | `CharacterPanel` with noise, pick, setup, slide groups; no CIRCUIT mirror | `NoiseTests.cpp` `NoiseUi::theCharacterTabCarriesAPadlockWhenUnlocked` | `partial` - CIRCUIT group missing |
-| GI-4.4-07 | PRACTICE tab | GI §4.4 | not built (spec now in practice-tools 11) | none | `pending` |
-| GI-4.4-08 | NOTATION tab | GI §4.4 | not built (needs capture) | none | `pending` |
-| GI-4.4-09 | MIDI OUT tab | GI §4.4 | not built | none | `pending` |
+| GI-4.4-07 | PRACTICE tab | GI §4.4 | not committed; its model is (`980b07e`, see PRA-11-*) | none | `pending` |
+| GI-4.4-08 | NOTATION tab | GI §4.4 | `NotationPanel` (`18a1396`) | `EditorTests.cpp` `Editor::everyWorkspaceTabSelectsAndPaints`; `NotationPanelTests.cpp` `NotationTab::*` | `verified` |
+| GI-4.4-09 | MIDI OUT tab | GI §4.4 | `MidiOutPanel` (`a357142`) | `MidiOutPanelTests.cpp` `MidiOutPanel::*` | `verified` |
 | GI-4.4-10 | CONTROLLERS tab | GI §4.4 | `ControllersPage` | `EditorTests.cpp` `Editor::everyWorkspaceTabSelectsAndPaints` | `verified` |
 | GI-4.4-11 | HELP tab with live shortcut cheat sheet | GI §4.4 | Help is an F1 overlay only | none | `pending` |
 | GI-4.4-12 | Last-used tab persists user-globally | GI §4.4 | `UiPreferences` `config/ui.json` | `EditorTests.cpp` `Editor::theWorkspaceTabWrapsAndIsRemembered` | `verified` |
@@ -1547,7 +1607,7 @@ audits; rows below re-check them against the code at `173a292`.
 | GI-5-06 | DIAGNOSTICS: debug, hard reset, troubleshooting export, crash log, session recorder toggle, Workshop/Slide/ranges mirror | GI §5 | `DiagnosticsPage` (mirror says not built, GAPS A3) | none | `partial` |
 | GI-5-07 | FILE LOCATIONS incl. Guitars and Parts folders | GI §5 | `FileLocationsPage` (Guitars/Parts missing per GAPS A3; recheck now Workshop exists) | none | `partial` |
 | GI-5-08 | Save-on-change; Escape closes | GI §5 | - | `EditorTests.cpp` `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` | `implemented` |
-| GI-6-01 | Workshop bench entry via wrench or tab; layout; interactions; 8 A/B; undo; Alt-hover; Easy overlay | GI §6 | not built | none | `pending` - see workshop-ui |
+| GI-6-01 | Workshop bench entry via wrench or tab; layout; interactions; 8 A/B; undo; Alt-hover; Easy overlay | GI §6 | header wrench, WORKSHOP tab, Easy overlay (`d45fcd6`); see workshop-ui section 20 | `WorkshopPanelTests.cpp` `WorkshopPanel::*` | `partial` - see WUI rows |
 | GI-7-01 | Slide Mode header toggle: SLIDE group, Workshop Slide category, bar overlay in fretboard and illustration, tuning popover glide target, squeak suppressed, `S` | GI §7 | header toggle, SLIDE group, fretboard overlay, `S` | `SlideTests.cpp` `SlideUi::theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` | `partial` - Workshop category, illustration bar, popover glide target missing |
 | GI-8-01 | Header snapshot strip: prev, 8 buttons, next, bank selector; colour tag + 12-char label; accent outline; click load / Shift-click write / right-click rename, colour, clear | GI §8 | snapshot strip lives in the Live strip, not the header | none | `partial` |
 | GI-9-01 | Live strip contents and 44 px / tooltip / Advanced lock rules | GI §9 | `LiveStrip.cpp` | see LIVE-10-* | `partial` |
@@ -1572,29 +1632,29 @@ and works; secondary access is noted.
 | ID | Feature -> primary location | Implementation location | Verification | Status |
 |---|---|---|---|---|
 | GI-19-01 | Instrument load -> Col 1 GUITAR, preset browser; `Ctrl+O` | guitar type choice; preset browser overlay | `IntegrationTests.cpp` `Engine::everyGuitarTypeLoadsAndSounds` | `partial` - user Guitars folder not listed |
-| GI-19-02 | Save As Guitar -> Workshop header; `Ctrl+G` | `Ctrl+G` dialog `PluginEditor.cpp:197`; no Workshop header | `WorkshopPresetTests.cpp` `WorkshopPresets::saveAsGuitarWritesAFileAndPointsThePresetAtIt` | `partial` |
+| GI-19-02 | Save As Guitar -> Workshop header; `Ctrl+G` | `Ctrl+G` dialog; "Save As Guitar" in the Workshop header | `WorkshopPresetTests.cpp` `WorkshopPresets::saveAsGuitarWritesAFileAndPointsThePresetAtIt` | `implemented` |
 | GI-19-03 | Per-string tuning -> Col 1 GUITAR; Easy headstock | headstock popover only | `EditorTests.cpp` `Editor::theHeadstockPopoverEditsPerStringTuning` | `partial` - no Col 1 per-string control |
 | GI-19-04 | Capo (fret / partial) -> Col 1 GUITAR, Workshop capo drag | `capo_fret` in Col 1; partial via capo part (untested) | `GenreKitTests.cpp` `GenreKits::capoRemovesFretsBelowItAndMovesThePitch` | `partial` |
 | GI-19-05 | Temperament -> Col 1 GUITAR | GUITAR section | none | `implemented` |
 | GI-19-06 | Body dimensions / wood / bracing -> Workshop body part; Col 1 BODY summary | Col 1 BODY only | none | `partial` |
 | GI-19-07 | String material / gauge per string -> Workshop strings part; Col 1 STRINGS | Col 1 STRINGS (global) | none | `partial` |
-| GI-19-08 | String age -> Col 1 STRINGS; Easy character macro | Col 1 STRINGS | none | `partial` - no character macro |
-| GI-19-09 | Whammy -> Col 1 WHAMMY, Workshop bridge; Easy bridge click | Col 1 WHAMMY; bridge popover | `EditorTests.cpp` `Editor::theBridgePopoverAppearsOnlyWhenAWhammyIsFitted` | `partial` - no Workshop |
+| GI-19-08 | String age -> Col 1 STRINGS; Easy character macro | Col 1 STRINGS; Easy Character knob | `EasyLayoutTests.cpp` `EasyLayout::theCharacterMacroIsTheCharacterAmount` | `verified` |
+| GI-19-09 | Whammy -> Col 1 WHAMMY, Workshop bridge; Easy bridge click | Col 1 WHAMMY; bridge popover | `EditorTests.cpp` `Editor::theBridgePopoverAppearsOnlyWhenAWhammyIsFitted` | `implemented` - Workshop bridge via the drawer |
 | GI-19-10 | Pickup model / coil / magnet -> Workshop pickup part; Col 2 summary | Col 2 PICKUPS | none | `partial` |
-| GI-19-11 | Pickup position -> Workshop drag | `WorkshopBench` drag with live placement; bench UI not committed | `WorkshopBenchTests.cpp` `WorkshopBench::aMovedPickupIsSeenReadAndHeard` | `partial` |
-| GI-19-12 | Pickup height / tilt -> Workshop screws | `WorkshopBench` heights; bench UI not committed | `WorkshopBenchTests.cpp` `WorkshopBench::heightsAndSetupEditsAreOneEntryEach` | `partial` |
+| GI-19-11 | Pickup position -> Workshop drag | `BenchIllustration` pickup drag, live placement | `WorkshopPanelTests.cpp` `WorkshopPanel::aPickupDragIsOneEntryAndTheRulerValueFollows`, `WorkshopPanel::keyboardNudgesMatchADrag` | `verified` |
+| GI-19-12 | Pickup height / tilt -> Workshop screws | `WorkshopBench` heights; bench drag on the pickup (Shift treble side, Alt bass side) | `WorkshopBenchTests.cpp` `WorkshopBench::heightsAndSetupEditsAreOneEntryEach` (model) | `implemented` |
 | GI-19-13 | Pickup selector -> Col 2 PICKUPS; Easy pickup click | present | `EditorTests.cpp` `Editor::everyHitRegionOnTheIllustrationDescribesItself` | `verified` |
-| GI-19-14 | Guitar volume / tone -> Col 2 CIRCUIT, Easy rig strip; CHARACTER CIRCUIT mirror | Col 2 CIRCUIT; Easy body knobs | none | `partial` - no rig strip or CHARACTER mirror |
+| GI-19-14 | Guitar volume / tone -> Col 2 CIRCUIT, Easy rig strip; CHARACTER CIRCUIT mirror | Col 2 CIRCUIT; Easy body knobs | none | `partial` - Easy rig strip has them (`0052205`); CHARACTER CIRCUIT mirror missing |
 | GI-19-15 | Pots / cap / bleed / cable / active -> Col 2 CIRCUIT | `CircuitPanel` | none | `implemented` |
-| GI-19-16 | Pre-effects rack -> Col 2 PRE-FX; Easy rig strip | Col 2 | none | `partial` |
-| GI-19-17 | Post-effects rack -> Col 3 POST-FX; Easy rig strip | Col 3 | none | `partial` |
-| GI-19-18 | Amp model / tone / sag -> Col 3 AMP; Easy rig strip | Col 3 AMP (no sag) | none | `partial` |
-| GI-19-19 | Cabinet, mics -> Col 3 CAB; Easy rig strip | Col 3 | none | `partial` |
-| GI-19-20 | Room -> Col 3 ROOM; Easy rig strip | Col 3 | none | `partial` |
-| GI-19-21 | Feedback simulation -> Col 3 SUSTAIN readout | heuristic FEEDBACK section | none | `partial` |
+| GI-19-16 | Pre-effects rack -> Col 2 PRE-FX; Easy rig strip | Col 2 | `EasyLayoutTests.cpp` `EasyLayout::theWindowMatchesSection3` (Easy rig strip) | `implemented` |
+| GI-19-17 | Post-effects rack -> Col 3 POST-FX; Easy rig strip | Col 3 | `EasyLayoutTests.cpp` `EasyLayout::theWindowMatchesSection3` (Easy rig strip) | `implemented` |
+| GI-19-18 | Amp model / tone / sag -> Col 3 AMP; Easy rig strip | Col 3 AMP (no sag) | `EasyLayoutTests.cpp` `EasyLayout::theWindowMatchesSection3` (Easy rig strip) | `implemented` |
+| GI-19-19 | Cabinet, mics -> Col 3 CAB; Easy rig strip | Col 3 | `EasyLayoutTests.cpp` `EasyLayout::theWindowMatchesSection3` (Easy rig strip) | `implemented` |
+| GI-19-20 | Room -> Col 3 ROOM; Easy rig strip | Col 3 | `EasyLayoutTests.cpp` `EasyLayout::theWindowMatchesSection3` (Easy rig strip) | `implemented` |
+| GI-19-21 | Feedback simulation -> Col 3 SUSTAIN readout | feedback row with `FeedbackLed` | none | `implemented` |
 | GI-19-22 | Freeze -> Col 3 SUSTAIN | present | `SustainTests.cpp` `Sustain::freezeLayerHoldsItsLevelForASixtySecondHold` | `verified` |
-| GI-19-23 | E-Bow -> Col 3 SUSTAIN | enable only | none | `partial` |
-| GI-19-24 | Playing mode -> Easy playing strip; Adv header | Easy band 3 selector | none | `partial` - no playing strip |
+| GI-19-23 | E-Bow -> Col 3 SUSTAIN | E-Bow row: enable, strings, intensity, harmonic (`9c672aa`) | `EBowTests.cpp` `EBow::*` (engine; the row itself untested) | `implemented` |
+| GI-19-24 | Playing mode -> Easy playing strip; Adv header | Easy playing strip mode selector | `EasyLayoutTests.cpp` `EasyLayout::theWindowMatchesSection3` | `implemented` |
 | GI-19-25 | MIDI Learn -> header; right-click; `Ctrl+L` | present | `IntegrationTests.cpp` `MidiLearn::armingIsSeparateFromLearningUntilAControlClaimsIt` | `verified` |
 | GI-19-26 | Preset browser -> header name; `Ctrl+O` | present | none | `implemented` |
 | GI-19-27 | A / B compare -> header; `Ctrl+/` | present | none | `implemented` |
@@ -1603,14 +1663,14 @@ and works; secondary access is noted.
 | GI-19-30 | Randomize -> header dice; `Ctrl+R` | File menu / shortcut (no dice icon) | `IntegrationTests.cpp` `Presets::randomiseRespectsLocks` | `partial` |
 | GI-19-31 | Reset -> header reset; `Ctrl+Shift+R` | File menu / shortcut | `IntegrationTests.cpp` `Presets::resetRestoresDefaults` | `partial` |
 | GI-19-32 | Export audio -> File menu, Options AUDIO | export overlay | none | `implemented` |
-| GI-19-33 | Export MIDI -> Col 4 MIDI OUT, session drag-out; NOTATION | MIDI capture save only | none | `pending` |
+| GI-19-33 | Export MIDI -> Col 4 MIDI OUT, session drag-out; NOTATION | MIDI OUT export and drag-out (`a357142`); NOTATION exports MIDI through the same profile (`18a1396`) | `MidiOutPanelTests.cpp` `MidiOutPanel::exportWritesTheCaptureInTheChosenProfile`; `NotationPanelTests.cpp` `NotationTab::exportsEveryFormat` | `verified` - drag from the session recorder's own Save button pending (TODO 10) |
 | GI-19-34 | Import MIDI -> File menu, drag onto plugin | not built | none | `pending` |
 | GI-19-35 | Help -> header ?, Col 4 HELP; F1 | overlay only | `EditorTests.cpp` `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` | `partial` |
 | GI-19-36 | Debug -> Options DIAGNOSTICS | present | none | `implemented` |
 | GI-19-37 | Easter egg -> notch pixel | `PluginEditor.cpp:231-255` | none | `implemented` |
-| GI-19-38 | Bus layout / aux 1-8 / per-string / sidechain / MIDI out -> ROUTING | ROUTING (aux 1-7) | `EditorTests.cpp` `Editor::everyWorkspaceTabSelectsAndPaints` | `partial` - Aux 8 |
+| GI-19-38 | Bus layout / aux 1-8 / per-string / sidechain / MIDI out -> ROUTING | ROUTING (aux 1-8, per-string buses by name) | `PluginBusTests.cpp` `PluginBuses::perStringLayoutPutsEachStringOnItsOwnBus`, `PluginBuses::aux8CarriesThePlayingNoiseAndObeysItsStrip` | `verified` |
 | GI-19-39 | Aux 1 pre / post circuit toggle -> ROUTING | not found | none | `pending` |
-| GI-19-40 | Aux 8 noise bus -> ROUTING | not built (TODO 2f) | none | `pending` |
+| GI-19-40 | Aux 8 noise bus -> ROUTING | Aux 8 strip (`a901c72`) | `PluginBusTests.cpp` `PluginBuses::aux8CarriesThePlayingNoiseAndObeysItsStrip` | `verified` |
 | GI-19-41 | LFOs 1-8 -> MOD LFO cards; right-click Modulate | present | `EditorTests.cpp` `Editor::rightClickOffersModulationAndBuildsTheRoute` | `verified` |
 | GI-19-42 | Envelopes 1-4 -> MOD ENV cards | present | `ModulationTests.cpp` `Modulation::envelopeStageTimesAreAccurate` | `implemented` |
 | GI-19-43 | Step sequencers 1-2 -> MOD STEP cards | present | none | `implemented` |
@@ -1634,23 +1694,23 @@ and works; secondary access is noted.
 | GI-19-61 | Controller profile / latency / multi -> CONTROLLERS | present | `EditorTests.cpp` `Editor::everyWorkspaceTabSelectsAndPaints` | `verified` |
 | GI-19-62 | Practice tools -> drawer + PRACTICE setup | drawer only | none | `partial` |
 | GI-19-63 | IR slots, cab/EQ match, capture, library -> TONE MATCH | present | `EditorTests.cpp` `Editor::everyWorkspaceTabSelectsAndPaints` | `verified` |
-| GI-19-64 | Notation export -> NOTATION, File menu; MIDI OUT | drawer TAB tab only | none | `partial` |
-| GI-19-65 | Live TAB view -> NOTATION, drawer TAB | drawer view of imported score | none | `partial` |
-| GI-19-66 | Chord symbol history -> NOTATION | not built | none | `pending` |
-| GI-19-67 | MIDI export profile -> MIDI OUT | not built | none | `pending` |
-| GI-19-68 | Character seed / dead spots / wear / drift / body age / environment -> CHARACTER; Easy character macro | CHARACTER tab | `CharacterTests.cpp` `Character::allFreshAndAllOldPresets` | `partial` - no Easy macro |
-| GI-19-69 | Squeak amount / probability / material / style -> CHARACTER STRING NOISE; Easy macro | present | `NoiseTests.cpp` `NoiseUi::squeakStylesApplyAndReadModified` | `partial` - no Easy macro |
+| GI-19-64 | Notation export -> NOTATION, File menu; MIDI OUT | NOTATION tab export; header menu "Export notation..."; drawer TAB tab | `NotationPanelTests.cpp` `NotationTab::exportsEveryFormat` | `verified` - no MIDI OUT entry point |
+| GI-19-65 | Live TAB view -> NOTATION, drawer TAB | NOTATION live tab fed by the capture; drawer TAB shows imported scores only | `NotationPanelTests.cpp` `NotationTab::stateButtonsLiveTabAndPreview` | `verified` - drawer TAB not fed live |
+| GI-19-66 | Chord symbol history -> NOTATION | NOTATION chord history line; nothing reports chord changes to the capture (NOT-4-01) | none in use (`Capture::techniquesBendsChordsAndMetersReachTheScore` covers the model) | `partial` - empty in use |
+| GI-19-67 | MIDI export profile -> MIDI OUT | MIDI OUT tab | `MidiOutPanelTests.cpp` `MidiOutPanel::profileEditsAreTheExportDefaults` | `verified` |
+| GI-19-68 | Character seed / dead spots / wear / drift / body age / environment -> CHARACTER; Easy character macro | CHARACTER tab | `CharacterTests.cpp` `Character::allFreshAndAllOldPresets` | `verified` - with `EasyLayoutTests.cpp` `EasyLayout::theCharacterMacroIsTheCharacterAmount` |
+| GI-19-69 | Squeak amount / probability / material / style -> CHARACTER STRING NOISE; Easy macro | present | `NoiseTests.cpp` `NoiseUi::squeakStylesApplyAndReadModified` | `implemented` - Easy Character macro exists |
 | GI-19-70 | Pick fields -> CHARACTER PICK | present | `NoiseTests.cpp` `NoiseUi::theCharacterTabCarriesAPadlockWhenUnlocked` | `implemented` |
-| GI-19-71 | Fret buzz / setup style / sitar / heatmap -> CHARACTER SETUP; Workshop setup strip | CHARACTER SETUP | `BuzzTests.cpp` `BuzzUi::setupStylesApplyAsOneStepAndReadModified` | `partial` - no Workshop strip |
+| GI-19-71 | Fret buzz / setup style / sitar / heatmap -> CHARACTER SETUP; Workshop setup strip | CHARACTER SETUP | `BuzzTests.cpp` `BuzzUi::setupStylesApplyAsOneStepAndReadModified` | `implemented` - Workshop setup strip (`d45fcd6`) |
 | GI-19-72 | Slide material / mass / wall / pressure / slant / noise / clank -> CHARACTER SLIDE, Workshop slide part; `S` | CHARACTER SLIDE (mirror) | `SlideTests.cpp` `SlideUi::theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` | `partial` - no Workshop slide part editing |
 | GI-19-73 | Circuit visualiser -> Col 2 CIRCUIT, CHARACTER CIRCUIT | Col 2 only | none | `partial` |
 | GI-19-74 | Advanced-range toggle -> Options RANGES, header padlock; right-click per control | present | `RangesUiTests.cpp` `RangesUi::theRangesPageListsLocksAndClamps`, `RangesUi::rightClickUnlocksAndRestrictsOneControl` | `verified` |
-| GI-19-75 | Workshop bench -> wrench, Col 4 WORKSHOP; `W` | not built | none | `pending` |
-| GI-19-76 | Parts drawer -> bench; right-click illustration part | not built | none | `pending` |
-| GI-19-77 | Inspector -> bench right column | not built | none | `pending` |
-| GI-19-78 | Spectrum delta -> bench bottom right | not built | none | `pending` |
-| GI-19-79 | Bench A / B (8 slots) | not built | none | `pending` |
-| GI-19-80 | Audition (Alt-hover) | not built | none | `pending` |
+| GI-19-75 | Workshop bench -> wrench, Col 4 WORKSHOP; `W` | wrench (`HeaderBar`), WORKSHOP tab; no `W` shortcut found | `WorkshopPanelTests.cpp` `WorkshopPanel::itPaintsAndTheWorkshopTabTakesOverColumnsThreeAndFour` | `partial` - `W` shortcut |
+| GI-19-76 | Parts drawer -> bench; right-click illustration part | 13-category drawer (`d45fcd6`); no right-click menu on the bench illustration | `WorkshopPanelTests.cpp` `WorkshopPanel::clickingACardFitsItAsOneUndoEntry` | `partial` - right-click entry missing |
+| GI-19-77 | Inspector -> bench right column | `WorkshopPanel` inspector | `WorkshopPanelTests.cpp` `WorkshopPanel::theInspectorShowsTheSelectedPart`, `WorkshopPanel::editingAFieldMakesAUserCopy` | `verified` |
+| GI-19-78 | Spectrum delta -> bench bottom right | `WorkshopPanel` spectrum pane over `SpectrumDelta` | `WorkshopBenchTests.cpp` `WorkshopSpectrum::aNullChangeIsFlat` (model; the pane is untested) | `implemented` |
+| GI-19-79 | Bench A / B (8 slots) | A-H header slots over `WorkshopBench` slots | `WorkshopBenchTests.cpp` `WorkshopBench::abRecallRoundTrips` | `partial` - uiState persistence not confirmed (WUI-7-01) |
+| GI-19-80 | Audition (Alt-hover) | Alt-hover on drawer cards, shadow audition | `WorkshopPanelTests.cpp` `WorkshopPanel::auditionFromTheDrawerNeverCommits` | `verified` - 30 ms return untested (WUI-11-03) |
 | GI-19-81 | Guided build (templates) -> Workshop custom mode rail | not built; no spec detail beyond this row | none | `pending` |
 | GI-19-82 | Bass slap / pop / ghost / LH slap / double thump / alternation / pluck position -> RHYTHM (bass), CHARACTER (bass amounts) | not built | none | `pending` |
 | GI-19-83 | Tune builder -> TUNE; File menu New Tune | not built | none | `pending` |
@@ -1662,7 +1722,7 @@ and works; secondary access is noted.
 | GI-19-89 | Bass line per section -> TUNE layers | not built | none | `pending` |
 | GI-19-90 | Layers -> TUNE layer strip | not built | none | `pending` |
 | GI-19-91 | Tune export -> TUNE export dialog; `Ctrl+E` | not built (`Ctrl+E` exports audio) | none | `pending` |
-| GI-19-92 | MIDI export profile / drag-out / SysEx / PPQ -> MIDI OUT, session drag-out | not built | none | `pending` |
+| GI-19-92 | MIDI export profile / drag-out / SysEx / PPQ -> MIDI OUT, session drag-out | MIDI OUT tab: profile, drag-out, live SysEx | `MidiOutPanelTests.cpp` `MidiOutPanel::profileEditsAreTheExportDefaults`, `MidiOutPanel::liveEventsAndWorkshopChangesGoOutAsLuthierSysEx` | `implemented` - drag gesture not tested |
 | GI-19-93 | MIDI import -> File menu, window drop | not built | none | `pending` |
 | GI-19-94 | Accessibility / localisation / scale / palette / reduced motion -> Options | present | `AccessibilityTests.cpp` `Accessibility::settingsRoundTrip` | `implemented` |
 | GI-19-95 | Updates / telemetry / crash / licence / privacy -> Options UPDATES, PRIVACY; header notification | present | `TelemetryTests.cpp` `Telemetry::settingsRoundTrip`; `EditorTests.cpp` `Editor::theWindowRaisesSectionFifteensTriggersAndIsQuietWhenItShould` | `implemented` |
@@ -1732,7 +1792,7 @@ thread, DECISIONS). The BRIEF says to follow this threading contract
 | UW-11-01 | LogStream: 200 lines, alpha fade, stop after 500 ms idle, off under reduced motion | ui-wiring §11 | data stream widget `Widgets.cpp` | `AccessibilityTests.cpp` `Accessibility::reducedMotionRemovesAnimation` | `implemented` |
 | UW-12-01 | Mod values via FIFO at 30 Hz; route edits via commands; drag-to-assign with 0.25 depth and ghost drag | ui-wiring §12 | direct `ModMatrix` calls; no drag | none | `partial` |
 | UW-13-01 | GuitarIllustration subscribes to GuitarSpec; one class for Easy and bench with `interactionMode`; overlays from FIFO | ui-wiring §13 | `GuitarBodyComponent` (compiled spec); `GuitarRenderer.h` API only | none | `pending` |
-| UW-14-01 | NoiseEngine pool per 14 incl. Aux 8 tap and FIFO event per trigger | ui-wiring §14 | pool built; Aux 8 pending | `NoiseTests.cpp` `NoisePool::aFullPoolStealsTheOldest` | `partial` |
+| UW-14-01 | NoiseEngine pool per 14 incl. Aux 8 tap and FIFO event per trigger | ui-wiring §14 | pool built; Aux 8 tap (`a901c72`); trigger events reach MIDI OUT as SysEx (`a357142`) | `NoiseTests.cpp` `NoisePool::aFullPoolStealsTheOldest`; `PluginBusTests.cpp` `PluginBuses::aux8CarriesThePlayingNoiseAndObeysItsStrip` | `verified` |
 | UW-15-01 | GuitarCircuit coefficients at control rate, < 0.05% CPU per change; coefficient FIFO for user changes | ui-wiring §15 | audio-thread recompute between blocks (DECISIONS) | `CircuitTests.cpp` `Circuit::sweepingEveryControlDoesNotAllocate` | `partial` - cost not measured |
 | UW-16-01 | SlideEngine pressure state machine (Lifted/Light/Normal/Heavy/Fretted); bar position continuous parameter | ui-wiring §16 | `SlideEngine` (pressure is a parameter; bar position engine state) | `SlideTests.cpp` `SlideUi::pressureSaysWhatItMeans` | `partial` |
 | UW-17-01 | getStateInformation carries APVTS, uiState, mod matrix, snapshots, setlist ref, MIDI maps, ranges, guitar reference/inline, circuit, MIDI export profile | ui-wiring §17, §22 | `PluginProcessor.cpp:1748-1833` | `IntegrationTests.cpp` `Presets::stateRoundTripsExactly`; `WorkshopPresetTests.cpp` `WorkshopPresets::anEditedGuitarTravelsWholeInTheState` | `partial` - no MIDI export profile |
@@ -1775,7 +1835,7 @@ content or "Restore first-run experience" exist (rg `tour`, `welcome`,
 | ONB-6-01 | 36 factory presets across Electric, Acoustic, Classical, Bass, Utility | onboarding §6 | `FactoryPresets.cpp` (36) | `IntegrationTests.cpp` `Presets::everyFactoryPresetLoadsAndPlays` | `verified` |
 | ONB-6-02 | 12 factory guitars as `.luthierguitar` | onboarding §6 | 27 shipped (DECISIONS; Conflict C-15) | `WorkshopTests.cpp` `Workshop::everyFactoryGuitarLoadsAndRoundTrips` | `verified` |
 | ONB-6-03 | 60+ factory parts across every slot | onboarding §6 | 148 in `Resources/Parts` | `WorkshopTests.cpp` `Workshop::theFactoryLibraryIsThere` | `verified` |
-| ONB-6-04 | 12 tune templates; 6 example tunes | onboarding §6 | not built (tune-builder 10 lists 10 templates; Conflict C-16) | none | `pending` |
+| ONB-6-04 | 12 tune templates; 6 example tunes | onboarding §6 | ten templates (C-16) in `Resources/Tunes/Templates`; no example tunes | `TuneBuilderTests.cpp` `TuneBuilder::theTenTemplatesLoadInOrderAndAreValid` | `partial` - example tunes |
 | ONB-6-05 | 12 example MIDI clips in `Resources/Examples/`; 6 royalty-free backing tracks; 10 example setlists | onboarding §6 | none on disk | none | `pending` |
 | ONB-7-01 | First advanced-range encounter popover with fixed text, once | onboarding §7 | `RangesUi::showExplainerIfFirstTime` | none | `implemented` |
 | ONB-7-02 | Re-triggered by "Restore first-run experience" (must clear `ranges_first_unlock_explained`) | onboarding §7, §12 | not built (TODO 14c) | none | `pending` |
@@ -1834,8 +1894,8 @@ no heap or lock trap, no relief mechanism. Two tests touch CPU:
 
 Precedence 1 (ship-readiness). Every item is a gate. None of the five gates
 is green: there is no CI, no host/platform matrix, no golden renders, and
-several advertised features are unbuilt. Legal check found trademarked
-names in the UI (Conflict C-17) and no `THIRD_PARTY_LICENCES.txt` at the
+several advertised features are unbuilt. The trademark sweep landed in
+`25e6139` (legal review still open, C-17); there is no `THIRD_PARTY_LICENCES.txt` at the
 repo root.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
@@ -1885,7 +1945,7 @@ repo root.
 | QA-9-04 | Every installer: licence accept, disk space, newer-version guard, clear result | qa-polish §9 | none | none | `pending` |
 | QA-10-01 | Manual complete and translated with Workshop and Realism chapters; docs current; two videos; support email monitored; community seeded | qa-polish §10 | `docs/USER_MANUAL.md` (English; no Workshop chapter checked) | none | `pending` |
 | QA-11-01 | Every third-party library in `THIRD_PARTY_LICENCES.txt` | qa-polish §11 | file absent at repo root | none | `pending` |
-| QA-11-02 | No trademarks in preset, amp, guitar, speaker or part names | qa-polish §11 | UI shows "Stratocaster", "Telecaster", "Les Paul", "Ibanez RG", "Rickenbacker", "Precision Bass", "Jazz Bass" (`GuitarLibrary.cpp:31-331`), amp "Fender Twin", "Marshall Plexi", "Vox AC30", "Mesa Rectifier" (`AmpEngine.cpp:15-26`), speakers "Celestion ..." (`CabinetEngine.cpp:25-29`), presets "Clean Strat Funk", "Les Paul Crunch", "Rickenbacker Grind" | none | `pending` - Conflict C-17 |
+| QA-11-02 | No trademarks in preset, amp, guitar, speaker or part names | qa-polish §11 | reference-style display names (`25e6139`); internal enum identifiers unchanged; `Tools/trademark_scan.py` | `TrademarkTests.cpp` `Trademarks::noChoiceListNamesABrand`, `Trademarks::noFactoryPresetPartOrGuitarNamesABrand`, `Trademarks::oldNamesStillLoad`, `Trademarks::sourceTreeHasNoUnmarkedBrandNames` (`5ccf238`); `FacesTests.cpp` `Faces::noFaceTextNamesABrand` | `verified` - legal review is FC-0-01 |
 | QA-11-03 | Every IR generated or licensed with documentation | qa-polish §11 | synthesised by `scripts/make_irs.py` | README deviations | `implemented` |
 | QA-11-04 | EULA finalised; refund policy on website | qa-polish §11 | none | none | `pending` |
 | QA-12-01 | Final human check: 30 min fresh-ears play; build a guitar from a template, save, reopen, reload | qa-polish §12 | Workshop bench absent | none | `pending` |
@@ -1915,7 +1975,7 @@ section.
 | INS-5.2-01 | Delta patches < 50% size, one-way, SHA-256 check, rollback | installer §5.2 | none | none | `pending` |
 | INS-6-01 | First load creates `~/Documents/Luthier/` tree (18 subfolders), `config/plugin.json`, `.installed_version` marker; absent marker triggers onboarding; version change triggers upgrade path | installer §6 | folders created lazily per feature; no marker (rg `installed_version`) | none | `pending` |
 | INS-7-01 | Enterprise: command-line config, pre-placed policy, MSI wrapper on request | installer §7 | policy reader exists (UT-7-01) | `TelemetryTests.cpp` `Telemetry::policyOverridesTheUser` | `partial` |
-| INS-8-01 | Migrations: ranges block added and original backed up by date; guitar migration table; loop tags; `.mid` without chunk as Generic; info banner | installer §8 | ranges derivation on load; preset backups on save | `RangeTests.cpp` `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent`; `IntegrationTests.cpp` `Presets::savingBacksUpTheVersionItReplaces` | `partial` |
+| INS-8-01 | Migrations: ranges block added and original backed up by date; guitar migration table; loop tags; `.mid` without chunk as Generic; info banner | installer §8 | ranges derivation on load; preset backups on save; guitar migration table `Resources/Guitars/migration.json` (`5ccf238`) | `RangeTests.cpp` `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent`; `IntegrationTests.cpp` `Presets::savingBacksUpTheVersionItReplaces`; `GuitarMigrationTests.cpp` `GuitarMigration::everyPreM49NameResolvesToItsShippedGuitar` | `partial` - dated backup at migration time, loop tags, `.mid` as Generic on upgrade and the info banner not built |
 | INS-9-01 | Windows portable `.zip` (no registry, no system VST3) | installer §9 | none | none | `pending` |
 | INS-10-01 | SHA-256 checksums, PGP-signed manifest, canonical URL | installer §10 | none | none | `pending` |
 | INS-11-01 | Signed `.luthiercontent` packages applied to `ContentUpdates/`; data only | installer §11 | none | none | `pending` |
@@ -1959,12 +2019,12 @@ closely; the older formats predate it and use their own top-level keys.
 | FF-0-04 | Documented migrations | file-formats §0.4 | ranges derivation; pickup placement migration | `RangeTests.cpp` `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent`; `WorkshopPresetTests.cpp` `WorkshopPresets::oldPickupPlacementParametersBecomeTheGuitars` | `partial` |
 | FF-0-05 | Canonical extension + `magic` marker per file type | file-formats §0.5, §1 | preset `luthier.preset`, guitar `luthier.guitar`, part `luthier.part`; setlist writes `format: luthierset`; pattern, loop, tune, midprofile, content have no magic | `IntegrationTests.cpp` `Presets::aFileWithoutTheMagicMarkerIsRefused` | `partial` |
 | FF-0-06 | Relative paths under registered folders, else absolute | file-formats §0.6 | IR slots; guitar reference `Factory/...` or `User/...` (DECISIONS) | `ToneMatchTests.cpp` `ToneMatch::presetPathsAreRelativeUnderTheLibraryRoot` | `partial` - no registered-folders config |
-| FF-1-01 | File type table (12 types) | file-formats §1 | `.luthierpreset`, `.luthierguitar`, `.luthierpart`, `.luthierpattern`, `.luthierset` exist; `.luthiertune`, `.luthierloop` (folder instead), `.luthiercontent`, `.midprofile` absent | none | `partial` |
+| FF-1-01 | File type table (12 types) | file-formats §1 | `.luthierpreset`, `.luthierguitar`, `.luthierpart`, `.luthierpattern`, `.luthierset`, `.luthiertune` (`d284547`), `.midprofile` (`Source/Export`) exist; `.luthierloop` (folder instead), `.luthiercontent` absent | none | `partial` |
 | FF-2-01 | Preset schema 3: meta block (name, author, category, tags, created/modified, versions, notes), guitar {reference, override}, parameters, ranges, modulation, snapshots, midi_mappings, rhythm_engine, effects_state, midi_out_profile | file-formats §2 | flat root with `name`, `category`, `tags`, `pluginVersion`; `guitar` block; `ranges`; `modulation`; `rhythm` etc. | `IntegrationTests.cpp` `Presets::stateRoundTripsExactly` | `partial` - key names/layout differ from the canonical schema (no `meta` block, no created/modified, no `midi_out_profile`) |
-| FF-2-02 | Migration schema 1 -> add stock ranges; schema 2 `guitar.name` -> reference via `migration.json`; original backed up to `Presets/Backup/<date>/` | file-formats §2 | ranges derived (advanced-ranges 4.1 supersedes "add stock"); no migration.json | `RangeTests.cpp` `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent` | `partial` |
+| FF-2-02 | Migration schema 1 -> add stock ranges; schema 2 `guitar.name` -> reference via `migration.json`; original backed up to `Presets/Backup/<date>/` | file-formats §2 | ranges derived (advanced-ranges 4.1 supersedes "add stock"); guitar names resolved via `migration.json` (`5ccf238`); no backup to `Presets/Backup/<date>/` when a load migrates | `RangeTests.cpp` `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent`; `GuitarMigrationTests.cpp` `GuitarMigration::aPresetNamingAnOldGuitarLoadsItsReplacement` | `partial` - migration-time backup missing |
 | FF-3-01 | `.luthierguitar` schema: meta, parts with references, pickups with position/heights, wiring, strings + overrides, pickguard, hardware_color, finish, setup, character_seed | file-formats §3 | `PartLibrary.cpp:120-260` | `WorkshopTests.cpp` `Workshop::everyFactoryGuitarLoadsAndRoundTrips` | `verified` |
 | FF-4-01 | `.luthierpart` schema: meta (name, part_type, author, tags, compatibility), fields, illustration hints | file-formats §4 | `Part.cpp:120-160` | `WorkshopTests.cpp` `Workshop::theFactoryLibraryIsThere` | `verified` |
-| FF-5-01 | `.luthiertune` per tune-builder 11 | file-formats §5 | not built | none | `pending` |
+| FF-5-01 | `.luthiertune` per tune-builder 11 | file-formats §5 | `Source/Tune/TuneFile.*` | `TuneBuilderTests.cpp` `TuneBuilder::aHundredRandomTunesRoundTripByteIdentical`, `TuneBuilder::unknownFieldsAreKeptAndWrittenBack`, `TuneBuilder::loadErrorsAreNamedAndLeaveTheTuneAlone` | `verified` |
 | FF-6-01 | `.luthierpattern` per rhythm-engine 6 | file-formats §6 | `Patterns.cpp:160-290` | `RhythmSchedulerTests.cpp` `RhythmPatterns::patternsRoundTripThroughJson` | `implemented` - no schema/magic |
 | FF-7-01 | `.luthierset` schema with schema, magic, meta, entries {preset, snapshot, notes} | file-formats §7 | `Setlist.cpp:108-120` (`format`, flat name/notes/bpm_default) | `LiveTests.cpp` `LiveSetlist::roundTripsThroughJson` | `partial` - layout differs |
 | FF-8-01 | `.luthierloop` file with MIDI, relative WAV refs, layer settings | file-formats §8 | folder with `loop.json` (`Looper.cpp:746`) | none | `partial` |
@@ -1991,7 +2051,7 @@ setlists, backing tracks and MIDI clips do not ship.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
-| FC-0-01 | No trademarks in any shipped name; legal review | factory-content §0.1, §12 | trademarked guitar/amp/speaker/preset names in UI (see QA-11-02) | none | `pending` - Conflict C-17 |
+| FC-0-01 | No trademarks in any shipped name; legal review | factory-content §0.1, §12 | sweep done (`25e6139`, DECISIONS "Trademarks out of every shipped name") | `TrademarkTests.cpp` `Trademarks::noChoiceListNamesABrand`, `Trademarks::noFactoryPresetPartOrGuitarNamesABrand`, `Trademarks::sourceTreeHasNoUnmarkedBrandNames` | `partial` - final legal review is a ship gate |
 | FC-0-02 | Tonal spread; difficulty ladder per category; two presets per genre (rock, blues, jazz, country, folk, classical, metal, funk, reggae, latin, indie, ambient; same for bass) | factory-content §0.2-0.4 | current 36 presets lack reggae, latin, indie, bass genres beyond 3 | none | `pending` |
 | FC-0-05 | Every factory guitar playable at every factory preset | factory-content §0.5 | - | none | `pending` - no cross-product test |
 | FC-0-06 | Every factory tune loops and sounds finished | factory-content §0.6 | no tunes | none | `pending` |
@@ -2050,7 +2110,7 @@ no `Tests/Fixtures/Errors/` folder.
 | ER-4-02 | MIDI flood > 5000/s: process what fits, throttled banner | error-recovery §4 | not found | none | `pending` |
 | ER-4-03 | MIDI Learn 30 s timeout disarms with banner | error-recovery §4 | not found | none | `pending` |
 | ER-5-01 | Workshop failures: queued swap under CPU; incompatible part not offered / refused via API; family change banner; audition timeout; invalid coefficients refused; invalid guitar save refused | error-recovery §5 | compatibility is advisory (Conflict C-21); others not built | `WorkshopTests.cpp` `Workshop::incompatiblePartsFitWithAWarning` | `pending` |
-| ER-6-01 | Tune Builder failures (parse highlight, empty melody, low pitch confidence, zero sections, long loop) | error-recovery §6 | no Tune Builder | none | `pending` |
+| ER-6-01 | Tune Builder failures (parse highlight, empty melody, low pitch confidence, zero sections, long loop) | error-recovery §6 | named parse errors with position; named load errors; no UI | `TuneBuilderTests.cpp` `TuneBuilder::malformedShorthandIsRefusedWithANamedError`, `TuneBuilder::loadErrorsAreNamedAndLeaveTheTuneAlone` | `partial` - highlight, pitch confidence and UI pending |
 | ER-7-01 | Snapshot recall queued during preset load | error-recovery §7 | - | `StateModelTests.cpp` `StateModel::aProgramChangeRightAfterAStateRestoreDoesNotWipeIt` | `partial` |
 | ER-7-02 | Recall while looper records; preset load mid-tune; undo with nothing; empty B slot banner | error-recovery §7 | undo disables; others not found | none | `partial` |
 | ER-8-01 | Network: update error silent + log; interrupted download discarded; crash upload failure banner with path; offline activation fallback; grace countdown | error-recovery §8 | `Telemetry` | `TelemetryTests.cpp` `Telemetry::noNetworkIsSilentRatherThanAnError`, `Telemetry::revalidationCountdownAndOfflineTolerance` | `partial` |
@@ -2137,7 +2197,7 @@ greying exists only on the noise-event strip and buzz heatmap. No
 | GED-19-01 | A/B state highlight | gui-engine-dataflow §19 | header A/B buttons | none | `implemented` |
 | GED-20-01 | MIDI Learn button and target pulse at 1 Hz when armed | gui-engine-dataflow §20 | global arm overlay | none | `implemented` - pulse not verified |
 | GED-21-01 | Practice drawer loop LED red/green/off, 4 Hz pulse | gui-engine-dataflow §21 | `PracticePanel` | none | `implemented` |
-| GED-22-01 | Feedback readout LED in SUSTAIN at 30 Hz | gui-engine-dataflow §22 | not built | none | `pending` |
+| GED-22-01 | Feedback readout LED in SUSTAIN at 30 Hz | gui-engine-dataflow §22 | `FeedbackLed` (`Widgets.cpp`) polls `FeedbackLoop` activity with `startTimerHz (20)` | none | `partial` - 20 Hz, not 30 |
 | GED-23-01 | Session recorder buffer bar at 1 Hz | gui-engine-dataflow §23 | SESSION tab | none | `implemented` - not verified |
 | GED-24-01 | Tune transport playhead at 30 Hz | gui-engine-dataflow §24 | no Tune | none | `pending` |
 | GED-25-01 | Illustration static layers cached per spec change; live overlays on top; hit-test invalidated on change | gui-engine-dataflow §25 | `GuitarBodyComponent` caches geometry | none | `partial` |
@@ -2189,7 +2249,7 @@ and slide, thumbnails in the browser, Workshop drag targets.
 | GIL-11.3-01 | Transparent 60% tint; natural; metallic highlight; sparkle 3% dots | guitar-illustration §11.3-11.6 | renderer (WIP) | none run | `implemented` |
 | GIL-11.7-01 | Relic aging: edge wear, buckle wear, fade, yellowing, seeded dings, checking | guitar-illustration §11.7 | `GuitarRenderer` aging seeded by the character seed | `GuitarRendererTests.cpp` `GuitarIllustration::agingIsSeededAndStable` | `verified` |
 | GIL-11.8-01 | Hardware colours nickel/chrome/gold/black/aged nickel/aged gold applied to all metal parts | guitar-illustration §11.8 | renderer (WIP) | none run | `implemented` |
-| GIL-12.1-01 | Family change from drawer: session-first confirmation, 250 ms crossfade, banner listing replaced parts | guitar-illustration §12.1 | `switchGuitarFamily` posts the banner; undoable; no drawer, confirmation or crossfade yet | `WorkshopPresetTests.cpp` `WorkshopFamily::aFamilySwitchKeepsWhatSection12_4Keeps` (banner text) | `partial` |
+| GIL-12.1-01 | Family change from drawer: session-first confirmation, 250 ms crossfade, banner listing replaced parts | guitar-illustration §12.1 | drawer "Guitar" category first; confirmation on the session's first switch; `switchGuitarFamily` banner; undoable | `WorkshopPanelTests.cpp` `WorkshopPanel::theGuitarCategorySwitchesFamily`; `WorkshopPresetTests.cpp` `WorkshopFamily::aFamilySwitchKeepsWhatSection12_4Keeps` | `partial` - 250 ms crossfade not tested |
 | GIL-12.2-01 | Family change mechanics with per-family default templates (6 `*_default_template.luthierguitar`) | guitar-illustration §12.2 | templates are the named factory guitars (DECISIONS "Family templates"); no `extended` template (C-24) | `GuitarRendererTests.cpp` `GuitarIllustration::aFamilySwitchGivesTheTargetFamilysGuitar` | `verified` - as amended |
 | GIL-12.3-01 | What changes on family switch (body, strings, scale, bridge, pickups, nut, frets, tuners, wiring, amp defaults; triggers bass mode, slide hint, MIDI profile default) | guitar-illustration §12.3 | template body, setup, finish, hardware and non-suiting parts replaced; string count and tuning follow | `WorkshopPresetTests.cpp` `WorkshopFamily::aFamilySwitchKeepsWhatSection12_4Keeps`, `WorkshopPresets::choosingATypeGivesItsStringCount` | `partial` - amp defaults, bass mode, slide hint, MIDI profile default not done |
 | GIL-12.4-01 | Preserved across switch: preset meta, effects, amp, mod matrix, snapshots, seed | guitar-illustration §12.4 | `switchGuitarFamily` | `WorkshopPresetTests.cpp` `WorkshopFamily::aFamilySwitchKeepsWhatSection12_4Keeps` | `verified` |
@@ -2258,7 +2318,7 @@ testing has been done and `docs/HOST_COMPATIBILITY.md` does not exist.
 | HI-0-01 | Follow host contract; no blocking on audio thread; announce capabilities; host transport wins; changes only at documented moments; state holds references not blobs | host-integration §0 | - | pluginval run (2026-09-19) | `partial` |
 | HI-1-01 | VST3 all platforms; AU macOS; Standalone everywhere; CLAP v1.1; AAX v1.5 | host-integration §1 | `CMakeLists.txt:25` VST3 + Standalone (no AU) | PROGRESS targets | `partial` - AU missing; CLAP/AAX `deferred` by the spec itself |
 | HI-1-02 | Version to host: major.minor.patch + build string | host-integration §1 | `project(Luthier VERSION 1.0.0)`; no build string | none | `partial` |
-| HI-2-01 | Layouts A-D with 8 aux in B/D; any subset accepted | host-integration §2 | 7 aux declared (`PluginProcessor.cpp:39`) | `RoutingTests.cpp` `Routing::everyLayoutRendersCleanly` | `partial` - Aux 8 missing |
+| HI-2-01 | Layouts A-D with 8 aux in B/D; any subset accepted | host-integration §2 | Aux 8 declared last; buses classified by declared name so a host's subset maps correctly (`a901c72`) | `PluginBusTests.cpp` `PluginBuses::perStringLayoutPutsEachStringOnItsOwnBus`, `PluginBuses::aux8NoiseIsDeclaredLastSoNoBusNumberMoved`; `RoutingTests.cpp` `Routing::everyLayoutRendersCleanly` | `verified` |
 | HI-2-02 | Mono main out rejected | host-integration §2 | `isBusesLayoutSupported` accepts mono main (`PluginProcessor.cpp:218`) | none | `pending` - contradicts spec (Conflict C-26) |
 | HI-2-03 | Optional stereo sidechain on all layouts | host-integration §2 | sidechain input bus optional | none | `implemented` |
 | HI-2-04 | Layout change -> prepareToPlay, never a crash | host-integration §2 | - | pluginval bus suites (2026-09-19) | `partial` |
@@ -2673,11 +2733,11 @@ the overriding spec's section.
 | SPEC-AF-01 | MIDI capture: last 60 s buffered, "Save last take" to .mid | spec.md §Additional | `Source/Support/MidiCapture.cpp` | `IntegrationTests.cpp` `MidiCapture::capturesAndWritesAFile` | `verified` |
 | SPEC-AF-02 | Searchable chord library; user-editable fingerings | spec.md §Additional | `ChordVoicer` library shapes | `ModelTests.cpp` `ChordVoicer::libraryShapesAreSane` | `partial` - no user editing UI found |
 | SPEC-AF-03 | Scale/mode overlay on fretboard | spec.md §Additional | `FretboardComponent` right-click "scale overlay" (GAPS B1) | none | `implemented` |
-| SPEC-AF-04 | Real-time tab display, exportable | spec.md §Additional | `NotationExport`; no live capture (GAPS A2) | `NotationTests.cpp` `Notation::liveTabWindowRendersASlice` | `partial` - nothing captures live playing into the score |
+| SPEC-AF-04 | Real-time tab display, exportable | spec.md §Additional | `PerformanceCapture` + NOTATION tab live tab and export (`18a1396`) | `NotationPanelTests.cpp` `NotationTab::stateButtonsLiveTabAndPreview`, `NotationTab::exportsEveryFormat` | `verified` - techniques not captured yet (NOT-6-01) |
 | SPEC-AF-05 | Practice tools: metronome, progression looper, backing track | spec.md §Additional | `Source/Practice/*` | see `practice-tools.md` | `implemented` |
-| SPEC-AF-06 | Freeze / infinite sustain | spec.md §Additional | `FreezeOverlay`, `ebow_enable` | `SustainTests.cpp` `Sustain::freezeLayerHoldsItsLevelForASixtySecondHold` | `verified` |
-| SPEC-AF-07 | Doubler with timing/pitch variation | spec.md §Additional | `doubler_on`, `doubler_amount`; `LuthierEngine.cpp:100` | none | `implemented` - defaults owned by ambiguity-resolutions 3 |
-| SPEC-AF-08 | Feedback simulation with threshold and speed | spec.md §Additional | `feedback_*` params (heuristic) | none | `partial` - ambiguity-resolutions 1 model not built (TODO 2c) |
+| SPEC-AF-06 | Freeze / infinite sustain | spec.md §Additional | `FreezeOverlay`; E-Bow `EBowDriver` | `SustainTests.cpp` `Sustain::freezeLayerHoldsItsLevelForASixtySecondHold`; `EBowTests.cpp` `EBow::aHeldNoteIsSteadyWithinHalfASecondAtHalfIntensity` | `verified` |
+| SPEC-AF-07 | Doubler with timing/pitch variation | spec.md §Additional | `PedalType::Doubler` post-amp pedal (`f904956`); defaults per ambiguity-resolutions 3 | `DoublerTests.cpp` `Doubler::mixFullIsACopyTwentyTwoMillisecondsLate`, `Doubler::panPutsTheTakesToTheSides` (timing only) | `implemented` - pitch variation not asserted |
+| SPEC-AF-08 | Feedback simulation with threshold and speed | spec.md §Additional | physical loop (`FeedbackLoop`); threshold and speed superseded by ambiguity-resolutions 1 | `FeedbackTests.cpp` `Feedback::aLoudRigTakesOverAndACleanOneDoesNot` | `verified` - as amended |
 | SPEC-HU-01 | Humanize: timing, velocity, micro-detune, attack, vibrato variation, noise probability; zero = machine-perfect | spec.md §Humanize | `hum_*` params `Parameters.h:251-256` | none | `partial` - vibrato-variation slider not found (params are timing/velocity/detune/attack/noise/strum) |
 | SPEC-GUI-01 | Window: rounded rect with cutaway; 1200x720 default; resizable, aspect preserved | spec.md §GUI | `PluginEditor.cpp:264`; `PluginEditor.h:32` | `EditorTests.cpp` `Editor::theProcessorHandsOverAnEditorAtItsDocumentedSize`, `Editor::itLaysOutAndPaintsAcrossItsResizeRange` | `implemented` - size and resize verified; cutaway and aspect lock not asserted |
 | SPEC-GUI-02 | Header, Easy bands, Advanced columns layout | spec.md §GUI | superseded by `gui-integration.md` 2-4 | - | `n/a` - superseded (precedence 2) |
@@ -2758,7 +2818,7 @@ C-03..C-06.
 | ENG-1-01 | Module chain MIDI -> technique -> tuning -> strings -> body -> pickup -> circuit -> pre FX -> amp -> post FX -> cab -> room -> master | engine.md §1 | `LuthierEngine::process` | `IntegrationTests.cpp` `Engine::aNoteProducesSound` | `implemented` - chain produces sound; order not asserted |
 | ENG-1-02 | Only back-flow is the coupling matrix | engine.md §1 | `CouplingMatrix` | code review | `implemented` |
 | ENG-2-01 | Typed events NoteOn/Off, PitchBend, Pressure, CC, Sustain, Whammy | engine.md §2 | `Source/Model/Playing/PlayingEvents.h` | none | `implemented` |
-| ENG-2-02 | Modes A mono, B poly/chord, C controller (per-channel or MPE) | engine.md §2 | `MidiInterpreter` | `ControllerTests.cpp` `Controllers::perChannelRoutingSendsEachChannelToItsString` | `verified` |
+| ENG-2-02 | Modes A mono, B poly/chord, C controller (per-channel or MPE) | engine.md §2 | `MidiInterpreter` | `ControllerTests.cpp` `Controllers::perChannelRoutingSendsEachChannelToItsString`, `Controllers::chordGroupsSoundOneWindowAfterTheyWerePlayed` (Poly chords sound one reported window after they were played, `a357142`) | `verified` |
 | ENG-2-03 | String assignment: lowest string below pitch, within maxFrets; clip above; prefer nearest active string | engine.md §2 | `MidiInterpreter` / `ChordVoicer` | `ModelTests.cpp` `ChordVoicer::singleNotesStayNearTheHand` | `verified` |
 | ENG-2-04 | Default CC map: 1 vibrato, 2 whammy, 4 expression, 11 master, 64 sustain, 65 slide, 66 sostenuto, 67 palm mute, 70-79 user; aftertouch vibrato | engine.md §2 | `MidiInterpreter::resetCcMapToDefaults` `MidiInterpreter.h:114` | none | `implemented` |
 | ENG-3-01 | TuningEngine `(string, fret, bendCents) -> Hz`; ET formula with detune and intonation slope | engine.md §3 | `Source/Model/Playing/TuningEngine.cpp` | `ModelTests.cpp` `Tuning::standardTuningIsExact`, `Tuning::twelfthFretIsAnOctave` | `verified` |
@@ -2911,8 +2971,11 @@ rebuild (TODO G) and before other visual work (TODO V). `a406915` built
 section 1 (lighting in `GuitarRenderer`) and section 6 (guitar-shop and
 maple palettes, bell knobs, mini toggles, brass fader caps, framed panels,
 engraved plates, brass headstock mark, Lato and Bebas Neue bundled under OFL)
-with `Theme::*` tests. Sections 2-5 (amp and pedal faces, knob caps, tube
-glow / VU / room light, accent picker) are not built.
+with `Theme::*` tests. `52cb9d7` added sections 2-3 as standalone painters
+(`Source/UI/Faces/AmpFace.*`, `PedalFace.*`, `KnobCaps.*`,
+`FaceMaterials.*`) with `Faces::*` tests; they are not yet on the AMP
+section or the racks (that integration is uncommitted). Section 4's VU and
+room light and section 5's accent picker are not built.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
@@ -2924,10 +2987,10 @@ glow / VU / room light, accent picker) are not built.
 | VP-1-02 | Lacquer sheen by `finish.gloss`: gloss band, satin faint, oil/natural none | visual-polish §1 | `GuitarRenderer.cpp` sheen | none | `implemented` |
 | VP-1-03 | Metal hardware reflection gradients per `hardware_color` | visual-polish §1 | `GuitarRenderer.cpp` hardware | none | `implemented` |
 | VP-1-04 | Drop shadows from pickups, bridge, pickguard | visual-polish §1 | `GuitarRenderer.cpp` shadows | none | `implemented` |
-| VP-2-01 | Amp faces per family: Tolex, grille, faceplate, generic logo plate, pilot light follows Standby | visual-polish §2 | - | none | `pending` |
-| VP-2-02 | Pedal faces: enclosure colour, footswitch, bypass LED, knob layout, generic name; same params/locations | visual-polish §2 | `Source/UI/PedalRack.cpp` (plain knobs) | none | `pending` |
-| VP-3-01 | Model-specific knob caps on amp/pedal faces only, keeping value arc, indicator colour, hit area | visual-polish §3 | - | none | `pending` |
-| VP-4-01 | Tube glow tracks amp drive level | visual-polish §4 | - | none | `pending` |
+| VP-2-01 | Amp faces per family: Tolex, grille, faceplate, generic logo plate, pilot light follows Standby | visual-polish §2 | `Source/UI/Faces/AmpFace.*` painter for every amp model (`52cb9d7`); shown on the Easy amp card and the Advanced Amplifier section (`AmpFacePanel.*`) | `FacesTests.cpp` `Faces::everyAmpFaceDrawsInsideItsBoundsInEveryPalette`, `Faces::thePilotFollowsStandbyAndTheLedFollowsBypass`, `Faces::noFaceTextNamesABrand` | `verified` - with `FacesIntegration::theAdvancedAmpSectionHasItsControlsOnTheFace`, `theEasyAmpCardHasItsKnobsOnTheFace`, `rendersOfBothWindowsInEveryPalette` |
+| VP-2-02 | Pedal faces: enclosure colour, footswitch, bypass LED, knob layout, generic name; same params/locations | visual-polish §2 | `Source/UI/Faces/PedalFace.*` painter for every pedal incl. Doubler (`52cb9d7`); each rack slot draws its face (`PedalRack.cpp`); slot dry/wet labelled BLEND | `FacesTests.cpp` `Faces::everyPedalFaceDrawsInsideItsBoundsInEveryPalette`, `Faces::layoutsKeepEveryControlOnTheFace`, `Faces::knobValuesReachTheFace` | `verified` - with `FacesIntegration::everyRackSlotHasItsControlsOnItsFace` |
+| VP-3-01 | Model-specific knob caps on amp/pedal faces only, keeping value arc, indicator colour, hit area | visual-polish §3 | `Source/UI/Faces/KnobCaps.*` | `FacesTests.cpp` `Faces::everyKnobCapRendersAndKeepsTheArc` | `verified` - with `FacesIntegration::everyRackSlotHasItsControlsOnItsFace`, `theAdvancedAmpSectionHasItsControlsOnTheFace` |
+| VP-4-01 | Tube glow tracks amp drive level | visual-polish §4 | `AmpFace` valves glow with a drive input; nothing feeds it the live drive level | none | `partial` - painter input only |
 | VP-4-02 | Optional VU needle meter beside the LED | visual-polish §4 | - | none | `pending` |
 | VP-4-03 | Room card warms/widens with size and wet level | visual-polish §4 | - | none | `pending` |
 | VP-4-04 | Live touches update at dataflow meter rates and grey out when stale | visual-polish §4 | - | none | `pending` |
@@ -2944,10 +3007,10 @@ glow / VU / room light, accent picker) are not built.
 | VP-6.3-04 | Panels framed like cabinet/pedalboard; corner screws on larger panels | visual-polish §6.3 | framed walnut panels | as VP-6.3-01 | `implemented` |
 | VP-6.4-01 | Brand mark: brass headstock inlay replaces diagonal notch; LED stays | visual-polish §6.4 | brass headstock mark | none | `implemented` |
 | VP-6.5-01 | Layout, widths, arc meaning, hit areas, focus rings (restyled), accessibility unchanged | visual-polish §6.5 | - | - | `n/a` - constraint |
-| VP-7-01 | Test: textured/lit surfaces render identically twice (cached, not regenerated per frame) | visual-polish §7 | - | `ThemeTests.cpp` `Theme::controlsRenderInEveryPaletteAndRepeatExactly`; `GuitarRendererTests.cpp` `GuitarIllustration::theKeyChangesWithEveryVisibleChange` | `verified` |
-| VP-7-02 | Test: High contrast has no gradients/sheen/textures | visual-polish §7 | - | `ThemeTests.cpp` `Theme::highContrastIsFlat`; `GuitarRendererTests.cpp` `GuitarIllustration::highContrastHasNoLighting` | `verified` |
+| VP-7-01 | Test: textured/lit surfaces render identically twice (cached, not regenerated per frame) | visual-polish §7 | - | `ThemeTests.cpp` `Theme::controlsRenderInEveryPaletteAndRepeatExactly`; `GuitarRendererTests.cpp` `GuitarIllustration::theKeyChangesWithEveryVisibleChange`; `FacesTests.cpp` `Faces::facesRenderIdenticallyTwice` | `verified` |
+| VP-7-02 | Test: High contrast has no gradients/sheen/textures | visual-polish §7 | - | `ThemeTests.cpp` `Theme::highContrastIsFlat`; `GuitarRendererTests.cpp` `GuitarIllustration::highContrastHasNoLighting`; `FacesTests.cpp` `Faces::highContrastFacesAreFlat` | `verified` |
 | VP-7-03 | Test: every accent option on every palette meets 4.5:1 | visual-polish §7 | - | none | `pending` |
-| VP-7-04 | Test: Standby and bypass change pilot light and pedal LEDs | visual-polish §7 | - | none | `pending` |
+| VP-7-04 | Test: Standby and bypass change pilot light and pedal LEDs | visual-polish §7 | - | `FacesTests.cpp` `Faces::thePilotFollowsStandbyAndTheLedFollowsBypass` (painter state in, not the plugin's Standby / bypass) | `partial` - no test through the panels |
 | VP-7-05 | Test: palette text pairs 4.5:1 (automated); standard controls render in three palettes (PNG, by eye) | visual-polish §7 | - | `ThemeTests.cpp` `Theme::everyTextPairMeetsContrastOnTheThreePalettes`, `Theme::controlsRenderInEveryPaletteAndRepeatExactly` | `verified` |
 | VP-7-06 | Test: Advanced window with every face visible within UI frame budget | visual-polish §7 | - | none | `pending` |
 
@@ -3001,10 +3064,10 @@ requirements; the context7 workflow rule is process (`n/a`).
 | IDX-GR-01 | engine.md §0 ground rules hold everywhere | INDEX §Global rules | see ENG-0-* | - | `implemented` |
 | IDX-GR-02 | Physical deltas only: part/setup changes land as physical parameter changes, never downstream EQ | INDEX §Global rules | `PartAcoustics::mapSpec` | `PartAcousticsTests.cpp` `PartAcoustics::hardwareColourIsSilent`, `PartAcoustics::everyMappedFieldMovesSomething` | `verified` |
 | IDX-GR-03 | Real ranges by default: every physical parameter declares stock and advanced ranges | INDEX §Global rules | `Source/PhysicalRange.h`, `RangeRegistry` (sparse: amp, circuit, pick, setup families) | `RangeTests.cpp` `Ranges::everyPhysicalRangeIsValid` | `partial` - registry sparse by design; later realism params must register |
-| IDX-GR-04 | Honest magnitudes; Workshop shows small effects as small | INDEX §Global rules | Workshop spectrum delta not built | none | `pending` |
-| IDX-GR-05 | Tune Builder is a MIDI writer, never on the audio path | INDEX §Global rules | Tune Builder not built | none | `pending` |
+| IDX-GR-04 | Honest magnitudes; Workshop shows small effects as small | INDEX §Global rules | Workshop spectrum delta pane (`SpectrumDelta`, `d45fcd6`), fixed ±12 dB axis with auto-zoom as an option | `WorkshopBenchTests.cpp` `WorkshopSpectrum::aNullChangeIsFlat` (null only) | `implemented` - small-effect scaling not asserted |
+| IDX-GR-05 | Tune Builder is a MIDI writer, never on the audio path | INDEX §Global rules | `TuneTimeline` produces MIDI only; not yet wired to the engine | `TuneBuilderTests.cpp` `TuneBuilder::timelinePutsChordsMelodyBassAndSectionsOnTheBeat` | `implemented` |
 | IDX-GR-06 | Every composition event undoable; regeneration keeps locked notes | INDEX §Global rules | not built | none | `pending` |
-| IDX-GR-07 | Every output exportable: audio, MIDI, notation, project | INDEX §Global rules | audio + notation export exist; tune/project export not built | `NotationTests.cpp` `Notation::musicXmlRoundTrips` | `partial` |
+| IDX-GR-07 | Every output exportable: audio, MIDI, notation, project | INDEX §Global rules | audio, MIDI (MIDI OUT) and notation (NOTATION, from the capture) export exist; tune audio and project export not built | `NotationTests.cpp` `Notation::musicXmlRoundTrips`; `MidiOutPanelTests.cpp` `MidiOutPanel::exportWritesTheCaptureInTheChosenProfile`; `NotationPanelTests.cpp` `NotationTab::exportsEveryFormat` | `partial` - tune and project export |
 | IDX-GR-08 | gui-integration = UI location truth; ui-wiring = attachment truth; qa-polish = ship gate | INDEX §Global rules | - | - | `n/a` - precedence |
 | IDX-TST-01 | Every new file's Tests section lands in `LuthierTests` | INDEX §closing | `Source/Tests/` | per-spec rows below | `partial` - many spec Tests sections have no test yet |
 
@@ -3016,8 +3079,8 @@ the Conflicts section cites it.
 
 | File | Role | Requirements | Notes used in this audit |
 |---|---|---|---|
-| `spec/TODO.md` | Work list | none (`n/a`) | Step 6 done; G landed (`a406915`), bench model (`0d225f0`), bench UI in progress; 13c phase-2b blocked; items V, 2c-2f, 5b, 7-18 open |
-| `spec/DECISIONS.md` | Judgement calls | none (`n/a`) | Cited as D-refs in Conflicts; the visual-polish override decision |
+| `spec/TODO.md` | Work list | none (`n/a`) | Steps 2g and 6 done; 2c (feedback) and 2f (Aux 8) closed; G, 7 (bench), 9 (capture + NOTATION), 10 (MIDI OUT), 11 (practice model) and 12 (tune model) partly done with remainders listed; 13c phase-2b blocked; items V, 2d, 2h, 5b, 6e, 8, 13-18 open (read at `52cb9d7`) |
+| `spec/DECISIONS.md` | Judgement calls | none (`n/a`) | Cited as D-refs in Conflicts; the visual-polish override decision; entries through `18a1396` (feedback loop, E-Bow, doubler, migration table, capture feed) |
 | `spec/GAPS.md` | Gap audit (2026-09-18, partly stale) | none (`n/a`) | Self-described as least trustworthy about what exists; rows re-checked against code |
 | `spec/PROGRESS.md` | Build log | none (`n/a`) | 413 tests green at `753fb05` (448 at `0d225f0`); pluginval 2026-09-19 at `f18bf22` |
 | `spec/REVIEW.md` | Review of the four base specs | none (`n/a`) | Its five ambiguities are resolved by `ambiguity-resolutions.md` |

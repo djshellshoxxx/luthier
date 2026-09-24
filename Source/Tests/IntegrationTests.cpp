@@ -652,9 +652,9 @@ LUTHIER_TEST (Parameters, everyParameterHasAUniqueIdAndSaneDefault)
         implementation detail, and something that should have to be changed on
         purpose. docs/CHANGELOG.md quotes this number; if you change the set,
         change it there too. */
-    CHECK_MSG (seen.size() == 401,
+    CHECK_MSG (seen.size() == 402,
                "the parameter list has changed size: " + juce::String (seen.size())
-                 + " parameters, expected 401 - saved host automation is indexed "
+                 + " parameters, expected 402 - saved host automation is indexed "
                    "against this list");
 }
 
@@ -762,6 +762,11 @@ LUTHIER_TEST (Presets, stateRoundTripsExactly)
     {
         const float now = p->getValue();
         const float then = before[index++];
+
+        // A preset never carries the morph position (ambiguity-resolutions 5).
+        if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
+            if (withId->paramID == ParamIDs::presetMorphPosition)
+                continue;
 
         if (std::abs (now - then) > 1.0e-4f)
             ++mismatches;

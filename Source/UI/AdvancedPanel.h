@@ -31,6 +31,7 @@
 #include "FretboardComponent.h"
 #include "GuitarBodyComponent.h"
 #include "PedalRack.h"
+#include "AmpFacePanel.h"
 
 namespace luthier
 {
@@ -246,8 +247,10 @@ private:
 
     // --- column 4 -----------------------------------------------------------------
     std::unique_ptr<LuthierChoice> ampModel;
-    std::unique_ptr<LuthierKnob> ampGain, ampBass, ampMid, ampTreble, ampPresence, ampMaster;
-    std::unique_ptr<LuthierToggle> ampBright, ampMidBoost, ampStandby;
+
+    /** visual-polish.md 2: the amp's face, carrying gain, bass, mid, treble,
+        presence, master and the bright, mid boost and standby switches. */
+    std::unique_ptr<AmpFacePanel> ampFace;
 
     std::unique_ptr<LuthierToggle> cabOn, dualMic;
     std::unique_ptr<LuthierChoice> cabType, cabSpeaker, micType, micPosition, micDistance,

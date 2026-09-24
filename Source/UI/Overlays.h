@@ -327,6 +327,13 @@ private:
     juce::TextButton deleteButton { "Delete" };
     juce::TextButton saveAsButton { "Save As..." };
 
+    // ambiguity-resolutions.md 5.2: Morph, its two slots and the slider.
+    void refreshMorph();
+    juce::TextButton morphToggle { "Morph" };
+    juce::TextButton slotAButton { "A" }, slotBButton { "B" };
+    juce::Slider morphSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> morphAttachment;
+
     juce::Array<int> visibleIndices;
 
     class PresetListModel : public juce::ListBoxModel

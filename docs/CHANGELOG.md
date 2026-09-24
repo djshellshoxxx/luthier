@@ -43,6 +43,17 @@ numbered, because what it should be called is a release decision.
   out of tune, panned away from the original, with a mirror-image second take
   in stereo, and its own tone filters. It replaces the old Doubler switch
   (which sat after the cabinet); presets that used it get the pedal.
+- **Preset morph** (`ambiguity-resolutions.md` 5) - turn on Morph in the
+  preset browser, load a preset into A and another into B, and the slider
+  blends between them: knob settings glide, switches and pedal choices change
+  over at the middle, and each end sounds exactly like its preset. The slider
+  is automatable (`preset_morph_position`; the parameter count is 402). A
+  snapshot recall ends the morph.
+- **Amp and pedal faces in the rack** (`proposals/visual-polish.md` 2-3) -
+  each pedal in the rack is drawn as its enclosure, with its own knob caps,
+  and the amp card in Easy and Advanced modes shows the amp's faceplate. The
+  slot's own dry / wet knob is labelled BLEND so it is not confused with a
+  pedal's Mix.
 - **The NOTATION tab** (`notation-export.md`) - everything you play is kept
   (the last ten minutes by default, or arm a deliberate take) as what the
   guitar actually played - string and fret - and shown as scrolling tab with
@@ -243,6 +254,10 @@ numbered, because what it should be called is a release decision.
 
 ### Fixed
 
+- **Factory presets now load their pedals as designed.** Every preset's
+  pedals were reset to the pedal's defaults as they loaded, so a preset's
+  drive, delay or chorus settings never reached the sound. A pedal you pick
+  yourself still starts at its defaults.
 - **Rendering the same thing twice now gives the same audio**, including the
   first render after a preset change. Several parts of the engine kept state
   through a reset: pedal mix and bypass ramps, the pickup selector fade, a

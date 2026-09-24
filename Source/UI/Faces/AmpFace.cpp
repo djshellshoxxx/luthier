@@ -168,8 +168,67 @@ namespace
         }
     }
 
-    const char* const knobLabels[numAmpKnobs] = { "GAIN", "BASS", "MIDDLE", "TREBLE", "PRESENCE", "MASTER" };
-    const char* const switchLabels[numAmpSwitches] = { "BRIGHT", "MID", "STANDBY" };
+    // Full and short forms: the short ones are what a small face prints rather than truncate.
+    const char* const knobLabels[numAmpKnobs]      = { "GAIN", "BASS", "MIDDLE", "TREBLE", "PRESENCE", "MASTER" };
+    const char* const knobShortLabels[numAmpKnobs] = { "GAIN", "BASS", "MID", "TREB", "PRES", "MSTR" };
+    const char* const switchLabels[numAmpSwitches]      = { "BRIGHT", "MID", "STANDBY" };
+    const char* const switchShortLabels[numAmpSwitches] = { "BRT", "MID", "STBY" };
+
+    constexpr float knobLabelMax = 11.0f, switchLabelMax = 8.5f, inputLabelMax = 8.0f;
+
+    /** Fits a row of labels at one height: the full forms while they print at a
+        comfortable size, the short ones when those print larger, else none. */
+    template <size_t N>
+    std::array<FittedPrint, N> fitRow (const std::array<juce::Rectangle<float>, N>& areas,
+                                       const char* const (&full)[N], const char* const (&shortForms)[N], float maxHeight)
+    {
+        // The height every label of a row fits at, or 0 when one of them fits at none.
+        auto sharedHeight = [&areas, maxHeight] (const char* const* forms)
+        {
+            float shared = maxHeight;
+            bool any = false;
+
+            for (size_t i = 0; i < N; ++i)
+            {
+                if (areas[i].isEmpty())
+                    continue;
+
+                any = true;
+                shared = juce::jmin (shared, fitPrintHeight (forms[i], areas[i], maxHeight, false));
+            }
+
+            return any ? shared : 0.0f;
+        };
+
+        const float fullHeight = sharedHeight (full);
+        const float shortHeight = sharedHeight (shortForms);
+
+        const char* const* forms = nullptr;
+        float height = 0.0f;
+
+        if (fullHeight > 0.0f && (fullHeight >= maxHeight * 0.8f || fullHeight >= shortHeight))
+        {
+            forms = full;
+            height = fullHeight;
+        }
+        else if (shortHeight > 0.0f)
+        {
+            forms = shortForms;
+            height = shortHeight;
+        }
+        else
+        {
+            return {};
+        }
+
+        std::array<FittedPrint, N> row;
+
+        for (size_t i = 0; i < N; ++i)
+            if (! areas[i].isEmpty())
+                row[i] = { forms[i], height };
+
+        return row;
+    }
 
     juce::Path rounded (juce::Rectangle<float> r, float corner)
     {
@@ -223,6 +282,27 @@ KnobCap knobCapFor (AmpModel model) noexcept
     return lookFor (model).cap;
 }
 
+bool standbyIsRocker (AmpModel model) noexcept
+{
+    return lookFor (model).rockers;
+}
+
+juce::String ampKnobLabel (AmpKnob knob, bool shortForm)
+{
+    if (! juce::isPositiveAndBelow ((int) knob, (int) numAmpKnobs))
+        return {};
+
+    return shortForm ? knobShortLabels[knob] : knobLabels[knob];
+}
+
+juce::String ampSwitchLabel (AmpSwitch sw, bool shortForm)
+{
+    if (! juce::isPositiveAndBelow ((int) sw, (int) numAmpSwitches))
+        return {};
+
+    return shortForm ? switchShortLabels[sw] : switchLabels[sw];
+}
+
 juce::StringArray ampFaceTexts (AmpModel model)
 {
     juce::StringArray texts;
@@ -231,35 +311,65 @@ juce::StringArray ampFaceTexts (AmpModel model)
     for (auto* s : knobLabels)
         texts.add (s);
 
+    for (auto* s : knobShortLabels)
+        texts.addIfNotAlreadyThere (s);
+
     for (auto* s : switchLabels)
         texts.add (s);
 
+    for (auto* s : switchShortLabels)
+        texts.addIfNotAlreadyThere (s);
+
     texts.add ("INPUT");
+    texts.add ("IN");
     return texts;
 }
 
-AmpFaceLayout layoutAmpFace (juce::Rectangle<float> bounds, AmpModel model)
+AmpFaceLabels fitAmpFaceLabels (const AmpFaceLayout& l)
+{
+    AmpFaceLabels fitted;
+    fitted.knobs = fitRow (l.labels, knobLabels, knobShortLabels, knobLabelMax);
+
+    if (l.hasSwitches)
+        fitted.switches = fitRow (l.switchLabels, switchLabels, switchShortLabels, switchLabelMax);
+
+    if (! l.inputLabel.isEmpty())
+        fitted.input = fitPrint ("INPUT", "IN", l.inputLabel, inputLabelMax, false);
+
+    return fitted;
+}
+
+AmpFaceLayout layoutAmpFace (juce::Rectangle<float> bounds, AmpModel model, bool withSwitches)
 {
     const auto look = lookFor (model);
     AmpFaceLayout l;
     l.combo = look.combo;
+    l.hasSwitches = withSwitches;
 
     l.cabinet = bounds.reduced (1.0f);
     const float border = juce::jlimit (3.0f, 14.0f, juce::jmin (l.cabinet.getWidth(), l.cabinet.getHeight()) * 0.07f);
     auto inner = l.cabinet.reduced (border);
 
+    // A narrow column (the Advanced AMP section) takes the knobs in two rows of
+    // three; anything wider keeps them in one row, as on the amp. A short card
+    // has little room above its faceplate.
+    l.knobRows = inner.getHeight() > inner.getWidth() * 0.62f ? 2 : 1;
+    const bool tall = l.knobRows == 2;
+    const bool shortFace = ! tall && inner.getHeight() < 110.0f;
+
     bool logoOnPlate = false;
+    juce::Rectangle<float> strip;   // a head's covering above its faceplate
 
     if (look.combo)
     {
-        if (inner.getHeight() > inner.getWidth() * 0.4f)
+        if (tall || inner.getHeight() > inner.getWidth() * 0.4f)
         {
-            l.faceplate = inner.removeFromTop (juce::jmax (34.0f, inner.getHeight() * 0.44f));
+            l.faceplate = inner.removeFromTop (juce::jmax (34.0f, inner.getHeight() * (tall ? 0.66f : 0.44f)));
             inner.removeFromTop (border * 0.6f);
             l.grille = inner;
 
             l.logo = { l.grille.getX() + l.grille.getWidth() * 0.05f, l.grille.getY() + l.grille.getHeight() * 0.1f,
-                       l.grille.getWidth() * 0.26f, juce::jmax (8.0f, l.grille.getHeight() * 0.2f) };
+                       l.grille.getWidth() * (tall ? 0.5f : 0.26f), juce::jmax (8.0f, l.grille.getHeight() * (tall ? 0.28f : 0.2f)) };
         }
         else
         {
@@ -269,9 +379,9 @@ AmpFaceLayout layoutAmpFace (juce::Rectangle<float> bounds, AmpModel model)
     }
     else
     {
-        if (inner.getHeight() > inner.getWidth() * 0.3f)
+        if (tall || inner.getHeight() > inner.getWidth() * 0.3f)
         {
-            auto strip = inner.removeFromTop (inner.getHeight() * 0.32f);
+            strip = inner.removeFromTop (inner.getHeight() * (tall ? 0.2f : shortFace ? 0.26f : 0.32f));
             inner.removeFromTop (border * 0.4f);
             l.faceplate = inner;
 
@@ -289,43 +399,126 @@ AmpFaceLayout layoutAmpFace (juce::Rectangle<float> bounds, AmpModel model)
         }
     }
 
-    // The faceplate, left to right: inputs (and the name if it lives here), six knobs, switches and pilot.
-    auto area = l.faceplate.reduced (l.faceplate.getHeight() * 0.06f, l.faceplate.getHeight() * 0.06f);
-    auto left = area.removeFromLeft (area.getWidth() * (logoOnPlate ? 0.2f : 0.09f));
-    auto right = area.removeFromRight (area.getWidth() * 0.2f);
+    const float pad = l.faceplate.getHeight() * 0.06f;
+    auto area = l.faceplate.reduced (pad);
+
+    // ---- the name on a faceplate with nowhere else for it: a band across the top, with the inputs
+    juce::Rectangle<float> band;
 
     if (logoOnPlate)
     {
-        l.logo = left.removeFromTop (left.getHeight() * 0.56f).reduced (1.0f);
-        left.removeFromRight (left.getWidth() * 0.4f);
+        band = area.removeFromTop (juce::jmax (10.0f, area.getHeight() * 0.24f));
+        area.removeFromTop (pad * 0.5f);
+        l.logo = band.withWidth (band.getWidth() * 0.42f);
+
+        const float jack = band.getHeight() * 0.34f;
+        const auto first = juce::Rectangle<float> (jack * 2.0f, jack * 2.0f)
+                               .withCentre ({ l.logo.getRight() + jack * 2.4f, band.getCentreY() });
+
+        l.inputs[0] = first;
+        l.inputs[1] = first.translated (jack * 2.6f, 0.0f);
     }
 
-    const float jack = juce::jmin (left.getWidth() * 0.3f, left.getHeight() * 0.16f);
-    const auto jackCentre = left.getCentre();
-    l.inputs[0] = juce::Rectangle<float> (jack * 2.0f, jack * 2.0f).withCentre (jackCentre.translated (0.0f, -jack * 1.2f));
-    l.inputs[1] = juce::Rectangle<float> (jack * 2.0f, jack * 2.0f).withCentre (jackCentre.translated (0.0f, jack * 1.2f));
+    // ---- the inputs down the left of a wide faceplate, their label under them
+    if (! tall && ! logoOnPlate)
+    {
+        auto left = area.removeFromLeft (area.getWidth() * 0.09f);
+        const float jack = juce::jmin (left.getWidth() * 0.3f, left.getHeight() * 0.16f);
+        const auto jackCentre = left.getCentre().translated (0.0f, -jack * 0.5f);
 
-    const float slot = area.getWidth() / (float) numAmpKnobs;
-    const float knobZone = area.getHeight() * 0.74f;
-    const float knob = juce::jmin (slot * 0.94f, knobZone);
+        l.inputs[0] = juce::Rectangle<float> (jack * 2.0f, jack * 2.0f).withCentre (jackCentre.translated (0.0f, -jack * 1.2f));
+        l.inputs[1] = juce::Rectangle<float> (jack * 2.0f, jack * 2.0f).withCentre (jackCentre.translated (0.0f, jack * 1.2f));
+        l.inputLabel = left.withTop (juce::jmin (left.getBottom(), l.inputs[1].getBottom() + 1.0f));
+    }
+
+    // ---- the switch column on the right (or just the pilot's, when the face has no switches)
+    juce::Rectangle<float> right;
+
+    if (withSwitches)
+        right = area.removeFromRight (area.getWidth() * (tall ? 0.28f : 0.2f));
+    else if (band.isEmpty() && strip.isEmpty())
+        right = area.removeFromRight (area.getWidth() * 0.08f);
+
+    // ---- the knobs: one row, or two rows of three, each knob over its label
+    const int cols = numAmpKnobs / l.knobRows;
+    const float rowH = area.getHeight() / (float) l.knobRows;
+    const float slot = area.getWidth() / (float) cols;
+    const float labelH = juce::jmin (20.0f, rowH * 0.26f);
+    const float knobZone = rowH - labelH;
+    const float knob = juce::jmax (0.0f, juce::jmin (slot * 0.94f, knobZone));
 
     for (int i = 0; i < numAmpKnobs; ++i)
     {
-        auto column = juce::Rectangle<float> (area.getX() + slot * (float) i, area.getY(), slot, area.getHeight());
-        l.knobs[(size_t) i] = juce::Rectangle<float> (knob, knob).withCentre ({ column.getCentreX(), area.getY() + knobZone * 0.5f });
-        l.labels[(size_t) i] = column.withTrimmedTop (knobZone).reduced (1.0f, 0.0f);
+        const auto cell = juce::Rectangle<float> (area.getX() + slot * (float) (i % cols), area.getY() + rowH * (float) (i / cols),
+                                                  slot, rowH);
+        l.knobs[(size_t) i] = juce::Rectangle<float> (knob, knob).withCentre ({ cell.getCentreX(), cell.getY() + knobZone * 0.5f });
+        l.labels[(size_t) i] = cell.withTrimmedTop (knobZone).reduced (1.0f, 0.0f);
     }
 
-    // Two small switches stacked, then standby and the pilot.
-    auto switchesArea = right.removeFromLeft (right.getWidth() * 0.5f);
-    const float sw = juce::jmin (switchesArea.getWidth() * 0.8f, switchesArea.getHeight() * 0.34f);
-    l.switches[brightSwitch]   = switchesArea.removeFromTop (switchesArea.getHeight() * 0.5f).withSizeKeepingCentre (sw, sw);
-    l.switches[midBoostSwitch] = switchesArea.withSizeKeepingCentre (sw, sw);
+    // ---- switches and the pilot
+    auto placeSwitch = [&l] (AmpSwitch s, juce::Rectangle<float> cell)
+    {
+        const float labelHeight = juce::jmin (11.0f, cell.getHeight() * 0.32f);
+        const auto zone = cell.withTrimmedBottom (labelHeight);
+        const float size = juce::jmax (0.0f, juce::jmin (30.0f, cell.getWidth() * 0.8f, zone.getHeight() - 1.0f));
 
-    const float st = juce::jmin (right.getWidth() * 0.8f, right.getHeight() * 0.34f);
-    l.switches[standbySwitch] = right.removeFromBottom (right.getHeight() * 0.5f).withSizeKeepingCentre (st, st);
-    const float pilot = juce::jmin (right.getWidth(), right.getHeight()) * 0.62f;
-    l.pilot = right.withSizeKeepingCentre (pilot, pilot);
+        l.switches[(size_t) s] = zone.withSizeKeepingCentre (size, size);
+        l.switchLabels[(size_t) s] = cell.withTop (zone.getBottom()).reduced (0.5f, 0.0f);
+    };
+
+    auto placePilot = [&l, &look] (juce::Rectangle<float> cell)
+    {
+        // The modern heads' channel lamps sit in a row above the pilot.
+        if (look.channelLeds > 0 && cell.getHeight() > 16.0f)
+            l.channelLeds = cell.removeFromTop (cell.getHeight() * 0.3f);
+
+        const float size = juce::jmin (cell.getWidth(), cell.getHeight()) * 0.62f;
+        l.pilot = cell.withSizeKeepingCentre (size, size);
+    };
+
+    if (withSwitches)
+    {
+        if (tall)
+        {
+            // Down the right-hand column: the pilot, then bright, mid boost and standby.
+            placePilot (right.removeFromTop (right.getHeight() * 0.28f));
+            const float cellH = right.getHeight() / 3.0f;
+            placeSwitch (brightSwitch, right.removeFromTop (cellH));
+            placeSwitch (midBoostSwitch, right.removeFromTop (cellH));
+            placeSwitch (standbySwitch, right);
+        }
+        else
+        {
+            // Bright over mid boost, and beside them the pilot over standby.
+            auto pair = right.removeFromLeft (right.getWidth() * 0.5f);
+            placeSwitch (brightSwitch, pair.removeFromTop (pair.getHeight() * 0.5f));
+            placeSwitch (midBoostSwitch, pair);
+            placeSwitch (standbySwitch, right.removeFromBottom (right.getHeight() * 0.5f));
+            placePilot (right);
+        }
+    }
+    else if (! band.isEmpty())
+    {
+        // At the far end of the name band, the channel lamps just before it.
+        const float size = band.getHeight() * 0.8f;
+        l.pilot = juce::Rectangle<float> (size, size).withCentre ({ band.getRight() - size * 0.6f, band.getCentreY() });
+
+        if (look.channelLeds > 0)
+        {
+            const float w = (float) look.channelLeds * band.getHeight() * 0.5f;
+            l.channelLeds = band.withX (l.pilot.getX() - w - size * 0.3f).withWidth (w);
+        }
+    }
+    else if (! strip.isEmpty())
+    {
+        // On the covering, past the vent.
+        const float size = juce::jmin (strip.getWidth() * 0.045f, strip.getHeight() * 0.5f);
+        l.pilot = juce::Rectangle<float> (size, size).withCentre ({ strip.getRight() - strip.getWidth() * 0.03f, strip.getCentreY() });
+    }
+    else
+    {
+        placePilot (right);
+    }
 
     return l;
 }
@@ -336,7 +529,7 @@ void paintAmpFace (juce::Graphics& g, juce::Rectangle<float> bounds, AmpModel mo
     const auto look = lookFor (model);
     const auto m = Materials::current();
     const auto& p = Palette::current();
-    const auto l = layoutAmpFace (bounds, model);
+    const auto l = layoutAmpFace (bounds, model, state.hasSwitches);
 
     juce::Graphics::ScopedSaveState save (g);
     g.reduceClipRegion (bounds.toNearestIntEdges());
@@ -443,7 +636,7 @@ void paintAmpFace (juce::Graphics& g, juce::Rectangle<float> bounds, AmpModel mo
     }
 
     // ---- the valves -----------------------------------------------------------------
-    if (! l.vent.isEmpty())
+    if (state.drawValves && ! l.vent.isEmpty())
         drawTubeVent (g, l.vent, look.tubes, state.drive, state.standby, state.driveStale);
 
     // ---- inputs -----------------------------------------------------------------------
@@ -451,11 +644,9 @@ void paintAmpFace (juce::Graphics& g, juce::Rectangle<float> bounds, AmpModel mo
         if (in.getWidth() >= 4.0f)
             drawJack (g, in.getCentre(), in.getWidth() * 0.5f);
 
-    const float labelHeight = juce::jlimit (0.0f, 11.0f, l.labels[0].getHeight() * 0.62f);
-
-    if (labelHeight >= 6.0f && l.inputs[0].getWidth() >= 6.0f)
-        drawPrint (g, "INPUT", l.inputs[1].translated (0.0f, l.inputs[1].getHeight() * 0.8f).expanded (6.0f, 0.0f),
-                   ink, labelHeight * 0.8f, false);
+    // Every label fitted to its own rectangle: full, short or not at all, never over a neighbour.
+    const auto labels = fitAmpFaceLabels (l);
+    drawFittedPrint (g, labels.input, l.inputLabel, ink, false, juce::Justification::centredTop);
 
     // ---- knobs and their labels -----------------------------------------------------
     for (int i = 0; i < numAmpKnobs; ++i)
@@ -463,34 +654,29 @@ void paintAmpFace (juce::Graphics& g, juce::Rectangle<float> bounds, AmpModel mo
         if (state.drawKnobs)
             paintKnob (g, l.knobs[(size_t) i], look.cap, state.knobs[(size_t) i], state.enabled);
 
-        if (labelHeight >= 6.0f)
-            drawPrint (g, knobLabels[i], l.labels[(size_t) i], ink, labelHeight, false);
+        drawFittedPrint (g, labels.knobs[(size_t) i], l.labels[(size_t) i], ink, false);
     }
 
     // ---- switches and pilot -------------------------------------------------------------
     const bool switchValues[numAmpSwitches] = { state.bright, state.midBoost, ! state.standby };
 
-    if (state.drawSwitches)
+    if (l.hasSwitches)
     {
         for (int i = 0; i < numAmpSwitches; ++i)
         {
             const auto area = l.switches[(size_t) i];
 
-            if (area.getWidth() < 4.0f)
-                continue;
+            if (state.drawSwitches && area.getWidth() >= 4.0f)
+            {
+                if (look.rockers && i == standbySwitch)
+                    drawRocker (g, area, switchValues[i], m.jewelRed);
+                else
+                    LuthierLookAndFeel::drawMiniToggle (g, area, switchValues[i], state.enabled);
+            }
 
-            if (look.rockers && i == standbySwitch)
-                drawRocker (g, area, switchValues[i], m.jewelRed);
-            else
-                LuthierLookAndFeel::drawMiniToggle (g, area, switchValues[i], state.enabled);
+            drawFittedPrint (g, labels.switches[(size_t) i], l.switchLabels[(size_t) i], ink, false);
         }
     }
-
-    if (labelHeight >= 6.0f)
-        for (int i = 0; i < numAmpSwitches; ++i)
-            drawPrint (g, switchLabels[i], l.switches[(size_t) i].withY (l.switches[(size_t) i].getBottom() + 1.0f)
-                                                              .expanded (10.0f, 0.0f).withHeight (labelHeight + 1.0f),
-                       ink, labelHeight * 0.72f, false);
 
     // visual-polish.md 2: the pilot light follows Standby.
     const bool lit = ! state.standby && state.enabled;
@@ -502,14 +688,15 @@ void paintAmpFace (juce::Graphics& g, juce::Rectangle<float> bounds, AmpModel mo
         drawLed (g, l.pilot.getCentre(), l.pilot.getWidth() * 0.3f, pilotColour, lit);
 
     // Channel LEDs on the modern heads, one lit.
-    if (look.channelLeds > 0 && l.pilot.getWidth() >= 6.0f)
+    if (look.channelLeds > 0 && ! l.channelLeds.isEmpty())
     {
-        const float r = juce::jmax (1.5f, l.pilot.getWidth() * 0.12f);
-        const auto row = l.pilot.translated (0.0f, -l.pilot.getHeight() * 0.95f);
+        const auto row = l.channelLeds;
+        const float spacing = row.getWidth() / (float) look.channelLeds;
+        const float r = juce::jmax (1.5f, juce::jmin (row.getHeight() * 0.3f, spacing * 0.3f));
 
         for (int i = 0; i < look.channelLeds; ++i)
         {
-            const float x = row.getX() + row.getWidth() * ((float) i + 0.5f) / (float) look.channelLeds;
+            const float x = row.getX() + spacing * ((float) i + 0.5f);
             drawLed (g, { x, row.getCentreY() }, r, m.ledAmber, lit && i == juce::jmin (look.channelLeds - 1, 1));
         }
     }
@@ -524,6 +711,15 @@ void paintAmpFace (juce::Graphics& g, juce::Rectangle<float> bounds, AmpModel mo
         drawScrew (g, { l.faceplate.getX() + inset, l.faceplate.getBottom() - inset }, r);
         drawScrew (g, { l.faceplate.getRight() - inset, l.faceplate.getBottom() - inset }, r);
     }
+}
+
+void paintAmpFaceValves (juce::Graphics& g, juce::Rectangle<float> bounds, AmpModel model, const AmpFaceState& state)
+{
+    const auto look = lookFor (model);
+    const auto l = layoutAmpFace (bounds, model, state.hasSwitches);
+
+    if (look.tubes > 0 && ! l.vent.isEmpty())
+        drawTubeVent (g, l.vent, look.tubes, state.drive, state.standby, state.driveStale);
 }
 
 } // namespace luthier::faces

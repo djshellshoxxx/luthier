@@ -161,7 +161,7 @@ namespace
             const auto cell = juce::Rectangle<float> (area.getX() + rowOffset + cellW * (float) col,
                                                       area.getY() + cellH * (float) row, cellW, cellH);
             l.knobs[(size_t) i] = square ? juce::Rectangle<float> (knob, knob).withCentre ({ cell.getCentreX(), cell.getY() + knobZone * 0.5f })
-                                         : cell.reduced (cellW * 0.08f, 2.0f);
+                                         : cell.withHeight (knobZone).reduced (cellW * 0.08f, 2.0f);
             l.labels[(size_t) i] = withLabels ? cell.withTrimmedTop (knobZone) : juce::Rectangle<float>();
         }
     }
@@ -169,6 +169,44 @@ namespace
     juce::String shortLabel (const juce::String& name)
     {
         return name.upToFirstOccurrenceOf (" (", false, false).toUpperCase().trim();
+    }
+
+    /** The narrowest cell a knob keeps a usable size in (a 36 px knob and its arc). */
+    constexpr float minKnobCell = 42.0f;
+
+    /** A knob or slider this size or more is usable; preferredHeightOnItsSide() grows the face until they all are. */
+    constexpr float usableKnob = 34.0f, usableSliderSlot = 92.0f;
+
+    /** How many knobs a row on its side takes: the pedal's own arrangement
+        (up to five across, else two rows), fewer when the row is too narrow. */
+    int knobsPerRow (float width, int n)
+    {
+        const int natural = n <= 5 ? juce::jmax (1, n) : (n + 1) / 2;
+        const int fit = juce::jmax (1, (int) (width / minKnobCell));
+
+        if (natural <= fit)
+            return natural;
+
+        const int rows = (n + fit - 1) / fit;
+        return (n + rows - 1) / rows;
+    }
+
+    /** The share of a pedal on its side that the rotary's louvres or the tank's cloth take at the left:
+        less on a narrow rack row, so the knobs keep their room. */
+    float sideShare (juce::Rectangle<float> enclosure)
+    {
+        return enclosure.getWidth() >= 300.0f ? 0.27f : 0.16f;
+    }
+
+    bool isPortrait (juce::Rectangle<float> bounds, PedalOrientation orientation)
+    {
+        switch (orientation)
+        {
+            case PedalOrientation::upright:   return true;
+            case PedalOrientation::onItsSide: return false;
+            case PedalOrientation::automatic:
+            default:                          return bounds.getWidth() <= bounds.getHeight();
+        }
     }
 }
 
@@ -231,21 +269,41 @@ KnobCap knobCapFor (PedalType type) noexcept
     }
 }
 
+juce::String shortPedalLabel (const juce::String& label)
+{
+    // Frequencies lose their unit: "100 HZ" -> "100", "1.6 KHZ" -> "1.6K".
+    if (label.endsWithIgnoreCase (" kHz"))
+        return label.dropLastCharacters (4).trim() + "K";
+
+    if (label.endsWithIgnoreCase (" Hz"))
+        return label.dropLastCharacters (3).trim();
+
+    return {};
+}
+
 juce::StringArray pedalFaceTexts (PedalType type)
 {
     juce::StringArray texts;
     texts.add (juce::String (Pedal::getTypeName (type)).toUpperCase());
-    texts.addArray (PedalFaceState::defaultsFor (type).labels);
+
+    for (const auto& label : PedalFaceState::defaultsFor (type).labels)
+    {
+        texts.add (label);
+
+        if (const auto s = shortPedalLabel (label); s.isNotEmpty())
+            texts.add (s);
+    }
+
     return texts;
 }
 
 //==============================================================================
-PedalFaceLayout layoutPedalFace (juce::Rectangle<float> bounds, PedalType type, int numKnobs)
+PedalFaceLayout layoutPedalFace (juce::Rectangle<float> bounds, PedalType type, int numKnobs, PedalOrientation orientation)
 {
     const auto look = lookFor (type);
     PedalFaceLayout l;
     l.numKnobs = juce::jlimit (0, Pedal::kMaxParams, numKnobs);
-    l.portrait = bounds.getWidth() <= bounds.getHeight();
+    l.portrait = isPortrait (bounds, orientation);
     l.sliders = type == PedalType::GraphicEQ;
 
     auto space = bounds.reduced (1.0f);
@@ -278,14 +336,23 @@ PedalFaceLayout layoutPedalFace (juce::Rectangle<float> bounds, PedalType type, 
             l.treadle = base.reduced (base.getWidth() * 0.04f, 0.0f);
             l.led = juce::Rectangle<float> (pad * 0.8f, pad * 0.8f).withCentre ({ l.enclosure.getRight() - pad * 0.55f, l.enclosure.getY() + pad * 0.55f });
             gridOfKnobs (l, controls, l.numKnobs, 5, false);
+
+            // The toe switch, under the front of the treadle.
+            const float toe = juce::jmin (l.treadle.getWidth(), l.treadle.getHeight()) * 0.26f;
+            l.footswitch = juce::Rectangle<float> (toe, toe).withCentre ({ l.treadle.getCentreX(), l.treadle.getY() + l.treadle.getHeight() * 0.3f });
         }
         else
         {
+            // On its side the controls get two usable knobs across, with their labels.
             auto base = inner;
-            auto controls = base.removeFromRight (l.numKnobs > 0 ? base.getWidth() * 0.22f : 0.0f);
+            const float controlsWidth = juce::jmax (base.getWidth() * 0.22f, juce::jmin (base.getWidth() * 0.5f, minKnobCell * 2.0f));
+            auto controls = base.removeFromRight (l.numKnobs > 0 ? controlsWidth : 0.0f);
             l.treadle = base.reduced (0.0f, base.getHeight() * 0.04f);
             l.led = juce::Rectangle<float> (pad * 0.8f, pad * 0.8f).withCentre ({ l.enclosure.getX() + pad * 0.55f, l.enclosure.getY() + pad * 0.55f });
-            gridOfKnobs (l, controls, l.numKnobs, 2, false);
+            gridOfKnobs (l, controls, l.numKnobs, 2, true);
+
+            const float toe = juce::jmin (l.treadle.getWidth(), l.treadle.getHeight()) * 0.34f;
+            l.footswitch = juce::Rectangle<float> (toe, toe).withCentre ({ l.treadle.getRight() - toe * 0.9f, l.treadle.getCentreY() + toe * 0.25f });
         }
 
         l.name = l.treadle.withSizeKeepingCentre (l.treadle.getWidth() * 0.8f, juce::jmin (l.treadle.getHeight() * 0.12f, 18.0f))
@@ -328,19 +395,44 @@ PedalFaceLayout layoutPedalFace (juce::Rectangle<float> bounds, PedalType type, 
         inner.removeFromRight (pad * 0.5f);
 
         if (look.body == Body::cabinet || look.body == Body::tank)   // louvres or grille on the left
-            inner.removeFromLeft (juce::jmax (0.0f, l.enclosure.getX() + l.enclosure.getWidth() * 0.27f - inner.getX()));
+            inner.removeFromLeft (juce::jmax (0.0f, l.enclosure.getX() + l.enclosure.getWidth() * sideShare (l.enclosure) - inner.getX()));
 
         l.name = controls.removeFromTop (controls.getHeight() * 0.3f);
-        const float fs = juce::jmin (controls.getWidth() * 0.62f, controls.getHeight() * 0.6f);
+        const float fs = juce::jmin (controls.getWidth() * 0.62f, controls.getHeight() * 0.6f, 56.0f);
         l.footswitch = juce::Rectangle<float> (fs, fs).withCentre ({ controls.getCentreX(), controls.getBottom() - fs * 0.6f });
         const float led = juce::jmax (4.0f, fs * 0.22f);
         l.led = juce::Rectangle<float> (led, led).withCentre ({ controls.getCentreX(), controls.getY() + (l.footswitch.getY() - controls.getY()) * 0.5f });
 
-        const int perRow = l.sliders ? 10 : (l.numKnobs <= 5 ? juce::jmax (1, l.numKnobs) : (l.numKnobs + 1) / 2);
-        gridOfKnobs (l, inner, l.numKnobs, perRow, ! l.sliders, ! l.sliders);
+        // As many rows as keep the knobs usable; the graphic EQ's sliders stay in one bank, labelled underneath.
+        const int perRow = l.sliders ? 10 : knobsPerRow (inner.getWidth(), l.numKnobs);
+        gridOfKnobs (l, inner, l.numKnobs, perRow, true, ! l.sliders);
     }
 
     return l;
+}
+
+float preferredHeightOnItsSide (float width, PedalType type, int numKnobs)
+{
+    constexpr float shortest = 96.0f, tallest = 480.0f;
+
+    if (type == PedalType::None || numKnobs <= 0)
+        return shortest;
+
+    // The shortest face on which every knob (or slider slot) is usable.
+    for (float h = shortest; h < tallest; h += 4.0f)
+    {
+        const auto l = layoutPedalFace ({ 0.0f, 0.0f, width, h }, type, numKnobs, PedalOrientation::onItsSide);
+        bool usable = true;
+
+        for (int i = 0; i < l.numKnobs && usable; ++i)
+            usable = l.sliders ? l.knobs[(size_t) i].getHeight() >= usableSliderSlot
+                               : l.knobs[(size_t) i].getWidth() >= usableKnob;
+
+        if (usable)
+            return h;
+    }
+
+    return tallest;
 }
 
 //==============================================================================
@@ -349,7 +441,8 @@ void paintPedalFace (juce::Graphics& g, juce::Rectangle<float> bounds, PedalType
     const auto look = lookFor (type);
     const auto m = Materials::current();
     const auto& p = Palette::current();
-    const auto l = layoutPedalFace (bounds, type, state.numKnobs);
+    const auto l = layoutPedalFace (bounds, type, state.numKnobs, state.orientation);
+    const float side = sideShare (l.enclosure) - 0.07f;   // the louvres' or cloth's width on its side
 
     juce::Graphics::ScopedSaveState save (g);
     g.reduceClipRegion (bounds.toNearestIntEdges());
@@ -447,7 +540,7 @@ void paintPedalFace (juce::Graphics& g, juce::Rectangle<float> bounds, PedalType
     {
         // Louvres across the top (upright) or down the left (on its side).
         auto louvres = l.portrait ? l.enclosure.reduced (l.enclosure.getWidth() * 0.1f).withHeight (l.enclosure.getHeight() * 0.26f)
-                                  : l.enclosure.reduced (l.enclosure.getHeight() * 0.12f).withWidth (l.enclosure.getWidth() * 0.2f);
+                                  : l.enclosure.reduced (l.enclosure.getHeight() * 0.12f).withWidth (l.enclosure.getWidth() * side);
         g.setColour (m.textured ? juce::Colours::black.withAlpha (0.75f) : p.panelSunken);
         g.fillRoundedRectangle (louvres, 2.0f);
 
@@ -466,11 +559,11 @@ void paintPedalFace (juce::Graphics& g, juce::Rectangle<float> bounds, PedalType
     {
         // The cloth-covered lower half (upright) or left end (on its side), and a chrome control strip.
         auto cloth = l.portrait ? l.enclosure.reduced (l.enclosure.getWidth() * 0.08f).withTrimmedTop (l.enclosure.getHeight() * 0.53f)
-                                : l.enclosure.reduced (l.enclosure.getHeight() * 0.1f).withWidth (l.enclosure.getWidth() * 0.2f);
+                                : l.enclosure.reduced (l.enclosure.getHeight() * 0.1f).withWidth (l.enclosure.getWidth() * side);
         fillGrille (g, rounded (cloth, 2.0f), Grille::oxbloodStripe, m.grilleOxblood, look.seed);
 
         auto strip = l.portrait ? l.enclosure.reduced (l.enclosure.getWidth() * 0.06f).withHeight (l.enclosure.getHeight() * 0.47f)
-                                : l.enclosure.reduced (l.enclosure.getHeight() * 0.08f).withTrimmedLeft (l.enclosure.getWidth() * 0.24f);
+                                : l.enclosure.reduced (l.enclosure.getHeight() * 0.08f).withTrimmedLeft (l.enclosure.getWidth() * (side + 0.04f));
         fillBrushedMetal (g, rounded (strip, 2.0f), m.chrome);
         surface = m.chrome;
     }
@@ -493,6 +586,14 @@ void paintPedalFace (juce::Graphics& g, juce::Rectangle<float> bounds, PedalType
     {
         const auto area = l.knobs[(size_t) i];
         const float v = state.values[(size_t) i];
+
+        // The label: whole, or its short form, or hidden - never truncated over its neighbour.
+        const auto labelArea = l.labels[(size_t) i].reduced (1.0f, 0.0f);
+
+        if (i < state.labels.size() && ! labelArea.isEmpty())
+            drawFittedPrint (g, fitPrint (state.labels[i], shortPedalLabel (state.labels[i]), labelArea,
+                                          juce::jmin (10.0f, labelArea.getHeight() * 0.8f), false),
+                             labelArea, labelInk, false);
 
         if (l.sliders)
         {
@@ -523,12 +624,6 @@ void paintPedalFace (juce::Graphics& g, juce::Rectangle<float> bounds, PedalType
 
         if (state.drawKnobs)
             paintKnob (g, area, look.cap, v, state.enabled);
-
-        const auto labelArea = l.labels[(size_t) i];
-        const float labelHeight = juce::jlimit (0.0f, 10.0f, labelArea.getHeight() * 0.7f);
-
-        if (labelHeight >= 6.0f && i < state.labels.size())
-            drawPrint (g, state.labels[i], labelArea.reduced (1.5f, 0.0f), labelInk, labelHeight, false);
     }
 
     // ---- LED and footswitch --------------------------------------------------------------------

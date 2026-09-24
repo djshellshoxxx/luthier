@@ -46,25 +46,37 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       screws, engraved brass section plates, brass headstock brand mark,
       Lato + Bebas Neue shipped in `Resources/Fonts` (OFL); palettes now
       actually reach the UI (they did not before) and switch live via
-      `Palette::remap`; `Theme` tests. Remaining: header plugin name in the
+      `Palette::remap`; `Theme` tests. Amp and pedal faces (2) in the rack,
+      the Easy amp card and the Advanced amp section, with model knob caps
+      (3) and valve glow (4); `FacesIntegration` tests. Remaining: header plugin name in the
       display face, Options -> Appearance accent choices + follow-the-guitar
-      (5), amp and pedal faces (2) with model knob caps (3), tube glow / VU
-      meter / room light (4), live overlays polish on the guitar (G 14),
+      (5), VU meter / room light (4), live overlays polish on the guitar (G 14),
       preset-browser thumbnails (G 15), screenshots of every panel in all
       three palettes reviewed by eye.
 
+- [ ] 2k. **Gaps the coverage refresh found (2026-09-23)**:
+      - [ ] part-acoustics 2.1: chambering's feedback coupling feeds the
+            feedback gain (FeedbackLoop's k_couple has no chambering term).
+      - [ ] notation-export 4 / 6.1: the engine never calls the capture's
+            chordSymbol / bassTechnique / slideBar, so the NOTATION tab's chord
+            history is empty in use (with TODO 9's technique hook).
+      - [ ] notation-export 7.1: the capture's no-allocation check compiles
+            out (LUTHIER_ALLOCATION_COUNTER is never defined); expose the
+            counter from CircuitTests and define it for the test target.
+      - [ ] gui-engine-dataflow 22: FeedbackLed refreshes at 20 Hz, not 30.
+      - [ ] file-formats 2: a load that migrates a preset backs up the
+            original to Presets/Backup/<date>/ (backups happen only on save).
+      - [ ] notation-export 0.1: notation export on a worker thread.
+      - [ ] Doubler pitch / HP / LP defaults asserted; VP-7-04 at panel level.
 - [ ] 2h. Easy rig strip polish: the amp card's knobs are cramped at 1200x720;
       give the amp card more height or two knob sizes.
 - [ ] 2d. `ambiguity-resolutions.md` gaps (audited in spec-coverage.md 25):
       - [ ] 4.3 `Bass` voicing style; 4.4 transition bonus (+2 common note,
             +1 common position, -2 jump > 5); 4.7 tests (I-IV-V-I travel <= 3
             frets, determinism and tie-breaks, BEAD bass C7).
-      - [ ] 5 Preset morph: A/B slots, continuous interpolation, discrete and
-            structural at 0.5, automatable `preset_morph_position`, browser
-            toggle; tests 5.3.
       - [ ] 6 Crossing velocity from the pattern (with strum-dynamics, item 8).
-      - [ ] 8 Feedback / freeze / E-Bow as mod destinations; snapshot recall
-            cancels a morph; Aux 1 pre/post-circuit toggle.
+      - [ ] 8 Feedback / freeze / E-Bow as mod destinations (untested); Aux 1
+            pre/post-circuit toggle. (Snapshot recall cancelling a morph is done.)
 - [ ] **7. Workshop bench** - IN PROGRESS. Done and green (457 tests):
       7a model (`WorkshopBench`, `SpectrumDelta`, live pickup moves); 7b
       `WorkshopPanel` - header with name/modified/Save As Guitar/A-H slots,

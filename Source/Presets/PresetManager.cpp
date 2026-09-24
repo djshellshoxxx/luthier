@@ -371,9 +371,12 @@ juce::var PresetManager::toVar (const juce::String& name,
     // ---- parameters ----------------------------------------------------------
     auto* params = new juce::DynamicObject();
 
+    // The preset-morph position is a performance control, not part of a sound:
+    // saving it would make loading a morph slot drag the slider back.
     for (auto* p : processor.getParameters())
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
-            params->setProperty (withId->paramID, (double) withId->getValue());
+            if (withId->paramID != ParamIDs::presetMorphPosition)
+                params->setProperty (withId->paramID, (double) withId->getValue());
 
     root->setProperty ("parameters", juce::var (params));
 
@@ -570,7 +573,7 @@ bool PresetManager::fromVar (const juce::var& data)
         {
             if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
             {
-                if (params->hasProperty (withId->paramID))
+                if (params->hasProperty (withId->paramID) && withId->paramID != ParamIDs::presetMorphPosition)
                 {
                     const double v = (double) params->getProperty (withId->paramID);
                     withId->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, v));
@@ -611,12 +614,27 @@ bool PresetManager::fromVar (const juce::var& data)
             }
 
             if (! already && freeSlot >= 0)
+            {
                 if (auto* type = apvts.getParameter (ParamIDs::slotType (true, freeSlot)))
                     type->setValueNotifyingHost (type->convertTo0to1 ((float) (int) PedalType::Doubler));
+
+                // The pedal's own defaults: the pedals are built keeping the
+                // parameters a load wrote (onPedalTypesLoaded), so write them.
+                if (auto doubler = Pedal::create (PedalType::Doubler))
+                    for (int i = 0; i < juce::jmin (doubler->getNumParameters(), Pedal::kMaxParams); ++i)
+                        if (auto* p = apvts.getParameter (ParamIDs::slotParam (true, freeSlot, i)))
+                        {
+                            const auto& d = doubler->getParameterDescriptor (i);
+                            p->setValueNotifyingHost ((float) d.toNormalised (d.defaultValue));
+                        }
+            }
 
             if (auto* old = apvts.getParameter (ParamIDs::doublerOn))
                 old->setValueNotifyingHost (0.0f);
         }
+
+        if (onPedalTypesLoaded != nullptr)
+            onPedalTypesLoaded();
 
         /*  No block: derive per family from the plain values the parameters now
             hold. The stored numbers cannot be used for this - a normalised

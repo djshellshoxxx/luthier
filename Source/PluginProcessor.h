@@ -8,6 +8,7 @@
 #include "Support/MidiLearn.h"
 #include "Support/MidiCapture.h"
 #include "Capture/PerformanceCapture.h"
+#include "Presets/PresetMorph.h"
 #include "Support/AudioExporter.h"
 #include "Support/Diagnostics.h"
 #include "Routing/RoutingMatrix.h"
@@ -89,6 +90,12 @@ public:
     /** Drains the capture and keeps its tuning current (10 Hz on the message
         thread; tests call it directly). */
     void drainPerformanceCapture();
+
+    /** ambiguity-resolutions.md 5: morphing between two presets. */
+    PresetMorph& getPresetMorph() noexcept { return presetMorph; }
+
+    /** Follows `preset_morph_position` (the timer's work; tests call it). */
+    void updatePresetMorph();
     AudioExporter&      getExporter() noexcept      { return exporter; }
     Diagnostics&        getDiagnostics() noexcept   { return diagnostics; }
     RoutingMatrix&      getRouting() noexcept        { return routing; }
@@ -443,6 +450,7 @@ private:
     MidiLearnManager midiLearn;
     MidiCapture midiCapture;
     PerformanceCapture performanceCapture;
+    PresetMorph presetMorph { *this };
     std::array<int, kMaxStrings> captureOpenNotes {};
     int captureStringCount = -1, captureCapo = -1;
     juce::uint32 captureCapoMask = 0;

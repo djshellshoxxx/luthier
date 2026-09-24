@@ -786,22 +786,11 @@ void AdvancedPanel::buildColumn3()
                "Preamp stage count, tone stack topology, power tube type and negative "
                "feedback all change with the model.");
 
-    addKnob (ampGain, "Gain", ParamIDs::ampGain, "Preamp drive");
-    addKnob (ampBass, "Bass", ParamIDs::ampBass,
-             "Passive tone stack: the three controls interact, exactly as in the circuit");
-    addKnob (ampMid, "Mid", ParamIDs::ampMid, "Passive tone stack midrange");
-    addKnob (ampTreble, "Treble", ParamIDs::ampTreble, "Passive tone stack treble");
-    addKnob (ampPresence, "Presence", ParamIDs::ampPresence,
-             "Works inside the power amp's feedback loop, so it does more on amps that "
-             "have plenty of feedback and almost nothing on a British top-boost combo");
-    addKnob (ampMaster, "Master", ParamIDs::ampMaster,
-             "Power amp drive. Turn it up for power-tube saturation and sag.");
-
-    addToggle (ampBright, "Bright", ParamIDs::ampBright,
-               "Treble bypass cap: strongest at low gain, gone as the gain comes up");
-    addToggle (ampMidBoost, "Mid boost", ParamIDs::ampMidBoost, "Midrange lift ahead of the gain");
-    addToggle (ampStandby, "Standby", ParamIDs::ampStandby,
-               "Mutes the amp, and takes time to warm back up, like the real switch");
+    /*  visual-polish.md 2: the six knobs and three switches that were a column of
+        rows here sit on the amp's own face, attached to the same parameters
+        with the same tooltips (AmpFacePanel), in the same place in the column. */
+    ampFace = std::make_unique<AmpFacePanel> (processor, AmpFacePanel::Style::section);
+    column.addControl (ampFace.get(), AmpFacePanel::sectionHeight);
 
     // ---- post pedals -----------------------------------------------------------------------
     column.addGap (Metrics::grid);

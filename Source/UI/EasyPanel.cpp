@@ -285,20 +285,10 @@ void EasyPanel::buildRigStrip()
     addAndMakeVisible (preRack);
     addAndMakeVisible (postRack);
 
-    // 3. Amp.
+    // 3. Amp: the model, and the face carrying gain, bass, mid, treble, presence and master.
     ampModel.attachTo (processor, ParamIDs::ampModel, "Amp model");
     addAndMakeVisible (ampModel);
-
-    const std::pair<LuthierKnob*, const char*> ampKnobs[] = {
-        { &ampGain, ParamIDs::ampGain }, { &ampBass, ParamIDs::ampBass }, { &ampMid, ParamIDs::ampMid },
-        { &ampTreble, ParamIDs::ampTreble }, { &ampPresence, ParamIDs::ampPresence }, { &ampMaster, ParamIDs::ampMaster }
-    };
-
-    for (auto& [knob, id] : ampKnobs)
-    {
-        knob->attachTo (processor, id);
-        addAndMakeVisible (*knob);
-    }
+    addAndMakeVisible (ampFace);
 
     // 5. Cabinet.
     cabModel.attachTo (processor, ParamIDs::cabType, "Cabinet");
@@ -566,15 +556,11 @@ void EasyPanel::resized()
 
         auto amp = card (0.26f, "Amp");
         {
+            // TODO 2h: the knobs sit on the face in one row, each with the card's
+            // full width to share, rather than two cramped rows of three.
             ampModel.setBounds (amp.removeFromTop (juce::jmin (amp.getHeight() / 3, 44)));
-            auto row1 = amp.removeFromTop (amp.getHeight() / 2);
-            const int w = amp.getWidth() / 3;
-            ampGain.setBounds (row1.removeFromLeft (w));
-            ampBass.setBounds (row1.removeFromLeft (w));
-            ampMid.setBounds (row1);
-            ampTreble.setBounds (amp.removeFromLeft (w));
-            ampPresence.setBounds (amp.removeFromLeft (w));
-            ampMaster.setBounds (amp);
+            amp.removeFromTop (2);
+            ampFace.setBounds (amp);
         }
 
         postRack.setBounds (card (0.12f, "Post-effects"));

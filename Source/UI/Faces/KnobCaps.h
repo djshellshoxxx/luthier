@@ -50,7 +50,19 @@ void paintKnobCap (juce::Graphics&, juce::Point<float> centre, float radius, flo
 void paintKnob (juce::Graphics&, juce::Rectangle<float> area, KnobCap, float normalised, bool enabled = true);
 
 //==============================================================================
-/** The standard LookAndFeel with a face's cap on its rotary sliders. */
+/** The hardware a toggle on a face is drawn as (visual-polish.md 2): an amp's
+    mini toggle or lit rocker, or a pedal's footswitch. Set on the button; a
+    button without one keeps the standard look under FaceKnobLookAndFeel. */
+enum class FaceSwitch { none, mini, rocker, footswitch };
+
+/** `inverted` draws the lever up (or the rocker lit) when the button is off:
+    an amp's Standby switch is "on" when the amp is playing. */
+void setFaceSwitch (juce::Button&, FaceSwitch, bool inverted = false);
+FaceSwitch getFaceSwitch (const juce::Button&);
+
+//==============================================================================
+/** The standard LookAndFeel with a face's cap on its rotary sliders, and its
+    toggles drawn as the face's switches. */
 class FaceKnobLookAndFeel : public LuthierLookAndFeel
 {
 public:
@@ -62,6 +74,12 @@ public:
     void drawRotarySlider (juce::Graphics&, int x, int y, int width, int height,
                            float sliderPos, float rotaryStartAngle, float rotaryEndAngle,
                            juce::Slider&) override;
+
+    void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour& backgroundColour,
+                               bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
+
+    void drawButtonText (juce::Graphics&, juce::TextButton&,
+                         bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
 
 private:
     KnobCap knobCap;

@@ -93,6 +93,44 @@ void drawTubeVent (juce::Graphics&, juce::Rectangle<float> area, int numTubes, f
 void drawPrint (juce::Graphics&, const juce::String& text, juce::Rectangle<float> area, juce::Colour colour,
                 float height, bool display, juce::Justification = juce::Justification::centred, int maxLines = 1);
 
+//==============================================================================
+/*  Labels that never collide (visual-polish.md 2). A label is printed whole on
+    one line at a height that fits its rectangle: the full name when it fits at
+    a readable size, the short one when only that does, and nothing when
+    neither does - never truncated with an ellipsis, never squeezed into its
+    neighbour. */
+
+/** The smallest height a face prints a label at; below it the label hides. */
+inline constexpr float minPrintHeight = 6.5f;
+
+struct FittedPrint
+{
+    juce::String text;
+    float height = 0.0f;    ///< font height; 0 when hidden
+
+    bool isVisible() const noexcept { return text.isNotEmpty() && height > 0.0f; }
+};
+
+/** The width `text` takes in the display face (true) or the body face at `height`. */
+float printWidth (const juce::String& text, float height, bool display);
+
+/** The tallest height, up to `maxHeight` and the area's own height, at which
+    `text` fits `area` on one line; 0 when that is below minPrintHeight. */
+float fitPrintHeight (const juce::String& text, juce::Rectangle<float> area, float maxHeight, bool display);
+
+/** One label: the full text, else the short form, else hidden. */
+FittedPrint fitPrint (const juce::String& text, const juce::String& shortForm, juce::Rectangle<float> area,
+                      float maxHeight, bool display);
+
+/** Draws a fitted label in `area`. Nothing when it is hidden. */
+void drawFittedPrint (juce::Graphics&, const FittedPrint&, juce::Rectangle<float> area, juce::Colour colour,
+                      bool display, juce::Justification = juce::Justification::centred);
+
+//==============================================================================
+/** A digest of the palette in force (its roles and whether it is textured), so
+    a cached face can tell when it has to be drawn again (visual-polish.md 0.3). */
+juce::uint64 paletteDigest();
+
 /** Deterministic noise in 0-1 for seeded textures. */
 float hashNoise (juce::uint32 seed, int i) noexcept;
 

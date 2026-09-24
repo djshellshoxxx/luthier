@@ -21,6 +21,7 @@
 #include "FretboardComponent.h"
 #include "GuitarBodyComponent.h"
 #include "CircuitPanel.h"
+#include "AmpFacePanel.h"
 
 namespace luthier
 {
@@ -146,13 +147,9 @@ private:
 
     CompactRack preRack, postRack;
 
+    // 3.2's amp card: the model, and the amp's face with its six knobs on it (visual-polish.md 2).
     LuthierChoice ampModel { "Amp" };
-    LuthierKnob ampGain     { "Gain",     LuthierKnob::Size::Small };
-    LuthierKnob ampBass     { "Bass",     LuthierKnob::Size::Small };
-    LuthierKnob ampMid      { "Mid",      LuthierKnob::Size::Small };
-    LuthierKnob ampTreble   { "Treble",   LuthierKnob::Size::Small };
-    LuthierKnob ampPresence { "Presence", LuthierKnob::Size::Small };
-    LuthierKnob ampMaster   { "Master",   LuthierKnob::Size::Small };
+    AmpFacePanel ampFace { processor, AmpFacePanel::Style::card };
 
     LuthierChoice cabModel { "Cab" }, mic1 { "Mic 1" }, mic2 { "Mic 2" };
     LuthierKnob micBlend { "Blend", LuthierKnob::Size::Small };

@@ -743,4 +743,72 @@ void drawPrint (juce::Graphics& g, const juce::String& text, juce::Rectangle<flo
     g.drawFittedText (text, area.toNearestInt(), justification, juce::jmax (1, maxLines), 0.6f);
 }
 
+//==============================================================================
+float printWidth (const juce::String& text, float height, bool display)
+{
+    return juce::GlyphArrangement::getStringWidth (display ? Fonts::display (height) : Fonts::ui (height, true), text);
+}
+
+float fitPrintHeight (const juce::String& text, juce::Rectangle<float> area, float maxHeight, bool display)
+{
+    if (text.isEmpty() || area.isEmpty())
+        return 0.0f;
+
+    // Half a pixel spare, so rounding in the glyph layout never clips the last letter.
+    const float room = area.getWidth() - 0.5f;
+    float height = juce::jmin (maxHeight, area.getHeight());
+
+    if (height < minPrintHeight)
+        return 0.0f;
+
+    // Width grows with height, so one scale lands close; hinting makes it not
+    // quite linear, and the loop takes up the difference.
+    if (const float w = printWidth (text, height, display); w > room && w > 0.0f)
+        height *= room / w;
+
+    while (height >= minPrintHeight && printWidth (text, height, display) > room)
+        height -= 0.25f;
+
+    return height >= minPrintHeight ? height : 0.0f;
+}
+
+FittedPrint fitPrint (const juce::String& text, const juce::String& shortForm, juce::Rectangle<float> area,
+                      float maxHeight, bool display)
+{
+    for (const auto& candidate : { text, shortForm })
+        if (const float h = fitPrintHeight (candidate, area, maxHeight, display); h > 0.0f)
+            return { candidate, h };
+
+    return {};
+}
+
+void drawFittedPrint (juce::Graphics& g, const FittedPrint& print, juce::Rectangle<float> area, juce::Colour colour,
+                      bool display, juce::Justification justification)
+{
+    if (! print.isVisible() || area.isEmpty())
+        return;
+
+    g.setColour (colour);
+    g.setFont (display ? Fonts::display (print.height) : Fonts::ui (print.height, true));
+    g.drawText (print.text, area, justification, false);
+}
+
+//==============================================================================
+juce::uint64 paletteDigest()
+{
+    const auto& p = Palette::current();
+    juce::uint64 digest = 1469598103934665603ull;
+
+    auto mix = [&digest] (juce::uint32 v) { digest = (digest ^ v) * 1099511628211ull; };
+
+    for (auto c : { p.backgroundDeep, p.background, p.panel, p.panelRaised, p.panelSunken, p.edge, p.edgeBright,
+                    p.accent, p.accentBright, p.accentDim, p.secondary, p.secondaryDim,
+                    p.textPrimary, p.textMuted, p.textDisabled, p.success, p.warning, p.clip,
+                    Palette::accent, Palette::knobBody, Palette::knobPointer, Palette::plate, Palette::plateText })
+        mix (c.getARGB());
+
+    mix (Palette::textured ? 1u : 0u);
+    return digest;
+}
+
 } // namespace luthier::faces

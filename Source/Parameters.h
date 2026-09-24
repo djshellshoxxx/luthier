@@ -264,6 +264,9 @@ namespace ParamIDs
     inline constexpr const char* ebowStringMask = "ebow_string_mask";   ///< 0 = strings with a held note
     inline constexpr const char* ebowIntensity  = "ebow_intensity";
     inline constexpr const char* ebowHarmonic   = "ebow_harmonic";
+
+    // ambiguity-resolutions.md 5.2: the preset morph slider, automatable.
+    inline constexpr const char* presetMorphPosition = "preset_morph_position";
     inline constexpr const char* limiterOn   = "limiter_on";
     inline constexpr const char* oversample  = "oversampling";
 
@@ -360,7 +363,8 @@ public:
 
 //==============================================================================
 /** Reads the parameter state each block and applies it to the engine. */
-class ParameterBridge : private juce::AsyncUpdater
+class ParameterBridge : private juce::AsyncUpdater,
+                        private juce::AudioProcessorParameter::Listener
 {
 public:
     ParameterBridge (juce::AudioProcessorValueTreeState& state, LuthierEngine& engine);
@@ -378,6 +382,19 @@ public:
 
     /** True while a structural change is pending. */
     bool isStructuralChangePending() const noexcept { return structuralPending.load(); }
+
+    /** A preset has just written its pedal types AND their parameters: build
+        those pedals keeping the parameters. The structural path otherwise
+        writes a new pedal's defaults over its parameters - right for a pedal
+        the player has just picked, wrong for one a preset brought with its
+        settings (every factory preset's pedals loaded at their defaults).
+        Message thread. */
+    void adoptPedalTypesFromParameters();
+
+private:
+    void pushSlotParameters (bool post, int slot);
+
+public:
 
     /** Points the bridge at the modulation matrix. Every parameter the engine
         reads goes through value(), so this one hook is the whole of the
@@ -418,6 +435,21 @@ private:
 
     juce::HashMap<juce::String, std::atomic<float>*> pointers;
     juce::HashMap<juce::String, int> indices;
+
+    /*  Which was written last on a pedal slot: its type, or its parameters. A
+        load, a snapshot recall or a morph writes the type and then the
+        settings that go with it; a player picking a pedal writes only the
+        type. So a new pedal keeps its parameters when they were written after
+        the type, and gets its own defaults when they were not. Counters, so
+        the listener is lock-free on whatever thread sets the parameter. */
+    void parameterValueChanged (int parameterIndex, float newValue) override;
+    void parameterGestureChanged (int, bool) override {}
+
+    std::vector<int> slotOfParameter;      ///< parameter index -> (chain * slots + slot) * 16 + (param, or 15 for the type)
+    std::atomic<juce::uint32> writeSerial { 0 };
+    std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> typeWritten {};
+    std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> paramsWritten {};
+    juce::Array<juce::AudioProcessorParameter*> watched;
 
     ModMatrix* modMatrix = nullptr;
 

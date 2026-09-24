@@ -167,6 +167,12 @@ if (LUTHIER_BUILD_TESTS)
         PUBLIC
         juce::juce_recommended_config_flags)
 
+    # Tests hold processors as locals, and a processor is large: three in one
+    # frame overflowed the 1 MB default and the runner died without a word.
+    if(MSVC)
+        target_link_options(LuthierTests PRIVATE "/STACK:8388608")
+    endif()
+
     luthier_copy_resources(LuthierTests "$<TARGET_FILE_DIR:LuthierTests>/Resources")
 
     enable_testing()

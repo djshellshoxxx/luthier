@@ -380,4 +380,63 @@ void FaceKnobLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int
     g.fillEllipse (centre.x - 2.0f, centre.y - 2.0f, 4.0f, 4.0f);
 }
 
+//==============================================================================
+namespace
+{
+    const juce::Identifier faceSwitchId { "luthierFaceSwitch" };
+    const juce::Identifier faceSwitchInvertedId { "luthierFaceSwitchInverted" };
+}
+
+void setFaceSwitch (juce::Button& button, FaceSwitch kind, bool inverted)
+{
+    button.getProperties().set (faceSwitchId, (int) kind);
+    button.getProperties().set (faceSwitchInvertedId, inverted);
+    button.repaint();
+}
+
+FaceSwitch getFaceSwitch (const juce::Button& button)
+{
+    const int kind = (int) button.getProperties().getWithDefault (faceSwitchId, (int) FaceSwitch::none);
+    return juce::isPositiveAndBelow (kind, (int) FaceSwitch::footswitch + 1) ? (FaceSwitch) kind : FaceSwitch::none;
+}
+
+void FaceKnobLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& button, const juce::Colour& backgroundColour,
+                                                bool isHighlighted, bool isDown)
+{
+    const auto kind = getFaceSwitch (button);
+
+    if (kind == FaceSwitch::none)
+    {
+        LuthierLookAndFeel::drawButtonBackground (g, button, backgroundColour, isHighlighted, isDown);
+        return;
+    }
+
+    const auto area = button.getLocalBounds().toFloat();
+    const bool inverted = (bool) button.getProperties().getWithDefault (faceSwitchInvertedId, false);
+    const bool up = button.getToggleState() != inverted;
+
+    switch (kind)
+    {
+        case FaceSwitch::rocker:     drawRocker (g, area.reduced (1.0f), up, Materials::current().jewelRed); break;
+        case FaceSwitch::footswitch: drawFootswitch (g, area, isDown); break;
+        case FaceSwitch::mini:
+        case FaceSwitch::none:
+        default:                     drawMiniToggle (g, area, up, button.isEnabled()); break;
+    }
+
+    // Hover and keyboard focus: a faint ring in the accent, so the switch reads as live.
+    if (isHighlighted || button.hasKeyboardFocus (false))
+    {
+        g.setColour (Palette::accent.withAlpha (button.hasKeyboardFocus (false) ? 0.9f : 0.45f));
+        g.drawRoundedRectangle (area.reduced (0.5f), Metrics::controlCorner, 1.0f);
+    }
+}
+
+void FaceKnobLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& button, bool isHighlighted, bool isDown)
+{
+    // The face prints the switch's name beside it; the switch itself carries no text.
+    if (getFaceSwitch (button) == FaceSwitch::none)
+        LuthierLookAndFeel::drawButtonText (g, button, isHighlighted, isDown);
+}
+
 } // namespace luthier::faces

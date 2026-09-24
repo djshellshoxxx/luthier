@@ -422,3 +422,26 @@ chosen") and `ambiguity-resolutions.md`.
   live tab follows (1, ~3 or 10 Hz; Freeze stops), and MIDI export from it
   goes through the MIDI OUT profile rather than NotationExporter's own
   writer, so there is one MIDI path.
+- **Preset morph** (ambiguity-resolutions 5): each side's preset is loaded
+  whole (pedal types, structural choices, guitar reference) when the slider
+  crosses 0.5, then continuous parameters are interpolated on top, from the
+  processor's 30 Hz timer. So discrete, structural and guitar-reference state
+  all switch at 0.5 as 5.1 asks, and the ends are the presets exactly (5.3).
+  `preset_morph_position` is not stored in presets (a preset carrying it
+  would re-trigger a morph on load) and neither are the A / B slots: the
+  morph is a performance mode, and turning it on seeds both slots with the
+  current sound. The host restores the position as automation.
+- **Pedal settings that arrive with a pedal are kept.** The structural path
+  wrote a new pedal's defaults over its parameters, which was right for a
+  pedal the player picks and wrong for one a preset, snapshot or morph brings
+  with its settings - every factory preset's pedals were running at their
+  defaults. The bridge listens to the slot parameters and keeps the settings
+  when they were written after the type; the preset loader also adopts the
+  types directly. Either way the settings are pushed into the new pedal as
+  it is built, not one block later.
+- **Engine direct MIDI** (tune-builder 8): `LuthierEngine::setDirectMidi`
+  takes notes that play as written even while the rhythm engine drives, so
+  the TUNE tab's melody, bass and layers are not replaced by the strum
+  pattern; its chord part goes through the normal MIDI, where the rhythm
+  engine strums it. Rather than merging all of a tune into the host MIDI.
+
