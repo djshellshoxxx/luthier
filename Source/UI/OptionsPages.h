@@ -263,6 +263,7 @@ private:
 
     juce::Slider heelDeadZone { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Slider toeDeadZone { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Label heelLabel { {}, "Heel dead zone" }, toeLabel { {}, "Toe dead zone" };
 
     juce::ListBox calibratedList;
     juce::Array<int> calibratedCcs;

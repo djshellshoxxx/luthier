@@ -774,3 +774,40 @@ LUTHIER_TEST (LiveDisplays, theFretboardDrawsTheSlideBarAndTheCircuitCurveFollow
     CHECK (circuit.refresh());
     CHECK_MSG (digest (render (circuit)) != full, "the circuit curve did not move with the volume");
 }
+
+//==============================================================================
+/*  qa-polish.md 4 (screenshot review): an overlay first shown after the editor
+    was built took JUCE's default slider value boxes, white text that vanished
+    on the Light palette. Every value box in the Options overlay reads in the
+    palette's text colour. */
+LUTHIER_TEST (Reflow, overlayValueBoxesUseThePaletteTextColour)
+{
+    LuthierAudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    CHECK (editor != nullptr && showShortcutInOptions != nullptr);
+
+    if (editor == nullptr || showShortcutInOptions == nullptr)
+        return;
+
+    editor->setSize (1200, 720);
+    showShortcutInOptions ("toggleSlideMode");   // opens the Options overlay
+
+    int boxes = 0;
+    std::function<void (juce::Component&)> visit = [&] (juce::Component& c)
+    {
+        if (auto* slider = dynamic_cast<juce::Slider*> (&c); slider != nullptr && dynamic_cast<ExpressionPage*> (c.getParentComponent()) != nullptr)
+            for (auto* child : slider->getChildren())
+                if (auto* box = dynamic_cast<juce::Label*> (child))
+                {
+                    ++boxes;
+                    CHECK_MSG (box->findColour (juce::Label::textColourId) == Palette::textPrimary,
+                               slider->getTitle() + "'s value is " + box->findColour (juce::Label::textColourId).toString());
+                }
+
+        for (auto* child : c.getChildren())
+            visit (*child);
+    };
+
+    visit (*editor);
+    CHECK_MSG (boxes == 2, "found " + juce::String (boxes) + " Expression value boxes");
+}

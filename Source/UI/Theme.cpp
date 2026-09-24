@@ -287,6 +287,19 @@ LuthierLookAndFeel::LuthierLookAndFeel()
     refreshColours();
 }
 
+juce::Label* LuthierLookAndFeel::createSliderTextBox (juce::Slider& slider)
+{
+    auto* label = LookAndFeel_V4::createSliderTextBox (slider);
+
+    // A colour the slider set itself wins; otherwise the current palette, not
+    // whatever look and feel the slider had when it was built.
+    label->setColour (juce::Label::textColourId,
+                      slider.isColourSpecified (juce::Slider::textBoxTextColourId)
+                          ? slider.findColour (juce::Slider::textBoxTextColourId)
+                          : Palette::textPrimary);
+    return label;
+}
+
 void LuthierLookAndFeel::refreshColours()
 {
     setColour (juce::ResizableWindow::backgroundColourId, Palette::background);

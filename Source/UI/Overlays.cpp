@@ -92,7 +92,15 @@ void OverlayHost::show (OverlayPanel* panel)
     current = panel;
     current->onDismiss = [this] { dismiss(); };
 
+    // JUCE tells a component its look and feel on a change, not on joining a
+    // parent: a panel first shown here would keep JUCE's default slider value
+    // boxes (white text, unreadable on the Light palette).
+    const bool joining = current->getParentComponent() != this;
     addAndMakeVisible (current);
+
+    if (joining)
+        current->sendLookAndFeelChange();
+
     setVisible (true);
     toFront (false);
     resized();

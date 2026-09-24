@@ -376,6 +376,21 @@ ExpressionPage::ExpressionPage (LuthierAudioProcessor& p)
     addAndMakeVisible (heelDeadZone);
     addAndMakeVisible (toeDeadZone);
 
+    heelDeadZone.setTitle ("Heel dead zone");
+    toeDeadZone.setTitle ("Toe dead zone");
+    heelDeadZone.setTooltip ("How far the pedal travels from the heel before the value starts to move");
+    toeDeadZone.setTooltip ("How much of the travel before the toe already reads full");
+
+    for (auto* label : { &heelLabel, &toeLabel })
+    {
+        label->setFont (juce::FontOptions (12.0f));
+        label->setColour (juce::Label::textColourId, Palette::textPrimary.withAlpha (0.75f));
+        addAndMakeVisible (*label);
+    }
+
+    heelLabel.attachToComponent (&heelDeadZone, true);
+    toeLabel.attachToComponent (&toeDeadZone, true);
+
     calibratedList.setModel (&listModel);
     calibratedList.setRowHeight (20);
     calibratedList.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
@@ -541,9 +556,10 @@ void ExpressionPage::resized()
 
     bounds.removeFromTop (8);
 
-    heelDeadZone.setBounds (bounds.removeFromTop (24));
+    // Room on the left for the attached labels.
+    heelDeadZone.setBounds (bounds.removeFromTop (24).withTrimmedLeft (120));
     bounds.removeFromTop (4);
-    toeDeadZone.setBounds (bounds.removeFromTop (24));
+    toeDeadZone.setBounds (bounds.removeFromTop (24).withTrimmedLeft (120));
 
     calibratedList.setBounds (getLocalBounds().removeFromBottom (116));
 }
@@ -1129,6 +1145,24 @@ void AccessibilityPage::refresh()
     auto& settings = AccessibilitySettings::get();
 
     verbosityBox.setSelectedId ((int) settings.getVerbosity() + 1, juce::dontSendNotification);
+
+    // The saved font: theme default when none, else its entry in the list.
+    const auto font = settings.getFontOverride();
+    int fontId = 1;
+
+    if (font.isNotEmpty())
+    {
+        fontId = font == juce::Font::getDefaultSansSerifFontName() ? 2 : 0;
+
+        for (int i = 2; fontId == 0 && i < fontBox.getNumItems(); ++i)
+            if (fontBox.getItemText (i) == font)
+                fontId = fontBox.getItemId (i);
+
+        if (fontId == 0)
+            fontId = 1;
+    }
+
+    fontBox.setSelectedId (fontId, juce::dontSendNotification);
 }
 
 void AccessibilityPage::paint (juce::Graphics& g)
