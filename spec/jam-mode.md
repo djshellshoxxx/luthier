@@ -304,13 +304,10 @@ heavy cap and adds about 30 MB of DSP state, a second IR set and a
 - **`Excitation`:** finger, pick, or palm-muted pick
   (`Damping::PalmMuteBass`). Upright uses a flesh pluck at 0.18 of the
   scale, with higher loop damping.
-- **`JamBassTone`:**
-  - a pickup-position comb at 0.21 of the scale;
-  - a 2-pole pickup resonance at 4.5 kHz, Q 1.2;
-  - a 3-band tone (`jam_bass_tone`);
-  - tube saturation at 2x oversampling.
-
-  Upright replaces the pickup with 2 body modes (95 and 180 Hz).
+- **`JamBassTone`:** a pickup-position comb at 0.21 of the scale, a
+  2-pole pickup resonance at 4.5 kHz (Q 1.2), a 3-band tone
+  (`jam_bass_tone`) and tube saturation at 2x oversampling. Upright
+  replaces the pickup with 2 body modes (95 and 180 Hz).
 
 Budget: **0.6 units** (2 x 0.21 + 0.08 + 0.05), about a tenth of the
 full-engine option. For full-rig realism, Pro users send the Jam bass
@@ -348,9 +345,10 @@ Upright.
   falls back to Main with the notice in 8.4.
 - **Mix point in `processBlock`:** after `looper.processBlock` (the
   looper records guitar only) and before `sessionRecorder` (takes
-  include the band). Tone-match capture and the monitor mix never contain the band. The
-  kill switch mutes it through a new `KillSwitch::applyBlockRamp`, which
-  reapplies this block's computed ramp without advancing it.
+  include the band). Tone-match capture and the monitor mix never
+  contain the band. The kill switch mutes it through a new
+  `KillSwitch::applyBlockRamp`, which reapplies this block's computed
+  ramp without advancing it.
 
 ## 8. UI
 
@@ -420,8 +418,9 @@ The audio thread publishes a `JamStatus` snapshot after each block
 (double buffer plus an atomic sequence number): state, bar, beat,
 effective intensity, style, variation, current chord, next chord and its
 source (tune, predicted or none), active fill, 16 lane-hit bitmasks and
-part peaks. The UI drains it at 30 Hz. After 250 ms without an update, the snapshot
-is stale: the playhead hides and the status line shows "-".
+part peaks. The UI drains it at 30 Hz. After 250 ms without an update,
+the snapshot is stale: the playhead hides and the status line shows
+"-".
 
 ### 8.4 Empty states and errors
 
@@ -507,29 +506,23 @@ inserted before `numFamilies` in `PhysicalRange.h`.
 Display names follow the pattern "Jam Style", "Jam Kit Tuning" and so
 on. Net new: **+34**.
 
-**Transient parameters** (`jam_play`, `jam_fill_now`):
-- They are automatable and MIDI-learnable, so a footswitch can start the
-  band.
-- They are excluded from preset save/load, snapshots, morph and
-  randomise, the same way `preset_morph_position` is excluded in
-  `PresetManager.cpp`.
-- Host state restores them off, so opening a project never starts the
-  band.
-- `jam_fill_now` resets itself one block after it rises.
+**Transient parameters** (`jam_play`, `jam_fill_now`) are automatable
+and MIDI-learnable, so a footswitch can start the band. They are
+excluded from preset save/load, snapshots, morph and randomise, the way
+`preset_morph_position` is excluded in `PresetManager.cpp`. Host state
+restores them off, so opening a project never starts the band.
+`jam_fill_now` resets itself one block after it rises.
 
 ## 11. Interactions
 
-- **Rhythm engine.**
-  - Jam uses the rhythm engine's chord while that engine drives (3.1).
-  - The band's own clock drives the rhythm engine's grid (2.3).
-  - `link_rhythm_kit` applies the style's genre kit (4.1).
-- **Looper.**
-  - While the band plays, new loops are quantised to whole bars and start
-    recording on the next downbeat.
-  - Loops record the guitar only (7).
-  - A new `Looper::renderPlaybackMidi (juce::MidiBuffer&, int)` feeds the
-    loop's stored MIDI to the chord follower. The band keeps following a
-    looped rhythm part while the player solos.
+- **Rhythm engine.** Jam uses its chord while it drives (3.1); the
+  band's own clock drives its grid (2.3); `link_rhythm_kit` applies the
+  style's genre kit (4.1).
+- **Looper.** While the band plays, new loops are quantised to whole
+  bars and start recording on the next downbeat. Loops record the guitar
+  only (7). A new `Looper::renderPlaybackMidi (juce::MidiBuffer&, int)`
+  feeds the loop's stored MIDI to the chord follower, so the band keeps
+  following a looped rhythm part while the player solos.
 - **Metronome and tune click.** Both go silent while the drums are
   audible; the visual beat keeps running. This is the user preference
   "Metronome goes quiet while the band plays" (UiPreferences, default
@@ -553,11 +546,10 @@ on. Net new: **+34**.
   the quantisation of 4.4. A recall or setlist step never stops a
   playing band. A preset load keeps the band running with the new
   preset's jam settings.
-- **Host sync.**
-  - The band locks to ppq and `ppqPositionOfLastBarStart`.
-  - A cycle jump or locate re-syncs at the new position: the pattern step
-    is recomputed, ringing voices decay naturally and the bass re-plucks.
-  - Tempo automation is followed every block.
+- **Host sync.** The band locks to ppq and `ppqPositionOfLastBarStart`.
+  A cycle jump or locate re-syncs at the new position (pattern step
+  recomputed, ringing voices decay naturally, bass re-plucks). Tempo
+  automation is followed every block.
 - **Techniques and realism.** Unaffected: the band never touches the
   guitar path.
 - **Multi-instance.** Each instance has its own band. Help notes that two
