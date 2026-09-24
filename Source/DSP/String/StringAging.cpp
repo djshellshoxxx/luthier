@@ -48,8 +48,10 @@ void StringAging::prepare (double sampleRate) noexcept
 void StringAging::reset() noexcept
 {
     smoothedHours = target.hours;
-    dirty = true;
     recompute();
+
+    // Recomputed, but not yet pushed to the strings: the next advance does.
+    dirty = true;
 }
 
 void StringAging::setNumStrings (int n) noexcept

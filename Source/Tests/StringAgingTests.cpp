@@ -248,11 +248,6 @@ LUTHIER_TEST (StringAging, SA02_aLegacyPresetNullsAgainstThePreSpecPath)
     std::vector<double> a, b;
     chord (*fresh);
     chord (*reference);
-    renderBlocks (*fresh, 1); renderBlocks (*reference, 1);
-    for (int i = 0; i < 6; ++i)
-        std::printf ("s%d g %.9f/%.9f c %.3f/%.3f f %.6f/%.6f fine %.4f/%.4f\n", i, fresh->getString (i).getLoopGain(), reference->getString (i).getLoopGain(),
-                     fresh->getString (i).getLoopCutoffHz(), reference->getString (i).getLoopCutoffHz(), fresh->getString (i).getCurrentFrequency(),
-                     reference->getString (i).getCurrentFrequency(), fresh->getTuningEngine().getStringTuning (i).fineTuneCents, reference->getTuningEngine().getStringTuning (i).fineTuneCents);
     renderBlocks (*fresh, (int) (4.0 * kSr / kBlock), &a);
     renderBlocks (*reference, (int) (4.0 * kSr / kBlock), &b);
 
