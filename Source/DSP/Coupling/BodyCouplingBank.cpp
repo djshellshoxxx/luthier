@@ -260,6 +260,53 @@ void BodyCouplingBank::redesignResonators() noexcept
         modeGain[(size_t) k] = gain;
     }
 
+    /*  The diagonal approximation loads each mode on its own. Where broad
+        modes overlap (the advanced Q and mass extremes) their sum can pass the
+        passivity bound Re Y >= Z_tot |Y|^2 even though each one alone is
+        inside it. Check the summed admittance at each mode's centre and half-
+        power points and scale the bank back under it: a no-op for any real
+        body, whose modes are separated. */
+    if (zTot > 0.0 && runningCount > 0)
+    {
+        double worst = 0.0;
+
+        for (int k = 0; k < runningCount; ++k)
+        {
+            for (double offset : { -0.5, 0.0, 0.5 })
+            {
+                const double f = modeHz[(size_t) k] * (1.0 + offset / juce::jmax (0.05, modeQ[(size_t) k]));
+
+                if (f <= 0.0)
+                    continue;
+
+                double re = 0.0, im = 0.0;
+
+                for (int j = 0; j < runningCount; ++j)
+                {
+                    // Y_j = D_j / (1 + j Q_j (f/f_j - f_j/f))
+                    const double x = modeQ[(size_t) j] * (f / modeHz[(size_t) j] - modeHz[(size_t) j] / f);
+                    const double d = modeGain[(size_t) j] / (1.0 + x * x);
+                    re += d;
+                    im -= d * x;
+                }
+
+                if (re > 1.0e-12)
+                    worst = juce::jmax (worst, zTot * (re * re + im * im) / re);
+            }
+        }
+
+        if (worst > kMaxKappa)
+        {
+            const double scale = kMaxKappa / worst;
+
+            for (int k = 0; k < runningCount; ++k)
+            {
+                cb0[(size_t) k] *= scale;
+                modeGain[(size_t) k] *= scale;
+            }
+        }
+    }
+
     scalingDesigned = scalingNow;
     needsRedesign = false;
 }
@@ -345,16 +392,27 @@ void BodyCouplingBank::processSample (const double* bridgeWaves, double* couplin
         ++tapSample;
     }
 
-    double v = 0.0;
+    // Four lanes at a time, summed per lane: element-wise work the compiler
+    // vectorises, with the one reduction left to the end.
+    double lane[4] = { 0.0, 0.0, 0.0, 0.0 };
+    const int groups = (runningCount + 3) / 4;
 
-    for (int k = 0; k < BodyCouplingDesign::kMaxModes; ++k)
+    for (int g = 0; g < groups; ++g)
     {
-        const double x = force + tap * tapWeight[(size_t) k];
-        const double y = cb0[(size_t) k] * x + z1[(size_t) k];
-        z1[(size_t) k] = -ca1[(size_t) k] * y + z2[(size_t) k];
-        z2[(size_t) k] = -cb0[(size_t) k] * x - ca2[(size_t) k] * y;
-        v += y;
+        const int base = g * 4;
+
+        for (int j = 0; j < 4; ++j)
+        {
+            const int k = base + j;
+            const double x = force + tap * tapWeight[(size_t) k];
+            const double y = cb0[(size_t) k] * x + z1[(size_t) k];
+            z1[(size_t) k] = z2[(size_t) k] - ca1[(size_t) k] * y;
+            z2[(size_t) k] = -cb0[(size_t) k] * x - ca2[(size_t) k] * y;
+            lane[j] += y;
+        }
     }
+
+    const double v = (lane[0] + lane[1]) + (lane[2] + lane[3]);
 
     double c = -sanitise (v) * amountNow;
 

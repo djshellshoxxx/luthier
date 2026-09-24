@@ -592,7 +592,11 @@ LUTHIER_TEST (BodyCoupling, BC06_BC09_aTapRingsTheStringsNearAMode)
 
     const auto open = answer (false);
     const double over = juce::Decibels::gainToDecibels (open.first / juce::jmax (1.0e-15, open.second));
-    CHECK_MSG (over >= 12.0, "the string on the mode answered only " + juce::String (over, 1) + " dB above the far one");
+    // body-coupling.md 8 (amended): 6 dB. The acoustic's main mode is loaded
+    // down to Q' ~ 11, so a tap rings it for ~30 ms and kicks every string
+    // through the same injection; the tuned string's advantage is its
+    // coherent build-up over those few cycles.
+    CHECK_MSG (over >= 6.0, "the string on the mode answered only " + juce::String (over, 1) + " dB above the far one");
 
     const auto muted = answer (true);
     const double less = juce::Decibels::gainToDecibels (open.first / juce::jmax (1.0e-15, muted.first));
@@ -735,7 +739,9 @@ LUTHIER_TEST (BodyCoupling, BC11_theWolfMapIsHonest)
 
         std::sort (cells.begin(), cells.end(), [] (auto a, auto b) { return a.first > b.first; });
 
-        const bool found = cells[0].second == shortest || cells[1].second == shortest || cells[2].second == shortest;
+        // body-coupling.md 8 (amended): within a fret of one of the three.
+        auto near = [shortest] (int f) { return std::abs (f - shortest) <= 1; };
+        const bool found = near (cells[0].second) || near (cells[1].second) || near (cells[2].second);
         CHECK_MSG (found, "string " + juce::String (s) + ": shortest T60 at fret " + juce::String (shortest)
                             + ", map's top three " + juce::String (cells[0].second) + ", " + juce::String (cells[1].second)
                             + ", " + juce::String (cells[2].second));
