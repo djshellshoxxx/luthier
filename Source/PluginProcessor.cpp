@@ -2171,13 +2171,6 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     root->setProperty ("preset", presets.toVar (presets.getCurrentPresetName()));
     root->setProperty ("midiLearn", midiLearn.toVar());
 
-    /*  The preset leaves the morph position out on purpose (loading a morph slot
-        must not drag the slider), but it is an automatable parameter and a host
-        expects the session to give every one of those back. So the session keeps
-        it beside the preset. */
-    if (auto* morph = apvts.getParameter (ParamIDs::presetMorphPosition))
-        root->setProperty ("presetMorphPosition", (double) morph->getValue());
-
     auto* ui = new juce::DynamicObject();
     ui->setProperty ("advancedMode", uiState.advancedMode);
     ui->setProperty ("tooltipsEnabled", uiState.tooltipsEnabled);
@@ -2263,10 +2256,6 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
 
     if (root->hasProperty ("preset"))
         presets.fromVar (root->getProperty ("preset"));
-
-    if (root->hasProperty ("presetMorphPosition"))
-        if (auto* morph = apvts.getParameter (ParamIDs::presetMorphPosition))
-            morph->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, (double) root->getProperty ("presetMorphPosition")));
 
     if (root->hasProperty ("midiLearn"))
         midiLearn.fromVar (root->getProperty ("midiLearn"));
