@@ -78,16 +78,32 @@ namespace
 
     /*  T60 from the slope of the envelope between 10 and 40 dB under its peak.
         The envelope is RMS over one period of the low E, hopped by 1 ms, so
-        the waveform's own shape does not read as decay. */
+        the waveform's own shape does not read as decay. Each window has its
+        mean taken out first: the string's output DC blocker (7 Hz, a 23 ms
+        time constant) leaves a quasi-DC tail behind a note stopped in tens of
+        milliseconds, which is not the string ringing and reads as one here
+        (DECISIONS: muting T60 measurement). */
     double measureT60 (const std::vector<double>& x)
     {
         const int window = (int) (kSr / kLowE);
         const int hop = (int) (kSr * 0.001);
 
-        std::vector<double> env;
+        std::vector<double> env, centred ((size_t) window);
 
         for (int i = 0; i + window <= (int) x.size(); i += hop)
-            env.push_back (rms (x.data() + i, window));
+        {
+            double mean = 0.0;
+
+            for (int k = 0; k < window; ++k)
+                mean += x[(size_t) (i + k)];
+
+            mean /= (double) window;
+
+            for (int k = 0; k < window; ++k)
+                centred[(size_t) k] = x[(size_t) (i + k)] - mean;
+
+            env.push_back (rms (centred.data(), window));
+        }
 
         if (env.empty())
             return -1.0;

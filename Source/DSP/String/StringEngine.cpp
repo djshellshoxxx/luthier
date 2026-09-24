@@ -169,7 +169,19 @@ void StringEngine::release (bool letRing) noexcept
     if (damping == Damping::Chuck)
         return;
 
+    // muting-rhythm.md: a palm-muted note's own T60 is shorter than Released's;
+    // the note-off (a re-strike, a chuck's sweep) must not lengthen it.
+    if (damping == Damping::Muted)
+        return;
+
     setDamping (Damping::Released, 1.0);
+}
+
+void StringEngine::setMutedDamping (double t60Seconds, double cutoffHz) noexcept
+{
+    mutedT60 = juce::jlimit (0.01, 60.0, t60Seconds);
+    mutedCutoffHz = juce::jlimit (120.0, 20000.0, cutoffHz);
+    setDamping (Damping::Muted, 1.0);
 }
 
 void StringEngine::setDamping (Damping d, double amount) noexcept
@@ -184,6 +196,7 @@ void StringEngine::setDamping (Damping d, double amount) noexcept
                         : (d == Damping::Chuck) ? 1.0 - dampingAmount
                         : (d == Damping::Choked) ? 0.15
                         : (d == Damping::PalmMute) ? 0.45
+                        : (d == Damping::Muted) ? 0.3
                         : (harmonicPartial > 0) ? 0.35
                         : 1.0;
 }
@@ -285,6 +298,10 @@ void StringEngine::updateLoopCoefficients() noexcept
         case Damping::Chuck:
             cutoff = juce::jmap (dampingAmount, open, 400.0);
             break;
+
+        case Damping::Muted:
+            cutoff = juce::jmin (open, mutedCutoffHz);
+            break;
     }
 
     // Harmonics ring clean but die noticeably sooner than a stopped note.
@@ -318,6 +335,10 @@ void StringEngine::updateLoopCoefficients() noexcept
         loop within about a period of a low E - which is what takes the pitch. */
     if (damping == Damping::Chuck)
         t60 = std::exp (juce::jmap (dampingAmount, std::log (juce::jmax (0.01, t60)), std::log (0.01)));
+
+    // muting-rhythm.md 1: a mute type's T60 is an absolute time, like Silenced.
+    if (damping == Damping::Muted)
+        t60 = juce::jmin (t60, mutedT60);
 
     t60 = juce::jlimit (0.01, 60.0, t60);
 

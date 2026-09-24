@@ -321,6 +321,45 @@ namespace ParamIDs
     inline constexpr const char* chuckAmount          = "chuck_amount";
     inline constexpr const char* chuckDamping         = "chuck_damping";
 
+    // string-slap-technique.md 1 and bass-techniques.md 2-5: the SLAP
+    // technique's controls (parameters 426-450). Appended, never inserted.
+    inline constexpr const char* slapStrength          = "slap_strength";
+    inline constexpr const char* slapPositionMm        = "slap_position_mm";
+    inline constexpr const char* slapThumbHardness     = "slap_thumb_hardness";
+    inline constexpr const char* slapFretContact       = "slap_fret_contact";
+    inline constexpr const char* popStrength           = "pop_strength";
+    inline constexpr const char* popPositionMm         = "pop_position_mm";
+    inline constexpr const char* doubleThumpEnabled    = "double_thump_enabled";
+    inline constexpr const char* doubleThumpUpRatio    = "double_thump_up_ratio";
+    inline constexpr const char* ghostLevel            = "ghost_level";
+    inline constexpr const char* ghostDamping          = "ghost_damping";
+    inline constexpr const char* ghostAuto             = "ghost_auto";
+    inline constexpr const char* ghostVelocityThreshold = "ghost_velocity_threshold";
+    inline constexpr const char* slapArmed             = "slap_armed";
+    inline constexpr const char* slapType              = "slap_type";
+    inline constexpr const char* slapTrigger           = "slap_trigger";
+    inline constexpr const char* slapVelocityZone      = "slap_velocity_zone";
+    inline constexpr const char* slapTriggerCc         = "slap_trigger_cc";
+    inline constexpr const char* slapGhostCc           = "slap_ghost_cc";
+    inline constexpr const char* slapForce             = "slap_force";
+    inline constexpr const char* slapPalmPositionMm    = "slap_palm_position_mm";
+    inline constexpr const char* slapStringMask        = "slap_string_mask";
+    inline constexpr const char* slapGhostMode         = "slap_ghost_mode";
+    inline constexpr const char* slapReboundGap        = "slap_rebound_gap";
+    inline constexpr const char* slapSnapBack          = "slap_snap_back";
+    inline constexpr const char* slapBodyPart          = "slap_body_part";
+
+    // muting-rhythm.md 3: the MUTE controls (parameters 451-458). The grids
+    // are not parameters: a groove is a composition, like the strum grid.
+    inline constexpr const char* muteArmed         = "mute_armed";
+    inline constexpr const char* muteMasterMode    = "mute_master_mode";
+    inline constexpr const char* mutePalmPosition  = "mute_palm_position";
+    inline constexpr const char* mutePalmPressure  = "mute_palm_pressure";
+    inline constexpr const char* muteFrettingStyle = "mute_fretting_style";
+    inline constexpr const char* muteChukaSource   = "mute_chuka_source";
+    inline constexpr const char* muteHumanise      = "mute_humanise";
+    inline constexpr const char* muteGhostVelocity = "mute_ghost_velocity";
+
     // --- effect slots ----------------------------------------------------------
     /** `post` selects the chain; `slot` 0-7; `param` 0-9. */
     juce::String slotType (bool post, int slot);
@@ -422,6 +461,14 @@ public:
         loop's delivery would. For the tests, which run without a loop. */
     void handlePendingStructuralChangeNow() { handleUpdateNowIfNeeded(); }
 
+    /** The player has just picked a guitar (the header's selector, a host's
+        generic editor - anything that is a parameter gesture): the instrument
+        pass that loads it sets use_fingers from the guitar's category, as a
+        player changes hands with the instrument. Consumed by that one pass.
+        Everything else that moves guitar_type - a snapshot, a setlist entry,
+        host automation, a preset - carries its own use_fingers and keeps it. */
+    void followGuitarHandOnNextLoad() noexcept { handFollowsGuitar.store (true, std::memory_order_release); }
+
     /** A preset has just written its pedal types AND their parameters: build
         those pedals keeping the parameters. The structural path otherwise
         writes a new pedal's defaults over its parameters - right for a pedal
@@ -513,6 +560,14 @@ private:
     struct SlotPointers
     {
         std::atomic<float>* type = nullptr;
+
+        /*  The type parameter itself: its index is written before its listeners
+            run (AudioParameterChoice::setValue), while the raw pointer above is
+            the APVTS adapter's copy, written by a listener that runs after the
+            bridge's own. readStructuralValues compares against this one, so a
+            block between the two listener calls does not see a stale raw value
+            and queue a rebuild of the pedal the message thread just built. */
+        juce::AudioParameterChoice* typeChoice = nullptr;
         std::atomic<float>* bypass = nullptr;
         std::atomic<float>* mix = nullptr;
         std::array<std::atomic<float>*, Pedal::kMaxParams> params {};
@@ -559,6 +614,7 @@ private:
         builds the pedal, while the audio thread compares it for automation. */
     std::atomic<int> lastSlotType[2][EffectsChain::kNumSlots] {};
     bool structuralInitialised = false;
+    std::atomic<bool> handFollowsGuitar { false };   ///< See followGuitarHandOnNextLoad.
 
     std::atomic<bool> structuralPending { false };
     std::atomic<int> structuralPendingMask { 0 };

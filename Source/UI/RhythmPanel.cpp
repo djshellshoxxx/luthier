@@ -598,11 +598,31 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (*strumGrid);
     addAndMakeVisible (*fingerpickGrid);
 
+    // muting-rhythm 7: the Mute Row, one cell per step of the pattern.
+    muteRow = std::make_unique<MuteGridEditor>();
+    muteRow->setTooltip ("The pattern's mute per step (muting-rhythm 2): click or drag to paint the brush, "
+                         "right-click a cell to choose a type. Patterns without one are open everywhere.");
+    muteRow->getNumCells = [this] { return rhythm().getPattern().getLength(); };
+    muteRow->getCell = [this] (int i) { return rhythm().getPattern().getMuteStep (i).type; };
+    muteRow->setCell = [this] (int i, MuteType t)
+    {
+        auto pattern = rhythm().getPattern();
+        auto step = pattern.getMuteStep (i);
+        step.type = t;
+        pattern.setMuteStep (i, step);
+        rhythm().setPattern (pattern);
+    };
+    addAndMakeVisible (*muteRow);
+
     buildFeelControls();
 
     // gui-integration 4.4: the STRUM group (strum-dynamics 6.3) follows the feel controls.
     strumGroup = std::make_unique<StrumGroup> (processor);
     addAndMakeVisible (*strumGroup);
+
+    // muting-rhythm 3 and 7: the MUTE group, after STRUM.
+    muteGroup = std::make_unique<MuteGroup> (processor);
+    addAndMakeVisible (*muteGroup);
 
     buildBrowser();
 
@@ -612,11 +632,12 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
     styleSectionLabel (genreHeading,   "GENRE KIT");
     styleSectionLabel (voicingHeading, "VOICING");
     styleSectionLabel (strumHeading,   "STRUM PATTERN");
+    styleSectionLabel (muteRowHeading, "MUTE ROW");
     styleSectionLabel (pickHeading,    "FINGERPICK PATTERN");
     styleSectionLabel (feelHeading,    "FEEL");
     styleSectionLabel (browserHeading, "PATTERN BROWSER");
 
-    for (auto* label : { &genreHeading, &voicingHeading, &strumHeading,
+    for (auto* label : { &genreHeading, &voicingHeading, &strumHeading, &muteRowHeading,
                          &pickHeading, &feelHeading, &browserHeading })
         addAndMakeVisible (*label);
 
@@ -981,6 +1002,7 @@ void RhythmPanel::timerCallback()
 
     strumGrid->setPlayingStep (step);
     fingerpickGrid->setPlayingStep (step);
+    muteRow->setPlayingCell (step);
 
     indicators->refresh();
 
@@ -1005,9 +1027,11 @@ int RhythmPanel::preferredHeight() const
          + 12                                    // rig hint
          + 16 + 26 + 22 + 22 + 26                // voicing heading + controls
          + 16 + StrumGrid::preferredHeight       // strum grid
+         + 16 + MuteGridEditor::preferredHeight  // mute row
          + 16 + FingerpickGrid::preferredHeight  // fingerpick grid
          + 16 + 22 * 5                           // feel heading + five sliders
          + StrumGroup::preferredHeight + 4       // STRUM group
+         + MuteGroup::preferredHeight + 4        // MUTE group
          + 16 + 26 + 96 + 26                     // browser heading, filter, list, buttons
          + RhythmIndicators::preferredHeight
          + 24;
@@ -1069,6 +1093,9 @@ void RhythmPanel::resized()
     strumHeading.setBounds (row (16));
     strumGrid->setBounds (row (StrumGrid::preferredHeight));
 
+    muteRowHeading.setBounds (row (16));
+    muteRow->setBounds (row (MuteGridEditor::preferredHeight));
+
     pickHeading.setBounds (row (16));
     fingerpickGrid->setBounds (row (FingerpickGrid::preferredHeight));
 
@@ -1082,6 +1109,9 @@ void RhythmPanel::resized()
 
     // ---- strum (strum-dynamics 6.3) ----------------------------------------------
     strumGroup->setBounds (row (StrumGroup::preferredHeight, 4));
+
+    // ---- mute (muting-rhythm 3) ---------------------------------------------------
+    muteGroup->setBounds (row (MuteGroup::preferredHeight, 4));
 
     // ---- browser -----------------------------------------------------------------
     browserHeading.setBounds (row (16));

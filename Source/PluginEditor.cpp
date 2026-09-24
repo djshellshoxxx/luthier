@@ -1,5 +1,7 @@
 #include "PluginEditor.h"
 #include "UI/RangesUi.h"
+#include "UI/FirstRun.h"
+#include "UI/UiPreferences.h"
 #include "Accessibility/Accessibility.h"
 
 namespace luthier
@@ -23,6 +25,10 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
       workshopOverlay (p),
       secretPanel (p)
 {
+    // onboarding.md 5: a first launch takes its palette, motion, scale and
+    // locale from the operating system, once, before anything reads them.
+    FirstRun::applyIfFirstRun();
+
     setLookAndFeel (&lookAndFeel);
 
     shownPalette = Palette::current();
@@ -135,9 +141,9 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
                 {
                     juce::NativeMessageBox::showAsync (juce::MessageBoxOptions()
                                                            .withIconType (juce::MessageBoxIconType::InfoIcon)
-                                                           .withTitle ("MIDI import")
+                                                           .withTitle (tr ("tune.import.title"))
                                                            .withMessage (message)
-                                                           .withButton ("OK"),
+                                                           .withButton (tr ("common.ok")),
                                                        nullptr);
                 };
             }
@@ -191,6 +197,9 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     setAdvancedMode (ui.advancedMode);
     header.setAdvancedMode (advancedMode);
 
+    // onboarding.md 11: the practice drawer comes back as it was left.
+    practicePanel.setOpen (ui.practiceDrawerOpen);
+
     /*  On the way in, the refusal is silent. A window restored below 1000 points
         is a window that was already this size last session, and a notice about a
         mode the user has not touched yet is noise; the disabled toggle in the
@@ -221,6 +230,7 @@ LuthierAudioProcessorEditor::~LuthierAudioProcessorEditor()
 
     processor.getUiState().editorWidth = getWidth();
     processor.getUiState().editorHeight = getHeight();
+    processor.getUiState().practiceDrawerOpen = practicePanel.isOpen();
 
     tooltips.setLookAndFeel (nullptr);
     setLookAndFeel (nullptr);
@@ -484,9 +494,15 @@ void LuthierAudioProcessorEditor::paint (juce::Graphics& g)
                 juce::Justification::centredRight, false);
 
     // CPU and latency, where a player can see them without opening anything.
-    g.drawText ("CPU " + juce::String (processor.getEngine().getCpuEstimate(), 1) + "%"
-                + "    latency " + juce::String (processor.getLatencySamples()) + " smp",
-                footer.reduced (Metrics::windowPadding, 0),
+    juce::String status = "CPU " + juce::String (processor.getEngine().getCpuEstimate(), 1) + "%"
+                            + "    latency " + juce::String (processor.getLatencySamples()) + " smp";
+
+    // action-and-undo.md 12: Options -> Diagnostics -> "Show Undo Depth".
+    if (UiPreferences::get().getBool (DiagnosticsPage::kShowUndoDepthKey, false))
+        status << "    Undo: " << processor.getNumUndoSteps() << " / " << LuthierAudioProcessor::getMaxUndoSteps()
+               << "; Redo: " << processor.getNumRedoSteps();
+
+    g.drawText (status, footer.reduced (Metrics::windowPadding, 0),
                 juce::Justification::centredLeft, false);
 }
 
@@ -828,7 +844,8 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
             return true;
         }
 
-        processor.pushUndoState ("Load preset");
+        // action-and-undo.md 5: a preset load is a state boundary.
+        processor.pushUndoBoundary ("Load preset");
 
         if (forward) processor.getPresetManager().loadNext();
         else         processor.getPresetManager().loadPrevious();
@@ -850,8 +867,38 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return false;
     }
 
-    if (is ("undo")) { processor.undo(); return true; }
-    if (is ("redo")) { processor.redo(); return true; }
+    /*  action-and-undo.md 5 and 9. A plain undo stops once it has reversed a
+        boundary (a preset, guitar, family or setlist load) and says so;
+        Ctrl+Alt+Z crosses with a section-15 banner naming what it crossed.
+        Section 8: an entry with a warning (a family switch) posts it as it is
+        undone. Ctrl+Y is the alternate redo (section 9, Windows). */
+    if (is ("undo") || is ("undoAcrossBoundary"))
+    {
+        const bool crossing = is ("undoAcrossBoundary");
+
+        if (processor.isUndoBlockedByBoundary())
+        {
+            const auto boundary = processor.getUndoBoundaryDescription();
+
+            if (! crossing)
+            {
+                notifications.post ({ "undo-boundary", tr ("undo.boundary.stopped", { { "name", boundary } }),
+                                      Notification::Level::info });
+                return true;
+            }
+
+            notifications.post ({ "undo-boundary", tr ("undo.boundary.crossed", { { "name", boundary } }),
+                                  Notification::Level::warning });
+        }
+
+        if (const auto warning = processor.getUndoWarning(); warning.isNotEmpty())
+            notifications.post ({ "undo-warning", warning, Notification::Level::warning });
+
+        processor.undo (crossing);
+        return true;
+    }
+
+    if (is ("redo") || is ("redoAlt")) { processor.redo(); return true; }
 
     if (is ("save"))
     {

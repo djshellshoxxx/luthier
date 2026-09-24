@@ -53,6 +53,12 @@ public:
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
+    /*  qa-polish 5, bypass null: an instrument bypassed is silent. JUCE's
+        default passes the input through, which here is the sidechain bus
+        sharing the main output's channels - so without this a bypassed Luthier
+        would play whatever was routed into its sidechain. */
+    void processBlockBypassed (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return ! LUTHIER_HEADLESS; }
 
@@ -401,6 +407,14 @@ public:
 
     void pushUndoState (const juce::String& description);
 
+    /*  action-and-undo.md 5: a state boundary. A preset load, a guitar or
+        family switch and a setlist step push one of these instead of a plain
+        entry. The boundary itself can be undone (it reverses the load), but a
+        plain undo() will not step from there into the entries older than it;
+        undo (true) - Ctrl+Alt+Z - crosses. `warning` is shown when the entry
+        is undone (section 8: a family switch loses parts added since). */
+    void pushUndoBoundary (const juce::String& description, const juce::String& warning = {});
+
     /*  One undo step for an action that writes several parameters (a style
         preset, a snapshot of values). Pushes the entry, then stops each
         write's change gesture from pushing its own until it goes out of
@@ -428,10 +442,39 @@ public:
     /** How many actions can be undone (tests, and the Edit menu's count). */
     int getNumUndoSteps() const noexcept { return undoPosition + 1; }
     bool canRedo() const noexcept { return undoPosition + 1 < undoStack.size(); }
-    void undo();
+
+    /** section 12's footer counter: "Undo: N / 200; Redo: M". */
+    int getNumRedoSteps() const noexcept { return undoStack.size() - undoPosition - 1; }
+    static constexpr int getMaxUndoSteps() noexcept { return kMaxUndoSteps; }
+
+    /*  section 5: true when the entry just undone was a boundary, so the next
+        plain undo() is refused and only undo (true) steps on. */
+    bool isUndoBlockedByBoundary() const noexcept;
+
+    /** The description of the boundary a crossing undo would step past. */
+    juce::String getUndoBoundaryDescription() const;
+
+    /** section 8: the warning attached to the entry the next undo reverses. */
+    juce::String getUndoWarning() const;
+
+    /** Undoes one entry. `crossBoundary` (Ctrl+Alt+Z) steps past a boundary. */
+    void undo (bool crossBoundary = false);
     void redo();
     juce::String getUndoDescription() const;
     juce::String getRedoDescription() const;
+
+    /*  For tests: where the 200 ms grouping window (section 4) reads "now",
+        in milliseconds. Empty means the wall clock. */
+    void setUndoClock (std::function<double()> clockMs) { undoClock = std::move (clockMs); }
+
+    /*  action-and-undo.md 3.6: the mod-matrix edits a user makes go through
+        here so that each is one undo entry with the spec's description; the
+        matrix itself knows nothing about undo. */
+    bool addModRoute (const ModRoute& route);
+    void removeModRoute (int index);
+    void clearModRoutes();
+    void setModRouteDepth (int index, float depth);
+    void setModRouteEnabled (int index, bool enabled);
 
     //==========================================================================
     // UI state that belongs with the plugin rather than with the editor.
@@ -446,6 +489,7 @@ public:
         bool easterEggFound = false;
         int  editorWidth = 1200;
         int  editorHeight = 720;
+        bool practiceDrawerOpen = false;   ///< onboarding.md 11: restored with the window
         AuditionPhrase::Type auditionType = AuditionPhrase::Type::MajorScale;
 
         /** workshop-ui.md 7: the bench's eight A/B guitars, workspace not preset. */
@@ -457,8 +501,12 @@ public:
     /** Host tempo, updated each block. */
     double getHostTempo() const noexcept { return hostTempo.load(); }
 
-    /** Snapshot of the plugin state, for the exporter. */
-    juce::MemoryBlock captureStateBlock();
+    /*  Snapshot of the plugin state, for the exporter. With `excludeTune` the
+        block carries no "tune" property: undo entries and the A/B slots use
+        that, so that restoring one leaves the Tune Builder and its own undo
+        history alone (action-and-undo.md 0.5 / 3.9; the tune's history is its
+        own trail, and a knob undo is not a tune load). */
+    juce::MemoryBlock captureStateBlock (bool excludeTune = false);
 
     /** Factory used by the exporter to make an offline instance. */
     static std::unique_ptr<juce::AudioProcessor> createOfflineInstance();
@@ -738,9 +786,34 @@ private:
         juce::MemoryBlock redoState;
 
         juce::String description;
+
+        /** action-and-undo.md 5: a preset / guitar / family / setlist load. */
+        bool boundary = false;
+
+        /** section 8: shown when this entry is undone; empty for most. */
+        juce::String warning;
+
+        /*  section 4's grouping key and clock. Set only for parameter gestures:
+            the parameter's id, when the gesture ended, and the value texts the
+            merged description is rebuilt from ("Change X from A to B"). */
+        juce::String parameterId;
+        double timeMs = 0.0;
+        juce::String fromText, toText;
     };
 
     void addUndoEntry (UndoEntry&& entry);
+
+    /** Writes the state; getStateInformation is this with the tune included. */
+    void writeStateInformation (juce::MemoryBlock& destData, bool includeTune);
+
+    /** recallSnapshot without its undo entry, for a setlist step that owns the entry. */
+    bool recallSnapshotWithoutUndo (int index);
+
+    std::function<double()> undoClock;
+    double undoNowMs() const;
+
+    /** action-and-undo.md 0.3 / 4: the grouping window. */
+    static constexpr double kUndoGroupWindowMs = 200.0;
 
     bool gestureUndoSuppressed = false;
 
@@ -769,6 +842,8 @@ private:
 
     juce::MemoryBlock gestureStartState;
     juce::String gestureParameterName;
+    juce::String gestureParameterId;
+    juce::String gestureStartText;
     float gestureStartValue = 0.0f;
     int gestureParameterIndex = -1;
 

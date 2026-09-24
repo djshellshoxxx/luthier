@@ -98,6 +98,27 @@ numbered, because what it should be called is a release decision.
   darker when palm-muted, from a keyswitch, a CC, a zone or the button, or
   held on the mod wheel. The rake across the strings (`pick-noise.md` 5) now
   has triggers too. Both reach the Noise output. Fourteen new parameters.
+- **Slap** (`string-slap-technique.md`, `bass-techniques.md` 2-5) - thumb
+  slaps, finger pops, palm slaps across muted strings and body taps, fired
+  from a keyswitch, a CC, an MPE zone, the velocity zone or the STRIKE
+  button through the technique layer's shared MIDI front; ghost notes, the
+  double thump and the fret clack from the fret-buzz generator. The SLAP
+  group has the controls and the five factory slaps; twenty-five new
+  parameters (426-450).
+- **Muting as rhythm** (`muting-rhythm.md`) - every pattern step carries a
+  mute type (open, palm mute light / heavy / extreme, ghost, chuka, fret
+  mute) painted in the RHYTHM tab's Mute Row; a live sixteen-step grid,
+  locked to the host, mutes what you play when the engine is not driving;
+  a master mute mode, soft strums as chukas, mute humanise and the MUTE
+  group's palm and fretting-hand controls; Easy mode's 4-way Mute button.
+  Eight new parameters (451-458; the parameter count is 458).
+- **First run** (`onboarding.md` 5, 7-9, 11, 12) - a first launch takes
+  reduced motion, the high-contrast palette, a 125 % scale on a display
+  over 150 % and the locale from the operating system, once; the TUNE tab
+  and the Workshop bench show their one-time hints in the first session;
+  the practice drawer reopens as it was left; Options -> Diagnostics ->
+  Restore first-run experience clears the settings and every one-time flag
+  (the range explainer's included) and keeps the libraries.
 - **Strums that move like a hand** (`strum-dynamics.md`) - a strum
   accelerates through the strings, up-strokes are quicker and lighter, the
   hand tilts and now and then misses a string, and what strikes the strings

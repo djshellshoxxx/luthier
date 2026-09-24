@@ -1851,19 +1851,19 @@ content or "Restore first-run experience" exist (rg `tour`, `welcome`,
 | ONB-3-01 | 12-step tour with Next/Back/Skip, Escape ends, closing line | onboarding §3 | not built (several targets - wrench, TUNE, header snapshot strip, gear - do not exist either) | none | `pending` |
 | ONB-4-01 | First-week hints: `?` pulse, unused-tab dots, dice tooltip, wrench/TUNE/slide pulses | onboarding §4 | not built | none | `pending` |
 | ONB-5-01 | First-run defaults: sidechain off, sidechain-to-amp off, session recorder off, updates/telemetry/crash/beta off, stock, Slide off, Live off | onboarding §5 | defaults as listed | `TelemetryTests.cpp` `Telemetry::everythingIsOffByDefault`; `PracticeTests.cpp` `PracticeSession::disabledByDefault` | `implemented` - declared; specific defaults or the refusal path are not asserted by the cited test |
-| ONB-5-02 | Reduced motion follows OS; high-contrast OS -> high-contrast palette; DPI > 150% snaps to 125%; locale follows OS if shipped | onboarding §5 | not found | none | `pending` |
+| ONB-5-02 | Reduced motion follows OS; high-contrast OS -> high-contrast palette; DPI > 150% snaps to 125%; locale follows OS if shipped | onboarding §5 | `UI/FirstRun.*` (`defaultsFor`, `applyIfFirstRun` from the editor ctor; Windows reads in `FirstRunOs.cpp`, other OSes default off) | `FirstRunTests.cpp` `FirstRun::theOsPreferencesMapToSectionFivesDefaults`, `FirstRun::appliesOnceOnAFreshInstallAndNeverAgain` | `verified` - locale needs a shipped catalog (DECISIONS) |
 | ONB-6-01 | 36 factory presets across Electric, Acoustic, Classical, Bass, Utility | onboarding §6 | `FactoryPresets.cpp` (36) | `IntegrationTests.cpp` `Presets::everyFactoryPresetLoadsAndPlays` | `verified` |
 | ONB-6-02 | 12 factory guitars as `.luthierguitar` | onboarding §6 | 27 shipped (DECISIONS; Conflict C-15) | `WorkshopTests.cpp` `Workshop::everyFactoryGuitarLoadsAndRoundTrips` | `verified` |
 | ONB-6-03 | 60+ factory parts across every slot | onboarding §6 | 148 in `Resources/Parts` | `WorkshopTests.cpp` `Workshop::theFactoryLibraryIsThere` | `verified` |
 | ONB-6-04 | 12 tune templates; 6 example tunes | onboarding §6 | ten templates (C-16) in `Resources/Tunes/Templates`; no example tunes | `TuneBuilderTests.cpp` `TuneBuilder::theTenTemplatesLoadInOrderAndAreValid` | `partial` - example tunes |
 | ONB-6-05 | 12 example MIDI clips in `Resources/Examples/`; 6 royalty-free backing tracks; 10 example setlists | onboarding §6 | none on disk | none | `pending` |
 | ONB-7-01 | First advanced-range encounter popover with fixed text, once | onboarding §7 | `RangesUi::showExplainerIfFirstTime` | none | `implemented` |
-| ONB-7-02 | Re-triggered by "Restore first-run experience" (must clear `ranges_first_unlock_explained`) | onboarding §7, §12 | not built (TODO 14c) | none | `pending` |
-| ONB-8-01 | TUNE first-encounter inline hint | onboarding §8 | no TUNE tab | none | `pending` |
-| ONB-9-01 | Workshop first-encounter hint | onboarding §9 | no bench | none | `pending` |
+| ONB-7-02 | Re-triggered by "Restore first-run experience" (must clear `ranges_first_unlock_explained`) | onboarding §7, §12 | `FirstRun::restoreFirstRunExperience` empties `UiPreferences` (flag included) | `FirstRunTests.cpp` `FirstRun::restoreClearsTheSettingsAndTheOneTimeFlagsAndKeepsTheLibraries` | `verified` |
+| ONB-8-01 | TUNE first-encounter inline hint | onboarding §8 | `FirstEncounterHint` at the top of `TunePanel` (first session, once) | `FirstRunTests.cpp` `FirstEncounterHint::theTuneTabAndTheBenchCarryTheirHints` | `verified` |
+| ONB-9-01 | Workshop first-encounter hint | onboarding §9 | `FirstEncounterHint` under the `WorkshopPanel` header; "Escape closes." only on the overlay | `FirstRunTests.cpp` `FirstEncounterHint::theTuneTabAndTheBenchCarryTheirHints` | `verified` |
 | ONB-10-01 | Three documented paths (30 s, 2 min, 5 min) in manual and videos | onboarding §10 | not documented | none | `pending` |
-| ONB-11-01 | Returning user: last preset, window size, mode, tab, drawer, Slide state, last tune; update banner | onboarding §11 | host state restore; tab via `UiPreferences` | `EditorTests.cpp` `Editor::theWorkspaceTabWrapsAndIsRemembered` | `partial` - standalone "last preset" and tune not verified |
-| ONB-12-01 | Options -> Diagnostics "Restore first-run experience" with confirm; keeps libraries | onboarding §12 | not built | none | `pending` |
+| ONB-11-01 | Returning user: last preset, window size, mode, tab, drawer, Slide state, last tune; update banner | onboarding §11 | host state restore; tab via `UiPreferences`; practice drawer via `UiState::practiceDrawerOpen` | `EditorTests.cpp` `Editor::theWorkspaceTabWrapsAndIsRemembered`; `FirstRunTests.cpp` `ReturningUser::thePracticeDrawerComesBackAsItWasLeft` | `partial` - standalone "last preset" and tune not verified |
+| ONB-12-01 | Options -> Diagnostics "Restore first-run experience" with confirm; keeps libraries | onboarding §12 | `DiagnosticsPage` "Restore first-run experience" (confirms, `restoreFirstRun`) | `FirstRunTests.cpp` `FirstRun::theDiagnosticsPageRestores` | `verified` |
 | ONB-13-01 | Version upgrade banner, NEW dots, changelog, migrations with dated Backup folder | onboarding §13 | preset backups exist (file-formats 13.4); rest not built | `IntegrationTests.cpp` `Presets::savingBacksUpTheVersionItReplaces` | `partial` |
 | ONB-14-01 | Test: fresh install default state | onboarding §14 | - | `WorkshopPresetTests.cpp` `WorkshopPresets::aFreshInstanceNamesItsFactoryGuitar` (guitar only) | `partial` |
 | ONB-14-02 | Test: tour 12 steps aligned at every scale | onboarding §14 | - | none | `pending` |
@@ -2491,59 +2491,59 @@ the SLIDE group lives on the CHARACTER tab in column 4 (Conflict C-31).
 
 ## 44. string-slap-technique.md (phase 5b)
 
-**Not built** (TODO 13b). Depends on `bass-techniques.md` (not built), the
-missing `body-coupling.md` (Body Tap drives its mode bank) and the missing
-`fingerstyle-attack.md` (Playing strip Tool selector).
+**Built 2026-09-24** (`DSP/Slap/SlapEngine`, `Model/Playing/TechniqueTriggers`,
+parameters 426-450, `UI/SlapGroup`). The body tap drives the body stage
+rather than a mode bank (`body-coupling.md` missing); the TECHNIQUES tab and
+the Tool selector (`fingerstyle-attack.md`) are not built.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
-| SLP-0-01 | Slap is a strike with slap-buzz; position and force independent; works on any guitar with wound strings | string-slap-technique §0 | `Excitation::Kind::Slap` shape only | none | `pending` |
-| SLP-1-01 | Slap types Thumb Slap, Finger Pop, Palm Slap, Body Tap | string-slap-technique §1 | not built | none | `pending` |
-| SLP-1-02 | Controls: trigger source, contact position (60/40/100 mm), force 0.6, string mask, ghost mode, rebound (60 ms), snap-back (bass), body-tap part (top/side/back) | string-slap-technique §1 | not built | none | `pending` |
-| SLP-2-01 | `SlapEngine` {trigger, processBlock, reset}; excitations to StringEngine; slap-buzz to FretBuzz path | string-slap-technique §2 | not built | none | `pending` |
-| SLP-2-02 | Body Tap bypasses strings into BodyCoupling mode bank | string-slap-technique §2 | BodyCoupling does not exist | none | `blocked` - `body-coupling.md` missing |
-| SLP-3-01 | bass-techniques slap/pop share SlapEngine; old bass presets keep working | string-slap-technique §3 | not built | none | `pending` |
-| SLP-4-01 | Presets Bass Slap Standard/Aggressive, Funk Guitar Palm Slap, Acoustic Body Tap, Percussive Fingerstyle | string-slap-technique §4 | not built | none | `pending` |
-| SLP-5-01 | Cascade: with mute, bends, alternating taps; not slide or scrape on same string | string-slap-technique §5 | - | none | `pending` |
-| SLP-6-01 | GUI: TECHNIQUES SLAP sub-tab; Playing strip Tool selector gains Slap and Pop | string-slap-technique §6 | Tool selector is a `fingerstyle-attack.md` feature | none | `blocked` - tool selector spec missing |
-| SLP-7-01 | Test: bass thumb slap matches bass-techniques reference within 1 dB | string-slap-technique §7 | - | none | `pending` |
-| SLP-7-02 | Test: palm slap < -25 dB pitched content | string-slap-technique §7 | - | none | `pending` |
-| SLP-7-03 | Test: body tap < -60 dB on damped string outputs | string-slap-technique §7 | - | none | `blocked` - needs BodyCoupling |
-| SLP-7-04 | Test: ghost mode thump without clear pitch | string-slap-technique §7 | - | none | `pending` |
-| SLP-7-05 | Test: rebound gap ±3 ms | string-slap-technique §7 | - | none | `pending` |
-| SLP-7-06 | Test: plain-string slap has reduced buzz | string-slap-technique §7 | - | none | `pending` |
-| SLP-7-07 | Test: CPU idle < 0.05%, active < 0.6% per event | string-slap-technique §7 | - | none | `pending` |
-| SLP-7-08 | Test: preset round trip | string-slap-technique §7 | - | none | `pending` |
+| SLP-0-01 | Slap is a strike with slap-buzz; position and force independent; works on any guitar with wound strings | string-slap-technique §0 | `SlapEngine` (strike + `makeContactBuzz`; force and position separate); any guitar | `SlapTests.cpp` `SlapWiring::thePlainHighEIsAudibleButClacksLess` | `verified` |
+| SLP-1-01 | Slap types Thumb Slap, Finger Pop, Palm Slap, Body Tap | string-slap-technique §1 | `SlapType` {thumb, pop, palm, bodyTap}; `slap_type` (426-450 block) | `SlapTests.cpp` `Slap::whatANoteBecomes` | `verified` |
+| SLP-1-02 | Controls: trigger source, contact position (60/40/100 mm), force 0.6, string mask, ghost mode, rebound (60 ms), snap-back (bass), body-tap part (top/side/back) | string-slap-technique §1 | `SlapSettings` / params `slap_*`, `pop_*`, `ghost_*`, `double_thump_*`; `SlapGroup` (UI/SlapGroup.*) | `SlapTests.cpp` `SlapPresets::everySlapFieldRoundTrips` | `implemented` - group has no TECHNIQUES tab host yet |
+| SLP-2-01 | `SlapEngine` {trigger, processBlock, reset}; excitations to StringEngine; slap-buzz to FretBuzz path | string-slap-technique §2 | `DSP/Slap/SlapEngine` alongside the scrape in `LuthierEngine::processSubBlock`; excitation via `shapeExcitation`, clack into the fret-buzz pool | `SlapTests.cpp` `SlapWiring::theClackComesFromTheBuzzGenerator` | `verified` |
+| SLP-2-02 | Body Tap bypasses strings into BodyCoupling mode bank | string-slap-technique §2 | Body tap drives the body stage directly (`bodyTapBuffer` into `BodyEngine` input and Aux 8); no mode bank (body-coupling.md missing) | `SlapTests.cpp` `SlapWiring::aBodyTapLeavesTheStringsAlone` | `partial` - body response, not a mode bank (DECISIONS) |
+| SLP-3-01 | bass-techniques slap/pop share SlapEngine; old bass presets keep working | string-slap-technique §3 | `SlapSettings` reads bass-techniques 2-5 fields; auto ghost on bass | `SlapTests.cpp` `Slap::whatANoteBecomes` | `verified` |
+| SLP-4-01 | Presets Bass Slap Standard/Aggressive, Funk Guitar Palm Slap, Acoustic Body Tap, Percussive Fingerstyle | string-slap-technique §4 | `SlapSettings::fromPreset` (5 presets); `SlapGroup` preset box writes the parameters | `SlapTests.cpp` `Slap::theFactorySlapsAreWhatSectionFourSays` | `verified` |
+| SLP-5-01 | Cascade: with mute, bends, alternating taps; not slide or scrape on same string | string-slap-technique §5 | Bar blocks the thumb (`classify` underBar); slap x scrape / tap preempt each other (`LuthierEngine::triggerNote`, rising-edge scrape watch) | `SlapTests.cpp` `SlapWiring::slapAndScrapeTakeTheStringFromEachOther` | `verified` |
+| SLP-6-01 | GUI: TECHNIQUES SLAP sub-tab; Playing strip Tool selector gains Slap and Pop | string-slap-technique §6 | `SlapGroup` built; TECHNIQUES tab and Tool selector not built | none | `partial` - no host tab; tool selector spec missing |
+| SLP-7-01 | Test: bass thumb slap matches bass-techniques reference within 1 dB | string-slap-technique §7 | - | `SlapTests.cpp` `SlapWiring::aThumbSlapIsTheSameHoweverItIsFired` | `verified` |
+| SLP-7-02 | Test: palm slap < -25 dB pitched content | string-slap-technique §7 | - | `SlapTests.cpp` `SlapWiring::aPalmSlapIsBroadbandAndPitchless` | `verified` |
+| SLP-7-03 | Test: body tap < -60 dB on damped string outputs | string-slap-technique §7 | - | `SlapTests.cpp` `SlapWiring::aBodyTapLeavesTheStringsAlone` | `verified` - against the body stage, not a mode bank |
+| SLP-7-04 | Test: ghost mode thump without clear pitch | string-slap-technique §7 | ghost hand across the strings (DECISIONS: measured above 20 Hz) | `SlapTests.cpp` `SlapWiring::aGhostIsAThumpWithNoPitch` | `verified` |
+| SLP-7-05 | Test: rebound gap ±3 ms | string-slap-technique §7 | - | `SlapTests.cpp` `SlapWiring::theDoubleThumpComesBackAtItsGap` | `verified` |
+| SLP-7-06 | Test: plain-string slap has reduced buzz | string-slap-technique §7 | - | `SlapTests.cpp` `SlapWiring::thePlainHighEIsAudibleButClacksLess` | `verified` |
+| SLP-7-07 | Test: CPU idle < 0.05%, active < 0.6% per event | string-slap-technique §7 | - | `SlapTests.cpp` `Slap::idleAndActiveStayInBudget` | `verified` |
+| SLP-7-08 | Test: preset round trip | string-slap-technique §7 | - | `SlapTests.cpp` `SlapPresets::everySlapFieldRoundTrips` | `verified` |
 
 ## 45. muting-rhythm.md (phase 5b)
 
-**Not built** (TODO 13b). Existing pieces: palm-mute technique
-(`StringEngine.cpp:256`), `MutedPick`, strum types `downMute`/`upMute`/`rake`
-(`Patterns.h:22`). Fretting-hand mute style depends on the missing
-`string-interaction.md`. Engine-technique-layer adds a `MuteEngine` that
-this spec says is unnecessary (Conflict C-30).
+**Built 2026-09-24** (`Rhythm/Muting`, parameters 451-458, `UI/MuteGroup`;
+no `MuteEngine`, as this spec says - C-30 resolved this way). Fretting-hand
+style is built as DECISIONS records, `string-interaction.md` still missing;
+MIDI export of `mute_type` (§8) not done.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
-| MR-0-01 | Muting is a rhythmic voice that makes sound; can flip mid-groove; multiple types per groove | muting-rhythm §0 | palm mute technique | `EngineTests.cpp` `StringEngine::palmMuteShortensAndDarkens` | `partial` |
-| MR-1-01 | Mute types Open, PM Light (T60 ~150 ms), PM Heavy (~50), PM Extreme (~20), Ghost, Chuka, Fret Mute, with position/pressure defaults | muting-rhythm §1 | single palm-mute amount | none | `pending` |
-| MR-2-01 | Pattern steps gain `mute_type`; missing = open | muting-rhythm §2 | not in `Patterns.cpp` schema | none | `pending` |
-| MR-2-02 | Live 16-step Mute Grid overlay synced to host tempo | muting-rhythm §2 | not built | none | `pending` |
-| MR-3-01 | Controls: master mute mode, per-step type grid, palm position 35 mm, pressure 0.5, fretting-hand style, chuka source (< 0.3), random humanise, ghost velocity 0.4 | muting-rhythm §3 | not built | none | `pending` |
-| MR-3-02 | Fretting-hand mute style (rock spread vs classical) from string-interaction | muting-rhythm §3 | - | none | `blocked` - `string-interaction.md` missing |
-| MR-4-01 | RhythmEngine reads/passes `mute_type`; StringEngine applies per-note damping and release | muting-rhythm §4 | not built | none | `pending` |
-| MR-5-01 | Muting stacks with every technique | muting-rhythm §5 | - | none | `pending` |
-| MR-6-01 | Presets Metal Chug 16ths, Funk Chuka, Reggae Skank, Country Boom-Chick, Metal Gallop, Classical Staccato | muting-rhythm §6 | not built | none | `pending` |
-| MR-7-01 | GUI: TECHNIQUES MUTE sub-tab; Easy Playing strip 4-way Mute button; RHYTHM editor Mute Row | muting-rhythm §7 | not built | none | `pending` |
+| MR-0-01 | Muting is a rhythmic voice that makes sound; can flip mid-groove; multiple types per groove | muting-rhythm §0 | `Rhythm/Muting.*`: mute types per step, stamped on every note-on (`NoteOnEvent::muteType`) | `MutingTests.cpp` `Muting::aPatternsMuteRowReachesItsNotes` | `verified` |
+| MR-1-01 | Mute types Open, PM Light (T60 ~150 ms), PM Heavy (~50), PM Extreme (~20), Ghost, Chuka, Fret Mute, with position/pressure defaults | muting-rhythm §1 | `MuteType`, `Muting::dampingFor` (150/50/20 ms, ghost, chuka = chuck, fret mute ring-then-stop); `StringEngine::Damping::Muted` | `MutingTests.cpp` `Muting::eachTypeDampsAsDescribed`, `Muting::palmMuteHeavyOnLowEDecaysIn40To60Ms` | `verified` |
+| MR-2-01 | Pattern steps gain `mute_type`; missing = open | muting-rhythm §2 | `RhythmPattern::get/setMuteStep`; `mute_type` written only when not open | `MutingTests.cpp` `Muting::theMuteGridsRoundTrip`, `Muting::existingPatternsPlayIdentically` | `verified` |
+| MR-2-02 | Live 16-step Mute Grid overlay synced to host tempo | muting-rhythm §2 | `RhythmEngine::setLiveMuteStep` / `applyLiveMutes` (16 sixteenths at host ppq); `MuteGroup` live grid | `MutingTests.cpp` `Muting::paintingTheLiveGridAppliesWithinABar` | `verified` |
+| MR-3-01 | Controls: master mute mode, per-step type grid, palm position 35 mm, pressure 0.5, fretting-hand style, chuka source (< 0.3), random humanise, ghost velocity 0.4 | muting-rhythm §3 | params `mute_*` (451-458) -> `MuteSettings`; `MuteGroup` on the RHYTHM tab | `MutingTests.cpp` `Muting::parametersReachTheEngine`, `Muting::theMuteControlsDriveTheModel` | `verified` |
+| MR-3-02 | Fretting-hand mute style (rock spread vs classical) from string-interaction | muting-rhythm §3 | `FrettingMuteStyle`: rock spread deadens unstruck / idle strings (`scheduleStrum`, `triggerNote`); classical leaves them | `MutingTests.cpp` `Muting::rockSpreadDeadensTheStringsAMutedStrumMisses` | `implemented` - string-interaction.md still missing; behaviour as DECISIONS records |
+| MR-4-01 | RhythmEngine reads/passes `mute_type`; StringEngine applies per-note damping and release | muting-rhythm §4 | `RhythmEngine::stampMute`; `LuthierEngine::triggerNote` applies `setMutedDamping`, fret-mute release timer | `MutingTests.cpp` `Muting::aFretMuteRingsThenStops` | `verified` |
+| MR-5-01 | Muting stacks with every technique | muting-rhythm §5 | additive: any technique is stamped; chuck / ghost keep the harder damping | `MutingTests.cpp` `Muting::aMuteIsStampedOnAnyTechnique` | `verified` |
+| MR-6-01 | Presets Metal Chug 16ths, Funk Chuka, Reggae Skank, Country Boom-Chick, Metal Gallop, Classical Staccato | muting-rhythm §6 | `getMuteGridPreset` (6); `MuteGroup::applyPreset` | `MutingTests.cpp` `Muting::theMuteControlsDriveTheModel` | `verified` |
+| MR-7-01 | GUI: TECHNIQUES MUTE sub-tab; Easy Playing strip 4-way Mute button; RHYTHM editor Mute Row | muting-rhythm §7 | `MuteGroup` + Mute Row (`MuteGridEditor`) on the RHYTHM tab; `EasyMuteButton` on the Easy playing strip; TECHNIQUES tab not built | `MutingTests.cpp` `Muting::theMuteControlsDriveTheModel`, `Muting::theEasyMuteButtonCyclesFourWays` | `partial` - MUTE sub-tab waits for the TECHNIQUES tab |
 | MR-8-01 | MIDI export: NOTE gains `mute_type` (Luthier SysEx; Generic text meta) | muting-rhythm §8 | midi-export not built | none | `pending` |
-| MR-9-01 | Test: PM heavy on low E T60 40-60 ms | muting-rhythm §9 | - | none | `pending` |
-| MR-9-02 | Test: ghost < -30 dB pitched | muting-rhythm §9 | - | none | `pending` |
-| MR-9-03 | Test: chuka at 0.2 dynamics percussive only | muting-rhythm §9 | - | none | `pending` |
-| MR-9-04 | Test: grid paint applies within one bar | muting-rhythm §9 | - | none | `pending` |
-| MR-9-05 | Test: humanise 0.5 shifts ~50% over 100 loops | muting-rhythm §9 | - | none | `pending` |
-| MR-9-06 | Test: preset round trip of the grid | muting-rhythm §9 | - | none | `pending` |
-| MR-9-07 | Test: patterns without mute_type unchanged | muting-rhythm §9 | - | none | `pending` |
-| MR-9-08 | Test: slap carries own mute_type; grid override propagates | muting-rhythm §9 | - | none | `pending` |
+| MR-9-01 | Test: PM heavy on low E T60 40-60 ms | muting-rhythm §9 | - | `MutingTests.cpp` `Muting::palmMuteHeavyOnLowEDecaysIn40To60Ms` | `verified` |
+| MR-9-02 | Test: ghost < -30 dB pitched | muting-rhythm §9 | - | `MutingTests.cpp` `Muting::aGhostNoteHasNoPitchedContent` | `verified` |
+| MR-9-03 | Test: chuka at 0.2 dynamics percussive only | muting-rhythm §9 | - | `MutingTests.cpp` `Muting::aSoftStrumIsAChuka` | `verified` |
+| MR-9-04 | Test: grid paint applies within one bar | muting-rhythm §9 | - | `MutingTests.cpp` `Muting::paintingTheLiveGridAppliesWithinABar` | `verified` |
+| MR-9-05 | Test: humanise 0.5 shifts ~50% over 100 loops | muting-rhythm §9 | - | `MutingTests.cpp` `Muting::humaniseShiftsAboutHalfTheEligibleSteps` | `verified` |
+| MR-9-06 | Test: preset round trip of the grid | muting-rhythm §9 | - | `MutingTests.cpp` `Muting::theMuteGridsRoundTrip` | `verified` |
+| MR-9-07 | Test: patterns without mute_type unchanged | muting-rhythm §9 | - | `MutingTests.cpp` `Muting::existingPatternsPlayIdentically` | `verified` |
+| MR-9-08 | Test: slap carries own mute_type; grid override propagates | muting-rhythm §9 | stamp on any technique checked; the slap path reads the same field | `MutingTests.cpp` `Muting::aMuteIsStampedOnAnyTechnique` | `partial` - slap-specific grid override not asserted |
 
 ## 46. two-hand-tapping.md (phase 5b)
 
@@ -2674,12 +2674,12 @@ Precedence 19 (the six technique modules' integration). **Not built**
 | ETL-0-01 | Additive only; zero-cost idle; engine.md DSP rules; attach via command queue | engine-technique-layer §0 | no command queue | none | `pending` |
 | ETL-1-01 | New modules ScrapeEngine, SlapEngine (incl. Body Tap), TapEngine, MuteEngine, CascadeResolver | engine-technique-layer §1 | none exist | none | `pending` |
 | ETL-2-01 | Pipeline: TechniqueEngine -> CascadeResolver (2b) -> technique modules (2c) -> RhythmEngine (MuteGrid) -> ModMatrix -> StringEngine -> pickup/circuit/amp/cab (Body Tap to BodyCoupling) -> FX -> master | engine-technique-layer §2 | `LuthierEngine::process` has no 2b/2c stages | none | `pending` |
-| ETL-3.1-01 | TechniqueEngine gesture types (scrape, slap, tap, body-tap) and `emit` | engine-technique-layer §3.1 | not built | none | `pending` |
+| ETL-3.1-01 | TechniqueEngine gesture types (scrape, slap, tap, body-tap) and `emit` | engine-technique-layer §3.1 | `TechniqueTriggers` (Model/Playing): one MIDI read, `GestureEvent`s per technique; slap served, scrape still on its own handler | `SlapTests.cpp` `TechniqueTriggers::*` | `partial` - scrape not yet on the front (DECISIONS) |
 | ETL-3.2-01 | StringEngine: multi-source excitation per harmonic-realism 2; N concurrent contact points (was 1); summed bend offset | engine-technique-layer §3.2 | single slide contact; no multi-source interface spec | none | `blocked` - `harmonic-realism.md` missing |
-| ETL-3.3-01 | RhythmEngine step `mute_type` (default open), emitted with note-ons | engine-technique-layer §3.3 | not built | none | `pending` |
+| ETL-3.3-01 | RhythmEngine step `mute_type` (default open), emitted with note-ons | engine-technique-layer §3.3 | `RhythmEngine::emitNote` stamps `MuteStep` on every note-on | `MutingTests.cpp` `Muting::aPatternsMuteRowReachesItsNotes` | `verified` |
 | ETL-3.4-01 | BodyCoupling `driveDirect(impulse, position)` | engine-technique-layer §3.4 | module does not exist | none | `blocked` - `body-coupling.md` missing |
 | ETL-3.5-01 | ModMatrix `PreBendEvent` source; per-string microtonal range scale | engine-technique-layer §3.5 | not built | none | `pending` |
-| ETL-3.6-01 | MidiInterpreter keyswitches from a reserved range; MPE Y/Z to slide position and bends | engine-technique-layer §3.6 | not built; controllers.md defines no keyswitch range | none | `pending` |
+| ETL-3.6-01 | MidiInterpreter keyswitches from a reserved range; MPE Y/Z to slide position and bends | engine-technique-layer §3.6 | `TechniqueKeyswitch` table (C0-F#0, 12-18) under any bass low B; consumed by `TechniqueTriggers` | `SlapTests.cpp` `TechniqueTriggers::keyswitchesAreTakenAndBecomeEvents` | `partial` - MPE Y/Z routing not built |
 | ETL-4-01 | Commands ArmTechnique, SetTechniqueParam, TriggerGesture, LoadMuteGrid; result TechniqueFired | engine-technique-layer §4 | no queue | none | `pending` |
 | ETL-5-01 | ~60 APVTS params: 6 arm booleans + per-technique controls under `parameters/techniques/<technique>/*` | engine-technique-layer §5 | none declared | none | `pending` - parameter-count change needs the pinned count updated |
 | ETL-6-01 | Old presets load with techniques disarmed; old bass-slap presets map to SlapEngine | engine-technique-layer §6 | - | none | `pending` |

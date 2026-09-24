@@ -413,14 +413,28 @@ public:
     /** Wired by the editor, which is the only thing that can open an overlay. */
     std::function<void()> onShowDebugWindow;
 
+    /*  onboarding.md 12: what the button's confirmation calls. Clears the
+        user-global settings (FirstRun::restoreFirstRunExperience) and tells
+        the processor the restored range preference, which it cannot read. */
+    void restoreFirstRun();
+    juce::TextButton& getRestoreFirstRunButton() noexcept { return restoreFirstRunButton; }
+
     void refresh() override;
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    /*  action-and-undo.md 12: "Show Undo Depth" adds "Undo: N / 200; Redo: M"
+        to the footer. A user-global UiPreferences key: it is about the window,
+        not the sound. The editor's footer reads it. */
+    static constexpr const char* kShowUndoDepthKey = "diagnostics.showUndoDepth";
+    juce::ToggleButton& getUndoDepthToggle() noexcept { return undoDepthToggle; }
+
 private:
     juce::TextButton debugWindowButton { "Open the debug window" };
+    juce::TextButton restoreFirstRunButton { "Restore first-run experience" };
     juce::ToggleButton crashLogToggle { "Create a log file if Luthier crashes" };
     juce::ToggleButton recorderToggle { "Keep the last hour of audio for the session recorder" };
+    juce::ToggleButton undoDepthToggle { "Show undo depth in the footer" };
 
     juce::TextButton troubleshootButton { "Export troubleshooting file" };
     juce::TextButton openFolderButton { "Open diagnostics folder" };

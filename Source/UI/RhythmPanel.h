@@ -20,6 +20,7 @@
 #include "Theme.h"
 #include "Widgets.h"
 #include "StrumGroup.h"
+#include "MuteGroup.h"
 #include "../Rhythm/GenreKit.h"
 
 namespace luthier
@@ -194,6 +195,12 @@ private:
     // control and source line replace the old strum-duration slider.
     std::unique_ptr<StrumGroup> strumGroup;
 
+    /*  muting-rhythm 7 / gui-techniques 6: the Mute Row under the strum grid
+        edits the pattern's mute_type per step; the MUTE group (the TECHNIQUES
+        tab's MUTE sub-tab, until that tab exists) follows the STRUM group. */
+    std::unique_ptr<MuteGridEditor> muteRow;
+    std::unique_ptr<MuteGroup> muteGroup;
+
     // --- browser ------------------------------------------------------------------
     juce::ComboBox tagFilterBox;
     juce::ListBox patternList;
@@ -221,7 +228,7 @@ private:
 
     std::unique_ptr<juce::FileChooser> chooser;
 
-    juce::Label genreHeading, voicingHeading, strumHeading, pickHeading,
+    juce::Label genreHeading, voicingHeading, strumHeading, muteRowHeading, pickHeading,
                 feelHeading, browserHeading;
 
     bool updatingControls = false;

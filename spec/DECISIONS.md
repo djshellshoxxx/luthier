@@ -1266,8 +1266,9 @@ chosen") and `ambiguity-resolutions.md`.
   group needs it.** `MidiInterpreter` keeps a `ringing` flag past a let-ring
   release and folds it into the occupied mask, so a new note is voiced around
   it rather than onto it; when fewer free strings remain than the group has
-  notes, the ringing ones are offered again, since a note taking a ringing
-  string beats a note that never sounds. The pedal coming up frees them.
+  notes, or no free string can sound one, the voicing is redone around the
+  held strings only, since a note taking a ringing string beats a note that
+  never sounds. The pedal coming up frees them.
 - **A marker section rounded to whole bars keeps only its own span; rounded
   down with notes in the cut-off tail it grows a bar.** The rounded bar count
   reached past the next marker (notes duplicated into both sections) or short

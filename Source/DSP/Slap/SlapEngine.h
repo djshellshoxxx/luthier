@@ -171,6 +171,8 @@ public:
 
     static constexpr double kBodyTapSeconds = 0.25;
 
+    SlapEngine() = default;
+
     void prepare (double sampleRate) noexcept;
     void reset() noexcept;
 

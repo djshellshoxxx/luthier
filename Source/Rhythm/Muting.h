@@ -126,10 +126,11 @@ namespace Muting
     inline constexpr double kGhostT60       = 0.012;
 
     /*  1: a fret mute is "a short pitched sound then silence". The spec gives
-        no figures; 80 ms of ring and a 30 ms stop is a staccato eighth at
-        any tempo a classical player would call staccato. */
-    inline constexpr double kFretMuteRingSeconds = 0.080;
-    inline constexpr double kFretMuteStopT60     = 0.030;
+        no figures; 35 ms of ring (three periods of a low E, still a pitch)
+        and a 10 ms stop is a classical staccato at any tempo, and short
+        enough that the room's tail of the note is gone with it (MutingTests). */
+    inline constexpr double kFretMuteRingSeconds = 0.035;
+    inline constexpr double kFretMuteStopT60     = 0.010;
 
     /*  How a mute type sounds with this palm. Pressure and position change it
         the way the hand does: pressing harder or resting further from the

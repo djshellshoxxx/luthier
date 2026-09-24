@@ -1882,18 +1882,25 @@ LUTHIER_TEST (Plugin, reportedLatencyMatchesAnImpulseWithinOneSample)
     double peakOut = 0.0;
     for (double v : out) peakOut = juce::jmax (peakOut, std::abs (v));
 
-    int onset = -1;
+    // The first sample of the response, at 1e-4 of the peak: the cabinet's
+    // IR and the amp's coupling filters start small, so a coarser threshold
+    // reads a few samples late.
+    auto onsetAt = [&out, peakOut] (double fraction)
+    {
+        for (size_t i = 0; i < out.size(); ++i)
+            if (std::abs (out[i]) > peakOut * fraction)
+                return (int) i;
 
-    for (size_t i = 0; i < out.size(); ++i)
-        if (std::abs (out[i]) > peakOut * 0.05)
-        {
-            onset = (int) i;
-            break;
-        }
+        return -1;
+    };
+
+    const int onset = onsetAt (1.0e-4);
 
     CHECK_MSG (peakOut > 1.0e-4, "the impulse did not come out of the rig (peak " + juce::String (peakOut, 8) + ")");
     CHECK_MSG (onset >= 0 && std::abs (onset - expected) <= 1,
-               "impulse came out at sample " + juce::String (onset) + ", reported latency implies "
-                 + juce::String (expected) + " (main " + juce::String (engine.getLatencySamples())
-                 + ", DI tap " + juce::String (engine.getLatencySamples (AuxBus::di)) + ")");
+               "impulse came out at sample " + juce::String (onset) + " (at 1e-3: " + juce::String (onsetAt (1.0e-3))
+                 + ", 1e-2: " + juce::String (onsetAt (1.0e-2)) + ", 5e-2: " + juce::String (onsetAt (0.05))
+                 + "), reported latency implies " + juce::String (expected) + " (main "
+                 + juce::String (engine.getLatencySamples()) + ", DI tap "
+                 + juce::String (engine.getLatencySamples (AuxBus::di)) + ")");
 }

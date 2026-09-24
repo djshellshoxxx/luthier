@@ -29,7 +29,7 @@ namespace
           "1. Pick an instrument from the selector in the header.\n"
           "2. Pick a style from the list at the bottom of Easy mode, or a preset from the browser ({key:presetBrowser}).\n"
           "3. Press AUDITION ({key:audition}) to hear it without touching a keyboard.\n"
-          "4. Play. The six macro knobs cover most of what you will want to change.\n\n"
+          "4. Play. The seven macro knobs cover most of what you will want to change.\n\n"
           "THE WORKFLOW\n"
           "Choose the instrument, shape it, put it through the rig, then play or write with it. "
           "Easy mode is the first two steps on one screen. Advanced mode ({key:toggleAdvanced}) lays the whole "
@@ -53,7 +53,10 @@ namespace
           "- Preset: the name, with previous and next arrows. Click the name to browse.\n"
           "- File: save, open, import, export, options, randomise, reset.\n"
           "- A / B: two comparison slots. A>B copies the current one across.\n"
-          "- Undo / Redo: 64 steps.\n"
+          "- Undo / Redo: 200 steps ({key:undo} / {key:redo}, or {key:redoAlt}). A drag is one step. "
+          "Loading a preset, a guitar, a family or a setlist entry is a boundary: undo reverses the load "
+          "but stops there, and {key:undoAcrossBoundary} steps across it. The Tune Builder keeps its own "
+          "history, which these never touch.\n"
           "- Panic: stops every string immediately.\n"
           "- Learn: arms MIDI Learn; the next control you click takes the next CC you move.\n"
           "- ?: this help.\n"
@@ -62,8 +65,9 @@ namespace
           "- Top band: the instrument, drawn from the settings actually in use, and an interactive fretboard. "
           "Click a fret to hear that note; how high in the lane you click sets how hard it is picked. "
           "Right-click a string for mute, capo and scale overlays.\n"
-          "- Middle band: six macros - Attack, Body, Drive, Tone, Space, Humanize. Each has a dice (randomise "
-          "just this one) and a padlock (leave it alone when randomising).\n"
+          "- Middle band: the playing mode, Fingers, the Mute button (Off, Light, Heavy, Extreme palm mute on "
+          "everything you play) and seven macros - Attack, Body, Drive, Tone, Space, Humanize, Character. The "
+          "first six have a dice (randomise just this one) and a padlock (leave it alone when randomising).\n"
           "- Bottom band: style, playing mode, the chord readout, AUDITION and export.\n\n"
           "ADVANCED MODE\n"
           "A compressed guitar and fretboard strip across the top, then four columns:\n"
@@ -190,6 +194,11 @@ namespace
           "right-click sets its dynamic, its string mask or deletes it.\n"
           "- Feel: swing, timing, velocity, missed and ghost strings, and how long a strum takes.\n"
           "- Genre kits load a matched pattern, feel and voicing in one go; the dice picks one for you.\n"
+          "- Mute row: each step's mute type - open, palm mute light, heavy or extreme, ghost, chuka or fret "
+          "mute - painted under the strum grid; a pattern without one is open everywhere.\n"
+          "- MUTE group: arm, the master mute mode that overrides every step, the live sixteen-step grid that "
+          "mutes what you play when the engine is not driving, with its grooves, palm position and pressure, "
+          "the fretting hand's style, what makes a chuka, humanise and ghost level.\n"
           "- Patterns can be loaded, saved and exported, and filtered by tag.\n"
           "- When the guitar is a bass, the step grid is a bass line instead.\n\n"
           "The pattern is part of the preset, not a host parameter, so it travels with the sound." },
@@ -376,7 +385,8 @@ namespace
           "- EXPRESSION: expression-pedal calibration.\n"
           "- RANGES: whether this preset may go beyond stock ranges.\n"
           "- UPDATES and PRIVACY: update checks and what, if anything, is ever sent.\n"
-          "- DIAGNOSTICS: the debug window, crash logging and the troubleshooting file.\n"
+          "- DIAGNOSTICS: the debug window, crash logging, the troubleshooting file, and Restore first-run "
+          "experience.\n"
           "- FILE LOCATIONS: every folder Luthier reads or writes, with a button to open each one in your "
           "file browser, and Rescan presets." },
 
@@ -435,7 +445,10 @@ namespace
           "Send it first for anything that is merely not working as expected.\n"
           "- Reset all settings and clear caches: the destructive reset, for when nothing else works. It asks "
           "first. It is much stronger than Reset All in the header, and it does not delete your saved "
-          "presets.\n\n"
+          "presets.\n"
+          "- Restore first-run experience: clears your settings - palette, UI scale, motion, language, every "
+          "rebound shortcut - and the one-time hints, so the next launch behaves as freshly installed. It asks "
+          "first. Presets, guitars, tunes and parts are kept.\n\n"
           "If Luthier is hard-crashing, send BOTH the crash log and the troubleshooting file to support, with a "
           "description of what you were doing when it happened." },
 
@@ -484,7 +497,8 @@ namespace
                                  "togglePractice|midiLearnArm" },
         { "Presets, snapshots and setlists", "previousItem|nextItem|setlistPrevious|setlistNext|abCompare|"
                                  "randomise|resetAll|newPreset|presetBrowser" },
-        { "Files and editing",   "undo|redo|save|saveAs|revealPreset|saveGuitarAs|revealGuitar|export" }
+        { "Files and editing",   "undo|redo|redoAlt|undoAcrossBoundary|save|saveAs|revealPreset|saveGuitarAs|"
+                                 "revealGuitar|export" }
     };
 
     constexpr const char* kOtherGroup = "Other";

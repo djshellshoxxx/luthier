@@ -747,6 +747,46 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::chuckAmount,          "Chuck Amount",         0.0f, 1.0f, 0.0f));
     add (floatParam  (ParamIDs::chuckDamping,         "Chuck Damping",        0.0f, 1.0f, 0.92f));
 
+    // string-slap-technique.md 1 / bass-techniques.md 2-5 (parameters 426-450),
+    // appended likewise. The defaults are SlapSettings' own.
+    add (floatParam  (ParamIDs::slapStrength,       "Slap Strength",       0.0f, 1.0f, 0.70f));
+    add (floatParam  (ParamIDs::slapPositionMm,     "Slap Position",       5.0f, 400.0f, 60.0f, 0.3f, "mm"));
+    add (floatParam  (ParamIDs::slapThumbHardness,  "Thumb Hardness",      0.0f, 1.0f, 0.55f));
+    add (floatParam  (ParamIDs::slapFretContact,    "Slap Fret Contact",   0.0f, 1.0f, 0.80f));
+    add (floatParam  (ParamIDs::popStrength,        "Pop Strength",        0.0f, 1.0f, 0.75f));
+    add (floatParam  (ParamIDs::popPositionMm,      "Pop Position",        5.0f, 400.0f, 40.0f, 0.3f, "mm"));
+    add (boolParam   (ParamIDs::doubleThumpEnabled, "Double Thump", false));
+    add (floatParam  (ParamIDs::doubleThumpUpRatio, "Double Thump Up Ratio", 0.0f, 1.0f, 0.65f));
+    add (floatParam  (ParamIDs::ghostLevel,         "Ghost Level",         0.0f, 1.0f, 0.45f));
+    add (floatParam  (ParamIDs::ghostDamping,       "Ghost Damping",       0.0f, 1.0f, 0.94f));
+    add (boolParam   (ParamIDs::ghostAuto,          "Ghost Auto", true));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::ghostVelocityThreshold), "Ghost Velocity Threshold", 1, 127, 32));
+    add (boolParam   (ParamIDs::slapArmed,          "Slap Armed", false));
+    add (choiceParam (ParamIDs::slapType,           "Slap Type", { "Thumb Slap", "Finger Pop", "Palm Slap", "Body Tap" }, 0));
+    add (choiceParam (ParamIDs::slapTrigger,        "Slap Trigger", { "Keyswitch", "CC", "MPE Zone", "Button Only", "Velocity Zone" }, 0));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::slapVelocityZone), "Slap Velocity Zone", 1, 127, 100));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::slapTriggerCc), "Slap Trigger CC", 0, 127, 86));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::slapGhostCc), "Slap Ghost CC", 0, 127, 87));
+    add (floatParam  (ParamIDs::slapForce,          "Slap Force",          0.0f, 1.0f, 0.6f));
+    add (floatParam  (ParamIDs::slapPalmPositionMm, "Palm Slap Position",  5.0f, 400.0f, 100.0f, 0.3f, "mm"));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::slapStringMask), "Slap Strings",
+                                                    0, (1 << kMaxStrings) - 1, 0));
+    add (boolParam   (ParamIDs::slapGhostMode,      "Slap Ghost Mode", false));
+    add (floatParam  (ParamIDs::slapReboundGap,     "Rebound Gap",         1.0f, 500.0f, 60.0f, 0.2f, "ms"));
+    add (floatParam  (ParamIDs::slapSnapBack,       "Snap-Back",           0.0f, 1.0f, 0.5f));
+    add (choiceParam (ParamIDs::slapBodyPart,       "Body Tap Resonance", { "Top", "Side", "Back" }, 0));
+
+    // muting-rhythm.md 3 (parameters 451-458), appended likewise. The master
+    // mode's list is Off then every MuteType in order (Muting.h, append only).
+    add (boolParam   (ParamIDs::muteArmed,          "Mute Armed", false));
+    add (choiceParam (ParamIDs::muteMasterMode,     "Master Mute Mode", getMuteMasterModeNames(), 0));
+    add (floatParam  (ParamIDs::mutePalmPosition,   "Mute Palm Position",  5.0f, 100.0f, 35.0f, 1.0f, "mm"));
+    add (floatParam  (ParamIDs::mutePalmPressure,   "Mute Palm Pressure",  0.0f, 1.0f, 0.5f));
+    add (choiceParam (ParamIDs::muteFrettingStyle,  "Fretting Mute Style", { "Rock Spread", "Classical Fingertip" }, 0));
+    add (choiceParam (ParamIDs::muteChukaSource,    "Chuka Source", { "Pattern Only", "Soft Strums" }, 1));
+    add (floatParam  (ParamIDs::muteHumanise,       "Mute Humanise",       0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::muteGhostVelocity,  "Ghost Note Velocity", 0.0f, 1.0f, 0.4f));
+
     return layout;
 }
 
@@ -870,6 +910,7 @@ void ParameterBridge::cachePointers()
             const auto mixId = ParamIDs::slotMix (chain == 1, slot);
 
             sp.type = raw (typeId);
+            sp.typeChoice = dynamic_cast<juce::AudioParameterChoice*> (apvts.getParameter (typeId));
             sp.bypass = raw (bypassId);
             sp.mix = raw (mixId);
             sp.typeIndex = parameterIndex (typeId);
@@ -1000,6 +1041,54 @@ void ParameterBridge::applyToEngine() noexcept
         // Coverage C-29: pick_scrape_amount is the scrape's level; 1 at its 0.25 default.
         scrape.level           = value (ParamIDs::pickScrapeAmount) / 0.25f;
         engine.setScrapeSettings (scrape);
+    }
+
+    // ---- slap (string-slap-technique.md 1, bass-techniques.md 2-5) ------------------
+    {
+        SlapSettings slap;
+        slap.armed                  = value (ParamIDs::slapArmed) > 0.5f;
+        slap.type                   = (SlapType) juce::jlimit (0, (int) SlapType::numTypes - 1, (int) value (ParamIDs::slapType));
+        slap.trigger                = (TriggerSource) juce::jlimit (0, (int) TriggerSource::numSources - 1,
+                                                                    (int) value (ParamIDs::slapTrigger));
+        slap.velocityZone           = juce::roundToInt (value (ParamIDs::slapVelocityZone));
+        slap.triggerCc              = juce::roundToInt (value (ParamIDs::slapTriggerCc));
+        slap.ghostCc                = juce::roundToInt (value (ParamIDs::slapGhostCc));
+        slap.slapStrength           = value (ParamIDs::slapStrength);
+        slap.slapPositionMm         = value (ParamIDs::slapPositionMm);
+        slap.thumbHardness          = value (ParamIDs::slapThumbHardness);
+        slap.fretContact            = value (ParamIDs::slapFretContact);
+        slap.popStrength            = value (ParamIDs::popStrength);
+        slap.popPositionMm          = value (ParamIDs::popPositionMm);
+        slap.doubleThump            = value (ParamIDs::doubleThumpEnabled) > 0.5f;
+        slap.upRatio                = value (ParamIDs::doubleThumpUpRatio);
+        slap.ghostLevel             = value (ParamIDs::ghostLevel);
+        slap.ghostDamping           = value (ParamIDs::ghostDamping);
+        slap.ghostAuto              = value (ParamIDs::ghostAuto) > 0.5f;
+        slap.ghostVelocityThreshold = juce::roundToInt (value (ParamIDs::ghostVelocityThreshold));
+        slap.force                  = value (ParamIDs::slapForce);
+        slap.palmPositionMm         = value (ParamIDs::slapPalmPositionMm);
+        slap.stringMask             = juce::roundToInt (value (ParamIDs::slapStringMask));
+        slap.ghostMode              = value (ParamIDs::slapGhostMode) > 0.5f;
+        slap.reboundGapMs           = value (ParamIDs::slapReboundGap);
+        slap.snapBack               = value (ParamIDs::slapSnapBack);
+        slap.bodyPart               = (BodyPart) juce::jlimit (0, (int) BodyPart::numParts - 1, (int) value (ParamIDs::slapBodyPart));
+        engine.setSlapSettings (slap);
+    }
+
+    // ---- muting (muting-rhythm.md 3) --------------------------------------------------
+    {
+        MuteSettings mute;
+        mute.armed          = value (ParamIDs::muteArmed) > 0.5f;
+        mute.masterMode     = juce::roundToInt (value (ParamIDs::muteMasterMode)) - 1;   // 0 is Off
+        mute.palmPositionMm = value (ParamIDs::mutePalmPosition);
+        mute.palmPressure   = value (ParamIDs::mutePalmPressure);
+        mute.frettingStyle  = (FrettingMuteStyle) juce::jlimit (0, (int) FrettingMuteStyle::numStyles - 1,
+                                                                 (int) value (ParamIDs::muteFrettingStyle));
+        mute.chukaSource    = (ChukaSource) juce::jlimit (0, (int) ChukaSource::numSources - 1,
+                                                          (int) value (ParamIDs::muteChukaSource));
+        mute.humanise       = value (ParamIDs::muteHumanise);
+        mute.ghostVelocity  = value (ParamIDs::muteGhostVelocity);
+        engine.setMuteSettings (mute);
     }
     engine.setPickAngle (value (ParamIDs::pickAngle));
     engine.setNailVsFlesh (value (ParamIDs::nailVsFlesh));
@@ -1330,7 +1419,9 @@ int ParameterBridge::readStructuralValues() noexcept
         for (int slot = 0; slot < EffectsChain::kNumSlots; ++slot)
         {
             const auto& sp = slotPointers[(size_t) chain][(size_t) slot];
-            const int current = sp.type != nullptr ? (int) sp.type->load (std::memory_order_relaxed) : 0;
+            // The parameter's own index, not the APVTS raw copy: see SlotPointers::typeChoice.
+            const int current = sp.typeChoice != nullptr ? sp.typeChoice->getIndex()
+                              : sp.type != nullptr ? (int) sp.type->load (std::memory_order_relaxed) : 0;
 
             if (lastSlotType[chain][slot].load (std::memory_order_relaxed) != current)
             {
@@ -1431,9 +1522,15 @@ void ParameterBridge::applyInstrumentStructure()
         /*  The guitar's own playing hand: acoustics and classicals are played
             with the fingers (LuthierEngine::applySpec). The engine's default
             used to last one block, until use_fingers was pushed over it, so
-            it goes into the parameter instead - on a guitar the player picks,
-            not on the first pass, which is a preset load carrying its own. */
-        if (! firstTime)
+            it goes into the parameter instead - and only on a guitar the
+            player picked (followGuitarHandOnNextLoad, set by the pickers on
+            their gesture). A snapshot, a setlist entry or host automation
+            moving guitar_type carries its own use_fingers: an acoustic saved
+            with a pick used to come back with fingers, and the write landed
+            on the host mid-crossfade. Always consumed, so a flag left by a
+            pick that a preset load (the first pass) overtook cannot fire on
+            a later, unrelated change. */
+        if (handFollowsGuitar.exchange (false, std::memory_order_acq_rel) && ! firstTime)
             if (auto* fingers = apvts.getParameter (ParamIDs::useFingers))
                 fingers->setValueNotifyingHost (engine.getGuitarSpec().category == GuitarCategory::Acoustic ? 1.0f : 0.0f);
     }

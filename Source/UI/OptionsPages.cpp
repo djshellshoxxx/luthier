@@ -1,5 +1,7 @@
 #include "OptionsPages.h"
 #include "RangesUi.h"
+#include "FirstRun.h"
+#include "UiPreferences.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
@@ -1959,6 +1961,17 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
         refresh();
     };
 
+    // action-and-undo.md 12: the footer counter, for support tickets and for
+    // seeing that a slow drag grows the depth by one, not by one per value.
+    addAndMakeVisible (undoDepthToggle);
+    undoDepthToggle.setTooltip ("Adds \"Undo: N / 200; Redo: M\" to the footer. A slow drag should "
+                                "grow the count by one, not by one per intermediate value.");
+    undoDepthToggle.onClick = [this]
+    {
+        UiPreferences::get().setBool (kShowUndoDepthKey, undoDepthToggle.getToggleState());
+        refresh();
+    };
+
     addAndMakeVisible (troubleshootButton);
     troubleshootButton.setTooltip ("Writes a file describing the build, the host and the "
                                    "current state, for a support thread.");
@@ -2012,6 +2025,29 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
             });
     };
 
+    // onboarding.md 12: confirms with a modal, then the next launch is a first run.
+    addAndMakeVisible (restoreFirstRunButton);
+    restoreFirstRunButton.setTooltip ("Clears your settings - palette, scale, shortcuts, language, every "
+                                      "one-time hint - so the next launch behaves as freshly installed. "
+                                      "Presets, guitars, tunes and parts are kept.");
+    restoreFirstRunButton.onClick = [this]
+    {
+        juce::NativeMessageBox::showAsync (
+            juce::MessageBoxOptions()
+                .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                .withTitle ("Restore the first-run experience?")
+                .withMessage ("This clears your settings and the one-time hints, and the next launch "
+                              "behaves as if Luthier were freshly installed.\n\nYour presets, guitars, "
+                              "tunes and parts are NOT touched.")
+                .withButton ("Restore")
+                .withButton ("Cancel"),
+            [this] (int result)
+            {
+                if (result == 1)
+                    restoreFirstRun();
+            });
+    };
+
     styleNote (explanation, Palette::textMuted, 11.0f);
     explanation.setText ("Everything here is off until you switch it on, and everything it "
                          "writes stays on this machine until you send it somewhere.",
@@ -2034,6 +2070,15 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
     refresh();
 }
 
+void DiagnosticsPage::restoreFirstRun()
+{
+    FirstRun::restoreFirstRunExperience();
+
+    // advanced-ranges.md 5: the processor cannot read UiPreferences, so it is told.
+    processor.setRandomiseRespectsStock (RangesUi::randomiseRespectsStock());
+    refresh();
+}
+
 void DiagnosticsPage::refresh()
 {
     crashLogToggle.setToggleState (processor.getDiagnostics().isCrashLogEnabled(),
@@ -2049,6 +2094,9 @@ void DiagnosticsPage::refresh()
                             ? juce::String (recorder.getRecordedSamples()) + " samples held"
                             : juce::String ("nothing recorded yet")),
         juce::dontSendNotification);
+
+    undoDepthToggle.setToggleState (UiPreferences::get().getBool (kShowUndoDepthKey, false),
+                                    juce::dontSendNotification);
 }
 
 void DiagnosticsPage::paint (juce::Graphics& g)
@@ -2057,7 +2105,7 @@ void DiagnosticsPage::paint (juce::Graphics& g)
 
     drawHeading (g, bounds.removeFromTop (18), "WHAT LUTHIER RECORDS FOR YOU");
     drawHeading (g, { 0, 150, getWidth(), 18 }, "FILES AND WINDOWS");
-    drawHeading (g, { 0, 262, getWidth(), 18 }, "FEATURE FLAGS");
+    drawHeading (g, { 0, 296, getWidth(), 18 }, "FEATURE FLAGS");
 }
 
 void DiagnosticsPage::resized()
@@ -2072,6 +2120,7 @@ void DiagnosticsPage::resized()
     crashLogToggle.setBounds (bounds.removeFromTop (22));
     recorderToggle.setBounds (bounds.removeFromTop (22));
     recorderNote.setBounds (bounds.removeFromTop (16));
+    undoDepthToggle.setBounds (bounds.removeFromTop (22));
 
     bounds = getLocalBounds().withTrimmedTop (172);
 
@@ -2093,7 +2142,10 @@ void DiagnosticsPage::resized()
         hardResetButton.setBounds (row.removeFromLeft (280));
     }
 
-    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (284).withHeight (32));
+    bounds.removeFromTop (6);
+    restoreFirstRunButton.setBounds (bounds.removeFromTop (Metrics::buttonHeight).removeFromLeft (280));
+
+    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (318).withHeight (32));
 }
 
 //==============================================================================
