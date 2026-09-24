@@ -107,3 +107,10 @@ after its spec ID.
 - ENV-13 is measured on a solidbody, where every mode is a plate mode.
 - The legacy temperature conversion targets the old +-2.5 x amount cents only when character was enabled (the old offset was 0 otherwise); humidity always maps to 45 %, with an info log when it was not normal.
 - String-count bookkeeping: `AllocationCounter` is CircuitTests'; a non-inline `luthierAllocationCount()` was added there for the new budget tests.
+- The aging detune and intonation are pushed from the target hours (no glide of their own: the string's pitch glide smooths them), and the seed jitter is set before `refreshStringPhysics` computes the detune, so a saved state does not depend on how far a glide had got or whether the host prepared first (HostState suite).
+- Presets store the fine tune beyond the aging detune: the detune is derived and rebuilt from the parameters on load, and the humidity's corrosion factor only reaches it once the environment has run.
+- BC-13 interleaves the bank and matrix timings, best of five each, so a busy runner loads both alike.
+
+## Results
+
+Full suite (`LuthierTests`, no filter): 809 tests; the REALISM-A suites are `StringAging` (16), `Environment` (14), `BodyCoupling` (13 incl. ENV-13), `RealismUi` (3). `Luthier_VST3` and `Luthier_Standalone` build.

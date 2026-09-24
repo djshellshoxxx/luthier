@@ -788,13 +788,22 @@ LUTHIER_TEST (BodyCoupling, BC13_budgetAndSafety)
     for (auto& w : waves)
         w = random.nextDouble() * 0.2 - 0.1;
 
-    constexpr int samples = 48000 * 20;
-    double best = 1.0e9;
+    // The saddle matrix, for scale (budget 0.4 units).
+    CouplingMatrix matrix;
+    matrix.prepare (kSr, 12);
+    matrix.buildDefault (0.020);
 
-    for (int run = 0; run < 3; ++run)
+    for (int s = 0; s < 12; ++s)
+        matrix.setStringFrequency (s, 82.0 * (1.0 + 0.1 * s));
+
+    constexpr int samples = 48000 * 10;
+    double best = 1.0e9, matrixBest = 1.0e9;
+
+    // Interleaved, best of five each, so a busy runner loads both alike.
+    for (int run = 0; run < 5; ++run)
     {
         const long allocations = luthierAllocationCount();
-        const auto start = juce::Time::getHighResolutionTicks();
+        auto start = juce::Time::getHighResolutionTicks();
 
         for (int i = 0; i < samples; i += kBlock)
         {
@@ -814,23 +823,8 @@ LUTHIER_TEST (BodyCoupling, BC13_budgetAndSafety)
 
         best = juce::jmin (best, juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - start));
         CHECK (luthierAllocationCount() == allocations);
-    }
 
-    const double units = 100.0 * best / (samples / kSr);
-
-    // The saddle matrix on the same machine, for scale (budget 0.4 units).
-    CouplingMatrix matrix;
-    matrix.prepare (kSr, 12);
-    matrix.buildDefault (0.020);
-
-    for (int s = 0; s < 12; ++s)
-        matrix.setStringFrequency (s, 82.0 * (1.0 + 0.1 * s));
-
-    double matrixBest = 1.0e9;
-
-    for (int run = 0; run < 3; ++run)
-    {
-        const auto start = juce::Time::getHighResolutionTicks();
+        start = juce::Time::getHighResolutionTicks();
 
         for (int i = 0; i < samples; ++i)
             matrix.process (waves.data(), inputs.data());
@@ -838,7 +832,9 @@ LUTHIER_TEST (BodyCoupling, BC13_budgetAndSafety)
         matrixBest = juce::jmin (matrixBest, juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - start));
     }
 
+    const double units = 100.0 * best / (samples / kSr);
     const double matrixUnits = 100.0 * matrixBest / (samples / kSr);
+
     // body-coupling.md 7 (amended): 0.1 units on the reference machine, which
     // is a quarter of the matrix's 0.4 - checked as that ratio, because this
     // runner is no 5600X (the 0.4-unit matrix measures about 0.65 here).
