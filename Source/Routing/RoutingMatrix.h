@@ -217,7 +217,9 @@ private:
     std::atomic<bool> sidechainPresent { false };
     std::atomic<double> sidechainLevel { 0.0 };
 
-    mutable juce::CriticalSection midiOutLock;
+    // Read by the audio thread every block: a SpinLock around a small struct
+    // copy, not a CriticalSection it could block on behind the UI.
+    mutable juce::SpinLock midiOutLock;
     MidiOutConfig midiOut;
 
     std::atomic<int> latMain { 0 }, latDi { 0 }, latPreCab { 0 }, latString { 0 };
