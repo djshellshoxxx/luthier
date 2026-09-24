@@ -41,6 +41,7 @@
 #include "Routing/MidiOutRouter.h"
 #include "Rhythm/RhythmEngine.h"
 #include "Character/CharacterEngine.h"
+#include "Support/CpuRelief.h"
 
 #include <array>
 #include <atomic>
@@ -290,6 +291,14 @@ public:
     void setOversamplingFactor (int factor) noexcept;
     int getOversamplingFactor() const noexcept { return oversamplingFactor; }
 
+    /*  performance-budget.md 7: above 96 kHz the oversampled modules run at a
+        lower internal factor - the user's factor halved above 96 kHz and
+        quartered above 176.4 kHz, never below 1x - so the internal rate stays
+        near 384 kHz. Transparent: the images it guards against sit above
+        20 kHz at those rates anyway. */
+    static int effectiveOversamplingFactor (int userFactor, double sampleRate) noexcept;
+    int getEffectiveOversamplingFactor() const noexcept { return effectiveOversamplingFactor (oversamplingFactor, sr); }
+
     void setTempoBpm (double bpm) noexcept;
 
     /** Host transport position, for the rhythm engine's grid. */
@@ -389,6 +398,9 @@ public:
     bool consumeMidiActivity() noexcept { return midi.consumeActivityFlag(); }
 
     double getCpuEstimate() const noexcept { return cpuEstimate.load (std::memory_order_relaxed); }
+
+    /** performance-budget.md 8: the relief ladder, fed each block's load. */
+    CpuRelief& getCpuRelief() noexcept { return cpuRelief; }
 
 private:
     /** Moves a block's events onto the schedule, converting their offsets to
@@ -621,6 +633,8 @@ private:
     juce::MidiBuffer parkedMidi;
 
     std::atomic<double> cpuEstimate { 0.0 };
+    CpuRelief cpuRelief;                 // performance-budget.md 8
+    int appliedReliefStep = 0;
 
     // --- routing ----------------------------------------------------------------
     TapBuffers taps;

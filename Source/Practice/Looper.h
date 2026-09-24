@@ -98,6 +98,9 @@ public:
     bool redo();
 
     bool canUndo() const noexcept { return undoFilled; }
+
+    /** Sizes undo / redo to the layer on first use. Message thread. */
+    void ensureHistoryBuffers();
     bool canRedo() const noexcept { return redoFilled; }
 
     //==========================================================================

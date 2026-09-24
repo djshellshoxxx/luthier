@@ -98,8 +98,17 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     postEffects.setPosition (EffectsChain::Position::PostAmp);
     cabinet.prepare (sr, maxBlock);
     room.prepare (sr, maxBlock);
+    setOversamplingFactor (oversamplingFactor);   // performance-budget.md 7: the rate's effective factor
     secret.prepare (sr);
     master.prepare (sr, maxBlock);
+
+    // performance-budget.md 8: the relief ladder starts at rest.
+    cpuRelief.prepare (sr);
+
+    if (appliedReliefStep >= CpuRelief::halveNoisePools)
+        playingNoise.getPool().setDegraded (false);
+
+    appliedReliefStep = 0;
     freezeOverlay.prepare (sr, 2);
 
     // --- scratch --------------------------------------------------------------
@@ -648,12 +657,27 @@ void LuthierEngine::setVibratoShape (Lfo::Shape s) noexcept
         vibratoLfo[(size_t) i].setShape (s);
 }
 
+int LuthierEngine::effectiveOversamplingFactor (int userFactor, double sampleRate) noexcept
+{
+    int factor = juce::jlimit (1, 8, userFactor);
+
+    if (sampleRate > 176400.0 + 1.0)
+        factor /= 4;
+    else if (sampleRate > 96000.0 + 1.0)
+        factor /= 2;
+
+    return juce::jmax (1, factor);
+}
+
 void LuthierEngine::setOversamplingFactor (int factor) noexcept
 {
     oversamplingFactor = juce::jlimit (1, 8, factor);
-    amp.setOversamplingFactor (oversamplingFactor);
-    preEffects.setOversamplingFactor (oversamplingFactor);
-    postEffects.setOversamplingFactor (oversamplingFactor);
+
+    // performance-budget.md 7: the user's factor, downgraded at high rates.
+    const int effective = effectiveOversamplingFactor (oversamplingFactor, sr);
+    amp.setOversamplingFactor (effective);
+    preEffects.setOversamplingFactor (effective);
+    postEffects.setOversamplingFactor (effective);
 }
 
 void LuthierEngine::setTempoBpm (double bpm) noexcept
@@ -2096,6 +2120,16 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     cpuEstimate.store (cpuEstimate.load (std::memory_order_relaxed) * 0.9 + instant * 0.1,
                        std::memory_order_relaxed);
+
+    // performance-budget.md 8: the relief ladder. Only step 4 has a hook in the
+    // engine (the NoiseEngine pools), applied on a change of step, so a
+    // normal load never touches it.
+    const int reliefStep = cpuRelief.update (instant * 0.01, numSamples);
+
+    if ((reliefStep >= CpuRelief::halveNoisePools) != (appliedReliefStep >= CpuRelief::halveNoisePools))
+        playingNoise.getPool().setDegraded (reliefStep >= CpuRelief::halveNoisePools);
+
+    appliedReliefStep = reliefStep;
 }
 
 //==============================================================================

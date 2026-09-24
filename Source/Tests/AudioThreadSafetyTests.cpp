@@ -61,11 +61,6 @@ namespace
         AudioThreadScope()  { ThreadProbe::markAsAudioThread (true); }
         ~AudioThreadScope() { ThreadProbe::markAsAudioThread (false); }
     };
-
-    bool perfRunRequested()
-    {
-        return juce::SystemStats::getEnvironmentVariable ("LUTHIER_PERF", {}) == "1";
-    }
 }
 
 //==============================================================================

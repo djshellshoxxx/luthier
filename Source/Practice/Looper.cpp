@@ -28,13 +28,12 @@ void LoopLayer::prepare (int maxSamples)
     audio.setSize (2, capacity, false, true, false);
     audio.clear();
 
-    // Undo and redo hold a whole layer each. That is three times the memory per
-    // layer, which is the price of being able to undo a take without a
-    // re-render, and it is paid once here rather than on the audio thread.
-    undoBuffer.setSize (2, capacity, false, true, false);
-    redoBuffer.setSize (2, capacity, false, true, false);
-    undoBuffer.clear();
-    redoBuffer.clear();
+    // Undo and redo hold a whole layer each - three times the memory per layer.
+    // performance-budget.md 3 / 5.1: they are sized on first use instead of
+    // here (pushUndo, undo and redo are message-thread calls), so an instance
+    // that never undoes a loop take does not pay 2 x 8 layers of it at boot.
+    undoBuffer.setSize (0, 0);
+    redoBuffer.setSize (0, 0);
 
     reset();
 }
@@ -229,10 +228,19 @@ void LoopLayer::playInto (float* left, float* right, int position, int numSample
 }
 
 //==============================================================================
+void LoopLayer::ensureHistoryBuffers()
+{
+    for (auto* history : { &undoBuffer, &redoBuffer })
+        if (history->getNumSamples() != capacity || history->getNumChannels() != 2)
+            history->setSize (2, capacity, false, true, false);
+}
+
 void LoopLayer::pushUndo()
 {
     if (capacity <= 0)
         return;
+
+    ensureHistoryBuffers();
 
     for (int channel = 0; channel < 2; ++channel)
         undoBuffer.copyFrom (channel, 0, audio, channel, 0, capacity);
@@ -249,6 +257,8 @@ bool LoopLayer::undo()
 {
     if (! undoFilled || capacity <= 0)
         return false;
+
+    ensureHistoryBuffers();
 
     // Keep what is being undone, so redo can put it back.
     for (int channel = 0; channel < 2; ++channel)
@@ -270,6 +280,8 @@ bool LoopLayer::redo()
 {
     if (! redoFilled || capacity <= 0)
         return false;
+
+    ensureHistoryBuffers();
 
     for (int channel = 0; channel < 2; ++channel)
         undoBuffer.copyFrom (channel, 0, audio, channel, 0, capacity);

@@ -112,6 +112,7 @@ public:
 
     void setOversamplingFactor (int factor) noexcept;
     int getLatencySamples() const noexcept { return oversampler.getLatencySamples(); }
+    double getOversampledRate() const noexcept { return oversampler.getOversampledRate(); }   // performance-budget.md 7
 
     //==========================================================================
     /** Mono in, mono out. The amp is a mono device; stereo appears later, at the
