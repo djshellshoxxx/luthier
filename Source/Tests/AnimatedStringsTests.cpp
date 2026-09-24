@@ -180,9 +180,9 @@ namespace
         }
     }
 
-    SoundingNotes::Snapshot read (const LuthierEngine& engine)
+    SoundingNotes::Frame read (const LuthierEngine& engine)
     {
-        SoundingNotes::Snapshot s;
+        SoundingNotes::Frame s;
         engine.getSoundingNotes().read (s);
         return s;
     }
@@ -192,19 +192,21 @@ namespace
     void publishSteady (const LuthierEngine& engine, float level, int numStrings = 6)
     {
         auto& notes = const_cast<SoundingNotes&> (engine.getSoundingNotes());
-        notes.beginWrite();
-        for (int s = 0; s < SoundingNotes::kMaxStrings; ++s)
+        SoundingNotes::Frame last;
+        notes.read (last);
+
+        std::array<int, SoundingNotes::kMaxStrings> held {}, bends {};
+        std::array<std::int64_t, SoundingNotes::kMaxStrings> starts {};
+        std::array<SoundingNotes::Motion, SoundingNotes::kMaxStrings> motion {};
+
+        for (int s = 0; s < numStrings; ++s)
         {
-            notes.strings[(size_t) s].level.store (s < numStrings ? level : 0.0f);
-            notes.strings[(size_t) s].stopFret.store (0.0f);
-            notes.strings[(size_t) s].bendCents.store (0.0f);
-            notes.strings[(size_t) s].damping.store (0);
-            notes.strings[(size_t) s].harmonicPartial.store (0);
-            notes.strings[(size_t) s].startSample.store (0);
+            held[(size_t) s] = 40 + 5 * s;
+            motion[(size_t) s].level = level;
+            motion[(size_t) s].exciteSample = 0;
         }
-        notes.numStrings.store (numStrings);
-        notes.samplePosition.store (notes.samplePosition.load() + 800);
-        notes.endWrite();
+
+        notes.publish (held.data(), bends.data(), starts.data(), numStrings, motion.data(), last.samplePosition + 800, kSr);
     }
 
     //==========================================================================
@@ -223,9 +225,9 @@ namespace
         return g;
     }
 
-    SoundingNotes::Snapshot snapshotWith (float level, int n = 6)
+    SoundingNotes::Frame snapshotWith (float level, int n = 6)
     {
-        SoundingNotes::Snapshot snap;
+        SoundingNotes::Frame snap;
         snap.numStrings = n;
         snap.sequence = 2;
         snap.sampleRate = kSr;
@@ -233,15 +235,15 @@ namespace
 
         for (int s = 0; s < n; ++s)
         {
-            snap.strings[(size_t) s].level = level;
-            snap.strings[(size_t) s].startSample = 0;
-            snap.strings[(size_t) s].pluckPosition = 0.16f;
+            snap.motion[(size_t) s].level = level;
+            snap.motion[(size_t) s].exciteSample = 0;
+            snap.motion[(size_t) s].pluckPosition = 0.16f;
         }
 
         return snap;
     }
 
-    StringMotionFrame::String frameFor (const SoundingNotes::Snapshot& snap, const StringMotionGeometry& g, int s,
+    StringMotionFrame::String frameFor (const SoundingNotes::Frame& snap, const StringMotionGeometry& g, int s,
                                         StringAnimationQuality q = StringAnimationQuality::high, double now = 1.0)
     {
         StringMotion motion;
@@ -410,7 +412,7 @@ LUTHIER_TEST (AnimatedStrings, AS04_stopPointAndBridgeAreNodes)
     g.numFrets = (float) scene.numFrets;
 
     auto snap = snapshotWith (0.25f, g.numStrings);
-    snap.strings[2].stopFret = 5.0f;
+    snap.motion[2].stopFret = 5.0f;
     const auto s = frameFor (snap, g, 2);
 
     const auto want = scene.stringAt (2, 5.0f).transformedBy (mmToPx);
@@ -466,8 +468,8 @@ LUTHIER_TEST (AnimatedStrings, AS07_bendsPushAcrossTheNeck)
     auto withBend = [&] (int s, float cents)
     {
         auto snap = snapshotWith (0.25f);
-        snap.strings[(size_t) s].stopFret = 7.0f;
-        snap.strings[(size_t) s].bendCents = cents;
+        snap.motion[(size_t) s].stopFret = 7.0f;
+        snap.motion[(size_t) s].pushCents = cents;
         const auto f = frameFor (snap, g, s);
         return f.displacedStop - f.stop;
     };
@@ -503,7 +505,7 @@ LUTHIER_TEST (AnimatedStrings, AS08_theWhammyDoesNotPushButAPitchBendDoes)
     int s = -1;
     const auto snap = read (engine);
     for (int i = 0; i < 6; ++i)
-        if (snap.strings[(size_t) i].midiNote == 57)
+        if (engine.getStringMidiNote (i) == 57)
             s = i;
 
     CHECK_MSG (s >= 0, "the note was not published");
@@ -512,7 +514,7 @@ LUTHIER_TEST (AnimatedStrings, AS08_theWhammyDoesNotPushButAPitchBendDoes)
     {
         CHECK_MSG (engine.getWhammyEngine().getCentOffset (s) < -100.0,
                    "the whammy did not dive: " + juce::String (engine.getWhammyEngine().getCentOffset (s)));
-        CHECK_NEAR (snap.strings[(size_t) s].bendCents, 0.0, 1.0e-3);
+        CHECK_NEAR (snap.motion[(size_t) s].pushCents, 0.0, 1.0e-3);
 
         const auto f = frameFor (snap, parallelGeometry(), s);
         CHECK_NEAR (f.displacementPx, 0.0, 1.0e-6);
@@ -529,8 +531,8 @@ LUTHIER_TEST (AnimatedStrings, AS08_theWhammyDoesNotPushButAPitchBendDoes)
     const auto b = read (bent);
     float best = 0.0f;
     for (int i = 0; i < 6; ++i)
-        if (b.strings[(size_t) i].midiNote == 57)
-            best = b.strings[(size_t) i].bendCents;
+        if (bent.getStringMidiNote (i) == 57)
+            best = b.motion[(size_t) i].pushCents;
 
     CHECK_NEAR (best, 200.0, 1.0);
 }
@@ -546,7 +548,7 @@ LUTHIER_TEST (AnimatedStrings, AS09_muting)
 
     {
         auto snap = snapshotWith (0.25f);
-        snap.strings[2].damping = 2;
+        snap.motion[2].damping = 2;
         const auto f = frameFor (snap, g, 2);
         CHECK (f.active);
 
@@ -565,8 +567,8 @@ LUTHIER_TEST (AnimatedStrings, AS09_muting)
         motion.update (snap, g, StringAnimationQuality::high, 1.0, 1.0f, frame);
         const float before = frame.strings[2].levelNorm;
 
-        snap.strings[2].damping = kind;
-        snap.strings[2].level = 0.05f;      // 20% of the pre-mute level
+        snap.motion[2].damping = kind;
+        snap.motion[2].level = 0.05f;      // 20% of the pre-mute level
         motion.update (snap, g, StringAnimationQuality::high, 1.001, 1.0f, frame);
         motion.update (snap, g, StringAnimationQuality::high, 1.081, 1.0f, frame);
 
@@ -577,7 +579,7 @@ LUTHIER_TEST (AnimatedStrings, AS09_muting)
     // LightTouch: half the Open peak at equal level.
     auto open = snapshotWith (0.25f);
     auto touch = open;
-    touch.strings[2].damping = 1;
+    touch.motion[2].damping = 1;
     CHECK_NEAR (frameFor (touch, g, 2).peakPx, 0.5 * frameFor (open, g, 2).peakPx, 0.01);
 }
 
@@ -596,8 +598,8 @@ LUTHIER_TEST (AnimatedStrings, AS10_slideContact)
     auto snap = snapshotWith (0.25f);
     for (int s = 0; s < 6; ++s)
     {
-        snap.strings[(size_t) s].stopFret = (float) slide.contactFret (s, 7.3, 6, 648.0);
-        snap.strings[(size_t) s].stopKind = SoundingString::slide;
+        snap.motion[(size_t) s].stopFret = (float) slide.contactFret (s, 7.3, 6, 648.0);
+        snap.motion[(size_t) s].stopKind = SoundingNotes::slide;
     }
 
     StringMotion motion;
@@ -616,7 +618,7 @@ LUTHIER_TEST (AnimatedStrings, AS10_slideContact)
 
     // The bar lifts: the stop is the fretted position on the next frame.
     for (int s = 0; s < 6; ++s)
-        snap.strings[(size_t) s].stopFret = 3.0f;
+        snap.motion[(size_t) s].stopFret = 3.0f;
     motion.update (snap, g, StringAnimationQuality::high, 1.017, 1.0f, frame);
     CHECK (frame.strings[0].stop.getDistanceFrom (g.pointAt (0, 3.0f)) <= 0.5f);
 
@@ -631,12 +633,12 @@ LUTHIER_TEST (AnimatedStrings, AS10_slideContact)
     const auto e = read (engine);
     int under = 0;
     for (int s = 0; s < 6; ++s)
-        if (e.strings[(size_t) s].midiNote == 59)
+        if (engine.getStringMidiNote (s) == 59)
         {
             ++under;
-            CHECK (e.strings[(size_t) s].stopKind == SoundingString::slide);
-            const double contact = engine.getSlideEngine().contactFret (s, e.strings[(size_t) s].fret, 6, engine.getGuitarSpec().scaleLengthMm);
-            CHECK_NEAR (e.strings[(size_t) s].stopFret, contact, 0.1);
+            CHECK (e.motion[(size_t) s].stopKind == SoundingNotes::slide);
+            const double contact = engine.getSlideEngine().contactFret (s, e.motion[(size_t) s].fret, 6, engine.getGuitarSpec().scaleLengthMm);
+            CHECK_NEAR (e.motion[(size_t) s].stopFret, contact, 0.1);
         }
     CHECK (under == 1);
 }
@@ -649,14 +651,14 @@ LUTHIER_TEST (AnimatedStrings, AS11_tapPoint)
     StringMotionFrame frame;
 
     auto snap = snapshotWith (0.25f);
-    snap.strings[3].stopFret = 12.0f;
-    snap.strings[3].stopKind = SoundingString::tapped;
+    snap.motion[3].stopFret = 12.0f;
+    snap.motion[3].stopKind = SoundingNotes::tapped;
     motion.update (snap, g, StringAnimationQuality::high, 1.0, 1.0f, frame);
     CHECK (frame.strings[3].stop.getDistanceFrom (g.pointAt (3, 12.0f)) <= 0.5f);
 
     // Pull-off: the next frame is at fret 5, no easing.
-    snap.strings[3].stopFret = 5.0f;
-    snap.strings[3].stopKind = SoundingString::fretted;
+    snap.motion[3].stopFret = 5.0f;
+    snap.motion[3].stopKind = SoundingNotes::fretted;
     motion.update (snap, g, StringAnimationQuality::high, 1.017, 1.0f, frame);
     CHECK (frame.strings[3].stop.getDistanceFrom (g.pointAt (3, 5.0f)) <= 0.5f);
 
@@ -669,7 +671,7 @@ LUTHIER_TEST (AnimatedStrings, AS11_tapPoint)
     const auto e = read (engine);
     bool tapped = false;
     for (int s = 0; s < 6; ++s)
-        tapped = tapped || (e.strings[(size_t) s].midiNote == 64 && e.strings[(size_t) s].stopKind == SoundingString::tapped);
+        tapped = tapped || (engine.getStringMidiNote (s) == 64 && e.motion[(size_t) s].stopKind == SoundingNotes::tapped);
     CHECK_MSG (tapped, "a tap was not published as a tap");
 }
 
@@ -931,7 +933,7 @@ LUTHIER_TEST (AnimatedStrings, AS16_noAllocations)
     const auto g = parallelGeometry();
     StringMotion motion;
     StringMotionFrame frame;
-    SoundingNotes::Snapshot snap;
+    SoundingNotes::Frame snap;
 
     engine.getSoundingNotes().read (snap);
     motion.update (snap, g, StringAnimationQuality::high, 1.0, 1.0f, frame);
@@ -1061,8 +1063,9 @@ LUTHIER_TEST (AnimatedStrings, AS18_thePublishIsRealtimeSafe)
                juce::String (allocationsOnThisThread() - before) + " allocations on the audio thread in five minutes");
     CHECK (ThreadProbe::audioThreadFileAccesses.load() == files);
 
-    // The seqlock never leaves a writer mid-publish: the sequence is even between blocks.
-    CHECK ((engine.getSoundingNotes().sequence.load() & 1u) == 0);
+    // One publish per block, readable whole between blocks.
+    SoundingNotes::Frame frame;
+    CHECK (engine.getSoundingNotes().read (frame) && frame.sequence == engine.getSoundingNotes().getSequence());
 }
 
 //==============================================================================
@@ -1548,7 +1551,7 @@ LUTHIER_TEST (AnimatedStrings, AS28_everySourceAnimatesWhatSounds)
     {
         ill.step (clock);
         const auto& frame = ill.animator().getFrame();
-        SoundingNotes::Snapshot snap;
+        SoundingNotes::Frame snap;
         processor.getEngine().getSoundingNotes().read (snap);
 
         StringMotionFrame expected;

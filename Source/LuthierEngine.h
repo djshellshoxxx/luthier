@@ -629,6 +629,7 @@ private:
     std::array<uint8_t, kMaxStrings> noteStopKind {};
     std::array<double, kMaxStrings> slideStopFret {};     ///< the bar's contact the block used; < 0 = not under a bar
     std::array<double, kMaxStrings> fingerBendCents {};   ///< bend + vibrato, no whammy or slide (2.4)
+    std::array<double, kMaxStrings> pitchOffsetCents {};  ///< the whole offset from the note, for the piano roll's key
 
     Excitation::Material pickMaterial = Excitation::Material::PickCelluloid;
     double pluckPosition = 0.16;

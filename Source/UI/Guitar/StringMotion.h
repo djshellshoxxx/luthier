@@ -125,20 +125,20 @@ public:
     /** Applies 2.2, 2.4 and 2.5 for one frame at display time `nowSeconds`.
         `gain` scales every level: 1 normally, easing to 0 when the snapshot goes
         stale (2.6). Allocates nothing. */
-    void update (const SoundingNotes::Snapshot& snapshot, const StringMotionGeometry& geometry,
+    void update (const SoundingNotes::Frame& snapshot, const StringMotionGeometry& geometry,
                  StringAnimationQuality quality, double nowSeconds, float gain,
                  StringMotionFrame& frame) noexcept;
 
     /** True when update() would find a string above the floor: the animator asks
         this before starting its clock, so an idle view costs no frames (11). */
-    bool anyAboveFloor (const SoundingNotes::Snapshot& snapshot, const StringMotionGeometry& geometry,
+    bool anyAboveFloor (const SoundingNotes::Frame& snapshot, const StringMotionGeometry& geometry,
                         double nowSeconds, float gain) const noexcept;
 
     static constexpr float kFloorPx = 0.5f;
     static constexpr double kMuteDecaySeconds = 0.025;
 
 private:
-    float levelFor (int s, const SoundingNotes::String& rec, double nowSeconds, float gain) const noexcept;
+    float levelFor (int s, const SoundingNotes::Motion& rec, double nowSeconds, float gain) const noexcept;
 
     std::array<juce::Rectangle<float>, StringMotionFrame::kMaxStrings> previousSwept {};
     std::array<bool, StringMotionFrame::kMaxStrings> previousActive {};

@@ -1116,9 +1116,9 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     // animated-strings.md 4.1: where and how this note is stopped, for the display.
     noteStartSample[(size_t) s] = blockStartSample + activeSampleOffset;
     notePluckPosition[(size_t) s] = (float) p.pluckPosition;
-    noteStopKind[(size_t) s] = slide.isUnderBar (s) ? SoundingString::slide
-                             : e.technique == Technique::Tap ? SoundingString::tapped
-                             : fret > 0.0 ? SoundingString::fretted : SoundingString::open;
+    noteStopKind[(size_t) s] = slide.isUnderBar (s) ? SoundingNotes::slide
+                             : e.technique == Technique::Tap ? SoundingNotes::tapped
+                             : fret > 0.0 ? SoundingNotes::fretted : SoundingNotes::open;
 
     {
         const juce::int64 now = blockStartSample + activeSampleOffset;
@@ -1578,6 +1578,7 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
             // bar's vibrato and the whammy are not a push across the neck (2.4).
             slideStopFret[(size_t) s] = contact;
             fingerBendCents[(size_t) s] = bend;
+            pitchOffsetCents[(size_t) s] = (contact - currentFret[(size_t) s]) * 100.0 + bend + whammyCents + slideVibrato;
 
             hz = tuning.computeFrequency (s, slide.assist (s, raw, numSamples), 0.0);
         }
@@ -1588,6 +1589,7 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
 
             slideStopFret[(size_t) s] = -1.0;           // animated-strings.md 4.1
             fingerBendCents[(size_t) s] = bend + vib;   // finger bend and vibrato only (2.4)
+            pitchOffsetCents[(size_t) s] = bend + whammyCents + vib;
         }
 
         strings[(size_t) s].setTargetFrequency (hz);
@@ -2522,7 +2524,7 @@ double LuthierEngine::getStringLevel (int i) const noexcept
     if (! juce::isPositiveAndBelow (i, kMaxStrings))
         return 0.0;
 
-    return (double) soundingNotes.strings[(size_t) i].level.load (std::memory_order_relaxed);
+    return (double) soundingNotes.readLevel (i);
 }
 
 double LuthierEngine::getStringFrequency (int i) const noexcept
@@ -2546,7 +2548,7 @@ double LuthierEngine::getStringFret (int i) const noexcept
     if (! juce::isPositiveAndBelow (i, kMaxStrings))
         return 0.0;
 
-    return (double) soundingNotes.strings[(size_t) i].fret.load (std::memory_order_relaxed);
+    return (double) soundingNotes.readFret (i);
 }
 
 //==============================================================================
@@ -2554,9 +2556,10 @@ void LuthierEngine::resetSoundingState() noexcept
 {
     noteStartSample.fill (-1);
     notePluckPosition.fill (0.16f);
-    noteStopKind.fill (SoundingString::open);
+    noteStopKind.fill (SoundingNotes::open);
     slideStopFret.fill (-1.0);
     fingerBendCents.fill (0.0);
+    pitchOffsetCents.fill (0.0);
 }
 
 /*  animated-strings.md 4.1. Once per sub-block, whatever the display settings and
@@ -2564,50 +2567,42 @@ void LuthierEngine::resetSoundingState() noexcept
     Relaxed stores inside the seqlock; nothing here allocates, locks or waits. */
 void LuthierEngine::publishSoundingNotes() noexcept
 {
-    auto& out = soundingNotes;
-    uint64_t set[2] = { 0, 0 };
-
-    out.beginWrite();
+    std::array<int, kMaxStrings> notes {}, bends {};
+    std::array<std::int64_t, kMaxStrings> starts {};
+    std::array<SoundingNotes::Motion, kMaxStrings> motion {};
 
     for (int s = 0; s < kMaxStrings; ++s)
     {
-        auto& rec = out.strings[(size_t) s];
         const bool live = s < numStrings;
         const auto& str = strings[(size_t) s];
 
+        // piano-roll-chord-display 2: the key is the nearest semitone to what sounds.
+        const int held = live ? stringMidiNote[(size_t) s] : -1;
+        const double offset = pitchOffsetCents[(size_t) s];
+        const int shift = std::isfinite (offset) ? (int) std::round (offset / 100.0) : 0;
+        notes[(size_t) s] = held >= 0 ? juce::jlimit (0, 127, held + shift) : -1;
+        bends[(size_t) s] = held >= 0 ? juce::jlimit (-50, 50, (int) std::round (offset - 100.0 * shift)) : 0;
+        starts[(size_t) s] = juce::jmax ((int64_t) 0, noteStartSample[(size_t) s]);
+
+        // animated-strings 4.1: the string as the block left it.
         double level = live ? str.getLevel() : 0.0;
         if (! std::isfinite (level))
             level = 0.0;
 
-        const double capo = (double) tuning.getCapoFretFor (s);
         const double underBar = slideStopFret[(size_t) s];
-        const double stop = capo + (underBar >= 0.0 ? underBar : currentFret[(size_t) s]);
-        const int note = live ? stringMidiNote[(size_t) s] : -1;
-
-        rec.level.store ((float) level, std::memory_order_relaxed);
-        rec.stopFret.store ((float) stop, std::memory_order_relaxed);
-        rec.bendCents.store ((float) fingerBendCents[(size_t) s], std::memory_order_relaxed);
-        rec.pluckPosition.store (notePluckPosition[(size_t) s], std::memory_order_relaxed);
-        rec.startSample.store (noteStartSample[(size_t) s], std::memory_order_relaxed);
-        rec.midiNote.store ((int8_t) juce::jlimit (-1, 127, note), std::memory_order_relaxed);
-        rec.damping.store ((uint8_t) str.getDamping(), std::memory_order_relaxed);
-        rec.harmonicPartial.store ((uint8_t) juce::jlimit (0, 255, str.getHarmonicPartial()), std::memory_order_relaxed);
-        rec.stopKind.store (underBar >= 0.0 ? (uint8_t) SoundingString::slide : noteStopKind[(size_t) s],
-                            std::memory_order_relaxed);
-        rec.fret.store ((float) currentFret[(size_t) s], std::memory_order_relaxed);
-
-        if (note >= 0 && note < 128)
-            set[note >> 6] |= (uint64_t) 1 << (note & 63);
+        auto& m = motion[(size_t) s];
+        m.level = (float) level;
+        m.stopFret = (float) (tuning.getCapoFretFor (s) + (underBar >= 0.0 ? underBar : currentFret[(size_t) s]));
+        m.pushCents = (float) fingerBendCents[(size_t) s];
+        m.pluckPosition = notePluckPosition[(size_t) s];
+        m.fret = (float) currentFret[(size_t) s];
+        m.exciteSample = noteStartSample[(size_t) s];
+        m.damping = (uint8_t) str.getDamping();
+        m.harmonicPartial = (uint8_t) juce::jlimit (0, 255, str.getHarmonicPartial());
+        m.stopKind = underBar >= 0.0 ? (uint8_t) SoundingNotes::slide : noteStopKind[(size_t) s];
     }
 
-    out.noteSet[0].store (set[0], std::memory_order_relaxed);
-    out.noteSet[1].store (set[1], std::memory_order_relaxed);
-    out.samplePosition.store (samplePosition, std::memory_order_relaxed);
-    out.sampleRate.store (sr, std::memory_order_relaxed);
-    out.numStrings.store (numStrings, std::memory_order_relaxed);
-
-    out.endWrite();
-
+    soundingNotes.publish (notes.data(), bends.data(), starts.data(), numStrings, motion.data(), samplePosition, sr);
     soundingPublishCount.fetch_add (1, std::memory_order_relaxed);
 }
 

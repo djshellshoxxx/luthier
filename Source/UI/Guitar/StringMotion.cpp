@@ -180,7 +180,7 @@ void StringMotion::envelope (float pluckPosition, double noteSeconds, int harmon
 }
 
 //==============================================================================
-float StringMotion::levelFor (int s, const SoundingNotes::String& rec, double nowSeconds, float gain) const noexcept
+float StringMotion::levelFor (int s, const SoundingNotes::Motion& rec, double nowSeconds, float gain) const noexcept
 {
     float ln = normaliseLevel (rec.level) * juce::jlimit (0.0f, 1.0f, finiteOr (gain, 0.0f));
 
@@ -196,14 +196,14 @@ float StringMotion::levelFor (int s, const SoundingNotes::String& rec, double no
     return ln;
 }
 
-bool StringMotion::anyAboveFloor (const SoundingNotes::Snapshot& snapshot, const StringMotionGeometry& geometry,
+bool StringMotion::anyAboveFloor (const SoundingNotes::Frame& snapshot, const StringMotionGeometry& geometry,
                                   double nowSeconds, float gain) const noexcept
 {
     const int n = juce::jmin (geometry.numStrings, snapshot.numStrings, StringMotionFrame::kMaxStrings);
 
     for (int s = 0; s < n; ++s)
     {
-        const auto& rec = snapshot.strings[(size_t) s];
+        const auto& rec = snapshot.motion[(size_t) s];
         const float ln = levelFor (s, rec, nowSeconds, gain);
 
         if (ln <= 0.0f)
@@ -224,7 +224,7 @@ bool StringMotion::anyAboveFloor (const SoundingNotes::Snapshot& snapshot, const
     return false;
 }
 
-void StringMotion::update (const SoundingNotes::Snapshot& snapshot, const StringMotionGeometry& geometry,
+void StringMotion::update (const SoundingNotes::Frame& snapshot, const StringMotionGeometry& geometry,
                            StringAnimationQuality quality, double nowSeconds, float gain,
                            StringMotionFrame& frame) noexcept
 {
@@ -258,7 +258,7 @@ void StringMotion::update (const SoundingNotes::Snapshot& snapshot, const String
             continue;
         }
 
-        const auto& rec = snapshot.strings[(size_t) s];
+        const auto& rec = snapshot.motion[(size_t) s];
         const auto& g = geometry.strings[(size_t) s];
 
         // ---- 2.5's onset clock ----------------------------------------------------
@@ -283,7 +283,7 @@ void StringMotion::update (const SoundingNotes::Snapshot& snapshot, const String
         out.stop = geometry.pointAtFraction (s, stopX);
 
         const float spacingAtStop = geometry.spacingAt (s, stopX);
-        out.displacementPx = bendDisplacement (spacingAtStop, rec.bendCents);
+        out.displacementPx = bendDisplacement (spacingAtStop, rec.pushCents);
 
         // The treble half is pushed toward the bass, the bass half pulled toward
         // the treble; on odd counts the middle string goes toward the bass.
@@ -296,7 +296,7 @@ void StringMotion::update (const SoundingNotes::Snapshot& snapshot, const String
         out.normal = length > 1.0e-6f ? juce::Point<float> (-axis.y, axis.x) / length : juce::Point<float> (0.0f, 1.0f);
 
         // ---- 2.2: the envelope ---------------------------------------------------
-        const double noteSeconds = rec.startSample >= 0 ? (double) (snapshot.samplePosition - rec.startSample) / sr : 1.0e3;
+        const double noteSeconds = rec.exciteSample >= 0 ? (double) (snapshot.samplePosition - rec.exciteSample) / sr : 1.0e3;
         envelope (rec.pluckPosition, noteSeconds, rec.harmonicPartial, quality, numSamples, scratch.data());
 
         int peakIndex = numSamples / 2;

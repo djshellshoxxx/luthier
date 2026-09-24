@@ -126,7 +126,7 @@ private:
     StringMotion motion;
     StringMotionFrame frame;
     StringMotionGeometry geometry;
-    SoundingNotes::Snapshot snapshot;
+    SoundingNotes::Frame snapshot;
 
     std::unique_ptr<juce::VBlankAttachment> vblank;
     std::function<double()> testClock;
