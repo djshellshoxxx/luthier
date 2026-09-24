@@ -1320,7 +1320,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     // ---- MIDI out --------------------------------------------------------------
     // Always called: when MIDI out is off it clears the buffer, which is what
     // stops the host's own events leaking back out as an accidental echo.
-    for (int m = 0; m < 6; ++m)
+    static_assert (MidiOutConfig::kNumMacroCcs == ParamIDs::kNumMacros, "one MIDI-out CC per macro");
+
+    for (int m = 0; m < ParamIDs::kNumMacros; ++m)
         if (auto* raw = macroValues[(size_t) m])
             midiOutRouter.setMacroValue (m, raw->load());
 
