@@ -491,7 +491,7 @@ LUTHIER_TEST (Combo, everyRhythmPatternAndGenreKit)
         rig.quiet();
         stats = rig.renderEvents ({}, 0, 3.0);
         ++ctx.checks;
-        if (stats.tailRms > 3.0e-4)
+        if (stats.tailRms > 1.0e-3)   // -60 dBFS; the default rig's hum and hiss floor is about -68
         {
             ctx.fail ("rhythm engine keeps sounding after it is switched off | " + label);
             log.add (label, "keeps sounding after off, tail " + juce::String (stats.tailRms, 6));
@@ -902,10 +902,15 @@ LUTHIER_TEST (Combo, sustainFeaturesStayBounded)
             rig.quiet();
         }
 
-    // No sustain features: high gain, max everything else, must still stop.
+    // No sustain features: high gain, max everything else, must still stop -
+    // with the string coupling at its default, and with it off (which tells a
+    // self-oscillating amp apart from sympathetic strings that keep ringing).
+    for (int coupling = 0; coupling < 2; ++coupling)
     for (int amp = 0; amp < rig.numChoices (ParamIDs::ampModel); ++amp)
     {
         rig.p().resetEverything();
+        if (coupling == 1)
+            rig.setNormalised (ParamIDs::couplingAmount, 0.0f);
         rig.setIndex (ParamIDs::ampModel, amp);
         rig.setNormalised (ParamIDs::ampGain, 1.0f);
         rig.setNormalised (ParamIDs::ampMaster, 1.0f);
@@ -915,7 +920,8 @@ LUTHIER_TEST (Combo, sustainFeaturesStayBounded)
         const auto stats = rig.render (Phrase::chord, 3.5);
         Verdict v;
         v.expectDecay = ! holdsSound (rig) && ! slotHoldsSound (rig);
-        judgeAndLog (ctx, log, rig, "high gain, no sustain feature, amp_model=" + juce::String (amp), stats, v);
+        judgeAndLog (ctx, log, rig, "high gain, no sustain feature, amp_model=" + juce::String (amp)
+                                     + (coupling == 1 ? " coupling_amount=0" : ""), stats, v);
         rig.quiet();
     }
 
@@ -993,6 +999,59 @@ LUTHIER_TEST (Combo, seededRandomConfigurations)
 
     std::cout << "    random configurations took "
               << juce::String ((juce::Time::getMillisecondCounterHiRes() - started) / 1000.0, 1) << " s" << std::endl;
+
+    log.flush();
+}
+
+//==============================================================================
+/*  Every automatable parameter comes back from the session state - the check
+    clap-validator's state-reproducibility tests make. Each parameter set to a
+    seeded random value (bools and choices snapped to their steps), state saved,
+    loaded into a fresh instance, every value compared. The preset-morph
+    position once failed this: presets leave it out on purpose, and the session
+    did too. */
+LUTHIER_TEST (Combo, everyParameterSurvivesTheSessionStateRoundTrip)
+{
+    FindingLog log { "Combo.paramRoundTrip" };
+    std::mt19937 rng (777);
+    std::uniform_real_distribution<float> uni (0.0f, 1.0f);
+
+    for (int round = 0; round < 5; ++round)
+    {
+        Rig source;
+
+        for (auto* prm : source.p().getParameters())
+            if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (prm))
+                r->setValueNotifyingHost (r->convertTo0to1 (r->convertFrom0to1 (uni (rng))));
+
+        source.apply();
+
+        juce::MemoryBlock blob;
+        source.p().getStateInformation (blob);
+
+        Rig copy;
+        copy.p().setStateInformation (blob.getData(), (int) blob.getSize());
+        copy.apply();
+
+        juce::StringArray differing;
+
+        for (auto* prm : source.p().getParameters())
+            if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (prm))
+                if (auto* other = copy.param (r->getParameterID()))
+                    if (r->getParameterID() != ParamIDs::doublerOn   // legacy: every load migrates it to a Doubler pedal (BETA_TEST_REPORT B-07)
+                        && std::abs (r->getValue() - other->getValue()) > 1.0e-4f)
+                        differing.add (r->getParameterID() + " (" + juce::String (r->getValue(), 4)
+                                       + " -> " + juce::String (other->getValue(), 4) + ")");
+
+        ++ctx.checks;
+
+        if (! differing.isEmpty())
+        {
+            const auto why = "parameters not restored from session state: " + differing.joinIntoString (", ");
+            ctx.fail (why + " | seed=777 round=" + juce::String (round));
+            log.add ("seed=777 round=" + juce::String (round), why);
+        }
+    }
 
     log.flush();
 }

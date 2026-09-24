@@ -482,7 +482,7 @@ struct Verdict
 
         if (expectDecay && s.finite && s.maxWindowRms > 1.0e-4)
         {
-            const bool quietEnough = s.tailRms < 3.0e-4 || s.tailRms < s.maxWindowRms * 0.0316;   // -70 dBFS or -30 dB
+            const bool quietEnough = s.tailRms < 1.0e-3 || s.tailRms < s.maxWindowRms * 0.0316;   // -60 dBFS (the default rig's hum floor is -68) or -30 dB
             if (! quietEnough)
                 why.add ("does not decay after release (tail " + juce::String (juce::Decibels::gainToDecibels (s.tailRms), 1)
                          + " dBFS vs note " + juce::String (juce::Decibels::gainToDecibels (s.maxWindowRms), 1) + " dBFS)");

@@ -47,6 +47,8 @@ namespace
             { "feedback_on",        "superseded by feedback_amount (ambiguity-resolutions 1.2); kept for automation indices" },
             { "feedback_threshold", "superseded by the physical feedback loop (ambiguity-resolutions 1.2)" },
             { "feedback_speed",     "superseded by the physical feedback loop (ambiguity-resolutions 1.2)" },
+            { "doubler_on",         "legacy engine doubler: a load migrates it to a Doubler pedal (PresetManager::fromVar)" },
+            { "doubler_amount",     "legacy engine doubler; the Doubler pedal's own knobs replace it" },
             { "strum_speed",        "superseded by strum_crossing_sps (strum-dynamics 7); kept for automation indices" },
         };
 
