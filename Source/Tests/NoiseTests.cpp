@@ -574,3 +574,87 @@ LUTHIER_TEST (NoiseUi, theCharacterTabCarriesAPadlockWhenUnlocked)
     processor.changeRanges (amp, "test");
     CHECK (tab.getPadlockState() == 0);
 }
+
+//==============================================================================
+/*  gui-integration 21 / qa-polish 4: under reduced motion the noise-event strip
+    is a static per-class count, refreshed at 5 Hz, not a scrolling strip. */
+LUTHIER_TEST (NoiseUi, theEventStripIsAStaticCountUnderReducedMotion)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    auto& settings = AccessibilitySettings::get();
+    const bool wasReduced = settings.isReducedMotion();
+    settings.setReducedMotion (false);
+
+    NoiseEventStrip strip (processor);
+    strip.setSize (300, NoiseEventStrip::preferredHeight);
+
+    CHECK (! strip.isShowingStaticCount());
+    CHECK_MSG (strip.getRefreshHz() == NoiseEventStrip::kMovingRefreshHz,
+               "moving strip refreshes at " + juce::String (strip.getRefreshHz()) + " Hz");
+
+    auto render = [&strip]
+    {
+        juce::Image image (juce::Image::ARGB, strip.getWidth(), strip.getHeight(), true);
+        juce::Graphics g (image);
+        strip.paintEntireComponent (g, true);
+        return image;
+    };
+
+    auto& pool = processor.getEngine().getPlayingNoise().getPool();
+
+    NoiseEvent squeak;
+    squeak.level = 0.1;
+    squeak.noiseClass = NoiseClass::squeak;
+
+    NoiseEvent buzz;
+    buzz.level = 0.2;
+    buzz.noiseClass = NoiseClass::fretBuzz;
+
+    for (int i = 0; i < 5; ++i) pool.trigger (squeak);
+    for (int i = 0; i < 2; ++i) pool.trigger (buzz);
+
+    CHECK (strip.pollNow() == 7);
+    const auto moving = render();
+
+    // The change reaches a strip already built (it listens to the settings).
+    settings.setReducedMotion (true);
+    strip.pollNow();   // the change message is asynchronous; the poll re-arms
+
+    CHECK (strip.isShowingStaticCount());
+    CHECK_MSG (strip.getRefreshHz() == NoiseEventStrip::kStaticRefreshHz,
+               "static count refreshes at " + juce::String (strip.getRefreshHz()) + " Hz, not 5");
+
+    CHECK (strip.getCountFor (NoiseClass::squeak) == 5);
+    CHECK (strip.getCountFor (NoiseClass::fretBuzz) == 2);
+    CHECK (strip.getCountFor (NoiseClass::clank) == 0);
+
+    const auto still = render();
+
+    // It paints something different from the ticks, and the same thing twice:
+    // nothing scrolls between two paints.
+    auto same = [] (const juce::Image& a, const juce::Image& b)
+    {
+        const juce::Image::BitmapData pa (a, juce::Image::BitmapData::readOnly);
+        const juce::Image::BitmapData pb (b, juce::Image::BitmapData::readOnly);
+
+        for (int y = 0; y < pa.height; ++y)
+            for (int x = 0; x < pa.width; ++x)
+                if (pa.getPixelColour (x, y) != pb.getPixelColour (x, y))
+                    return false;
+
+        return true;
+    };
+
+    CHECK_MSG (! same (moving, still), "the static count looks like the scrolling strip");
+
+    juce::Thread::sleep (40);
+    CHECK_MSG (same (still, render()), "the static count moved between two paints");
+
+    settings.setReducedMotion (false);
+    strip.pollNow();
+    CHECK (strip.getRefreshHz() == NoiseEventStrip::kMovingRefreshHz);
+
+    settings.setReducedMotion (wasReduced);
+}

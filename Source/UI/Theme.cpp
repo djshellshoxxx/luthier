@@ -470,6 +470,36 @@ void LuthierLookAndFeel::drawMiniToggle (juce::Graphics& g, juce::Rectangle<floa
     }
 }
 
+static const juce::Component* forcedFocusRingComponent = nullptr;
+
+void LuthierLookAndFeel::forceFocusRingFor (const juce::Component* component) noexcept
+{
+    forcedFocusRingComponent = component;
+}
+
+bool LuthierLookAndFeel::wantsFocusRing (const juce::Component& c) noexcept
+{
+    return c.hasKeyboardFocus (true)
+        || (forcedFocusRingComponent != nullptr
+              && (forcedFocusRingComponent == &c || forcedFocusRingComponent->isParentOf (&c)));
+}
+
+void LuthierLookAndFeel::drawFocusRing (juce::Graphics& g, juce::Rectangle<float> bounds, float corner)
+{
+    const auto ring = bounds.reduced (focusRingThickness * 0.5f);
+
+    if (ring.isEmpty())
+        return;
+
+    // A thin dark halo first, so the accent ring reads on a plate or a raised
+    // panel that is itself close to the accent (the brass plates in Light).
+    g.setColour (Palette::backgroundDeep.withAlpha (0.6f));
+    g.drawRoundedRectangle (ring.expanded (1.0f), corner + 1.0f, 1.0f);
+
+    g.setColour (Palette::accent);
+    g.drawRoundedRectangle (ring, corner, focusRingThickness);
+}
+
 void LuthierLookAndFeel::drawSectionHeader (juce::Graphics& g, juce::Rectangle<int> bounds,
                                             const juce::String& text, juce::Colour accent)
 {
@@ -730,6 +760,9 @@ void LuthierLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int 
 
     g.setColour (atDefault ? Palette::textDisabled : accent);
     g.fillEllipse (centre.x - dotRadius, centre.y - dotRadius, dotRadius * 2.0f, dotRadius * 2.0f);
+
+    if (wantsFocusRing (slider))
+        drawFocusRing (g, bounds);
 }
 
 //==============================================================================
@@ -827,6 +860,9 @@ void LuthierLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int 
         else
             g.fillRect (thumb.withSizeKeepingCentre (1.5f, thumb.getHeight() - 6.0f));
     }
+
+    if (wantsFocusRing (slider))
+        drawFocusRing (g, juce::Rectangle<int> (x, y, width, height).toFloat(), Metrics::controlCorner);
 }
 
 //==============================================================================
@@ -865,6 +901,9 @@ void LuthierLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& 
         g.setColour (accent.withAlpha (0.25f));
         g.fillRoundedRectangle (bounds, Metrics::panelCorner);
     }
+
+    if (wantsFocusRing (button))
+        drawFocusRing (g, button.getLocalBounds().toFloat());
 }
 
 void LuthierLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& button,
@@ -910,6 +949,9 @@ void LuthierLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton
                                     : Palette::textDisabled);
     g.setFont (Fonts::ui (12.0f));
     g.drawText (button.getButtonText(), bounds, juce::Justification::centredLeft, true);
+
+    if (wantsFocusRing (button))
+        drawFocusRing (g, button.getLocalBounds().toFloat());
 }
 
 //==============================================================================
@@ -933,6 +975,9 @@ void LuthierLookAndFeel::drawComboBox (juce::Graphics& g, int width, int height,
     drawChevron (g, { (float) width - 14.0f, (float) height * 0.5f }, 4.0f, 2,
                  box.isEnabled() ? box.findColour (juce::ComboBox::arrowColourId)
                                  : Palette::textDisabled);
+
+    if (wantsFocusRing (box))
+        drawFocusRing (g, juce::Rectangle<int> (0, 0, width, height).toFloat(), Metrics::controlCorner);
 }
 
 void LuthierLookAndFeel::drawChevron (juce::Graphics& g, juce::Point<float> c, float halfWidth,
@@ -1215,6 +1260,9 @@ void LuthierLookAndFeel::drawTabButton (juce::TabBarButton& button, juce::Graphi
 
     Fonts::drawTrackedText (g, button.getButtonText().toUpperCase(),
                             button.getLocalBounds(), juce::Justification::centred);
+
+    if (wantsFocusRing (button))
+        drawFocusRing (g, button.getLocalBounds().toFloat(), Metrics::controlCorner);
 }
 
 void LuthierLookAndFeel::drawTabbedButtonBarBackground (juce::TabbedButtonBar& bar, juce::Graphics& g)

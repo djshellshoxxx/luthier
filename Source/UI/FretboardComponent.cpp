@@ -1,5 +1,6 @@
 #include "FretboardComponent.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Accessibility.h"
 
 namespace luthier
 {
@@ -127,6 +128,11 @@ void FretboardComponent::setCompact (bool shouldBeCompact)
 }
 
 //==============================================================================
+void FretboardComponent::refreshNow()
+{
+    timerCallback();
+}
+
 void FretboardComponent::timerCallback()
 {
     auto& engine = processor.getEngine();
@@ -170,8 +176,13 @@ void FretboardComponent::timerCallback()
         const auto& slide = engine.getSlideEngine();
         const double target = slide.getOverlayFret();
 
-        // 80 ms ease at the 30 Hz this runs at.
-        const double ease = 1.0 - std::exp (-(1.0 / 30.0) / 0.080);
+        // 80 ms ease at the 30 Hz this runs at - or none at all under reduced
+        // motion (accessibility 5, qa-polish 4): the bar then lands where the
+        // engine says it is on the next refresh, and appears and lifts without
+        // a fade.
+        const double ease = AccessibilitySettings::get().isReducedMotion()
+                              ? 1.0
+                              : 1.0 - std::exp (-(1.0 / 30.0) / 0.080);
 
         if (target >= 0.0)
         {

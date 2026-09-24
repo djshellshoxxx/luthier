@@ -249,8 +249,15 @@ namespace AccessibleSetup
                                const juce::String& description);
 
     /** accessibility 1: an overlay announces itself and moves focus to its first
-        interactive child. */
+        interactive child. Call it once the overlay is showing (OverlayHost::show,
+        after addAndMakeVisible): focus can only land on a component with a peer. */
     void announceOverlayOpened (juce::Component& overlay, const juce::String& name);
+
+    /** The first interactive element inside `root`, in Tab order - the one
+        announceOverlayOpened gives focus to - or null when nothing in it wants
+        focus. Walks the whole tree, not only the direct children, because an
+        overlay's controls sit inside its pages. */
+    juce::Component* findFirstInteractive (juce::Component& root);
 }
 
 } // namespace luthier

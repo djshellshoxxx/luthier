@@ -1,5 +1,6 @@
 #include "NoiseGroups.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Accessibility.h"
 
 namespace luthier
 {
@@ -13,12 +14,59 @@ NoiseEventStrip::NoiseEventStrip (LuthierAudioProcessor& p)
     setTitle ("Noise events");
     setTooltip ("The last eight seconds of playing noise: squeak, click, chirp, scrape, buzz "
                 "and clank, as ticks. Taller is louder.");
-    startTimerHz (30);
+
+    AccessibilitySettings::get().addChangeListener (this);
+    applyMotionMode();
 }
 
 NoiseEventStrip::~NoiseEventStrip()
 {
+    AccessibilitySettings::get().removeChangeListener (this);
     stopTimer();
+}
+
+bool NoiseEventStrip::isShowingStaticCount() const noexcept
+{
+    return AccessibilitySettings::get().isReducedMotion();
+}
+
+void NoiseEventStrip::applyMotionMode()
+{
+    // A count that changes five times a second is still a count; ticks that
+    // move five times a second would be a slideshow, so the two rates differ.
+    startTimerHz (isShowingStaticCount() ? kStaticRefreshHz : kMovingRefreshHz);
+}
+
+void NoiseEventStrip::changeListenerCallback (juce::ChangeBroadcaster*)
+{
+    applyMotionMode();
+    repaint();
+}
+
+int NoiseEventStrip::getCountFor (NoiseClass c) const noexcept
+{
+    int count = 0;
+
+    for (const auto& tick : shown)
+        if (tick.noiseClass == c)
+            ++count;
+
+    return count;
+}
+
+juce::String NoiseEventStrip::nameFor (NoiseClass c)
+{
+    switch (c)
+    {
+        case NoiseClass::squeak:     return "squeak";
+        case NoiseClass::pickClick:  return "click";
+        case NoiseClass::pickChirp:  return "chirp";
+        case NoiseClass::pickScrape: return "scrape";
+        case NoiseClass::fretBuzz:   return "buzz";
+        case NoiseClass::clank:      return "clank";
+        case NoiseClass::numClasses:
+        default:                     return "other";
+    }
 }
 
 juce::Colour NoiseEventStrip::colourFor (NoiseClass c)
@@ -43,6 +91,12 @@ bool NoiseEventStrip::isStale() const noexcept
 
 int NoiseEventStrip::pollNow()
 {
+    // The settings' change message is asynchronous; a poll that found the mode
+    // changed re-arms the timer itself, so the rate follows the switch even
+    // before the message lands.
+    if (getRefreshHz() != (isShowingStaticCount() ? kStaticRefreshHz : kMovingRefreshHz))
+        applyMotionMode();
+
     std::array<NoiseEngine::EventRecord, 64> records;
     auto& pool = processor.getEngine().getPlayingNoise().getPool();
 
@@ -89,6 +143,42 @@ void NoiseEventStrip::paint (juce::Graphics& g)
 
     const bool stale = isStale();
     const double now = juce::Time::getMillisecondCounterHiRes() * 0.001;
+
+    if (isShowingStaticCount())
+    {
+        // Reduced motion: one number per class, named as well as coloured
+        // (accessibility 0 rule 2), and nothing scrolls.
+        if (shown.isEmpty())
+        {
+            g.setColour (Palette::textDisabled);
+            g.setFont (Fonts::ui (10.0f));
+            g.drawText ("No playing noise in the last 8 s", bounds, juce::Justification::centred);
+            return;
+        }
+
+        auto area = bounds.reduced (4.0f, 0.0f);
+        g.setFont (Fonts::mono (10.0f));
+
+        for (int c = 0; c < (int) NoiseClass::numClasses; ++c)
+        {
+            const auto noiseClass = (NoiseClass) c;
+            const int count = getCountFor (noiseClass);
+
+            if (count == 0)
+                continue;
+
+            const auto text = juce::String (count) + " " + nameFor (noiseClass);
+            const float width = juce::TextLayout::getStringWidth (g.getCurrentFont(), text) + 8.0f;
+
+            if (width > area.getWidth())
+                break;
+
+            g.setColour (stale ? Palette::textDisabled : colourFor (noiseClass));
+            g.drawText (text, area.removeFromLeft (width), juce::Justification::centredLeft, false);
+        }
+
+        return;
+    }
 
     for (const auto& tick : shown)
     {

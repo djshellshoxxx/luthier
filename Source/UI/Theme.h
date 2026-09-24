@@ -272,6 +272,25 @@ public:
     /** A mini toggle switch: a threaded bushing and a bat lever up (on) or down. */
     static void drawMiniToggle (juce::Graphics&, juce::Rectangle<float> area, bool on, bool enabled);
 
+    /*  accessibility 2 / qa-polish 4: the keyboard-focus ring. A 2 px accent
+        stroke just inside `bounds`, the same in every palette because every
+        palette defines the accent against its background (accessibility 10
+        checks the contrast). Every draw routine above calls this when its
+        component hasKeyboardFocus (true), so a control that gains focus by Tab
+        shows it wherever it sits. */
+    static constexpr float focusRingThickness = 2.0f;
+    static void drawFocusRing (juce::Graphics&, juce::Rectangle<float> bounds,
+                               float corner = Metrics::panelCorner);
+
+    /** Whether a draw routine should ring this component: it has keyboard
+        focus, or a test has forced it (a component can only hold focus with a
+        window peer, which the test runner has no display for). */
+    static bool wantsFocusRing (const juce::Component&) noexcept;
+
+    /** Test hook: draws the ring on `component` as if it were focused, until
+        called with nullptr. */
+    static void forceFocusRingFor (const juce::Component* component) noexcept;
+
 private:
     void drawKnurledSkirt (juce::Graphics&, juce::Point<float> centre, float radius,
                            float angle, juce::Colour colour) const;
