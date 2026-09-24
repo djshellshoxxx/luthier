@@ -85,9 +85,20 @@ namespace
             disagreement would silently re-map every preset ever saved. */
         RangeRegistry::noteDeclaration (id, min, max);
 
+        /*  Text a host shows and types back (host-integration.md 3): a fixed
+            number of decimals for the range - four significant places over
+            its span - so value -> text -> value -> text is stable. JUCE's
+            default prints seven decimals, and the float round trip of the
+            seventh drifted (CLAP validator, param-conversions).
+            Values are shown as numbers only; the unit is the label. */
+        const int decimals = juce::jlimit (0, 6, 4 - (int) std::ceil (std::log10 (juce::jmax (1.0e-6f, max - min))));
+
         return std::make_unique<juce::AudioParameterFloat> (
             pid (id), name, range, def,
-            juce::AudioParameterFloatAttributes().withLabel (unit));
+            juce::AudioParameterFloatAttributes()
+                .withLabel (unit)
+                .withStringFromValueFunction ([decimals] (float v, int) { return juce::String (v, decimals); })
+                .withValueFromStringFunction ([] (const juce::String& t) { return t.getFloatValue(); }));
     }
 
     /*  A resistance, shown and typed the way it is printed on a part. Declared
@@ -793,6 +804,22 @@ ParameterBridge::~ParameterBridge()
 
 void ParameterBridge::parameterValueChanged (int parameterIndex, float)
 {
+    ++writeSerial;
+
+    // When, for writtenSinceGuitarType(). Never 0, which means "never written".
+    if (juce::isPositiveAndBelow (parameterIndex, numLastWrite))
+        lastWrite[(size_t) parameterIndex].store (juce::jmax ((juce::uint32) 1, juce::Time::getMillisecondCounter()),
+                                                  std::memory_order_relaxed);
+
+    // A type the player picked in the UI arrives inside a gesture (the
+    // attachments wrap every edit in one); a host, a session, a preset or a
+    // snapshot writes without one.
+    const bool byPlayer = juce::isPositiveAndBelow (parameterIndex, numLastWrite)
+                            && inGesture[(size_t) parameterIndex].load (std::memory_order_relaxed);
+
+    if (parameterIndex == guitarTypeIndex)
+        guitarTypeByPlayer.store (byPlayer, std::memory_order_relaxed);
+
     if (! juce::isPositiveAndBelow (parameterIndex, (int) slotOfParameter.size()))
         return;
 
@@ -803,12 +830,46 @@ void ParameterBridge::parameterValueChanged (int parameterIndex, float)
 
     const int which = code % 16;
     const int chain = (code / 16) / EffectsChain::kNumSlots, slot = (code / 16) % EffectsChain::kNumSlots;
-    const auto serial = ++writeSerial;
+    const auto serial = writeSerial.load (std::memory_order_relaxed);
 
     if (which == 15)
+    {
         typeWritten[(size_t) chain][(size_t) slot].store (serial, std::memory_order_relaxed);
+        typeByPlayer[(size_t) chain][(size_t) slot].store (byPlayer, std::memory_order_relaxed);
+    }
     else
         paramsWritten[(size_t) chain][(size_t) slot].store (serial, std::memory_order_relaxed);
+}
+
+void ParameterBridge::parameterGestureChanged (int parameterIndex, bool starting)
+{
+    if (juce::isPositiveAndBelow (parameterIndex, numLastWrite))
+        inGesture[(size_t) parameterIndex].store (starting, std::memory_order_relaxed);
+}
+
+bool ParameterBridge::writtenSinceGuitarType (const juce::String& id) const noexcept
+{
+    const int index = parameterIndex (id);
+
+    if (! juce::isPositiveAndBelow (index, numLastWrite) || ! juce::isPositiveAndBelow (guitarTypeIndex, numLastWrite))
+        return false;
+
+    /*  Written with the type (a session restore, a flush of automation, a
+        snapshot - all land within a few ms, in any order) or after it: the
+        host's value. A value set well before the type changed is the old
+        guitar's, and the new guitar replaces it. */
+    constexpr juce::uint32 togetherMs = 250;
+    const auto written = lastWrite[(size_t) index].load (std::memory_order_relaxed);
+    const auto type = lastWrite[(size_t) guitarTypeIndex].load (std::memory_order_relaxed);
+
+    if (written == 0 || type == 0)
+        return false;
+
+    // The player picked the guitar: only what they have touched since is theirs.
+    if (guitarTypeByPlayer.load (std::memory_order_relaxed))
+        return (int) (written - type) > 0;
+
+    return (int) (written - type) > - (int) togetherMs;
 }
 
 void ParameterBridge::cachePointers()
@@ -842,6 +903,20 @@ void ParameterBridge::cachePointers()
 
     static_assert (Pedal::kMaxParams < 15, "the slot code keeps 15 for the type");
 
+    // Every parameter reports its writes, for writtenSinceGuitarType().
+    numLastWrite = parameters.size();
+    lastWrite.reset (new std::atomic<juce::uint32>[(size_t) numLastWrite]);
+    inGesture.reset (new std::atomic<bool>[(size_t) numLastWrite]);
+    for (int i = 0; i < numLastWrite; ++i)
+    {
+        lastWrite[(size_t) i].store (0, std::memory_order_relaxed);
+        inGesture[(size_t) i].store (false, std::memory_order_relaxed);
+        parameters[i]->addListener (this);
+        watched.add (parameters[i]);
+    }
+    guitarTypeIndex = parameterIndex (ParamIDs::guitarType);
+
+
     auto watch = [this, &parameters] (const juce::String& id, int code)
     {
         const int index = parameterIndex (id);
@@ -849,8 +924,6 @@ void ParameterBridge::cachePointers()
         if (juce::isPositiveAndBelow (index, parameters.size()))
         {
             slotOfParameter[(size_t) index] = code;
-            parameters[index]->addListener (this);
-            watched.add (parameters[index]);
         }
     };
 
@@ -1535,8 +1608,12 @@ void ParameterBridge::applyStructural()
                 // snapshot, a morph) keeps them; one the player has just picked
                 // starts at its own defaults, written back into the parameters
                 // so the UI and the preset agree with what is loaded.
-                const bool settingsCameWithIt = paramsWritten[(size_t) chain][(size_t) slot].load (std::memory_order_relaxed)
-                                              > typeWritten[(size_t) chain][(size_t) slot].load (std::memory_order_relaxed);
+                // Only a player's pick in the UI starts at the pedal's defaults;
+                // a host, session, preset or snapshot writes type and settings
+                // together, in whatever order its events arrive.
+                const bool settingsCameWithIt = ! typeByPlayer[(size_t) chain][(size_t) slot].load (std::memory_order_relaxed)
+                                              || paramsWritten[(size_t) chain][(size_t) slot].load (std::memory_order_relaxed)
+                                                   > typeWritten[(size_t) chain][(size_t) slot].load (std::memory_order_relaxed);
 
                 if (settingsCameWithIt)
                     pushSlotParameters (post, slot);

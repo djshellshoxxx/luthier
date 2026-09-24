@@ -439,6 +439,11 @@ public:
     /** True while a structural change is pending. */
     bool isStructuralChangePending() const noexcept { return structuralPending.load(); }
 
+    /** Runs a pending structural change now, on the calling (message) thread:
+        a host that saves state straight after changing a guitar type must get
+        the state that change produces, not the one before it. */
+    void flushPendingStructuralChange() { handleUpdateNowIfNeeded(); }
+
     /** A preset has just written its pedal types AND their parameters: build
         those pedals keeping the parameters. The structural path otherwise
         writes a new pedal's defaults over its parameters - right for a pedal
@@ -459,6 +464,10 @@ public:
         modulation-matrix.md section 7 describes. */
     void setModMatrix (ModMatrix* matrix) noexcept { modMatrix = matrix; }
     ModMatrix* getModMatrix() const noexcept { return modMatrix; }
+
+    /** True if `id` was written (by anyone) after the guitar type last was. */
+    bool writtenSinceGuitarType (const juce::String& id) const noexcept;
+
 
     /** The unmodulated value, for the UI, which shows the control where
         automation put it rather than where modulation has pushed it. */
@@ -499,7 +508,18 @@ private:
         the type, and gets its own defaults when they were not. Counters, so
         the listener is lock-free on whatever thread sets the parameter. */
     void parameterValueChanged (int parameterIndex, float newValue) override;
-    void parameterGestureChanged (int, bool) override {}
+    void parameterGestureChanged (int parameterIndex, bool starting) override;
+
+    /*  guitar-workshop 0.6 / host-integration 3: the order the host wrote
+        parameters in, per parameter. A guitar type is a shortcut that writes
+        the parameters its parts overlap; one the host wrote after the type
+        (a session restoring both, automation at the same time) is kept. */
+    std::unique_ptr<std::atomic<juce::uint32>[]> lastWrite;
+    std::unique_ptr<std::atomic<bool>[]> inGesture;       ///< per parameter: a player is holding it
+    std::atomic<bool> guitarTypeByPlayer { false };        ///< the last guitar type write was a player's pick
+    std::array<std::array<std::atomic<bool>, EffectsChain::kNumSlots>, 2> typeByPlayer {};
+    int numLastWrite = 0;
+    int guitarTypeIndex = -1;
 
     std::vector<int> slotOfParameter;      ///< parameter index -> (chain * slots + slot) * 16 + (param, or 15 for the type)
     std::atomic<juce::uint32> writeSerial { 0 };

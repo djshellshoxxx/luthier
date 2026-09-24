@@ -46,7 +46,6 @@ void MidiInterpreter::prepare (double sampleRate, int strings)
     stringBendRange.fill (2.0);
     resetChannelMap();
     setChordWindowMs (chordWindowMs);
-    resetCcMapToDefaults();
     reset();
 }
 
