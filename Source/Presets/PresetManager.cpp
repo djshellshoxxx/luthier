@@ -910,6 +910,10 @@ bool PresetManager::loadPreset (const juce::File& file)
 
     modified = false;
     sendChangeMessage();
+
+    if (onPresetLoaded != nullptr)
+        onPresetLoaded();   // output-normalization.md 4.4
+
     return true;
 }
 

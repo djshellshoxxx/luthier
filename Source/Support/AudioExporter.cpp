@@ -336,6 +336,10 @@ void AudioExporter::run()
         return;
     }
 
+    // output-normalization.md 4.6: an export is non-realtime, so a calibration
+    // request waits for its result rather than depending on worker timing.
+    processor->setNonRealtime (true);
+
     if (state.getSize() > 0)
         processor->setStateInformation (state.getData(), (int) state.getSize());
 

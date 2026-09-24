@@ -80,6 +80,9 @@ public:
         (ParameterBridge::adoptPedalTypesFromParameters). */
     std::function<void()> onPedalTypesLoaded;
 
+    /** output-normalization.md 4.4: after a preset file loaded (message thread). */
+    std::function<void()> onPresetLoaded;
+
     /*  file-formats.md 2 (MODEL-GAPS, TODO 2k): a preset the load had to migrate
         - the legacy `format` magic, no `ranges` block (schema 1, pre-M42), a
         pre-Workshop `guitar.name`, or the retired pickup-placement parameters -

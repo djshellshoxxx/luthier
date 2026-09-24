@@ -79,6 +79,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 
     // A preset's pedals come with their settings; build them keeping those.
     presets.onPedalTypesLoaded = [this] { bridge.adoptPedalTypesFromParameters(); };
+
+    // output-normalization.md 4.4: a preset load is a discrete configuration
+    // event, and a cached gain rides the load.
+    presets.onPresetLoaded = [this] { outputNormalization.notifyConfigurationChanged (true); };
     presets.ensureFactoryPresetsInstalled();
     presets.refresh();
 
@@ -1190,6 +1194,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
             tuneDirect.addEvent (message, metadata.samplePosition);
     }
 
+    // output-normalization.md 4.3: the calibration render's phrase, as written.
+    outputNormalization.mergeCalibrationDirect (tuneDirect);
+
     engine.setDirectMidi (tuneDirect.isEmpty() ? nullptr : &tuneDirect);
 
     // ---- modulation ------------------------------------------------------------
@@ -1240,6 +1247,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
         performanceCapture.beginBlock (clock);
     }
+
+    // output-normalization.md 4.1: the change tracker, and the master bus's timeline.
+    outputNormalization.processBlockStart (samplePosition, numSamples, currentSampleRate, isNonRealtime());
 
     {
         auto mainOut = getBusBuffer (buffer, false, 0);
@@ -1957,7 +1967,7 @@ void LuthierAudioProcessor::recallSlot (bool useSlotB)
     auto& source = useSlotB ? slotB : slotA;
 
     if (source.getSize() > 0)
-        setStateInformation (source.getData(), (int) source.getSize());
+        restoreState (source.getData(), (int) source.getSize(), RestoreScope::soundOnly);   // output-normalization.md 6
 }
 
 void LuthierAudioProcessor::copyAtoB()
@@ -2096,7 +2106,7 @@ void LuthierAudioProcessor::undo()
 
     --undoPosition;
 
-    setStateInformation (entry.state.getData(), (int) entry.state.getSize());
+    restoreState (entry.state.getData(), (int) entry.state.getSize(), RestoreScope::soundOnly);   // output-normalization.md 6
 }
 
 void LuthierAudioProcessor::redo()
@@ -2107,7 +2117,7 @@ void LuthierAudioProcessor::redo()
     ++undoPosition;
 
     const auto& entry = undoStack.getReference (undoPosition);
-    setStateInformation (entry.redoState.getData(), (int) entry.redoState.getSize());
+    restoreState (entry.redoState.getData(), (int) entry.redoState.getSize(), RestoreScope::soundOnly);   // output-normalization.md 6
 }
 
 juce::String LuthierAudioProcessor::getUndoDescription() const
@@ -2244,6 +2254,9 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     root->setProperty ("metronome", metronome.toVar());
     root->setProperty ("clickToMain", isClickToMain());
 
+    // output-normalization.md 6: session state, not preset data.
+    root->setProperty ("normalization", outputNormalization.toVar());
+
     // tune-builder 15: the tune being built is part of the session.
     root->setProperty ("tune", tuneSession.toState());
 
@@ -2259,6 +2272,11 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 }
 
 void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+{
+    restoreState (data, sizeInBytes, RestoreScope::full);
+}
+
+void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, RestoreScope scope)
 {
     if (data == nullptr || sizeInBytes <= 0)
         return;
@@ -2350,6 +2368,14 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
     if (root->hasProperty ("presetMorphPosition"))
         if (auto* morph = apvts.getParameter (ParamIDs::presetMorphPosition))
             morph->setValueNotifyingHost (morph->convertTo0to1 ((float) (double) root->getProperty ("presetMorphPosition")));
+
+    // output-normalization.md 6: the host path restores the setting (a state
+    // without the key loads off); undo, redo and A/B keep the live one. Either
+    // way the sound just changed, which is a configuration event.
+    if (scope == RestoreScope::full)
+        outputNormalization.restoreFromSession (root->getProperty ("normalization"), root->hasProperty ("normalization"));
+
+    outputNormalization.notifyConfigurationChanged (false);
 
     // Whatever the host sends next, this state is the one the user saved.
     ignoreNextProgramChange.store (true);
