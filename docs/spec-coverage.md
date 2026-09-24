@@ -21,7 +21,12 @@ Audit of every Markdown file under `spec/` against the build, as
   committed at `52cb9d7`; the assistants' uncommitted work in the working
   tree at this refresh (preset morph, rubric voicer, tune player and TUNE
   tab, PRACTICE setup panel, faces on the AMP section and racks) is not
-  counted.
+  counted. **Refreshed again 2026-09-24** for `dbba3c6` (ScrapeEngine,
+  StrumGesture, STRUM group), `f006d6f` (workspace panel heights, popups,
+  wheel scrolling, LIVE bank), `529ea03` / `659a892` (string roll, FRETS |
+  ROLL), `840de0b` (MIDI import), `5f3273d` (guitar illustration) and `ac7ecca`
+  (chords, RESET & STOP, pedals, fingers): only the SCR-*, SD-*, AMB-6* and
+  new ISS-* rows were touched; every other row still reads as at `52cb9d7`.
 - **Spec set:** `spec/` (CLAUDE.md says `specs/`; the folder on disk is
   `spec/`). Inventory command: `rg --files spec -g '*.md'` - 63 files.
 - **Precedence:** `spec/CLAUDE_CODE_BRIEF.md` "Handling conflicts between
@@ -36,7 +41,10 @@ Audit of every Markdown file under `spec/` against the build, as
   (`GuitarMigration`, `Trademarks::sourceTreeHasNoUnmarkedBrandNames`), 568
   at `18a1396` (`Capture`, `NotationTab`), 586 at `980b07e`
   (`PracticeRoutine`) and 595 at `52cb9d7` (`Faces`). No log was available
-  to this audit and no build or test was run for it. One caveat:
+  to this audit and no build or test was run for it. The 2026-09-24 Linux
+  run (`scripts/build.sh`, 721 tests) was 720 green with
+  `StrumDynamics::chuckKillsPitch` the one failure; the 19 `Scrape` /
+  `ScrapeEngineWiring` tests and the other 25 `StrumDynamics` tests passed. One caveat:
   `LUTHIER_ALLOCATION_COUNTER` is not defined anywhere in the build, so the
   no-allocation assertion in `Capture::capturingTenThousandNotesDoesNotAllocate`
   compiles out (NOT-7.1-02).
@@ -73,16 +81,16 @@ test passing, human check, READY TO SHIP marker) is unmet.
 
 | | Rows | Share |
 |---|---|---|
-| verified | 661 | 32% |
-| implemented (no proving test) | 447 | 21% |
-| partial | 383 | 18% |
-| pending | 533 | 26% |
+| verified | 712 | 34% |
+| implemented (no proving test) | 448 | 21% |
+| partial | 384 | 18% |
+| pending | 497 | 24% |
 | blocked | 28 | 1% |
 | deferred | 4 | <1% |
 | n/a | 25 | 1% |
-| **Total** | **2081** | |
+| **Total** | **2098** | |
 
-1,391 required rows (everything except `verified`, `deferred`, `n/a`) lack
+1,357 required rows (everything except `verified`, `deferred`, `n/a`) lack
 evidence. Phase 1 and the built realism specs (advanced ranges, circuit,
 pick/squeak/buzz noise, slide, parts model, part acoustics) are in good
 shape; everything after them is largely unbuilt.
@@ -93,8 +101,8 @@ Biggest unimplemented areas, roughly in order of size and ship impact:
    DECISIONS). They block the reading order and five phase-5b dependencies
    (Body Tap, multi-source excitation, fretting-hand mutes, fingerstyle
    tools, nut/tuner physics).
-2. **Phase 5b technique layer absent** (~170 rows): ScrapeEngine,
-   SlapEngine, TapEngine, MuteEngine, CascadeResolver, slide technique
+2. **Phase 5b technique layer largely absent** (~150 rows; ScrapeEngine
+   landed at `dbba3c6`, section 42): SlapEngine, TapEngine, MuteEngine, CascadeResolver, slide technique
    controls, microtonal bends, TECHNIQUES tab and Playing-strip pills.
 3. **Workshop bench remainder** (`workshop-ui.md`, 3 pending, 12 partial):
    the bench is built and tested (`d45fcd6`, `bc25f89`); live overlays,
@@ -1295,38 +1303,47 @@ integration (all green except one `MidiExport` null test).
 
 ## 21. strum-dynamics.md (phase 2)
 
-**Not built** (TODO 8: `StrumGesture` and the RHYTHM STRUM group). Today a
-strum is a fixed `strum_speed` spread in ms (`Parameters.cpp:563`) plus
-`strum_evenness` in the rhythm engine; none of the gesture model exists.
+**Built** (`dbba3c6`, compiled for Linux at `c2b4486`): `Source/Rhythm/StrumGesture.*`
+plans one strum as one gesture; `RhythmEngine::scheduleStrum` and
+`RhythmEngine::resolveCrossingSps` (`Source/Rhythm/RhythmEngine.cpp`) drive it
+for patterns, `MidiInterpreter` for live chords, `Source/UI/StrumGroup.*` is
+the RHYTHM tab's STRUM group and Easy mode's Feel knob reaches
+`RhythmEngine::setStrumFeel`. The nine new parameters are appended in
+`Parameters.cpp` ("strum-dynamics.md 7") and pushed by the bridge to both the
+rhythm engine and the interpreter; `strum_speed` presets migrate
+(`PresetManager.cpp` `strumCrossingSps` fallback). Evidence: the 26
+`StrumDynamics` tests in `Source/Tests/StrumGestureTests.cpp`, 25 green at the
+2026-09-24 Linux run (721-test suite); `chuckKillsPitch` is the one failure
+and is being fixed.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
-| SD-0-01 | Strum is one gesture; per-string events derived | strum-dynamics §0.1 | not built | none | `pending` |
-| SD-1-01 | Crossing velocity in strings per second; delay = 1/sps | strum-dynamics §1 | `strum_speed` in ms only | none | `pending` |
-| SD-1.1-01 | Source priority: MPE/hex passthrough > live keyboard spread > pattern `crossing_sps` > global default (200 guitar / 100 bass) | strum-dynamics §1.1; AMB 6 | not built | none | `pending` |
-| SD-2-01 | Acceleration profile `ease(u,a)` smoothstep blend, default 0.35 | strum-dynamics §2 | not built | none | `pending` |
-| SD-2.1-01 | Down steeper/brighter; up faster (ratio 1.25), softer, more chirp | strum-dynamics §2.1 | not built | none | `pending` |
-| SD-3-01 | Force = base x tilt x evenness x accent; tilt ±0.15; evenness ±40% at 0, deterministic; accent +1.5 dB leading pair | strum-dynamics §3 | `strum_evenness` exists (`RhythmEngine.h:128`) | none | `partial` - only evenness exists |
-| SD-3.1-01 | Miss probability 0.04, leading string x3, deterministic; `missPercent` retained | strum-dynamics §3.1 | `missPercent` exists `RhythmEngine.h:54` | none | `partial` |
-| SD-4-01 | Guitar and bass default tables | strum-dynamics §4 | not built | none | `pending` |
-| SD-5-01 | Strikers pick, thumb, nails, flesh, thumbpick, brush with crossing multipliers and noise; separate down/up strikers; striker selects noise generator | strum-dynamics §5 | not built | none | `pending` |
-| SD-6.1-01 | Chuck: damp all strings (0.92) before crossing; `chuck_amount`; pattern chuck step or MIDI chuck key range | strum-dynamics §6.1 | not built | none | `pending` |
-| SD-6.2-01 | Palm-muted strum keeps pitch; chuck loses pitch | strum-dynamics §6.2 | palm mute exists | none | `partial` |
-| SD-6.3-01 | STRUM group on RHYTHM tab: sps, acceleration, tilt, evenness, miss, two striker dropdowns, chuck amount/damping | strum-dynamics §6.3 | not built | none | `pending` |
-| SD-6.3-02 | Easy Feel knob maps sps 60->400 and evenness 0.45->0.95; 0.5 = defaults | strum-dynamics §6.3 | Easy rhythm strip has a feel control of different meaning | none | `pending` |
-| SD-7-01 | Params (+9): crossing_sps, acceleration, up ratio, tilt, miss, strikers x2, chuck amount, chuck damping | strum-dynamics §7 | none in `Parameters.h` | none | `pending` |
-| SD-8-01 | Test: 200 sps, accel 0 -> 5 ms ± 1 sample | strum-dynamics §8 | - | none | `pending` |
-| SD-8-02 | Test: accel 1.0 keeps duration within 2%, first gap >= 1.6x middle | strum-dynamics §8 | - | none | `pending` |
-| SD-8-03 | Test: up faster by ratio within 1% | strum-dynamics §8 | - | none | `pending` |
-| SD-8-04 | Test: rhythm engine supplies velocity within 1 sample | strum-dynamics §8 | - | none | `pending` |
-| SD-8-05 | Test: live 40 ms spread wins | strum-dynamics §8 | - | none | `pending` |
-| SD-8-06 | Test: MPE passes through | strum-dynamics §8 | - | none | `pending` |
-| SD-8-07 | Test: misses weighted and deterministic over 10 000 strums | strum-dynamics §8 | - | none | `pending` |
-| SD-8-08 | Test: evenness bounds variation | strum-dynamics §8 | - | none | `pending` |
-| SD-8-09 | Test: striker selects noise | strum-dynamics §8 | - | none | `pending` |
-| SD-8-10 | Test: chuck kills pitch, keeps body resonance | strum-dynamics §8 | - | none | `pending` |
-| SD-8-11 | Test: Feel knob mapping within 1% | strum-dynamics §8 | - | none | `pending` |
-| SD-8-12 | Test: bass defaults on bass family | strum-dynamics §8 | - | none | `pending` |
+| SD-0-01 | Strum is one gesture; per-string events derived | strum-dynamics §0.1 | `StrumGesture::plan` (`StrumGesture.h`): times, forces and misses from one request; `RhythmEngine::scheduleStrum` and `MidiInterpreter` (strum-dynamics 1.1 block) consume the strikes | `StrumGestureTests.cpp` `StrumDynamics::rhythmEngineStrumsAreSpacedExactly`, `StrumDynamics::humanisedTimingMovesTheWholeGesture` (humanise moves the gesture, not each string) | `verified` |
+| SD-1-01 | Crossing velocity in strings per second; delay = 1/sps | strum-dynamics §1 | `StrumGesture::crossingSeconds`, `StrumGesture::effectiveCrossingSps`; `strum_crossing_sps` 20-800 (`Parameters.cpp`) | `StrumDynamics::crossingTimingIsExact` (20 / 200 / 800 sps), `StrumDynamics::rhythmEngineStrumsAreSpacedExactly` | `verified` |
+| SD-1.1-01 | Source priority: MPE/hex passthrough > live keyboard spread > pattern `crossing_sps` > global default (200 guitar / 100 bass) | strum-dynamics §1.1; AMB 6 | `RhythmEngine::resolveCrossingSps` (step > pattern > genre kit's strum duration > `strumSettings.crossingSps`, `CrossingSource`); `MidiInterpreter` (MPE / `GuitarController` pass through, a spread chord keeps its spread, a chord that lands at once is strummed at the global default); `ParameterBridge` feeds `strum_crossing_sps` to `MidiInterpreter::setStrumSpeedMs` | `StrumDynamics::crossingSourcesResolveInOrder`, `StrumDynamics::liveSpreadWins`, `StrumDynamics::mpePassesThrough`, `StrumDynamics::rhythmEngineSuppliesVelocityFromThePattern` | `verified` - a genre kit's default (rhythm-engine 6) sits between the pattern and the global |
+| SD-2-01 | Acceleration profile `ease(u,a)` smoothstep blend, default 0.35 | strum-dynamics §2 | `StrumGesture::ease`: the hand's position follows the smoothstep, so the strike time is its inverse, blended by `strum_acceleration` (DECISIONS "strum acceleration"); default 0.35 in `StrumSettings` and `Parameters.cpp` | `StrumDynamics::accelerationChangesSpacingNotDuration` (ends pinned, monotone, first gap >= 1.6x the middle, duration within 2%) | `verified` - as amended: the spec's literal formula bunches the outer strings, the opposite of its own prose |
+| SD-2.1-01 | Down steeper/brighter; up faster (ratio 1.25), softer, more chirp | strum-dynamics §2.1 | `effectiveCrossingSps` applies `upVelocityRatio` to up-strokes; `StrumGesture::kUpStrokeForce` 0.85 (-1.4 dB, the spec gives no figure); `tiltFactor` mirrors for the up-stroke | `StrumDynamics::upIsFasterThanDownByTheRatio` (gesture and rhythm engine), `StrumDynamics::upStrokesAreSofter`, `StrumDynamics::tiltAndAccentShapeTheForce` | `verified` - "brighter" / "more chirp" per direction is not modelled beyond the force |
+| SD-3-01 | Force = base x tilt x evenness x accent; tilt ±0.15; evenness ±40% at 0, deterministic; accent +1.5 dB leading pair | strum-dynamics §3 | `StrumGesture::plan` with `tiltFactor`, `evennessFactor` (hash of seed, strum index, string; `kMaxUnevenness` 0.40), `accentFactor` (`kAccentDb` 1.5 on the first two strings crossed); evenness stays the rhythm engine's own (`RhythmEngine::setStrumEvenness`) | `StrumDynamics::tiltAndAccentShapeTheForce`, `StrumDynamics::evennessBoundsTheVariation` | `verified` |
+| SD-3.1-01 | Miss probability 0.04, leading string x3, deterministic; `missPercent` retained | strum-dynamics §3.1 | `StrumGesture::missChance` (`kLeadingMissWeight` 3, the rest scaled so the mean holds), `StrumRequest::missScale` = the humanise amount; `RhythmHumanise::missPercent` kept (`RhythmEngine.h`) | `StrumDynamics::missesAreWeightedAndDeterministic` (10 000 strums: rate within 5%, leading x3, fixed seed repeats) | `verified` |
+| SD-4-01 | Guitar and bass default tables | strum-dynamics §4 | `StrumSettings::guitarDefaults`, `bassDefaults`, `retargetDefaults` (only fields still on the old family's default move); `LuthierAudioProcessor::switchGuitarFamily` retargets the parameters | `StrumDynamics::bassDefaultsApply` | `verified` |
+| SD-5-01 | Strikers pick, thumb, nails, flesh, thumbpick, brush with crossing multipliers and noise; separate down/up strikers; striker selects noise generator | strum-dynamics §5 | `Striker`, `getStrikerCrossingFactor` (x1 / 0.6 / 1.3 / 0.7 / 0.9 / 0.4), `getStrikerMaterial` (hands are `Excitation::Material` hands, which `PlayingNoise::makeClick` gives no pick click); `strum_striker_down` / `strum_striker_up`; the striker rides each note-on from `RhythmEngine::scheduleStrum` | `StrumDynamics::strikersCrossAtTheirOwnSpeed`, `StrumDynamics::strikerSelectsTheNoise` | `verified` |
+| SD-6.1-01 | Chuck: damp all strings (0.92) before crossing; `chuck_amount`; pattern chuck step or MIDI chuck key range | strum-dynamics §6.1 | `StrumGesture::chuckFor` (a chuck step is a full chuck, any other strum `chuck_amount` of the way, scaled by `chuck_damping`); `RhythmEngine::scheduleStrum` stops the strings it does not strike; `NoteOnEvent::chuck` -> `LuthierEngine::triggerNote` `Damping::Chuck`; `StrumType::chuck` and `crossing_sps` round-trip through `.luthierpattern` | `StrumDynamics::chuckStepsCarryTheChuck`, `StrumDynamics::patternCrossingAndChuckRoundTrip` | `partial` - no MIDI chuck key range |
+| SD-6.2-01 | Palm-muted strum keeps pitch; chuck loses pitch | strum-dynamics §6.2 | palm mute (`StrumType::downMute`, `TechniqueEngine`) keeps the string's damping; a chuck applies `Damping::Chuck` | `StrumDynamics::chuckKillsPitch` (its 6.2 assertion is the palm-mute clarity > 0.5) | `partial` - the palm-mute half exists; the chuck half waits on `chuckKillsPitch` (chuck residual still pitched at -18.8 dB, fix in progress) |
+| SD-6.3-01 | STRUM group on RHYTHM tab: sps, acceleration, tilt, evenness, miss, two striker dropdowns, chuck amount/damping | strum-dynamics §6.3 | `Source/UI/StrumGroup.*` (crossing, acceleration, up speed, tilt, evenness, misses, two strikers, chuck, chuck damping, in 6.3's order), held by `RhythmPanel`; the sentence under the heading names the crossing source and USE KNOB hands a kit's strum back; the two strikers are mirrored in CHARACTER's PICK group (`NoiseGroups.cpp`) | `StrumDynamics::theStrumGroupDrivesTheModel` | `verified` |
+| SD-6.3-02 | Easy Feel knob maps sps 60->400 and evenness 0.45->0.95; 0.5 = defaults | strum-dynamics §6.3 | `StrumFeel::crossingSpsFor` / `evennessFor` (two segments meeting at 0.5); `EasyPanel` rhythm Feel -> `RhythmEngine::setStrumFeel`; `scheduleStrum` scales whichever crossing source is in charge; `applyGenreKit` returns Feel to 0.5 | `StrumDynamics::feelMapsAsSpecified` (map and through the rhythm engine), `StrumDynamics::theEasyFeelKnobScalesTheStrum` | `verified` |
+| SD-7-01 | Params (+9): crossing_sps, acceleration, up ratio, tilt, miss, strikers x2, chuck amount, chuck damping | strum-dynamics §7 | `strum_crossing_sps` 20-800 (200), `strum_acceleration` 0-1 (0.35), `strum_up_velocity_ratio` 0.5-2 (1.25), `strum_tilt` ±1 (0.15), `strum_miss_probability` 0-1 (0.04), `strum_striker_down` / `_up` (Pick), `chuck_amount` (0), `chuck_damping` (0.92) in `Parameters.cpp`; pushed to `RhythmEngine::setStrumSettings` and `MidiInterpreter::setStrumSettings`; old `strum_speed` presets load at the same speed (`PresetManager.cpp`) | `StrumDynamics::parametersReachTheEngine`, `StrumDynamics::olderPresetsKeepTheirStrumSpeed` | `verified` |
+| SD-8-01 | Test: 200 sps, accel 0 -> 5 ms ± 1 sample | strum-dynamics §8 | - | `StrumDynamics::crossingTimingIsExact`, `StrumDynamics::rhythmEngineStrumsAreSpacedExactly` | `verified` |
+| SD-8-02 | Test: accel 1.0 keeps duration within 2%, first gap >= 1.6x middle | strum-dynamics §8 | - | `StrumDynamics::accelerationChangesSpacingNotDuration` | `verified` |
+| SD-8-03 | Test: up faster by ratio within 1% | strum-dynamics §8 | - | `StrumDynamics::upIsFasterThanDownByTheRatio` | `verified` |
+| SD-8-04 | Test: rhythm engine supplies velocity within 1 sample | strum-dynamics §8 | - | `StrumDynamics::rhythmEngineSuppliesVelocityFromThePattern` | `verified` |
+| SD-8-05 | Test: live 40 ms spread wins | strum-dynamics §8 | - | `StrumDynamics::liveSpreadWins` | `verified` |
+| SD-8-06 | Test: MPE passes through | strum-dynamics §8 | - | `StrumDynamics::mpePassesThrough` (MPE and hex routing) | `verified` |
+| SD-8-07 | Test: misses weighted and deterministic over 10 000 strums | strum-dynamics §8 | - | `StrumDynamics::missesAreWeightedAndDeterministic` | `verified` |
+| SD-8-08 | Test: evenness bounds variation | strum-dynamics §8 | - | `StrumDynamics::evennessBoundsTheVariation` | `verified` |
+| SD-8-09 | Test: striker selects noise | strum-dynamics §8 | - | `StrumDynamics::strikerSelectsTheNoise` | `verified` |
+| SD-8-10 | Test: chuck kills pitch, keeps body resonance | strum-dynamics §8 | - | `StrumDynamics::chuckKillsPitch` - failing at the 2026-09-24 run | `pending: chuck residual still pitched at -18.8 dB, fix in progress` |
+| SD-8-11 | Test: Feel knob mapping within 1% | strum-dynamics §8 | - | `StrumDynamics::feelMapsAsSpecified` | `verified` |
+| SD-8-12 | Test: bass defaults on bass family | strum-dynamics §8 | - | `StrumDynamics::bassDefaultsApply` | `verified` |
 
 ## 22. bass-techniques.md (phase 2)
 
@@ -1506,9 +1523,10 @@ lists four plus section 13's Sing; step numbering skips 4 (editorial only).
 Precedence 4 on the seven items it resolves. Built: the physical feedback
 loop (1, `14864ca`), Freeze (2.1), the E-Bow on the per-string injection
 (2.2, `9c672aa`), the Doubler pedal (3, `f904956`), the capo (4.5) and the
-guitar migration table (7, `5ccf238`). Open (TODO 2d): voicer `Bass` style,
-transition bonus and 4.7 tests, preset morph (5), crossing velocity (6),
-and 8's snapshot-cancels-morph and Aux 1 toggle.
+guitar migration table (7, `5ccf238`). Crossing velocity (6) landed
+with `StrumGesture` (`dbba3c6`, section 21). Open (TODO 2d): voicer `Bass`
+style, transition bonus and 4.7 tests, preset morph (5), and 8's
+snapshot-cancels-morph and Aux 1 toggle.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
@@ -1535,8 +1553,8 @@ and 8's snapshot-cancels-morph and Aux 1 toggle.
 | AMB-5.1-01 | Preset morph: continuous interpolate; discrete, structural and guitar switch at 0.5 | ambiguity §5.1 | `Source/Presets/PresetMorph.*`; processor timer `updatePresetMorph` | `PresetMorphTests.cpp` `PresetMorph::theEndsAreThePresetsThemselves` (null < -100 dB at 0 and 1), `theMidpointSwitchesDiscretesAndHalvesTheRest`, `aFourSecondSweepDoesNotClick` | `verified` |
 | AMB-5.2-01 | Preset browser Morph toggle, A/B slots, slider; automatable `preset_morph_position` | ambiguity §5.2 | `Overlays.cpp` `PresetBrowserPanel` morph row; param 402 | `PresetMorph::theBrowserMorphRowFillsTheSelectedSlot`, `thePositionIsNotPartOfAPreset` | `verified` |
 | AMB-5.3-01 | Tests: 0 = A, 1 = B, 0.5 midpoint/switched, 4 s automation click-free | ambiguity §5.3 | `PresetMorphTests.cpp` | `PresetMorph::theEndsAreThePresetsThemselves`, `theMidpointSwitchesDiscretesAndHalvesTheRest`, `aFourSecondSweepDoesNotClick` (steepest step within 2x either preset alone) | `verified` |
-| AMB-6-01 | Crossing velocity from pattern `crossing_sps`, else global default; progression looper uses pattern; MPE passes through | ambiguity §6 | depends on strum-dynamics (not built) | none | `pending` |
-| AMB-6.1-01 | Tests: pattern crossing_sps within 1 sample; 220 sps -> 22.7 ms | ambiguity §6.1 | - | none | `pending` |
+| AMB-6-01 | Crossing velocity from pattern `crossing_sps`, else global default; progression looper uses pattern; MPE passes through | ambiguity §6 | `RhythmEngine::resolveCrossingSps` (`Source/Rhythm/RhythmEngine.cpp`): a step's `crossing_sps`, then the pattern's, then the genre kit's default, then `strum_crossing_sps` (200 guitar / 100 bass via `StrumSettings::defaultsFor`); `RhythmPattern` carries `crossing_sps` in `.luthierpattern`; the progression looper's chords go through the same `scheduleStrum`; `MidiInterpreter` passes MPE / hex per-string events through in their own timing | `StrumGestureTests.cpp` `StrumDynamics::crossingSourcesResolveInOrder`, `StrumDynamics::patternCrossingAndChuckRoundTrip`, `StrumDynamics::mpePassesThrough`, `StrumDynamics::bassDefaultsApply` | `verified` - the looper path is not asserted on its own (it shares `scheduleStrum`) |
+| AMB-6.1-01 | Tests: pattern crossing_sps within 1 sample; 220 sps -> 22.7 ms | ambiguity §6.1 | - | `StrumGestureTests.cpp` `StrumDynamics::rhythmEngineSuppliesVelocityFromThePattern` (held root and full chord, 150 sps within 1 sample), `StrumDynamics::patternCrossingGivesTheDocumentedSpread` (220 sps at 120 bpm -> 22.727 ms ± 1 sample; green at the 2026-09-24 run) | `verified` - the 22.7 ms case is a held open E, not looper input |
 | AMB-7-01 | Old guitar names resolved via `Resources/Guitars/migration.json` (versioned) | ambiguity §7 | `Resources/Guitars/migration.json` (magic `luthier.guitar-migration`, schema 1, version 2: `renamed`, `names`), read by `PartLibrary` | `GuitarMigrationTests.cpp` `GuitarMigration::everyPreM49NameResolvesToItsShippedGuitar`, `GuitarMigration::aPresetNamingAnOldGuitarLoadsItsReplacement` | `verified` |
 | AMB-7-02 | Unresolved -> factory default + banner text; preset params still apply | ambiguity §7 | fallback to the type's factory guitar with 7's banner text verbatim | `GuitarMigrationTests.cpp` `GuitarMigration::anUnknownGuitarKeepsThePresetAndSaysSo`; `WorkshopPresetTests.cpp` `WorkshopPresets::aMissingGuitarFileFallsBackToItsType` | `verified` |
 | AMB-7.1-01 | Tests: every pre-M49 factory guitar name resolves; unknown name loads with banner | ambiguity §7.1 | - | `GuitarMigrationTests.cpp` `GuitarMigration::everyPreM49NameResolvesToItsShippedGuitar`, `GuitarMigration::anUnknownGuitarKeepsThePresetAndSaysSo` (suite green at `5ccf238`) | `verified` |
@@ -2405,26 +2423,41 @@ As Guitar, range changes).
 
 ## 42. string-scraping.md (phase 5b)
 
-**Not built** (TODO 13b). The only scrape today is pick-noise's noise-based
-rake (`LuthierEngine::triggerPickScrape`, no trigger path, TODO 3f). This
-spec replaces it with per-winding impulses from a `ScrapeEngine` (Conflict
-C-29).
+**Built** (`dbba3c6`, compiled for Linux at `c2b4486`): `Source/DSP/Noise/ScrapeEngine.*`
+turns a gesture into per-winding impulses; `LuthierEngine.cpp` consumes its
+keyswitches, zone notes and sweep controller before the interpreter
+(`scrape.handleMidi`), runs it in the per-block pipeline ("1b. string
+scraping": after the MIDI and technique state, before the strings), adds
+each string's catches to that string's excitation input, puts the catch train
+on Aux 8 and applies the pick's pitch load; the 14 `scrape_*` parameters in
+`Parameters.cpp` reach `LuthierEngine::setScrapeSettings` through the bridge,
+and `pick_scrape_amount` is the level (C-29). Not built: the Techniques-tab
+controls and on-screen button (gui-techniques-updates 2; `requestTrigger()`
+has no UI caller). Evidence: the 19 tests in `Source/Tests/ScrapeTests.cpp`
+(suites `Scrape`, `ScrapeEngineWiring`), all green at the 2026-09-24 Linux
+run (721-test suite).
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
-| SCR-0-01 | Scrape as per-winding impulses; wound strings only; speed matters; user-triggered | string-scraping §0 | not built | none | `pending` |
-| SCR-1-01 | ScrapeGesture {string, start/end mm, duration, pressure, tool, angle}; catches = distance x windings/mm; evenly spaced; pressure scales amplitude and adds slight pitch loading | string-scraping §1 | winding pitch exists in part data (`PartAcoustics.cpp:488`) | none | `pending` |
-| SCR-2-01 | Controls: trigger (keyswitch/CC/MPE zone/button), direction (incl. hold + sweep), sweep source (auto/modwheel/expression/AT/CC), range 200-900 mm, pressure 0.5, tool pick/nail/thumb, angle 20, string mask (wound), retrigger 200 ms | string-scraping §2 | not built | none | `pending` |
-| SCR-3-01 | `ScrapeEngine` {trigger, processBlock, reset}; audio rate; idle = one flag; after TechniqueEngine, before StringEngine; impulses at sample offsets | string-scraping §3 | not built | none | `pending` |
-| SCR-4-01 | Presets Classic Rock Scrape, Metal Zipper, Slow Ratchet, Nail Scrape, Modwheel-Sweep | string-scraping §4 | not built | none | `pending` |
-| SCR-5-01 | Cascade: compatible with mute, slide (bar lifted), bends; not tap on same string | string-scraping §5 | see technique-cascade | none | `pending` |
-| SCR-6-01 | Test: wound low E 500 ms at 0.5 -> catches at windings x speed | string-scraping §6 | - | none | `pending` |
-| SCR-6-02 | Test: plain high E < -30 dB vs wound | string-scraping §6 | - | none | `pending` |
-| SCR-6-03 | Test: pressure doubling ~doubles catch amplitude (±20%), more pitch modulation | string-scraping §6 | - | none | `pending` |
-| SCR-6-04 | Test: direction reversal mirrors the catch stream | string-scraping §6 | - | none | `pending` |
-| SCR-6-05 | Test: modwheel sweep follows within one block | string-scraping §6 | - | none | `pending` |
-| SCR-6-06 | Test: CPU idle < 0.05%, active < 0.5% | string-scraping §6 | - | none | `pending` |
-| SCR-6-07 | Test: retrigger below threshold dropped | string-scraping §6 | - | none | `pending` |
+| SCR-0-01 | Scrape as per-winding impulses; wound strings only; speed matters; user-triggered | string-scraping §0 | `ScrapeEngine` (header comment): a catch per winding crossed, no sample or convolution; a plain string falls out of the winding count; `ScrapeTriggerSource` keyswitch / CC / MPE zone / button | `ScrapeTests.cpp` `Scrape::catchesComeAtWindingsPerMmTimesSpeed`, `Scrape::aPlainStringIsNearSilent`, `Scrape::theFactoryScrapesAreWhatSectionFourSays` (zipper vs ratchet rate), `Scrape::triggersListenOnlyWhereTheyAreTold` | `verified` |
+| SCR-1-01 | ScrapeGesture {string, start/end mm, duration, pressure, tool, angle}; catches = distance x windings/mm; evenly spaced; pressure scales amplitude and adds slight pitch loading | string-scraping §1 | `ScrapeGesture`, `ScrapeEngine::trigger`; windings from `StringNoiseInfo::fromSpec` (part-acoustics string data) via `setString`; `kLoadCentsAtFullPressure` 6 c through `getPitchOffsetCents`, added to the string's pitch in `LuthierEngine` | `Scrape::catchesComeAtWindingsPerMmTimesSpeed` (count ± 1, rate within 2%), `Scrape::doublingPressureDoublesEachCatch`, `ScrapeEngineWiring::harderScrapingLoadsThePitchSlightly` | `verified` |
+| SCR-1-02 | Deterministic: a repeated performance repeats; per-winding irregularity from the instance seed | string-scraping §1 (character-wear 0.1) | `ScrapeEngine::setSeed` from the character seed (`LuthierEngine::prepare`); every random choice a hash of seed and winding index | `Scrape::resetRepeatsExactly` | `verified` |
+| SCR-2-01 | Controls: trigger (keyswitch/CC/MPE zone/button), direction (incl. hold + sweep), sweep source (auto/modwheel/expression/AT/CC), range 200-900 mm, pressure 0.5, tool pick/nail/thumb, angle 20, string mask (wound), retrigger 200 ms | string-scraping §2 | `ScrapeSettings` (`ScrapeEngine.h`): `trigger`, `direction`, `sweepSource`, `triggerCc` 85, `sweepCc` 16, 200-900 mm, pressure 0.5, `ScrapeTool`, 20°, `stringMask` 0 = wound, `retriggerMs` 200; `handleMidi` listens on one source only and consumes the keyswitch (note 12) / zone (channel 16) notes; `setSweepValue` from the chosen controller | `Scrape::triggersListenOnlyWhereTheyAreTold` (keyswitch, CC rising edge, MPE zone, button only, disarmed), `Scrape::aModwheelSweepCatchesWithinOneBlock` (hold + sweep, mod wheel), `Scrape::aRetriggerInsideTheThresholdIsDropped` | `verified` - expression, aftertouch and custom-CC sweeps are implemented but only the mod wheel is asserted |
+| SCR-2-02 | The controls as parameters | string-scraping §2; engine-technique-layer | `scrape_armed`, `scrape_trigger`, `scrape_direction`, `scrape_sweep_source`, `scrape_trigger_cc`, `scrape_sweep_cc`, `scrape_start_mm`, `scrape_end_mm`, `scrape_duration`, `scrape_pressure`, `scrape_tool`, `scrape_angle`, `scrape_string_mask`, `scrape_retrigger` (`Parameters.cpp`), pushed to `LuthierEngine::setScrapeSettings` by `ParameterBridge` | none - the wiring tests call `setScrapeSettings` directly, nothing reads the APVTS values through | `implemented` |
+| SCR-2-03 | Exposed on the Techniques tab, with an on-screen trigger button | string-scraping §2 (gui-techniques-updates 2) | `ScrapeEngine::requestTrigger` / `requestRelease` and the `getUiPositionMm` / `getFiredCount` live state exist for it; no Techniques tab or Playing-strip pill calls them (TODO 13b) | none | `pending` - engine side ready, no UI |
+| SCR-2-04 | Level: `pick_scrape_amount` trims the scrape (1 at its 0.25 default); 0 starts nothing | Conflict C-29; pick-noise §0.5 | `ScrapeSettings::level` = `pick_scrape_amount` / 0.25 (`Parameters.cpp`); a level-0 trigger starts no gesture | `Scrape::theLevelTrimScalesAndZeroIsFree` | `verified` |
+| SCR-3-01 | `ScrapeEngine` {trigger, processBlock, reset}; audio rate; idle = one flag; after TechniqueEngine, before StringEngine; impulses at sample offsets | string-scraping §3 | `ScrapeEngine::trigger` / `processBlock` / `reset`; `isBusy()` is the whole idle cost and disarmed `handleMidi` returns the input untouched; `LuthierEngine::processBlock` "1b. string scraping" runs it after the technique state (palm mute read) and before the strings, `getExcitation (s)` summed into each string's coupling input at its sample, `getNoiseOutput` onto Aux 8; nothing allocates after `prepare` | `Scrape::idleCostsNothing`, `Scrape::resetRepeatsExactly`, `ScrapeEngineWiring::thePlainHighEIsThirtyDecibelsUnderTheWoundLowE` (catches reach the strings' output), `ScrapeEngineWiring::theKeyswitchScrapesAndNeverPlaysANote` (record at its sample offset, catches on Aux 8) | `verified` |
+| SCR-3-02 | Keyswitch / zone notes are the technique's, never notes; one gesture record per string for the Luthier SysEx and the noise-event strip | string-scraping §3; input-routing §5; midi-export §6 | `handleMidi` filters into `scrapeMidi` before `MidiInterpreter` sees the block; `GestureRecord` -> `NoisePool::recordExternalTrigger (NoiseClass::pickScrape)` | `ScrapeEngineWiring::theKeyswitchScrapesAndNeverPlaysANote` (no active note, one record per wound string) | `verified` |
+| SCR-3-03 | pick-noise §5 rake gets its trigger (keyswitches 13 / 14, Easy-mode gesture) - the rake this spec replaced now has a path (TODO 3f) | string-scraping §0 (intro); pick-noise §5 | `kRakeDownKeyswitch` / `kRakeUpKeyswitch`, `requestRake`, `takeRake` -> `LuthierEngine::triggerPickScrape` | `ScrapeEngineWiring::theRakeHasATrigger` | `verified` - `requestRake` has no UI caller yet |
+| SCR-4-01 | Presets Classic Rock Scrape, Metal Zipper, Slow Ratchet, Nail Scrape, Modwheel-Sweep | string-scraping §4 | `ScrapePreset`, `ScrapeSettings::fromPreset` (low 3 / low 4 counted from the lowest string, so a 7-string follows); no preset picker in the UI and no factory `.luthierpreset` carries them | `Scrape::theFactoryScrapesAreWhatSectionFourSays` | `partial` - the settings are verified; nothing offers them to the player |
+| SCR-5-01 | Cascade: compatible with mute, slide (bar lifted), bends; not tap on same string | string-scraping §5 | `setMuteAmount` from `TechniqueEngine::getPalmMuteAmount` (duller, thumpier); `setStringBlocked` from `slide.isUnderBar` (new scrapes dropped, one in progress fades); `preempt` (10 ms fade, `kPreemptFadeSeconds`) for a tap / slap landing on the string; `setString` takes the bend cents; scrape x scrape queues | `Scrape::aMuteMakesItDullerAndThumpier`, `Scrape::aPreemptedScrapeFadesOutInTenMilliseconds` (preempt fade; slide-blocked string), `Scrape::aScrapeOnAScrapeQueues` | `verified` - the bend's effect on winding spacing is not asserted; the tap / slap callers land with the WIP SlapEngine / TapEngine |
+| SCR-6-01 | Test: wound low E 500 ms at 0.5 -> catches at windings x speed | string-scraping §6 | - | `Scrape::catchesComeAtWindingsPerMmTimesSpeed` | `verified` |
+| SCR-6-02 | Test: plain high E < -30 dB vs wound | string-scraping §6 | - | `Scrape::aPlainStringIsNearSilent` (at the excitation), `ScrapeEngineWiring::thePlainHighEIsThirtyDecibelsUnderTheWoundLowE` (through the engine) | `verified` |
+| SCR-6-03 | Test: pressure doubling ~doubles catch amplitude (±20%), more pitch modulation | string-scraping §6 | - | `Scrape::doublingPressureDoublesEachCatch`, `ScrapeEngineWiring::harderScrapingLoadsThePitchSlightly` | `verified` |
+| SCR-6-04 | Test: direction reversal mirrors the catch stream | string-scraping §6 | - | `Scrape::aReversedScrapeIsTheForwardOneMirrored` (time and level) | `verified` |
+| SCR-6-05 | Test: modwheel sweep follows within one block | string-scraping §6 | - | `Scrape::aModwheelSweepCatchesWithinOneBlock` | `verified` |
+| SCR-6-06 | Test: CPU idle < 0.05%, active < 0.5% | string-scraping §6 | - | `Scrape::idleCostsNothing` (< 0.05% of real time), `Scrape::anActiveScrapeStaysInBudget` (a second of scraping under 5 ms) | `verified` - measured on the build machine, not a "mid class" one |
+| SCR-6-07 | Test: retrigger below threshold dropped | string-scraping §6 | - | `Scrape::aRetriggerInsideTheThresholdIsDropped` | `verified` |
 
 ## 43. slide-technique-controls.md (phase 5b)
 
@@ -2658,6 +2691,30 @@ Precedence 19 (the six technique modules' integration). **Not built**
 | ETL-10-03 | Test: 100 pre-delta presets byte-identical playback | engine-technique-layer §10 | - | none | `pending` |
 | ETL-10-04 | Test: 1000 commands/s without audio-thread allocation | engine-technique-layer §10 | - | none | `pending` |
 | ETL-10-05 | Test: old bass-slap preset maps to SlapEngine | engine-technique-layer §10 | - | none | `pending` |
+
+## 51. issues.md (play-test list, 2026-09-24)
+
+The user's play-test notes, one row per line. Status is what has landed on
+this branch: `f006d6f` (workspace tabs size themselves, popups, wheel
+scrolling, LIVE bank), `529ea03` / `659a892` (string roll, FRETS | ROLL),
+`840de0b` (MIDI import), `5f3273d` (guitar illustration) and `ac7ecca`
+(chords, RESET & STOP, pedals, fingers). The last three landed after the
+recorded 721-test run, so their tests are cited as committed, not as run;
+the chuck fix (SD-8-10) is the one piece still uncommitted.
+
+| ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
+|---|---|---|---|---|---|
+| ISS-01 | "None of the effects work" | issues line 1 | `ac7ecca`: a pedal picked from the UI builds on the message thread it arrives on (`LuthierAudioProcessor` `readStructuralValues` mask / `applyPedalTypes`, never the instrument reload; `EffectsChain::applyControls` per block under the chain's lock from cached atomics; `PedalRack`); footswitch prints ON / BYPASS with a tooltip (`Faces/PedalFace.cpp`); the Easy rack popover grows to the picked pedal (DECISIONS "Pedal picks build on the message thread") | `PresetPedalTests.cpp` `PresetPedals::aPedalPickedFromTheUiBuildsAtOnceAndIsHeard`, `aPostAmpDelayLeavesATailAfterTheNote`, `aTypeWrittenOffTheMessageThreadIsBuiltByTheAsyncPass`, `aPedalPickWhileANoteSoundsDoesNotRebuildTheInstrument` (committed at `ac7ecca`, after the recorded run) | `verified` - the user's own re-test is still owed |
+| ISS-02 | Pickup changes do not appear to do much | issues line 2 | `ac7ecca`: type / magnet deltas kept as part-acoustics 6.1-6.2 specify (~2.5 dB, position dominant); `LuthierEngine::getNumFittedPickups()` exposes the fitted count so the Advanced panel can disable the slots and selector positions a single-pickup guitar cannot realise (DECISIONS "Pickup type and magnet numbers stay as specified") | none | `partial` - the engine exposes the count; no UI reads it yet, and nothing re-tests the audibility |
+| ISS-03 | Effects before the amp do not work; pedal board non-functional | issues line 3 | same path as ISS-01: the pre-amp rack shares the pedal-pick build and the per-block control push | as ISS-01 | `verified` - as ISS-01 |
+| ISS-04 | Fingers vs non-fingers makes no difference | issues line 4 | `ac7ecca`: finger contact model in `Source/DSP/String/Excitation.cpp` (wider, softer fingertip and thumb pulses; octave blend; softer plucks lengthen the contact); `use_fingers` written from the guitar type's own hand on a type change (acoustics default to fingers); Fingers toggle on Easy's playing strip (`EasyPanel.cpp`) (DECISIONS "Fingers are audibly fingers") | `EngineTests.cpp` `Excitation::fingersAreAudiblyDarkerThanAPick` (committed at `ac7ecca`) | `verified` |
+| ISS-05 | Cannot do chords; two notes at once do not work | issues line 5 | `ac7ecca`: `ChordVoicer::setOccupiedStrings` / `RubricVoicer::setOccupiedStrings` (held strings out of bounds), `MidiInterpreter` held-string mask around every Poly group, unplaced notes placed one by one on free strings, a re-played held note re-picks its own string, chord window default 2 -> 15 ms (`Parameters.cpp` `chord_window`) (DECISIONS "Chords: held strings are out of bounds") | `EngineTests.cpp` `Engine::notesPlayedWhileOthersAreHeldEachGetTheirOwnString`, `Engine::aRolledTriadInsideTheChordWindowIsOneChordOnThreeStrings`; `ControllerTests.cpp` `Controllers::aNoteArrivingWhileAnotherIsHeldGoesToAFreeString`, `aHeldNotePlayedAgainRepicksItsOwnString`, `anUnplayableChordGroupStillSounds`, `notesTheChordSearchLeavesOutArePlacedOnFreeStrings` (committed at `ac7ecca`) | `verified` |
+| ISS-06 | Picture of the guitar is ugly; needs fixing | issues line 6 | `5f3273d`: `Source/UI/Guitar/GuitarRenderer.*` level of detail (`Options::detail`, `detailFor (pxPerMm)`), body-crop framing on the Advanced strip (hit-testing through the same transform), one blurred shadow, elliptical burst with inner edge band, tiled grain, gradient strings never under 1 px; `GuitarBodyComponent::buildFitted` (DECISIONS "Guitar illustration: detail follows the pixels") | `GuitarRendererTests.cpp` `GuitarIllustration::detailFollowsPixelsPerMillimetre`, `croppedFitKeepsHitTestingExact`, `stripAndEasySizeRendersForReview` (committed at `5f3273d`; the last writes renders for the user's eye) | `verified` - the look itself is the user's call |
+| ISS-07 | Scroll bars more colourful and obvious; the wheel changed the knob instead of scrolling; arrow indicators and a hover tooltip for scrolling the Advanced columns | issues line 7 | `f006d6f`: `WheelPassSlider` passes the wheel to the column unless Ctrl is held (`Widgets.*`), thicker accent-coloured scrollbars with chevron buttons (`Theme.cpp`), `ScrollHintViewport` fading chevron with a tooltip where more controls lie (`AdvancedPanel.cpp`) | `EditorTests.cpp` `Editor::theWheelScrollsAColumnUnlessCtrlIsHeld` | `verified` - the chevron hint and scrollbar colouring are built, not asserted |
+| ISS-08 | MOD and RHYTHM dropdowns squished and unreadable; LIVE section tiny boxes, not obvious; more tooltips | issues line 8 | `f006d6f`: each workspace panel sizes itself from `preferredHeight()` and `AdvancedPanel` asks for it; popup rows clamped to 22 px (`Theme.cpp`); LIVE bank redrawn as 8 x 16 snapshot cells with number, label and colour tag, click / Shift-click / double-click / right-click per gui-integration 416-424, empty-bank hint (`LivePanel.*`); tooltips across MOD, RHYTHM and LIVE, mod-source sliders labelled (`ModMatrixPanel.*`, `RhythmPanel.*`) | `Editor::everyWorkspaceTabIsAsTallAsItsContent`, `Editor::snapshotGridGesturesReachTheBank` | `verified` - tooltips not asserted |
+| ISS-09 | A "reset and stop" button that truly resets to defaults and stops all effects and output (a loop would not stop after Reset and Panic) | issues line 9; live-performance §9 | `ac7ecca`: `LuthierAudioProcessor::resetAndStop` stops the tune player, looper, backing track, metronome, routine, session recorder, rhythm free-run and kill switch, restores parameters, MIDI map, locks and UI state, then has `processBlock` carry out panic + reset on the audio thread through an atomic request; `LuthierEngine::panic` clears every tail (effects, freeze, feedback, pending strums, schedule); RESET & STOP beside Panic in the header (`HeaderBar.*`), Ctrl+Shift+P in the shortcut registry, one undo step (DECISIONS "RESET & STOP is the Reset") | `ResetStopTests.cpp` `ResetStop::resetAndStopSilencesEverythingAndRestoresEveryDefault`, `resetEverythingStopsTheTuneAndTheLoopsToo`, `resetAndStopIsOneUndoStep`, `panicSilencesAHeldNoteAndARunningStrumWithinOneBlock`, `panicStopsTheTunePlayer`, `theHeaderHasAResetAndStopButtonBesidePanicAtEveryWidth`, `ctrlShiftPIsRegisteredListedAndActedOn` (`theRunawayFixtureMakesSoundOnItsOwn` guards the fixture; committed at `ac7ecca`) | `verified` |
+| ISS-10 | MIDI import not working; needs a basic internal sequencer | issues line 10; midi-export §5; tune-builder 15-08 | `840de0b`: `Source/Tune/TuneImport.*` reads a `.mid` into a Tune (tempo, meter, key, title; markers to sections with repeats folded; Luthier channel layout or tracks sorted through the chord detector; notes split at section cuts; corrupt, empty and SMPTE files refused); TUNE tab IMPORT beside LOAD (`TunePanel.cpp`); the Tune Builder's transport and player are the sequencer. `ac7ecca`: File -> Import MIDI, New Tune and `.mid` drag-and-drop onto the window (`PluginEditor::importMidiIntoTuneBuilder`) | `TuneImportTests.cpp` `TuneImport::aLuthierExportComesBackAsTheTuneItWas`, `aSingleTrackExportAndTechniquesRoundTripToo`, `aGeneratedBassLineImportsAsAManualOne`, `aGenericFileIsSortedByWhatItsTracksDo`, `aFileWithoutMarkersIsCutIntoPartsAndNotesSplitAtTheCuts`, `aChordChartInTextEventsIsUsedWhenNoTrackPlaysChords`, `aCorruptOrMissingFileIsRefusedAndTheTuneIsUntouched`, `smpteTimingIsRefused`, `quantiseSnapsMelodyAndBassWhenAsked`; `TunePanelTests.cpp` `TunePanel::importMidiReplacesTheTuneStopsThePlayerAndReportsWhatItDid` (committed at `840de0b`) | `verified` - target is the Tune Builder only; the session-recorder and looper targets of midi-export 5 are not built; the File menu and drop paths have no test |
+| ISS-11 | A small piano roll that mirrors the strings being plucked, and plucks them back | issues line 11 | `529ea03`: `Source/UI/StringRoll.*`, one lane per string with the captured notes scrolling past (4 bars at the host tempo or 8 s), the sounding string glowing at the now edge, click / Enter on a lane plucks it at the fret under the mouse; on the NOTATION tab above the live tab, collapsible and remembered. `659a892`: FRETS \| ROLL toggle on the Advanced strip (`AdvancedPanel.cpp`, `UiPreferences`) | `StringRollTests.cpp` `StringRoll::lanesMirrorTheCapture`, `clickingALanePlucksThatString`, `reducedMotionSlowsTheTimer`, `theNotationTabHostsItAndRemembersTheCollapse`; `EditorTests.cpp` `Editor::theStripSwitchesBetweenFretsAndTheStringRoll` | `verified` |
 
 ## spec.md (companion: product brief)
 
