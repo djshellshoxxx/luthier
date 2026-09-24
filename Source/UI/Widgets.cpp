@@ -144,6 +144,33 @@ juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
 }
 
 std::function<void (const juce::String&)> showShortcutInOptions;
+std::function<void (const juce::String&)> openHelpForPanel;
+
+PanelHelpButton::PanelHelpButton (const juce::String& panelName)
+    : juce::Button ("?"), panel (panelName)
+{
+    setTooltip ("Help for " + panelName);
+    setTitle ("Help for " + panelName);
+    setWantsKeyboardFocus (true);
+}
+
+void PanelHelpButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
+{
+    auto b = getLocalBounds().toFloat().reduced (1.0f);
+    const float d = juce::jmin (b.getWidth(), b.getHeight());
+    b = b.withSizeKeepingCentre (d, d);
+
+    g.setColour ((highlighted || down) ? Palette::accent : Palette::textMuted);
+    g.drawEllipse (b.reduced (0.5f), 1.0f);
+    g.setFont (Fonts::ui (d * 0.72f, true));
+    g.drawText ("?", b, juce::Justification::centred, false);
+}
+
+void PanelHelpButton::clicked()
+{
+    if (openHelpForPanel)
+        openHelpForPanel (panel);
+}
 
 void labelForScreenReaders (juce::Component& control, LuthierAudioProcessor& processor,
                             const juce::String& parameterId, const juce::String& tooltip)

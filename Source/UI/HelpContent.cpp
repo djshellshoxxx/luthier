@@ -119,7 +119,7 @@ namespace
 
         { "signal-capture", "Column 2: Signal Capture",
           "Signal capture|PICKUPS|Pickups|CIRCUIT|Circuit|PRE-FX|PRE-EFFECTS RACK|Pedalboard (before the amp)|"
-          "Pedalboard|Playing Hand|String Noise",
+          "Pedalboard|Playing Hand|String Noise|Pre-effects",
           "- Pickups: the selector, then per slot the type, the magnet and the volume, and coil tap. "
           "Position is drawn on the instrument; move it in the Workshop.\n"
           "- Circuit: the guitar's own electronics - volume and tone pots and their taper, the tone capacitor, "
@@ -134,7 +134,7 @@ namespace
 
         { "amplification", "Column 3: Amplification",
           "Amplification|AMP|Amplifier|POST-FX|POST-EFFECTS RACK|Effects Loop (after the amp)|Effects Loop|CAB|"
-          "Cabinet and Mic|Cabinet|ROOM|Room|SUSTAIN|Sustain|Performance|Humanise|Humanize|Master",
+          "Cabinet and Mic|Cabinet|ROOM|Room|SUSTAIN|Sustain|Performance|Humanise|Humanize|Master|Post-effects",
           "- Amplifier: the model and its face - gain, bass, mid, treble, presence, master - with the bright, "
           "mid boost and standby switches. Standby mutes the amp.\n"
           "- Effects loop (after the amp): the post-amp pedal slots.\n"
@@ -316,7 +316,7 @@ namespace
           "A legato move never re-picks the string: the vibration carries through and only the pitch changes, "
           "which is what makes a slide sound like one note rather than two." },
 
-        { "modes", "Playing Modes", "playing mode|mode|mono|poly|guitar controller mode",
+        { "modes", "Playing Modes", "playing mode|mode|mono|poly|guitar controller mode|Playing|Tone",
           "MONO / LEAD\n"
           "Every note goes to one string, chosen to keep the hand near where it already is. Overlapping notes "
           "become hammer-ons, pull-offs or slides. Best for solos.\n\n"

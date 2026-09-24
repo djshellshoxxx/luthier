@@ -107,6 +107,13 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
         bench->onSaveAsGuitar = [this] { showSaveGuitarDialog(); };
     header.onOpenOptions = [this] { showOverlay (&optionsPanel); };
 
+    // gui-integration 20: a panel's `?` opens Help pinned to it.
+    openHelpForPanel = [safe = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)] (const juce::String& panel)
+    {
+        if (safe != nullptr)
+            safe->openHelp (panel);
+    };
+
     // gui-integration 16 item 13: a control's "Show in Options -> Shortcuts".
     showShortcutInOptions = [safe = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)] (const juce::String& action)
     {

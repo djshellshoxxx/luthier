@@ -192,6 +192,7 @@ private:
 
         juce::String title;
         juce::Array<Item> items;
+        juce::OwnedArray<PanelHelpButton> helpButtons;   // gui-integration 20: one per section
         int contentHeight = 0;
     };
 
@@ -217,6 +218,7 @@ private:
     std::unique_ptr<Column> columns[3];
 
     juce::OwnedArray<juce::TextButton> workspaceTabs;
+    PanelHelpButton workspaceHelp { "WORKSHOP" };   // gui-integration 20: the shown tab's `?`
     juce::Array<juce::Component*> workspacePanels;
     juce::Viewport workspaceViewport;
     int workspaceTab = 0;

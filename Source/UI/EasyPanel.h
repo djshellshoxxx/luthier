@@ -139,6 +139,7 @@ private:
     // visual-polish.md 4 (VISUAL-WORKSHOP-QA): the VU needle and the room light.
     VuMeter vuMeter;
     RoomLight roomLight;
+    juce::OwnedArray<PanelHelpButton> helpButtons;   // gui-integration 20
     juce::Rectangle<int> roomCardArea;
 
 public:

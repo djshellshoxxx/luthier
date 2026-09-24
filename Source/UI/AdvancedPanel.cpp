@@ -148,6 +148,9 @@ void AdvancedPanel::Column::addSection (const juce::String& heading)
     item.heading = heading;
     item.height = 24;
     items.add (item);
+
+    // gui-integration 20: every section's `?`, at the right end of its heading.
+    addAndMakeVisible (helpButtons.add (new PanelHelpButton (heading)));
 }
 
 void AdvancedPanel::Column::addControl (juce::Component* component, int height)
@@ -174,12 +177,18 @@ void AdvancedPanel::Column::addGap (int height)
 int AdvancedPanel::Column::layout (int width)
 {
     int y = Metrics::grid;
+    int heading = 0;
 
     for (auto& item : items)
     {
         if (item.component != nullptr)
             item.component->setBounds (Metrics::grid, y,
                                        juce::jmax (40, width - Metrics::grid * 2), item.height);
+
+        if (item.heading.isNotEmpty())
+            if (auto* help = helpButtons[heading++])
+                help->setBounds (width - Metrics::grid - PanelHelpButton::size, y + (item.height - PanelHelpButton::size) / 2 - 1,
+                                 PanelHelpButton::size, PanelHelpButton::size);
 
         y += item.height + Metrics::gridHalf;
     }
@@ -1161,6 +1170,8 @@ void AdvancedPanel::showWorkspaceTab (int index, bool remember)
     for (int i = 0; i < workspaceTabs.size(); ++i)
         workspaceTabs[i]->setToggleState (i == workspaceTab, juce::dontSendNotification);
 
+    workspaceHelp.setPanelName (getWorkspaceTabName (workspaceTab));
+
     /*  Only the selected panel is on screen. Without this the panels that are not
         in the viewport keep whatever visibility they were built with, and a test
         - or a screen reader walking the tree - finds all of them showing at
@@ -1291,6 +1302,12 @@ void AdvancedPanel::resized()
         for (auto* tab : workspaceTabs)
             wanted = juce::jmax (wanted, juce::roundToInt (font.getStringWidthFloat (tab->getButtonText().toUpperCase())) + 14);
 
+        // The tab strip's last slot on the right is the shown tab's `?` (gui-integration 20).
+        addAndMakeVisible (workspaceHelp);
+        workspaceHelp.setBounds (bounds.getRight() - PanelHelpButton::size, bounds.getY() + (Metrics::buttonHeight - PanelHelpButton::size) / 2,
+                                 PanelHelpButton::size, PanelHelpButton::size);
+        bounds.removeFromRight (PanelHelpButton::size + 4);
+
         const int perRowMax = juce::jmax (1, (bounds.getWidth() + gap) / (wanted + gap));
         const int rows = (count + perRowMax - 1) / perRowMax;
         const int perRow = (count + rows - 1) / rows;
@@ -1311,6 +1328,8 @@ void AdvancedPanel::resized()
             if (r < rows - 1)
                 bounds.removeFromTop (2);
         }
+
+        bounds.setRight (bounds.getRight() + PanelHelpButton::size + 4);   // the viewport keeps the full width
     }
 
     bounds.removeFromTop (Metrics::gridHalf);

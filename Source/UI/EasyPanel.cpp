@@ -541,15 +541,31 @@ void EasyPanel::resized()
     rigArea = bounds.removeFromRight (juce::jmin (kRigWidth, bounds.getWidth() / 3));
     bounds.removeFromRight (Metrics::grid);
 
+    // gui-integration 20: each card and strip carries its `?` at the top right.
+    auto placeHelp = [this] (const juce::String& title, juce::Rectangle<int> area)
+    {
+        PanelHelpButton* help = nullptr;
+
+        for (auto* h : helpButtons)
+            if (h->getPanelName() == title)
+                help = h;
+
+        if (help == nullptr)
+            addAndMakeVisible (help = helpButtons.add (new PanelHelpButton (title)));
+
+        help->setBounds (area.getRight() - PanelHelpButton::size - 5, area.getY() + 4, PanelHelpButton::size, PanelHelpButton::size);
+    };
+
     rigCards.clearQuick();
     {
         auto rig = rigArea;
         const int total = rig.getHeight();
 
-        auto card = [&rig, &total, this] (float share, const juce::String& title)
+        auto card = [&rig, &total, &placeHelp, this] (float share, const juce::String& title)
         {
             auto r = rig.removeFromTop (juce::roundToInt ((float) total * share));
             rigCards.add ({ r.reduced (0, 2), title });
+            placeHelp (title, r.reduced (0, 2));
             auto inner = r.reduced (6, 4);
             inner.removeFromTop (16);   // the card's title
             return inner;
@@ -604,6 +620,9 @@ void EasyPanel::resized()
     bounds.removeFromBottom (Metrics::gridHalf);
     playingArea = bounds.removeFromBottom (stripH);
     bounds.removeFromBottom (Metrics::gridHalf);
+
+    placeHelp ("Playing", playingArea);
+    placeHelp ("Tone", toneArea);
 
     // 3.1: the guitar, with the level meter and the chord beside it.
     auto guitarArea = bounds;
