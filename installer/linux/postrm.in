@@ -1,0 +1,28 @@
+#!/bin/sh
+# Luthier @LUTHIER_VERSION@ - Debian post-remove (installer.md 0.3, 3.2).
+# Generated from installer/linux/postrm.in by CMake.
+#
+# Removes what postinst wrote and refreshes the caches. User data under
+# ~/Documents/Luthier and ~/.config is never touched: a package script has no
+# business in home directories (installer.md 0.3 keeps user data by default;
+# uninstall.sh --purge and docs/INSTALL_LINUX.md cover the explicit purge).
+set -e
+
+case "$1" in
+    remove|purge)
+        rm -f "/@LUTHIER_SYS_OPT@/.installed_version"
+        rmdir "/@LUTHIER_SYS_OPT@" 2>/dev/null || true
+
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database -q /usr/share/applications || true
+        fi
+        if command -v update-mime-database >/dev/null 2>&1; then
+            update-mime-database /usr/share/mime >/dev/null 2>&1 || true
+        fi
+        if command -v gtk-update-icon-cache >/dev/null 2>&1 && [ -f /usr/share/icons/hicolor/index.theme ]; then
+            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+        fi
+        ;;
+esac
+
+exit 0

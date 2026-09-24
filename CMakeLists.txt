@@ -198,3 +198,17 @@ if (LUTHIER_BUILD_CLI)
 
     luthier_copy_resources(LuthierRender "$<TARGET_FILE_DIR:LuthierRender>/Resources")
 endif()
+
+#==============================================================================
+# Packaging (spec/installer.md 3, 4, 6, 10; docs/INSTALL_LINUX.md)
+#
+# Off by default so a plain configure changes nothing for the other targets.
+# With it on, `cpack -G DEB` / `-G TGZ` (or scripts/release.sh, which also
+# checksums and writes the release manifest) package the VST3, the standalone
+# and Resources. The rules live in installer/linux/Packaging.cmake.
+#==============================================================================
+option(LUTHIER_BUILD_PACKAGES "Configure CPack packaging of the plugin and standalone (Linux .deb / .tar.gz)" OFF)
+
+if (LUTHIER_BUILD_PACKAGES)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/installer/linux/Packaging.cmake")
+endif()

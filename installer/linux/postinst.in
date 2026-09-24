@@ -1,0 +1,25 @@
+#!/bin/sh
+# Luthier @LUTHIER_VERSION@ - Debian post-install (installer.md 3.2 and 6).
+# Generated from installer/linux/postinst.in by CMake.
+set -e
+
+case "$1" in
+    configure)
+        # installer.md 6: the marker that says which version the package put on
+        # this machine. The plugin's own per-user marker is
+        # ~/Documents/Luthier/.installed_version, written on first load.
+        printf '%s\n' "@LUTHIER_VERSION@" > "/@LUTHIER_SYS_OPT@/.installed_version"
+
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database -q /usr/share/applications || true
+        fi
+        if command -v update-mime-database >/dev/null 2>&1; then
+            update-mime-database /usr/share/mime >/dev/null 2>&1 || true
+        fi
+        if command -v gtk-update-icon-cache >/dev/null 2>&1 && [ -f /usr/share/icons/hicolor/index.theme ]; then
+            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+        fi
+        ;;
+esac
+
+exit 0

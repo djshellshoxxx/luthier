@@ -24,14 +24,16 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       Remaining from the old list:
       1. Update docs/spec-coverage.md: SCR-*, SD-*, AR-6 rows, and the
          issues.md fixes.
-      2. Integrate Source/WIP: SlapEngine + TechniqueTriggers (params
-         426-450, count 450; ghost damping goes after the chuck line using
-         Damping::Chuck), Muting (muting-rhythm.md), then FirstRun /
-         FirstEncounterHint (TODO 14c: editor ctor
-         `FirstRun::applyIfFirstRun()`, TestMain `setStateForTesting (true,
-         false)`, DiagnosticsPage "Restore first-run experience", TunePanel /
-         WorkshopPanel hints, UiState practiceDrawerOpen, and five HelpContent
-         text corrections).
+      2. [x] Source/WIP integrated (2026-09-24): SlapEngine + TechniqueTriggers
+         (params 426-450), Muting (muting-rhythm.md; params 451-458, count
+         458; Mute Row + MUTE group on RHYTHM, Easy Mute button), FirstRun /
+         FirstEncounterHint (TODO 14c: editor ctor, TestMain, DiagnosticsPage
+         Restore, TUNE / Workshop hints, UiState practiceDrawerOpen, five
+         HelpContent corrections - see DECISIONS). Left: the TECHNIQUES tab
+         itself (host SlapGroup + MuteGroup, Easy pill row), the scrape onto
+         TechniqueTriggers, muting in MIDI export (muting-rhythm 8), the
+         Playing-strip Slap / Pop tool options (string-slap 6), the cascade
+         view. Source/WIP is gone; the CMake exclusion regex is now inert.
       3. Next specs: the rest of 13b.
 
 - [ ] **G. Realistic guitar illustration** - IN PROGRESS. Built and green
@@ -211,13 +213,28 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       build (GAPS.md "Not audited yet"); fix what they find.
 - [ ] 14b. `action-and-undo.md`: audit entry classes, grouping and state
       boundaries against the snapshot undo stack (fixed off-by-one in c0b05eb).
-- [ ] 14c. Onboarding: "Restore first-run experience" in Options ->
-      Diagnostics must also clear `ranges_first_unlock_explained`.
+- [x] 14c. Onboarding: "Restore first-run experience" in Options ->
+      Diagnostics must also clear `ranges_first_unlock_explained` (it empties
+      UiPreferences; `FirstRun.restoreClearsTheSettings...` checks the flag).
 - [ ] 15. Polish pass, performance pass, onboarding pass (brief steps 7-9).
 - [ ] 16. Installer pass (brief step 10). The platform matrix cannot be run
       from this Windows-only machine; see DECISIONS.md when reached.
+      - [x] Linux (2026-09-24): `LUTHIER_BUILD_PACKAGES` + CPack .deb and
+            .tar.gz (installer 3, 4), `installer/linux/` (desktop, MIME,
+            icons, postinst/postrm, install.sh / uninstall.sh,
+            THIRD_PARTY_LICENCES.txt, `.installed_version`),
+            `scripts/release.sh` (checksums, manifest.json, signing hook;
+            installer 10), `installer/linux/test-install.sh` (installer 13
+            install / uninstall / re-install / purge), docs/INSTALL_LINUX.md.
+      - [ ] Windows (1), macOS (2), .rpm, signing keys, content packages
+            (11), file-association open-from-argv in the standalone.
 - [ ] 17. Bug bash and final check (brief steps 11-12).
-- [ ] 18. Plugin targets (`Luthier_VST3`, `Luthier_Standalone`) build clean.
+- [x] 18. Plugin targets (`Luthier_VST3`, `Luthier_Standalone`) build clean
+      (Linux, 2026-09-24: `flock build/.build.lock ninja -C build Luthier_VST3
+      Luthier_Standalone`; three fixes on the way - `ScrollHintViewport`'s
+      ambiguous ComponentListener base, `SectionExtrasHolder::Ptr`,
+      `NotationExportTask.cpp` missing juce_events; only deprecation and
+      -Winaccessible-base warnings remain).
 
 ## Done
 
