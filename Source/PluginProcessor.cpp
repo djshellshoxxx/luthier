@@ -1916,7 +1916,16 @@ juce::MemoryBlock LuthierAudioProcessor::captureStateBlock()
 
 std::unique_ptr<juce::AudioProcessor> LuthierAudioProcessor::createOfflineInstance()
 {
-    return std::make_unique<LuthierAudioProcessor>();
+    auto instance = std::make_unique<LuthierAudioProcessor>();
+
+    /*  The exporter builds, renders and destroys this instance on its own
+        thread. Its 30 Hz timer (preset and snapshot recall, morph, capture
+        drain) would run on the message thread against the same instance
+        while the worker renders it, and stopTimer in its destructor, off the
+        message thread, does not wait for a callback already running. An
+        offline render needs none of it. */
+    instance->stopTimer();
+    return instance;
 }
 
 //==============================================================================
