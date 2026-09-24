@@ -90,6 +90,12 @@ public:
         tab, the live TAB view and notation / MIDI export. */
     PerformanceCapture& getPerformanceCapture() noexcept { return performanceCapture; }
 
+    /*  notation-export 3 (MODEL-GAPS, TODO 9): "render the current bar to the
+        on-plugin fretboard as tablature dots". The NOTATION tab's switch; the
+        fretboard reads it. Message thread. */
+    void setTabDotsOnFretboard (bool shouldShow) noexcept { tabDotsOnFretboard = shouldShow; }
+    bool isShowingTabDotsOnFretboard() const noexcept { return tabDotsOnFretboard; }
+
     /** Drains the capture and keeps its tuning current (10 Hz on the message
         thread; tests call it directly). */
     void drainPerformanceCapture();
@@ -486,6 +492,7 @@ private:
     MidiLearnManager midiLearn;
     MidiCapture midiCapture;
     PerformanceCapture performanceCapture;
+    bool tabDotsOnFretboard = false;   // MODEL-GAPS
     PresetMorph presetMorph { *this };
     std::array<int, kMaxStrings> captureOpenNotes {};
     int captureStringCount = -1, captureCapo = -1;
@@ -510,6 +517,20 @@ private:
     std::array<WorkshopChange, kWorkshopQueue> workshopChanges {};
     juce::AbstractFifo workshopFifo { kWorkshopQueue };
     LuthierSysExOut sysExOut;
+
+    // midi-export 2.1 / 6 (MODEL-GAPS, TODO 10): the CHARACTER class's seed and
+    // environment, sent when they change. Audio thread.
+    uint64_t sentCharacterSeed = 0;
+    int sentTemperature = -1, sentHumidity = -1;
+    bool characterStated = false;
+    void sendCharacterChanges() noexcept;
+
+public:
+    /** The CHARACTER event's environment in the file's units (character-wear 9's three steps). */
+    static double temperatureCelsius (Temperature t) noexcept;
+    static double humidityPercent (Humidity h) noexcept;
+
+private:
     ModMatrix modMatrix;
     PatternLibrary patternLibrary;
     GenreKitLibrary genreKits;

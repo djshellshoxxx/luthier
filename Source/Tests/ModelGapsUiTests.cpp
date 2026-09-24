@@ -14,10 +14,12 @@
 #include "../UI/PedalRack.h"
 #include "../UI/NotationPanel.h"
 #include "../UI/RoutingPanel.h"
+#include "../UI/FretboardComponent.h"
 #include "../UI/Faces/AmpFace.h"
 #include "../UI/Faces/PedalFace.h"
 #include "../Modulation/ModMatrix.h"
 #include "../Routing/TapBuffers.h"
+#include "../Export/LuthierMidiEvents.h"
 
 
 using namespace luthier;
@@ -462,4 +464,121 @@ LUTHIER_TEST (ModelGapsUi, theCaptureHearsTechniquesAndChordsFromTheEngine)
 
     if (capture.getNotes().size() == countBefore + 1)
         CHECK (capture.getNotes().back().technique == Technique::PalmMute);
+}
+
+//==============================================================================
+/*  midi-export 2.1 / 6 (TODO 10): CHARACTER - "seed changes, environment
+    changes (temperature, humidity) as they occur" - on the EVENTS source. */
+LUTHIER_TEST (ModelGapsUi, characterSeedAndEnvironmentGoOutAsTheyChange)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto run = [&processor] (int blocks)
+    {
+        juce::Array<LuthierEvent> found;
+        juce::AudioBuffer<float> audio (juce::jmax (processor.getTotalNumOutputChannels(), 2), kBlock);
+
+        for (int b = 0; b < blocks; ++b)
+        {
+            audio.clear();
+            juce::MidiBuffer midi;
+            processor.processBlock (audio, midi);
+
+            for (const auto metadata : midi)
+            {
+                const auto message = metadata.getMessage();
+                LuthierEvent event;
+                juce::int64 correction = 0;
+                juce::String error;
+
+                if (message.isSysEx()
+                    && LuthierEvents::decodeSysEx (message.getSysExData(), message.getSysExDataSize(), event, correction, error)
+                    && event.eventClass == LuthierEventClass::character)
+                    found.add (event);
+            }
+        }
+
+        return found;
+    };
+
+    auto cfg = processor.getRouting().getMidiOutConfig();
+    cfg.enabled = true;
+    cfg.luthierEvents = false;
+    processor.getRouting().setMidiOutConfig (cfg);
+    CHECK (run (4).isEmpty());
+
+    // On: the seed and the environment are stated once...
+    cfg.luthierEvents = true;
+    processor.getRouting().setMidiOutConfig (cfg);
+    const auto stated = run (4);
+    CHECK (stated.size() == 2);
+
+    auto& character = processor.getEngine().getCharacterEngine();
+
+    if (stated.size() == 2)
+    {
+        CHECK (stated[0].get ("what") == "seed");
+        CHECK (stated[0].get ("seed") == juce::String ((juce::uint64) character.getSeed()));
+        CHECK (stated[1].get ("what") == "environment");
+        CHECK_NEAR (stated[1].getReal ("temp"), LuthierAudioProcessor::temperatureCelsius (character.getTemperature()), 1.0e-6);
+    }
+
+    // ... then only when they change.
+    CHECK (run (4).isEmpty());
+
+    character.setSeed (4815162342ull);
+    const auto seed = run (2);
+    CHECK (seed.size() == 1 && seed[0].get ("seed") == "4815162342");
+
+    character.setTemperature (Temperature::warm);
+    const auto env = run (2);
+    CHECK (env.size() == 1 && std::abs (env[0].getReal ("temp") - 32.0) < 1.0e-6);
+}
+
+//==============================================================================
+/*  notation-export 3 (TODO 9): "The plugin can also render the current bar to
+    the on-plugin fretboard as tablature dots." */
+LUTHIER_TEST (ModelGapsUi, theCurrentBarIsDrawnOnTheFretboardAsTabDots)
+{
+    LuthierAudioProcessor processor;
+    playPhrase (processor, { 52, 55, 57 });
+
+    FretboardComponent fretboard (processor);
+    fretboard.setSize (600, 120);
+
+    fretboard.refreshTabDots();
+    CHECK (fretboard.getTabDots().empty());   // off by default
+
+    // The NOTATION tab's switch turns it on.
+    NotationPanel panel (processor);
+    auto& button = panel.getFretboardDotsButton();
+    button.setToggleState (true, juce::dontSendNotification);
+    button.onClick();
+    CHECK (processor.isShowingTabDotsOnFretboard());
+
+    fretboard.refreshTabDots();
+    const auto& dots = fretboard.getTabDots();
+    const auto& notes = processor.getPerformanceCapture().getNotes();
+
+    CHECK (! dots.empty());
+    CHECK (dots.size() <= notes.size());
+
+    if (! dots.empty() && ! notes.empty())
+    {
+        // The newest dot is the newest note, where the engine played it.
+        CHECK (dots.back().stringIndex == notes.back().stringIndex);
+        CHECK_NEAR (dots.back().fret, notes.back().fret, 1.0e-9);
+        CHECK (dots.back().age <= dots.front().age);
+    }
+
+    // It draws.
+    juce::Image image (juce::Image::ARGB, 600, 120, true, juce::SoftwareImageType());
+    juce::Graphics g (image);
+    fretboard.paintEntireComponent (g, true);
+
+    button.setToggleState (false, juce::dontSendNotification);
+    button.onClick();
+    fretboard.refreshTabDots();
+    CHECK (fretboard.getTabDots().empty());
 }

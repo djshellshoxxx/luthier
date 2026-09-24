@@ -208,6 +208,11 @@ NotationPanel::NotationPanel (LuthierAudioProcessor& p)
     showTab = makeToggle ("SHOW TAB", "Show the last bars of what you played as tab.", [this] { resized(); refresh(); });
     showTab->getButton().setToggleState (true, juce::dontSendNotification);
 
+    // notation-export 3 (MODEL-GAPS): the current bar as dots on the fretboard.
+    fretboardDots = makeToggle ("ON FRETBOARD", "Draw the bar you are playing on the fretboard as tablature dots.",
+                                [this] { processor.setTabDotsOnFretboard (fretboardDots->getButton().getToggleState()); });
+    fretboardDots->getButton().setToggleState (processor.isShowingTabDotsOnFretboard(), juce::dontSendNotification);
+
     for (int bars = 1; bars <= 8; ++bars)
         barsBox.addItem (juce::String (bars) + (bars == 1 ? " bar" : " bars"), bars);
 
@@ -541,7 +546,7 @@ void NotationPanel::resized()
     bounds.removeFromTop (Metrics::grid);
 
     tabHeader = bounds.removeFromTop (kHeader);
-    split (row(), { showTab.get(), &barsBox });
+    split (row(), { showTab.get(), fretboardDots.get(), &barsBox });
     split (row(), { &densityBox, &speedBox });
     tabView.setBounds (bounds.removeFromTop (180));
     chordBounds = bounds.removeFromTop (22);

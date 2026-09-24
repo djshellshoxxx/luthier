@@ -1,4 +1,5 @@
 #include "PerformanceCapture.h"
+#include "../Rhythm/ChordDetector.h"   // MODEL-GAPS: offline chord extraction
 
 #include "../Model/Playing/TuningEngine.h"
 #include "../Routing/MidiOutRouter.h"
@@ -803,9 +804,45 @@ void PerformanceCapture::toScore (PerformanceScore& score, const CaptureScoreOpt
         }
     }
 
+    int chordsWritten = 0;
+
     for (const auto& chord : chords)
         if (timeline.includes (chord.musical, chord.ppq, chord.sample) && ! selected.empty())
+        {
             score.addChordSymbol (juce::jmax (0.0, timeline.beatOf (chord.musical, chord.ppq, chord.sample)), chord.name);
+            ++chordsWritten;
+        }
+
+    /*  notation-export 4 (MODEL-GAPS): no chord track - a Mono-mode take - so
+        the chords are extracted offline: per beat, the pitch classes sounding
+        in it, matched against the detector's templates; written where the
+        chord changes. */
+    if (chordsWritten == 0 && options.extractChordsWhenMissing && ! placed.empty())
+    {
+        ChordDetector detector;
+        ChordSymbol previous;
+
+        for (int beat = 0; beat <= (int) std::ceil (lastBeat); ++beat)
+        {
+            std::array<int, 32> heard {};
+            int count = 0;
+
+            for (const auto& p : placed)
+                if (p.start < beat + 1.0 && p.end > (double) beat && count < (int) heard.size())
+                    heard[(size_t) count++] = notes[p.index].midiNote;
+
+            if (count == 0)
+                continue;
+
+            const auto chord = detector.detect (heard.data(), count);
+
+            if (chord.isKnown() && chord != previous)
+            {
+                score.addChordSymbol ((double) beat, chord.toString());
+                previous = chord;
+            }
+        }
+    }
 
     score.endCapture (lastBeat);
 

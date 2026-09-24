@@ -154,6 +154,11 @@ struct CaptureScoreOptions
     /** 4.1's "current section (tune only)": only notes played in time with the
         host that start in these quarter-note positions; empty = no limit. */
     juce::Range<double> ppqRange;
+    /** notation-export 4 (MODEL-GAPS, TODO 9): "In Mono mode, chord extraction
+        runs offline on the captured PerformanceScore using a template match
+        against detected pitch classes per beat." Applied when the take has no
+        chord track of its own (Mono mode records none). */
+    bool extractChordsWhenMissing = true;
 
     /** The tempo free-play notes are read at; 0 = the take's own. */
     double freeTempoBpm = 0.0;

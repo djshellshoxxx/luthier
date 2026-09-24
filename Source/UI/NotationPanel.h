@@ -110,6 +110,12 @@ private:
 
     // --- live tab -------------------------------------------------------------------
     std::unique_ptr<LuthierToggle> showTab;
+    std::unique_ptr<LuthierToggle> fretboardDots;   // notation-export 3 (MODEL-GAPS)
+
+public:
+    juce::Button& getFretboardDotsButton() noexcept { return fretboardDots->getButton(); }
+
+private:
     juce::ComboBox barsBox, densityBox, speedBox;
     juce::TextEditor tabView;
     juce::String chordHistory;

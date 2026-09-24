@@ -97,6 +97,22 @@ private:
     juce::Colour barColour;
 
 public:
+    /*  notation-export 3 (MODEL-GAPS, TODO 9): the current bar of the capture
+        as tablature dots - each note of the bar at its string and fret,
+        numbered, the newest brightest. Shown while the NOTATION tab's switch
+        is on. */
+    struct TabDot
+    {
+        int stringIndex = 0;
+        double fret = 0.0;
+        float age = 0.0f;   ///< 0 the newest note of the bar, 1 its first
+    };
+
+    const std::vector<TabDot>& getTabDots() const noexcept { return tabDots; }
+
+    /** The current bar's notes, from the capture: what the timer does. */
+    void refreshTabDots();
+
     /** For tests: where the bar is drawn, and how visible it is (0-1). */
     double getDrawnBarFret() const noexcept { return barFret; }
     float getBarOpacity() const noexcept { return barOpacity; }
@@ -116,6 +132,8 @@ private:
     int playingString = -1;
 
     juce::Rectangle<int> boardArea;
+
+    std::vector<TabDot> tabDots;   // MODEL-GAPS
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FretboardComponent)
 };

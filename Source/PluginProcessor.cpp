@@ -2312,6 +2312,65 @@ void LuthierAudioProcessor::postWorkshopChange (const juce::String& slotId, cons
     workshopFifo.finishedWrite (1);
 }
 
+double LuthierAudioProcessor::temperatureCelsius (Temperature t) noexcept
+{
+    switch (t)
+    {
+        case Temperature::cold: return 10.0;
+        case Temperature::warm: return 32.0;
+        case Temperature::room:
+        case Temperature::numTemperatures:
+        default:                return 21.5;
+    }
+}
+
+double LuthierAudioProcessor::humidityPercent (Humidity h) noexcept
+{
+    switch (h)
+    {
+        case Humidity::dry:   return 25.0;
+        case Humidity::humid: return 70.0;
+        case Humidity::normal:
+        case Humidity::numHumidities:
+        default:              return 45.0;
+    }
+}
+
+void LuthierAudioProcessor::sendCharacterChanges() noexcept
+{
+    /*  midi-export 2.1: "CHARACTER - seed changes, environment changes
+        (temperature, humidity) as they occur". Stated once when the source
+        comes on, then on each change, at the block's first sample (they are
+        set from the message thread, between blocks). */
+    using Field = LuthierSysExOut::Field;
+    const auto& character = engine.getCharacterEngine();
+
+    const auto seed = character.getSeed();
+
+    if (! characterStated || seed != sentCharacterSeed)
+    {
+        char text[24];
+        std::snprintf (text, sizeof (text), "%llu", (unsigned long long) seed);
+        sysExOut.push (LuthierEventClass::character, 0, { Field::makeWord ("what", "seed"), Field::makeWord ("seed", text) });
+        sentCharacterSeed = seed;
+    }
+
+    const int temperature = (int) character.getTemperature();
+    const int humidity = (int) character.getHumidity();
+
+    if (! characterStated || temperature != sentTemperature || humidity != sentHumidity)
+    {
+        sysExOut.push (LuthierEventClass::character, 0,
+                       { Field::makeWord ("what", "environment"),
+                         Field::makeReal ("temp", temperatureCelsius ((Temperature) temperature)),
+                         Field::makeReal ("humidity", humidityPercent ((Humidity) humidity)) });
+        sentTemperature = temperature;
+        sentHumidity = humidity;
+    }
+
+    characterStated = true;
+}
+
 void LuthierAudioProcessor::sendLuthierSysEx (const MidiOutConfig& config, juce::MidiBuffer& midi,
                                               int numSamples) noexcept
 {
@@ -2341,6 +2400,11 @@ void LuthierAudioProcessor::sendLuthierSysEx (const MidiOutConfig& config, juce:
         send (start2, size2);
         workshopFifo.finishedRead (size1 + size2);
     }
+
+    if (on && config.luthierEvents)
+        sendCharacterChanges();   // MODEL-GAPS
+    else
+        characterStated = false;  // restated when the source comes back on
 
     if (on && config.luthierEvents)
     {
