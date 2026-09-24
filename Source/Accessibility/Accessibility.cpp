@@ -480,8 +480,8 @@ void AccessibilitySettings::buildDefaultShortcuts()
         17's "all rebindable" true rather than decorative.
 
         Where an action's feature does not exist yet the binding is simply absent,
-        rather than present and dead: Workshop (W), Save As Guitar
-        (Ctrl+G) and New Tune (Ctrl+T) all wait on specs that are not written.
+        rather than present and dead: Workshop (W) waits on a spec that is not
+        written; Save As Guitar (Ctrl+G) and New Tune (Ctrl+T) have landed.
         GAPS.md tracks them. The Column 4 tab steps used to be on that list and
         are not any more - the Advanced workspace has a tab strip now, so there
         is something for them to step.
@@ -523,6 +523,12 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("undo",             "accessibility.shortcut.undo",             KP ('z', cmd, 0));
     add ("redo",             "accessibility.shortcut.redo",             KP ('z', cmd | shift, 0));
 
+    /*  action-and-undo.md 9: Ctrl+Y is the second redo (Windows habit) and
+        Ctrl+Alt+Z undoes across a state boundary. The registry allows one key
+        per action, so the alternate redo is an action of its own. */
+    add ("redoAlt",          "accessibility.shortcut.redoAlt",          KP ('y', cmd, 0));
+    add ("undoAcrossBoundary", "accessibility.shortcut.undoAcrossBoundary", KP ('z', cmd | alt, 0));
+
     add ("save",             "accessibility.shortcut.save",             KP ('s', cmd, 0));
     add ("saveAs",           "accessibility.shortcut.saveAs",           KP ('s', cmd | shift, 0));
 
@@ -553,6 +559,11 @@ void AccessibilitySettings::buildDefaultShortcuts()
 
     add ("export",           "accessibility.shortcut.export",           KP ('e', cmd, 0));
     add ("options",          "accessibility.shortcut.options",          KP (',', cmd, 0));
+
+    /*  Section 17's "New tune" (tune-builder 2, 10): the TUNE tab's template
+        picker, which the header's File -> New Tune... also opens. The panel
+        answers it while focused; the editor forwards it to the panel otherwise. */
+    add ("newTune",          "accessibility.shortcut.newTune",          KP ('t', cmd, 0));
 
     /*  Not in section 17, kept because the debug panel is otherwise only reachable
         through Help and a diagnostics session is exactly when a user cannot
@@ -798,14 +809,30 @@ namespace AccessibleSetup
         juce::AccessibilityHandler::postAnnouncement (
             announcement, juce::AccessibilityHandler::AnnouncementPriority::high);
 
-        for (auto* child : overlay.getChildren())
-        {
-            if (child != nullptr && child->isVisible() && child->getWantsKeyboardFocus())
-            {
-                child->grabKeyboardFocus();
-                break;
-            }
-        }
+        // The first interactive element in Tab order, wherever it sits in the
+        // tree (qa-polish 4: "focus lands on first interactive element"). The
+        // overlay itself takes focus when it has nothing to give it to, so
+        // Escape still reaches it.
+        if (auto* first = findFirstInteractive (overlay))
+            first->grabKeyboardFocus();
+        else
+            overlay.grabKeyboardFocus();
+    }
+
+    juce::Component* findFirstInteractive (juce::Component& root)
+    {
+        // The same walk Tab makes, so what gets focus on open is what Tab would
+        // reach first: visible, enabled, wants focus, in (explicit order, y, x).
+        auto traverser = root.createKeyboardFocusTraverser();
+
+        if (traverser == nullptr)
+            return nullptr;
+
+        for (auto* c : traverser->getAllComponents (&root))
+            if (c != nullptr && c != &root && c->getWantsKeyboardFocus() && c->isVisible() && c->isEnabled())
+                return c;
+
+        return nullptr;
     }
 }
 

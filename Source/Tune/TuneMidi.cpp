@@ -1,4 +1,5 @@
 #include "TuneMidi.h"
+#include "../Export/MidiPerformance.h"
 #include "../Support/ThreadProbe.h"
 
 #include <functional>
@@ -689,6 +690,51 @@ bool writeTuneMidiFile (const Tune& tune, const juce::File& destination,
     }
 
     return true;
+}
+
+//==============================================================================
+MidiPerformance buildTunePerformance (const Tune& tune, double sampleRate, const TuneMidiOptions& options)
+{
+    auto midiOptions = options;
+    midiOptions.includeMarkers = false;    // sections are SECTION events here
+    midiOptions.realismTextMetas = false;  // the profile writes its own texts
+
+    const auto timeline = TuneTimeline::build (tune, midiOptions);
+
+    MidiPerformance performance (sampleRate > 0.0 ? sampleRate : 48000.0);
+    performance.setTempo (juce::jmax (1.0, tune.meta.tempoBpm));
+    performance.setTimeSignature (tune.meta.timeSigNumerator, tune.meta.timeSigDenominator);
+
+    auto& meta = performance.getMeta();
+    meta.title = tune.meta.title;
+    meta.keySharpsOrFlats = keySignatureAccidentals (tune.meta.keyTonic, tune.meta.mode);
+    meta.keyIsMinor = modeHasMinorThird (tune.meta.mode);
+    meta.pitchBendRangeSemitones = midiOptions.bendRangeSemitones;
+    meta.partNames = { "Guitar", "Bass" };
+
+    auto sampleOf = [&performance] (double ppq)
+    {
+        return (juce::int64) std::llround (performance.beatToSample (ppq));
+    };
+
+    int index = 0;
+
+    for (const auto& s : timeline.getSections())
+    {
+        auto section = LuthierEvent::make (LuthierEventClass::section, sampleOf (s.ppq));
+        section.set ("name", s.name).setInt ("index", index++).set ("edge", "start");
+        performance.addEvent (section);
+    }
+
+    for (const auto& e : timeline.getEvents())
+    {
+        if (! MidiPerformance::isChannelVoiceMessage (e.message))
+            continue;
+
+        performance.addMessage (sampleOf (e.ppq), e.message, e.part == TunePart::bass ? 1 : 0);
+    }
+
+    return performance;
 }
 
 //==============================================================================

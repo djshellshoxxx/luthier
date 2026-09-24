@@ -52,6 +52,7 @@
 
 #include <array>
 #include <atomic>
+#include <functional>
 #include <memory>
 
 namespace luthier
@@ -240,6 +241,15 @@ public:
     /** Notes the player has started and not yet ended, for tests. */
     int getNumSoundingNotes() const noexcept;
 
+    //==========================================================================
+    /** Offline rendering only (tune-builder 9.1, TuneExport): called at the
+        top of every renderBlock, on the rendering thread, so the session's
+        message-thread service - the rhythm change a section brings, the next
+        improvised pass - runs in step with the render instead of on a timer
+        nobody is pumping. Never set while a live audio thread renders: the
+        callback may allocate. */
+    void setOfflineServiceHook (std::function<void()> hook) { offlineService = std::move (hook); }
+
 private:
     using NoteTable = std::array<std::array<uint8_t, 128>, 16>;
 
@@ -373,6 +383,8 @@ private:
 
     NoteTable heldEngine {}, heldOut {};
     uint16_t touchedChannels = 0;
+
+    std::function<void()> offlineService;   ///< Offline rendering only; null live.
 
     // chase()'s scratch: how many of each note are on, and the event that last started it.
     NoteTable chaseCount {};

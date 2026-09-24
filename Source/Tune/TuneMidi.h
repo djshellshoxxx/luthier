@@ -254,6 +254,20 @@ bool writeTuneMidiFile (const Tune& tune, const juce::File& destination,
                         const TuneMidiFileOptions& options, juce::String& error);
 
 //==============================================================================
+/*  9.2 "Luthier profile or Generic profile (midi-export.md)", DECISIONS C-53:
+    the tune as the MidiPerformance midi-export's profiles are written from,
+    so the TUNE tab's MIDI export is MidiProfiles::exportToFile like every
+    other MIDI export in the plugin. It is the timeline - what was heard - at
+    the tune's tempo: every channel message at its sample, the bass on part 1
+    (the per-instrument split), and a SECTION event at each section occurrence
+    (the per-section split). The chords are the held chord track the rhythm
+    engine strums, as in the Generic `.mid`; the melody's realism rides as the
+    controllers the engine maps when `options.includeRealism`. */
+class MidiPerformance;
+
+MidiPerformance buildTunePerformance (const Tune& tune, double sampleRate, const TuneMidiOptions& options = {});
+
+//==============================================================================
 /** 0.5 and 9.3: the tune as a PerformanceScore, so notation export needs no
     Tune-specific writer. Melody notes are fretted on the lowest comfortable
     string near the previous note; chord symbols and section names are kept. */

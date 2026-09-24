@@ -509,6 +509,14 @@ namespace
         int lengthBars = 1;
         juce::String name;
         juce::String markerText;     ///< For folding repeats; empty without markers.
+
+        /*  Where the file's material for this region ends: the next marker, or
+            the last note. A section rounded up to whole bars reaches past it,
+            and what lies there is the next section's, not this one's too. */
+        double end = 0.0;
+
+        /** The section's end in the file: its bar count, or the marker, whichever comes first. */
+        double sourceEnd() const noexcept { return juce::jmin (start + lengthBeats, end); }
     };
 
     std::vector<Region> buildRegions (Parsed& p, double beatsPerBar, const TuneImportOptions& options,
@@ -532,7 +540,7 @@ namespace
 
             if (bars <= options.singleSectionMaxBars)
             {
-                regions.push_back ({ 0.0, (double) bars * beatsPerBar, bars, "Section", {} });
+                regions.push_back ({ 0.0, (double) bars * beatsPerBar, bars, "Section", {}, (double) bars * beatsPerBar });
                 warnings.add ("No section markers; the file is one " + juce::String (bars) + "-bar section.");
                 return regions;
             }
@@ -549,7 +557,8 @@ namespace
 
                 const int length = juce::jmin (chunk, bars - bar);
                 regions.push_back ({ (double) bar * beatsPerBar, (double) length * beatsPerBar, length,
-                                     "Part " + juce::String (regions.size() + 1), {} });
+                                     "Part " + juce::String (regions.size() + 1), {},
+                                     (double) (bar + length) * beatsPerBar });
             }
 
             warnings.add ("No section markers; the file was cut into " + juce::String (chunk) + "-bar parts.");
@@ -610,13 +619,31 @@ namespace
             const auto name = p.markers[i].text.isNotEmpty() ? p.markers[i].text : juce::String ("Section");
 
             int bars = juce::jmax (1, (int) std::lround ((end - start) / beatsPerBar));
+
+            /*  Rounded down with notes starting in the tail it cuts off: a bar
+                more keeps them. A section holds nothing past its bar count, so
+                rounding alone dropped them (the next section starts at the
+                marker, not at the rounded end). */
+            if ((double) bars * beatsPerBar < end - start - kEps)
+            {
+                const double roundedEnd = start + (double) bars * beatsPerBar;
+                bool notesInTail = false;
+
+                for (const auto& part : p.parts)
+                    for (const auto& n : part.notes)
+                        notesInTail = notesInTail || (n.start >= roundedEnd - kEps && n.start < end - kEps);
+
+                if (notesInTail)
+                    ++bars;
+            }
+
             bars = clampBars (bars, name);
 
             if (std::abs ((end - start) - (double) bars * beatsPerBar) > 0.01)
                 warnings.add ("Section '" + name + "' spans " + juce::String ((end - start) / beatsPerBar, 2)
                               + " bars; rounded to " + juce::String (bars) + ".");
 
-            regions.push_back ({ start, (double) bars * beatsPerBar, bars, name, p.markers[i].text });
+            regions.push_back ({ start, (double) bars * beatsPerBar, bars, name, p.markers[i].text, end });
         }
 
         return regions;
@@ -630,7 +657,10 @@ namespace
     std::vector<MelodyNote> notesIn (const PartList& parts, const Region& r)
     {
         std::vector<MelodyNote> notes;
-        const double end = r.start + r.lengthBeats;
+
+        // Up to the marker, not the rounded bar count: a section rounded up
+        // used to take the next section's first notes as well.
+        const double end = r.sourceEnd();
 
         for (const auto* part : parts)
         {
@@ -827,7 +857,7 @@ namespace
                                         juce::StringArray& warnings)
     {
         std::vector<Run> runs;
-        const double end = r.start + r.lengthBeats;
+        const double end = r.sourceEnd();   // the marker, not the rounded bar count (see notesIn)
 
         for (size_t i = 0; i < chart.size(); ++i)
         {
@@ -949,6 +979,11 @@ bool importMidi (const juce::MidiFile& midi, const juce::String& sourceName, Tun
     // ---- tracks and sections -------------------------------------------------------------
     const auto roles = classify (parsed, options, warnings);
     const auto regions = buildRegions (parsed, tune.getBeatsPerBar(), options, warnings);
+
+    // The chart came in track order, and chartChords reads each entry's
+    // successor as where it ends: time order first.
+    std::stable_sort (parsed.chart.begin(), parsed.chart.end(),
+                      [] (const ChartEntry& a, const ChartEntry& b) { return a.ppq < b.ppq; });
 
     std::map<juce::String, std::vector<int>> sectionsByMarker;
     std::vector<TuneSetlistEntry> setlist;

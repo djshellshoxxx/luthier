@@ -928,6 +928,10 @@ std::vector<ChordCell> reharmonize (const std::vector<ChordCell>& cells, int ton
             auto& c = out[(size_t) i];
             const int degree = getDiatonicDegree (c, tonic, mode);
 
+            // 3.2's Lock: a locked cell is left as the user wrote it.
+            if (c.locked)
+                continue;
+
             if (! modeHasMinorThird (mode))
             {
                 // The minor iv: IV going home to I.
@@ -966,7 +970,8 @@ std::vector<ChordCell> reharmonize (const std::vector<ChordCell>& cells, int ton
                 // merely shares the root (Am before Dm) becomes vi -> V/ii.
                 const bool alreadyDominant = c.root == dominantRoot && isDominant (c);
 
-                if (targetDegree >= 2 && ! c.holdsToFill() && c.durationBeats >= 2.0 && ! alreadyDominant)
+                if (targetDegree >= 2 && ! c.holdsToFill() && c.durationBeats >= 2.0 && ! alreadyDominant
+                      && ! c.locked)
                 {
                     const double half = canonical (c.durationBeats * 0.5);
 
@@ -1001,7 +1006,7 @@ std::vector<ChordCell> reharmonize (const std::vector<ChordCell>& cells, int ton
 
             // Only the progression's own dominants: substituting the ones just
             // inserted would undo the secondary-dominant pass.
-            if (inserted[i] || ! isDominant (c))
+            if (inserted[i] || c.locked || ! isDominant (c))
                 continue;
 
             if (wrapPitchClass (out[i + 1].root - c.root) == 5)

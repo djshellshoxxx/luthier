@@ -64,6 +64,13 @@ enum class MelodyStyle { none = 0, bluegrassFiddle, jazzSax, bluesGuitar, classi
     with the class the spec names. */
 enum class TuneEditClass { sectionEdit = 0, chordEdit, melodyEdit, melodyRecord, melodyGenerate, other };
 
+/** The note lists one piano roll edits (tune-builder 3.4, 6 "Manual: same
+    piano-roll editor as melody", 7 "Countermelody: a second melody track"):
+    the melody track, the bass line and the countermelody layer. */
+enum class TuneNotePart { melody = 0, bass, countermelody, numParts };
+
+const char* getTuneNotePartName (TuneNotePart) noexcept;   ///< "melody", "bass", "countermelody"
+
 /** The file names of the enums above ("palm_muted", "root_fifth", ...), and
     their inverses. The parsers accept exactly what the namers produce. */
 const char* getChordEmphasisName (ChordEmphasis) noexcept;
@@ -106,6 +113,11 @@ struct ChordCell
 
     juce::String strumOverride;       ///< A pattern name; empty means the section's pattern.
     ChordEmphasis emphasis = ChordEmphasis::normal;
+
+    /** The pill menu's "Lock" (3.2): a locked cell is left alone by
+        Reharmonize and the substitution offers, as a locked note is by the
+        melody generators (0.3). Written as `locked` when true. */
+    bool locked = false;
 
     juce::NamedValueSet extra;
 
@@ -441,6 +453,25 @@ struct Tune
     bool setChord (int sectionIndex, int chordIndex, const ChordCell& cell);
     bool setChordDuration (int sectionIndex, int chordIndex, double beats);
     bool setChords (int sectionIndex, std::vector<ChordCell> cells);
+
+    /** The pill menu's Lock (3.2). */
+    bool setChordLocked (int sectionIndex, int chordIndex, bool locked);
+
+    //==========================================================================
+    // The piano roll's parts (3.4, 6, 7) - `tune-melody-edit` for the melody,
+    // `tune-section-edit` for the bass and the layer
+
+    /** The notes of a part, or null when the section has no such part: no
+        melody track, a bass in a derived mode (whose notes are generated when
+        rendered, TuneMelody's generateBassLine), no countermelody layer. */
+    const std::vector<MelodyNote>* getPartNotes (int sectionIndex, TuneNotePart part) const noexcept;
+
+    /** Replaces a part's notes, canonicalised, creating the part when needed:
+        a melody track, a Manual bass, a countermelody layer. The roll's own
+        edits (draw, delete, nudge, paste, velocity) all come through here so
+        every part is edited the same way. Notes keep the `locked` flag they
+        were given. */
+    bool setPartNotes (int sectionIndex, TuneNotePart part, std::vector<MelodyNote> notes);
 
     //==========================================================================
     // Melody - `tune-melody-edit` unless noted

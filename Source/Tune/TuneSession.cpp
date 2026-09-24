@@ -185,6 +185,10 @@ juce::var TuneSession::toState() const
     object->setProperty ("tune", TuneFile::toVar (tune));
     object->setProperty ("file", file.getFullPathName());
     object->setProperty ("dirty", dirty);
+
+    if (renderIntent)
+        object->setProperty ("render", true);
+
     return juce::var (object);
 }
 
@@ -202,10 +206,41 @@ bool TuneSession::restoreState (const juce::var& state)
     file = juce::File::isAbsolutePath (path) ? juce::File (path) : juce::File();
     dirty = (bool) state.getProperty ("dirty", false);
 
+    // 9.1: the offline instance plays the tune it was given, once, from the top.
+    rendering = (bool) state.getProperty ("render", false);
+
+    if (rendering && player != nullptr)
+    {
+        player->setLoop (false);
+        player->setCountInBars (0);
+        player->setMetronome (false);
+        player->setRecordArmed (false);
+        player->setOfflineServiceHook ([this] { service(); });
+        player->stop();
+        player->play();
+    }
+
     if (onChanged != nullptr)
         onChanged();
 
     return true;
+}
+
+juce::StringArray TuneSession::getKitPatterns (int sectionIndex) const
+{
+    const auto* s = tune.getSection (sectionIndex);
+
+    if (s == nullptr || genreKits == nullptr)
+        return {};
+
+    const int kit = genreKits->indexOf (s->genreKitId);
+
+    if (kit < 0)
+        return {};
+
+    auto patterns = genreKits->getKit (kit).strumPatterns;
+    patterns.addArray (genreKits->getKit (kit).fingerpickPatterns);
+    return patterns;
 }
 
 void TuneSession::setSelectedSection (int index)

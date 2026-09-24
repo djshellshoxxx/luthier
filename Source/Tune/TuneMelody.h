@@ -43,6 +43,22 @@ MelodyProfile getMelodyProfileForKit (const juce::String& genreKitName);
     panel sets a track's density from this when its kit changes. */
 double getKitMelodyDensity (const juce::String& genreKitName);
 
+/** tune-builder 2.1: "Every genre kit ships with a suggested tempo". Read from
+    the kit's name, as the density is: a ballad is slow, punk and bluegrass are
+    fast, and a kit nobody has a number for is 120. */
+double getKitSuggestedTempo (const juce::String& genreKitName);
+
+//==============================================================================
+// 3.3 Vary
+
+/** "Vary (creates a subtle variation of the section as a new sibling)": a
+    copy inserted after the section, named "<name> var", with its melody
+    regenerated on the next seed (locked notes untouched, as always), its
+    countermelody likewise, and its rhythm pattern moved to the kit's next
+    pattern when `kitPatterns` (the kit's strum patterns, in order) offers one.
+    Returns the new section's index, or -1. `tune-section-edit`. */
+int varySection (Tune& tune, int sectionIndex, const juce::StringArray& kitPatterns);
+
 //==============================================================================
 /** Resolves a note's pitch (1.2). `chord` may be null, in which case the key's
     tonic chord stands in. Relative pitches are placed from the chord root in

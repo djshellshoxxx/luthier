@@ -206,6 +206,98 @@ double getKitMelodyDensity (const juce::String& name)
     return 4.0;
 }
 
+double getKitSuggestedTempo (const juce::String& name)
+{
+    if (containsIgnoreCase (name, { "ballad", "ambient" }))            return 72.0;
+    if (containsIgnoreCase (name, { "dub", "reggae", "rocksteady" }))  return 76.0;
+    if (containsIgnoreCase (name, { "blues", "delta", "chicago" }))    return 88.0;
+    if (containsIgnoreCase (name, { "folk", "fingerstyle", "waltz" })) return 96.0;
+    if (containsIgnoreCase (name, { "funk", "wah" }))                  return 104.0;
+    if (containsIgnoreCase (name, { "nashville", "country" }))         return 112.0;
+    if (containsIgnoreCase (name, { "bossa", "samba", "latin" }))      return 128.0;
+    if (containsIgnoreCase (name, { "jazz", "gypsy", "swing" }))       return 132.0;
+    if (containsIgnoreCase (name, { "metal", "chug", "djent" }))       return 140.0;
+    if (containsIgnoreCase (name, { "bluegrass" }))                    return 150.0;
+    if (containsIgnoreCase (name, { "punk" }))                         return 168.0;
+    return 120.0;
+}
+
+//==============================================================================
+int varySection (Tune& tune, int sectionIndex, const juce::StringArray& kitPatterns)
+{
+    const auto* original = tune.getSection (sectionIndex);
+
+    if (original == nullptr)
+        return -1;
+
+    const auto originalName = original->name;
+    auto copy = *original;
+    copy.name = originalName + " var";
+    copy.rhythmLinkedTo.clear();
+
+    // addSection moves the vector: `original` is not to be used past here.
+    const int index = tune.addSection (copy, sectionIndex + 1);
+
+    if (index < 0)
+        return -1;
+
+    auto* s = tune.getSection (index);
+
+    // The melody moves on a seed; its locked notes stay (0.3, 15).
+    if (s->melody.has_value() && s->melody->source != MelodySource::improvise)
+    {
+        s->melody->source = MelodySource::autoGenerate;
+        regenerateMelody (tune, index);
+    }
+
+    // So does the countermelody.
+    for (auto& layer : s->layers)
+    {
+        if (layer.type != LayerType::countermelody)
+            continue;
+
+        layer.seed = layer.seed >= 0x7fffffff - 1 ? 1 : layer.seed + 1;
+        auto notes = generateCountermelody (tune, index, layer.seed);
+
+        // Keep what the user wrote by hand.
+        for (const auto& n : layer.notes)
+            if (n.locked)
+                notes.push_back (n);
+
+        layer.notes = std::move (notes);
+    }
+
+    // The rhythm steps to the kit's next pattern, when it has another.
+    const int current = kitPatterns.indexOf (s->rhythmPatternId);
+
+    if (kitPatterns.size() > 1)
+        s->rhythmPatternId = kitPatterns[(juce::jmax (0, current) + 1) % kitPatterns.size()];
+
+    // With a setlist the sibling would never play until it had an entry: it
+    // follows its original's first entry.
+    if (! tune.arrangement.setlist.empty())
+    {
+        auto& setlist = tune.arrangement.setlist;
+        TuneSetlistEntry entry;
+        entry.section = s->name;
+
+        size_t at = setlist.size();
+
+        for (size_t i = 0; i < setlist.size(); ++i)
+        {
+            if (setlist[i].section == originalName)
+            {
+                at = i + 1;
+                break;
+            }
+        }
+
+        setlist.insert (setlist.begin() + (long) at, entry);
+    }
+
+    return index;
+}
+
 //==============================================================================
 int resolveMelodyPitch (const MelodyPitch& pitch, const ChordCell* chord, int tonic, TuneMode mode)
 {

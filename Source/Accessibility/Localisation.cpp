@@ -968,7 +968,17 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "tune.export.done",                       "Exported {n} file(s) to {path}" },
         { "tune.export.failed",                     "Could not export: {errors}" },
         { "tune.export.notice.done",                "Tune exported: {n} file(s) written" },
-        { "tune.export.notice.failed",              "Tune export: {errors}" }
+        { "tune.export.notice.failed",              "Tune export: {errors}" },
+
+        // ---- visual polish: faces, rig strip and the preset browser --------------------------
+        { "amp.vuMeter",              "VU meter" },
+        { "amp.vuMeter.tooltip",      "The master output on a VU scale: 0 VU is -18 dBFS" },
+        { "amp.model",                "Amp model" },
+        { "easy.roomSize",            "Room size" },
+        { "easy.roomLight",           "The room's light: wider with the size, warmer with the wet level" },
+        { "presets.thumbnail",        "The preset's guitar" },
+        { "presets.thumbnailPending", "Drawing the guitar" },
+        { "presets.list",             "Presets" }
     };
 
     return catalog;
