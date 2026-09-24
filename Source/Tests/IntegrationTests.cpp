@@ -416,7 +416,7 @@ LUTHIER_TEST (Engine, sampleRateChangesAreSurvived)
     // Engine rule 5: the plugin must survive a host switching rates mid-session.
     LuthierEngine engine;
 
-    for (double rate : { 44100.0, 48000.0, 88200.0, 96000.0, 192000.0, 44100.0 })
+    for (double rate : { 44100.0, 48000.0, 88200.0, 96000.0, 176400.0, 192000.0, 44100.0 }) // qa-polish.md 1.3
     {
         engine.prepare (rate, kBlock);
 

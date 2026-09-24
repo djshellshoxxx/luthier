@@ -21,17 +21,17 @@ using namespace luthier::tests;
     lives here once; everything else in the suite just pays one increment. */
 namespace
 {
-    thread_local long allocationsOnThisThread = 0;
+    thread_local long g_allocs = 0;
 }
 
 struct AllocationCounter
 {
-    static long count() noexcept { return allocationsOnThisThread; }
+    static long count() noexcept { return g_allocs; }
 };
 
 void* operator new (std::size_t size)
 {
-    ++allocationsOnThisThread;
+    ++g_allocs;
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
         return p;
@@ -41,7 +41,7 @@ void* operator new (std::size_t size)
 
 void* operator new[] (std::size_t size)
 {
-    ++allocationsOnThisThread;
+    ++g_allocs;
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
         return p;
@@ -53,6 +53,13 @@ void operator delete (void* p) noexcept                   { std::free (p); }
 void operator delete[] (void* p) noexcept                 { std::free (p); }
 void operator delete (void* p, std::size_t) noexcept      { std::free (p); }
 void operator delete[] (void* p, std::size_t) noexcept    { std::free (p); }
+
+// performance-budget.md 0.4: the trap other test files reach through
+// LUTHIER_ALLOCATION_COUNTER (CaptureTests, TunePlayerTests, ...).
+namespace luthier::tests
+{
+    long allocationsOnThisThread() noexcept { return g_allocs; }
+}
 
 namespace
 {

@@ -34,6 +34,7 @@
 #include "Workshop/WorkshopBench.h"
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
+#include "Support/InstallLayout.h"
 
 namespace luthier
 {
@@ -449,6 +450,10 @@ public:
     /** Factory used by the exporter to make an offline instance. */
     static std::unique_ptr<juce::AudioProcessor> createOfflineInstance();
 
+    /** installer.md 6: what the constructor's first-run check found (first run,
+        or the version this install upgraded from). */
+    const InstallLayout::Result& getInstallLayoutResult() const noexcept { return installLayoutResult; }
+
 private:
     /** The advertised bus layout. A static member because BusesProperties is
         protected in AudioProcessor, and because it is needed in the constructor's
@@ -597,6 +602,7 @@ private:
     static juce::File resolveGuitarReference (const juce::String& reference);
 
     PartLibrary partLibrary;
+    InstallLayout::Result installLayoutResult;   // installer.md 6
     PartPtr capoPart;
     WorkshopGuitar currentGuitar;
     WorkshopBench bench { *this };

@@ -58,6 +58,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 {
     FactoryPresets::setProcessorForRanges (this);
 
+    // installer.md 6: the user folder tree, config/plugin.json and the
+    // .installed_version marker (first run / upgrade detection).
+    installLayoutResult = InstallLayout::ensure (InstallLayout::defaultRoot(), JucePlugin_VersionString);
+
     // guitar-workshop.md 0.6: a guitar type loads its factory guitar file.
     partLibrary.refresh();
 
