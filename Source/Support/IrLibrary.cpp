@@ -74,6 +74,12 @@ juce::Array<juce::File> IrLibrary::getCandidateFolders()
     for (int i = 0; i < 5 && walk.exists(); ++i)
     {
         candidates.add (walk.getChildFile ("Resources"));
+       #if JUCE_LINUX || JUCE_BSD
+        // installer.md 3.1: a packaged VST3 at <prefix>/lib/vst3/Luthier.vst3
+        // finds <prefix>/share/luthier four levels up.
+        if (i == 4)
+            candidates.add (walk.getChildFile ("share").getChildFile ("luthier"));
+       #endif
         walk = walk.getParentDirectory();
     }
 
