@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "UI/FirstRun.h"
 #include "UI/RangesUi.h"
 #include "Accessibility/Accessibility.h"
 
@@ -25,6 +26,10 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 {
     setLookAndFeel (&lookAndFeel);
 
+    // onboarding.md 5 (TUNE-HELP-ONBOARDING): the OS-following defaults, once per
+    // install, before anything reads the palette.
+    FirstRun::applyIfFirstRun();
+
     shownPalette = Palette::current();
     AccessibilitySettings::get().addChangeListener (this);
 
@@ -35,6 +40,9 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     // practice-tools 9: the drawer changes the space the panels have, so the
     // window relays out when it opens or is dragged taller.
     practicePanel.onHeightChanged = [this] { resized(); };
+
+    // onboarding.md 11: the drawer reopens as it was left.
+    practicePanel.setOpen (processor.getUiState().practiceDrawerOpen);
     addChildComponent (easyPanel);
     addChildComponent (advancedPanel);
 
@@ -180,6 +188,7 @@ LuthierAudioProcessorEditor::~LuthierAudioProcessorEditor()
 
     processor.getUiState().editorWidth = getWidth();
     processor.getUiState().editorHeight = getHeight();
+    processor.getUiState().practiceDrawerOpen = practicePanel.isOpen();   // onboarding 11
 
     tooltips.setLookAndFeel (nullptr);
     setLookAndFeel (nullptr);
@@ -664,6 +673,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     {
         practicePanel.setOpen (! practicePanel.isOpen());
         resized();
+        processor.getUiState().practiceDrawerOpen = practicePanel.isOpen();
         return true;
     }
 

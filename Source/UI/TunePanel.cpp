@@ -832,6 +832,14 @@ TunePanel::TunePanel (LuthierAudioProcessor& p, TunePlayer& pl, TuneSession& s)
     buildMelody();
     buildTransport();
 
+    // onboarding.md 8: hidden until owed.
+    addChildComponent (firstHint);
+    firstHint.onShownOrDismissed = [this]
+    {
+        setSize (getWidth(), getPreferredHeight());
+        resized();
+    };
+
     session.onChanged = [this] { refresh(); };
 
     // The processor normally does this; a session nobody has wired yet
@@ -1304,6 +1312,14 @@ void TunePanel::refresh()
 void TunePanel::timerCallback()
 {
     updateTransport();
+
+    if (isShowing())
+        showFirstEncounterHintIfDue();
+}
+
+bool TunePanel::showFirstEncounterHintIfDue()
+{
+    return firstHint.showIfDue();
 }
 
 void TunePanel::updateTransport()
@@ -1579,6 +1595,7 @@ int TunePanel::getPreferredHeight() const
     const int button = Metrics::buttonHeight;
 
     return Metrics::grid
+         + (firstHint.isVisible() ? FirstEncounterHint::kHeight + kRowGap : 0)   // onboarding 8
          + 3 * (button + kRowGap)                                     // header: title, buttons, tempo/key
          + kHeader + kStripHeight + kRowGap                           // sections
          + kHeader + button + kErrorLine + kPillsHeight + kRowGap     // progression
@@ -1664,6 +1681,13 @@ void TunePanel::resized()
             r.removeFromLeft (gap);
         }
     };
+
+    // onboarding.md 8: the first-encounter hint at the very top.
+    if (firstHint.isVisible())
+    {
+        firstHint.setBounds (bounds.removeFromTop (FirstEncounterHint::kHeight));
+        bounds.removeFromTop (kRowGap);
+    }
 
     // --- header (3.1: "TUNE [My New Tune] [Save] [Export] Tempo [120] Key [C]") ---------
     {

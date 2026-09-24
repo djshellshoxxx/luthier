@@ -42,6 +42,16 @@ namespace
               a11yText (a11yExisted ? a11yFile.loadFileAsString() : juce::String()),
               a11yState (AccessibilitySettings::get().toVar())
         {
+            /*  The build ships no translation catalogs yet (Resources/i18n is
+                empty), and Localisation refuses a locale it has no catalog for.
+                A stub catalog per locale these tests pick lets the choice stick,
+                which is what is under test here - not the translations. */
+            catalogs.getFile().createDirectory();
+
+            for (auto code : { "de", "en-GB", "fr", "pt-BR", "es-419", "zh-CN", "zh-TW", "ja", "es" })
+                catalogs.getFile().getChildFile (juce::String (code) + ".json").replaceWithText ("{ \"common.ok\": \"OK\" }");
+
+            Localisation::get().setCustomCatalogDirectory (catalogs.getFile());
         }
 
         ~PreservedSettings()
@@ -60,7 +70,10 @@ namespace
             AccessibilitySettings::get().dispatchPendingMessages();
 
             FirstRun::setStateForTesting (true, false);
+            Localisation::get().setCustomCatalogDirectory ({});
         }
+
+        juce::TemporaryFile catalogs;
 
         juce::File uiFile, a11yFile;
         bool uiExisted, a11yExisted;

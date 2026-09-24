@@ -434,6 +434,9 @@ public:
         int  editorHeight = 720;
         AuditionPhrase::Type auditionType = AuditionPhrase::Type::MajorScale;
 
+        /** onboarding.md 11 (TUNE-HELP-ONBOARDING): the practice drawer reopens as left. */
+        bool practiceDrawerOpen = false;
+
         /** workshop-ui.md 7: the bench's eight A/B guitars, workspace not preset. */
         std::array<juce::var, 8> benchSlots;
     };

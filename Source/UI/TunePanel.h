@@ -40,6 +40,7 @@
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "FirstEncounterHint.h"
 #include "../Tune/TuneSession.h"
 
 #include <cmath>
@@ -228,6 +229,12 @@ public:
     /** The 30 Hz drain, callable from tests. */
     void updateTransport();
 
+    /** onboarding.md 8 (TUNE-HELP-ONBOARDING): the one-time hint at the top of
+        the tab, in the first session only. The timer calls this while the tab
+        is on screen; the tab grows by the hint's height while it shows. */
+    bool showFirstEncounterHintIfDue();
+    FirstEncounterHint& getFirstEncounterHint() noexcept { return firstHint; }
+
     //==========================================================================
     // For tests: the controls, by what they do.
     TuneSession& getSession() noexcept               { return session; }
@@ -286,6 +293,8 @@ private:
 
     bool updating = false;
     TunePlayhead playhead;
+
+    FirstEncounterHint firstHint { FirstEncounterHint::kTuneKey, FirstEncounterHint::kTuneText };
 
     // --- header -------------------------------------------------------------------
     juce::TextEditor titleEditor;

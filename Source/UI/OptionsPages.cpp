@@ -1,4 +1,5 @@
 #include "OptionsPages.h"
+#include "FirstRun.h"
 #include "RangesUi.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
@@ -1999,6 +2000,28 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
             });
     };
 
+    // onboarding.md 12 (TUNE-HELP-ONBOARDING): confirmed with a modal.
+    addAndMakeVisible (restoreFirstRunButton);
+    restoreFirstRunButton.setTooltip ("Clears your settings and one-time hints so the next launch behaves as "
+                                      "a fresh install. Your presets, guitars, tunes and parts are kept.");
+    restoreFirstRunButton.onClick = [this]
+    {
+        juce::NativeMessageBox::showAsync (
+            juce::MessageBoxOptions()
+                .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                .withTitle ("Restore first-run experience?")
+                .withMessage ("Your settings go back to a fresh install's, every one-time hint and the tour "
+                              "come back, and the next launch behaves as the first.\n\n"
+                              "Your presets, guitars, tunes and parts are kept.")
+                .withButton ("Restore")
+                .withButton ("Cancel"),
+            [safe = juce::Component::SafePointer<DiagnosticsPage> (this)] (int result)
+            {
+                if (safe != nullptr && result == 1)
+                    safe->restoreFirstRun();
+            });
+    };
+
     styleNote (explanation, Palette::textMuted, 11.0f);
     explanation.setText ("Everything here is off until you switch it on, and everything it "
                          "writes stays on this machine until you send it somewhere.",
@@ -2018,6 +2041,15 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
                         juce::dontSendNotification);
     addAndMakeVisible (mirrorNote);
 
+    refresh();
+}
+
+void DiagnosticsPage::restoreFirstRun()
+{
+    FirstRun::restoreFirstRunExperience();
+
+    // The processor cannot read UiPreferences, so it is told what Restore left.
+    RangesUi::setRandomiseRespectsStock (processor, RangesUi::randomiseRespectsStock());
     refresh();
 }
 
@@ -2044,7 +2076,7 @@ void DiagnosticsPage::paint (juce::Graphics& g)
 
     drawHeading (g, bounds.removeFromTop (18), "WHAT LUTHIER RECORDS FOR YOU");
     drawHeading (g, { 0, 150, getWidth(), 18 }, "FILES AND WINDOWS");
-    drawHeading (g, { 0, 262, getWidth(), 18 }, "FEATURE FLAGS");
+    drawHeading (g, { 0, 296, getWidth(), 18 }, "FEATURE FLAGS");
 }
 
 void DiagnosticsPage::resized()
@@ -2080,7 +2112,10 @@ void DiagnosticsPage::resized()
         hardResetButton.setBounds (row.removeFromLeft (280));
     }
 
-    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (284).withHeight (32));
+    bounds.removeFromTop (6);
+    restoreFirstRunButton.setBounds (bounds.removeFromTop (Metrics::buttonHeight).removeFromLeft (240));
+
+    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (318).withHeight (32));
 }
 
 //==============================================================================
