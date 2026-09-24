@@ -1712,7 +1712,7 @@ void LuthierAudioProcessor::panic()
 
 void LuthierAudioProcessor::resetEverything()
 {
-    pushUndoState ("Reset");
+    pushUndoState ("Reset everything");
 
     panic();
     presets.resetToDefaults();

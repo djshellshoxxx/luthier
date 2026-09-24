@@ -297,9 +297,11 @@ public:
         the confirmation's own callback. Returns the clamp count. */
     int setAllFamilies (bool advanced);
 
+    /** The summary row's Clamp button (advanced-ranges.md 6.2 item 4). Public for tests. */
+    void clampOne (const juce::String& parameterId);
+
 private:
     void masterToggled();
-    void clampOne (const juce::String& parameterId);
 
     juce::ToggleButton masterToggle { "Advanced ranges for this preset" };
     juce::ToggleButton warningToggle { "Always show marked values as warning colour" };

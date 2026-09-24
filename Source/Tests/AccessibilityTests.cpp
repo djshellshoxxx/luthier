@@ -615,6 +615,9 @@ LUTHIER_TEST (Accessibility, shortcutDefaultsMatchTheCanonicalTable)
         { "setlistNext",     KP (KP::pageDownKey) },
         { "undo",            KP ('z', cmd, 0) },
         { "redo",            KP ('z', cmd | shift, 0) },
+       #if ! JUCE_MAC
+        { "redoAlt",         KP ('y', cmd, 0) },   // action-and-undo.md 9
+       #endif
         { "save",            KP ('s', cmd, 0) },
         { "saveAs",          KP ('s', cmd | shift, 0) },
         { "presetBrowser",   KP ('o', cmd, 0) },

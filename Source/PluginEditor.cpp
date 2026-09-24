@@ -757,7 +757,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     }
 
     if (is ("undo")) { processor.undo(); return true; }
-    if (is ("redo")) { processor.redo(); return true; }
+    if (is ("redo") || is ("redoAlt")) { processor.redo(); return true; }   // action-and-undo.md 9
 
     if (is ("save"))
     {
@@ -773,7 +773,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
     if (is ("resetAll"))
     {
-        processor.pushUndoState ("Reset everything");
+        // action-and-undo.md 0.1: resetEverything pushes its own entry.
         processor.resetEverything();
         return true;
     }
