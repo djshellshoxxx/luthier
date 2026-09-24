@@ -126,6 +126,13 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     // practice-tools 8: yesterday's unsaved session buffers go.
     SessionRecorder::cleanUpOldTempFiles (SessionRecorder::getTempDirectory());
 
+    // guitar-workshop 0.6 / host-integration 3: the default guitar's parts are
+    // the overlapping parameters' starting values. Written here, before a host
+    // reads anything, so the first prepare does not move parameters under it
+    // (clap-validator: parameters must not change by themselves).
+    if (auto* type = apvts.getRawParameterValue (ParamIDs::guitarType))
+        loadGuitarForType ((GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1, (int) type->load()));
+
     // action-and-undo.md 3.1: one undo entry per parameter gesture.
     for (auto* parameter : getParameters())
         parameter->addListener (this);
@@ -156,6 +163,16 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     // gui-integration 15: left for the window to find, because there may not be
     // one right now. claimSampleRateChange decides whether it is worth saying.
     preparedSampleRate.store (sampleRate, std::memory_order_relaxed);
+
+    // The per-string state (gauges, fine tune, realism detune) as it stands -
+    // a restored session's, or the loaded guitar's - so the applyExtraState
+    // below puts back what the engine had rather than stale defaults.
+    // Only once there is something to keep: a fresh instance's saved extras
+    // are the defaults, and would overwrite what the guitar and parameters set.
+    const bool keepExtraState = initialStateApplied;
+
+    if (keepExtraState)
+        presets.captureExtraState();
 
     engine.prepare (sampleRate, samplesPerBlock);
     sidechainCopy.setSize (2, juce::jmax (1, samplesPerBlock), false, true, false);
@@ -208,8 +225,18 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     samplePosition = 0;
 
+    // The guitar may have been built into the engine before it knew its sample
+    // rate (the constructor loads the default one): rebuild the engine side
+    // now. Parameters are not written - they are the player's or the host's.
+    if (partsGuitarLoaded)
+        engine.applyWorkshopGuitar (mapSpec (currentGuitar), engine.getGuitarType());
+
     bridge.applyAllNow();
-    presets.applyExtraState();
+
+    if (presets.hasExtraState())
+        presets.applyExtraState();
+
+    initialStateApplied = true;
 
     updateLatency();
     updateRoutingLatencyReport();
@@ -819,6 +846,11 @@ void LuthierAudioProcessor::writeGuitarParameters (const DerivedAcoustics& d)
         caller's. Values outside a parameter's range clamp to it. */
     auto write = [this] (const juce::String& id, double plain)
     {
+        // A value the host wrote after the guitar type is the host's (a session
+        // restoring both, or automation landing together): keep it.
+        if (bridge.writtenSinceGuitarType (id))
+            return;
+
         if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (id)))
             p->setValueNotifyingHost (p->convertTo0to1 ((float) plain));
     };
@@ -2035,6 +2067,23 @@ void LuthierAudioProcessor::changeProgramName (int, const juce::String&)
 //==============================================================================
 void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
+    // A parameter change the bridge has not built yet (a guitar type, a tuning)
+    // is part of what the host is saving: build it first.
+    if (juce::MessageManager::existsAndIsCurrentThread())
+    {
+        // Never prepared (a host may save first): build the instrument now, as
+        // prepareToPlay would, so the state is the one a prepared instance saves.
+        // (No applyExtraState: with no session restored it holds only the
+        // defaults, and would overwrite what the guitar load just set.)
+        if (! initialStateApplied)
+        {
+            bridge.applyAllNow();
+            initialStateApplied = true;
+        }
+
+        bridge.flushPendingStructuralChange();
+    }
+
     presets.captureExtraState();
 
     auto* root = new juce::DynamicObject();
@@ -2070,7 +2119,17 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 
     // character-wear 1: the seed and the wear map are the instrument's identity,
     // so they belong to the preset rather than to the user.
-    root->setProperty ("character", engine.getCharacterEngine().toVar());
+    // The character amount is the character macro (character-wear 0.3): save
+    // the parameter, which the engine only picks up on its next block.
+    {
+        auto character = engine.getCharacterEngine().toVar();
+
+        if (auto* o = character.getDynamicObject())
+            if (auto* amount = apvts.getRawParameterValue (ParamIDs::macroCharacter))
+                o->setProperty ("amount", (double) amount->load());
+
+        root->setProperty ("character", character);
+    }
 
     // tone-match 7: the IR slots store their file by path plus their settings.
     {
@@ -2089,6 +2148,11 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 
     // tune-builder 15: the tune being built is part of the session.
     root->setProperty ("tune", tuneSession.toState());
+
+    // ambiguity-resolutions 5.2: the morph slider is a host parameter, so the
+    // session keeps it even though a preset (which it morphs between) does not.
+    if (auto* morph = apvts.getRawParameterValue (ParamIDs::presetMorphPosition))
+        root->setProperty ("presetMorphPosition", (double) morph->load());
 
     const auto json = juce::JSON::toString (juce::var (root), false);
 
@@ -2183,6 +2247,11 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
 
     presets.applyExtraState();
     bridge.applyAllNow();
+    initialStateApplied = true;
+
+    if (root->hasProperty ("presetMorphPosition"))
+        if (auto* morph = apvts.getParameter (ParamIDs::presetMorphPosition))
+            morph->setValueNotifyingHost (morph->convertTo0to1 ((float) (double) root->getProperty ("presetMorphPosition")));
 
     // Whatever the host sends next, this state is the one the user saved.
     ignoreNextProgramChange.store (true);

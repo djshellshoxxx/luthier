@@ -666,6 +666,7 @@ private:
     bool transportWasRunning = false;
 
     double currentSampleRate = 44100.0;
+    bool initialStateApplied = false;   ///< the bridge has built the instrument once (prepare or save)
     int currentBlockSize = 512;
     int reportedLatency = 0;
 
