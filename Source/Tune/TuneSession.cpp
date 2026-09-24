@@ -9,6 +9,11 @@ TuneSession::TuneSession()
       clock ([] { return juce::Time::getMillisecondCounterHiRes(); })
 {
     openNotes.fill ({ -1.0, 0 });
+
+    // An untouched session tune carries no timestamps: two fresh instances
+    // must save the same state (host-integration 3). saveAs() stamps it.
+    tune.meta.created.clear();
+    tune.meta.modified.clear();
 }
 
 //==============================================================================

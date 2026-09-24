@@ -279,6 +279,7 @@ private:
     double size = 0.5, decaySeconds = 2.0, damping = 0.5, preDelayMs = 20.0, mix = 0.25;
     int character = 0;   // 0 = plate, 1 = hall, 2 = room, 3 = chamber
 
+    static constexpr double kMaxLineSeconds = 0.35;
     std::vector<double> lines[kFdnSize];
     int lineLengths[kFdnSize] = {};
     int lineIndex[kFdnSize] = {};
