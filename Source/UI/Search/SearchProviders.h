@@ -325,6 +325,48 @@ private:
     SearchServices* services;
 };
 
+/** rhythm-engine 7 / global-search 12: genre kits ("funk" finds "Genre kit:
+    Funk 16th"). Applied as Easy's kit list applies them. */
+class GenreKitProvider : public SearchProvider
+{
+public:
+    explicit GenreKitProvider (LuthierAudioProcessor& processor);
+
+    juce::String getId() const override { return "kit"; }
+    juce::uint32 getGeneration() const override;
+    void collect (std::vector<SearchItem>& out) const override;
+    Availability availabilityOf (const SearchItem&) const override { return Availability::available; }
+    bool activate (const SearchItem&, ActivationKind, SearchContext&) override;
+
+private:
+    LuthierAudioProcessor& processor;
+};
+
+/** tune-builder / global-search 12: `.luthiertune` files - the factory
+    templates and the user's tunes. Enter loads one into the Tune Builder and
+    shows the TUNE tab. */
+class TuneProvider : public SearchProvider
+{
+public:
+    explicit TuneProvider (LuthierAudioProcessor& processor);
+
+    juce::String getId() const override { return "tune"; }
+    juce::uint32 getGeneration() const override { return generation; }
+    void collect (std::vector<SearchItem>& out) const override;
+    Availability availabilityOf (const SearchItem&) const override { return Availability::available; }
+    bool activate (const SearchItem&, ActivationKind, SearchContext&) override;
+
+    /** Rescans the folders (collect never touches disk, 8). */
+    void rescan();
+
+private:
+    struct Entry { juce::String id, name; juce::File file; bool factory; };
+
+    LuthierAudioProcessor& processor;
+    std::vector<Entry> entries;
+    juce::uint32 generation = 1;
+};
+
 /** The built-in providers, for a processor with (or without) an editor. */
 void addDefaultProviders (class SearchIndex& index, LuthierAudioProcessor& processor,
                           SearchServices* services, const ActionRegistry* registry);

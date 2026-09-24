@@ -11,6 +11,9 @@
 #include "../../Accessibility/Localisation.h"
 #include "../../Practice/PracticeRoutine.h"
 #include "../HelpContent.h"
+#include "../../Rhythm/GenreKit.h"
+#include "../../Tune/TuneTemplates.h"
+#include "../../Tune/TuneSession.h"
 
 namespace luthier::search
 {
@@ -691,6 +694,7 @@ GuitarProvider::GuitarProvider (LuthierAudioProcessor& p, SearchServices* s) : p
 
 void GuitarProvider::rescan()
 {
+    const auto previous = entries;
     entries.clear();
 
     auto scan = [this] (const juce::File& root, bool factory)
@@ -714,7 +718,14 @@ void GuitarProvider::rescan()
     scan (PartLibrary::getUserGuitarsFolder(), false);
 
     std::sort (entries.begin(), entries.end(), [] (const Entry& a, const Entry& b) { return a.reference < b.reference; });
-    ++generation;
+
+    bool changed = previous.size() != entries.size();
+
+    for (size_t i = 0; ! changed && i < entries.size(); ++i)
+        changed = previous[i].reference != entries[i].reference;
+
+    if (changed)
+        ++generation;
 }
 
 void GuitarProvider::collect (std::vector<SearchItem>& out) const
@@ -1103,6 +1114,142 @@ bool SettingProvider::activate (const SearchItem& item, ActivationKind, SearchCo
 }
 
 //==============================================================================
+GenreKitProvider::GenreKitProvider (LuthierAudioProcessor& p) : processor (p) {}
+
+juce::uint32 GenreKitProvider::getGeneration() const
+{
+    juce::uint32 h = 17u + (juce::uint32) processor.getGenreKits().getNumKits();
+
+    for (const auto& name : processor.getGenreKits().getNames())
+        h = hashString (h, name);
+
+    return h;
+}
+
+void GenreKitProvider::collect (std::vector<SearchItem>& out) const
+{
+    auto& kits = processor.getGenreKits();
+
+    for (int i = 0; i < kits.getNumKits(); ++i)
+    {
+        const auto& kit = kits.getKit (i);
+
+        SearchItem item;
+        item.id = "kit:" + kit.name;
+        item.kind = ItemKind::provider;
+        item.index = i;
+        item.target = kit.name;
+        item.title = "Genre kit: " + kit.name;
+        item.englishTitle = item.title;
+        item.breadcrumb = "Rhythm";
+        item.keywords = kit.tags;
+        item.keywords.add ("rhythm");
+        item.keywords.add ("style");
+
+        out.push_back (std::move (item));
+    }
+}
+
+bool GenreKitProvider::activate (const SearchItem& item, ActivationKind, SearchContext& context)
+{
+    const int index = processor.getGenreKits().indexOf (item.target);
+
+    if (index < 0)
+    {
+        context.showFooterMessage (SearchCatalog::text ("search.noLongerExists", { { "name", item.title } }), true);
+        RecentStore::get().remove (item.id);
+        return false;
+    }
+
+    // As Easy's kit list does: choosing a style is a request to hear it.
+    processor.applyGenreKit (index);
+    processor.getEngine().getRhythmEngine().setEnabled (true);
+    return true;
+}
+
+//==============================================================================
+TuneProvider::TuneProvider (LuthierAudioProcessor& p) : processor (p)
+{
+    rescan();
+}
+
+void TuneProvider::rescan()
+{
+    std::vector<Entry> found;
+
+    auto scan = [&found] (const juce::File& folder, bool factory)
+    {
+        if (! folder.isDirectory())
+            return;
+
+        for (const auto& f : folder.findChildFiles (juce::File::findFiles, true, juce::String ("*") + TuneFile::kFileExtension))
+            found.push_back ({ juce::String ("tune:") + (factory ? "factory/" : "user/")
+                                 + f.getRelativePathFrom (folder).replaceCharacter ('\\', '/'),
+                               f.getFileNameWithoutExtension(), f, factory });
+    };
+
+    scan (TuneTemplateLibrary::getFactoryDirectory(), true);
+    scan (TuneFile::getUserDirectory(), false);
+
+    std::sort (found.begin(), found.end(), [] (const Entry& a, const Entry& b) { return a.id < b.id; });
+
+    bool changed = found.size() != entries.size();
+
+    for (size_t i = 0; ! changed && i < found.size(); ++i)
+        changed = found[i].id != entries[i].id;
+
+    if (changed)
+    {
+        entries = std::move (found);
+        ++generation;
+    }
+}
+
+void TuneProvider::collect (std::vector<SearchItem>& out) const
+{
+    for (const auto& e : entries)
+    {
+        SearchItem item;
+        item.id = e.id;
+        item.kind = ItemKind::provider;
+        item.target = e.file.getFullPathName();
+        item.title = e.name;
+        item.englishTitle = e.name;
+        item.breadcrumb = e.factory ? "Tune template" : "Tune";
+        item.keywords.add ("tune");
+        item.keywords.add ("song");
+
+        out.push_back (std::move (item));
+    }
+}
+
+bool TuneProvider::activate (const SearchItem& item, ActivationKind, SearchContext& context)
+{
+    const juce::File file (item.target);
+    juce::String error;
+
+    if (! file.existsAsFile())
+    {
+        context.showFooterMessage (SearchCatalog::text ("search.noLongerExists", { { "name", item.title } }), true);
+        RecentStore::get().remove (item.id);
+        rescan();
+        return false;
+    }
+
+    if (! processor.getTuneSession().load (file, error))
+    {
+        context.showFooterMessage (error, true);
+        return false;
+    }
+
+    UiLocation tuneTab;
+    tuneTab.steps.push_back (LocationStep::make (LocationStep::Type::mode, "Advanced"));
+    tuneTab.steps.push_back (LocationStep::make (LocationStep::Type::workspaceTab, "TUNE"));
+    context.openLocation (tuneTab, item.title);
+    return true;
+}
+
+//==============================================================================
 void addDefaultProviders (SearchIndex& index, LuthierAudioProcessor& processor,
                           SearchServices* services, const ActionRegistry* registry)
 {
@@ -1121,6 +1268,8 @@ void addDefaultProviders (SearchIndex& index, LuthierAudioProcessor& processor,
     index.addProvider (std::make_unique<SnapshotProvider> (processor));
     index.addProvider (std::make_unique<HelpProvider> (services));
     index.addProvider (std::make_unique<SettingProvider> (services));
+    index.addProvider (std::make_unique<GenreKitProvider> (processor));
+    index.addProvider (std::make_unique<TuneProvider> (processor));
 }
 
 } // namespace luthier::search

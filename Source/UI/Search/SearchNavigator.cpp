@@ -568,6 +568,13 @@ void SearchNavigator::openPalette (const juce::String& initialText)
     if (processor.getMidiLearn().isArmed())
         editor.setMidiLearnArmed (false);
 
+    // The folder-backed lists are refreshed here, not in collect (8).
+    if (auto* guitars = dynamic_cast<GuitarProvider*> (index.getProvider ("guitar")))
+        guitars->rescan();
+
+    if (auto* tunes = dynamic_cast<TuneProvider*> (index.getProvider ("tune")))
+        tunes->rescan();
+
     palette->open (initialText);
 }
 

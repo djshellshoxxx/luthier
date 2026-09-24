@@ -31,6 +31,7 @@
 #include "../UI/Search/SearchCatalog.h"
 #include "../UI/Search/SearchNavigator.h"
 #include "../UI/Search/SearchOptionsGroup.h"
+#include "../Tune/TuneTemplates.h"
 
 #if defined (LUTHIER_ALLOCATION_COUNTER)
 namespace luthier::tests
@@ -656,6 +657,31 @@ LUTHIER_TEST (SearchEditor, GS06_contentIndexedAndFresh)
         }
 
     std::cout << "    presets " << presets.getNumPresets() << ", parts " << parts << std::endl;
+
+    // global-search.md 12: genre kits and tune files.
+    auto& kits = w.p().getGenreKits();
+
+    for (int i = 0; i < kits.getNumKits(); ++i)
+        CHECK_MSG (w.item ("kit:" + kits.getKit (i).name) != nullptr, "genre kit " + kits.getKit (i).name);
+
+    for (int i = 0; i < kits.getNumKits(); ++i)
+        if (kits.getKit (i).name.containsIgnoreCase ("funk"))
+        {
+            bool found = false;
+
+            for (const auto& r : w.nav->getIndex().query ("funk"))
+                found = found || r.item->id == "kit:" + kits.getKit (i).name;
+
+            CHECK_MSG (found, "'funk' does not find " + kits.getKit (i).name);
+            break;
+        }
+
+    int tunes = 0;
+
+    for (auto* item : w.nav->getIndex().getItems())
+        tunes += item->id.startsWith ("tune:") ? 1 : 0;
+
+    CHECK (tunes >= (int) TuneTemplateLibrary::loadFactory().size());
 
     // A new user preset appears on the next query.
     const juce::String name ("Search Test Preset " + juce::String (juce::Random::getSystemRandom().nextInt (100000)));
