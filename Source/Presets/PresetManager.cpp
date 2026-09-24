@@ -455,6 +455,9 @@ bool PresetManager::fromVar (const juce::var& data)
     const auto magic = obj->getProperty ("magic").toString();
     const auto legacy = obj->getProperty ("format").toString();
 
+    lastLoadMigrated = false;
+    lastLoadSchema = 0;
+
     if (magic != kMagic && legacy != kLegacyMagic)
     {
         // error-recovery 1: "magic field missing or wrong".
@@ -481,6 +484,13 @@ bool PresetManager::fromVar (const juce::var& data)
                          "Preset has no usable schema version");
         return false;
     }
+
+    lastLoadSchema = schema;
+
+    // file-formats 2: the old spelling of the marker is read, and written back
+    // as `magic` on the next save - a migration.
+    if (magic != kMagic)
+        lastLoadMigrated = true;
 
     if (schema > kSchemaVersion)
     {
@@ -538,6 +548,11 @@ bool PresetManager::fromVar (const juce::var& data)
             ranges because there was nothing else to save them against. */
         const bool hasRangesBlock = obj->hasProperty ("ranges");
 
+        // file-formats 2: a file without the ranges block predates advanced
+        // ranges; the loader derives one (below), which is the migration named there.
+        if (! hasRangesBlock)
+            lastLoadMigrated = true;
+
         // guitar-workshop.md 9: retired placement parameters, kept for the guitar.
         for (int slot = 0; slot < 3; ++slot)
         {
@@ -551,6 +566,7 @@ bool PresetManager::fromVar (const juce::var& data)
             {
                 // Their old ranges: 0.02-0.48 linear, and 1-6 mm skewed to 3.5.
                 legacy.present = true;
+                lastLoadMigrated = true;
                 legacy.positionFraction = juce::jmap ((double) params->getProperty (positionId), 0.02, 0.48);
 
                 juce::NormalisableRange<float> heightRange (1.0f, 6.0f);
@@ -590,6 +606,8 @@ bool PresetManager::fromVar (const juce::var& data)
         {
             if (auto* amount = apvts.getParameter (ParamIDs::feedbackAmount))
                 amount->setValueNotifyingHost (amount->convertTo0to1 (50.0f));
+
+            lastLoadMigrated = true;
         }
 
         /*  strum-dynamics.md 1.1: live chords cross at strum_crossing_sps. A
@@ -605,6 +623,7 @@ bool PresetManager::fromVar (const juce::var& data)
                 const double ms = oldSpeed->convertFrom0to1 ((float) juce::jlimit (0.0, 1.0, (double) params->getProperty (ParamIDs::strumSpeed)));
                 const double sps = ms > 0.0 ? 1000.0 / ms : 800.0;
                 crossing->setValueNotifyingHost (crossing->convertTo0to1 ((float) juce::jlimit (20.0, 800.0, sps)));
+                lastLoadMigrated = true;
             }
         }
 
@@ -616,6 +635,7 @@ bool PresetManager::fromVar (const juce::var& data)
         {
             bool already = false;
             int freeSlot = -1;
+            lastLoadMigrated = true;
 
             for (int slot = 0; slot < EffectsChain::kNumSlots; ++slot)
             {
@@ -851,6 +871,11 @@ bool PresetManager::loadPreset (const juce::File& file)
         return false;
     }
 
+    // file-formats 2: the original of a migrated file is kept, before anything
+    // can save the migrated form over it.
+    if (lastLoadMigrated)
+        backupMigratedOriginal (file, lastLoadSchema);
+
     currentName = file.getFileNameWithoutExtension();
     currentFile = file;
     applyExtraState();
@@ -907,6 +932,26 @@ void PresetManager::backupBeforeOverwrite (const juce::File& target)
                                              + "-" + juce::String (i) + kFileExtension);
 
     target.copyFileTo (destination);
+}
+
+juce::File PresetManager::backupMigratedOriginal (const juce::File& file, int schema)
+{
+    if (! file.existsAsFile())
+        return {};
+
+    const auto today = juce::Time::getCurrentTime().formatted ("%Y-%m-%d");
+    auto folder = file.getParentDirectory().getChildFile ("Backup").getChildFile (today);
+    auto destination = folder.getChildFile (file.getFileNameWithoutExtension()
+                                              + "-v" + juce::String (juce::jmax (0, schema)) + kFileExtension);
+
+    // Loaded again the same day: the original is the same bytes, already kept.
+    if (destination.existsAsFile())
+        return destination;
+
+    if (! folder.createDirectory())
+        return {};
+
+    return file.copyFileTo (destination) ? destination : juce::File();
 }
 
 void PresetManager::pruneOldBackups()

@@ -1,5 +1,8 @@
 #include "PerformanceCapture.h"
 
+#include "../DSP/Slap/SlapEngine.h"
+#include "../DSP/Slide/SlideEngine.h"
+
 #include "../Model/Playing/TuningEngine.h"
 #include "../Routing/MidiOutRouter.h"
 
@@ -129,6 +132,12 @@ void PerformanceCapture::prepare (double rate)
     lastMeterBpm = -1.0;
     lastMeterNumerator = lastMeterDenominator = -1;
 
+    chordHeldCount = -1;
+    chordPending = false;
+    lastChordSymbol = ChordSymbol {};
+    lastBarPressure = -1;
+    lastBarFret = -1.0;
+
     ring.reset();
     clearTake();
 }
@@ -196,6 +205,22 @@ CaptureRecord PerformanceCapture::makeRecord (CaptureRecord::Kind kind, int samp
     if (record.musical)
         record.ppq = clock.blockStartPpq
                        + (double) offset * clock.bpm / (60.0 * juce::jmax (1.0, clock.sampleRate));
+
+    return record;
+}
+
+CaptureRecord PerformanceCapture::makeRecordAtSample (CaptureRecord::Kind kind, juce::int64 sample) const noexcept
+{
+    CaptureRecord record;
+    record.kind = kind;
+    record.sample = sample;
+    record.musical = clock.transportPlaying;
+
+    // Extrapolated back through the block's tempo: the sample is at most a
+    // burst window behind, over which the tempo is what this block says.
+    if (record.musical)
+        record.ppq = clock.blockStartPpq
+                       + (double) (sample - clock.blockStartSample) * clock.bpm / (60.0 * juce::jmax (1.0, clock.sampleRate));
 
     return record;
 }
@@ -326,13 +351,119 @@ void PerformanceCapture::captureStringActivity (const StringActivityQueue& activ
         const auto& e = activity[i];
         const int s = juce::jlimit (0, kMaxStrings - 1, e.stringIndex);
 
-        if (e.isNoteOn)
+        if (e.kind == StringActivityEvent::Kind::bassTechnique)
+            bassTechnique (e.sampleOffset, s, bassTechniqueName (e.code, e.flags), e.position);
+        else if (e.isNoteOn)
             noteOn (e.sampleOffset, s, e.midiNote,
                     (double) (e.midiNote - cappedOpenNotes[(size_t) s].load (std::memory_order_relaxed)),
                     e.velocity);
         else
             noteOff (e.sampleOffset, s);
     }
+}
+
+const char* PerformanceCapture::bassTechniqueName (int slapType, int flags) noexcept
+{
+    // midi-export's BASS_TECH vocabulary: slap / pop / ghost / lhslap / thump / pluck.
+    if ((flags & StringActivityEvent::kGhost) != 0)
+        return "ghost";
+
+    if ((flags & StringActivityEvent::kRebound) != 0)
+        return "thump";              // the double thump's up-stroke (bass-techniques 4)
+
+    switch ((SlapType) slapType)
+    {
+        case SlapType::pop:          return "pop";
+        case SlapType::thumb:
+        case SlapType::palm:
+        case SlapType::bodyTap:
+        case SlapType::numTypes:
+        default:                     return "slap";
+    }
+}
+
+void PerformanceCapture::captureChord (const ChordDetector& detector) noexcept
+{
+    if (! isRecording())
+    {
+        chordHeldCount = -1;         // re-read the set when recording resumes
+        chordPending = false;
+        return;
+    }
+
+    const int* held = detector.getHeldNotes();
+    const int count = juce::jlimit (0, (int) chordHeld.size(), detector.getNumHeldNotes());
+
+    bool same = count == chordHeldCount;
+
+    for (int i = 0; same && i < count; ++i)
+        same = held[i] == chordHeld[(size_t) i];
+
+    if (! same)
+    {
+        for (int i = 0; i < count; ++i)
+            chordHeld[(size_t) i] = held[i];
+
+        chordHeldCount = count;
+        chordChangedAt = clock.blockStartSample;
+        chordPending = true;
+        return;
+    }
+
+    if (! chordPending)
+        return;
+
+    // The burst window: a strum's notes arrive over tens of milliseconds, and
+    // the chord is what is held once they have (rhythm-engine 2).
+    const auto window = (juce::int64) (ChordDetector::kBurstWindowSeconds * juce::jmax (1.0, clock.sampleRate));
+
+    if (clock.blockStartSample - chordChangedAt < window)
+        return;
+
+    chordPending = false;
+
+    const auto symbol = detector.detect (held, count);
+
+    if (symbol == lastChordSymbol)
+        return;
+
+    lastChordSymbol = symbol;
+
+    // Unknown (too few notes, or none) is a gap in the chord track, not a symbol.
+    if (! symbol.isKnown())
+        return;
+
+    auto record = makeRecordAtSample (CaptureRecord::Kind::chord, chordChangedAt);
+    symbol.format (record.text, (int) sizeof (record.text));
+    ring.push (record);
+}
+
+void PerformanceCapture::captureSlideBar (const SlideEngine& slide) noexcept
+{
+    if (! isRecording())
+        return;
+
+    const double fret = slide.isEnabled() ? slide.getOverlayFret() : -1.0;
+    const int pressure = fret < 0.0 ? 0 : (slide.getSettings().pressure < kLightPressure ? 1 : 2);
+
+    const bool moved = fret >= 0.0 && lastBarFret >= 0.0 && std::abs (fret - lastBarFret) >= kBarStepFrets;
+
+    if (pressure == lastBarPressure && ! moved)
+        return;
+
+    // Nothing has landed yet: the bar off the strings is not an event.
+    if (pressure == 0 && lastBarPressure <= 0)
+    {
+        lastBarPressure = 0;
+        return;
+    }
+
+    lastBarPressure = pressure;
+
+    if (fret >= 0.0)
+        lastBarFret = fret;
+
+    slideBar (0, lastBarFret, pressure == 0 ? "lift" : pressure == 1 ? "light" : "full");
 }
 
 //==============================================================================

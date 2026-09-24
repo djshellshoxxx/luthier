@@ -7,6 +7,7 @@
 */
 
 #include "TestFramework.h"
+#include "AllocationCounter.h"
 
 #include "../DSP/Circuit/GuitarCircuit.h"
 #include "../LuthierEngine.h"
@@ -21,17 +22,23 @@ using namespace luthier::tests;
     lives here once; everything else in the suite just pays one increment. */
 namespace
 {
-    thread_local long allocationsOnThisThread = 0;
+    thread_local long allocationCount = 0;
 }
 
 struct AllocationCounter
 {
-    static long count() noexcept { return allocationsOnThisThread; }
+    static long count() noexcept { return allocationCount; }
 };
+
+/** AllocationCounter.h: the same count for the other test files. */
+long luthier::tests::allocationsOnThisThread() noexcept
+{
+    return allocationCount;
+}
 
 void* operator new (std::size_t size)
 {
-    ++allocationsOnThisThread;
+    ++allocationCount;
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
         return p;
@@ -41,7 +48,7 @@ void* operator new (std::size_t size)
 
 void* operator new[] (std::size_t size)
 {
-    ++allocationsOnThisThread;
+    ++allocationCount;
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
         return p;

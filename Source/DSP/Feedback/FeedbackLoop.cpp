@@ -13,6 +13,12 @@ namespace
 
     constexpr double kReferenceDistance = 0.5;
     constexpr double kRingingLevel = 1.0e-4;
+
+    /** part-acoustics.md 2.1: PartAcoustics' coupling for a solid body and for
+        a full hollow body, and the loop gain the hollow one gets over the solid. */
+    constexpr double kSolidChambering = 0.1;
+    constexpr double kHollowChambering = 0.8;
+    constexpr double kHollowBodyDb = 12.0;
 }
 
 //==============================================================================
@@ -73,6 +79,19 @@ void FeedbackLoop::setSettings (const FeedbackSettings& s) noexcept
     updateCoupling();
 }
 
+void FeedbackLoop::setBodyCoupling (double gain) noexcept
+{
+    bodyCoupling = juce::jlimit (0.0, 16.0, gain);
+    updateCoupling();
+}
+
+double FeedbackLoop::bodyCouplingFromChambering (double chamberingFeedback) noexcept
+{
+    const double t = juce::jlimit (0.0, 1.0, (chamberingFeedback - kSolidChambering)
+                                                 / (kHollowChambering - kSolidChambering));
+    return juce::Decibels::decibelsToGain (t * kHollowBodyDb);
+}
+
 void FeedbackLoop::updateCoupling() noexcept
 {
     // Sound pressure falls with distance (1/r), capped close in; a speaker is
@@ -85,7 +104,8 @@ void FeedbackLoop::updateCoupling() noexcept
     {
         // A heavy wound string is moved less by the same air.
         const double stringGain = woundString[(size_t) s] ? 0.7 : 1.0;
-        couple[(size_t) s] = settings.amount * distanceGain * angleGain * stringGain;
+        // part-acoustics.md 2.1: the body's chambering scales the whole path.
+        couple[(size_t) s] = settings.amount * distanceGain * angleGain * stringGain * bodyCoupling;
     }
 }
 

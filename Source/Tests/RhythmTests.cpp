@@ -291,3 +291,117 @@ LUTHIER_TEST (Rhythm, burstWindowGroupsASpreadChord)
     detector.allNotesOff();
     CHECK (detector.getNumHeldNotes() == 0);
 }
+
+//==============================================================================
+//  ambiguity-resolutions 4.3 / 4.7: the Bass style's pattern is a setting of
+//  the rhythm engine, saved with its state, and handed to the rubric voicer.
+//==============================================================================
+#include "../Rhythm/RhythmEngine.h"
+#include "../Model/Playing/RubricVoicer.h"
+#include "../Model/Playing/TuningEngine.h"
+
+namespace
+{
+    /** A four-string bass with the rhythm engine driving. */
+    struct BassFixture
+    {
+        BassFixture()
+        {
+            tuning.prepare (48000.0);
+            tuning.setNumStrings (4);
+            tuning.setTuningPreset (TuningPreset::BassStandard);
+
+            voicer.prepare (&tuning, 4);
+
+            engine.prepare (48000.0, 256, &tuning, &voicer);
+            engine.setNumStrings (4);
+            engine.setEnabled (true);
+        }
+
+        TuningEngine tuning;
+        RubricVoicer voicer;
+        RhythmEngine engine;
+    };
+}
+
+LUTHIER_TEST (Rhythm, theBassPatternIsASettingSavedWithTheEngine)
+{
+    BassFixture f;
+    CHECK (f.engine.getBassPattern() == RubricBassPattern::root);   // Bass voices the root by default
+
+    f.engine.setBassPattern (RubricBassPattern::rootFifth);
+    const auto saved = f.engine.toVar();
+
+    BassFixture g;
+    g.engine.fromVar (saved);
+    CHECK (g.engine.getBassPattern() == RubricBassPattern::rootFifth);
+
+    g.engine.setBassPattern (RubricBassPattern::walking);
+    CHECK (g.engine.getBassPattern() == RubricBassPattern::walking);
+
+    // A state saved before the setting existed reads as root.
+    if (auto* root = saved.getDynamicObject())
+        root->removeProperty ("bassPattern");
+
+    g.engine.fromVar (saved);
+    CHECK (g.engine.getBassPattern() == RubricBassPattern::root);
+
+    // Out-of-range values are clamped, not trusted.
+    if (auto* root = saved.getDynamicObject())
+        root->setProperty ("bassPattern", 99);
+
+    g.engine.fromVar (saved);
+    CHECK (g.engine.getBassPattern() == RubricBassPattern::walking);
+}
+
+LUTHIER_TEST (Rhythm, revoicingHandsTheBassPatternToTheVoicer)
+{
+    BassFixture f;
+    f.engine.setVoicingStyle (VoicingStyle::bass);
+    f.engine.setBassPattern (RubricBassPattern::rootFifth);
+
+    // C7, held.
+    juce::MidiBuffer midi;
+
+    for (int note : { 48, 52, 55, 58 })
+        midi.addEvent (juce::MidiMessage::noteOn (1, note, 0.8f), 0);
+
+    f.engine.handleMidi (midi, 0);
+
+    PlayEventQueue out;
+    RhythmTransport transport;
+    transport.bpm = 120.0;
+    transport.isPlaying = true;
+    f.engine.processBlock (256, transport, out);
+
+    CHECK (f.voicer.getStyle() == RubricStyle::bass);
+    CHECK_MSG (f.voicer.getBassPattern() == RubricBassPattern::rootFifth, "the voicer did not get the engine's bass pattern");
+
+    // 4.7: root + fifth in the Root-Fifth style - every sounding note is a C or a G, and a G is there.
+    const auto& voicing = f.engine.getCurrentVoicing();
+    int sounding = 0;
+    bool fifth = false;
+
+    for (int i = 0; i < voicing.numNotes; ++i)
+    {
+        if (! voicing.notes[(size_t) i].valid)
+            continue;
+
+        ++sounding;
+        const int pc = ((voicing.notes[(size_t) i].midiNote % 12) + 12) % 12;
+        CHECK_MSG (pc == 0 || pc == 7, "a Root-Fifth bass voicing sounded pitch class " + juce::String (pc));
+        fifth = fifth || pc == 7;
+    }
+
+    CHECK_MSG (sounding >= 1, "the bass voicing sounded nothing");
+    CHECK_MSG (fifth, "the Root-Fifth pattern voiced no fifth");
+
+    // Root only: the fifth goes away.
+    f.engine.setBassPattern (RubricBassPattern::root);
+    f.engine.processBlock (256, transport, out);
+    CHECK (f.voicer.getBassPattern() == RubricBassPattern::root);
+
+    for (int i = 0; i < f.engine.getCurrentVoicing().numNotes; ++i)
+        if (f.engine.getCurrentVoicing().notes[(size_t) i].valid)
+            CHECK (((f.engine.getCurrentVoicing().notes[(size_t) i].midiNote % 12) + 12) % 12 == 0);
+}

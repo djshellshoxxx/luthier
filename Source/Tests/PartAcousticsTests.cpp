@@ -333,3 +333,46 @@ LUTHIER_TEST (PartAcoustics, aReferenceGuitarSoundsLikeTheEngineDefault)
     CHECK (std::abs (d.nutBrightness - 0.75) < 1.0e-9);
     CHECK (std::abs (d.fretBrightness / 0.70 - 1.0) < 0.1);
 }
+
+//==============================================================================
+/*  part-acoustics 2.1's Feedback column: a parts guitar's chambering and the
+    body shape it compiles to feed the loop the same coupling, and the engine
+    applies it with the guitar. */
+#include "../DSP/Feedback/FeedbackLoop.h"
+
+LUTHIER_TEST (PartAcoustics, chamberingFeedsTheFeedbackLoopWithTheGuitar)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+
+    struct Row { const char* chambering; double feedback; };
+
+    for (const auto& row : { Row { "solid", 0.1 }, Row { "chambered", 0.25 }, Row { "semi_hollow", 0.5 },
+                             Row { "hollow", 0.8 }, Row { "acoustic", 0.0 } })
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::body] = withField (base.get (GuitarSlot::body), "chambering", row.chambering);
+
+        const auto d = mapSpec (g);
+        CHECK_MSG (std::abs (d.feedbackGain - row.feedback) < 1.0e-9,
+                   juce::String (row.chambering) + ": feedback " + juce::String (d.feedbackGain, 2));
+
+        // The compiled shape it became says the same thing.
+        CHECK_MSG (std::abs (chamberingFeedbackForShape (d.body.shape) - row.feedback) < 1.0e-9,
+                   juce::String (row.chambering) + ": shape row " + juce::String (chamberingFeedbackForShape (d.body.shape), 2));
+
+        // And the engine, given the guitar, sets the loop's body term from it.
+        LuthierEngine engine;
+        engine.prepare (48000.0, 256);
+        engine.applyWorkshopGuitar (d);
+        CHECK_NEAR (engine.getFeedbackLoop().getBodyCoupling(),
+                    FeedbackLoop::bodyCouplingFromChambering (row.feedback), 1.0e-9);
+    }
+
+    // A compiled type goes through the same table by its body shape.
+    LuthierEngine engine;
+    engine.prepare (48000.0, 256);
+    engine.setGuitarType (GuitarType::ES335);
+    CHECK_NEAR (engine.getFeedbackLoop().getBodyCoupling(), FeedbackLoop::bodyCouplingFromChambering (0.5), 1.0e-9);
+    engine.setGuitarType (GuitarType::LesPaul);
+    CHECK_NEAR (engine.getFeedbackLoop().getBodyCoupling(), 1.0, 1.0e-9);
+}

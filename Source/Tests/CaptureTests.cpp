@@ -16,14 +16,15 @@
 #include <algorithm>
 #include <cstring>
 
-#if defined (LUTHIER_ALLOCATION_COUNTER)
-namespace luthier::tests
-{
-    /** Global operator new calls on this thread (CircuitTests.cpp replaces the
-        operators; it defines this). */
-    long allocationsOnThisThread() noexcept;
-}
+/*  notation-export 7.1's no-allocation check measures for real only with the
+    counter on. The test target defines LUTHIER_ALLOCATION_COUNTER
+    (CMakeLists.txt); until that line lands this TU defines it itself, which
+    is harmless once it does. */
+#if ! defined (LUTHIER_ALLOCATION_COUNTER)
+ #define LUTHIER_ALLOCATION_COUNTER 1
 #endif
+
+#include "AllocationCounter.h"
 
 using namespace luthier;
 using namespace luthier::tests;

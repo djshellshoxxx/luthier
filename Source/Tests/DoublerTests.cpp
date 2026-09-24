@@ -161,3 +161,43 @@ LUTHIER_TEST (Doubler, presetsWithTheOldDoublerGetThePedal)
     auto* old = processor.getState().getParameter (ParamIDs::doublerOn);
     CHECK (old != nullptr && old->getValue() < 0.5f);
 }
+
+/*  ambiguity-resolutions 3's chosen defaults: a classic ADT / hardware doubler
+    sits slightly flat, and rolls off the rumble and the air of the second take. */
+LUTHIER_TEST (Doubler, defaultsMatchAClassicHardwareDoubler)
+{
+    DoublerPedal pedal;
+
+    struct Expected { int index; const char* name; double min, max, def; };
+
+    const Expected expected[] =
+    {
+        { kDelay, "Delay",    5.0,    40.0,   22.0 },
+        { kPitch, "Pitch",  -25.0,    25.0,   -8.0 },
+        { kPan,   "Pan",     -1.0,     1.0,   -0.7 },
+        { kWidth, "Width",    0.0,     1.0,    1.0 },   // stereo
+        { kMix,   "Mix",      0.0,   100.0,   40.0 },
+        { kHp,    "HP",      20.0,   500.0,  100.0 },
+        { kLp,    "LP",    2000.0, 20000.0, 8000.0 }
+    };
+
+    CHECK (pedal.getNumParameters() == 7);
+
+    for (const auto& e : expected)
+    {
+        const auto& d = pedal.getParameterDescriptor (e.index);
+        CHECK_MSG (juce::String (d.name) == e.name, juce::String (d.name) + " where " + e.name + " was expected");
+        CHECK_NEAR (d.minValue, e.min, 1.0e-9);
+        CHECK_NEAR (d.maxValue, e.max, 1.0e-9);
+        CHECK_MSG (std::abs (d.defaultValue - e.def) < 1.0e-9,
+                   juce::String (e.name) + " defaults to " + juce::String (d.defaultValue) + ", not " + juce::String (e.def));
+    }
+
+    // A fresh pedal holds those defaults, so a preset that adds one gets them.
+    pedal.prepare (kSr, kBlock);
+    CHECK_NEAR (pedal.getParameterValue (kPitch), -8.0, 1.0e-9);
+    CHECK_NEAR (pedal.getParameterValue (kHp), 100.0, 1.0e-9);
+    CHECK_NEAR (pedal.getParameterValue (kLp), 8000.0, 1.0e-9);
+    CHECK_NEAR (pedal.getParameterValue (kDelay), 22.0, 1.0e-9);
+    CHECK_NEAR (pedal.getParameterValue (kMix), 40.0, 1.0e-9);
+}
