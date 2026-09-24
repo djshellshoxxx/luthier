@@ -982,6 +982,21 @@ void TunePanel::buildMelody()
         });
     };
 
+    // 13: "a big Sing button on the Melody strip when audio in is present".
+    addChildComponent (singToggle);
+    singToggle.setTooltip ("Sing or hum the melody into the audio input; press again to write it down (snapped to the key "
+                           "and the grid)");
+    AccessibleSetup::configureButton (singToggle.getButton(), "Sing", "Captures a sung melody from the audio input.");
+    singToggle.getButton().onClick = [this]
+    {
+        if (singToggle.getButton().getToggleState())
+            startSinging();
+        else
+            stopSinging();
+
+        refresh();
+    };
+
     freezeButton.onClick = [this]
     {
         const int index = session.getSelectedSection();
@@ -1153,6 +1168,7 @@ void TunePanel::refresh()
 
     improviseToggle.getButton().setToggleState (improvising, juce::dontSendNotification);
     recordToggle.getButton().setToggleState (session.isRecording(), juce::dontSendNotification);
+    singToggle.getButton().setToggleState (processor.getHumCapture().isArmed(), juce::dontSendNotification);
 
     for (auto* c : { static_cast<juce::Component*> (&kitBox), static_cast<juce::Component*> (&feelSlider),
                      static_cast<juce::Component*> (&strumSlider), static_cast<juce::Component*> (&rhythmOn),
@@ -1189,6 +1205,18 @@ bool TunePanel::showFirstEncounterHintIfDue()
 void TunePanel::updateTransport()
 {
     session.service();
+
+    // 13: the sung take is analysed as it arrives; Sing shows only with an audio input.
+    if (processor.getHumCapture().isArmed())
+        processor.getHumCapture().process();
+
+    const bool audioIn = processor.hasSidechainInput() || processor.getHumCapture().isArmed();
+
+    if (singToggle.isVisible() != audioIn)
+    {
+        singToggle.setVisible (audioIn);
+        resized();
+    }
 
     // tune-builder 6: the bass plays through the instrument only when it is a bass.
     player.setBassToEngine (processor.getEngine().getGuitarSpec().category == GuitarCategory::Bass);
@@ -1323,6 +1351,50 @@ bool TunePanel::keyPressed (const juce::KeyPress& key)
 }
 
 //==============================================================================
+bool TunePanel::startSinging()
+{
+    const int index = session.getSelectedSection();
+
+    if (! session.getTune().isValidSection (index))
+        return false;
+
+    // The take lines up with the section: where it is playing now, or from its start.
+    double beat = 0.0;
+    const auto spans = session.getTune().getPlayOrder();
+    const int span = player.getPlayingSpan();
+
+    if (player.isPlaying() && juce::isPositiveAndBelow (span, (int) spans.size()) && spans[(size_t) span].sectionIndex == index)
+        beat = juce::jmax (0.0, player.getPositionPpq() - spans[(size_t) span].startBeat);
+    else
+        player.playFromSection (juce::jmax (0, firstSpanOf (session.getTune(), index)));
+
+    auto& capture = processor.getHumCapture();
+    capture.begin (session.getTune().meta.tempoBpm, beat);
+    capture.setArmed (true);
+    singingSection = index;
+    return true;
+}
+
+bool TunePanel::stopSinging()
+{
+    auto& capture = processor.getHumCapture();
+
+    if (! capture.isArmed())
+        return false;
+
+    capture.setArmed (false);
+    const int index = singingSection;
+    singingSection = -1;
+
+    const auto grid = (QuantiseGrid) juce::jmax (0, quantiseBox.getSelectedId() - 1);
+    const auto notes = capture.finish (session.getTune(), index, grid, ! pianoRoll.isChromatic());
+
+    return session.edit (TuneEditClass::melodyRecord, "Record melody (Sing)", [index, notes] (Tune& t)
+    {
+        return t.setMelodyNotes (index, notes, MelodySource::sing);
+    });
+}
+
 bool TunePanel::saveTo (const juce::File& file, juce::String& error)
 {
     return session.saveAs (file, error);
@@ -1699,7 +1771,10 @@ void TunePanel::resized()
     melodyHeader = bounds.removeFromTop (kHeader);
     pianoRoll.setBounds (bounds.removeFromTop (kRollHeight));
     bounds.removeFromTop (kRowGap);
-    split (row(), { &autoButton, &drawToggle, &recordToggle, &improviseToggle, &freezeButton });
+    if (singToggle.isVisible())
+        split (row(), { &autoButton, &drawToggle, &recordToggle, &improviseToggle, &singToggle, &freezeButton });
+    else
+        split (row(), { &autoButton, &drawToggle, &recordToggle, &improviseToggle, &freezeButton });
 
     {
         auto r = row();

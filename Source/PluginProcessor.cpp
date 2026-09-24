@@ -148,6 +148,8 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     currentSampleRate = sampleRate;
     currentBlockSize = samplesPerBlock;
 
+    humCapture.prepare (sampleRate);   // tune-builder 13 (TUNE-HELP-ONBOARDING)
+
     // gui-integration 15: left for the window to find, because there may not be
     // one right now. claimSampleRateChange decides whether it is worth saying.
     preparedSampleRate.store (sampleRate, std::memory_order_relaxed);
@@ -965,6 +967,9 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 
         engine.setSidechainInput (sidechainCopy.getArrayOfReadPointers(),
                                   sidechainChannels, sidechainSamples);
+
+        // tune-builder 13: the audio input, for a sung melody, while the TUNE tab's Sing is on.
+        humCapture.pushAudio (sidechainCopy.getArrayOfReadPointers(), sidechainChannels, sidechainSamples);
         routing.meterSidechain (sidechainCopy.getArrayOfReadPointers(),
                                 sidechainChannels, sidechainSamples);
     }

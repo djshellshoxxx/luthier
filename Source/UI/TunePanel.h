@@ -428,6 +428,13 @@ public:
     juce::TextButton& getDrawButton() noexcept       { return drawToggle.getButton(); }
     juce::TextButton& getRecordButton() noexcept     { return recordToggle.getButton(); }
     juce::TextButton& getImproviseButton() noexcept  { return improviseToggle.getButton(); }
+    juce::TextButton& getSingButton() noexcept       { return singToggle.getButton(); }
+
+    /** tune-builder 13 (TUNE-HELP-ONBOARDING): Sing on captures the audio input
+        against the section; off transcribes it into the melody. The button is
+        offered only while there is an audio input. */
+    bool startSinging();
+    bool stopSinging();
     juce::TextButton& getFreezeButton() noexcept     { return freezeButton; }
     juce::ComboBox& getQuantiseBox() noexcept        { return quantiseBox; }
     juce::TextButton& getBackButton() noexcept       { return backButton; }
@@ -493,6 +500,8 @@ private:
     TunePianoRoll pianoRoll;
     juce::TextButton autoButton { "AUTO" }, freezeButton { "FREEZE" };
     LuthierToggle drawToggle { "DRAW" }, recordToggle { "RECORD" }, improviseToggle { "IMPROVISE" };
+    LuthierToggle singToggle { "SING" };
+    int singingSection = -1;
     juce::ComboBox quantiseBox;
 
     // --- bass and layers (6, 7; TUNE-HELP-ONBOARDING) -----------------------------------

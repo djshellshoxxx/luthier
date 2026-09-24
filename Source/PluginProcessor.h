@@ -10,6 +10,7 @@
 #include "Capture/PerformanceCapture.h"
 #include "Presets/PresetMorph.h"
 #include "Tune/TuneSession.h"
+#include "Tune/TuneHumCapture.h"
 #include "Support/AudioExporter.h"
 #include "Support/Diagnostics.h"
 #include "Routing/RoutingMatrix.h"
@@ -104,6 +105,9 @@ public:
         plays (message thread). */
     TunePlayer&  getTunePlayer() noexcept  { return tunePlayer; }
     TuneSession& getTuneSession() noexcept { return tuneSession; }
+
+    /** tune-builder 13: sung / hummed melody capture from the audio input (TUNE-HELP-ONBOARDING). */
+    TuneHumCapture& getHumCapture() noexcept { return humCapture; }
 
     /** The tune's message-thread work: rhythm changes at section starts,
         improvised passes, old timelines, the take (the timer's; tests call it). */
@@ -522,6 +526,7 @@ private:
     // it); everything else goes to the engine as direct notes.
     TunePlayer tunePlayer;
     TuneSession tuneSession;
+    TuneHumCapture humCapture;
 
     /** True while undo/redo restores a snapshot: the tune is not part of it. */
     bool restoringPluginUndo = false;
