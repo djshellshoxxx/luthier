@@ -4,6 +4,7 @@
 #include "TestFramework.h"
 
 #include "../PluginProcessor.h"
+#include "../DSP/Amp/ToneStack.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -49,4 +50,46 @@ LUTHIER_TEST (ReviewRegression, aBlockBiggerThanPreparedIsRenderedWhole)
     }
 
     CHECK (heardLate);
+}
+
+//==============================================================================
+/*  R-006: the tone stack's b3 term had t*C1C2C3R1R2R4 where Yeh's derivation has
+    t*l*C1C2C3R1R2R4. A passive network cannot have gain above unity; with the bass
+    at zero the typo gave up to +28 dB of treble. */
+namespace
+{
+    double toneStackGainAt (double bass, double mid, double treble, double hz)
+    {
+        constexpr double sr = 48000.0;
+        luthier::ToneStack stack;
+        stack.prepare (sr);
+        stack.setControls (bass, mid, treble);
+
+        double peak = 0.0;
+        const int n = (int) sr;
+
+        for (int i = 0; i < n; ++i)
+        {
+            const double y = stack.process (std::sin (juce::MathConstants<double>::twoPi * hz * i / sr));
+
+            if (i > n / 2)
+                peak = std::max (peak, std::abs (y));
+        }
+
+        return peak;
+    }
+}
+
+LUTHIER_TEST (ReviewRegression, theToneStackIsPassiveAtEverySetting)
+{
+    // ToneStack::process applies a fixed 6.5x insertion-loss makeup; the
+    // network itself must stay at or below unity.
+    constexpr double makeup = 6.5;
+
+    for (double bass : { 0.0, 0.5, 1.0 })
+        for (double treble : { 0.0, 0.5, 1.0 })
+            for (double hz : { 100.0, 1000.0, 5000.0, 10000.0 })
+                CHECK_MSG (toneStackGainAt (bass, 0.5, treble, hz) / makeup <= 1.05,
+                           "bass " + juce::String (bass) + " treble " + juce::String (treble)
+                               + " at " + juce::String (hz) + " Hz");
 }
