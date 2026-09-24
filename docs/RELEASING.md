@@ -168,5 +168,6 @@ say): *Actions -> release -> Run workflow*, enter the tag.
 - Determinism: the Linux archives are reproducible (sorted, fixed
   mtime and owner); the Windows and macOS installers embed signing
   timestamps and are not byte-identical between runs.
-- The validators currently report product failures, listed in
-  `docs/CI_FINDINGS.md`; CI will stay red until those are fixed.
+- clap-validator 0.3.2 skips 3 of its 21 tests: the three preset-discovery
+  tests, because the plugin does not implement CLAP's (draft)
+  preset-discovery factory. The other 18 pass.
