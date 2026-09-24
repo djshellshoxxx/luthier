@@ -83,9 +83,17 @@ window, which reads as the intended silhouette without host-dependent behaviour.
 through a list of system faces. If neither is installed the layout is unchanged but
 the letterforms differ.
 
-**The Advanced columns scroll independently.** On a short window, column four in
-particular needs a lot of scrolling. Resizing the window taller is the practical
-answer.
+**The Advanced columns scroll independently.** On a short window there is still a
+fair amount of scrolling, column four in particular. The wheel scrolls a column
+even over a knob (`Ctrl` + wheel nudges the knob instead), and a chevron at the
+top or bottom of a column says more lies that way and pages there when clicked,
+but resizing the window taller remains the practical answer.
+
+**The header truncates below 1200 px.** The header row is laid out for a window
+1200 px wide or more, with RESET & STOP beside Panic and the preset name still
+readable between the clusters. Narrower than that, the preset name and the
+left-hand selectors are the first to be squeezed. Pre-existing; Advanced mode
+needs 1000 px, so the gap between the two minimums is where it shows.
 
 ---
 
@@ -94,8 +102,8 @@ answer.
 **One instance with everything on is not cheap.** Six strings ringing, both pedal
 racks loaded, dual-mic cabinet convolution and a large room is a genuinely
 expensive patch. On a modest machine expect to need a 256-sample buffer or larger.
-Options > Oversampling at 2x is the single biggest saving and is very close to 4x
-in sound.
+Options > AUDIO > Oversampling at 2x is the single biggest saving and is very
+close to 4x in sound.
 
 **The string engines run serially.** They are independent and could be
 parallelised, but the synchronisation cost at typical buffer sizes outweighs the
@@ -110,9 +118,10 @@ of preset changes can leave the bank one block behind.
 
 ## Behaviour that is deliberate but surprising
 
-**Poly mode has latency.** The chord window, 2 ms by default, is what lets a chord
-split across a buffer boundary still voice as a chord. It is reported to the host,
-so delay compensation handles it. Set it to zero if you would rather have neither.
+**Poly mode has latency.** The chord window, 15 ms by default, is what lets the
+fingers of a keyboard chord, and a chord split across a buffer boundary, voice
+as one chord. It is reported to the host, so delay compensation handles it. Set
+it to zero if you would rather have neither.
 
 **Chords are strummed, not triggered together.** Set Strum Speed to zero for a
 simultaneous attack.
@@ -126,9 +135,15 @@ guitars do it. Zero it in the same place.
 **Every pickup off means silence** on an electric guitar. There is nothing to sense
 the strings. The instrument is not broken.
 
-**Panic does not clear the reverb.** It stops every string, which is what a panic
-button is for, but the tail of the room and the delays is left to ring out rather
-than being cut off abruptly.
+**The footswitch is the bypass.** The switch on every pedal's face reads ON or
+BYPASS and a click reverses it. If a pedal you have just picked is silent, that
+is the first thing to look at.
+
+**Panic keeps your settings; RESET & STOP does not.** Panic stops every string
+and clears every tail. RESET & STOP (`Ctrl + Shift + P`) also stops the tune,
+the looper, the backing track, the metronome and the rhythm engine, and returns
+every setting to its default - it is one undo step, so `Ctrl + Z` brings the
+settings back.
 
 ---
 
@@ -162,6 +177,16 @@ and MPE controllers, and to the blind listening comparison against real guitars.
 **Drag-out export.** Audio and MIDI export work through the file dialogs; dragging
 a rendered file directly out of the plugin window into a DAW track is not
 implemented.
+
+**MIDI import goes to the Tune Builder only.** File > Import MIDI..., a `.mid`
+dropped on the window and the TUNE tab's IMPORT all read the file into the Tune
+Builder. Importing into the session recorder or the looper, the other targets
+the MIDI export spec names, is not built yet.
+
+**The chuck MIDI key range.** A chuck - the muted, percussive strike - comes from
+a rhythm pattern step or a genre kit. Triggering one from a MIDI note in a
+reserved key range is described but not built, because no range has been
+specified yet.
 
 **Backing-track file formats.** The backing-track player registers JUCE's basic
 formats, so WAV, AIFF, FLAC and Ogg Vorbis always load. MP3 and WMA rely on the

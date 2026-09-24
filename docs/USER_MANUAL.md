@@ -40,10 +40,11 @@ Always visible, in both modes.
 | **Tuning** | open-string tuning. Per-string tunings live in Advanced. |
 | **Preset** | name, with prev/next arrows. Click the name to browse. |
 | **Padlock** | Advanced mode only, and only when this preset has advanced ranges unlocked. Opens Options, RANGES. |
-| **File** | save, save as, open, import and export a preset; export audio, save the last MIDI take, export notation; open the preset and render folders; options; randomise; reset. |
+| **File** | save, save as, open, import and export a preset; **New Tune...** and **Import MIDI...** for the Tune Builder; export audio, save the last MIDI take, export notation; open the preset and render folders; options; randomise; reset. |
 | **A / B** | two comparison slots. `A>B` copies the current one across. |
 | **Undo / Redo** | 64 steps. |
-| **Panic** | stops every string immediately. |
+| **Panic** | stops every string immediately and clears every tail - room, delays, freeze, feedback, the rhythm engine's pending strums. Your settings are untouched. `P`. |
+| **RESET & STOP** | beside Panic, in the same warning colour: the heavy version. Stops the tune player, the looper, the backing track, the metronome, the rhythm engine, the practice runner and the kill switch, returns every setting to its default, then panics and resets the engine. `Ctrl + Shift + P`. It is one undo step, so `Ctrl + Z` brings the settings back. Reach for it when a loop keeps re-feeding the strings and Panic alone will not end it. |
 | **Learn** | arms MIDI Learn: the next control you click is assigned to the next CC you move. |
 | **?** | help. In Advanced mode it opens the HELP tab on the panel you were using; in Easy mode, the same help over the window. |
 | **Advanced** | switches modes. Locked while Live Mode is on. |
@@ -67,6 +68,9 @@ pieces glow with what each string is doing.
 - Click the selector switch to advance its position.
 - Drag the volume and tone knobs on the body.
 
+Easy mode shows the whole guitar. The Advanced strip crops to the body, which is
+why the picture looks different there - see below.
+
 The **fretboard** below shows every string and fret. Notes light up as they sound -
 and what is lit is what is actually ringing, including notes the chord voicer put
 somewhere you did not expect, which is exactly when you want to see it.
@@ -80,6 +84,18 @@ as they do on the instrument.
 
 To the right, a scrolling readout shows what is happening inside the plugin - MIDI,
 parameter changes, engine events. It stops when nothing is happening.
+
+### The rig strip - pedals
+
+The **Pre-effects** and **Post-effects** cards are the two pedal racks, before
+and after the amp, eight slots each, shown as numbered pills. A rack is empty
+until you choose a pedal: click a slot and the same pedal editor Advanced mode
+uses opens as a popover over it. Pick a pedal from its menu and the popover
+grows to show the pedal's whole face.
+
+The footswitch on every pedal's face is its **bypass**, labelled ON or BYPASS
+so you can see which way it is. A pedal you have just picked and cannot hear is
+usually one whose footswitch is on BYPASS - click it.
 
 ### Middle band - the macros
 
@@ -101,6 +117,10 @@ survive a macro move.
 ### Bottom band - style and play
 
 - **Style** - the factory bank, grouped by category.
+- **Fingers** - play with the fingers instead of a pick: a rounder, softer attack
+  with no pick click, measurably darker at the string. Acoustic and classical
+  guitars start with it on. The full playing-hand controls are in Advanced,
+  column 2.
 - **Mode** - Mono, Poly or Guitar Controller.
 - **Chord readout** - names what you are playing.
 - **Audition** - plays a phrase through the current sound. Pick which phrase beside
@@ -111,10 +131,24 @@ survive a macro move.
 
 ## Advanced mode
 
-A compressed guitar and fretboard strip across the top, then four columns laid
-out the way the signal flows: the instrument, what picks it up, what amplifies it,
-and a workspace for everything that is not a knob. Columns 1 to 3 scroll on their
-own.
+A strip across the top - the guitar, and beside it either the fretboard or the
+**string roll** - then four columns laid out the way the signal flows: the
+instrument, what picks it up, what amplifies it, and a workspace for everything
+that is not a knob. Columns 1 to 3 scroll on their own.
+
+**The strip.** The guitar is drawn at the size the strip allows, and when the
+whole instrument would be too small to read it is cropped to the body and the
+last five frets, with the neck running off the left edge. Nothing has moved:
+pickups, switch and knobs still work, and when the headstock is out of frame
+the visible stub of the neck opens the tuning. Easy mode always shows the whole
+guitar. The **FRETS | ROLL** toggle at the strip's edge swaps the fretboard for
+the string roll (described under NOTATION below); the choice is remembered.
+
+**Scrolling a column.** The mouse wheel scrolls the column, even when the
+pointer is over a knob. Hold `Ctrl` (`Cmd` on macOS) and the wheel nudges the
+knob under the pointer instead. A chevron at the top or bottom of a column
+means more controls lie that way - hover it for the hint, click it to page
+there.
 
 Advanced mode needs a window at least 1000 points wide. Narrower than that, the
 switch is disabled and says why. Below 1280 points, columns 2 and 3 share one
@@ -159,8 +193,12 @@ spring ring, and the transposing-tremolo detent.
 ### Column 2 - Signal capture
 
 **Pickups.** The selector, then per slot: type, magnet and volume; coil tap; and
-the piezo / mic balance for acoustic instruments. Where a pickup sits and how high
-is set on the Workshop bench, by dragging it.
+the piezo / mic balance for acoustic instruments. The slots follow the guitar
+that is fitted: a slot the guitar has no pickup in is greyed out and labelled
+**not fitted**, the fitted ones say Bridge, Middle or Neck, and the selector
+offers only the positions the guitar can realise. To fit more pickups, or move
+one, use the Workshop bench - where a pickup sits and how high is set there, by
+dragging it.
 
 **Circuit.** The guitar's own electronics, and a curve that shows what they are
 doing to the top end: the volume and tone controls, pot values and taper, the tone
@@ -168,7 +206,11 @@ capacitor, treble bleed, an active buffer, and the cable - its length and qualit
 into the amp's input. Turning the guitar's volume down cleans the amp up, as it
 does on the real thing.
 
-**Pedalboard (before the amp).** The pre-amp pedal slots.
+**Pedalboard (before the amp).** The pre-amp pedal slots. A slot is empty until
+you choose a pedal from its menu, and a picked pedal is built and audible at
+once. The footswitch on the pedal's face is its bypass, labelled ON or BYPASS;
+hover it and the tooltip says which way a click will take it. Drag a slot onto
+another to reorder; right-click to clear it or reset the pedal.
 
 **Playing hand.** Pick or fingers, material, thickness, angle, position, nail
 versus flesh.
@@ -212,19 +254,48 @@ A tab strip across the top, one panel behind each tab, in this order:
 | **WORKSHOP** | the bench: swap any part of the guitar, drag pickups, compare builds, Save As Guitar. It takes over columns 3 and 4 while it is open. |
 | **MOD** | the modulation matrix - LFOs, envelopes, step sequencers, envelope followers, macros, a random source, and the route table. |
 | **RHYTHM** | the chord voicer, the strum and fingerpick pattern editors, feel, and genre kits. A bass step grid when the guitar is a bass. |
-| **TUNE** | write a whole tune: sections, a chord progression typed in shorthand, a melody piano roll, and a transport. |
-| **LIVE** | set up for the stage: the 128-snapshot bank, the setlist, crossfade and morph. |
+| **TUNE** | write a whole tune: sections, a chord progression typed in shorthand, a melody piano roll, and a transport. NEW starts from a template, LOAD opens a `.luthiertune`, IMPORT reads a `.mid` (see Import, below). |
+| **LIVE** | set up for the stage: the 128-snapshot bank as an 8 x 16 grid, the setlist, crossfade and morph. |
 | **ROUTING** | bus layout, aux buses 1 to 8 (Aux 8 is the playing noise on its own), per-string outputs, the sidechain and MIDI out. |
 | **TONE MATCH** | impulse-response slots, the cab and EQ match wizards, capture, and the IR library. |
 | **CHARACTER** | the character seed, dead spots, fret wear, tuner drift, aged electronics, body age, environment, and the string noise, pick, setup and slide groups. |
 | **PRACTICE** | progress, routines, per-tool defaults, the library and the session recorder. The practice drawer is where you actually practise. |
-| **NOTATION** | capture what you play, a live tab view with chord symbols, and export as MusicXML, Guitar Pro, ASCII tab or MIDI. |
+| **NOTATION** | capture what you play, the string roll, a live tab view with chord symbols, and export as MusicXML, Guitar Pro, ASCII tab or MIDI. |
 | **MIDI OUT** | the MIDI export profile (Luthier or Generic), exporting or dragging out the capture, and live MIDI out. |
 | **CONTROLLERS** | the controller profile, the latency wizard, dead zone and minimum note length. |
 | **HELP** | this manual in the plugin, pinned to whichever panel you were on, with a live list of the keyboard shortcuts. |
 
 `Ctrl + [` and `Ctrl + ]` step through the tabs, wrapping at the ends. The tab you
 had open last is the one that opens next time.
+
+#### The string roll
+
+On the NOTATION tab, above the live tab view (collapsible, and it remembers),
+and in the Advanced strip when FRETS | ROLL is set to ROLL. It is a small piano
+roll whose lanes are the strings, in the fretboard's top-to-bottom order, with
+time running left to right and *now* at the right edge. The notes the engine
+actually played - voiced, not the incoming MIDI - scroll past as bars labelled
+with their fret, four bars at the host's tempo or eight seconds without one,
+and the right edge of each lane glows with that string's live level.
+
+It plays as well as shows. Click a lane to pluck that string: how high in the
+lane you click sets the fret (higher is further up the neck), how far right
+sets how hard. Lanes take keyboard focus, so `Enter` or `Space` plucks the
+focused lane, and each lane names its string to a screen reader.
+
+#### The LIVE snapshot grid
+
+Eight rows of sixteen cells, each with its number, label and colour tag. The
+gestures on a cell:
+
+| Input | Action |
+|---|---|
+| Click | Select the slot (the CAPTURE and RECALL buttons act on it) |
+| `Shift` + click | Store the current sound in that slot |
+| Double-click | Recall it, crossfading over the time set below |
+| Right-click | Recall, capture here / capture over, rename, colour tag, clear |
+
+An empty bank says so, and tells you how to fill it.
 
 ---
 
@@ -238,6 +309,8 @@ Every control behaves the same way.
 | `Shift` + drag | Coarse |
 | `Ctrl` / `Cmd` + drag | Ultra-fine |
 | Double-click | Reset to default |
+| Mouse wheel | Scrolls the column the control sits in |
+| `Ctrl` / `Cmd` + wheel | Nudge the value |
 | Hover | The value replaces the label; a tooltip follows after 400 ms |
 | Right-click | Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise, Modulate |
 
@@ -282,14 +355,22 @@ for tapping.
 
 Chords are voiced across the strings by a search that only returns fingerings a
 hand could make. If a voicing is impossible, the nearest playable one is used
-rather than something absurd.
+rather than something absurd, and any note the chord search cannot finger is
+placed on its own on a free string rather than dropped.
+
+One note per string, as on the instrument. A note that arrives while others are
+still ringing is voiced around them: the strings that are sounding are handed
+to the voicer as occupied, so the new note takes a free string instead of
+cutting off one that is ringing.
 
 Chords are **strummed**, not triggered simultaneously. The strum speed, direction
 and variation are yours to set.
 
-This mode carries a small latency - the chord window, 2 ms by default - so that a
-chord split across a buffer boundary still voices as one chord. It is reported to
-your host.
+This mode carries a small latency - the chord window, 15 ms by default - so that
+the fingers of a keyboard chord, which land a few milliseconds apart, and a chord
+split across a buffer boundary both voice as one chord. It is reported to your
+host. The window is in Options > MIDI, and in Advanced under Performance; set it
+to zero if you would rather have the notes placed one at a time with no delay.
 
 ### Guitar controller
 
@@ -369,6 +450,43 @@ luthier-render --help
 
 ---
 
+## Import
+
+### MIDI files into the Tune Builder
+
+Three ways in, all ending in the TUNE tab:
+
+- **File > Import MIDI...** and choose a `.mid`.
+- **Drop a `.mid` (or `.midi`) file** anywhere on the window. One tune at a
+  time: the first MIDI file in the drop is the one that is read.
+- **IMPORT** on the TUNE tab, beside LOAD.
+
+**File > New Tune...** opens the same template picker as the TUNE tab's NEW
+button. Either way the plugin switches to Advanced mode and the TUNE tab on the
+way, so the window has to be wide enough for Advanced.
+
+What the importer does with the file: tempo, meter, key and title come from
+the metas; markers become sections (repeated markers fold into the setlist);
+a file Luthier exported itself is recognised by its track names and read back
+by channel, so chords come back as chord cells and layers as layers. Any other
+file is sorted by what its tracks do: a track that mostly plays three or more
+notes at once is the chord track, a low or "bass"-named one is the bass, the
+first monophonic one is the melody, channel 10 is drums and is skipped, and
+the rest come in as verbatim layers. Chords are recovered beat by beat with the
+same chord detector the rhythm engine uses, so every chord the importer writes
+is one the engine can play, and the Tune Builder then **strums** them with each
+section's pattern - an import is an arrangement of the file, not a playback of
+it. The melody and bass play as written. The file's own chord track is kept as
+a muted layer so nothing is lost, and a note that crosses a section boundary
+is split at it.
+
+The banner afterwards says how many sections and what tempo; **Details** lists
+which track became what and everything that was guessed or defaulted. A file
+that is corrupt, empty, or in SMPTE time is refused and the tune you had is
+left untouched.
+
+---
+
 ## Options
 
 Options (`Ctrl + ,`, or **File > Options**) has eleven tabs along the top:
@@ -384,7 +502,8 @@ PRIVACY, DIAGNOSTICS and FILE LOCATIONS.
 
 ### MIDI
 
-- **Chord window** - how long Poly mode waits to collect a chord.
+- **Chord window** - how long Poly mode waits to collect a chord, 15 ms by
+  default.
 - **Clear all MIDI mappings** - forgets every MIDI Learn assignment at once.
 
 ### Appearance
@@ -505,6 +624,10 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md). The short list:
 - **No sound?** Check MIDI is arriving (the dot beside the logo), that the amp is
   not on Standby, that Master is up, and that a pickup is selected. Press Panic in
   case a note is stuck.
+- **A pedal you just picked is silent?** Its footswitch is on BYPASS. Click it.
+- **Something keeps playing and Panic does not end it?** Press **RESET & STOP**
+  (`Ctrl + Shift + P`). It stops the tune, the loops and the rhythm engine as
+  well as the strings.
 - **Crackles?** Lower the oversampling, or raise your host's buffer size.
 - **Out of tune?** Realism Detune is deliberate. Turn it to zero in Advanced for
   machine-perfect tuning.
