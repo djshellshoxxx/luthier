@@ -11,6 +11,7 @@
     accessors. Everything inside processBlock is allocation-free.
 */
 
+#include "Support/SoundingNotes.h"   // animated-strings.md 4.1
 #include "DSP/String/StringEngine.h"
 #include "DSP/Coupling/CouplingMatrix.h"
 #include "DSP/Body/BodyEngine.h"
@@ -427,6 +428,13 @@ public:
 
     double getCpuEstimate() const noexcept { return cpuEstimate.load (std::memory_order_relaxed); }
 
+    // animated-strings.md 4.1: the per-string display snapshot, published once per
+    // sub-block whatever the display settings (the piano roll shares it).
+    const SoundingNotes& getSoundingNotes() const noexcept { return soundingNotes; }
+
+    /** How many times publishSoundingNotes has run (AS-17's test counter). */
+    uint64_t getSoundingNotesPublishCount() const noexcept { return soundingPublishCount.load (std::memory_order_relaxed); }
+
 private:
     /** Moves a block's events onto the schedule, converting their offsets to
         absolute sample positions. */
@@ -437,6 +445,10 @@ private:
     void triggerNote (const NoteOnEvent& e) noexcept;
     void applyNoteOff (const NoteOffEvent& e) noexcept;
     void updatePerBlockModulation (int numSamples) noexcept;
+
+    /** animated-strings.md 4.1: the end-of-sub-block store into soundingNotes. Audio thread, never waits. */
+    void publishSoundingNotes() noexcept;
+    void resetSoundingState() noexcept;
     void rebuildBodyFromSpec();
     void rebuildPickupsFromSpec();
 
@@ -608,6 +620,15 @@ private:
     std::array<int, kMaxStrings> stringMidiNote {};
     std::array<Lfo, kMaxStrings> vibratoLfo;
     std::array<double, kMaxStrings> vibratoAmount {};
+
+    // animated-strings.md 4.1: what the display snapshot needs of each note.
+    SoundingNotes soundingNotes;
+    std::atomic<uint64_t> soundingPublishCount { 0 };
+    std::array<int64_t, kMaxStrings> noteStartSample {};
+    std::array<float, kMaxStrings> notePluckPosition {};
+    std::array<uint8_t, kMaxStrings> noteStopKind {};
+    std::array<double, kMaxStrings> slideStopFret {};     ///< the bar's contact the block used; < 0 = not under a bar
+    std::array<double, kMaxStrings> fingerBendCents {};   ///< bend + vibrato, no whammy or slide (2.4)
 
     Excitation::Material pickMaterial = Excitation::Material::PickCelluloid;
     double pluckPosition = 0.16;

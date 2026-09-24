@@ -558,6 +558,9 @@ void AccessibilitySettings::buildDefaultShortcuts()
         not exist yet; when tune-builder lands, that binding takes it and audition
         moves. */
     add ("audition",         "accessibility.shortcut.audition",         KP (KP::spaceKey));
+
+    // animated-strings.md 8: rebindable, unbound by default.
+    add ("toggleStringAnimation", "accessibility.shortcut.toggleStringAnimation", KP());
 }
 
 bool AccessibilitySettings::rebind (const juce::String& actionId, const juce::KeyPress& key)
@@ -566,7 +569,7 @@ bool AccessibilitySettings::rebind (const juce::String& actionId, const juce::Ke
     // rebind table shows the clash, which is what accessibility 2's "full rebind
     // table" needs to be usable.
     for (const auto& binding : shortcuts)
-        if (binding.id != actionId && binding.key == key)
+        if (binding.id != actionId && key.isValid() && binding.key == key)   // unbound never clashes
             return false;
 
     for (auto& binding : shortcuts)
@@ -606,7 +609,7 @@ void AccessibilitySettings::resetAllShortcuts()
 juce::String AccessibilitySettings::findAction (const juce::KeyPress& key) const
 {
     for (const auto& binding : shortcuts)
-        if (binding.key == key)
+        if (binding.key.isValid() && binding.key == key)
             return binding.id;
 
     return {};

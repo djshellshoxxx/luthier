@@ -2666,17 +2666,36 @@ namespace
             g.restoreState();
     }
 
-    void paintString (juce::Graphics& g, const GuitarScene::StringLine& s, float pxPerMm)
+    /** Which parts of a string paintString draws (animated-strings.md 4.4). */
+    enum class StringPart { whole, outsideSpeaking, speaking };
+
+    void paintString (juce::Graphics& g, const GuitarScene::StringLine& s, float pxPerMm,
+                      StringPart part = StringPart::whole)
     {
-        const float zoom = juce::jlimit (0.3f, 1.0f, pxPerMm / 0.77f);
-        const float widthPx = juce::jmax (s.widthMm * pxPerMm, s.minWidthPx * zoom);
+        const float widthPx = GuitarRenderer::stringWidthPx (s.widthMm, s.minWidthPx, pxPerMm);
         const float w = widthPx / pxPerMm;
 
         juce::Path line;
-        line.startNewSubPath (s.tail);
-        line.lineTo (s.saddle);
-        line.lineTo (s.nut);
-        line.lineTo (s.post);
+
+        if (part == StringPart::whole)
+        {
+            line.startNewSubPath (s.tail);
+            line.lineTo (s.saddle);
+            line.lineTo (s.nut);
+            line.lineTo (s.post);
+        }
+        else if (part == StringPart::outsideSpeaking)
+        {
+            line.startNewSubPath (s.tail);
+            line.lineTo (s.saddle);
+            line.startNewSubPath (s.nut);
+            line.lineTo (s.post);
+        }
+        else
+        {
+            line.startNewSubPath (s.saddle);
+            line.lineTo (s.nut);
+        }
 
         const juce::PathStrokeType stroke (w, juce::PathStrokeType::mitered, juce::PathStrokeType::butt);
 
@@ -2716,6 +2735,12 @@ namespace
 
 void GuitarRenderer::paint (juce::Graphics& g, const GuitarScene& scene, const juce::AffineTransform& mmToPx)
 {
+    paint (g, scene, mmToPx, PaintLayers {});
+}
+
+void GuitarRenderer::paint (juce::Graphics& g, const GuitarScene& scene, const juce::AffineTransform& mmToPx,
+                            PaintLayers layers)
+{
     const float pxPerMm = scaleOf (mmToPx);
 
     if (pxPerMm <= 0.0f)
@@ -2728,7 +2753,7 @@ void GuitarRenderer::paint (juce::Graphics& g, const GuitarScene& scene, const j
         paintShape (g, scene, s, pxPerMm);
 
     for (auto& s : scene.strings)
-        paintString (g, s, pxPerMm);
+        paintString (g, s, pxPerMm, layers.omitSpeakingLengths ? StringPart::outsideSpeaking : StringPart::whole);
 
     for (auto& s : scene.overStrings)
         paintShape (g, scene, s, pxPerMm);
@@ -2758,17 +2783,22 @@ void GuitarRenderer::paintOverlay (juce::Graphics& g, const GuitarScene& scene,
             continue;
 
         const float fret = overlay.stringFret[(size_t) i];
-        const auto from = fret > 0.0f ? scene.stringAt (i, fret) : s.nut;
 
-        juce::Path vib;
-        vib.startNewSubPath (from);
-        vib.lineTo (s.saddle);
+        // animated-strings.md 2.3: while the strings animate, the ghost is the glow.
+        if (! overlay.motionActive)
+        {
+            const auto from = fret > 0.0f ? scene.stringAt (i, fret) : s.nut;
 
-        const float glow = overlay.reducedMotion ? 2.0f : 2.0f + 3.0f * level;
-        g.setColour (overlay.accent.withAlpha (0.35f * level));
-        g.strokePath (vib, juce::PathStrokeType (glow / pxPerMm * 2.0f));
-        g.setColour (overlay.accent.brighter (0.4f).withAlpha (0.8f * level));
-        g.strokePath (vib, juce::PathStrokeType (juce::jmax (s.widthMm, 1.2f / pxPerMm)));
+            juce::Path vib;
+            vib.startNewSubPath (from);
+            vib.lineTo (s.saddle);
+
+            const float glow = overlay.reducedMotion ? 2.0f : 2.0f + 3.0f * level;
+            g.setColour (overlay.accent.withAlpha (0.35f * level));
+            g.strokePath (vib, juce::PathStrokeType (glow / pxPerMm * 2.0f));
+            g.setColour (overlay.accent.brighter (0.4f).withAlpha (0.8f * level));
+            g.strokePath (vib, juce::PathStrokeType (juce::jmax (s.widthMm, 1.2f / pxPerMm)));
+        }
 
         if (fret > 0.0f)
         {
@@ -2810,6 +2840,279 @@ void GuitarRenderer::paintOverlay (juce::Graphics& g, const GuitarScene& scene,
             outline (h.area, overlay.accent, 2.5f);
         else if (h.region == overlay.hovered && overlay.hovered != GuitarRegion::none)
             outline (h.area, overlay.accent.withAlpha (0.6f), 1.5f);
+    }
+}
+
+//==============================================================================
+//  animated-strings.md 2.3, 4.4 and 6.1
+//==============================================================================
+float GuitarRenderer::stringWidthPx (float widthMm, float minWidthPx, float pxPerMm) noexcept
+{
+    const float zoom = juce::jlimit (0.3f, 1.0f, pxPerMm / 0.77f);
+    return juce::jmax (widthMm * pxPerMm, minWidthPx * zoom);
+}
+
+StringLook GuitarRenderer::lookOf (const GuitarScene::StringLine& line)
+{
+    StringLook look;
+    look.colour = line.colour;
+    look.winding = line.winding;
+    look.widthMm = line.widthMm;
+    look.minWidthPx = line.minWidthPx;
+    look.wound = line.wound;
+    look.dashedWinding = line.dashedWinding;
+    return look;
+}
+
+std::array<StringLook, 12> GuitarRenderer::stringLooks (const WorkshopGuitar& guitar)
+{
+    std::array<StringLook, 12> looks {};
+
+    // The scene's own string loop is the one source of truth (6.1); the lighting
+    // pass is skipped because it does not touch the strings.
+    Options options;
+    options.materials = false;
+    const auto scene = build (guitar, options);
+
+    for (const auto& line : scene.strings)
+        if (juce::isPositiveAndBelow (line.index, 12))
+            looks[(size_t) line.index] = lookOf (line);
+
+    return looks;
+}
+
+void GuitarRenderer::paintMotionGhost (juce::Graphics& g, const StringMotionFrame::String& str,
+                                       const StringLook& look, float widthPx, StringAnimationQuality quality,
+                                       SpeakingStyle style)
+{
+    const int n = juce::jlimit (2, StringMotionFrame::kMaxSamples, str.numSamples);
+    const float ln = juce::jlimit (0.0f, 1.0f, str.levelNorm);
+    const bool high = quality == StringAnimationQuality::high && ! style.highContrast;
+    const auto colour = style.highContrast ? style.highContrastColour : look.colour;
+
+    /*  Only the samples whose segments reach the clip are built: the software
+        rasteriser's cost grows with an edge's length, and on the fretboard the
+        speaking length runs on to a bridge well beyond the board (11). */
+    const auto clip = g.getClipBounds().toFloat().expanded (widthPx + 2.0f);
+    int i0 = n, i1 = -1;
+
+    for (int k = 0; k + 1 < n; ++k)
+    {
+        const float a0 = str.samples[(size_t) k], a1 = str.samples[(size_t) k + 1];
+        const float u0 = (float) k / (float) (n - 1), u1 = (float) (k + 1) / (float) (n - 1);
+        juce::Rectangle<float> seg (str.pointAt (u0, a0), str.pointAt (u0, -a0));
+        seg = seg.getUnion (juce::Rectangle<float> (str.pointAt (u1, a1), str.pointAt (u1, -a1)));
+
+        if (seg.expanded (widthPx).intersects (clip))
+        {
+            i0 = juce::jmin (i0, k);
+            i1 = juce::jmax (i1, k + 1);
+        }
+    }
+
+    /*  An edge line at side * scale * A(u), `width` px wide, as a filled band
+        rather than a stroke: the same pixels for a line this thin, at a fraction
+        of the software renderer's stroking cost (11). The path is a member-style
+        reusable buffer, cleared per call (4.4). */
+    juce::Path band;
+    auto edgeBand = [&] (float scale, float side, float width)
+    {
+        band.clear();
+        band.preallocateSpace (4 * n + 4);
+
+        for (int i = i0; i <= i1; ++i)
+        {
+            const float u = (float) i / (float) (n - 1);
+            const auto pt = str.pointAt (u, side * scale * str.samples[(size_t) i] + width * 0.5f);
+            if (i == i0) band.startNewSubPath (pt); else band.lineTo (pt);
+        }
+
+        for (int i = i1 + 1; --i >= i0;)
+        {
+            const float u = (float) i / (float) (n - 1);
+            band.lineTo (str.pointAt (u, side * scale * str.samples[(size_t) i] - width * 0.5f));
+        }
+
+        band.closeSubPath();
+        g.fillPath (band);
+    };
+
+    const auto axis = str.bridge - str.displacedStop;
+
+    if (i1 > i0 && std::abs (axis.x) > 1.0f && std::abs (axis.y) <= 0.1f * std::abs (axis.x))
+    {
+        /*  A string within 6 degrees of horizontal - both views, in practice - is
+            drawn as runs of axis-aligned rectangles, each step at most a quarter
+            pixel, so the anti-aliasing reads the same as a polygon's. A long,
+            nearly flat polygon edge is the software rasteriser's worst case (its
+            cost grows with the edge's length and its points crowd onto a few
+            scanlines to be sorted), and this is what keeps a 1600 px fretboard
+            inside section 11's frame budget. */
+        static thread_local juce::RectangleList<float> runs;
+        constexpr float kStep = 0.25f;
+
+        const float ny = str.normal.y;
+        const float cx0 = clip.getX(), cx1 = clip.getRight();
+
+        auto xAt = [&] (float u) { return str.displacedStop.x + axis.x * u; };
+        auto yAt = [&] (float u, float along) { return str.displacedStop.y + axis.y * u + ny * along; };
+
+        auto addRun = [&] (float xa, float xb, float top, float bottom)
+        {
+            if (xb < xa) std::swap (xa, xb);
+            if (bottom < top) std::swap (top, bottom);
+            xa = juce::jmax (xa, cx0);
+            xb = juce::jmin (xb, cx1);
+            if (xb > xa && bottom > top)
+                runs.addWithoutMerging ({ xa, top, xb - xa, bottom - top });
+        };
+
+        /** One layer: the band between offsets lo(u) and hi(u) along the normal. */
+        auto fillLayer = [&] (auto lo, auto hi)
+        {
+            runs.clear();
+
+            for (int k = i0; k < i1; ++k)
+            {
+                const float ua = (float) k / (float) (n - 1), ub = (float) (k + 1) / (float) (n - 1);
+                const float ta = yAt (ua, lo (k)), tb = yAt (ub, lo (k + 1));
+                const float ba = yAt (ua, hi (k)), bb = yAt (ub, hi (k + 1));
+                const int steps = juce::jlimit (1, 400, (int) std::ceil (juce::jmax (std::abs (tb - ta), std::abs (bb - ba)) / kStep));
+                const float xa = xAt (ua), xb = xAt (ub);
+
+                for (int j = 0; j < steps; ++j)
+                {
+                    const float f0 = (float) j / (float) steps, f1 = (float) (j + 1) / (float) steps, fm = (f0 + f1) * 0.5f;
+                    addRun (xa + (xb - xa) * f0, xa + (xb - xa) * f1, ta + (tb - ta) * fm, ba + (bb - ba) * fm);
+                }
+            }
+
+            if (! runs.isEmpty())
+                g.fillRectList (runs);
+        };
+
+        const auto A = [&] (int i) { return str.samples[(size_t) i]; };
+
+        g.setColour (colour.withMultipliedAlpha (0.10f + 0.12f * ln));
+        fillLayer ([&] (int i) { return -A (i); }, [&] (int i) { return A (i); });
+
+        if (high)
+        {
+            const float edgeAlpha = 0.35f + 0.45f * ln;
+            const float w = widthPx * 0.5f, thin = widthPx * 0.3f;
+
+            g.setColour (colour.withMultipliedAlpha (edgeAlpha));
+            fillLayer ([&] (int i) { return A (i) - w; }, [&] (int i) { return A (i) + w; });
+            fillLayer ([&] (int i) { return -A (i) - w; }, [&] (int i) { return -A (i) + w; });
+
+            g.setColour (colour.withMultipliedAlpha (edgeAlpha * 0.5f));
+            fillLayer ([&] (int i) { return 0.7f * A (i) - thin; }, [&] (int i) { return 0.7f * A (i) + thin; });
+            fillLayer ([&] (int i) { return -0.7f * A (i) - thin; }, [&] (int i) { return -0.7f * A (i) + thin; });
+        }
+    }
+    else if (i1 > i0)
+    {
+        // The swept region: a polygon along the normal, +A out and -A back.
+        juce::Path swept;
+        for (int i = i0; i <= i1; ++i)
+        {
+            const float u = (float) i / (float) (n - 1);
+            const auto pt = str.pointAt (u, str.samples[(size_t) i]);
+            if (i == i0) swept.startNewSubPath (pt); else swept.lineTo (pt);
+        }
+        for (int i = i1 + 1; --i >= i0;)
+        {
+            const float u = (float) i / (float) (n - 1);
+            swept.lineTo (str.pointAt (u, -str.samples[(size_t) i]));
+        }
+        swept.closeSubPath();
+
+        g.setColour (colour.withMultipliedAlpha (0.10f + 0.12f * ln));
+        g.fillPath (swept);
+
+      if (high)
+      {
+        // The edges at +-A, where a sinusoidally moving string spends its time,
+        // and the mid lines at +-0.7A.
+        const float edgeAlpha = 0.35f + 0.45f * ln;
+        g.setColour (colour.withMultipliedAlpha (edgeAlpha));
+        edgeBand (1.0f, 1.0f, widthPx);
+        edgeBand (1.0f, -1.0f, widthPx);
+
+        g.setColour (colour.withMultipliedAlpha (edgeAlpha * 0.5f));
+        edgeBand (0.7f, 1.0f, widthPx * 0.6f);
+        edgeBand (0.7f, -1.0f, widthPx * 0.6f);
+      }
+    }
+
+    // The rest line: static from the nut to the (pushed) stop, faded along the
+    // speaking length as the string moves.
+    auto restLine = [&] (juce::Point<float> a, juce::Point<float> b, float alpha)
+    {
+        juce::Path line;
+        line.startNewSubPath (a);
+        line.lineTo (b);
+
+        g.setColour (colour.withMultipliedAlpha (alpha));
+        g.strokePath (line, juce::PathStrokeType (widthPx, juce::PathStrokeType::mitered, juce::PathStrokeType::butt));
+
+        if (high && look.dashedWinding && widthPx >= 1.2f)
+        {
+            juce::Path dashed;
+            const float d = juce::jmax (1.0f, widthPx * 0.9f);
+            const float dashes[] = { d, d };
+            juce::PathStrokeType (widthPx * 0.7f, juce::PathStrokeType::mitered, juce::PathStrokeType::butt)
+                .createDashedStroke (dashed, line, dashes, 2);
+            g.setColour (look.winding.withMultipliedAlpha (alpha));
+            g.fillPath (dashed);
+        }
+    };
+
+    if (str.nut.getDistanceFrom (str.displacedStop) > 0.5f)
+        restLine (str.nut, str.displacedStop, 1.0f);
+
+    restLine (str.displacedStop, str.bridge, 1.0f - 0.6f * ln);
+}
+
+void GuitarRenderer::paintSpeakingLengths (juce::Graphics& g, const GuitarScene& scene, const juce::AffineTransform& mmToPx,
+                                           const StringMotionFrame* frame, SpeakingStyle style)
+{
+    const float pxPerMm = scaleOf (mmToPx);
+
+    if (pxPerMm <= 0.0f)
+        return;
+
+    const auto clip = g.getClipBounds().toFloat();
+
+    for (auto& s : scene.strings)
+    {
+        const StringMotionFrame::String* moving = nullptr;
+
+        if (frame != nullptr && juce::isPositiveAndBelow (s.index, frame->numStrings)
+            && frame->strings[(size_t) s.index].active)
+            moving = &frame->strings[(size_t) s.index];
+
+        const float widthPx = stringWidthPx (s.widthMm, s.minWidthPx, pxPerMm);
+
+        if (moving != nullptr)
+        {
+            // 4.4: a string whose swept bounds miss the clip is skipped.
+            if (! moving->swept.intersects (clip))
+                continue;
+
+            paintMotionGhost (g, *moving, lookOf (s), widthPx, frame->quality, style);
+            continue;
+        }
+
+        auto a = s.saddle, b = s.nut;
+        mmToPx.transformPoints (a.x, a.y, b.x, b.y);
+
+        if (! juce::Rectangle<float> (a, b).expanded (2.0f * widthPx + 2.0f).intersects (clip))
+            continue;
+
+        juce::Graphics::ScopedSaveState save (g);
+        g.addTransform (mmToPx);
+        paintString (g, s, pxPerMm, StringPart::speaking);
     }
 }
 

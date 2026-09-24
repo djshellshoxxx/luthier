@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 #include "UI/RangesUi.h"
 #include "Accessibility/Accessibility.h"
+#include "UI/Guitar/StringAnimator.h"   // animated-strings.md 8
 
 namespace luthier
 {
@@ -675,6 +676,13 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     }
 
     if (is ("panic"))     { processor.panic();       return true; }
+
+    // animated-strings.md 8: the rebindable, unbound-by-default toggle.
+    if (is ("toggleStringAnimation"))
+    {
+        StringAnimationSettings::setEnabled (! StringAnimationSettings::isEnabled());
+        return true;
+    }
     if (is ("tapTempo"))  { processor.tapTempoNow(); return true; }
 
     if (is ("killSwitch"))

@@ -784,9 +784,11 @@ AppearancePage::AppearancePage (LuthierAudioProcessor& p)
     {
         AccessibilitySettings::get().setReducedMotion (reducedMotionToggle.getToggleState());
         AccessibilitySettings::get().save();
+        visualAids.refresh();   // animated-strings.md 5: the "paused" line
     };
 
     addAndMakeVisible (reducedMotionToggle);
+    addAndMakeVisible (visualAids);   // animated-strings.md 5
 
     tooltipsToggle.onClick = [this]
     {
@@ -822,6 +824,11 @@ void AppearancePage::refresh()
     tooltipsToggle.setToggleState (processor.getUiState().tooltipsEnabled,
                                    juce::dontSendNotification);
 
+    if (visualAids.getHeight() != visualAids.getPreferredHeight())
+        resized();
+
+    visualAids.refresh();   // animated-strings.md 5
+
     for (int i = 0; i < AccessibilitySettings::kNumScales; ++i)
         if (std::abs (AccessibilitySettings::kScales[(size_t) i] - settings.getUiScale()) < 1.0e-6)
             scaleBox.setSelectedId (i + 1, juce::dontSendNotification);
@@ -843,7 +850,7 @@ void AppearancePage::paint (juce::Graphics& g)
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "THEME AND SIZE");
-    drawHeading (g, { 0, 130, getWidth(), 18 }, "NOT BUILT YET");
+    drawHeading (g, { 0, pendingTop - 20, getWidth(), 18 }, "NOT BUILT YET");
 }
 
 void AppearancePage::resized()
@@ -870,10 +877,15 @@ void AppearancePage::resized()
         reducedMotionToggle.setBounds (row.removeFromLeft (160));
     }
 
+    // animated-strings.md 5: VISUAL AIDS starts directly under that row.
+    bounds.removeFromTop (4);
+    visualAids.setBounds (bounds.removeFromTop (visualAids.getPreferredHeight()));
+
     bounds.removeFromTop (4);
     contrastLabel.setBounds (bounds.removeFromTop (18));
 
-    pendingLabel.setBounds (getLocalBounds().withTrimmedTop (150).withHeight (32));
+    pendingTop = bounds.getY() + 24;
+    pendingLabel.setBounds (getLocalBounds().withTrimmedTop (pendingTop).withHeight (32));
 }
 
 //==============================================================================
@@ -1014,7 +1026,7 @@ void AccessibilityPage::ShortcutModel::paintListBoxItem (int row, juce::Graphics
     g.setColour (capturing ? Palette::backgroundDeep
                            : (binding.isRebound() ? Palette::accent : Palette::textDisabled));
 
-    g.drawText (capturing ? "press a key..." : binding.key.getTextDescription(),
+    g.drawText (capturing ? "press a key..." : binding.key.isValid() ? binding.key.getTextDescription() : juce::String ("(not bound)"),
                 width - 134, 0, 128, height, juce::Justification::centredRight, true);
 }
 

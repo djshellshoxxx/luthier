@@ -29,6 +29,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../../Model/Workshop/PartLibrary.h"
+#include "StringMotion.h"   // animated-strings.md 4.4
 
 #include <array>
 #include <vector>
@@ -127,6 +128,28 @@ struct GuitarOverlay
     GuitarRegion selected = GuitarRegion::none;
     juce::Colour accent { 0xffd4a24c };
     bool reducedMotion = false;
+
+    /** animated-strings.md 2.3: the motion ghost replaces layer 26's glow along the
+        string; the played-note dot stays. */
+    bool motionActive = false;
+};
+
+//==============================================================================
+/** animated-strings.md 6.1: how a string looks, per material (section 10). */
+struct StringLook
+{
+    juce::Colour colour { 0xffc8c8c8 }, winding { 0xff909090 };
+    float widthMm = 0.3f;
+    float minWidthPx = 1.0f;
+    bool wound = false;
+    bool dashedWinding = false;
+};
+
+/** animated-strings.md 2.3: the High-contrast palette's drawing of moving strings. */
+struct GuitarSpeakingStyle
+{
+    bool highContrast = false;                        ///< Low-style drawing in `highContrastColour`
+    juce::Colour highContrastColour { 0xffffffff };
 };
 
 //==============================================================================
@@ -151,6 +174,41 @@ public:
 
     /** Paints the static scene. */
     static void paint (juce::Graphics& g, const GuitarScene& scene, const juce::AffineTransform& mmToPx);
+
+    //==========================================================================
+    // animated-strings.md 4.4 and 6.1.
+
+    struct PaintLayers
+    {
+        /** Draw each string only tail -> saddle and nut -> post: the speaking
+            lengths are painted per frame by paintSpeakingLengths (layer 25a). */
+        bool omitSpeakingLengths = false;
+    };
+
+    static void paint (juce::Graphics& g, const GuitarScene& scene, const juce::AffineTransform& mmToPx,
+                       PaintLayers layers);
+
+    using SpeakingStyle = GuitarSpeakingStyle;
+
+    /** Layer 25a: every string's speaking length, saddle to nut. With a null frame
+        (or for a string at rest) it is the static line paintString draws; a moving
+        string is drawn as its motion ghost. */
+    static void paintSpeakingLengths (juce::Graphics& g, const GuitarScene& scene, const juce::AffineTransform& mmToPx,
+                                      const StringMotionFrame* frame, SpeakingStyle style = {});
+
+    /** The ghost of one moving string, in pixels (2.3's table). Shared with the
+        fretboard. `widthPx` is the string's drawn width. */
+    static void paintMotionGhost (juce::Graphics& g, const StringMotionFrame::String& string,
+                                  const StringLook& look, float widthPx, StringAnimationQuality quality,
+                                  SpeakingStyle style = {});
+
+    /** paintString's width rule: the gauge at this zoom, floored at section 10's minimum. */
+    static float stringWidthPx (float widthMm, float minWidthPx, float pxPerMm) noexcept;
+
+    /** 6.1: every string's look for a guitar, from the same StringLine loop the
+        illustration uses, so the fretboard and the illustration never disagree. */
+    static std::array<StringLook, 12> stringLooks (const WorkshopGuitar& guitar);
+    static StringLook lookOf (const GuitarScene::StringLine& line);
 
     /** Paints the live overlay (section 2.2) over an already painted scene. */
     static void paintOverlay (juce::Graphics& g, const GuitarScene& scene,

@@ -115,6 +115,9 @@ public:
         0 disables. */
     void setHarmonicRestriction (int partial) noexcept;
 
+    /** animated-strings.md 4.1: the partial the string is restricted to; 0 = none. */
+    int getHarmonicPartial() const noexcept { return harmonicPartial; }
+
     /** Fret buzz: low action plus light fretting makes the string slap the frets. */
     void setFretBuzz (double amount, double actionMm) noexcept;
 

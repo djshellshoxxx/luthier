@@ -25,6 +25,7 @@
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "VisualAidsSection.h"   // animated-strings.md 5
 #include "../Controllers/ControllerProfile.h"
 #include "../Updates/Telemetry.h"
 
@@ -118,6 +119,14 @@ private:
     juce::Label contrastLabel, pendingLabel;
 
     bool updatingControls = false;
+
+public:
+    /** animated-strings.md 5 / piano-roll-chord-display.md 5: VISUAL AIDS, directly
+        under the tooltips / reduced-motion row. */
+    VisualAidsSection visualAids;
+
+private:
+    int pendingTop = 150;
 };
 
 //==============================================================================

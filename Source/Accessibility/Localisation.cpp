@@ -456,6 +456,17 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "accessibility.shortcut.options",         "Open options" },
         { "accessibility.shortcut.debugPanel",      "Open the debug panel" },
         { "accessibility.shortcut.audition",        "Audition" },
+        { "accessibility.shortcut.toggleStringAnimation", "Toggle string animation" },
+
+        // ---- animated-strings.md 5 and 8: Options -> Appearance -> Visual aids ------------------
+        { "options.appearance.visualAids.heading",        "VISUAL AIDS" },
+        { "options.appearance.visualAids.animateStrings", "Animate strings" },
+        { "options.appearance.visualAids.quality",        "Quality" },
+        { "options.appearance.visualAids.qualityName",    "String animation quality" },
+        { "options.appearance.visualAids.qualityLow",     "Low" },
+        { "options.appearance.visualAids.qualityHigh",    "High" },
+        { "options.appearance.visualAids.help",           "Strings vibrate on the guitar and fretboard while they sound. Display only: no effect on the sound." },
+        { "options.appearance.visualAids.paused",         "Paused while Reduced motion is on." },
 
         // ---- accessible descriptions -----------------------------------------------------------
         { "a11y.knob.role",           "Rotary control" },

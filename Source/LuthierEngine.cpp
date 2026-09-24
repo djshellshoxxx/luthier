@@ -18,6 +18,8 @@ LuthierEngine::LuthierEngine()
         stringMidiNote[(size_t) i] = -1;
         vibratoAmount[(size_t) i] = 0.0;
     }
+
+    resetSoundingState();   // animated-strings.md 4.1
 }
 
 LuthierEngine::~LuthierEngine()
@@ -209,6 +211,10 @@ void LuthierEngine::reset() noexcept
 
     numScheduled = 0;
     samplePosition = 0;
+
+    // animated-strings.md 4.1: the display snapshot forgets the last render too.
+    resetSoundingState();
+    publishSoundingNotes();
 
     // The tone strip's ramps land where they are heading, like every smoother.
     inputGainNow = inputGainTarget.load (std::memory_order_relaxed);
@@ -1107,6 +1113,13 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
 
     str.excite (p);
 
+    // animated-strings.md 4.1: where and how this note is stopped, for the display.
+    noteStartSample[(size_t) s] = blockStartSample + activeSampleOffset;
+    notePluckPosition[(size_t) s] = (float) p.pluckPosition;
+    noteStopKind[(size_t) s] = slide.isUnderBar (s) ? SoundingString::slide
+                             : e.technique == Technique::Tap ? SoundingString::tapped
+                             : fret > 0.0 ? SoundingString::fretted : SoundingString::open;
+
     {
         const juce::int64 now = blockStartSample + activeSampleOffset;
 
@@ -1266,6 +1279,10 @@ void LuthierEngine::playSlapStrike (const SlapStrike& strike, double pitchHz, do
         str.snapToFrequency (pitchHz);
 
     str.excite (p);
+
+    // animated-strings.md 4.1: a slap's strike restarts the display's envelope too.
+    noteStartSample[(size_t) s] = blockStartSample + activeSampleOffset;
+    notePluckPosition[(size_t) s] = (float) p.pluckPosition;
 
     if (! fretless)
     {
@@ -1557,12 +1574,20 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
             const double slideVibrato = SlideEngine::vibratoCents (vib / 10.0, contact, spec.scaleLengthMm);
             const double raw = contact + (bend + whammyCents + slideVibrato) / 100.0;
 
+            // animated-strings.md 4.1: the display stops the string at the contact; the
+            // bar's vibrato and the whammy are not a push across the neck (2.4).
+            slideStopFret[(size_t) s] = contact;
+            fingerBendCents[(size_t) s] = bend;
+
             hz = tuning.computeFrequency (s, slide.assist (s, raw, numSamples), 0.0);
         }
         else
         {
             hz = tuning.computeFrequency (s, currentFret[(size_t) s],
                                           bend + whammyCents + vib + magnetDetuneCents + scrape.getPitchOffsetCents (s));
+
+            slideStopFret[(size_t) s] = -1.0;           // animated-strings.md 4.1
+            fingerBendCents[(size_t) s] = bend + vib;   // finger bend and vibrato only (2.4)
         }
 
         strings[(size_t) s].setTargetFrequency (hz);
@@ -2420,6 +2445,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     const double budget = (double) numSamples / sr;
     const double instant = (budget > 0.0) ? (elapsed / budget) * 100.0 : 0.0;
 
+    publishSoundingNotes();   // animated-strings.md 4.1: immediately before the CPU estimate
+
     cpuEstimate.store (cpuEstimate.load (std::memory_order_relaxed) * 0.9 + instant * 0.1,
                        std::memory_order_relaxed);
 }
@@ -2487,12 +2514,15 @@ int LuthierEngine::getPerStringLatencySamples() const noexcept
 }
 
 //==============================================================================
+/*  animated-strings.md 4.1: these two used to read the audio thread's plain
+    doubles from the message thread, a data race. They read the published
+    snapshot's atomics now, so they are the values as of the last sub-block. */
 double LuthierEngine::getStringLevel (int i) const noexcept
 {
     if (! juce::isPositiveAndBelow (i, kMaxStrings))
         return 0.0;
 
-    return strings[(size_t) i].getLevel();
+    return (double) soundingNotes.strings[(size_t) i].level.load (std::memory_order_relaxed);
 }
 
 double LuthierEngine::getStringFrequency (int i) const noexcept
@@ -2516,7 +2546,69 @@ double LuthierEngine::getStringFret (int i) const noexcept
     if (! juce::isPositiveAndBelow (i, kMaxStrings))
         return 0.0;
 
-    return currentFret[(size_t) i];
+    return (double) soundingNotes.strings[(size_t) i].fret.load (std::memory_order_relaxed);
+}
+
+//==============================================================================
+void LuthierEngine::resetSoundingState() noexcept
+{
+    noteStartSample.fill (-1);
+    notePluckPosition.fill (0.16f);
+    noteStopKind.fill (SoundingString::open);
+    slideStopFret.fill (-1.0);
+    fingerBendCents.fill (0.0);
+}
+
+/*  animated-strings.md 4.1. Once per sub-block, whatever the display settings and
+    whether or not an editor exists, so the toggle cannot change the audio thread.
+    Relaxed stores inside the seqlock; nothing here allocates, locks or waits. */
+void LuthierEngine::publishSoundingNotes() noexcept
+{
+    auto& out = soundingNotes;
+    uint64_t set[2] = { 0, 0 };
+
+    out.beginWrite();
+
+    for (int s = 0; s < kMaxStrings; ++s)
+    {
+        auto& rec = out.strings[(size_t) s];
+        const bool live = s < numStrings;
+        const auto& str = strings[(size_t) s];
+
+        double level = live ? str.getLevel() : 0.0;
+        if (! std::isfinite (level))
+            level = 0.0;
+
+        const double capo = (double) tuning.getCapoFretFor (s);
+        const double underBar = slideStopFret[(size_t) s];
+        const double stop = capo + (underBar >= 0.0 ? underBar : currentFret[(size_t) s]);
+        const int note = live ? stringMidiNote[(size_t) s] : -1;
+
+        rec.level.store ((float) level, std::memory_order_relaxed);
+        rec.stopFret.store ((float) stop, std::memory_order_relaxed);
+        rec.bendCents.store ((float) fingerBendCents[(size_t) s], std::memory_order_relaxed);
+        rec.pluckPosition.store (notePluckPosition[(size_t) s], std::memory_order_relaxed);
+        rec.startSample.store (noteStartSample[(size_t) s], std::memory_order_relaxed);
+        rec.midiNote.store ((int8_t) juce::jlimit (-1, 127, note), std::memory_order_relaxed);
+        rec.damping.store ((uint8_t) str.getDamping(), std::memory_order_relaxed);
+        rec.harmonicPartial.store ((uint8_t) juce::jlimit (0, 255, str.getHarmonicPartial()), std::memory_order_relaxed);
+        rec.stopKind.store (underBar >= 0.0 ? (uint8_t) SoundingString::slide : noteStopKind[(size_t) s],
+                            std::memory_order_relaxed);
+        rec.fret.store ((float) currentFret[(size_t) s], std::memory_order_relaxed);
+
+        if (note >= 0 && note < 128)
+            set[note >> 6] |= (uint64_t) 1 << (note & 63);
+    }
+
+    out.noteSet[0].store (set[0], std::memory_order_relaxed);
+    out.noteSet[1].store (set[1], std::memory_order_relaxed);
+    out.samplePosition.store (samplePosition, std::memory_order_relaxed);
+    out.sampleRate.store (sr, std::memory_order_relaxed);
+    out.numStrings.store (numStrings, std::memory_order_relaxed);
+
+    out.endWrite();
+
+    soundingPublishCount.fetch_add (1, std::memory_order_relaxed);
 }
 
 double LuthierEngine::getStringTensionNewtons (int i) const noexcept
