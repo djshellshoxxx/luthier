@@ -123,7 +123,14 @@ public:
 
     void setFactor (int f) noexcept
     {
-        factor = (f >= 8) ? 8 : (f >= 4) ? 4 : (f >= 2) ? 2 : 1;
+        const int wanted = (f >= 8) ? 8 : (f >= 4) ? 4 : (f >= 2) ? 2 : 1;
+
+        // Re-sent on every structural change (AmpEngine::setOversamplingFactor):
+        // clearing the filters when nothing changed clicked the amp each time.
+        if (wanted == factor)
+            return;
+
+        factor = wanted;
         reset();
     }
 

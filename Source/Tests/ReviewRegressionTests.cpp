@@ -706,3 +706,27 @@ LUTHIER_TEST (ReviewRegression, theOversamplerDelaysWhatItReports)
                      + juce::String (os.getLatencySamples()));
     }
 }
+
+/*  R-035: setFactor cleared the half-band filters even when the factor did not
+    change, and the amp re-sends it on every structural change: a click. */
+LUTHIER_TEST (ReviewRegression, resendingTheSameOversamplingFactorDoesNotReset)
+{
+    Oversampler a, b;
+    a.prepare (48000.0, 4);
+    b.prepare (48000.0, 4);
+
+    double maxDiff = 0.0;
+
+    for (int i = 0; i < 2000; ++i)
+    {
+        if (i == 1000)
+            b.setFactor (4);
+
+        const double x = std::sin (0.05 * i);
+        const double ya = a.processSample (x, [] (double v) { return v; });
+        const double yb = b.processSample (x, [] (double v) { return v; });
+        maxDiff = std::max (maxDiff, std::abs (ya - yb));
+    }
+
+    CHECK_MSG (maxDiff == 0.0, "diverged by " + juce::String (maxDiff));
+}
