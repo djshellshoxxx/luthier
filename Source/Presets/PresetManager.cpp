@@ -553,7 +553,8 @@ bool PresetManager::fromVar (const juce::var& data)
             "rhythmEngine", "routing", "character", "toneMatch",
             // Written by this build too (a known key read back as unknown moved
             // to the front of the next save, so save -> load -> save differed).
-            "ranges", "guitar", "midiMap"
+            "ranges", "guitar", "midiMap",
+            "techniques"   // TECHNIQUES: engine-technique-layer.md 7
         };
 
         auto* preserved = new juce::DynamicObject();

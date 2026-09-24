@@ -79,6 +79,8 @@ class BendEngine
 public:
     static constexpr double kVibratoRampSeconds = 0.030;
 
+    BendEngine();
+
     void prepare (double sampleRate) noexcept;
     void reset() noexcept;
 
@@ -147,7 +149,6 @@ private:
     std::array<std::atomic<double>, kMaxStrings> liveCents {};
     bool preBendArmed = false;
     std::atomic<bool> preBendRequested { false };
-    bool curvesInitialised = false;
 };
 
 } // namespace luthier

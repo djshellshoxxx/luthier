@@ -15,22 +15,21 @@ TechniqueTriggerConfig BendSettings::triggerConfig() const noexcept
 }
 
 //==============================================================================
+BendEngine::BendEngine()
+{
+    // The drawn curve starts as the exponential one, which is where a player
+    // drawing their own would begin. Here, not in prepare(): a host may save
+    // before it prepares, and a prepare after a restore must keep the curve.
+    for (int i = 0; i < kCurvePoints; ++i)
+    {
+        const double x = (double) i / (double) (kCurvePoints - 1);
+        curvePoints[(size_t) i].store (x * x);
+    }
+}
+
 void BendEngine::prepare (double sampleRate) noexcept
 {
     sr = juce::jmax (1.0, sampleRate);
-
-    if (! curvesInitialised)
-    {
-        // The drawn curve starts as the exponential one, which is where a
-        // player drawing their own would begin.
-        for (int i = 0; i < kCurvePoints; ++i)
-        {
-            const double x = (double) i / (double) (kCurvePoints - 1);
-            curvePoints[(size_t) i].store (x * x);
-        }
-
-        curvesInitialised = true;
-    }
 
     reset();
 }
