@@ -354,6 +354,50 @@ namespace ParamIDs
     juce::String slotBypass (bool post, int slot);
     juce::String slotMix (bool post, int slot);
     juce::String slotParam (bool post, int slot, int param);
+
+    // ==== BEGIN REALISM-B params ====
+    // harmonic-realism.md 5 (+8).
+    inline constexpr const char* harmonicTouchPressure    = "harmonic_touch_pressure";
+    inline constexpr const char* harmonicFingerWidth      = "harmonic_finger_width";
+    inline constexpr const char* harmonicTouchTime        = "harmonic_touch_time";
+    inline constexpr const char* harmonicBriefTouch       = "harmonic_brief_touch";
+    inline constexpr const char* pinchThumbOffsetMm       = "pinch_thumb_offset_mm";
+    inline constexpr const char* artificialHarmonicOffset = "artificial_harmonic_offset";
+    inline constexpr const char* tappedHarmonicOffset     = "tapped_harmonic_offset";
+    inline constexpr const char* harmonicNoteMapping      = "harmonic_note_mapping";
+
+    // string-interaction.md 7 (+7).
+    inline constexpr const char* couplingAirAmount        = "coupling_air_amount";
+    inline constexpr const char* palmMuteSpread           = "palm_mute_spread";
+    inline constexpr const char* adjacentMuteAmount       = "adjacent_mute_amount";
+    inline constexpr const char* releaseStaggerMs         = "release_stagger_ms";
+    inline constexpr const char* releaseStaggerBias       = "release_stagger_bias";
+    inline constexpr const char* pickupApertureScale      = "pickup_aperture_scale";
+    inline constexpr const char* mutedThumpLevel          = "muted_thump_level";
+
+    // fingerstyle-attack.md 6 (+14).
+    inline constexpr const char* fingerFleshReleaseMs     = "finger_flesh_release_ms";
+    inline constexpr const char* fingerNailReleaseMs      = "finger_nail_release_ms";
+    inline constexpr const char* thumbPositionOffset      = "thumb_position_offset";
+    inline constexpr const char* restStrokeDamping        = "rest_stroke_damping";
+    inline constexpr const char* rhStroke                 = "rh_stroke";
+    inline constexpr const char* rhStyle                  = "rh_style";
+    inline constexpr const char* thumbPalmMute            = "thumb_palm_mute";
+    inline constexpr const char* hybridSnap               = "hybrid_snap";
+
+    /** rh_string_tool_1 ... _6; string 1 is the high E (routing-io.md 3). */
+    inline const char* rhStringTool (int n) noexcept
+    {
+        static constexpr const char* ids[] = { "rh_string_tool_1", "rh_string_tool_2", "rh_string_tool_3",
+                                               "rh_string_tool_4", "rh_string_tool_5", "rh_string_tool_6" };
+        return ids[juce::jlimit (1, 6, n) - 1];
+    }
+
+    /*  bass-techniques.md 11's IDs, which fingerstyle-attack.md 6 reuses and
+        does not duplicate. Read if another workstream declares them. */
+    inline constexpr const char* fingerAlternationVariation = "finger_alternation_variation";
+    inline constexpr const char* bassRestStroke             = "rest_stroke";
+    // ==== END REALISM-B params ====
 }
 
 //==============================================================================

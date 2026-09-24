@@ -208,6 +208,8 @@ void LuthierEngine::reset() noexcept
     // from, and leaving it would make the first render differ from the second.
     if (swapState.load (std::memory_order_acquire) == swapIdle)
         swapPhase = 1.0;
+
+    resetRealismB();   // REALISM-B: contacts' display, borrowed damping, stagger, crosstalk
 }
 
 void LuthierEngine::releaseResources()
@@ -383,6 +385,8 @@ void LuthierEngine::applySpec()
 
     // Acoustic and classical instruments use fingers by default.
     setUseFingers (spec.category == GuitarCategory::Acoustic);
+
+    refreshAirCoupling();   // REALISM-B: string-interaction.md 1, a_cat follows the guitar
 }
 
 //==============================================================================
@@ -680,6 +684,7 @@ void LuthierEngine::panic() noexcept
     scrape.stopAll();
     slap.reset();
     numScheduled = 0;
+    resetRealismB();   // REALISM-B: string-interaction.md 9, panic clears the runtime flags
 }
 
 //==============================================================================
@@ -701,7 +706,16 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     /*  string-slap-technique.md 2: what the note becomes. A palm slap or a
         body tap replaces the note with the hand; a thumb strike or a pop is
         played below with the slap's excitation; a ghost is damped first. */
-    const SlapStrike slapStrike = slap.classify (e, slide.isUnderBar (s));
+    SlapStrike slapStrike = slap.classify (e, slide.isUnderBar (s));
+
+    // REALISM-B, fingerstyle-attack.md 3-4: the right hand's tool. The Slap
+    // and Pop tools are the slap's thumb and pop whether or not it is armed.
+    const auto hand = resolveRightHand (e, s);
+
+    if (hand.slapType >= 0 && ! slapStrike.strike && ! slide.isUnderBar (s)
+        && (e.technique == Technique::Pluck || e.technique == Technique::PalmMute
+            || e.technique == Technique::MutedPick || e.technique == Technique::Strum))
+        slapStrike = makeToolStrike (e, hand.slapType);
 
     if (slapStrike.isPercussive())
     {
@@ -738,10 +752,37 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         return;
 
     targetFret[(size_t) s] = fret;
-    stringMidiNote[(size_t) s] = e.midiNote;
 
-    // Routing-io 6: what is actually ringing, at the sample it started.
-    stringActivity.push ({ activeSampleOffset, s, e.midiNote, (float) e.velocity, true });
+    // REALISM-B: a muted-string thump (string-interaction.md 6) is struck but
+    // never reported as a note.
+    if (! e.deadStrike)
+    {
+        stringMidiNote[(size_t) s] = e.midiNote;
+
+        // Routing-io 6: what is actually ringing, at the sample it started.
+        stringActivity.push ({ activeSampleOffset, s, e.midiNote, (float) e.velocity, true });
+
+        // REALISM-B: this note's own hand replaces any other's on the string;
+        // a staggered note-off still owed to it would end the new note.
+        onRealismBNoteOn (s);
+
+        // (Marked, not removed: this runs inside fireScheduledEvents' loop.)
+        for (int i = 0; i < numScheduled; ++i)
+        {
+            auto& ev = scheduled[(size_t) i];
+
+            if (! ev.isNoteOn && ev.staggered && ev.noteOff.stringIndex == s
+                && ev.absoluteSample > blockStartSample + activeSampleOffset)
+                ev.cancelled = true;
+        }
+
+        lastNoteOnSample = blockStartSample + activeSampleOffset;
+        lastNoteOnString = s;
+    }
+    else
+    {
+        clearBorrowed (s);
+    }
 
     auto& str = strings[(size_t) s];
 
@@ -820,6 +861,7 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     {
         case Technique::PalmMute:
             str.setDamping (StringEngine::Damping::PalmMute, technique.getPalmMuteAmount());
+            notePalmStrike (s);   // REALISM-B: string-interaction.md 2's palm centre
             break;
 
         case Technique::MutedPick:
@@ -840,7 +882,8 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         // The hand lies across every string, not only the struck ones: a string
         // the voicing skips would otherwise ring on sympathetically and carry
         // the pitch the chuck is meant to take away.
-        for (int o = 0; o < numStrings; ++o)
+        // (Not for a muted-string thump: that is one string's crossing.)
+        for (int o = 0; o < numStrings && ! e.deadStrike; ++o)
             if (o != s && stringMidiNote[(size_t) o] < 0)
                 strings[(size_t) o].setDamping (StringEngine::Damping::Chuck, e.chuck);
     }
@@ -848,8 +891,6 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     // bass-techniques 5: a ghost is the fretting hand resting on the string.
     if (slapStrike.ghost)
         SlapEngine::applyGhostDamping (str, slap.getSettings().ghostDamping);
-
-    str.setHarmonicRestriction (e.harmonicPartial);
 
     // ---- build the excitation ---------------------------------------------------
     // strum-dynamics 5: a strum's striker stands in for the pick on this
@@ -897,6 +938,14 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
             break;
     }
 
+    // REALISM-B: fingerstyle-attack.md's contact profile and stroke, then
+    // harmonic-realism.md's contact, then string-interaction.md 3's fingers
+    // on the neighbours. A Global tool leaves the pick path untouched.
+    bool toolFingers = false;
+    applyRightHand (hand, e, s, str, p, toolFingers);
+    applyHarmonicContact (e, s, str, fret, p);
+    applyAdjacentMute (e, s, fret);
+
     if (slapStrike.strike)
     {
         slap.shapeExcitation (slapStrike, fret, p);
@@ -907,6 +956,7 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         p.velocity = slapStrike.velocity;
     }
 
+    lastExcitation[(size_t) s] = p;   // REALISM-B: for the tests (FA-09)
     str.excite (p);
 
     if (slapStrike.strike)
@@ -957,6 +1007,14 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
             pickNow.fingers = (e.strikerMaterial >= 0 ? false : usingFingers)
                                 || ! PlayingNoise::getPickMaterial (material).isPick;
             pickNow.pluckPosition = pluckPosition;
+
+            // REALISM-B: a resolved tool (fingerstyle-attack.md 3) is what touched the string.
+            if (hand.tool != RhTool::global)
+            {
+                pickNow.material = p.material;
+                pickNow.fingers = toolFingers || ! PlayingNoise::getPickMaterial (p.material).isPick;
+                pickNow.pluckPosition = p.pluckPosition;
+            }
             playingNoise.setPick (pickNow);
 
             playingNoise.onPluck (s, info, e.velocity);
@@ -1088,6 +1146,7 @@ void LuthierEngine::triggerPickScrape (double seconds, bool downward) noexcept
 
 void LuthierEngine::setPickMaterialAndFingers (Excitation::Material material, bool fingers) noexcept
 {
+    chosenPickMaterial = material;   // REALISM-B: the Pick tool's material (fingerstyle-attack.md 1)
     pickMaterial = material;
     setUseFingers (fingers);
 
@@ -1119,6 +1178,8 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
     strings[(size_t) s].release (e.letRing || ebowHolds);
     slide.noteOff (s);
     stringMidiNote[(size_t) s] = -1;
+
+    liftMutesFrom (s);   // REALISM-B: string-interaction.md 3, the finger lifts off its neighbours
 
     // Lifting a finger makes a soft thump as the string is stopped.
     if (! e.letRing && releaseNoise > 0.001)
@@ -1159,12 +1220,17 @@ void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples)
         push (e);
     }
 
+    // REALISM-B: string-interaction.md 4, a chord's fingers leave one by one.
+    std::array<int64_t, PlayEventQueue::kCapacity> offDue {};
+    const int staggered = stageNoteOffs (queue, offDue);
+
     for (int i = 0; i < queue.getNumNoteOffs(); ++i)
     {
         ScheduledEvent e;
         e.isNoteOn = false;
         e.noteOff = queue.getNoteOff (i);
-        e.absoluteSample = samplePosition + e.noteOff.sampleOffset;
+        e.absoluteSample = offDue[(size_t) i];
+        e.staggered = staggered > 0 && offDue[(size_t) i] != samplePosition + e.noteOff.sampleOffset;
         push (e);
     }
 }
@@ -1189,7 +1255,7 @@ void LuthierEngine::fireScheduledEvents (int64_t absoluteSample) noexcept
 
         if (e.isNoteOn)
             triggerNote (e.noteOn);
-        else
+        else if (! e.cancelled)
             applyNoteOff (e.noteOff);
 
         // Swap-remove: order within a single sample does not matter, and this
@@ -1269,6 +1335,23 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
     slide.setOverlayFret (overlay);
 
     tuning.advanceDrift (numSamples);
+
+    // REALISM-B: string-interaction.md 2 and 5 at block rate, and the
+    // contact ring's fade (harmonic-realism.md 7).
+    updatePalmSpread();
+    updateCrosstalk();
+
+    for (int s = 0; s < numStrings; ++s)
+    {
+        auto& left = contactDisplaySamples[(size_t) s];
+
+        if (left > 0)
+        {
+            left = juce::jmax (0, left - numSamples);
+            contactDisplay[(size_t) s].life.store ((float) left / (float) juce::jmax (1, contactDisplayTotal[(size_t) s]),
+                                                   std::memory_order_relaxed);
+        }
+    }
 }
 
 //==============================================================================
@@ -1770,8 +1853,11 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             double couplingIn = couplingInputs[(size_t) s] + excitationNoise[(size_t) s];
 
             // string-scraping.md 1: each catch is an impulse into the string at the pick.
+            // REALISM-B (harmonic-realism.md 2): a direct input, not scaled by receptivity.
+            double directIn = 0.0;
+
             if (scrapeOn)
-                couplingIn += scrape.getExcitation (s)[i];
+                directIn = scrape.getExcitation (s)[i];
 
             // Acoustic feedback (ambiguity-resolutions 1): the amp's output,
             // through the air, at this string's own note.
@@ -1789,7 +1875,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
             // Everything else is surface noise, on the string's output before
             // the body and the pickups, so the instrument colours it.
-            const double out = strings[(size_t) s].processSample (couplingIn) + surfaceNoise[(size_t) s];
+            const double out = strings[(size_t) s].processSample (couplingIn, directIn) + surfaceNoise[(size_t) s];
 
             stringOutputs[(size_t) s] = out;
             bridgeOutputs[(size_t) s] = strings[(size_t) s].getBridgeOutput();

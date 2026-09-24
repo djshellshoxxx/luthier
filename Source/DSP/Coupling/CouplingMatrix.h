@@ -55,6 +55,24 @@ public:
         Stays at 0 unless the safety cap engaged. */
     double getLastLimiting() const noexcept { return lastLimiting; }
 
+    /*  string-interaction.md 1: the air path. A rank-1 term: the top's sound
+        pressure, driven by every string's bridge output, arrives at each
+        string 0.29 ms later through 0.1 m of air, high-passed at 120 Hz, and
+        goes through the same receive filter and energy cap as the bridge
+        term. `coefficient` is a_air = coupling_air_amount x a_cat; 0 skips the
+        whole path and the matrix is bit-identical to one without it. */
+    void setAirCoefficient (double coefficient) noexcept { airCoefficient = juce::jlimit (0.0, 0.05, coefficient); }
+    double getAirCoefficient() const noexcept { return airCoefficient; }
+
+    /** The air delay in samples (0.1 m / 343 m/s at the prepared rate). */
+    int getAirDelaySamples() const noexcept { return airDelay; }
+
+    /** a_cat, per string-interaction.md 1. */
+    static double airCategoryCoefficient (bool acoustic, bool semiHollow, bool bass) noexcept
+    {
+        return acoustic ? 0.0030 : semiHollow ? 0.0010 : bass ? 0.0004 : 0.0001;
+    }
+
 private:
     static constexpr double kEnergyCap = 0.35;
 
@@ -69,6 +87,14 @@ private:
     // One resonant receive filter per string, centred on that string's fundamental.
     std::array<Biquad, kMaxStrings> receiveFilter {};
     std::array<DCBlocker, kMaxStrings> receiveDC {};
+
+    // --- air path (string-interaction.md 1) --------------------------------------
+    static constexpr int kAirRing = 64;      ///< holds 0.29 ms at 192 kHz (56 samples)
+    double airCoefficient = 0.0;
+    int airDelay = 14;
+    int airWrite = 0;
+    std::array<std::array<double, kMaxStrings>, kAirRing> airHistory {};
+    std::array<OnePoleHP, kMaxStrings> airHighPass {};
 };
 
 } // namespace luthier
