@@ -201,8 +201,8 @@ void GuitarBodyComponent::timerCallback()
 
         // While the strings animate the level only draws the ghost, which repaints
         // itself; here only the dot turning on or off matters (4.3: no full repaints).
-        const bool levelChanged = motion ? ((level > 0.01f) != (oldLevel > 0.01f))
-                                         : std::abs (level - oldLevel) > 0.004f;
+        const bool levelChanged = (motion || overlay.reducedMotion) ? ((level > 0.01f) != (oldLevel > 0.01f))
+                                                                    : std::abs (level - oldLevel) > 0.004f;
 
         if (levelChanged || std::abs (fret - overlay.stringFret[(size_t) s]) > 0.01f)
             changed = true;
@@ -219,7 +219,8 @@ void GuitarBodyComponent::timerCallback()
         changed = true;
     }
 
-    const bool reduced = AccessibilitySettings::get().isReducedMotion();
+    // cpu-quality-modes 6: at motion Off (reduced motion or CPU Low) the glow is fixed.
+    const bool reduced = StringMotionPolicy::getMotion() == StringMotionPolicy::Motion::off;
     changed = changed || reduced != overlay.reducedMotion;
     overlay.reducedMotion = reduced;
 

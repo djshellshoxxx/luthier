@@ -2716,10 +2716,53 @@ namespace
             juce::Path dashed;
             const float d = juce::jmax (0.35f, 0.5f / pxPerMm);
             const float dashes[] = { d, d };
-            juce::PathStrokeType (w * 0.7f, juce::PathStrokeType::mitered, juce::PathStrokeType::butt)
-                .createDashedStroke (dashed, line, dashes, 2);
-            g.setColour (s.winding);
-            g.fillPath (dashed);
+            if (part == StringPart::whole)
+            {
+                juce::PathStrokeType (w * 0.7f, juce::PathStrokeType::mitered, juce::PathStrokeType::butt)
+                    .createDashedStroke (dashed, line, dashes, 2);
+                g.setColour (s.winding);
+                g.fillPath (dashed);
+            }
+            else
+            {
+                /*  animated-strings.md 4.4: the dashes are laid along the whole
+                    string, as the one-path render lays them, and clipped to this
+                    part, so the pattern does not restart at the saddle or the nut. */
+                juce::Path whole;
+                whole.startNewSubPath (s.tail);
+                whole.lineTo (s.saddle);
+                whole.lineTo (s.nut);
+                whole.lineTo (s.post);
+                juce::PathStrokeType (w * 0.7f, juce::PathStrokeType::mitered, juce::PathStrokeType::butt)
+                    .createDashedStroke (dashed, whole, dashes, 2);
+
+                auto band = [] (juce::Path& p, juce::Point<float> a, juce::Point<float> b)
+                {
+                    const auto along = b - a;
+                    const float len = along.getDistanceFromOrigin();
+                    if (len <= 1.0e-4f)
+                        return;
+                    const auto n = juce::Point<float> (-along.y, along.x) * (5.0f / len);   // 5 mm either side
+                    p.addQuadrilateral (a.x + n.x, a.y + n.y, b.x + n.x, b.y + n.y,
+                                        b.x - n.x, b.y - n.y, a.x - n.x, a.y - n.y);
+                };
+
+                juce::Path clip;
+                if (part == StringPart::speaking)
+                {
+                    band (clip, s.saddle, s.nut);
+                }
+                else
+                {
+                    band (clip, s.tail, s.saddle);
+                    band (clip, s.nut, s.post);
+                }
+
+                juce::Graphics::ScopedSaveState save (g);
+                g.reduceClipRegion (clip);
+                g.setColour (s.winding);
+                g.fillPath (dashed);
+            }
         }
 
         // A highlight along the top of the string.
@@ -2793,10 +2836,13 @@ void GuitarRenderer::paintOverlay (juce::Graphics& g, const GuitarScene& scene,
             vib.startNewSubPath (from);
             vib.lineTo (s.saddle);
 
+            // Reduced motion / motion Off (animated-strings 2.6, cpu-quality-modes 6):
+            // a fixed glow, on or off, that does not change while the note decays.
+            const float shown = overlay.reducedMotion ? 1.0f : level;
             const float glow = overlay.reducedMotion ? 2.0f : 2.0f + 3.0f * level;
-            g.setColour (overlay.accent.withAlpha (0.35f * level));
+            g.setColour (overlay.accent.withAlpha (0.35f * shown));
             g.strokePath (vib, juce::PathStrokeType (glow / pxPerMm * 2.0f));
-            g.setColour (overlay.accent.brighter (0.4f).withAlpha (0.8f * level));
+            g.setColour (overlay.accent.brighter (0.4f).withAlpha (0.8f * shown));
             g.strokePath (vib, juce::PathStrokeType (juce::jmax (s.widthMm, 1.2f / pxPerMm)));
         }
 

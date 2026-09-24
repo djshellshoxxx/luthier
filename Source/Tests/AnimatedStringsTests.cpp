@@ -28,8 +28,10 @@
 #include "../Accessibility/Accessibility.h"
 #include "../Support/SoundingNotes.h"
 #include "../Support/ThreadProbe.h"
+#include "../Support/ErrorLog.h"
 #include "../UI/Guitar/StringMotion.h"
 #include "../UI/Guitar/StringAnimator.h"
+#include "../UI/Guitar/StringMotionPolicy.h"
 #include "../UI/Guitar/GuitarRenderer.h"
 #include "../UI/GuitarBodyComponent.h"
 #include "../UI/FretboardComponent.h"
@@ -1680,4 +1682,170 @@ LUTHIER_TEST (AnimatedStrings, AS30_notGatedByEdition)
     section.setSize (600, section.getPreferredHeight());
     CHECK (section.animateStringsToggle.isEnabled() && section.animateStringsToggle.isVisible());
     CHECK (section.animateQualityBox.isEnabled());
+}
+
+//==============================================================================
+// 4.4: the cache without speaking lengths plus paintSpeakingLengths (nullptr) is
+// the static render. The two strokes meet at the saddle and the nut instead of
+// one mitred path, so a few join pixels may differ by a few levels, nothing more.
+LUTHIER_TEST (AnimatedStrings, staticSpeakingLengthsMatchPaintString)
+{
+    PartLibrary library;
+    library.refreshFrom (PartLibrary::getFactoryPartsFolder(),
+                         juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-no-user-parts"));
+
+    for (const char* path : { "Electric/Vintage Double-Cut.luthierguitar", "Classical/Classical.luthierguitar",
+                              "Acoustic/12-String Jumbo.luthierguitar" })
+    {
+        WorkshopGuitar guitar;
+        PartLibrary::LoadReport report;
+        library.loadGuitar (PartLibrary::getFactoryGuitarsFolder().getChildFile (path), guitar, report);
+
+        const auto scene = GuitarRenderer::build (guitar);
+        const auto mmToPx = GuitarRenderer::fitTransform (scene, { 10.0f, 10.0f, 880.0f, 300.0f });
+
+        juce::Image whole (juce::Image::ARGB, 900, 320, true, juce::SoftwareImageType());
+        juce::Image split (juce::Image::ARGB, 900, 320, true, juce::SoftwareImageType());
+        {
+            juce::Graphics g (whole);
+            GuitarRenderer::paint (g, scene, mmToPx);
+        }
+        {
+            juce::Graphics g (split);
+            GuitarRenderer::PaintLayers layers;
+            layers.omitSpeakingLengths = true;
+            GuitarRenderer::paint (g, scene, mmToPx, layers);
+            GuitarRenderer::paintSpeakingLengths (g, scene, mmToPx, nullptr);
+        }
+
+        // Every pixel away from the two joins is identical.
+        juce::RectangleList<int> joins;
+        for (const auto& s : scene.strings)
+            for (auto p : { s.saddle, s.nut })
+                joins.add (juce::Rectangle<int> (6, 6).withCentre (p.transformedBy (mmToPx).roundToInt()));
+
+        int differing = 0, worst = 0;
+        for (int y = 0; y < whole.getHeight(); ++y)
+            for (int x = 0; x < whole.getWidth(); ++x)
+                if (! joins.containsPoint ({ x, y }))
+                {
+                    const int d = maxChannelDifference (whole, split, { x, y, 1, 1 });
+                    differing += d > 2 ? 1 : 0;
+                    worst = juce::jmax (worst, d);
+                }
+
+        CHECK_MSG (differing == 0, juce::String (path) + ": " + juce::String (differing)
+                                     + " pixels differ away from the joins, worst " + juce::String (worst));
+    }
+}
+
+//==============================================================================
+// 2.1: an open string under a capo is stopped at the capo.
+LUTHIER_TEST (AnimatedStrings, openStringsStopAtTheCapo)
+{
+    LuthierEngine engine;
+    engine.prepare (kSr, kBlock);
+    engine.getTuningEngine().setCapoFret (3);
+
+    // G3 is open on string 3 (index 2) of a standard guitar with the capo at 3: E3 + 3.
+    runEngine (engine, 4, chord ({ 43 }));
+
+    const auto e = read (engine);
+    bool found = false;
+
+    for (int s = 0; s < 6; ++s)
+        if (engine.getStringMidiNote (s) == 43)
+        {
+            found = true;
+            CHECK_NEAR (e.motion[(size_t) s].stopFret, 3.0 + e.motion[(size_t) s].fret, 1.0e-4);
+            CHECK (e.motion[(size_t) s].stopFret >= 3.0f);
+        }
+
+    CHECK (found);
+}
+
+//==============================================================================
+// 12: ten frames in a row over budget drop the animator to Low for the session,
+// logged once to the diagnostics log.
+LUTHIER_TEST (AnimatedStrings, overBudgetFramesDropToLow)
+{
+    PrefsGuard prefs (true);
+    const auto logFolder = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-as-overbudget");
+    logFolder.deleteRecursively();
+    ErrorLog::setFolderForTesting (logFolder);
+
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    Clock clock;
+    Illustration ill (processor, clock);
+
+    for (int f = 0; f < 12; ++f)
+    {
+        publishSteady (processor.getEngine(), 0.3f);
+        ill.animator().notePaintMilliseconds (f < 9 ? 5.0 : 0.1);   // nine slow frames, then fast
+        ill.step (clock);
+    }
+
+    CHECK_MSG (! ill.animator().isDroppedToLow(), "dropped to Low after fewer than ten slow frames in a row");
+
+    for (int f = 0; f < 12; ++f)
+    {
+        publishSteady (processor.getEngine(), 0.3f);
+        ill.animator().notePaintMilliseconds (5.0);
+        ill.step (clock);
+    }
+
+    CHECK (ill.animator().isDroppedToLow());
+    CHECK (ill.animator().getEffectiveQuality() == StringAnimationQuality::low);
+    CHECK (StringAnimationSettings::getQuality() == StringAnimationQuality::high);   // the preference is untouched
+
+    const auto log = ErrorLog::getLogFile().loadFileAsString();
+    CHECK_MSG (log.contains ("STRING_ANIMATION_OVER_BUDGET"), "nothing was logged");
+    CHECK (log.indexOf ("STRING_ANIMATION_OVER_BUDGET") == log.lastIndexOf ("STRING_ANIMATION_OVER_BUDGET"));
+
+    ErrorLog::setFolderForTesting ({});
+    logFolder.deleteRecursively();
+}
+
+//==============================================================================
+// cpu-quality-modes.md 6: Limited motion (CPU quality Medium, relief 1) forces the
+// Low style; Off (CPU quality Low, relief >= 2, Reduced motion) stops the strings
+// and shows the static overlay. The preference is never touched.
+LUTHIER_TEST (AnimatedStrings, cpuQualityMotionPolicy)
+{
+    PrefsGuard prefs (true);
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    Clock clock;
+    Illustration ill (processor, clock);
+
+    run (processor, 4, eMajor());
+    ill.step (clock);
+    CHECK (ill.animator().isRunning());
+    CHECK (ill.animator().getEffectiveQuality() == StringAnimationQuality::high);
+
+    StringMotionPolicy::setOverrideForTesting (StringMotionPolicy::Motion::limited);
+    run (processor, 2);
+    ill.step (clock);
+    CHECK (ill.animator().isRunning());
+    CHECK (ill.animator().getEffectiveQuality() == StringAnimationQuality::low);
+    CHECK (ill.animator().getFrame().quality == StringAnimationQuality::low);
+
+    StringMotionPolicy::setOverrideForTesting (StringMotionPolicy::Motion::off);
+    run (processor, 2);
+    ill.step (clock);
+    CHECK_MSG (! ill.animator().isRunning(), "motion Off left the strings animating");
+    CHECK (ill.body.getOverlayForTesting().reducedMotion);   // the fixed glow
+    CHECK (StringAnimationSettings::isEnabled());
+
+    const auto still = render (ill.body);
+    run (processor, 20);
+    ill.step (clock);
+    CHECK_MSG (maxChannelDifference (still, render (ill.body), still.getBounds()) == 0,
+               "the string pixels changed while motion was Off");
+
+    StringMotionPolicy::setOverrideForTesting (std::nullopt);
+    run (processor, 4, eMajor());
+    ill.step (clock);
+    CHECK (ill.animator().isRunning());
 }

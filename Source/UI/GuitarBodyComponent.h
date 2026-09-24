@@ -20,6 +20,7 @@
 #include "Widgets.h"
 #include "Guitar/GuitarRenderer.h"
 #include "Guitar/StringAnimator.h"   // animated-strings.md 4.3
+#include "Guitar/StringMotionPolicy.h"   // cpu-quality-modes.md 6
 
 namespace luthier
 {

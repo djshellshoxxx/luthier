@@ -1,4 +1,5 @@
 #include "StringAnimator.h"
+#include "StringMotionPolicy.h"
 #include "../UiPreferences.h"
 #include "../../Accessibility/Accessibility.h"
 #include "../../Support/ErrorLog.h"
@@ -70,7 +71,8 @@ bool StringAnimator::isEffectivelyShowing (const juce::Component& c)
 
 StringAnimationQuality StringAnimator::getEffectiveQuality() const noexcept
 {
-    if (reliefLevel >= 1 || droppedToLow)
+    // cpu-quality-modes 6: Limited motion (Medium, relief 1) forces the Low style.
+    if (reliefLevel >= 1 || droppedToLow || StringMotionPolicy::getMotion() == StringMotionPolicy::Motion::limited)
         return StringAnimationQuality::low;
 
     return StringAnimationSettings::getQuality();
@@ -119,7 +121,10 @@ void StringAnimator::poll()
 {
     const double t = now();
 
-    enabledByUser = StringAnimationSettings::isEnabled() && ! AccessibilitySettings::get().isReducedMotion();
+    // Motion Off (Reduced motion, CPU quality Low, relief >= 2: cpu-quality-modes 6)
+    // shows the static overlay, as Reduced motion always did.
+    enabledByUser = StringAnimationSettings::isEnabled()
+                    && StringMotionPolicy::getMotion() != StringMotionPolicy::Motion::off;
 
     const bool showing = isEffectivelyShowing (owner);
     const bool haveScene = enabledByUser && showing && geometryProvider && geometryProvider (geometry);
