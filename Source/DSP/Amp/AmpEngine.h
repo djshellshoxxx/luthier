@@ -169,6 +169,7 @@ private:
     OnePoleLP transformerHf;
     OnePoleHP transformerLf;
     EnvelopeFollower sagFollower;
+    double stageRest = 0.0;   ///< tubeShape (0, bias): subtracted so a cold start is silent (qa-polish.md 5.10)
     double supplyVoltage = 1.0;
     double sagAttack = 0.0, sagRelease = 0.0;
     double lastOutput = 0.0;
