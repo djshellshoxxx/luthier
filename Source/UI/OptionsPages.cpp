@@ -1567,6 +1567,19 @@ UpdatesPage::UpdatesPage (LuthierAudioProcessor& p)
     checkNowButton.onClick = [this] { checkForUpdate(); };
     addAndMakeVisible (checkNowButton);
 
+    // installer.md 5.1: "Click opens release notes in browser" and "Download
+    // fetches the platform-appropriate installer to Downloads".
+    releaseNotesButton.onClick = [this]
+    {
+        if (changelogUrl.isNotEmpty())
+            juce::URL (changelogUrl).launchInDefaultBrowser();
+    };
+    downloadButton.onClick = [this] { startDownload(); };
+    releaseNotesButton.setEnabled (false);
+    downloadButton.setEnabled (false);
+    addAndMakeVisible (releaseNotesButton);
+    addAndMakeVisible (downloadButton);
+
     styleNote (updateStatus, Palette::textMuted);
     addAndMakeVisible (updateStatus);
 
@@ -1641,7 +1654,36 @@ void UpdatesPage::checkForUpdate()
                 details.add ("Download:        " + result.downloadUrl);
 
             releaseNotes.setText (details.joinIntoString ("\n"), false);
+
+            changelogUrl = result.changelogUrl;
+            downloadUrl = result.updateAvailable ? result.downloadUrl : juce::String();
+            releaseNotesButton.setEnabled (changelogUrl.isNotEmpty());
+            downloadButton.setEnabled (downloadUrl.isNotEmpty() && ! downloader.isDownloading());
         });
+    });
+}
+
+void UpdatesPage::startDownload()
+{
+    if (downloadUrl.isEmpty())
+        return;
+
+    downloadButton.setEnabled (false);
+    updateStatus.setText ("Downloading to " + UpdateDownloader::getDownloadsFolder().getFullPathName() + "...",
+                          juce::dontSendNotification);
+
+    juce::Component::SafePointer<UpdatesPage> safe (this);
+
+    downloader.start (downloadUrl, [safe] (UpdateDownloader::Outcome outcome)
+    {
+        if (safe == nullptr)
+            return;
+
+        safe->downloadButton.setEnabled (true);
+        safe->updateStatus.setText (outcome.succeeded
+                                      ? "Downloaded " + outcome.file.getFileName() + " to Downloads. Run it when you are ready."
+                                      : "Download failed: " + outcome.error,
+                                    juce::dontSendNotification);
     });
 }
 
@@ -1685,6 +1727,10 @@ void UpdatesPage::resized()
         updateCheckToggle.setBounds (row.removeFromLeft (240));
         betaToggle.setBounds (row.removeFromLeft (180));
         checkNowButton.setBounds (row.removeFromLeft (100));
+        row.removeFromLeft (6);
+        releaseNotesButton.setBounds (row.removeFromLeft (110));
+        row.removeFromLeft (6);
+        downloadButton.setBounds (row.removeFromLeft (90));
     }
 
     bounds.removeFromTop (2);

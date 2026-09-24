@@ -27,6 +27,7 @@
 #include "Widgets.h"
 #include "../Controllers/ControllerProfile.h"
 #include "../Updates/Telemetry.h"
+#include "../Updates/UpdateDownloader.h"
 
 namespace luthier
 {
@@ -348,6 +349,15 @@ private:
     juce::ToggleButton betaToggle { "Include beta releases" };
     juce::TextButton checkNowButton { "Check now" };
     juce::Label updateStatus, policyLabel, changelogNote;
+
+    // installer.md 5.1: the release notes open in the browser; the installer
+    // downloads to Downloads and is never launched.
+    juce::TextButton releaseNotesButton { "Release notes" };
+    juce::TextButton downloadButton { "Download" };
+    juce::String changelogUrl, downloadUrl;
+    UpdateDownloader downloader;
+
+    void startDownload();
 
     juce::TextEditor releaseNotes;
 

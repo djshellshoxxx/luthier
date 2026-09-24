@@ -115,3 +115,69 @@ LUTHIER_TEST (InstallLayout, differentVersionReportsUpgrade)
     // ... and only once.
     CHECK (! InstallLayout::ensure (t.dir, "1.1.0").isUpgrade());
 }
+
+//==============================================================================
+#include "../Updates/UpdateDownloader.h"
+
+namespace
+{
+    struct FakeFetcher final : UpdateDownloader::Fetcher
+    {
+        juce::String lastUrl;
+        bool fail = false;
+
+        bool fetch (const juce::String& url, juce::OutputStream& out,
+                    const std::function<bool()>&, juce::String& error) override
+        {
+            lastUrl = url;
+
+            if (fail)
+            {
+                out.writeString ("partial");
+                error = "boom";
+                return false;
+            }
+
+            return out.writeString ("installer bytes");
+        }
+    };
+}
+
+/*  installer.md 5.1: "Download" fetches the installer to Downloads. */
+LUTHIER_TEST (Updates, theDownloadLandsInDownloadsUnderItsOwnName)
+{
+    TempRoot t;
+    const auto downloads = t.dir.getChildFile ("Downloads");
+
+    // The default target is ~/Downloads/<file name>.
+    const auto home = UpdateDownloader::destinationFor ("https://luthier.example/dl/Luthier-1.1.0-linux-x64.tar.gz?sig=abc#x");
+    CHECK (home.getParentDirectory().getFileName() == "Downloads");
+    CHECK (home.getFileName() == "Luthier-1.1.0-linux-x64.tar.gz" || home.getFileName().startsWith ("Luthier-1.1.0-linux-x64"));
+
+    CHECK (UpdateDownloader::destinationFor ("https://luthier.example", downloads).getFileName() == "Luthier-update");
+    CHECK (UpdateDownloader::destinationFor ("https://luthier.example/a/..", downloads).getParentDirectory() == downloads);
+
+    auto fake = std::make_unique<FakeFetcher>();
+    auto* fakePtr = fake.get();
+    UpdateDownloader downloader (std::move (fake));
+
+    const auto url = juce::String ("https://luthier.example/dl/luthier_1.1.0_amd64.deb");
+    auto outcome = downloader.downloadNow (url, downloads);
+
+    CHECK_MSG (outcome.succeeded, outcome.error);
+    CHECK (fakePtr->lastUrl == url);
+    CHECK (outcome.file == downloads.getChildFile ("luthier_1.1.0_amd64.deb"));
+    CHECK (outcome.file.loadFileAsString() == "installer bytes");
+
+    // A second download never overwrites the first.
+    auto second = downloader.downloadNow (url, downloads);
+    CHECK (second.succeeded && second.file != outcome.file);
+
+    // A failed fetch leaves nothing behind, not even the .part file.
+    fakePtr->fail = true;
+    auto failed = downloader.downloadNow ("https://luthier.example/dl/other.deb", downloads);
+    CHECK (! failed.succeeded);
+    CHECK (failed.error == "boom");
+    CHECK (! downloads.getChildFile ("other.deb").exists());
+    CHECK (! downloads.getChildFile ("other.deb.part").exists());
+}
