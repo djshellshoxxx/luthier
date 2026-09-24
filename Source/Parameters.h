@@ -412,6 +412,16 @@ public:
     /** True while a structural change is pending. */
     bool isStructuralChangePending() const noexcept { return structuralPending.load(); }
 
+    /*  How many times each structural pass has run, for the tests: a pedal
+        pick must build its pedal without an instrument pass (no IR reload, no
+        string re-snap) behind it. Message thread. */
+    int getInstrumentStructurePassCount() const noexcept { return instrumentPasses; }
+    int getPedalStructurePassCount() const noexcept { return pedalPasses; }
+
+    /** Runs the pass a pending structural change has queued, as the message
+        loop's delivery would. For the tests, which run without a loop. */
+    void handlePendingStructuralChangeNow() { handleUpdateNowIfNeeded(); }
+
     /** A preset has just written its pedal types AND their parameters: build
         those pedals keeping the parameters. The structural path otherwise
         writes a new pedal's defaults over its parameters - right for a pedal
@@ -451,13 +461,35 @@ public:
 
 private:
     void handleAsyncUpdate() override;
-    void applyStructural();
 
-    /** Reads every structural selection into its cache; true if any moved. */
-    bool readStructuralValues() noexcept;
+    /*  The structural pass is two passes. The instrument one - guitar, tuning,
+        strings, body and cabinet IRs, amp model, oversampling - reloads files
+        and re-snaps every string, so it runs only when one of those moved. A
+        pedal pick is the other, and only builds the pedal: it must never
+        glitch the note that is sounding, and it must not wait for a disk
+        read to finish. */
+    enum StructuralChange
+    {
+        structuralInstrument = 1,
+        structuralPedals     = 2,
+        structuralAll        = structuralInstrument | structuralPedals
+    };
+
+    void applyStructural();
+    void applyInstrumentStructure();
+    void applyPedalTypes();
+
+    /** Builds one slot's pedal from lastSlotType if it differs from what is loaded. */
+    void applyPedalSlot (bool post, int slot);
+
+    /** Reads every structural selection into its cache; a StructuralChange mask of what moved. */
+    int readStructuralValues() noexcept;
 
     std::atomic<float>* raw (const juce::String& id) const noexcept;
     float value (const juce::String& id) const noexcept;
+
+    /** The modulated value of a cached pointer, for the per-block paths that must not build a string. */
+    float valueOf (const std::atomic<float>* ptr, int index) const noexcept;
 
     juce::AudioProcessorValueTreeState& apvts;
     LuthierEngine& engine;
@@ -475,6 +507,20 @@ private:
     void parameterGestureChanged (int, bool) override {}
 
     std::vector<int> slotOfParameter;      ///< parameter index -> (chain * slots + slot) * 16 + (param, or 15 for the type)
+
+    /*  The pedal slots' raw pointers and indices, cached so the per-block push
+        never builds a parameter ID (engine.md 0: no allocation in the callback). */
+    struct SlotPointers
+    {
+        std::atomic<float>* type = nullptr;
+        std::atomic<float>* bypass = nullptr;
+        std::atomic<float>* mix = nullptr;
+        std::array<std::atomic<float>*, Pedal::kMaxParams> params {};
+        int typeIndex = -1, bypassIndex = -1, mixIndex = -1;
+        std::array<int, Pedal::kMaxParams> paramIndices {};
+    };
+
+    std::array<std::array<SlotPointers, EffectsChain::kNumSlots>, 2> slotPointers {};
     std::atomic<juce::uint32> writeSerial { 0 };
     std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> typeWritten {};
     std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> paramsWritten {};
@@ -509,10 +555,15 @@ private:
     int lastOversample = -1;
     int lastPickupType[PickupEngine::kMaxPickups] = { -1, -1, -1 };
     int lastPickupMagnet[PickupEngine::kMaxPickups] = { -1, -1, -1 };
-    int lastSlotType[2][EffectsChain::kNumSlots] = {};
+    /*  Atomic: a pick from the UI records its type on the message thread as it
+        builds the pedal, while the audio thread compares it for automation. */
+    std::atomic<int> lastSlotType[2][EffectsChain::kNumSlots] {};
     bool structuralInitialised = false;
 
     std::atomic<bool> structuralPending { false };
+    std::atomic<int> structuralPendingMask { 0 };
+
+    int instrumentPasses = 0, pedalPasses = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ParameterBridge)
 };

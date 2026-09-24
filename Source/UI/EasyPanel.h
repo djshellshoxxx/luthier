@@ -117,6 +117,10 @@ private:
 
     LuthierChoice playingModeSelector { "Mode" };
 
+    // Fingers or a pick: the one right-hand choice a player reaches for by
+    // the song, so it sits beside the mode rather than only in Advanced.
+    LuthierToggle fingersToggle { "Fingers" };
+
     // ---- tone strip (3.4) --------------------------------------------------------------
     LuthierKnob inputKnob  { "Input",   LuthierKnob::Size::Small };
     LuthierKnob outputKnob { "Output",  LuthierKnob::Size::Small };

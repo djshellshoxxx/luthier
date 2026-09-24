@@ -500,6 +500,11 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("togglePractice",   "accessibility.shortcut.togglePractice",   KP ('d', 0, 0));
 
     add ("panic",            "accessibility.shortcut.panic",            KP ('p', 0, 0));
+
+    /*  Panic's heavier sibling: it also stops the tune, the loops and the
+        rhythm engine and puts every setting back. Shifted and modified so a
+        stray P on stage cannot reach it. */
+    add ("resetAndStop",     "accessibility.shortcut.resetAndStop",     KP ('p', cmd | shift, 0));
     add ("tapTempo",         "accessibility.shortcut.tapTempo",         KP ('t', 0, 0));
     add ("killSwitch",       "accessibility.shortcut.killSwitch",       KP ('\\', 0, 0));
 

@@ -324,8 +324,10 @@ namespace
           "Chords are voiced across the strings by a search that only returns fingerings a hand could make: one "
           "note per string, a reachable fret span, and pitch order following string order. They are strummed, "
           "not triggered at once, and the strum varies a little every time. The mode carries a small latency - "
-          "the chord window, 2 ms by default - so a chord split across a buffer boundary still voices as a "
-          "chord. It is reported to your host.\n\n"
+          "the chord window, 15 ms by default - so the fingers of a keyboard chord, which never land on quite "
+          "the same millisecond, are gathered into one strum, and a chord split across a buffer boundary still "
+          "voices as a chord. It is reported to your host. A note played while others are held goes to a free "
+          "string; the held ones keep ringing.\n\n"
           "GUITAR CONTROLLER\n"
           "MIDI channel 1 is the high E, channel 2 the B, and so on, for hex-pickup systems. Per-string bend and "
           "pressure work natively. Turn MPE on in Advanced for expressive keyboards." },
@@ -478,7 +480,7 @@ namespace
     {
         { "Help and navigation", "help|showShortcuts|options|toggleAdvanced|previousWorkspaceTab|"
                                  "nextWorkspaceTab|debugPanel" },
-        { "Playing",             "panic|killSwitch|tapTempo|audition|toggleLiveMode|toggleSlideMode|"
+        { "Playing",             "panic|resetAndStop|killSwitch|tapTempo|audition|toggleLiveMode|toggleSlideMode|"
                                  "togglePractice|midiLearnArm" },
         { "Presets, snapshots and setlists", "previousItem|nextItem|setlistPrevious|setlistNext|abCompare|"
                                  "randomise|resetAll|newPreset|presetBrowser" },

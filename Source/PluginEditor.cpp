@@ -105,6 +105,47 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     header.onOpenPresetBrowser = [this] { showOverlay (&presetBrowser); };
     header.onSaveAs = [this] { showOverlay (&saveAsPanel); };
 
+    // gui-integration 19: File -> New Tune... is the TUNE tab's template
+    // picker; File -> Import MIDI... (midi-export 5) loads a .mid as a tune.
+    header.onNewTune = [this]
+    {
+        if (openTuneTab())
+            if (auto* tune = findTunePanel())
+                tune->showTemplateMenu();
+    };
+
+    header.onImportMidi = [this] (const juce::File& file) { importMidiIntoTuneBuilder (file); };
+
+    // The panel's import report goes on the banner strip: its first line, with
+    // the rest (which tracks became what, what was defaulted) behind Details,
+    // because a banner is one line and the report can be ten.
+    if (auto* tune = findTunePanel())
+    {
+        tune->onNotification = [this] (const juce::String& message, bool warning)
+        {
+            Notification n;
+            n.id = "tune-import";
+            n.message = message.upToFirstOccurrenceOf ("\n", false, false);
+            n.level = warning ? Notification::Level::warning : Notification::Level::info;
+
+            if (message.containsChar ('\n'))
+            {
+                n.actionText = tr ("tune.import.details");
+                n.action = [message]
+                {
+                    juce::NativeMessageBox::showAsync (juce::MessageBoxOptions()
+                                                           .withIconType (juce::MessageBoxIconType::InfoIcon)
+                                                           .withTitle ("MIDI import")
+                                                           .withMessage (message)
+                                                           .withButton ("OK"),
+                                                       nullptr);
+                };
+            }
+
+            notifications.post (std::move (n));
+        };
+    }
+
     // The overlay and the HELP tab are one HelpTab in two places; both reach
     // the debug tools and the shortcut table the same way.
     auto wireHelp = [this] (HelpTab& help)
@@ -280,6 +321,88 @@ void LuthierAudioProcessorEditor::mouseMove (const juce::MouseEvent& e)
         secretHovered = over;
         repaint (getSecretPixelBounds().expanded (6));
     }
+}
+
+//==============================================================================
+namespace
+{
+    bool isMidiFile (const juce::File& file)
+    {
+        const auto extension = file.getFileExtension().toLowerCase();
+        return extension == ".mid" || extension == ".midi";
+    }
+}
+
+bool LuthierAudioProcessorEditor::isInterestedInFileDrag (const juce::StringArray& files)
+{
+    for (const auto& path : files)
+        if (isMidiFile (juce::File (path)))
+            return true;
+
+    return false;
+}
+
+void LuthierAudioProcessorEditor::filesDropped (const juce::StringArray& files, int, int)
+{
+    // One tune at a time: the first MIDI file in the drop.
+    for (const auto& path : files)
+    {
+        const juce::File file (path);
+
+        if (isMidiFile (file) && file.existsAsFile())
+        {
+            importMidiIntoTuneBuilder (file);
+            return;
+        }
+    }
+}
+
+TunePanel* LuthierAudioProcessorEditor::findTunePanel() const
+{
+    for (int i = 0; i < advancedPanel.getNumWorkspaceTabs(); ++i)
+        if (auto* panel = dynamic_cast<TunePanel*> (advancedPanel.getWorkspacePanel (i)))
+            return panel;
+
+    return nullptr;
+}
+
+bool LuthierAudioProcessorEditor::openTuneTab()
+{
+    /*  The TUNE tab is column 4 of Advanced Mode (tune-builder 3), so this
+        switches mode on the way, as the IR banner does for TONE MATCH, and
+        gives up when the window is too narrow for Advanced: setAdvancedMode
+        refuses that with its own notice. */
+    if (! advancedMode)
+    {
+        setAdvancedMode (true);
+        header.setAdvancedMode (advancedMode);
+    }
+
+    return advancedMode && advancedPanel.setWorkspaceTabNamed ("TUNE");
+}
+
+bool LuthierAudioProcessorEditor::importMidiIntoTuneBuilder (const juce::File& file)
+{
+    auto* tune = findTunePanel();
+
+    if (tune == nullptr || ! openTuneTab())
+    {
+        notifications.post ({ "tune-import", tr ("tune.import.noPanel"), Notification::Level::warning });
+        return false;
+    }
+
+    juce::String error;
+
+    // On success the panel reports through onNotification (wired above).
+    if (! tune->importMidiFrom (file, error))
+    {
+        notifications.post ({ "tune-import",
+                              tr ("tune.import.failed", { { "name", file.getFileName() }, { "error", error } }),
+                              Notification::Level::warning });
+        return false;
+    }
+
+    return true;
 }
 
 void LuthierAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
@@ -673,8 +796,9 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
-    if (is ("panic"))     { processor.panic();       return true; }
-    if (is ("tapTempo"))  { processor.tapTempoNow(); return true; }
+    if (is ("panic"))        { processor.panic();        return true; }
+    if (is ("resetAndStop")) { processor.resetAndStop(); return true; }
+    if (is ("tapTempo"))     { processor.tapTempoNow();  return true; }
 
     if (is ("killSwitch"))
     {
@@ -743,7 +867,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
     if (is ("resetAll"))
     {
-        processor.pushUndoState ("Reset everything");
+        // One undo step: resetEverything pushes its own.
         processor.resetEverything();
         return true;
     }

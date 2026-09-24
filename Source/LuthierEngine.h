@@ -152,6 +152,15 @@ public:
         and termination with what the parts say. */
     void applyWorkshopGuitar (const DerivedAcoustics& derived, GuitarType standsFor = GuitarType::Custom);
 
+    /*  How many pickups the guitar has fitted (1 to kMaxPickups), for a UI
+        that should not offer a middle pickup on a single-pickup guitar: the
+        selector maps every position onto the pickups that exist, so controls
+        for slots past this do nothing. Message thread. */
+    int getNumFittedPickups() const noexcept
+    {
+        return juce::jlimit (1, PickupEngine::kMaxPickups, spec.numPickups);
+    }
+
     /** A parts guitar's pickup as its part describes it (engine slot order). */
     const PickupSpec& getPartsPickup (int slot) const noexcept
     {
@@ -354,8 +363,18 @@ public:
     /** Total reported latency in samples. */
     int getLatencySamples() const noexcept;
 
-    /** Releases every string. */
+    /** live-performance 9: every string off and choked, the schedule dropped,
+        and every tail cleared - effects, amp, room, cabinet, coupling, freeze,
+        feedback, e-bow, scrape - plus the rhythm engine's held notes (its
+        enabled state stays). Parameters and the preset are untouched. Audio
+        thread: with audio running the processor requests it and the next block
+        carries it out, so nothing is torn out from under a render. */
     void panic() noexcept;
+
+    /** True while some other thread has rendered a block within the last 200 ms:
+        the audio thread is running and owns the engine's state. False in the
+        offline renderer and the tests, where the caller is the audio thread. */
+    bool isAudioThreadActive() const noexcept;
 
     //==========================================================================
     // Live state for the UI. All lock-free reads.

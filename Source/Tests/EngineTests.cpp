@@ -23,6 +23,8 @@
 #include "../DSP/Effects/EffectsChain.h"
 #include "../DSP/Effects/SecretEffect.h"
 
+#include <juce_dsp/juce_dsp.h>
+
 using namespace luthier;
 using namespace luthier::tests;
 
@@ -54,6 +56,31 @@ namespace
         p.velocity = velocity;
         p.brightness = 0.5;
         return p;
+    }
+
+    /** The power-weighted mean frequency of a signal, in Hz. */
+    double spectralCentroid (const std::vector<double>& v)
+    {
+        constexpr int order = 15, n = 1 << order;
+        std::vector<float> data ((size_t) n * 2, 0.0f);
+        const int count = juce::jmin (n, (int) v.size());
+
+        for (int i = 0; i < count; ++i)
+            data[(size_t) i] = (float) v[(size_t) i];
+
+        juce::dsp::FFT fft (order);
+        fft.performFrequencyOnlyForwardTransform (data.data());
+
+        double weighted = 0.0, total = 0.0;
+
+        for (int bin = 1; bin < n / 2; ++bin)
+        {
+            const double power = (double) data[(size_t) bin] * (double) data[(size_t) bin];
+            weighted += power * bin * kSr / n;
+            total += power;
+        }
+
+        return total > 0.0 ? weighted / total : 0.0;
     }
 }
 
@@ -1309,4 +1336,46 @@ LUTHIER_TEST (Body, modalBankIsStableAndBounded)
     CHECK_FINITE (signal.data(), n);
     CHECK_MSG (peak (signal.data(), n) < 4.0,
                "modal bank peaked at " + juce::String (peak (signal.data(), n), 3));
+}
+
+//==============================================================================
+//  Fingers
+//==============================================================================
+LUTHIER_TEST (Excitation, fingersAreAudiblyDarkerThanAPick)
+{
+    /*  "Fingers vs non fingers makes no difference": the flesh-to-nail blend
+        was linear in hertz, so the default halfway setting sat a third of an
+        octave under a celluloid pick - lost under the cabinet. pick-noise.md
+        6 wants flesh duller and longer; measured at the string, before the
+        amp, at one velocity. */
+    auto centroidFor = [] (Excitation::Material material)
+    {
+        StringEngine s;
+        s.prepare (kSr, 512);
+
+        StringEngine::Physical physical;
+        physical.sustainSeconds = 5.0;
+        physical.openBrightnessHz = 6000.0;
+        s.setPhysical (physical);
+        s.snapToFrequency (164.81);   // E3
+
+        auto p = defaultPluck (0.8);
+        p.material = material;
+        p.nailVsFlesh = 0.5;
+
+        const auto out = renderString (s, 0.4, p);
+        return spectralCentroid (out);
+    };
+
+    const double pick = centroidFor (Excitation::Material::PickCelluloid);
+    const double fingers = centroidFor (Excitation::Material::Fingertip);
+
+    CHECK_MSG (fingers < pick * 0.85,
+               "fingers centroid " + juce::String (fingers, 0) + " Hz is not 15% under the pick's "
+                 + juce::String (pick, 0) + " Hz");
+
+    // And the thumb, the warmest contact, is darker still.
+    const double thumb = centroidFor (Excitation::Material::Thumb);
+    CHECK_MSG (thumb < fingers, "thumb " + juce::String (thumb, 0) + " Hz is not darker than fingers "
+                                  + juce::String (fingers, 0) + " Hz");
 }

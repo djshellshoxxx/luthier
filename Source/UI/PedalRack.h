@@ -44,6 +44,12 @@ public:
     /** Rebuilds the parameter knobs after the pedal type changes. */
     void rebuildControls();
 
+    /*  A slot shown on its own (Easy mode's popover) sizes itself to its
+        pedal when the type changes, so a pedal picked into an empty slot gets
+        its whole face, not the empty slot's 34 points. The Advanced rack
+        leaves this off and lays its slots out itself. */
+    void setSizesToContent (bool shouldSize) noexcept { sizesToContent = shouldSize; }
+
     /** Height this slot wants, given its current pedal, at its width (or the
         Advanced column's, before it has one). */
     int getPreferredHeight() const;
@@ -79,6 +85,7 @@ private:
     void timerCallback() override { refresh(); }
 
     bool bypassFromParameter() const;
+    void updateBypassTooltip();
     faces::PedalFaceState faceState() const;
     void renderFace (float scale);
 
@@ -123,6 +130,7 @@ private:
     int faceRenders = 0;
 
     bool dragging = false;
+    bool sizesToContent = false;
     juce::Point<int> dragStart;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PedalSlotComponent)

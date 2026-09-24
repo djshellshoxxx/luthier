@@ -3,10 +3,51 @@
 #include "MidiExportDefaults.h"
 #include "NotationPanel.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Localisation.h"
 
 namespace luthier
 {
 
+//==============================================================================
+void TwoLineTextButton::paintButton (juce::Graphics& g, bool isHighlighted, bool isDown)
+{
+    const bool on = getToggleState();
+
+    getLookAndFeel().drawButtonBackground (g, *this,
+                                           findColour (on ? buttonOnColourId : buttonColourId),
+                                           isHighlighted, isDown);
+
+    auto colour = findColour (on ? textColourOnId : textColourOffId);
+
+    if (! isEnabled())
+        colour = Palette::textDisabled;
+    else if (isHighlighted && ! on)
+        colour = colour.brighter (0.25f);
+
+    const auto text = getButtonText().toUpperCase();
+    const int split = text.indexOf (" & ");
+    const auto first = split >= 0 ? text.substring (0, split) : text;
+    const auto second = split >= 0 ? text.substring (split + 1) : juce::String();
+
+    g.setColour (colour);
+    g.setFont (Fonts::ui (juce::jlimit (8.0f, 11.0f, (float) getHeight() * 0.28f), true));
+
+    auto area = getLocalBounds();
+
+    if (second.isEmpty())
+    {
+        Fonts::drawTrackedText (g, first, area, juce::Justification::centred);
+        return;
+    }
+
+    const int half = area.getHeight() / 2;
+    Fonts::drawTrackedText (g, first, area.removeFromTop (half).withTrimmedTop (3),
+                            juce::Justification::centredBottom);
+    Fonts::drawTrackedText (g, second, area.withTrimmedBottom (3),
+                            juce::Justification::centredTop);
+}
+
+//==============================================================================
 HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     : processor (p)
 {
@@ -84,6 +125,17 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     panicButton.setTooltip ("Stop every string immediately and clear all held notes");
     panicButton.setColour (juce::TextButton::textColourOffId, Palette::warning);
     panicButton.onClick = [this] { processor.panic(); };
+
+    /*  Beside Panic, in the same warning colour: Panic ends the notes; this ends
+        the loop that would start them again. A tune left looping, a looper, a
+        free-running rhythm engine and a kill switch all survived Reset, and a
+        user with a runaway loop hit Reset and Panic "a bunch of times". */
+    addAndMakeVisible (resetStopButton);
+    resetStopButton.setButtonText (tr ("header.resetStop"));
+    resetStopButton.setTitle (tr ("header.resetStop.title"));
+    resetStopButton.setTooltip (tr ("header.resetStop.tooltip"));
+    resetStopButton.setColour (juce::TextButton::textColourOffId, Palette::warning);
+    resetStopButton.onClick = [this] { processor.resetAndStop(); refreshPresetDisplay(); };
 
     addAndMakeVisible (midiLearnButton);
     midiLearnButton.setTooltip ("Arm MIDI Learn, then click a control to assign it "
@@ -298,6 +350,10 @@ void HeaderBar::showFileMenu()
     menu.addItem (2, "Save As...");
     menu.addItem (3, "Open preset file...");
     menu.addSeparator();
+    // gui-integration 19: the Tune Builder's entries in the File menu.
+    menu.addItem (14, "New Tune...", onNewTune != nullptr);
+    menu.addItem (15, "Import MIDI...", onImportMidi != nullptr);
+    menu.addSeparator();
     menu.addItem (4, "Import preset...");
     menu.addItem (5, "Export preset...");
     menu.addSeparator();
@@ -423,6 +479,32 @@ void HeaderBar::showFileMenu()
                 break;
             }
 
+            case 14:
+                if (onNewTune)
+                    onNewTune();
+                break;
+
+            case 15:
+            {
+                // midi-export 5: File -> Import MIDI loads the file as a new
+                // tune in the Tune Builder; the editor shows the tab.
+                auto chooser = std::make_shared<juce::FileChooser> (
+                    "Import a MIDI file into the Tune Builder",
+                    PresetManager::getRenderFolder(),
+                    "*.mid;*.midi");
+
+                chooser->launchAsync (juce::FileBrowserComponent::openMode
+                                        | juce::FileBrowserComponent::canSelectFiles,
+                                      [this, chooser] (const juce::FileChooser& fc)
+                {
+                    const auto file = fc.getResult();
+
+                    if (file != juce::File() && onImportMidi)
+                        onImportMidi (file);
+                });
+                break;
+            }
+
             case 8:
                 PresetManager::getUserPresetFolder().revealToUser();
                 break;
@@ -525,36 +607,60 @@ void HeaderBar::resized()
     bounds.removeFromLeft (96 + 14);       // logo and the MIDI dot
 
     // ---- right-hand cluster ---------------------------------------------------------
-    modeButton.setBounds (bounds.removeFromRight (84).reduced (2, 0));
+    // Each button is its uppercase label plus a few pixels: the row has to fit
+    // RESET & STOP at gui-integration's 1200 px minimum with a preset name
+    // still readable in the middle.
+    modeButton.setBounds (bounds.removeFromRight (78).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
-    liveButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
-    slideButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
-    workshopButton.setBounds (bounds.removeFromRight (82).reduced (2, 0));
+    liveButton.setBounds (bounds.removeFromRight (46).reduced (2, 0));
+    slideButton.setBounds (bounds.removeFromRight (48).reduced (2, 0));
+    workshopButton.setBounds (bounds.removeFromRight (76).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
-    helpButton.setBounds (bounds.removeFromRight (30).reduced (2, 0));
-    panicButton.setBounds (bounds.removeFromRight (56).reduced (2, 0));
-    midiLearnButton.setBounds (bounds.removeFromRight (54).reduced (2, 0));
-
-    bounds.removeFromRight (Metrics::gridHalf);
-
-    redoButton.setBounds (bounds.removeFromRight (50).reduced (2, 0));
-    undoButton.setBounds (bounds.removeFromRight (50).reduced (2, 0));
+    helpButton.setBounds (bounds.removeFromRight (28).reduced (2, 0));
+    panicButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
+    resetStopButton.setBounds (bounds.removeFromRight (64).reduced (2, 0));
+    midiLearnButton.setBounds (bounds.removeFromRight (50).reduced (2, 0));
 
     bounds.removeFromRight (Metrics::gridHalf);
 
-    copyAB.setBounds (bounds.removeFromRight (40).reduced (2, 0));
+    redoButton.setBounds (bounds.removeFromRight (46).reduced (2, 0));
+    undoButton.setBounds (bounds.removeFromRight (46).reduced (2, 0));
+
+    bounds.removeFromRight (Metrics::gridHalf);
+
+    copyAB.setBounds (bounds.removeFromRight (38).reduced (2, 0));
     compareB.setBounds (bounds.removeFromRight (28).reduced (2, 0));
     compareA.setBounds (bounds.removeFromRight (28).reduced (2, 0));
 
     bounds.removeFromRight (Metrics::grid);
 
     // ---- left-hand cluster -------------------------------------------------------------
-    guitarSelector.setBounds (bounds.removeFromLeft (150).reduced (2, 3));
+    /*  The selectors give way before the preset name does: below about 1280
+        the row is short, and a guitar name losing its last letters is better
+        than the preset name losing all of them (gui-integration 2, "collapses
+        gracefully"). Each has a floor its usual names still fit. */
+    int guitarWidth = 144, tuningWidth = 120;
+
+    {
+        const int presetFixed = 56 + Metrics::gridHalf + 24 + 24 + (rangePadlock.isVisible() ? 22 : 0);
+        const int wantedName = 96;
+        const int spare = bounds.getWidth() - (guitarWidth + Metrics::gridHalf + tuningWidth + Metrics::grid)
+                          - presetFixed - wantedName;
+
+        if (spare < 0)
+        {
+            const int fromGuitar = juce::jmin (-spare, guitarWidth - 112);
+            guitarWidth -= fromGuitar;
+            tuningWidth -= juce::jmin (-spare - fromGuitar, tuningWidth - 96);
+        }
+    }
+
+    guitarSelector.setBounds (bounds.removeFromLeft (guitarWidth).reduced (2, 3));
     bounds.removeFromLeft (Metrics::gridHalf);
 
-    tuningSelector.setBounds (bounds.removeFromLeft (128).reduced (2, 3));
+    tuningSelector.setBounds (bounds.removeFromLeft (tuningWidth).reduced (2, 3));
     bounds.removeFromLeft (Metrics::grid);
 
     // ---- preset, filling whatever is left -----------------------------------------------

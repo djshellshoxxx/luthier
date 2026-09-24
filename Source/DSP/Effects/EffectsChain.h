@@ -47,6 +47,21 @@ public:
 
     void setSlotMix (int slot, double mix) noexcept;
 
+    /** One slot's per-block controls, as the parameter layer polls them. */
+    struct SlotControls
+    {
+        bool bypassed = false;
+        double mix = 1.0;
+        std::array<float, Pedal::kMaxParams> normalised {};
+    };
+
+    /*  Pushes every slot's bypass, mix and pedal parameters from the audio
+        thread. Takes the swap lock with a try-lock, so a slot being replaced
+        on the message thread makes this block's push wait for the next one
+        rather than touching a pedal that is being freed. False when skipped;
+        the values are polled again next block, so nothing is lost. */
+    bool applyControls (const std::array<SlotControls, kNumSlots>& controls) noexcept;
+
     /** Moves a pedal from one slot to another, shuffling the rest along. */
     void moveSlot (int fromSlot, int toSlot);
 

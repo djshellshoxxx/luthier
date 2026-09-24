@@ -16,8 +16,8 @@ const Excitation::MaterialSpec& Excitation::specFor (Material m) noexcept
         { 4000.0, 2000.0, 2.0, 0.16, 1.10 },  // PickWood       - soft knock, woody
         {  900.0,  600.0, 1.0, 0.05, 1.60 },  // PickFelt       - almost no transient
         { 7000.0, 4200.0, 5.0, 0.14, 0.86 },  // Fingernail     - bright and sharp
-        { 2200.0, 1200.0, 1.5, 0.07, 1.35 },  // Fingertip      - round and warm
-        { 1100.0,  700.0, 1.0, 0.06, 1.60 },  // Thumb          - warmest
+        {  700.0,  450.0, 1.5, 0.07, 2.20 },  // Fingertip      - round and warm (pick-noise.md 6: flesh is duller and longer)
+        {  550.0,  350.0, 1.0, 0.06, 2.60 },  // Thumb          - warmest, and the slowest release
         { 4500.0, 2600.0, 3.0, 0.13, 1.05 },  // Thumbpick      - between thumb and pick
         { 3500.0, 1800.0, 1.5, 0.45, 1.50 },  // Brush          - mostly noise
         { 3000.0, 1500.0, 2.0, 0.30, 1.40 }   // Slide          - glass/metal on wound strings
@@ -73,11 +73,34 @@ void Excitation::trigger (const Params& p, RtRandom& rng) noexcept
     // ---- 1. Pluck length ----------------------------------------------------
     // The triangle spans the distance from the pluck point to the nearer end, so
     // it scales with both the string length and where the hand is.
-    const double pos = juce::jlimit (0.02, 0.5, p.pluckPosition);
-    int pluckLen = (int) std::round (p.delaySamples * pos * ms.lengthScale);
+    const bool fingers = (p.material == Material::Fingertip || p.material == Material::Fingernail
+                          || p.material == Material::Thumb);
 
-    // A thicker pick and a more angled attack both lengthen the contact.
-    const double contactStretch = 1.0 + p.pickThickness * 0.45 + p.pickAngle * 0.30;
+    /*  The pulse's width is most of what a material sounds like at the string:
+        a pulse this wide rolls off as sinc^2 from about 2 / width, well under
+        the contact filter below. Flesh lets the string roll off the pad, so
+        its release is the longest; a nail's is short. Fingerstyle blends the
+        two, the nail counting as the square of nail_vs_flesh (see below).
+        The width is the material's; the comb below is the pluck position's,
+        so a soft contact does not move the position's notch. */
+    double lengthScale = ms.lengthScale;
+
+    if (p.material == Material::Fingertip || p.material == Material::Fingernail)
+    {
+        const auto& flesh = specFor (Material::Fingertip);
+        const auto& nail  = specFor (Material::Fingernail);
+        const double b = juce::square (juce::jlimit (0.0, 1.0, p.nailVsFlesh));
+        lengthScale = flesh.lengthScale * std::pow (nail.lengthScale / flesh.lengthScale, b);
+    }
+
+    const double pos = juce::jlimit (0.02, 0.5, p.pluckPosition);
+    int pluckLen = (int) std::round (p.delaySamples * pos);
+
+    // A thicker pick and a more angled attack both lengthen the contact. A
+    // finger has neither: its contact lengthens as the pluck softens, because
+    // a gentle pluck lets the flesh roll off the string rather than snap.
+    const double contactStretch = fingers ? 1.0 + 0.25 * (1.0 - vel)
+                                          : 1.0 + p.pickThickness * 0.45 + p.pickAngle * 0.30;
     pluckLen = (int) std::round (pluckLen * contactStretch);
 
     // Hammer-ons, pull-offs and taps are not plucks: the contact is shorter and
@@ -107,6 +130,10 @@ void Excitation::trigger (const Params& p, RtRandom& rng) noexcept
     pluckLen = juce::jlimit (3, juce::jmax (3, (capacity - 16) / 3), pluckLen);
 
     const int combDelay = 2 * pluckLen;
+
+    // The material's pulse, on the position's comb.
+    pluckLen = juce::jlimit (3, juce::jmax (3, capacity - combDelay - 16), (int) std::round (pluckLen * lengthScale));
+
     const int total = juce::jlimit (1, capacity - 1, pluckLen + combDelay + 8);
 
     // ---- 2. Triangle displacement -------------------------------------------
@@ -170,14 +197,28 @@ void Excitation::trigger (const Params& p, RtRandom& rng) noexcept
 
     double cutoff = ms.lowpassHz * velBright * brightTrim * thicknessTrim * angleTrim;
 
-    // Fingerstyle blends between flesh and nail rather than switching.
+    /*  Fingerstyle blends between flesh and nail rather than switching
+        (pick-noise.md 6). The blend is in octaves, not hertz, and the nail
+        comes in with the square of the blend: with a short nail the flesh
+        still cushions the release and the string leaves the nail's edge only
+        when the nail is doing most of the work. A linear mix of the two
+        bandwidths put the default halfway setting most of the way to the
+        nail, and "fingers" vanished next to a pick once the string's own
+        loop filter had had its say. Flesh also sharpens less with force
+        than a pick's corner does, so its velocity brightening is gentler. */
+    double peakHz = ms.peakHz, peakDb = ms.peakDb;
+
+    if (fingers)
+        cutoff = ms.lowpassHz * (0.70 + 0.50 * vel) * brightTrim;
+
     if (p.material == Material::Fingertip || p.material == Material::Fingernail)
     {
         const auto& flesh = specFor (Material::Fingertip);
         const auto& nail  = specFor (Material::Fingernail);
-        const double b = juce::jlimit (0.0, 1.0, p.nailVsFlesh);
-        cutoff = (flesh.lowpassHz + (nail.lowpassHz - flesh.lowpassHz) * b)
-                 * velBright * brightTrim;
+        const double b = juce::square (juce::jlimit (0.0, 1.0, p.nailVsFlesh));
+        cutoff = flesh.lowpassHz * std::pow (nail.lowpassHz / flesh.lowpassHz, b) * (0.70 + 0.50 * vel) * brightTrim;
+        peakHz = flesh.peakHz * std::pow (nail.peakHz / flesh.peakHz, b);
+        peakDb = flesh.peakDb + (nail.peakDb - flesh.peakDb) * b;
     }
 
     cutoff = juce::jlimit (150.0, sr * 0.47, cutoff);
@@ -185,8 +226,8 @@ void Excitation::trigger (const Params& p, RtRandom& rng) noexcept
     shaper.reset();
     resonator.reset();
     shaper.setLowpass (sr, cutoff, 0.62);
-    resonator.setPeaking (sr, juce::jlimit (100.0, sr * 0.45, ms.peakHz * (0.85 + 0.30 * vel)),
-                          1.1, ms.peakDb * (0.5 + 0.5 * vel));
+    resonator.setPeaking (sr, juce::jlimit (100.0, sr * 0.45, peakHz * (0.85 + 0.30 * vel)),
+                          1.1, peakDb * (0.5 + 0.5 * vel));
 
     for (int i = 0; i < total; ++i)
         buffer[(size_t) i] = resonator.process (shaper.process (buffer[(size_t) i]));

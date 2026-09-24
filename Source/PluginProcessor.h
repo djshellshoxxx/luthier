@@ -360,10 +360,24 @@ public:
     void releasePreviewNote (int stringIndex);
 
     //==========================================================================
-    /** Releases every string and clears all state. The Panic button. */
+    /** live-performance 9: the Panic button (key P). Stops the audition, the
+        preview notes and the tune's playback, and has the audio thread release
+        every string, drop the rhythm engine's held notes and clear every tail,
+        the modulation sources included. Parameters, the preset and the snapshot
+        stay as they are. Message thread. */
     void panic();
 
-    /** Restores every parameter, the MIDI map and the UI state to defaults. */
+    /** RESET & STOP (header, Ctrl+Shift+P): stops everything that makes or
+        re-feeds sound on its own - the tune player, the looper, the backing
+        track, the metronome, a practice routine, the session recorder, the
+        rhythm engine's enable and free-run, the kill switch, the audition -
+        then restores every parameter, the MIDI map, the locks and the UI state
+        to defaults and has the audio thread panic and reset the engine. One
+        undo step. Message thread. */
+    void resetAndStop();
+
+    /** Restores every parameter, the MIDI map and the UI state to defaults.
+        Same as resetAndStop(): a reset that left a loop running was no reset. */
     void resetEverything();
 
     /** The destructive reset in the debug panel: defaults plus removing caches. */
@@ -457,6 +471,19 @@ private:
 
     void timerCallback() override;
     void updateLatency();
+
+    /*  panic() and resetAndStop() are message-thread calls, but strings, the
+        schedule, the feedback ring and the rhythm engine belong to the audio
+        thread, and clearing them from another thread mid-block tears a render
+        (and used to). So they are requested here and carried out at the top of
+        the next processBlock. With no audio thread running (tests, offline
+        renders, a host that has not started us) the request is carried out at
+        once by the caller, which then is the only thread touching the engine -
+        the same rule ScopedStructuralChange uses. */
+    enum StopRequest { stopPanic = 1, stopReset = 2 };
+    std::atomic<int> pendingStop { 0 };
+    void requestStop (int flags);
+    void applyStop (int flags) noexcept;
     void updateRoutingLatencyReport();
     void processAuditionMidi (juce::MidiBuffer& midi, int numSamples);
     void logMidiForDiagnostics (const juce::MidiBuffer& midi) noexcept;

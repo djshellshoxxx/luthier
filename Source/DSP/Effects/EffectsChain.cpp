@@ -139,6 +139,36 @@ void EffectsChain::setSlotMix (int slot, double mix) noexcept
         slots[(size_t) slot].pedal->setMix (slots[(size_t) slot].mix);
 }
 
+bool EffectsChain::applyControls (const std::array<SlotControls, kNumSlots>& controls) noexcept
+{
+    const juce::ScopedTryLock sl (swapLock);
+
+    if (! sl.isLocked())
+        return false;   // A slot is being swapped this instant; next block.
+
+    for (size_t i = 0; i < (size_t) kNumSlots; ++i)
+    {
+        auto& slot = slots[i];
+        const auto& c = controls[i];
+
+        slot.bypassed = c.bypassed;
+        slot.mix = juce::jlimit (0.0, 1.0, c.mix);
+
+        if (slot.pedal == nullptr)
+            continue;
+
+        slot.pedal->setBypassed (slot.bypassed);
+        slot.pedal->setMix (slot.mix);
+
+        const int numParams = juce::jmin (slot.pedal->getNumParameters(), Pedal::kMaxParams);
+
+        for (int p = 0; p < numParams; ++p)
+            slot.pedal->setParameterNormalised (p, c.normalised[(size_t) p]);
+    }
+
+    return true;
+}
+
 void EffectsChain::moveSlot (int fromSlot, int toSlot)
 {
     if (! juce::isPositiveAndBelow (fromSlot, kNumSlots)

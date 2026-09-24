@@ -40,12 +40,11 @@ PedalSlotComponent::PedalSlotComponent (LuthierAudioProcessor& p, bool post, int
     addAndMakeVisible (typeSelector);
     typeSelector.setLabelVisible (false);
     typeSelector.attachTo (processor, ParamIDs::slotType (postChain, slotIndex),
-                           "The pedal in this slot. Empty slots cost nothing.");
+                           "Choose a pedal. The rack is empty until you do.");
 
     // visual-polish.md 2: bypass is the pedal's footswitch; its LED is on the face.
     addAndMakeVisible (bypassToggle);
-    bypassToggle.attachTo (processor, ParamIDs::slotBypass (postChain, slotIndex),
-                           "Bypass this pedal. The switch crossfades over 10 ms, so it never clicks.");
+    bypassToggle.attachTo (processor, ParamIDs::slotBypass (postChain, slotIndex));
     faces::setFaceSwitch (bypassToggle.getButton(), faces::FaceSwitch::footswitch);
 
     // The mix knob is the last knob on the face, labelled MIX.
@@ -55,6 +54,7 @@ PedalSlotComponent::PedalSlotComponent (LuthierAudioProcessor& p, bool post, int
     prepareForFace (mixKnob);
 
     shownBypass = bypassFromParameter();
+    updateBypassTooltip();
 
     rebuildControls();
     startTimerHz (10);
@@ -83,8 +83,18 @@ void PedalSlotComponent::refresh()
     if (const bool bypassed = bypassFromParameter(); bypassed != shownBypass)
     {
         shownBypass = bypassed;
+        updateBypassTooltip();
         repaint (getFaceBounds().getSmallestIntegerContainer());
     }
+}
+
+void PedalSlotComponent::updateBypassTooltip()
+{
+    // The footswitch says which way it is, since a click reverses it.
+    const juce::String tip = shownBypass ? "Pedal is bypassed. Click to turn it on."
+                                         : "Pedal is on. Click to bypass.";
+    bypassToggle.getButton().setTooltip (tip);
+    bypassToggle.setTooltip (tip);
 }
 
 void PedalSlotComponent::rebuildControls()
@@ -147,6 +157,9 @@ void PedalSlotComponent::rebuildControls()
     const bool hasPedal = (cachedType != PedalType::None);
     bypassToggle.setVisible (hasPedal);
     mixKnob.setVisible (hasPedal);
+
+    if (sizesToContent && getWidth() > 0)
+        setSize (getWidth(), juce::jmax (140, getPreferredHeight()));
 
     if (auto* parent = getParentComponent())
         parent->resized();

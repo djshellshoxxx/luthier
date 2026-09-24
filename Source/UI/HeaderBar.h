@@ -19,6 +19,18 @@ namespace luthier
 class LuthierAudioProcessor;
 
 //==============================================================================
+/** A TextButton whose label breaks at its " & " onto two lines, so RESET & STOP
+    takes the width of one header button rather than two. The look and feel
+    still draws the background, the colours and the state. */
+class TwoLineTextButton : public juce::TextButton
+{
+public:
+    using juce::TextButton::TextButton;
+
+    void paintButton (juce::Graphics& g, bool isHighlighted, bool isDown) override;
+};
+
+//==============================================================================
 class HeaderBar : public juce::Component,
                   private juce::ChangeListener,
                   private juce::Timer
@@ -46,6 +58,13 @@ public:
     std::function<void()> onOpenExport;
     std::function<void()> onOpenPresetBrowser;
     std::function<void()> onSaveAs;
+
+    /** gui-integration 19: File -> New Tune... (the TUNE tab's template picker)
+        and File -> Import MIDI... (midi-export 5, into the Tune Builder). The
+        editor owns the TUNE tab, so both go out to it; unset, the items are
+        disabled rather than missing. */
+    std::function<void()> onNewTune;
+    std::function<void (const juce::File&)> onImportMidi;
 
     /** gui-integration 19: the header MIDI Learn button. */
     std::function<void (bool)> onMidiLearnArmChanged;
@@ -96,6 +115,9 @@ private:
     juce::TextButton compareA { "A" }, compareB { "B" }, copyAB { "A>B" };
     juce::TextButton undoButton { "Undo" }, redoButton { "Redo" };
     juce::TextButton panicButton { "Panic" };
+
+    /** RESET & STOP: everything off and every setting back to default. */
+    TwoLineTextButton resetStopButton;
     juce::TextButton midiLearnButton { "Learn" };
     juce::TextButton helpButton { "?" };
     juce::TextButton modeButton { "Advanced" };

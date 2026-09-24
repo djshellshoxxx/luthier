@@ -9,8 +9,16 @@
     Chord grouping: in Poly mode, note-ons that land within a short window are
     voiced together as one chord. The window is held across block boundaries so a
     chord split by a buffer edge still voices as a chord; the cost is that Poly mode
-    carries up to `chordWindowMs` of extra latency (2 ms by default), which is
-    reported to the host along with everything else.
+    carries up to `chordWindowMs` of extra latency (15 ms by default - wide enough
+    to gather the fingers of a keyboard chord, which land over some milliseconds,
+    into one strummed gesture), which is reported to the host along with
+    everything else.
+
+    A note that arrives while others are held is voiced around them: the strings
+    still sounding are handed to the voicer as occupied, so the new note lands on
+    a free string rather than on top of one that is ringing (engine.md "Mode B":
+    one note per string). A group the fingering rubric cannot place as a chord is
+    placed note by note the same way instead of being dropped.
 */
 
 #include "PlayingEvents.h"
@@ -229,6 +237,18 @@ private:
 
     void flushChordGroup (int64_t upToSample, int blockOffset, int numSamples, PlayEventQueue& out) noexcept;
 
+    /** The strings currently holding a note, one bit per string index. A string
+        holding `exceptMidiNote` is left out: a note played again while it is
+        held re-picks its own string rather than spilling onto another. */
+    uint16_t heldStringMask (int exceptMidiNote = -1) const noexcept;
+
+    /** Places every requested note the voicing left out on a free string, one at
+        a time, and appends it to the voicing. `occupied` is the held-string mask
+        the voicing was made with; each placed string is added to it. A note no
+        free string can sound stays dropped. Leaves the voicer's mask cleared. */
+    void placeUnvoicedNotes (const int* notes, const double* velocities, int count,
+                             uint16_t occupied, ChordVoicing& voicing) noexcept;
+
     /** Releases any note whose deferred note-off has now come due
         (controllers.md 5). */
     void flushDeferredReleases (int64_t blockStartSample, int numSamples,
@@ -275,8 +295,8 @@ private:
     static constexpr int kMaxPending = 16;
     std::array<PendingNote, kMaxPending> pending {};
     int numPending = 0;
-    double chordWindowMs = 2.0;
-    int chordWindowSamples = 96;
+    double chordWindowMs = 15.0;
+    int chordWindowSamples = 720;
 
     double strumSpeedMs = 9.0;
     StrumDirection strumDirection = StrumDirection::Down;

@@ -946,6 +946,11 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 
     const int numSamples = buffer.getNumSamples();
 
+    // A panic or reset the message thread asked for lands here, before anything
+    // in this block reads the engine, so it is never torn out from under a render.
+    if (const int stop = pendingStop.exchange (0, std::memory_order_acq_rel); stop != 0)
+        applyStop (stop);
+
     // ---- routing, before anything reads or writes audio -----------------------
     routing.setActiveLayout (getNegotiatedLayout());
     routing.setSidechainPresent (hasSidechainInput());
@@ -1699,22 +1704,78 @@ bool LuthierAudioProcessor::applyCurrentSetlistEntry()
 }
 
 //==============================================================================
+void LuthierAudioProcessor::requestStop (int flags)
+{
+    if (engine.isAudioThreadActive())
+    {
+        pendingStop.fetch_or (flags, std::memory_order_acq_rel);
+        return;
+    }
+
+    // Nothing else is rendering: the caller is the only thread in the engine.
+    applyStop (pendingStop.exchange (0, std::memory_order_acq_rel) | flags);
+}
+
+void LuthierAudioProcessor::applyStop (int flags) noexcept
+{
+    // The modulation sources are fed from this thread's MIDI, so they are
+    // released here too; CC 120 / 123 was the only thing that did it before.
+    modMatrix.allNotesOff();
+    modMatrix.resetEnvelopes();
+
+    engine.panic();
+    tuneClickRinging = false;
+
+    if ((flags & stopReset) != 0)
+        engine.reset();
+}
+
 void LuthierAudioProcessor::panic()
 {
     stopAudition();
-    engine.panic();
 
-    const juce::ScopedLock sl (previewLock);
-    previewMidi.clear();
+    // A tune that keeps re-feeding its notes every block would have the strings
+    // ringing again before the panic had finished - a loop no panic could end.
+    tunePlayer.stop();
+
+    {
+        const juce::ScopedLock sl (previewLock);
+        previewMidi.clear();
+    }
+
+    requestStop (stopPanic);
 
     diagnostics.log (LogCategory::Engine, "panic", samplePosition);
 }
 
-void LuthierAudioProcessor::resetEverything()
+void LuthierAudioProcessor::resetAndStop()
 {
-    pushUndoState ("Reset");
+    pushUndoState ("Reset and stop");
 
-    panic();
+    // ---- everything that makes or re-feeds sound on its own, first ------------
+    tunePlayer.stop();
+    looper.stop();
+    backingTrack.stop();
+    metronome.setEnabled (false);
+    practiceRunner.stop();
+    sessionRecorder.setEnabled (false);
+
+    // The rhythm engine's enable and free-run are not parameters: the Easy
+    // genre box and the PRACTICE drawer switch them on directly, so a reset of
+    // the parameters alone left it strumming.
+    auto& rhythm = engine.getRhythmEngine();
+    rhythm.setEnabled (false);
+    rhythm.setFreeRun (false);
+
+    killSwitch.setActive (false);
+    stopAudition();
+
+    {
+        const juce::ScopedLock sl (previewLock);
+        previewMidi.clear();
+    }
+
+    // ---- then every setting back to its default ----------------------------------
     presets.resetToDefaults();
     midiLearn.clearAllMappings();
     lockedParameters.clear();
@@ -1722,9 +1783,16 @@ void LuthierAudioProcessor::resetEverything()
     uiState = UiState {};
 
     bridge.applyAllNow();
-    engine.reset();
 
-    diagnostics.log (LogCategory::Engine, "reset to defaults", samplePosition);
+    // ---- and the engine, on the thread that owns it --------------------------------
+    requestStop (stopPanic | stopReset);
+
+    diagnostics.log (LogCategory::Engine, "reset and stop", samplePosition);
+}
+
+void LuthierAudioProcessor::resetEverything()
+{
+    resetAndStop();
 }
 
 void LuthierAudioProcessor::hardResetAndClearCaches()

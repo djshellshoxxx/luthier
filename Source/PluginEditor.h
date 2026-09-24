@@ -18,6 +18,7 @@ namespace luthier
 
 //==============================================================================
 class LuthierAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                    public juce::FileDragAndDropTarget,
                                     private juce::Timer,
                                     private juce::ChangeListener
 {
@@ -30,6 +31,16 @@ public:
     bool keyPressed (const juce::KeyPress&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseMove (const juce::MouseEvent&) override;
+
+    /** midi-export 5: a .mid dropped anywhere on the window goes to the Tune
+        Builder, the same as File -> Import MIDI. */
+    bool isInterestedInFileDrag (const juce::StringArray& files) override;
+    void filesDropped (const juce::StringArray& files, int x, int y) override;
+
+    /** File -> Import MIDI..., the drop, and a test: shows the TUNE tab (which
+        is Advanced Mode's) and loads the file as a new tune. False, with a
+        banner, when the window cannot show the tab or the file is refused. */
+    bool importMidiIntoTuneBuilder (const juce::File& file);
 
     static constexpr int defaultWidth = 1200;
     static constexpr int defaultHeight = 720;
@@ -88,6 +99,13 @@ private:
     /** gui-integration 19: arms MIDI Learn from the header or Ctrl+L, so the
         feature is not reachable only by right-click (ground rule 4). */
     void setMidiLearnArmed (bool armed);
+
+    /** Switches to Advanced Mode if needed and shows the TUNE tab. False when
+        the window is too narrow for Advanced or has no TUNE tab. */
+    bool openTuneTab();
+
+    /** Column 4's TUNE panel, found by type so this need not know its index. */
+    TunePanel* findTunePanel() const;
 
     /** The easter egg's target: one specific pixel, inside the signature notch in
         the top-left corner. Clicking it opens the hidden effect. */

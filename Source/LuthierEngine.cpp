@@ -658,8 +658,13 @@ void LuthierEngine::setTempoBpm (double bpm) noexcept
 //==============================================================================
 void LuthierEngine::panic() noexcept
 {
+    // 9.1: all notes off on every string, and nothing left waiting to sound.
     PlayEventQueue q;
     midi.allNotesOff (q);
+    events.clear();
+    rhythmEvents.clear();
+    directEvents.clear();
+    numScheduled = 0;
 
     for (int i = 0; i < numStrings; ++i)
     {
@@ -669,10 +674,47 @@ void LuthierEngine::panic() noexcept
         stringMidiNote[(size_t) i] = -1;
     }
 
+    // The rhythm engine's held chord and pending strums go too; whether it is
+    // enabled is a setting, and 9.6 leaves settings alone.
+    rhythm.reset();
+    technique.reset();
+
+    // 9.2 - 9.4: every tail - the body's and the cabinet's resonances, the
+    // circuit, the effects, the amp's DC and feedback, the room - and the
+    // coupling state. The instrument's noise (buzz, knocks, bursts) goes too.
+    body.reset();
+    pickups.reset();
+    circuit.reset();
+    secret.reset();
+    playingNoise.reset();
+    fretBuzzModel.reset();
+    preEffects.reset();
+    amp.reset();
+    postEffects.reset();
+    cabinet.reset();
+    room.reset();
+    master.reset();
+    freezeOverlay.reset();
+    coupling.reset();
+    bridgeOutputs.fill (0.0);
+    couplingInputs.fill (0.0);
+    stringOutputs.fill (0.0);
     feedbackLoop.reset();
     ebowDriver.reset();
     scrape.stopAll();
-    numScheduled = 0;
+}
+
+bool LuthierEngine::isAudioThreadActive() const noexcept
+{
+    const auto last = lastProcessMs.load (std::memory_order_relaxed);
+
+    if (last == 0)
+        return false;
+
+    const auto since = juce::Time::getMillisecondCounter() - last;
+
+    return since < 200
+        && audioThreadId.load (std::memory_order_relaxed) != juce::Thread::getCurrentThreadId();
 }
 
 //==============================================================================
@@ -808,9 +850,27 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     }
 
     // strum-dynamics 6.1: a chuck is the fretting hand flat on the strings; it
-    // is there before the pick, so it overrides the technique's damping.
+    // is there before the pick, so it overrides the technique's damping. The
+    // hand lies across every string, not only the ones this strum crosses: an
+    // idle string left open would ring sympathetically off the chucked strikes
+    // (the open G at 196 Hz, at -28 dB, was the "pitch" a chuck kept). A note-on
+    // without a chuck is the hand moving to a chord, which lifts it off the
+    // idle strings it was muting.
     if (e.chuck > 0.0)
         str.setDamping (StringEngine::Damping::Chuck, e.chuck);
+
+    for (int o = 0; o < numStrings; ++o)
+    {
+        if (o == s)
+            continue;
+
+        auto& other = strings[(size_t) o];
+
+        if (e.chuck > 0.0)
+            other.setDamping (StringEngine::Damping::Chuck, e.chuck);
+        else if (stringMidiNote[(size_t) o] < 0 && other.getDamping() == StringEngine::Damping::Chuck)
+            other.setDamping (StringEngine::Damping::Open, 1.0);
+    }
 
     str.setHarmonicRestriction (e.harmonicPartial);
 
@@ -1290,11 +1350,7 @@ void LuthierEngine::beginStructuralChange()
 
     /*  Only park an audio thread that is actually running, and never the
         caller's own thread: waiting for yourself to render is a deadlock. */
-    const auto since = juce::Time::getMillisecondCounter() - lastProcessMs.load (std::memory_order_relaxed);
-    const bool audioRunning = lastProcessMs.load (std::memory_order_relaxed) != 0 && since < 200
-                           && audioThreadId.load (std::memory_order_relaxed) != juce::Thread::getCurrentThreadId();
-
-    if (! audioRunning)
+    if (! isAudioThreadActive())
         return;
 
     swapState.store (swapFadingOut, std::memory_order_release);

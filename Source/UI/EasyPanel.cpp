@@ -95,8 +95,11 @@ juce::Component* CompactRack::openSlot (int index)
     if (! juce::isPositiveAndBelow (index, kSlots))
         return nullptr;
 
-    // The same slot editor as Advanced mode, as a popover (3.2).
+    // The same slot editor as Advanced mode, as a popover (3.2). It follows
+    // its pedal's height itself: the callout box re-lays out when its content
+    // resizes, so a pedal picked into an empty slot gets its whole face.
     auto editor = std::make_unique<PedalSlotComponent> (processor, postChain, index);
+    editor->setSizesToContent (true);
     editor->setSize (300, juce::jmax (140, editor->getPreferredHeight()));
     auto* shown = editor.get();
 
@@ -169,6 +172,11 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     // The whammy display, shown only when the bridge has an arm (3.3).
     addChildComponent (whammyKnob);
     whammyKnob.attachTo (processor, ParamIDs::whammyPos, "The whammy arm's position.");
+
+    addAndMakeVisible (fingersToggle);
+    fingersToggle.attachTo (processor, ParamIDs::useFingers,
+                            "Play with the fingers instead of a pick: a rounder, softer attack "
+                            "with no pick click. Acoustic and classical guitars start with it on.");
 
     addAndMakeVisible (playingModeSelector);
     playingModeSelector.attachTo (processor, ParamIDs::playingMode,
@@ -606,6 +614,8 @@ void EasyPanel::resized()
         auto r = playingArea.reduced (4, 2);
         r.removeFromTop (14);
         playingModeSelector.setBounds (r.removeFromLeft (130).withSizeKeepingCentre (130, juce::jmin (48, r.getHeight())));
+        r.removeFromLeft (Metrics::gridHalf);
+        fingersToggle.setBounds (r.removeFromLeft (64).withSizeKeepingCentre (64, Metrics::buttonHeight));
         r.removeFromLeft (Metrics::grid);
 
         juce::Array<LuthierKnob*> knobs { &attackKnob, &bodyKnob, &driveKnob, &toneKnob, &spaceKnob, &humanizeKnob, &characterKnob };

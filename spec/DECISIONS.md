@@ -563,3 +563,262 @@ chosen") and `ambiguity-resolutions.md`.
   range is specified). Easy mode's Feel scales the crossing and evenness by
   6.3's map; its existing meaning (more humanise to the right) also stays -
   a UX tension left for review.
+- **String roll (assistant-built StringRoll.h, on the NOTATION tab above the
+  live tab).** The roll reads the performance capture's notes (voiced, drained
+  at 10 Hz) for the bars and the engine's per-string level for the right-edge
+  glow, so a pluck lights up at the 30 Hz tick rather than a drain later; the
+  two sources are never combined into one record. "Now" is the take's newest
+  sample carried forward by wall time between drains and only ever re-anchored
+  forwards, so late drains cannot make the bars jitter back. The window is four
+  bars at the host tempo when the newest note was played to a rolling
+  transport (its ppq anchors the bar grid), eight seconds with one-second
+  ticks in free play - there is no downbeat to align bars to without a
+  transport. Clicking a lane maps its height to frets 0-12 with up = up the
+  neck (pitch rises up a piano roll) and its width to velocity 0.35-1.0; the
+  capo raises the floor like the fretboard's click. Keyboard and screen-reader
+  plucks land on the open string (or the last hovered fret) and a screen
+  reader's "press" lets it ring out, since there is no key-up to release on.
+  Reduced motion drops the timer to 10 Hz and replaces the eased glow with a
+  hard-set marker (accessibility 5's "static colour change"). Collapsing the
+  roll (SHOW ROLL, remembered in UiPreferences under `notation.showStringRoll`)
+  hands its 120 px to the live tab so the panel's preferred height never
+  changes. Strings are plain literals like the rest of NotationPanel and
+  FretboardComponent; `tr()` keys for the NOTATION tab are a catalogue pass for
+  the whole tab, not this component. The Advanced strip's FRETS | ROLL toggle
+  is the lead's (AdvancedPanel); the component is exposed via
+  NotationPanel::getStringRoll and constructible on its own for that.
+- **Pedal picks build on the message thread they arrive on** (ui-wiring 4.3,
+  gui-integration 3.2; "none of the effects work"). A slot type written from
+  the message thread - the rack's combo, a reorder, a preset - builds its
+  pedal inside the parameter listener, so the rack shows it on its next paint
+  and no audio-thread detection / AsyncUpdater round trip stands between the
+  click and the sound. Host automation (written on the audio thread) keeps
+  the block-rate detection and the async pass. The structural pass is split:
+  `readStructuralValues` returns a mask, and a pedal type change runs only
+  `applyPedalTypes` - never the instrument pass that reloads body and cabinet
+  IRs, re-snaps every string and re-randomises the detune, which a pedal pick
+  used to trigger (and which, failing early, skipped the pedals altogether).
+  Per-block bypass / mix / knob pushes go through `EffectsChain::applyControls`
+  under the swap lock (try-lock; a swap in progress costs one block's push),
+  from pointers cached in `cachePointers`, so no parameter ID is built in
+  the callback (engine.md 0.2). The `applyStructural` name stays for
+  `applyAllNow`, which still runs both passes.
+- **The footswitch prints its state.** The LED alone did not say which way
+  the switch was, so players "turned every effect on" by stepping on pedals
+  that were already on. The face prints ON / BYPASS by the LED (the trademark
+  scan covers the words), the switch's tooltip says what a click will do, and
+  the type combo says the rack is empty until a pedal is chosen. Easy mode's
+  slot popover sizes itself to its pedal when the type changes, so a pedal
+  picked into an empty slot gets its whole face instead of the empty slot's
+  34 points. These tooltips are literals, as every tooltip in PedalRack and
+  EasyPanel is; the `tr()` catalog is used by the widgets and the editor only.
+- **Fingers are audibly fingers** (pick-noise.md 6). The flesh-to-nail blend
+  was linear in hertz, so the default halfway setting sat a third of an
+  octave under a celluloid pick, lost under the cabinet - and measured at
+  the string, that gap was under 1 dB above 1.5 kHz, because the string's
+  own loop filter and the 1/f^2 pluck shape swamp a contact bandwidth above
+  about 2 kHz; what a material sounds like at the string is mostly its
+  pulse width (`lengthScale`), which rolls off as sinc^2. The width used to
+  scale the comb delay as well, moving the pluck position's notch with the
+  material (a thumb plucked at 18% notched as if at 29%); the comb is now
+  the position's alone and the width the material's. So the flesh release
+  is long - Fingertip 2.2x a celluloid pick's, Thumb 2.6x, the nail's 0.86x
+  stands - and nail_vs_flesh blends width and bandwidth in
+  octaves with the nail counting as the square of the blend (a short nail
+  is still a flesh release), which also makes that control audible for the
+  first time. Fingertip's contact bandwidth is 700 Hz with its resonance at
+  450 Hz (Thumb 550 Hz; Fingernail's 7 kHz stands), the resonance blends
+  with the cutoff, flesh brightens with force at less than half a pick's
+  rate, and a finger's contact lengthens as the pluck softens (up to 25% at
+  the lightest touch) where a pick's lengthens with thickness and angle.
+  Measured at the string (E3, velocity 0.8, half nail), the fingers'
+  power-weighted spectral centroid sits about a fifth under the pick's.
+  The guitar's own hand - acoustics and classicals
+  play with fingers (`applySpec`) - is written into `use_fingers` when the
+  player changes guitar type, instead of the engine's default lasting one
+  block until the parameter was pushed over it; a preset load keeps the
+  preset's own value. Easy's playing strip gets the Fingers toggle beside
+  the mode, since it is a by-the-song choice.
+- **Pickup type and magnet numbers stay as specified.** part-acoustics.md 6.2
+  fixes the magnet table and 6.1 makes position the dominant field, so the
+  type / magnet deltas (about 2.5 dB, a 7 -> 4.8 kHz resonance) are left
+  alone. What was dead by design is the UI offering pickup 2 and 3 on a
+  single-pickup guitar: `LuthierEngine::getNumFittedPickups()` exposes the
+  count so the Advanced panel can disable the slots the guitar does not have
+  and hide the selector positions it cannot realise.
+- **Guitar illustration: detail follows the pixels a millimetre gets.**
+  `GuitarRenderer::Options::detail` (full / reduced / thumbnail) replaces the
+  `thumbnail` flag; `detailFor (pxPerMm)` picks full from 0.6 px/mm, reduced
+  from 0.25, thumbnail below (a 128 px preset thumbnail). Reduced drops what
+  is under a pixel at that size - grain, sparkle, dings, purfling, hardware
+  shadows, screws, poles' knurl, string shadows and winding dashes - draws
+  frets as hairlines and metal as a two-stop gradient. `GuitarBodyComponent`
+  gets the level through `buildFitted`, which fits first and rebuilds once if
+  the fit's scale (HiDPI counted) asks for another level; the key carries it.
+- **The Advanced strip shows the body, not the whole guitar.** 260 x 124 px
+  gives a metre of guitar 0.24 px/mm, which is mush. `Framing::automatic`
+  crops to the body plus the last five frets (the strip's live parts - pickups,
+  knobs, switch - are on the body) whenever the whole fit is under 0.5 px/mm
+  and cropping gains at least 10%; the tail sits against the right edge and
+  the neck runs off the left. Hit-testing goes through the same transform's
+  inverse, so nothing moves; only the frame does. Easy mode (~0.85 px/mm)
+  keeps the whole guitar.
+- **One soft shadow, blurred at paint time.** The backdrop's two offset fills
+  plus a 10 mm stroke, and the per-part `shadow()` pairs, read as hard rings.
+  A `Shape` with `shadowMm` is now rendered into a single-channel mask, box
+  blurred and drawn in its colour, in pixel space; the backdrop is one such
+  shadow under body, neck and headstock together (the neck and headstock no
+  longer cast their own). This allocates, so it happens where the scene is
+  rasterised into its cache (once per size), never per frame. Diffuse shade
+  is 0.12 black at the far edge (was 0.28); the unbound body's edge line is
+  the finish's darker shade at 0.3 alpha (was black 0.45, a cartoon outline).
+- **A burst is one elliptical gradient plus an inner shadow.** JUCE radial
+  gradients are circular, so the fill's transform stretches it to the body's
+  proportions (`ellipticalFill`); the edge band that follows the outline is
+  an inner shadow (`innerMm`): the mask of everything outside the outline,
+  blurred and clipped to the body, in the edge colour. No more stacked rings.
+  Thumbnails skip the band. The same stretched-gradient trick keeps the
+  lacquer sheen inside its ellipse (it used to end in a hard arc).
+- **Grain is a tiled image, not thousands of strokes.** One 256 x 128 px tile
+  per figure (straight, tight, open ash, flame, quilt) at 1 px/mm, periodic
+  in both directions, built on first use and shared; the body is filled with
+  it through a `FillType` offset by the character seed. Downsampling is area
+  averaged, so no moire at any size, and it is off entirely below 0.6 px/mm.
+- **Carved tops shade as one gradient.** Arched, archtop, semi- and full
+  hollow and violin bodies get a crown-to-edge elliptical gradient instead of
+  the contour line, which stays for flat tops with a contour.
+- **Strings are one gradient stroke** (lit above, shaded below, defined across
+  the string's normal so it holds along the fan), never under 1 px; the wood
+  shadow only above 0.6 px/mm, winding dashes only at full detail and 2 px.
+- **A set neck on a burst keeps its wood**, warmed 30% toward the burst's
+  centre colour; it used to take the edge colour and read as a dark slab. A
+  set neck under a solid finish is still painted with the body.
+- **MIDI import (midi-export 5, tune-builder 9.2 and test 15-08;
+  assistant-built `Source/Tune/TuneImport`, TUNE tab IMPORT, File -> Import
+  MIDI..., a `.mid` dropped on the window).** The target is the Tune Builder
+  only: the session-recorder and looper targets midi-export 5 lists are not
+  built, so there is no target choice yet. A file Luthier wrote is recognised
+  by its track names (Guitar / Bass / Luthier, or section-named tracks) or
+  its `LUTHIER:` technique metas and read back by channel (chords 1, melody
+  2, bass 3, layers 4-7; pad / arpeggio / percussion come back as layers, not
+  as their generated notes). Any other file is sorted by what its tracks do:
+  mostly three-or-more-at-once -> chords, mean pitch under E2 or "bass" in
+  the name -> bass, the first monophonic one -> melody, the rest -> the
+  countermelody layer verbatim, channel 10 skipped; failing a chord track, a
+  chord chart in text metas (parseChordSymbol) is used. Chords are read beat
+  by beat through the rhythm engine's ChordDetector, so an import is an
+  arrangement, not a playback: the chords are re-strummed by the section's
+  pattern and the file's own chord track is kept as a *muted* countermelody
+  layer (enabled it would double the strum), and the report says so. Silence
+  and unrecognisable stacks hold the chord before them (a cell cannot rest);
+  a gap before the first chord moves that chord to the section start, with a
+  warning. Markers are sections; a marker whose text and music repeat an
+  earlier one folds into a setlist entry (Verse x2 round-trips); no markers
+  means one section up to 16 bars, else 8-bar parts; notes before the first
+  marker make an Intro. A note across a boundary is cut there and continues
+  in the next section (drainRecording truncates; a continued note loses
+  nothing). Tempo, time and key signature: the first of each, else 120 /
+  4/4 / C major with a warning; SMPTE-timed files are refused by name.
+  Imported sections get "Folk Down Up" / "Folk Fingerstyle", the templates'
+  pattern and kit. Notes come back locked and from Record; quantise is an
+  option (off by default: a sequenced file is already exact). The TUNE tab's
+  button reads "IMPORT" (five buttons share the row; "IMPORT MIDI" does not
+  fit at 420 pt), accessible name "Import MIDI file". Strings follow their
+  neighbours: literals in TunePanel / HeaderBar, `tr` keys for the editor's
+  banners. The Export Audio overlay's MIDI-file source now shows the chosen
+  file's name in its box.
+- **Chords: held strings are out of bounds for the voicer.** engine.md "Mode B"
+  says one note per string, but nothing told ChordVoicer / RubricVoicer which
+  strings were still sounding, so a note played while others were held took
+  its cheapest string and ended the note on it (C4, E4, then G4 killed E4).
+  Both voicers take `setOccupiedStrings (mask)`: ChordVoicer skips those
+  strings as candidates; the rubric gives an occupied slot a single free
+  "leave it ringing" option that is neither fretted nor counted as muted (it
+  is not muted - no mute penalty - and a barre across it fails constraint 6,
+  which is physically right). MidiInterpreter sets the mask from its held
+  slots around every Poly group and the guitar-controller pitch fallback, and
+  clears it after; a note that is already held and played again keeps its own
+  string (re-pick, as on a guitar) rather than spilling onto a second one.
+  Mono mode is untouched: one voice is what it means.
+- **Chords: an unfingerable group sounds note by note instead of being
+  dropped.** ambiguity-resolutions 4.7's explicit "unplayable" stays the
+  voicer's answer, but the interpreter no longer turns it into silence: every
+  requested note the chord search did not place (an unplayable group, or a
+  voicing that left notes out) is placed by voiceSingleNote on whatever free
+  string can sound it, each placed string joining the mask for the next. Only
+  a note with no free string left is dropped. The notes still strum as one
+  gesture with the rest of the group.
+- **Chord window default 2 ms -> 15 ms.** The fingers of a keyboard chord land
+  over several milliseconds; at 2 ms they were separate groups, each voiced
+  against the last, which is the user's "cannot do chords". 15 ms groups them
+  as one strummed chord and is well under the 50 ms latency ceiling the
+  integration test allows; the parameter's range (0-20 ms) is unchanged and
+  every test that pins a window sets it explicitly.
+- **Panic and Reset run on the audio thread's block.** `LuthierEngine::panic`
+  and `reset` were called from the message thread with no synchronisation and
+  tore the strings, the schedule and the feedback ring mid-render. The
+  processor now sets an atomic request that the top of `processBlock` carries
+  out before anything reads the engine; with no audio thread running (tests,
+  offline renders, the same 200 ms rule ScopedStructuralChange uses) the
+  caller carries it out at once. The park mechanism was not used: it fades
+  the output over 5 ms each way and waits up to 250 ms, and a panic wants the
+  strings choked on the very next block, not a swap.
+- **Panic (live-performance 9) now clears every tail.** `LuthierEngine::panic`
+  also resets pre/post effects, amp, cabinet, room, master, freeze overlay,
+  coupling and the technique state, drops the rhythm engine's held chord and
+  pending strums (`RhythmEngine::reset`, enabled state kept), and the
+  processor releases the modulation sources and stops the tune player - a
+  tune re-feeds its notes every block, so a panic that left it playing was
+  undone before it finished. Settings, preset and snapshot are untouched
+  (9.5, 9.6).
+- **RESET & STOP is the Reset.** `resetEverything` left the tune looping, the
+  looper, the backing track, the metronome, a practice routine, the session
+  recorder, the rhythm engine's enable / free-run (not parameters: the Easy
+  genre box and the PRACTICE drawer set them directly) and the kill switch
+  alone, which is the user's loop that "would not stop". `resetAndStop` stops
+  all of those first, then restores the parameters, MIDI map, locks and UI
+  state, then requests panic + reset on the audio thread; `resetEverything`
+  is now that call, one undo step ("Reset and stop"). It is a header button
+  beside Panic in the warning colour (label and tooltip in the catalog) with
+  Ctrl+Shift+P registered in the shortcut registry, so the HELP tab lists it
+  under Playing without further wiring.
+- **A chuck mutes every string, and a note-off does not undo it.** The "Chuck
+  kills pitch" test found a steady 196 Hz tone at -28 dB after a chuck: not
+  the struck strings (all Damping::Chuck, loop gains 0.006-0.26, dead in ~16
+  ms) but the open G, which the E-only voicing never strikes. It stayed
+  Damping::Open at full sustain and rang sympathetically off the chucked
+  strikes through the bridge coupling; the body (bypassed: no change) and the
+  idle engine (-77 dB) were ruled out. strum-dynamics 6.1 says every string is
+  damped before the strum crosses, so a note-on that carries a chuck now puts
+  Damping::Chuck on every other string too (`LuthierEngine::triggerNote`), and
+  a note-on without one lifts the hand off the idle strings it was muting
+  (Chuck -> Open, sounding strings keep their own damping).
+  `StringEngine::release` keeps a Chuck in place instead of replacing it with
+  Released (T60 x0.13, hundreds of ms), because the note-offs a chuck step
+  sends the strings it does not strike, and the re-strike note-offs from
+  `RhythmEngine::emitNote`, land at the same sample as the chuck and would
+  have given it its pitch back. Result: clarity 0.21 at -40 dB against the
+  strum (was 0.95 at -28 dB), the attack intact, a palm mute still at 0.99.
+  What is left in 40-100 ms is a broad -47 dB hump at 185-230 Hz, the solid
+  body's bending modes, which is the body resonance the spec says a chuck
+  keeps.
+- **A cropped frame keeps the tuning popover one click away.** gui-integration
+  3.1 opens tuning from the headstock, which the strip's body crop puts off the
+  left edge. There, the visible stub of neck (neck, fretboard, strings, nut
+  past the body) opens the same popover, its tooltip says the headstock is out
+  of frame, and the callout anchors on the visible neck. `Editor.
+  everyHitRegionOnTheIllustrationDescribesItself` sweeps a 300 x 620 component,
+  which crops too, and finds the headstock text on the neck.
+- **"Silent" after Panic / Reset & Stop means the idle floor.** Amp hiss and
+  mains hum are deliberate (Engine.silenceInSilenceOut allows a 0.05 idle
+  peak), so the ResetStop tests hold the output to three times the idle floor
+  measured on an untouched instance, not to zero. The block a panic lands in
+  is all zeros; the ~100 ms after it carry the same settle a fresh instance
+  has (the engine's filters and noise starting from zero, about -35 dBFS), and
+  the tests give it that warm-up before holding it to the floor.
+- **Header widths at 1200 px.** The row did not fit gui-integration's 1200 px
+  minimum even before RESET & STOP (the preset name had ~20 px). RESET & STOP
+  is a two-line button (64 px), the right-hand buttons were trimmed to their
+  labels, and below about 1280 the guitar and tuning selectors give way first
+  (to floors of 112 / 96 px) so the preset name keeps at least ~70 px.
+  Below 1200 the row still truncates from the middle, as it always did.
