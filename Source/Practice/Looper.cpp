@@ -850,22 +850,29 @@ bool SessionRecorder::prepare (double sampleRate, double minutes)
         caller is told what it got by getCapacityMinutes(). */
     constexpr int64_t kMaxSamples = 1 << 26;      // 64 M frames: about 23 minutes at 48 kHz
 
-    capacity = (int) juce::jmin (wanted, kMaxSamples);
-
-    if (capacity <= 0)
-        return false;
-
-    try
     {
-        ring.setSize (2, capacity, false, true, false);
-    }
-    catch (...)
-    {
-        capacity = 0;
-        return false;
+        const juce::SpinLock::ScopedLockType sl (ringLock);
+
+        capacity = (int) juce::jmin (wanted, kMaxSamples);
+
+        if (capacity <= 0)
+            return false;
+
+        try
+        {
+            ring.setSize (2, capacity, false, true, false);
+        }
+        catch (...)
+        {
+            capacity = 0;
+            return false;
+        }
+
+        ring.clear();
+        writePosition.store (0, std::memory_order_relaxed);
+        recorded.store (0, std::memory_order_relaxed);
     }
 
-    ring.clear();
     reset();
 
     return true;
@@ -883,11 +890,16 @@ void SessionRecorder::reset() noexcept
 
 void SessionRecorder::processBlock (const juce::AudioBuffer<float>& buffer, int numSamples) noexcept
 {
-    if (! isEnabled() || capacity <= 0 || buffer.getNumChannels() < 1)
+    if (! isEnabled() || buffer.getNumChannels() < 1)
+        return;
+
+    const juce::SpinLock::ScopedTryLockType sl (ringLock);
+
+    if (! sl.isLocked() || capacity <= 0)
         return;
 
     // Nothing here allocates: the ring exists, and this is a copy into it.
-    int position = writePosition.load (std::memory_order_relaxed);
+    int position = juce::jlimit (0, capacity - 1, writePosition.load (std::memory_order_relaxed));
 
     const auto* srcL = buffer.getReadPointer (0);
     const auto* srcR = buffer.getNumChannels() > 1 ? buffer.getReadPointer (1) : srcL;

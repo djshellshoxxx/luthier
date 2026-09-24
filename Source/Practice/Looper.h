@@ -308,6 +308,11 @@ private:
     juce::MidiMessageSequence midi;
     juce::CriticalSection midiLock;
 
+    /** Held by prepare() while it resizes the ring; processBlock only try-locks
+        it. The ring can be resized while recording (PRACTICE setup's ring
+        length), which used to free it under the audio thread. */
+    juce::SpinLock ringLock;
+
     double sr = 44100.0;
     int capacity = 0;
 
