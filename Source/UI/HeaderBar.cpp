@@ -277,6 +277,43 @@ void HeaderBar::timerCallback()
 }
 
 //==============================================================================
+juce::PopupMenu HeaderBar::buildUndoHistoryMenu (const LuthierAudioProcessor& processor)
+{
+    juce::PopupMenu menu;
+    menu.addSectionHeader ("Undo back to before...");
+
+    for (const auto& item : processor.getUndoHistory (20))
+    {
+        // action-and-undo.md 5: boundaries drawn as rules with a subtitle.
+        if (item.boundary)
+        {
+            menu.addSeparator();
+            menu.addSectionHeader (item.description);
+        }
+
+        menu.addItem (1 + item.stepsBack, item.description);
+    }
+
+    return menu;
+}
+
+void HeaderBar::applyUndoHistoryChoice (LuthierAudioProcessor& processor, int result)
+{
+    if (result > 1)
+        processor.undoSteps (result - 1);
+}
+
+void HeaderBar::showUndoHistory()
+{
+    buildUndoHistoryMenu (processor).showMenuAsync (
+        juce::PopupMenu::Options().withTargetComponent (&fileMenuButton),
+        [safeThis = juce::Component::SafePointer<HeaderBar> (this)] (int result)
+        {
+            if (safeThis != nullptr)
+                applyUndoHistoryChoice (safeThis->processor, result);
+        });
+}
+
 void HeaderBar::showFileMenu()
 {
     auto& manager = processor.getPresetManager();
@@ -301,6 +338,8 @@ void HeaderBar::showFileMenu()
     menu.addItem (9, "Open render folder");
     menu.addSeparator();
     menu.addItem (10, "Options...");
+    menu.addSeparator();
+    menu.addItem (14, "Undo history...", processor.getNumUndoSteps() > 0);   // action-and-undo.md 9
     menu.addSeparator();
     menu.addItem (11, "Randomise");
     menu.addItem (12, "Reset all settings to default");
@@ -465,6 +504,10 @@ void HeaderBar::showFileMenu()
 
             case 12:
                 processor.resetEverything();
+                break;
+
+            case 14:
+                showUndoHistory();
                 break;
 
             default:

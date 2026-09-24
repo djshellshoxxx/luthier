@@ -10,6 +10,7 @@
 #include "TestFramework.h"
 
 #include "../PluginProcessor.h"
+#include "../UI/HeaderBar.h"
 #include "../UI/OptionsPages.h"
 #include "../UI/PedalRack.h"
 #include "../UI/Widgets.h"
@@ -792,4 +793,53 @@ LUTHIER_TEST (Undo, randomWalkUndoesBackToTheStart)
         while (processor.getNumUndoSteps() > 0)
             processor.undoAcrossBoundary();
     }
+}
+
+//==============================================================================
+/*  1 / 9 / 12: the history (newest first, boundaries flagged), the redo count,
+    and File -> Undo history, whose click undoes back to before that entry. */
+LUTHIER_TEST (Undo, theHistoryListsNewestFirstAndUndoesToAPoint)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    const juce::String gain (ParamIDs::ampGain);
+    setPlain (processor, gain, 0.1f);
+
+    processor.pushUndoState ("one");
+    setPlain (processor, gain, 0.2f);
+    processor.pushUndoBoundary ("Load preset X");
+    setPlain (processor, gain, 0.3f);
+    processor.pushUndoState ("three");
+    setPlain (processor, gain, 0.4f);
+
+    const auto history = processor.getUndoHistory();
+    CHECK (history.size() == 3);
+    CHECK (history[0].description == "three" && history[0].stepsBack == 1);
+    CHECK (history[1].boundary && history[1].stepsBack == 2);
+    CHECK (history[2].description == "one" && history[2].stepsBack == 3);
+
+    const auto menu = HeaderBar::buildUndoHistoryMenu (processor);
+    juce::Array<int> ids;
+    int separators = 0;
+
+    for (juce::PopupMenu::MenuItemIterator it (menu); it.next();)
+    {
+        if (it.getItem().isSeparator)
+            ++separators;
+        else if (it.getItem().itemID != 0)
+            ids.add (it.getItem().itemID);
+    }
+
+    CHECK (ids == juce::Array<int> ({ 2, 3, 4 }));
+    CHECK (separators == 1);
+
+    // Click "one": undo back to before it, across the boundary.
+    HeaderBar::applyUndoHistoryChoice (processor, 4);
+    CHECK_NEAR (plainOf (processor, gain), 0.1f, 1.0e-3);
+    CHECK (processor.getNumUndoSteps() == 0);
+    CHECK (processor.getNumRedoSteps() == 3);
+
+    processor.redo();
+    CHECK_NEAR (plainOf (processor, gain), 0.2f, 1.0e-3);
 }
