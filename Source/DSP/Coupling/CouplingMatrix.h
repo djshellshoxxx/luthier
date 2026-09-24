@@ -64,6 +64,19 @@ private:
     double lastLimiting = 0.0;
 
     std::array<std::array<double, kMaxStrings>, kMaxStrings> matrix {};
+
+    /*  Per-pair scale for strings tuned within kUnisonCents of each other.
+        The matrix only adds (the sender is not debited), so two strings in
+        unison each drive the other at the other's own resonance, and at the
+        default amount that loop gain passes 1: the pair climbs to the +-4 guard
+        and stays there (a 12-string's unison courses, one note on two
+        strings). Everything a few cents apart decays; the pair's coupling fades
+        towards kUnisonFloor as the two fundamentals meet. */
+    static constexpr double kUnisonCents = 15.0;
+    static constexpr double kUnisonFloor = 0.02;
+    std::array<std::array<double, kMaxStrings>, kMaxStrings> unisonScale {};
+
+    void updateUnisonScale (int stringIndex) noexcept;
     std::array<double, kMaxStrings> frequencies {};
 
     // One resonant receive filter per string, centred on that string's fundamental.

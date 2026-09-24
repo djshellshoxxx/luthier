@@ -224,8 +224,16 @@ private:
         The click grid is what actually has to be accurate, and expressing the
         position in its own units means a click lands exactly when the fractional
         part of this crosses an integer - no division, no rounding, and no
-        accumulating remainder. */
-    double clickPosition = 0.0;
+        accumulating remainder.
+
+        It starts just below zero, so the first step crosses 0 and click 0 -
+        beat one - sounds; starting at exactly 0 skipped it. */
+    static constexpr double kStartPosition = -1.0e-9;
+    double clickPosition = kStartPosition;
+
+    /** Set by setEnabled on the message thread; the audio thread restarts the
+        grid, so clickPosition has a single writer. */
+    std::atomic<bool> restartPending { false };
 
     std::array<Voice, kMaxVoices> voices {};
 

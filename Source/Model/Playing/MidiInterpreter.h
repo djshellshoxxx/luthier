@@ -188,7 +188,7 @@ public:
     int getStringMidiNote (int stringIndex) const noexcept;
 
     /** The last chord the voicer identified, for the UI. */
-    juce::String getLastChordName() const { return lastChordName; }
+    juce::String getLastChordName() const;
 
     /** Panic: releases everything. */
     void allNotesOff (PlayEventQueue& out) noexcept;
@@ -305,7 +305,12 @@ private:
     int activeNoteCount = 0;
     int lastMonoString = -1;
 
-    juce::String lastChordName;
+    /*  The last chord's notes, not its name: naming it builds a String, which
+        the audio thread must not do, and the UI used to copy the String while
+        the audio thread reassigned it. The UI names it (getLastChordName). */
+    mutable juce::SpinLock lastChordLock;
+    std::array<int, 16> lastChordNotes {};
+    int lastChordCount = 0;
 
     RtRandom rng { 0x4D1D1ull };
     Humanisation humanise;
