@@ -155,6 +155,8 @@ class SlapEngine
 public:
     static constexpr int kMaxActions = 32;
 
+    SlapEngine() = default;
+
     /** How much louder than an ordinary fret buzz the slap's clack is: it is
         the same contact, driven far harder (bass-techniques 2.1.3, 0.5). */
     static constexpr double kClackGainDb = 8.0;

@@ -32,7 +32,7 @@ namespace
 
         juce::MouseEvent event (juce::Component& target, juce::Point<float> p, juce::ModifierKeys mods = {})
         {
-            auto& source = juce::Desktop::getInstance().getMainMouseSource();
+            auto source = juce::Desktop::getInstance().getMainMouseSource();
             return juce::MouseEvent (source, p, mods, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                                      &target, &target, juce::Time::getCurrentTime(), p,
                                      juce::Time::getCurrentTime(), 1, false);

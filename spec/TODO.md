@@ -10,28 +10,19 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## In progress
 
-- [ ] **RESUME HERE (stopped 2026-09-24).** The last commit is not built.
-      1. Build LuthierTests; fix compile errors in the scrape and strum
-         integration (ScrapeEngine, StrumGesture, StrumGroup and their edits
-         to LuthierEngine, Parameters, RhythmEngine, Patterns,
-         MidiInterpreter, StringEngine, PluginProcessor, RhythmPanel,
-         EasyPanel, NoiseGroups, presets). Likely snags the author named:
-         `std::find` in RhythmEngine.cpp, StrumGestureTests' UI includes.
-      2. Run `Scrape`, `ScrapeEngineWiring`, `StrumDynamics`, then the full
-         suite (677 were green before). Untuned thresholds to expect:
-         chuckKillsPitch, the engine-level striker-noise test,
-         anActiveScrapeStaysInBudget.
-      3. Update docs/spec-coverage.md: SCR-*, SD-*, AR-6 rows.
-      4. Integrate Source/WIP: SlapEngine + TechniqueTriggers (params
-         426-450, count 450; ghost damping goes after the chuck line using
-         Damping::Chuck), then FirstRun / FirstEncounterHint (TODO 14c:
-         editor ctor `FirstRun::applyIfFirstRun()`, TestMain
-         `setStateForTesting (true, false)`, DiagnosticsPage "Restore
-         first-run experience", TunePanel / WorkshopPanel hints, UiState
-         practiceDrawerOpen, and five HelpContent text corrections). The
-         assistants' full edit lists are in the session transcript.
-      5. Next specs: muting-rhythm.md, then the rest of 13b.
-
+- [x] Scrape and strum integration built and green on Linux (clang); portability fixes
+      for clang (nested default args, int64 casts, temporaries). SlapEngine +
+      TechniqueTriggers integrated (params 426-450, count 450, 22 Slap tests green).
+      chuckKillsPitch fixed: a chuck now damps unplayed strings too (the hand lies
+      across all of them) and the test measures the chord's f0 from output onset.
+      Linux build: scripts/setup_linux.sh; tests under xvfb-run.
+- [ ] Remaining WIP: Source/WIP/Rhythm/Muting + UI/MuteGroup (muting-rhythm.md),
+      Source/WIP/UI/FirstRun + FirstEncounterHint (onboarding, TODO 14c).
+- [ ] 13c UNBLOCKED: the nine phase 2b specs are now on disk (string-aging,
+      environment, body-coupling, harmonic-realism, string-interaction,
+      fingerstyle-attack, noise-floor, sustain-and-decay, tuning-stability).
+      New range families they propose (strings/environment/body/string) are
+      recorded in DECISIONS.md "Phase 2b range families".
 - [ ] **G. Realistic guitar illustration** - IN PROGRESS. Built and green
       (432 tests): `GuitarRenderer` draws every factory guitar from its parts
       (body outline data, finishes with grain/burst/aging/sparkle, lighting

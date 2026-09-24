@@ -87,7 +87,7 @@ bool BackingTrackPlayer::load (const juce::File& file)
         is a few megabytes, which is nothing next to the whole file, and is
         enough for both jobs. */
     {
-        const int analysisSamples = (int) juce::jmin ((int64_t) (30.0 * fileSampleRate),
+        const int analysisSamples = (int) juce::jmin ((juce::int64) (30.0 * fileSampleRate),
                                                       reader->lengthInSamples);
 
         analysisSampleRate = fileSampleRate;

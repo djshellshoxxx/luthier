@@ -321,6 +321,33 @@ namespace ParamIDs
     inline constexpr const char* chuckAmount          = "chuck_amount";
     inline constexpr const char* chuckDamping         = "chuck_damping";
 
+    // bass-techniques.md 2-5 and string-slap-technique.md 1 (SlapEngine).
+    inline constexpr const char* slapStrength           = "slap_strength";
+    inline constexpr const char* slapPositionMm         = "slap_position_mm";
+    inline constexpr const char* slapThumbHardness      = "slap_thumb_hardness";
+    inline constexpr const char* slapFretContact        = "slap_fret_contact";
+    inline constexpr const char* popStrength            = "pop_strength";
+    inline constexpr const char* popPositionMm          = "pop_position_mm";
+    inline constexpr const char* doubleThumpEnabled     = "double_thump_enabled";
+    inline constexpr const char* doubleThumpUpRatio     = "double_thump_up_ratio";
+    inline constexpr const char* ghostLevel             = "ghost_level";
+    inline constexpr const char* ghostDamping           = "ghost_damping";
+    inline constexpr const char* ghostAuto              = "ghost_auto";
+    inline constexpr const char* ghostVelocityThreshold = "ghost_velocity_threshold";
+    inline constexpr const char* slapArmed              = "slap_armed";
+    inline constexpr const char* slapType               = "slap_type";
+    inline constexpr const char* slapTrigger            = "slap_trigger";
+    inline constexpr const char* slapVelocityZone       = "slap_velocity_zone";
+    inline constexpr const char* slapTriggerCc          = "slap_trigger_cc";
+    inline constexpr const char* slapGhostCc            = "slap_ghost_cc";
+    inline constexpr const char* slapForce              = "slap_force";
+    inline constexpr const char* slapPalmPositionMm     = "slap_palm_position_mm";
+    inline constexpr const char* slapStringMask         = "slap_string_mask";
+    inline constexpr const char* slapGhostMode          = "slap_ghost_mode";
+    inline constexpr const char* slapReboundGap         = "slap_rebound_gap";
+    inline constexpr const char* slapSnapBack           = "slap_snap_back";
+    inline constexpr const char* slapBodyPart           = "slap_body_part";
+
     // --- effect slots ----------------------------------------------------------
     /** `post` selects the chain; `slot` 0-7; `param` 0-9. */
     juce::String slotType (bool post, int slot);

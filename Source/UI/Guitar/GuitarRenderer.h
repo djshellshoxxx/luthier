@@ -161,8 +161,13 @@ public:
 
     /** Renders a guitar to an image, fitted with a margin: thumbnails and tests. */
     static juce::Image render (const WorkshopGuitar& guitar, int width, int height,
-                               juce::Colour background = juce::Colours::transparentBlack,
-                               Options options = {});
+                               juce::Colour background,
+                               Options options);
+    static juce::Image render (const WorkshopGuitar& guitar, int width, int height,
+                               juce::Colour background = juce::Colours::transparentBlack)
+    {
+        return render (guitar, width, height, background, Options {});
+    }
 
     //==========================================================================
     // Section 10 and 11 tables, public so the tests can hold the renderer to them.

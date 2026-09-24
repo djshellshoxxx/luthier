@@ -747,6 +747,33 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::chuckAmount,          "Chuck Amount",         0.0f, 1.0f, 0.0f));
     add (floatParam  (ParamIDs::chuckDamping,         "Chuck Damping",        0.0f, 1.0f, 0.92f));
 
+    // bass-techniques.md 2-5, string-slap-technique.md 1: the slap (params 426-450).
+    add (floatParam  (ParamIDs::slapStrength,       "Slap Strength",       0.0f, 1.0f, 0.70f));
+    add (floatParam  (ParamIDs::slapPositionMm,     "Slap Position",       5.0f, 400.0f, 60.0f, 1.0f, "mm"));
+    add (floatParam  (ParamIDs::slapThumbHardness,  "Thumb Hardness",      0.0f, 1.0f, 0.55f));
+    add (floatParam  (ParamIDs::slapFretContact,    "Slap Fret Contact",   0.0f, 1.0f, 0.80f));
+    add (floatParam  (ParamIDs::popStrength,        "Pop Strength",        0.0f, 1.0f, 0.75f));
+    add (floatParam  (ParamIDs::popPositionMm,      "Pop Position",        5.0f, 400.0f, 40.0f, 1.0f, "mm"));
+    add (boolParam   (ParamIDs::doubleThumpEnabled, "Double Thump", false));
+    add (floatParam  (ParamIDs::doubleThumpUpRatio, "Double Thump Up Ratio", 0.0f, 1.0f, 0.65f));
+    add (floatParam  (ParamIDs::ghostLevel,         "Ghost Level",         0.0f, 1.0f, 0.45f));
+    add (floatParam  (ParamIDs::ghostDamping,       "Ghost Damping",       0.0f, 1.0f, 0.94f));
+    add (boolParam   (ParamIDs::ghostAuto,          "Auto Ghost", true));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::ghostVelocityThreshold), "Ghost Velocity Threshold", 1, 127, 32));
+    add (boolParam   (ParamIDs::slapArmed,          "Slap Armed", false));
+    add (choiceParam (ParamIDs::slapType,           "Slap Type", { "Thumb Slap", "Finger Pop", "Palm Slap", "Body Tap" }, 0));
+    add (choiceParam (ParamIDs::slapTrigger,        "Slap Trigger", { "Keyswitch", "CC", "MPE Zone", "Button Only", "Velocity Zone" }, 0));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::slapVelocityZone), "Slap Velocity Zone", 1, 127, 100));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::slapTriggerCc), "Slap Trigger CC", 0, 127, 86));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::slapGhostCc), "Slap Ghost CC", 0, 127, 87));
+    add (floatParam  (ParamIDs::slapForce,          "Slap Force",          0.0f, 1.0f, 0.6f));
+    add (floatParam  (ParamIDs::slapPalmPositionMm, "Palm Slap Position",  5.0f, 400.0f, 100.0f, 1.0f, "mm"));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::slapStringMask), "Slap Strings", 0, (1 << kMaxStrings) - 1, 0));
+    add (boolParam   (ParamIDs::slapGhostMode,      "Slap Ghost Mode", false));
+    add (floatParam  (ParamIDs::slapReboundGap,     "Rebound Gap",         1.0f, 500.0f, 60.0f, 0.5f, "ms"));
+    add (floatParam  (ParamIDs::slapSnapBack,       "Snap-Back",           0.0f, 1.0f, 0.5f));
+    add (choiceParam (ParamIDs::slapBodyPart,       "Body Tap Resonance", { "Top", "Side", "Back" }, 0));
+
     return layout;
 }
 
@@ -1042,6 +1069,38 @@ void ParameterBridge::applyToEngine() noexcept
 
         rhythm.setStrumSettings (strum);
         interp.setStrumSettings (strum);
+    }
+
+    // ---- slap (bass-techniques.md 2-5, string-slap-technique.md 1) ---------------
+    {
+        SlapSettings slap;
+        slap.armed                  = value (ParamIDs::slapArmed) > 0.5f;
+        slap.type                   = (SlapType) juce::jlimit (0, (int) SlapType::numTypes - 1, (int) value (ParamIDs::slapType));
+        slap.trigger                = (TriggerSource) juce::jlimit (0, (int) TriggerSource::numSources - 1,
+                                                                    (int) value (ParamIDs::slapTrigger));
+        slap.velocityZone           = juce::roundToInt (value (ParamIDs::slapVelocityZone));
+        slap.triggerCc              = juce::roundToInt (value (ParamIDs::slapTriggerCc));
+        slap.ghostCc                = juce::roundToInt (value (ParamIDs::slapGhostCc));
+        slap.slapStrength           = value (ParamIDs::slapStrength);
+        slap.slapPositionMm         = value (ParamIDs::slapPositionMm);
+        slap.thumbHardness          = value (ParamIDs::slapThumbHardness);
+        slap.fretContact            = value (ParamIDs::slapFretContact);
+        slap.popStrength            = value (ParamIDs::popStrength);
+        slap.popPositionMm          = value (ParamIDs::popPositionMm);
+        slap.doubleThump            = value (ParamIDs::doubleThumpEnabled) > 0.5f;
+        slap.upRatio                = value (ParamIDs::doubleThumpUpRatio);
+        slap.ghostLevel             = value (ParamIDs::ghostLevel);
+        slap.ghostDamping           = value (ParamIDs::ghostDamping);
+        slap.ghostAuto              = value (ParamIDs::ghostAuto) > 0.5f;
+        slap.ghostVelocityThreshold = juce::roundToInt (value (ParamIDs::ghostVelocityThreshold));
+        slap.force                  = value (ParamIDs::slapForce);
+        slap.palmPositionMm         = value (ParamIDs::slapPalmPositionMm);
+        slap.stringMask             = juce::roundToInt (value (ParamIDs::slapStringMask));
+        slap.ghostMode              = value (ParamIDs::slapGhostMode) > 0.5f;
+        slap.reboundGapMs           = value (ParamIDs::slapReboundGap);
+        slap.snapBack               = value (ParamIDs::slapSnapBack);
+        slap.bodyPart               = (BodyPart) juce::jlimit (0, (int) BodyPart::numParts - 1, (int) value (ParamIDs::slapBodyPart));
+        engine.setSlapSettings (slap);
     }
 
     auto& tech = engine.getTechniqueEngine();

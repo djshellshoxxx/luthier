@@ -20,6 +20,8 @@
 #include "DSP/Noise/PlayingNoise.h"
 #include "DSP/Noise/FretBuzz.h"
 #include "DSP/Noise/ScrapeEngine.h"
+#include "DSP/Slap/SlapEngine.h"
+#include "Model/Playing/TechniqueTriggers.h"
 #include "DSP/Slide/SlideEngine.h"
 #include "DSP/Feedback/FeedbackLoop.h"
 #include "DSP/Feedback/EBowDriver.h"
@@ -192,6 +194,17 @@ public:
     ScrapeEngine& getScrapeEngine() noexcept { return scrape; }
     const ScrapeEngine& getScrapeEngine() const noexcept { return scrape; }
     void setScrapeSettings (const ScrapeSettings& s) noexcept { scrape.setSettings (s); }
+
+    /** string-slap-technique.md: the slap, and the technique layer's shared MIDI front. */
+    SlapEngine& getSlapEngine() noexcept { return slap; }
+    const SlapEngine& getSlapEngine() const noexcept { return slap; }
+    TechniqueTriggers& getTechniqueTriggers() noexcept { return techniqueTriggers; }
+    const TechniqueTriggers& getTechniqueTriggers() const noexcept { return techniqueTriggers; }
+    void setSlapSettings (const SlapSettings& s) noexcept
+    {
+        slap.setSettings (s);
+        techniqueTriggers.configure (TechniqueId::slap, s.triggerConfig());
+    }
 
     /** Sets the pick material and whether it is fingers. The two parameters
         are one decision: a finger material is fingers whatever the switch says. */
@@ -488,6 +501,20 @@ private:
         interpreter see it. */
     ScrapeEngine scrape;
     juce::MidiBuffer scrapeMidi;
+
+    /*  engine-technique-layer.md 3.1: the technique layer's MIDI front, then
+        the slap (string-slap-technique.md 2), alongside the scrape. */
+    TechniqueTriggers techniqueTriggers;
+    juce::MidiBuffer techniqueMidi;
+    SlapEngine slap;
+    std::vector<double> slapBodyDrive;
+    std::array<bool, kMaxStrings> scrapeWasActive {};
+
+    /** Applies one of the slap's due actions (a strike, a palm slap, a body tap). */
+    void applySlapAction (const SlapAction& a) noexcept;
+
+    /** Plays a slap strike on its string at the string's current pitch. */
+    void playSlapStrike (const SlapStrike& strike, double pitchHz, double fret) noexcept;
 
     /*  Each note's own sustain multiplier - dead spots, fret wear, the nut, a
         slide's damping - set when it starts. Per-block modulation multiplies

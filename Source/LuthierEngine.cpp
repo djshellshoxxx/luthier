@@ -82,6 +82,9 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     slide.prepare (sr);
     scrape.prepare (sr, maxBlock);
     scrapeMidi.ensureSize (8192);
+    techniqueMidi.ensureSize (8192);
+    slap.prepare (sr);
+    slapBodyDrive.assign ((size_t) maxBlock, 0.0);
     noteSustainScale.fill (1.0);
     playingNoise.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)));
     scrape.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)) ^ 0x5c4a9e11u);
@@ -133,6 +136,9 @@ void LuthierEngine::reset() noexcept
     fretBuzzModel.reset();
     slide.reset();
     scrape.reset();
+    slap.reset();
+    techniqueTriggers.reset();
+    scrapeWasActive.fill (false);
     noteSustainScale.fill (1.0);
     shiftCount = 0;
 
@@ -672,6 +678,7 @@ void LuthierEngine::panic() noexcept
     feedbackLoop.reset();
     ebowDriver.reset();
     scrape.stopAll();
+    slap.reset();
     numScheduled = 0;
 }
 
@@ -683,7 +690,24 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     // technique-cascade.md 2 / string-scraping.md 5: a tap on a string being
     // scraped damps the scrape (a 10 ms fade, from the next block).
     if (e.technique == Technique::Tap)
+    {
         scrape.preempt (s);
+
+        // Slap x tap alternate: the tap takes the string, and any up-stroke
+        // the slap still owed it goes.
+        slap.preempt (s);
+    }
+
+    /*  string-slap-technique.md 2: what the note becomes. A palm slap or a
+        body tap replaces the note with the hand; a thumb strike or a pop is
+        played below with the slap's excitation; a ghost is damped first. */
+    const SlapStrike slapStrike = slap.classify (e, slide.isUnderBar (s));
+
+    if (slapStrike.isPercussive())
+    {
+        slap.trigger (slapStrike, blockStartSample + activeSampleOffset);
+        return;
+    }
 
     /*  slide-guitar.md 1: in hybrid mode one string is under the bar and the
         fingers fret the rest, so a slide note that the bar is not on is played
@@ -810,7 +834,20 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     // strum-dynamics 6.1: a chuck is the fretting hand flat on the strings; it
     // is there before the pick, so it overrides the technique's damping.
     if (e.chuck > 0.0)
+    {
         str.setDamping (StringEngine::Damping::Chuck, e.chuck);
+
+        // The hand lies across every string, not only the struck ones: a string
+        // the voicing skips would otherwise ring on sympathetically and carry
+        // the pitch the chuck is meant to take away.
+        for (int o = 0; o < numStrings; ++o)
+            if (o != s && stringMidiNote[(size_t) o] < 0)
+                strings[(size_t) o].setDamping (StringEngine::Damping::Chuck, e.chuck);
+    }
+
+    // bass-techniques 5: a ghost is the fretting hand resting on the string.
+    if (slapStrike.ghost)
+        SlapEngine::applyGhostDamping (str, slap.getSettings().ghostDamping);
 
     str.setHarmonicRestriction (e.harmonicPartial);
 
@@ -860,7 +897,36 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
             break;
     }
 
+    if (slapStrike.strike)
+    {
+        slap.shapeExcitation (slapStrike, fret, p);
+        p.velocity = slapStrike.velocity;
+    }
+    else if (slapStrike.ghost)
+    {
+        p.velocity = slapStrike.velocity;
+    }
+
     str.excite (p);
+
+    if (slapStrike.strike)
+    {
+        // The strike took the string from any scrape on it (technique-cascade 2).
+        scrape.preempt (s);
+
+        // bass-techniques 2.1.3: the collision with the frets, from the buzz generator.
+        if (! fretless)
+        {
+            const auto clack = slap.makeContactBuzz (slapStrike, stringSpecs[(size_t) s].wound,
+                                                     str.getCurrentFrequency(), fretBuzzModel);
+
+            if (clack.level > 0.0)
+                playingNoise.getPool().trigger (clack);
+        }
+
+        slap.noteStruck (slapStrike, blockStartSample + activeSampleOffset);
+        return;
+    }
 
     // ---- playing noise (pick-noise.md, string-squeak.md) ------------------------
     // The string's own glide noise is a bottleneck's friction now; a finger's
@@ -904,6 +970,92 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
                                  || e.technique == Technique::Tap) ? 0.9 : 0.45;
         str.triggerFretNoise (strength * e.velocity * fretNoise);
     }
+}
+
+//==============================================================================
+void LuthierEngine::applySlapAction (const SlapAction& a) noexcept
+{
+    switch (a.kind)
+    {
+        case SlapAction::Kind::strike:
+        {
+            const int s = juce::jlimit (0, numStrings - 1, a.strike.stringIndex);
+            playSlapStrike (a.strike, strings[(size_t) s].getCurrentFrequency(), currentFret[(size_t) s]);
+            break;
+        }
+
+        case SlapAction::Kind::palmSlap:
+        {
+            // The hand lands across the strings: each under it stops, clacks
+            // against the frets and thumps (string-slap-technique.md 1).
+            for (int s = 0; s < numStrings; ++s)
+            {
+                if ((a.mask & (1 << s)) == 0)
+                    continue;
+
+                strings[(size_t) s].setDamping (StringEngine::Damping::Chuck, 1.0);
+                scrape.preempt (s);
+                slap.preempt (s);
+
+                NoiseEvent clack, thump;
+                slap.makePalmEvents (s, stringSpecs[(size_t) s].wound, strings[(size_t) s].getCurrentFrequency(),
+                                     a.force, fretBuzzModel, clack, thump);
+
+                if (clack.level > 0.0)
+                    playingNoise.getPool().trigger (clack);
+
+                if (thump.level > 0.0)
+                    playingNoise.getPool().trigger (thump);
+            }
+            break;
+        }
+
+        case SlapAction::Kind::bodyTap:
+            slap.startBodyTap (a.force, slap.getSettings().bodyPart);
+            break;
+
+        default:
+            break;
+    }
+}
+
+void LuthierEngine::playSlapStrike (const SlapStrike& strike, double pitchHz, double fret) noexcept
+{
+    const int s = juce::jlimit (0, numStrings - 1, strike.stringIndex);
+    auto& str = strings[(size_t) s];
+
+    scrape.preempt (s);
+
+    if (strike.ghost)
+        SlapEngine::applyGhostDamping (str, slap.getSettings().ghostDamping);
+    else
+        str.setDamping (StringEngine::Damping::Open, 1.0);
+
+    Excitation::Params p;
+    p.material = pickMaterial;
+    p.velocity = strike.velocity;
+    p.pickThickness = pickThickness;
+    p.pickAngle = pickAngle;
+    p.brightness = attackBrightness;
+    p.nailVsFlesh = nailVsFlesh;
+    slap.shapeExcitation (strike, fret, p);
+    p.velocity = strike.velocity;
+
+    if (pitchHz > 0.0 && stringMidiNote[(size_t) s] < 0)
+        str.snapToFrequency (pitchHz);
+
+    str.excite (p);
+
+    if (! fretless)
+    {
+        const auto clack = slap.makeContactBuzz (strike, stringSpecs[(size_t) s].wound,
+                                                 str.getCurrentFrequency(), fretBuzzModel);
+
+        if (clack.level > 0.0)
+            playingNoise.getPool().trigger (clack);
+    }
+
+    slap.noteStruck (strike, blockStartSample + activeSampleOffset);
 }
 
 //==============================================================================
@@ -1409,7 +1561,13 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     // string-scraping.md 2: the scrape's keyswitches and zone notes are the
     // technique's, taken out before anything that would play them sees them
     // (input-routing.md 5 before 6). Disarmed, this is the same buffer.
-    const juce::MidiBuffer& played = scrape.handleMidi (midiMessages, scrapeMidi);
+    // engine-technique-layer 3.1: then the shared front takes the other
+    // techniques' keyswitches (the slap's, keyswitches 15-18).
+    const juce::MidiBuffer& played = techniqueTriggers.process (scrape.handleMidi (midiMessages, scrapeMidi),
+                                                                techniqueMidi);
+
+    slap.setInstrument (numStrings, spec.scaleLengthMm, spec.maxFrets, spec.category == GuitarCategory::Bass);
+    slap.processBlock (numSamples, samplePosition, techniqueTriggers);
 
     rhythm.handleMidi (played, samplePosition);
 
@@ -1467,6 +1625,18 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     }
 
     scrape.processBlock (numSamples);
+
+    // technique-cascade 2: a scrape starting on a string takes it from the
+    // slap - an up-stroke still owed there is dropped.
+    for (int s = 0; s < numStrings; ++s)
+    {
+        const bool active = scrape.isStringActive (s);
+
+        if (active && ! scrapeWasActive[(size_t) s])
+            slap.preempt (s);
+
+        scrapeWasActive[(size_t) s] = active;
+    }
 
     for (int r = 0; r < scrape.getNumRecords(); ++r)
     {
@@ -1561,6 +1731,22 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         playingNoise.getPool().setTriggerOffset (sidechainReadOffset + i);
         fireScheduledEvents (samplePosition + i);
 
+        // string-slap-technique.md 2: button strikes, the double thump's
+        // up-stroke, palm slaps and body taps, on their own samples.
+        if (slap.hasDue (samplePosition + i))
+        {
+            activeSampleOffset = (int) juce::jlimit ((int64_t) 0, (int64_t) taps.getMaxBlockSize(),
+                                                     samplePosition + i - blockStartSample);
+            SlapAction action;
+
+            while (slap.popDue (samplePosition + i, action))
+                applySlapAction (action);
+        }
+
+        // A body tap drives the body directly (string-slap 2), bypassing the strings.
+        const double bodyDrive = slap.isBodyTapSounding() ? slap.nextBodyDrive() : 0.0;
+        slapBodyDrive[(size_t) i] = bodyDrive;
+
         const double fbAmp = feedbackOn ? feedbackLoop.delayedAmp (i) : 0.0;
         double fbSum = 0.0;
 
@@ -1572,6 +1758,9 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         // pick-noise.md 1.3: Aux 8 carries every generator, the scrape's catches too.
         if (scrapeOn)
             noiseBuffer[(size_t) i] += scrape.getNoiseOutput()[i];
+
+        // Aux 8 carries the body tap too: it is a playing noise.
+        noiseBuffer[(size_t) i] += bodyDrive;
 
         double sum = 0.0;
 
@@ -1641,7 +1830,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     auto* bodyData = bodyBuffer.getWritePointer (0);
 
     for (int i = 0; i < numSamples; ++i)
-        bodyData[i] = (float) stringSumBuffer[(size_t) i];
+        bodyData[i] = (float) (stringSumBuffer[(size_t) i] + slapBodyDrive[(size_t) i]);
 
     const bool bodyActive = (body.getMode() != BodyEngine::Mode::Bypassed);
     validator.checkBodyCoupling (bodyActive, samplePosition);
