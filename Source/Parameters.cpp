@@ -891,6 +891,12 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::stabilityCapoBias,    "Capo Bias",          0.0f, 2.0f, 1.0f));
     add (choiceParam (ParamIDs::stabilityAutoRetune,  "Auto Retune",        { "Off", "Idle", "Transport Stop", "Idle + Stop" }, 1));
     // ==== END REALISM-C params ====
+    // ==== BEGIN TUNE-HELP-ONBOARDING params ====
+    // tune-builder 14: read by the processor for the TUNE tab's player and
+    // session (LuthierAudioProcessor::applyTuneModulation), not by the engine.
+    add (floatParam  (ParamIDs::tuneFeelMod,        "Tune Feel",          -1.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::tuneTempoDrift,     "Tune Tempo Drift",  -10.0f, 10.0f, 0.0f, 1.0f, "%"));
+    // ==== END TUNE-HELP-ONBOARDING params ====
 
     return layout;
 }

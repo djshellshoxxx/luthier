@@ -461,6 +461,12 @@ namespace ParamIDs
     inline constexpr const char* stabilityCapoBias    = "stability_capo_bias";
     inline constexpr const char* stabilityAutoRetune  = "stability_auto_retune";
     // ==== END REALISM-C params ====
+    // ==== BEGIN TUNE-HELP-ONBOARDING params ====
+    // tune-builder.md 14: section parameters the mod matrix and host automation
+    // can move over the tune's timeline. Both at 0 leave every tune as written.
+    inline constexpr const char* tuneFeelMod            = "tune_feel_mod";      ///< -1..1, added to each section's feel
+    inline constexpr const char* tuneTempoDrift         = "tune_tempo_drift";   ///< -10..10 %, the tune's own clock
+    // ==== END TUNE-HELP-ONBOARDING params ====
 }
 
 //==============================================================================

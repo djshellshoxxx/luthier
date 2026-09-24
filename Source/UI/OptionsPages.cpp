@@ -1,4 +1,5 @@
 #include "OptionsPages.h"
+#include "FirstRun.h"
 #include "RangesUi.h"
 #include "UiPreferences.h"   // REALISM-C
 #include "../PluginProcessor.h"
@@ -1625,12 +1626,21 @@ void UpdatesPage::checkForUpdate()
     // message thread either - the check goes to a background job.
     updateStatus.setText ("Checking...", juce::dontSendNotification);
 
-    juce::Thread::launch ([this, running]
+    // Review R-101: the page can close while the check runs, so the job holds
+    // the Telemetry (owned by the processor) and the reply a SafePointer.
+    juce::Thread::launch ([&tel = telemetry(), running, safe = juce::Component::SafePointer<UpdatesPage> (this)]
     {
-        const auto result = telemetry().checkForUpdate (running, true);
+        const auto result = tel.checkForUpdate (running, true);
 
-        juce::MessageManager::callAsync ([this, result]
+        juce::MessageManager::callAsync ([safe, result]
         {
+            if (safe == nullptr)
+                return;
+
+            auto* self = safe.getComponent();
+            auto& updateStatus = self->updateStatus;
+            auto& releaseNotes = self->releaseNotes;
+
             if (! result.checked)
             {
                 // A failed check is reported here because the user asked for it.
@@ -2012,11 +2022,35 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
                 .withButton ("Cancel"),
             [this] (int result)
             {
-                if (result == 1)
+                // NativeMessageBox answers the plain button index: 0 is the
+                // first ("Reset everything"), 1 is Cancel (review R-100).
+                if (result == 0)
                 {
                     processor.hardResetAndClearCaches();
                     refresh();
                 }
+            });
+    };
+
+    // onboarding.md 12 (TUNE-HELP-ONBOARDING): confirmed with a modal.
+    addAndMakeVisible (restoreFirstRunButton);
+    restoreFirstRunButton.setTooltip ("Clears your settings and one-time hints so the next launch behaves as "
+                                      "a fresh install. Your presets, guitars, tunes and parts are kept.");
+    restoreFirstRunButton.onClick = [this]
+    {
+        juce::NativeMessageBox::showAsync (
+            juce::MessageBoxOptions()
+                .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                .withTitle ("Restore first-run experience?")
+                .withMessage ("Your settings go back to a fresh install's, every one-time hint and the tour "
+                              "come back, and the next launch behaves as the first.\n\n"
+                              "Your presets, guitars, tunes and parts are kept.")
+                .withButton ("Restore")
+                .withButton ("Cancel"),
+            [safe = juce::Component::SafePointer<DiagnosticsPage> (this)] (int result)
+            {
+                if (safe != nullptr && result == 0)   // plain index: 0 is "Restore" (R-100)
+                    safe->restoreFirstRun();
             });
     };
 
@@ -2039,6 +2073,15 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
                         juce::dontSendNotification);
     addAndMakeVisible (mirrorNote);
 
+    refresh();
+}
+
+void DiagnosticsPage::restoreFirstRun()
+{
+    FirstRun::restoreFirstRunExperience();
+
+    // The processor cannot read UiPreferences, so it is told what Restore left.
+    RangesUi::setRandomiseRespectsStock (processor, RangesUi::randomiseRespectsStock());
     refresh();
 }
 
@@ -2065,7 +2108,7 @@ void DiagnosticsPage::paint (juce::Graphics& g)
 
     drawHeading (g, bounds.removeFromTop (18), "WHAT LUTHIER RECORDS FOR YOU");
     drawHeading (g, { 0, 150, getWidth(), 18 }, "FILES AND WINDOWS");
-    drawHeading (g, { 0, 262, getWidth(), 18 }, "FEATURE FLAGS");
+    drawHeading (g, { 0, 296, getWidth(), 18 }, "FEATURE FLAGS");
 }
 
 void DiagnosticsPage::resized()
@@ -2101,7 +2144,10 @@ void DiagnosticsPage::resized()
         hardResetButton.setBounds (row.removeFromLeft (280));
     }
 
-    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (284).withHeight (32));
+    bounds.removeFromTop (6);
+    restoreFirstRunButton.setBounds (bounds.removeFromTop (Metrics::buttonHeight).removeFromLeft (240));
+
+    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (318).withHeight (32));
 }
 
 //==============================================================================

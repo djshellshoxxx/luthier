@@ -23,6 +23,7 @@
 #include "GuitarBodyComponent.h"
 #include "CircuitPanel.h"
 #include "AmpFacePanel.h"
+#include "PanelHelpButton.h"
 
 namespace luthier
 {
@@ -71,6 +72,14 @@ public:
     ~EasyPanel() override;
 
     std::function<void()> onOpenExport;
+
+    /** gui-integration 20 (TUNE-HELP-ONBOARDING): a strip's ? asks the editor
+        for Help pinned to it. */
+    std::function<void (const juce::String& topic)> onOpenHelp;
+    std::vector<PanelHelpButton*> getHelpButtons() { return { &rigHelp, &playingHelp, &toneHelp, &rhythmHelp }; }
+
+    /** onboarding 4: the Randomise button the first-week tooltip is on. */
+    juce::Button& getRandomiseButton() noexcept { return randomiseButton; }
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -166,6 +175,9 @@ private:
     juce::Array<std::pair<juce::Rectangle<int>, juce::String>> rigCards;
 
     juce::Array<int> stylePresetIndices;
+
+    // gui-integration 20: one ? per strip.
+    PanelHelpButton rigHelp { "Rig" }, playingHelp { "Playing" }, toneHelp { "Tone" }, rhythmHelp { "Rhythm" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EasyPanel)
 };

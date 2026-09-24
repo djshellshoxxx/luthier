@@ -10,6 +10,7 @@
 #include "Capture/PerformanceCapture.h"
 #include "Presets/PresetMorph.h"
 #include "Tune/TuneSession.h"
+#include "Tune/TuneHumCapture.h"
 #include "Support/AudioExporter.h"
 #include "Support/Diagnostics.h"
 #include "Routing/RoutingMatrix.h"
@@ -110,6 +111,24 @@ public:
         plays (message thread). */
     TunePlayer&  getTunePlayer() noexcept  { return tunePlayer; }
     TuneSession& getTuneSession() noexcept { return tuneSession; }
+
+    /** tune-builder 13: sung / hummed melody capture from the audio input (TUNE-HELP-ONBOARDING). */
+    TuneHumCapture& getHumCapture() noexcept { return humCapture; }
+
+    /** tune-builder 14: a tune parameter's value with automation and modulation,
+        which is how routes move a section over the tune's timeline. Any thread. */
+    float tuneModValue (const char* parameterId) const noexcept;
+
+    /** tune-builder 14: "snapshots capture the current section state, so a live
+        rig can switch sections with a footswitch". What a snapshot keeps of the
+        tune (the section playing or selected, by name), and the recall's
+        request, which the message thread carries out (PluginProcessorTune.cpp). */
+    juce::var captureTuneSnapshotState() const;
+    void requestTuneSnapshotState (const juce::var& state) noexcept;
+    void applyPendingTuneSection();
+
+    /** How many tune state boundaries (8) the audio thread has acted on. */
+    int getNumTuneStateBoundaries() const noexcept { return tuneStateBoundaries.load (std::memory_order_relaxed); }
 
     /** The tune's message-thread work: rhythm changes at section starts,
         improvised passes, old timelines, the take (the timer's; tests call it). */
@@ -440,6 +459,9 @@ public:
         int  editorHeight = 720;
         AuditionPhrase::Type auditionType = AuditionPhrase::Type::MajorScale;
 
+        /** onboarding.md 11 (TUNE-HELP-ONBOARDING): the practice drawer reopens as left. */
+        bool practiceDrawerOpen = false;
+
         /** workshop-ui.md 7: the bench's eight A/B guitars, workspace not preset. */
         std::array<juce::var, 8> benchSlots;
     };
@@ -540,6 +562,12 @@ private:
     // it); everything else goes to the engine as direct notes.
     TunePlayer tunePlayer;
     TuneSession tuneSession;
+    TuneHumCapture humCapture;
+    std::atomic<int> pendingTuneSection { -1 };
+    std::atomic<int> tuneStateBoundaries { 0 };
+
+    /** True while undo/redo restores a snapshot: the tune is not part of it. */
+    bool restoringPluginUndo = false;
     juce::MidiBuffer tuneToEngine, tuneToMidiOut, tuneDirect;
     Metronome tuneClick;                  ///< fires on the tune's grid, not its own
     juce::AudioBuffer<float> tuneClickBuffer;

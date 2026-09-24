@@ -124,6 +124,17 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
 {
     addAndMakeVisible (guitarBody);
 
+    // gui-integration 20 (TUNE-HELP-ONBOARDING): a ? on every strip.
+    for (auto* help : getHelpButtons())
+    {
+        addAndMakeVisible (help);
+        help->onHelp = [this] (const juce::String& topic)
+        {
+            if (onOpenHelp != nullptr)
+                onOpenHelp (topic);
+        };
+    }
+
     // ---- playing strip (3.3) -------------------------------------------------------
     struct MacroSetup
     {
@@ -651,9 +662,19 @@ void EasyPanel::resized()
         resetButton.setBounds (bottom.reduced (2, 0));
     }
 
+    // gui-integration 20: each strip's ? at its top right.
+    {
+        const int s = PanelHelpButton::kSize;
+        rigHelp.setBounds (rigArea.getRight() - s - 6, rigArea.getY() + 3, s, s);
+        playingHelp.setBounds (playingArea.getRight() - s - 4, playingArea.getY() + 1, s - 2, s - 2);
+        toneHelp.setBounds (toneArea.getRight() - s - 4, toneArea.getY() + 1, s - 2, s - 2);
+        rhythmHelp.setBounds (rhythmArea.getRight() - s - 4, rhythmArea.getCentreY() - s / 2, s, s);
+    }
+
     // 3.5 rhythm strip: kit and dice, feel, on/off, the readout.
     {
         auto r = rhythmArea.reduced (4, 6);
+        r.removeFromRight (PanelHelpButton::kSize + 4);   // the strip's ?
         rhythmLabel.setBounds (r.removeFromLeft (56));
         rhythmGenreBox.setBounds (r.removeFromLeft (170));
         rhythmDice.setBounds (r.removeFromLeft (48).reduced (2, 0));

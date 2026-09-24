@@ -768,9 +768,23 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
         addAndMakeVisible (k);
     }
 
+    // onboarding.md 9: hidden until owed.
+    addChildComponent (firstHint);
+    firstHint.onShownOrDismissed = [this] { resized(); repaint(); };
+
     showCategory (category);
     refreshAll();
     startTimerHz (20);
+}
+
+bool WorkshopPanel::showFirstEncounterHintIfDue()
+{
+    return firstHint.showIfDue();
+}
+
+void WorkshopPanel::setHintSaysEscapeCloses (bool says)
+{
+    firstHint.setText (juce::String (FirstEncounterHint::kWorkshopText) + (says ? " Escape closes." : ""));
 }
 
 WorkshopPanel::~WorkshopPanel()
@@ -1147,6 +1161,9 @@ void WorkshopPanel::refreshInspector()
 //==============================================================================
 void WorkshopPanel::timerCallback()
 {
+    if (isShowing())
+        showFirstEncounterHintIfDue();
+
     const auto key = GuitarRenderer::keyFor (processor.getCurrentGuitar(), {});
 
     if (key != shownGuitarKey)
@@ -1257,6 +1274,13 @@ void WorkshopPanel::resized()
     }
 
     area.removeFromTop (Metrics::gridHalf);
+
+    // onboarding.md 9: the hint sits under the bench header while it shows.
+    if (firstHint.isVisible())
+    {
+        firstHint.setBounds (area.removeFromTop (FirstEncounterHint::kHeight));
+        area.removeFromTop (Metrics::gridHalf);
+    }
 
     // Section 1: the inspector down the right, the spectrum under it.
     const bool wide = area.getWidth() >= 900;

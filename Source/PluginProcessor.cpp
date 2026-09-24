@@ -163,6 +163,8 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     currentSampleRate = sampleRate;
     currentBlockSize = samplesPerBlock;
 
+    humCapture.prepare (sampleRate);   // tune-builder 13 (TUNE-HELP-ONBOARDING)
+
     // gui-integration 15: left for the window to find, because there may not be
     // one right now. claimSampleRateChange decides whether it is worth saying.
     preparedSampleRate.store (sampleRate, std::memory_order_relaxed);
@@ -1061,6 +1063,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
         engine.setSidechainInput (sidechainCopy.getArrayOfReadPointers(),
                                   sidechainChannels, sidechainSamples);
+
+        // tune-builder 13: the audio input, for a sung melody, while the TUNE tab's Sing is on.
+        humCapture.pushAudio (sidechainCopy.getArrayOfReadPointers(), sidechainChannels, sidechainSamples);
         routing.meterSidechain (sidechainCopy.getArrayOfReadPointers(),
                                 sidechainChannels, sidechainSamples);
     }
@@ -1138,6 +1143,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
         tuneToEngine.clear();
         tuneToMidiOut.clear();
+        tunePlayer.setTempoScale (1.0 + tuneModValue (ParamIDs::tuneTempoDrift) / 100.0);   // tune-builder 14
         tunePlayer.renderBlock (numSamples, host, tuneToEngine, tuneToMidiOut);
         tunePlayer.captureInput (midiMessages);
 
@@ -1155,6 +1161,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         {
             engine.getRhythmEngine().reset();
             modMatrix.resetEnvelopes();
+            tuneStateBoundaries.fetch_add (1, std::memory_order_relaxed);   // observable (TUNE-HELP-ONBOARDING test)
         }
     }
 
@@ -1734,6 +1741,11 @@ void LuthierAudioProcessor::applySnapshotModules (const Snapshot& snapshot)
         if (auto* object = snapshot.bypasses.getDynamicObject();
             object != nullptr && object->hasProperty ("character"))
             engine.getCharacterEngine().fromVar (object->getProperty ("character"));
+
+    // tune-builder 14: a snapshot switches the tune to its section (a footswitch
+    // can move a live rig between sections). Acted on by the timer.
+    if (auto* object = snapshot.bypasses.getDynamicObject(); object != nullptr && object->hasProperty ("tune"))
+        requestTuneSnapshotState (object->getProperty ("tune"));
 }
 
 bool LuthierAudioProcessor::captureSnapshot (int index, const juce::String& label, int colourTag)
@@ -1754,6 +1766,7 @@ bool LuthierAudioProcessor::captureSnapshot (int index, const juce::String& labe
     {
         auto* extras = new juce::DynamicObject();
         extras->setProperty ("character", engine.getCharacterEngine().toVar());
+        extras->setProperty ("tune", captureTuneSnapshotState());   // tune-builder 14
 
         snapshot.bypasses = juce::var (extras);
     }
@@ -2107,6 +2120,7 @@ void LuthierAudioProcessor::undo()
 
     --undoPosition;
 
+    const juce::ScopedValueSetter<bool> keepTune (restoringPluginUndo, true);
     setStateInformation (entry.state.getData(), (int) entry.state.getSize());
 }
 
@@ -2118,6 +2132,7 @@ void LuthierAudioProcessor::redo()
     ++undoPosition;
 
     const auto& entry = undoStack.getReference (undoPosition);
+    const juce::ScopedValueSetter<bool> keepTune (restoringPluginUndo, true);
     setStateInformation (entry.redoState.getData(), (int) entry.redoState.getSize());
 }
 
@@ -2209,6 +2224,7 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     ui->setProperty ("editorWidth", uiState.editorWidth);
     ui->setProperty ("editorHeight", uiState.editorHeight);
     ui->setProperty ("auditionType", (int) uiState.auditionType);
+    ui->setProperty ("practiceDrawerOpen", uiState.practiceDrawerOpen);   // onboarding 11
     root->setProperty ("ui", juce::var (ui));
 
     juce::Array<juce::var> locks;
@@ -2367,6 +2383,7 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
         uiState.auditionType = (AuditionPhrase::Type) juce::jlimit (
             0, (int) AuditionPhrase::Type::NumTypes - 1, (int) ui->getProperty ("auditionType"));
         auditionType = uiState.auditionType;
+        uiState.practiceDrawerOpen = (bool) ui->getProperty ("practiceDrawerOpen");   // onboarding 11
     }
 
     lockedParameters.clear();
@@ -2422,7 +2439,9 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
 
     setClickToMain (root->hasProperty ("clickToMain") && (bool) root->getProperty ("clickToMain"));
 
-    if (root->hasProperty ("tune"))
+    // The tune keeps its own undo stack (TUNE-HELP-ONBOARDING, DECISIONS "TUNE in
+    // the plugin"): a plugin undo or redo leaves the tune as it is.
+    if (root->hasProperty ("tune") && ! restoringPluginUndo)
         tuneSession.restoreState (root->getProperty ("tune"));
 
     presets.applyExtraState();
@@ -2492,6 +2511,8 @@ void LuthierAudioProcessor::serviceTune()
     // tune-builder 8: a bass plays the tune's bass line itself; any other
     // instrument leaves it to MIDI out.
     tunePlayer.setBassToEngine (engine.getGuitarSpec().category == GuitarCategory::Bass);
+    tuneSession.setFeelOffset (tuneModValue (ParamIDs::tuneFeelMod));   // tune-builder 14
+    applyPendingTuneSection();
     tuneSession.service();
 }
 

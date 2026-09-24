@@ -583,5 +583,5 @@ LUTHIER_TEST (AmpRanges, pastTheKnobIsAudible)
 // tests' no-allocation checks (they live in other files).
 namespace luthier::tests
 {
-    long realismCAllocationCount() noexcept { return allocationsOnThisThread; }
+    long realismCAllocationCount() noexcept { return threadAllocationCount; }
 }
