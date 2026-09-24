@@ -1302,7 +1302,8 @@ void AdvancedPanel::resized()
     if (auto* panel = workspaceViewport.getViewedComponent())
         panel->setSize (juce::jmax (80, workspaceViewport.getMaximumVisibleWidth()),
                         workshop ? juce::jmax (560, workspaceViewport.getMaximumVisibleHeight())
-                                 : panel == helpTab.get() ? juce::jmax (360, workspaceViewport.getMaximumVisibleHeight())
+                                 : (panel == helpTab.get() || panel == techniquesPanel.get())   // TECHNIQUES: scrolls inside
+                                     ? juce::jmax (360, workspaceViewport.getMaximumVisibleHeight())
                                                           : juce::jmax (80, panel->getHeight()));
 }
 
