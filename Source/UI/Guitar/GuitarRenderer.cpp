@@ -2816,7 +2816,7 @@ void GuitarRenderer::paintOverlay (juce::Graphics& g, const GuitarScene& scene,
         g.setColour (overlay.accent.brighter (0.4f).withAlpha (0.8f * level));
         g.strokePath (vib, juce::PathStrokeType (juce::jmax (s.widthMm, 1.2f / pxPerMm)));
 
-        if (fret > 0.0f)
+        if (fret > 0.0f && ! overlay.useDots)
         {
             const auto p = scene.noteAt (i, juce::roundToInt (fret));
             const float r = 3.0f;
@@ -2824,6 +2824,17 @@ void GuitarRenderer::paintOverlay (juce::Graphics& g, const GuitarScene& scene,
             g.fillEllipse (p.x - r, p.y - r, r * 2.0f, r * 2.0f);
         }
     }
+
+    // Section 19: timed dots - on with the note, fading over 60 ms after it.
+    if (overlay.useDots)
+        for (int i = 0; i < juce::jmin (12, scene.numStrings); ++i)
+            if (overlay.dotAlpha[(size_t) i] > 0.0f && overlay.dotFret[(size_t) i] > 0.0f)
+            {
+                const auto p = scene.noteAt (i, juce::roundToInt (overlay.dotFret[(size_t) i]));
+                const float r = 3.0f;
+                g.setColour (overlay.accent.withAlpha (0.9f * overlay.dotAlpha[(size_t) i]));
+                g.fillEllipse (p.x - r, p.y - r, r * 2.0f, r * 2.0f);
+            }
 
     // 28: the slide bar across the strings, in its material's colour at 80%,
     // turned by its slant (gui-integration.md 21).
@@ -2881,6 +2892,9 @@ void GuitarRenderer::paintOverlay (juce::Graphics& g, const GuitarScene& scene,
 
     for (auto& h : scene.hits)
     {
+        if (overlay.changed[(size_t) h.region])
+            outline (h.area, overlay.changedColour, 2.0f);
+
         if (h.region == overlay.selected && overlay.selected != GuitarRegion::none)
             outline (h.area, overlay.accent, 2.5f);
         else if (h.region == overlay.hovered && overlay.hovered != GuitarRegion::none)

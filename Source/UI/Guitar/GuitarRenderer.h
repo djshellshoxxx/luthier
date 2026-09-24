@@ -141,6 +141,14 @@ struct GuitarOverlay
     float pickAngleDeg = 0.0f;
     float pickSizeMm = 30.0f;                  ///< drawn at true relative size
     bool handles = false;                      ///< the bench's 8 px accent drag handles
+
+    // Section 19's played-note dots (IllustrationMotion.h), when a caller times them.
+    bool useDots = false;
+    std::array<float, 12> dotAlpha {}, dotFret {};
+
+    // Section 16: parts a reduced-motion change outlines instead of fading.
+    std::array<bool, (size_t) GuitarRegion::numRegions> changed {};
+    juce::Colour changedColour { 0xff6fa58a };
 };
 
 //==============================================================================

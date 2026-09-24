@@ -33,7 +33,21 @@ void GuitarBodyComponent::rebuildScene (bool force)
     if (! force && key == scene.key && ! scene.hits.empty())
         return;
 
-    scene = GuitarRenderer::build (guitar, options);
+    auto next = GuitarRenderer::build (guitar, options);
+
+    // A different guitar (not a resize or a palette): 12.1's crossfade from the
+    // old picture, or under reduced motion an instant change with the changed
+    // parts outlined (16).
+    if (! scene.hits.empty() && next.key != scene.key)
+    {
+        const double now = juce::Time::getMillisecondCounterHiRes();
+        const bool reduced = AccessibilitySettings::get().isReducedMotion();
+
+        fade.begin (cache, now, reduced);
+        overlay.changed = reduced ? changedRegions (scene, next) : std::array<bool, (size_t) GuitarRegion::numRegions> {};
+    }
+
+    scene = std::move (next);
     cache = {};
     repaint();
 }
@@ -117,8 +131,6 @@ void GuitarBodyComponent::resized()
 
 void GuitarBodyComponent::timerCallback()
 {
-    auto& engine = processor.getEngine();
-
     // The guitar can change under us (Workshop, preset, type); twice a second is enough to notice.
     if (++ticksSinceKeyCheck >= 15)
     {
@@ -126,7 +138,29 @@ void GuitarBodyComponent::timerCallback()
         rebuildScene (false);
     }
 
-    bool changed = false;
+    updateLiveOverlay (juce::Time::getMillisecondCounterHiRes());
+}
+
+bool GuitarBodyComponent::isAnimating (double nowMs) const noexcept
+{
+    if (fade.isActive (nowMs))
+        return true;
+
+    for (int s = 0; s < 12; ++s)
+        if (dots.alpha[(size_t) s] > 0.0f && dots.alpha[(size_t) s] < 1.0f)
+            return true;
+
+    return false;
+}
+
+void GuitarBodyComponent::updateLiveOverlay (double nowMs)
+{
+    auto& engine = processor.getEngine();
+    lastFrameMs = nowMs;
+    const bool reducedMotion = AccessibilitySettings::get().isReducedMotion();
+
+    bool changed = fade.isActive (nowMs);
+    fade.finishIfDone (nowMs);
 
     for (int s = 0; s < juce::jmin (12, engine.getNumStrings()); ++s)
     {
@@ -138,7 +172,12 @@ void GuitarBodyComponent::timerCallback()
 
         overlay.stringLevel[(size_t) s] = level;
         overlay.stringFret[(size_t) s] = fret;
+
+        // Section 19: the dot is on from the first frame and fades over 60 ms after.
+        changed = dots.update (s, level, fret, nowMs, reducedMotion) || changed;
     }
+
+    dots.copyTo (overlay);
 
     const auto slideFret = (float) engine.getSlideEngine().getOverlayFret();
 
@@ -164,9 +203,8 @@ void GuitarBodyComponent::timerCallback()
         changed = true;
     }
 
-    const bool reduced = AccessibilitySettings::get().isReducedMotion();
-    changed = changed || reduced != overlay.reducedMotion;
-    overlay.reducedMotion = reduced;
+    changed = changed || reducedMotion != overlay.reducedMotion;
+    overlay.reducedMotion = reducedMotion;
 
     if (changed)
         repaint();
@@ -185,7 +223,16 @@ void GuitarBodyComponent::paint (juce::Graphics& g)
 
     g.drawImage (cache, getLocalBounds().toFloat());
 
+    // 12.1: the old guitar fading out over the new one.
+    if (const float a = fade.alpha (lastFrameMs); a > 0.0f && fade.previous.isValid())
+    {
+        g.setOpacity (a);
+        g.drawImage (fade.previous, getLocalBounds().toFloat());
+        g.setOpacity (1.0f);
+    }
+
     overlay.accent = Palette::accent;
+    overlay.changedColour = Palette::secondary;
     overlay.hovered = hoveredRegion;
     GuitarRenderer::paintOverlay (g, scene, mmToPx, overlay);
 
@@ -302,6 +349,9 @@ void GuitarBodyComponent::mouseExit (const juce::MouseEvent&)
 void GuitarBodyComponent::mouseDown (const juce::MouseEvent& e)
 {
     auto& state = processor.getState();
+
+    // 16: the reduced-motion outline of what changed lasts until the next click.
+    overlay.changed = {};
 
     // ---- knobs: drawn on top of the body, tested first -------------------------------
     if (const int knob = knobAt (e.position); knob >= 0)

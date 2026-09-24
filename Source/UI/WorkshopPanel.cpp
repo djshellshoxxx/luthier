@@ -251,7 +251,37 @@ void BenchIllustration::rebuild (bool force)
     if (! force && key == shownKey && (audition != nullptr) == shownAudition)
         return;
 
-    scene = GuitarRenderer::build (guitar, options);
+    auto next = GuitarRenderer::build (guitar, options);
+
+    // A committed change - not a drag in progress, not an audition's hover -
+    // crossfades from the old picture, or outlines what changed (12.1, 16).
+    const bool committedChange = ! scene.hits.empty() && next.key != scene.key && ! bench.isInGesture()
+                              && audition == nullptr && ! shownAudition && getWidth() > 0 && getHeight() > 0;
+
+    if (committedChange)
+    {
+        const bool reduced = AccessibilitySettings::get().isReducedMotion();
+
+        if (reduced)
+        {
+            fade.begin ({}, 0.0, true);
+            changedParts = changedRegions (scene, next);
+        }
+        else
+        {
+            juce::Image old (juce::Image::ARGB, getWidth(), getHeight(), true, juce::SoftwareImageType());
+            {
+                juce::Graphics g (old);
+                g.reduceClipRegion (getLocalBounds().reduced (1));
+                GuitarRenderer::paint (g, scene, mmToPx);
+            }
+
+            fade.begin (old, juce::Time::getMillisecondCounterHiRes(), false);
+            changedParts = {};
+        }
+    }
+
+    scene = std::move (next);
     shownKey = key;
     shownAudition = audition != nullptr;
     resized();
@@ -292,6 +322,12 @@ juce::Point<float> BenchIllustration::toPx (juce::Point<float> mm) const
 void BenchIllustration::timerCallback()
 {
     rebuild (false);
+
+    if (fade.startMs >= 0.0)
+    {
+        repaint();
+        fade.finishIfDone (juce::Time::getMillisecondCounterHiRes());
+    }
 
     // The capo, slide and pick move from elsewhere too (a preset, the CHARACTER
     // tab, a played note): repaint when what the overlay would draw changes.
@@ -379,7 +415,18 @@ void BenchIllustration::paint (juce::Graphics& g)
         g.reduceClipRegion (getLocalBounds().reduced (1));
         GuitarRenderer::paint (g, scene, mmToPx);
 
-        GuitarRenderer::paintOverlay (g, scene, mmToPx, currentOverlay());
+        // 12.1: the old guitar fading out over the new.
+        if (const float a = fade.alpha (juce::Time::getMillisecondCounterHiRes()); a > 0.0f)
+        {
+            g.setOpacity (a);
+            g.drawImageAt (fade.previous, 0, 0);
+            g.setOpacity (1.0f);
+        }
+
+        auto overlay = currentOverlay();
+        overlay.changed = changedParts;
+        overlay.changedColour = Palette::secondary;
+        GuitarRenderer::paintOverlay (g, scene, mmToPx, overlay);
 
         // Section 4: the nut's slots, each drawn as deep as it is cut, while the nut is in hand.
         if (selected == GuitarRegion::nut)
@@ -505,6 +552,7 @@ void BenchIllustration::mouseExit (const juce::MouseEvent&)
 void BenchIllustration::mouseDown (const juce::MouseEvent& e)
 {
     grabKeyboardFocus();
+    changedParts = {};   // 16: the reduced-motion outline lasts until the next click
 
     if (e.mods.isMiddleButtonDown() || (e.mods.isRightButtonDown() && zoom > 1.0f))
     {

@@ -22,6 +22,7 @@
 #include "Widgets.h"
 #include "Overlays.h"
 #include "Guitar/GuitarRenderer.h"
+#include "Guitar/IllustrationMotion.h"
 #include "../Workshop/SpectrumDelta.h"
 
 namespace luthier
@@ -127,6 +128,16 @@ private:
     double getParameterPlain (const char* id) const;
     juce::StringArray gestureIds;
     double lastOverlaySignature = 0.0;
+
+    // guitar-illustration.md 12.1 / 16: committed changes crossfade over 250 ms,
+    // or under reduced motion change at once with the changed parts outlined.
+    SceneCrossfade fade;
+    std::array<bool, (size_t) GuitarRegion::numRegions> changedParts {};
+
+public:
+    bool isCrossfading() const noexcept { return fade.isActive (juce::Time::getMillisecondCounterHiRes()); }
+    bool isOutliningChanges() const noexcept { return std::find (changedParts.begin(), changedParts.end(), true) != changedParts.end(); }
+private:
     double scaleMm() const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BenchIllustration)
