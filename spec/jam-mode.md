@@ -341,19 +341,14 @@ Upright.
   reads "You're the bassist - Jam bass is resting".
 - **`jam_output`.** Choices are Main, Separate, or Main + Separate.
   Separate uses **Aux 9 "Jam Drums"** and **Aux 10 "Jam Bass"** (both
-  stereo):
-  - The buses are appended after Aux 8 in `buildBusesProperties()`, so
-    no existing bus number moves.
-  - `isBusesLayoutSupported` treats them as aux pairs.
-  - ROUTING gains two strips (mute, solo, gain, meter), with the tap
-    description "Jam band, post Jam mixer".
-  - On Layout A or C, Separate falls back to Main and shows the notice
-    in 8.4.
-- **Mix point in `processBlock`:**
-  - after `looper.processBlock`, so the looper records guitar only;
-  - before `sessionRecorder`, so takes include the band.
-
-  Tone-match capture and the monitor mix never contain the band. The
+  stereo), appended after Aux 8 in `buildBusesProperties()` so no
+  existing bus number moves; `isBusesLayoutSupported` treats them as aux
+  pairs. ROUTING gains two strips (mute, solo, gain, meter; tap
+  description "Jam band, post Jam mixer"). On Layout A or C, Separate
+  falls back to Main with the notice in 8.4.
+- **Mix point in `processBlock`:** after `looper.processBlock` (the
+  looper records guitar only) and before `sessionRecorder` (takes
+  include the band). Tone-match capture and the monitor mix never contain the band. The
   kill switch mutes it through a new `KillSwitch::applyBlockRamp`, which
   reapplies this block's computed ramp without advancing it.
 
