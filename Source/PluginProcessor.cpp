@@ -1,7 +1,6 @@
 #include "PluginProcessor.h"
 #include "Presets/FactoryPresets.h"
 #include "Support/ErrorLog.h"
-#include "Support/UndoHistory.h"   // action-and-undo.md
 
 /*  The test runner and the offline renderer build this file, so that the things
     only the processor owns - the undo stack, uiState, A/B slots, snapshot recall,
@@ -603,7 +602,7 @@ bool LuthierAudioProcessor::switchGuitarFamily (const juce::String& family)
     if (! partLibrary.switchFamily (currentGuitar, family, switched, banner))
         return false;
 
-    pushUndoState ("Change guitar family");
+    pushUndoBoundary ("Change guitar family to " + family);   // action-and-undo.md 3.4 / 5
 
     // The guitar now stands for its template's type.
     const auto path = PartLibrary::getFamilyTemplate (family);
@@ -1665,12 +1664,16 @@ bool LuthierAudioProcessor::loadSetlist (const juce::File& file)
     if (! loaded.loadFrom (file))
         return false;
 
+    // action-and-undo.md 3.10 / 5: one boundary entry for the load and the
+    // preset load it implies.
+    pushUndoBoundary ("Load setlist " + file.getFileNameWithoutExtension());
+
     setlist.setSetlist (loaded);
 
-    return applyCurrentSetlistEntry();
+    return applyCurrentSetlistEntry (false);
 }
 
-bool LuthierAudioProcessor::applyCurrentSetlistEntry()
+bool LuthierAudioProcessor::applyCurrentSetlistEntry (bool asUndoStep)
 {
     const auto* entry = setlist.getCurrentEntry();
 
@@ -1681,6 +1684,10 @@ bool LuthierAudioProcessor::applyCurrentSetlistEntry()
 
     if (data.getDynamicObject() == nullptr)
         return false;
+
+    // action-and-undo.md 3.10: a setlist step drives a preset-load boundary.
+    if (asUndoStep)
+        pushUndoBoundary ("Setlist step " + juce::String (setlist.getPosition() + 1) + ": " + entry->getDisplayName());
 
     if (! presets.fromVar (data))
         return false;
@@ -1751,8 +1758,7 @@ void LuthierAudioProcessor::hardResetAndClearCaches()
     diagnostics.setEnabled (false);
     diagnostics.reset();
 
-    undoStack.clear();
-    undoPosition = -1;
+    undoHistory.clear();
     slotA.reset();
     slotB.reset();
     slotBActive = false;
@@ -1875,6 +1881,7 @@ void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool ge
         gestureStartValue = parameter->getValue();
         gestureParameterIndex = parameterIndex;
         gestureParameterName = parameter->getName (64);
+        gestureStartMs = undoHistory.now();
         return;
     }
 
@@ -1904,74 +1911,120 @@ void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool ge
         return parameter->getText (v, 32) + (label.isNotEmpty() ? " " + label : juce::String());
     };
 
-    UndoEntry entry;
-    entry.state = std::move (gestureStartState);
-    entry.description = parameter->isBoolean()
-                          ? (endValue >= 0.5f ? "Turn on " : "Turn off ") + gestureParameterName
-                          : "Change " + gestureParameterName + " from " + textOf (gestureStartValue)
-                              + " to " + textOf (endValue);
+    /*  3.1 / 3.2 / 4: gestures on the same parameter within 200 ms (wheel
+        ticks, a scroll through a choice) merge. A toggle never groups (3.3).
+        One gesture stays one entry however long it pauses: workshop-ui.md 8's
+        "gesture = one entry" rule, applied to every control alike. */
+    UndoHistory::Entry entry;
+    entry.before = std::move (gestureStartState);
+    entry.startMs = gestureStartMs;
+    entry.timeMs = undoHistory.now();
+
+    if (parameter->isBoolean())
+    {
+        entry.description = (endValue >= 0.5f ? "Turn on " : "Turn off ") + gestureParameterName;
+    }
+    else
+    {
+        entry.actionClass = "param";
+        entry.target = parameter->getName (64);
+
+        if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameter))
+            entry.target = withId->paramID;
+
+        entry.subject = "Change " + gestureParameterName;
+        entry.fromText = textOf (gestureStartValue);
+        entry.toText = textOf (endValue);
+        entry.description = entry.subject + " from " + entry.fromText + " to " + entry.toText;
+
+        // action-and-undo.md 5: choosing a guitar is a guitar load, a boundary.
+        if (entry.target == ParamIDs::guitarType)
+        {
+            entry.boundary = true;
+            entry.description = "Load guitar " + entry.toText;
+        }
+    }
 
     gestureStartState.reset();
 
-    addUndoEntry (std::move (entry));
+    undoHistory.push (std::move (entry));
 }
 
+/*  The stack (Support/UndoHistory) holds one entry per action, each carrying
+    the state from before that action. An earlier version kept "the current
+    state" as an extra entry and was off by one both ways; Undo.
+    stepsOneActionAtATimeBothWays pins the fix. */
 void LuthierAudioProcessor::pushUndoState (const juce::String& description)
 {
-    UndoEntry entry;
-    entry.state = captureStateBlock();
+    pushUndoAction (description, {}, {});
+}
+
+void LuthierAudioProcessor::pushUndoAction (const juce::String& description,
+                                            const juce::String& actionClass, const juce::String& target)
+{
+    UndoHistory::Entry entry;
+    entry.before = captureStateBlock();
     entry.description = description;
+    entry.actionClass = actionClass;
+    entry.target = target;
+    entry.startMs = entry.timeMs = undoHistory.now();
 
-    addUndoEntry (std::move (entry));
+    undoHistory.push (std::move (entry));
 }
 
-/*  The stack holds one entry per action, each carrying the state from before
-    that action. undoPosition is the index of the entry the next undo reverses,
-    or -1 when there is nothing to undo.
-
-    This replaced a version that kept "the current state" as an extra entry
-    appended on the first undo and indexed around it, which was off by one both
-    ways: a single action could not be undone at all (canUndo wanted a position
-    above zero) and the first undo after two actions reverted both. Nothing
-    tested it until advanced-ranges.md 7 needed a lock to be undoable. */
-void LuthierAudioProcessor::addUndoEntry (UndoEntry&& entry)
+void LuthierAudioProcessor::pushUndoBoundary (const juce::String& description)
 {
-    // A new edit after an undo starts a new branch: the redo tail goes.
-    while (undoStack.size() > undoPosition + 1)
-        undoStack.removeLast();
+    UndoHistory::Entry entry;
+    entry.before = captureStateBlock();
+    entry.description = description;
+    entry.boundary = true;
+    entry.startMs = entry.timeMs = undoHistory.now();
 
-    undoStack.add (std::move (entry));
-
-    while (undoStack.size() > kMaxUndoSteps)
-        undoStack.remove (0);
-
-    undoPosition = undoStack.size() - 1;
+    undoHistory.push (std::move (entry));
 }
 
-void LuthierAudioProcessor::undo()
+void LuthierAudioProcessor::undoOnce (bool crossBoundary)
 {
-    if (! canUndo())
+    auto* entry = undoHistory.stepBack (crossBoundary);
+
+    if (entry == nullptr)
         return;
 
-    auto& entry = undoStack.getReference (undoPosition);
-
     // Where we are now is what redo comes back to.
-    entry.redoState = captureStateBlock();
+    entry->after = captureStateBlock();
+    applyUndoState (entry->before);
+}
 
-    --undoPosition;
+void LuthierAudioProcessor::undo()               { undoOnce (false); }
+void LuthierAudioProcessor::undoAcrossBoundary() { undoOnce (true); }
 
-    applyUndoState (entry.state);
+void LuthierAudioProcessor::undoSteps (int steps)
+{
+    // One restore rather than `steps`: keep the first entry's after-state
+    // chain intact by stepping, but apply only the final before-state.
+    UndoHistory::Entry* last = nullptr;
+    juce::MemoryBlock now = captureStateBlock();
+
+    for (int i = 0; i < steps; ++i)
+    {
+        auto* entry = undoHistory.stepBack (true);
+
+        if (entry == nullptr)
+            break;
+
+        entry->after = std::move (now);
+        now = entry->before;
+        last = entry;
+    }
+
+    if (last != nullptr)
+        applyUndoState (last->before);
 }
 
 void LuthierAudioProcessor::redo()
 {
-    if (! canRedo())
-        return;
-
-    ++undoPosition;
-
-    const auto& entry = undoStack.getReference (undoPosition);
-    applyUndoState (entry.redoState);
+    if (const auto* entry = undoHistory.stepForward())
+        applyUndoState (entry->after);
 }
 
 // action-and-undo.md 3.17 / 7: see UndoState::withSessionLayers.
@@ -2000,7 +2053,7 @@ bool LuthierAudioProcessor::loadPresetAsUserAction (int index)
     if (presets.getPreset (index) == nullptr)
         return false;
 
-    pushUndoState ("Load preset " + presets.getPreset (index)->name);
+    pushUndoBoundary ("Load preset " + presets.getPreset (index)->name);   // action-and-undo.md 5
 
     if (! presets.loadPreset (index))
         return false;
@@ -2026,15 +2079,13 @@ juce::String LuthierAudioProcessor::getUndoDescription() const
     if (! canUndo())
         return {};
 
-    return undoStack.getReference (undoPosition).description;
+    return undoHistory.peekUndo()->description;
 }
 
 juce::String LuthierAudioProcessor::getRedoDescription() const
 {
-    if (! canRedo())
-        return {};
-
-    return undoStack.getReference (undoPosition + 1).description;
+    const auto* entry = undoHistory.peekRedo();
+    return entry != nullptr ? entry->description : juce::String();
 }
 
 //==============================================================================

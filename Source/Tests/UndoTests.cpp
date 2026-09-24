@@ -289,3 +289,94 @@ LUTHIER_TEST (Undo, aPresetLoadIsOneNamedEntry)
 
     CHECK_MSG (differing == 0, juce::String (differing) + " parameters did not come back");
 }
+
+//==============================================================================
+/*  5 and 13: a preset load is a boundary. Plain undo reverses the load itself
+    and stops; Ctrl-Alt-Z (undoAcrossBoundary) crosses to what came before. */
+LUTHIER_TEST (Undo, aPresetLoadIsABoundary)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    if (processor.getPresetManager().getNumPresets() < 2)
+    {
+        CHECK_MSG (false, "no presets to load");
+        return;
+    }
+
+    const juce::String gain (ParamIDs::ampGain);
+
+    processor.pushUndoState ("first edit");
+    setPlain (processor, gain, 0.11f);
+
+    processor.loadPresetAsUserAction (1);
+    const float loaded = plainOf (processor, gain);
+
+    processor.pushUndoState ("second edit");
+    setPlain (processor, gain, 0.93f);
+
+    processor.undo();
+    CHECK_NEAR (plainOf (processor, gain), loaded, 1.0e-3);
+
+    processor.undo();   // reverses the load
+    CHECK_NEAR (plainOf (processor, gain), 0.11f, 1.0e-3);
+
+    CHECK_MSG (! processor.canUndo(), "plain undo would cross the boundary");
+    CHECK (processor.isUndoStoppedAtBoundary());
+
+    processor.undo();   // does nothing
+    CHECK_NEAR (plainOf (processor, gain), 0.11f, 1.0e-3);
+
+    const auto history = processor.getUndoHistory();
+    CHECK (history.size() == 1 && history[0].description == "first edit");
+
+    processor.undoAcrossBoundary();
+    CHECK_MSG (std::abs (plainOf (processor, gain) - 0.11f) > 1.0e-3f, "crossing did not undo the first edit");
+    CHECK (! processor.canUndo());
+
+    // Redo walks forward through the boundary as normal.
+    processor.redo();
+    processor.redo();
+    processor.redo();
+    CHECK_NEAR (plainOf (processor, gain), 0.93f, 1.0e-3);
+}
+
+//==============================================================================
+/*  4 and 13: gestures on one parameter 199 ms apart are one entry, 201 ms apart
+    are two, and different parameters never merge. The clock is pinned. */
+LUTHIER_TEST (Undo, gesturesGroupWithin200ms)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    double now = 10000.0;
+    processor.setUndoClock ([&now] { return now; });
+
+    const juce::String gain (ParamIDs::ampGain);
+    const juce::String master (ParamIDs::ampMaster);
+
+    setPlain (processor, gain, 0.1f);
+    const int start = processor.getNumUndoSteps();
+
+    dragTo (processor, gain, 0.2f, 4);
+    now += 199.0;
+    dragTo (processor, gain, 0.3f, 4);
+
+    CHECK_MSG (processor.getNumUndoSteps() == start + 1, "199 ms apart did not merge");
+    CHECK_MSG (processor.getUndoDescription().contains ("from 0.1") && processor.getUndoDescription().contains ("to 0.3"),
+               "merged description: " + processor.getUndoDescription());
+
+    now += 201.0;
+    dragTo (processor, gain, 0.4f, 4);
+    CHECK_MSG (processor.getNumUndoSteps() == start + 2, "201 ms apart merged");
+
+    now += 10.0;
+    dragTo (processor, master, 0.5f, 4);
+    CHECK_MSG (processor.getNumUndoSteps() == start + 3, "different parameters merged");
+
+    // Undo of the merged pair goes back to before the first of them.
+    processor.undo();
+    processor.undo();
+    processor.undo();
+    CHECK_NEAR (plainOf (processor, gain), 0.1f, 1.0e-3);
+}

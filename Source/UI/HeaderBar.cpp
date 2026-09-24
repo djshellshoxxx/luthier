@@ -341,7 +341,7 @@ void HeaderBar::showFileMenu()
                     if (file == juce::File())
                         return;
 
-                    processor.pushUndoState ((isImport ? "Import preset " : "Load preset ") + file.getFileNameWithoutExtension());
+                    processor.pushUndoBoundary ((isImport ? "Import preset " : "Load preset ") + file.getFileNameWithoutExtension());   // action-and-undo.md 5
 
                     if (isImport)
                         processor.getPresetManager().importPreset (file);
