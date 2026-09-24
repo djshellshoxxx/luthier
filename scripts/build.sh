@@ -28,7 +28,7 @@ case "$cmd" in
   test)
     ninja -C "$BUILD" LuthierTests 2>&1 | grep -E "error|FAILED|ninja:" | head -60 || true
     [ -x "$BUILD/LuthierTests_artefacts/Release/LuthierTests" ] || { echo "no runner"; exit 3; }
-    cd "$BUILD/LuthierTests_artefacts/Release" && xvfb-run -a ./LuthierTests "$@" 9>&- 2>&1 | tail -150
+    cd "$BUILD/LuthierTests_artefacts/Release" && xvfb-run -a ./LuthierTests "$@" 9>&- 2>&1 | grep -E "^\S|FAIL\]|^\s+line [0-9]+:|tests failed|tests,|ALL PASSED|====" | grep -vE "^\s*\[pass\]" | tail -150
     exit "${PIPESTATUS[0]}"
     ;;
   *) echo "unknown: $cmd"; exit 1;;
