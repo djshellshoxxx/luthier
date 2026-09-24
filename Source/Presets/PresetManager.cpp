@@ -835,7 +835,10 @@ void PresetManager::captureExtraState()
         const auto& t = tuningEngine.getStringTuning (i);
         extra.detuneCents[(size_t) i] = t.detuneCents;
         extra.realismDetuneCents[(size_t) i] = t.realismDetuneCents;
-        extra.fineTuneCents[(size_t) i] = t.fineTuneCents;
+        // string-aging.md 5 (REALISM-A): the aging detune rides on the fine
+        // tune and is rebuilt from the parameters on load, so only what is
+        // left beyond it is state.
+        extra.fineTuneCents[(size_t) i] = t.fineTuneCents - engine.getStringAging().computeNow (i).detuneCents;
         extra.openFrequencyHz[(size_t) i] = t.openFrequencyHz;
         extra.customGaugeInches[(size_t) i] = engine.getCustomStringGauge (i);
     }
