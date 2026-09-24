@@ -10,6 +10,7 @@
 #include "../DSP/Amp/RoomEngine.h"
 #include "../Model/Playing/MidiInterpreter.h"
 #include "../Practice/Looper.h"
+#include "../Notation/NotationExport.h"
 #include "../Model/Playing/TechniqueEngine.h"
 #include "../Model/Playing/RubricVoicer.h"
 #include "../Model/Playing/TuningEngine.h"
@@ -412,4 +413,49 @@ LUTHIER_TEST (ReviewRegression, aCaptureRecordsTheMainOutput)
     CHECK (capture.isComplete());
     CHECK (capture.getRecordedSamples() > 0);
     CHECK (capture.getBuffer().getMagnitude (0, 0, capture.getRecordedSamples()) > 0.0f);
+}
+
+//==============================================================================
+/*  R-208 / R-209: MusicXML numbers <string> from 1 = the highest string. The
+    exporter wrote numStrings - index (and the importer undid it), so every
+    other program put each note on the mirrored string. And an imported
+    <chord/> note started after the note before it instead of with it. */
+LUTHIER_TEST (ReviewRegression, musicXmlStringsCountFromTheHighestAndChordsStayTogether)
+{
+    PerformanceScore score;
+    score.beginCapture (120.0, 4, 4);
+
+    // An open high E (string index 0) and, a beat later, a two-note chord.
+    score.noteStarted (0, 0, 64, 329.63, 0.8, 0.0);
+    score.noteEnded (0, 1.0);
+    score.noteStarted (5, 3, 43, 98.0, 0.8, 1.0);
+    score.noteStarted (4, 2, 47, 123.47, 0.8, 1.0);
+    score.noteEnded (5, 2.0);
+    score.noteEnded (4, 2.0);
+    score.endCapture (4.0);
+
+    NotationExporter exporter;
+    const auto xml = exporter.renderMusicXml (score);
+
+    // The high E's note carries <string>1</string>, the low E's <string>6</string>.
+    const int highE = xml.indexOf ("<pitch>");
+    CHECK (highE >= 0);
+    CHECK_MSG (xml.fromFirstOccurrenceOf ("<string>", false, false).upToFirstOccurrenceOf ("</string>", false, false) == "1",
+               "the high E was exported as string "
+                 + xml.fromFirstOccurrenceOf ("<string>", false, false).upToFirstOccurrenceOf ("</string>", false, false));
+
+    NotationImporter importer;
+    PerformanceScore back;
+    CHECK (importer.readMusicXml (xml, back));
+
+    const auto notes = back.getTrack (0).measures[0].collectNotes();
+    CHECK (notes.size() == 3);
+
+    int chordNotesAtBeatOne = 0;
+
+    for (const auto* n : notes)
+        if (std::abs (n->startBeat - 1.0) < 1.0e-6)
+            ++chordNotesAtBeatOne;
+
+    CHECK_MSG (chordNotesAtBeatOne == 2, juce::String (chordNotesAtBeatOne) + " chord notes at beat 1");
 }
