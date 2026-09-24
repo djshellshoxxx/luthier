@@ -94,6 +94,9 @@ struct GuitarScene
     std::vector<Shape> overStrings;           ///< tuner posts and string trees, over the strings
     std::vector<Hit> hits;                    ///< in z-order, back to front
 
+    /** Section 16, per string (engine index): "String 6: ... wound, 46 gauge." */
+    std::vector<juce::String> stringDescriptions;
+
     /** Per string (engine index), where it leaves the saddle and reaches the nut. */
     std::vector<juce::Point<float>> saddlePoints, nutPoints;
     int numFrets = 22;

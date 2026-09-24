@@ -62,6 +62,10 @@ struct DerivedAcoustics
     std::array<double, 12> gaugesIn {};   ///< per string, 0 = the set's default
     StringMaterial stringMaterial = StringMaterial::NickelPlatedSteel;
 
+    /** workshop-ui.md 3.3: per string, -1 = the set's; else a StringMaterial / 0 plain, 1 wound. */
+    std::array<int, 12> stringMaterialOverride { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+    std::array<int, 12> stringWoundOverride { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+
     BodyConfig body;
 
     /** Pickups in the engine's slot order: bridge first. */

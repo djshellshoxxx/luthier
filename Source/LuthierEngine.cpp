@@ -9,6 +9,9 @@ LuthierEngine::LuthierEngine()
 {
     spec = GuitarLibrary::get (guitarType);
 
+    partsStringMaterial.fill (-1);   // workshop-ui.md 3.3: no string overrides until a parts guitar sets them
+    partsStringWound.fill (-1);
+
     for (int i = 0; i < kMaxStrings; ++i)
     {
         strings[(size_t) i].setIndex (i);
@@ -273,6 +276,9 @@ void LuthierEngine::setGuitarType (GuitarType type)
     if (hasPartsOverride)
         customGauges.fill (0.0);
 
+    partsStringMaterial.fill (-1);   // workshop-ui.md 3.3: a compiled type has no string overrides
+    partsStringWound.fill (-1);
+
     hasPartsOverride = false;
     partsSustain = fretBrightnessFactor = nutBrightnessFactor = magnetSustain = 1.0;
     magnetDetuneCents = 0.0;
@@ -289,7 +295,13 @@ void LuthierEngine::applyWorkshopGuitar (const DerivedAcoustics& d, GuitarType s
     hasPartsOverride = true;
 
     for (int i = 0; i < kMaxStrings; ++i)
+    {
         customGauges[(size_t) i] = i < (int) d.gaugesIn.size() ? d.gaugesIn[(size_t) i] : 0.0;
+
+        // workshop-ui.md 3.3: per-string overrides.
+        partsStringMaterial[(size_t) i] = i < (int) d.stringMaterialOverride.size() ? d.stringMaterialOverride[(size_t) i] : -1;
+        partsStringWound[(size_t) i] = i < (int) d.stringWoundOverride.size() ? d.stringWoundOverride[(size_t) i] : -1;
+    }
 
     partsBody = d.body;
 
@@ -527,13 +539,17 @@ void LuthierEngine::refreshStringPhysics()
     {
         const double openHz = tuning.getEffectiveOpenFrequency (i);
 
-        auto s = StringMaterials::computeSpec (spec.stringMaterial,
+        // workshop-ui.md 3.3: a parts guitar may override one string's material or winding.
+        const int materialOverride = partsStringMaterial[(size_t) i];
+
+        auto s = StringMaterials::computeSpec (materialOverride >= 0 ? (StringMaterial) materialOverride : spec.stringMaterial,
                                                spec.stringGauge,
                                                stringAge,
                                                i,
                                                openHz,
                                                spec.scaleLengthMm,
-                                               customGauges[(size_t) i]);
+                                               customGauges[(size_t) i],
+                                               partsStringWound[(size_t) i]);
 
         // Validator check 1: a tuning that would need an impossible tension is
         // corrected, and the correction is logged.

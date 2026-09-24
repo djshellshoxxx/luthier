@@ -133,7 +133,7 @@ public:
     const juce::Array<PartPtr>& getDrawerParts() const noexcept { return drawerParts; }
 
     /** A card clicked (fits) or Alt-hovered (auditions). */
-    void clickCard (int index);
+    void clickCard (int index, bool ontoSelectedString = false);
     void hoverCard (int index, bool altDown);
 
     /** The slot a card in the current category goes into. */
@@ -144,6 +144,10 @@ public:
         the second change go straight through. */
     bool switchFamily (const juce::String& family, bool confirmed);
     bool familyConfirmedThisSession = false;
+
+    /*  Section 3.3: with a string selected, the inspector's "string gauge",
+        "string wound" and "string material" rows edit that string's override. */
+    static constexpr const char* kStringFieldPrefix = "#string.";
 
     /** Section 5: edits one field of the selected part (a user copy of it). */
     bool editInspectorField (const juce::String& field, const juce::String& text);

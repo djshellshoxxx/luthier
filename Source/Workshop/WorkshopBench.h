@@ -54,6 +54,15 @@ public:
     bool fitAccessory (const PartPtr& part);
     PartPtr getAccessory (PartType type) const;
 
+    /*  Section 3.3: overrides one string of the set (engine index, 0 = high E).
+        One undo entry: "Set string 3 to 0.018 plain (was 0.017 plain)". An
+        override equal to nothing set clears it. */
+    bool setStringOverride (int stringIndex, const StringOverride& override);
+    bool clearStringOverride (int stringIndex) { return setStringOverride (stringIndex, {}); }
+
+    /** "0.017 plain" / "0.046 phosphor bronze wound": a string as the set and override make it. */
+    juce::String describeString (const WorkshopGuitar& guitar, int stringIndex) const;
+
     /** Puts a slot back to what the guitar file had ("Revert", section 5). */
     bool revert (GuitarSlot slot);
 

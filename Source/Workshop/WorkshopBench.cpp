@@ -213,6 +213,45 @@ PartPtr WorkshopBench::getAccessory (PartType type) const
     return nullptr;
 }
 
+juce::String WorkshopBench::describeString (const WorkshopGuitar& g, int s) const
+{
+    const auto set = g.get (GuitarSlot::strings);
+    const auto gauges = set != nullptr ? set->numbers ("gauges_in") : juce::Array<double>();
+    const auto& over = g.stringOverrides[(size_t) juce::jlimit (0, 11, s)];
+    const double gauge = over.gaugeIn > 0.0 ? over.gaugeIn : juce::isPositiveAndBelow (s, gauges.size()) ? gauges[s] : 0.0;
+    const auto setMaterial = set != nullptr ? set->text ("winding_material", "nickel_plated_steel") : juce::String ("nickel_plated_steel");
+    const auto material = over.material.isNotEmpty() ? over.material : setMaterial;
+
+    // As the engine decides it (StringMaterials::computeSpec): nylon trebles plain,
+    // steel wound from 0.0195", unless the override says.
+    bool wound = material == "nylon" ? s >= 3 : (g.family == "bass" || gauge >= 0.0195);
+    if (over.wound >= 0)
+        wound = over.wound == 1;
+
+    return juce::String (gauge, 3) + (wound ? " " + material.replaceCharacter ('_', ' ') + " wound" : juce::String (" plain"));
+}
+
+bool WorkshopBench::setStringOverride (int stringIndex, const StringOverride& override)
+{
+    const auto& committed = processor.getCurrentGuitar();
+
+    if (! juce::isPositiveAndBelow (stringIndex, juce::jmin (12, committed.getStringCount())))
+        return false;
+
+    if (committed.stringOverrides[(size_t) stringIndex] == override)
+        return false;
+
+    endAudition();
+
+    auto edited = committed;
+    edited.stringOverrides[(size_t) stringIndex] = override;
+
+    // Section 8: "Set string 3 to 0.018 plain (was 0.017 plain)".
+    commit (edited, "Set " + stringLabel (stringIndex) + " to " + describeString (edited, stringIndex)
+                      + " (was " + describeString (committed, stringIndex) + ")");
+    return true;
+}
+
 bool WorkshopBench::revert (GuitarSlot slot)
 {
     // The slot as the guitar file has it, ignoring the preset's edits.
@@ -230,6 +269,10 @@ WorkshopGuitar WorkshopBench::withPart (GuitarSlot slot, const PartPtr& candidat
 {
     auto g = processor.getCurrentGuitar();
     g.parts[(size_t) slot] = candidate;
+
+    // guitar-illustration.md 13.2: a new set replaces the whole set, overrides included.
+    if (slot == GuitarSlot::strings)
+        g.stringOverrides = {};
 
     // A pickup going into an empty slot needs somewhere to sit: the usual
     // place for that slot, scaled to this guitar's scale length.

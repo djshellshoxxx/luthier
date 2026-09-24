@@ -176,6 +176,10 @@ void BenchIllustration::select (GuitarRegion region, int stringIndex)
         if (h.region == region)
             setDescription (h.description);
 
+    // Section 16: a selected string is announced as itself, not as the set.
+    if (region == GuitarRegion::strings && juce::isPositiveAndBelow (selectedString, (int) scene.stringDescriptions.size()))
+        setDescription (scene.stringDescriptions[(size_t) selectedString]);
+
     repaint();
 
     if (onSelectionChanged)
@@ -717,8 +721,14 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
     revertButton.onClick = [this]
     {
         const auto slot = slotForRegion (illustration.getSelected());
-        if (slot != GuitarSlot::numSlots)
+
+        // Section 3.3: with a string selected, Revert clears that string's override.
+        if (slot == GuitarSlot::strings && illustration.getSelectedString() >= 0
+            && bench.current().stringOverrides[(size_t) juce::jlimit (0, 11, illustration.getSelectedString())].isSet())
+            bench.clearStringOverride (illustration.getSelectedString());
+        else if (slot != GuitarSlot::numSlots)
             bench.revert (slot);
+
         refreshAll();
     };
 
@@ -916,8 +926,42 @@ bool WorkshopPanel::editInspectorField (const juce::String& field, const juce::S
     if (slot == GuitarSlot::numSlots || field.isEmpty())
         return false;
 
-    // Numbers stay numbers, true/false stay flags, lists stay lists; anything else is text.
     const auto trimmed = text.trim();
+
+    // Section 3.3: the selected string's own override.
+    if (field.startsWith (kStringFieldPrefix))
+    {
+        const int s = illustration.getSelectedString();
+
+        if (s < 0)
+            return false;
+
+        auto o = bench.current().stringOverrides[(size_t) juce::jlimit (0, 11, s)];
+        const auto which = field.fromFirstOccurrenceOf (kStringFieldPrefix, false, false);
+
+        if (which == "gauge")
+        {
+            // "0.018", "18" (thousandths, as players say it) or "set" for the set's gauge.
+            double g = trimmed.getDoubleValue();
+            if (g >= 1.0) g /= 1000.0;
+            o.gaugeIn = trimmed.equalsIgnoreCase ("set") ? 0.0 : juce::jlimit (0.0, 0.2, g);
+        }
+        else if (which == "wound")
+        {
+            o.wound = trimmed.equalsIgnoreCase ("wound") || trimmed.equalsIgnoreCase ("true") || trimmed.equalsIgnoreCase ("yes") ? 1
+                    : trimmed.equalsIgnoreCase ("plain") || trimmed.equalsIgnoreCase ("false") || trimmed.equalsIgnoreCase ("no") ? 0 : -1;
+        }
+        else if (which == "material")
+        {
+            o.material = trimmed.equalsIgnoreCase ("set") ? juce::String() : trimmed.toLowerCase().replaceCharacter (' ', '_');
+        }
+
+        const bool ok = bench.setStringOverride (s, o);
+        refreshAll();
+        return ok;
+    }
+
+    // Numbers stay numbers, true/false stay flags, lists stay lists; anything else is text.
     juce::var value;
 
     if (trimmed.startsWithChar ('['))
@@ -934,7 +978,7 @@ bool WorkshopPanel::editInspectorField (const juce::String& field, const juce::S
     return ok;
 }
 
-void WorkshopPanel::clickCard (int index)
+void WorkshopPanel::clickCard (int index, bool ontoSelectedString)
 {
     if (! juce::isPositiveAndBelow (index, drawerParts.size()))
         return;
@@ -942,6 +986,21 @@ void WorkshopPanel::clickCard (int index)
     const auto part = drawerParts[index];
     bench.endAudition();
     auditioning = false;
+
+    // guitar-illustration.md 13.2: a strings card onto a string overrides that
+    // string only (Ctrl-click with a string selected); anywhere else it replaces the set.
+    if (ontoSelectedString && part->type == PartType::strings
+        && illustration.getSelected() == GuitarRegion::strings && illustration.getSelectedString() >= 0)
+    {
+        const int s = illustration.getSelectedString();
+        const auto gauges = part->numbers ("gauges_in");
+        StringOverride o;
+        o.gaugeIn = juce::isPositiveAndBelow (s, gauges.size()) ? gauges[s] : 0.0;
+        o.material = part->text ("winding_material", "nickel_plated_steel");
+        bench.setStringOverride (s, o);
+        refreshAll();
+        return;
+    }
 
     if (part->type == PartType::numTypes)
     {
@@ -1119,6 +1178,28 @@ void WorkshopPanel::refreshInspector()
                             + juce::String (pl.heightBassMm, 1) + " mm bass");
     }
 
+    if (region == GuitarRegion::strings && illustration.getSelectedString() >= 0)
+    {
+        // Section 3.3: the set, and this string's override fields.
+        const int s = illustration.getSelectedString();
+        const auto& o = guitar.stringOverrides[(size_t) juce::jlimit (0, 11, s)];
+        auto addField = [this] (const juce::String& line, const juce::String& field)
+        {
+            inspectorLines.add (line);
+            while (inspectorFields.size() < inspectorLines.size() - 1)
+                inspectorFields.add ({});
+            inspectorFields.add (field);
+        };
+
+        inspectorLines.add ("STRING " + juce::String (s + 1) + ": " + bench.describeString (guitar, s)
+                            + (o.isSet() ? "  (override)" : ""));
+        addField ("string gauge: " + (o.gaugeIn > 0.0 ? juce::String (o.gaugeIn, 3) : juce::String ("set")), juce::String (kStringFieldPrefix) + "gauge");
+        addField ("string wound: " + juce::String (o.wound < 0 ? "set" : o.wound == 1 ? "wound" : "plain"), juce::String (kStringFieldPrefix) + "wound");
+        addField ("string material: " + (o.material.isNotEmpty() ? o.material.replaceCharacter ('_', ' ') : juce::String ("set")),
+                  juce::String (kStringFieldPrefix) + "material");
+        inspectorLines.add ("Ctrl-click a strings card to put its string here; Revert clears it.");
+    }
+
     if (region == GuitarRegion::bridge || region == GuitarRegion::strings)
     {
         const int s = illustration.getSelectedString();
@@ -1226,7 +1307,7 @@ void WorkshopPanel::mouseDown (const juce::MouseEvent& e)
     }
 
     if (const int card = cardAt (e.getPosition()); card >= 0)
-        clickCard (card);
+        clickCard (card, e.mods.isCommandDown());
 }
 
 void WorkshopPanel::modifierKeysChanged (const juce::ModifierKeys& mods)

@@ -560,14 +560,24 @@ namespace
 
             for (int s = 0; s < numStrings; ++s)
             {
-                const double g = juce::isPositiveAndBelow (s, gauges.size()) ? gauges[s]
+                double g = juce::isPositiveAndBelow (s, gauges.size()) ? gauges[s]
                                  : (isBass ? 0.045 + 0.02 * s : 0.010 + 0.007 * s);
+
+                // Section 10 / workshop-ui.md 3.3: a per-string override.
+                const auto& over = guitar.stringOverrides[(size_t) juce::jmin (s, 11)];
+
+                if (over.gaugeIn > 0.0)
+                    g = over.gaugeIn;
+
                 gaugeMm[(size_t) s] = (float) g * kInch;
 
-                if (material == "nylon")
+                if (material == "nylon" && over.material.isEmpty())
                     wound[(size_t) s] = ! twelve && s >= 3;
                 else
                     wound[(size_t) s] = isBass || g >= 0.0195;
+
+                if (over.wound >= 0)
+                    wound[(size_t) s] = over.wound == 1;
             }
         }
 
@@ -2493,9 +2503,8 @@ namespace
     void SceneBuilder::buildStrings()
     {
         const auto material = text (GuitarSlot::strings, "winding_material", "nickel_plated_steel");
-        const bool flat = text (GuitarSlot::strings, "winding", "round") == "flat";
-        const bool coated = partName (GuitarSlot::strings).containsIgnoreCase ("coated") || text (GuitarSlot::strings, "winding") == "coated";
-        const bool nylon = material == "nylon";
+        const bool setFlat = text (GuitarSlot::strings, "winding", "round") == "flat";
+        const bool setCoated = partName (GuitarSlot::strings).containsIgnoreCase ("coated") || text (GuitarSlot::strings, "winding") == "coated";
 
         for (int s = 0; s < numStrings; ++s)
         {
@@ -2508,7 +2517,14 @@ namespace
             line.wound = wound[(size_t) s];
             line.widthMm = gaugeMm[(size_t) s];
 
-            auto colour = GuitarRenderer::stringColour (material, line.wound, isBass, flat);
+            // Section 10: an overridden string renders in its own material, independently.
+            const auto& over = guitar.stringOverrides[(size_t) juce::jmin (s, 11)];
+            const auto stringMaterial = over.material.isNotEmpty() ? over.material : material;
+            const bool nylon = stringMaterial == "nylon";
+            const bool flat = over.material.isNotEmpty() ? false : setFlat;
+            const bool coated = over.material.isNotEmpty() ? false : setCoated;
+
+            auto colour = GuitarRenderer::stringColour (stringMaterial, line.wound, isBass, flat);
 
             if (nylon)
             {
@@ -2523,11 +2539,11 @@ namespace
                     colour = colour.withSaturation (colour.getSaturation() * 0.5f);
 
                 line.colour = colour;
-                line.winding = material == "silk_steel" ? juce::Colour (0xffb23a3a).withAlpha (0.35f) : colour.darker (0.35f);
-                line.dashedWinding = line.wound && ! flat && ! coated && ! material.contains ("tape");
-                line.minWidthPx = isBass ? (material.contains ("tape") ? 3.0f : 2.5f)
+                line.winding = stringMaterial == "silk_steel" ? juce::Colour (0xffb23a3a).withAlpha (0.35f) : colour.darker (0.35f);
+                line.dashedWinding = line.wound && ! flat && ! coated && ! stringMaterial.contains ("tape");
+                line.minWidthPx = isBass ? (stringMaterial.contains ("tape") ? 3.0f : 2.5f)
                                 : ! line.wound ? 1.0f
-                                : material.contains ("bronze") ? 2.0f : 1.5f;
+                                : stringMaterial.contains ("bronze") ? 2.0f : 1.5f;
             }
 
             scene.strings.push_back (line);
@@ -2596,6 +2612,20 @@ namespace
             strings.addPath (strokeOf (line, juce::jmax (2.4f, s.widthMm + 1.6f)));
         }
         add (GuitarRegion::strings, strings, "Strings: " + partName (GuitarSlot::strings) + ".");
+
+        // Section 16's per-string sentence; people number strings from 1 = high E.
+        const auto setMaterial = text (GuitarSlot::strings, "winding_material", "nickel_plated_steel");
+        scene.stringDescriptions.clear();
+
+        for (int s = 0; s < numStrings; ++s)
+        {
+            const auto& over = guitar.stringOverrides[(size_t) juce::jmin (s, 11)];
+            const auto m = nice (over.material.isNotEmpty() ? over.material : setMaterial);
+            scene.stringDescriptions.push_back ("String " + juce::String (s + 1) + ": " + partName (GuitarSlot::strings) + " "
+                                                + m + (wound[(size_t) s] ? " wound" : " plain") + ", "
+                                                + juce::String (juce::roundToInt (gaugeMm[(size_t) s] / kInch * 1000.0f)) + " gauge"
+                                                + (over.isSet() ? " (this string overridden)" : "") + ".");
+        }
 
         add (GuitarRegion::tuners, tunerArea, "Tuners: " + partName (GuitarSlot::tuners) + ", " + nice (guitar.hardwareColour) + ".");
     }

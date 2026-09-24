@@ -130,7 +130,8 @@ StringSpec StringMaterials::computeSpec (StringMaterial material,
                                          int stringIndex,
                                          double targetHz,
                                          double scaleLengthMm,
-                                         double diameterInchesOverride) noexcept
+                                         double diameterInchesOverride,
+                                         int woundOverride) noexcept
 {
     const auto& mat = get (material);
     const auto& ageFx = kAgeEffects[(size_t) juce::jlimit (0, (int) StringAge::NumAges - 1, (int) age)];
@@ -153,6 +154,9 @@ StringSpec StringMaterials::computeSpec (StringMaterial material,
         wound = (stringIndex >= 3);
     else if (mat.alwaysWound)
         wound = true;
+
+    if (woundOverride >= 0)
+        wound = woundOverride == 1;
 
     spec.wound = wound;
     spec.coreDiameterMm = wound ? spec.diameterMm * mat.coreRatio : spec.diameterMm;

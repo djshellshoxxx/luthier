@@ -454,6 +454,10 @@ private:
     std::array<StringSpec, kMaxStrings> stringSpecs {};
     StringAge stringAge = StringAge::BrokenIn;
     std::array<double, kMaxStrings> customGauges {};
+
+    // workshop-ui.md 3.3 (VISUAL-WORKSHOP-QA): a parts guitar's per-string
+    // material and plain/wound overrides; -1 = the set's.
+    std::array<int, kMaxStrings> partsStringMaterial {}, partsStringWound {};
     CouplingMatrix coupling;
     BodyEngine body;
     PickupEngine pickups;
