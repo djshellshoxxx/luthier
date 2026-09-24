@@ -182,8 +182,9 @@ function Step-Stage {
     $clap = Join-Path $artefacts 'CLAP/Luthier.clap'
     if (Test-Path $clap) { Copy-Item $clap $out }
     Copy-Item (Join-Path $artefacts 'Standalone/Luthier.exe') $out
-    $render = Join-Path $BuildDir "LuthierRender_artefacts/$Config/luthier-render.exe"
-    if (Test-Path $render) { Copy-Item $render $out }
+    # The console app's file is named after its target; it ships as luthier-render.exe.
+    $render = Join-Path $BuildDir "LuthierRender_artefacts/$Config/LuthierRender.exe"
+    if (Test-Path $render) { Copy-Item $render (Join-Path $out 'luthier-render.exe') }
 
     # One shared copy of the factory content (installer.md 1.1: ProgramData).
     Copy-Item -Recurse 'Resources' (Join-Path $out 'Resources')
@@ -191,7 +192,7 @@ function Step-Stage {
     Copy-Item 'Resources/luthier.ico' $out
 
     # The VST3 bundle keeps JUCE's moduleinfo.json but not our content.
-    foreach ($d in 'BodyIRs', 'CabIRs', 'Fonts', 'Guitars', 'Parts', 'Presets', 'Tunes') {
+    foreach ($d in 'BodyIRs', 'CabIRs', 'Fonts', 'Guitars', 'Parts', 'Presets', 'Tunes', 'icon.png', 'icon_small.png', 'luthier.ico') {
         $p = Join-Path $out "Luthier.vst3/Contents/Resources/$d"
         if (Test-Path $p) { Remove-Item -Recurse -Force $p }
     }

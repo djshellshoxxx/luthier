@@ -238,8 +238,9 @@ do_stage() {
     else
         cp "$ARTEFACTS/Standalone/Luthier" "$out/luthier"
     fi
-    local render="$BUILD_DIR/LuthierRender_artefacts/$CONFIG/luthier-render"
-    [ -d "$render.app" ] && render="$render.app/Contents/MacOS/luthier-render"
+    # The console app's file is named after its target (LuthierRender); it
+    # ships as luthier-render, the name its --help and the docs use.
+    local render="$BUILD_DIR/LuthierRender_artefacts/$CONFIG/LuthierRender"
     [ -e "$render" ] && cp "$render" "$out/luthier-render"
 
     # One copy of the factory content, shared by every format; the installers
@@ -254,6 +255,10 @@ do_stage() {
         for d in BodyIRs CabIRs Fonts Guitars Parts Presets Tunes; do
             rm -rf "$b/Contents/Resources/$d"
         done
+        # Our icons came along with the content copy; a bundle's own icon
+        # (macOS) is the .icns JUCE generates, which is kept.
+        rm -f "$b/Contents/Resources/icon.png" "$b/Contents/Resources/icon_small.png" \
+              "$b/Contents/Resources/luthier.ico"
         # Removing files from a signed bundle breaks its seal: re-sign ad hoc.
         # scripts/package_macos.sh signs again with the Developer ID.
         [ "$PLATFORM" = macos ] && codesign --force --deep --sign - "$b"

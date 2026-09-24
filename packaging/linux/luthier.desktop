@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Luthier
+GenericName=Guitar Instrument
+Comment=Physically modelled guitar instrument
+Exec=luthier %f
+Icon=luthier
+Terminal=false
+Categories=AudioVideo;Audio;Music;Midi;
+MimeType=application/x-luthier-preset;application/x-luthier-guitar;application/x-luthier-tune;application/x-luthier-loop;application/x-luthier-setlist;application/x-luthier-midprofile;
+Keywords=guitar;synth;instrument;vst3;clap;
+StartupWMClass=Luthier
