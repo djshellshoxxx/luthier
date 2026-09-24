@@ -5,16 +5,20 @@
 
       - the rules on their own (Muting::dampingFor, resolve, humanise) and the
         string they damp (StringEngine's Muted mode, measured on a low E);
-      - the rhythm engine, which stamps a mute on every note it writes - from
-        a pattern's mute row, the master mode, the chuka source, or the live
-        grid for notes it does not write;
-      - the plugin: the parameters, the preset round trip, the MUTE group, the
-        RHYTHM tab's Mute Row and Easy mode's Mute button.
+      - the rhythm engine, which stamps each note with its pattern step's mute,
+        and MuteEngine, which gives every note its final one - the master mode,
+        the chuka source, or the live grid for notes the rhythm engine did not
+        write;
+      - the plugin: the parameters, the preset round trip, the MUTE sub-tab,
+        the RHYTHM tab's Mute Row and Easy mode's Mute button.
 */
 
 #include "TestFramework.h"
 
 #include "../Rhythm/Muting.h"
+#include "../DSP/Techniques/MuteEngine.h"
+#include "../UI/Techniques/TechniquesPanel.h"
+#include "../UI/Techniques/TechniquePillRow.h"
 #include "../Rhythm/RhythmEngine.h"
 #include "../Rhythm/Patterns.h"
 #include "../Model/Playing/RubricVoicer.h"
@@ -78,9 +82,21 @@ namespace
 
     /*  T60 from the slope of the envelope between 10 and 40 dB under its peak.
         The envelope is RMS over one period of the low E, hopped by 1 ms, so
-        the waveform's own shape does not read as decay. */
-    double measureT60 (const std::vector<double>& x)
+        the waveform's own shape does not read as decay.
+
+        Measured on the note itself - a band around the low E's fundamental -
+        because the string's output DC blocker (7 Hz, a 23 ms time constant)
+        rings on its own after any short, damped strike, and that sub-audio
+        tail is not the string: broadband, it read a 50 ms loop T60 as 112 ms. */
+    double measureT60 (const std::vector<double>& raw)
     {
+        std::vector<double> x (raw.size());
+        Biquad band;
+        band.setBandpass (kSr, kLowE, 1.5);
+
+        for (size_t i = 0; i < raw.size(); ++i)
+            x[i] = band.process (raw[i]);
+
         const int window = (int) (kSr / kLowE);
         const int hop = (int) (kSr * 0.001);
 
@@ -182,6 +198,7 @@ namespace
                 transport.ppqPosition = (double) b * (double) kBlock / perBeat;
 
                 engine.processBlock (kBlock, transport, *out);
+            mute.apply (*out, kSr, transport.bpm, transport.ppqPosition, true, true);
 
                 for (int i = 0; i < out->getNumNoteOns(); ++i)
                 {
@@ -200,9 +217,18 @@ namespace
                               [] (const Hit& a, const Hit& c) { return a.sample < c.sample; });
         }
 
+        void setMuteSettings (const MuteSettings& s) { mute.setSettings (s); }
+
+        /** Played notes, the rhythm engine not writing them: the live grid's path. */
+        void applyLiveMutes (PlayEventQueue& q, const RhythmTransport& t)
+        {
+            mute.apply (q, kSr, t.bpm, t.ppqPosition, t.isPlaying, false);
+        }
+
         TuningEngine tuning;
         RubricVoicer voicer;
         RhythmEngine engine;
+        MuteEngine mute;
     };
 
     /** Down-strums on the four beats of a 16-step bar. */
@@ -430,7 +456,7 @@ LUTHIER_TEST (Muting, existingPatternsPlayIdentically)
 
         {
             auto f = std::make_unique<MuteFixture>();
-            f->engine.setMuteSettings (armedNeutral());
+            f->setMuteSettings (armedNeutral());
             f->holdOpenE();
             f->engine.setPattern (pattern);
             f->play (2.0, neutral);
@@ -497,7 +523,7 @@ LUTHIER_TEST (Muting, aSoftStrumIsAChuka)
 
     MuteSettings s;
     s.armed = true;   // chuka source defaults to soft strums
-    f->engine.setMuteSettings (s);
+    f->setMuteSettings (s);
 
     f->holdOpenE();
     f->engine.setPattern (quarterDowns (0.2));
@@ -531,7 +557,9 @@ LUTHIER_TEST (Muting, aSoftStrumIsAChuka)
         x = string.processSample (0.0);
 
     const double t60 = measureT60 (out);
-    CHECK_MSG (t60 > 0.0 && t60 < 0.03, "chuka T60 " + juce::String (t60 * 1000.0, 1) + " ms");
+    // "No sustained pitch": gone well inside an eighth note at any tempo. The
+    // fundamental band's own ring (about 6 ms) bounds how short it can read.
+    CHECK_MSG (t60 > 0.0 && t60 < 0.05, "chuka T60 " + juce::String (t60 * 1000.0, 1) + " ms");
 }
 
 /*  3: the master mode overrides every step, on the rhythm engine's notes and
@@ -543,7 +571,7 @@ LUTHIER_TEST (Muting, theMasterModeOverridesEverything)
 
     auto s = armedNeutral();
     s.masterMode = (int) MuteType::palmExtreme;
-    f->engine.setMuteSettings (s);
+    f->setMuteSettings (s);
 
     auto pattern = quarterDowns();
     MuteStep ghost;
@@ -573,7 +601,7 @@ LUTHIER_TEST (Muting, theMasterModeOverridesEverything)
     RhythmTransport stopped;
     stopped.isPlaying = false;
 
-    f->engine.applyLiveMutes (*events, kBlock, stopped);
+    f->applyLiveMutes (*events, stopped);
     CHECK (events->getNoteOn (0).muteType == (int) MuteType::palmExtreme);
 }
 
@@ -583,7 +611,7 @@ LUTHIER_TEST (Muting, theMasterModeOverridesEverything)
 LUTHIER_TEST (Muting, paintingTheLiveGridAppliesWithinABar)
 {
     auto f = std::make_unique<MuteFixture>();
-    f->engine.setMuteSettings (armedNeutral());
+    f->setMuteSettings (armedNeutral());
 
     const double samplesPerSixteenth = 0.125 * kSr;   // 120 bpm
 
@@ -609,7 +637,7 @@ LUTHIER_TEST (Muting, paintingTheLiveGridAppliesWithinABar)
             e.sampleOffset = 10;   // just after the step's start
             events->addNoteOn (e);
 
-            f->engine.applyLiveMutes (*events, kBlock, t);
+            f->applyLiveMutes (*events, t);
             types[(size_t) step] = events->getNoteOn (0).muteType;
         }
 
@@ -623,7 +651,7 @@ LUTHIER_TEST (Muting, paintingTheLiveGridAppliesWithinABar)
         CHECK (t == (int) MuteType::open);
 
     // Paint step 6 mid-bar; the very next bar has it.
-    f->engine.setLiveMuteStep (6, MuteType::palmHeavy);
+    f->mute.setLiveStep (6, MuteType::palmHeavy);
 
     const auto after = playBar (1);
 
@@ -632,62 +660,63 @@ LUTHIER_TEST (Muting, paintingTheLiveGridAppliesWithinABar)
                    "step " + juce::String (step) + " came out as " + juce::String (after[(size_t) step]));
 
     // Disarmed, the live grid leaves played notes alone.
-    f->engine.setMuteSettings (MuteSettings {});
+    f->setMuteSettings (MuteSettings {});
     const auto disarmed = playBar (2);
     CHECK (disarmed[6] == (int) MuteType::open);
 }
 
 /*  3: fretting-hand style. Rock spread: the spare fingers deaden the strings
-    a muted strum does not strike. Classical fingertip: they ring on. */
+    a muted strike does not play. Classical fingertip: they ring on. Through
+    the whole engine: an open E chord rings, then a palm-muted strike on the
+    top string alone. */
 LUTHIER_TEST (Muting, rockSpreadDeadensTheStringsAMutedStrumMisses)
 {
-    auto offsFor = [] (FrettingMuteStyle style)
+    auto lowELevelAfter = [] (FrettingMuteStyle style)
     {
-        auto f = std::make_unique<MuteFixture>();
+        auto engine = std::make_unique<LuthierEngine>();
+        engine->prepare (kSr, kBlock);
 
-        auto s = armedNeutral();
+        MuteSettings s;
+        s.armed = true;
         s.frettingStyle = style;
-        f->engine.setMuteSettings (s);
+        engine->setMuteSettings (s);
 
-        // Beat 1: all six, open. Beat 2: the top three only, palm-muted.
-        RhythmPattern p;
-        p.setKind (RhythmPattern::Kind::strum);
-        p.setSubdivision (Subdivision::sixteenth);
-        p.setLength (16);
+        juce::AudioBuffer<float> buffer (2, kBlock);
+        juce::MidiBuffer none;
 
-        StrumStep all;
-        all.type = StrumType::down;
-        all.dynamic = 0.8;
-        all.stringMask = 0x0FFF;
-        p.setStrumStep (0, all);
+        for (int string = 0; string < 6; ++string)
+        {
+            NoteOnEvent e;
+            e.stringIndex = string;
+            e.fretPosition = 0.0;
+            e.pitchHz = engine->getTuningEngine().computeFrequency (string, 0.0, 0.0);
+            e.velocity = 0.8;
+            engine->triggerNoteNow (e);
+        }
 
-        StrumStep top = all;
-        top.stringMask = 0x0007;   // indices 0-2: the treble strings
-        p.setStrumStep (4, top);
+        for (int b = 0; b < 10; ++b)
+            engine->processBlock (buffer, none);
 
-        MuteStep heavy;
-        heavy.type = MuteType::palmHeavy;
-        p.setMuteStep (4, heavy);
+        NoteOnEvent muted;
+        muted.stringIndex = 0;
+        muted.pitchHz = engine->getTuningEngine().computeFrequency (0, 0.0, 0.0);
+        muted.velocity = 0.8;
+        muted.muteType = (int) MuteType::palmHeavy;
+        engine->triggerNoteNow (muted);
 
-        f->holdOpenE();
-        f->engine.setPattern (p);
+        for (int b = 0; b < (int) (0.3 * kSr / kBlock); ++b)
+            engine->processBlock (buffer, none);
 
-        std::vector<Hit> hits;
-        std::vector<Off> offs;
-        f->play (0.7, hits, &offs);
-
-        // Note-offs on the bass strings at beat 2.
-        int bassOffs = 0;
-
-        for (const auto& o : offs)
-            if (o.stringIndex >= 3 && o.sample >= (int64_t) (0.5 * kSr) - 1)
-                ++bassOffs;
-
-        return bassOffs;
+        return engine->getString (5).getLevel();
     };
 
-    CHECK_MSG (offsFor (FrettingMuteStyle::rockSpread) >= 3, "rock spread left the bass strings ringing");
-    CHECK_MSG (offsFor (FrettingMuteStyle::classicalFingertip) == 0, "classical fingertip deadened strings");
+    const double spread = lowELevelAfter (FrettingMuteStyle::rockSpread);
+    const double classical = lowELevelAfter (FrettingMuteStyle::classicalFingertip);
+
+    CHECK_MSG (gainToDb (spread / juce::jmax (1.0e-12, classical)) < -30.0,
+               "rock spread left the low E at " + juce::String (gainToDb (spread / juce::jmax (1.0e-12, classical)), 1)
+                 + " dB against classical");
+    CHECK_MSG (classical > 1.0e-4, "classical fingertip deadened the low E");
 }
 
 /*  technique-cascade.md 2-3: muting is additive and can always be added. A
@@ -700,7 +729,7 @@ LUTHIER_TEST (Muting, aMuteIsStampedOnAnyTechnique)
 
     auto s = armedNeutral();
     s.masterMode = (int) MuteType::palmHeavy;
-    f->engine.setMuteSettings (s);
+    f->setMuteSettings (s);
 
     auto events = std::make_unique<PlayEventQueue>();
     events->clear();
@@ -714,7 +743,7 @@ LUTHIER_TEST (Muting, aMuteIsStampedOnAnyTechnique)
     }
 
     RhythmTransport t;
-    f->engine.applyLiveMutes (*events, kBlock, t);
+    f->applyLiveMutes (*events, t);
 
     for (int i = 0; i < events->getNumNoteOns(); ++i)
         CHECK (events->getNoteOn (i).muteType == (int) MuteType::palmHeavy);
@@ -725,7 +754,8 @@ LUTHIER_TEST (Muting, aMuteIsStampedOnAnyTechnique)
 //==============================================================================
 
 /*  9: "Preset save / restore round-trips the mute grid." The pattern's row
-    through .luthierpattern JSON, the live grid through the engine's state. */
+    through .luthierpattern JSON; the live grid through a .luthierpreset file
+    (its techniques block) and the plugin's saved state. */
 LUTHIER_TEST (Muting, theMuteGridsRoundTrip)
 {
     auto pattern = quarterDowns();
@@ -740,6 +770,10 @@ LUTHIER_TEST (Muting, theMuteGridsRoundTrip)
     chuka.type = MuteType::chuka;
     pattern.setMuteStep (8, chuka);
 
+    MuteStep onRest;
+    onRest.type = MuteType::ghost;
+    pattern.setMuteStep (2, onRest);   // a rest step's mute is the row's too
+
     const auto json = juce::JSON::toString (pattern.toVar(), false);
     CHECK (json.contains ("\"mute_type\""));
     CHECK (json.contains ("palm_mute_light"));
@@ -749,30 +783,39 @@ LUTHIER_TEST (Muting, theMuteGridsRoundTrip)
     CHECK_NEAR (back.getMuteStep (0).pressure, 0.3, 1.0e-9);
     CHECK_NEAR (back.getMuteStep (0).positionMm, 50.0, 1.0e-9);
     CHECK (back.getMuteStep (8).type == MuteType::chuka);
+    CHECK (back.getMuteStep (2).type == MuteType::ghost);
     CHECK (back.getMuteStep (4).type == MuteType::open);
     CHECK (back.getMuteStep (4).pressure < 0.0);
 
-    // The live grid through the rhythm engine's state, as a preset carries it.
-    auto a = std::make_unique<MuteFixture>();
-    auto b = std::make_unique<MuteFixture>();
+    // A pattern with no mutes writes no mute fields: files as they always were.
+    CHECK (! juce::JSON::toString (quarterDowns().toVar(), false).contains ("mute"));
 
-    for (int i = 0; i < kLiveMuteSteps; ++i)
-        a->engine.setLiveMuteStep (i, muteTypeFromLetter (getMuteGridPreset (1).cells[i]));
-
-    b->engine.fromVar (juce::JSON::parse (juce::JSON::toString (a->engine.toVar(), false)));
-
-    for (int i = 0; i < kLiveMuteSteps; ++i)
-        CHECK (b->engine.getLiveMuteStep (i) == a->engine.getLiveMuteStep (i));
-
-    // And through the plugin's saved state, which is where the rhythm engine's
-    // state travels. (A .luthierpreset file does not carry the rhythm engine
-    // at all yet - rhythm-engine 9's gap, not muting's.)
+    // The live grid and the parameters through a preset file.
     auto source = std::make_unique<LuthierAudioProcessor>();
     source->prepareToPlay (kSr, kBlock);
 
-    source->getEngine().getRhythmEngine().setLiveMuteStep (3, MuteType::ghost);
-    setPlain (*source, ParamIDs::mutePalmPressure, 0.8f);
+    for (int i = 0; i < kLiveMuteSteps; ++i)
+        source->getEngine().getTechniqueLayer().mute.setLiveStep (i, muteTypeFromLetter (getMuteGridPreset (1).cells[i]));
 
+    setPlain (*source, ParamIDs::mutePalmPressure, 0.8f);
+    setPlain (*source, ParamIDs::muteArmed, 1.0f);
+
+    const auto file = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier_mute_roundtrip.luthierpreset");
+    file.replaceWithText (juce::JSON::toString (source->getPresetManager().toVar ("Mute Round Trip"), false));
+
+    auto restored = std::make_unique<LuthierAudioProcessor>();
+    restored->prepareToPlay (kSr, kBlock);
+    CHECK (restored->getPresetManager().loadPreset (file));
+
+    for (int i = 0; i < kLiveMuteSteps; ++i)
+        CHECK (restored->getEngine().getTechniqueLayer().mute.getLiveStep (i)
+               == source->getEngine().getTechniqueLayer().mute.getLiveStep (i));
+
+    CHECK_NEAR (plainOf (*restored, ParamIDs::mutePalmPressure), 0.8f, 1.0e-3f);
+    CHECK (plainOf (*restored, ParamIDs::muteArmed) > 0.5f);
+    file.deleteFile();
+
+    // And through the plugin's saved state, the pattern's row with it.
     auto pattern2 = quarterDowns();
     pattern2.setMuteStep (12, light);
     source->getEngine().getRhythmEngine().setPattern (pattern2);
@@ -780,18 +823,24 @@ LUTHIER_TEST (Muting, theMuteGridsRoundTrip)
     juce::MemoryBlock state;
     source->getStateInformation (state);
 
-    auto restored = std::make_unique<LuthierAudioProcessor>();
-    restored->prepareToPlay (kSr, kBlock);
-    restored->setStateInformation (state.getData(), (int) state.getSize());
+    auto again = std::make_unique<LuthierAudioProcessor>();
+    again->prepareToPlay (kSr, kBlock);
+    again->setStateInformation (state.getData(), (int) state.getSize());
 
-    auto& rhythm = restored->getEngine().getRhythmEngine();
-    CHECK (rhythm.getLiveMuteStep (3) == MuteType::ghost);
-    CHECK (rhythm.getPattern().getMuteStep (12).type == MuteType::palmLight);
-    CHECK_NEAR (plainOf (*restored, ParamIDs::mutePalmPressure), 0.8f, 1.0e-3f);
+    CHECK (again->getEngine().getTechniqueLayer().mute.getLiveStep (2) == muteTypeFromLetter (getMuteGridPreset (1).cells[2]));
+    CHECK (again->getEngine().getRhythmEngine().getPattern().getMuteStep (12).type == MuteType::palmLight);
+
+    // engine-technique-layer 6: a preset without the block loads with a clear grid.
+    auto defaults = std::make_unique<LuthierAudioProcessor>();
+    defaults->prepareToPlay (kSr, kBlock);
+    defaults->getPresetManager().resetToDefaults();
+
+    for (int i = 0; i < kLiveMuteSteps; ++i)
+        CHECK (defaults->getEngine().getTechniqueLayer().mute.getLiveStep (i) == MuteType::open);
 }
 
 /*  3 / engine-technique-layer 5: the parameters, with their defaults, reach
-    the rhythm engine through the bridge. */
+    the mute engine through the bridge. */
 LUTHIER_TEST (Muting, parametersReachTheEngine)
 {
     auto processor = std::make_unique<LuthierAudioProcessor>();
@@ -817,7 +866,7 @@ LUTHIER_TEST (Muting, parametersReachTheEngine)
 
     processor->getParameterBridge().applyAllNow();
 
-    const auto s = processor->getEngine().getRhythmEngine().getMuteSettings();
+    const auto s = processor->getEngine().getTechniqueLayer().mute.getSettings();
 
     CHECK (s.armed);
     CHECK (s.masterMode == (int) MuteType::palmHeavy);
@@ -829,15 +878,15 @@ LUTHIER_TEST (Muting, parametersReachTheEngine)
     CHECK_NEAR (s.ghostVelocity, 0.6, 1.0e-4);
 }
 
-/*  7 / gui-techniques-updates 1 and 4: the MUTE group edits what it shows,
-    the RHYTHM tab carries the group and the pattern's Mute Row, and the
-    presets write the live grid. */
+/*  7 / gui-techniques-updates 1 and 6: the MUTE sub-tab edits what it shows,
+    the RHYTHM tab carries the pattern's Mute Row, and the presets write the
+    live grid - each paint an undoable mute-grid-paint. */
 LUTHIER_TEST (Muting, theMuteControlsDriveTheModel)
 {
     auto processor = std::make_unique<LuthierAudioProcessor>();
     processor->prepareToPlay (kSr, kBlock);
 
-    auto& rhythm = processor->getEngine().getRhythmEngine();
+    auto& mute = processor->getEngine().getTechniqueLayer().mute;
 
     MuteGroup group (*processor);
     group.setSize (360, MuteGroup::preferredHeight);
@@ -851,41 +900,45 @@ LUTHIER_TEST (Muting, theMuteControlsDriveTheModel)
                                                                      juce::sendNotificationSync);
     CHECK_NEAR (plainOf (*processor, ParamIDs::muteMasterMode), (float) ((int) MuteType::ghost + 1), 1.0e-3f);
 
-    // Paint the live grid with the brush.
+    // Paint the live grid with the brush: one undo entry.
+    TechniqueUndo::resetMergeWindow();
+    const int before = processor->getNumUndoSteps();
     group.getBrushBox().setSelectedId ((int) MuteType::palmExtreme + 1, juce::sendNotificationSync);
     group.getLiveGrid().paintCell (9);
-    CHECK (rhythm.getLiveMuteStep (9) == MuteType::palmExtreme);
+    CHECK (mute.getLiveStep (9) == MuteType::palmExtreme);
+    CHECK (processor->getNumUndoSteps() == before + 1);
+
+    processor->undo();
+    CHECK (processor->getEngine().getTechniqueLayer().mute.getLiveStep (9) == MuteType::open);
 
     // 6: a preset writes all sixteen.
     group.getPresetBox().setSelectedId (1, juce::sendNotificationSync);   // Metal Chug 16ths
 
     for (int i = 0; i < kLiveMuteSteps; ++i)
-        CHECK (rhythm.getLiveMuteStep (i) == MuteType::palmHeavy);
+        CHECK (processor->getEngine().getTechniqueLayer().mute.getLiveStep (i) == MuteType::palmHeavy);
 
-    // The RHYTHM tab: the group, and the Mute Row editing the pattern.
+    // The RHYTHM tab's Mute Row edits the pattern.
+    auto& rhythm = processor->getEngine().getRhythmEngine();
     rhythm.setPattern (quarterDowns());
 
     RhythmPanel panel (*processor);
     panel.setSize (400, panel.preferredHeight());
 
-    int groups = 0;
     MuteGridEditor* muteRow = nullptr;
 
     for (auto* child : panel.getChildren())
-    {
-        if (dynamic_cast<MuteGroup*> (child) != nullptr)
-            ++groups;
-
         if (auto* row = dynamic_cast<MuteGridEditor*> (child))
             muteRow = row;
-    }
 
-    CHECK_MSG (groups == 1, "the RHYTHM panel holds " + juce::String (groups) + " MUTE groups");
     CHECK_MSG (muteRow != nullptr, "the RHYTHM panel has no Mute Row");
 
     if (muteRow != nullptr)
     {
         CHECK (muteRow->getNumCells != nullptr && muteRow->getNumCells() == 16);
+
+        // All open for a pattern without mute_type.
+        for (int i = 0; i < 16; ++i)
+            CHECK (muteRow->getCell (i) == MuteType::open);
 
         muteRow->setBrush (MuteType::fretMute);
         muteRow->paintCell (4);
@@ -893,6 +946,12 @@ LUTHIER_TEST (Muting, theMuteControlsDriveTheModel)
         CHECK (rhythm.getPattern().getMuteStep (4).type == MuteType::fretMute);
         CHECK (muteRow->getCell (4) == MuteType::fretMute);
     }
+
+    // The MUTE sub-tab of TECHNIQUES holds the group.
+    TechniquesPanel techniques (*processor);
+    techniques.setSize (700, 600);
+    techniques.showTechnique (TechniqueSlot::mute);
+    CHECK (dynamic_cast<MutePage*> (techniques.getPage ((int) TechniqueSlot::mute)) != nullptr);
 }
 
 /*  7: Easy mode's Mute button: Off, Light, Heavy, Extreme, and back to Off. */
@@ -918,15 +977,10 @@ LUTHIER_TEST (Muting, theEasyMuteButtonCyclesFourWays)
     CHECK (button.getState() == 0);
     CHECK (plainOf (*processor, ParamIDs::muteArmed) < 0.5f);
 
-    // It is on Easy mode's playing strip.
+    // It is on Easy mode's playing strip, in the pill row.
     EasyPanel easy (*processor);
-    int buttons = 0;
-
-    for (auto* child : easy.getChildren())
-        if (dynamic_cast<EasyMuteButton*> (child) != nullptr)
-            ++buttons;
-
-    CHECK (buttons == 1);
+    CHECK (easy.getTechniquePills().getMuteButton().isVisible());
+    CHECK (easy.getTechniquePills().getParentComponent() == &easy);
 }
 
 /*  1: a fret mute rings, then stops. Through the whole engine: armed with the
@@ -934,7 +988,11 @@ LUTHIER_TEST (Muting, theEasyMuteButtonCyclesFourWays)
     milliseconds and gone long before an open one. */
 LUTHIER_TEST (Muting, aFretMuteRingsThenStops)
 {
-    auto renderNote = [] (bool fretMute)
+    /*  The struck string's own level, early and late. Not the output: the
+        body, the room and the other open strings (ringing in sympathy through
+        the bridge) carry on after the finger lets go, as they would. Read at
+        half a second, because the level follower itself releases over 60 ms. */
+    auto levels = [] (bool fretMute, double& early, double& late)
     {
         auto engine = std::make_unique<LuthierEngine>();
         engine->prepare (kSr, kBlock);
@@ -951,9 +1009,9 @@ LUTHIER_TEST (Muting, aFretMuteRingsThenStops)
         engine->setMuteSettings (s);
 
         juce::AudioBuffer<float> buffer (2, kBlock);
-        std::vector<double> mono;
+        int string = -1;
 
-        for (int b = 0; b < (int) (0.4 * kSr / kBlock); ++b)
+        for (int b = 0; b < (int) (0.5 * kSr / kBlock); ++b)
         {
             juce::MidiBuffer midi;
 
@@ -963,25 +1021,82 @@ LUTHIER_TEST (Muting, aFretMuteRingsThenStops)
             buffer.clear();
             engine->processBlock (buffer, midi);
 
-            for (int i = 0; i < kBlock; ++i)
-                mono.push_back (0.5 * (buffer.getSample (0, i) + buffer.getSample (1, i)));
+            for (int i = 0; i < engine->getNumStrings() && string < 0; ++i)
+                if (engine->getString (i).hasSounded())
+                    string = i;
+
+            const double t = (double) (b + 1) * kBlock / kSr;
+
+            if (string >= 0 && t >= 0.040 && t < 0.040 + (double) kBlock / kSr)
+                early = engine->getString (string).getLevel();
         }
 
-        return mono;
+        late = string >= 0 ? engine->getString (string).getLevel() : 0.0;
     };
 
-    const auto open = renderNote (false);
-    const auto staccato = renderNote (true);
+    double openEarly = 0.0, openLate = 0.0, muteEarly = 0.0, muteLate = 0.0;
+    levels (false, openEarly, openLate);
+    levels (true, muteEarly, muteLate);
 
-    const int early = (int) (0.010 * kSr), earlyLength = (int) (0.050 * kSr);
-    const int late = (int) (0.200 * kSr), lateLength = (int) (0.150 * kSr);
-
-    const double earlyDb = gainToDb (rms (staccato.data() + early, earlyLength)
-                                     / juce::jmax (1.0e-12, rms (open.data() + early, earlyLength)));
-    const double lateDb = gainToDb (rms (staccato.data() + late, lateLength)
-                                    / juce::jmax (1.0e-12, rms (open.data() + late, lateLength)));
+    const double earlyDb = gainToDb (muteEarly / juce::jmax (1.0e-12, openEarly));
+    const double lateDb = gainToDb (muteLate / juce::jmax (1.0e-12, openLate));
 
     CHECK_MSG (earlyDb > -6.0, "the fret mute did not ring first: " + juce::String (earlyDb, 1) + " dB");
-    // Not -60: the room's tail of the short note is still there, as it would be.
-    CHECK_MSG (lateDb < -20.0, "the fret mute did not stop: " + juce::String (lateDb, 1) + " dB");
+    CHECK_MSG (lateDb < -30.0, "the fret mute did not stop: " + juce::String (lateDb, 1) + " dB");
+}
+
+/*  9: "Cascade with slap: slap event carries its own mute_type; grid override
+    propagates correctly." A slapped note (velocity zone) under a palm-heavy
+    master mode is stamped and damped like any other strike: slap + palm mute
+    is standard funk (5, technique-cascade.md 2). */
+LUTHIER_TEST (Muting, aSlappedNoteCarriesItsMute)
+{
+    auto levelAfter = [] (bool muted)
+    {
+        auto engine = std::make_unique<LuthierEngine>();
+        engine->prepare (kSr, kBlock);
+        engine->setGuitarType (GuitarType::PrecisionBass);
+
+        SlapSettings slap;
+        slap.armed = true;
+        slap.trigger = TriggerSource::velocityZone;
+        slap.velocityZone = 100;
+        engine->setSlapSettings (slap);
+
+        MuteSettings s;
+        s.armed = muted;
+        s.masterMode = muted ? (int) MuteType::palmHeavy : -1;
+        engine->setMuteSettings (s);
+
+        juce::AudioBuffer<float> buffer (2, kBlock);
+        double level = 0.0;
+        int string = -1;
+
+        for (int b = 0; b < (int) (0.25 * kSr / kBlock); ++b)
+        {
+            juce::MidiBuffer midi;
+
+            if (b == 0)
+                midi.addEvent (juce::MidiMessage::noteOn (1, 40, (juce::uint8) 115), 0);
+
+            engine->processBlock (buffer, midi);
+
+            if (string < 0)
+                for (int i = 0; i < engine->getNumStrings(); ++i)
+                    if (engine->getString (i).hasSounded())
+                        string = i;
+        }
+
+        if (string >= 0)
+            level = engine->getString (string).getLevel();
+
+        return level;
+    };
+
+    const double open = levelAfter (false);
+    const double muted = levelAfter (true);
+
+    CHECK_MSG (open > 1.0e-4, "the slapped note did not sound");
+    CHECK_MSG (gainToDb (muted / juce::jmax (1.0e-12, open)) < -20.0,
+               "palm-muted slap is only " + juce::String (gainToDb (muted / juce::jmax (1.0e-12, open)), 1) + " dB under the open one");
 }
