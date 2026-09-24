@@ -183,6 +183,14 @@ ModMatrix::ModMatrix()
 
     for (auto& v : macroValues)
         v.store (0.0f);
+
+    // The two followers default to watching different things, because two
+    // followers on the same signal is never what anyone wanted. Set here, not
+    // in prepare(), which a host calls after restoring a session.
+    followers[0].setSource (ModEnvelopeFollower::Source::mainOutput);
+
+    if (followers.size() > 1)
+        followers[1].setSource (ModEnvelopeFollower::Source::sidechain);
 }
 
 ModMatrix::~ModMatrix() = default;
@@ -215,13 +223,6 @@ void ModMatrix::prepare (double newSampleRate, int newBlockSize,
         f.prepare (controlRateHz);
 
     randomSource.prepare (controlRateHz, 0xD1CED1CEull);
-
-    // The two followers default to watching different things, because two
-    // followers on the same signal is never what anyone wanted.
-    followers[0].setSource (ModEnvelopeFollower::Source::mainOutput);
-
-    if (followers.size() > 1)
-        followers[1].setSource (ModEnvelopeFollower::Source::sidechain);
 
     // --- destinations ------------------------------------------------------------
     const auto& parameters = state.processor.getParameters();

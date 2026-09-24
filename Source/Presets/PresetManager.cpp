@@ -376,7 +376,28 @@ juce::var PresetManager::toVar (const juce::String& name,
     for (auto* p : processor.getParameters())
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
             if (withId->paramID != ParamIDs::presetMorphPosition)
-                params->setProperty (withId->paramID, (double) withId->getValue());
+            {
+                // Written as it reads back: a skewed range turns a normalised
+                // value into a plain one and back with a float's error, so
+                // save -> load -> save must store the value after that trip.
+                double v = (double) withId->getValue();
+
+                if (auto* ranged = dynamic_cast<juce::AudioParameterFloat*> (withId))
+                {
+                    // A few passes reach the value the trip leaves alone.
+                    for (int pass = 0; pass < 8; ++pass)
+                    {
+                        const double next = (double) ranged->convertTo0to1 (ranged->convertFrom0to1 ((float) v));
+
+                        if (next == v)
+                            break;
+
+                        v = next;
+                    }
+                }
+
+                params->setProperty (withId->paramID, v);
+            }
 
     root->setProperty ("parameters", juce::var (params));
 
@@ -407,7 +428,16 @@ juce::var PresetManager::toVar (const juce::String& name,
     strings->setProperty ("numStrings", n);
     strings->setProperty ("customGaugeInches", writeArray (extra.customGaugeInches, n));
     strings->setProperty ("detuneCents", writeArray (extra.detuneCents, n));
-    strings->setProperty ("realismDetuneCents", writeArray (extra.realismDetuneCents, n));
+    // Derived from a float parameter, so it carries float noise; 0.0001 cents
+    // is far below hearing and makes save -> load -> save stable.
+    {
+        auto rounded = extra.realismDetuneCents;
+
+        for (auto& c : rounded)
+            c = std::round (c * 1.0e4) / 1.0e4;
+
+        strings->setProperty ("realismDetuneCents", writeArray (rounded, n));
+    }
     strings->setProperty ("fineTuneCents", writeArray (extra.fineTuneCents, n));
     strings->setProperty ("openFrequencyHz", writeArray (extra.openFrequencyHz, n));
     strings->setProperty ("useCustomTuning", extra.useCustomTuning);
@@ -509,7 +539,10 @@ bool PresetManager::fromVar (const juce::var& data)
             "magic", "format", "schemaVersion", "pluginVersion", "name", "category",
             "author", "description", "tags", "parameters", "strings", "extras",
             "lockedParameters", "midiMappings", "modulation", "snapshots",
-            "rhythmEngine", "routing", "character", "toneMatch"
+            "rhythmEngine", "routing", "character", "toneMatch",
+            // Written by this build too (a known key read back as unknown moved
+            // to the front of the next save, so save -> load -> save differed).
+            "ranges", "guitar", "midiMap"
         };
 
         auto* preserved = new juce::DynamicObject();
@@ -681,6 +714,7 @@ bool PresetManager::fromVar (const juce::var& data)
         extra.numStrings = juce::jlimit (1, kMaxStrings, (int) strings->getProperty ("numStrings"));
         extra.useCustomTuning = strings->getProperty ("useCustomTuning");
 
+        extraStateValid = true;
         readArray ("customGaugeInches", extra.customGaugeInches, kMaxStrings);
         readArray ("detuneCents", extra.detuneCents, kMaxStrings);
         readArray ("realismDetuneCents", extra.realismDetuneCents, kMaxStrings);
@@ -762,6 +796,7 @@ void PresetManager::applyExtraState()
 
 void PresetManager::captureExtraState()
 {
+    extraStateValid = true;
     const auto& tuningEngine = engine.getTuningEngine();
     extra.numStrings = engine.getNumStrings();
 

@@ -648,6 +648,7 @@ private:
     double blockTempo = 120.0;
 
     double currentSampleRate = 44100.0;
+    bool initialStateApplied = false;   ///< the bridge has built the instrument once (prepare or save)
     int currentBlockSize = 512;
 
     /*  A host may hand processBlock more samples than it promised in

@@ -61,6 +61,10 @@ const char* getMidiTargetName (MidiTarget t) noexcept;
 class MidiInterpreter
 {
 public:
+    /** The CC map starts at its defaults here, not in prepare(): a host
+        prepares after restoring a session and must not undo its MIDI map. */
+    MidiInterpreter() noexcept { resetCcMapToDefaults(); }
+
     void prepare (double sampleRate, int numStrings);
     void reset() noexcept;
 
