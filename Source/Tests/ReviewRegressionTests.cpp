@@ -505,3 +505,26 @@ LUTHIER_TEST (ReviewRegression, prepareKeepsTheSequencerSteps)
 
     CHECK_NEAR (processor.getModMatrix().getSequencer (0).getStep (3).value, 0.123, 1.0e-9);
 }
+
+//==============================================================================
+/*  R-216: a click fires when the position crosses an integer, and the position
+    started at exactly 0, so beat one never sounded: the first click was beat
+    two, a beat late, unaccented. */
+LUTHIER_TEST (ReviewRegression, theMetronomeStartsOnBeatOne)
+{
+    Metronome metronome;
+    metronome.prepare (48000.0, 512);
+    metronome.setTempo (120.0);
+    metronome.setEnabled (true);
+
+    std::vector<float> out (512);
+    metronome.processBlock (out.data(), 512);
+
+    // A click in the first 10 ms, not half a second later.
+    float early = 0.0f;
+
+    for (int i = 0; i < 480; ++i)
+        early = juce::jmax (early, std::abs (out[(size_t) i]));
+
+    CHECK_MSG (early > 1.0e-3f, "no click at the start: " + juce::String (early));
+}

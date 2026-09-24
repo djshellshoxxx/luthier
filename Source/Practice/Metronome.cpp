@@ -66,7 +66,8 @@ void Metronome::prepare (double sampleRate, int /*maxBlockSize*/)
 
 void Metronome::reset() noexcept
 {
-    clickPosition = 0.0;
+    clickPosition = kStartPosition;
+    restartPending.store (false, std::memory_order_relaxed);
     progressiveStartBar = 0.0;
 
     for (auto& voice : voices)
@@ -86,7 +87,7 @@ void Metronome::setEnabled (bool shouldBeEnabled) noexcept
     // Starting the metronome starts it on beat one, which is the only place a
     // musician expects a count-in to begin.
     if (shouldBeEnabled && ! was)
-        clickPosition = 0.0;
+        restartPending.store (true, std::memory_order_relaxed);
 }
 
 void Metronome::setTempo (double newBpm) noexcept
@@ -415,6 +416,9 @@ int Metronome::processBlock (float* destination, int numSamples) noexcept
 
     if (running && clicksPerBar > 0.0)
     {
+        if (restartPending.exchange (false, std::memory_order_relaxed))
+            clickPosition = kStartPosition;
+
         // ---- progressive tempo ----------------------------------------------------
         if (progressive.load (std::memory_order_relaxed))
         {
