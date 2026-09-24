@@ -1,4 +1,5 @@
 #include "RhythmEngine.h"
+#include <algorithm>
 
 namespace luthier
 {
