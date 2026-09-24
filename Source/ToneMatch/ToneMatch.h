@@ -346,7 +346,7 @@ public:
     static ImpulseResponse fit (const std::vector<float>& reference,
                                 const std::vector<float>& current,
                                 double sampleRate,
-                                const Options& options = {});
+                                const Options& options = Options());
 
     /** The magnitude response of a filter at a frequency, in dB. Used by the
         tests and by the panel's curve display. */
