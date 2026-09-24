@@ -255,8 +255,7 @@ if (UNIX AND NOT APPLE)
     set(CPACK_ARCHIVE_FILE_NAME "Luthier-${PROJECT_VERSION}-linux-x64")
     set(CPACK_PACKAGE_FILE_NAME "Luthier-${PROJECT_VERSION}-linux-x64")
     set(CPACK_DEBIAN_FILE_NAME "luthier_${PROJECT_VERSION}_amd64.deb")
-    set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY ON)
-    set(CPACK_COMPONENT_INCLUDE_TOPLEVEL_DIRECTORY ON)
+    # The top-level folder (tarball only) is set per generator in CPackProjectConfig.cmake.
 
     # installer.md 3.3: ALSA always; JACK or PipeWire for low latency; X11
     # (JUCE opens libX11 and friends at run time, so they are named here).
