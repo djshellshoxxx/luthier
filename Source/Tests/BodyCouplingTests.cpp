@@ -11,6 +11,7 @@
 #include "TestFramework.h"
 
 #include "../DSP/Coupling/BodyCouplingBank.h"
+#include "../DSP/Coupling/CouplingMatrix.h"
 #include "../DSP/String/StringEngine.h"
 #include "../Model/Guitar/StringMaterials.h"
 #include "../Model/Guitar/GuitarLibrary.h"
@@ -816,5 +817,28 @@ LUTHIER_TEST (BodyCoupling, BC13_budgetAndSafety)
     }
 
     const double units = 100.0 * best / (samples / kSr);
+
+    // The saddle matrix on the same machine, for scale (budget 0.4 units).
+    CouplingMatrix matrix;
+    matrix.prepare (kSr, 12);
+    matrix.buildDefault (0.020);
+
+    for (int s = 0; s < 12; ++s)
+        matrix.setStringFrequency (s, 82.0 * (1.0 + 0.1 * s));
+
+    double matrixBest = 1.0e9;
+
+    for (int run = 0; run < 3; ++run)
+    {
+        const auto start = juce::Time::getHighResolutionTicks();
+
+        for (int i = 0; i < samples; ++i)
+            matrix.process (waves.data(), inputs.data());
+
+        matrixBest = juce::jmin (matrixBest, juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - start));
+    }
+
+    const double matrixUnits = 100.0 * matrixBest / (samples / kSr);
+    std::printf ("bank %.4f units, matrix %.4f units\n", units, matrixUnits);
     CHECK_MSG (units <= 0.08, "BodyCouplingBank costs " + juce::String (units, 4) + " units (budget 0.08)");
 }
