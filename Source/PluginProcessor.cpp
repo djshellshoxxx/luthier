@@ -174,6 +174,7 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     sliceMidi.ensureSize (8192);
     sliceMidiOut.ensureSize (8192);
+    liveMidiKept.ensureSize (8192);
     captureStringCount = -1;   // re-sent at the next drain
     diagnostics.prepare (sampleRate);
 
@@ -1605,7 +1606,25 @@ void LuthierAudioProcessor::handleLiveMidi (juce::MidiBuffer& midi) noexcept
     if (midi.isEmpty())
         return;
 
-    juce::MidiBuffer kept;
+    auto isLiveControl = [] (const juce::MidiMessage& m)
+    {
+        return m.isProgramChange() || (m.isController() && m.getControllerNumber() == 0);
+    };
+
+    // Most blocks carry neither: nothing to take out, nothing to copy.
+    bool any = false;
+
+    for (const auto metadata : midi)
+        if (isLiveControl (metadata.getMessage()))
+            any = true;
+
+    if (! any)
+        return;
+
+    // A member sized in prepareToPlay: a local MidiBuffer allocated on the
+    // audio thread on every block that had MIDI.
+    auto& kept = liveMidiKept;
+    kept.clear();
 
     for (const auto metadata : midi)
     {

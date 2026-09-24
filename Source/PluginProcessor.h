@@ -656,6 +656,7 @@ private:
         carry each slice's MIDI in and the whole block's MIDI out, sized in
         prepareToPlay. */
     juce::MidiBuffer sliceMidi, sliceMidiOut;
+    juce::MidiBuffer liveMidiKept;   ///< handleLiveMidi's output, sized in prepareToPlay
 
     /** The macro parameters' values, looked up once: a lookup by ID builds a
         String, which is an allocation the audio thread must not make. */
