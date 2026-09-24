@@ -51,7 +51,8 @@ namespace
     }
 
     /** Holds one note (never released) for `seconds`. */
-    Run hold (LuthierAudioProcessor& processor, int midiNote, double seconds, int stringForLevel = -1)
+    Run hold (LuthierAudioProcessor& processor, int midiNote, double seconds, int stringForLevel = -1,
+              int velocity = 110)
     {
         enableAux (processor);
         processor.prepareToPlay (kSr, kBlock);
@@ -69,7 +70,7 @@ namespace
             juce::MidiBuffer midi;
 
             if (b == 0)
-                midi.addEvent (juce::MidiMessage::noteOn (1, midiNote, (juce::uint8) 110), 0);
+                midi.addEvent (juce::MidiMessage::noteOn (1, midiNote, (juce::uint8) velocity), 0);
 
             processor.processBlock (buffer, midi);
 
@@ -249,14 +250,23 @@ LUTHIER_TEST (Feedback, eachStringHearsItsOwnNote)
 
 LUTHIER_TEST (Feedback, theVolumeKnobLowersTheLoopByTheCircuitsAttenuation)
 {
-    // A clean amp and a small amount keep the loop linear, so what the knob
-    // does to the DI is what it does to the loop (1.4).
+    /*  A clean amp, a small amount and a moderate pluck keep the loop linear,
+        so what the knob does to the DI is what it does to the loop (1.4).
+
+        The amp is only linear at a level: at velocity 110 its attack still
+        compresses a little, and the loop fell 0.4-0.5 dB less than the
+        circuit - inside the tolerance by luck of where the 0.1-0.6 s window
+        fell on the attack. Velocity 70 measures 0.08 dB (50: -0.06, 90: 0.25).
+        The chord window is zero so the note starts at t = 0 where the window
+        assumes it: the default 15 ms delayed it, moved more of the attack into
+        the window, and turned that 0.41 dB into 0.51. */
     auto measure = [] (float volume)
     {
         LuthierAudioProcessor processor;
         load (processor, "Clean Double-Cut Funk");
         set (processor, ParamIDs::feedbackAmount, 15.0f);
         set (processor, ParamIDs::guitarVolume, volume);
+        set (processor, ParamIDs::chordWindow, 0.0f);
 
         // Linear between the DI and the speaker: no compressor (this preset
         // has one before the amp), and the amp at its cleanest.
@@ -265,7 +275,7 @@ LUTHIER_TEST (Feedback, theVolumeKnobLowersTheLoopByTheCircuitsAttenuation)
                 set (processor, ParamIDs::slotBypass (post == 1, slot).toRawUTF8(), 1.0f);
 
         set (processor, ParamIDs::ampGain, 0.0f);
-        const auto run = hold (processor, 64, 1.0);
+        const auto run = hold (processor, 64, 1.0, -1, 70);
 
         const size_t from = (size_t) (0.1 * kSr), to = (size_t) (0.6 * kSr);
         return std::make_pair (rmsOf (run.di, from, to), rmsOf (run.injection, from, to));

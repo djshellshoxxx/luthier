@@ -1248,3 +1248,44 @@ chosen") and `ambiguity-resolutions.md`.
   of it (tail notes dropped). `Region` now carries the marker's end, notes and
   chart entries are clipped to it, and a chart from several tracks is sorted
   by time before its entries are read as successive.
+- **Rig strip card heights (TODO 2h).** At 1200 x 720 the strip is ~606
+  points for six cards; equal shares left the amp's six knobs in one row of
+  16-point bodies (the face's one-row layout is width-bound: six knobs across
+  ~200 points can never exceed ~32-point rects). `EasyPanel::cardHeights`
+  gives each card the height its controls need (guitar 82, racks 62, amp 228,
+  cabinet 92, room 82), the amp card's need being two rows of three on the
+  face (~44-point knob rects, 30-point bodies); a taller window's surplus
+  goes mostly to the amp and the guitar, a shorter one scales every card
+  alike and the face falls back to one row on its own. The amp model choice
+  moved into the card's title row beside the AMP plate (the plate is its
+  label), the cabinet stacks its combos beside a full-height blend knob, and
+  the room's size choice lost its duplicate ROOM label.
+- **VU meter on the amp face (visual-polish 4).** The proposal offers the
+  header or the rig strip; it is on the face instead, where a meter belongs:
+  on a head's covering between the name and the vent, on a combo's grille at
+  the top right, and nowhere on a face too short for one. The dial is part of
+  the cached face; the needle is drawn live over it from the master bus RMS
+  (the header meter's source) at the meters' 30 Hz with 300 ms ballistics,
+  0 VU = -18 dBFS, scale -20..+3. It greys by the valves' staleness rule.
+  Reduced motion (accessibility 5): no easing, a hard set, at 10 Hz.
+- **Room light (visual-polish 4)** is on the Easy ROOM card only (the
+  Advanced ROOM section is AdvancedPanel's); a static radial pool, reach from
+  the size, strength from the wet level plus the Space macro's share, off
+  under High contrast.
+- **Preset thumbnails (guitar-illustration 15 / 17).** `GuitarThumbnailCache`
+  (Overlays.h): one low-priority worker, 200 entries LRU by
+  `GuitarRenderer::keyFor` at `Detail::thumbnail` with the palette's texture
+  flag; the same guitar in many presets is drawn once. Section 15's
+  "128 x 256" is taken as the pixel budget and drawn landscape (256 x 128)
+  because the illustration lies headstock-left. Reading a preset file for its
+  `guitar` block is disk work, so it is on the worker too; the block is
+  resolved against the part library on the message thread (the library is
+  not thread-safe to share) as the processor resolves it, minus the
+  migration table - a preset whose guitar cannot be found keeps the
+  placeholder. A list row never renders: cache hit, or placeholder.
+- **Played-note dot (G 14 / 19).** The 60 ms appearance test is in
+  `Editor.aPlayedNoteShowsOnTheIllustrationWithinSixtyMilliseconds`, served
+  through `juce::Timer::callPendingTimersSynchronously`. The fade rules (dot
+  alpha from the string level, no fade under reduced motion) need
+  `GuitarRenderer::paintOverlay` / `GuitarBodyComponent`, which this pass did
+  not own; not done.

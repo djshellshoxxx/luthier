@@ -161,6 +161,18 @@ private:
 
     juce::AudioBuffer<float> wetBuffer;
 
+    /*  The last kHistorySamples of the signal the convolution sees, both
+        channels. As in CabinetEngine: an installed response starts with its
+        latency buffer full of the installer's silence and puts out one block
+        of zeros, so it is primed with what was playing before the audio
+        thread gets it. Written by the audio thread, read on the loading
+        thread; a torn sample is a rounding error in the primed tail. */
+    static constexpr int kHistorySamples = 16384;   // a power of two
+    juce::AudioBuffer<float> inputHistory;
+    int historyIndex = 0;
+
+    void primeConvolution();
+
     double airGainDb = 0.0;
     double outputGainDb = 0.0;
 

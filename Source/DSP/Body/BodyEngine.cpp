@@ -34,6 +34,9 @@ void BodyEngine::prepare (double sampleRate, int maxBlockSize)
     spec.numChannels = 2;
 
     convolution->prepare (spec);
+    inputHistory.setSize (2, kHistorySamples);
+    inputHistory.clear();
+    historyIndex = 0;
     prepared = true;
 
     for (auto& r : resonators)
@@ -79,6 +82,8 @@ void BodyEngine::reset() noexcept
     dcLeft.reset();
     dcRight.reset();
     wetBuffer.clear();
+    inputHistory.clear();
+    historyIndex = 0;
 
     amountSmooth.snapToTarget();
     gainSmooth.snapToTarget();
@@ -206,6 +211,7 @@ bool BodyEngine::loadImpulseResponse (const juce::File& file)
             return false;
 
         convolution->reset();
+        primeConvolution();
     }
 
     loadedIrName = file.getFileNameWithoutExtension();
@@ -247,9 +253,43 @@ void BodyEngine::loadImpulseResponse (const float* samples, int numSamples, doub
             return;
 
         convolution->reset();
+        primeConvolution();
     }
 
     irLoaded.store (true);
+}
+
+void BodyEngine::primeConvolution()
+{
+    // The history, oldest first, through the installed response with the output
+    // discarded: the state the convolver would hold had it run on this signal
+    // all along, so its first real block is the tail of the note, not zeros.
+    if (inputHistory.getNumSamples() != kHistorySamples || maxBlock <= 0)
+        return;
+
+    juce::AudioBuffer<float> chunk (2, maxBlock);
+    int position = historyIndex;   // the oldest sample is the one about to be overwritten
+
+    for (int remaining = kHistorySamples; remaining > 0;)
+    {
+        const int n = juce::jmin (maxBlock, remaining);
+
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            auto* d = chunk.getWritePointer (ch);
+
+            for (int i = 0; i < n; ++i)
+                d[i] = inputHistory.getSample (ch, (position + i) & (kHistorySamples - 1));
+        }
+
+        juce::dsp::AudioBlock<float> blockOfHistory (chunk);
+        auto sub = blockOfHistory.getSubBlock (0, (size_t) n);
+        juce::dsp::ProcessContextReplacing<float> context (sub);
+        convolution->process (context);
+
+        position = (position + n) & (kHistorySamples - 1);
+        remaining -= n;
+    }
 }
 
 int BodyEngine::getLatencySamples() const noexcept
@@ -291,6 +331,17 @@ void BodyEngine::processBlock (juce::dsp::AudioBlock<float>& block) noexcept
     for (int ch = 0; ch < numChannels; ++ch)
         for (int i = 0; i < numSamples; ++i)
             wetBuffer.setSample (ch, i, block.getSample (ch, i));
+
+    if (inputHistory.getNumSamples() == kHistorySamples)
+    {
+        for (int i = 0; i < numSamples; ++i)
+        {
+            for (int ch = 0; ch < 2; ++ch)
+                inputHistory.setSample (ch, historyIndex, block.getSample (juce::jmin (ch, numChannels - 1), i));
+
+            historyIndex = (historyIndex + 1) & (kHistorySamples - 1);
+        }
+    }
 
     juce::dsp::AudioBlock<float> wet (wetBuffer);
     auto wetSub = wet.getSubBlock (0, (size_t) numSamples);
