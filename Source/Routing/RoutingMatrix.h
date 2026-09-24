@@ -215,7 +215,11 @@ private:
     std::atomic<bool> sidechainPresent { false };
     std::atomic<double> sidechainLevel { 0.0 };
 
+    // performance-budget.md 0.5: the audio thread reads the MIDI-out config
+    // every block, so it is a seqlock - writers (message thread) serialise on
+    // the lock, the reader never takes it and retries on a torn copy.
     mutable juce::CriticalSection midiOutLock;
+    std::atomic<unsigned> midiOutSequence { 0 };
     MidiOutConfig midiOut;
 
     std::atomic<int> latMain { 0 }, latDi { 0 }, latPreCab { 0 }, latString { 0 };

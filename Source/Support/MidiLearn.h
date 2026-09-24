@@ -12,10 +12,13 @@
 #include <array>
 #include <atomic>
 
+#include "ThreadProbe.h"
+
 namespace luthier
 {
 
-class MidiLearnManager : public juce::ChangeBroadcaster
+class MidiLearnManager : public juce::ChangeBroadcaster,
+                         private juce::Timer
 {
 public:
     struct Mapping
@@ -34,6 +37,11 @@ public:
     //==========================================================================
     /** Arms learning for a parameter. The next CC received is mapped to it. */
     void startLearning (const juce::String& parameterId);
+
+    /*  performance-budget.md 0.4 / 0.5: the audio thread publishes a learned CC
+        in pendingLearnCc and nothing else; this, on the message thread, maps it.
+        The timer that learning starts calls it; tests may call it directly. */
+    void servicePendingLearn();
     void cancelLearning();
     bool isLearning() const noexcept { return learning.load(); }
     juce::String getLearningParameterId() const;
@@ -82,12 +90,15 @@ public:
 private:
     juce::AudioProcessorValueTreeState& apvts;
 
-    mutable juce::CriticalSection lock;
+    mutable ThreadProbe::ProbedCriticalSection lock;
     juce::Array<Mapping> mappings;
 
     std::atomic<bool> learning { false };
     std::atomic<bool> armed { false };
     juce::String learningParameter;
+
+    std::atomic<int> pendingLearnCc { -1 };   // performance-budget.md 0.4
+    void timerCallback() override { servicePendingLearn(); }
 
     // Lock-free lookup used on the audio thread: CC number to mapping index.
     std::array<std::atomic<int>, 128> ccToMapping {};

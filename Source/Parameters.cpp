@@ -818,6 +818,15 @@ void ParameterBridge::cachePointers()
 
     const auto& parameters = apvts.processor.getParameters();
 
+    // performance-budget.md 0.4: the allocation-free lookups (see value (const char*)).
+    for (auto& slot : idCache)
+    {
+        slot.key.store (nullptr);
+        slot.index.store (-2);
+    }
+
+    rawByIndex.assign ((size_t) parameters.size(), nullptr);
+
     for (int i = 0; i < parameters.size(); ++i)
     {
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameters[i]))
@@ -825,6 +834,7 @@ void ParameterBridge::cachePointers()
             if (auto* ptr = apvts.getRawParameterValue (withId->paramID))
             {
                 pointers.set (withId->paramID, ptr);
+                rawByIndex[(size_t) i] = ptr;
 
                 // The matrix addresses destinations by parameter index, so the
                 // audio thread never has to hash a string to apply modulation.
@@ -865,6 +875,88 @@ void ParameterBridge::cachePointers()
                 watch (ParamIDs::slotParam (chain == 1, slot, p), base + p);
         }
     }
+
+    // performance-budget.md 0.4: the per-slot IDs, resolved once here.
+    for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
+    {
+        pickupVolumeIdx[(size_t) slot] = parameterIndex (ParamIDs::pickupVolume (slot));
+        pickupTypeIdx[(size_t) slot]   = parameterIndex (ParamIDs::pickupType (slot));
+        pickupMagnetIdx[(size_t) slot] = parameterIndex (ParamIDs::pickupMagnet (slot));
+    }
+
+    for (int n = 0; n < ParamIDs::kNumNutDepths; ++n)
+        nutDepthIdx[(size_t) n] = parameterIndex (ParamIDs::setupNutDepth (n + 1));
+
+    for (int chain = 0; chain < 2; ++chain)
+    {
+        for (int slot = 0; slot < EffectsChain::kNumSlots; ++slot)
+        {
+            slotTypeIdx[(size_t) chain][(size_t) slot]   = parameterIndex (ParamIDs::slotType (chain == 1, slot));
+            slotBypassIdx[(size_t) chain][(size_t) slot] = parameterIndex (ParamIDs::slotBypass (chain == 1, slot));
+            slotMixIdx[(size_t) chain][(size_t) slot]    = parameterIndex (ParamIDs::slotMix (chain == 1, slot));
+
+            for (int p = 0; p < Pedal::kMaxParams; ++p)
+                slotParamIdx[(size_t) chain][(size_t) slot][(size_t) p] = parameterIndex (ParamIDs::slotParam (chain == 1, slot, p));
+        }
+    }
+}
+
+int ParameterBridge::indexOf (const char* id) const noexcept
+{
+    // Keyed by the pointer: a ParamIDs constant has one address. A miss builds
+    // the String once (the warm-up block); every later call is a probe.
+    const auto hash = (juce::uint64) reinterpret_cast<std::uintptr_t> (id) * 0x9E3779B97F4A7C15ull;
+    const int start = (int) (hash >> 53);                     // 11 bits: kIdCacheSize
+
+    for (int probe = 0; probe < kIdCacheSize; ++probe)
+    {
+        auto& slot = idCache[(size_t) ((start + probe) & (kIdCacheSize - 1))];
+        const char* key = slot.key.load (std::memory_order_acquire);
+
+        if (key == nullptr)
+        {
+            const char* expected = nullptr;
+
+            if (slot.key.compare_exchange_strong (expected, id, std::memory_order_acq_rel))
+            {
+                const int index = parameterIndex (juce::String (id));
+                slot.index.store (index, std::memory_order_release);
+                return index;
+            }
+
+            key = expected;
+        }
+
+        if (key == id)
+        {
+            const int index = slot.index.load (std::memory_order_acquire);
+            return index != -2 ? index : parameterIndex (juce::String (id));
+        }
+    }
+
+    return parameterIndex (juce::String (id));
+}
+
+float ParameterBridge::valueAt (int index) const noexcept
+{
+    if (! juce::isPositiveAndBelow (index, (int) rawByIndex.size()) || rawByIndex[(size_t) index] == nullptr)
+        return 0.0f;
+
+    const float base = rawByIndex[(size_t) index]->load (std::memory_order_relaxed);
+
+    if (modMatrix == nullptr || ! modMatrix->isActive())
+        return base;
+
+    return modMatrix->apply (index, base);
+}
+
+float ParameterBridge::value (const char* id) const noexcept
+{
+    // Before cachePointers (no parameter list yet) the String path answers.
+    if (rawByIndex.empty())
+        return value (juce::String (id));
+
+    return valueAt (indexOf (id));
 }
 
 int ParameterBridge::parameterIndex (const juce::String& id) const noexcept
@@ -984,7 +1076,7 @@ void ParameterBridge::applyToEngine() noexcept
         setup.sitarMode     = value (ParamIDs::setupSitarMode) > 0.5f;
 
         for (int s = 0; s < SetupGeometry::kMaxStrings; ++s)
-            setup.nutDepth[(size_t) s] = value (ParamIDs::setupNutDepth (s % ParamIDs::kNumNutDepths + 1));
+            setup.nutDepth[(size_t) s] = valueAt (nutDepthIdx[(size_t) (s % ParamIDs::kNumNutDepths)]);
 
         engine.setSetupGeometry (setup);
     }
@@ -1026,7 +1118,7 @@ void ParameterBridge::applyToEngine() noexcept
 
     for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
     {
-        pickups.setPickupVolume (slot, value (ParamIDs::pickupVolume (slot)));
+        pickups.setPickupVolume (slot, valueAt (pickupVolumeIdx[(size_t) slot]));
     }
 
     // ---- performance -------------------------------------------------------------
@@ -1248,15 +1340,15 @@ void ParameterBridge::applyToEngine() noexcept
 
         for (int slot = 0; slot < EffectsChain::kNumSlots; ++slot)
         {
-            fx.setSlotBypassed (slot, value (ParamIDs::slotBypass (post, slot)) > 0.5f);
-            fx.setSlotMix (slot, value (ParamIDs::slotMix (post, slot)));
+            fx.setSlotBypassed (slot, valueAt (slotBypassIdx[(size_t) chain][(size_t) slot]) > 0.5f);
+            fx.setSlotMix (slot, valueAt (slotMixIdx[(size_t) chain][(size_t) slot]));
 
             if (auto* pedal = fx.getPedal (slot))
             {
                 const int numParams = juce::jmin (pedal->getNumParameters(), Pedal::kMaxParams);
 
                 for (int p = 0; p < numParams; ++p)
-                    pedal->setParameterNormalised (p, value (ParamIDs::slotParam (post, slot, p)));
+                    pedal->setParameterNormalised (p, valueAt (slotParamIdx[(size_t) chain][(size_t) slot][(size_t) p]));
             }
         }
     }
@@ -1312,14 +1404,14 @@ bool ParameterBridge::readStructuralValues() noexcept
 
     for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
     {
-        structural |= changed (lastPickupType[slot],   (int) value (ParamIDs::pickupType (slot)));
-        structural |= changed (lastPickupMagnet[slot], (int) value (ParamIDs::pickupMagnet (slot)));
+        structural |= changed (lastPickupType[slot],   (int) valueAt (pickupTypeIdx[(size_t) slot]));
+        structural |= changed (lastPickupMagnet[slot], (int) valueAt (pickupMagnetIdx[(size_t) slot]));
     }
 
     for (int chain = 0; chain < 2; ++chain)
         for (int slot = 0; slot < EffectsChain::kNumSlots; ++slot)
             structural |= changed (lastSlotType[chain][slot],
-                                   (int) value (ParamIDs::slotType (chain == 1, slot)));
+                                   (int) valueAt (slotTypeIdx[(size_t) chain][(size_t) slot]));
 
     return structural;
 }

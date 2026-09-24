@@ -1,5 +1,7 @@
 #include "Looper.h"
 
+#include <cstring>
+
 namespace luthier
 {
 
@@ -358,6 +360,8 @@ void Looper::reset() noexcept
 
 void Looper::clear()
 {
+    drainPendingMidi();   // then wiped with the layers
+
     for (auto& layer : layers)
         layer.reset();
 
@@ -548,16 +552,48 @@ void Looper::captureMidi (const juce::MidiBuffer& midi, int numSamples) noexcept
     if (currentState != State::recordingFirst && currentState != State::overdubbing)
         return;
 
-    auto& sequence = layers[(size_t) getActiveLayer()].getMidi();
+    const int layer = getActiveLayer();
     const int position = getPlayPosition();
 
     for (const auto metadata : midi)
     {
+        // Short messages only: SysEx is not a performance event.
+        if (metadata.numBytes <= 0 || metadata.numBytes > 3)
+            continue;
+
+        const auto scope = midiFifo.write (1);
+
+        if (scope.blockSize1 + scope.blockSize2 == 0)
+            return;                                  // full until the next drain
+
+        auto& e = pendingMidi[(size_t) (scope.blockSize1 > 0 ? scope.startIndex1 : scope.startIndex2)];
+        e.layer = layer;
         // Timestamps are in samples from the top of the loop, so the sequence can
         // be re-rendered against a different tone later.
-        sequence.addEvent (metadata.getMessage(),
-                           (double) (position + metadata.samplePosition));
+        e.position = position + metadata.samplePosition;
+        e.size = metadata.numBytes;
+        std::memcpy (e.bytes, metadata.data, (size_t) metadata.numBytes);
     }
+}
+
+void Looper::drainPendingMidi()
+{
+    const auto scope = midiFifo.read (midiFifo.getNumReady());
+
+    auto take = [this] (int start, int count)
+    {
+        for (int i = start; i < start + count; ++i)
+        {
+            const auto& e = pendingMidi[(size_t) i];
+
+            if (juce::isPositiveAndBelow (e.layer, kMaxLayers))
+                layers[(size_t) e.layer].getMidi().addEvent (juce::MidiMessage (e.bytes, e.size),
+                                                             (double) e.position);
+        }
+    };
+
+    take (scope.startIndex1, scope.blockSize1);
+    take (scope.startIndex2, scope.blockSize2);
 }
 
 //==============================================================================
@@ -674,6 +710,10 @@ juce::File Looper::getUserDirectory()
 
 bool Looper::save (const juce::File& file) const
 {
+    // Completes captures already made (performance-budget.md 0.4); saving is
+    // logically const.
+    const_cast<Looper*> (this)->drainPendingMidi();
+
     const int length = getLoopLengthSamples();
 
     if (length <= 0)

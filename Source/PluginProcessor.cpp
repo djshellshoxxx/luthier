@@ -2263,6 +2263,9 @@ void LuthierAudioProcessor::timerCallback()
         drainPerformanceCapture();
     }
 
+    // performance-budget.md 0.4: the looper's MIDI FIFO, filled on the audio thread.
+    looper.drainPendingMidi();
+
     // live-performance 2: carry out whatever the MIDI thread asked for.
     if (const int snapshot = pendingSnapshotRecall.exchange (-1, std::memory_order_relaxed);
         snapshot >= 0)

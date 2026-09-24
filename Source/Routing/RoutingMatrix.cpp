@@ -1,5 +1,8 @@
 #include "RoutingMatrix.h"
 
+#include <cstring>
+#include <type_traits>
+
 namespace luthier
 {
 
@@ -218,14 +221,33 @@ void RoutingMatrix::meterSidechain (const float* const* channels, int numChannel
 //==============================================================================
 void RoutingMatrix::setMidiOutConfig (const MidiOutConfig& cfg)
 {
+    static_assert (std::is_trivially_copyable_v<MidiOutConfig>, "the seqlock copies it bytewise");
+
     const juce::ScopedLock sl (midiOutLock);
-    midiOut = cfg;
+    midiOutSequence.fetch_add (1, std::memory_order_acq_rel);     // odd: writing
+    std::atomic_thread_fence (std::memory_order_release);
+    std::memcpy (&midiOut, &cfg, sizeof (MidiOutConfig));
+    midiOutSequence.fetch_add (1, std::memory_order_release);     // even: stable
 }
 
 MidiOutConfig RoutingMatrix::getMidiOutConfig() const
 {
-    const juce::ScopedLock sl (midiOutLock);
-    return midiOut;
+    // Lock-free (performance-budget.md 0.5): the audio thread calls this.
+    MidiOutConfig copy;
+
+    for (;;)
+    {
+        const auto before = midiOutSequence.load (std::memory_order_acquire);
+
+        if ((before & 1u) != 0)
+            continue;
+
+        std::memcpy (&copy, &midiOut, sizeof (MidiOutConfig));
+        std::atomic_thread_fence (std::memory_order_acquire);
+
+        if (midiOutSequence.load (std::memory_order_relaxed) == before)
+            return copy;
+    }
 }
 
 //==============================================================================

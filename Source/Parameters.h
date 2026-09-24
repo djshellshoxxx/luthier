@@ -486,6 +486,31 @@ private:
     std::atomic<float>* raw (const juce::String& id) const noexcept;
     float value (const juce::String& id) const noexcept;
 
+    /*  performance-budget.md 0.4: the audio thread's lookups allocate nothing.
+        A ParamIDs constant is a const char*, and building a juce::String from
+        it to hash allocated - four hundred times a block. These resolve the
+        pointer through a lock-free pointer-keyed cache (filled on first use,
+        which is the prepare/warm-up block), and the per-slot IDs the ParamIDs
+        functions build are resolved once in cachePointers. */
+    float value (const char* id) const noexcept;
+    float valueAt (int index) const noexcept;
+    int indexOf (const char* id) const noexcept;
+
+    struct IdCacheSlot
+    {
+        std::atomic<const char*> key { nullptr };
+        std::atomic<int> index { -2 };      ///< -2: being filled
+    };
+
+    static constexpr int kIdCacheSize = 2048;   // power of two, > 4x the parameter count
+    mutable std::array<IdCacheSlot, kIdCacheSize> idCache;
+    std::vector<std::atomic<float>*> rawByIndex;
+
+    std::array<int, PickupEngine::kMaxPickups> pickupVolumeIdx {}, pickupTypeIdx {}, pickupMagnetIdx {};
+    std::array<int, ParamIDs::kNumNutDepths> nutDepthIdx {};
+    std::array<std::array<int, EffectsChain::kNumSlots>, 2> slotTypeIdx {}, slotBypassIdx {}, slotMixIdx {};
+    std::array<std::array<std::array<int, Pedal::kMaxParams>, EffectsChain::kNumSlots>, 2> slotParamIdx {};
+
     juce::AudioProcessorValueTreeState& apvts;
     LuthierEngine& engine;
 
