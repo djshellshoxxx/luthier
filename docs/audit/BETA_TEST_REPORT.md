@@ -95,7 +95,7 @@ IN PROGRESS (a helper branch covers it).
 
 - Test: `Combo.sustainFeaturesStayBounded` ("loud idle noise floor", 14), also 7 factory-preset renders and 6 advanced-range renders.
 - Settings: defaults with `amp_gain` 1.0, `amp_master` 1.0, `sustain_scale` 1.0, `amp_model` 1, 4, 5, 8, 10, 11, 13. Idle floor -22.3 to -29.8 dBFS with nothing played (`hum_noise` 0.25, `noise_amp_buzz` 0.12 at their defaults, amplified by the amp).
-- A $200 amp sim is expected to offer a noise gate; none exists (see GAPS_AUDIT "Unspecified gaps").
+- A NoiseGate pedal type exists, but no high-gain factory preset loads one and there is no gate on the amp path or the Easy tone strip (see GAPS_AUDIT U-2).
 
 ### B-05 Reset to defaults leaves the default guitar's body inconsistent. OPEN, medium
 
