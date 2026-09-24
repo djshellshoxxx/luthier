@@ -193,14 +193,11 @@ before the change.
 | 8 | Ballad | 16, + 3/4, 6/8 | Vintage | Finger | Relaxed |
 | 9 | EDM | 16 | Machine | Muted Pick | Tight |
 
-Every style has:
-- variations A and B, each with a groove for every intensity level;
-- at least four fills (1 beat, 2 beats, 1 bar, 1 bar big);
-- an ending;
-- a double-time bar and a half-time bar;
-- a suggested RhythmEngine genre kit, applied via
-  `GenreKitLibrary::apply` only if the preset's `link_rhythm_kit` is on.
-  The kit's rig preset is never loaded.
+Every style has variations A and B with a groove per intensity, at
+least four fills (1 beat, 2 beats, 1 bar, 1 bar big), an ending, a
+double-time and a half-time bar, and a suggested RhythmEngine genre kit.
+The kit is applied via `GenreKitLibrary::apply` only if the preset's
+`link_rhythm_kit` is on; its rig preset is never loaded.
 
 ### 4.2 Intensity (`jam_intensity`, 1-5)
 
@@ -428,15 +425,10 @@ tabs table.
 ### 8.3 Live data (gui-engine-dataflow)
 
 The audio thread publishes a `JamStatus` snapshot after each block
-(double buffer plus an atomic sequence number). It holds:
-- state, bar, beat and effective intensity;
-- style and variation;
-- current chord, next chord and its source (tune, predicted or none);
-- the active fill;
-- 16 lane-hit bitmasks;
-- part peaks.
-
-The UI drains it at 30 Hz. After 250 ms without an update, the snapshot
+(double buffer plus an atomic sequence number): state, bar, beat,
+effective intensity, style, variation, current chord, next chord and its
+source (tune, predicted or none), active fill, 16 lane-hit bitmasks and
+part peaks. The UI drains it at 30 Hz. After 250 ms without an update, the snapshot
 is stale: the playhead hides and the status line shows "-".
 
 ### 8.4 Empty states and errors
@@ -762,13 +754,9 @@ DSP:
 Real-time and performance:
 - **JM-33** 5 min of jamming, with style, kit and chord-map swaps every
   bar: zero audio-thread allocations and zero audio-thread locks.
-- **JM-34** Budgets, each within 1.10 x its figure in 14:
-  - JamDrumKit <= 0.9 units;
-  - JamBassVoice <= 0.6;
-  - Jam total <= 1.7;
-  - "Jam" scenario <= 10;
-  - armed and stopped <= 0.02;
-  - off: 0.
+- **JM-34** Budgets, each within 1.10 x its figure in 14: JamDrumKit
+  <= 0.9 units, JamBassVoice <= 0.6, Jam total <= 1.7, "Jam" scenario
+  <= 10, armed and stopped <= 0.02, off 0.
 
 State, routing, MIDI:
 - **JM-35** The 32 non-transient jam parameters and the `jam` block
