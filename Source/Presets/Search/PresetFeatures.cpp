@@ -19,8 +19,8 @@ namespace
             case AmpModel::FenderTweed:    return 0.70;
             case AmpModel::FenderDeluxe:   return 0.65;
             case AmpModel::FenderChamp:    return 0.70;
-            case AmpModel::MarshallPlexi:  return 0.80;
-            case AmpModel::MarshallJCM800: return 0.95;
+            case AmpModel::MarshallPlexi:  return 0.66;
+            case AmpModel::MarshallJCM800: return 0.85;
             case AmpModel::VoxAC30:        return 0.70;
             case AmpModel::MesaRectifier:  return 1.15;
             case AmpModel::BognerEcstasy:  return 1.05;
@@ -240,6 +240,7 @@ PresetFeatures PresetFeatureReader::read (const juce::var& json) const
                 case PedalType::Distortion:  drive += mix * (0.30 + 0.35 * p0); break;
                 case PedalType::Fuzz:        drive += mix * (0.35 + 0.40 * p0); f.fuzzPedal = true; break;
                 case PedalType::Boost:       drive += mix * 0.10; break;
+                case PedalType::NoiseGate:   f.gatePedal = true; break;
                 case PedalType::Reverb:
                 case PedalType::SpringReverb: reverbPedal = juce::jmax (reverbPedal, mix); break;
                 case PedalType::Delay:       delay = juce::jmax (delay, mix * (0.4 + 0.6 * p0)); break;

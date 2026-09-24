@@ -62,8 +62,17 @@ namespace
             }
         }
 
+        double loudest = 1.0e-12;
+
+        for (auto b : bands)
+            loudest = juce::jmax (loudest, b);
+
+        // Bands more than 50 dB under the loudest are floored there: they are
+        // masked, inaudible, and at the codec's noise-fill floor, so their dB
+        // value measures Vorbis rather than the preset (a dark acoustic's top
+        // octave otherwise swings by tens of dB between two encodes).
         for (auto& b : bands)
-            b = 10.0 * std::log10 (b + 1.0e-12);
+            b = 10.0 * std::log10 (juce::jmax (b, loudest * 1.0e-5));
 
         return bands;
     }

@@ -359,9 +359,14 @@ std::vector<Descriptor> ToneDescriptors::evaluate (const PresetFeatures& p, cons
     const double fuzzy = juce::jmax (fromBool (p.fuzzPedal),
                                      spectral ? juce::jmin (gt (flatness, 85.0), above (p.drive, 0.5, 0.08)) : 0.0);
     const bool extended = p.numStrings >= 7 || p.lowestOpenMidi <= 35;   // B1 or below
+    /*  6.3 says "tail < p30". A noise gate also counts as tight (DECISIONS,
+        FEAT-BROWSER): in the physical model a chug's tail is the low string's
+        own release, which a gate set under that level does not shorten, so a
+        gated extended-range rig - the djent recipe - measured as loose. */
+    const double tight = juce::jmax (spectral ? lt (tail, 30.0) : 0.0, fromBool (p.gatePedal));
     const double djent = p.family == PresetFeatures::bass
                            ? 0.0
-                           : juce::jmin (highGain, fromBool (extended), spectral ? lt (tail, 30.0) : 0.0);
+                           : juce::jmin (highGain, fromBool (extended), tight);
     const double spacious = juce::jmax (spectral ? gt (tail, 75.0) : 0.0,
                                         above (p.reverb, 0.5, 0.1), above (p.delay, 0.35, 0.08));
     const double dry = juce::jmin (spectral ? lt (tail, 25.0) : 0.0, below (p.delay, 0.1, 0.05));

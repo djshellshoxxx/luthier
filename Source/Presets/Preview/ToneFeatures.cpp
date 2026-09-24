@@ -275,7 +275,27 @@ double ToneFeatures::truePeakDb (const juce::AudioBuffer<float>& buffer)
 }
 
 //==============================================================================
-ToneFeatures ToneFeatures::analyse (const juce::AudioBuffer<float>& buffer, double fs, double noteEndSeconds)
+double ToneFeatures::idleFloorDb (const juce::AudioBuffer<float>& idle)
+{
+    const int hop = 480;   // 10 ms at 48 kHz
+    std::vector<double> levels;
+
+    for (int start = 0; start + hop <= idle.getNumSamples(); start += hop)
+    {
+        double sum = 0.0;
+
+        for (int ch = 0; ch < idle.getNumChannels(); ++ch)
+            for (int i = start; i < start + hop; ++i)
+                sum += (double) idle.getSample (ch, i) * idle.getSample (ch, i);
+
+        levels.push_back (10.0 * std::log10 (sum / (hop * juce::jmax (1, idle.getNumChannels())) + 1.0e-12));
+    }
+
+    return levels.empty() ? -200.0 : median (levels);
+}
+
+ToneFeatures ToneFeatures::analyse (const juce::AudioBuffer<float>& buffer, double fs, double noteEndSeconds,
+                                    double idleFloor)
 {
     ToneFeatures f;
     const int n = buffer.getNumSamples();
@@ -325,14 +345,19 @@ ToneFeatures ToneFeatures::analyse (const juce::AudioBuffer<float>& buffer, doub
 
         fft.performFrequencyOnlyForwardTransform (frame.data(), true);
 
-        double energy = 0.0, weighted = 0.0;
+        double energy = 0.0, weighted = 0.0, magnitude = 0.0;
 
         for (int b = 1; b <= kFftSize / 2; ++b)
         {
-            const double p = (double) frame[(size_t) b] * (double) frame[(size_t) b];
+            const double m = (double) frame[(size_t) b];
+            const double p = m * m;
             power[(size_t) b] = p;
             energy += p;
-            weighted += p * (b * binHz);
+
+            // The centroid is magnitude-weighted, as usual: weighted by power it
+            // only ever finds the fundamentals.
+            magnitude += m;
+            weighted += m * (b * binHz);
 
             if (b < bin250)      low += p;
             else if (b < bin2k)  mid += p;
@@ -368,7 +393,7 @@ ToneFeatures ToneFeatures::analyse (const juce::AudioBuffer<float>& buffer, doub
 
         const double flat = count > 0 ? std::exp (logSum / count) / (linSum / count) : 0.0;
 
-        frames.push_back ({ energy, std::log2 (juce::jmax (1.0, weighted / energy)),
+        frames.push_back ({ energy, std::log2 (juce::jmax (1.0, magnitude > 0.0 ? weighted / magnitude : 1.0)),
                             std::log2 (juce::jmax (1.0, rolloffHz)), flat });
     }
 
@@ -456,10 +481,15 @@ ToneFeatures ToneFeatures::analyse (const juce::AudioBuffer<float>& buffer, doub
         for (size_t i = offFrame; i < juce::jmin (env.size(), offFrame + 5); ++i)
             reference = juce::jmax (reference, env[i]);
 
+        /*  30 dB down, or to within 6 dB of the rig's idle noise if that is
+            nearer: a high-gain amp's hiss is not the note's tail. (The idle
+            level is mono-summed mean square, as `env` is, give or take the
+            sum's 3 dB, which the margin covers.) */
+        const double target = juce::jmax (reference - 30.0, idleFloor + 6.0);
         size_t endFrame = env.size();
 
         for (size_t i = offFrame; i < env.size(); ++i)
-            if (env[i] < reference - 30.0)
+            if (env[i] < target)
             {
                 endFrame = i;
                 break;

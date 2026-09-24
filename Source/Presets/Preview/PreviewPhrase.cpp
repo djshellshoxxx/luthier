@@ -156,13 +156,21 @@ namespace
             {
                 std::vector<Hit> h;
 
-                // Palm-muted chugs on the lowest string (short, so they choke).
-                for (int i = 0; i < 12; ++i)
-                    if (i != 5 && i != 11)
-                        h.push_back ({ i * 0.25, 0.12, { 40 }, i % 4 == 0 ? 118 : 96 });
+                // Palm-muted chugs on the lowest string (short, so they choke),
+                // two stabs, and a chug to finish: the tail then measures how
+                // tight the rig stops, which is what "djent" asks of it (6.3).
+                for (int i = 0; i < 24; ++i)
+                {
+                    const double beat = i * 0.25;
+
+                    if ((beat >= 1.25 && beat < 2.0) || (beat >= 3.0 && beat < 4.0) || beat > 5.51)
+                        continue;
+
+                    h.push_back ({ beat, 0.12, { 40 }, i % 4 == 0 ? 118 : 96 });
+                }
 
                 h.push_back ({ 1.25, 0.6, { 40, 47, 52 }, 120, 3.0 });
-                h.push_back ({ 3.0, 2.0, { 43, 50, 55 }, 122, 3.0 });
+                h.push_back ({ 3.0, 0.9, { 43, 50, 55 }, 122, 3.0 });
                 return h;
             }
 

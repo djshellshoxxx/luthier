@@ -576,7 +576,11 @@ PreviewResult PreviewRenderer::renderLoaded (const juce::File& file, const std::
         return result;
     };
 
-    // 4. Discard 0.5 s of settling.
+    // 4. Discard 0.5 s of settling; its last 200 ms is the rig's idle noise.
+    const int idleSamples = (int) std::round (0.2 * kSampleRate);
+    juce::AudioBuffer<float> idle (2, idleSamples);
+    idle.clear();
+
     for (int pos = 0; pos < settle; pos += kBlockSize)
     {
         const int n = juce::jmin (kBlockSize, settle - pos);
@@ -585,6 +589,15 @@ PreviewResult PreviewRenderer::renderLoaded (const juce::File& file, const std::
         midi.clear();
         p.processBlock (block, midi);
 
+        for (int i = 0; i < n; ++i)
+        {
+            const int at = pos + i - (settle - idleSamples);
+
+            if (at >= 0 && at < idleSamples)
+                for (int ch = 0; ch < 2; ++ch)
+                    idle.setSample (ch, at, block.getSample (juce::jmin (ch, block.getNumChannels() - 1), i));
+        }
+
         if ((cancel != nullptr && cancel->load()) || timedOut())
             return finishEarly (cancel != nullptr && cancel->load());
     }
@@ -592,6 +605,14 @@ PreviewResult PreviewRenderer::renderLoaded (const juce::File& file, const std::
     // 5. The phrase and its tail.
     int eventIndex = 0;
     const auto& seq = built.sequence;
+
+    // The render stops once the tail has sat 60 dB under the peak for longer
+    // than the clip keeps after it: those samples would be trimmed anyway, so
+    // the clip is the same, and a short preset renders in less time.
+    const int noteEndSample = (int) (built.noteEndSeconds * kSampleRate);
+    const int keepAfter = (int) ((PreviewPhrase::kFadeSeconds + 0.1) * kSampleRate);
+    float runningPeak = 0.0f;
+    int lastLoud = 0;
 
     for (int pos = 0; pos < total; pos += kBlockSize)
     {
@@ -619,6 +640,16 @@ PreviewResult PreviewRenderer::renderLoaded (const juce::File& file, const std::
 
         for (int ch = 0; ch < 2; ++ch)
             rendered.copyFrom (ch, pos, block, juce::jmin (ch, block.getNumChannels() - 1), 0, n);
+
+        runningPeak = juce::jmax (runningPeak, rendered.getMagnitude (pos, n));
+
+        for (int i = 0; i < n; ++i)
+            if (std::abs (rendered.getSample (0, pos + i)) > runningPeak * 0.001f
+                || std::abs (rendered.getSample (1, pos + i)) > runningPeak * 0.001f)
+                lastLoud = pos + i;
+
+        if (pos + n > noteEndSample && pos + n - juce::jmax (lastLoud, noteEndSample) > keepAfter)
+            break;
 
         if (testDelayPerBlockMs.load() > 0.0)
             juce::Thread::sleep ((int) testDelayPerBlockMs.load());
@@ -670,7 +701,8 @@ PreviewResult PreviewRenderer::renderLoaded (const juce::File& file, const std::
     applyEndFade (result.clip, kSampleRate);
 
     // 6. Analyse before any gain.
-    result.features = ToneFeatures::analyse (result.clip, kSampleRate, built.noteEndSeconds);
+    result.features = ToneFeatures::analyse (result.clip, kSampleRate, built.noteEndSeconds,
+                                             ToneFeatures::idleFloorDb (idle));
 
     // 7. -18 LUFS integrated, lowered further for a -3 dBTP ceiling. No limiter.
     const double loudness = result.features.loudnessLufs;

@@ -49,7 +49,11 @@ struct ToneFeatures
     /** Measures a stereo (or mono) buffer. `noteEndSeconds` is when the phrase's
         last note-off falls, measured from the buffer start. */
     static ToneFeatures analyse (const juce::AudioBuffer<float>& buffer, double sampleRate,
-                                 double noteEndSeconds);
+                                 double noteEndSeconds, double idleFloorDb = -200.0);
+
+    /** The rig's idle noise, in dB per 10 ms of mean square: the median of a
+        stretch rendered with nothing played. The tail decays towards it. */
+    static double idleFloorDb (const juce::AudioBuffer<float>& idle);
 
     /** BS.1770-4 integrated loudness (K-weighted, gated), in LUFS. */
     static double integratedLoudness (const juce::AudioBuffer<float>& buffer, double sampleRate);

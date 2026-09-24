@@ -170,6 +170,41 @@ void PreviewPlayer::processBlock (juce::AudioBuffer<float>& out, int numSamples)
 
     bool anything = false;
 
+    // The steady state - one voice, fully faded in, not stopping, volume
+    // settled - is one vectorised multiply-add per channel (11: 0.02 units).
+    {
+        const float target = targetGain.load (std::memory_order_relaxed);
+        const int sounding = (voices[0].clip != nullptr ? 1 : 0) + (voices[1].clip != nullptr ? 1 : 0);
+
+        if (sounding == 1 && currentGain == target && queued == nullptr)
+        {
+            auto& voice = voices[0].clip != nullptr ? voices[0] : voices[1];
+            const auto& audio = voice.clip->audio;
+            const int remaining = audio.getNumSamples() - voice.position;
+
+            if (voice.fadeOutPos < 0 && voice.fadeInPos >= fadeIn && remaining >= numSamples)
+            {
+                const float* l = audio.getReadPointer (0, voice.position);
+                const float* r = audio.getReadPointer (juce::jmin (1, audio.getNumChannels() - 1), voice.position);
+
+                if (channels >= 2)
+                {
+                    juce::FloatVectorOperations::addWithMultiply (out.getWritePointer (0), l, currentGain, numSamples);
+                    juce::FloatVectorOperations::addWithMultiply (out.getWritePointer (1), r, currentGain, numSamples);
+                }
+                else
+                {
+                    juce::FloatVectorOperations::addWithMultiply (out.getWritePointer (0), l, currentGain * 0.70710678f, numSamples);
+                    juce::FloatVectorOperations::addWithMultiply (out.getWritePointer (0), r, currentGain * 0.70710678f, numSamples);
+                }
+
+                voice.position += numSamples;
+                progress.store ((float) voice.position / (float) audio.getNumSamples(), std::memory_order_relaxed);
+                return;
+            }
+        }
+    }
+
     for (int s = 0; s < numSamples; ++s)
     {
         // Linear volume smoothing.

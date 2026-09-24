@@ -24,8 +24,10 @@ namespace
             if (PresetSearch::damerau (token, word, 1) <= 1)
                 return 0.8;
 
+            const int wordLength = word.length();
+
             for (int len = n - 1; len <= n + 1; ++len)
-                if (len < word.length() && PresetSearch::damerau (token, word.substring (0, len), 1) <= 1)
+                if (len < wordLength && PresetSearch::damerau (token, word, 1, len) <= 1)
                     return 0.8;
         }
 
@@ -96,9 +98,10 @@ namespace
 }
 
 //==============================================================================
-int PresetSearch::damerau (const juce::String& a, const juce::String& b, int limit)
+int PresetSearch::damerau (const juce::String& a, const juce::String& b, int limit, int bLength)
 {
-    const int n = a.length(), m = b.length();
+    const int n = a.length();
+    const int m = bLength >= 0 ? juce::jmin (bLength, b.length()) : b.length();
 
     if (std::abs (n - m) > limit)
         return limit + 1;
@@ -106,7 +109,7 @@ int PresetSearch::damerau (const juce::String& a, const juce::String& b, int lim
     // Three rows on the stack are enough for the transposition term; words
     // longer than 63 characters are compared on their first 63.
     if (n > 63 || m > 63)
-        return damerau (a.substring (0, 63), b.substring (0, 63), limit);
+        return damerau (a.substring (0, 63), b.substring (0, juce::jmin (63, m)), limit);
 
     std::array<int, 64> prev2 {}, prev {}, cur {};
     std::array<juce::juce_wchar, 64> ca {}, cb {};
@@ -190,17 +193,49 @@ juce::StringArray PresetSearch::tokenise (const juce::String& query)
     return tokens;
 }
 
-double PresetSearch::scoreToken (const juce::String& token, const PresetIndex::Entry& e)
+PresetSearch::Token PresetSearch::prepare (const juce::String& token)
 {
-    const auto descriptor = descriptorForToken (token);
-    const bool vocabulary = descriptor.isNotEmpty();
+    Token t;
+    t.text = token;
+    t.phrase = token.containsChar (' ');
+    t.descriptor = descriptorForToken (token);
+
+    /*  A sound word searches the text fields by its canonical form and its
+        synonyms, so a typo ("cruchy") finds exactly what the word does. */
+    if (t.descriptor.isNotEmpty())
+    {
+        t.matchWords.add (t.descriptor);
+        t.matchWords.addArray (ToneDescriptors::synonymsOf (t.descriptor));
+    }
+    else
+    {
+        t.matchWords.add (token);
+    }
+
+    return t;
+}
+
+double PresetSearch::scoreToken (const Token& t, const PresetIndex::Entry& e)
+{
+    const bool vocabulary = t.descriptor.isNotEmpty();
+
+    auto field = [&t, vocabulary] (const juce::StringArray& words)
+    {
+        double best = 0.0;
+
+        for (const auto& w : t.matchWords)
+            best = juce::jmax (best, vocabulary ? (words.contains (w) || (w.containsChar (' ') && fieldMatch (w, words) > 0.0) ? 1.05 : 0.0)
+                                                : fieldMatch (w, words));
+
+        return best;
+    };
 
     double best = 0.0;
 
-    best = juce::jmax (best, kName * fieldMatch (token, e.nameWords));
-    best = juce::jmax (best, kTags * fieldMatch (token, e.tagWords));
-    best = juce::jmax (best, kCategory * fieldMatch (token, e.categoryWords));
-    best = juce::jmax (best, kGear * fieldMatch (token, e.gearWords));
+    best = juce::jmax (best, kName * field (e.nameWords));
+    best = juce::jmax (best, kTags * field (e.tagWords));
+    best = juce::jmax (best, kCategory * field (e.categoryWords));
+    best = juce::jmax (best, kGear * field (e.gearWords));
 
     if (vocabulary)
     {
@@ -208,13 +243,13 @@ double PresetSearch::scoreToken (const juce::String& token, const PresetIndex::E
         // against its prose: "clean" must not find a metal preset whose
         // description happens to mention a clean channel.
         for (const auto& d : e.descriptorConfidences)
-            if (d.word == descriptor && d.confidence >= ToneDescriptors::kAttach)
+            if (d.word == t.descriptor && d.confidence >= ToneDescriptors::kAttach)
                 best = juce::jmax (best, kDescriptor * d.confidence);
     }
     else
     {
-        best = juce::jmax (best, kAuthor * fieldMatch (token, e.authorWords));
-        best = juce::jmax (best, kDescription * fieldMatch (token, e.descriptionWords));
+        best = juce::jmax (best, kAuthor * field (e.authorWords));
+        best = juce::jmax (best, kDescription * field (e.descriptionWords));
     }
 
     return best;
@@ -364,6 +399,10 @@ std::vector<PresetSearch::Result> PresetSearch::run (const PresetIndex& index, c
 {
     std::vector<Result> results;
     const auto tokens = tokenise (query);
+    std::vector<Token> prepared;
+
+    for (const auto& t : tokens)
+        prepared.push_back (prepare (t));
     results.reserve ((size_t) index.size());
 
     for (int i = 0; i < index.size(); ++i)
@@ -376,7 +415,7 @@ std::vector<PresetSearch::Result> PresetSearch::run (const PresetIndex& index, c
         double score = 0.0;
         bool all = true;
 
-        for (const auto& t : tokens)
+        for (const auto& t : prepared)
         {
             const double s = scoreToken (t, e);
 
@@ -449,8 +488,9 @@ double PresetSearch::distance (const PresetIndex::Entry& a, const PresetIndex::E
 
     for (int d = 0; d < DescriptorCalibration::kNumDims; ++d)
     {
-        const double diff = a.vector[(size_t) d] - b.vector[(size_t) d];
-        sum += DescriptorCalibration::weight (d) * diff * diff;
+        // 6.5's weights scale each difference before it is squared.
+        const double diff = DescriptorCalibration::weight (d) * (a.vector[(size_t) d] - b.vector[(size_t) d]);
+        sum += diff * diff;
     }
 
     return std::sqrt (sum);

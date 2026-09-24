@@ -58,11 +58,24 @@ public:
     /** 6.4: the tokens of a query, multi-word vocabulary and quoted phrases first. */
     static juce::StringArray tokenise (const juce::String& query);
 
-    /** The score of one token against one entry; 0 when it matches nothing. */
-    static double scoreToken (const juce::String& token, const PresetIndex::Entry&);
+    /** A query token, resolved once per query rather than once per entry. */
+    struct Token
+    {
+        juce::String text;
+        juce::String descriptor;          ///< the vocabulary word it names, or empty
+        juce::StringArray matchWords;     ///< what the text fields are searched for
+        bool phrase = false;
+    };
 
-    /** Damerau-Levenshtein distance, stopping early above `limit`. */
-    static int damerau (const juce::String& a, const juce::String& b, int limit = 2);
+    static Token prepare (const juce::String& token);
+
+    /** The score of one token against one entry; 0 when it matches nothing. */
+    static double scoreToken (const Token& token, const PresetIndex::Entry&);
+    static double scoreToken (const juce::String& token, const PresetIndex::Entry& e) { return scoreToken (prepare (token), e); }
+
+    /** Damerau-Levenshtein distance, stopping early above `limit`. `bLength`
+        compares only the first so many characters of `b` (a prefix). */
+    static int damerau (const juce::String& a, const juce::String& b, int limit = 2, int bLength = -1);
 
     /** 6.5: the 8 nearest by weighted Euclidean distance. Leaves out the entry
         itself, entries with its sound hash, anything the Source filter

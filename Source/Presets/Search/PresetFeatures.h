@@ -43,6 +43,7 @@ struct PresetFeatures
 
     bool slideOn = false;
     bool fuzzPedal = false;
+    bool gatePedal = false;     ///< an active noise gate: tightness by design
     bool rhythmEngineOn = false;
     std::array<bool, numTechniques> techniques {};
 
