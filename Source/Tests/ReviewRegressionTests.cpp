@@ -5,6 +5,7 @@
 
 #include "../PluginProcessor.h"
 #include "../DSP/Amp/ToneStack.h"
+#include "../DSP/Effects/PedalsDrive.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -92,4 +93,47 @@ LUTHIER_TEST (ReviewRegression, theToneStackIsPassiveAtEverySetting)
                 CHECK_MSG (toneStackGainAt (bass, 0.5, treble, hz) / makeup <= 1.05,
                            "bass " + juce::String (bass) + " treble " + juce::String (treble)
                                + " at " + juce::String (hz) + " Hz");
+}
+
+//==============================================================================
+/*  R-007: the pitch shifter advanced its read delay by (ratio - 1) per sample,
+    which plays at 2 - ratio: a fifth up came out a fourth down, and +12 froze. */
+namespace
+{
+    double shiftedFrequency (double semitones)
+    {
+        constexpr double sr = 48000.0, inHz = 220.0;
+        luthier::PitchShifterPedal pedal;
+        pedal.prepare (sr, 512);
+        pedal.setParameterValue (0, semitones);
+        pedal.setParameterValue (2, 1.0);   // all wet
+        pedal.reset();
+
+        const int n = (int) sr;
+        std::vector<double> l ((size_t) n), r ((size_t) n);
+
+        for (int i = 0; i < n; ++i)
+            l[(size_t) i] = r[(size_t) i] = std::sin (juce::MathConstants<double>::twoPi * inHz * i / sr);
+
+        for (int i = 0; i < n; i += 512)
+            pedal.process (l.data() + i, r.data() + i, juce::jmin (512, n - i));
+
+        // Upward zero crossings over the second half.
+        int crossings = 0;
+
+        for (int i = n / 2 + 1; i < n; ++i)
+            if (l[(size_t) i - 1] < 0.0 && l[(size_t) i] >= 0.0)
+                ++crossings;
+
+        return crossings / 0.5;
+    }
+}
+
+LUTHIER_TEST (ReviewRegression, thePitchShifterShiftsTheWayItSays)
+{
+    const double up = shiftedFrequency (7.0);
+    const double down = shiftedFrequency (-7.0);
+
+    CHECK_MSG (std::abs (up / (220.0 * std::pow (2.0, 7.0 / 12.0)) - 1.0) < 0.08, "up: " + juce::String (up));
+    CHECK_MSG (std::abs (down / (220.0 * std::pow (2.0, -7.0 / 12.0)) - 1.0) < 0.08, "down: " + juce::String (down));
 }
