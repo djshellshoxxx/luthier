@@ -61,6 +61,10 @@ const char* getMidiTargetName (MidiTarget t) noexcept;
 class MidiInterpreter
 {
 public:
+    /** The CC map starts at its defaults here, not in prepare(): a host
+        prepares after restoring a session and must not undo its MIDI map. */
+    MidiInterpreter() noexcept { resetCcMapToDefaults(); }
+
     void prepare (double sampleRate, int numStrings);
     void reset() noexcept;
 
@@ -197,6 +201,7 @@ private:
         double velocity = 0.8;
         int64_t timestamp = 0;
         bool used = false;
+        int64_t releasedAt = -1;   ///< note-off seen while still waiting, or -1
     };
 
     struct StringSlot

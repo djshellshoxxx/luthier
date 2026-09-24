@@ -17,12 +17,26 @@ option(LUTHIER_BUILD_CLI   "Build the offline batch-render CLI"  ON)
 
 add_subdirectory(ThirdParty/JUCE)
 
+# CLAP (host-integration.md 1): built through clap-juce-extensions when it is
+# checked out beside JUCE (scripts/setup_linux.sh and the CI fetch it).
+set(LUTHIER_CLAP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/clap-juce-extensions")
+if (EXISTS "${LUTHIER_CLAP_DIR}/CMakeLists.txt")
+    add_subdirectory("${LUTHIER_CLAP_DIR}" EXCLUDE_FROM_ALL)
+    set(LUTHIER_HAS_CLAP TRUE)
+endif()
+
+# AU on macOS (host-integration.md 1); VST3 and the standalone everywhere.
+set(LUTHIER_FORMATS VST3 Standalone)
+if (APPLE)
+    list(APPEND LUTHIER_FORMATS AU)
+endif()
+
 juce_add_plugin(Luthier
     COMPANY_NAME                "Luthier Audio"
     BUNDLE_ID                   "com.luthieraudio.luthier"
     PLUGIN_MANUFACTURER_CODE    Ltha
     PLUGIN_CODE                 Lthr
-    FORMATS                     VST3 Standalone
+    FORMATS                     ${LUTHIER_FORMATS}
     PRODUCT_NAME                "Luthier"
     IS_SYNTH                    TRUE
     NEEDS_MIDI_INPUT            TRUE
@@ -33,6 +47,12 @@ juce_add_plugin(Luthier
     VST3_CATEGORIES             "Instrument" "Synth"
     ICON_BIG                    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon.png"
     ICON_SMALL                  "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon_small.png")
+
+if (LUTHIER_HAS_CLAP)
+    clap_juce_extensions_plugin(TARGET Luthier
+        CLAP_ID "com.luthieraudio.luthier"
+        CLAP_FEATURES instrument synthesizer stereo)
+endif()
 
 file(GLOB_RECURSE LUTHIER_SOURCES CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/Source/*.cpp"
@@ -47,16 +67,6 @@ list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "${LUTHIER_WIP_REGEX}")
 
 target_sources(Luthier PRIVATE ${LUTHIER_SOURCES})
 
-# CLAP (host-integration.md: planned for v1.1). Built when clap-juce-extensions is
-# present in ThirdParty/ - scripts/setup_linux.sh fetches it - so a checkout without
-# it still configures. Target: Luthier_CLAP.
-option(LUTHIER_BUILD_CLAP "Build the CLAP format via clap-juce-extensions" ON)
-if (LUTHIER_BUILD_CLAP AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/clap-juce-extensions/CMakeLists.txt")
-    add_subdirectory(ThirdParty/clap-juce-extensions EXCLUDE_FROM_ALL)
-    clap_juce_extensions_plugin(TARGET Luthier
-        CLAP_ID "com.luthieraudio.luthier"
-        CLAP_FEATURES instrument synthesizer stereo)
-endif()
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Source" FILES ${LUTHIER_SOURCES})
 
 target_compile_definitions(Luthier PUBLIC
@@ -110,6 +120,9 @@ endfunction()
 
 luthier_copy_resources(Luthier_VST3
     "$<TARGET_FILE_DIR:Luthier_VST3>/../../Resources")
+
+luthier_copy_resources(Luthier_CLAP
+    "$<TARGET_FILE_DIR:Luthier_CLAP>/Resources")
 
 luthier_copy_resources(Luthier_Standalone
     "$<TARGET_FILE_DIR:Luthier_Standalone>/Resources")

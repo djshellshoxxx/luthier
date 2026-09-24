@@ -160,6 +160,11 @@ private:
     std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
     std::unique_ptr<juce::BufferingAudioSource> bufferingSource;
     std::unique_ptr<juce::AudioTransportSource> transport;
+
+    /** Held by load/unload while they swap the three sources above; the audio
+        thread only ever try-locks it and plays silence for that block. Without
+        it, loading the next track freed the transport mid-callback. */
+    juce::SpinLock transportLock;
     juce::TimeSliceThread readerThread { "Luthier backing track" };
 
     juce::File currentFile;

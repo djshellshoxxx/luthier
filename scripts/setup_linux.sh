@@ -10,9 +10,9 @@ if command -v apt-get >/dev/null; then
      libxcomposite-dev libfontconfig1-dev libfreetype-dev libcurl4-openssl-dev libgl1-mesa-dev xvfb ninja-build clang >/dev/null)
 fi
 [ -d ThirdParty/JUCE ] || git clone --depth 1 --branch 8.0.10 https://github.com/juce-framework/JUCE.git ThirdParty/JUCE
-# Optional: the CLAP wrapper (target Luthier_CLAP). A failed fetch only skips CLAP.
+# CLAP builds through clap-juce-extensions (CMakeLists picks it up when present).
 [ -d ThirdParty/clap-juce-extensions ] || git clone --depth 1 --recurse-submodules --shallow-submodules \
-    https://github.com/free-audio/clap-juce-extensions.git ThirdParty/clap-juce-extensions || true
+    https://github.com/free-audio/clap-juce-extensions.git ThirdParty/clap-juce-extensions
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
       -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 echo "Configured. Build tests:  ninja -C build LuthierTests"
