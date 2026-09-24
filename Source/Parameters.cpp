@@ -197,6 +197,13 @@ juce::StringArray Parameters::stringAgeNames()
     return { "Fresh", "Broken In", "Old" };
 }
 
+// environment.md 3.1 (REALISM-A): the order is the EnvProfile enum's.
+juce::StringArray Parameters::envProfileNames()
+{
+    return { "Static", "Stage lights", "Outdoor evening", "Cold case to room",
+             "Air-conditioned studio", "Humid club" };
+}
+
 juce::StringArray Parameters::pickMaterialNames()
 {
     return { "Nylon Pick", "Celluloid Pick", "Delrin Pick", "Metal Pick", "Wood Pick",
@@ -774,6 +781,28 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::slapSnapBack,       "Snap-Back",           0.0f, 1.0f, 0.5f));
     add (choiceParam (ParamIDs::slapBodyPart,       "Body Tap Resonance", { "Top", "Side", "Back" }, 0));
 
+    // ==== BEGIN REALISM-A params ====
+    // string-aging.md 4: hours skewed so 24 h sits mid-travel; the default is the
+    // old Broken In row (12 h), which is what `string_age`'s default was.
+    add (floatParam  (ParamIDs::stringAgeHours,    "String Age",          0.0f, 200.0f, 12.0f, 0.12f, "h"));
+    add (floatParam  (ParamIDs::stringCorrosivity, "Hand Corrosivity",    0.5f, 2.0f,   1.0f,  1.0f,  "x"));
+    add (floatParam  (ParamIDs::stringAgeDetail,   "Aging Detail",        0.0f, 1.0f,   1.0f));
+    add (choiceParam (ParamIDs::stringCoating,     "Coating",             { "None", "Thin", "Thick" }, 0));
+    add (choiceParam (ParamIDs::stringAgeAccrual,  "Age While Playing",   { "Off", "Real time", "x10", "x100" }, 0));
+    // environment.md 5
+    add (floatParam  (ParamIDs::envTemperatureC,   "Ambient Temperature", 5.0f,  40.0f, 22.0f, 1.0f, "C"));
+    add (floatParam  (ParamIDs::envTunedAtC,       "Tuned At",            5.0f,  40.0f, 22.0f, 1.0f, "C"));
+    add (floatParam  (ParamIDs::envHumidityPct,    "Humidity",            20.0f, 85.0f, 45.0f, 1.0f, "% RH"));
+    add (choiceParam (ParamIDs::envProfile,        "Session Profile",     envProfileNames(), 0));
+    add (choiceParam (ParamIDs::envClock,          "Profile Clock",       { "Host timeline", "Free-running" }, 0));
+    // body-coupling.md 4
+    add (floatParam  (ParamIDs::bodyCouplingAmount, "Body Coupling",      0.0f, 1.0f, 1.0f));
+    add (floatParam  (ParamIDs::bodyModeMassScale,  "Body Mode Mass",     0.5f, 2.0f, 1.0f, 1.0f / 3.0f, "x"));
+    add (floatParam  (ParamIDs::bodyModeQScale,     "Body Mode Q",        0.5f, 2.0f, 1.0f, 1.0f / 3.0f, "x"));
+    add (floatParam  (ParamIDs::bodyModeFreqScale,  "Body Mode Tuning",   0.9f, 1.1f, 1.0f, 0.5f, "x"));
+    add (choiceParam (ParamIDs::bodyCouplingModes,  "Coupling Modes",     { "4", "8", "12", "16" }, 1));
+    // ==== END REALISM-A params ====
+
     return layout;
 }
 
@@ -1103,6 +1132,38 @@ void ParameterBridge::applyToEngine() noexcept
         engine.setSlapSettings (slap);
     }
 
+    // ==== BEGIN REALISM-A params ====
+    {
+        // string-aging.md 5
+        StringAging::Inputs in;
+        in.hours = value (ParamIDs::stringAgeHours);
+        in.corrosivity = value (ParamIDs::stringCorrosivity);
+        in.detail = value (ParamIDs::stringAgeDetail);
+        in.coating = (StringCoating) juce::jlimit (0, (int) StringCoating::numCoatings - 1,
+                                                   juce::roundToInt (value (ParamIDs::stringCoating)));
+        in.accrual = (AgeAccrual) juce::jlimit (0, (int) AgeAccrual::numRates - 1,
+                                                juce::roundToInt (value (ParamIDs::stringAgeAccrual)));
+        engine.getStringAging().setInputs (in);
+
+        // environment.md 5
+        EnvironmentModel::Inputs env;
+        env.temperatureC = value (ParamIDs::envTemperatureC);
+        env.tunedAtC = value (ParamIDs::envTunedAtC);
+        env.humidityPct = value (ParamIDs::envHumidityPct);
+        env.profile = (EnvProfile) juce::jlimit (0, (int) EnvProfile::numProfiles - 1,
+                                                 juce::roundToInt (value (ParamIDs::envProfile)));
+        env.clock = (EnvClock) juce::jlimit (0, (int) EnvClock::numClocks - 1,
+                                             juce::roundToInt (value (ParamIDs::envClock)));
+        engine.getEnvironment().setInputs (env);
+
+        // body-coupling.md 4
+        engine.getBodyCoupling().setAmount (value (ParamIDs::bodyCouplingAmount));
+        engine.getBodyCoupling().setModeCount (4 * (1 + juce::jlimit (0, 3, juce::roundToInt (value (ParamIDs::bodyCouplingModes)))));
+        engine.setBodyModeScales (value (ParamIDs::bodyModeFreqScale), value (ParamIDs::bodyModeQScale),
+                                  value (ParamIDs::bodyModeMassScale));
+    }
+    // ==== END REALISM-A params ====
+
     auto& tech = engine.getTechniqueEngine();
     tech.setLegatoWindowMs (value (ParamIDs::legatoWindow));
     tech.setSlideGuitarMode (value (ParamIDs::slideGuitar) > 0.5f);
@@ -1288,7 +1349,8 @@ bool ParameterBridge::readStructuralValues() noexcept
     structural |= changed (lastTuning,         (int) value (ParamIDs::tuningPreset));
     structural |= changed (lastStringMaterial, (int) value (ParamIDs::stringMaterial));
     structural |= changed (lastStringGauge,    (int) value (ParamIDs::stringGauge));
-    structural |= changed (lastStringAge,      (int) value (ParamIDs::stringAge));
+    // string-aging.md 1: string_age is inert after load (the loader maps it to
+    // string_age_hours); it no longer rebuilds the strings. (REALISM-A)
     structural |= changed (lastBodyMode,       (int) value (ParamIDs::bodyMode));
     structural |= changed (lastBracing,        (int) value (ParamIDs::bodyBracing));
     structural |= changed (lastTopWood,        (int) value (ParamIDs::bodyTopWood));
@@ -1413,7 +1475,6 @@ void ParameterBridge::applyStructural()
 
     engine.setStringMaterial ((StringMaterial) juce::jlimit (0, (int) StringMaterial::NumMaterials - 1, lastStringMaterial));
     engine.setStringGauge ((StringGauge) juce::jlimit (0, (int) StringGauge::NumGauges - 1, lastStringGauge));
-    engine.setStringAge ((StringAge) juce::jlimit (0, (int) StringAge::NumAges - 1, lastStringAge));
     engine.setFretless (value (ParamIDs::fretless) > 0.5f);
 
     // ---- body ------------------------------------------------------------------
@@ -1429,6 +1490,7 @@ void ParameterBridge::applyStructural()
         cfg.soundHoleScale = value (ParamIDs::bodySoundhole);
         cfg.age = value (ParamIDs::bodyAge);
         engine.getBodyEngine().setBodyConfig (cfg);
+        engine.rebuildBodyCoupling();   // body-coupling.md 3: one body, two views (REALISM-A)
 
         const int mode = juce::jlimit (0, 3, lastBodyMode);
         engine.getBodyEngine().setMode (mode == 0 ? BodyEngine::Mode::Convolution

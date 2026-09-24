@@ -29,6 +29,9 @@ struct AllocationCounter
     static long count() noexcept { return allocationsOnThisThread; }
 };
 
+/** The same count for other test files (REALISM-A's budget tests). */
+long luthierAllocationCount() noexcept { return allocationsOnThisThread; }
+
 void* operator new (std::size_t size)
 {
     ++allocationsOnThisThread;

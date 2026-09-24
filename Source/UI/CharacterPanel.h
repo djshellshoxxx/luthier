@@ -19,6 +19,7 @@
 #include "NoiseGroups.h"
 #include "SetupGroup.h"
 #include "SlideGroup.h"
+#include "RealismGroups.h"
 #include "../Character/CharacterEngine.h"
 
 namespace luthier
@@ -142,7 +143,6 @@ private:
 
     // --- body and environment ----------------------------------------------------------
     juce::Slider bodyAgeSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::ComboBox temperatureBox, humidityBox;
     juce::Label sessionLabel;
 
     // --- presets ------------------------------------------------------------------------
@@ -153,12 +153,20 @@ private:
     std::unique_ptr<SetupGroup> setupGroup;
     std::unique_ptr<SlideGroup> slideGroup;
 
+public:
+    // REALISM-A groups; public for the tests.
+    std::unique_ptr<StringAgingGroup> stringAgingGroup;
+    std::unique_ptr<EnvironmentGroup> environmentGroup;
+    std::unique_ptr<BodyCouplingGroup> bodyCouplingGroup;
+
+private:
+
     /*  Sizes the panel to its content. The workspace viewport keeps whatever
         height a panel gives itself, and this one never gave itself one - so it
         sat at the viewport's 80-point minimum and scrolled nothing. */
     void fitToContent();
     juce::Label seedHeading, mapsHeading, tunerHeading, electronicsHeading,
-                bodyHeading, environmentHeading;
+                bodyHeading;
 
     bool updatingControls = false;
 

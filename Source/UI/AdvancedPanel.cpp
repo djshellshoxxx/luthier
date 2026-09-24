@@ -400,6 +400,11 @@ void AdvancedPanel::buildColumn1()
     addKnob (airGain, "Air", ParamIDs::bodyAirGain,
              "Emphasis on the air resonance: the boom of the box");
 
+    // body-coupling.md 5: the body's return path onto the strings.
+    addKnob (bodyCoupling, "Coupling", ParamIDs::bodyCouplingAmount,
+             "How much the body pushes back on the strings: wolf notes, tap tones and ring "
+             "through the body. The modes and the wolf map are on the CHARACTER tab.");
+
     bracing = std::make_unique<LuthierChoice> ("Bracing");
     bracing->attachTo (processor, ParamIDs::bodyBracing,
                        "Bracing stiffens the top, which raises every plate mode");
@@ -439,11 +444,14 @@ void AdvancedPanel::buildColumn1()
                            "the wire diameter and the scale length.");
     column.addControl (stringGauge.get(), 36);
 
-    stringAge = std::make_unique<LuthierChoice> ("Age");
-    stringAge->attachTo (processor, ParamIDs::stringAge,
-                         "Fresh strings are bright and squeaky; old ones are dull, die sooner "
-                         "and drift out of tune.");
-    column.addControl (stringAge.get(), 36);
+    // string-aging.md 7: the age slider is the set's hours now (string_age
+    // stays in the layout, inert, for old presets).
+    stringAgeHours = std::make_unique<LuthierKnob> ("Age (h)");
+    stringAgeHours->attachTo (processor, ParamIDs::stringAgeHours,
+                              "Hours played: Fresh 0, Broken in 12, Old 120. Fresh strings are bright and "
+                              "zingy; old ones are dull, die sooner and play sharp up the neck. "
+                              "Per-string aging is on the CHARACTER tab.");
+    column.addControl (stringAgeHours.get(), LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
 
     column.addGap (Metrics::gridHalf);
 
@@ -1060,7 +1068,9 @@ void AdvancedPanel::buildWorkspace()
         if (juce::String (tab.name) == "CHARACTER")
             made = new RangesUi::RangeTabButton (tab.name, processor,
                                                  { RangeFamily::pick, RangeFamily::squeak,
-                                                   RangeFamily::buzz, RangeFamily::slide });
+                                                   RangeFamily::buzz, RangeFamily::slide,
+                                                   // REALISM-A: string-aging 7, environment 7, body-coupling 5
+                                                   RangeFamily::strings, RangeFamily::environment, RangeFamily::body });
         else
             made = new juce::TextButton (tab.name);
 

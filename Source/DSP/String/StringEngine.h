@@ -42,6 +42,7 @@ public:
         double openBrightnessHz   = 5000.0;   ///< Loop filter cutoff, undamped.
         bool   wound              = false;    ///< Wound strings squeak and are stiffer.
         double couplingSend       = 1.0;      ///< How strongly it drives the bridge.
+        double waveImpedance      = 0.4;      ///< body-coupling.md 3: Z0 = sqrt(T mu), kg/s.
     };
 
     /** How hard the string is being damped right now. */
@@ -94,6 +95,35 @@ public:
 
     /** Extra decay scaling from string age, coating and user sustain control. */
     void setSustainScale (double scale) noexcept { sustainScale = juce::jlimit (0.05, 4.0, scale); needsLoopUpdate = true; }
+
+    /*  string-aging.md 5: what the set's age does to this string - multipliers
+        on the loop cutoff, the target T60 and the inharmonicity. Kept apart
+        from sustainScale (per-note character, slide and magnet values) so
+        neither can overwrite the other. 1, 1, 1 is a fresh string. */
+    void setAgingFactors (double brightness, double sustain, double dispersion) noexcept
+    {
+        if (brightness == agingBrightness && sustain == agingSustain && dispersion == agingDispersion)
+            return;
+
+        agingBrightness = juce::jlimit (0.05, 2.0, brightness);
+        agingSustain = juce::jlimit (0.05, 2.0, sustain);
+
+        if (dispersion != agingDispersion)
+        {
+            agingDispersion = juce::jlimit (0.5, 2.0, dispersion);
+            updateDispersion();
+        }
+
+        needsLoopUpdate = true;
+    }
+
+    double getAgingBrightness() const noexcept { return agingBrightness; }
+    double getAgingSustain() const noexcept { return agingSustain; }
+
+    /*  body-coupling.md 3: the wave arriving at the bridge - the loop's return
+        (after the loop filter, the dispersion and the loss), before anything is
+        injected - which BodyCouplingBank turns into the force on the bridge. */
+    double getBridgeWave() const noexcept { return bridgeWave; }
 
     /*  part-acoustics.md 4: what the string is stopped against - a fret's
         material, or the nut for an open string - scales the loop filter's
@@ -186,6 +216,8 @@ private:
     int     harmonicPartial = 0;
 
     double  terminationBrightness = 1.0;
+    double  agingBrightness = 1.0, agingSustain = 1.0, agingDispersion = 1.0;   // string-aging.md 5
+    double  bridgeWave = 0.0;                                                     // body-coupling.md 3
     double  fretBuzzAmount = 0.0;
     double  fretActionMm = 1.6;
     double  buzzPhase = 0.0;

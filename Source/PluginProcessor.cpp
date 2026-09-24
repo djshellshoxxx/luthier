@@ -999,6 +999,7 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     // what makes its scheduling sample-accurate rather than merely periodic.
     {
         double ppq = 0.0;
+        double hostSeconds = -1.0;   // environment.md 3.4 (REALISM-A)
         bool playing = false, hasPosition = false;
 
         if (auto* playHead = getPlayHead())
@@ -1012,10 +1013,14 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
                     ppq = *value;
                     hasPosition = true;
                 }
+
+                if (auto seconds = position->getTimeInSeconds())
+                    hostSeconds = *seconds;
             }
         }
 
         engine.setTransportPosition (ppq, playing);
+        engine.setHostTimeSeconds (hostSeconds, playing && hostSeconds >= 0.0);
 
         /*  tune-builder 3.6 and 8: the tune plays against the host's clock
             while the host plays and its own otherwise; its own clock then
@@ -2055,6 +2060,14 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // so they belong to the preset rather than to the user.
     root->setProperty ("character", engine.getCharacterEngine().toVar());
 
+    // string-aging.md 8 / environment.md 6 (REALISM-A): the per-string aging
+    // state and the environment's reference ride in the character block.
+    if (auto* character = root->getProperty ("character").getDynamicObject())
+    {
+        character->setProperty ("aging", engine.getStringAging().toVar());
+        character->setProperty ("environment", engine.getEnvironment().toVar());
+    }
+
     // tone-match 7: the IR slots store their file by path plus their settings.
     {
         auto* irs = new juce::DynamicObject();
@@ -2078,6 +2091,61 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     destData.reset();
     destData.append (json.toRawUTF8(), json.getNumBytesAsUTF8());
 }
+
+// ==== BEGIN REALISM-A state ====
+void LuthierAudioProcessor::applyRealismCharacterBlock (const juce::var& characterBlock)
+{
+    auto* block = characterBlock.getDynamicObject();
+
+    // string-aging.md 8: an absent block is all zeros.
+    engine.getStringAging().fromVar (block != nullptr ? block->getProperty ("aging") : juce::var());
+
+    if (block != nullptr && block->hasProperty ("environment"))
+        engine.getEnvironment().fromVar (block->getProperty ("environment"));
+
+    if (block == nullptr)
+        return;
+
+    auto setPlain = [this] (const char* id, float plain)
+    {
+        if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (id)))
+            p->setValueNotifyingHost (p->convertTo0to1 (plain));
+    };
+
+    /*  environment.md 6: the old cold / warm choice becomes the temperature
+        whose mean steady-state offset across this guitar's strings is the old
+        +-2.5 x amount cents, tuned at 22 C, Static. The old offset was
+        immediate, so the parts start settled. */
+    if (block->hasProperty ("temperature"))
+    {
+        const auto& character = engine.getCharacterEngine();
+        const double target = character.isEnabled()
+                                ? CharacterEngine::legacyTemperatureOffsetCents (character.getTemperature(), character.getAmount())
+                                : 0.0;
+        const double slope = engine.getEnvironment().steadyCentsPerKelvin();
+
+        if (target != 0.0 && slope != 0.0)
+        {
+            setPlain (ParamIDs::envTemperatureC, (float) (EnvironmentModel::kRoomC + target / slope));
+            setPlain (ParamIDs::envTunedAtC, (float) EnvironmentModel::kRoomC);
+            setPlain (ParamIDs::envProfile, 0.0f);
+            engine.getEnvironment().requestSettle();
+        }
+    }
+
+    /*  The old humidity multipliers never reached the audio, so every legacy
+        humidity is 45 %: mapping dry or humid to 30 or 70 would change how a
+        saved preset sounds. */
+    if (block->hasProperty ("humidity"))
+    {
+        if (engine.getCharacterEngine().getHumidity() != Humidity::normal)
+            ErrorLog::write (ErrorLog::Severity::info, "Environment", "LEGACY_HUMIDITY",
+                             "A legacy humidity setting was loaded as 45 % RH, which is how it sounded");
+
+        setPlain (ParamIDs::envHumidityPct, (float) EnvironmentModel::kReferenceRh);
+    }
+}
+// ==== END REALISM-A state ====
 
 void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
@@ -2148,6 +2216,8 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
 
     if (root->hasProperty ("character"))
         engine.getCharacterEngine().fromVar (root->getProperty ("character"));
+
+    applyRealismCharacterBlock (root->getProperty ("character"));   // REALISM-A
 
     if (auto* irs = root->getProperty ("toneMatch").getDynamicObject())
     {

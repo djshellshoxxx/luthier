@@ -348,6 +348,27 @@ namespace ParamIDs
     inline constexpr const char* slapSnapBack           = "slap_snap_back";
     inline constexpr const char* slapBodyPart           = "slap_body_part";
 
+    // ==== BEGIN REALISM-A params ====
+    // string-aging.md 4
+    inline constexpr const char* stringAgeHours         = "string_age_hours";
+    inline constexpr const char* stringCorrosivity      = "string_corrosivity";
+    inline constexpr const char* stringAgeDetail        = "string_age_detail";
+    inline constexpr const char* stringCoating          = "string_coating";
+    inline constexpr const char* stringAgeAccrual       = "string_age_accrual";
+    // environment.md 5
+    inline constexpr const char* envTemperatureC        = "env_temperature_c";
+    inline constexpr const char* envTunedAtC            = "env_tuned_at_c";
+    inline constexpr const char* envHumidityPct         = "env_humidity_pct";
+    inline constexpr const char* envProfile             = "env_profile";
+    inline constexpr const char* envClock               = "env_clock";
+    // body-coupling.md 4
+    inline constexpr const char* bodyCouplingAmount     = "body_coupling_amount";
+    inline constexpr const char* bodyModeMassScale      = "body_mode_mass_scale";
+    inline constexpr const char* bodyModeQScale         = "body_mode_q_scale";
+    inline constexpr const char* bodyModeFreqScale      = "body_mode_freq_scale";
+    inline constexpr const char* bodyCouplingModes      = "body_coupling_modes";
+    // ==== END REALISM-A params ====
+
     // --- effect slots ----------------------------------------------------------
     /** `post` selects the chain; `slot` 0-7; `param` 0-9. */
     juce::String slotType (bool post, int slot);
@@ -373,6 +394,7 @@ public:
     static juce::StringArray stringMaterialNames();
     static juce::StringArray stringGaugeNames();
     static juce::StringArray stringAgeNames();
+    static juce::StringArray envProfileNames();   // environment.md 3.1 (REALISM-A)
     static juce::StringArray pickMaterialNames();
     static juce::StringArray bodyModeNames();
     static juce::StringArray bracingNames();

@@ -254,8 +254,8 @@ bounce-exact.
 
 ## 5. Parameters
 
-Appended at the end of the layout. Net **+5**, 430 → 435 (after
-`string-aging.md`).
+Appended at the end of the layout. Net **+5** (see `body-coupling.md` 4
+for this build's totals).
 
 | ID | Name | Stock | Advanced | Default | Unit |
 |---|---|---|---|---|---|
@@ -275,6 +275,14 @@ modelled, and the tooltip says so.
 
 ## 6. Serialization and migration
 
+- *As built:* `env_humidity_pct` sets the acclimatised humidity directly
+  (it is a statement of how the guitar has been kept, not an ambient to
+  follow); only a session profile's humidity reaches the wood through
+  `τ_h`. Changing the profile mid-play is a new scene: the parts restart at
+  steady state and the reference is re-derived as on `reset()`, with the
+  profile clock unchanged so a bounce still matches. The air modes keep
+  their own Q; the plate-Q multiplier reaches only plate modes, and
+  `body_mode_q_scale` reaches both.
 - The parameters are stored in `parameters`. The reference pair and the
   automation lag state are stored in the `character` block as
   `"environment": {"ref_string_c": [...], "ref_neck_c": x}`. When the
@@ -334,7 +342,9 @@ modelled, and the tooltip says so.
 - **ENV-01 Room is a no-op.** Defaults render bit-identical to a build
   with `EnvironmentModel` disabled (6-string chord, 4 s).
 - **ENV-02 Steady slope.** Tuned at 22 °C, ambient 32 °C, Static, after
-  settling (t = 2 h): each string's offset equals
+  settling (t = 2 h; the model is reset with those inputs, so the parts
+  start at their steady state - after a live step, 2 h is 8 neck time
+  constants and leaves 3e-4 of the neck's part, above the 1e-6 bound): each string's offset equals
   `865.6·(−(α_s − α_n)·10)/ε_i` within 1e-6 relative. The plain high E
   (0.010" nickel-plated steel, 648 mm) is between −13 and −7 cents; the
   wound low E is between −48 and −32 cents.
@@ -356,7 +366,11 @@ modelled, and the tooltip says so.
   matches the section 2.5 formula within 2 %.
 - **ENV-08 Dry neck buzzes more.** Player-friendly setup at 25 % RH
   versus 45 %: the `FretBuzzModel` maximum excess on the low E at fret 3
-  (velocity 110) rises by at least 0.04 mm.
+  (velocity 110) rises by at least 0.01 mm. *Amended in the build:* 25 %
+  RH takes 0.049 mm off the relief (2.4), and `fret-buzz.md` 1's parabolic
+  board, deepest at fret 7, passes only about a quarter of that to the frets
+  just above fret 3 (measured 0.013 mm). 0.04 mm would need the whole relief
+  change at those frets.
 - **ENV-09 Seek determinism.** Host clock, Stage lights profile:
   rendering bars 9 to 17 after a seek and inside a render from bar 1
   gives per-string offsets within 1e-9 at every block of bars 9 to 17.
@@ -368,7 +382,12 @@ modelled, and the tooltip says so.
   cents. A preset with `humidity = humid` loads with 45 % and renders
   identically to one with `normal`.
 - **ENV-12 No steps.** Stepping `env_temperature_c` from 22 to 40 inside
-  one block changes no string's pitch by more than 0.05 cents per block.
+  one block changes no string's pitch by more than 0.1 cents per 512-sample
+  block at 48 kHz. *Amended in the build:* 0.05 was below the physics. The
+  fastest string, the plain high E (τ_s = 5.08 s, ε = 7.16e-3), slews at
+  865.6 · 12e-6 · 18 / (7.16e-3 · 5.08) ≈ 5.1 cents/s when the string alone
+  has warmed, which is 0.055 cents in a 10.7 ms block. That is a glide far
+  under the pitch JND, not a step.
 - **ENV-13 Wolf follows the body.** With `body-coupling.md` enabled, a
   plate multiplier of 0.97 moves the measured wolf frequency by
   −3 % ± 0.5 % (the same measurement as BC-05).

@@ -231,7 +231,8 @@ private:
 
     // --- column 1 -----------------------------------------------------------------
     juce::OwnedArray<StringRow> stringRows;
-    std::unique_ptr<LuthierChoice> stringMaterial, stringGauge, stringAge;
+    std::unique_ptr<LuthierChoice> stringMaterial, stringGauge;
+    std::unique_ptr<LuthierKnob> stringAgeHours, bodyCoupling;   // REALISM-A
     std::unique_ptr<LuthierKnob> realismDetune, intonation, sustain;
     std::unique_ptr<LuthierToggle> driftToggle;
 
