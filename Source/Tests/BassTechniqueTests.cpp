@@ -14,6 +14,7 @@
 #include "../Capture/PerformanceCapture.h"
 #include "../Model/Guitar/BassDefaults.h"
 #include "../Rhythm/BassStepGrid.h"
+#include "../Rhythm/GenreKit.h"
 #include "../UI/SlapGroup.h"
 
 #include <set>
@@ -933,4 +934,36 @@ LUTHIER_TEST (BassTechniques, theSlapGroupIsShownOnlyOnABass)
         CHECK_MSG (ids.contains (id), juce::String (id) + " is not in the SLAP group");
 
     CHECK (juce::String (SlapGroup::kInactiveMessage) == "Bass techniques are inactive. Load a bass to use them.");
+}
+
+/*  bass-techniques 9: "factory-content.md's genre kits gain bass kits that use it." */
+LUTHIER_TEST (BassTechniques, theBassKitsInstallTheirGrids)
+{
+    GenreKitLibrary kits;
+    PatternLibrary patterns;
+    RhythmEngine engine;
+    int bassKits = 0;
+
+    for (int i = 0; i < kits.getNumKits(); ++i)
+    {
+        const auto& kit = kits.getKit (i);
+
+        if (kit.bassGrid.isEmpty())
+            continue;
+
+        ++bassKits;
+        CHECK (kit.voicingStyle == VoicingStyle::bass);
+        GenreKitLibrary::apply (kit, engine, patterns);
+        CHECK_MSG (! engine.getBassGrid().isEmpty(), kit.name + " installed no grid");
+        CHECK (engine.getBassGrid().getName() == kit.bassGrid);
+
+        // The grid survives the kit's file round trip.
+        CHECK (GenreKit::fromVar (kit.toVar()).bassGrid == kit.bassGrid);
+    }
+
+    CHECK_MSG (bassKits >= 4, juce::String (bassKits) + " bass kits");
+
+    // A guitar kit clears the grid, so the strum pattern plays again.
+    GenreKitLibrary::apply (kits.getKit (0), engine, patterns);
+    CHECK (engine.getBassGrid().isEmpty());
 }

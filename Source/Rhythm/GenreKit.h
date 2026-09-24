@@ -57,6 +57,11 @@ struct GenreKit
 
     juce::StringArray tags;
 
+    /** bass-techniques 9 (MODEL-GAPS): a bass kit's step grid, by factory name
+        (BassStepGrid::getFactoryName); empty for a guitar kit. Applying a kit
+        installs it, or clears the grid when the kit has none. */
+    juce::String bassGrid;
+
     bool isValid() const noexcept { return name.isNotEmpty(); }
 
     juce::var toVar() const;
