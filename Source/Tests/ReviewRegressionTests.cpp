@@ -920,3 +920,39 @@ LUTHIER_TEST (ReviewRegression, aPedalMixMoveToFullWetIsSmoothed)
 
     CHECK_MSG (worst < 0.1, "jumped towards wet by " + juce::String (worst));
 }
+
+/*  R-042: the limiter's look-ahead line was only fed while the limiter was on,
+    so switching it back on replayed up to 1.5 ms of stale audio, and toggling
+    it moved the output by the look-ahead. The line now always runs. */
+#include "../DSP/Master/MasterBus.h"
+
+LUTHIER_TEST (ReviewRegression, reEnablingTheLimiterReplaysNothingStale)
+{
+    MasterBus master;
+    master.prepare (48000.0, 256);
+
+    juce::AudioBuffer<float> buffer (2, 256);
+    int64_t t = 0;
+    auto render = [&] (float amplitude)
+    {
+        for (int i = 0; i < 256; ++i, ++t)
+            for (int ch = 0; ch < 2; ++ch)
+                buffer.setSample (ch, i, amplitude * (float) std::sin (0.0576 * (double) t));   // ~440 Hz
+
+        master.processBlock (buffer);
+    };
+
+    // A loud passage with the limiter on, then silence with it off.
+    master.setLimiterEnabled (true);
+    for (int b = 0; b < 40; ++b) render (0.5f);
+
+    master.setLimiterEnabled (false);
+    for (int b = 0; b < 40; ++b) render (0.0f);
+
+    // Back on, with silence still going in: nothing from the loud passage.
+    master.setLimiterEnabled (true);
+    render (0.0f);
+
+    CHECK_MSG (buffer.getMagnitude (0, 0, 256) < 0.01f,
+               "stale audio: " + juce::String (buffer.getMagnitude (0, 0, 256)));
+}
