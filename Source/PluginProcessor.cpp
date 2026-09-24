@@ -1034,6 +1034,7 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 
         tuneToEngine.clear();
         tuneToMidiOut.clear();
+        tunePlayer.setTempoScale (1.0 + tuneModValue (ParamIDs::tuneTempoDrift) / 100.0);   // tune-builder 14
         tunePlayer.renderBlock (numSamples, host, tuneToEngine, tuneToMidiOut);
         tunePlayer.captureInput (midiMessages);
 
@@ -1051,6 +1052,7 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         {
             engine.getRhythmEngine().reset();
             modMatrix.resetEnvelopes();
+            tuneStateBoundaries.fetch_add (1, std::memory_order_relaxed);   // observable (TUNE-HELP-ONBOARDING test)
         }
     }
 
@@ -1582,6 +1584,11 @@ void LuthierAudioProcessor::applySnapshotModules (const Snapshot& snapshot)
         if (auto* object = snapshot.bypasses.getDynamicObject();
             object != nullptr && object->hasProperty ("character"))
             engine.getCharacterEngine().fromVar (object->getProperty ("character"));
+
+    // tune-builder 14: a snapshot switches the tune to its section (a footswitch
+    // can move a live rig between sections). Acted on by the timer.
+    if (auto* object = snapshot.bypasses.getDynamicObject(); object != nullptr && object->hasProperty ("tune"))
+        requestTuneSnapshotState (object->getProperty ("tune"));
 }
 
 bool LuthierAudioProcessor::captureSnapshot (int index, const juce::String& label, int colourTag)
@@ -1602,6 +1609,7 @@ bool LuthierAudioProcessor::captureSnapshot (int index, const juce::String& labe
     {
         auto* extras = new juce::DynamicObject();
         extras->setProperty ("character", engine.getCharacterEngine().toVar());
+        extras->setProperty ("tune", captureTuneSnapshotState());   // tune-builder 14
 
         snapshot.bypasses = juce::var (extras);
     }
@@ -2237,6 +2245,8 @@ void LuthierAudioProcessor::serviceTune()
     // tune-builder 8: a bass plays the tune's bass line itself; any other
     // instrument leaves it to MIDI out.
     tunePlayer.setBassToEngine (engine.getGuitarSpec().category == GuitarCategory::Bass);
+    tuneSession.setFeelOffset (tuneModValue (ParamIDs::tuneFeelMod));   // tune-builder 14
+    applyPendingTuneSection();
     tuneSession.service();
 }
 

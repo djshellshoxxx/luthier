@@ -273,7 +273,26 @@ void TuneSession::service()
         TuneRhythmChange change;
 
         while (player->takePendingRhythmChange (change))
+        {
+            // 14 (TUNE-HELP-ONBOARDING): the Tune Feel modulation rides on the section's feel.
+            lastRhythmChange = change;
+            hasLastRhythmChange = true;
+            change.feel = juce::jlimit (0.0, 1.0, change.feel + feelOffset);
             applyRhythmChange (change, *rhythmEngine, *genreKits, *patternLibrary);
+            appliedFeelOffset = feelOffset;
+        }
+
+        // A modulated feel moves within a section too: only the humanise amount
+        // is re-applied, so the pattern and its phase are left alone.
+        if (hasLastRhythmChange && std::abs (feelOffset - appliedFeelOffset) > 0.005)
+        {
+            const int kitIndex = genreKits->indexOf (lastRhythmChange.genreKitId);
+            auto humanise = kitIndex >= 0 ? genreKits->getKit (kitIndex).humanise : rhythmEngine->getHumanise();
+            const double feel = juce::jlimit (0.0, 1.0, lastRhythmChange.feel + feelOffset);
+            humanise.amount = juce::jlimit (0.0, 2.0, humanise.amount * feel * 2.0);
+            rhythmEngine->setHumanise (humanise);
+            appliedFeelOffset = feelOffset;
+        }
     }
 
     if (recording)

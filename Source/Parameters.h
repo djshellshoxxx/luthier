@@ -354,6 +354,13 @@ namespace ParamIDs
     juce::String slotBypass (bool post, int slot);
     juce::String slotMix (bool post, int slot);
     juce::String slotParam (bool post, int slot, int param);
+
+    // ==== BEGIN TUNE-HELP-ONBOARDING params ====
+    // tune-builder.md 14: section parameters the mod matrix and host automation
+    // can move over the tune's timeline. Both at 0 leave every tune as written.
+    inline constexpr const char* tuneFeelMod            = "tune_feel_mod";      ///< -1..1, added to each section's feel
+    inline constexpr const char* tuneTempoDrift         = "tune_tempo_drift";   ///< -10..10 %, the tune's own clock
+    // ==== END TUNE-HELP-ONBOARDING params ====
 }
 
 //==============================================================================

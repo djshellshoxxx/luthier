@@ -4,6 +4,7 @@
 #include "../Tune/TuneExamples.h"
 #include "../Tune/TuneHarmony.h"
 #include "TuneExportDialog.h"
+#include "../Support/TuneExport.h"
 
 namespace luthier
 {
@@ -614,6 +615,9 @@ TunePanel::TunePanel (LuthierAudioProcessor& p, TunePlayer& pl, TuneSession& s)
 TunePanel::~TunePanel()
 {
     stopTimer();
+
+    if (looperWorker != nullptr)
+        looperWorker->stopThread (30000);
     session.onChanged = nullptr;
 }
 
@@ -1068,6 +1072,13 @@ void TunePanel::buildTransport()
     AccessibleSetup::configureButton (countInToggle.getButton(), "Count-in", "Counts in a bar before playback.");
     AccessibleSetup::configureButton (metronomeToggle.getButton(), "Metronome", "Clicks on the tune's beats.");
 
+    // tune-builder 14: the looper captures a whole render to practise over.
+    addAndMakeVisible (toLooperButton);
+    toLooperButton.setTooltip ("Render the tune once through into a looper layer, to practise over it "
+                               "(the practice drawer's looper)");
+    AccessibleSetup::configureButton (toLooperButton, "Send to looper", "Renders the tune into a looper layer.");
+    toLooperButton.onClick = [this] { sendToLooper (false); };
+
     backButton.onClick = [this] { player.skipSection (-1); };
     forwardButton.onClick = [this] { player.skipSection (1); };
     playButton.onClick = [this] { player.togglePlayPause(); updateTransport(); };
@@ -1395,6 +1406,67 @@ bool TunePanel::stopSinging()
     });
 }
 
+int TunePanel::sendToLooper (bool synchronous)
+{
+    if (looperWorker != nullptr && looperWorker->isThreadRunning())
+        return 0;
+
+    const auto state = processor.captureStateBlock();
+    const double rate = processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0;
+
+    auto importInto = [safeProcessor = &processor] (const TuneExport::Render& render)
+    {
+        auto& looper = safeProcessor->getLooper();
+        int layer = 0;
+
+        for (int i = 0; i < looper.getNumLayers(); ++i)
+            if (! looper.getLayer (i).hasContent())
+            {
+                layer = i;
+                break;
+            }
+
+        return looper.importLayer (layer, render.main);
+    };
+
+    if (synchronous)
+    {
+        TuneExport::Render render;
+        return TuneExport::renderAudio (state, rate, 512, 0.0, false, render) ? importInto (render) : 0;
+    }
+
+    struct Worker : juce::Thread
+    {
+        Worker (std::function<void()> f) : juce::Thread ("Tune to looper"), job (std::move (f)) {}
+        void run() override { job(); }
+        std::function<void()> job;
+    };
+
+    toLooperButton.setEnabled (false);
+    toLooperButton.setButtonText ("RENDERING...");
+
+    looperWorker = std::make_unique<Worker> ([state, rate, importInto, safe = juce::Component::SafePointer<TunePanel> (this)]
+    {
+        auto render = std::make_shared<TuneExport::Render>();
+        const bool ok = TuneExport::renderAudio (state, rate, 512, 0.0, false, *render);
+
+        juce::MessageManager::callAsync ([safe, render, ok, importInto]
+        {
+            if (safe == nullptr)
+                return;
+
+            if (ok)
+                importInto (*render);
+
+            safe->toLooperButton.setEnabled (true);
+            safe->toLooperButton.setButtonText ("TO LOOPER");
+        });
+    });
+
+    looperWorker->startThread();
+    return 0;
+}
+
 bool TunePanel::saveTo (const juce::File& file, juce::String& error)
 {
     return session.saveAs (file, error);
@@ -1623,7 +1695,7 @@ int TunePanel::getPreferredHeight() const
          + kHeader + 2 * (button + kRowGap)                           // rhythm
          + kHeader + kRollHeight + kRowGap + 2 * (button + kRowGap)   // melody
          + kHeader + (layersStrip != nullptr ? layersStrip->getPreferredHeight() : 0) + kRowGap   // bass and layers
-         + kHeader + button + kRowGap + kPositionLine                 // transport
+         + kHeader + 2 * (button + kRowGap) + kPositionLine           // transport and TO LOOPER
          + Metrics::grid;
 }
 
@@ -1793,6 +1865,7 @@ void TunePanel::resized()
     // --- transport ---------------------------------------------------------------------
     transportHeader = bounds.removeFromTop (kHeader);
     split (row(), { &backButton, &playButton, &forwardButton, &loopToggle, &countInToggle, &metronomeToggle });
+    toLooperButton.setBounds (row().removeFromLeft (120));
     positionBounds = bounds.removeFromTop (kPositionLine);
 }
 

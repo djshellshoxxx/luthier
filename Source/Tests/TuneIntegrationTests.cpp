@@ -445,3 +445,168 @@ LUTHIER_TEST (TuneIntegration, theExportDialogWritesEachDestinationFromOneScreen
 
     folder.deleteRecursively();
 }
+
+//==============================================================================
+namespace
+{
+    /** Two sections, the second marked as a state boundary (8). */
+    Tune twoSectionTune (bool boundary)
+    {
+        auto t = verseTune();
+        t.getSection (0)->lengthBars = 1;
+        applyProgressionText (t, 0, "C");
+        TuneSection chorus = *t.getSection (0);
+        chorus.name = "Chorus";
+        chorus.stateBoundary = boundary;
+        t.addSection (chorus);
+        return t;
+    }
+
+    void runFor (LuthierAudioProcessor& p, double seconds)
+    {
+        juce::AudioBuffer<float> block (juce::jmax (2, p.getTotalNumOutputChannels()), kBlock);
+
+        for (int pos = 0; pos < (int) (seconds * kSr); pos += kBlock)
+        {
+            p.serviceTune();
+            block.clear();
+            juce::MidiBuffer midi;
+            p.processBlock (block, midi);
+        }
+    }
+}
+
+/*  8, at the processor: a section marked as a state boundary resets the rhythm
+    engine and the mod envelopes where it starts, and one that is not does not. */
+LUTHIER_TEST (TuneIntegration, aStateBoundarySectionResetsAtItsStart)
+{
+    for (bool boundary : { true, false })
+    {
+        auto p = livePlugin (twoSectionTune (boundary));
+        p->getTunePlayer().setLoop (false);
+        p->getTunePlayer().play();
+        runFor (*p, 4.5);   // 2 bars at 120 = 4 s
+
+        CHECK_MSG (p->getNumTuneStateBoundaries() == (boundary ? 1 : 0),
+                   juce::String (boundary ? "with" : "without") + " the flag: "
+                     + juce::String (p->getNumTuneStateBoundaries()) + " resets");
+    }
+}
+
+//==============================================================================
+/*  14: mod routes (and automation) move section parameters over the timeline:
+    Tune Tempo Drift speeds the tune's own clock, Tune Feel moves the feel. */
+LUTHIER_TEST (TuneIntegration, theTunesTimelineParametersDriftTempoAndFeel)
+{
+    auto p = livePlugin (twoSectionTune (false));
+    auto* drift = p->getState().getParameter (ParamIDs::tuneTempoDrift);
+    auto* feel = p->getState().getParameter (ParamIDs::tuneFeelMod);
+    CHECK (drift != nullptr && feel != nullptr);
+
+    if (drift == nullptr || feel == nullptr)
+        return;
+
+    // Defaults leave every tune as written.
+    CHECK_NEAR (p->tuneModValue (ParamIDs::tuneTempoDrift), 0.0, 1.0e-6);
+    CHECK_NEAR (p->tuneModValue (ParamIDs::tuneFeelMod), 0.0, 1.0e-6);
+    CHECK (! PresetManager::isRandomisable (ParamIDs::tuneFeelMod));
+
+    drift->setValueNotifyingHost (drift->convertTo0to1 (10.0f));
+    p->getTunePlayer().setLoop (true);
+    p->getTunePlayer().play();
+    runFor (*p, 1.0);
+
+    // 120 bpm + 10 %: 2.2 beats a second.
+    CHECK_NEAR (p->getTunePlayer().getTempoScale(), 1.1, 1.0e-4);
+    CHECK_NEAR (p->getTunePlayer().getPositionPpq(), 2.2, 0.05);
+
+    // Feel: the rhythm engine's humanise moves with the parameter, mid-section.
+    const double before = p->getEngine().getRhythmEngine().getHumanise().amount;
+    feel->setValueNotifyingHost (feel->convertTo0to1 (0.5f));
+    runFor (*p, 0.1);
+    CHECK_NEAR (p->getTuneSession().getFeelOffset(), 0.5, 1.0e-4);
+    CHECK_MSG (p->getEngine().getRhythmEngine().getHumanise().amount > before,
+               "Tune Feel did not loosen the rhythm");
+}
+
+//==============================================================================
+/*  14: "live-performance.md snapshots capture the current section state, so a
+    live rig can switch sections with a footswitch." */
+LUTHIER_TEST (TuneIntegration, aSnapshotRecallsTheTunesSection)
+{
+    auto p = livePlugin (twoSectionTune (false));
+    auto& session = p->getTuneSession();
+
+    session.setSelectedSection (1);
+    CHECK (p->captureSnapshot (0, "Chorus", 1));
+    session.setSelectedSection (0);
+    CHECK (p->captureSnapshot (1, "Verse", 2));
+
+    // Stopped: recall selects the section.
+    CHECK (p->recallSnapshot (0));
+    runFor (*p, 0.2);
+    CHECK (session.getSelectedSection() == 1);
+
+    // Playing: recall jumps there.
+    p->getTunePlayer().play();
+    runFor (*p, 0.2);
+    CHECK (p->recallSnapshot (1));
+    runFor (*p, 0.2);
+    CHECK (session.getSelectedSection() == 0);
+    CHECK (p->getTunePlayer().getPlayingSection() == 0);
+
+    CHECK (p->recallSnapshot (0));
+    runFor (*p, 0.2);
+    CHECK_MSG (p->getTunePlayer().getPlayingSection() == 1, "the snapshot did not switch the playing section");
+}
+
+//==============================================================================
+/*  14: "practice-tools.md looper can capture a whole Tune render into a loop
+    layer for practising over." */
+LUTHIER_TEST (TuneIntegration, theLooperCapturesAWholeTuneRender)
+{
+    auto p = livePlugin (twoSectionTune (false));
+    TunePanel panel (*p, p->getTunePlayer(), p->getTuneSession());
+
+    const int samples = panel.sendToLooper (true);
+    const int expected = (int) std::llround (TuneExport::getTuneSeconds (p->getTuneSession().getTune()) * kSr);
+
+    CHECK_MSG (std::abs (samples - expected) <= kBlock, "imported " + juce::String (samples) + " of " + juce::String (expected));
+    CHECK (p->getLooper().getLayer (0).hasContent());
+    CHECK (std::abs (p->getLooper().getLoopLengthSamples() - samples) == 0);
+    CHECK (p->getLooper().getLayer (0).getAudio().getMagnitude (0, samples) > 1.0e-4f);
+
+    // A second one goes to the next layer.
+    CHECK (panel.sendToLooper (true) > 0);
+    CHECK (p->getLooper().getLayer (1).hasContent());
+}
+
+//==============================================================================
+/*  15-10: "launch standalone, save a tune, close, relaunch, the last tune loads
+    and plays." The standalone keeps the plugin's state between launches, so a
+    relaunch is a new processor given the old one's state. */
+LUTHIER_TEST (TuneIntegration, aRelaunchLoadsTheLastTuneAndPlaysIt)
+{
+    juce::TemporaryFile file (".luthiertune");
+    juce::MemoryBlock state;
+
+    {
+        auto first = livePlugin (fullTune());
+        juce::String error;
+        CHECK_MSG (first->getTuneSession().saveAs (file.getFile(), error), error);
+        first->getStateInformation (state);
+    }
+
+    auto relaunched = std::make_unique<LuthierAudioProcessor>();
+    relaunched->prepareToPlay (kSr, kBlock);
+    relaunched->setStateInformation (state.getData(), (int) state.getSize());
+
+    auto& session = relaunched->getTuneSession();
+    CHECK (session.getTune().meta.title == "Integration");
+    CHECK (session.getFile() == file.getFile());
+    CHECK (! session.isDirty());
+    CHECK (session.getTune().getSection (0)->melody.has_value());
+
+    const auto played = playLive (*relaunched, 2.0);
+    CHECK_MSG (rmsDbfs (played) > -60.0, "the relaunched tune did not play");
+}

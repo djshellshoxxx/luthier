@@ -774,6 +774,13 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::slapSnapBack,       "Snap-Back",           0.0f, 1.0f, 0.5f));
     add (choiceParam (ParamIDs::slapBodyPart,       "Body Tap Resonance", { "Top", "Side", "Back" }, 0));
 
+    // ==== BEGIN TUNE-HELP-ONBOARDING params ====
+    // tune-builder 14: read by the processor for the TUNE tab's player and
+    // session (LuthierAudioProcessor::applyTuneModulation), not by the engine.
+    add (floatParam  (ParamIDs::tuneFeelMod,        "Tune Feel",          -1.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::tuneTempoDrift,     "Tune Tempo Drift",  -10.0f, 10.0f, 0.0f, 1.0f, "%"));
+    // ==== END TUNE-HELP-ONBOARDING params ====
+
     return layout;
 }
 

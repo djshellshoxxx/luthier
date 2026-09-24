@@ -435,6 +435,13 @@ public:
         offered only while there is an audio input. */
     bool startSinging();
     bool stopSinging();
+
+    /** tune-builder 14: renders the tune once through and puts it in the practice
+        looper's first empty layer (layer 1 when all are full), for practising
+        over. `synchronous` renders here (tests); the button renders on a
+        worker. Returns the samples imported (0 while a worker runs). */
+    int sendToLooper (bool synchronous);
+    juce::TextButton& getToLooperButton() noexcept { return toLooperButton; }
     juce::TextButton& getFreezeButton() noexcept     { return freezeButton; }
     juce::ComboBox& getQuantiseBox() noexcept        { return quantiseBox; }
     juce::TextButton& getBackButton() noexcept       { return backButton; }
@@ -512,6 +519,8 @@ private:
     // --- transport ---------------------------------------------------------------------
     juce::TextButton backButton { "<<" }, playButton { "PLAY" }, forwardButton { ">>" };
     LuthierToggle loopToggle { "LOOP" }, countInToggle { "COUNT-IN" }, metronomeToggle { "CLICK" };
+    juce::TextButton toLooperButton { "TO LOOPER" };
+    std::unique_ptr<juce::Thread> looperWorker;
     juce::String positionText;
 
     // Laid out in resized(), drawn in paint().

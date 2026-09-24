@@ -171,6 +171,11 @@ public:
 
     /** Clicks on the tune's beats (3.6 "metronome"). See getBlockClicks(). */
     void setMetronome (bool shouldClick) noexcept    { metronome.store (shouldClick, std::memory_order_relaxed); }
+
+    /** tune-builder 14 (TUNE-HELP-ONBOARDING): Tune Tempo Drift, as a factor on
+        the tune's own clock (1 = as written). A host that plays keeps its tempo. */
+    void setTempoScale (double scale) noexcept       { tempoScale.store (juce::jlimit (0.5, 2.0, scale), std::memory_order_relaxed); }
+    double getTempoScale() const noexcept            { return tempoScale.load (std::memory_order_relaxed); }
     bool isMetronomeOn() const noexcept              { return metronome.load (std::memory_order_relaxed); }
 
     /** tune-builder 6: the bass plays through the engine only when the current
@@ -316,6 +321,7 @@ private:
     std::atomic<bool> loop { true };
     std::atomic<int> countInBars { 0 };
     std::atomic<bool> metronome { false };
+    std::atomic<double> tempoScale { 1.0 };
     std::atomic<bool> bassToEngine { false };
     std::atomic<bool> recordArmed { false };
 

@@ -109,6 +109,21 @@ public:
     /** tune-builder 13: sung / hummed melody capture from the audio input (TUNE-HELP-ONBOARDING). */
     TuneHumCapture& getHumCapture() noexcept { return humCapture; }
 
+    /** tune-builder 14: a tune parameter's value with automation and modulation,
+        which is how routes move a section over the tune's timeline. Any thread. */
+    float tuneModValue (const char* parameterId) const noexcept;
+
+    /** tune-builder 14: "snapshots capture the current section state, so a live
+        rig can switch sections with a footswitch". What a snapshot keeps of the
+        tune (the section playing or selected, by name), and the recall's
+        request, which the message thread carries out (PluginProcessorTune.cpp). */
+    juce::var captureTuneSnapshotState() const;
+    void requestTuneSnapshotState (const juce::var& state) noexcept;
+    void applyPendingTuneSection();
+
+    /** How many tune state boundaries (8) the audio thread has acted on. */
+    int getNumTuneStateBoundaries() const noexcept { return tuneStateBoundaries.load (std::memory_order_relaxed); }
+
     /** The tune's message-thread work: rhythm changes at section starts,
         improvised passes, old timelines, the take (the timer's; tests call it). */
     void serviceTune();
@@ -527,6 +542,8 @@ private:
     TunePlayer tunePlayer;
     TuneSession tuneSession;
     TuneHumCapture humCapture;
+    std::atomic<int> pendingTuneSection { -1 };
+    std::atomic<int> tuneStateBoundaries { 0 };
 
     /** True while undo/redo restores a snapshot: the tune is not part of it. */
     bool restoringPluginUndo = false;

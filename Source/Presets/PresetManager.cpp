@@ -1136,7 +1136,9 @@ bool PresetManager::isRandomisable (const juce::String& paramId)
         ParamIDs::secretFeedback, ParamIDs::secretMix
     };
 
-    return ! excluded.contains (paramId);
+    // tune-builder 14 (TUNE-HELP-ONBOARDING): the tune's timeline controls are
+    // not part of a sound.
+    return ! excluded.contains (paramId) && ! paramId.startsWith ("tune_");
 }
 
 void PresetManager::randomise (uint64_t seed, const juce::StringArray& lockedParameters,
