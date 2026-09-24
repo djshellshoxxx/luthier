@@ -170,8 +170,8 @@ void FretboardComponent::timerCallback()
         const auto& slide = engine.getSlideEngine();
         const double target = slide.getOverlayFret();
 
-        // 80 ms ease at the 30 Hz this runs at.
-        const double ease = 1.0 - std::exp (-(1.0 / 30.0) / 0.080);
+        // 80 ms ease at the 30 Hz this runs at; none under reduced motion (accessibility 5).
+        const double ease = AccessibilitySettings::get().isReducedMotion() ? 1.0 : 1.0 - std::exp (-(1.0 / 30.0) / 0.080);
 
         if (target >= 0.0)
         {

@@ -18,6 +18,8 @@
 #include "../UI/HelpContent.h"
 #include "../UI/NewFeatureDots.h"
 #include "../UI/ModMatrixPanel.h"
+#include "../UI/FretboardComponent.h"
+#include "../UI/CircuitPanel.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -712,4 +714,63 @@ LUTHIER_TEST (DragToModulate, aDroppedSourceRoutesAt25PercentAsOneEntry)
 
     processor.undo();
     CHECK (matrix.getRouteCountForDestination (ParamIDs::ampGain) == routesBefore);
+}
+
+//==============================================================================
+/*  gui-integration 21: the slide bar on the fretboard is drawn at the bar's
+    fret, turned by its slant, in its material's colour; the circuit
+    visualiser's curve moves with the volume. */
+LUTHIER_TEST (LiveDisplays, theFretboardDrawsTheSlideBarAndTheCircuitCurveFollowsTheVolume)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    FretboardComponent fretboard (processor);
+    fretboard.setSize (900, 160);
+
+    auto render = [] (juce::Component& c)
+    {
+        juce::Image image (juce::Image::ARGB, c.getWidth(), c.getHeight(), true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        c.paintEntireComponent (g, true);
+        return image;
+    };
+
+    auto digest = [] (const juce::Image& image)
+    {
+        juce::uint64 sum = 0;
+        for (int y = 0; y < image.getHeight(); ++y)
+            for (int x = 0; x < image.getWidth(); ++x)
+                sum += (juce::uint64) image.getPixelAt (x, y).getARGB() * (juce::uint64) (x + 1);
+        return sum;
+    };
+
+    fretboard.tickForTest();
+    const auto none = digest (render (fretboard));
+
+    auto& slide = processor.getEngine().getSlideEngine();
+    slide.setOverlayFret (7.0);
+    for (int i = 0; i < 12; ++i)
+        fretboard.tickForTest();
+    const auto straight = digest (render (fretboard));
+    CHECK_MSG (straight != none, "no slide bar drawn");
+
+    auto settings = slide.getSettings();
+    settings.slantDegrees = 20.0;
+    slide.setSettings (settings);
+    fretboard.tickForTest();
+    CHECK_MSG (digest (render (fretboard)) != straight, "the bar did not turn with its slant");
+
+    slide.setOverlayFret (-1.0);
+
+    CircuitResponseView circuit (processor);
+    circuit.setSize (200, 90);
+    circuit.refresh();
+    const auto full = digest (render (circuit));
+
+    auto* volume = dynamic_cast<juce::RangedAudioParameter*> (processor.getState().getParameter (ParamIDs::guitarVolume));
+    volume->setValueNotifyingHost (volume->convertTo0to1 (volume->getNormalisableRange().start + 0.3f * volume->getNormalisableRange().getRange().getLength()));
+    processor.getParameterBridge().applyAllNow();
+    CHECK (circuit.refresh());
+    CHECK_MSG (digest (render (circuit)) != full, "the circuit curve did not move with the volume");
 }

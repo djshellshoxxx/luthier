@@ -36,6 +36,9 @@ public:
     explicit FretboardComponent (LuthierAudioProcessor& processor);
     ~FretboardComponent() override;
 
+    /** One frame of the timer's work (tests). */
+    void tickForTest() { timerCallback(); }
+
     //==========================================================================
     void setScaleOverlay (ScaleOverlay scale, int rootPitchClass);
     ScaleOverlay getScaleOverlay() const noexcept { return scale; }
