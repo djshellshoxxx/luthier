@@ -233,12 +233,14 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                               "This cannot be undone.")
                 .withButton ("Reset everything")
                 .withButton ("Cancel"),
-            [this] (int result)
+            [safe = juce::Component::SafePointer<DebugPanel> (this)] (int result)
             {
-                if (result == 1)
+                // NativeMessageBox::showAsync reports the plain button index:
+                // 0 is "Reset everything", 1 is Cancel (and Escape).
+                if (safe != nullptr && result == 0)
                 {
-                    processor.hardResetAndClearCaches();
-                    refreshState();
+                    safe->processor.hardResetAndClearCaches();
+                    safe->refreshState();
                 }
             });
     };
@@ -913,13 +915,17 @@ void ExportPanel::startExport()
     processor.getExporter().startExport (
         options, sequence, state,
         [] { return LuthierAudioProcessor::createOfflineInstance(); },
-        [this] (const AudioExporter::Result& result)
+        [safe = juce::Component::SafePointer<ExportPanel> (this)] (const AudioExporter::Result& result)
         {
-            progressBar.setVisible (false);
-            exportButton.setEnabled (true);
-            cancelButton.setEnabled (false);
-
-            statusLabel.setText (result.message, juce::dontSendNotification);
+            // The exporter belongs to the processor and outlives this panel: the
+            // window may have been closed while it rendered.
+            if (safe != nullptr)
+            {
+                safe->progressBar.setVisible (false);
+                safe->exportButton.setEnabled (true);
+                safe->cancelButton.setEnabled (false);
+                safe->statusLabel.setText (result.message, juce::dontSendNotification);
+            }
 
             // On success the user is told everything the brief asks for: that it
             // worked, where it went, how long it is and at what quality.
@@ -1142,12 +1148,13 @@ PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
                 .withMessage ("\"" + name + "\" will be deleted from disk. This cannot be undone.")
                 .withButton ("Delete")
                 .withButton ("Cancel"),
-            [this, index] (int result)
+            [safe = juce::Component::SafePointer<PresetBrowserPanel> (this), index] (int result)
             {
-                if (result == 1)
+                // Plain button index: 0 is Delete, 1 is Cancel (and Escape).
+                if (safe != nullptr && result == 0)
                 {
-                    processor.getPresetManager().deletePreset (index);
-                    rebuildList();
+                    safe->processor.getPresetManager().deletePreset (index);
+                    safe->rebuildList();
                 }
             });
     };

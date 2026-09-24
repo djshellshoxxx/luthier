@@ -555,7 +555,7 @@ private:
     PracticeActivityTracker practiceTracker;
     std::atomic<int> pendingDrawerTool { -1 };
 
-    bool practicePanelOpen = false;
+    std::atomic<bool> practicePanelOpen { false };   // set by the UI, read by the audio thread
 
     /** The metronome's click and the backing track are rendered into their own
         buffers and then mixed, so neither can be written over by the other. */
@@ -647,10 +647,28 @@ private:
 
     // Transport state, so the matrix can retrigger synced sources exactly once
     // when the host starts rolling.
-    bool transportWasRunning = false;
+    std::atomic<bool> transportWasRunning { false };   // read by getEffectiveTempo on the UI thread
+
+    /** This block's tempo: the host's, or the tapped one when that wins. */
+    double blockTempo = 120.0;
 
     double currentSampleRate = 44100.0;
+    bool initialStateApplied = false;   ///< the bridge has built the instrument once (prepare or save)
     int currentBlockSize = 512;
+
+    /*  A host may hand processBlock more samples than it promised in
+        prepareToPlay; every scratch buffer here is sized from that promise, so
+        such a block is rendered in slices of at most currentBlockSize. These
+        carry each slice's MIDI in and the whole block's MIDI out, sized in
+        prepareToPlay. */
+    juce::MidiBuffer sliceMidi, sliceMidiOut;
+    juce::MidiBuffer liveMidiKept;   ///< handleLiveMidi's output, sized in prepareToPlay
+
+    /** The macro parameters' values, looked up once: a lookup by ID builds a
+        String, which is an allocation the audio thread must not make. */
+    std::array<std::atomic<float>*, ParamIDs::kNumMacros> macroValues {};
+
+    void processSlice (juce::AudioBuffer<float>&, juce::MidiBuffer&);
     int reportedLatency = 0;
 
     /*  gui-integration 15: "Sample rate changed to 96 kHz, IRs and circuit filters

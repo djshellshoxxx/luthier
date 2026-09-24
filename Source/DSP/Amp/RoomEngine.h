@@ -91,6 +91,7 @@ private:
     static constexpr int kFdnSize = 8;
 
     void rebuild();
+    void updateFeedbackGain() noexcept;
 
     double sr = 44100.0;
     bool enabled = true;
