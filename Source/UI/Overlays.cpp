@@ -223,6 +223,10 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                                 "diagnostic files and cached data, and reinstalls the factory bank.");
     hardResetButton.onClick = [this]
     {
+        // Taken here: MSVC resolves `this` inside a nested lambda's init-capture
+        // to the enclosing lambda, not the component.
+        juce::Component::SafePointer<DebugPanel> self (this);
+
         juce::NativeMessageBox::showAsync (
             juce::MessageBoxOptions()
                 .withIconType (juce::MessageBoxIconType::WarningIcon)
@@ -233,7 +237,7 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                               "This cannot be undone.")
                 .withButton ("Reset everything")
                 .withButton ("Cancel"),
-            [safe = juce::Component::SafePointer<DebugPanel> (this)] (int result)
+            [safe = self] (int result)
             {
                 // NativeMessageBox::showAsync reports the plain button index:
                 // 0 is "Reset everything", 1 is Cancel (and Escape).
@@ -1140,6 +1144,7 @@ PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
             return;
 
         const auto name = info->name;
+        juce::Component::SafePointer<PresetBrowserPanel> self (this);   // see DebugPanel: MSVC and nested init-captures
 
         juce::NativeMessageBox::showAsync (
             juce::MessageBoxOptions()
@@ -1148,7 +1153,7 @@ PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
                 .withMessage ("\"" + name + "\" will be deleted from disk. This cannot be undone.")
                 .withButton ("Delete")
                 .withButton ("Cancel"),
-            [safe = juce::Component::SafePointer<PresetBrowserPanel> (this), index] (int result)
+            [safe = self, index] (int result)
             {
                 // Plain button index: 0 is Delete, 1 is Cancel (and Escape).
                 if (safe != nullptr && result == 0)
