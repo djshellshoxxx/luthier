@@ -1,0 +1,29 @@
+- [TH-1] DEFER: DECISIONS.md 2026-09-23 (user) chose the guitar-shop palette for Luthier. High Contrast keeps flat neutrals. `Theme.theDefaultIsTheGuitarShop` asserts the override.
+- [TH-4] effort S — use `DropShadow (Palette::shadow, 8, {0,2})` for knobs and thumbs in `UI/Theme.cpp` (knob radius is 6 and thumb 5 today) with shadow alpha 0.55. Add `Theme.shadowMatchesTheSpec`, a pixel probe on a rendered knob.
+- [TH-5] DEFER: visual-polish.md 6.2 plus DECISIONS 2026-09-23 set Lato + Bebas.
+- [TH-6] effort S — add `Theme.monoFontIsAPreferredFaceOrFallback`, which checks that `Fonts::mono` resolves to JetBrains Mono or IBM Plex Mono when bundled. Bundle JetBrains Mono in Resources/Fonts if it is not already there.
+- [TH-7] effort S — change `Fonts::drawTrackedText`'s default tracking to 0.08em and the knob value readout in `LuthierKnob::paint` to 13px. Add an assertion on the tracked width to `Theme.*`.
+- [TH-8] effort S — add `Theme.knobSizesAreTheSpecsThree`: construct a `LuthierKnob` of each Size and assert `Metrics` 36/48/64 and the preferred height.
+- [TH-9] DEFER: visual-polish.md 6.3 black bell knobs, approved by the user (DECISIONS 2026-09-23). High Contrast keeps flat knobs.
+- [TH-10] effort S — cover it with `Theme.knobRenderShowsIndicatorArcAndDot`, which renders a `LuthierKnob` at a known value and probes pixels on the indicator line, the arc (filled vs unfilled) and the centre dot (accent vs muted at the default). Put it in Source/Tests/ThemeTests.cpp.
+- [TH-12] effort S — covered by the TH-10 render-probe test.
+- [TH-13] effort S — add `Editor.knobDoubleClickResetsAndEnterValueSets`: simulate a double-click on `LuthierKnob::slider` and check the parameter default, then call the "Enter value..." handler of `showParameterContextMenu` with a typed value.
+- [TH-14] effort S — add `Theme.knobShowsValueOnlyWhileHovered`: set `hovering` via mouseEnter and compare the value-row pixels.
+- [TH-15] effort S — draw 1px muted ticks outside the track in `drawLinearSlider` (every 6 dB for dB params, else 10%). Keep the brass thumb (visual-polish). Cover it with a render probe.
+- [TH-16] effort S — add `Theme.buttonStatesMatchTheSpec`: render a toggle on and off, assert the 28px height, the 15% accent fill and the accent border pixel.
+- [TH-17] effort S — add a 100 ms timed flash: a `LuthierLookAndFeel` flash map or a small `FlashingButton` mix-in in Widgets.cpp that starts a 100 ms timer on click and repaints with the accent. Make reduced-motion aware. Add a test with an injectable clock.
+- [TH-18] effort S — add `Theme.meterGradientAndPeakHold`: drive `LevelMeter` ticks with a fake level, check that the hold lasts 45 ticks and falls at 20 dB/s, and check the `meterColourFor` stops.
+- [TH-19] effort S — covered by the TH-18 test.
+- [TH-21] DEFER: walnut panels are the visual-polish.md 6 guitar-shop look (DECISIONS 2026-09-23).
+- [TH-22] DEFER: the brass plate header is visual-polish.md 6.2. theme.md's accent bar remains in High Contrast.
+- [TH-23] effort S — cover the radii in the TH-16 render probe (window/panel/control corners).
+- [TH-25] DEFER: DECISIONS 2026-09-23 explicitly overrides "no faux wood/metal" for Luthier.
+- [TH-26] effort M — add a value tween in `LuthierKnob`/`LuthierLookAndFeel`: animate displayed slider positions for programmatic value changes (preset load, undo, automation) over `Metrics::animationMs` with ease-out, skipped under reduced motion. Test with an injectable clock that the displayed angle lags and settles within 80 ms.
+- [TH-27] effort S — call `setMouseCursor (juce::MouseCursor::UpDownResizeCursor)` in the `LuthierKnob` and linear-slider constructors (Widgets.cpp) and change the hover brightness to 0.08. Add `Theme.knobsShowAVerticalResizeCursor`.
+- [TH-28] effort S — add `Editor.knobDragModifiersChangeSensitivity`: feed synthetic MouseEvents with Shift/Cmd to `KnobSlider::mouseDrag` and assert the value deltas are ordered coarse > normal > fine.
+- [TH-29] effort S — add `Theme.tooltipIsADarkPillAfter400ms`: assert `TooltipWindow` delay == `Metrics::tooltipDelayMs` on the editor and render `drawTooltip`.
+- [TH-30] DEFER: spec.md's GUI section fixes the header at 48 px, and the per-plugin spec wins over the shared house style.
+- [TH-31] effort S — add `Editor.theHeaderCarriesPresetSelectorAndAB`: find `HeaderBar`, assert that presetName, compareA and compareB are visible and right of the name, and that clicking B swaps slots (`processor.isSlotBActive`).
+- [TH-32] DEFER: visual-polish.md 6.4 replaced the notch with the brass headstock mark (DECISIONS 2026-09-23).
+- [TH-33] effort S — add `Editor.theFooterShowsTheVersion`: render the editor and check that the footer text via a test hook equals "v" JucePlugin_VersionString.
+- [TH-34] effort S — add `Theme.outputLedTracksLevelAndGoesRedOverZero`: feed `OutputLed` a fake peak source (-inf, -6, +1 dB) and assert the brightness order and `overThreshold`.

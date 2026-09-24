@@ -1,0 +1,52 @@
+## file-formats.md
+
+Parts, guitars, tunes and `.midprofile` follow the spec: `schema` and `magic`, a `meta` block, unknown-field preservation for tunes, and temp-then-rename saves. The preset format still drifts. It has a flat root with `schemaVersion` (a missing one is refused, not read as 1) and no `meta` block. Modulation, snapshots, MIDI Learn mappings, rhythm and routing are left out; those survive only in the host state. The migration backup to `Presets/Backup/<date>/<name>-v<schema>` has landed from model-gaps and is tested. Setlist and loop files use a `format` string instead of `magic`/`schema`, pattern and kit files have neither, and the UI has no way to save a setlist. `.luthiercontent` and the guitar `per_string_override` are on the visual branch. The atomicity, 200-fixture migration and backup-pruning tests do not exist.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| FF-1 (§0.1) | Every file UTF-8 JSON (audio WAV, MIDI SMF) | all writers via `juce::JSON::toString` | n/a | `Presets::stateRoundTripsExactly`, `TuneBuilder::aHundredRandomTunesRoundTripByteIdentical` | DONE |
+| FF-2 (§0.2) | Top-level `schema` int; missing = 1 — preset uses `schemaVersion` and refuses when it is missing; setlist/pattern/loop have none | `Model/Workshop/Part.cpp`, `PartLibrary.cpp`, `Tune/TuneFile.cpp`; `PresetManager::fromVar` (`BAD_SCHEMA`) | n/a | - | PARTIAL |
+| FF-3 (§0.3) | Unknown fields preserved and written back — presets (top level) and tunes only; not guitar/part/setlist/pattern | `PresetManager::fromVar` `unknownFields`; `TuneFile` | n/a | `Presets::unknownFieldsSurviveARoundTrip`, `TuneBuilder::unknownFieldsAreKeptAndWrittenBack` | PARTIAL |
+| FF-4 (§0.4, §2) | Migrations: schema-1 ranges derivation, pre-M49 guitar name via `migration.json`, pickup placements, doubler, strum speed | `PresetManager::fromVar`, `PartLibrary` migration.json | n/a | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent`, `GuitarMigration::aPresetNamingAnOldGuitarLoadsItsReplacement` | DONE |
+| FF-5 (§0.5, §1) | Canonical extension + magic marker for every type — setlist/loop use `format`; pattern/kit have no marker | `PresetManager::kMagic`, `Part::kMagic`, `WorkshopGuitar::kMagic`, `TuneFile::kMagic`, `MidiProfiles kProfileMagic`; `Setlist.cpp` `format` | n/a | `Presets::aFileWithoutTheMagicMarkerIsRefused` | PARTIAL |
+| FF-6 (§0.6) | Portable relative paths under registered user folders listed in user-global config — no registered-folders list; setlist stores absolute `preset_path` | `ToneMatch` IrSlot relative paths; guitar `Factory/`/`User/` refs | n/a | `ToneMatch::presetPathsAreRelativeUnderTheLibraryRoot` | PARTIAL |
+| FF-7 (§1) | `.luthierpreset` type | `Presets/PresetManager` | header / preset browser | `Presets::everyFactoryPresetLoadsAndPlays` | DONE |
+| FF-8 (§1, §3) | `.luthierguitar` bill of parts, setup, finish, character seed | `PartLibrary.cpp:WorkshopGuitar::toVar`, `PartLibrary::buildGuitar` | WORKSHOP Save As | `Workshop::everyFactoryGuitarLoadsAndRoundTrips` | DONE |
+| FF-9 (§3) | Guitar `strings.per_string_override` | on visual: `WorkshopGuitar` `stringOverrides` (f4233b5) | WORKSHOP per-string | on visual | OWNED |
+| FF-10 (§1, §4) | `.luthierpart` schema (meta.part_type, compatibility, fields, illustration) | `Model/Workshop/Part.cpp` | WORKSHOP | `Workshop::theFactoryLibraryIsThere` | DONE |
+| FF-11 (§1, §5) | `.luthiertune` per tune-builder 11 | `Tune/TuneFile.cpp` | TUNE tab open/save | `TuneBuilder::aHundredRandomTunesRoundTripByteIdentical` | DONE |
+| FF-12 (§1, §6) | `.luthierpattern` per rhythm-engine 6 — no magic/schema; `replaceWithText` | `Rhythm/Patterns.cpp:RhythmPattern::saveTo/loadFrom` | RHYTHM tab save | `RhythmPatterns::patternsRoundTripThroughJson` | PARTIAL |
+| FF-13 (§1, §7) | `.luthierset` {schema, magic, meta{name,notes,bpm_default}, entries{preset,snapshot,notes}} — keys `format`, `preset_path`, `snapshot_index`; no meta; load does not check the marker; no Save in the UI | `Live/Setlist.cpp:toVar/loadFrom/saveTo` | Live Strip `SetlistTriptych` (open only), LIVE tab list | `LiveSetlist::roundTripsThroughJson` | PARTIAL |
+| FF-14 (§1, §8) | `.luthierloop` single file (MIDI + WAV refs + per-layer settings) — a folder with `loop.json`, `format` marker | `Practice/Looper.cpp` save/load | PRACTICE drawer | `PracticeSetupPanel::clearHistoryEmptiesStatsButKeepsLoopsAndSessions` (existence only) | PARTIAL |
+| FF-15 (§1, §9) | `.luthiercontent` signed zip + manifest into `ContentUpdates/<name>/` | on visual: `Updates/ContentPackage` (ec0e866, RSA not PGP) | - | on visual: `ContentPackage.*` | OWNED |
+| FF-16 (§1, §10) | `.midprofile` schema | `Export/MidiProfiles.cpp` | MIDI OUT panel Save/Load profile | `MidiExport::midprofileSavesAndLoads` | DONE |
+| FF-17 (§1, §11) | `.mid` Luthier/Generic profiles | `Export/MidiProfiles`, `MidiPerformance` | Export | `MidiExport::genericProfileIsPlainMidi`, `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit` | DONE |
+| FF-18 (§1) | WAV/AIFF/FLAC renders and IRs — no test writes an AIFF or FLAC | `Support/AudioExporter` `Format::Wav/Aiff/Flac` | Export dialog | - | NO-TEST |
+| FF-19 (§1) | `.mp3` backing tracks in — the chooser offers `*.mp3`, but `JUCE_USE_MP3AUDIOFORMAT` is not set | `Practice/BackingTrack` `registerBasicFormats` | PRACTICE `PracticePanel` chooser | - | PARTIAL |
+| FF-20 (§2) | Preset `meta` block (name, author, category, tags, created/modified, version_created/modified, notes) — flat root; `author` always ""; no dates or version_created | `PresetManager::toVar` | Save As overlay | - | PARTIAL |
+| FF-21 (§2) | Preset `guitar {reference, override}` | `PluginProcessor` guitar block | n/a | `WorkshopPresets::anEditedGuitarTravelsWholeInTheState`, `WorkshopPresets::aMissingGuitarFileFallsBackToItsType` | DONE |
+| FF-22 (§2) | Preset `parameters` (stored normalised; ulp-stable) | `PresetManager::toVar` | n/a | `Presets::stateRoundTripsExactly` | DONE |
+| FF-23 (§2) | Preset `ranges` block | `RangeState::toVar` | Options > Ranges | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent` | DONE |
+| FF-24 (§2) | Preset `modulation` (sources + routes) — host state only; lost on a preset save or load | `PresetManager::toVar` (absent) | - | - | MISSING |
+| FF-25 (§2) | Preset `snapshots` — host state only | `PresetManager::toVar` (absent) | - | - | MISSING |
+| FF-26 (§2) | Preset `midi_mappings` {cc, channel, param, min, max} — only the CC -> MidiTarget `midiMap`; MIDI Learn only in host state | `PresetManager::toVar` `midiMap` | - | - | PARTIAL |
+| FF-27 (§2) | Preset `rhythm_engine` | host state `rhythm` only | - | - | MISSING |
+| FF-28 (§2) | Preset `effects_state` pre/post rack — equivalent content in slot parameters, not a separate block | slot params in `parameters`; `onPedalTypesLoaded` | n/a | `PresetPedals::aFreshLoadKeepsThePresetsPedalSettings` | DONE |
+| FF-29 (§2) | Preset `midi_out_profile` — routing only in host state | - | - | - | MISSING |
+| FF-30 (§2) | Backup the original on migration to `Presets/Backup/<yyyy-mm-dd>/<name>-v<schema>.luthierpreset` | `PresetManager::backupMigratedOriginal`, `needsMigration` | n/a | `ModelGapsUi::aMigratedPresetKeepsItsOriginal` | DONE |
+| FF-31 (§12) | Common meta rules (ISO dates, versions, tags, notes) — parts/guitars/tunes yes; presets and setlists lack dates and versions | `TuneFile::metaToVar`, `Part.cpp`, `PartLibrary.cpp` | n/a | - | PARTIAL |
+| FF-32 (§13 1-3) | Temp file + fsync + rename — presets, tunes, parts, guitars; others use `replaceWithText` (JUCE temp+rename); no test | `PresetManager::writeToFile`, `TuneFile::save`, `Part.cpp`, `PartLibrary.cpp` | n/a | - | NO-TEST |
+| FF-33 (§13 4) | Previous preset/guitar/tune moved to backup — no guitar backup | `PresetManager::backupBeforeOverwrite`; `TuneFile::save` keepBackup | n/a | `Presets::savingBacksUpTheVersionItReplaces` | PARTIAL |
+| FF-34 (§13) | Backups older than 30 days pruned on startup — presets only; tune `.backup` never pruned; untested | `PresetManager::pruneOldBackups` (ctor) | n/a | - | PARTIAL |
+| FF-35 (§14 1-5, 7) | Load: read, UTF-8/JSON/magic, schema, migrate, required fields, refuse with a named banner — the setlist/pattern loaders skip the marker and fail silently | `PresetManager::loadPreset`, `TuneFile` load, `PartLibrary::buildGuitar` | banner "preset-load" | `Presets::mutatedPresetsNeverCrashTheLoader`, `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` | PARTIAL |
+| FF-36 (§14 6) | Missing references -> factory fallback + named notification | `takeGuitarNotices`, IrSlot `lastError` | banners "missing-part", "ir-missing" | `Workshop::aMissingPartFallsBackAndSaysSo`, `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` | DONE |
+| FF-37 (§14) | A corrupt file is never overwritten; a refused load leaves the file and the session untouched | `PresetManager::loadPreset` (`LOAD_REFUSED`) | banner | `ErrorLog::arefusedPresetLoadIsRecordedAndChangesNothing` | DONE |
+| FF-38 (§15) | Version discipline (tail-only fields, deprecation window, bump on semantic change) | process | n/a | n/a | DONE |
+| FF-39 (§16) | Test: every factory file round-trips byte-identical — tunes byte-identical; guitars/parts spec-equal; preset ulp test on visual | - | n/a | `Workshop::everyFactoryGuitarLoadsAndRoundTrips`, `Presets::stateRoundTripsExactly`; on visual: `Presets::everyFactoryPresetRoundTripsToTheUlp` | PARTIAL |
+| FF-40 (§16) | Test: fuzz 10,000 mutated bytes across factory files — presets only; the every-byte flip is on visual | - | n/a | `Presets::mutatedPresetsNeverCrashTheLoader`; on visual: `Presets::everyByteOfAFactoryPresetFlippedIsRefusedOrLoads` | PARTIAL |
+| FF-41 (§16) | Test: every migration across a 200-file fixture set | - | n/a | `GuitarMigration::everyPreM49NameResolvesToItsShippedGuitar` (names only) | PARTIAL |
+| FF-42 (§16) | Test: preset naming a nonexistent guitar -> banner + fallback | `PluginProcessor` guitar loader | banner | `WorkshopPresets::aMissingGuitarFileFallsBackToItsType`, `GuitarMigration::anUnknownGuitarKeepsThePresetAndSaysSo` | DONE |
+| FF-43 (§16) | Test: kill mid-save 100 times; the target is never partial | - | n/a | - | MISSING |
+| FF-44 (§16) | Test: backups with fake dates over 60 days; the 30-day sweep prunes correctly | `PresetManager::pruneOldBackups` | n/a | - | MISSING |
+
+<!-- counts DONE=17 NO-GUI=0 NO-TEST=2 PARTIAL=17 MISSING=6 OWNED=2 -->

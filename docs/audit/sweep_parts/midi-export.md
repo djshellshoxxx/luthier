@@ -1,0 +1,46 @@
+## midi-export.md
+
+The codec is complete: 18 event classes with text + SysEx redundancy, Luthier/Generic profiles, PPQ 96-3840, four track splits, `.midprofile`, identifier stripping, a corrupt-byte sweep, and live MIDI-out with Luthier SysEx. Every §12 test exists. The MODEL-GAPS import UI (File menu, window drop, target picker) and the session-recorder drag-out are now merged. Remaining gaps: the capture never produces STRUM/PICK/SQUEAK/BUZZ/CLANK/VIBRATO/WHAMMY/RASGUEADO/CHARACTER/SNAPSHOT/RANGES events, so a captured take is not fully lossless. Export runs on the message thread, not a worker. The session recorder's `.mid` is raw MIDI and ignores the profile. The load notification leaves out defaulted fields. macOS does not register `.midprofile`. The tune export dialog lives on tune-help.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| MX-1 (intro, §2.1) | Luthier profile lossless for every event class — the capture only writes NOTE/BEND/SLIDE/VIBRATO/WHAMMY technique flags plus BASS_TECH/SLIDE_BAR. STRUM/PICK/SQUEAK/BUZZ/CLANK/RASGUEADO/CHARACTER/WORKSHOP/SNAPSHOT/RANGES only go out as live SysEx | `Export/LuthierMidiEvents.cpp` codec; `Capture/PerformanceCapture.cpp` (bassTech/slideBar only) | n/a | `MidiExport::everyEventClassRoundTripsWithEveryField` | PARTIAL |
+| MX-2 (intro, §3) | Generic profile: plain MIDI + `LUTHIER:` text metas | `Export/MidiProfiles.cpp` | MIDI OUT tab, `MidiOutPanel::getProfileButton` | `MidiExport::genericProfileIsPlainMidi` | DONE |
+| MX-3 (§0.1) | Export on a worker thread, never the audio thread — `MidiOutPanel::exportTo`, the header's "Save last MIDI take" and the drag-out all write on the message thread | `UI/MidiOutPanel.cpp:exportTo`, `MidiTakeExport::exportCapture` | MIDI OUT | - | PARTIAL |
+| MX-4 (§0.2) | Import parses to a performance/Tune, which is handed over by swap | `MidiProfiles::importFromFile`, `Export/MidiImportTargets.cpp` | File menu / drop | `MidiExport::aScoreSurvivesBothProfiles`, `MidiImport::bothProfilesGoIntoTheSession` | DONE |
+| MX-5 (§0.3) | Self-describing schema version per event | `LuthierMidiEvents.cpp` class table (schema) | n/a | `MidiExport::importWarnsOfAdvancedRangesAndNewerSchemas` | DONE |
+| MX-6 (§0.4, §1) | Sample-accurate stream; beat-accurate ticks, 960 default, 96-3840 configurable | `MidiProfiles` | MIDI OUT `ppqBox` | `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit` | DONE |
+| MX-7 (§1) | SMF format 1. Track 0 carries title, copyright, tempo, time signature and key; then per-instrument or per-string tracks with PB/AT/PC/CC | `MidiProfiles.cpp` (track 0 writer ~l.955) | MIDI OUT `splitBox` | `MidiExport::trackSplitsNameTheirTracks` | DONE |
+| MX-8 (§2, §2.3) | LUTHIER header chunk, BEGIN/END texts, SysEx + text redundancy, either copy readable | `LuthierMidiEvents`, `MidiProfiles` | MIDI OUT SysEx toggle | `MidiExport::eitherCopyOfAnEventIsEnough` | DONE |
+| MX-9 (§2.1) | Byte encoding documented in docs/MIDI_EXPORT_LUTHIER_PROFILE.md, tagged fields | `docs/MIDI_EXPORT_LUTHIER_PROFILE.md` | n/a | `MidiExport::eventPayloadsAreTaggedSevenBitText` | DONE |
+| MX-10 (§2.2) | Round trip nulls within -60 dBFS | `MidiProfiles` | n/a | `MidiExport::luthierRoundTripNullsEveryFactoryPreset` | DONE |
+| MX-11 (§2.2) | Unknown classes kept as opaque blobs on save | `LuthierEventClass::unknown`, `opaqueSysEx` | n/a | `MidiExport::everyEventClassRoundTripsWithEveryField` (blob case) | DONE |
+| MX-12 (§3) | Generic: CC1/11/64/74 and a per-track RPN 0 bend range | `MidiProfiles` | n/a | `MidiExport::genericProfileIsPlainMidi` | DONE |
+| MX-13 (§4.1) | Export dialog opens from the MIDI OUT tab | `MidiOutPanel::exportWithChooser` | MIDI OUT tab | `MidiOutPanel::exportWritesTheCaptureInTheChosenProfile` | DONE |
+| MX-14 (§4.1) | Export from the tune builder's dialog | on tune-help: `TuneExportDialog` MIDI destination -> `MidiProfiles::exportToFile` | TUNE | - | OWNED |
+| MX-15 (§4.1) | File -> Export -> MIDI opens the export dialog — the File menu's "Save last MIDI take..." writes with the defaults and never opens the dialog (no range/split/preview) | `HeaderBar.cpp` case 7 | Header File menu | - | PARTIAL |
+| MX-16 (§4.1) | Dialog fields: profile, range (entire/section/last N/marked), split, realism, PPQ, destination, preview | `MidiOutPanel`, `CaptureRanges` | MIDI OUT | `MidiExport::previewDescribesTheOpeningBar`, `CaptureRanges::theMarkedRegionIsWhatWasPlayedBetweenTheMarks`, `CaptureRanges::theCurrentSectionIsTheTunesSelectedSection` | DONE |
+| MX-17 (§4.2) | The session recorder's Save button drags out a Luthier file (Alt = Generic) | `SessionTab::SaveButton::filesToDrag`, `MidiProfiles::writeDragOutFile` | PRACTICE > SESSION Save; MIDI OUT drag source | `PracticeGaps::theSaveButtonDragsTheSavedTakeOut`, `MidiExport::dragOutWritesAValidMidiFile` | DONE |
+| MX-18 (§5) | Import via File -> Import MIDI or a `.mid` dropped on the window | `LuthierAudioProcessorEditor::filesDropped/importMidiFile` | Header File menu "Import MIDI..." | `MidiImport::aDropOnTheWindowImports` | DONE |
+| MX-19 (§5) | Auto-detect the profile by header; Generic imports with default realism | `MidiProfiles::importFromFile` | n/a | `MidiExport::headerStrippedFileLoadsAsGenericWithoutWarning` | DONE |
+| MX-20 (§5) | Import targets: session, tune builder or looper | `Export/MidiImportTargets.cpp` | target popup menu in the editor | `MidiImport::bothProfilesGoIntoTheSession`, `MidiImport::theTuneBuilderGetsANewTune`, `MidiImport::theLooperGetsARenderedLayer` | DONE |
+| MX-21 (§6) | Live MIDI-out sources: pass-through, rhythm, tune, strings, macro CC, character/noise SysEx, workshop | `Export/LiveMidiOut`, `PluginProcessor` sysExOut | ROUTING + MIDI OUT source toggles | `MidiOutPanel::liveEventsAndWorkshopChangesGoOutAsLuthierSysEx`, `MidiOutPanel::liveSwitchesAreTheRoutingPanelsSwitches` | DONE |
+| MX-22 (§7) | `.mid`/`.midi` for both profiles; `.midprofile` save/load | `UI/MidiExportDefaults` | MIDI OUT SAVE/LOAD PROFILE | `MidiExport::midprofileSavesAndLoads` | DONE |
+| MX-23 (§7) | Installers register `.midprofile` — Linux mime/desktop and Windows .iss do; macOS has no document type | `packaging/linux/luthier-mime.xml`, `packaging/windows/Luthier.iss` | n/a | - | PARTIAL |
+| MX-24 (§8) | MIDI defaults for profile, PPQ, split, realism and SysEx. They sit on the MIDI OUT tab, which gui-integration.md §4.4 and the Where-is table call for | `MidiExportDefaults` | MIDI OUT EXPORT PROFILE | `MidiOutPanel::profileEditsAreTheExportDefaults` | DONE |
+| MX-25 (§9) | Session recorder writes a `.mid` beside its WAV, profile per the Options default — `SessionRecorder` writes raw SMF (960 PPQ), not through `MidiProfiles`, and ignores the profile | `Practice/Looper.cpp:SessionRecorder` save (~l.1154) | PRACTICE > SESSION | `PracticeGaps::theSaveButtonDragsTheSavedTakeOut` (drag only) | PARTIAL |
+| MX-26 (§9) | Macro CCs export as a CC broadcast | `LiveMidiOut` macroCc | MIDI OUT `getMacroCcBox` | `MidiOutPanel::liveSwitchesAreTheRoutingPanelsSwitches` | DONE |
+| MX-27 (§9) | Advanced-range params annotated; a re-import warns before applying — the warning arrives in the post-import notification, after the performance is applied | `MidiProfiles.cpp` (~l.1761), `MidiImportTargets` message | notification banner | `MidiExport::importWarnsOfAdvancedRangesAndNewerSchemas` | PARTIAL |
+| MX-28 (§10) | Old files: missing events rebuilt from plain MIDI, defaulted fields listed in the load notification — `defaultedFields` is computed, but `MidiImportTargets::importFile` never shows it | `MidiImportResult::defaultedFields` | notification | `MidiExport::importWarnsOfAdvancedRangesAndNewerSchemas` (field only) | PARTIAL |
+| MX-29 (§11) | Generic omits identifiers; Luthier keeps them, with a "strip identifiers" option | `MidiProfiles` | MIDI OUT STRIP IDS toggle | `MidiExport::stripIdentifiersLeavesNoNamesOrSeeds` | DONE |
+| MX-T1 (§12) | Test: Luthier round trip, every factory preset | - | n/a | `MidiExport::luthierRoundTripNullsEveryFactoryPreset` | DONE |
+| MX-T2 (§12) | Test: Generic round trip within -30 dB | - | n/a | `MidiExport::genericRoundTripNullsWithinThirtyDb` | DONE |
+| MX-T3 (§12) | Test: round trip with SysEx off, via text | - | n/a | `MidiExport::eitherCopyOfAnEventIsEnough` | DONE |
+| MX-T4 (§12) | Test: PPQ scaling at 96/480/960/3840 | - | n/a | `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit` | DONE |
+| MX-T5 (§12) | Test: drag-out produces a valid MIDI file | - | n/a | `MidiExport::dragOutWritesAValidMidiFile`, `PracticeGaps::theSaveButtonDragsTheSavedTakeOut` | DONE |
+| MX-T6 (§12) | Test: header stripped loads as Generic | - | n/a | `MidiExport::headerStrippedFileLoadsAsGenericWithoutWarning` | DONE |
+| MX-T7 (§12) | Test: import a corrupt file, every byte flipped | - | n/a | `MidiExport::everyFlippedByteIsRefusedGracefully` | DONE |
+| MX-T8 (§12) | Test: live MIDI-out timing over a 10k-event fuzz | - | n/a | `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` | DONE |
+| MX-T9 (§12) | Test: live SysEx dropped by other hosts, parsed by Luthier | - | n/a | `MidiExport::liveSysExIsDroppedByOtherHostsAndReadByLuthier` | DONE |
+
+<!-- counts DONE=30 NO-GUI=0 NO-TEST=0 PARTIAL=7 MISSING=0 OWNED=1 -->

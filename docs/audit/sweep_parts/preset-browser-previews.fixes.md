@@ -1,0 +1,7 @@
+No NO-GUI/NO-TEST/PARTIAL/MISSING rows; everything not DONE is OWNED by the preset-browser-previews FEAT session. Pre-existing code the owner must integrate with:
+
+- NOTE `Source/UI/Overlays.h` `PresetBrowserPanel` (search box ~304, category box ~305, Morph row 312-317) — to be moved to `Source/UI/PresetBrowser/`; keep `PresetMorph::theBrowserMorphRowFillsTheSelectedSlot` (`Source/Tests/PresetMorphTests.cpp`) and `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` / `GuiReach` overlay walk (`GuiReachabilityTests.cpp:494`) passing.
+- NOTE Kept pieces live on unmerged owner branches: `GuitarThumbnails` in the browser on `origin/claude/luthier-visual` (`Source/UI/Overlays.h` there, `Guitar/GuitarThumbnails.h`), the "Uses Techniques" chip + `TechniquesUiTests.cpp:553` on `origin/claude/luthier-techniques` (`Overlays.cpp:1088`). Rebuilding the panel before those merge will conflict; rebase onto them.
+- NOTE `Source/Presets/PresetManager.h:24 PresetInfo`, `:39 kSchemaVersion`, `PresetManager.cpp:537 known` keys list, `saveAs`/`saveCurrent`, change broadcast.
+- NOTE `Source/PluginProcessor.h:456 createOfflineInstance` (used by `AudioExporter`), `Source/Support/AudioExporter.h AuditionPhrase` (must not be renumbered; Save-As/Export uses it in `Overlays.cpp:702-902`), `Tools/RenderCli.cpp RenderHost`.
+- NOTE `Source/UI/OptionsPages.h:104 AppearancePage` (PRESET BROWSER group) and the FILE LOCATIONS page (cache Open/Clear); `Source/Live/LiveControls.h:31 KillSwitch`.

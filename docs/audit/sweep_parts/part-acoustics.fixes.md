@@ -1,0 +1,38 @@
+- [PA-4] effort S — Add `PartAcoustics::aWoodSwapIsARealSmallDifference`: render the reference guitar with a rosewood and then an ebony fretboard, and assert the spectral difference is above the noise floor and below ~1.5 dB in every octave band.
+- [PA-5] effort S — Add a source comment to each fitted constant in `PartAcoustics.cpp` (chamber feedback 0.1-0.8, shape area 1.3×0.78, fretboard tanδ×20, break angle 0.004, width 0.02) and in `LuthierEngine::applyWorkshopGuitar` (0.09 / -0.9 magnet, ×1.4 coupling). A comment can point at DECISIONS.md where the value is a calibration. No code change beyond comments.
+- [PA-6] effort S — Add `PartAcoustics::theWoodTableIsTheSpecs`: `lookUpWood` returns the §1 ρ/E/tanδ for all 17 ids.
+- [PA-7] effort M — Make the §1 table drive the body. In `mapSpec`, set `d.body.resonanceTrim = sqrt((E/ρ)_part / (E/ρ)_engineWood)`, using `BodyModels::getWood(engineWood(id))` as the reference, so any table wood and any density override move the modes by sqrt(E/ρ). Alternatively, align the `BodyModels` kWoods values with §1. Test `PartAcoustics::stifferLighterWoodRaisesTheModes`: ash_swamp vs basswood gives a higher first mode in `BodyModels` output.
+- [PA-8] effort M — Carry the §1 tanδ ratio into `BodyConfig` (a new `lossScale` field) that `BodyModels` multiplies into each mode's loss before Q. Test: ebony top Q / basswood top Q ≈ 11e-3/4.5e-3 within 20%.
+- [PA-9] effort M — Map neck `wood`/`density` into a `d.neckMassKg` value, plus a dead-spot frequency that character-wear's dead-spot model consumes (Source/Character). Feed neck mass into `couplingFraction` weighting. Test that a maple neck and a mahogany neck move the dead-spot frequency in the right direction.
+- [PA-13] effort S — Add `PartAcoustics::chamberingPicksItsShape`: solid/chambered/semi_hollow/hollow/acoustic map to the expected `BodyShape`, and `BodyModels` builds a mode count that rises in that order.
+- [PA-14] effort M — Consume `d.airResonanceHz/Q`: pass them to `BodyEngine` (the air mode's frequency/Q override, e.g. via the `BodyConfig` air fields realism-a's `getAirResonanceHz` scaling uses) in `LuthierEngine::applyWorkshopGuitar`. Then change `chamberingPutsTheAirModeInItsRange` to measure the rendered body impulse's air peak.
+- [PA-15] effort S — Apply `d.bodyGainDb` as the body path's gain in `applyWorkshopGuitar` (BodyEngine output trim or body-mix level), relative to the solid reference. Test: the body contribution is ~+6 dB for semi_hollow against solid.
+- [PA-16] effort S — Add a test: solid vs hollow `partsSustain` ratio ≈ 0.80, and rendered T60 is shorter for hollow.
+- [PA-18] effort S — Add a test that bracing x/fan/ladder produces different `BodyModels` mode sets for an acoustic body.
+- [PA-20] effort S — DEFER: the spec itself says the profile makes no tonal claim. Its only role is a mass term for the neck, so fold it into PA-9's neck mass when that lands.
+- [PA-22] effort S — Add a test: rosewood vs ebony fretboard `fretBrightness` rises for ebony, and for a fretted note only.
+- [PA-23] effort M — Map `fretboard.radius_mm` into `SetupGeometry` (per-string radius offset to the clearance) in `mapSpec`, and consume it in `DSP/Noise/FretBuzz`. Test: a flatter radius with the same action gives more buzz on outer strings for a bend.
+- [PA-24] effort S — Extend `aReferenceGuitarSoundsLikeTheEngineDefault`, or add `fretMaterialsAreTheSpecsTable`: stainless/gold_evo/brass give 0.90/0.80/0.60.
+- [PA-27] effort S — Add a test: frets.count 21 vs 24 changes `d.spec.maxFrets` and the tuning's highest playable fret.
+- [PA-28] effort S — Add a test: with a brass nut, an open string's termination brightness changes and a fretted note's does not (via `LuthierEngine` string termination, or by rendering an open vs fretted note).
+- [PA-29] effort S — Add a test: `slot_depths_mm` from the nut part reaches `d.setup.nutDepth` when the guitar setup omits them.
+- [PA-33] effort S — In `mapSpec`, use a bridge.type -> {mass, coupling} table (§5) as the fallback when mass_g/coupling are absent. Add a test that every factory bridge part matches its type row within tolerance.
+- [PA-34] effort S — Add a test: tremolo_type floyd/bigsby/vintage/none maps to the matching `WhammyEngine::BridgeType`.
+- [PA-35] effort M — In `mapSpec`, when `bridge->flag("piezo")` is set, set `d.hasPiezo` and have `applyWorkshopGuitar` enable the piezo source (as `spec.hasPiezo` does), with no pickup slot used. Test: a bridge with piezo=true gives a non-zero piezo blend.
+- [PA-36] effort S — Add a test: tailpiece.mass_g added to bridge mass changes `terminationMassG` by exactly the amount. Doubles as the PA-58 masses-add test.
+- [PA-37] effort S — Add a monotonic sweep of tailpiece.break_angle_deg -> fretBrightness to `theMappingIsMonotonic`.
+- [PA-40] effort S — Map `coil_turns` in `mapSpec`: outputTrimDb += 20log10(turns/ref), and inductance ∝ turns² when inductance_h is absent. Add the field to the `everyMappedFieldMovesSomething` probes.
+- [PA-41] effort S — Add a test: steel poles give lower 4 kHz output than alnico through `PickupEngine` (the same harness as `aCoverCostsTopEnd`).
+- [PA-46] effort M — Map `wiring.switching` to the engine's `PickupSelector` topology set (3-way limits the selector, 5-way enables the in-between positions, series/coil-tap adds options). Consume it in `LuthierEngine`, and restrict the pickup-selector control's choices in the Circuit panel accordingly. Test that a 3-way guitar has no position 2/4.
+- [PA-48] effort S — Add a test: winding flat/half/coated and each winding_material map to the expected `StringMaterial`.
+- [PA-49] effort M — Add a core round/hex factor to `StringMaterials::computeSpec` (stiffness/inharmonicity ±, brightness), and map it from `strings.core` in `mapSpec`. Test: hex gives higher B than round.
+- [PA-50] effort S — Pass `d.windingPitchPerMm` into `PlayingNoise`/`ScrapeEngine` string info in `applyWorkshopGuitar`, instead of recomputing 1/wrap. Test: doubling the part's winding pitch doubles the squeak centre frequency.
+- [PA-51] effort S — When `strings.tension_kg[s]` is present, use it for tension (and derive μ) in `mapSpec`. Test: the override shows up in `d.tensionNewtons`.
+- [PA-52] effort M — Compute wound μ from core diameter + wrap wire geometry in `stringLinearDensity`, instead of `woundMassFactor`. Test: two 0.046 strings with different cores differ in μ/tension.
+- [PA-54] effort S — Add a pickguard top-damping term (loss added to acoustic/thinline top modes, scaled by mass and chambering), consumed with PA-56's damping. Test: it is audible on acoustic and negligible on solid.
+- [PA-56] effort S — Consume `d.finishDampingDb` (and a Q ×0.92 at full gloss) on acoustic top modes in the BodyEngine config. Test: gloss 1.0 vs 0.5 on the Dreadnought shows ≈-0.5 dB on body modes.
+- [PA-57] effort S — Add a test: finish.aging 0 vs 1 moves `d.body.age`, and the body output in the break-in direction (`Character::bodyBreakInMovesInTheRightDirection` harness).
+- [PA-58] effort S — Covered by the PA-36 test (bridge + tailpiece + pickguard sum).
+- [PA-60] effort M — Compose losses: the termination, chambering and pickguard/finish damping contributions add as 1/Q terms (or loss factors) before becoming sustain, instead of multiplying `sustainScale` factors. Test: two parts each adding loss L give 2L total.
+- [PA-T1] effort M — Upgrade `everyMappedFieldMovesSomething` to render a note through `LuthierEngine::applyWorkshopGuitar`, and compare spectra against the noise floor. Add the fields PA-9/23/35/40/46/49/51 map as they land.
+- [PA-T7] effort S — Measure the rendered air peak once PA-14 lands (see PA-14).

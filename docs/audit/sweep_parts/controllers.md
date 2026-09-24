@@ -1,0 +1,35 @@
+## controllers.md
+
+The profile model, JSON format, the nine ship profiles, user overrides and the per-channel/dead-zone/minimum-duration interpreter settings exist, and the ADVANCED > CONTROLLERS tab (`ControllersPage`) applies a profile. Much of the rest goes nowhere: latency compensation is never applied to MIDI; the latency wizard is never fed notes (`LatencyWizard::addMeasurement` has no caller outside tests), so it cannot finish; LinnStrument rows-as-strings and the Osmose pitch curve are stored but never applied; `ControllerMerge` is unused; MPE master-channel notes are not ignored and there is no per-channel stickiness. Bug still present: `ParameterBridge::applyToEngine` (Parameters.cpp:1232-1233) rewrites `setMpeEnabled`/`setPitchBendRange` from `mpe_enabled`/`bend_range` on every apply, undoing an MPE profile's MPE flag and 48-semitone bend. The chosen profile is not saved in state.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| CT-1 (§0.1) | Profiles loaded from Resources/Controllers/*.json — built in code; folder does not exist | `Controllers/ControllerProfile.cpp:ControllerProfileLibrary::addFactoryProfiles` | n/a | `Controllers::everyShipProfileIsWellFormed` | PARTIAL |
+| CT-2 (§0.1) | User picks profile, default Generic MIDI — selection not saved in plugin state; resets on reopen | `ControllersPage::applySelectedProfile` | ADVANCED > CONTROLLERS `profileBox` | `Controllers::applyingAProfileConfiguresTheInterpreter` | PARTIAL |
+| CT-3 (§0.2, §2) | Profile declares mode, bend, latency, cc map; JSON format | `ControllerProfile::toVar/fromVar` | CONTROLLERS `routingLabel` readout | `Controllers::parsesTheSpecExampleProfile`, `Controllers::profilesRoundTripThroughJson` | DONE |
+| CT-4 (§0.3, §3) | Latency compensation applied on the MIDI input path — `getEffectiveLatencyMs` only displayed | - | CONTROLLERS `latencySlider` (no effect) | `Controllers::measuredLatencyOverridesTheBudget` (data only) | MISSING |
+| CT-5 (§0.4) | User overrides in ~/Documents/Luthier/Controllers win | `ControllerProfileLibrary::scanDirectory/save` | CONTROLLERS `saveProfileButton` | `Controllers::savingAProfileReplacesTheOneOfTheSameId` | DONE |
+| CT-6 (§1) | Nine ship profiles with listed channels/bend/latency | `addFactoryProfiles`, `makeHexProfile`, `makeMpeProfile` | `profileBox` | `Controllers::everyShipProfileIsWellFormed` | DONE |
+| CT-7 (§1, §4) | MPE profile's MPE flag and 48-st member bend take effect — overwritten by `ParameterBridge::applyToEngine` (Parameters.cpp:1232-1233) | `ControllerProfileLibrary::apply` | `profileBox` | `Controllers::applyingAProfileConfiguresTheInterpreter` (interpreter alone) | PARTIAL |
+| CT-8 (§1) | Seaboard CC74 -> whammy, AT -> vibrato | Seaboard `ccMap[74]=WhammyBar`; interpreter `aftertouchTarget` | n/a | `Controllers::everyCcMappingResolvesToARealTarget` | DONE |
+| CT-9 (§1) | LinnStrument "Guitar mode" rows -> strings — flag stored, never applied by `apply()` | `ControllerProfile::rowsAsStrings` | CONTROLLERS `guitarModeToggle` | - | PARTIAL |
+| CT-10 (§1) | Osmose pitch-curve LUT — never applied on the MIDI path | `ControllerProfile::applyPitchCurve` | n/a | `Controllers::osmosePitchCurveIsMonotonicAndPinned` | PARTIAL |
+| CT-11 (§3) | Latency wizard: click, play along, store `latency_ms_measured` — wizard arms and starts the click, but `LatencyWizard::addMeasurement` is never called with incoming notes | `LatencyWizard`, `ControllersPage::runWizardStep` | CONTROLLERS `wizardButton` | `Controllers::latencyWizardIsStableAndReportsItsScatter` | PARTIAL |
+| CT-12 (§3) | >1 block interpolate; >2 blocks warn + suggest smaller block | - | - | - | MISSING |
+| CT-13 (§4) | Per-channel: channel -> string at the needed fret | `MidiInterpreter::handleNoteOn` (GuitarController) | n/a | `Controllers::perChannelRoutingSendsEachChannelToItsString` | DONE |
+| CT-14 (§4) | Unreachable pitch dropped with diagnostic log — clipped into range instead ("identity rule 2") | `MidiInterpreter.cpp` fret `jlimit` | n/a | - | PARTIAL |
+| CT-15 (§4) | Per-channel pitch bend bends only that string | `MidiInterpreter` pitch-wheel path `stringForChannel` | n/a | `Controllers::pitchDeadZoneRejectsTrackingNoiseButNotRealBends` | DONE |
+| CT-16 (§4) | Per-channel pressure drives that string's vibrato — untested | `MidiInterpreter` pressure path `slots[].pressure` | n/a | - | NO-TEST |
+| CT-17 (§4) | MPE: master-channel notes ignored | - | - | - | MISSING |
+| CT-18 (§4) | MPE: sticky string per member channel | - | - | - | MISSING |
+| CT-19 (§5) | Calibrate bend range by confirming target pitch in UI | - | - | - | MISSING |
+| CT-20 (§5) | Minimum note duration | `MidiInterpreter::setMinimumNoteDurationMs` | CONTROLLERS `minimumNoteSlider` | `Controllers::minimumNoteDurationSurvivesAnEarlyNoteOff` | DONE |
+| CT-21 (§5) | Pitch dead-zone, default 5 cents | `MidiInterpreter::setPitchDeadZoneCents` | CONTROLLERS `deadZoneSlider` | `Controllers::pitchDeadZoneRejectsTrackingNoiseButNotRealBends` | DONE |
+| CT-22 (§6) | Multi-controller merge, source tags, most-recent-wins, contention warning — `ControllerMerge` exists but is unused in `processBlock` | `Controllers/ControllerProfile.h:ControllerMerge` | - | `Controllers::multiControllerMergeNeverLosesAString`, `Controllers::oneControllerPlayingNormallyReportsNoContention` | PARTIAL |
+| CT-23 (§7) | Test: ship profiles load, cc_map resolves | - | n/a | `Controllers::everyShipProfileIsWellFormed`, `Controllers::everyCcMappingResolvesToARealTarget` | DONE |
+| CT-24 (§7) | Test: wizard 10 runs within 0.5 ms sigma | - | n/a | `Controllers::latencyWizardIsStableAndReportsItsScatter` | DONE |
+| CT-25 (§7) | Test: per-channel fuzz (1800 events, not 10 000) | - | n/a | `Controllers::perChannelRoutingSendsEachChannelToItsString` | DONE |
+| CT-26 (§7) | Test: MPE stickiness | - | n/a | - | MISSING |
+| CT-27 (§7) | Test: dual-source stress, no dropped strings / coupling corruption — tests the unused `ControllerMerge` only | - | n/a | `Controllers::multiControllerMergeNeverLosesAString` | PARTIAL |
+
+<!-- counts DONE=11 NO-GUI=0 NO-TEST=1 PARTIAL=9 MISSING=6 OWNED=0 -->

@@ -1,0 +1,73 @@
+## state-model.md
+
+The layers exist (host state, uiState, setlist, tune, preset, snapshot bank, guitar, part). The "never touches" rules for a preset load and a snapshot recall hold and are tested by the four `StateModel.*` tests. The main deviations are unchanged since the baseline. Loads apply on the message thread; there is no command/result queue. `.luthierpreset` files carry no snapshots, modulation, MIDI mappings, rhythm or routing (`PresetManager::toVar`), so a preset load cannot swap them; only the host state carries them. Undo state boundaries, the named preset-load entry and the 10k-operation fuzz are on the visual branch. Nearly every §8 intersection behaviour is still missing: A/B clear, Freeze/E-Bow clear, feedback damp, the tune pause, the setlist override flag, looper state-boundary events and the bench save prompt. The State Inspector is also missing.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| SM-1 (§0.1) | Layers nest: guitar and snapshots inside the preset — snapshots are in host state only, not in the preset file | `Presets/PresetManager.cpp:toVar` (guitar block yes, snapshots no) | n/a | `StateModel::recallingASnapshotStaysInsideThePreset` | PARTIAL |
+| SM-2 (§0.2) | A load is atomic per layer and does not interrupt a block — applied on the message thread + `bridge.applyAllNow`, not at an audio-thread swap | `PresetManager::loadPreset`, `PluginProcessor::setCurrentProgram` | n/a | `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` | PARTIAL |
+| SM-3 (§0.4, §2, §4, §6) | Undo respects state boundaries (preset/tune/guitar load push a boundary; Shift/Ctrl-Alt-Z to cross) | on visual: `Support/UndoHistory` boundary flag, a816101 | Edit menu | on visual: `Undo::aPresetLoadIsABoundary` | OWNED |
+| SM-4 (§0.5) | Structural state crosses threads via the command/result queue — direct message-thread calls; only the guitar swap is parked/faded | `LuthierEngine` guitar swap (park + 5 ms fade) | n/a | `WorkshopSwap::aChangeFromTheAudioThreadItselfDoesNotWait` | PARTIAL |
+| SM-5 (§0.6, §1) | uiState is per instance and never travels with presets | `PluginProcessor::getStateInformation` "ui" block; `PresetManager::toVar` has no ui | n/a | `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` | DONE |
+| SM-6 (§1) | User-global settings layer (Options) | `UI/UiPreferences.cpp`, `Updates/Telemetry` | Options overlay, `UI/OptionsPages.cpp` | `Telemetry.*` (partial) | DONE |
+| SM-7 (§1) | Per-instance uiState: mode, tab, Live, Slide, bench A/B slots, drawer — JSON struct, not a VT; Practice drawer state and Slide Mode are not in `UiState` | `PluginProcessor.h:UiState` | n/a | `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` | PARTIAL |
+| SM-8 (§1, §10) | Session state not saved (undo, arm, tap, recorder, A/B buffers) — no test asserts these are absent from host state | `PluginProcessor` members (only `slotBActive` flag saved) | n/a | - | NO-TEST |
+| SM-9 (§1) | Snapshot bank up to 128 | `Live/Snapshots.cpp:SnapshotBank` | LIVE tab, `LivePanel` / `LiveStrip` | `LiveSnapshots::programChangeMapsAcrossAllOneTwentyEight` | DONE |
+| SM-10 (§1) | Loop is a sibling that references its preset by name — the looper does not record the preset name | `Practice/Looper.cpp` | PRACTICE drawer | - | PARTIAL |
+| SM-11 (§1) | Patterns and IRs are referenced by the preset — the preset file has no rhythm or tone-match block | `PresetManager::toVar` (absent); host state `rhythm`, `toneMatch` | n/a | - | PARTIAL |
+| SM-12 (§2 msg 2) | Guitar: override inline, else reference, else fallback + warning banner | `PresetManager` -> `onGuitarBlockLoaded`, `PluginProcessor` guitar loader | notification banner | `WorkshopPresets::aMissingGuitarFileFallsBackToItsType` | DONE |
+| SM-13 (§2 msg 3) | Resolve referenced IRs and patterns; log missing ones for the banner — not in the preset file | - | - | - | MISSING |
+| SM-14 (§2 audio 1) | Apply parameters to APVTS | `PresetManager::fromVar` | preset browser / header | `Presets::stateRoundTripsExactly` | DONE |
+| SM-15 (§2 audio 2) | Swap GuitarSpec atomically; old pointer released on the message thread | `LuthierEngine` swap/park | n/a | `WorkshopSwap::noFileIsTouchedFromTheAudioThreadDuringASwap` | DONE |
+| SM-16 (§2 audio 3-5) | Preset load swaps mod matrix, snapshot bank and MIDI mappings — the preset holds only the CC `midiMap`; matrix and bank are not in the file | `PresetManager::toVar` `midiMap` only | - | - | PARTIAL |
+| SM-17 (§2 audio 6) | Apply the ranges block and clamp out-of-range values | `RangeState::applyTo`, `PresetManager::fromVar` | Options > Ranges, `RangesUi` | `Ranges::narrowingClampsAndReportsTheCount` | DONE |
+| SM-18 (§2 audio 7) | Crossfade affected DSP 5-30 ms per module — only the guitar swap fades (5 ms); no per-module preset crossfade | `LuthierEngine` swap fade | n/a | `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` (no-burst only) | PARTIAL |
+| SM-19 (§2 msg 3) | Missing-reference and clamp notices go to the banner — missing-part/IR banners exist; no clamp banner on load; migration banner on visual | `PluginEditor` notifications | banner | `Workshop::aMissingPartFallsBackAndSaysSo` | PARTIAL |
+| SM-20 (§2 never) | A preset load never touches user-global, uiState, session, setlist, tune or loop | - | n/a | `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` (ui, Live, undo, arm; not tune, setlist, loop) | DONE |
+| SM-21 (§3 1) | Snapshot recall applies parameters | `SnapshotBank::recall` | LIVE tab / Live Strip | `LiveSnapshots::captureAndRecallRoundTrip` | DONE |
+| SM-22 (§3 2) | Recall applies the mod-matrix state carried in the snapshot — whole matrix replaced, not a diff; untested | `PluginProcessor` snapshot apply (`modMatrix.fromVar`) | LIVE tab | - | NO-TEST |
+| SM-23 (§3 3-4) | Continuous params crossfade over `snapshot_xfade_ms` (30 ms); discrete params switch at the midpoint | `Live/Snapshots.cpp` | LIVE tab xfade control | `LiveSnapshots::recallCrossfadesContinuousAndStepsDiscrete` | DONE |
+| SM-24 (§3 5) | Delay/reverb tails preserved via double buffer — not verified | - | - | - | PARTIAL |
+| SM-25 (§3 never) | A recall never touches the file, ranges, guitar, recorder or upper layers | - | n/a | `StateModel::recallingASnapshotStaysInsideThePreset` | DONE |
+| SM-26 (§3) | A recall pushes an undo entry, not a boundary | on visual: tier 4 | - | on visual: `Undo::snapshotSaveAndRecallAreEntries` | OWNED |
+| SM-27 (§4 msg 2) | Tune sections load their presets on demand at play time | `Tune/TunePlayer`, `TuneSession` | TUNE tab | - | NO-TEST |
+| SM-28 (§4 msg 3) | Bundled preset/guitar files in a tune are extracted to a temp folder | - | - | - | MISSING |
+| SM-29 (§4 audio 2, §8.3) | A tune load stops playback; the new tune starts at bar 0 | `TuneSession::newTune` / load | TUNE tab | - | NO-TEST |
+| SM-30 (§4) | A tune load pushes a boundary — TuneSession clears its own stack; the plugin undo stack has no boundary | `Tune/TuneSession.cpp` (3.9 comment) | TUNE tab | - | PARTIAL |
+| SM-31 (§5 2) | Setlist load verifies every referenced preset; unresolved entries flagged in the UI — `Setlist::loadFrom` does no check | `Live/Setlist.cpp:loadFrom` | LIVE tab setlist | - | MISSING |
+| SM-32 (§5 3) | Setlist lives in session state and does not change audio on its own | `SetlistPlayer` | LIVE tab | `LiveSetlist.*` | DONE |
+| SM-33 (§5 4) | Load the first entry's preset and snapshot — the snapshot index is recalled from the current bank, because the preset file carries no bank | `PluginProcessor::applyCurrentSetlistEntry` | Live Strip | - | PARTIAL |
+| SM-34 (§6 2) | Guitar load resolves parts; a missing part falls back with a banner | `PartLibrary` load report | banner | `Workshop::aMissingPartFallsBackAndSaysSo` | DONE |
+| SM-35 (§6 audio 1-3) | Swap spec, refill coefficients, reprepare modules | processor guitar loader, `LuthierEngine` | WORKSHOP | `WorkshopPresets::choosingAGuitarTypeFitsItsParts` | DONE |
+| SM-36 (§6 audio 4) | Guitar load crossfades over 30 ms — 5 ms | `LuthierEngine` swap fade | n/a | `WorkshopSwap::aPartSwapDuringANoteIsClickFree` | PARTIAL |
+| SM-37 (§6) | Preset parameters apply on top of the new guitar | processor guitar loader | n/a | `WorkshopPresets::aStateLoadKeepsItsOwnRefinements` | DONE |
+| SM-38 (§7) | A part swap is its own undo entry, never a boundary | `Workshop/WorkshopBench.cpp` | WORKSHOP bench | `WorkshopBench::fittingAPartSaysWhatItReplaced` | DONE |
+| SM-39 (§8.1) | A preset load supersedes a pending recall — serial on the message thread by construction; untested | `PresetManager::loadPreset` | n/a | - | NO-TEST |
+| SM-40 (§8.1) | Tune playing: pause at the next section boundary if within 4 s + "Preset changed mid-tune" banner | - | - | - | MISSING |
+| SM-41 (§8.1, §8.2) | Setlist "user override in effect" flag; next PageDown resumes the setlist's own position | - | - | - | MISSING |
+| SM-42 (§8.1-8.4, §8.6) | Looper and session recorder capture preset/recall/tune/guitar/range changes as state-boundary events | - | - | - | MISSING |
+| SM-43 (§8.1, §8.7) | MIDI Learn arm persists across a load; disarm if the target no longer exists — the disarm is not built | `MidiLearn` | n/a | `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` (persist only) | PARTIAL |
+| SM-44 (§8.1, §8.4) | Bench unsaved changes: Save / Discard / Cancel-load prompt before a preset or guitar load | - | - | - | MISSING |
+| SM-45 (§8.1) | Slide Mode, Live Mode and the Practice drawer persist; the snapshot strip refreshes | processor state | Live Strip | `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` (Live only) | NO-TEST |
+| SM-46 (§8.1) | A/B compare clears + "A/B cleared by preset load" banner — the test asserts the opposite (slot kept) | `PluginProcessor::slotBActive` | header A/B | `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` (contradicts) | MISSING |
+| SM-47 (§8.1, §8.2) | Freeze and E-Bow clear on a load or recall — only as a side effect of the preset's `freezeEnable`/`ebowEnable` values; no explicit clear, no test | params `freezeEnable`, `ebowEnable` | n/a | - | PARTIAL |
+| SM-48 (§8.1, §8.2) | Feedback loop damps over 100 ms on a load or recall | - | - | - | MISSING |
+| SM-49 (§8.1, §8.2) | Held notes continue/decay through the new parameters without retriggering | engine voices | n/a | `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` (no burst only) | PARTIAL |
+| SM-50 (§8.2) | A recall replaces the selected A/B slot with the recalled state | - | - | - | MISSING |
+| SM-51 (§8.3) | Tune load: setlist stays, Live and Workshop persist | separate objects | n/a | - | NO-TEST |
+| SM-52 (§8.4) | Guitar load with a string-count change: extra strings silence, missing ones decay | `LuthierEngine` swap | n/a | `Workshop::aStringCountMismatchClamps` (spec only, not voices) | PARTIAL |
+| SM-53 (§8.4) | A guitar load discards an in-flight part swap | bench parking | n/a | - | NO-TEST |
+| SM-54 (§8.4) | Slide Mode + a non-slide guitar: banner; the overlay shows but the slide's acoustic effect is muted — a low-action label shows in SlideGroup; no mute | `SlideEngine::kLowActionMessage` | CHARACTER tab (Slide Mode), `SlideGroup::lowAction` | `SlideUi::theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` (label only) | PARTIAL |
+| SM-55 (§8.5) | Part swap: held notes crossfade; a second swap queues; audition drops back to committed — queue and audition drop untested | `WorkshopBench`, engine swap | WORKSHOP | `WorkshopSwap::aPartSwapDuringANoteIsClickFree`, `WorkshopBench::auditionNeverCommits` | PARTIAL |
+| SM-56 (§8.6) | Ranges toggle clamps an automated or modulated value | `RangeState::applyTo` | Options > Ranges | `Ranges::narrowingClampsAndReportsTheCount` | DONE |
+| SM-57 (§8.7) | MIDI flood: the first matching event still wins the arm | `MidiLearn` | n/a | - | NO-TEST |
+| SM-58 (§8.8) | Undo: held notes hear the change; cannot cross a tune boundary; cannot roll back recording | undo via `setStateInformation` | Edit menu | on visual: `Undo::undoMidPlayProducesNoGarbage`, `Undo::doesNotMoveTheViewOrTheTune` | OWNED |
+| SM-59 (§9) | Saving a preset captures the current snapshot bank — `toVar` omits snapshots | `PresetManager::toVar` | - | - | MISSING |
+| SM-60 (§9) | Save waits for an in-flight part swap; a guitar save writes committed not shadow; a tune save writes live edits — not tested | bench parking, `WorkshopBench` committed spec, `TuneSession` | WORKSHOP / TUNE | `WorkshopBench::auditionNeverCommits` (indirect) | PARTIAL |
+| SM-61 (§10) | Host state persists params, matrix, bank, mappings, ranges, guitar ref and uiState | `PluginProcessor::getStateInformation` | n/a | `Presets::stateRoundTripsExactly`, `HostState.*` | DONE |
+| SM-62 (§11) | Multi-instance independence (own APVTS, matrix, bank; independent learn and recorder) — `ExpressionCalibrationSet` is global | per-instance members | n/a | on visual: `Stress::thirtyTwoInstancesRenderInTurn` (render only) | NO-TEST |
+| SM-63 (§12) | Options > Diagnostics "State Inspector" live tree at 4 Hz | - | Diagnostics page, `UI/OptionsPages.cpp` (absent) | - | MISSING |
+| SM-64 (§13) | A test for every §8 intersection in `Tests/StateModel/Intersections/`, and a "never touches" test for every load path in §2-7 — 4 tests only | - | - | `StateModelTests.cpp` (4) | PARTIAL |
+| SM-65 (§13) | Fuzz: 10,000 random operations with no crash, orphaned state or memory growth | on visual: `Tests/RobustnessTests.cpp` 6d0066f | - | on visual: `StateModel::tenThousandRandomOperationsLeaveNoStuckState` | OWNED |
+
+<!-- counts DONE=18 NO-GUI=0 NO-TEST=10 PARTIAL=21 MISSING=12 OWNED=4 -->
