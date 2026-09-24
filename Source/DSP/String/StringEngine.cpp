@@ -158,8 +158,18 @@ void StringEngine::excite (const Excitation::Params& params) noexcept
 
 void StringEngine::release (bool letRing) noexcept
 {
-    if (! letRing)
-        setDamping (Damping::Released, 1.0);
+    if (letRing)
+        return;
+
+    // strum-dynamics 6.1: under a chuck the hand is already flat on the string;
+    // lifting the fretting finger changes nothing. Released would re-open the
+    // loop to a T60 of hundreds of milliseconds and give the chuck its pitch
+    // back through the note-offs a chuck step sends the strings it does not
+    // strike (RhythmEngine) or re-strikes (emitNote).
+    if (damping == Damping::Chuck)
+        return;
+
+    setDamping (Damping::Released, 1.0);
 }
 
 void StringEngine::setDamping (Damping d, double amount) noexcept
