@@ -17,6 +17,7 @@
 #include "../Rhythm/Patterns.h"
 #include "../Model/Playing/TuningEngine.h"
 #include "../Model/Playing/ChordVoicer.h"
+#include "../Model/Playing/RubricVoicer.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -94,7 +95,7 @@ namespace
         }
 
         TuningEngine tuning;
-        ChordVoicer voicer;
+        RubricVoicer voicer;
         RhythmEngine engine;
     };
 }

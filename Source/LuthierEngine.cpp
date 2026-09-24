@@ -51,10 +51,11 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     tuning.prepare (sr);
     technique.prepare (sr, numStrings);
     voicer.prepare (&tuning, numStrings);
+    rhythmVoicer.prepare (&tuning, numStrings);
     midi.prepare (sr, numStrings);
     midi.setEngines (&tuning, &technique, &voicer);
 
-    rhythm.prepare (sr, maxBlock, &tuning, &voicer);
+    rhythm.prepare (sr, maxBlock, &tuning, &rhythmVoicer);
     rhythm.setNumStrings (numStrings);
 
     character.prepare (sr, numStrings);
@@ -145,6 +146,7 @@ void LuthierEngine::reset() noexcept
 
     technique.reset();
     voicer.reset();
+    rhythmVoicer.reset();
     midi.reset();
     rhythm.reset();
     character.reset();
@@ -233,6 +235,7 @@ void LuthierEngine::setNumStrings (int n)
     tuning.setNumStrings (numStrings);
     technique.setNumStrings (numStrings);
     voicer.setNumStrings (numStrings);
+    rhythmVoicer.setNumStrings (numStrings);
     midi.setNumStrings (numStrings);
     coupling.setNumStrings (numStrings);
     pickups.setNumStrings (numStrings);
@@ -330,6 +333,8 @@ void LuthierEngine::applySpec()
 
     voicer.setMaxFret (spec.maxFrets);
     voicer.setNumStrings (spec.numStrings);
+    rhythmVoicer.setMaxFret (spec.maxFrets);
+    rhythmVoicer.setNumStrings (spec.numStrings);
 
     // --- physical ---------------------------------------------------------------
     fretless = spec.fretless;

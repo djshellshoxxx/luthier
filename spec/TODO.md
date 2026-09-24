@@ -71,10 +71,13 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 - [ ] 2h. Easy rig strip polish: the amp card's knobs are cramped at 1200x720;
       give the amp card more height or two knob sizes.
 - [ ] 2d. `ambiguity-resolutions.md` gaps (audited in spec-coverage.md 25):
-      - [ ] 4.3 `Bass` voicing style; 4.4 transition bonus (+2 common note,
-            +1 common position, -2 jump > 5); 4.7 tests (I-IV-V-I travel <= 3
-            frets, determinism and tie-breaks, BEAD bass C7).
-      - [ ] 6 Crossing velocity from the pattern (with strum-dynamics, item 8).
+      - [ ] 4 rubric voicer in at runtime (`RubricVoicer`, 15 tests; 4.1-4.7
+            green). Remaining: a bass-pattern setting on the rhythm engine
+            (Bass voices the root today); a listening pass on the rubric's
+            unison voicings (DECISIONS "Rubric unisons"); retire the now
+            unused `RhythmEngine::selectNotesForStyle`.
+      - [ ] 6 Crossing velocity from the pattern (strum-builder assistant,
+            with strum-dynamics, item 8).
       - [ ] 8 Feedback / freeze / E-Bow as mod destinations (untested); Aux 1
             pre/post-circuit toggle. (Snapshot recall cancelling a morph is done.)
 - [ ] **7. Workshop bench** - IN PROGRESS. Done and green (457 tests):
@@ -99,7 +102,8 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       slightly differently (~0.02 peak at the onset); the spectrum fixture
       primes around it.
 - [ ] 8. `StrumGesture` (RHYTHM STRUM group), then `BassTechniques` (SLAP
-      group, bass step grid).
+      group, bass step grid). Assistant `strum-builder` writing StrumGesture
+      under Source/WIP/.
 - [ ] 9. `PerformanceCapture`, then the NOTATION tab. Done: the capture
       (assistant-built `Source/Capture`, 20 CaptureTests) is wired into the
       processor - clocked from the host each block, fed from the engine's
@@ -156,9 +160,11 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       15-08 (MIDI re-import), 15-09 (hum), 15-10 (standalone relaunch);
       a processor-level state-boundary test; the tune's own undo stack is
       separate from the plugin's.
-- [ ] 13. HELP tab (column 4).
+- [ ] 13. HELP tab (column 4). Assistant `help-tab-builder` writing it
+      under Source/WIP/.
 - [ ] 13b. **Phase 5b technique specs (added 2026-09-23)**, in INDEX order:
-      `string-scraping.md` (ScrapeEngine; also the pick-scrape trigger pick-noise 5 asks for - folded in from 3f), `string-slap-technique.md`,
+      `string-scraping.md` (assistant `scrape-builder` writing it under
+      Source/WIP/; ScrapeEngine; also the pick-scrape trigger pick-noise 5 asks for - folded in from 3f), `string-slap-technique.md`,
       `muting-rhythm.md`, `two-hand-tapping.md`, `microtonal-bends.md`,
       `technique-cascade.md`, `gui-techniques-updates.md` (Techniques tab,
       Playing strip pills, fretboard overlays), `engine-technique-layer.md`.

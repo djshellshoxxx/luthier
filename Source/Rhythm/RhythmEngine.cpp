@@ -17,6 +17,7 @@ const char* getVoicingStyleName (VoicingStyle style) noexcept
         case VoicingStyle::power:    return "Power";
         case VoicingStyle::rootless: return "Rootless";
         case VoicingStyle::wide:     return "Wide";
+        case VoicingStyle::bass:     return "Bass";
         case VoicingStyle::numStyles:
         default:                     return "Open";
     }
@@ -38,6 +39,7 @@ namespace
             case VoicingStyle::drop2:
             case VoicingStyle::drop3:    return juce::jmin (4, byDensity);
             case VoicingStyle::wide:     return juce::jmin (numStrings, byDensity);
+            case VoicingStyle::bass:     return juce::jmin (2, byDensity);
             case VoicingStyle::rootless:
             case VoicingStyle::open:
             case VoicingStyle::barre:
@@ -57,7 +59,7 @@ RhythmEngine::RhythmEngine()
 }
 
 void RhythmEngine::prepare (double sampleRate, int maxBlockSize,
-                            TuningEngine* tuningEngine, ChordVoicer* chordVoicer) noexcept
+                            TuningEngine* tuningEngine, RubricVoicer* chordVoicer) noexcept
 {
     sr = juce::jmax (1.0, sampleRate);
     maxBlock = juce::jmax (1, maxBlockSize);
@@ -311,10 +313,7 @@ void RhythmEngine::revoice() noexcept
 
     currentChord = detector.detect (detector.getHeldNotes(), detector.getNumHeldNotes());
 
-    std::array<int, kMaxStrings> chosen {};
-    const int count = selectNotesForStyle (chosen.data(), kMaxStrings);
-
-    if (count <= 0)
+    if (detector.getNumHeldNotes() <= 0)
     {
         voicingValid = false;
         currentVoicing = ChordVoicing {};
@@ -323,8 +322,13 @@ void RhythmEngine::revoice() noexcept
 
     const auto style = getVoicingStyle();
 
-    // The style's shape is expressed to the voicer through the constraints it
-    // already understands, rather than by a second placement algorithm.
+    /*  ambiguity-resolutions 4: the rubric voicer places any chord tone in any
+        octave (chordTones), scores the style's bias itself and caps the notes
+        it sounds; density sets how many strings that may be. */
+    voicer->setPitchMode (RubricPitchMode::chordTones);
+    voicer->setStyle ((RubricStyle) (int) style);
+    voicer->setRootPitchClass (currentChord.root);
+    voicer->setMaxSoundingStrings (juce::jmax (1, (int) std::round ((double) numStrings * getVoicingDensity() / 100.0)));
     voicer->setAllowOpenStrings (style != VoicingStyle::barre);
     voicer->setPreferredPosition (getHandPositionHint());
     voicer->setMaxFretSpan (style == VoicingStyle::wide ? 6 : 5);
@@ -335,7 +339,7 @@ void RhythmEngine::revoice() noexcept
         says - a floor on where to voice - and nothing currently sets one. */
     voicer->setMinFret (0);
 
-    currentVoicing = voicer->voice (chosen.data(), nullptr, count);
+    currentVoicing = voicer->voice (detector.getHeldNotes(), nullptr, detector.getNumHeldNotes());
     voicingValid = currentVoicing.numNotes > 0;
 
     // rhythm-engine 3: the hint follows the last chord, so a progression stays in

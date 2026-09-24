@@ -17,6 +17,7 @@
 #include "TuningEngine.h"
 #include "TechniqueEngine.h"
 #include "ChordVoicer.h"
+#include "RubricVoicer.h"
 #include <array>
 
 namespace luthier
@@ -65,7 +66,7 @@ public:
     void setNumStrings (int n) noexcept;
     int getNumStrings() const noexcept { return numStrings; }
 
-    void setEngines (TuningEngine* tuning, TechniqueEngine* technique, ChordVoicer* voicer) noexcept;
+    void setEngines (TuningEngine* tuning, TechniqueEngine* technique, RubricVoicer* voicer) noexcept;
 
     //==========================================================================
     void setPlayingMode (PlayingMode m) noexcept;
@@ -238,7 +239,7 @@ private:
 
     TuningEngine* tuning = nullptr;
     TechniqueEngine* technique = nullptr;
-    ChordVoicer* voicer = nullptr;
+    RubricVoicer* voicer = nullptr;
 
     PlayingMode mode = PlayingMode::Poly;
 

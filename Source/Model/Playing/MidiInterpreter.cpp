@@ -91,7 +91,7 @@ void MidiInterpreter::setNumStrings (int n) noexcept
     numStrings = juce::jlimit (1, kMaxStrings, n);
 }
 
-void MidiInterpreter::setEngines (TuningEngine* t, TechniqueEngine* te, ChordVoicer* cv) noexcept
+void MidiInterpreter::setEngines (TuningEngine* t, TechniqueEngine* te, RubricVoicer* cv) noexcept
 {
     tuning = t;
     technique = te;

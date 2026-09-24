@@ -66,6 +66,11 @@ numbered, because what it should be called is a release decision.
   goes to the monitor bus unless you switch CLICK TO MAIN on, and to the
   main output when there is no monitor bus (so the standalone app now
   hears it).
+- **Chord fingering by the rubric** (`ambiguity-resolutions.md` 4) - chords
+  you play and chords the rhythm engine strums are fingered by one scoring
+  rubric: open strings, the style's shape, fewer muted strings, and staying
+  near the last chord. A new Bass voicing style plays the root (or root and
+  fifth) for bass instruments.
 - **Amp and pedal faces in the rack** (`proposals/visual-polish.md` 2-3) -
   each pedal in the rack is drawn as its enclosure, with its own knob caps,
   and the amp card in Easy and Advanced modes shows the amp's faceplate. The

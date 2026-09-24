@@ -117,7 +117,8 @@ public:
 
     TuningEngine&    getTuningEngine() noexcept    { return tuning; }
     TechniqueEngine& getTechniqueEngine() noexcept { return technique; }
-    ChordVoicer&     getChordVoicer() noexcept     { return voicer; }
+    RubricVoicer&    getChordVoicer() noexcept     { return voicer; }
+    RubricVoicer&    getRhythmVoicer() noexcept    { return rhythmVoicer; }
     MidiInterpreter& getMidiInterpreter() noexcept { return midi; }
     CouplingMatrix&  getCouplingMatrix() noexcept  { return coupling; }
     BodyEngine&      getBodyEngine() noexcept      { return body; }
@@ -388,7 +389,12 @@ private:
     // --- model ---------------------------------------------------------------
     TuningEngine tuning;
     TechniqueEngine technique;
-    ChordVoicer voicer;
+    /*  ambiguity-resolutions 4: two rubric voicers, because the style, the
+        pitch mode and the previous voicing each belong to their caller - the
+        interpreter places exactly the pitches played, the rhythm engine any
+        chord tones in its style. */
+    RubricVoicer voicer;
+    RubricVoicer rhythmVoicer;
     MidiInterpreter midi;
     PlayEventQueue events;
     PlayEventQueue rhythmEvents;

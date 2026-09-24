@@ -485,3 +485,29 @@ chosen") and `ambiguity-resolutions.md`.
   figure): two sources of truth. The drawer now shows the length and applies
   the tab's stored setup (defaults.json `session_recorder`) as the recorder
   goes on; the processor never sized the ring otherwise.
+- **The rubric voicer replaces ChordVoicer at runtime** (ambiguity-
+  resolutions 4). Two instances: the interpreter's places exactly the
+  pitches played (exact mode), the rhythm engine's any chord tones in any
+  octave in its style (chordTones), each with its own previous voicing for
+  4.4's transition bonus. ChordVoicer stays for single notes, chord names
+  and the chord library; it is not a fallback, because 4.7 wants
+  "unplayable" said. `VoicingStyle::bass` is appended, so saved style
+  indices keep their meaning. The rhythm engine's density now caps the
+  strings sounded (the voicer applies the style's omissions and caps).
+  The voicer's bass-line enum is `RubricBassPattern`, since the tune model
+  already has a `BassPattern`; the rhythm engine has no bass-pattern setting
+  yet, so Bass voices the root (TODO 2d). A lone note played is not a
+  chord: the rubric (4 is "chord auto-fingering") would place it by style
+  bias and tie-breaks alone, so it keeps the single-note placement near the
+  hand it always had, and becomes the voicing the next chord moves from.
+  Found by `EBow.theHarmonicChoiceTakesTheString`, whose E3 moved string.
+- **Rubric unisons** (ambiguity-resolutions 4.2): as written, the rubric
+  voices C in open style as 8-3-5-0-5-0 (C3 on two strings) rather than open
+  C, x32010: muting the low E costs 4, and duplicates cost 1 per pitch class
+  whether octaves or unisons. Tried reading hand_span_frets as frets covered
+  (3 to 7 for a span of 5) instead of highest minus lowest: the voicer then
+  chose 8-7-5-0-5-0 and failed 4.7's own I-IV-V-I travel test, so span stays
+  highest minus lowest, as ChordVoicer and rhythm-engine 3 had it, and every
+  4.7 test passes. The unison preference is the spec's weights at work, not
+  a defect; whether strummed unisons sound right is left to a listening pass
+  (TODO 2d).

@@ -75,7 +75,7 @@ namespace
         }
 
         TuningEngine tuning;
-        ChordVoicer voicer;
+        RubricVoicer voicer;
         RhythmEngine engine;
     };
 

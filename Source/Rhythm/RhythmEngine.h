@@ -27,7 +27,7 @@
 #include "Patterns.h"
 
 #include "../Model/Playing/PlayingEvents.h"
-#include "../Model/Playing/ChordVoicer.h"
+#include "../Model/Playing/RubricVoicer.h"
 #include "../Model/Playing/TuningEngine.h"
 
 #include <atomic>
@@ -61,6 +61,7 @@ struct RhythmHumanise
 enum class VoicingStyle
 {
     open = 0, barre, triad, shell, drop2, drop3, power, rootless, wide,
+    bass,      ///< ambiguity-resolutions 4.3; appended, so saved indices keep their meaning
     numStyles
 };
 
@@ -73,7 +74,7 @@ public:
     RhythmEngine();
 
     void prepare (double sampleRate, int maxBlockSize,
-                  TuningEngine* tuning, ChordVoicer* voicer) noexcept;
+                  TuningEngine* tuning, RubricVoicer* voicer) noexcept;
 
     void reset() noexcept;
 
@@ -185,7 +186,7 @@ private:
     int numStrings = 6;
 
     TuningEngine* tuning = nullptr;
-    ChordVoicer* voicer = nullptr;
+    RubricVoicer* voicer = nullptr;
 
     ChordDetector detector;
     ChordSymbol currentChord;

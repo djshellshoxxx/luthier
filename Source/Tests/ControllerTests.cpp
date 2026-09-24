@@ -16,6 +16,7 @@
 #include "../Model/Playing/TuningEngine.h"
 #include "../Model/Playing/TechniqueEngine.h"
 #include "../Model/Playing/ChordVoicer.h"
+#include "../Model/Playing/RubricVoicer.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -75,7 +76,7 @@ namespace
 
         TuningEngine tuning;
         TechniqueEngine technique;
-        ChordVoicer voicer;
+        RubricVoicer voicer;
         MidiInterpreter interpreter;
     };
 }
