@@ -11,6 +11,7 @@
 #include "../Model/Playing/MidiInterpreter.h"
 #include "../Practice/Looper.h"
 #include "../Notation/NotationExport.h"
+#include "../DSP/Whammy/WhammyEngine.h"
 #include "../Model/Playing/TechniqueEngine.h"
 #include "../Model/Playing/RubricVoicer.h"
 #include "../Model/Playing/TuningEngine.h"
@@ -527,4 +528,18 @@ LUTHIER_TEST (ReviewRegression, theMetronomeStartsOnBeatOne)
         early = juce::jmax (early, std::abs (out[(size_t) i]));
 
     CHECK_MSG (early > 1.0e-3f, "no click at the start: " + juce::String (early));
+}
+
+//==============================================================================
+/*  R-222: a Fixed bridge zeroed the whammy range, but the parameter bridge sets
+    the user's ranges every block, so a hardtail still bent with the arm. */
+LUTHIER_TEST (ReviewRegression, aHardtailIgnoresTheWhammyRanges)
+{
+    WhammyEngine whammy;
+    whammy.prepare (48000.0, 6);
+    whammy.setBridgeType (WhammyEngine::BridgeType::Fixed);
+    whammy.setRange (2.0, 1.0);   // what the bridge sends every block
+
+    CHECK (whammy.getDownRange() == 0.0);
+    CHECK (whammy.getUpRange() == 0.0);
 }
