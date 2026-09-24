@@ -241,7 +241,7 @@ A tab strip across the top, one panel behind each tab, in this order:
 | **WORKSHOP** | the bench: swap any part of the guitar, drag pickups, compare builds, Save As Guitar. It takes over columns 3 and 4 while it is open. |
 | **MOD** | the modulation matrix - LFOs, envelopes, step sequencers, envelope followers, macros, a random source, and the route table. |
 | **RHYTHM** | the chord voicer, the strum and fingerpick pattern editors, feel, and genre kits. A bass step grid when the guitar is a bass. |
-| **TUNE** | write a whole tune: sections, a chord progression typed in shorthand, a melody piano roll, and a transport. |
+| **TUNE** | write a whole tune: a setlist timeline and sections (drag, Vary), a chord progression typed in shorthand or edited as pills (popover, drag, substitutions, chord tools), a piano roll for the melody, bass line and countermelody (select, nudge, copy, note menu), Sing into the audio input, bass and layers, a transport with TO LOOPER, example tunes, and one-screen export of audio (with stems), MIDI, notation or the project. |
 | **LIVE** | set up for the stage: the 128-snapshot bank, the setlist, crossfade and morph. |
 | **ROUTING** | bus layout, aux buses 1 to 8 (Aux 8 is the playing noise on its own), per-string outputs, the sidechain and MIDI out. |
 | **TONE MATCH** | impulse-response slots, the cab and EQ match wizards, capture, and the IR library. |
