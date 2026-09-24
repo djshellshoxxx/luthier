@@ -58,6 +58,9 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 {
     FactoryPresets::setProcessorForRanges (this);
 
+    for (int m = 0; m < ParamIDs::kNumMacros; ++m)
+        macroValues[(size_t) m] = apvts.getRawParameterValue (ParamIDs::macroByIndex (m));
+
     // guitar-workshop.md 0.6: a guitar type loads its factory guitar file.
     partLibrary.refresh();
 
@@ -168,6 +171,9 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     for (auto* tuneBuffer : { &tuneToEngine, &tuneToMidiOut, &tuneDirect })
         tuneBuffer->ensureSize (TunePlayer::kRecommendedMidiBytes);
+
+    sliceMidi.ensureSize (8192);
+    sliceMidiOut.ensureSize (8192);
     captureStringCount = -1;   // re-sent at the next drain
     diagnostics.prepare (sampleRate);
 
@@ -945,6 +951,42 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     juce::ScopedNoDenormals noDenormals;
 
     const int numSamples = buffer.getNumSamples();
+    const int maxSlice = juce::jmax (1, currentBlockSize);
+
+    if (numSamples <= maxSlice)
+    {
+        processSlice (buffer, midiMessages);
+        return;
+    }
+
+    // Bigger than prepareToPlay promised: rendered in slices, each slice's MIDI
+    // at its own offset, and what each slice leaves in its MIDI buffer (the MIDI
+    // out) put back at the slice's place in the host block.
+    sliceMidiOut.clear();
+
+    for (int offset = 0; offset < numSamples;)
+    {
+        const int count = juce::jmin (maxSlice, numSamples - offset);
+
+        // A view onto the host's memory: this constructor does not allocate.
+        juce::AudioBuffer<float> slice (buffer.getArrayOfWritePointers(),
+                                        buffer.getNumChannels(), offset, count);
+
+        sliceMidi.clear();
+        sliceMidi.addEvents (midiMessages, offset, count, -offset);
+
+        processSlice (slice, sliceMidi);
+
+        sliceMidiOut.addEvents (sliceMidi, 0, count, offset);
+        offset += count;
+    }
+
+    midiMessages.swapWith (sliceMidiOut);
+}
+
+void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+{
+    const int numSamples = buffer.getNumSamples();
 
     // ---- routing, before anything reads or writes audio -----------------------
     routing.setActiveLayout (getNegotiatedLayout());
@@ -1279,7 +1321,7 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     // Always called: when MIDI out is off it clears the buffer, which is what
     // stops the host's own events leaking back out as an accidental echo.
     for (int m = 0; m < 6; ++m)
-        if (auto* raw = apvts.getRawParameterValue (ParamIDs::macroByIndex (m)))
+        if (auto* raw = macroValues[(size_t) m])
             midiOutRouter.setMacroValue (m, raw->load());
 
     midiOutRouter.emit (midiMessages, midiOutConfig, engine.getStringActivity(), numSamples);
@@ -1337,7 +1379,7 @@ void LuthierAudioProcessor::feedModulationSources (const juce::MidiBuffer& midi)
     }
 
     for (int m = 0; m < ParamIDs::kNumMacros; ++m)
-        if (auto* raw = apvts.getRawParameterValue (ParamIDs::macroByIndex (m)))
+        if (auto* raw = macroValues[(size_t) m])
             modMatrix.setMacroValue (m, (double) raw->load());
 }
 
