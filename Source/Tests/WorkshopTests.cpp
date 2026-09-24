@@ -185,3 +185,72 @@ LUTHIER_TEST (Workshop, anEmbeddedGuitarNeedsNoPartFiles)
     CHECK_MSG (bareReport.missing.isEmpty(), bareReport.missing.joinIntoString ("; "));
     CHECK_MSG (restored == guitar, "the embedded guitar came back different");
 }
+
+//==============================================================================
+LUTHIER_TEST (Workshop, aStringOverrideRoundTripsAndOlderFilesHaveNone)
+{
+    // guitar-workshop.md 3.3: a heavier third saved in the guitar file, under the
+    // strings entry's per_string_override list (file-formats.md 3), numbered for
+    // people; a file without the list is a guitar without overrides.
+    TempFolder user;
+    auto library = factoryOnly (user.dir);
+
+    WorkshopGuitar guitar;
+    PartLibrary::LoadReport report;
+    CHECK (library.loadGuitar (PartLibrary::getFactoryGuitarsFolder().getChildFile ("Electric/Vintage Single-Cut.luthierguitar"), guitar, report));
+    CHECK (guitar.stringOverrides.isEmpty());
+
+    const double setGauge = guitar.getStringGaugeIn (2);
+    CHECK (setGauge > 0.0);
+    CHECK (! guitar.isStringWound (2));            // the set's plain G
+    CHECK (guitar.isStringWound (5));
+
+    StringOverride heavier;
+    heavier.stringIndex = 2;
+    heavier.gaugeIn = 0.020;
+    heavier.wound = 1;
+    heavier.material = "phosphor_bronze";
+    guitar.setStringOverride (heavier);
+
+    CHECK (guitar.getStringOverride (2) != nullptr);
+    CHECK_NEAR (guitar.getStringGaugeIn (2), 0.020, 1.0e-12);
+    CHECK (guitar.isStringWound (2));
+    CHECK (guitar.getStringMaterial (2) == "phosphor_bronze");
+    CHECK (guitar.getStringMaterial (1) != "phosphor_bronze");
+
+    // Written under the strings entry, string 3 for people.
+    const auto json = guitar.toVar();
+    const auto list = json.getProperty ("parts", {}).getProperty ("strings", {}).getProperty ("per_string_override", {});
+    CHECK (list.isArray() && list.size() == 1);
+    CHECK ((int) list[0].getProperty ("string", 0) == 3);
+    CHECK_NEAR ((double) list[0].getProperty ("gauge_in", 0.0), 0.020, 1.0e-12);
+    CHECK ((bool) list[0].getProperty ("wound", false));
+
+    // Round trip, by reference and embedded.
+    for (const auto& serialised : { json, guitar.toEmbeddedVar() })
+    {
+        WorkshopGuitar again;
+        PartLibrary::LoadReport report2;
+        CHECK (library.buildGuitar (juce::JSON::parse (juce::JSON::toString (serialised)), again, report2));
+        CHECK_MSG (again == guitar, "the override did not survive a round trip");
+        CHECK (again.getStringOverride (2) != nullptr && again.getStringOverride (2)->material == "phosphor_bronze");
+    }
+
+    // The key removed - a file from before this - loads the same guitar minus the override.
+    auto older = juce::JSON::parse (juce::JSON::toString (json));
+    older.getProperty ("parts", {}).getProperty ("strings", {}).getDynamicObject()->removeProperty ("per_string_override");
+    WorkshopGuitar plain;
+    PartLibrary::LoadReport report3;
+    CHECK (library.buildGuitar (older, plain, report3));
+    CHECK (plain.stringOverrides.isEmpty());
+    CHECK_NEAR (plain.getStringGaugeIn (2), setGauge, 1.0e-12);
+    CHECK (! (plain == guitar));
+
+    // An override with nothing in it is no override; setting the same string twice keeps one.
+    guitar.setStringOverride (heavier);
+    CHECK (guitar.stringOverrides.size() == 1);
+    StringOverride empty;
+    empty.stringIndex = 2;
+    guitar.setStringOverride (empty);
+    CHECK (guitar.stringOverrides.isEmpty());
+}

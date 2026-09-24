@@ -62,6 +62,14 @@ struct DerivedAcoustics
     std::array<double, 12> gaugesIn {};   ///< per string, 0 = the set's default
     StringMaterial stringMaterial = StringMaterial::NickelPlatedSteel;
 
+    /*  guitar-workshop.md 3.3: per string, the set's material unless that string
+        is overridden. The tensions below are computed with these.
+        TODO(engine hook): LuthierEngine::applyWorkshopGuitar reads only
+        `stringMaterial` today; it needs a per-string material array feeding
+        refreshStringPhysics' computeSpec and StringNoiseInfo::fromSpec, so an
+        overridden string's damping and winding reach the sound. */
+    std::array<StringMaterial, 12> stringMaterials {};
+
     BodyConfig body;
 
     /** Pickups in the engine's slot order: bridge first. */
@@ -92,6 +100,12 @@ struct DerivedAcoustics
 
 /** part-acoustics.md 0.1: the whole mapping. Deterministic and allocation-light. */
 DerivedAcoustics mapSpec (const WorkshopGuitar& guitar);
+
+/** 2.1's Feedback column for a compiled body shape, on the same 0..1 scale
+    mapSpec's `feedbackGain` uses (solid 0.1, chambered 0.25, semi-hollow 0.5,
+    hollow 0.8, acoustic 0 = n/a), so a compiled guitar and a parts guitar of
+    the same chambering feed back alike. */
+double chamberingFeedbackForShape (BodyShape shape) noexcept;
 
 /** 3: T = (2 L f)^2 mu, in newtons, for one string. */
 double stringTensionNewtons (double scaleLengthMm, double frequencyHz, double linearDensityKgPerM);

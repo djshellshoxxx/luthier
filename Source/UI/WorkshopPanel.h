@@ -21,8 +21,10 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "Overlays.h"
+#include "FirstEncounterHint.h"
 #include "Guitar/GuitarRenderer.h"
 #include "../Workshop/SpectrumDelta.h"
+#include "../PhysicalRange.h"
 
 namespace luthier
 {
@@ -57,6 +59,28 @@ public:
     /** Selects a region as a click would (keyboard, tests). */
     void select (GuitarRegion region, int stringIndex = -1);
 
+    /*  The player's accessories drawn over the guitar (workshop-ui.md 2, 4;
+        guitar-illustration.md 5's layers 28 and 29): the pick at its position
+        and angle, the slide bar at its fret and slant (Slide Mode on), the
+        capo at its fret - parked on the headstock when it is off. They sit
+        above every part, so a click on one takes it before the part under it. */
+    enum class Tool { none, pick, slide, capo };
+
+    Tool getSelectedTool() const noexcept { return selectedTool; }
+    void selectTool (Tool tool);
+
+    /** Whether a tool is on the bench right now (the slide needs Slide Mode). */
+    bool hasTool (Tool tool) const;
+
+    /** The tool's outline in millimetres, for hit-testing and the tests. */
+    juce::Path toolArea (Tool tool) const;
+
+    /** The pick's point as drawn, mm: tests aim a drag at it. */
+    juce::Point<float> pickTipMm() const;
+
+    /** The nut slot the illustration would drag at a point, or -1. */
+    int nutSlotAt (juce::Point<float> px) const;
+
     /** The builder's order (section 10): Tab walks it. */
     static const std::vector<GuitarRegion>& builderOrder();
 
@@ -76,11 +100,20 @@ public:
 
     float getZoom() const noexcept { return zoom; }
 
+    /** Section 16's sentence for the selected part, string or tool. */
+    juce::String describeSelection() const;
+
 private:
     void timerCallback() override;
     GuitarRegion regionAt (juce::Point<float> px, int* stringIndex = nullptr) const;
+    Tool toolAt (juce::Point<float> px) const;
     void rebuild (bool force);
     int pickupIndexFor (GuitarRegion) const;
+    void paintTools (juce::Graphics&) const;
+    void paintStringOverrides (juce::Graphics&) const;
+    void announceSelection();
+    juce::String toolDescription (Tool tool) const;
+    bool updateLiveOverlay();
 
     LuthierAudioProcessor& processor;
     WorkshopBench& bench;
@@ -95,13 +128,17 @@ private:
 
     GuitarRegion hovered = GuitarRegion::none, selected = GuitarRegion::none;
     int selectedString = -1;
+    Tool selectedTool = Tool::none, hoveredTool = Tool::none;
+
+    /** What is sounding (gui-engine-dataflow.md 6), painted as the live layer. */
+    GuitarOverlay live;
 
     // Drag state
-    enum class Drag { none, pickup, saddle, pan };
+    enum class Drag { none, pickup, saddle, nutSlot, pick, pickAngle, slide, slideSlant, capo, pan };
     Drag drag = Drag::none;
     int dragIndex = -1;
     juce::Point<float> dragStartMm;
-    double dragStartValue = 0.0;
+    double dragStartValue = 0.0, dragStartValue2 = 0.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BenchIllustration)
 };
@@ -156,8 +193,27 @@ public:
     juce::String getSpectrumSummary() const { return spectrum.summary; }
     const SpectrumDelta::Result& getSpectrumResult() const noexcept { return spectrum; }
 
+    /*  Section 10: the summary is what a screen reader hears, as an
+        announcement each time it changes (accessibility.md 1). The last one
+        announced, for the tests. */
+    juce::String getLastSpectrumAnnouncement() const { return announcedSummary; }
+
+    /*  gui-integration 21 / advanced-ranges.md 6.1: the range families whose
+        parameters this panel holds - the setup strip's (fret-buzz.md 7) - so
+        the WORKSHOP tab carries a padlock when any of them is unlocked or
+        outside stock. Part fields have no ranges (workshop-ui.md 5). */
+    static juce::Array<RangeFamily> rangeFamilies();
+
+    /** The category buttons carry translated text; this is the id behind each. */
+    juce::String categoryIdOfButton (int index) const;
+
     /** Waits (pumping nothing) for the spectrum worker's newest result; tests only. */
     bool waitForSpectrum (int timeoutMs);
+
+    /*  onboarding.md 9: the one-time hint under the bench header, in the
+        first session. The timer calls this while the bench is on screen. */
+    void showFirstEncounterHintIfDue();
+    FirstEncounterHint& getFirstEncounterHint() noexcept { return firstEncounterHint; }
 
 private:
     void timerCallback() override;
@@ -166,6 +222,7 @@ private:
     void refreshInspector();
     void refreshDrawer();
     void requestSpectrum (int pickupIndex = -1, double positionMm = 0.0);
+    void takeSpectrumResult (SpectrumDelta::Result&& result);
     void paintSpectrum (juce::Graphics&, juce::Rectangle<int> area);
     void paintDrawer (juce::Graphics&, juce::Rectangle<int> area);
     void paintInspector (juce::Graphics&, juce::Rectangle<int> area);
@@ -184,9 +241,12 @@ private:
     SpectrumDelta::Result spectrum;
     juce::uint32 lastRequest = 0;
     bool autoZoom = false;
+    juce::String announcedSummary;
+    juce::Component spectrumPane;      ///< the accessible element behind the painted curve
 
     juce::Label title, guitarName;
     juce::TextButton saveAsButton { "Save As Guitar" };
+    FirstEncounterHint firstEncounterHint { FirstEncounterHint::kWorkshopKey, FirstEncounterHint::kWorkshopText };
     juce::OwnedArray<juce::TextButton> slotButtons;
     juce::OwnedArray<juce::TextButton> categoryButtons;
     juce::TextButton swapButton { "Swap" }, revertButton { "Revert" }, savePartButton { "Save as user part" };
@@ -225,6 +285,9 @@ public:
     explicit WorkshopOverlay (LuthierAudioProcessor& processor) : OverlayPanel ("Workshop"), panel (processor)
     {
         addAndMakeVisible (panel);
+
+        // onboarding 9 says "Escape closes." - true of the overlay, not of the tab.
+        panel.getFirstEncounterHint().setText (juce::String (FirstEncounterHint::kWorkshopText) + " Escape closes.");
     }
 
     juce::Point<int> getPreferredSize() const override { return { 1180, 720 }; }

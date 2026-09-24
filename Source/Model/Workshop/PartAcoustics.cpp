@@ -160,19 +160,12 @@ namespace
              : (thicknessMm > 48.0 ? BodyShape::SolidHeavy : BodyShape::SolidStandard);
     }
 
-    StringMaterial materialFor (const Part* strings)
+    StringMaterial materialForIds (const juce::String& winding, const juce::String& m)
     {
-        if (strings == nullptr)
-            return StringMaterial::NickelPlatedSteel;
-
-        const auto winding = strings->text ("winding", "round");
-
         // 8: the winding style decides before the metal does.
         if (winding == "flat")   return StringMaterial::Flatwound;
         if (winding == "half")   return StringMaterial::Halfwound;
         if (winding == "coated") return StringMaterial::Coated;
-
-        const auto m = strings->text ("winding_material", "nickel_plated_steel");
 
         if (m == "pure_nickel")     return StringMaterial::PureNickel;
         if (m == "stainless")       return StringMaterial::StainlessSteel;
@@ -183,6 +176,14 @@ namespace
         if (m == "nylon")           return StringMaterial::Nylon;
         if (m == "fluorocarbon")    return StringMaterial::Fluorocarbon;
         return StringMaterial::NickelPlatedSteel;
+    }
+
+    StringMaterial materialFor (const Part* strings)
+    {
+        if (strings == nullptr)
+            return StringMaterial::NickelPlatedSteel;
+
+        return materialForIds (strings->text ("winding", "round"), strings->text ("winding_material", "nickel_plated_steel"));
     }
 
     PickupType pickupTypeFor (const juce::String& family)
@@ -281,7 +282,7 @@ bool DerivedAcoustics::operator== (const DerivedAcoustics& o) const
 
     for (size_t i = 0; i < gaugesIn.size(); ++i)
         if (! same (gaugesIn[i], o.gaugesIn[i]) || ! same (tensionNewtons[i], o.tensionNewtons[i])
-            || ! same (windingPitchPerMm[i], o.windingPitchPerMm[i]))
+            || ! same (windingPitchPerMm[i], o.windingPitchPerMm[i]) || stringMaterials[i] != o.stringMaterials[i])
             return false;
 
     for (size_t i = 0; i < pickups.size(); ++i)
@@ -459,6 +460,7 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
     // ---- strings (8) -------------------------------------------------------------------------------
     d.stringMaterial = materialFor (strings);
     d.spec.stringMaterial = d.stringMaterial;
+    d.stringMaterials.fill (d.stringMaterial);
 
     const auto gauges = strings != nullptr ? strings->numbers ("gauges_in") : juce::Array<double>();
     const auto pitches = strings != nullptr ? strings->numbers ("winding_pitch_per_mm") : juce::Array<double>();
@@ -476,10 +478,19 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
             hz = open[juce::jlimit (0, 5, GuitarLibrary::courseForString (s))]
                  * semitonesToRatio (GuitarLibrary::twelveStringOctaveOffset (s));
 
-        const double gauge = juce::isPositiveAndBelow (s, gauges.size()) ? gauges[s] : 0.0;
+        // guitar-workshop.md 3.3: an overridden string plays its own gauge and
+        // material; the rest play the set's.
+        const auto* ov = g.getStringOverride (s);
+        const double gauge = ov != nullptr && ov->gaugeIn > 0.0 ? ov->gaugeIn
+                           : juce::isPositiveAndBelow (s, gauges.size()) ? gauges[s] : 0.0;
         d.gaugesIn[(size_t) s] = gauge;
 
-        const auto computed = StringMaterials::computeSpec (d.stringMaterial, d.spec.stringGauge, StringAge::Fresh,
+        const auto material = ov != nullptr && ov->material.isNotEmpty()
+                            ? materialForIds (strings != nullptr ? strings->text ("winding", "round") : "round", ov->material)
+                            : d.stringMaterial;
+        d.stringMaterials[(size_t) s] = material;
+
+        const auto computed = StringMaterials::computeSpec (material, d.spec.stringGauge, StringAge::Fresh,
                                                             s, hz, d.spec.scaleLengthMm, gauge);
         d.tensionNewtons[(size_t) s] = computed.tensionNewtons;
 
@@ -599,6 +610,37 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
     d.spec.couplingAmount = juce::jlimit (0.0, 1.0, d.couplingFraction * 1.4);
 
     return d;
+}
+
+//==============================================================================
+double chamberingFeedbackForShape (BodyShape shape) noexcept
+{
+    // The same rows mapSpec reads from the chambering field (2.1).
+    switch (shape)
+    {
+        case BodyShape::Chambered:      return 0.25;
+        case BodyShape::SemiHollow:     return 0.5;
+        case BodyShape::Hollow:
+        case BodyShape::BassHollow:     return 0.8;
+
+        case BodyShape::Parlor:
+        case BodyShape::Concert:
+        case BodyShape::Auditorium:
+        case BodyShape::Dreadnought:
+        case BodyShape::Jumbo:
+        case BodyShape::Classical:
+        case BodyShape::Flamenco:
+        case BodyShape::Resonator:
+        case BodyShape::TwelveStringDread: return 0.0;   // n/a: no amp loop on the table
+
+        case BodyShape::SolidThin:
+        case BodyShape::SolidStandard:
+        case BodyShape::SolidHeavy:
+        case BodyShape::Offset:
+        case BodyShape::BassSolid:
+        case BodyShape::NumShapes:
+        default:                        return 0.1;
+    }
 }
 
 } // namespace luthier

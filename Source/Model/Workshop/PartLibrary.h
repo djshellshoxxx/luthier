@@ -56,6 +56,29 @@ struct GuitarSetup
     juce::Array<double> intonationMm;
 };
 
+/*  guitar-workshop.md 3.3, workshop-ui.md 3.3: one string of the set replaced
+    - a heavier third, a wound G on an otherwise plain-G set. Indexed the
+    engine's way (0 = the high E, engine.md 1); a field left at its default
+    keeps the set's value. In the guitar file this is the strings entry's
+    `per_string_override` list (file-formats.md 3), numbered for people
+    (1 = the high E); a file without the list has no overrides, so guitars
+    written before this loaded unchanged and guitars written with it load
+    on an older build minus the overrides. */
+struct StringOverride
+{
+    int stringIndex = -1;
+    double gaugeIn = 0.0;          ///< 0 = the set's gauge
+    juce::String material;         ///< "" = the set's winding_material ("phosphor_bronze", ...)
+    int wound = -1;                ///< -1 as the set decides, 0 plain, 1 wound
+
+    bool isEmpty() const noexcept { return gaugeIn <= 0.0 && material.isEmpty() && wound < 0; }
+    bool operator== (const StringOverride& o) const noexcept
+    {
+        return stringIndex == o.stringIndex && gaugeIn == o.gaugeIn && material == o.material && wound == o.wound;
+    }
+    bool operator!= (const StringOverride& o) const noexcept { return ! (*this == o); }
+};
+
 struct GuitarFinish
 {
     juce::String type = "solid", colourA = "#7A2E1B", colourB = "#F2C441", burstShape = "radial";
@@ -80,7 +103,31 @@ public:
     juce::String hardwareColour = "nickel";
     juce::uint64 seed = 0;
 
+    /** 3.3: the strings that differ from the set, at most one entry per string. */
+    juce::Array<StringOverride> stringOverrides;
+
     PartPtr get (GuitarSlot slot) const noexcept { return parts[(size_t) slot]; }
+
+    //==========================================================================
+    // Per-string overrides (3.3).
+
+    /** The override on a string, or nullptr when it plays the set's string. */
+    const StringOverride* getStringOverride (int stringIndex) const noexcept;
+
+    /** Replaces the string's override; an empty one removes it. */
+    void setStringOverride (const StringOverride& o);
+    bool clearStringOverride (int stringIndex);
+
+    /** The gauge a string plays at: the set's, or the override's. */
+    double getStringGaugeIn (int stringIndex) const;
+
+    /** The winding material id a string plays with ("nickel_plated_steel", ...). */
+    juce::String getStringMaterial (int stringIndex) const;
+
+    /*  Wound or plain: the override says, else the set's rule (the renderer's,
+        guitar-illustration.md 10): nylon trebles are plain, a bass is all wound,
+        else 0.0195" and up is wound. */
+    bool isStringWound (int stringIndex) const;
 
     /** The pickup slots in neck, middle, bridge order. */
     static GuitarSlot pickupSlot (int index) noexcept;

@@ -17,6 +17,7 @@
 */
 
 #include "../Model/Workshop/PartLibrary.h"
+#include "../DSP/Slide/SlideEngine.h"
 
 #include <array>
 #include <optional>
@@ -56,6 +57,49 @@ public:
 
     /** Puts a slot back to what the guitar file had ("Revert", section 5). */
     bool revert (GuitarSlot slot);
+
+    //==========================================================================
+    // Per-string overrides (guitar-workshop.md 3.3, workshop-ui.md 3.3): one
+    // undo entry each, "Set string 3 to 0.018 plain (was 0.017 plain)".
+
+    /** Sets (or, for an empty override, clears) one string's override. False if nothing changed. */
+    bool setStringOverride (const StringOverride& o);
+    bool clearStringOverride (int stringIndex);
+
+    /** "0.017 plain", "0.026 wound phosphor bronze": a string as it plays now. */
+    static juce::String describeString (const WorkshopGuitar& guitar, int stringIndex);
+
+    //==========================================================================
+    /*  The player's accessories on the bench (workshop-ui.md 4's last three
+        rows). The pick's position and angle are the pick parameters
+        (pluck_position as a fraction of the scale from the saddle, pick_angle);
+        the capo's fret is capo_fret; the slide's slant is slide_slant. The
+        slide's position along the neck has no engine input yet - the position
+        sources are slide-technique-controls.md (TODO 5b) - so the bench keeps
+        it for the illustration and the inspector. Each is a gesture like a
+        pickup drag: one undo entry with the before and after values. */
+    double getPickPositionMm() const;
+    double getPickAngleDegrees() const;
+    void setPickPlacement (double positionMm, double angleDegrees);
+    static constexpr double kMaxPickAngle = 60.0;         ///< the pick_angle parameter's span
+
+    double getSlideFret() const noexcept { return slideFret; }
+    double getSlideSlantDegrees() const;
+    void setSlidePlacement (double fret, double slantDegrees);
+    static constexpr double kMaxSlideSlant = 30.0;        ///< the slide_slant parameter's span
+
+    int getCapoFret() const;
+    void setCapoFret (int fret);
+    static constexpr int kMaxCapoFret = 12;
+
+    /*  slide-guitar.md 2: the fitted slide part as the engine's bar.
+        TODO(engine hook): LuthierEngine::setSlideBar (SlideBar) routed through
+        the structural-change path (SlideEngine::setBar is a plain write the
+        audio thread reads); until then the bench only remembers the part. */
+    SlideBar getSlideBar() const;
+
+    /** The scale length the bench measures against, mm. */
+    double getScaleLengthMm() const;
 
     //==========================================================================
     // Gestures: a drag, or a keyboard nudge, is one entry opened here and
@@ -133,15 +177,30 @@ private:
 
     LuthierAudioProcessor& processor;
 
+    /** The accessory placements a gesture can move, read from the parameters. */
+    struct Placements
+    {
+        double pickPositionMm = 0.0, pickAngle = 0.0, slideSlant = 0.0, slideFret = 0.0;
+        int capoFret = 0;
+    };
+
+    Placements readPlacements() const;
+    void writePlacements (const Placements& p);
+    juce::StringArray describePlacementChanges (const Placements& before, const Placements& after) const;
+    void setPlain (const char* id, double plain);
+    double readPlain (const char* id) const;
+
     struct Gesture
     {
         WorkshopGuitar before, live;
+        Placements placementsBefore;
         juce::StringArray changes;   ///< what the gesture did, in order, for the sentence
         bool pushed = false;
     };
 
     std::optional<Gesture> gesture;
     PartPtr pickPart, slidePart;
+    double slideFret = 5.0;          ///< the bench's slide position (see setSlidePlacement)
     std::optional<WorkshopGuitar> audition;
 };
 

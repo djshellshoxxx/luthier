@@ -161,12 +161,6 @@ bool WorkshopBench::fitAccessory (const PartPtr& part)
     if (part == nullptr)
         return false;
 
-    auto setPlain = [this] (const char* id, double plain)
-    {
-        if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (processor.getState().getParameter (id)))
-            p->setValueNotifyingHost (p->convertTo0to1 ((float) plain));
-    };
-
     if (part->type == PartType::capo)
     {
         const auto old = processor.getCapoPart();
@@ -199,6 +193,7 @@ bool WorkshopBench::fitAccessory (const PartPtr& part)
     {
         processor.pushUndoState ("Fitted " + part->name + (slidePart != nullptr ? " (was " + slidePart->name + ")" : juce::String()));
         slidePart = part;
+        // TODO(engine hook): processor.getEngine().setSlideBar (getSlideBar()) once the engine takes it.
         return true;
     }
 
@@ -211,6 +206,52 @@ PartPtr WorkshopBench::getAccessory (PartType type) const
     if (type == PartType::pick)   return pickPart;
     if (type == PartType::slide)  return slidePart;
     return nullptr;
+}
+
+//==============================================================================
+juce::String WorkshopBench::describeString (const WorkshopGuitar& guitar, int stringIndex)
+{
+    // "0.018 plain", "0.026 wound", and the material when it is not the set's.
+    auto text = juce::String (guitar.getStringGaugeIn (stringIndex), 3) + (guitar.isStringWound (stringIndex) ? " wound" : " plain");
+
+    const auto set = guitar.get (GuitarSlot::strings);
+    const auto setMaterial = set != nullptr ? set->text ("winding_material", "nickel_plated_steel") : juce::String ("nickel_plated_steel");
+
+    if (guitar.getStringMaterial (stringIndex) != setMaterial)
+        text << " " << guitar.getStringMaterial (stringIndex).replaceCharacter ('_', ' ');
+
+    return text;
+}
+
+bool WorkshopBench::setStringOverride (const StringOverride& o)
+{
+    endAudition();
+
+    const auto& committed = processor.getCurrentGuitar();
+
+    if (! juce::isPositiveAndBelow (o.stringIndex, committed.getStringCount()))
+        return false;
+
+    auto edited = committed;
+    edited.setStringOverride (o);
+
+    if (edited == committed)
+        return false;
+
+    const auto was = describeString (committed, o.stringIndex);
+    const auto now = describeString (edited, o.stringIndex);
+    const bool cleared = edited.getStringOverride (o.stringIndex) == nullptr;
+
+    commit (edited, (cleared ? "Cleared " + stringLabel (o.stringIndex) + " override, back to " + now
+                             : "Set " + stringLabel (o.stringIndex) + " to " + now) + " (was " + was + ")");
+    return true;
+}
+
+bool WorkshopBench::clearStringOverride (int stringIndex)
+{
+    StringOverride empty;
+    empty.stringIndex = stringIndex;
+    return setStringOverride (empty);
 }
 
 bool WorkshopBench::revert (GuitarSlot slot)
@@ -256,6 +297,7 @@ void WorkshopBench::beginGesture()
     Gesture g;
     g.before = processor.getCurrentGuitar();
     g.live = g.before;
+    g.placementsBefore = readPlacements();
     gesture = std::move (g);
 }
 
@@ -300,13 +342,169 @@ void WorkshopBench::endGesture()
             sentences.add ("Set " + stringLabel (s) + " nut slot " + mm (na, 2) + " " + arrow() + " " + mm (nb, 2) + " mm");
     }
 
+    // The accessories (pick, slide, capo) live in parameters, not the guitar.
+    const auto placementsBefore = gesture->placementsBefore;
+    const auto placementsAfter = readPlacements();
+    const auto placementSentences = describePlacementChanges (placementsBefore, placementsAfter);
+    sentences.addArray (placementSentences);
+
     const auto live = gesture->live;
+    const bool guitarChanged = ! (live == before);
     gesture.reset();
 
     if (sentences.isEmpty())
         return;   // a click without a move changes nothing and pushes nothing
 
+    if (! placementSentences.isEmpty())
+    {
+        /*  One entry carrying the state from before the drag: the parameters
+            are put back for the push and set again after it. The audio thread
+            reads them at its next block, so a block that happens to start
+            between the two writes plays the old placement once (DECISIONS). */
+        writePlacements (placementsBefore);
+        processor.pushUndoState (sentences.joinIntoString ("; "));
+        writePlacements (placementsAfter);
+
+        if (guitarChanged)
+            processor.applyEditedGuitar (live);
+
+        return;
+    }
+
     commit (live, sentences.joinIntoString ("; "));
+}
+
+//==============================================================================
+double WorkshopBench::readPlain (const char* id) const
+{
+    if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (processor.getState().getParameter (id)))
+        return p->convertFrom0to1 (p->getValue());
+
+    return 0.0;
+}
+
+void WorkshopBench::setPlain (const char* id, double plain)
+{
+    if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (processor.getState().getParameter (id)))
+    {
+        const float normalised = p->convertTo0to1 ((float) plain);
+
+        if (std::abs (normalised - p->getValue()) > 1.0e-7f)
+            p->setValueNotifyingHost (normalised);
+    }
+}
+
+double WorkshopBench::getScaleLengthMm() const
+{
+    const auto neck = current().get (GuitarSlot::neck);
+    return neck != nullptr ? neck->number ("scale_length_mm", 648.0) : 648.0;
+}
+
+WorkshopBench::Placements WorkshopBench::readPlacements() const
+{
+    Placements p;
+    p.pickPositionMm = readPlain (ParamIDs::pluckPosition) * getScaleLengthMm();
+    p.pickAngle = Parameters::pickAngleDegrees (readPlain (ParamIDs::pickAngle));
+    p.slideSlant = readPlain (ParamIDs::slideSlant);
+    p.slideFret = slideFret;
+    p.capoFret = juce::roundToInt (readPlain (ParamIDs::capoFret));
+    return p;
+}
+
+void WorkshopBench::writePlacements (const Placements& p)
+{
+    setPlain (ParamIDs::pluckPosition, p.pickPositionMm / getScaleLengthMm());
+    setPlain (ParamIDs::pickAngle, p.pickAngle / kMaxPickAngle);
+    setPlain (ParamIDs::slideSlant, p.slideSlant);
+    setPlain (ParamIDs::capoFret, (double) p.capoFret);
+    slideFret = p.slideFret;
+}
+
+juce::StringArray WorkshopBench::describePlacementChanges (const Placements& a, const Placements& b) const
+{
+    juce::StringArray sentences;
+
+    if (std::abs (a.pickPositionMm - b.pickPositionMm) > 0.05)
+        sentences.add ("Moved pick " + mm (a.pickPositionMm, 0) + " " + arrow() + " " + mm (b.pickPositionMm, 0) + " mm from the saddle");
+
+    if (std::abs (a.pickAngle - b.pickAngle) > 0.05)
+        sentences.add ("Angled pick " + mm (a.pickAngle, 0) + " " + arrow() + " " + mm (b.pickAngle, 0) + " degrees");
+
+    if (std::abs (a.slideFret - b.slideFret) > 0.005)
+        sentences.add ("Moved slide to fret " + mm (b.slideFret, 1) + " (was " + mm (a.slideFret, 1) + ")");
+
+    if (std::abs (a.slideSlant - b.slideSlant) > 0.05)
+        sentences.add ("Slanted slide " + mm (a.slideSlant, 0) + " " + arrow() + " " + mm (b.slideSlant, 0) + " degrees");
+
+    if (a.capoFret != b.capoFret)
+        sentences.add (b.capoFret == 0 ? "Took the capo off (was fret " + juce::String (a.capoFret) + ")"
+                     : a.capoFret == 0 ? "Put the capo on fret " + juce::String (b.capoFret)
+                     : "Moved capo fret " + juce::String (a.capoFret) + " " + arrow() + " " + juce::String (b.capoFret));
+
+    return sentences;
+}
+
+double WorkshopBench::getPickPositionMm() const     { return readPlacements().pickPositionMm; }
+double WorkshopBench::getPickAngleDegrees() const   { return readPlacements().pickAngle; }
+double WorkshopBench::getSlideSlantDegrees() const  { return readPlain (ParamIDs::slideSlant); }
+int WorkshopBench::getCapoFret() const              { return juce::roundToInt (readPlain (ParamIDs::capoFret)); }
+
+void WorkshopBench::setPickPlacement (double positionMm, double angleDegrees)
+{
+    const bool own = ! gesture;
+    beginGesture();
+
+    // The pick_position parameter runs 0.02 - 0.5 of the scale (Parameters.cpp).
+    const double scale = getScaleLengthMm();
+    setPlain (ParamIDs::pluckPosition, juce::jlimit (0.02, 0.5, positionMm / scale));
+    setPlain (ParamIDs::pickAngle, juce::jlimit (0.0, 1.0, angleDegrees / kMaxPickAngle));
+
+    if (own)
+        endGesture();
+}
+
+void WorkshopBench::setSlidePlacement (double fret, double slantDegrees)
+{
+    const bool own = ! gesture;
+    beginGesture();
+
+    const auto neck = current().get (GuitarSlot::neck);
+    const double frets = neck != nullptr ? neck->number ("frets", 22.0) : 22.0;
+    slideFret = juce::jlimit (0.0, frets, fret);
+    setPlain (ParamIDs::slideSlant, juce::jlimit (-kMaxSlideSlant, kMaxSlideSlant, slantDegrees));
+
+    // TODO(engine hook): a "bench" position source for SlideEngine (slide-technique-controls.md, 5b).
+
+    if (own)
+        endGesture();
+}
+
+void WorkshopBench::setCapoFret (int fret)
+{
+    const bool own = ! gesture;
+    beginGesture();
+
+    setPlain (ParamIDs::capoFret, (double) juce::jlimit (0, kMaxCapoFret, fret));
+
+    if (own)
+        endGesture();
+}
+
+SlideBar WorkshopBench::getSlideBar() const
+{
+    SlideBar bar;
+
+    if (slidePart == nullptr)
+        return bar;
+
+    const auto m = slidePart->text ("material", "glass");
+    bar.material = m == "glass_thick" ? SlideMaterial::glassThick : m == "brass" ? SlideMaterial::brass
+                 : m == "steel" ? SlideMaterial::steel : m == "ceramic" ? SlideMaterial::ceramic
+                 : m == "bone" ? SlideMaterial::bone : m == "dobro_bar" ? SlideMaterial::dobroBar : SlideMaterial::glass;
+    bar.massGrams = slidePart->number ("mass_g", 65.0);
+    bar.lengthMm = slidePart->number ("length_mm", 70.0);
+    bar.diameterMm = slidePart->number ("diameter_mm", 22.0);
+    return bar;
 }
 
 WorkshopBench::Travel WorkshopBench::getPickupTravel (int index) const
