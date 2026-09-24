@@ -1019,6 +1019,28 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         }
     }
 
+    // ---- installer.md 8: a load that migrated an old file ----------------------
+    /*  "A subtle info banner on the first affected load": one per window, not
+        one per migrated preset, however many old presets are browsed. */
+    if (const auto generation = processor.getPresetManager().getMigrationGeneration();
+        generation != seenMigrationGeneration)
+    {
+        seenMigrationGeneration = generation;
+
+        if (! migrationBannerShown)
+        {
+            migrationBannerShown = true;
+
+            Notification n;
+            n.id = "migrated";
+            n.message = "This preset was made with an older version of Luthier and has been "
+                        "updated (" + processor.getPresetManager().getLastMigration()
+                        + "). Saving it keeps the original in Presets/Backup.";
+            n.level = Notification::Level::info;
+            notifications.post (std::move (n));
+        }
+    }
+
     // ---- an IR the preset asked for and could not have ------------------------
     /*  Three slots, one banner. A preset that names three missing IRs has one
         thing wrong with it - the folder moved - and three banners saying so in

@@ -500,6 +500,22 @@ bool LuthierAudioProcessor::loadGuitarFrom (const juce::String& reference, const
     {
         auto file = resolveGuitarReference (reference);
 
+        // installer.md 8: a pre-parts guitar name resolved through the
+        // migration table raises the one info banner.
+        if (file.existsAsFile())
+        {
+            auto relative = reference;
+
+            for (const auto* prefix : { "Factory/", "User/" })
+                if (relative.startsWithIgnoreCase (prefix))
+                    relative = relative.substring ((int) std::strlen (prefix));
+
+            const auto target = PartLibrary::migratedGuitar (relative);
+
+            if (target.isNotEmpty() && target != relative)
+                presets.noteMigration ("guitar " + reference);
+        }
+
         if (! file.existsAsFile())
         {
             const auto path = getFactoryGuitarPath (type);

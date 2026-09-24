@@ -144,6 +144,8 @@ private:
         is not reposted. Without these, dismissing a banner about a preset that
         still will not load would put it straight back on screen. */
     juce::String reportedPresetError, reportedIrError;
+    juce::uint32 seenMigrationGeneration = 0;   // installer.md 8
+    bool migrationBannerShown = false;
 
     /** Remembered so the layout is only redone when Live Mode actually changes. */
     bool liveModeShown = false;
