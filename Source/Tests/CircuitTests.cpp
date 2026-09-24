@@ -29,6 +29,9 @@ struct AllocationCounter
     static long count() noexcept { return allocationsOnThisThread; }
 };
 
+// TECHNIQUES: the same count for other test files (TechniqueLayerTests).
+long luthierTestAllocationCount() noexcept { return allocationsOnThisThread; }
+
 void* operator new (std::size_t size)
 {
     ++allocationsOnThisThread;
