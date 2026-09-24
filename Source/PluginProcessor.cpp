@@ -245,6 +245,15 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     initialStateApplied = true;
 
+    // cpu-quality-modes 2.5 / 2.6: re-read the machine's setting (another
+    // process may have changed it) and apply the level as a hard switch.
+    PerformanceSettings::get().reloadIfChanged();
+    cpuLoad.reset();
+    samplesSinceStringDrop = 0;
+    lastNonRealtime = isNonRealtime();
+    qualityController.setNonRealtime (lastNonRealtime);
+    applyQualityForBlock (true);
+
     updateLatency();
     updateRoutingLatencyReport();
 
@@ -997,6 +1006,24 @@ void LuthierAudioProcessor::updateRoutingLatencyReport()
 void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
+
+    // cpu-quality-modes 2.5 and 4: one level per block, and Luthier's own share
+    // of the block's time stamped around all of it.
+    const auto qualityStartTicks = juce::Time::getHighResolutionTicks();
+    applyQualityForBlock (false);
+
+    struct LoadStamp
+    {
+        LuthierAudioProcessor& p;
+        juce::int64 start;
+        int numSamples;
+
+        ~LoadStamp()
+        {
+            const double busy = juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - start);
+            p.stampBlockLoad (busy, numSamples);
+        }
+    } loadStamp { *this, qualityStartTicks, buffer.getNumSamples() };
 
     const int numSamples = buffer.getNumSamples();
     const int maxSlice = juce::jmax (1, currentBlockSize);
@@ -1866,7 +1893,10 @@ void LuthierAudioProcessor::resetEverything()
     midiLearn.clearAllMappings();
     lockedParameters.clear();
 
+    // cpu-quality-modes 10: Reset never reads or writes the CPU quality.
+    const auto keptQualityOverride = uiState.qualityOverride;
     uiState = UiState {};
+    uiState.qualityOverride = keptQualityOverride;
 
     bridge.applyAllNow();
     engine.reset();
@@ -2198,6 +2228,7 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     ui->setProperty ("editorWidth", uiState.editorWidth);
     ui->setProperty ("editorHeight", uiState.editorHeight);
     ui->setProperty ("auditionType", (int) uiState.auditionType);
+    ui->setProperty ("qualityOverride", qualityOverrideKey (uiState.qualityOverride));   // cpu-quality-modes 3
     root->setProperty ("ui", juce::var (ui));
 
     juce::Array<juce::var> locks;
@@ -2290,6 +2321,12 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
         uiState.auditionType = (AuditionPhrase::Type) juce::jlimit (
             0, (int) AuditionPhrase::Type::NumTypes - 1, (int) ui->getProperty ("auditionType"));
         auditionType = uiState.auditionType;
+
+        // cpu-quality-modes 3: the per-instance override (host session only).
+        const auto q = ui->getProperty ("qualityOverride").toString();
+        setQualityOverride (q == "high" ? QualityOverride::High : q == "medium" ? QualityOverride::Medium
+                          : q == "low" ? QualityOverride::Low : q == "auto" ? QualityOverride::Auto
+                                                                            : QualityOverride::Global);
     }
 
     lockedParameters.clear();
@@ -2626,6 +2663,78 @@ void LuthierAudioProcessor::sendLuthierSysEx (const MidiOutConfig& config, juce:
         sysExOut.appendTo (midi, numSamples);
     else
         sysExOut.clear();
+}
+
+//==============================================================================
+// cpu-quality-modes: the quality level, offline rendering and E3.
+
+void LuthierAudioProcessor::setNonRealtime (bool isOffline) noexcept
+{
+    juce::AudioProcessor::setNonRealtime (isOffline);
+    qualityController.setNonRealtime (isOffline);
+}
+
+void LuthierAudioProcessor::setQualityOverride (QualityOverride o)
+{
+    uiState.qualityOverride = o;
+    qualityController.setOverride (o);
+}
+
+void LuthierAudioProcessor::applyQualityForBlock (bool forceHard) noexcept
+{
+    // 2.6: a change of isNonRealtime() is a hard switch, so a render does not
+    // depend on the level live playback was at.
+    const bool offline = isNonRealtime();
+    bool hard = forceHard;
+
+    if (offline != lastNonRealtime)
+    {
+        lastNonRealtime = offline;
+        qualityController.setNonRealtime (offline);
+        hard = true;
+    }
+
+    const auto level = qualityController.getEffectiveLevel();
+
+    if ((int) level != lastAppliedQuality || hard)
+    {
+        // The message thread may be rebuilding engine structure; never wait for
+        // it. A block that cannot take the lock applies the level next block.
+        const juce::ScopedTryLock structureLock (bridge.getEngineLock());
+
+        if (! structureLock.isLocked())
+            return;
+
+        const auto profile = QualityProfile::forLevel (level);
+        engine.applyQuality (profile, hard);
+        modMatrix.setControlIntervalMultiplier (profile.modIntervalMultiplier, profile.modFastLfoHz);
+        lastAppliedQuality = (int) level;
+        appliedQuality.store ((int) level, std::memory_order_relaxed);
+    }
+}
+
+void LuthierAudioProcessor::stampBlockLoad (double busySeconds, int numSamples) noexcept
+{
+    if (currentSampleRate <= 0.0 || numSamples <= 0)
+        return;
+
+    cpuLoad.addBlock (busySeconds, (double) numSamples / currentSampleRate);
+
+    // 7, E3: Luthier is over its whole block budget for 200 ms. Decided here,
+    // on the audio thread, so it works while the message thread is blocked.
+    samplesSinceStringDrop += numSamples;
+
+    if (! isNonRealtime()
+        && PerformanceSettings::get().isEmergencyStringDrop()
+        && cpuLoad.hasShortWindowOnAudioThread()
+        && cpuLoad.getShortMeanOnAudioThread() > 1.0
+        && samplesSinceStringDrop >= (juce::int64) (0.2 * currentSampleRate))
+    {
+        samplesSinceStringDrop = 0;
+
+        if (engine.dropLeastRecentString())
+            qualityController.noteStringDropped();
+    }
 }
 
 } // namespace luthier

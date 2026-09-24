@@ -797,10 +797,10 @@ void LuthierEngine::setVibratoShape (Lfo::Shape s) noexcept
 
 void LuthierEngine::setOversamplingFactor (int factor) noexcept
 {
+    // cpu-quality-modes 2.2: this is the nominal factor; the quality level
+    // caps what actually runs (LuthierEngineQuality.cpp).
     oversamplingFactor = juce::jlimit (1, 8, factor);
-    amp.setOversamplingFactor (oversamplingFactor);
-    preEffects.setOversamplingFactor (oversamplingFactor);
-    postEffects.setOversamplingFactor (oversamplingFactor);
+    applyOversamplingForQuality (true);
 }
 
 void LuthierEngine::setTempoBpm (double bpm) noexcept
@@ -1106,6 +1106,7 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     }
 
     str.excite (p);
+    qualityNoteOn (s);   // cpu-quality-modes 2.4
 
     {
         const juce::int64 now = blockStartSample + activeSampleOffset;
@@ -1266,6 +1267,7 @@ void LuthierEngine::playSlapStrike (const SlapStrike& strike, double pitchHz, do
         str.snapToFrequency (pitchHz);
 
     str.excite (p);
+    qualityNoteOn (s);   // cpu-quality-modes 2.4
 
     if (! fretless)
     {
@@ -1418,6 +1420,7 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
     const bool ebowHolds = ebow.enabled && (ebow.stringMask & (1 << s)) != 0;
 
     strings[(size_t) s].release (e.letRing || ebowHolds);
+    qualityNoteOff (s, e.letRing || ebowHolds);   // cpu-quality-modes 2.4
     slide.noteOff (s);
     stringMidiNote[(size_t) s] = -1;
 
@@ -1841,6 +1844,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         return;
 
     const auto startTicks = juce::Time::getHighResolutionTicks();
+
+    qualityPerBlock();   // cpu-quality-modes 2.4: exemptions, ring-out, the ringing cap
 
     blockStartSample = samplePosition;
     lastSubBlockNumSamples = numSamples;
@@ -2411,6 +2416,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         taps.writeAuxStereo (AuxBus::monitor, ml, mr, numSamples);
     }
 
+
+    qualityAfterBlock (buffer);   // cpu-quality-modes 2.5: silence for a hard switch
 
     samplePosition += numSamples;
 

@@ -1,4 +1,6 @@
 #include "StringEngine.h"
+#include "../../Support/QualityProfile.h"
+#include <complex>
 
 namespace luthier
 {
@@ -42,6 +44,7 @@ void StringEngine::prepare (double sampleRate, int /*maxBlockSize*/)
     slideNoiseFilter.setCutoff (6500.0);
 
     stealTotal = juce::jmax (1, (int) (sr * 0.005));
+    sleepAfterSamples = juce::jmax (1, (int) std::round (QualityProfile::kSleepAfterSeconds * sr));
 
     snapToFrequency (targetHz);
     needsLoopUpdate = true;
@@ -54,6 +57,21 @@ void StringEngine::reset() noexcept
 {
     touchGain = 1.0;
     touchSamplesLeft = 0;
+
+    // cpu-quality-modes 2.4: awake, uncapped until the next excite latches.
+    sleeping = false;
+    quietSamples = 0;
+    fadeLeft = 0;
+
+    if (latchedStages != dispersionStages)
+    {
+        latchedStages = dispersionStages;
+        cappedCompensation = 0.0;
+
+        for (auto& ap : dispersion)
+            ap.setCoefficient (dispersionCoeff);
+    }
+
     delayLine.reset();
     excitation.reset();
     loopFilter.reset();
@@ -136,6 +154,12 @@ void StringEngine::excite (const Excitation::Params& params) noexcept
     auto p = params;
     p.delaySamples = juce::jmax (4.0, smoothedDelay.getCurrent());
 
+    // cpu-quality-modes 2.4: a note takes its dispersion stage count here and
+    // keeps it until it is re-excited; a sleeping string wakes.
+    wake();
+    fadeLeft = 0;
+    latchDispersion();
+
     const bool isLegato = (p.kind == Excitation::Kind::HammerOn
                            || p.kind == Excitation::Kind::PullOff
                            || p.kind == Excitation::Kind::Tap);
@@ -160,6 +184,7 @@ void StringEngine::excite (const Excitation::Params& params) noexcept
 
 void StringEngine::touch (double depth) noexcept
 {
+    wake();   // cpu-quality-modes 2.4
     // A 1.5 ms settle: a fingertip landing, fast enough to stop a low string
     // inside 10 ms and slow enough not to click. It holds for one trip round
     // the loop plus the settle, by which time the damping has done its work.
@@ -216,6 +241,7 @@ void StringEngine::setNoiseAmount (double slideNoise, double fretNoise) noexcept
 
 void StringEngine::triggerFretNoise (double strength) noexcept
 {
+    wake();   // cpu-quality-modes 2.4
     fretNoiseEnv = juce::jmax (fretNoiseEnv, juce::jlimit (0.0, 1.0, strength));
     fretNoiseBand.setBandpass (sr, physical.wound ? 1900.0 : 2600.0, 1.4);
 }
@@ -230,13 +256,148 @@ void StringEngine::updateDispersion() noexcept
 
     for (int i = 0; i < kMaxDispersionStages; ++i)
         dispersion[i].setCoefficient (dispersionCoeff);
+
+    // cpu-quality-modes 2.4: a capped note keeps its own coefficient.
+    if (latchedStages < dispersionStages)
+        applyCappedDispersion();
+}
+
+//==============================================================================
+namespace
+{
+    /** Phase delay, in samples, of Allpass1's (a + z^-1) / (1 + a z^-1) at w. */
+    double allpassPhaseDelay (double a, double w) noexcept
+    {
+        const std::complex<double> z1 = std::polar (1.0, -w);
+        const auto h = (a + z1) / (1.0 + a * z1);
+        return -std::arg (h) / w;
+    }
+}
+
+void StringEngine::latchDispersion() noexcept
+{
+    const int want = QualityProfile::dispersionStagesFor (targetHz, ruleFourHz, ruleTwoHz, dispersionStages);
+
+    if (want == latchedStages)
+    {
+        if (want < dispersionStages)
+            applyCappedDispersion();   // the new note's pitch sets its coefficient
+
+        return;
+    }
+
+    // Stages coming back into use start from rest rather than stale state.
+    for (int i = latchedStages; i < want && i < kMaxDispersionStages; ++i)
+        dispersion[i].reset();
+
+    latchedStages = want;
+
+    if (want >= dispersionStages)
+    {
+        cappedCompensation = 0.0;
+
+        for (auto& ap : dispersion)
+            ap.setCoefficient (dispersionCoeff);
+    }
+    else
+    {
+        applyCappedDispersion();
+    }
+
+    needsLoopUpdate = true;
+}
+
+void StringEngine::applyCappedDispersion() noexcept
+{
+    /*  Fewer stages, each stronger: the coefficient is chosen so the spread of
+        phase delay between the fundamental and the tenth partial matches what
+        the full cascade gives this note. The tenth partial therefore lands
+        within a few cents of High, and cappedCompensation (updateLoopCoefficients)
+        puts the fundamental exactly where High has it. */
+    const double f0 = juce::jmax (constants::kMinStringHz, targetHz);
+    const double w1 = constants::kTwoPi * f0 / sr;
+    const double w10 = juce::jmin (10.0 * w1, 0.9 * juce::MathConstants<double>::pi);
+    const double a = dispersionCoeff;
+    const double loopSamples = sr / f0;
+    const double perStageHigh = (1.0 - a) / (1.0 + a);
+    const int highStages = juce::jlimit (0, dispersionStages,
+                                         (int) std::floor (loopSamples * kMaxDispersionFraction / juce::jmax (1.0e-6, perStageHigh)));
+    const int m = juce::jmax (1, latchedStages);
+
+    const double target = (double) highStages * (allpassPhaseDelay (a, w10) - allpassPhaseDelay (a, w1));
+
+    double lo = -0.97, hi = 0.0;
+
+    auto spread = [&] (double b) { return (double) m * (allpassPhaseDelay (b, w10) - allpassPhaseDelay (b, w1)); };
+
+    if (target <= spread (lo))
+    {
+        hi = lo;
+    }
+    else
+    {
+        for (int i = 0; i < 40; ++i)
+        {
+            const double mid = 0.5 * (lo + hi);
+
+            if (spread (mid) > target)
+                hi = mid;
+            else
+                lo = mid;
+        }
+    }
+
+    cappedCoeff = 0.5 * (lo + hi);
+
+    for (int i = 0; i < m && i < kMaxDispersionStages; ++i)
+        dispersion[i].setCoefficient (cappedCoeff);
+
+    needsLoopUpdate = true;
+}
+
+void StringEngine::setSleepEnabled (bool on) noexcept
+{
+    sleepEnabled = on;
+
+    if (! on)
+        quietSamples = 0;
+}
+
+void StringEngine::fadeToSleep (double seconds) noexcept
+{
+    if (sleepExempt || sleeping || fadeLeft > 0)
+        return;
+
+    fadeTotal = juce::jmax (1, (int) std::round (seconds * sr));
+    fadeLeft = fadeTotal;
+}
+
+void StringEngine::goToSleep() noexcept
+{
+    // Below -100 dBFS: clearing the loop once is inaudible, and from here the
+    // string costs nothing until something reaches it.
+    delayLine.reset();
+    loopFilter.reset();
+
+    for (auto& ap : dispersion)
+        ap.reset();
+
+    dcBlocker.reset();
+    levelFollower.reset();
+    slideNoiseEnv = 0.0;
+    fretNoiseEnv = 0.0;
+    touchGain = 1.0;
+    bridgeOut = 0.0;
+    fadeLeft = 0;
+    quietSamples = 0;
+    sleeping = true;
 }
 
 double StringEngine::filterDelayCompensation() const noexcept
 {
     const double lp = loopFilterPole / juce::jmax (1.0e-6, 1.0 - loopFilterPole);
     const double ap = dispersion[0].delayAtDC() * (double) activeDispersionStages;
-    return lp + ap;
+    return lp + ap + cappedCompensation;   // 0 unless capped (cpu-quality-modes 2.4)
 }
 
 void StringEngine::updateLoopCoefficients() noexcept
@@ -310,7 +471,22 @@ void StringEngine::updateLoopCoefficients() noexcept
     const int affordable = (perStage > 1.0e-6)
                              ? (int) std::floor (loopSamples * kMaxDispersionFraction / perStage)
                              : kMaxDispersionStages;
-    activeDispersionStages = juce::jlimit (0, dispersionStages, affordable);
+    activeDispersionStages = juce::jlimit (0, latchedStages, affordable);
+
+    // cpu-quality-modes 2.4: with the stage count capped, hold the fundamental
+    // where the full cascade puts it (phase delay at f0, not the DC figure).
+    if (latchedStages < dispersionStages)
+    {
+        const double w1 = constants::kTwoPi * f0 / sr;
+        const double a = dispersionCoeff;
+        const double perStageHigh = (1.0 - a) / (1.0 + a);
+        const int highStages = juce::jlimit (0, dispersionStages,
+                                             (int) std::floor (loopSamples * kMaxDispersionFraction / juce::jmax (1.0e-6, perStageHigh)));
+        const double b = cappedCoeff;
+        const double highExcess = (double) highStages * (allpassPhaseDelay (a, w1) - perStageHigh);
+        const double cappedExcess = (double) activeDispersionStages * (allpassPhaseDelay (b, w1) - (1.0 - b) / (1.0 + b));
+        cappedCompensation = cappedExcess - highExcess;
+    }
 
     // ---- loss gain from the target T60 --------------------------------------
     // Higher notes decay faster on a real string (identity rule 6), so the target
@@ -338,6 +514,23 @@ void StringEngine::updateLoopCoefficients() noexcept
 //==============================================================================
 double StringEngine::processSample (double couplingInput) noexcept
 {
+    // cpu-quality-modes 2.4: a sleeping string costs nothing until coupling,
+    // excitation or a touch reaches it. It still receives (the matrix keeps
+    // feeding it) and sends 0, so sympathetic ring survives.
+    if (sleeping)
+    {
+        if (stealPending || excitation.isActive() || touchSamplesLeft > 0
+            || std::abs (couplingInput * couplingReceptivity) > QualityProfile::kSleepCouplingLevel)
+        {
+            wake();
+        }
+        else
+        {
+            bridgeOut = 0.0;
+            return 0.0;
+        }
+    }
+
     // ---- voice stealing ------------------------------------------------------
     if (stealPending)
     {
@@ -461,14 +654,50 @@ double StringEngine::processSample (double couplingInput) noexcept
         fb *= touch;
     }
 
+    // cpu-quality-modes 2.4 / 7: ring-out truncation and E3 fade what is left.
+    double fade = 1.0;
+
+    if (fadeLeft > 0)
+    {
+        fade = (double) (fadeLeft - 1) / (double) fadeTotal;
+        --fadeLeft;
+        fb *= fade;
+    }
+
     delayLine.write (fb + exc + couplingInput * couplingReceptivity + noise);
 
     // ---- output --------------------------------------------------------------
     double out = dcBlocker.process (delayOut * touch);
     out = sanitise (out);
 
+    if (fade < 1.0)
+    {
+        out *= fade;
+
+        if (fadeLeft == 0)
+        {
+            goToSleep();
+            return 0.0;
+        }
+    }
+
     levelFollower.process (out);
     bridgeOut = out * physical.couplingSend;
+
+    if (sleepEnabled && ! sleepExempt)
+    {
+        if (levelFollower.current() < QualityProfile::kSleepLevel && ! excitation.isActive()
+            && ! stealPending && touchSamplesLeft == 0
+            && std::abs (couplingInput * couplingReceptivity) < QualityProfile::kSleepCouplingLevel)
+        {
+            if (++quietSamples >= sleepAfterSamples)
+                goToSleep();
+        }
+        else
+        {
+            quietSamples = 0;
+        }
+    }
 
     return out;
 }

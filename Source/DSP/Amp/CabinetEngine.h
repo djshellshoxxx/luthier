@@ -15,6 +15,8 @@
 
 #include "../Common/DspCommon.h"
 #include "../Common/ConvolutionInstaller.h"
+#include "../Common/IrVariants.h"
+#include "../../Support/QualityProfile.h"
 #include <atomic>
 #include <memory>
 
@@ -118,6 +120,15 @@ public:
 
     int getLatencySamples() const noexcept;
 
+    /** cpu-quality-modes 2.3: each mic's IR variant for the level. Audio thread. */
+    void setQualityLevel (const QualityProfile& profile, bool hard) noexcept
+    {
+        pathA.variants.setLevel ((int) profile.level, hard);
+        pathB.variants.setLevel ((int) profile.level, hard);
+    }
+
+    const IrVariants& getIrVariants (int slot) const noexcept { return slot == 0 ? pathA.variants : pathB.variants; }
+
     //==========================================================================
     /** Each mic on its own, as it was after its impulse response and the
         time-of-flight alignment but before the blend and the stereo placement.
@@ -160,6 +171,8 @@ private:
         // it and blocks; the audio thread try-locks and uses the fallback for the
         // one block a swap can overlap, so neither ever waits on the other.
         juce::SpinLock convolutionLock;
+
+        IrVariants variants;   ///< cpu-quality-modes 2.3
 
         // Procedural fallback: a speaker is a bandpass with a cone-breakup peak
         // and a sharp roll-off above it.

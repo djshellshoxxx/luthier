@@ -34,6 +34,7 @@
 #include "Workshop/WorkshopBench.h"
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
+#include "Support/QualityController.h"   // cpu-quality-modes
 
 namespace luthier
 {
@@ -52,6 +53,9 @@ public:
     void releaseResources() override;
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    /** cpu-quality-modes 2.6: an offline bounce renders at High. Any thread. */
+    void setNonRealtime (bool isNonRealtime) noexcept override;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return ! LUTHIER_HEADLESS; }
@@ -442,9 +446,23 @@ public:
 
         /** workshop-ui.md 7: the bench's eight A/B guitars, workspace not preset. */
         std::array<juce::var, 8> benchSlots;
+
+        /** cpu-quality-modes 3: this instance's CPU quality, or the global one. */
+        QualityOverride qualityOverride = QualityOverride::Global;
     };
 
     UiState& getUiState() noexcept { return uiState; }
+
+    //==========================================================================
+    // cpu-quality-modes: the CPU quality level and Luthier's own load.
+    QualityController& getQualityController() noexcept { return qualityController; }
+    const CpuLoadMonitor& getCpuLoadMonitor() const noexcept { return cpuLoad; }
+
+    /** Sets uiState.qualityOverride and applies it (not undoable: 9). */
+    void setQualityOverride (QualityOverride o);
+
+    /** The level the engine last applied, and whether E3 is armed. */
+    QualityLevel getAppliedQualityLevel() const noexcept { return (QualityLevel) appliedQuality.load (std::memory_order_relaxed); }
 
     /** Host tempo, updated each block. */
     double getHostTempo() const noexcept { return hostTempo.load(); }
@@ -532,6 +550,16 @@ public:
 
 private:
     ModMatrix modMatrix;
+
+    // cpu-quality-modes: declared before anything that reads them.
+    CpuLoadMonitor cpuLoad;
+    QualityController qualityController { cpuLoad };
+    std::atomic<int> appliedQuality { -1 };
+    int lastAppliedQuality = -1;
+    bool lastNonRealtime = false;
+    juce::int64 samplesSinceStringDrop = 0;
+    void applyQualityForBlock (bool forceHard) noexcept;
+    void stampBlockLoad (double busySeconds, int numSamples) noexcept;
     PatternLibrary patternLibrary;
     GenreKitLibrary genreKits;
 

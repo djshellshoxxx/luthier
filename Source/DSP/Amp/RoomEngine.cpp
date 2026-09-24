@@ -1,4 +1,5 @@
 #include "RoomEngine.h"
+#include "../../Support/QualityProfile.h"
 
 namespace luthier
 {
@@ -180,6 +181,8 @@ void RoomEngine::rebuild()
         tapGainsR[i] = gain * (1.0 - pan);
     }
 
+    computeTapCompensation();
+
     tapFilterL.setLowpass (sr, juce::jmin (mat.dampingHz, sr * 0.46), 0.707);
     tapFilterR.setLowpass (sr, juce::jmin (mat.dampingHz * 0.94, sr * 0.46), 0.707);
 
@@ -204,6 +207,67 @@ void RoomEngine::rebuild()
     }
 
     updateFeedbackGain();
+}
+
+void RoomEngine::computeTapCompensation() noexcept
+{
+    // Energy compensation: n taps scaled so their energy equals all sixteen's.
+    double allL = 0.0, allR = 0.0;
+
+    for (int i = 0; i < kNumTaps; ++i)
+    {
+        allL += tapGainsL[i] * tapGainsL[i];
+        allR += tapGainsR[i] * tapGainsR[i];
+    }
+
+    double sumL = 0.0, sumR = 0.0;
+    tapCompL[0] = tapCompR[0] = 1.0;
+
+    for (int n = 1; n <= kNumTaps; ++n)
+    {
+        sumL += tapGainsL[n - 1] * tapGainsL[n - 1];
+        sumR += tapGainsR[n - 1] * tapGainsR[n - 1];
+        tapCompL[n] = sumL > 0.0 ? std::sqrt (allL / sumL) : 1.0;
+        tapCompR[n] = sumR > 0.0 ? std::sqrt (allR / sumR) : 1.0;
+    }
+
+    if (tapRampLeft == 0)
+    {
+        tapCompNowL = tapCompL[tapRun];
+        tapCompNowR = tapCompR[tapRun];
+    }
+}
+
+void RoomEngine::setTapCount (int count, bool hard) noexcept
+{
+    count = juce::jlimit (1, kNumTaps, count);
+    tapRampTotal = juce::jmax (1, (int) std::round (QualityProfile::kDroppedVoiceRampSeconds * sr));
+
+    if (hard)
+    {
+        tapRun = tapTarget = count;
+        tapRampLeft = 0;
+        tapCompNowL = tapCompL[count];
+        tapCompNowR = tapCompR[count];
+        return;
+    }
+
+    if (count == tapTarget)
+        return;
+
+    // A tap joining starts reading the buffer at once (it holds the history).
+    tapCompNowL = tapCompL[juce::jmin (tapRun, tapTarget)];
+    tapCompNowR = tapCompR[juce::jmin (tapRun, tapTarget)];
+    tapRun = juce::jmax (tapRun, count);
+    tapTarget = count;
+    tapRampLeft = tapRun > count ? tapRampTotal : 0;
+
+    if (tapRampLeft == 0)
+    {
+        tapRun = count;
+        tapCompNowL = tapCompL[count];
+        tapCompNowR = tapCompR[count];
+    }
 }
 
 void RoomEngine::updateFeedbackGain() noexcept
@@ -262,11 +326,44 @@ void RoomEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
 
         double erL = 0.0, erR = 0.0;
 
-        for (int i = 0; i < kNumTaps; ++i)
+        if (tapRun == kNumTaps && tapTarget == kNumTaps && tapRampLeft == 0)
         {
-            const double s = erBuffer[(size_t) ((erIndex - tapDelays[i]) & erMask)];
-            erL += s * tapGainsL[i];
-            erR += s * tapGainsR[i];
+            for (int i = 0; i < kNumTaps; ++i)
+            {
+                const double s = erBuffer[(size_t) ((erIndex - tapDelays[i]) & erMask)];
+                erL += s * tapGainsL[i];
+                erR += s * tapGainsR[i];
+            }
+        }
+        else
+        {
+            // cpu-quality-modes 2.1: the kept taps, compensated; dropped ones ramping out.
+            const double target = tapRampLeft > 0 ? (double) (tapRampTotal - tapRampLeft) / (double) tapRampTotal : 1.0;
+            const double compL = tapCompNowL + (tapCompL[tapTarget] - tapCompNowL) * target;
+            const double compR = tapCompNowR + (tapCompR[tapTarget] - tapCompNowR) * target;
+            const double dropGain = 1.0 - target;
+            const int kept = juce::jmin (tapTarget, tapRun);
+
+            for (int i = 0; i < kept; ++i)
+            {
+                const double s = erBuffer[(size_t) ((erIndex - tapDelays[i]) & erMask)];
+                erL += s * tapGainsL[i] * compL;
+                erR += s * tapGainsR[i] * compR;
+            }
+
+            for (int i = kept; i < tapRun; ++i)
+            {
+                const double s = erBuffer[(size_t) ((erIndex - tapDelays[i]) & erMask)];
+                erL += s * tapGainsL[i] * dropGain * compL;
+                erR += s * tapGainsR[i] * dropGain * compR;
+            }
+
+            if (tapRampLeft > 0 && --tapRampLeft == 0)
+            {
+                tapRun = tapTarget;
+                tapCompNowL = tapCompL[tapTarget];
+                tapCompNowR = tapCompR[tapTarget];
+            }
         }
 
         erIndex = (erIndex + 1) & erMask;

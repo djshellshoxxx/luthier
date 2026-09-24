@@ -146,6 +146,29 @@ public:
     bool hasSounded() const noexcept { return sounded; }
 
     //==========================================================================
+    //==========================================================================
+    // cpu-quality-modes 2.4.
+
+    /** The dispersion cap: 4 stages at or above `fourFromHz`, 2 at or above
+        `twoFromHz` (0 disables a rule). Latched in excite() only, so a ringing
+        note keeps its stage count until it is re-excited. */
+    void setDispersionRule (double fourFromHz, double twoFromHz) noexcept { ruleFourHz = fourFromHz; ruleTwoHz = twoFromHz; }
+
+    /** Idle-string sleep on or off (Medium, Low). */
+    void setSleepEnabled (bool on) noexcept;
+
+    /** E-Bow and feedback strings are never put to sleep or truncated. */
+    void setSleepExempt (bool exempt) noexcept { sleepExempt = exempt; if (exempt) wake(); }
+
+    /** Fades what is left over `seconds` and then sleeps (ring-out truncation
+        and E3). Ignored while exempt. */
+    void fadeToSleep (double seconds) noexcept;
+
+    bool isSleeping() const noexcept { return sleeping; }
+    bool isFadingToSleep() const noexcept { return fadeLeft > 0; }
+    int getActiveDispersionStages() const noexcept { return activeDispersionStages; }
+    int getLatchedDispersionStages() const noexcept { return latchedStages; }
+
     /** Loop gain currently in use. Exposed for the validator and unit tests. */
     double getLoopGain() const noexcept { return loopGain; }
     double getLoopCutoffHz() const noexcept { return loopCutoffHz; }
@@ -156,6 +179,20 @@ private:
     double filterDelayCompensation() const noexcept;
 
     static constexpr int kMaxDispersionStages = 12;
+
+    // cpu-quality-modes 2.4 --------------------------------------------------------
+    void latchDispersion() noexcept;
+    void applyCappedDispersion() noexcept;
+    void goToSleep() noexcept;
+    void wake() noexcept { sleeping = false; quietSamples = 0; }
+
+    double ruleFourHz = 0.0, ruleTwoHz = 0.0;
+    int latchedStages = 8;              ///< dispersionStages unless capped
+    double cappedCoeff = 0.0;
+    double cappedCompensation = 0.0;    ///< holds the fundamental where High has it
+    bool sleepEnabled = false, sleepExempt = false, sleeping = false;
+    int quietSamples = 0, sleepAfterSamples = 4410;
+    int fadeLeft = 0, fadeTotal = 1;
 
     double sr = 44100.0;
     int stringIndex = 0;

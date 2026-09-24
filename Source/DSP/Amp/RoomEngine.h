@@ -86,8 +86,15 @@ public:
     static const char* getRoomSizeName (RoomSize s) noexcept;
     static const char* getMaterialName (RoomMaterial m) noexcept;
 
-private:
     static constexpr int kNumTaps = 16;
+
+    /*  cpu-quality-modes 2.1: run only the `count` loudest early-reflection
+        taps, energy-compensated so the room's level holds; the FDN tail is
+        untouched. Dropped taps ramp to 0 over 20 ms (unless `hard`). */
+    void setTapCount (int count, bool hard) noexcept;
+    int getTapCount() const noexcept { return tapTarget; }
+
+private:
     static constexpr int kFdnSize = 8;
 
     void rebuild();
@@ -113,6 +120,14 @@ private:
     double tapGainsL[kNumTaps] = {};
     double tapGainsR[kNumTaps] = {};
     Biquad tapFilterL, tapFilterR;
+
+    // cpu-quality-modes: taps are in loudness order already (each reflection
+    // has bounced more than the one before), so "the loudest n" is the first n.
+    int tapRun = kNumTaps, tapTarget = kNumTaps;
+    int tapRampLeft = 0, tapRampTotal = 1;
+    double tapCompL[kNumTaps + 1] = {}, tapCompR[kNumTaps + 1] = {};   ///< per kept count
+    double tapCompNowL = 1.0, tapCompNowR = 1.0;
+    void computeTapCompensation() noexcept;
 
     // Late reverb.
     std::vector<double> lines[kFdnSize];

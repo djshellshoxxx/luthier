@@ -50,6 +50,13 @@ void BodyEngine::prepare (double sampleRate, int maxBlockSize)
 
     wetBuffer.setSize (2, maxBlock, false, true, true);
 
+    // cpu-quality-modes 2.3: the Medium and Low variants, same partition latency.
+    irVariants.prepare (sr, maxBlock, 2, kBodyPartitionSize,
+                        { QualityProfile::forLevel (QualityLevel::Medium).bodyIrSeconds,
+                          QualityProfile::forLevel (QualityLevel::Low).bodyIrSeconds },
+                        QualityProfile::kBodyVariantBudgetMegabytes);
+    modeRampTotal = juce::jmax (1, (int) std::round (QualityProfile::kDroppedVoiceRampSeconds * sr));
+
     setAirResonanceGainDb (airGainDb);
     rebuildModalBank();
     applyStagedBank();
@@ -65,7 +72,10 @@ void BodyEngine::reset() noexcept
         const juce::SpinLock::ScopedTryLockType lock (convolutionLock);
 
         if (lock.isLocked())
+        {
             convolution->reset();
+            irVariants.reset();
+        }
     }
 
     // A bank staged since the last block goes in now, not part-way into the
@@ -140,6 +150,35 @@ void BodyEngine::rebuildModalBank()
     for (int i = 0; i < stagedCount; ++i)
         stagedModes[(size_t) i] = buildScratch[(size_t) i];
 
+    // cpu-quality-modes 2.1: the modal cap's order - the eight lowest modes,
+    // then the rest by the energy each passes of a plucked string's signal:
+    // gain squared times bandwidth (f / Q), times the string's spectrum,
+    // which falls at least 6 dB an octave (1 / f squared in power).
+    {
+        std::array<int, BodyModels::kMaxModes> order {};
+
+        for (int i = 0; i < stagedCount; ++i)
+            order[(size_t) i] = i;
+
+        std::sort (order.begin(), order.begin() + stagedCount, [this] (int a, int b)
+        {
+            return stagedModes[(size_t) a].frequencyHz < stagedModes[(size_t) b].frequencyHz;
+        });
+
+        const int kept = juce::jmin (stagedCount, QualityProfile().bodyModesAlwaysKept);
+
+        auto energy = [this] (int i)
+        {
+            const auto& m = stagedModes[(size_t) i];
+            return m.gain * m.gain / (juce::jmax (20.0, m.frequencyHz) * juce::jmax (0.5, m.q));
+        };
+
+        std::stable_sort (order.begin() + kept, order.begin() + stagedCount,
+                          [&energy] (int a, int b) { return energy (a) > energy (b); });
+
+        stagedPriority = order;
+    }
+
     stagedReady.store (true);
 }
 
@@ -167,6 +206,92 @@ void BodyEngine::applyStagedBank() noexcept
                                     activeModes[(size_t) i].q,
                                     activeModes[(size_t) i].gain);
     }
+
+    modePriority = stagedPriority;
+    updateModeRun (true);   // a new bank starts at its cap
+}
+
+//==============================================================================
+void BodyEngine::setQualityLevel (const QualityProfile& profile, bool hard) noexcept
+{
+    irVariants.setLevel ((int) profile.level, hard);
+    modeCap = juce::jlimit (0, BodyModels::kMaxModes, profile.bodyModes);
+    updateModeRun (hard);
+}
+
+void BodyEngine::updateModeRun (bool hard) noexcept
+{
+    const int target = juce::jmin (modeCap, numActiveModes);
+
+    if (hard)
+    {
+        // Modes joining start from rest.
+        for (int k = juce::jmin (modeRunCount, numActiveModes); k < target; ++k)
+            resonators[(size_t) modePriority[(size_t) k]].reset();
+
+        modeRunCount = modeTarget = target;
+        modeRampLeft = 0;
+        return;
+    }
+
+    if (target < juce::jmin (modeRunCount, numActiveModes))
+    {
+        // 2.5: dropped modes ramp to 0 over 20 ms before they are skipped.
+        modeTarget = target;
+        modeRunCount = juce::jmin (modeRunCount, numActiveModes);
+        modeRampLeft = modeRampTotal;
+    }
+    else if (target > modeRunCount || modeRampLeft > 0)
+    {
+        for (int k = juce::jmax (modeTarget, 0); k < target; ++k)
+            if (k >= modeRunCount)
+                resonators[(size_t) modePriority[(size_t) k]].reset();
+
+        modeRunCount = modeTarget = target;
+        modeRampLeft = 0;
+    }
+}
+
+inline double BodyEngine::runModes (double in, int sampleInBlock) noexcept
+{
+    double sum = 0.0;
+
+    if (! modesCapped())
+    {
+        for (int m = 0; m < numActiveModes; ++m)
+            sum += resonators[(size_t) m].process (in);
+
+        return sum;
+    }
+
+    const int kept = juce::jmin (modeTarget, numActiveModes);
+
+    for (int k = 0; k < kept; ++k)
+        sum += resonators[(size_t) modePriority[(size_t) k]].process (in);
+
+    if (modeRampLeft > 0)
+    {
+        const double g = juce::jmax (0.0, (double) (modeRampLeft - sampleInBlock) / (double) modeRampTotal);
+        double ramped = 0.0;
+
+        for (int k = kept; k < juce::jmin (modeRunCount, numActiveModes); ++k)
+            ramped += resonators[(size_t) modePriority[(size_t) k]].process (in);
+
+        sum += ramped * g;
+    }
+
+    return sum;
+}
+
+void BodyEngine::advanceModeRamp (int numSamples) noexcept
+{
+    if (modeRampLeft <= 0)
+        return;
+
+    modeRampLeft = juce::jmax (0, modeRampLeft - numSamples);
+
+    if (modeRampLeft == 0)
+        modeRunCount = modeTarget;
 }
 
 //==============================================================================
@@ -190,6 +315,7 @@ bool BodyEngine::loadImpulseResponse (const juce::File& file)
     irLoaded.store (false);
 
     const juce::SpinLock::ScopedLockType lock (convolutionLock);
+    irVariants.clear();
 
     if (prepared)
         ConvolutionInstaller::installUnitImpulse (*convolution, sr, 2, maxBlock);
@@ -207,6 +333,10 @@ bool BodyEngine::loadImpulseResponse (const juce::File& file)
 
         convolution->reset();
     }
+
+    // cpu-quality-modes 2.3: the shorter responses, under the same lock.
+    irVariants.buildFromFile (file, juce::dsp::Convolution::Stereo::yes,
+                              juce::dsp::Convolution::Trim::yes, juce::dsp::Convolution::Normalise::yes);
 
     loadedIrName = file.getFileNameWithoutExtension();
     loadedIrFile = file;
@@ -227,10 +357,12 @@ void BodyEngine::loadImpulseResponse (const float* samples, int numSamples, doub
 
     juce::AudioBuffer<float> ir (1, numSamples);
     ir.copyFrom (0, 0, samples, numSamples);
+    const auto rawForVariants = ir;   // cpu-quality-modes 2.3
 
     irLoaded.store (false);
 
     const juce::SpinLock::ScopedLockType lock (convolutionLock);
+    irVariants.clear();
 
     if (prepared)
         ConvolutionInstaller::installUnitImpulse (*convolution, sr, 2, maxBlock);
@@ -247,6 +379,8 @@ void BodyEngine::loadImpulseResponse (const float* samples, int numSamples, doub
             return;
 
         convolution->reset();
+        irVariants.buildFromBuffer (rawForVariants, irSampleRate, juce::dsp::Convolution::Stereo::no,
+                                    juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
     }
 
     irLoaded.store (true);
@@ -301,10 +435,7 @@ void BodyEngine::processBlock (juce::dsp::AudioBlock<float>& block) noexcept
         const juce::SpinLock::ScopedTryLockType lock (convolutionLock);
 
         if (irLoaded.load() && lock.isLocked())
-        {
-            juce::dsp::ProcessContextReplacing<float> ctx (wetSub);
-            convolution->process (ctx);
-        }
+            irVariants.process (*convolution, wetSub);   // the full IR at High (cpu-quality-modes 2.3)
     }
 
     // ---- modal path ----------------------------------------------------------
@@ -322,14 +453,13 @@ void BodyEngine::processBlock (juce::dsp::AudioBlock<float>& block) noexcept
                 const double in = (mode == Mode::Hybrid) ? (double) data[i]
                                                          : (double) block.getSample (ch, i);
 
-                double sum = 0.0;
-
-                for (int m = 0; m < numActiveModes; ++m)
-                    sum += resonators[(size_t) m].process (in);
+                const double sum = runModes (in, i);
 
                 data[i] = (float) sanitise (sum * modalMix + in * dryPass);
             }
         }
+
+        advanceModeRamp (numSamples);
     }
 
     // ---- air emphasis, DC block, blend --------------------------------------
@@ -368,10 +498,7 @@ void BodyEngine::processMono (double* samples, int numSamples) noexcept
     for (int i = 0; i < numSamples; ++i)
     {
         const double in = samples[i];
-        double sum = 0.0;
-
-        for (int m = 0; m < numActiveModes; ++m)
-            sum += resonators[(size_t) m].process (in);
+        double sum = runModes (in, i);
 
         if (std::abs (airGainDb) > 0.01)
             sum = airShelf.process (sum);
@@ -383,6 +510,8 @@ void BodyEngine::processMono (double* samples, int numSamples) noexcept
 
         samples[i] = sanitise ((in * (1.0 - amount) + sum * amount) * gain);
     }
+
+    advanceModeRamp (numSamples);
 }
 
 } // namespace luthier

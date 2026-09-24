@@ -42,6 +42,7 @@
 #include "Routing/MidiOutRouter.h"
 #include "Rhythm/RhythmEngine.h"
 #include "Character/CharacterEngine.h"
+#include "Support/QualityProfile.h"   // cpu-quality-modes
 
 #include <array>
 #include <atomic>
@@ -313,6 +314,25 @@ public:
 
     void setOversamplingFactor (int factor) noexcept;
     int getOversamplingFactor() const noexcept { return oversamplingFactor; }
+
+    //==========================================================================
+    // cpu-quality-modes (implemented in LuthierEngineQuality.cpp).
+
+    /** 2.5: sets integers and flags and starts crossfades; never allocates. A
+        hard switch (prepare, reset, or 50 ms of output below -90 dBFS) changes
+        everything at once. Audio thread (or with the audio thread parked). */
+    void applyQuality (const QualityProfile& profile, bool hardSwitch) noexcept;
+    const QualityProfile& getQualityProfile() const noexcept { return qualityProfile; }
+
+    /** 7, E3: fades the least-recently-excited ringing string over 10 ms.
+        Returns false if nothing was ringing. Audio thread. */
+    bool dropLeastRecentString() noexcept;
+
+    /** For Diagnostics and the tests. */
+    int getSleepingStringCount() const noexcept;
+    int getEffectiveAmpOversampling() const noexcept   { return amp.getEffectiveOversamplingFactor(); }
+    int getEffectiveDriveOversampling() const noexcept { return preEffects.getEffectiveOversamplingFactor(); }
+    int getHardQualitySwitchCount() const noexcept { return hardQualitySwitches; }
 
     void setTempoBpm (double bpm) noexcept;
 
@@ -731,6 +751,19 @@ private:
     }
 
     RtRandom rng { 0xA11CE5ull };
+
+    // ---- cpu-quality-modes --------------------------------------------------------
+    QualityProfile qualityProfile;
+    std::array<double, kMaxStrings> qualityNotePeak {};
+    std::array<bool, kMaxStrings> qualityRingOutEligible {};
+    std::array<juce::int64, kMaxStrings> qualityLastExcite {};
+    juce::int64 qualitySilentSamples = 0;
+    int hardQualitySwitches = 0;
+    void applyOversamplingForQuality (bool crossfade) noexcept;
+    void qualityNoteOn (int stringIndex) noexcept;
+    void qualityNoteOff (int stringIndex, bool heldOn) noexcept;
+    void qualityPerBlock() noexcept;
+    void qualityAfterBlock (const juce::AudioBuffer<float>& output) noexcept;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierEngine)
 };

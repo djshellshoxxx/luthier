@@ -1,4 +1,5 @@
 #include "Localisation.h"
+#include "QualityStrings.h"   // cpu-quality-modes
 
 namespace luthier
 {
@@ -251,7 +252,8 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         meaning, because a translator works from the key's context as much as
         from its English text.
     */
-    static const std::map<juce::String, juce::String> catalog =
+    // cpu-quality-modes: the CPU-quality strings live in QualityStrings.cpp.
+    static const std::map<juce::String, juce::String> catalog = QualityStrings::mergeInto (
     {
         // ---- application ------------------------------------------------------------
         { "app.name",                 "Luthier" },
@@ -521,7 +523,7 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "message.snapshotRecalled", "Recalled snapshot {number}" },
         { "message.tempoDetected",    "Detected {bpm} bpm" },
         { "message.nullResult",       "Null test: {db} dB" }
-    };
+    });
 
     return catalog;
 }
