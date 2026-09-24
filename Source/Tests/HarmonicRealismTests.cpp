@@ -730,3 +730,81 @@ LUTHIER_TEST (HarmonicRealism, HR18_realtime)
         strings held at n = 8) and about 0.1 for a single harmonic. */
     CHECK_MSG (units <= 1.0, "six n = 8 contacts cost " + juce::String (units, 3) + " units");
 }
+
+//==============================================================================
+#include "../Export/MidiPerformance.h"
+#include "../Export/MidiProfiles.h"
+
+LUTHIER_TEST (HarmonicRealism, HR19_FA17_luthierExportRoundTrip)
+{
+    /*  harmonic-realism.md 9 HR-19 and fingerstyle-attack.md 9 FA-17: a
+        passage with all four harmonic kinds (CC 73, 72, 103, 104) and the
+        right hand's live controls (CC 102 tools, CC 105 rest strokes),
+        exported in the Luthier profile, re-imported, and rendered again.
+        The triggers are ordinary CCs around the touch-fret notes, which is
+        also what the Generic profile carries (7). */
+    MidiPerformance source (48000.0);
+    source.setTempo (120.0);
+
+    auto cc = [&source] (juce::int64 at, int n, int v) { source.addMessage (at, juce::MidiMessage::controllerEvent (1, n, v)); };
+    auto hit = [&source] (juce::int64 at, int key, juce::int64 length)
+    {
+        source.addMessage (at, juce::MidiMessage::noteOn (1, key, (juce::uint8) 100));
+        source.addMessage (at + length, juce::MidiMessage::noteOff (1, key));
+    };
+
+    cc (0, 73, 127);    hit (100, 52, 9000);  cc (9500, 73, 0);      // natural, 12th fret of the low E
+    cc (10000, 72, 127); hit (10100, 64, 9000); cc (19500, 72, 0);   // pinch
+    cc (20000, 103, 127); hit (20100, 57, 9000); cc (29500, 103, 0); // artificial
+    hit (30000, 50, 20000);                                          // a note to tap on
+    cc (39000, 104, 127); hit (40000, 62, 6000); cc (47000, 104, 0); // tapped harmonic
+    cc (50000, 102, 40); hit (50100, 60, 6000);                      // Finger tool (band 2)
+    cc (57000, 105, 127); hit (57100, 64, 6000); cc (64000, 105, 0); // a rest stroke
+    cc (65000, 102, 0);
+
+    MidiPerformance imported;
+    const auto bytes = MidiProfiles::exportToMemory (source, MidiExportOptions {});
+    const auto result = MidiProfiles::importFromMemory (bytes.getData(), bytes.getSize(), imported, 48000.0);
+    CHECK_MSG (result.ok, result.error);
+
+    auto render = [] (const MidiPerformance& performance)
+    {
+        LuthierEngine engine;
+        engine.prepare (48000.0, kBlock);
+        engine.setGuitarType (GuitarType::Stratocaster);
+        engine.getCharacterEngine().setEnabled (false);
+        engine.getMidiInterpreter().setHumanisation ({ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 });
+        engine.getMidiInterpreter().setPlayingMode (PlayingMode::Mono);
+        engine.reset();
+
+        std::vector<double> out;
+        juce::AudioBuffer<float> block (2, kBlock);
+        size_t cursor = 0;
+
+        for (int position = 0; position < 72000; position += kBlock)
+        {
+            block.clear();
+            juce::MidiBuffer midi;
+            performance.renderBlock (midi, position, kBlock, cursor);
+            engine.processBlock (block, midi);
+
+            for (int i = 0; i < kBlock; ++i)
+                out.push_back (0.5 * (block.getSample (0, i) + block.getSample (1, i)));
+        }
+
+        return out;
+    };
+
+    const auto a = render (source), b = render (imported);
+    double diff = 0.0, level = 0.0;
+
+    for (size_t i = 0; i < juce::jmin (a.size(), b.size()); ++i)
+    {
+        diff += (a[i] - b[i]) * (a[i] - b[i]);
+        level += a[i] * a[i];
+    }
+
+    const double nullDbfs = juce::Decibels::gainToDecibels (std::sqrt (diff / (double) a.size()), -400.0);
+    CHECK_MSG (level > 1.0e-6, "the passage was silent");
+    CHECK_MSG (nullDbfs <= -60.0, "the Luthier round trip nulls at only " + juce::String (nullDbfs, 1) + " dBFS RMS");
+}

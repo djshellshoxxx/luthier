@@ -117,6 +117,25 @@ private:
 
     juce::Rectangle<int> boardArea;
 
+    // ==== BEGIN REALISM-B fretboard ====
+    /*  harmonic-realism.md 7: a hollow ring where a string is touched, fading
+        over the touch (dashed when it missed a node); string-interaction.md 9:
+        the palm's coverage as a band per string; fingerstyle-attack.md 7: each
+        string's tool glyph at the picking end. FretboardRealismB.cpp. */
+    struct RealismBView { float touchFret = -1.0f, life = 0.0f, palm = 0.0f; bool missed = false; int tool = 0; };
+    std::array<RealismBView, 12> realismB {};
+    void paintRealismB (juce::Graphics&);
+
+public:
+    /** From the timer (and the tests): re-reads the engine; true if anything moved. */
+    bool refreshRealismB() noexcept;
+
+    /** For tests: what the REALISM-B layer is drawing for a string. */
+    const RealismBView& getRealismBView (int s) const noexcept { return realismB[(size_t) juce::jlimit (0, 11, s)]; }
+
+private:
+    // ==== END REALISM-B fretboard ====
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FretboardComponent)
 };
 

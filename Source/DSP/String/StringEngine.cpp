@@ -164,6 +164,11 @@ void StringEngine::excite (const Excitation::Params& params) noexcept
 
     excitation.trigger (p, rng);
     sounded = true;
+
+    // A fresh pluck refreshes the loop coefficients, as the harmonic reset it
+    // replaced always did: a render without harmonics stays bit-identical.
+    if (p.kind != Excitation::Kind::Harmonic && p.kind != Excitation::Kind::PinchHarmonic)
+        needsLoopUpdate = true;
 }
 
 void StringEngine::release (bool letRing) noexcept
@@ -550,6 +555,10 @@ double StringEngine::processSample (double couplingInput, double directInput) no
             sounded = true;
             stealPending = false;
             stealGain = 1.0;
+
+            if (pendingParams.kind != Excitation::Kind::Harmonic
+                && pendingParams.kind != Excitation::Kind::PinchHarmonic)
+                needsLoopUpdate = true;
         }
     }
     else
