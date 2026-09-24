@@ -1,0 +1,717 @@
+# Artist, band, song and album names that no factory riff name or tag may
+# contain (riff-library.md 12). Checked case-insensitively as whole words by
+# Tools/generate_factory_riffs.py. Maintained by legal review: add, never loosen.
+# Plain dictionary words (Money, Time, Walk...) are left out on purpose: they
+# would ban honest descriptors, and the human sign-off covers them.
+Jimi Hendrix
+Hendrix
+Eric Clapton
+Clapton
+Jimmy Page
+Page Plant
+Stevie Ray Vaughan
+SRV
+B.B. King
+BB King
+Albert King
+Freddie King
+Albert Collins
+Buddy Guy
+Muddy Waters
+Howlin Wolf
+Robert Johnson
+John Lee Hooker
+Elmore James
+T-Bone Walker
+Lightnin Hopkins
+Otis Rush
+Magic Sam
+Hubert Sumlin
+Johnny Winter
+Gary Moore
+Rory Gallagher
+Peter Green
+Joe Bonamassa
+Bonamassa
+Derek Trucks
+Duane Allman
+Allman
+Dickey Betts
+Warren Haynes
+Kenny Wayne Shepherd
+John Mayer
+Keith Richards
+Richards
+Chuck Berry
+Bo Diddley
+Diddley
+Scotty Moore
+Link Wray
+Dick Dale
+Duane Eddy
+Hank Marvin
+Chet Atkins
+Merle Travis
+Travis picking
+Jerry Reed
+Albert Lee
+Brent Mason
+Brad Paisley
+Paisley
+Vince Gill
+James Burton
+Danny Gatton
+Roy Nichols
+Don Rich
+Buck Owens
+Johnny Cash
+Glen Campbell
+Doc Watson
+Tony Rice
+Clarence White
+Norman Blake
+Bill Monroe
+Earl Scruggs
+Scruggs
+Wes Montgomery
+Joe Pass
+Charlie Christian
+Django Reinhardt
+Grant Green
+Kenny Burrell
+George Benson
+Benson
+Pat Metheny
+Metheny
+John Scofield
+Scofield
+Jim Hall
+Barney Kessel
+Tal Farlow
+Herb Ellis
+Freddie Green
+Johnny Smith
+Pat Martino
+Martino
+Allan Holdsworth
+Holdsworth
+John McLaughlin
+McLaughlin
+Larry Carlton
+Lee Ritenour
+Mike Stern
+Bill Frisell
+Frisell
+Kurt Rosenwinkel
+Julian Lage
+Jimmy Nolen
+Catfish Collins
+Nile Rodgers
+Rodgers
+Cory Wong
+Curtis Mayfield
+Mayfield
+Steve Cropper
+Cropper
+Cornell Dupree
+Eric Gale
+Bootsy Collins
+Bootsy
+Larry Graham
+Marcus Miller
+Victor Wooten
+Wooten
+Jaco Pastorius
+James Jamerson
+Jamerson
+Carol Kaye
+Geddy Lee
+Geddy
+John Paul Jones
+Paul McCartney
+McCartney
+Chris Squire
+John Entwistle
+Entwistle
+Stanley Clarke
+Louis Johnson
+Verdine White
+Pino Palladino
+Palladino
+Les Claypool
+Claypool
+Cliff Burton
+Steve Harris
+Duff McKagan
+Robbie Shakespeare
+Aston Barrett
+Family Man
+Bob Marley
+Marley
+Peter Tosh
+Ernest Ranglin
+Chinna Smith
+Carlos Santana
+Paco de Lucia
+Gipsy Kings
+Vicente Amigo
+Tomatito
+Joao Gilberto
+Gilberto
+Antonio Carlos Jobim
+Jobim
+Baden Powell
+Luiz Bonfa
+Eddie Van Halen
+Van Halen
+Randy Rhoads
+Rhoads
+Zakk Wylde
+Wylde
+Dimebag
+Dimebag Darrell
+Kirk Hammett
+Hammett
+James Hetfield
+Hetfield
+Tony Iommi
+Iommi
+Dave Mustaine
+Mustaine
+Marty Friedman
+Kerry King
+Jeff Hanneman
+Adrian Smith
+Dave Murray
+Yngwie
+Malmsteen
+Steve Vai
+Vai
+Joe Satriani
+Satriani
+Paul Gilbert
+John Petrucci
+Petrucci
+Synyster Gates
+Alexi Laiho
+Tosin Abasi
+Misha Mansoor
+Mark Holcomb
+Fredrik Thordendal
+Meshuggah
+Angus Young
+Malcolm Young
+Brian May
+Pete Townshend
+Townshend
+Jeff Beck
+Ritchie Blackmore
+Blackmore
+David Gilmour
+Gilmour
+Mark Knopfler
+Knopfler
+Alex Lifeson
+Lifeson
+The Edge
+Johnny Marr
+Marr
+Jonny Greenwood
+Tom Morello
+Morello
+Jack White
+Dan Auerbach
+John Frusciante
+Frusciante
+Billy Gibbons
+Gibbons
+Joe Walsh
+Joe Perry
+Mick Ronson
+Mick Taylor
+Ron Wood
+Peter Frampton
+Frampton
+Neil Young
+Stephen Stills
+Richard Thompson
+Nick Drake
+Bert Jansch
+John Renbourn
+Davy Graham
+John Fahey
+Leo Kottke
+Michael Hedges
+Tommy Emmanuel
+Andy McKee
+Joni Mitchell
+James Taylor
+Bob Dylan
+Paul Simon
+Simon Garfunkel
+Kurt Cobain
+Cobain
+Billie Joe
+Johnny Ramone
+Ramone
+Joe Strummer
+Strummer
+Mick Jones
+Steve Jones
+Thurston Moore
+J Mascis
+Mascis
+Kevin Shields
+Graham Coxon
+Noel Gallagher
+Gallagher
+Alex Turner
+Brian Setzer
+Setzer
+Albert Hammond
+Ed Sheeran
+Sheeran
+Taylor Swift
+John Lennon
+Lennon
+George Harrison
+Ringo
+Eddie Hazel
+Ernie Isley
+Isley
+Jimmy Herring
+Trey Anastasio
+Jerry Garcia
+Bob Weir
+Robben Ford
+Scott Henderson
+Eric Johnson
+Guthrie Govan
+Govan
+Tim Henson
+Polyphia
+Ichika
+Mateus Asato
+Beatles
+Rolling Stones
+Stones
+Led Zeppelin
+Zeppelin
+Black Sabbath
+Sabbath
+Deep Purple
+Pink Floyd
+Floyd
+The Who
+AC/DC
+ACDC
+Metallica
+Megadeth
+Slayer
+Anthrax
+Pantera
+Iron Maiden
+Maiden
+Judas Priest
+Priest
+Motorhead
+Rainbow
+Whitesnake
+Def Leppard
+Leppard
+Guns N Roses
+Aerosmith
+ZZ Top
+Lynyrd Skynyrd
+Skynyrd
+Allman Brothers
+Eagles
+Fleetwood Mac
+Dire Straits
+King Crimson
+Crimson
+Nirvana
+Pearl Jam
+Soundgarden
+Alice in Chains
+Foo Fighters
+Green Day
+Ramones
+Sex Pistols
+The Clash
+Clash
+Buzzcocks
+Misfits
+Black Flag
+Dead Kennedys
+Bad Religion
+Blink
+Offspring
+Rancid
+Pixies
+Sonic Youth
+Dinosaur Jr
+The Smiths
+Smiths
+Radiohead
+Oasis
+Blur
+Arctic Monkeys
+The Strokes
+Strokes
+White Stripes
+Black Keys
+Red Hot Chili Peppers
+Chili Peppers
+RHCP
+Rage Against
+Audioslave
+Coldplay
+U2
+REM
+Nickelback
+Creed
+Linkin Park
+Korn
+Slipknot
+System of a Down
+Deftones
+Gojira
+Mastodon
+Lamb of God
+Machine Head
+Sepultura
+Opeth
+Dream Theater
+Periphery
+Animals as Leaders
+Trivium
+Avenged Sevenfold
+Bullet for My Valentine
+Killswitch
+Parliament
+Funkadelic
+Parliament Funkadelic
+Sly Stone
+Sly and the Family Stone
+Tower of Power
+Earth Wind Fire
+Earth Wind and Fire
+Kool
+Ohio Players
+The Meters
+Vulfpeck
+Jamiroquai
+James Brown
+Booker T
+MGs
+Temptations
+Motown
+Stax
+Funk Brothers
+Wailers
+Bob Marley and the Wailers
+Toots
+Maytals
+Skatalites
+Selecter
+UB40
+Sublime
+No Doubt
+Buena Vista
+Los Lobos
+Grateful Dead
+Phish
+Dave Matthews
+Mumford
+Lumineers
+Fleet Foxes
+Shins
+Vampire Weekend
+Weezer
+Paramore
+Fall Out Boy
+Jonas
+Beach Boys
+Byrds
+Kinks
+Yardbirds
+Bad Company
+Thin Lizzy
+Lizzy
+Toto
+Foreigner
+Talking Heads
+Cure
+Joy Division
+New Order
+Interpol
+Velvet Underground
+Stooges
+MC5
+Hives
+Tame Impala
+Khruangbin
+Smoke on the Water
+Stairway to Heaven
+Stairway
+Sweet Child
+Back in Black
+Highway to Hell
+Thunderstruck
+Iron Man
+Paranoid
+Enter Sandman
+Master of Puppets
+Seven Nation Army
+Smells Like Teen Spirit
+Teen Spirit
+Purple Haze
+Voodoo Child
+Little Wing
+Hey Joe
+Crossroads
+Layla
+Sunshine of Your Love
+Johnny B Goode
+Satisfaction
+Whole Lotta Love
+Black Dog
+Kashmir
+Money for Nothing
+Sultans of Swing
+Hotel California
+Free Bird
+Sweet Home Alabama
+La Grange
+Tush
+Walk This Way
+Dream On
+Eruption
+Panama
+Crazy Train
+Mr Crowley
+Cowboys from Hell
+Raining Blood
+Holy Wars
+Symphony of Destruction
+Ace of Spades
+Breaking the Law
+Painkiller
+Run to the Hills
+The Trooper
+Fear of the Dark
+Wonderwall
+Under the Bridge
+Give It Away
+Californication
+Scar Tissue
+Killing in the Name
+Bulls on Parade
+Everlong
+Basket Case
+Blitzkrieg Bop
+Anarchy in the UK
+London Calling
+Should I Stay
+Last Nite
+Mr Brightside
+Brightside
+Take Me Out
+Do I Wanna Know
+Superstition
+Get Up Offa
+Sex Machine
+Papa's Got a Brand New Bag
+Cissy Strut
+Le Freak
+Good Times
+Get Lucky
+Chameleon
+Pick Up the Pieces
+Play That Funky Music
+Brick House
+Uptown Funk
+Thrill Is Gone
+Pride and Joy
+Texas Flood
+Red House
+Stormy Monday
+Sweet Home Chicago
+Hoochie Coochie
+Mannish Boy
+Boom Boom
+Born Under a Bad Sign
+Folsom Prison
+Ring of Fire
+Jolene
+Wildwood Flower
+Foggy Mountain
+Dueling Banjos
+Orange Blossom
+Chattahoochee
+Take Me Home Country Roads
+Country Roads
+Autumn Leaves
+All the Things You Are
+Giant Steps
+So What
+Take Five
+Blue Bossa
+Girl from Ipanema
+Ipanema
+Corcovado
+Desafinado
+Summertime
+Satin Doll
+Freddie Freeloader
+Oye Como Va
+Black Magic Woman
+Samba Pa Ti
+Entre Dos Aguas
+Bamboleo
+La Bamba
+Guantanamera
+Malaguena
+Asturias
+Stir It Up
+No Woman No Cry
+Three Little Birds
+One Love
+Is This Love
+Redemption Song
+Could You Be Loved
+Buffalo Soldier
+Ghost Town
+A Message to You
+Pressure Drop
+Blackbird
+Here Comes the Sun
+Yesterday
+Norwegian Wood
+Dust in the Wind
+Scarborough Fair
+Blowin in the Wind
+Hallelujah
+Wish You Were Here
+Comfortably Numb
+Brain Damage
+Shape of You
+Thinking Out Loud
+Hey There Delilah
+Wake Me Up
+Riptide
+Hey Soul Sister
+Stand by Me
+My Girl
+Soul Man
+Green Onions
+Dock of the Bay
+Ain't No Sunshine
+Lean on Me
+Let's Stay Together
+What's Going On
+Sexual Healing
+Just the Two of Us
+Isn't She Lovely
+Signed Sealed Delivered
+Get Up Stand Up
+Seven Nation
+Tom Sawyer
+YYZ
+Limelight
+Roundabout
+Owner of a Lonely Heart
+Schism
+Aerials
+Chop Suey
+Duality
+Psychosocial
+Freak on a Leash
+Laid to Rest
+Walk Don't Run
+Misirlou
+Peter Gunn
+Louie Louie
+Day Tripper
+Ticket to Ride
+Paint It Black
+Start Me Up
+Brown Sugar
+Jumpin Jack Flash
+Gimme Shelter
+Beast of Burden
+All Along the Watchtower
+Machine Gun
+Castles Made of Sand
+Wind Cries Mary
+Tears in Heaven
+Wonderful Tonight
+White Room
+Strange Brew
+Rock Around the Clock
+Blue Suede Shoes
+Hound Dog
+Heartbreak Hotel
+Peggy Sue
+Whole Lotta Shakin
+Great Balls of Fire
+Dark Side of the Moon
+Abbey Road
+Sgt Pepper
+Revolver
+Rubber Soul
+Nevermind
+Appetite for Destruction
+Master of Reality
+Ride the Lightning
+Kill Em All
+Reign in Blood
+Vulgar Display
+Rust in Peace
+Number of the Beast
+Powerage
+Highway 61
+Blonde on Blonde
+Kind of Blue
+A Love Supreme
+Blue Train
+Electric Ladyland
+Are You Experienced
+Axis Bold as Love
+Physical Graffiti
+Houses of the Holy
+Led Zeppelin IV
+Exile on Main
+Sticky Fingers
+Let It Bleed
+Rumours
+Born to Run
+Purple Rain
+Thriller
+Off the Wall
+Songs in the Key of Life
+Innervisions
+Talking Book
+Catch a Fire
+Moving Pictures
+2112
+Close to the Edge
+Lateralus
+Aenima
+Toxicity
+Iowa
+Blood Sugar Sex Magik
+OK Computer
+The Bends
+Kid A
+Definitely Maybe
+Parklife
+Is This It
+Bitches Brew
+Mothership Connection
+Maggot Brain
+There's a Riot Goin On
+Superfly
+Head Hunters
+Rage Against the Machine
