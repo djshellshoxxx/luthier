@@ -1454,6 +1454,22 @@ void WorkshopPanel::requestSpectrum (int pickupIndex, double positionMm)
     lastRequest = worker.request (committed, candidate, processor.getEngine().getGuitarType(), std::move (notches));
 }
 
+void WorkshopPanel::takeSpectrum (SpectrumDelta::Result&& result)
+{
+    spectrum = std::move (result);
+
+    // Section 10: announced as a sentence ("candidate is 1.8 dB brighter above
+    // 2 kHz"), because a curve has no screen-reader form worth having. Only the
+    // newest request's, and only when it says something new.
+    if (spectrum.requestId == lastRequest && spectrum.summary.isNotEmpty() && spectrum.summary != lastAnnouncement)
+    {
+        lastAnnouncement = spectrum.summary;
+        setDescription ("The bench: take the guitar apart, swap parts, move pickups, hear what changed. Spectrum: " + lastAnnouncement);
+        juce::AccessibilityHandler::postAnnouncement ("Spectrum: " + lastAnnouncement,
+                                                      juce::AccessibilityHandler::AnnouncementPriority::medium);
+    }
+}
+
 bool WorkshopPanel::waitForSpectrum (int timeoutMs)
 {
     const auto until = juce::Time::getMillisecondCounter() + (juce::uint32) timeoutMs;
@@ -1464,7 +1480,7 @@ bool WorkshopPanel::waitForSpectrum (int timeoutMs)
 
         if (worker.takeResult (r))
         {
-            spectrum = std::move (r);
+            takeSpectrum (std::move (r));
             if (spectrum.requestId == lastRequest)
                 return true;
         }
@@ -1630,7 +1646,7 @@ void WorkshopPanel::timerCallback()
 
     if (worker.takeResult (r))
     {
-        spectrum = std::move (r);
+        takeSpectrum (std::move (r));
         repaint (spectrumArea);
     }
 

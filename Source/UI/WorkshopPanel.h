@@ -189,6 +189,10 @@ public:
     /** Waits (pumping nothing) for the spectrum worker's newest result; tests only. */
     bool waitForSpectrum (int timeoutMs);
 
+    /*  Section 10: the spectrum delta reaches a screen reader as its summary
+        sentence, announced when a new result lands. The last one, for tests. */
+    juce::String getLastAnnouncement() const { return lastAnnouncement; }
+
 private:
     void timerCallback() override;
     void refreshAll();
@@ -196,6 +200,8 @@ private:
     void refreshInspector();
     void refreshDrawer();
     void requestSpectrum (int pickupIndex = -1, double positionMm = 0.0);
+    void takeSpectrum (SpectrumDelta::Result&& result);
+    juce::String lastAnnouncement;
     void paintSpectrum (juce::Graphics&, juce::Rectangle<int> area);
     void paintDrawer (juce::Graphics&, juce::Rectangle<int> area);
     void paintInspector (juce::Graphics&, juce::Rectangle<int> area);

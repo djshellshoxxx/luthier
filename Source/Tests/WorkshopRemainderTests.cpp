@@ -10,6 +10,9 @@
 #include "../UI/WorkshopPanel.h"
 #include "../UI/AdvancedPanel.h"
 #include "../UI/RangesUi.h"
+#include "../UI/Overlays.h"
+#include "../PluginEditor.h"
+#include "../Accessibility/Accessibility.h"
 #include "../UI/Guitar/GuitarRenderer.h"
 #include "../Model/Workshop/PartAcoustics.h"
 
@@ -474,4 +477,120 @@ LUTHIER_TEST (WorkshopRanges, theTabCarriesAPadlockAndHeightsStopAtStock)
     b.processor.changeRanges (unlocked, "test");
     b.bench().setPickupHeights (0, 0.1, 0.1);
     CHECK_NEAR (b.guitar().placements[0].heightTrebleMm, 0.5, 1.0e-9);
+}
+
+//==============================================================================
+/*  workshop-ui.md 10: the spectrum delta is announced to a screen reader as its
+    summary sentence, not left as a curve. */
+LUTHIER_TEST (WorkshopSpectrum, theSummaryIsAnnouncedForScreenReaders)
+{
+    BenchPanel b;
+    auto& panel = *b.panel;
+    panel.showCategory ("Pickups");
+
+    // Alt-hover a different pickup card: an audition, which requests a delta.
+    int other = -1;
+    for (int i = 0; i < panel.getDrawerParts().size(); ++i)
+        if (panel.getDrawerParts()[i]->name.startsWith ("T-Style Bridge"))
+            other = i;
+
+    CHECK (other >= 0);
+    if (other < 0)
+        return;
+
+    panel.getIllustration().select (GuitarRegion::pickupBridge);
+    panel.hoverCard (other, true);
+    CHECK (panel.waitForSpectrum (4000));
+    panel.hoverCard (-1, false);
+
+    CHECK (panel.getSpectrumSummary().isNotEmpty());
+    CHECK (panel.getLastAnnouncement() == panel.getSpectrumSummary());
+    CHECK (panel.getDescription().contains (panel.getSpectrumSummary()));
+}
+
+//==============================================================================
+/*  gui-integration.md 6 at the editor: in Easy mode the header wrench opens the
+    bench as an overlay and Escape closes it; W toggles it; in Advanced mode the
+    wrench shows the WORKSHOP tab. */
+LUTHIER_TEST (WorkshopEditor, theWrenchOpensTheBenchInEasyModeAndTheTabInAdvanced)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    CHECK (editor != nullptr);
+    if (editor == nullptr)
+        return;
+
+    editor->setVisible (true);
+    editor->setSize (1200, 720);
+
+    auto findAll = [] (juce::Component& root, auto* type, auto& out, auto& self) -> void
+    {
+        using T = std::remove_pointer_t<decltype (type)>;
+        for (auto* child : root.getChildren())
+        {
+            if (auto* t = dynamic_cast<T*> (child))
+                out.add (t);
+            self (*child, type, out, self);
+        }
+    };
+
+    juce::Array<OverlayHost*> hosts;
+    findAll (*editor, (OverlayHost*) nullptr, hosts, findAll);
+    CHECK (hosts.size() == 1);
+    if (hosts.isEmpty())
+        return;
+
+    auto* host = hosts.getFirst();
+
+    juce::Array<juce::TextButton*> buttons;
+    findAll (*editor, (juce::TextButton*) nullptr, buttons, findAll);
+    juce::TextButton* wrench = nullptr;
+    for (auto* b : buttons)
+        if (b->getButtonText() == "Workshop")
+            wrench = b;
+
+    CHECK_MSG (wrench != nullptr, "no Workshop button in the header");
+    if (wrench == nullptr)
+        return;
+
+    CHECK (wrench->onClick != nullptr);
+    if (wrench->onClick) wrench->onClick();
+
+    auto* overlay = dynamic_cast<WorkshopOverlay*> (host->getCurrentOverlay());
+    CHECK_MSG (overlay != nullptr, "the wrench opened no Workshop overlay in Easy mode");
+
+    if (overlay != nullptr)
+    {
+        CHECK (overlay->getPanel().isVisible() && overlay->getPanel().getWidth() > 600);
+        CHECK (editor->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey)));
+        CHECK (! host->isShowingOverlay());
+    }
+
+    // W toggles it (gui-integration.md 17).
+    const auto* w = AccessibilitySettings::get().findShortcut ("toggleWorkshop");
+    CHECK (w != nullptr);
+    if (w != nullptr)
+    {
+        CHECK (editor->keyPressed (w->key));
+        CHECK (dynamic_cast<WorkshopOverlay*> (host->getCurrentOverlay()) != nullptr);
+        CHECK (editor->keyPressed (w->key));
+        CHECK (! host->isShowingOverlay());
+    }
+
+    // Advanced: the wrench is the WORKSHOP tab, not an overlay.
+    CHECK (editor->keyPressed (AccessibilitySettings::get().findShortcut ("toggleAdvanced")->key));
+    juce::Array<AdvancedPanel*> panels;
+    findAll (*editor, (AdvancedPanel*) nullptr, panels, findAll);
+    CHECK (panels.size() == 1);
+
+    if (panels.size() == 1)
+    {
+        panels.getFirst()->setWorkspaceTab (1);
+        CHECK (wrench->onClick != nullptr);
+    if (wrench->onClick) wrench->onClick();
+        CHECK (panels.getFirst()->isWorkshopShowing());
+        CHECK (! host->isShowingOverlay());
+    }
 }
