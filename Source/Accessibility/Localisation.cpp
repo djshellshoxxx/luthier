@@ -456,6 +456,7 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "accessibility.shortcut.options",         "Open options" },
         { "accessibility.shortcut.debugPanel",      "Open the debug panel" },
         { "accessibility.shortcut.audition",        "Audition" },
+        { "accessibility.shortcut.search",          "Search everything" },   // FEAT-SEARCH
 
         // ---- accessible descriptions -----------------------------------------------------------
         { "a11y.knob.role",           "Rotary control" },

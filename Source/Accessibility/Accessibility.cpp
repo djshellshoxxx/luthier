@@ -558,6 +558,9 @@ void AccessibilitySettings::buildDefaultShortcuts()
         not exist yet; when tune-builder lands, that binding takes it and audition
         moves. */
     add ("audition",         "accessibility.shortcut.audition",         KP (KP::spaceKey));
+
+    // global-search.md 6.1 (FEAT-SEARCH): Ctrl/Cmd+K opens the search palette.
+    add ("search",           "accessibility.shortcut.search",           KP ('k', cmd, 0));
 }
 
 bool AccessibilitySettings::rebind (const juce::String& actionId, const juce::KeyPress& key)

@@ -1,4 +1,5 @@
 #include "HelpContent.h"
+#include "Search/SearchMatcher.h"   // FEAT-SEARCH
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
 
@@ -388,6 +389,33 @@ namespace
           "On any control, mouse modifiers do not change: Shift-drag is coarse, Ctrl-drag (Cmd on macOS) is "
           "ultra-fine, double-click resets and right-click opens the control's menu." },
 
+        // global-search.md 6.3 (FEAT-SEARCH): F1 in the palette opens this.
+        { "search", "Search", "search|search everything|command palette|find",
+          "Search finds anything in Luthier and takes you there: every control, every place (tab, column "
+          "section, Options page, drawer tab, overlay), every command, every preset, guitar and part, every "
+          "Help topic and every keyboard shortcut.\n\n"
+          "OPEN IT\n"
+          "Press {key:search}, click the magnifier in the header, or type in the Search field at the top of "
+          "this tab. {key:search} again, or Escape, closes it and puts focus back where it was.\n\n"
+          "FIND\n"
+          "Type part of a name. Typos, abbreviations (\"tb\" for Treble Bleed) and other words for the same "
+          "thing (\"drive\" for the amp's gain, \"reverb\" for the room) all work. A first character narrows "
+          "the search: > commands and shortcuts, ? help, # presets, guitars, parts and pedals, @ places, "
+          "= controls only. The chips under the field do the same.\n\n"
+          "GO\n"
+          "Enter goes to the result: the control is shown, scrolled into view, focused and ringed, so the "
+          "arrow keys adjust it straight away. If it lives in the other mode, Search switches mode for you "
+          "and says so ({key:toggleAdvanced} returns); Options -> Accessibility -> Search can make it ask "
+          "first. Ctrl+Enter goes to a control without changing it.\n\n"
+          "SET A VALUE\n"
+          "Type a value after a control's name - \"gain 7\", \"concert a 442 Hz\", \"room 50%\", "
+          "\"treble bleed off\" - and Enter sets it, as one undoable edit. Shift+Enter sets it and keeps "
+          "Search open. Alt+Left and Alt+Right nudge the selected control; add Shift for a fine step.\n\n"
+          "MORE\n"
+          "Alt+Enter, or right-clicking a row, shows everything else a result can do: a control's own "
+          "right-click menu, or Load, Reveal file, Fit to this guitar and so on. Recent results come first "
+          "when the field is empty; Options -> Accessibility -> Search turns remembering them off." },
+
         { "troubleshooting", "Troubleshooting", "troubleshooting|install|installation|uninstall|no sound|crash|"
           "crackles|cpu",
           "THE PLUGIN DOES NOT APPEAR IN MY HOST\n"
@@ -456,7 +484,9 @@ namespace
     /** "Tone-Match  tab" -> "tone match". */
     juce::String normalise (juce::String name)
     {
-        name = name.replaceCharacter ('-', ' ').replaceCharacter ('_', ' ').toLowerCase().trim();
+        // global-search.md 4.1 (FEAT-SEARCH): one rule for "the same name",
+        // shared with the search matcher (case, accents, separators, spaces).
+        name = search::SearchMatcher::normalise (name);
 
         for (const char* suffix : { " tab", " panel" })
             if (name.endsWith (suffix))
@@ -476,7 +506,7 @@ namespace
 
     const Group kGroups[] =
     {
-        { "Help and navigation", "help|showShortcuts|options|toggleAdvanced|previousWorkspaceTab|"
+        { "Help and navigation", "help|search|showShortcuts|options|toggleAdvanced|previousWorkspaceTab|"
                                  "nextWorkspaceTab|debugPanel" },
         { "Playing",             "panic|killSwitch|tapTempo|audition|toggleLiveMode|toggleSlideMode|"
                                  "togglePractice|midiLearnArm" },
