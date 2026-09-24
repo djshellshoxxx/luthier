@@ -47,3 +47,15 @@ merged back here after its own suites passed. Per-worker decision notes are in
 ## Decisions
 
 (Collected from `docs/coverage/sweep-notes/*.md` as workers land.)
+
+## Test baseline (integration c29e228 + spec merge, before any fix)
+
+Full suite: 11 of 831 tests fail. Ten are `Combo.*` (owned by the auditor
+branch): pairwiseAcrossMajorSettings, everyGuitarTypePlaysEveryPhrase,
+everyFactoryPresetPlaysEveryPhrase, presetSwitchUnderARingingNoteDoesNotClick,
+modulationRoutesAtFullDepth, snapshotsAndPresetMorph,
+advancedRangesUnlockedAtExtremes, sessionStateRoundTripReproducesAudio,
+sustainFeaturesStayBounded, seededRandomConfigurations. The eleventh is
+`GuiReach::everyAutomatableParameterHasAVisibleControl`: the 14 `scrape_*`
+parameters (their controls are on the techniques branch) and `pickup_blend`
+(fixed by this sweep) have no control.
