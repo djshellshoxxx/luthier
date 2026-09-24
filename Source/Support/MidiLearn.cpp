@@ -248,6 +248,9 @@ void MidiLearnManager::processMidi (const juce::MidiBuffer& midi) noexcept
                 // thread; it is deferred to the message thread.
                 juce::MessageManager::callAsync ([this, target, cc]
                 {
+                    if (onBeforeLearn != nullptr)
+                        onBeforeLearn (target, cc);
+
                     addMapping (target, cc);
                     cancelLearning();
                 });

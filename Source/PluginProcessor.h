@@ -164,6 +164,12 @@ public:
         clock, so this returns before the fade has finished. */
     bool recallSnapshot (int index);
 
+    /*  action-and-undo.md 3.7: the UI's save and recall, each one entry
+        ("Save snapshot [i] [name]", "Recall snapshot [i] [name]"). MIDI and
+        setlist recalls use recallSnapshot and push nothing. */
+    bool captureSnapshotAsUserAction (int index, const juce::String& label = {});
+    bool recallSnapshotAsUserAction (int index);
+
     void nextSnapshot();
     void previousSnapshot();
 
@@ -179,6 +185,7 @@ public:
 
     /** Loads a setlist file and moves to its first entry. */
     bool loadSetlist (const juce::File& file);
+    const juce::File& getSetlistFile() const noexcept { return setlistFile; }
 
     /** Applies the setlist's current entry - its preset and its snapshot - and
         pre-loads the one after it. */
@@ -424,6 +431,10 @@ public:
                          const juce::String& target);
     /** A state boundary (5): preset / guitar load, family switch, setlist step. */
     void pushUndoBoundary (const juce::String& description);
+    /** An entry for state outside the blob: undo/redo call the functions. */
+    void pushUndoCallback (const juce::String& description, const juce::String& actionClass,
+                           const juce::String& target, std::function<void()> undoFn,
+                           std::function<void()> redoFn);
     bool isUndoStoppedAtBoundary() const noexcept { return undoHistory.isStoppedAtBoundary(); }
     /** Ctrl-Alt-Z: one undo that may cross a boundary. */
     void undoAcrossBoundary();
@@ -734,6 +745,7 @@ private:
     bool gestureUndoSuppressed = false;
 
     UndoHistory undoHistory;   // action-and-undo.md
+    juce::File setlistFile;    // ui-wiring 17: the loaded setlist's reference
     double gestureStartMs = 0.0;
 
     /*  The state as it was when the current gesture started, held until the

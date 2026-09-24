@@ -56,6 +56,11 @@ public:
             and the latest `toText`. Empty for everything else. */
         juce::String subject, fromText, toText;
 
+        /*  For layers outside the state blob (the looper, the scale trainer,
+            the backing track, the character engine): when set, undo and redo
+            call these instead of restoring `before` / `after`. */
+        std::function<void()> undoAction, redoAction;
+
         double startMs = 0.0;         ///< When the action began (a gesture's start).
         double timeMs = 0.0;          ///< Its most recent contribution.
         bool boundary = false;        ///< Section 5.
@@ -71,6 +76,10 @@ public:
         4): the top keeps its before-state and takes the new time and after
         value. Returns true when it merged. */
     bool push (Entry&& entry);
+
+    /** Whether an entry of this class and target starting now would merge
+        (so the caller can skip capturing a before-state it will not need). */
+    bool wouldMerge (const juce::String& actionClass, const juce::String& target, double startMs) const noexcept;
 
     /*  Plain undo stops at a boundary (section 5): the boundary entry itself can
         be undone, but once it has been, canUndo is false until the user crosses

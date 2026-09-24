@@ -53,6 +53,10 @@ bool UndoHistory::push (Entry&& entry)
         {
             top.timeMs = entry.timeMs;
             top.toText = entry.toText;
+
+            if (entry.redoAction != nullptr)
+                top.redoAction = std::move (entry.redoAction);
+
             top.description = top.subject.isNotEmpty()
                                 ? top.subject + " from " + top.fromText + " to " + top.toText
                                 : entry.description;
@@ -71,6 +75,16 @@ bool UndoHistory::push (Entry&& entry)
 
     position = entries.size() - 1;
     return false;
+}
+
+bool UndoHistory::wouldMerge (const juce::String& actionClass, const juce::String& target, double startMs) const noexcept
+{
+    if (position < 0 || position != entries.size() - 1 || actionClass.isEmpty() || target.isEmpty())
+        return false;
+
+    const auto& top = entries.getReference (position);
+    return ! top.boundary && top.actionClass == actionClass && top.target == target
+             && startMs - top.timeMs <= kGroupWindowMs;
 }
 
 bool UndoHistory::canUndo() const noexcept

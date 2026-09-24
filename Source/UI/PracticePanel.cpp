@@ -384,7 +384,16 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
     stopButton.onClick = [this] { looper().stop(); refresh(); };
     addAndMakeVisible (stopButton);
 
-    clearButton.onClick = [this] { looper().clear(); refresh(); };
+    clearButton.onClick = [this]
+    {
+        // action-and-undo.md 3.14: a cleared loop can be restored.
+        auto* looperPtr = &looper();
+        looper().clear();
+        processor.pushUndoCallback ("Clear looper", "looper-clear", {},
+                                    [looperPtr] { looperPtr->restoreCleared(); },
+                                    [looperPtr] { looperPtr->clear(); });
+        refresh();
+    };
     addAndMakeVisible (clearButton);
 
     styleReadout (statusLabel);
@@ -402,7 +411,7 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
         strip.mute->setClickingTogglesState (true);
         strip.mute->onClick = [this, i]
         {
-            looper().getLayer (i).setMuted (layers[(size_t) i].mute->getToggleState());
+            editLayer (i, "mute", [this, i] { looper().getLayer (i).setMuted (layers[(size_t) i].mute->getToggleState()); });   // action-and-undo.md 3.14
         };
         addAndMakeVisible (*strip.mute);
 
@@ -410,7 +419,7 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
         strip.reverse->setClickingTogglesState (true);
         strip.reverse->onClick = [this, i]
         {
-            looper().getLayer (i).setReversed (layers[(size_t) i].reverse->getToggleState());
+            editLayer (i, "reverse", [this, i] { looper().getLayer (i).setReversed (layers[(size_t) i].reverse->getToggleState()); });   // action-and-undo.md 3.14
         };
         addAndMakeVisible (*strip.reverse);
 
@@ -418,7 +427,7 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
         strip.halfSpeed->setClickingTogglesState (true);
         strip.halfSpeed->onClick = [this, i]
         {
-            looper().getLayer (i).setHalfSpeed (layers[(size_t) i].halfSpeed->getToggleState());
+            editLayer (i, "halfSpeed", [this, i] { looper().getLayer (i).setHalfSpeed (layers[(size_t) i].halfSpeed->getToggleState()); });   // action-and-undo.md 3.14
         };
         addAndMakeVisible (*strip.halfSpeed);
 
@@ -430,7 +439,7 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
         strip.mode->setSelectedId (1, juce::dontSendNotification);
         strip.mode->onChange = [this, i]
         {
-            looper().getLayer (i).setMode ((LayerMode) (layers[(size_t) i].mode->getSelectedId() - 1));
+            editLayer (i, "mode", [this, i] { looper().getLayer (i).setMode ((LayerMode) (layers[(size_t) i].mode->getSelectedId() - 1)); });   // action-and-undo.md 3.14
         };
         addAndMakeVisible (*strip.mode);
 
@@ -440,7 +449,7 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
         strip.level->setValue (0.0, juce::dontSendNotification);
         strip.level->onValueChange = [this, i]
         {
-            looper().getLayer (i).setLevelDb (layers[(size_t) i].level->getValue());
+            editLayer (i, "level", [this, i] { looper().getLayer (i).setLevelDb (layers[(size_t) i].level->getValue()); });   // action-and-undo.md 3.14
         };
         addAndMakeVisible (*strip.level);
 
@@ -450,7 +459,7 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
         strip.pan->setValue (0.0, juce::dontSendNotification);
         strip.pan->onValueChange = [this, i]
         {
-            looper().getLayer (i).setPan (layers[(size_t) i].pan->getValue());
+            editLayer (i, "pan", [this, i] { looper().getLayer (i).setPan (layers[(size_t) i].pan->getValue()); });   // action-and-undo.md 3.14
         };
         addAndMakeVisible (*strip.pan);
 
@@ -540,6 +549,21 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
 Looper& LooperTab::looper()
 {
     return processor.getLooper();
+}
+
+void LooperTab::editLayer (int index, const char* what, const std::function<void()>& change)
+{
+    auto* layer = &looper().getLayer (index);
+    const auto before = layer->settingsToVar();
+
+    change();
+
+    const auto after = layer->settingsToVar();
+    processor.pushUndoCallback ("Change loop layer " + juce::String (index + 1) + " " + what, "looper-layer",
+                                juce::String (index) + what,
+                                // The layer is the processor's; the tab may be gone by then.
+                                [layer, before] { layer->settingsFromVar (before); },
+                                [layer, after] { layer->settingsFromVar (after); });
 }
 
 void LooperTab::refresh()
@@ -672,7 +696,17 @@ TrackTab::TrackTab (LuthierAudioProcessor& p)
                               [this] (const juce::FileChooser& fc)
         {
             if (fc.getResult() != juce::File())
-                track().load (fc.getResult());
+            {
+                // action-and-undo.md 3.14: practice-track-load.
+                auto* player = &track();
+                const auto before = player->isLoaded() ? player->getFile() : juce::File();
+                const auto after = fc.getResult();
+
+                if (track().load (after))
+                    processor.pushUndoCallback ("Load backing track " + after.getFileName(), "practice-track-load", {},
+                                                [player, before] { if (before.existsAsFile()) player->load (before); else player->unload(); },
+                                                [player, after] { player->load (after); });
+            }
 
             refresh();
         });
@@ -875,7 +909,16 @@ ScaleTab::ScaleTab (LuthierAudioProcessor& p)
         keyBox.addItem (noteNames[i], i + 1);
 
     keyBox.setSelectedId (1, juce::dontSendNotification);
-    keyBox.onChange = [this] { trainer().setKey (keyBox.getSelectedId() - 1); repaint(); };
+    keyBox.onChange = [this]
+    {
+        // action-and-undo.md 3.14: practice-scale, grouped.
+        auto* t = &trainer();
+        const int before = t->getKey(), after = keyBox.getSelectedId() - 1;
+        processor.pushUndoCallback ("Change practice key", "practice-scale", "key",
+                                    [t, before] { t->setKey (before); }, [t, after] { t->setKey (after); });
+        trainer().setKey (after);
+        repaint();
+    };
     addAndMakeVisible (keyBox);
 
     for (int i = 0; i < (int) ScaleType::custom; ++i)
@@ -884,7 +927,13 @@ ScaleTab::ScaleTab (LuthierAudioProcessor& p)
     scaleBox.setSelectedId (1, juce::dontSendNotification);
     scaleBox.onChange = [this]
     {
-        trainer().setScale ((ScaleType) (scaleBox.getSelectedId() - 1));
+        // action-and-undo.md 3.14: practice-scale, grouped.
+        auto* t = &trainer();
+        const auto before = t->getScale();
+        const auto after = (ScaleType) (scaleBox.getSelectedId() - 1);
+        processor.pushUndoCallback ("Change practice scale", "practice-scale", "scale",
+                                    [t, before] { t->setScale (before); }, [t, after] { t->setScale (after); });
+        trainer().setScale (after);
         repaint();
     };
     addAndMakeVisible (scaleBox);

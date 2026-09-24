@@ -248,6 +248,7 @@ void StrumGrid::showStepMenu (int step)
 
 void StrumGrid::commit()
 {
+    processor.pushUndoAction ("Edit strum pattern", "rhythm-pattern", "strum");   // gui-integration 18
     processor.getEngine().getRhythmEngine().setPattern (pattern);
 
     if (onPatternEdited != nullptr)
@@ -382,6 +383,7 @@ void FingerpickGrid::mouseDown (const juce::MouseEvent& event)
 
 void FingerpickGrid::commit()
 {
+    processor.pushUndoAction ("Edit fingerpick pattern", "rhythm-pattern", "fingerpick");   // gui-integration 18
     processor.getEngine().getRhythmEngine().setPattern (pattern);
 
     if (onPatternEdited != nullptr)
@@ -744,6 +746,7 @@ void RhythmPanel::buildFeelControls()
 
         // Swing lives in the pattern rather than in the engine, because it is a
         // property of the figure being played.
+        processor.pushUndoAction ("Change swing", "rhythm-pattern", "swing");   // gui-integration 18
         auto pattern = rhythm().getPattern();
         pattern.setSwing (swingSlider.getValue() / 100.0);
         rhythm().setPattern (pattern);
@@ -848,6 +851,7 @@ void RhythmPanel::randomiseWithinStyle()
     if (patternIndex < 0)
         return;
 
+    processor.pushUndoState ("Randomise rhythm pattern");   // gui-integration 18
     rhythm().setPattern (processor.getPatternLibrary().getPattern (patternIndex));
     refreshFromEngine();
 }
@@ -880,6 +884,7 @@ void RhythmPanel::loadSelectedPattern()
     if (! juce::isPositiveAndBelow (row, visiblePatterns.size()))
         return;
 
+    processor.pushUndoState ("Load rhythm pattern");   // gui-integration 18
     rhythm().setPattern (processor.getPatternLibrary().getPattern (visiblePatterns[row]));
     refreshFromEngine();
 }

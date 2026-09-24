@@ -557,14 +557,19 @@ void ModRouteTable::cellClicked (int row, int columnId, const juce::MouseEvent& 
         return;
 
     auto& matrix = processor.getModMatrix();
+    const auto routeName = cached[(size_t) row].sourceId + " -> " + cached[(size_t) row].destinationId;
 
     switch (columnId)
     {
         case ColumnId::enabled:
+            processor.pushUndoAction ((cached[(size_t) row].enabled ? "Turn off route " : "Turn on route ") + routeName,
+                                      "mod-route-edit", {});   // action-and-undo.md 3.6
             matrix.setRouteEnabled (row, ! cached[(size_t) row].enabled);
             break;
 
         case ColumnId::remove:
+            processor.pushUndoAction ("Remove " + cached[(size_t) row].sourceId + " from "
+                                        + cached[(size_t) row].destinationId, "mod-route-delete", {});   // 3.6
             matrix.removeRoute (row);
             break;
 
@@ -581,8 +586,9 @@ void ModRouteTable::cellClicked (int row, int columnId, const juce::MouseEvent& 
                 std::unique_ptr<juce::Component> (editor),
                 getScreenBounds().withPosition (e.getScreenPosition()), nullptr);
 
-            editor->onReturnKey = [this, editor, row, &box]
+            editor->onReturnKey = [this, editor, row, &box, routeName]
             {
+                processor.pushUndoAction ("Change depth of " + routeName, "mod-route-edit", routeName);   // 3.6
                 processor.getModMatrix().setRouteDepth (row, editor->getText().getFloatValue());
                 refresh();
 
@@ -601,6 +607,7 @@ void ModRouteTable::cellClicked (int row, int columnId, const juce::MouseEvent& 
         {
             const auto next = (ModCurve) (((int) cached[(size_t) row].curve + 1)
                                             % (int) ModCurve::numCurves);
+            processor.pushUndoAction ("Change curve of " + routeName, "mod-route-edit", routeName);   // 3.6
             matrix.setRouteCurve (row, next);
             break;
         }
@@ -657,6 +664,7 @@ ModMatrixPanel::ModMatrixPanel (LuthierAudioProcessor& p)
 
     clearButton.onClick = [this]
     {
+        processor.pushUndoAction ("Clear all modulation routes", "mod-route-delete", {});   // action-and-undo.md 3.6
         processor.getModMatrix().clearRoutes();
         routeTable->refresh();
 
@@ -736,6 +744,10 @@ void ModMatrixPanel::showAddRouteMenu()
         route.destinationId = byItemId[result - 1];
         route.depth = 0.33f;
         route.enabled = true;
+
+        if (auto* p = processor.getState().getParameter (route.destinationId))   // action-and-undo.md 3.6
+            processor.pushUndoAction ("Add " + modSourceDisplayName (card->getSlot()) + " to " + p->getName (64)
+                                        + " depth 0.33", "mod-route-create", {});
 
         processor.getModMatrix().addRoute (route);
         routeTable->refresh();

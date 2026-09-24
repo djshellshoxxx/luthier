@@ -98,6 +98,9 @@ public:
     bool redo();
 
     bool canUndo() const noexcept { return undoFilled; }
+
+    /** Empties the layer but keeps its audio in the undo buffer. Message thread. */
+    void clearKeepingUndo();
     bool canRedo() const noexcept { return redoFilled; }
 
     //==========================================================================
@@ -175,7 +178,14 @@ public:
     void press() noexcept;
 
     void stop() noexcept;
+
+    /*  Empties every layer, keeping each one's audio in its undo buffer so a
+        clear can be taken back (action-and-undo.md 3.14: deleting a layer is
+        restorable, recording one is not). Message thread. */
     void clear();
+
+    /** Puts back what the last clear() removed. False if nothing to restore. */
+    bool restoreCleared();
 
     /** practice-tools 2: a loop is quantised to bars when the metronome is
         running. The caller supplies the bar length; zero means free. */
@@ -234,6 +244,7 @@ private:
 
     std::atomic<int> state { (int) State::stopped };
     std::atomic<int> loopLength { 0 };
+    int clearedLoopLength = 0;   // action-and-undo.md 3.14
     std::atomic<int> playPosition { 0 };
     std::atomic<int> activeLayer { 0 };
     std::atomic<int> barLengthSamples { 0 };

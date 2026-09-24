@@ -205,6 +205,7 @@ void applyParameterMenuResult (int result,
                 break;
 
             case 6:
+                processor.pushUndoAction ("Remove MIDI mapping", "midi-mapping-delete", {});   // action-and-undo.md 3.12
                 learn.removeMappingForParameter (parameterId);
                 break;
 
@@ -265,6 +266,10 @@ void applyParameterMenuResult (int result,
                 // Walk backwards so removing one does not shift the next.
                 auto& modMatrix = processor.getModMatrix();
 
+                // action-and-undo.md 3.6 / ui-wiring 18: one entry for the removal.
+                if (auto* p = processor.getState().getParameter (parameterId))
+                    processor.pushUndoAction ("Remove modulation from " + p->getName (64), "mod-route-delete", {});
+
                 for (int i = modMatrix.getNumRoutes(); --i >= 0;)
                     if (modMatrix.getRoute (i).destinationId == parameterId)
                         modMatrix.removeRoute (i);
@@ -286,6 +291,11 @@ void applyParameterMenuResult (int result,
                     // control the user just right-clicked.
                     route.depth = 0.33f;
                     route.enabled = true;
+
+                    // action-and-undo.md 3.6: "Add [source] to [destination] depth X".
+                    if (auto* p = processor.getState().getParameter (parameterId))
+                        processor.pushUndoAction ("Add " + modSourceDisplayName (result - kModulateMenuBase) + " to "
+                                                    + p->getName (64) + " depth 0.33", "mod-route-create", {});
 
                     processor.getModMatrix().addRoute (route);
                 }
