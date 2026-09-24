@@ -82,6 +82,10 @@ public:
     /** Records the launch and puts up the welcome banner if one is due. */
     void runWelcome();
 
+    /** gui-integration 17 "New tune" (Ctrl+T): the TUNE tab, with its New menu.
+        Returns the tab's panel, or nullptr when it cannot be shown. */
+    TunePanel* openNewTune();
+
 private:
     void timerCallback() override;
 

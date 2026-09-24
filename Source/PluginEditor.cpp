@@ -578,6 +578,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     if (is ("options"))         { showOverlay (&optionsPanel);  return true; }
     if (is ("presetBrowser"))   { showOverlay (&presetBrowser); return true; }
     if (is ("export"))          { showOverlay (&exportPanel);   return true; }
+    if (is ("newTune"))         { openNewTune();                return true; }   // tune-builder 2 (TUNE-HELP-ONBOARDING)
     if (is ("debugPanel"))      { showOverlay (&debugPanel);    return true; }
 
     /*  Section 17's "New preset": load Init, which is the factory preset whose own

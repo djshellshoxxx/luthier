@@ -371,6 +371,9 @@ public:
     bool exportMidiTo (const juce::File& file, juce::String& error);
     void newFromTemplate (int templateIndex);
 
+    /** The New menu (templates and example tunes); Ctrl+T from anywhere opens it. */
+    void showNewTuneMenu() { showTemplateMenu(); }
+
     /** onboarding 6 / 10 path C: opens a shipped example tune as a new, unsaved
         tune (so Save asks where, and the factory file is never overwritten). */
     bool openExample (int exampleIndex);
@@ -407,6 +410,14 @@ public:
     juce::TextEditor& getProgressionEditor() noexcept { return progressionEditor; }
     TuneChordPills& getChordPills() noexcept         { return chordPills; }
     juce::ComboBox& getKitBox() noexcept             { return kitBox; }
+    juce::TextButton& getPaletteButton() noexcept    { return paletteButton; }
+    juce::TextButton& getKitTempoButton() noexcept   { return kitTempoButton; }
+
+    /** 2.1 (TUNE-HELP-ONBOARDING): the section kit's chord palette in the key,
+        adding one of its chords, and the kit's suggested tempo and swing. */
+    std::vector<ChordCell> getPaletteChords() const;
+    bool appendPaletteChord (int paletteIndex);
+    bool applyKitTempo();
     juce::Slider& getFeelSlider() noexcept           { return feelSlider; }
     juce::Slider& getStrumSlider() noexcept          { return strumSlider; }
     juce::TextButton& getRhythmOnButton() noexcept   { return rhythmOn.getButton(); }
@@ -475,6 +486,7 @@ private:
     juce::Slider feelSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
     juce::Slider strumSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
     LuthierToggle rhythmOn { "ON" };
+    juce::TextButton paletteButton { "PALETTE" }, kitTempoButton { "KIT TEMPO" };
 
     // --- melody -----------------------------------------------------------------------
     TunePianoRoll pianoRoll;

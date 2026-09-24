@@ -2,6 +2,7 @@
 #include "../PluginProcessor.h"
 #include "../Tune/TuneTemplates.h"
 #include "../Tune/TuneExamples.h"
+#include "../Tune/TuneHarmony.h"
 
 namespace luthier
 {
@@ -58,6 +59,15 @@ namespace
     {
         const auto code = juce::CharacterFunctions::toUpperCase ((juce::juce_wchar) key.getKeyCode());
         return key.getModifiers().isCommandDown() && code == letter;
+    }
+
+    /** The key bound to an action in the shortcut registry (gui-integration 17:
+        every shortcut is rebindable), so a rebound save or new-tune key is the
+        one the tab answers. */
+    bool isBound (const juce::KeyPress& key, const char* actionId)
+    {
+        const auto* binding = AccessibilitySettings::get().findShortcut (actionId);
+        return binding != nullptr && binding->key == key;
     }
 }
 
@@ -777,21 +787,65 @@ void TunePanel::buildRhythm()
                            : (! kit.fingerpickPatterns.isEmpty() ? kit.fingerpickPatterns[0] : juce::String());
         const double density = getKitMelodyDensity (kit.name);
 
-        editSection (TuneEditClass::sectionEdit, "Change genre kit", [kit, pattern, density] (TuneSection& s)
+        const int sectionIndex = session.getSelectedSection();
+
+        session.edit (TuneEditClass::sectionEdit, "Change genre kit", [kit, pattern, density, sectionIndex] (Tune& t)
         {
-            if (s.genreKitId == kit.name && s.rhythmPatternId == pattern)
+            auto* s = t.getSection (sectionIndex);
+
+            if (s == nullptr || (s->genreKitId == kit.name && s->rhythmPatternId == pattern))
                 return false;
 
-            s.genreKitId = kit.name;
-            s.rhythmPatternId = pattern;
+            // 2.1 (TUNE-HELP-ONBOARDING): the kit's suggested tempo and swing come
+            // with it while the tune is still on the old kit's (or the default) tempo,
+            // and its feel always does. A tempo the player chose is never overwritten.
+            const auto previous = TuneKits::getSuggestion (s->genreKitId);
+            const auto suggested = TuneKits::getSuggestion (kit.name);
+            const bool tempoUntouched = std::abs (t.meta.tempoBpm - 120.0) < 1.0e-6
+                                          || (s->genreKitId.isNotEmpty() && std::abs (t.meta.tempoBpm - previous.tempoBpm) < 1.0e-6);
+
+            if (tempoUntouched)
+            {
+                t.setTempo (suggested.tempoBpm);
+                t.meta.swingPercent = suggested.swingPercent;
+            }
+
+            s->genreKitId = kit.name;
+            s->rhythmPatternId = pattern;
+            s->feel = tunetheory::canonical (suggested.feel);
 
             // TuneMelody: the track's density follows its kit (4.1).
-            if (s.melody.has_value())
-                s.melody->density = density;
+            if (s->melody.has_value())
+                s->melody->density = density;
 
             return true;
-        }, 4000);
+        }, 4000 + sectionIndex);
     };
+
+    // 2.1: the kit's chord palette - click a chord to append it to the section.
+    addAndMakeVisible (paletteButton);
+    paletteButton.setTooltip ("The genre kit's chord palette, in this key: click one to add it to the section");
+    AccessibleSetup::configureButton (paletteButton, "Chord palette", "Adds a chord from the kit's palette.");
+    paletteButton.onClick = [this]
+    {
+        juce::PopupMenu menu;
+        const auto cells = getPaletteChords();
+
+        for (size_t i = 0; i < cells.size(); ++i)
+            menu.addItem ((int) i + 1, getChordSymbol (cells[i], session.getTune().preferFlats()));
+
+        menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&paletteButton),
+                            [safe = juce::Component::SafePointer<TunePanel> (this)] (int r)
+        {
+            if (safe != nullptr && r > 0)
+                safe->appendPaletteChord (r - 1);
+        });
+    };
+
+    addAndMakeVisible (kitTempoButton);
+    kitTempoButton.setTooltip ("Set the tempo and swing to the kit's suggestion");
+    AccessibleSetup::configureButton (kitTempoButton, "Kit tempo", "Sets the tune's tempo to the kit's suggestion.");
+    kitTempoButton.onClick = [this] { applyKitTempo(); };
 
     for (auto* slider : { &feelSlider, &strumSlider })
     {
@@ -1090,6 +1144,8 @@ void TunePanel::refresh()
     feelSlider.setValue (section != nullptr ? section->feel : 0.5, juce::dontSendNotification);
     strumSlider.setValue (section != nullptr ? section->strum : 0.5, juce::dontSendNotification);
     rhythmOn.getButton().setToggleState (section != nullptr && section->rhythmOn, juce::dontSendNotification);
+    kitTempoButton.setButtonText ("KIT " + juce::String (juce::roundToInt (TuneKits::getSuggestion (section != nullptr ? section->genreKitId
+                                                                                                     : juce::String()).tempoBpm)));
 
     const bool improvising = section != nullptr && section->melody.has_value()
                                && section->melody->source == MelodySource::improvise;
@@ -1221,23 +1277,30 @@ bool TunePanel::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
-    if (isShortcut (key, 'S'))
+    if (isBound (key, "save"))
     {
         chooseAndSave();
         return true;
     }
 
-    if (isShortcut (key, 'E'))
+    if (isBound (key, "export"))
     {
         chooseAndExport();
         return true;
     }
 
-    if (isShortcut (key, 'T'))
+    if (isBound (key, "newTune"))
     {
         showTemplateMenu();
         return true;
     }
+
+    // The tune's own undo stack, on whatever undo and redo are bound to.
+    if (isBound (key, "redo"))
+        return session.redo();
+
+    if (isBound (key, "undo"))
+        return session.undo();
 
     if (isShortcut (key, 'Z'))
         return mods.isShiftDown() ? session.redo() : session.undo();
@@ -1425,6 +1488,46 @@ void TunePanel::chooseAndExport()
 }
 
 //==============================================================================
+//==============================================================================
+std::vector<ChordCell> TunePanel::getPaletteChords() const
+{
+    const auto& tune = session.getTune();
+    const auto* s = tune.getSection (session.getSelectedSection());
+    const auto suggestion = TuneKits::getSuggestion (s != nullptr ? s->genreKitId : juce::String());
+    return TuneKits::resolvePalette (suggestion.palette, tune.meta.keyTonic, tune.meta.mode, tune.getBeatsPerBar());
+}
+
+bool TunePanel::appendPaletteChord (int paletteIndex)
+{
+    const auto cells = getPaletteChords();
+    const int index = session.getSelectedSection();
+
+    if (! juce::isPositiveAndBelow (paletteIndex, (int) cells.size()) || ! session.getTune().isValidSection (index))
+        return false;
+
+    const auto cell = cells[(size_t) paletteIndex];
+    return session.edit (TuneEditClass::chordEdit, "Add chord from palette",
+                         [index, cell] (Tune& t) { return t.insertChord (index, -1, cell); });
+}
+
+bool TunePanel::applyKitTempo()
+{
+    const auto* s = session.getTune().getSection (session.getSelectedSection());
+
+    if (s == nullptr)
+        return false;
+
+    const auto suggestion = TuneKits::getSuggestion (s->genreKitId);
+
+    return session.edit (TuneEditClass::other, "Kit tempo", [suggestion] (Tune& t)
+    {
+        const bool tempo = t.setTempo (suggestion.tempoBpm);
+        const bool swing = t.meta.swingPercent != suggestion.swingPercent;
+        t.meta.swingPercent = suggestion.swingPercent;
+        return tempo || swing;
+    });
+}
+
 int TunePanel::getPreferredHeight() const
 {
     const int button = Metrics::buttonHeight;
@@ -1564,6 +1667,10 @@ void TunePanel::resized()
     {
         auto r = row();
         rhythmOn.setBounds (r.removeFromRight (56));
+        r.removeFromRight (4);
+        kitTempoButton.setBounds (r.removeFromRight (80));
+        r.removeFromRight (4);
+        paletteButton.setBounds (r.removeFromRight (72));
         r.removeFromRight (4);
         kitBox.setBounds (r);
     }

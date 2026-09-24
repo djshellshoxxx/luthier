@@ -1949,6 +1949,7 @@ void LuthierAudioProcessor::undo()
 
     --undoPosition;
 
+    const juce::ScopedValueSetter<bool> keepTune (restoringPluginUndo, true);
     setStateInformation (entry.state.getData(), (int) entry.state.getSize());
 }
 
@@ -1960,6 +1961,7 @@ void LuthierAudioProcessor::redo()
     ++undoPosition;
 
     const auto& entry = undoStack.getReference (undoPosition);
+    const juce::ScopedValueSetter<bool> keepTune (restoringPluginUndo, true);
     setStateInformation (entry.redoState.getData(), (int) entry.redoState.getSize());
 }
 
@@ -2163,7 +2165,9 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
 
     setClickToMain (root->hasProperty ("clickToMain") && (bool) root->getProperty ("clickToMain"));
 
-    if (root->hasProperty ("tune"))
+    // The tune keeps its own undo stack (TUNE-HELP-ONBOARDING, DECISIONS "TUNE in
+    // the plugin"): a plugin undo or redo leaves the tune as it is.
+    if (root->hasProperty ("tune") && ! restoringPluginUndo)
         tuneSession.restoreState (root->getProperty ("tune"));
 
     presets.applyExtraState();

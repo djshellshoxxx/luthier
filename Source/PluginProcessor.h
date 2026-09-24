@@ -522,6 +522,9 @@ private:
     // it); everything else goes to the engine as direct notes.
     TunePlayer tunePlayer;
     TuneSession tuneSession;
+
+    /** True while undo/redo restores a snapshot: the tune is not part of it. */
+    bool restoringPluginUndo = false;
     juce::MidiBuffer tuneToEngine, tuneToMidiOut, tuneDirect;
     Metronome tuneClick;                  ///< fires on the tune's grid, not its own
     juce::AudioBuffer<float> tuneClickBuffer;
