@@ -85,7 +85,10 @@ public:
     //==========================================================================
     /** Writes into the layer at `position`, mixing or replacing according to the
         mode. Audio thread. */
-    void record (const float* left, const float* right, int position, int numSamples) noexcept;
+    /** Writes a block at `position`. With `wrapLength` > 0 (an overdub on a
+        closed loop) the write wraps at the loop's end the way playback does. */
+    void record (const float* left, const float* right, int position, int numSamples,
+                 int wrapLength = 0) noexcept;
 
     /** Adds the layer's contribution into a stereo pair. Audio thread. */
     void playInto (float* left, float* right, int position, int numSamples,
@@ -255,6 +258,12 @@ private:
     std::array<LoopLayer, kMaxLayers> layers;
 
     std::atomic<int> state { (int) State::stopped };
+
+    /** The live input of an overdub, kept while the layers play into the
+        buffer, so the active layer's old take is heard and only the live
+        signal is recorded over it. */
+    static constexpr int kOverdubChunk = 256;
+    std::array<float, kOverdubChunk> overdubL {}, overdubR {};
     std::atomic<int> loopLength { 0 };
     int clearedLoopLength = 0;   // action-and-undo.md 3.14
     std::atomic<int> playPosition { 0 };
@@ -342,6 +351,11 @@ private:
     juce::AudioBuffer<float> ring;
     juce::MidiMessageSequence midi;
     juce::CriticalSection midiLock;
+
+    /** Held by prepare() while it resizes the ring; processBlock only try-locks
+        it. The ring can be resized while recording (PRACTICE setup's ring
+        length), which used to free it under the audio thread. */
+    juce::SpinLock ringLock;
 
     double sr = 44100.0;
     int capacity = 0;

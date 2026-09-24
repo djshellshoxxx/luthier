@@ -444,6 +444,11 @@ public:
     /** True while a structural change is pending. */
     bool isStructuralChangePending() const noexcept { return structuralPending.load(); }
 
+    /** Runs a pending structural change now, on the calling (message) thread:
+        a host that saves state straight after changing a guitar type must get
+        the state that change produces, not the one before it. */
+    void flushPendingStructuralChange() { handleUpdateNowIfNeeded(); }
+
     /** A preset has just written its pedal types AND their parameters: build
         those pedals keeping the parameters. The structural path otherwise
         writes a new pedal's defaults over its parameters - right for a pedal
@@ -465,12 +470,22 @@ public:
     void setModMatrix (ModMatrix* matrix) noexcept { modMatrix = matrix; }
     ModMatrix* getModMatrix() const noexcept { return modMatrix; }
 
+    /** True if `id` was written (by anyone) after the guitar type last was. */
+    bool writtenSinceGuitarType (const juce::String& id) const noexcept;
+
+    /** While false, writes are not stamped for writtenSinceGuitarType(): the
+        processor's own guitar-parameter writes are the guitar's, not the host's. */
+    void setStampingWrites (bool stamp) noexcept { stampingWrites.store (stamp, std::memory_order_relaxed); }
+
+
     /** The unmodulated value, for the UI, which shows the control where
         automation put it rather than where modulation has pushed it. */
     float baseValue (const juce::String& id) const noexcept;
+    float baseValue (const char* id) const noexcept;
 
     /** The parameter's index in the processor's parameter list, or -1. */
     int parameterIndex (const juce::String& id) const noexcept;
+    int parameterIndex (const char* id) const noexcept;
 
     /*  guitar-workshop.md 0.6: a guitar type is a shortcut to a factory
         guitar file. When the type changes the bridge asks this to load it;
@@ -491,30 +506,31 @@ private:
     std::atomic<float>* raw (const juce::String& id) const noexcept;
     float value (const juce::String& id) const noexcept;
 
-    /*  performance-budget.md 0.4: the audio thread's lookups allocate nothing.
-        A ParamIDs constant is a const char*, and building a juce::String from
-        it to hash allocated - four hundred times a block. These resolve the
-        pointer through a lock-free pointer-keyed cache (filled on first use,
-        which is the prepare/warm-up block), and the per-slot IDs the ParamIDs
-        functions build are resolved once in cachePointers. */
-    float value (const char* id) const noexcept;
-    float valueAt (int index) const noexcept;
-    int indexOf (const char* id) const noexcept;
-
-    struct IdCacheSlot
+    /*  engine.md 0 (no allocation on the audio thread): the audio thread reads
+        parameters by their const char* IDs through this table, built on the
+        message thread in cachePointers(). A juce::String built from a literal
+        allocates, and applyToEngine used to build hundreds per block. */
+    struct FastEntry
     {
-        std::atomic<const char*> key { nullptr };
-        std::atomic<int> index { -2 };      ///< -2: being filled
+        juce::uint64 hash = 0;
+        std::string id;
+        std::atomic<float>* pointer = nullptr;
+        int index = -1;
     };
 
-    static constexpr int kIdCacheSize = 2048;   // power of two, > 4x the parameter count
-    mutable std::array<IdCacheSlot, kIdCacheSize> idCache;
-    std::vector<std::atomic<float>*> rawByIndex;
+    static juce::uint64 hashId (const char* id) noexcept;
+    const FastEntry* find (const char* id) const noexcept;
+    std::atomic<float>* raw (const char* id) const noexcept;
+    float value (const char* id) const noexcept;
 
-    std::array<int, PickupEngine::kMaxPickups> pickupVolumeIdx {}, pickupTypeIdx {}, pickupMagnetIdx {};
-    std::array<int, ParamIDs::kNumNutDepths> nutDepthIdx {};
-    std::array<std::array<int, EffectsChain::kNumSlots>, 2> slotTypeIdx {}, slotBypassIdx {}, slotMixIdx {};
-    std::array<std::array<std::array<int, Pedal::kMaxParams>, EffectsChain::kNumSlots>, 2> slotParamIdx {};
+    std::vector<FastEntry> fastTable;
+    size_t fastMask = 0;
+
+    // The pedal slots' IDs, built once so the audio thread never formats them.
+    std::array<std::array<std::string, EffectsChain::kNumSlots>, 2> slotBypassIds, slotMixIds, slotTypeIds;
+    std::array<std::array<std::array<std::string, Pedal::kMaxParams>, EffectsChain::kNumSlots>, 2> slotParamIds;
+    std::array<std::string, PickupEngine::kMaxPickups> pickupTypeIds, pickupMagnetIds, pickupVolumeIds;
+    std::array<std::string, ParamIDs::kNumNutDepths + 1> nutDepthIds;
 
     juce::AudioProcessorValueTreeState& apvts;
     LuthierEngine& engine;
@@ -529,10 +545,22 @@ private:
         the type, and gets its own defaults when they were not. Counters, so
         the listener is lock-free on whatever thread sets the parameter. */
     void parameterValueChanged (int parameterIndex, float newValue) override;
-    void parameterGestureChanged (int, bool) override {}
+    void parameterGestureChanged (int parameterIndex, bool starting) override;
+
+    /*  guitar-workshop 0.6 / host-integration 3: the order the host wrote
+        parameters in, per parameter. A guitar type is a shortcut that writes
+        the parameters its parts overlap; one the host wrote after the type
+        (a session restoring both, automation at the same time) is kept. */
+    std::unique_ptr<std::atomic<juce::uint32>[]> lastWrite;
+    std::unique_ptr<std::atomic<bool>[]> inGesture;       ///< per parameter: a player is holding it
+    std::atomic<bool> guitarTypeByPlayer { false };        ///< the last guitar type write was a player's pick
+    std::array<std::array<std::atomic<bool>, EffectsChain::kNumSlots>, 2> typeByPlayer {};
+    int numLastWrite = 0;
+    int guitarTypeIndex = -1;
 
     std::vector<int> slotOfParameter;      ///< parameter index -> (chain * slots + slot) * 16 + (param, or 15 for the type)
     std::atomic<juce::uint32> writeSerial { 0 };
+    std::atomic<bool> stampingWrites { true };
     std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> typeWritten {};
     std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> paramsWritten {};
     juce::Array<juce::AudioProcessorParameter*> watched;

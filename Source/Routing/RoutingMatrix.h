@@ -53,8 +53,10 @@ struct MidiOutConfig
     bool luthierEvents = false;    ///< character / noise events as Luthier SysEx
     bool workshopChanges = false;  ///< part swaps and bench moves as Luthier SysEx
 
-    /** CC number each macro is echoed on, or -1 for "not assigned". */
-    std::array<int, 6> macroCc { { -1, -1, -1, -1, -1, -1 } };
+    /** CC number each macro is echoed on, or -1 for "not assigned". One per
+        macro parameter (ParamIDs::kNumMacros); the routing panel shows them all. */
+    static constexpr int kNumMacroCcs = 8;
+    std::array<int, kNumMacroCcs> macroCc { { -1, -1, -1, -1, -1, -1, -1, -1 } };
 
     int channel = 1;
 

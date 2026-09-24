@@ -90,6 +90,9 @@ public:
         numShapes
     };
 
+    /** The custom shape starts as a ramp here, not in prepare() (see ModEnvelope). */
+    ModLfo() noexcept;
+
     static const char* getShapeName (Shape s) noexcept;
 
     enum class Retrigger { freeRun = 0, onNoteOn, onTransportStart, onSyncBoundary };
@@ -203,6 +206,10 @@ public:
     enum class Retrigger { legato = 0, always, oneShot };
     enum class LoopMode { off = 0, decayToSustain, decayToRelease };
 
+    /** The user's curves start at their defaults here, not in prepare(): a
+        host prepares after it has restored a session, and must not undo it. */
+    ModEnvelope() noexcept;
+
     void prepare (double controlRateHz) noexcept;
     void reset() noexcept;
 
@@ -274,6 +281,8 @@ private:
 class ModStepSequencer
 {
 public:
+    ModStepSequencer() noexcept;
+
     static constexpr int kMaxSteps = 64;
 
     enum class Direction { forward = 0, reverse, pingPong, random, brownian };

@@ -67,10 +67,18 @@ LUTHIER_TEST (Presets, everyFactoryPresetRoundTripsToTheUlp)
         presets.captureExtraState();
         const auto saved = presets.toVar (def.name, def.category);
 
+        // What the file holds: toVar stores each value where a load -> save
+        // trip leaves it (a skewed range moves a live value by an ulp or two
+        // the first time), so the file, not the live value, is the reference.
         juce::Array<float> before;
+        const auto* savedParams = saved.getProperty ("parameters", {}).getDynamicObject();
 
         for (auto* p : processor->getParameters())
-            before.add (p->getValue());
+        {
+            const auto id = paramIdOf (p);
+            before.add (savedParams != nullptr && savedParams->hasProperty (id)
+                          ? (float) (double) savedParams->getProperty (id) : p->getValue());
+        }
 
         for (auto* p : processor->getParameters())
             p->setValueNotifyingHost (rng.nextFloat());
