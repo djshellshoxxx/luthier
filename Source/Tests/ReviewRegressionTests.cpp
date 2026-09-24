@@ -884,3 +884,39 @@ LUTHIER_TEST (ReviewRegression, chainedLegatoStaysLegatoInTheMidiExport)
     CHECK_MSG (legatoNotesOnWithLegatoOff == 0,
                juce::String (legatoNotesOnWithLegatoOff) + " legato note(s) started with CC 68 off");
 }
+
+/*  R-041: with the mix target at 1 the pedal skipped its wet/dry blend, so a
+    move from 0.5 to 1 jumped to fully wet in one sample. */
+LUTHIER_TEST (ReviewRegression, aPedalMixMoveToFullWetIsSmoothed)
+{
+    PitchShifterPedal pedal;   // wet (an octave up) differs from dry
+    pedal.prepare (48000.0, 256);
+    pedal.setParameterValue (0, 12.0);
+    pedal.setParameterValue (2, 1.0);   // its own internal mix all wet
+    pedal.setMix (0.0);
+
+    std::vector<double> l (256), r (256), dry (256);
+    int64_t t = 0;
+
+    auto render = [&]
+    {
+        for (int i = 0; i < 256; ++i, ++t)
+            dry[(size_t) i] = l[(size_t) i] = r[(size_t) i] = std::sin (0.03 * (double) t);
+
+        pedal.processWithBypass (l.data(), r.data(), 256);
+    };
+
+    for (int b = 0; b < 20; ++b)
+        render();
+
+    pedal.setMix (1.0);
+    render();
+
+    // The first few samples after the move are still close to dry.
+    double worst = 0.0;
+
+    for (int i = 0; i < 8; ++i)
+        worst = std::max (worst, std::abs (l[(size_t) i] - dry[(size_t) i]));
+
+    CHECK_MSG (worst < 0.1, "jumped towards wet by " + juce::String (worst));
+}
