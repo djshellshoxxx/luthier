@@ -83,7 +83,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 
     // ---- header wiring -----------------------------------------------------------
     header.onModeChanged = [this] (bool advanced) { setAdvancedMode (advanced); };
-    header.onOpenHelp = [this] { showOverlay (&helpPanel); };
+    header.onOpenHelp = [this] { openHelp (getHelpContext()); };
 
     // gui-integration.md 6: the wrench opens the WORKSHOP tab in Advanced mode
     // and the same bench as an overlay in Easy mode.
@@ -105,7 +105,22 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     header.onOpenPresetBrowser = [this] { showOverlay (&presetBrowser); };
     header.onSaveAs = [this] { showOverlay (&saveAsPanel); };
 
-    helpPanel.onOpenDebug = [this] { showOverlay (&debugPanel); };
+    // The overlay and the HELP tab are one HelpTab in two places; both reach
+    // the debug tools and the shortcut table the same way.
+    auto wireHelp = [this] (HelpTab& help)
+    {
+        help.onOpenDebug = [this] { showOverlay (&debugPanel); };
+        help.onOpenShortcutTable = [this]
+        {
+            showOverlay (&optionsPanel);
+            optionsPanel.showShortcutTable();
+        };
+    };
+
+    wireHelp (helpPanel.getView());
+
+    if (auto* helpTab = advancedPanel.getHelpTab())
+        wireHelp (*helpTab);
 
     // Options -> Diagnostics offers the same window. An overlay cannot show
     // another overlay, so the request comes out to here.
@@ -532,7 +547,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return false;
     }
 
-    if (is ("help"))            { showOverlay (&helpPanel);     return true; }
+    if (is ("help"))            { openHelp (getHelpContext());  return true; }
     if (is ("options"))         { showOverlay (&optionsPanel);  return true; }
     if (is ("presetBrowser"))   { showOverlay (&presetBrowser); return true; }
     if (is ("export"))          { showOverlay (&exportPanel);   return true; }
@@ -1013,6 +1028,30 @@ void LuthierAudioProcessorEditor::pollForNotifications()
             notifications.post (std::move (n));
         }
     }
+}
+
+//==============================================================================
+juce::String LuthierAudioProcessorEditor::getHelpContext() const
+{
+    return advancedMode ? advancedPanel.getHelpContextFor (juce::Component::getCurrentlyFocusedComponent())
+                        : juce::String();
+}
+
+void LuthierAudioProcessorEditor::openHelp (const juce::String& topic)
+{
+    // Advanced: the HELP tab, with any overlay out of the way (it would sit on
+    // top of the tab). Easy: the same help as an overlay.
+    if (advancedMode)
+    {
+        if (overlayHost.isShowingOverlay())
+            overlayHost.dismiss();
+
+        advancedPanel.showHelp (topic);
+        return;
+    }
+
+    helpPanel.showTopicFor (topic);
+    showOverlay (&helpPanel);
 }
 
 } // namespace luthier

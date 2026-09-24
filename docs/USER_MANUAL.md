@@ -39,13 +39,17 @@ Always visible, in both modes.
 | **Instrument** | loads a complete guitar: body, woods, pickups, strings, tuning and its usual amp and cabinet. |
 | **Tuning** | open-string tuning. Per-string tunings live in Advanced. |
 | **Preset** | name, with prev/next arrows. Click the name to browse. |
-| **File** | save, open, import, export, options, randomise, reset. |
+| **Padlock** | Advanced mode only, and only when this preset has advanced ranges unlocked. Opens Options, RANGES. |
+| **File** | save, save as, open, import and export a preset; export audio, save the last MIDI take, export notation; open the preset and render folders; options; randomise; reset. |
 | **A / B** | two comparison slots. `A>B` copies the current one across. |
 | **Undo / Redo** | 64 steps. |
-| **Learn** | arms MIDI Learn: the next control you click is assigned to the next CC you move. |
 | **Panic** | stops every string immediately. |
-| **?** | help, troubleshooting and the debug tools. |
-| **Advanced** | switches modes. |
+| **Learn** | arms MIDI Learn: the next control you click is assigned to the next CC you move. |
+| **?** | help. In Advanced mode it opens the HELP tab on the panel you were using; in Easy mode, the same help over the window. |
+| **Advanced** | switches modes. Locked while Live Mode is on. |
+| **Live** | Live Mode: the live strip along the bottom - snapshots, setlist, tap tempo, morph, the kill switch. |
+| **Slide** | Slide Mode: play with a bar instead of frets. |
+| **Workshop** | the Workshop bench: the WORKSHOP tab in Advanced mode, over the window in Easy mode. |
 
 A small dot beside the logo lights up when MIDI arrives.
 
@@ -107,40 +111,64 @@ survive a macro move.
 
 ## Advanced mode
 
-A compressed guitar and fretboard strip across the top, then four scrollable
-columns.
+A compressed guitar and fretboard strip across the top, then four columns laid
+out the way the signal flows: the instrument, what picks it up, what amplifies it,
+and a workspace for everything that is not a knob. Columns 1 to 3 scroll on their
+own.
 
-### Column 1 - Strings
+Advanced mode needs a window at least 1000 points wide. Narrower than that, the
+switch is disabled and says why. Below 1280 points, columns 2 and 3 share one
+slot, one above the other.
 
-One row per string: its pitch, its computed tension, its gauge, and a mute square.
+### Column 1 - Instrument
 
-**The tension readout turns amber when it leaves the playable range.** That is the
-engine telling you the tuning you have asked for would need a string no
-manufacturer makes. It will still play - the value is nudged into range - but the
-warning is there.
-
-Below: the string set (material, gauge, age), the sustain scaling, and the tuning
-realism controls.
-
-### Column 2 - String detail
-
-Everything about the selected string, computed rather than stored: gauge in inches
-and millimetres, whether it is wound, its core diameter, its mass per metre, its
-tension, its inharmonicity coefficient, its T60 and its brightness.
-
-Below: fretless and slide guitar toggles, the action and buzz controls, the
-temperament, and the sympathetic coupling amount.
-
-### Column 3 - Body, pickups and hand
+**Temperament.** The temperament, the concert pitch (A4) and the capo.
 
 **Body.** Convolution or modal synthesis, the amount, and then the dimensions -
 size, depth, top thickness, sound hole, bracing, woods, age. In Modal mode these
 genuinely move the resonances, because the plate and Helmholtz equations are
 evaluated live.
 
-**Pickups.** The selector, then per slot: type, position, height, magnet, volume.
-Position runs from 0 at the bridge to 0.5 at the midpoint, and it is the same
-number the comb filter uses - a pickup at 1/N of the string nulls the Nth harmonic.
+**Strings.** One row per string: its pitch, its computed tension, and a mute
+square. Click a row to select the string.
+
+**The tension readout turns amber when it leaves the playable range.** That is the
+engine telling you the tuning you have asked for would need a string no
+manufacturer makes. It will still play - the value is nudged into range - but the
+warning is there.
+
+**String set.** Material, gauge and age for the set, and the sustain scaling.
+
+**Tuning realism.** Realism detune, intonation, and tuning drift - which lets the
+guitar slowly go out of tune while you play.
+
+**Selected string.** Everything about the selected string, computed rather than
+stored: gauge in inches and millimetres, whether it is wound, its core diameter,
+its mass per metre, its tension, its scale length, its inharmonicity coefficient,
+its T60, its brightness and how much it squeaks.
+
+**Neck.** Fretless and slide guitar toggles, and **Contact** - how much a string
+loses when it slaps a fret. Where and when it buzzes is the setup's job, in the
+CHARACTER tab's SETUP group.
+
+**Sympathetic.** How strongly the strings ring each other through the bridge.
+
+**Bridge.** The bridge type, then the whammy: bar position, down and up range,
+spring ring, and the transposing-tremolo detent.
+
+### Column 2 - Signal capture
+
+**Pickups.** The selector, then per slot: type, magnet and volume; coil tap; and
+the piezo / mic balance for acoustic instruments. Where a pickup sits and how high
+is set on the Workshop bench, by dragging it.
+
+**Circuit.** The guitar's own electronics, and a curve that shows what they are
+doing to the top end: the volume and tone controls, pot values and taper, the tone
+capacitor, treble bleed, an active buffer, and the cable - its length and quality -
+into the amp's input. Turning the guitar's volume down cleans the amp up, as it
+does on the real thing.
+
+**Pedalboard (before the amp).** The pre-amp pedal slots.
 
 **Playing hand.** Pick or fingers, material, thickness, angle, position, nail
 versus flesh.
@@ -148,17 +176,55 @@ versus flesh.
 **String noise.** Slide squeak, fret click, release thump, body knock, pick attack,
 amp buzz - each with its own control.
 
-### Column 4 - The rig
+### Column 3 - Amplification
 
-Bridge type and whammy, cable, the pre-amp pedalboard, the amplifier, the cabinet
-and microphones, the room, **sustain** (Freeze and E-Bow), the effects loop,
-performance settings, humanisation, feedback, doubler and master.
+**Amplifier.** The model and its face: gain, bass, mid, treble, presence and
+master, with the bright, mid boost and standby switches.
+
+**Effects loop (after the amp).** The post-amp pedal slots. The doubler lives here,
+as a pedal.
+
+**Cabinet and mic.** The cabinet and speaker, one or two microphones with position
+and distance, their blend, width and phase.
+
+**Room.** Size, material, blend, decay and width.
 
 **Sustain** holds a note after you have stopped playing it, two different ways.
 **Freeze** captures a window of what is sounding and loops it underneath whatever
 you play next - switch it on again to capture a new one. **E-Bow** drives the
 strings that are still ringing at their own resonance, so it sustains notes you
-are still holding rather than ones you have let go.
+are still holding rather than ones you have let go. The **feedback** row makes the
+amp sing back into the strings, with a light that shows when it is taking hold.
+
+**Performance.** Vibrato, strum speed and direction, bend range, the legato and
+chord windows, and MPE.
+
+**Humanise.** Timing, velocity, detune, attack, noise and strum variation.
+
+**Master.** Output level, the safety limiter, and oversampling.
+
+### Column 4 - The workspace
+
+A tab strip across the top, one panel behind each tab, in this order:
+
+| Tab | What it is for |
+|---|---|
+| **WORKSHOP** | the bench: swap any part of the guitar, drag pickups, compare builds, Save As Guitar. It takes over columns 3 and 4 while it is open. |
+| **MOD** | the modulation matrix - LFOs, envelopes, step sequencers, envelope followers, macros, a random source, and the route table. |
+| **RHYTHM** | the chord voicer, the strum and fingerpick pattern editors, feel, and genre kits. A bass step grid when the guitar is a bass. |
+| **TUNE** | write a whole tune: sections, a chord progression typed in shorthand, a melody piano roll, and a transport. |
+| **LIVE** | set up for the stage: the 128-snapshot bank, the setlist, crossfade and morph. |
+| **ROUTING** | bus layout, aux buses 1 to 8 (Aux 8 is the playing noise on its own), per-string outputs, the sidechain and MIDI out. |
+| **TONE MATCH** | impulse-response slots, the cab and EQ match wizards, capture, and the IR library. |
+| **CHARACTER** | the character seed, dead spots, fret wear, tuner drift, aged electronics, body age, environment, and the string noise, pick, setup and slide groups. |
+| **PRACTICE** | progress, routines, per-tool defaults, the library and the session recorder. The practice drawer is where you actually practise. |
+| **NOTATION** | capture what you play, a live tab view with chord symbols, and export as MusicXML, Guitar Pro, ASCII tab or MIDI. |
+| **MIDI OUT** | the MIDI export profile (Luthier or Generic), exporting or dragging out the capture, and live MIDI out. |
+| **CONTROLLERS** | the controller profile, the latency wizard, dead zone and minimum note length. |
+| **HELP** | this manual in the plugin, pinned to whichever panel you were on, with a live list of the keyboard shortcuts. |
+
+`Ctrl + [` and `Ctrl + ]` step through the tabs, wrapping at the ends. The tab you
+had open last is the one that opens next time.
 
 ---
 
@@ -173,7 +239,7 @@ Every control behaves the same way.
 | `Ctrl` / `Cmd` + drag | Ultra-fine |
 | Double-click | Reset to default |
 | Hover | The value replaces the label; a tooltip follows after 400 ms |
-| Right-click | Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise |
+| Right-click | Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise, Modulate |
 
 ### MIDI Learn
 
@@ -257,16 +323,17 @@ Plain JSON, extension `.luthierpreset`. See
 | User presets | `Documents/Luthier/Presets/User` |
 | Renders | `Documents/Luthier/Renders` |
 | Diagnostics | `Documents/Luthier/Diagnostics` |
-| Factory | inside the plugin bundle |
+| Factory | beside the plugin, or `Documents/Luthier/Presets/Factory` when the plugin's own folder cannot be written |
 
-Options has a button for each.
+**Options > FILE LOCATIONS** has a button that opens each one. The HELP tab's
+Presets topic shows the actual paths on your machine.
 
 A factory preset is never overwritten - saving one makes a user copy, so you cannot
 lose the original.
 
-**If a preset does not appear**: press **Rescan presets** in Options; check it is in
-one of the folders listed there; check its extension is exactly
-`.luthierpreset`. The folder it sits in becomes its category.
+**If a preset does not appear**: press **Rescan presets** in Options > FILE
+LOCATIONS; check it is in one of the folders listed there; check its extension is
+exactly `.luthierpreset`. The folder it sits in becomes its category.
 
 ---
 
@@ -304,31 +371,39 @@ luthier-render --help
 
 ## Options
 
-Options has five tabs along the top.
+Options (`Ctrl + ,`, or **File > Options**) has eleven tabs along the top:
+AUDIO, MIDI, APPEARANCE, ACCESSIBILITY, LOCALIZATION, EXPRESSION, RANGES, UPDATES,
+PRIVACY, DIAGNOSTICS and FILE LOCATIONS.
 
-### General
+### Audio
 
-- **Tooltips** on or off.
-- **Tuning drift** - lets the guitar slowly go out of tune while you play.
 - **Oversampling** - 4x by default. 2x sounds very close and costs noticeably less.
+  The same control is in Advanced mode, column 3, under Master.
+- **Devices** - handled by your host when running as a plugin, and by the
+  wrapper's own settings in the standalone. The page says where to find them.
+
+### MIDI
+
 - **Chord window** - how long Poly mode waits to collect a chord.
-- **Folders** - open the preset, render and diagnostics folders; add another folder
-  to scan; rescan.
-- **Audio and MIDI** - handled by your host when running as a plugin, and by the
-  wrapper's own toolbar in the standalone.
+- **Clear all MIDI mappings** - forgets every MIDI Learn assignment at once.
 
-### Controllers
+### Appearance
 
-- **Profile** - pick your controller and the channel map, pitch-bend range and
-  latency budget come with it. The notes underneath say what the profile assumes.
-- **Measure latency** - plays a short test and reports the round trip it actually
-  measured, with the scatter, so you can see whether the number is trustworthy. A
-  measured value overrides the profile's budget.
-- **Pitch dead zone** - how far a string has to move before it counts as a bend
-  rather than tracking noise.
-- **Minimum note length** - keeps a note alive long enough to be heard when a
-  controller sends an immediate note-off.
-- **Save as my profile** - stores your edits as a profile of your own.
+- **Palette** - the default, three colourblind-safe palettes, high contrast and
+  light.
+- **UI scale**, **reduced motion** (stops the animated meters and the data stream)
+  and **tooltips** on or off.
+
+### Accessibility
+
+- **Screen reader verbosity** and **font**.
+- **Shortcuts** - every keyboard shortcut, searchable and rebindable. Click a row
+  and press the key you want. **Reset all shortcuts** puts them back.
+
+### Localization
+
+- **Language** and a fallback, plus a custom string catalog if you want to supply
+  your own translation.
 
 ### Expression
 
@@ -337,36 +412,61 @@ Options has five tabs along the top.
 - **Curve** - linear, logarithmic or exponential response.
 - The list shows every CC that has been calibrated.
 
-### Accessibility
+### Ranges
 
-- **Screen reader verbosity**, **colourblind palette**, **UI scale** and
-  **font** - see the accessibility notes for what each palette changes.
-- **Reduced motion** - stops the animated meters and the data stream.
-- **Language** and a fallback, plus a custom string catalog if you want to supply
-  your own translation.
-- **Shortcuts** - every keyboard shortcut, searchable and rebindable. Click a row
-  and press the key you want.
+- **Advanced ranges for this preset** - lets controls go past their stock range.
+  Turning it off says how many values it will pull back before it does.
+- Whether marked values always show in the warning colour, and whether Randomise
+  stays inside the stock range.
+- A list of anything in the current preset that is outside its stock range.
+
+### Updates
+
+- Automatic checks on or off, beta releases on or off, a **Check now** button and
+  the release notes.
 
 ### Privacy
 
-- **Updates** - automatic checks on or off, beta releases on or off, and a
-  **Check now** button.
 - **Telemetry** - usage, diagnostics and crash reports are three separate opt-ins,
   all off unless you turn them on, each with a plain description of what it sends.
 - **View last upload** shows exactly what was sent, and **Clear all local logs**
   removes what is stored here.
 - The last button turns everything off and deletes every diagnostic file in one
   action, for when you would rather not think about it again.
+- The update, telemetry and crash-report addresses, for a network that goes through
+  a proxy.
+
+### Diagnostics
+
+- **Open the debug window**, **Create a log file if Luthier crashes**, **Export
+  troubleshooting file**, **Open diagnostics folder** and **Reset all settings and
+  clear caches** - the same tools as Help's debug window, described below.
+- Whether the session recorder keeps the last hour of audio.
+
+### File locations
+
+- A button that opens each folder Luthier uses: user presets, factory presets,
+  renders and diagnostics.
+- The folders it scans for presets, **Add a preset folder...** and **Rescan
+  presets**.
+
+Controller setup is not in Options any more: it is the **CONTROLLERS** tab in
+Advanced mode's workspace.
 
 ---
 
 ## Help and debug
 
-**?** in the header opens Help: a full description of every part of the interface,
-the technique map, the preset system, the shortcuts, troubleshooting, the licence
-and the links.
+**?** in the header, or `F1`, opens Help: a full description of every part of the
+interface, the technique map, the preset system, troubleshooting, the licence and
+the links, beside a list of every keyboard shortcut as it is bound right now - a
+shortcut you rebind shows up there straight away.
 
-Inside it, **Open Debug Tools** gives you:
+In Advanced mode Help is the **HELP** tab, and it opens on the topic for the panel
+you were working in: press `F1` on the TONE MATCH tab and you get TONE MATCH's page.
+In Easy mode it opens over the window.
+
+Inside it, **Open Debug Tools** (or `Ctrl + D`) gives you:
 
 - a **live state view** - every string's pitch, level and tension, the signal
   levels, the validator's corrections, and a self-test;
@@ -408,4 +508,4 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md). The short list:
 - **Crackles?** Lower the oversampling, or raise your host's buffer size.
 - **Out of tune?** Realism Detune is deliberate. Turn it to zero in Advanced for
   machine-perfect tuning.
-- **A preset will not load?** Rescan in Options.
+- **A preset will not load?** Rescan in Options > FILE LOCATIONS.

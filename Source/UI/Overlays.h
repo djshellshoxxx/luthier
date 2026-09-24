@@ -15,6 +15,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "OptionsPages.h"
+#include "HelpTab.h"
 #include "../DSP/Common/DspCommon.h"
 
 namespace luthier
@@ -125,36 +126,17 @@ public:
 
     juce::Point<int> getPreferredSize() const override { return { 860, 600 }; }
 
-    std::function<void()> onOpenDebug;
+    HelpTab& getView() noexcept { return view; }
+
+    /** Pins the help to a panel's topic; false (and unchanged) for a name no
+        topic answers to. */
+    bool showTopicFor (const juce::String& name) { return view.showTopicFor (name); }
 
 protected:
-    void layoutContent (juce::Rectangle<int> content) override;
+    void layoutContent (juce::Rectangle<int> content) override { view.setBounds (content); }
 
 private:
-    void showSection (int index);
-
-    LuthierAudioProcessor& processor;
-
-    juce::ListBox sectionList;
-    juce::TextEditor body;
-    juce::TextButton debugButton { "Open Debug Tools" };
-    juce::TextButton githubButton { "GitHub" };
-    juce::TextButton homepageButton { "Homepage" };
-    juce::TextButton supportButton { "Email Support" };
-
-    class SectionListModel : public juce::ListBoxModel
-    {
-    public:
-        explicit SectionListModel (HelpPanel& o) : owner (o) {}
-        int getNumRows() override;
-        void paintListBoxItem (int row, juce::Graphics&, int width, int height, bool selected) override;
-        void selectedRowsChanged (int lastRow) override;
-
-    private:
-        HelpPanel& owner;
-    };
-
-    SectionListModel listModel { *this };
+    HelpTab view;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HelpPanel)
 };

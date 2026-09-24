@@ -34,6 +34,7 @@
 #include "AmpFacePanel.h"
 #include "TunePanel.h"
 #include "PracticeSetupPanel.h"
+#include "HelpTab.h"
 
 namespace luthier
 {
@@ -121,6 +122,18 @@ public:
     /** True while the WORKSHOP tab has taken over columns 3 and 4. */
     bool isWorkshopShowing() const noexcept;
 
+    /** The HELP tab (gui-integration 4.4). */
+    HelpTab* getHelpTab() const noexcept { return helpTab.get(); }
+
+    /** Opens the HELP tab pinned to a topic (a tab name, a column section, an
+        Options page). */
+    void showHelp (const juce::String& topic);
+
+    /** accessibility 2 / gui-integration 17: what F1 should explain - the
+        workspace tab or column section holding the focused component, else
+        the tab on show; empty when that is HELP itself. */
+    juce::String getHelpContextFor (const juce::Component* focused) const;
+
     void setWorkspaceTab (int index);
 
     /*  Selects a tab by the name on it. For callers that want a particular panel
@@ -164,6 +177,9 @@ private:
 
         void paint (juce::Graphics&) override;
         void resized() override;
+
+        /** The heading of the section holding `c`, or empty. */
+        juce::String getSectionContaining (const juce::Component* c) const;
 
     private:
         struct Item
@@ -277,6 +293,7 @@ private:
     std::unique_ptr<RhythmPanel> rhythmPanel;
     std::unique_ptr<TunePanel> tunePanel;
     std::unique_ptr<PracticeSetupPanel> practiceSetupPanel;
+    std::unique_ptr<HelpTab> helpTab;
     std::unique_ptr<LivePanel> livePanel;
     std::unique_ptr<ToneMatchPanel> toneMatchPanel;
     std::unique_ptr<CharacterPanel> characterPanel;

@@ -117,6 +117,10 @@ private:
     MidiLearnArmLayer midiLearnArmLayer;
 
     HelpPanel helpPanel;
+
+    /** F1 and the header's ?: help on the panel in use (accessibility 2). */
+    juce::String getHelpContext() const;
+    void openHelp (const juce::String& topic);
     DebugPanel debugPanel;
     OptionsPanel optionsPanel;
     ExportPanel exportPanel;

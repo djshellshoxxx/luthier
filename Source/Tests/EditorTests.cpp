@@ -584,7 +584,7 @@ LUTHIER_TEST (Editor, everyWorkspaceTabSelectsAndPaints)
     // In order: tune-builder 3 puts TUNE between RHYTHM and LIVE; practice-tools
     // 11 puts PRACTICE between CHARACTER and NOTATION.
     const juce::StringArray tabNames { "WORKSHOP", "MOD", "RHYTHM", "TUNE", "LIVE", "ROUTING", "TONE MATCH",
-                                       "CHARACTER", "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS" };
+                                       "CHARACTER", "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "HELP" };
 
     CHECK_MSG (panel.getNumWorkspaceTabs() == tabNames.size(),
                "expected " + juce::String (tabNames.size()) + " workspace tabs, found "

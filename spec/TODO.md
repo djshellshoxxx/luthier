@@ -160,8 +160,13 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       15-08 (MIDI re-import), 15-09 (hum), 15-10 (standalone relaunch);
       a processor-level state-boundary test; the tune's own undo stack is
       separate from the plugin's.
-- [ ] 13. HELP tab (column 4). Assistant `help-tab-builder` writing it
-      under Source/WIP/.
+- [ ] 13. HELP tab (column 4): `HelpTab` / `HelpContent`, the tab and the
+      Easy overlay, F1 and ? pinned to the panel in use. Remaining: the
+      support links and email are placeholders (luthieraudio.example) -
+      release blocker; per-panel Docs menu items / ? icons (gui-integration
+      16, 20) to call `AdvancedPanel::showHelp`; stale docs/TROUBLESHOOTING.md
+      ("Panic (or `0`)", "Options > Oversampling") and USER_MANUAL.md column
+      descriptions.
 - [ ] 13b. **Phase 5b technique specs (added 2026-09-23)**, in INDEX order:
       `string-scraping.md` (assistant `scrape-builder` writing it under
       Source/WIP/; ScrapeEngine; also the pick-scrape trigger pick-noise 5 asks for - folded in from 3f), `string-slap-technique.md`,

@@ -806,9 +806,9 @@ exists on disk.
 | ACC-1-05 | Tested with NVDA, VoiceOver, Orca | accessibility §1 | - | not performed | `pending` |
 | ACC-2-01 | Tab / Shift-Tab order left-right, top-bottom by panel | accessibility §2 | JUCE focus traversal | none | `pending` - no defined order or test |
 | ACC-2-02 | Arrows adjust focused control (Shift finer, Ctrl coarser); Enter opens dropdowns | accessibility §2 | JUCE defaults | none | `implemented` |
-| ACC-2-03 | F1 context help for focused control | accessibility §2 | F1 opens Help overlay (GAPS A2) | none | `partial` - not context-sensitive |
+| ACC-2-03 | F1 context help for focused control | accessibility §2 | F1 pins Help to the workspace tab or column section holding focus (`AdvancedPanel::getHelpContextFor`) | `HelpTab::f1AndTheHeaderOpenHelpOnThePanelYouAreIn` | `partial` - panel-level, not per control (no per-control docs; DECISIONS) |
 | ACC-2-04 | Every action reachable by shortcut | accessibility §2 | registry | `AccessibilityTests.cpp` `Accessibility::shortcutDefaultsMatchTheCanonicalTable` | `verified` |
-| ACC-2-05 | "Show all shortcuts" overlay with search | accessibility §2 | `Ctrl+Shift+/` table (GAPS A5) | none | `implemented` |
+| ACC-2-05 | "Show all shortcuts" overlay with search | accessibility §2 | `Ctrl+Shift+/` table (GAPS A5); HELP cheat sheet with search | `HelpTab::theSearchFiltersTheSheet` | `verified` |
 | ACC-3-01 | Palettes Default, Deuteranopia, Protanopia, Tritanopia, High contrast, Light in Options -> Appearance | accessibility §3 | `Accessibility.cpp` palettes, now applied to the UI live (`a406915`) | `AccessibilityTests.cpp` `Accessibility::colourblindPalettesSeparateTheStatesTheyTarget`, `Accessibility::palettesMeetContrastRequirements`; `ThemeTests.cpp` `Theme::aPaletteChangeReachesBuiltComponents` | `verified` |
 | ACC-3-02 | Palettes ship as `Resources/Themes/*.json` | accessibility §3 | loader `Accessibility.cpp:342`; no files on disk | `AccessibilityTests.cpp` `Accessibility::palettesRoundTripThroughJson` | `partial` - built-in only |
 | ACC-3-03 | Meters use shape too: narrow strip below -18 dB, bracket icon over 0 dB | accessibility §3 | not found in `Widgets.cpp` | none | `pending` |
@@ -1588,7 +1588,7 @@ audits; rows below re-check them against the code at `173a292`.
 | GI-4.2-02 | Col 2 CIRCUIT replaces CABLE | GI §4.2 | `CircuitPanel` | none | `implemented` |
 | GI-4.2-03 | Col 2 PRE-FX: 8 slots, drag reorder, click controls, right-click bypass/delete | GI §4.2 | `PedalRack.cpp` | `EngineTests.cpp` `Effects::chainReordersWithoutGlitching` (engine) | `implemented` |
 | GI-4.3-01 | Col 3 AMP (model, tone, sag, bright, bias, master), POST-FX, CAB (mics, blend, phase, delay), ROOM, SUSTAIN (Freeze row, E-Bow row, feedback LED) | GI §4.3 | column 3 sections; SUSTAIN has the Freeze row, the E-Bow row (enable, strings, intensity, harmonic) and the feedback row with `FeedbackLed`; Doubler in the POST-FX rack | none | `partial` - no sag/bias controls |
-| GI-4.4-01 | Col 4 tab order WORKSHOP, MOD, RHYTHM, TUNE, LIVE, ROUTING, TONE MATCH, CHARACTER, PRACTICE, NOTATION, MIDI OUT, CONTROLLERS, HELP | GI §4.4; BRIEF rules | `AdvancedPanel` builds 10 in the fixed order: WORKSHOP, MOD, RHYTHM, LIVE, ROUTING, TONE MATCH, CHARACTER, NOTATION, MIDI OUT, CONTROLLERS | `EditorTests.cpp` `Editor::everyWorkspaceTabSelectsAndPaints`; `MidiOutPanelTests.cpp` `MidiOutPanel::theTabSitsInTheFixedOrderAndIsRememberedByName` | `partial` - TUNE, PRACTICE, HELP (and TECHNIQUES, C-32) missing |
+| GI-4.4-01 | Col 4 tab order WORKSHOP, MOD, RHYTHM, TUNE, LIVE, ROUTING, TONE MATCH, CHARACTER, PRACTICE, NOTATION, MIDI OUT, CONTROLLERS, HELP | GI §4.4; BRIEF rules | `AdvancedPanel` builds all 13 in the fixed order (TECHNIQUES, added by gui-techniques-updates / C-32, is tracked there) | `EditorTests` `Editor::everyWorkspaceTabSelectsAndPaints`, `HelpTab::theWorkspaceTopicNamesEveryTabThatExists` | `verified` |
 | GI-4.4-02 | WORKSHOP tab (bench over cols 3+4, col 4 strip stays visible) | GI §4.4 | `WorkshopPanel` (`d45fcd6`) | `WorkshopPanelTests.cpp` `WorkshopPanel::itPaintsAndTheWorkshopTabTakesOverColumnsThreeAndFour` | `verified` |
 | GI-4.4-03 | TUNE tab | GI §4.4 | not built | none | `pending` |
 | GI-4.4-04 | LIVE tab incl. expression calibration | GI §4.4 | `LivePanel`; calibration stays in Options (GAPS A2; Conflict C-11) | `EditorTests.cpp` `Editor::theLiveTabEditsTheSnapshotBankAndTheSetlist` | `verified` - calibration placement per C-11 |
@@ -1598,7 +1598,7 @@ audits; rows below re-check them against the code at `173a292`.
 | GI-4.4-08 | NOTATION tab | GI §4.4 | `NotationPanel` (`18a1396`) | `EditorTests.cpp` `Editor::everyWorkspaceTabSelectsAndPaints`; `NotationPanelTests.cpp` `NotationTab::*` | `verified` |
 | GI-4.4-09 | MIDI OUT tab | GI §4.4 | `MidiOutPanel` (`a357142`) | `MidiOutPanelTests.cpp` `MidiOutPanel::*` | `verified` |
 | GI-4.4-10 | CONTROLLERS tab | GI §4.4 | `ControllersPage` | `EditorTests.cpp` `Editor::everyWorkspaceTabSelectsAndPaints` | `verified` |
-| GI-4.4-11 | HELP tab with live shortcut cheat sheet | GI §4.4 | Help is an F1 overlay only | none | `pending` |
+| GI-4.4-11 | HELP tab with live shortcut cheat sheet | GI §4.4 | `Source/UI/HelpTab.*`, `HelpContent.*`; last workspace tab | `HelpTabTests.cpp` `HelpTab::aRebindShowsUpInTheCheatSheetAndTheText`, `theWorkspaceTopicNamesEveryTabThatExists`, `rendersNarrowAndWide` | `verified` |
 | GI-4.4-12 | Last-used tab persists user-globally | GI §4.4 | `UiPreferences` `config/ui.json` | `EditorTests.cpp` `Editor::theWorkspaceTabWrapsAndIsRemembered` | `verified` |
 | GI-4.5-01 | Widths 260 / min 220 / col 4 min 480; stack cols 2+3 below 1280; Advanced unavailable below 1000 with notice | GI §4.5, §13 | `AdvancedPanel` layout; `InlineNotice` | `EditorTests.cpp` `Editor::advancedModeIsRefusedBelowItsMinimumWidth` | `verified` |
 | GI-5-01 | Options overlay (`Ctrl+,`), modal, 11 tabs in order | GI §5 | `Overlays.cpp:787-797` (11 tabs incl. RANGES) | `EditorTests.cpp` `Editor::everyOptionsPageSelectsAndPaints` | `verified` |
@@ -1667,7 +1667,7 @@ and works; secondary access is noted.
 | GI-19-32 | Export audio -> File menu, Options AUDIO | export overlay | none | `implemented` |
 | GI-19-33 | Export MIDI -> Col 4 MIDI OUT, session drag-out; NOTATION | MIDI OUT export and drag-out (`a357142`); NOTATION exports MIDI through the same profile (`18a1396`) | `MidiOutPanelTests.cpp` `MidiOutPanel::exportWritesTheCaptureInTheChosenProfile`; `NotationPanelTests.cpp` `NotationTab::exportsEveryFormat` | `verified` - drag from the session recorder's own Save button pending (TODO 10) |
 | GI-19-34 | Import MIDI -> File menu, drag onto plugin | not built | none | `pending` |
-| GI-19-35 | Help -> header ?, Col 4 HELP; F1 | overlay only | `EditorTests.cpp` `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` | `partial` |
+| GI-19-35 | Help -> header ?, Col 4 HELP; F1 | GI §19 | editor `openHelp (getHelpContext())` from F1 and the header; HELP tab in Advanced, overlay in Easy | `HelpTab::f1AndTheHeaderOpenHelpOnThePanelYouAreIn` | `verified` |
 | GI-19-36 | Debug -> Options DIAGNOSTICS | present | none | `implemented` |
 | GI-19-37 | Easter egg -> notch pixel | `PluginEditor.cpp:231-255` | none | `implemented` |
 | GI-19-38 | Bus layout / aux 1-8 / per-string / sidechain / MIDI out -> ROUTING | ROUTING (aux 1-8, per-string buses by name) | `PluginBusTests.cpp` `PluginBuses::perStringLayoutPutsEachStringOnItsOwnBus`, `PluginBuses::aux8CarriesThePlayingNoiseAndObeysItsStrip` | `verified` |
@@ -2941,10 +2941,10 @@ updating.
 
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
-| INC-HLP-01 | Help section explaining every feature, workflow, GUI | include.md §Help | `Source/UI/Overlays.cpp` Help overlay | `EditorTests.cpp` `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` (opens only) | `implemented` - content completeness unreviewed |
+| INC-HLP-01 | Help section explaining every feature, workflow, GUI | include.md §Help | `HelpContent` - 28 topics, one per column, tab and Options page | `HelpTab::theContentCoversWhatIncludeMdAsksFor`, `everyPanelNamePinsOneTopic` | `verified` |
 | INC-HLP-02 | Help shows version, licence, GitHub link, homepage, support email | include.md §Help | `Overlays.cpp:394-462` | none | `partial` - URLs and email are placeholders (`luthieraudio.example`); release blocker |
-| INC-HLP-03 | Troubleshooting: manual install/uninstall; where presets go | include.md §Help | Help overlay text; `docs/TROUBLESHOOTING.md` | none | `implemented` |
-| INC-HLP-04 | Debug button in help | include.md §Help | `Overlays.cpp` debug section | none | `implemented` |
+| INC-HLP-03 | Troubleshooting: manual install/uninstall; where presets go | include.md §Help | Troubleshooting topic with this machine's preset and diagnostics folders; `docs/TROUBLESHOOTING.md` | `HelpTab::theContentCoversWhatIncludeMdAsksFor` | `verified` |
+| INC-HLP-04 | Debug button in help | include.md §Help | HelpTab footer "Open Debug Tools" (same DebugPanel as Options DIAGNOSTICS) | `HelpTab::theContentCoversWhatIncludeMdAsksFor`, `f1AndTheHeaderOpenHelpOnThePanelYouAreIn` | `verified` |
 | INC-ICO-01 | Unique app icon | include.md §Custom Icon | `Resources/icon.png`, `icon_small.png`, `luthier.ico`; `CMakeLists.txt` ICON_BIG | file present | `implemented` |
 | INC-PRE-01 | Bank of descriptively named presets | include.md §Presets | `Source/Presets/FactoryPresets.cpp` (36) | `IntegrationTests.cpp` `Presets::everyFactoryPresetLoadsAndPlays` | `verified` |
 | INC-RST-01 | Reset button restores defaults | include.md §Reset | `HeaderBar.cpp`; `PluginProcessor` reset | `IntegrationTests.cpp` `Presets::resetRestoresDefaults` | `verified` |

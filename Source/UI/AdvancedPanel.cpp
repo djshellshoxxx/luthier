@@ -946,11 +946,9 @@ void AdvancedPanel::buildColumn3()
 
 /*  Column 4, section 4.4: the workspace.
 
-    The tab order is section 4.4's own. Seven of its thirteen tabs have a panel
-    behind them; the other six - WORKSHOP, TUNE, PRACTICE, NOTATION, MIDI OUT,
-    HELP - are either blocked on a spec that is not written or are surfaces
-    nobody has built, and a tab that opens on nothing is worse than no tab.
-    GAPS.md A2 has the list.
+    The tab order is section 4.4's own, and every one of its thirteen tabs has
+    a panel behind it but TECHNIQUES (gui-techniques-updates, not built yet): a
+    tab that opens on nothing is worse than no tab. GAPS.md A2 has the history.
 
     Five of the seven used to be sections stacked at the bottom of the rig column,
     each with a comment saying it should have been a tab. They are tabs now.
@@ -967,6 +965,51 @@ void AdvancedPanel::buildColumn3()
     either one saved a profile. Options is ten tabs now, which is section 5's
     list exactly, minus RANGES.
 */
+void AdvancedPanel::showHelp (const juce::String& topic)
+{
+    if (helpTab == nullptr)
+        return;
+
+    helpTab->showTopicFor (topic);
+    setWorkspaceTabNamed ("HELP");
+}
+
+juce::String AdvancedPanel::getHelpContextFor (const juce::Component* focused) const
+{
+    if (focused != nullptr)
+    {
+        for (int i = 0; i < workspacePanels.size(); ++i)
+            if (auto* panel = workspacePanels[i]; panel != nullptr && (panel == focused || panel->isParentOf (focused)))
+                return workspacePanels[i] == helpTab.get() ? juce::String() : getWorkspaceTabName (i);
+
+        for (const auto& column : columns)
+            if (column != nullptr)
+                if (auto section = column->getSectionContaining (focused); section.isNotEmpty())
+                    return section;
+    }
+
+    const auto shown = getWorkspaceTabName (workspaceTab);
+    return shown == "HELP" ? juce::String() : shown;
+}
+
+juce::String AdvancedPanel::Column::getSectionContaining (const juce::Component* c) const
+{
+    if (c == nullptr)
+        return {};
+
+    juce::String heading;
+
+    for (const auto& item : items)
+    {
+        if (item.component == nullptr && ! item.isGap)
+            heading = item.heading;
+        else if (item.component != nullptr && (item.component == c || item.component->isParentOf (c)))
+            return heading;
+    }
+
+    return {};
+}
+
 bool AdvancedPanel::isWorkshopShowing() const noexcept
 {
     return workshopPanel != nullptr && juce::isPositiveAndBelow (workspaceTab, workspacePanels.size())
@@ -987,6 +1030,7 @@ void AdvancedPanel::buildWorkspace()
     midiOutPanel    = std::make_unique<MidiOutPanel> (processor);
     notationPanel   = std::make_unique<NotationPanel> (processor);
     practiceSetupPanel = std::make_unique<PracticeSetupPanel> (processor);
+    helpTab         = std::make_unique<HelpTab> (processor);
 
     const struct { const char* name; juce::Component* panel; } tabs[] =
     {
@@ -1001,7 +1045,8 @@ void AdvancedPanel::buildWorkspace()
         { "PRACTICE",    practiceSetupPanel.get() },
         { "NOTATION",    notationPanel.get() },
         { "MIDI OUT",    midiOutPanel.get() },
-        { "CONTROLLERS", controllersPage.get() }
+        { "CONTROLLERS", controllersPage.get() },
+        { "HELP",        helpTab.get() }
     };
 
     for (const auto& tab : tabs)
@@ -1253,7 +1298,8 @@ void AdvancedPanel::resized()
     if (auto* panel = workspaceViewport.getViewedComponent())
         panel->setSize (juce::jmax (80, workspaceViewport.getMaximumVisibleWidth()),
                         workshop ? juce::jmax (560, workspaceViewport.getMaximumVisibleHeight())
-                                 : juce::jmax (80, panel->getHeight()));
+                                 : panel == helpTab.get() ? juce::jmax (360, workspaceViewport.getMaximumVisibleHeight())
+                                                          : juce::jmax (80, panel->getHeight()));
 }
 
 } // namespace luthier

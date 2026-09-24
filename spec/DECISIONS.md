@@ -511,3 +511,16 @@ chosen") and `ambiguity-resolutions.md`.
   4.7 test passes. The unison preference is the spec's weights at work, not
   a defect; whether strummed unisons sound right is left to a listening pass
   (TODO 2d).
+- **HELP is one surface in two places** (gui-integration 4.4, GAPS A2): the
+  column-4 HELP tab in Advanced and the overlay in Easy are the same
+  `HelpTab`, as WORKSHOP is. Its shortcut cheat sheet is read from the
+  AccessibilitySettings registry, so a rebind shows; it is read-only, and
+  rebinding stays in Options (accessibility 9) behind Rebind... Escape and
+  the digit keys are listed as fixed rows. include.md's debug button stays
+  in Help as well as in Options DIAGNOSTICS; both open the one DebugPanel.
+  F1 and the header's ? pin Help to the workspace tab or column section
+  holding the focused control - panel-level, because per-control docs do
+  not exist (accessibility 2 asks for "the focused control"). A name like
+  "String Noise" (column 2 and a CHARACTER group) pins one topic, column 2's.
+  No "Take the tour" button (onboarding 2): there is no tour for it to
+  start. The help is English only (accessibility 7 pending).
