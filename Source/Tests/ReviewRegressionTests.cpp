@@ -543,3 +543,44 @@ LUTHIER_TEST (ReviewRegression, aHardtailIgnoresTheWhammyRanges)
     CHECK (whammy.getDownRange() == 0.0);
     CHECK (whammy.getUpRange() == 0.0);
 }
+
+//==============================================================================
+/*  R-201: MIDI Learn read its mapping array on the audio thread without the
+    lock the message thread held while clearing or reallocating it, looked the
+    parameter up by String id there, and finished a learn with a callAsync that
+    captured a raw this. The audio thread now reads a plain table under a
+    try-lock; a learn is finished by the manager's own AsyncUpdater. */
+LUTHIER_TEST (ReviewRegression, midiLearnLearnsAppliesAndSurvivesAClear)
+{
+    LuthierAudioProcessor processor;
+    auto& learn = processor.getMidiLearn();
+    auto* target = processor.getParameters()[0];
+    auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (target);
+    CHECK (withId != nullptr);
+
+    if (withId == nullptr)
+        return;
+
+    learn.startLearning (withId->paramID);
+
+    juce::MidiBuffer cc;
+    cc.addEvent (juce::MidiMessage::controllerEvent (1, 21, 64), 0);
+    learn.processMidi (cc);
+
+    // The message thread finishes the learn.
+    learn.dispatchPendingLearn();
+    CHECK_MSG (learn.getCcForParameter (withId->paramID) == 21, "the CC was not learned");
+
+    juce::MidiBuffer full;
+    full.addEvent (juce::MidiMessage::controllerEvent (1, 21, 127), 0);
+    learn.processMidi (full);
+    CHECK_NEAR (target->getValue(), 1.0f, 1.0e-6f);
+
+    // Cleared, the CC no longer reaches the parameter (and nothing indexes an
+    // empty array).
+    learn.clearAllMappings();
+    juce::MidiBuffer zero;
+    zero.addEvent (juce::MidiMessage::controllerEvent (1, 21, 0), 0);
+    learn.processMidi (zero);
+    CHECK_NEAR (target->getValue(), 1.0f, 1.0e-6f);
+}
