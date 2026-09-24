@@ -217,16 +217,38 @@ void Fonts::drawTrackedText (juce::Graphics& g, const juce::String& text,
     if (text.isEmpty())
         return;
 
-    const auto font = g.getCurrentFont();
-    const float extra = font.getHeight() * tracking;
+    auto font = g.getCurrentFont();
+
+    auto measure = [&text] (const juce::Font& f, float t)
+    {
+        float w = 0.0f;
+        for (int i = 0; i < text.length(); ++i)
+            w += f.getStringWidthFloat (text.substring (i, i + 1)) + f.getHeight() * t;
+        return w - f.getHeight() * t;
+    };
 
     // Measure with the tracking included so the justification stays correct.
-    float total = 0.0f;
+    float total = measure (font, tracking);
 
-    for (int i = 0; i < text.length(); ++i)
-        total += font.getStringWidthFloat (text.substring (i, i + 1)) + extra;
+    /*  Text that does not fit loses its tracking first, then shrinks (to 7.5 pt
+        at the least), rather than running into its neighbours ("ACTION TACTION
+        B") or being clipped (TODO V, screenshots of every panel). */
+    const float room = (float) area.getWidth();
 
-    total -= extra;
+    if (total > room && room > 0.0f)
+    {
+        tracking = 0.0f;
+        total = measure (font, 0.0f);
+
+        if (total > room)
+        {
+            font = font.withHeight (juce::jmax (7.5f, font.getHeight() * room / total));
+            g.setFont (font);
+            total = measure (font, 0.0f);
+        }
+    }
+
+    const float extra = font.getHeight() * tracking;
 
     float x = (float) area.getX();
 
@@ -884,32 +906,10 @@ void LuthierLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& bu
 
     g.setColour (colour);
 
-    // A label that does not fit loses its tracking, then shrinks (to 8 pt at
-    // most), rather than being clipped at both ends (TODO V screenshots).
-    const auto text = button.getButtonText().toUpperCase();
-    auto font = getTextButtonFont (button, button.getHeight());
-    float tracking = 0.08f;
-    const float room = (float) button.getWidth() - 6.0f;
-
-    auto widthOf = [&text] (const juce::Font& f, float t)
-    {
-        float w = 0.0f;
-        for (int i = 0; i < text.length(); ++i)
-            w += f.getStringWidthFloat (text.substring (i, i + 1)) + f.getHeight() * t;
-        return w - f.getHeight() * t;
-    };
-
-    if (widthOf (font, tracking) > room)
-    {
-        tracking = 0.0f;
-        const float w = widthOf (font, 0.0f);
-
-        if (w > room && w > 0.0f)
-            font = font.withHeight (juce::jmax (8.0f, font.getHeight() * room / w));
-    }
-
-    g.setFont (font);
-    Fonts::drawTrackedText (g, text, button.getLocalBounds(), juce::Justification::centred, tracking);
+    // drawTrackedText fits a label that is too long for the button (TODO V).
+    g.setFont (getTextButtonFont (button, button.getHeight()));
+    Fonts::drawTrackedText (g, button.getButtonText().toUpperCase(),
+                            button.getLocalBounds().reduced (3, 0), juce::Justification::centred);
 }
 
 void LuthierLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button,
@@ -975,7 +975,18 @@ void LuthierLookAndFeel::positionComboBoxText (juce::ComboBox& box, juce::Label&
 }
 
 juce::Font LuthierLookAndFeel::getComboBoxFont (juce::ComboBox&)  { return Fonts::ui (12.0f); }
-juce::Font LuthierLookAndFeel::getLabelFont (juce::Label&)        { return Fonts::ui (12.0f); }
+juce::Font LuthierLookAndFeel::getLabelFont (juce::Label& label)
+{
+    // A label left at JUCE's default font takes the theme's; one given its own
+    // (the Workshop's display-face title) keeps it. Returning the theme's font
+    // for every label hid each setFont in the plugin (TODO V screenshots).
+    const auto f = label.getFont();
+
+    if (std::abs (f.getHeight() - 15.0f) < 0.01f && f.getTypefaceName() == juce::Font::getDefaultSansSerifFontName())
+        return Fonts::ui (12.0f);
+
+    return f;
+}
 juce::Font LuthierLookAndFeel::getPopupMenuFont()                 { return Fonts::ui (13.0f); }
 
 juce::Font LuthierLookAndFeel::getTextButtonFont (juce::TextButton&, int buttonHeight)

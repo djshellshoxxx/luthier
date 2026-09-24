@@ -1039,6 +1039,13 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
         b->onClick = [this, name = juce::String (c.name)] { showCategory (name); };
     }
 
+    // Section 1: below 700 points the categories are a dropdown.
+    addChildComponent (categoryBox);
+    categoryBox.setTitle ("Parts category");
+    for (int i = 0; i < (int) std::size (kCategories); ++i)
+        categoryBox.addItem (kCategories[i].name, i + 1);
+    categoryBox.onChange = [this] { showCategory (categoryBox.getText()); };
+
     addAndMakeVisible (illustration);
     illustration.onSelectionChanged = [this]
     {
@@ -1059,6 +1066,11 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
                 }
 
         refreshInspector();
+
+        // Narrow: the inspector drawer opens and closes with the selection.
+        if (inspectorCollapsed && (illustration.getSelected() != GuitarRegion::none) != isInspectorShowing())
+            resized();
+
         repaint();
     };
     illustration.onPickupDragged = [this] (int index, double mm)
@@ -1180,6 +1192,10 @@ void WorkshopPanel::showCategory (const juce::String& name)
 
     for (auto* b : categoryButtons)
         b->setToggleState (b->getButtonText() == name, juce::dontSendNotification);
+
+    for (int i = 0; i < categoryBox.getNumItems(); ++i)
+        if (categoryBox.getItemText (i) == name)
+            categoryBox.setSelectedItemIndex (i, juce::dontSendNotification);
 
     refreshDrawer();
     repaint();
@@ -1744,16 +1760,98 @@ void WorkshopPanel::resized()
 
     area.removeFromTop (Metrics::gridHalf);
 
-    // Section 1: the inspector down the right, the spectrum under it.
-    const bool wide = area.getWidth() >= 900;
-    auto right = area.removeFromRight (wide ? 240 : 190);
-    area.removeFromRight (Metrics::grid);
+    /*  Section 1: at 900 points and wider the inspector runs down the right with
+        the spectrum under it. Narrower, the inspector becomes a drawer that
+        opens beside the illustration while a part is selected, and the
+        spectrum sits beside the setup strip; below 700 the parts drawer's
+        categories become a dropdown. */
+    const bool wide = area.getWidth() >= kWideBench;
+    const bool narrow = area.getWidth() < kNarrowBench;
+    inspectorCollapsed = ! wide;
+    const bool inspectorOpen = wide || illustration.getSelected() != GuitarRegion::none;
 
-    spectrumArea = right.removeFromBottom (juce::jmin (180, right.getHeight() / 3));
+    juce::Rectangle<int> right;
+
+    if (wide)
+    {
+        right = area.removeFromRight (240);
+        area.removeFromRight (Metrics::grid);
+        spectrumArea = right.removeFromBottom (juce::jmin (180, right.getHeight() / 3));
+        right.removeFromBottom (Metrics::grid);
+    }
+
+    // The setup strip (and, narrow, the spectrum beside it).
+    auto bottom = area.removeFromBottom (wide ? 86 : 100);
+    area.removeFromBottom (Metrics::gridHalf);
+
+    if (! wide)
+    {
+        spectrumArea = bottom.removeFromRight (juce::jmin (240, bottom.getWidth() / 3));
+        bottom.removeFromRight (Metrics::grid);
+    }
+
     autoZoomToggle.setBounds (spectrumArea.getRight() - 96, spectrumArea.getY() + 2, 94, 20);
-    right.removeFromBottom (Metrics::grid);
+
+    setupArea = bottom;
+    {
+        auto s = setupArea.reduced (0, 2);
+        s.removeFromTop (wide ? 0 : 12);
+        const int knobW = juce::jmax (36, s.getWidth() / (3 + nutDepths.size()));
+        for (auto* k : { actionTreble.get(), actionBass.get(), relief.get() })
+            k->setBounds (s.removeFromLeft (knobW));
+        for (auto* k : nutDepths)
+            k->setBounds (s.removeFromLeft (knobW));
+    }
+
+    drawerArea = area.removeFromBottom (juce::jmax (110, area.getHeight() / 3));
+    {
+        categoryBox.setVisible (narrow);
+
+        if (narrow)
+        {
+            categoryBox.setBounds (drawerArea.removeFromTop (26).removeFromLeft (200));
+
+            for (auto* b : categoryButtons)
+                b->setVisible (false);
+        }
+        else
+        {
+            // One row, or two when one would squeeze the names under 64 points.
+            const int count = categoryButtons.size();
+            const int rows = drawerArea.getWidth() / juce::jmax (1, count) < 64 ? 2 : 1;
+            const int perRow = (count + rows - 1) / rows;
+            int next = 0;
+
+            for (int r = 0; r < rows; ++r)
+            {
+                auto tabs = drawerArea.removeFromTop (24);
+                const int w = tabs.getWidth() / juce::jmax (1, perRow);
+
+                for (int i = 0; i < perRow && next < count; ++i)
+                {
+                    categoryButtons[next]->setVisible (true);
+                    categoryButtons[next++]->setBounds (tabs.removeFromLeft (w).reduced (1, 0));
+                }
+            }
+        }
+    }
+    area.removeFromBottom (Metrics::gridHalf);
+
+    if (! wide)
+    {
+        // The drawer inspector: beside the illustration while a part is selected.
+        right = inspectorOpen ? area.removeFromRight (juce::jmin (230, area.getWidth() / 3)) : juce::Rectangle<int>();
+
+        if (inspectorOpen)
+            area.removeFromRight (Metrics::gridHalf);
+    }
 
     inspectorArea = right;
+
+    for (auto* b : { &swapButton, &revertButton, &savePartButton })
+        b->setVisible (! inspectorArea.isEmpty());
+
+    if (! inspectorArea.isEmpty())
     {
         auto buttons = inspectorArea.withTrimmedTop (inspectorArea.getHeight() - 28);
         const int w = buttons.getWidth() / 3;
@@ -1761,26 +1859,6 @@ void WorkshopPanel::resized()
         revertButton.setBounds (buttons.removeFromLeft (w).reduced (1, 2));
         savePartButton.setBounds (buttons.reduced (1, 2));
     }
-
-    setupArea = area.removeFromBottom (86);
-    {
-        auto s = setupArea.reduced (0, 2);
-        const int knobW = juce::jmax (48, s.getWidth() / 9);
-        for (auto* k : { actionTreble.get(), actionBass.get(), relief.get() })
-            k->setBounds (s.removeFromLeft (knobW));
-        for (auto* k : nutDepths)
-            k->setBounds (s.removeFromLeft (knobW));
-    }
-    area.removeFromBottom (Metrics::gridHalf);
-
-    drawerArea = area.removeFromBottom (juce::jmax (110, area.getHeight() / 3));
-    {
-        auto tabs = drawerArea.removeFromTop (24);
-        const int w = tabs.getWidth() / juce::jmax (1, categoryButtons.size());
-        for (auto* b : categoryButtons)
-            b->setBounds (tabs.removeFromLeft (w).reduced (1, 0));
-    }
-    area.removeFromBottom (Metrics::gridHalf);
 
     illustrationArea = area;
     illustration.setBounds (illustrationArea);
@@ -1791,7 +1869,9 @@ void WorkshopPanel::paint (juce::Graphics& g)
     g.fillAll (Palette::background);
 
     paintDrawer (g, drawerArea);
-    paintInspector (g, inspectorArea);
+
+    if (! inspectorArea.isEmpty())
+        paintInspector (g, inspectorArea);
     paintSpectrum (g, spectrumArea);
 
     LuthierLookAndFeel::drawSectionHeader (g, setupArea.withHeight (16).translated (0, -2), "Setup");

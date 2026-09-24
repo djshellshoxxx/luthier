@@ -594,3 +594,39 @@ LUTHIER_TEST (WorkshopEditor, theWrenchOpensTheBenchInEasyModeAndTheTabInAdvance
         CHECK (! host->isShowingOverlay());
     }
 }
+
+//==============================================================================
+/*  workshop-ui.md 1: 900 points and up, the inspector is a column; narrower, a
+    drawer that opens beside the illustration with a selection; under 700 the
+    categories are a dropdown. Nothing hangs outside the bench at any width. */
+LUTHIER_TEST (WorkshopLayout, theBenchCollapsesItsInspectorAndDrawerWhenNarrow)
+{
+    Bench b;
+    WorkshopPanel panel (b.processor);
+    panel.setVisible (true);
+
+    auto everythingInside = [&panel]
+    {
+        for (auto* child : panel.getChildren())
+            if (child->isVisible() && ! panel.getLocalBounds().contains (child->getBounds()))
+                return false;
+        return true;
+    };
+
+    panel.setSize (1200, 760);
+    CHECK (! panel.isInspectorCollapsed() && panel.isInspectorShowing() && ! panel.areCategoriesADropdown());
+    CHECK (everythingInside());
+
+    panel.setSize (800, 760);
+    CHECK (panel.isInspectorCollapsed() && ! panel.isInspectorShowing() && ! panel.areCategoriesADropdown());
+    panel.getIllustration().select (GuitarRegion::bridge, 0);
+    CHECK (panel.isInspectorShowing());
+    CHECK (panel.getInspectorTitle().startsWith ("Bridge"));
+    CHECK (everythingInside());
+    panel.getIllustration().select (GuitarRegion::none);
+    CHECK (! panel.isInspectorShowing());
+
+    panel.setSize (660, 700);
+    CHECK (panel.areCategoriesADropdown());
+    CHECK (everythingInside());
+}

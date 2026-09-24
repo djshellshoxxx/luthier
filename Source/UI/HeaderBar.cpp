@@ -497,12 +497,17 @@ void HeaderBar::paint (juce::Graphics& g)
     g.setColour (Palette::edge);
     g.fillRect (bounds.removeFromBottom (1));
 
-    // ---- logo -------------------------------------------------------------------
-    auto logoArea = getLocalBounds().withTrimmedLeft (28).withWidth (96);
+    // ---- logo: the brass headstock mark and the name in the display face ---------
+    // (visual-polish.md 6.2 and 6.4, TODO V). The window's own notch sits under
+    // this strip, so the mark is drawn here, beside the name.
+    auto logoArea = getLocalBounds().withTrimmedLeft (22).withWidth (102);
+
+    LuthierLookAndFeel::drawSignatureNotch (g, { logoArea.getX() - 4, (getHeight() - 28) / 2, 20, 28 }, Palette::accent);
+    logoArea.removeFromLeft (18);
 
     g.setColour (Palette::textPrimary);
-    g.setFont (Fonts::ui (16.0f, true));
-    Fonts::drawTrackedText (g, "LUTHIER", logoArea, juce::Justification::centredLeft, 0.14f);
+    g.setFont (Fonts::display (24.0f));
+    Fonts::drawTrackedText (g, "LUTHIER", logoArea, juce::Justification::centredLeft, 0.12f);
 
     // ---- MIDI activity indicator ---------------------------------------------------
     const bool active = processor.getEngine().getMidiInterpreter().getActiveNoteCount() > 0;
@@ -524,41 +529,48 @@ void HeaderBar::resized()
     bounds.removeFromLeft (20);            // clear the LED
     bounds.removeFromLeft (96 + 14);       // logo and the MIDI dot
 
+    /*  gui-integration.md 2: the header collapses gracefully below 1280. Every
+        control keeps its place; below 1280 each takes a little less room so the
+        preset name keeps at least a readable width (at 1200 it was 24 points and
+        read "INIT" in a box barely wider than the word - TODO V screenshots). */
+    const bool compact = getWidth() < 1280;
+    auto w = [compact] (int full, int small) { return compact ? small : full; };
+
     // ---- right-hand cluster ---------------------------------------------------------
-    modeButton.setBounds (bounds.removeFromRight (84).reduced (2, 0));
+    modeButton.setBounds (bounds.removeFromRight (w (84, 78)).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
-    liveButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
-    slideButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
-    workshopButton.setBounds (bounds.removeFromRight (82).reduced (2, 0));
+    liveButton.setBounds (bounds.removeFromRight (w (52, 44)).reduced (2, 0));
+    slideButton.setBounds (bounds.removeFromRight (w (52, 46)).reduced (2, 0));
+    workshopButton.setBounds (bounds.removeFromRight (w (82, 74)).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
-    helpButton.setBounds (bounds.removeFromRight (30).reduced (2, 0));
-    panicButton.setBounds (bounds.removeFromRight (56).reduced (2, 0));
-    midiLearnButton.setBounds (bounds.removeFromRight (54).reduced (2, 0));
-
-    bounds.removeFromRight (Metrics::gridHalf);
-
-    redoButton.setBounds (bounds.removeFromRight (50).reduced (2, 0));
-    undoButton.setBounds (bounds.removeFromRight (50).reduced (2, 0));
+    helpButton.setBounds (bounds.removeFromRight (w (30, 26)).reduced (2, 0));
+    panicButton.setBounds (bounds.removeFromRight (w (56, 50)).reduced (2, 0));
+    midiLearnButton.setBounds (bounds.removeFromRight (w (54, 48)).reduced (2, 0));
 
     bounds.removeFromRight (Metrics::gridHalf);
 
-    copyAB.setBounds (bounds.removeFromRight (40).reduced (2, 0));
-    compareB.setBounds (bounds.removeFromRight (28).reduced (2, 0));
-    compareA.setBounds (bounds.removeFromRight (28).reduced (2, 0));
+    redoButton.setBounds (bounds.removeFromRight (w (50, 44)).reduced (2, 0));
+    undoButton.setBounds (bounds.removeFromRight (w (50, 44)).reduced (2, 0));
+
+    bounds.removeFromRight (Metrics::gridHalf);
+
+    copyAB.setBounds (bounds.removeFromRight (w (40, 36)).reduced (2, 0));
+    compareB.setBounds (bounds.removeFromRight (w (28, 26)).reduced (2, 0));
+    compareA.setBounds (bounds.removeFromRight (w (28, 26)).reduced (2, 0));
 
     bounds.removeFromRight (Metrics::grid);
 
     // ---- left-hand cluster -------------------------------------------------------------
-    guitarSelector.setBounds (bounds.removeFromLeft (150).reduced (2, 3));
+    guitarSelector.setBounds (bounds.removeFromLeft (w (150, 124)).reduced (2, 3));
     bounds.removeFromLeft (Metrics::gridHalf);
 
-    tuningSelector.setBounds (bounds.removeFromLeft (128).reduced (2, 3));
+    tuningSelector.setBounds (bounds.removeFromLeft (w (128, 104)).reduced (2, 3));
     bounds.removeFromLeft (Metrics::grid);
 
     // ---- preset, filling whatever is left -----------------------------------------------
-    fileMenuButton.setBounds (bounds.removeFromRight (56).reduced (2, 0));
+    fileMenuButton.setBounds (bounds.removeFromRight (w (56, 46)).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
     presetPrev.setBounds (bounds.removeFromLeft (24).reduced (1, 3));

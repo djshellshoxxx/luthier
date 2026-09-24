@@ -228,6 +228,18 @@ private:
     juce::TextButton swapButton { "Swap" }, revertButton { "Revert" }, savePartButton { "Save as user part" };
     juce::ToggleButton autoZoomToggle { "Auto-zoom" };
 
+    /*  Section 1's narrow layouts: below 900 points the inspector is a drawer
+        beside the illustration while a part is selected; below 700 the drawer's
+        categories are a dropdown. */
+public:
+    static constexpr int kWideBench = 900, kNarrowBench = 700;
+    bool isInspectorCollapsed() const noexcept { return inspectorCollapsed; }
+    bool isInspectorShowing() const noexcept { return ! inspectorArea.isEmpty(); }
+    bool areCategoriesADropdown() const noexcept { return categoryBox.isVisible(); }
+private:
+    juce::ComboBox categoryBox;
+    bool inspectorCollapsed = false;
+
     std::unique_ptr<LuthierKnob> actionTreble, actionBass, relief;
     juce::OwnedArray<LuthierKnob> nutDepths;
 

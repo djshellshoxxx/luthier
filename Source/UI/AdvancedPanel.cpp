@@ -1331,7 +1331,7 @@ void AdvancedPanel::resized()
         int height = juce::jmax (80, visible);
 
         if (workshop)
-            height = juce::jmax (560, visible);
+            height = juce::jmax (440, visible);   // the bench fits a 1280x800 window without scrolling (TODO V)
         else if (panel == helpTab.get())
             height = juce::jmax (360, visible);
         else if (auto* p = dynamic_cast<TunePanel*> (panel))                 height = juce::jmax (visible, p->getPreferredHeight());
