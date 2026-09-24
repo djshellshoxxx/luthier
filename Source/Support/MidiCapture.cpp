@@ -82,12 +82,12 @@ double MidiCapture::getCapturedSeconds() const noexcept
 //==============================================================================
 int64_t MidiCapture::getFirstHeldSample() const noexcept
 {
-    const int count = juce::jmin (written.load(), capacity);
+    const int count = (int) juce::jmin (written.load(), (int64_t) capacity);
 
     if (count <= 0)
         return -1;
 
-    const int start = (written.load() > capacity) ? (writeIndex.load() % capacity) : 0;
+    const int start = (written.load() > capacity) ? (int) (writeIndex.load() % capacity) : 0;
     int64_t first = std::numeric_limits<int64_t>::max();
 
     for (int i = 0; i < count; ++i)
