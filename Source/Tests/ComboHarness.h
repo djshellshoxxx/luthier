@@ -168,6 +168,7 @@ struct RenderStats
     double peak = 0.0;
     double maxWindowRms = 0.0;      ///< loudest 20 ms window up to the release
     double tailRms = 0.0;           ///< last 300 ms of the render
+    double idleRms = 0.0;           ///< the same rig with nothing played, just before: its noise floor
     int subnormals = 0;
     double meanBlockMs = 0.0;
     double maxBlockMs = 0.0;
@@ -181,6 +182,7 @@ struct RenderStats
              + " peak=" + juce::String (peak, 3)
              + " noteRms=" + juce::String (maxWindowRms, 5)
              + " tailRms=" + juce::String (tailRms, 6)
+             + " idleRms=" + juce::String (idleRms, 6)
              + " subnormals=" + juce::String (subnormals)
              + " cpu=" + juce::String (cpuPercent, 1) + "%"
              + " maxBlockMs=" + juce::String (maxBlockMs, 2)
@@ -286,7 +288,14 @@ struct Rig
     {
         int releasedAt = 0;
         const auto events = makePhrase (phrase, releasedAt);
-        return renderEvents (events, releasedAt, tailSeconds, std::move (between), betweenAt);
+
+        // The rig's own floor first (hum, hiss, an amp at full gain), so the decay
+        // check can tell a string that keeps ringing from a floor that was always there.
+        const double idle = renderEvents ({}, 0, 0.25).tailRms;
+
+        auto stats = renderEvents (events, releasedAt, tailSeconds, std::move (between), betweenAt);
+        stats.idleRms = idle;
+        return stats;
     }
 
     RenderStats renderEvents (const std::vector<TimedMidi>& events, int releasedAt, double tailSeconds,
@@ -483,11 +492,18 @@ struct Verdict
 
         if (expectDecay && s.finite && s.maxWindowRms > 1.0e-4)
         {
-            const bool quietEnough = s.tailRms < 1.0e-3 || s.tailRms < s.maxWindowRms * 0.0316;   // -60 dBFS (the default rig's hum floor is -68) or -30 dB
+            // -60 dBFS (the default rig's hum floor is -68), or 30 dB under the
+            // note, or within 3 dB of the rig's own idle floor.
+            const bool quietEnough = s.tailRms < 1.0e-3 || s.tailRms < s.maxWindowRms * 0.0316
+                                     || (s.idleRms > 0.0 && s.tailRms < s.idleRms * 1.41);
             if (! quietEnough)
                 why.add ("does not decay after release (tail " + juce::String (juce::Decibels::gainToDecibels (s.tailRms), 1)
                          + " dBFS vs note " + juce::String (juce::Decibels::gainToDecibels (s.maxWindowRms), 1) + " dBFS)");
         }
+
+        if (s.idleRms > 0.0316)
+            why.add ("loud idle noise floor: " + juce::String (juce::Decibels::gainToDecibels (s.idleRms), 1)
+                     + " dBFS with nothing played");
 
         if (s.cpuPercent > cpuCeilingPercent)
             why.add ("CPU " + juce::String (s.cpuPercent, 1) + "% of real time > " + juce::String (cpuCeilingPercent, 0) + "%");
