@@ -421,6 +421,7 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "accessibility.shortcut.toggleAdvanced",  "Switch Easy / Advanced mode" },
         { "accessibility.shortcut.toggleLiveMode",  "Toggle Live Mode" },
         { "accessibility.shortcut.toggleSlideMode", "Toggle Slide Mode" },
+        { "accessibility.shortcut.toggleWorkshop", "Toggle Workshop" },
         { "accessibility.shortcut.togglePractice",  "Open the practice drawer" },
         { "accessibility.shortcut.panic",           "Panic: silence all notes" },
         { "accessibility.shortcut.tapTempo",        "Tap tempo" },

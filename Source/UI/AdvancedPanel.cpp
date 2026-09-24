@@ -1275,18 +1275,38 @@ void AdvancedPanel::resized()
     // ---- column 4: the tab strip, then whichever panel it selected ------------------
     workspaceLeft = bounds.getX();
 
-    auto tabStrip = bounds.removeFromTop (Metrics::buttonHeight);
-
     if (! workspaceTabs.isEmpty())
     {
+        /*  The strip wraps onto more rows when one row would clip the names
+            (TODO V screenshots: at 1280 the thirteen tabs read "NE MATC",
+            "HARACTE"). A tab wants its widest name plus padding. */
         const int gap = Metrics::gridHalf;
-        const int width = (tabStrip.getWidth() - gap * (workspaceTabs.size() - 1))
-                            / workspaceTabs.size();
+        const int count = workspaceTabs.size();
+        const auto font = Fonts::ui (11.0f, true);
+        int wanted = 0;
 
         for (auto* tab : workspaceTabs)
+            wanted = juce::jmax (wanted, juce::roundToInt (font.getStringWidthFloat (tab->getButtonText().toUpperCase())) + 14);
+
+        const int perRowMax = juce::jmax (1, (bounds.getWidth() + gap) / (wanted + gap));
+        const int rows = (count + perRowMax - 1) / perRowMax;
+        const int perRow = (count + rows - 1) / rows;
+        int next = 0;
+
+        for (int r = 0; r < rows; ++r)
         {
-            tab->setBounds (tabStrip.removeFromLeft (width));
-            tabStrip.removeFromLeft (gap);
+            auto tabStrip = bounds.removeFromTop (Metrics::buttonHeight);
+            const int inRow = juce::jmin (perRow, count - next);
+            const int width = (tabStrip.getWidth() - gap * (perRow - 1)) / perRow;
+
+            for (int i = 0; i < inRow; ++i)
+            {
+                workspaceTabs[next++]->setBounds (tabStrip.removeFromLeft (width));
+                tabStrip.removeFromLeft (gap);
+            }
+
+            if (r < rows - 1)
+                bounds.removeFromTop (2);
         }
     }
 
@@ -1297,11 +1317,29 @@ void AdvancedPanel::resized()
     // The panel keeps whatever height it asked for and takes the viewport's
     // width, so the workspace scrolls vertically exactly as a column does. The
     // bench fills the space instead: it is one surface, not a list.
+    /*  Panels that size themselves (a preferred height from their content) keep
+        it; the rest fill the viewport. They used to keep "whatever height they
+        had", which for MOD, RHYTHM, LIVE, ROUTING and TONE MATCH - panels that
+        never set one - was the 80-point floor, so they rendered as a sliver
+        (TODO V screenshots). */
     if (auto* panel = workspaceViewport.getViewedComponent())
-        panel->setSize (juce::jmax (80, workspaceViewport.getMaximumVisibleWidth()),
-                        workshop ? juce::jmax (560, workspaceViewport.getMaximumVisibleHeight())
-                                 : panel == helpTab.get() ? juce::jmax (360, workspaceViewport.getMaximumVisibleHeight())
-                                                          : juce::jmax (80, panel->getHeight()));
+    {
+        const int visible = workspaceViewport.getMaximumVisibleHeight();
+        int height = juce::jmax (80, visible);
+
+        if (workshop)
+            height = juce::jmax (560, visible);
+        else if (panel == helpTab.get())
+            height = juce::jmax (360, visible);
+        else if (auto* p = dynamic_cast<TunePanel*> (panel))                 height = juce::jmax (visible, p->getPreferredHeight());
+        else if (auto* p = dynamic_cast<MidiOutPanel*> (panel))              height = juce::jmax (visible, p->getPreferredHeight());
+        else if (auto* p = dynamic_cast<NotationPanel*> (panel))             height = juce::jmax (visible, p->getPreferredHeight());
+        else if (auto* p = dynamic_cast<PracticeSetupPanel*> (panel))        height = juce::jmax (visible, p->getPreferredHeight());
+        else if (panel == characterPanel.get() || panel == controllersPage.get())
+            height = juce::jmax (80, panel->getHeight());
+
+        panel->setSize (juce::jmax (80, workspaceViewport.getMaximumVisibleWidth()), height);
+    }
 }
 
 } // namespace luthier

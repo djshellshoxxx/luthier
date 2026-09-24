@@ -478,7 +478,7 @@ namespace
     {
         { "Help and navigation", "help|showShortcuts|options|toggleAdvanced|previousWorkspaceTab|"
                                  "nextWorkspaceTab|debugPanel" },
-        { "Playing",             "panic|killSwitch|tapTempo|audition|toggleLiveMode|toggleSlideMode|"
+        { "Playing",             "panic|killSwitch|tapTempo|audition|toggleLiveMode|toggleSlideMode|toggleWorkshop|"
                                  "togglePractice|midiLearnArm" },
         { "Presets, snapshots and setlists", "previousItem|nextItem|setlistPrevious|setlistNext|abCompare|"
                                  "randomise|resetAll|newPreset|presetBrowser" },

@@ -497,6 +497,7 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("toggleAdvanced",   "accessibility.shortcut.toggleAdvanced",   KP (KP::tabKey));
     add ("toggleLiveMode",   "accessibility.shortcut.toggleLiveMode",   KP ('l', 0, 0));
     add ("toggleSlideMode",  "accessibility.shortcut.toggleSlideMode",  KP ('s', 0, 0));
+    add ("toggleWorkshop",   "accessibility.shortcut.toggleWorkshop",   KP ('w', 0, 0));   // gui-integration 17 (VISUAL-WORKSHOP-QA)
     add ("togglePractice",   "accessibility.shortcut.togglePractice",   KP ('d', 0, 0));
 
     add ("panic",            "accessibility.shortcut.panic",            KP ('p', 0, 0));

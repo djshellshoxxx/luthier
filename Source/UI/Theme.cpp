@@ -883,10 +883,33 @@ void LuthierLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& bu
         colour = colour.brighter (0.25f);
 
     g.setColour (colour);
-    g.setFont (getTextButtonFont (button, button.getHeight()));
 
-    Fonts::drawTrackedText (g, button.getButtonText().toUpperCase(),
-                            button.getLocalBounds(), juce::Justification::centred);
+    // A label that does not fit loses its tracking, then shrinks (to 8 pt at
+    // most), rather than being clipped at both ends (TODO V screenshots).
+    const auto text = button.getButtonText().toUpperCase();
+    auto font = getTextButtonFont (button, button.getHeight());
+    float tracking = 0.08f;
+    const float room = (float) button.getWidth() - 6.0f;
+
+    auto widthOf = [&text] (const juce::Font& f, float t)
+    {
+        float w = 0.0f;
+        for (int i = 0; i < text.length(); ++i)
+            w += f.getStringWidthFloat (text.substring (i, i + 1)) + f.getHeight() * t;
+        return w - f.getHeight() * t;
+    };
+
+    if (widthOf (font, tracking) > room)
+    {
+        tracking = 0.0f;
+        const float w = widthOf (font, 0.0f);
+
+        if (w > room && w > 0.0f)
+            font = font.withHeight (juce::jmax (8.0f, font.getHeight() * room / w));
+    }
+
+    g.setFont (font);
+    Fonts::drawTrackedText (g, text, button.getLocalBounds(), juce::Justification::centred, tracking);
 }
 
 void LuthierLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button,

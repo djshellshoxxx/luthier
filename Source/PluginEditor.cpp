@@ -227,6 +227,28 @@ void LuthierAudioProcessorEditor::showOverlay (OverlayPanel* panel)
     overlayHost.show (panel);
 }
 
+void LuthierAudioProcessorEditor::toggleWorkshop()
+{
+    if (advancedMode)
+    {
+        if (advancedPanel.isWorkshopShowing())
+        {
+            advancedPanel.setWorkspaceTab (juce::jmax (1, tabBeforeWorkshop));
+        }
+        else
+        {
+            tabBeforeWorkshop = advancedPanel.getWorkspaceTab();
+            advancedPanel.setWorkspaceTabNamed ("WORKSHOP");
+        }
+        return;
+    }
+
+    if (overlayHost.getCurrentOverlay() == &workshopOverlay)
+        overlayHost.dismiss();
+    else
+        showOverlay (&workshopOverlay);
+}
+
 void LuthierAudioProcessorEditor::showSaveGuitarDialog()
 {
     auto* dialog = new juce::AlertWindow (tr ("workshop.saveGuitar.title"),
@@ -644,6 +666,14 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
             return false;
 
         advancedPanel.stepWorkspaceTab (is ("nextWorkspaceTab") ? 1 : -1);
+        return true;
+    }
+
+    // gui-integration 17: W toggles the Workshop - the WORKSHOP tab in
+    // Advanced, the bench overlay in Easy (VISUAL-WORKSHOP-QA).
+    if (is ("toggleWorkshop"))
+    {
+        toggleWorkshop();
         return true;
     }
 

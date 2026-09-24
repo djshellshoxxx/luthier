@@ -70,6 +70,11 @@ private:
     void setAdvancedMode (bool advanced);
     void showOverlay (OverlayPanel* panel);
 
+    /** gui-integration 17 (W) and the header wrench: the Workshop on, or off
+        again back to the tab or window it came from. VISUAL-WORKSHOP-QA. */
+    void toggleWorkshop();
+    int tabBeforeWorkshop = -1;
+
     /** guitar-workshop.md 6 (Ctrl+G): asks for a name and saves the guitar. */
     void showSaveGuitarDialog();
 
