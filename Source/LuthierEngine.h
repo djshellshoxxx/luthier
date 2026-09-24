@@ -537,6 +537,7 @@ private:
     // sustain-and-decay.md 7, and 3's clock restart when the E-Bow engages.
     StringEngine::SustainShape sustainShape;
     std::array<bool, kMaxStrings> ebowWasDriving {};
+    bool feedbackWasOn = false;
 
     // tuning-stability.md 5.
     StabilityModel stability;

@@ -729,3 +729,28 @@ LUTHIER_TEST (TuningStability, costAndSafety)
     std::printf ("      stability cost %.4f units\n", units);
     CHECK_MSG (units <= 0.02, "cost " + juce::String (units, 4) + " units");
 }
+
+//==============================================================================
+// 3: Transport stop retunes; a stop with nothing to clear does nothing.
+LUTHIER_TEST (TuningStability, autoRetuneOnTransportStop)
+{
+    auto settings = only (StabilityModel::nut);
+    settings.autoRetune = AutoRetune::transportStop;
+
+    Rig rig (makeHardware(), settings);
+    rig.playing = true;
+    rig.levels[0] = 0.1;   // a string ringing, so idle never counts
+    rig.bend (3, 200.0);
+    CHECK (rig.cents (3) > 1.0);
+
+    rig.playing = false;
+    rig.run (0.01);
+    CHECK (rig.model.getAutoRetuneCount() == 1);
+    CHECK (rig.cents (3) == 0.0);
+
+    rig.playing = true;
+    rig.run (0.1);
+    rig.playing = false;
+    rig.run (0.01);
+    CHECK (rig.model.getAutoRetuneCount() == 1);
+}

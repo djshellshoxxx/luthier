@@ -147,6 +147,7 @@ void LuthierEngine::reset() noexcept
     techniqueTriggers.reset();
     scrapeWasActive.fill (false);
     ebowWasDriving.fill (false);
+    feedbackWasOn = false;
     noteSustainScale.fill (1.0);
     shiftCount = 0;
 
@@ -1857,6 +1858,14 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     // ambiguity-resolutions 1: which strings are ringing, and at what, for the
     // feedback loop's per-string peaks. Skipped entirely at amount 0 (1.2).
     const bool feedbackOn = feedbackLoop.isActive();
+
+    // sustain-and-decay.md 3: the feedback path adds energy, so engaging it
+    // restarts every string's decay clock.
+    if (feedbackOn && ! feedbackWasOn)
+        for (int s = 0; s < numStrings; ++s)
+            strings[(size_t) s].restartShapeClock();
+
+    feedbackWasOn = feedbackOn;
 
     if (feedbackOn)
     {
