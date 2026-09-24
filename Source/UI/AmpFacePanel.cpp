@@ -1,5 +1,6 @@
 #include "AmpFacePanel.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Accessibility.h"
 
 #include <cmath>
 
@@ -159,6 +160,45 @@ void AmpFacePanel::refresh()
         if (const auto vent = getFaceLayout().vent; ! vent.isEmpty())
             repaint (vent.getSmallestIntegerContainer().expanded (1));
     }
+
+    // visual-polish.md 4: the VU needle reads the master output, the header
+    // meter's source, at its 30 Hz (gui-engine-dataflow.md 2).
+    const auto& master = processor.getEngine().getMasterBus();
+    const double rms = juce::jmax (master.getRmsLeft(), master.getRmsRight());
+
+    if (rms != lastRms)
+    {
+        lastRms = rms;
+        lastRmsChange = now;
+    }
+
+    const bool vuStale = rms > 1.0e-6 && now - lastRmsChange > staleAfterSeconds;
+    vuTarget = faces::vuPositionFor (rms);
+
+    if (AccessibilitySettings::get().isReducedMotion())
+    {
+        // accessibility.md 5: no easing, a hard set, and fewer of them.
+        if (++reducedMotionTicks >= 3)
+        {
+            reducedMotionTicks = 0;
+            shownVu = vuTarget;
+        }
+    }
+    else
+    {
+        reducedMotionTicks = 0;
+        shownVu += (vuTarget - shownVu) * vuBallistics;
+    }
+
+    if (std::abs (shownVu - paintedVu) > 1.0f / 256.0f || vuStale != shownVuStale)
+    {
+        paintedVu = shownVu;
+        shownVuStale = vuStale;
+
+        // Only the meter: the dial under the needle is part of the cached face.
+        if (const auto meter = getFaceLayout().meter; ! meter.isEmpty())
+            repaint (meter.getSmallestIntegerContainer().expanded (1));
+    }
 }
 
 //==============================================================================
@@ -178,8 +218,11 @@ faces::AmpFaceState AmpFacePanel::getFaceState() const
     state.standby = shownStandby;
     state.drive = shownDrive;
     state.driveStale = shownStale;
+    state.vu = paintedVu;
+    state.vuStale = shownVuStale;
     state.drawKnobs = false;       // the live knobs sit on the face
     state.drawSwitches = false;    // and so do the live switches
+    state.drawMeter = false;       // the needle is drawn live over the cached dial
     state.hasSwitches = style == Style::section;
     state.enabled = isEnabled();
     return state;
@@ -233,6 +276,7 @@ void AmpFacePanel::paint (juce::Graphics& g)
 
     g.drawImage (faceImage, getLocalBounds().toFloat());
     faces::paintAmpFaceValves (g, getFaceBounds(), shownModel, getFaceState());
+    faces::paintAmpFaceMeter (g, getFaceBounds(), shownModel, getFaceState());
 }
 
 void AmpFacePanel::resized()

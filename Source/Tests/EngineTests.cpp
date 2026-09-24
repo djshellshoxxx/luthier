@@ -1651,3 +1651,50 @@ LUTHIER_TEST (Engine, effectsChainResetFromTheAudioThreadNeverWaitsForAPedalPick
     chain.resetFromAudioThread();
     CHECK (! chain.isResetPending());
 }
+
+/*  The oversampler's reported latency against what an impulse does. The
+    half-band branches are IIR all-passes, so the figure is the group delay
+    near DC and the response starts a little before it; the numbers here are
+    what the plugin latency test allows for. */
+LUTHIER_TEST (Oversampler, reportedLatencyIsTheGroupDelayNotTheOnset)
+{
+    for (int factor : { 2, 4, 8 })
+    {
+        Oversampler os;
+        os.prepare (kSr, factor);
+        os.reset();
+
+        const int n = 64;
+        std::vector<double> h ((size_t) n);
+
+        for (int i = 0; i < n; ++i)
+            h[(size_t) i] = os.processSample (i == 0 ? 1.0 : 0.0, [] (double v) noexcept { return v; });
+
+        double peak = 0.0, sum = 0.0, weighted = 0.0;
+        for (int i = 0; i < n; ++i) { peak = juce::jmax (peak, std::abs (h[(size_t) i])); sum += h[(size_t) i]; weighted += i * h[(size_t) i]; }
+
+        auto onsetAt = [&] (double fraction)
+        {
+            for (int i = 0; i < n; ++i)
+                if (std::abs (h[(size_t) i]) > peak * fraction)
+                    return i;
+            return -1;
+        };
+
+        juce::String taps;
+        for (int i = 0; i < 12; ++i) taps += juce::String (h[(size_t) i], 5) + " ";
+
+        const int reported = os.getLatencySamples();
+        const int onset = onsetAt (1.0e-4);
+        const double centroid = weighted / sum;
+
+        CHECK_MSG (onset >= reported - 2 && onset <= reported,
+                   "factor " + juce::String (factor) + ": reports " + juce::String (reported)
+                     + ", onset(1e-4) " + juce::String (onset) + ", onset(1e-3) " + juce::String (onsetAt (1.0e-3))
+                     + ", peak at " + juce::String ((int) std::distance (h.begin(), std::max_element (h.begin(), h.end(), [] (double a, double b) { return std::abs (a) < std::abs (b); })))
+                     + ", centroid " + juce::String (centroid, 2) + ", taps " + taps);
+        CHECK_MSG (std::abs (centroid - reported) <= 1.0,
+                   "factor " + juce::String (factor) + ": group delay centroid " + juce::String (centroid, 2)
+                     + " vs reported " + juce::String (reported) + ", taps " + taps);
+    }
+}

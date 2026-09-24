@@ -16,12 +16,121 @@
 #include "Widgets.h"
 #include "OptionsPages.h"
 #include "HelpTab.h"
+#include "Guitar/GuitarRenderer.h"
 #include "../DSP/Common/DspCommon.h"
+
+#include <cstring>
+#include <deque>
+#include <list>
+#include <map>
+#include <unordered_map>
 
 namespace luthier
 {
 
 class LuthierAudioProcessor;
+struct PresetInfo;
+
+//==============================================================================
+/*  Preset-browser thumbnails (guitar-illustration.md 2.3 and 15, TODO G 15).
+
+    A list row never draws a guitar itself: it asks for the thumbnail and gets
+    either the cached image or nothing, in which case it paints the placeholder
+    and the worker thread draws the guitar. The cache holds 200 thumbnails
+    (section 17's budget), keyed by the guitar's canonical hash
+    (GuitarRenderer::keyFor) with the palette's texture setting folded in, and
+    evicts the least recently used one when the 201st arrives. The same guitar
+    in ten presets is rendered once.
+
+    Thumbnails are drawn at section 15's 128 x 256 pixel budget, landscape
+    (256 x 128) because the illustration lies headstock-left, at
+    Detail::thumbnail: flat fills, hairline frets, no shadows, sheen or grain.
+
+    Reading a preset file to find its guitar is disk work too, so that also
+    happens on the worker: requestGuitarBlock() hands back the file's `guitar`
+    block on the message thread, and the caller resolves it against the part
+    library there (the library is not shared with the worker).
+*/
+class GuitarThumbnailCache : private juce::Thread,
+                             private juce::AsyncUpdater
+{
+public:
+    GuitarThumbnailCache();
+    ~GuitarThumbnailCache() override;
+
+    static constexpr int capacity = 200;
+    static constexpr int thumbnailWidth = 256, thumbnailHeight = 128;
+
+    /** The options every thumbnail is drawn with: section 15's reduced detail. */
+    static GuitarRenderer::Options thumbnailOptions();
+
+    /** The cache key for a guitar under the current palette. */
+    static juce::int64 keyFor (const WorkshopGuitar& guitar);
+
+    /** Message thread. The thumbnail, or a null image while the worker draws it
+        (the caller paints paintPlaceholder meanwhile and is told through
+        onThumbnailReady). Touching an entry makes it the most recently used. */
+    juce::Image get (const WorkshopGuitar& guitar);
+
+    /** Raised on the message thread whenever a thumbnail has landed. */
+    std::function<void()> onThumbnailReady;
+
+    /** Reads `presetFile` on the worker and hands its `guitar` block (void when
+        it has none) to onGuitarBlockLoaded on the message thread. */
+    void requestGuitarBlock (const juce::File& presetFile);
+    std::function<void (const juce::File&, const juce::var& block)> onGuitarBlockLoaded;
+
+    /** The placeholder a row shows while its thumbnail is pending or missing. */
+    static void paintPlaceholder (juce::Graphics&, juce::Rectangle<float> area);
+
+    //==========================================================================
+    // For the tests.
+    bool contains (juce::int64 key) const;
+    int getNumCached() const;
+    int getRenderCount() const noexcept { return renders.load(); }
+    int getMessageThreadRenderCount() const noexcept { return messageThreadRenders.load(); }
+
+    /** Waits for the worker to finish everything queued; false on timeout. */
+    bool waitForIdle (int timeoutMs);
+
+    /** Delivers what the worker has finished, as the async update would. */
+    void deliverResults();
+
+private:
+    void run() override;
+    void handleAsyncUpdate() override { deliverResults(); }
+    void touch (juce::int64 key);
+    void insert (juce::int64 key, juce::Image image);
+
+    struct Entry
+    {
+        juce::Image image;
+        std::list<juce::int64>::iterator recency;
+    };
+
+    struct RenderJob
+    {
+        juce::int64 key = 0;
+        WorkshopGuitar guitar;
+        bool materials = true;
+    };
+
+    mutable juce::CriticalSection lock;
+    std::list<juce::int64> recency;                       ///< front = most recently used
+    std::unordered_map<juce::int64, Entry> entries;
+    std::deque<RenderJob> renderQueue;
+    std::deque<juce::File> fileQueue;
+    std::vector<juce::int64> pending;                     ///< queued or being drawn
+    std::vector<std::pair<juce::File, juce::var>> loadedBlocks;
+    bool thumbnailLanded = false;
+    int jobsInFlight = 0;
+
+    juce::WaitableEvent wake;
+    juce::WaitableEvent idle { true };                    ///< manual reset: stays up until new work arrives
+    std::atomic<int> renders { 0 }, messageThreadRenders { 0 };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GuitarThumbnailCache)
+};
 
 //==============================================================================
 class OverlayPanel : public juce::Component
@@ -308,6 +417,38 @@ private:
     juce::TextButton loadButton { "Load" };
     juce::TextButton deleteButton { "Delete" };
     juce::TextButton saveAsButton { "Save As..." };
+
+    //==========================================================================
+    /*  G 15: each row shows its guitar. The guitar block comes off the preset
+        file on the worker, is resolved against the part library here, and the
+        thumbnail comes from the cache, drawn on the worker. */
+    static constexpr int rowHeight = 44;
+    static constexpr int thumbnailColumn = 96;
+
+    struct RowGuitar
+    {
+        bool requested = false, resolved = false;
+        std::unique_ptr<WorkshopGuitar> guitar;   ///< null when the preset names no guitar the library knows
+    };
+
+    std::map<juce::String, RowGuitar> rowGuitars;   ///< by preset file path
+    GuitarThumbnailCache thumbnails;
+
+    /** The guitar's thumbnail for a row, or null with the request under way. */
+    juce::Image thumbnailFor (const PresetInfo& info);
+    void guitarBlockLoaded (const juce::File& file, const juce::var& block);
+
+    /** Resolves a preset's `guitar` block as the processor does on load, minus
+        the migration table: the override, else the referenced guitar file. */
+    bool resolveGuitar (const juce::var& block, WorkshopGuitar& out) const;
+
+public:
+    /** For the tests: the thumbnail cache behind the rows, and a row's resolved guitar. */
+    GuitarThumbnailCache& getThumbnailCache() noexcept { return thumbnails; }
+    const WorkshopGuitar* getRowGuitar (int presetIndex) const;
+    static constexpr int getRowHeight() noexcept { return rowHeight; }
+
+private:
 
     // ambiguity-resolutions.md 5.2: Morph, its two slots and the slider.
     void refreshMorph();

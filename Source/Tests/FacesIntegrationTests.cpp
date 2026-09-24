@@ -19,6 +19,9 @@
 #include "../UI/Faces/AmpFace.h"
 #include "../UI/Faces/PedalFace.h"
 #include "../UI/Faces/FaceMaterials.h"
+#include "../UI/HeaderBar.h"
+#include "../UI/Overlays.h"
+#include "../UI/PracticePanel.h"
 
 #include <iterator>
 #include <set>
@@ -84,6 +87,14 @@ namespace
 
             collect<T> (*child, found);
         }
+    }
+
+    template <typename T>
+    T* findOne (juce::Component& root)
+    {
+        juce::Array<T*> found;
+        collect<T> (root, found);
+        return found.isEmpty() ? nullptr : found.getFirst();
     }
 
     /** Where a knob's slider - the part you turn - sits, in `panel`'s coordinates. */
@@ -828,4 +839,292 @@ LUTHIER_TEST (FacesIntegration, rendersOfBothWindowsInEveryPalette)
     CHECK (advancedRows.size() == 3 && easyRows.size() == 3);
     CHECK (savePng (stack (advancedRows), renderFolder().getChildFile ("_advanced_faces.png")));
     CHECK (savePng (stack (easyRows), renderFolder().getChildFile ("_easy_faces.png")));
+}
+
+//==============================================================================
+/*  visual-polish.md 4: a VU meter on the amp face, on every face with room for
+    one, off the knobs and the switches. */
+LUTHIER_TEST (FacesIntegration, theVuMeterSitsOnEveryFaceWithRoom)
+{
+    struct Size { float w, h; bool switches; const char* name; };
+
+    const Size sizes[] = {
+        { 234.0f, (float) AmpFacePanel::sectionHeight, true, "Advanced section" },
+        { 256.0f, 196.0f, false, "Easy card" },
+        { 480.0f, 220.0f, true, "full" }
+    };
+
+    for (int m = 0; m < (int) AmpModel::NumModels; ++m)
+    {
+        const auto model = (AmpModel) m;
+
+        for (const auto& size : sizes)
+        {
+            const auto l = faces::layoutAmpFace ({ 0.0f, 0.0f, size.w, size.h }, model, size.switches);
+            const auto where = modelName (model) + " at " + size.name;
+
+            CHECK_MSG (! l.meter.isEmpty(), where + ": no room for the VU meter");
+
+            if (l.meter.isEmpty())
+                continue;
+
+            CHECK_MSG (inside (l.cabinet, l.meter, 0.5f), where + ": the meter leaves the amp");
+            CHECK_MSG (l.meter.getWidth() >= 24.0f && l.meter.getHeight() >= 12.0f,
+                       where + ": the meter is " + juce::String (l.meter.getWidth(), 1) + " x " + juce::String (l.meter.getHeight(), 1));
+
+            for (auto& knob : l.knobs)
+                CHECK_MSG (overlap (l.meter, knob) < 0.5f, where + ": the meter is on a knob");
+
+            for (auto& label : l.labels)
+                CHECK_MSG (overlap (l.meter, label) < 0.5f, where + ": the meter is on a label");
+
+            if (l.hasSwitches)
+                for (auto& sw : l.switches)
+                    CHECK_MSG (overlap (l.meter, sw) < 0.5f, where + ": the meter is on a switch");
+
+            CHECK_MSG (overlap (l.meter, l.logo) < 0.5f, where + ": the meter is on the name");
+            CHECK_MSG (overlap (l.meter, l.vent) < 0.5f, where + ": the meter is on the vent");
+            CHECK_MSG (overlap (l.meter, l.pilot) < 0.5f, where + ": the meter is on the pilot");
+        }
+    }
+
+    // The scale: 0 VU is -18 dBFS, -38 dBFS rests the needle, -15 dBFS pins it.
+    CHECK_NEAR (faces::vuPositionFor (std::pow (10.0, -18.0 / 20.0)), 20.0 / 23.0, 1.0e-3);
+    CHECK_NEAR (faces::vuPositionFor (0.0), 0.0, 1.0e-6);
+    CHECK_NEAR (faces::vuPositionFor (1.0), 1.0, 1.0e-6);
+}
+
+/*  The needle follows the master output at the meters' rate with a VU's
+    ballistics, is drawn live over the cached dial, greys when the reading
+    stops moving, and under reduced motion is hard-set rather than eased
+    (accessibility.md 5). */
+LUTHIER_TEST (FacesIntegration, theVuMeterFollowsTheOutputAndRestsUnderReducedMotion)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    set (processor, ParamIDs::ampModel, (float) (int) AmpModel::MarshallPlexi);
+    processor.getParameterBridge().applyAllNow();
+
+    auto& settings = AccessibilitySettings::get();
+    const bool reducedBefore = settings.isReducedMotion();
+    settings.setReducedMotion (false);
+
+    AmpFacePanel face (processor, AmpFacePanel::Style::section);
+    face.setVisible (true);
+    face.setSize (234, AmpFacePanel::sectionHeight);
+    face.refresh();
+
+    const auto meter = face.getFaceLayout().meter.getSmallestIntegerContainer();
+    CHECK (! meter.isEmpty());
+
+    const auto idle = render (face);
+    CHECK_MSG (face.getShownVu() == 0.0f, "the needle is off its rest with nothing playing");
+    CHECK (face.getFaceRenderCount() == 1);
+
+    // A loud chord, held.
+    juce::AudioBuffer<float> buffer (2, kBlock);
+
+    for (int block = 0; block < 40; ++block)
+    {
+        juce::MidiBuffer midi;
+
+        if (block == 0)
+            for (int note : { 40, 47, 52, 55, 59, 64 })
+                midi.addEvent (juce::MidiMessage::noteOn (1, note, (juce::uint8) 127), 0);
+
+        processor.processBlock (buffer, midi);
+    }
+
+    // One tick moves the needle part of the way (ballistics), not all of it.
+    face.refresh();
+    const float target = face.getVuTarget();
+    CHECK_MSG (target > 0.05f, "the master bus reports no level: " + juce::String (target, 3));
+    CHECK_MSG (face.getShownVu() > 0.0f && face.getShownVu() < target, "the needle jumped to " + juce::String (face.getShownVu(), 3)
+                                                                         + " for a target of " + juce::String (target, 3) + " in one tick");
+    CHECK_NEAR (face.getShownVu(), target * AmpFacePanel::vuBallistics, 1.0e-4);
+
+    for (int i = 0; i < 60; ++i)
+        face.refresh();
+
+    CHECK_NEAR (face.getShownVu(), target, 0.01);
+
+    const auto live = render (face);
+    CHECK_MSG (differingPixels (idle, live, meter) > 0, "the meter looks the same idle and driven");
+    CHECK_MSG (face.getFaceRenderCount() == 1, "the needle redrew the face under it");
+
+    // The audio stops: the reading holds still and the needle greys out.
+    juce::Thread::sleep (juce::roundToInt (AmpFacePanel::staleAfterSeconds * 1000.0) + 200);
+    face.refresh();
+    CHECK_MSG (face.getFaceState().vuStale, "a reading that stopped moving did not grey out");
+    CHECK_MSG (differingPixels (live, render (face), meter) > 0, "the stale needle looks the same as the live one");
+
+    // Reduced motion: no easing - the needle is set to the reading, at a third of the ticks.
+    settings.setReducedMotion (true);
+    processor.panic();
+
+    for (int block = 0; block < 60; ++block)
+    {
+        juce::MidiBuffer midi;
+        processor.processBlock (buffer, midi);
+    }
+
+    face.refresh();
+    face.refresh();
+    face.refresh();
+    CHECK_MSG (face.getShownVu() == face.getVuTarget(), "under reduced motion the needle eased instead of being set: "
+                                                          + juce::String (face.getShownVu(), 3) + " for " + juce::String (face.getVuTarget(), 3));
+
+    settings.setReducedMotion (reducedBefore);
+}
+
+//==============================================================================
+/*  Every panel in every palette, for a person to look at (TODO V): the Easy
+    window, the Advanced window on each workspace tab, every overlay and every
+    Options page, Live Mode and the open practice drawer. Files go to
+    %TEMP%/luthier-guitar-renders/_shot_<palette>_<panel>.png. */
+LUTHIER_TEST (FacesIntegration, rendersOfEveryPanelInEveryPalette)
+{
+    PaletteScope palette;
+    int shots = 0;
+
+    auto save = [&] (juce::Component& c, PaletteId id, const juce::String& name)
+    {
+        const auto file = renderFolder().getChildFile ("_shot_" + juce::String (getPaletteName (id)).replaceCharacter (' ', '_')
+                                                        + "_" + name.replaceCharacter (' ', '_').replaceCharacter ('/', '-') + ".png");
+        const auto image = render (c);
+        CHECK_MSG (savePng (image, file), "could not write " + file.getFullPathName());
+        ++shots;
+    };
+
+    for (auto id : palettes)
+    {
+        palette.use (id);
+
+        LuthierAudioProcessor processor;
+        processor.prepareToPlay (kSr, kBlock);
+        fillRacks (processor);
+
+        // ---- Easy, and its practice drawer open
+        {
+            auto editor = openEditor (ctx, processor, LuthierAudioProcessorEditor::defaultWidth,
+                                      LuthierAudioProcessorEditor::defaultHeight, false);
+
+            if (editor == nullptr)
+                continue;
+
+            save (*editor, id, "easy");
+
+            if (auto* practice = findOne<PracticePanel> (*editor))
+            {
+                practice->setOpen (true);
+                editor->resized();
+                save (*editor, id, "easy practice drawer");
+                practice->setOpen (false);
+                editor->resized();
+            }
+        }
+
+        // ---- Advanced: every tab, then the overlays
+        {
+            auto editor = openEditor (ctx, processor, 1600, 900, true);
+
+            if (editor == nullptr)
+                continue;
+
+            auto* advanced = findOne<AdvancedPanel> (*editor);
+            CHECK (advanced != nullptr);
+
+            if (advanced != nullptr)
+                for (int i = 0; i < advanced->getNumWorkspaceTabs(); ++i)
+                {
+                    advanced->setWorkspaceTab (i);
+                    save (*editor, id, "advanced " + advanced->getWorkspaceTabName (i));
+                }
+
+            if (advanced != nullptr)
+                advanced->setWorkspaceTab (0);
+
+            // Live Mode's strip.
+            if (const auto* binding = AccessibilitySettings::get().findShortcut ("toggleLiveMode"))
+            {
+                if (editor->keyPressed (binding->key))
+                {
+                    save (*editor, id, "advanced live");
+                    editor->keyPressed (binding->key);
+                }
+            }
+
+            auto* host = findOne<OverlayHost> (*editor);
+            CHECK (host != nullptr);
+
+            if (host == nullptr)
+                continue;
+
+            for (const auto* action : { "help", "presetBrowser", "export", "debugPanel", "saveAs" })
+            {
+                const auto* binding = AccessibilitySettings::get().findShortcut (action);
+
+                if (binding == nullptr || ! editor->keyPressed (binding->key) || host->getCurrentOverlay() == nullptr)
+                {
+                    CHECK_MSG (false, juce::String ("could not open the ") + action + " overlay");
+                    continue;
+                }
+
+                if (juce::String (action) == "presetBrowser")
+                {
+                    // Let the worker draw the thumbnails the rows asked for, then show them.
+                    if (auto* browser = dynamic_cast<PresetBrowserPanel*> (host->getCurrentOverlay()))
+                    {
+                        render (*editor);
+                        for (int round = 0; round < 3; ++round)
+                        {
+                            browser->getThumbnailCache().waitForIdle (8000);
+                            browser->getThumbnailCache().deliverResults();
+                            render (*editor);
+                        }
+                    }
+                }
+
+                save (*editor, id, juce::String ("overlay ") + action);
+                host->dismiss();
+            }
+
+            // The chord library and tab display, from its footer button.
+            {
+                juce::Array<juce::Button*> buttons;
+                collect (*editor, buttons);
+
+                for (auto* b : buttons)
+                    if (b->getButtonText().containsIgnoreCase ("chord") && b->onClick != nullptr)
+                    {
+                        b->onClick();
+                        break;
+                    }
+
+                if (host->getCurrentOverlay() != nullptr)
+                {
+                    save (*editor, id, "overlay chords");
+                    host->dismiss();
+                }
+            }
+
+            // Options: every page.
+            if (const auto* binding = AccessibilitySettings::get().findShortcut ("options"))
+            {
+                if (editor->keyPressed (binding->key))
+                    if (auto* options = dynamic_cast<OptionsPanel*> (host->getCurrentOverlay()))
+                    {
+                        for (const auto& page : options->getPageNames())
+                        {
+                            options->showPageNamed (page);
+                            save (*editor, id, "options " + page);
+                        }
+                    }
+
+                host->dismiss();
+            }
+        }
+    }
+
+    CHECK_MSG (shots >= 3 * 12, "only " + juce::String (shots) + " renders were written");
 }

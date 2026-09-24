@@ -732,6 +732,149 @@ void drawTubeVent (juce::Graphics& g, juce::Rectangle<float> area, int numTubes,
 }
 
 //==============================================================================
+namespace
+{
+    /** The needle's sweep: 48 degrees either side of straight up. */
+    constexpr float vuSweep = juce::MathConstants<float>::pi * 48.0f / 180.0f;
+
+    struct VuGeometry
+    {
+        juce::Rectangle<float> face;
+        juce::Point<float> pivot;
+        float radius = 0.0f;   ///< pivot to the needle's tip
+    };
+
+    juce::Path roundedPath (juce::Rectangle<float> r, float corner)
+    {
+        juce::Path p;
+        p.addRoundedRectangle (r, corner);
+        return p;
+    }
+
+    VuGeometry vuGeometry (juce::Rectangle<float> area)
+    {
+        VuGeometry v;
+        const float bezel = juce::jlimit (1.0f, 3.0f, area.getHeight() * 0.08f);
+        v.face = area.reduced (bezel);
+        // The pivot sits below the face, as on the real thing, so the needle's arc is shallow.
+        v.pivot = { v.face.getCentreX(), v.face.getBottom() + v.face.getHeight() * 0.55f };
+        v.radius = v.pivot.y - (v.face.getY() + v.face.getHeight() * 0.16f);
+        return v;
+    }
+
+    float vuAngle (float position) noexcept
+    {
+        return -vuSweep + 2.0f * vuSweep * juce::jlimit (0.0f, 1.0f, position);
+    }
+}
+
+float vuPositionFor (double rmsLinear) noexcept
+{
+    const double db = rmsLinear > 1.0e-12 ? 20.0 * std::log10 (rmsLinear) : -240.0;
+    return (float) juce::jlimit (0.0, 1.0, (db + 38.0) / 23.0);
+}
+
+void drawVuMeterFace (juce::Graphics& g, juce::Rectangle<float> area)
+{
+    if (area.getWidth() < 8.0f || area.getHeight() < 6.0f)
+        return;
+
+    const auto m = Materials::current();
+    const auto& p = Palette::current();
+    const auto v = vuGeometry (area);
+    const float corner = juce::jmin (3.0f, area.getHeight() * 0.12f);
+
+    // The bezel and the face.
+    if (m.textured)
+    {
+        fillBrushedMetal (g, roundedPath (area, corner), m.chrome.withBrightness (0.55f));
+        juce::ColourGradient cream (m.ivoryPanel.brighter (0.06f), v.face.getX(), v.face.getY(),
+                                    m.ivoryPanel.darker (0.12f), v.face.getX(), v.face.getBottom(), false);
+        g.setGradientFill (cream);
+    }
+    else
+    {
+        g.setColour (p.edgeBright);
+        g.fillRoundedRectangle (area, corner);
+        g.setColour (p.panelRaised);
+    }
+
+    g.fillRoundedRectangle (v.face, juce::jmax (1.0f, corner - 1.0f));
+
+    juce::Graphics::ScopedSaveState save (g);
+    g.reduceClipRegion (v.face.toNearestInt());
+
+    const auto ink = m.textured ? m.inkDark : p.textPrimary;
+    const float arcR = v.radius * 0.98f;
+    const float thick = juce::jlimit (0.6f, 1.2f, v.face.getHeight() * 0.04f);
+
+    // The scale arc, black to 0 VU and red beyond it.
+    const float zero = 20.0f / 23.0f;
+    juce::Path black, red;
+    black.addCentredArc (v.pivot.x, v.pivot.y, arcR, arcR, 0.0f, vuAngle (0.0f), vuAngle (zero), true);
+    red.addCentredArc (v.pivot.x, v.pivot.y, arcR, arcR, 0.0f, vuAngle (zero), vuAngle (1.0f), true);
+    g.setColour (ink);
+    g.strokePath (black, juce::PathStrokeType (thick));
+    g.setColour (m.textured ? m.jewelRed : p.clip);
+    g.strokePath (red, juce::PathStrokeType (thick * 2.2f));
+
+    // Ticks at the dB marks, the major ones longer.
+    const float marks[] = { -20.0f, -10.0f, -7.0f, -5.0f, -3.0f, -2.0f, -1.0f, 0.0f, 1.0f, 2.0f, 3.0f };
+    const float tickLen = juce::jmax (1.5f, v.face.getHeight() * 0.12f);
+
+    for (float mark : marks)
+    {
+        const float a = vuAngle ((mark + 20.0f) / 23.0f);
+        const bool major = mark == -20.0f || mark == -10.0f || mark == -5.0f || mark == 0.0f || mark == 3.0f;
+        const float len = major ? tickLen : tickLen * 0.55f;
+        const auto outer = v.pivot.getPointOnCircumference (arcR, a);
+        const auto inner = v.pivot.getPointOnCircumference (arcR - len, a);
+        g.setColour (mark > 0.0f ? (m.textured ? m.jewelRed : p.clip) : ink);
+        g.drawLine ({ inner, outer }, thick);
+    }
+
+    // VU, in the display face, where there is room under the arc.
+    if (v.face.getHeight() >= 16.0f)
+    {
+        const float h = juce::jmin (9.0f, v.face.getHeight() * 0.3f);
+        drawPrint (g, "VU", v.face.withTrimmedTop (v.face.getHeight() * 0.58f), ink.withAlpha (0.8f), h, true);
+    }
+}
+
+void drawVuMeterNeedle (juce::Graphics& g, juce::Rectangle<float> area, float position, bool stale, bool enabled)
+{
+    if (area.getWidth() < 8.0f || area.getHeight() < 6.0f)
+        return;
+
+    const auto m = Materials::current();
+    const auto& p = Palette::current();
+    const auto v = vuGeometry (area);
+
+    juce::Graphics::ScopedSaveState save (g);
+    g.reduceClipRegion (v.face.toNearestInt());
+
+    const float a = vuAngle (position);
+    const auto tip = v.pivot.getPointOnCircumference (v.radius, a);
+    const auto tail = v.pivot.getPointOnCircumference (v.radius * 0.2f, a);
+    const auto colour = (stale || ! enabled) ? p.textDisabled : (m.textured ? m.inkDark : p.textPrimary);
+
+    if (m.textured)
+    {
+        // A soft shadow under the needle lifts it off the dial.
+        g.setColour (juce::Colours::black.withAlpha (0.18f));
+        g.drawLine ({ tail.translated (0.6f, 0.8f), tip.translated (0.6f, 0.8f) }, juce::jmax (0.8f, v.face.getHeight() * 0.05f));
+    }
+
+    g.setColour (colour);
+    g.drawLine ({ tail, tip }, juce::jmax (0.8f, v.face.getHeight() * 0.045f));
+
+    // The pivot's cap, just showing at the bottom edge.
+    const float cap = juce::jmax (1.5f, v.face.getHeight() * 0.1f);
+    g.setColour (m.textured ? m.darkMetal : p.edgeBright);
+    g.fillEllipse (v.face.getCentreX() - cap, v.face.getBottom() - cap * 0.6f, cap * 2.0f, cap * 2.0f);
+}
+
+//==============================================================================
 void drawPrint (juce::Graphics& g, const juce::String& text, juce::Rectangle<float> area, juce::Colour colour,
                 float height, bool display, juce::Justification justification, int maxLines)
 {

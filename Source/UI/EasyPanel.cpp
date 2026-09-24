@@ -178,6 +178,9 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
                             "Play with the fingers instead of a pick: a rounder, softer attack "
                             "with no pick click. Acoustic and classical guitars start with it on.");
 
+    muteButton = std::make_unique<EasyMuteButton> (processor);
+    addAndMakeVisible (*muteButton);
+
     addAndMakeVisible (playingModeSelector);
     playingModeSelector.attachTo (processor, ParamIDs::playingMode,
                                   "Mono routes every note to one string with legato between them. "
@@ -295,6 +298,8 @@ void EasyPanel::buildRigStrip()
 
     // 3. Amp: the model, and the face carrying gain, bass, mid, treble, presence and master.
     ampModel.attachTo (processor, ParamIDs::ampModel, "Amp model");
+    ampModel.setLabelVisible (false);   // the card's AMP plate is its label
+    ampModel.getComboBox().setTitle ("Amp model");
     addAndMakeVisible (ampModel);
     addAndMakeVisible (ampFace);
 
@@ -310,6 +315,8 @@ void EasyPanel::buildRigStrip()
 
     // 6. Room.
     roomSize.attachTo (processor, ParamIDs::roomSize, "Room size");
+    roomSize.setLabelVisible (false);   // the card's ROOM plate is its label
+    roomSize.getComboBox().setTitle ("Room size");
     roomMix.attachTo (processor, ParamIDs::roomBlend, "How much of the room you hear");
     addAndMakeVisible (roomSize);
     addAndMakeVisible (roomMix);
@@ -530,9 +537,69 @@ void EasyPanel::timerCallback()
     }
 
     refreshRhythmStrip();
+
+    // The room light follows the size and blend the room is set to (10 Hz is
+    // plenty: these are settings, not a signal).
+    {
+        float size = 0.5f, wet = 0.0f;
+
+        if (auto* p = processor.getState().getParameter (ParamIDs::roomSize))
+            size = p->getValue();
+
+        if (auto* p = processor.getState().getParameter (ParamIDs::roomBlend))
+            wet = p->getValue();
+
+        if (auto* p = processor.getState().getParameter (ParamIDs::macroSpace))
+            wet = juce::jlimit (0.0f, 1.0f, wet + p->getValue() * 0.45f);   // as the engine adds it
+
+        if (std::abs (size - roomLightSize) > 0.01f || std::abs (wet - roomLightWet) > 0.01f)
+        {
+            roomLightSize = size;
+            roomLightWet = wet;
+            repaint (roomArea);
+        }
+    }
 }
 
 //==============================================================================
+EasyPanel::CardHeights EasyPanel::cardHeights (int total) noexcept
+{
+    /*  What each card needs (title row and padding included): the guitar card a
+        Small knob with its rows beside the response miniature, a rack two rows
+        of readable slots, the amp face two rows of three knobs of about 44
+        points with their printed labels, the cabinet a labelled combo over the
+        two microphones, the room a labelled combo beside a knob. */
+    CardHeights h;
+    h.circuit = 82;
+    h.rack = 62;
+    h.amp = 228;
+    h.cab = 92;
+    h.room = 82;
+
+    const int needed = h.circuit + 2 * h.rack + h.amp + h.cab + h.room;
+
+    if (total < needed)
+    {
+        // A short window: every card gives way alike.
+        const float scale = (float) total / (float) needed;
+        h.circuit = juce::roundToInt ((float) h.circuit * scale);
+        h.rack = juce::roundToInt ((float) h.rack * scale);
+        h.cab = juce::roundToInt ((float) h.cab * scale);
+        h.room = juce::roundToInt ((float) h.room * scale);
+        h.amp = total - h.circuit - 2 * h.rack - h.cab - h.room;
+        return h;
+    }
+
+    // Surplus: mostly to the amp and the guitar, which have the most to show.
+    const int surplus = total - needed;
+    h.circuit += juce::roundToInt ((float) surplus * 0.22f);
+    h.rack += juce::roundToInt ((float) surplus * 0.05f);
+    h.cab += juce::roundToInt ((float) surplus * 0.12f);
+    h.room += juce::roundToInt ((float) surplus * 0.08f);
+    h.amp = total - h.circuit - 2 * h.rack - h.cab - h.room;
+    return h;
+}
+
 void EasyPanel::resized()
 {
     auto bounds = getLocalBounds().reduced (Metrics::windowPadding, Metrics::grid);
@@ -546,16 +613,25 @@ void EasyPanel::resized()
         auto rig = rigArea;
         const int total = rig.getHeight();
 
-        auto card = [&rig, &total, this] (float share, const juce::String& title)
+        /*  TODO 2h: at 1200 x 720 the strip is about 600 points tall for six cards,
+            and equal-ish shares left the amp's six knobs in one row of 16-point
+            bodies. Each card now has the height its controls need (cardHeights),
+            the amp card's need is two rows of three on the face, and any surplus
+            on a taller window goes mostly to the amp and the guitar. A window
+            shorter than the needs scales every card down alike, and the face
+            falls back to its one-row arrangement on its own. */
+        const auto heights = cardHeights (total);
+
+        auto card = [&rig, this] (int height, const juce::String& title, int titleRow = 16)
         {
-            auto r = rig.removeFromTop (juce::roundToInt ((float) total * share));
+            auto r = rig.removeFromTop (height);
             rigCards.add ({ r.reduced (0, 2), title });
             auto inner = r.reduced (6, 4);
-            inner.removeFromTop (16);   // the card's title
+            inner.removeFromTop (titleRow);   // the card's title
             return inner;
         };
 
-        auto circuit = card (0.20f, "Guitar");
+        auto circuit = card (heights.circuit, "Guitar");
         {
             auto knobs = circuit.removeFromLeft (circuit.getWidth() / 2);
             guitarVolumeKnob.setBounds (knobs.removeFromLeft (knobs.getWidth() / 2));
@@ -563,32 +639,41 @@ void EasyPanel::resized()
             circuitView->setBounds (circuit.reduced (2));
         }
 
-        preRack.setBounds (card (0.12f, "Pre-effects"));
+        preRack.setBounds (card (heights.rack, "Pre-effects"));
 
-        auto amp = card (0.26f, "Amp");
         {
-            // TODO 2h: the knobs sit on the face in one row, each with the card's
-            // full width to share, rather than two cramped rows of three.
-            ampModel.setBounds (amp.removeFromTop (juce::jmin (amp.getHeight() / 3, 44)));
-            amp.removeFromTop (2);
+            // The model choice sits in the title row, beside the AMP plate, so the
+            // whole card below it is the face (visual-polish.md 2: the model is
+            // not a control an amp has on its front).
+            auto amp = card (heights.amp, "Amp", ampTitleRow);
+            auto titleRow = juce::Rectangle<int> (amp.getX(), amp.getY() - ampTitleRow, amp.getWidth(), ampTitleRow);
+            ampModel.setBounds (titleRow.removeFromRight (juce::jmax (120, titleRow.getWidth() - 64)).reduced (0, 1));
             ampFace.setBounds (amp);
         }
 
-        postRack.setBounds (card (0.12f, "Post-effects"));
+        postRack.setBounds (card (heights.rack, "Post-effects"));
 
-        auto cab = card (0.17f, "Cabinet");
+        auto cab = card (heights.cab, "Cabinet");
         {
-            auto top = cab.removeFromTop (cab.getHeight() / 2);
-            cabModel.setBounds (top.removeFromLeft (top.getWidth() / 2));
-            micBlend.setBounds (top);
-            mic1.setBounds (cab.removeFromLeft (cab.getWidth() / 2));
-            mic2.setBounds (cab);
+            // The blend knob has the card's full height at the right; the cabinet
+            // and the two microphones stack at the left.
+            micBlend.setBounds (cab.removeFromRight (juce::jmax (56, cab.getWidth() * 2 / 7)));
+            cab.removeFromRight (Metrics::gridHalf);
+            const int rowH = LuthierChoice::labelHeight + Metrics::rowHeight;
+            cabModel.setBounds (cab.removeFromTop (rowH));
+            cab.removeFromTop (Metrics::gridHalf);
+            auto mics = cab.removeFromTop (rowH);
+            mic1.setBounds (mics.removeFromLeft (mics.getWidth() / 2).withTrimmedRight (2));
+            mic2.setBounds (mics.withTrimmedLeft (2));
         }
 
-        auto room = card (0.13f, "Room");
+        auto room = card (heights.room, "Room");
+        roomArea = rigCards.getLast().first;
         {
-            roomSize.setBounds (room.removeFromLeft (room.getWidth() / 2));
-            roomMix.setBounds (room);
+            // The plate says ROOM, so the size choice needs no label of its own.
+            roomMix.setBounds (room.removeFromRight (juce::jmax (56, room.getWidth() * 2 / 7)));
+            room.removeFromRight (Metrics::gridHalf);
+            roomSize.setBounds (room.withSizeKeepingCentre (room.getWidth(), Metrics::rowHeight));
         }
     }
 
@@ -616,6 +701,8 @@ void EasyPanel::resized()
         playingModeSelector.setBounds (r.removeFromLeft (130).withSizeKeepingCentre (130, juce::jmin (48, r.getHeight())));
         r.removeFromLeft (Metrics::gridHalf);
         fingersToggle.setBounds (r.removeFromLeft (64).withSizeKeepingCentre (64, Metrics::buttonHeight));
+        r.removeFromLeft (Metrics::gridHalf);
+        muteButton->setBounds (r.removeFromLeft (96).withSizeKeepingCentre (96, Metrics::buttonHeight));
         r.removeFromLeft (Metrics::grid);
 
         juce::Array<LuthierKnob*> knobs { &attackKnob, &bodyKnob, &driveKnob, &toneKnob, &spaceKnob, &humanizeKnob, &characterKnob };
@@ -668,6 +755,32 @@ void EasyPanel::resized()
     }
 }
 
+void EasyPanel::paintRoomLight (juce::Graphics& g, juce::Rectangle<float> card, float size, float wet)
+{
+    /*  visual-polish.md 4: the ROOM card's background warms and widens with the
+        room size and the wet level, so the space being played in has a look. A
+        warm pool of light from the card's centre: its reach follows the size,
+        its strength the wet level; a dry room leaves the walnut alone. Static
+        per setting (nothing animates), and off under High contrast, which
+        turns every gradient off (visual-polish.md 0.2). */
+    if (! Palette::textured || wet <= 0.001f)
+        return;
+
+    const auto warm = Palette::accent.interpolatedWith (Palette::warning, 0.35f);
+    const float reach = (0.35f + 0.65f * size) * juce::jmax (card.getWidth(), card.getHeight()) * 0.75f;
+    const float strength = 0.08f + 0.30f * wet;
+    const auto centre = card.getCentre();
+
+    juce::ColourGradient pool (warm.withAlpha (strength), centre.x, centre.y,
+                               warm.withAlpha (0.0f), centre.x + reach, centre.y, true);
+    pool.addColour (0.45, warm.withAlpha (strength * 0.55f));
+
+    juce::Graphics::ScopedSaveState save (g);
+    g.reduceClipRegion (card.reduced (1.0f).toNearestInt());
+    g.setGradientFill (pool);
+    g.fillRoundedRectangle (card.reduced (1.0f), Metrics::panelCorner);
+}
+
 void EasyPanel::paint (juce::Graphics& g)
 {
     g.fillAll (Palette::background);
@@ -676,6 +789,10 @@ void EasyPanel::paint (juce::Graphics& g)
     for (auto& [r, title] : rigCards)
     {
         LuthierLookAndFeel::drawPanel (g, r.toFloat());
+
+        if (r == roomArea)
+            paintRoomLight (g, r.toFloat(), roomLightSize, roomLightWet);
+
         LuthierLookAndFeel::drawSectionHeader (g, r.reduced (6, 2).withHeight (18), title);
     }
 

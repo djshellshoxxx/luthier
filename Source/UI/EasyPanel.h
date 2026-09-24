@@ -18,6 +18,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
+#include "MuteGroup.h"
 #include "FretboardComponent.h"
 #include "GuitarBodyComponent.h"
 #include "CircuitPanel.h"
@@ -93,6 +94,22 @@ public:
     /** 3.5's dice: a random genre kit. */
     void rollRhythmDice();
 
+    /** The rig strip's card heights for a strip `total` points tall (TODO 2h). */
+    struct CardHeights { int circuit = 0, rack = 0, amp = 0, cab = 0, room = 0; };
+    static CardHeights cardHeights (int total) noexcept;
+
+    /** The amp card's title row, which also holds the model choice. */
+    static constexpr int ampTitleRow = 24;
+
+    /** The amp's face on the card, for the layout test. */
+    AmpFacePanel& getAmpFace() noexcept { return ampFace; }
+
+    /** The ROOM card's light (visual-polish.md 4): warm pool, reach from the
+        size, strength from the wet level. Public so a test can draw it. */
+    static void paintRoomLight (juce::Graphics&, juce::Rectangle<float> card, float size, float wet);
+    float getRoomLightSize() const noexcept { return roomLightSize; }
+    float getRoomLightWet() const noexcept { return roomLightWet; }
+
 private:
     void timerCallback() override;
     void refreshStyleList();
@@ -120,6 +137,9 @@ private:
     // Fingers or a pick: the one right-hand choice a player reaches for by
     // the song, so it sits beside the mode rather than only in Advanced.
     LuthierToggle fingersToggle { "Fingers" };
+
+    /** muting-rhythm 7: the 4-way Mute button (Off, Light, Heavy, Extreme). */
+    std::unique_ptr<EasyMuteButton> muteButton;
 
     // ---- tone strip (3.4) --------------------------------------------------------------
     LuthierKnob inputKnob  { "Input",   LuthierKnob::Size::Small };
@@ -164,8 +184,10 @@ private:
     LuthierChoice roomSize { "Room" };
     LuthierKnob roomMix { "Wet/Dry", LuthierKnob::Size::Small };
 
-    juce::Rectangle<int> rigArea, playingArea, toneArea, rhythmArea;
+    juce::Rectangle<int> rigArea, playingArea, toneArea, rhythmArea, roomArea;
     juce::Array<std::pair<juce::Rectangle<int>, juce::String>> rigCards;
+
+    float roomLightSize = 0.5f, roomLightWet = 0.0f;
 
     juce::Array<int> stylePresetIndices;
 
