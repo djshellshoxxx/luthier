@@ -18,8 +18,25 @@ namespace
     }
 }
 
+namespace
+{
+    juce::File& defaultOverride()
+    {
+        static juce::File f;
+        return f;
+    }
+}
+
+void PreviewCache::setDefaultFolderOverride (const juce::File& folder)
+{
+    defaultOverride() = folder;
+}
+
 juce::File PreviewCache::getDefaultFolder()
 {
+    if (defaultOverride() != juce::File())
+        return defaultOverride();
+
    #if defined (LUTHIER_FREE_EDITION) && LUTHIER_FREE_EDITION
     const juce::String product ("Luthier Free");   // editions.md 7.2
    #else

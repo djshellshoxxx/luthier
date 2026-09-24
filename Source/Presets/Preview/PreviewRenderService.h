@@ -82,6 +82,12 @@ public:
 
     PreviewCache& getCache() noexcept { return cache; }
 
+    /** Tests: a decoded clip as if a job had delivered it. */
+    void injectDecodedForTesting (const juce::String& soundHash, std::shared_ptr<const juce::AudioBuffer<float>> audio)
+    {
+        decoded[soundHash] = std::move (audio);
+    }
+
     /** The shipped factory previews (5.3), read once. */
     static juce::File getShippedFolder();
     void setShippedFolderForTesting (const juce::File& folder);

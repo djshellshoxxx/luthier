@@ -32,6 +32,9 @@ public:
     /** The default folder for this OS (5.2's table). */
     static juce::File getDefaultFolder();
 
+    /** Tests: points every new default-folder cache elsewhere (empty restores). */
+    static void setDefaultFolderOverride (const juce::File& folder);
+
     explicit PreviewCache (juce::File folder = getDefaultFolder());
 
     const juce::File& getFolder() const noexcept { return folder; }
