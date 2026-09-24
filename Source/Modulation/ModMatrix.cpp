@@ -273,6 +273,12 @@ void ModMatrix::prepare (double newSampleRate, int newBlockSize,
     reset();
 }
 
+void ModMatrix::resetEnvelopes() noexcept
+{
+    for (auto& e : envelopes)
+        e.reset();
+}
+
 void ModMatrix::reset() noexcept
 {
     for (auto& l : lfos)       l.reset();

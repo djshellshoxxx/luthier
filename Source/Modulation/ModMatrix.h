@@ -135,6 +135,10 @@ public:
     void reset() noexcept;
     void releaseResources();
 
+    /** tune-builder 8's state boundary: the envelopes start again; LFOs,
+        sequencers and the current offsets carry on. Audio thread. */
+    void resetEnvelopes() noexcept;
+
     /** Control rate in samples, as modulation-matrix 0.1 defines it: a
         thirty-second of the block size, floored at 128. */
     int getControlRateSamples() const noexcept { return controlRateSamples; }

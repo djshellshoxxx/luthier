@@ -17,6 +17,8 @@
 #include "../Practice/Looper.h"
 #include "../Practice/BackingTrack.h"
 #include "../Practice/Trainers.h"
+#include "../Practice/PracticeRoutine.h"
+#include "../Practice/PracticeRoutineSetup.h"
 #include "../Notation/NotationExport.h"
 
 namespace luthier
@@ -70,6 +72,7 @@ private:
     Metronome& metronome();
 
     std::unique_ptr<LuthierToggle> enableToggle;
+    std::unique_ptr<LuthierToggle> mainOutToggle;   ///< practice-tools 0.2
     juce::Slider tempoSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::ComboBox signatureBox, subdivisionBox, soundBox;
     juce::Slider levelSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
@@ -249,10 +252,18 @@ public:
     void resized() override;
 
 private:
+    /** practice-tools 11.2: the ring length and what to record are set on the
+        PRACTICE tab ("the settings, not the transport"), saved in
+        defaults.json; the drawer applies them when the recorder goes on. */
+    static SessionRecorderSetup storedSetup();
+
     std::unique_ptr<LuthierToggle> enableToggle;
     juce::TextButton saveButton { "Save last take" }, openFolderButton { "Open folder" };
-    juce::Label statusLabel, warningLabel;
-    juce::Slider lengthSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Label lengthLabel, statusLabel, warningLabel;
+    double requestedMinutes = 0.0;
+    double storedMinutes = SessionRecorder::kDefaultMinutes;   ///< read when shown, not per refresh
+
+    void visibilityChanged() override;
 };
 
 //==============================================================================
@@ -271,6 +282,15 @@ public:
     void setOpen (bool shouldBeOpen);
     bool isOpen() const noexcept { return open; }
 
+    /** Shows a tool's tab (a routine entry, or the PRACTICE tab's START). */
+    void showTool (PracticeTool tool) { showTab ((int) tool); }
+    int getCurrentTab() const noexcept { return currentTab; }
+
+    /** The drawer's clock, for tests: counts `seconds` of practice as the
+        20 Hz timer would - the routine advances, the tools in use gain
+        minutes, and the drawer follows the routine's tool. */
+    void tick (double seconds);
+
     /** The height the editor should give it. */
     int preferredHeight() const noexcept { return open ? openHeight : collapsedHeight; }
 
@@ -285,8 +305,18 @@ private:
     void timerCallback() override;
 
     void showTab (int index);
+    void refreshRoutineStrip();
+    void saveStats();
 
     LuthierAudioProcessor& processor;
+
+    /** practice-tools 10: a running routine's readout and its controls. */
+    juce::Label routineReadout;
+    juce::TextButton routinePause { "Pause" }, routineNext { "Next" }, routineStop { "Stop" };
+
+    double lastTickMs = 0.0;
+    double secondsSinceSave = 0.0;
+    bool pausedByClosing = false;
 
     bool open = false;
     int openHeight = defaultOpenHeight;

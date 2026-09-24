@@ -49,6 +49,23 @@ numbered, because what it should be called is a release decision.
   over at the middle, and each end sounds exactly like its preset. The slider
   is automatable (`preset_morph_position`; the parameter count is 402). A
   snapshot recall ends the morph.
+- **The TUNE tab** (`tune-builder.md`) - sketch a song: type a progression,
+  pick a genre kit per section, draw or generate a melody, and play it
+  through the guitar. The rhythm engine strums the chords while the melody,
+  bass and layers play as written; it follows the host transport when the
+  host plays and keeps its own time otherwise, with a count-in and
+  metronome. Record a take from MIDI in; the tune is saved with the session
+  and can go out over MIDI.
+- **The PRACTICE tab** (`practice-tools.md` 11) - your practice history
+  (time per day and per tool, trainer accuracy, tempo progress, streak, CSV
+  export), routines you can build and start (the drawer follows each step,
+  with a routine strip to pause, skip or stop), defaults for every tool, and
+  the library of loops, sessions and recent tab files. The drawer's session
+  recorder now keeps the length set here.
+- **Click to main out** (`practice-tools.md` 0.2) - the metronome click
+  goes to the monitor bus unless you switch CLICK TO MAIN on, and to the
+  main output when there is no monitor bus (so the standalone app now
+  hears it).
 - **Amp and pedal faces in the rack** (`proposals/visual-polish.md` 2-3) -
   each pedal in the rack is drawn as its enclosure, with its own knob caps,
   and the amp card in Easy and Advanced modes shows the amp's faceplate. The

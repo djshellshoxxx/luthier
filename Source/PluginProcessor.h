@@ -9,6 +9,7 @@
 #include "Support/MidiCapture.h"
 #include "Capture/PerformanceCapture.h"
 #include "Presets/PresetMorph.h"
+#include "Tune/TuneSession.h"
 #include "Support/AudioExporter.h"
 #include "Support/Diagnostics.h"
 #include "Routing/RoutingMatrix.h"
@@ -24,6 +25,8 @@
 #include "Practice/Looper.h"
 #include "Practice/BackingTrack.h"
 #include "Practice/Trainers.h"
+#include "Practice/PracticeRoutineProgress.h"
+#include "Practice/PracticeRoutineSetup.h"
 #include "ToneMatch/ToneMatch.h"
 #include "Updates/Telemetry.h"
 #include "PhysicalRange.h"
@@ -96,6 +99,22 @@ public:
 
     /** Follows `preset_morph_position` (the timer's work; tests call it). */
     void updatePresetMorph();
+
+    /** tune-builder.md: the TUNE tab's player (audio thread) and the tune it
+        plays (message thread). */
+    TunePlayer&  getTunePlayer() noexcept  { return tunePlayer; }
+    TuneSession& getTuneSession() noexcept { return tuneSession; }
+
+    /** The tune's message-thread work: rhythm changes at section starts,
+        improvised passes, old timelines, the take (the timer's; tests call it). */
+    void serviceTune();
+
+    /** practice-tools 0.2: the click (practice metronome and the tune's) goes
+        to the main out instead of the monitor bus. Without a monitor bus it
+        goes there regardless. Saved with the session. */
+    void setClickToMain (bool toMain) noexcept { clickToMain.store (toMain, std::memory_order_relaxed); }
+    bool isClickToMain() const noexcept        { return clickToMain.load (std::memory_order_relaxed); }
+
     AudioExporter&      getExporter() noexcept      { return exporter; }
     Diagnostics&        getDiagnostics() noexcept   { return diagnostics; }
     RoutingMatrix&      getRouting() noexcept        { return routing; }
@@ -174,6 +193,23 @@ public:
     ScaleTrainer&        getScaleTrainer() noexcept { return scaleTrainer; }
     EarTrainer&          getEarTrainer() noexcept   { return earTrainer; }
     ProgressionLooper&   getProgressionLooper() noexcept { return progression; }
+
+    /** practice-tools 10-12: routines, the history and what counts minutes. */
+    PracticeRoutineRunner&   getPracticeRoutineRunner() noexcept   { return practiceRunner; }
+    PracticeStats&           getPracticeStats() noexcept           { return practiceStats; }
+    PracticeActivityTracker& getPracticeActivityTracker() noexcept { return practiceTracker; }
+
+    /** Where the history is saved (tests point it at a temporary file). */
+    void setPracticeStatsFile (const juce::File& file) { practiceStatsFile = file; }
+    bool savePracticeStats() const;
+
+    /** Every practice tool, for the runner, the tracker and the defaults. */
+    PracticeTargets getPracticeTargets() noexcept;
+
+    /** A routine asks for the drawer to open on a tool; the editor's timer
+        takes the request (there may be no editor when it is made). */
+    void requestPracticeDrawer (PracticeTool tool) noexcept { pendingDrawerTool.store ((int) tool); }
+    int takePracticeDrawerRequest() noexcept                { return pendingDrawerTool.exchange (-1); }
 
     /** practice-tools 0.1: the panel being closed is what makes the tools cost
         nothing, so the processor is told rather than guessing. */
@@ -478,6 +514,17 @@ private:
     PatternLibrary patternLibrary;
     GenreKitLibrary genreKits;
 
+    // tune-builder 8: the session is declared after the player it drives. The
+    // player's chord channel joins the host MIDI (the rhythm engine strums
+    // it); everything else goes to the engine as direct notes.
+    TunePlayer tunePlayer;
+    TuneSession tuneSession;
+    juce::MidiBuffer tuneToEngine, tuneToMidiOut, tuneDirect;
+    Metronome tuneClick;                  ///< fires on the tune's grid, not its own
+    juce::AudioBuffer<float> tuneClickBuffer;
+    bool tuneClickRinging = false;
+    std::atomic<bool> clickToMain { false };
+
     SnapshotBank snapshots;
     SetlistPlayer setlist;
     TapTempo tapTempo;
@@ -498,6 +545,15 @@ private:
     ScaleTrainer scaleTrainer;
     EarTrainer earTrainer;
     ProgressionLooper progression;
+
+    // practice-tools 10-12: the routine runner and the practice history are
+    // the processor's, so the drawer that advances them and the PRACTICE tab
+    // that shows them see the same objects.
+    PracticeRoutineRunner practiceRunner;
+    PracticeStats practiceStats;
+    juce::File practiceStatsFile { PracticeStats::getStatsFile() };
+    PracticeActivityTracker practiceTracker;
+    std::atomic<int> pendingDrawerTool { -1 };
 
     bool practicePanelOpen = false;
 

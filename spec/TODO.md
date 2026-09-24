@@ -122,7 +122,7 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       preview (4.1), drag-out with Alt for Generic (4.2), live sources shared
       with ROUTING (6) incl. EVENTS (noise triggers as Luthier SysEx on their
       sample) and WORKSHOP (part fits); the header's "Save last MIDI take"
-      uses the defaults. Remaining: TUNE source (needs tune playback, 12),
+      uses the defaults; TUNE source done. Remaining:
       CHARACTER seed / environment events, import UI (5: File -> Import,
       drop a .mid, target choice), marked-region / current-section ranges,
       drag from the session recorder's own Save button (practice drawer).
@@ -133,11 +133,29 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       build (assistant-built `Source/Practice/PracticeRoutine*`, 18
       PracticeRoutine tests): routines and runner, progress stats, defaults,
       library, session-recorder setup, count-ins, loop regions, speed
-      trainer. Remaining: the PRACTICE tab (assistant building
-      `PracticeSetupPanel`), and the processor hooks (activity tracking, the
-      runner driving the drawer).
+      trainer. PRACTICE tab (`PracticeSetupPanel`, 9 tests) and the
+      processor hooks in: runner / stats / tracker owned by the processor,
+      the drawer advancing routines and counting minutes, START opening the
+      drawer (`PracticeDrawer` tests), recent tabs recorded, the drawer's
+      SESSION ring from the tab's setup. Remaining: SessionRecorder honouring
+      record audio / MIDI and auto-save; the looper's default length and the
+      trainers' note range / question count (TODO(lead hook)s in
+      PracticeRoutineSetup.cpp); a test through the tab reader's recent list.
 - [ ] 12. Tune Builder (`tune-builder.md`) and the TUNE tab. Model done
-      (`Source/Tune`, `TuneBuilderTests`, d284547). Remaining: the TUNE tab.
+      (`Source/Tune`, `TuneBuilderTests`, d284547). TUNE tab, player and
+      session in the plugin (TunePlayer / TunePanel / TuneProcessor tests):
+      chords strummed by the rhythm engine, melody / bass / layers as direct
+      notes, host-or-own clock, audible count-in and metronome, MIDI out
+      TUNE source, tune in the plugin state, Record from MIDI in.
+      Remaining: pill popovers / drag / right-click menus (3.2); section drag
+      and Vary (3.3); note menus, multi-select, clipboard, nudge (3.4); bass
+      and layer editors (6, 7); the one-screen export dialog incl. audio
+      stems and MIDI via profiles (9, C-53); kit suggested tempo (2.1);
+      Ctrl+T in the shortcut registry; hum capture (13); mod routes over the
+      timeline / snapshots / looper (14); tests 15-07 (offline vs live),
+      15-08 (MIDI re-import), 15-09 (hum), 15-10 (standalone relaunch);
+      a processor-level state-boundary test; the tune's own undo stack is
+      separate from the plugin's.
 - [ ] 13. HELP tab (column 4).
 - [ ] 13b. **Phase 5b technique specs (added 2026-09-23)**, in INDEX order:
       `string-scraping.md` (ScrapeEngine; also the pick-scrape trigger pick-noise 5 asks for - folded in from 3f), `string-slap-technique.md`,

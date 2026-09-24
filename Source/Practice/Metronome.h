@@ -149,6 +149,14 @@ public:
         indicator counts. */
     int processBlock (float* destination, int numSamples) noexcept;
 
+    /** Clicks on another clock's grid - the tune player's, whose count-in and
+        metronome are its own (tune-builder 3.6) - at the given sample offsets,
+        in order, a downbeat accented. Written, not added, into the mono
+        buffer, in this metronome's sound and level; its own grid, tempo and
+        enabled flag play no part. Returns the clicks fired. */
+    int renderClicksAt (float* destination, int numSamples,
+                        const int* offsets, const bool* downbeats, int count) noexcept;
+
     //==========================================================================
     // Live position, for the four-dot indicator.
 
@@ -190,6 +198,7 @@ private:
 
     /** The accent level of a subdivision click that is not on a beat. */
     void fireClickFor (int beatInBar, bool onBeat) noexcept;
+    void fireClick (BeatAccent accent) noexcept;
 
     double sr = 44100.0;
 

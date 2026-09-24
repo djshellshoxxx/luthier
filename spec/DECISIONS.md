@@ -444,4 +444,44 @@ chosen") and `ambiguity-resolutions.md`.
   the TUNE tab's melody, bass and layers are not replaced by the strum
   pattern; its chord part goes through the normal MIDI, where the rhythm
   engine strums it. Rather than merging all of a tune into the host MIDI.
-
+- **TUNE in the plugin** (tune-builder 3.6, 8, 15): the processor owns the
+  player and the session. The player renders after the host transport is
+  read; while the tune runs on its own clock (host stopped) that clock drives
+  the rhythm engine's tempo and position. Its chord channel is merged into
+  the host MIDI, after MIDI Learn and live program changes have looked at
+  it, so the tune's controllers are never learned; melody, bass and layers
+  go through `LuthierEngine::setDirectMidi`. The chord detector reads only
+  the host MIDI, so a melody note is never strummed as part of the chord.
+  A section's state boundary resets the rhythm engine and the mod matrix's
+  envelopes only (not LFOs, sequencers or offsets, which would jump). The
+  TUNE tab's Ctrl+S / Ctrl+E / Space act only while the tab has keyboard
+  focus: JUCE offers a key to the focused component before the editor, so no
+  precedence rule is needed between tune-builder 2 and gui-integration 17.
+  The tune keeps its own undo stack (as the report that built it says);
+  folding it into the plugin-wide stack is left for action-and-undo work.
+- **Where the click goes** (practice-tools 0.2): to the monitor bus by
+  default, to the main out when CLICK TO MAIN is on (Practice > Metronome),
+  and to the main out regardless when the layout has no monitor bus - the
+  standalone app and a stereo-only host layout, where a monitor-only click
+  would be silent. The TUNE tab's count-in and metronome follow the same
+  route, in the practice metronome's sound and level. The setting is saved
+  with the session.
+- **PRACTICE in the plugin** (practice-tools 10-12): the processor owns the
+  routine runner, the history and the activity tracker, so the drawer that
+  advances them and the PRACTICE tab that shows them share one of each. The
+  drawer's 20 Hz timer advances the routine and adds minutes; it runs only
+  while the drawer is open (0.1), so closing the drawer pauses a running
+  routine (and opening it resumes, unless the player had paused it). The
+  history is saved every 30 s, on close and when the drawer goes; tests
+  point it at a temporary file. A trainer's answers count as one session
+  when the player leaves its tab. START on the tab asks the processor for
+  the drawer; the editor's timer opens it on the routine's tool, because the
+  request can come with no window open. The assistant's resolutions of 11.2
+  / 11.3 / 12.1 stand: LOAD, not play, for a saved loop; START IN DRAWER is
+  the tab's one transport-like control; one backing-track folder.
+- **The session recorder's ring length lives on the PRACTICE tab** (11.2:
+  "the settings, not the transport"). The drawer's SESSION tab had its own
+  1-60 min slider (default 20) against the tab's setting (default 60, 8's
+  figure): two sources of truth. The drawer now shows the length and applies
+  the tab's stored setup (defaults.json `session_recorder`) as the recorder
+  goes on; the processor never sized the ring otherwise.

@@ -978,6 +978,7 @@ void AdvancedPanel::buildWorkspace()
     workshopPanel   = std::make_unique<WorkshopPanel> (processor);
     modMatrixPanel  = std::make_unique<ModMatrixPanel> (processor);
     rhythmPanel     = std::make_unique<RhythmPanel> (processor);
+    tunePanel       = std::make_unique<TunePanel> (processor, processor.getTunePlayer(), processor.getTuneSession());
     livePanel       = std::make_unique<LivePanel> (processor);
     routingPanel    = std::make_unique<RoutingPanel> (processor);
     toneMatchPanel  = std::make_unique<ToneMatchPanel> (processor);
@@ -985,16 +986,19 @@ void AdvancedPanel::buildWorkspace()
     controllersPage = std::make_unique<ControllersPage> (processor);
     midiOutPanel    = std::make_unique<MidiOutPanel> (processor);
     notationPanel   = std::make_unique<NotationPanel> (processor);
+    practiceSetupPanel = std::make_unique<PracticeSetupPanel> (processor);
 
     const struct { const char* name; juce::Component* panel; } tabs[] =
     {
         { "WORKSHOP",    workshopPanel.get() },
         { "MOD",         modMatrixPanel.get() },
         { "RHYTHM",      rhythmPanel.get() },
+        { "TUNE",        tunePanel.get() },
         { "LIVE",        livePanel.get() },
         { "ROUTING",     routingPanel.get() },
         { "TONE MATCH",  toneMatchPanel.get() },
         { "CHARACTER",   characterPanel.get() },
+        { "PRACTICE",    practiceSetupPanel.get() },
         { "NOTATION",    notationPanel.get() },
         { "MIDI OUT",    midiOutPanel.get() },
         { "CONTROLLERS", controllersPage.get() }

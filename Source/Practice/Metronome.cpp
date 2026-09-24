@@ -312,8 +312,11 @@ double Metronome::renderVoice (Voice& voice) noexcept
 //==============================================================================
 void Metronome::fireClickFor (int beatInBar, bool onBeat) noexcept
 {
-    const auto accent = onBeat ? getBeatAccent (beatInBar) : BeatAccent::ghost;
+    fireClick (onBeat ? getBeatAccent (beatInBar) : BeatAccent::ghost);
+}
 
+void Metronome::fireClick (BeatAccent accent) noexcept
+{
     if (accent == BeatAccent::silent)
         return;
 
@@ -363,6 +366,35 @@ void Metronome::fireClickFor (int beatInBar, bool onBeat) noexcept
 }
 
 //==============================================================================
+int Metronome::renderClicksAt (float* destination, int numSamples,
+                               const int* offsets, const bool* downbeats, int count) noexcept
+{
+    if (destination == nullptr || numSamples <= 0)
+        return 0;
+
+    int next = 0, fired = 0;
+
+    for (int i = 0; i < numSamples; ++i)
+    {
+        // The offsets are in order; a stray one before this sample fires now.
+        while (next < count && offsets[next] <= i)
+        {
+            fireClick (downbeats[next] ? BeatAccent::accent : BeatAccent::normal);
+            ++next;
+            ++fired;
+        }
+
+        double sample = 0.0;
+
+        for (auto& voice : voices)
+            sample += renderVoice (voice);
+
+        destination[i] = (float) sanitise (sample);
+    }
+
+    return fired;
+}
+
 int Metronome::processBlock (float* destination, int numSamples) noexcept
 {
     if (destination == nullptr || numSamples <= 0)

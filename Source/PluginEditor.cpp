@@ -470,6 +470,14 @@ void LuthierAudioProcessorEditor::timerCallback()
     updateLiveStripVisibility();
     pollForNotifications();
 
+    // practice-tools 11.2: the PRACTICE tab's START opens the drawer on the
+    // routine's first tool.
+    if (const int tool = processor.takePracticeDrawerRequest(); tool >= 0)
+    {
+        practicePanel.setOpen (true);
+        practicePanel.showTool ((PracticeTool) tool);
+    }
+
     if (const auto generation = RangeState::getGeneration(); generation != seenRangeGeneration)
     {
         seenRangeGeneration = generation;

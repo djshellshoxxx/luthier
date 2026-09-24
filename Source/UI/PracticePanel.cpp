@@ -128,6 +128,19 @@ MetronomeTab::MetronomeTab (LuthierAudioProcessor& p)
     };
     addAndMakeVisible (*enableToggle);
 
+    // practice-tools 0.2: the click goes to the monitor bus unless sent here.
+    mainOutToggle = std::make_unique<LuthierToggle> ("CLICK TO MAIN");
+    mainOutToggle->getButton().setClickingTogglesState (true);
+    mainOutToggle->getButton().setTooltip ("Send the click (and the TUNE tab's) to the main output "
+                                           "instead of the monitor bus. Without a monitor bus it "
+                                           "always goes to the main output.");
+    mainOutToggle->getButton().onClick = [this]
+    {
+        if (! updatingControls)
+            processor.setClickToMain (mainOutToggle->getButton().getToggleState());
+    };
+    addAndMakeVisible (*mainOutToggle);
+
     styleSlider (tempoSlider, 20.0, 300.0, 1.0, " bpm");
     tempoSlider.onValueChange = [this]
     {
@@ -265,6 +278,7 @@ void MetronomeTab::refresh()
     auto& m = metronome();
 
     enableToggle->getButton().setToggleState (m.isEnabled(), juce::dontSendNotification);
+    mainOutToggle->getButton().setToggleState (processor.isClickToMain(), juce::dontSendNotification);
     tempoSlider.setValue (m.getTempo(), juce::dontSendNotification);
 
     const auto signature = m.getTimeSignature();
@@ -318,6 +332,7 @@ void MetronomeTab::resized()
     {
         RowLayout r { row (Metrics::buttonHeight) };
         enableToggle->setBounds (r.take (130));
+        mainOutToggle->setBounds (r.take (150));
         indicator->setBounds (r.rest());
     }
 
@@ -1139,6 +1154,14 @@ TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
 
             if (importer.read (file, score))
             {
+                // practice-tools 11.2: the PRACTICE tab lists recent tab files.
+                PracticeLibrary library;
+                library.load (PracticeLibrary::getLibraryFile());
+                library.noteTabOpened (file);
+
+                juce::String error;
+                library.save (PracticeLibrary::getLibraryFile(), error);
+
                 statusLabel.setText (juce::String (score.getTotalNoteCount()) + " notes from "
                                        + file.getFileName(),
                                      juce::dontSendNotification);
@@ -1375,7 +1398,19 @@ SessionTab::SessionTab (LuthierAudioProcessor& p)
 
     enableToggle->getButton().onClick = [this]
     {
-        processor.getSessionRecorder().setEnabled (enableToggle->getButton().getToggleState());
+        auto& recorder = processor.getSessionRecorder();
+        const bool on = enableToggle->getButton().getToggleState();
+
+        // The ring is sized from the PRACTICE tab's setup as it goes on, never
+        // while it records.
+        if (on)
+        {
+            const auto setup = storedSetup();
+            requestedMinutes = storedMinutes = setup.ringMinutes;
+            setup.applyTo (recorder, processor.getSampleRate());
+        }
+
+        recorder.setEnabled (on);
         refresh();
     };
 
@@ -1384,19 +1419,9 @@ SessionTab::SessionTab (LuthierAudioProcessor& p)
 
     addAndMakeVisible (*enableToggle);
 
-    styleSlider (lengthSlider, 1.0, 60.0, 1.0, " min");
-    lengthSlider.setValue (20.0, juce::dontSendNotification);
-    lengthSlider.setTooltip ("How much to keep. The buffer is allocated when you change "
-                             "this, not while recording.");
-
-    lengthSlider.onDragEnd = [this]
-    {
-        processor.getSessionRecorder().prepare (processor.getSampleRate(),
-                                                lengthSlider.getValue());
-        refresh();
-    };
-
-    addAndMakeVisible (lengthSlider);
+    styleReadout (lengthLabel);
+    lengthLabel.setTooltip ("How much the recorder keeps. Set it on the PRACTICE tab.");
+    addAndMakeVisible (lengthLabel);
 
     saveButton.setTooltip ("Freeze what is in the buffer to a WAV and a MIDI file.");
     saveButton.onClick = [this]
@@ -1428,6 +1453,26 @@ SessionTab::SessionTab (LuthierAudioProcessor& p)
     refresh();
 }
 
+void SessionTab::visibilityChanged()
+{
+    if (isVisible())
+    {
+        storedMinutes = storedSetup().ringMinutes;
+        refresh();
+    }
+}
+
+SessionRecorderSetup SessionTab::storedSetup()
+{
+    PracticeDefaults defaults;
+    juce::String error;
+
+    if (! PracticeDefaults::load (PracticeDefaults::getDefaultsFile(), defaults, error))
+        return {};
+
+    return SessionRecorderSetup::fromVar (defaults.extra["session_recorder"]);
+}
+
 void SessionTab::refresh()
 {
     auto& recorder = processor.getSessionRecorder();
@@ -1445,7 +1490,10 @@ void SessionTab::refresh()
     // practice-tools 8 sizes the default at 1.4 GB, which this machine will not
     // allocate. The capacity is reported rather than the request, and the
     // difference is stated rather than hidden.
-    warningLabel.setText (lengthSlider.getValue() > minutes + 0.5
+    lengthLabel.setText ("Keeps " + juce::String (storedMinutes, 0) + " min",
+                         juce::dontSendNotification);
+
+    warningLabel.setText (recorder.isEnabled() && requestedMinutes > minutes + 0.5
                             ? ("Only " + juce::String (minutes, 1)
                                  + " minutes could be allocated.")
                             : juce::String(),
@@ -1460,7 +1508,7 @@ void SessionTab::resized()
         RowLayout r { bounds.removeFromTop (Metrics::buttonHeight) };
 
         enableToggle->setBounds (r.take (170));
-        lengthSlider.setBounds (r.take (180));
+        lengthLabel.setBounds (r.take (110));
         saveButton.setBounds (r.take (120));
         openFolderButton.setBounds (r.take (100));
     }
@@ -1509,6 +1557,40 @@ PracticePanel::PracticePanel (LuthierAudioProcessor& p)
 
     addAndMakeVisible (panicButton);
 
+    // ---- a running routine (practice-tools 10) ------------------------------------------
+    styleReadout (routineReadout);
+    addChildComponent (routineReadout);
+
+    routinePause.setTooltip ("Pause or resume the routine.");
+    routinePause.onClick = [this]
+    {
+        auto& runner = processor.getPracticeRoutineRunner();
+
+        if (runner.getPhase() == PracticeRoutineRunner::Phase::paused)
+            runner.resume();
+        else
+            runner.pause();
+
+        refreshRoutineStrip();
+    };
+
+    routineNext.setTooltip ("Skip to the routine's next entry.");
+    routineNext.onClick = [this]
+    {
+        processor.getPracticeRoutineRunner().next();
+        refreshRoutineStrip();
+    };
+
+    routineStop.setTooltip ("Stop the routine.");
+    routineStop.onClick = [this]
+    {
+        processor.getPracticeRoutineRunner().stop();
+        refreshRoutineStrip();
+    };
+
+    for (auto* button : { &routinePause, &routineNext, &routineStop })
+        addChildComponent (*button);
+
     // ---- the tabs ---------------------------------------------------------------------
     struct TabSpec { const char* name; };
 
@@ -1547,6 +1629,13 @@ PracticePanel::PracticePanel (LuthierAudioProcessor& p)
 PracticePanel::~PracticePanel()
 {
     stopTimer();
+    saveStats();
+}
+
+void PracticePanel::saveStats()
+{
+    secondsSinceSave = 0.0;
+    processor.savePracticeStats();
 }
 
 void PracticePanel::setOpen (bool shouldBeOpen)
@@ -1571,10 +1660,33 @@ void PracticePanel::setOpen (bool shouldBeOpen)
         running behind a hidden panel is exactly what the rule forbids. */
     processor.setPracticePanelOpen (open);
 
+    // practice-tools 0.1: a closed drawer pauses the routine it was running,
+    // and opening it again carries on - unless the player had paused it.
+    auto& runner = processor.getPracticeRoutineRunner();
+
     if (open)
+    {
+        if (pausedByClosing && runner.getPhase() == PracticeRoutineRunner::Phase::paused)
+            runner.resume();
+
+        pausedByClosing = false;
+        lastTickMs = juce::Time::getMillisecondCounterHiRes();
         startTimerHz (20);
+    }
     else
+    {
         stopTimer();
+
+        pausedByClosing = runner.getPhase() == PracticeRoutineRunner::Phase::countIn
+                          || runner.getPhase() == PracticeRoutineRunner::Phase::running;
+
+        if (pausedByClosing)
+            runner.pause();
+
+        saveStats();
+    }
+
+    refreshRoutineStrip();
 
     if (onHeightChanged != nullptr)
         onHeightChanged();
@@ -1585,7 +1697,22 @@ void PracticePanel::setOpen (bool shouldBeOpen)
 
 void PracticePanel::showTab (int index)
 {
-    currentTab = juce::jlimit (0, tabs.size() - 1, index);
+    const int leaving = currentTab;
+    index = juce::jlimit (0, tabs.size() - 1, index);
+
+    // 12.1: a trainer's answers since it was opened count as one session.
+    if (leaving != index)
+    {
+        auto& stats = processor.getPracticeStats();
+        auto& tracker = processor.getPracticeActivityTracker();
+
+        if (leaving == (int) PracticeTool::scaleTrainer)
+            tracker.recordScaleTrainer (processor.getScaleTrainer(), stats, PracticeStats::today());
+        else if (leaving == (int) PracticeTool::earTrainer)
+            tracker.recordEarTrainer (processor.getEarTrainer(), stats, PracticeStats::today());
+    }
+
+    currentTab = index;
 
     for (int i = 0; i < tabs.size(); ++i)
         tabs[i]->setVisible (open && i == currentTab);
@@ -1597,8 +1724,73 @@ void PracticePanel::showTab (int index)
     repaint();
 }
 
+void PracticePanel::tick (double seconds)
+{
+    auto& runner = processor.getPracticeRoutineRunner();
+
+    // practice-tools 10 and 12: the routine's clock and the minutes practised
+    // both run on the drawer's timer, which runs only while it is open (0.1).
+    runner.advance (seconds);
+    processor.getPracticeActivityTracker().update (processor.getPracticeTargets(), open, seconds,
+                                                   processor.getPracticeStats(), PracticeStats::today());
+
+    if (runner.isActive() && (int) runner.getActiveTool() != currentTab)
+        showTab ((int) runner.getActiveTool());
+
+    secondsSinceSave += seconds;
+
+    if (secondsSinceSave >= 30.0)
+        saveStats();
+
+    refreshRoutineStrip();
+}
+
+void PracticePanel::refreshRoutineStrip()
+{
+    auto& runner = processor.getPracticeRoutineRunner();
+    const bool showing = open && runner.isActive();
+    bool changed = false;
+
+    for (auto* c : { static_cast<juce::Component*> (&routineReadout), static_cast<juce::Component*> (&routinePause),
+                     static_cast<juce::Component*> (&routineNext), static_cast<juce::Component*> (&routineStop) })
+    {
+        if (c->isVisible() != showing)
+        {
+            c->setVisible (showing);
+            changed = true;
+        }
+    }
+
+    if (changed)
+        resized();
+
+    if (! showing)
+        return;
+
+    const auto& routine = runner.getRoutine();
+    juce::String text = routine.name + "  " + juce::String (runner.getEntryIndex() + 1)
+                          + "/" + juce::String ((int) routine.entries.size());
+
+    const double remaining = runner.getEntryRemainingSeconds();
+
+    if (runner.getPhase() == PracticeRoutineRunner::Phase::countIn)
+        text << "  count-in";
+    else if (remaining > 0.0)
+        text << "  " << (int) remaining / 60 << ":" << juce::String ((int) remaining % 60).paddedLeft ('0', 2);
+    else
+        text << "  x" << runner.getRepetitionsDone();
+
+    routineReadout.setText (text, juce::dontSendNotification);
+    routinePause.setButtonText (runner.getPhase() == PracticeRoutineRunner::Phase::paused ? "Resume" : "Pause");
+}
+
 void PracticePanel::timerCallback()
 {
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    const double elapsed = juce::jlimit (0.0, 1.0, (now - lastTickMs) * 0.001);
+    lastTickMs = now;
+    tick (elapsed);
+
     // ---- the strip's readouts ---------------------------------------------------------
     const auto& metronome = processor.getMetronome();
     const auto& looper = processor.getLooper();
@@ -1687,6 +1879,16 @@ void PracticePanel::resized()
 
     if (! open)
         return;
+
+    // ---- a running routine ------------------------------------------------------------
+    if (routineReadout.isVisible())
+    {
+        auto routineRow = bounds.removeFromTop (22).reduced (Metrics::gridHalf, 0);
+        routineStop.setBounds (routineRow.removeFromRight (56).reduced (1, 1));
+        routineNext.setBounds (routineRow.removeFromRight (56).reduced (1, 1));
+        routinePause.setBounds (routineRow.removeFromRight (64).reduced (1, 1));
+        routineReadout.setBounds (routineRow);
+    }
 
     // ---- the tab strip --------------------------------------------------------------
     auto tabRow = bounds.removeFromTop (22);

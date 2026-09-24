@@ -77,6 +77,23 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     bridge.cachePointers();
     bridge.setModMatrix (&modMatrix);
 
+    // practice-tools 12.1: the routine runner drives the processor's own tools,
+    // the history is the saved one, and the saved defaults apply at start.
+    practiceRunner.setTargets (getPracticeTargets());
+    practiceStats.load();
+
+    {
+        PracticeDefaults defaults;
+        juce::String error;
+
+        if (PracticeDefaults::load (PracticeDefaults::getDefaultsFile(), defaults, error))
+            defaults.applyTo (getPracticeTargets());
+    }
+
+    // tune-builder 8: the tune drives the rhythm engine's pattern and kit.
+    tuneSession.attachPlayer (&tunePlayer);
+    tuneSession.attachRhythm (&engine.getRhythmEngine(), &genreKits, &patternLibrary);
+
     // The bank stores the snapshot blobs for the modules it does not own, and
     // hands them back at the crossfade midpoint for this to unpack.
     snapshots.onNonParameterState = [this] (const Snapshot& snapshot)
@@ -146,6 +163,11 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     transportWasRunning = false;
     midiCapture.prepare (sampleRate, 60.0);
     performanceCapture.prepare (sampleRate);
+
+    tunePlayer.prepare (sampleRate, samplesPerBlock);
+
+    for (auto* tuneBuffer : { &tuneToEngine, &tuneToMidiOut, &tuneDirect })
+        tuneBuffer->ensureSize (TunePlayer::kRecommendedMidiBytes);
     captureStringCount = -1;   // re-sent at the next drain
     diagnostics.prepare (sampleRate);
 
@@ -164,6 +186,9 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     backingTrack.prepare (sampleRate, samplesPerBlock);
 
     clickBuffer.setSize (1, juce::jmax (1, samplesPerBlock), false, true, false);
+    tuneClick.prepare (sampleRate, samplesPerBlock);
+    tuneClickBuffer.setSize (1, juce::jmax (1, samplesPerBlock), false, true, false);
+    tuneClickRinging = false;
     backingBuffer.setSize (2, juce::jmax (1, samplesPerBlock), false, true, false);
     clickBuffer.clear();
     backingBuffer.clear();
@@ -922,7 +947,7 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     // what makes its scheduling sample-accurate rather than merely periodic.
     {
         double ppq = 0.0;
-        bool playing = false;
+        bool playing = false, hasPosition = false;
 
         if (auto* playHead = getPlayHead())
         {
@@ -931,11 +956,45 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
                 playing = position->getIsPlaying();
 
                 if (auto value = position->getPpqPosition())
+                {
                     ppq = *value;
+                    hasPosition = true;
+                }
             }
         }
 
         engine.setTransportPosition (ppq, playing);
+
+        /*  tune-builder 3.6 and 8: the tune plays against the host's clock
+            while the host plays and its own otherwise; its own clock then
+            drives the rhythm engine too. Record takes the player's notes
+            before any of the tune's are merged in. */
+        TunePlayer::HostInfo host;
+        host.hasPosition = hasPosition;
+        host.isPlaying = playing;
+        host.ppqPosition = ppq;
+        host.bpm = hostTempo.load();
+
+        tuneToEngine.clear();
+        tuneToMidiOut.clear();
+        tunePlayer.renderBlock (numSamples, host, tuneToEngine, tuneToMidiOut);
+        tunePlayer.captureInput (midiMessages);
+
+        const auto& tuneTransport = tunePlayer.getBlockTransport();
+
+        if (tuneTransport.running && ! tuneTransport.followingHost)
+        {
+            engine.setTempoBpm (tuneTransport.bpm);
+            engine.setTransportPosition (tuneTransport.ppq, true);
+        }
+
+        // 8: a section asking for a state boundary restarts the pattern and
+        // the modulation envelopes.
+        if (tunePlayer.crossedStateBoundary())
+        {
+            engine.getRhythmEngine().reset();
+            modMatrix.resetEnvelopes();
+        }
     }
 
     // MIDI Learn gets first look, so a CC being learned is not also acted on.
@@ -963,6 +1022,25 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
             previewMidi.clear();
         }
     }
+
+    /*  tune-builder 8: the chord channel joins the host MIDI, where the rhythm
+        engine reads the held chord and strums it; melody, bass and layers go
+        to the engine as direct notes, which the rhythm engine's stream does
+        not replace. Merged after MIDI Learn, so the tune's controllers can
+        never be learned. */
+    tuneDirect.clear();
+
+    for (const auto metadata : tuneToEngine)
+    {
+        const auto message = metadata.getMessage();
+
+        if (message.getChannel() == TuneMidiOptions {}.chordChannel)
+            midiMessages.addEvent (message, metadata.samplePosition);
+        else
+            tuneDirect.addEvent (message, metadata.samplePosition);
+    }
+
+    engine.setDirectMidi (tuneDirect.isEmpty() ? nullptr : &tuneDirect);
 
     // ---- modulation ------------------------------------------------------------
     // Sources first, then the matrix, then the bridge: the bridge reads every
@@ -1081,6 +1159,49 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         sessionRecorder.processBlock (mainOut, numSamples);
     }
 
+    // tune-builder 3.6: the tune's count-in and metronome, on the tune's own
+    // grid, in the practice metronome's sound and level.
+    {
+        const auto& clicks = tunePlayer.getBlockClicks();
+
+        if (clicks.count > 0 || tuneClickRinging)
+        {
+            tuneClick.setSound (metronome.getSound());
+            tuneClick.setLevelDb (metronome.getLevelDb());
+
+            auto* tuneClicks = tuneClickBuffer.getWritePointer (0);
+            tuneClick.renderClicksAt (tuneClicks, numSamples, clicks.offsets.data(),
+                                      clicks.downbeat.data(), clicks.count);
+
+            if (haveClick)
+                clickBuffer.addFrom (0, 0, tuneClicks, numSamples);
+            else
+                clickBuffer.copyFrom (0, 0, tuneClicks, numSamples);
+
+            haveClick = true;
+
+            // A click rings past its block; one quiet block ends it.
+            tuneClickRinging = juce::FloatVectorOperations::findMaximum (tuneClicks, numSamples) > 1.0e-5f
+                            || clicks.count > 0;
+        }
+    }
+
+    /*  practice-tools 0.2: the click goes to the monitor bus unless the player
+        has sent it to the main out - and it goes there anyway when there is no
+        monitor bus to hear it on (the standalone app, a stereo-only layout). */
+    const bool clickOnMain = haveClick && (clickToMain.load (std::memory_order_relaxed)
+                                           || ! RoutingMatrix::layoutHasAux (routing.getActiveLayout()));
+
+    if (clickOnMain)
+    {
+        auto mainOut = getBusBuffer (buffer, false, 0);
+
+        for (int channel = 0; channel < juce::jmin (2, mainOut.getNumChannels()); ++channel)
+            mainOut.addFrom (channel, 0, clickBuffer, 0, 0, numSamples);
+
+        haveClick = false;   // not on the monitor as well
+    }
+
     routing.distribute (*this, buffer, engine.getTapBuffers(), engine.getNumStrings(),
                         engine.getNoiseBusData());
 
@@ -1110,6 +1231,10 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
             midiOutRouter.setMacroValue (m, raw->load());
 
     midiOutRouter.emit (midiMessages, midiOutConfig, engine.getStringActivity(), numSamples);
+
+    // midi-export 10 / tune-builder 8: the tune's parts, when MIDI out carries them.
+    if (midiOutConfig.enabled && midiOutConfig.tunePlayback)
+        midiMessages.addEvents (tuneToMidiOut, 0, numSamples, 0);
     sendLuthierSysEx (midiOutConfig, midiMessages, numSamples);
 
     samplePosition += numSamples;
@@ -1891,6 +2016,10 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 
     // practice-tools 1: the metronome's settings are part of the session.
     root->setProperty ("metronome", metronome.toVar());
+    root->setProperty ("clickToMain", isClickToMain());
+
+    // tune-builder 15: the tune being built is part of the session.
+    root->setProperty ("tune", tuneSession.toState());
 
     const auto json = juce::JSON::toString (juce::var (root), false);
 
@@ -1978,6 +2107,11 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
     if (root->hasProperty ("metronome"))
         metronome.fromVar (root->getProperty ("metronome"));
 
+    setClickToMain (root->hasProperty ("clickToMain") && (bool) root->getProperty ("clickToMain"));
+
+    if (root->hasProperty ("tune"))
+        tuneSession.restoreState (root->getProperty ("tune"));
+
     presets.applyExtraState();
     bridge.applyAllNow();
 
@@ -2016,10 +2150,39 @@ void LuthierAudioProcessor::updatePresetMorph()
         presetMorph.apply ((double) position->load());
 }
 
+bool LuthierAudioProcessor::savePracticeStats() const
+{
+    juce::String error;
+    return practiceStats.save (practiceStatsFile, error);
+}
+
+PracticeTargets LuthierAudioProcessor::getPracticeTargets() noexcept
+{
+    PracticeTargets targets;
+    targets.metronome       = &metronome;
+    targets.looper          = &looper;
+    targets.backingTrack    = &backingTrack;
+    targets.scaleTrainer    = &scaleTrainer;
+    targets.earTrainer      = &earTrainer;
+    targets.progression     = &progression;
+    targets.sessionRecorder = &sessionRecorder;
+    return targets;
+}
+
+void LuthierAudioProcessor::serviceTune()
+{
+    // tune-builder 8: a bass plays the tune's bass line itself; any other
+    // instrument leaves it to MIDI out.
+    tunePlayer.setBassToEngine (engine.getGuitarSpec().category == GuitarCategory::Bass);
+    tuneSession.service();
+}
+
 void LuthierAudioProcessor::timerCallback()
 {
     // ambiguity-resolutions 5.2: the morph follows its (automatable) slider.
     updatePresetMorph();
+
+    serviceTune();
 
     // notation-export 6.2: the capture drains at 10 Hz.
     if (++captureDrainTick >= 3)

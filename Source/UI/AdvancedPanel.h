@@ -32,6 +32,8 @@
 #include "GuitarBodyComponent.h"
 #include "PedalRack.h"
 #include "AmpFacePanel.h"
+#include "TunePanel.h"
+#include "PracticeSetupPanel.h"
 
 namespace luthier
 {
@@ -273,6 +275,8 @@ private:
     std::unique_ptr<WorkshopPanel> workshopPanel;
     std::unique_ptr<ModMatrixPanel> modMatrixPanel;
     std::unique_ptr<RhythmPanel> rhythmPanel;
+    std::unique_ptr<TunePanel> tunePanel;
+    std::unique_ptr<PracticeSetupPanel> practiceSetupPanel;
     std::unique_ptr<LivePanel> livePanel;
     std::unique_ptr<ToneMatchPanel> toneMatchPanel;
     std::unique_ptr<CharacterPanel> characterPanel;
