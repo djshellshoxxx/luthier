@@ -1,0 +1,4 @@
+- [MX-2] effort S — add `MidiExport::smpteTimingIsRefused`: hand-build an SMF header with a negative division (e.g. 0xE728), import, CHECK refusal text contains "SMPTE".
+- [MX-16] effort S — add `MidiExport::aNewerWireVersionIsRefusedInKnownClassesAndKeptInUnknownOnes`: patch the wire byte after `LT` to 2 in a STRUM SysEx (CHECK refused) and in an unknown-class SysEx (CHECK kept as bytes and written back); patch the header's wire byte (CHECK refused).
+- [MX-18] effort S — add `MidiImport::aGenericBassTrackIsPartOne`: write a Generic two-track file whose second track is named "Bass guitar", import, CHECK its notes land in part 1 and extension text metas are ignored.
+- [MX-22] effort S — add `MidiExport::tooManyEventsAreRefused` using a synthetic file just over `kMaxEvents` (build it cheaply as one track of repeated 3-byte running-status messages) and CHECK the refusal; keep it under the suite's time budget, or expose `kMaxEvents` as an injectable limit for the test.
