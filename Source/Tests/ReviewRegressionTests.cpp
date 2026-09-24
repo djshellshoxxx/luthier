@@ -9,6 +9,7 @@
 #include "../DSP/Effects/PedalsMod.h"
 #include "../DSP/Amp/RoomEngine.h"
 #include "../Model/Playing/MidiInterpreter.h"
+#include "../Practice/Looper.h"
 #include "../Model/Playing/TechniqueEngine.h"
 #include "../Model/Playing/RubricVoicer.h"
 #include "../Model/Playing/TuningEngine.h"
@@ -311,4 +312,72 @@ LUTHIER_TEST (ReviewRegression, aControllerNoteOffReleasesItsOwnString)
     CHECK (out.getNumNoteOffs() == 1);
     CHECK_MSG (out.getNumNoteOffs() == 1 && out.getNoteOff (0).stringIndex == 1,
                "released string " + juce::String (out.getNoteOff (0).stringIndex));
+}
+
+//==============================================================================
+/*  R-016 / R-017: overdubbing recorded the block into the active layer and then
+    played every layer back, the active one included, so the player heard their
+    live signal twice; and the overdub was written at unwrapped positions, so
+    whatever was played after the loop end went past the loop and was never
+    heard. */
+LUTHIER_TEST (ReviewRegression, anOverdubIsHeardOnceAndWrapsWithTheLoop)
+{
+    constexpr int block = 512;
+    Looper looper;
+    looper.prepare (48000.0, 10.0);
+
+    juce::AudioBuffer<float> buffer (2, block);
+    int64_t t = 0;
+
+    // 1 kHz at 48 kHz: a 48-sample period, which divides the 21-block loop, so
+    // every pass of the overdub lands in phase with the last.
+    auto render = [&] (int blocks, float amplitude, int n = block)
+    {
+        for (int b = 0; b < blocks; ++b)
+        {
+            for (int i = 0; i < n; ++i, ++t)
+                buffer.setSample (0, i, amplitude * (float) std::sin (juce::MathConstants<double>::twoPi * (double) (t % 48) / 48.0)),
+                buffer.setSample (1, i, buffer.getSample (0, i));
+
+            looper.processBlock (buffer, n);
+        }
+    };
+
+    // A silent first layer sets the loop length.
+    looper.press();
+    render (20, 0.0f);
+    looper.press();
+    render (1, 0.0f);
+    CHECK (looper.getState() == Looper::State::playing);
+
+    const int length = looper.getLoopLengthSamples();
+    CHECK_MSG (length % 48 == 0, "loop length " + juce::String (length));
+
+    // Into the loop a little, so the overdub starts mid-loop.
+    render (3, 0.0f);
+
+    // While overdubbing, what is heard is the live signal once.
+    looper.press();
+    CHECK (looper.getState() == Looper::State::overdubbing);
+    render (4, 0.2f, 500);
+    CHECK_NEAR (buffer.getRMSLevel (0, 0, 500), 0.2f / std::sqrt (2.0f), 0.01f);
+
+    // One and a half loops in all, in blocks that do not tile the loop, so one
+    // of them straddles its end; then play back with no input.
+    render ((length * 3 / 2) / 500 - 4, 0.2f, 500);
+    looper.press();
+    CHECK (looper.getState() == Looper::State::playing);
+
+    float quietest = 1.0e9f;
+
+    for (int b = 0; b < length / block; ++b)
+    {
+        buffer.clear();
+        looper.processBlock (buffer, block);
+
+        for (int period = 0; period + 48 <= block; period += 48)   // one sine period each
+            quietest = juce::jmin (quietest, buffer.getRMSLevel (0, period, 48));
+    }
+
+    CHECK_MSG (quietest > 0.1f, "a hole in the overdub: period RMS " + juce::String (quietest));
 }

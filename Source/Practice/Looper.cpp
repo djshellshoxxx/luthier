@@ -89,7 +89,7 @@ void LoopLayer::prepareFilters (double sampleRate) noexcept
 
 //==============================================================================
 void LoopLayer::record (const float* left, const float* right,
-                        int position, int numSamples) noexcept
+                        int position, int numSamples, int wrapLength) noexcept
 {
     if (capacity <= 0 || left == nullptr)
         return;
@@ -101,7 +101,7 @@ void LoopLayer::record (const float* left, const float* right,
 
     for (int i = 0; i < numSamples; ++i)
     {
-        const int index = position + i;
+        const int index = wrapLength > 0 ? (position + i) % wrapLength : position + i;
 
         if (! juce::isPositiveAndBelow (index, capacity))
             break;
@@ -122,7 +122,8 @@ void LoopLayer::record (const float* left, const float* right,
     }
 
     recordedSamples = juce::jmax (recordedSamples,
-                                  juce::jmin (capacity, position + numSamples));
+                                  juce::jmin (wrapLength > 0 ? juce::jmin (capacity, wrapLength) : capacity,
+                                              position + numSamples));
 }
 
 void LoopLayer::playInto (float* left, float* right, int position, int numSamples,
@@ -470,20 +471,39 @@ void Looper::processBlock (juce::AudioBuffer<float>& buffer, int numSamples) noe
     const int position = getPlayPosition();
     const int length = getLoopLengthSamples();
 
-    // ---- recording ------------------------------------------------------------------
-    if (currentState == State::recordingFirst || currentState == State::overdubbing)
+    // ---- recording and playback -----------------------------------------------------
+    if (currentState == State::overdubbing && length > 0)
     {
-        auto& layer = layers[(size_t) getActiveLayer()];
-        layer.record (left, right, position, numSamples);
-    }
+        /*  Every layer, the active one included, plays what it held before this
+            block; the live input, kept aside, is then recorded over the active
+            one at the loop's own (wrapped) positions. Recording first and then
+            playing the active layer played the live signal back on top of
+            itself, and unwrapped positions put the overdub past the loop end. */
+        auto& active = layers[(size_t) getActiveLayer()];
 
-    // ---- playback --------------------------------------------------------------------
-    if (currentState != State::recordingFirst && length > 0)
-        for (int i = 0; i < kMaxLayers; ++i)
-            if (i != getActiveLayer() || currentState != State::overdubbing)
-                layers[(size_t) i].playInto (left, right, position, numSamples, length);
-            else
-                layers[(size_t) i].playInto (left, right, position, numSamples, length);
+        for (int offset = 0; offset < numSamples; offset += kOverdubChunk)
+        {
+            const int n = juce::jmin (kOverdubChunk, numSamples - offset);
+            const int at = (position + offset) % length;
+
+            std::copy (left + offset, left + offset + n, overdubL.begin());
+            std::copy (right + offset, right + offset + n, overdubR.begin());
+
+            for (auto& layer : layers)
+                layer.playInto (left + offset, right + offset, at, n, length);
+
+            active.record (overdubL.data(), overdubR.data(), at, n, length);
+        }
+    }
+    else
+    {
+        if (currentState == State::recordingFirst)
+            layers[(size_t) getActiveLayer()].record (left, right, position, numSamples);
+
+        if (currentState != State::recordingFirst && length > 0)
+            for (auto& layer : layers)
+                layer.playInto (left, right, position, numSamples, length);
+    }
 
     // ---- advance ----------------------------------------------------------------------
     int next = position + numSamples;
