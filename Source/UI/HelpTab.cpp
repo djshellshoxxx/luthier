@@ -183,6 +183,10 @@ juce::String HelpTab::composeBody (int index) const
              << "- Homepage: " << HelpContent::homepageUrl << "\n"
              << "- Source: " << HelpContent::sourceUrl << "\n"
              << "- Support: " << HelpContent::supportEmail;
+
+        // TUNE-HELP-ONBOARDING: say so while the build still carries the placeholders.
+        if (! SupportLinks::areConfigured())
+            text << "\n(These addresses are placeholders in this build; see Support/SupportLinks.h.)";
     }
 
     return text;

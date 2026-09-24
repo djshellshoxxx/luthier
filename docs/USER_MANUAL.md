@@ -27,6 +27,35 @@ Six macro knobs cover most of what you will want to change. When you want more,
 press **Advanced** at the top right - nothing is hidden there that is not also
 reachable from Easy mode; Advanced just stops summarising.
 
+### The first launch
+
+A fresh install opens in Easy mode on **Single-Cut Crunch**, a finished rock sound,
+so the first note you play already sounds like a guitar. It follows your system's
+high-contrast, reduced-motion, display-scale and language settings, and makes no
+network connection.
+
+A banner under the header offers a **two-minute tour**: twelve stops, one callout
+each, pointing at the control it describes. **Next**, **Back** and **Skip** move
+through it and **Escape** ends it. **Maybe later** brings the offer back next time
+(three times at most); **Don't ask again** means it. The HELP tab's **Take the
+tour** button starts it at any time.
+
+For your first week (seven launches or seven days) new things are marked: every
+panel's `?` pulses the first time you see it, each workspace tab you have not
+opened carries a small dot, and the Workshop wrench, the TUNE tab and the Slide
+switch pulse once.
+
+Three ways in:
+
+- **30 seconds** - play. The default sound is enough.
+- **2 minutes** - take the tour, then press **Randomise** a few times.
+- **5 minutes** - take the tour, load an example tune in the TUNE tab, press play,
+  and swap the guitar in the Workshop while it loops.
+
+Every panel with more than one row of controls has a `?` in its corner: it opens
+Help on that panel. Right-clicking an empty part of an Advanced column offers the
+same, as **Docs**.
+
 ---
 
 ## The header

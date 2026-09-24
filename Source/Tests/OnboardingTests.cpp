@@ -587,3 +587,23 @@ LUTHIER_TEST (Onboarding, aFreshInstallStartsWhereSectionOneSays)
     AccessibilitySettings::get().fromVar (a11yState);
     AccessibilitySettings::get().dispatchPendingMessages();
 }
+
+//==============================================================================
+/*  TODO 13 / INC-HLP-02: the support links are configured in one header, and
+    the placeholders are reserved names that can never reach a third party. */
+LUTHIER_TEST (HelpLinks, theSupportLinksComeFromOneConfigurableHeader)
+{
+    CHECK (juce::String (HelpContent::homepageUrl) == SupportLinks::homepageUrl);
+    CHECK (juce::String (HelpContent::sourceUrl) == SupportLinks::sourceUrl);
+    CHECK (juce::String (HelpContent::supportEmail) == SupportLinks::supportEmail);
+    CHECK (HelpContent::getSupportMailUrl().toString (false).contains (SupportLinks::supportEmail));
+
+    // Whatever they are set to, each is either configured or on the reserved .example name.
+    for (const char* link : { SupportLinks::homepageUrl, SupportLinks::sourceUrl, SupportLinks::supportEmail })
+        CHECK_MSG (SupportLinks::areConfigured() || juce::String (link).contains (".example"),
+                   juce::String (link) + " is neither configured nor a reserved placeholder");
+
+    // No other address is written into the help text.
+    for (int i = 0; i < HelpContent::getNumTopics(); ++i)
+        CHECK (! juce::String (HelpContent::getTopic (i).body).contains ("@"));
+}
