@@ -63,6 +63,14 @@ struct GuitarScene
         bool strokeIsHairline = false;        ///< stroke at a fixed 1 px, whatever the zoom
         int clip = -1;                        ///< index into `clips`, or -1
         bool lit = false;                     ///< a lighting layer: omitted from flat renders
+
+        /** > 0: a soft shadow. The path is filled with `fill`'s colour blurred by this
+            radius (mm); `stroke` is ignored. Blurred at paint time, in pixels. */
+        float shadowMm = 0.0f;
+
+        /** > 0: an inner shadow. `fill`'s colour bleeds inward from the path's outline
+            by this radius (mm) and fades to nothing: a sprayed burst's edge band. */
+        float innerMm = 0.0f;
     };
 
     /** A string, drawn per material (section 10) from its anchor to its tuner. */
@@ -70,6 +78,7 @@ struct GuitarScene
     {
         juce::Point<float> tail, saddle, nut, post;
         juce::Colour colour, winding;
+        juce::FillType fill;                  ///< one gradient across the string: lit on top, shaded below
         float widthMm = 0.3f;
         float minWidthPx = 1.0f;              ///< section 10's line width, the floor at small zooms
         bool wound = false, dashedWinding = false;
@@ -112,6 +121,8 @@ struct GuitarScene
     float knobRadiusMm = 9.0f;
 
     juce::Rectangle<float> bounds;            ///< everything, mm
+    juce::Rectangle<float> bodyBounds;        ///< the body outline alone, mm: what a cropped fit keeps
+    int detail = 0;                           ///< the GuitarRenderer::Detail it was built at
     juce::int64 key = 0;                      ///< section 2.1's cache key
 };
 
@@ -133,11 +144,24 @@ struct GuitarOverlay
 class GuitarRenderer
 {
 public:
+    /** How much of section 5 is drawn: chosen from the pixels a millimetre gets
+        (detailFor), so a strip-sized guitar is clean fills and hairlines rather
+        than sub-pixel grain, screws and shadows. */
+    enum class Detail
+    {
+        full,        ///< everything: grain, shadows, screws, winding, purfling
+        reduced,     ///< below ~0.6 px/mm: no grain, sparkle, dings, purfling, hardware shadows, screws; hairline frets
+        thumbnail    ///< below ~0.25 px/mm: section 15's thumbnail; flat fills, no shadows or sheen
+    };
+
     struct Options
     {
-        bool materials = true;     ///< visual-polish.md 1's lighting; false for High contrast
-        bool thumbnail = false;    ///< section 15's reduced detail
+        bool materials = true;             ///< visual-polish.md 1's lighting; false for High contrast
+        Detail detail = Detail::full;
     };
+
+    /** The detail a scale deserves: full from 0.6 px/mm, thumbnail under 0.25. */
+    static Detail detailFor (float pxPerMm) noexcept;
 
     /** Builds the static scene for a guitar. Message thread or worker. */
     static GuitarScene build (const WorkshopGuitar& guitar, Options options);
@@ -146,8 +170,30 @@ public:
     /** The cache key for a guitar (section 2.1): a hash of its canonical serialisation. */
     static juce::int64 keyFor (const WorkshopGuitar& guitar, Options options);
 
-    /** Maps the scene's millimetres into `area`, headstock left, bass up. */
+    /** Maps the scene's millimetres into `area`, headstock left, bass up, the whole guitar in frame. */
     static juce::AffineTransform fitTransform (const GuitarScene& scene, juce::Rectangle<float> area);
+
+    /** What a fit keeps in frame. */
+    enum class Framing
+    {
+        whole,       ///< the whole guitar, shadow included
+        body,        ///< the body and the last five frets, the neck running off the left edge
+        automatic    ///< `body` when `whole` would leave the body under 0.5 px/mm and cropping helps
+    };
+
+    /** fitTransform with a framing. A `body` fit keeps the body's right edge just
+        inside `area` and lets the neck run off the left. Hit-testing through the
+        inverse of this transform stays exact: nothing moves, the frame does. */
+    static juce::AffineTransform frameTransform (const GuitarScene& scene, juce::Rectangle<float> area, Framing framing);
+
+    /** The pixels a millimetre gets under a transform. */
+    static float pxPerMm (const juce::AffineTransform& mmToPx) noexcept;
+
+    /** What GuitarBodyComponent does for its size: builds the scene at the detail
+        the fit deserves (`displayScale` counts HiDPI pixels) and frames it
+        automatically. Returns the mm-to-px transform; `scene` receives the scene. */
+    static juce::AffineTransform buildFitted (const WorkshopGuitar& guitar, juce::Rectangle<float> area,
+                                              float displayScale, bool materials, GuitarScene& scene);
 
     /** Paints the static scene. */
     static void paint (juce::Graphics& g, const GuitarScene& scene, const juce::AffineTransform& mmToPx);
