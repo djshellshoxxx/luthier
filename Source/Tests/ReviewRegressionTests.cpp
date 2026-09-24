@@ -784,3 +784,42 @@ LUTHIER_TEST (ReviewRegression, autoTrimTrimsTheTailWithoutLeadingSilence)
     capture.autoTrim();
     CHECK_MSG (capture.getRecordedSamples() == 4800, juce::String (capture.getRecordedSamples()));
 }
+
+/*  R-039: ASCII tab import measured every note from the start of the line, so
+    each bar line and the writer's pad column counted as time: every measure
+    after the first came back half a beat later than the one before. */
+LUTHIER_TEST (ReviewRegression, asciiTabRoundTripKeepsBeats)
+{
+    PerformanceScore score;
+    score.beginCapture (120.0, 4, 4);
+
+    const double beats[] = { 0.0, 1.0, 2.5, 4.0, 5.0, 6.0, 8.0, 9.5, 11.0 };
+    const int frets[]    = { 3,   5,   12,  0,   7,   10,  2,   15,  5 };
+
+    for (int i = 0; i < 9; ++i)
+    {
+        score.noteStarted (i % 3, frets[i], 64 - 5 * (i % 3) + frets[i], 440.0, 0.8, beats[i]);
+        score.noteEnded (i % 3, beats[i] + 0.5);
+    }
+
+    score.endCapture (12.0);
+
+    NotationExporter exporter;
+    const auto text = exporter.renderAsciiTab (score);
+
+    NotationImporter importer;
+    PerformanceScore back;
+    CHECK (importer.readAsciiTab (text, back));
+
+    juce::String got, want;
+
+    for (const auto& m : back.getTrack (0).measures)
+        for (const auto* n : m.collectNotes())
+            got << juce::String (n->startBeat, 2) << " ";
+
+    for (const auto& m : score.getTrack (0).measures)
+        for (const auto* n : m.collectNotes())
+            want << juce::String (n->startBeat, 2) << " ";
+
+    CHECK_MSG (got == want, "wrote " + want + "\nread back " + got);
+}
