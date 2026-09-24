@@ -42,7 +42,7 @@ namespace
     const char* const kCanonicalTabs[] =
     {
         "WORKSHOP", "MOD", "RHYTHM", "TUNE", "LIVE", "ROUTING", "TONE MATCH", "CHARACTER",
-        "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "HELP"
+        "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "TECHNIQUES", "HELP"
     };
 
     /*  UiPreferences writes through to the user's real config file, and opening

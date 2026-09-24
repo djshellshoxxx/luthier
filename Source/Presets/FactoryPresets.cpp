@@ -1,6 +1,7 @@
 #include "FactoryPresets.h"
 #include "PresetManager.h"
 #include "../Parameters.h"
+#include "TechniquePresets.h"
 
 namespace luthier
 {
@@ -68,6 +69,7 @@ namespace
         juce::String description;
         juce::String tags;
         std::vector<std::pair<juce::String, double>> values;
+        juce::String techniques;   // TECHNIQUES: the techniques block's JSON
     };
 
     void addCommon (PresetRecipe& r, int guitar, int tuning, int amp, int cab, int speaker,
@@ -662,6 +664,11 @@ namespace
                 r.values.emplace_back (P::useFingers, 1.0);
             }
 
+            // ==== BEGIN TECHNIQUES presets ====
+            for (const auto& t : getTechniquePresetRecipes())
+                b.push_back ({ t.name, t.category, t.description, t.tags, t.values, t.techniques });
+            // ==== END TECHNIQUES presets ====
+
             return b;
         }();
 
@@ -680,7 +687,7 @@ const FactoryPresets::Definition& FactoryPresets::getPreset (int index) noexcept
     // The Definition view is rebuilt on demand from the recipe table.
     static thread_local Definition def {};
     static thread_local std::vector<Entry> entries;
-    static thread_local juce::String name, category, description, tags;
+    static thread_local juce::String name, category, description, tags, techniques;
 
     const auto& bank = buildBank();
     const auto& recipe = bank[(size_t) juce::jlimit (0, (int) bank.size() - 1, index)];
@@ -689,6 +696,7 @@ const FactoryPresets::Definition& FactoryPresets::getPreset (int index) noexcept
     category = recipe.category;
     description = recipe.description;
     tags = recipe.tags;
+    techniques = recipe.techniques;
 
     entries.clear();
     entries.reserve (recipe.values.size());
@@ -700,6 +708,7 @@ const FactoryPresets::Definition& FactoryPresets::getPreset (int index) noexcept
     def.category = category.toRawUTF8();
     def.description = description.toRawUTF8();
     def.tags = tags.toRawUTF8();
+    def.techniques = techniques.toRawUTF8();
     def.entries = entries.data();
     def.numEntries = (int) entries.size();
 
@@ -757,6 +766,10 @@ juce::var FactoryPresets::toVar (const Definition& def, const juce::AudioProcess
     }
 
     root->setProperty ("parameters", juce::var (params));
+
+    // TECHNIQUES: engine-technique-layer.md 7.
+    if (def.techniques != nullptr && *def.techniques != 0)
+        root->setProperty ("techniques", juce::JSON::parse (juce::String (def.techniques)));
 
     return juce::var (root);
 }

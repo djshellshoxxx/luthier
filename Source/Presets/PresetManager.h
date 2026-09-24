@@ -80,6 +80,12 @@ public:
         (ParameterBridge::adoptPedalTypesFromParameters). */
     std::function<void()> onPedalTypesLoaded;
 
+    /*  TECHNIQUES (engine-technique-layer.md 7): the preset's `techniques`
+        block - the live mute grid, the custom bend scale, the drawn curve.
+        Handed a void var on a preset without one (6: defaults) and on Init. */
+    std::function<juce::var()> captureTechniquesBlock;
+    std::function<void (const juce::var&)> onTechniquesBlockLoaded;
+
     /** Deletes backups older than kBackupRetentionDays. Called once on startup. */
     static void pruneOldBackups();
 

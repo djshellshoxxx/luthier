@@ -41,6 +41,7 @@
 #include "Routing/MidiOutRouter.h"
 #include "Rhythm/RhythmEngine.h"
 #include "Character/CharacterEngine.h"
+#include "DSP/Techniques/TechniqueLayer.h"   // TECHNIQUES: engine-technique-layer.md
 
 #include <array>
 #include <atomic>
@@ -205,6 +206,16 @@ public:
         slap.setSettings (s);
         techniqueTriggers.configure (TechniqueId::slap, s.triggerConfig());
     }
+
+    /*  TECHNIQUES (engine-technique-layer.md 1): mute, tap, microtonal bends,
+        the slide's user controls and the cascade resolver. The glue is in
+        LuthierEngineTechniques.cpp. */
+    TechniqueLayer& getTechniqueLayer() noexcept { return techniqueLayer; }
+    const TechniqueLayer& getTechniqueLayer() const noexcept { return techniqueLayer; }
+    void setMuteSettings (const MuteSettings& s) noexcept { techniqueLayer.mute.setSettings (s); }
+    void setTapSettings (const TapSettings& s) noexcept;
+    void setBendSettings (const BendSettings& s) noexcept;
+    void setSlideControls (const SlideControlSettings& c) noexcept;
 
     /** Sets the pick material and whether it is fingers. The two parameters
         are one decision: a finger material is fingers whatever the switch says. */
@@ -509,6 +520,17 @@ private:
     SlapEngine slap;
     std::vector<double> slapBodyDrive;
     std::array<bool, kMaxStrings> scrapeWasActive {};
+
+    // --- TECHNIQUES (engine-technique-layer.md; LuthierEngineTechniques.cpp) ----------
+    TechniqueLayer techniqueLayer;
+    std::array<juce::int64, kMaxStrings> lastStrikeSample {};
+    void techniqueBeginBlock (int numSamples, const juce::MidiBuffer& played) noexcept;
+    void techniqueStampEvents (PlayEventQueue& queue, bool fromRhythm) noexcept;
+    void techniqueStrike (const NoteOnEvent& e, int s, bool slapStruck) noexcept;
+    bool techniqueNoteOff (int s) noexcept;
+    double techniqueFret (int s) const noexcept;
+    double techniqueBendCents (int s, double interpreterBend) noexcept;
+    void playTapEvent (const TapEvent& e) noexcept;
 
     /** Applies one of the slap's due actions (a strike, a palm slap, a body tap). */
     void applySlapAction (const SlapAction& a) noexcept;

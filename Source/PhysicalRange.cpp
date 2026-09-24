@@ -149,12 +149,21 @@ namespace
             { ParamIDs::slideSlant,        { -30.0f, 30.0f, -60.0f, 60.0f, 0.0f,  0.5f, RangeFamily::slide } },
             { ParamIDs::slideNoiseAmount,  { 0.0f,   1.0f,  0.0f,   4.0f,  0.4f,  1.0f, RangeFamily::slide } },
             { ParamIDs::slideClankAmount,  { 0.0f,   1.0f,  0.0f,   4.0f,  0.45f, 1.0f, RangeFamily::slide } },
+
+            // ==== BEGIN TECHNIQUES params ====
+            // slide-technique-controls.md 1: "Advanced range extends higher for effect play".
+            { ParamIDs::slideSpeedLimit,   { 100.0f, 9600.0f, 100.0f, 48000.0f, 4800.0f, 0.5f, RangeFamily::slide } },
+            // two-hand-tapping.md 3: "Default 2 (typical two-hand). Advanced range up to 8".
+            { ParamIDs::tapMaxConcurrent,  { 1.0f,   4.0f,   1.0f,   8.0f,     2.0f,    1.0f, RangeFamily::pick } },
+            // microtonal-bends.md 2: stock covers the Whammy-Style two-octave preset; advanced doubles it.
+            { ParamIDs::bendGlobalRange,   { 0.0f,   2400.0f, 0.0f,  4800.0f,  200.0f,  0.2f, RangeFamily::modulation } },
+            // ==== END TECHNIQUES params ====
         };
 
         return table[index];
     }
 
-    constexpr int kNumEntries = 32;
+    constexpr int kNumEntries = 32 + 3;   // TECHNIQUES: + 3
 }
 
 const PhysicalRange* RangeRegistry::find (const juce::String& parameterId)

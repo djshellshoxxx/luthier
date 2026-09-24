@@ -259,6 +259,10 @@ private:
     /** Which strings the engine currently has ringing, so it can release them. */
     uint16_t soundingMask = 0;
 
+    // muting-rhythm.md 4 (TECHNIQUES): the step being scheduled's mute and dynamic.
+    MuteStep pendingMute;
+    double pendingDynamic = -1.0;
+
     bool driving = false;
 
     std::atomic<int> lastStepPlayed { -1 };

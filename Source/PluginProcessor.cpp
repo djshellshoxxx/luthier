@@ -69,6 +69,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     presets.captureGuitarBlock = [this] { return getGuitarBlock(); };
     presets.onGuitarBlockLoaded = [this] (const juce::var& block) { takeGuitarBlock (block); };
 
+    // TECHNIQUES: engine-technique-layer.md 7, the preset's technique block.
+    presets.captureTechniquesBlock = [this] { return engine.getTechniqueLayer().toVar(); };
+    presets.onTechniquesBlockLoaded = [this] (const juce::var& block) { engine.getTechniqueLayer().fromVar (block); };
+
     // A preset's pedals come with their settings; build them keeping those.
     presets.onPedalTypesLoaded = [this] { bridge.adoptPedalTypesFromParameters(); };
     presets.ensureFactoryPresetsInstalled();

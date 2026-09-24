@@ -35,6 +35,7 @@
 #include "TunePanel.h"
 #include "PracticeSetupPanel.h"
 #include "HelpTab.h"
+#include "Techniques/TechniquesPanel.h"   // gui-techniques-updates.md 1 (TECHNIQUES)
 
 namespace luthier
 {
@@ -124,6 +125,9 @@ public:
 
     /** The HELP tab (gui-integration 4.4). */
     HelpTab* getHelpTab() const noexcept { return helpTab.get(); }
+
+    /** The TECHNIQUES tab (gui-techniques-updates.md 1). */
+    TechniquesPanel* getTechniquesPanel() const noexcept { return techniquesPanel.get(); }
 
     /** Opens the HELP tab pinned to a topic (a tab name, a column section, an
         Options page). */
@@ -304,6 +308,7 @@ private:
         the Options overlay. Held by pointer so this header does not have to pull
         in every other Options page. */
     std::unique_ptr<ControllersPage> controllersPage;
+    std::unique_ptr<TechniquesPanel> techniquesPanel;   // gui-techniques-updates.md 1
     std::unique_ptr<MidiOutPanel> midiOutPanel;
     std::unique_ptr<NotationPanel> notationPanel;
 

@@ -174,8 +174,16 @@ void StringEngine::setDamping (Damping d, double amount) noexcept
                         : (d == Damping::Chuck) ? 1.0 - dampingAmount
                         : (d == Damping::Choked) ? 0.15
                         : (d == Damping::PalmMute) ? 0.45
+                        : (d == Damping::Muted) ? 0.3
                         : (harmonicPartial > 0) ? 0.35
                         : 1.0;
+}
+
+void StringEngine::setMutedDamping (double t60Seconds, double cutoffHz) noexcept
+{
+    mutedT60 = juce::jlimit (0.005, 60.0, (std::isfinite (t60Seconds) ? t60Seconds : 0.05));
+    mutedCutoffHz = juce::jlimit (120.0, 20000.0, (std::isfinite (cutoffHz) ? cutoffHz : 900.0));
+    setDamping (Damping::Muted, 1.0);
 }
 
 void StringEngine::setHarmonicRestriction (int partial) noexcept
@@ -275,6 +283,10 @@ void StringEngine::updateLoopCoefficients() noexcept
         case Damping::Chuck:
             cutoff = juce::jmap (dampingAmount, open, 400.0);
             break;
+
+        case Damping::Muted:   // muting-rhythm.md 1
+            cutoff = juce::jmin (open, mutedCutoffHz);
+            break;
     }
 
     // Harmonics ring clean but die noticeably sooner than a stopped note.
@@ -302,6 +314,10 @@ void StringEngine::updateLoopCoefficients() noexcept
     // 2.4) has to be inaudible in 200 ms on a string of any sustain.
     if (damping == Damping::Silenced)
         t60 = 0.08;
+
+    // muting-rhythm.md 1: a mute's decay is the hand's, not the string's.
+    if (damping == Damping::Muted)
+        t60 = mutedT60;
 
     /*  strum-dynamics 6.1: a chuck's decay is geometric between the note's own
         and 10 ms, so a light chuck shortens the note and a full one stops the

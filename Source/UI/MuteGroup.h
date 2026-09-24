@@ -7,13 +7,11 @@
       - MuteGridEditor, a row of cells each holding a mute type, painted with
         a brush. It edits whatever it is pointed at through three callbacks,
         so the same component is the live mute grid (muting-rhythm 2) and the
-        RHYTHM tab's Mute Row under the strum grid (7, gui-techniques 4).
-      - MuteGroup, the MUTE sub-tab's content: arm, master mode, the live grid
-        with its presets, palm position and pressure, fretting-hand style,
-        chuka source, humanise and ghost velocity. The TECHNIQUES tab does not
-        exist yet (AdvancedPanel's tab strip note), so until it does the group
-        sits on the RHYTHM tab under STRUM; it moves as a whole when the tab
-        arrives.
+        RHYTHM tab's Mute Row under the strum grid (7, gui-techniques 6).
+      - MuteGroup, the TECHNIQUES tab's MUTE sub-tab (gui-techniques 1): arm,
+        master mode, the live grid with its presets, palm position and
+        pressure, fretting-hand style, chuka source, humanise and ghost
+        velocity.
       - EasyMuteButton, Easy mode's compact 4-way Mute button (7): Off, Light,
         Heavy, Extreme, applying the master mute mode.
 
@@ -23,7 +21,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
-#include "../Rhythm/RhythmEngine.h"
+#include "../Rhythm/Muting.h"
 
 namespace luthier
 {
@@ -109,12 +107,11 @@ public:
 
 private:
     void timerCallback() override;
-    RhythmEngine& rhythm();
 
     LuthierAudioProcessor& processor;
 
     juce::Label heading;
-    LuthierToggle armToggle { "MUTE" };
+    LuthierToggle armToggle { "MUTE ARMED" };
     LuthierChoice masterMode { "Master mode" }, frettingStyle { "Fretting hand" },
                   chukaSource { "Chuka source" };
     juce::ComboBox brushBox, presetBox;

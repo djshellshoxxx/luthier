@@ -948,8 +948,8 @@ void AdvancedPanel::buildColumn3()
 
 /*  Column 4, section 4.4: the workspace.
 
-    The tab order is section 4.4's own, and every one of its thirteen tabs has
-    a panel behind it but TECHNIQUES (gui-techniques-updates, not built yet): a
+    The tab order is section 4.4's own, with TECHNIQUES before HELP
+    (gui-techniques-updates.md 0.2), and every tab has a panel behind it: a
     tab that opens on nothing is worse than no tab. GAPS.md A2 has the history.
 
     Five of the seven used to be sections stacked at the bottom of the rig column,
@@ -1033,6 +1033,7 @@ void AdvancedPanel::buildWorkspace()
     notationPanel   = std::make_unique<NotationPanel> (processor);
     practiceSetupPanel = std::make_unique<PracticeSetupPanel> (processor);
     helpTab         = std::make_unique<HelpTab> (processor);
+    techniquesPanel = std::make_unique<TechniquesPanel> (processor);   // gui-techniques-updates.md 1
 
     const struct { const char* name; juce::Component* panel; } tabs[] =
     {
@@ -1048,6 +1049,7 @@ void AdvancedPanel::buildWorkspace()
         { "NOTATION",    notationPanel.get() },
         { "MIDI OUT",    midiOutPanel.get() },
         { "CONTROLLERS", controllersPage.get() },
+        { "TECHNIQUES",  techniquesPanel.get() },   // gui-techniques-updates.md 0.2
         { "HELP",        helpTab.get() }
     };
 

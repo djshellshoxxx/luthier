@@ -31,6 +31,9 @@ public:
         const char* tags;          ///< Comma separated.
         const Entry* entries;
         int numEntries;
+
+        /** TECHNIQUES: the preset's techniques block as JSON (engine-technique-layer.md 7), or empty. */
+        const char* techniques = "";
     };
 
     static int getNumPresets() noexcept;

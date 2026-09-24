@@ -45,6 +45,10 @@ const char* macroByIndex (int index) noexcept
     {
         return chainPrefix (post, slot) + "_p" + juce::String (param);
     }
+
+    // ==== BEGIN TECHNIQUES params ====
+    juce::String bendStringRange (int stringNumber) { return "bend_string_range_" + juce::String (stringNumber); }
+    // ==== END TECHNIQUES params ====
 }
 
 //==============================================================================
@@ -774,6 +778,97 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::slapSnapBack,       "Snap-Back",           0.0f, 1.0f, 0.5f));
     add (choiceParam (ParamIDs::slapBodyPart,       "Body Tap Resonance", { "Top", "Side", "Back" }, 0));
 
+    // ==== BEGIN TECHNIQUES params ====
+    // Appended (automation is indexed). Every default leaves an existing
+    // preset sounding as it did: each technique is disarmed, and the slide's
+    // new controls default to "no source" (engine-technique-layer.md 6).
+    {
+        auto intParam = [] (const char* id, const char* name, int lo, int hi, int def)
+        {
+            return std::make_unique<juce::AudioParameterInt> (pid (id), name, lo, hi, def);
+        };
+
+        const juce::StringArray sources { "None", "Mod Wheel", "Pitch Bend", "MPE Y", "Expression",
+                                          "Custom CC", "Fretboard Drag", "Aftertouch", "MPE Z" };
+
+        // muting-rhythm.md 3 (8)
+        add (boolParam   (ParamIDs::muteArmed,         "Mute Armed", false));
+        add (choiceParam (ParamIDs::muteMasterMode,    "Mute Master Mode",
+                          { "Off", "Open", "Palm Mute Light", "Palm Mute Heavy", "Palm Mute Extreme",
+                            "Ghost", "Chuka", "Fret Mute" }, 0));
+        add (floatParam  (ParamIDs::mutePalmPosition,  "Palm Position", 5.0f, 100.0f, 35.0f, 1.0f, "mm"));
+        add (floatParam  (ParamIDs::mutePalmPressure,  "Palm Pressure", 0.0f, 1.0f, 0.5f));
+        add (choiceParam (ParamIDs::muteFrettingStyle, "Fretting-Hand Mute", { "Rock Spread", "Classical Fingertip" }, 0));
+        add (choiceParam (ParamIDs::muteChukaSource,   "Chuka Source", { "Pattern Only", "Soft Strums" }, 1));
+        add (floatParam  (ParamIDs::muteHumanise,      "Mute Humanise", 0.0f, 1.0f, 0.0f));
+        add (floatParam  (ParamIDs::muteGhostVelocity, "Ghost Note Level", 0.0f, 1.0f, 0.4f));
+
+        // two-hand-tapping.md 3 (10)
+        add (boolParam   (ParamIDs::tapArmed,          "Tap Armed", false));
+        add (choiceParam (ParamIDs::tapSource,         "Tap Trigger", { "MIDI Channel", "Keyswitch", "Fretboard" }, 0));
+        add (intParam    (ParamIDs::tapChannel,        "Tap Channel", 1, 16, 2));
+        add (floatParam  (ParamIDs::tapStrengthCurve,  "Tap Strength Curve", -1.0f, 1.0f, 0.0f));
+        add (boolParam   (ParamIDs::tapAutoPullOff,    "Auto Pull-Off", true));
+        add (intParam    (ParamIDs::tapHammerThreshold, "Hammer-On Threshold", 1, 127, 40));
+        add (floatParam  (ParamIDs::tapFlick,          "Tap Release Flick", 0.0f, 1.0f, 0.5f));
+        add (floatParam  (ParamIDs::tapDuration,       "Tap Duration", 10.0f, 2000.0f, 200.0f, 0.2f, "ms"));
+        add (floatParam  (ParamIDs::tapMaxConcurrent,  "Max Taps Per String", 1.0f, 4.0f, 2.0f));
+        add (boolParam   (ParamIDs::tapFretSnap,       "Tap Fret Snap", true));
+
+        // microtonal-bends.md 2 (26)
+        const juce::StringArray curves { "Linear", "Exponential", "Drawn" };
+        add (boolParam   (ParamIDs::bendArmed,         "Bend Armed", false));
+        add (choiceParam (ParamIDs::bendGlobalSource,  "Global Bend Source", { "Pitch Bend", "Expression", "Custom CC" }, 0));
+        add (intParam    (ParamIDs::bendGlobalCc,      "Global Bend CC", 0, 127, 20));
+        add (floatParam  (ParamIDs::bendGlobalRange,   "Global Bend Range", 0.0f, 2400.0f, 200.0f, 0.2f, "ct"));
+        add (choiceParam (ParamIDs::bendStringSource,  "Per-String Bend Source", { "None", "MPE Pitch Bend", "MPE Y", "Custom CC" }, 2));
+        add (intParam    (ParamIDs::bendStringCc,      "Per-String Bend CC", 0, 127, 21));
+
+        for (int n = 1; n <= 6; ++n)
+            add (floatParam (ParamIDs::bendStringRange (n), "Bend Range String " + juce::String (n),
+                             0.0f, 1200.0f, 200.0f, 0.25f, "ct"));
+
+        add (choiceParam (ParamIDs::bendVibratoSource, "Vibrato Source", { "Off", "LFO", "Aftertouch", "MPE Z" }, 1));
+        add (floatParam  (ParamIDs::bendVibratoRate,   "Bend Vibrato Rate", 3.0f, 10.0f, 6.0f, 1.0f, "Hz"));
+        add (floatParam  (ParamIDs::bendVibratoDepth,  "Bend Vibrato Depth", 5.0f, 50.0f, 20.0f, 1.0f, "ct"));
+        add (floatParam  (ParamIDs::bendVibratoOnset,  "Vibrato Onset Delay", 0.0f, 1000.0f, 200.0f, 0.3f, "ms"));
+        add (choiceParam (ParamIDs::bendQuantise,      "Bend Quantise",
+                          { "None", "Quarter-Tone", "Semitone", "24-EDO", "22-EDO", "31-EDO", "53-EDO", "Custom Scale" }, 0));
+        add (floatParam  (ParamIDs::bendSnap,          "Bend Snap Strength", 0.0f, 1.0f, 1.0f));
+        add (floatParam  (ParamIDs::bendPreBendAmount, "Pre-Bend Amount", -1200.0f, 1200.0f, -200.0f, 1.0f, "ct"));
+        add (choiceParam (ParamIDs::bendPreBendTrigger, "Pre-Bend Trigger", { "Keyswitch", "CC" }, 0));
+        add (intParam    (ParamIDs::bendPreBendCc,     "Pre-Bend CC", 0, 127, 22));
+        add (floatParam  (ParamIDs::bendPreBendRelease, "Pre-Bend Release", 10.0f, 2000.0f, 300.0f, 0.25f, "ms"));
+        add (choiceParam (ParamIDs::bendCurve,         "Bend Curve", curves, 0));
+        add (choiceParam (ParamIDs::bendReleaseCurve,  "Release Curve", curves, 0));
+
+        // slide-technique-controls.md 1 (22)
+        add (choiceParam (ParamIDs::slidePosSource,    "Slide Position Source",
+                          { "None", "Mod Wheel", "Pitch Bend", "MPE Y", "Expression", "Custom CC", "Fretboard Drag" }, 0));
+        add (intParam    (ParamIDs::slidePosCc,        "Slide Position CC", 0, 127, 16));
+        add (choiceParam (ParamIDs::slidePosMode,      "Slide Position Mode", { "Absolute", "Relative" }, 0));
+        add (floatParam  (ParamIDs::slidePosRange,     "Slide Relative Range", 1.0f, 24.0f, 12.0f, 1.0f, "frets"));
+        add (choiceParam (ParamIDs::slideSlantSource,  "Slide Slant Source", sources, 0));
+        add (intParam    (ParamIDs::slideSlantCc,      "Slide Slant CC", 0, 127, 17));
+        add (choiceParam (ParamIDs::slidePressureSource, "Slide Pressure Source", sources, 0));
+        add (intParam    (ParamIDs::slidePressureCc,   "Slide Pressure CC", 0, 127, 18));
+        add (choiceParam (ParamIDs::slideContact,      "Slide Contact Strings", { "All Strings", "Bass 3", "Treble 3" }, 0));
+        add (floatParam  (ParamIDs::slideSpeedLimit,   "Slide Speed Limit", 100.0f, 9600.0f, 4800.0f, 0.5f, "ct/s"));
+        add (boolParam   (ParamIDs::slideAutoVibrato,  "Slide Auto-Vibrato", false));
+        add (floatParam  (ParamIDs::slideAutoVibDepth, "Auto-Vibrato Depth", 0.0f, 50.0f, 10.0f, 1.0f, "ct"));
+        add (floatParam  (ParamIDs::slideAutoVibRate,  "Auto-Vibrato Rate", 1.0f, 10.0f, 5.0f, 1.0f, "Hz"));
+        add (choiceParam (ParamIDs::slideGestureTrigger, "Slide Gesture Trigger", { "Keyswitch", "CC" }, 0));
+        add (intParam    (ParamIDs::slideGestureCc,    "Slide Gesture CC", 0, 127, 23));
+        add (floatParam  (ParamIDs::slideGestureFrom,  "Slide Gesture From", 0.0f, 24.0f, 0.0f, 1.0f, "fret"));
+        add (floatParam  (ParamIDs::slideGestureTo,    "Slide Gesture To", 0.0f, 24.0f, 12.0f, 1.0f, "fret"));
+        add (floatParam  (ParamIDs::slideGestureTime,  "Slide Gesture Time", 10.0f, 5000.0f, 500.0f, 0.2f, "ms"));
+        add (choiceParam (ParamIDs::slideGestureCurve, "Slide Gesture Curve", { "Linear", "Ease In", "Ease Out", "Ease In-Out" }, 3));
+        add (floatParam  (ParamIDs::slideGestureSlantStart, "Gesture Slant Start", -30.0f, 30.0f, 0.0f, 1.0f, "deg"));
+        add (floatParam  (ParamIDs::slideGestureSlantEnd, "Gesture Slant End", -30.0f, 30.0f, 0.0f, 1.0f, "deg"));
+        add (floatParam  (ParamIDs::slideGesturePressure, "Gesture Pressure", 0.0f, 1.0f, 0.7f));
+    }
+    // ==== END TECHNIQUES params ====
+
     return layout;
 }
 
@@ -1260,6 +1355,106 @@ void ParameterBridge::applyToEngine() noexcept
             }
         }
     }
+
+    // ==== BEGIN TECHNIQUES params ====
+    {
+        auto choice = [this] (const char* id, int count) { return juce::jlimit (0, count - 1, juce::roundToInt (value (id))); };
+        auto integer = [this] (const char* id) { return juce::roundToInt (value (id)); };
+
+        // muting-rhythm.md 3
+        MuteSettings mute;
+        mute.armed          = value (ParamIDs::muteArmed) > 0.5f;
+        mute.masterMode     = choice (ParamIDs::muteMasterMode, (int) MuteType::numTypes + 1) - 1;   // 0 is Off
+        mute.palmPositionMm = value (ParamIDs::mutePalmPosition);
+        mute.palmPressure   = value (ParamIDs::mutePalmPressure);
+        mute.frettingStyle  = (FrettingMuteStyle) choice (ParamIDs::muteFrettingStyle, (int) FrettingMuteStyle::numStyles);
+        mute.chukaSource    = (ChukaSource) choice (ParamIDs::muteChukaSource, (int) ChukaSource::numSources);
+        mute.humanise       = value (ParamIDs::muteHumanise);
+        mute.ghostVelocity  = value (ParamIDs::muteGhostVelocity);
+        engine.setMuteSettings (mute);
+        engine.getTechniqueLayer().mute.setChuckDamping (value (ParamIDs::chuckDamping));
+
+        // two-hand-tapping.md 3
+        TapSettings tap;
+        tap.armed             = value (ParamIDs::tapArmed) > 0.5f;
+        tap.source            = (TapSource) choice (ParamIDs::tapSource, (int) TapSource::numSources);
+        tap.channel           = integer (ParamIDs::tapChannel);
+        tap.strengthCurve     = value (ParamIDs::tapStrengthCurve);
+        tap.autoPullOff       = value (ParamIDs::tapAutoPullOff) > 0.5f;
+        tap.hammerOnThreshold = integer (ParamIDs::tapHammerThreshold);
+        tap.lateralFlick      = value (ParamIDs::tapFlick);
+        tap.defaultDurationMs = value (ParamIDs::tapDuration);
+        tap.maxConcurrent     = integer (ParamIDs::tapMaxConcurrent);
+        tap.fretSnap          = value (ParamIDs::tapFretSnap) > 0.5f;
+        engine.setTapSettings (tap);
+
+        // 5: armed, left-hand legato within 150 ms under the threshold is a
+        // hammer-on or pull-off. Disarmed, the legato rules are as they were.
+        auto& legato = engine.getTechniqueEngine();
+        legato.setLegatoVelocityThreshold (tap.armed ? tap.hammerOnThreshold / 127.0 : 0.63);
+
+        if (tap.armed)
+            legato.setLegatoWindowMs (TapSettings::kHammerOnWindowMs);
+
+        // microtonal-bends.md 2
+        BendSettings bend;
+        bend.armed = value (ParamIDs::bendArmed) > 0.5f;
+
+        static const ControlSource globalSources[] = { ControlSource::pitchBend, ControlSource::expression, ControlSource::customCc };
+        bend.globalSource     = globalSources[choice (ParamIDs::bendGlobalSource, 3)];
+        bend.globalCc         = integer (ParamIDs::bendGlobalCc);
+        bend.globalRangeCents = value (ParamIDs::bendGlobalRange);
+        bend.stringSource     = (StringBendSource) choice (ParamIDs::bendStringSource, (int) StringBendSource::numSources);
+        bend.stringCcBase     = integer (ParamIDs::bendStringCc);
+
+        static const juce::String rangeIds[6] = { ParamIDs::bendStringRange (1), ParamIDs::bendStringRange (2),
+                                                  ParamIDs::bendStringRange (3), ParamIDs::bendStringRange (4),
+                                                  ParamIDs::bendStringRange (5), ParamIDs::bendStringRange (6) };
+
+        for (int n = 0; n < kMaxStrings; ++n)
+            bend.stringRangeCents[(size_t) n] = value (rangeIds[juce::jlimit (0, 5, n)]);
+
+        bend.vibratoSource     = (VibratoSource) choice (ParamIDs::bendVibratoSource, (int) VibratoSource::numSources);
+        bend.vibratoRateHz     = value (ParamIDs::bendVibratoRate);
+        bend.vibratoDepthCents = value (ParamIDs::bendVibratoDepth);
+        bend.vibratoOnsetMs    = value (ParamIDs::bendVibratoOnset);
+        bend.quantise          = (BendQuantise) choice (ParamIDs::bendQuantise, (int) BendQuantise::numModes);
+        bend.snap              = value (ParamIDs::bendSnap);
+        bend.preBendCents      = value (ParamIDs::bendPreBendAmount);
+        bend.preBendOnCc       = choice (ParamIDs::bendPreBendTrigger, 2) == 1;
+        bend.preBendCc         = integer (ParamIDs::bendPreBendCc);
+        bend.preBendReleaseMs  = value (ParamIDs::bendPreBendRelease);
+        bend.bendCurve         = (BendCurve) choice (ParamIDs::bendCurve, (int) BendCurve::numCurves);
+        bend.releaseCurve      = (BendCurve) choice (ParamIDs::bendReleaseCurve, (int) BendCurve::numCurves);
+        engine.setBendSettings (bend);
+
+        // slide-technique-controls.md 1
+        SlideControlSettings sc;
+        sc.positionSource  = (ControlSource) choice (ParamIDs::slidePosSource, 7);
+        sc.positionCc      = integer (ParamIDs::slidePosCc);
+        sc.relative        = choice (ParamIDs::slidePosMode, 2) == 1;
+        sc.relativeRangeFrets = value (ParamIDs::slidePosRange);
+        sc.slantSource     = (ControlSource) choice (ParamIDs::slideSlantSource, (int) ControlSource::numSources);
+        sc.slantCc         = integer (ParamIDs::slideSlantCc);
+        sc.pressureSource  = (ControlSource) choice (ParamIDs::slidePressureSource, (int) ControlSource::numSources);
+        sc.pressureCc      = integer (ParamIDs::slidePressureCc);
+        sc.contactMask     = slideContactMaskFor (choice (ParamIDs::slideContact, 3), engine.getNumStrings());
+        sc.speedLimitCentsPerSecond = value (ParamIDs::slideSpeedLimit);
+        sc.autoVibrato     = value (ParamIDs::slideAutoVibrato) > 0.5f;
+        sc.autoVibratoDepthCents = value (ParamIDs::slideAutoVibDepth);
+        sc.autoVibratoRateHz = value (ParamIDs::slideAutoVibRate);
+        sc.gestureOnCc     = choice (ParamIDs::slideGestureTrigger, 2) == 1;
+        sc.gestureCc       = integer (ParamIDs::slideGestureCc);
+        sc.gesture.fromFret = value (ParamIDs::slideGestureFrom);
+        sc.gesture.toFret  = value (ParamIDs::slideGestureTo);
+        sc.gesture.durationMs = value (ParamIDs::slideGestureTime);
+        sc.gesture.curve   = (SlideCurve) choice (ParamIDs::slideGestureCurve, (int) SlideCurve::numCurves);
+        sc.gesture.slantStartDegrees = value (ParamIDs::slideGestureSlantStart);
+        sc.gesture.slantEndDegrees = value (ParamIDs::slideGestureSlantEnd);
+        sc.gesture.pressure = value (ParamIDs::slideGesturePressure);
+        engine.setSlideControls (sc);
+    }
+    // ==== END TECHNIQUES params ====
 
     // ---- structural change detection ---------------------------------------------
     const bool structural = readStructuralValues() || ! structuralInitialised;

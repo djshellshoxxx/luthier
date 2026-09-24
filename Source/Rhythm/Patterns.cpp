@@ -90,6 +90,9 @@ void RhythmPattern::clear() noexcept
     for (auto& s : fingerpickSteps)
         s = FingerpickStep {};
 
+    for (auto& s : muteSteps)
+        s = MuteStep {};
+
     crossingSps = 0.0;
 }
 
@@ -116,6 +119,36 @@ void RhythmPattern::setStrumStep (int index, const StrumStep& step) noexcept
     // ambiguity-resolutions 6: a step may name its own crossing velocity.
     s.crossingSps = step.isRest() ? 0.0
                                   : (step.crossingSps > 0.0 ? juce::jlimit (20.0, 800.0, step.crossingSps) : 0.0);
+}
+
+// muting-rhythm.md 2: the mute row.
+MuteStep RhythmPattern::getMuteStep (int index) const noexcept
+{
+    return juce::isPositiveAndBelow (index, kMaxSteps) ? muteSteps[(size_t) index] : MuteStep {};
+}
+
+void RhythmPattern::setMuteStep (int index, const MuteStep& step) noexcept
+{
+    if (! juce::isPositiveAndBelow (index, kMaxSteps))
+        return;
+
+    auto s = step;
+
+    if (! juce::isPositiveAndBelow ((int) s.type, (int) MuteType::numTypes))
+        s.type = MuteType::open;
+
+    s.pressure = s.pressure < 0.0 ? -1.0 : juce::jlimit (0.0, 1.0, s.pressure);
+    s.positionMm = s.positionMm < 0.0 ? -1.0 : juce::jlimit (MuteSettings::kMinPositionMm, MuteSettings::kMaxPositionMm, s.positionMm);
+    muteSteps[(size_t) index] = s;
+}
+
+bool RhythmPattern::hasAnyMute() const noexcept
+{
+    for (int i = 0; i < length; ++i)
+        if (! muteSteps[(size_t) i].isOpen())
+            return true;
+
+    return false;
 }
 
 FingerpickStep RhythmPattern::getFingerpickStep (int index) const noexcept
@@ -199,6 +232,11 @@ juce::var RhythmPattern::toVar() const
             if (s.crossingSps > 0.0)
                 o->setProperty ("crossing_sps", s.crossingSps);
 
+            // muting-rhythm.md 2: written only when the step is muted, so a
+            // pattern without mutes saves exactly as it always did.
+            if (! muteSteps[(size_t) i].isOpen())
+                o->setProperty ("mute_type", getMuteTypeId (muteSteps[(size_t) i].type));
+
             // The mask is written low-index-first, as the spec's example shows.
             juce::String maskText;
 
@@ -225,6 +263,36 @@ juce::var RhythmPattern::toVar() const
     }
 
     root->setProperty ("steps", stepArray);
+
+    /*  muting-rhythm.md 2: the whole mute row, rests included (a rest's mute
+        is still the row's, and the serialiser skips rests above). Only the
+        muted steps, and only when there are any. */
+    if (hasAnyMute())
+    {
+        juce::Array<juce::var> muteArray;
+
+        for (int i = 0; i < length; ++i)
+        {
+            const auto& m = muteSteps[(size_t) i];
+
+            if (m.isOpen())
+                continue;
+
+            auto* o = new juce::DynamicObject();
+            o->setProperty ("step", i);
+            o->setProperty ("mute_type", getMuteTypeId (m.type));
+
+            if (m.pressure >= 0.0)
+                o->setProperty ("pressure", m.pressure);
+
+            if (m.positionMm >= 0.0)
+                o->setProperty ("position_mm", m.positionMm);
+
+            muteArray.add (juce::var (o));
+        }
+
+        root->setProperty ("mute_steps", muteArray);
+    }
 
     if (kind == Kind::fingerpick)
     {
@@ -300,6 +368,14 @@ RhythmPattern RhythmPattern::fromVar (const juce::var& state)
             if (! juce::isPositiveAndBelow (index, kMaxSteps))
                 continue;
 
+            // muting-rhythm.md 2: a step's own mute_type; unknown ids are open.
+            if (o->hasProperty ("mute_type"))
+            {
+                MuteStep m;
+                m.type = muteTypeFromId (o->getProperty ("mute_type").toString());
+                pattern.setMuteStep (index, m);
+            }
+
             const auto eventName = o->getProperty ("event").toString();
             const double dynamic = o->hasProperty ("dynamic")
                                      ? (double) o->getProperty ("dynamic") : 1.0;
@@ -357,6 +433,22 @@ RhythmPattern RhythmPattern::fromVar (const juce::var& state)
             loadedTags.add (t.toString());
 
     pattern.setTags (loadedTags);
+
+    // muting-rhythm.md 2: the full mute row, with each step's pressure and position.
+    if (auto* muteArray = root->getProperty ("mute_steps").getArray())
+    {
+        for (const auto& entry : *muteArray)
+        {
+            if (auto* o = entry.getDynamicObject())
+            {
+                MuteStep m;
+                m.type = muteTypeFromId (o->getProperty ("mute_type").toString());
+                m.pressure = o->hasProperty ("pressure") ? (double) o->getProperty ("pressure") : -1.0;
+                m.positionMm = o->hasProperty ("position_mm") ? (double) o->getProperty ("position_mm") : -1.0;
+                pattern.setMuteStep ((int) o->getProperty ("step"), m);
+            }
+        }
+    }
 
     return pattern;
 }

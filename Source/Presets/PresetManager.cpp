@@ -389,6 +389,10 @@ juce::var PresetManager::toVar (const juce::String& name,
     if (captureGuitarBlock != nullptr)
         root->setProperty ("guitar", captureGuitarBlock());
 
+    // TECHNIQUES: engine-technique-layer.md 7.
+    if (captureTechniquesBlock != nullptr)
+        root->setProperty ("techniques", captureTechniquesBlock());
+
     // ---- per-string extras ----------------------------------------------------
     auto* strings = new juce::DynamicObject();
 
@@ -713,6 +717,9 @@ bool PresetManager::fromVar (const juce::var& data)
     // Last, so the guitar type parameter it may depend on has its new value.
     if (onGuitarBlockLoaded != nullptr)
         onGuitarBlockLoaded (obj->getProperty ("guitar"));
+
+    if (onTechniquesBlockLoaded != nullptr)   // TECHNIQUES: engine-technique-layer.md 6-7
+        onTechniquesBlockLoaded (obj->getProperty ("techniques"));
 
     currentName = obj->getProperty ("name").toString();
     currentCategory = obj->getProperty ("category").toString();
@@ -1111,6 +1118,9 @@ void PresetManager::resetToDefaults()
     // The default guitar type's factory guitar, as shipped, under the defaults.
     if (onGuitarBlockLoaded != nullptr)
         onGuitarBlockLoaded ({});
+
+    if (onTechniquesBlockLoaded != nullptr)   // TECHNIQUES
+        onTechniquesBlockLoaded ({});
 
     currentName = "Init";
     currentCategory = "User";
