@@ -66,7 +66,7 @@ public:
         volume and tone at 10, 3 m standard cable. This is its measured peak at
         Aux 1 in engine units (NoiseFloorTests logs the live value against it),
         and every target below is stated relative to it. */
-    static constexpr double kReferencePluckPeak = 0.30;
+    static constexpr double kReferencePluckPeak = 1.08;
 
     /** 2.3: a real pickup's reference pluck is about 0.3 V at the EMF. */
     static constexpr double kEmfVoltsPerUnit = 0.3 / kReferencePluckPeak;
@@ -79,8 +79,8 @@ public:
     /** 2.1: g_pos = g_angle x g_dist. Exactly 1 at (0 deg, 1 m). */
     static double positionGain (double angleDegrees, double distanceMetres) noexcept;
 
-    /** 2.3: sqrt (4 k T R B), in volts RMS. */
-    static double johnsonVoltsRms (double ohms) noexcept;
+    /** 2.3: sqrt (4 k T R B), in volts RMS, over B (20 kHz by default). */
+    static double johnsonVoltsRms (double ohms, double bandwidthHz = kNoiseBandwidthHz) noexcept;
 
     /** 2.3: the resistance the hiss sees - the coil plus the volume pot's
         wiper-to-ground section. */
@@ -128,6 +128,9 @@ public:
         at the resonance, so the loop gain is what the parameter says. */
     void recordAmpInput (int i, double x) noexcept { if (i < (int) ampTotalIn.size()) ampTotalIn[(size_t) i] = x; }
     void pushAmpOutput (const double* data, int numSamples) noexcept;
+
+    /** What entered the amp this block (valid while not idle), for the tests. */
+    const double* getAmpInputRecord() const noexcept { return ampTotalIn.data(); }
 
     // --- state for the UI and the tests ---------------------------------------
     double getPositionGain() const noexcept { return posGain; }

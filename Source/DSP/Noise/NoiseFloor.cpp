@@ -26,11 +26,17 @@ namespace
     constexpr double kAmpHissDbAtHalf = -100.0;// input-referred RMS at 0.5
     constexpr double kCablePeakDb   = -42.0;   // mean event peak, 3 m standard
 
-    /*  The magnetic path's own gain into the DI: the electric mix gives the
-        pickup (1 - 0.55 x body amount) of the signal, about 0.88 on a solid
-        body, and the circuit at 10 passes the hum band at about unity. The
-        fluorescent is calibrated at the DI, so this is taken back out. */
-    constexpr double kMagneticPathGain = 0.88;
+    /*  The magnetic path's own gain into the DI at the buzz's 3.5 kHz band:
+        the electric mix gives the pickup (1 - 0.55 x body amount) of the
+        signal, about 0.88 on a solid body, and the loaded coil's resonance
+        near 4 kHz lifts the band by about 4.7 dB (measured, NoiseFloorTests
+        fluorescentSpectrum). The fluorescent is calibrated at the DI, so this
+        is taken back out. */
+    constexpr double kMagneticPathGain = 1.51;
+
+    /*  The radio's syllabic envelope and gaps put its long-term mean square
+        about 2.9 dB under the programme's; the target is the long-term RMS. */
+    constexpr double kRadioEnvelopeCompensation = 1.40;
 }
 
 //==============================================================================
@@ -46,9 +52,9 @@ double NoiseFloor::positionGain (double angleDegrees, double distanceMetres) noe
     return gAngle * gDist;
 }
 
-double NoiseFloor::johnsonVoltsRms (double ohms) noexcept
+double NoiseFloor::johnsonVoltsRms (double ohms, double bandwidthHz) noexcept
 {
-    return std::sqrt (4.0 * kBoltzmann * kRoomKelvin * juce::jmax (0.0, ohms) * kNoiseBandwidthHz);
+    return std::sqrt (4.0 * kBoltzmann * kRoomKelvin * juce::jmax (0.0, ohms) * juce::jmax (0.0, bandwidthHz));
 }
 
 double NoiseFloor::hissResistance (const CircuitComponents& parts) noexcept
@@ -67,7 +73,7 @@ double NoiseFloor::hissResistance (const CircuitComponents& parts) noexcept
 
 double NoiseFloor::fluorescentGain() noexcept { return kReferencePluckPeak * dbToLinear (kFluorescentDb) / kMagneticPathGain; }
 double NoiseFloor::groundLoopGain() noexcept  { return kReferencePluckPeak * dbToLinear (kGroundLoopDb); }
-double NoiseFloor::radioGain() noexcept       { return kReferencePluckPeak * dbToLinear (kRadioDb); }
+double NoiseFloor::radioGain() noexcept       { return kReferencePluckPeak * dbToLinear (kRadioDb) * kRadioEnvelopeCompensation; }
 double NoiseFloor::ampHissGain() noexcept     { return kReferencePluckPeak * dbToLinear (kAmpHissDbAtHalf) / 0.5; }
 double NoiseFloor::cableGain() noexcept       { return kReferencePluckPeak * dbToLinear (kCablePeakDb); }
 
@@ -407,7 +413,9 @@ void NoiseFloor::beginBlock (int numSamples, double singleCoilShare, const Circu
     // ---- per-block levels ----------------------------------------------------
     const double fluorLevel = st.fluorescent * shareNow * posGain * fluorescentGain() * fluorNorm;
     const double hissSigma = st.passiveHiss > 0.0
-                               ? st.passiveHiss * johnsonVoltsRms (hissResistance (parts)) / kEmfVoltsPerUnit
+                               // White at the sample rate: its density is the
+                               // physical 4kTR over the whole 0..sr/2 band.
+                               ? st.passiveHiss * johnsonVoltsRms (hissResistance (parts), sr * 0.5) / kEmfVoltsPerUnit
                                : 0.0;
 
     const double lengthFactor = parts.cableOn ? juce::jmax (0.0, parts.cableLength) / 3.0 : 0.0;
@@ -466,7 +474,9 @@ void NoiseFloor::beginBlock (int numSamples, double singleCoilShare, const Circu
         }
 
         // ---- 2.3 passive hiss, at the EMF --------------------------------------
-        const double circuitIn = hissSigma > 0.0 ? hissRng.nextGaussian() * hissSigma : 0.0;
+        // RtRandom's nextGaussian has variance 0.5 (four uniforms x 1.2247),
+        // so sqrt 2 makes it unit variance and the density the physical one.
+        const double circuitIn = hissSigma > 0.0 ? hissRng.nextGaussian() * juce::MathConstants<double>::sqrt2 * hissSigma : 0.0;
 
         // ---- 2.4 cable, after the circuit ---------------------------------------
         const double di = cableSounding ? sanitise (nextCable() * cableLevelNow) : 0.0;
@@ -537,7 +547,10 @@ void NoiseFloor::pushAmpOutput (const double* data, int numSamples) noexcept
 
     prevAmpOutCount = n;
 
-    if (eIn > 1.0e-18)
+    // Down to a very low level too: an unsaturated amp has more gain than a
+    // driven one, and a guard measured only on loud notes would let the loop
+    // sustain itself as the ping dies away.
+    if (eIn > 1.0e-30)
     {
         const double measured = std::sqrt (eOut / eIn);
         // Rises at once, falls slowly: the guard must never lag an increase.

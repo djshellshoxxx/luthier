@@ -565,3 +565,10 @@ LUTHIER_TEST (AmpRanges, pastTheKnobIsAudible)
     for (double v : past)
         if (! std::isfinite (v)) { ctx.fail ("non-finite output past the knob"); break; }
 }
+
+// REALISM-C: the counter above, for the noise-floor, sustain and tuning-stability
+// tests' no-allocation checks (they live in other files).
+namespace luthier::tests
+{
+    long realismCAllocationCount() noexcept { return allocationsOnThisThread; }
+}
