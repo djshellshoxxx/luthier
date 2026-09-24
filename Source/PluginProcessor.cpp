@@ -1771,6 +1771,7 @@ bool LuthierAudioProcessor::applyCurrentSetlistEntry()
     if (! presets.fromVar (data))
         return false;
 
+    presets.applyExtraState();   // as setStateInformation and loadPreset do
     bridge.applyAllNow();
 
     // The preset carries its own snapshot bank, so the entry's snapshot index

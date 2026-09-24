@@ -459,3 +459,29 @@ LUTHIER_TEST (ReviewRegression, musicXmlStringsCountFromTheHighestAndChordsStayT
 
     CHECK_MSG (chordNotesAtBeatOne == 2, juce::String (chordNotesAtBeatOne) + " chord notes at beat 1");
 }
+
+//==============================================================================
+/*  R-204: a preset without a "strings" block (every factory preset) left the
+    previous preset's per-string detune, gauges and temperament in place, and
+    one without a "midiMap" block kept the previous CC map. */
+LUTHIER_TEST (ReviewRegression, aPresetWithoutAStringsBlockClearsThePreviousDetune)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 256);
+
+    auto& presets = processor.getPresetManager();
+    presets.getExtraState().detuneCents[0] = 35.0;
+    presets.applyExtraState();
+    CHECK_NEAR (processor.getEngine().getTuningEngine().getStringTuning (0).detuneCents, 35.0, 1.0e-9);
+
+    auto* root = new juce::DynamicObject();
+    root->setProperty ("magic", PresetManager::kMagic);
+    root->setProperty ("schemaVersion", PresetManager::kSchemaVersion);
+    root->setProperty ("name", "No strings block");
+    root->setProperty ("parameters", juce::var (new juce::DynamicObject()));
+
+    CHECK (presets.fromVar (juce::var (root)));
+    presets.applyExtraState();
+
+    CHECK_NEAR (processor.getEngine().getTuningEngine().getStringTuning (0).detuneCents, 0.0, 1.0e-9);
+}
