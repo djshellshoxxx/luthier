@@ -7,3 +7,6 @@ Renders/
 .claude/ralph-loop.local.md
 Tools/__pycache__/
 Tools/outline_previews/
+ThirdParty/clap-juce-extensions/
+build-ci/
+dist/
