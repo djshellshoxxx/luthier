@@ -82,6 +82,9 @@ public:
     juce::String getStatusText() const           { return statusText; }
 
     bool exportTo (const juce::File& destination, juce::String* error = nullptr);
+    juce::ComboBox& getRangeBox() noexcept { return rangeBox; }
+    juce::TextButton& getMarkInButton() noexcept  { return markInButton; }
+    juce::TextButton& getMarkOutButton() noexcept { return markOutButton; }
 
     /** notation-export 0.1: the chooser's path - the work on the export worker. */
     bool exportToAsync (const juce::File& destination, std::function<void (bool, const juce::String&)> done,
@@ -119,6 +122,7 @@ private:
     std::unique_ptr<LuthierToggle> chordDiagrams;
     juce::TextEditor previewView;
     juce::TextButton exportButton { "EXPORT NOTATION..." };
+    juce::TextButton markInButton { "MARK IN" }, markOutButton { "MARK OUT" };   // MODEL-GAPS: the marked region
 
     juce::Rectangle<int> captureHeader, tabHeader, exportHeader, statusBounds, chordBounds;
     std::unique_ptr<juce::FileChooser> chooser;

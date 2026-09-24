@@ -278,8 +278,11 @@ private:
         void mouseDrag (const juce::MouseEvent& e) override;
         void mouseUp (const juce::MouseEvent& e) override;
 
-        /** What a drag hands out now, for the tests (saving first if nothing is saved). */
-        juce::StringArray filesToDrag();
+        /*  What a drag hands out now, for the tests (saving first if nothing is
+            saved): midi-export 4.2's MIDI file - the take's span of the
+            performance capture, Luthier profile, or Generic with Alt - then
+            the WAV. The recorder's raw MIDI stands in when nothing was captured. */
+        juce::StringArray filesToDrag (bool forceGeneric = false);
 
     private:
         SessionTab& tab;

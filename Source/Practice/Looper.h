@@ -227,6 +227,12 @@ public:
     bool exportMixdown (const juce::File& file) const;
     bool exportStems (const juce::File& directory) const;
 
+    /*  midi-export 5 (MODEL-GAPS, TODO 10): an imported MIDI file, rendered,
+        loaded as a layer. Replaces `layer`'s audio; on an empty looper the
+        audio sets the loop length (capped at the capacity), otherwise it is
+        fitted to the loop. The looper must be stopped. Message thread. */
+    bool loadLayerAudio (int layer, const juce::AudioBuffer<float>& audio);
+
     /** The `.luthierloop` file: settings, MIDI and the audio of every layer. */
     bool save (const juce::File& file) const;
     bool load (const juce::File& file);
@@ -311,6 +317,11 @@ public:
 
     /** Message thread: moves what captureMidi queued into the take. */
     void drainMidi();
+
+    /*  midi-export 5 (MODEL-GAPS, TODO 10): an imported MIDI file added to the
+        session, after what it already holds. Timestamps in samples. Message
+        thread. Returns the number of events added. */
+    int importMidi (const juce::MidiMessageSequence& sequence);
 
     int getNumMidiEvents() const;
 

@@ -80,6 +80,22 @@ double MidiCapture::getCapturedSeconds() const noexcept
 }
 
 //==============================================================================
+int64_t MidiCapture::getFirstHeldSample() const noexcept
+{
+    const int count = juce::jmin (written.load(), capacity);
+
+    if (count <= 0)
+        return -1;
+
+    const int start = (written.load() > capacity) ? (writeIndex.load() % capacity) : 0;
+    int64_t first = std::numeric_limits<int64_t>::max();
+
+    for (int i = 0; i < count; ++i)
+        first = juce::jmin (first, ring[(size_t) ((start + i) % capacity)].sample);
+
+    return first;
+}
+
 juce::MidiFile MidiCapture::buildMidiFile (double tempoBpm) const
 {
     juce::MidiFile file;

@@ -12,16 +12,27 @@
 #include "UI/AdvancedPanel.h"
 #include "UI/Overlays.h"
 #include "UI/Notifications.h"
+#include "Export/MidiImportTargets.h"   // midi-export 5 (MODEL-GAPS)
 
 namespace luthier
 {
 
 //==============================================================================
 class LuthierAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                    public juce::FileDragAndDropTarget,   // midi-export 5 (MODEL-GAPS)
                                     private juce::Timer,
                                     private juce::ChangeListener
 {
 public:
+    /*  midi-export 5 (MODEL-GAPS): "File -> Import -> MIDI, or drag a .mid file
+        onto the plugin window", then the target: the session, the Tune
+        Builder or the looper. With `target` given (the tests) there is no
+        menu. The outcome is posted as a banner and returned when known. */
+    bool isInterestedInFileDrag (const juce::StringArray& files) override;
+    void filesDropped (const juce::StringArray& files, int x, int y) override;
+    void importMidiFile (const juce::File& file, std::optional<MidiImportTarget> target = {});
+    MidiImportOutcome getLastMidiImport() const { return lastMidiImport; }
+
     explicit LuthierAudioProcessorEditor (LuthierAudioProcessor&);
     ~LuthierAudioProcessorEditor() override;
 
@@ -99,6 +110,7 @@ private:
     juce::TooltipWindow tooltips { this, Metrics::tooltipDelayMs };
 
     HeaderBar header;
+    MidiImportOutcome lastMidiImport;   // MODEL-GAPS
 
     /*  Section 15 puts the banner strip "under the header strip", so it is laid
         out directly beneath the header and above the live strip: the live strip

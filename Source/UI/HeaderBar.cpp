@@ -299,6 +299,7 @@ void HeaderBar::showFileMenu()
     menu.addItem (3, "Open preset file...");
     menu.addSeparator();
     menu.addItem (4, "Import preset...");
+    menu.addItem (14, "Import MIDI...");   // midi-export 5 (MODEL-GAPS)
     menu.addItem (5, "Export preset...");
     menu.addSeparator();
     menu.addItem (6, "Export audio...");
@@ -482,6 +483,23 @@ void HeaderBar::showFileMenu()
             case 12:
                 processor.resetEverything();
                 break;
+
+            case 14:
+            {
+                // midi-export 5 (MODEL-GAPS): the window asks where it goes.
+                auto chooser = std::make_shared<juce::FileChooser> (
+                    "Import MIDI", juce::File::getSpecialLocation (juce::File::userDocumentsDirectory), "*.mid;*.midi");
+
+                chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                                      [this, chooser] (const juce::FileChooser& fc)
+                {
+                    const auto file = fc.getResult();
+
+                    if (file != juce::File() && onImportMidi)
+                        onImportMidi (file);
+                });
+                break;
+            }
 
             default:
                 break;

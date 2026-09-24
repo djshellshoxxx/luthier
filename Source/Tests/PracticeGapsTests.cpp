@@ -11,6 +11,7 @@
 #include "../Practice/Trainers.h"
 #include "../Practice/PracticeRoutineSetup.h"
 #include "../UI/PracticePanel.h"
+#include "../Export/MidiProfiles.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -145,7 +146,7 @@ LUTHIER_TEST (PracticeGaps, theSaveButtonDragsTheSavedTakeOut)
 
     // Nothing saved yet: a drag saves first, then hands out the MIDI first.
     const auto files = tab.getSaveButton().filesToDrag();
-    CHECK (files.size() == 2);
+    CHECK_MSG (files.size() == 2, files.joinIntoString (" ; "));
 
     if (files.size() == 2)
     {
@@ -156,6 +157,36 @@ LUTHIER_TEST (PracticeGaps, theSaveButtonDragsTheSavedTakeOut)
 
     for (const auto& f : files)
         juce::File (f).deleteFile();
+
+    // With something played through the engine, the drag is the capture's take
+    // as a Luthier-profile file (midi-export 4.2), not the raw MIDI.
+    juce::AudioBuffer<float> buffer (juce::jmax (processor.getTotalNumOutputChannels(), 2), kBlock);
+
+    for (int b = 0; b < 60; ++b)
+    {
+        buffer.clear();
+        juce::MidiBuffer midi;
+
+        if (b == 2)  midi.addEvent (juce::MidiMessage::noteOn (1, 52, (juce::uint8) 100), 0);
+        if (b == 40) midi.addEvent (juce::MidiMessage::noteOff (1, 52), 0);
+
+        processor.processBlock (buffer, midi);
+    }
+
+    recorder.setEnabled (true);
+    feed (recorder);
+    CHECK (tab.getSaveButton().filesToDrag().size() >= 1);   // saved already: the same take
+
+    const auto dragged = tab.getSaveButton().filesToDrag();
+    CHECK (dragged.size() >= 1 && juce::File (dragged[0]).hasFileExtension ("mid"));
+
+    if (dragged.size() >= 1)
+    {
+        MidiPerformance back (kSr);
+        const auto result = MidiProfiles::importFromFile (juce::File (dragged[0]), back, kSr);
+        CHECK_MSG (result.ok, result.error);
+        CHECK (result.detectedProfile == MidiProfile::luthier);
+    }
 }
 
 //==============================================================================

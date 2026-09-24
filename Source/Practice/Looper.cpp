@@ -884,6 +884,37 @@ bool SessionRecorder::prepare (double sampleRate, double minutes)
     return true;
 }
 
+bool Looper::loadLayerAudio (int layerIndex, const juce::AudioBuffer<float>& source)
+{
+    if (capacity <= 0 || source.getNumSamples() <= 0 || getState() != State::stopped
+        || ! juce::isPositiveAndBelow (layerIndex, kMaxLayers))
+        return false;
+
+    int length = loopLength.load (std::memory_order_relaxed);
+
+    if (length <= 0)
+    {
+        length = juce::jmin (capacity, source.getNumSamples());
+        loopLength.store (length, std::memory_order_relaxed);
+    }
+
+    auto& layer = layers[(size_t) layerIndex];
+    const auto mode = layer.getMode();
+    layer.setMode (LayerMode::replace);
+
+    juce::AudioBuffer<float> fitted (2, length);
+    fitted.clear();
+
+    for (int c = 0; c < 2; ++c)
+        fitted.copyFrom (c, 0, source, juce::jmin (c, source.getNumChannels() - 1), 0,
+                         juce::jmin (length, source.getNumSamples()));
+
+    layer.record (fitted.getReadPointer (0), fitted.getReadPointer (1), 0, length);
+    layer.setRecordedSamples (length);
+    layer.setMode (mode);
+    return true;
+}
+
 void SessionRecorder::reset() noexcept
 {
     writePosition.store (0, std::memory_order_relaxed);
@@ -973,6 +1004,26 @@ void SessionRecorder::drainMidiLocked() const
 
     take (scope.startIndex1, scope.blockSize1);
     take (scope.startIndex2, scope.blockSize2);
+}
+
+int SessionRecorder::importMidi (const juce::MidiMessageSequence& sequence)
+{
+    const juce::ScopedLock sl (midiLock);
+    drainMidiLocked();
+
+    const double after = juce::jmax ((double) samplesSeen,
+                                     midi.getNumEvents() > 0 ? midi.getEndTime() + 1.0 : 0.0);
+    int added = 0;
+
+    for (int i = 0; i < sequence.getNumEvents(); ++i)
+        if (const auto* e = sequence.getEventPointer (i))
+        {
+            midi.addEvent (e->message, after);
+            ++added;
+        }
+
+    midi.updateMatchedPairs();
+    return added;
 }
 
 void SessionRecorder::drainMidi()

@@ -1,4 +1,5 @@
 #include "NotationPanel.h"
+#include "CaptureRanges.h"   // MODEL-GAPS
 #include "MidiExportDefaults.h"
 #include "../PluginProcessor.h"
 #include "../Presets/PresetManager.h"
@@ -245,9 +246,15 @@ NotationPanel::NotationPanel (LuthierAudioProcessor& p)
     formatBox.onChange = [this] { resized(); updatePreview(); };
     setUpBox (formatBox, "Notation format", "What to export the take as.");
 
-    rangeBox.addItem ("Entire capture", 1);
-    rangeBox.addItem ("Last N seconds", 2);
+    CaptureRanges::addItems (rangeBox);   // midi-export 4.1's four (MODEL-GAPS)
     rangeBox.setSelectedId (1, juce::dontSendNotification);
+
+    markInButton.setTooltip ("Start the marked region here");
+    markOutButton.setTooltip ("End the marked region here");
+    markInButton.onClick = [this] { processor.drainPerformanceCapture(); processor.getPerformanceCapture().markIn(); updatePreview(); };
+    markOutButton.onClick = [this] { processor.drainPerformanceCapture(); processor.getPerformanceCapture().markOut(); updatePreview(); };
+    addChildComponent (markInButton);
+    addChildComponent (markOutButton);
     rangeBox.onChange = [this] { resized(); updatePreview(); };
     setUpBox (rangeBox, "Export range", "How much of the take to export.");
 
@@ -323,7 +330,7 @@ CaptureScoreOptions NotationPanel::currentCaptureOptions() const
 {
     CaptureScoreOptions options;
     options.quantiseBeats = kGrids[(size_t) juce::jlimit (0, 4, quantiseBox.getSelectedId() - 1)];
-    options.lastSeconds = rangeBox.getSelectedId() == 2 ? lastSeconds.getValue() : 0.0;
+    CaptureRanges::apply (processor, rangeBox.getSelectedId(), lastSeconds.getValue(), options);   // MODEL-GAPS
     return options;
 }
 
@@ -389,6 +396,8 @@ void NotationPanel::updatePreview()
     lineWidth.setVisible (format == NotationFormat::asciiTab);
     chordDiagrams->setVisible (format == NotationFormat::guitarPro);
     lastSeconds.setVisible (rangeBox.getSelectedId() == 2);
+    markInButton.setVisible (rangeBox.getSelectedId() == CaptureRanges::markedRegion);
+    markOutButton.setVisible (rangeBox.getSelectedId() == CaptureRanges::markedRegion);
 
     // 5: a preview of the first bar, for MusicXML and ASCII.
     if (take.getNotes().empty() || (format != NotationFormat::musicXml && format != NotationFormat::asciiTab))
@@ -541,6 +550,11 @@ void NotationPanel::resized()
     exportHeader = bounds.removeFromTop (kHeader);
     split (row(), { &formatBox, &quantiseBox });
     split (row(), { &rangeBox, &lastSeconds });
+    {
+        auto r = lastSeconds.getBounds();
+        markInButton.setBounds (r.removeFromLeft (r.getWidth() / 2).reduced (1, 0));
+        markOutButton.setBounds (r.reduced (1, 0));
+    }
 
     {
         auto r = row();

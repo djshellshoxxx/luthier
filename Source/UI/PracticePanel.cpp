@@ -1,5 +1,7 @@
 #include "PracticePanel.h"
 #include "../PluginProcessor.h"
+#include "MidiOutPanel.h"        // MODEL-GAPS: the drag-out take
+#include "MidiExportDefaults.h"
 
 namespace luthier
 {
@@ -1478,23 +1480,48 @@ bool SessionTab::saveTake()
     return saved;
 }
 
-juce::StringArray SessionTab::SaveButton::filesToDrag()
+juce::StringArray SessionTab::SaveButton::filesToDrag (bool forceGeneric)
 {
-    auto files = tab.processor.getSessionRecorder().getLastSavedFiles();
+    auto& recorder = tab.processor.getSessionRecorder();
+    auto files = recorder.getLastSavedFiles();
 
     if (files.isEmpty() && tab.saveTake())
-        files = tab.processor.getSessionRecorder().getLastSavedFiles();
+        files = recorder.getLastSavedFiles();
 
-    // The MIDI first: it is what a DAW track takes (midi-export 4.2).
     juce::StringArray paths;
+    bool haveTakeMidi = false;
+
+    // midi-export 4.2: a valid MIDI file in the Luthier profile (Generic with
+    // Alt), of the take's span of what the engine played.
+    const auto performance = MidiTakeExport::capturedPerformance (tab.processor);
+    const double seconds = (double) recorder.getRecordedSamples() / juce::jmax (1.0, tab.processor.getSampleRate());
+
+    if (performance.getLengthInSamples() > 0)
+    {
+        auto defaults = MidiExportDefaults::load();
+        defaults.range = seconds > 0.0 ? performance.getLastSecondsRange (seconds) : juce::Range<juce::int64>();
+
+        const auto midi = MidiProfiles::writeDragOutFile (performance, forceGeneric, defaults);
+
+        if (midi.existsAsFile())
+        {
+            paths.add (midi.getFullPathName());
+            haveTakeMidi = true;
+        }
+    }
 
     for (const auto& f : files)
         if (f.existsAsFile())
         {
             if (f.hasFileExtension ("mid"))
-                paths.insert (0, f.getFullPathName());
+            {
+                if (! haveTakeMidi)
+                    paths.insert (0, f.getFullPathName());   // nothing captured: the raw take, first
+            }
             else
+            {
                 paths.add (f.getFullPathName());
+            }
         }
 
     return paths;
@@ -1506,7 +1533,7 @@ void SessionTab::SaveButton::mouseDrag (const juce::MouseEvent& e)
         return;
 
     dragged = true;
-    const auto paths = filesToDrag();
+    const auto paths = filesToDrag (e.mods.isAltDown());
 
     if (! paths.isEmpty())
         juce::DragAndDropContainer::performExternalDragDropOfFiles (paths, false, this);

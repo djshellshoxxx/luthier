@@ -148,6 +148,12 @@ struct CaptureScoreOptions
     /** Only the last this-many seconds of the take; 0 = all of it (section 1's
         "capture the last N minutes"). */
     double lastSeconds = 0.0;
+    /** midi-export 4.1's "marked region" (MODEL-GAPS, TODO 9/10): only notes
+        starting in these capture samples; empty = no limit. */
+    juce::Range<juce::int64> sampleRange;
+    /** 4.1's "current section (tune only)": only notes played in time with the
+        host that start in these quarter-note positions; empty = no limit. */
+    juce::Range<double> ppqRange;
 
     /** The tempo free-play notes are read at; 0 = the take's own. */
     double freeTempoBpm = 0.0;
@@ -241,6 +247,24 @@ public:
     const std::vector<CapturedEvent>& getEvents() const noexcept { return events; }
 
     void clearTake();
+    /*  midi-export 4.1 / notation-export 5 (MODEL-GAPS): the marked region -
+        mark in, play, mark out - at the newest sample the take has seen.
+        Message thread. The region is empty until both marks are set, the
+        out after the in. */
+    void markIn();
+    void markOut();
+    void clearMarks();
+    bool hasMarkedRegion() const noexcept { return markOutSample > markInSample && markInSample >= 0; }
+    juce::Range<juce::int64> getMarkedRegion() const noexcept
+    {
+        return hasMarkedRegion() ? juce::Range<juce::int64> (markInSample, markOutSample) : juce::Range<juce::int64>();
+    }
+    juce::int64 getNewestSample() const noexcept { return newestSample; }
+
+    /** The capture samples the notes played in time with the host inside
+        `ppq` span, first start to last end; empty when none (MODEL-GAPS: the
+        current section, for exports that count in samples). */
+    juce::Range<juce::int64> sampleRangeForPpq (juce::Range<double> ppq) const noexcept;
 
     //==========================================================================
     /** The take as notation. Notes still sounding end at the newest sample
@@ -290,6 +314,8 @@ private:
 
     bool waitingForFirstNote = false;
     juce::int64 newestSample = 0;
+    juce::int64 markInSample = -1, markOutSample = -1;
+    std::atomic<juce::int64> clockSample { 0 };   ///< the audio thread's latest block start (the marks' "now")
 
     std::vector<CaptureRecord> incoming;
     std::vector<CapturedNote> notes;
