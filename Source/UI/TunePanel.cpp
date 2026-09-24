@@ -752,6 +752,20 @@ void TunePanel::buildProgression()
 
     addAndMakeVisible (chordPills);
 
+    // tune-builder 5: palette, suggest, reharmonize, transpose, modal shift.
+    addAndMakeVisible (toolsButton);
+    toolsButton.setTooltip ("Chord tools: the diatonic palette, suggest next chord, reharmonize, transpose, modal shift");
+    AccessibleSetup::configureButton (toolsButton, "Chord tools");
+    toolsButton.onClick = [this]
+    {
+        buildToolsMenu().showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&toolsButton),
+                                        [safe = juce::Component::SafePointer<TunePanel> (this)] (int r)
+        {
+            if (safe != nullptr && r != 0)
+                safe->performToolsItem (r);
+        });
+    };
+
     // 3.2: the popover's strum overrides are the pattern library's patterns.
     chordPills.getPatternNames = [this]
     {
@@ -986,6 +1000,44 @@ void TunePanel::buildMelody()
         });
     };
 
+    // 4.5: "Play this melody like a bluegrass fiddle" - phrasing only.
+    addAndMakeVisible (styleBox);
+    styleBox.setTooltip ("Style transfer: plays the melody with another instrument's phrasing (never its pitches)");
+    AccessibleSetup::configureComboBox (styleBox, "Melody style");
+
+    for (int st = 0; st < (int) MelodyStyle::numStyles; ++st)
+        styleBox.addItem (getMelodyStyleDisplayName ((MelodyStyle) st), st + 1);
+
+    styleBox.onChange = [this]
+    {
+        if (updating || styleBox.getSelectedId() <= 0)
+            return;
+
+        const auto style = (MelodyStyle) (styleBox.getSelectedId() - 1);
+        editSection (TuneEditClass::melodyEdit, "Melody style",
+                     [style] (TuneSection& s) { if (s.style == style) return false; s.style = style; return true; }, 4600);
+    };
+
+    // 4.3: "Held notes across chord changes are optionally re-fitted to the new chord".
+    addAndMakeVisible (followChordsToggle);
+    followChordsToggle.setTooltip ("Record: a note held across a chord change moves to the new chord's nearest chord tone");
+    AccessibleSetup::configureButton (followChordsToggle.getButton(), "Follow chord changes");
+    followChordsToggle.getButton().onClick = [this]
+    {
+        const bool on = followChordsToggle.getButton().getToggleState();
+        editSection (TuneEditClass::melodyEdit, "Follow chord changes", [on] (TuneSection& s)
+        {
+            if (! s.melody.has_value())
+                s.melody = MelodyTrack();
+
+            if (s.melody->followChords == on)
+                return false;
+
+            s.melody->followChords = on;
+            return true;
+        }, 4700);
+    };
+
     // 13: "a big Sing button on the Melody strip when audio in is present".
     addChildComponent (singToggle);
     singToggle.setTooltip ("Sing or hum the melody into the audio input; press again to write it down (snapped to the key "
@@ -1173,6 +1225,10 @@ void TunePanel::refresh()
     rhythmOn.getButton().setToggleState (section != nullptr && section->rhythmOn, juce::dontSendNotification);
     kitTempoButton.setButtonText ("KIT " + juce::String (juce::roundToInt (TuneKits::getSuggestion (section != nullptr ? section->genreKitId
                                                                                                      : juce::String()).tempoBpm)));
+
+    styleBox.setSelectedId (section != nullptr ? (int) section->style + 1 : 0, juce::dontSendNotification);
+    followChordsToggle.getButton().setToggleState (section != nullptr && section->melody.has_value()
+                                                     && section->melody->followChords, juce::dontSendNotification);
 
     const bool improvising = section != nullptr && section->melody.has_value()
                                && section->melody->source == MelodySource::improvise;
@@ -1693,7 +1749,7 @@ int TunePanel::getPreferredHeight() const
          + kHeader + TuneSetlistStrip::kHeight + 4 + kStripHeight + kRowGap   // setlist and sections
          + kHeader + button + kErrorLine + kPillsHeight + kRowGap     // progression
          + kHeader + 2 * (button + kRowGap)                           // rhythm
-         + kHeader + kRollHeight + kRowGap + 2 * (button + kRowGap)   // melody
+         + kHeader + kRollHeight + kRowGap + 3 * (button + kRowGap)   // melody
          + kHeader + (layersStrip != nullptr ? layersStrip->getPreferredHeight() : 0) + kRowGap   // bass and layers
          + kHeader + 2 * (button + kRowGap) + kPositionLine           // transport and TO LOOPER
          + Metrics::grid;
@@ -1811,7 +1867,12 @@ void TunePanel::resized()
 
     // --- progression -------------------------------------------------------------------
     progressionHeader = bounds.removeFromTop (kHeader);
-    progressionEditor.setBounds (bounds.removeFromTop (button));
+    {
+        auto r = bounds.removeFromTop (button);
+        toolsButton.setBounds (r.removeFromRight (64));
+        r.removeFromRight (4);
+        progressionEditor.setBounds (r);
+    }
     bounds.removeFromTop (kErrorLine);
     chordPills.setBounds (bounds.removeFromTop (kPillsHeight));
     bounds.removeFromTop (kRowGap);
@@ -1855,6 +1916,12 @@ void TunePanel::resized()
         r.removeFromLeft (Metrics::grid);
         rollTargetLabelBounds = r.removeFromLeft (36);
         rollTargetBox.setBounds (r.removeFromLeft (juce::jmin (140, r.getWidth())));
+    }
+
+    {
+        auto r = row();
+        styleBox.setBounds (r.removeFromLeft (r.getWidth() * 2 / 3).withTrimmedRight (4));
+        followChordsToggle.setBounds (r);
     }
 
     // --- bass and layers (6, 7) --------------------------------------------------------

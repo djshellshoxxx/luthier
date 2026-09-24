@@ -434,3 +434,42 @@ LUTHIER_TEST (TuneEditing, theBassAndLayerRowsEditTheSection)
     f.panel->getRollTargetBox().onChange();
     CHECK (f.panel->getPianoRoll().getTarget() == TunePianoRoll::Target::bass);
 }
+
+//==============================================================================
+/*  tune-builder 5's tools, 4.5's style transfer and 4.3's Follow chord
+    changes, from the TUNE tab. */
+LUTHIER_TEST (TuneEditing, theChordToolsStyleAndFollowWorkFromTheTab)
+{
+    Fixture f;
+    auto& panel = *f.panel;
+    CHECK (panel.buildToolsMenu().getNumItems() >= 5);
+
+    panel.performToolsItem (TunePanel::diatonicBase + 2);        // ii: Dm
+    panel.performToolsItem (TunePanel::diatonicBase + 10 + 5);   // V7: G7
+    CHECK (f.chords().joinIntoString (" ") == "C Am F G Dm G7");
+
+    const int before = (int) f.verse().chords.size();
+    panel.performToolsItem (TunePanel::suggestBase);
+    CHECK ((int) f.verse().chords.size() == before + 1);
+
+    panel.performToolsItem (TunePanel::transposeBase + 12 + 2);
+    CHECK (f.session().getTune().meta.keyTonic == 2);
+    CHECK (f.chords()[0] == "D");
+    CHECK (f.session().undo());
+
+    panel.performToolsItem (TunePanel::reharmonizeItem);
+    CHECK (f.session().getUndoDescription() == "Reharmonize");
+
+    panel.performToolsItem (TunePanel::followModeItem);
+    CHECK (panel.isFollowMode());
+    panel.performToolsItem (TunePanel::modeBase + (int) TuneMode::aeolian);
+    CHECK (f.session().getTune().meta.mode == TuneMode::aeolian);
+
+    panel.getStyleBox().setSelectedId ((int) MelodyStyle::jazzSax + 1, juce::dontSendNotification);
+    panel.getStyleBox().onChange();
+    CHECK (f.verse().style == MelodyStyle::jazzSax);
+
+    panel.getFollowChordsButton().setToggleState (true, juce::dontSendNotification);
+    panel.getFollowChordsButton().onClick();
+    CHECK (f.verse().melody.has_value() && f.verse().melody->followChords);
+}

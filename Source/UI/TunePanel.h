@@ -418,6 +418,26 @@ public:
     std::vector<ChordCell> getPaletteChords() const;
     bool appendPaletteChord (int paletteIndex);
     bool applyKitTempo();
+
+    /** tune-builder 5's chord tools (TUNE-HELP-ONBOARDING, TuneToolsMenu.cpp):
+        the TOOLS menu beside the progression. */
+    enum ToolsItem
+    {
+        reharmonizeItem = 1, followModeItem,
+        diatonicBase = 100,     ///< + degree (1..7); + 10 for the seventh chord
+        suggestBase = 200,      ///< + suggestion index
+        transposeBase = 300,    ///< + 12 + semitones (-12..12)
+        modeBase = 400          ///< + TuneMode
+    };
+
+    juce::PopupMenu buildToolsMenu() const;
+    void performToolsItem (int itemId);
+    bool isFollowMode() const noexcept { return followMode; }
+
+    /** 4.5 style transfer and 4.3 "Follow chord changes", on the melody row. */
+    juce::ComboBox& getStyleBox() noexcept           { return styleBox; }
+    juce::TextButton& getFollowChordsButton() noexcept { return followChordsToggle.getButton(); }
+    juce::TextButton& getToolsButton() noexcept      { return toolsButton; }
     juce::Slider& getFeelSlider() noexcept           { return feelSlider; }
     juce::Slider& getStrumSlider() noexcept          { return strumSlider; }
     juce::TextButton& getRhythmOnButton() noexcept   { return rhythmOn.getButton(); }
@@ -502,6 +522,10 @@ private:
     juce::Slider strumSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
     LuthierToggle rhythmOn { "ON" };
     juce::TextButton paletteButton { "PALETTE" }, kitTempoButton { "KIT TEMPO" };
+    juce::TextButton toolsButton { "TOOLS" };
+    juce::ComboBox styleBox;
+    LuthierToggle followChordsToggle { "FOLLOW" };
+    bool followMode = false;
 
     // --- melody -----------------------------------------------------------------------
     TunePianoRoll pianoRoll;
