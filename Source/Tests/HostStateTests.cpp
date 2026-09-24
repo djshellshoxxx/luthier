@@ -187,3 +187,36 @@ LUTHIER_TEST (HostState, processingDoesNotMoveParameters)
 
     CHECK_MSG (moved.isEmpty(), "parameters moved by themselves: " + moved.joinIntoString (", "));
 }
+
+LUTHIER_TEST (HostState, theSameParametersGiveTheSameStateHoweverTheyArrived)
+{
+    // clap-validator state-reproducibility-flush: one instance gets random
+    // values while processing, another gets them without ever processing.
+    // Their saved states must match.
+    juce::Random rng (777);
+    std::vector<float> values;
+
+    auto first = std::make_unique<LuthierAudioProcessor>();
+    for (int i = 0; i < first->getParameters().size(); ++i)
+        values.push_back (rng.nextFloat());
+
+    first->prepareToPlay (48000.0, 512);
+    juce::AudioBuffer<float> buffer (first->getTotalNumOutputChannels(), 512);
+    juce::MidiBuffer midi;
+
+    for (int i = 0; i < first->getParameters().size(); ++i)
+        first->getParameters()[i]->setValueNotifyingHost (values[(size_t) i]);
+
+    for (int b = 0; b < 5; ++b)
+    {
+        buffer.clear();
+        first->processBlock (buffer, midi);
+    }
+
+    auto second = std::make_unique<LuthierAudioProcessor>();
+
+    for (int i = 0; i < second->getParameters().size(); ++i)
+        second->getParameters()[i]->setValueNotifyingHost (values[(size_t) i]);
+
+    CHECK (sameState (asText (saveState (*first)), asText (saveState (*second)), "luthier-arrival"));
+}

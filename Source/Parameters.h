@@ -472,9 +472,11 @@ public:
     /** The unmodulated value, for the UI, which shows the control where
         automation put it rather than where modulation has pushed it. */
     float baseValue (const juce::String& id) const noexcept;
+    float baseValue (const char* id) const noexcept;
 
     /** The parameter's index in the processor's parameter list, or -1. */
     int parameterIndex (const juce::String& id) const noexcept;
+    int parameterIndex (const char* id) const noexcept;
 
     /*  guitar-workshop.md 0.6: a guitar type is a shortcut to a factory
         guitar file. When the type changes the bridge asks this to load it;
@@ -494,6 +496,32 @@ private:
 
     std::atomic<float>* raw (const juce::String& id) const noexcept;
     float value (const juce::String& id) const noexcept;
+
+    /*  engine.md 0 (no allocation on the audio thread): the audio thread reads
+        parameters by their const char* IDs through this table, built on the
+        message thread in cachePointers(). A juce::String built from a literal
+        allocates, and applyToEngine used to build hundreds per block. */
+    struct FastEntry
+    {
+        juce::uint64 hash = 0;
+        std::string id;
+        std::atomic<float>* pointer = nullptr;
+        int index = -1;
+    };
+
+    static juce::uint64 hashId (const char* id) noexcept;
+    const FastEntry* find (const char* id) const noexcept;
+    std::atomic<float>* raw (const char* id) const noexcept;
+    float value (const char* id) const noexcept;
+
+    std::vector<FastEntry> fastTable;
+    size_t fastMask = 0;
+
+    // The pedal slots' IDs, built once so the audio thread never formats them.
+    std::array<std::array<std::string, EffectsChain::kNumSlots>, 2> slotBypassIds, slotMixIds, slotTypeIds;
+    std::array<std::array<std::array<std::string, Pedal::kMaxParams>, EffectsChain::kNumSlots>, 2> slotParamIds;
+    std::array<std::string, PickupEngine::kMaxPickups> pickupTypeIds, pickupMagnetIds, pickupVolumeIds;
+    std::array<std::string, ParamIDs::kNumNutDepths + 1> nutDepthIds;
 
     juce::AudioProcessorValueTreeState& apvts;
     LuthierEngine& engine;

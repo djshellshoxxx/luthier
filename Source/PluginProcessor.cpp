@@ -159,6 +159,16 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     // one right now. claimSampleRateChange decides whether it is worth saying.
     preparedSampleRate.store (sampleRate, std::memory_order_relaxed);
 
+    // The per-string state (gauges, fine tune, realism detune) as it stands -
+    // a restored session's, or the loaded guitar's - so the applyExtraState
+    // below puts back what the engine had rather than stale defaults.
+    // Only once there is something to keep: a fresh instance's saved extras
+    // are the defaults, and would overwrite what the guitar and parameters set.
+    const bool keepExtraState = initialStateApplied;
+
+    if (keepExtraState)
+        presets.captureExtraState();
+
     engine.prepare (sampleRate, samplesPerBlock);
     sidechainCopy.setSize (2, juce::jmax (1, samplesPerBlock), false, true, false);
     sidechainCopy.clear();
@@ -217,7 +227,10 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
         engine.applyWorkshopGuitar (mapSpec (currentGuitar), engine.getGuitarType());
 
     bridge.applyAllNow();
-    presets.applyExtraState();
+
+    if (presets.hasExtraState())
+        presets.applyExtraState();
+
     initialStateApplied = true;
 
     updateLatency();
@@ -2043,10 +2056,11 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     {
         // Never prepared (a host may save first): build the instrument now, as
         // prepareToPlay would, so the state is the one a prepared instance saves.
+        // (No applyExtraState: with no session restored it holds only the
+        // defaults, and would overwrite what the guitar load just set.)
         if (! initialStateApplied)
         {
             bridge.applyAllNow();
-            presets.applyExtraState();
             initialStateApplied = true;
         }
 

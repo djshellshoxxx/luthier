@@ -195,6 +195,11 @@ public:
     /** Reads the engine's current per-string state back into the extra state. */
     void captureExtraState();
 
+    /** True once the per-string state holds something real: a preset or a
+        session read it, or it was captured from the engine. A fresh
+        instance's is only defaults, and applying it would undo the guitar. */
+    bool hasExtraState() const noexcept { return extraStateValid; }
+
     //==========================================================================
     static juce::File getUserPresetFolder();
 
@@ -271,6 +276,8 @@ private:
     bool modified = false;
 
     ExtraState extra;
+
+    bool extraStateValid = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PresetManager)
 };

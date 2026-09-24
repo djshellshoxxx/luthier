@@ -428,7 +428,16 @@ juce::var PresetManager::toVar (const juce::String& name,
     strings->setProperty ("numStrings", n);
     strings->setProperty ("customGaugeInches", writeArray (extra.customGaugeInches, n));
     strings->setProperty ("detuneCents", writeArray (extra.detuneCents, n));
-    strings->setProperty ("realismDetuneCents", writeArray (extra.realismDetuneCents, n));
+    // Derived from a float parameter, so it carries float noise; 0.0001 cents
+    // is far below hearing and makes save -> load -> save stable.
+    {
+        auto rounded = extra.realismDetuneCents;
+
+        for (auto& c : rounded)
+            c = std::round (c * 1.0e4) / 1.0e4;
+
+        strings->setProperty ("realismDetuneCents", writeArray (rounded, n));
+    }
     strings->setProperty ("fineTuneCents", writeArray (extra.fineTuneCents, n));
     strings->setProperty ("openFrequencyHz", writeArray (extra.openFrequencyHz, n));
     strings->setProperty ("useCustomTuning", extra.useCustomTuning);
@@ -705,6 +714,7 @@ bool PresetManager::fromVar (const juce::var& data)
         extra.numStrings = juce::jlimit (1, kMaxStrings, (int) strings->getProperty ("numStrings"));
         extra.useCustomTuning = strings->getProperty ("useCustomTuning");
 
+        extraStateValid = true;
         readArray ("customGaugeInches", extra.customGaugeInches, kMaxStrings);
         readArray ("detuneCents", extra.detuneCents, kMaxStrings);
         readArray ("realismDetuneCents", extra.realismDetuneCents, kMaxStrings);
@@ -775,6 +785,7 @@ void PresetManager::applyExtraState()
 
 void PresetManager::captureExtraState()
 {
+    extraStateValid = true;
     const auto& tuningEngine = engine.getTuningEngine();
     extra.numStrings = engine.getNumStrings();
 
