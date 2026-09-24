@@ -981,6 +981,7 @@ LUTHIER_TEST (Combo, seededRandomConfigurations)
         v.expectDecay = false;
         v.peakCeiling = 8.0;
         v.cpuCeilingPercent = 100.0;
+        v.checkIdleFloor = false;
 
         const auto why = v.judge (stats);
         ++ctx.checks;

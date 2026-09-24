@@ -473,6 +473,7 @@ struct Verdict
     bool expectDecay = true;
     double peakCeiling = 4.0;       ///< +12 dBFS: anything above is runaway gain
     double cpuCeilingPercent = 60.0;
+    bool checkIdleFloor = true;     ///< off for random rigs, whose noise controls are random too
 
     juce::String judge (const RenderStats& s) const
     {
@@ -501,7 +502,7 @@ struct Verdict
                          + " dBFS vs note " + juce::String (juce::Decibels::gainToDecibels (s.maxWindowRms), 1) + " dBFS)");
         }
 
-        if (s.idleRms > 0.0316)
+        if (checkIdleFloor && s.idleRms > 0.0316)
             why.add ("loud idle noise floor: " + juce::String (juce::Decibels::gainToDecibels (s.idleRms), 1)
                      + " dBFS with nothing played");
 
