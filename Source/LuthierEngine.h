@@ -216,6 +216,17 @@ public:
     const NoiseFloor& getNoiseFloor() const noexcept { return noiseFloor; }
     void setNoiseFloorSettings (const NoiseFloorSettings& s) noexcept { noiseFloor.setSettings (s); }
 
+    /** sustain-and-decay.md 7: the decay's shape, for every string, at block rate. */
+    void setSustainShape (const StringEngine::SustainShape& s) noexcept { sustainShape = s; }
+    const StringEngine::SustainShape& getSustainShape() const noexcept { return sustainShape; }
+
+    /** SUS-01's test hook: the shape code removed from every string. */
+    void setSustainShapeBypassedForTest (bool b) noexcept
+    {
+        for (auto& str : strings)
+            str.setShapeBypassedForTest (b);
+    }
+
     /** NF-01's test hook: the render with the module removed entirely. */
     void setNoiseFloorBypassedForTest (bool b) noexcept { noiseFloorBypassed = b; }
 
@@ -508,6 +519,10 @@ private:
     // noise-floor.md 4: owned next to playingNoise.
     NoiseFloor noiseFloor;
     bool noiseFloorBypassed = false;
+
+    // sustain-and-decay.md 7, and 3's clock restart when the E-Bow engages.
+    StringEngine::SustainShape sustainShape;
+    std::array<bool, kMaxStrings> ebowWasDriving {};
 
     /*  string-scraping.md 3: after the MIDI, before the strings. Its keyswitches
         come out of the MIDI (into scrapeMidi) before the rhythm engine and the

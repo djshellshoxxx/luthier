@@ -1318,6 +1318,24 @@ void ParameterBridge::applyToEngine() noexcept
         engine.getNoiseFloor().setHumForMeter (value (ParamIDs::ampBuzz));
         engine.getPickupEngine().setMainsFrequency (nf.mainsHz);
     }
+
+    // sustain-and-decay.md 7: the shape, set at block rate.
+    {
+        StringEngine::SustainShape shape;
+        shape.attackTransient   = value (ParamIDs::sustainAttackTransient);
+        shape.attackTimeSeconds = value (ParamIDs::sustainAttackTime) * 0.001;
+        shape.fastShare         = value (ParamIDs::sustainFastShare);
+        shape.fastRatio         = value (ParamIDs::sustainFastRatio);
+        shape.tensionMod        = value (ParamIDs::sustainTensionMod);
+        shape.releaseSeconds    = value (ParamIDs::sustainReleaseTime) * 0.001;
+        shape.releaseSagMm      = value (ParamIDs::sustainReleaseSag);
+        shape.releaseRing       = value (ParamIDs::sustainReleaseRing);
+
+        // 4: +25 c in stock, +50 c in advanced. A value past its stock end is
+        // only reachable with the strings family unlocked.
+        shape.advanced = shape.tensionMod > 1.5 || shape.attackTransient > 1.0 || shape.fastShare > 0.9;
+        engine.setSustainShape (shape);
+    }
     // ==== END REALISM-C params ====
 
     // ---- structural change detection ---------------------------------------------

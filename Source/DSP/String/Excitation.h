@@ -75,6 +75,9 @@ public:
     }
 
     inline bool isActive() const noexcept { return readPos < length; }
+
+    /** The last trigger's normalised peak (sustain-and-decay.md 2.2 scales the ping by it). */
+    double getPeak() const noexcept { return peak; }
     inline int  remaining() const noexcept { return juce::jmax (0, length - readPos); }
 
     /** Peak absolute value of the impulse that was last rendered. Used by the

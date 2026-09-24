@@ -21,6 +21,7 @@
 #include "../Common/DspCommon.h"
 #include "FractionalDelayLine.h"
 #include "Excitation.h"
+#include <atomic>
 
 namespace luthier
 {
@@ -42,6 +43,40 @@ public:
         double openBrightnessHz   = 5000.0;   ///< Loop filter cutoff, undamped.
         bool   wound              = false;    ///< Wound strings squeak and are stiffer.
         double couplingSend       = 1.0;      ///< How strongly it drives the bridge.
+
+        // sustain-and-decay.md 4 and 2.2: the core that carries the tension.
+        double coreDiameterMm     = 0.0;      ///< 0 = unknown, the shape's pitch and ping stay off
+        double tensionNewtons     = 0.0;
+    };
+
+    /*  sustain-and-decay.md 7: the eight shape values. At their defaults every
+        behaviour skips its code, so the loop is bit-identical to the legacy one
+        (SUS-01). */
+    struct SustainShape
+    {
+        double attackTransient = 0.0;    ///< A
+        double attackTimeSeconds = 0.030;///< tau_a
+        double fastShare = 0.0;          ///< a
+        double fastRatio = 0.2;          ///< rho = tau_f / tau_s
+        double tensionMod = 0.0;         ///< S, 1 = physical
+        double releaseSeconds = 0.0;     ///< T_r
+        double releaseSagMm = 0.0;       ///< d
+        double releaseRing = 0.0;        ///< R
+        bool advanced = false;           ///< the strings family unlocked: the pitch clamp is +50 c
+
+        bool isNeutral() const noexcept
+        {
+            return attackTransient <= 0.0 && fastShare <= 0.0 && tensionMod <= 0.0
+                && releaseSeconds <= 0.0 && releaseSagMm <= 0.0 && releaseRing <= 0.0;
+        }
+
+        bool operator== (const SustainShape& o) const noexcept
+        {
+            return attackTransient == o.attackTransient && attackTimeSeconds == o.attackTimeSeconds
+                && fastShare == o.fastShare && fastRatio == o.fastRatio && tensionMod == o.tensionMod
+                && releaseSeconds == o.releaseSeconds && releaseSagMm == o.releaseSagMm
+                && releaseRing == o.releaseRing && advanced == o.advanced;
+        }
     };
 
     /** How hard the string is being damped right now. */
@@ -86,8 +121,41 @@ public:
         and the excitation is a fresh pluck rather than a legato re-excitation. */
     void excite (const Excitation::Params& params) noexcept;
 
-    /** Note off. `letRing` keeps the string open (sustain pedal / open string). */
-    void release (bool letRing) noexcept;
+    /** Note off. `letRing` keeps the string open (sustain pedal / open string).
+
+        sustain-and-decay.md 5: `fret` is where the note was stopped (0 for an
+        open string, a harmonic, a bar or a fretless neck, none of which sag or
+        ring). With the shape neutral this is exactly the legacy release. */
+    void release (bool letRing, double fret = 0.0) noexcept;
+
+    //==========================================================================
+    // sustain-and-decay.md: the decay's shape.
+    void setSustainShape (const SustainShape& shape) noexcept;
+    const SustainShape& getSustainShape() const noexcept { return shape; }
+
+    /** SUS-01's test hook: the shape code removed entirely. */
+    void setShapeBypassedForTest (bool b) noexcept { shapeBypassed = b; }
+
+    /** Where the string is stopped, in frets from the nut (capo included), for
+        the ping's and the tension's vibrating length. Set before excite(). */
+    void setStoppedFret (double fret) noexcept { stoppedFret = juce::jmax (0.0, fret); }
+
+    /** 3: the E-Bow and the feedback path add energy, so they restart the clock. */
+    void restartShapeClock() noexcept { samplesSinceExcite = 0; }
+
+    /** 4: the tension-modulation offset in cents, for the UI's readout. Any thread. */
+    double getTensionCents() const noexcept { return tensionCentsUi.load (std::memory_order_relaxed); }
+
+    /** The shape's current pitch ratio (tension x sag x ring), and its pieces. */
+    double getShapePitchRatio() const noexcept { return pitchRatio; }
+
+    /** 2.2 and 4: the open string's longitudinal frequency and kappa at S = 1. */
+    double getLongitudinalHz() const noexcept { return longitudinalHz; }
+    double getKappaAtPhysical() const noexcept { return kappa0; }
+
+    /** The shape's current brightness and decay-rate multipliers (b, m). */
+    double getBrightnessMultiplier() const noexcept { return brightMul; }
+    double getDecayRateMultiplier() const noexcept { return decayMul; }
 
     void setDamping (Damping d, double amount = 1.0) noexcept;
     Damping getDamping() const noexcept { return damping; }
@@ -210,6 +278,47 @@ private:
     Excitation::Params pendingParams {};
 
     bool    sounded = false;
+
+    // --- sustain-and-decay.md 7 -----------------------------------------------
+    static constexpr int kShapeTick = 32;
+
+    void onShapeExcite (const Excitation::Params& p) noexcept;
+    void updateShapeTick() noexcept;
+    void updateShapeConstants() noexcept;
+
+    SustainShape shape;
+    bool shapeActive = false, shapeBypassed = false;
+    int64_t samplesSinceExcite = 0;
+    double exciteStrength = 0.0;
+    int tickCounter = 0;
+    double stoppedFret = 0.0;
+    double kappa0 = 0.0, longitudinalHz = 0.0;
+
+    double brightMul = 1.0, decayMul = 1.0;
+    double pitchRatio = 1.0, pitchRatioTarget = 1.0, pitchRatioStep = 0.0;
+    double tensionRatio = 1.0;
+
+    bool releaseActive = false;
+    double releaseRamp = 0.0, sagTargetCents = 0.0, ringRatio = 1.0;
+    int ringSamplesLeft = 0;
+    double ringGain = 1.0;
+
+    struct Resonator
+    {
+        double c1 = 0.0, c2 = 0.0, y1 = 0.0, y2 = 0.0;
+        void reset() noexcept { y1 = y2 = 0.0; }
+        inline double process (double x) noexcept
+        {
+            const double y = x + c1 * y1 - c2 * y2;
+            y2 = y1;
+            y1 = flushDenormal (y);
+            return y;
+        }
+    };
+
+    Resonator ping1, ping2;
+    int pingSamplesLeft = 0;
+    std::atomic<float> tensionCentsUi { 0.0f };
 
     JUCE_LEAK_DETECTOR (StringEngine)
 };

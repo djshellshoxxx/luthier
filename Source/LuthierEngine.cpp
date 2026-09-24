@@ -143,6 +143,7 @@ void LuthierEngine::reset() noexcept
     noiseFloor.reset();
     techniqueTriggers.reset();
     scrapeWasActive.fill (false);
+    ebowWasDriving.fill (false);
     noteSustainScale.fill (1.0);
     shiftCount = 0;
 
@@ -551,6 +552,12 @@ void LuthierEngine::refreshStringPhysics()
         stringSpecs[(size_t) i] = s;
 
         auto physical = StringMaterials::toPhysical (s, spec.scaleLengthMm);
+
+        // sustain-and-decay.md 7: the core, the tension and the material's
+        // stiffness, for the tension pitch and the longitudinal ping.
+        physical.coreDiameterMm = s.coreDiameterMm;
+        physical.tensionNewtons = s.tensionNewtons;
+        physical.youngsModulus = StringMaterials::get (spec.stringMaterial).youngsModulusPa;
         strings[(size_t) i].setPhysical (physical);
         strings[(size_t) i].setNoiseAmount (slideNoise * s.squeak, fretNoise);
         strings[(size_t) i].setFretBuzz (fretless ? 0.0 : fretBuzzAmount, fretActionMm);
@@ -822,6 +829,9 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     }
 
     currentFret[(size_t) s] = fret;
+
+    // sustain-and-decay.md 7: the vibrating length, for the ping and the tension.
+    str.setStoppedFret (fret + (double) tuning.getCapoFretFor (s));
 
     // ---- damping from the technique --------------------------------------------
     switch (e.technique)
@@ -1124,7 +1134,9 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
     const auto& ebow = ebowDriver.getSettings();
     const bool ebowHolds = ebow.enabled && (ebow.stringMask & (1 << s)) != 0;
 
-    strings[(size_t) s].release (e.letRing || ebowHolds);
+    // sustain-and-decay.md 5: open strings, a bar and a fretless neck do not sag.
+    const double releaseFret = (fretless || slide.isUnderBar (s)) ? 0.0 : currentFret[(size_t) s];
+    strings[(size_t) s].release (e.letRing || ebowHolds, releaseFret);
     slide.noteOff (s);
     stringMidiNote[(size_t) s] = -1;
 
@@ -1265,6 +1277,7 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
         coupling.setStringFrequency (s, hz);
 
         strings[(size_t) s].setSustainScale (noteSustainScale[(size_t) s] * (fretless ? 0.82 : 1.0));
+        strings[(size_t) s].setSustainShape (sustainShape);   // sustain-and-decay.md 7
     }
 
     // The fretboard overlay draws the bar where the first string under it is.
@@ -1739,8 +1752,18 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         ebowDriver.beginBlock (hz.data(), levels.data(), held.data(), numStrings, letGo);
 
         for (int s = 0; s < numStrings; ++s)
+        {
             if (letGo[(size_t) s])
                 strings[(size_t) s].setDamping (StringEngine::Damping::Silenced, 1.0);
+
+            // sustain-and-decay.md 3: the E-Bow adds energy, so it restarts the clock.
+            const bool driving = ebowDriver.isDriving (s);
+
+            if (driving && ! ebowWasDriving[(size_t) s])
+                strings[(size_t) s].restartShapeClock();
+
+            ebowWasDriving[(size_t) s] = driving;
+        }
     }
     const bool perStringTaps = taps.isPerStringWanted() && taps.getRoomAtOffset() >= numSamples;
 
