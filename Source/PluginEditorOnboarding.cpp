@@ -5,6 +5,7 @@
 */
 
 #include "PluginEditor.h"
+#include "Tune/TuneExamples.h"
 
 namespace luthier
 {
@@ -215,6 +216,9 @@ void LuthierAudioProcessorEditor::applyFirstRunPreset()
 
     presets.loadPreset (index);
     processor.getParameterBridge().applyAllNow();
+
+    // onboarding 6: the example setlists, over this machine's factory bank.
+    TuneExamples::installExampleSetlists (presets);
 }
 
 } // namespace luthier

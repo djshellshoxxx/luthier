@@ -16,6 +16,8 @@
 #include "../UI/Onboarding.h"
 #include "../UI/PanelHelpButton.h"
 #include "../UI/UiPreferences.h"
+#include "../Live/Setlist.h"
+#include "../Tune/TuneExamples.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -569,6 +571,11 @@ LUTHIER_TEST (Onboarding, aFreshInstallStartsWhereSectionOneSays)
     UiPreferences::get().reset();
     FirstRun::setStateForTesting (false, false);
 
+    // A first run installs the example setlists (onboarding 6); only the ones
+    // this test adds are taken away again.
+    const auto setlists = Setlist::getUserDirectory();
+    const auto before = setlists.findChildFiles (juce::File::findFiles, false, juce::String ("*") + Setlist::kFileExtension);
+
     {
         auto processor = std::make_unique<LuthierAudioProcessor>();
         auto editor = makeEditor (*processor, 1200, 720);
@@ -579,6 +586,13 @@ LUTHIER_TEST (Onboarding, aFreshInstallStartsWhereSectionOneSays)
         CHECK (! processor->isLiveMode());
         CHECK (! processor->getUiState().practiceDrawerOpen);
         CHECK (FirstRun::isFirstSession());
+
+        const auto after = setlists.findChildFiles (juce::File::findFiles, false, juce::String ("*") + Setlist::kFileExtension);
+        CHECK_MSG (after.size() >= TuneExamples::kNumExampleSetlists, "the first run did not install the example setlists");
+
+        for (const auto& f : after)
+            if (! before.contains (f))
+                f.deleteFile();
     }
 
     if (a11yExisted) a11yFile.replaceWithText (a11yText);

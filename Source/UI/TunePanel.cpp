@@ -1,6 +1,7 @@
 #include "TunePanel.h"
 #include "../PluginProcessor.h"
 #include "../Tune/TuneTemplates.h"
+#include "../Tune/TuneExamples.h"
 
 namespace luthier
 {
@@ -22,6 +23,9 @@ namespace
     constexpr int kProgressionTarget = 2000;
     constexpr int kFeelTarget = 4100;
     constexpr int kStrumTarget = 4200;
+
+    // The New menu's example-tune items (onboarding 6).
+    constexpr int kExampleMenuBase = 1000;
 
     /** The first span in play order that plays `sectionIndex`, or -1. */
     int firstSpanOf (const Tune& tune, int sectionIndex)
@@ -1482,6 +1486,18 @@ void TunePanel::newFromTemplate (int templateIndex)
         session.newTune (TuneTemplateLibrary::instantiate (TuneTemplateLibrary::createBlank()));
 }
 
+bool TunePanel::openExample (int exampleIndex)
+{
+    const auto examples = TuneExamples::loadExamples();
+
+    if (! juce::isPositiveAndBelow (exampleIndex, (int) examples.size()))
+        return false;
+
+    player.stop();
+    session.newTune (examples[(size_t) exampleIndex].tune);
+    return true;
+}
+
 void TunePanel::showError (const juce::String& title, const juce::String& message)
 {
     juce::NativeMessageBox::showAsync (juce::MessageBoxOptions()
@@ -1504,10 +1520,26 @@ void TunePanel::showTemplateMenu()
     if (templates.empty())
         menu.addItem (1, "Blank");
 
+    // onboarding 6: the example tunes, ready to play.
+    const auto examples = TuneExamples::loadExamples();
+
+    if (! examples.empty())
+    {
+        juce::PopupMenu exampleMenu;
+
+        for (size_t i = 0; i < examples.size(); ++i)
+            exampleMenu.addItem (kExampleMenuBase + (int) i, examples[i].name);
+
+        menu.addSeparator();
+        menu.addSubMenu ("Example tunes", exampleMenu);
+    }
+
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&newButton),
                         [safe = juce::Component::SafePointer<TunePanel> (this)] (int result)
     {
-        if (safe != nullptr && result > 0)
+        if (safe != nullptr && result >= kExampleMenuBase)
+            safe->openExample (result - kExampleMenuBase);
+        else if (safe != nullptr && result > 0)
             safe->newFromTemplate (result - 1);
     });
 }

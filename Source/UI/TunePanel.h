@@ -219,6 +219,10 @@ public:
     bool exportMidiTo (const juce::File& file, juce::String& error);
     void newFromTemplate (int templateIndex);
 
+    /** onboarding 6 / 10 path C: opens a shipped example tune as a new, unsaved
+        tune (so Save asks where, and the factory file is never overwritten). */
+    bool openExample (int exampleIndex);
+
     /** The progression field's parse result. */
     juce::String getProgressionError() const   { return progressionError; }
     int getProgressionErrorPosition() const    { return progressionErrorPosition; }
