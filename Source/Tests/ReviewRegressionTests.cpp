@@ -763,3 +763,24 @@ LUTHIER_TEST (ReviewRegression, aSyncedLfoWithTheTransportStoppedStillCycles)
 
     CHECK_MSG (values.size() > 2, juce::String (values.size()) + " distinct values");
 }
+
+/*  R-038: Capture::autoTrim returned early whenever there was no leading
+    silence, so a capture that started on the sound kept its silent tail. */
+LUTHIER_TEST (ReviewRegression, autoTrimTrimsTheTailWithoutLeadingSilence)
+{
+    Capture capture;
+    capture.prepare (48000.0, 1.0);
+    capture.start (0.5);
+
+    std::vector<float> block (24000, 0.0f);
+
+    for (int i = 0; i < 4800; ++i)
+        block[(size_t) i] = 0.5f;   // sound from the first sample, then silence
+
+    const float* channels[] = { block.data() };
+    capture.processBlock (channels, 1, (int) block.size());
+    CHECK (capture.getRecordedSamples() == 24000);
+
+    capture.autoTrim();
+    CHECK_MSG (capture.getRecordedSamples() == 4800, juce::String (capture.getRecordedSamples()));
+}
