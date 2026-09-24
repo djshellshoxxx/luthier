@@ -102,6 +102,7 @@ private:
     double sr = 48000.0;
     int kit = 0;
     uint64_t seed = 4849997;
+    bool seedApplied = false;
     double tuningSemitones = 0.0, damping = 0.4;
     double roomSend = 0.25, width = 0.7;
     bool drummerView = false;

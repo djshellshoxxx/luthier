@@ -137,6 +137,10 @@ void JamDrumKit::reset() noexcept
 
 void JamDrumKit::setSeed (uint64_t newSeed) noexcept
 {
+    if (newSeed == seed && seedApplied)
+        return;
+
+    seedApplied = true;
     seed = newSeed;
     snare[0].setSeed (seed * 31 + 1);
     snare[1].setSeed (seed * 31 + 2);

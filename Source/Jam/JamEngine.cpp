@@ -635,6 +635,7 @@ void JamEngine::startBand (int64_t beatOneSample, double bpm, int countInBars) n
     cursor.stepsPerQuarter = activeStyle() != nullptr ? activeStyle()->stepsPerQuarter() : 4;
     cursor.stepsInBar = juce::jlimit (1, jam::kMaxSteps, (int) std::round (barLength * cursor.stepsPerQuarter));
     barBegun = false;
+    midBarStart = false;
 
     bandStartSample = beatOneSample;
     firstGrooveBar = 0;
@@ -1387,7 +1388,8 @@ void JamEngine::beginBar() noexcept
 
     // A crash on the downbeat after a fill (intensity 3 and up), and every 4
     // bars at intensity 5.
-    crashThisDownbeat = crashNextDownbeat || (effectiveIntensity >= 5 && (cursor.bar % 4) == 0);
+    crashThisDownbeat = crashNextDownbeat || (effectiveIntensity >= 5 && (cursor.bar % 4) == 0)
+                     || (cursor.bar == firstGrooveBar && ! midBarStart);   // the band comes in with a crash (JM-14)
     crashNextDownbeat = fillActive && effectiveIntensity >= 3;
 
     // The chord track: this bar's chord at its start.

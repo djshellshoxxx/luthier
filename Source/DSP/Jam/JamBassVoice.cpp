@@ -90,10 +90,13 @@ double JamBassTone::process (double x) noexcept
     y = highBand.process (midBand.process (lowBand.process (y)));
 
     // Tube saturation at 2x (engine.md 0.10): up, shape, down.
+    // The curve's bias gives it an offset at rest; taking it out keeps
+    // silence silent (and the DC blocker from ringing after a reset).
+    const double rest = tubeShape (0.0, 0.2);
     double u0 = 0.0, u1 = 0.0;
     upStage.up (y, u0, u1);
-    u0 = tubeShape (u0 * 1.2, 0.2) / 1.2;
-    u1 = tubeShape (u1 * 1.2, 0.2) / 1.2;
+    u0 = (tubeShape (u0 * 1.2, 0.2) - rest) / 1.2;
+    u1 = (tubeShape (u1 * 1.2, 0.2) - rest) / 1.2;
     y = downStage.down (u0, u1);
 
     return juce::jlimit (-4.0, 4.0, sanitise (dc.process (y)));
