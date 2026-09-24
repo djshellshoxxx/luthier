@@ -1262,8 +1262,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
     // ---- the live surface --------------------------------------------------------
     // The recall crossfade is carried by the audio thread's own clock, so that it
-    // takes the same time whatever the host's UI thread happens to be doing.
-    snapshots.advance ((double) numSamples / juce::jmax (1.0, currentSampleRate));
+    // takes the same time whatever the host's UI thread happens to be doing; the
+    // timer applies it (SnapshotBank::noteAudioTime).
+    snapshots.noteAudioTime ((double) numSamples / juce::jmax (1.0, currentSampleRate));
 
     // live-performance 6: the kill switch cuts the main output only, and does it
     // before the aux taps are distributed - the DI and per-string stems are for
@@ -2390,6 +2391,9 @@ void LuthierAudioProcessor::timerCallback()
 {
     // ambiguity-resolutions 5.2: the morph follows its (automatable) slider.
     updatePresetMorph();
+
+    // live-performance 1: an in-flight snapshot recall, on the audio clock.
+    snapshots.advancePending();
 
     serviceTune();
 
