@@ -557,3 +557,82 @@ LUTHIER_TEST (PanelHelp, everyPanelsQuestionMarkOpensItsOwnTopic)
 
     CHECK_MSG (unmapped.isEmpty(), "no help topic for: " + unmapped.joinIntoString (", "));
 }
+
+//==============================================================================
+/*  gui-integration 22: "Reflow: instantiate at 800, 1000, 1280, 1600, 1920,
+    2560 window widths at 75 - 200 % UI scale; verify no clipping." The window
+    stops at 940 (its minimum; 800 is below it, DECISIONS), Advanced needs
+    1000, and the UI scale is the editor's scale factor, so the logical layout
+    is the same at every scale: the check is that the factor is applied, and
+    that at every width no visible control hangs outside its parent. */
+LUTHIER_TEST (Reflow, noControlHangsOutsideItsParentAtAnyWidthOrScale)
+{
+    SettingsScope scope;
+    const double originalScale = AccessibilitySettings::get().getUiScale();
+
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    CHECK (editor != nullptr);
+    if (editor == nullptr)
+        return;
+
+    editor->setVisible (true);
+
+    juce::StringArray problems;
+
+    std::function<void (juce::Component&, const juce::String&)> walk = [&] (juce::Component& c, const juce::String& where)
+    {
+        for (auto* child : c.getChildren())
+        {
+            if (! child->isVisible())
+                continue;
+
+            // A viewport's content is meant to be larger than the viewport; a
+            // list's rows are its own business.
+            const bool scrolled = dynamic_cast<juce::Viewport*> (c.getParentComponent()) != nullptr
+                               || dynamic_cast<juce::Viewport*> (&c) != nullptr
+                               || c.findParentComponentOfClass<juce::ListBox>() != nullptr
+                               || dynamic_cast<juce::ListBox*> (&c) != nullptr;
+
+            if (! scrolled && ! c.getLocalBounds().expanded (1).contains (child->getBounds())
+                && child->getWidth() > 0 && child->getHeight() > 0)
+                problems.addIfNotAlreadyThere (where + ": " + juce::String (typeid (*child).name()).substring (0, 60)
+                                               + " '" + child->getTitle() + child->getName() + "' "
+                                               + child->getBounds().toString() + " outside " + c.getLocalBounds().toString());
+
+            walk (*child, where);
+        }
+    };
+
+    for (bool advanced : { false, true })
+    {
+        if (advanced)
+            editor->keyPressed (AccessibilitySettings::get().findShortcut ("toggleAdvanced")->key);
+
+        for (int width : { 940, 1000, 1280, 1600, 1920, 2560 })
+        {
+            if (advanced && width < 1000)
+                continue;
+
+            editor->setSize (width, juce::jmin (1600, juce::roundToInt ((float) width * 0.5625f)));
+            walk (*editor, juce::String (advanced ? "Advanced " : "Easy ") + juce::String (width));
+        }
+    }
+
+    for (int i = 0; i < juce::jmin (12, problems.size()); ++i)
+        ctx.fail (problems[i]);
+
+    CHECK_MSG (problems.isEmpty(), juce::String (problems.size()) + " controls hang outside their parents");
+
+    // The scale is applied, at every step accessibility.md 4 offers.
+    for (double scale : AccessibilitySettings::kScales)
+    {
+        AccessibilitySettings::get().setUiScale (scale);
+        AccessibilitySettings::get().dispatchPendingMessages();
+        CHECK_NEAR (editor->getTransform().getScaleFactor(), (float) scale, 1.0e-3f);
+    }
+
+    AccessibilitySettings::get().setUiScale (originalScale);
+    AccessibilitySettings::get().dispatchPendingMessages();
+}

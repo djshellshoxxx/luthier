@@ -28,6 +28,10 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     shownPalette = Palette::current();
     AccessibilitySettings::get().addChangeListener (this);
 
+    // accessibility.md 4: the UI scale (75-200 %) was stored and offered but
+    // never applied; the host is told through the editor's scale factor.
+    setScaleFactor ((float) AccessibilitySettings::get().getUiScale());
+
     addAndMakeVisible (header);
     addChildComponent (liveStrip);
     addAndMakeVisible (practicePanel);
@@ -526,6 +530,9 @@ void LuthierAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaste
     Palette::apply (wanted, settings.getPalette() != PaletteId::highContrast);
     Palette::remap (*this, shownPalette, wanted);
     shownPalette = wanted;
+
+    if (std::abs (getTransform().getScaleFactor() - (float) settings.getUiScale()) > 1.0e-3f)
+        setScaleFactor ((float) settings.getUiScale());   // accessibility.md 4
 
     lookAndFeel.refreshColours();
     sendLookAndFeelChange();
