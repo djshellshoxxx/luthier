@@ -73,6 +73,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
         ErrorLog::write (ErrorLog::Severity::warn, "Workshop", "PART_UNREADABLE", error);
 
     bridge.onLoadGuitarType = [this] (GuitarType type) { return loadGuitarForType (type); };
+    bridge.beforeStructuralChange = [this] { fadeOutBeforeStructuralChange(); };
+    bridge.afterStructuralChange  = [this] { fadeInAfterStructuralChange(); };
+    presets.onBeforeLoad = [this] { fadeOutBeforeStructuralChange(); };
+    presets.onAfterLoad  = [this] { fadeInAfterStructuralChange(); };
     setCapoPart (partLibrary.getDefault (PartType::capo));
     presets.captureGuitarBlock = [this] { return getGuitarBlock(); };
     presets.onGuitarBlockLoaded = [this] (const juce::var& block) { takeGuitarBlock (block); };
@@ -1001,9 +1005,13 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     const int numSamples = buffer.getNumSamples();
     const int maxSlice = juce::jmax (1, currentBlockSize);
 
+    lastAudioCallbackMs.store (juce::Time::getMillisecondCounterHiRes(), std::memory_order_relaxed);
+    audioThreadId.store (juce::Thread::getCurrentThreadId(), std::memory_order_relaxed);
+
     if (numSamples <= maxSlice)
     {
         processSlice (buffer, midiMessages);
+        applyDeclick (buffer);
         return;
     }
 
@@ -1030,6 +1038,86 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     }
 
     midiMessages.swapWith (sliceMidiOut);
+    applyDeclick (buffer);
+}
+
+//==============================================================================
+void LuthierAudioProcessor::applyDeclick (juce::AudioBuffer<float>& buffer) noexcept
+{
+    const int state = declickState.load (std::memory_order_acquire);
+
+    if (state == declickIdle)
+        return;
+
+    const int n = buffer.getNumSamples();
+    const int channels = getTotalNumOutputChannels();
+
+    // 5 ms each way: long enough to hide a cut mid-cycle, short enough that a
+    // preset switch still feels immediate.
+    const float step = 1.0f / (float) juce::jmax (1.0, 0.005 * currentSampleRate);
+
+    if (state == declickSilent)
+    {
+        for (int ch = 0; ch < juce::jmin (channels, buffer.getNumChannels()); ++ch)
+            buffer.clear (ch, 0, n);
+        return;
+    }
+
+    const bool out = (state == declickFadingOut);
+    float g = declickGain;
+
+    for (int i = 0; i < n; ++i)
+    {
+        g = out ? juce::jmax (0.0f, g - step) : juce::jmin (1.0f, g + step);
+
+        for (int ch = 0; ch < juce::jmin (channels, buffer.getNumChannels()); ++ch)
+            buffer.setSample (ch, i, buffer.getSample (ch, i) * g);
+    }
+
+    declickGain = g;
+
+    if (out && g <= 0.0f)
+        declickState.store (declickSilent, std::memory_order_release);
+    else if (! out && g >= 1.0f)
+        declickState.store (declickIdle, std::memory_order_release);
+}
+
+void LuthierAudioProcessor::fadeOutBeforeStructuralChange()
+{
+    // Nested (a preset load applies structure inside itself): outermost only.
+    if (declickDepth++ > 0)
+        return;
+
+    // Only worth waiting for when a different thread is rendering right now.
+    const bool audioRunning = ! isNonRealtime()
+        && juce::Time::getMillisecondCounterHiRes() - lastAudioCallbackMs.load() < 250.0
+        && audioThreadId.load() != juce::Thread::getCurrentThreadId();
+
+    if (! audioRunning)
+        return;
+
+    declickState.store (declickFadingOut, std::memory_order_release);
+
+    const auto deadline = juce::Time::getMillisecondCounterHiRes() + 60.0;
+
+    while (declickState.load (std::memory_order_acquire) == declickFadingOut
+           && juce::Time::getMillisecondCounterHiRes() < deadline)
+        juce::Thread::sleep (1);
+}
+
+void LuthierAudioProcessor::fadeInAfterStructuralChange()
+{
+    if (--declickDepth > 0)
+        return;
+
+    int expected = declickSilent;
+
+    if (! declickState.compare_exchange_strong (expected, declickFadingIn))
+    {
+        // Timed out mid fade-out (a stalled host): fade in from wherever it got to.
+        expected = declickFadingOut;
+        declickState.compare_exchange_strong (expected, declickFadingIn);
+    }
 }
 
 void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)

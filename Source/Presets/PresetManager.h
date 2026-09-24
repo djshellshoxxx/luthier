@@ -80,6 +80,12 @@ public:
         (ParameterBridge::adoptPedalTypesFromParameters). */
     std::function<void()> onPedalTypesLoaded;
 
+    /** Called around a whole load (fromVar), so the processor can fade its output
+        out before the first parameter moves and back in after the last. Without
+        it a ringing note was cut, or jumped to the new preset's level, mid-cycle
+        (BETA_TEST_REPORT B-06). */
+    std::function<void()> onBeforeLoad, onAfterLoad;
+
     /*  file-formats.md 2 (MODEL-GAPS, TODO 2k): a preset the load had to migrate
         - the legacy `format` magic, no `ranges` block (schema 1, pre-M42), a
         pre-Workshop `guitar.name`, or the retired pickup-placement parameters -

@@ -502,6 +502,12 @@ public:
         thread. */
     std::function<bool (GuitarType)> onLoadGuitarType;
 
+    /*  Called around every structural pass on the message thread, outermost
+        pass only: the processor fades its output out before (so a ringing note
+        is not cut mid-cycle - a preset switch clicked at 0.32 of full scale,
+        BETA_TEST_REPORT B-06) and back in after. */
+    std::function<void()> beforeStructuralChange, afterStructuralChange;
+
 private:
     void handleAsyncUpdate() override;
     void applyStructural();
@@ -573,6 +579,7 @@ private:
     ModMatrix* modMatrix = nullptr;
 
     juce::CriticalSection engineLock;
+    int structuralDepth = 0;   ///< message thread: nesting of structural passes
 
     // Cached structural selections, so a change is detected exactly once.
     int lastGuitarType = -1;

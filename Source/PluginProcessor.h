@@ -715,6 +715,21 @@ private:
 
     // --- audition -------------------------------------------------------------
     std::atomic<bool> auditionActive { false };
+
+    /*  Declick around structural changes (ParameterBridge::beforeStructuralChange).
+        The message thread asks for a fade-out and waits (briefly) for the audio
+        thread to finish it; the change is applied into silence; the audio thread
+        then fades back in. The wait is skipped when no audio thread is running
+        (offline, or a caller rendering on the message thread itself). */
+    enum DeclickState { declickIdle = 0, declickFadingOut, declickSilent, declickFadingIn };
+    std::atomic<int> declickState { declickIdle };
+    std::atomic<double> lastAudioCallbackMs { 0.0 };
+    std::atomic<juce::Thread::ThreadID> audioThreadId { nullptr };
+    float declickGain = 1.0f;   ///< audio thread only
+    int declickDepth = 0;       ///< message thread: nesting of fade requests
+    void applyDeclick (juce::AudioBuffer<float>& buffer) noexcept;
+    void fadeOutBeforeStructuralChange();
+    void fadeInAfterStructuralChange();
     AuditionPhrase::Type auditionType = AuditionPhrase::Type::MajorScale;
     juce::MidiMessageSequence auditionSequence;
     int auditionEventIndex = 0;

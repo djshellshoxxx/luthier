@@ -1569,8 +1569,33 @@ void ParameterBridge::pushSlotParameters (bool post, int slot)
 }
 
 //==============================================================================
+namespace
+{
+    /** Runs the fade hooks around the outermost structural pass only: a guitar
+        load inside a preset load re-enters applyAllNow. Message thread. */
+    struct StructuralFade
+    {
+        StructuralFade (int& depthIn, const std::function<void()>& before, const std::function<void()>& afterIn)
+            : depth (depthIn), after (afterIn)
+        {
+            if (depth++ == 0 && before != nullptr)
+                before();
+        }
+
+        ~StructuralFade()
+        {
+            if (--depth == 0 && after != nullptr)
+                after();
+        }
+
+        int& depth;
+        const std::function<void()>& after;
+    };
+}
+
 void ParameterBridge::handleAsyncUpdate()
 {
+    const StructuralFade fade (structuralDepth, beforeStructuralChange, afterStructuralChange);
     const juce::ScopedLock sl (engineLock);
     applyStructural();
     structuralPending.store (false);
@@ -1578,6 +1603,7 @@ void ParameterBridge::handleAsyncUpdate()
 
 void ParameterBridge::applyAllNow()
 {
+    const StructuralFade fade (structuralDepth, beforeStructuralChange, afterStructuralChange);
     const juce::ScopedLock sl (engineLock);
     structuralInitialised = false;
     applyToEngine();

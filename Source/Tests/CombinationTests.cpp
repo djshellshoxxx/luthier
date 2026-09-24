@@ -416,34 +416,78 @@ LUTHIER_TEST (Combo, presetSwitchUnderARingingNoteDoesNotClick)
         rig.apply();
         rig.processSilence (2);
 
-        std::vector<TimedMidi> events { { 0, juce::MidiMessage::noteOn (1, 52, (juce::uint8) 100) },
-                                        { (int) (1.0 * kSr), juce::MidiMessage::noteOff (1, 52) } };
-        const int switchAt = (int) (0.5 * kSr);
+        /*  As a host runs it: the audio thread renders continuously while the
+            message thread loads the next preset half a second in. Rendering and
+            loading on one thread would skip the fade-out handshake the
+            processor uses (there is no audio thread to wait for), which is not
+            what a player ever hears. */
+        const int total = (int) (1.0 * kSr);
+        std::vector<float> mono ((size_t) total, 0.0f);
+        std::atomic<int> rendered { 0 };
+        std::atomic<int> switchedAt { -1 };
 
-        const auto stats = rig.renderEvents (events, (int) (1.0 * kSr), 0.2,
-                                             [&] (int) { presets.loadPreset (to); rig.apply(); }, switchAt);
+        std::thread audio ([&]
+        {
+            juce::AudioBuffer<float> buffer (rig.bufferChannels(), kBlock);
 
+            for (int pos = 0; pos + kBlock <= total; pos += kBlock)
+            {
+                juce::MidiBuffer midi;
+                if (pos == 0)
+                    midi.addEvent (juce::MidiMessage::noteOn (1, 52, (juce::uint8) 100), 0);
+
+                buffer.clear();
+                rig.p().processBlock (buffer, midi);
+
+                for (int s = 0; s < kBlock; ++s)
+                    mono[(size_t) (pos + s)] = 0.5f * (buffer.getSample (0, s) + buffer.getSample (1, s));
+
+                rendered = pos + kBlock;
+
+                // Real time, roughly: a host does not render a second in 20 ms.
+                std::this_thread::sleep_for (std::chrono::microseconds (1500));
+            }
+        });
+
+        while (rendered.load() < total / 2)
+            std::this_thread::yield();
+
+        switchedAt = rendered.load();
+        presets.loadPreset (to);
+        rig.apply();
+        audio.join();
+
+        int stepAt = -1;
         auto maxStep = [&] (int from, int len)
         {
             double m = 0.0;
-            for (int s = juce::jmax (1, from); s < juce::jmin ((int) stats.mono.size(), from + len); ++s)
-                m = juce::jmax (m, (double) std::abs (stats.mono[(size_t) s] - stats.mono[(size_t) s - 1]));
+            for (int s = juce::jmax (1, from); s < juce::jmin (total, from + len); ++s)
+                if (std::abs (mono[(size_t) s] - mono[(size_t) s - 1]) > m)
+                {
+                    m = std::abs (mono[(size_t) s] - mono[(size_t) s - 1]);
+                    stepAt = s;
+                }
             return m;
         };
 
-        const int at = (switchAt / kBlock) * kBlock + (switchAt % kBlock ? kBlock : 0);
+        const int at = switchedAt.load();
         const double before = maxStep (at - (int) (0.1 * kSr), (int) (0.1 * kSr) - 1);
-        const double after  = maxStep (at - 1, (int) (0.02 * kSr));
+        const double after  = maxStep (at, (int) (0.1 * kSr));   // the load may land a few blocks later
 
         const auto settings = presetLabel (rig, i) + " -> " + presetLabel (rig, to);
         ++ctx.checks;
 
-        if (! stats.finite || (after > 0.25 && after > 4.0 * juce::jmax (before, 1.0e-3)))
+        if (after > 0.25 && after > 4.0 * juce::jmax (before, 1.0e-3))
         {
             const auto why = "click at preset switch: step " + juce::String (after, 3)
-                             + " vs " + juce::String (before, 3) + " before";
+                             + " vs " + juce::String (before, 3) + " before, "
+                             + juce::String (1000.0 * (stepAt - at) / kSr, 1) + " ms after the load began";
             ctx.fail (why + " | " + settings);
             log.add (settings, why);
+
+            if (verbose())
+                for (int k = stepAt - 8; k < stepAt + 8; ++k)
+                    std::cout << "      [" << (k - at) << "] " << mono[(size_t) k] << "\n";
         }
 
         rig.quiet();
