@@ -136,7 +136,7 @@ do_test() {
 
     # The runner exits non-zero on any failure; tee keeps the log either way.
     set +e
-    "${wrap[@]}" "$runner" 2>&1 | tee "$LOG_DIR/unit-tests.log"
+    ${wrap[@]+"${wrap[@]}"} "$runner" 2>&1 | tee "$LOG_DIR/unit-tests.log"
     local rc=${PIPESTATUS[0]}
     set -e
     return "$rc"
@@ -168,6 +168,8 @@ fetch_clap_validator() {
         curl -fsSL -o "$TOOLS_DIR/$tgz" \
              "https://github.com/free-audio/clap-validator/releases/download/$CLAP_VALIDATOR_VERSION/$tgz"
         tar xzf "$TOOLS_DIR/$tgz" -C "$TOOLS_DIR"
+        # The macOS tarball keeps the program in binaries/; the Linux one does not.
+        [ -f "$TOOLS_DIR/binaries/clap-validator" ] && mv -f "$TOOLS_DIR/binaries/clap-validator" "$exe"
         chmod +x "$exe"
     fi
     echo "$exe"
@@ -205,7 +207,7 @@ do_validate() {
             auval -strict -v aumu Lthr Ltha 2>&1 | tee "$LOG_DIR/auval.log" || failed=1
         fi
         set +e
-        "${wrap[@]}" "$pluginval" --strictness-level "$PLUGINVAL_STRICTNESS" \
+        ${wrap[@]+"${wrap[@]}"} "$pluginval" --strictness-level "$PLUGINVAL_STRICTNESS" \
             --validate-in-process --timeout-ms 600000 \
             --output-dir "$LOG_DIR" --validate "$p" 2>&1 | tee "$LOG_DIR/pluginval-$name.log"
         [ "${PIPESTATUS[0]}" -eq 0 ] || failed=1
@@ -217,7 +219,7 @@ do_validate() {
         local validator; validator="$(fetch_clap_validator)"
         step "clap-validator: $clap"
         set +e
-        "${wrap[@]}" "$validator" validate "$clap" 2>&1 | tee "$LOG_DIR/clap-validator.log"
+        ${wrap[@]+"${wrap[@]}"} "$validator" validate "$clap" 2>&1 | tee "$LOG_DIR/clap-validator.log"
         [ "${PIPESTATUS[0]}" -eq 0 ] || failed=1
         set -e
     fi
