@@ -943,6 +943,31 @@ void TunePanel::buildMelody()
     for (int g = 0; g < (int) QuantiseGrid::numGrids; ++g)
         quantiseBox.addItem (getQuantiseGridName ((QuantiseGrid) g), g + 1);
 
+    // 6 and 7: the roll is also the bass and countermelody editor.
+    addAndMakeVisible (rollTargetBox);
+    rollTargetBox.addItem ("Melody", 1);
+    rollTargetBox.addItem ("Bass", 2);
+    rollTargetBox.addItem ("Countermelody", 3);
+    rollTargetBox.setSelectedId (1, juce::dontSendNotification);
+    rollTargetBox.setTooltip ("What the piano roll edits: the melody, the bass line or the countermelody layer");
+    AccessibleSetup::configureComboBox (rollTargetBox, "Piano roll edits");
+    rollTargetBox.onChange = [this]
+    {
+        pianoRoll.setTarget ((TunePianoRoll::Target) juce::jmax (0, rollTargetBox.getSelectedId() - 1));
+    };
+
+    {
+        juce::StringArray fingerpicks;
+        const auto& library = processor.getPatternLibrary();
+
+        for (int i = 0; i < library.getNumPatterns(); ++i)
+            if (library.getPattern (i).getKind() == RhythmPattern::Kind::fingerpick)
+                fingerpicks.add (library.getPattern (i).getName());
+
+        layersStrip = std::make_unique<TuneLayersStrip> (session, fingerpicks);
+        addAndMakeVisible (*layersStrip);
+    }
+
     quantiseBox.setSelectedId ((int) QuantiseGrid::eighth + 1, juce::dontSendNotification);
     pianoRoll.setGridBeats (getQuantiseGridBeats (QuantiseGrid::eighth));
     quantiseBox.onChange = [this]
@@ -1080,6 +1105,9 @@ void TunePanel::refresh()
 
     freezeButton.setEnabled (improvising);
     saveButton.setButtonText (session.isDirty() ? "SAVE *" : "SAVE");
+
+    if (layersStrip != nullptr)
+        layersStrip->refresh();
 
     sectionStrip.repaint();
     setlistStrip.repaint();
@@ -1408,6 +1436,7 @@ int TunePanel::getPreferredHeight() const
          + kHeader + button + kErrorLine + kPillsHeight + kRowGap     // progression
          + kHeader + 2 * (button + kRowGap)                           // rhythm
          + kHeader + kRollHeight + kRowGap + 2 * (button + kRowGap)   // melody
+         + kHeader + (layersStrip != nullptr ? layersStrip->getPreferredHeight() : 0) + kRowGap   // bass and layers
          + kHeader + button + kRowGap + kPositionLine                 // transport
          + Metrics::grid;
 }
@@ -1425,6 +1454,7 @@ void TunePanel::paint (juce::Graphics& g)
     LuthierLookAndFeel::drawSectionHeader (g, rhythmHeader, "RHYTHM");
     LuthierLookAndFeel::drawSectionHeader (g, melodyHeader, "MELODY");
     LuthierLookAndFeel::drawSectionHeader (g, transportHeader, "TRANSPORT");
+    LuthierLookAndFeel::drawSectionHeader (g, layersHeader, "BASS AND LAYERS");
 
     g.setFont (Fonts::label());
     g.setColour (Palette::textMuted);
@@ -1432,6 +1462,7 @@ void TunePanel::paint (juce::Graphics& g)
     g.drawText ("FEEL", feelLabelBounds, juce::Justification::centredLeft);
     g.drawText ("STRUM", strumLabelBounds, juce::Justification::centredLeft);
     g.drawText ("QUANTISE", quantiseLabelBounds, juce::Justification::centredLeft);
+    g.drawText ("EDIT", rollTargetLabelBounds, juce::Justification::centredLeft);
 
     // The parse error, under the field (2.2, 15).
     const auto errorBounds = juce::Rectangle<int> (progressionEditor.getX(), progressionEditor.getBottom(),
@@ -1556,7 +1587,15 @@ void TunePanel::resized()
         auto r = row();
         quantiseLabelBounds = r.removeFromLeft (64);
         quantiseBox.setBounds (r.removeFromLeft (96));
+        r.removeFromLeft (Metrics::grid);
+        rollTargetLabelBounds = r.removeFromLeft (36);
+        rollTargetBox.setBounds (r.removeFromLeft (juce::jmin (140, r.getWidth())));
     }
+
+    // --- bass and layers (6, 7) --------------------------------------------------------
+    layersHeader = bounds.removeFromTop (kHeader);
+    layersStrip->setBounds (bounds.removeFromTop (layersStrip->getPreferredHeight()));
+    bounds.removeFromTop (kRowGap);
 
     // --- transport ---------------------------------------------------------------------
     transportHeader = bounds.removeFromTop (kHeader);

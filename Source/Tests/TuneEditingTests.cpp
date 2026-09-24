@@ -374,3 +374,63 @@ LUTHIER_TEST (TuneEditing, theRollEditsTheBassAndTheCountermelody)
     CHECK (f.session().undo());
     CHECK (f.verse().findLayer (LayerType::countermelody) == nullptr);
 }
+
+//==============================================================================
+/*  6 and 7 in the TUNE tab: the bass mode, and each layer's on / off, volume
+    and pan, the arpeggio's pattern and the countermelody's regenerate. */
+LUTHIER_TEST (TuneEditing, theBassAndLayerRowsEditTheSection)
+{
+    Fixture f;
+    auto& strip = f.panel->getLayersStrip();
+
+    for (int m = 0; m < (int) BassMode::numModes; ++m)
+    {
+        strip.getBassBox().setSelectedId (m + 1, juce::dontSendNotification);
+        strip.getBassBox().onChange();
+        CHECK (f.verse().bass.mode == (BassMode) m);
+    }
+
+    // Each layer: on, volume, pan, off - settings kept while off.
+    for (int i = 0; i < (int) LayerType::numTypes; ++i)
+    {
+        const auto type = (LayerType) i;
+        CHECK (strip.setLayerEnabled (type, true));
+        CHECK (strip.setLayerVolume (type, 0.3));
+        CHECK (strip.setLayerPan (type, -0.5));
+
+        const auto* layer = f.verse().findLayer (type);
+        CHECK (layer != nullptr && layer->enabled);
+        CHECK (layer != nullptr && std::abs (layer->volume - 0.3) < 1.0e-9 && std::abs (layer->pan + 0.5) < 1.0e-9);
+
+        CHECK (strip.setLayerEnabled (type, false));
+        CHECK (! f.verse().findLayer (type)->enabled);
+        CHECK (std::abs (f.verse().findLayer (type)->volume - 0.3) < 1.0e-9);
+    }
+
+    // The countermelody is written when it is first switched on, and again on Regenerate.
+    f.session().edit (TuneEditClass::melodyGenerate, "melody", [] (Tune& t) { return generateMelody (t, 0); });
+    CHECK (strip.setLayerEnabled (LayerType::countermelody, true));
+    const auto first = f.verse().findLayer (LayerType::countermelody)->notes;
+    CHECK (strip.regenerateCountermelody());
+    CHECK (f.verse().findLayer (LayerType::countermelody)->seed == 2);
+
+    // The arpeggio names a fingerpick pattern.
+    if (strip.getArpeggioBox().getNumItems() > 1)
+    {
+        strip.getArpeggioBox().setSelectedId (2, juce::dontSendNotification);
+        strip.getArpeggioBox().onChange();
+        CHECK (f.verse().findLayer (LayerType::arpeggio)->patternId == strip.getArpeggioBox().getItemText (1));
+    }
+
+    // A volume drag is one undo step.
+    const int steps = f.session().getNumUndoSteps();
+    strip.setLayerVolume (LayerType::pad, 0.4);
+    strip.setLayerVolume (LayerType::pad, 0.5);
+    strip.setLayerVolume (LayerType::pad, 0.6);
+    CHECK (f.session().getNumUndoSteps() == steps + 1);
+
+    // The roll's target box picks what it edits.
+    f.panel->getRollTargetBox().setSelectedId (2, juce::dontSendNotification);
+    f.panel->getRollTargetBox().onChange();
+    CHECK (f.panel->getPianoRoll().getTarget() == TunePianoRoll::Target::bass);
+}

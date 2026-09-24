@@ -42,6 +42,7 @@
 #include "Widgets.h"
 #include "FirstEncounterHint.h"
 #include "TuneSetlistStrip.h"
+#include "TuneLayersStrip.h"
 #include "../Tune/TuneSession.h"
 
 #include <cmath>
@@ -410,6 +411,8 @@ public:
     juce::Slider& getStrumSlider() noexcept          { return strumSlider; }
     juce::TextButton& getRhythmOnButton() noexcept   { return rhythmOn.getButton(); }
     TunePianoRoll& getPianoRoll() noexcept           { return pianoRoll; }
+    juce::ComboBox& getRollTargetBox() noexcept      { return rollTargetBox; }
+    TuneLayersStrip& getLayersStrip() noexcept       { return *layersStrip; }
     juce::TextButton& getAutoButton() noexcept       { return autoButton; }
     juce::TextButton& getDrawButton() noexcept       { return drawToggle.getButton(); }
     juce::TextButton& getRecordButton() noexcept     { return recordToggle.getButton(); }
@@ -478,6 +481,11 @@ private:
     juce::TextButton autoButton { "AUTO" }, freezeButton { "FREEZE" };
     LuthierToggle drawToggle { "DRAW" }, recordToggle { "RECORD" }, improviseToggle { "IMPROVISE" };
     juce::ComboBox quantiseBox;
+
+    // --- bass and layers (6, 7; TUNE-HELP-ONBOARDING) -----------------------------------
+    juce::ComboBox rollTargetBox;   ///< what the roll edits: melody, bass, countermelody
+    std::unique_ptr<TuneLayersStrip> layersStrip;
+    juce::Rectangle<int> layersHeader, rollTargetLabelBounds;
 
     // --- transport ---------------------------------------------------------------------
     juce::TextButton backButton { "<<" }, playButton { "PLAY" }, forwardButton { ">>" };
