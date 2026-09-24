@@ -278,7 +278,8 @@ LUTHIER_TEST (PickNoise, aClickSitsAboutThirtyDecibelsUnderTheNote)
         for (int b = 0; b < 40; ++b)
         {
             block.clear();
-            engine.processBlock (block, b == 0 ? midi : juce::MidiBuffer());
+            juce::MidiBuffer emptyMidi;
+            engine.processBlock (block, b == 0 ? midi : emptyMidi);
 
             for (int i = 0; i < 256; ++i)
                 out.push_back (block.getSample (0, i));

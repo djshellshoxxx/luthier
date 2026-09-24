@@ -268,8 +268,8 @@ bool IrSlot::load (const juce::File& file)
 
     // tone-match 1: up to six channels.
     const int numChannels = juce::jlimit (1, 6, (int) reader->numChannels);
-    const int length = (int) juce::jmin (reader->lengthInSamples,
-                                         (int64_t) (30.0 * reader->sampleRate));
+    const int length = (int) juce::jmin ((juce::int64) reader->lengthInSamples,
+                                         (juce::int64) (30.0 * reader->sampleRate));
 
     if (length <= 0)
     {
@@ -942,7 +942,7 @@ ImpulseResponse CabMatch::deconvolve (const std::vector<float>& testSignal,
     forwardFft (testSignal, fftSize, testSpectrum);
     forwardFft (response, fftSize, responseSpectrum);
 
-    std::vector<std::complex<float>> irSpectrum ((size_t) (fftSize / 2 + 1), {});
+    std::vector<std::complex<float>> irSpectrum ((size_t) (fftSize / 2 + 1), std::complex<float> {});
 
     /*  Division in the frequency domain, regularised.
 
@@ -1251,7 +1251,7 @@ ImpulseResponse EqMatch::fit (const std::vector<float>& reference,
     // ---- build the filter ------------------------------------------------------------
     const int fftSize = nextPowerOfTwo (taps * 4);
 
-    std::vector<std::complex<float>> spectrum ((size_t) (fftSize / 2 + 1), {});
+    std::vector<std::complex<float>> spectrum ((size_t) (fftSize / 2 + 1), std::complex<float> {});
 
     const double binWidth = sampleRate / (double) fftSize;
 
@@ -1291,7 +1291,7 @@ ImpulseResponse EqMatch::fit (const std::vector<float>& reference,
         after time zero.
     */
     {
-        std::vector<std::complex<float>> logSpectrum ((size_t) (fftSize / 2 + 1), {});
+        std::vector<std::complex<float>> logSpectrum ((size_t) (fftSize / 2 + 1), std::complex<float> {});
 
         for (size_t bin = 0; bin < logSpectrum.size(); ++bin)
             logSpectrum[bin] = { (float) std::log (juce::jmax (1.0e-9,

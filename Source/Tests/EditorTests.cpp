@@ -1121,7 +1121,7 @@ LUTHIER_TEST (Editor, everyHitRegionOnTheIllustrationDescribesItself)
     /*  A real MouseEvent, built on the desktop's own mouse source. The component
         has no peer, so nothing delivers events to it - but mouseMove is an
         ordinary method and the event is an ordinary value. */
-    auto& source = juce::Desktop::getInstance().getMainMouseSource();
+    auto source = juce::Desktop::getInstance().getMainMouseSource();
 
     auto tooltipAt = [&body, &source] (juce::Point<float> p)
     {

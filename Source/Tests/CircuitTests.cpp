@@ -485,7 +485,8 @@ LUTHIER_TEST (Circuit, theEngineRunsThroughTheCircuit)
         for (int b = 0; b < 100; ++b)
         {
             block.clear();
-            engine.processBlock (block, b == 0 ? midi : juce::MidiBuffer());
+            juce::MidiBuffer emptyMidi;
+            engine.processBlock (block, b == 0 ? midi : emptyMidi);
 
             for (int i = 0; i < 256; ++i)
                 power += (double) block.getSample (0, i) * block.getSample (0, i);
