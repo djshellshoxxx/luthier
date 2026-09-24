@@ -2,6 +2,7 @@
 #include "RangesUi.h"
 #include "UiPreferences.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Accessibility.h"
 
 namespace luthier
 {
@@ -131,7 +132,39 @@ juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
         }
     }
 
+    // ---- gui-integration 16 items 11-13 ------------------------------------------
+    menu.addSeparator();
+    menu.addItem (kAutomationIdMenuId, "Automation ID: " + parameterId, false);
+
+    if (const auto action = shortcutActionForParameter (parameterId); action.isNotEmpty())
+        if (const auto* binding = AccessibilitySettings::get().findShortcut (action); binding != nullptr && binding->key.isValid())
+            menu.addItem (kShowShortcutMenuId, "Show in Options -> Shortcuts (" + binding->key.getTextDescription() + ")");
+
     return menu;
+}
+
+std::function<void (const juce::String&)> showShortcutInOptions;
+
+void labelForScreenReaders (juce::Component& control, LuthierAudioProcessor& processor,
+                            const juce::String& parameterId, const juce::String& tooltip)
+{
+    // ui-wiring.md 21: every attached control has a name a screen reader reads
+    // (the parameter's) and its help (the tooltip); the value comes from the
+    // attachment's own text function, so it carries the unit.
+    if (auto* param = processor.getState().getParameter (parameterId))
+    {
+        control.setTitle (param->getName (64));
+        control.setHelpText (tooltip.isNotEmpty() ? tooltip : param->getName (64));
+    }
+}
+
+juce::String shortcutActionForParameter (const juce::String& parameterId)
+{
+    // The parameters a shortcut in accessibility.md 2's table toggles.
+    if (parameterId == ParamIDs::slideGuitar)
+        return "toggleSlideMode";
+
+    return {};
 }
 
 //==============================================================================
@@ -228,6 +261,11 @@ void applyParameterMenuResult (int result,
                 param->setValueNotifyingHost (v);
                 break;
             }
+
+            case kShowShortcutMenuId:
+                if (showShortcutInOptions)
+                    showShortcutInOptions (shortcutActionForParameter (parameterId));
+                break;
 
             case kUnlockRangeMenuId:
             case kRestrictRangeMenuId:
@@ -425,6 +463,7 @@ void LuthierKnob::attachTo (LuthierAudioProcessor& p, const juce::String& id, co
         slider.setTooltip (param->getName (64));
     }
 
+    labelForScreenReaders (slider, p, id, tooltip);
     updateMidiLearnIndicator();
 }
 
@@ -740,6 +779,7 @@ void LuthierChoice::attachTo (LuthierAudioProcessor& p, const juce::String& id, 
 
         box.setTooltip (tooltip.isNotEmpty() ? tooltip : param->getName (64));
         setTooltip (box.getTooltip());
+        labelForScreenReaders (box, p, id, tooltip);
     }
 
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
@@ -811,6 +851,7 @@ void LuthierToggle::attachTo (LuthierAudioProcessor& p, const juce::String& id, 
     {
         button.setTooltip (tooltip.isNotEmpty() ? tooltip : param->getName (64));
         setTooltip (button.getTooltip());
+        labelForScreenReaders (button, p, id, tooltip);
     }
 
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
@@ -855,6 +896,7 @@ void LuthierSlider::attachTo (LuthierAudioProcessor& p, const juce::String& id, 
     {
         slider.setTooltip (tooltip.isNotEmpty() ? tooltip : param->getName (64));
         setTooltip (slider.getTooltip());
+        labelForScreenReaders (slider, p, id, tooltip);
     }
 
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (

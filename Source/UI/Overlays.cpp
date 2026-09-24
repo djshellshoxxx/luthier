@@ -1,4 +1,5 @@
 #include "Overlays.h"
+#include "OptionsPages.h"
 #include "../PluginProcessor.h"
 
 namespace luthier
@@ -530,7 +531,7 @@ void MidiLearnArmLayer::mouseDown (const juce::MouseEvent& e)
         onTargetPicked (parameterId);
 }
 
-void OptionsPanel::showShortcutTable()
+void OptionsPanel::showShortcutTable (const juce::String& filter)
 {
     // The shortcut table lives on the Accessibility page. Found by name rather
     // than by a hard-coded index, so that reordering the tabs cannot silently
@@ -539,6 +540,12 @@ void OptionsPanel::showShortcutTable()
         if (pageButtons[i]->getButtonText().containsIgnoreCase ("ACCESSIBILITY"))
         {
             showPage (i);
+
+            // gui-integration 16 item 13: straight to the control's row.
+            for (auto* child : getChildren())
+                if (auto* page = dynamic_cast<AccessibilityPage*> (child))
+                    page->filterShortcuts (filter);
+
             return;
         }
 }

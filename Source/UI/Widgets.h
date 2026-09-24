@@ -62,6 +62,21 @@ void applyParameterMenuResult (int result,
 constexpr int kUnlockRangeMenuId = 10;
 constexpr int kRestrictRangeMenuId = 11;
 
+/** gui-integration 16 items 12-13: the read-only automation ID, and "Show in
+    Options -> Shortcuts" for a control a shortcut also drives. */
+constexpr int kAutomationIdMenuId = 12;
+constexpr int kShowShortcutMenuId = 13;
+
+/** ui-wiring.md 21: names an attached control for screen readers after its parameter. */
+void labelForScreenReaders (juce::Component& control, LuthierAudioProcessor& processor,
+                            const juce::String& parameterId, const juce::String& tooltip);
+
+/** The shortcut action that drives a parameter (Slide Mode's S), or empty. */
+juce::String shortcutActionForParameter (const juce::String& parameterId);
+
+/** Set by the editor: opens Options -> Accessibility's shortcut table filtered to an action. */
+extern std::function<void (const juce::String& actionId)> showShortcutInOptions;
+
 /*  advanced-ranges.md 6.3: a drag on a physical control that has reached the
     edge of its stock range while that range is locked. Shows the fixed inline
     notice at `owner`; the control itself simply stops at the edge. Returns

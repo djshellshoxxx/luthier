@@ -139,6 +139,10 @@ class AccessibilityPage final : public OptionsPage
 public:
     explicit AccessibilityPage (LuthierAudioProcessor& processor);
 
+    /** gui-integration 16 item 13: the table filtered to one action's row. */
+    void filterShortcuts (const juce::String& text)  { searchBox.setText (text, true); }
+    juce::String getShortcutFilter() const            { return searchBox.getText(); }
+
     void refresh() override;
     void paint (juce::Graphics&) override;
     void resized() override;

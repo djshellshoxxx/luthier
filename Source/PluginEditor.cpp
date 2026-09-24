@@ -106,6 +106,20 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     if (auto* bench = advancedPanel.getWorkshopPanel())
         bench->onSaveAsGuitar = [this] { showSaveGuitarDialog(); };
     header.onOpenOptions = [this] { showOverlay (&optionsPanel); };
+
+    // gui-integration 16 item 13: a control's "Show in Options -> Shortcuts".
+    showShortcutInOptions = [safe = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)] (const juce::String& action)
+    {
+        if (safe == nullptr)
+            return;
+
+        juce::String description;
+        if (const auto* binding = AccessibilitySettings::get().findShortcut (action))
+            description = tr (binding->descriptionKey);
+
+        safe->optionsPanel.showShortcutTable (description);
+        safe->showOverlay (&safe->optionsPanel);
+    };
     header.onOpenRanges = [this] { showOptionsPage ("RANGES"); };
     header.onOpenExport = [this] { showOverlay (&exportPanel); };
     header.onOpenPresetBrowser = [this] { showOverlay (&presetBrowser); };

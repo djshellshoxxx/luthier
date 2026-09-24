@@ -13,6 +13,8 @@
 #include "../UI/Theme.h"
 #include "../UI/StageTouches.h"
 #include "../UI/AudioPathView.h"
+#include "../UI/OptionsPages.h"
+#include "../UI/RangesUi.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -330,4 +332,176 @@ LUTHIER_TEST (Diagnostics, theAudioPathShowsWhatIsSoundingAndTheFlags)
     processor.changeRanges (unlocked, "test");
     CHECK (view.describeFlags().contains ("Advanced ranges: amp"));
     CHECK (view.describeFlags().contains ("Workshop edit: no"));
+}
+
+//==============================================================================
+/*  gui-integration 16 items 12-13: every control's menu ends with its
+    read-only automation ID, and a control a shortcut drives offers "Show in
+    Options -> Shortcuts", which opens the table on that action's row. */
+LUTHIER_TEST (ContextMenu, everyParameterShowsItsAutomationIdAndBoundOnesTheirShortcut)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    auto hasItem = [] (const juce::PopupMenu& menu, int id, juce::String* text = nullptr, bool* enabled = nullptr)
+    {
+        for (juce::PopupMenu::MenuItemIterator it (menu); it.next();)
+            if (it.getItem().itemID == id)
+            {
+                if (text != nullptr)    *text = it.getItem().text;
+                if (enabled != nullptr) *enabled = it.getItem().isEnabled;
+                return true;
+            }
+        return false;
+    };
+
+    int checked = 0;
+
+    for (auto* p : processor.getParameters())
+        if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
+        {
+            const auto menu = buildParameterContextMenu (processor, withId->paramID);
+            juce::String text;
+            bool enabled = true;
+            CHECK_MSG (hasItem (menu, kAutomationIdMenuId, &text, &enabled) && text.endsWith (withId->paramID) && ! enabled,
+                       withId->paramID + " has no read-only automation ID item");
+
+            const bool bound = shortcutActionForParameter (withId->paramID).isNotEmpty();
+            CHECK_MSG (hasItem (menu, kShowShortcutMenuId) == bound, withId->paramID + ": the shortcut item is wrong");
+            ++checked;
+        }
+
+    CHECK (checked > 400);
+
+    // The one bound control: Slide Mode, S.
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    CHECK (editor != nullptr && showShortcutInOptions != nullptr);
+
+    if (editor != nullptr && showShortcutInOptions != nullptr)
+    {
+        editor->setSize (1200, 720);
+        showShortcutInOptions ("toggleSlideMode");
+
+        AccessibilityPage* page = nullptr;
+        std::function<void (juce::Component&)> find = [&] (juce::Component& c)
+        {
+            for (auto* child : c.getChildren())
+            {
+                if (auto* a = dynamic_cast<AccessibilityPage*> (child))
+                    page = a;
+                find (*child);
+            }
+        };
+        find (*editor);
+
+        CHECK (page != nullptr && page->isVisible());
+        if (page != nullptr)
+            CHECK_MSG (page->getShortcutFilter() == "Toggle Slide Mode", page->getShortcutFilter());
+    }
+}
+
+//==============================================================================
+/*  gui-integration 22: "the warning-colour arc portion appears when a knob
+    passes the stock max, disappears when returned" - counted in pixels. */
+LUTHIER_TEST (RangeMarking, theWarningArcAppearsPastStockAndGoesWhenReturned)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    LuthierLookAndFeel lookAndFeel;
+    juce::Component root;
+    root.setLookAndFeel (&lookAndFeel);
+    LuthierKnob knob ("Gain");
+    root.addAndMakeVisible (knob);
+    knob.setBounds (0, 0, 90, 110);
+    knob.attachTo (processor, ParamIDs::ampGain);
+
+    RangeState unlocked;
+    unlocked.setFamilyAdvanced (RangeFamily::amp, true);
+    processor.changeRanges (unlocked, "test");
+    RangesUi::resyncControls (root);
+
+    auto set = [&processor] (float plain)
+    {
+        auto* p = dynamic_cast<juce::RangedAudioParameter*> (processor.getState().getParameter (ParamIDs::ampGain));
+        p->setValueNotifyingHost (p->convertTo0to1 (plain));
+    };
+
+    auto warningPixels = [&knob]
+    {
+        juce::Image image (juce::Image::ARGB, knob.getWidth(), knob.getHeight(), true, juce::SoftwareImageType());
+        {
+            juce::Graphics g (image);
+            knob.paintEntireComponent (g, true);
+        }
+
+        int n = 0;
+        for (int y = 0; y < image.getHeight(); ++y)
+            for (int x = 0; x < image.getWidth(); ++x)
+            {
+                const auto c = image.getPixelAt (x, y);
+                const auto w = Palette::warning;
+                if (std::abs (c.getRed() - w.getRed()) < 24 && std::abs (c.getGreen() - w.getGreen()) < 24
+                    && std::abs (c.getBlue() - w.getBlue()) < 24 && c.getAlpha() > 200)
+                    ++n;
+            }
+        return n;
+    };
+
+    set (0.8f);
+    const int inside = warningPixels();
+    set (1.6f);
+    const int past = warningPixels();
+    set (0.8f);
+    const int back = warningPixels();
+
+    CHECK_MSG (past > inside + 10, "no warning arc past stock (" + juce::String (inside) + " -> " + juce::String (past) + ")");
+    CHECK_MSG (back <= inside + 2, "the warning arc stayed after the value came back (" + juce::String (back) + ")");
+
+    root.removeChildComponent (&knob);
+    root.setLookAndFeel (nullptr);
+}
+
+//==============================================================================
+/*  ui-wiring.md 21: every control attached to a parameter has an accessible
+    name, in Easy and in Advanced. */
+LUTHIER_TEST (ScreenReader, everyAttachedControlHasAName)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    CHECK (editor != nullptr);
+    if (editor == nullptr)
+        return;
+
+    editor->setSize (1600, 900);
+
+    int named = 0, unnamed = 0;
+    juce::StringArray missing;
+
+    std::function<void (juce::Component&)> walk = [&] (juce::Component& c)
+    {
+        for (auto* child : c.getChildren())
+        {
+            juce::Component* inner = nullptr;
+            juce::String id;
+
+            if (auto* k = dynamic_cast<LuthierKnob*> (child))        { inner = &k->getSlider(); id = k->getParameterId(); }
+
+            if (inner != nullptr && id.isNotEmpty())
+            {
+                if (inner->getTitle().isNotEmpty()) ++named;
+                else { ++unnamed; missing.addIfNotAlreadyThere (id); }
+            }
+
+            walk (*child);
+        }
+    };
+
+    walk (*editor);
+    editor->keyPressed (AccessibilitySettings::get().findShortcut ("toggleAdvanced")->key);
+    walk (*editor);
+
+    CHECK (named > 50);
+    CHECK_MSG (unnamed == 0, "unnamed: " + missing.joinIntoString (", "));
 }

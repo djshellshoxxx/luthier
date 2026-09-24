@@ -200,7 +200,7 @@ public:
 
     /** Opens the page holding the rebindable shortcut table (accessibility 2's
         "show all shortcuts" surface). */
-    void showShortcutTable();
+    void showShortcutTable (const juce::String& filter = {});
 
     /*  The Diagnostics page offers the debug window, and an overlay cannot put
         another overlay on screen - only the editor can - so the request comes out
