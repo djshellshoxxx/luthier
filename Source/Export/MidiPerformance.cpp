@@ -247,6 +247,19 @@ namespace
 
         const bool legato = note.hasTechnique (Type::hammerOn) || note.hasTechnique (Type::pullOff);
 
+        /*  riff-library 6.1 (FEAT-RIFFS fix a): the flags a plain MIDI player
+            can act on also go out as controllers, as TuneMidi writes them -
+            CC67 palm mute, CC72 pinch harmonic, CC73 natural harmonic - set
+            before the note and reset after it, so a DAW playing the file
+            back through Luthier keeps them. The NOTE flags stay the record. */
+        const bool palmMute = note.hasTechnique (Type::palmMute);
+        const bool pinch = note.hasTechnique (Type::pinchHarmonic);
+        const bool natural = note.hasTechnique (Type::naturalHarmonic);
+
+        if (palmMute) performance.addMessage (on, juce::MidiMessage::controllerEvent (channel, 67, 127), part);
+        if (pinch)    performance.addMessage (on, juce::MidiMessage::controllerEvent (channel, 72, 127), part);
+        if (natural)  performance.addMessage (on, juce::MidiMessage::controllerEvent (channel, 73, 127), part);
+
         if (legato)
             performance.addMessage (on, juce::MidiMessage::controllerEvent (channel, 68, 127), part);
 
@@ -361,6 +374,10 @@ namespace
 
         if (legato)
             performance.addMessage (off, juce::MidiMessage::controllerEvent (channel, 68, 0), part);
+
+        if (natural)  performance.addMessage (off, juce::MidiMessage::controllerEvent (channel, 73, 0), part);
+        if (pinch)    performance.addMessage (off, juce::MidiMessage::controllerEvent (channel, 72, 0), part);
+        if (palmMute) performance.addMessage (off, juce::MidiMessage::controllerEvent (channel, 67, 0), part);
     }
 }
 

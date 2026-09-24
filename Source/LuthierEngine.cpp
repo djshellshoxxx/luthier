@@ -32,6 +32,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
 {
     sr = sampleRate;
     maxBlock = juce::jmax (1, maxBlockSize);
+    riffPlayer.prepare (sr);   // riff-library 5.3
 
     // --- routing -------------------------------------------------------------
     taps.prepare (maxBlock);
@@ -177,6 +178,11 @@ void LuthierEngine::reset() noexcept
 
     bridgeOutputs.fill (0.0);
     couplingInputs.fill (0.0);
+
+    // riff-library 5.3 / 14: a reset ends the riff's notes; playback carries on
+    // from its next event.
+    riffBendCents.fill (0.0);
+    riffPlayer.notifyEngineReset();
     stringOutputs.fill (0.0);
     stringDelays.fill (100.0);
     vibratoAmount.fill (0.0);
@@ -1009,7 +1015,8 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
             // bass-techniques 7 (MODEL-GAPS): a bass has its own palm-mute profile.
             str.setDamping (spec.category == GuitarCategory::Bass ? StringEngine::Damping::PalmMuteBass
                                                                    : StringEngine::Damping::PalmMute,
-                            technique.getPalmMuteAmount());
+                            e.palmMuteDepth >= 0.0 ? juce::jlimit (0.0, 1.0, e.palmMuteDepth)   // riff-library 5.1
+                                                   : technique.getPalmMuteAmount());
             break;
 
         case Technique::MutedPick:
@@ -1427,6 +1434,41 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
 }
 
 //==============================================================================
+void LuthierEngine::playRiffEvents (int numSamples) noexcept
+{
+    // riff-library 5.3. The player's clock is the host's position at this
+    // sub-block's first sample: a split block advances it slice by slice.
+    riffOut.clear();
+
+    const double ppq = hostPpq + (double) subBlockOffset * tempoBpm / (60.0 * juce::jmax (1.0, sr));
+    riffPlayer.renderSubBlock (numSamples, ppq, hostPlaying, tempoBpm, riffOut);
+
+    auto& queue = riffOut.queue;
+
+    if (queue.getNumNoteOns() == 0 && queue.getNumNoteOffs() == 0 && queue.getNumBends() == 0)
+        return;
+
+    // The bend a riff note holds its string at, for the per-block pitch.
+    for (int i = 0; i < queue.getNumBends(); ++i)
+    {
+        const auto& b = queue.getBend (i);
+
+        if (juce::isPositiveAndBelow (b.stringIndex, kMaxStrings))
+            riffBendCents[(size_t) b.stringIndex] = std::isfinite (b.cents) ? juce::jlimit (-4800.0, 4800.0, b.cents) : 0.0;
+    }
+
+    // The pitch each note starts at: its fret on this guitar, plus a prebend.
+    for (int i = 0; i < queue.getNumNoteOns(); ++i)
+    {
+        auto& e = queue.getMutableNoteOn (i);
+        const int s = juce::jlimit (0, numStrings - 1, e.stringIndex);
+        e.stringIndex = s;
+        e.pitchHz = tuning.computeFrequency (s, e.fretPosition, riffOut.startCents[(size_t) i]);
+    }
+
+    scheduleEvents (queue, numSamples);
+}
+
 void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples) noexcept
 {
     juce::ignoreUnused (numSamples);
@@ -1541,7 +1583,7 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
             vib *= vibratoAmount[(size_t) s];
         }
 
-        const double bend = midi.getStringBendCents (s);
+        const double bend = midi.getStringBendCents (s) + riffBendCents[(size_t) s];   // riff-library 5.3
         const double whammyCents = whammy.getCentOffset (s);
 
         double hz;
@@ -1654,6 +1696,7 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 
     if (numSamples <= maxBlock)
     {
+        subBlockOffset = 0;
         directForSubBlock = directMidi;
         processSubBlock (buffer, midiMessages);
         directMidi = nullptr;
@@ -1706,9 +1749,12 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         taps.setWriteOffset (offset);
         sidechainReadOffset = offset;
 
+        subBlockOffset = offset;   // riff-library 5.3: the riff clock's place in the host block
         processSubBlock (slice, sliceMidi);
         offset += count;
     }
+
+    subBlockOffset = 0;
 
     directMidi = nullptr;
     directForSubBlock = nullptr;
@@ -1929,6 +1975,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         midi.processBlock (*directForSubBlock, numSamples, samplePosition, directEvents);
         scheduleEvents (directEvents, numSamples);
     }
+
+    // riff-library 5.3: riff audition, straight after the direct notes. Its
+    // notes bypass the interpreter and the voicer, as the tune's do.
+    playRiffEvents (numSamples);
 
     // ---- 1b. string scraping (string-scraping.md 3) --------------------------
     // After the MIDI, before the strings: the block's catches are scheduled

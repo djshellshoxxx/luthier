@@ -34,6 +34,7 @@
 #include "Workshop/WorkshopBench.h"
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
+#include "Riffs/RiffLibrary.h"   // riff-library 4
 
 namespace luthier
 {
@@ -110,6 +111,10 @@ public:
         plays (message thread). */
     TunePlayer&  getTunePlayer() noexcept  { return tunePlayer; }
     TuneSession& getTuneSession() noexcept { return tuneSession; }
+
+    /** riff-library 4: the riff index, shared by the RIFFS tab and the Easy
+        drawer. Nothing loads until one of them first opens. */
+    RiffLibrary& getRiffLibrary() noexcept { return riffLibrary; }
 
     /** The tune's message-thread work: rhythm changes at section starts,
         improvised passes, old timelines, the take (the timer's; tests call it). */
@@ -442,6 +447,11 @@ public:
 
         /** workshop-ui.md 7: the bench's eight A/B guitars, workspace not preset. */
         std::array<juce::var, 8> benchSlots;
+
+        /** riff-library 8: the riff browser's per-instance view state
+            (selection, filters, audition settings, Drag-as, drawer), saved
+            with the host project and never in a preset. RiffUiState reads it. */
+        juce::var riffs;
     };
 
     UiState& getUiState() noexcept { return uiState; }
@@ -540,6 +550,7 @@ private:
     // it); everything else goes to the engine as direct notes.
     TunePlayer tunePlayer;
     TuneSession tuneSession;
+    RiffLibrary riffLibrary;   // riff-library 4
     juce::MidiBuffer tuneToEngine, tuneToMidiOut, tuneDirect;
     Metronome tuneClick;                  ///< fires on the tune's grid, not its own
     juce::AudioBuffer<float> tuneClickBuffer;
@@ -716,7 +727,16 @@ private:
     // --- audition -------------------------------------------------------------
     std::atomic<bool> auditionActive { false };
     AuditionPhrase::Type auditionType = AuditionPhrase::Type::MajorScale;
-    juce::MidiMessageSequence auditionSequence;
+    /*  riff-library (FEAT-RIFFS fix b): startAudition used to rebuild the
+        sequence on the message thread while the audio thread read it. It is
+        now built into a fresh object and handed over as TunePlayer does: a
+        waiting slot under a SpinLock, taken by the audio thread with a
+        ScopedTryLock, the displaced one retired for the timer to free. */
+    juce::SpinLock auditionLock;
+    std::shared_ptr<const juce::MidiMessageSequence> auditionWaiting;      // guarded by auditionLock
+    std::shared_ptr<const juce::MidiMessageSequence> auditionRetired;      // guarded by auditionLock
+    bool auditionHasWaiting = false;                                        // guarded by auditionLock
+    std::shared_ptr<const juce::MidiMessageSequence> auditionSequence;     // audio thread only
     int auditionEventIndex = 0;
     double auditionPositionSeconds = 0.0;
     double auditionEndSeconds = 0.0;
