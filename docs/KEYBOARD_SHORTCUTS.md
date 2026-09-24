@@ -59,7 +59,7 @@ them with a search box. The defaults are below.
 | `Ctrl` + drag | Ultra-fine |
 | Double-click | Reset to default |
 | Right-click | Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise |
-| Hover | The value replaces the label; a tooltip follows after 400 ms |
+| Hover | The value appears above the control (the label stays); a tooltip follows after 400 ms |
 
 ## On the fretboard
 

@@ -13,7 +13,6 @@
 - [KS-19] effort S — add `Widgets::modifierDragSensitivity` test: synthesize drags on a `LuthierKnob` slider with none/Shift/Cmd and CHECK the value delta ratio (coarse > normal > fine).
 - [KS-20] effort S — add test that `LuthierKnob::attachTo` leaves `slider.getDoubleClickReturnValue(enabled)` true at the param default.
 - [KS-21] effort S — factor the item list out of `showParameterContextMenu` (it already builds a PopupMenu) and assert in `Editor::rightClickOffersModulationAndBuildsTheRoute` that "Enter value...", "Reset to default", "Copy value", "Paste value", "MIDI Learn", "Lock", "Randomise this control" are present; drive `applyParameterMenuResult` for Reset/Lock.
-- [KS-22] effort S — correct docs/KEYBOARD_SHORTCUTS.md "Hover" row to "The value appears above the control; a tooltip follows after 400 ms" (code matches theme.md), or change `LuthierKnob::paint` to suppress the label while `showValue`.
 - [KS-23] effort S — add `Fretboard::clickPlaysAPreviewNoteHarderNearTheTop`: two `mouseDown`s at top/bottom of one lane, CHECK the preview velocity ordering (expose last preview velocity or spy on `triggerPreviewNote`).
 - [KS-24] effort S — extract the fretboard menu's result handling into a callable (`applyMenuResult(s,f,id)`) and test mute/select/capo(sets `capoFret` param)/scale overlay.
 - [KS-25] effort S — add `Editor::illustrationClicksSelectPickupAndStepSwitch`: `mouseDown` on the `selector` hit area advances `pickupSelector`; on `pickupBridge` sets Bridge; drag in `controls` changes volume.

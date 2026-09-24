@@ -5,14 +5,14 @@ Most of the manual is accurate: the header, the File menu, Advanced columns 1-3,
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | UM-1 (Start) | Instrument selector top-left, Style dropdown, AUDITION, Advanced button top-right | `HeaderBar::guitarSelector`, `EasyPanel::styleBox/auditionButton` | header, Easy bottom band | `Editor::theModesThatChangeTheLayout...`, `Audition::everyPhraseProducesUsableMidi` | DONE |
-| UM-2 (Start/Easy) | "Six macro knobs" — Easy has seven (Attack, Body, Drive, Tone, Space, Humanize, **Character**) | `Parameters.cpp` macro block | `EasyPanel::attackKnob..characterKnob` | `EasyLayout::theCharacterMacroIsTheCharacterAmount` | MISSING |
+| UM-2 (Start/Easy) | Seven macros; manual now says seven and has a **Character** row | `Parameters.cpp` macro block | `EasyPanel::attackKnob..characterKnob` | `EasyLayout::theCharacterMacroIsTheCharacterAmount` | DONE |
 | UM-3 (Header) | Output LED dark->white near 0 dBFS, red when over | `Widgets.cpp:OutputLed::paint` | header | - | NO-TEST |
 | UM-4 (Header) | Instrument and Tuning selectors (per-string tuning in Advanced) | `ParamIDs::guitarType/tuningPreset` | `HeaderBar::guitarSelector/tuningSelector`; headstock popover | `Engine::everyGuitarTypeLoadsAndSounds`, `Engine::everyTuningLoadsAndSounds`, `Editor::theHeadstockPopoverEditsPerStringTuning` | DONE |
 | UM-5 (Header) | Preset name with prev/next, click name to browse | `PresetManager::loadNext/loadPrevious` | `HeaderBar::presetPrev/presetNext/presetName` | - | NO-TEST |
 | UM-6 (Header) | Range padlock only in Advanced when ranges unlocked, opens Options RANGES | `HeaderBar::rangePadlock` | header | `RangesUi::theHeaderPadlockShowsOnlyWhenSomethingIsUnlocked` | DONE |
 | UM-7 (Header) | File menu: save/save as/open/import/export preset, export audio, save last MIDI take, export notation, open preset & render folders, options, randomise, reset | `HeaderBar::showFileMenu` | header File | - | NO-TEST |
 | UM-8 (Header) | A / B slots and A>B copy | `processor.setSlotBActive/copyAtoB` | `HeaderBar::compareA/B/copyAB` | - | NO-TEST |
-| UM-9 (Header) | Undo/Redo "64 steps" — stack holds 200 (`kMaxUndoSteps = 200`) | `PluginProcessor.h:kMaxUndoSteps` | `HeaderBar::undoButton/redoButton` | `Undo::stepsOneActionAtATimeBothWays` | MISSING |
+| UM-9 (Header) | Undo/Redo — manual now says 200 steps (`kMaxUndoSteps = 200`) | `PluginProcessor.h:kMaxUndoSteps` | `HeaderBar::undoButton/redoButton` | `Undo::stepsOneActionAtATimeBothWays` | DONE |
 | UM-10 (Header) | Panic stops every string | `processor.panic` | `HeaderBar::panicButton` | `Engine::panicSilencesEverything` | DONE |
 | UM-11 (Header, MIDI Learn) | Learn arms, window tints, next clicked control is target; clicking a non-control or Escape cancels | `MidiLearn`, `Overlays.cpp:MidiLearnArmLayer::mouseDown` | `HeaderBar::midiLearnButton` | `MidiLearn::armingIsSeparateFromLearningUntilAControlClaimsIt`, `MidiLearn::disarmingCancelsAnInFlightLearn` | DONE |
 | UM-12 (Header, Help) | ? opens HELP tab on current panel in Advanced, overlay in Easy | `PluginEditor::openHelp/getHelpContext` | `HeaderBar::helpButton` | `HelpTab::f1AndTheHeaderOpenHelpOnThePanelYouAreIn` | DONE |
@@ -21,9 +21,9 @@ Most of the manual is accurate: the header, the File menu, Advanced columns 1-3,
 | UM-15 (Header) | MIDI activity dot beside logo | `HeaderBar::paint midiDot`, `engine.consumeMidiActivity` | header | - | NO-TEST |
 | UM-16 (Easy top) | Illustration generated from settings in use; pickups move; pole pieces glow | `UI/Guitar/GuitarRenderer.cpp` | Easy/Advanced `GuitarBodyComponent` | `GuitarIllustration.*`, `WorkshopBench::aMovedPickupIsSeenReadAndHeard` | DONE |
 | UM-17 (Easy top) | Click pickup / click switch / drag volume & tone on the body | `GuitarBodyComponent::mouseDown/mouseDrag` | illustration | `Editor::everyHitRegionOnTheIllustrationDescribesItself` (tooltips only) | NO-TEST |
-| UM-18 (Easy top) | Fretboard below the illustration in Easy mode — Easy has no fretboard; it exists only as Advanced's compact strip | `FretboardComponent` | `AdvancedPanel::fretboard` only | `ModelGapsUi::theCurrentBarIsDrawnOnTheFretboardAsTabDots` | MISSING |
+| UM-18 (Easy top) | Manual now says the illustration shows played notes and the playable fretboard is the Advanced top strip (gui-integration 3.1 / DECISIONS "Easy mode separate fretboard is gone") | `FretboardComponent` | `AdvancedPanel::fretboard` only | `ModelGapsUi::theCurrentBarIsDrawnOnTheFretboardAsTabDots` | DONE |
 | UM-19 (Easy top) | Fretboard: click to hear, lane height = pick force; right-click mute/capo/select/scale; real fret spacing | `FretboardComponent::mouseDown`, `fretX` | Advanced strip | - | NO-TEST |
-| UM-20 (Easy top) | Scrolling readout of MIDI/param/engine events to the right — `DataStreamDisplay` is declared but never constructed anywhere | `Widgets.h:DataStreamDisplay` | none | - | MISSING |
+| UM-20 (Easy top) | Scrolling readout of MIDI/param/engine events to the right — `DataStreamDisplay` is declared but never constructed anywhere | `Widgets.h:DataStreamDisplay` | none | - | OWNED |
 | UM-21 (Easy macros) | Macro semantics (Attack contact bandwidth, Body never fully off, Drive adds to amp gain, Tone = guitar tone + amp treble, Space room, Humanize) and they multiply detailed controls | `Parameters.cpp:~1105-1405` | `EasyPanel` macro knobs | `EasyLayout::theToneStripIsHeard` (partial); no per-macro test | NO-TEST |
 | UM-22 (Easy macros) | Dice and padlock under each macro | `LuthierKnob::setShowDiceAndLock/mouseDown` | `EasyPanel` knobs | `Presets::randomiseRespectsLocks` (engine) | NO-TEST |
 | UM-23 (Easy bottom) | Style = factory bank grouped by category | `EasyPanel::refreshStyleList` (`addSectionHeading`) | `EasyPanel::styleBox` | - | NO-TEST |
@@ -42,7 +42,7 @@ Most of the manual is accurate: the header, the File menu, Advanced columns 1-3,
 | UM-36 (Col 4) | 13 tabs in documented order with documented content | `AdvancedPanel.cpp:~1039` tab table | Advanced col 4 tab strip | `Editor::everyWorkspaceTabSelectsAndPaints`, `HelpTab::theWorkspaceTopicNamesEveryTabThatExists` | DONE |
 | UM-37 (Col 4) | Ctrl+[ / ] step tabs, wrap; last tab remembered | `AdvancedPanel::stepWorkspaceTab` | tab strip | `Editor::theWorkspaceTabWrapsAndIsRemembered`, `Editor::theWorkspaceTabShortcutsStep...` | DONE |
 | UM-38 (Controls) | Drag / Shift coarse / Ctrl fine / double-click reset / right-click menu incl. Modulate | `LuthierKnob::KnobSlider::mouseDrag`, `showParameterContextMenu` | every knob | `Editor::rightClickOffersModulationAndBuildsTheRoute` (Modulate only) | NO-TEST |
-| UM-39 (Controls) | Hover: value replaces the label — value shows above, label stays | `LuthierKnob::paint` | every knob | - | MISSING |
+| UM-39 (Controls) | Hover: manual now says the value appears above the control and the label stays (matches `LuthierKnob::paint` and theme.md) | `LuthierKnob::paint` | every knob | - | DONE |
 | UM-40 (MIDI Learn) | Right-click > MIDI Learn; teal dot on mapped controls; right-click to clear | `showParameterContextMenu` items 5/6, `LuthierKnob::paint mappedCc` | every knob | `ReviewRegression::midiLearnLearnsAppliesAndSurvivesAClear` | DONE |
 | UM-41 (MIDI Learn) | Sustain (64) and sostenuto (66) skipped while learning | `Support/MidiLearn.cpp:~267` | n/a | - | NO-TEST |
 | UM-42 (MIDI Learn) | Mappings stored in plugin state, not preset | `PluginProcessor.cpp:getStateInformation "midiLearn"` | n/a | `MidiLearn::mapsAndUnmapsCleanly`, `ReviewRegression::midiLearnLearnsAppliesAndSurvivesAClear` | DONE |
@@ -65,4 +65,4 @@ Most of the manual is accurate: the header, the File menu, Advanced columns 1-3,
 | UM-59 (Help/debug) | Help content + live shortcut list; debug window (state view, event stream, crash log off on load, troubleshooting export, hard reset keeps user presets) | `HelpTab`, `Overlays.cpp:DebugPanel` | Help, Ctrl+D | `HelpTab::aRebindShowsUpInTheCheatSheetAndTheText`, `Diagnostics::ringBufferAndSelfTestWork` — hard reset untested | NO-TEST |
 | UM-60 (Performance) | Footer shows CPU share and reported latency | `PluginEditor::paint` footer | footer | - | NO-TEST |
 
-<!-- counts DONE=33 NO-GUI=0 NO-TEST=22 PARTIAL=0 MISSING=5 OWNED=0 -->
+<!-- counts DONE=37 NO-GUI=0 NO-TEST=22 PARTIAL=0 MISSING=0 OWNED=1 -->
