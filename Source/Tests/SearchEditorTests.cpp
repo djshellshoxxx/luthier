@@ -1428,3 +1428,53 @@ LUTHIER_TEST (SearchEditor, entryPointsAndOptions)
     CHECK (w.item ("cmd:clearRecentSearches") != nullptr);
     CHECK (w.item ("set:ACCESSIBILITY:search.autoSwitchMode") != nullptr);
 }
+
+//==============================================================================
+/*  6.2 and 6.3: Live Mode rows, Tab between field / chips / list, Left and
+    Right on the chips, Page and Ctrl+Home/End, F1. */
+LUTHIER_TEST (SearchEditor, keyboardAndLiveRows)
+{
+    CleanRecent clean;
+    Win w;
+    w.nav->openPalette ("a");
+
+    auto& palette = w.palette();
+    const int normal = palette.getRowHeight();
+
+    CHECK (palette.handleKey (juce::KeyPress (juce::KeyPress::tabKey)));
+    CHECK (w.nav->getLastFocusRequest() == &palette.getChip (0));
+    CHECK (palette.handleKey (juce::KeyPress (juce::KeyPress::rightKey)));
+    CHECK (palette.getScope() == SearchIndex::Scope::controls);
+    CHECK (palette.handleKey (juce::KeyPress (juce::KeyPress::tabKey)));
+    CHECK (w.nav->getLastFocusRequest() == &palette.getList());
+    CHECK (palette.handleKey (juce::KeyPress (juce::KeyPress::tabKey)));
+    CHECK (w.nav->getLastFocusRequest() == &palette.getField());
+    CHECK (palette.handleKey (juce::KeyPress (juce::KeyPress::tabKey, juce::ModifierKeys::shiftModifier, 0)));
+    CHECK (w.nav->getLastFocusRequest() == &palette.getList());
+
+    for (auto& r : palette.getRows())
+        CHECK (r.item == nullptr || SearchIndex::scopeIncludes (SearchIndex::Scope::controls, r.item->kind));
+
+    CHECK (palette.handleKey (juce::KeyPress (juce::KeyPress::endKey, juce::ModifierKeys::commandModifier, 0)));
+    const int last = palette.getSelectedRow();
+    CHECK (palette.handleKey (juce::KeyPress (juce::KeyPress::homeKey, juce::ModifierKeys::commandModifier, 0)));
+    CHECK (palette.getSelectedRow() < last);
+    CHECK (palette.handleKey (juce::KeyPress (juce::KeyPress::pageDownKey)));
+    CHECK (palette.getSelectedRow() > 0);
+
+    // Up from the first row wraps to the last.
+    palette.handleKey (juce::KeyPress (juce::KeyPress::homeKey, juce::ModifierKeys::commandModifier, 0));
+    palette.handleKey (juce::KeyPress (juce::KeyPress::upKey));
+    CHECK (palette.getSelectedRow() == last);
+    palette.close();
+
+    // gui-integration 9: 44 px rows in Live Mode.
+    w.p().setLiveMode (true);
+    CHECK (palette.getRowHeight() > normal);
+    CHECK (palette.getRowHeight() == AccessibilitySettings::get().scaled (44));
+    w.p().setLiveMode (false);
+
+    // Queries are capped at 200 characters (6.3).
+    w.nav->openPalette (juce::String::repeatedString ("x", 500));
+    CHECK (palette.getQuery().length() <= 200);
+}

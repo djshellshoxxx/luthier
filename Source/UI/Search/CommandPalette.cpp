@@ -216,7 +216,7 @@ CommandPalette::CommandPalette (SearchNavigator& n)
         chip->setClickingTogglesState (true);
         chip->setRadioGroupId (0x5ea4c4);
         chip->setToggleState (i == 0, juce::dontSendNotification);
-        chip->onClick = [this, i] { setScope ((SearchIndex::Scope) i); field.grabKeyboardFocus(); };
+        chip->onClick = [this, i] { setScope ((SearchIndex::Scope) i); navigator.requestFocus (&field); };
         chip->addKeyListener (this);
         AccessibleSetup::configureButton (*chip, chip->getButtonText(), "Search scope");
         addAndMakeVisible (chip);
@@ -966,6 +966,9 @@ bool CommandPalette::handleKey (const juce::KeyPress& key)
     if (code == juce::KeyPress::tabKey)
     {
         auto* focused = juce::Component::getCurrentlyFocusedComponent();
+
+        if (focused == nullptr)
+            focused = navigator.getLastFocusRequest();
         const bool back = mods.isShiftDown();
         const bool inChips = focused != nullptr && chips.contains (dynamic_cast<juce::TextButton*> (focused));
         const bool inList = focused != nullptr && (focused == &list || list.isParentOf (focused));
@@ -976,18 +979,20 @@ bool CommandPalette::handleKey (const juce::KeyPress& key)
         else if (inList) next = back ? static_cast<juce::Component*> (chips[(int) scope]) : &field;
         else             next = back ? static_cast<juce::Component*> (&list) : chips[(int) scope];
 
-        next->grabKeyboardFocus();
+        navigator.requestFocus (next);
         return true;
     }
 
     // Left / Right choose a chip while the chip row has focus.
-    if (auto* chip = dynamic_cast<juce::TextButton*> (juce::Component::getCurrentlyFocusedComponent());
+    if (auto* chip = dynamic_cast<juce::TextButton*> (juce::Component::getCurrentlyFocusedComponent() != nullptr
+                                                        ? juce::Component::getCurrentlyFocusedComponent()
+                                                        : navigator.getLastFocusRequest());
         chip != nullptr && chips.contains (chip) && (code == juce::KeyPress::leftKey || code == juce::KeyPress::rightKey))
     {
         const int n = chips.size();
         const int next = ((int) scope + (code == juce::KeyPress::rightKey ? 1 : -1) + n) % n;
         setScope ((SearchIndex::Scope) next);
-        chips[next]->grabKeyboardFocus();
+        navigator.requestFocus (chips[next]);
         return true;
     }
 
