@@ -54,4 +54,4 @@ This spec has changed most since the baseline. The integration branch now has re
 | IN-48 (§13) | Test: portable Windows writes nothing outside its folder | - | n/a | - | MISSING |
 | IN-49 (§13) | Test: 200 pre-parts fixture presets load, back up and render within -60 dBFS of golden | - | n/a | - | MISSING |
 
-<!-- counts DONE=12 NO-GUI=0 NO-TEST=8 PARTIAL=12 MISSING=9 OWNED=8 -->
+<!-- counts DONE=12 NO-GUI=0 NO-TEST=8 PARTIAL=12 MISSING=10 OWNED=7 -->
