@@ -73,18 +73,6 @@ LUTHIER_TEST (PresetSearchDiagnostics, dumpCorpus)
     }
 
     CHECK (f.index.size() == FactoryPresets::getNumPresets());
-
-    for (auto* name : { "8-String Djent", "Modern Metal Chug", "Drop C Riff" })
-        if (auto* r = factoryCorpus().find (name))
-        {
-            juce::String line;
-            const auto& clip = r->result.clip;
-
-            for (int ms = 2600; ms < clip.getNumSamples() / 48; ms += 50)
-                line << juce::String (juce::Decibels::gainToDecibels (clip.getMagnitude (ms * 48, 480)), 0) << " ";
-
-            std::cout << name << ": " << line << std::endl;
-        }
 }
 
 //==============================================================================

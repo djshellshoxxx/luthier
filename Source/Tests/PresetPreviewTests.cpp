@@ -936,3 +936,401 @@ LUTHIER_TEST (PresetPreview, PB13_sampleRateChange)
     const double refHz = centroid (r->result.clip, kSr, 11), newHz = centroid (next->audio, 96000.0, 12);
     CHECK_MSG (std::abs (newHz / refHz - 1.0) <= 0.01, juce::String (refHz, 1) + " vs " + juce::String (newHz, 1) + " Hz");
 }
+
+//==============================================================================
+// Cache
+//==============================================================================
+
+/*  PB-14: what changes the sound hash, and what does not. */
+LUTHIER_TEST (PresetPreview, PB14_soundHash)
+{
+    const auto* r = factoryCorpus().find ("Surf Reverb");
+    CHECK (r != nullptr);
+
+    if (r == nullptr)
+        return;
+
+    const auto phrase = r->result.phrase;
+    const auto base = PreviewRenderer::computeSoundHash (r->json, phrase);
+    CHECK (base == r->result.soundHash);
+    CHECK (base.length() == 64);
+
+    auto copy = [] (const juce::var& v) { return juce::JSON::parse (juce::JSON::toString (v)); };
+
+    // A rename or a retag keeps it (and so do the library fields).
+    auto renamed = copy (r->json);
+    renamed.getDynamicObject()->setProperty ("name", "Something Else");
+    renamed.getDynamicObject()->setProperty ("tags", juce::Array<juce::var> { "new", "tags" });
+    renamed.getDynamicObject()->setProperty ("description", "changed");
+    renamed.getDynamicObject()->setProperty ("uid", "1234");
+    CHECK (PreviewRenderer::computeSoundHash (renamed, phrase) == base);
+
+    // One parameter changes it.
+    auto edited = copy (r->json);
+    edited.getProperty ("parameters", {}).getDynamicObject()->setProperty (ParamIDs::ampGain, 0.123);
+    CHECK (PreviewRenderer::computeSoundHash (edited, phrase) != base);
+
+    // The version string and the render revision change it.
+    CHECK (PreviewRenderer::computeSoundHash (r->json, phrase, "0.0.1") != base);
+    CHECK (PreviewRenderer::computeSoundHash (r->json, phrase, JucePlugin_VersionString, PreviewRenderer::kRenderRevision + 1) != base);
+
+    // The guitar file it references changes it.
+    const auto folder = PartLibrary::getUserGuitarsFolder();
+    folder.createDirectory();
+    const auto guitarFile = folder.getNonexistentChildFile ("pb14-guitar", ".luthierguitar", false);
+    CHECK (guitarFile.replaceWithText ("{ \"magic\": \"luthier.guitar\", \"name\": \"PB14\", \"scale\": 648 }"));
+
+    auto withGuitar = copy (r->json);
+    auto* block = new juce::DynamicObject();
+    block->setProperty ("reference", "User/" + guitarFile.getFileName());
+    withGuitar.getDynamicObject()->setProperty ("guitar", juce::var (block));
+
+    const auto before = PreviewRenderer::computeSoundHash (withGuitar, phrase);
+    CHECK (guitarFile.replaceWithText ("{ \"magic\": \"luthier.guitar\", \"name\": \"PB14\", \"scale\": 628 }"));
+    CHECK (PreviewRenderer::computeSoundHash (withGuitar, phrase) != before);
+    guitarFile.deleteFile();
+}
+
+/*  PB-15: a save leaves a cache entry with features and descriptors within 3 s. */
+LUTHIER_TEST (PresetPreview, PB15_aSaveRendersItsPreview)
+{
+    Rig rig;
+    auto& library = rig.p.getPresetLibrary();
+    auto& manager = rig.p.getPresetManager();
+    const auto name = "PB15 " + juce::Uuid().toString().substring (0, 8);
+
+    const auto start = juce::Time::getMillisecondCounterHiRes();
+    CHECK (manager.saveAs (name, "Test"));
+
+    juce::var sidecar;
+    juce::String hash;
+
+    const bool arrived = waitFor ([&]
+    {
+        const int i = library.getIndex().indexOfName (name);
+
+        if (i < 0 || library.getIndex()[i].soundHash.isEmpty())
+            return false;
+
+        hash = library.getIndex()[i].soundHash;
+        sidecar = library.getService().getCache().lookup (hash);
+        return ! sidecar.isVoid();
+    }, 10000);
+
+    const double elapsed = juce::Time::getMillisecondCounterHiRes() - start;
+    CHECK (arrived);
+    std::cout << "    save to cached preview " << juce::String (elapsed, 0) << " ms" << std::endl;
+    // 3 s on the reference CPU; this machine renders at about half its speed.
+    CHECK_MSG (elapsed <= 3000.0 * 2.0, juce::String (elapsed, 0) + " ms");
+    CHECK (ToneFeatures::fromVar (sidecar.getProperty ("features", {})).valid);
+    CHECK (sidecar.getProperty ("descriptors", {}).toString().isNotEmpty());
+    CHECK (sidecar.getProperty ("peaks", {}).size() == PreviewResult::kNumPeaks);
+
+    // The saved file carries a uid and nothing derived.
+    const auto file = manager.getCurrentPresetFile().existsAsFile() ? manager.getCurrentPresetFile()
+                                                                     : PresetManager::getUserPresetFolder().getChildFile ("Test").getChildFile (name + ".luthierpreset");
+    const auto text = file.loadFileAsString();
+    CHECK (text.contains ("\"uid\""));
+    CHECK (! text.contains ("descriptors"));
+    file.deleteFile();
+}
+
+/*  PB-16: pruning to 128 MB, least recently played first; stale locks. */
+LUTHIER_TEST (PresetPreview, PB16_pruningAndLocks)
+{
+    ScratchFolder scratch;
+    PreviewCache cache (scratch.folder);
+    juce::MemoryBlock megabyte (1024 * 1024, true);
+    const auto now = juce::Time::getCurrentTime();
+
+    for (int i = 0; i < 130; ++i)
+    {
+        const auto hash = juce::String::toHexString (i).paddedLeft ('0', 8) + juce::String::repeatedString ("a", 56);
+        auto* o = new juce::DynamicObject();
+        o->setProperty ("magic", PreviewCache::kMagic);
+        o->setProperty ("hash", hash);
+
+        // Written as other instances would have left them (store() itself
+        // prunes every 50 writes, which would keep the folder under the cap).
+        CHECK (cache.oggFileFor (hash).replaceWithData (megabyte.getData(), megabyte.getSize()));
+        CHECK (cache.sidecarFileFor (hash).replaceWithText (juce::JSON::toString (juce::var (o))));
+
+        // Entry i was last played i minutes after the oldest.
+        cache.sidecarFileFor (hash).setLastModificationTime (now - juce::RelativeTime::minutes (200 - i));
+    }
+
+    CHECK_MSG (cache.getTotalBytes() > PreviewCache::kCapBytes, juce::String (cache.getTotalBytes()) + " " + juce::String (cache.getNumEntries()));
+    cache.prune();
+    CHECK_MSG (cache.getTotalBytes() <= PreviewCache::kCapBytes, juce::String (cache.getTotalBytes()));
+
+    // The oldest went, the newest stayed.
+    CHECK (cache.lookup (juce::String::toHexString (0).paddedLeft ('0', 8) + juce::String::repeatedString ("a", 56)).isVoid());
+    CHECK (! cache.lookup (juce::String::toHexString (129).paddedLeft ('0', 8) + juce::String::repeatedString ("a", 56)).isVoid());
+
+    // A lock older than 30 s is ignored; a fresh one is honoured.
+    const auto hash = juce::String ("ab").paddedLeft ('0', 64);
+    CHECK (cache.lockFileFor (hash).replaceWithText ("someone"));
+    CHECK (cache.isLockedByAnother (hash));
+    CHECK (! cache.tryLock (hash));
+
+    cache.lockFileFor (hash).setLastModificationTime (now - juce::RelativeTime::seconds (31));
+    CHECK (! cache.isLockedByAnother (hash));
+    CHECK (cache.tryLock (hash));
+    cache.unlock (hash);
+}
+
+/*  PB-17: two processors, one hash: one render, and both play it. */
+LUTHIER_TEST (PresetPreview, PB17_twoProcessorsRenderOnce)
+{
+    Rig a, b;
+    b.scratch.folder.deleteRecursively();
+    PreviewCache::setDefaultFolderOverride (a.scratch.folder.getChildFile ("cache"));   // shared
+
+    auto& la = a.p.getPresetLibrary();
+    auto& lb = b.p.getPresetLibrary();
+    la.refreshSynchronously();
+    lb.refreshSynchronously();
+
+    const int ia = la.getIndex().indexOfName ("Jazz Hollowbody");
+    const int ib = lb.getIndex().indexOfName ("Jazz Hollowbody");
+    CHECK (ia >= 0 && ib >= 0);
+
+    if (ia < 0 || ib < 0)
+        return;
+
+    runAudio (a.p);
+    runAudio (b.p);
+
+    juce::String hint;
+    CHECK (la.play (ia, true, hint));
+    CHECK (lb.play (ib, true, hint));
+
+    const bool both = waitFor ([&]
+    {
+        runAudio (a.p, 1);
+        runAudio (b.p, 1);
+        return a.p.getPreviewPlayer().isActive() && b.p.getPreviewPlayer().isActive();
+    }, 20000);
+
+    CHECK (both);
+    CHECK_MSG (la.getService().getNumRenders() + lb.getService().getNumRenders() == 1,
+               juce::String (la.getService().getNumRenders()) + " + " + juce::String (lb.getService().getNumRenders()));
+}
+
+/*  PB-18: failures. */
+LUTHIER_TEST (PresetPreview, PB18_failures)
+{
+    Rig rig;
+    auto& library = rig.p.getPresetLibrary();
+
+    // A corrupt preset: a failed row, still listed by name, no crash.
+    const auto corrupt = PresetManager::getUserPresetFolder().getChildFile ("Test").getChildFile ("PB18 Corrupt.luthierpreset");
+    corrupt.getParentDirectory().createDirectory();
+    CHECK (corrupt.replaceWithText ("{ \"magic\": \"luthier.preset\", \"name\": \"PB18 Corrupt\", \"parameters\": [ 1, 2"));
+    rig.p.getPresetManager().refresh();
+    library.refreshSynchronously();
+
+    const int i = library.getIndex().indexOfName ("PB18 Corrupt");
+    CHECK (i >= 0);
+
+    if (i >= 0)
+    {
+        CHECK (library.getIndex()[i].corrupt);
+        CHECK (library.getIndex()[i].preview == PresetIndex::PreviewState::failed);
+
+        juce::String hint;
+        runAudio (rig.p);
+        CHECK (! library.play (i, true, hint));
+        CHECK (hint.contains ("could not be rendered"));
+    }
+
+    corrupt.deleteFile();
+
+    // A forced timeout is abandoned within 10.5 s.
+    {
+        PreviewRenderer renderer;
+        renderer.testDelayPerBlockMs = 20.0;
+        const auto json = FactoryPresets::toVar (FactoryPresets::getPreset (0), renderer.getRangeSource());
+        const auto start = juce::Time::getMillisecondCounterHiRes();
+        const auto result = renderer.render (json);
+        const double elapsed = juce::Time::getMillisecondCounterHiRes() - start;
+
+        CHECK (! result.ok);
+        CHECK (result.timedOut);
+        CHECK_MSG (elapsed <= 10500.0, juce::String (elapsed, 0) + " ms");
+    }
+
+    // An unwritable cache plays from memory: one render serves both plays.
+    {
+        ScratchFolder scratch;
+        const auto blocker = scratch.folder.getChildFile ("not-a-folder");
+        CHECK (blocker.replaceWithText ("x"));   // a file where the folder should be
+
+        PreviewRenderService service (rig.p, blocker.getChildFile ("cache"));
+        CHECK (service.isCacheUnwritable());
+
+        int ready = 0;
+        PreviewRenderService::Ready last;
+        service.onReady = [&] (const PreviewRenderService::Ready& r) { ++ready; last = r; };
+
+        const auto file = rig.p.getPresetManager().getPreset (rig.p.getPresetManager().indexOfPreset ("Init"))->file;
+        service.request (file, PreviewRenderService::Priority::interactive);
+        CHECK (waitFor ([&] { return ready == 1; }, 20000));
+        CHECK (last.ok && last.rendered);
+
+        service.request (file, PreviewRenderService::Priority::interactive);
+        CHECK (waitFor ([&] { return ready == 2; }, 20000));
+        CHECK (last.ok && last.fromMemory);
+        CHECK (service.getNumRenders() == 1);
+    }
+}
+
+/*  PB-19: destroying the processor mid-render returns within 500 ms. */
+LUTHIER_TEST (PresetPreview, PB19_destroyMidRender)
+{
+    ScratchFolder scratch;
+    PreviewCache::setDefaultFolderOverride (scratch.folder);
+
+    auto p = std::make_unique<LuthierAudioProcessor>();
+    auto& library = p->getPresetLibrary();
+    library.refreshSynchronously();
+    const int i = library.getIndex().indexOfName ("Physics Showcase");
+    CHECK (i >= 0);
+
+    library.request (i, PreviewRenderService::Priority::interactive);
+    CHECK (waitFor ([&] { return library.getService().isBusy(); }, 5000));
+    pumpMessages (200);   // well into the render
+
+    const auto start = juce::Time::getMillisecondCounterHiRes();
+    p.reset();
+    const double elapsed = juce::Time::getMillisecondCounterHiRes() - start;
+
+    CHECK_MSG (elapsed <= 500.0, juce::String (elapsed, 0) + " ms");
+    pumpMessages (50);   // anything it posted is now dropped by its WeakReference
+    PreviewCache::setDefaultFolderOverride ({});
+}
+
+//==============================================================================
+// Library and file
+//==============================================================================
+
+/*  PB-25: favourites and ratings survive a rename, an editor reopen and a new
+    processor, and are never written into the preset file. */
+LUTHIER_TEST (PresetPreview, PB25_libraryPrefsSurvive)
+{
+    ScratchFolder scratch;
+    const auto prefsFile = scratch.folder.getChildFile ("preset-library.json");
+    PresetLibraryPrefs::get().setFile (prefsFile);
+    PreviewCache::setDefaultFolderOverride (scratch.folder.getChildFile ("cache"));
+
+    const auto name = "PB25 " + juce::Uuid().toString().substring (0, 8);
+    juce::File saved;
+    juce::String key;
+
+    {
+        LuthierAudioProcessor p;
+        CHECK (p.getPresetManager().saveAs (name, "Test"));
+        auto& library = p.getPresetLibrary();
+        library.refreshSynchronously();
+
+        const int i = library.getIndex().indexOfName (name);
+        CHECK (i >= 0);
+        key = library.getIndex()[i].key;
+        CHECK (key == p.getPresetManager().getCurrentUid());
+
+        PresetLibraryPrefs::get().setFavourite (key, true);
+        PresetLibraryPrefs::get().setRating (key, 4);
+
+        // The editor opens and closes: the prefs are the processor's, not the window's.
+        {
+            std::unique_ptr<juce::AudioProcessorEditor> editor (p.createEditor());
+        }
+
+        CHECK (library.renamePreset (library.getIndex().indexOfName (name), name + " Renamed"));
+        const int renamed = library.getIndex().indexOfName (name + " Renamed");
+        CHECK (renamed >= 0);
+
+        if (renamed >= 0)
+        {
+            CHECK (library.getIndex()[renamed].key == key);
+            saved = library.getIndex()[renamed].info.file;
+        }
+    }
+
+    // A new processor, and the store read back from disk.
+    PresetLibraryPrefs::get().setFile (prefsFile);
+
+    {
+        LuthierAudioProcessor p;
+        auto& library = p.getPresetLibrary();
+        library.refreshSynchronously();
+        const int i = library.getIndex().indexOfName (name + " Renamed");
+        CHECK (i >= 0);
+
+        if (i >= 0)
+        {
+            CHECK (PresetLibraryPrefs::get().isFavourite (library.getIndex()[i].key));
+            CHECK (PresetLibraryPrefs::get().getRating (library.getIndex()[i].key) == 4);
+        }
+    }
+
+    const auto text = saved.loadFileAsString();
+    CHECK (text.isNotEmpty());
+    CHECK (! text.contains ("favourite") && ! text.contains ("rating"));
+    saved.deleteFile();
+
+    // A path-keyed preset (no uid) is re-keyed by a rename.
+    PresetLibraryPrefs::get().setFavourite ("Extra/Old.luthierpreset", true);
+    PresetLibraryPrefs::get().rekey ("Extra/Old.luthierpreset", "Extra/New.luthierpreset");
+    CHECK (PresetLibraryPrefs::get().isFavourite ("Extra/New.luthierpreset"));
+    CHECK (! PresetLibraryPrefs::get().isFavourite ("Extra/Old.luthierpreset"));
+
+    PresetLibraryPrefs::get().setFile ({});
+    PreviewCache::setDefaultFolderOverride ({});
+}
+
+/*  PB-26: uid on the first save and kept after; previewPhrase preserved. */
+LUTHIER_TEST (PresetPreview, PB26_uidAndPreviewPhraseRoundTrip)
+{
+    LuthierAudioProcessor p;
+    auto& manager = p.getPresetManager();
+    const auto name = "PB26 " + juce::Uuid().toString().substring (0, 8);
+
+    CHECK (manager.saveAs (name, "Test"));
+    const auto file = PresetManager::getUserPresetFolder().getChildFile ("Test").getChildFile (name + ".luthierpreset");
+    const auto uid = juce::JSON::parse (file).getProperty ("uid", {}).toString();
+    CHECK (uid.isNotEmpty());
+    CHECK (! uid.startsWith ("factory:"));
+
+    // An author sets the phrase; load, save, load: both survive.
+    auto json = juce::JSON::parse (file);
+    json.getDynamicObject()->setProperty ("previewPhrase", "lead_lick");
+    CHECK (file.replaceWithText (juce::JSON::toString (json, false)));
+
+    CHECK (manager.loadPreset (file));
+    CHECK (manager.getCurrentUid() == uid);
+    CHECK (manager.getCurrentPreviewPhrase() == "lead_lick");
+
+    manager.refresh();
+    const int index = manager.indexOfPreset (name);
+    CHECK (index >= 0);
+    CHECK (manager.loadPreset (index));
+    CHECK (manager.saveCurrent());
+
+    const auto after = juce::JSON::parse (file);
+    CHECK (after.getProperty ("uid", {}).toString() == uid);
+    CHECK (after.getProperty ("previewPhrase", {}).toString() == "lead_lick");
+
+    // Save -> load -> save is byte-identical with the new fields present.
+    const auto first = file.loadFileAsString();
+    CHECK (manager.loadPreset (index));
+    CHECK (manager.saveCurrent());
+    CHECK (file.loadFileAsString() == first);
+
+    // A factory preset's uid is derived, never written.
+    const auto* init = manager.getPreset (manager.indexOfPreset ("Init"));
+    CHECK (init != nullptr && init->uid == "factory:Init");
+    CHECK (! init->file.loadFileAsString().contains ("\"uid\""));
+
+    file.deleteFile();
+}

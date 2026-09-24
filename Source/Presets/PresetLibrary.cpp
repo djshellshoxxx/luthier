@@ -227,6 +227,50 @@ bool PresetLibrary::isPlaying() const
     return processor.getPreviewPlayer().isActive();
 }
 
+bool PresetLibrary::renamePreset (int entry, const juce::String& newName)
+{
+    if (! juce::isPositiveAndBelow (entry, index.size()))
+        return false;
+
+    const auto e = index[entry];
+    const auto safe = juce::File::createLegalFileName (newName.trim());
+
+    if (e.info.isFactory || safe.isEmpty())
+        return false;
+
+    auto json = juce::JSON::parse (e.info.file.loadFileAsString());
+
+    if (auto* o = json.getDynamicObject())
+        o->setProperty ("name", newName.trim());
+    else
+        return false;
+
+    const auto target = e.info.file.getSiblingFile (safe + e.info.file.getFileExtension());
+
+    if (target != e.info.file && target.existsAsFile())
+        return false;
+
+    // file-formats.md 13: write the new file, then remove the old one.
+    juce::TemporaryFile temp (target);
+
+    if (! temp.getFile().replaceWithText (juce::JSON::toString (json, false)) || ! temp.overwriteTargetFileWithTemporary())
+        return false;
+
+    if (target != e.info.file)
+        e.info.file.deleteFile();
+
+    const auto oldKey = e.key;
+    processor.getPresetManager().refresh();
+    refresh();
+
+    const int moved = index.indexOfFile (target);
+
+    if (moved >= 0 && index[moved].key != oldKey)
+        PresetLibraryPrefs::get().rekey (oldKey, index[moved].key);
+
+    return true;
+}
+
 void PresetLibrary::noteLoaded (int entry)
 {
     if (juce::isPositiveAndBelow (entry, index.size()))

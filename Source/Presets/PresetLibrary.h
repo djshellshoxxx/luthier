@@ -72,6 +72,11 @@ public:
     bool isPlaying() const;
     bool isWaitingFor (int entry) const noexcept { return wantedEntryKey.isNotEmpty() && entryKey (entry) == wantedEntryKey; }
 
+    /** Renames a user preset in place (5.5): the file's `name` and file name
+        change, its uid does not; a preset keyed by path is re-keyed. Returns
+        false for a factory preset or a name that is taken. */
+    bool renamePreset (int entry, const juce::String& newName);
+
     /** Records a load for Recent and the load counts (5.5). */
     void noteLoaded (int entry);
 

@@ -443,6 +443,14 @@ PreviewRenderService::Ready PreviewRenderService::process (const Job& job)
 
         if (! locked && fromCache())
             return r;
+
+        // The lock may have come free because another instance just finished
+        // this very hash (PB-17): look again before rendering it twice.
+        if (locked && fromCache())
+        {
+            cache.unlock (hash);
+            return r;
+        }
     }
 
     // 5. Render, on a fresh render instance built here on the worker (see
