@@ -58,6 +58,14 @@ struct NoteOnEvent
     int    sampleOffset  = 0;
     double slideFromFret = -1.0;   ///< >= 0 means glide from here.
     double slideSeconds  = 0.0;
+
+    /** strum-dynamics 6.1: how much of a chuck this strike is - 0 ordinary, 1
+        the fretting hand flat across the strings. */
+    double chuck         = 0.0;
+
+    /** strum-dynamics 5: what struck the string, as an Excitation::Material
+        index, or -1 for the player's own pick (the PICK group). */
+    int    strikerMaterial = -1;
 };
 
 struct NoteOffEvent

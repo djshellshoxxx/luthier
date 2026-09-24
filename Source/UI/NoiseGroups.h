@@ -6,8 +6,8 @@
     STRING NOISE holds exactly what string-squeak.md 9 lists: squeak amount,
     probability, finger moisture and pressure, the winding material, the style
     presets and the noise-event strip. PICK holds the pick's fields and the
-    three noise amounts. The strum striker dropdown pick-noise.md 8 also names
-    arrives with strum-dynamics.md.
+    three noise amounts. It mirrors the STRUM group's two striker dropdowns
+    (pick-noise.md 8, strum-dynamics.md 5).
 */
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -101,6 +101,7 @@ private:
 
     // PICK
     LuthierChoice pickMaterial { "Material" };
+    LuthierChoice strikerDown { "Down striker" }, strikerUp { "Up striker" };
     LuthierSlider pickThickness { "Thickness" }, pickTip { "Tip radius" }, pickBevel { "Bevel" },
                   pickWear { "Wear" }, pickAngle { "Angle" }, pickClick { "Click" },
                   pickChirp { "Chirp" }, pickScrape { "Scrape" };

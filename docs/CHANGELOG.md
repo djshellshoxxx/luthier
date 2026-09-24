@@ -71,6 +71,18 @@ numbered, because what it should be called is a release decision.
   rubric: open strings, the style's shape, fewer muted strings, and staying
   near the last chord. A new Bass voicing style plays the root (or root and
   fifth) for bass instruments.
+- **String scraping** (`string-scraping.md`) - drag the pick along a wound
+  string: every winding it crosses catches, faster or slower with the sweep,
+  darker when palm-muted, from a keyswitch, a CC, a zone or the button, or
+  held on the mod wheel. The rake across the strings (`pick-noise.md` 5) now
+  has triggers too. Both reach the Noise output. Fourteen new parameters.
+- **Strums that move like a hand** (`strum-dynamics.md`) - a strum
+  accelerates through the strings, up-strokes are quicker and lighter, the
+  hand tilts and now and then misses a string, and what strikes the strings
+  can be a pick, thumb, nails, flesh, a thumbpick or a brush, separately for
+  down and up. A chuck stroke mutes as it strikes. A pattern or genre kit
+  can set its own crossing speed. The RHYTHM tab's new STRUM group has the
+  controls; nine new parameters (the parameter count is 425).
 - **Amp and pedal faces in the rack** (`proposals/visual-polish.md` 2-3) -
   each pedal in the rack is drawn as its enclosure, with its own knob caps,
   and the amp card in Easy and Advanced modes shows the amp's faceplate. The

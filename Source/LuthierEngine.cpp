@@ -80,8 +80,11 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
 
     playingNoise.prepare (sr);
     slide.prepare (sr);
+    scrape.prepare (sr, maxBlock);
+    scrapeMidi.ensureSize (8192);
     noteSustainScale.fill (1.0);
     playingNoise.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)));
+    scrape.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)) ^ 0x5c4a9e11u);
 
     // --- signal chain ---------------------------------------------------------
     circuit.prepare (sr);
@@ -129,6 +132,7 @@ void LuthierEngine::reset() noexcept
     playingNoise.reset();
     fretBuzzModel.reset();
     slide.reset();
+    scrape.reset();
     noteSustainScale.fill (1.0);
     shiftCount = 0;
 
@@ -667,6 +671,7 @@ void LuthierEngine::panic() noexcept
 
     feedbackLoop.reset();
     ebowDriver.reset();
+    scrape.stopAll();
     numScheduled = 0;
 }
 
@@ -674,6 +679,11 @@ void LuthierEngine::panic() noexcept
 void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
 {
     const int s = juce::jlimit (0, numStrings - 1, e.stringIndex);
+
+    // technique-cascade.md 2 / string-scraping.md 5: a tap on a string being
+    // scraped damps the scrape (a 10 ms fade, from the next block).
+    if (e.technique == Technique::Tap)
+        scrape.preempt (s);
 
     /*  slide-guitar.md 1: in hybrid mode one string is under the bar and the
         fingers fret the rest, so a slide note that the bar is not on is played
@@ -797,11 +807,23 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
             break;
     }
 
+    // strum-dynamics 6.1: a chuck is the fretting hand flat on the strings; it
+    // is there before the pick, so it overrides the technique's damping.
+    if (e.chuck > 0.0)
+        str.setDamping (StringEngine::Damping::Chuck, e.chuck);
+
     str.setHarmonicRestriction (e.harmonicPartial);
 
     // ---- build the excitation ---------------------------------------------------
+    // strum-dynamics 5: a strum's striker stands in for the pick on this
+    // strike only; -1 is the player's own pick.
+    const auto material = e.strikerMaterial >= 0
+                            ? (Excitation::Material) juce::jlimit (0, (int) Excitation::Material::NumMaterials - 1,
+                                                                   e.strikerMaterial)
+                            : pickMaterial;
+
     Excitation::Params p;
-    p.material = pickMaterial;
+    p.material = material;
     p.pluckPosition = pluckPosition;
     p.velocity = e.velocity;
     p.pickThickness = pickThickness;
@@ -865,8 +887,9 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         else if (p.kind == Excitation::Kind::Pluck || p.kind == Excitation::Kind::PinchHarmonic)
         {
             auto pickNow = playingNoise.getPick();
-            pickNow.material = pickMaterial;
-            pickNow.fingers = usingFingers || ! PlayingNoise::getPickMaterial (pickMaterial).isPick;
+            pickNow.material = material;
+            pickNow.fingers = (e.strikerMaterial >= 0 ? false : usingFingers)
+                                || ! PlayingNoise::getPickMaterial (material).isPick;
             pickNow.pluckPosition = pluckPosition;
             playingNoise.setPick (pickNow);
 
@@ -1029,7 +1052,9 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
     whammy.setPosition (midi.getWhammyPosition());
     whammy.updateBlock (numSamples);
 
-    const double vibratoDepthFromCc = midi.getVibratoDepth();
+    // string-scraping.md 2: while the mod wheel or aftertouch sweeps a scrape,
+    // it is the pick's, not the vibrato's.
+    const double vibratoDepthFromCc = scrape.ownsVibratoControllers() ? 0.0 : midi.getVibratoDepth();
 
     for (int s = 0; s < numStrings; ++s)
     {
@@ -1072,7 +1097,8 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
         }
         else
         {
-            hz = tuning.computeFrequency (s, currentFret[(size_t) s], bend + whammyCents + vib + magnetDetuneCents);
+            hz = tuning.computeFrequency (s, currentFret[(size_t) s],
+                                          bend + whammyCents + vib + magnetDetuneCents + scrape.getPitchOffsetCents (s));
         }
 
         strings[(size_t) s].setTargetFrequency (hz);
@@ -1380,9 +1406,14 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     // ---- 1. MIDI -------------------------------------------------------------
     // The rhythm engine sees the raw MIDI first, so it can track what is held
     // even while it is switched off and be ready the moment it is switched on.
-    rhythm.handleMidi (midiMessages, samplePosition);
+    // string-scraping.md 2: the scrape's keyswitches and zone notes are the
+    // technique's, taken out before anything that would play them sees them
+    // (input-routing.md 5 before 6). Disarmed, this is the same buffer.
+    const juce::MidiBuffer& played = scrape.handleMidi (midiMessages, scrapeMidi);
 
-    midi.processBlock (midiMessages, numSamples, samplePosition, events);
+    rhythm.handleMidi (played, samplePosition);
+
+    midi.processBlock (played, numSamples, samplePosition, events);
 
     // Events go onto the schedule rather than being applied here, so a strum
     // that runs past the end of this block still sounds.
@@ -1413,6 +1444,48 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         midi.processBlock (*directForSubBlock, numSamples, samplePosition, directEvents);
         scheduleEvents (directEvents, numSamples);
     }
+
+    // ---- 1b. string scraping (string-scraping.md 3) --------------------------
+    // After the MIDI, before the strings: the block's catches are scheduled
+    // here and added to each string's excitation input below. Idle, isBusy()
+    // is the whole cost.
+    if (scrape.isBusy())
+    {
+        scrape.setNumStrings (numStrings);
+        scrape.setScaleLengthMm (spec.scaleLengthMm);
+        scrape.setMuteAmount (technique.getPalmMuteAmount());
+
+        for (int s = 0; s < numStrings; ++s)
+        {
+            scrape.setString (s, StringNoiseInfo::fromSpec (stringSpecs[(size_t) s], spec.stringMaterial, stringAge),
+                              strings[(size_t) s].getCurrentFrequency(), currentFret[(size_t) s],
+                              midi.getStringBendCents (s));
+
+            // technique-cascade.md 3.4: the slide holds its strings.
+            scrape.setStringBlocked (s, slide.isUnderBar (s));
+        }
+    }
+
+    scrape.processBlock (numSamples);
+
+    for (int r = 0; r < scrape.getNumRecords(); ++r)
+    {
+        const auto& rec = scrape.getRecord (r);
+        playingNoise.getPool().recordExternalTrigger (NoiseClass::pickScrape, rec.stringIndex,
+                                                      sidechainReadOffset + rec.offset,
+                                                      samplePosition + rec.offset, rec.level, rec.durationMs);
+    }
+
+    // pick-noise.md 5: the rake, from its keyswitch or the Easy-mode gesture.
+    {
+        bool downward = true;
+        double seconds = 0.0;
+
+        if (scrape.takeRake (downward, seconds))
+            triggerPickScrape (seconds, downward);
+    }
+
+    const bool scrapeOn = scrape.hasOutput();
 
     updatePerBlockModulation (numSamples);
 
@@ -1496,12 +1569,20 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         noiseBuffer[(size_t) i] = playingNoise.processSample (excitationNoise.data(), surfaceNoise.data(),
                                                               numStrings);
 
+        // pick-noise.md 1.3: Aux 8 carries every generator, the scrape's catches too.
+        if (scrapeOn)
+            noiseBuffer[(size_t) i] += scrape.getNoiseOutput()[i];
+
         double sum = 0.0;
 
         for (int s = 0; s < numStrings; ++s)
         {
             // The click is part of the excitation: it goes into the string.
             double couplingIn = couplingInputs[(size_t) s] + excitationNoise[(size_t) s];
+
+            // string-scraping.md 1: each catch is an impulse into the string at the pick.
+            if (scrapeOn)
+                couplingIn += scrape.getExcitation (s)[i];
 
             // Acoustic feedback (ambiguity-resolutions 1): the amp's output,
             // through the air, at this string's own note.

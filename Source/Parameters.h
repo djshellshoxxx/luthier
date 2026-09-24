@@ -292,6 +292,35 @@ namespace ParamIDs
     inline constexpr const char* secretFeedback = "secret_feedback";
     inline constexpr const char* secretMix      = "secret_mix";
 
+    // string-scraping.md 2: the SCRAPE technique's controls.
+    inline constexpr const char* scrapeArmed       = "scrape_armed";
+    inline constexpr const char* scrapeTrigger     = "scrape_trigger";
+    inline constexpr const char* scrapeDirection   = "scrape_direction";
+    inline constexpr const char* scrapeSweepSource = "scrape_sweep_source";
+    inline constexpr const char* scrapeTriggerCc   = "scrape_trigger_cc";
+    inline constexpr const char* scrapeSweepCc     = "scrape_sweep_cc";
+    inline constexpr const char* scrapeStartMm     = "scrape_start_mm";
+    inline constexpr const char* scrapeEndMm       = "scrape_end_mm";
+    inline constexpr const char* scrapeDuration    = "scrape_duration";
+    inline constexpr const char* scrapePressure    = "scrape_pressure";
+    inline constexpr const char* scrapeTool        = "scrape_tool";
+    inline constexpr const char* scrapeAngle       = "scrape_angle";
+    inline constexpr const char* scrapeStringMask  = "scrape_string_mask";
+    inline constexpr const char* scrapeRetrigger   = "scrape_retrigger";
+
+    // strum-dynamics.md 7. strum_evenness is not here: it is the rhythm
+    // engine's own state (kits set it). strum_speed above is superseded by
+    // strum_crossing_sps and stays only because automation is indexed.
+    inline constexpr const char* strumCrossingSps     = "strum_crossing_sps";
+    inline constexpr const char* strumAcceleration    = "strum_acceleration";
+    inline constexpr const char* strumUpVelocityRatio = "strum_up_velocity_ratio";
+    inline constexpr const char* strumTilt            = "strum_tilt";
+    inline constexpr const char* strumMissProbability = "strum_miss_probability";
+    inline constexpr const char* strumStrikerDown     = "strum_striker_down";
+    inline constexpr const char* strumStrikerUp       = "strum_striker_up";
+    inline constexpr const char* chuckAmount          = "chuck_amount";
+    inline constexpr const char* chuckDamping         = "chuck_damping";
+
     // --- effect slots ----------------------------------------------------------
     /** `post` selects the chain; `slot` 0-7; `param` 0-9. */
     juce::String slotType (bool post, int slot);

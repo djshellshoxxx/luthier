@@ -19,6 +19,7 @@
 #include "DSP/Circuit/GuitarCircuit.h"
 #include "DSP/Noise/PlayingNoise.h"
 #include "DSP/Noise/FretBuzz.h"
+#include "DSP/Noise/ScrapeEngine.h"
 #include "DSP/Slide/SlideEngine.h"
 #include "DSP/Feedback/FeedbackLoop.h"
 #include "DSP/Feedback/EBowDriver.h"
@@ -186,6 +187,11 @@ public:
 
     /** pick-noise.md 5: a deliberate rake along the wound strings. */
     void triggerPickScrape (double seconds, bool downward) noexcept;
+
+    /** string-scraping.md: the scrape technique, for the bridge, the UI's buttons and the tests. */
+    ScrapeEngine& getScrapeEngine() noexcept { return scrape; }
+    const ScrapeEngine& getScrapeEngine() const noexcept { return scrape; }
+    void setScrapeSettings (const ScrapeSettings& s) noexcept { scrape.setSettings (s); }
 
     /** Sets the pick material and whether it is fingers. The two parameters
         are one decision: a finger material is fingers whatever the switch says. */
@@ -476,6 +482,12 @@ private:
 
     FretBuzz fretBuzzModel;
     SlideEngine slide;
+
+    /*  string-scraping.md 3: after the MIDI, before the strings. Its keyswitches
+        come out of the MIDI (into scrapeMidi) before the rhythm engine and the
+        interpreter see it. */
+    ScrapeEngine scrape;
+    juce::MidiBuffer scrapeMidi;
 
     /*  Each note's own sustain multiplier - dead spots, fret wear, the nut, a
         slide's damping - set when it starts. Per-block modulation multiplies

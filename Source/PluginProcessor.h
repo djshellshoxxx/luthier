@@ -585,6 +585,10 @@ private:
                          GuitarType type, bool writeParameters);
     void writeGuitarParameters (const DerivedAcoustics& derived);
 
+    /** strum-dynamics 4 / bass-techniques 8: moves the strum parameters still on
+        one family's defaults to the other's. */
+    void retargetStrumDefaults (bool fromBass, bool toBass);
+
     /*  A state load hands over its `guitar` block here; the guitar is then
         loaded (or kept) by loadGuitarForType when the bridge next applies. */
     void takeGuitarBlock (const juce::var& block);
@@ -597,6 +601,7 @@ private:
     WorkshopGuitar currentGuitar;
     WorkshopBench bench { *this };
     bool partsGuitarLoaded = false;
+    bool strumFamilyIsBass = false;   ///< strum-dynamics 4: the family the strum parameters' defaults follow
     juce::StringArray guitarNotices;
 
     /*  What the guitar is (file-formats.md 2): a reference to a guitar file,

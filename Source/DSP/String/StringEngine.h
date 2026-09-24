@@ -52,7 +52,8 @@ public:
         PalmMute,      ///< Right-hand palm on the bridge.
         Released,      ///< Note off, no sustain pedal: finger lifted.
         Choked,        ///< Fully stopped.
-        Silenced       ///< A hand flat on the string: gone in 80 ms whatever its sustain.
+        Silenced,      ///< A hand flat on the string: gone in 80 ms whatever its sustain.
+        Chuck          ///< strum-dynamics 6.1: the fretting hand across the strings; amount 1 ends the note in ~10 ms.
     };
 
     //==========================================================================

@@ -592,6 +592,22 @@ bool PresetManager::fromVar (const juce::var& data)
                 amount->setValueNotifyingHost (amount->convertTo0to1 (50.0f));
         }
 
+        /*  strum-dynamics.md 1.1: live chords cross at strum_crossing_sps. A
+            preset from before it set strum_speed, ms per string - the same thing
+            upside down. 0 ms meant no spread; the nearest is the fastest, 800. */
+        if (! params->hasProperty (ParamIDs::strumCrossingSps) && params->hasProperty (ParamIDs::strumSpeed))
+        {
+            auto* oldSpeed = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (ParamIDs::strumSpeed));
+            auto* crossing = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (ParamIDs::strumCrossingSps));
+
+            if (oldSpeed != nullptr && crossing != nullptr)
+            {
+                const double ms = oldSpeed->convertFrom0to1 ((float) juce::jlimit (0.0, 1.0, (double) params->getProperty (ParamIDs::strumSpeed)));
+                const double sps = ms > 0.0 ? 1000.0 / ms : 800.0;
+                crossing->setValueNotifyingHost (crossing->convertTo0to1 ((float) juce::jlimit (20.0, 800.0, sps)));
+            }
+        }
+
         /*  ambiguity-resolutions.md 3: the doubler became a post-amp pedal. A
             preset that had the old engine doubler on gets a Doubler in its first
             empty post-amp slot, at the pedal's own defaults (the old amount

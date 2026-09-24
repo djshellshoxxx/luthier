@@ -25,6 +25,7 @@
 
 #include "ChordDetector.h"
 #include "Patterns.h"
+#include "StrumGesture.h"
 
 #include "../Model/Playing/PlayingEvents.h"
 #include "../Model/Playing/RubricVoicer.h"
@@ -128,11 +129,41 @@ public:
     /** How even a strum is across its strings, 0..1 (rhythm-engine 4). */
     void setStrumEvenness (double evenness) noexcept { strumEvenness.store (juce::jlimit (0.0, 1.0, evenness), std::memory_order_relaxed); }
 
-    /** How long one strum takes to cross the strings. */
-    void setStrumDurationMs (double ms) noexcept { strumDurationMs.store (juce::jlimit (1.0, 250.0, ms), std::memory_order_relaxed); }
+    /*  A genre kit's (or tune section's) six-string crossing time, ms: the kit
+        default of ambiguity-resolutions 6, under the pattern's crossing_sps and
+        over the global parameter. 0 or less clears it. */
+    void setStrumDurationMs (double ms) noexcept { strumDurationMs.store (ms > 0.0 ? juce::jlimit (1.0, 250.0, ms) : 0.0, std::memory_order_relaxed); }
     double getStrumDurationMs() const noexcept { return strumDurationMs.load (std::memory_order_relaxed); }
 
     void setSeed (uint64_t seed) noexcept;
+
+    //==========================================================================
+    // strum-dynamics.md
+
+    /** ambiguity-resolutions 6: where a strum's crossing velocity comes from. */
+    enum class CrossingSource { step, pattern, kit, global };
+
+    /** 7: the STRUM group's settings, pushed every block by the ParameterBridge.
+        Their crossing velocity is the plugin-global default (1.1 source 4). */
+    void setStrumSettings (const StrumSettings& s) noexcept { strumSettings = s.clamped(); }
+    StrumSettings getStrumSettings() const noexcept { return strumSettings; }
+
+    double getStrumEvenness() const noexcept { return strumEvenness.load (std::memory_order_relaxed); }
+
+    /** 6.3: Easy mode's Feel, 0..1. It scales whichever crossing source is in
+        charge, and the evenness; 0.5 leaves both alone. */
+    void setStrumFeel (double feel) noexcept { strumFeel.store (juce::jlimit (0.0, 1.0, feel), std::memory_order_relaxed); }
+    double getStrumFeel() const noexcept { return strumFeel.load (std::memory_order_relaxed); }
+
+    /** ambiguity-resolutions 6: the step's crossing_sps, else the pattern's,
+        else the kit's default, else the global parameter. Before feel,
+        direction and striker. */
+    double resolveCrossingSps (const StrumStep& step, const RhythmPattern& pattern,
+                               CrossingSource* source = nullptr) const noexcept;
+
+    /** For the STRUM group: what the live pattern's plain steps take their
+        crossing from. Message thread (reads the pattern under its lock). */
+    CrossingSource getCrossingSource (double& sps) const;
 
     //==========================================================================
     /** Feeds the engine the block's MIDI so it can track held notes. Call before
@@ -170,14 +201,14 @@ private:
         density. Writes into `dest` and returns how many. */
     int selectNotesForStyle (int* dest, int maxNotes) noexcept;
 
-    void scheduleStrum (const StrumStep& step, int sampleOffset,
+    void scheduleStrum (const StrumStep& step, double sourceSps, int sampleOffset,
                         PlayEventQueue& out) noexcept;
 
     void scheduleFingerpick (const FingerpickStep& step, int sampleOffset,
                              PlayEventQueue& out) noexcept;
 
-    void emitNote (int stringIndex, double velocity, bool muted,
-                   int sampleOffset, PlayEventQueue& out) noexcept;
+    void emitNote (int stringIndex, double velocity, bool muted, double chuck,
+                   int strikerMaterial, int sampleOffset, PlayEventQueue& out) noexcept;
 
     void releaseAll (int sampleOffset, PlayEventQueue& out) noexcept;
 
@@ -199,8 +230,17 @@ private:
     std::atomic<double> voicingDensity { 100.0 };
     std::atomic<int> handPositionHint { 0 };
     // No capoFret here any more: TuningEngine owns the one capo. See setCapoFret.
-    std::atomic<double> strumEvenness { 0.6 };
-    std::atomic<double> strumDurationMs { 22.0 };
+    std::atomic<double> strumEvenness { 0.75 };   // strum-dynamics 4 / 7
+    std::atomic<double> strumDurationMs { 0.0 };  // no kit crossing until a kit sets one
+
+    StrumSettings strumSettings;
+    std::atomic<double> strumFeel { 0.5 };
+    StrumGesture gesture;
+    juce::uint32 strumCount = 0;
+
+    /** A kit's strum_duration_ms is the time to cross six strings, the strum
+        strum-dynamics 1's table is written for. */
+    static constexpr int kKitReferenceStrings = 6;
 
     // --- pattern, double buffered ------------------------------------------------
     mutable juce::CriticalSection patternLock;

@@ -1314,6 +1314,25 @@ The nine phase-2b specs INDEX lists are not on disk and are blocked.
 
 Last full green run: 413 tests, 2026-09-23 (before the partial capo).
 
+Session 2026-09-23/24 (stopped by the user mid-integration):
+- Committed and green (677 tests at 4525a7e): preset morph, amp/pedal faces
+  in the UI, presets keep their pedal settings, TUNE tab in the plugin,
+  PRACTICE tab and drawer hooks, click-to-main-out, the rubric voicer at
+  runtime, the HELP tab with F1 context help, user docs refreshed.
+- Committed UNBUILT at the stop (last commit): the ScrapeEngine
+  (string-scraping.md, 14 parameters) and StrumGesture / STRUM group
+  (strum-dynamics.md, ambiguity-resolutions 6; 9 parameters; count 425).
+  Both were written by assistant agents; the combined build was cancelled
+  before it finished. First thing next session: build, fix compile errors,
+  run `Scrape`, `StrumDynamics` and the full suite.
+- Written, not integrated, under Source/WIP/ (excluded from the build):
+  SlapEngine + TechniqueTriggers (string-slap-technique.md; parameters
+  426-450, edits described in the assistant report), FirstRun /
+  FirstEncounterHint (onboarding 5, 7-9, 11, 12 and TODO 14c; edits listed
+  in TODO 14c).
+
+Last full green run: 677 tests, 2026-09-24 (4525a7e, before scrape/strum).
+
 ## History
 
 See `docs/CHANGELOG.md`.

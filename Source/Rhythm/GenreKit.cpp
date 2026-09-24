@@ -481,6 +481,10 @@ bool GenreKitLibrary::apply (const GenreKit& kit, RhythmEngine& engine,
     engine.setStrumDurationMs (kit.strumDurationMs);
     engine.setStrumEvenness (kit.strumEvenness);
 
+    // strum-dynamics 6.3: a kit is written for Feel 0.5, which is where Easy
+    // mode's knob lands when a kit sets the humanise amount to 1.
+    engine.setStrumFeel (0.5);
+
     // A kit selects its first strum pattern, or its first fingerpick pattern if
     // it is a fingerstyle kit with no strums at all.
     for (const auto* list : { &kit.strumPatterns, &kit.fingerpickPatterns })

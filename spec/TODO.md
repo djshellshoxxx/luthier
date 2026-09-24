@@ -10,6 +10,28 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## In progress
 
+- [ ] **RESUME HERE (stopped 2026-09-24).** The last commit is not built.
+      1. Build LuthierTests; fix compile errors in the scrape and strum
+         integration (ScrapeEngine, StrumGesture, StrumGroup and their edits
+         to LuthierEngine, Parameters, RhythmEngine, Patterns,
+         MidiInterpreter, StringEngine, PluginProcessor, RhythmPanel,
+         EasyPanel, NoiseGroups, presets). Likely snags the author named:
+         `std::find` in RhythmEngine.cpp, StrumGestureTests' UI includes.
+      2. Run `Scrape`, `ScrapeEngineWiring`, `StrumDynamics`, then the full
+         suite (677 were green before). Untuned thresholds to expect:
+         chuckKillsPitch, the engine-level striker-noise test,
+         anActiveScrapeStaysInBudget.
+      3. Update docs/spec-coverage.md: SCR-*, SD-*, AR-6 rows.
+      4. Integrate Source/WIP: SlapEngine + TechniqueTriggers (params
+         426-450, count 450; ghost damping goes after the chuck line using
+         Damping::Chuck), then FirstRun / FirstEncounterHint (TODO 14c:
+         editor ctor `FirstRun::applyIfFirstRun()`, TestMain
+         `setStateForTesting (true, false)`, DiagnosticsPage "Restore
+         first-run experience", TunePanel / WorkshopPanel hints, UiState
+         practiceDrawerOpen, and five HelpContent text corrections). The
+         assistants' full edit lists are in the session transcript.
+      5. Next specs: muting-rhythm.md, then the rest of 13b.
+
 - [ ] **G. Realistic guitar illustration** - IN PROGRESS. Built and green
       (432 tests): `GuitarRenderer` draws every factory guitar from its parts
       (body outline data, finishes with grain/burst/aging/sparkle, lighting

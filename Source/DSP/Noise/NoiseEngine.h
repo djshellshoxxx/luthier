@@ -220,6 +220,12 @@ public:
     void setSamplePosition (juce::int64 position) noexcept { samplePosition = position; }
     int drainEvents (EventRecord* destination, int maxRecords) noexcept;
 
+    /*  A noise event rendered outside the pool - the ScrapeEngine's catches go
+        into the string's excitation, not through a generator (string-scraping.md 3) -
+        recorded for the strip and the SysEx out as if it had taken one. Audio thread. */
+    void recordExternalTrigger (NoiseClass c, int stringIndex, int offset, juce::int64 absoluteSample,
+                                float level, float durationMs) noexcept;
+
     //==========================================================================
     /*  midi-export.md 6: the same triggers, kept for the host block that made
         them, each at its sample, so the processor can send them as Luthier

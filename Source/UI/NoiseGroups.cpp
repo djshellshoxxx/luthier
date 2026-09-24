@@ -190,6 +190,12 @@ NoiseGroups::NoiseGroups (LuthierAudioProcessor& p)
                            "Density sets the click's pitch, damping its length, the surface the chirp");
     addAndMakeVisible (pickMaterial);
 
+    // pick-noise.md 8 / gui-integration 19: a mirror of the RHYTHM tab's STRUM group.
+    strikerDown.attachTo (processor, ParamIDs::strumStrikerDown, "What crosses the strings on a down-strum");
+    strikerUp.attachTo (processor, ParamIDs::strumStrikerUp, "What crosses the strings on an up-strum");
+    addAndMakeVisible (strikerDown);
+    addAndMakeVisible (strikerUp);
+
     attach (pickThickness, ParamIDs::pickThickness, "0.38 to 3 mm. Thicker is louder, lower and shorter.");
     attach (pickTip, ParamIDs::pickTipRadius, "Sharp tips click brighter and let go faster");
     attach (pickBevel, ParamIDs::pickBevel, "A bevelled edge releases the string more gradually");
@@ -276,7 +282,7 @@ int NoiseGroups::preferredHeight() const
     constexpr int row = 24, heading = 20, choice = 38;
 
     return heading + row + 5 * row + choice + NoiseEventStrip::preferredHeight + 8
-         + heading + choice + 8 * row + 8;
+         + heading + choice + 2 * choice + 8 * row + 8;
 }
 
 void NoiseGroups::paint (juce::Graphics& g)
@@ -308,6 +314,8 @@ void NoiseGroups::resized()
 
     pickHeading.setBounds (take (20));
     pickMaterial.setBounds (take (36));
+    strikerDown.setBounds (take (36));
+    strikerUp.setBounds (take (36));
 
     for (auto* s : { &pickThickness, &pickTip, &pickBevel, &pickWear, &pickAngle,
                      &pickClick, &pickChirp, &pickScrape })

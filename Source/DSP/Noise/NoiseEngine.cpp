@@ -356,6 +356,25 @@ int NoiseEngine::trigger (const NoiseEvent& event) noexcept
     return chosen;
 }
 
+void NoiseEngine::recordExternalTrigger (NoiseClass c, int stringIndex, int offset, juce::int64 absoluteSample,
+                                         float level, float durationMs) noexcept
+{
+    if (! (level > 0.0f) || c == NoiseClass::numClasses)
+        return;
+
+    if (numBlockTriggers < kMaxBlockTriggers)
+        blockTriggers[(size_t) numBlockTriggers++] = { c, stringIndex, offset, level, durationMs };
+
+    const int write = eventWrite.load (std::memory_order_relaxed);
+    const int next = (write + 1) % kEventRing;
+
+    if (next != eventRead.load (std::memory_order_acquire))
+    {
+        events[(size_t) write] = { absoluteSample, c, stringIndex, level };
+        eventWrite.store (next, std::memory_order_release);
+    }
+}
+
 int NoiseEngine::drainEvents (EventRecord* destination, int maxRecords) noexcept
 {
     int count = 0;

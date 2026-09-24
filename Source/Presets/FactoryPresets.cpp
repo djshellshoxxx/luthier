@@ -324,7 +324,7 @@ namespace
                 addStrings (r, NPS, LightG, Fresh, 0.10, Celluloid);
                 addRoom (r, SmallStudio, WoodRoom, 0.14);
                 r.values.emplace_back (P::pickupSelector, BridgeMid);
-                r.values.emplace_back (P::strumSpeed, 5.0);
+                r.values.emplace_back (P::strumCrossingSps, 200.0);
                 addPedal (r, false, 0, Comp, { 0.50, 0.35, 0.10, 0.25, 0.35, 1.0 });
                 addPedal (r, false, 1, EnvF, { 0.60, 320.0, 3.0, 4.0, 8.0, 0.0 });
             }
@@ -425,7 +425,7 @@ namespace
                 addMacros (r, 0.60, 0.95, 0.0, 0.56, 0.30, 0.65);
                 addStrings (r, PhosBronze, AcMedium, Fresh, 0.24, Celluloid);
                 addRoom (r, SmallStudio, WoodRoom, 0.28);
-                r.values.emplace_back (P::strumSpeed, 14.0);
+                r.values.emplace_back (P::strumCrossingSps, 71.4);
                 r.values.emplace_back (P::strumDir, 2.0);
                 r.values.emplace_back (P::piezoMicBlend, 0.80);
             }
@@ -452,7 +452,7 @@ namespace
                 addMacros (r, 0.68, 0.95, 0.0, 0.64, 0.34, 0.60);
                 addStrings (r, PhosBronze, AcLight, Fresh, 0.22, Celluloid);
                 addRoom (r, SmallStudio, WoodRoom, 0.30);
-                r.values.emplace_back (P::strumSpeed, 12.0);
+                r.values.emplace_back (P::strumCrossingSps, 83.3);
                 r.values.emplace_back (P::realismDetune, 6.0);
             }
 
@@ -483,7 +483,7 @@ namespace
                 r.values.emplace_back (P::useFingers, 1.0);
                 r.values.emplace_back (P::nailVsFlesh, 1.0);
                 r.values.emplace_back (P::bodyKnock, 0.35);
-                r.values.emplace_back (P::strumSpeed, 4.0);
+                r.values.emplace_back (P::strumCrossingSps, 250.0);
             }
 
             {

@@ -28,6 +28,7 @@ enum class StrumType
     upMute,
     rake,
     rasgueado,
+    chuck,      ///< strum-dynamics 6.1: a strum with the fretting hand flat on the strings. Appended.
     numTypes
 };
 
@@ -44,7 +45,7 @@ inline bool isMutedStrum (StrumType type) noexcept
 inline bool isDownStroke (StrumType type) noexcept
 {
     return type == StrumType::down || type == StrumType::downMute
-             || type == StrumType::rake;
+             || type == StrumType::rake || type == StrumType::chuck;
 }
 
 //==============================================================================
@@ -73,6 +74,7 @@ struct StrumStep
     StrumType type = StrumType::rest;
     double dynamic = 1.0;          ///< 0..1, scales velocity.
     uint16_t stringMask = 0x0FFF;  ///< Bit n set means string n takes part.
+    double crossingSps = 0.0;      ///< ambiguity-resolutions 6: a step's own override; 0 follows the pattern.
 
     bool isRest() const noexcept { return type == StrumType::rest; }
 };
@@ -114,6 +116,11 @@ public:
     double getSwing() const noexcept { return swing; }
     void setSwing (double s) noexcept { swing = juce::jlimit (0.5, 0.75, s); }
 
+    /** ambiguity-resolutions 6: the pattern's crossing velocity in strings per
+        second, or 0 when it names none (the kit's, then the global, apply). */
+    double getCrossingSps() const noexcept { return crossingSps; }
+    void setCrossingSps (double sps) noexcept { crossingSps = sps > 0.0 ? juce::jlimit (20.0, 800.0, sps) : 0.0; }
+
     const juce::StringArray& getTags() const noexcept { return tags; }
     void setTags (const juce::StringArray& t) { tags = t; }
 
@@ -144,6 +151,7 @@ private:
     int length = 16;
     Subdivision subdivision = Subdivision::sixteenth;
     double swing = 0.5;
+    double crossingSps = 0.0;
     juce::StringArray tags;
 
     std::array<StrumStep, kMaxSteps> strumSteps {};

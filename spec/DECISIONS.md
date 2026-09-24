@@ -524,3 +524,42 @@ chosen") and `ambiguity-resolutions.md`.
   "String Noise" (column 2 and a CHARACTER group) pins one topic, column 2's.
   No "Take the tour" button (onboarding 2): there is no tour for it to
   start. The help is English only (accessibility 7 pending).
+- **String scraping** (string-scraping.md; assistant-built ScrapeEngine).
+  Positions are millimetres from the saddle, clamped to the string, so the
+  spec's 200-900 mm default range fits any scale; past the fretting finger a
+  catch plays at 0.15x. The along-the-string scrape goes into the string's
+  excitation input (string-scraping 3, rank above pick-noise 1.2), while the
+  pick-noise 5 rake across the strings stays surface noise in PlayingNoise;
+  both reach Aux 8. `pick_scrape_amount` trims both, and 0 is silent and free
+  (coverage C-29). A string under the slide bar blocks a scrape
+  (technique-cascade 2 / 3.4 outrank string-scraping 5's "compatible"). The
+  keyswitches (notes 12 scrape, 13 rake down, 14 rake up, below a drop-A bass)
+  are recognised in ScrapeEngine::handleMidi ahead of both the rhythm engine
+  and the interpreter (input-routing's consumer order), consumed only while
+  armed with trigger = Keyswitch; "MPE zone" is channel 16. While a mod-wheel
+  or aftertouch sweep runs, vibrato-from-CC is held at 0. Pressure's pitch
+  load is a block-rate cents offset, since engine-technique-layer 3.2 keeps
+  StringEngine internals closed. The 14 parameters are flat like every other
+  (no APVTS group).
+- **Strum dynamics** (strum-dynamics.md, ambiguity-resolutions 6;
+  assistant-built StrumGesture). Acceleration: the formula as written bunches
+  the outer strings, against its own prose and test, so strike times use the
+  inverse smoothstep (first and last gaps about 2x the middle at a = 1; total
+  time unchanged). Up-strokes are x0.85 force ("softer", no figure given).
+  Forces are normalised so the strongest string is the step's dynamic. Misses:
+  the leading string at 3x, the others scaled so the mean equals
+  strum_miss_probability; misses follow the humanise amount and never touch
+  live keyboard chords. Crossing velocity resolves step, then pattern
+  (`crossing_sps`, new optional pattern-file fields), then the kit's
+  strum_duration_ms (a six-string crossing), then strum_crossing_sps - so
+  while a kit is loaded the knob does nothing, and the STRUM group says so
+  and offers USE KNOB. A live chord that arrives spread, or over MPE, keeps
+  each note's arrival; one that arrives together is strummed at the global
+  crossing. strum_speed is superseded but stays declared (automation is
+  indexed); presets migrate at 1000 / ms. strum_evenness stays rhythm-engine
+  state (kits set it), default now 0.75. A chuck step type is a full chuck;
+  chuck_amount blends every strum toward one; StringEngine's Damping::Chuck
+  shortens T60 to 10 ms at full. The MIDI chuck key range is deferred (no
+  range is specified). Easy mode's Feel scales the crossing and evenness by
+  6.3's map; its existing meaning (more humanise to the right) also stays -
+  a UX tension left for review.

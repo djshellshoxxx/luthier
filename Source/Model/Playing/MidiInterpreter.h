@@ -18,6 +18,7 @@
 #include "TechniqueEngine.h"
 #include "ChordVoicer.h"
 #include "RubricVoicer.h"
+#include "../../Rhythm/StrumGesture.h"
 #include <array>
 
 namespace luthier
@@ -127,6 +128,10 @@ public:
 
     void setStrumDirection (StrumDirection d) noexcept { strumDirection = d; }
     StrumDirection getStrumDirection() const noexcept { return strumDirection; }
+
+    /** strum-dynamics 7: the gesture's shape for live chords. Their speed comes
+        from setStrumSpeedMs, which the bridge feeds from strum_crossing_sps. */
+    void setStrumSettings (const StrumSettings& s) noexcept { strumSettings = s.clamped(); }
 
     /** Latency the chord window adds, in samples. */
     int getLatencySamples() const noexcept;
@@ -276,6 +281,10 @@ private:
     double strumSpeedMs = 9.0;
     StrumDirection strumDirection = StrumDirection::Down;
     bool nextStrumIsUp = false;
+
+    StrumSettings strumSettings;
+    StrumGesture strumGesture;
+    juce::uint32 strumCount = 0;
 
     // Controller state
     bool sustainDown = false;

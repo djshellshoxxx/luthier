@@ -171,6 +171,7 @@ void StringEngine::setDamping (Damping d, double amount) noexcept
     // A damped string still receives sympathetic energy (engine spec 5.6) - it
     // just dissipates it quickly - but a choked one accepts very little.
     couplingReceptivity = (d == Damping::Silenced) ? 0.0
+                        : (d == Damping::Chuck) ? 1.0 - dampingAmount
                         : (d == Damping::Choked) ? 0.15
                         : (d == Damping::PalmMute) ? 0.45
                         : (harmonicPartial > 0) ? 0.35
@@ -270,6 +271,10 @@ void StringEngine::updateLoopCoefficients() noexcept
         case Damping::Silenced:
             cutoff = 400.0;
             break;
+
+        case Damping::Chuck:
+            cutoff = juce::jmap (dampingAmount, open, 400.0);
+            break;
     }
 
     // Harmonics ring clean but die noticeably sooner than a stopped note.
@@ -297,6 +302,12 @@ void StringEngine::updateLoopCoefficients() noexcept
     // 2.4) has to be inaudible in 200 ms on a string of any sustain.
     if (damping == Damping::Silenced)
         t60 = 0.08;
+
+    /*  strum-dynamics 6.1: a chuck's decay is geometric between the note's own
+        and 10 ms, so a light chuck shortens the note and a full one stops the
+        loop within about a period of a low E - which is what takes the pitch. */
+    if (damping == Damping::Chuck)
+        t60 = std::exp (juce::jmap (dampingAmount, std::log (juce::jmax (0.01, t60)), std::log (0.01)));
 
     t60 = juce::jlimit (0.01, 60.0, t60);
 

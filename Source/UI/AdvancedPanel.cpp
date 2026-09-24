@@ -911,8 +911,10 @@ void AdvancedPanel::buildColumn3()
     addKnob (chordWindow, "Chord Window", ParamIDs::chordWindow,
              "How long Poly mode waits to collect a chord. Longer catches chords split "
              "across buffers; shorter has less latency.");
-    addKnob (strumSpeed, "Strum Speed", ParamIDs::strumSpeed,
-             "Time between strings as the pick crosses them");
+    // strum-dynamics 7: a mirror of the STRUM group's crossing control, which
+    // replaced strum_speed (gui-integration 0.1 allows mirrors).
+    addKnob (strumSpeed, "Strum Crossing", ParamIDs::strumCrossingSps,
+             "How fast a strummed chord crosses the strings, in strings per second. 200 is a medium strum.");
     addChoice (strumDirection, "Strum", ParamIDs::strumDir, "Strum direction");
     addKnob (vibratoRate, "Vibrato Rate", ParamIDs::vibratoRate, "Vibrato speed");
     addKnob (vibratoDepth, "Vibrato Depth", ParamIDs::vibratoDepth, "Vibrato width in cents");

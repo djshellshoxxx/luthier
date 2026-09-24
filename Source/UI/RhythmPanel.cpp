@@ -19,6 +19,7 @@ namespace
             case StrumType::upMute:    return "^.";
             case StrumType::rake:      return "R";
             case StrumType::rasgueado: return "*";
+            case StrumType::chuck:     return "x";
             case StrumType::rest:
             case StrumType::numTypes:
             default:                   return "";
@@ -30,7 +31,7 @@ namespace
         if (type == StrumType::rest)
             return Palette::panelSunken;
 
-        if (isMutedStrum (type))
+        if (isMutedStrum (type) || type == StrumType::chuck)
             return Palette::secondaryDim;
 
         if (type == StrumType::rasgueado)
@@ -597,6 +598,11 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (*fingerpickGrid);
 
     buildFeelControls();
+
+    // gui-integration 4.4: the STRUM group (strum-dynamics 6.3) follows the feel controls.
+    strumGroup = std::make_unique<StrumGroup> (processor);
+    addAndMakeVisible (*strumGroup);
+
     buildBrowser();
 
     indicators = std::make_unique<RhythmIndicators> (processor);
@@ -763,15 +769,6 @@ void RhythmPanel::buildFeelControls()
     ghostSlider.setTooltip ("Chance of an extra muted stroke before a hit.");
     ghostSlider.onValueChange = [this] { pushHumaniseToEngine(); };
     addAndMakeVisible (ghostSlider);
-
-    styleValueSlider (strumDurationSlider, 1.0, 120.0, 1.0, " ms");
-    strumDurationSlider.setTooltip ("How long the pick takes to cross the strings.");
-    strumDurationSlider.onValueChange = [this]
-    {
-        if (! updatingControls)
-            rhythm().setStrumDurationMs (strumDurationSlider.getValue());
-    };
-    addAndMakeVisible (strumDurationSlider);
 }
 
 void RhythmPanel::buildBrowser()
@@ -957,10 +954,10 @@ void RhythmPanel::refreshFromEngine()
     velocitySlider.setValue (humanise.velocityPercent, juce::dontSendNotification);
     missSlider.setValue (humanise.missPercent, juce::dontSendNotification);
     ghostSlider.setValue (humanise.ghostPercent, juce::dontSendNotification);
-    strumDurationSlider.setValue (engine.getStrumDurationMs(), juce::dontSendNotification);
 
     strumGrid->refresh();
     fingerpickGrid->refresh();
+    strumGroup->refresh();
 }
 
 //==============================================================================
@@ -995,7 +992,8 @@ int RhythmPanel::preferredHeight() const
          + 16 + 26 + 22 + 22 + 26                // voicing heading + controls
          + 16 + StrumGrid::preferredHeight       // strum grid
          + 16 + FingerpickGrid::preferredHeight  // fingerpick grid
-         + 16 + 22 * 6                           // feel heading + six sliders
+         + 16 + 22 * 5                           // feel heading + five sliders
+         + StrumGroup::preferredHeight + 4       // STRUM group
          + 16 + 26 + 96 + 26                     // browser heading, filter, list, buttons
          + RhythmIndicators::preferredHeight
          + 24;
@@ -1067,7 +1065,9 @@ void RhythmPanel::resized()
     velocitySlider.setBounds (row (22));
     missSlider.setBounds (row (22));
     ghostSlider.setBounds (row (22));
-    strumDurationSlider.setBounds (row (22));
+
+    // ---- strum (strum-dynamics 6.3) ----------------------------------------------
+    strumGroup->setBounds (row (StrumGroup::preferredHeight, 4));
 
     // ---- browser -----------------------------------------------------------------
     browserHeading.setBounds (row (16));

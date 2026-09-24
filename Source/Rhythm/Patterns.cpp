@@ -15,6 +15,7 @@ const char* getStrumTypeName (StrumType type) noexcept
         case StrumType::upMute:    return "UpMute";
         case StrumType::rake:      return "Rake";
         case StrumType::rasgueado: return "Rasgueado";
+        case StrumType::chuck:     return "Chuck";
         case StrumType::numTypes:
         default:                   return "Rest";
     }
@@ -88,6 +89,8 @@ void RhythmPattern::clear() noexcept
 
     for (auto& s : fingerpickSteps)
         s = FingerpickStep {};
+
+    crossingSps = 0.0;
 }
 
 StrumStep RhythmPattern::getStrumStep (int index) const noexcept
@@ -109,6 +112,10 @@ void RhythmPattern::setStrumStep (int index, const StrumStep& step) noexcept
     // after a round trip: the serialiser skips rests entirely, so a rest that
     // carried a mask would come back with the default one and not match.
     s.stringMask = step.isRest() ? 0x0FFF : step.stringMask;
+
+    // ambiguity-resolutions 6: a step may name its own crossing velocity.
+    s.crossingSps = step.isRest() ? 0.0
+                                  : (step.crossingSps > 0.0 ? juce::jlimit (20.0, 800.0, step.crossingSps) : 0.0);
 }
 
 FingerpickStep RhythmPattern::getFingerpickStep (int index) const noexcept
@@ -169,6 +176,10 @@ juce::var RhythmPattern::toVar() const
     root->setProperty ("subdivision", getSubdivisionName (subdivision));
     root->setProperty ("swing", swing);
 
+    // ambiguity-resolutions 6: written only when the pattern names one.
+    if (crossingSps > 0.0)
+        root->setProperty ("crossing_sps", crossingSps);
+
     juce::Array<juce::var> stepArray;
 
     for (int i = 0; i < length; ++i)
@@ -184,6 +195,9 @@ juce::var RhythmPattern::toVar() const
             o->setProperty ("step", i);
             o->setProperty ("event", getStrumTypeName (s.type));
             o->setProperty ("dynamic", s.dynamic);
+
+            if (s.crossingSps > 0.0)
+                o->setProperty ("crossing_sps", s.crossingSps);
 
             // The mask is written low-index-first, as the spec's example shows.
             juce::String maskText;
@@ -265,6 +279,9 @@ RhythmPattern RhythmPattern::fromVar (const juce::var& state)
     if (root->hasProperty ("swing"))
         pattern.setSwing ((double) root->getProperty ("swing"));
 
+    if (root->hasProperty ("crossing_sps"))
+        pattern.setCrossingSps ((double) root->getProperty ("crossing_sps"));
+
     if (auto* assignment = root->getProperty ("finger_strings").getArray())
         for (int f = 0; f < juce::jmin ((int) Finger::numFingers, assignment->size()); ++f)
             pattern.setStringForFinger ((Finger) f, (int) assignment->getReference (f));
@@ -302,6 +319,9 @@ RhythmPattern RhythmPattern::fromVar (const juce::var& state)
             {
                 StrumStep step;
                 step.dynamic = dynamic;
+
+                if (o->hasProperty ("crossing_sps"))
+                    step.crossingSps = (double) o->getProperty ("crossing_sps");
 
                 for (int t = 0; t < (int) StrumType::numTypes; ++t)
                 {
@@ -396,6 +416,7 @@ namespace
                 case 'U': step.type = StrumType::upMute;    step.dynamic = 0.7;  break;
                 case 'r': step.type = StrumType::rake;      step.dynamic = 0.75; break;
                 case 'R': step.type = StrumType::rasgueado; step.dynamic = 0.9;  break;
+                case 'c': step.type = StrumType::chuck;     step.dynamic = 0.8;  break;
                 case '.':
                 default:  step.type = StrumType::rest;      break;
             }

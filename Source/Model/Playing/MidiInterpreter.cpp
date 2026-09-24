@@ -1,5 +1,7 @@
 #include "MidiInterpreter.h"
 
+#include <algorithm>
+
 namespace luthier
 {
 
@@ -84,6 +86,7 @@ void MidiInterpreter::reset() noexcept
 
     // Deterministic humanisation after a reset, for reproducible renders.
     rng.setSeed (0x4D1D1ull);
+    strumCount = 0;
 }
 
 void MidiInterpreter::setNumStrings (int n) noexcept
@@ -479,12 +482,14 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
 
     int notes[kMaxPending];
     double velocities[kMaxPending];
+    int64_t arrivals[kMaxPending];
     const int count = numPending;
 
     for (int i = 0; i < count; ++i)
     {
         notes[i] = pending[(size_t) i].midiNote;
         velocities[i] = pending[(size_t) i].velocity;
+        arrivals[i] = pending[(size_t) i].timestamp;
     }
 
     const int64_t groupTimestamp = pending[0].timestamp;
@@ -520,11 +525,55 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
         nextStrumIsUp = ! nextStrumIsUp;
     }
 
-    // Human strums vary in speed; a machine-even strum is instantly recognisable.
-    const double speedVar = 1.0 + rng.nextGaussian() * humanise.strumSpeedVariation
-                                  * humanise.amount * 0.5;
-    const double perStringMs = juce::jmax (0.0, strumSpeedMs * speedVar);
-    const double perStringSamples = perStringMs * 0.001 * sr;
+    /*  strum-dynamics 1.1: MPE / hex routing (source 1) and a chord the player
+        rolled (source 2) carry their own timing: each note sounds at its own
+        arrival, one window late like every chord, and nothing is synthesised -
+        "a player who rolls a chord gets their roll". Only a chord that arrived
+        all at once is strummed, as one gesture at the global crossing (source 4). */
+    int64_t lastArrival = groupTimestamp;
+
+    for (int i = 0; i < count; ++i)
+        lastArrival = juce::jmax (lastArrival, arrivals[i]);
+
+    const bool playedSpread = mpeEnabled || lastArrival > groupTimestamp;
+
+    std::array<StrumStrike, kMaxStrings> strikes {};
+    int planned = 0;
+
+    if (isChord && ! playedSpread && strumSpeedMs > 0.0)
+    {
+        std::array<int, kMaxStrings> order {};
+        int numOrdered = 0;
+
+        for (int i = 0; i < voicing.numNotes && numOrdered < kMaxStrings; ++i)
+            if (voicing.notes[(size_t) i].valid)
+                order[(size_t) numOrdered++] = voicing.notes[(size_t) i].stringIndex;
+
+        // A downstroke crosses the low strings first: string index counts down
+        // from the high E, so the low strings have the HIGHEST index.
+        if (strumUp)
+            std::sort (order.begin(), order.begin() + numOrdered);
+        else
+            std::sort (order.begin(), order.begin() + numOrdered, [] (int a, int b) { return a > b; });
+
+        // Human strums vary in speed; a machine-even strum is instantly recognisable.
+        const double speedVar = 1.0 + rng.nextGaussian() * humanise.strumSpeedVariation
+                                      * humanise.amount * 0.5;
+
+        // Striker and chuck are the rhythm engine's; a live chord is the player's pick.
+        auto live = strumSettings;
+        live.strikerDown = live.strikerUp = Striker::pick;
+
+        StrumRequest request;
+        request.strings = order.data();
+        request.numStrings = numOrdered;
+        request.down = ! strumUp;
+        request.sourceSps = 1000.0 / (strumSpeedMs * juce::jmax (0.05, speedVar));
+        request.strumIndex = strumCount++;
+        request.missScale = 0.0;   // a key the player pressed always sounds
+
+        planned = strumGesture.plan (live, request, strikes.data(), (int) strikes.size());
+    }
 
     for (int i = 0; i < voicing.numNotes; ++i)
     {
@@ -536,19 +585,28 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
         int delaySamples = 0;
         double velocityScale = 1.0;
 
-        if (isChord && perStringSamples > 0.0)
+        if (planned > 0)
         {
-            // A downstroke crosses the low strings first: string index counts down
-            // from the high E, so the low strings have the HIGHEST index and must
-            // fire first.
-            const int order = strumUp ? note.stringIndex : (numStrings - 1 - note.stringIndex);
-            delaySamples = (int) (order * perStringSamples);
-
-            // Up-strums are lighter, and the pick loses energy as it crosses.
-            if (strumUp)
-                velocityScale = 0.78 - 0.02 * (double) order;
-            else
-                velocityScale = 1.0 - 0.025 * (double) order;
+            for (int k = 0; k < planned; ++k)
+            {
+                if (strikes[(size_t) k].stringIndex == note.stringIndex)
+                {
+                    delaySamples = (int) std::round (strikes[(size_t) k].timeSeconds * sr);
+                    velocityScale = strikes[(size_t) k].force;
+                    break;
+                }
+            }
+        }
+        else if (playedSpread)
+        {
+            for (int k = 0; k < count; ++k)
+            {
+                if (notes[k] == note.midiNote)
+                {
+                    delaySamples = (int) (arrivals[k] - groupTimestamp);
+                    break;
+                }
+            }
         }
 
         auto humanised = note;

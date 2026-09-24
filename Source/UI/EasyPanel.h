@@ -87,6 +87,9 @@ public:
     /** 3.5's readout: the chord and the next strum's arrow. */
     juce::String getRhythmReadout() const { return rhythmReadout.getText(); }
 
+    /** For tests: the rhythm strip's Feel knob. */
+    juce::Slider& getRhythmFeelSlider() noexcept { return rhythmFeelSlider; }
+
     /** 3.5's dice: a random genre kit. */
     void rollRhythmDice();
 

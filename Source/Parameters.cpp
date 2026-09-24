@@ -1,5 +1,6 @@
 #include "Parameters.h"
 #include "PhysicalRange.h"
+#include "Rhythm/StrumGesture.h"
 
 namespace luthier
 {
@@ -716,6 +717,36 @@ APVTS::ParameterLayout Parameters::createLayout()
     // ambiguity-resolutions.md 5.2, appended likewise.
     add (floatParam  (ParamIDs::presetMorphPosition, "Preset Morph", 0.0f, 1.0f, 0.0f));
 
+    // string-scraping.md 2 (2026-09-23), appended likewise.
+    add (boolParam   (ParamIDs::scrapeArmed,       "Scrape Armed", false));
+    add (choiceParam (ParamIDs::scrapeTrigger,     "Scrape Trigger", { "Keyswitch", "CC", "MPE Zone", "Button Only" }, 0));
+    add (choiceParam (ParamIDs::scrapeDirection,   "Scrape Direction", { "Bridge to Nut", "Nut to Bridge", "Hold + Sweep" }, 0));
+    add (choiceParam (ParamIDs::scrapeSweepSource, "Scrape Sweep Source",
+                      { "Auto", "Mod Wheel", "Expression", "Aftertouch", "Custom CC" }, 0));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::scrapeTriggerCc), "Scrape Trigger CC", 0, 127, 85));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::scrapeSweepCc), "Scrape Sweep CC", 0, 127, 16));
+    add (floatParam  (ParamIDs::scrapeStartMm,     "Scrape Start",    0.0f, 1200.0f, 200.0f, 1.0f, "mm"));
+    add (floatParam  (ParamIDs::scrapeEndMm,       "Scrape End",      0.0f, 1200.0f, 900.0f, 1.0f, "mm"));
+    add (floatParam  (ParamIDs::scrapeDuration,    "Scrape Duration", 100.0f, 3000.0f, 600.0f, 0.25f, "ms"));
+    add (floatParam  (ParamIDs::scrapePressure,    "Scrape Pressure", 0.0f, 1.0f, 0.5f));
+    add (choiceParam (ParamIDs::scrapeTool,        "Scrape Tool", { "Pick", "Nail", "Thumb" }, 0));
+    add (floatParam  (ParamIDs::scrapeAngle,       "Scrape Angle", -60.0f, 60.0f, 20.0f, 1.0f, "deg"));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::scrapeStringMask), "Scrape Strings",
+                                                    0, (1 << kMaxStrings) - 1, 0));
+    add (floatParam  (ParamIDs::scrapeRetrigger,   "Scrape Retrigger", 0.0f, 1000.0f, 200.0f, 1.0f, "ms"));
+
+    // strum-dynamics.md 7, appended likewise. Crossing centres on its 200 sps
+    // default; misses skew toward the small values that matter.
+    add (floatParam  (ParamIDs::strumCrossingSps,     "Strum Crossing",      20.0f, 800.0f, 200.0f, 0.2308f, "sps"));
+    add (floatParam  (ParamIDs::strumAcceleration,    "Strum Acceleration",   0.0f, 1.0f, 0.35f));
+    add (floatParam  (ParamIDs::strumUpVelocityRatio, "Up-Stroke Speed",      0.5f, 2.0f, 1.25f));
+    add (floatParam  (ParamIDs::strumTilt,            "Strum Tilt",          -1.0f, 1.0f, 0.15f));
+    add (floatParam  (ParamIDs::strumMissProbability, "Strum Misses",         0.0f, 1.0f, 0.04f, 0.1f));
+    add (choiceParam (ParamIDs::strumStrikerDown,     "Down Striker",         getStrikerNames(), 0));
+    add (choiceParam (ParamIDs::strumStrikerUp,       "Up Striker",           getStrikerNames(), 0));
+    add (floatParam  (ParamIDs::chuckAmount,          "Chuck Amount",         0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::chuckDamping,         "Chuck Damping",        0.0f, 1.0f, 0.92f));
+
     return layout;
 }
 
@@ -884,6 +915,33 @@ void ParameterBridge::applyToEngine() noexcept
         squeak.minTravelFrets = value (ParamIDs::squeakMinTravel);
         engine.setSqueak (squeak);
     }
+
+    // ---- string scraping (string-scraping.md 2) ------------------------------------
+    {
+        ScrapeSettings scrape;
+        scrape.armed           = value (ParamIDs::scrapeArmed) > 0.5f;
+        scrape.trigger         = (ScrapeTriggerSource) juce::jlimit (0, (int) ScrapeTriggerSource::numSources - 1,
+                                                                      (int) value (ParamIDs::scrapeTrigger));
+        scrape.direction       = (ScrapeDirection) juce::jlimit (0, (int) ScrapeDirection::numDirections - 1,
+                                                                  (int) value (ParamIDs::scrapeDirection));
+        scrape.sweepSource     = (ScrapeSweepSource) juce::jlimit (0, (int) ScrapeSweepSource::numSources - 1,
+                                                                    (int) value (ParamIDs::scrapeSweepSource));
+        scrape.triggerCc       = juce::roundToInt (value (ParamIDs::scrapeTriggerCc));
+        scrape.sweepCc         = juce::roundToInt (value (ParamIDs::scrapeSweepCc));
+        scrape.startPositionMm = value (ParamIDs::scrapeStartMm);
+        scrape.endPositionMm   = value (ParamIDs::scrapeEndMm);
+        scrape.durationMs      = value (ParamIDs::scrapeDuration);
+        scrape.pressure        = value (ParamIDs::scrapePressure);
+        scrape.tool            = (ScrapeTool) juce::jlimit (0, (int) ScrapeTool::numTools - 1,
+                                                             (int) value (ParamIDs::scrapeTool));
+        scrape.angleDegrees    = value (ParamIDs::scrapeAngle);
+        scrape.stringMask      = juce::roundToInt (value (ParamIDs::scrapeStringMask));
+        scrape.retriggerMs     = value (ParamIDs::scrapeRetrigger);
+
+        // Coverage C-29: pick_scrape_amount is the scrape's level; 1 at its 0.25 default.
+        scrape.level           = value (ParamIDs::pickScrapeAmount) / 0.25f;
+        engine.setScrapeSettings (scrape);
+    }
     engine.setPickAngle (value (ParamIDs::pickAngle));
     engine.setNailVsFlesh (value (ParamIDs::nailVsFlesh));
     // fret_action is superseded by the setup geometry below (fret-buzz.md);
@@ -948,7 +1006,9 @@ void ParameterBridge::applyToEngine() noexcept
     auto& interp = engine.getMidiInterpreter();
     interp.setMpeEnabled (value (ParamIDs::mpeEnabled) > 0.5f);
     interp.setPitchBendRange (value (ParamIDs::bendRange));
-    interp.setStrumSpeedMs (value (ParamIDs::strumSpeed));
+    // strum-dynamics 1.1 source 4: live chords cross at the plugin-global
+    // velocity, which strum_speed (ms per string) used to set.
+    interp.setStrumSpeedMs (1000.0 / juce::jmax (1.0, (double) value (ParamIDs::strumCrossingSps)));
     interp.setStrumDirection ((StrumDirection) (int) value (ParamIDs::strumDir));
     interp.setChordWindowMs (value (ParamIDs::chordWindow));
 
@@ -961,6 +1021,28 @@ void ParameterBridge::applyToEngine() noexcept
     hum.strumSpeedVariation = value (ParamIDs::humStrum);
     hum.amount = macroHumanize;
     interp.setHumanisation (hum);
+
+    // ---- strum (strum-dynamics.md 7) --------------------------------------------
+    {
+        auto& rhythm = engine.getRhythmEngine();
+
+        StrumSettings strum;
+        strum.crossingSps     = value (ParamIDs::strumCrossingSps);
+        strum.acceleration    = value (ParamIDs::strumAcceleration);
+        strum.upVelocityRatio = value (ParamIDs::strumUpVelocityRatio);
+        strum.tilt            = value (ParamIDs::strumTilt);
+        strum.missProbability = value (ParamIDs::strumMissProbability);
+        strum.strikerDown     = (Striker) juce::jlimit (0, (int) Striker::numStrikers - 1, (int) value (ParamIDs::strumStrikerDown));
+        strum.strikerUp       = (Striker) juce::jlimit (0, (int) Striker::numStrikers - 1, (int) value (ParamIDs::strumStrikerUp));
+        strum.chuckAmount     = value (ParamIDs::chuckAmount);
+        strum.chuckDamping    = value (ParamIDs::chuckDamping);
+
+        // strum_evenness is the rhythm engine's own; live play follows it too.
+        strum.evenness = rhythm.getStrumEvenness();
+
+        rhythm.setStrumSettings (strum);
+        interp.setStrumSettings (strum);
+    }
 
     auto& tech = engine.getTechniqueEngine();
     tech.setLegatoWindowMs (value (ParamIDs::legatoWindow));

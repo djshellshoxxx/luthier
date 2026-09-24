@@ -88,12 +88,15 @@ void RhythmEngine::reset() noexcept
     nextStrumType.store ((int) StrumType::rest, std::memory_order_relaxed);
 
     rng.setSeed (seed);
+    gesture.setSeed (seed);
+    strumCount = 0;
 }
 
 void RhythmEngine::setSeed (uint64_t newSeed) noexcept
 {
     seed = newSeed;
     rng.setSeed (seed);
+    gesture.setSeed (seed);
 }
 
 //==============================================================================
@@ -147,6 +150,39 @@ RhythmHumanise RhythmEngine::getHumanise() const noexcept
 {
     const juce::ScopedLock sl (humaniseLock);
     return humanise;
+}
+
+//==============================================================================
+double RhythmEngine::resolveCrossingSps (const StrumStep& step, const RhythmPattern& pattern,
+                                         CrossingSource* source) const noexcept
+{
+    auto answer = [source] (CrossingSource from, double sps)
+    {
+        if (source != nullptr)
+            *source = from;
+
+        return sps;
+    };
+
+    if (step.crossingSps > 0.0)
+        return answer (CrossingSource::step, step.crossingSps);
+
+    if (pattern.getCrossingSps() > 0.0)
+        return answer (CrossingSource::pattern, pattern.getCrossingSps());
+
+    const double kitMs = strumDurationMs.load (std::memory_order_relaxed);
+
+    if (kitMs > 0.0)
+        return answer (CrossingSource::kit, (double) (kKitReferenceStrings - 1) / (kitMs * 0.001));
+
+    return answer (CrossingSource::global, strumSettings.crossingSps);
+}
+
+RhythmEngine::CrossingSource RhythmEngine::getCrossingSource (double& sps) const
+{
+    auto source = CrossingSource::global;
+    sps = resolveCrossingSps (StrumStep {}, getPattern(), &source);
+    return source;
 }
 
 //==============================================================================
@@ -363,8 +399,8 @@ void RhythmEngine::revoice() noexcept
 }
 
 //==============================================================================
-void RhythmEngine::emitNote (int stringIndex, double velocity, bool muted,
-                             int sampleOffset, PlayEventQueue& out) noexcept
+void RhythmEngine::emitNote (int stringIndex, double velocity, bool muted, double chuck,
+                             int strikerMaterial, int sampleOffset, PlayEventQueue& out) noexcept
 {
     if (! juce::isPositiveAndBelow (stringIndex, numStrings))
         return;
@@ -408,6 +444,8 @@ void RhythmEngine::emitNote (int stringIndex, double velocity, bool muted,
     on.sampleOffset = juce::jmax (0, sampleOffset);
     on.slideFromFret = -1.0;
     on.slideSeconds = 0.0;
+    on.chuck = chuck;
+    on.strikerMaterial = strikerMaterial;
 
     if (tuning != nullptr)
         on.pitchHz = tuning->computeFrequency (stringIndex, found->fretPosition, 0.0);
@@ -435,7 +473,7 @@ void RhythmEngine::releaseAll (int sampleOffset, PlayEventQueue& out) noexcept
 }
 
 //==============================================================================
-void RhythmEngine::scheduleStrum (const StrumStep& step, int sampleOffset,
+void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int sampleOffset,
                                   PlayEventQueue& out) noexcept
 {
     if (step.isRest() || ! voicingValid)
@@ -481,15 +519,62 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, int sampleOffset,
         std::sort (participating.begin(), participating.begin() + numParticipating);
 
     const bool muted = isMutedStrum (step.type);
-    const double evenness = strumEvenness.load (std::memory_order_relaxed);
+    const bool chuck = step.type == StrumType::chuck;
 
-    double durationMs = strumDurationMs.load (std::memory_order_relaxed);
+    // strum-dynamics 6.3: Feel scales whichever crossing source is in charge,
+    // and the evenness, by the same map; at 0.5 it changes nothing.
+    const double feel = getStrumFeel();
+
+    auto settings = strumSettings;
+    settings.evenness = juce::jlimit (0.0, 1.0, strumEvenness.load (std::memory_order_relaxed)
+                                                  * StrumFeel::evennessScaleFor (feel));
+
+    double sps = sourceSps * StrumFeel::crossingScaleFor (feel);
 
     // A rake is slower and deliberately drags; a rasgueado is a burst of four.
     if (step.type == StrumType::rake)
-        durationMs *= 1.6;
+        sps /= 1.6;
+
+    const int strikerMaterial = getStrikerMaterial (downward ? settings.strikerDown : settings.strikerUp);
+    const double chuckAmount = StrumGesture::chuckFor (settings, chuck);
+
+    // 6.1: the fretting hand lands flat before the strum crosses, so a string
+    // still ringing that this strum does not strike is stopped too. (Struck
+    // ones are stopped by emitNote, as any re-strike is.)
+    if (chuck)
+    {
+        for (int s = 0; s < numStrings; ++s)
+        {
+            const auto bit = (uint16_t) (1u << s);
+            const auto end = participating.begin() + numParticipating;
+
+            if ((soundingMask & bit) == 0 || std::find (participating.begin(), end, s) != end)
+                continue;
+
+            NoteOffEvent off;
+            off.stringIndex = s;
+            off.sampleOffset = juce::jmax (0, sampleOffset);
+            off.letRing = false;
+            out.addNoteOff (off);
+
+            soundingMask = (uint16_t) (soundingMask & ~bit);
+        }
+    }
+
+    // Ground rule 1: timing and velocity humanisation belong to the gesture,
+    // not each string - per string they would undo the acceleration profile.
+    double gestureOffset = (double) sampleOffset;
+
+    if (h.timingMs > 0.0)
+        gestureOffset += rng.nextGaussian() * h.timingMs * 0.001 * sr * h.amount * 0.5;
+
+    double baseVelocity = step.dynamic;
+
+    if (h.velocityPercent > 0.0)
+        baseVelocity *= 1.0 + rng.nextGaussian() * (h.velocityPercent * 0.01 * h.amount) * 0.5;
 
     const int strokes = (step.type == StrumType::rasgueado) ? 4 : 1;
+    std::array<StrumStrike, kMaxStrings> strikes {};
 
     for (int stroke = 0; stroke < strokes; ++stroke)
     {
@@ -498,31 +583,28 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, int sampleOffset,
                                         ? (double) stroke * (10.0 + rng.nextDouble() * 10.0)
                                         : 0.0;
 
-        const double spacingSamples = (numParticipating > 1)
-                                        ? (durationMs * 0.001 * sr) / (double) (numParticipating - 1)
-                                        : 0.0;
+        StrumRequest request;
+        request.strings = participating.data();
+        request.numStrings = numParticipating;
+        request.down = downward;
+        request.sourceSps = sps;
+        request.strumIndex = strumCount++;
+        request.missScale = h.amount;   // humanise off is a hand that never misses
 
-        for (int i = 0; i < numParticipating; ++i)
+        const int planned = gesture.plan (settings, request, strikes.data(), (int) strikes.size());
+
+        for (int i = 0; i < planned; ++i)
         {
-            // Dynamics fall off across the strum: the pick loses energy as it
-            // crosses, and evenness decides by how much.
-            const double fallOff = 1.0 - (1.0 - evenness) * 0.15
-                                           * ((double) i / (double) juce::jmax (1, numParticipating - 1));
+            const auto& strike = strikes[(size_t) i];
 
-            double velocity = step.dynamic * fallOff;
+            // 3.1: the hand crossed this string without striking it.
+            if (strike.missed)
+                continue;
 
-            if (h.velocityPercent > 0.0)
-                velocity *= 1.0 + rng.nextGaussian() * (h.velocityPercent * 0.01 * h.amount) * 0.5;
+            const double offset = gestureOffset + strokeOffsetMs * 0.001 * sr + strike.timeSeconds * sr;
 
-            double offset = (double) sampleOffset
-                              + strokeOffsetMs * 0.001 * sr
-                              + spacingSamples * (double) i;
-
-            if (h.timingMs > 0.0)
-                offset += rng.nextGaussian() * h.timingMs * 0.001 * sr * h.amount * 0.5;
-
-            emitNote (participating[(size_t) i], velocity, muted,
-                      (int) juce::jmax (0.0, offset), out);
+            emitNote (strike.stringIndex, baseVelocity * strike.force, muted, chuckAmount,
+                      strikerMaterial, (int) std::round (juce::jmax (0.0, offset)), out);
         }
     }
 
@@ -553,7 +635,7 @@ void RhythmEngine::scheduleFingerpick (const FingerpickStep& step, int sampleOff
     if (h.timingMs > 0.0)
         offset += rng.nextGaussian() * h.timingMs * 0.001 * sr * h.amount * 0.5;
 
-    emitNote (stringIndex, velocity, false, (int) juce::jmax (0.0, offset), out);
+    emitNote (stringIndex, velocity, false, 0.0, -1, (int) juce::jmax (0.0, offset), out);
 }
 
 //==============================================================================
@@ -682,6 +764,9 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
         {
             const auto step = pattern.getStrumStep (stepInPattern);
 
+            // ambiguity-resolutions 6: step, then pattern, then kit, then the STRUM group.
+            const double crossingSps = resolveCrossingSps (step, pattern);
+
             // A ghost stroke is an extra muted brush just before the hit, which
             // is most of what makes a strummed part sound played rather than
             // programmed.
@@ -695,10 +780,10 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
                 ghost.dynamic = step.dynamic * 0.35;
 
                 const int ghostOffset = juce::jmax (0, sampleOffset - (int) (0.035 * sr));
-                scheduleStrum (ghost, ghostOffset, out);
+                scheduleStrum (ghost, crossingSps, ghostOffset, out);
             }
 
-            scheduleStrum (step, sampleOffset, out);
+            scheduleStrum (step, crossingSps, sampleOffset, out);
         }
         else
         {
@@ -730,6 +815,7 @@ juce::var RhythmEngine::toVar() const
         about. fromVar still reads an old one - see below. */
     root->setProperty ("strumEvenness", strumEvenness.load (std::memory_order_relaxed));
     root->setProperty ("strumDurationMs", getStrumDurationMs());
+    root->setProperty ("strumFeel", getStrumFeel());
     root->setProperty ("pattern", getPattern().toVar());
 
     const auto h = getHumanise();
@@ -773,6 +859,9 @@ void RhythmEngine::fromVar (const juce::var& state)
 
     if (root->hasProperty ("strumDurationMs"))
         setStrumDurationMs ((double) root->getProperty ("strumDurationMs"));
+
+    if (root->hasProperty ("strumFeel"))
+        setStrumFeel ((double) root->getProperty ("strumFeel"));
 
     if (root->hasProperty ("pattern"))
         setPattern (RhythmPattern::fromVar (root->getProperty ("pattern")));

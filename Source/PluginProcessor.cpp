@@ -717,8 +717,18 @@ void LuthierAudioProcessor::applyGuitar (const WorkshopGuitar& guitar, GuitarTyp
     const auto derived = mapSpec (guitar);
     engine.applyWorkshopGuitar (derived, standsFor);
 
+    // strum-dynamics 4 / bass-techniques 8: the family's strum defaults.
+    const bool isBass = guitar.family == "bass";
+
     if (writeParameters)
+    {
         writeGuitarParameters (derived);
+
+        if (isBass != strumFamilyIsBass)
+            retargetStrumDefaults (strumFamilyIsBass, isBass);
+    }
+
+    strumFamilyIsBass = isBass;
 
     // gui-integration 15's missing-part banner, and the log (error-recovery.md).
     for (const auto& message : report.missing)
@@ -734,6 +744,48 @@ void LuthierAudioProcessor::applyGuitar (const WorkshopGuitar& guitar, GuitarTyp
         ErrorLog::write (ErrorLog::Severity::info, "Workshop", "STRING_COUNT_MISMATCH",
                          "The neck and bridge disagree by " + juce::String (report.stringExcess)
                            + " strings; the guitar has " + juce::String (derived.numStrings) + ".");
+}
+
+void LuthierAudioProcessor::retargetStrumDefaults (bool fromBass, bool toBass)
+{
+    /*  strum-dynamics 4 / bass-techniques 8: a bass strums slower and misses
+        less. What is still on the old family's default moves to the new one's;
+        what the user set stays. Written without gestures, like the rest of a
+        guitar load. */
+    auto plain = [this] (const char* id)
+    {
+        auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (id));
+        return p != nullptr ? (double) p->convertFrom0to1 (p->getValue()) : 0.0;
+    };
+
+    auto write = [this] (const char* id, double v)
+    {
+        if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (id)))
+            p->setValueNotifyingHost (p->convertTo0to1 ((float) v));
+    };
+
+    auto& rhythm = engine.getRhythmEngine();
+
+    StrumSettings current;
+    current.crossingSps     = plain (ParamIDs::strumCrossingSps);
+    current.acceleration    = plain (ParamIDs::strumAcceleration);
+    current.upVelocityRatio = plain (ParamIDs::strumUpVelocityRatio);
+    current.tilt            = plain (ParamIDs::strumTilt);
+    current.missProbability = plain (ParamIDs::strumMissProbability);
+    current.strikerDown     = (Striker) juce::roundToInt (plain (ParamIDs::strumStrikerDown));
+    current.strikerUp       = (Striker) juce::roundToInt (plain (ParamIDs::strumStrikerUp));
+    current.chuckAmount     = plain (ParamIDs::chuckAmount);
+    current.chuckDamping    = plain (ParamIDs::chuckDamping);
+    current.evenness        = rhythm.getStrumEvenness();
+
+    const auto next = StrumSettings::retargetDefaults (current, fromBass, toBass);
+
+    write (ParamIDs::strumCrossingSps,     next.crossingSps);
+    write (ParamIDs::strumAcceleration,    next.acceleration);
+    write (ParamIDs::strumUpVelocityRatio, next.upVelocityRatio);
+    write (ParamIDs::strumTilt,            next.tilt);
+    write (ParamIDs::strumMissProbability, next.missProbability);
+    rhythm.setStrumEvenness (next.evenness);
 }
 
 juce::StringArray LuthierAudioProcessor::takeGuitarNotices()

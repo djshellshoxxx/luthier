@@ -19,6 +19,7 @@
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "StrumGroup.h"
 #include "../Rhythm/GenreKit.h"
 
 namespace luthier
@@ -188,7 +189,10 @@ private:
     juce::Slider velocitySlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Slider missSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Slider ghostSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::Slider strumDurationSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+
+    // gui-integration 4.4: the STRUM group (strum-dynamics 6.3). Its crossing
+    // control and source line replace the old strum-duration slider.
+    std::unique_ptr<StrumGroup> strumGroup;
 
     // --- browser ------------------------------------------------------------------
     juce::ComboBox tagFilterBox;

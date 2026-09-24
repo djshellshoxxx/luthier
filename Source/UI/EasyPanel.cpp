@@ -352,8 +352,8 @@ void EasyPanel::buildRhythmStrip()
     rhythmFeelSlider.setRange (0.0, 200.0, 1.0);
     rhythmFeelSlider.setValue (100.0, juce::dontSendNotification);
     rhythmFeelSlider.setDoubleClickReturnValue (true, 100.0);
-    rhythmFeelSlider.setTooltip ("Feel: how loose the playing is. Centre is the "
-                                 "style's own feel, left is machine-tight, right is sloppier.");
+    rhythmFeelSlider.setTooltip ("Feel. Centre is the style's own feel. Right strums faster and more "
+                                 "evenly and loosens the timing; left strums slower and less evenly.");
 
     rhythmFeelSlider.onValueChange = [this]
     {
@@ -362,6 +362,9 @@ void EasyPanel::buildRhythmStrip()
         auto humanise = engine.getHumanise();
         humanise.amount = rhythmFeelSlider.getValue() / 100.0;
         engine.setHumanise (humanise);
+
+        // strum-dynamics 6.3: the knob's 0..200 is Feel's 0..1, centre 0.5.
+        engine.setStrumFeel (rhythmFeelSlider.getValue() / 200.0);
     };
 
     addAndMakeVisible (rhythmFeelSlider);
