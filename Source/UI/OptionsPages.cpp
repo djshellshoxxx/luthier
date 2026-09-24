@@ -1605,12 +1605,21 @@ void UpdatesPage::checkForUpdate()
     // message thread either - the check goes to a background job.
     updateStatus.setText ("Checking...", juce::dontSendNotification);
 
-    juce::Thread::launch ([this, running]
+    // Review R-101: the page can close while the check runs, so the job holds
+    // the Telemetry (owned by the processor) and the reply a SafePointer.
+    juce::Thread::launch ([&tel = telemetry(), running, safe = juce::Component::SafePointer<UpdatesPage> (this)]
     {
-        const auto result = telemetry().checkForUpdate (running, true);
+        const auto result = tel.checkForUpdate (running, true);
 
-        juce::MessageManager::callAsync ([this, result]
+        juce::MessageManager::callAsync ([safe, result]
         {
+            if (safe == nullptr)
+                return;
+
+            auto* self = safe.getComponent();
+            auto& updateStatus = self->updateStatus;
+            auto& releaseNotes = self->releaseNotes;
+
             if (! result.checked)
             {
                 // A failed check is reported here because the user asked for it.
@@ -1992,7 +2001,9 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
                 .withButton ("Cancel"),
             [this] (int result)
             {
-                if (result == 1)
+                // NativeMessageBox answers the plain button index: 0 is the
+                // first ("Reset everything"), 1 is Cancel (review R-100).
+                if (result == 0)
                 {
                     processor.hardResetAndClearCaches();
                     refresh();
@@ -2017,7 +2028,7 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
                 .withButton ("Cancel"),
             [safe = juce::Component::SafePointer<DiagnosticsPage> (this)] (int result)
             {
-                if (safe != nullptr && result == 1)
+                if (safe != nullptr && result == 0)   // plain index: 0 is "Restore" (R-100)
                     safe->restoreFirstRun();
             });
     };

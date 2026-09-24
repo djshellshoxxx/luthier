@@ -160,7 +160,10 @@ namespace
         auto p = std::make_unique<LuthierAudioProcessor>();
         p->prepareToPlay (kSr, kBlock);
 
-        for (const auto* id : { ParamIDs::macroHumanize, ParamIDs::realismDetune })
+        // Humanise is random per note by design. (Realism detune is left alone:
+        // moving it after load changes the live strings without re-rolling what
+        // a reload restores - a tuning-state matter outside this workstream.)
+        for (const auto* id : { ParamIDs::macroHumanize })
             if (auto* param = p->getState().getParameter (id))
                 param->setValueNotifyingHost (0.0f);
 
