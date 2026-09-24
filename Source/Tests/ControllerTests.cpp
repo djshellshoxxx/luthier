@@ -873,3 +873,68 @@ LUTHIER_TEST (Controllers, notesTheChordSearchLeavesOutArePlacedOnFreeStrings)
 
     CHECK_MSG (strings.size() == out.getNumNoteOns(), "two notes were put on one string");
 }
+
+//==============================================================================
+/*  A string ringing under the sustain pedal is not free. Its key is up, so it
+    was reported free and the next note was voiced onto it, ending it. */
+namespace
+{
+    void pedal (MidiInterpreter& interpreter, int cc, int value, int64_t& position)
+    {
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::controllerEvent (1, cc, value), 0);
+
+        PlayEventQueue out;
+        interpreter.processBlock (midi, 256, position, out);
+        position += 256;
+    }
+}
+
+LUTHIER_TEST (Controllers, aStringRingingUnderTheSustainPedalIsNotFree)
+{
+    InterpreterFixture f;
+    int64_t position = 0;
+
+    pedal (f.interpreter, 64, 127, position);
+
+    const int c = f.noteOnString (1, 60, position);
+    f.noteOff (1, 60, position);   // let ring: the pedal is down
+    CHECK (c >= 0);
+
+    // D4's cheapest fingering is two frets up the same string; the string is
+    // taken, so it goes elsewhere and nothing is ended.
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 62, 0.8f), 0);
+    PlayEventQueue out;
+    f.interpreter.processBlock (midi, 256, position, out);
+    position += 256;
+
+    CHECK (out.getNumNoteOns() == 1);
+    const int d = out.getNumNoteOns() > 0 ? out.getNoteOn (0).stringIndex : -1;
+    CHECK_MSG (d >= 0 && d != c, "D4 landed on string " + juce::String (d) + ", ringing with C4 under the pedal");
+    CHECK (out.getNumNoteOffs() == 0);
+    f.noteOff (1, 62, position);
+
+    // The same note again is free to re-pick its ringing string, and sounds either way.
+    CHECK (f.noteOnString (1, 60, position) >= 0);
+    f.noteOff (1, 60, position);
+
+    // With the strings filling up under the pedal, a note whose free strings
+    // cannot sound it takes a ringing one rather than going unplayed - and
+    // with every string ringing, so does the next.
+    for (int note : { 64, 67, 71, 76, 79, 40, 45 })
+    {
+        CHECK_MSG (f.noteOnString (1, note, position) >= 0, "note " + juce::String (note) + " was dropped under the pedal");
+        f.noteOff (1, note, position);
+    }
+
+    CHECK_MSG (f.noteOnString (1, 65, position) >= 0, "a note with every string ringing was dropped");
+    f.noteOff (1, 65, position);
+
+    // The pedal up frees them: C4 then D4 may share the string again.
+    pedal (f.interpreter, 64, 0, position);
+    const int c2 = f.noteOnString (1, 60, position);
+    f.noteOff (1, 60, position);
+    CHECK (c2 >= 0);
+    CHECK_MSG (f.interpreter.getActiveNoteCount() == 0, "notes still counted active after the pedal came up");
+}

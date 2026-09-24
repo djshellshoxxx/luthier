@@ -213,6 +213,14 @@ private:
         int channel = -1;
         bool held = false;
         bool sostenutoHeld = false;
+
+        /*  Sounding, key up or down: set with the note, kept by a release the
+            sustain or sostenuto pedal lets ring, cleared by a real release,
+            by the pedal coming up, and by all-notes-off. A string ringing
+            under the pedal is not free - a new note used to be voiced onto it
+            and end it - though it is taken when nothing else is left. */
+        bool ringing = false;
+        int ringingNote = -1;   ///< The note it rings with, for the re-pick rule.
         double bendCents = 0.0;
         double pressure = 0.0;
         double timbre = 0.0;
@@ -241,6 +249,17 @@ private:
         holding `exceptMidiNote` is left out: a note played again while it is
         held re-picks its own string rather than spilling onto another. */
     uint16_t heldStringMask (int exceptMidiNote = -1) const noexcept;
+
+    /** Strings ringing under the sustain or sostenuto pedal with their key up
+        (see StringSlot::ringing), except one ringing with exceptMidiNote. */
+    uint16_t ringingStringMask (int exceptMidiNote = -1) const noexcept;
+
+    /** The strings a group of notes must be voiced around: every held string,
+        plus the ringing ones while enough strings stay free for the group -
+        a seventh note under the pedal takes a ringing string rather than
+        being dropped. A string holding or ringing one of the group's own
+        notes is free to it, so the note re-picks its string. */
+    uint16_t occupiedStringMask (const int* notes, int count) const noexcept;
 
     /** Places every requested note the voicing left out on a free string, one at
         a time, and appends it to the voicing. `occupied` is the held-string mask

@@ -63,8 +63,17 @@ public:
     /** The strip's height at each end. */
     static constexpr int hintHeight = 18;
 
+    /** The glyph's half-width: the only part of a strip that takes a click.
+        The fade either side is a look, and a control scrolled under it must
+        still get the mouse. */
+    static constexpr int hintGlyphHalfWidth = 14;
+
     void resized() override;
     void visibleAreaChanged (const juce::Rectangle<int>& newVisibleArea) override;
+
+    /** Content that grows or shrinks without a scroll (a workspace tab
+        switching, a group unfolding) moves the bottom hint too. */
+    void viewedComponentChanged (juce::Component* newComponent) override;
 
     /** True while the hint at that end is on show, for the tests. */
     bool isTopHintShowing() const noexcept;
@@ -78,7 +87,22 @@ private:
 
     void updateHints();
 
+    /*  Watches the viewed component's size. A member, not a second base:
+        juce::Viewport is already (privately) a ComponentListener, so deriving
+        from it again makes `this` an ambiguous ComponentListener* on GCC, and
+        an override of componentMovedOrResized here would become the final
+        overrider for Viewport's own listener too, cutting off its
+        updateVisibleArea() when the content resizes. */
+    struct ContentWatcher : public juce::ComponentListener
+    {
+        explicit ContentWatcher (ScrollHintViewport& viewport) : owner (viewport) {}
+        void componentMovedOrResized (juce::Component&, bool wasMoved, bool wasResized) override;
+        ScrollHintViewport& owner;
+    };
+
     std::unique_ptr<OverflowChevron> topHint, bottomHint;
+    juce::Component::SafePointer<juce::Component> watchedContent;
+    ContentWatcher contentWatcher { *this };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ScrollHintViewport)
 };
@@ -151,6 +175,14 @@ public:
     void refreshPickupSlots();
     int getFittedPickupsShown() const noexcept { return lastFittedPickups; }
     int getPickupSelectorItemCount() const { return pickupSelector->getComboBox().getNumItems(); }
+    int getPickupSelectorEnabledCount() const
+    {
+        auto& box = pickupSelector->getComboBox();
+        int n = 0;
+        for (int i = 0; i < box.getNumItems(); ++i)
+            if (box.isItemEnabled (box.getItemId (i))) ++n;
+        return n;
+    }
     bool isPickupSlotEnabled (int slot) const { return pickupType[slot]->isEnabled(); }
 
     //==========================================================================

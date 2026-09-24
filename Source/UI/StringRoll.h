@@ -33,7 +33,8 @@ class LuthierAudioProcessor;
 
 //==============================================================================
 class StringRollComponent : public juce::Component,
-                            private juce::Timer
+                            private juce::Timer,
+                            private juce::ComponentListener
 {
 public:
     explicit StringRollComponent (LuthierAudioProcessor& processor);
@@ -48,6 +49,16 @@ public:
 
     /** Re-reads the capture and the engine (the timer's work; tests call it). */
     void refresh();
+
+    /*  The timer runs only while the roll can be seen: two of these live in
+        the editor (the strip and the NOTATION tab), and a hidden one walking
+        the capture thirty times a second bought nothing. Own visibility, and
+        every ancestor's, since a hidden parent hides this without telling it. */
+    void visibilityChanged() override;
+    void parentHierarchyChanged() override;
+
+    /** True while the refresh timer runs (tests). */
+    bool isRefreshRunning() const noexcept { return isTimerRunning(); }
 
     //==========================================================================
     // For tests.
@@ -66,6 +77,12 @@ private:
     void timerCallback() override;
     int wantedRefreshHz() const;
     void rebuildLanes (int count);
+
+    // The ancestors' visibility (see visibilityChanged).
+    void componentVisibilityChanged (juce::Component&) override;
+    void watchAncestors();
+    void updateTimerState();
+    juce::Array<juce::Component::SafePointer<juce::Component>> watchedAncestors;
 
     juce::Rectangle<int> rollArea() const;
     juce::Rectangle<int> laneBounds (int stringIndex) const;

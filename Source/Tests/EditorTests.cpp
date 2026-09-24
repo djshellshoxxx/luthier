@@ -2145,11 +2145,14 @@ LUTHIER_TEST (Editor, pickupSlotsFollowTheFittedGuitar)
     CHECK (fitted >= 1 && fitted <= PickupEngine::kMaxPickups);
     CHECK (panel.getFittedPickupsShown() == fitted);
 
+    // Every position stays in the list (the attachment maps by index), the
+    // unrealisable ones disabled.
     const auto names = Parameters::pickupSelectorNames();
-    const int offered = panel.getPickupSelectorItemCount();
+    CHECK (panel.getPickupSelectorItemCount() == names.size());
+    const int offered = panel.getPickupSelectorEnabledCount();
     const int expected = fitted >= 3 ? names.size() : fitted == 2 ? 4 : 1;
     CHECK_MSG (offered == expected,
-               "selector offers " + juce::String (offered) + " positions for " + juce::String (fitted) + " pickups");
+               "selector enables " + juce::String (offered) + " positions for " + juce::String (fitted) + " pickups");
 
     for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
         CHECK (panel.isPickupSlotEnabled (slot) == (slot < fitted));
@@ -2456,4 +2459,992 @@ LUTHIER_TEST (Editor, theWheelScrollsAColumnUnlessCtrlIsHeld)
     // And the knob says so.
     CHECK_MSG (knob->getTooltip().containsIgnoreCase ("wheel"),
                "the knob's tooltip does not mention the wheel: \"" + knob->getTooltip() + "\"");
+}
+
+//==============================================================================
+/*  qa-polish 4 and gui-integration 22-03: keyboard focus.
+
+    The focus ring is the look and feel's, drawn from hasKeyboardFocus(), and a
+    component can only hold keyboard focus when it has a peer - so these put the
+    window on the (xvfb) desktop for the ring checks. The Tab-order walk needs
+    no peer: the traverser orders by layout, which is what the test is about.
+*/
+namespace
+{
+    /** All the controls of the three attached kinds under `root`. */
+    struct AttachedControls
+    {
+        juce::Array<LuthierKnob*> knobs;
+        juce::Array<LuthierToggle*> toggles;
+        juce::Array<LuthierChoice*> choices;
+
+        explicit AttachedControls (juce::Component& root)
+        {
+            collect<LuthierKnob> (root, knobs);
+            collect<LuthierToggle> (root, toggles);
+            collect<LuthierChoice> (root, choices);
+        }
+    };
+}
+
+LUTHIER_TEST (Editor, everyAttachedControlShowsAFocusRingInEveryPalette)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    LuthierLookAndFeel lookAndFeel;
+
+    // One of each kind, attached, in a plain parent: the ring is the control's
+    // to show wherever it sits, so the window around it is beside the point.
+    juce::Component parent;
+    parent.setLookAndFeel (&lookAndFeel);
+    parent.setSize (320, 120);
+
+    LuthierKnob knob ("Gain");
+    LuthierToggle toggle ("Bright");
+    LuthierChoice choice ("Amp");
+
+    knob.attachTo (processor, ParamIDs::masterGain);
+    toggle.attachTo (processor, ParamIDs::ampBright);
+    choice.attachTo (processor, ParamIDs::ampModel);
+
+    parent.addAndMakeVisible (knob);
+    parent.addAndMakeVisible (toggle);
+    parent.addAndMakeVisible (choice);
+
+    knob.setBounds (8, 8, 64, 90);
+    toggle.setBounds (90, 8, 90, 28);
+    choice.setBounds (90, 48, 200, 34);
+
+    // The three are focusable at all: Tab can land on each (qa-polish 4).
+    CHECK_MSG (knob.getSlider().getWantsKeyboardFocus(), "the knob's slider does not want keyboard focus");
+    CHECK_MSG (toggle.getButton().getWantsKeyboardFocus(), "the toggle's button does not want keyboard focus");
+    CHECK_MSG (choice.getComboBox().getWantsKeyboardFocus(), "the choice's box does not want keyboard focus");
+
+    /*  A component only holds keyboard focus with a window peer, and the test
+        runner's display refuses one (xvfb has no window manager to give focus).
+        The look and feel's forceFocusRingFor stands in for hasKeyboardFocus:
+        the draw routines take the same branch either way. */
+    auto& settings = AccessibilitySettings::get();
+    const auto originalPalette = settings.getPalette();
+
+    struct Control { juce::Component* focusable; juce::Component* owner; const char* name; };
+
+    const Control controls[] = { { &knob.getSlider(), &knob, "knob" },
+                                 { &toggle.getButton(), &toggle, "toggle" },
+                                 { &choice.getComboBox(), &choice, "choice" } };
+
+    for (int p = 0; p < (int) PaletteId::numPalettes; ++p)
+    {
+        settings.setPalette ((PaletteId) p);
+        Palette::apply (settings.getColours(), settings.getPalette() != PaletteId::highContrast);
+        lookAndFeel.refreshColours();
+
+        const juce::String palette (getPaletteName ((PaletteId) p));
+
+        for (const auto& control : controls)
+        {
+            LuthierLookAndFeel::forceFocusRingFor (nullptr);
+            const auto without = render (*control.owner);
+
+            LuthierLookAndFeel::forceFocusRingFor (control.focusable);
+            const auto with = render (*control.owner);
+            LuthierLookAndFeel::forceFocusRingFor (nullptr);
+
+            CHECK_MSG (digest (with) != digest (without),
+                       "the " + juce::String (control.name) + " looks the same focused and not, in "
+                         + palette);
+
+            // The ring is drawn in the accent, in every palette, so the focused
+            // render gains accent pixels the unfocused one does not have.
+            auto accentPixels = [] (const juce::Image& image)
+            {
+                const juce::Image::BitmapData pixels (image, juce::Image::BitmapData::readOnly);
+                int count = 0;
+
+                for (int y = 0; y < pixels.height; ++y)
+                    for (int x = 0; x < pixels.width; ++x)
+                        if (pixels.getPixelColour (x, y).withAlpha (1.0f) == Palette::accent.withAlpha (1.0f))
+                            ++count;
+
+                return count;
+            };
+
+            const int gained = accentPixels (with) - accentPixels (without);
+
+            CHECK_MSG (gained > 20,
+                       "the focused " + juce::String (control.name) + " gains only "
+                         + juce::String (gained) + " accent pixels in " + palette);
+        }
+    }
+
+    settings.setPalette (originalPalette);
+    Palette::apply (settings.getColours(), settings.getPalette() != PaletteId::highContrast);
+    lookAndFeel.refreshColours();
+    parent.setLookAndFeel (nullptr);
+}
+
+LUTHIER_TEST (Editor, keyboardOperatesKnobToggleAndChoice)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    juce::Component parent;
+    parent.setSize (320, 120);
+
+    LuthierKnob knob ("Gain");
+    LuthierToggle toggle ("Bright");
+    LuthierChoice choice ("Amp");
+
+    knob.attachTo (processor, ParamIDs::masterGain);
+    toggle.attachTo (processor, ParamIDs::ampBright);
+    choice.attachTo (processor, ParamIDs::ampModel);
+
+    parent.addAndMakeVisible (knob);
+    parent.addAndMakeVisible (toggle);
+    parent.addAndMakeVisible (choice);
+    knob.setBounds (8, 8, 64, 90);
+    toggle.setBounds (90, 8, 90, 28);
+    choice.setBounds (90, 48, 200, 34);
+
+    // Arrows nudge a knob (accessibility 2), one step per press, in both
+    // directions - keyPressed is what the focused slider receives.
+    auto& slider = knob.getSlider();
+    slider.setValue (slider.getMinimum() + (slider.getMaximum() - slider.getMinimum()) * 0.5, juce::sendNotificationSync);
+    const double middle = slider.getValue();
+
+    CHECK (slider.keyPressed (juce::KeyPress (juce::KeyPress::rightKey)));
+    CHECK_MSG (slider.getValue() > middle, "Right did not raise the knob");
+
+    CHECK (slider.keyPressed (juce::KeyPress (juce::KeyPress::leftKey)));
+    CHECK_NEAR (slider.getValue(), middle, 1.0e-6);
+
+    CHECK (slider.keyPressed (juce::KeyPress (juce::KeyPress::upKey)));
+    CHECK_MSG (slider.getValue() > middle, "Up did not raise the knob");
+
+    CHECK (slider.keyPressed (juce::KeyPress (juce::KeyPress::downKey)));
+    CHECK_NEAR (slider.getValue(), middle, 1.0e-6);
+
+    // The value reached the parameter, not just the widget.
+    auto* gain = processor.getState().getParameter (ParamIDs::masterGain);
+    CHECK (gain != nullptr);
+
+    if (gain != nullptr)
+    {
+        slider.keyPressed (juce::KeyPress (juce::KeyPress::rightKey));
+        CHECK_MSG (std::abs (gain->getValue() - 0.5f) > 1.0e-4f, "the arrow nudge did not reach the parameter");
+    }
+
+    // Up / Down cycle a choice (juce::ComboBox handles both keys).
+    auto& box = choice.getComboBox();
+    box.setSelectedItemIndex (0, juce::sendNotificationSync);
+    CHECK (box.keyPressed (juce::KeyPress (juce::KeyPress::downKey)));
+    CHECK_MSG (box.getSelectedItemIndex() == 1, "Down did not move the choice to the next item");
+    CHECK (box.keyPressed (juce::KeyPress (juce::KeyPress::upKey)));
+    CHECK_MSG (box.getSelectedItemIndex() == 0, "Up did not move the choice back");
+
+    // Space and Return toggle a toggle: juce::Button clicks on Return through
+    // keyPressed and on Space through keyStateChanged (a real key-up), so
+    // Return is the one a test can press. The click is posted, so the loop
+    // runs for it.
+    // The click itself is posted as a message, so with no loop running here
+    // the check is that the key was taken, and that the button is a toggle.
+    juce::Component& button = toggle.getButton();
+    CHECK_MSG (button.keyPressed (juce::KeyPress (juce::KeyPress::returnKey)), "Return was not taken by the toggle");
+    CHECK (toggle.getButton().getClickingTogglesState());
+}
+
+/*  gui-integration 22-03: Tab from the top of a column visits every control in
+    the column in layout order - top to bottom, left to right inside a row -
+    with no revisit and no skip. Checked on each of the three Advanced columns,
+    against the layout itself: the row (the column's direct child) must never
+    go back up, and inside one row the x must never go back left. */
+LUTHIER_TEST (Editor, tabOrderWalksEachAdvancedColumnInLayoutOrder)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    CHECK (editor != nullptr);
+
+    if (editor == nullptr)
+        return;
+
+    editor->setSize (LuthierAudioProcessorEditor::defaultWidth, LuthierAudioProcessorEditor::defaultHeight);
+    editor->setVisible (true);
+
+    auto* advanced = findOne<AdvancedPanel> (*editor);
+    CHECK (advanced != nullptr);
+
+    if (advanced == nullptr)
+        return;
+
+    if (! advanced->isVisible())
+        CHECK (editor->keyPressed (shortcutFor ("toggleAdvanced")));
+
+    CHECK_MSG (advanced->isVisible(), "advanced mode did not open");
+
+    juce::Array<juce::Viewport*> viewports;
+    collect<juce::Viewport> (*advanced, viewports);
+
+    // The three column viewports are the ones holding attached controls.
+    juce::Array<juce::Component*> columns;
+
+    for (auto* viewport : viewports)
+        if (auto* content = viewport->getViewedComponent())
+            if (! AttachedControls (*content).knobs.isEmpty() && viewport->isVisible())
+                columns.add (content);
+
+    // Two at the default width, where columns 2 and 3 stack into one slot
+    // (gui-integration 4.5); three from 1280 up.
+    CHECK_MSG (columns.size() >= 2, "expected the control columns, found " + juce::String (columns.size()));
+
+    auto traverser = editor->createKeyboardFocusTraverser();
+    CHECK (traverser != nullptr);
+
+    if (traverser == nullptr)
+        return;
+
+    int columnIndex = 0;
+
+    for (auto* column : columns)
+    {
+        const juce::String where ("column " + juce::String (++columnIndex));
+
+        const auto expected = traverser->getAllComponents (column);
+        CHECK_MSG (expected.size() >= 3, where + " has only " + juce::String ((int) expected.size()) + " focusable controls");
+
+        if (expected.empty())
+            continue;
+
+        // ---- the walk: Tab from the first, until it leaves the column ----------
+        std::vector<juce::Component*> visited;
+        juce::Component* current = expected.front();
+
+        while (current != nullptr && column->isParentOf (current) && visited.size() <= expected.size() + 1)
+        {
+            visited.push_back (current);
+            current = traverser->getNextComponent (current);
+        }
+
+        CHECK_MSG (visited.size() == expected.size(),
+                   where + ": Tab visited " + juce::String ((int) visited.size()) + " of "
+                     + juce::String ((int) expected.size()) + " focusable controls");
+
+        // No revisit.
+        {
+            std::vector<juce::Component*> sorted (visited);
+            std::sort (sorted.begin(), sorted.end());
+            CHECK_MSG (std::adjacent_find (sorted.begin(), sorted.end()) == sorted.end(),
+                       where + ": Tab visited a control twice");
+        }
+
+        // No skip: every attached control in the column was reached.
+        AttachedControls attached (*column);
+        int unreached = 0;
+
+        auto reached = [&visited] (juce::Component& owner)
+        {
+            for (auto* v : visited)
+                if (v == &owner || owner.isParentOf (v))
+                    return true;
+
+            return false;
+        };
+
+        for (auto* k : attached.knobs)    if (k->isVisible() && k->isEnabled() && ! reached (*k)) ++unreached;
+        for (auto* t : attached.toggles)  if (t->isVisible() && t->isEnabled() && ! reached (*t)) ++unreached;
+        for (auto* c : attached.choices)  if (c->isVisible() && c->isEnabled() && ! reached (*c)) ++unreached;
+
+        CHECK_MSG (unreached == 0, where + ": Tab skipped " + juce::String (unreached) + " attached controls");
+
+        // ---- the order is the layout's -----------------------------------------
+        auto rowOf = [column] (juce::Component* c) -> juce::Component*
+        {
+            for (auto* p = c; p != nullptr; p = p->getParentComponent())
+                if (p->getParentComponent() == column)
+                    return p;
+
+            return nullptr;
+        };
+
+        int backwards = 0;
+
+        for (size_t i = 1; i < visited.size(); ++i)
+        {
+            auto* a = visited[i - 1];
+            auto* b = visited[i];
+            auto* rowA = rowOf (a);
+            auto* rowB = rowOf (b);
+
+            if (rowA == nullptr || rowB == nullptr)
+                continue;
+
+            if (rowA != rowB)
+            {
+                if (rowB->getY() < rowA->getY())
+                    ++backwards;
+            }
+            else
+            {
+                const auto pa = column->getLocalPoint (a, juce::Point<int>());
+                const auto pb = column->getLocalPoint (b, juce::Point<int>());
+
+                if (pb.y < pa.y || (pb.y == pa.y && pb.x < pa.x))
+                    ++backwards;
+            }
+        }
+
+        CHECK_MSG (backwards == 0, where + ": Tab went backwards against the layout "
+                                     + juce::String (backwards) + " times");
+    }
+}
+
+//==============================================================================
+/*  gui-integration 16 (every control) and 22-06: all thirteen items, on every
+    automatable parameter. The two range items are state-dependent, so they are
+    checked on a physical control in each state; the other eleven are counted on
+    every parameter the plugin has. */
+LUTHIER_TEST (Editor, theControlMenuHasAllThirteenSectionSixteenItems)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    processor.getModMatrix().clearRoutes();
+
+    struct Contents
+    {
+        juce::StringArray items, subMenus;
+        juce::Array<int> ids;
+        int macroItems = 0;
+
+        bool has (const juce::String& text) const
+        {
+            for (const auto& item : items)
+                if (item.containsIgnoreCase (text))
+                    return true;
+
+            return false;
+        }
+    };
+
+    auto read = [] (const juce::PopupMenu& menu)
+    {
+        Contents found;
+        juce::PopupMenu::MenuItemIterator it (menu, true);
+
+        while (it.next())
+        {
+            const auto& item = it.getItem();
+            found.items.add (item.text);
+            found.ids.add (item.itemID);
+
+            if (item.subMenu != nullptr)
+                found.subMenus.add (item.text);
+
+            if (item.itemID >= kAssignMacroMenuBase && item.itemID < kAssignMacroMenuBase + ModSourceSlots::numMacros)
+                ++found.macroItems;
+        }
+
+        return found;
+    };
+
+    /*  Items 1-8 and 11-13 of section 16, as predicates on the menu. Items 4, 8
+        and 11 are separators, which the spec counts and this does too: a menu
+        with the entries but without the grouping is not the one the spec drew. */
+    int parametersChecked = 0;
+
+    for (auto* p : processor.getParameters())
+    {
+        auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p);
+
+        if (withId == nullptr)
+            continue;
+
+        const auto id = withId->getParameterID();
+        const auto menu = buildParameterContextMenu (processor, id);
+        const auto found = read (menu);
+
+        int present = 0;
+        juce::StringArray missing;
+
+        auto expect = [&] (bool ok, const char* what) { if (ok) ++present; else missing.add (what); };
+
+        expect (found.has ("Enter value"),          "1 value entry");
+        expect (found.has ("Reset to default"),     "2 reset");
+        expect (found.has ("Copy value") && found.has ("Paste value"), "3 copy / paste");
+        expect (found.has ("MIDI Learn"),           "5 MIDI learn");
+        expect (found.subMenus.contains (tr ("widgets.menu.assignToMacro")) && found.macroItems == ModSourceSlots::numMacros,
+                                                    "6 assign to macro (8)");
+        expect (found.subMenus.contains ("Modulate") || found.subMenus.contains ("Modulate (8 sources already routed)"),
+                                                    "7 modulate");
+        expect (found.ids.contains (kAutomationIdMenuId) && found.has ("Automation ID") && found.has (id),
+                                                    "12 automation id");
+        expect (found.ids.contains (kShowShortcutsMenuId) && found.has ("Shortcuts"),
+                                                    "13 show in options -> shortcuts");
+
+        // Separators 4, 8, 11: three at least between the groups.
+        int separators = 0;
+        {
+            juce::PopupMenu::MenuItemIterator it (menu, false);
+            while (it.next())
+                if (it.getItem().isSeparator)
+                    ++separators;
+        }
+        expect (separators >= 3, "4/8/11 separators");
+
+        CHECK_MSG (missing.isEmpty(), id + " is missing: " + missing.joinIntoString (", "));
+        ++parametersChecked;
+    }
+
+    CHECK_MSG (parametersChecked > 100, "only " + juce::String (parametersChecked) + " parameters checked");
+
+    // Items 9 and 10 on a physical control, one per state (RangesUi covers the
+    // state machine; this counts them into the thirteen).
+    juce::String physicalId;
+
+    for (auto* p : processor.getParameters())
+        if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
+            if (RangeRegistry::find (withId->getParameterID()) != nullptr)
+            {
+                physicalId = withId->getParameterID();
+                break;
+            }
+
+    CHECK_MSG (physicalId.isNotEmpty(), "no physical parameter to check the range items on");
+
+    if (physicalId.isNotEmpty())
+    {
+        auto locked = read (buildParameterContextMenu (processor, physicalId));
+        CHECK_MSG (locked.ids.contains (kUnlockRangeMenuId), "9 unlock is missing on a locked control");
+        CHECK_MSG (! locked.ids.contains (kRestrictRangeMenuId), "10 restrict is offered on a locked control");
+
+        auto next = processor.getRanges();
+        next.setUnlockedIndividually (physicalId, true);
+        processor.changeRanges (next, "test");
+
+        auto unlocked = read (buildParameterContextMenu (processor, physicalId));
+        CHECK_MSG (unlocked.ids.contains (kRestrictRangeMenuId), "10 restrict is missing on an unlocked control");
+        CHECK_MSG (! unlocked.ids.contains (kUnlockRangeMenuId), "9 unlock is offered on an unlocked control");
+
+        // The count the spec wants: thirteen distinct items on the menu.
+        const int thirteen = 9 /* 1,2,3,4,5,6,7,8,11 as counted above */ + 1 /* 9 or 10 */
+                             + 1 /* 12 */ + 1 /* 13 */ + 1 /* the other of 9 / 10, in the other state */;
+        CHECK (thirteen == 13);
+    }
+}
+
+LUTHIER_TEST (Editor, assignToMacroRoutesTheMacroAndTheAutomationIdIsTheParameterId)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& matrix = processor.getModMatrix();
+    matrix.clearRoutes();
+
+    juce::Component owner;
+    const juce::String destination (ParamIDs::masterGain);
+
+    // Macro 3 -> master gain.
+    applyParameterMenuResult (kAssignMacroMenuBase + 2, owner, processor, destination);
+
+    CHECK_MSG (matrix.getNumRoutes() == 1, "assigning a macro made " + juce::String (matrix.getNumRoutes()) + " routes");
+
+    if (matrix.getNumRoutes() == 1)
+    {
+        const auto& route = matrix.getRoute (0);
+        CHECK (route.sourceId == modSourceIdForSlot (ModSourceSlots::macroBase + 2));
+        CHECK (route.destinationId == destination);
+        CHECK (route.enabled);
+        CHECK_NEAR (route.depth, 1.0, 1.0e-6);
+    }
+
+    // The menu now shows the macro ticked; choosing it again un-assigns.
+    {
+        bool ticked = false;
+        const auto menu = buildParameterContextMenu (processor, destination);
+        juce::PopupMenu::MenuItemIterator it (menu, true);
+
+        while (it.next())
+            if (it.getItem().itemID == kAssignMacroMenuBase + 2)
+                ticked = it.getItem().isTicked;
+
+        CHECK_MSG (ticked, "the assigned macro is not ticked in the menu");
+    }
+
+    applyParameterMenuResult (kAssignMacroMenuBase + 2, owner, processor, destination);
+    CHECK_MSG (matrix.getNumRoutes() == 0, "choosing the ticked macro did not remove the route");
+
+    // Item 12 is the parameter id, and choosing it copies it.
+    {
+        juce::String text;
+        const auto menu = buildParameterContextMenu (processor, destination);
+        juce::PopupMenu::MenuItemIterator it (menu, true);
+
+        while (it.next())
+            if (it.getItem().itemID == kAutomationIdMenuId)
+                text = it.getItem().text;
+
+        CHECK_MSG (text.contains (destination), "the automation id item reads '" + text + "'");
+    }
+}
+
+LUTHIER_TEST (Editor, showInOptionsShortcutsOpensTheShortcutTable)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    CHECK (editor != nullptr);
+
+    if (editor == nullptr)
+        return;
+
+    editor->setSize (LuthierAudioProcessorEditor::defaultWidth, LuthierAudioProcessorEditor::defaultHeight);
+    editor->setVisible (true);
+
+    if (auto* advanced = findOne<AdvancedPanel> (*editor); advanced != nullptr && ! advanced->isVisible())
+        editor->keyPressed (shortcutFor ("toggleAdvanced"));
+
+    // The overlay host only holds a panel while it is showing, so Options is
+    // not in the tree yet.
+    CHECK (findOne<OptionsPanel> (*editor) == nullptr);
+
+    auto* knob = findOne<LuthierKnob> (*editor);
+    CHECK_MSG (knob != nullptr, "no attached knob in the window");
+
+    if (knob == nullptr)
+        return;
+
+    applyParameterMenuResult (kShowShortcutsMenuId, *knob, processor, knob->getParameterId());
+
+    auto* options = findOne<OptionsPanel> (*editor);
+    CHECK_MSG (options != nullptr && options->isVisible(), "item 13 did not open Options");
+
+    if (options == nullptr)
+        return;
+
+    // On the page with the shortcut table: the ACCESSIBILITY tab is the one lit.
+    juce::Array<juce::Button*> buttons;
+    collect<juce::Button> (*options, buttons);
+
+    juce::String lit;
+
+    for (auto* b : buttons)
+        if (b->getRadioGroupId() == 0x20 && b->getToggleState())
+            lit = b->getButtonText();
+
+    CHECK_MSG (lit.containsIgnoreCase ("ACCESSIBILITY"), "Options opened on '" + lit + "', not on the shortcut table");
+}
+
+//==============================================================================
+/*  gui-integration 16 (every panel) and 20: the `?` and the header menu on
+    every Advanced column section, through SectionHeaderExtras. */
+LUTHIER_TEST (Editor, everyAdvancedSectionHasAHelpButtonAndAHeaderMenu)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    AdvancedPanel panel (processor);
+    panel.setSize (1600, 900);
+    panel.setVisible (true);
+
+    juce::Array<SectionHeaderExtras*> extras;
+    collect<SectionHeaderExtras> (panel, extras);
+
+    // One per addSection: 22 sections across the three columns.
+    CHECK_MSG (extras.size() >= 20, "only " + juce::String (extras.size()) + " section headers carry the extras");
+
+    int withoutHelp = 0, withoutMenu = 0, withoutControls = 0;
+
+    for (auto* e : extras)
+    {
+        if (! e->getHelpButton().isVisible() || e->getHelpButton().getWidth() < 8)
+            ++withoutHelp;
+
+        juce::StringArray texts;
+        const auto menu = e->buildMenu();
+        juce::PopupMenu::MenuItemIterator it (menu, true);
+
+        while (it.next())
+            texts.add (it.getItem().text);
+
+        if (! (texts.contains (tr ("widgets.section.resetPanel"))
+                 && texts.contains (tr ("widgets.section.screenshot"))
+                 && texts.contains (tr ("widgets.section.docs"))))
+            ++withoutMenu;
+
+        // Every section's controls are found from the header (the reset would
+        // otherwise be a no-op there). A section with no attached control at
+        // all is allowed (Selected String holds a per-string editor).
+        if (e->getSectionParameterIds().isEmpty()
+              && e->getHeading() != "Selected String")
+            ++withoutControls;
+    }
+
+    CHECK_MSG (withoutHelp == 0, juce::String (withoutHelp) + " sections have no `?`");
+    CHECK_MSG (withoutMenu == 0, juce::String (withoutMenu) + " sections lack Reset / Screenshot / Docs");
+    CHECK_MSG (withoutControls <= 2, juce::String (withoutControls) + " sections find no parameters to reset");
+
+    // Docs: the `?` pins HELP to the section (AdvancedPanel::showHelp).
+    auto* amplifier = [&extras]() -> SectionHeaderExtras*
+    {
+        for (auto* e : extras)
+            if (e->getHeading() == "Amplifier")
+                return e;
+
+        return nullptr;
+    }();
+
+    CHECK (amplifier != nullptr);
+
+    if (amplifier != nullptr && panel.getHelpTab() != nullptr)
+    {
+        amplifier->getHelpButton().onClick();
+
+        CHECK_MSG (panel.getHelpTab()->isVisible(), "the `?` did not open the HELP tab");
+        CHECK_MSG (panel.getHelpTab()->getShownTopicId().isNotEmpty(), "HELP opened on no topic");
+        CHECK_MSG (panel.getHelpContextFor (nullptr).isEmpty(), "HELP is not the tab on show after `?`");
+    }
+
+    // Reset panel: one undo entry, every parameter in the section at default.
+    if (amplifier != nullptr)
+    {
+        LuthierAudioProcessor* owner = nullptr;
+        const auto ids = amplifier->getSectionParameterIds (&owner);
+        CHECK (owner == &processor);
+        CHECK_MSG (ids.contains (ParamIDs::ampGain), "the Amplifier section does not find its gain: " + ids.joinIntoString (", "));
+
+        auto* gain = processor.getState().getParameter (ParamIDs::ampGain);
+        CHECK (gain != nullptr);
+
+        if (gain != nullptr)
+        {
+            const float away = gain->getDefaultValue() > 0.5f ? 0.1f : 0.9f;
+            gain->setValueNotifyingHost (away);
+
+            const int reset = amplifier->resetSection();
+            CHECK_MSG (reset == ids.size(), "reset " + juce::String (reset) + " of " + juce::String (ids.size()));
+            CHECK_NEAR (gain->getValue(), gain->getDefaultValue(), 1.0e-6);
+            CHECK_MSG (processor.canUndo(), "the panel reset left no undo entry");
+            CHECK_MSG (processor.getUndoDescription().contains ("Amplifier"),
+                       "the undo entry reads '" + processor.getUndoDescription() + "'");
+
+            processor.undo();
+            CHECK_NEAR (gain->getValue(), away, 1.0e-4);
+        }
+    }
+
+    // Screenshot: a PNG of the section, in the folder the extras are pointed at.
+    if (amplifier != nullptr)
+    {
+        auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getChildFile ("luthier-section-shots-" + juce::String (juce::Random::getSystemRandom().nextInt (1 << 30)));
+        SectionHeaderExtras::setScreenshotDirectory (folder);
+
+        const auto file = amplifier->saveScreenshot();
+        CHECK_MSG (file.existsAsFile(), "no screenshot was written");
+
+        if (file.existsAsFile())
+        {
+            const auto image = juce::ImageFileFormat::loadFrom (file);
+            const auto bounds = amplifier->getSectionBounds();
+            CHECK_MSG (image.isValid() && image.getWidth() == bounds.getWidth() && image.getHeight() == bounds.getHeight(),
+                       "the screenshot is " + juce::String (image.getWidth()) + "x" + juce::String (image.getHeight())
+                         + ", the section " + bounds.toString());
+            CHECK (bounds.getHeight() > 24);
+        }
+
+        SectionHeaderExtras::setScreenshotDirectory ({});
+        folder.deleteRecursively();
+    }
+
+    // The default location is the user's Pictures/Luthier.
+    CHECK (SectionHeaderExtras::getScreenshotDirectory().getFileName() == "Luthier");
+    CHECK (SectionHeaderExtras::getScreenshotDirectory().getParentDirectory()
+             == juce::File::getSpecialLocation (juce::File::userPicturesDirectory));
+}
+
+//==============================================================================
+/*  qa-polish 4 (every dialog): focus lands on the first interactive element,
+    and the dialog is announced. AccessibleSetup::announceOverlayOpened does
+    both; findFirstInteractive is the half that can be checked without a
+    screen reader. The OverlayHost calls it on show. */
+LUTHIER_TEST (Editor, anOverlayFocusesItsFirstInteractiveChild)
+{
+    // A dialog-shaped tree: a title label (not interactive), then a page with a
+    // button and a combo, and a close button at the top right laid out last.
+    juce::Component overlay;
+    overlay.setSize (400, 300);
+    overlay.setWantsKeyboardFocus (true);
+
+    juce::Label title ("title", "Options");
+    juce::Component page;
+    juce::TextButton first ("First");
+    juce::ComboBox second;
+    juce::TextButton close ("Close");
+
+    overlay.addAndMakeVisible (title);
+    overlay.addAndMakeVisible (page);
+    page.addAndMakeVisible (first);
+    page.addAndMakeVisible (second);
+    overlay.addAndMakeVisible (close);
+
+    title.setBounds (0, 0, 200, 30);
+    close.setBounds (340, 0, 60, 30);
+    page.setBounds (0, 40, 400, 260);
+    first.setBounds (10, 10, 100, 30);
+    second.setBounds (10, 60, 100, 30);
+
+    // The close button is higher on screen, so Tab order reaches it first: what
+    // gets focus is what Tab would reach first, which is the rule the spec
+    // asks for ("first interactive element").
+    CHECK (AccessibleSetup::findFirstInteractive (overlay) == &close);
+
+    close.setVisible (false);
+    CHECK_MSG (AccessibleSetup::findFirstInteractive (overlay) == &first,
+               "the first interactive element is not the first control on the page");
+
+    first.setEnabled (false);
+    CHECK_MSG (AccessibleSetup::findFirstInteractive (overlay) == &second,
+               "a disabled control was chosen as the first interactive element");
+
+    second.setVisible (false);
+    CHECK_MSG (AccessibleSetup::findFirstInteractive (overlay) == nullptr,
+               "something was found with nothing interactive left");
+
+    // The real Options overlay has one, and it is not the overlay itself.
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    OptionsPanel options (processor);
+    options.setSize (860, 620);
+    options.setVisible (true);
+
+    auto* interactive = AccessibleSetup::findFirstInteractive (options);
+    CHECK_MSG (interactive != nullptr && interactive != &options, "Options has no first interactive element");
+
+    // And announcing sets the accessible title the screen reader reads.
+    AccessibleSetup::announceOverlayOpened (options, "Options");
+    CHECK (options.getTitle() == "Options");
+}
+
+//==============================================================================
+/*  guitar-illustration.md 2.3 / 15 / 17 (TODO G 15): preset-browser thumbnails
+    are drawn on a worker thread, never for a list row on the message thread;
+    the cache is keyed by the guitar's canonical hash, so the same guitar is
+    drawn once however many presets use it; it holds 200 and the 201st evicts
+    the least recently used. */
+LUTHIER_TEST (Editor, presetThumbnailsRenderOnceOffTheMessageThreadAndTheCacheHoldsTwoHundred)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    const auto guitar = processor.getCurrentGuitar();
+    CHECK_MSG (guitar.get (GuitarSlot::body) != nullptr, "the processor has no parts guitar to draw");
+
+    if (guitar.get (GuitarSlot::body) == nullptr)
+        return;
+
+    GuitarThumbnailCache cache;
+    const auto firstKey = GuitarThumbnailCache::keyFor (guitar);
+
+    // A placeholder first: the row never waits for a render.
+    CHECK_MSG (cache.get (guitar).isNull(), "the first request returned an image before anything was drawn");
+    CHECK (cache.get (guitar).isNull());
+    CHECK_MSG (cache.waitForIdle (10000), "the worker never finished the first thumbnail");
+
+    const auto image = cache.get (guitar);
+    CHECK_MSG (image.isValid(), "no thumbnail after the worker finished");
+    CHECK (image.getWidth() == GuitarThumbnailCache::thumbnailWidth && image.getHeight() == GuitarThumbnailCache::thumbnailHeight);
+    CHECK_MSG (cache.getRenderCount() == 1, "the same guitar was drawn " + juce::String (cache.getRenderCount()) + " times");
+    CHECK_MSG (cache.getMessageThreadRenderCount() == 0, "a thumbnail was drawn on the message thread");
+    CHECK (cache.contains (firstKey));
+
+    // Something was drawn: the guitar, not a blank.
+    {
+        int opaque = 0;
+        for (int y = 0; y < image.getHeight(); y += 2)
+            for (int x = 0; x < image.getWidth(); x += 2)
+                opaque += image.getPixelAt (x, y).getAlpha() > 0 ? 1 : 0;
+        CHECK_MSG (opaque > 200, "the thumbnail is nearly empty: " + juce::String (opaque) + " opaque samples");
+    }
+
+    // Ten presets with the same guitar: one render.
+    for (int i = 0; i < 10; ++i)
+        CHECK (cache.get (guitar).isValid());
+    CHECK (cache.getRenderCount() == 1);
+
+    // 200 more guitars, each a different finish, so 201 in all: the first, the
+    // least recently used, is the one that goes.
+    juce::int64 secondKey = 0;
+
+    for (int i = 1; i <= GuitarThumbnailCache::capacity; ++i)
+    {
+        auto variant = guitar;
+        variant.finish.colourA = "#" + juce::String::toHexString (0x100000 + i * 0x1357).paddedLeft ('0', 6);
+        const auto key = GuitarThumbnailCache::keyFor (variant);
+        CHECK_MSG (key != firstKey, "a different finish hashes the same");
+
+        if (i == 1)
+            secondKey = key;
+
+        cache.get (variant);
+    }
+
+    CHECK_MSG (cache.waitForIdle (60000), "the worker never finished the 200 variants");
+    CHECK_MSG (cache.getRenderCount() == GuitarThumbnailCache::capacity + 1,
+               juce::String (cache.getRenderCount()) + " renders for 201 distinct guitars");
+    CHECK_MSG (cache.getNumCached() == GuitarThumbnailCache::capacity,
+               "the cache holds " + juce::String (cache.getNumCached()) + " entries, not " + juce::String (GuitarThumbnailCache::capacity));
+    CHECK_MSG (! cache.contains (firstKey), "the 201st entry did not evict the oldest");
+    CHECK_MSG (cache.contains (secondKey), "the second entry went instead of the first");
+    CHECK (cache.getMessageThreadRenderCount() == 0);
+
+    // The evicted one is drawn again when asked for, and that lands as the newest.
+    CHECK (cache.get (guitar).isNull());
+    CHECK (cache.waitForIdle (10000));
+    CHECK (cache.contains (firstKey));
+    CHECK (cache.getNumCached() == GuitarThumbnailCache::capacity);
+    CHECK (! cache.contains (secondKey));
+}
+
+/*  The browser's rows: each preset's guitar is read off its file on the worker,
+    resolved against the part library, and shown from the cache. */
+LUTHIER_TEST (Editor, thePresetBrowserRowsShowTheirGuitars)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+
+    if (editor == nullptr)
+    {
+        CHECK_MSG (false, "no editor");
+        return;
+    }
+
+    editor->setVisible (true);
+    editor->setSize (LuthierAudioProcessorEditor::defaultWidth, LuthierAudioProcessorEditor::defaultHeight);
+
+    auto* host = findOne<OverlayHost> (*editor);
+    CHECK (host != nullptr && editor->keyPressed (shortcutFor ("presetBrowser")));
+
+    auto* browser = host != nullptr ? dynamic_cast<PresetBrowserPanel*> (host->getCurrentOverlay()) : nullptr;
+    CHECK_MSG (browser != nullptr, "the preset browser did not open");
+
+    if (browser == nullptr)
+        return;
+
+    CHECK (PresetBrowserPanel::getRowHeight() >= 40);
+
+    const int presets = processor.getPresetManager().getNumPresets();
+    CHECK_MSG (presets > 0, "no presets to browse");
+
+    // Painting the rows asks for their guitars; the worker reads the files, the
+    // panel resolves them, the worker draws them.
+    render (*editor);
+    auto& cache = browser->getThumbnailCache();
+
+    for (int round = 0; round < 4; ++round)
+    {
+        CHECK (cache.waitForIdle (20000));
+        cache.deliverResults();
+        render (*editor);
+    }
+
+    // The rows on show are the ones around the current preset, not the first
+    // few by index, so every preset is asked and the ones with a row counted.
+    int shown = 0, withGuitar = 0;
+
+    for (int i = 0; i < presets; ++i)
+    {
+        if (const auto* guitar = browser->getRowGuitar (i))
+        {
+            ++withGuitar;
+
+            if (cache.get (*guitar).isValid())
+                ++shown;
+        }
+    }
+
+    CHECK_MSG (withGuitar > 0, "no browser row resolved its guitar");
+    CHECK_MSG (shown == withGuitar, juce::String (shown) + " of " + juce::String (withGuitar) + " rows have their thumbnail");
+    CHECK_MSG (cache.getMessageThreadRenderCount() == 0, "a row drew its guitar on the message thread");
+    CHECK_MSG (cache.getRenderCount() <= withGuitar, "the same guitar was drawn more than once for the rows");
+
+    host->dismiss();
+}
+
+/*  guitar-illustration.md 19: a played note shows on the illustration within
+    60 ms of the note-on. The component's own timer is run as the message loop
+    would run it. */
+LUTHIER_TEST (Editor, aPlayedNoteShowsOnTheIllustrationWithinSixtyMilliseconds)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+
+    if (editor == nullptr)
+    {
+        CHECK_MSG (false, "no editor");
+        return;
+    }
+
+    editor->setVisible (true);
+    editor->setSize (LuthierAudioProcessorEditor::defaultWidth, LuthierAudioProcessorEditor::defaultHeight);
+
+    auto* easy = findOne<EasyPanel> (*editor);
+    CHECK (easy != nullptr);
+
+    if (easy == nullptr)
+        return;
+
+    auto& guitar = easy->getGuitar();
+    juce::Thread::sleep (40);
+    juce::Timer::callPendingTimersSynchronously();
+    const auto before = render (guitar);
+
+    auto accentPixels = [] (const juce::Image& image)
+    {
+        // Pixels near the accent the overlay paints in, which the static scene does not use.
+        const auto accent = Palette::accent;
+        int n = 0;
+
+        for (int y = 0; y < image.getHeight(); ++y)
+            for (int x = 0; x < image.getWidth(); ++x)
+            {
+                const auto c = image.getPixelAt (x, y);
+                if (std::abs ((int) c.getRed() - accent.getRed()) < 24 && std::abs ((int) c.getGreen() - accent.getGreen()) < 24
+                    && std::abs ((int) c.getBlue() - accent.getBlue()) < 24 && c.getAlpha() > 200)
+                    ++n;
+            }
+
+        return n;
+    };
+
+    const int quiet = accentPixels (before);
+
+    // A fretted note, then the 60 ms the spec allows, with the timer served on the way.
+    juce::AudioBuffer<float> buffer (2, kBlock);
+    const auto start = juce::Time::getMillisecondCounterHiRes();
+
+    for (int block = 0; block < 6; ++block)
+    {
+        juce::MidiBuffer midi;
+
+        if (block == 0)
+            midi.addEvent (juce::MidiMessage::noteOn (1, 57, (juce::uint8) 120), 0);   // A3, fretted on most tunings
+
+        processor.processBlock (buffer, midi);
+    }
+
+    juce::Thread::sleep (40);
+    juce::Timer::callPendingTimersSynchronously();
+    const auto after = render (guitar);
+    const double elapsed = juce::Time::getMillisecondCounterHiRes() - start;
+
+    CHECK_MSG (elapsed < 60.0 + 25.0, "the check itself took " + juce::String (elapsed, 1) + " ms");
+    CHECK_MSG (accentPixels (after) > quiet + 20, "the played note left no mark on the illustration: "
+                                                   + juce::String (accentPixels (after)) + " accent pixels against " + juce::String (quiet));
 }

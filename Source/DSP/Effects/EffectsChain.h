@@ -29,6 +29,15 @@ public:
     void prepare (double sampleRate, int maxBlockSize);
     void reset() noexcept;
 
+    /** Reset that never blocks: for panic / reset on the audio thread, where
+        waiting on the message thread's swapLock (setSlotType, moveSlot) would
+        stall the callback. Resets every pedal now when the lock is free, else
+        leaves it pending for the next processStereo to carry out. */
+    void resetFromAudioThread() noexcept;
+
+    /** True while a resetFromAudioThread is waiting for the next block (tests). */
+    bool isResetPending() const noexcept { return resetPending.load (std::memory_order_acquire); }
+
     void setPosition (Position p) noexcept { position = p; }
     Position getPosition() const noexcept { return position; }
 
@@ -107,6 +116,10 @@ private:
     // thread, never inside processBlock.
     std::vector<std::unique_ptr<Pedal>> retired;
     juce::CriticalSection swapLock;
+    std::atomic<bool> resetPending { false };
+
+    /** Every pedal's reset; the caller holds swapLock. */
+    void resetPedalsLocked() noexcept;
 
     std::vector<double> workL, workR;
 

@@ -59,6 +59,7 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     guitarSelector.attachTo (processor, ParamIDs::guitarType,
                              "The instrument. Changing this loads its body, woods, pickups, "
                              "strings, tuning and default rig.");
+    processor.addListener (this);   // the selector's gesture: see audioProcessorParameterChangeGestureEnd
 
     addAndMakeVisible (tuningSelector);
     tuningSelector.setLabelVisible (false);
@@ -70,7 +71,8 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     presetPrev.setTooltip ("Previous preset");
     presetPrev.onClick = [this]
     {
-        processor.pushUndoState ("Load preset");
+        // action-and-undo.md 5: a preset load is a state boundary.
+        processor.pushUndoBoundary ("Load preset");
         processor.getPresetManager().loadPrevious();
         processor.getParameterBridge().applyAllNow();
     };
@@ -79,7 +81,7 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     presetNext.setTooltip ("Next preset");
     presetNext.onClick = [this]
     {
-        processor.pushUndoState ("Load preset");
+        processor.pushUndoBoundary ("Load preset");
         processor.getPresetManager().loadNext();
         processor.getParameterBridge().applyAllNow();
     };
@@ -212,8 +214,23 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
 HeaderBar::~HeaderBar()
 {
     stopTimer();
+    processor.removeListener (this);
     processor.getPresetManager().removeChangeListener (this);
     processor.getMidiLearn().removeChangeListener (this);
+}
+
+void HeaderBar::audioProcessorParameterChangeGestureEnd (juce::AudioProcessor*, int parameterIndex)
+{
+    auto* param = processor.getState().getParameter (ParamIDs::guitarType);
+
+    if (param == nullptr || param->getParameterIndex() != parameterIndex)
+        return;
+
+    // The guitar already loaded picked again is no pick: the pass that would
+    // consume the flag never runs, and it must not linger for a later change.
+    if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (param))
+        if (choice->getIndex() != (int) processor.getEngine().getGuitarType())
+            processor.getParameterBridge().followGuitarHandOnNextLoad();
 }
 
 //==============================================================================
@@ -407,7 +424,8 @@ void HeaderBar::showFileMenu()
                     if (file == juce::File())
                         return;
 
-                    processor.pushUndoState (isImport ? "Import preset" : "Open preset");
+                    processor.pushUndoBoundary ((isImport ? "Import preset " : "Open preset ")
+                                                  + file.getFileNameWithoutExtension());
 
                     if (isImport)
                         processor.getPresetManager().importPreset (file);
@@ -580,11 +598,14 @@ void HeaderBar::paint (juce::Graphics& g)
     g.fillRect (bounds.removeFromBottom (1));
 
     // ---- logo -------------------------------------------------------------------
+    // visual-polish.md 6.2 / 6.4: the plugin's name is set in the display face,
+    // the condensed vintage lettering of a 1950s amp badge, beside the brass
+    // headstock mark. High contrast keeps the face; only textures are turned off.
     auto logoArea = getLocalBounds().withTrimmedLeft (28).withWidth (96);
 
     g.setColour (Palette::textPrimary);
-    g.setFont (Fonts::ui (16.0f, true));
-    Fonts::drawTrackedText (g, "LUTHIER", logoArea, juce::Justification::centredLeft, 0.14f);
+    g.setFont (Fonts::display (22.0f));
+    Fonts::drawTrackedText (g, "LUTHIER", logoArea, juce::Justification::centredLeft, 0.16f);
 
     // ---- MIDI activity indicator ---------------------------------------------------
     const bool active = processor.getEngine().getMidiInterpreter().getActiveNoteCount() > 0;

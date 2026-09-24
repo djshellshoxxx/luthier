@@ -187,12 +187,16 @@ LUTHIER_TEST (StringRoll, reducedMotionSlowsTheTimer)
     auto& settings = AccessibilitySettings::get();
     const bool was = settings.isReducedMotion();
 
+    // A component starts invisible, and a roll that cannot be seen runs no
+    // timer (aHiddenRollStopsItsTimer); shown, as its host shows it.
     settings.setReducedMotion (false);
     StringRollComponent fast (processor);
+    fast.setVisible (true);
     CHECK_MSG (fast.getRefreshHz() == 30, "refresh " + juce::String (fast.getRefreshHz()) + " Hz");
 
     settings.setReducedMotion (true);
     StringRollComponent slow (processor);
+    slow.setVisible (true);
     CHECK_MSG (slow.getRefreshHz() == 10, "reduced-motion refresh " + juce::String (slow.getRefreshHz()) + " Hz");
 
     settings.setReducedMotion (was);
@@ -225,4 +229,42 @@ LUTHIER_TEST (StringRoll, theNotationTabHostsItAndRemembersTheCollapse)
     CHECK_MSG (! again.isStringRollShown(), "the collapse was not remembered");
 
     UiPreferences::get().setBool ("notation.showStringRoll", saved);
+}
+
+//==============================================================================
+/*  Two rolls live in the editor; a hidden one has nothing to show, so its
+    timer stops - for its own visibility and for a parent's - and starts again
+    when it can be seen. */
+LUTHIER_TEST (StringRoll, aHiddenRollStopsItsTimer)
+{
+    LuthierAudioProcessor processor;
+    juce::Component parent;
+    StringRollComponent roll (processor);
+
+    // A component starts invisible: no timer until it is shown.
+    CHECK_MSG (! roll.isRefreshRunning(), "a roll nobody has shown yet runs its timer");
+
+    roll.setVisible (true);
+    CHECK (roll.isRefreshRunning());
+
+    roll.setVisible (false);
+    CHECK_MSG (! roll.isRefreshRunning(), "a hidden roll keeps its timer running");
+
+    roll.setVisible (true);
+    CHECK (roll.isRefreshRunning());
+    CHECK_MSG (roll.getRefreshHz() == 30 || roll.getRefreshHz() == 10, "the restarted timer lost its rate");
+
+    parent.addAndMakeVisible (roll);
+    CHECK_MSG (! roll.isRefreshRunning(), "a roll under a parent nobody has shown runs its timer");
+
+    parent.setVisible (true);
+    CHECK (roll.isRefreshRunning());
+
+    parent.setVisible (false);
+    CHECK_MSG (! roll.isRefreshRunning(), "a roll under a hidden parent keeps its timer running");
+
+    parent.setVisible (true);
+    CHECK (roll.isRefreshRunning());
+
+    parent.removeChildComponent (&roll);
 }

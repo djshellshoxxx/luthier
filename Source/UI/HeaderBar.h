@@ -33,7 +33,8 @@ public:
 //==============================================================================
 class HeaderBar : public juce::Component,
                   private juce::ChangeListener,
-                  private juce::Timer
+                  private juce::Timer,
+                  private juce::AudioProcessorListener
 {
 public:
     explicit HeaderBar (LuthierAudioProcessor& processor);
@@ -95,6 +96,17 @@ public:
 private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void timerCallback() override;
+
+    /*  AudioProcessorListener, for one thing: the guitar selector's gesture.
+        A guitar the player picks - here, or in a host's generic editor - ends
+        a gesture; a snapshot, a setlist entry or automation moving guitar_type
+        does not. The pass that loads a picked guitar sets use_fingers from
+        it (ParameterBridge::followGuitarHandOnNextLoad); the others keep the
+        use_fingers they carry. Value changes arrive on any thread, including
+        the audio thread, and are ignored. */
+    void audioProcessorParameterChanged (juce::AudioProcessor*, int, float) override {}
+    void audioProcessorChanged (juce::AudioProcessor*, const ChangeDetails&) override {}
+    void audioProcessorParameterChangeGestureEnd (juce::AudioProcessor*, int parameterIndex) override;
 
     void showFileMenu();
     void updateUndoRedoState();

@@ -1,6 +1,7 @@
 #include "StringRoll.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
+#include "../Accessibility/Localisation.h"
 #include "../Capture/PerformanceCapture.h"
 #include "../Model/Playing/TuningEngine.h"
 
@@ -133,12 +134,70 @@ StringRollComponent::StringRollComponent (LuthierAudioProcessor& p)
     refresh();
 
     runningHz = wantedRefreshHz();
-    startTimerHz (runningHz);
+    updateTimerState();
 }
 
 StringRollComponent::~StringRollComponent()
 {
     stopTimer();
+
+    for (auto& ancestor : watchedAncestors)
+        if (ancestor != nullptr)
+            ancestor->removeComponentListener (this);
+}
+
+//==============================================================================
+void StringRollComponent::visibilityChanged()
+{
+    updateTimerState();
+}
+
+void StringRollComponent::parentHierarchyChanged()
+{
+    watchAncestors();
+    updateTimerState();
+}
+
+void StringRollComponent::componentVisibilityChanged (juce::Component&)
+{
+    updateTimerState();
+}
+
+void StringRollComponent::watchAncestors()
+{
+    for (auto& ancestor : watchedAncestors)
+        if (ancestor != nullptr)
+            ancestor->removeComponentListener (this);
+
+    watchedAncestors.clear();
+
+    for (auto* c = getParentComponent(); c != nullptr; c = c->getParentComponent())
+    {
+        c->addComponentListener (this);
+        watchedAncestors.add (c);
+    }
+}
+
+void StringRollComponent::updateTimerState()
+{
+    /*  Visible up the tree, rather than isShowing(): the latter also needs a
+        window, which the tests do not have, and a roll in an editor about to
+        be shown may as well be current on its first paint. */
+    bool visible = true;
+
+    for (auto* c = static_cast<const juce::Component*> (this); c != nullptr && visible; c = c->getParentComponent())
+        visible = c->isVisible();
+
+    if (visible && ! isTimerRunning())
+    {
+        runningHz = wantedRefreshHz();
+        startTimerHz (runningHz);
+        refresh();   // what happened while it was hidden, now rather than a tick later
+    }
+    else if (! visible && isTimerRunning())
+    {
+        stopTimer();
+    }
 }
 
 int StringRollComponent::wantedRefreshHz() const
@@ -208,8 +267,8 @@ void StringRollComponent::refresh()
         if (name != names[(size_t) s])
         {
             names[(size_t) s] = name;
-            lanes[s]->setTitle ("String " + juce::String (s + 1) + " (" + name + ")");
-            lanes[s]->setHelpText ("Press to pluck the string. Higher in the lane is higher up the neck.");
+            lanes[s]->setTitle (tr ("stringRoll.lane.title", { { "n", juce::String (s + 1) }, { "note", name } }));
+            lanes[s]->setHelpText (tr ("stringRoll.lane.help"));
             changed = true;
         }
     }
@@ -346,8 +405,9 @@ juce::String StringRollComponent::getLaneTooltip (int stringIndex, int fret) con
 {
     const int s = juce::jlimit (0, numStrings - 1, stringIndex);
 
-    return "String " + juce::String (s + 1) + " (" + names[(size_t) s] + "), fret "
-         + juce::String (juce::jmax (0, fret)) + " - click to pluck";
+    return tr ("stringRoll.lane.tooltip", { { "n", juce::String (s + 1) },
+                                            { "note", names[(size_t) s] },
+                                            { "fret", juce::String (juce::jmax (0, fret)) } });
 }
 
 void StringRollComponent::setHover (int stringIndex, int fret)
@@ -505,8 +565,7 @@ void StringRollComponent::paint (juce::Graphics& g)
     {
         g.setColour (Palette::textMuted);
         g.setFont (Fonts::ui (11.0f));
-        g.drawFittedText (captureOff ? "Capture is off - switch it on and the strings you pluck appear here"
-                                     : "Play something - the strings you pluck appear here",
+        g.drawFittedText (tr (captureOff ? "stringRoll.empty.captureOff" : "stringRoll.empty.play"),
                           roll.reduced (Metrics::grid, 0), juce::Justification::centred, 2);
     }
 }

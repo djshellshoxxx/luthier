@@ -52,6 +52,14 @@ public:
     void mouseEnter (const juce::MouseEvent&) override { hovering = true;  repaint(); }
     void mouseExit  (const juce::MouseEvent&) override { hovering = false; repaint(); }
 
+    /** Only the glyph takes the mouse; a control scrolled under the fade
+        either side of it still gets its click. */
+    bool hitTest (int x, int y) override
+    {
+        return juce::isPositiveAndBelow (y, getHeight())
+            && std::abs (x - getWidth() / 2) <= ScrollHintViewport::hintGlyphHalfWidth;
+    }
+
     void mouseDown (const juce::MouseEvent&) override
     {
         viewport.pageBy (top ? -1 : 1);
@@ -78,7 +86,11 @@ ScrollHintViewport::ScrollHintViewport (const juce::String& componentName)
     addChildComponent (*bottomHint);
 }
 
-ScrollHintViewport::~ScrollHintViewport() = default;
+ScrollHintViewport::~ScrollHintViewport()
+{
+    if (watchedContent != nullptr)
+        watchedContent->removeComponentListener (&contentWatcher);
+}
 
 void ScrollHintViewport::resized()
 {
@@ -89,6 +101,27 @@ void ScrollHintViewport::resized()
 void ScrollHintViewport::visibleAreaChanged (const juce::Rectangle<int>&)
 {
     updateHints();
+}
+
+void ScrollHintViewport::viewedComponentChanged (juce::Component* newComponent)
+{
+    if (watchedContent != nullptr)
+        watchedContent->removeComponentListener (&contentWatcher);
+
+    watchedContent = newComponent;
+
+    if (watchedContent != nullptr)
+        watchedContent->addComponentListener (&contentWatcher);
+
+    updateHints();
+}
+
+void ScrollHintViewport::ContentWatcher::componentMovedOrResized (juce::Component&, bool, bool wasResized)
+{
+    // A taller or shorter content leaves the bottom hint stale otherwise:
+    // resized() and visibleAreaChanged() only run on the viewport's own moves.
+    if (wasResized)
+        owner.updateHints();
 }
 
 void ScrollHintViewport::updateHints()
@@ -258,6 +291,17 @@ void AdvancedPanel::Column::addSection (const juce::String& heading)
     Item item;
     item.heading = heading;
     item.height = 24;
+
+    // gui-integration 16 and 20: the header's `?` and right-click menu, laid
+    // over the header row (the item's component gets the row's bounds). The
+    // column owns it through SectionHeaderExtras::attachTo; Docs pins HELP to
+    // the section, as F1 does.
+    item.component = SectionHeaderExtras::attachTo (*this, heading, [this] (const juce::String& section)
+    {
+        if (auto* panel = findParentComponentOfClass<AdvancedPanel>())
+            panel->showHelp (section);
+    });
+
     items.add (item);
 }
 
@@ -1197,6 +1241,8 @@ void AdvancedPanel::buildWorkspace()
             made = new RangesUi::RangeTabButton (tab.name, processor,
                                                  { RangeFamily::pick, RangeFamily::squeak,
                                                    RangeFamily::buzz, RangeFamily::slide });
+        else if (juce::String (tab.name) == "WORKSHOP")
+            made = new RangesUi::RangeTabButton (tab.name, processor, WorkshopPanel::rangeFamilies());
         else
             made = new juce::TextButton (tab.name);
 
@@ -1507,20 +1553,23 @@ void AdvancedPanel::refreshPickupSlots()
     for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
     {
         const bool present = slot < fitted;
-        const char* position = slot == 0 ? "Bridge"
-                             : (slot == fitted - 1 && fitted > 1) ? "Neck" : "Middle";
-        const juce::String n (slot + 1);
-        const juce::String suffix = present ? juce::String (position) : juce::String ("not fitted");
+        const char* position = slot == 0 ? "advanced.pickup.bridge"
+                             : (slot == fitted - 1 && fitted > 1) ? "advanced.pickup.neck" : "advanced.pickup.middle";
+        const std::map<juce::String, juce::String> values
+        {
+            { "n", juce::String (slot + 1) },
+            { "position", tr (present ? position : "advanced.pickup.notFitted") }
+        };
 
-        pickupType[slot]->setLabelText ("Pickup " + n + " (" + suffix + ")");
-        pickupMagnet[slot]->setLabelText ("Magnet " + n + " (" + suffix + ")");
+        pickupType[slot]->setLabelText (tr ("advanced.pickup.label", values));
+        pickupMagnet[slot]->setLabelText (tr ("advanced.pickup.magnetLabel", values));
         pickupType[slot]->setEnabled (present);
         pickupMagnet[slot]->setEnabled (present);
         pickupVolume[slot]->setEnabled (present);
 
         if (! present)
         {
-            pickupType[slot]->setTooltip ("This guitar has no pickup in this slot; fit one on the Workshop bench.");
+            pickupType[slot]->setTooltip (tr ("advanced.pickup.notFitted.tooltip"));
             pickupMagnet[slot]->setTooltip (pickupType[slot]->getTooltip());
             pickupVolume[slot]->setTooltip (pickupType[slot]->getTooltip());
         }
@@ -1528,12 +1577,11 @@ void AdvancedPanel::refreshPickupSlots()
 
     /*  Selector positions the guitar cannot realise: PickupEngine::updateSelection
         folds them onto the pickups that exist, so offering them only confuses.
-        The ComboBoxAttachment keeps ids = index + 1, so ids stay stable and the
-        list is just filtered. */
+        The items are disabled, never removed: the ComboBoxAttachment maps the
+        parameter by item index and item count, so a shorter list would make
+        "Neck" write "Middle". */
     auto& box = pickupSelector->getComboBox();
     const auto names = Parameters::pickupSelectorNames();
-    const int current = box.getSelectedId();
-    box.clear (juce::dontSendNotification);
 
     for (int i = 0; i < names.size(); ++i)
     {
@@ -1542,11 +1590,9 @@ void AdvancedPanel::refreshPickupSlots()
                              || (fitted == 2 && (s == PickupSelector::Bridge || s == PickupSelector::Neck
                                                  || s == PickupSelector::All || s == PickupSelector::BridgeNeck))
                              || (fitted == 1 && s == PickupSelector::Bridge);
-        if (realisable)
-            box.addItem (names[i], i + 1);
+        box.setItemEnabled (i + 1, realisable);
     }
 
-    box.setSelectedId (current, juce::dontSendNotification);
     repaint();
 }
 

@@ -378,3 +378,62 @@ LUTHIER_TEST (PresetPedals, aPedalPickWhileANoteSoundsDoesNotRebuildTheInstrumen
     CHECK_MSG (std::abs (after - before) < 3.0,
                "the note moved " + juce::String (after - before, 2) + " dB across the pedal pick");
 }
+
+//==============================================================================
+/*  A snapshot pairing an acoustic with a pick comes back with the pick. The
+    instrument pass used to write use_fingers from the guitar's category on
+    every guitar change but the first, so recalling such a snapshot (or a
+    setlist entry, or automating guitar_type) turned the fingers on and put
+    an extra parameter write on the host mid-crossfade. Only a guitar the
+    player picks sets the hand (HeaderBar's gesture; ResetStopTests). */
+LUTHIER_TEST (PresetPedals, aSnapshotWithAnAcousticAndAPickKeepsThePick)
+{
+    PreparedProcessor prepared;
+    auto& processor = prepared.processor;
+    auto& bridge = processor.getParameterBridge();
+    auto& engine = processor.getEngine();
+
+    auto setChoice = [&processor] (const char* id, int index)
+    {
+        if (auto* p = processor.getState().getParameter (id))
+            p->setValueNotifyingHost (p->convertTo0to1 ((float) index));
+    };
+
+    auto fingers = [&processor]
+    {
+        return processor.getState().getRawParameterValue (ParamIDs::useFingers)->load() > 0.5f;
+    };
+
+    // An acoustic, loaded through the bridge's pass as any parameter write is.
+    setChoice (ParamIDs::guitarType, (int) GuitarType::Dreadnought);
+    renderMono (processor, 0.02);
+    bridge.handlePendingStructuralChangeNow();
+    CHECK_MSG (engine.getGuitarSpec().category == GuitarCategory::Acoustic, "the dreadnought did not load");
+
+    // ...played with a pick, and kept that way in snapshot 1.
+    if (auto* p = processor.getState().getParameter (ParamIDs::useFingers))
+        p->setValueNotifyingHost (0.0f);
+
+    processor.getSnapshots().setCrossfadeMs (0.0);
+    CHECK (processor.captureSnapshot (0, "Dreadnought with a pick"));
+
+    // Then an electric.
+    setChoice (ParamIDs::guitarType, (int) GuitarType::Stratocaster);
+    renderMono (processor, 0.02);
+    bridge.handlePendingStructuralChangeNow();
+    CHECK (engine.getGuitarSpec().category != GuitarCategory::Acoustic);
+
+    // The recall brings the acoustic back - with the pick it was saved with.
+    CHECK (processor.recallSnapshot (0));
+    renderMono (processor, 0.02);
+    bridge.handlePendingStructuralChangeNow();
+
+    CHECK_MSG (engine.getGuitarSpec().category == GuitarCategory::Acoustic, "the recall did not bring the acoustic back");
+    CHECK_MSG (! fingers(), "the recalled snapshot's pick was overwritten by the guitar's fingers");
+
+    // Automation of guitar_type is not a pick either.
+    setChoice (ParamIDs::guitarType, (int) GuitarType::Classical);
+    renderMono (processor, 0.02);
+    bridge.handlePendingStructuralChangeNow();
+    CHECK_MSG (! fingers(), "automating guitar_type wrote use_fingers");
+}

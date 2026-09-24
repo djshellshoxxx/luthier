@@ -58,6 +58,8 @@ void MidiInterpreter::reset() noexcept
         s.channel = -1;
         s.held = false;
         s.sostenutoHeld = false;
+        s.ringing = false;
+        s.ringingNote = -1;
         s.bendCents = 0.0;
         s.pressure = 0.0;
         s.timbre = 0.0;
@@ -405,8 +407,17 @@ void MidiInterpreter::handleNoteOn (int midiNote, int channel, double velocity,
         {
             // Not a per-string channel: fall back to picking a string by pitch,
             // a free one - the per-string channels may be holding the rest.
-            voicer->setOccupiedStrings (heldStringMask (midiNote));
-            const auto v = voicer->voiceSingleNote (midiNote, velocity, lastMonoString);
+            voicer->setOccupiedStrings (occupiedStringMask (&midiNote, 1));
+            auto v = voicer->voiceSingleNote (midiNote, velocity, lastMonoString);
+
+            // No free string sounds it: a string ringing under the pedal is
+            // taken rather than the note going unplayed (see flushChordGroup).
+            if (! v.valid)
+            {
+                voicer->setOccupiedStrings (heldStringMask (midiNote));
+                v = voicer->voiceSingleNote (midiNote, velocity, lastMonoString);
+            }
+
             voicer->setOccupiedStrings (0);
 
             if (! v.valid)
@@ -515,11 +526,9 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
         another is held has to fit around it, or its cheapest fingering lands on a
         ringing string and kills it (C4 held on the B string, then E4 and G4:
         both fit the high E, and G4 at fret 3 used to end E4 open). A note that
-        is already held and played again re-picks its own string. */
-    uint16_t occupied = heldStringMask();
-
-    for (int i = 0; i < count; ++i)
-        occupied &= heldStringMask (notes[i]);
+        is already held and played again re-picks its own string. Strings
+        ringing under the sustain pedal count too (occupiedStringMask). */
+    uint16_t occupied = occupiedStringMask (notes, count);
 
     voicer->setOccupiedStrings (occupied);
     auto voicing = voicer->voice (notes, velocities, count);
@@ -529,6 +538,28 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
         chord search could not place goes note by note onto whatever free strings
         can sound it. Only a note with no free string left is dropped. */
     placeUnvoicedNotes (notes, velocities, count, occupied, voicing);
+
+    /*  Free strings that cannot sound a note are no use to it: with the ringing
+        strings kept out of the way a note may be left with none that can, and
+        then it takes a ringing string - as a player would - rather than going
+        unplayed. The held strings are never taken. */
+    const uint16_t heldOnly = [this, notes, count]
+    {
+        uint16_t held = heldStringMask();
+
+        for (int i = 0; i < count; ++i)
+            held = (uint16_t) (held & heldStringMask (notes[i]));
+
+        return held;
+    }();
+
+    if (occupied != heldOnly && voicing.numNotes < count)
+    {
+        occupied = heldOnly;
+        voicer->setOccupiedStrings (occupied);
+        voicing = voicer->voice (notes, velocities, count);
+        placeUnvoicedNotes (notes, velocities, count, occupied, voicing);
+    }
 
     if (voicing.numNotes == 0)
         return;
@@ -650,6 +681,40 @@ uint16_t MidiInterpreter::heldStringMask (int exceptMidiNote) const noexcept
     return mask;
 }
 
+uint16_t MidiInterpreter::ringingStringMask (int exceptMidiNote) const noexcept
+{
+    uint16_t mask = 0;
+
+    for (int s = 0; s < numStrings; ++s)
+    {
+        const auto& slot = slots[(size_t) s];
+
+        if (slot.ringing && ! slot.held && slot.ringingNote != exceptMidiNote)
+            mask = (uint16_t) (mask | (1u << s));
+    }
+
+    return mask;
+}
+
+uint16_t MidiInterpreter::occupiedStringMask (const int* notes, int count) const noexcept
+{
+    uint16_t held = heldStringMask();
+    uint16_t ringing = ringingStringMask();
+
+    for (int i = 0; i < count; ++i)
+    {
+        held = (uint16_t) (held & heldStringMask (notes[i]));
+        ringing = (uint16_t) (ringing & ringingStringMask (notes[i]));
+    }
+
+    /*  A string ringing under the pedal is kept out of the way while the
+        group still has a free string each; past that it is taken, as a
+        player would take it, rather than the note going unplayed. */
+    const int free = numStrings - juce::countNumberOfBits ((juce::uint32) (held | ringing));
+
+    return free >= count ? (uint16_t) (held | ringing) : held;
+}
+
 void MidiInterpreter::placeUnvoicedNotes (const int* notes, const double* velocities, int count,
                                           uint16_t occupied, ChordVoicing& voicing) noexcept
 {
@@ -749,6 +814,8 @@ void MidiInterpreter::emitVoicedNote (const VoicedNote& note, int64_t timestamp,
 
     slots[(size_t) s].midiNote = note.midiNote;
     slots[(size_t) s].held = true;
+    slots[(size_t) s].ringing = true;
+    slots[(size_t) s].ringingNote = note.midiNote;
     slots[(size_t) s].startedAt = timestamp;
     slots[(size_t) s].releaseDueAt = -1;
 }
@@ -801,6 +868,13 @@ void MidiInterpreter::flushDeferredReleases (int64_t blockStartSample, int numSa
         slot.pressure = 0.0;
         slot.releaseDueAt = -1;
 
+        // Let ring: the string stays taken until the pedal comes up.
+        if (! slot.releaseWasLetRing)
+        {
+            slot.ringing = false;
+            slot.ringingNote = -1;
+        }
+
         if (technique != nullptr && ! slot.releaseWasLetRing)
             technique->noteEnded (s, 0);
     }
@@ -850,6 +924,13 @@ void MidiInterpreter::releaseString (int stringIndex, int blockOffset, PlayEvent
     slot.pressure = 0.0;
     slot.releaseDueAt = -1;
 
+    // Let ring: the string keeps sounding, so it stays taken (StringSlot::ringing).
+    if (! letRing)
+    {
+        slot.ringing = false;
+        slot.ringingNote = -1;
+    }
+
     if (technique != nullptr && ! letRing)
         technique->noteEnded (stringIndex, 0);
 }
@@ -873,10 +954,18 @@ void MidiInterpreter::handleController (int cc, int value, int channel,
 
         if (sustainDown && ! down)
         {
-            // Releasing the pedal drops every string whose key is already up.
+            // Releasing the pedal frees every string whose key is already up:
+            // it may still be decaying, but a new note may take it now.
             for (int s = 0; s < numStrings; ++s)
-                if (! slots[(size_t) s].held && ! slots[(size_t) s].sostenutoHeld)
-                    continue;
+            {
+                auto& slot = slots[(size_t) s];
+
+                if (! slot.held && ! slot.sostenutoHeld)
+                {
+                    slot.ringing = false;
+                    slot.ringingNote = -1;
+                }
+            }
         }
 
         sustainDown = down;
@@ -895,7 +984,17 @@ void MidiInterpreter::handleController (int cc, int value, int channel,
         else if (! down)
         {
             for (int s = 0; s < numStrings; ++s)
-                slots[(size_t) s].sostenutoHeld = false;
+            {
+                auto& slot = slots[(size_t) s];
+                slot.sostenutoHeld = false;
+
+                // Freed with the pedal, unless the sustain pedal still holds it.
+                if (! slot.held && ! sustainDown)
+                {
+                    slot.ringing = false;
+                    slot.ringingNote = -1;
+                }
+            }
         }
 
         sostenutoDown = down;
@@ -992,6 +1091,8 @@ void MidiInterpreter::allNotesOff (PlayEventQueue& out) noexcept
 
         slots[(size_t) s].held = false;
         slots[(size_t) s].midiNote = -1;
+        slots[(size_t) s].ringing = false;
+        slots[(size_t) s].ringingNote = -1;
         slots[(size_t) s].bendCents = 0.0;
         slots[(size_t) s].pressure = 0.0;
 

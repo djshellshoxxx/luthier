@@ -610,3 +610,143 @@ LUTHIER_TEST (TuneImport, quantiseSnapsMelodyAndBassWhenAsked)
     if (notes.size() == 3)
         CHECK_NEAR (notes[2].startBeat, 2.5, 1.0e-6);
 }
+
+//==============================================================================
+/*  A marker section rounded to whole bars keeps the notes of its own span:
+    rounded up, it does not take the next section's first notes as well;
+    rounded down with notes in the cut-off tail, it grows a bar rather than
+    dropping them. And a chord chart is read in time order whatever order its
+    tracks came in. */
+LUTHIER_TEST (TuneImport, aSectionRoundedUpDoesNotTakeTheNextSectionsNotes)
+{
+    constexpr int tpq = 480;   // 14.4 and 17.6 beats land on whole ticks
+    juce::MidiFile file;
+    file.setTicksPerQuarterNote (tpq);
+
+    juce::MidiMessageSequence track;
+    track.addEvent (juce::MidiMessage::textMetaEvent (6, "A"), 0.0);
+    track.addEvent (juce::MidiMessage::textMetaEvent (6, "B"), 14.4 * tpq);   // 3.6 bars: rounds to 4
+
+    for (double beat : { 0.0, 4.0, 8.0, 12.0 })
+        addNote (track, 1, 60, beat, 1.0, tpq);
+
+    for (double beat : { 15.0, 16.5, 18.0 })   // B's; 15.0 lies inside A's rounded fourth bar
+        addNote (track, 1, 72, beat, 0.5, tpq);
+
+    file.addTrack (track);
+
+    Tune tune;
+    juce::String error;
+    juce::StringArray warnings;
+    CHECK_MSG (importBytes (toBytes (file), "up.mid", tune, error, warnings), error);
+    CHECK (tune.getNumSections() == 2);
+
+    if (tune.getNumSections() != 2)
+        return;
+
+    const auto& a = tune.arrangement.sections[0];
+    const auto& b = tune.arrangement.sections[1];
+    CHECK (a.lengthBars == 4);
+    CHECK (a.melody.has_value() && b.melody.has_value());
+
+    if (a.melody.has_value() && b.melody.has_value())
+    {
+        CHECK_MSG (a.melody->notes.size() == 4, "A holds " + juce::String ((int) a.melody->notes.size()) + " notes, not its own 4");
+
+        for (const auto& n : a.melody->notes)
+            CHECK_MSG (n.pitch.value == 60, "A took one of B's notes");
+
+        CHECK (b.melody->notes.size() == 3);
+
+        if (! b.melody->notes.empty())
+            CHECK_NEAR (b.melody->notes.front().startBeat, 0.6, 1.0e-6);
+    }
+}
+
+LUTHIER_TEST (TuneImport, aSectionRoundedDownKeepsTheNotesInItsTail)
+{
+    constexpr int tpq = 480;   // 14.4 and 17.6 beats land on whole ticks
+    juce::MidiFile file;
+    file.setTicksPerQuarterNote (tpq);
+
+    juce::MidiMessageSequence track;
+    track.addEvent (juce::MidiMessage::textMetaEvent (6, "A"), 0.0);
+    track.addEvent (juce::MidiMessage::textMetaEvent (6, "B"), 17.6 * tpq);   // 4.4 bars: would round to 4
+
+    for (double beat : { 0.0, 4.0, 8.0, 12.0, 16.5 })   // 16.5 starts in the tail past bar 4
+        addNote (track, 1, 60, beat, 1.0, tpq);
+
+    for (double beat : { 18.0, 20.0 })
+        addNote (track, 1, 72, beat, 0.5, tpq);
+
+    file.addTrack (track);
+
+    Tune tune;
+    juce::String error;
+    juce::StringArray warnings;
+    CHECK_MSG (importBytes (toBytes (file), "down.mid", tune, error, warnings), error);
+    CHECK (tune.getNumSections() == 2);
+
+    if (tune.getNumSections() != 2)
+        return;
+
+    const auto& a = tune.arrangement.sections[0];
+    const auto& b = tune.arrangement.sections[1];
+    CHECK_MSG (a.lengthBars == 5, "A is " + juce::String (a.lengthBars) + " bars; its fifth holds a note");
+    CHECK (a.melody.has_value() && b.melody.has_value());
+
+    if (a.melody.has_value() && b.melody.has_value())
+    {
+        CHECK_MSG (a.melody->notes.size() == 5, "A holds " + juce::String ((int) a.melody->notes.size()) + " notes; the tail note was dropped");
+        CHECK (b.melody->notes.size() == 2);
+
+        if (! b.melody->notes.empty())
+            CHECK_NEAR (b.melody->notes.front().startBeat, 0.4, 1.0e-6);
+    }
+
+    // A section rounded down with nothing in its tail is still rounded down.
+    juce::MidiFile plain;
+    plain.setTicksPerQuarterNote (tpq);
+    juce::MidiMessageSequence one;
+    one.addEvent (juce::MidiMessage::textMetaEvent (6, "A"), 0.0);
+    one.addEvent (juce::MidiMessage::textMetaEvent (6, "B"), 17.6 * tpq);
+    addNote (one, 1, 60, 0.0, 1.0, tpq);
+    addNote (one, 1, 72, 18.0, 1.0, tpq);
+    plain.addTrack (one);
+
+    Tune plainTune;
+    CHECK_MSG (importBytes (toBytes (plain), "plain.mid", plainTune, error, warnings), error);
+    CHECK (plainTune.getNumSections() == 2 && plainTune.arrangement.sections[0].lengthBars == 4);
+}
+
+LUTHIER_TEST (TuneImport, aChordChartSpreadOverTracksIsReadInTimeOrder)
+{
+    constexpr int tpq = 240;
+    juce::MidiFile file;
+    file.setTicksPerQuarterNote (tpq);
+
+    // The later chords on the first track, the first chord on the second:
+    // track order is not time order.
+    juce::MidiMessageSequence later, first;
+    later.addEvent (juce::MidiMessage::textMetaEvent (1, "D7"), 4.0 * tpq);
+    later.addEvent (juce::MidiMessage::textMetaEvent (1, "Gmaj7"), 8.0 * tpq);
+    first.addEvent (juce::MidiMessage::textMetaEvent (1, "Am7"), 0.0);
+
+    for (int beat = 0; beat < 12; ++beat)
+        addNote (first, 1, 67 + (beat % 5), (double) beat, 0.5, tpq);
+
+    file.addTrack (later);
+    file.addTrack (first);
+
+    Tune tune;
+    juce::String error;
+    juce::StringArray warnings;
+    CHECK_MSG (importBytes (toBytes (file), "chart.mid", tune, error, warnings), error);
+    CHECK (tune.getNumSections() == 1);
+
+    if (tune.getNumSections() != 1)
+        return;
+
+    CHECK ((tune.arrangement.sections[0].chords
+             == std::vector<ChordCell> { chord ("Am7"), chord ("D7"), chord ("Gmaj7") }));
+}

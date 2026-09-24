@@ -566,3 +566,87 @@ LUTHIER_TEST (ResetStop, ctrlShiftPIsRegisteredListedAndActedOn)
 
 
 
+
+//==============================================================================
+/*  The header's guitar selector: a guitar the player picks (a parameter
+    gesture, which is what the selector's attachment sends) sets use_fingers
+    from the guitar's category on the pass that loads it - an acoustic with
+    the fingers, an electric with a pick. A change with no gesture (a
+    snapshot, automation) leaves use_fingers alone; PresetPedalTests. */
+LUTHIER_TEST (ResetStop, pickingAGuitarInTheHeaderSetsTheHandButAutomationDoesNot)
+{
+    LuthierAudioProcessor processor;
+    processor.setRateAndBufferSizeDetails (kSr, kBlock);
+    processor.prepareToPlay (kSr, kBlock);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    CHECK (editor != nullptr);
+
+    if (editor == nullptr)
+        return;
+
+    editor->setVisible (true);
+    CHECK (findOne<HeaderBar> (*editor) != nullptr);
+
+    auto* guitar = processor.getState().getParameter (ParamIDs::guitarType);
+    CHECK (guitar != nullptr);
+
+    if (guitar == nullptr)
+        return;
+
+    auto renderBlock = [&processor]
+    {
+        juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumOutputChannels()), kBlock);
+        buffer.clear();
+        juce::MidiBuffer midi;
+        processor.processBlock (buffer, midi);
+    };
+
+    auto fingers = [&processor]
+    {
+        return processor.getState().getRawParameterValue (ParamIDs::useFingers)->load() > 0.5f;
+    };
+
+    if (auto* p = processor.getState().getParameter (ParamIDs::useFingers))
+        p->setValueNotifyingHost (0.0f);
+
+    // The player picks a dreadnought: what the ComboBoxAttachment sends.
+    guitar->beginChangeGesture();
+    guitar->setValueNotifyingHost (guitar->convertTo0to1 ((float) (int) GuitarType::Dreadnought));
+    guitar->endChangeGesture();
+
+    renderBlock();
+    processor.getParameterBridge().handlePendingStructuralChangeNow();
+
+    CHECK (processor.getEngine().getGuitarSpec().category == GuitarCategory::Acoustic);
+    CHECK_MSG (fingers(), "picking an acoustic in the header did not switch to the fingers");
+
+    // Automation moves it to an electric with no gesture: the hand stays.
+    guitar->setValueNotifyingHost (guitar->convertTo0to1 ((float) (int) GuitarType::Stratocaster));
+    renderBlock();
+    processor.getParameterBridge().handlePendingStructuralChangeNow();
+
+    CHECK (processor.getEngine().getGuitarSpec().category != GuitarCategory::Acoustic);
+    CHECK_MSG (fingers(), "automation of guitar_type wrote use_fingers");
+
+    // Picking the guitar that is already loaded is no pick: nothing lingers
+    // for the next automated change to consume.
+    guitar->beginChangeGesture();
+    guitar->setValueNotifyingHost (guitar->convertTo0to1 ((float) (int) GuitarType::Stratocaster));
+    guitar->endChangeGesture();
+
+    guitar->setValueNotifyingHost (guitar->convertTo0to1 ((float) (int) GuitarType::Classical));
+    renderBlock();
+    processor.getParameterBridge().handlePendingStructuralChangeNow();
+
+    CHECK (processor.getEngine().getGuitarSpec().category == GuitarCategory::Acoustic);
+    CHECK_MSG (fingers(), "a re-pick of the loaded guitar left a flag for the automated change");
+
+    // And the pick with a gesture to an electric puts the pick back.
+    guitar->beginChangeGesture();
+    guitar->setValueNotifyingHost (guitar->convertTo0to1 ((float) (int) GuitarType::Telecaster));
+    guitar->endChangeGesture();
+    renderBlock();
+    processor.getParameterBridge().handlePendingStructuralChangeNow();
+    CHECK_MSG (! fingers(), "picking an electric in the header did not switch to the pick");
+}
