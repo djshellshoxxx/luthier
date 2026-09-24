@@ -419,6 +419,11 @@ public:
     juce::String getUndoDescription() const;
     juce::String getRedoDescription() const;
 
+    /*  action-and-undo.md 3.8: a preset load from the UI - one entry named
+        "Load preset [name]", the load, then the engine update. */
+    bool loadPresetAsUserAction (int index);
+    bool stepPresetAsUserAction (bool forward);
+
     //==========================================================================
     // UI state that belongs with the plugin rather than with the editor.
 
@@ -714,6 +719,11 @@ private:
     };
 
     void addUndoEntry (UndoEntry&& entry);
+
+    /*  action-and-undo.md 3.17 / 7: restores an entry's state but leaves the
+        session layers (view, Live Mode, A/B, locks, tune, metronome) alone. */
+    void applyUndoState (const juce::MemoryBlock& state);
+    bool restoringForUndo = false;
 
     bool gestureUndoSuppressed = false;
 

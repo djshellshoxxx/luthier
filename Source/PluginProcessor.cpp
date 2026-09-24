@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "Presets/FactoryPresets.h"
 #include "Support/ErrorLog.h"
+#include "Support/UndoHistory.h"   // action-and-undo.md
 
 /*  The test runner and the offline renderer build this file, so that the things
     only the processor owns - the undo stack, uiState, A/B slots, snapshot recall,
@@ -1896,9 +1897,19 @@ void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool ge
         return;
     }
 
+    // action-and-undo.md 3.1 / 3.3: "Change X from A to B", "Turn on/off X".
+    auto textOf = [parameter] (float v)
+    {
+        const auto label = parameter->getLabel();
+        return parameter->getText (v, 32) + (label.isNotEmpty() ? " " + label : juce::String());
+    };
+
     UndoEntry entry;
     entry.state = std::move (gestureStartState);
-    entry.description = "Change " + gestureParameterName;
+    entry.description = parameter->isBoolean()
+                          ? (endValue >= 0.5f ? "Turn on " : "Turn off ") + gestureParameterName
+                          : "Change " + gestureParameterName + " from " + textOf (gestureStartValue)
+                              + " to " + textOf (endValue);
 
     gestureStartState.reset();
 
@@ -1949,7 +1960,7 @@ void LuthierAudioProcessor::undo()
 
     --undoPosition;
 
-    setStateInformation (entry.state.getData(), (int) entry.state.getSize());
+    applyUndoState (entry.state);
 }
 
 void LuthierAudioProcessor::redo()
@@ -1960,7 +1971,54 @@ void LuthierAudioProcessor::redo()
     ++undoPosition;
 
     const auto& entry = undoStack.getReference (undoPosition);
-    setStateInformation (entry.redoState.getData(), (int) entry.redoState.getSize());
+    applyUndoState (entry.redoState);
+}
+
+// action-and-undo.md 3.17 / 7: see UndoState::withSessionLayers.
+void LuthierAudioProcessor::applyUndoState (const juce::MemoryBlock& state)
+{
+    juce::Array<juce::var> locks;
+
+    for (const auto& id : lockedParameters)
+        locks.add (id);
+
+    juce::NamedValueSet keep;
+    keep.set ("liveMode", uiState.liveMode);
+    keep.set ("slotBActive", slotBActive);
+    keep.set ("lockedParameters", locks);
+    keep.set ("clickToMain", isClickToMain());
+
+    const auto restored = UndoState::withSessionLayers (state, keep, { "ui", "tune", "metronome" });
+
+    const juce::ScopedValueSetter<bool> guard (restoringForUndo, true);
+    setStateInformation (restored.getData(), (int) restored.getSize());
+}
+
+// action-and-undo.md 3.8
+bool LuthierAudioProcessor::loadPresetAsUserAction (int index)
+{
+    if (presets.getPreset (index) == nullptr)
+        return false;
+
+    pushUndoState ("Load preset " + presets.getPreset (index)->name);
+
+    if (! presets.loadPreset (index))
+        return false;
+
+    bridge.applyAllNow();
+    return true;
+}
+
+bool LuthierAudioProcessor::stepPresetAsUserAction (bool forward)
+{
+    const int count = presets.getNumPresets();
+    const int current = presets.getCurrentPresetIndex();
+
+    if (count <= 0)
+        return false;
+
+    return loadPresetAsUserAction (forward ? (current + 1) % count
+                                           : (current <= 0 ? count - 1 : current - 1));
 }
 
 juce::String LuthierAudioProcessor::getUndoDescription() const
@@ -2168,7 +2226,9 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
     bridge.applyAllNow();
 
     // Whatever the host sends next, this state is the one the user saved.
-    ignoreNextProgramChange.store (true);
+    // (An undo is not a host restore: action-and-undo.md.)
+    if (! restoringForUndo)
+        ignoreNextProgramChange.store (true);
 }
 
 //==============================================================================

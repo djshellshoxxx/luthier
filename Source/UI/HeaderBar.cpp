@@ -27,21 +27,11 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     // ---- preset ---------------------------------------------------------------
     addAndMakeVisible (presetPrev);
     presetPrev.setTooltip ("Previous preset");
-    presetPrev.onClick = [this]
-    {
-        processor.pushUndoState ("Load preset");
-        processor.getPresetManager().loadPrevious();
-        processor.getParameterBridge().applyAllNow();
-    };
+    presetPrev.onClick = [this] { processor.stepPresetAsUserAction (false); };   // action-and-undo.md 3.8
 
     addAndMakeVisible (presetNext);
     presetNext.setTooltip ("Next preset");
-    presetNext.onClick = [this]
-    {
-        processor.pushUndoState ("Load preset");
-        processor.getPresetManager().loadNext();
-        processor.getParameterBridge().applyAllNow();
-    };
+    presetNext.onClick = [this] { processor.stepPresetAsUserAction (true); };    // action-and-undo.md 3.8
 
     addAndMakeVisible (presetName);
     presetName.setTooltip ("Click to browse the preset bank");
@@ -351,7 +341,7 @@ void HeaderBar::showFileMenu()
                     if (file == juce::File())
                         return;
 
-                    processor.pushUndoState (isImport ? "Import preset" : "Open preset");
+                    processor.pushUndoState ((isImport ? "Import preset " : "Load preset ") + file.getFileNameWithoutExtension());
 
                     if (isImport)
                         processor.getPresetManager().importPreset (file);

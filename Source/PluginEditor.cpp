@@ -734,12 +734,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
             return true;
         }
 
-        processor.pushUndoState ("Load preset");
-
-        if (forward) processor.getPresetManager().loadNext();
-        else         processor.getPresetManager().loadPrevious();
-
-        processor.getParameterBridge().applyAllNow();
+        processor.stepPresetAsUserAction (forward);   // action-and-undo.md 3.8
         return true;
     }
 

@@ -153,6 +153,12 @@ LUTHIER_TEST (Undo, aGestureIsOneEntry)
     CHECK_MSG (processor.getNumUndoSteps() == before + 1,
                "a 40-step drag made " + juce::String (processor.getNumUndoSteps() - before) + " entries");
 
+    // 3.1: "Change [param] from X to Y".
+    CHECK_MSG (processor.getUndoDescription() == "Change Gain from 0.20 to 0.70"
+                 || processor.getUndoDescription().startsWith ("Change Gain from 0.2"),
+               "description: " + processor.getUndoDescription());
+    CHECK (processor.getUndoDescription().contains (" to 0.7"));
+
     processor.undo();
     CHECK (std::abs (plainOf (processor, gain) - 0.2f) < 1.0e-3f);
 
@@ -180,4 +186,106 @@ LUTHIER_TEST (Undo, writesWithoutAGestureMakeNoEntries)
         parameter->setValueNotifyingHost ((float) (i % 100) / 100.0f);
 
     CHECK (processor.getNumUndoSteps() == before);
+}
+
+//==============================================================================
+/*  3.3: a toggle reads "Turn on X" / "Turn off X". */
+LUTHIER_TEST (Undo, aToggleSaysTurnOnOrOff)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    juce::RangedAudioParameter* toggle = nullptr;
+
+    for (auto* p : processor.getParameters())
+        if (auto* b = dynamic_cast<juce::AudioParameterBool*> (p); b != nullptr && ! b->get())
+        {
+            toggle = b;
+            break;
+        }
+
+    CHECK (toggle != nullptr);
+
+    if (toggle == nullptr)
+        return;
+
+    toggle->beginChangeGesture();
+    toggle->setValueNotifyingHost (1.0f);
+    toggle->endChangeGesture();
+
+    CHECK_MSG (processor.getUndoDescription() == "Turn on " + toggle->getName (64),
+               "description: " + processor.getUndoDescription());
+}
+
+//==============================================================================
+/*  3.17 and 7: undo reverses values, not the view. The tab, Live Mode, the A/B
+    slot and the tune (which keeps its own history) stay where they are. */
+LUTHIER_TEST (Undo, doesNotMoveTheViewOrTheTune)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    const juce::String gain (ParamIDs::ampGain);
+    auto& ui = processor.getUiState();
+
+    ui.advancedTab = 3;
+    processor.pushUndoState ("an edit");
+    setPlain (processor, gain, 0.9f);
+
+    ui.advancedTab = 1;
+    processor.setLiveMode (true);
+
+    auto& tune = processor.getTuneSession();
+    const double tempo = tune.getTune().meta.tempoBpm;
+    CHECK (tune.edit (TuneEditClass::other, "Change tempo",
+                      [tempo] (Tune& t) { return t.setTempo (tempo + 7.0); }));
+    CHECK (tune.canUndo());
+
+    processor.undo();
+
+    CHECK (std::abs (plainOf (processor, gain) - 0.9f) > 1.0e-3f);
+    CHECK_MSG (ui.advancedTab == 1, "undo moved the open tab");
+    CHECK_MSG (processor.isLiveMode(), "undo left Live Mode");
+    CHECK_MSG (std::abs (tune.getTune().meta.tempoBpm - (tempo + 7.0)) < 1.0e-6, "undo reverted the tune");
+    CHECK_MSG (tune.canUndo(), "undo wiped the tune's own history");
+}
+
+//==============================================================================
+/*  3.8 / 6 / 13: a preset load is one entry named after the preset, and one
+    undo puts back every parameter it touched. */
+LUTHIER_TEST (Undo, aPresetLoadIsOneNamedEntry)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& presets = processor.getPresetManager();
+    CHECK (presets.getNumPresets() > 1);
+
+    if (presets.getNumPresets() < 2)
+        return;
+
+    const auto before = processor.captureStateBlock();
+    const auto parameterBefore = [&processor]
+    {
+        juce::Array<float> values;
+        for (auto* p : processor.getParameters())
+            values.add (p->getValue());
+        return values;
+    }();
+
+    const int before_steps = processor.getNumUndoSteps();
+    CHECK (processor.loadPresetAsUserAction (1));
+    CHECK (processor.getNumUndoSteps() == before_steps + 1);
+    CHECK (processor.getUndoDescription() == "Load preset " + presets.getPreset (1)->name);
+
+    processor.undo();
+
+    int differing = 0;
+    const auto& all = processor.getParameters();
+
+    for (int i = 0; i < all.size(); ++i)
+        if (std::abs (all[i]->getValue() - parameterBefore[i]) > 1.0e-5f)
+            ++differing;
+
+    CHECK_MSG (differing == 0, juce::String (differing) + " parameters did not come back");
 }

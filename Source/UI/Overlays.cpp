@@ -1248,11 +1248,8 @@ void PresetBrowserPanel::loadSelected()
     if (! juce::isPositiveAndBelow (row, visibleIndices.size()))
         return;
 
-    processor.pushUndoState ("Load preset");
-
     auto& presets = processor.getPresetManager();
-    presets.loadPreset (visibleIndices[row]);
-    processor.getParameterBridge().applyAllNow();
+    processor.loadPresetAsUserAction (visibleIndices[row]);   // action-and-undo.md 3.8
 
     // 5.2: while morphing, a load fills the selected slot, and the sound goes
     // back to wherever the slider is between A and B.
