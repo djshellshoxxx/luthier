@@ -184,6 +184,15 @@ void TuneSectionStrip::paint (juce::Graphics& g)
         g.setFont (Fonts::ui (11.0f, selected));
         g.drawFittedText (text, bounds.toNearestInt().reduced (4, 2), juce::Justification::centred, 2);
     }
+
+    // 3.3: where a dragged tab will land.
+    if (draggingTab && dropSlot >= 0)
+    {
+        const int x = dropSlot >= tune.getNumSections() ? getTabBounds (tune.getNumSections()).getX() - 2
+                                                       : getTabBounds (dropSlot).getX() - 2;
+        g.setColour (Palette::accentBright);
+        g.fillRect (x - 1, 0, 3, getHeight());
+    }
 }
 
 void TuneSectionStrip::mouseDown (const juce::MouseEvent& e)
@@ -201,6 +210,10 @@ void TuneSectionStrip::mouseDown (const juce::MouseEvent& e)
     }
 
     session.setSelectedSection (tab);
+
+    // 3.3: a left press may become a drag (TuneSectionStripEditing.cpp).
+    dragTab = e.mods.isPopupMenu() ? -1 : tab;
+    draggingTab = false;
 
     if (e.mods.isPopupMenu())
         buildMenu (tab).showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
@@ -221,6 +234,7 @@ juce::PopupMenu TuneSectionStrip::buildMenu (int sectionIndex) const
 
     menu.addItem (renameItem, "Rename...");
     menu.addItem (duplicateItem, "Duplicate");
+    menu.addItem (varyItem, "Vary", section != nullptr);   // 3.3
     menu.addItem (deleteItem, "Delete", section != nullptr);
     menu.addSeparator();
 
@@ -280,6 +294,12 @@ void TuneSectionStrip::performMenuItem (int sectionIndex, int itemId)
     if (itemId == customRepeatItem)
     {
         promptRepeatCount (sectionIndex);
+        return;
+    }
+
+    if (itemId == varyItem)
+    {
+        varySection (sectionIndex);
         return;
     }
 
@@ -433,6 +453,8 @@ void TuneSectionStrip::promptRepeatCount (int sectionIndex)
 //==============================================================================
 TuneChordPills::TuneChordPills (TuneSession& s) : session (s)
 {
+    setTooltip ("Click a chord to edit it; drag it to reorder, drag its right edge to change its length; "
+                "right-click for insert, duplicate, delete, copy, paste and substitutions");
     AccessibleSetup::configureDescriptive (*this, "Chord pills",
                                            "The selected section's chords, coloured by their function in the key.");
 }
@@ -513,308 +535,25 @@ void TuneChordPills::paint (juce::Graphics& g)
         g.setColour (Palette::textPrimary);
         g.fillRect (x - 1.0f, 0.0f, 2.0f, (float) getHeight());
     }
-}
 
-//==============================================================================
-// Piano roll
-//==============================================================================
-TunePianoRoll::TunePianoRoll (TuneSession& s) : session (s)
-{
-    setTooltip ("Click and drag to draw a note; right-click a note to delete or lock it. C toggles chromatic.");
-    AccessibleSetup::configureDescriptive (*this, "Melody piano roll",
-                                           "The selected section's melody. Drag to draw a note; right-click a note for its menu.");
-}
-
-double TunePianoRoll::sectionBeats() const
-{
-    return juce::jmax (1.0, session.getTune().getSectionLengthBeats (session.getSelectedSection()));
-}
-
-void TunePianoRoll::setPlayhead (const TunePlayhead& newPlayhead)
-{
-    if (newPlayhead != playhead)
+    // 3.2: what a drag in progress will do.
+    if (drag == Drag::resize && dragCell >= 0)
     {
-        playhead = newPlayhead;
-        repaint();
+        const auto cell = getCellBounds (dragCell);
+        const float x = (float) cell.getX() + (float) (dragBeats / total) * width;
+        g.setColour (Palette::accentBright);
+        g.fillRect (x - 1.5f, 0.0f, 3.0f, (float) getHeight());
+        g.setFont (Fonts::mono (10.0f));
+        g.drawText (juce::String (dragBeats, 1), juce::Rectangle<float> (x + 3.0f, 0.0f, 40.0f, 12.0f),
+                    juce::Justification::centredLeft);
     }
-}
-
-int TunePianoRoll::getLowestPitch() const
-{
-    int low = 48;
-
-    if (const auto* s = session.getTune().getSection (session.getSelectedSection()))
+    else if (drag == Drag::move && dropIndex >= 0)
     {
-        if (s->melody.has_value())
-        {
-            low = s->melody->rangeLow;
-
-            for (const auto& n : s->melody->notes)
-                low = juce::jmin (low, resolveNotePitch (session.getTune(), session.getSelectedSection(), n));
-        }
+        const int count = (int) section->chords.size();
+        const int x = dropIndex >= count ? getCellBounds (count - 1).getRight() : getCellBounds (dropIndex).getX();
+        g.setColour (Palette::accentBright);
+        g.fillRect ((float) x - 1.5f, 0.0f, 3.0f, (float) getHeight());
     }
-
-    return juce::jlimit (0, 115, low - 2);
-}
-
-int TunePianoRoll::getHighestPitch() const
-{
-    int high = 79;
-
-    if (const auto* s = session.getTune().getSection (session.getSelectedSection()))
-    {
-        if (s->melody.has_value())
-        {
-            high = s->melody->rangeHigh;
-
-            for (const auto& n : s->melody->notes)
-                high = juce::jmax (high, resolveNotePitch (session.getTune(), session.getSelectedSection(), n));
-        }
-    }
-
-    return juce::jlimit (getLowestPitch() + 12, 127, high + 2);
-}
-
-double TunePianoRoll::beatAt (float x) const
-{
-    return juce::jlimit (0.0, sectionBeats(), (double) x / juce::jmax (1.0, (double) getWidth()) * sectionBeats());
-}
-
-int TunePianoRoll::pitchAt (float y) const
-{
-    const int low = getLowestPitch();
-    const int rows = getHighestPitch() - low + 1;
-    const float rowHeight = (float) getHeight() / (float) rows;
-    return juce::jlimit (low, low + rows - 1, low + rows - 1 - (int) std::floor (y / juce::jmax (1.0f, rowHeight)));
-}
-
-juce::Rectangle<float> TunePianoRoll::getNoteBounds (double beat, int pitch, double durationBeats) const
-{
-    const int low = getLowestPitch();
-    const int rows = getHighestPitch() - low + 1;
-    const float rowHeight = (float) getHeight() / (float) rows;
-    const float x = (float) (beat / sectionBeats()) * (float) getWidth();
-    const float w = (float) (durationBeats / sectionBeats()) * (float) getWidth();
-
-    return { x, (float) (low + rows - 1 - pitch) * rowHeight, juce::jmax (2.0f, w), rowHeight };
-}
-
-int TunePianoRoll::findNoteAt (double beat, int pitch) const
-{
-    const auto& tune = session.getTune();
-    const auto* s = tune.getSection (session.getSelectedSection());
-
-    if (s == nullptr || ! s->melody.has_value())
-        return -1;
-
-    // The last drawn wins where notes overlap: it is the one on top.
-    for (int i = (int) s->melody->notes.size(); --i >= 0;)
-    {
-        const auto& n = s->melody->notes[(size_t) i];
-
-        if (beat >= n.startBeat - 1.0e-6 && beat < n.getEndBeat() - 1.0e-6
-              && resolveNotePitch (tune, session.getSelectedSection(), n) == pitch)
-            return i;
-    }
-
-    return -1;
-}
-
-bool TunePianoRoll::addNote (double beat, int pitch, double durationBeats)
-{
-    const auto& tune = session.getTune();
-    const int sectionIndex = session.getSelectedSection();
-
-    if (! tune.isValidSection (sectionIndex))
-        return false;
-
-    // 3.4: the start snaps to the grid line at or before it, the pitch to the key.
-    const double start = snapBeatToGrid (juce::jmax (0.0, beat - grid * 0.5 + 1.0e-9), grid);
-    const double length = juce::jmax (grid, snapBeatToGrid (durationBeats, grid));
-    const int snapped = chromaticMode ? pitch : snapPitchToKey (pitch, tune.meta.keyTonic, tune.meta.mode);
-
-    if (start >= sectionBeats() - 1.0e-6)
-        return false;
-
-    const auto note = MelodyNote::make (start, juce::jmin (length, sectionBeats() - start), snapped, 100);
-
-    return session.edit (TuneEditClass::melodyEdit, "Draw note",
-                         [sectionIndex, note] (Tune& t) { return t.addMelodyNote (sectionIndex, note) >= 0; });
-}
-
-bool TunePianoRoll::deleteNoteAt (double beat, int pitch)
-{
-    const int index = findNoteAt (beat, pitch);
-    const int sectionIndex = session.getSelectedSection();
-
-    if (index < 0)
-        return false;
-
-    return session.edit (TuneEditClass::melodyEdit, "Delete note",
-                         [sectionIndex, index] (Tune& t) { return t.removeMelodyNotes (sectionIndex, { index }); });
-}
-
-bool TunePianoRoll::toggleLockAt (double beat, int pitch)
-{
-    const int index = findNoteAt (beat, pitch);
-    const int sectionIndex = session.getSelectedSection();
-
-    if (index < 0)
-        return false;
-
-    const bool locked = session.getTune().getSection (sectionIndex)->melody->notes[(size_t) index].locked;
-
-    return session.edit (TuneEditClass::melodyEdit, locked ? "Unlock note" : "Lock note",
-                         [sectionIndex, index, locked] (Tune& t) { return t.setMelodyNoteLocked (sectionIndex, index, ! locked); },
-                         index);
-}
-
-void TunePianoRoll::paint (juce::Graphics& g)
-{
-    const auto& tune = session.getTune();
-    const int sectionIndex = session.getSelectedSection();
-    const int low = getLowestPitch();
-    const int high = getHighestPitch();
-    const int rows = high - low + 1;
-    const float rowHeight = (float) getHeight() / (float) rows;
-
-    g.setColour (Palette::panelSunken);
-    g.fillRect (getLocalBounds());
-
-    // 3.4: key-of-scale rows shaded, the tonic a shade brighter.
-    for (int pitch = low; pitch <= high; ++pitch)
-    {
-        if (! tunetheory::isInScale (pitch, tune.meta.keyTonic, tune.meta.mode))
-            continue;
-
-        const float y = (float) (high - pitch) * rowHeight;
-        g.setColour (tunetheory::wrapPitchClass (pitch - tune.meta.keyTonic) == 0 ? Palette::panelRaised : Palette::panel);
-        g.fillRect (0.0f, y, (float) getWidth(), rowHeight);
-    }
-
-    // Beat and bar lines.
-    const double beats = sectionBeats();
-    const double bar = tune.getBeatsPerBar();
-
-    for (double b = 0.0; b <= beats + 1.0e-9; b += 1.0)
-    {
-        const float x = (float) (b / beats) * (float) getWidth();
-        const double intoBar = std::fmod (b, bar);
-        const bool isBar = intoBar < 1.0e-6 || bar - intoBar < 1.0e-6;
-        g.setColour (isBar ? Palette::edgeBright : Palette::edge.withMultipliedAlpha (0.6f));
-        g.drawVerticalLine (juce::jmin ((int) x, getWidth() - 1), 0.0f, (float) getHeight());
-    }
-
-    const auto* section = tune.getSection (sectionIndex);
-
-    if (section == nullptr)
-    {
-        g.setColour (Palette::textDisabled);
-        g.setFont (Fonts::ui (11.0f));
-        g.drawText ("Add a section to write a melody", getLocalBounds(), juce::Justification::centred);
-        return;
-    }
-
-    if (section->melody.has_value())
-    {
-        for (const auto& n : section->melody->notes)
-        {
-            const int pitch = resolveNotePitch (tune, sectionIndex, n);
-            const auto r = getNoteBounds (n.startBeat, pitch, n.durationBeats).reduced (0.5f, 1.0f);
-
-            g.setColour (n.locked ? Palette::accentBright : Palette::secondary);
-            g.fillRoundedRectangle (r, 2.0f);
-
-            if (n.locked)
-            {
-                g.setColour (Palette::textPrimary);
-                g.drawRoundedRectangle (r, 2.0f, 1.0f);
-            }
-        }
-
-        if (section->melody->source == MelodySource::improvise)
-        {
-            g.setColour (Palette::textMuted);
-            g.setFont (Fonts::ui (10.0f));
-            g.drawText ("IMPROVISING: a new line every pass", getLocalBounds().reduced (6, 4), juce::Justification::bottomLeft);
-        }
-    }
-
-    if (dragging)
-    {
-        const auto r = getNoteBounds (dragStart, dragPitch, juce::jmax (grid, dragEnd - dragStart));
-        g.setColour (Palette::accent.withMultipliedAlpha (0.6f));
-        g.fillRoundedRectangle (r.reduced (0.5f, 1.0f), 2.0f);
-    }
-
-    if (playhead.section == sectionIndex)
-    {
-        const float x = (float) juce::jlimit (0.0, 1.0, playhead.beat / beats) * (float) getWidth();
-        g.setColour (Palette::textPrimary);
-        g.fillRect (x - 0.5f, 0.0f, 1.5f, (float) getHeight());
-    }
-
-    if (chromaticMode)
-    {
-        g.setColour (Palette::textMuted);
-        g.setFont (Fonts::ui (9.0f));
-        g.drawText ("CHROMATIC", getLocalBounds().reduced (4), juce::Justification::topRight);
-    }
-}
-
-void TunePianoRoll::mouseDown (const juce::MouseEvent& e)
-{
-    const double beat = beatAt ((float) e.x);
-    const int pitch = pitchAt ((float) e.y);
-
-    if (e.mods.isPopupMenu())
-    {
-        if (findNoteAt (beat, pitch) < 0)
-            return;
-
-        juce::PopupMenu menu;
-        menu.addItem (1, "Delete");
-        menu.addItem (2, "Lock / unlock");
-        menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
-                            [safe = juce::Component::SafePointer<TunePianoRoll> (this), beat, pitch] (int result)
-        {
-            if (safe == nullptr)
-                return;
-
-            if (result == 1) safe->deleteNoteAt (beat, pitch);
-            if (result == 2) safe->toggleLockAt (beat, pitch);
-        });
-        return;
-    }
-
-    if (! drawEnabled || ! session.getTune().isValidSection (session.getSelectedSection()))
-        return;
-
-    dragging = true;
-    dragStart = snapBeatToGrid (juce::jmax (0.0, beat - grid * 0.5 + 1.0e-9), grid);
-    dragEnd = dragStart + grid;
-    dragPitch = chromaticMode ? pitch : snapPitchToKey (pitch, session.getTune().meta.keyTonic, session.getTune().meta.mode);
-    repaint();
-}
-
-void TunePianoRoll::mouseDrag (const juce::MouseEvent& e)
-{
-    if (! dragging)
-        return;
-
-    // 3.4: length sets the duration.
-    dragEnd = juce::jmax (dragStart + grid, snapBeatToGrid (beatAt ((float) e.x), grid));
-    repaint();
-}
-
-void TunePianoRoll::mouseUp (const juce::MouseEvent&)
-{
-    if (! dragging)
-        return;
-
-    dragging = false;
-    addNote (dragStart + grid * 0.5, dragPitch, dragEnd - dragStart);
-    repaint();
 }
 
 //==============================================================================
@@ -824,6 +563,7 @@ TunePanel::TunePanel (LuthierAudioProcessor& p, TunePlayer& pl, TuneSession& s)
     : processor (p),
       player (pl),
       session (s),
+      setlistStrip (s),
       sectionStrip (s),
       chordPills (s),
       pianoRoll (s)
@@ -965,6 +705,28 @@ void TunePanel::buildProgression()
 {
     addAndMakeVisible (sectionStrip);
 
+    // 3.3: tabs dragged into the setlist timeline above them.
+    addAndMakeVisible (setlistStrip);
+
+    sectionStrip.onTabDragged = [this] (int, juce::Point<int> screen)
+    {
+        const auto local = setlistStrip.getLocalPoint (nullptr, screen);
+        setlistStrip.showDropMarker (setlistStrip.getLocalBounds().expanded (0, 6).contains (local)
+                                       ? setlistStrip.insertIndexAt (local.x) : -1);
+    };
+
+    sectionStrip.onTabDropped = [this] (int sectionIndex, juce::Point<int> screen)
+    {
+        const auto local = setlistStrip.getLocalPoint (nullptr, screen);
+        setlistStrip.showDropMarker (-1);
+
+        if (! setlistStrip.getLocalBounds().expanded (0, 6).contains (local))
+            return false;
+
+        setlistStrip.dropSection (sectionIndex, setlistStrip.insertIndexAt (local.x));
+        return true;
+    };
+
     addAndMakeVisible (progressionEditor);
     progressionEditor.setTextToShowWhenEmpty ("Am F C G   or   [Verse] Am F C G [Chorus] F C G Am",
                                               Palette::textDisabled);
@@ -974,6 +736,18 @@ void TunePanel::buildProgression()
     progressionEditor.onTextChange = [this] { progressionTextChanged(); };
 
     addAndMakeVisible (chordPills);
+
+    // 3.2: the popover's strum overrides are the pattern library's patterns.
+    chordPills.getPatternNames = [this]
+    {
+        juce::StringArray names;
+        const auto& library = processor.getPatternLibrary();
+
+        for (int i = 0; i < library.getNumPatterns(); ++i)
+            names.add (library.getPattern (i).getName());
+
+        return names;
+    };
 }
 
 void TunePanel::buildRhythm()
@@ -1308,6 +1082,7 @@ void TunePanel::refresh()
     saveButton.setButtonText (session.isDirty() ? "SAVE *" : "SAVE");
 
     sectionStrip.repaint();
+    setlistStrip.repaint();
     chordPills.repaint();
     pianoRoll.repaint();
     repaint();
@@ -1629,7 +1404,7 @@ int TunePanel::getPreferredHeight() const
     return Metrics::grid
          + (firstHint.isVisible() ? FirstEncounterHint::kHeight + kRowGap : 0)   // onboarding 8
          + 3 * (button + kRowGap)                                     // header: title, buttons, tempo/key
-         + kHeader + kStripHeight + kRowGap                           // sections
+         + kHeader + TuneSetlistStrip::kHeight + 4 + kStripHeight + kRowGap   // setlist and sections
          + kHeader + button + kErrorLine + kPillsHeight + kRowGap     // progression
          + kHeader + 2 * (button + kRowGap)                           // rhythm
          + kHeader + kRollHeight + kRowGap + 2 * (button + kRowGap)   // melody
@@ -1740,6 +1515,8 @@ void TunePanel::resized()
 
     // --- sections ----------------------------------------------------------------------
     sectionsHeader = bounds.removeFromTop (kHeader);
+    setlistStrip.setBounds (bounds.removeFromTop (TuneSetlistStrip::kHeight));
+    bounds.removeFromTop (4);
     sectionStrip.setBounds (bounds.removeFromTop (kStripHeight));
     bounds.removeFromTop (kRowGap);
 
