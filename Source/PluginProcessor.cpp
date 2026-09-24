@@ -720,7 +720,12 @@ void LuthierAudioProcessor::applyGuitar (const WorkshopGuitar& guitar, GuitarTyp
     partsGuitarLoaded = true;
 
     const auto derived = mapSpec (guitar);
-    engine.applyWorkshopGuitar (derived, standsFor);
+
+    // TODO 6e / DECISIONS C-09 (MODEL-GAPS): a swap that keeps the structure is
+    // built here and taken at the audio thread's next block boundary, with the
+    // strings still sounding; anything else parks the engine as before.
+    if (! engine.swapPartsAtBlockBoundary (derived, standsFor))
+        engine.applyWorkshopGuitar (derived, standsFor);
 
     // strum-dynamics 4 / bass-techniques 8: the family's strum defaults.
     const bool isBass = guitar.family == "bass";
@@ -1217,7 +1222,9 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
                 mainOut.addFrom (channel, 0, backingBuffer, channel, 0, numSamples);
         }
 
-        // practice-tools 8: the session recorder takes what the plugin produced.
+        // practice-tools 8: the session recorder takes what the plugin produced,
+        // and the MIDI that played it (MODEL-GAPS: it was never given the MIDI).
+        sessionRecorder.captureMidi (midiMessages, numSamples);   // before the block advances its clock
         sessionRecorder.processBlock (mainOut, numSamples);
     }
 

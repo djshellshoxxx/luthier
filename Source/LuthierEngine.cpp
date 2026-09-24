@@ -20,7 +20,12 @@ LuthierEngine::LuthierEngine()
     }
 }
 
-LuthierEngine::~LuthierEngine() = default;
+LuthierEngine::~LuthierEngine()
+{
+    // TODO 6e: anything still in the hand-over belongs to no one else now.
+    delete pendingPartSwap.exchange (nullptr);
+    delete retiredPartSwap.exchange (nullptr);
+}
 
 //==============================================================================
 void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
@@ -337,6 +342,133 @@ void LuthierEngine::applyWorkshopGuitar (const DerivedAcoustics& d, GuitarType s
     magnetDetuneCents = -0.9 * pull;
 
     applySpec();
+}
+
+//==============================================================================
+// TODO 6e / DECISIONS C-09 (MODEL-GAPS): the block-boundary part swap.
+bool LuthierEngine::isAudioRunningElsewhere() const noexcept
+{
+    const auto last = lastProcessMs.load (std::memory_order_relaxed);
+    const auto since = juce::Time::getMillisecondCounter() - last;
+
+    return last != 0 && since < 200
+        && audioThreadId.load (std::memory_order_relaxed) != juce::Thread::getCurrentThreadId();
+}
+
+bool LuthierEngine::partSwapKeepsStructure (const DerivedAcoustics& d) const
+{
+    const auto& a = spec;
+    const auto& b = d.spec;
+
+    if (! hasPartsOverride
+        || a.numStrings != b.numStrings || a.twelveString != b.twelveString || a.tuning != b.tuning
+        || a.category != b.category || a.fretless != b.fretless || a.maxFrets != b.maxFrets
+        || a.bridge != b.bridge || a.numPickups != b.numPickups || a.defaultSelector != b.defaultSelector
+        || a.hasPiezo != b.hasPiezo || a.hasInternalMic != b.hasInternalMic
+        || a.defaultAmp != b.defaultAmp || a.defaultCabinet != b.defaultCabinet
+        || a.defaultSpeaker != b.defaultSpeaker || a.defaultMic != b.defaultMic)
+        return false;
+
+    // The body's convolution IR is a file: a change of it is a load, not a swap.
+    return IrLibrary::findBodyIr (partsBody) == IrLibrary::findBodyIr (d.body);
+}
+
+bool LuthierEngine::swapPartsAtBlockBoundary (const DerivedAcoustics& d, GuitarType standsFor)
+{
+    if (structuralDepth > 0 || ! isAudioRunningElsewhere() || ! partSwapKeepsStructure (d))
+        return false;
+
+    // The last swap's leftovers, handed back by the audio thread.
+    delete retiredPartSwap.exchange (nullptr, std::memory_order_acq_rel);
+
+    auto* swap = new PendingPartSwap { d, standsFor };
+    delete pendingPartSwap.exchange (swap, std::memory_order_acq_rel);   // one never taken
+
+    // The block boundary: bounded, like the park, so a stalled host cannot hang the UI.
+    const auto start = juce::Time::getMillisecondCounter();
+
+    while (pendingPartSwap.load (std::memory_order_acquire) != nullptr
+           && juce::Time::getMillisecondCounter() - start < 250)
+        juce::Thread::sleep (1);
+
+    // Not taken: take it back, and let the caller apply it the old way.
+    if (auto* untaken = pendingPartSwap.exchange (nullptr, std::memory_order_acq_rel))
+    {
+        delete untaken;
+        return false;
+    }
+
+    delete retiredPartSwap.exchange (nullptr, std::memory_order_acq_rel);
+    return true;
+}
+
+void LuthierEngine::applyPartSwapLive (const PendingPartSwap& swap) noexcept
+{
+    const auto& d = swap.derived;
+
+    guitarType = swap.standsFor;
+    spec = d.spec;
+
+    for (int i = 0; i < kMaxStrings; ++i)
+        customGauges[(size_t) i] = i < (int) d.gaugesIn.size() ? d.gaugesIn[(size_t) i] : 0.0;
+
+    partsBody = d.body;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        partsPickups[(size_t) i] = d.pickups[(size_t) i].spec;
+        partsPickups[(size_t) i].coverLossDbAt4k = d.pickups[(size_t) i].coverLossDbAt4k;
+        partsPickups[(size_t) i].poleBrightness = d.pickups[(size_t) i].poleBrightness;
+    }
+
+    partsSustain = d.sustainScale;
+    feedbackLoop.setBodyCoupling (FeedbackLoop::bodyCouplingFor (d.feedbackGain));
+    fretBrightnessFactor = d.fretBrightness / 0.70;
+    nutBrightnessFactor = d.nutBrightness / 0.75;
+
+    double pull = 0.0;
+
+    for (int i = 0; i < d.numPickups; ++i)
+    {
+        const auto& p = d.pickups[(size_t) i];
+        const double proximity = 2.5 / juce::jmax (0.5, p.heightMm);
+        pull += p.magnetPull * (p.magnetDamping / 0.032) * proximity * proximity;
+    }
+
+    magnetSustain = 1.0 / (1.0 + 0.09 * pull);
+    magnetDetuneCents = -0.9 * pull;
+
+    // What applySpec does that a swap keeping the structure changes: the
+    // strings' physics (without snapping a sounding string's pitch), the
+    // body's modes, the pickups. Tuning, rig and IRs are unchanged by
+    // partSwapKeepsStructure's test, so they are left alone.
+    fretActionMm = spec.fretActionMm;
+    bodyAmount = spec.bodyAmount;
+    coupling.setAmount (spec.couplingAmount);
+
+    for (int i = 0; i < numStrings; ++i)
+    {
+        const double openHz = tuning.getEffectiveOpenFrequency (i);
+        auto s = StringMaterials::computeSpec (spec.stringMaterial, spec.stringGauge, stringAge, i, openHz,
+                                               spec.scaleLengthMm, customGauges[(size_t) i]);
+
+        bool accepted = true;
+        s.tensionNewtons = validator.checkTension (i, s.tensionNewtons, spec.scaleLengthMm, samplePosition, accepted);
+        s.sustainSeconds = validator.checkDamping (i, s.sustainSeconds, openHz, samplePosition);
+        stringSpecs[(size_t) i] = s;
+
+        strings[(size_t) i].setPhysical (StringMaterials::toPhysical (s, spec.scaleLengthMm));
+        strings[(size_t) i].setNoiseAmount (slideNoise * s.squeak, fretNoise);
+        strings[(size_t) i].setFretBuzz (fretless ? 0.0 : fretBuzzAmount, fretActionMm);
+    }
+
+    body.setBodyConfig (partsBody);
+    body.setAmount (bodyAmount);
+
+    for (int i = 0; i < PickupEngine::kMaxPickups; ++i)
+        pickups.setPickupSpec (i, i < 3 ? partsPickups[(size_t) i] : GuitarLibrary::makePickupSpec (spec, i));
+
+    slap.setInstrument (spec.numStrings, spec.scaleLengthMm, spec.maxFrets, spec.category == GuitarCategory::Bass);
 }
 
 void LuthierEngine::applySpec()
@@ -1509,6 +1641,15 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     {
         midiMessages.addEvents (parkedMidi, 0, -1, 0);
         parkedMidi.clear();
+    }
+
+    // TODO 6e (MODEL-GAPS): a part swap built on the message thread lands here,
+    // at the block boundary, and is handed back for the message thread to free.
+    if (auto* swap = pendingPartSwap.exchange (nullptr, std::memory_order_acq_rel))
+    {
+        applyPartSwapLive (*swap);
+        retiredPartSwap.store (swap, std::memory_order_release);
+        livePartSwaps.fetch_add (1, std::memory_order_relaxed);
     }
 
     if (numSamples <= maxBlock)

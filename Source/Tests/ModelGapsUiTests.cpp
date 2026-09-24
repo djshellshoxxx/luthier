@@ -13,18 +13,12 @@
 #include "../UI/AmpFacePanel.h"
 #include "../UI/PedalRack.h"
 #include "../UI/NotationPanel.h"
+#include "../UI/RoutingPanel.h"
 #include "../UI/Faces/AmpFace.h"
 #include "../UI/Faces/PedalFace.h"
 #include "../Modulation/ModMatrix.h"
 #include "../Routing/TapBuffers.h"
 
-#if JUCE_LINUX || JUCE_WINDOWS
-namespace juce::detail
-{
-    // juce_events' own message pump step (juce_Messaging_linux / _windows.cpp).
-    bool dispatchNextMessageOnSystemQueue (bool returnIfNoPendingMessages);
-}
-#endif
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -187,24 +181,18 @@ LUTHIER_TEST (ModelGapsUi, notationExportRunsOnAWorkerThread)
         juce::String error;
 
         const bool started = NotationTakeExport::writeAsync (processor, format, file, {}, {},
-                                                             [&] (bool ok, const juce::String& e)
-                                                             {
-                                                                 called = true;
-                                                                 result = ok;
-                                                                 error = e;
-                                                                 CHECK (juce::MessageManager::getInstance()->isThisTheMessageThread());
-                                                             }, &error);
+                                                             // Delivered later on the message thread, after this
+                                                             // test: it must not touch the test's locals.
+                                                             [] (bool, const juce::String&) {}, &error);
         CHECK_MSG (started, error);
 
-       #if JUCE_LINUX || JUCE_WINDOWS
-        for (int i = 0; i < 2000 && ! called; ++i)
-            if (! juce::detail::dispatchNextMessageOnSystemQueue (true))
-                juce::Thread::sleep (2);
-       #else
-        for (int i = 0; i < 1000 && ! file.existsAsFile(); ++i)
+        // The report is posted to the message thread; pumping the whole system
+        // queue here would dispatch other tests' leftovers, so the test waits
+        // for the worker to finish writing instead.
+        for (int i = 0; i < 2000 && (NotationTakeExport::isBusy() || ! file.existsAsFile()); ++i)
             juce::Thread::sleep (2);
-        called = result = file.existsAsFile();
-       #endif
+
+        called = result = ! NotationTakeExport::isBusy() && file.existsAsFile();
 
         CHECK_MSG (called && result, getNotationFormatExtension (format) + juce::String (": ") + error);
         CHECK (file.existsAsFile() && file.getSize() > 0);
@@ -333,6 +321,11 @@ LUTHIER_TEST (ModelGapsUi, auxOneTapsBeforeOrAfterTheCircuit)
     setPlain (processor, ParamIDs::aux1PreCircuit, 1.0f);
     processor.getParameterBridge().applyAllNow();
     CHECK (processor.getEngine().isAuxDiPreCircuit());
+
+    // On the ROUTING tab, attached to that parameter.
+    RoutingPanel panel (processor);
+    CHECK (panel.getAux1PreCircuitToggle() != nullptr);
+    CHECK (panel.getAux1PreCircuitToggle()->getLearnParameterId() == ParamIDs::aux1PreCircuit);
 }
 
 //==============================================================================

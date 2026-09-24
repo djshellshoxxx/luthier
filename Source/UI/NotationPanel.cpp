@@ -148,10 +148,10 @@ bool NotationTakeExport::writeAsync (LuthierAudioProcessor& processor, NotationF
                 message = exporter.getLastError();
         }
 
+        --exportWorker().busy;   // the writing is done; the report follows on the message thread
+
         juce::MessageManager::callAsync ([ok, message, done]
         {
-            --exportWorker().busy;
-
             if (done != nullptr)
                 done (ok, message);
         });

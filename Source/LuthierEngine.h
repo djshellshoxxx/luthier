@@ -157,6 +157,27 @@ public:
         and termination with what the parts say. */
     void applyWorkshopGuitar (const DerivedAcoustics& derived, GuitarType standsFor = GuitarType::Custom);
 
+    /*  TODO 6e / DECISIONS C-09, ui-wiring.md 6.2 (MODEL-GAPS): a part swap that
+        keeps the instrument's structure - string count, tuning, family, frets,
+        bridge, pickup count and selector, rig defaults and the body's IR -
+        is built here on the message thread and swapped in by the audio
+        thread at the start of its next block, while the strings keep
+        sounding: no park, no fade to silence. The strings keep their pitch
+        and their energy; their coefficients change under them.
+
+        Returns false, having changed nothing, when the swap is not one of
+        those, when no audio thread is running elsewhere (the change is then
+        simply applied by applyWorkshopGuitar), or when the audio thread did
+        not take it within 250 ms. The caller then uses applyWorkshopGuitar.
+        Message thread; waits for the block boundary, bounded. */
+    bool swapPartsAtBlockBoundary (const DerivedAcoustics& derived, GuitarType standsFor = GuitarType::Custom);
+
+    /** Whether a swap from the current guitar to `derived` keeps its structure (above). */
+    bool partSwapKeepsStructure (const DerivedAcoustics& derived) const;
+
+    /** Part swaps taken at a block boundary since prepare, for the tests. */
+    int getLivePartSwapCount() const noexcept { return livePartSwaps.load (std::memory_order_relaxed); }
+
     /** A parts guitar's pickup as its part describes it (engine slot order). */
     const PickupSpec& getPartsPickup (int slot) const noexcept
     {
@@ -647,6 +668,24 @@ private:
     std::atomic<juce::Thread::ThreadID> audioThreadId { nullptr };
     std::atomic<juce::uint32> lastProcessMs { 0 };
     double swapPhase = 1.0;          ///< audio thread; 1 = full level, 0 = silent
+    // TODO 6e (MODEL-GAPS): the block-boundary part swap. The message thread
+    // allocates and frees; the audio thread only takes and hands back.
+    struct PendingPartSwap
+    {
+        DerivedAcoustics derived;
+        GuitarType standsFor = GuitarType::Custom;
+    };
+
+    std::atomic<PendingPartSwap*> pendingPartSwap { nullptr };
+    std::atomic<PendingPartSwap*> retiredPartSwap { nullptr };
+    std::atomic<int> livePartSwaps { 0 };
+
+    /** Audio thread, at a block boundary: the allocation-free half of applyWorkshopGuitar. */
+    void applyPartSwapLive (const PendingPartSwap& swap) noexcept;
+
+    /** Whether an audio thread other than the caller's is rendering. */
+    bool isAudioRunningElsewhere() const noexcept;
+
     int structuralDepth = 0;         ///< message thread
     bool structuralParked = false;   ///< message thread: this scope parked the audio thread
 
