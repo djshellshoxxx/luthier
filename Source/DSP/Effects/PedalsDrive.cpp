@@ -475,7 +475,9 @@ double PitchShifterPedal::Shifter::process (double input, double ratio) noexcept
     // Two read heads half a window apart, crossfaded with a raised cosine. As one
     // head drifts too far from the write pointer the other takes over, which is
     // what stops the classic single-head "motorboating".
-    readPhase += (ratio - 1.0);
+    // The delay shrinks as the pitch rises: a head moving towards the write
+    // pointer plays faster than it was written.
+    readPhase -= (ratio - 1.0);
 
     if (readPhase >= (double) windowSamples) readPhase -= (double) windowSamples;
     if (readPhase < 0.0)                     readPhase += (double) windowSamples;

@@ -117,7 +117,10 @@ LUTHIER_TEST (WorkshopPresets, choosingAGuitarTypeFitsItsParts)
     setPlain (processor, ParamIDs::setupActionTreble, 2.9f);
 
     auto* type = processor.getState().getParameter (ParamIDs::guitarType);
+    // As the header's selector writes it: inside a gesture.
+    type->beginChangeGesture();
     type->setValueNotifyingHost (type->convertTo0to1 ((float) GuitarType::Classical));
+    type->endChangeGesture();
     processor.getParameterBridge().applyAllNow();
 
     CHECK (processor.getGuitarReference().contains ("Classical"));

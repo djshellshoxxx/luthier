@@ -108,8 +108,8 @@ private:
     juce::MidiBuffer captured;
     juce::MidiBuffer rhythm;
 
-    std::array<std::atomic<float>, 6> macroValues;
-    std::array<float, 6> lastSentMacro {};
+    std::array<std::atomic<float>, MidiOutConfig::kNumMacroCcs> macroValues;
+    std::array<float, MidiOutConfig::kNumMacroCcs> lastSentMacro {};
 
     std::atomic<int> overflow { 0 };
 

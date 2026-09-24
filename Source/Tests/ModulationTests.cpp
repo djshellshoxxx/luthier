@@ -925,3 +925,84 @@ LUTHIER_TEST (Modulation, curvesPreserveSignAndFixedPoints)
         CHECK (juce::String (getModCurveName (curve)).isNotEmpty());
     }
 }
+
+//==============================================================================
+/*  Review R-010 / R-011: with a route present but the source at zero, a
+    destination must stay where it is. The choice snap used
+    floor (v / (N-1) * N + 0.5), which moves choice 1 of 3 to choice 2; and both
+    the offsets and the result went through the audio guard sanitise(), which
+    clamps to +-4 and so pinned every destination above 4 (Hz, ms, a choice
+    index past 4) to 4. */
+LUTHIER_TEST (Modulation, aRouteAtZeroLeavesAContinuousValueWhereItIs)
+{
+    ModHarness harness;
+    const auto& parameters = harness.getParameters();
+
+    for (int i = 0; i < parameters.size(); ++i)
+    {
+        auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameters[i]);
+
+        if (withId == nullptr || withId->paramID != ParamIDs::concertA)
+            continue;
+
+        ModRoute route;
+        route.sourceId = "macro1";
+        route.destinationId = ParamIDs::concertA;
+        route.depth = 1.0f;
+        CHECK (harness.matrix.addRoute (route));
+
+        ModBlockContext context;
+        harness.matrix.setMacroValue (0, 0.0);
+
+        for (int b = 0; b < 64; ++b)
+            harness.matrix.processBlock (kBlock, context);
+
+        CHECK_NEAR (harness.matrix.apply (i, 440.0f), 440.0f, 1.0e-3);
+
+        // And at full depth it reaches the top of the range, not 4 Hz.
+        harness.matrix.setMacroValue (0, 1.0);
+
+        for (int b = 0; b < 64; ++b)
+            harness.matrix.processBlock (kBlock, context);
+
+        CHECK_NEAR (harness.matrix.apply (i, 440.0f), 466.0f, 1.0e-3);
+        return;
+    }
+
+    CHECK_MSG (false, "concert A not found");
+}
+
+LUTHIER_TEST (Modulation, aRouteAtZeroLeavesEveryChoiceWhereItIs)
+{
+    ModHarness harness;
+    const auto& parameters = harness.getParameters();
+
+    for (int i = 0; i < parameters.size(); ++i)
+    {
+        auto* choice = dynamic_cast<juce::AudioParameterChoice*> (parameters[i]);
+
+        if (choice == nullptr || choice->choices.size() < 3)
+            continue;
+
+        ModRoute route;
+        route.sourceId = "macro1";
+        route.destinationId = choice->paramID;
+        route.depth = 1.0f;
+        CHECK (harness.matrix.addRoute (route));
+
+        ModBlockContext context;
+        harness.matrix.setMacroValue (0, 0.0);
+
+        for (int b = 0; b < 64; ++b)
+            harness.matrix.processBlock (kBlock, context);
+
+        for (int k = 0; k < choice->choices.size(); ++k)
+            CHECK_MSG (juce::roundToInt (harness.matrix.apply (i, (float) k)) == k,
+                       choice->paramID + " choice " + juce::String (k) + " moved to "
+                         + juce::String (harness.matrix.apply (i, (float) k)));
+
+        return;   // one selector is enough
+    }
+
+    CHECK_MSG (false, "no choice parameter with three or more options");
+}

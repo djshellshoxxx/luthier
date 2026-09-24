@@ -74,6 +74,7 @@ void PresetMorph::apply (double position)
     {
         auto& presets = processor.getPresetManager();
         presets.fromVar (slots[(size_t) side]);
+        presets.applyExtraState();   // the per-string tuning and gauges come with it
         processor.getParameterBridge().applyAllNow();
         loadedSide = side;
     }
