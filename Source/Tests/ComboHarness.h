@@ -19,6 +19,7 @@
 #include "../PluginProcessor.h"
 #include "../Parameters.h"
 #include "../Presets/PresetManager.h"
+#include "../Capture/PerformanceCapture.h"
 
 #include <chrono>
 #include <cmath>
@@ -287,7 +288,8 @@ struct Rig
                         std::function<void (int)> between = {}, int betweenAt = -1)
     {
         int releasedAt = 0;
-        const auto events = makePhrase (phrase, releasedAt);
+        auto events = makePhrase (phrase, releasedAt);
+        transposeIntoRange (events);
 
         // The rig's own floor first (hum, hiss, an amp at full gain), so the decay
         // check can tell a string that keeps ringing from a floor that was always there.
@@ -296,6 +298,48 @@ struct Rig
         auto stats = renderEvents (events, releasedAt, tailSeconds, std::move (between), betweenAt);
         stats.idleRms = idle;
         return stats;
+    }
+
+    /** The lowest note the current guitar can sound: its lowest open string. */
+    int lowestPlayableNote()
+    {
+        auto& engine = processor->getEngine();
+        const auto open = PerformanceCapture::getOpenNotes (engine.getTuningEngine(), engine.getNumStrings());
+        int lowest = 127;
+
+        for (int s = 0; s < engine.getNumStrings(); ++s)
+            if (open[(size_t) s] > 0)
+                lowest = juce::jmin (lowest, open[(size_t) s]);
+
+        return lowest == 127 ? 0 : lowest;
+    }
+
+    /*  The phrases are written for a six-string in standard tuning. A pitch no
+        string can sound is dropped by design (RubricVoicer, exact mode: "not the
+        instrument's to play"), so a Nashville high-strung set, whose low strings
+        are an octave up, heard nothing of a phrase built on E2. A player would
+        play it an octave up, and so does the harness: whole octaves, so every
+        interval and technique in the phrase is kept. */
+    void transposeIntoRange (std::vector<TimedMidi>& events)
+    {
+        int lowestInPhrase = 128;
+
+        for (auto& e : events)
+            if (e.message.isNoteOn())
+                lowestInPhrase = juce::jmin (lowestInPhrase, e.message.getNoteNumber());
+
+        const int floor = lowestPlayableNote();
+        int shift = 0;
+
+        while (lowestInPhrase + shift < floor && lowestInPhrase + shift + 12 <= 127)
+            shift += 12;
+
+        if (shift == 0)
+            return;
+
+        for (auto& e : events)
+            if (e.message.isNoteOnOrOff())
+                e.message.setNoteNumber (juce::jlimit (0, 127, e.message.getNoteNumber() + shift));
     }
 
     RenderStats renderEvents (const std::vector<TimedMidi>& events, int releasedAt, double tailSeconds,

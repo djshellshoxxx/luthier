@@ -1258,3 +1258,42 @@ LUTHIER_TEST (Combo, cpuPerFactoryPreset)
     for (auto& [c, label] : costs)
         std::cout << "      " << juce::String (c, 1).paddedLeft (' ', 5) << "%  " << label << "\n";
 }
+
+//==============================================================================
+/*  A pitch below the instrument's range is dropped, never mis-sounded: a
+    Nashville high-strung set cannot play E2 (its low strings are an octave up),
+    and the voicer drops what no string can sound. What it must not do is drop
+    the pitches it CAN play: the same phrase an octave up sounds. This pins the
+    behaviour Combo's phrase transposition relies on (formerly reported as
+    "silent while notes were playing", preset "Nashville High-Strung",
+    phrase palmMute). */
+LUTHIER_TEST (Combo, notesBelowTheRangeAreDroppedAndInRangeNotesSound)
+{
+    Rig rig;
+    auto& presets = rig.p().getPresetManager();
+    const int nashville = presets.indexOfPreset ("Nashville High-Strung");
+
+    CHECK_MSG (nashville >= 0, "no factory preset called Nashville High-Strung");
+    if (nashville < 0)
+        return;
+
+    presets.loadPreset (nashville);
+    rig.apply();
+    rig.processSilence (4);
+
+    const int lowest = rig.lowestPlayableNote();
+    CHECK_MSG (lowest > 40, "expected the high-strung set's lowest string above E2, got " + juce::String (lowest));
+
+    auto play = [&] (int note)
+    {
+        std::vector<TimedMidi> ev { { 0, juce::MidiMessage::noteOn (1, note, (juce::uint8) 110) },
+                                    { (int) (0.4 * kSr), juce::MidiMessage::noteOff (1, note) } };
+        const auto s = rig.renderEvents (ev, (int) (0.4 * kSr), 0.2);
+        rig.quiet();
+        return s.maxWindowRms;
+    };
+
+    CHECK_MSG (play (lowest - 12) < 3.0e-4, "a pitch an octave below the lowest string sounded");
+    CHECK_MSG (play (lowest) > 1.0e-3, "the lowest open string did not sound");
+    CHECK_MSG (play (lowest + 12) > 1.0e-3, "a pitch an octave above the lowest string did not sound");
+}
