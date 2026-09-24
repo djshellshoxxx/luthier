@@ -137,9 +137,16 @@ than being cut off abruptly.
 Things the brief describes that are not in this release, stated plainly rather than
 quietly omitted.
 
-**CLAP and Linux builds.** The CMake project is platform-neutral and the code has
-no Windows-specific dependencies, but only VST3, AU and standalone are built and
-tested here. CLAP needs the CLAP wrapper added to the JUCE build.
+**CLAP and AU builds.** The CMake project is platform-neutral and the code has
+no Windows-specific dependencies, but only VST3 and Standalone are built and tested
+here. AU is not in the build's format list (it can only be built on macOS), and
+CLAP needs the CLAP wrapper added to the JUCE build.
+
+**Linux builds.** Linux is built and tested: `scripts/setup_linux.sh` installs the
+build dependencies and JUCE 8.0.10 and configures a Release Ninja tree; then
+`ninja -C build LuthierTests Luthier_VST3 Luthier_Standalone`, and run the suite
+under `xvfb-run -a`. `cpack` in the build tree produces the `.tar.gz` and `.deb`
+packages.
 
 **Signed and notarised installers.** The build produces the plugin bundles; it does
 not produce signed installers, which need certificates that cannot be part of a

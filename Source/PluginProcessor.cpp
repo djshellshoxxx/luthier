@@ -59,6 +59,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 {
     FactoryPresets::setProcessorForRanges (this);
 
+    // installer.md 6: the user folder tree, config/plugin.json and the
+    // .installed_version marker (first run / upgrade detection).
+    installLayoutResult = InstallLayout::ensure (InstallLayout::defaultRoot(), JucePlugin_VersionString);
+
     // guitar-workshop.md 0.6: a guitar type loads its factory guitar file.
     partLibrary.refresh();
 
@@ -539,6 +543,22 @@ bool LuthierAudioProcessor::loadGuitarFrom (const juce::String& reference, const
     {
         auto file = resolveGuitarReference (reference);
 
+        // installer.md 8: a pre-parts guitar name resolved through the
+        // migration table raises the one info banner.
+        if (file.existsAsFile())
+        {
+            auto relative = reference;
+
+            for (const auto* prefix : { "Factory/", "User/" })
+                if (relative.startsWithIgnoreCase (prefix))
+                    relative = relative.substring ((int) std::strlen (prefix));
+
+            const auto target = PartLibrary::migratedGuitar (relative);
+
+            if (target.isNotEmpty() && target != relative)
+                presets.noteMigration ("guitar " + reference);
+        }
+
         if (! file.existsAsFile())
         {
             const auto path = getFactoryGuitarPath (type);
@@ -982,6 +1002,10 @@ void LuthierAudioProcessor::updateRoutingLatencyReport()
     report.auxDi = engine.getLatencySamples (AuxBus::di);
     report.auxPreCab = engine.getLatencySamples (AuxBus::ampPreCab);
     report.perString = engine.getPerStringLatencySamples();
+
+    // performance-budget.md 4: Aux 8 sums the noise generators at the string
+    // stage (pre-body), so it carries the per-string taps' latency.
+    report.auxNoise = engine.getPerStringLatencySamples();
 
     routing.setLatencyReport (report);
 }
@@ -2289,6 +2313,9 @@ void LuthierAudioProcessor::timerCallback()
         captureDrainTick = 0;
         drainPerformanceCapture();
     }
+
+    // performance-budget.md 0.4: the looper's MIDI FIFO, filled on the audio thread.
+    looper.drainPendingMidi();
 
     // live-performance 2: carry out whatever the MIDI thread asked for.
     if (const int snapshot = pendingSnapshotRecall.exchange (-1, std::memory_order_relaxed);

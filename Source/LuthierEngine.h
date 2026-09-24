@@ -41,6 +41,7 @@
 #include "Routing/MidiOutRouter.h"
 #include "Rhythm/RhythmEngine.h"
 #include "Character/CharacterEngine.h"
+#include "Support/CpuRelief.h"
 
 #include <array>
 #include <atomic>
@@ -299,6 +300,14 @@ public:
     void setOversamplingFactor (int factor) noexcept;
     int getOversamplingFactor() const noexcept { return oversamplingFactor; }
 
+    /*  performance-budget.md 7: above 96 kHz the oversampled modules run at a
+        lower internal factor - the user's factor halved above 96 kHz and
+        quartered above 176.4 kHz, never below 1x - so the internal rate stays
+        near 384 kHz. Transparent: the images it guards against sit above
+        20 kHz at those rates anyway. */
+    static int effectiveOversamplingFactor (int userFactor, double sampleRate) noexcept;
+    int getEffectiveOversamplingFactor() const noexcept { return effectiveOversamplingFactor (oversamplingFactor, sr); }
+
     void setTempoBpm (double bpm) noexcept;
 
     /** Host transport position, for the rhythm engine's grid. */
@@ -339,6 +348,11 @@ public:
         engine's contribution at the amp input. Off by default. */
     void setSidechainToAmp (bool on) noexcept { sidechainToAmp = on; }
     bool isSidechainToAmp() const noexcept { return sidechainToAmp; }
+
+    /** performance-budget.md 4: Aux 1 (DI) before the GuitarCircuit rather than
+        after it. Off, the default, is the post-circuit DI. */
+    void setDiPreCircuit (bool pre) noexcept { diPreCircuit.store (pre, std::memory_order_relaxed); }
+    bool isDiPreCircuit() const noexcept { return diPreCircuit.load (std::memory_order_relaxed); }
 
     /** Envelope of the sidechain input, for the modulation matrix's
         SidechainEnvFollower source. Zero when no sidechain is connected. */
@@ -393,6 +407,9 @@ public:
     bool consumeMidiActivity() noexcept { return midi.consumeActivityFlag(); }
 
     double getCpuEstimate() const noexcept { return cpuEstimate.load (std::memory_order_relaxed); }
+
+    /** performance-budget.md 8: the relief ladder, fed each block's load. */
+    CpuRelief& getCpuRelief() noexcept { return cpuRelief; }
 
 private:
     /** Moves a block's events onto the schedule, converting their offsets to
@@ -488,6 +505,8 @@ private:
     std::vector<double> stringSumBuffer;
     std::vector<double> magneticBuffer;
     std::vector<double> instrumentBuffer;
+    std::vector<double> preCircuitBuffer;            // performance-budget.md 4: the pre-circuit DI
+    std::atomic<bool> diPreCircuit { false };
     juce::AudioBuffer<float> bodyBuffer;
     juce::AudioBuffer<float> workBuffer;
 
@@ -627,6 +646,8 @@ private:
     juce::MidiBuffer parkedMidi;
 
     std::atomic<double> cpuEstimate { 0.0 };
+    CpuRelief cpuRelief;                 // performance-budget.md 8
+    int appliedReliefStep = 0;
 
     // --- routing ----------------------------------------------------------------
     TapBuffers taps;

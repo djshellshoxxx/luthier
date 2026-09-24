@@ -98,6 +98,9 @@ public:
     bool redo();
 
     bool canUndo() const noexcept { return undoFilled; }
+
+    /** Sizes undo / redo to the layer on first use. Message thread. */
+    void ensureHistoryBuffers();
     bool canRedo() const noexcept { return redoFilled; }
 
     //==========================================================================
@@ -208,8 +211,18 @@ public:
         layer's playback into the buffer. Audio thread. */
     void processBlock (juce::AudioBuffer<float>& buffer, int numSamples) noexcept;
 
-    /** Feeds the looper the MIDI to store alongside the audio. */
+    /** Feeds the looper the MIDI to store alongside the audio. Audio thread:
+        the events go into a pre-sized lock-free FIFO (performance-budget.md
+        0.4 - a MidiMessageSequence allocates), and drainPendingMidi moves them
+        into the layers. Events past the FIFO's capacity between drains are
+        dropped rather than allocated for. */
     void captureMidi (const juce::MidiBuffer& midi, int numSamples) noexcept;
+
+    /** Moves captured MIDI into the layers' sequences. Message thread; the
+        processor's timer calls it, and save() does before writing. */
+    void drainPendingMidi();
+
+    static constexpr int kMidiFifoSize = 8192;
 
     //==========================================================================
     /** practice-tools 2: bounce all layers to one file, or each to its own. */
@@ -237,6 +250,18 @@ private:
     std::atomic<int> playPosition { 0 };
     std::atomic<int> activeLayer { 0 };
     std::atomic<int> barLengthSamples { 0 };
+
+    // performance-budget.md 0.4: captureMidi's lock-free hand-over.
+    struct PendingMidi
+    {
+        int layer = 0;
+        int position = 0;
+        int size = 0;
+        juce::uint8 bytes[3] {};
+    };
+
+    juce::AbstractFifo midiFifo { kMidiFifoSize };
+    std::array<PendingMidi, kMidiFifoSize> pendingMidi {};
 
     /** Set by press() and acted on by the audio thread at the loop boundary, so
         that closing a loop lands on the beat rather than on the key press. */

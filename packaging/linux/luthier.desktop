@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=Luthier
+GenericName=Guitar Instrument
+Comment=Physically modelled guitar and bass instrument
+Exec=luthier %f
+Icon=luthier
+Terminal=false
+Categories=AudioVideo;Audio;Music;
+Keywords=guitar;bass;instrument;synthesizer;physical modelling;
+MimeType=application/x-luthier-preset;application/x-luthier-guitar;application/x-luthier-tune;application/x-luthier-loop;application/x-luthier-setlist;application/x-luthier-midprofile;
+StartupWMClass=Luthier
