@@ -37,6 +37,9 @@ struct AllocationCounter
     static long count() noexcept { return threadAllocationCount; }
 };
 
+/** The same count for other test files (REALISM-A's budget tests). */
+long luthierAllocationCount() noexcept { return allocationsOnThisThread; }
+
 void* operator new (std::size_t size)
 {
     ++threadAllocationCount;

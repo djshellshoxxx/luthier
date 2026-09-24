@@ -600,6 +600,11 @@ private:
     RangeState ranges;
     bool randomiseRespectsStock = true;
 
+    /*  REALISM-A (string-aging.md 8, environment.md 6): the aging state and the
+        environment reference from the state's character block, and the legacy
+        temperature / humidity conversion. After the character engine's fromVar. */
+    void applyRealismCharacterBlock (const juce::var& characterBlock);
+
     // The guitar as parts (guitar-workshop.md).
     bool loadGuitarForType (GuitarType type);
     bool loadGuitarFrom (const juce::String& reference, const juce::var& override,

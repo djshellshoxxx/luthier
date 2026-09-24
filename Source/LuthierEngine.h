@@ -42,6 +42,9 @@
 #include "Routing/MidiOutRouter.h"
 #include "Rhythm/RhythmEngine.h"
 #include "Character/CharacterEngine.h"
+#include "Character/EnvironmentModel.h"          // environment.md (REALISM-A)
+#include "DSP/String/StringAging.h"              // string-aging.md (REALISM-A)
+#include "DSP/Coupling/BodyCouplingBank.h"       // body-coupling.md (REALISM-A)
 
 #include <array>
 #include <atomic>
@@ -352,6 +355,57 @@ public:
     CharacterEngine& getCharacterEngine() noexcept { return character; }
     const CharacterEngine& getCharacterEngine() const noexcept { return character; }
 
+    // ==== BEGIN REALISM-A engine API ====
+    /** string-aging.md: the set's age, per string. */
+    StringAging& getStringAging() noexcept { return aging; }
+    const StringAging& getStringAging() const noexcept { return aging; }
+
+    /** environment.md: temperature, humidity and their lags. */
+    EnvironmentModel& getEnvironment() noexcept { return environment; }
+    const EnvironmentModel& getEnvironment() const noexcept { return environment; }
+
+    /** body-coupling.md: the bridge admittance bank. */
+    BodyCouplingBank& getBodyCoupling() noexcept { return bodyCoupling; }
+    const BodyCouplingBank& getBodyCoupling() const noexcept { return bodyCoupling; }
+
+    /*  body-coupling.md 4: the runtime scales (block rate, any thread) and the
+        coupling amount. The frequency and Q scales reach the radiated body too
+        (3, "Scaling"); the mass scale reaches only the bank. */
+    void setBodyModeScales (double freqScale, double qScale, double massScale) noexcept
+    {
+        bodyFreqScale = juce::jlimit (0.25, 4.0, freqScale);
+        bodyQScale = juce::jlimit (0.05, 10.0, qScale);
+        bodyMassScale = juce::jlimit (0.01, 50.0, massScale);
+    }
+
+    /** The product the bank and the body receive this block. */
+    BodyCouplingScaling getBodyCouplingScaling() const noexcept;
+
+    /** Re-designs the bank from the body, the bridge and the strings. Message thread. */
+    void rebuildBodyCoupling();
+
+    /** The bridge the bank was last designed with. */
+    const BridgeCoupling& getBridgeCoupling() const noexcept { return bridgeCoupling; }
+
+    /** environment.md 3.4: the host's playhead, seconds, when it is playing. */
+    void setHostTimeSeconds (double seconds, bool isPlaying) noexcept
+    {
+        hostTimeSeconds = seconds;
+        hostTimePlaying = isPlaying;
+    }
+
+    /*  body-coupling.md 5: the CHARACTER tab's Tap button - one body tap, heard
+        through the body and driving the bank so the open strings answer. Any
+        thread; applied at the next block. */
+    void requestBodyTap (double force) noexcept { pendingBodyTap.store (juce::jlimit (0.0, 1.0, force)); }
+
+    /** The strings' wave impedances and open pitches, for the wolf map. Message thread. */
+    double getStringWaveImpedance (int s) const noexcept { return getString (s).getPhysical().waveImpedance; }
+
+        /** The SETUP geometry the buzz model is really using (requested plus environment). */
+    const SetupGeometry& getRequestedSetup() const noexcept { return requestedSetup; }
+    // ==== END REALISM-A engine API ====
+
     //==========================================================================
     // Routing (routing-io.md). The engine fills tap buffers as it renders and
     // records which strings started and stopped; the processor turns those into
@@ -437,6 +491,9 @@ private:
     void triggerNote (const NoteOnEvent& e) noexcept;
     void applyNoteOff (const NoteOffEvent& e) noexcept;
     void updatePerBlockModulation (int numSamples) noexcept;
+    void advanceRealism (int numSamples) noexcept;   // REALISM-A: aging, environment, body coupling
+    void refreshAgingJitter() noexcept;              // REALISM-A
+    void pushAgingFactors() noexcept;                // REALISM-A
     void rebuildBodyFromSpec();
     void rebuildPickupsFromSpec();
 
@@ -465,6 +522,24 @@ private:
     juce::MidiBuffer directSlice;
     RhythmEngine rhythm;
     CharacterEngine character;
+
+    // ==== BEGIN REALISM-A state ====
+    StringAging aging;
+    EnvironmentModel environment;
+    BodyCouplingBank bodyCoupling;
+    std::array<double, kMaxStrings> bridgeWaves {};
+    BridgeCoupling bridgeCoupling;
+    BridgeCoupling partsBridge;
+    double bodyFreqScale = 1.0, bodyQScale = 1.0, bodyMassScale = 1.0;
+    double hostTimeSeconds = -1.0;
+    bool hostTimePlaying = false;
+    uint64_t agingSeed = 0;
+    bool agingSeedValid = false;
+    SetupGeometry setupWithGuitar;              ///< requestedSetup with the guitar's scale and strings
+    SetupGeometry setupScratch;                 ///< requested + environment deltas
+    std::atomic<bool> setupChanged { true };
+    std::atomic<double> pendingBodyTap { 0.0 };
+    // ==== END REALISM-A state ====
 
     /** The drift last written into the tuning engine, so a block that did not
         move it does not rewrite it. */

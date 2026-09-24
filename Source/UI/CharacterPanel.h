@@ -20,6 +20,7 @@
 #include "SetupGroup.h"
 #include "SlideGroup.h"
 #include "SlapGroup.h"   // bass-techniques 9 (MODEL-GAPS)
+#include "RealismGroups.h"
 #include "../Character/CharacterEngine.h"
 
 namespace luthier
@@ -143,7 +144,6 @@ private:
 
     // --- body and environment ----------------------------------------------------------
     juce::Slider bodyAgeSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::ComboBox temperatureBox, humidityBox;
     juce::Label sessionLabel;
 
     // --- presets ------------------------------------------------------------------------
@@ -160,12 +160,20 @@ public:
 
 private:
 
+public:
+    // REALISM-A groups; public for the tests.
+    std::unique_ptr<StringAgingGroup> stringAgingGroup;
+    std::unique_ptr<EnvironmentGroup> environmentGroup;
+    std::unique_ptr<BodyCouplingGroup> bodyCouplingGroup;
+
+private:
+
     /*  Sizes the panel to its content. The workspace viewport keeps whatever
         height a panel gives itself, and this one never gave itself one - so it
         sat at the viewport's 80-point minimum and scrolled nothing. */
     void fitToContent();
     juce::Label seedHeading, mapsHeading, tunerHeading, electronicsHeading,
-                bodyHeading, environmentHeading;
+                bodyHeading;
 
     bool updatingControls = false;
 

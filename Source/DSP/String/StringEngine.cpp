@@ -72,6 +72,7 @@ void StringEngine::reset() noexcept
     buzzPhase = 0.0;
 
     bridgeOut = 0.0;
+    bridgeWave = 0.0;
     stealCountdown = 0;
     stealPending = false;
     stealGain = 1.0;
@@ -225,7 +226,7 @@ void StringEngine::updateDispersion() noexcept
 {
     // Negative coefficient: low frequencies are delayed more than high ones, so
     // the upper partials come out sharp. See Allpass1's note on the sign.
-    const double b = juce::jlimit (0.0, 0.01, physical.inharmonicityB);
+    const double b = juce::jlimit (0.0, 0.01, physical.inharmonicityB * agingDispersion);   // string-aging.md 5
     dispersionCoeff = -std::tanh (kDispersionGain * b * (double) dispersionStages);
 
     for (int i = 0; i < kMaxDispersionStages; ++i)
@@ -251,7 +252,7 @@ void StringEngine::updateLoopCoefficients() noexcept
     // ---- loop filter cutoff -------------------------------------------------
     // Engine spec 4 gives the physical reading: damping lowers the cutoff.
     // ~5 kHz open down to ~800 Hz under the palm.
-    const double open = physical.openBrightnessHz * terminationBrightness;
+    const double open = physical.openBrightnessHz * agingBrightness * terminationBrightness;   // string-aging.md 5
     double cutoff = open;
     double t60Scale = 1.0;
 
@@ -316,7 +317,7 @@ void StringEngine::updateLoopCoefficients() noexcept
     // Higher notes decay faster on a real string (identity rule 6), so the target
     // sustain is scaled down as the fundamental rises.
     const double pitchScale = std::pow (110.0 / f0, 0.40);
-    double t60 = physical.sustainSeconds * sustainScale * t60Scale * pitchScale;
+    double t60 = physical.sustainSeconds * agingSustain * sustainScale * t60Scale * pitchScale;   // string-aging.md 5
 
     // Silenced is an absolute time: the E-Bow letting go (ambiguity-resolutions
     // 2.4) has to be inaudible in 200 ms on a string of any sustain.
@@ -337,6 +338,12 @@ void StringEngine::updateLoopCoefficients() noexcept
 
 //==============================================================================
 double StringEngine::processSample (double couplingInput) noexcept
+{
+    beginSample();
+    return endSample (couplingInput);
+}
+
+void StringEngine::beginSample() noexcept
 {
     // ---- voice stealing ------------------------------------------------------
     if (stealPending)
@@ -409,6 +416,21 @@ double StringEngine::processSample (double couplingInput) noexcept
     }
 
     fb = sanitise (fb);
+
+    /*  body-coupling.md 3: the wave that reflects at the bridge is the loop's
+        return - after the loop filter and the dispersion cascade, whose group
+        delay (up to a third of the loop on a wound string) the delay line is
+        shortened by. The delay output is that wave a filter-delay early, and
+        driving the body from it advances the body path by tens of degrees at
+        the fundamental, which is enough to make it active. */
+    bridgeWave = fb;
+    pendingDelayOut = delayOut;
+}
+
+double StringEngine::endSample (double couplingInput) noexcept
+{
+    const double delayOut = pendingDelayOut;
+    const double fb = bridgeWave;
 
     // ---- injections ----------------------------------------------------------
     const double exc = excitation.next();

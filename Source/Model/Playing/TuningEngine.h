@@ -74,6 +74,7 @@ public:
             would silently cancel it. */
         double characterDriftCents = 0.0;
         double intonationSlope    = 0.30;  ///< Cents of sharpening per fret.
+        double agingIntonationSlope = 0.0; ///< string-aging.md 3.4: added to, never overwriting, the slope.
         double fineTuneCents      = 0.0;   ///< Per-string fine tuner.
         int    maxFrets           = 24;
     };
@@ -100,6 +101,7 @@ public:
     /** The character engine's tuner drift, in cents (character-wear 4). */
     void setCharacterDriftCents (int stringIndex, double cents) noexcept;
     void setIntonationSlope (int stringIndex, double centsPerFret) noexcept;
+    void setAgingIntonation (int stringIndex, double centsPerFret) noexcept;   // string-aging.md 3.4
     void setMaxFrets (int stringIndex, int frets) noexcept;
 
     void setTemperament (Temperament t) noexcept { temperament = t; }

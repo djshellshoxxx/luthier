@@ -147,6 +147,10 @@ squeakCentroid = 1 − 0.30 · C                        (band-pass centre multip
 `R_leg` is `PlayingNoise`'s current 1.0 / 1.15 / 1.4 table, interpolated
 through the same three anchors.
 
+The in-loop slide noise (`StringSpec.squeak`'s old age factor, 1.2 / 1.0 /
+0.62) keeps its legacy table at `d = 0`; at `d = 1` it is the Broken In
+level, since the physical squeak lives in `PlayingNoise`. (*As built.*)
+
 This file comes later in `INDEX.md` than `string-squeak.md`, so under the
 brief's rule 22 it governs the spectrum. The level rule is unchanged.
 
@@ -159,7 +163,8 @@ goes to `proposals/` rather than being faked here.
 ## 4. Parameters
 
 Appended at the end of the layout (`DECISIONS.md`: hosts index
-automation by position). Net **+5**, 425 → 430.
+automation by position). Net **+5** (see `body-coupling.md` 4 for this
+build's totals).
 
 | ID | Name | Stock | Advanced | Default | Unit |
 |---|---|---|---|---|---|
@@ -204,7 +209,11 @@ there because every curve saturates.
   `setAgingFactors` to each string, `tuning.setFineTuneCents(s, …)`, and
   the intonation slope.
 - **`refreshStringPhysics()`** passes `StringAge::Fresh` to `computeSpec`
-  and removes its `ageDetuneCents` block. It calls
+  and replaces its `ageDetuneCents` block with a synchronous write of
+  `StringAging`'s detune for the target hours (*amended in the build:*
+  anything a structural change builds from the tuning must see the right
+  pitch, or the first render after a preset load differs from the second -
+  the MIDI-export round trip caught it). `reset()` pushes the factors too. It calls
   `aging.setStringInfo(i, wound, material)` so that the weights know which
   strings are wound.
 - **Noise:** `StringNoiseInfo::fromSpec` takes the roughness from

@@ -641,6 +641,36 @@ bool PresetManager::fromVar (const juce::var& data)
             }
         }
 
+        // ==== BEGIN REALISM-A legacy load ====
+        /*  string-aging.md 8: a preset from before the continuous model had only
+            the three-step choice. Its hours are that row's anchor and the
+            detail is 0, which is the old table exactly - it sounds as it did.
+            body-coupling.md 6: likewise without the body's return path. */
+        {
+            auto setPlain = [this] (const char* id, float plain)
+            {
+                if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (id)))
+                    p->setValueNotifyingHost (p->convertTo0to1 (plain));
+            };
+
+            if (! params->hasProperty (ParamIDs::stringAgeHours))
+            {
+                int age = 1;   // the old default, Broken In
+
+                if (auto* old = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (ParamIDs::stringAge)))
+                    age = juce::jlimit (0, 2, juce::roundToInt (old->convertFrom0to1 (old->getValue())));
+
+                static constexpr float kAnchorHours[] = { 0.0f, 12.0f, 120.0f };
+                setPlain (ParamIDs::stringAgeHours, kAnchorHours[age]);
+                setPlain (ParamIDs::stringAgeDetail, 0.0f);
+                setPlain (ParamIDs::stringCoating, 0.0f);
+            }
+
+            if (! params->hasProperty (ParamIDs::bodyCouplingAmount))
+                setPlain (ParamIDs::bodyCouplingAmount, 0.0f);
+        }
+        // ==== END REALISM-A legacy load ====
+
         /*  ambiguity-resolutions.md 3: the doubler became a post-amp pedal. A
             preset that had the old engine doubler on gets a Doubler in its first
             empty post-amp slot, at the pedal's own defaults (the old amount
@@ -805,7 +835,10 @@ void PresetManager::captureExtraState()
         const auto& t = tuningEngine.getStringTuning (i);
         extra.detuneCents[(size_t) i] = t.detuneCents;
         extra.realismDetuneCents[(size_t) i] = t.realismDetuneCents;
-        extra.fineTuneCents[(size_t) i] = t.fineTuneCents;
+        // string-aging.md 5 (REALISM-A): the aging detune rides on the fine
+        // tune and is rebuilt from the parameters on load, so only what is
+        // left beyond it is state.
+        extra.fineTuneCents[(size_t) i] = t.fineTuneCents - engine.getStringAging().computeNow (i).detuneCents;
         extra.openFrequencyHz[(size_t) i] = t.openFrequencyHz;
         extra.customGaugeInches[(size_t) i] = engine.getCustomStringGauge (i);
     }

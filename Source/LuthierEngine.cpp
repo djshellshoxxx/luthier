@@ -66,6 +66,13 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
 
     character.prepare (sr, numStrings);
 
+    // REALISM-A: string-aging.md, environment.md, body-coupling.md.
+    aging.setNumStrings (numStrings);
+    aging.prepare (sr);
+    environment.setNumStrings (numStrings);
+    environment.prepare (sr);
+    bodyCoupling.prepare (sr);
+
     // --- instrument ----------------------------------------------------------
     for (int i = 0; i < kMaxStrings; ++i)
     {
@@ -175,6 +182,25 @@ void LuthierEngine::reset() noexcept
     tuning.reset();
     validator.reset();
 
+    // REALISM-A: the aging factors and the environment re-push after the
+    // tuning reset; accrued string hours are instrument state and survive.
+    // Pushed now, not at the next block: the strings are snapped to their
+    // open pitch below, and that pitch includes the aging detune.
+    refreshAgingJitter();
+    aging.reset();
+    pushAgingFactors();
+
+    // refreshStringPhysics set each string's in-loop slide noise from the
+    // factors it had then; the reset's are the current ones.
+    for (int i = 0; i < numStrings; ++i)
+        strings[(size_t) i].setNoiseAmount (slideNoise * stringSpecs[(size_t) i].squeak * aging.getFactors (i).squeakScale,
+                                            fretNoise);
+    aging.markDirty();
+    environment.reset();
+    bodyCoupling.reset();
+    bridgeWaves.fill (0.0);
+    setupChanged.store (true);
+
     bridgeOutputs.fill (0.0);
     couplingInputs.fill (0.0);
     stringOutputs.fill (0.0);
@@ -265,6 +291,8 @@ void LuthierEngine::setNumStrings (int n)
     whammy.setNumStrings (numStrings);
     rhythm.setNumStrings (numStrings);
     character.setNumStrings (numStrings);
+    aging.setNumStrings (numStrings);          // string-aging.md (REALISM-A)
+    environment.setNumStrings (numStrings);    // environment.md (REALISM-A)
 
     // The buzz geometry carries the guitar's scale and string count; a setup
     // applied before a guitar change would otherwise keep the old guitar's
@@ -318,6 +346,9 @@ void LuthierEngine::applyWorkshopGuitar (const DerivedAcoustics& d, GuitarType s
 
     // part-acoustics 2.1: chambering feeds the feedback loop's gain (MODEL-GAPS).
     feedbackLoop.setBodyCoupling (FeedbackLoop::bodyCouplingFor (d.feedbackGain));
+    // body-coupling.md 3: a parts guitar's bridge, tailpiece and joint.
+    partsBridge.massKg = juce::jmax (0.0, d.terminationMassG) * 0.001;
+    partsBridge.coupling = juce::jlimit (0.0, 1.0, d.couplingFraction);
 
     // part-acoustics.md 4, against the reference parts - nickel-silver frets,
     // a bone nut - so a guitar of reference parts sounds as a compiled one does.
@@ -548,7 +579,47 @@ void LuthierEngine::rebuildBodyFromSpec()
     body.setAmount (bodyAmount);
 
     reloadBodyIr();
+    rebuildBodyCoupling();   // body-coupling.md 3 (REALISM-A)
 }
+
+//==============================================================================
+// ==== BEGIN REALISM-A body coupling design ====
+void LuthierEngine::rebuildBodyCoupling()
+{
+    // body-coupling.md 3: one body, two views - the bank is designed from the
+    // same BodyConfig the radiated body uses, and a tuning or gauge change
+    // moves the strings' impedances and so the loading.
+    std::array<double, kMaxStrings> z0 {};
+
+    for (int s = 0; s < numStrings; ++s)
+        z0[(size_t) s] = strings[(size_t) s].getPhysical().waveImpedance;
+
+    const auto& cfg = body.getBodyConfig();
+    const auto chambering = chamberingFor (cfg.shape);
+
+    bridgeCoupling = hasPartsOverride
+                       ? partsBridge
+                       : BodyCouplingBank::bridgeFor ((int) spec.bridge, spec.category == GuitarCategory::Acoustic,
+                                                      cfg.shape == BodyShape::Resonator);
+
+    bodyCoupling.stage (bodyCoupling.design (cfg, chambering, bridgeCoupling, z0.data(), numStrings));
+    environment.setChambering (chambering);
+}
+
+BodyCouplingScaling LuthierEngine::getBodyCouplingScaling() const noexcept
+{
+    // 3, "Scaling": the environment's multipliers times the body scales.
+    const auto& env = environment.getState();
+
+    BodyCouplingScaling sc;
+    sc.plateFreq = env.plateFreqMul * bodyFreqScale;
+    sc.airFreq = env.airFreqMul * bodyFreqScale;
+    sc.q = env.plateQMul * bodyQScale;
+    sc.airQ = bodyQScale;
+    sc.mass = bodyMassScale;
+    return sc;
+}
+// ==== END REALISM-A body coupling design ====
 
 //==============================================================================
 void LuthierEngine::reloadBodyIr()
@@ -672,13 +743,19 @@ void LuthierEngine::setCustomStringGauge (int stringIndex, double inches)
 //==============================================================================
 void LuthierEngine::refreshStringPhysics()
 {
+    // string-aging.md 3.1: the seed's per-string jitter, before the detune
+    // below is computed from it (a host may save before ever preparing).
+    refreshAgingJitter();
+
     for (int i = 0; i < numStrings; ++i)
     {
         const double openHz = tuning.getEffectiveOpenFrequency (i);
 
+        // string-aging.md 5: the spec is always Fresh; the set's age comes
+        // from StringAging, per string, as multipliers on the string.
         auto s = StringMaterials::computeSpec (spec.stringMaterial,
                                                spec.stringGauge,
-                                               stringAge,
+                                               StringAge::Fresh,
                                                i,
                                                openHz,
                                                spec.scaleLengthMm,
@@ -697,19 +774,41 @@ void LuthierEngine::refreshStringPhysics()
 
         auto physical = StringMaterials::toPhysical (s, spec.scaleLengthMm);
         strings[(size_t) i].setPhysical (physical);
-        strings[(size_t) i].setNoiseAmount (slideNoise * s.squeak, fretNoise);
+        strings[(size_t) i].setNoiseAmount (slideNoise * s.squeak * aging.getFactors (i).squeakScale, fretNoise);
         strings[(size_t) i].setFretBuzz (fretless ? 0.0 : fretBuzzAmount, fretActionMm);
         strings[(size_t) i].snapToFrequency (openHz);
 
         coupling.setStringFrequency (i, openHz);
 
-        // Old strings do not hold their tuning.
-        if (s.ageDetuneCents > 0.0)
+        // ---- REALISM-A --------------------------------------------------------
+        // string-aging.md 5: which strings are wound, for the weights. The
+        // detune the old `ageDetuneCents` block set is StringAging's now, and
+        // is re-pushed at the next block.
+        aging.setStringInfo (i, s.wound, spec.stringMaterial == StringMaterial::Coated);
+
+        // Old strings do not hold their tuning: written now, as refreshStringPhysics always did.
+        tuning.setFineTuneCents (i, aging.computeNow (i).detuneCents);
+
+        // environment.md 2.1: the core's strain, its expansion and the wire's size.
         {
-            RtRandom r { 0xA6E0000ull + (uint64_t) i };
-            tuning.setFineTuneCents (i, r.nextBipolar() * s.ageDetuneCents);
+            const auto m = spec.stringMaterial;
+            const bool polymer = (m == StringMaterial::Nylon || m == StringMaterial::Fluorocarbon);
+            const double alphaString = ! polymer ? EnvironmentModel::kAlphaSteel
+                                                 : (s.wound ? EnvironmentModel::kAlphaNylon      // floss core
+                                                            : (m == StringMaterial::Nylon ? EnvironmentModel::kAlphaNylon
+                                                                                          : EnvironmentModel::kAlphaFluorocarbon));
+            const double coreModulus = polymer ? StringMaterials::get (m).youngsModulusPa : 2.0e11;
+            const double coreRadiusM = s.coreDiameterMm * 0.0005;
+            const double area = constants::kPi * coreRadiusM * coreRadiusM;
+            const double strain = s.tensionNewtons / juce::jmax (1.0e-3, coreModulus * area);
+
+            environment.setStringMaterial (i, strain, alphaString, s.diameterMm);
         }
     }
+
+    aging.markDirty();
+    setupChanged.store (true);
+    rebuildBodyCoupling();   // body-coupling.md 3: Z0 moved
 }
 
 //==============================================================================
@@ -1157,12 +1256,13 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     str.setNoiseAmount (e.technique == Technique::SlideGuitar
                           ? slide.getSettings().noiseAmount
                               * getSlideMaterial (slide.getBar().material).friction * 2.5
-                              * stringSpecs[(size_t) s].squeak
+                              * stringSpecs[(size_t) s].squeak * aging.getFactors (s).squeakScale
                           : 0.0,
                         fretNoise);
 
     {
-        const auto info = StringNoiseInfo::fromSpec (stringSpecs[(size_t) s], spec.stringMaterial, stringAge);
+        const auto info = StringNoiseInfo::fromSpec (stringSpecs[(size_t) s], spec.stringMaterial,
+                                                     aging.getFactors (s).roughness, aging.getFactors (s).squeakCentroid);
 
         if (e.technique == Technique::Slide && e.slideFromFret >= 0.0 && ! slide.isUnderBar (s))
         {
@@ -1233,6 +1333,10 @@ void LuthierEngine::applySlapAction (const SlapAction& a) noexcept
 
         case SlapAction::Kind::bodyTap:
             slap.startBodyTap (a.force, slap.getSettings().bodyPart);
+
+            // engine-technique-layer 3.4 / body-coupling.md 2.4: the tap also
+            // drives the bridge admittance bank, so undamped strings answer.
+            bodyCoupling.driveDirect (a.force, (int) slap.getSettings().bodyPart);
             break;
 
         default:
@@ -1345,6 +1449,10 @@ void LuthierEngine::setSetupGeometry (const SetupGeometry& geometry) noexcept
     g.scaleLengthMm = spec.scaleLengthMm;
     g.numStrings = numStrings;
     fretBuzzModel.setGeometry (g);
+
+    // environment.md 4: the environment's deltas go on top of this at the next block.
+    setupWithGuitar = g;
+    setupChanged.store (true);
 
     // The string's own contact clipper (the older, in-loop half of buzz) takes
     // its threshold from the same setup, so the two never disagree.
@@ -1511,6 +1619,79 @@ void LuthierEngine::fireScheduledEvents (int64_t absoluteSample) noexcept
 }
 
 //==============================================================================
+// ==== BEGIN REALISM-A per-block ====
+void LuthierEngine::refreshAgingJitter() noexcept
+{
+    // string-aging.md 3.1: the per-string jitter from the character seed.
+    if (agingSeedValid && agingSeed == character.getSeed())
+        return;
+
+    agingSeed = character.getSeed();
+    agingSeedValid = true;
+
+    for (int s = 0; s < kMaxStrings; ++s)
+        aging.setJitter (s, 2.0 * character.hashedValue (CharacterEngine::kCategoryStringAge, s) - 1.0);
+}
+
+void LuthierEngine::pushAgingFactors() noexcept
+{
+    for (int s = 0; s < numStrings; ++s)
+    {
+        const auto& f = aging.getFactors (s);
+        strings[(size_t) s].setAgingFactors (f.brightness, f.sustain, f.dispersion);
+
+        // string-aging.md 9: the tuning terms take the target hours - the
+        // string's pitch glide already smooths them - so the tuning (which a
+        // saved state records) never depends on where a glide had got to.
+        const auto now = aging.computeNow (s);
+        tuning.setFineTuneCents (s, now.detuneCents);
+        tuning.setAgingIntonation (s, now.intonationCentsPerFret);
+    }
+}
+
+void LuthierEngine::advanceRealism (int numSamples) noexcept
+{
+    const double seconds = (double) numSamples / juce::jmax (1.0, sr);
+
+    // environment.md 3.4: the profile's clock.
+    environment.advance (seconds, hostTimeSeconds, hostTimePlaying);
+    const auto& env = environment.getState();
+
+    refreshAgingJitter();
+
+    // environment.md 2.7 -> string-aging.md 3.1: humidity speeds corrosion.
+    aging.setCorrosionRate (env.corrosionRate);
+
+    std::array<double, kMaxStrings> levels {};
+
+    for (int s = 0; s < numStrings; ++s)
+        levels[(size_t) s] = strings[(size_t) s].getLevel();
+
+    if (aging.advance (seconds, levels.data(), numStrings))
+        pushAgingFactors();
+
+    // body-coupling.md 3 and environment.md 4: the same scaling reaches the
+    // radiated body and the bank.
+    const auto scaling = getBodyCouplingScaling();
+    body.setRuntimeScaling (scaling.plateFreq, scaling.airFreq, scaling.q, scaling.airQ);
+    bodyCoupling.setScaling (scaling);
+    bodyCoupling.beginBlock();
+
+    // body-coupling.md 5: the Tap button.
+    if (const double tap = pendingBodyTap.exchange (0.0); tap > 0.0)
+    {
+        slap.startBodyTap (tap, BodyPart::top);
+        bodyCoupling.driveDirect (tap, 0);
+    }
+
+    // environment.md 4: the SETUP geometry the buzz model reads moves with
+    // the humidity, only when a delta has moved by more than 0.005 mm.
+    if (environment.updateGeometry (setupWithGuitar, setupScratch, setupChanged.exchange (false)))
+        fretBuzzModel.setGeometry (setupScratch);
+}
+// ==== END REALISM-A per-block ====
+
+//==============================================================================
 void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
 {
     whammy.setPosition (midi.getWhammyPosition());
@@ -1562,7 +1743,8 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
         else
         {
             hz = tuning.computeFrequency (s, currentFret[(size_t) s],
-                                          bend + whammyCents + vib + magnetDetuneCents + scrape.getPitchOffsetCents (s));
+                                          bend + whammyCents + vib + magnetDetuneCents + scrape.getPitchOffsetCents (s)
+                                            + environment.fretCents (s, currentFret[(size_t) s]));   // environment.md 2.5
         }
 
         strings[(size_t) s].setTargetFrequency (hz);
@@ -1855,11 +2037,18 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         as rule 2 of that spec's section 0 requires. */
     character.advance ((double) numSamples / juce::jmax (1.0, sr));
 
-    if (character.isEnabled())
+    // REALISM-A: string aging, the environment and the body-coupling bank, at block rate.
+    advanceRealism (numSamples);
+
+    // environment.md 4: the room's offset rides with the tuner drift, and is
+    // not wear - it applies with character switched off.
     {
+        const auto& env = environment.getState();
+
         for (int s = 0; s < numStrings; ++s)
         {
-            const double drift = character.getTunerDriftCents (s);
+            const double drift = (character.isEnabled() ? character.getTunerDriftCents (s) : 0.0)
+                                 + env.openCents[(size_t) s];
 
             if (drift != lastAppliedDrift[(size_t) s])
             {
@@ -1942,7 +2131,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         for (int s = 0; s < numStrings; ++s)
         {
-            scrape.setString (s, StringNoiseInfo::fromSpec (stringSpecs[(size_t) s], spec.stringMaterial, stringAge),
+            scrape.setString (s, StringNoiseInfo::fromSpec (stringSpecs[(size_t) s], spec.stringMaterial,
+                                                            aging.getFactors (s).roughness, aging.getFactors (s).squeakCentroid),
                               strings[(size_t) s].getCurrentFrequency(), currentFret[(size_t) s],
                               midi.getStringBendCents (s));
 
@@ -2079,6 +2269,22 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         coupling.process (bridgeOutputs.data(), couplingInputs.data());
 
+        // body-coupling.md 3: the body's return path, next to the saddle path.
+        // Every string's loop is read first, so the bank answers this
+        // sample's bridge waves with no lag - which is what keeps it passive.
+        const bool bodyCouplingOn = bodyCoupling.isActive();
+
+        if (bodyCouplingOn)
+        {
+            for (int s = 0; s < numStrings; ++s)
+            {
+                strings[(size_t) s].beginSample();
+                bridgeWaves[(size_t) s] = strings[(size_t) s].getBridgeWave();
+            }
+
+            bodyCoupling.processSample (bridgeWaves.data(), couplingInputs.data(), numStrings);
+        }
+
         noiseBuffer[(size_t) i] = playingNoise.processSample (excitationNoise.data(), surfaceNoise.data(),
                                                               numStrings);
 
@@ -2116,7 +2322,9 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
             // Everything else is surface noise, on the string's output before
             // the body and the pickups, so the instrument colours it.
-            const double out = strings[(size_t) s].processSample (couplingIn) + surfaceNoise[(size_t) s];
+            const double out = (bodyCouplingOn ? strings[(size_t) s].endSample (couplingIn)
+                                               : strings[(size_t) s].processSample (couplingIn))
+                               + surfaceNoise[(size_t) s];
 
             stringOutputs[(size_t) s] = out;
             bridgeOutputs[(size_t) s] = strings[(size_t) s].getBridgeOutput();

@@ -16,6 +16,9 @@ const char* getRangeFamilyName (RangeFamily family) noexcept
         case RangeFamily::pick:       return "pick";
         case RangeFamily::slide:      return "slide";
         case RangeFamily::modulation: return "modulation";
+        case RangeFamily::strings:     return "strings";       // REALISM-A
+        case RangeFamily::environment: return "environment";   // REALISM-A
+        case RangeFamily::body:        return "body";          // REALISM-A
         case RangeFamily::numFamilies:
         default:                      return "none";
     }
@@ -149,12 +152,28 @@ namespace
             { ParamIDs::slideSlant,        { -30.0f, 30.0f, -60.0f, 60.0f, 0.0f,  0.5f, RangeFamily::slide } },
             { ParamIDs::slideNoiseAmount,  { 0.0f,   1.0f,  0.0f,   4.0f,  0.4f,  1.0f, RangeFamily::slide } },
             { ParamIDs::slideClankAmount,  { 0.0f,   1.0f,  0.0f,   4.0f,  0.45f, 1.0f, RangeFamily::slide } },
+
+            // ==== BEGIN REALISM-A ranges ====
+            // --- strings (string-aging.md 4) ---------------------------------
+            { ParamIDs::stringAgeHours,    { 0.0f,  200.0f, 0.0f,   2000.0f, 12.0f, 0.12f, RangeFamily::strings } },
+            { ParamIDs::stringCorrosivity, { 0.5f,  2.0f,   0.0f,   5.0f,    1.0f,  1.0f,  RangeFamily::strings } },
+
+            // --- environment (environment.md 5) ------------------------------
+            { ParamIDs::envTemperatureC,   { 5.0f,  40.0f, -30.0f,  70.0f,  22.0f, 1.0f, RangeFamily::environment } },
+            { ParamIDs::envTunedAtC,       { 5.0f,  40.0f, -30.0f,  70.0f,  22.0f, 1.0f, RangeFamily::environment } },
+            { ParamIDs::envHumidityPct,    { 20.0f, 85.0f,  5.0f,  100.0f,  45.0f, 1.0f, RangeFamily::environment } },
+
+            // --- body (body-coupling.md 4) -----------------------------------
+            { ParamIDs::bodyModeMassScale, { 0.5f,  2.0f,  0.05f,  20.0f,  1.0f, 1.0f / 3.0f, RangeFamily::body } },
+            { ParamIDs::bodyModeQScale,    { 0.5f,  2.0f,  0.1f,   5.0f,   1.0f, 1.0f / 3.0f, RangeFamily::body } },
+            { ParamIDs::bodyModeFreqScale, { 0.9f,  1.1f,  0.5f,   2.0f,   1.0f, 0.5f,        RangeFamily::body } },
+            // ==== END REALISM-A ranges ====
         };
 
         return table[index];
     }
 
-    constexpr int kNumEntries = 32;
+    constexpr int kNumEntries = 32 + 8;   // + 8 REALISM-A
 }
 
 const PhysicalRange* RangeRegistry::find (const juce::String& parameterId)
