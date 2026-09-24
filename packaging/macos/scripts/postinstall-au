@@ -1,0 +1,4 @@
+#!/bin/sh
+# Make the AU visible to hosts without a log-out (the registrar caches components).
+killall -9 AudioComponentRegistrar >/dev/null 2>&1 || true
+exit 0
