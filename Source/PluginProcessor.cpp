@@ -1106,7 +1106,12 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         modMatrix.processBlock (numSamples, modContext);
     }
 
-    bridge.applyToEngine();
+    // The message thread may be rebuilding engine structure (ParameterBridge::
+    // getEngineLock). The audio thread never waits for it: this block is silent.
+    const juce::ScopedTryLock engineLock (bridge.getEngineLock());
+
+    if (engineLock.isLocked())
+        bridge.applyToEngine();
 
     // The engine only ever writes the main output pair; every other bus belongs
     // to the routing matrix, and a bus nobody writes must be cleared rather than
@@ -1140,7 +1145,11 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 
     {
         auto mainOut = getBusBuffer (buffer, false, 0);
-        engine.processBlock (mainOut, midiMessages);
+
+        if (engineLock.isLocked())
+            engine.processBlock (mainOut, midiMessages);
+        else
+            mainOut.clear();
     }
 
     // 6.1: what the engine actually played - string and fret, after voicing.

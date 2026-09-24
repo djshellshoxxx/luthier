@@ -24,6 +24,7 @@
 #include <cmath>
 #include <map>
 #include <random>
+#include <thread>
 
 namespace luthier::combo
 {

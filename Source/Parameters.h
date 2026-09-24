@@ -439,6 +439,14 @@ public:
     /** True while a structural change is pending. */
     bool isStructuralChangePending() const noexcept { return structuralPending.load(); }
 
+    /*  Held by the message thread while it rebuilds engine structure (a guitar,
+        a pedal, a body IR) and try-locked by the audio thread around the block.
+        Without it the structural pass ran concurrently with processBlock and
+        freed what the audio thread was using: pluginval's Automation test
+        aborted with "double free or corruption", in ReverbPedal::rebuildLines
+        and RoomEngine::rebuild (docs/audit/BETA_TEST_REPORT.md B-01). */
+    juce::CriticalSection& getEngineLock() noexcept { return engineLock; }
+
     /** A preset has just written its pedal types AND their parameters: build
         those pedals keeping the parameters. The structural path otherwise
         writes a new pedal's defaults over its parameters - right for a pedal
@@ -508,6 +516,8 @@ private:
     juce::Array<juce::AudioProcessorParameter*> watched;
 
     ModMatrix* modMatrix = nullptr;
+
+    juce::CriticalSection engineLock;
 
     // Cached structural selections, so a change is detected exactly once.
     int lastGuitarType = -1;

@@ -1055,3 +1055,82 @@ LUTHIER_TEST (Combo, everyParameterSurvivesTheSessionStateRoundTrip)
 
     log.flush();
 }
+
+//==============================================================================
+/*  What a host does and a single-threaded test never does: the audio thread
+    keeps processing while the message thread changes structural parameters and
+    applies them (the ParameterBridge's AsyncUpdater path), plus preset loads and
+    automation of everything else. pluginval's Automation test aborted with
+    "double free or corruption" on this plugin; this reproduces that shape
+    deterministically enough to run under a sanitizer. Seeded. */
+LUTHIER_TEST (Combo, structuralChangesWhileAudioRuns)
+{
+    Rig rig;
+    std::atomic<bool> running { true };
+    std::atomic<int> blocks { 0 };
+    std::atomic<bool> nonFinite { false };
+
+    std::thread audio ([&]
+    {
+        juce::AudioBuffer<float> buffer (rig.bufferChannels(), kBlock);
+        int n = 0;
+
+        while (running.load())
+        {
+            juce::MidiBuffer midi;
+            if (n % 20 == 0)  midi.addEvent (juce::MidiMessage::noteOn (1, 40 + (n / 20) % 30, (juce::uint8) 100), 0);
+            if (n % 20 == 15) midi.addEvent (juce::MidiMessage::allNotesOff (1), 0);
+            buffer.clear();
+            rig.p().processBlock (buffer, midi);
+
+            for (int ch = 0; ch < 2; ++ch)
+                for (int i = 0; i < kBlock; ++i)
+                    if (! std::isfinite (buffer.getSample (ch, i)))
+                        nonFinite = true;
+
+            ++n;
+            blocks = n;
+        }
+    });
+
+    std::mt19937 rng (99);
+    std::uniform_real_distribution<float> uni (0.0f, 1.0f);
+
+    std::vector<juce::RangedAudioParameter*> params;
+    for (auto* prm : rig.p().getParameters())
+        if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (prm))
+            params.push_back (r);
+
+    auto& presets = rig.p().getPresetManager();
+    const int iterations = juce::jmax (20, (int) std::round (300 * scale()));
+
+    for (int it = 0; it < iterations; ++it)
+    {
+        // A burst of automation, structural ones included.
+        for (int k = 0; k < 20; ++k)
+            params[(size_t) (rng() % params.size())]->setValueNotifyingHost (uni (rng));
+
+        rig.setNormalised (ParamIDs::guitarType, uni (rng));
+        rig.setNormalised (ParamIDs::slotType (rng() % 2 == 0, (int) (rng() % EffectsChain::kNumSlots)), uni (rng));
+        rig.setNormalised (ParamIDs::ampModel, uni (rng));
+        rig.setNormalised (ParamIDs::cabType, uni (rng));
+        rig.setNormalised (ParamIDs::bodyMode, uni (rng));
+        rig.setNormalised (ParamIDs::oversample, uni (rng));
+
+        if (it % 25 == 0 && presets.getNumPresets() > 0)
+            presets.loadPreset ((int) (rng() % (uint32_t) presets.getNumPresets()));
+
+        rig.apply();   // the message thread's structural pass, as handleAsyncUpdate does it
+
+        const int before = blocks.load();
+        const auto deadline = juce::Time::getMillisecondCounter() + 2000;
+        while (blocks.load() < before + 2 && juce::Time::getMillisecondCounter() < deadline)
+            std::this_thread::yield();
+    }
+
+    running = false;
+    audio.join();
+
+    CHECK_MSG (blocks.load() > iterations, "the audio thread stalled: " + juce::String (blocks.load()) + " blocks");
+    CHECK_MSG (! nonFinite.load(), "non-finite output while structural changes raced the audio thread (seed 99)");
+}

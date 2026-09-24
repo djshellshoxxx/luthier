@@ -1364,12 +1364,14 @@ void ParameterBridge::pushSlotParameters (bool post, int slot)
 //==============================================================================
 void ParameterBridge::handleAsyncUpdate()
 {
+    const juce::ScopedLock sl (engineLock);
     applyStructural();
     structuralPending.store (false);
 }
 
 void ParameterBridge::applyAllNow()
 {
+    const juce::ScopedLock sl (engineLock);
     structuralInitialised = false;
     applyToEngine();
     cancelPendingUpdate();
