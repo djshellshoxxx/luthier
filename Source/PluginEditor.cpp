@@ -61,6 +61,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     addChildComponent (midiLearnArmLayer);
 
     header.onMidiLearnArmChanged = [this] (bool armed) { setMidiLearnArmed (armed); };
+    header.onImportMidi = [this] (const juce::File& file) { importMidiFile (file); };   // midi-export 5 (MODEL-GAPS)
 
     midiLearnArmLayer.onTargetPicked = [this] (juce::String parameterId)
     {
@@ -1052,6 +1053,63 @@ void LuthierAudioProcessorEditor::openHelp (const juce::String& topic)
 
     helpPanel.showTopicFor (topic);
     showOverlay (&helpPanel);
+}
+
+//==============================================================================
+// midi-export 5 (MODEL-GAPS): MIDI import by menu or by drop, then the target.
+bool LuthierAudioProcessorEditor::isInterestedInFileDrag (const juce::StringArray& files)
+{
+    for (const auto& f : files)
+        if (MidiImportTargets::isMidiFile (juce::File (f)))
+            return true;
+
+    return false;
+}
+
+void LuthierAudioProcessorEditor::filesDropped (const juce::StringArray& files, int, int)
+{
+    for (const auto& f : files)
+        if (MidiImportTargets::isMidiFile (juce::File (f)))
+        {
+            importMidiFile (juce::File (f));
+            return;
+        }
+}
+
+void LuthierAudioProcessorEditor::importMidiFile (const juce::File& file, std::optional<MidiImportTarget> target)
+{
+    auto run = [safe = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this), file] (MidiImportTarget chosen)
+    {
+        if (safe == nullptr)
+            return;
+
+        safe->lastMidiImport = MidiImportTargets::importFile (safe->processor, file, chosen);
+
+        Notification n;
+        n.id = "midi-import";
+        n.message = safe->lastMidiImport.message;
+        n.level = safe->lastMidiImport.ok ? Notification::Level::info : Notification::Level::warning;
+        safe->notifications.post (std::move (n));
+    };
+
+    if (target.has_value())
+    {
+        run (*target);
+        return;
+    }
+
+    juce::PopupMenu menu;
+    menu.addSectionHeader ("Import " + file.getFileName() + " into");
+
+    for (int t = 0; t < (int) MidiImportTarget::numTargets; ++t)
+        menu.addItem (t + 1, getMidiImportTargetName ((MidiImportTarget) t));
+
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&header),
+                        [run] (int result)
+    {
+        if (result > 0)
+            run ((MidiImportTarget) (result - 1));
+    });
 }
 
 } // namespace luthier

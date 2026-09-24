@@ -3,6 +3,13 @@
 namespace luthier
 {
 
+/*  MODEL-GAPS (ambiguity-resolutions 8): offsets are in parameter units, so the
+    audio path's +-4 guard (sanitise) must not clamp them - it held every
+    percent, millisecond and hertz destination to four units of movement. Only
+    a non-finite value is refused here; apply() clamps to the parameter's range. */
+static double finiteOrZero (double x) noexcept { return std::isfinite (x) ? x : 0.0; }
+
+
 //==============================================================================
 namespace
 {

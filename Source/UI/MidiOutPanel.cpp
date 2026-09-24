@@ -1,4 +1,5 @@
 #include "MidiOutPanel.h"
+#include "CaptureRanges.h"   // MODEL-GAPS
 #include "MidiExportDefaults.h"
 #include "../PluginProcessor.h"
 #include "../Presets/PresetManager.h"
@@ -135,8 +136,7 @@ public:
             return;
 
         auto defaults = panel.options;
-        defaults.range = panel.rangeSeconds() > 0.0 ? performance.getLastSecondsRange (panel.rangeSeconds())
-                                                    : juce::Range<juce::int64>();
+        defaults.range = panel.chosenRange (performance);
 
         const auto file = MidiProfiles::writeDragOutFile (performance, e.mods.isAltDown(), defaults);
 
@@ -222,9 +222,16 @@ MidiOutPanel::MidiOutPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (loadProfileButton);
 
     // --- export ---------------------------------------------------------------------
-    rangeBox.addItem ("Entire capture", 1);
-    rangeBox.addItem ("Last N seconds", 2);
+    CaptureRanges::addItems (rangeBox);   // 4.1's four (MODEL-GAPS)
     rangeBox.setSelectedId (1, juce::dontSendNotification);
+
+    // The marked region: mark in, play, mark out (MODEL-GAPS).
+    markInButton.setTooltip ("Start the marked region here");
+    markOutButton.setTooltip ("End the marked region here");
+    markInButton.onClick = [this] { processor.drainPerformanceCapture(); processor.getPerformanceCapture().markIn(); updateEnablement(); updateCaptureReadout (true); };
+    markOutButton.onClick = [this] { processor.drainPerformanceCapture(); processor.getPerformanceCapture().markOut(); updateEnablement(); updateCaptureReadout (true); };
+    addChildComponent (markInButton);
+    addChildComponent (markOutButton);
     rangeBox.setTooltip ("How much of the capture to export.");
     rangeBox.onChange = [this] { updateEnablement(); updateCaptureReadout (true); };
     AccessibleSetup::configureComboBox (rangeBox, "Export range");
@@ -407,6 +414,8 @@ void MidiOutPanel::updateEnablement()
         toggle->setEnabled (! generic);
 
     secondsSlider.setVisible (rangeBox.getSelectedId() == 2);
+    markInButton.setVisible (rangeBox.getSelectedId() == CaptureRanges::markedRegion);
+    markOutButton.setVisible (rangeBox.getSelectedId() == CaptureRanges::markedRegion);
 
     const bool live = shownLive.enabled;
 
@@ -422,6 +431,11 @@ void MidiOutPanel::updateEnablement()
 double MidiOutPanel::rangeSeconds() const
 {
     return rangeBox.getSelectedId() == 2 ? secondsSlider.getValue() : 0.0;
+}
+
+juce::Range<juce::int64> MidiOutPanel::chosenRange (const MidiPerformance& performance) const
+{
+    return CaptureRanges::midiCaptureRange (processor, performance, rangeBox.getSelectedId(), secondsSlider.getValue());
 }
 
 void MidiOutPanel::updateCaptureReadout (bool force)
@@ -445,8 +459,7 @@ void MidiOutPanel::updateCaptureReadout (bool force)
     {
         const auto performance = MidiTakeExport::capturedPerformance (processor);
         auto chosen = options;
-        chosen.range = rangeSeconds() > 0.0 ? performance.getLastSecondsRange (rangeSeconds())
-                                            : juce::Range<juce::int64>();
+        chosen.range = chosenRange (performance);
         previewText = MidiProfiles::describeOpeningBar (performance, chosen);
     }
 
@@ -468,7 +481,20 @@ void MidiOutPanel::timerCallback()
 //==============================================================================
 bool MidiOutPanel::exportTo (const juce::File& destination, juce::String* error)
 {
-    return MidiTakeExport::exportCapture (processor, destination, options, rangeSeconds(), error);
+    // MODEL-GAPS: every 4.1 range, not only the last seconds.
+    const auto performance = MidiTakeExport::capturedPerformance (processor);
+
+    if (performance.getLengthInSamples() <= 0)
+    {
+        if (error != nullptr)
+            *error = "There is nothing in the capture buffer yet. Play something first.";
+
+        return false;
+    }
+
+    auto chosen = options;
+    chosen.range = chosenRange (performance);
+    return MidiProfiles::exportToFile (performance, chosen, destination, error);
 }
 
 void MidiOutPanel::exportWithChooser()
@@ -623,6 +649,12 @@ void MidiOutPanel::resized()
     // --- export -----------------------------------------------------------------------
     exportHeader = bounds.removeFromTop (kHeader);
     split (row(), { &rangeBox, &secondsSlider });
+    {
+        // The mark buttons share the seconds slider's place (MODEL-GAPS).
+        auto r = secondsSlider.getBounds();
+        markInButton.setBounds (r.removeFromLeft (r.getWidth() / 2).reduced (1, 0));
+        markOutButton.setBounds (r.reduced (1, 0));
+    }
     split (row(), { &exportButton, dragSource.get() });
     captureBounds = bounds.removeFromTop (32);
     previewBounds = bounds.removeFromTop (40);

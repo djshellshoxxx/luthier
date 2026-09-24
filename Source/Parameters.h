@@ -354,6 +354,14 @@ namespace ParamIDs
     juce::String slotBypass (bool post, int slot);
     juce::String slotMix (bool post, int slot);
     juce::String slotParam (bool post, int slot, int param);
+
+    // ==== BEGIN MODEL-GAPS params ====
+    // bass-techniques.md 6 (fingerstyle-attack.md reuses both) and
+    // ambiguity-resolutions 8 / routing-io 2's Aux 1 pre / post-circuit toggle.
+    inline constexpr const char* fingerAlternationVariation = "finger_alternation_variation";
+    inline constexpr const char* restStroke                 = "rest_stroke";
+    inline constexpr const char* aux1PreCircuit             = "aux1_pre_circuit";
+    // ==== END MODEL-GAPS params ====
 }
 
 //==============================================================================
@@ -439,6 +447,13 @@ public:
     /** True while a structural change is pending. */
     bool isStructuralChangePending() const noexcept { return structuralPending.load(); }
 
+    /*  Held by the message thread while it rebuilds engine structure (a guitar,
+        a pedal, a body IR) and try-locked by the audio thread around the block.
+        Without it the structural pass ran concurrently with processBlock and
+        freed what the audio thread was using: pluginval's Automation test
+        aborted with "double free or corruption", in ReverbPedal::rebuildLines
+        and RoomEngine::rebuild (docs/audit/BETA_TEST_REPORT.md B-01). */
+    juce::CriticalSection& getEngineLock() noexcept { return engineLock; }
     /** Runs a pending structural change now, on the calling (message) thread:
         a host that saves state straight after changing a guitar type must get
         the state that change produces, not the one before it. */
@@ -556,6 +571,8 @@ private:
     juce::Array<juce::AudioProcessorParameter*> watched;
 
     ModMatrix* modMatrix = nullptr;
+
+    juce::CriticalSection engineLock;
 
     // Cached structural selections, so a change is detected exactly once.
     int lastGuitarType = -1;

@@ -785,6 +785,12 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::slapSnapBack,       "Snap-Back",           0.0f, 1.0f, 0.5f));
     add (choiceParam (ParamIDs::slapBodyPart,       "Body Tap Resonance", { "Top", "Side", "Back" }, 0));
 
+    // ==== BEGIN MODEL-GAPS params ====
+    add (floatParam  (ParamIDs::fingerAlternationVariation, "Finger Alternation", 0.0f, 1.0f, 0.25f));
+    add (boolParam   (ParamIDs::restStroke,                 "Rest Stroke", true));
+    add (boolParam   (ParamIDs::aux1PreCircuit,             "Aux 1 Pre-Circuit", false));
+    // ==== END MODEL-GAPS params ====
+
     return layout;
 }
 
@@ -1452,6 +1458,16 @@ void ParameterBridge::applyToEngine() noexcept
         }
     }
 
+    // ==== BEGIN MODEL-GAPS params ====
+    {
+        BassFingerstyleSettings fingers;
+        fingers.alternationVariation = value (ParamIDs::fingerAlternationVariation);
+        fingers.restStroke = value (ParamIDs::restStroke) > 0.5f;
+        engine.setBassFingerstyle (fingers);
+        engine.setAuxDiPreCircuit (value (ParamIDs::aux1PreCircuit) > 0.5f);
+    }
+    // ==== END MODEL-GAPS params ====
+
     // ---- structural change detection ---------------------------------------------
     const bool structural = readStructuralValues() || ! structuralInitialised;
 
@@ -1555,12 +1571,14 @@ void ParameterBridge::pushSlotParameters (bool post, int slot)
 //==============================================================================
 void ParameterBridge::handleAsyncUpdate()
 {
+    const juce::ScopedLock sl (engineLock);
     applyStructural();
     structuralPending.store (false);
 }
 
 void ParameterBridge::applyAllNow()
 {
+    const juce::ScopedLock sl (engineLock);
     structuralInitialised = false;
     applyToEngine();
     cancelPendingUpdate();

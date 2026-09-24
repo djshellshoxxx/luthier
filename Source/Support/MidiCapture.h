@@ -34,6 +34,11 @@ public:
 
     int getEventCount() const noexcept { return (int) juce::jmin (written.load(), (int64_t) capacity); }
 
+    /** The sample the oldest held event arrived at: sample 0 of buildMidiFile's
+        timeline, and of MidiPerformance::fromCapture (MODEL-GAPS: the marked
+        region's mapping). -1 when nothing is held. */
+    int64_t getFirstHeldSample() const noexcept;
+
     //==========================================================================
     /** Builds a MIDI file from everything captured. The tempo is used for the
         file's tempo map; note timing is preserved exactly as played. */

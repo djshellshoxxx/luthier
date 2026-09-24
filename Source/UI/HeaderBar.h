@@ -47,6 +47,9 @@ public:
     std::function<void()> onOpenPresetBrowser;
     std::function<void()> onSaveAs;
 
+    /** midi-export 5 (MODEL-GAPS): File -> Import -> MIDI chose this file. */
+    std::function<void (const juce::File&)> onImportMidi;
+
     /** gui-integration 19: the header MIDI Learn button. */
     std::function<void (bool)> onMidiLearnArmChanged;
 

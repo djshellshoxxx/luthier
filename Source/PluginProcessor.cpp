@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "Presets/FactoryPresets.h"
 #include "Support/ErrorLog.h"
+#include "Model/Guitar/BassDefaults.h"   // MODEL-GAPS
 
 /*  The test runner and the offline renderer build this file, so that the things
     only the processor owns - the undo stack, uiState, A/B slots, snapshot recall,
@@ -60,6 +61,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 
     for (int m = 0; m < ParamIDs::kNumMacros; ++m)
         macroValues[(size_t) m] = apvts.getRawParameterValue (ParamIDs::macroByIndex (m));
+
+    // notation-export 6.1 (MODEL-GAPS): the engine reports what it plays - string,
+    // fret and technique - straight to the capture.
+    engine.setPerformanceCapture (&performanceCapture);
 
     // guitar-workshop.md 0.6: a guitar type loads its factory guitar file.
     partLibrary.refresh();
@@ -749,7 +754,12 @@ void LuthierAudioProcessor::applyGuitar (const WorkshopGuitar& guitar, GuitarTyp
     partsGuitarLoaded = true;
 
     const auto derived = mapSpec (guitar);
-    engine.applyWorkshopGuitar (derived, standsFor);
+
+    // TODO 6e / DECISIONS C-09 (MODEL-GAPS): a swap that keeps the structure is
+    // built here and taken at the audio thread's next block boundary, with the
+    // strings still sounding; anything else parks the engine as before.
+    if (! engine.swapPartsAtBlockBoundary (derived, standsFor))
+        engine.applyWorkshopGuitar (derived, standsFor);
 
     // strum-dynamics 4 / bass-techniques 8: the family's strum defaults.
     const bool isBass = guitar.family == "bass";
@@ -759,7 +769,12 @@ void LuthierAudioProcessor::applyGuitar (const WorkshopGuitar& guitar, GuitarTyp
         writeGuitarParameters (derived);
 
         if (isBass != strumFamilyIsBass)
+        {
             retargetStrumDefaults (strumFamilyIsBass, isBass);
+
+            // bass-techniques 8 (MODEL-GAPS): the rest of the family's defaults.
+            BassFamilyDefaults::retarget (apvts, strumFamilyIsBass, isBass);
+        }
     }
 
     strumFamilyIsBass = isBass;
@@ -1189,7 +1204,12 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         modMatrix.processBlock (numSamples, modContext);
     }
 
-    bridge.applyToEngine();
+    // The message thread may be rebuilding engine structure (ParameterBridge::
+    // getEngineLock). The audio thread never waits for it: this block is silent.
+    const juce::ScopedTryLock engineLock (bridge.getEngineLock());
+
+    if (engineLock.isLocked())
+        bridge.applyToEngine();
 
     // The engine only ever writes the main output pair; every other bus belongs
     // to the routing matrix, and a bus nobody writes must be cleared rather than
@@ -1223,11 +1243,15 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
     {
         auto mainOut = getBusBuffer (buffer, false, 0);
-        engine.processBlock (mainOut, midiMessages);
+
+        if (engineLock.isLocked())
+            engine.processBlock (mainOut, midiMessages);
+        else
+            mainOut.clear();
     }
 
-    // 6.1: what the engine actually played - string and fret, after voicing.
-    performanceCapture.captureStringActivity (engine.getStringActivity());
+    // 6.1: what the engine actually played - string, fret and technique, after
+    // voicing - is reported by the engine itself from triggerNote (MODEL-GAPS).
 
     // ---- tone match ----------------------------------------------------------------
     /*  tone-match 1: a user cabinet IR replaces the model's, so it goes on the
@@ -1307,7 +1331,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
                 mainOut.addFrom (channel, 0, backingBuffer, channel, 0, numSamples);
         }
 
-        // practice-tools 8: the session recorder takes what the plugin produced.
+        // practice-tools 8: the session recorder takes what the plugin produced,
+        // and the MIDI that played it (MODEL-GAPS: it was never given the MIDI).
+        sessionRecorder.captureMidi (midiMessages, numSamples);   // before the block advances its clock
         sessionRecorder.processBlock (mainOut, numSamples);
     }
 
@@ -2465,6 +2491,65 @@ void LuthierAudioProcessor::postWorkshopChange (const juce::String& slotId, cons
     workshopFifo.finishedWrite (1);
 }
 
+double LuthierAudioProcessor::temperatureCelsius (Temperature t) noexcept
+{
+    switch (t)
+    {
+        case Temperature::cold: return 10.0;
+        case Temperature::warm: return 32.0;
+        case Temperature::room:
+        case Temperature::numTemperatures:
+        default:                return 21.5;
+    }
+}
+
+double LuthierAudioProcessor::humidityPercent (Humidity h) noexcept
+{
+    switch (h)
+    {
+        case Humidity::dry:   return 25.0;
+        case Humidity::humid: return 70.0;
+        case Humidity::normal:
+        case Humidity::numHumidities:
+        default:              return 45.0;
+    }
+}
+
+void LuthierAudioProcessor::sendCharacterChanges() noexcept
+{
+    /*  midi-export 2.1: "CHARACTER - seed changes, environment changes
+        (temperature, humidity) as they occur". Stated once when the source
+        comes on, then on each change, at the block's first sample (they are
+        set from the message thread, between blocks). */
+    using Field = LuthierSysExOut::Field;
+    const auto& character = engine.getCharacterEngine();
+
+    const auto seed = character.getSeed();
+
+    if (! characterStated || seed != sentCharacterSeed)
+    {
+        char text[24];
+        std::snprintf (text, sizeof (text), "%llu", (unsigned long long) seed);
+        sysExOut.push (LuthierEventClass::character, 0, { Field::makeWord ("what", "seed"), Field::makeWord ("seed", text) });
+        sentCharacterSeed = seed;
+    }
+
+    const int temperature = (int) character.getTemperature();
+    const int humidity = (int) character.getHumidity();
+
+    if (! characterStated || temperature != sentTemperature || humidity != sentHumidity)
+    {
+        sysExOut.push (LuthierEventClass::character, 0,
+                       { Field::makeWord ("what", "environment"),
+                         Field::makeReal ("temp", temperatureCelsius ((Temperature) temperature)),
+                         Field::makeReal ("humidity", humidityPercent ((Humidity) humidity)) });
+        sentTemperature = temperature;
+        sentHumidity = humidity;
+    }
+
+    characterStated = true;
+}
+
 void LuthierAudioProcessor::sendLuthierSysEx (const MidiOutConfig& config, juce::MidiBuffer& midi,
                                               int numSamples) noexcept
 {
@@ -2494,6 +2579,11 @@ void LuthierAudioProcessor::sendLuthierSysEx (const MidiOutConfig& config, juce:
         send (start2, size2);
         workshopFifo.finishedRead (size1 + size2);
     }
+
+    if (on && config.luthierEvents)
+        sendCharacterChanges();   // MODEL-GAPS
+    else
+        characterStated = false;  // restated when the source comes back on
 
     if (on && config.luthierEvents)
     {

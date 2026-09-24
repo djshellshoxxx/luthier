@@ -1188,7 +1188,7 @@ FeedbackLed::FeedbackLed (LuthierAudioProcessor& p)
                 "when the loop is sustaining a note on its own");
     AccessibleSetup::configureDescriptive (*this, "Feedback indicator",
                                            "Lights when the feedback loop is sustaining a note");
-    startTimerHz (20);
+    startTimerHz (kRefreshHz);   // gui-engine-dataflow 22
 }
 
 FeedbackLed::~FeedbackLed()

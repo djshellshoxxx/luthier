@@ -20,6 +20,7 @@
 #include "Theme.h"
 #include "Widgets.h"
 #include "StrumGroup.h"
+#include "BassGridGroup.h"   // bass-techniques 9 (MODEL-GAPS)
 #include "../Rhythm/GenreKit.h"
 
 namespace luthier
@@ -193,6 +194,14 @@ private:
     // gui-integration 4.4: the STRUM group (strum-dynamics 6.3). Its crossing
     // control and source line replace the old strum-duration slider.
     std::unique_ptr<StrumGroup> strumGroup;
+
+    // bass-techniques 9 (MODEL-GAPS): the bass step grid, only on a bass.
+    std::unique_ptr<BassGridGroup> bassGridGroup;
+
+public:
+    BassGridGroup* getBassGridGroup() const noexcept { return bassGridGroup.get(); }
+
+private:
 
     // --- browser ------------------------------------------------------------------
     juce::ComboBox tagFilterBox;

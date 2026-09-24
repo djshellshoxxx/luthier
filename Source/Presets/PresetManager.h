@@ -80,6 +80,18 @@ public:
         (ParameterBridge::adoptPedalTypesFromParameters). */
     std::function<void()> onPedalTypesLoaded;
 
+    /*  file-formats.md 2 (MODEL-GAPS, TODO 2k): a preset the load had to migrate
+        - the legacy `format` magic, no `ranges` block (schema 1, pre-M42), a
+        pre-Workshop `guitar.name`, or the retired pickup-placement parameters -
+        has its original kept as Backup/<yyyy-mm-dd>/<name>-v<schema>.luthierpreset
+        beside it. Once per file and schema: loading it again finds the backup
+        already there (in any dated folder) and does not file another. */
+    static bool needsMigration (const juce::var& data);
+    static juce::File backupMigratedOriginal (const juce::File& original, int schema);
+
+    /** Where the last load filed its migration backup; empty when it made none. */
+    juce::File getLastMigrationBackup() const { return lastMigrationBackup; }
+
     /** Deletes backups older than kBackupRetentionDays. Called once on startup. */
     static void pruneOldBackups();
 
@@ -260,6 +272,7 @@ private:
         would silently delete whatever that version added - which is a data-loss
         path that only shows up once two versions are in use. */
     juce::var unknownFields;
+    juce::File lastMigrationBackup;   // MODEL-GAPS
 
     juce::AudioProcessor& processor;
     juce::AudioProcessorValueTreeState& apvts;

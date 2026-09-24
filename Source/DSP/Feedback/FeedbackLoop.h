@@ -93,6 +93,16 @@ public:
         amp saturates first); a clean amp at 20% stays under 2%. 8% is between. */
     bool isResonant() const noexcept { return injectionEnv > 0.08 * kInjectionCeiling; }
 
+    /*  part-acoustics.md 2.1: the body's chambering feeds the loop's gain. A
+        hollow body is moved by the air far more than a solid one; 1 is the
+        solid body (and any compiled guitar), the reference the rest of this
+        loop was tuned on. Multiplies k_couple. MODEL-GAPS (TODO 2k). */
+    void setBodyCoupling (double factor) noexcept;
+    double getBodyCoupling() const noexcept { return bodyCoupling; }
+
+    /** The body factor for part-acoustics 2.1's feedback column (DerivedAcoustics::feedbackGain). */
+    static double bodyCouplingFor (double chamberFeedbackGain) noexcept;
+
     /** k_couple for a string, for the tests. */
     double getCoupling (int s) const noexcept { return couple[(size_t) juce::jlimit (0, kMaxStrings - 1, s)]; }
 
@@ -118,6 +128,7 @@ private:
     std::array<double, kMaxStrings> couple {};
 
     double injectionEnv = 0.0, injectionRelease = 0.0;
+    double bodyCoupling = 1.0;
 };
 
 } // namespace luthier

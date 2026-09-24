@@ -1,5 +1,7 @@
 #include "PracticePanel.h"
 #include "../PluginProcessor.h"
+#include "MidiOutPanel.h"        // MODEL-GAPS: the drag-out take
+#include "MidiExportDefaults.h"
 
 namespace luthier
 {
@@ -1133,6 +1135,37 @@ void EarTab::resized()
 }
 
 //==============================================================================
+bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFile)
+{
+    const bool read = importer.read (file, score);
+
+    if (read)
+    {
+        // practice-tools 11.2: the PRACTICE tab lists recent tab files.
+        PracticeLibrary library;
+        library.load (libraryFile);
+        library.noteTabOpened (file);
+
+        juce::String error;
+        library.save (libraryFile, error);
+
+        statusLabel.setText (juce::String (score.getTotalNoteCount()) + " notes from "
+                               + file.getFileName(),
+                             juce::dontSendNotification);
+
+        statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+    }
+    else
+    {
+        statusLabel.setText (importer.getLastError(), juce::dontSendNotification);
+        statusLabel.setColour (juce::Label::textColourId, Palette::warning);
+    }
+
+    refresh();
+    return read;
+}
+
+//==============================================================================
 TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
     : PracticeTab (p)
 {
@@ -1149,32 +1182,8 @@ TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
         {
             const auto file = fc.getResult();
 
-            if (file == juce::File())
-                return;
-
-            if (importer.read (file, score))
-            {
-                // practice-tools 11.2: the PRACTICE tab lists recent tab files.
-                PracticeLibrary library;
-                library.load (PracticeLibrary::getLibraryFile());
-                library.noteTabOpened (file);
-
-                juce::String error;
-                library.save (PracticeLibrary::getLibraryFile(), error);
-
-                statusLabel.setText (juce::String (score.getTotalNoteCount()) + " notes from "
-                                       + file.getFileName(),
-                                     juce::dontSendNotification);
-
-                statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
-            }
-            else
-            {
-                statusLabel.setText (importer.getLastError(), juce::dontSendNotification);
-                statusLabel.setColour (juce::Label::textColourId, Palette::warning);
-            }
-
-            refresh();
+            if (file != juce::File())
+                openTab (file);
         });
     };
 
@@ -1408,9 +1417,14 @@ SessionTab::SessionTab (LuthierAudioProcessor& p)
             const auto setup = storedSetup();
             requestedMinutes = storedMinutes = setup.ringMinutes;
             setup.applyTo (recorder, processor.getSampleRate());
+            recorder.setEnabled (true);
+        }
+        else if (recorder.stop (SessionRecorder::getSessionDirectory()))
+        {
+            // practice-tools 11.2's auto-save (MODEL-GAPS): stopping kept the take.
+            statusLabel.setText ("Saved to your Sessions folder.", juce::dontSendNotification);
         }
 
-        recorder.setEnabled (on);
         refresh();
     };
 
@@ -1424,15 +1438,9 @@ SessionTab::SessionTab (LuthierAudioProcessor& p)
     addAndMakeVisible (lengthLabel);
 
     saveButton.setTooltip ("Freeze what is in the buffer to a WAV and a MIDI file.");
-    saveButton.onClick = [this]
-    {
-        const bool saved = processor.getSessionRecorder()
-                             .saveLastTake (SessionRecorder::getSessionDirectory());
-
-        statusLabel.setText (saved ? "Saved to your Sessions folder."
-                                   : "There is nothing recorded to save.",
-                             juce::dontSendNotification);
-    };
+    saveButton.setTooltip ("Freeze what is in the buffer to a WAV and a MIDI file. "
+                           "Drag this button to drop the take into your DAW.");
+    saveButton.onClick = [this] { saveTake(); };
 
     openFolderButton.onClick = [this]
     {
@@ -1460,6 +1468,87 @@ void SessionTab::visibilityChanged()
         storedMinutes = storedSetup().ringMinutes;
         refresh();
     }
+}
+
+bool SessionTab::saveTake()
+{
+    const bool saved = processor.getSessionRecorder().saveLastTake (SessionRecorder::getSessionDirectory());
+
+    statusLabel.setText (saved ? "Saved to your Sessions folder."
+                               : "There is nothing recorded to save.",
+                         juce::dontSendNotification);
+    return saved;
+}
+
+juce::StringArray SessionTab::SaveButton::filesToDrag (bool forceGeneric)
+{
+    auto& recorder = tab.processor.getSessionRecorder();
+    auto files = recorder.getLastSavedFiles();
+
+    if (files.isEmpty() && tab.saveTake())
+        files = recorder.getLastSavedFiles();
+
+    juce::StringArray paths;
+    bool haveTakeMidi = false;
+
+    // midi-export 4.2: a valid MIDI file in the Luthier profile (Generic with
+    // Alt), of the take's span of what the engine played.
+    const auto performance = MidiTakeExport::capturedPerformance (tab.processor);
+    const double seconds = (double) recorder.getRecordedSamples() / juce::jmax (1.0, tab.processor.getSampleRate());
+
+    if (performance.getLengthInSamples() > 0)
+    {
+        auto defaults = MidiExportDefaults::load();
+        defaults.range = seconds > 0.0 ? performance.getLastSecondsRange (seconds) : juce::Range<juce::int64>();
+
+        const auto midi = MidiProfiles::writeDragOutFile (performance, forceGeneric, defaults);
+
+        if (midi.existsAsFile())
+        {
+            paths.add (midi.getFullPathName());
+            haveTakeMidi = true;
+        }
+    }
+
+    for (const auto& f : files)
+        if (f.existsAsFile())
+        {
+            if (f.hasFileExtension ("mid"))
+            {
+                if (! haveTakeMidi)
+                    paths.insert (0, f.getFullPathName());   // nothing captured: the raw take, first
+            }
+            else
+            {
+                paths.add (f.getFullPathName());
+            }
+        }
+
+    return paths;
+}
+
+void SessionTab::SaveButton::mouseDrag (const juce::MouseEvent& e)
+{
+    if (dragged || e.getDistanceFromDragStart() < 6)
+        return;
+
+    dragged = true;
+    const auto paths = filesToDrag (e.mods.isAltDown());
+
+    if (! paths.isEmpty())
+        juce::DragAndDropContainer::performExternalDragDropOfFiles (paths, false, this);
+}
+
+void SessionTab::SaveButton::mouseUp (const juce::MouseEvent& e)
+{
+    // A drag is not also a click.
+    if (dragged)
+    {
+        setState (juce::Button::buttonNormal);
+        return;
+    }
+
+    juce::TextButton::mouseUp (e);
 }
 
 SessionRecorderSetup SessionTab::storedSetup()

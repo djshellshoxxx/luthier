@@ -80,10 +80,10 @@ juce::StringArray PracticeDefaults::applyTo (const PracticeTargets& targets) con
     if (auto* l = targets.looper)
         l->getLayer (l->getActiveLayer()).setMode (overdubMode);
 
-    // TODO(lead hook): the looper has no default length setting. A fixed length
-    // needs Looper to pre-size its first recording (it only quantises to
-    // setBarLengthSamples today), so loopLengthSeconds is kept for the drawer to
-    // stop the first recording at, and loopCountInBars for its count-in.
+    // MODEL-GAPS (TODO 11): the first recording closes itself at the default
+    // length; 0 leaves it to the player. loopCountInBars is the drawer's count-in.
+    if (auto* l = targets.looper)
+        l->setDefaultLengthSamples ((int) std::round (juce::jmax (0.0, loopLengthSeconds) * l->getSampleRate()));
 
     if (auto* s = targets.scaleTrainer)
     {
@@ -93,9 +93,18 @@ juce::StringArray PracticeDefaults::applyTo (const PracticeTargets& targets) con
             s->setScale (scaleSet.front());
     }
 
-    // TODO(lead hook): ScaleTrainer and EarTrainer take no note range or question
-    // count; rangeLowNote/rangeHighNote/questionCount are for the drawer's quiz
-    // loop until they do.
+    // MODEL-GAPS (TODO 11): the trainers' note range and session length.
+    if (auto* s = targets.scaleTrainer)
+    {
+        s->setNoteRange (rangeLowNote, rangeHighNote);
+        s->setQuestionCount (questionCount);
+    }
+
+    if (auto* e = targets.earTrainer)
+    {
+        e->setNoteRange (rangeLowNote, rangeHighNote);
+        e->setQuestionCount (questionCount);
+    }
 
     if (auto* b = targets.backingTrack)
         b->setLevelDb (backingLevelDb);
@@ -301,10 +310,11 @@ juce::String SessionRecorderSetup::getSizeWarning (double sampleRate) const
 
 bool SessionRecorderSetup::applyTo (SessionRecorder& recorder, double sampleRate) const
 {
-    // TODO(lead hook): SessionRecorder records audio and MIDI together and has
-    // no auto-save. recordAudio/recordMidi need switches on SessionRecorder
-    // (processBlock / captureMidi skipping their part); autoSaveOnStop needs the
-    // drawer's SESSION stop to call saveLastTake(getSessionDirectory()) when set.
+    // MODEL-GAPS (TODO 11): what the take records, and whether stopping saves it
+    // (the drawer's SESSION stop calls SessionRecorder::stop).
+    recorder.setRecordAudio (recordAudio);
+    recorder.setRecordMidi (recordMidi);
+    recorder.setAutoSaveOnStop (autoSaveOnStop);
     return recorder.prepare (sampleRate, juce::jlimit (1.0, 240.0, ringMinutes));
 }
 

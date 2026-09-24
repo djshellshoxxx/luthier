@@ -14,18 +14,24 @@ endif()
 
 option(LUTHIER_BUILD_TESTS "Build the Luthier unit-test runner" ON)
 option(LUTHIER_BUILD_CLI   "Build the offline batch-render CLI"  ON)
+# Link-time optimisation for the plugin targets. On for shipped builds; CI turns
+# it off on ordinary pushes, where it doubles the link time and defeats the
+# compiler cache, and keeps it on for nightly and release builds.
+option(LUTHIER_LTO         "Link-time optimise the plugin targets" ON)
 
 add_subdirectory(ThirdParty/JUCE)
 
-# CLAP (host-integration.md 1): built through clap-juce-extensions when it is
-# checked out beside JUCE (scripts/setup_linux.sh and the CI fetch it).
-set(LUTHIER_CLAP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/clap-juce-extensions")
-if (EXISTS "${LUTHIER_CLAP_DIR}/CMakeLists.txt")
-    add_subdirectory("${LUTHIER_CLAP_DIR}" EXCLUDE_FROM_ALL)
+# CLAP comes from clap-juce-extensions when it has been fetched beside JUCE
+# (scripts/setup_linux.sh and the CI workflows fetch it); without it the build
+# simply has no CLAP target.
+set(LUTHIER_CLAP_EXTENSIONS "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/clap-juce-extensions")
+if (EXISTS "${LUTHIER_CLAP_EXTENSIONS}/CMakeLists.txt")
+    add_subdirectory("${LUTHIER_CLAP_EXTENSIONS}" EXCLUDE_FROM_ALL)
     set(LUTHIER_HAS_CLAP TRUE)
+else()
+    set(LUTHIER_HAS_CLAP FALSE)
 endif()
 
-# AU on macOS (host-integration.md 1); VST3 and the standalone everywhere.
 set(LUTHIER_FORMATS VST3 Standalone)
 if (APPLE)
     list(APPEND LUTHIER_FORMATS AU)
@@ -45,14 +51,16 @@ juce_add_plugin(Luthier
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
     COPY_PLUGIN_AFTER_BUILD     FALSE
     VST3_CATEGORIES             "Instrument" "Synth"
+    AU_MAIN_TYPE                kAudioUnitType_MusicDevice
+    # macOS notarisation needs the hardened runtime; the sidechain input needs
+    # the audio-input entitlement under it and a usage string in the standalone.
+    # (scripts/package_macos.sh applies the same entitlements when it re-signs.)
+    HARDENED_RUNTIME_ENABLED    TRUE
+    HARDENED_RUNTIME_OPTIONS    com.apple.security.device.audio-input
+    MICROPHONE_PERMISSION_ENABLED TRUE
+    MICROPHONE_PERMISSION_TEXT  "Luthier uses audio input for its sidechain."
     ICON_BIG                    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon.png"
     ICON_SMALL                  "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon_small.png")
-
-if (LUTHIER_HAS_CLAP)
-    clap_juce_extensions_plugin(TARGET Luthier
-        CLAP_ID "com.luthieraudio.luthier"
-        CLAP_FEATURES instrument synthesizer stereo)
-endif()
 
 file(GLOB_RECURSE LUTHIER_SOURCES CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/Source/*.cpp"
@@ -66,6 +74,7 @@ set(LUTHIER_WIP_REGEX "Source/WIP/")
 list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "${LUTHIER_WIP_REGEX}")
 
 target_sources(Luthier PRIVATE ${LUTHIER_SOURCES})
+
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Source" FILES ${LUTHIER_SOURCES})
 
 target_compile_definitions(Luthier PUBLIC
@@ -87,8 +96,17 @@ target_link_libraries(Luthier PRIVATE
     # SHA-256, for the license activation proof (updates-telemetry 5).
     juce::juce_cryptography
     PUBLIC
-    juce::juce_recommended_config_flags
-    juce::juce_recommended_lto_flags)
+    juce::juce_recommended_config_flags)
+
+if (LUTHIER_LTO)
+    target_link_libraries(Luthier PUBLIC juce::juce_recommended_lto_flags)
+endif()
+
+if (LUTHIER_HAS_CLAP)
+    clap_juce_extensions_plugin(TARGET Luthier
+        CLAP_ID "com.luthieraudio.luthier"
+        CLAP_FEATURES instrument synthesizer stereo)
+endif()
 
 #==============================================================================
 # Resources
@@ -117,14 +135,29 @@ function(luthier_copy_resources target destination)
     endif()
 endfunction()
 
-luthier_copy_resources(Luthier_VST3
-    "$<TARGET_FILE_DIR:Luthier_VST3>/../../Resources")
+# A bundle's resources belong in Contents/Resources, one level up from the
+# binary on every platform (Contents/MacOS on macOS, Contents/<arch> for a VST3
+# elsewhere); anything written to a macOS bundle root breaks its code signature.
+luthier_copy_resources(Luthier_VST3 "$<TARGET_FILE_DIR:Luthier_VST3>/../Resources")
 
-luthier_copy_resources(Luthier_CLAP
-    "$<TARGET_FILE_DIR:Luthier_CLAP>/Resources")
+if (APPLE)
+    luthier_copy_resources(Luthier_AU   "$<TARGET_FILE_DIR:Luthier_AU>/../Resources")
+    luthier_copy_resources(Luthier_CLAP "$<TARGET_FILE_DIR:Luthier_CLAP>/../Resources")
+else()
+    # A CLAP on Windows and Linux is a single file: its resources go beside it,
+    # as they do for the standalone.
+    luthier_copy_resources(Luthier_CLAP "$<TARGET_FILE_DIR:Luthier_CLAP>/Resources")
+endif()
 
-luthier_copy_resources(Luthier_Standalone
-    "$<TARGET_FILE_DIR:Luthier_Standalone>/Resources")
+# The standalone wants them next to the exe, except that on macOS it is an app
+# bundle too, and files beside the binary in Contents/MacOS count as unsigned code.
+if (APPLE)
+    luthier_copy_resources(Luthier_Standalone
+        "$<TARGET_FILE_DIR:Luthier_Standalone>/../Resources")
+else()
+    luthier_copy_resources(Luthier_Standalone
+        "$<TARGET_FILE_DIR:Luthier_Standalone>/Resources")
+endif()
 
 #==============================================================================
 # Test runner and offline renderer
@@ -168,6 +201,8 @@ set(LUTHIER_CONSOLE_DEFS
 set(LUTHIER_TEST_DEFS ${LUTHIER_CONSOLE_DEFS})
 list(REMOVE_ITEM LUTHIER_TEST_DEFS LUTHIER_HEADLESS=1)
 list(APPEND LUTHIER_TEST_DEFS LUTHIER_HEADLESS=0)
+# notation-export 7.1 (MODEL-GAPS): CircuitTests.cpp counts allocations; the other suites' checks compile in.
+list(APPEND LUTHIER_TEST_DEFS LUTHIER_ALLOCATION_COUNTER=1)
 
 if (LUTHIER_BUILD_TESTS)
     file(GLOB LUTHIER_TEST_SOURCES CONFIGURE_DEPENDS
