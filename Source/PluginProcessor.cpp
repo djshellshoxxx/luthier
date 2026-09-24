@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "Presets/FactoryPresets.h"
 #include "Support/ErrorLog.h"
+#include "Model/Guitar/BassDefaults.h"   // MODEL-GAPS
 
 /*  The test runner and the offline renderer build this file, so that the things
     only the processor owns - the undo stack, uiState, A/B slots, snapshot recall,
@@ -57,6 +58,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
       snapshots (*this)
 {
     FactoryPresets::setProcessorForRanges (this);
+
+    // notation-export 6.1 (MODEL-GAPS): the engine reports what it plays - string,
+    // fret and technique - straight to the capture.
+    engine.setPerformanceCapture (&performanceCapture);
 
     // guitar-workshop.md 0.6: a guitar type loads its factory guitar file.
     partLibrary.refresh();
@@ -725,7 +730,12 @@ void LuthierAudioProcessor::applyGuitar (const WorkshopGuitar& guitar, GuitarTyp
         writeGuitarParameters (derived);
 
         if (isBass != strumFamilyIsBass)
+        {
             retargetStrumDefaults (strumFamilyIsBass, isBass);
+
+            // bass-techniques 8 (MODEL-GAPS): the rest of the family's defaults.
+            BassFamilyDefaults::retarget (apvts, strumFamilyIsBass, isBass);
+        }
     }
 
     strumFamilyIsBass = isBass;
@@ -1143,8 +1153,8 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         engine.processBlock (mainOut, midiMessages);
     }
 
-    // 6.1: what the engine actually played - string and fret, after voicing.
-    performanceCapture.captureStringActivity (engine.getStringActivity());
+    // 6.1: what the engine actually played - string, fret and technique, after
+    // voicing - is reported by the engine itself from triggerNote (MODEL-GAPS).
 
     // ---- tone match ----------------------------------------------------------------
     /*  tone-match 1: a user cabinet IR replaces the model's, so it goes on the

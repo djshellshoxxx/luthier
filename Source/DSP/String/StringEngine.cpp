@@ -52,6 +52,8 @@ void StringEngine::prepare (double sampleRate, int /*maxBlockSize*/)
 
 void StringEngine::reset() noexcept
 {
+    touchGain = 1.0;
+    touchSamplesLeft = 0;
     delayLine.reset();
     excitation.reset();
     loopFilter.reset();
@@ -156,6 +158,16 @@ void StringEngine::excite (const Excitation::Params& params) noexcept
         setHarmonicRestriction (0);
 }
 
+void StringEngine::touch (double depth) noexcept
+{
+    // A 1.5 ms settle: a fingertip landing, fast enough to stop a low string
+    // inside 10 ms and slow enough not to click. It holds for one trip round
+    // the loop plus the settle, by which time the damping has done its work.
+    touchDepthGain = 1.0 - juce::jlimit (0.0, 1.0, depth);
+    touchCoeff = 1.0 - std::exp (-1.0 / (0.0015 * sr));
+    touchSamplesLeft = (int) (sr / juce::jmax (constants::kMinStringHz, getCurrentFrequency())) + (int) (0.006 * sr);
+}
+
 void StringEngine::release (bool letRing) noexcept
 {
     if (! letRing)
@@ -173,7 +185,7 @@ void StringEngine::setDamping (Damping d, double amount) noexcept
     couplingReceptivity = (d == Damping::Silenced) ? 0.0
                         : (d == Damping::Chuck) ? 1.0 - dampingAmount
                         : (d == Damping::Choked) ? 0.15
-                        : (d == Damping::PalmMute) ? 0.45
+                        : (d == Damping::PalmMute || d == Damping::PalmMuteBass) ? 0.45
                         : (harmonicPartial > 0) ? 0.35
                         : 1.0;
 }
@@ -256,6 +268,14 @@ void StringEngine::updateLoopCoefficients() noexcept
         case Damping::PalmMute:
             cutoff = juce::jmap (dampingAmount, open, 800.0);
             t60Scale = juce::jmap (dampingAmount, 1.0, 0.11);
+            break;
+
+        case Damping::PalmMuteBass:
+            // bass-techniques 7 (MODEL-GAPS): the palm sits on a heavier string.
+            // It dies sooner than a guitar's palm mute, and the loss is darker,
+            // so what is left is mostly the fundamental.
+            cutoff = juce::jmap (dampingAmount, open, 450.0);
+            t60Scale = juce::jmap (dampingAmount, 1.0, 0.07);
             break;
 
         case Damping::Released:
@@ -421,10 +441,30 @@ double StringEngine::processSample (double couplingInput) noexcept
         fretNoiseEnv *= 0.9965;
     }
 
+    // bass-techniques 6 (MODEL-GAPS): a finger laid on the string stops it
+    // where it lies, not a period later. What is already travelling in the
+    // loop is damped with it; once the loop has gone round once the damping
+    // has taken over and the touch lets go.
+    double touch = 1.0;
+
+    if (touchGain < 1.0 || touchSamplesLeft > 0)
+    {
+        const double target = touchSamplesLeft > 0 ? touchDepthGain : 1.0;
+        touchGain += (target - touchGain) * touchCoeff;
+
+        if (touchSamplesLeft > 0)
+            --touchSamplesLeft;
+        else if (touchGain > 0.9999)
+            touchGain = 1.0;
+
+        touch = touchGain;
+        fb *= touch;
+    }
+
     delayLine.write (fb + exc + couplingInput * couplingReceptivity + noise);
 
     // ---- output --------------------------------------------------------------
-    double out = dcBlocker.process (delayOut);
+    double out = dcBlocker.process (delayOut * touch);
     out = sanitise (out);
 
     levelFollower.process (out);

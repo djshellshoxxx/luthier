@@ -21,6 +21,7 @@
 #include "DSP/Noise/FretBuzz.h"
 #include "DSP/Noise/ScrapeEngine.h"
 #include "DSP/Slap/SlapEngine.h"
+#include "DSP/Slap/BassFingerstyle.h"
 #include "Model/Playing/TechniqueTriggers.h"
 #include "DSP/Slide/SlideEngine.h"
 #include "DSP/Feedback/FeedbackLoop.h"
@@ -47,6 +48,8 @@
 
 namespace luthier
 {
+
+class PerformanceCapture;
 
 //==============================================================================
 class LuthierEngine
@@ -299,6 +302,24 @@ public:
         hostPlaying = isPlaying;
     }
 
+    /*  notation-export 6.1 / TODO 9 (MODEL-GAPS): the capture the engine reports
+        to from triggerNote and applyNoteOff - string, fret and technique as
+        played - plus the detector's chord in Poly mode (4), BASS_TECH strikes
+        and the slide bar. Null (the default) reports nothing. The capture must
+        outlive the engine or be cleared first. */
+    void setPerformanceCapture (PerformanceCapture* c) noexcept { perfCapture = c; }
+    PerformanceCapture* getPerformanceCapture() const noexcept { return perfCapture; }
+
+    /*  ambiguity-resolutions 8 / routing-io 2 (MODEL-GAPS): Aux 1 (DI) taps the
+        pickup after the guitar's circuit (the default, what enters the amp) or
+        before it, so the volume knob's effect on feedback can be measured. */
+    void setAuxDiPreCircuit (bool pre) noexcept { auxDiPreCircuit.store (pre, std::memory_order_relaxed); }
+    bool isAuxDiPreCircuit() const noexcept { return auxDiPreCircuit.load (std::memory_order_relaxed); }
+
+    /** bass-techniques.md 6 (MODEL-GAPS): finger alternation and the rest stroke. */
+    void setBassFingerstyle (const BassFingerstyleSettings& s) noexcept { bassFingers.setSettings (s); }
+    const BassFingerstyle& getBassFingerstyle() const noexcept { return bassFingers; }
+
     /** The rhythm engine sits between the interpreter and the technique engine
         and rewrites the event stream when it is switched on. */
     RhythmEngine& getRhythmEngine() noexcept { return rhythm; }
@@ -443,6 +464,7 @@ private:
         NoteOnEvent noteOn {};
         NoteOffEvent noteOff {};
         int64_t absoluteSample = 0;
+        bool fingerAlternated = false;   ///< bass-techniques 6: already given its finger's timing
     };
 
     static constexpr int kMaxScheduledEvents = 192;
@@ -475,6 +497,8 @@ private:
     std::vector<double> stringSumBuffer;
     std::vector<double> magneticBuffer;
     std::vector<double> instrumentBuffer;
+    std::vector<double> preCircuitBuffer;         ///< MODEL-GAPS: Aux 1's pre-circuit tap
+    std::atomic<bool> auxDiPreCircuit { false };
     juce::AudioBuffer<float> bodyBuffer;
     juce::AudioBuffer<float> workBuffer;
 
@@ -509,6 +533,25 @@ private:
     SlapEngine slap;
     std::vector<double> slapBodyDrive;
     std::array<bool, kMaxStrings> scrapeWasActive {};
+
+    // ---- MODEL-GAPS: capture reporting and fingerstyle bass --------------------
+    PerformanceCapture* perfCapture = nullptr;
+    juce::int64 hostBlockStart = 0;
+    ChordSymbol lastCapturedChord;
+    double lastCapturedBarFret = -2.0;
+    int lastCapturedBarPressure = -1;
+    BassFingerstyle bassFingers;
+    bool firingAlternated = false;
+    std::array<juce::int64, kMaxStrings> lastPluckSample {};
+
+    /** The capture's offset for the event being applied, from the host block's start. */
+    int captureOffset() const noexcept { return (int) juce::jmax ((juce::int64) 0, blockStartSample + activeSampleOffset - hostBlockStart); }
+
+    /** Reports a slap strike as a BASS_TECH event. */
+    void captureBassTechnique (const SlapStrike& strike) noexcept;
+
+    /** The chord (Poly mode) and the slide bar, once a block. */
+    void captureBlockState() noexcept;
 
     /** Applies one of the slap's due actions (a strike, a palm slap, a body tap). */
     void applySlapAction (const SlapAction& a) noexcept;

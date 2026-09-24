@@ -855,6 +855,11 @@ bool PresetManager::loadPreset (const juce::File& file)
     currentFile = file;
     applyExtraState();
 
+    // file-formats 2 (MODEL-GAPS): a migrated file's original is kept.
+    lastMigrationBackup = needsMigration (parsed)
+                            ? backupMigratedOriginal (file, (int) parsed.getProperty ("schemaVersion", 0))
+                            : juce::File();
+
     lastLoadError.clear();
 
     modified = false;
@@ -907,6 +912,59 @@ void PresetManager::backupBeforeOverwrite (const juce::File& target)
                                              + "-" + juce::String (i) + kFileExtension);
 
     target.copyFileTo (destination);
+}
+
+bool PresetManager::needsMigration (const juce::var& data)
+{
+    auto* obj = data.getDynamicObject();
+
+    if (obj == nullptr)
+        return false;
+
+    // The spelling of the magic before file-formats.md named it.
+    if (obj->getProperty ("magic").toString() != kMagic)
+        return true;
+
+    // Schema 1 (pre-M42): no ranges block.
+    if (! obj->hasProperty ("ranges"))
+        return true;
+
+    // Pre-M49: the guitar by name rather than by reference.
+    const auto guitar = obj->getProperty ("guitar");
+
+    if (guitar.isObject() && guitar.hasProperty ("name") && ! guitar.hasProperty ("reference"))
+        return true;
+
+    // guitar-workshop.md 9: pickup placements that were parameters.
+    if (auto* params = obj->getProperty ("parameters").getDynamicObject())
+        for (int slot = 0; slot < 3; ++slot)
+            if (params->hasProperty (ParamIDs::pickupPosition (slot)))
+                return true;
+
+    return false;
+}
+
+juce::File PresetManager::backupMigratedOriginal (const juce::File& original, int schema)
+{
+    if (! original.existsAsFile())
+        return {};
+
+    const auto backups = original.getParentDirectory().getChildFile ("Backup");
+    const auto name = original.getFileNameWithoutExtension() + "-v" + juce::String (juce::jmax (0, schema)) + kFileExtension;
+
+    // Once per file and schema, whichever day it was filed.
+    if (backups.isDirectory())
+        for (const auto& entry : juce::RangedDirectoryIterator (backups, false, "*", juce::File::findDirectories))
+            if (entry.getFile().getChildFile (name).existsAsFile())
+                return entry.getFile().getChildFile (name);
+
+    auto folder = backups.getChildFile (juce::Time::getCurrentTime().formatted ("%Y-%m-%d"));
+
+    if (! folder.createDirectory())
+        return {};
+
+    const auto destination = folder.getChildFile (name);
+    return original.copyFileTo (destination) ? destination : juce::File();
 }
 
 void PresetManager::pruneOldBackups()

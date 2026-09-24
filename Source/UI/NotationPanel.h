@@ -35,6 +35,22 @@ namespace NotationTakeExport
 
     /** The format a file name asks for, by its extension. */
     NotationFormat formatForFile (const juce::File& file) noexcept;
+
+    /*  notation-export 0.1 (MODEL-GAPS, TODO 2k): "Notation export is offline.
+        It runs on a worker thread." The take is drained and copied here, on
+        the message thread; the conversion and the file are written on the
+        export worker; `done` is called back on the message thread with the
+        result. Returns false (and calls nothing) when there is nothing to
+        export, with the reason in `error`. */
+    bool writeAsync (LuthierAudioProcessor& processor, NotationFormat format, const juce::File& destination,
+                     const CaptureScoreOptions& capture, const NotationExportOptions& options,
+                     std::function<void (bool ok, const juce::String& error)> done, juce::String* error = nullptr);
+
+    /** The thread the last asynchronous export ran its work on, for the tests. */
+    juce::Thread::ThreadID getLastWorkerThread() noexcept;
+
+    /** True while an asynchronous export is still writing. */
+    bool isBusy() noexcept;
 }
 
 //==============================================================================
@@ -66,6 +82,10 @@ public:
     juce::String getStatusText() const           { return statusText; }
 
     bool exportTo (const juce::File& destination, juce::String* error = nullptr);
+
+    /** notation-export 0.1: the chooser's path - the work on the export worker. */
+    bool exportToAsync (const juce::File& destination, std::function<void (bool, const juce::String&)> done,
+                        juce::String* error = nullptr);
 
 private:
     void timerCallback() override;

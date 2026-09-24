@@ -1,4 +1,5 @@
 #include "LuthierEngine.h"
+#include "Capture/PerformanceCapture.h"
 
 namespace luthier
 {
@@ -107,6 +108,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     noiseBuffer.assign ((size_t) maxBlock, 0.0);
     magneticBuffer.assign ((size_t) maxBlock, 0.0);
     instrumentBuffer.assign ((size_t) maxBlock, 0.0);
+    preCircuitBuffer.assign ((size_t) maxBlock, 0.0);   // MODEL-GAPS: Aux 1 pre-circuit
     bodyBuffer.setSize (1, maxBlock, false, true, true);
     workBuffer.setSize (2, maxBlock, false, true, true);
     wetDryBuffer.setSize (2, maxBlock, false, true, true);
@@ -137,6 +139,11 @@ void LuthierEngine::reset() noexcept
     slide.reset();
     scrape.reset();
     slap.reset();
+    bassFingers.reset();                 // MODEL-GAPS: the index finger leads again
+    lastPluckSample.fill (std::numeric_limits<juce::int64>::min() / 2);
+    lastCapturedChord = ChordSymbol {};
+    lastCapturedBarFret = -2.0;
+    lastCapturedBarPressure = -1;
     techniqueTriggers.reset();
     scrapeWasActive.fill (false);
     noteSustainScale.fill (1.0);
@@ -215,6 +222,7 @@ void LuthierEngine::releaseResources()
     stringSumBuffer.clear();
     magneticBuffer.clear();
     instrumentBuffer.clear();
+    preCircuitBuffer.clear();
     bodyBuffer.setSize (0, 0);
     workBuffer.setSize (0, 0);
     wetDryBuffer.setSize (0, 0);
@@ -276,6 +284,7 @@ void LuthierEngine::setGuitarType (GuitarType type)
     hasPartsOverride = false;
     partsSustain = fretBrightnessFactor = nutBrightnessFactor = magnetSustain = 1.0;
     magnetDetuneCents = 0.0;
+    feedbackLoop.setBodyCoupling (1.0);   // part-acoustics 2.1: a compiled guitar is the solid reference (MODEL-GAPS)
 
     applySpec();
 }
@@ -301,6 +310,9 @@ void LuthierEngine::applyWorkshopGuitar (const DerivedAcoustics& d, GuitarType s
     }
 
     partsSustain = d.sustainScale;
+
+    // part-acoustics 2.1: chambering feeds the feedback loop's gain (MODEL-GAPS).
+    feedbackLoop.setBodyCoupling (FeedbackLoop::bodyCouplingFor (d.feedbackGain));
 
     // part-acoustics.md 4, against the reference parts - nickel-silver frets,
     // a bone nut - so a guitar of reference parts sounds as a compiled one does.
@@ -343,6 +355,11 @@ void LuthierEngine::applySpec()
 
     voicer.setMaxFret (spec.maxFrets);
     voicer.setNumStrings (spec.numStrings);
+
+    // bass-techniques 0.1 (MODEL-GAPS): the slap knows the instrument from the
+    // moment it is loaded, not only from the next block.
+    slap.setInstrument (spec.numStrings, spec.scaleLengthMm, spec.maxFrets, spec.category == GuitarCategory::Bass);
+    rhythm.setBassFamily (spec.category == GuitarCategory::Bass);
     rhythmVoicer.setMaxFret (spec.maxFrets);
     rhythmVoicer.setNumStrings (spec.numStrings);
 
@@ -709,6 +726,39 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         return;
     }
 
+    /*  bass-techniques 6 (MODEL-GAPS): fingerstyle bass. Index and middle
+        alternate; the middle finger lands a little later, so its note goes
+        back on the schedule with its finger's delay and is played from there. */
+    const bool fingerstyleBass = spec.category == GuitarCategory::Bass
+                                 && ! slapStrike.strike && ! slapStrike.ghost
+                                 && e.technique == Technique::Pluck && e.strikerMaterial < 0
+                                 && (usingFingers || ! PlayingNoise::getPickMaterial (pickMaterial).isPick);
+    FingerStroke finger;
+
+    if (fingerstyleBass)
+    {
+        if (firingAlternated)
+        {
+            finger = bassFingers.strokeFor (1);
+        }
+        else
+        {
+            finger = bassFingers.next();
+            const int delay = (int) std::round (finger.delaySeconds * sr);
+
+            if (delay > 0 && numScheduled < kMaxScheduledEvents)
+            {
+                ScheduledEvent later;
+                later.isNoteOn = true;
+                later.noteOn = e;
+                later.absoluteSample = blockStartSample + activeSampleOffset + delay;
+                later.fingerAlternated = true;
+                scheduled[(size_t) numScheduled++] = later;
+                return;
+            }
+        }
+    }
+
     /*  slide-guitar.md 1: in hybrid mode one string is under the bar and the
         fingers fret the rest, so a slide note that the bar is not on is played
         as the fretted note it is - a legato move if it came from somewhere,
@@ -742,6 +792,11 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
 
     // Routing-io 6: what is actually ringing, at the sample it started.
     stringActivity.push ({ activeSampleOffset, s, e.midiNote, (float) e.velocity, true });
+
+    // notation-export 6.1 (MODEL-GAPS): the note as played, technique and all.
+    if (perfCapture != nullptr)
+        perfCapture->noteOn (captureOffset(), s, e.midiNote, fret, (float) e.velocity,
+                             e.technique, e.harmonicPartial);
 
     auto& str = strings[(size_t) s];
 
@@ -819,7 +874,10 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     switch (e.technique)
     {
         case Technique::PalmMute:
-            str.setDamping (StringEngine::Damping::PalmMute, technique.getPalmMuteAmount());
+            // bass-techniques 7 (MODEL-GAPS): a bass has its own palm-mute profile.
+            str.setDamping (spec.category == GuitarCategory::Bass ? StringEngine::Damping::PalmMuteBass
+                                                                   : StringEngine::Damping::PalmMute,
+                            technique.getPalmMuteAmount());
             break;
 
         case Technique::MutedPick:
@@ -907,7 +965,38 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         p.velocity = slapStrike.velocity;
     }
 
+    if (fingerstyleBass)
+    {
+        // bass-techniques 6: this finger's tone.
+        p.brightness *= finger.brightnessScale;
+        p.pluckPosition = juce::jlimit (0.02, 0.5, p.pluckPosition + finger.pluckPositionOffset);
+        p.velocity *= finger.velocityScale;
+    }
+
     str.excite (p);
+
+    {
+        const juce::int64 now = blockStartSample + activeSampleOffset;
+
+        /*  bass-techniques 6: the rest stroke. The finger comes to rest on the
+            next-lower string and stops it - unless that string was plucked in
+            the same stroke (a double stop), which it cannot rest on. */
+        if (fingerstyleBass)
+        {
+            const int rest = bassFingers.restStringFor (s, numStrings);
+
+            if (rest >= 0 && now - lastPluckSample[(size_t) rest] > (juce::int64) (BassFingerstyle::kSameStrokeSeconds * sr))
+            {
+                strings[(size_t) rest].setDamping (StringEngine::Damping::Chuck, BassFingerstyle::kRestStrokeDamping);
+                strings[(size_t) rest].touch (BassFingerstyle::kRestStrokeDamping);
+            }
+        }
+
+        lastPluckSample[(size_t) s] = now;
+    }
+
+    if (slapStrike.strike || slapStrike.ghost)
+        captureBassTechnique (slapStrike);
 
     if (slapStrike.strike)
     {
@@ -1056,6 +1145,63 @@ void LuthierEngine::playSlapStrike (const SlapStrike& strike, double pitchHz, do
     }
 
     slap.noteStruck (strike, blockStartSample + activeSampleOffset);
+    captureBassTechnique (strike);   // MODEL-GAPS: BASS_TECH into the capture
+}
+
+//==============================================================================
+// MODEL-GAPS (TODO 2k / 9): what the capture hears besides notes.
+void LuthierEngine::captureBassTechnique (const SlapStrike& strike) noexcept
+{
+    if (perfCapture == nullptr)
+        return;
+
+    // midi-export 9's BASS_TECH names: slap, pop, ghost, thump (the up-stroke).
+    const char* name = strike.ghost && ! strike.strike ? "ghost"
+                     : strike.rebound                   ? "thump"
+                     : strike.type == SlapType::pop     ? "pop"
+                                                        : "slap";
+
+    const double position = juce::jlimit (0.0, 1.0, strike.contactMm / juce::jmax (1.0, spec.scaleLengthMm));
+    perfCapture->bassTechnique (captureOffset(), strike.stringIndex, name, position);
+}
+
+void LuthierEngine::captureBlockState() noexcept
+{
+    const int saved = activeSampleOffset;
+    activeSampleOffset = 0;
+
+    // notation-export 4: in Poly mode the detector's chord goes into the score
+    // where it changes. Mono mode's chords are extracted offline instead.
+    if (midi.getPlayingMode() != PlayingMode::Mono)
+    {
+        const auto chord = rhythm.detectHeldChord();
+
+        if (chord.isKnown() && chord != lastCapturedChord)
+        {
+            char name[16];
+            chord.writeName (name, (int) sizeof (name));
+            perfCapture->chordSymbol (captureOffset(), name);
+            lastCapturedChord = chord;
+        }
+    }
+
+    // 6.1: the slide bar's position and pressure, when it moves.
+    if (slide.isEnabled())
+    {
+        const double barFret = slide.getOverlayFret();
+        const double pressure = slide.getSettings().pressure;
+        const int pressureClass = barFret < 0.0 ? 0 : (pressure < 0.4 ? 1 : 2);
+
+        if (pressureClass != lastCapturedBarPressure || std::abs (barFret - lastCapturedBarFret) > 0.05)
+        {
+            static constexpr const char* names[] = { "lift", "light", "full" };
+            perfCapture->slideBar (captureOffset(), juce::jmax (0.0, barFret), names[pressureClass]);
+            lastCapturedBarFret = barFret;
+            lastCapturedBarPressure = pressureClass;
+        }
+    }
+
+    activeSampleOffset = saved;
 }
 
 //==============================================================================
@@ -1110,6 +1256,29 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
 
     if (soundingNote >= 0)
         stringActivity.push ({ activeSampleOffset, s, soundingNote, 0.0f, false });
+
+    /*  bass-techniques 6 (MODEL-GAPS): a middle-finger note still waiting for
+        its finger has not started yet; its note-off waits until just after it,
+        so the note is not left ringing. */
+    for (int i = 0; i < numScheduled; ++i)
+    {
+        const auto& pending = scheduled[(size_t) i];
+
+        if (pending.isNoteOn && pending.fingerAlternated && pending.noteOn.stringIndex == s
+            && pending.absoluteSample > blockStartSample + activeSampleOffset
+            && numScheduled < kMaxScheduledEvents)
+        {
+            ScheduledEvent off;
+            off.isNoteOn = false;
+            off.noteOff = e;
+            off.absoluteSample = pending.absoluteSample + 1;
+            scheduled[(size_t) numScheduled++] = off;
+            return;
+        }
+    }
+
+    if (soundingNote >= 0 && perfCapture != nullptr)
+        perfCapture->noteOff (captureOffset(), s, e.letRing);
 
     // An E-Bow on explicitly chosen strings keeps them going after the note is
     // released; on "held strings" (mask 0) releasing is exactly what lets go.
@@ -1187,14 +1356,25 @@ void LuthierEngine::fireScheduledEvents (int64_t absoluteSample) noexcept
         activeSampleOffset = (int) juce::jlimit ((int64_t) 0, (int64_t) taps.getMaxBlockSize(),
                                                  e.absoluteSample - blockStartSample);
 
-        if (e.isNoteOn)
-            triggerNote (e.noteOn);
-        else
-            applyNoteOff (e.noteOff);
-
-        // Swap-remove: order within a single sample does not matter, and this
-        // keeps the cost at O(1) per event.
+        // bass-techniques 6: a middle-finger note plays with its finger's
+        // tone and is not alternated a second time. Copied first: triggerNote
+        // may append to the schedule.
+        const auto fired = e;
         scheduled[(size_t) i] = scheduled[(size_t) (--numScheduled)];
+
+        if (fired.isNoteOn)
+        {
+            firingAlternated = fired.fingerAlternated;
+            triggerNote (fired.noteOn);
+            firingAlternated = false;
+        }
+        else
+        {
+            applyNoteOff (fired.noteOff);
+        }
+
+        // Swap-removed above: order within a single sample does not matter,
+        // and it keeps the cost at O(1) per event.
     }
 }
 
@@ -1299,6 +1479,7 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     const int numSamples = buffer.getNumSamples();
 
     audioThreadId.store (juce::Thread::getCurrentThreadId(), std::memory_order_relaxed);
+    hostBlockStart = samplePosition;   // MODEL-GAPS: the capture's offsets count from here
     lastProcessMs.store (juce::Time::getMillisecondCounter(), std::memory_order_relaxed);
 
     // The routing taps and the string-activity stream span the whole host block,
@@ -1570,6 +1751,11 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     slap.processBlock (numSamples, samplePosition, techniqueTriggers);
 
     rhythm.handleMidi (played, samplePosition);
+    rhythm.setBassFamily (spec.category == GuitarCategory::Bass);   // bass-techniques 9 (MODEL-GAPS)
+
+    // notation-export 4 / 6.1 (MODEL-GAPS): the chord track and the slide bar.
+    if (perfCapture != nullptr)
+        captureBlockState();
 
     midi.processBlock (played, numSamples, samplePosition, events);
 
@@ -1849,6 +2035,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     const bool acoustic = (spec.category == GuitarCategory::Acoustic);
     const double micBlend = pickups.getPiezoMicBlend();
+    const bool diPreCircuit = auxDiPreCircuit.load (std::memory_order_relaxed) && taps.isAuxWanted (AuxBus::di);
 
     double blockPeak = 0.0;
 
@@ -1873,6 +2060,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         }
 
 
+        // ambiguity-resolutions 8 / routing-io 2 (MODEL-GAPS): Aux 1 can tap
+        // the pickup before the guitar's circuit instead of after it.
+        if (diPreCircuit)
+            preCircuitBuffer[(size_t) i] = sanitise (instrument);
 
         instrument = circuit.process (instrument);
 
@@ -1890,8 +2081,9 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         blockPeak = juce::jmax (blockPeak, std::abs (instrument));
     }
 
-    // Aux 1: the DI, which is exactly what is about to enter the amp.
-    taps.writeAuxMono (AuxBus::di, instrumentBuffer.data(), numSamples);
+    // Aux 1: the DI, which is exactly what is about to enter the amp - or,
+    // pre-circuit, the pickup before the knobs and the cable (MODEL-GAPS).
+    taps.writeAuxMono (AuxBus::di, diPreCircuit ? preCircuitBuffer.data() : instrumentBuffer.data(), numSamples);
 
     // The dry side of the wet/dry control is this DI.
     for (int i = 0; i < juce::jmin (numSamples, (int) dryBuffer.size()); ++i)

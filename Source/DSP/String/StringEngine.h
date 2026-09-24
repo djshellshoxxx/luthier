@@ -53,7 +53,8 @@ public:
         Released,      ///< Note off, no sustain pedal: finger lifted.
         Choked,        ///< Fully stopped.
         Silenced,      ///< A hand flat on the string: gone in 80 ms whatever its sustain.
-        Chuck          ///< strum-dynamics 6.1: the fretting hand across the strings; amount 1 ends the note in ~10 ms.
+        Chuck,         ///< strum-dynamics 6.1: the fretting hand across the strings; amount 1 ends the note in ~10 ms.
+        PalmMuteBass   ///< bass-techniques 7: the palm on a bass - shorter decay, more of the fundamental kept.
     };
 
     //==========================================================================
@@ -88,6 +89,12 @@ public:
 
     /** Note off. `letRing` keeps the string open (sustain pedal / open string). */
     void release (bool letRing) noexcept;
+
+    /*  bass-techniques 6 (MODEL-GAPS): a finger comes to rest on the string - the
+        rest stroke. Scales what is already in the loop toward (1 - depth) over
+        about 1.5 ms, for one trip round it; pair it with a damping so the loop
+        keeps it stopped. Audio thread. */
+    void touch (double depth) noexcept;
 
     void setDamping (Damping d, double amount = 1.0) noexcept;
     Damping getDamping() const noexcept { return damping; }
@@ -181,6 +188,10 @@ private:
 
     // --- articulation state -------------------------------------------------
     Damping damping = Damping::Open;
+
+    // touch() (MODEL-GAPS): a hand laid on the string, applied to what is in the loop.
+    double touchGain = 1.0, touchDepthGain = 1.0, touchCoeff = 0.0;
+    int touchSamplesLeft = 0;
     double  dampingAmount = 1.0;
     double  sustainScale = 1.0;
     int     harmonicPartial = 0;

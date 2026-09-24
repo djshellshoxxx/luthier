@@ -67,6 +67,100 @@ bool NotationTakeExport::write (LuthierAudioProcessor& processor, NotationFormat
 }
 
 //==============================================================================
+// notation-export 0.1 (MODEL-GAPS): export off the message thread.
+namespace
+{
+    struct ExportWorker
+    {
+        juce::ThreadPool pool { juce::ThreadPoolOptions{}.withThreadName ("Notation export").withNumberOfThreads (1) };
+        std::atomic<juce::Thread::ThreadID> lastThread { nullptr };
+        std::atomic<int> busy { 0 };
+    };
+
+    ExportWorker& exportWorker()
+    {
+        static ExportWorker worker;
+        return worker;
+    }
+}
+
+juce::Thread::ThreadID NotationTakeExport::getLastWorkerThread() noexcept
+{
+    return exportWorker().lastThread.load();
+}
+
+bool NotationTakeExport::isBusy() noexcept
+{
+    return exportWorker().busy.load() > 0;
+}
+
+bool NotationTakeExport::writeAsync (LuthierAudioProcessor& processor, NotationFormat format, const juce::File& destination,
+                                     const CaptureScoreOptions& capture, const NotationExportOptions& options,
+                                     std::function<void (bool, const juce::String&)> done, juce::String* error)
+{
+    auto& take = processor.getPerformanceCapture();
+    processor.drainPerformanceCapture();
+
+    if (take.getNotes().empty())
+    {
+        if (error != nullptr)
+            *error = "Nothing has been captured yet. Play something first.";
+
+        return false;
+    }
+
+    // Snapshots: the take keeps changing while the worker writes.
+    auto score = std::make_shared<PerformanceScore>();
+    std::shared_ptr<MidiPerformance> performance;
+    MidiExportOptions profile;
+
+    if (format == NotationFormat::midi)
+    {
+        const double rate = processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0;
+        performance = std::make_shared<MidiPerformance> (take.toPerformance (rate, capture));
+        profile = MidiExportDefaults::load();
+    }
+    else
+    {
+        take.toScore (*score, capture);
+    }
+
+    auto& worker = exportWorker();
+    ++worker.busy;
+
+    worker.pool.addJob ([score, performance, profile, format, destination, options, done = std::move (done)]
+    {
+        exportWorker().lastThread.store (juce::Thread::getCurrentThreadId());
+
+        juce::String message;
+        bool ok = false;
+
+        if (performance != nullptr)
+        {
+            ok = MidiProfiles::exportToFile (*performance, profile, destination, &message);
+        }
+        else
+        {
+            NotationExporter exporter;
+            ok = exporter.write (*score, format, destination, options);
+
+            if (! ok)
+                message = exporter.getLastError();
+        }
+
+        juce::MessageManager::callAsync ([ok, message, done]
+        {
+            --exportWorker().busy;
+
+            if (done != nullptr)
+                done (ok, message);
+        });
+    });
+
+    return true;
+}
+
+//==============================================================================
 NotationPanel::NotationPanel (LuthierAudioProcessor& p)
     : processor (p)
 {
@@ -345,6 +439,13 @@ bool NotationPanel::exportTo (const juce::File& destination, juce::String* error
                                       currentOptions(), error);
 }
 
+bool NotationPanel::exportToAsync (const juce::File& destination, std::function<void (bool, const juce::String&)> done,
+                                   juce::String* error)
+{
+    return NotationTakeExport::writeAsync (processor, currentFormat(), destination, currentCaptureOptions(),
+                                           currentOptions(), std::move (done), error);
+}
+
 void NotationPanel::exportWithChooser()
 {
     const auto format = currentFormat();
@@ -363,16 +464,22 @@ void NotationPanel::exportWithChooser()
         if (safe == nullptr || chosen == juce::File())
             return;
 
-        juce::String error;
-        const bool ok = safe->exportTo (chosen, &error);
+        auto report = [chosen] (bool ok, const juce::String& error)
+        {
+            juce::NativeMessageBox::showAsync (juce::MessageBoxOptions()
+                                                   .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
+                                                                     : juce::MessageBoxIconType::WarningIcon)
+                                                   .withTitle (ok ? "Notation exported" : "Could not export")
+                                                   .withMessage (ok ? "Saved to\n" + chosen.getFullPathName() : error)
+                                                   .withButton ("OK"),
+                                               nullptr);
+        };
 
-        juce::NativeMessageBox::showAsync (juce::MessageBoxOptions()
-                                               .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
-                                                                 : juce::MessageBoxIconType::WarningIcon)
-                                               .withTitle (ok ? "Notation exported" : "Could not export")
-                                               .withMessage (ok ? "Saved to\n" + chosen.getFullPathName() : error)
-                                               .withButton ("OK"),
-                                           nullptr);
+        // notation-export 0.1: written on the export worker (MODEL-GAPS).
+        juce::String error;
+
+        if (! safe->exportToAsync (chosen, report, &error))
+            report (false, error);
     });
 }
 

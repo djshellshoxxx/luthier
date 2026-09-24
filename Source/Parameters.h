@@ -354,6 +354,14 @@ namespace ParamIDs
     juce::String slotBypass (bool post, int slot);
     juce::String slotMix (bool post, int slot);
     juce::String slotParam (bool post, int slot, int param);
+
+    // ==== BEGIN MODEL-GAPS params ====
+    // bass-techniques.md 6 (fingerstyle-attack.md reuses both) and
+    // ambiguity-resolutions 8 / routing-io 2's Aux 1 pre / post-circuit toggle.
+    inline constexpr const char* fingerAlternationVariation = "finger_alternation_variation";
+    inline constexpr const char* restStroke                 = "rest_stroke";
+    inline constexpr const char* aux1PreCircuit             = "aux1_pre_circuit";
+    // ==== END MODEL-GAPS params ====
 }
 
 //==============================================================================

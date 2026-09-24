@@ -19,6 +19,7 @@
 #include "NoiseGroups.h"
 #include "SetupGroup.h"
 #include "SlideGroup.h"
+#include "SlapGroup.h"   // bass-techniques 9 (MODEL-GAPS)
 #include "../Character/CharacterEngine.h"
 
 namespace luthier
@@ -152,6 +153,12 @@ private:
     std::unique_ptr<NoiseGroups> noiseGroups;
     std::unique_ptr<SetupGroup> setupGroup;
     std::unique_ptr<SlideGroup> slideGroup;
+    std::unique_ptr<SlapGroup> slapGroup;   // bass-techniques 9: only on a bass (MODEL-GAPS)
+
+public:
+    SlapGroup* getSlapGroup() const noexcept { return slapGroup.get(); }
+
+private:
 
     /*  Sizes the panel to its content. The workspace viewport keeps whatever
         height a panel gives itself, and this one never gave itself one - so it
