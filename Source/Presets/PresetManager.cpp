@@ -473,6 +473,13 @@ juce::var PresetManager::toVar (const juce::String& name,
 //==============================================================================
 bool PresetManager::fromVar (const juce::var& data)
 {
+    struct LoadFade
+    {
+        explicit LoadFade (PresetManager& m) : manager (m) { if (manager.onBeforeLoad != nullptr) manager.onBeforeLoad(); }
+        ~LoadFade() { if (manager.onAfterLoad != nullptr) manager.onAfterLoad(); }
+        PresetManager& manager;
+    } fade (*this);
+
     auto* obj = data.getDynamicObject();
 
     if (obj == nullptr)
