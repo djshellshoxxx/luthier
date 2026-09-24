@@ -706,6 +706,15 @@ void LuthierEngine::panic() noexcept
     scrape.stopAll();
     slap.reset();
     numScheduled = 0;
+
+    // qa-polish.md 2.3 (the state fuzz): a playing-noise voice and the
+    // sympathetic coupling's memory outlived a panic and kept the strings
+    // sounding; a panic silences them too.
+    playingNoise.reset();
+    coupling.reset();
+    noteSustainScale.fill (1.0);
+    bridgeOutputs.fill (0.0);
+    couplingInputs.fill (0.0);
 }
 
 //==============================================================================

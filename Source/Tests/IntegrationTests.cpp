@@ -1016,6 +1016,25 @@ LUTHIER_TEST (Parameters, fuzzAcrossTenThousandStates)
                 break;
             }
 
+            // qa-polish.md 2.2: no denormal escapes the engine's flushing.
+            {
+                int tiny = 0;
+
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                    for (int k = 0; k < buffer.getNumSamples(); ++k)
+                    {
+                        const auto v = std::abs (buffer.getSample (ch, k));
+                        tiny += (v > 0.0f && v < 1.0e-30f) ? 1 : 0;
+                    }
+
+                if (tiny > 0)
+                {
+                    ctx.fail ("fuzz state " + juce::String (i) + " let " + juce::String (tiny)
+                              + " denormal-range samples out");
+                    break;
+                }
+            }
+
             auto mono = toMono (buffer);
 
             if (peak (mono.data(), (int) mono.size()) > 1.05)
