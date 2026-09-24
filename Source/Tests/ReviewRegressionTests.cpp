@@ -6,6 +6,8 @@
 #include "../PluginProcessor.h"
 #include "../DSP/Amp/ToneStack.h"
 #include "../DSP/Effects/PedalsDrive.h"
+#include "../DSP/Effects/PedalsMod.h"
+#include "../DSP/Amp/RoomEngine.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -136,4 +138,73 @@ LUTHIER_TEST (ReviewRegression, thePitchShifterShiftsTheWayItSays)
 
     CHECK_MSG (std::abs (up / (220.0 * std::pow (2.0, 7.0 / 12.0)) - 1.0) < 0.08, "up: " + juce::String (up));
     CHECK_MSG (std::abs (down / (220.0 * std::pow (2.0, -7.0 / 12.0)) - 1.0) < 0.08, "down: " + juce::String (down));
+}
+
+//==============================================================================
+/*  R-008 / R-009: the parameter bridge re-sends every parameter every block. The
+    Reverb pedal rebuilt (and zeroed) its delay lines on every Size or Character
+    send, and the room engine on every decay-scale send, so with blocks shorter
+    than the shortest line no late reverb was ever heard. */
+LUTHIER_TEST (ReviewRegression, theReverbPedalTailSurvivesRepeatedParameterSends)
+{
+    constexpr double sr = 48000.0;
+    constexpr int block = 256;
+    luthier::ReverbPedal pedal;
+    pedal.prepare (sr, block);
+    pedal.setParameterValue (5, 1.0);   // mix
+
+    std::vector<double> l ((size_t) block), r ((size_t) block);
+    double lateEnergy = 0.0;
+
+    for (int b = 0; b < 40; ++b)
+    {
+        // What ParameterBridge::applyToEngine does every block.
+        for (int p = 0; p < pedal.getNumParameters(); ++p)
+            pedal.setParameterNormalised (p, pedal.getParameterNormalised (p));
+
+        std::fill (l.begin(), l.end(), 0.0);
+        std::fill (r.begin(), r.end(), 0.0);
+
+        if (b == 0)
+            l[0] = r[0] = 1.0;
+
+        pedal.process (l.data(), r.data(), block);
+
+        if (b >= 20)   // well past the input and the pre-delay
+            for (auto v : l)
+                lateEnergy += v * v;
+    }
+
+    CHECK_MSG (lateEnergy > 1.0e-8, "late energy " + juce::String (lateEnergy));
+}
+
+LUTHIER_TEST (ReviewRegression, theRoomTailSurvivesRepeatedDecaySends)
+{
+    constexpr double sr = 48000.0;
+    constexpr int block = 256;
+    luthier::RoomEngine room;
+    room.prepare (sr, block);
+    room.setEnabled (true);
+    room.setRoomSize (luthier::RoomSize::LiveRoom);
+    room.setRoomBlend (1.0);
+    room.reset();
+
+    juce::AudioBuffer<float> buffer (2, block);
+    double lateEnergy = 0.0;
+
+    for (int b = 0; b < 220; ++b)
+    {
+        room.setDecayScale (1.0);   // every block, as the bridge does
+        buffer.clear();
+
+        if (b == 0)
+            buffer.setSample (0, 0, 1.0f), buffer.setSample (1, 0, 1.0f);
+
+        room.processBlock (buffer);
+
+        if (b >= 180)   // past every early reflection (0.68 s at most)
+            lateEnergy += buffer.getRMSLevel (0, 0, block);
+    }
+
+    CHECK_MSG (lateEnergy > 1.0e-7, "late energy " + juce::String (lateEnergy));
 }
