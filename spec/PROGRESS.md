@@ -57,6 +57,24 @@ Resumable build log. Update after every milestone.
 
 ## Current state
 
+Session 2026-09-24 (Linux, assistant builders in parallel): the tree builds
+on Linux with GCC 13 and JUCE 8.0.10 (`scripts/build.sh`), and the scrape /
+strum integration the previous session left unbuilt compiled after GCC
+portability fixes. Full suite: **761 tests** at 339570f, three failing at
+the last run - a preset-morph sweep click and a 0.5 dB feedback-loop
+mismatch (both under investigation, both traced to today's pedal / fingers
+changes) and a scrape CPU budget measured while four cores were compiling.
+Landed from the user's play-test list (`spec/issues.md`): chords on free
+strings, RESET & STOP, pedals built on pick with the rack race fixed,
+fingers audible, the string roll, MIDI import, the workspace-tab height bug
+behind the squished popups and the LIVE grid, wheel-scrolls-the-column,
+the guitar illustration's level of detail and shading, pickup slots that
+follow the guitar. In flight: the Source/WIP integration (slap, muting,
+first run) and the chuck-kills-pitch fix (a release under a chuck no longer
+reopens the loop).
+
+## Current state (2026-09-23)
+
 All forty-one milestones are done. All four targets build clean and the whole
 suite passes: **310 tests, 647,923 checks**, exit code 0 - including on a machine
 whose four cores are busy with something else, which was not true until the CPU

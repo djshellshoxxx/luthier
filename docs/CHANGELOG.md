@@ -8,6 +8,28 @@ numbered, because what it should be called is a release decision.
 
 ### Added
 
+- **The string roll** - one lane per string with what you play scrolling
+  past, the sounding string glowing at the now edge, and a click or Enter on
+  a lane plucking that string at the fret under the mouse. On the NOTATION
+  tab above the live tab, and as the ROLL half of the FRETS | ROLL toggle on
+  the Advanced strip.
+- **RESET & STOP** - a header button beside Panic (Ctrl+Shift+P) that stops
+  the tune player, looper, backing track, metronome, rhythm engine and kill
+  switch, returns every setting to its default and silences the engine on
+  the next audio block. Panic itself now also clears effect tails, freeze,
+  feedback and the rhythm engine's pending strums, and no longer races the
+  audio thread.
+- **MIDI import** (`midi-export.md` 5) - File > Import MIDI..., IMPORT on the
+  TUNE tab, or drop a .mid on the window: tempo, meter, key and title from
+  the file, markers to sections, our own channel layout when the file is
+  ours, otherwise chords from the polyphonic track, bass by pitch or name,
+  the first single-line track as the melody and the rest as verbatim layers.
+  Also File > New Tune...
+- **Fingers on the Easy playing strip**, and acoustic guitars default to
+  fingers.
+- **Linux build** - `scripts/build.sh` builds through a lock (several agents
+  can share one tree) and runs the suite under xvfb.
+
 - **The real guitar on screen** (`guitar-illustration.md`) - every guitar is
   drawn from its parts: body outline, finish (bursts, grain, sparkle, aging),
   bridge, pickups, pickguard, neck, headstock and strings by material.
@@ -287,6 +309,40 @@ numbered, because what it should be called is a release decision.
   refusing to route past a destination's limit.
 
 ### Fixed
+
+- **Chords** - a note played while another was ringing used to land on the
+  same string and kill it, because the voicer never knew which strings were
+  held; it does now, notes the chord search cannot finger are placed one by
+  one instead of dropped, and the chord window default is 15 ms so keyboard
+  chords group (`spec/issues.md`).
+- **Pedals** - a pedal picked in the UI is built at once on the message
+  thread rather than after a round trip through the audio thread and an
+  async update; picking one no longer reloads IRs or re-snaps the strings;
+  the per-block parameter push runs under the chain's lock with cached
+  atomics. The footswitch says ON / BYPASS, and the Easy rack popover grows
+  when a pedal is picked.
+- **Fingers vs pick** - fingertip and thumb contacts are wider, softer
+  pulses, so fingers measure about 20% darker than a pick at the string.
+- **MOD, RHYTHM, LIVE, ROUTING, TONE MATCH, CONTROLLERS** were laid out at 80
+  px because they never set their own height: 4 px combo boxes, popup menus
+  with 4 px rows, and a LIVE snapshot grid of slivers. Each sizes itself now,
+  popup rows are clamped to 22 px, the LIVE grid is 8 x 16 labelled cells
+  with click / Shift-click / double-click / right-click gestures.
+- **Scrolling** - the wheel over a knob used to change the knob; it now
+  scrolls the column (Ctrl+wheel nudges the knob), scrollbars are thicker
+  and accent-coloured with chevron buttons, and a chevron with a tooltip
+  shows where more controls lie above or below.
+- **The guitar picture** - the Advanced strip drew the whole guitar at a
+  quarter pixel per millimetre with every flake, grain stroke and ding; the
+  renderer now picks its level of detail from the pixels per millimetre,
+  crops the strip to the body, casts one soft shadow, paints bursts as a
+  smooth gradient and tiles the grain.
+- **Pickup slots** a guitar does not have are disabled and say so, and the
+  selector offers only the positions the guitar can realise.
+- GCC portability: nested-struct default arguments, int64 casts, rvalue
+  reference bindings that MSVC allowed.
+
+### Fixed (earlier)
 
 - **Factory presets now load their pedals as designed.** Every preset's
   pedals were reset to the pedal's defaults as they loaded, so a preset's
