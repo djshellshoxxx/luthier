@@ -123,6 +123,48 @@ void BenchIllustration::endParameterGestures()
     gestureIds.clear();
 }
 
+void BenchIllustration::setAuditionTint (float db, const juce::String& label)
+{
+    tintDb = db;
+    tintLabel = label;
+    tintActive = true;
+    tintEndedMs = -1.0;
+    repaint();
+}
+
+void BenchIllustration::endAuditionTint()
+{
+    if (! tintActive)
+        return;
+
+    tintActive = false;
+    tintEndedMs = juce::Time::getMillisecondCounterHiRes();
+
+    // Reduced motion: the label goes at once, with nothing fading.
+    if (AccessibilitySettings::get().isReducedMotion())
+    {
+        tintEndedMs = -1.0;
+        tintDb = 0.0f;
+        tintLabel.clear();
+    }
+
+    repaint();
+}
+
+float BenchIllustration::getTintAlpha (double nowMs) const noexcept
+{
+    const float strength = juce::jlimit (0.0f, 0.3f, std::abs (tintDb) / 12.0f * 0.3f + (tintDb != 0.0f ? 0.05f : 0.0f));
+
+    if (tintActive)
+        return strength;
+
+    if (tintEndedMs < 0.0)
+        return 0.0f;
+
+    const double t = (nowMs - tintEndedMs) / kTintFadeMs;
+    return t >= 1.0 ? 0.0f : strength * (float) (1.0 - t);
+}
+
 void BenchIllustration::setPickShown (bool shown)
 {
     if (pickShown != shown)
@@ -329,6 +371,14 @@ void BenchIllustration::timerCallback()
         fade.finishIfDone (juce::Time::getMillisecondCounterHiRes());
     }
 
+    if (tintEndedMs >= 0.0)
+    {
+        repaint();
+
+        if (getTintAlpha (juce::Time::getMillisecondCounterHiRes()) <= 0.0f)
+            tintEndedMs = -1.0;
+    }
+
     // The capo, slide and pick move from elsewhere too (a preset, the CHARACTER
     // tab, a played note): repaint when what the overlay would draw changes.
     const auto o = currentOverlay();
@@ -423,6 +473,20 @@ void BenchIllustration::paint (juce::Graphics& g)
             g.setOpacity (1.0f);
         }
 
+        // 14: the frequency-band tint while a change is auditioned (a label under reduced motion).
+        const double now = juce::Time::getMillisecondCounterHiRes();
+
+        if (const float tint = getTintAlpha (now); tint > 0.0f && ! AccessibilitySettings::get().isReducedMotion())
+            for (auto& h : scene.hits)
+                if (h.region == GuitarRegion::body)
+                {
+                    g.saveState();
+                    g.addTransform (mmToPx);
+                    g.setColour ((tintDb >= 0.0f ? juce::Colour (0xffe8823a) : juce::Colour (0xff4f8fd6)).withAlpha (tint));
+                    g.fillPath (h.area);
+                    g.restoreState();
+                }
+
         auto overlay = currentOverlay();
         overlay.changed = changedParts;
         overlay.changedColour = Palette::secondary;
@@ -507,6 +571,10 @@ void BenchIllustration::paint (juce::Graphics& g)
         g.setColour (Palette::accent);
         g.setFont (Fonts::ui (11.0f, true));
         g.drawText ("AUDITIONING - release Alt to go back", getLocalBounds().reduced (10, 6), juce::Justification::topRight, false);
+
+        // 14 under reduced motion: the change as a static label rather than a tint.
+        if (AccessibilitySettings::get().isReducedMotion() && tintLabel.isNotEmpty())
+            g.drawText (tintLabel, getLocalBounds().reduced (10, 22), juce::Justification::topRight, false);
     }
 
     if (hasKeyboardFocus (false))
@@ -1425,6 +1493,7 @@ void WorkshopPanel::clickCard (int index, bool ontoSelectedString)
     const auto part = drawerParts[index];
     bench.endAudition();
     auditioning = false;
+    illustration.endAuditionTint();
 
     // guitar-illustration.md 13.2: a strings card onto a string overrides that
     // string only (Ctrl-click with a string selected); anywhere else it replaces the set.
@@ -1490,6 +1559,7 @@ void WorkshopPanel::hoverCard (int index, bool altDown)
         {
             bench.endAudition();
             auditioning = false;
+            illustration.endAuditionTint();
         }
 
         illustration.refresh();
@@ -1521,6 +1591,16 @@ void WorkshopPanel::requestSpectrum (int pickupIndex, double positionMm)
 void WorkshopPanel::takeSpectrum (SpectrumDelta::Result&& result)
 {
     spectrum = std::move (result);
+
+    // guitar-illustration.md 14: the candidate's change, as a tint on the body.
+    if (auditioning && spectrum.requestId == lastRequest && ! spectrum.deltaDb.empty())
+    {
+        double mean = 0.0;
+        for (auto d : spectrum.deltaDb)
+            mean += d;
+        mean /= (double) spectrum.deltaDb.size();
+        illustration.setAuditionTint (spectrum.noChange ? 0.0f : (float) mean, spectrum.summary);
+    }
 
     // Section 10: announced as a sentence ("candidate is 1.8 dB brighter above
     // 2 kHz"), because a curve has no screen-reader form worth having. Only the

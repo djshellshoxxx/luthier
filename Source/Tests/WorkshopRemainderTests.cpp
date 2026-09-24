@@ -630,3 +630,37 @@ LUTHIER_TEST (WorkshopLayout, theBenchCollapsesItsInspectorAndDrawerWhenNarrow)
     CHECK (panel.areCategoriesADropdown());
     CHECK (everythingInside());
 }
+
+//==============================================================================
+/*  guitar-illustration.md 14: while a change is auditioned the body tints warm
+    or cool with what the spectrum delta says, and the tint is gone within
+    500 ms of the audition ending. */
+LUTHIER_TEST (WorkshopSpectrum, theBodyTintsWhileAuditioningAndFadesIn500ms)
+{
+    BenchPanel b;
+    auto& panel = *b.panel;
+    panel.showCategory ("Pickups");
+
+    int other = -1;
+    for (int i = 0; i < panel.getDrawerParts().size(); ++i)
+        if (panel.getDrawerParts()[i]->name.startsWith ("T-Style Bridge"))
+            other = i;
+
+    CHECK (other >= 0);
+    if (other < 0)
+        return;
+
+    panel.getIllustration().select (GuitarRegion::pickupBridge);
+    panel.hoverCard (other, true);
+    CHECK (panel.waitForSpectrum (4000));
+
+    auto& ill = panel.getIllustration();
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    CHECK_MSG (ill.getTintAlpha (now) > 0.0f, "no tint while auditioning a real change");
+    CHECK (ill.getTintLabel() == panel.getSpectrumSummary());
+
+    panel.hoverCard (-1, false);
+    const double ended = juce::Time::getMillisecondCounterHiRes();
+    CHECK (ill.getTintAlpha (ended + 100.0) > 0.0f);
+    CHECK (ill.getTintAlpha (ended + BenchIllustration::kTintFadeMs + 5.0) == 0.0f);
+}

@@ -85,6 +85,16 @@ public:
     /** The overlay the bench paints now: capo, slide and pick from the parameters. */
     GuitarOverlay currentOverlay() const;
 
+    /*  guitar-illustration.md 14: while a spectrum delta is being auditioned the
+        body tints warm where the candidate adds energy, cool where it takes it
+        away; the tint fades within 500 ms of the audition ending. Under reduced
+        motion it is a static label instead. `db` is the mean change. */
+    void setAuditionTint (float db, const juce::String& label);
+    void endAuditionTint();
+    float getTintAlpha (double nowMs) const noexcept;
+    juce::String getTintLabel() const { return tintLabel; }
+    static constexpr double kTintFadeMs = 500.0;
+
     /** Where the slide rests on the bench when no note holds it (fret). */
     float getSlideRestFret() const noexcept { return slideRestFret; }
 
@@ -128,6 +138,10 @@ private:
     double getParameterPlain (const char* id) const;
     juce::StringArray gestureIds;
     double lastOverlaySignature = 0.0;
+    float tintDb = 0.0f;
+    double tintEndedMs = -1.0;
+    bool tintActive = false;
+    juce::String tintLabel;
 
     // guitar-illustration.md 12.1 / 16: committed changes crossfade over 250 ms,
     // or under reduced motion change at once with the changed parts outlined.
