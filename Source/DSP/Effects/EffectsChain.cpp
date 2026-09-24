@@ -109,6 +109,36 @@ const Pedal* EffectsChain::getPedal (int slot) const noexcept
     return slots[(size_t) slot].pedal.get();
 }
 
+void EffectsChain::applySlotState (int slot, bool bypassed, double mix,
+                                   const float* normalisedParams, int numParams) noexcept
+{
+    if (! juce::isPositiveAndBelow (slot, kNumSlots))
+        return;
+
+    // The message thread swaps pedals under this lock and frees the old one
+    // straight after; reaching into a slot without it used a freed pedal
+    // (pluginval: "pure virtual method called" during automation).
+    const juce::ScopedTryLock sl (swapLock);
+
+    if (! sl.isLocked())
+        return;
+
+    auto& s = slots[(size_t) slot];
+    s.bypassed = bypassed;
+    s.mix = juce::jlimit (0.0, 1.0, mix);
+
+    if (s.pedal == nullptr)
+        return;
+
+    s.pedal->setBypassed (s.bypassed);
+    s.pedal->setMix (s.mix);
+
+    const int n = juce::jmin (numParams, s.pedal->getNumParameters(), Pedal::kMaxParams);
+
+    for (int p = 0; p < n; ++p)
+        s.pedal->setParameterNormalised (p, normalisedParams[p]);
+}
+
 void EffectsChain::setSlotBypassed (int slot, bool bypassed) noexcept
 {
     if (! juce::isPositiveAndBelow (slot, kNumSlots))

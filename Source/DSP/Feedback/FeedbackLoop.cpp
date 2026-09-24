@@ -9,7 +9,7 @@ namespace
         reference distance, facing the speaker. Set so that a loud high-gain
         amp at half a metre sustains a ringing note at full amount, and a clean
         amp at a fifth of it does not (FeedbackTests). */
-    constexpr double kInjectionGain = 0.012;
+    constexpr double kInjectionGain = 0.021;
 
     constexpr double kReferenceDistance = 0.5;
     constexpr double kRingingLevel = 1.0e-4;

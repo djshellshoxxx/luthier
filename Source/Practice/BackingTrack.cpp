@@ -111,17 +111,24 @@ bool BackingTrackPlayer::load (const juce::File& file)
         }
     }
 
-    readerSource = std::make_unique<juce::AudioFormatReaderSource> (reader.release(), true);
+    auto newReaderSource = std::make_unique<juce::AudioFormatReaderSource> (reader.release(), true);
 
     // practice-tools 0.4 and 3: the file streams from disk behind a four-second
     // ring, filled by its own thread. Nothing loads the file whole.
-    bufferingSource = std::make_unique<juce::BufferingAudioSource> (
-        readerSource.get(), readerThread, false,
+    auto newBufferingSource = std::make_unique<juce::BufferingAudioSource> (
+        newReaderSource.get(), readerThread, false,
         (int) (kRingBufferSeconds * fileSampleRate), 2, false);
 
-    transport = std::make_unique<juce::AudioTransportSource>();
-    transport->setSource (bufferingSource.get(), 0, nullptr, fileSampleRate, 2);
-    transport->prepareToPlay (blockSize, sr);
+    auto newTransport = std::make_unique<juce::AudioTransportSource>();
+    newTransport->setSource (newBufferingSource.get(), 0, nullptr, fileSampleRate, 2);
+    newTransport->prepareToPlay (blockSize, sr);
+
+    {
+        const juce::SpinLock::ScopedLockType sl (transportLock);
+        readerSource = std::move (newReaderSource);
+        bufferingSource = std::move (newBufferingSource);
+        transport = std::move (newTransport);
+    }
 
     currentFile = file;
     loaded.store (true, std::memory_order_relaxed);
@@ -141,16 +148,29 @@ void BackingTrackPlayer::unload()
     playing.store (false, std::memory_order_relaxed);
     loaded.store (false, std::memory_order_relaxed);
 
-    if (transport != nullptr)
+    // Taken out under the lock, so the audio thread is never inside them when
+    // they are destroyed, and torn down after it is released.
+    std::unique_ptr<juce::AudioTransportSource> oldTransport;
+    std::unique_ptr<juce::BufferingAudioSource> oldBufferingSource;
+    std::unique_ptr<juce::AudioFormatReaderSource> oldReaderSource;
+
     {
-        transport->stop();
-        transport->setSource (nullptr);
-        transport->releaseResources();
+        const juce::SpinLock::ScopedLockType sl (transportLock);
+        oldTransport = std::move (transport);
+        oldBufferingSource = std::move (bufferingSource);
+        oldReaderSource = std::move (readerSource);
     }
 
-    transport.reset();
-    bufferingSource.reset();
-    readerSource.reset();
+    if (oldTransport != nullptr)
+    {
+        oldTransport->stop();
+        oldTransport->setSource (nullptr);
+        oldTransport->releaseResources();
+    }
+
+    oldTransport.reset();
+    oldBufferingSource.reset();
+    oldReaderSource.reset();
 
     currentFile = juce::File();
     lengthSeconds = 0.0;
@@ -473,7 +493,9 @@ void BackingTrackPlayer::processBlock (juce::AudioBuffer<float>& destination, in
 
     destination.clear();
 
-    if (! isLoaded() || transport == nullptr || ! isPlaying())
+    const juce::SpinLock::ScopedTryLockType sl (transportLock);
+
+    if (! sl.isLocked() || ! isLoaded() || transport == nullptr || ! isPlaying())
         return;
 
     // ---- pull from the streaming source ------------------------------------------

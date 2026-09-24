@@ -400,7 +400,9 @@ juce::String NotationExporter::renderMusicXml (const PerformanceScore& score,
                 // ---- technical: string, fret, and the techniques ------------------
                 xml << "        <notations>\n"
                     << "          <technical>\n"
-                    << "            <string>" << (track.numStrings - note.stringIndex)
+                    // MusicXML numbers strings from 1 = the highest, as the
+                    // score indexes them from 0 = the highest.
+                    << "            <string>" << (note.stringIndex + 1)
                     << "</string>\n"
                     << "            <fret>" << note.fret << "</fret>\n";
 
@@ -1438,6 +1440,7 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
 
         beat = (double) measureIndex * beatsPerMeasure;
         double voiceBeat = beat;
+        double lastNoteStart = beat;   // where a <chord/> note starts
 
         for (auto* element : measure->getChildIterator())
         {
@@ -1478,11 +1481,10 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
                 }
             }
 
-            // MusicXML numbers strings from the lowest; the score numbers them
-            // from the highest.
+            // MusicXML numbers strings from 1 = the highest, the score from
+            // 0 = the highest.
             const int stringIndex = (stringNumber > 0)
-                                      ? juce::jlimit (0, kMaxStrings - 1,
-                                                      track.numStrings - stringNumber)
+                                      ? juce::jlimit (0, kMaxStrings - 1, stringNumber - 1)
                                       : 0;
 
             int midiNote = 60;
@@ -1506,7 +1508,10 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
                                          (octave + 1) * 12 + offsets[letterIndex] + alter);
             }
 
-            const double startBeat = isChord ? voiceBeat : voiceBeat;
+            // A <chord/> note sounds with the note before it; voiceBeat has
+            // already moved past that one.
+            const double startBeat = isChord ? lastNoteStart : voiceBeat;
+            lastNoteStart = startBeat;
 
             destination.noteStarted (stringIndex, fret, midiNote, 440.0, 0.8, startBeat);
 
