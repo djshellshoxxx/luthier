@@ -178,6 +178,13 @@ namespace
                 if (! key.isValid() || ! editor->keyPressed (key) || ! host->isShowingOverlay())
                     continue;
 
+                // The preset browser's thumbnails render on a worker: let them land.
+                if (auto* browser = dynamic_cast<PresetBrowserPanel*> (host->getCurrentOverlay()))
+                {
+                    render (*browser);   // painting the rows is what queues them
+                    browser->getThumbnails().waitUntilIdle (20000);
+                }
+
                 s.shoot (*editor, "easy_" + tag + "_overlay_" + action);
                 editor->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey));
             }

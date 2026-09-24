@@ -1023,9 +1023,16 @@ void PresetBrowserPanel::PresetListModel::paintListBoxItem (int row, juce::Graph
         g.fillRect (0, 0, 2, height);
     }
 
+    // guitar-illustration.md 15: the preset's guitar, from the worker's cache.
+    const int thumbW = height * 2;
+
+    if (auto thumb = owner.thumbnails.getForPreset (info->file); thumb.isValid())
+        g.drawImage (thumb, juce::Rectangle<int> (8, 1, thumbW, height - 2).toFloat(),
+                     juce::RectanglePlacement::centred);
+
     g.setColour (selected ? Palette::accent : Palette::textPrimary);
     g.setFont (Fonts::ui (12.5f, selected));
-    g.drawText (info->name, 12, 0, width - 110, height, juce::Justification::centredLeft, true);
+    g.drawText (info->name, 14 + thumbW, 0, width - 120 - thumbW, height, juce::Justification::centredLeft, true);
 
     g.setColour (info->isFactory ? Palette::textDisabled : Palette::secondary);
     g.setFont (Fonts::ui (10.0f));
@@ -1059,6 +1066,8 @@ void PresetBrowserPanel::PresetListModel::selectedRowsChanged (int lastRow)
     text += juce::String (text.isEmpty() ? "" : "\n\n") + info->file.getFullPathName();
 
     owner.description.setText (text, juce::dontSendNotification);
+    owner.selectedFile = info->file;
+    owner.repaint();
     owner.deleteButton.setEnabled (! info->isFactory);
 }
 
@@ -1075,7 +1084,13 @@ PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
 
     addAndMakeVisible (list);
     list.setModel (&listModel);
-    list.setRowHeight (26);
+    list.setRowHeight (kRowHeight);
+
+    thumbnails.onThumbnailReady = [this]
+    {
+        list.repaint();
+        repaint (selectedThumbnailArea);
+    };
     list.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
 
     addAndMakeVisible (description);
@@ -1315,11 +1330,26 @@ void PresetBrowserPanel::layoutContent (juce::Rectangle<int> content)
         content.removeFromBottom (Metrics::gridHalf);
     }
 
-    description.setBounds (content.removeFromBottom (80));
+    {
+        auto descriptionRow = content.removeFromBottom (80);
+        selectedThumbnailArea = descriptionRow.removeFromLeft (160);
+        descriptionRow.removeFromLeft (Metrics::grid);
+        description.setBounds (descriptionRow);
+    }
     content.removeFromBottom (Metrics::gridHalf);
 
     list.setBounds (content);
     refreshMorph();
+}
+
+void PresetBrowserPanel::paintOverChildren (juce::Graphics& g)
+{
+    OverlayPanel::paintOverChildren (g);
+
+    // The selected preset's guitar, larger, beside its description.
+    if (selectedFile != juce::File() && ! selectedThumbnailArea.isEmpty())
+        if (auto thumb = thumbnails.getForPreset (selectedFile); thumb.isValid())
+            g.drawImage (thumb, selectedThumbnailArea.toFloat(), juce::RectanglePlacement::centred);
 }
 
 //==============================================================================

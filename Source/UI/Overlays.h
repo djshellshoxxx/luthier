@@ -13,6 +13,7 @@
 */
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "Guitar/GuitarThumbnails.h"
 #include "Widgets.h"
 #include "OptionsPages.h"
 #include "HelpTab.h"
@@ -318,6 +319,18 @@ private:
 
     juce::Array<int> visibleIndices;
 
+    /*  guitar-illustration.md 15: each row shows its guitar, rendered on a
+        worker and cached (VISUAL-WORKSHOP-QA). */
+    GuitarThumbnails thumbnails;
+    juce::Rectangle<int> selectedThumbnailArea;
+    juce::File selectedFile;
+    void paintOverChildren (juce::Graphics&) override;
+
+public:
+    GuitarThumbnails& getThumbnails() noexcept { return thumbnails; }
+    static constexpr int kRowHeight = 38;
+
+private:
     class PresetListModel : public juce::ListBoxModel
     {
     public:

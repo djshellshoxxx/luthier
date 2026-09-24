@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "Workshop/FamilyDefaults.h"   // guitar-illustration.md 12.3 (VISUAL-WORKSHOP-QA)
 #include "Presets/FactoryPresets.h"
 #include "Support/ErrorLog.h"
 
@@ -664,6 +665,10 @@ bool LuthierAudioProcessor::switchGuitarFamily (const juce::String& family)
     // The type parameter follows, so the bridge sees nothing new to load.
     if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (ParamIDs::guitarType)))
         p->setValueNotifyingHost (p->convertTo0to1 ((float) (int) type));
+
+    // guitar-illustration.md 12.3: the amp follows the family when it does not suit it.
+    if (const auto amp = FamilyDefaults::applyAmpDefaults (apvts, family); amp.isNotEmpty())
+        banner << " " << amp;
 
     guitarNotices.addIfNotAlreadyThere (banner);
     presets.markModified();
