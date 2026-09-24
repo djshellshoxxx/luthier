@@ -199,6 +199,12 @@ void RiffBrowser::ensureLibraryLoaded (bool now)
     if (userFolder.isNotEmpty() && juce::File::isAbsolutePath (userFolder))
         library.setFolders (library.getFactoryFolder(), juce::File (userFolder), RiffLibrary::getDefaultGlobalFile());
 
+    // 6.1: drag files older than 30 days go, once a session, off the message thread.
+    static std::atomic<bool> pruned { false };
+
+    if (! pruned.exchange (true))
+        riffPool().addJob ([] { RiffDestinations::pruneDragFolder (RiffLibrary::getDragFolder(), 30); });
+
     if (now)
         library.loadIndexNow();
     else

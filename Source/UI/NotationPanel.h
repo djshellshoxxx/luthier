@@ -106,6 +106,7 @@ private:
     std::unique_ptr<LuthierToggle> offButton, rollingButton, armedButton;
     juce::Slider rollingMinutes { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::TextButton clearButton { "CLEAR TAKE" };
+    juce::TextButton saveAsRiffButton { "SAVE AS RIFF" };   // riff-library 7.1 (secondary location)
     juce::String statusText;
 
     // --- live tab -------------------------------------------------------------------

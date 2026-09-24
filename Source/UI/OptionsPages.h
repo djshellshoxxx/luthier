@@ -451,6 +451,16 @@ private:
     juce::TextButton addFolderButton { "Add a preset folder..." };
     juce::TextButton rescanButton { "Rescan presets" };
 
+    // riff-library 7.1: "Riffs folder", and the audition-on-select switch.
+    juce::TextButton chooseRiffsFolder { "Choose riffs folder..." }, openRiffsFolder { "Open riffs folder" };
+    juce::ToggleButton auditionOnSelect { "Riffs: audition on select" };
+
+public:
+    juce::Button& getAuditionOnSelectToggle() noexcept { return auditionOnSelect; }
+    static juce::File getRiffsUserFolder();
+
+private:
+
     juce::Label pathLabel, formatNote;
     juce::ListBox folderList;
 

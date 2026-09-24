@@ -1,5 +1,6 @@
 #include "OptionsPages.h"
 #include "RangesUi.h"
+#include "UiPreferences.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
@@ -2126,6 +2127,35 @@ FileLocationsPage::FileLocationsPage (LuthierAudioProcessor& p)
         folderList.updateContent();
     };
 
+    // riff-library 7.1: where user riffs live, and whether selecting one plays it.
+    addAndMakeVisible (chooseRiffsFolder);
+    chooseRiffsFolder.onClick = [this]
+    {
+        chooser = std::make_unique<juce::FileChooser> ("Choose the folder for your riffs", getRiffsUserFolder());
+        chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+                              [this] (const juce::FileChooser& fc)
+        {
+            if (fc.getResult().isDirectory())
+            {
+                UiPreferences::get().setString ("riffs.userFolder", fc.getResult().getFullPathName());
+                refresh();
+            }
+        });
+    };
+
+    addAndMakeVisible (openRiffsFolder);
+    openRiffsFolder.onClick = []
+    {
+        const auto folder = getRiffsUserFolder();
+        folder.createDirectory();
+        folder.revealToUser();
+    };
+
+    addAndMakeVisible (auditionOnSelect);
+    auditionOnSelect.setToggleState (UiPreferences::get().getBool ("riffs.auditionOnSelect", false), juce::dontSendNotification);
+    auditionOnSelect.onClick = [this] { UiPreferences::get().setBool ("riffs.auditionOnSelect", auditionOnSelect.getToggleState()); };
+    auditionOnSelect.setTooltip ("Selecting a riff in the library plays it");
+
     addAndMakeVisible (pathLabel);
     pathLabel.setFont (Fonts::ui (11.0f));
     pathLabel.setColour (juce::Label::textColourId, Palette::textMuted);
@@ -2174,13 +2204,21 @@ void FileLocationsPage::FolderListModel::paintListBoxItem (int row, juce::Graphi
                 juce::Justification::centredLeft, true);
 }
 
+juce::File FileLocationsPage::getRiffsUserFolder()
+{
+    const auto chosen = UiPreferences::get().getString ("riffs.userFolder", {});
+    return chosen.isNotEmpty() && juce::File::isAbsolutePath (chosen) ? juce::File (chosen)
+                                                                       : RiffLibrary::getDefaultUserFolder();
+}
+
 void FileLocationsPage::refresh()
 {
     pathLabel.setText (
         "User presets   " + PresetManager::getUserPresetFolder().getFullPathName() + "\n"
         "Factory        " + PresetManager::getFactoryPresetFolder().getFullPathName() + "\n"
         "Renders        " + PresetManager::getRenderFolder().getFullPathName() + "\n"
-        "Diagnostics    " + Diagnostics::getDiagnosticsFolder().getFullPathName(),
+        "Diagnostics    " + Diagnostics::getDiagnosticsFolder().getFullPathName() + "\n"
+        "Riffs          " + getRiffsUserFolder().getFullPathName(),
         juce::dontSendNotification);
 
     folderList.updateContent();
@@ -2200,7 +2238,7 @@ void FileLocationsPage::resized()
 
     bounds.removeFromTop (20);
 
-    pathLabel.setBounds (bounds.removeFromTop (72));
+    pathLabel.setBounds (bounds.removeFromTop (84));
     bounds.removeFromTop (Metrics::gridHalf);
 
     {
@@ -2213,6 +2251,18 @@ void FileLocationsPage::resized()
         openRenderFolder.setBounds (row.removeFromLeft (150));
         row.removeFromLeft (Metrics::gridHalf);
         openDiagnosticsFolder.setBounds (row.removeFromLeft (190));
+    }
+
+    bounds.removeFromTop (Metrics::gridHalf);
+
+    {
+        auto row = bounds.removeFromTop (Metrics::buttonHeight - 4);   // riff-library 7.1
+
+        chooseRiffsFolder.setBounds (row.removeFromLeft (170));
+        row.removeFromLeft (Metrics::gridHalf);
+        openRiffsFolder.setBounds (row.removeFromLeft (150));
+        row.removeFromLeft (Metrics::gridHalf);
+        auditionOnSelect.setBounds (row.removeFromLeft (220));
     }
 
     bounds = getLocalBounds().withTrimmedTop (200);

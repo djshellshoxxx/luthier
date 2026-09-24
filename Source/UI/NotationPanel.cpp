@@ -1,6 +1,7 @@
 #include "NotationPanel.h"
 #include "CaptureRanges.h"   // MODEL-GAPS
 #include "MidiExportDefaults.h"
+#include "AdvancedPanel.h"   // riff-library 7.1: Save as riff opens the RIFFS tab
 #include "../PluginProcessor.h"
 #include "../Presets/PresetManager.h"
 #include "../Accessibility/Accessibility.h"
@@ -203,6 +204,24 @@ NotationPanel::NotationPanel (LuthierAudioProcessor& p)
     clearButton.onClick = [this] { processor.getPerformanceCapture().clearTake(); refresh(); };
     AccessibleSetup::configureButton (clearButton, "Clear take");
     addAndMakeVisible (clearButton);
+
+    // riff-library 7.1 / 7.4: the capture's marked region (or last bars) as a user riff.
+    saveAsRiffButton.setTooltip ("Save the marked region, or the last two bars, as a riff in the library");
+    saveAsRiffButton.onClick = [this]
+    {
+        if (auto* advanced = findParentComponentOfClass<AdvancedPanel>())
+        {
+            advanced->setWorkspaceTabNamed ("RIFFS");
+
+            if (auto* riffs = advanced->getRiffsPanel())
+            {
+                riffs->ensureLibraryLoaded();
+                riffs->openSaveDialog();
+            }
+        }
+    };
+    AccessibleSetup::configureButton (saveAsRiffButton, "Save as riff");
+    addAndMakeVisible (saveAsRiffButton);
 
     // --- live tab ---------------------------------------------------------------------
     showTab = makeToggle ("SHOW TAB", "Show the last bars of what you played as tab.", [this] { resized(); refresh(); });
@@ -541,7 +560,7 @@ void NotationPanel::resized()
 
     captureHeader = bounds.removeFromTop (kHeader);
     split (row(), { offButton.get(), rollingButton.get(), armedButton.get() });
-    split (row(), { &rollingMinutes, &clearButton });
+    split (row(), { &rollingMinutes, &clearButton, &saveAsRiffButton });
     statusBounds = bounds.removeFromTop (32);
     bounds.removeFromTop (Metrics::grid);
 

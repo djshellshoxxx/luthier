@@ -115,6 +115,9 @@ public:
     juce::Result importMidiAsRiff (const juce::File& file);
     juce::Result deleteSelectedUserRiff();   ///< no confirmation: the dialog asks first
 
+    /** 7.4's Save as riff dialog (from "+ Save riff" or NOTATION's capture). */
+    void openSaveDialog() { showSaveDialog(); }
+
     /** The tempo the preview shows and drag-out writes: the host's in Auto
         while it plays, otherwise the riff's own times the factor, or the bpm. */
     double getShownTempo();

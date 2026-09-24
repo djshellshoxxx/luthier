@@ -57,6 +57,17 @@ def main():
         if brand:
             found.append(f"{path.replace(os.sep, '/')}: {brand}")
 
+    # riff-library 12: the riff catalog's names and tags are shipped names too.
+    catalog = os.path.join("Resources", "Riffs", "catalog.json")
+    if os.path.exists(catalog):
+        import json
+        with open(catalog, encoding="utf-8") as f:
+            for item in json.load(f).get("items", []):
+                for text in [item.get("name", "")] + item.get("tags", []):
+                    brand = matches(text)
+                    if brand:
+                        found.append(f"{catalog}: {item.get('id')}: {brand}: \"{text}\"")
+
     for line in found:
         print(line)
 
