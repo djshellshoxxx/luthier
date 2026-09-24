@@ -81,7 +81,10 @@ void MidiInterpreter::reset() noexcept
     lastMonoString = -1;
     activity = false;
     nextStrumIsUp = false;
-    lastChordName.clear();
+    {
+        const juce::SpinLock::ScopedLockType sl (lastChordLock);
+        lastChordCount = 0;
+    }
 
     // Deterministic humanisation after a reset, for reproducible renders.
     rng.setSeed (0x4D1D1ull);
@@ -508,7 +511,16 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
                                       groupTimestamp + chordWindowSamples - blockStart);
     juce::ignoreUnused (numSamples);
 
-    lastChordName = ChordVoicer::identifyChord (notes, count);
+    {
+        // Try-locked: a UI reading the previous chord just keeps it one block.
+        const juce::SpinLock::ScopedTryLockType sl (lastChordLock);
+
+        if (sl.isLocked())
+        {
+            lastChordCount = juce::jmin (count, (int) lastChordNotes.size());
+            std::copy (notes, notes + lastChordCount, lastChordNotes.begin());
+        }
+    }
 
     const auto voicing = voicer->voice (notes, velocities, count);
 
@@ -694,6 +706,20 @@ void MidiInterpreter::emitVoicedNote (const VoicedNote& note, int64_t timestamp,
 }
 
 //==============================================================================
+juce::String MidiInterpreter::getLastChordName() const
+{
+    std::array<int, 16> chord {};
+    int count = 0;
+
+    {
+        const juce::SpinLock::ScopedLockType sl (lastChordLock);
+        chord = lastChordNotes;
+        count = lastChordCount;
+    }
+
+    return count > 0 ? ChordVoicer::identifyChord (chord.data(), count) : juce::String();
+}
+
 void MidiInterpreter::handleNoteOff (int midiNote, int channel, int blockOffset,
                                      PlayEventQueue& out) noexcept
 {
