@@ -1328,8 +1328,13 @@ void LuthierEngine::pushAgingFactors() noexcept
     {
         const auto& f = aging.getFactors (s);
         strings[(size_t) s].setAgingFactors (f.brightness, f.sustain, f.dispersion);
-        tuning.setFineTuneCents (s, f.detuneCents);
-        tuning.setAgingIntonation (s, f.intonationCentsPerFret);
+
+        // string-aging.md 9: the tuning terms take the target hours - the
+        // string's pitch glide already smooths them - so the tuning (which a
+        // saved state records) never depends on where a glide had got to.
+        const auto now = aging.computeNow (s);
+        tuning.setFineTuneCents (s, now.detuneCents);
+        tuning.setAgingIntonation (s, now.intonationCentsPerFret);
     }
 }
 
