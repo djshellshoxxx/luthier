@@ -49,6 +49,8 @@ namespace
         { Type::accent,             "accent",      LuthierEventClass::note },
         { Type::staccato,           "staccato",    LuthierEventClass::note },
         { Type::letRing,            "letring",     LuthierEventClass::note },
+        { Type::pickStrokeUp,       "upstroke",    LuthierEventClass::note },   // FEAT-ASSIST
+        { Type::pickStrokeDown,     "downstroke",  LuthierEventClass::note },
     };
 
     static_assert (sizeof (kTechniques) / sizeof (kTechniques[0]) == (size_t) Type::numTypes,
@@ -349,6 +351,11 @@ namespace
         }
 
         noteEvent.set ("flags", flags.joinIntoString (","));
+
+        // auto-articulation.md 9 (FEAT-ASSIST): aa=<hex mask>, only when nonzero.
+        if (note.autoRules != 0)
+            noteEvent.set ("aa", juce::String::toHexString ((int) note.autoRules));
+
         performance.addEvent (noteEvent);
 
         for (const auto& event : techniqueEvents)
@@ -882,6 +889,10 @@ void MidiPerformance::toScore (PerformanceScore& score) const
 
             for (const auto& technique : techniquesFor (events, entry.sample, channel, key))
                 score.addTechnique (stringIndex, technique);
+
+            // FEAT-ASSIST: aa= comes back as the note's Assist bits (9).
+            if (noteEvent != nullptr && noteEvent->has ("aa"))
+                score.setAutoRules (stringIndex, (juce::uint16) (noteEvent->get ("aa").getHexValue32() & 0xFFFF));
         }
         else if (message.isNoteOff())
         {

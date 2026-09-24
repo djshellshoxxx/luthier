@@ -143,6 +143,7 @@ void LuthierEngine::reset() noexcept
     fretBuzzModel.reset();
     slide.reset();
     scrape.reset();
+    assistReset();   // FEAT-ASSIST
     slap.reset();
     bassFingers.reset();                 // MODEL-GAPS: the index finger leads again
     lastPluckSample.fill (std::numeric_limits<juce::int64>::min() / 2);
@@ -930,6 +931,11 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         perfCapture->noteOn (captureOffset(), s, e.midiNote, fret, (float) e.velocity,
                              e.technique, e.harmonicPartial);
 
+    ++assistNoteSerial[(size_t) s];   // FEAT-ASSIST: a mute lift belongs to one note
+
+    if (e.autoRules != 0)
+        assistNoteStarted (e, s, fret);   // FEAT-ASSIST: feed, capture marks, the mute lift
+
     auto& str = strings[(size_t) s];
 
     // ---- pitch and glide ------------------------------------------------------
@@ -1009,7 +1015,8 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
             // bass-techniques 7 (MODEL-GAPS): a bass has its own palm-mute profile.
             str.setDamping (spec.category == GuitarCategory::Bass ? StringEngine::Damping::PalmMuteBass
                                                                    : StringEngine::Damping::PalmMute,
-                            technique.getPalmMuteAmount());
+                            e.palmMuteAmount >= 0.0 ? e.palmMuteAmount   // FEAT-ASSIST: 3.6's auto amount
+                                                    : technique.getPalmMuteAmount());
             break;
 
         case Technique::MutedPick:
@@ -1086,6 +1093,10 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
             p.kind = Excitation::Kind::Pluck;
             break;
     }
+
+    // FEAT-ASSIST (auto-articulation.md 3.5, 3.7): accent, soft and up-stroke attack.
+    p.brightness *= e.attackBrightnessScale;
+    p.noiseAmount *= e.attackNoiseScale;
 
     if (slapStrike.strike)
     {
@@ -1494,7 +1505,11 @@ void LuthierEngine::fireScheduledEvents (int64_t absoluteSample) noexcept
         const auto fired = e;
         scheduled[(size_t) i] = scheduled[(size_t) (--numScheduled)];
 
-        if (fired.isNoteOn)
+        if (fired.kind == kDampingLift)
+        {
+            assistFireLift (fired);   // FEAT-ASSIST: 3.6
+        }
+        else if (fired.isNoteOn)
         {
             firingAlternated = fired.fingerAlternated;
             triggerNote (fired.noteOn);
@@ -1540,6 +1555,10 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
 
             vib *= vibratoAmount[(size_t) s];
         }
+
+        // FEAT-ASSIST (auto-articulation.md 3.4, 3.8): the delayed vibrato and
+        // the auto pitch curve, from absolute time, ride the vibrato's path.
+        assistPerBlockCents (s, numSamples, vib);
 
         const double bend = midi.getStringBendCents (s);
         const double whammyCents = whammy.getCentOffset (s);
@@ -1898,6 +1917,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     if (perfCapture != nullptr)
         captureBlockState();
 
+    assistSetContext (rhythm.isEnabled() && rhythm.isDriving());   // FEAT-ASSIST: 5's explicit rows
     midi.processBlock (played, numSamples, samplePosition, events);
 
     // Events go onto the schedule rather than being applied here, so a strum
@@ -1926,6 +1946,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     // Direct notes play as written whether or not the rhythm engine drives.
     if (directForSubBlock != nullptr && ! directForSubBlock->isEmpty())
     {
+        assistSetContext (false);   // FEAT-ASSIST: direct notes (the Tune melody) are assisted
         midi.processBlock (*directForSubBlock, numSamples, samplePosition, directEvents);
         scheduleEvents (directEvents, numSamples);
     }

@@ -71,6 +71,25 @@ struct NoteOnEvent
         imported BASS_TECH event) names for this note, as a BassStepType index;
         -1 lets the slap's own triggers decide. Inert on a guitar. */
     int    bassTechnique = -1;
+
+    // ==== BEGIN FEAT-ASSIST fields ====
+    // auto-articulation.md 4.2: what Performance Assist decided. The defaults
+    // leave today's behaviour alone.
+    juce::uint16 autoRules = 0;             ///< aa_rules bits that fired on this note
+    double attackBrightnessScale = 1.0;     ///< 3.5 / 3.7: on Excitation::Params::brightness
+    double attackNoiseScale = 1.0;          ///< 3.5 / 3.7: on Excitation::Params::noiseAmount
+    double palmMuteAmount = -1.0;           ///< 3.6: -1 uses the controller amount
+    bool   upStroke = false;                ///< 3.7
+    int    autoOrnament = 0;                ///< 3.8: 1 bend-into half, 2 whole, 3 slide-in
+    juce::int64 arrivalSample = 0;          ///< when the key went down
+    int    muteLiftSamples = -1;            ///< 3.6: the mute lifts this long after the note, if still held
+    bool   autoAccent = false;              ///< 3.5: captured with an accent mark
+    juce::uint16 autoStrumMask = 0;         ///< 3.7: a strum's struck strings, on its first note
+
+    /** riff-library / Luthier-profile import: the note's articulation is the
+        file's own, and Performance Assist leaves it alone (5). */
+    bool   explicitArticulation = false;
+    // ==== END FEAT-ASSIST fields ====
 };
 
 struct NoteOffEvent

@@ -427,6 +427,20 @@ public:
 
     double getCpuEstimate() const noexcept { return cpuEstimate.load (std::memory_order_relaxed); }
 
+    // ==== BEGIN FEAT-ASSIST ====
+    /*  Performance Assist (auto-articulation.md 4.2). The glue is in
+        LuthierEngineAssist.cpp. */
+    void setAutoArticulation (const AutoArticulationSettings& s) noexcept { midi.setAutoArticulation (s); }
+    AutoArticulator& getAutoArticulator() noexcept { return midi.getAutoArticulator(); }
+    const AutoArticulator& getAutoArticulator() const noexcept { return midi.getAutoArticulator(); }
+
+    /** Why Assist is not running, for the notice line (5). */
+    AssistBypass getAssistBypass() const noexcept;
+
+    /** 5: the Luthier-profile import player's notes are pre-articulated. */
+    void setAssistPreArticulated (bool pre) noexcept { assistPreArticulated = pre; }
+    // ==== END FEAT-ASSIST ====
+
 private:
     /** Moves a block's events onto the schedule, converting their offsets to
         absolute sample positions. */
@@ -486,7 +500,11 @@ private:
         NoteOffEvent noteOff {};
         int64_t absoluteSample = 0;
         bool fingerAlternated = false;   ///< bass-techniques 6: already given its finger's timing
+        int kind = 0;                    ///< FEAT-ASSIST: kDampingLift is auto-articulation.md 3.6's mute lift
+        juce::uint32 serial = 0;         ///< FEAT-ASSIST: the note the lift belongs to
     };
+
+    static constexpr int kDampingLift = 1;   // FEAT-ASSIST
 
     static constexpr int kMaxScheduledEvents = 192;
     std::array<ScheduledEvent, kMaxScheduledEvents> scheduled {};
@@ -731,6 +749,19 @@ private:
     }
 
     RtRandom rng { 0xA11CE5ull };
+
+    // ==== BEGIN FEAT-ASSIST (auto-articulation.md; LuthierEngineAssist.cpp) ====
+    bool assistPreArticulated = false;
+    std::array<juce::uint32, kMaxStrings> assistNoteSerial {};
+    std::array<juce::int64, kMaxStrings> assistLiftStart {};
+    std::array<double, kMaxStrings> assistLiftFrom {};
+    std::array<double, kMaxStrings> assistLastPitch {};
+    void assistSetContext (bool rhythmPass) noexcept;
+    void assistNoteStarted (const NoteOnEvent& e, int s, double fret) noexcept;
+    void assistFireLift (const ScheduledEvent& e) noexcept;
+    double assistPerBlockCents (int s, int numSamples, double& vib) noexcept;
+    void assistReset() noexcept;
+    // ==== END FEAT-ASSIST ====
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierEngine)
 };

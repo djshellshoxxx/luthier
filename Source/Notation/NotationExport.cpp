@@ -458,6 +458,15 @@ juce::String NotationExporter::renderMusicXml (const PerformanceScore& score,
                             xml << "            <other-technical>dead-note</other-technical>\n";
                             break;
 
+                        // auto-articulation.md 9 (FEAT-ASSIST): pick strokes.
+                        case ScoreTechnique::Type::pickStrokeUp:
+                            xml << "            <up-bow/>\n";
+                            break;
+
+                        case ScoreTechnique::Type::pickStrokeDown:
+                            xml << "            <down-bow/>\n";
+                            break;
+
                         default:
                             break;
                     }
@@ -1130,6 +1139,15 @@ juce::String NotationExporter::renderGuitarProXml (const PerformanceScore& score
 
                     case ScoreTechnique::Type::deadNote:
                         notesXml << "        <Property name=\"Muted\"><Enable/></Property>\n";
+                        break;
+
+                    // auto-articulation.md 9 (FEAT-ASSIST): Guitar Pro's pickstroke.
+                    case ScoreTechnique::Type::pickStrokeUp:
+                        notesXml << "        <Property name=\"PickStroke\"><Direction>Up</Direction></Property>\n";
+                        break;
+
+                    case ScoreTechnique::Type::pickStrokeDown:
+                        notesXml << "        <Property name=\"PickStroke\"><Direction>Down</Direction></Property>\n";
                         break;
 
                     case ScoreTechnique::Type::whammy:
