@@ -66,6 +66,7 @@ set(LUTHIER_WIP_REGEX "Source/WIP/")
 list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "${LUTHIER_WIP_REGEX}")
 
 target_sources(Luthier PRIVATE ${LUTHIER_SOURCES})
+
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Source" FILES ${LUTHIER_SOURCES})
 
 target_compile_definitions(Luthier PUBLIC
