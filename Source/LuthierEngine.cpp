@@ -595,6 +595,10 @@ void LuthierEngine::setCustomStringGauge (int stringIndex, double inches)
 //==============================================================================
 void LuthierEngine::refreshStringPhysics()
 {
+    // string-aging.md 3.1: the seed's per-string jitter, before the detune
+    // below is computed from it (a host may save before ever preparing).
+    refreshAgingJitter();
+
     for (int i = 0; i < numStrings; ++i)
     {
         const double openHz = tuning.getEffectiveOpenFrequency (i);
