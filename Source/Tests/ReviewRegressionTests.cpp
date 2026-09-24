@@ -12,6 +12,8 @@
 #include "../Practice/Looper.h"
 #include "../Notation/NotationExport.h"
 #include "../DSP/Whammy/WhammyEngine.h"
+#include "../DSP/Common/Oversampler.h"
+#include <complex>
 #include "../Model/Playing/TechniqueEngine.h"
 #include "../Model/Playing/RubricVoicer.h"
 #include "../Model/Playing/TuningEngine.h"
@@ -662,3 +664,45 @@ LUTHIER_TEST (ReviewRegression, aUnisonPairDecays)
     CHECK (nearly.back() < nearly.front() * 0.1);
 }
 
+
+//==============================================================================
+/*  R-211: the half-band branches run at the base rate but used a two-sample
+    all-pass memory, i.e. A(z^4) at the oversampled rate: weaker image
+    rejection, passband droop, and a round trip that delayed about twice what
+    getLatencySamples tells the host. The delay near DC now matches the report. */
+LUTHIER_TEST (ReviewRegression, theOversamplerDelaysWhatItReports)
+{
+    constexpr double sr = 48000.0;
+
+    for (int factor : { 2, 4, 8 })
+    {
+        Oversampler os;
+        os.prepare (sr, factor);
+
+        std::vector<double> h (4096);
+
+        for (size_t n = 0; n < h.size(); ++n)
+            h[n] = os.processSample (n == 0 ? 1.0 : 0.0, [] (double x) { return x; });
+
+        auto phaseAt = [&h] (double hz)
+        {
+            std::complex<double> sum;
+
+            for (size_t n = 0; n < h.size(); ++n)
+                sum += h[n] * std::polar (1.0, -juce::MathConstants<double>::twoPi * hz / sr * (double) n);
+
+            return std::arg (sum);
+        };
+
+        double dphi = phaseAt (150.0) - phaseAt (50.0);
+
+        while (dphi > 0.0)
+            dphi -= juce::MathConstants<double>::twoPi;
+
+        const double delay = -dphi / (juce::MathConstants<double>::twoPi * 100.0 / sr);
+
+        CHECK_MSG (std::abs (delay - os.getLatencySamples()) < 1.0,
+                   juce::String (factor) + "x delays " + juce::String (delay, 2) + " samples, reports "
+                     + juce::String (os.getLatencySamples()));
+    }
+}
