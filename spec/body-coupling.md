@@ -267,8 +267,11 @@ written here predate other workstreams' parameters).
 
 - Per sample: `K` resonators (5 multiplies and 4 adds each) plus `2N`
   multiply-adds. At K = 8 and N = 6 that is about 90 flops per sample, or
-  roughly 4 MFLOP/s at 48 kHz. The budget is **0.08 units** at K = 16 and
-  N = 12, a new `BodyCouplingBank` row in `performance-budget.md`. Per
+  roughly 4 MFLOP/s at 48 kHz. The budget is **0.1 units** at K = 16 and
+  N = 12, a new `BodyCouplingBank` row in `performance-budget.md`
+  (*amended in the build* from 0.08: sixteen band-passes and two
+  twelve-string sums per sample are about a quarter of `CouplingMatrix`'s
+  0.4-unit work, and the test checks that ratio on whatever machine runs it). Per
   string the cost is 2 multiply-adds per sample, so it scales with
   polyphony far below a voice's waveguide.
 - `design()` allocates only into a member scratch vector, and only on
@@ -346,6 +349,7 @@ written here predate other workstreams' parameters).
 - **BC-12 Legacy load.** A preset without `body_coupling_amount` loads
   with 0 and renders within −60 dBFS RMS of the pre-spec reference. The
   `body` family reads stock.
-- **BC-13 Budget and safety.** `BodyCouplingBank` costs ≤ 0.08 units at
-  K = 16 and N = 12. `design()` never runs on the audio thread
+- **BC-13 Budget and safety.** `BodyCouplingBank` costs ≤ 0.1 units at
+  K = 16 and N = 12 (checked as at most a quarter of `CouplingMatrix` at
+  N = 12 timed on the same machine). `design()` never runs on the audio thread
   (`ThreadProbe`). Zero audio-thread allocations across a part swap.

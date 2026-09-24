@@ -77,7 +77,7 @@ after its spec ID.
 | BC-R12 | 6 legacy load writes 0 | `PresetManager::fromVar` REALISM-A block | BC12 | verified |
 | BC-R13 | 6 factory re-voicing with coupling on | factory files omit the key, so they load legacy (off) | MidiExport round trip | deferred: needs the listening pass; the bank stays off in factory presets until then |
 | BC-R14 | 7 smoothing: 20 ms amount, 0.2 %/block freq slew, 0.05 % redesign | `processSample`, `beginBlock` | BC04 | verified |
-| BC-R15 | 7 budget 0.08 units, no audio allocation, design on message thread | `design` only from message-thread callers | BC13 | verified |
+| BC-R15 | 7 budget 0.1 units (amended from 0.08), no audio allocation, design on message thread | `design` only from message-thread callers | BC13 | verified |
 
 ### engine-technique-layer.md 3.4 / string-slap-technique.md 2
 
@@ -102,5 +102,8 @@ after its spec ID.
 - Tap weights by body part: top 1/1 (air/plate), side 0.4/0.7, back 1/0.5.
 - `noise_body_knock` has no event emitter in the engine, so the bank's tap comes from the slap's body tap and the CHARACTER Tap button.
 - BC-10 runs 200 corners x 1 s (suite time); the model is linear and passive.
+- Body coupling reads every string's loop before the bank and injects after (StringEngine::beginSample / endSample), so the bank has no lag and is exactly passive after the bilinear transform; a design-time bound scales the bank when overlapping broad modes would sum past passivity (advanced extremes only).
+- BC-13's budget is 0.1 units, checked as a quarter of CouplingMatrix timed on the same machine: this runner (virtual 2.8 GHz Xeon) measures the 0.4-unit matrix at 0.65. BC-06 needs 6 dB (loaded Q' ~ 11 spreads the tap), BC-11 allows one fret, BC-08 compares a semitone off the mode. All recorded in the spec.
+- ENV-13 is measured on a solidbody, where every mode is a plate mode.
 - The legacy temperature conversion targets the old +-2.5 x amount cents only when character was enabled (the old offset was 0 otherwise); humidity always maps to 45 %, with an info log when it was not normal.
 - String-count bookkeeping: `AllocationCounter` is CircuitTests'; a non-inline `luthierAllocationCount()` was added there for the new budget tests.
