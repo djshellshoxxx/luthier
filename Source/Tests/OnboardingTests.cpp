@@ -607,3 +607,25 @@ LUTHIER_TEST (HelpLinks, theSupportLinksComeFromOneConfigurableHeader)
     for (int i = 0; i < HelpContent::getNumTopics(); ++i)
         CHECK (! juce::String (HelpContent::getTopic (i).body).contains ("@"));
 }
+
+//==============================================================================
+/*  The topics for other workstreams' features: each name its panel will pass
+    lands on that topic, not on an older one that happens to share a word. */
+LUTHIER_TEST (HelpLinks, otherWorkstreamsPanelsPinToTheirOwnTopics)
+{
+    const struct { const char* name; const char* id; } pins[] =
+    {
+        { "Slap", "technique-slap" }, { "Scrape", "technique-scrape" }, { "Muting", "technique-muting" },
+        { "Tapping", "technique-tapping" }, { "Microtonal Bends", "technique-bends" },
+        { "STRING AGING", "string-aging" }, { "BODY COUPLING", "body-coupling" }, { "HARMONICS", "harmonics-group" },
+        { "RIGHT HAND", "right-hand" }, { "NOISE FLOOR", "noise-floor" }, { "SUSTAIN SHAPE", "sustain-shape" },
+        { "TUNING STABILITY", "tuning-stability" }, { "TECHNIQUES", "techniques" }, { "tour", "first-steps" }
+    };
+
+    for (const auto& p : pins)
+    {
+        const int index = HelpContent::findTopic (p.name);
+        CHECK_MSG (index >= 0 && juce::String (HelpContent::getTopic (index).id) == p.id,
+                   juce::String (p.name) + " pinned to " + (index >= 0 ? HelpContent::getTopic (index).id : "nothing"));
+    }
+}

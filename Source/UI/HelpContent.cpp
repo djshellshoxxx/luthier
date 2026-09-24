@@ -473,6 +473,113 @@ namespace
           "- The welcome tour, and first-week hints." },
         // ==== END TUNE-HELP-ONBOARDING topics ====
 
+        /*  ==== BEGIN TUNE-HELP-ONBOARDING topics for other workstreams ====
+            Features other workstreams add (the TECHNIQUES tab's sub-tabs,
+            the CHARACTER groups of the phase 2b specs), each as its own
+            topic so the panel's ? or Docs can pin to it by name. Written from
+            their specs; kept apart so a workstream can edit its own entry. */
+        { "technique-slap", "Techniques: Slap", "Slap|SLAP|Slap sub-tab|slap technique|thumb slap|pop|finger pop|palm slap|body tap",
+          "Slap is a strike, not a pluck: the thumb, a popping finger, the palm or a hand on the body hits the "
+          "string (or the top) and the string rattles against the frets.\n\n"
+          "- Slap type: Thumb Slap, Finger Pop, Palm Slap or Body Tap.\n"
+          "- Trigger: a velocity zone, a keyswitch, a CC, an MPE zone or the Playing strip button.\n"
+          "- Contact position and force: where along the string it lands and how hard.\n"
+          "- String mask: which strings a slap hits.\n"
+          "- Ghost mode: the fretting hand mutes first, for a pitchless thump.\n"
+          "- Rebound and snap-back: the thumb's double hit, and how hard a bass string clacks back on the "
+          "fretboard.\n"
+          "- Body tap: which part of the body the hand meets, and so which resonances answer." },
+
+        { "technique-scrape", "Techniques: Scrape", "Scrape|SCRAPE|Scrape sub-tab|string scrape|scraping|pick scrape|zipper",
+          "A pick or a nail drawn along a wound string: the tip catches each winding in turn, so the pitch of the "
+          "zipper follows how fast you move and how tightly the string is wound. It is a real event on the "
+          "string, so it shows up in the string's ring, in the pickups and through the amp exactly as the rest "
+          "of the note does. The Scrape controls set how it is triggered, its direction, speed and pressure, "
+          "and which strings it crosses." },
+
+        { "technique-muting", "Techniques: Muting", "Muting|MUTING|Muting sub-tab|mute|palm mute|chuka|mute pattern|mute grid",
+          "Muting as rhythm: metal chugs, funk chukas, reggae skanks.\n\n"
+          "- A 16-step grid: paint each step open, palm-muted, fretting-hand muted or dead.\n"
+          "- Master mute mode overrides the grid with one kind of mute for every step.\n"
+          "- Palm position and pressure: where the palm rests and how hard.\n"
+          "- Fretting-hand style: a rock spread across the strings, or a classical fingertip.\n"
+          "- Chuka source: what makes a strum a chuka (by default, a very soft one).\n"
+          "- Humanise: the chance a step slips between open and muted, and the ghost-note level." },
+
+        { "technique-tapping", "Techniques: Tapping", "Tapping|TAPPING|Tapping sub-tab|tap|two-hand tapping|taps|hammer-on|pull-off",
+          "A tap is a fret event, not a pluck: a right-hand finger presses the string onto a fret sharply and "
+          "the string between that fret and the bridge sounds.\n\n"
+          "- Trigger: right-hand notes on MIDI channel 2 by default, a keyswitch, or the fretboard's tap layer.\n"
+          "- Strength curve: how velocity becomes tap strength.\n"
+          "- Auto pull-off: lifting a tap with a fretted note held plays the pull-off.\n"
+          "- Hammer-on threshold: how soft a legato note can be and still count as a hammer-on.\n"
+          "- Flick, default length, how many taps a string can hold, and snapping taps to frets (off for "
+          "microtonal taps)." },
+
+        { "technique-bends", "Techniques: Microtonal Bends", "Microtonal Bends|MICROTONAL BENDS|Microtonal Bends sub-tab|"
+          "microtonal|bend quantise|pre-bend|quarter tone|scala",
+          "Pitch on a string is continuous, so bends and vibrato are not limited to semitones.\n\n"
+          "- Bend source and range, for all strings and per string (MPE Y by default): 200 cents unless you "
+          "widen it.\n"
+          "- Vibrato: its source, rate, depth and how long after the note it starts.\n"
+          "- Bend quantise: none, quarter tones, semitones, 24-EDO or a loaded .scl / .tun scale.\n"
+          "- Pre-bend: start a note bent and release into pitch.\n"
+          "- Bend and release curves: linear, exponential (as a finger does it) or drawn." },
+
+        { "technique-cascade", "Techniques: Combining Them", "technique cascade|cascade|combining techniques|"
+          "technique conflicts|compatibility",
+          "Techniques combine the way they do on a real guitar. Each belongs to a class - what controls the "
+          "pitch, what excites the string, what damps it - and two that would fight over the same string at "
+          "the same moment cannot both be armed on it: the tab greys out the one that conflicts and says why. "
+          "Techniques on different strings, or in different classes, always combine." },
+
+        { "string-aging", "Character: String Aging", "STRING AGING|String Aging|string age|fresh strings|dead strings",
+          "Fresh strings are bright, zingy and long-sustaining; dead ones are dull, short and play slightly "
+          "out of tune up the neck. The STRING AGING group in the CHARACTER tab sets how old the set is and "
+          "how it has been played, and the brightness, sustain and intonation follow." },
+
+        { "environment-group", "Character: Environment", "Environment group|ENVIRONMENT group|temperature|humidity|"
+          "climate|acclimatise",
+          "Steel and wood respond to the room. The ENVIRONMENT group in the CHARACTER tab sets temperature and "
+          "humidity: cold strings go flat and drift back as they warm, a humid room lifts an acoustic's top "
+          "and its action, a dry one back-bows the neck and wakes fret buzz." },
+
+        { "body-coupling", "Character: Body Coupling", "BODY COUPLING|Body Coupling|wolf note|wolf notes|body feedback",
+          "The strings drive the body and the body pushes back. The BODY COUPLING group in the CHARACTER tab "
+          "sets how strongly, which is what gives an acoustic its wolf notes - a note on the top's main "
+          "resonance that blooms, warbles or dies early - and lets the body's own resonances ring on." },
+
+        { "harmonics-group", "Character: Harmonics", "HARMONICS|Harmonics|harmonic|natural harmonic|touch harmonic",
+          "A harmonic is a string touched at a node: every partial with a node there survives and the rest die "
+          "within a few periods. The HARMONICS row in the CHARACTER tab's PICK group sets the touch - its "
+          "pressure, the finger's width, how long it rests and how it leaves - which decides how pure the "
+          "harmonic is and how much of the fundamental leaks through." },
+
+        { "right-hand", "Character: Right Hand", "RIGHT HAND|Right Hand|fingerstyle|rest stroke|free stroke|nail|thumb",
+          "What touches the string and how it lets go. The RIGHT HAND group in the CHARACTER tab sets nail "
+          "against flesh, rest or free stroke, the thumb, Travis-style muting, hybrid picking snap and how "
+          "much each finger varies - the difference between a classical player, a Travis picker and a "
+          "flamenco player." },
+
+        { "noise-floor", "Character: Noise Floor", "NOISE FLOOR|Noise Floor|hum|hiss|buzz|60 cycle|noise gate",
+          "A real rig is never silent. The NOISE FLOOR group in the CHARACTER tab adds pickup hum, preamp hiss "
+          "and the cable and room, each where it enters a real chain, so the guitar's volume, the pickup type "
+          "and the amp's gain act on it as they do on a real rig. All of it can be turned off." },
+
+        { "sustain-shape", "Character: Sustain Shape", "SUSTAIN SHAPE|Sustain Shape|decay|two-stage decay|"
+          "pitch sag|release",
+          "A plucked note falls fast for the first half second and then settles into a long tail, starts a "
+          "touch sharp, and sags as the finger lifts at the end. The SUSTAIN SHAPE group in the CHARACTER tab "
+          "sets each of those stages." },
+
+        { "tuning-stability", "Character: Tuning Stability", "TUNING STABILITY|Tuning Stability|string stretch|"
+          "nut binding|tuner slip|floating bridge detune",
+          "Guitars go out of tune for reasons: new strings stretch flat, a hard bend sticks in the nut and "
+          "comes back sharp, a loose tuner lets go, a floating bridge detunes the other strings when one is "
+          "bent, a capo pulls everything sharp. The tuning-stability controls in the CHARACTER tab set how "
+          "much of each your guitar does." },
+        // ==== END TUNE-HELP-ONBOARDING topics for other workstreams ====
+
         { "about", "About and Licence", "about|licence|license|version|links|support|homepage|github|source",
           "Luthier - a physically-modelled guitar. No samples.\n\n"
           "(c) Luthier Audio. All rights reserved.\n\n"
