@@ -867,9 +867,14 @@ bool NotationExporter::writeMidi (const PerformanceScore& score, const juce::Fil
                 const bool legato = note->hasTechnique (ScoreTechnique::Type::hammerOn)
                                       || note->hasTechnique (ScoreTechnique::Type::pullOff);
 
+                // At the note-on's own tick, as MidiPerformance does: a tick
+                // earlier put it before the previous legato note's CC 68 off
+                // (at that note's end, which is this start), so in 5h7p5 the
+                // third note's legato was switched off before it and re-plucked.
+                // Added later, it lands after that off at the same tick.
                 if (legato)
                     sequence.addEvent (juce::MidiMessage::controllerEvent (channel, 68, 127),
-                                       startTicks - 1.0);
+                                       startTicks);
 
                 sequence.addEvent (juce::MidiMessage::noteOn (
                     channel, note->midiNote,

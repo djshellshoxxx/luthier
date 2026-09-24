@@ -823,3 +823,64 @@ LUTHIER_TEST (ReviewRegression, asciiTabRoundTripKeepsBeats)
 
     CHECK_MSG (got == want, "wrote " + want + "\nread back " + got);
 }
+
+/*  R-040: in the notation MIDI export a legato note's CC 68 on sat one tick
+    before its note-on, i.e. before the previous legato note's CC 68 off at the
+    same boundary: in 5h7p5 the third note was re-plucked. At every note-on of
+    a legato note, legato must be on. */
+LUTHIER_TEST (ReviewRegression, chainedLegatoStaysLegatoInTheMidiExport)
+{
+    PerformanceScore score;
+    score.beginCapture (120.0, 4, 4);
+
+    const int frets[] = { 5, 7, 5 };
+
+    for (int i = 0; i < 3; ++i)
+    {
+        score.noteStarted (0, frets[i], 64 + frets[i], 440.0, 0.8, (double) i);
+
+        if (i == 1) score.addTechnique (0, { ScoreTechnique::Type::hammerOn });
+        if (i == 2) score.addTechnique (0, { ScoreTechnique::Type::pullOff });
+
+        score.noteEnded (0, (double) i + 1.0);
+    }
+
+    score.endCapture (4.0);
+
+    auto file = juce::File::createTempFile (".mid");
+    NotationExporter exporter;
+    CHECK (exporter.writeMidi (score, file));
+
+    juce::MidiFile midi;
+    juce::FileInputStream in (file);
+    CHECK (midi.readFrom (in));
+
+    int legatoNotesOnWithLegatoOff = 0, notesOn = 0;
+
+    for (int t = 0; t < midi.getNumTracks(); ++t)
+    {
+        bool legato = false;
+        const auto* track = midi.getTrack (t);
+
+        for (int e = 0; e < track->getNumEvents(); ++e)
+        {
+            const auto& m = track->getEventPointer (e)->message;
+
+            if (m.isController() && m.getControllerNumber() == 68)
+                legato = m.getControllerValue() >= 64;
+
+            if (m.isNoteOn())
+            {
+                ++notesOn;
+
+                if (notesOn > 1 && ! legato)
+                    ++legatoNotesOnWithLegatoOff;
+            }
+        }
+    }
+
+    file.deleteFile();
+    CHECK (notesOn == 3);
+    CHECK_MSG (legatoNotesOnWithLegatoOff == 0,
+               juce::String (legatoNotesOnWithLegatoOff) + " legato note(s) started with CC 68 off");
+}
