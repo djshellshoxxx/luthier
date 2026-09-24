@@ -83,6 +83,10 @@ double modSyncDivisionBeats (ModSyncDivision d) noexcept;
 class ModLfo
 {
 public:
+    /** Sets the default custom shape. Not in prepare(): that runs on every
+        prepareToPlay, after the host has restored a session's shape. */
+    ModLfo() noexcept;
+
     enum class Shape
     {
         sine = 0, triangle, rampUp, rampDown, square,
@@ -275,6 +279,9 @@ class ModStepSequencer
 {
 public:
     static constexpr int kMaxSteps = 64;
+
+    /** Sets the default steps; see ModLfo(). */
+    ModStepSequencer() noexcept;
 
     enum class Direction { forward = 0, reverse, pingPong, random, brownian };
 

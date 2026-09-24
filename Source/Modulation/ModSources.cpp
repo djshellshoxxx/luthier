@@ -85,6 +85,14 @@ const char* ModLfo::getShapeName (Shape s) noexcept
     }
 }
 
+ModLfo::ModLfo() noexcept
+{
+    // A flat custom shape is a ramp, which is the least surprising thing for a
+    // breakpoint editor to start life as.
+    for (int i = 0; i < kNumBreakpoints; ++i)
+        breakpoints[(size_t) i] = -1.0 + 2.0 * (double) i / (double) (kNumBreakpoints - 1);
+}
+
 void ModLfo::prepare (double controlRateHz, uint64_t seed) noexcept
 {
     controlRate = juce::jmax (1.0, controlRateHz);
@@ -92,11 +100,8 @@ void ModLfo::prepare (double controlRateHz, uint64_t seed) noexcept
 
     smoother.prepare (controlRate, smoothingMs * 0.001);
 
-    // A flat custom shape is a ramp, which is the least surprising thing for a
-    // breakpoint editor to start life as.
-    for (int i = 0; i < kNumBreakpoints; ++i)
-        breakpoints[(size_t) i] = -1.0 + 2.0 * (double) i / (double) (kNumBreakpoints - 1);
-
+    // The shape is left alone: this runs on every prepareToPlay, and a host
+    // restores the session before it (setting the default here wiped it).
     reset();
 }
 
@@ -478,11 +483,8 @@ double ModEnvelope::tick() noexcept
 }
 
 //==============================================================================
-void ModStepSequencer::prepare (double controlRateHz, uint64_t seed) noexcept
+ModStepSequencer::ModStepSequencer() noexcept
 {
-    controlRate = juce::jmax (1.0, controlRateHz);
-    rngSeed = seed;
-
     // A gentle default ramp, so a newly added sequencer does something audible
     // rather than nothing at all.
     for (int i = 0; i < kMaxSteps; ++i)
@@ -492,7 +494,14 @@ void ModStepSequencer::prepare (double controlRateHz, uint64_t seed) noexcept
         steps[(size_t) i].slide = false;
         steps[(size_t) i].probability = 1.0;
     }
+}
 
+void ModStepSequencer::prepare (double controlRateHz, uint64_t seed) noexcept
+{
+    controlRate = juce::jmax (1.0, controlRateHz);
+    rngSeed = seed;
+
+    // The steps are left alone: see ModLfo::prepare.
     reset();
 }
 

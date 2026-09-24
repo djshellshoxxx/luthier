@@ -485,3 +485,23 @@ LUTHIER_TEST (ReviewRegression, aPresetWithoutAStringsBlockClearsThePreviousDetu
 
     CHECK_NEAR (processor.getEngine().getTuningEngine().getStringTuning (0).detuneCents, 0.0, 1.0e-9);
 }
+
+//==============================================================================
+/*  R-205: ModMatrix::prepare reset every step sequencer's steps and every LFO's
+    custom shape to the defaults. Hosts restore state before prepareToPlay, and
+    prepare again on a rate change or an offline bounce, so a programmed
+    sequence came back as the default ramp. */
+LUTHIER_TEST (ReviewRegression, prepareKeepsTheSequencerSteps)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 256);
+
+    auto& sequencer = processor.getModMatrix().getSequencer (0);
+    auto step = sequencer.getStep (3);
+    step.value = 0.123;
+    sequencer.setStep (3, step);
+
+    processor.prepareToPlay (96000.0, 512);
+
+    CHECK_NEAR (processor.getModMatrix().getSequencer (0).getStep (3).value, 0.123, 1.0e-9);
+}
