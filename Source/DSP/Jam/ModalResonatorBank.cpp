@@ -96,6 +96,88 @@ void ModalResonatorBank::updateCoefficients (int m) noexcept
     b[(size_t) m] = std::sin (w) * gain[(size_t) m];
 }
 
+namespace
+{
+    /** One group of modes over a block. `N` independent recursions run
+        interleaved so the multiply latency of each is hidden behind the
+        others (the loop is latency-bound with fewer), and the compiler packs
+        them into SIMD lanes. */
+    template <int N, bool HasInput>
+    inline void runGroup (const double* c1, const double* c2, const double* g, double* y1, double* y2,
+                          const double* in, double* out, int n) noexcept
+    {
+        double p[N], q[N], a[N], b[N], k[N];
+
+        for (int j = 0; j < N; ++j)
+        {
+            p[j] = y1[j]; q[j] = y2[j];
+            a[j] = c1[j]; b[j] = c2[j]; k[j] = g[j];
+        }
+
+        for (int i = 0; i < n; ++i)
+        {
+            double v[N];
+            const double x = HasInput ? in[i] : 0.0;
+
+            for (int j = 0; j < N; ++j)
+                v[j] = a[j] * p[j] - b[j] * q[j] + (HasInput ? k[j] * x : 0.0);
+
+            double sum = 0.0;
+
+            for (int j = 0; j < N; ++j)
+            {
+                q[j] = p[j];
+                p[j] = v[j];
+                sum += v[j];
+            }
+
+            out[i] += sum;
+        }
+
+        for (int j = 0; j < N; ++j)
+        {
+            y1[j] = p[j];
+            y2[j] = q[j];
+        }
+    }
+}
+
+void ModalResonatorBank::processBlock (const double* in, double* out, int n) noexcept
+{
+    if (! running)
+    {
+        bool any = false;
+
+        if (in != nullptr)
+            for (int i = 0; i < n && ! any; ++i)
+                any = in[i] != 0.0;
+
+        if (! any)
+            return;
+
+        running = true;
+    }
+
+    int m = 0;
+
+    // Eight at a time, then the last four.
+    for (; m + 8 <= paddedModes; m += 8)
+    {
+        if (in != nullptr)
+            runGroup<8, true>  (&a1[(size_t) m], &a2[(size_t) m], &b[(size_t) m], &y1[(size_t) m], &y2[(size_t) m], in, out, n);
+        else
+            runGroup<8, false> (&a1[(size_t) m], &a2[(size_t) m], &b[(size_t) m], &y1[(size_t) m], &y2[(size_t) m], in, out, n);
+    }
+
+    for (; m < paddedModes; m += 4)
+    {
+        if (in != nullptr)
+            runGroup<4, true>  (&a1[(size_t) m], &a2[(size_t) m], &b[(size_t) m], &y1[(size_t) m], &y2[(size_t) m], in, out, n);
+        else
+            runGroup<4, false> (&a1[(size_t) m], &a2[(size_t) m], &b[(size_t) m], &y1[(size_t) m], &y2[(size_t) m], in, out, n);
+    }
+}
+
 bool ModalResonatorBank::housekeep() noexcept
 {
     if (! running)

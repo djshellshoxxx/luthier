@@ -89,6 +89,11 @@ public:
         return (s0 + s1) + (s2 + s3);
     }
 
+    /** Runs `n` samples: `in` is the excitation (nullptr for none) and the
+        summed output is added to `out`. Four modes at a time in lock-step,
+        the shape the compiler vectorises. Real-time safe. */
+    void processBlock (const double* in, double* out, int n) noexcept;
+
     /** Call once per block (or per few hundred samples): flushes denormals,
         guards against NaN / Inf and stops a silent bank. Returns false if the
         state had to be reset because it was not finite. */

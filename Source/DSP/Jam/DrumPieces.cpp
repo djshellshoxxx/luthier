@@ -35,7 +35,6 @@ void MembranePiece::reset() noexcept
     output.reset();
     active = false;
     choking = false;
-    lastBatter = 0.0;
     envelope = 0.0;
 }
 
@@ -68,7 +67,7 @@ void MembranePiece::applyModes() noexcept
 
     if (design.resonantHead)
         for (int m = 0; m < 2; ++m)
-            head.setMode (m, hitF0 * design.headRatios[(size_t) m], design.t60 * 1.2 * t60Scale, 0.8);
+            head.setMode (m, hitF0 * design.headRatios[(size_t) m], design.t60 * 1.2 * t60Scale, design.headGain);
 }
 
 void MembranePiece::strike (double velocity) noexcept
@@ -96,7 +95,6 @@ void MembranePiece::choke (double t60, double seconds) noexcept
     // A damping ramp: the extra loss per sample grows from nothing to a
     // `t60` decay over `seconds`, applied to the ringing state itself.
     chokeTo = std::pow (10.0, -3.0 / (juce::jmax (1.0e-4, t60) * sr));
-    chokeFrom = 1.0;
     chokePosition = 0.0;
     chokeStep = 1.0 / juce::jmax (1.0, seconds * sr);
     choking = true;
@@ -123,10 +121,67 @@ void MembranePiece::updateControl() noexcept
     if (choking)
     {
         chokePosition = juce::jmin (1.0, chokePosition + chokeStep * (double) kControlInterval);
-        const double perSample = chokeFrom + (chokeTo - chokeFrom) * chokePosition;
+        const double perSample = 1.0 + (chokeTo - 1.0) * chokePosition;
         const double g = std::pow (perSample, (double) kControlInterval);
         bank.scaleState (g);
         head.scaleState (g);
+    }
+}
+
+void MembranePiece::render (double* out, int n, double* batterOut) noexcept
+{
+    if (! active)
+    {
+        std::fill (out, out + n, 0.0);
+
+        if (batterOut != nullptr)
+            std::fill (batterOut, batterOut + n, 0.0);
+
+        return;
+    }
+
+    std::array<double, kPieceChunk> excitation {}, membrane {}, front {};
+
+    for (int i = 0; i < n;)
+    {
+        if (controlCountdown <= 0)
+            updateControl();
+
+        const int len = juce::jmin (n - i, controlCountdown, kPieceChunk);
+        const double* in = nullptr;
+
+        if (pulse.isActive())
+        {
+            for (int j = 0; j < len; ++j)
+                excitation[(size_t) j] = pulse.next();
+
+            in = excitation.data();
+        }
+
+        std::fill (membrane.begin(), membrane.begin() + len, 0.0);
+        bank.processBlock (in, membrane.data(), len);
+
+        if (design.resonantHead)
+        {
+            // The front head, driven by the batter through the air between them.
+            for (int j = 0; j < len; ++j)
+                excitation[(size_t) j] = membrane[(size_t) j] * 0.3;
+
+            std::fill (front.begin(), front.begin() + len, 0.0);
+            head.processBlock (excitation.data(), front.data(), len);
+        }
+
+        for (int j = 0; j < len; ++j)
+        {
+            if (batterOut != nullptr)
+                batterOut[i + j] = membrane[(size_t) j];
+
+            const double sum = design.resonantHead ? membrane[(size_t) j] + front[(size_t) j] : membrane[(size_t) j];
+            out[i + j] = output.process (sum * design.level);
+        }
+
+        controlCountdown -= len;
+        i += len;
     }
 }
 
@@ -182,9 +237,6 @@ void SnarePiece::strike (double velocity, Stroke stroke) noexcept
 {
     velocity = juce::jlimit (0.0, 1.0, velocity);
 
-    // The wires' gate reads the head relative to a full-velocity hit.
-    headNorm = 0.8;
-
     if (stroke == Stroke::brush)
     {
         // jam-mode 5: a 120-400 ms filtered-noise sweep, the head barely moved.
@@ -208,6 +260,69 @@ void SnarePiece::strike (double velocity, Stroke stroke) noexcept
     }
 
     active = true;
+}
+
+void SnarePiece::render (double* out, int n) noexcept
+{
+    if (! active)
+    {
+        std::fill (out, out + n, 0.0);
+        return;
+    }
+
+    std::array<double, kPieceChunk> head {}, batterMotion {}, rim {}, rimIn {};
+
+    for (int i = 0; i < n;)
+    {
+        const int len = juce::jmin (n - i, kPieceChunk);
+        batter.render (head.data(), len, batterMotion.data());
+
+        if (rimActive)
+        {
+            const double* in = nullptr;
+
+            if (rimPulse.isActive())
+            {
+                for (int j = 0; j < len; ++j)
+                    rimIn[(size_t) j] = rimPulse.next();
+
+                in = rimIn.data();
+            }
+
+            std::fill (rim.begin(), rim.begin() + len, 0.0);
+            rimBank.processBlock (in, rim.data(), len);
+        }
+
+        for (int j = 0; j < len; ++j)
+        {
+            // The wires: they only touch the head when it moves past them.
+            const double gate = juce::jmax (0.0, std::abs (batterMotion[(size_t) j]) * headNorm - wireThreshold);
+            const double noise = rng.nextBipolar();
+            const double wires = wireBand.process (noise * gate) * wireLevel;
+
+            double brush = 0.0;
+
+            if (brushRemaining > 0)
+            {
+                const double t = 1.0 - (double) brushRemaining / (double) brushLength;
+                const double env = std::sin (constants::kPi * juce::jmin (1.0, t * 1.4)) * brushAmp;
+
+                if (--sweepCountdown <= 0)
+                {
+                    sweepCountdown = 32;
+                    brushBand.setBandpass (sr, 1800.0 + 3200.0 * t, 0.9);
+                }
+
+                brush = brushBand.process (rng.nextBipolar()) * env;
+                --brushRemaining;
+            }
+
+            const double r = rimActive ? rim[(size_t) j] * 0.4 : 0.0;
+            out[i + j] = output.process (head[(size_t) j] + wires + brush + r);
+        }
+
+        i += len;
+    }
 }
 
 void SnarePiece::choke (double t60, double seconds) noexcept
@@ -317,6 +432,10 @@ void CymbalPiece::layoutModes() noexcept
 
         hz *= 1.0 + 0.03 * jitter.nextBipolar();
 
+        // A mode past 0.45 fs is left out of the banks entirely: it would
+        // alias, and running it silent still costs.
+        const bool audible = hz < sr * 0.45;
+
         const double frac = count > 1 ? (double) i / (double) (count - 1) : 0.0;
         const double tilt = std::pow (juce::jmax (1.0, hz / design.baseHz), -0.3);
         double g = tilt * (1.0 + (design.brightness - 1.0) * frac);
@@ -328,7 +447,7 @@ void CymbalPiece::layoutModes() noexcept
         modeHz[(size_t) i] = hz;
         modeGain[(size_t) i] = g;
         modeIsHigh[(size_t) i] = hz >= 4000.0;
-        modeSlot[(size_t) i] = modeIsHigh[(size_t) i] ? numHigh++ : numLow++;
+        modeSlot[(size_t) i] = ! audible ? -1 : modeIsHigh[(size_t) i] ? numHigh++ : numLow++;
     }
 
     low.setNumModes (numLow);
@@ -336,6 +455,9 @@ void CymbalPiece::layoutModes() noexcept
 
     for (int i = 0; i < count; ++i)
     {
+        if (modeSlot[(size_t) i] < 0)
+            continue;
+
         auto& bank = modeIsHigh[(size_t) i] ? high : low;
         bank.setMode (modeSlot[(size_t) i], modeHz[(size_t) i], modeT60 (i, count) * currentScale, modeGain[(size_t) i]);
     }
@@ -350,6 +472,9 @@ void CymbalPiece::setDecays (double scale) noexcept
 
     for (int i = 0; i < count; ++i)
     {
+        if (modeSlot[(size_t) i] < 0)
+            continue;
+
         auto& bank = modeIsHigh[(size_t) i] ? high : low;
         bank.setModeDecay (modeSlot[(size_t) i], modeT60 (i, count) * scale);
     }
@@ -358,7 +483,7 @@ void CymbalPiece::setDecays (double scale) noexcept
 void CymbalPiece::updateRamp() noexcept
 {
     controlCountdown = 16;
-    rampRemaining = juce::jmax (0, rampRemaining - 16);
+    rampRemaining = juce::jmax (0, rampRemaining - 16);   // the ramp moves in 16-sample steps
 
     const double frac = 1.0 - (double) rampRemaining / (double) rampTotal;
     setDecays (rampFrom * std::pow (rampTo / rampFrom, frac));
@@ -424,7 +549,9 @@ void CymbalPiece::strike (double velocity, Hit hit) noexcept
         }
 
         case Hit::close:
-            choke (0.010, 0.05 * kClosedScale * 20.0);
+            // The pedal closing on a ringing hat: 10 ms of rising damping, to a
+            // closed hat's ~8 ms ring.
+            choke (0.010, 0.008);
             return;
 
         case Hit::open:
@@ -449,6 +576,9 @@ void CymbalPiece::strike (double velocity, Hit hit) noexcept
 
                 if (hit == Hit::bell)
                     g *= (i < 8) ? 3.0 : 0.3;
+
+                if (modeSlot[(size_t) i] < 0)
+                    continue;
 
                 auto& bank = modeIsHigh[(size_t) i] ? high : low;
                 bank.setModeGain (modeSlot[(size_t) i], g);
@@ -476,8 +606,68 @@ void CymbalPiece::strike (double velocity, Hit hit) noexcept
         }
     }
 
-    lastHit = hit;
     active = true;
+}
+
+void CymbalPiece::render (double* out, int n) noexcept
+{
+    if (! active)
+    {
+        std::fill (out, out + n, 0.0);
+        return;
+    }
+
+    std::array<double, kPieceChunk> lowIn {}, highIn {}, sum {};
+
+    for (int i = 0; i < n;)
+    {
+        if (rampRemaining > 0 && controlCountdown <= 0)
+            updateRamp();
+
+        int len = juce::jmin (n - i, kPieceChunk);
+
+        if (rampRemaining > 0)
+            len = juce::jmin (len, controlCountdown);
+
+        const bool excited = pulse.isActive() || bloomRemaining > 0 || chickRemaining > 0;
+
+        if (excited)
+        {
+            for (int j = 0; j < len; ++j)
+            {
+                const double x = pulse.next();
+                double bloom = 0.0, chick = 0.0;
+
+                if (bloomRemaining > 0)
+                {
+                    const double t = 1.0 - (double) bloomRemaining / (double) bloomLength;
+                    bloom = rng.nextBipolar() * bloomAmp * std::sin (constants::kPi * 0.5 * juce::jmin (1.0, t * 2.0)) * (1.0 - t);
+                    --bloomRemaining;
+                }
+
+                if (chickRemaining > 0)
+                {
+                    chick = rng.nextBipolar() * chickAmp * (double) chickRemaining / (double) chickLength;
+                    --chickRemaining;
+                }
+
+                lowIn[(size_t) j] = x + chick;
+                highIn[(size_t) j] = x * highDirect + bloom + chick;
+            }
+        }
+
+        std::fill (sum.begin(), sum.begin() + len, 0.0);
+        low.processBlock (excited ? lowIn.data() : nullptr, sum.data(), len);
+        high.processBlock (excited ? highIn.data() : nullptr, sum.data(), len);
+
+        for (int j = 0; j < len; ++j)
+            out[i + j] = output.process (sum[(size_t) j] * design.level);
+
+        if (rampRemaining > 0)
+            controlCountdown -= len;
+
+        i += len;
+    }
 }
 
 void CymbalPiece::housekeep() noexcept
@@ -553,9 +743,32 @@ void RimPiece::strike (double velocity, Hit hit) noexcept
     active = true;
 }
 
-void RimPiece::choke (double) noexcept
+void RimPiece::render (double* out, int n) noexcept
 {
-    reset();
+    std::fill (out, out + n, 0.0);
+
+    if (! active)
+        return;
+
+    std::array<double, kPieceChunk> in {}, y {};
+
+    for (int i = 0; i < n;)
+    {
+        const int len = juce::jmin (n - i, kPieceChunk);
+        const bool excited = pulse.isActive();
+
+        if (excited)
+            for (int j = 0; j < len; ++j)
+                in[(size_t) j] = pulse.next();
+
+        std::fill (y.begin(), y.begin() + len, 0.0);
+        bank.processBlock (excited ? in.data() : nullptr, y.data(), len);
+
+        for (int j = 0; j < len; ++j)
+            out[i + j] = output.process (y[(size_t) j]);
+
+        i += len;
+    }
 }
 
 void RimPiece::housekeep() noexcept
@@ -605,9 +818,28 @@ void ShakerPiece::strike (double velocity) noexcept
     active = true;
 }
 
-void ShakerPiece::choke (double) noexcept
+void ShakerPiece::render (double* out, int n) noexcept
 {
-    shakeEnergy = 0.0;
+    if (! active)
+    {
+        std::fill (out, out + n, 0.0);
+        return;
+    }
+
+    for (int i = 0; i < n; ++i)
+    {
+        // PhISEM (Cook): the shake's energy decays; each bead collides with a
+        // probability set by the bead count; each collision adds to a
+        // decaying sound level that scales the noise.
+        shakeEnergy *= energyDecay;
+
+        if (rng.nextDouble() < collisionProbability * (double) kBeads)
+            soundLevel += shakeEnergy * 0.08;
+
+        soundLevel *= soundDecay;
+        const double noise = rng.nextBipolar() * soundLevel;
+        out[i] = output.process (resonanceA.process (noise) + 0.7 * resonanceB.process (noise));
+    }
 }
 
 void ShakerPiece::housekeep() noexcept

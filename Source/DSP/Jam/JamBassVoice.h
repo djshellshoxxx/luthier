@@ -100,6 +100,9 @@ public:
         previous fret. Public for the tests. */
     static void chooseString (int note, int previousFret, int& string, int& fret) noexcept;
 
+    /** The fundamental partial's frequency near `hz` (tests). */
+    static double measureFundamental (const double* x, int length, double sampleRate, double hz) noexcept;
+
     const StringEngine& getString (int i) const noexcept { return strings[(size_t) juce::jlimit (0, 1, i)]; }
 
 private:
@@ -110,6 +113,8 @@ private:
     JamBassTone tone;
 
     int active = 0;
+    std::array<bool, 2> live { { false, false } };
+    int liveCountdown = 0;   ///< a fixed 64-sample clock, whatever the blocks
     int currentNote = -1, lastString = 1, lastFret = 0;
     bool sounding = false;
 

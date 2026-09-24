@@ -396,6 +396,8 @@ private:
     juce::AudioBuffer<float> drumsOut, bassOut;
     juce::MidiBuffer midiOut;
     LinSmoother drumsGainL, drumsGainR, bassGainL, bassGainR;
+    std::array<DCBlocker, 3> stemDc;
+    double appliedTuning = -1.0e9, appliedDamping = -1.0e9, appliedTone = -1.0e9;
     std::atomic<bool> drumsAudible { false }, tuneBassPlaying { false };
     bool renderedSomething = false;
 

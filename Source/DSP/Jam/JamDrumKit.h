@@ -16,6 +16,7 @@
 
 #include "DrumPieces.h"
 #include "KitRoom.h"
+#include <vector>
 
 namespace luthier
 {
@@ -133,7 +134,9 @@ private:
     std::array<Pan, (size_t) DrumSound::numSounds> pans {};
 
     double fadeGain = 1.0, fadeStep = 0.0;
-    bool fading = false;
+    bool fading = false, fadeHold = false;
+    int roomRinging = 0;
+    std::vector<double> scratch;
     int housekeepCountdown = 0;
     double lastPeak = 0.0;
 };

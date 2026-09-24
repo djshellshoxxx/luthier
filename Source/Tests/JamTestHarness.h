@@ -42,6 +42,10 @@ struct JamBench
 
     std::function<void (JamBench&)> beforeBlock;
 
+    /** Called with true just before engine.process and false just after, so a
+        test can measure the engine alone (JM-33). */
+    std::function<void (bool)> aroundProcess;
+
     explicit JamBench (double sampleRate = 48000.0, int blockSize = 128, int preparedBlock = -1)
         : sr (sampleRate), block (blockSize), prepareBlock (preparedBlock > 0 ? preparedBlock : blockSize)
     {
@@ -124,7 +128,10 @@ private:
                 midi.addEvent (note.message, (int) (note.sample - position));
 
         engine.setSettings (settings);
+
+        if (aroundProcess) aroundProcess (true);
         engine.process (context, midi, nullptr, n);
+        if (aroundProcess) aroundProcess (false);
 
         if (keepAudio)
             for (int i = 0; i < n; ++i)

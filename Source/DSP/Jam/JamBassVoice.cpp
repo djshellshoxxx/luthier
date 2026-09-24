@@ -81,22 +81,30 @@ double JamBassTone::process (double x) noexcept
         const double wrapped = read < 0.0 ? read + (double) size : read;
         const int i0 = (int) wrapped;
         const double frac = wrapped - (double) i0;
-        const double delayed = combLine[(size_t) i0] * (1.0 - frac) + combLine[(size_t) ((i0 + 1) % size)] * frac;
+        const int i1 = i0 + 1 < size ? i0 + 1 : 0;
+        const double delayed = combLine[(size_t) i0] * (1.0 - frac) + combLine[(size_t) i1] * frac;
 
-        combWrite = (combWrite + 1) % size;
+        if (++combWrite >= size)
+            combWrite = 0;
         y = pickupResonance.process (y - 0.85 * delayed);
     }
 
     y = highBand.process (midBand.process (lowBand.process (y)));
 
     // Tube saturation at 2x (engine.md 0.10): up, shape, down.
-    // The curve's bias gives it an offset at rest; taking it out keeps
-    // silence silent (and the DC blocker from ringing after a reset).
-    const double rest = tubeShape (0.0, 0.2);
+    // A tube-like curve: engine.md 11.2's 1.5 tanh(x) - 0.5 tanh(x - bias)
+    // to third order (the even term is the bias's asymmetry), clamped where
+    // the polynomial would turn back. Zero at rest, so silence stays silent.
+    auto tube = [] (double v)
+    {
+        v = juce::jlimit (-1.4, 1.4, v);
+        return v + 0.1 * v * v - 0.17 * v * v * v;
+    };
+
     double u0 = 0.0, u1 = 0.0;
     upStage.up (y, u0, u1);
-    u0 = (tubeShape (u0 * 1.2, 0.2) - rest) / 1.2;
-    u1 = (tubeShape (u1 * 1.2, 0.2) - rest) / 1.2;
+    u0 = tube (u0);
+    u1 = tube (u1);
     y = downStage.down (u0, u1);
 
     return juce::jlimit (-4.0, 4.0, sanitise (dc.process (y)));
@@ -131,11 +139,49 @@ void JamBassVoice::prepare (double sampleRate, int maxBlockSize)
     reset();
 }
 
+double JamBassVoice::measureFundamental (const double* x, int length, double sr, double hz) noexcept
+{
+    // The fundamental partial on its own: a 4-pole lowpass at 1.3 x, then
+    // the mean period between upward zero crossings (interpolated). The
+    // filters' delay is the same at every crossing, so it cancels.
+    Biquad a, b;
+    a.setLowpass (sr, hz * 1.3, 0.707);
+    b.setLowpass (sr, hz * 1.3, 0.707);
+
+    const int settle = (int) (3.0 * sr / hz);
+    double previous = 0.0, first = -1.0, last = -1.0;
+    int crossings = 0;
+
+    for (int i = 0; i < length; ++i)
+    {
+        const double y = b.process (a.process (x[i]));
+
+        if (i > settle && previous < 0.0 && y >= 0.0)
+        {
+            const double t = (double) (i - 1) + previous / (previous - y);
+
+            if (first < 0.0)
+                first = t;
+
+            last = t;
+            ++crossings;
+        }
+
+        previous = y;
+    }
+
+    if (crossings < 3)
+        return hz;
+
+    return sr * (double) (crossings - 1) / (last - first);
+}
+
 void JamBassVoice::reset() noexcept
 {
     for (auto& s : strings)
         s.reset();
 
+    live = { { false, false } };
     tone.reset();
     active = 0;
     currentNote = -1;
@@ -215,10 +261,11 @@ void JamBassVoice::noteOn (int midiNote, double velocity, bool ghost) noexcept
 
     const double hz = midiToHz ((double) midiNote);
 
+    const bool muted = ghost || voice == JamBassVoiceKind::mutedPick;
+
     next.setPhysical (physics[(size_t) s]);
     next.snapToFrequency (hz);
 
-    const bool muted = ghost || voice == JamBassVoiceKind::mutedPick;
     next.setDamping (muted ? StringEngine::Damping::PalmMuteBass : StringEngine::Damping::Open,
                      ghost ? 1.0 : 0.8);
 
@@ -237,6 +284,7 @@ void JamBassVoice::noteOn (int midiNote, double velocity, bool ghost) noexcept
     }
 
     next.excite (p);
+    live[(size_t) idle] = true;
     tone.setNote (hz, f);
 
     active = idle;
@@ -275,8 +323,18 @@ void JamBassVoice::render (double* out, int n) noexcept
 
     for (int i = 0; i < n; ++i)
     {
-        const double s = strings[0].processSample (0.0) + strings[1].processSample (0.0);
-        double y = tone.process (s * 0.6);
+        // A waveguide that has rung out is not run (it is silent until plucked).
+        double s = 0.0;
+
+        for (int k = 0; k < 2; ++k)
+            if (live[(size_t) k])
+                s += strings[(size_t) k].processSample (0.0);
+
+        if (--liveCountdown <= 0 && (liveCountdown = 64) > 0)
+            for (int k = 0; k < 2; ++k)
+                live[(size_t) k] = strings[(size_t) k].isRinging() || (sounding && k == active);
+
+        double y = tone.process (s * 0.22);
 
         if (fading)
         {

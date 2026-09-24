@@ -76,7 +76,7 @@ namespace
 }
 
 //==============================================================================
-void JamDrumKit::prepare (double sampleRate, int)
+void JamDrumKit::prepare (double sampleRate, int maxBlockSize)
 {
     sr = sampleRate;
 
@@ -101,6 +101,7 @@ void JamDrumKit::prepare (double sampleRate, int)
     room.prepare (sr);
 
     tailStep = 1.0 / juce::jmax (1.0, 0.002 * sr);   // 2 ms steal fade
+    scratch.assign ((size_t) juce::jmax (64, maxBlockSize), 0.0);
 
     applyKit();
     reset();
@@ -132,6 +133,7 @@ void JamDrumKit::reset() noexcept
 
     fadeGain = 1.0;
     fading = false;
+    roomRinging = 0;
     lastPeak = 0.0;
 }
 
@@ -202,7 +204,7 @@ void JamDrumKit::applyKit() noexcept
     kickDesign.pitchDropK = k.kickDrop;
     kickDesign.sweepSeconds = k.kickSweep;
     kickDesign.pulseSeconds = k.kickPulse;
-    kickDesign.decays = { { 1.0, 0.55, 0.45, 0.40, 0.34, 0.30, 0.28, 0.26 } };
+    kickDesign.decays = { { 1.0, 0.75, 0.62, 0.45, 0.38, 0.32, 0.28, 0.26 } };
     kickDesign.gains  = { { 1.0, 0.45, 0.32, 0.22, 0.16, 0.12, 0.1, 0.1 } };
     kickDesign.resonantHead = true;
     kickDesign.level = 1.4;
@@ -241,7 +243,7 @@ void JamDrumKit::applyKit() noexcept
     hatDesign.baseHz = k.hatHz;
     hatDesign.brightness = k.cymbalBrightness;
     hatDesign.decayScale = k.cymbalDecay;
-    hatDesign.level = 0.5;
+    hatDesign.level = 0.3;
     hat.setDesign (hatDesign, seed + 11);
 
     CymbalPiece::Design rideDesign;
@@ -249,7 +251,7 @@ void JamDrumKit::applyKit() noexcept
     rideDesign.topHz = 14000.0;
     rideDesign.brightness = k.cymbalBrightness;
     rideDesign.decayScale = k.cymbalDecay;
-    rideDesign.level = 0.45;
+    rideDesign.level = 0.35;
     ride.setDesign (rideDesign, seed + 12);
 
     CymbalPiece::Design crashDesign;
@@ -257,7 +259,7 @@ void JamDrumKit::applyKit() noexcept
     crashDesign.topHz = 15000.0;
     crashDesign.brightness = k.cymbalBrightness;
     crashDesign.decayScale = k.cymbalDecay;
-    crashDesign.level = 0.5;
+    crashDesign.level = 0.4;
     crash.setDesign (crashDesign, seed + 13);
 
     room.setDecay (k.roomRt);
@@ -399,20 +401,35 @@ bool JamDrumKit::isSilent() const noexcept
 
 void JamDrumKit::render (double* left, double* right, int n) noexcept
 {
-    const auto pKick  = panFor (DrumSound::kick);
-    const auto pSnare = panFor (DrumSound::snare);
-    const auto pHat   = panFor (DrumSound::hatClosed);
-    const auto pRide  = panFor (DrumSound::ride);
-    const auto pCrash = panFor (DrumSound::crash);
-    const auto pRim   = panFor (DrumSound::rim);
-    const auto pShake = panFor (DrumSound::shaker);
+    const Pan pKick  = panFor (DrumSound::kick);
+    const Pan pSnare = panFor (DrumSound::snare);
+    const Pan pHat   = panFor (DrumSound::hatClosed);
+    const Pan pRide  = panFor (DrumSound::ride);
+    const Pan pCrash = panFor (DrumSound::crash);
+    const Pan pRim   = panFor (DrumSound::rim);
+    const Pan pShake = panFor (DrumSound::shaker);
     const Pan pTom[3] = { panFor (DrumSound::tomHigh), panFor (DrumSound::tomMid), panFor (DrumSound::tomFloor) };
 
+    std::fill (left, left + n, 0.0);
+    std::fill (right, right + n, 0.0);
+
+    double* piece = scratch.data();
     double peak = 0.0;
 
-    for (int i = 0; i < n; ++i)
+    auto add = [&] (double* l, double* r, int len, const Pan& pan, double gain = 1.0)
     {
-        if (--housekeepCountdown <= 0)
+        for (int j = 0; j < len; ++j)
+        {
+            l[j] += piece[j] * pan.left * gain;
+            r[j] += piece[j] * pan.right * gain;
+        }
+    };
+
+    for (int i = 0; i < n;)
+    {
+        // Housekeeping on a fixed 64-sample clock, so a bank stops on the same
+        // sample whatever the block sizes (jam-mode 0.5).
+        if (housekeepCountdown <= 0)
         {
             housekeepCountdown = 64;
 
@@ -436,55 +453,92 @@ void JamDrumKit::render (double* left, double* right, int n) noexcept
             shaker.housekeep();
         }
 
-        double l = 0.0, r = 0.0;
+        const int len = juce::jmin (n - i, housekeepCountdown, (int) scratch.size());
+        double* l = left + i;
+        double* r = right + i;
 
-        const double k = kick[0].process() + kick[1].process()
-                       + (kickTailGain > 0.0 ? kickTail.process() * kickTailGain : 0.0);
-        const double s = snare[0].process() + snare[1].process()
-                       + (snareTailGain > 0.0 ? snareTail.process() * snareTailGain : 0.0);
+        for (auto& v : kick)
+            if (v.isActive()) { v.render (piece, len); add (l, r, len, pKick); }
 
-        kickTailGain = juce::jmax (0.0, kickTailGain - tailStep);
-        snareTailGain = juce::jmax (0.0, snareTailGain - tailStep);
-
-        l += k * pKick.left + s * pSnare.left;
-        r += k * pKick.right + s * pSnare.right;
+        for (auto& v : snare)
+            if (v.isActive()) { v.render (piece, len); add (l, r, len, pSnare); }
 
         for (int t = 0; t < 3; ++t)
+            for (auto& v : toms[(size_t) t])
+                if (v.isActive()) { v.render (piece, len); add (l, r, len, pTom[t]); }
+
+        // Stolen voices fade out over 2 ms.
+        auto renderTail = [&] (auto& tail, double& gain, const Pan& pan)
         {
-            const double tom = toms[(size_t) t][0].process() + toms[(size_t) t][1].process()
-                             + (tomTailGain[(size_t) t] > 0.0 ? tomTail[(size_t) t].process() * tomTailGain[(size_t) t] : 0.0);
-            tomTailGain[(size_t) t] = juce::jmax (0.0, tomTailGain[(size_t) t] - tailStep);
-            l += tom * pTom[t].left;
-            r += tom * pTom[t].right;
-        }
+            if (gain <= 0.0)
+                return;
 
-        const double h = hat.process(), rd = ride.process(), c = crash.process();
-        const double rm = rim.process(), sh = shaker.process();
+            tail.render (piece, len);
 
-        l += h * pHat.left + rd * pRide.left + c * pCrash.left + rm * pRim.left + sh * pShake.left;
-        r += h * pHat.right + rd * pRide.right + c * pCrash.right + rm * pRim.right + sh * pShake.right;
-
-        if (roomSend > 0.0)
-            room.process ((l + r) * 0.5 * roomSend, l, r);
-
-        if (fading)
-        {
-            fadeGain -= fadeStep;
-
-            if (fadeGain <= 0.0)
+            for (int j = 0; j < len; ++j)
             {
-                // The hand is on every piece: everything stops here.
-                reset();
-                l = r = 0.0;
-                fadeGain = 1.0;
-                fading = false;
+                l[j] += piece[j] * pan.left * gain;
+                r[j] += piece[j] * pan.right * gain;
+                gain = juce::jmax (0.0, gain - tailStep);
             }
+
+            if (gain <= 0.0)
+                tail.reset();
+        };
+
+        renderTail (kickTail, kickTailGain, pKick);
+        renderTail (snareTail, snareTailGain, pSnare);
+
+        for (int t = 0; t < 3; ++t)
+            renderTail (tomTail[(size_t) t], tomTailGain[(size_t) t], pTom[t]);
+
+        if (hat.isActive())    { hat.render (piece, len);    add (l, r, len, pHat); }
+        if (ride.isActive())   { ride.render (piece, len);   add (l, r, len, pRide); }
+        if (crash.isActive())  { crash.render (piece, len);  add (l, r, len, pCrash); }
+        if (rim.isActive())    { rim.render (piece, len);    add (l, r, len, pRim); }
+        if (shaker.isActive()) { shaker.render (piece, len); add (l, r, len, pShake); }
+
+        for (int j = 0; j < len; ++j)
+        {
+            if (roomSend > 0.0 || roomRinging > 0)
+            {
+                room.process ((l[j] + r[j]) * 0.5 * roomSend, l[j], r[j]);
+                roomRinging = (l[j] != 0.0 || r[j] != 0.0) ? (int) (0.7 * sr) : juce::jmax (0, roomRinging - 1);
+            }
+
+            double g = 1.0;
+
+            if (fading)
+            {
+                fadeGain -= fadeStep;
+
+                if (fadeGain <= 0.0)
+                {
+                    // The hand is on every piece: everything stops here.
+                    reset();
+                    fadeGain = 0.0;
+                    fadeHold = true;
+                }
+
+                g = juce::jmax (0.0, fadeGain);
+            }
+
+            if (fadeHold)
+                g = 0.0;
+
+            l[j] = sanitise (l[j] * g);
+            r[j] = sanitise (r[j] * g);
+            peak = juce::jmax (peak, std::abs (l[j]), std::abs (r[j]));
         }
 
-        const double g = fading ? fadeGain : 1.0;
-        left[i] = sanitise (l * g);
-        right[i] = sanitise (r * g);
-        peak = juce::jmax (peak, std::abs (left[i]), std::abs (right[i]));
+        if (fadeHold)
+        {
+            fadeHold = false;
+            fadeGain = 1.0;
+        }
+
+        housekeepCountdown -= len;
+        i += len;
     }
 
     lastPeak = peak;

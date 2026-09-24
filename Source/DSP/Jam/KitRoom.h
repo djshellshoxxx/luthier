@@ -44,7 +44,8 @@ public:
         {
             const double fed = damp[(size_t) i].process (mixed[i] * gain[(size_t) i] + in * 0.5);
             lines[(size_t) i][(size_t) writePos[(size_t) i]] = sanitise (fed);
-            writePos[(size_t) i] = (writePos[(size_t) i] + 1) % lengths[(size_t) i];
+            if (++writePos[(size_t) i] >= lengths[(size_t) i])
+                writePos[(size_t) i] = 0;
         }
 
         left  += dcLeft.process (out[0] + out[2]) * 0.5;

@@ -19,8 +19,12 @@
       3.2 and 6.5 kHz.
 
     Every piece: double precision, a DC blocker and a NaN guard on its output
-    (engine.md 0.3), reset(), and no allocation after prepare. Randomness is
-    RtRandom, reseeded by the kit at each strike, so a render repeats exactly.
+    (engine.md 0.3), reset(), and no allocation after prepare. Pieces render
+    in blocks (render) with their control-rate work (tension modulation,
+    damping ramps) on a sample-accurate countdown, so the result is the same
+    whatever the block sizes. process() renders one sample, for the tests.
+    Randomness is RtRandom, advanced only while a piece sounds, so a render
+    repeats exactly.
 */
 
 #include "ModalResonatorBank.h"
@@ -84,6 +88,9 @@ private:
     DCBlocker dc;
 };
 
+/** The size of a piece's inner scratch chunk. */
+inline constexpr int kPieceChunk = 64;
+
 //==============================================================================
 class MembranePiece
 {
@@ -103,7 +110,8 @@ public:
         double pulseSeconds = 0.0015;  ///< felt 1.5 ms, plastic 0.6 ms
         double level = 1.0;
         bool resonantHead = false;     ///< the kick's front head
-        std::array<double, 2> headRatios { { 1.12, 1.78 } };
+        std::array<double, 2> headRatios { { 1.30, 1.87 } };   ///< between the batter's modes
+        double headGain = 0.15;
     };
 
     void prepare (double sampleRate) noexcept;
@@ -121,38 +129,20 @@ public:
 
     void strike (double velocity) noexcept;
 
-    /** Ramps every mode's decay toward `t60` over `seconds`. */
+    /** Ramps an extra damping in over `seconds`, toward a `t60` decay. */
     void choke (double t60, double seconds) noexcept;
 
-    inline double process() noexcept
-    {
-        if (! active)
-            return 0.0;
+    /** Writes `n` samples. `batter`, if given, receives the batter head's own
+        displacement (the snare wires read it). */
+    void render (double* out, int n, double* batter = nullptr) noexcept;
 
-        if (--controlCountdown <= 0)
-            updateControl();
-
-        const double force = pulse.next();
-        const double membrane = bank.process (force);
-        double out = membrane;
-
-        if (design.resonantHead)
-            out += head.process (membrane * 0.3);
-
-        lastBatter = membrane;
-        return output.process (out * design.level);
-    }
-
-    /** The batter head's displacement this sample, for the snare wires. */
-    double getBatter() const noexcept { return lastBatter; }
+    double process() noexcept { double y = 0.0; render (&y, 1); return y; }
 
     /** The fundamental's instantaneous frequency (jam-mode 17, JM-24). */
     double getCurrentFundamentalHz() const noexcept { return bank.getModeFrequency (0); }
 
     bool isActive() const noexcept { return active; }
     void housekeep() noexcept;
-
-    ModalResonatorBank& getBank() noexcept { return bank; }
 
 private:
     void updateControl() noexcept;
@@ -166,11 +156,10 @@ private:
     double hitF0 = 55.0, k = 0.0, envelope = 0.0, envelopeStep = 1.0;
     int controlCountdown = 0;
 
-    double chokeFrom = 1.0, chokeTo = 1.0, chokeStep = 0.0, chokePosition = 1.0;
+    double chokeTo = 1.0, chokeStep = 0.0, chokePosition = 1.0;
     bool choking = false;
 
     bool active = false;
-    double lastBatter = 0.0;
 
     ForcePulse pulse;
     ModalResonatorBank bank, head;
@@ -198,36 +187,8 @@ public:
     void strike (double velocity, Stroke stroke) noexcept;
     void choke (double t60, double seconds) noexcept;
 
-    inline double process() noexcept
-    {
-        if (! active)
-            return 0.0;
-
-        const double head = batter.process();
-        const double h = batter.getBatter();
-
-        // The wires: they only touch the head when it moves past them.
-        const double gate = juce::jmax (0.0, std::abs (h) * headNorm - wireThreshold);
-        const double wires = wireBand.process (rng.nextBipolar() * gate) * wireLevel;
-
-        double brush = 0.0;
-
-        if (brushRemaining > 0)
-        {
-            const double t = 1.0 - (double) brushRemaining / (double) brushLength;
-            const double env = std::sin (constants::kPi * juce::jmin (1.0, t * 1.4)) * brushAmp;
-            if (--sweepCountdown <= 0)
-            {
-                sweepCountdown = 32;
-                brushBand.setBandpass (sr, 1800.0 + 3200.0 * t, 0.9);
-            }
-            brush = brushBand.process (rng.nextBipolar()) * env;
-            --brushRemaining;
-        }
-
-        const double rimOut = rimActive ? rimBank.process (rimPulse.next()) : 0.0;
-        return output.process (head + wires + brush + rimOut * 0.4);
-    }
+    void render (double* out, int n) noexcept;
+    double process() noexcept { double y = 0.0; render (&y, 1); return y; }
 
     bool isActive() const noexcept { return active; }
     void housekeep() noexcept;
@@ -243,7 +204,7 @@ private:
 
     Biquad wireBand, brushBand;
     RtRandom rng { 0x5A4E5E11ull };
-    double wireThreshold = 0.06, wireLevel = 0.9, headNorm = 1.0;
+    double wireThreshold = 0.06, wireLevel = 0.9, headNorm = 0.8;
     int brushLength = 1, brushRemaining = 0, sweepCountdown = 0;
     double brushAmp = 0.0;
     bool active = false;
@@ -275,38 +236,12 @@ public:
 
     void strike (double velocity, Hit hit) noexcept;
 
-    /** A choke with no new hit (the hat closing, a hand on the crash). */
+    /** Ramps the decay toward `t60` over `seconds`, with no new hit (the hat
+        closing, a hand on the crash). */
     void choke (double seconds, double t60) noexcept;
 
-    inline double process() noexcept
-    {
-        if (! active)
-            return 0.0;
-
-        if (rampRemaining > 0 && --controlCountdown <= 0)
-            updateRamp();
-
-        const double x = pulse.next();
-        double bloomIn = 0.0;
-
-        if (bloomRemaining > 0)
-        {
-            const double t = 1.0 - (double) bloomRemaining / (double) bloomLength;
-            bloomIn = rng.nextBipolar() * bloomAmp * std::sin (constants::kPi * 0.5 * juce::jmin (1.0, t * 2.0)) * (1.0 - t);
-            --bloomRemaining;
-        }
-
-        double chick = 0.0;
-
-        if (chickRemaining > 0)
-        {
-            chick = rng.nextBipolar() * chickAmp * (double) chickRemaining / (double) chickLength;
-            --chickRemaining;
-        }
-
-        const double out = low.process (x + chick) + high.process (x * highDirect + bloomIn + chick);
-        return output.process (out * design.level);
-    }
+    void render (double* out, int n) noexcept;
+    double process() noexcept { double y = 0.0; render (&y, 1); return y; }
 
     bool isActive() const noexcept { return active; }
     void housekeep() noexcept;
@@ -335,7 +270,6 @@ private:
     double rampFrom = 1.0, rampTo = 1.0;
     int rampRemaining = 0, rampTotal = 1, controlCountdown = 0;
     double openT60 = 1.0;
-    Hit lastHit = Hit::closed;
 
     ForcePulse pulse;
     ModalResonatorBank low, high;
@@ -361,15 +295,8 @@ public:
     void reset() noexcept;
     void setBatterHz (double snareF0) noexcept;
     void strike (double velocity, Hit hit) noexcept;
-    void choke (double seconds) noexcept;
 
-    inline double process() noexcept
-    {
-        if (! active)
-            return 0.0;
-
-        return output.process (bank.process (pulse.next()));
-    }
+    void render (double* out, int n) noexcept;
 
     bool isActive() const noexcept { return active; }
     void housekeep() noexcept;
@@ -394,26 +321,8 @@ public:
     void reset() noexcept;
     void setSeed (uint64_t seed) noexcept { rng.setSeed (seed); }
     void strike (double velocity) noexcept;
-    void choke (double seconds) noexcept;
 
-    inline double process() noexcept
-    {
-        if (! active)
-            return 0.0;
-
-        // PhISEM (Cook): the shake's energy decays; each bead collides with a
-        // probability set by the bead count and the energy; each collision
-        // adds to a decaying sound level that scales the noise.
-        shakeEnergy *= energyDecay;
-
-        if (rng.nextDouble() < collisionProbability * (double) kBeads)
-            soundLevel += shakeEnergy * 0.08;
-
-        soundLevel *= soundDecay;
-        const double noise = rng.nextBipolar() * soundLevel;
-        const double out = resonanceA.process (noise) + 0.7 * resonanceB.process (noise);
-        return output.process (out);
-    }
+    void render (double* out, int n) noexcept;
 
     bool isActive() const noexcept { return active; }
     void housekeep() noexcept;

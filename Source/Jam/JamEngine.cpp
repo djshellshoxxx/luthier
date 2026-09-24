@@ -140,6 +140,9 @@ void JamEngine::prepare (double sampleRate, int maxBlockSize)
     for (auto* s : { &drumsGainL, &drumsGainR, &bassGainL, &bassGainR })
         s->prepare (sr, 0.020);
 
+    for (auto& d : stemDc)
+        d.prepare (sr, 5.0);
+
     reset();
 }
 
@@ -178,6 +181,9 @@ void JamEngine::reset() noexcept
 
     for (auto* s : { &drumsGainL, &drumsGainR, &bassGainL, &bassGainR })
         s->snapTo (0.0);
+
+    for (auto& d : stemDc)
+        d.reset();
 }
 
 //==============================================================================
@@ -1884,6 +1890,17 @@ void JamEngine::mix (int numSamples) noexcept
     bassGainL.setTarget (bassLevel * std::cos (bassAngle));
     bassGainR.setTarget (bassLevel * std::sin (bassAngle));
 
+    // Armed and silent: nothing to mix (0.7).
+    if (! renderedSomething && ! isBandRunning())
+    {
+        for (auto* b : { &drumsOut, &bassOut })
+            b->clear (0, numSamples);
+
+        status.drumsPeak = status.bassPeak = 0.0;
+        drumsAudible.store (false, std::memory_order_relaxed);
+        return;
+    }
+
     const double* dl = drumsBuffer.getReadPointer (0);
     const double* dr = drumsBuffer.getReadPointer (1);
     const double* bs = bassBuffer.getReadPointer (0);
@@ -1896,8 +1913,10 @@ void JamEngine::mix (int numSamples) noexcept
 
     for (int i = 0; i < numSamples; ++i)
     {
-        const double l = dl[i] * drumsGainL.next(), r = dr[i] * drumsGainR.next();
-        const double bl = bs[i] * bassGainL.next(), br = bs[i] * bassGainR.next();
+        // Each stem's own DC blocker (engine.md 0.3), after everything recursive.
+        const double dL = stemDc[0].process (dl[i]), dR = stemDc[1].process (dr[i]), b = stemDc[2].process (bs[i]);
+        const double l = dL * drumsGainL.next(), r = dR * drumsGainR.next();
+        const double bl = b * bassGainL.next(), br = b * bassGainR.next();
         oL[i] = (float) l;
         oR[i] = (float) r;
         bL[i] = (float) bl;
@@ -2002,13 +2021,26 @@ void JamEngine::process (const BlockContext& ctx, const juce::MidiBuffer& notes,
         }
     }
 
+    // Kit and tone settings: only a change costs anything (0.7).
     kit.setReduced (reducedCymbals.load (std::memory_order_relaxed));
     kit.setSeed (seedValue.load (std::memory_order_relaxed));
-    kit.setTuning (settings.kitTuning, settings.kitDamping / 100.0);
+
+    if (settings.kitTuning != appliedTuning || settings.kitDamping != appliedDamping)
+    {
+        appliedTuning = settings.kitTuning;
+        appliedDamping = settings.kitDamping;
+        kit.setTuning (settings.kitTuning, settings.kitDamping / 100.0);
+    }
+
     kit.setRoom (settings.kitRoom / 100.0);
     kit.setWidth (settings.kitWidth / 100.0);
     kit.setPerspective (settings.perspective == 1);
-    bass.setTone (settings.bassTone);
+
+    if (settings.bassTone != appliedTone)
+    {
+        appliedTone = settings.bassTone;
+        bass.setTone (settings.bassTone);
+    }
 
     lookahead = (int64_t) std::llround (juce::jlimit (0.0, 1.0, settings.humanise / 100.0) * 0.025 * sr) + 1;
 
