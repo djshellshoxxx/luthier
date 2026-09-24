@@ -46,6 +46,17 @@ set(LUTHIER_WIP_REGEX "Source/WIP/")
 list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "${LUTHIER_WIP_REGEX}")
 
 target_sources(Luthier PRIVATE ${LUTHIER_SOURCES})
+
+# CLAP (host-integration.md: planned for v1.1). Built when clap-juce-extensions is
+# present in ThirdParty/ - scripts/setup_linux.sh fetches it - so a checkout without
+# it still configures. Target: Luthier_CLAP.
+option(LUTHIER_BUILD_CLAP "Build the CLAP format via clap-juce-extensions" ON)
+if (LUTHIER_BUILD_CLAP AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/clap-juce-extensions/CMakeLists.txt")
+    add_subdirectory(ThirdParty/clap-juce-extensions EXCLUDE_FROM_ALL)
+    clap_juce_extensions_plugin(TARGET Luthier
+        CLAP_ID "com.luthieraudio.luthier"
+        CLAP_FEATURES instrument synthesizer stereo)
+endif()
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Source" FILES ${LUTHIER_SOURCES})
 
 target_compile_definitions(Luthier PUBLIC
