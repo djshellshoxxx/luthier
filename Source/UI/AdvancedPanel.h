@@ -45,6 +45,44 @@ class MidiOutPanel;
 class NotationPanel;
 
 //==============================================================================
+/*  A Viewport that says when there is more.
+
+    A column that is taller than its window gives no sign of it beyond a thin
+    scrollbar, and users read the bottom of the visible part as the bottom of
+    the column. This viewport overlays a fading strip with an accent chevron at
+    whichever end has content beyond it, with a tooltip saying how to get
+    there; clicking the strip pages the view. The wheel is left alone, so it
+    still reaches the Viewport underneath. */
+class ScrollHintViewport : public juce::Viewport
+{
+public:
+    explicit ScrollHintViewport (const juce::String& componentName = {});
+    ~ScrollHintViewport() override;
+
+    /** The strip's height at each end. */
+    static constexpr int hintHeight = 18;
+
+    void resized() override;
+    void visibleAreaChanged (const juce::Rectangle<int>& newVisibleArea) override;
+
+    /** True while the hint at that end is on show, for the tests. */
+    bool isTopHintShowing() const noexcept;
+    bool isBottomHintShowing() const noexcept;
+
+    /** Scrolls by 80% of the visible height, up or down. */
+    void pageBy (int direction);
+
+private:
+    class OverflowChevron;
+
+    void updateHints();
+
+    std::unique_ptr<OverflowChevron> topHint, bottomHint;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ScrollHintViewport)
+};
+
+//==============================================================================
 /** One row of the string list. */
 class StringRow : public juce::Component,
                   public juce::SettableTooltipClient,
@@ -213,13 +251,17 @@ private:
 
     // Columns 1 to 3. Column 4 is the workspace below, which is not a Column:
     // it shows one panel at a time rather than stacking them.
-    juce::Viewport viewports[3];
+    ScrollHintViewport viewports[3];
     std::unique_ptr<Column> columns[3];
 
     juce::OwnedArray<juce::TextButton> workspaceTabs;
     juce::Array<juce::Component*> workspacePanels;
-    juce::Viewport workspaceViewport;
+    ScrollHintViewport workspaceViewport;
     int workspaceTab = 0;
+
+    /** The height a workspace panel asks for, from its preferredHeight() when
+        it has one, else the height it set on itself, never under 80. */
+    static int workspacePanelHeight (juce::Component* panel);
 
     /*  Where resized() put the column dividers, so paint() draws them in the
         same places. Below 1280 the layout stacks columns 2 and 3, and a paint

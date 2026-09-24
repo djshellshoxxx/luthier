@@ -202,6 +202,10 @@ class ControllersPage final : public OptionsPage
 public:
     explicit ControllersPage (LuthierAudioProcessor& processor);
 
+    /** What resized() lays out top to bottom, plus the wizard it pins to the
+        bottom, so column 4 can size the tab to its content. */
+    int preferredHeight() const noexcept;
+
     void refresh() override;
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -216,9 +220,9 @@ private:
     juce::ComboBox profileBox;
     juce::Label profileNotes, routingLabel;
 
-    juce::Slider latencySlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::Slider deadZoneSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::Slider minimumNoteSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    WheelPassSlider latencySlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    WheelPassSlider deadZoneSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    WheelPassSlider minimumNoteSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
 
     juce::ToggleButton guitarModeToggle { "LinnStrument guitar mode: rows map to strings" };
 

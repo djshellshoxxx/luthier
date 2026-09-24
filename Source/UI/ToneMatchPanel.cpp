@@ -752,6 +752,9 @@ ToneMatchPanel::ToneMatchPanel (LuthierAudioProcessor& p)
 
     libraryFiles = IrLibraryPaths::findAll();
     refreshLibrary();
+
+    // Column 4 sizes the tab from this; without it the panel sat at 80 points.
+    setSize (480, preferredHeight());
 }
 
 ToneMatchPanel::~ToneMatchPanel() = default;

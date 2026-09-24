@@ -1,6 +1,7 @@
 #include "Widgets.h"
 #include "RangesUi.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Localisation.h"
 
 namespace luthier
 {
@@ -414,14 +415,20 @@ void LuthierKnob::attachTo (LuthierAudioProcessor& p, const juce::String& id, co
 
     RangesUi::tagSlider (slider, id);
 
-    if (tooltip.isNotEmpty())
+    /*  The wheel scrolls the column rather than the knob (KnobSlider), so the
+        tooltip has to say how to nudge the value instead: nothing else in the
+        window would tell the user that Ctrl is the key. */
+    juce::String tip = tooltip;
+
+    if (tip.isEmpty())
+        if (auto* param = p.getState().getParameter (id))
+            tip = param->getName (64);
+
+    if (tip.isNotEmpty())
     {
-        slider.setTooltip (tooltip);
-        setTooltip (tooltip);
-    }
-    else if (auto* param = p.getState().getParameter (id))
-    {
-        slider.setTooltip (param->getName (64));
+        tip = tr ("widgets.knob.wheelHint", { { "tip", tip } });
+        slider.setTooltip (tip);
+        setTooltip (tip);
     }
 
     updateMidiLearnIndicator();
@@ -710,6 +717,23 @@ void LuthierKnob::KnobSlider::mouseExit (const juce::MouseEvent& e)
     juce::Slider::mouseExit (e);
     owner.hovering = false;
     owner.repaint();
+}
+
+void LuthierKnob::KnobSlider::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
+{
+    /*  A knob sits in a scrolling column, and a wheel that stopped the column
+        dead whenever the pointer crossed a knob made the columns feel stuck.
+        Ctrl+wheel keeps the nudge for people who want it; the knob's tooltip
+        says so. */
+    if (WheelPassSlider::wheelAdjustsValue (e))
+    {
+        juce::Slider::mouseWheelMove (e, wheel);
+        owner.repaint();
+    }
+    else
+    {
+        juce::Component::mouseWheelMove (e, wheel);
+    }
 }
 
 //==============================================================================

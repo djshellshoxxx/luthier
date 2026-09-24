@@ -1,4 +1,5 @@
 #include "RhythmPanel.h"
+#include "../Accessibility/Localisation.h"
 #include "../PluginProcessor.h"
 
 namespace luthier
@@ -622,6 +623,10 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
     refreshFromEngine();
     refreshBrowserList();
 
+    // Column 4 sizes the tab from this; without it the panel sat at 80 points
+    // and every combo box on it was squashed to a few points.
+    setSize (480, preferredHeight());
+
     startTimerHz (20);
 }
 
@@ -667,6 +672,7 @@ void RhythmPanel::buildGenreControls()
 
     modeHintLabel.setFont (juce::Font (juce::FontOptions (10.0f)));
     modeHintLabel.setColour (juce::Label::textColourId, Palette::warning);
+    modeHintLabel.setTooltip (tr ("rhythm.modeHint.tooltip"));
     addAndMakeVisible (modeHintLabel);
 
     // ---- genre kit -------------------------------------------------------------
@@ -678,6 +684,7 @@ void RhythmPanel::buildGenreControls()
         genreBox.addItem (name, itemId++);
 
     genreBox.setTextWhenNothingSelected ("Choose a style");
+    genreBox.setTooltip (tr ("rhythm.genreKit.tooltip"));
     genreBox.onChange = [this] { if (! updatingControls) applySelectedKit(); };
     addAndMakeVisible (genreBox);
 
@@ -687,6 +694,7 @@ void RhythmPanel::buildGenreControls()
 
     rigHintLabel.setFont (juce::Font (juce::FontOptions (9.0f)));
     rigHintLabel.setColour (juce::Label::textColourId, Palette::textDisabled);
+    rigHintLabel.setTooltip (tr ("rhythm.rigHint.tooltip"));
     addAndMakeVisible (rigHintLabel);
 }
 
@@ -695,6 +703,7 @@ void RhythmPanel::buildVoicingControls()
     for (int i = 0; i < (int) VoicingStyle::numStyles; ++i)
         styleBox.addItem (getVoicingStyleName ((VoicingStyle) i), i + 1);
 
+    styleBox.setTooltip (tr ("rhythm.voicing.tooltip"));
     styleBox.onChange = [this]
     {
         if (! updatingControls)
@@ -703,6 +712,7 @@ void RhythmPanel::buildVoicingControls()
     addAndMakeVisible (styleBox);
 
     styleValueSlider (densitySlider, 0.0, 100.0, 1.0, " %");
+    densitySlider.setTooltip (tr ("rhythm.density.tooltip"));
     densitySlider.onValueChange = [this]
     {
         if (! updatingControls)
@@ -711,6 +721,7 @@ void RhythmPanel::buildVoicingControls()
     addAndMakeVisible (densitySlider);
 
     styleValueSlider (handPositionSlider, 0.0, 22.0, 1.0, " fr");
+    handPositionSlider.setTooltip (tr ("rhythm.handPosition.tooltip"));
     handPositionSlider.onValueChange = [this]
     {
         if (! updatingControls)
@@ -721,6 +732,7 @@ void RhythmPanel::buildVoicingControls()
     capoLabel.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
     capoLabel.setColour (juce::Label::textColourId, Palette::textPrimary);
     capoLabel.setJustificationType (juce::Justification::centred);
+    capoLabel.setTooltip (tr ("rhythm.capo.tooltip"));
     addAndMakeVisible (capoLabel);
 
     capoDown.onClick = [this] { rhythm().setCapoFret (rhythm().getCapoFret() - 1); refreshFromEngine(); };
@@ -793,12 +805,14 @@ void RhythmPanel::buildBrowser()
     for (const auto& tag : tags)
         tagFilterBox.addItem (tag, itemId++);
 
+    tagFilterBox.setTooltip (tr ("rhythm.tagFilter.tooltip"));
     tagFilterBox.onChange = [this] { refreshBrowserList(); };
     addAndMakeVisible (tagFilterBox);
 
     patternList.setModel (&listModel);
     patternList.setRowHeight (18);
     patternList.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
+    patternList.setTooltip (tr ("rhythm.patternList.tooltip"));
     addAndMakeVisible (patternList);
 
     loadButton.onClick   = [this] { loadSelectedPattern(); };

@@ -29,6 +29,7 @@ class LuthierAudioProcessor;
     shown depends on what kind of source it is; a CC source has nothing to edit,
     so it shows its live value instead. */
 class ModSourceCard : public juce::Component,
+                      public juce::SettableTooltipClient,
                       private juce::Timer
 {
 public:
@@ -41,7 +42,12 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    static constexpr int preferredHeight = 150;
+    /** The header, the scope, and the tallest family's seven rows. */
+    static constexpr int headerHeight = 16;
+    static constexpr int scopeHeight = 34;
+    static constexpr int rowHeight = 22;
+    static constexpr int maxRows = 7;
+    static constexpr int preferredHeight = headerHeight + scopeHeight + 2 + rowHeight * maxRows;
 
 private:
     void timerCallback() override;
@@ -52,13 +58,15 @@ private:
     int slot = ModSourceSlots::lfoBase;
 
     juce::ComboBox shapeBox, divisionBox, retriggerBox, directionBox, detectionBox, followerSourceBox;
-    juce::Slider rateSlider, depthSlider, symmetrySlider, smoothingSlider;
-    juce::Slider delaySlider, attackSlider, holdSlider, decaySlider, sustainSlider, releaseSlider;
-    juce::Slider lengthSlider, swingSlider;
-    juce::Slider followerAttackSlider, followerReleaseSlider, thresholdSlider;
+    WheelPassSlider rateSlider, depthSlider, symmetrySlider, smoothingSlider;
+    WheelPassSlider delaySlider, attackSlider, holdSlider, decaySlider, sustainSlider, releaseSlider;
+    WheelPassSlider lengthSlider, swingSlider;
+    WheelPassSlider followerAttackSlider, followerReleaseSlider, thresholdSlider;
     juce::ToggleButton syncButton { "Sync" }, bipolarButton { "Bipolar" };
 
+    /** One short label per slider, shown and placed with it. */
     juce::OwnedArray<juce::Label> labels;
+    std::vector<std::pair<juce::Slider*, juce::Label*>> labelled;
 
     float liveValue = 0.0f;
     bool updating = false;
@@ -86,7 +94,14 @@ public:
     void paintCell (juce::Graphics&, int row, int columnId, int width, int height, bool selected) override;
     void cellClicked (int row, int columnId, const juce::MouseEvent&) override;
 
+    /** What clicking the cell does: depth is typed, curve cycles, On toggles,
+        x removes. Nothing on the cell itself says so. */
+    juce::String getCellTooltip (int row, int columnId) override;
+
     void resized() override;
+
+    /** gui-integration 14: the empty state, over the table when it has no rows. */
+    void paintOverChildren (juce::Graphics&) override;
 
     std::function<void()> onRoutesChanged;
 

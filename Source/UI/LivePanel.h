@@ -39,31 +39,65 @@ namespace luthier
 class LuthierAudioProcessor;
 
 //==============================================================================
-/** The 128-cell snapshot bank. One cell per slot, filled ones tinted. */
+/*  The 128-cell snapshot bank. One cell per slot: its number, its label, its
+    colour tag down the left edge, a dot on the one that is loaded and a bright
+    border on the one that is selected.
+
+    gui-integration.md 8 and 4.4 fix the gestures, and they are the live strip's:
+    click selects, double-click recalls, Shift-click captures into the slot,
+    right-click opens the menu. Eight columns rather than sixteen, because at
+    column 4's width sixteen columns made a cell 28 points wide, too narrow for
+    a number let alone a name. */
 class SnapshotGrid final : public juce::Component,
                            public juce::SettableTooltipClient
 {
 public:
     explicit SnapshotGrid (LuthierAudioProcessor& processor);
 
-    static constexpr int kColumns = 16;
-    static constexpr int kRows = 8;
+    static constexpr int kColumns = 8;
+    static constexpr int kRows = 16;
+
+    /** The cell height the grid wants for a given width: about a third of the
+        cell width, between 20 and 28 points, so a cell is a readable pad. */
+    static int cellHeightFor (int width) noexcept;
+    static int preferredHeightFor (int width) noexcept { return kRows * cellHeightFor (width); }
 
     /** Which slot is under this point, or -1. */
     int slotAt (juce::Point<int> position) const;
+
+    /** The cell for a slot, in this component's coordinates. Empty if out of range. */
+    juce::Rectangle<int> boundsForSlot (int slot) const;
 
     /** The slot the user last clicked, which the buttons below act on. */
     int getSelectedSlot() const noexcept { return selected; }
     void setSelectedSlot (int slot);
 
+    /** The gestures, each acting on the bank directly. Public so the panel's
+        buttons and the tests share one implementation with the mouse. */
+    void captureSlot (int slot);
+    void recallSlot (int slot);
+    void clearSlot (int slot);
+    void setSlotColourTag (int slot, int tag);
+
+    /** Opens the right-click menu for a slot. */
+    void showSlotMenu (int slot);
+
     std::function<void()> onSelectionChanged;
+
+    /** Fired after any gesture edited the bank, so the panel re-reads it. */
+    std::function<void()> onBankChanged;
+
+    /** Rename is the panel's, because it owns the inline editor. */
+    std::function<void (int slot)> onRenameRequested;
 
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
     void mouseMove (const juce::MouseEvent&) override;
 
 private:
-    juce::Rectangle<int> boundsForSlot (int slot) const;
+    bool isFilled (int slot) const;
+    void bankChanged();
 
     LuthierAudioProcessor& processor;
     int selected = 0;
@@ -85,6 +119,10 @@ public:
         screen. */
     void refresh();
 
+    /** The height the panel's content wants at its current width. The grid's
+        cells scale with the width, so this is not a constant. */
+    int preferredHeight() const;
+
     void paint (juce::Graphics&) override;
     void resized() override;
 
@@ -94,6 +132,7 @@ private:
     void captureSelected();
     void clearSelected();
     void renameSelected();
+    void renameSlot (int slot, juce::Rectangle<int> screenAnchor);
     void addSelectedToSetlist();
 
     void rebuildSetlistRows();
@@ -105,6 +144,10 @@ private:
     SnapshotGrid grid;
 
     juce::Label slotLabel;
+
+    /** gui-integration 14: the empty-slot hint, shown while the bank has nothing
+        in it. */
+    juce::Label bankEmptyLabel;
     juce::TextButton captureButton { "Capture" };
     juce::TextButton recallButton  { "Recall" };
     juce::TextButton renameButton  { "Rename..." };
@@ -124,7 +167,7 @@ private:
         no automation or MIDI Learn on it. live-performance.md keeps it out of the
         parameter list deliberately - it describes how the plugin moves between
         sounds rather than being part of one. */
-    juce::Slider crossfade { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    WheelPassSlider crossfade { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Label crossfadeLabel;
 
     juce::ComboBox morphCurveBox;

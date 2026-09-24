@@ -40,6 +40,8 @@
 #include "../UI/Widgets.h"
 #include "../UI/Notifications.h"
 #include "../UI/LivePanel.h"
+#include "../UI/MidiOutPanel.h"
+#include "../UI/NotationPanel.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -2112,4 +2114,277 @@ LUTHIER_TEST (Editor, theLiveTabEditsTheSnapshotBankAndTheSetlist)
     }
 
     bank.clear();
+}
+
+//==============================================================================
+/*  Column 4's tabs are as tall as what is on them.
+
+    MOD, RHYTHM, LIVE, ROUTING, TONE MATCH and CONTROLLERS each had a preferred
+    height that nothing called, so the workspace viewport laid them out at its
+    80-point floor and every combo box on them opened a list of squashed rows.
+    The CHARACTER check in SlideTests caught it for one tab; this walks them all,
+    so the next tab added cannot quietly sit at the floor either.
+*/
+LUTHIER_TEST (Editor, everyWorkspaceTabIsAsTallAsItsContent)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    AdvancedPanel panel (processor);
+    panel.setVisible (true);
+    panel.setSize (1600, 900);
+
+    CHECK (panel.getNumWorkspaceTabs() > 0);
+
+    auto preferredHeightOf = [] (juce::Component* p) -> int
+    {
+        if (auto* m = dynamic_cast<ModMatrixPanel*> (p))       return m->preferredHeight();
+        if (auto* r = dynamic_cast<RhythmPanel*> (p))          return r->preferredHeight();
+        if (auto* l = dynamic_cast<LivePanel*> (p))            return l->preferredHeight();
+        if (auto* r = dynamic_cast<RoutingPanel*> (p))         return r->preferredHeight();
+        if (auto* t = dynamic_cast<ToneMatchPanel*> (p))       return t->preferredHeight();
+        if (auto* c = dynamic_cast<CharacterPanel*> (p))       return c->preferredHeight();
+        if (auto* c = dynamic_cast<ControllersPage*> (p))      return c->preferredHeight();
+        if (auto* m = dynamic_cast<MidiOutPanel*> (p))         return m->getPreferredHeight();
+        if (auto* n = dynamic_cast<NotationPanel*> (p))        return n->getPreferredHeight();
+        if (auto* t = dynamic_cast<TunePanel*> (p))            return t->getPreferredHeight();
+        if (auto* s = dynamic_cast<PracticeSetupPanel*> (p))   return s->getPreferredHeight();
+        return 0;
+    };
+
+    for (int i = 0; i < panel.getNumWorkspaceTabs(); ++i)
+    {
+        panel.setWorkspaceTab (i);
+
+        auto* tab = panel.getWorkspacePanel (i);
+        const auto name = panel.getWorkspaceTabName (i);
+
+        CHECK_MSG (tab != nullptr, "tab " + name + " has no panel behind it");
+
+        if (tab == nullptr)
+            continue;
+
+        CHECK_MSG (tab->getHeight() > 80,
+                   name + " is laid out at " + juce::String (tab->getHeight())
+                     + " points, the viewport's floor: nothing sized it");
+
+        const int preferred = preferredHeightOf (tab);
+
+        // WORKSHOP and HELP fill the viewport rather than asking for a height.
+        if (preferred > 0)
+            CHECK_MSG (tab->getHeight() >= preferred,
+                       name + " is " + juce::String (tab->getHeight()) + " tall for "
+                         + juce::String (preferred) + " of content");
+    }
+}
+
+//==============================================================================
+/*  The snapshot grid's gestures reach the bank (gui-integration 4.4 / 8).
+
+    Shift-click stores the current sound in the pad under the pointer;
+    double-click recalls it. The bank is read back rather than the grid, because
+    a pad that lit up without writing anything would look identical.
+*/
+LUTHIER_TEST (Editor, snapshotGridGesturesReachTheBank)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& bank = processor.getSnapshots();
+    bank.clear();
+
+    AdvancedPanel panel (processor);
+    panel.setVisible (true);
+    panel.setSize (1600, 900);
+
+    CHECK (panel.setWorkspaceTabNamed ("LIVE"));
+
+    auto* live = findOne<LivePanel> (panel);
+    auto* grid = live != nullptr ? findOne<SnapshotGrid> (*live) : nullptr;
+
+    CHECK_MSG (grid != nullptr, "the LIVE tab has no snapshot grid");
+
+    if (grid == nullptr)
+        return;
+
+    CHECK_MSG (grid->getWidth() > 0 && grid->getHeight() >= SnapshotGrid::kRows * 20,
+               "the grid is " + juce::String (grid->getWidth()) + " x "
+                 + juce::String (grid->getHeight()) + ", too small for its 128 pads to be read");
+
+    auto source = juce::Desktop::getInstance().getMainMouseSource();
+
+    auto eventAt = [&] (int slot, juce::ModifierKeys mods)
+    {
+        const auto p = grid->boundsForSlot (slot).getCentre().toFloat();
+        return juce::MouseEvent (source, p, mods, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                 grid, grid, juce::Time::getCurrentTime(), p,
+                                 juce::Time::getCurrentTime(), 1, false);
+    };
+
+    //--------------------------------------------------------------------------
+    // The empty pad's tooltip says what to do with it.
+    const int target = 9;
+
+    grid->mouseMove (eventAt (target, {}));
+    CHECK_MSG (grid->getTooltip().containsIgnoreCase ("shift"),
+               "an empty pad's tooltip does not mention Shift-click: \"" + grid->getTooltip() + "\"");
+
+    //--------------------------------------------------------------------------
+    // Shift-click captures into the pad and selects it.
+    CHECK (bank.getNumSnapshots() <= target || bank.getSnapshot (target).isEmpty());
+
+    grid->mouseDown (eventAt (target, juce::ModifierKeys::shiftModifier));
+
+    CHECK_MSG (grid->getSelectedSlot() == target,
+               "Shift-click selected slot " + juce::String (grid->getSelectedSlot() + 1)
+                 + " rather than " + juce::String (target + 1));
+
+    CHECK_MSG (bank.getNumSnapshots() > target && ! bank.getSnapshot (target).isEmpty(),
+               "Shift-click on an empty pad did not store a snapshot in it");
+
+    // A plain click on another pad only selects; it stores nothing.
+    grid->mouseDown (eventAt (target + 1, {}));
+
+    CHECK (grid->getSelectedSlot() == target + 1);
+    CHECK_MSG (bank.getNumSnapshots() <= target + 1 || bank.getSnapshot (target + 1).isEmpty(),
+               "a plain click stored a snapshot");
+
+    //--------------------------------------------------------------------------
+    // Double-click recalls: the bank's current snapshot becomes the pad's.
+    bank.setLabel (target, "Clean Verse");
+    bank.capture (2, "Other");
+    bank.recall (2);
+    CHECK (bank.getCurrentSnapshot() == 2);
+
+    grid->mouseDoubleClick (eventAt (target, {}));
+
+    CHECK_MSG (bank.getCurrentSnapshot() == target,
+               "double-click on a filled pad did not recall it; the bank is on snapshot "
+                 + juce::String (bank.getCurrentSnapshot() + 1));
+
+    // Double-click on an empty pad recalls nothing.
+    grid->mouseDoubleClick (eventAt (target + 1, {}));
+    CHECK (bank.getCurrentSnapshot() == target);
+
+    // A filled pad's tooltip carries its label.
+    grid->mouseMove (eventAt (target, {}));
+    CHECK_MSG (grid->getTooltip().contains ("Clean Verse"),
+               "a filled pad's tooltip does not carry its label: \"" + grid->getTooltip() + "\"");
+
+    bank.clear();
+}
+
+//==============================================================================
+/*  The wheel scrolls a column; Ctrl+wheel nudges the knob under the pointer.
+
+    juce::Slider eats every wheel event over it, so a column that is mostly
+    knobs stopped scrolling wherever the pointer rested. The knob's slider is
+    sent the event directly, as the mouse would, and both the viewport and the
+    parameter are read back.
+*/
+LUTHIER_TEST (Editor, theWheelScrollsAColumnUnlessCtrlIsHeld)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    AdvancedPanel panel (processor);
+    panel.setVisible (true);
+    panel.setSize (1600, 480);   // short, so every column overflows
+
+    juce::Array<LuthierKnob*> knobs;
+    collect<LuthierKnob> (panel, knobs);
+
+    LuthierKnob* knob = nullptr;
+    juce::Viewport* viewport = nullptr;
+
+    for (auto* k : knobs)
+    {
+        auto* v = k->findParentComponentOfClass<juce::Viewport>();
+
+        if (v != nullptr && v->getViewedComponent() != nullptr
+             && v->getViewedComponent()->getHeight() > v->getMaximumVisibleHeight()
+             && k->getLearnParameterId().isNotEmpty() && k->isEnabled())
+        {
+            knob = k;
+            viewport = v;
+            break;
+        }
+    }
+
+    CHECK_MSG (knob != nullptr, "no attached knob sits in a column that overflows its viewport");
+
+    if (knob == nullptr)
+        return;
+
+    auto* slider = findOne<juce::Slider> (*knob);
+    auto* param = processor.getState().getParameter (knob->getLearnParameterId());
+
+    CHECK (slider != nullptr && param != nullptr);
+
+    if (slider == nullptr || param == nullptr)
+        return;
+
+    viewport->setViewPosition (0, 0);
+
+    auto* hinting = dynamic_cast<ScrollHintViewport*> (viewport);
+
+    CHECK_MSG (hinting != nullptr, "the column viewport is not a ScrollHintViewport");
+
+    if (hinting != nullptr)
+    {
+        CHECK_MSG (hinting->isBottomHintShowing(), "an overflowing column shows no hint at its bottom");
+        CHECK_MSG (! hinting->isTopHintShowing(), "a column at its top shows a hint above");
+    }
+
+    auto source = juce::Desktop::getInstance().getMainMouseSource();
+
+    auto wheelOver = [&] (juce::ModifierKeys mods, float deltaY)
+    {
+        const auto p = slider->getLocalBounds().getCentre().toFloat();
+        const juce::MouseEvent e (source, p, mods, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                  slider, slider, juce::Time::getCurrentTime(), p,
+                                  juce::Time::getCurrentTime(), 0, false);
+
+        juce::MouseWheelDetails wheel;
+        wheel.deltaX = 0.0f;
+        wheel.deltaY = deltaY;
+        wheel.isReversed = false;
+        wheel.isSmooth = false;
+        wheel.isInertial = false;
+
+        slider->mouseWheelMove (e, wheel);
+    };
+
+    //--------------------------------------------------------------------------
+    // Plain wheel: the column moves, the parameter does not.
+    const float valueBefore = param->getValue();
+
+    wheelOver ({}, -1.0f);
+
+    CHECK_MSG (viewport->getViewPositionY() > 0,
+               "the wheel over a knob did not scroll the column; it is still at the top");
+
+    CHECK_MSG (juce::approximatelyEqual (param->getValue(), valueBefore),
+               "the wheel over a knob changed " + knob->getLearnParameterId()
+                 + " from " + juce::String (valueBefore) + " to " + juce::String (param->getValue()));
+
+    if (hinting != nullptr)
+        CHECK_MSG (hinting->isTopHintShowing(), "a scrolled column shows no hint above");
+
+    //--------------------------------------------------------------------------
+    // Ctrl+wheel: the parameter moves, the column does not.
+    const int scrollBefore = viewport->getViewPositionY();
+    const float direction = valueBefore < 0.5f ? 1.0f : -1.0f;
+
+    wheelOver (juce::ModifierKeys::ctrlModifier, direction);
+
+    CHECK_MSG (! juce::approximatelyEqual (param->getValue(), valueBefore),
+               "Ctrl+wheel over a knob did not nudge " + knob->getLearnParameterId());
+
+    CHECK_MSG (viewport->getViewPositionY() == scrollBefore,
+               "Ctrl+wheel scrolled the column as well as nudging the knob");
+
+    // And the knob says so.
+    CHECK_MSG (knob->getTooltip().containsIgnoreCase ("wheel"),
+               "the knob's tooltip does not mention the wheel: \"" + knob->getTooltip() + "\"");
 }

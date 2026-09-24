@@ -333,6 +333,10 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     }
 
     refreshFromRouting();
+
+    // Column 4 sizes the tab from this; without it the panel sat at 80 points.
+    setSize (480, preferredHeight());
+
     startTimerHz (15);
 }
 
@@ -407,8 +411,12 @@ void RoutingPanel::timerCallback()
 
         perStringStrip->setVisible (RoutingMatrix::layoutHasPerString (layout));
 
-        // The panel's height depends on the layout, so the column that owns it
-        // has to lay out again.
+        /*  The panel's height depends on the layout. Ask for the new one here
+            rather than waiting for the column: the parent is a Viewport's
+            content holder, whose resized() lays nothing out. */
+        if (getHeight() != preferredHeight())
+            setSize (juce::jmax (1, getWidth()), preferredHeight());
+
         if (auto* parent = getParentComponent())
             parent->resized();
 

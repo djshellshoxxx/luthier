@@ -205,9 +205,36 @@ public:
                                            juce::Point<int> screenPos,
                                            juce::Rectangle<int> parentArea) override;
 
+    /*  Popup menus and combo dropdowns never shrink below a readable row. A
+        combo's popup takes its item height from the combo's own label, so a
+        combo laid out in a panel that was itself squashed opened a list of
+        eight-point rows. Clamping here covers every combo in the plugin, not
+        just the panels that have been caught at it. */
+    static constexpr int minimumPopupItemHeight = 22;
+
+    void getIdealPopupMenuItemSize (const juce::String& text, bool isSeparator,
+                                    int standardMenuItemHeight,
+                                    int& idealWidth, int& idealHeight) override;
+
+    juce::PopupMenu::Options getOptionsForComboBoxPopupMenu (juce::ComboBox&, juce::Label&) override;
+
     void drawScrollbar (juce::Graphics&, juce::ScrollBar&, int x, int y, int width, int height,
                         bool isScrollbarVertical, int thumbStartPosition, int thumbSize,
                         bool isMouseOver, bool isMouseDown) override;
+
+    /** The end buttons are shown, with accent chevrons: a scrollbar with no
+        arrows on it reads as a decoration rather than a control. */
+    bool areScrollbarButtonsVisible() override { return true; }
+
+    void drawScrollbarButton (juce::Graphics&, juce::ScrollBar&, int width, int height,
+                              int buttonDirection, bool isScrollbarVertical,
+                              bool isMouseOverButton, bool isButtonDown) override;
+
+    /** The chevron the combo box, the scrollbar buttons and the overflow hints
+        share. `direction` is 0 up, 1 right, 2 down, 3 left, as ScrollBar
+        numbers its buttons. */
+    static void drawChevron (juce::Graphics&, juce::Point<float> centre, float halfWidth,
+                             int direction, juce::Colour colour, float thickness = 1.4f);
 
     void drawTabButton (juce::TabBarButton&, juce::Graphics&, bool isMouseOver, bool isMouseDown) override;
     void drawTabbedButtonBarBackground (juce::TabbedButtonBar&, juce::Graphics&) override;

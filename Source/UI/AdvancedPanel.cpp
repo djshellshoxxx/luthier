@@ -6,9 +6,120 @@
 #include "NotationPanel.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
+#include "../Accessibility/Localisation.h"
 
 namespace luthier
 {
+
+//==============================================================================
+//  ScrollHintViewport
+//==============================================================================
+class ScrollHintViewport::OverflowChevron : public juce::Component,
+                                            public juce::SettableTooltipClient
+{
+public:
+    OverflowChevron (ScrollHintViewport& v, bool isTop)
+        : viewport (v), top (isTop)
+    {
+        setTooltip (tr (top ? "advanced.scroll.moreAbove" : "advanced.scroll.moreBelow"));
+        setMouseCursor (juce::MouseCursor::PointingHandCursor);
+
+        AccessibleSetup::configureDescriptive (*this,
+                                               tr (top ? "advanced.scroll.moreAbove.name"
+                                                       : "advanced.scroll.moreBelow.name"),
+                                               getTooltip());
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        auto bounds = getLocalBounds().toFloat();
+
+        // The fade runs from the page background at the edge to nothing at the
+        // inner side, so the strip reads as the column running under the frame.
+        const auto solid = top ? bounds.getY() : bounds.getBottom();
+        const auto clear = top ? bounds.getBottom() : bounds.getY();
+
+        g.setGradientFill (juce::ColourGradient (Palette::background.withAlpha (0.92f),
+                                                 bounds.getX(), solid,
+                                                 Palette::background.withAlpha (0.0f),
+                                                 bounds.getX(), clear, false));
+        g.fillRect (bounds);
+
+        LuthierLookAndFeel::drawChevron (g, bounds.getCentre(), 5.0f, top ? 0 : 2,
+                                         hovering ? Palette::accentBright : Palette::accent, 1.6f);
+    }
+
+    void mouseEnter (const juce::MouseEvent&) override { hovering = true;  repaint(); }
+    void mouseExit  (const juce::MouseEvent&) override { hovering = false; repaint(); }
+
+    void mouseDown (const juce::MouseEvent&) override
+    {
+        viewport.pageBy (top ? -1 : 1);
+    }
+
+    // mouseWheelMove is deliberately not overridden: Component's default hands
+    // the wheel to the parent, which is the Viewport, which scrolls.
+
+private:
+    ScrollHintViewport& viewport;
+    const bool top;
+    bool hovering = false;
+};
+
+ScrollHintViewport::ScrollHintViewport (const juce::String& componentName)
+    : juce::Viewport (componentName)
+{
+    topHint = std::make_unique<OverflowChevron> (*this, true);
+    bottomHint = std::make_unique<OverflowChevron> (*this, false);
+
+    // Added after the Viewport's own content holder and scrollbars, so they sit
+    // on top of both.
+    addChildComponent (*topHint);
+    addChildComponent (*bottomHint);
+}
+
+ScrollHintViewport::~ScrollHintViewport() = default;
+
+void ScrollHintViewport::resized()
+{
+    juce::Viewport::resized();
+    updateHints();
+}
+
+void ScrollHintViewport::visibleAreaChanged (const juce::Rectangle<int>&)
+{
+    updateHints();
+}
+
+void ScrollHintViewport::updateHints()
+{
+    const int width = getMaximumVisibleWidth();
+    const int height = getMaximumVisibleHeight();
+
+    topHint->setBounds (0, 0, width, hintHeight);
+    bottomHint->setBounds (0, height - hintHeight, width, hintHeight);
+
+    const auto* content = getViewedComponent();
+    const int contentHeight = content != nullptr ? content->getHeight() : 0;
+    const int viewY = getViewPositionY();
+
+    topHint->setVisible (viewY > 0);
+    bottomHint->setVisible (contentHeight > viewY + height);
+
+    topHint->toFront (false);
+    bottomHint->toFront (false);
+}
+
+bool ScrollHintViewport::isTopHintShowing() const noexcept     { return topHint->isVisible(); }
+bool ScrollHintViewport::isBottomHintShowing() const noexcept  { return bottomHint->isVisible(); }
+
+void ScrollHintViewport::pageBy (int direction)
+{
+    /*  Reduced motion (accessibility 5) is respected by construction: the view
+        moves in one step, with no animation to disable. */
+    const int step = juce::roundToInt ((float) getMaximumVisibleHeight() * 0.8f);
+    setViewPosition (getViewPositionX(), getViewPositionY() + direction * step);
+}
 
 //==============================================================================
 //  StringRow
@@ -255,12 +366,14 @@ AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
 
         viewports[i].setViewedComponent (columns[i].get(), false);
         viewports[i].setScrollBarsShown (true, false);
-        viewports[i].setScrollBarThickness (8);
+        viewports[i].setScrollBarThickness (12);
+        viewports[i].getVerticalScrollBar().setAutoHide (false);
         addAndMakeVisible (viewports[i]);
     }
 
     workspaceViewport.setScrollBarsShown (true, false);
-    workspaceViewport.setScrollBarThickness (8);
+    workspaceViewport.setScrollBarThickness (12);
+    workspaceViewport.getVerticalScrollBar().setAutoHide (false);
     addAndMakeVisible (workspaceViewport);
 
     buildColumn1();
@@ -1298,10 +1411,48 @@ void AdvancedPanel::resized()
     // width, so the workspace scrolls vertically exactly as a column does. The
     // bench fills the space instead: it is one surface, not a list.
     if (auto* panel = workspaceViewport.getViewedComponent())
-        panel->setSize (juce::jmax (80, workspaceViewport.getMaximumVisibleWidth()),
+    {
+        const int width = juce::jmax (80, workspaceViewport.getMaximumVisibleWidth());
+
+        panel->setSize (width,
                         workshop ? juce::jmax (560, workspaceViewport.getMaximumVisibleHeight())
                                  : panel == helpTab.get() ? juce::jmax (360, workspaceViewport.getMaximumVisibleHeight())
-                                                          : juce::jmax (80, panel->getHeight()));
+                                                          : workspacePanelHeight (panel));
+
+        /*  A panel whose preferred height depends on its width (LIVE's grid
+            scales its cells) was measured at the old width above; ask once
+            more at the new one. */
+        if (! workshop && panel != helpTab.get() && panel->getHeight() != workspacePanelHeight (panel))
+            panel->setSize (width, workspacePanelHeight (panel));
+    }
+}
+
+int AdvancedPanel::workspacePanelHeight (juce::Component* panel)
+{
+    /*  Every panel that knows how tall it wants to be is asked, rather than
+        trusted to have set that height on itself: the MOD, RHYTHM, LIVE,
+        ROUTING and TONE MATCH tabs all had a preferredHeight() nobody called,
+        and sat at the 80-point floor with their combo boxes squashed to a few
+        points each. The panels have no common base, so this is a dynamic_cast
+        per type; a panel not listed here falls back to its own height. */
+    if (panel == nullptr)
+        return 80;
+
+    int preferred = 0;
+
+    if (auto* p = dynamic_cast<ModMatrixPanel*> (panel))          preferred = p->preferredHeight();
+    else if (auto* p = dynamic_cast<RhythmPanel*> (panel))        preferred = p->preferredHeight();
+    else if (auto* p = dynamic_cast<LivePanel*> (panel))          preferred = p->preferredHeight();
+    else if (auto* p = dynamic_cast<RoutingPanel*> (panel))       preferred = p->preferredHeight();
+    else if (auto* p = dynamic_cast<ToneMatchPanel*> (panel))     preferred = p->preferredHeight();
+    else if (auto* p = dynamic_cast<CharacterPanel*> (panel))     preferred = p->preferredHeight();
+    else if (auto* p = dynamic_cast<ControllersPage*> (panel))    preferred = p->preferredHeight();
+    else if (auto* p = dynamic_cast<MidiOutPanel*> (panel))       preferred = p->getPreferredHeight();
+    else if (auto* p = dynamic_cast<NotationPanel*> (panel))      preferred = p->getPreferredHeight();
+    else if (auto* p = dynamic_cast<TunePanel*> (panel))          preferred = p->getPreferredHeight();
+    else if (auto* p = dynamic_cast<PracticeSetupPanel*> (panel)) preferred = p->getPreferredHeight();
+
+    return juce::jmax (80, preferred > 0 ? preferred : panel->getHeight());
 }
 
 } // namespace luthier

@@ -122,6 +122,9 @@ ControllersPage::ControllersPage (LuthierAudioProcessor& p)
 
     addAndMakeVisible (saveProfileButton);
 
+    // Column 4 sizes the tab from this; without it the page sat at 80 points.
+    setSize (480, preferredHeight());
+
     refresh();
 }
 
@@ -265,6 +268,16 @@ void ControllersPage::paint (juce::Graphics& g)
 
     // The wizard's section heading, positioned where resized() put its controls.
     drawHeading (g, { 0, getHeight() - 116, getWidth(), 18 }, "LATENCY WIZARD");
+}
+
+int ControllersPage::preferredHeight() const noexcept
+{
+    return 20                                   // heading
+         + 28 + 4 + 28 + 28                     // profile box, routing, notes
+         + 8
+         + 24 + 4 + 24 + 4 + 24 + 4 + 24        // three sliders and the toggle
+         + 8
+         + 96;                                  // the wizard, pinned to the bottom
 }
 
 void ControllersPage::resized()
