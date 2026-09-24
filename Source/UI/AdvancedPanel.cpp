@@ -347,13 +347,33 @@ namespace
 AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
     : processor (p),
       guitarBody (p),
-      fretboard (p)
+      fretboard (p),
+      stringRoll (p)
 {
     juce::ignoreUnused (kKnobRow);
 
     addAndMakeVisible (guitarBody);
     addAndMakeVisible (fretboard);
     fretboard.setCompact (true);
+
+    /*  The strip shows the fretboard or the string roll (spec/issues.md: a piano
+        roll that mirrors the strings). The choice is remembered; it is a view,
+        not state, so it lives in UiPreferences with the other UI choices. */
+    addChildComponent (stringRoll);
+    stripShowsRoll = UiPreferences::get().getBool ("advanced.stripShowsRoll", false);
+
+    auto makeStripToggle = [this] (const juce::String& key, bool roll)
+    {
+        auto t = std::make_unique<LuthierToggle> (tr (key));
+        t->setTooltip (tr (key + ".tooltip"));
+        t->getButton().setClickingTogglesState (false);
+        t->getButton().onClick = [this, roll] { setStripShowsRoll (roll); };
+        AccessibleSetup::configureButton (t->getButton(), tr (key), tr (key + ".tooltip"));
+        addAndMakeVisible (*t);
+        return t;
+    };
+    fretsButton = makeStripToggle ("advanced.strip.frets", false);
+    rollButton  = makeStripToggle ("advanced.strip.roll",  true);
 
     fretboard.onStringSelected = [this] (int s) { setSelectedString (s); };
     guitarBody.onPickupSelected = [this] (int) {};
@@ -1326,7 +1346,16 @@ void AdvancedPanel::resized()
     auto guitarArea = strip.removeFromLeft (juce::jmin (260, strip.getWidth() / 3));
     guitarBody.setBounds (guitarArea);
 
-    fretboard.setBounds (strip.reduced (Metrics::grid, Metrics::gridHalf));
+    auto stripBody = strip.reduced (Metrics::grid, Metrics::gridHalf);
+    auto toggles = stripBody.removeFromRight (52);
+    fretsButton->setBounds (toggles.removeFromTop (22).reduced (1));
+    rollButton->setBounds (toggles.removeFromTop (22).reduced (1));
+    fretsButton->getButton().setToggleState (! stripShowsRoll, juce::dontSendNotification);
+    rollButton->getButton().setToggleState (stripShowsRoll, juce::dontSendNotification);
+    fretboard.setVisible (! stripShowsRoll);
+    stringRoll.setVisible (stripShowsRoll);
+    fretboard.setBounds (stripBody);
+    stringRoll.setBounds (stripBody);
 
     bounds.removeFromTop (Metrics::grid);
 
@@ -1453,6 +1482,17 @@ int AdvancedPanel::workspacePanelHeight (juce::Component* panel)
     else if (auto* p = dynamic_cast<PracticeSetupPanel*> (panel)) preferred = p->getPreferredHeight();
 
     return juce::jmax (80, preferred > 0 ? preferred : panel->getHeight());
+}
+
+//==============================================================================
+void AdvancedPanel::setStripShowsRoll (bool showRoll)
+{
+    if (stripShowsRoll == showRoll && fretboard.isVisible() != showRoll)
+        return;
+
+    stripShowsRoll = showRoll;
+    UiPreferences::get().setBool ("advanced.stripShowsRoll", showRoll);
+    resized();
 }
 
 } // namespace luthier

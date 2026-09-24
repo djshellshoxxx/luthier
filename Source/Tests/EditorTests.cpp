@@ -2125,6 +2125,48 @@ LUTHIER_TEST (Editor, theLiveTabEditsTheSnapshotBankAndTheSetlist)
     The CHARACTER check in SlideTests caught it for one tab; this walks them all,
     so the next tab added cannot quietly sit at the floor either.
 */
+/*  spec/issues.md: "a small piano roll that mirrors the strings". The Advanced
+    strip offers FRETS | ROLL; the choice shows one component, hides the other,
+    and survives a new panel through UiPreferences. */
+LUTHIER_TEST (Editor, theStripSwitchesBetweenFretsAndTheStringRoll)
+{
+    UiPreferences::get().reset();
+
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    {
+        AdvancedPanel panel (processor);
+        panel.setVisible (true);
+        panel.setSize (1600, 900);
+
+        CHECK (! panel.isStripShowingRoll());
+        CHECK (panel.getFretboard().isVisible());
+        CHECK (! panel.getStringRoll().isVisible());
+
+        panel.setStripShowsRoll (true);
+
+        CHECK (panel.isStripShowingRoll());
+        CHECK (! panel.getFretboard().isVisible());
+        CHECK (panel.getStringRoll().isVisible());
+        CHECK (panel.getStringRoll().getWidth() > 200);
+        CHECK (panel.getStringRoll().getHeight() > 60);
+        CHECK (panel.getStringRoll().getNumLanes() == 6);
+    }
+
+    // Remembered.
+    AdvancedPanel again (processor);
+    again.setVisible (true);
+    again.setSize (1600, 900);
+    CHECK (again.isStripShowingRoll());
+    CHECK (again.getStringRoll().isVisible());
+
+    again.setStripShowsRoll (false);
+    CHECK (again.getFretboard().isVisible());
+
+    UiPreferences::get().reset();
+}
+
 LUTHIER_TEST (Editor, everyWorkspaceTabIsAsTallAsItsContent)
 {
     LuthierAudioProcessor processor;

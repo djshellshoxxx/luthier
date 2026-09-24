@@ -336,6 +336,10 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "advanced.scroll.moreBelow",      "More controls below - scroll with the mouse wheel, or click this arrow." },
         { "advanced.scroll.moreAbove.name", "More controls above" },
         { "advanced.scroll.moreBelow.name", "More controls below" },
+        { "advanced.strip.frets",           "FRETS" },
+        { "advanced.strip.frets.tooltip",   "Show the fretboard in the strip." },
+        { "advanced.strip.roll",            "ROLL" },
+        { "advanced.strip.roll.tooltip",    "Show the string roll in the strip: what you play scrolling by, one lane per string. Click a lane to pluck it." },
 
         // ---- shared widgets -----------------------------------------------------------------
         { "widgets.knob.wheelHint",   "{tip}  Ctrl+wheel nudges the value; the wheel alone scrolls the column." },

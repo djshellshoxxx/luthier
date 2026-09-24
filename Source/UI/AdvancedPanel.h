@@ -29,6 +29,7 @@
 #include "CircuitPanel.h"
 #include "WorkshopPanel.h"
 #include "FretboardComponent.h"
+#include "StringRoll.h"
 #include "GuitarBodyComponent.h"
 #include "PedalRack.h"
 #include "AmpFacePanel.h"
@@ -137,6 +138,10 @@ public:
     static constexpr int minimumUsableWidth = 1000;
 
     FretboardComponent& getFretboard() noexcept { return fretboard; }
+    /** The string roll that can replace the fretboard in the strip (FRETS | ROLL). */
+    StringRollComponent& getStringRoll() noexcept { return stringRoll; }
+    bool isStripShowingRoll() const noexcept { return stripShowsRoll; }
+    void setStripShowsRoll (bool showRoll);
 
     //==========================================================================
     /*  Column 4's tab strip (section 4.4).
@@ -248,6 +253,9 @@ private:
 
     GuitarBodyComponent guitarBody;
     FretboardComponent fretboard;
+    StringRollComponent stringRoll;
+    std::unique_ptr<LuthierToggle> fretsButton, rollButton;
+    bool stripShowsRoll = false;
 
     // Columns 1 to 3. Column 4 is the workspace below, which is not a Column:
     // it shows one panel at a time rather than stacking them.
