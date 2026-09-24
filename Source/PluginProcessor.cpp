@@ -1026,16 +1026,24 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         midiOutRouter.captureInput (midiMessages);
 
     // Host tempo, for tempo-synced delays and tremolo.
+    bool hostPlaying = false;
+
     if (auto* playHead = getPlayHead())
     {
         if (auto position = playHead->getPosition())
         {
             if (auto bpm = position->getBpm())
                 hostTempo.store (*bpm);
+
+            hostPlaying = position->getIsPlaying();
         }
     }
 
-    engine.setTempoBpm (hostTempo.load());
+    // live-performance 5: a tapped tempo wins while the host is stopped (or the
+    // plugin is off the host's clock). Setting only the host's tempo here
+    // overwrote the tap on the very next block.
+    blockTempo = tapTempo.getEffectiveBpm (hostTempo.load(), hostPlaying);
+    engine.setTempoBpm (blockTempo);
 
     // The rhythm engine's grid is locked to the host's own position, which is
     // what makes its scheduling sample-accurate rather than merely periodic.
@@ -1405,7 +1413,7 @@ void LuthierAudioProcessor::buildModBlockContext (const juce::AudioBuffer<float>
                                                   int numSamples,
                                                   ModBlockContext& context) noexcept
 {
-    context.bpm = hostTempo.load();
+    context.bpm = blockTempo;
     context.positionBeats = -1.0;
     context.transportRunning = false;
 

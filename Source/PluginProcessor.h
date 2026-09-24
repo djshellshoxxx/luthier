@@ -642,7 +642,10 @@ private:
 
     // Transport state, so the matrix can retrigger synced sources exactly once
     // when the host starts rolling.
-    bool transportWasRunning = false;
+    std::atomic<bool> transportWasRunning { false };   // read by getEffectiveTempo on the UI thread
+
+    /** This block's tempo: the host's, or the tapped one when that wins. */
+    double blockTempo = 120.0;
 
     double currentSampleRate = 44100.0;
     int currentBlockSize = 512;
