@@ -584,3 +584,81 @@ LUTHIER_TEST (ReviewRegression, midiLearnLearnsAppliesAndSurvivesAClear)
     learn.processMidi (zero);
     CHECK_NEAR (target->getValue(), 1.0f, 1.0e-6f);
 }
+
+//==============================================================================
+/*  R-210: two strings in unison exchange energy through the coupling matrix,
+    wired the way LuthierEngine wires it. The matrix added each string's motion
+    to the other without taking it from the sender, so at the default amount
+    the pair grew to the +-4 guard and stayed there. A passive bridge cannot
+    add energy: the pair must decay. */
+#include "../DSP/String/StringEngine.h"
+#include "../DSP/Coupling/CouplingMatrix.h"
+
+namespace
+{
+    std::vector<double> coupledPairEnvelope (double amount, double hzA, double hzB)
+    {
+        constexpr double sr = 48000.0;
+        StringEngine strings[2];
+        CouplingMatrix coupling;
+        coupling.prepare (sr, 2);
+        coupling.setAmount (amount);
+        coupling.buildDefault (0.020);
+
+        const double hz[2] = { hzA, hzB };
+
+        for (int s = 0; s < 2; ++s)
+        {
+            strings[s].prepare (sr, 512);
+            strings[s].setIndex (s);
+            strings[s].snapToFrequency (hz[s]);
+            coupling.setStringFrequency (s, hz[s]);
+        }
+
+        Excitation::Params pluck;
+        pluck.delaySamples = sr / hzA;
+        strings[0].excite (pluck);
+
+        double bridge[kMaxStrings] {}, in[kMaxStrings] {};
+        std::vector<double> perSecond;
+        double peak = 0.0;
+
+        for (int i = 0; i < (int) sr * 8; ++i)
+        {
+            coupling.process (bridge, in);
+
+            for (int s = 0; s < 2; ++s)
+            {
+                const double out = strings[s].processSample (in[s]);
+                bridge[s] = strings[s].getBridgeOutput();
+                peak = std::max (peak, std::abs (out));
+            }
+
+            if ((i + 1) % (int) sr == 0)
+            {
+                perSecond.push_back (peak);
+                peak = 0.0;
+            }
+        }
+
+        return perSecond;
+    }
+}
+
+LUTHIER_TEST (ReviewRegression, aUnisonPairDecays)
+{
+    const auto coupled = coupledPairEnvelope (0.85, 329.63, 329.63);
+    const auto alone = coupledPairEnvelope (0.0, 329.63, 329.63);
+
+    juce::String trace;
+
+    for (size_t i = 0; i < coupled.size(); ++i)
+        trace << juce::String (coupled[i], 4) << "/" << juce::String (alone[i], 4) << " ";
+
+    CHECK_MSG (coupled.back() < coupled.front() * 0.1, "coupled/alone per second: " + trace);
+
+    // Three cents apart ran away too; well apart, the sympathetic ring is kept.
+    const auto nearly = coupledPairEnvelope (0.85, 329.63, 329.63 * std::pow (2.0, 3.0 / 1200.0));
+    CHECK (nearly.back() < nearly.front() * 0.1);
+}
+
