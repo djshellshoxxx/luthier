@@ -381,3 +381,35 @@ LUTHIER_TEST (ReviewRegression, anOverdubIsHeardOnceAndWrapsWithTheLoop)
 
     CHECK_MSG (quietest > 0.1f, "a hole in the overdub: period RMS " + juce::String (quietest));
 }
+
+//==============================================================================
+/*  R-207: Capture::processBlock had no caller, so a capture never progressed and
+    every tone-match wizard waited at "Recording..." for ever. */
+LUTHIER_TEST (ReviewRegression, aCaptureRecordsTheMainOutput)
+{
+    constexpr int block = 256;
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, block);
+
+    auto& capture = processor.getCapture();
+    capture.setSource (Capture::Source::mainOut);
+    capture.start (0.2);
+
+    juce::AudioBuffer<float> buffer (juce::jmax (processor.getTotalNumOutputChannels(),
+                                                 processor.getTotalNumInputChannels()), block);
+
+    for (int b = 0; b < 60 && ! capture.isComplete(); ++b)
+    {
+        buffer.clear();
+        juce::MidiBuffer midi;
+
+        if (b == 0)
+            midi.addEvent (juce::MidiMessage::noteOn (1, 52, (juce::uint8) 110), 0);
+
+        processor.processBlock (buffer, midi);
+    }
+
+    CHECK (capture.isComplete());
+    CHECK (capture.getRecordedSamples() > 0);
+    CHECK (capture.getBuffer().getMagnitude (0, 0, capture.getRecordedSamples()) > 0.0f);
+}

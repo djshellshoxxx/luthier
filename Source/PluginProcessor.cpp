@@ -1201,6 +1201,22 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         for (auto& slot : cabIr)
             slot.process (mainOut.getArrayOfWritePointers(),
                           mainOut.getNumChannels(), numSamples);
+
+        // tone-match 4: the capture takes what the plugin produced, or the
+        // reference return on the sidechain. It was never fed, so every
+        // tone-match wizard waited at "Recording..." for ever.
+        if (capture.isRecording())
+        {
+            if (capture.getSource() == Capture::Source::sidechain)
+            {
+                if (hasSidechainInput() && sidechainChannels > 0 && sidechainSamples >= numSamples)
+                    capture.processBlock (sidechainCopy.getArrayOfReadPointers(), sidechainChannels, numSamples);
+            }
+            else
+            {
+                capture.processBlock (mainOut.getArrayOfReadPointers(), mainOut.getNumChannels(), numSamples);
+            }
+        }
     }
 
     // ---- the live surface --------------------------------------------------------
