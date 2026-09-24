@@ -37,6 +37,8 @@ void CouplingMatrix::reset() noexcept
     for (auto& row : airHistory)
         row.fill (0.0);
 
+    airSums.fill (0.0);
+
     for (auto& hp : airHighPass)
         hp.reset();
 
@@ -138,15 +140,20 @@ void CouplingMatrix::process (const double* bridgeOutputs, double* couplingInput
     if (air)
     {
         auto& now = airHistory[(size_t) airWrite];
+        double total = 0.0;
 
         for (int j = 0; j < numStrings; ++j)
+        {
             now[(size_t) j] = bridgeOutputs[j];
+            total += bridgeOutputs[j];
+        }
 
-        delayed = airHistory[(size_t) ((airWrite - airDelay + kAirRing) % kAirRing)].data();
-        airWrite = (airWrite + 1) % kAirRing;
+        airSums[(size_t) airWrite] = total;
 
-        for (int j = 0; j < numStrings; ++j)
-            airSum += delayed[j];
+        const int read = (airWrite - airDelay) & (kAirRing - 1);
+        delayed = airHistory[(size_t) read].data();
+        airSum = airSums[(size_t) read];
+        airWrite = (airWrite + 1) & (kAirRing - 1);
     }
 
     for (int i = 0; i < numStrings; ++i)

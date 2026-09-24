@@ -94,6 +94,7 @@ private:
     int airDelay = 14;
     int airWrite = 0;
     std::array<std::array<double, kMaxStrings>, kAirRing> airHistory {};
+    std::array<double, kAirRing> airSums {};
     std::array<OnePoleHP, kMaxStrings> airHighPass {};
 };
 

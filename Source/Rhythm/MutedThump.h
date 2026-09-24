@@ -24,9 +24,13 @@ struct MutedThump
 };
 
 /*  `candidates` is a mask of strings the voicing mutes (and, for a pattern,
-    that its STRUM mask includes). Returns how many thumps were written. */
+    that its STRUM mask includes). A live chord's strum crosses only the
+    strings between its first and last struck one (`withinSpanOnly`); a
+    pattern's crosses every string in its STRUM mask, so a muted string
+    outside the struck span is reached one string-interval before or after
+    it. Returns how many thumps were written. */
 inline int planMutedThumps (const StrumStrike* strikes, int planned, juce::uint32 candidates,
-                            MutedThump* out, int maxOut) noexcept
+                            MutedThump* out, int maxOut, bool withinSpanOnly = true) noexcept
 {
     int lo = kMaxStrings, hi = -1;
 
@@ -41,8 +45,51 @@ inline int planMutedThumps (const StrumStrike* strikes, int planned, juce::uint3
 
     int written = 0;
 
-    for (int m = lo + 1; m < hi && written < maxOut; ++m)
+    if (hi < 0)
+        return 0;
+
+    for (int m = 0; m < kMaxStrings && written < maxOut; ++m)
     {
+        if (m <= lo || m >= hi)
+        {
+            if (withinSpanOnly || m == lo || m == hi
+                || (candidates & ((juce::uint32) 1u << (juce::uint32) m)) == 0)
+                continue;
+
+            // Outside the struck span: extrapolate from the end the hand
+            // reaches it from, at that end's string-to-string interval.
+            const int end = m < lo ? lo : hi;
+            const StrumStrike* atEnd = nullptr;
+            const StrumStrike* inner = nullptr;
+
+            for (int k = 0; k < planned; ++k)
+            {
+                const auto& st = strikes[k];
+
+                if (st.missed)
+                    continue;
+
+                if (st.stringIndex == end)
+                    atEnd = &st;
+                else if (inner == nullptr || std::abs (st.stringIndex - end) < std::abs (inner->stringIndex - end))
+                    inner = &st;
+            }
+
+            if (atEnd == nullptr)
+                continue;
+
+            const double perString = inner != nullptr
+                                       ? (atEnd->timeSeconds - inner->timeSeconds) / (double) (atEnd->stringIndex - inner->stringIndex)
+                                       : 0.005;
+
+            MutedThump t;
+            t.stringIndex = m;
+            t.timeSeconds = juce::jmax (0.0, atEnd->timeSeconds + (double) (m - end) * perString);
+            t.force = atEnd->force;
+            out[written++] = t;
+            continue;
+        }
+
         if ((candidates & ((juce::uint32) 1u << (juce::uint32) m)) == 0)
             continue;
 

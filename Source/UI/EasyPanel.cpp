@@ -176,6 +176,10 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
                                   "Poly voices chords across the strings. Guitar Controller maps "
                                   "MIDI channel to string for hex pickups and MPE.");
 
+    // REALISM-B, fingerstyle-attack.md 7: the Tool selector, beside the mode.
+    toolSelector = std::make_unique<RightHandToolSelector> (processor);
+    addAndMakeVisible (*toolSelector);
+
     // ---- tone strip (3.4) ------------------------------------------------------------
     inputKnob.attachTo (processor, ParamIDs::inputGain, "Input gain: how hard the guitar hits the pedals and the amp.");
     outputKnob.attachTo (processor, ParamIDs::masterGain, "Output gain, after everything.");
@@ -606,6 +610,10 @@ void EasyPanel::resized()
         auto r = playingArea.reduced (4, 2);
         r.removeFromTop (14);
         playingModeSelector.setBounds (r.removeFromLeft (130).withSizeKeepingCentre (130, juce::jmin (48, r.getHeight())));
+        r.removeFromLeft (Metrics::grid);
+
+        // REALISM-B: the Tool selector takes a share of the strip beside the mode.
+        toolSelector->setBounds (r.removeFromLeft (juce::jlimit (140, 280, r.getWidth() / 3)));
         r.removeFromLeft (Metrics::grid);
 
         juce::Array<LuthierKnob*> knobs { &attackKnob, &bodyKnob, &driveKnob, &toneKnob, &spaceKnob, &humanizeKnob, &characterKnob };

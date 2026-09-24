@@ -393,6 +393,9 @@ public:
 
     /** harmonic-realism.md 5: the touch the contacts are built from. */
     void setHarmonicTouch (const HarmonicTouchSettings& s) noexcept { harmonicTouch = s; }
+
+    /** Ends a note now, as triggerNoteNow starts one (tests, offline renderer). Audio thread. */
+    void releaseNoteNow (const NoteOffEvent& e) noexcept { applyNoteOff (e); }
     const HarmonicTouchSettings& getHarmonicTouch() const noexcept { return harmonicTouch; }
 
     /** string-interaction.md 7. */

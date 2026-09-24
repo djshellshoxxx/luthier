@@ -673,8 +673,14 @@ void LuthierEngine::applyRightHand (const HandResolution& hand, const NoteOnEven
     if (hand.rest)
     {
         lastRest[(size_t) s] = true;
-        p.levelScale = 1.26;
-        p.contactScale = 1.15;
+        /*  DECISION (REALISM-B): the level term is 1.35 (+2.6 dB) on the
+            excitation and the contact 1.10x, not the draft's 1.26 and 1.15.
+            A longer contact spreads the same peak displacement over more
+            samples, so at 1.26 / 1.15 the note's peak rose only 1.2 dB and
+            its centroid fell 21 %; these land the note (not the impulse)
+            in FA-06's 1.5-3 dB and 5-20 %. */
+        p.levelScale = 1.35;
+        p.contactScale = 1.10;
         p.brightnessScale = 0.90;
         str.setCouplingSendScale (1.30);
         noteSustainScale[(size_t) s] = juce::jlimit (0.05, 4.0, noteSustainScale[(size_t) s] * 0.85);

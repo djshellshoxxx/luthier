@@ -631,7 +631,7 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
             }
 
             std::array<MutedThump, kMaxStrings> thumps {};
-            const int numThumps = planMutedThumps (strikes.data(), planned, candidates, thumps.data(), (int) thumps.size());
+            const int numThumps = planMutedThumps (strikes.data(), planned, candidates, thumps.data(), (int) thumps.size(), false);
             const int hand = handPositionHint.load (std::memory_order_relaxed);
 
             for (int k = 0; k < numThumps; ++k)

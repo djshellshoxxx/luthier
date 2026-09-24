@@ -19,6 +19,9 @@
 #include "NoiseGroups.h"
 #include "SetupGroup.h"
 #include "SlideGroup.h"
+#include "HarmonicsGroup.h"          // REALISM-B: harmonic-realism.md 7
+#include "StringInteractionGroup.h"  // REALISM-B: string-interaction.md 9
+#include "RightHandGroup.h"          // REALISM-B: fingerstyle-attack.md 7
 #include "../Character/CharacterEngine.h"
 
 namespace luthier
@@ -152,6 +155,11 @@ private:
     std::unique_ptr<NoiseGroups> noiseGroups;
     std::unique_ptr<SetupGroup> setupGroup;
     std::unique_ptr<SlideGroup> slideGroup;
+
+    // REALISM-B: PICK -> HARMONICS, RIGHT HAND, STRING INTERACTION (gui-integration 4.4).
+    std::unique_ptr<HarmonicsGroup> harmonicsGroup;
+    std::unique_ptr<RightHandGroup> rightHandGroup;
+    std::unique_ptr<StringInteractionGroup> interactionGroup;
 
     /*  Sizes the panel to its content. The workspace viewport keeps whatever
         height a panel gives itself, and this one never gave itself one - so it
