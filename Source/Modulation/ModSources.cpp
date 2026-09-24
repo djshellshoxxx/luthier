@@ -196,6 +196,7 @@ double ModLfo::tick (double beatsPerTick, double hostPositionBeats) noexcept
 {
     const double phaseBefore = phase;
     bool wrapped = false;
+    bool assignedFromHost = false;
 
     // ---- advance the phase ---------------------------------------------------
     if (synced)
@@ -215,6 +216,7 @@ double ModLfo::tick (double beatsPerTick, double hostPositionBeats) noexcept
             // The phase was assigned rather than advanced, so a wrap shows up as
             // the phase going backwards.
             wrapped = (phase < phaseBefore);
+            assignedFromHost = true;
         }
         else
         {
@@ -230,7 +232,10 @@ double ModLfo::tick (double beatsPerTick, double hostPositionBeats) noexcept
     // The phase is wrapped into [0, 1) at the end of every tick, so asking
     // whether floor(phase) changed would answer yes twice per cycle: once when
     // it reaches 1 and again when the wrap takes it back to 0.
-    if (! (synced && retrigger == Retrigger::onSyncBoundary))
+    // Only a phase assigned from the host is already in range. A synced LFO
+    // with the transport stopped free-runs, and skipping this for it let the
+    // phase grow without bound and froze the stepped shapes.
+    if (! assignedFromHost)
     {
         wrapped = (phase >= 1.0);
         phase -= std::floor (phase);
