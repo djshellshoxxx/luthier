@@ -1,4 +1,6 @@
 #include "StringEngine.h"
+#include "Harmonics.h"
+#include <complex>
 
 namespace luthier
 {
@@ -43,6 +45,9 @@ void StringEngine::prepare (double sampleRate, int /*maxBlockSize*/)
 
     stealTotal = juce::jmax (1, (int) (sr * 0.005));
 
+    // harmonic-realism.md 2: a contact lands and lifts over 1 ms.
+    contactRampStep = 1.0 / juce::jmax (1.0, 0.001 * sr);
+
     snapToFrequency (targetHz);
     needsLoopUpdate = true;
     updateDispersion();
@@ -82,6 +87,14 @@ void StringEngine::reset() noexcept
     dampingAmount = 1.0;
     harmonicPartial = 0;
     couplingReceptivity = 1.0;
+    dampingReceptivity = 1.0;
+    couplingSendScale = 1.0;
+
+    // harmonic-realism.md 8: reset clears every contact and its ramp.
+    for (auto& c : contacts)
+        c = ContactState {};
+
+    numActiveContacts = 0;
 
     // Reseed, so that resetting really does return to a known state. Without
     // this the humanisation noise carries over and two renders of the same
@@ -155,8 +168,10 @@ void StringEngine::excite (const Excitation::Params& params) noexcept
     excitation.trigger (p, rng);
     sounded = true;
 
+    // A fresh pluck refreshes the loop coefficients, as the harmonic reset it
+    // replaced always did: a render without harmonics stays bit-identical.
     if (p.kind != Excitation::Kind::Harmonic && p.kind != Excitation::Kind::PinchHarmonic)
-        setHarmonicRestriction (0);
+        needsLoopUpdate = true;
 }
 
 void StringEngine::touch (double depth) noexcept
@@ -183,19 +198,224 @@ void StringEngine::setDamping (Damping d, double amount) noexcept
 
     // A damped string still receives sympathetic energy (engine spec 5.6) - it
     // just dissipates it quickly - but a choked one accepts very little.
-    couplingReceptivity = (d == Damping::Silenced) ? 0.0
-                        : (d == Damping::Chuck) ? 1.0 - dampingAmount
-                        : (d == Damping::Choked) ? 0.15
-                        : (d == Damping::PalmMute || d == Damping::PalmMuteBass) ? 0.45
-                        : (harmonicPartial > 0) ? 0.35
-                        : 1.0;
+    dampingReceptivity = (d == Damping::Silenced) ? 0.0
+                       : (d == Damping::Chuck) ? 1.0 - dampingAmount
+                       : (d == Damping::Choked) ? 0.15
+                       : (d == Damping::PalmMute || d == Damping::PalmMuteBass) ? 0.45
+                       : 1.0;
+
+    updateReceptivity();
+}
+
+void StringEngine::updateReceptivity() noexcept
+{
+    // harmonic-realism.md 2: while a finger touches the string it accepts
+    // what a harmonic always did (0.35), and the damping state's value again
+    // when it lifts.
+    couplingReceptivity = numActiveContacts > 0 ? juce::jmin (dampingReceptivity, 0.35)
+                                                : dampingReceptivity;
 }
 
 void StringEngine::setHarmonicRestriction (int partial) noexcept
 {
+    // The shim (harmonic-realism.md 2): a contact for the partial at its first
+    // node, 1/n from the bridge, held until cleared.
     harmonicPartial = juce::jmax (0, partial);
-    couplingReceptivity = (harmonicPartial > 0) ? 0.35 : couplingReceptivity;
-    needsLoopUpdate = true;
+
+    if (harmonicPartial <= 1)
+    {
+        clearAllContacts();
+        return;
+    }
+
+    Contact c;
+    c.positionFromBridge = 1.0 / (double) harmonicPartial;
+    c.vibratingLengthMm = physical.scaleLengthMm;
+    c.seconds = 0.0;
+    addContact (c);
+}
+
+//==============================================================================
+int StringEngine::addContact (const Contact& c) noexcept
+{
+    for (int slot = 0; slot < kMaxContacts; ++slot)
+    {
+        auto& st = contacts[(size_t) slot];
+
+        if (st.active)
+            continue;
+
+        st.active = true;
+        st.contact = c;
+        st.contact.strength = juce::jlimit (0.0, 1.0, c.strength);
+        st.contact.widthMm = juce::jlimit (0.01, 100.0, c.widthMm);
+
+        const auto node = harmonics::findNode (c.positionFromBridge, c.vibratingLengthMm, st.contact.widthMm);
+        st.partial = node.partial;
+        st.efficiency = node.partial > 0 ? node.efficiency : 0.0;
+        st.gain = 0.0;
+        st.target = st.contact.strength;
+        st.samplesLeft = c.seconds > 0.0 ? juce::jmax (1, (int) std::round (c.seconds * sr)) : -1;
+        st.combSpacing = 0.0;
+
+        ++numActiveContacts;
+        updateContactSpacing();
+        updateReceptivity();
+        return slot;
+    }
+
+    return -1;
+}
+
+void StringEngine::clearContact (int slot) noexcept
+{
+    if (! juce::isPositiveAndBelow (slot, kMaxContacts))
+        return;
+
+    // Lifts over the 1 ms ramp; the slot frees itself when the gain reaches 0.
+    auto& st = contacts[(size_t) slot];
+
+    if (st.active)
+    {
+        st.target = 0.0;
+        st.samplesLeft = 0;
+    }
+}
+
+void StringEngine::clearAllContacts() noexcept
+{
+    for (int slot = 0; slot < kMaxContacts; ++slot)
+        clearContact (slot);
+}
+
+int StringEngine::getContactPartial (int slot) const noexcept
+{
+    return juce::isPositiveAndBelow (slot, kMaxContacts) && contacts[(size_t) slot].active
+             ? contacts[(size_t) slot].partial : 0;
+}
+
+double StringEngine::getContactEfficiency (int slot) const noexcept
+{
+    return juce::isPositiveAndBelow (slot, kMaxContacts) && contacts[(size_t) slot].active
+             ? contacts[(size_t) slot].efficiency : 0.0;
+}
+
+double StringEngine::getPartialFrequency (int n) const noexcept
+{
+    /*  The loop rings where its total phase delay is a whole number of
+        cycles. Solve f tau(f) = n sr by fixed-point iteration; tau varies
+        slowly with f, so six steps are far past convergence. This is the
+        model's own stretched partial, so the comb sits exactly on it
+        (harmonic-realism.md 1, equation 1). */
+    const double delaySamples = smoothedDelay.getCurrent();
+    const double pure = juce::jmax (2.0, delaySamples - filterDelayCompensation());
+    const double p = loopFilterPole;
+    const double a = dispersionCoeff;
+
+    double f = (double) n * juce::jmax (constants::kMinStringHz, sr / juce::jmax (1.0, delaySamples));
+
+    for (int it = 0; it < 6; ++it)
+    {
+        const double w = juce::jlimit (1.0e-6, juce::MathConstants<double>::pi - 1.0e-6,
+                                       constants::kTwoPi * f / sr);
+        const std::complex<double> z1 = std::polar (1.0, -w);
+
+        // One-pole lowpass (1 - p) / (1 - p z^-1), and the allpass (a + z^-1) / (1 + a z^-1).
+        const double lpPhase = -std::arg (1.0 - p * z1);
+        const double apPhase = std::arg (a + z1) - std::arg (1.0 + a * z1);
+
+        const double tau = pure - lpPhase / w - (double) activeDispersionStages * apPhase / w;
+        f = (double) n * sr / juce::jmax (1.0, tau);
+    }
+
+    return f;
+}
+
+bool StringEngine::canRealiseContact (const Contact& c) const noexcept
+{
+    const auto node = harmonics::findNode (c.positionFromBridge, c.vibratingLengthMm, c.widthMm);
+
+    if (node.partial <= 1)
+        return true;
+
+    const double compensated = juce::jmax (2.0, smoothedDelay.getCurrent() - filterDelayCompensation());
+    const double spacing = sr / juce::jmax (1.0, getPartialFrequency (node.partial));
+
+    return compensated - (double) (node.partial - 1) * spacing >= 2.0;
+}
+
+void StringEngine::updateContactSpacing() noexcept
+{
+    for (auto& st : contacts)
+        if (st.active && st.partial > 1)
+            st.combSpacing = sr / juce::jmax (1.0, getPartialFrequency (st.partial));
+}
+
+double StringEngine::applyContacts (double delayOut, double compensated) noexcept
+{
+    double y = delayOut;
+
+    for (auto& st : contacts)
+    {
+        if (! st.active)
+            continue;
+
+        // 1 ms linear ramp in and out: a touch never steps the loop.
+        if (st.gain < st.target)
+            st.gain = juce::jmin (st.target, st.gain + contactRampStep);
+        else if (st.gain > st.target)
+            st.gain = juce::jmax (st.target, st.gain - contactRampStep);
+
+        const double g = st.gain;
+
+        // H = (1 - g) + g e C_n: C_n reads the loop m M samples less delayed.
+        double comb = 0.0;
+
+        if (st.partial > 1 && st.efficiency > 0.0)
+        {
+            const double spacing = st.combSpacing;
+            double sum = delayOut;
+            int taps = 1;
+
+            for (int m = 1; m < st.partial; ++m)
+            {
+                const double d = compensated - (double) m * spacing;
+
+                if (d < 2.0)
+                    break;
+
+                // The kernel only changes when the delay does (a glide), so
+                // a held touch costs six multiply-adds per tap.
+                auto& k = st.kernels[(size_t) m];
+
+                if (k.delay != d)
+                    FractionalDelayLine::makeKernel (k, juce::jlimit (1.0, delayLine.getMaxDelay(), d));
+
+                sum += delayLine.readKernel (k);
+                ++taps;
+            }
+
+            // A comb that cannot be read in full is only reached when the
+            // pitch rose under a held touch; the fallback in triggerNote
+            // covers new notes. Its partial sum is still passive.
+            comb = sum / (double) juce::jmax (taps, st.partial);
+        }
+
+        y = (1.0 - g) * y + g * st.efficiency * comb;
+
+        // Timed release.
+        if (st.samplesLeft > 0 && --st.samplesLeft == 0)
+            st.target = 0.0;
+
+        if (st.samplesLeft == 0 && st.gain <= 0.0)
+        {
+            st.active = false;
+            --numActiveContacts;
+            updateReceptivity();
+        }
+    }
+
+    return y;
 }
 
 void StringEngine::setFretBuzz (double amount, double actionMm) noexcept
@@ -298,9 +518,8 @@ void StringEngine::updateLoopCoefficients() noexcept
             break;
     }
 
-    // Harmonics ring clean but die noticeably sooner than a stopped note.
-    if (harmonicPartial > 0)
-        t60Scale *= 0.55;
+    // harmonic-realism.md 2: no harmonic decay factor. A harmonic's decay is
+    // the loop filter's at n f0, shorter for the physical reason.
 
     loopCutoffHz = juce::jlimit (120.0, sr * 0.48, cutoff);
     loopFilter.setCutoff (loopCutoffHz);
@@ -334,13 +553,17 @@ void StringEngine::updateLoopCoefficients() noexcept
 
     loopGain = std::exp (-kT60Constant * loopSamples / (t60 * sr));
     loopGain = juce::jlimit (0.0, kMaxLoopGain, loopGain);
+
+    // The contacts' comb spacing follows the pitch, at this rate and no faster.
+    if (numActiveContacts > 0)
+        updateContactSpacing();
 }
 
 //==============================================================================
-double StringEngine::processSample (double couplingInput) noexcept
+double StringEngine::processSample (double couplingInput, double directInput) noexcept
 {
     beginSample();
-    return endSample (couplingInput);
+    return endSample (couplingInput, directInput);
 }
 
 void StringEngine::beginSample() noexcept
@@ -362,7 +585,7 @@ void StringEngine::beginSample() noexcept
 
             if (pendingParams.kind != Excitation::Kind::Harmonic
                 && pendingParams.kind != Excitation::Kind::PinchHarmonic)
-                setHarmonicRestriction (0);
+                needsLoopUpdate = true;
         }
     }
     else
@@ -390,8 +613,11 @@ void StringEngine::beginSample() noexcept
 
     const double delayOut = delayLine.read (compensated);
 
+    // ---- contacts (harmonic-realism.md 2), between the read and the filter --
+    const double touched = numActiveContacts > 0 ? applyContacts (delayOut, compensated) : delayOut;
+
     // ---- loop: damping, dispersion, loss ------------------------------------
-    double fb = loopFilter.process (delayOut);
+    double fb = loopFilter.process (touched);
 
     for (int i = 0; i < activeDispersionStages; ++i)
         fb = dispersion[i].process (fb);
@@ -427,10 +653,10 @@ void StringEngine::beginSample() noexcept
     pendingDelayOut = delayOut;
 }
 
-double StringEngine::endSample (double couplingInput) noexcept
+double StringEngine::endSample (double couplingInput, double directInput) noexcept
 {
     const double delayOut = pendingDelayOut;
-    const double fb = bridgeWave;
+    double fb = bridgeWave;   // the bass touch below damps it (MODEL-GAPS)
 
     // ---- injections ----------------------------------------------------------
     const double exc = excitation.next();
@@ -483,14 +709,14 @@ double StringEngine::endSample (double couplingInput) noexcept
         fb *= touch;
     }
 
-    delayLine.write (fb + exc + couplingInput * couplingReceptivity + noise);
+    delayLine.write (fb + exc + couplingInput * couplingReceptivity + noise + directInput);
 
     // ---- output --------------------------------------------------------------
     double out = dcBlocker.process (delayOut * touch);
     out = sanitise (out);
 
     levelFollower.process (out);
-    bridgeOut = out * physical.couplingSend;
+    bridgeOut = out * physical.couplingSend * couplingSendScale;
 
     return out;
 }

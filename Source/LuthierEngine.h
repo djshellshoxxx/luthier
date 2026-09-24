@@ -45,6 +45,8 @@
 #include "Character/EnvironmentModel.h"          // environment.md (REALISM-A)
 #include "DSP/String/StringAging.h"              // string-aging.md (REALISM-A)
 #include "DSP/Coupling/BodyCouplingBank.h"       // body-coupling.md (REALISM-A)
+#include "DSP/String/Harmonics.h"          // REALISM-B: harmonic-realism.md
+#include "Model/Playing/RightHand.h"       // REALISM-B: fingerstyle-attack.md, string-interaction.md
 
 #include <array>
 #include <atomic>
@@ -383,6 +385,7 @@ public:
 
     /** Re-designs the bank from the body, the bridge and the strings. Message thread. */
     void rebuildBodyCoupling();
+    void applyRealismStringInfo (int stringIndex, const StringSpec& spec) noexcept;   // REALISM-A
 
     /** The bridge the bank was last designed with. */
     const BridgeCoupling& getBridgeCoupling() const noexcept { return bridgeCoupling; }
@@ -481,6 +484,43 @@ public:
 
     double getCpuEstimate() const noexcept { return cpuEstimate.load (std::memory_order_relaxed); }
 
+    // ==== BEGIN REALISM-B engine ====
+    // harmonic-realism.md, string-interaction.md, fingerstyle-attack.md.
+    // Implemented in LuthierEngineRealismB.cpp.
+
+    /** harmonic-realism.md 5: the touch the contacts are built from. */
+    void setHarmonicTouch (const HarmonicTouchSettings& s) noexcept { harmonicTouch = s; }
+
+    /** Ends a note now, as triggerNoteNow starts one (tests, offline renderer). Audio thread. */
+    void releaseNoteNow (const NoteOffEvent& e) noexcept { applyNoteOff (e); }
+    const HarmonicTouchSettings& getHarmonicTouch() const noexcept { return harmonicTouch; }
+
+    /** string-interaction.md 7. */
+    void setStringInteraction (const StringInteractionSettings& s) noexcept;
+    const StringInteractionSettings& getStringInteraction() const noexcept { return interaction; }
+
+    /** fingerstyle-attack.md 6. */
+    void setRightHand (const RightHandSettings& s) noexcept { rightHand = s; }
+    const RightHandSettings& getRightHand() const noexcept { return rightHand; }
+
+    /** The last note's excitation and resolved tool on a string, for the tests
+        (FA-09's "asserted on the recorded Params") and the illustration. */
+    const Excitation::Params& getLastExcitation (int s) const noexcept { return lastExcitation[(size_t) juce::jlimit (0, kMaxStrings - 1, s)]; }
+    RhTool getLastTool (int s) const noexcept { return lastTool[(size_t) juce::jlimit (0, kMaxStrings - 1, s)]; }
+    bool getLastWasRest (int s) const noexcept { return lastRest[(size_t) juce::jlimit (0, kMaxStrings - 1, s)]; }
+
+    /*  The fretboard's contact ring (harmonic-realism.md 7): where a string is
+        being touched, as a fret from the nut (-1 none), how much of the touch
+        is left (1 landing .. 0 lifted) and whether it missed (off-node).
+        Written by the audio thread per note, read by the UI; a torn read
+        only misdraws one frame. */
+    struct ContactDisplay { std::atomic<float> fret { -1.0f }; std::atomic<float> life { 0.0f }; std::atomic<bool> missed { false }; };
+    const ContactDisplay& getContactDisplay (int s) const noexcept { return contactDisplay[(size_t) juce::jlimit (0, kMaxStrings - 1, s)]; }
+
+    /** string-interaction.md 9: the palm's weight on each string now (0-1), for the mute-zone shading. */
+    float getPalmWeight (int s) const noexcept { return palmWeightDisplay[(size_t) juce::jlimit (0, kMaxStrings - 1, s)].load (std::memory_order_relaxed); }
+    // ==== END REALISM-B engine ====
+
 private:
     /** Moves a block's events onto the schedule, converting their offsets to
         absolute sample positions. */
@@ -561,6 +601,8 @@ private:
         NoteOffEvent noteOff {};
         int64_t absoluteSample = 0;
         bool fingerAlternated = false;   ///< bass-techniques 6: already given its finger's timing
+        bool staggered = false;   ///< REALISM-B: string-interaction.md 4 delayed this note-off
+        bool cancelled = false;   ///< REALISM-B: a new note on the string took it first
     };
 
     static constexpr int kMaxScheduledEvents = 192;
@@ -806,6 +848,83 @@ private:
     }
 
     RtRandom rng { 0xA11CE5ull };
+
+    // ==== BEGIN REALISM-B engine state ====
+    HarmonicTouchSettings harmonicTouch;
+    StringInteractionSettings interaction;
+    RightHandSettings rightHand;
+    Excitation::Material chosenPickMaterial = Excitation::Material::PickCelluloid;
+
+    std::array<Excitation::Params, kMaxStrings> lastExcitation {};
+    std::array<RhTool, kMaxStrings> lastTool {};
+    std::array<bool, kMaxStrings> lastRest {};
+    std::array<ContactDisplay, kMaxStrings> contactDisplay;
+    std::array<int, kMaxStrings> contactDisplaySamples {};
+    std::array<int, kMaxStrings> contactDisplayTotal {};
+    std::array<std::atomic<float>, kMaxStrings> palmWeightDisplay {};
+
+    /*  Damping another mechanism put on a string that is not its note's own
+        (string-interaction.md 2 and 3, fingerstyle-attack.md 2): what to go
+        back to, and why it is held. */
+    struct BorrowedDamping
+    {
+        bool held = false;
+        StringEngine::Damping prior = StringEngine::Damping::Open;
+        double priorAmount = 1.0;
+        juce::uint32 adjacentSources = 0;   ///< strings whose fretting finger lies here
+        int restFrom = -1;                   ///< string whose rest stroke landed here
+        bool palm = false;                   ///< under the palm (spread)
+    };
+    std::array<BorrowedDamping, kMaxStrings> borrowed {};
+
+    void borrowDamping (int s, StringEngine::Damping d, double amount) noexcept;
+    void releaseBorrowIfFree (int s) noexcept;
+    void clearBorrowed (int s) noexcept;
+
+    // Palm spread (string-interaction.md 2).
+    double palmCentre = -1.0;
+    int64_t palmGroupStart = -1000000;
+    double palmGroupSum = 0.0;
+    int palmGroupCount = 0;
+    juce::uint32 struckThisBlock = 0;
+    void notePalmStrike (int s) noexcept;
+    void updatePalmSpread() noexcept;
+
+    // Release stagger (string-interaction.md 4).
+    RtRandom staggerRng { 0x57A66E5ull };
+    int stageNoteOffs (const PlayEventQueue& queue, std::array<int64_t, PlayEventQueue::kCapacity>& due) noexcept;
+
+    // Crosstalk (string-interaction.md 5).
+    bool crosstalkWasBent = false;
+    void updateCrosstalk() noexcept;
+
+    // Alternation (fingerstyle-attack.md 3).
+    int alternationPhase = 0;
+    int64_t lastFingerNoteSample = -1000000;
+    int64_t lastNoteOnSample = -1000000;
+    int lastNoteOnString = -1;
+
+    /** What the right hand resolved a note to. */
+    struct HandResolution
+    {
+        RhTool tool = RhTool::global;
+        bool rest = false;
+        int slapType = -1;       ///< 0 thumb slap, 1 pop, -1 none
+        double timingOffsetMs = 0.0;
+    };
+
+    HandResolution resolveRightHand (const NoteOnEvent& e, int s) noexcept;
+    void applyRightHand (const HandResolution& hand, const NoteOnEvent& e, int s, StringEngine& str,
+                         Excitation::Params& p, bool& fingersForNoise) noexcept;
+    void applyHarmonicContact (const NoteOnEvent& e, int s, StringEngine& str, double fret,
+                               Excitation::Params& p) noexcept;
+    void applyAdjacentMute (const NoteOnEvent& e, int s, double fret) noexcept;
+    void liftMutesFrom (int s) noexcept;
+    void onRealismBNoteOn (int s) noexcept;
+    void resetRealismB() noexcept;
+    void refreshAirCoupling() noexcept;
+    SlapStrike makeToolStrike (const NoteOnEvent& e, int slapType) const noexcept;
+    // ==== END REALISM-B engine state ====
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierEngine)
 };

@@ -654,6 +654,7 @@ LUTHIER_TEST (Parameters, everyParameterHasAUniqueIdAndSaneDefault)
         change it there too. */
     CHECK_MSG (seen.size() == 450 + 3   // MODEL-GAPS
                              + 15   // REALISM-A
+                             + 29   // REALISM-B
                              ,
                "the parameter list has changed size: " + juce::String (seen.size())
                  + " parameters, not the expected total - saved host automation is indexed "

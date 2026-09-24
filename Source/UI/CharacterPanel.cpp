@@ -318,6 +318,14 @@ CharacterPanel::CharacterPanel (LuthierAudioProcessor& p)
     noiseGroups = std::make_unique<NoiseGroups> (processor);
     addAndMakeVisible (*noiseGroups);
 
+    // REALISM-B: the PICK group's HARMONICS row, RIGHT HAND and STRING INTERACTION.
+    harmonicsGroup = std::make_unique<HarmonicsGroup> (processor);
+    rightHandGroup = std::make_unique<RightHandGroup> (processor);
+    interactionGroup = std::make_unique<StringInteractionGroup> (processor);
+    addAndMakeVisible (*harmonicsGroup);
+    addAndMakeVisible (*rightHandGroup);
+    addAndMakeVisible (*interactionGroup);
+
     setupGroup = std::make_unique<SetupGroup> (processor);
     addAndMakeVisible (*setupGroup);
 
@@ -581,6 +589,9 @@ int CharacterPanel::preferredHeight() const
          + 26 + 24                                    // presets
          + 8 + noiseGroups->preferredHeight()         // STRING NOISE and PICK
          + 8 + stringAgingGroup->preferredHeight()    // STRING AGING (string-aging.md 7)
+         + 8 + HarmonicsGroup::preferredHeight        // REALISM-B: PICK -> HARMONICS
+         + 8 + rightHandGroup->preferredHeight()      // REALISM-B: RIGHT HAND
+         + 8 + StringInteractionGroup::preferredHeight // REALISM-B: STRING INTERACTION
          + 8 + setupGroup->preferredHeight()          // SETUP
          + 8 + bodyCouplingGroup->preferredHeight()   // BODY COUPLING (body-coupling.md 5)
          + 8 + slideGroup->preferredHeight()          // SLIDE, only in Slide Mode
@@ -668,6 +679,14 @@ void CharacterPanel::resized()
 
     bounds.removeFromTop (8);
     noiseGroups->setBounds (bounds.removeFromTop (noiseGroups->preferredHeight()));
+
+    // REALISM-B.
+    bounds.removeFromTop (8);
+    harmonicsGroup->setBounds (bounds.removeFromTop (HarmonicsGroup::preferredHeight));
+    bounds.removeFromTop (8);
+    rightHandGroup->setBounds (bounds.removeFromTop (rightHandGroup->preferredHeight()));
+    bounds.removeFromTop (8);
+    interactionGroup->setBounds (bounds.removeFromTop (StringInteractionGroup::preferredHeight));
 
     bounds.removeFromTop (8);
     stringAgingGroup->setBounds (bounds.removeFromTop (stringAgingGroup->preferredHeight()));

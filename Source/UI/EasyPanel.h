@@ -17,6 +17,7 @@
 */
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "RightHandGroup.h"   // REALISM-B
 #include "Widgets.h"
 #include "FretboardComponent.h"
 #include "GuitarBodyComponent.h"
@@ -111,6 +112,7 @@ private:
     LuthierKnob driveKnob     { "Drive",     LuthierKnob::Size::Small };
     LuthierKnob toneKnob      { "Tone",      LuthierKnob::Size::Small };
     LuthierKnob spaceKnob     { "Space",     LuthierKnob::Size::Small };
+    std::unique_ptr<RightHandToolSelector> toolSelector;   // REALISM-B: fingerstyle-attack.md 7, the Tool selector
     LuthierKnob humanizeKnob  { "Humanize",  LuthierKnob::Size::Small };
     LuthierKnob characterKnob { "Character", LuthierKnob::Size::Small };
     LuthierKnob whammyKnob    { "Whammy",    LuthierKnob::Size::Small };

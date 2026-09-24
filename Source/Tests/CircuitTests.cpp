@@ -38,7 +38,9 @@ struct AllocationCounter
 };
 
 /** The same count for other test files (REALISM-A's budget tests). */
-long luthierAllocationCount() noexcept { return allocationsOnThisThread; }
+long luthierAllocationCount() noexcept { return threadAllocationCount; }
+// REALISM-B: the same counter for the suites in other files.
+long luthierAllocationsOnThisThread() noexcept { return threadAllocationCount; }
 
 void* operator new (std::size_t size)
 {

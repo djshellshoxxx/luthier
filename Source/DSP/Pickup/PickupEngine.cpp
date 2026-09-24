@@ -404,6 +404,49 @@ double PickupEngine::combSample (Coil& coil, int stringIndex, double input, doub
 }
 
 //==============================================================================
+void PickupEngine::setStringLateralOffsets (const double* mmAtFret, const double* stopFromSaddleMm,
+                                            const bool* bassward, int n, double scaleLengthMm,
+                                            double stringSpacingMm, double apertureScale) noexcept
+{
+    n = juce::jlimit (0, kMaxStrings, n);
+    bool any = false;
+
+    for (int slot = 0; slot < kMaxPickups; ++slot)
+    {
+        const auto& spec = specs[(size_t) slot];
+        const bool magnetic = spec.type != PickupType::Piezo && spec.type != PickupType::InternalMic;
+        const double sigma = apertureSigmaMm (spec.type) * juce::jlimit (0.1, 5.0, apertureScale);
+        const double sb = juce::jmax (1.0, stringSpacingMm);
+        const double xPickup = spec.position * scaleLengthMm;
+        auto A = [sigma] (double y) { return std::exp (-(y * y) / (2.0 * sigma * sigma)); };
+
+        for (int s = 0; s < kMaxStrings; ++s)
+        {
+            double g = 1.0;
+            const double atFret = s < n ? mmAtFret[s] : 0.0;
+
+            if (magnetic && atFret > 0.0)
+            {
+                const double delta = atFret * juce::jlimit (0.0, 1.0, xPickup / juce::jmax (1.0, stopFromSaddleMm[s]));
+
+                // Edge strings drop the neighbour they do not have: the high E
+                // (0) has none on the treble side, the lowest none on the bass.
+                const bool toward = bassward[s] ? s < n - 1 : s > 0;
+                const bool away   = bassward[s] ? s > 0 : s < n - 1;
+
+                const double num = A (delta) + (toward ? A (sb - delta) : 0.0) + (away ? A (sb + delta) : 0.0);
+                const double den = A (0.0) + (toward ? A (sb) : 0.0) + (away ? A (sb) : 0.0);
+                g = num / den;
+                any = true;
+            }
+
+            apertureGain[(size_t) slot][(size_t) s] = g;
+        }
+    }
+
+    anyApertureGain = any;
+}
+
 double PickupEngine::processStrings (const double* stringOutputs,
                                      const double* delaySamples,
                                      int strings) noexcept
@@ -442,8 +485,18 @@ double PickupEngine::processStrings (const double* stringOutputs,
 
             double coilSum = 0.0;
 
-            for (int s = 0; s < n; ++s)
-                coilSum += combSample (coil, s, stringOutputs[s], delaySamples[s] * pos);
+            if (anyApertureGain)
+            {
+                // string-interaction.md 5: a bent string's aperture gain.
+                for (int s = 0; s < n; ++s)
+                    coilSum += apertureGain[(size_t) slot][(size_t) s]
+                                 * combSample (coil, s, stringOutputs[s], delaySamples[s] * pos);
+            }
+            else
+            {
+                for (int s = 0; s < n; ++s)
+                    coilSum += combSample (coil, s, stringOutputs[s], delaySamples[s] * pos);
+            }
 
             // The electrical stage runs once per coil on its summed string signal,
             // because a real coil has one winding for all the strings.

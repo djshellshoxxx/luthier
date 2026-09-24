@@ -818,6 +818,43 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::bodyModeFreqScale,  "Body Mode Tuning",   0.9f, 1.1f, 1.0f, 0.5f, "x"));
     add (choiceParam (ParamIDs::bodyCouplingModes,  "Coupling Modes",     { "4", "8", "12", "16" }, 1));
     // ==== END REALISM-A params ====
+    // ==== BEGIN REALISM-B params ====
+    // harmonic-realism.md 5: +8. Physical rows join the pick family (PhysicalRange.cpp).
+    {
+        const juce::StringArray offsets { "12", "7", "5", "4", "19", "24" };
+        add (floatParam  (ParamIDs::harmonicTouchPressure, "Harmonic Touch",       0.2f, 1.0f, 0.6f));
+        add (floatParam  (ParamIDs::harmonicFingerWidth,   "Finger Contact Width", 1.0f, 6.0f, 2.5f, 1.0f, "mm"));
+        add (floatParam  (ParamIDs::harmonicTouchTime,     "Touch Time",           20.0f, 200.0f, 70.0f, 1.0f, "ms"));
+        add (floatParam  (ParamIDs::harmonicBriefTouch,    "Pinch / Tap Graze",    3.0f, 20.0f, 8.0f, 1.0f, "ms"));
+        add (floatParam  (ParamIDs::pinchThumbOffsetMm,    "Thumb Offset",         2.0f, 12.0f, 6.0f, 1.0f, "mm"));
+        add (choiceParam (ParamIDs::artificialHarmonicOffset, "Artificial Offset", offsets, 0));
+        add (choiceParam (ParamIDs::tappedHarmonicOffset,  "Tapped Offset",        offsets, 0));
+        add (choiceParam (ParamIDs::harmonicNoteMapping,   "Harmonic Notes",       { "Touch fret", "Sounding" }, 0));
+    }
+
+    // string-interaction.md 7: +7.
+    add (floatParam  (ParamIDs::couplingAirAmount,   "Air Coupling",       0.0f, 1.0f, 1.0f));
+    add (floatParam  (ParamIDs::palmMuteSpread,      "Palm Width",         20.0f, 60.0f, 35.0f, 1.0f, "mm"));
+    add (floatParam  (ParamIDs::adjacentMuteAmount,  "Neighbour Mute",     0.0f, 1.0f, 0.6f));
+    add (floatParam  (ParamIDs::releaseStaggerMs,    "Release Stagger",    0.0f, 40.0f, 12.0f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::releaseStaggerBias,  "Stagger Order",     -1.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::pickupApertureScale, "Pole Aperture",      0.5f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::mutedThumpLevel,     "Muted-String Thump", 0.0f, 1.0f, 0.5f));
+
+    // fingerstyle-attack.md 6: +14.
+    add (floatParam  (ParamIDs::fingerFleshReleaseMs, "Flesh Release",   0.04f, 0.20f, 0.0723f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::fingerNailReleaseMs,  "Nail Release",    0.015f, 0.06f, 0.0227f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::thumbPositionOffset,  "Thumb Position", -0.05f, 0.10f, 0.04f));
+    add (floatParam  (ParamIDs::restStrokeDamping,    "Rest Damping",    0.0f, 1.0f, 0.8f));
+    add (choiceParam (ParamIDs::rhStroke,             "Stroke",          rhStrokeNames(), 0));
+    add (choiceParam (ParamIDs::rhStyle,              "Right-Hand Style", rhStyleNames(), 0));
+
+    for (int n = 1; n <= 6; ++n)
+        add (choiceParam (ParamIDs::rhStringTool (n), "String " + juce::String (n) + " Tool", rhToolNames(), 0));
+
+    add (floatParam  (ParamIDs::thumbPalmMute,        "Thumb Palm Mute", 0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::hybridSnap,           "Hybrid Snap",     0.0f, 1.0f, 0.3f));
+    // ==== END REALISM-B params ====
 
     return layout;
 }
@@ -1536,6 +1573,69 @@ void ParameterBridge::applyToEngine() noexcept
         structuralPending.store (true);
         triggerAsyncUpdate();
     }
+
+    // ==== BEGIN REALISM-B params ====
+    {
+        // harmonic-realism.md 5.
+        HarmonicTouchSettings touch;
+        touch.pressure      = value (ParamIDs::harmonicTouchPressure);
+        touch.fingerWidthMm = value (ParamIDs::harmonicFingerWidth);
+        touch.touchSeconds  = value (ParamIDs::harmonicTouchTime) * 0.001;
+        touch.briefSeconds  = value (ParamIDs::harmonicBriefTouch) * 0.001;
+        touch.thumbOffsetMm = value (ParamIDs::pinchThumbOffsetMm);
+        engine.setHarmonicTouch (touch);
+
+        MidiInterpreter::HarmonicSettings mapping;
+        mapping.artificialOffsetChoice = juce::roundToInt (value (ParamIDs::artificialHarmonicOffset));
+        mapping.tappedOffsetChoice     = juce::roundToInt (value (ParamIDs::tappedHarmonicOffset));
+        mapping.soundingPitch          = value (ParamIDs::harmonicNoteMapping) > 0.5f;
+
+        for (int s = 0; s < kMaxStrings; ++s)
+            mapping.inharmonicityB[s] = engine.getString (s).getPhysical().inharmonicityB;
+
+        engine.getMidiInterpreter().setHarmonicSettings (mapping);
+
+        // fingerstyle-attack.md 6.
+        RightHandSettings hand;
+        hand.fleshReleaseMs      = value (ParamIDs::fingerFleshReleaseMs);
+        hand.nailReleaseMs       = value (ParamIDs::fingerNailReleaseMs);
+        hand.thumbPositionOffset = value (ParamIDs::thumbPositionOffset);
+        hand.restStrokeDamping   = value (ParamIDs::restStrokeDamping);
+        hand.stroke = (RhStroke) juce::jlimit (0, (int) RhStroke::numStrokes - 1, juce::roundToInt (value (ParamIDs::rhStroke)));
+        hand.style  = (RhStyle) juce::jlimit (0, (int) RhStyle::numStyles - 1, juce::roundToInt (value (ParamIDs::rhStyle)));
+
+        for (int n = 1; n <= 6; ++n)
+            hand.stringTool[(size_t) (n - 1)] = (RhTool) juce::jlimit (0, (int) RhTool::numTools - 1,
+                                                                       juce::roundToInt (value (ParamIDs::rhStringTool (n))));
+
+        hand.thumbPalmMute = value (ParamIDs::thumbPalmMute);
+        hand.hybridSnap    = value (ParamIDs::hybridSnap);
+
+        // Reused from bass-techniques.md 11 when that spec's parameters exist.
+        if (raw (ParamIDs::fingerAlternationVariation) != nullptr)
+            hand.alternationVariation = value (ParamIDs::fingerAlternationVariation);
+
+        if (raw (ParamIDs::bassRestStroke) != nullptr)
+            hand.bassRestStroke = value (ParamIDs::bassRestStroke) > 0.5f;
+
+        engine.setRightHand (hand);
+
+        // string-interaction.md 7.
+        StringInteractionSettings interaction;
+        interaction.airAmount          = value (ParamIDs::couplingAirAmount);
+        interaction.palmSpreadMm       = value (ParamIDs::palmMuteSpread);
+        interaction.adjacentMute       = value (ParamIDs::adjacentMuteAmount);
+        interaction.releaseStaggerMs   = value (ParamIDs::releaseStaggerMs);
+        interaction.releaseStaggerBias = value (ParamIDs::releaseStaggerBias);
+        interaction.apertureScale      = value (ParamIDs::pickupApertureScale);
+        interaction.mutedThumpLevel    = value (ParamIDs::mutedThumpLevel);
+
+        // 3's fretting style: muting-rhythm.md's when it lands; until then a
+        // classical right hand means classical, arched fingers.
+        interaction.frettingStyle = hand.style == RhStyle::classical ? 0.1 : 1.0;
+        engine.setStringInteraction (interaction);
+    }
+    // ==== END REALISM-B params ====
 }
 
 bool ParameterBridge::readStructuralValues() noexcept

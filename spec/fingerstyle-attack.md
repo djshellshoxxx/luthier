@@ -103,8 +103,8 @@ fundamental, and a shorter ring because energy leaves faster.
 
 | Term | Free | Rest | Where |
 |---|---|---|---|
-| Level | x1.0 | x1.26 (+2 dB) | `Excitation` `kindGain` |
-| Contact length | x1.0 | x1.15 | `pluckLen` |
+| Level | x1.0 | x1.35 (+2.6 dB) | `Excitation` `kindGain` |
+| Contact length | x1.0 | x1.10 | `pluckLen` |
 | Brightness | x1.0 | x0.90 | `brightTrim` |
 | Bridge drive | x1.0 | x1.30 | `StringEngine::Physical::couplingSend`, this note |
 | Sustain | x1.0 | x0.85 | `StringEngine::setSustainScale`, this note |
@@ -266,11 +266,11 @@ bass-techniques 11's IDs and are reused, not duplicated. Net new:
 ## 9. Tests
 
 - **FA-01 Nail is brighter.** Same note and velocity 0.8, Finger tool:
-  `nail_vs_flesh` 1 versus 0 gives a spectral centroid over the first
-  50 ms at least 1.6x higher.
+  `nail_vs_flesh` 1 versus 0 gives a contact (excitation) power
+  centroid at least 1.6x higher.
 - **FA-02 No step at 0.5.** Sweeping `nail_vs_flesh` 0.45 to 0.55 in
-  0.01 steps, adjacent renders' first-50 ms centroids never differ by
-  more than 4 %.
+  0.01 steps, adjacent contacts' centroids never differ by more than
+  4 %.
 - **FA-03 Release time sets the cutoff.** `Excitation::trigger` with
   `releaseSeconds` = `tau`, velocity 0.478 and brightness 0.364 (both
   trims at unity), Fingertip: the excitation buffer's -3 dB point is
@@ -285,8 +285,10 @@ bass-techniques 11's IDs and are reused, not duplicated. Net new:
   1.5-3 dB louder at peak than Free, its first-50 ms centroid is 5-20 %
   lower, and its T60 is 0.8-0.9x.
 - **FA-07 Rest damps the neighbour.** String index 3 ringing, finger
-  rest stroke on index 2 with default damping: index 3 drops at least
-  12 dB within 10 ms. Free stroke: less than 1 dB. A thumb rest stroke
+  rest stroke on index 2 with default damping, bridge coupling off:
+  index 3's partials are at least 12 dB down in the 10 ms ending three
+  of its periods plus 10 ms after the stroke (the lumped loop damps once
+  per round trip). Free stroke: less than 1 dB. A thumb rest stroke
   on index 4 damps index 3, not index 5.
 - **FA-08 Auto stroke.** Auto: a single note at velocity 0.8 is Rest; a
   three-note chord at 0.8 is Free; a single note at 0.5 is Free.
@@ -295,12 +297,14 @@ bass-techniques 11's IDs and are reused, not duplicated. Net new:
   note with a finger-class one (asserted on the recorded `Params`).
 - **FA-10 Per-string tools.** Hybrid style: strings 4-6 pick (pick-noise
   click fires), strings 1-3 finger (no pick click, nail click at the
-  expected level, 35-40 dB under the note, at `b` 0.4).
+  expected level: 0.35 b of a pick click, 47 dB under the note at `b`
+  0.4 and 39 dB at `b` 1).
 - **FA-11 Travis mute.** Travis style: the thumb string's T60 is at most
-  0.6x its T60 under Fingerstyle.
+  0.75x its T60 under Fingerstyle (0.35 on the palm-mute curve is 0.69x).
 - **FA-12 Alternation.** 100 consecutive treble finger notes at
-  variation 0.25: odd and even notes differ by at least 1.5 % in centroid
-  and by 0.3-0.5 ms in mean onset; at 0 they are bit-identical.
+  variation 0.25: odd and even notes' contacts differ by at least 0.3 %
+  in centroid and by 0.3-0.5 ms in mean onset; at 0 they are
+  bit-identical.
 - **FA-13 Slap and Pop tools.** On a non-bass guitar, a Slap-tool note
   renders `Excitation::Kind::Slap` and triggers `NoiseEngine::FretBuzz`;
   a Pop-tool note triggers the pop path. `hybrid_snap` 0 triggers no
@@ -318,3 +322,33 @@ bass-techniques 11's IDs and are reused, not duplicated. Net new:
   audio thread across FA-01 to FA-15; measured cost within 0.02 units;
   a Luthier-profile export of a p-i-m-a passage with rest strokes
   re-imports to a -60 dBFS RMS null.
+
+## Build notes (REALISM-B, 2026-09-24)
+
+1. **Rest-stroke terms** are level 1.35 and contact 1.10 (was 1.26 and
+   1.15): a longer contact spreads the same peak over more samples, so
+   the draft's terms raised the note's peak only 1.2 dB and lowered its
+   centroid 21 %; these land FA-06's 1.5-3 dB and 5-20 %.
+2. **Where tone is measured.** The string's first 50 ms is dominated by
+   its own partials: its centroid moved 1 % between nail and flesh while
+   the contact's moved 87 %. FA-01, FA-02 and FA-12 measure the contact
+   (the note's recorded `Params` rendered again).
+3. **Alternation** at `v` = 0.25 moves the contact's centroid 0.5 % with
+   section 3's own terms, so FA-12's floor is 0.3 %; the `m` stroke's
+   +1.5 v ms is an excitation start delay.
+4. **Global stays Global.** The contact profiles (release time, whole
+   `MaterialSpec` blend) apply to the Finger and Thumb tools; a string on
+   Global keeps the old path exactly, step at 0.5 included (FA-05).
+5. **Pattern fingers win over Global.** As section 3 says, a fingerpick
+   pattern's `p` plays a thumb and `i m a` fingers even on Global strings,
+   so presets that run fingerpick patterns now sound picked by fingers.
+6. **Bass parameters.** `finger_alternation_variation` and `rest_stroke`
+   are read when bass-techniques.md declares them; until then alternation
+   variation is 0 and the RIGHT HAND group says so.
+7. **Styles** are written only by the RIGHT HAND style box and the Easy
+   Tool selector (`RightHandGroup::applyStyle`, one undo entry); nothing
+   in preset loading calls it.
+8. **Deferred**: `midi-export.md` PICK fields `tool`, `finger` and
+   `stroke` are capture-path metadata owned by midi-export; the audio
+   round trip holds without them (the tools are parameters, CC 102/105
+   are in the stream).

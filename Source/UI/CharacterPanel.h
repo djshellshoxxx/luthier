@@ -21,6 +21,9 @@
 #include "SlideGroup.h"
 #include "SlapGroup.h"   // bass-techniques 9 (MODEL-GAPS)
 #include "RealismGroups.h"
+#include "HarmonicsGroup.h"          // REALISM-B: harmonic-realism.md 7
+#include "StringInteractionGroup.h"  // REALISM-B: string-interaction.md 9
+#include "RightHandGroup.h"          // REALISM-B: fingerstyle-attack.md 7
 #include "../Character/CharacterEngine.h"
 
 namespace luthier
@@ -167,6 +170,11 @@ public:
     std::unique_ptr<BodyCouplingGroup> bodyCouplingGroup;
 
 private:
+
+    // REALISM-B: PICK -> HARMONICS, RIGHT HAND, STRING INTERACTION (gui-integration 4.4).
+    std::unique_ptr<HarmonicsGroup> harmonicsGroup;
+    std::unique_ptr<RightHandGroup> rightHandGroup;
+    std::unique_ptr<StringInteractionGroup> interactionGroup;
 
     /*  Sizes the panel to its content. The workspace viewport keeps whatever
         height a panel gives itself, and this one never gave itself one - so it

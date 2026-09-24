@@ -21,6 +21,7 @@
 #include "../Common/DspCommon.h"
 #include "FractionalDelayLine.h"
 #include "Excitation.h"
+#include <array>
 
 namespace luthier
 {
@@ -99,6 +100,12 @@ public:
 
     void setDamping (Damping d, double amount = 1.0) noexcept;
     Damping getDamping() const noexcept { return damping; }
+    double getDampingAmount() const noexcept { return dampingAmount; }
+
+    /** fingerstyle-attack.md 2: this note's bridge drive, as a multiplier on
+        Physical::couplingSend (a rest stroke drives the top 1.3x). */
+    void setCouplingSendScale (double scale) noexcept { couplingSendScale = juce::jlimit (0.0, 4.0, scale); }
+    double getCouplingSendScale() const noexcept { return couplingSendScale; }
 
     /** Extra decay scaling from string age, coating and user sustain control. */
     void setSustainScale (double scale) noexcept { sustainScale = juce::jlimit (0.05, 4.0, scale); needsLoopUpdate = true; }
@@ -141,9 +148,49 @@ public:
         needsLoopUpdate = true;
     }
 
-    /** Restricts the string to one partial, for natural/artificial harmonics.
-        0 disables. */
+    /** Kept as a shim (harmonic-realism.md 2): adds a contact for the given
+        partial at its first node. 0 clears every contact. */
     void setHarmonicRestriction (int partial) noexcept;
+
+    //==========================================================================
+    /*  harmonic-realism.md 2: a contact - a finger, thumb or tap touching the
+        string at a point - realised in the lumped loop as the n-tap node comb
+        H = (1 - g) + g e C_n(z). Partials with a node under the touch survive,
+        the rest lose (1 - g) per round trip. With no contact active the path
+        is skipped and the string is bit-identical to one without contacts. */
+    struct Contact
+    {
+        double positionFromBridge = 0.5;   ///< fraction of the vibrating length
+        double vibratingLengthMm  = 648.0; ///< for d and w in mm
+        double strength           = 0.6;   ///< g
+        double widthMm            = 2.5;   ///< w
+        double seconds            = 0.07;  ///< auto-release; <= 0 holds until cleared
+    };
+
+    static constexpr int kMaxContacts = 4;
+
+    /** Returns the slot, or -1 if all four are in use. */
+    int  addContact (const Contact& c) noexcept;
+    void clearContact (int slot) noexcept;
+    void clearAllContacts() noexcept;
+
+    bool hasActiveContact() const noexcept { return numActiveContacts > 0; }
+
+    /** The partial a slot's contact selected (0 off-node), and its efficiency. */
+    int getContactPartial (int slot) const noexcept;
+    double getContactEfficiency (int slot) const noexcept;
+
+    /** True when the loop is long enough to hold the comb for this contact at
+        the current pitch (2: compensated - (n - 1) M >= 2). An off-node touch
+        is always realisable: it is uniform damping. */
+    bool canRealiseContact (const Contact& c) const noexcept;
+
+    /** The model's own frequency of partial n at the current loop - the loop's
+        phase delay solved for n cycles, so dispersion is included. */
+    double getPartialFrequency (int n) const noexcept;
+
+    /** A fresh pluck is waiting for the old note's 5 ms fade (voice steal). */
+    bool isStealPending() const noexcept { return stealPending; }
 
     /** Fret buzz: low action plus light fretting makes the string slap the frets. */
     void setFretBuzz (double amount, double actionMm) noexcept;
@@ -161,8 +208,10 @@ public:
 
     //==========================================================================
     /** Produces one sample. `couplingInput` is the sympathetic energy arriving
-        from the other strings through the bridge for this sample. */
-    double processSample (double couplingInput) noexcept;
+        from the other strings through the bridge for this sample, scaled by the
+        string's receptivity; `directInput` is injected as it is (harmonic-
+        realism.md 2: scrape catches, slap and tap impulses). */
+    double processSample (double couplingInput, double directInput = 0.0) noexcept;
 
     /*  processSample in two halves, for body-coupling.md 3: beginSample reads
         the loop and leaves the wave arriving at the bridge in getBridgeWave();
@@ -170,7 +219,7 @@ public:
         current bridge wave before any string is written sits between them,
         with no lag. processSample is exactly the two in a row. */
     void beginSample() noexcept;
-    double endSample (double couplingInput) noexcept;
+    double endSample (double couplingInput, double directInput = 0.0) noexcept;
 
     /** Level tap the coupling matrix reads. Already includes couplingSend. */
     double getBridgeOutput() const noexcept { return bridgeOut; }
@@ -253,6 +302,30 @@ private:
 
     double  bridgeOut = 0.0;
     double  couplingReceptivity = 1.0;
+    double  dampingReceptivity = 1.0;   ///< the damping state's value, without contacts
+    double  couplingSendScale = 1.0;
+
+    // --- contacts (harmonic-realism.md 2) --------------------------------------
+    struct ContactState
+    {
+        bool   active = false;
+        Contact contact {};
+        int    partial = 0;          ///< n; 0 = off-node
+        double efficiency = 0.0;     ///< e
+        double combSpacing = 0.0;    ///< M, samples
+        double gain = 0.0;           ///< g now (ramped)
+        double target = 0.0;         ///< g heading
+        int    samplesLeft = -1;     ///< -1 holds
+        std::array<FractionalDelayLine::TapKernel, 8> kernels {};   ///< per comb tap, cached
+    };
+
+    std::array<ContactState, kMaxContacts> contacts {};
+    int    numActiveContacts = 0;
+    double contactRampStep = 1.0 / 44.1;
+
+    void updateContactSpacing() noexcept;
+    void updateReceptivity() noexcept;
+    double applyContacts (double delayOut, double compensated) noexcept;
 
     // --- voice stealing -----------------------------------------------------
     int     stealCountdown = 0;

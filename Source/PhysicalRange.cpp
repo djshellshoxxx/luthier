@@ -168,12 +168,31 @@ namespace
             { ParamIDs::bodyModeQScale,    { 0.5f,  2.0f,  0.1f,   5.0f,   1.0f, 1.0f / 3.0f, RangeFamily::body } },
             { ParamIDs::bodyModeFreqScale, { 0.9f,  1.1f,  0.5f,   2.0f,   1.0f, 0.5f,        RangeFamily::body } },
             // ==== END REALISM-A ranges ====
+            // ==== BEGIN REALISM-B ranges ====
+            // harmonic-realism.md 5: right- and left-hand contact joins pick.
+            // Touch pressure's ceiling stays 1: above it (3) is not convex.
+            { ParamIDs::harmonicTouchPressure, { 0.2f,   1.0f,   0.0f,  1.0f,   0.6f,    1.0f, RangeFamily::pick } },
+            { ParamIDs::harmonicFingerWidth,   { 1.0f,   6.0f,   0.1f,  20.0f,  2.5f,    1.0f, RangeFamily::pick } },
+            { ParamIDs::harmonicTouchTime,     { 20.0f,  200.0f, 1.0f,  1000.0f, 70.0f,  1.0f, RangeFamily::pick } },
+            { ParamIDs::harmonicBriefTouch,    { 3.0f,   20.0f,  0.5f,  100.0f, 8.0f,    1.0f, RangeFamily::pick } },
+            { ParamIDs::pinchThumbOffsetMm,    { 2.0f,   12.0f,  0.0f,  40.0f,  6.0f,    1.0f, RangeFamily::pick } },
+            // string-interaction.md 7: the palm is right-hand contact; the
+            // fretting finger is squeak's; the pole aperture is circuit's.
+            { ParamIDs::palmMuteSpread,        { 20.0f,  60.0f,  5.0f,  120.0f, 35.0f,   1.0f, RangeFamily::pick } },
+            { ParamIDs::adjacentMuteAmount,    { 0.0f,   1.0f,   0.0f,  1.0f,   0.6f,    1.0f, RangeFamily::squeak } },
+            { ParamIDs::pickupApertureScale,   { 0.5f,   2.0f,   0.1f,  5.0f,   1.0f,    1.0f, RangeFamily::circuit } },
+            // fingerstyle-attack.md 6.
+            { ParamIDs::fingerFleshReleaseMs,  { 0.04f,  0.20f,  0.01f, 1.0f,   0.0723f, 1.0f, RangeFamily::pick } },
+            { ParamIDs::fingerNailReleaseMs,   { 0.015f, 0.06f,  0.005f, 0.2f,  0.0227f, 1.0f, RangeFamily::pick } },
+            { ParamIDs::thumbPositionOffset,   { -0.05f, 0.10f, -0.20f, 0.30f,  0.04f,   1.0f, RangeFamily::pick } },
+            { ParamIDs::restStrokeDamping,     { 0.0f,   1.0f,   0.0f,  1.0f,   0.8f,    1.0f, RangeFamily::pick } },
+            // ==== END REALISM-B ranges ====
         };
 
         return table[index];
     }
 
-    constexpr int kNumEntries = 32 + 8;   // + 8 REALISM-A
+    constexpr int kNumEntries = 32 + 8 + 12;   // + 8 REALISM-A, + 12 REALISM-B
 }
 
 const PhysicalRange* RangeRegistry::find (const juce::String& parameterId)
