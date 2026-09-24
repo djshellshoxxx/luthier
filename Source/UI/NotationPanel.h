@@ -5,6 +5,10 @@
       CAPTURE - off / rolling / armed (6.3), how many minutes rolling keeps,
           clear, and what the take holds.
 
+      STRING ROLL - a piano roll whose lanes are the strings (StringRoll.h):
+          what was played scrolls by, and clicking a lane plucks it. A
+          collapse toggle, remembered across sessions.
+
       LIVE TAB - the last 1-8 bars of what was played as ASCII tab (3), with
           symbol density and a scroll speed (slow / medium / fast / freeze),
           and the chord symbols as they changed (4).
@@ -18,6 +22,7 @@
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "StringRoll.h"
 #include "../Capture/PerformanceCapture.h"
 #include "../Notation/NotationExport.h"
 
@@ -65,6 +70,11 @@ public:
     juce::String getChordHistoryText() const     { return chordHistory; }
     juce::String getStatusText() const           { return statusText; }
 
+    /** The string roll, so the Advanced strip can offer the same view. */
+    StringRollComponent& getStringRoll() noexcept { return stringRoll; }
+    juce::Button& getShowRollButton() noexcept   { return showRoll->getButton(); }
+    bool isStringRollShown() const noexcept      { return showRoll->getButton().getToggleState(); }
+
     bool exportTo (const juce::File& destination, juce::String* error = nullptr);
 
 private:
@@ -78,6 +88,10 @@ private:
     NotationExportOptions currentOptions() const;
 
     LuthierAudioProcessor& processor;
+
+    // --- string roll ----------------------------------------------------------------
+    std::unique_ptr<LuthierToggle> showRoll;
+    StringRollComponent stringRoll;
 
     // --- capture --------------------------------------------------------------------
     std::unique_ptr<LuthierToggle> offButton, rollingButton, armedButton;
@@ -100,7 +114,7 @@ private:
     juce::TextEditor previewView;
     juce::TextButton exportButton { "EXPORT NOTATION..." };
 
-    juce::Rectangle<int> captureHeader, tabHeader, exportHeader, statusBounds, chordBounds;
+    juce::Rectangle<int> captureHeader, rollHeader, tabHeader, exportHeader, statusBounds, chordBounds;
     std::unique_ptr<juce::FileChooser> chooser;
     size_t shownNotes = (size_t) -1;
 

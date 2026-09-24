@@ -1,5 +1,6 @@
 #include "NotationPanel.h"
 #include "MidiExportDefaults.h"
+#include "UiPreferences.h"
 #include "../PluginProcessor.h"
 #include "../Presets/PresetManager.h"
 #include "../Accessibility/Accessibility.h"
@@ -18,6 +19,11 @@ namespace
 
     /** Scroll speed as refresh period in timer ticks (10 Hz): slow, medium, fast; freeze stops. */
     constexpr int kSpeedTicks[] = { 10, 3, 1, 0 };
+
+    /** The string roll's height; collapsing it hands the room to the live tab. */
+    constexpr int kRollHeight = 120;
+    constexpr int kTabHeight = 180;
+    const char* const kShowRollKey = "notation.showStringRoll";
 }
 
 //==============================================================================
@@ -68,7 +74,7 @@ bool NotationTakeExport::write (LuthierAudioProcessor& processor, NotationFormat
 
 //==============================================================================
 NotationPanel::NotationPanel (LuthierAudioProcessor& p)
-    : processor (p)
+    : processor (p), stringRoll (p)
 {
     auto makeToggle = [this] (const juce::String& text, const juce::String& tip, std::function<void()> onClick)
     {
@@ -108,6 +114,17 @@ NotationPanel::NotationPanel (LuthierAudioProcessor& p)
     clearButton.onClick = [this] { processor.getPerformanceCapture().clearTake(); refresh(); };
     AccessibleSetup::configureButton (clearButton, "Clear take");
     addAndMakeVisible (clearButton);
+
+    // --- string roll ------------------------------------------------------------------
+    showRoll = makeToggle ("SHOW ROLL", "Show the string roll: one lane per string, what you play scrolling by. "
+                                        "Click a lane to pluck that string.",
+                           [this]
+                           {
+                               UiPreferences::get().setBool (kShowRollKey, showRoll->getButton().getToggleState());
+                               resized();
+                           });
+    showRoll->getButton().setToggleState (UiPreferences::get().getBool (kShowRollKey, true), juce::dontSendNotification);
+    addAndMakeVisible (stringRoll);
 
     // --- live tab ---------------------------------------------------------------------
     showTab = makeToggle ("SHOW TAB", "Show the last bars of what you played as tab.", [this] { resized(); refresh(); });
@@ -382,13 +399,15 @@ int NotationPanel::getPreferredHeight() const
     const int button = Metrics::buttonHeight;
 
     return kHeader + 2 * (button + kRowGap) + 32 + Metrics::grid
-         + kHeader + 2 * (button + kRowGap) + 180 + 22 + Metrics::grid
+         + kHeader + (button + kRowGap) + kRollHeight + Metrics::grid
+         + kHeader + 2 * (button + kRowGap) + kTabHeight + 22 + Metrics::grid
          + kHeader + 3 * (button + kRowGap) + 110 + button + Metrics::grid;
 }
 
 void NotationPanel::paint (juce::Graphics& g)
 {
     LuthierLookAndFeel::drawSectionHeader (g, captureHeader, "CAPTURE");
+    LuthierLookAndFeel::drawSectionHeader (g, rollHeader, "STRING ROLL");
     LuthierLookAndFeel::drawSectionHeader (g, tabHeader, "LIVE TAB");
     LuthierLookAndFeel::drawSectionHeader (g, exportHeader, "EXPORT");
 
@@ -424,10 +443,22 @@ void NotationPanel::resized()
     statusBounds = bounds.removeFromTop (32);
     bounds.removeFromTop (Metrics::grid);
 
+    // The roll's room goes to the live tab when the roll is collapsed, so the
+    // panel's height (what the column was told) does not change.
+    const bool rollShown = showRoll->getButton().getToggleState();
+    rollHeader = bounds.removeFromTop (kHeader);
+    showRoll->setBounds (row().reduced (1));
+    stringRoll.setVisible (rollShown);
+
+    if (rollShown)
+        stringRoll.setBounds (bounds.removeFromTop (kRollHeight));
+
+    bounds.removeFromTop (Metrics::grid);
+
     tabHeader = bounds.removeFromTop (kHeader);
     split (row(), { showTab.get(), &barsBox });
     split (row(), { &densityBox, &speedBox });
-    tabView.setBounds (bounds.removeFromTop (180));
+    tabView.setBounds (bounds.removeFromTop (kTabHeight + (rollShown ? 0 : kRollHeight)));
     chordBounds = bounds.removeFromTop (22);
     bounds.removeFromTop (Metrics::grid);
 
