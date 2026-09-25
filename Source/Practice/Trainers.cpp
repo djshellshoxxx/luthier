@@ -243,8 +243,22 @@ int ScaleTrainer::getPitchClassOfDegree (int degree) const noexcept
 }
 
 //==============================================================================
+void ScaleTrainer::setNoteRange (int low, int high) noexcept
+{
+    lowNote = juce::jlimit (0, 127, juce::jmin (low, high));
+    highNote = juce::jlimit (0, 127, juce::jmax (low, high));
+}
+
 juce::String ScaleTrainer::nextQuestion (juce::Random& random)
 {
+    // MODEL-GAPS: a session of questionCount questions ends.
+    if (isSessionComplete())
+    {
+        expectedPitchClass = -1;
+        question = "Session complete: " + juce::String (correct) + " of " + juce::String (asked) + ".";
+        return question;
+    }
+
     if (numIntervals <= 0)
     {
         expectedPitchClass = -1;
@@ -295,6 +309,10 @@ juce::String ScaleTrainer::nextQuestion (juce::Random& random)
 bool ScaleTrainer::answer (int midiNote)
 {
     if (expectedPitchClass < 0)
+        return false;
+
+    // MODEL-GAPS: a note outside the set range is not an answer.
+    if (midiNote < lowNote || midiNote > highNote)
         return false;
 
     const bool right = (((midiNote % 12) + 12) % 12) == expectedPitchClass;
@@ -492,9 +510,19 @@ int EarTrainer::buildProgressionQuestion (juce::Random& random, int* notes,
     return written;
 }
 
+void EarTrainer::setNoteRange (int low, int high) noexcept
+{
+    lowNote = juce::jlimit (0, 127, juce::jmin (low, high));
+    highNote = juce::jlimit (0, 127, juce::jmax (low, high));
+}
+
 int EarTrainer::nextQuestion (juce::Random& random, int* notes, double* beatOffsets, int maxNotes)
 {
     if (notes == nullptr || beatOffsets == nullptr || maxNotes <= 0)
+        return 0;
+
+    // MODEL-GAPS: a session of questionCount questions ends.
+    if (isSessionComplete())
         return 0;
 
     ++asked;
@@ -502,15 +530,43 @@ int EarTrainer::nextQuestion (juce::Random& random, int* notes, double* beatOffs
     if (juce::isPositiveAndBelow ((int) exercise, (int) Exercise::numExercises))
         ++lifetimeAsked[(size_t) exercise];
 
+    int count = 0;
+
     switch (exercise)
     {
-        case Exercise::chordQuality: return buildChordQuestion (random, notes, beatOffsets, maxNotes);
-        case Exercise::progression:  return buildProgressionQuestion (random, notes, beatOffsets, maxNotes);
+        case Exercise::chordQuality: count = buildChordQuestion (random, notes, beatOffsets, maxNotes); break;
+        case Exercise::progression:  count = buildProgressionQuestion (random, notes, beatOffsets, maxNotes); break;
 
         case Exercise::interval:
         case Exercise::numExercises:
-        default:                     return buildIntervalQuestion (random, notes, beatOffsets, maxNotes);
+        default:                     count = buildIntervalQuestion (random, notes, beatOffsets, maxNotes); break;
     }
+
+    // MODEL-GAPS: the whole question moves by octaves into the range, keeping
+    // its shape; if it is wider than the range it sits as low as it can.
+    if (count > 0)
+    {
+        int lo = notes[0], hi = notes[0];
+
+        for (int i = 1; i < count; ++i)
+        {
+            lo = juce::jmin (lo, notes[i]);
+            hi = juce::jmax (hi, notes[i]);
+        }
+
+        int shift = 0;
+
+        while (lo + shift < lowNote && hi + shift + 12 <= 127)
+            shift += 12;
+
+        while (hi + shift > highNote && lo + shift - 12 >= lowNote)
+            shift -= 12;
+
+        for (int i = 0; i < count; ++i)
+            notes[i] = juce::jlimit (0, 127, notes[i] + shift);
+    }
+
+    return count;
 }
 
 bool EarTrainer::answer (int choiceIndex)

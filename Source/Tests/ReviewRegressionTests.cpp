@@ -11,6 +11,9 @@
 #include "../Model/Playing/MidiInterpreter.h"
 #include "../Practice/Looper.h"
 #include "../Notation/NotationExport.h"
+#include "../DSP/Whammy/WhammyEngine.h"
+#include "../DSP/Common/Oversampler.h"
+#include <complex>
 #include "../Model/Playing/TechniqueEngine.h"
 #include "../Model/Playing/RubricVoicer.h"
 #include "../Model/Playing/TuningEngine.h"
@@ -484,4 +487,472 @@ LUTHIER_TEST (ReviewRegression, aPresetWithoutAStringsBlockClearsThePreviousDetu
     presets.applyExtraState();
 
     CHECK_NEAR (processor.getEngine().getTuningEngine().getStringTuning (0).detuneCents, 0.0, 1.0e-9);
+}
+
+//==============================================================================
+/*  R-205: ModMatrix::prepare reset every step sequencer's steps and every LFO's
+    custom shape to the defaults. Hosts restore state before prepareToPlay, and
+    prepare again on a rate change or an offline bounce, so a programmed
+    sequence came back as the default ramp. */
+LUTHIER_TEST (ReviewRegression, prepareKeepsTheSequencerSteps)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 256);
+
+    auto& sequencer = processor.getModMatrix().getSequencer (0);
+    auto step = sequencer.getStep (3);
+    step.value = 0.123;
+    sequencer.setStep (3, step);
+
+    processor.prepareToPlay (96000.0, 512);
+
+    CHECK_NEAR (processor.getModMatrix().getSequencer (0).getStep (3).value, 0.123, 1.0e-9);
+}
+
+//==============================================================================
+/*  R-216: a click fires when the position crosses an integer, and the position
+    started at exactly 0, so beat one never sounded: the first click was beat
+    two, a beat late, unaccented. */
+LUTHIER_TEST (ReviewRegression, theMetronomeStartsOnBeatOne)
+{
+    Metronome metronome;
+    metronome.prepare (48000.0, 512);
+    metronome.setTempo (120.0);
+    metronome.setEnabled (true);
+
+    std::vector<float> out (512);
+    metronome.processBlock (out.data(), 512);
+
+    // A click in the first 10 ms, not half a second later.
+    float early = 0.0f;
+
+    for (int i = 0; i < 480; ++i)
+        early = juce::jmax (early, std::abs (out[(size_t) i]));
+
+    CHECK_MSG (early > 1.0e-3f, "no click at the start: " + juce::String (early));
+}
+
+//==============================================================================
+/*  R-222: a Fixed bridge zeroed the whammy range, but the parameter bridge sets
+    the user's ranges every block, so a hardtail still bent with the arm. */
+LUTHIER_TEST (ReviewRegression, aHardtailIgnoresTheWhammyRanges)
+{
+    WhammyEngine whammy;
+    whammy.prepare (48000.0, 6);
+    whammy.setBridgeType (WhammyEngine::BridgeType::Fixed);
+    whammy.setRange (2.0, 1.0);   // what the bridge sends every block
+
+    CHECK (whammy.getDownRange() == 0.0);
+    CHECK (whammy.getUpRange() == 0.0);
+}
+
+//==============================================================================
+/*  R-201: MIDI Learn read its mapping array on the audio thread without the
+    lock the message thread held while clearing or reallocating it, looked the
+    parameter up by String id there, and finished a learn with a callAsync that
+    captured a raw this. The audio thread now reads a plain table under a
+    try-lock; a learn is finished by the manager's own AsyncUpdater. */
+LUTHIER_TEST (ReviewRegression, midiLearnLearnsAppliesAndSurvivesAClear)
+{
+    LuthierAudioProcessor processor;
+    auto& learn = processor.getMidiLearn();
+    auto* target = processor.getParameters()[0];
+    auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (target);
+    CHECK (withId != nullptr);
+
+    if (withId == nullptr)
+        return;
+
+    learn.startLearning (withId->paramID);
+
+    juce::MidiBuffer cc;
+    cc.addEvent (juce::MidiMessage::controllerEvent (1, 21, 64), 0);
+    learn.processMidi (cc);
+
+    // The message thread finishes the learn.
+    learn.dispatchPendingLearn();
+    CHECK_MSG (learn.getCcForParameter (withId->paramID) == 21, "the CC was not learned");
+
+    juce::MidiBuffer full;
+    full.addEvent (juce::MidiMessage::controllerEvent (1, 21, 127), 0);
+    learn.processMidi (full);
+    CHECK_NEAR (target->getValue(), 1.0f, 1.0e-6f);
+
+    // Cleared, the CC no longer reaches the parameter (and nothing indexes an
+    // empty array).
+    learn.clearAllMappings();
+    juce::MidiBuffer zero;
+    zero.addEvent (juce::MidiMessage::controllerEvent (1, 21, 0), 0);
+    learn.processMidi (zero);
+    CHECK_NEAR (target->getValue(), 1.0f, 1.0e-6f);
+}
+
+//==============================================================================
+/*  R-210: two strings in unison exchange energy through the coupling matrix,
+    wired the way LuthierEngine wires it. The matrix added each string's motion
+    to the other without taking it from the sender, so at the default amount
+    the pair grew to the +-4 guard and stayed there. A passive bridge cannot
+    add energy: the pair must decay. */
+#include "../DSP/String/StringEngine.h"
+#include "../DSP/Coupling/CouplingMatrix.h"
+
+namespace
+{
+    std::vector<double> coupledPairEnvelope (double amount, double hzA, double hzB)
+    {
+        constexpr double sr = 48000.0;
+        StringEngine strings[2];
+        CouplingMatrix coupling;
+        coupling.prepare (sr, 2);
+        coupling.setAmount (amount);
+        coupling.buildDefault (0.020);
+
+        const double hz[2] = { hzA, hzB };
+
+        for (int s = 0; s < 2; ++s)
+        {
+            strings[s].prepare (sr, 512);
+            strings[s].setIndex (s);
+            strings[s].snapToFrequency (hz[s]);
+            coupling.setStringFrequency (s, hz[s]);
+        }
+
+        Excitation::Params pluck;
+        pluck.delaySamples = sr / hzA;
+        strings[0].excite (pluck);
+
+        double bridge[kMaxStrings] {}, in[kMaxStrings] {};
+        std::vector<double> perSecond;
+        double peak = 0.0;
+
+        for (int i = 0; i < (int) sr * 8; ++i)
+        {
+            coupling.process (bridge, in);
+
+            for (int s = 0; s < 2; ++s)
+            {
+                const double out = strings[s].processSample (in[s]);
+                bridge[s] = strings[s].getBridgeOutput();
+                peak = std::max (peak, std::abs (out));
+            }
+
+            if ((i + 1) % (int) sr == 0)
+            {
+                perSecond.push_back (peak);
+                peak = 0.0;
+            }
+        }
+
+        return perSecond;
+    }
+}
+
+LUTHIER_TEST (ReviewRegression, aUnisonPairDecays)
+{
+    const auto coupled = coupledPairEnvelope (0.85, 329.63, 329.63);
+    const auto alone = coupledPairEnvelope (0.0, 329.63, 329.63);
+
+    juce::String trace;
+
+    for (size_t i = 0; i < coupled.size(); ++i)
+        trace << juce::String (coupled[i], 4) << "/" << juce::String (alone[i], 4) << " ";
+
+    CHECK_MSG (coupled.back() < coupled.front() * 0.1, "coupled/alone per second: " + trace);
+
+    // Three cents apart ran away too; well apart, the sympathetic ring is kept.
+    const auto nearly = coupledPairEnvelope (0.85, 329.63, 329.63 * std::pow (2.0, 3.0 / 1200.0));
+    CHECK (nearly.back() < nearly.front() * 0.1);
+}
+
+
+//==============================================================================
+/*  R-211: the half-band branches run at the base rate but used a two-sample
+    all-pass memory, i.e. A(z^4) at the oversampled rate: weaker image
+    rejection, passband droop, and a round trip that delayed about twice what
+    getLatencySamples tells the host. The delay near DC now matches the report. */
+LUTHIER_TEST (ReviewRegression, theOversamplerDelaysWhatItReports)
+{
+    constexpr double sr = 48000.0;
+
+    for (int factor : { 2, 4, 8 })
+    {
+        Oversampler os;
+        os.prepare (sr, factor);
+
+        std::vector<double> h (4096);
+
+        for (size_t n = 0; n < h.size(); ++n)
+            h[n] = os.processSample (n == 0 ? 1.0 : 0.0, [] (double x) { return x; });
+
+        auto phaseAt = [&h] (double hz)
+        {
+            std::complex<double> sum;
+
+            for (size_t n = 0; n < h.size(); ++n)
+                sum += h[n] * std::polar (1.0, -juce::MathConstants<double>::twoPi * hz / sr * (double) n);
+
+            return std::arg (sum);
+        };
+
+        double dphi = phaseAt (150.0) - phaseAt (50.0);
+
+        while (dphi > 0.0)
+            dphi -= juce::MathConstants<double>::twoPi;
+
+        const double delay = -dphi / (juce::MathConstants<double>::twoPi * 100.0 / sr);
+
+        CHECK_MSG (std::abs (delay - os.getLatencySamples()) < 1.0,
+                   juce::String (factor) + "x delays " + juce::String (delay, 2) + " samples, reports "
+                     + juce::String (os.getLatencySamples()));
+    }
+}
+
+/*  R-035: setFactor cleared the half-band filters even when the factor did not
+    change, and the amp re-sends it on every structural change: a click. */
+LUTHIER_TEST (ReviewRegression, resendingTheSameOversamplingFactorDoesNotReset)
+{
+    Oversampler a, b;
+    a.prepare (48000.0, 4);
+    b.prepare (48000.0, 4);
+
+    double maxDiff = 0.0;
+
+    for (int i = 0; i < 2000; ++i)
+    {
+        if (i == 1000)
+            b.setFactor (4);
+
+        const double x = std::sin (0.05 * i);
+        const double ya = a.processSample (x, [] (double v) { return v; });
+        const double yb = b.processSample (x, [] (double v) { return v; });
+        maxDiff = std::max (maxDiff, std::abs (ya - yb));
+    }
+
+    CHECK_MSG (maxDiff == 0.0, "diverged by " + juce::String (maxDiff));
+}
+
+/*  R-036: snapshot recall and preset morph blended integer parameters (string
+    bitmasks, CC numbers) like continuous ones, passing through unrelated masks
+    and controllers mid-fade. */
+LUTHIER_TEST (ReviewRegression, integerParametersSwitchRatherThanBlend)
+{
+    juce::AudioParameterInt mask (juce::ParameterID { "mask", 1 }, "Mask", 0, 4095, 0);
+    CHECK (SnapshotBank::isDiscrete (mask));
+
+    juce::AudioParameterFloat level (juce::ParameterID { "level", 1 }, "Level", 0.0f, 1.0f, 0.5f);
+    CHECK (! SnapshotBank::isDiscrete (level));
+}
+
+/*  R-037: a tempo-synced LFO retriggered on the sync boundary free-runs when the
+    host gives no position, but its phase was never wrapped, so it grew without
+    bound and sample-and-hold never picked a new value. */
+#include "../Modulation/ModSources.h"
+
+LUTHIER_TEST (ReviewRegression, aSyncedLfoWithTheTransportStoppedStillCycles)
+{
+    ModLfo lfo;
+    lfo.prepare (1000.0, 7);
+    lfo.setShape (ModLfo::Shape::sampleAndHold);
+    lfo.setSynced (true);
+    lfo.setRetrigger (ModLfo::Retrigger::onSyncBoundary);
+
+    juce::SortedSet<double> values;
+
+    for (int i = 0; i < 20000; ++i)
+        values.add (lfo.tick (0.01, -1.0));   // no host position
+
+    CHECK_MSG (values.size() > 2, juce::String (values.size()) + " distinct values");
+}
+
+/*  R-038: Capture::autoTrim returned early whenever there was no leading
+    silence, so a capture that started on the sound kept its silent tail. */
+LUTHIER_TEST (ReviewRegression, autoTrimTrimsTheTailWithoutLeadingSilence)
+{
+    Capture capture;
+    capture.prepare (48000.0, 1.0);
+    capture.start (0.5);
+
+    std::vector<float> block (24000, 0.0f);
+
+    for (int i = 0; i < 4800; ++i)
+        block[(size_t) i] = 0.5f;   // sound from the first sample, then silence
+
+    const float* channels[] = { block.data() };
+    capture.processBlock (channels, 1, (int) block.size());
+    CHECK (capture.getRecordedSamples() == 24000);
+
+    capture.autoTrim();
+    CHECK_MSG (capture.getRecordedSamples() == 4800, juce::String (capture.getRecordedSamples()));
+}
+
+/*  R-039: ASCII tab import measured every note from the start of the line, so
+    each bar line and the writer's pad column counted as time: every measure
+    after the first came back half a beat later than the one before. */
+LUTHIER_TEST (ReviewRegression, asciiTabRoundTripKeepsBeats)
+{
+    PerformanceScore score;
+    score.beginCapture (120.0, 4, 4);
+
+    const double beats[] = { 0.0, 1.0, 2.5, 4.0, 5.0, 6.0, 8.0, 9.5, 11.0 };
+    const int frets[]    = { 3,   5,   12,  0,   7,   10,  2,   15,  5 };
+
+    for (int i = 0; i < 9; ++i)
+    {
+        score.noteStarted (i % 3, frets[i], 64 - 5 * (i % 3) + frets[i], 440.0, 0.8, beats[i]);
+        score.noteEnded (i % 3, beats[i] + 0.5);
+    }
+
+    score.endCapture (12.0);
+
+    NotationExporter exporter;
+    const auto text = exporter.renderAsciiTab (score);
+
+    NotationImporter importer;
+    PerformanceScore back;
+    CHECK (importer.readAsciiTab (text, back));
+
+    juce::String got, want;
+
+    for (const auto& m : back.getTrack (0).measures)
+        for (const auto* n : m.collectNotes())
+            got << juce::String (n->startBeat, 2) << " ";
+
+    for (const auto& m : score.getTrack (0).measures)
+        for (const auto* n : m.collectNotes())
+            want << juce::String (n->startBeat, 2) << " ";
+
+    CHECK_MSG (got == want, "wrote " + want + "\nread back " + got);
+}
+
+/*  R-040: in the notation MIDI export a legato note's CC 68 on sat one tick
+    before its note-on, i.e. before the previous legato note's CC 68 off at the
+    same boundary: in 5h7p5 the third note was re-plucked. At every note-on of
+    a legato note, legato must be on. */
+LUTHIER_TEST (ReviewRegression, chainedLegatoStaysLegatoInTheMidiExport)
+{
+    PerformanceScore score;
+    score.beginCapture (120.0, 4, 4);
+
+    const int frets[] = { 5, 7, 5 };
+
+    for (int i = 0; i < 3; ++i)
+    {
+        score.noteStarted (0, frets[i], 64 + frets[i], 440.0, 0.8, (double) i);
+
+        if (i == 1) score.addTechnique (0, { ScoreTechnique::Type::hammerOn });
+        if (i == 2) score.addTechnique (0, { ScoreTechnique::Type::pullOff });
+
+        score.noteEnded (0, (double) i + 1.0);
+    }
+
+    score.endCapture (4.0);
+
+    auto file = juce::File::createTempFile (".mid");
+    NotationExporter exporter;
+    CHECK (exporter.writeMidi (score, file));
+
+    juce::MidiFile midi;
+    juce::FileInputStream in (file);
+    CHECK (midi.readFrom (in));
+
+    int legatoNotesOnWithLegatoOff = 0, notesOn = 0;
+
+    for (int t = 0; t < midi.getNumTracks(); ++t)
+    {
+        bool legato = false;
+        const auto* track = midi.getTrack (t);
+
+        for (int e = 0; e < track->getNumEvents(); ++e)
+        {
+            const auto& m = track->getEventPointer (e)->message;
+
+            if (m.isController() && m.getControllerNumber() == 68)
+                legato = m.getControllerValue() >= 64;
+
+            if (m.isNoteOn())
+            {
+                ++notesOn;
+
+                if (notesOn > 1 && ! legato)
+                    ++legatoNotesOnWithLegatoOff;
+            }
+        }
+    }
+
+    file.deleteFile();
+    CHECK (notesOn == 3);
+    CHECK_MSG (legatoNotesOnWithLegatoOff == 0,
+               juce::String (legatoNotesOnWithLegatoOff) + " legato note(s) started with CC 68 off");
+}
+
+/*  R-041: with the mix target at 1 the pedal skipped its wet/dry blend, so a
+    move from 0.5 to 1 jumped to fully wet in one sample. */
+LUTHIER_TEST (ReviewRegression, aPedalMixMoveToFullWetIsSmoothed)
+{
+    PitchShifterPedal pedal;   // wet (an octave up) differs from dry
+    pedal.prepare (48000.0, 256);
+    pedal.setParameterValue (0, 12.0);
+    pedal.setParameterValue (2, 1.0);   // its own internal mix all wet
+    pedal.setMix (0.0);
+
+    std::vector<double> l (256), r (256), dry (256);
+    int64_t t = 0;
+
+    auto render = [&]
+    {
+        for (int i = 0; i < 256; ++i, ++t)
+            dry[(size_t) i] = l[(size_t) i] = r[(size_t) i] = std::sin (0.03 * (double) t);
+
+        pedal.processWithBypass (l.data(), r.data(), 256);
+    };
+
+    for (int b = 0; b < 20; ++b)
+        render();
+
+    pedal.setMix (1.0);
+    render();
+
+    // The first few samples after the move are still close to dry.
+    double worst = 0.0;
+
+    for (int i = 0; i < 8; ++i)
+        worst = std::max (worst, std::abs (l[(size_t) i] - dry[(size_t) i]));
+
+    CHECK_MSG (worst < 0.1, "jumped towards wet by " + juce::String (worst));
+}
+
+/*  R-042: the limiter's look-ahead line was only fed while the limiter was on,
+    so switching it back on replayed up to 1.5 ms of stale audio, and toggling
+    it moved the output by the look-ahead. The line now always runs. */
+#include "../DSP/Master/MasterBus.h"
+
+LUTHIER_TEST (ReviewRegression, reEnablingTheLimiterReplaysNothingStale)
+{
+    MasterBus master;
+    master.prepare (48000.0, 256);
+
+    juce::AudioBuffer<float> buffer (2, 256);
+    int64_t t = 0;
+    auto render = [&] (float amplitude)
+    {
+        for (int i = 0; i < 256; ++i, ++t)
+            for (int ch = 0; ch < 2; ++ch)
+                buffer.setSample (ch, i, amplitude * (float) std::sin (0.0576 * (double) t));   // ~440 Hz
+
+        master.processBlock (buffer);
+    };
+
+    // A loud passage with the limiter on, then silence with it off.
+    master.setLimiterEnabled (true);
+    for (int b = 0; b < 40; ++b) render (0.5f);
+
+    master.setLimiterEnabled (false);
+    for (int b = 0; b < 40; ++b) render (0.0f);
+
+    // Back on, with silence still going in: nothing from the loud passage.
+    master.setLimiterEnabled (true);
+    render (0.0f);
+
+    CHECK_MSG (buffer.getMagnitude (0, 0, 256) < 0.01f,
+               "stale audio: " + juce::String (buffer.getMagnitude (0, 0, 256)));
 }

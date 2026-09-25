@@ -27,11 +27,15 @@ public:
     static constexpr double kFadeOutMs = 800.0;
     static constexpr double kCrossfadeMs = 60.0;
 
-    /** One observation of the strings.
-        `sounding`: any note sounding now; `newOnset`: a string started a note
-        since the last observation; `name`: the name for what is sounding now
-        (ignored when nothing sounds). */
-    void update (double nowMs, bool sounding, bool newOnset, const juce::String& name);
+    /** What started since the last observation. The caller decides a strum's
+        membership from the audio's own sample times (a 30 Hz UI cannot see a
+        30 ms window): `sameStrum` is an onset within kBurstMs of the chord's
+        first one, `newChord` any later onset. */
+    enum class Onset { none, sameStrum, newChord };
+
+    /** One observation: `sounding` - any note sounds; `name` - the name for
+        what sounds now (ignored when nothing does). */
+    void update (double nowMs, bool sounding, Onset onset, const juce::String& name);
 
     /** The name shown and its opacity (0 - kPeak) at `nowMs`. */
     juce::String getText() const { return text; }

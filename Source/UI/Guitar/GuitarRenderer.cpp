@@ -2836,6 +2836,16 @@ void GuitarRenderer::paintOverlay (juce::Graphics& g, const GuitarScene& scene,
                 g.fillEllipse (p.x - r, p.y - r, r * 2.0f, r * 2.0f);
             }
 
+    // piano-roll-chord-display.md 3: the ghost fingering, hollow.
+    for (int i = 0; i < juce::jmin (12, scene.numStrings); ++i)
+        if (overlay.ghostFret[(size_t) i] >= 0.0f)
+        {
+            const auto p = scene.noteAt (i, juce::roundToInt (overlay.ghostFret[(size_t) i]));
+            const float r = 3.2f;
+            g.setColour (overlay.ghostColour.withAlpha (0.85f));
+            g.drawEllipse (p.x - r, p.y - r, r * 2.0f, r * 2.0f, 0.7f);
+        }
+
     // 28: the slide bar across the strings, in its material's colour at 80%,
     // turned by its slant (gui-integration.md 21).
     if (overlay.slideFret >= 0.0f && scene.numStrings > 0)

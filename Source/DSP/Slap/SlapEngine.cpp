@@ -260,6 +260,35 @@ SlapStrike SlapEngine::classify (const NoteOnEvent& e, bool underBar) const noex
     if (underBar)
         return st;
 
+    /*  bass-techniques 9 (MODEL-GAPS): a step of the bass grid names its
+        technique outright - thumb, pop or ghost here; fingerstyle and dead
+        notes are played as they came. Only on a bass (0.1). Values are
+        BassStepType's: 1 thumb, 2 pop, 3 ghost. */
+    if (e.bassTechnique >= 0)
+    {
+        if (! bass)
+            return st;
+
+        if (e.bassTechnique == 3)
+        {
+            st.ghost = true;
+            st.velocity = e.velocity * settings.ghostLevel;
+            return st;
+        }
+
+        if (e.bassTechnique == 1 || e.bassTechnique == 2)
+        {
+            st.strike = true;
+            st.type = e.bassTechnique == 1 ? SlapType::thumb : SlapType::pop;
+            st.force = (e.bassTechnique == 1 ? settings.slapStrength : settings.popStrength) * dynamicsScale (e.velocity);
+            st.contactMm = e.bassTechnique == 1 ? settings.slapPositionMm : settings.popPositionMm;
+            st.velocity = st.force;
+            return st;
+        }
+
+        return st;
+    }
+
     // Only a fresh attack can be slapped or ghosted: legato moves, harmonics
     // and taps keep their own excitation.
     switch (e.technique)

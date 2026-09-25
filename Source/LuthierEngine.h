@@ -20,7 +20,10 @@
 #include "DSP/Noise/PlayingNoise.h"
 #include "DSP/Noise/FretBuzz.h"
 #include "DSP/Noise/ScrapeEngine.h"
+#include "DSP/Noise/NoiseFloor.h"   // noise-floor.md
+#include "Model/Playing/StabilityModel.h"   // tuning-stability.md
 #include "DSP/Slap/SlapEngine.h"
+#include "DSP/Slap/BassFingerstyle.h"
 #include "Model/Playing/TechniqueTriggers.h"
 #include "DSP/Slide/SlideEngine.h"
 #include "DSP/Feedback/FeedbackLoop.h"
@@ -42,12 +45,19 @@
 #include "Rhythm/RhythmEngine.h"
 #include "Character/CharacterEngine.h"
 #include "Support/CpuRelief.h"
+#include "Character/EnvironmentModel.h"          // environment.md (REALISM-A)
+#include "DSP/String/StringAging.h"              // string-aging.md (REALISM-A)
+#include "DSP/Coupling/BodyCouplingBank.h"       // body-coupling.md (REALISM-A)
+#include "DSP/String/Harmonics.h"          // REALISM-B: harmonic-realism.md
+#include "Model/Playing/RightHand.h"       // REALISM-B: fingerstyle-attack.md, string-interaction.md
 
 #include <array>
 #include <atomic>
 
 namespace luthier
 {
+
+class PerformanceCapture;
 
 //==============================================================================
 class LuthierEngine
@@ -155,6 +165,27 @@ public:
         and termination with what the parts say. */
     void applyWorkshopGuitar (const DerivedAcoustics& derived, GuitarType standsFor = GuitarType::Custom);
 
+    /*  TODO 6e / DECISIONS C-09, ui-wiring.md 6.2 (MODEL-GAPS): a part swap that
+        keeps the instrument's structure - string count, tuning, family, frets,
+        bridge, pickup count and selector, rig defaults and the body's IR -
+        is built here on the message thread and swapped in by the audio
+        thread at the start of its next block, while the strings keep
+        sounding: no park, no fade to silence. The strings keep their pitch
+        and their energy; their coefficients change under them.
+
+        Returns false, having changed nothing, when the swap is not one of
+        those, when no audio thread is running elsewhere (the change is then
+        simply applied by applyWorkshopGuitar), or when the audio thread did
+        not take it within 250 ms. The caller then uses applyWorkshopGuitar.
+        Message thread; waits for the block boundary, bounded. */
+    bool swapPartsAtBlockBoundary (const DerivedAcoustics& derived, GuitarType standsFor = GuitarType::Custom);
+
+    /** Whether a swap from the current guitar to `derived` keeps its structure (above). */
+    bool partSwapKeepsStructure (const DerivedAcoustics& derived) const;
+
+    /** Part swaps taken at a block boundary since prepare, for the tests. */
+    int getLivePartSwapCount() const noexcept { return livePartSwaps.load (std::memory_order_relaxed); }
+
     /** A parts guitar's pickup as its part describes it (engine slot order). */
     const PickupSpec& getPartsPickup (int slot) const noexcept
     {
@@ -219,6 +250,38 @@ public:
     /** Sets the pick material and whether it is fingers. The two parameters
         are one decision: a finger material is fingers whatever the switch says. */
     void setPickMaterialAndFingers (Excitation::Material material, bool fingers) noexcept;
+
+    /** noise-floor.md: the rig's steady noise sources. */
+    NoiseFloor& getNoiseFloor() noexcept { return noiseFloor; }
+    const NoiseFloor& getNoiseFloor() const noexcept { return noiseFloor; }
+    void setNoiseFloorSettings (const NoiseFloorSettings& s) noexcept { noiseFloor.setSettings (s); }
+
+    /** sustain-and-decay.md 7: the decay's shape, for every string, at block rate. */
+    void setSustainShape (const StringEngine::SustainShape& s) noexcept { sustainShape = s; }
+    const StringEngine::SustainShape& getSustainShape() const noexcept { return sustainShape; }
+
+    /** SUS-01's test hook: the shape code removed from every string. */
+    void setSustainShapeBypassedForTest (bool b) noexcept
+    {
+        for (auto& str : strings)
+            str.setShapeBypassedForTest (b);
+    }
+
+    /** tuning-stability.md 5: the event-driven tuning offsets and the retunes. */
+    StabilityModel& getStabilityModel() noexcept { return stability; }
+    const StabilityModel& getStabilityModel() const noexcept { return stability; }
+
+    /** 2.6: the capo part's pressure and gap (message thread). */
+    void setCapoHardware (double pressure, double gapMm) noexcept;
+
+    /** TS-01's test hook: the model removed from the block entirely. */
+    void setStabilityBypassedForTest (bool b) noexcept { stabilityBypassed = b; }
+
+    /** The open pitch a stability event compares: open, detune and fine tune. */
+    double getStabilityBasePitch (int stringIndex) const noexcept;
+
+    /** NF-01's test hook: the render with the module removed entirely. */
+    void setNoiseFloorBypassedForTest (bool b) noexcept { noiseFloorBypassed = b; }
 
     /** The Aux 8 noise bus for the last block (routing-io.md). */
     const double* getNoiseBusData() const noexcept { return noiseBuffer.data(); }
@@ -317,6 +380,24 @@ public:
         hostPlaying = isPlaying;
     }
 
+    /*  notation-export 6.1 / TODO 9 (MODEL-GAPS): the capture the engine reports
+        to from triggerNote and applyNoteOff - string, fret and technique as
+        played - plus the detector's chord in Poly mode (4), BASS_TECH strikes
+        and the slide bar. Null (the default) reports nothing. The capture must
+        outlive the engine or be cleared first. */
+    void setPerformanceCapture (PerformanceCapture* c) noexcept { perfCapture = c; }
+    PerformanceCapture* getPerformanceCapture() const noexcept { return perfCapture; }
+
+    /*  ambiguity-resolutions 8 / routing-io 2 (MODEL-GAPS): Aux 1 (DI) taps the
+        pickup after the guitar's circuit (the default, what enters the amp) or
+        before it, so the volume knob's effect on feedback can be measured. */
+    void setAuxDiPreCircuit (bool pre) noexcept { auxDiPreCircuit.store (pre, std::memory_order_relaxed); }
+    bool isAuxDiPreCircuit() const noexcept { return auxDiPreCircuit.load (std::memory_order_relaxed); }
+
+    /** bass-techniques.md 6 (MODEL-GAPS): finger alternation and the rest stroke. */
+    void setBassFingerstyle (const BassFingerstyleSettings& s) noexcept { bassFingers.setSettings (s); }
+    const BassFingerstyle& getBassFingerstyle() const noexcept { return bassFingers; }
+
     /** The rhythm engine sits between the interpreter and the technique engine
         and rewrites the event stream when it is switched on. */
     RhythmEngine& getRhythmEngine() noexcept { return rhythm; }
@@ -327,6 +408,58 @@ public:
         sample - rule 2 of that spec's section 0. */
     CharacterEngine& getCharacterEngine() noexcept { return character; }
     const CharacterEngine& getCharacterEngine() const noexcept { return character; }
+
+    // ==== BEGIN REALISM-A engine API ====
+    /** string-aging.md: the set's age, per string. */
+    StringAging& getStringAging() noexcept { return aging; }
+    const StringAging& getStringAging() const noexcept { return aging; }
+
+    /** environment.md: temperature, humidity and their lags. */
+    EnvironmentModel& getEnvironment() noexcept { return environment; }
+    const EnvironmentModel& getEnvironment() const noexcept { return environment; }
+
+    /** body-coupling.md: the bridge admittance bank. */
+    BodyCouplingBank& getBodyCoupling() noexcept { return bodyCoupling; }
+    const BodyCouplingBank& getBodyCoupling() const noexcept { return bodyCoupling; }
+
+    /*  body-coupling.md 4: the runtime scales (block rate, any thread) and the
+        coupling amount. The frequency and Q scales reach the radiated body too
+        (3, "Scaling"); the mass scale reaches only the bank. */
+    void setBodyModeScales (double freqScale, double qScale, double massScale) noexcept
+    {
+        bodyFreqScale = juce::jlimit (0.25, 4.0, freqScale);
+        bodyQScale = juce::jlimit (0.05, 10.0, qScale);
+        bodyMassScale = juce::jlimit (0.01, 50.0, massScale);
+    }
+
+    /** The product the bank and the body receive this block. */
+    BodyCouplingScaling getBodyCouplingScaling() const noexcept;
+
+    /** Re-designs the bank from the body, the bridge and the strings. Message thread. */
+    void rebuildBodyCoupling();
+    void applyRealismStringInfo (int stringIndex, const StringSpec& spec) noexcept;   // REALISM-A
+
+    /** The bridge the bank was last designed with. */
+    const BridgeCoupling& getBridgeCoupling() const noexcept { return bridgeCoupling; }
+
+    /** environment.md 3.4: the host's playhead, seconds, when it is playing. */
+    void setHostTimeSeconds (double seconds, bool isPlaying) noexcept
+    {
+        hostTimeSeconds = seconds;
+        hostTimePlaying = isPlaying;
+    }
+
+    /*  body-coupling.md 5: the CHARACTER tab's Tap button - one body tap, heard
+        through the body and driving the bank so the open strings answer. Any
+        thread; applied at the next block. */
+    void requestBodyTap (double force) noexcept { pendingBodyTap.store (juce::jlimit (0.0, 1.0, force)); }
+
+    /** The strings' wave impedances and open pitches, for the wolf map. Message thread. */
+    double getStringWaveImpedance (int s) const noexcept { return getString (s).getPhysical().waveImpedance; }
+
+        /** The SETUP geometry the buzz model is really using (requested plus environment). */
+    const SetupGeometry& getRequestedSetup() const noexcept { return requestedSetup; }
+    // ==== END REALISM-A engine API ====
 
     //==========================================================================
     // Routing (routing-io.md). The engine fills tap buffers as it renders and
@@ -349,10 +482,9 @@ public:
     void setSidechainToAmp (bool on) noexcept { sidechainToAmp = on; }
     bool isSidechainToAmp() const noexcept { return sidechainToAmp; }
 
-    /** performance-budget.md 4: Aux 1 (DI) before the GuitarCircuit rather than
-        after it. Off, the default, is the post-circuit DI. */
-    void setDiPreCircuit (bool pre) noexcept { diPreCircuit.store (pre, std::memory_order_relaxed); }
-    bool isDiPreCircuit() const noexcept { return diPreCircuit.load (std::memory_order_relaxed); }
+    /** performance-budget.md 4: the same switch as setAuxDiPreCircuit (MODEL-GAPS). */
+    void setDiPreCircuit (bool pre) noexcept { setAuxDiPreCircuit (pre); }
+    bool isDiPreCircuit() const noexcept { return isAuxDiPreCircuit(); }
 
     /** Envelope of the sidechain input, for the modulation matrix's
         SidechainEnvFollower source. Zero when no sidechain is connected. */
@@ -410,6 +542,42 @@ public:
 
     /** performance-budget.md 8: the relief ladder, fed each block's load. */
     CpuRelief& getCpuRelief() noexcept { return cpuRelief; }
+    // ==== BEGIN REALISM-B engine ====
+    // harmonic-realism.md, string-interaction.md, fingerstyle-attack.md.
+    // Implemented in LuthierEngineRealismB.cpp.
+
+    /** harmonic-realism.md 5: the touch the contacts are built from. */
+    void setHarmonicTouch (const HarmonicTouchSettings& s) noexcept { harmonicTouch = s; }
+
+    /** Ends a note now, as triggerNoteNow starts one (tests, offline renderer). Audio thread. */
+    void releaseNoteNow (const NoteOffEvent& e) noexcept { applyNoteOff (e); }
+    const HarmonicTouchSettings& getHarmonicTouch() const noexcept { return harmonicTouch; }
+
+    /** string-interaction.md 7. */
+    void setStringInteraction (const StringInteractionSettings& s) noexcept;
+    const StringInteractionSettings& getStringInteraction() const noexcept { return interaction; }
+
+    /** fingerstyle-attack.md 6. */
+    void setRightHand (const RightHandSettings& s) noexcept { rightHand = s; }
+    const RightHandSettings& getRightHand() const noexcept { return rightHand; }
+
+    /** The last note's excitation and resolved tool on a string, for the tests
+        (FA-09's "asserted on the recorded Params") and the illustration. */
+    const Excitation::Params& getLastExcitation (int s) const noexcept { return lastExcitation[(size_t) juce::jlimit (0, kMaxStrings - 1, s)]; }
+    RhTool getLastTool (int s) const noexcept { return lastTool[(size_t) juce::jlimit (0, kMaxStrings - 1, s)]; }
+    bool getLastWasRest (int s) const noexcept { return lastRest[(size_t) juce::jlimit (0, kMaxStrings - 1, s)]; }
+
+    /*  The fretboard's contact ring (harmonic-realism.md 7): where a string is
+        being touched, as a fret from the nut (-1 none), how much of the touch
+        is left (1 landing .. 0 lifted) and whether it missed (off-node).
+        Written by the audio thread per note, read by the UI; a torn read
+        only misdraws one frame. */
+    struct ContactDisplay { std::atomic<float> fret { -1.0f }; std::atomic<float> life { 0.0f }; std::atomic<bool> missed { false }; };
+    const ContactDisplay& getContactDisplay (int s) const noexcept { return contactDisplay[(size_t) juce::jlimit (0, kMaxStrings - 1, s)]; }
+
+    /** string-interaction.md 9: the palm's weight on each string now (0-1), for the mute-zone shading. */
+    float getPalmWeight (int s) const noexcept { return palmWeightDisplay[(size_t) juce::jlimit (0, kMaxStrings - 1, s)].load (std::memory_order_relaxed); }
+    // ==== END REALISM-B engine ====
 
 private:
     /** Moves a block's events onto the schedule, converting their offsets to
@@ -421,6 +589,9 @@ private:
     void triggerNote (const NoteOnEvent& e) noexcept;
     void applyNoteOff (const NoteOffEvent& e) noexcept;
     void updatePerBlockModulation (int numSamples) noexcept;
+    void advanceRealism (int numSamples) noexcept;   // REALISM-A: aging, environment, body coupling
+    void refreshAgingJitter() noexcept;              // REALISM-A
+    void pushAgingFactors() noexcept;                // REALISM-A
     void rebuildBodyFromSpec();
     void rebuildPickupsFromSpec();
 
@@ -450,6 +621,24 @@ private:
     RhythmEngine rhythm;
     CharacterEngine character;
 
+    // ==== BEGIN REALISM-A state ====
+    StringAging aging;
+    EnvironmentModel environment;
+    BodyCouplingBank bodyCoupling;
+    std::array<double, kMaxStrings> bridgeWaves {};
+    BridgeCoupling bridgeCoupling;
+    BridgeCoupling partsBridge;
+    double bodyFreqScale = 1.0, bodyQScale = 1.0, bodyMassScale = 1.0;
+    double hostTimeSeconds = -1.0;
+    bool hostTimePlaying = false;
+    uint64_t agingSeed = 0;
+    bool agingSeedValid = false;
+    SetupGeometry setupWithGuitar;              ///< requestedSetup with the guitar's scale and strings
+    SetupGeometry setupScratch;                 ///< requested + environment deltas
+    std::atomic<bool> setupChanged { true };
+    std::atomic<double> pendingBodyTap { 0.0 };
+    // ==== END REALISM-A state ====
+
     /** The drift last written into the tuning engine, so a block that did not
         move it does not rewrite it. */
     std::array<double, kMaxStrings> lastAppliedDrift {};
@@ -469,6 +658,9 @@ private:
         NoteOnEvent noteOn {};
         NoteOffEvent noteOff {};
         int64_t absoluteSample = 0;
+        bool fingerAlternated = false;   ///< bass-techniques 6: already given its finger's timing
+        bool staggered = false;   ///< REALISM-B: string-interaction.md 4 delayed this note-off
+        bool cancelled = false;   ///< REALISM-B: a new note on the string took it first
     };
 
     static constexpr int kMaxScheduledEvents = 192;
@@ -505,8 +697,8 @@ private:
     std::vector<double> stringSumBuffer;
     std::vector<double> magneticBuffer;
     std::vector<double> instrumentBuffer;
-    std::vector<double> preCircuitBuffer;            // performance-budget.md 4: the pre-circuit DI
-    std::atomic<bool> diPreCircuit { false };
+    std::vector<double> preCircuitBuffer;         ///< MODEL-GAPS: Aux 1's pre-circuit tap
+    std::atomic<bool> auxDiPreCircuit { false };
     juce::AudioBuffer<float> bodyBuffer;
     juce::AudioBuffer<float> workBuffer;
 
@@ -528,6 +720,24 @@ private:
     FretBuzz fretBuzzModel;
     SlideEngine slide;
 
+    // noise-floor.md 4: owned next to playingNoise.
+    NoiseFloor noiseFloor;
+    bool noiseFloorBypassed = false;
+
+    // sustain-and-decay.md 7, and 3's clock restart when the E-Bow engages.
+    StringEngine::SustainShape sustainShape;
+    std::array<bool, kMaxStrings> ebowWasDriving {};
+    bool feedbackWasOn = false;
+
+    // tuning-stability.md 5.
+    StabilityModel stability;
+    bool stabilityBypassed = false;
+    double partsTunerRatio = 18.0, partsTunerStability = 0.85, partsNutFriction = 0.35;
+    bool partsTunerLocking = false;
+    double capoPressure = 0.7, capoGapMm = 6.0;
+    void refreshStabilityHardware() noexcept;
+    void runStability (int numSamples) noexcept;
+
     /*  string-scraping.md 3: after the MIDI, before the strings. Its keyswitches
         come out of the MIDI (into scrapeMidi) before the rhythm engine and the
         interpreter see it. */
@@ -541,6 +751,25 @@ private:
     SlapEngine slap;
     std::vector<double> slapBodyDrive;
     std::array<bool, kMaxStrings> scrapeWasActive {};
+
+    // ---- MODEL-GAPS: capture reporting and fingerstyle bass --------------------
+    PerformanceCapture* perfCapture = nullptr;
+    juce::int64 hostBlockStart = 0;
+    ChordSymbol lastCapturedChord;
+    double lastCapturedBarFret = -2.0;
+    int lastCapturedBarPressure = -1;
+    BassFingerstyle bassFingers;
+    bool firingAlternated = false;
+    std::array<juce::int64, kMaxStrings> lastPluckSample {};
+
+    /** The capture's offset for the event being applied, from the host block's start. */
+    int captureOffset() const noexcept { return (int) juce::jmax ((juce::int64) 0, blockStartSample + activeSampleOffset - hostBlockStart); }
+
+    /** Reports a slap strike as a BASS_TECH event. */
+    void captureBassTechnique (const SlapStrike& strike) noexcept;
+
+    /** The chord (Poly mode) and the slide bar, once a block. */
+    void captureBlockState() noexcept;
 
     /** Applies one of the slap's due actions (a strike, a palm slap, a body tap). */
     void applySlapAction (const SlapAction& a) noexcept;
@@ -636,6 +865,24 @@ private:
     std::atomic<juce::Thread::ThreadID> audioThreadId { nullptr };
     std::atomic<juce::uint32> lastProcessMs { 0 };
     double swapPhase = 1.0;          ///< audio thread; 1 = full level, 0 = silent
+    // TODO 6e (MODEL-GAPS): the block-boundary part swap. The message thread
+    // allocates and frees; the audio thread only takes and hands back.
+    struct PendingPartSwap
+    {
+        DerivedAcoustics derived;
+        GuitarType standsFor = GuitarType::Custom;
+    };
+
+    std::atomic<PendingPartSwap*> pendingPartSwap { nullptr };
+    std::atomic<PendingPartSwap*> retiredPartSwap { nullptr };
+    std::atomic<int> livePartSwaps { 0 };
+
+    /** Audio thread, at a block boundary: the allocation-free half of applyWorkshopGuitar. */
+    void applyPartSwapLive (const PendingPartSwap& swap) noexcept;
+
+    /** Whether an audio thread other than the caller's is rendering. */
+    bool isAudioRunningElsewhere() const noexcept;
+
     int structuralDepth = 0;         ///< message thread
     bool structuralParked = false;   ///< message thread: this scope parked the audio thread
 
@@ -689,6 +936,83 @@ private:
     }
 
     RtRandom rng { 0xA11CE5ull };
+
+    // ==== BEGIN REALISM-B engine state ====
+    HarmonicTouchSettings harmonicTouch;
+    StringInteractionSettings interaction;
+    RightHandSettings rightHand;
+    Excitation::Material chosenPickMaterial = Excitation::Material::PickCelluloid;
+
+    std::array<Excitation::Params, kMaxStrings> lastExcitation {};
+    std::array<RhTool, kMaxStrings> lastTool {};
+    std::array<bool, kMaxStrings> lastRest {};
+    std::array<ContactDisplay, kMaxStrings> contactDisplay;
+    std::array<int, kMaxStrings> contactDisplaySamples {};
+    std::array<int, kMaxStrings> contactDisplayTotal {};
+    std::array<std::atomic<float>, kMaxStrings> palmWeightDisplay {};
+
+    /*  Damping another mechanism put on a string that is not its note's own
+        (string-interaction.md 2 and 3, fingerstyle-attack.md 2): what to go
+        back to, and why it is held. */
+    struct BorrowedDamping
+    {
+        bool held = false;
+        StringEngine::Damping prior = StringEngine::Damping::Open;
+        double priorAmount = 1.0;
+        juce::uint32 adjacentSources = 0;   ///< strings whose fretting finger lies here
+        int restFrom = -1;                   ///< string whose rest stroke landed here
+        bool palm = false;                   ///< under the palm (spread)
+    };
+    std::array<BorrowedDamping, kMaxStrings> borrowed {};
+
+    void borrowDamping (int s, StringEngine::Damping d, double amount) noexcept;
+    void releaseBorrowIfFree (int s) noexcept;
+    void clearBorrowed (int s) noexcept;
+
+    // Palm spread (string-interaction.md 2).
+    double palmCentre = -1.0;
+    int64_t palmGroupStart = -1000000;
+    double palmGroupSum = 0.0;
+    int palmGroupCount = 0;
+    juce::uint32 struckThisBlock = 0;
+    void notePalmStrike (int s) noexcept;
+    void updatePalmSpread() noexcept;
+
+    // Release stagger (string-interaction.md 4).
+    RtRandom staggerRng { 0x57A66E5ull };
+    int stageNoteOffs (const PlayEventQueue& queue, std::array<int64_t, PlayEventQueue::kCapacity>& due) noexcept;
+
+    // Crosstalk (string-interaction.md 5).
+    bool crosstalkWasBent = false;
+    void updateCrosstalk() noexcept;
+
+    // Alternation (fingerstyle-attack.md 3).
+    int alternationPhase = 0;
+    int64_t lastFingerNoteSample = -1000000;
+    int64_t lastNoteOnSample = -1000000;
+    int lastNoteOnString = -1;
+
+    /** What the right hand resolved a note to. */
+    struct HandResolution
+    {
+        RhTool tool = RhTool::global;
+        bool rest = false;
+        int slapType = -1;       ///< 0 thumb slap, 1 pop, -1 none
+        double timingOffsetMs = 0.0;
+    };
+
+    HandResolution resolveRightHand (const NoteOnEvent& e, int s) noexcept;
+    void applyRightHand (const HandResolution& hand, const NoteOnEvent& e, int s, StringEngine& str,
+                         Excitation::Params& p, bool& fingersForNoise) noexcept;
+    void applyHarmonicContact (const NoteOnEvent& e, int s, StringEngine& str, double fret,
+                               Excitation::Params& p) noexcept;
+    void applyAdjacentMute (const NoteOnEvent& e, int s, double fret) noexcept;
+    void liftMutesFrom (int s) noexcept;
+    void onRealismBNoteOn (int s) noexcept;
+    void resetRealismB() noexcept;
+    void refreshAirCoupling() noexcept;
+    SlapStrike makeToolStrike (const NoteOnEvent& e, int slapType) const noexcept;
+    // ==== END REALISM-B engine state ====
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierEngine)
 };

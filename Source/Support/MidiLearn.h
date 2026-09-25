@@ -12,13 +12,12 @@
 #include <array>
 #include <atomic>
 
-#include "ThreadProbe.h"
-
 namespace luthier
 {
 
 class MidiLearnManager : public juce::ChangeBroadcaster,
-                         private juce::Timer
+                         private juce::AsyncUpdater,
+                         private juce::Timer   // performance-budget.md 0.5: polled, never posted from the audio thread
 {
 public:
     struct Mapping
@@ -37,12 +36,15 @@ public:
     //==========================================================================
     /** Arms learning for a parameter. The next CC received is mapped to it. */
     void startLearning (const juce::String& parameterId);
-
-    /*  performance-budget.md 0.4 / 0.5: the audio thread publishes a learned CC
-        in pendingLearnCc and nothing else; this, on the message thread, maps it.
-        The timer that learning starts calls it; tests may call it directly. */
-    void servicePendingLearn();
     void cancelLearning();
+
+    /** action-and-undo.md 3.12: called on the message thread just before a
+        learned mapping is added, so the processor can push an undo entry. */
+    std::function<void (const juce::String& parameterId, int cc)> onBeforeLearn;
+
+    /** Maps a CC the audio thread caught while learning (the async update's
+        work, public for tests, which run no dispatch loop). */
+    void servicePendingLearn() { handleAsyncUpdate(); }
     bool isLearning() const noexcept { return learning.load(); }
     juce::String getLearningParameterId() const;
 
@@ -59,10 +61,6 @@ public:
     /** Called by a control when it is clicked. If armed, starts learning for this
         parameter, disarms, and returns true so the control swallows the click. */
     bool claimArmedLearn (const juce::String& parameterId);
-
-    /*  action-and-undo.md 3.12: called on the message thread just before a
-        learn completes (parameter, CC), so the owner can push an undo entry. */
-    std::function<void (const juce::String&, int)> onBeforeLearn;
 
     //==========================================================================
     void addMapping (const juce::String& parameterId, int ccNumber, int channel = 0);
@@ -87,6 +85,10 @@ public:
         writes use setValueNotifyingHost, which is designed for this. */
     void processMidi (const juce::MidiBuffer& midi) noexcept;
 
+    /** Message thread: finishes a learn the audio thread caught now, rather than
+        when the async update arrives (tests, and anything that cannot wait). */
+    void dispatchPendingLearn() { handleUpdateNowIfNeeded(); }
+
     //==========================================================================
     juce::var toVar() const;
     void fromVar (const juce::var& data);
@@ -94,20 +96,36 @@ public:
 private:
     juce::AudioProcessorValueTreeState& apvts;
 
-    mutable ThreadProbe::ProbedCriticalSection lock;
+    mutable juce::CriticalSection lock;
     juce::Array<Mapping> mappings;
 
     std::atomic<bool> learning { false };
     std::atomic<bool> armed { false };
     juce::String learningParameter;
 
-    std::atomic<int> pendingLearnCc { -1 };   // performance-budget.md 0.4
-    void timerCallback() override { servicePendingLearn(); }
+    /*  What the audio thread reads: one plain entry per CC, rebuilt on the
+        message thread under tableLock, which the audio thread only try-locks.
+        It used to index `mappings` itself without the lock, while the message
+        thread cleared or reallocated it (a crash on a CC during a state reload
+        or a mapping edit), and to look the parameter up by its String id. */
+    struct LookupEntry
+    {
+        juce::AudioProcessorParameter* parameter = nullptr;
+        int    channel = 0;
+        double rangeMin = 0.0;
+        double rangeMax = 1.0;
+        bool   inverted = false;
+    };
 
-    // Lock-free lookup used on the audio thread: CC number to mapping index.
-    std::array<std::atomic<int>, 128> ccToMapping {};
+    juce::SpinLock tableLock;
+    std::array<LookupEntry, 128> lookup {};
+
+    /** A CC caught while learning, handed to the message thread (-1 = none). */
+    std::atomic<int> learnedCc { -1 };
 
     void rebuildLookup() noexcept;
+    void handleAsyncUpdate() override;
+    void timerCallback() override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MidiLearnManager)
 };

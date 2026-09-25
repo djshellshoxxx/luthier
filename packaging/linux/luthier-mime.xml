@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The six Luthier file types (installer.md 3.1). -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-luthier-preset">
+    <comment>Luthier preset</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.luthierpreset"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-guitar">
+    <comment>Luthier guitar</comment>
+    <glob pattern="*.luthierguitar"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-tune">
+    <comment>Luthier tune</comment>
+    <glob pattern="*.luthiertune"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-loop">
+    <comment>Luthier loop</comment>
+    <glob pattern="*.luthierloop"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-setlist">
+    <comment>Luthier setlist</comment>
+    <glob pattern="*.luthierset"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-midprofile">
+    <comment>Luthier MIDI export profile</comment>
+    <glob pattern="*.midprofile"/>
+  </mime-type>
+</mime-info>

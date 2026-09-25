@@ -605,6 +605,18 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
     strumGroup = std::make_unique<StrumGroup> (processor);
     addAndMakeVisible (*strumGroup);
 
+    // bass-techniques 9 (MODEL-GAPS): the bass step grid appears on a bass, and
+    // the panel grows or shrinks by its height.
+    bassGridGroup = std::make_unique<BassGridGroup> (processor);
+    addChildComponent (*bassGridGroup);
+    bassGridGroup->onShownChanged = [this]
+    {
+        if (getHeight() > 0)
+            setSize (getWidth(), preferredHeight());
+
+        resized();
+    };
+
     buildBrowser();
 
     indicators = std::make_unique<RhythmIndicators> (processor);
@@ -963,6 +975,7 @@ void RhythmPanel::refreshFromEngine()
     strumGrid->refresh();
     fingerpickGrid->refresh();
     strumGroup->refresh();
+    bassGridGroup->refresh();
 }
 
 //==============================================================================
@@ -999,6 +1012,7 @@ int RhythmPanel::preferredHeight() const
          + 16 + FingerpickGrid::preferredHeight  // fingerpick grid
          + 16 + 22 * 5                           // feel heading + five sliders
          + StrumGroup::preferredHeight + 4       // STRUM group
+         + (bassGridGroup != nullptr && bassGridGroup->isShown() ? bassGridGroup->preferredHeight() + 4 : 0)   // BASS GRID
          + 16 + 26 + 96 + 26                     // browser heading, filter, list, buttons
          + RhythmIndicators::preferredHeight
          + 24;
@@ -1073,6 +1087,10 @@ void RhythmPanel::resized()
 
     // ---- strum (strum-dynamics 6.3) ----------------------------------------------
     strumGroup->setBounds (row (StrumGroup::preferredHeight, 4));
+
+    // ---- bass step grid (bass-techniques 9, MODEL-GAPS) ----------------------------
+    if (bassGridGroup->isShown())
+        bassGridGroup->setBounds (row (bassGridGroup->preferredHeight(), 4));
 
     // ---- browser -----------------------------------------------------------------
     browserHeading.setBounds (row (16));

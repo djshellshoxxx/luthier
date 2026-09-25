@@ -232,6 +232,9 @@ StringEngine::Physical StringMaterials::toPhysical (const StringSpec& spec, doub
     // coupling network more strongly.
     p.couplingSend = juce::jlimit (0.4, 1.6, std::pow (spec.linearDensity / 0.004, 0.30));
 
+    // body-coupling.md 3: the string's characteristic impedance at the bridge.
+    p.waveImpedance = std::sqrt (juce::jmax (0.0, spec.tensionNewtons) * juce::jmax (0.0, spec.linearDensity));
+
     return p;
 }
 

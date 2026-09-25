@@ -452,6 +452,15 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
 
     d.nutBrightness = nutMaterialBrightness (str (nut, "material", "bone"));
 
+    // tuning-stability.md 1: "part fields not yet consumed" - consumed there.
+    {
+        const auto* tuners = g.get (GuitarSlot::tuners).get();
+        d.tunerRatio = num (tuners, "ratio", 18.0);
+        d.tunerStability = num (tuners, "stability", 0.85);
+        d.tunerLocking = tuners != nullptr && tuners->flag ("locking", false);
+        d.nutFriction = num (nut, "friction", 0.35);
+    }
+
     // 9: thick gloss damps an acoustic top slightly (up to -0.5 dB).
     if (chambering == "acoustic")
         d.finishDampingDb = -0.5 * juce::jlimit (0.0, 1.0, (g.finish.gloss - 0.5) * 2.0);

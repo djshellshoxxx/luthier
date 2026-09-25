@@ -13,7 +13,12 @@ void CouplingMatrix::prepare (double sampleRate, int n) noexcept
         frequencies[(size_t) i] = 110.0;
         receiveDC[(size_t) i].prepare (sr, 8.0);
         receiveFilter[(size_t) i].setBandpass (sr, 110.0, 1.2);
+        airHighPass[(size_t) i].prepare (sr);
+        airHighPass[(size_t) i].setCutoff (120.0);
     }
+
+    // string-interaction.md 1: tau = 0.1 m / 343 m/s, fixed at prepare.
+    airDelay = juce::jlimit (1, kAirRing - 1, (int) std::round (0.1 / 343.0 * sr));
 
     buildDefault();
     reset();
@@ -29,10 +34,24 @@ void CouplingMatrix::reset() noexcept
 
     lastLimiting = 0.0;
 
+    for (auto& row : airHistory)
+        row.fill (0.0);
+
+    airSums.fill (0.0);
+
+    for (auto& hp : airHighPass)
+        hp.reset();
+
+    airWrite = 0;
+
     // Forget the designed pitches: setStringFrequency skips a move under 0.5 Hz,
     // so the filters would otherwise be designed at wherever the last render
     // left them, and the next render would depend on the one before.
     frequencies.fill (0.0);
+
+    // Pitches unknown: every pair at full strength until they arrive.
+    for (auto& row : unisonScale)
+        row.fill (1.0);
 }
 
 void CouplingMatrix::setNumStrings (int n) noexcept
@@ -106,6 +125,26 @@ void CouplingMatrix::setStringFrequency (int stringIndex, double hz) noexcept
     // A fairly wide resonance: the receiving string responds to anything near its
     // fundamental and its low partials, not just an exact match.
     receiveFilter[(size_t) stringIndex].setBandpass (sr, f, 1.1);
+
+    updateUnisonScale (stringIndex);
+}
+
+void CouplingMatrix::updateUnisonScale (int i) noexcept
+{
+    for (int j = 0; j < kMaxStrings; ++j)
+    {
+        double scale = 1.0;
+
+        if (j != i && frequencies[(size_t) i] > 0.0 && frequencies[(size_t) j] > 0.0)
+        {
+            const double cents = std::abs (1200.0 * std::log2 (frequencies[(size_t) i] / frequencies[(size_t) j]));
+            const double t = juce::jlimit (0.0, 1.0, cents / kUnisonCents);
+            scale = kUnisonFloor + (1.0 - kUnisonFloor) * t * t;
+        }
+
+        unisonScale[(size_t) i][(size_t) j] = scale;
+        unisonScale[(size_t) j][(size_t) i] = scale;
+    }
 }
 
 //==============================================================================
@@ -116,6 +155,31 @@ void CouplingMatrix::process (const double* bridgeOutputs, double* couplingInput
 
     lastLimiting = 0.0;
 
+    // string-interaction.md 1: one sum, then each string hears it minus itself,
+    // tau later. Skipped entirely at 0.
+    const bool air = airCoefficient > 0.0;
+    const double* delayed = nullptr;
+    double airSum = 0.0;
+
+    if (air)
+    {
+        auto& now = airHistory[(size_t) airWrite];
+        double total = 0.0;
+
+        for (int j = 0; j < numStrings; ++j)
+        {
+            now[(size_t) j] = bridgeOutputs[j];
+            total += bridgeOutputs[j];
+        }
+
+        airSums[(size_t) airWrite] = total;
+
+        const int read = (airWrite - airDelay) & (kAirRing - 1);
+        delayed = airHistory[(size_t) read].data();
+        airSum = airSums[(size_t) read];
+        airWrite = (airWrite + 1) & (kAirRing - 1);
+    }
+
     for (int i = 0; i < numStrings; ++i)
     {
         double sum = 0.0;
@@ -125,10 +189,13 @@ void CouplingMatrix::process (const double* bridgeOutputs, double* couplingInput
             if (i == j)
                 continue;
 
-            sum += matrix[(size_t) i][(size_t) j] * bridgeOutputs[j];
+            sum += matrix[(size_t) i][(size_t) j] * unisonScale[(size_t) i][(size_t) j] * bridgeOutputs[j];
         }
 
         sum *= globalAmount;
+
+        if (air)
+            sum += airCoefficient * airHighPass[(size_t) i].process (airSum - delayed[i]);
 
         // Shape the arriving energy with the receiving string's own resonance,
         // then block DC so a long chord cannot walk the delay line off centre.

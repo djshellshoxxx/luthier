@@ -144,7 +144,6 @@ juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
 }
 
 std::function<void (const juce::String&)> showShortcutInOptions;
-std::function<void (const juce::String&)> openHelpForPanel;
 
 int modSourceSlotFromDrag (const juce::var& description)
 {
@@ -177,32 +176,6 @@ bool addModulationFromDrop (LuthierAudioProcessor& processor, int sourceSlot, co
     processor.pushUndoState ("Modulate " + processor.getState().getParameter (parameterId)->getName (40)
                              + " from " + modSourceDisplayName (sourceSlot) + " at 25%");
     return matrix.addRoute (route);
-}
-
-PanelHelpButton::PanelHelpButton (const juce::String& panelName)
-    : juce::Button ("?"), panel (panelName)
-{
-    setTooltip ("Help for " + panelName);
-    setTitle ("Help for " + panelName);
-    setWantsKeyboardFocus (true);
-}
-
-void PanelHelpButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
-{
-    auto b = getLocalBounds().toFloat().reduced (1.0f);
-    const float d = juce::jmin (b.getWidth(), b.getHeight());
-    b = b.withSizeKeepingCentre (d, d);
-
-    g.setColour ((highlighted || down) ? Palette::accent : Palette::textMuted);
-    g.drawEllipse (b.reduced (0.5f), 1.0f);
-    g.setFont (Fonts::ui (d * 0.72f, true));
-    g.drawText ("?", b, juce::Justification::centred, false);
-}
-
-void PanelHelpButton::clicked()
-{
-    if (openHelpForPanel)
-        openHelpForPanel (panel);
 }
 
 void labelForScreenReaders (juce::Component& control, LuthierAudioProcessor& processor,
@@ -1308,7 +1281,7 @@ FeedbackLed::FeedbackLed (LuthierAudioProcessor& p)
                 "when the loop is sustaining a note on its own");
     AccessibleSetup::configureDescriptive (*this, "Feedback indicator",
                                            "Lights when the feedback loop is sustaining a note");
-    startTimerHz (20);
+    startTimerHz (kRefreshHz);   // gui-engine-dataflow 22
 }
 
 FeedbackLed::~FeedbackLed()

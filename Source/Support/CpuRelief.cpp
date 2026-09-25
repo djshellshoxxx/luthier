@@ -26,6 +26,8 @@ int CpuRelief::update (double load, int numSamples) noexcept
 
     if (const double forced = loadOverride.load (std::memory_order_relaxed); forced >= 0.0)
         load = forced;
+    else if (isOffline.load (std::memory_order_relaxed) || ! globallyEnabled().load (std::memory_order_relaxed))
+        load = 0.0;   // offline, or switched off: the ladder walks back down and stays there
 
     if (! std::isfinite (load) || load < 0.0)
         load = 0.0;

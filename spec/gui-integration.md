@@ -688,6 +688,9 @@ the UI.
 | MIDI import | MidiExport | File menu Import MIDI, drag-drop onto window | - | - |
 | Accessibility opts / Localization / UI scale / Palette / Reduced motion | Accessibility | Options ACCESSIBILITY, LOCALIZATION, APPEARANCE | - | - |
 | Updates / Telemetry / Crash reporting / License / Privacy dashboard | Updates | Options UPDATES, PRIVACY | Header notification | - |
+| Noise floor | NoiseFloor | Adv Col 4 CHARACTER NOISE FLOOR | ROUTING Aux 8 switch; Options AUDIO default mains region | - |
+| Sustain shape | StringEngine | Adv Col 1 STRINGS DECAY (style) + Col 4 CHARACTER SUSTAIN SHAPE | - | - |
+| Tuning stability | StabilityModel | Adv Col 4 CHARACTER TUNING STABILITY | Easy headstock popover (per-string offset, Retune) | - |
 
 ## 20. Discoverability rules
 

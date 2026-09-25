@@ -13,7 +13,7 @@ void ChordNameFader::clear() noexcept
     outgoingFrom = 0.0f;
 }
 
-void ChordNameFader::update (double nowMs, bool sounding, bool newOnset, const juce::String& name)
+void ChordNameFader::update (double nowMs, bool sounding, Onset onset, const juce::String& name)
 {
     if (! sounding)
     {
@@ -26,15 +26,15 @@ void ChordNameFader::update (double nowMs, bool sounding, bool newOnset, const j
 
     const bool shown = getOpacity (nowMs) > 0.0f;
 
-    if (newOnset)
+    // A strum's later strings, within 30 ms of its first: the same chord.
+    if (onset == Onset::sameStrum && shown && releaseMs < 0.0)
     {
-        // A strum's later strings, within 30 ms of its first: the same chord.
-        if (shown && releaseMs < 0.0 && nowMs - chordStartMs <= kBurstMs)
-        {
-            text = name;
-            return;
-        }
+        text = name;
+        return;
+    }
 
+    if (onset != Onset::none)
+    {
         // A new chord or note: the old name (if showing) crossfades out.
         if (shown && name != text)
         {

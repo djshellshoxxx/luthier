@@ -1,4 +1,5 @@
 #include "GuitarBodyComponent.h"
+#include "RealismGroupsC.h"   // REALISM-C
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 
@@ -7,7 +8,7 @@ namespace luthier
 
 //==============================================================================
 GuitarBodyComponent::GuitarBodyComponent (LuthierAudioProcessor& p)
-    : processor (p)
+    : processor (p), chordName (p)
 {
     startTimerHz (30);
 }
@@ -206,8 +207,49 @@ void GuitarBodyComponent::updateLiveOverlay (double nowMs)
     changed = changed || reducedMotion != overlay.reducedMotion;
     overlay.reducedMotion = reducedMotion;
 
+    // piano-roll-chord-display.md 4, 7: the chord name is part of the live pass.
+    const bool nameWas = chordName.getFader().isVisible (nowMs - 34.0);
+    chordName.tick (nowMs);
+
+    if (nameWas || chordName.getFader().isVisible (nowMs))
+        repaint (getChordNameArea().getSmallestIntegerContainer().expanded (8));
+
     if (changed)
         repaint();
+}
+
+void GuitarBodyComponent::setGhostDots (const std::vector<std::pair<int, double>>& dots)
+{
+    ghostFrets.fill (-1.0f);
+    const int capo = processor.getEngine().getTuningEngine().getCapoFret();
+
+    for (const auto& [string, fret] : dots)
+        if (juce::isPositiveAndBelow (string, 12))
+            ghostFrets[(size_t) string] = (float) (fret + capo);
+
+    repaint();
+}
+
+juce::Rectangle<float> GuitarBodyComponent::getChordNameArea() const
+{
+    juce::Rectangle<float> body;
+
+    for (const auto& hit : scene.hits)
+        if (hit.region == GuitarRegion::body)
+            body = body.isEmpty() ? hit.area.getBounds() : body.getUnion (hit.area.getBounds());
+
+    if (body.isEmpty() || scene.nutPoints.empty())
+        return {};
+
+    juce::Point<float> nut;
+
+    for (const auto& p : scene.nutPoints)
+        nut += p;
+
+    nut /= (float) scene.nutPoints.size();
+
+    const auto bodyPx = body.transformedBy (mmToPx);
+    return ChordNameOverlay::lowerBout (bodyPx, nut.transformedBy (mmToPx)).getIntersection (getLocalBounds().toFloat());
 }
 
 //==============================================================================
@@ -232,9 +274,14 @@ void GuitarBodyComponent::paint (juce::Graphics& g)
     }
 
     overlay.accent = Palette::accent;
+    overlay.ghostFret = ghostFrets;
+    overlay.ghostColour = Palette::textPrimary;
     overlay.changedColour = Palette::secondary;
     overlay.hovered = hoveredRegion;
     GuitarRenderer::paintOverlay (g, scene, mmToPx, overlay);
+
+    // piano-roll-chord-display.md 4: the chord name, over the lower bout.
+    chordName.paint (g, getChordNameArea(), (float) getHeight(), lastFrameMs);
 
     // ---- name plate -------------------------------------------------------------------
     g.setColour (Palette::textMuted);
@@ -544,12 +591,19 @@ TuningPopover::TuningPopover (LuthierAudioProcessor& p)
 
         slider->onValueChange = [this, i, slider]
         {
-            processor.getEngine().getTuningEngine().setDetuneCents (i, slider->getValue());
+            // tuning-stability.md 5: a lower detune is a string brought down to pitch.
+            auto& engine = processor.getEngine();
+            const double before = engine.getStabilityBasePitch (i);
+            engine.getTuningEngine().setDetuneCents (i, slider->getValue());
+            engine.getStabilityModel().onTuningChanged (i, before, engine.getStabilityBasePitch (i));
             refreshNoteNames();
             repaint();
         };
 
         addAndMakeVisible (slider);
+
+        // tuning-stability.md 6: the string's offset, and its Retune.
+        addAndMakeVisible (stabilityBadges.add (new StabilityBadge (processor, i)));
     }
 
     refreshNoteNames();
@@ -573,7 +627,7 @@ juce::Rectangle<int> TuningPopover::preferredSize (int numStrings)
                          + rows * kRowHeight
                          + 8 + 28;
 
-    return { 0, 0, 300, height };
+    return { 0, 0, 300 + StabilityBadge::preferredWidth, height };
 }
 
 void TuningPopover::refreshNoteNames()
@@ -640,11 +694,15 @@ void TuningPopover::resized()
     bounds.removeFromTop (8);
     bounds.removeFromBottom (8 + 28);
 
-    for (auto* slider : detuneSliders)
+    for (int i = 0; i < detuneSliders.size(); ++i)
     {
         auto row = bounds.removeFromTop (kRowHeight);
         row.removeFromLeft (kNoteColumnWidth);          // the note name paint() draws
-        slider->setBounds (row);
+
+        if (auto* badge = stabilityBadges[i])
+            badge->setBounds (row.removeFromRight (StabilityBadge::preferredWidth));
+
+        detuneSliders[i]->setBounds (row);
     }
 }
 

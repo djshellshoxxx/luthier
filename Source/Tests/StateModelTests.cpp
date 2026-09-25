@@ -111,7 +111,9 @@ LUTHIER_TEST (StateModel, recallingASnapshotStaysInsideThePreset)
 
     /*  A recall returns before it has finished. The crossfade is carried by the
         audio thread's own clock (live-performance.md, and state-model 3 step 3),
-        so the parameter only moves as blocks are rendered. */
+        so the parameter only moves as blocks are rendered - and the processor's
+        timer applies that time on the message thread, as advancePending does
+        here. */
     {
         juce::AudioBuffer<float> buffer (2, kBlock);
         juce::MidiBuffer midi;
@@ -120,6 +122,7 @@ LUTHIER_TEST (StateModel, recallingASnapshotStaysInsideThePreset)
         {
             buffer.clear();
             processor.processBlock (buffer, midi);
+            processor.getSnapshots().advancePending();
         }
     }
 

@@ -70,6 +70,11 @@ struct ChordSymbol
     /** "Am7", "G/B", "Cmaj9". Message thread only - it builds a String. */
     juce::String toString() const;
 
+    /** The same name into `dest` (always terminated, cut at `capacity`), for
+        the audio thread: no allocation (notation-export 4, MODEL-GAPS).
+        Returns the length written; 0 for an unknown chord. */
+    int writeName (char* dest, int capacity) const noexcept;
+
     bool operator== (const ChordSymbol& other) const noexcept
     {
         return root == other.root && bass == other.bass && templateIndex == other.templateIndex;

@@ -9,7 +9,7 @@ namespace
         reference distance, facing the speaker. Set so that a loud high-gain
         amp at half a metre sustains a ringing note at full amount, and a clean
         amp at a fifth of it does not (FeedbackTests). */
-    constexpr double kInjectionGain = 0.021;
+    constexpr double kInjectionGain = 0.0205;
 
     constexpr double kReferenceDistance = 0.5;
     constexpr double kRingingLevel = 1.0e-4;
@@ -85,8 +85,36 @@ void FeedbackLoop::updateCoupling() noexcept
     {
         // A heavy wound string is moved less by the same air.
         const double stringGain = woundString[(size_t) s] ? 0.7 : 1.0;
-        couple[(size_t) s] = settings.amount * distanceGain * angleGain * stringGain;
+        couple[(size_t) s] = settings.amount * distanceGain * angleGain * stringGain * bodyCoupling;
     }
+}
+
+void FeedbackLoop::setBodyCoupling (double factor) noexcept
+{
+    factor = std::isfinite (factor) ? juce::jlimit (0.0, 4.0, factor) : 1.0;
+
+    if (factor != bodyCoupling)
+    {
+        bodyCoupling = factor;
+        updateCoupling();
+    }
+}
+
+double FeedbackLoop::bodyCouplingFor (double chamberFeedbackGain) noexcept
+{
+    /*  part-acoustics 2.1's column runs solid 0.1 (lowest), chambered 0.25,
+        semi-hollow 0.5, hollow 0.8, acoustic 0 ("n/a"). Relative to the solid
+        body, on a square root: the loop's gain is an amplitude and it
+        saturates at the ceiling, so a hollow body's 8x on the table is about
+        2.8x here - it takes over sooner and louder, not instantly. Acoustic is
+        n/a: this loop is a magnetic pickup hearing the amp, so it is left at
+        the reference rather than switched off. */
+    constexpr double kSolid = 0.1;
+
+    if (! (chamberFeedbackGain > 0.0))
+        return 1.0;
+
+    return std::sqrt (chamberFeedbackGain / kSolid);
 }
 
 //==============================================================================

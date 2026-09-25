@@ -126,6 +126,17 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
 {
     addAndMakeVisible (guitarBody);
 
+    // gui-integration 20 (TUNE-HELP-ONBOARDING): a ? on every strip.
+    for (auto* help : getHelpButtons())
+    {
+        addAndMakeVisible (help);
+        help->onHelp = [this] (const juce::String& topic)
+        {
+            if (onOpenHelp != nullptr)
+                onOpenHelp (topic);
+        };
+    }
+
     // ---- playing strip (3.3) -------------------------------------------------------
     struct MacroSetup
     {
@@ -177,6 +188,10 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
                                   "Mono routes every note to one string with legato between them. "
                                   "Poly voices chords across the strings. Guitar Controller maps "
                                   "MIDI channel to string for hex pickups and MPE.");
+
+    // REALISM-B, fingerstyle-attack.md 7: the Tool selector, beside the mode.
+    toolSelector = std::make_unique<RightHandToolSelector> (processor);
+    addAndMakeVisible (*toolSelector);
 
     // ---- tone strip (3.4) ------------------------------------------------------------
     inputKnob.attachTo (processor, ParamIDs::inputGain, "Input gain: how hard the guitar hits the pedals and the amp.");
@@ -259,6 +274,20 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     roomLight.toBack();
     addChildComponent (vuMeter);
     vuMeter.setVisible (VuMeter::isEnabledByUser());
+
+    // piano-roll-chord-display.md 1, 3: the piano roll under the guitar; Easy
+    // has no fretboard, so "Show fingering" draws on the illustration.
+    addChildComponent (pianoRoll);
+    pianoRoll.onLayoutChanged = [this] { resized(); };
+    pianoRoll.onGhostDots = [this] (const std::vector<FretboardComponent::GhostDot>& dots)
+    {
+        std::vector<std::pair<int, double>> pairs;
+
+        for (const auto& d : dots)
+            pairs.emplace_back (d.string, d.fret);
+
+        guitarBody.setGhostDots (pairs);
+    };
     meter.setSource (&processor);
 
     addAndMakeVisible (chordLabel);
@@ -539,31 +568,15 @@ void EasyPanel::resized()
     rigArea = bounds.removeFromRight (juce::jmin (kRigWidth, bounds.getWidth() / 3));
     bounds.removeFromRight (Metrics::grid);
 
-    // gui-integration 20: each card and strip carries its `?` at the top right.
-    auto placeHelp = [this] (const juce::String& title, juce::Rectangle<int> area)
-    {
-        PanelHelpButton* help = nullptr;
-
-        for (auto* h : helpButtons)
-            if (h->getPanelName() == title)
-                help = h;
-
-        if (help == nullptr)
-            addAndMakeVisible (help = helpButtons.add (new PanelHelpButton (title)));
-
-        help->setBounds (area.getRight() - PanelHelpButton::size - 5, area.getY() + 4, PanelHelpButton::size, PanelHelpButton::size);
-    };
-
     rigCards.clearQuick();
     {
         auto rig = rigArea;
         const int total = rig.getHeight();
 
-        auto card = [&rig, &total, &placeHelp, this] (float share, const juce::String& title)
+        auto card = [&rig, &total, this] (float share, const juce::String& title)
         {
             auto r = rig.removeFromTop (juce::roundToInt ((float) total * share));
             rigCards.add ({ r.reduced (0, 2), title });
-            placeHelp (title, r.reduced (0, 2));
             auto inner = r.reduced (6, 4);
             inner.removeFromTop (16);   // the card's title
             return inner;
@@ -619,14 +632,20 @@ void EasyPanel::resized()
     playingArea = bounds.removeFromBottom (stripH);
     bounds.removeFromBottom (Metrics::gridHalf);
 
-    placeHelp ("Playing", playingArea);
-    placeHelp ("Tone", toneArea);
-
     // 3.1: the guitar, with the level meter and the chord beside it.
     auto guitarArea = bounds;
     auto meterColumn = guitarArea.removeFromRight (28);
     meter.setBounds (meterColumn.reduced (4, Metrics::grid));
     chordLabel.setBounds (guitarArea.removeFromTop (20).removeFromRight (120));
+    // piano-roll-chord-display.md 1: the roll strip under the guitar illustration.
+    pianoRoll.setVisible (pianoRoll.isWanted());
+
+    if (pianoRoll.isVisible())
+    {
+        pianoRoll.setBounds (guitarArea.removeFromBottom (PianoRollStrip::kEasyHeight));
+        guitarArea.removeFromBottom (Metrics::gridHalf);
+    }
+
     guitarBody.setBounds (guitarArea);
 
     // visual-polish.md 4: the VU needle over the guitar's top-left corner, beside the level meter's column.
@@ -637,6 +656,10 @@ void EasyPanel::resized()
         auto r = playingArea.reduced (4, 2);
         r.removeFromTop (14);
         playingModeSelector.setBounds (r.removeFromLeft (130).withSizeKeepingCentre (130, juce::jmin (48, r.getHeight())));
+        r.removeFromLeft (Metrics::grid);
+
+        // REALISM-B: the Tool selector takes a share of the strip beside the mode.
+        toolSelector->setBounds (r.removeFromLeft (juce::jlimit (140, 280, r.getWidth() / 3)));
         r.removeFromLeft (Metrics::grid);
 
         juce::Array<LuthierKnob*> knobs { &attackKnob, &bodyKnob, &driveKnob, &toneKnob, &spaceKnob, &humanizeKnob, &characterKnob };
@@ -674,9 +697,19 @@ void EasyPanel::resized()
         resetButton.setBounds (bottom.reduced (2, 0));
     }
 
+    // gui-integration 20: each strip's ? at its top right.
+    {
+        const int s = PanelHelpButton::kSize;
+        rigHelp.setBounds (rigArea.getRight() - s - 6, rigArea.getY() + 3, s, s);
+        playingHelp.setBounds (playingArea.getRight() - s - 4, playingArea.getY() + 1, s - 2, s - 2);
+        toneHelp.setBounds (toneArea.getRight() - s - 4, toneArea.getY() + 1, s - 2, s - 2);
+        rhythmHelp.setBounds (rhythmArea.getRight() - s - 4, rhythmArea.getCentreY() - s / 2, s, s);
+    }
+
     // 3.5 rhythm strip: kit and dice, feel, on/off, the readout.
     {
         auto r = rhythmArea.reduced (4, 6);
+        r.removeFromRight (PanelHelpButton::kSize + 4);   // the strip's ?
         rhythmLabel.setBounds (r.removeFromLeft (56));
         rhythmGenreBox.setBounds (r.removeFromLeft (170));
         rhythmDice.setBounds (r.removeFromLeft (48).reduced (2, 0));

@@ -74,6 +74,12 @@ void FretboardComponent::setScaleOverlay (ScaleOverlay s, int root)
     repaint();
 }
 
+void FretboardComponent::setGhostDots (const std::vector<GhostDot>& dots)
+{
+    ghostDots = dots;
+    repaint();
+}
+
 void FretboardComponent::setCapoFret (int fret)
 {
     /*  This used to set a number the fretboard drew and nothing else ever read.
@@ -196,8 +202,80 @@ void FretboardComponent::timerCallback()
             changed = true;
     }
 
+    // ---- notation-export 3: the current bar as tablature dots (MODEL-GAPS) --------
+    {
+        const auto before = tabDots.size();
+        const auto newestBefore = tabDots.empty() ? -1.0 : tabDots.back().fret;
+        refreshTabDots();
+
+        if (tabDots.size() != before || (! tabDots.empty() && tabDots.back().fret != newestBefore))
+            changed = true;
+    }
+    if (refreshRealismB())   // REALISM-B: contact rings, palm bands, tool glyphs
+        changed = true;
+
     if (changed)
         repaint();
+}
+
+void FretboardComponent::refreshTabDots()
+{
+    tabDots.clear();
+
+    if (! processor.isShowingTabDotsOnFretboard())
+        return;
+
+    const auto& capture = processor.getPerformanceCapture();
+    const auto& notes = capture.getNotes();
+
+    if (notes.empty())
+        return;
+
+    // The bar the newest note is in: on the host's grid when it was played in
+    // time, otherwise the last bar's worth of seconds at the host tempo.
+    const auto& newest = notes.back();
+    const double bpm = juce::jmax (20.0, processor.getHostTempo());
+    const auto& meters = capture.getMeters();
+    const int numerator = meters.empty() ? 4 : meters.back().numerator;
+    const int denominator = meters.empty() ? 4 : meters.back().denominator;
+    const double barBeats = (double) numerator * 4.0 / (double) juce::jmax (1, denominator);
+
+    std::vector<size_t> inBar;
+
+    if (newest.musical)
+    {
+        const double barStart = std::floor (newest.startPpq / barBeats + 1.0e-9) * barBeats;
+
+        for (size_t i = notes.size(); i-- > 0;)
+        {
+            if (! notes[i].musical || notes[i].startPpq < barStart)
+                break;
+
+            inBar.push_back (i);
+        }
+    }
+    else
+    {
+        const double barSeconds = barBeats * 60.0 / bpm;
+        const auto from = newest.startSample - (juce::int64) (barSeconds * juce::jmax (1.0, processor.getSampleRate()));
+
+        for (size_t i = notes.size(); i-- > 0;)
+        {
+            if (notes[i].startSample <= from)
+                break;
+
+            inBar.push_back (i);
+        }
+    }
+
+    const float n = (float) juce::jmax ((size_t) 1, inBar.size());
+
+    // Oldest first, so the newest is drawn on top.
+    for (size_t k = inBar.size(); k-- > 0;)
+    {
+        const auto& note = notes[inBar[k]];
+        tabDots.push_back ({ note.stringIndex, note.fret, (float) k / n });
+    }
 }
 
 //==============================================================================
@@ -368,6 +446,27 @@ void FretboardComponent::paint (juce::Graphics& g)
         g.drawRect (x - 3.0f, (float) boardArea.getY() - 2.0f, 6.0f, (float) boardArea.getHeight() + 4.0f, 1.0f);
     }
 
+    // ---- tablature dots (notation-export 3, MODEL-GAPS) ------------------------------
+    for (const auto& dot : tabDots)
+    {
+        if (! juce::isPositiveAndBelow (dot.stringIndex, numStrings))
+            continue;
+
+        // A fretted note sits between its fret wire and the one before; open at the nut.
+        const float x = dot.fret <= 0.0 ? fretX (0.0) - 6.0f
+                                        : 0.5f * (fretX (dot.fret) + fretX (juce::jmax (0.0, dot.fret - 1.0)));
+        const float y = stringY (dot.stringIndex);
+        const float r = compact ? 5.0f : 7.0f;
+        const auto colour = Palette::secondary.withAlpha (1.0f - 0.6f * dot.age);
+
+        g.setColour (colour);
+        g.fillEllipse (x - r, y - r, 2.0f * r, 2.0f * r);
+        g.setColour (Palette::backgroundDeep);
+        g.setFont (Fonts::ui (compact ? 8.0f : 9.0f, true));
+        g.drawText (juce::String (juce::roundToInt (dot.fret)), juce::Rectangle<float> (x - r, y - r, 2.0f * r, 2.0f * r),
+                    juce::Justification::centred, false);
+    }
+
     // ---- slide bar (gui-integration 21) -------------------------------------------
     // A 6 px rounded bar in the material's colour at 80%, over the strings at
     // the bar's position and rotated by its slant.
@@ -451,6 +550,22 @@ void FretboardComponent::paint (juce::Graphics& g)
         }
     }
 
+    // ---- ghost fingering (piano-roll-chord-display.md 3) ---------------------------
+    for (const auto& dot : ghostDots)
+    {
+        if (! juce::isPositiveAndBelow (dot.string, numStrings))
+            continue;
+
+        const double fret = dot.fret;   // as the sounding dots draw the engine's fret, so the ghost is where the note will light
+        const float x = (fret < 0.05) ? nutX - 6.0f
+                                      : (fretX (juce::jmax (0.0, fret - 1.0)) + fretX (fret)) * 0.5f;
+        const float y = stringY (dot.string);
+        const float radius = 6.5f;
+
+        g.setColour (Palette::textPrimary.withAlpha (0.85f));
+        g.drawEllipse (x - radius, y - radius, radius * 2.0f, radius * 2.0f, 1.6f);
+    }
+
     // ---- hover ---------------------------------------------------------------------
     if (hoverString >= 0 && hoverFret >= 0)
     {
@@ -461,6 +576,8 @@ void FretboardComponent::paint (juce::Graphics& g)
         g.setColour (Palette::textPrimary.withAlpha (0.45f));
         g.drawEllipse (x - 7.0f, y - 7.0f, 14.0f, 14.0f, 1.2f);
     }
+
+    paintRealismB (g);   // REALISM-B
 
     // ---- fret numbers ----------------------------------------------------------------
     if (! compact)

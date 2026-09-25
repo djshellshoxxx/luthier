@@ -326,6 +326,7 @@ void HeaderBar::showFileMenu()
     menu.addItem (3, "Open preset file...");
     menu.addSeparator();
     menu.addItem (4, "Import preset...");
+    menu.addItem (14, "Import MIDI...");   // midi-export 5 (MODEL-GAPS)
     menu.addItem (5, "Export preset...");
     menu.addSeparator();
     menu.addItem (6, "Export audio...");
@@ -339,7 +340,7 @@ void HeaderBar::showFileMenu()
     menu.addSeparator();
     menu.addItem (10, "Options...");
     menu.addSeparator();
-    menu.addItem (14, "Undo history...", processor.getNumUndoSteps() > 0);   // action-and-undo.md 9
+    menu.addItem (15, "Undo history...", processor.getNumUndoSteps() > 0);   // action-and-undo.md 9
     menu.addSeparator();
     menu.addItem (11, "Randomise");
     menu.addItem (12, "Reset all settings to default");
@@ -486,18 +487,24 @@ void HeaderBar::showFileMenu()
                     if (file == juce::File())
                         return;
 
-                    juce::String error;
-                    const bool ok = NotationTakeExport::write (processor, NotationTakeExport::formatForFile (file),
-                                                               file, {}, {}, &error);
+                    auto report = [file] (bool ok, const juce::String& error)
+                    {
+                        juce::NativeMessageBox::showAsync (
+                            juce::MessageBoxOptions()
+                                .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
+                                                  : juce::MessageBoxIconType::WarningIcon)
+                                .withTitle (ok ? "Notation exported" : "Could not export")
+                                .withMessage (ok ? "Saved to\n" + file.getFullPathName() : error)
+                                .withButton ("OK"),
+                            nullptr);
+                    };
 
-                    juce::NativeMessageBox::showAsync (
-                        juce::MessageBoxOptions()
-                            .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
-                                              : juce::MessageBoxIconType::WarningIcon)
-                            .withTitle (ok ? "Notation exported" : "Could not export")
-                            .withMessage (ok ? "Saved to\n" + file.getFullPathName() : error)
-                            .withButton ("OK"),
-                        nullptr);
+                    // notation-export 0.1: written on the export worker (MODEL-GAPS).
+                    juce::String error;
+
+                    if (! NotationTakeExport::writeAsync (processor, NotationTakeExport::formatForFile (file),
+                                                          file, {}, {}, report, &error))
+                        report (false, error);
                 });
                 break;
             }
@@ -507,6 +514,23 @@ void HeaderBar::showFileMenu()
                 break;
 
             case 14:
+            {
+                // midi-export 5 (MODEL-GAPS): the window asks where it goes.
+                auto chooser = std::make_shared<juce::FileChooser> (
+                    "Import MIDI", juce::File::getSpecialLocation (juce::File::userDocumentsDirectory), "*.mid;*.midi");
+
+                chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                                      [this, chooser] (const juce::FileChooser& fc)
+                {
+                    const auto file = fc.getResult();
+
+                    if (file != juce::File() && onImportMidi)
+                        onImportMidi (file);
+                });
+                break;
+            }
+
+            case 15:   // action-and-undo.md 9
                 showUndoHistory();
                 break;
 
