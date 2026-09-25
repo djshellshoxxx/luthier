@@ -3030,7 +3030,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     // performance-budget.md 8: the relief ladder. Only step 4 has a hook in the
     // engine (the NoiseEngine pools), applied on a change of step, so a
     // normal load never touches it.
-    const int reliefStep = cpuRelief.update (instant * 0.01, numSamples);
+    const int reliefStep = cpuRelief.updateMeasured (instant * 0.01, numSamples);
 
     if ((reliefStep >= CpuRelief::halveNoisePools) != (appliedReliefStep >= CpuRelief::halveNoisePools))
         playingNoise.getPool().setDegraded (reliefStep >= CpuRelief::halveNoisePools);

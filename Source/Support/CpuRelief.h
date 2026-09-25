@@ -55,6 +55,18 @@ public:
         Returns the step now in force. */
     int update (double load, int numSamples) noexcept;
 
+    /** The engine's call, with its measured load: offline or switched off
+        (setGloballyEnabled) that measurement counts as idle, so the ladder
+        walks back down and stays there. A test's load override still wins. */
+    int updateMeasured (double load, int numSamples) noexcept
+    {
+        if (loadOverride.load (std::memory_order_relaxed) < 0.0
+            && (isOffline.load (std::memory_order_relaxed) || ! globallyEnabled().load (std::memory_order_relaxed)))
+            load = 0.0;
+
+        return update (load, numSamples);
+    }
+
     int getStep() const noexcept { return step.load (std::memory_order_relaxed); }
     double getAverageLoad() const noexcept { return average.load (std::memory_order_relaxed); }
 
