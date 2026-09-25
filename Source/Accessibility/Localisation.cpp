@@ -51,6 +51,18 @@ const LocaleInfo* Localisation::findLocale (const juce::String& code)
     return nullptr;
 }
 
+std::vector<LocaleInfo> Localisation::getAvailableLocales() const
+{
+    std::vector<LocaleInfo> available;
+    std::map<juce::String, juce::String> probe;
+
+    for (const auto& locale : getShipLocales())
+        if (loadCatalog (locale.code, probe))
+            available.push_back (locale);
+
+    return available;
+}
+
 //==============================================================================
 juce::File Localisation::getCatalogDirectory()
 {
@@ -608,6 +620,10 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "tune.import.details",                    "Details" },
         { "tune.import.title",                      "MIDI import" },
         { "tune.import.noPanel",                    "The Tune Builder is not available in this window." },
+        { "open.file.unsupported",                  "Luthier cannot open {name}: it is not a preset, guitar, tune or MIDI file." },
+        { "open.file.unreadable",                   "Could not open {name}: the file is missing or cannot be read." },
+        { "open.guitar.failed",                     "Could not open the guitar {name}: {error}" },
+        { "open.tune.failed",                       "Could not open the tune {name}: {error}" },
         { "accessibility.shortcut.abCompare",       "A/B compare" },
         { "accessibility.shortcut.randomise",       "Randomise" },
         { "accessibility.shortcut.resetAll",        "Reset all" },

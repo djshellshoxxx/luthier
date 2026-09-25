@@ -1272,11 +1272,23 @@ void AdvancedPanel::buildWorkspace()
         from a build with more tabs than this one - is clamped by showWorkspaceTab
         rather than refused. */
     const auto savedName = UiPreferences::get().getString (workspaceTabNamePreferenceKey, {});
-    int saved = UiPreferences::get().getInt (workspaceTabPreferenceKey, 0);
+    int saved = UiPreferences::get().getInt (workspaceTabPreferenceKey, -1);
 
     for (int i = 0; i < workspaceTabs.size(); ++i)
         if (savedName.isNotEmpty() && workspaceTabs[i]->getButtonText().equalsIgnoreCase (savedName))
             saved = i;
+
+    /*  Nothing saved (a fresh install, or preferences reset): open on MOD, not
+        on WORKSHOP. WORKSHOP is the first tab but takes over columns 3 and 4,
+        so a first look at Advanced mode would find the amp and pedals gone. */
+    if (saved < 0)
+    {
+        saved = 0;
+
+        for (int i = 0; i < workspaceTabs.size(); ++i)
+            if (workspacePanels[i] == modMatrixPanel.get())
+                saved = i;
+    }
 
     showWorkspaceTab (saved, false);
 }
@@ -1466,18 +1478,55 @@ void AdvancedPanel::resized()
     // ---- column 4: the tab strip, then whichever panel it selected ------------------
     workspaceLeft = bounds.getX();
 
-    auto tabStrip = bounds.removeFromTop (Metrics::buttonHeight);
+    /*  Thirteen tabs share column 4. When the widest label does not fit in an
+        equal share, the strip wraps to as many rows as it takes (two at
+        1600 px, three at 1200) rather than clipping "CONTROLLERS" to
+        "ONTROLLE". */
+    workspaceTabRows = 1;
 
     if (! workspaceTabs.isEmpty())
     {
         const int gap = Metrics::gridHalf;
-        const int width = (tabStrip.getWidth() - gap * (workspaceTabs.size() - 1))
-                            / workspaceTabs.size();
+        const int count = workspaceTabs.size();
+        const int available = bounds.getWidth();
+
+        float widestLabel = 0.0f;
 
         for (auto* tab : workspaceTabs)
         {
-            tab->setBounds (tabStrip.removeFromLeft (width));
-            tabStrip.removeFromLeft (gap);
+            const auto font = getLookAndFeel().getTextButtonFont (*tab, Metrics::buttonHeight);
+            widestLabel = juce::jmax (widestLabel,
+                                      juce::GlyphArrangement::getStringWidth (font, tab->getButtonText()));
+        }
+
+        // As few rows as let the widest label fit (three at 1200 px).
+        const int needed = juce::roundToInt (widestLabel) + 2 * Metrics::grid;
+
+        for (workspaceTabRows = 1; workspaceTabRows < 4; ++workspaceTabRows)
+        {
+            const int perRow = (count + workspaceTabRows - 1) / workspaceTabRows;
+
+            if ((available - gap * (perRow - 1)) / perRow >= needed)
+                break;
+        }
+
+        const int perRow = (count + workspaceTabRows - 1) / workspaceTabRows;
+        int index = 0;
+
+        for (int row = 0; row < workspaceTabRows; ++row)
+        {
+            if (row > 0)
+                bounds.removeFromTop (gap);
+
+            auto strip = bounds.removeFromTop (Metrics::buttonHeight);
+            const int inRow = juce::jmin (perRow, count - index);
+            const int width = (strip.getWidth() - gap * (perRow - 1)) / perRow;
+
+            for (int i = 0; i < inRow; ++i, ++index)
+            {
+                workspaceTabs[index]->setBounds (strip.removeFromLeft (width));
+                strip.removeFromLeft (gap);
+            }
         }
     }
 

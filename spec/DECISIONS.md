@@ -1394,3 +1394,30 @@ chosen") and `ambiguity-resolutions.md`.
   `AccessibleSetup::announceOverlayOpened (*current, current->getName())`
   once `OverlayPanel` exposes its title (it is `protected`; `getName()` is
   the fallback if the constructor also `setName (title)`).
+- **The standalone opens the file it was launched with, and keeps one
+  instance.** `JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=1` (CMakeLists, Luthier
+  target) swaps JUCE's `StandaloneFilterApp` for
+  `Source/Standalone/StandaloneApp.cpp`: the same window and plugin holder
+  (same `~/.config/Luthier.settings`), plus `initialise` passing its argv
+  (`filesFromCommandLine`, Support/OpenFile) to the editor's new `openFile`
+  on the next message, after the window and the state restore. `openFile`
+  dispatches by extension through the existing paths: `.luthierpreset` as
+  File > Open (undo boundary, `loadPreset`, `applyAllNow`; a refusal is the
+  preset-load banner), `.luthierguitar` via the new
+  `LuthierAudioProcessor::loadGuitarFile` (a file in the user/factory guitar
+  folders is referenced, one from elsewhere goes whole into
+  `guitar.override`; the type follows a factory file, else the family
+  template, as `switchGuitarFamily`), `.luthiertune` into the TUNE tab
+  (`TunePanel::loadFrom`), `.mid/.midi` via `importMidiIntoTuneBuilder`.
+  Anything else, or a missing/unreadable file, is an `open-file` banner.
+  Windows/macOS: `moreThanOneInstanceAllowed` false, so a second launch's
+  command line reaches `anotherInstanceStarted` (JUCE's WM_COPYDATA
+  broadcast / Apple events). Linux: JUCE's `MessageManager::broadcastMessage`
+  is an empty TODO, so returning false there would drop the second file;
+  the app instead takes its own `InterProcessLock` and a second launch
+  writes its absolute paths to `~/.config/Luthier/OpenRequests/*.open`
+  (temp + rename) and quits; the running window polls every 400 ms. The
+  desktop entry's `Exec=luthier %f` was already right; it now also lists
+  `audio/midi` so "Open with Luthier" is offered for MIDI files. The other
+  registered types (.luthierpart, .luthierset, .luthierloop, ...) get the
+  "cannot open" banner until they have an open path.

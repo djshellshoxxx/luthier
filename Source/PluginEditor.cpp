@@ -2,6 +2,7 @@
 #include "UI/RangesUi.h"
 #include "UI/FirstRun.h"
 #include "UI/UiPreferences.h"
+#include "Support/OpenFile.h"
 #include "Accessibility/Accessibility.h"
 
 namespace luthier
@@ -413,6 +414,74 @@ bool LuthierAudioProcessorEditor::importMidiIntoTuneBuilder (const juce::File& f
     }
 
     return true;
+}
+
+bool LuthierAudioProcessorEditor::openFile (const juce::File& file)
+{
+    const auto warn = [this] (const juce::String& message)
+    {
+        notifications.post ({ "open-file", message, Notification::Level::warning });
+        return false;
+    };
+
+    const auto kind = classifyOpenFile (file);
+
+    if (kind == OpenFileKind::unknown)
+        return warn (tr ("open.file.unsupported", { { "name", file.getFileName() } }));
+
+    if (! file.existsAsFile() || ! file.hasReadAccess())
+        return warn (tr ("open.file.unreadable", { { "name", file.getFileName() } }));
+
+    switch (kind)
+    {
+        case OpenFileKind::preset:
+        {
+            // As the header's File > Open: an undo boundary, the load, the parameters now.
+            processor.pushUndoBoundary ("Open preset " + file.getFileNameWithoutExtension());
+            const bool loaded = processor.getPresetManager().loadPreset (file);
+            processor.getParameterBridge().applyAllNow();
+
+            /*  A refusal is the preset-load banner, raised now rather than on the
+                next tick - and raised again for a file refused before, because
+                this time the user asked for it by name. */
+            reportedPresetError.clear();
+            pollForNotifications();
+            return loaded;
+        }
+
+        case OpenFileKind::guitar:
+        {
+            juce::String error;
+
+            if (! processor.loadGuitarFile (file, error))
+                return warn (tr ("open.guitar.failed", { { "name", file.getFileName() }, { "error", error } }));
+
+            return true;
+        }
+
+        case OpenFileKind::tune:
+        {
+            auto* tune = findTunePanel();
+
+            if (tune == nullptr || ! openTuneTab())
+                return warn (tr ("tune.import.noPanel"));
+
+            juce::String error;
+
+            if (! tune->loadFrom (file, error))
+                return warn (tr ("open.tune.failed", { { "name", file.getFileName() }, { "error", error } }));
+
+            return true;
+        }
+
+        case OpenFileKind::midi:
+            return importMidiIntoTuneBuilder (file);
+
+        case OpenFileKind::unknown:
+            break;
+    }
+
+    return false;
 }
 
 void LuthierAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)

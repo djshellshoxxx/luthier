@@ -3448,3 +3448,107 @@ LUTHIER_TEST (Editor, aPlayedNoteShowsOnTheIllustrationWithinSixtyMilliseconds)
     CHECK_MSG (accentPixels (after) > quiet + 20, "the played note left no mark on the illustration: "
                                                    + juce::String (accentPixels (after)) + " accent pixels against " + juce::String (quiet));
 }
+
+//==============================================================================
+/*  A fresh install (nothing in UiPreferences) opens Advanced mode on MOD, not
+    on WORKSHOP, which would take over columns 3 and 4 and hide the amp. */
+LUTHIER_TEST (Editor, aFreshAdvancedPanelOpensOnMod)
+{
+    UiPreferences::get().reset();
+
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    AdvancedPanel panel (processor);
+    panel.setVisible (true);
+    panel.setSize (1600, 900);
+
+    CHECK_MSG (panel.getWorkspaceTabName (panel.getWorkspaceTab()) == "MOD",
+               "opened on " + panel.getWorkspaceTabName (panel.getWorkspaceTab()));
+
+    // A saved choice still wins.
+    panel.setWorkspaceTabNamed ("TUNE");
+    AdvancedPanel again (processor);
+    again.setVisible (true);
+    again.setSize (1600, 900);
+    CHECK (again.getWorkspaceTabName (again.getWorkspaceTab()) == "TUNE");
+
+    UiPreferences::get().reset();
+}
+
+/*  Column 4's thirteen tabs never clip their labels: at 1600 px they wrap to
+    two rows, at 3000 they fit on one. */
+LUTHIER_TEST (Editor, theWorkspaceTabsWrapRatherThanClip)
+{
+    UiPreferences::get().reset();
+
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    AdvancedPanel panel (processor);
+    panel.setVisible (true);
+
+    for (int width : { 1200, 1600, 3000 })
+    {
+        panel.setSize (width, 900);
+
+        int clipped = 0;
+        juce::String which;
+
+        for (auto* child : panel.getChildren())
+            if (auto* button = dynamic_cast<juce::TextButton*> (child))
+                if (button->getRadioGroupId() == 0x21)
+                {
+                    const auto font = panel.getLookAndFeel().getTextButtonFont (*button, button->getHeight());
+                    const float label = juce::GlyphArrangement::getStringWidth (font, button->getButtonText());
+
+                    if (label > (float) button->getWidth() - 4.0f)
+                    {
+                        ++clipped;
+                        which << button->getButtonText() << " ";
+                    }
+                }
+
+        CHECK_MSG (clipped == 0, "at " + juce::String (width) + " px these clip: " + which);
+    }
+
+    panel.setSize (1600, 900);
+    CHECK (panel.getWorkspaceTabRows() >= 2);
+    panel.setSize (3000, 900);
+    CHECK (panel.getWorkspaceTabRows() == 1);
+}
+
+/*  The header's Rhythm button follows the engine however it was switched, and
+    turns it off and on. */
+LUTHIER_TEST (Editor, theHeaderShowsAndSwitchesTheRhythmEngine)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& rhythm = processor.getEngine().getRhythmEngine();
+    rhythm.setEnabled (false);
+
+    HeaderBar header (processor);
+    header.setSize (1400, 40);
+
+    auto& button = header.getRhythmButton();
+    CHECK (button.isVisible());
+    CHECK (button.getWidth() > 0);
+    CHECK (! button.getToggleState());
+
+    // Switched on elsewhere (Easy mode's genre box does this): the header shows it.
+    rhythm.setEnabled (true);
+    header.refreshIndicators();
+    CHECK (button.getToggleState());
+
+    // Clicking turns it off, and on again (a click toggles, then onClick runs;
+    // triggerClick would need a message loop, which tests do not run).
+    button.setToggleState (false, juce::dontSendNotification);
+    button.onClick();
+    CHECK (! rhythm.isEnabled());
+
+    button.setToggleState (true, juce::dontSendNotification);
+    button.onClick();
+    CHECK (rhythm.isEnabled());
+    CHECK (button.getTooltip().containsIgnoreCase ("strummed"));
+}

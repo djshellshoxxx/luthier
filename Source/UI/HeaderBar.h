@@ -137,6 +137,20 @@ private:
 
     /** slide-guitar.md 7: Slide Mode is a header toggle (shortcut S). */
     juce::TextButton slideButton { "Slide" };
+
+    /*  Lit while the rhythm engine is on. Picking a genre in Easy mode switches
+        it on silently, and then held chords are strummed by a pattern instead
+        of ringing; this makes that visible and one click undoes it. */
+    juce::TextButton rhythmButton { "Rhythm" };
+    bool rhythmWasDriving = false;
+
+public:
+    juce::TextButton& getRhythmButton() noexcept { return rhythmButton; }
+
+    /** What the 6 Hz timer does, now: undo/redo, padlock, Slide and Rhythm. */
+    void refreshIndicators() { timerCallback(); }
+
+private:
     juce::TextButton workshopButton { "Workshop" };
 
     bool advancedMode = false;

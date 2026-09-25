@@ -297,6 +297,15 @@ public:
         file. Returns the file, or an empty File if the write failed. */
     juce::File saveGuitarAs (const juce::String& name, bool bundleParts = false);
 
+    /*  A `.luthierguitar` from anywhere on disk becomes the instrument (the
+        standalone opening a double-clicked file). One in the user or factory
+        guitars folder is referenced as the preset would reference it; one from
+        elsewhere travels whole in `guitar.override`, so the preset does not
+        depend on a file in the Downloads folder. The guitar type follows the
+        file (a factory guitar's own type, else its family's template's).
+        Undoable. False, with `error`, leaves the guitar as it was. */
+    bool loadGuitarFile (const juce::File& file, juce::String& error);
+
     /*  guitar-workshop.md 7: saves a fitted part's current fields as a user
         part under `name`, rescans the library and fits the saved part in its
         slot. Returns the saved part, or nullptr if the slot is empty or the

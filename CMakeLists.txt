@@ -57,7 +57,10 @@ target_compile_definitions(Luthier PUBLIC
     JUCE_REPORT_APP_USAGE=0
     JUCE_STRICT_REFCOUNTEDPOINTER=1
     JUCE_MODAL_LOOPS_PERMITTED=0
-    JUCE_SILENCE_XCODE_15_LINKER_WARNING=1)
+    JUCE_SILENCE_XCODE_15_LINKER_WARNING=1
+    # Source/Standalone/StandaloneApp.cpp replaces JUCE's StandaloneFilterApp,
+    # to open double-clicked files and keep one instance (DECISIONS.md).
+    JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=1)
 
 target_include_directories(Luthier PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
 

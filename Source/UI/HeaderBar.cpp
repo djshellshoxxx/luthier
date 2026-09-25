@@ -187,6 +187,19 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
             toggleSlideMode (processor);
     };
 
+    addAndMakeVisible (rhythmButton);
+    rhythmButton.setClickingTogglesState (true);
+    rhythmButton.setToggleState (processor.getEngine().getRhythmEngine().isEnabled(),
+                                 juce::dontSendNotification);
+    rhythmButton.setTooltip ("Rhythm engine. Lit while it is on: held chords are strummed "
+                             "by the pattern instead of ringing. Click to turn it off or on; "
+                             "the RHYTHM tab has the pattern.");
+    rhythmButton.setTitle ("Rhythm engine");
+    rhythmButton.onClick = [this]
+    {
+        processor.getEngine().getRhythmEngine().setEnabled (rhythmButton.getToggleState());
+    };
+
     addAndMakeVisible (liveButton);
     liveButton.setClickingTogglesState (true);
     liveButton.setToggleState (processor.isLiveMode(), juce::dontSendNotification);
@@ -349,6 +362,22 @@ void HeaderBar::timerCallback()
 
     if (auto* p = processor.getState().getParameter (ParamIDs::slideGuitar))
         slideButton.setToggleState (p->getValue() > 0.5f, juce::dontSendNotification);
+
+    // The rhythm engine can be switched on from Easy mode's genre box, the
+    // RHYTHM tab, a tune or a preset; follow whichever did it. While it is
+    // actually strumming (host playing, or free-run) the label says so.
+    {
+        const auto& rhythm = processor.getEngine().getRhythmEngine();
+        rhythmButton.setToggleState (rhythm.isEnabled(), juce::dontSendNotification);
+
+        const bool driving = rhythm.isEnabled() && rhythm.isDriving();
+
+        if (driving != rhythmWasDriving)
+        {
+            rhythmWasDriving = driving;
+            resized();   // relabels, compact or not
+        }
+    }
 
     // The MIDI-in indicator blinks when notes arrive.
     if (processor.getEngine().consumeMidiActivity())
@@ -636,6 +665,17 @@ void HeaderBar::resized()
 
     liveButton.setBounds (bounds.removeFromRight (46).reduced (2, 0));
     slideButton.setBounds (bounds.removeFromRight (48).reduced (2, 0));
+    // Below about 1320 px the row has no room for the full label; "Rhy" keeps
+    // the light visible (the tooltip and accessible title say what it is).
+    {
+        const bool compact = getWidth() < 1320;
+        const auto label = juce::String (compact ? "Rhy" : "Rhythm") + (rhythmWasDriving ? " >" : "");
+
+        if (rhythmButton.getButtonText() != label)
+            rhythmButton.setButtonText (label);
+
+        rhythmButton.setBounds (bounds.removeFromRight (compact ? 36 : 62).reduced (2, 0));
+    }
     workshopButton.setBounds (bounds.removeFromRight (76).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
@@ -672,9 +712,9 @@ void HeaderBar::resized()
 
         if (spare < 0)
         {
-            const int fromGuitar = juce::jmin (-spare, guitarWidth - 112);
+            const int fromGuitar = juce::jmin (-spare, guitarWidth - 96);
             guitarWidth -= fromGuitar;
-            tuningWidth -= juce::jmin (-spare - fromGuitar, tuningWidth - 96);
+            tuningWidth -= juce::jmin (-spare - fromGuitar, tuningWidth - 84);
         }
     }
 

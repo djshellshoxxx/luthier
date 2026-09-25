@@ -1142,16 +1142,7 @@ void AccessibilityPage::resized()
 LocalizationPage::LocalizationPage (LuthierAudioProcessor& p)
     : OptionsPage (p)
 {
-    {
-        int itemId = 1;
-
-        for (const auto& locale : Localisation::getShipLocales())
-        {
-            localeBox.addItem (locale.englishName + "  (" + locale.nativeName + ")", itemId);
-            fallbackBox.addItem (locale.englishName, itemId);
-            ++itemId;
-        }
-    }
+    rebuildLocaleLists();
 
     localeBox.onChange = [this]
     {
@@ -1159,7 +1150,7 @@ LocalizationPage::LocalizationPage (LuthierAudioProcessor& p)
             return;
 
         const int index = localeBox.getSelectedId() - 1;
-        const auto& locales = Localisation::getShipLocales();
+        const auto& locales = offered;
 
         if (juce::isPositiveAndBelow (index, (int) locales.size()))
         {
@@ -1184,7 +1175,7 @@ LocalizationPage::LocalizationPage (LuthierAudioProcessor& p)
             return;
 
         const int index = fallbackBox.getSelectedId() - 1;
-        const auto& locales = Localisation::getShipLocales();
+        const auto& locales = offered;
 
         if (juce::isPositiveAndBelow (index, (int) locales.size()))
         {
@@ -1209,6 +1200,7 @@ LocalizationPage::LocalizationPage (LuthierAudioProcessor& p)
             if (fc.getResult() != juce::File())
                 Localisation::get().setCustomCatalogDirectory (fc.getResult());
 
+            rebuildLocaleLists();
             refresh();
         });
     };
@@ -1224,11 +1216,38 @@ LocalizationPage::LocalizationPage (LuthierAudioProcessor& p)
     refresh();
 }
 
+void LocalizationPage::rebuildLocaleLists()
+{
+    const juce::ScopedValueSetter<bool> guard (updatingControls, true);
+
+    offered = Localisation::get().getAvailableLocales();
+    localeBox.clear (juce::dontSendNotification);
+    fallbackBox.clear (juce::dontSendNotification);
+
+    int itemId = 1;
+
+    for (const auto& locale : offered)
+    {
+        localeBox.addItem (locale.englishName + "  (" + locale.nativeName + ")", itemId);
+        fallbackBox.addItem (locale.englishName, itemId);
+        ++itemId;
+    }
+
+    // With only English there is nothing to choose; say so rather than offer a
+    // one-item list that looks broken.
+    localeBox.setEnabled (offered.size() > 1);
+    fallbackBox.setEnabled (offered.size() > 1);
+    localeBox.setTooltip (offered.size() > 1
+                            ? juce::String ("The language Luthier's text is shown in.")
+                            : juce::String ("Only English is installed. Add translation files with "
+                                            "the catalog folder button to offer more."));
+}
+
 void LocalizationPage::refresh()
 {
     const juce::ScopedValueSetter<bool> guard (updatingControls, true);
 
-    const auto& locales = Localisation::getShipLocales();
+    const auto& locales = offered;
     const auto current = Localisation::get().getLocale();
     const auto fallback = Localisation::get().getFallbackLocale();
 

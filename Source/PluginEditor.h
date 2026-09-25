@@ -42,6 +42,14 @@ public:
         banner, when the window cannot show the tab or the file is refused. */
     bool importMidiIntoTuneBuilder (const juce::File& file);
 
+    /*  A file the OS asked the standalone to open (a double-click, or a second
+        launch handing its file to this window). By extension, through the same
+        paths as File > Open and the drop: a preset becomes the current preset,
+        a guitar the instrument, a tune the Tune Builder's (TUNE tab shown), a
+        MIDI file an import. False, with a banner, for a file that is missing,
+        unreadable, refused or of a kind Luthier does not open. */
+    bool openFile (const juce::File& file);
+
     static constexpr int defaultWidth = 1200;
     static constexpr int defaultHeight = 720;
     static constexpr int minimumWidth = 940;

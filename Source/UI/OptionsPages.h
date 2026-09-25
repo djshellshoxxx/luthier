@@ -27,6 +27,7 @@
 #include "Widgets.h"
 #include "../Controllers/ControllerProfile.h"
 #include "../Updates/Telemetry.h"
+#include "../Accessibility/Localisation.h"
 
 namespace luthier
 {
@@ -186,6 +187,11 @@ public:
 
 private:
     juce::ComboBox localeBox, fallbackBox;
+
+    // What the two boxes offer: the locales with a catalog (Localisation::
+    // getAvailableLocales), rebuilt when the catalog folder changes.
+    std::vector<LocaleInfo> offered;
+    void rebuildLocaleLists();
     juce::TextButton catalogButton { "Custom catalog..." };
     juce::Label localeNote, catalogLabel;
 

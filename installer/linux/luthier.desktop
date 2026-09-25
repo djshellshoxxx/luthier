@@ -11,4 +11,4 @@ StartupNotify=true
 StartupWMClass=Luthier
 Categories=AudioVideo;Audio;Music;
 Keywords=guitar;synth;synthesizer;instrument;VST3;
-MimeType=application/x-luthier-preset;application/x-luthier-guitar;application/x-luthier-part;application/x-luthier-tune;application/x-luthier-pattern;application/x-luthier-setlist;application/x-luthier-loop;application/x-luthier-content;application/x-luthier-midprofile;
+MimeType=application/x-luthier-preset;application/x-luthier-guitar;application/x-luthier-part;application/x-luthier-tune;application/x-luthier-pattern;application/x-luthier-setlist;application/x-luthier-loop;application/x-luthier-content;application/x-luthier-midprofile;audio/midi;audio/x-midi;

@@ -663,3 +663,34 @@ LUTHIER_TEST (Accessibility, noTwoShortcutsShareADefaultKey)
                        shortcuts[i].id + " and " + shortcuts[j].id
                          + " both default to " + shortcuts[i].key.getTextDescription());
 }
+
+/*  The language picker offers only languages with text to show: English alone
+    by default, plus any whose catalog is in the custom folder. */
+LUTHIER_TEST (Localisation, onlyLanguagesWithACatalogAreOffered)
+{
+    auto& loc = Localisation::get();
+
+    const auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                       .getChildFile ("luthier-i18n-test-" + juce::String (juce::Random::getSystemRandom().nextInt()));
+    dir.createDirectory();
+    loc.setCustomCatalogDirectory (dir);
+
+    auto codes = [&loc]
+    {
+        juce::StringArray c;
+        for (const auto& l : loc.getAvailableLocales())
+            c.add (l.code);
+        return c;
+    };
+
+    CHECK_MSG (codes() == juce::StringArray ({ "en" }), "offered: " + codes().joinIntoString (","));
+
+    dir.getChildFile ("fr.json").replaceWithText ("{ \"header.resetStop\": \"RAZ\" }");
+    CHECK (codes().contains ("fr"));
+    CHECK (codes().contains ("en"));
+    CHECK (! codes().contains ("de"));
+
+    loc.setCustomCatalogDirectory ({});
+    loc.setLocale ("en");
+    dir.deleteRecursively();
+}

@@ -194,6 +194,8 @@ public:
         to the tabs that have a panel behind them.
     */
     int getNumWorkspaceTabs() const noexcept { return workspacePanels.size(); }
+    /** 1, or 2 when the labels would not fit in one row (tests). */
+    int getWorkspaceTabRows() const noexcept { return workspaceTabRows; }
     int getWorkspaceTab() const noexcept { return workspaceTab; }
 
     juce::String getWorkspaceTabName (int index) const;
@@ -306,6 +308,7 @@ private:
 
     juce::OwnedArray<juce::TextButton> workspaceTabs;
     juce::Array<juce::Component*> workspacePanels;
+    int workspaceTabRows = 1;
     ScrollHintViewport workspaceViewport;
     int workspaceTab = 0;
 

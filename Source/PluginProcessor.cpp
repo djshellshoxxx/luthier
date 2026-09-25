@@ -675,6 +675,73 @@ juce::File LuthierAudioProcessor::saveGuitarAs (const juce::String& name, bool b
     return file;
 }
 
+bool LuthierAudioProcessor::loadGuitarFile (const juce::File& file, juce::String& error)
+{
+    WorkshopGuitar guitar;
+    PartLibrary::LoadReport report;
+
+    if (! file.existsAsFile())
+    {
+        error = "the file is missing or cannot be read";
+        return false;
+    }
+
+    if (! partLibrary.loadGuitar (file, guitar, report))
+    {
+        error = report.errors.isEmpty() ? juce::String ("not a Luthier guitar")
+                                        : report.errors.joinIntoString ("; ");
+        return false;
+    }
+
+    // Referenced the way a preset references it, when it lives where references look.
+    juce::String reference;
+    juce::var override;
+
+    const auto relativeTo = [&file] (const juce::File& folder)
+    {
+        return file.isAChildOf (folder) ? file.getRelativePathFrom (folder).replaceCharacter ('\\', '/')
+                                        : juce::String();
+    };
+
+    if (const auto user = relativeTo (PartLibrary::getUserGuitarsFolder()); user.isNotEmpty())
+        reference = "User/" + user;
+    else if (const auto factory = relativeTo (PartLibrary::getFactoryGuitarsFolder()); factory.isNotEmpty())
+        reference = "Factory/" + factory;
+    else
+        override = guitar.toEmbeddedVar();
+
+    // A factory guitar stands for its own type; any other, its family's template's.
+    auto type = engine.getGuitarType();
+    const auto factoryPath = reference.startsWith ("Factory/") ? reference.substring (8) : juce::String();
+    const auto templatePath = PartLibrary::getFamilyTemplate (guitar.family);
+    int matched = -1;
+
+    for (const auto& path : { factoryPath, templatePath })
+        for (int t = 0; t < (int) GuitarType::NumTypes && matched < 0 && path.isNotEmpty(); ++t)
+            if (getFactoryGuitarPath ((GuitarType) t) == path)
+                matched = t;
+
+    if (matched >= 0)
+        type = (GuitarType) matched;
+
+    pushUndoBoundary ("Open guitar " + (guitar.name.isNotEmpty() ? guitar.name : file.getFileNameWithoutExtension()));
+
+    guitarReference = reference;
+    guitarOverride = override;
+    guitarSourceType = (int) type;
+
+    applyGuitar (guitar, type, report, true);
+    loadedGuitarKey = guitarOverride.isVoid() ? guitarReference
+                                              : guitarReference + "|" + juce::String (juce::JSON::toString (guitarOverride, true).hashCode64());
+
+    // The type parameter follows, so the bridge sees nothing new to load (as switchGuitarFamily).
+    if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (ParamIDs::guitarType)))
+        p->setValueNotifyingHost (p->convertTo0to1 ((float) (int) type));
+
+    presets.markModified();
+    return true;
+}
+
 PartPtr LuthierAudioProcessor::savePartAs (GuitarSlot slot, const juce::String& name)
 {
     const auto fitted = currentGuitar.get (slot);
