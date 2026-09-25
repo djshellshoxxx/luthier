@@ -78,12 +78,14 @@ juce::StringArray PracticeDefaults::applyTo (const PracticeTargets& targets) con
     }
 
     if (auto* l = targets.looper)
+    {
         l->getLayer (l->getActiveLayer()).setMode (overdubMode);
 
-    // TODO(lead hook): the looper has no default length setting. A fixed length
-    // needs Looper to pre-size its first recording (it only quantises to
-    // setBarLengthSamples today), so loopLengthSeconds is kept for the drawer to
-    // stop the first recording at, and loopCountInBars for its count-in.
+        // The first recording closes itself at this length; zero leaves it to
+        // the second press. loopCountInBars is a routine entry's count-in
+        // (RoutineEntry::countInBars), which the runner counts, not the looper.
+        l->setDefaultLengthSeconds (loopLengthSeconds);
+    }
 
     if (auto* s = targets.scaleTrainer)
     {
@@ -91,11 +93,16 @@ juce::StringArray PracticeDefaults::applyTo (const PracticeTargets& targets) con
 
         if (! scaleSet.empty())
             s->setScale (scaleSet.front());
+
+        s->setNoteRange (rangeLowNote, rangeHighNote);
+        s->setQuestionCount (questionCount);
     }
 
-    // TODO(lead hook): ScaleTrainer and EarTrainer take no note range or question
-    // count; rangeLowNote/rangeHighNote/questionCount are for the drawer's quiz
-    // loop until they do.
+    if (auto* e = targets.earTrainer)
+    {
+        e->setNoteRange (rangeLowNote, rangeHighNote);
+        e->setQuestionCount (questionCount);
+    }
 
     if (auto* b = targets.backingTrack)
         b->setLevelDb (backingLevelDb);
@@ -299,12 +306,18 @@ juce::String SessionRecorderSetup::getSizeWarning (double sampleRate) const
                "only used once you turn it on.";
 }
 
+void SessionRecorderSetup::applySwitchesTo (SessionRecorder& recorder) const
+{
+    // Neither is not a setting (fromVar turns it back into audio), but a
+    // hand-built setup could say it; the recorder then keeps audio.
+    recorder.setRecordAudio (recordAudio || ! recordMidi);
+    recorder.setRecordMidi (recordMidi);
+    recorder.setAutoSaveOnStop (autoSaveOnStop);
+}
+
 bool SessionRecorderSetup::applyTo (SessionRecorder& recorder, double sampleRate) const
 {
-    // TODO(lead hook): SessionRecorder records audio and MIDI together and has
-    // no auto-save. recordAudio/recordMidi need switches on SessionRecorder
-    // (processBlock / captureMidi skipping their part); autoSaveOnStop needs the
-    // drawer's SESSION stop to call saveLastTake(getSessionDirectory()) when set.
+    applySwitchesTo (recorder);
     return recorder.prepare (sampleRate, juce::jlimit (1.0, 240.0, ringMinutes));
 }
 
@@ -396,13 +409,21 @@ std::vector<PracticeLibrary::Item> PracticeLibrary::listSessions (const juce::Fi
     if (! directory.isDirectory())
         return items;
 
-    for (const auto& file : directory.findChildFiles (juce::File::findFiles, false, "*.wav"))
+    // A take is its WAV, with the MIDI file beside it counted in its size; a
+    // MIDI-only take (11.2 "record MIDI") is its .mid, listed on its own.
+    for (const auto& file : directory.findChildFiles (juce::File::findFiles, false, "*.wav;*.mid"))
     {
+        const auto wav = file.withFileExtension ("wav");
+        const auto mid = file.withFileExtension ("mid");
+
+        if (file.hasFileExtension ("mid") && wav.existsAsFile())
+            continue;
+
         Item item;
         item.name = file.getFileNameWithoutExtension();
         item.file = file;
         item.modified = file.getLastModificationTime();
-        item.sizeBytes = file.getSize();
+        item.sizeBytes = file.getSize() + (file == wav && mid.existsAsFile() ? mid.getSize() : 0);
         items.push_back (item);
     }
 

@@ -20,5 +20,8 @@
     "thickness_mm": 40.0,
     "area_cm2": 1120,
     "bracing": "none"
+  },
+  "illustration": {
+    "body_style": "superstrat"
   }
 }

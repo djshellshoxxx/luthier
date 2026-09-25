@@ -167,6 +167,167 @@ LUTHIER_TEST (GuitarIllustration, contactSheetForReview)
 }
 
 //==============================================================================
+namespace
+{
+    /** What GuitarBodyComponent shows at a size: the scene built at the detail the
+        fit deserves, framed automatically, on the panel's background. */
+    juce::Image renderLikeComponent (const WorkshopGuitar& guitar, int width, int height, float displayScale, juce::Colour background)
+    {
+        juce::Image image (juce::Image::ARGB, juce::roundToInt ((float) width * displayScale),
+                           juce::roundToInt ((float) height * displayScale), true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        g.fillAll (background);
+        g.addTransform (juce::AffineTransform::scale (displayScale));
+
+        GuitarScene scene;
+        const auto area = juce::Rectangle<float> (0.0f, 0.0f, (float) width, (float) height).reduced (4.0f);
+        const auto t = GuitarRenderer::buildFitted (guitar, area, displayScale, true, scene);
+        GuitarRenderer::paint (g, scene, t);
+        return image;
+    }
+}
+
+LUTHIER_TEST (GuitarIllustration, detailFollowsPixelsPerMillimetre)
+{
+    using Detail = GuitarRenderer::Detail;
+
+    // A preset thumbnail (128 px for a metre of guitar), the Advanced strip, Easy mode.
+    CHECK (GuitarRenderer::detailFor (0.12f) == Detail::thumbnail);
+    CHECK (GuitarRenderer::detailFor (0.24f) == Detail::thumbnail);
+    CHECK (GuitarRenderer::detailFor (0.3f) == Detail::reduced);
+    CHECK (GuitarRenderer::detailFor (0.59f) == Detail::reduced);
+    CHECK (GuitarRenderer::detailFor (0.85f) == Detail::full);
+
+    // Less is drawn at each step down, and the key tells the levels apart.
+    const auto guitar = factory ("Electric/Vintage Single-Cut.luthierguitar");
+    GuitarRenderer::Options full, reduced, thumbnail;
+    reduced.detail = Detail::reduced;
+    thumbnail.detail = Detail::thumbnail;
+
+    const auto sFull = GuitarRenderer::build (guitar, full);
+    const auto sReduced = GuitarRenderer::build (guitar, reduced);
+    const auto sThumb = GuitarRenderer::build (guitar, thumbnail);
+
+    CHECK_MSG (sReduced.shapes.size() < sFull.shapes.size(),
+               "reduced drew " + juce::String ((int) sReduced.shapes.size()) + " shapes, full " + juce::String ((int) sFull.shapes.size()));
+    CHECK_MSG (sThumb.shapes.size() < sReduced.shapes.size(),
+               "thumbnail drew " + juce::String ((int) sThumb.shapes.size()) + " shapes, reduced " + juce::String ((int) sReduced.shapes.size()));
+    CHECK (sFull.key != sReduced.key && sReduced.key != sThumb.key);
+    CHECK (sFull.detail == (int) Detail::full && sReduced.detail == (int) Detail::reduced);
+
+    // Nothing blurred at paint time in a thumbnail; a soft shadow in the others.
+    int softFull = 0, softThumb = 0;
+    for (auto& sh : sFull.shapes)   softFull += sh.shadowMm > 0.0f ? 1 : 0;
+    for (auto& sh : sThumb.shapes)  softThumb += sh.shadowMm > 0.0f ? 1 : 0;
+    CHECK (softFull > 0 && softThumb == 0);
+
+    // The fitted build picks the level from the size: the strip is reduced, Easy is full.
+    GuitarScene strip, easy;
+    const auto tStrip = GuitarRenderer::buildFitted (guitar, { 0.0f, 0.0f, 252.0f, 116.0f }, 1.0f, true, strip);
+    const auto tEasy = GuitarRenderer::buildFitted (guitar, { 0.0f, 0.0f, 880.0f, 380.0f }, 1.0f, true, easy);
+    CHECK_MSG (strip.detail == (int) GuitarRenderer::detailFor (GuitarRenderer::pxPerMm (tStrip)), "strip detail does not match its fit");
+    CHECK_MSG (easy.detail == (int) Detail::full, "Easy mode's guitar lost detail");
+    CHECK (GuitarRenderer::pxPerMm (tEasy) > GuitarRenderer::pxPerMm (tStrip));
+
+    // A HiDPI strip has twice the pixels, so it earns more detail than a 1x one.
+    GuitarScene strip2x;
+    GuitarRenderer::buildFitted (guitar, { 0.0f, 0.0f, 252.0f, 116.0f }, 2.0f, true, strip2x);
+    CHECK (strip2x.detail <= strip.detail);
+}
+
+LUTHIER_TEST (GuitarIllustration, croppedFitKeepsHitTestingExact)
+{
+    using Framing = GuitarRenderer::Framing;
+    const juce::Rectangle<float> area (4.0f, 4.0f, 252.0f, 116.0f);
+
+    for (const auto& file : factoryGuitarFiles())
+    {
+        const auto guitar = load (file);
+        const auto name = file.getFileNameWithoutExtension();
+        const auto scene = GuitarRenderer::build (guitar);
+
+        const auto whole = GuitarRenderer::fitTransform (scene, area);
+        const auto crop = GuitarRenderer::frameTransform (scene, area, Framing::body);
+        const auto automatic = GuitarRenderer::frameTransform (scene, area, Framing::automatic);
+
+        // The strip is too small for the whole guitar: automatic framing crops, and gains scale.
+        CHECK_MSG (GuitarRenderer::pxPerMm (whole) < 0.5f, name + ": the strip fit is not small");
+        CHECK_MSG (GuitarRenderer::pxPerMm (crop) > GuitarRenderer::pxPerMm (whole), name + ": cropping did not help");
+        CHECK_MSG (automatic == crop, name + ": automatic framing did not crop");
+
+        // The body stays in frame, its tail against the right edge; the neck leaves on the left.
+        const auto bodyPx = scene.bodyBounds.transformedBy (crop);
+        CHECK_MSG (bodyPx.getRight() <= area.getRight() + 0.5f && bodyPx.getRight() > area.getRight() - 24.0f,
+                   name + ": body right edge at " + juce::String (bodyPx.getRight()) + " px");
+        CHECK_MSG (bodyPx.getY() >= area.getY() - 0.5f && bodyPx.getBottom() <= area.getBottom() + 0.5f, name + ": body clipped vertically");
+
+        // (A short-necked acoustic may still fit its nut in: the crop is height-limited,
+        // and the width shows as much neck as it has room for.)
+
+        // Every hit region still answers to its own pixels through the inverse transform.
+        for (auto& h : scene.hits)
+        {
+            const auto mm = h.area.getBounds().getCentre();
+            if (! h.area.contains (mm))
+                continue;
+
+            auto px = mm.transformedBy (crop);
+            auto back = px.transformedBy (crop.inverted());
+            CHECK_MSG (back.getDistanceFrom (mm) < 0.01f, name + ": " + getGuitarRegionName (h.region) + " round trip drifted");
+
+            const auto* hit = GuitarRenderer::hitTest (scene, back);
+            CHECK_MSG (hit != nullptr && hit->area.contains (mm), name + ": " + getGuitarRegionName (h.region) + " lost under the crop");
+        }
+
+        // Pickups and controls, the strip's live parts, land inside the strip.
+        for (auto& h : scene.hits)
+            if (h.region == GuitarRegion::controls || h.region == GuitarRegion::pickupNeck || h.region == GuitarRegion::pickupBridge)
+            {
+                const auto px = h.area.getBounds().getCentre().transformedBy (crop);
+                CHECK_MSG (area.contains (px), name + ": " + getGuitarRegionName (h.region) + " is outside the strip");
+            }
+    }
+}
+
+LUTHIER_TEST (GuitarIllustration, stripAndEasySizeRendersForReview)
+{
+    // Not an assertion beyond "it wrote": what the Advanced strip (260 x 124, 1x and 2x)
+    // and Easy mode (890 x 390) show, on the panel's background, for a person to judge.
+    const auto files = factoryGuitarFiles();
+    const auto background = juce::Colour (0xfff0e6d2);
+    const int stripW = 260, stripH = 124, easyW = 890, easyH = 390, cols = 4;
+    const int rows = (files.size() + cols - 1) / cols;
+
+    juce::Image strips (juce::Image::ARGB, stripW * cols, stripH * rows, true);
+    juce::Image strips2x (juce::Image::ARGB, stripW * 2 * cols, stripH * 2 * rows, true);
+
+    for (int i = 0; i < files.size(); ++i)
+    {
+        const auto guitar = load (files[i]);
+        const int cx = (i % cols) * stripW, cy = (i / cols) * stripH;
+
+        juce::Graphics g (strips);
+        g.drawImageAt (renderLikeComponent (guitar, stripW, stripH, 1.0f, background), cx, cy);
+        g.setColour (juce::Colours::black.withAlpha (0.15f));
+        g.drawRect (cx, cy, stripW, stripH);
+
+        juce::Graphics g2 (strips2x);
+        g2.drawImageAt (renderLikeComponent (guitar, stripW, stripH, 2.0f, background), cx * 2, cy * 2);
+    }
+
+    CHECK (savePng (strips, renderFolder().getChildFile ("_strip_sheet.png")));
+    CHECK (savePng (strips2x, renderFolder().getChildFile ("_strip_sheet_2x.png")));
+
+    for (auto* rel : { "Electric/Vintage Single-Cut", "Electric/Vintage Double-Cut", "Acoustic/Dreadnought", "Electric/Semi-Hollow 335" })
+    {
+        const auto guitar = factory (juce::String (rel) + ".luthierguitar");
+        const auto name = juce::String (rel).fromLastOccurrenceOf ("/", false, false);
+        CHECK (savePng (renderLikeComponent (guitar, stripW, stripH, 1.0f, background), renderFolder().getChildFile ("_strip_" + name + ".png")));
+        CHECK (savePng (renderLikeComponent (guitar, easyW, easyH, 1.0f, background), renderFolder().getChildFile ("_easy_" + name + ".png")));
+    }
+}
+
+//==============================================================================
 LUTHIER_TEST (GuitarIllustration, theKeyChangesWithEveryVisibleChange)
 {
     const auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
@@ -420,4 +581,102 @@ LUTHIER_TEST (GuitarIllustration, aFamilySwitchGivesTheTargetFamilysGuitar)
             CHECK_MSG (scene.family == to, label + ": drew a " + scene.family);
         }
     }
+}
+
+//==============================================================================
+//  Body parts draw their own outline; finish paint reaches the drawing (2026-09-25).
+//==============================================================================
+namespace
+{
+    bool hasFillNear (const GuitarScene& scene, juce::Colour c, int tolerance = 16)
+    {
+        for (const auto& sh : scene.shapes)
+            if (sh.fill.isColour() && sh.fill.colour.getAlpha() > 128
+                && std::abs ((int) sh.fill.colour.getRed() - (int) c.getRed()) <= tolerance
+                && std::abs ((int) sh.fill.colour.getGreen() - (int) c.getGreen()) <= tolerance
+                && std::abs ((int) sh.fill.colour.getBlue() - (int) c.getBlue()) <= tolerance)
+                return true;
+        return false;
+    }
+}
+
+LUTHIER_TEST (GuitarIllustration, everyBodyPartNamesAnOutlineTheRendererDraws)
+{
+    // Section 4 / 18: each body carries its outline. With no style on the guitar,
+    // the part's is the one drawn.
+    auto guitar = factory ("Electric/Vintage Double-Cut.luthierguitar");
+
+    for (const auto& body : library().getParts (PartType::body))
+    {
+        const auto style = WorkshopGuitar::bodyStyleOf (body.get());
+        CHECK_MSG (style.isNotEmpty(), body->name + " names no body_style");
+
+        auto g = guitar;
+        g.bodyStyle = {};
+        g.parts[(size_t) GuitarSlot::body] = body;
+        CHECK_MSG (GuitarRenderer::build (g).bodyStyle == style, body->name + " draws as " + GuitarRenderer::build (g).bodyStyle);
+    }
+
+    // A guitar file's own style still wins: the 7-string draws its shared single-cut part as a superstrat.
+    CHECK (GuitarRenderer::build (factory ("Electric/7-String Modern.luthierguitar")).bodyStyle == "superstrat");
+}
+
+LUTHIER_TEST (GuitarIllustration, finishAndPlasticsPaintReachTheDrawing)
+{
+    const auto dir = renderFolder();
+
+    // A solid body in seafoam with mint plastics.
+    auto strat = factory ("Electric/Vintage Double-Cut.luthierguitar");
+    strat.finish.type = "solid";
+    strat.finish.colourA = "#98C9B0";
+    strat.finish.aging = 0.0;
+    strat.finish.plasticColour = "#D3E2C6";
+    const auto scene = GuitarRenderer::build (strat);
+    CHECK (hasFillNear (scene, juce::Colour (0xff98c9b0), 2));
+    CHECK (hasFillNear (scene, juce::Colour (0xffd3e2c6), 2));
+    CHECK (GuitarRenderer::plasticsColour (strat) == juce::Colour (0xffd3e2c6));
+    CHECK (GuitarRenderer::finishColour (strat) == juce::Colour (0xff98c9b0));
+    CHECK (savePng (GuitarRenderer::render (strat, 1400, 560, juce::Colour (0xff1e1511)), dir.getChildFile ("paint-seafoam-mint.png")));
+
+    // Black plastics on a white single-cut: the knobs and covers follow.
+    auto lp = factory ("Electric/Vintage Single-Cut.luthierguitar");
+    const auto lpBefore = GuitarRenderer::build (lp);
+    lp.finish.plasticColour = "#101010";
+    CHECK (GuitarRenderer::keyFor (lp, {}) != lpBefore.key);
+    CHECK (savePng (GuitarRenderer::render (lp, 1400, 560, juce::Colour (0xff1e1511)), dir.getChildFile ("paint-black-plastics.png")));
+
+    // A blue-edged burst: centre colour_b, edge colour_a.
+    auto burst = factory ("Electric/Vintage Double-Cut.luthierguitar");
+    burst.finish.colourA = "#1E3E62";
+    burst.finish.colourB = "#C8CCD0";
+    CHECK (GuitarRenderer::finishColour (burst, true) == juce::Colour (0xff1e3e62));
+    CHECK (GuitarRenderer::finishColour (burst, false) == juce::Colour (0xffc8ccd0));
+    CHECK (savePng (GuitarRenderer::render (burst, 1400, 560, juce::Colour (0xff1e1511)), dir.getChildFile ("paint-blueburst.png")));
+
+    // Natural (no colour_a): the body wood's colour.
+    auto natural = strat;
+    natural.finish.type = "natural";
+    natural.finish.colourA = {};
+    CHECK (GuitarRenderer::finishColour (natural) == GuitarRenderer::woodColour ("alder"));
+}
+
+LUTHIER_TEST (GuitarIllustration, aWoodResonatorBodyShowsItsWood)
+{
+    // 4.5: same shape as steel, a wood body. The steel guitar's "metal" finish stays metal on steel only.
+    const auto steel = factory ("Resonator/Resonator Steel.luthierguitar");
+    auto wood = steel;
+    wood.parts[(size_t) GuitarSlot::body] = library().find (PartType::body, "Wood Resonator Body");
+    CHECK (wood.get (GuitarSlot::body) != nullptr);
+
+    const auto a = GuitarRenderer::render (steel, 700, 280), b = GuitarRenderer::render (wood, 700, 280);
+    const juce::Image::BitmapData da (a, juce::Image::BitmapData::readOnly), db (b, juce::Image::BitmapData::readOnly);
+    int different = 0;
+
+    for (int y = 0; y < a.getHeight(); y += 2)
+        for (int x = 0; x < a.getWidth(); x += 2)
+            if (da.getPixelColour (x, y) != db.getPixelColour (x, y))
+                ++different;
+
+    CHECK_MSG (different > 500, "the wood resonator draws like the steel one (" + juce::String (different) + " px differ)");
+    savePng (b, renderFolder().getChildFile ("resonator-wood-body.png"));
 }

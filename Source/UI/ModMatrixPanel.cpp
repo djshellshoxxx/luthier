@@ -1,5 +1,6 @@
 #include "ModMatrixPanel.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Localisation.h"
 
 namespace luthier
 {
@@ -49,35 +50,50 @@ namespace
 ModSourceCard::ModSourceCard (LuthierAudioProcessor& p)
     : processor (p)
 {
+    /*  Each slider gets a short label to its left and a tooltip saying what it
+        does; a row of unlabelled sliders reading "0.500" is a puzzle, not a
+        control. The strings are catalog keys: "mod.<name>" is the label and
+        "mod.<name>.tooltip" the sentence. */
     auto setupSlider = [this] (juce::Slider& s, double min, double max, double interval,
-                               const juce::String& suffix)
+                               const juce::String& suffix, const char* key)
     {
         s.setSliderStyle (juce::Slider::LinearHorizontal);
-        s.setTextBoxStyle (juce::Slider::TextBoxRight, false, 52, 16);
+        s.setTextBoxStyle (juce::Slider::TextBoxRight, false, 52, 18);
         s.setRange (min, max, interval);
         s.setTextValueSuffix (suffix);
+        s.setTooltip (tr (juce::String ("mod.") + key + ".tooltip"));
         s.onValueChange = [this] { pushToSource(); };
         addChildComponent (s);
+
+        auto* label = labels.add (new juce::Label ({}, tr (juce::String ("mod.") + key)));
+        label->setFont (juce::Font (juce::FontOptions (10.0f)));
+        label->setColour (juce::Label::textColourId, Palette::textMuted);
+        label->setJustificationType (juce::Justification::centredLeft);
+        label->setTooltip (s.getTooltip());
+        label->setBorderSize ({ 0, 0, 0, 0 });
+        addChildComponent (*label);
+
+        labelled.emplace_back (&s, label);
     };
 
-    setupSlider (rateSlider, 0.01, 40.0, 0.01, " Hz");
-    setupSlider (depthSlider, 0.0, 1.0, 0.001, {});
-    setupSlider (symmetrySlider, 0.01, 0.99, 0.01, {});
-    setupSlider (smoothingSlider, 0.0, 500.0, 1.0, " ms");
+    setupSlider (rateSlider, 0.01, 40.0, 0.01, " Hz", "rate");
+    setupSlider (depthSlider, 0.0, 1.0, 0.001, {}, "depth");
+    setupSlider (symmetrySlider, 0.01, 0.99, 0.01, {}, "symmetry");
+    setupSlider (smoothingSlider, 0.0, 500.0, 1.0, " ms", "smoothing");
 
-    setupSlider (delaySlider, 0.0, 30.0, 0.001, " s");
-    setupSlider (attackSlider, 0.0, 30.0, 0.001, " s");
-    setupSlider (holdSlider, 0.0, 30.0, 0.001, " s");
-    setupSlider (decaySlider, 0.0, 30.0, 0.001, " s");
-    setupSlider (sustainSlider, 0.0, 1.0, 0.001, {});
-    setupSlider (releaseSlider, 0.0, 30.0, 0.001, " s");
+    setupSlider (delaySlider, 0.0, 30.0, 0.001, " s", "delay");
+    setupSlider (attackSlider, 0.0, 30.0, 0.001, " s", "attack");
+    setupSlider (holdSlider, 0.0, 30.0, 0.001, " s", "hold");
+    setupSlider (decaySlider, 0.0, 30.0, 0.001, " s", "decay");
+    setupSlider (sustainSlider, 0.0, 1.0, 0.001, {}, "sustain");
+    setupSlider (releaseSlider, 0.0, 30.0, 0.001, " s", "release");
 
-    setupSlider (lengthSlider, 4.0, 64.0, 1.0, " steps");
-    setupSlider (swingSlider, 0.0, 0.75, 0.01, {});
+    setupSlider (lengthSlider, 4.0, 64.0, 1.0, " steps", "length");
+    setupSlider (swingSlider, 0.0, 0.75, 0.01, {}, "swing");
 
-    setupSlider (followerAttackSlider, 0.1, 500.0, 0.1, " ms");
-    setupSlider (followerReleaseSlider, 1.0, 5000.0, 1.0, " ms");
-    setupSlider (thresholdSlider, 0.0, 1.0, 0.001, {});
+    setupSlider (followerAttackSlider, 0.1, 500.0, 0.1, " ms", "followerAttack");
+    setupSlider (followerReleaseSlider, 1.0, 5000.0, 1.0, " ms", "followerRelease");
+    setupSlider (thresholdSlider, 0.0, 1.0, 0.001, {}, "threshold");
 
     // Rate is logarithmic: an LFO spends most of its useful life under 10 Hz.
     rateSlider.setSkewFactorFromMidPoint (2.0);
@@ -113,6 +129,13 @@ ModSourceCard::ModSourceCard (LuthierAudioProcessor& p)
     followerSourceBox.addItem ("Per-string", 3);
     followerSourceBox.addItem ("Pickup", 4);
 
+    shapeBox.setTooltip (tr ("mod.shape.tooltip"));
+    divisionBox.setTooltip (tr ("mod.division.tooltip"));
+    retriggerBox.setTooltip (tr ("mod.retrigger.tooltip"));
+    directionBox.setTooltip (tr ("mod.direction.tooltip"));
+    detectionBox.setTooltip (tr ("mod.detection.tooltip"));
+    followerSourceBox.setTooltip (tr ("mod.followerSource.tooltip"));
+
     for (auto* box : { &shapeBox, &divisionBox, &retriggerBox, &directionBox,
                        &detectionBox, &followerSourceBox })
     {
@@ -120,11 +143,16 @@ ModSourceCard::ModSourceCard (LuthierAudioProcessor& p)
         addChildComponent (*box);
     }
 
+    syncButton.setTooltip (tr ("mod.sync.tooltip"));
+    bipolarButton.setTooltip (tr ("mod.bipolar.tooltip"));
+
     for (auto* button : { &syncButton, &bipolarButton })
     {
         button->onClick = [this] { pushToSource(); };
         addChildComponent (*button);
     }
+
+    setTooltip (tr ("mod.scope.tooltip"));
 
     history.fill (0.0f);
 
@@ -184,6 +212,9 @@ void ModSourceCard::rebuildControls()
     followerAttackSlider.setVisible (isFollower);
     followerReleaseSlider.setVisible (isFollower);
     thresholdSlider.setVisible (isFollower);
+
+    for (auto& [slider, label] : labelled)
+        label->setVisible (slider->isVisible());
 
     auto& matrix = processor.getModMatrix();
 
@@ -363,14 +394,12 @@ void ModSourceCard::paint (juce::Graphics& g)
 void ModSourceCard::resized()
 {
     auto bounds = getLocalBounds();
-    bounds.removeFromTop (16);
+    bounds.removeFromTop (headerHeight);
 
-    scopeBounds = bounds.removeFromTop (34).reduced (0, 2);
+    scopeBounds = bounds.removeFromTop (scopeHeight).reduced (0, 2);
     bounds.removeFromTop (2);
 
-    const int rowHeight = 18;
-
-    auto nextRow = [&bounds, rowHeight] { return bounds.removeFromTop (rowHeight).reduced (0, 1); };
+    auto nextRow = [&bounds] { return bounds.removeFromTop (rowHeight).reduced (0, 1); };
 
     auto placePair = [&nextRow] (juce::Component& a, juce::Component& b)
     {
@@ -380,39 +409,51 @@ void ModSourceCard::resized()
         b.setBounds (row.reduced (1, 0));
     };
 
+    // A slider row: its label in the left 60 points, the slider in the rest.
+    auto placeSlider = [this, &nextRow] (juce::Slider& slider)
+    {
+        auto row = nextRow();
+
+        for (auto& [s, label] : labelled)
+            if (s == &slider)
+                label->setBounds (row.removeFromLeft (60));
+
+        slider.setBounds (row);
+    };
+
     switch (kindOf (slot))
     {
         case SourceKind::lfo:
             placePair (shapeBox, retriggerBox);
             placePair (syncButton, bipolarButton);
-            rateSlider.setBounds (nextRow());
+            placeSlider (rateSlider);
             divisionBox.setBounds (nextRow());
-            depthSlider.setBounds (nextRow());
-            symmetrySlider.setBounds (nextRow());
-            smoothingSlider.setBounds (nextRow());
+            placeSlider (depthSlider);
+            placeSlider (symmetrySlider);
+            placeSlider (smoothingSlider);
             break;
 
         case SourceKind::envelope:
-            delaySlider.setBounds (nextRow());
-            attackSlider.setBounds (nextRow());
-            holdSlider.setBounds (nextRow());
-            decaySlider.setBounds (nextRow());
-            sustainSlider.setBounds (nextRow());
-            releaseSlider.setBounds (nextRow());
+            placeSlider (delaySlider);
+            placeSlider (attackSlider);
+            placeSlider (holdSlider);
+            placeSlider (decaySlider);
+            placeSlider (sustainSlider);
+            placeSlider (releaseSlider);
             break;
 
         case SourceKind::sequencer:
             placePair (directionBox, syncButton);
             divisionBox.setBounds (nextRow());
-            lengthSlider.setBounds (nextRow());
-            swingSlider.setBounds (nextRow());
+            placeSlider (lengthSlider);
+            placeSlider (swingSlider);
             break;
 
         case SourceKind::follower:
             placePair (followerSourceBox, detectionBox);
-            followerAttackSlider.setBounds (nextRow());
-            followerReleaseSlider.setBounds (nextRow());
-            thresholdSlider.setBounds (nextRow());
+            placeSlider (followerAttackSlider);
+            placeSlider (followerReleaseSlider);
+            placeSlider (thresholdSlider);
             break;
 
         case SourceKind::plain:
@@ -429,7 +470,9 @@ ModRouteTable::ModRouteTable (LuthierAudioProcessor& p)
     table.setHeaderHeight (18);
     table.setRowHeight (20);
     table.getViewport()->setScrollBarsShown (true, false);
+    table.getViewport()->setScrollBarThickness (12);
     table.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
+    table.setTooltip (tr ("mod.table.tooltip"));
 
     auto& header = table.getHeader();
     header.addColumn ("Source", ColumnId::source, 78);
@@ -560,12 +603,13 @@ void ModRouteTable::cellClicked (int row, int columnId, const juce::MouseEvent& 
 
     switch (columnId)
     {
+        // action-and-undo.md 3.6: each edit is one undo entry, pushed by the processor.
         case ColumnId::enabled:
-            matrix.setRouteEnabled (row, ! cached[(size_t) row].enabled);
+            processor.setModRouteEnabled (row, ! cached[(size_t) row].enabled);
             break;
 
         case ColumnId::remove:
-            matrix.removeRoute (row);
+            processor.removeModRoute (row);
             break;
 
         case ColumnId::depth:
@@ -583,7 +627,7 @@ void ModRouteTable::cellClicked (int row, int columnId, const juce::MouseEvent& 
 
             editor->onReturnKey = [this, editor, row, &box]
             {
-                processor.getModMatrix().setRouteDepth (row, editor->getText().getFloatValue());
+                processor.setModRouteDepth (row, editor->getText().getFloatValue());
                 refresh();
 
                 if (onRoutesChanged)
@@ -615,9 +659,38 @@ void ModRouteTable::cellClicked (int row, int columnId, const juce::MouseEvent& 
         onRoutesChanged();
 }
 
+juce::String ModRouteTable::getCellTooltip (int row, int columnId)
+{
+    if (! juce::isPositiveAndBelow (row, (int) cached.size()))
+        return {};
+
+    switch (columnId)
+    {
+        case ColumnId::depth:    return tr ("mod.table.depth.tooltip");
+        case ColumnId::curve:    return tr ("mod.table.curve.tooltip");
+        case ColumnId::enabled:  return tr ("mod.table.enabled.tooltip");
+        case ColumnId::remove:   return tr ("mod.table.remove.tooltip");
+        default:                 return tr ("mod.table.route.tooltip");
+    }
+}
+
 void ModRouteTable::resized()
 {
     table.setBounds (getLocalBounds());
+}
+
+void ModRouteTable::paintOverChildren (juce::Graphics& g)
+{
+    if (! cached.empty())
+        return;
+
+    auto area = getLocalBounds();
+    area.removeFromTop (table.getHeaderHeight());
+
+    g.setColour (Palette::textDisabled);
+    g.setFont (juce::Font (juce::FontOptions (10.5f)));
+    g.drawFittedText (tr ("mod.emptyRoutes"), area.reduced (12, 8),
+                      juce::Justification::centred, 3);
 }
 
 //==============================================================================
@@ -630,6 +703,7 @@ ModMatrixPanel::ModMatrixPanel (LuthierAudioProcessor& p)
         sourceSelector.addItem (modSourceDisplayName (slots[i]), i + 1);
 
     sourceSelector.setSelectedId (1, juce::dontSendNotification);
+    sourceSelector.setTooltip (tr ("mod.sourceSelector.tooltip"));
     sourceSelector.onChange = [this]
     {
         const auto all = selectableSlots();
@@ -647,17 +721,21 @@ ModMatrixPanel::ModMatrixPanel (LuthierAudioProcessor& p)
     routeTable = std::make_unique<ModRouteTable> (processor);
     routeTable->onRoutesChanged = [this]
     {
-        summaryLabel.setText (juce::String (processor.getModMatrix().getNumRoutes())
-                                + " route(s)", juce::dontSendNotification);
+        summaryLabel.setText (tr ("mod.routeCount",
+                                  { { "n", juce::String (processor.getModMatrix().getNumRoutes()) } }),
+                              juce::dontSendNotification);
     };
     addAndMakeVisible (*routeTable);
 
+    addButton.setTooltip (tr ("mod.add.tooltip"));
     addButton.onClick = [this] { showAddRouteMenu(); };
     addAndMakeVisible (addButton);
 
+    clearButton.setTooltip (tr ("mod.clear.tooltip"));
+
     clearButton.onClick = [this]
     {
-        processor.getModMatrix().clearRoutes();
+        processor.clearModRoutes();   // one undo entry (action-and-undo.md 3.6 / 6)
         routeTable->refresh();
 
         if (routeTable->onRoutesChanged)
@@ -667,9 +745,15 @@ ModMatrixPanel::ModMatrixPanel (LuthierAudioProcessor& p)
 
     summaryLabel.setFont (juce::Font (juce::FontOptions (10.0f)));
     summaryLabel.setColour (juce::Label::textColourId, Palette::textMuted);
-    summaryLabel.setText (juce::String (processor.getModMatrix().getNumRoutes()) + " route(s)",
+    summaryLabel.setTooltip (tr ("mod.summary.tooltip"));
+    summaryLabel.setText (tr ("mod.routeCount",
+                              { { "n", juce::String (processor.getModMatrix().getNumRoutes()) } }),
                           juce::dontSendNotification);
     addAndMakeVisible (summaryLabel);
+
+    // Column 4 sizes the tab from this; without it the panel sat at 80 points
+    // and every combo box on it was squashed to a few points.
+    setSize (480, preferredHeight());
 }
 
 ModMatrixPanel::~ModMatrixPanel() = default;
@@ -737,7 +821,7 @@ void ModMatrixPanel::showAddRouteMenu()
         route.depth = 0.33f;
         route.enabled = true;
 
-        processor.getModMatrix().addRoute (route);
+        processor.addModRoute (route);   // action-and-undo.md 3.6: "Add [source] to [destination] depth X"
         routeTable->refresh();
 
         if (routeTable->onRoutesChanged)

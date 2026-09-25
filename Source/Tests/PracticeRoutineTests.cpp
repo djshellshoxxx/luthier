@@ -821,3 +821,91 @@ LUTHIER_TEST (PracticeRoutine, theSpeedTrainerClimbsUntilAPassMissesNotes)
 
     CHECK (SpeedTrainer::Settings::fromVar (settings.toVar()) == settings);
 }
+
+//==============================================================================
+/*  11.2 "Defaults": the looper's default length and the trainers' range and
+    question count reach the tools, and the session setup's switches reach the
+    recorder without touching its ring. */
+LUTHIER_TEST (PracticeRoutine, defaultsReachTheLooperTheTrainersAndTheRecorder)
+{
+    Tools tools;
+
+    PracticeDefaults d;
+    d.loopLengthSeconds = 8.0;
+    d.rangeLowNote = 45;
+    d.rangeHighNote = 69;
+    d.questionCount = 12;
+
+    CHECK (d.applyTo (tools.targets()).isEmpty());
+
+    CHECK_NEAR (tools.looper.getDefaultLengthSeconds(), 8.0, 1.0e-9);
+    CHECK (tools.scaleTrainer.getLowestNote() == 45 && tools.scaleTrainer.getHighestNote() == 69);
+    CHECK (tools.scaleTrainer.getQuestionCount() == 12);
+    CHECK (tools.earTrainer.getLowestNote() == 45 && tools.earTrainer.getHighestNote() == 69);
+    CHECK (tools.earTrainer.getQuestionCount() == 12);
+
+    // The built-in defaults are the spec's: E2-E5, twenty questions, and a
+    // loop length left to the second press.
+    PracticeDefaults builtIn;
+    builtIn.applyTo (tools.targets());
+    CHECK (tools.scaleTrainer.getLowestNote() == 40 && tools.scaleTrainer.getHighestNote() == 76);
+    CHECK (tools.earTrainer.getQuestionCount() == 20);
+    CHECK_NEAR (tools.looper.getDefaultLengthSeconds(), 0.0, 1.0e-9);
+
+    // ---- the session setup's switches ---------------------------------------------
+    SessionRecorder recorder;
+
+    SessionRecorderSetup setup;
+    setup.ringMinutes = 1.0;
+    setup.recordAudio = false;
+    setup.recordMidi = true;
+    setup.autoSaveOnStop = true;
+
+    CHECK (setup.applyTo (recorder, 48000.0));
+    CHECK (! recorder.isRecordingAudio() && recorder.isRecordingMidi() && recorder.isAutoSaveOnStop());
+    CHECK_NEAR (recorder.getCapacityMinutes(), 1.0, 0.01);
+
+    setup.recordAudio = true;
+    setup.recordMidi = false;
+    setup.autoSaveOnStop = false;
+    setup.applySwitchesTo (recorder);
+    CHECK (recorder.isRecordingAudio() && ! recorder.isRecordingMidi() && ! recorder.isAutoSaveOnStop());
+    CHECK_NEAR (recorder.getCapacityMinutes(), 1.0, 0.01);
+
+    // Neither is the recorder being off, not a setting: it keeps audio.
+    setup.recordAudio = false;
+    setup.applySwitchesTo (recorder);
+    CHECK (recorder.isRecordingAudio());
+}
+
+/*  11.2 "Saved sessions": a take is listed once by its WAV, with its MIDI
+    file's bytes counted in; a MIDI-only take is listed by its .mid. */
+LUTHIER_TEST (PracticeRoutine, theLibraryListsMidiOnlyTakes)
+{
+    const auto folder = tempFolder ("LuthierPracticeSessionTakes");
+
+    folder.getChildFile ("session-20260924-101010.wav").replaceWithText ("RIFF----");
+    folder.getChildFile ("session-20260924-101010.mid").replaceWithText ("MThd");
+    folder.getChildFile ("session-20260924-111111.mid").replaceWithText ("MThd");
+
+    const auto items = PracticeLibrary::listSessions (folder);
+
+    CHECK_MSG (items.size() == 2, juce::String ((int) items.size()) + " sessions listed, not 2");
+
+    for (const auto& item : items)
+    {
+        if (item.name == "session-20260924-101010")
+        {
+            CHECK (item.file.hasFileExtension ("wav"));
+            CHECK_MSG (item.sizeBytes == 12, "a take with MIDI beside it reports " + juce::String (item.sizeBytes) + " bytes");
+        }
+        else
+        {
+            CHECK (item.name == "session-20260924-111111");
+            CHECK (item.file.hasFileExtension ("mid"));
+            CHECK (item.sizeBytes == 4);
+        }
+    }
+
+    folder.deleteRecursively();
+}

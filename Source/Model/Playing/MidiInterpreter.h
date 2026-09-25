@@ -9,8 +9,16 @@
     Chord grouping: in Poly mode, note-ons that land within a short window are
     voiced together as one chord. The window is held across block boundaries so a
     chord split by a buffer edge still voices as a chord; the cost is that Poly mode
-    carries up to `chordWindowMs` of extra latency (2 ms by default), which is
-    reported to the host along with everything else.
+    carries up to `chordWindowMs` of extra latency (15 ms by default - wide enough
+    to gather the fingers of a keyboard chord, which land over some milliseconds,
+    into one strummed gesture), which is reported to the host along with
+    everything else.
+
+    A note that arrives while others are held is voiced around them: the strings
+    still sounding are handed to the voicer as occupied, so the new note lands on
+    a free string rather than on top of one that is ringing (engine.md "Mode B":
+    one note per string). A group the fingering rubric cannot place as a chord is
+    placed note by note the same way instead of being dropped.
 */
 
 #include "PlayingEvents.h"
@@ -205,6 +213,14 @@ private:
         int channel = -1;
         bool held = false;
         bool sostenutoHeld = false;
+
+        /*  Sounding, key up or down: set with the note, kept by a release the
+            sustain or sostenuto pedal lets ring, cleared by a real release,
+            by the pedal coming up, and by all-notes-off. A string ringing
+            under the pedal is not free - a new note used to be voiced onto it
+            and end it - though it is taken when nothing else is left. */
+        bool ringing = false;
+        int ringingNote = -1;   ///< The note it rings with, for the re-pick rule.
         double bendCents = 0.0;
         double pressure = 0.0;
         double timbre = 0.0;
@@ -228,6 +244,29 @@ private:
     void applyTarget (MidiTarget target, double value, int blockOffset, PlayEventQueue& out) noexcept;
 
     void flushChordGroup (int64_t upToSample, int blockOffset, int numSamples, PlayEventQueue& out) noexcept;
+
+    /** The strings currently holding a note, one bit per string index. A string
+        holding `exceptMidiNote` is left out: a note played again while it is
+        held re-picks its own string rather than spilling onto another. */
+    uint16_t heldStringMask (int exceptMidiNote = -1) const noexcept;
+
+    /** Strings ringing under the sustain or sostenuto pedal with their key up
+        (see StringSlot::ringing), except one ringing with exceptMidiNote. */
+    uint16_t ringingStringMask (int exceptMidiNote = -1) const noexcept;
+
+    /** The strings a group of notes must be voiced around: every held string,
+        plus the ringing ones while enough strings stay free for the group -
+        a seventh note under the pedal takes a ringing string rather than
+        being dropped. A string holding or ringing one of the group's own
+        notes is free to it, so the note re-picks its string. */
+    uint16_t occupiedStringMask (const int* notes, int count) const noexcept;
+
+    /** Places every requested note the voicing left out on a free string, one at
+        a time, and appends it to the voicing. `occupied` is the held-string mask
+        the voicing was made with; each placed string is added to it. A note no
+        free string can sound stays dropped. Leaves the voicer's mask cleared. */
+    void placeUnvoicedNotes (const int* notes, const double* velocities, int count,
+                             uint16_t occupied, ChordVoicing& voicing) noexcept;
 
     /** Releases any note whose deferred note-off has now come due
         (controllers.md 5). */
@@ -275,8 +314,8 @@ private:
     static constexpr int kMaxPending = 16;
     std::array<PendingNote, kMaxPending> pending {};
     int numPending = 0;
-    double chordWindowMs = 2.0;
-    int chordWindowSamples = 96;
+    double chordWindowMs = 15.0;
+    int chordWindowSamples = 720;
 
     double strumSpeedMs = 9.0;
     StrumDirection strumDirection = StrumDirection::Down;

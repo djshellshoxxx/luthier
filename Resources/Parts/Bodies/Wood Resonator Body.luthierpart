@@ -19,5 +19,8 @@
     "thickness_mm": 85.0,
     "area_cm2": 1800,
     "bracing": "ladder"
+  },
+  "illustration": {
+    "body_style": "resonator"
   }
 }

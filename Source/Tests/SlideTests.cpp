@@ -364,3 +364,54 @@ LUTHIER_TEST (SlideUi, pressureSaysWhatItMeans)
     CHECK (SlideGroup::describePressure (0.55) == "Seated");
     CHECK (SlideGroup::describePressure (0.95).startsWith ("Choking"));
 }
+
+//==============================================================================
+/*  qa-polish 4 / accessibility 5: under reduced motion the slide bar overlay has
+    no ease - it is where the engine says it is on the next refresh, and it
+    appears and lifts without a fade. With motion on, one refresh moves it only
+    part of the way (the 80 ms ease at 30 Hz). */
+LUTHIER_TEST (SlideUi, theBarHasNoEaseUnderReducedMotion)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 256);
+
+    auto& settings = AccessibilitySettings::get();
+    const bool wasReduced = settings.isReducedMotion();
+
+    FretboardComponent fretboard (processor);
+    fretboard.setSize (600, 160);
+
+    auto& slide = processor.getEngine().getSlideEngine();
+
+    // ---- reduced motion: immediate ---------------------------------------------
+    settings.setReducedMotion (true);
+
+    slide.setOverlayFret (5.0);
+    fretboard.refreshNow();
+    CHECK_NEAR (fretboard.getDrawnBarFret(), 5.0, 1.0e-9);
+    CHECK_NEAR (fretboard.getBarOpacity(), 1.0, 1.0e-6);
+
+    slide.setOverlayFret (9.0);
+    fretboard.refreshNow();
+    CHECK_MSG (std::abs (fretboard.getDrawnBarFret() - 9.0) < 1.0e-9,
+               "under reduced motion the bar eased: drawn at " + juce::String (fretboard.getDrawnBarFret(), 3));
+
+    slide.setOverlayFret (-1.0);
+    fretboard.refreshNow();
+    CHECK_MSG (fretboard.getBarOpacity() == 0.0f && fretboard.getDrawnBarFret() < 0.0,
+               "under reduced motion the bar faded rather than lifting");
+
+    // ---- motion on: the 80 ms ease ---------------------------------------------
+    settings.setReducedMotion (false);
+
+    slide.setOverlayFret (5.0);
+    fretboard.refreshNow();          // first landing snaps to the target
+    slide.setOverlayFret (9.0);
+    fretboard.refreshNow();
+
+    const double drawn = fretboard.getDrawnBarFret();
+    CHECK_MSG (drawn > 5.0 && drawn < 9.0,
+               "with motion on, one refresh should ease part of the way, drawn at " + juce::String (drawn, 3));
+
+    settings.setReducedMotion (wasReduced);
+}

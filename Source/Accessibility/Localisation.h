@@ -59,6 +59,12 @@ public:
 
     static const LocaleInfo* findLocale (const juce::String& code);
 
+    /** The ship locales that have text to show: English (compiled in) and any
+        whose catalog is found, in Resources/i18n or the custom folder. The
+        language picker offers only these, since choosing one with no catalog
+        would change nothing. */
+    std::vector<LocaleInfo> getAvailableLocales() const;
+
     //==========================================================================
     /** Switches locale. accessibility 6: no restart; the caller repaints. */
     bool setLocale (const juce::String& code);

@@ -102,6 +102,12 @@ public:
     void setVoicingStyle (VoicingStyle style) noexcept { voicingStyle.store ((int) style, std::memory_order_relaxed); }
     VoicingStyle getVoicingStyle() const noexcept { return (VoicingStyle) voicingStyle.load (std::memory_order_relaxed); }
 
+    /*  ambiguity-resolutions 4.3 / 4.7: what the Bass style voices - the root
+        alone, root and fifth, or a walking approach note. Saved with the
+        engine's state; root when a saved state predates it. Any thread. */
+    void setBassPattern (RubricBassPattern p) noexcept { bassPattern.store ((int) p, std::memory_order_relaxed); }
+    RubricBassPattern getBassPattern() const noexcept { return (RubricBassPattern) bassPattern.load (std::memory_order_relaxed); }
+
     /** 0..100: how many of the held notes get voiced (rhythm-engine 3). */
     void setVoicingDensity (double percent) noexcept { voicingDensity.store (juce::jlimit (0.0, 100.0, percent), std::memory_order_relaxed); }
     double getVoicingDensity() const noexcept { return voicingDensity.load (std::memory_order_relaxed); }
@@ -150,6 +156,29 @@ public:
 
     double getStrumEvenness() const noexcept { return strumEvenness.load (std::memory_order_relaxed); }
 
+    //==========================================================================
+    // muting-rhythm.md
+
+    /** 3: the MUTE group's settings, pushed every block by the ParameterBridge. */
+    void setMuteSettings (const MuteSettings& s) noexcept;
+    MuteSettings getMuteSettings() const noexcept { return muteSettings; }
+
+    /*  2: the live mute grid - a bar of sixteenths, locked to the host, that
+        mutes what the player strikes while the engine is not driving. A
+        runtime pattern painted from the UI (any thread), read on the audio
+        thread; saved with the engine's state, not a parameter. */
+    void setLiveMuteStep (int step, MuteType type) noexcept;
+    MuteType getLiveMuteStep (int step) const noexcept;
+
+    /** The live grid's cell under the transport, or -1 when it is not in use. */
+    int getLiveMuteStepPlaying() const noexcept { return liveMuteStepPlaying.load (std::memory_order_relaxed); }
+
+    /*  Stamps played notes (the interpreter's) with their mute: the master
+        mode, else the live grid's cell at each note's sample (armed, transport
+        running), the chuka source and humanise. Disarmed, it changes nothing.
+        Audio thread, each block, before the notes are scheduled. */
+    void applyLiveMutes (PlayEventQueue& events, int numSamples, const RhythmTransport& transport) noexcept;
+
     /** 6.3: Easy mode's Feel, 0..1. It scales whichever crossing source is in
         charge, and the evenness; 0.5 leaves both alone. */
     void setStrumFeel (double feel) noexcept { strumFeel.store (juce::jlimit (0.0, 1.0, feel), std::memory_order_relaxed); }
@@ -184,6 +213,10 @@ public:
     // Live state, for the UI.
 
     ChordSymbol getCurrentChord() const noexcept { return currentChord; }
+
+    /** notation-export 4: the detector, read after the block by the capture's
+        chord track. It holds the played notes whether or not the engine drives. */
+    const ChordDetector& getChordDetector() const noexcept { return detector; }
     const ChordVoicing& getCurrentVoicing() const noexcept { return currentVoicing; }
     int getCurrentStep() const noexcept { return lastStepPlayed.load (std::memory_order_relaxed); }
     StrumType getNextStrumType() const noexcept { return (StrumType) nextStrumType.load (std::memory_order_relaxed); }
@@ -197,18 +230,17 @@ private:
         documented as running in microseconds. */
     void revoice() noexcept;
 
-    /** Chooses which of the held notes to voice, according to the style and
-        density. Writes into `dest` and returns how many. */
-    int selectNotesForStyle (int* dest, int maxNotes) noexcept;
+    void scheduleStrum (const StrumStep& step, const MuteStep& mute, juce::uint32 loop, int stepIndex,
+                        double sourceSps, int sampleOffset, PlayEventQueue& out) noexcept;
 
-    void scheduleStrum (const StrumStep& step, double sourceSps, int sampleOffset,
-                        PlayEventQueue& out) noexcept;
-
-    void scheduleFingerpick (const FingerpickStep& step, int sampleOffset,
-                             PlayEventQueue& out) noexcept;
+    void scheduleFingerpick (const FingerpickStep& step, const MuteStep& mute, juce::uint32 loop, int stepIndex,
+                             int sampleOffset, PlayEventQueue& out) noexcept;
 
     void emitNote (int stringIndex, double velocity, bool muted, double chuck,
-                   int strikerMaterial, int sampleOffset, PlayEventQueue& out) noexcept;
+                   int strikerMaterial, int sampleOffset, const MuteStep& mute, PlayEventQueue& out) noexcept;
+
+    /** Stamps a note with a resolved mute; a chuka becomes a chuck (strum-dynamics 6.1). */
+    void stampMute (NoteOnEvent& e, const MuteStep& resolved) const noexcept;
 
     void releaseAll (int sampleOffset, PlayEventQueue& out) noexcept;
 
@@ -227,6 +259,7 @@ private:
     std::atomic<bool> enabled { false };
     std::atomic<bool> freeRun { false };
     std::atomic<int> voicingStyle { (int) VoicingStyle::open };
+    std::atomic<int> bassPattern { (int) RubricBassPattern::root };
     std::atomic<double> voicingDensity { 100.0 };
     std::atomic<int> handPositionHint { 0 };
     // No capoFret here any more: TuningEngine owns the one capo. See setCapoFret.
@@ -235,6 +268,10 @@ private:
 
     StrumSettings strumSettings;
     std::atomic<double> strumFeel { 0.5 };
+
+    MuteSettings muteSettings;
+    std::array<std::atomic<int>, (size_t) kLiveMuteSteps> liveMuteGrid {};
+    std::atomic<int> liveMuteStepPlaying { -1 };
     StrumGesture gesture;
     juce::uint32 strumCount = 0;
 

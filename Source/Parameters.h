@@ -321,6 +321,54 @@ namespace ParamIDs
     inline constexpr const char* chuckAmount          = "chuck_amount";
     inline constexpr const char* chuckDamping         = "chuck_damping";
 
+    // string-slap-technique.md 1 and bass-techniques.md 2-5: the SLAP
+    // technique's controls (parameters 426-450). Appended, never inserted.
+    inline constexpr const char* slapStrength          = "slap_strength";
+    inline constexpr const char* slapPositionMm        = "slap_position_mm";
+    inline constexpr const char* slapThumbHardness     = "slap_thumb_hardness";
+    inline constexpr const char* slapFretContact       = "slap_fret_contact";
+    inline constexpr const char* popStrength           = "pop_strength";
+    inline constexpr const char* popPositionMm         = "pop_position_mm";
+    inline constexpr const char* doubleThumpEnabled    = "double_thump_enabled";
+    inline constexpr const char* doubleThumpUpRatio    = "double_thump_up_ratio";
+    inline constexpr const char* ghostLevel            = "ghost_level";
+    inline constexpr const char* ghostDamping          = "ghost_damping";
+    inline constexpr const char* ghostAuto             = "ghost_auto";
+    inline constexpr const char* ghostVelocityThreshold = "ghost_velocity_threshold";
+    inline constexpr const char* slapArmed             = "slap_armed";
+    inline constexpr const char* slapType              = "slap_type";
+    inline constexpr const char* slapTrigger           = "slap_trigger";
+    inline constexpr const char* slapVelocityZone      = "slap_velocity_zone";
+    inline constexpr const char* slapTriggerCc         = "slap_trigger_cc";
+    inline constexpr const char* slapGhostCc           = "slap_ghost_cc";
+    inline constexpr const char* slapForce             = "slap_force";
+    inline constexpr const char* slapPalmPositionMm    = "slap_palm_position_mm";
+    inline constexpr const char* slapStringMask        = "slap_string_mask";
+    inline constexpr const char* slapGhostMode         = "slap_ghost_mode";
+    inline constexpr const char* slapReboundGap        = "slap_rebound_gap";
+    inline constexpr const char* slapSnapBack          = "slap_snap_back";
+    inline constexpr const char* slapBodyPart          = "slap_body_part";
+
+    // muting-rhythm.md 3: the MUTE controls (parameters 451-458). The grids
+    // are not parameters: a groove is a composition, like the strum grid.
+    inline constexpr const char* muteArmed         = "mute_armed";
+    inline constexpr const char* muteMasterMode    = "mute_master_mode";
+    inline constexpr const char* mutePalmPosition  = "mute_palm_position";
+    inline constexpr const char* mutePalmPressure  = "mute_palm_pressure";
+    inline constexpr const char* muteFrettingStyle = "mute_fretting_style";
+    inline constexpr const char* muteChukaSource   = "mute_chuka_source";
+    inline constexpr const char* muteHumanise      = "mute_humanise";
+    inline constexpr const char* muteGhostVelocity = "mute_ghost_velocity";
+
+    /*  String Detune (parameters 459-471, appended). One offset per string in
+        cents, string_detune_1 being the highest string (engine.md 1's string
+        0, as the nut depths count), for every string the engine can have; and
+        the Out of tune amount that the CHARACTER panel's Randomise scales. The
+        range is +/-25 cents - TuningEngine::kMaxStringDetuneCents says why. */
+    juce::String stringDetune (int stringNumber);
+    inline constexpr int kNumStringDetunes = kMaxStrings;
+    inline constexpr const char* outOfTune = "out_of_tune";
+
     // --- effect slots ----------------------------------------------------------
     /** `post` selects the chain; `slot` 0-7; `param` 0-9. */
     juce::String slotType (bool post, int slot);
@@ -412,6 +460,24 @@ public:
     /** True while a structural change is pending. */
     bool isStructuralChangePending() const noexcept { return structuralPending.load(); }
 
+    /*  How many times each structural pass has run, for the tests: a pedal
+        pick must build its pedal without an instrument pass (no IR reload, no
+        string re-snap) behind it. Message thread. */
+    int getInstrumentStructurePassCount() const noexcept { return instrumentPasses; }
+    int getPedalStructurePassCount() const noexcept { return pedalPasses; }
+
+    /** Runs the pass a pending structural change has queued, as the message
+        loop's delivery would. For the tests, which run without a loop. */
+    void handlePendingStructuralChangeNow() { handleUpdateNowIfNeeded(); }
+
+    /** The player has just picked a guitar (the header's selector, a host's
+        generic editor - anything that is a parameter gesture): the instrument
+        pass that loads it sets use_fingers from the guitar's category, as a
+        player changes hands with the instrument. Consumed by that one pass.
+        Everything else that moves guitar_type - a snapshot, a setlist entry,
+        host automation, a preset - carries its own use_fingers and keeps it. */
+    void followGuitarHandOnNextLoad() noexcept { handFollowsGuitar.store (true, std::memory_order_release); }
+
     /** A preset has just written its pedal types AND their parameters: build
         those pedals keeping the parameters. The structural path otherwise
         writes a new pedal's defaults over its parameters - right for a pedal
@@ -451,13 +517,35 @@ public:
 
 private:
     void handleAsyncUpdate() override;
-    void applyStructural();
 
-    /** Reads every structural selection into its cache; true if any moved. */
-    bool readStructuralValues() noexcept;
+    /*  The structural pass is two passes. The instrument one - guitar, tuning,
+        strings, body and cabinet IRs, amp model, oversampling - reloads files
+        and re-snaps every string, so it runs only when one of those moved. A
+        pedal pick is the other, and only builds the pedal: it must never
+        glitch the note that is sounding, and it must not wait for a disk
+        read to finish. */
+    enum StructuralChange
+    {
+        structuralInstrument = 1,
+        structuralPedals     = 2,
+        structuralAll        = structuralInstrument | structuralPedals
+    };
+
+    void applyStructural();
+    void applyInstrumentStructure();
+    void applyPedalTypes();
+
+    /** Builds one slot's pedal from lastSlotType if it differs from what is loaded. */
+    void applyPedalSlot (bool post, int slot);
+
+    /** Reads every structural selection into its cache; a StructuralChange mask of what moved. */
+    int readStructuralValues() noexcept;
 
     std::atomic<float>* raw (const juce::String& id) const noexcept;
     float value (const juce::String& id) const noexcept;
+
+    /** The modulated value of a cached pointer, for the per-block paths that must not build a string. */
+    float valueOf (const std::atomic<float>* ptr, int index) const noexcept;
 
     juce::AudioProcessorValueTreeState& apvts;
     LuthierEngine& engine;
@@ -475,6 +563,32 @@ private:
     void parameterGestureChanged (int, bool) override {}
 
     std::vector<int> slotOfParameter;      ///< parameter index -> (chain * slots + slot) * 16 + (param, or 15 for the type)
+
+    /*  The pedal slots' raw pointers and indices, cached so the per-block push
+        never builds a parameter ID (engine.md 0: no allocation in the callback). */
+    struct SlotPointers
+    {
+        std::atomic<float>* type = nullptr;
+
+        /*  The type parameter itself: its index is written before its listeners
+            run (AudioParameterChoice::setValue), while the raw pointer above is
+            the APVTS adapter's copy, written by a listener that runs after the
+            bridge's own. readStructuralValues compares against this one, so a
+            block between the two listener calls does not see a stale raw value
+            and queue a rebuild of the pedal the message thread just built. */
+        juce::AudioParameterChoice* typeChoice = nullptr;
+        std::atomic<float>* bypass = nullptr;
+        std::atomic<float>* mix = nullptr;
+        std::array<std::atomic<float>*, Pedal::kMaxParams> params {};
+        int typeIndex = -1, bypassIndex = -1, mixIndex = -1;
+        std::array<int, Pedal::kMaxParams> paramIndices {};
+    };
+
+    std::array<std::array<SlotPointers, EffectsChain::kNumSlots>, 2> slotPointers {};
+
+    // String Detune's per-string offsets, cached like the slots' so the per-block push builds no ID.
+    std::array<std::atomic<float>*, kMaxStrings> stringDetunePointers {};
+    std::array<int, kMaxStrings> stringDetuneIndices {};
     std::atomic<juce::uint32> writeSerial { 0 };
     std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> typeWritten {};
     std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> paramsWritten {};
@@ -509,10 +623,16 @@ private:
     int lastOversample = -1;
     int lastPickupType[PickupEngine::kMaxPickups] = { -1, -1, -1 };
     int lastPickupMagnet[PickupEngine::kMaxPickups] = { -1, -1, -1 };
-    int lastSlotType[2][EffectsChain::kNumSlots] = {};
+    /*  Atomic: a pick from the UI records its type on the message thread as it
+        builds the pedal, while the audio thread compares it for automation. */
+    std::atomic<int> lastSlotType[2][EffectsChain::kNumSlots] {};
     bool structuralInitialised = false;
+    std::atomic<bool> handFollowsGuitar { false };   ///< See followGuitarHandOnNextLoad.
 
     std::atomic<bool> structuralPending { false };
+    std::atomic<int> structuralPendingMask { 0 };
+
+    int instrumentPasses = 0, pedalPasses = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ParameterBridge)
 };

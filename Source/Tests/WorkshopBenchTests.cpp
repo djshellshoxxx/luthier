@@ -338,3 +338,140 @@ LUTHIER_TEST (WorkshopSpectrum, theWorkerCoalescesAndStaysInBudget)
 
     CHECK_MSG (best < 40.0, "a spectrum delta took " + juce::String (best, 1) + " ms at best (budget 40 ms)");
 }
+
+//==============================================================================
+LUTHIER_TEST (WorkshopBench, aStringOverrideIsOneEntryInRealUnitsAndReachesTheEngine)
+{
+    // workshop-ui.md 8: "Set string 3 to 0.018 plain (was 0.017 plain)"; the
+    // engine's gauge for that string follows (guitar-workshop.md 3.3).
+    Bench b;
+    const int steps = b.processor.getNumUndoSteps();
+    const auto was = WorkshopBench::describeString (b.guitar(), 2);
+    const auto before = mapSpec (b.guitar());
+
+    StringOverride heavier;
+    heavier.stringIndex = 2;
+    heavier.gaugeIn = 0.018;
+    heavier.wound = 0;
+    CHECK (b.bench().setStringOverride (heavier));
+
+    CHECK (b.processor.getNumUndoSteps() == steps + 1);
+    CHECK_MSG (b.processor.getUndoDescription() == "Set string 3 to 0.018 plain (was " + was + ")",
+               "undo reads \"" + b.processor.getUndoDescription() + "\"");
+    CHECK (b.processor.isGuitarEdited());
+
+    const auto after = mapSpec (b.guitar());
+    CHECK_NEAR (after.gaugesIn[2], 0.018, 1.0e-12);
+    CHECK (after.tensionNewtons[2] > before.tensionNewtons[2]);   // a heavier string at the same pitch pulls harder
+    CHECK (after.stringMaterials[2] == before.stringMaterials[2]);
+
+    // The same override again changes nothing and pushes nothing.
+    CHECK (! b.bench().setStringOverride (heavier));
+    CHECK (b.processor.getNumUndoSteps() == steps + 1);
+
+    // A material of its own reaches the derived acoustics per string.
+    StringOverride bronze = heavier;
+    bronze.material = "phosphor_bronze";
+    CHECK (b.bench().setStringOverride (bronze));
+    CHECK (mapSpec (b.guitar()).stringMaterials[2] == StringMaterial::PhosphorBronze);
+    CHECK (mapSpec (b.guitar()).stringMaterials[1] == before.stringMaterials[1]);
+    CHECK (b.processor.getUndoDescription().contains ("phosphor bronze"));
+
+    // Clearing says so, and undo walks it all back.
+    CHECK (b.bench().clearStringOverride (2));
+    CHECK (b.processor.getUndoDescription().startsWith ("Cleared string 3 override"));
+    CHECK (b.guitar().getStringOverride (2) == nullptr);
+
+    b.processor.undo();
+    CHECK (b.guitar().getStringOverride (2) != nullptr && b.guitar().getStringOverride (2)->material == "phosphor_bronze");
+    b.processor.undo();
+    b.processor.undo();
+    CHECK (b.guitar().getStringOverride (2) == nullptr);
+    CHECK_NEAR (mapSpec (b.guitar()).gaugesIn[2], before.gaugesIn[2], 1.0e-12);
+}
+
+LUTHIER_TEST (WorkshopBench, thePickSlideAndCapoMoveAsOneEntryEach)
+{
+    // workshop-ui.md 4's last three rows: the accessories drag like parts, one
+    // undo entry with the before and after in real units, through the
+    // parameters they already have (capo_fret, pick_angle, pluck_position, slide_slant).
+    Bench b;
+    auto plain = [&] (const char* id)
+    {
+        auto* p = dynamic_cast<juce::RangedAudioParameter*> (b.processor.getState().getParameter (id));
+        return (double) p->convertFrom0to1 (p->getValue());
+    };
+
+    int steps = b.processor.getNumUndoSteps();
+    CHECK (b.bench().getCapoFret() == 0);
+
+    b.bench().setCapoFret (3);
+    CHECK (b.processor.getNumUndoSteps() == steps + 1);
+    CHECK (b.processor.getUndoDescription() == "Put the capo on fret 3");
+    CHECK_NEAR (plain (ParamIDs::capoFret), 3.0, 1.0e-6);
+
+    b.bench().setCapoFret (5);
+    CHECK (b.processor.getUndoDescription() == "Moved capo fret 3 " + juce::String::fromUTF8 ("\xe2\x86\x92") + " 5");
+
+    b.bench().setCapoFret (99);
+    CHECK (b.bench().getCapoFret() == WorkshopBench::kMaxCapoFret);
+
+    b.bench().setCapoFret (0);
+    CHECK (b.processor.getUndoDescription().startsWith ("Took the capo off (was fret 12)"));
+
+    // Undo puts the capo back where it was.
+    b.processor.undo();
+    CHECK (b.bench().getCapoFret() == 12);
+    CHECK_NEAR (plain (ParamIDs::capoFret), 12.0, 1.0e-6);
+
+    // A drag: several moves, one entry.
+    steps = b.processor.getNumUndoSteps();
+    b.bench().beginGesture();
+    for (int f = 11; f >= 2; --f)
+        b.bench().setCapoFret (f);
+    b.bench().endGesture();
+    CHECK (b.processor.getNumUndoSteps() == steps + 1);
+    CHECK (b.processor.getUndoDescription() == "Moved capo fret 12 " + juce::String::fromUTF8 ("\xe2\x86\x92") + " 2");
+
+    // The pick: position in mm from the saddle, angle in degrees.
+    const double scale = b.bench().getScaleLengthMm();
+    b.bench().setPickPlacement (60.0, 20.0);
+    CHECK_NEAR (plain (ParamIDs::pluckPosition) * scale, 60.0, 0.5);
+    CHECK_NEAR (Parameters::pickAngleDegrees (plain (ParamIDs::pickAngle)), 20.0, 0.1);
+    CHECK_NEAR (b.bench().getPickPositionMm(), 60.0, 0.5);
+    CHECK_MSG (b.processor.getUndoDescription().startsWith ("Moved pick") && b.processor.getUndoDescription().contains ("Angled pick"),
+               "undo reads \"" + b.processor.getUndoDescription() + "\"");
+
+    // Out of the parameter's reach it stops at the edge.
+    b.bench().setPickPlacement (1000.0, 500.0);
+    CHECK_NEAR (plain (ParamIDs::pluckPosition), 0.5, 1.0e-6);
+    CHECK_NEAR (b.bench().getPickAngleDegrees(), WorkshopBench::kMaxPickAngle, 1.0e-6);
+
+    // The slide: slant is the parameter, position is the bench's.
+    b.bench().setSlidePlacement (7.0, 10.0);
+    CHECK_NEAR (plain (ParamIDs::slideSlant), 10.0, 1.0e-6);
+    CHECK_NEAR (b.bench().getSlideFret(), 7.0, 1.0e-9);
+    CHECK (b.processor.getUndoDescription().contains ("Moved slide to fret 7.0"));
+    CHECK (b.processor.getUndoDescription().contains ("Slanted slide"));
+
+    b.bench().setSlidePlacement (7.0, 90.0);
+    CHECK_NEAR (b.bench().getSlideSlantDegrees(), WorkshopBench::kMaxSlideSlant, 1.0e-6);
+
+    // A click that moves nothing pushes nothing.
+    steps = b.processor.getNumUndoSteps();
+    b.bench().beginGesture();
+    b.bench().setCapoFret (b.bench().getCapoFret());
+    b.bench().endGesture();
+    CHECK (b.processor.getNumUndoSteps() == steps);
+
+    // The slide part maps onto the engine's bar description.
+    for (const auto& p : b.processor.getPartLibrary().getParts (PartType::slide))
+        if (p->name.startsWith ("Brass"))
+        {
+            auto* on = b.processor.getState().getParameter (ParamIDs::slideGuitar);
+            on->setValueNotifyingHost (1.0f);
+            CHECK (b.bench().fitAccessory (p));
+            CHECK (b.bench().getSlideBar().material == SlideMaterial::brass);
+            CHECK_NEAR (b.bench().getSlideBar().massGrams, 150.0, 1.0e-9);
+        }
+}

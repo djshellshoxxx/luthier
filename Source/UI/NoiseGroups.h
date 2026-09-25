@@ -27,7 +27,8 @@ class LuthierAudioProcessor;
     (gui-engine-dataflow.md). */
 class NoiseEventStrip : public juce::Component,
                         public juce::SettableTooltipClient,
-                        private juce::Timer
+                        private juce::Timer,
+                        private juce::ChangeListener
 {
 public:
     explicit NoiseEventStrip (LuthierAudioProcessor& processor);
@@ -39,15 +40,34 @@ public:
     static constexpr double kWindowSeconds = 8.0;
     static constexpr double kStaleSeconds = 2.0;
 
+    /** gui-integration 21 / accessibility 5: under reduced motion the scrolling
+        ticks give way to a static count per class, refreshed at this rate
+        instead of 30 Hz. */
+    static constexpr int kMovingRefreshHz = 30;
+    static constexpr int kStaticRefreshHz = 5;
+
     /** For tests: drain now and report how many events are on screen. */
     int pollNow();
     int getNumShown() const noexcept { return shown.size(); }
     bool isStale() const noexcept;
 
+    /** True when the strip is painting the static per-class count. */
+    bool isShowingStaticCount() const noexcept;
+
+    /** How many events of one class are in the window, as the static count
+        shows them. */
+    int getCountFor (NoiseClass c) const noexcept;
+
+    /** The rate the timer really runs at. */
+    int getRefreshHz() const noexcept { return getTimerInterval() > 0 ? juce::roundToInt (1000.0 / getTimerInterval()) : 0; }
+
     static juce::Colour colourFor (NoiseClass c);
+    static juce::String nameFor (NoiseClass c);
 
 private:
     void timerCallback() override;
+    void changeListenerCallback (juce::ChangeBroadcaster*) override;
+    void applyMotionMode();
 
     struct Tick { double time; NoiseClass noiseClass; float level; };
 

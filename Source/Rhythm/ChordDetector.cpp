@@ -195,6 +195,38 @@ const char* getPitchClassName (int pitchClass) noexcept
 }
 
 //==============================================================================
+int ChordSymbol::format (char* dest, int capacity) const noexcept
+{
+    if (dest == nullptr || capacity <= 0)
+        return 0;
+
+    int length = 0;
+
+    auto append = [&] (const char* text) noexcept
+    {
+        if (text == nullptr)
+            return;
+
+        for (; *text != 0 && length + 1 < capacity; ++text)
+            dest[length++] = *text;
+    };
+
+    if (isKnown())
+    {
+        append (getPitchClassName (root));
+        append (getChordTemplate (templateIndex).suffix);
+
+        if (isSlash())
+        {
+            append ("/");
+            append (getPitchClassName (bass));
+        }
+    }
+
+    dest[length] = 0;
+    return length;
+}
+
 juce::String ChordSymbol::toString() const
 {
     if (! isKnown())

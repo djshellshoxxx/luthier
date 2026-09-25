@@ -33,10 +33,24 @@ enum class PaletteId
     tritanopia,       ///< Blue-blind.
     highContrast,
     light,
+    /** A flat, modern dark mode: charcoal surfaces, off-white text, one blue
+        accent, no guitar-shop materials. Appended last so saved palette
+        numbers (settings files, first-run defaults) keep their meaning. */
+    modernDark,
     numPalettes
 };
 
 const char* getPaletteName (PaletteId id) noexcept;
+
+/** Whether a palette dresses the UI in the guitar-shop materials (wood grain,
+    brass plates, corner screws, Tolex, lit knob caps). False for High
+    contrast and Modern Dark, which draw the same controls flat. */
+bool paletteUsesMaterials (PaletteId id) noexcept;
+
+/** Whether the guitar illustration is drawn with its lighting and real
+    finishes. Only High contrast flattens it: in Modern Dark the guitar is
+    still a picture of a guitar, only the UI around it goes flat. */
+bool paletteLightsIllustrations (PaletteId id) noexcept;
 
 //==============================================================================
 /** One palette's colours. The names match theme.md's, so a component asks for
@@ -124,7 +138,7 @@ public:
 
     static juce::File getThemeDirectory();
 
-    /** Writes the six built-in palettes out as theme files. */
+    /** Writes every built-in palette out as a theme file. */
     static bool writeBuiltInPalettes (const juce::File& directory);
 
     //==========================================================================
@@ -249,8 +263,15 @@ namespace AccessibleSetup
                                const juce::String& description);
 
     /** accessibility 1: an overlay announces itself and moves focus to its first
-        interactive child. */
+        interactive child. Call it once the overlay is showing (OverlayHost::show,
+        after addAndMakeVisible): focus can only land on a component with a peer. */
     void announceOverlayOpened (juce::Component& overlay, const juce::String& name);
+
+    /** The first interactive element inside `root`, in Tab order - the one
+        announceOverlayOpened gives focus to - or null when nothing in it wants
+        focus. Walks the whole tree, not only the direct children, because an
+        overlay's controls sit inside its pages. */
+    juce::Component* findFirstInteractive (juce::Component& root);
 }
 
 } // namespace luthier

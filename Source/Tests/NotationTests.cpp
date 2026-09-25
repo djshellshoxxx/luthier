@@ -800,3 +800,470 @@ LUTHIER_TEST (Notation, musicXmlPitchConversion)
     CHECK (PerformanceScore::getNoteName (69) == "A4");
     CHECK (PerformanceScore::getNoteName (40) == "E2");
 }
+
+//==============================================================================
+//  notation-export 4 / 6.1: the chord, bar and bass-technique tracks are fed
+//  from where the engine knows them - the detector, the slide engine and the
+//  string-activity queue - so the NOTATION tab's chord history fills in use.
+//==============================================================================
+#include "../Capture/PerformanceCapture.h"
+#include "../DSP/Slap/SlapEngine.h"
+#include "../DSP/Slide/SlideEngine.h"
+#include "../Rhythm/ChordDetector.h"
+#include "../Routing/MidiOutRouter.h"
+#include "../PluginProcessor.h"
+
+namespace
+{
+    constexpr double kCaptureSr = 48000.0;
+    constexpr int kCaptureBlock = 256;
+
+    CaptureClock captureClockAt (juce::int64 blockStart)
+    {
+        CaptureClock clock;
+        clock.blockStartSample = blockStart;
+        clock.sampleRate = kCaptureSr;
+        clock.transportPlaying = true;
+        clock.bpm = 120.0;
+        clock.blockStartPpq = (double) blockStart * 120.0 / (60.0 * kCaptureSr);
+        return clock;
+    }
+}
+
+LUTHIER_TEST (Notation, theChordTrackComesFromTheDetectorOnceAStrumHasSettled)
+{
+    PerformanceCapture capture;
+    capture.prepare (kCaptureSr);
+
+    ChordDetector detector;
+    detector.prepare (kCaptureSr);
+
+    juce::int64 at = 0;
+
+    auto block = [&]
+    {
+        capture.beginBlock (captureClockAt (at));
+        capture.captureChord (detector);
+        at += kCaptureBlock;
+    };
+
+    const int windowBlocks = (int) std::ceil (ChordDetector::kBurstWindowSeconds * kCaptureSr / kCaptureBlock) + 1;
+
+    block();   // nothing held: nothing written
+
+    // A strummed C, one note a block: inside the burst window it is one chord.
+    detector.noteOn (48, at); block();
+    detector.noteOn (52, at); block();
+    const juce::int64 lastChange = at;
+    detector.noteOn (55, at); block();
+
+    capture.drain();
+    CHECK_MSG (capture.getChords().empty(), "a chord was written before the strum had settled");
+
+    for (int i = 0; i < windowBlocks; ++i)
+        block();
+
+    capture.drain();
+    CHECK_MSG (capture.getChords().size() == 1, juce::String (capture.getChords().size()) + " chords, expected the one");
+
+    if (! capture.getChords().empty())
+    {
+        CHECK_MSG (capture.getChords()[0].name == "C", "the chord was " + capture.getChords()[0].name);
+        CHECK_MSG (capture.getChords()[0].sample == lastChange,
+                   "the chord is at sample " + juce::String (capture.getChords()[0].sample)
+                     + ", not where the strum settled, " + juce::String (lastChange));
+        CHECK (capture.getChords()[0].musical);
+    }
+
+    // Holding on writes nothing more; letting go is a gap, not a symbol.
+    for (int i = 0; i < 2 * windowBlocks; ++i)
+        block();
+
+    detector.allNotesOff();
+
+    for (int i = 0; i < 2 * windowBlocks; ++i)
+        block();
+
+    capture.drain();
+    CHECK (capture.getChords().size() == 1);
+
+    // A different chord is a new symbol...
+    for (int note : { 45, 48, 52 })
+        detector.noteOn (note, at);
+
+    for (int i = 0; i < 2 * windowBlocks; ++i)
+        block();
+
+    capture.drain();
+    CHECK (capture.getChords().size() == 2);
+
+    if (capture.getChords().size() == 2)
+        CHECK_MSG (capture.getChords()[1].name == "Am", "the second chord was " + capture.getChords()[1].name);
+
+    // ...and the same one struck again is not.
+    detector.allNotesOff();
+    block();
+
+    for (int note : { 45, 48, 52 })
+        detector.noteOn (note, at);
+
+    for (int i = 0; i < 2 * windowBlocks; ++i)
+        block();
+
+    capture.drain();
+    CHECK (capture.getChords().size() == 2);
+
+    // Off costs nothing and re-reads on resume.
+    capture.setState (CaptureState::off);
+    const auto written = capture.getRecordsWritten();
+    detector.allNotesOff();
+
+    for (int note : { 50, 54, 57 })
+        detector.noteOn (note, at);
+
+    for (int i = 0; i < 2 * windowBlocks; ++i)
+        block();
+
+    CHECK (capture.getRecordsWritten() == written);
+}
+
+LUTHIER_TEST (Notation, chordSymbolsFormatWithoutAString)
+{
+    ChordDetector detector;
+    detector.prepare (kCaptureSr);
+
+    const int cMajor[] = { 48, 52, 55 };
+    const int gOverB[] = { 47, 50, 55, 59 };   // G/B: B D G B
+
+    char text[16];
+
+    auto symbol = detector.detect (cMajor, 3);
+    CHECK (symbol.format (text, (int) sizeof (text)) == 1);
+    CHECK (juce::String (text) == symbol.toString());
+
+    symbol = detector.detect (gOverB, 4);
+    symbol.format (text, (int) sizeof (text));
+    CHECK_MSG (juce::String (text) == symbol.toString(), juce::String (text) + " vs " + symbol.toString());
+    CHECK (symbol.isSlash());
+
+    // Unknown is empty; a tiny buffer is truncated and terminated.
+    CHECK (ChordSymbol().format (text, (int) sizeof (text)) == 0 && text[0] == 0);
+    char tiny[3];
+    CHECK (symbol.format (tiny, 3) == 2 && tiny[2] == 0);
+    CHECK (symbol.format (nullptr, 3) == 0);
+}
+
+LUTHIER_TEST (Notation, theBarIsWrittenWhereItLandsMovesAndLifts)
+{
+    PerformanceCapture capture;
+    capture.prepare (kCaptureSr);
+
+    SlideEngine slide;
+    slide.prepare (kCaptureSr);
+
+    SlideSettings settings;
+    settings.enabled = true;
+    settings.pressure = 0.55;
+    slide.setSettings (settings);
+
+    juce::int64 at = 0;
+
+    auto block = [&]
+    {
+        capture.beginBlock (captureClockAt (at));
+        capture.captureSlideBar (slide);
+        at += kCaptureBlock;
+    };
+
+    block();                                   // off the strings: nothing yet
+    slide.setOverlayFret (5.0); block();       // lands, full, at 5
+    slide.setOverlayFret (5.1); block();       // a wobble under a quarter fret: nothing
+    slide.setOverlayFret (7.0); block();       // moved
+    settings.pressure = 0.2;
+    slide.setSettings (settings); block();     // eased off: light
+    block();                                   // no change: nothing
+    slide.setOverlayFret (-1.0); block();      // lifted
+    block();                                   // still off: nothing
+
+    capture.drain();
+    const auto& events = capture.getEvents();
+    CHECK_MSG (events.size() == 4, juce::String (events.size()) + " bar events, expected 4");
+
+    if (events.size() == 4)
+    {
+        struct Expected { double pos; const char* pressure; juce::int64 sample; };
+        const Expected expected[] = { { 5.0, "full", 1 * kCaptureBlock }, { 7.0, "full", 3 * kCaptureBlock },
+                                      { 7.0, "light", 4 * kCaptureBlock }, { 7.0, "lift", 6 * kCaptureBlock } };
+
+        for (size_t i = 0; i < 4; ++i)
+        {
+            CHECK (events[i].event.eventClass == LuthierEventClass::slideBar);
+            CHECK_NEAR (events[i].event.getReal ("pos"), expected[i].pos, 1.0e-4);
+            CHECK_MSG (events[i].event.get ("pressure") == expected[i].pressure,
+                       "event " + juce::String ((int) i) + " pressure " + events[i].event.get ("pressure"));
+            CHECK (events[i].sample == expected[i].sample);
+        }
+    }
+
+    // Slide Mode off: the bar is not there whatever the overlay says.
+    settings.enabled = false;
+    slide.setSettings (settings);
+    slide.setOverlayFret (9.0);
+    block();
+    capture.drain();
+    CHECK (capture.getEvents().size() == 4);
+}
+
+LUTHIER_TEST (Notation, aBassTechniqueOnTheActivityQueueBecomesABassTechEvent)
+{
+    PerformanceCapture capture;
+    capture.prepare (kCaptureSr);
+    capture.beginBlock (captureClockAt (0));
+
+    StringActivityQueue queue;
+    queue.push ({ 10, 3, 40, 0.9f, true });   // the note itself
+
+    StringActivityEvent pop { 10, 3, 40, 0.9f, true };
+    pop.kind = StringActivityEvent::Kind::bassTechnique;
+    pop.code = (juce::uint8) SlapType::pop;
+    pop.position = 0.2f;
+    queue.push (pop);
+
+    auto ghost = pop;
+    ghost.sampleOffset = 20;
+    ghost.code = (juce::uint8) SlapType::thumb;
+    ghost.flags = StringActivityEvent::kGhost;
+    queue.push (ghost);
+
+    auto thump = ghost;
+    thump.sampleOffset = 30;
+    thump.flags = StringActivityEvent::kRebound;
+    queue.push (thump);
+
+    capture.captureStringActivity (queue);
+    capture.drain();
+
+    CHECK_MSG (capture.getNotes().size() == 1, "a technique report became a note");
+
+    const auto& events = capture.getEvents();
+    CHECK_MSG (events.size() == 3, juce::String (events.size()) + " events, expected 3");
+
+    if (events.size() == 3)
+    {
+        const char* techs[] = { "pop", "ghost", "thump" };
+
+        for (size_t i = 0; i < 3; ++i)
+        {
+            CHECK (events[i].event.eventClass == LuthierEventClass::bassTech);
+            CHECK_MSG (events[i].event.get ("tech") == techs[i], events[i].event.get ("tech") + " where " + techs[i] + " was expected");
+            CHECK (events[i].event.getInt ("str") == 3);
+            CHECK_NEAR (events[i].event.getReal ("pos"), 0.2, 1.0e-4);
+            CHECK (events[i].event.part == 1);
+        }
+
+        CHECK (events[0].sample == 10 && events[1].sample == 20 && events[2].sample == 30);
+    }
+
+    CHECK (juce::String (PerformanceCapture::bassTechniqueName ((int) SlapType::thumb, 0)) == "slap");
+    CHECK (juce::String (PerformanceCapture::bassTechniqueName ((int) SlapType::pop, StringActivityEvent::kGhost)) == "ghost");
+
+    // MIDI out plays the note and skips the report.
+    MidiOutRouter router;
+    router.prepare (kCaptureSr, kCaptureBlock);
+    MidiOutConfig config;
+    config.enabled = true;
+    config.stringActivity = true;
+    juce::MidiBuffer out;
+    router.emit (out, config, queue, kCaptureBlock);
+
+    int noteOns = 0;
+
+    for (const auto metadata : out)
+        noteOns += metadata.getMessage().isNoteOn() ? 1 : 0;
+
+    CHECK_MSG (noteOns == 1, juce::String (noteOns) + " note-ons went to MIDI out for one note");
+}
+
+LUTHIER_TEST (Notation, playingAChordThroughThePluginFillsTheChordHistory)
+{
+    LuthierAudioProcessor processor;
+
+    if (auto* p = processor.getState().getParameter (ParamIDs::macroHumanize))
+        p->setValueNotifyingHost (0.0f);
+
+    processor.prepareToPlay (kCaptureSr, kCaptureBlock);
+    CHECK (processor.getPerformanceCapture().getState() == CaptureState::rolling);
+
+    juce::AudioBuffer<float> buffer (juce::jmax (processor.getTotalNumOutputChannels(), 2), kCaptureBlock);
+
+    for (int b = 0; b < 80; ++b)   // 430 ms
+    {
+        buffer.clear();
+        juce::MidiBuffer midi;
+
+        if (b == 2)
+            for (int note : { 48, 52, 55 })
+                midi.addEvent (juce::MidiMessage::noteOn (1, note, (juce::uint8) 100), 0);
+
+        if (b == 30)
+            for (int note : { 48, 52, 55 })
+                midi.addEvent (juce::MidiMessage::noteOff (1, note), 0);
+
+        if (b == 40)
+            for (int note : { 45, 48, 52 })
+                midi.addEvent (juce::MidiMessage::noteOn (1, note, (juce::uint8) 100), 0);
+
+        processor.processBlock (buffer, midi);
+    }
+
+    processor.drainPerformanceCapture();
+
+    const auto& chords = processor.getPerformanceCapture().getChords();
+    juce::StringArray names;
+
+    for (const auto& chord : chords)
+        names.add (chord.name);
+
+    CHECK_MSG (chords.size() == 2, juce::String ((int) chords.size()) + " chords in the history: " + names.joinIntoString (" "));
+
+    if (chords.size() == 2)
+    {
+        CHECK_MSG (chords[0].name == "C", "first chord " + chords[0].name);
+        CHECK_MSG (chords[1].name == "Am", "second chord " + chords[1].name);
+        CHECK (chords[0].sample < chords[1].sample);
+    }
+}
+
+//==============================================================================
+//  notation-export 0.1: export runs on a worker thread, with progress and a
+//  cancel, and writes what the synchronous exporter writes.
+//==============================================================================
+#include "../Notation/NotationExportTask.h"
+
+namespace
+{
+    /** Runs the message loop for a moment so posted callbacks arrive. */
+    void pumpMessages (int ms)
+    {
+       #if JUCE_MODAL_LOOPS_PERMITTED
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (ms);
+       #else
+        juce::Thread::sleep (ms);
+       #endif
+    }
+}
+
+LUTHIER_TEST (Notation, exportRunsOnAWorkerThreadAndReportsProgress)
+{
+    NotationExportTask task;
+
+    NotationExportTask::Request request;
+    request.format = NotationFormat::musicXml;
+    request.destination = makeTempFile ("async.musicxml");
+    request.destination.deleteFile();
+    request.score = makeTestScore();
+
+    std::vector<double> progress;
+    bool done = false;
+    NotationExportTask::Result reported;
+
+    CHECK (task.start (request,
+                       [&] (double fraction) { progress.push_back (fraction); },
+                       [&] (const NotationExportTask::Result& r) { done = true; reported = r; }));
+    CHECK_MSG (! task.start (request), "a second export started while one was running");
+
+    const auto result = task.waitForCompletion (20000);
+    CHECK_MSG (result.ok, result.error);
+    CHECK (! result.cancelled);
+    CHECK (! task.isRunning());
+    CHECK_NEAR (task.getProgress(), 1.0, 1.0e-9);
+    CHECK (result.destination == request.destination);
+    CHECK_MSG (request.destination.existsAsFile(), "the worker wrote nothing");
+
+    // The file is what the synchronous exporter writes (its line endings
+    // included: both go through File::replaceWithText), and reads back.
+    NotationExporter sync;
+    const auto syncFile = makeTempFile ("sync.musicxml");
+    CHECK (sync.write (request.score, NotationFormat::musicXml, syncFile, request.options));
+    CHECK (request.destination.loadFileAsString() == syncFile.loadFileAsString());
+    syncFile.deleteFile();
+
+    NotationImporter importer;
+    PerformanceScore back;
+    CHECK_MSG (importer.read (request.destination, back), importer.getLastError());
+    CHECK (back.getTotalNoteCount() == request.score.getTotalNoteCount());
+
+   #if JUCE_MODAL_LOOPS_PERMITTED
+    // The callbacks arrive on the message thread, in order, ending at 1.
+    pumpMessages (200);
+    CHECK_MSG (done, "the done callback never reached the message thread");
+    CHECK (reported.ok);
+    CHECK (! progress.empty() && std::abs (progress.back() - 1.0) < 1.0e-9);
+
+    for (size_t i = 1; i < progress.size(); ++i)
+        CHECK (progress[i] >= progress[i - 1]);
+   #else
+    juce::ignoreUnused (done, reported);
+   #endif
+
+    request.destination.deleteFile();
+}
+
+LUTHIER_TEST (Notation, exportCanBeCancelledBeforeItWrites)
+{
+    NotationExportTask task;
+
+    NotationExportTask::Request request;
+    request.format = NotationFormat::asciiTab;
+    request.destination = makeTempFile ("cancelled.txt");
+    request.destination.deleteFile();
+    request.score = makeTestScore();
+    request.minimumStageMs = 400;
+
+    CHECK (task.start (request));
+    CHECK (task.isRunning());
+    task.cancel();
+
+    const auto result = task.waitForCompletion (20000);
+    CHECK_MSG (result.cancelled && ! result.ok, "a cancelled export reported " + juce::String (result.ok ? "success" : result.error));
+    CHECK_MSG (! request.destination.existsAsFile(), "a cancelled export left a file behind");
+    CHECK (! task.isRunning());
+
+    // The task is reusable once done: MIDI goes through the MIDI OUT profile writer.
+    NotationExportTask::Request midi;
+    midi.format = NotationFormat::midi;
+    midi.destination = makeTempFile ("async.mid");
+    midi.destination.deleteFile();
+    midi.performance = MidiPerformance::fromScore (makeTestScore(), 48000.0);
+
+    CHECK (task.start (midi));
+    const auto midiResult = task.waitForCompletion (20000);
+    CHECK_MSG (midiResult.ok, midiResult.error);
+    CHECK (midi.destination.existsAsFile() && midi.destination.getSize() > 0);
+    midi.destination.deleteFile();
+
+    // An export with nothing in it fails with a reason rather than a file.
+    NotationExportTask::Request empty = request;
+    empty.minimumStageMs = 0;
+    empty.score = PerformanceScore();
+    empty.destination = makeTempFile ("empty.txt");
+    CHECK (task.start (empty));
+    const auto emptyResult = task.waitForCompletion (20000);
+    CHECK (! emptyResult.ok && emptyResult.error.isNotEmpty());
+    CHECK (! empty.destination.existsAsFile());
+
+    // A task destroyed mid-export stops its worker and calls nobody back.
+    bool called = false;
+
+    {
+        NotationExportTask doomed;
+        auto slow = request;
+        slow.destination = makeTempFile ("doomed.txt");
+        slow.minimumStageMs = 2000;
+        CHECK (doomed.start (slow, {}, [&] (const NotationExportTask::Result&) { called = true; }));
+    }
+
+    pumpMessages (50);
+    CHECK (! called);
+    CHECK (! makeTempFile ("doomed.txt").existsAsFile());
+}

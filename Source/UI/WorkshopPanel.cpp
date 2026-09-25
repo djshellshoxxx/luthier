@@ -1,12 +1,46 @@
 #include "WorkshopPanel.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
+#include "../Accessibility/Localisation.h"
 
 namespace luthier
 {
 
 namespace
 {
+    using Tool = BenchIllustration::Tool;
+
+    /** The pick's colour by material (pick-noise.md 2's list). */
+    juce::Colour pickColour (const juce::String& material)
+    {
+        if (material == "nylon")     return juce::Colour (0xffd9d3c4);
+        if (material == "delrin")    return juce::Colour (0xffd94b3b);
+        if (material == "ultex")     return juce::Colour (0xffe3c26a);
+        if (material == "brass")     return juce::Colour (0xffc9a227);
+        if (material == "steel" || material == "metal") return juce::Colour (0xffb8bcc2);
+        if (material == "wood")      return juce::Colour (0xffa26b3a);
+        if (material == "felt")      return juce::Colour (0xff7a7a7a);
+        return juce::Colour (0xff8b4a1f);   // celluloid tortoise
+    }
+
+    /** A fret position from a distance along the string, mm from the nut. */
+    double fretFromNutDistance (double fromNutMm, double scaleMm)
+    {
+        const double remaining = 1.0 - fromNutMm / juce::jmax (1.0, scaleMm);
+        if (remaining <= 0.001)
+            return 24.0;
+        return juce::jmax (0.0, -12.0 * std::log2 (remaining));
+    }
+
+    double nutDistanceFromFret (double fret, double scaleMm)
+    {
+        return scaleMm * (1.0 - std::pow (2.0, -juce::jmax (0.0, fret) / 12.0));
+    }
+
+    juce::String num (double v, int decimals)
+    {
+        return decimals == 0 ? juce::String (juce::roundToInt (v)) : juce::String (v, decimals);
+    }
     int pickupIndexOfRegion (GuitarRegion r) noexcept
     {
         return r == GuitarRegion::pickupNeck ? 0 : r == GuitarRegion::pickupMiddle ? 1 : r == GuitarRegion::pickupBridge ? 2 : -1;
@@ -44,7 +78,7 @@ namespace
     GuitarRenderer::Options renderOptions()
     {
         GuitarRenderer::Options o;
-        o.materials = Palette::textured;
+        o.materials = Palette::illustrationMaterials;
         return o;
     }
 }
@@ -54,8 +88,8 @@ BenchIllustration::BenchIllustration (LuthierAudioProcessor& p)
     : processor (p), bench (p.getBench())
 {
     setWantsKeyboardFocus (true);
-    setTitle ("Workshop guitar");
-    setDescription ("The guitar on the bench. Tab walks the parts; arrow keys nudge the selected one.");
+    setTitle (tr ("workshop.illustration.title"));
+    setDescription (tr ("workshop.illustration.description"));
     rebuild (true);
     startTimerHz (30);
 }
@@ -129,6 +163,33 @@ juce::Point<float> BenchIllustration::toPx (juce::Point<float> mm) const
 void BenchIllustration::timerCallback()
 {
     rebuild (false);
+
+    // The live layer (guitar-illustration.md 2.2) is painted over the cached scene.
+    if (updateLiveOverlay())
+        repaint();
+}
+
+bool BenchIllustration::updateLiveOverlay()
+{
+    auto& engine = processor.getEngine();
+    bool changed = false;
+
+    for (int s = 0; s < juce::jmin (12, engine.getNumStrings()); ++s)
+    {
+        const auto level = (float) juce::jlimit (0.0, 1.0, engine.getStringLevel (s) * 4.0);
+        const auto fret = (float) engine.getStringFret (s);
+
+        if (std::abs (level - live.stringLevel[(size_t) s]) > 0.004f || std::abs (fret - live.stringFret[(size_t) s]) > 0.01f)
+            changed = true;
+
+        live.stringLevel[(size_t) s] = level;
+        live.stringFret[(size_t) s] = fret;
+    }
+
+    const bool reduced = AccessibilitySettings::get().isReducedMotion();
+    changed = changed || reduced != live.reducedMotion;
+    live.reducedMotion = reduced;
+    return changed;
 }
 
 GuitarRegion BenchIllustration::regionAt (juce::Point<float> px, int* stringIndex) const
@@ -169,17 +230,243 @@ int BenchIllustration::pickupIndexFor (GuitarRegion r) const
 void BenchIllustration::select (GuitarRegion region, int stringIndex)
 {
     selected = region;
-    selectedString = region == GuitarRegion::strings || region == GuitarRegion::bridge ? stringIndex : -1;
+    selectedTool = Tool::none;
+    selectedString = region == GuitarRegion::strings || region == GuitarRegion::bridge || region == GuitarRegion::nut
+                   ? stringIndex : -1;
 
-    // Screen readers hear the part (guitar-illustration.md 16).
-    for (auto& h : scene.hits)
-        if (h.region == region)
-            setDescription (h.description);
-
+    announceSelection();
     repaint();
 
     if (onSelectionChanged)
         onSelectionChanged();
+}
+
+void BenchIllustration::selectTool (Tool tool)
+{
+    if (tool != Tool::none && ! hasTool (tool))
+        return;
+
+    selected = GuitarRegion::none;
+    selectedString = -1;
+    selectedTool = tool;
+
+    announceSelection();
+    repaint();
+
+    if (onSelectionChanged)
+        onSelectionChanged();
+}
+
+void BenchIllustration::announceSelection()
+{
+    // Screen readers hear the part (guitar-illustration.md 16).
+    const auto text = describeSelection();
+
+    if (text.isNotEmpty())
+        setDescription (text);
+}
+
+juce::String BenchIllustration::describeSelection() const
+{
+    if (selectedTool != Tool::none)
+        return toolDescription (selectedTool);
+
+    juce::String text;
+
+    for (auto& h : scene.hits)
+        if (h.region == selected)
+            text = h.description;
+
+    const auto& guitar = bench.current();
+
+    if (selected == GuitarRegion::strings && juce::isPositiveAndBelow (selectedString, guitar.getStringCount()))
+    {
+        // One string: its gauge, winding and material, and whether it is overridden.
+        text = tr ("workshop.a11y.string", { { "n", juce::String (selectedString + 1) },
+                                              { "string", WorkshopBench::describeString (guitar, selectedString) },
+                                              { "material", guitar.getStringMaterial (selectedString).replaceCharacter ('_', ' ') } });
+        if (guitar.getStringOverride (selectedString) != nullptr)
+            text << " " << tr ("workshop.a11y.stringOverridden");
+    }
+    else if (selected == GuitarRegion::nut && juce::isPositiveAndBelow (selectedString, guitar.getStringCount()))
+    {
+        const auto& depths = guitar.setup.nutSlotDepthsMm;
+        text << " " << tr ("workshop.a11y.nutSlot", { { "n", juce::String (selectedString + 1) },
+                                                     { "mm", num (juce::isPositiveAndBelow (selectedString, depths.size()) ? depths[selectedString] : 0.5, 2) } });
+    }
+
+    return text;
+}
+
+juce::String BenchIllustration::toolDescription (Tool tool) const
+{
+    if (tool == Tool::pick)
+    {
+        const auto part = bench.getAccessory (PartType::pick);
+        return tr ("workshop.a11y.pick", { { "name", part != nullptr ? part->name : tr ("workshop.tool.currentPick") },
+                                            { "mm", num (bench.getPickPositionMm(), 0) },
+                                            { "deg", num (bench.getPickAngleDegrees(), 0) } });
+    }
+
+    if (tool == Tool::slide)
+    {
+        const auto part = bench.getAccessory (PartType::slide);
+        return tr ("workshop.a11y.slide", { { "name", part != nullptr ? part->name : tr ("workshop.tool.defaultSlide") },
+                                             { "fret", num (bench.getSlideFret(), 1) },
+                                             { "deg", num (bench.getSlideSlantDegrees(), 0) } });
+    }
+
+    if (tool == Tool::capo)
+    {
+        const auto part = bench.getAccessory (PartType::capo);
+        const auto name = part != nullptr ? part->name : tr ("workshop.tool.defaultCapo");
+        const int fret = bench.getCapoFret();
+        return fret > 0 ? tr ("workshop.a11y.capo", { { "name", name }, { "fret", juce::String (fret) } })
+                        : tr ("workshop.a11y.capoOff", { { "name", name } });
+    }
+
+    return {};
+}
+
+//==============================================================================
+bool BenchIllustration::hasTool (Tool tool) const
+{
+    if (tool == Tool::slide)
+        return processor.getState().getRawParameterValue (ParamIDs::slideGuitar)->load() >= 0.5f;
+
+    return tool == Tool::pick || tool == Tool::capo;
+}
+
+namespace
+{
+    /** Where string `s` is at a given X along the neck, mm. */
+    juce::Point<float> pointOnString (const GuitarScene& scene, int s, float x)
+    {
+        if (! juce::isPositiveAndBelow (s, (int) scene.saddlePoints.size()))
+            return { x, 0.0f };
+
+        const auto a = scene.saddlePoints[(size_t) s], b = scene.nutPoints[(size_t) s];
+        const float t = (x - a.x) / juce::jmax (1.0f, b.x - a.x);
+        return { x, a.y + (b.y - a.y) * t };
+    }
+
+    /** A rounded bar between two points, `thickness` wide, `overhang` past each end, turned by `slantDegrees`. */
+    juce::Path barBetween (juce::Point<float> a, juce::Point<float> b, float thickness, float overhang, float slantDegrees)
+    {
+        const auto centre = (a + b) * 0.5f;
+        const float length = a.getDistanceFrom (b) + 2.0f * overhang;
+        juce::Path bar;
+        bar.addRoundedRectangle (-length * 0.5f, -thickness * 0.5f, length, thickness, thickness * 0.5f);
+        const float along = std::atan2 (b.y - a.y, b.x - a.x);
+        bar.applyTransform (juce::AffineTransform::rotation (along + juce::degreesToRadians (slantDegrees)).translated (centre));
+        return bar;
+    }
+}
+
+juce::Point<float> BenchIllustration::pickTipMm() const
+{
+    const int n = (int) scene.saddlePoints.size();
+    const float x = (float) bench.getPickPositionMm();
+
+    if (n == 0)
+        return { x, 0.0f };
+
+    return (pointOnString (scene, 0, x) + pointOnString (scene, n - 1, x)) * 0.5f;
+}
+
+juce::Path BenchIllustration::toolArea (Tool tool) const
+{
+    juce::Path area;
+    const int n = (int) scene.saddlePoints.size();
+
+    if (n == 0 || ! hasTool (tool))
+        return area;
+
+    if (tool == Tool::pick)
+    {
+        // A standard pick, 25 mm tip to back, 22 mm wide, its tip on the strings,
+        // turned about the tip by the pick angle.
+        const auto tip = pickTipMm();
+        area.startNewSubPath (0.0f, 0.0f);
+        area.quadraticTo (-13.0f, -14.0f, -11.0f, -22.0f);
+        area.quadraticTo (0.0f, -28.0f, 11.0f, -22.0f);
+        area.quadraticTo (13.0f, -14.0f, 0.0f, 0.0f);
+        area.closeSubPath();
+        area.applyTransform (juce::AffineTransform::rotation (juce::degreesToRadians ((float) bench.getPickAngleDegrees())).translated (tip));
+        return area;
+    }
+
+    if (tool == Tool::slide)
+    {
+        const float fret = (float) bench.getSlideFret();
+        const auto a = scene.stringAt (n - 1, fret), b = scene.stringAt (0, fret);
+        const float diameter = (float) juce::jlimit (10.0, 30.0, bench.getSlideBar().diameterMm);
+        return barBetween (a, b, diameter, 9.0f, (float) bench.getSlideSlantDegrees());
+    }
+
+    if (tool == Tool::capo)
+    {
+        const int fret = bench.getCapoFret();
+        juce::Point<float> a, b;
+
+        if (fret > 0)
+        {
+            // Just behind its fret, where a capo sits.
+            a = scene.stringAt (n - 1, (float) fret - 0.35f);
+            b = scene.stringAt (0, (float) fret - 0.35f);
+        }
+        else
+        {
+            // Parked on the headstock, past the nut.
+            a = scene.nutPoints[(size_t) (n - 1)] + juce::Point<float> (28.0f, 0.0f);
+            b = scene.nutPoints[0] + juce::Point<float> (28.0f, 0.0f);
+        }
+
+        area = barBetween (a, b, 9.0f, 7.0f, 0.0f);
+        // The clamp's knob on the bass side.
+        area.addEllipse (a.x - 5.0f, a.y - 14.0f, 10.0f, 10.0f);
+        return area;
+    }
+
+    return area;
+}
+
+BenchIllustration::Tool BenchIllustration::toolAt (juce::Point<float> px) const
+{
+    const auto mm = toMm (px);
+
+    // Layer order: the pick over the slide over the capo (guitar-illustration.md 5).
+    for (auto tool : { Tool::pick, Tool::slide, Tool::capo })
+        if (hasTool (tool) && toolArea (tool).contains (mm))
+            return tool;
+
+    return Tool::none;
+}
+
+int BenchIllustration::nutSlotAt (juce::Point<float> px) const
+{
+    // The nut itself, whatever sits over it in z-order: a slot is where the
+    // string crosses the nut, and the strings' band reaches that far.
+    const auto mm = toMm (px);
+    bool onNut = false;
+
+    for (auto& h : scene.hits)
+        if (h.region == GuitarRegion::nut && h.area.contains (mm))
+            onNut = true;
+
+    if (! onNut)
+        return -1;
+    int best = -1;
+    float distance = 1.0e9f;
+
+    for (int s = 0; s < (int) scene.nutPoints.size(); ++s)
+        if (std::abs (scene.nutPoints[(size_t) s].y - mm.y) < distance)
+        {
+            distance = std::abs (scene.nutPoints[(size_t) s].y - mm.y);
+            best = s;
+        }
+
+    return best;
 }
 
 //==============================================================================
@@ -193,17 +480,29 @@ void BenchIllustration::paint (juce::Graphics& g)
         g.reduceClipRegion (getLocalBounds().reduced (1));
         GuitarRenderer::paint (g, scene, mmToPx);
 
-        GuitarOverlay overlay;
+        // Overridden strings first (their colour), then the live layer, the
+        // tools, and the outlines.
+        paintStringOverrides (g);
+
+        GuitarOverlay overlay = live;
         overlay.accent = Palette::accent;
         overlay.hovered = hovered;
         overlay.selected = selected;
         GuitarRenderer::paintOverlay (g, scene, mmToPx, overlay);
 
-        // A selected string, outlined along its length.
+        paintTools (g);
+
+        // A selected string, outlined along its length; a selected nut slot marked.
         if (selected == GuitarRegion::strings && juce::isPositiveAndBelow (selectedString, (int) scene.saddlePoints.size()))
         {
             g.setColour (Palette::accent);
             g.drawLine ({ toPx (scene.saddlePoints[(size_t) selectedString]), toPx (scene.nutPoints[(size_t) selectedString]) }, 2.0f);
+        }
+        else if (selected == GuitarRegion::nut && juce::isPositiveAndBelow (selectedString, (int) scene.nutPoints.size()))
+        {
+            const auto p = toPx (scene.nutPoints[(size_t) selectedString]);
+            g.setColour (Palette::accent);
+            g.drawEllipse (p.x - 5.0f, p.y - 5.0f, 10.0f, 10.0f, 1.5f);
         }
     }
 
@@ -228,7 +527,7 @@ void BenchIllustration::paint (juce::Graphics& g)
     }
 
     g.setColour (Palette::textMuted);
-    g.drawText ("mm from saddle", juce::Rectangle<float> (juce::jmax (x0, x250) + 6.0f, y - 5.0f, 90.0f, 10.0f),
+    g.drawText (tr ("workshop.ruler"), juce::Rectangle<float> (juce::jmax (x0, x250) + 6.0f, y - 5.0f, 90.0f, 10.0f),
                 juce::Justification::centredLeft, false);
 
     // The pickup rail: where each pickup's centre sits.
@@ -254,7 +553,7 @@ void BenchIllustration::paint (juce::Graphics& g)
     {
         g.setColour (Palette::accent);
         g.setFont (Fonts::ui (11.0f, true));
-        g.drawText ("AUDITIONING - release Alt to go back", getLocalBounds().reduced (10, 6), juce::Justification::topRight, false);
+        g.drawText (tr ("workshop.auditioningBanner"), getLocalBounds().reduced (10, 6), juce::Justification::topRight, false);
     }
 
     if (hasKeyboardFocus (false))
@@ -264,36 +563,150 @@ void BenchIllustration::paint (juce::Graphics& g)
     }
 }
 
+void BenchIllustration::paintStringOverrides (juce::Graphics& g) const
+{
+    // workshop-ui.md 3.3 / guitar-illustration.md 10: an overridden string is
+    // drawn in its own material's colour and style, over the set's line.
+    const auto& guitar = bench.current();
+    const bool bass = guitar.family == "bass";
+    const auto set = guitar.get (GuitarSlot::strings);
+    const bool flat = set != nullptr && set->text ("winding", "round") == "flat";
+    const float pxPerMm = GuitarRenderer::pxPerMm (mmToPx);
+
+    for (const auto& o : guitar.stringOverrides)
+    {
+        const int s = o.stringIndex;
+
+        if (! juce::isPositiveAndBelow (s, (int) scene.saddlePoints.size()))
+            continue;
+
+        const bool wound = guitar.isStringWound (s);
+        const auto material = guitar.getStringMaterial (s);
+        const auto colour = material == "nylon" ? juce::Colour (0xfff2e9d8) : GuitarRenderer::stringColour (material, wound, bass, flat);
+        // Section 10's line widths: 2 px for bronze, 2.5 for a bass, 1.5 wound, 1 plain.
+        const float floorPx = bass ? 2.5f : material.contains ("bronze") ? 2.0f : wound ? 1.5f : 1.0f;
+        const float width = juce::jmax (floorPx, (float) guitar.getStringGaugeIn (s) * 25.4f * pxPerMm);
+
+        const juce::Line<float> line (toPx (scene.saddlePoints[(size_t) s]), toPx (scene.nutPoints[(size_t) s]));
+        g.setColour (colour);
+        g.drawLine (line, width);
+
+        if (wound && ! flat)
+        {
+            // The winding hint, as section 10 draws it.
+            const float dashes[] = { 2.0f, 3.0f };
+            g.setColour (colour.darker (0.35f));
+            g.drawDashedLine (line, dashes, 2, juce::jmax (0.5f, width * 0.4f));
+        }
+    }
+}
+
+void BenchIllustration::paintTools (juce::Graphics& g) const
+{
+    // Layers 28 and 29 (guitar-illustration.md 5), drawn in millimetres.
+    juce::Graphics::ScopedSaveState save (g);
+    g.addTransform (mmToPx);
+    const float pxPerMm = juce::jmax (0.01f, GuitarRenderer::pxPerMm (mmToPx));
+
+    auto outline = [&] (Tool tool, const juce::Path& area)
+    {
+        if (selectedTool == tool)
+        {
+            g.setColour (Palette::accent);
+            g.strokePath (area, juce::PathStrokeType (2.5f / pxPerMm));
+        }
+        else if (hoveredTool == tool)
+        {
+            g.setColour (Palette::accent.withAlpha (0.6f));
+            g.strokePath (area, juce::PathStrokeType (1.5f / pxPerMm));
+        }
+    };
+
+    if (hasTool (Tool::capo))
+    {
+        const auto area = toolArea (Tool::capo);
+        const bool on = bench.getCapoFret() > 0;
+        g.setColour (juce::Colour (0xff2b2b2b).withAlpha (on ? 0.92f : 0.55f));
+        g.fillPath (area);
+        g.setColour (juce::Colour (0xffb9bcc2).withAlpha (on ? 0.9f : 0.5f));
+        g.strokePath (area, juce::PathStrokeType (0.6f));
+        outline (Tool::capo, area);
+    }
+
+    if (hasTool (Tool::slide))
+    {
+        // slide-guitar.md 8: the bar in its material's colour at 80%.
+        const auto area = toolArea (Tool::slide);
+        g.setColour (juce::Colour (getSlideMaterial (bench.getSlideBar().material).colour).withAlpha (0.8f));
+        g.fillPath (area);
+        g.setColour (juce::Colours::white.withAlpha (0.7f));
+        g.strokePath (area, juce::PathStrokeType (0.8f));
+        outline (Tool::slide, area);
+    }
+
+    if (hasTool (Tool::pick))
+    {
+        const auto area = toolArea (Tool::pick);
+        const auto part = bench.getAccessory (PartType::pick);
+        g.setColour (pickColour (part != nullptr ? part->text ("material", "celluloid") : juce::String ("celluloid")).withAlpha (0.9f));
+        g.fillPath (area);
+        g.setColour (juce::Colours::black.withAlpha (0.5f));
+        g.strokePath (area, juce::PathStrokeType (0.5f));
+        outline (Tool::pick, area);
+    }
+}
+
 //==============================================================================
 void BenchIllustration::mouseMove (const juce::MouseEvent& e)
 {
-    // Section 3.1: hover outlines and names a part; it never selects.
-    const auto r = regionAt (e.position);
+    // Section 3.1: hover outlines and names a part; it never selects. A tool
+    // over the part takes the hover.
+    const auto tool = toolAt (e.position);
+    auto r = tool == Tool::none ? regionAt (e.position) : GuitarRegion::none;
 
-    if (r != hovered)
+    if (r == GuitarRegion::strings && nutSlotAt (e.position) >= 0)
+        r = GuitarRegion::nut;
+
+    if (r != hovered || tool != hoveredTool)
     {
         hovered = r;
+        hoveredTool = tool;
         repaint();
     }
 
     juce::String tip;
 
-    for (auto& h : scene.hits)
-        if (h.region == r)
-            tip = h.description;
+    if (tool != Tool::none)
+    {
+        tip = toolDescription (tool);
+        tip << "  " << tr (tool == Tool::pick ? "workshop.tip.pick" : tool == Tool::slide ? "workshop.tip.slide" : "workshop.tip.capo");
+    }
+    else
+    {
+        for (auto& h : scene.hits)
+            if (h.region == r)
+                tip = h.description;
 
-    if (pickupIndexOfRegion (r) >= 0)
-        tip << "  Drag along the strings to move it; scroll to raise or lower it (Shift: treble side, Alt: bass side).";
-    else if (r == GuitarRegion::bridge)
-        tip << "  Drag a saddle along the string to set its intonation.";
+        if (pickupIndexOfRegion (r) >= 0)
+            tip << "  " << tr ("workshop.tip.pickup");
+        else if (r == GuitarRegion::bridge)
+            tip << "  " << tr ("workshop.tip.saddle");
+        else if (r == GuitarRegion::nut)
+            tip << "  " << tr ("workshop.tip.nutSlot");
+        else if (r == GuitarRegion::strings)
+            tip << "  " << tr ("workshop.tip.strings");
+    }
 
-    setMouseCursor (pickupIndexOfRegion (r) >= 0 ? juce::MouseCursor::LeftRightResizeCursor : juce::MouseCursor::NormalCursor);
+    const bool sideways = pickupIndexOfRegion (r) >= 0 || tool == Tool::pick || tool == Tool::slide || tool == Tool::capo;
+    setMouseCursor (sideways ? juce::MouseCursor::LeftRightResizeCursor
+                  : r == GuitarRegion::nut ? juce::MouseCursor::UpDownResizeCursor : juce::MouseCursor::NormalCursor);
     setHelpText (tip);
 }
 
 void BenchIllustration::mouseExit (const juce::MouseEvent&)
 {
     hovered = GuitarRegion::none;
+    hoveredTool = Tool::none;
     repaint();
 }
 
@@ -306,6 +719,42 @@ void BenchIllustration::mouseDown (const juce::MouseEvent& e)
         drag = Drag::pan;
         dragStartMm = e.position;
         dragStartValue = 0.0;
+        return;
+    }
+
+    // The tools sit over every part (guitar-illustration.md 5's layers 28, 29).
+    if (const auto tool = toolAt (e.position); tool != Tool::none)
+    {
+        selectTool (tool);
+        const auto mm = toMm (e.position);
+        dragStartMm = mm;
+        bench.beginGesture();
+
+        if (tool == Tool::pick)
+        {
+            // Near the back corners turns the pick; anywhere else moves it.
+            const auto tip = pickTipMm();
+            const bool corner = tip.getDistanceFrom (mm) > 18.0f;
+            drag = corner ? Drag::pickAngle : Drag::pick;
+            dragStartValue = bench.getPickPositionMm();
+            dragStartValue2 = bench.getPickAngleDegrees();
+        }
+        else if (tool == Tool::slide)
+        {
+            // An end of the bar turns it; the middle moves it.
+            const auto area = toolArea (Tool::slide).getBounds();
+            const auto centre = area.getCentre();
+            const float halfLength = juce::jmax (area.getWidth(), area.getHeight()) * 0.5f;
+            drag = centre.getDistanceFrom (mm) > halfLength * 0.55f ? Drag::slideSlant : Drag::slide;
+            dragStartValue = nutDistanceFromFret (bench.getSlideFret(), scene.scaleMm);
+            dragStartValue2 = bench.getSlideSlantDegrees();
+        }
+        else
+        {
+            drag = Drag::capo;
+            dragStartValue = (double) bench.getCapoFret();
+        }
+
         return;
     }
 
@@ -344,6 +793,14 @@ void BenchIllustration::mouseDown (const juce::MouseEvent& e)
             }
     }
 
+    // A click on the nut picks the nearest string's slot (section 4: nut slots
+    // drag down per string), even where a string's own band lies over the nut.
+    if (const int slot = nutSlotAt (e.position); slot >= 0 && (r == GuitarRegion::nut || r == GuitarRegion::strings))
+    {
+        r = GuitarRegion::nut;
+        stringIndex = slot;
+    }
+
     select (r, stringIndex);
 
     const int pickup = pickupIndexOfRegion (r);
@@ -363,6 +820,15 @@ void BenchIllustration::mouseDown (const juce::MouseEvent& e)
         dragStartMm = toMm (e.position);
         const auto& values = bench.current().setup.intonationMm;
         dragStartValue = juce::isPositiveAndBelow (stringIndex, values.size()) ? values[stringIndex] : 0.0;
+        bench.beginGesture();
+    }
+    else if (r == GuitarRegion::nut && stringIndex >= 0)
+    {
+        drag = Drag::nutSlot;
+        dragIndex = stringIndex;
+        dragStartMm = toMm (e.position);
+        const auto& values = bench.current().setup.nutSlotDepthsMm;
+        dragStartValue = juce::isPositiveAndBelow (stringIndex, values.size()) ? values[stringIndex] : 0.5;
         bench.beginGesture();
     }
 }
@@ -405,11 +871,62 @@ void BenchIllustration::mouseDrag (const juce::MouseEvent& e)
         bench.setIntonation (dragIndex, target);
         rebuild (false);
     }
+    else if (drag == Drag::nutSlot)
+    {
+        // Down on screen (toward the treble side) cuts the slot deeper: a
+        // millimetre of travel is a tenth of a millimetre of depth, snapped to 0.05.
+        const double target = WorkshopBench::snap (dragStartValue + 0.1 * (double) (mm.y - dragStartMm.y), fine, free, 0.05);
+        bench.setNutSlotDepth (dragIndex, target);
+        announceSelection();
+        repaint();
+    }
+    else if (drag == Drag::pick)
+    {
+        const double target = WorkshopBench::snap (dragStartValue + (double) (mm.x - dragStartMm.x), fine, free);
+        bench.setPickPlacement (target, dragStartValue2);
+        announceSelection();
+        repaint();
+    }
+    else if (drag == Drag::pickAngle)
+    {
+        // A millimetre of travel across the strings is a degree, snapped to 1 (Shift 0.1).
+        const double target = WorkshopBench::snap (dragStartValue2 + (double) (mm.y - dragStartMm.y), fine, free);
+        bench.setPickPlacement (dragStartValue, target);
+        announceSelection();
+        repaint();
+    }
+    else if (drag == Drag::slide)
+    {
+        // Along the string in millimetres (snapped 1 mm), shown as a fret position.
+        const double fromNut = WorkshopBench::snap (dragStartValue - (double) (mm.x - dragStartMm.x), fine, free);
+        bench.setSlidePlacement (fretFromNutDistance (fromNut, scene.scaleMm), dragStartValue2);
+        announceSelection();
+        repaint();
+    }
+    else if (drag == Drag::slideSlant)
+    {
+        const double target = WorkshopBench::snap (dragStartValue2 + (double) (mm.y - dragStartMm.y), fine, free);
+        bench.setSlidePlacement (bench.getSlideFret(), target);
+        announceSelection();
+        repaint();
+    }
+    else if (drag == Drag::capo)
+    {
+        // Whole frets along the neck; past the nut it comes off.
+        const int n = (int) scene.nutPoints.size();
+        const float nutX = n > 0 ? scene.nutPoints[0].x : (float) scene.scaleMm;
+        const double fromNut = nutX - mm.x;
+        const int fret = fromNut < -6.0 ? 0 : juce::jlimit (1, WorkshopBench::kMaxCapoFret,
+                                                             juce::roundToInt (fretFromNutDistance (juce::jmax (0.0, fromNut), scene.scaleMm) + 0.35));
+        bench.setCapoFret (fret);
+        announceSelection();
+        repaint();
+    }
 }
 
 void BenchIllustration::mouseUp (const juce::MouseEvent&)
 {
-    if (drag == Drag::pickup || drag == Drag::saddle)
+    if (drag != Drag::none && drag != Drag::pan)
         bench.endGesture();
 
     if (drag == Drag::pickup && onPickupDragged)
@@ -465,28 +982,45 @@ bool BenchIllustration::keyPressed (const juce::KeyPress& key)
     // Section 10: Tab walks the parts in the builder's order; arrows nudge.
     if (key.getKeyCode() == juce::KeyPress::tabKey)
     {
-        std::vector<GuitarRegion> present;
+        // The parts, then the tools on the bench (pick, slide, capo).
+        struct Stop { GuitarRegion region; Tool tool; };
+        std::vector<Stop> present;
 
         for (auto r : builderOrder())
             for (auto& h : scene.hits)
                 if (h.region == r)
                 {
-                    present.push_back (r);
+                    present.push_back ({ r, Tool::none });
                     break;
                 }
+
+        for (auto t : { Tool::pick, Tool::slide, Tool::capo })
+            if (hasTool (t))
+                present.push_back ({ GuitarRegion::none, t });
 
         if (present.empty())
             return false;
 
-        auto it = std::find (present.begin(), present.end(), selected);
-        int index = it == present.end() ? -1 : (int) std::distance (present.begin(), it);
+        int index = -1;
+        for (size_t i = 0; i < present.size(); ++i)
+            if ((selectedTool != Tool::none && present[i].tool == selectedTool)
+                || (selectedTool == Tool::none && selected != GuitarRegion::none && present[i].region == selected))
+                index = (int) i;
+
         index = key.getModifiers().isShiftDown() ? (index <= 0 ? (int) present.size() - 1 : index - 1)
                                                  : (index + 1) % (int) present.size();
-        select (present[(size_t) index], selected == GuitarRegion::strings ? juce::jmax (0, selectedString) : 0);
+
+        const auto& stop = present[(size_t) index];
+
+        if (stop.tool != Tool::none)
+            selectTool (stop.tool);
+        else
+            select (stop.region, selected == GuitarRegion::strings ? juce::jmax (0, selectedString) : 0);
+
         return true;
     }
 
-    if (key.getKeyCode() == juce::KeyPress::escapeKey && selected != GuitarRegion::none)
+    if (key.getKeyCode() == juce::KeyPress::escapeKey && (selected != GuitarRegion::none || selectedTool != Tool::none))
     {
         select (GuitarRegion::none);
         return true;
@@ -496,6 +1030,56 @@ bool BenchIllustration::keyPressed (const juce::KeyPress& key)
     const int pickup = pickupIndexOfRegion (selected);
     const bool left = key.getKeyCode() == juce::KeyPress::leftKey, right = key.getKeyCode() == juce::KeyPress::rightKey;
     const bool up = key.getKeyCode() == juce::KeyPress::upKey, down = key.getKeyCode() == juce::KeyPress::downKey;
+
+    if (selectedTool != Tool::none && (left || right || up || down))
+    {
+        // Left on screen is toward the headstock; up and down turn or lift.
+        const double step = fine ? 0.1 : 1.0;
+
+        if (selectedTool == Tool::pick)
+        {
+            if (left || right)
+                bench.setPickPlacement (bench.getPickPositionMm() + (left ? step : -step), bench.getPickAngleDegrees());
+            else
+                bench.setPickPlacement (bench.getPickPositionMm(), bench.getPickAngleDegrees() + (up ? step : -step));
+        }
+        else if (selectedTool == Tool::slide)
+        {
+            if (left || right)
+            {
+                const double fromNut = nutDistanceFromFret (bench.getSlideFret(), scene.scaleMm) + (left ? -step : step);
+                bench.setSlidePlacement (fretFromNutDistance (juce::jmax (0.0, fromNut), scene.scaleMm), bench.getSlideSlantDegrees());
+            }
+            else
+                bench.setSlidePlacement (bench.getSlideFret(), bench.getSlideSlantDegrees() + (up ? step : -step));
+        }
+        else if (selectedTool == Tool::capo && (left || right))
+        {
+            bench.setCapoFret (bench.getCapoFret() + (left ? -1 : 1));
+        }
+
+        announceSelection();
+        repaint();
+        return true;
+    }
+
+    if (selected == GuitarRegion::nut && selectedString >= 0 && (up || down))
+    {
+        // Down cuts the slot deeper, in section 4's 0.05 mm steps (Shift: 0.005).
+        const auto& values = bench.current().setup.nutSlotDepthsMm;
+        const double from = juce::isPositiveAndBelow (selectedString, values.size()) ? values[selectedString] : 0.5;
+        bench.setNutSlotDepth (selectedString, from + (down ? 0.05 : -0.05) * (fine ? 0.1 : 1.0));
+        announceSelection();
+        repaint();
+        return true;
+    }
+
+    if (selected == GuitarRegion::nut && (left || right))
+    {
+        const int n = (int) scene.nutPoints.size();
+        select (GuitarRegion::nut, juce::jlimit (0, n - 1, selectedString + (right ? -1 : 1)));
+        return true;
+    }
 
     if (pickup >= 0 && (left || right))
     {
@@ -616,23 +1200,197 @@ namespace
     }
 }
 
+juce::Array<RangeFamily> WorkshopPanel::rangeFamilies()
+{
+    // The setup strip's action, relief and nut depths are fret-buzz.md 7's
+    // parameters, in the buzz family (PhysicalRange.cpp).
+    return { RangeFamily::buzz };
+}
+
+//==============================================================================
+/** A colour chip in the inspector: a swatch (a burst's two colours as its
+    gradient) and, for the paint chips, the label beside it. */
+class WorkshopPanel::PaintChip : public juce::Button
+{
+public:
+    explicit PaintChip (const juce::String& name) : juce::Button (name) {}
+
+    juce::Colour colour { juce::Colours::grey }, edge;
+    bool gradient = false, showLabel = true;
+
+    void paintButton (juce::Graphics& g, bool over, bool down) override
+    {
+        auto r = getLocalBounds().toFloat().reduced (1.0f);
+        auto swatch = showLabel ? r.removeFromLeft (r.getHeight()).reduced (1.0f) : r;
+
+        if (gradient)
+        {
+            juce::ColourGradient grad (colour, swatch.getCentreX(), swatch.getCentreY(),
+                                       edge, swatch.getRight(), swatch.getBottom(), true);
+            g.setGradientFill (grad);
+        }
+        else
+        {
+            g.setColour (colour);
+        }
+
+        g.fillRoundedRectangle (swatch, 3.0f);
+        g.setColour (over || down || hasKeyboardFocus (true) ? Palette::accent : Palette::edge);
+        g.drawRoundedRectangle (swatch, 3.0f, over || down ? 1.6f : 1.0f);
+
+        if (showLabel)
+        {
+            g.setColour (Palette::textPrimary);
+            g.setFont (Fonts::ui (11.5f));
+            g.drawFittedText (getButtonText(), r.withTrimmedLeft (6.0f).toNearestInt(), juce::Justification::centredLeft, 1, 0.85f);
+        }
+    }
+};
+
+namespace
+{
+    /*  The gradient picker in the call-out: juce::ColourSelector's
+        saturation / value square and hue strip, the colour and its hex (typed
+        or read) at the top. A burst's body gets Centre and Edge tabs and a strip
+        showing the burst they make. Every drag step previews; the panel commits
+        once the drag rests or the call-out closes. */
+    class FinishColourPicker : public juce::Component,
+                               private juce::ChangeListener
+    {
+    public:
+        using Paint = WorkshopBench::Paint;
+
+        FinishColourPicker (WorkshopPanel& p, Paint w, bool burstPair)
+            : panel (&p), which (w), burst (burstPair)
+        {
+            setTitle (tr ("workshop.paint.picker"));
+            selector.setCurrentColour (p.getPaintColour (which), juce::dontSendNotification);
+            selector.addChangeListener (this);
+            addAndMakeVisible (selector);
+
+            if (burst)
+            {
+                for (auto* b : { &centreTab, &edgeTab })
+                {
+                    addAndMakeVisible (b);
+                    b->setClickingTogglesState (true);
+                    b->setRadioGroupId (0x5c);
+                }
+
+                centreTab.setToggleState (which == Paint::body, juce::dontSendNotification);
+                edgeTab.setToggleState (which == Paint::burstEdge, juce::dontSendNotification);
+                centreTab.onClick = [this] { switchTo (Paint::body); };
+                edgeTab.onClick = [this] { switchTo (Paint::burstEdge); };
+            }
+
+            setSize (260, burst ? 318 : 270);
+        }
+
+        ~FinishColourPicker() override
+        {
+            selector.removeChangeListener (this);
+
+            if (panel != nullptr)
+                panel->commitPaint();
+        }
+
+        void resized() override
+        {
+            auto r = getLocalBounds().reduced (4);
+
+            if (burst)
+            {
+                auto tabs = r.removeFromTop (26);
+                centreTab.setBounds (tabs.removeFromLeft (tabs.getWidth() / 2).reduced (1));
+                edgeTab.setBounds (tabs.reduced (1));
+                strip = r.removeFromTop (18).reduced (2, 3);
+                r.removeFromTop (2);
+            }
+
+            selector.setBounds (r);
+        }
+
+        void paint (juce::Graphics& g) override
+        {
+            if (! burst || panel == nullptr)
+                return;
+
+            // The burst the two colours make, centre on the left fading to the edge.
+            juce::ColourGradient grad (panel->getPaintColour (Paint::body), (float) strip.getX(), 0.0f,
+                                       panel->getPaintColour (Paint::burstEdge), (float) strip.getRight(), 0.0f, false);
+            grad.addColour (0.3, panel->getPaintColour (Paint::body));
+            g.setGradientFill (grad);
+            g.fillRoundedRectangle (strip.toFloat(), 3.0f);
+        }
+
+        juce::ColourSelector& getSelector() noexcept { return selector; }
+
+    private:
+        void changeListenerCallback (juce::ChangeBroadcaster*) override
+        {
+            if (panel != nullptr)
+                panel->previewPaint (which, selector.getCurrentColour());
+            repaint();
+        }
+
+        void switchTo (Paint next)
+        {
+            if (panel == nullptr || next == which)
+                return;
+
+            panel->commitPaint();
+            which = next;
+            selector.setCurrentColour (panel->getPaintColour (which), juce::dontSendNotification);
+            repaint();
+        }
+
+        juce::Component::SafePointer<WorkshopPanel> panel;
+        Paint which;
+        bool burst;
+        juce::ColourSelector selector { juce::ColourSelector::showColourAtTop | juce::ColourSelector::editableColour
+                                        | juce::ColourSelector::showColourspace, 4, 6 };
+        juce::TextButton centreTab { tr ("workshop.paint.centre") }, edgeTab { tr ("workshop.paint.edge") };
+        juce::Rectangle<int> strip;
+    };
+
+    /** Text width a button label needs at a height, tracked caps as the look-and-feel draws them. */
+    int idealButtonWidth (juce::TextButton& b, int height)
+    {
+        const auto font = b.getLookAndFeel().getTextButtonFont (b, height);
+        const auto text = b.getButtonText().toUpperCase();
+        const float tracked = juce::GlyphArrangement::getStringWidth (font, text) + 0.08f * font.getHeight() * (float) text.length();
+        return (int) std::ceil (tracked) + 14;
+    }
+}
+
+juce::String WorkshopPanel::categoryIdOfButton (int index) const
+{
+    return juce::isPositiveAndBelow (index, (int) std::size (kCategories)) ? juce::String (kCategories[index].name) : juce::String();
+}
+
 WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
     : processor (p), bench (p.getBench()), illustration (p)
 {
-    setTitle ("Workshop");
-    setDescription ("The bench: take the guitar apart, swap parts, move pickups, hear what changed.");
+    setTitle (tr ("workshop.title"));
+    setDescription (tr ("workshop.description"));
 
     addAndMakeVisible (title);
-    title.setText ("WORKSHOP", juce::dontSendNotification);
+    title.setText (tr ("workshop.heading"), juce::dontSendNotification);
     title.setFont (Fonts::display (20.0f));
     title.setColour (juce::Label::textColourId, Palette::textPrimary);
+
+    // onboarding 9: hidden until owed; it takes a row under the header.
+    addChildComponent (firstEncounterHint);
+    firstEncounterHint.onShownOrDismissed = [this] { resized(); };
 
     addAndMakeVisible (guitarName);
     guitarName.setFont (Fonts::ui (13.0f, true));
     guitarName.setColour (juce::Label::textColourId, Palette::textMuted);
 
     addAndMakeVisible (saveAsButton);
-    saveAsButton.setTooltip ("Save this guitar as a .luthierguitar file (Ctrl+G)");
+    saveAsButton.setButtonText (tr ("workshop.saveAsGuitar"));
+    saveAsButton.setTooltip (tr ("workshop.saveAsGuitar.tip"));
+    AccessibleSetup::configureButton (saveAsButton, tr ("workshop.saveAsGuitar"), tr ("workshop.saveAsGuitar.tip"));
     saveAsButton.onClick = [this]
     {
         if (onSaveAsGuitar)
@@ -646,8 +1404,11 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
         auto* b = slotButtons.add (new juce::TextButton (WorkshopBench::slotName (i)));
         addAndMakeVisible (b);
         b->setClickingTogglesState (false);
+        AccessibleSetup::configureButton (*b, tr ("workshop.slot.name", { { "slot", WorkshopBench::slotName (i) } }));
         b->onClick = [this, i]
         {
+            commitPaint();
+
             if (juce::ModifierKeys::currentModifiers.isShiftDown())
                 bench.clearSlot (i);
             else if (bench.hasSlot (i))
@@ -661,16 +1422,23 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
 
     for (auto& c : kCategories)
     {
-        auto* b = categoryButtons.add (new juce::TextButton (c.name));
+        // The id stays English (showCategory takes it); the text is the locale's.
+        const auto key = "workshop.category." + juce::String (c.name).toLowerCase();
+        auto* b = categoryButtons.add (new juce::TextButton (tr (key)));
         addAndMakeVisible (b);
         b->setClickingTogglesState (true);
         b->setRadioGroupId (0x57);
+        b->setTooltip (tr ("workshop.category.tip", { { "category", tr (key) } }));
+        AccessibleSetup::configureButton (*b, tr (key), tr ("workshop.category.tip", { { "category", tr (key) } }));
         b->onClick = [this, name = juce::String (c.name)] { showCategory (name); };
     }
 
     addAndMakeVisible (illustration);
     illustration.onSelectionChanged = [this]
     {
+        // A colour still settling belongs to what was selected before.
+        commitPaint();
+
         // Selecting a part shows its category in the drawer (section 5's Swap, done for you).
         const auto slot = slotForRegion (illustration.getSelected());
 
@@ -699,7 +1467,9 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
     };
 
     addAndMakeVisible (swapButton);
-    swapButton.setTooltip ("Show the parts that can go in this slot");
+    swapButton.setButtonText (tr ("workshop.swap"));
+    swapButton.setTooltip (tr ("workshop.swap.tip"));
+    AccessibleSetup::configureButton (swapButton, tr ("workshop.swap"), tr ("workshop.swap.tip"));
     swapButton.onClick = [this]
     {
         const auto slot = slotForRegion (illustration.getSelected());
@@ -713,9 +1483,12 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
     };
 
     addAndMakeVisible (revertButton);
-    revertButton.setTooltip ("Put this slot back to what the guitar file has");
+    revertButton.setButtonText (tr ("workshop.revert"));
+    revertButton.setTooltip (tr ("workshop.revert.tip"));
+    AccessibleSetup::configureButton (revertButton, tr ("workshop.revert"), tr ("workshop.revert.tip"));
     revertButton.onClick = [this]
     {
+        commitPaint();
         const auto slot = slotForRegion (illustration.getSelected());
         if (slot != GuitarSlot::numSlots)
             bench.revert (slot);
@@ -723,7 +1496,9 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
     };
 
     addAndMakeVisible (savePartButton);
-    savePartButton.setTooltip ("Keep this edited part in your parts folder");
+    savePartButton.setButtonText (tr ("workshop.savePart"));
+    savePartButton.setTooltip (tr ("workshop.savePart.tip"));
+    AccessibleSetup::configureButton (savePartButton, tr ("workshop.savePart"), tr ("workshop.savePart.tip"));
     savePartButton.onClick = [this]
     {
         const auto slot = slotForRegion (illustration.getSelected());
@@ -732,10 +1507,10 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
         if (part == nullptr)
             return;
 
-        auto* window = new juce::AlertWindow ("Save as user part", "Name the part:", juce::MessageBoxIconType::NoIcon);
-        window->addTextEditor ("name", part->name + " (mine)");
-        window->addButton ("Save", 1, juce::KeyPress (juce::KeyPress::returnKey));
-        window->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+        auto* window = new juce::AlertWindow (tr ("workshop.savePart"), tr ("workshop.savePart.prompt"), juce::MessageBoxIconType::NoIcon);
+        window->addTextEditor ("name", tr ("workshop.savePart.defaultName", { { "name", part->name } }));
+        window->addButton (tr ("common.save"), 1, juce::KeyPress (juce::KeyPress::returnKey));
+        window->addButton (tr ("common.cancel"), 0, juce::KeyPress (juce::KeyPress::escapeKey));
         window->enterModalState (true, juce::ModalCallbackFunction::create ([this, window, slot] (int result)
         {
             if (result == 1)
@@ -745,27 +1520,77 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
     };
 
     addAndMakeVisible (autoZoomToggle);
-    autoZoomToggle.setTooltip ("Fit the spectrum's scale to the change instead of +-12 dB");
+    autoZoomToggle.setButtonText (tr ("workshop.autoZoom"));
+    autoZoomToggle.setTooltip (tr ("workshop.autoZoom.tip"));
+    AccessibleSetup::configureButton (autoZoomToggle, tr ("workshop.autoZoom"), tr ("workshop.autoZoom.tip"));
     autoZoomToggle.onClick = [this] { autoZoom = autoZoomToggle.getToggleState(); repaint(); };
 
-    // ---- setup strip: the parameters fret-buzz.md 1 already has ------------------------
-    actionTreble = std::make_unique<LuthierKnob> ("Action T", LuthierKnob::Size::Small);
-    actionBass   = std::make_unique<LuthierKnob> ("Action B", LuthierKnob::Size::Small);
-    relief       = std::make_unique<LuthierKnob> ("Relief", LuthierKnob::Size::Small);
+    // Section 10: the spectrum delta reaches a screen reader as its summary
+    // sentence, not as a curve - a descriptive element under the painted pane,
+    // and an announcement whenever the sentence changes.
+    addAndMakeVisible (spectrumPane);
+    spectrumPane.setInterceptsMouseClicks (false, false);
+    AccessibleSetup::configureDescriptive (spectrumPane, tr ("workshop.spectrum"), tr ("workshop.spectrum.empty"));
 
-    actionTreble->attachTo (processor, ParamIDs::setupActionTreble, "String height at the 12th fret, treble side (mm)");
-    actionBass->attachTo (processor, ParamIDs::setupActionBass, "String height at the 12th fret, bass side (mm)");
-    relief->attachTo (processor, ParamIDs::setupRelief, "Neck relief at the 7th fret (mm)");
+    // ---- setup strip: the parameters fret-buzz.md 1 already has ------------------------
+    actionTreble = std::make_unique<LuthierKnob> (tr ("workshop.setup.actionTreble"), LuthierKnob::Size::Small);
+    actionBass   = std::make_unique<LuthierKnob> (tr ("workshop.setup.actionBass"), LuthierKnob::Size::Small);
+    relief       = std::make_unique<LuthierKnob> (tr ("workshop.setup.relief"), LuthierKnob::Size::Small);
+
+    actionTreble->attachTo (processor, ParamIDs::setupActionTreble, tr ("workshop.setup.actionTreble.tip"));
+    actionBass->attachTo (processor, ParamIDs::setupActionBass, tr ("workshop.setup.actionBass.tip"));
+    relief->attachTo (processor, ParamIDs::setupRelief, tr ("workshop.setup.relief.tip"));
 
     for (auto* k : { actionTreble.get(), actionBass.get(), relief.get() })
         addAndMakeVisible (k);
 
     for (int n = 1; n <= ParamIDs::kNumNutDepths; ++n)
     {
-        auto* k = nutDepths.add (new LuthierKnob ("Nut " + juce::String (n), LuthierKnob::Size::Small));
-        k->attachTo (processor, ParamIDs::setupNutDepth (n), "Nut slot depth, string " + juce::String (n) + " (mm)");
+        auto* k = nutDepths.add (new LuthierKnob (tr ("workshop.setup.nut", { { "n", juce::String (n) } }), LuthierKnob::Size::Small));
+        k->attachTo (processor, ParamIDs::setupNutDepth (n), tr ("workshop.setup.nut.tip", { { "n", juce::String (n) } }));
         addAndMakeVisible (k);
     }
+
+    // ---- the inspector's paint controls (guitar-illustration.md 11) ------------------
+    for (auto which : { Paint::body, Paint::burstEdge, Paint::plastics })
+    {
+        const auto key = which == Paint::body ? "workshop.paint.body" : which == Paint::burstEdge ? "workshop.paint.edge" : "workshop.paint.plastics";
+        auto* chip = paintChips.add (new PaintChip (tr (key)));
+        chip->setButtonText (tr (key));
+        chip->setTooltip (tr ("workshop.paint.tip", { { "what", tr (key) } }));
+        AccessibleSetup::configureButton (*chip, tr (key), tr ("workshop.paint.tip", { { "what", tr (key) } }));
+        chip->onClick = [this, which] { openColourPicker (which); };
+        addChildComponent (chip);
+    }
+
+    for (const auto& id : WorkshopBench::finishPresetIds())
+    {
+        const auto label = tr ("workshop.paint.preset." + id);
+        auto* swatch = presetSwatches.add (new PaintChip (label));
+        swatch->showLabel = false;
+        GuitarFinish f;
+        WorkshopBench::finishPreset (id, f);
+        swatch->gradient = f.type == "burst";
+        swatch->colour = f.type == "burst" ? juce::Colour::fromString ("ff" + f.colourB.substring (1))
+                       : f.colourA.isNotEmpty() ? juce::Colour::fromString ("ff" + f.colourA.substring (1))
+                                                : juce::Colour (0xffc9a26b);
+        swatch->edge = juce::Colour::fromString ("ff" + f.colourA.substring (1));
+        swatch->setTooltip (tr ("workshop.paint.preset.tip", { { "name", label } }));
+        AccessibleSetup::configureButton (*swatch, label, tr ("workshop.paint.preset.tip", { { "name", label } }));
+        swatch->onClick = [this, id] { applyFinishPreset (id); };
+        addChildComponent (swatch);
+    }
+
+    plasticsReset = std::make_unique<juce::TextButton> (tr ("workshop.paint.plasticsReset"));
+    plasticsReset->setTooltip (tr ("workshop.paint.plasticsReset.tip"));
+    AccessibleSetup::configureButton (*plasticsReset, tr ("workshop.paint.plasticsReset"), tr ("workshop.paint.plasticsReset.tip"));
+    plasticsReset->onClick = [this]
+    {
+        commitPaint();
+        bench.clearPlastics();
+        refreshAll();
+    };
+    addChildComponent (*plasticsReset);
 
     showCategory (category);
     refreshAll();
@@ -775,6 +1600,16 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
 WorkshopPanel::~WorkshopPanel()
 {
     stopTimer();
+
+    // A colour still settling is the player's last pick: keep it.
+    // (An open call-out's picker holds a SafePointer to this panel and lets go.)
+    if (pendingPaint.has_value())
+    {
+        const auto which = *pendingPaint;
+        pendingPaint.reset();
+        bench.setPaint (which, pendingColour);
+    }
+
     bench.endAudition();
 }
 
@@ -791,10 +1626,13 @@ void WorkshopPanel::showCategory (const juce::String& name)
     if (findCategory (name) == nullptr)
         return;
 
+    if (name != category)
+        drawerFirstRow = 0;
+
     category = name;
 
-    for (auto* b : categoryButtons)
-        b->setToggleState (b->getButtonText() == name, juce::dontSendNotification);
+    for (int i = 0; i < categoryButtons.size(); ++i)
+        categoryButtons[i]->setToggleState (categoryIdOfButton (i) == name, juce::dontSendNotification);
 
     refreshDrawer();
     repaint();
@@ -834,7 +1672,10 @@ void WorkshopPanel::refreshDrawer()
     const auto* c = findCategory (category);
 
     if (c == nullptr)
+    {
+        layoutDrawer();
         return;
+    }
 
     if (c->type == PartType::numTypes)
     {
@@ -850,6 +1691,7 @@ void WorkshopPanel::refreshDrawer()
             drawerParts.add (card);
         }
 
+        layoutDrawer();
         return;
     }
 
@@ -861,17 +1703,107 @@ void WorkshopPanel::refreshDrawer()
         drawerParts.add (p);
     }
 
-    // Factory first, then the user's (section 9's user section), each by name.
-    std::stable_sort (drawerParts.begin(), drawerParts.end(), [] (const PartPtr& a, const PartPtr& b)
+    /*  The parts made for this guitar's family first - they are the ones a
+        player is looking for, and a drawer that runs out of rows must not hide
+        them behind another family's bodies - then the rest (they still fit,
+        guitar-workshop.md 5). Within each, factory then the user's (section 9's
+        user section), each by name. */
+    const auto family = bench.current().family;
+    const bool accessory = c->type == PartType::pick || c->type == PartType::slide || c->type == PartType::capo;
+
+    std::stable_sort (drawerParts.begin(), drawerParts.end(), [&family, accessory] (const PartPtr& a, const PartPtr& b)
     {
+        if (! accessory && a->suits (family) != b->suits (family))
+            return a->suits (family);
         if (a->isFactory != b->isFactory)
             return a->isFactory;
         return a->name.compareNatural (b->name) < 0;
     });
+
+    layoutDrawer();
+    scrollFittedIntoView();
+}
+
+void WorkshopPanel::scrollFittedIntoView()
+{
+    const auto* c = findCategory (category);
+
+    if (c == nullptr || c->type == PartType::numTypes)
+        return;
+
+    const auto slot = targetSlot();
+    const auto fitted = slot != GuitarSlot::numSlots ? bench.current().get (slot) : bench.getAccessory (c->type);
+
+    for (int i = 0; i < drawerParts.size() && fitted != nullptr; ++i)
+        if (drawerParts[i]->name == fitted->name)
+        {
+            const int row = i / drawerPerRow;
+
+            if (row < drawerFirstRow || row >= drawerFirstRow + juce::jmax (1, drawerVisibleRows))
+                scrollDrawer (row - drawerFirstRow);
+            break;
+        }
+}
+
+void WorkshopPanel::layoutDrawer()
+{
+    cardBounds.clearQuick();
+
+    auto inner = drawerArea.withTrimmedTop (24 * categoryRows).reduced (6);
+
+    if (category == "Slide" && processor.getState().getRawParameterValue (ParamIDs::slideGuitar)->load() < 0.5f)
+        inner.removeFromTop (18);
+
+    cardsArea = inner;
+
+    const int cardW = 168, cardH = 42, gap = 4;
+    const int perRow = juce::jmax (1, (inner.getWidth() + gap) / (cardW + gap));
+    drawerPerRow = perRow;
+    drawerRows = (drawerParts.size() + perRow - 1) / perRow;
+    drawerVisibleRows = juce::jmax (1, (inner.getHeight() + gap) / (cardH + gap));
+    drawerFirstRow = juce::jlimit (0, juce::jmax (0, drawerRows - drawerVisibleRows), drawerFirstRow);
+    drawerHidden = 0;
+
+    for (int i = 0; i < drawerParts.size(); ++i)
+    {
+        const int row = i / perRow - drawerFirstRow;
+
+        if (row < 0 || row >= drawerVisibleRows)
+        {
+            cardBounds.add ({});
+            ++drawerHidden;
+            continue;
+        }
+
+        cardBounds.add ({ inner.getX() + (i % perRow) * (cardW + gap), inner.getY() + row * (cardH + gap), cardW, cardH });
+    }
+}
+
+void WorkshopPanel::scrollDrawer (int rows)
+{
+    drawerFirstRow += rows;
+    layoutDrawer();
+    repaint();
+}
+
+void WorkshopPanel::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
+{
+    if (drawerArea.contains (e.getPosition()) && drawerRows > drawerVisibleRows)
+    {
+        const float delta = std::abs (wheel.deltaY) >= std::abs (wheel.deltaX) ? wheel.deltaY : wheel.deltaX;
+
+        if (delta != 0.0f)
+            scrollDrawer (delta < 0.0f ? 1 : -1);
+        return;
+    }
+
+    juce::Component::mouseWheelMove (e, wheel);
 }
 
 bool WorkshopPanel::switchFamily (const juce::String& family, bool confirmed)
 {
+    commitPaint();
+
     if (family == processor.getCurrentGuitar().family)
         return false;
 
@@ -879,9 +1811,8 @@ bool WorkshopPanel::switchFamily (const juce::String& family, bool confirmed)
     {
         // 12.1's one-time question, the first time in a session.
         auto options = juce::MessageBoxOptions::makeOptionsOkCancel (juce::MessageBoxIconType::QuestionIcon,
-                           "Change guitar family?",
-                           "This will replace incompatible parts with defaults for the new family.",
-                           "Change", "Cancel", this);
+                           tr ("workshop.family.title"), tr ("workshop.family.message"),
+                           tr ("workshop.family.change"), tr ("common.cancel"), this);
 
         juce::AlertWindow::showAsync (options, [safe = juce::Component::SafePointer<WorkshopPanel> (this), family] (int result)
         {
@@ -911,13 +1842,82 @@ bool WorkshopPanel::switchFamily (const juce::String& family, bool confirmed)
 
 bool WorkshopPanel::editInspectorField (const juce::String& field, const juce::String& text)
 {
-    const auto slot = slotForRegion (illustration.getSelected());
+    commitPaint();
 
-    if (slot == GuitarSlot::numSlots || field.isEmpty())
+    const auto slot = slotForRegion (illustration.getSelected());
+    const auto trimmed = text.trim();
+
+    if (field.isEmpty())
+        return false;
+
+    // The tools' placements (section 4's last three rows), in real units.
+    if (const auto tool = illustration.getSelectedTool(); tool != BenchIllustration::Tool::none)
+    {
+        const double v = trimmed.getDoubleValue();
+        bool ok = false;
+
+        if (field == "pick_position_mm")       { bench.setPickPlacement (v, bench.getPickAngleDegrees()); ok = true; }
+        else if (field == "pick_angle_deg")    { bench.setPickPlacement (bench.getPickPositionMm(), v); ok = true; }
+        else if (field == "slide_fret")        { bench.setSlidePlacement (v, bench.getSlideSlantDegrees()); ok = true; }
+        else if (field == "slide_slant_deg")   { bench.setSlidePlacement (bench.getSlideFret(), v); ok = true; }
+        else if (field == "capo_fret")         { bench.setCapoFret (juce::roundToInt (v)); ok = true; }
+
+        refreshAll();
+        return ok;
+    }
+
+    // Section 3.3: one string's override. Setting a field back to the set's
+    // value drops that part of the override; all three back drops it entirely.
+    if (field.startsWith ("string_") && slot == GuitarSlot::strings)
+    {
+        const int index = illustration.getSelectedString();
+        const auto& guitar = bench.current();
+
+        if (! juce::isPositiveAndBelow (index, guitar.getStringCount()))
+            return false;
+
+        StringOverride o;
+        o.stringIndex = index;
+        if (const auto* existing = guitar.getStringOverride (index))
+            o = *existing;
+
+        const auto set = guitar.get (GuitarSlot::strings);
+        const auto setGauges = set != nullptr ? set->numbers ("gauges_in") : juce::Array<double>();
+        const double setGauge = juce::isPositiveAndBelow (index, setGauges.size()) ? setGauges[index] : 0.0;
+        const auto setMaterial = set != nullptr ? set->text ("winding_material", "nickel_plated_steel") : juce::String ("nickel_plated_steel");
+
+        if (field == "string_gauge_in")
+        {
+            const double g = trimmed.getDoubleValue();
+            o.gaugeIn = g > 0.0 && std::abs (g - setGauge) > 1.0e-9 ? juce::jlimit (0.005, 0.2, g) : 0.0;
+        }
+        else if (field == "string_material")
+        {
+            const auto m = trimmed.toLowerCase().replaceCharacter (' ', '_');
+            o.material = m.isNotEmpty() && m != setMaterial ? m : juce::String();
+        }
+        else if (field == "string_wound")
+        {
+            const auto w = trimmed.toLowerCase();
+            const bool wound = w == "wound" || w == "true" || w == "1" || w == "yes";
+            const bool plain = w == "plain" || w == "false" || w == "0" || w == "no";
+            // What the set would decide for this string, override aside.
+            auto plainGuitar = guitar;
+            plainGuitar.clearStringOverride (index);
+            o.wound = (wound || plain) && wound != plainGuitar.isStringWound (index) ? (wound ? 1 : 0) : -1;
+        }
+        else
+            return false;
+
+        const bool ok = bench.setStringOverride (o);
+        refreshAll();
+        return ok;
+    }
+
+    if (slot == GuitarSlot::numSlots)
         return false;
 
     // Numbers stay numbers, true/false stay flags, lists stay lists; anything else is text.
-    const auto trimmed = text.trim();
     juce::var value;
 
     if (trimmed.startsWithChar ('['))
@@ -940,6 +1940,7 @@ void WorkshopPanel::clickCard (int index)
         return;
 
     const auto part = drawerParts[index];
+    commitPaint();
     bench.endAudition();
     auditioning = false;
 
@@ -955,17 +1956,30 @@ void WorkshopPanel::clickCard (int index)
         if (part->type == PartType::slide
             && processor.getState().getRawParameterValue (ParamIDs::slideGuitar)->load() < 0.5f)
         {
-            limitMessage = "Turn on Slide Mode (S) to fit a slide.";
+            limitMessage = tr ("workshop.slideNeedsSlideMode");
             limitShownAt = juce::Time::getMillisecondCounter();
             repaint();
             return;
         }
 
         bench.fitAccessory (part);
+        illustration.selectTool (part->type == PartType::pick ? BenchIllustration::Tool::pick
+                               : part->type == PartType::slide ? BenchIllustration::Tool::slide : BenchIllustration::Tool::capo);
     }
     else if (const auto slot = targetSlot(); slot != GuitarSlot::numSlots)
     {
-        bench.fit (slot, part);
+        /*  guitar-workshop.md 5: a part made for another family is fitted with a
+            warning, never refused; the banner says why it is unusual and what
+            makes a matched build (the Guitar tab rebuilds around its family). */
+        if (bench.fit (slot, part) && ! part->suits (bench.current().family) && ! part->compatibility.isEmpty())
+        {
+            const auto made = part->compatibility[0];
+            limitMessage = tr ("workshop.fit.otherFamily", { { "part", part->name },
+                                                             { "family", bench.current().family },
+                                                             { "made", made },
+                                                             { "Made", made.substring (0, 1).toUpperCase() + made.substring (1) } });
+            limitShownAt = juce::Time::getMillisecondCounter();
+        }
     }
 
     refreshAll();
@@ -1020,6 +2034,21 @@ void WorkshopPanel::requestSpectrum (int pickupIndex, double positionMm)
     lastRequest = worker.request (committed, candidate, processor.getEngine().getGuitarType(), std::move (notches));
 }
 
+void WorkshopPanel::takeSpectrumResult (SpectrumDelta::Result&& result)
+{
+    spectrum = std::move (result);
+
+    // Section 10: announced as a sentence, once per new sentence.
+    if (spectrum.summary.isNotEmpty() && spectrum.summary != announcedSummary)
+    {
+        announcedSummary = spectrum.summary;
+        AccessibleSetup::configureDescriptive (spectrumPane, tr ("workshop.spectrum"), spectrum.summary);
+        juce::AccessibilityHandler::postAnnouncement (spectrum.summary, juce::AccessibilityHandler::AnnouncementPriority::medium);
+    }
+
+    repaint (spectrumArea);
+}
+
 bool WorkshopPanel::waitForSpectrum (int timeoutMs)
 {
     const auto until = juce::Time::getMillisecondCounter() + (juce::uint32) timeoutMs;
@@ -1030,7 +2059,7 @@ bool WorkshopPanel::waitForSpectrum (int timeoutMs)
 
         if (worker.takeResult (r))
         {
-            spectrum = std::move (r);
+            takeSpectrumResult (std::move (r));
             if (spectrum.requestId == lastRequest)
                 return true;
         }
@@ -1053,19 +2082,25 @@ void WorkshopPanel::refreshAll()
 void WorkshopPanel::refreshHeader()
 {
     const auto& g = processor.getCurrentGuitar();
-    guitarName.setText (g.name + (bench.isModified() ? "  (modified)" : ""), juce::dontSendNotification);
+    guitarName.setText (bench.isModified() ? tr ("workshop.guitarModified", { { "name", g.name } }) : g.name, juce::dontSendNotification);
 
     for (int i = 0; i < slotButtons.size(); ++i)
     {
         auto* b = slotButtons[i];
         const bool filled = bench.hasSlot (i);
         b->setToggleState (filled, juce::dontSendNotification);
-        b->setTooltip (filled ? "Bench slot " + WorkshopBench::slotName (i) + ": click to recall, Shift-click to clear"
-                              : "Bench slot " + WorkshopBench::slotName (i) + ": click to store the guitar as it is now");
+        b->setTooltip (tr (filled ? "workshop.slot.filled" : "workshop.slot.empty", { { "slot", WorkshopBench::slotName (i) } }));
     }
 }
 
 void WorkshopPanel::refreshInspector()
+{
+    refreshInspectorText();
+    layoutPaintControls();
+    repaint (inspectorArea);
+}
+
+void WorkshopPanel::refreshInspectorText()
 {
     inspectorLines.clear();
     inspectorFields.clear();
@@ -1075,27 +2110,69 @@ void WorkshopPanel::refreshInspector()
     const auto* audition = bench.getAuditionGuitar();
     const auto& guitar = audition != nullptr ? *audition : bench.current();
 
+    auto addField = [this] (const juce::String& line, const juce::String& field)
+    {
+        inspectorLines.add (line);
+        while (inspectorFields.size() < inspectorLines.size() - 1)
+            inspectorFields.add ({});
+        inspectorFields.add (field);
+    };
+
+    // The tools: the pick, the slide bar, the capo (section 4's last rows).
+    if (const auto tool = illustration.getSelectedTool(); tool != BenchIllustration::Tool::none)
+    {
+        const auto type = tool == BenchIllustration::Tool::pick ? PartType::pick
+                        : tool == BenchIllustration::Tool::slide ? PartType::slide : PartType::capo;
+        const auto part = bench.getAccessory (type);
+        const auto what = tr (tool == BenchIllustration::Tool::pick ? "workshop.tool.pick"
+                            : tool == BenchIllustration::Tool::slide ? "workshop.tool.slide" : "workshop.tool.capo");
+        inspectorTitle = what + ": " + (part != nullptr ? part->name : tr ("workshop.tool.default"));
+
+        if (tool == BenchIllustration::Tool::pick)
+        {
+            addField (tr ("workshop.field.pickPosition", { { "mm", num (bench.getPickPositionMm(), 0) } }), "pick_position_mm");
+            addField (tr ("workshop.field.pickAngle", { { "deg", num (bench.getPickAngleDegrees(), 0) } }), "pick_angle_deg");
+        }
+        else if (tool == BenchIllustration::Tool::slide)
+        {
+            addField (tr ("workshop.field.slideFret", { { "fret", num (bench.getSlideFret(), 1) } }), "slide_fret");
+            addField (tr ("workshop.field.slideSlant", { { "deg", num (bench.getSlideSlantDegrees(), 0) } }), "slide_slant_deg");
+            inspectorLines.add (tr ("workshop.field.slidePositionNote"));
+        }
+        else
+        {
+            addField (tr ("workshop.field.capoFret", { { "fret", bench.getCapoFret() > 0 ? juce::String (bench.getCapoFret()) : tr ("common.off") } }), "capo_fret");
+        }
+
+        if (part != nullptr)
+            if (auto* object = part->fields.getDynamicObject())
+                for (auto& prop : object->getProperties())
+                    inspectorLines.add (prop.name.toString().replaceCharacter ('_', ' ') + ": " + fieldText (prop.value));
+
+        return;
+    }
+
     if (slot == GuitarSlot::numSlots)
     {
-        inspectorTitle = "Nothing selected";
-        inspectorLines.add ("Click a part of the guitar, or press Tab.");
+        inspectorTitle = tr ("workshop.inspector.nothing");
+        inspectorLines.add (tr ("workshop.inspector.nothing.hint"));
         return;
     }
 
     const auto part = guitar.get (slot);
     const auto label = WorkshopBench::describeSlot (slot);
     inspectorTitle = label.substring (0, 1).toUpperCase() + label.substring (1) + ": "
-                   + (part != nullptr ? part->name : juce::String ("(empty)"));
+                   + (part != nullptr ? part->name : tr ("workshop.inspector.empty"));
 
     if (audition != nullptr)
-        inspectorLines.add ("AUDITIONING - not fitted");
+        inspectorLines.add (tr ("workshop.inspector.auditioning"));
 
     if (part != nullptr)
     {
-        inspectorLines.add (part->isFactory ? "Factory part" : "User part (unsaved edits live in the preset)");
+        inspectorLines.add (tr (part->isFactory ? "workshop.inspector.factory" : "workshop.inspector.user"));
 
         if (! part->suits (guitar.family))
-            inspectorLines.add ("Unusual on a " + guitar.family + " guitar - it will work.");
+            inspectorLines.add (tr ("workshop.inspector.unusual", { { "family", guitar.family } }));
 
         if (auto* object = part->fields.getDynamicObject())
             for (auto& prop : object->getProperties())
@@ -1129,6 +2206,17 @@ void WorkshopPanel::refreshInspector()
             inspectorLines.add ("string " + juce::String (s + 1) + " saddle: "
                                 + juce::String (juce::isPositiveAndBelow (s, inton.size()) ? inton[s] : 0.0, 1) + " mm");
         }
+
+        // Section 3.3: the selected string's own fields, over the set's.
+        if (region == GuitarRegion::strings && juce::isPositiveAndBelow (s, guitar.getStringCount()))
+        {
+            const auto n = juce::String (s + 1);
+            const auto* o = guitar.getStringOverride (s);
+            addField ("string " + n + " gauge in: " + juce::String (guitar.getStringGaugeIn (s), 3), "string_gauge_in");
+            addField ("string " + n + " winding: " + tr (guitar.isStringWound (s) ? "workshop.string.wound" : "workshop.string.plain"), "string_wound");
+            addField ("string " + n + " material: " + guitar.getStringMaterial (s).replaceCharacter ('_', ' '), "string_material");
+            inspectorLines.add (o != nullptr ? tr ("workshop.string.overridden", { { "n", n } }) : tr ("workshop.string.fromSet", { { "n", n } }));
+        }
     }
 
     if (region == GuitarRegion::nut)
@@ -1137,12 +2225,23 @@ void WorkshopPanel::refreshInspector()
         for (auto d : guitar.setup.nutSlotDepthsMm)
             depths.add (juce::String (d, 2));
         inspectorLines.add ("slot depths: " + depths.joinIntoString (", ") + " mm");
+
+        const int s = illustration.getSelectedString();
+        if (juce::isPositiveAndBelow (s, guitar.setup.nutSlotDepthsMm.size()))
+            inspectorLines.add ("string " + juce::String (s + 1) + " slot: " + juce::String (guitar.setup.nutSlotDepthsMm[s], 2) + " mm");
     }
 }
 
 //==============================================================================
+void WorkshopPanel::showFirstEncounterHintIfDue()
+{
+    firstEncounterHint.showIfDue();
+}
+
 void WorkshopPanel::timerCallback()
 {
+    showFirstEncounterHintIfDue();
+
     const auto key = GuitarRenderer::keyFor (processor.getCurrentGuitar(), {});
 
     if (key != shownGuitarKey)
@@ -1155,10 +2254,11 @@ void WorkshopPanel::timerCallback()
     SpectrumDelta::Result r;
 
     if (worker.takeResult (r))
-    {
-        spectrum = std::move (r);
-        repaint (spectrumArea);
-    }
+        takeSpectrumResult (std::move (r));
+
+    // A colour drag that has rested is one committed pick.
+    if (pendingPaint.has_value() && juce::Time::getMillisecondCounter() - pendingSince >= (juce::uint32) kPaintSettleMs)
+        commitPaint();
 
     // Alt let go without the mouse moving: the audition ends (section 3.2).
     if (auditioning && ! juce::ModifierKeys::currentModifiers.isAltDown())
@@ -1187,7 +2287,7 @@ void WorkshopPanel::mouseMove (const juce::MouseEvent& e)
     if (card >= 0)
     {
         const auto& p = *drawerParts[card];
-        setHelpText (p.name + " - " + summaryOf (p) + ". Click to fit; hold Alt to hear it without fitting.");
+        setHelpText (tr ("workshop.card.tip", { { "name", p.name }, { "summary", summaryOf (p) } }));
     }
 }
 
@@ -1254,23 +2354,26 @@ void WorkshopPanel::resized()
 
     area.removeFromTop (Metrics::gridHalf);
 
+    // onboarding 9: the first-session hint, under the header.
+    if (firstEncounterHint.isVisible())
+    {
+        firstEncounterHint.setBounds (area.removeFromTop (FirstEncounterHint::kHeight));
+        area.removeFromTop (Metrics::gridHalf);
+    }
+
     // Section 1: the inspector down the right, the spectrum under it.
     const bool wide = area.getWidth() >= 900;
     auto right = area.removeFromRight (wide ? 240 : 190);
     area.removeFromRight (Metrics::grid);
 
     spectrumArea = right.removeFromBottom (juce::jmin (180, right.getHeight() / 3));
+    spectrumPane.setBounds (spectrumArea);
     autoZoomToggle.setBounds (spectrumArea.getRight() - 96, spectrumArea.getY() + 2, 94, 20);
     right.removeFromBottom (Metrics::grid);
 
     inspectorArea = right;
-    {
-        auto buttons = inspectorArea.withTrimmedTop (inspectorArea.getHeight() - 28);
-        const int w = buttons.getWidth() / 3;
-        swapButton.setBounds (buttons.removeFromLeft (w).reduced (1, 2));
-        revertButton.setBounds (buttons.removeFromLeft (w).reduced (1, 2));
-        savePartButton.setBounds (buttons.reduced (1, 2));
-    }
+    layoutInspectorButtons();
+    layoutPaintControls();
 
     setupArea = area.removeFromBottom (86);
     {
@@ -1283,17 +2386,215 @@ void WorkshopPanel::resized()
     }
     area.removeFromBottom (Metrics::gridHalf);
 
-    drawerArea = area.removeFromBottom (juce::jmax (110, area.getHeight() / 3));
+    /*  Section 1's category bar. One row of equal buttons when every label fits
+        at its natural width; otherwise as many rows as it takes (two at the
+        Advanced column's width, three on a phone-narrow window), so no label is
+        ever clipped - the look-and-feel's shrink-to-fit is the fallback, not
+        the plan. */
     {
-        auto tabs = drawerArea.removeFromTop (24);
-        const int w = tabs.getWidth() / juce::jmax (1, categoryButtons.size());
+        const int rowH = 24;
+        const int n = juce::jmax (1, categoryButtons.size());
+        int widest = 0;
+
         for (auto* b : categoryButtons)
-            b->setBounds (tabs.removeFromLeft (w).reduced (1, 0));
+            widest = juce::jmax (widest, idealButtonWidth (*b, rowH) + 2);
+
+        const int width = juce::jmax (1, area.getWidth());
+        const int perRow = juce::jlimit (1, n, width / juce::jmax (1, widest));
+        categoryRows = (n + perRow - 1) / perRow;
+
+        // Balanced rows: 14 over two rows is 7 + 7, not 12 + 2.
+        const int balanced = (n + categoryRows - 1) / categoryRows;
+
+        drawerArea = area.removeFromBottom (juce::jmax (110 + rowH * (categoryRows - 1), area.getHeight() / 3));
+        auto tabs = drawerArea.withHeight (rowH * categoryRows);
+
+        for (int i = 0; i < categoryButtons.size(); ++i)
+        {
+            const int row = i / balanced, col = i % balanced;
+            const int inRow = juce::jmin (balanced, n - row * balanced);
+            const int w = tabs.getWidth() / inRow;
+            const int x = tabs.getX() + col * w;
+            categoryButtons[i]->setBounds (juce::Rectangle<int> (x, tabs.getY() + row * rowH,
+                                                                 col == inRow - 1 ? tabs.getRight() - x : w, rowH).reduced (1, 1));
+        }
     }
     area.removeFromBottom (Metrics::gridHalf);
 
     illustrationArea = area;
     illustration.setBounds (illustrationArea);
+
+    layoutDrawer();
+    scrollFittedIntoView();
+}
+
+void WorkshopPanel::layoutInspectorButtons()
+{
+    // Swap and Revert share a row; "Save as user part" gets one of its own, so
+    // none of the three is squeezed into a third of a 190 px column.
+    auto buttons = inspectorArea.withTrimmedTop (inspectorArea.getHeight() - 54).reduced (4, 0);
+    auto top = buttons.removeFromTop (27);
+    swapButton.setBounds (top.removeFromLeft (top.getWidth() / 2).reduced (1, 2));
+    revertButton.setBounds (top.reduced (1, 2));
+    savePartButton.setBounds (buttons.reduced (1, 2));
+}
+
+void WorkshopPanel::layoutPaintControls()
+{
+    const auto targets = paintTargets();
+    const bool body = targets.contains (Paint::body);
+    const bool plastics = targets.contains (Paint::plastics);
+
+    for (int i = 0; i < paintChips.size(); ++i)
+        paintChips[i]->setVisible (targets.contains ((Paint) i));
+
+    for (auto* s : presetSwatches)
+        s->setVisible (body);
+
+    plasticsReset->setVisible (plastics);
+
+    const int rows = targets.size() + (body ? 1 : 0);
+    paintArea = inspectorArea.withTrimmedBottom (58).withTrimmedTop (juce::jmax (0, inspectorArea.getHeight() - 58 - rows * 26 - 6))
+                             .reduced (8, 0);
+
+    if (rows == 0)
+    {
+        paintArea = {};
+        return;
+    }
+
+    auto r = paintArea.withTrimmedTop (4);
+
+    for (auto which : targets)
+    {
+        auto row = r.removeFromTop (26).reduced (0, 2);
+
+        if (which == Paint::plastics)
+            plasticsReset->setBounds (row.removeFromRight (juce::jmin (84, row.getWidth() / 3)).reduced (0, 1));
+
+        paintChips[(int) which]->setBounds (row);
+    }
+
+    if (body)
+    {
+        auto row = r.removeFromTop (26).reduced (0, 3);
+        const int w = row.getWidth() / juce::jmax (1, presetSwatches.size());
+
+        for (auto* s : presetSwatches)
+            s->setBounds (row.removeFromLeft (w).reduced (2, 0));
+    }
+
+    // The chips show the colours as drawn now.
+    for (int i = 0; i < paintChips.size(); ++i)
+    {
+        auto* chip = paintChips[i];
+        chip->colour = getPaintColour ((Paint) i);
+        chip->gradient = false;
+        repaint (chip->getBounds());
+    }
+
+    const bool burst = bench.current().finish.type.equalsIgnoreCase ("burst");
+    paintChips[(int) Paint::body]->setButtonText (tr (burst ? "workshop.paint.centre" : "workshop.paint.body"));
+
+    if (burst)
+    {
+        paintChips[(int) Paint::body]->gradient = true;
+        paintChips[(int) Paint::body]->edge = getPaintColour (Paint::burstEdge);
+    }
+}
+
+//==============================================================================
+juce::Array<WorkshopPanel::Paint> WorkshopPanel::paintTargets() const
+{
+    if (illustration.getSelectedTool() != BenchIllustration::Tool::none)
+        return {};
+
+    switch (illustration.getSelected())
+    {
+        case GuitarRegion::body:
+        case GuitarRegion::soundhole:
+            if (bench.current().finish.type.equalsIgnoreCase ("burst"))
+                return { Paint::body, Paint::burstEdge };
+            return { Paint::body };
+
+        case GuitarRegion::pickguard:
+        case GuitarRegion::controls:
+        case GuitarRegion::selector:
+            return { Paint::plastics };
+
+        default:
+            return {};
+    }
+}
+
+juce::Colour WorkshopPanel::getPaintColour (Paint which) const
+{
+    const auto& guitar = bench.current();
+    return which == Paint::plastics ? GuitarRenderer::plasticsColour (guitar)
+                                    : GuitarRenderer::finishColour (guitar, which == Paint::burstEdge);
+}
+
+void WorkshopPanel::previewPaint (Paint which, juce::Colour colour)
+{
+    if (pendingPaint.has_value() && *pendingPaint != which)
+        commitPaint();
+
+    bench.previewPaint (which, colour);
+    pendingPaint = which;
+    pendingColour = colour;
+    pendingSince = juce::Time::getMillisecondCounter();
+
+    illustration.refresh();
+    layoutPaintControls();
+}
+
+bool WorkshopPanel::commitPaint()
+{
+    if (! pendingPaint.has_value())
+        return false;
+
+    const auto which = *pendingPaint;
+    pendingPaint.reset();
+
+    const bool changed = bench.setPaint (which, pendingColour);
+    refreshAll();
+    return changed;
+}
+
+bool WorkshopPanel::pickPaint (Paint which, juce::Colour colour)
+{
+    commitPaint();
+    const bool changed = bench.setPaint (which, colour);
+    refreshAll();
+    return changed;
+}
+
+bool WorkshopPanel::applyFinishPreset (const juce::String& id)
+{
+    commitPaint();
+    const bool changed = bench.applyFinishPreset (id);
+    refreshAll();
+    return changed;
+}
+
+void WorkshopPanel::openColourPicker (Paint which)
+{
+    commitPaint();
+
+    auto* chip = paintChips[(int) which];
+    auto* top = getTopLevelComponent();
+
+    if (chip == nullptr || top == nullptr)
+        return;
+
+    const auto area = top->getLocalArea (chip, chip->getLocalBounds());
+    pickerBox = &juce::CallOutBox::launchAsynchronously (createColourPicker (which), area, top);
+}
+
+std::unique_ptr<juce::Component> WorkshopPanel::createColourPicker (Paint which)
+{
+    const bool burst = which != Paint::plastics && bench.current().finish.type.equalsIgnoreCase ("burst");
+    return std::make_unique<FinishColourPicker> (*this, which, burst);
 }
 
 void WorkshopPanel::paint (juce::Graphics& g)
@@ -1304,7 +2605,7 @@ void WorkshopPanel::paint (juce::Graphics& g)
     paintInspector (g, inspectorArea);
     paintSpectrum (g, spectrumArea);
 
-    LuthierLookAndFeel::drawSectionHeader (g, setupArea.withHeight (16).translated (0, -2), "Setup");
+    LuthierLookAndFeel::drawSectionHeader (g, setupArea.withHeight (16).translated (0, -2), tr ("workshop.setup"));
 
     if (limitMessage.isNotEmpty())
     {
@@ -1319,10 +2620,9 @@ void WorkshopPanel::paint (juce::Graphics& g)
 
 void WorkshopPanel::paintDrawer (juce::Graphics& g, juce::Rectangle<int> area)
 {
-    cardBounds.clear();
     LuthierLookAndFeel::drawPanel (g, area.toFloat());
 
-    auto inner = area.reduced (6);
+    auto inner = area.withTrimmedTop (24 * categoryRows).reduced (6);
     const auto slot = targetSlot();
     const auto fitted = slot != GuitarSlot::numSlots ? bench.current().get (slot) : nullptr;
     const auto* c = findCategory (category);
@@ -1335,31 +2635,24 @@ void WorkshopPanel::paintDrawer (juce::Graphics& g, juce::Rectangle<int> area)
     {
         g.setColour (Palette::textMuted);
         g.setFont (Fonts::ui (12.0f));
-        g.drawText ("Turn on Slide Mode (S) to fit a slide.", inner.removeFromTop (18), juce::Justification::centredLeft, false);
+        g.drawText (tr ("workshop.slideNeedsSlideMode"), inner.removeFromTop (18), juce::Justification::centredLeft, false);
     }
 
-    const int cardW = 168, cardH = 42;
-    int x = inner.getX(), y = inner.getY();
+    const int cardH = 42;
+    int y = inner.getY() - cardH;
     bool anyUser = false;
 
-    for (int i = 0; i < drawerParts.size(); ++i)
+    for (int i = 0; i < drawerParts.size() && i < cardBounds.size(); ++i)
     {
         const auto& part = *drawerParts[i];
         anyUser = anyUser || ! part.isFactory;
 
-        if (x + cardW > inner.getRight())
-        {
-            x = inner.getX();
-            y += cardH + 4;
-        }
+        const auto card = cardBounds[i];
 
-        const juce::Rectangle<int> card (x, y, cardW, cardH);
-        x += cardW + 4;
+        if (card.isEmpty())
+            continue;
 
-        if (card.getBottom() > inner.getBottom())
-            break;
-
-        cardBounds.add (card);
+        y = juce::jmax (y, card.getY());
 
         const bool isFitted = (fitted != nullptr && fitted->name == part.name) || (accessory != nullptr && accessory->name == part.name)
                            || (part.type == PartType::numTypes && part.text ("family") == bench.current().family);
@@ -1380,35 +2673,55 @@ void WorkshopPanel::paintDrawer (juce::Graphics& g, juce::Rectangle<int> area)
         auto line = summaryOf (part);
         if (! part.suits (bench.current().family) && part.type != PartType::pick && part.type != PartType::slide
             && part.type != PartType::capo && part.type != PartType::numTypes)
-            line = "Unusual here - " + line;
+        {
+            // Why it is unusual, in the card's own words: made for another family.
+            const auto made = part.compatibility.isEmpty() ? juce::String() : part.compatibility[0];
+            line = made.isNotEmpty() ? tr ("workshop.card.otherFamily", { { "made", made }, { "summary", line } })
+                                     : tr ("workshop.card.unusual", { { "summary", line } });
+        }
         if (! part.isFactory)
-            line = "yours - " + line;
+            line = tr ("workshop.card.yours", { { "summary", line } });
         g.drawText (line, text, juce::Justification::centredLeft, true);
     }
 
     // Section 9's empty user section.
-    if (! anyUser && drawerParts.size() > 0 && y + cardH + 22 < inner.getBottom())
+    if (! anyUser && drawerHidden == 0 && drawerParts.size() > 0 && y + cardH + 22 < inner.getBottom())
     {
         g.setColour (Palette::textDisabled);
         g.setFont (Fonts::ui (11.0f));
-        g.drawText ("Your saved parts appear here. Edit any factory part and Save As to start.",
+        g.drawText (tr ("workshop.drawer.noUserParts"),
                     juce::Rectangle<int> (inner.getX(), y + cardH + 6, inner.getWidth(), 16), juce::Justification::centredLeft, true);
+    }
+
+    // More cards than rows: say so, and that the wheel reaches them.
+    if (drawerHidden > 0)
+    {
+        const auto more = tr ("workshop.drawer.more", { { "n", juce::String (drawerHidden) } });
+        g.setFont (Fonts::ui (11.0f));
+        const auto r = inner.removeFromBottom (14).removeFromRight (juce::jmin (inner.getWidth(), 260)).translated (0, 4);
+        g.setColour (Palette::panel.withAlpha (0.9f));
+        g.fillRect (r.toFloat());
+        g.setColour (Palette::textMuted);
+        g.drawFittedText (more, r, juce::Justification::centredRight, 1);
     }
 
     if (drawerParts.isEmpty())
     {
         g.setColour (Palette::textMuted);
         g.setFont (Fonts::ui (12.0f));
-        g.drawText ("No " + category.toLowerCase() + " parts are installed.", inner, juce::Justification::centred, true);
+        g.drawText (tr ("workshop.drawer.none", { { "category", category.toLowerCase() } }), inner, juce::Justification::centred, true);
     }
 }
 
 void WorkshopPanel::paintInspector (juce::Graphics& g, juce::Rectangle<int> area)
 {
     LuthierLookAndFeel::drawPanel (g, area.toFloat());
-    auto inner = area.reduced (8).withTrimmedBottom (30);
+    auto inner = area.reduced (8).withTrimmedBottom (54);
 
-    LuthierLookAndFeel::drawSectionHeader (g, inner.removeFromTop (22), "Inspector");
+    if (! paintArea.isEmpty())
+        inner.setBottom (juce::jmin (inner.getBottom(), paintArea.getY() - 2));
+
+    LuthierLookAndFeel::drawSectionHeader (g, inner.removeFromTop (22), tr ("workshop.inspector"));
     inner.removeFromTop (4);
 
     g.setColour (Palette::textPrimary);
@@ -1427,7 +2740,7 @@ void WorkshopPanel::paintInspector (juce::Graphics& g, juce::Rectangle<int> area
         const auto row = inner.removeFromTop (16);
         inspectorRows.add (row);
 
-        const bool note = line.startsWith ("AUDITIONING") || line.startsWith ("Unusual");
+        const bool note = line == tr ("workshop.inspector.auditioning") || line.startsWith ("Unusual");
         const bool editable = inspectorFields[i].isNotEmpty();
         g.setColour (note ? Palette::accent : editable ? Palette::textPrimary : Palette::textMuted);
         g.drawFittedText (line, row, juce::Justification::centredLeft, 1);
@@ -1437,7 +2750,7 @@ void WorkshopPanel::paintInspector (juce::Graphics& g, juce::Rectangle<int> area
     {
         g.setColour (Palette::textDisabled);
         g.setFont (Fonts::ui (10.5f));
-        g.drawFittedText ("Double-click a value to edit it. A factory part becomes your own copy.",
+        g.drawFittedText (tr ("workshop.inspector.editHint"),
                           inner.removeFromTop (28), juce::Justification::topLeft, 2);
     }
 }
@@ -1447,7 +2760,7 @@ void WorkshopPanel::paintSpectrum (juce::Graphics& g, juce::Rectangle<int> area)
     LuthierLookAndFeel::drawPanel (g, area.toFloat());
     auto inner = area.reduced (8);
 
-    LuthierLookAndFeel::drawSectionHeader (g, inner.removeFromTop (20).withTrimmedRight (100), "Spectrum delta");
+    LuthierLookAndFeel::drawSectionHeader (g, inner.removeFromTop (20).withTrimmedRight (100), tr ("workshop.spectrum"));
     auto summaryArea = inner.removeFromBottom (28);
     auto plot = inner.reduced (0, 4).toFloat();
 
@@ -1489,8 +2802,7 @@ void WorkshopPanel::paintSpectrum (juce::Graphics& g, juce::Rectangle<int> area)
 
     g.setFont (Fonts::ui (11.0f));
     g.setColour (spectrum.noChange ? Palette::textMuted : Palette::textPrimary);
-    g.drawFittedText (spectrum.summary.isNotEmpty() ? spectrum.summary
-                                                    : juce::String ("Swap or audition a part to see what it changes."),
+    g.drawFittedText (spectrum.summary.isNotEmpty() ? spectrum.summary : tr ("workshop.spectrum.empty"),
                       summaryArea, juce::Justification::centredLeft, 2);
 }
 

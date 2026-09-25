@@ -96,6 +96,21 @@ public:
     /** k_couple for a string, for the tests. */
     double getCoupling (int s) const noexcept { return couple[(size_t) juce::jlimit (0, kMaxStrings - 1, s)]; }
 
+    /*  part-acoustics.md 2.1: how much more the body lets the amp's air move
+        the strings than a solid slab does, as a linear gain on k_couple. A
+        hollow top is a soundboard the room drives directly; a solid body only
+        hands the strings what little its own compliance admits. 1 is solid.
+        Set on the message thread with the guitar (a structural change), so it
+        is not a smoothed parameter. */
+    void setBodyCoupling (double gain) noexcept;
+    double getBodyCoupling() const noexcept { return bodyCoupling; }
+
+    /** 2.1's Feedback column, from PartAcoustics' 0..1 coupling (solid 0.1,
+        chambered 0.25, semi-hollow 0.5, hollow 0.8) to the loop's gain: 0 dB
+        for a solid body up to +12 dB for a full hollow body, linear in dB
+        between. Below solid (an acoustic's 0, "n/a") stays at solid. */
+    static double bodyCouplingFromChambering (double chamberingFeedback) noexcept;
+
     int getDelaySamples() const noexcept { return delaySamples; }
 
 private:
@@ -116,6 +131,7 @@ private:
     std::array<bool, kMaxStrings> ringing {};
     std::array<bool, kMaxStrings> woundString {};
     std::array<double, kMaxStrings> couple {};
+    double bodyCoupling = 1.0;
 
     double injectionEnv = 0.0, injectionRelease = 0.0;
 };

@@ -20,5 +20,8 @@
     "thickness_mm": 34.0,
     "area_cm2": 1000,
     "bracing": "none"
+  },
+  "illustration": {
+    "body_style": "double_cutaway_thin"
   }
 }

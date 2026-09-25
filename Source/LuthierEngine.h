@@ -20,6 +20,8 @@
 #include "DSP/Noise/PlayingNoise.h"
 #include "DSP/Noise/FretBuzz.h"
 #include "DSP/Noise/ScrapeEngine.h"
+#include "DSP/Slap/SlapEngine.h"
+#include "Model/Playing/TechniqueTriggers.h"
 #include "DSP/Slide/SlideEngine.h"
 #include "DSP/Feedback/FeedbackLoop.h"
 #include "DSP/Feedback/EBowDriver.h"
@@ -152,6 +154,15 @@ public:
         and termination with what the parts say. */
     void applyWorkshopGuitar (const DerivedAcoustics& derived, GuitarType standsFor = GuitarType::Custom);
 
+    /*  How many pickups the guitar has fitted (1 to kMaxPickups), for a UI
+        that should not offer a middle pickup on a single-pickup guitar: the
+        selector maps every position onto the pickups that exist, so controls
+        for slots past this do nothing. Message thread. */
+    int getNumFittedPickups() const noexcept
+    {
+        return juce::jlimit (1, PickupEngine::kMaxPickups, spec.numPickups);
+    }
+
     /** A parts guitar's pickup as its part describes it (engine slot order). */
     const PickupSpec& getPartsPickup (int slot) const noexcept
     {
@@ -192,6 +203,26 @@ public:
     ScrapeEngine& getScrapeEngine() noexcept { return scrape; }
     const ScrapeEngine& getScrapeEngine() const noexcept { return scrape; }
     void setScrapeSettings (const ScrapeSettings& s) noexcept { scrape.setSettings (s); }
+
+    /*  engine-technique-layer.md 3.1 / 3.6: the technique layer's shared MIDI
+        front. It reads each block's MIDI once, ahead of the rhythm engine and
+        the interpreter, and takes out what belongs to a technique (its
+        keyswitches, a pitchless zone's notes). The UI's buttons request()
+        through it. The scrape keeps its own handleMidi behind it (it predates
+        the front); the slap is the first technique served here. */
+    TechniqueTriggers& getTechniqueTriggers() noexcept { return techniqueTriggers; }
+    const TechniqueTriggers& getTechniqueTriggers() const noexcept { return techniqueTriggers; }
+
+    /** string-slap-technique.md / bass-techniques.md 2-5: the slap. Settings
+        from the parameters; the front is configured from the same call. */
+    SlapEngine& getSlapEngine() noexcept { return slap; }
+    const SlapEngine& getSlapEngine() const noexcept { return slap; }
+    void setSlapSettings (const SlapSettings& s) noexcept;
+
+    /** muting-rhythm.md 3: the MUTE controls, kept by the rhythm engine (it
+        stamps every note it writes, and the live grid, with a mute). */
+    void setMuteSettings (const MuteSettings& s) noexcept { rhythm.setMuteSettings (s); }
+    MuteSettings getMuteSettings() const noexcept { return rhythm.getMuteSettings(); }
 
     /** Sets the pick material and whether it is fingers. The two parameters
         are one decision: a finger material is fingers whatever the switch says. */
@@ -354,8 +385,18 @@ public:
     /** Total reported latency in samples. */
     int getLatencySamples() const noexcept;
 
-    /** Releases every string. */
+    /** live-performance 9: every string off and choked, the schedule dropped,
+        and every tail cleared - effects, amp, room, cabinet, coupling, freeze,
+        feedback, e-bow, scrape - plus the rhythm engine's held notes (its
+        enabled state stays). Parameters and the preset are untouched. Audio
+        thread: with audio running the processor requests it and the next block
+        carries it out, so nothing is torn out from under a render. */
     void panic() noexcept;
+
+    /** True while some other thread has rendered a block within the last 200 ms:
+        the audio thread is running and owns the engine's state. False in the
+        offline renderer and the tests, where the caller is the audio thread. */
+    bool isAudioThreadActive() const noexcept;
 
     //==========================================================================
     // Live state for the UI. All lock-free reads.
@@ -381,6 +422,12 @@ private:
     void fireScheduledEvents (int64_t absoluteSample) noexcept;
     void triggerNote (const NoteOnEvent& e) noexcept;
     void applyNoteOff (const NoteOffEvent& e) noexcept;
+
+    /** A slap action that fell due (a queued strike, a palm slap, a body tap). */
+    void applySlapAction (const SlapAction& action) noexcept;
+
+    /** The slap's clack for a strike on a string, into the noise pool. */
+    void triggerSlapContact (const SlapStrike& strike, int stringIndex) noexcept;
     void updatePerBlockModulation (int numSamples) noexcept;
     void rebuildBodyFromSpec();
     void rebuildPickupsFromSpec();
@@ -488,6 +535,25 @@ private:
         interpreter see it. */
     ScrapeEngine scrape;
     juce::MidiBuffer scrapeMidi;
+
+    /*  engine-technique-layer.md 3.1: the shared front runs first, into
+        techniqueMidi; the scrape's own handler then reads what it left. */
+    TechniqueTriggers techniqueTriggers;
+    juce::MidiBuffer techniqueMidi;
+
+    /*  string-slap-technique.md 2: alongside the scrape, before the strings.
+        A queued strike is played through triggerNote with `forcedSlapStrike`
+        pointing at it, so the button's strike and a slapped note share one
+        path; classify() is only asked when nothing is forced. */
+    SlapEngine slap;
+    const SlapStrike* forcedSlapStrike = nullptr;
+    std::vector<double> bodyTapBuffer;
+    std::array<bool, kMaxStrings> scrapeWasActive {};
+
+    /*  muting-rhythm.md 1: a fret mute rings, then the finger lets go. Samples
+        left until each string's release, 0 for none, and how fast it stops. */
+    std::array<int, kMaxStrings> fretMuteRelease {};
+    std::array<double, kMaxStrings> fretMuteT60 {};
 
     /*  Each note's own sustain multiplier - dead spots, fret wear, the nut, a
         slide's damping - set when it starts. Per-block modulation multiplies

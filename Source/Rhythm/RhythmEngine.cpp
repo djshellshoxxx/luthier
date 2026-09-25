@@ -1,4 +1,5 @@
 #include "RhythmEngine.h"
+#include <algorithm>
 
 namespace luthier
 {
@@ -20,32 +21,6 @@ const char* getVoicingStyleName (VoicingStyle style) noexcept
         case VoicingStyle::bass:     return "Bass";
         case VoicingStyle::numStyles:
         default:                     return "Open";
-    }
-}
-
-namespace
-{
-    /** How many notes a style wants, given how many are available. */
-    int noteBudgetFor (VoicingStyle style, int available, double densityPercent, int numStrings)
-    {
-        const int byDensity = juce::jmax (1, (int) std::round (
-            (double) available * juce::jlimit (0.0, 100.0, densityPercent) / 100.0));
-
-        switch (style)
-        {
-            case VoicingStyle::power:    return juce::jmin (3, byDensity);
-            case VoicingStyle::shell:    return juce::jmin (3, byDensity);
-            case VoicingStyle::triad:    return juce::jmin (3, byDensity);
-            case VoicingStyle::drop2:
-            case VoicingStyle::drop3:    return juce::jmin (4, byDensity);
-            case VoicingStyle::wide:     return juce::jmin (numStrings, byDensity);
-            case VoicingStyle::bass:     return juce::jmin (2, byDensity);
-            case VoicingStyle::rootless:
-            case VoicingStyle::open:
-            case VoicingStyle::barre:
-            case VoicingStyle::numStyles:
-            default:                     return juce::jmin (numStrings, byDensity);
-        }
     }
 }
 
@@ -202,143 +177,6 @@ void RhythmEngine::handleMidi (const juce::MidiBuffer& midi, int64_t blockStartS
     }
 }
 
-//==============================================================================
-int RhythmEngine::selectNotesForStyle (int* dest, int maxNotes) noexcept
-{
-    const int held = detector.getNumHeldNotes();
-    const int* heldNotes = detector.getHeldNotes();
-
-    if (held <= 0 || maxNotes <= 0)
-        return 0;
-
-    const auto style = getVoicingStyle();
-
-    // Sorted low to high, because every style is described in terms of which
-    // degree sits where.
-    std::array<int, 24> sorted {};
-    const int count = juce::jmin (held, (int) sorted.size());
-
-    for (int i = 0; i < count; ++i)
-        sorted[(size_t) i] = heldNotes[i];
-
-    std::sort (sorted.begin(), sorted.begin() + count);
-
-    const int budget = juce::jmin (maxNotes,
-                                   noteBudgetFor (style, count, getVoicingDensity(), numStrings));
-
-    int written = 0;
-
-    switch (style)
-    {
-        case VoicingStyle::power:
-        {
-            // Root and fifth, plus the octave root if there is room. The fifth is
-            // taken from the chord rather than assumed, so a flat-five chord does
-            // not turn into a major power chord.
-            const int root = sorted[0];
-            dest[written++] = root;
-
-            for (int i = 1; i < count && written < budget; ++i)
-            {
-                const int interval = (sorted[(size_t) i] - root) % 12;
-
-                if (interval == 7 || interval == 6 || interval == 8)
-                {
-                    dest[written++] = sorted[(size_t) i];
-                    break;
-                }
-            }
-
-            if (written < budget)
-                dest[written++] = root + 12;
-
-            break;
-        }
-
-        case VoicingStyle::shell:
-        {
-            // Root, third and seventh: the notes that carry the harmony, which is
-            // exactly what a shell voicing leaves in.
-            const int root = sorted[0];
-            dest[written++] = root;
-
-            for (int wanted : { 3, 4 })
-                for (int i = 1; i < count && written < budget; ++i)
-                    if ((sorted[(size_t) i] - root) % 12 == wanted)
-                    {
-                        dest[written++] = sorted[(size_t) i];
-                        i = count;
-                    }
-
-            for (int wanted : { 10, 11 })
-                for (int i = 1; i < count && written < budget; ++i)
-                    if ((sorted[(size_t) i] - root) % 12 == wanted)
-                    {
-                        dest[written++] = sorted[(size_t) i];
-                        i = count;
-                    }
-
-            break;
-        }
-
-        case VoicingStyle::rootless:
-        {
-            // Everything but the root, which is what you play over a bassist.
-            for (int i = 1; i < count && written < budget; ++i)
-                dest[written++] = sorted[(size_t) i];
-
-            if (written == 0 && count > 0)
-                dest[written++] = sorted[0];
-
-            break;
-        }
-
-        case VoicingStyle::triad:
-        {
-            // The top three notes: a triad on the top strings.
-            const int start = juce::jmax (0, count - budget);
-
-            for (int i = start; i < count && written < budget; ++i)
-                dest[written++] = sorted[(size_t) i];
-
-            break;
-        }
-
-        case VoicingStyle::drop2:
-        case VoicingStyle::drop3:
-        {
-            // Drop the second (or third) voice from the top down an octave, which
-            // is the definition of the voicing.
-            const int dropFromTop = (style == VoicingStyle::drop2) ? 2 : 3;
-            const int start = juce::jmax (0, count - budget);
-
-            for (int i = start; i < count && written < budget; ++i)
-                dest[written++] = sorted[(size_t) i];
-
-            const int dropIndex = written - dropFromTop;
-
-            if (dropIndex >= 0 && dropIndex < written)
-                dest[dropIndex] -= 12;
-
-            break;
-        }
-
-        case VoicingStyle::open:
-        case VoicingStyle::barre:
-        case VoicingStyle::wide:
-        case VoicingStyle::numStyles:
-        default:
-        {
-            for (int i = 0; i < count && written < budget; ++i)
-                dest[written++] = sorted[(size_t) i];
-
-            break;
-        }
-    }
-
-    return written;
-}
-
 void RhythmEngine::revoice() noexcept
 {
     if (voicer == nullptr)
@@ -363,6 +201,7 @@ void RhythmEngine::revoice() noexcept
         it sounds; density sets how many strings that may be. */
     voicer->setPitchMode (RubricPitchMode::chordTones);
     voicer->setStyle ((RubricStyle) (int) style);
+    voicer->setBassPattern (getBassPattern());   // 4.3 / 4.7: what the Bass style voices
     voicer->setRootPitchClass (currentChord.root);
     voicer->setMaxSoundingStrings (juce::jmax (1, (int) std::round ((double) numStrings * getVoicingDensity() / 100.0)));
     voicer->setAllowOpenStrings (style != VoicingStyle::barre);
@@ -399,8 +238,88 @@ void RhythmEngine::revoice() noexcept
 }
 
 //==============================================================================
+void RhythmEngine::setMuteSettings (const MuteSettings& s) noexcept
+{
+    muteSettings = s;
+    muteSettings.palmPositionMm = juce::jlimit (MuteSettings::kMinPositionMm, MuteSettings::kMaxPositionMm, s.palmPositionMm);
+    muteSettings.palmPressure = juce::jlimit (0.0, 1.0, s.palmPressure);
+    muteSettings.humanise = juce::jlimit (0.0, 1.0, s.humanise);
+    muteSettings.ghostVelocity = juce::jlimit (0.0, 1.0, s.ghostVelocity);
+
+    if (! juce::isPositiveAndBelow (s.masterMode, (int) MuteType::numTypes))
+        muteSettings.masterMode = -1;
+}
+
+void RhythmEngine::setLiveMuteStep (int step, MuteType type) noexcept
+{
+    if (juce::isPositiveAndBelow (step, kLiveMuteSteps))
+        liveMuteGrid[(size_t) step].store (juce::jlimit (0, (int) MuteType::numTypes - 1, (int) type),
+                                           std::memory_order_relaxed);
+}
+
+MuteType RhythmEngine::getLiveMuteStep (int step) const noexcept
+{
+    return juce::isPositiveAndBelow (step, kLiveMuteSteps)
+             ? (MuteType) liveMuteGrid[(size_t) step].load (std::memory_order_relaxed)
+             : MuteType::open;
+}
+
+void RhythmEngine::stampMute (NoteOnEvent& e, const MuteStep& resolved) const noexcept
+{
+    e.muteType = (int) resolved.type;
+    e.mutePressure = resolved.pressure;
+    e.mutePositionMm = resolved.positionMm;
+
+    // muting-rhythm 1: a chuka is the hand chopping across the strings at
+    // strum time - strum-dynamics 6.1's chuck, and it is played as one.
+    if (resolved.type == MuteType::chuka && e.chuck <= 0.0)
+        e.chuck = StrumGesture::chuckFor (strumSettings, true);
+}
+
+void RhythmEngine::applyLiveMutes (PlayEventQueue& events, int numSamples, const RhythmTransport& transport) noexcept
+{
+    juce::ignoreUnused (numSamples);
+
+    // 2: the grid syncs to the host; with the transport stopped only the master
+    // mode (and the chuka source) can reach a played note.
+    const bool useGrid = muteSettings.armed && transport.isPlaying;
+    const double bpm = juce::jlimit (20.0, 300.0, transport.bpm);
+    const double beatsPerSample = bpm / (60.0 * sr);
+
+    auto cellAt = [] (double ppq)
+    {
+        const int sixteenth = (int) std::floor (ppq * 4.0 + 1.0e-9);
+        return ((sixteenth % kLiveMuteSteps) + kLiveMuteSteps) % kLiveMuteSteps;
+    };
+
+    liveMuteStepPlaying.store (useGrid ? cellAt (transport.ppqPosition) : -1, std::memory_order_relaxed);
+
+    if (! muteSettings.armed)
+        return;
+
+    for (int i = 0; i < events.getNumNoteOns(); ++i)
+    {
+        auto& e = events.getMutableNoteOn (i);
+        const double ppq = transport.ppqPosition + (double) e.sampleOffset * beatsPerSample;
+        const int cell = useGrid ? cellAt (ppq) : 0;
+
+        MuteStep step;
+
+        if (useGrid)
+            step.type = getLiveMuteStep (cell);
+
+        // A strum's strokes carry a striker (strum-dynamics 5); a note played
+        // on its own does not, and a fingerpick is never a chuka.
+        const bool isStrum = e.strikerMaterial >= 0 || e.chuck > 0.0;
+        const auto loop = (juce::uint32) juce::jmax (0.0, std::floor (ppq / 4.0));
+
+        stampMute (e, Muting::resolve (step, muteSettings, isStrum, e.velocity, seed, loop, cell));
+    }
+}
+
+//==============================================================================
 void RhythmEngine::emitNote (int stringIndex, double velocity, bool muted, double chuck,
-                             int strikerMaterial, int sampleOffset, PlayEventQueue& out) noexcept
+                             int strikerMaterial, int sampleOffset, const MuteStep& mute, PlayEventQueue& out) noexcept
 {
     if (! juce::isPositiveAndBelow (stringIndex, numStrings))
         return;
@@ -446,6 +365,7 @@ void RhythmEngine::emitNote (int stringIndex, double velocity, bool muted, doubl
     on.slideSeconds = 0.0;
     on.chuck = chuck;
     on.strikerMaterial = strikerMaterial;
+    stampMute (on, mute);
 
     if (tuning != nullptr)
         on.pitchHz = tuning->computeFrequency (stringIndex, found->fretPosition, 0.0);
@@ -473,11 +393,15 @@ void RhythmEngine::releaseAll (int sampleOffset, PlayEventQueue& out) noexcept
 }
 
 //==============================================================================
-void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int sampleOffset,
-                                  PlayEventQueue& out) noexcept
+void RhythmEngine::scheduleStrum (const StrumStep& step, const MuteStep& mute, juce::uint32 loop, int stepIndex,
+                                  double sourceSps, int sampleOffset, PlayEventQueue& out) noexcept
 {
     if (step.isRest() || ! voicingValid)
         return;
+
+    // muting-rhythm 2 and 3: the step's mute, under the master mode, the chuka
+    // source and humanise (Muting.h has the order).
+    const auto resolvedMute = Muting::resolve (mute, muteSettings, true, step.dynamic, seed, loop, stepIndex);
 
     const auto h = getHumanise();
 
@@ -519,7 +443,13 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
         std::sort (participating.begin(), participating.begin() + numParticipating);
 
     const bool muted = isMutedStrum (step.type);
-    const bool chuck = step.type == StrumType::chuck;
+    const bool chuck = step.type == StrumType::chuck || resolvedMute.type == MuteType::chuka;
+
+    // muting-rhythm 3, fretting-hand style: with the rock spread the spare
+    // fingers lie across the strings a muted strum does not strike, and those
+    // stop too; the classical fingertip leaves them ringing.
+    const bool spreadDeadens = muteSettings.armed && isPalmMute (resolvedMute.type)
+                                 && muteSettings.frettingStyle == FrettingMuteStyle::rockSpread;
 
     // strum-dynamics 6.3: Feel scales whichever crossing source is in charge,
     // and the evenness, by the same map; at 0.5 it changes nothing.
@@ -541,7 +471,7 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
     // 6.1: the fretting hand lands flat before the strum crosses, so a string
     // still ringing that this strum does not strike is stopped too. (Struck
     // ones are stopped by emitNote, as any re-strike is.)
-    if (chuck)
+    if (chuck || spreadDeadens)
     {
         for (int s = 0; s < numStrings; ++s)
         {
@@ -604,18 +534,20 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
             const double offset = gestureOffset + strokeOffsetMs * 0.001 * sr + strike.timeSeconds * sr;
 
             emitNote (strike.stringIndex, baseVelocity * strike.force, muted, chuckAmount,
-                      strikerMaterial, (int) std::round (juce::jmax (0.0, offset)), out);
+                      strikerMaterial, (int) std::round (juce::jmax (0.0, offset)), resolvedMute, out);
         }
     }
 
     nextStrumType.store ((int) step.type, std::memory_order_relaxed);
 }
 
-void RhythmEngine::scheduleFingerpick (const FingerpickStep& step, int sampleOffset,
-                                       PlayEventQueue& out) noexcept
+void RhythmEngine::scheduleFingerpick (const FingerpickStep& step, const MuteStep& mute, juce::uint32 loop, int stepIndex,
+                                       int sampleOffset, PlayEventQueue& out) noexcept
 {
     if (! step.active || ! voicingValid)
         return;
+
+    const auto resolvedMute = Muting::resolve (mute, muteSettings, false, step.dynamic, seed, loop, stepIndex);
 
     const auto h = getHumanise();
 
@@ -635,7 +567,7 @@ void RhythmEngine::scheduleFingerpick (const FingerpickStep& step, int sampleOff
     if (h.timingMs > 0.0)
         offset += rng.nextGaussian() * h.timingMs * 0.001 * sr * h.amount * 0.5;
 
-    emitNote (stringIndex, velocity, false, 0.0, -1, (int) juce::jmax (0.0, offset), out);
+    emitNote (stringIndex, velocity, false, 0.0, -1, (int) juce::jmax (0.0, offset), resolvedMute, out);
 }
 
 //==============================================================================
@@ -754,6 +686,10 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
         const int stepInPattern = (int) std::floor (
             std::fmod ((double) index * stepBeats, patternBeats) / stepBeats + 0.5) % pattern.getLength();
 
+        // Which time through the pattern this is, for mute humanise (muting-rhythm 3).
+        const auto loop = (juce::uint32) juce::jmax (0.0, std::floor ((double) index * stepBeats / patternBeats));
+        const auto mute = pattern.getMuteStep (stepInPattern);
+
         const int sampleOffset = juce::jlimit (
             0, juce::jmax (0, numSamples - 1),
             (int) std::round ((beatPosition - startBeats) / juce::jmax (1.0e-12, beatsPerSample)));
@@ -780,14 +716,14 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
                 ghost.dynamic = step.dynamic * 0.35;
 
                 const int ghostOffset = juce::jmax (0, sampleOffset - (int) (0.035 * sr));
-                scheduleStrum (ghost, crossingSps, ghostOffset, out);
+                scheduleStrum (ghost, mute, loop, stepInPattern, crossingSps, ghostOffset, out);
             }
 
-            scheduleStrum (step, crossingSps, sampleOffset, out);
+            scheduleStrum (step, mute, loop, stepInPattern, crossingSps, sampleOffset, out);
         }
         else
         {
-            scheduleFingerpick (pattern.getFingerpickStep (stepInPattern), sampleOffset, out);
+            scheduleFingerpick (pattern.getFingerpickStep (stepInPattern), mute, loop, stepInPattern, sampleOffset, out);
         }
 
         emitted += out.getNumNoteOns() - before;
@@ -806,6 +742,7 @@ juce::var RhythmEngine::toVar() const
     root->setProperty ("enabled", isEnabled());
     root->setProperty ("freeRun", isFreeRunning());
     root->setProperty ("voicingStyle", (int) getVoicingStyle());
+    root->setProperty ("bassPattern", (int) getBassPattern());
     root->setProperty ("voicingDensity", getVoicingDensity());
     root->setProperty ("handPosition", getHandPositionHint());
 
@@ -817,6 +754,14 @@ juce::var RhythmEngine::toVar() const
     root->setProperty ("strumDurationMs", getStrumDurationMs());
     root->setProperty ("strumFeel", getStrumFeel());
     root->setProperty ("pattern", getPattern().toVar());
+
+    // muting-rhythm 2: the live grid, one id per sixteenth.
+    juce::Array<juce::var> grid;
+
+    for (int i = 0; i < kLiveMuteSteps; ++i)
+        grid.add (getMuteTypeId (getLiveMuteStep (i)));
+
+    root->setProperty ("liveMuteGrid", grid);
 
     const auto h = getHumanise();
     auto* humaniseObject = new juce::DynamicObject();
@@ -844,6 +789,11 @@ void RhythmEngine::fromVar (const juce::var& state)
     setVoicingDensity ((double) root->getProperty ("voicingDensity"));
     setHandPositionHint ((int) root->getProperty ("handPosition"));
 
+    // ambiguity-resolutions 4.3: absent in a state saved before it, so root.
+    setBassPattern (root->hasProperty ("bassPattern")
+                      ? (RubricBassPattern) juce::jlimit (0, (int) RubricBassPattern::walking, (int) root->getProperty ("bassPattern"))
+                      : RubricBassPattern::root);
+
     /*  A capo saved by a build that kept one here. It is applied so an old
         session does not silently lose it, and it is not written back: the
         parameter owns it from now on, and re-saving this preset moves it across.
@@ -865,6 +815,10 @@ void RhythmEngine::fromVar (const juce::var& state)
 
     if (root->hasProperty ("pattern"))
         setPattern (RhythmPattern::fromVar (root->getProperty ("pattern")));
+
+    if (auto* grid = root->getProperty ("liveMuteGrid").getArray())
+        for (int i = 0; i < kLiveMuteSteps; ++i)
+            setLiveMuteStep (i, i < grid->size() ? muteTypeFromId (grid->getReference (i).toString()) : MuteType::open);
 
     if (auto* humaniseObject = root->getProperty ("humanise").getDynamicObject())
     {

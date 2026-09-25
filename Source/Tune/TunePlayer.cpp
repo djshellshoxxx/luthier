@@ -594,6 +594,10 @@ void TunePlayer::renderBlock (int numSamples, const HostInfo& host,
     if (numSamples <= 0)
         return;
 
+    // Offline rendering: the message-thread service, in step with the render.
+    if (offlineService != nullptr)
+        offlineService();
+
     blockLength = numSamples;
     blockFrom = clockPosition();
     blockSamplesPerQuarter = clockSamplesPerQuarter;

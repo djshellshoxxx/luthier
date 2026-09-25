@@ -16,6 +16,7 @@
 #include "PlayingEvents.h"
 #include "TuningEngine.h"
 #include <array>
+#include <cstdint>
 
 namespace luthier
 {
@@ -60,7 +61,14 @@ public:
     /** Forgets where the hand was. The preferred position is carried from chord to
         chord on purpose, so a reset has to clear it or the first render after a
         prepare voices differently from every later one. */
-    void reset() noexcept { preferredPosition = 0; }
+    void reset() noexcept { preferredPosition = 0; occupied = 0; }
+
+    /** Strings already sounding a held note, one bit per string index. The
+        voicer never places a note on one of these: a note that arrives while
+        another is held must go to a free string, or it kills the held one
+        (engine.md "Mode B" - one note per string). Cleared by reset(). */
+    void setOccupiedStrings (uint16_t mask) noexcept { occupied = mask; }
+    uint16_t getOccupiedStrings() const noexcept { return occupied; }
 
     /** Maximum fret span a hand can cover. Four is comfortable; five is a stretch
         that a real player will make when the chord needs it. */
@@ -149,6 +157,7 @@ private:
     int minFret = 0;
     int preferredPosition = 0;
     bool allowOpen = true;
+    uint16_t occupied = 0;
 };
 
 } // namespace luthier

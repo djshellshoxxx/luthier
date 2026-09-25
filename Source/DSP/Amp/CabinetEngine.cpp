@@ -207,6 +207,9 @@ void CabinetEngine::prepare (double sampleRate, int maxBlockSize)
     alignBuffer.assign ((size_t) alignSize, 0.0);
     alignIndex = 0;
 
+    inputHistory.assign ((size_t) kHistorySamples, 0.0);
+    historyIndex = 0;
+
     bufferA.setSize (1, maxBlock, false, true, true);
     bufferB.setSize (1, maxBlock, false, true, true);
 
@@ -234,6 +237,9 @@ void CabinetEngine::reset() noexcept
 
     std::fill (alignBuffer.begin(), alignBuffer.end(), 0.0);
     alignIndex = 0;
+
+    std::fill (inputHistory.begin(), inputHistory.end(), 0.0);
+    historyIndex = 0;
 
     bufferA.clear();
     bufferB.clear();
@@ -324,6 +330,7 @@ bool CabinetEngine::loadImpulseResponse (int slot, const juce::File& file)
             return false;
 
         path.convolution->reset();
+        primeConvolution (*path.convolution);
     }
 
     path.loadedFile = file;
@@ -365,9 +372,39 @@ void CabinetEngine::loadImpulseResponse (int slot, const float* samples, int num
             return;
 
         path.convolution->reset();
+        primeConvolution (*path.convolution);
     }
 
     path.loaded.store (true);
+}
+
+void CabinetEngine::primeConvolution (juce::dsp::Convolution& convolution)
+{
+    // The history in order, oldest first, through the installed response; the
+    // output is discarded. What is left inside is the state the convolver would
+    // have had if it had been running on this signal all along (see the header).
+    if (inputHistory.empty() || maxBlock <= 0)
+        return;
+
+    juce::AudioBuffer<float> chunk (1, maxBlock);
+    int position = historyIndex;   // the oldest sample is the one about to be overwritten
+
+    for (int remaining = kHistorySamples; remaining > 0;)
+    {
+        const int n = juce::jmin (maxBlock, remaining);
+        auto* d = chunk.getWritePointer (0);
+
+        for (int i = 0; i < n; ++i)
+            d[i] = (float) inputHistory[(size_t) ((position + i) & (kHistorySamples - 1))];
+
+        juce::dsp::AudioBlock<float> block (chunk);
+        auto sub = block.getSubBlock (0, (size_t) n);
+        juce::dsp::ProcessContextReplacing<float> context (sub);
+        convolution.process (context);
+
+        position = (position + n) & (kHistorySamples - 1);
+        remaining -= n;
+    }
 }
 
 bool CabinetEngine::hasImpulseResponse (int slot) const noexcept
@@ -419,6 +456,12 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
         const float mono = (numChannels > 1) ? 0.5f * (inL[i] + inR[i]) : inL[i];
         a[i] = mono;
         b[i] = mono;
+
+        if (! inputHistory.empty())
+        {
+            inputHistory[(size_t) historyIndex] = (double) mono;
+            historyIndex = (historyIndex + 1) & (kHistorySamples - 1);
+        }
     }
 
     // ---- mic A ----------------------------------------------------------------

@@ -831,17 +831,54 @@ LUTHIER_TEST (SlapWiring, aGhostIsAThumpWithNoPitch)
         s.fretContact = 0.0;   // the string alone, without the clack
         engine->setSlapSettings (s);
 
-        return renderEngine (*engine, 45, noteOn (33, 127, 0));   // A1, the open A
+        return renderEngine (*engine, 60, noteOn (33, 127, 0));   // A1, the open A
     };
 
-    const auto ghost = slapWith (true), slap = slapWith (false);
+    auto ghost = slapWith (true), slap = slapWith (false);
 
-    const size_t attackEnd = (size_t) (0.03 * kSr), from = (size_t) (0.15 * kSr), to = (size_t) (0.2 * kSr);
+    // "No clear pitch" is about what is heard: the string's 7 Hz output DC
+    // blocker leaves a sub-audio tail (a 23 ms time constant) behind any note
+    // stopped this fast, so the sum is high-passed at 20 Hz before measuring.
+    auto highPass = [] (std::vector<double>& x)
+    {
+        const double r = 1.0 - constants::kTwoPi * 20.0 / kSr;
+        double x1 = 0.0, y1 = 0.0;
 
-    const double ghostTail = gainToDb (juce::jmax (1.0e-12, rmsOf (ghost.preBody, from, to)) / peakOf (ghost.preBody, 0, attackEnd));
-    const double slapTail = gainToDb (rmsOf (slap.preBody, from, to) / peakOf (slap.preBody, 0, attackEnd));
+        for (auto& v : x)
+        {
+            const double y = v - x1 + r * y1;
+            x1 = v;
+            y1 = y;
+            v = y;
+        }
+    };
 
-    CHECK_MSG (peakOf (ghost.preBody, 0, attackEnd) > 0.0, "the ghost made no thump");
+    highPass (ghost.preBody);
+    highPass (slap.preBody);
+
+    // The note lands after the interpreter's chord window and humanised
+    // timing, so the windows are measured from where the strike starts.
+    auto onsetOf = [] (const std::vector<double>& x)
+    {
+        for (size_t i = 0; i < x.size(); ++i)
+            if (std::abs (x[i]) > 1.0e-4)
+                return i;
+
+        return x.size();
+    };
+
+    const size_t ghostOn = onsetOf (ghost.preBody), slapOn = onsetOf (slap.preBody);
+    const size_t attack = (size_t) (0.03 * kSr), from = (size_t) (0.15 * kSr), to = (size_t) (0.2 * kSr);
+
+    CHECK_MSG (ghostOn < ghost.preBody.size() && slapOn < slap.preBody.size(), "a strike never sounded");
+    CHECK_MSG (ghostOn + to <= ghost.preBody.size(), "the ghost landed too late to measure");
+
+    const double ghostTail = gainToDb (juce::jmax (1.0e-12, rmsOf (ghost.preBody, ghostOn + from, ghostOn + to))
+                                       / juce::jmax (1.0e-12, peakOf (ghost.preBody, ghostOn, ghostOn + attack)));
+    const double slapTail = gainToDb (juce::jmax (1.0e-12, rmsOf (slap.preBody, slapOn + from, slapOn + to))
+                                      / juce::jmax (1.0e-12, peakOf (slap.preBody, slapOn, slapOn + attack)));
+
+    CHECK_MSG (peakOf (ghost.preBody, ghostOn, ghostOn + attack) > 1.0e-4, "the ghost made no thump");
     CHECK_MSG (ghostTail < -40.0, "a ghost still sounds " + juce::String (ghostTail, 1) + " dB at 150 ms");
     CHECK_MSG (slapTail > -25.0, "an ordinary slap has died to " + juce::String (slapTail, 1) + " dB at 150 ms");
 }

@@ -90,7 +90,27 @@ void RhythmPattern::clear() noexcept
     for (auto& s : fingerpickSteps)
         s = FingerpickStep {};
 
+    for (auto& s : muteSteps)
+        s = MuteStep {};
+
     crossingSps = 0.0;
+}
+
+MuteStep RhythmPattern::getMuteStep (int index) const noexcept
+{
+    return juce::isPositiveAndBelow (index, kMaxSteps) ? muteSteps[(size_t) index] : MuteStep {};
+}
+
+void RhythmPattern::setMuteStep (int index, const MuteStep& step) noexcept
+{
+    if (! juce::isPositiveAndBelow (index, kMaxSteps))
+        return;
+
+    auto& m = muteSteps[(size_t) index];
+    m.type = juce::isPositiveAndBelow ((int) step.type, (int) MuteType::numTypes) ? step.type : MuteType::open;
+    m.pressure = step.pressure < 0.0 ? -1.0 : juce::jlimit (0.0, 1.0, step.pressure);
+    m.positionMm = step.positionMm < 0.0 ? -1.0
+                                         : juce::jlimit (MuteSettings::kMinPositionMm, MuteSettings::kMaxPositionMm, step.positionMm);
 }
 
 StrumStep RhythmPattern::getStrumStep (int index) const noexcept
@@ -182,19 +202,39 @@ juce::var RhythmPattern::toVar() const
 
     juce::Array<juce::var> stepArray;
 
+    // muting-rhythm.md 2: a step's mute, written only when it is not open, so
+    // a pattern without mutes reads exactly as it did before.
+    auto writeMute = [this] (juce::DynamicObject* o, int i)
+    {
+        const auto& m = muteSteps[(size_t) i];
+
+        if (m.isOpen())
+            return;
+
+        o->setProperty ("mute_type", getMuteTypeId (m.type));
+
+        if (m.pressure >= 0.0)
+            o->setProperty ("mute_pressure", m.pressure);
+
+        if (m.positionMm >= 0.0)
+            o->setProperty ("mute_position_mm", m.positionMm);
+    };
+
     for (int i = 0; i < length; ++i)
     {
         if (kind == Kind::strum)
         {
             const auto& s = strumSteps[(size_t) i];
 
-            if (s.isRest())
+            // A rest with a mute is still written: the mute belongs to the step.
+            if (s.isRest() && muteSteps[(size_t) i].isOpen())
                 continue;
 
             auto* o = new juce::DynamicObject();
             o->setProperty ("step", i);
             o->setProperty ("event", getStrumTypeName (s.type));
             o->setProperty ("dynamic", s.dynamic);
+            writeMute (o, i);
 
             if (s.crossingSps > 0.0)
                 o->setProperty ("crossing_sps", s.crossingSps);
@@ -220,6 +260,7 @@ juce::var RhythmPattern::toVar() const
             o->setProperty ("event", "Pluck");
             o->setProperty ("finger", getFingerName (s.finger));
             o->setProperty ("dynamic", s.dynamic);
+            writeMute (o, i);
             stepArray.add (juce::var (o));
         }
     }
@@ -303,6 +344,16 @@ RhythmPattern RhythmPattern::fromVar (const juce::var& state)
             const auto eventName = o->getProperty ("event").toString();
             const double dynamic = o->hasProperty ("dynamic")
                                      ? (double) o->getProperty ("dynamic") : 1.0;
+
+            // muting-rhythm.md 2 and 4: a missing mute_type is open; an unknown one too.
+            if (o->hasProperty ("mute_type"))
+            {
+                MuteStep mute;
+                mute.type = muteTypeFromId (o->getProperty ("mute_type").toString());
+                mute.pressure = o->hasProperty ("mute_pressure") ? (double) o->getProperty ("mute_pressure") : -1.0;
+                mute.positionMm = o->hasProperty ("mute_position_mm") ? (double) o->getProperty ("mute_position_mm") : -1.0;
+                pattern.setMuteStep (index, mute);
+            }
 
             if (pattern.kind == Kind::fingerpick || eventName == "Pluck")
             {

@@ -56,10 +56,41 @@ struct GuitarSetup
     juce::Array<double> intonationMm;
 };
 
+/*  guitar-workshop.md 3.3, workshop-ui.md 3.3: one string of the set replaced
+    - a heavier third, a wound G on an otherwise plain-G set. Indexed the
+    engine's way (0 = the high E, engine.md 1); a field left at its default
+    keeps the set's value. In the guitar file this is the strings entry's
+    `per_string_override` list (file-formats.md 3), numbered for people
+    (1 = the high E); a file without the list has no overrides, so guitars
+    written before this loaded unchanged and guitars written with it load
+    on an older build minus the overrides. */
+struct StringOverride
+{
+    int stringIndex = -1;
+    double gaugeIn = 0.0;          ///< 0 = the set's gauge
+    juce::String material;         ///< "" = the set's winding_material ("phosphor_bronze", ...)
+    int wound = -1;                ///< -1 as the set decides, 0 plain, 1 wound
+
+    bool isEmpty() const noexcept { return gaugeIn <= 0.0 && material.isEmpty() && wound < 0; }
+    bool operator== (const StringOverride& o) const noexcept
+    {
+        return stringIndex == o.stringIndex && gaugeIn == o.gaugeIn && material == o.material && wound == o.wound;
+    }
+    bool operator!= (const StringOverride& o) const noexcept { return ! (*this == o); }
+};
+
+/*  guitar-illustration.md 11 / file-formats.md 3's `finish` block. colourA is
+    the body colour (a burst's edge), colourB a burst's centre. plasticColour
+    is the Workshop's plastics colour (pickguard, knobs, plastic pickup covers,
+    switch tip, backplates), `plastic_color` in the file: empty means the
+    pickguard part's own colour, which is what every guitar written before it
+    has. Colours are paint - none of them reaches the sound (gloss and aging
+    do, part-acoustics.md 9). */
 struct GuitarFinish
 {
     juce::String type = "solid", colourA = "#7A2E1B", colourB = "#F2C441", burstShape = "radial";
     double gloss = 0.8, aging = 0.0;
+    juce::String plasticColour;
 };
 
 //==============================================================================
@@ -80,7 +111,31 @@ public:
     juce::String hardwareColour = "nickel";
     juce::uint64 seed = 0;
 
+    /** 3.3: the strings that differ from the set, at most one entry per string. */
+    juce::Array<StringOverride> stringOverrides;
+
     PartPtr get (GuitarSlot slot) const noexcept { return parts[(size_t) slot]; }
+
+    //==========================================================================
+    // Per-string overrides (3.3).
+
+    /** The override on a string, or nullptr when it plays the set's string. */
+    const StringOverride* getStringOverride (int stringIndex) const noexcept;
+
+    /** Replaces the string's override; an empty one removes it. */
+    void setStringOverride (const StringOverride& o);
+    bool clearStringOverride (int stringIndex);
+
+    /** The gauge a string plays at: the set's, or the override's. */
+    double getStringGaugeIn (int stringIndex) const;
+
+    /** The winding material id a string plays with ("nickel_plated_steel", ...). */
+    juce::String getStringMaterial (int stringIndex) const;
+
+    /*  Wound or plain: the override says, else the set's rule (the renderer's,
+        guitar-illustration.md 10): nylon trebles are plain, a bass is all wound,
+        else 0.0195" and up is wound. */
+    bool isStringWound (int stringIndex) const;
 
     /** The pickup slots in neck, middle, bridge order. */
     static GuitarSlot pickupSlot (int index) noexcept;
@@ -88,6 +143,12 @@ public:
     /*  guitar-workshop.md 5.1: the string count is the smaller of what the
         neck and the bridge can take. `excess` reports what was dropped. */
     int getStringCount (int* excess = nullptr) const noexcept;
+
+    /*  The outline a body part draws with (guitar-illustration.md 4, 18: every
+        body part carries its own), from its `illustration.body_style`; empty
+        when the part names none. Fitting a body sets the guitar's bodyStyle
+        from this, which the illustration and the engine's body shape follow. */
+    static juce::String bodyStyleOf (const Part* body);
 
     /** Advisory warnings for parts that do not declare this family (5). */
     juce::StringArray getCompatibilityWarnings() const;
@@ -102,6 +163,11 @@ public:
     bool save (const juce::File& destination) const;
 
     bool operator== (const WorkshopGuitar&) const;
+
+    /*  True when the two differ at most in paint - the finish's type, colours,
+        burst shape and plastics colour - which changes how the guitar looks
+        and nothing it plays (gloss and aging are not paint: part-acoustics 9). */
+    bool differsOnlyInPaint (const WorkshopGuitar& other) const;
 };
 
 //==============================================================================

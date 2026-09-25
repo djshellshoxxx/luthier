@@ -37,7 +37,30 @@ void EffectsChain::prepare (double sampleRate, int maxBlockSize)
 void EffectsChain::reset() noexcept
 {
     const juce::ScopedLock sl (swapLock);
+    resetPedalsLocked();
+}
 
+void EffectsChain::resetFromAudioThread() noexcept
+{
+    /*  Like BodyEngine::reset: a try-lock, so the audio thread never waits on
+        the message thread. If a pedal is being swapped this instant the reset
+        is left pending, and processStereo carries it out under its own
+        try-lock the next time it gets in - before that block is processed,
+        so no tail from before the panic reaches the output. */
+    const juce::ScopedTryLock sl (swapLock);
+
+    if (! sl.isLocked())
+    {
+        resetPending.store (true, std::memory_order_release);
+        return;
+    }
+
+    resetPending.store (false, std::memory_order_relaxed);
+    resetPedalsLocked();
+}
+
+void EffectsChain::resetPedalsLocked() noexcept
+{
     for (auto& slot : slots)
     {
         if (slot.pedal != nullptr)
@@ -139,6 +162,36 @@ void EffectsChain::setSlotMix (int slot, double mix) noexcept
         slots[(size_t) slot].pedal->setMix (slots[(size_t) slot].mix);
 }
 
+bool EffectsChain::applyControls (const std::array<SlotControls, kNumSlots>& controls) noexcept
+{
+    const juce::ScopedTryLock sl (swapLock);
+
+    if (! sl.isLocked())
+        return false;   // A slot is being swapped this instant; next block.
+
+    for (size_t i = 0; i < (size_t) kNumSlots; ++i)
+    {
+        auto& slot = slots[i];
+        const auto& c = controls[i];
+
+        slot.bypassed = c.bypassed;
+        slot.mix = juce::jlimit (0.0, 1.0, c.mix);
+
+        if (slot.pedal == nullptr)
+            continue;
+
+        slot.pedal->setBypassed (slot.bypassed);
+        slot.pedal->setMix (slot.mix);
+
+        const int numParams = juce::jmin (slot.pedal->getNumParameters(), Pedal::kMaxParams);
+
+        for (int p = 0; p < numParams; ++p)
+            slot.pedal->setParameterNormalised (p, c.normalised[(size_t) p]);
+    }
+
+    return true;
+}
+
 void EffectsChain::moveSlot (int fromSlot, int toSlot)
 {
     if (! juce::isPositiveAndBelow (fromSlot, kNumSlots)
@@ -230,6 +283,10 @@ void EffectsChain::processStereo (double* left, double* right, int numSamples) n
 
     if (! sl.isLocked())
         return;   // A slot is being swapped this instant; pass the block through.
+
+    // A panic that found the lock taken lands here, before this block runs.
+    if (resetPending.exchange (false, std::memory_order_acq_rel))
+        resetPedalsLocked();
 
     for (auto& slot : slots)
         if (slot.pedal != nullptr)

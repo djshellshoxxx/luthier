@@ -107,6 +107,10 @@ void MidiOutRouter::emit (juce::MidiBuffer& midiMessages,
         for (int i = 0; i < n; ++i)
         {
             const auto& e = stringActivity[i];
+
+            if (e.kind != StringActivityEvent::Kind::note)
+                continue;   // a technique report for the capture, not a note
+
             const int note = juce::jlimit (0, 127, e.midiNote);
             const int offset = juce::jlimit (0, lastSample, e.sampleOffset);
 

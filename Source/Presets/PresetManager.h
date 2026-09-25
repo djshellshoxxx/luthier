@@ -55,6 +55,20 @@ public:
         folder before the new one lands on top of it. */
     static void backupBeforeOverwrite (const juce::File& target);
 
+    /*  file-formats 2, "backup on migration": a load that had to migrate the
+        file - the legacy magic spelling, a block the file lacked, a retired
+        parameter carried into its replacement - first copies the original into
+        the dated backup folder beside it, as <name>-v<schema>.luthierpreset.
+        A copy, not the spec's move: a load does not rewrite the file, so the
+        migrated form only reaches disk when the user saves, and until then
+        the original in place is what the browser lists. One copy per day: a
+        second load of the same original finds it there. Returns the backup,
+        or a file that does not exist when none was made. */
+    static juce::File backupMigratedOriginal (const juce::File& file, int schema);
+
+    /** Whether the last fromVar had to migrate anything, for the tests. */
+    bool didLastLoadMigrate() const noexcept { return lastLoadMigrated; }
+
     /*  guitar-workshop.md 9: pickup position and height were parameters and are
         placements now. A preset saved before stores them in `parameters`; the
         load keeps them here, in engine slot order, until the guitar that
@@ -240,6 +254,10 @@ private:
 
     /** Set on every load failure beside the error-log line, cleared on success. */
     juce::String lastLoadError;
+
+    /** What fromVar found: whether it migrated, and the file's schema (file-formats 2). */
+    bool lastLoadMigrated = false;
+    int lastLoadSchema = 0;
 
     /** Where the current preset came from. Empty until something is loaded. */
     juce::File currentFile;

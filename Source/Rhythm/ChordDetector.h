@@ -70,6 +70,12 @@ struct ChordSymbol
     /** "Am7", "G/B", "Cmaj9". Message thread only - it builds a String. */
     juce::String toString() const;
 
+    /** The same name into a fixed buffer, for the audio thread (notation-export
+        4: the capture's chord track). Writes at most `capacity - 1` characters
+        and a terminator; an unknown symbol writes an empty string. Returns the
+        length written. Never allocates. */
+    int format (char* dest, int capacity) const noexcept;
+
     bool operator== (const ChordSymbol& other) const noexcept
     {
         return root == other.root && bass == other.bass && templateIndex == other.templateIndex;

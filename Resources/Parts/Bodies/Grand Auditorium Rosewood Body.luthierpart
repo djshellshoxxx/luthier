@@ -19,5 +19,8 @@
     "thickness_mm": 115.0,
     "area_cm2": 2150,
     "bracing": "x"
+  },
+  "illustration": {
+    "body_style": "grand_auditorium"
   }
 }

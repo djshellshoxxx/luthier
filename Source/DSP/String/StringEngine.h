@@ -53,7 +53,8 @@ public:
         Released,      ///< Note off, no sustain pedal: finger lifted.
         Choked,        ///< Fully stopped.
         Silenced,      ///< A hand flat on the string: gone in 80 ms whatever its sustain.
-        Chuck          ///< strum-dynamics 6.1: the fretting hand across the strings; amount 1 ends the note in ~10 ms.
+        Chuck,         ///< strum-dynamics 6.1: the fretting hand across the strings; amount 1 ends the note in ~10 ms.
+        Muted          ///< muting-rhythm.md 4: a mute type's own T60 and cutoff, set by setMutedDamping.
     };
 
     //==========================================================================
@@ -91,6 +92,11 @@ public:
 
     void setDamping (Damping d, double amount = 1.0) noexcept;
     Damping getDamping() const noexcept { return damping; }
+
+    /*  muting-rhythm.md 1 and 4: the palm, or the fretting fingers, on the
+        string at the strike: the note decays to -60 dB in `t60Seconds` with
+        the loop filter at `cutoffHz`, whatever its open sustain. Damping::Muted. */
+    void setMutedDamping (double t60Seconds, double cutoffHz) noexcept;
 
     /** Extra decay scaling from string age, coating and user sustain control. */
     void setSustainScale (double scale) noexcept { sustainScale = juce::jlimit (0.05, 4.0, scale); needsLoopUpdate = true; }
@@ -182,6 +188,8 @@ private:
     // --- articulation state -------------------------------------------------
     Damping damping = Damping::Open;
     double  dampingAmount = 1.0;
+    double  mutedT60 = 0.05;
+    double  mutedCutoffHz = 900.0;
     double  sustainScale = 1.0;
     int     harmonicPartial = 0;
 

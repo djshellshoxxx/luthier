@@ -21,6 +21,12 @@
     engine has stopped reporting (the host stopped processing mid-note), and
     the glow greys out as stale; a reading resting at zero is an idle amp, not
     a stale one.
+
+    The face's VU meter (visual-polish.md 4) reads the master bus RMS, the same
+    source as the header's output meter, at the same 30 Hz, with a VU's 300 ms
+    ballistics; only the meter is repainted as the needle moves, and the same
+    staleness rule greys it. Under reduced motion (accessibility.md 5) there is
+    no easing: the needle is hard-set to the reading, at 10 Hz.
 */
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -74,6 +80,13 @@ public:
     /** Seconds without a change after which a non-zero drive reading is stale. */
     static constexpr double staleAfterSeconds = 0.5;
 
+    /** Where the VU needle is now, 0-1 across the scale; what it is heading for. */
+    float getShownVu() const noexcept { return shownVu; }
+    float getVuTarget() const noexcept { return vuTarget; }
+
+    /** The needle's per-tick approach at 30 Hz: a VU's 300 ms integration. */
+    static constexpr float vuBallistics = 0.105f;
+
     void paint (juce::Graphics&) override;
     void resized() override;
     void lookAndFeelChanged() override;
@@ -121,6 +134,11 @@ private:
     float shownDrive = 0.0f;
     bool shownStale = false;
     double lastSag = 0.0, lastSagChange = 0.0;
+
+    float shownVu = 0.0f, paintedVu = 0.0f, vuTarget = 0.0f;
+    bool shownVuStale = false;
+    double lastRms = 0.0, lastRmsChange = 0.0;
+    int reducedMotionTicks = 0;
 
     juce::Image faceImage;
     CacheKey cachedKey;

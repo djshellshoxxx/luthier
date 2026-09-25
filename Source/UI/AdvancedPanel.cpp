@@ -6,9 +6,153 @@
 #include "NotationPanel.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
+#include "../Accessibility/Localisation.h"
 
 namespace luthier
 {
+
+//==============================================================================
+//  ScrollHintViewport
+//==============================================================================
+class ScrollHintViewport::OverflowChevron : public juce::Component,
+                                            public juce::SettableTooltipClient
+{
+public:
+    OverflowChevron (ScrollHintViewport& v, bool isTop)
+        : viewport (v), top (isTop)
+    {
+        setTooltip (tr (top ? "advanced.scroll.moreAbove" : "advanced.scroll.moreBelow"));
+        setMouseCursor (juce::MouseCursor::PointingHandCursor);
+
+        AccessibleSetup::configureDescriptive (*this,
+                                               tr (top ? "advanced.scroll.moreAbove.name"
+                                                       : "advanced.scroll.moreBelow.name"),
+                                               getTooltip());
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        auto bounds = getLocalBounds().toFloat();
+
+        // The fade runs from the page background at the edge to nothing at the
+        // inner side, so the strip reads as the column running under the frame.
+        const auto solid = top ? bounds.getY() : bounds.getBottom();
+        const auto clear = top ? bounds.getBottom() : bounds.getY();
+
+        g.setGradientFill (juce::ColourGradient (Palette::background.withAlpha (0.92f),
+                                                 bounds.getX(), solid,
+                                                 Palette::background.withAlpha (0.0f),
+                                                 bounds.getX(), clear, false));
+        g.fillRect (bounds);
+
+        LuthierLookAndFeel::drawChevron (g, bounds.getCentre(), 5.0f, top ? 0 : 2,
+                                         hovering ? Palette::accentBright : Palette::accent, 1.6f);
+    }
+
+    void mouseEnter (const juce::MouseEvent&) override { hovering = true;  repaint(); }
+    void mouseExit  (const juce::MouseEvent&) override { hovering = false; repaint(); }
+
+    /** Only the glyph takes the mouse; a control scrolled under the fade
+        either side of it still gets its click. */
+    bool hitTest (int x, int y) override
+    {
+        return juce::isPositiveAndBelow (y, getHeight())
+            && std::abs (x - getWidth() / 2) <= ScrollHintViewport::hintGlyphHalfWidth;
+    }
+
+    void mouseDown (const juce::MouseEvent&) override
+    {
+        viewport.pageBy (top ? -1 : 1);
+    }
+
+    // mouseWheelMove is deliberately not overridden: Component's default hands
+    // the wheel to the parent, which is the Viewport, which scrolls.
+
+private:
+    ScrollHintViewport& viewport;
+    const bool top;
+    bool hovering = false;
+};
+
+ScrollHintViewport::ScrollHintViewport (const juce::String& componentName)
+    : juce::Viewport (componentName)
+{
+    topHint = std::make_unique<OverflowChevron> (*this, true);
+    bottomHint = std::make_unique<OverflowChevron> (*this, false);
+
+    // Added after the Viewport's own content holder and scrollbars, so they sit
+    // on top of both.
+    addChildComponent (*topHint);
+    addChildComponent (*bottomHint);
+}
+
+ScrollHintViewport::~ScrollHintViewport()
+{
+    if (watchedContent != nullptr)
+        watchedContent->removeComponentListener (&contentWatcher);
+}
+
+void ScrollHintViewport::resized()
+{
+    juce::Viewport::resized();
+    updateHints();
+}
+
+void ScrollHintViewport::visibleAreaChanged (const juce::Rectangle<int>&)
+{
+    updateHints();
+}
+
+void ScrollHintViewport::viewedComponentChanged (juce::Component* newComponent)
+{
+    if (watchedContent != nullptr)
+        watchedContent->removeComponentListener (&contentWatcher);
+
+    watchedContent = newComponent;
+
+    if (watchedContent != nullptr)
+        watchedContent->addComponentListener (&contentWatcher);
+
+    updateHints();
+}
+
+void ScrollHintViewport::ContentWatcher::componentMovedOrResized (juce::Component&, bool, bool wasResized)
+{
+    // A taller or shorter content leaves the bottom hint stale otherwise:
+    // resized() and visibleAreaChanged() only run on the viewport's own moves.
+    if (wasResized)
+        owner.updateHints();
+}
+
+void ScrollHintViewport::updateHints()
+{
+    const int width = getMaximumVisibleWidth();
+    const int height = getMaximumVisibleHeight();
+
+    topHint->setBounds (0, 0, width, hintHeight);
+    bottomHint->setBounds (0, height - hintHeight, width, hintHeight);
+
+    const auto* content = getViewedComponent();
+    const int contentHeight = content != nullptr ? content->getHeight() : 0;
+    const int viewY = getViewPositionY();
+
+    topHint->setVisible (viewY > 0);
+    bottomHint->setVisible (contentHeight > viewY + height);
+
+    topHint->toFront (false);
+    bottomHint->toFront (false);
+}
+
+bool ScrollHintViewport::isTopHintShowing() const noexcept     { return topHint->isVisible(); }
+bool ScrollHintViewport::isBottomHintShowing() const noexcept  { return bottomHint->isVisible(); }
+
+void ScrollHintViewport::pageBy (int direction)
+{
+    /*  Reduced motion (accessibility 5) is respected by construction: the view
+        moves in one step, with no animation to disable. */
+    const int step = juce::roundToInt ((float) getMaximumVisibleHeight() * 0.8f);
+    setViewPosition (getViewPositionX(), getViewPositionY() + direction * step);
+}
 
 //==============================================================================
 //  StringRow
@@ -147,6 +291,17 @@ void AdvancedPanel::Column::addSection (const juce::String& heading)
     Item item;
     item.heading = heading;
     item.height = 24;
+
+    // gui-integration 16 and 20: the header's `?` and right-click menu, laid
+    // over the header row (the item's component gets the row's bounds). The
+    // column owns it through SectionHeaderExtras::attachTo; Docs pins HELP to
+    // the section, as F1 does.
+    item.component = SectionHeaderExtras::attachTo (*this, heading, [this] (const juce::String& section)
+    {
+        if (auto* panel = findParentComponentOfClass<AdvancedPanel>())
+            panel->showHelp (section);
+    });
+
     items.add (item);
 }
 
@@ -230,19 +385,54 @@ namespace
     constexpr int kMinWorkspaceWidth = 480;
     constexpr int kStackBelowWidth = 1280;
 
+    /*  Column 4's tab strip wraps to at most this many rows (seven fits two
+        tabs a row, enough for "CONTROLLERS" in any column the layout gives),
+        and from three rows up each row is this tall rather than a full
+        button height. */
+    constexpr int kMaxWorkspaceTabRows = 7;
+    constexpr int kCompactTabRowHeight = 24;
+
     constexpr int kKnobRow = 0;   // placeholder to keep the helpers readable
 }
 
 AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
     : processor (p),
       guitarBody (p),
-      fretboard (p)
+      fretboard (p),
+      stringRoll (p)
 {
     juce::ignoreUnused (kKnobRow);
 
     addAndMakeVisible (guitarBody);
     addAndMakeVisible (fretboard);
     fretboard.setCompact (true);
+
+    /*  The strip shows the fretboard or the string roll (spec/issues.md: a piano
+        roll that mirrors the strings). The choice is remembered; it is a view,
+        not state, so it lives in UiPreferences with the other UI choices. */
+    addChildComponent (stringRoll);
+
+    // KEYS: a piano keyboard to play the guitar from, lit by what the strings sound.
+    pianoKeyboard = std::make_unique<PianoKeyboardComponent> (p);
+    addChildComponent (*pianoKeyboard);
+
+    // An older session remembered only FRETS or ROLL, as a bool.
+    stripView = (StripView) juce::jlimit (0, 2, UiPreferences::get().getInt (
+                    "advanced.stripView", UiPreferences::get().getBool ("advanced.stripShowsRoll", false) ? 1 : 0));
+
+    auto makeStripToggle = [this] (const juce::String& key, StripView view)
+    {
+        auto t = std::make_unique<LuthierToggle> (tr (key));
+        t->setTooltip (tr (key + ".tooltip"));
+        t->getButton().setClickingTogglesState (false);
+        t->getButton().onClick = [this, view] { setStripView (view); };
+        AccessibleSetup::configureButton (t->getButton(), tr (key), tr (key + ".tooltip"));
+        addAndMakeVisible (*t);
+        return t;
+    };
+    fretsButton = makeStripToggle ("advanced.strip.frets", StripView::frets);
+    rollButton  = makeStripToggle ("advanced.strip.roll",  StripView::roll);
+    keysButton  = makeStripToggle ("advanced.strip.keys",  StripView::keys);
 
     fretboard.onStringSelected = [this] (int s) { setSelectedString (s); };
     guitarBody.onPickupSelected = [this] (int) {};
@@ -255,12 +445,14 @@ AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
 
         viewports[i].setViewedComponent (columns[i].get(), false);
         viewports[i].setScrollBarsShown (true, false);
-        viewports[i].setScrollBarThickness (8);
+        viewports[i].setScrollBarThickness (12);
+        viewports[i].getVerticalScrollBar().setAutoHide (false);
         addAndMakeVisible (viewports[i]);
     }
 
     workspaceViewport.setScrollBarsShown (true, false);
-    workspaceViewport.setScrollBarThickness (8);
+    workspaceViewport.setScrollBarThickness (12);
+    workspaceViewport.getVerticalScrollBar().setAutoHide (false);
     addAndMakeVisible (workspaceViewport);
 
     buildColumn1();
@@ -609,6 +801,9 @@ void AdvancedPanel::buildColumn2()
         column.addControl (pickupVolume[slot].get(),
                            LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
     }
+
+    refreshPickupSlots();
+    startTimerHz (2);
 
     coilTap = std::make_unique<LuthierToggle> ("Coil tap");
     coilTap->attachTo (processor, ParamIDs::coilTap,
@@ -1061,6 +1256,8 @@ void AdvancedPanel::buildWorkspace()
             made = new RangesUi::RangeTabButton (tab.name, processor,
                                                  { RangeFamily::pick, RangeFamily::squeak,
                                                    RangeFamily::buzz, RangeFamily::slide });
+        else if (juce::String (tab.name) == "WORKSHOP")
+            made = new RangesUi::RangeTabButton (tab.name, processor, WorkshopPanel::rangeFamilies());
         else
             made = new juce::TextButton (tab.name);
 
@@ -1090,11 +1287,23 @@ void AdvancedPanel::buildWorkspace()
         from a build with more tabs than this one - is clamped by showWorkspaceTab
         rather than refused. */
     const auto savedName = UiPreferences::get().getString (workspaceTabNamePreferenceKey, {});
-    int saved = UiPreferences::get().getInt (workspaceTabPreferenceKey, 0);
+    int saved = UiPreferences::get().getInt (workspaceTabPreferenceKey, -1);
 
     for (int i = 0; i < workspaceTabs.size(); ++i)
         if (savedName.isNotEmpty() && workspaceTabs[i]->getButtonText().equalsIgnoreCase (savedName))
             saved = i;
+
+    /*  Nothing saved (a fresh install, or preferences reset): open on MOD, not
+        on WORKSHOP. WORKSHOP is the first tab but takes over columns 3 and 4,
+        so a first look at Advanced mode would find the amp and pedals gone. */
+    if (saved < 0)
+    {
+        saved = 0;
+
+        for (int i = 0; i < workspaceTabs.size(); ++i)
+            if (workspacePanels[i] == modMatrixPanel.get())
+                saved = i;
+    }
 
     showWorkspaceTab (saved, false);
 }
@@ -1213,7 +1422,21 @@ void AdvancedPanel::resized()
     auto guitarArea = strip.removeFromLeft (juce::jmin (260, strip.getWidth() / 3));
     guitarBody.setBounds (guitarArea);
 
-    fretboard.setBounds (strip.reduced (Metrics::grid, Metrics::gridHalf));
+    auto stripBody = strip.reduced (Metrics::grid, Metrics::gridHalf);
+    auto toggles = stripBody.removeFromRight (52);
+    const int toggleHeight = juce::jmin (22, toggles.getHeight() / 3);
+    fretsButton->setBounds (toggles.removeFromTop (toggleHeight).reduced (1));
+    rollButton->setBounds (toggles.removeFromTop (toggleHeight).reduced (1));
+    keysButton->setBounds (toggles.removeFromTop (toggleHeight).reduced (1));
+    fretsButton->getButton().setToggleState (stripView == StripView::frets, juce::dontSendNotification);
+    rollButton->getButton().setToggleState (stripView == StripView::roll, juce::dontSendNotification);
+    keysButton->getButton().setToggleState (stripView == StripView::keys, juce::dontSendNotification);
+    fretboard.setVisible (stripView == StripView::frets);
+    stringRoll.setVisible (stripView == StripView::roll);
+    pianoKeyboard->setVisible (stripView == StripView::keys);
+    fretboard.setBounds (stripBody);
+    stringRoll.setBounds (stripBody);
+    pianoKeyboard->setBounds (stripBody);
 
     bounds.removeFromTop (Metrics::grid);
 
@@ -1275,18 +1498,61 @@ void AdvancedPanel::resized()
     // ---- column 4: the tab strip, then whichever panel it selected ------------------
     workspaceLeft = bounds.getX();
 
-    auto tabStrip = bounds.removeFromTop (Metrics::buttonHeight);
+    /*  Thirteen tabs share column 4. When the widest label does not fit in an
+        equal share, the strip wraps to as many rows as it takes (two at
+        1600 px, three at 1200, five in a 400-point column) rather than
+        clipping "CONTROLLERS" to "ONTROLLE". The widths are measured as the
+        button draws its label (upper case, tracked, padded), and from three
+        rows up the rows are a little shorter so the strip does not eat the
+        workspace. Past kMaxWorkspaceTabRows the button's own fitting (less
+        padding, then a smaller font) takes up what is left. */
+    workspaceTabRows = 1;
 
     if (! workspaceTabs.isEmpty())
     {
         const int gap = Metrics::gridHalf;
-        const int width = (tabStrip.getWidth() - gap * (workspaceTabs.size() - 1))
-                            / workspaceTabs.size();
+        const int count = workspaceTabs.size();
+        const int available = bounds.getWidth();
 
-        for (auto* tab : workspaceTabs)
+        auto neededAt = [this] (int rowHeight)
         {
-            tab->setBounds (tabStrip.removeFromLeft (width));
-            tabStrip.removeFromLeft (gap);
+            int widest = 0;
+
+            for (auto* tab : workspaceTabs)
+                widest = juce::jmax (widest, LuthierLookAndFeel::idealTextButtonWidth (*tab, rowHeight));
+
+            return widest;
+        };
+
+        auto rowHeightFor = [] (int rows) { return rows >= 3 ? kCompactTabRowHeight : Metrics::buttonHeight; };
+
+        for (workspaceTabRows = 1; workspaceTabRows < kMaxWorkspaceTabRows; ++workspaceTabRows)
+        {
+            const int perRow = (count + workspaceTabRows - 1) / workspaceTabRows;
+
+            if ((available - gap * (perRow - 1)) / perRow >= neededAt (rowHeightFor (workspaceTabRows)))
+                break;
+        }
+
+        const int perRow = (count + workspaceTabRows - 1) / workspaceTabRows;
+        const int rowHeight = rowHeightFor (workspaceTabRows);
+        const int rowGap = workspaceTabRows >= 3 ? 2 : gap;
+        int index = 0;
+
+        for (int row = 0; row < workspaceTabRows; ++row)
+        {
+            if (row > 0)
+                bounds.removeFromTop (rowGap);
+
+            auto strip = bounds.removeFromTop (rowHeight);
+            const int inRow = juce::jmin (perRow, count - index);
+            const int width = (strip.getWidth() - gap * (perRow - 1)) / perRow;
+
+            for (int i = 0; i < inRow; ++i, ++index)
+            {
+                workspaceTabs[index]->setBounds (strip.removeFromLeft (width));
+                strip.removeFromLeft (gap);
+            }
         }
     }
 
@@ -1298,10 +1564,126 @@ void AdvancedPanel::resized()
     // width, so the workspace scrolls vertically exactly as a column does. The
     // bench fills the space instead: it is one surface, not a list.
     if (auto* panel = workspaceViewport.getViewedComponent())
-        panel->setSize (juce::jmax (80, workspaceViewport.getMaximumVisibleWidth()),
+    {
+        const int width = juce::jmax (80, workspaceViewport.getMaximumVisibleWidth());
+
+        panel->setSize (width,
                         workshop ? juce::jmax (560, workspaceViewport.getMaximumVisibleHeight())
                                  : panel == helpTab.get() ? juce::jmax (360, workspaceViewport.getMaximumVisibleHeight())
-                                                          : juce::jmax (80, panel->getHeight()));
+                                                          : workspacePanelHeight (panel));
+
+        /*  A panel whose preferred height depends on its width (LIVE's grid
+            scales its cells) was measured at the old width above; ask once
+            more at the new one. */
+        if (! workshop && panel != helpTab.get() && panel->getHeight() != workspacePanelHeight (panel))
+            panel->setSize (width, workspacePanelHeight (panel));
+    }
+}
+
+int AdvancedPanel::workspacePanelHeight (juce::Component* panel)
+{
+    /*  Every panel that knows how tall it wants to be is asked, rather than
+        trusted to have set that height on itself: the MOD, RHYTHM, LIVE,
+        ROUTING and TONE MATCH tabs all had a preferredHeight() nobody called,
+        and sat at the 80-point floor with their combo boxes squashed to a few
+        points each. The panels have no common base, so this is a dynamic_cast
+        per type; a panel not listed here falls back to its own height. */
+    if (panel == nullptr)
+        return 80;
+
+    int preferred = 0;
+
+    if (auto* p = dynamic_cast<ModMatrixPanel*> (panel))          preferred = p->preferredHeight();
+    else if (auto* p = dynamic_cast<RhythmPanel*> (panel))        preferred = p->preferredHeight();
+    else if (auto* p = dynamic_cast<LivePanel*> (panel))          preferred = p->preferredHeight();
+    else if (auto* p = dynamic_cast<RoutingPanel*> (panel))       preferred = p->preferredHeight();
+    else if (auto* p = dynamic_cast<ToneMatchPanel*> (panel))     preferred = p->preferredHeight();
+    else if (auto* p = dynamic_cast<CharacterPanel*> (panel))     preferred = p->preferredHeight();
+    else if (auto* p = dynamic_cast<ControllersPage*> (panel))    preferred = p->preferredHeight();
+    else if (auto* p = dynamic_cast<MidiOutPanel*> (panel))       preferred = p->getPreferredHeight();
+    else if (auto* p = dynamic_cast<NotationPanel*> (panel))      preferred = p->getPreferredHeight();
+    else if (auto* p = dynamic_cast<TunePanel*> (panel))          preferred = p->getPreferredHeight();
+    else if (auto* p = dynamic_cast<PracticeSetupPanel*> (panel)) preferred = p->getPreferredHeight();
+
+    return juce::jmax (80, preferred > 0 ? preferred : panel->getHeight());
+}
+
+//==============================================================================
+void AdvancedPanel::timerCallback()
+{
+    refreshPickupSlots();
+}
+
+void AdvancedPanel::refreshPickupSlots()
+{
+    const int fitted = processor.getEngine().getNumFittedPickups();   // 1..3
+
+    if (fitted == lastFittedPickups)
+        return;
+
+    lastFittedPickups = fitted;
+
+    // Engine slot 0 is the bridge, the last fitted slot the neck, the middle
+    // only exists with three (PartAcoustics, GuitarBodyComponent agree).
+    for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
+    {
+        const bool present = slot < fitted;
+        const char* position = slot == 0 ? "advanced.pickup.bridge"
+                             : (slot == fitted - 1 && fitted > 1) ? "advanced.pickup.neck" : "advanced.pickup.middle";
+        const std::map<juce::String, juce::String> values
+        {
+            { "n", juce::String (slot + 1) },
+            { "position", tr (present ? position : "advanced.pickup.notFitted") }
+        };
+
+        pickupType[slot]->setLabelText (tr ("advanced.pickup.label", values));
+        pickupMagnet[slot]->setLabelText (tr ("advanced.pickup.magnetLabel", values));
+        pickupType[slot]->setEnabled (present);
+        pickupMagnet[slot]->setEnabled (present);
+        pickupVolume[slot]->setEnabled (present);
+
+        if (! present)
+        {
+            pickupType[slot]->setTooltip (tr ("advanced.pickup.notFitted.tooltip"));
+            pickupMagnet[slot]->setTooltip (pickupType[slot]->getTooltip());
+            pickupVolume[slot]->setTooltip (pickupType[slot]->getTooltip());
+        }
+    }
+
+    /*  Selector positions the guitar cannot realise: PickupEngine::updateSelection
+        folds them onto the pickups that exist, so offering them only confuses.
+        The items are disabled, never removed: the ComboBoxAttachment maps the
+        parameter by item index and item count, so a shorter list would make
+        "Neck" write "Middle". */
+    auto& box = pickupSelector->getComboBox();
+    const auto names = Parameters::pickupSelectorNames();
+
+    for (int i = 0; i < names.size(); ++i)
+    {
+        const auto s = (PickupSelector) i;
+        const bool realisable = fitted >= 3
+                             || (fitted == 2 && (s == PickupSelector::Bridge || s == PickupSelector::Neck
+                                                 || s == PickupSelector::All || s == PickupSelector::BridgeNeck))
+                             || (fitted == 1 && s == PickupSelector::Bridge);
+        box.setItemEnabled (i + 1, realisable);
+    }
+
+    repaint();
+}
+
+//==============================================================================
+void AdvancedPanel::setStripView (StripView view)
+{
+    stripView = view;
+    UiPreferences::get().setInt ("advanced.stripView", (int) view);
+    UiPreferences::get().setBool ("advanced.stripShowsRoll", view == StripView::roll);
+    resized();
+}
+
+juce::Button& AdvancedPanel::getStripButton (StripView view) noexcept
+{
+    auto& toggle = view == StripView::keys ? keysButton : view == StripView::roll ? rollButton : fretsButton;
+    return toggle->getButton();
 }
 
 } // namespace luthier

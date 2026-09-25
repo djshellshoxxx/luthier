@@ -44,6 +44,19 @@ class LuthierAudioProcessor;
     modulation source for the parameter under the cursor. */
 constexpr int kModulateMenuBase = 1000;
 
+/** The base id for the Assign to macro submenu (gui-integration 16 item 6). A
+    result id in [kAssignMacroMenuBase, kAssignMacroMenuBase +
+    ModSourceSlots::numMacros) routes that macro to the parameter at full depth:
+    a macro is addressed in the mod matrix as a source, so "assign" is a route
+    whose source is the macro (modulation-matrix.md 5). */
+constexpr int kAssignMacroMenuBase = 2000;
+
+/** gui-integration 16 items 12 and 13. Item 12 shows the automation id (the
+    parameter id, read-only; choosing it copies the id to the system clipboard);
+    item 13 opens Options on the shortcut table. */
+constexpr int kAutomationIdMenuId = 12;
+constexpr int kShowShortcutsMenuId = 13;
+
 /** Builds the menu for a parameter without showing it. Empty if there is no such
     parameter. */
 juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
@@ -104,6 +117,43 @@ struct LearnTarget
 
     /** The parameter this control edits, or empty if it is not attached yet. */
     virtual juce::String getLearnParameterId() const = 0;
+
+    /** The processor the control is attached to, or null. SectionHeaderExtras
+        resets a section through this without the section having to know which
+        processor built it. */
+    virtual LuthierAudioProcessor* getLearnProcessor() const { return nullptr; }
+};
+
+//==============================================================================
+/*  A slider that lets the mouse wheel through to the enclosing Viewport.
+
+    juce::Slider consumes every wheel event over it, which in a scrolling column
+    of controls means the column stops scrolling wherever the pointer happens to
+    rest on a control - and Advanced mode is mostly control. Here the wheel
+    scrolls unless Ctrl (Cmd on macOS) is held, in which case it nudges the
+    value exactly as a plain juce::Slider would. Viewport ignores a wheel with
+    Ctrl held, so the two never fight over one event. */
+class WheelPassSlider : public juce::Slider
+{
+public:
+    WheelPassSlider() = default;
+    explicit WheelPassSlider (const juce::String& componentName) : juce::Slider (componentName) {}
+    WheelPassSlider (juce::Slider::SliderStyle style, juce::Slider::TextEntryBoxPosition textBox)
+        : juce::Slider (style, textBox) {}
+
+    /** True when this wheel event should change the value rather than scroll. */
+    static bool wheelAdjustsValue (const juce::MouseEvent& e) noexcept
+    {
+        return e.mods.isCtrlDown() || e.mods.isCommandDown();
+    }
+
+    void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override
+    {
+        if (wheelAdjustsValue (e))
+            juce::Slider::mouseWheelMove (e, wheel);
+        else
+            juce::Component::mouseWheelMove (e, wheel);
+    }
 };
 
 //==============================================================================
@@ -126,6 +176,7 @@ public:
     juce::Slider& getSlider() noexcept { return slider; }
     const juce::String& getParameterId() const noexcept { return paramId; }
     juce::String getLearnParameterId() const override { return paramId; }
+    LuthierAudioProcessor* getLearnProcessor() const override { return processor; }
 
     void setLabelText (const juce::String& text);
     void setAccentColour (juce::Colour colour);
@@ -157,6 +208,14 @@ private:
         void mouseDrag (const juce::MouseEvent&) override;
         void mouseEnter (const juce::MouseEvent&) override;
         void mouseExit (const juce::MouseEvent&) override;
+
+        /** As WheelPassSlider: the wheel scrolls the column unless Ctrl is held. */
+        void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+
+        /** accessibility 2 / qa-polish 4: the focus ring is the look-and-feel's,
+            drawn from hasKeyboardFocus, so a change of focus has to repaint. */
+        void focusGained (FocusChangeType) override;
+        void focusLost (FocusChangeType) override;
 
     private:
         LuthierKnob& owner;
@@ -197,6 +256,7 @@ public:
 
     juce::ComboBox& getComboBox() noexcept { return box; }
     juce::String getLearnParameterId() const override { return paramId; }
+    LuthierAudioProcessor* getLearnProcessor() const override { return processor; }
     void setLabelText (const juce::String& text);
 
     /** Hides the label and gives the whole height to the box. */
@@ -234,6 +294,7 @@ public:
 
     juce::TextButton& getButton() noexcept { return button; }
     juce::String getLearnParameterId() const override { return paramId; }
+    LuthierAudioProcessor* getLearnProcessor() const override { return processor; }
 
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
@@ -263,6 +324,7 @@ public:
 
     juce::Slider& getSlider() noexcept { return slider; }
     juce::String getLearnParameterId() const override { return paramId; }
+    LuthierAudioProcessor* getLearnProcessor() const override { return processor; }
 
     /** As LuthierKnob::resyncRange. */
     void resyncRange();
@@ -272,7 +334,7 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
 
 private:
-    juce::Slider slider;
+    WheelPassSlider slider;
     juce::String labelText, paramId;
     bool vertical;
 
@@ -343,10 +405,16 @@ class FeedbackLed : public juce::Component,
                     private juce::Timer
 {
 public:
+    /** gui-engine-dataflow 22: the UI drain rate of the feedback readout. */
+    static constexpr int kRefreshHz = 30;
+
     explicit FeedbackLed (LuthierAudioProcessor& processor);
     ~FeedbackLed() override;
 
     void paint (juce::Graphics&) override;
+
+    /** The rate the timer really runs at, for the tests. */
+    int getRefreshHz() const noexcept { return getTimerInterval() > 0 ? juce::roundToInt (1000.0 / getTimerInterval()) : 0; }
 
     float getShownActivity() const noexcept { return activity; }
     bool isShowingResonance() const noexcept { return resonant; }
@@ -445,6 +513,88 @@ private:
     juce::String title;
     bool raised;
     juce::Colour accent = Palette::accent;
+};
+
+//==============================================================================
+/*  What every section header carries besides its name (gui-integration 16 and
+    20, qa-polish 4): a `?` that opens Help pinned to the section, and a
+    right-click menu on the header with Reset panel, Screenshot and Docs.
+
+    It is a transparent component laid over the header row rather than a change
+    to the panel that paints the header, so a panel gains all of it by adding
+    one of these where it adds the heading. The section's controls are found by
+    walking the parent's other children between this header and the next one,
+    which is the same order the layout uses, so nothing has to register itself.
+
+    Collapse / expand (item 1 of section 16's panel menu) is not offered: no
+    section here has a collapse API to call, and a menu item that did nothing
+    would be worse than one that is missing. It joins when the API exists.
+
+    Screenshot saves the section as a PNG in the user's Pictures/Luthier folder
+    (or the directory a test points it at) rather than to the clipboard: JUCE
+    has no cross-platform image clipboard, and a file the user can find beats a
+    paste that works on one platform.
+*/
+class SectionHeaderExtras : public juce::Component
+{
+public:
+    /** `onDocs` is what Docs and the `?` do; the heading is passed back so one
+        callback serves every section. */
+    SectionHeaderExtras (const juce::String& heading,
+                         std::function<void (const juce::String& heading)> onDocs);
+    ~SectionHeaderExtras() override;
+
+    /*  Creates one, adds it to `parent` and makes `parent` own it, so a panel
+        whose sections are plain records rather than components (AdvancedPanel's
+        columns) can host it without a new member. The ownership lives in the
+        parent's property set, which JUCE destroys after the children are
+        detached, so the extras outlive nothing they point at. */
+    static SectionHeaderExtras* attachTo (juce::Component& parent, const juce::String& heading,
+                                          std::function<void (const juce::String&)> onDocs);
+
+    enum MenuIds { kResetPanel = 1, kScreenshot = 2, kDocs = 3 };
+
+    /** The header's menu, without showing it (testable, as the control menu is). */
+    juce::PopupMenu buildMenu() const;
+
+    /** What a menu result does. */
+    void applyMenuResult (int result);
+
+    const juce::String& getHeading() const noexcept { return heading; }
+    juce::Button& getHelpButton() noexcept { return helpButton; }
+
+    /** The controls between this header and the next, as parameter ids, with
+        the processor they are attached to (the first one found; every control
+        in a window is attached to the same processor). */
+    juce::StringArray getSectionParameterIds (LuthierAudioProcessor** processorOut = nullptr) const;
+
+    /** The section's area in the parent's coordinates: from this header down to
+        the next header, or to the parent's bottom. */
+    juce::Rectangle<int> getSectionBounds() const;
+
+    /** Resets every parameter in the section to its default as one undo entry.
+        Returns how many it reset. */
+    int resetSection();
+
+    /** Renders the section to a PNG and returns the file, or a non-existent
+        File on failure. */
+    juce::File saveScreenshot() const;
+
+    /** Where saveScreenshot() writes. Defaults to Pictures/Luthier; a test
+        points it at a temporary folder. */
+    static void setScreenshotDirectory (const juce::File& directory);
+    static juce::File getScreenshotDirectory();
+
+    void paint (juce::Graphics&) override;
+    void resized() override;
+    void mouseDown (const juce::MouseEvent&) override;
+
+private:
+    juce::String heading;
+    std::function<void (const juce::String&)> onDocs;
+    juce::TextButton helpButton { "?" };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SectionHeaderExtras)
 };
 
 

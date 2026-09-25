@@ -88,6 +88,18 @@ void drawFootswitch (juce::Graphics&, juce::Rectangle<float> area, bool down);
 /** Valves glowing behind a vent: `drive` 0-1 sets the glow, stale greys them. */
 void drawTubeVent (juce::Graphics&, juce::Rectangle<float> area, int numTubes, float drive, bool standby, bool stale);
 
+/** A VU meter's dial (visual-polish.md 4): chrome bezel, cream face, the -20 to
+    +3 scale with its red zone, and VU. The needle is drawn separately by
+    drawVuMeterNeedle so a cached face keeps the dial and redraws only the
+    needle. `position` is 0-1 across the scale (vuPositionFor); stale or
+    disabled draws it grey. */
+void drawVuMeterFace (juce::Graphics&, juce::Rectangle<float> area);
+void drawVuMeterNeedle (juce::Graphics&, juce::Rectangle<float> area, float position, bool stale, bool enabled);
+
+/** Where a linear RMS level lands on the VU scale: 0 VU is -18 dBFS, the scale
+    runs -20 to +3 VU, so -38 dBFS rests the needle and -15 dBFS pins it. */
+float vuPositionFor (double rmsLinear) noexcept;
+
 //==============================================================================
 /** Text in the display face (true) or the body face, fitted to `area`. */
 void drawPrint (juce::Graphics&, const juce::String& text, juce::Rectangle<float> area, juce::Colour colour,

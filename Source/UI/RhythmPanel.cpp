@@ -1,4 +1,5 @@
 #include "RhythmPanel.h"
+#include "../Accessibility/Localisation.h"
 #include "../PluginProcessor.h"
 
 namespace luthier
@@ -597,11 +598,31 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (*strumGrid);
     addAndMakeVisible (*fingerpickGrid);
 
+    // muting-rhythm 7: the Mute Row, one cell per step of the pattern.
+    muteRow = std::make_unique<MuteGridEditor>();
+    muteRow->setTooltip ("The pattern's mute per step (muting-rhythm 2): click or drag to paint the brush, "
+                         "right-click a cell to choose a type. Patterns without one are open everywhere.");
+    muteRow->getNumCells = [this] { return rhythm().getPattern().getLength(); };
+    muteRow->getCell = [this] (int i) { return rhythm().getPattern().getMuteStep (i).type; };
+    muteRow->setCell = [this] (int i, MuteType t)
+    {
+        auto pattern = rhythm().getPattern();
+        auto step = pattern.getMuteStep (i);
+        step.type = t;
+        pattern.setMuteStep (i, step);
+        rhythm().setPattern (pattern);
+    };
+    addAndMakeVisible (*muteRow);
+
     buildFeelControls();
 
     // gui-integration 4.4: the STRUM group (strum-dynamics 6.3) follows the feel controls.
     strumGroup = std::make_unique<StrumGroup> (processor);
     addAndMakeVisible (*strumGroup);
+
+    // muting-rhythm 3 and 7: the MUTE group, after STRUM.
+    muteGroup = std::make_unique<MuteGroup> (processor);
+    addAndMakeVisible (*muteGroup);
 
     buildBrowser();
 
@@ -611,16 +632,21 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
     styleSectionLabel (genreHeading,   "GENRE KIT");
     styleSectionLabel (voicingHeading, "VOICING");
     styleSectionLabel (strumHeading,   "STRUM PATTERN");
+    styleSectionLabel (muteRowHeading, "MUTE ROW");
     styleSectionLabel (pickHeading,    "FINGERPICK PATTERN");
     styleSectionLabel (feelHeading,    "FEEL");
     styleSectionLabel (browserHeading, "PATTERN BROWSER");
 
-    for (auto* label : { &genreHeading, &voicingHeading, &strumHeading,
+    for (auto* label : { &genreHeading, &voicingHeading, &strumHeading, &muteRowHeading,
                          &pickHeading, &feelHeading, &browserHeading })
         addAndMakeVisible (*label);
 
     refreshFromEngine();
     refreshBrowserList();
+
+    // Column 4 sizes the tab from this; without it the panel sat at 80 points
+    // and every combo box on it was squashed to a few points.
+    setSize (480, preferredHeight());
 
     startTimerHz (20);
 }
@@ -667,6 +693,7 @@ void RhythmPanel::buildGenreControls()
 
     modeHintLabel.setFont (juce::Font (juce::FontOptions (10.0f)));
     modeHintLabel.setColour (juce::Label::textColourId, Palette::warning);
+    modeHintLabel.setTooltip (tr ("rhythm.modeHint.tooltip"));
     addAndMakeVisible (modeHintLabel);
 
     // ---- genre kit -------------------------------------------------------------
@@ -678,6 +705,7 @@ void RhythmPanel::buildGenreControls()
         genreBox.addItem (name, itemId++);
 
     genreBox.setTextWhenNothingSelected ("Choose a style");
+    genreBox.setTooltip (tr ("rhythm.genreKit.tooltip"));
     genreBox.onChange = [this] { if (! updatingControls) applySelectedKit(); };
     addAndMakeVisible (genreBox);
 
@@ -687,6 +715,7 @@ void RhythmPanel::buildGenreControls()
 
     rigHintLabel.setFont (juce::Font (juce::FontOptions (9.0f)));
     rigHintLabel.setColour (juce::Label::textColourId, Palette::textDisabled);
+    rigHintLabel.setTooltip (tr ("rhythm.rigHint.tooltip"));
     addAndMakeVisible (rigHintLabel);
 }
 
@@ -695,6 +724,7 @@ void RhythmPanel::buildVoicingControls()
     for (int i = 0; i < (int) VoicingStyle::numStyles; ++i)
         styleBox.addItem (getVoicingStyleName ((VoicingStyle) i), i + 1);
 
+    styleBox.setTooltip (tr ("rhythm.voicing.tooltip"));
     styleBox.onChange = [this]
     {
         if (! updatingControls)
@@ -703,6 +733,7 @@ void RhythmPanel::buildVoicingControls()
     addAndMakeVisible (styleBox);
 
     styleValueSlider (densitySlider, 0.0, 100.0, 1.0, " %");
+    densitySlider.setTooltip (tr ("rhythm.density.tooltip"));
     densitySlider.onValueChange = [this]
     {
         if (! updatingControls)
@@ -711,6 +742,7 @@ void RhythmPanel::buildVoicingControls()
     addAndMakeVisible (densitySlider);
 
     styleValueSlider (handPositionSlider, 0.0, 22.0, 1.0, " fr");
+    handPositionSlider.setTooltip (tr ("rhythm.handPosition.tooltip"));
     handPositionSlider.onValueChange = [this]
     {
         if (! updatingControls)
@@ -721,6 +753,7 @@ void RhythmPanel::buildVoicingControls()
     capoLabel.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
     capoLabel.setColour (juce::Label::textColourId, Palette::textPrimary);
     capoLabel.setJustificationType (juce::Justification::centred);
+    capoLabel.setTooltip (tr ("rhythm.capo.tooltip"));
     addAndMakeVisible (capoLabel);
 
     capoDown.onClick = [this] { rhythm().setCapoFret (rhythm().getCapoFret() - 1); refreshFromEngine(); };
@@ -793,12 +826,14 @@ void RhythmPanel::buildBrowser()
     for (const auto& tag : tags)
         tagFilterBox.addItem (tag, itemId++);
 
+    tagFilterBox.setTooltip (tr ("rhythm.tagFilter.tooltip"));
     tagFilterBox.onChange = [this] { refreshBrowserList(); };
     addAndMakeVisible (tagFilterBox);
 
     patternList.setModel (&listModel);
     patternList.setRowHeight (18);
     patternList.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
+    patternList.setTooltip (tr ("rhythm.patternList.tooltip"));
     addAndMakeVisible (patternList);
 
     loadButton.onClick   = [this] { loadSelectedPattern(); };
@@ -967,6 +1002,7 @@ void RhythmPanel::timerCallback()
 
     strumGrid->setPlayingStep (step);
     fingerpickGrid->setPlayingStep (step);
+    muteRow->setPlayingCell (step);
 
     indicators->refresh();
 
@@ -991,9 +1027,11 @@ int RhythmPanel::preferredHeight() const
          + 12                                    // rig hint
          + 16 + 26 + 22 + 22 + 26                // voicing heading + controls
          + 16 + StrumGrid::preferredHeight       // strum grid
+         + 16 + MuteGridEditor::preferredHeight  // mute row
          + 16 + FingerpickGrid::preferredHeight  // fingerpick grid
          + 16 + 22 * 5                           // feel heading + five sliders
          + StrumGroup::preferredHeight + 4       // STRUM group
+         + MuteGroup::preferredHeight + 4        // MUTE group
          + 16 + 26 + 96 + 26                     // browser heading, filter, list, buttons
          + RhythmIndicators::preferredHeight
          + 24;
@@ -1055,6 +1093,9 @@ void RhythmPanel::resized()
     strumHeading.setBounds (row (16));
     strumGrid->setBounds (row (StrumGrid::preferredHeight));
 
+    muteRowHeading.setBounds (row (16));
+    muteRow->setBounds (row (MuteGridEditor::preferredHeight));
+
     pickHeading.setBounds (row (16));
     fingerpickGrid->setBounds (row (FingerpickGrid::preferredHeight));
 
@@ -1068,6 +1109,9 @@ void RhythmPanel::resized()
 
     // ---- strum (strum-dynamics 6.3) ----------------------------------------------
     strumGroup->setBounds (row (StrumGroup::preferredHeight, 4));
+
+    // ---- mute (muting-rhythm 3) ---------------------------------------------------
+    muteGroup->setBounds (row (MuteGroup::preferredHeight, 4));
 
     // ---- browser -----------------------------------------------------------------
     browserHeading.setBounds (row (16));

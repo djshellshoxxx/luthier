@@ -10,6 +10,7 @@
 */
 
 #include "../DSP/Common/DspCommon.h"
+#include "Muting.h"
 
 #include <array>
 #include <vector>
@@ -130,6 +131,10 @@ public:
     FingerpickStep getFingerpickStep (int index) const noexcept;
     void setFingerpickStep (int index, const FingerpickStep& step) noexcept;
 
+    /** muting-rhythm.md 2: each step's mute, whatever the pattern's kind. Open by default. */
+    MuteStep getMuteStep (int index) const noexcept;
+    void setMuteStep (int index, const MuteStep& step) noexcept;
+
     /** Which string each finger plays. Only meaningful for fingerpick patterns. */
     int getStringForFinger (Finger finger) const noexcept;
     void setStringForFinger (Finger finger, int stringIndex) noexcept;
@@ -156,6 +161,7 @@ private:
 
     std::array<StrumStep, kMaxSteps> strumSteps {};
     std::array<FingerpickStep, kMaxSteps> fingerpickSteps {};
+    std::array<MuteStep, kMaxSteps> muteSteps {};
 
     /** Default assignment is the classical one: thumb on the bass strings,
         i/m/a on the top three. */

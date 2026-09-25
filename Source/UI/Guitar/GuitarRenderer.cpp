@@ -118,8 +118,10 @@ namespace
     /** No fill. A default-constructed FillType is solid black, not empty. */
     juce::FillType none() { return juce::FillType (juce::Colours::transparentBlack); }
 
-    /** A metal part lit from the top left: bright edge, body colour, dark band, return. */
-    juce::FillType metalFill (juce::Colour base, juce::Rectangle<float> area, bool materials)
+    /** A metal part lit from the top left: bright edge, body colour, dark band, return.
+        `simple` (reduced detail) keeps just the bright-to-dark fall, which is all a
+        few-pixel part can show. */
+    juce::FillType metalFill (juce::Colour base, juce::Rectangle<float> area, bool materials, bool simple = false)
     {
         if (! materials)
             return solid (base);
@@ -127,10 +129,162 @@ namespace
         // Screen top-left is scene +X, -Y, so the light falls from (right, top) of the area in mm.
         juce::ColourGradient grad (base.brighter (0.55f), area.getRight(), area.getY(),
                                    base.darker (0.35f), area.getX(), area.getBottom(), false);
-        grad.addColour (0.35, base.brighter (0.1f));
-        grad.addColour (0.62, base.darker (0.45f));
-        grad.addColour (0.8, base.brighter (0.15f));
+
+        if (! simple)
+        {
+            grad.addColour (0.35, base.brighter (0.1f));
+            grad.addColour (0.62, base.darker (0.45f));
+            grad.addColour (0.8, base.brighter (0.15f));
+        }
+
         return juce::FillType (grad);
+    }
+
+    /** A radial gradient stretched to an ellipse: `centre` with radii `rx`, `ry`.
+        JUCE's radial gradients are circular; the fill's transform makes the ellipse. */
+    juce::FillType ellipticalFill (juce::ColourGradient grad, Pointf centre, float rx, float ry)
+    {
+        grad.isRadial = true;
+        grad.point1 = centre;
+        grad.point2 = { centre.x + rx, centre.y };
+        juce::FillType fill (grad);
+        fill.transform = juce::AffineTransform::scale (1.0f, ry / juce::jmax (0.001f, rx), centre.x, centre.y);
+        return fill;
+    }
+
+    //==========================================================================
+    /*  Grain as a small tiled image (section 5 layer 6), one per wood figure, drawn
+        once and shared: a 256 x 128 px tile at one pixel per millimetre, periodic
+        in both directions so the tiling has no seam. The renderer fills the body
+        with it through a FillType, so the strokes are not in the scene and the
+        image is downsampled (area averaged) rather than aliased at small sizes. */
+    enum class Grain { straight, tight, open, flame, quilt, none };
+
+    constexpr int kGrainW = 256, kGrainH = 128;
+
+    juce::Image makeGrainTile (Grain kind)
+    {
+        juce::Image tile (juce::Image::ARGB, kGrainW, kGrainH, true, juce::SoftwareImageType());
+        juce::Graphics g (tile);
+        juce::Random rng ((juce::int64) kind * 7919 + 11);
+        const auto dark = juce::Colour (0xff2a160a);
+        const auto light = juce::Colours::white;
+        constexpr float twoPi = juce::MathConstants<float>::twoPi;
+
+        // Along the grain: lines across the tile's width, wobbling with whole periods so they wrap.
+        auto lines = [&] (float pitch, float alpha, float width, float wobble)
+        {
+            juce::Path p;
+
+            for (float y = 0.0f; y < (float) kGrainH; y += pitch * (0.6f + rng.nextFloat() * 0.8f))
+            {
+                const float phase = rng.nextFloat() * twoPi, amp = wobble * (0.4f + rng.nextFloat());
+                const int periods = 1 + rng.nextInt (2);
+                p.startNewSubPath (0.0f, y + amp * std::sin (phase));
+
+                for (int x = 8; x <= kGrainW; x += 8)
+                    p.lineTo ((float) x, y + amp * std::sin (phase + twoPi * (float) periods * (float) x / (float) kGrainW));
+            }
+
+            // Drawn three times, a tile height apart, so a line leaving the bottom re-enters at the top.
+            g.setColour (dark.withAlpha (alpha));
+            for (int k = -1; k <= 1; ++k)
+                g.strokePath (p, juce::PathStrokeType (width), juce::AffineTransform::translation (0.0f, (float) (k * kGrainH)));
+        };
+
+        switch (kind)
+        {
+            case Grain::straight:  lines (3.2f, 0.22f, 0.7f, 2.0f); break;
+            case Grain::tight:     lines (1.7f, 0.16f, 0.5f, 0.8f); break;
+            case Grain::open:
+            {
+                lines (4.5f, 0.28f, 0.9f, 3.0f);
+
+                // Ash's cathedrals: nested arcs, wrapped by drawing them at every tile offset.
+                juce::Path arcs;
+                for (int i = 0; i < 6; ++i)
+                {
+                    const float cx = 60.0f + (float) i * 30.0f, cy = 64.0f + (rng.nextFloat() - 0.5f) * 30.0f;
+                    const float r = 18.0f + (float) i * 9.0f;
+                    arcs.addCentredArc (cx, cy, r * 2.2f, r, 0.0f, twoPi * 0.08f, twoPi * 0.42f, true);
+                }
+                g.setColour (dark.withAlpha (0.2f));
+                for (int kx = -1; kx <= 1; ++kx)
+                    for (int ky = -1; ky <= 1; ++ky)
+                        g.strokePath (arcs, juce::PathStrokeType (0.9f), juce::AffineTransform::translation ((float) (kx * kGrainW), (float) (ky * kGrainH)));
+                break;
+            }
+            case Grain::flame:
+            {
+                // Bands across the grain, rippling with whole periods down the tile so they wrap.
+                juce::Path dark1, light1;
+
+                for (float x = 0.0f; x < (float) kGrainW; x += 5.0f + rng.nextFloat() * 7.0f)
+                {
+                    auto& target = rng.nextBool() ? dark1 : light1;
+                    const float w = 2.0f + rng.nextFloat() * 5.0f, amp = 0.8f + rng.nextFloat() * 1.6f;
+                    const float phase = rng.nextFloat() * twoPi;
+                    const int periods = 1;
+
+                    target.startNewSubPath (x, 0.0f);
+                    for (int y = 8; y <= kGrainH; y += 8)
+                        target.lineTo (x + amp * std::sin (phase + twoPi * (float) periods * (float) y / (float) kGrainH), (float) y);
+                    for (int y = kGrainH; y >= 0; y -= 8)
+                        target.lineTo (x + w + amp * std::sin (phase + twoPi * (float) periods * (float) y / (float) kGrainH), (float) y);
+                    target.closeSubPath();
+                }
+
+                for (int k = -1; k <= 1; ++k)
+                {
+                    const auto t = juce::AffineTransform::translation ((float) (k * kGrainW), 0.0f);
+                    g.setColour (dark.withAlpha (0.16f));
+                    g.fillPath (dark1, t);
+                    g.setColour (light.withAlpha (0.14f));
+                    g.fillPath (light1, t);
+                }
+                break;
+            }
+            case Grain::quilt:
+            {
+                juce::Path dark1, light1;
+
+                for (int i = 0; i < 120; ++i)
+                {
+                    const float x = rng.nextFloat() * (float) kGrainW, y = rng.nextFloat() * (float) kGrainH;
+                    const float r = 5.0f + rng.nextFloat() * 9.0f;
+                    (i % 2 == 0 ? dark1 : light1).addEllipse (x - r * 1.4f, y - r, r * 2.8f, r * 2.0f);
+                }
+
+                for (int kx = -1; kx <= 1; ++kx)
+                    for (int ky = -1; ky <= 1; ++ky)
+                    {
+                        const auto t = juce::AffineTransform::translation ((float) (kx * kGrainW), (float) (ky * kGrainH));
+                        g.setColour (dark.withAlpha (0.14f));
+                        g.fillPath (dark1, t);
+                        g.setColour (light.withAlpha (0.10f));
+                        g.fillPath (light1, t);
+                    }
+                break;
+            }
+            case Grain::none:
+                break;
+        }
+
+        return tile;
+    }
+
+    /** The shared tiles, built on first use. build() may run on a worker (2.3). */
+    juce::Image grainTile (Grain kind)
+    {
+        static juce::SpinLock lock;
+        static juce::Image tiles[6];
+        const juce::SpinLock::ScopedLockType sl (lock);
+        auto& tile = tiles[(size_t) kind];
+
+        if (tile.isNull())
+            tile = makeGrainTile (kind);
+
+        return tile;
     }
 
     /** Centripetal Catmull-Rom through points, with optional sharp corners (BodyOutlines.h). */
@@ -295,6 +449,7 @@ namespace
             buildHeadstock();
             buildStrings();
             buildHits();
+            insertBackdrop();
 
             // Everything drawn, strokes and shadows included, so the fit never clips.
             juce::Rectangle<float> all;
@@ -304,6 +459,8 @@ namespace
                 auto b = sh.path.getBounds();
                 if (! sh.stroke.isInvisible() && sh.strokeMm > 0.0f)
                     b = b.expanded (sh.strokeMm * 0.5f + 0.5f);
+                if (sh.shadowMm > 0.0f)
+                    b = b.expanded (sh.shadowMm * 1.2f);
                 return b;
             };
 
@@ -311,6 +468,16 @@ namespace
             for (auto& sh : scene.overStrings)  all = all.getUnion (extent (sh));
             scene.bounds = all.expanded (4.0f);
         }
+
+        /** The pickguard as drawn (the player's plastics colour, else the part's). */
+        juce::Colour drawnPickguard() const
+        {
+            bool tortoise = false, threePly = false;
+            return pickguardColour (tortoise, threePly);
+        }
+
+        /** The small plastics (knobs, tips, covers) as drawn. */
+        juce::Colour drawnPlastics() const { return plasticColour(); }
 
     private:
         //======================================================================
@@ -392,17 +559,32 @@ namespace
             scene.overStrings.push_back (std::move (s));
         }
 
-        /** A soft drop shadow from the key light (visual-polish.md 1): down and right on screen. */
+        bool reduced() const noexcept { return options.detail != GuitarRenderer::Detail::full; }
+        bool thumb() const noexcept   { return options.detail == GuitarRenderer::Detail::thumbnail; }
+
+        /** The file-scope metalFill, simplified at reduced detail. Members shadow the
+            free function, so every call site picks this up unchanged. */
+        juce::FillType metalFill (juce::Colour base, juce::Rectangle<float> area, bool materials) const
+        {
+            return luthier::metalFill (base, area, materials, reduced());
+        }
+
+        /** A soft drop shadow from the key light (visual-polish.md 1): down and right on
+            screen, blurred at paint time. Hardware shadows are a pixel or less at reduced
+            detail, so only full detail gets them. */
         void shadow (const juce::Path& path, float offsetMm, float alpha)
         {
-            if (! options.materials || options.thumbnail)
+            if (! options.materials || reduced())
                 return;
 
-            auto p = path;
-            p.applyTransform (juce::AffineTransform::translation (-offsetMm, offsetMm));
-            add (p, solid (juce::Colours::black.withAlpha (alpha)), none(), 0.0f, -1, true);
-            add (p, solid (juce::Colours::transparentBlack), solid (juce::Colours::black.withAlpha (alpha * 0.5f)),
-                 offsetMm * 1.2f, -1, true);
+            GuitarScene::Shape s;
+            s.path = path;
+            s.path.applyTransform (juce::AffineTransform::translation (-offsetMm, offsetMm));
+            s.fill = solid (juce::Colours::black.withAlpha (juce::jmin (1.0f, alpha * 1.6f)));
+            s.stroke = none();
+            s.shadowMm = juce::jmax (1.0f, offsetMm * 1.5f);
+            s.lit = true;
+            scene.shapes.push_back (std::move (s));
         }
 
         int addClip (const juce::Path& p)
@@ -438,12 +620,19 @@ namespace
             family = guitar.family.isNotEmpty() ? guitar.family.toLowerCase() : juce::String ("electric");
             styleId = guitar.bodyStyle;
 
-            // A body part may name its own style (section 18's drawing metadata).
-            if (auto b = part (GuitarSlot::body))
-                if (b->illustration.isObject() && b->illustration.hasProperty ("body_style"))
-                    styleId = b->illustration.getProperty ("body_style", styleId).toString();
-
+            /*  Section 4 / 18: every body part names its own outline. The guitar's
+                meta.body_style says what the fitted body looks like (the bench sets
+                it from the part on every body fit, WorkshopBench::withPart), so it
+                wins; the part's own style stands in when the guitar names none or
+                one this build does not draw. */
             style = outlines::findBodyStyle (styleId.toRawUTF8());
+
+            if (style == nullptr)
+                if (const auto own = WorkshopGuitar::bodyStyleOf (part (GuitarSlot::body).get()); own.isNotEmpty())
+                {
+                    styleId = own;
+                    style = outlines::findBodyStyle (styleId.toRawUTF8());
+                }
 
             if (style == nullptr)
             {
@@ -600,14 +789,28 @@ namespace
             }
 
             bodyClip = addClip (bodyPath);
+            scene.bodyBounds = bodyPath.getBounds();
 
-            if (options.materials && ! options.thumbnail)
-            {
-                auto p = bodyPath;
-                p.applyTransform (juce::AffineTransform::translation (-5.0f, 7.0f));
-                add (p, solid (juce::Colours::black.withAlpha (0.18f)), solid (juce::Colours::black.withAlpha (0.10f)), 10.0f, -1, true);
-                add (p, solid (juce::Colours::black.withAlpha (0.22f)), none(), 0.0f, -1, true);
-            }
+        }
+
+        /** Layer 1, added last and inserted first: one soft shadow under the whole
+            silhouette (body, neck, headstock) from the key light, down and right on
+            screen. Thumbnails go without (section 15). */
+        void insertBackdrop()
+        {
+            if (! options.materials || thumb())
+                return;
+
+            GuitarScene::Shape s;
+            s.path = bodyPath;
+            s.path.addPath (neckArea);
+            s.path.addPath (headstockArea);
+            s.path.applyTransform (juce::AffineTransform::translation (-6.0f, 9.0f));
+            s.fill = solid (juce::Colours::black.withAlpha (0.45f));
+            s.stroke = none();
+            s.shadowMm = 12.0f;
+            s.lit = true;
+            scene.shapes.insert (scene.shapes.begin(), std::move (s));
         }
 
         //======================================================================
@@ -657,7 +860,12 @@ namespace
             // Layer 4: the top.
             bool showGrain = true;
             const auto wood = topWood();
-            const bool isMetalBody = text (GuitarSlot::body, "wood") == "steel" || type == "metal";
+            /*  4.5: a metal finish is a steel body's. A wood resonator body fitted
+                under a steel guitar's "metal" finish shows its wood (the cover plate
+                stays metal); a guitar with no body part keeps the finish's word. */
+            const auto bodyWoodId = text (GuitarSlot::body, "wood");
+            const bool isMetalBody = bodyWoodId == "steel" || (type == "metal" && (bodyWoodId.isEmpty() || bodyWoodId == "steel"));
+            const bool metalOnWood = type == "metal" && ! isMetalBody;
 
             if (type == "solid" || type == "sparkle")
             {
@@ -675,29 +883,41 @@ namespace
             }
             else if (type == "burst")
             {
-                // Centre colour (b) on the lower bout, the edge colour (a) following the outline.
-                const auto centre = body ({ juce::jmin (0.72f, saddleU + 0.06f), 0.03f });
-                const float r = 0.62f * juce::jmax (L, W);
-
-                juce::ColourGradient grad (b, centre.x, centre.y, a, centre.x + r, centre.y, true);
-                grad.addColour (0.35, b);
-                grad.addColour (0.62, b.interpolatedWith (a, 0.35f));
-                add (bodyPath, juce::FillType (grad));
-
+                // 11.2: one smooth radial gradient, centre colour (b) on the lower bout
+                // shading to the edge colour (a), stretched to the body's proportions.
+                const auto bb = bodyPath.getBounds();
+                const auto centre = body ({ juce::jmin (0.70f, saddleU + 0.05f), 0.02f });
                 const bool threeTone = f.burstShape.containsIgnoreCase ("3");
 
+                juce::ColourGradient grad (b, 0.0f, 0.0f, a, 1.0f, 0.0f, true);
+                grad.addColour (0.30, b);
                 if (threeTone)
-                    for (float w : { 90.0f, 70.0f })
-                        add (bodyPath, solid (juce::Colours::transparentBlack), solid (juce::Colour (0xffb2401e).withAlpha (0.28f)), w, bodyClip);
+                    grad.addColour (0.66, juce::Colour (0xffb2401e).interpolatedWith (a, 0.25f));
+                else
+                    grad.addColour (0.62, b.interpolatedWith (a, 0.4f));
 
-                // The edge band follows the outline, as a sprayed burst does.
-                for (float w : { 64.0f, 50.0f, 40.0f, 31.0f, 23.0f, 16.0f, 10.0f, 5.0f })
-                    add (bodyPath, solid (juce::Colours::transparentBlack), solid (a.withAlpha (0.2f)), w, bodyClip);
+                add (bodyPath, ellipticalFill (grad, centre, bb.getWidth() * 0.68f, bb.getHeight() * 0.62f));
+
+                // A sprayed burst darkens along the outline, which a circle cannot do on a
+                // single-cut: the edge colour bleeds inward from the edge and fades out.
+                if (! thumb())
+                {
+                    GuitarScene::Shape s;
+                    s.path = bodyPath;
+                    s.fill = solid (a.withAlpha (0.85f));
+                    s.stroke = none();
+                    s.innerMm = 34.0f;
+                    scene.shapes.push_back (std::move (s));
+                }
             }
             else if (type == "transparent")
             {
                 add (bodyPath, solid (wood));
                 add (bodyPath, solid (a.withAlpha (0.6f)));
+            }
+            else if (metalOnWood)
+            {
+                add (bodyPath, solid (wood));
             }
             else
             {
@@ -706,11 +926,11 @@ namespace
             }
 
             // Layer 6: grain, where the finish lets it show.
-            if (showGrain && ! options.thumbnail)
-                buildGrain (type == "burst" ? 0.10f : 0.08f);
+            if (showGrain && ! reduced())
+                buildGrain (type == "burst" ? 0.75f : 0.6f);
 
             // 11.6 sparkle: bright flakes at low opacity.
-            if (type == "sparkle")
+            if (type == "sparkle" && ! reduced())
             {
                 juce::Random rng ((juce::int64) guitar.seed + 7);
                 juce::Path flakes;
@@ -725,87 +945,68 @@ namespace
                 add (flakes, solid (b.getBrightness() > 0.2f ? b.withAlpha (0.35f) : juce::Colours::white.withAlpha (0.3f)), none(), 0.0f, bodyClip);
             }
 
-            // Layer 5: the arch / bevel / contour line from the style.
-            if (style->numArch > 1)
+            // Layer 5: a carved top reads as one broad gradient, brighter at the crown
+            // and falling away to the edge; a flat top gets the style's contour line.
+            const juce::String id (style->id);
+            const bool carved = id.contains ("arched") || id == "archtop" || id.contains ("violin") || id.contains ("semi")
+                             || id.contains ("hollow");
+
+            if (carved && options.materials && ! isMetalBody)
+            {
+                const auto bb = bodyPath.getBounds();
+                juce::ColourGradient crown (juce::Colours::white.withAlpha (0.11f), 0.0f, 0.0f,
+                                            juce::Colours::black.withAlpha (0.20f), 1.0f, 0.0f, true);
+                crown.addColour (0.55, juce::Colours::transparentBlack);
+                add (bodyPath, ellipticalFill (crown, { bb.getCentreX() + bb.getWidth() * 0.02f, bb.getCentreY() },
+                                               bb.getWidth() * 0.56f, bb.getHeight() * 0.56f), none(), 0.0f, bodyClip, true);
+            }
+            else if (style->numArch > 1 && ! reduced())
             {
                 const auto arch = styleShape (style->arch, style->numArch, style->archClosed);
-                add (arch, solid (juce::Colours::transparentBlack), solid (juce::Colours::white.withAlpha (0.16f)), 3.0f, bodyClip, true);
-                add (arch, solid (juce::Colours::transparentBlack), solid (juce::Colours::black.withAlpha (0.10f)), 1.2f, bodyClip, true);
+                add (arch, solid (juce::Colours::transparentBlack), solid (juce::Colours::white.withAlpha (0.14f)), 2.5f, bodyClip, true);
+                add (arch, solid (juce::Colours::transparentBlack), solid (juce::Colours::black.withAlpha (0.08f)), 1.0f, bodyClip, true);
             }
 
             buildLighting();
-            buildBinding();
+            buildBinding (type == "transparent" ? wood.interpolatedWith (a, 0.6f)
+                        : (type == "solid" || type == "sparkle" || type == "burst" || type == "metallic" || f.colourA.isNotEmpty()) ? a
+                                                                                                                                 : wood);
 
-            if (aging > 0.0f && ! options.thumbnail)
+            if (aging > 0.0f && ! reduced())
                 buildAging (aging, a);
         }
 
+        /** Layer 6: the wood's figure as a tiled image fill (one tile per figure,
+            shared), offset by the character seed so two guitars do not match. */
         void buildGrain (float alpha)
         {
-            const auto bb = bodyPath.getBounds();
-            juce::Random rng ((juce::int64) guitar.seed * 31 + 3);
             const auto topName = partName (GuitarSlot::top).toLowerCase();
             const auto wood = text (GuitarSlot::top, "wood", text (GuitarSlot::body, "wood", "alder")).toLowerCase();
-            const auto dark = juce::Colour (0xff2a160a);
 
-            juce::Path lines, bands, light;
+            Grain figure = Grain::straight;
+            float strength = alpha;
 
-            if (topName.contains ("flame") || topName.contains ("quilt") || topName.contains ("spalted"))
+            if (topName.contains ("quilt"))                                        figure = Grain::quilt;
+            else if (topName.contains ("flame") || topName.contains ("spalted"))    figure = Grain::flame;
+            else if (wood.startsWith ("ash"))                                       figure = Grain::open;
+            else if (wood.startsWith ("spruce") || wood.startsWith ("cedar"))       figure = Grain::tight;
+            else if (wood.startsWith ("mahogany") || wood.startsWith ("alder"))     strength *= 0.5f;
+
+            const auto tile = grainTile (figure);
+            const auto seed = (juce::int64) guitar.seed;
+            const float dx = (float) (seed % kGrainW), dy = (float) ((seed / 7) % kGrainH);
+
+            juce::FillType fill (tile, juce::AffineTransform::translation (dx, dy));
+            fill.setOpacity (strength);
+            add (bodyPath, fill, none(), 0.0f, bodyClip);
+
+            // A figured cap keeps its straight grain underneath, faintly.
+            if (figure == Grain::flame || figure == Grain::quilt)
             {
-                const bool quilt = topName.contains ("quilt");
-
-                if (quilt)
-                {
-                    for (int i = 0; i < 260; ++i)
-                    {
-                        const float x = bb.getX() + rng.nextFloat() * bb.getWidth();
-                        const float y = bb.getY() + rng.nextFloat() * bb.getHeight();
-                        const float r = 4.0f + rng.nextFloat() * 9.0f;
-                        (i % 2 == 0 ? bands : light).addEllipse (x - r * 1.4f, y - r, r * 2.8f, r * 2.0f);
-                    }
-                }
-                else
-                {
-                    // Flame: bands across the width, rippling along the book-match seam.
-                    for (float x = bb.getX(); x < bb.getRight(); x += 3.5f + rng.nextFloat() * 5.0f)
-                    {
-                        auto& target = (rng.nextBool() ? bands : light);
-                        const float w = 1.5f + rng.nextFloat() * 3.5f;
-                        const float lean = 6.0f + rng.nextFloat() * 8.0f;
-                        target.startNewSubPath (x, bb.getY());
-                        target.quadraticTo (x + lean, bb.getCentreY(), x, bb.getBottom());
-                        target.lineTo (x + w, bb.getBottom());
-                        target.quadraticTo (x + w + lean, bb.getCentreY(), x + w, bb.getY());
-                        target.closeSubPath();
-                    }
-                }
-
-                add (bands, solid (dark.withAlpha (alpha * 1.4f)), none(), 0.0f, bodyClip);
-                add (light, solid (juce::Colours::white.withAlpha (alpha)), none(), 0.0f, bodyClip);
+                juce::FillType under (grainTile (Grain::straight), juce::AffineTransform::translation (dy, dx));
+                under.setOpacity (strength * 0.4f);
+                add (bodyPath, under, none(), 0.0f, bodyClip);
             }
-
-            // Straight grain along the axis: spruce and cedar tight, ash open with cathedrals.
-            const bool ash = wood.startsWith ("ash");
-            const float pitch = ash ? 4.5f : (wood.startsWith ("spruce") || wood.startsWith ("cedar")) ? 1.6f : 3.2f;
-            const float strength = wood.startsWith ("mahogany") || wood.startsWith ("alder") ? 0.5f : 1.0f;
-
-            for (float y = bb.getY(); y < bb.getBottom(); y += pitch * (0.6f + rng.nextFloat() * 0.8f))
-            {
-                const float wobble = rng.nextFloat() * 2.0f - 1.0f;
-                lines.startNewSubPath (bb.getRight(), y);
-                lines.cubicTo (bb.getCentreX() + 60.0f, y + wobble * 2.5f, bb.getCentreX() - 60.0f, y - wobble * 2.5f, bb.getX(), y + wobble);
-            }
-
-            if (ash)
-                for (int i = 0; i < 9; ++i)
-                {
-                    const float cy = bb.getCentreY() + (rng.nextFloat() - 0.5f) * 60.0f;
-                    const float r = 30.0f + (float) i * 14.0f;
-                    lines.addCentredArc (bb.getX() + bb.getWidth() * 0.3f, cy, r * 2.2f, r, 0.0f,
-                                         juce::MathConstants<float>::pi * 0.15f, juce::MathConstants<float>::pi * 0.85f, true);
-                }
-
-            add (lines, solid (juce::Colours::transparentBlack), solid (dark.withAlpha (alpha * strength)), 0.35f, bodyClip);
         }
 
         /** visual-polish.md 1: diffuse falloff from the top-left key light, sheen, edge highlight. */
@@ -818,56 +1019,72 @@ namespace
             const Pointf light { bb.getRight() - bb.getWidth() * 0.25f, bb.getY() + bb.getHeight() * 0.18f };
             const float r = juce::jmax (bb.getWidth(), bb.getHeight()) * 1.05f;
 
-            juce::ColourGradient diffuse (juce::Colours::white.withAlpha (0.10f), light.x, light.y,
-                                          juce::Colours::black.withAlpha (0.28f), light.x - r, light.y + r * 0.4f, true);
+            // A broad, gentle fall: lit near the light, a little shade in the far corner.
+            juce::ColourGradient diffuse (juce::Colours::white.withAlpha (0.09f), light.x, light.y,
+                                          juce::Colours::black.withAlpha (0.12f), light.x - r, light.y + r * 0.4f, true);
             diffuse.addColour (0.45, juce::Colours::transparentBlack);
             add (bodyPath, juce::FillType (diffuse), none(), 0.0f, bodyClip, true);
 
-            // Lacquer sheen: gloss > 0.6 a soft band, satin a wide faint one, oil none.
+            // Lacquer sheen: gloss > 0.6 a soft band, satin a wide faint one, oil none. The
+            // gradient is stretched to the band's ellipse so it fades out before its edge.
             const float gloss = (float) guitar.finish.gloss;
             const auto type = guitar.finish.type.toLowerCase();
 
-            if (type != "oil" && gloss > 0.25f)
+            if (type != "oil" && gloss > 0.25f && ! thumb())
             {
                 const bool glossy = gloss > 0.6f;
                 const auto c = body ({ saddleU + 0.05f, -0.18f });
-                juce::Path band;
                 const float bw = glossy ? L * 0.22f : L * 0.38f, bh = glossy ? W * 0.07f : W * 0.16f;
-                band.addEllipse (c.x - bw, c.y - bh, bw * 2.0f, bh * 2.0f);
-                band.applyTransform (juce::AffineTransform::rotation (-0.35f, c.x, c.y));
+                const auto rotate = juce::AffineTransform::rotation (-0.35f, c.x, c.y);
 
-                juce::ColourGradient sheen (juce::Colours::white.withAlpha ((glossy ? 0.22f : 0.08f) * gloss), c.x, c.y,
-                                            juce::Colours::white.withAlpha (0.0f), c.x + bw, c.y, true);
-                add (band, juce::FillType (sheen), none(), 0.0f, bodyClip, true);
+                juce::Path band;
+                band.addEllipse (c.x - bw, c.y - bh, bw * 2.0f, bh * 2.0f);
+                band.applyTransform (rotate);
+
+                juce::ColourGradient sheen (juce::Colours::white.withAlpha ((glossy ? 0.20f : 0.08f) * gloss), 0.0f, 0.0f,
+                                            juce::Colours::white.withAlpha (0.0f), 1.0f, 0.0f, true);
+                auto fill = ellipticalFill (sheen, c, bw, bh);
+                fill.transform = fill.transform.followedBy (rotate);
+                add (band, fill, none(), 0.0f, bodyClip, true);
             }
 
-            // Specular along the bevelled edge, strongest nearest the light.
-            juce::ColourGradient edge (juce::Colours::white.withAlpha (0.45f), bb.getRight(), bb.getY(),
-                                       juce::Colours::white.withAlpha (0.0f), bb.getCentreX(), bb.getBottom(), false);
-            add (bodyPath, solid (juce::Colours::transparentBlack), juce::FillType (edge), 1.6f, bodyClip, true);
+            // Specular along the bevelled edge, on the lit side only.
+            juce::ColourGradient edge (juce::Colours::white.withAlpha (0.40f), bb.getRight(), bb.getY(),
+                                       juce::Colours::white.withAlpha (0.0f), bb.getCentreX() + bb.getWidth() * 0.1f, bb.getCentreY() + bb.getHeight() * 0.3f, false);
+            add (bodyPath, solid (juce::Colours::transparentBlack), juce::FillType (edge), reduced() ? 2.4f : 1.6f, bodyClip, true);
         }
 
-        void buildBinding()
+        /** The body's edge: binding and purfling on bound bodies, a thin line in the
+            finish's own darker shade on the rest (a black outline reads as a cartoon). */
+        void buildBinding (juce::Colour finish)
         {
             const auto id = juce::String (style->id);
             const bool acoustic = isAcousticBody();
             const bool bound = acoustic || id.contains ("arched") || id.contains ("semi") || id == "archtop"
                             || id.contains ("hollow") || id.contains ("violin") || id.startsWith ("gypsy");
+            const auto edgeLine = finish.darker (0.7f).withAlpha (0.3f);
 
             if (! bound)
             {
-                // Unbound bodies still read their edge: a thin dark line.
-                add (bodyPath, solid (juce::Colours::transparentBlack), solid (juce::Colours::black.withAlpha (0.45f)), 0.6f);
+                add (bodyPath, solid (juce::Colours::transparentBlack), solid (edgeLine), 0.7f);
                 return;
             }
 
             const auto binding = family == "classical" ? bodyWood().darker (0.4f) : juce::Colour (0xffece2c8);
+
+            if (reduced())
+            {
+                add (bodyPath, solid (juce::Colours::transparentBlack), solid (binding), 4.0f, bodyClip);
+                add (bodyPath, solid (juce::Colours::transparentBlack), solid (edgeLine), 0.7f);
+                return;
+            }
+
             add (bodyPath, solid (juce::Colours::transparentBlack), solid (binding), 4.2f, bodyClip);
 
             // Purfling just inside the binding.
             add (bodyPath, solid (juce::Colours::transparentBlack), solid (juce::Colour (0xff1c120c).withAlpha (0.8f)), 5.8f, bodyClip);
             add (bodyPath, solid (juce::Colours::transparentBlack), solid (binding), 3.6f, bodyClip);
-            add (bodyPath, solid (juce::Colours::transparentBlack), solid (juce::Colours::black.withAlpha (0.55f)), 0.6f);
+            add (bodyPath, solid (juce::Colours::transparentBlack), solid (edgeLine), 0.7f);
         }
 
         void buildAging (float aging, juce::Colour finish)
@@ -922,8 +1139,16 @@ namespace
         juce::Colour pickguardColour (bool& tortoise, bool& threePly) const
         {
             const auto n = partName (GuitarSlot::pickguard).toLowerCase();
-            tortoise = n.contains ("tortoise");
             threePly = number (GuitarSlot::pickguard, "plies", 1.0) >= 3.0;
+
+            // The Workshop's plastics colour (finish.plastic_color) paints over the part's own.
+            if (guitar.finish.plasticColour.isNotEmpty())
+            {
+                tortoise = false;
+                return parseHex (guitar.finish.plasticColour, juce::Colour (0xfff2efe6));
+            }
+
+            tortoise = n.contains ("tortoise");
 
             if (tortoise)                  return juce::Colour (0xff6b2e14);
             if (n.contains ("black"))      return juce::Colour (0xff141414);
@@ -955,7 +1180,7 @@ namespace
 
             add (pickguardArea, solid (colour));
 
-            if (tortoise && ! options.thumbnail)
+            if (tortoise && ! reduced())
             {
                 // Two-tone stipple: darker blotches over the amber-brown base.
                 juce::Random rng (1234);
@@ -987,7 +1212,7 @@ namespace
             add (pickguardArea, solid (juce::Colours::transparentBlack), solid (juce::Colours::black.withAlpha (0.5f)), 0.4f);
 
             // Screws around the edge.
-            if (! options.thumbnail)
+            if (! reduced())
             {
                 const auto c = pickguardArea.getBounds().getCentre();
                 juce::Path screws;
@@ -1092,7 +1317,7 @@ namespace
                 add (holeArea, solid (dark));
 
                 // Layer 9: bracing seen through the hole.
-                if (! options.thumbnail)
+                if (! reduced())
                 {
                     juce::Path brace;
                     const float r = style->holeWidthMm * 0.5f;
@@ -1127,7 +1352,7 @@ namespace
                 add (upper, solid (dark), metalFill (hardware, upper.getBounds(), options.materials), 1.2f);
 
                 // Screens over a resonator's upper holes.
-                if (family == "resonator" && ! options.thumbnail)
+                if (family == "resonator" && ! reduced())
                 {
                     juce::Path mesh;
                     const auto bb = upper.getBounds();
@@ -1163,7 +1388,7 @@ namespace
                 ring (2.0f, 3.2f, juce::Colour (0xff1a100a));
                 ring (3.2f, 11.0f, juce::Colour (0xff6b3a1c));
 
-                if (! options.thumbnail)
+                if (! reduced())
                 {
                     juce::Path tiles;
                     for (int i = 0; i < 72; ++i)
@@ -1214,7 +1439,7 @@ namespace
             add (holeArea, metalFill (hardware, holeArea.getBounds(), options.materials),
                  solid (hardware.darker (0.5f)), 0.8f);
 
-            if (! options.thumbnail)
+            if (! reduced())
             {
                 // Perforations: diamonds in rings, and the inner screen.
                 juce::Path diamonds;
@@ -1252,6 +1477,7 @@ namespace
         // Helpers for the stubs.
         float spanAt (float x) const { return bridgeSpan + (nutSpan - bridgeSpan) * juce::jlimit (0.0f, 1.0f, x / scale); }
         juce::Colour plasticColour() const;
+        bool plasticChosen() const noexcept { return guitar.finish.plasticColour.isNotEmpty(); }
         void knob (Pointf c, int kind);
         void pickup (int index, PartPtr p);
         void saddleBlocks (float depth, float width, float stagger);
@@ -1267,6 +1493,14 @@ namespace
     juce::Colour SceneBuilder::plasticColour() const
     {
         bool tortoise = false, threePly = false;
+
+        // The Workshop's plastics colour: knobs, switch tip, plastic covers, backplates.
+        if (guitar.finish.plasticColour.isNotEmpty())
+        {
+            const auto chosen = parseHex (guitar.finish.plasticColour, juce::Colour (0xfff0ebdd));
+            return guitar.finish.aging > 0.0 && chosen.getBrightness() > 0.8f
+                     ? chosen.interpolatedWith (juce::Colour (0xffe6d29c), (float) guitar.finish.aging * 0.6f) : chosen;
+        }
 
         if (part (GuitarSlot::pickguard) != nullptr && ! partName (GuitarSlot::pickguard).equalsIgnoreCase ("none"))
         {
@@ -1296,10 +1530,13 @@ namespace
         {
             case 0:   // top hat, amber with a gold reflector
             {
-                add (circle (c, r + 0.8f), solid (juce::Colour (0xff2a1206)));
+                // The player's plastics colour tints the hat; the reflector stays gold.
+                const auto hat = plasticChosen() ? plasticColour() : juce::Colour (0xff7a3610);
+                add (circle (c, r + 0.8f), solid (plasticChosen() ? hat.darker (0.8f) : juce::Colour (0xff2a1206)));
                 add (circle (c, r), metalFill (juce::Colour (0xffc9a24b), circle (c, r).getBounds(), options.materials));
-                juce::ColourGradient amber (juce::Colour (0xffb8622a), c.x + 3.0f, c.y - 3.0f, juce::Colour (0xff3a1406), c.x - 6.0f, c.y + 6.0f, true);
-                add (circle (c, r * 0.72f), options.materials ? juce::FillType (amber) : solid (juce::Colour (0xff7a3610)));
+                juce::ColourGradient amber (plasticChosen() ? hat.brighter (0.3f) : juce::Colour (0xffb8622a), c.x + 3.0f, c.y - 3.0f,
+                                            plasticChosen() ? hat.darker (0.7f) : juce::Colour (0xff3a1406), c.x - 6.0f, c.y + 6.0f, true);
+                add (circle (c, r * 0.72f), options.materials ? juce::FillType (amber) : solid (hat));
                 add (pointer, none(), solid (juce::Colour (0xffe8d8a8)), 1.2f);
                 break;
             }
@@ -1315,7 +1552,7 @@ namespace
             {
                 add (circle (c, r), metalFill (hardware, circle (c, r).getBounds(), options.materials), solid (hardware.darker (0.5f)), 0.4f);
 
-                if (! options.thumbnail)
+                if (! reduced())
                 {
                     juce::Path knurl;
                     for (int i = 0; i < 36; ++i)
@@ -1330,9 +1567,9 @@ namespace
                 add (circle (c, r * 0.55f), metalFill (hardware.brighter (0.1f), circle (c, r).getBounds(), options.materials));
                 break;
             }
-            default:  // black speed knob
+            default:  // black speed knob (the player's plastics colour when chosen)
             {
-                add (circle (c, r), solid (juce::Colour (0xff121212)), solid (juce::Colours::black), 0.4f);
+                add (circle (c, r), solid (plasticChosen() ? plasticColour() : juce::Colour (0xff121212)), solid (juce::Colours::black), 0.4f);
                 if (options.materials)
                     add (circle (c + Pointf (1.8f, -1.8f), r * 0.45f), solid (juce::Colours::white.withAlpha (0.14f)), none(), 0.0f, -1, true);
                 add (pointer, none(), solid (juce::Colour (0xffd8d8d8)), 0.9f);
@@ -1395,12 +1632,13 @@ namespace
             if (toggle)
             {
                 // A toggle: a washer, then the tip leaning toward the neck.
-                add (circle (c, 10.0f), solid (plasticColour().getBrightness() > 0.5f ? juce::Colour (0xffece2c8) : juce::Colour (0xff151515)),
+                add (circle (c, 10.0f), solid (plasticChosen() ? plasticColour()
+                                               : plasticColour().getBrightness() > 0.5f ? juce::Colour (0xffece2c8) : juce::Colour (0xff151515)),
                      solid (juce::Colours::black.withAlpha (0.4f)), 0.4f);
                 add (circle (c, 3.2f), metalFill (hardware, circle (c, 4.0f).getBounds(), options.materials));
                 const auto tip = c + Pointf (5.0f, 0.0f);
                 shadow (circle (tip, 3.6f), 1.0f, 0.3f);
-                add (circle (tip, 3.6f), solid (juce::Colour (0xffeee4c8)), solid (juce::Colour (0xff8c7a58)), 0.3f);
+                add (circle (tip, 3.6f), solid (plasticChosen() ? plasticColour() : juce::Colour (0xffeee4c8)), solid (juce::Colour (0xff8c7a58)), 0.3f);
             }
             else
             {
@@ -1408,7 +1646,8 @@ namespace
                 add (rect (c.x - 11.0f, c.y - 1.5f, c.x + 11.0f, c.y + 1.5f, 1.2f), solid (juce::Colour (0xff0e0e0e)));
                 const auto tip = rect (c.x + 2.0f, c.y - 3.2f, c.x + 8.0f, c.y + 3.2f, 1.6f);
                 shadow (tip, 1.0f, 0.3f);
-                add (tip, solid (plasticColour().getBrightness() > 0.5f ? juce::Colour (0xfff2ede0) : juce::Colour (0xff1c1c1c)),
+                add (tip, solid (plasticChosen() ? plasticColour()
+                                 : plasticColour().getBrightness() > 0.5f ? juce::Colour (0xfff2ede0) : juce::Colour (0xff1c1c1c)),
                      solid (juce::Colours::black.withAlpha (0.5f)), 0.3f);
             }
 
@@ -1455,7 +1694,7 @@ namespace
             const float y = twelve ? (p.y + saddle[(size_t) s + 1].y) * 0.5f : p.y;
             blocks.addRoundedRectangle (x - depth * 0.5f, y - width * 0.5f, depth, width, 0.8f);
 
-            if (! options.thumbnail && depth > 6.0f)
+            if (! reduced() && depth > 6.0f)
                 screws.addEllipse (x - depth * 0.25f - 0.8f, y - 0.8f, 1.6f, 1.6f);
         }
 
@@ -1505,7 +1744,7 @@ namespace
         shadow (plate, 1.6f, 0.3f);
         add (plate, metalFill (hardware, plate.getBounds(), options.materials), solid (hardware.darker (0.5f)), 0.5f);
 
-        if (highMass && ! options.thumbnail)
+        if (highMass && ! reduced())
         {
             // The cast body's raised walls either side of the saddles.
             juce::Path walls;
@@ -1590,7 +1829,7 @@ namespace
         // Tie block inlay behind the saddle.
         add (rect (-28.0f, -bridgeSpan * 0.5f - 6.0f, -12.0f, bridgeSpan * 0.5f + 6.0f, 1.0f), solid (juce::Colour (0xff6b3a1c)));
 
-        if (! options.thumbnail)
+        if (! reduced())
         {
             juce::Path tiles;
             for (float y = -bridgeSpan * 0.5f - 5.0f; y < bridgeSpan * 0.5f + 5.0f; y += 3.0f)
@@ -1643,7 +1882,7 @@ namespace
         add (foot, solid (ebony), solid (juce::Colours::black), 0.3f);
         add (rect (-1.4f, -bridgeSpan * 0.5f - 6.0f, 1.4f, bridgeSpan * 0.5f + 6.0f, 1.0f), solid (ebony.brighter (0.25f)));
 
-        if (! moustache && ! options.thumbnail)
+        if (! moustache && ! reduced())
         {
             // Height thumbwheels.
             juce::Path wheels;
@@ -1710,7 +1949,7 @@ namespace
             arm.startNewSubPath (-22.0f, half - 2.0f);
             arm.cubicTo (-28.0f, half + 22.0f, -70.0f, half + 42.0f, -125.0f, half + 55.0f);
             add (strokeOf (arm, 3.2f), metalFill (hardware, arm.getBounds(), options.materials));
-            add (circle ({ -125.0f, half + 55.0f }, 3.6f), solid (juce::Colour (0xff151515)));
+            add (circle ({ -125.0f, half + 55.0f }, 3.6f), solid (plasticChosen() ? plasticColour() : juce::Colour (0xff151515)));
 
             bridgeArea = base;
             for (int s = 0; s < numStrings; ++s)
@@ -1860,7 +2099,7 @@ namespace
             shadow (trapeze, 1.8f, 0.35f);
             add (trapeze, metalFill (hardware, trapeze.getBounds(), options.materials), solid (hardware.darker (0.5f)), 0.5f);
 
-            if (! options.thumbnail)
+            if (! reduced())
             {
                 auto insert = polygon ({ { front - 6.0f, -half + 7.0f }, { tailX + 40.0f, -6.0f }, { tailX + 40.0f, 6.0f }, { front - 6.0f, half - 7.0f } });
                 add (insert, solid (juce::Colour (0xff1a1410).withAlpha (0.85f)));
@@ -1963,9 +2202,10 @@ namespace
         {
             auto ring = outline (depth + 9.0f, length + 12.0f, 4.0f);
             const bool creamRing = partName (GuitarSlot::pickguard).containsIgnoreCase ("cream") || id.contains ("arched");
-            add (ring, solid (creamRing ? juce::Colour (0xffe9dcbc) : juce::Colour (0xff141414)), solid (juce::Colours::black.withAlpha (0.5f)), 0.4f);
+            add (ring, solid (plasticChosen() ? plasticColour() : creamRing ? juce::Colour (0xffe9dcbc) : juce::Colour (0xff141414)),
+                 solid (juce::Colours::black.withAlpha (0.5f)), 0.4f);
 
-            if (! options.thumbnail)
+            if (! reduced())
             {
                 juce::Path screws;
                 const auto rb = ring.getBounds();
@@ -2008,9 +2248,9 @@ namespace
         else
         {
             // Plastic or open covers: colour from the guitar, poles for singles and bass pickups.
-            juce::Colour c = fam == "active" || isBass || fam == "p90" || cover == "none" ? juce::Colour (0xff151515) : plasticColour();
+            juce::Colour c = ! plasticChosen() && (fam == "active" || isBass || fam == "p90" || cover == "none") ? juce::Colour (0xff151515) : plasticColour();
 
-            if (fam == "p90" && plasticColour().getBrightness() > 0.5f && id.contains ("arched"))
+            if (! plasticChosen() && fam == "p90" && plasticColour().getBrightness() > 0.5f && id.contains ("arched"))
                 c = juce::Colour (0xffece2c8);
 
             add (area, solid (c), solid (juce::Colours::black.withAlpha (0.6f)), 0.4f);
@@ -2024,7 +2264,7 @@ namespace
                 poles.applyTransform (t);
                 add (poles, metalFill (hardware.brighter (0.1f), poles.getBounds(), options.materials));
             }
-            else if (fam == "active" && ! options.thumbnail)
+            else if (fam == "active" && ! reduced())
             {
                 // A small brushed badge rather than a brand.
                 auto badge = outline (depth * 0.3f, length * 0.28f, 1.0f);
@@ -2033,7 +2273,7 @@ namespace
         }
 
         // Mounting screws at each end.
-        if (! options.thumbnail && fam != "soundhole")
+        if (! reduced() && fam != "soundhole")
         {
             juce::Path screws;
             screws.addPath (circle ({ x, -length * 0.5f - 3.5f }, 1.3f));
@@ -2083,12 +2323,16 @@ namespace
         const juce::String id (style->id);
         const auto& f = guitar.finish;
 
-        // The neck's colour: a set neck wears the body's finish edge colour, a bolt-on its own lacquered wood.
+        // The neck's colour: a bolt-on shows its own lacquered wood; a set neck under a
+        // solid finish is painted with the body; under a burst it keeps its wood, warmed a
+        // little toward the burst's centre colour (the edge colour would make a dark slab).
         auto neckColour = GuitarRenderer::woodColour (neckWoodName);
         if (neckWoodName.startsWith ("maple"))
             neckColour = juce::Colour (0xffe3bd7f);
-        if (joint != "bolt" && (f.type == "solid" || f.type == "burst"))
+        if (joint != "bolt" && f.type == "solid")
             neckColour = parseHex (f.colourA, neckColour);
+        else if (joint != "bolt" && f.type == "burst")
+            neckColour = neckColour.interpolatedWith (parseHex (f.colourB, neckColour), 0.3f);
 
         auto fbColour = GuitarRenderer::woodColour (fbWoodName);
         if (fbWoodName.startsWith ("maple"))
@@ -2122,14 +2366,13 @@ namespace
             }
         }
 
-        shadow (neckPath, 2.0f, 0.3f);
         add (neckPath, solid (neckColour), solid (neckColour.darker (0.55f)), 0.4f);
         neckArea = neckPath;
 
         // Bolt-on: the pocket seam where the heel meets the body; neck-through: the laminate stripes.
-        if (joint == "bolt" && ! options.thumbnail)
+        if (joint == "bolt" && ! reduced())
             add (neckPath, none(), solid (juce::Colours::black.withAlpha (0.55f)), 0.5f, bodyClip);
-        else if (joint == "through" && f.type != "solid" && ! options.thumbnail)
+        else if (joint == "through" && f.type != "solid" && ! reduced())
         {
             const float heelX = body ({ style->neckU, 0.0f }).x;
             juce::Path stripes;
@@ -2235,10 +2478,25 @@ namespace
                 juce::Path line;
                 line.startNewSubPath (pb.x, pb.y - mb);
                 line.lineTo (pt.x, pt.y + mb);
-                frets.addPath (strokeOf (line, options.thumbnail ? wire * 0.6f : wire));
+
+                if (reduced())
+                    frets.addPath (line);
+                else
+                    frets.addPath (strokeOf (line, wire));
             }
 
-            add (frets, metalFill (fretMetal, fbb, options.materials), solid (fretMetal.darker (0.6f)), options.thumbnail ? 0.0f : 0.25f);
+            if (reduced())
+            {
+                // A fret is a pixel wide at these sizes: one hairline each, no outline.
+                GuitarScene::Shape s;
+                s.path = frets;
+                s.fill = none();
+                s.stroke = solid (fretMetal.withAlpha (0.9f));
+                s.strokeIsHairline = true;
+                scene.shapes.push_back (std::move (s));
+            }
+            else
+                add (frets, metalFill (fretMetal, fbb, options.materials), solid (fretMetal.darker (0.6f)), 0.25f);
         }
 
         // Layer 18: the nut, following the nut line (angled on a fanned neck).
@@ -2325,7 +2583,6 @@ namespace
         if (neckWood.startsWith ("maple") && joint == "bolt" && guitar.finish.aging > 0.0)
             face = face.interpolatedWith (juce::Colour (0xffc99a55), (float) guitar.finish.aging * 0.6f);
 
-        shadow (headstockArea, 2.0f, 0.3f);
         add (headstockArea, solid (face), solid (face.darker (0.6f)), 0.4f);
 
         if (options.materials && face.getBrightness() < 0.3f)
@@ -2367,7 +2624,7 @@ namespace
         }
 
         // The maker's mark (6): a small "L", 4% opacity.
-        if (! options.thumbnail)
+        if (! reduced())
         {
             const auto bb = headstockArea.getBounds();
             juce::Path mark;
@@ -2530,6 +2787,21 @@ namespace
                                 : material.contains ("bronze") ? 2.0f : 1.5f;
             }
 
+            // One gradient across the string, lit on top and shaded below, defined
+            // perpendicular to the string so it holds along the slight fan.
+            {
+                const auto dir = line.nut - line.saddle;
+                const float len = juce::jmax (1.0f, dir.getDistanceFromOrigin());
+                const Pointf normal (-dir.y / len, dir.x / len);
+                const auto mid = (line.saddle + line.nut) * 0.5f;
+                const float half = juce::jmax (line.widthMm, 1.2f) * 0.5f;
+
+                juce::ColourGradient across (line.colour.brighter (0.6f), mid - normal * half,
+                                             line.colour.darker (0.55f), mid + normal * half, false);
+                across.addColour (0.4, line.colour);
+                line.fill = juce::FillType (across);
+            }
+
             scene.strings.push_back (line);
         }
 
@@ -2606,6 +2878,7 @@ GuitarScene GuitarRenderer::build (const WorkshopGuitar& guitar, Options options
 {
     GuitarScene scene;
     SceneBuilder (guitar, options, scene).run();
+    scene.detail = (int) options.detail;
     scene.key = keyFor (guitar, options);
     return scene;
 }
@@ -2613,11 +2886,26 @@ GuitarScene GuitarRenderer::build (const WorkshopGuitar& guitar, Options options
 juce::int64 GuitarRenderer::keyFor (const WorkshopGuitar& guitar, Options options)
 {
     auto json = juce::JSON::toString (guitar.toEmbeddedVar(), true);
-    json << "|" << (options.materials ? 1 : 0) << (options.thumbnail ? 1 : 0);
+    json << "|" << (options.materials ? 1 : 0) << (int) options.detail;
     return json.hashCode64();
 }
 
+GuitarRenderer::Detail GuitarRenderer::detailFor (float pxPerMm) noexcept
+{
+    return pxPerMm >= 0.6f ? Detail::full : pxPerMm >= 0.25f ? Detail::reduced : Detail::thumbnail;
+}
+
+float GuitarRenderer::pxPerMm (const juce::AffineTransform& t) noexcept
+{
+    return std::sqrt (std::abs (t.getDeterminant()));
+}
+
 juce::AffineTransform GuitarRenderer::fitTransform (const GuitarScene& scene, juce::Rectangle<float> area)
+{
+    return frameTransform (scene, area, Framing::whole);
+}
+
+juce::AffineTransform GuitarRenderer::frameTransform (const GuitarScene& scene, juce::Rectangle<float> area, Framing framing)
 {
     const auto b = scene.bounds;
 
@@ -2625,18 +2913,144 @@ juce::AffineTransform GuitarRenderer::fitTransform (const GuitarScene& scene, ju
         return {};
 
     // Headstock left: screen x = -X. Bass up: screen y = Y (bass is negative Y).
-    const float s = juce::jmin (area.getWidth() / b.getWidth(), area.getHeight() / b.getHeight());
-    const float cx = b.getCentreX(), cy = b.getCentreY();
+    auto fit = [&] (juce::Rectangle<float> r, float s)
+    {
+        return juce::AffineTransform (-s, 0.0f, area.getCentreX() + r.getCentreX() * s,
+                                      0.0f, s, area.getCentreY() - r.getCentreY() * s);
+    };
 
-    return juce::AffineTransform (-s, 0.0f, area.getCentreX() + cx * s,
-                                  0.0f, s, area.getCentreY() - cy * s);
+    const float sWhole = juce::jmin (area.getWidth() / b.getWidth(), area.getHeight() / b.getHeight());
+
+    if (framing == Framing::whole || scene.bodyBounds.isEmpty())
+        return fit (b, sWhole);
+
+    // The body and the last five frets, with the shadow's margin below and to the left.
+    auto crop = scene.bodyBounds;
+    const int fret = juce::jmax (1, scene.numFrets - 5);
+    float neckX = crop.getRight();
+
+    for (int i = 0; i < scene.numStrings; ++i)
+        neckX = juce::jmax (neckX, scene.stringAt (i, (float) fret).x);
+
+    crop.setRight (neckX);
+    crop = crop.expanded (4.0f).withTrimmedLeft (-12.0f).withTrimmedBottom (-12.0f);
+
+    const float sCrop = juce::jmin (area.getWidth() / crop.getWidth(), area.getHeight() / crop.getHeight());
+
+    if (framing == Framing::automatic && (sWhole >= 0.5f || sCrop < sWhole * 1.1f))
+        return fit (b, sWhole);
+
+    // The tail (the crop's lowest X, screen right) against the area's right edge; the
+    // neck runs off the left.
+    auto t = fit (crop, sCrop);
+    const float tailPx = t.getTranslationX() - crop.getX() * sCrop;
+    return t.translated (area.getRight() - tailPx, 0.0f);
+}
+
+juce::AffineTransform GuitarRenderer::buildFitted (const WorkshopGuitar& guitar, juce::Rectangle<float> area,
+                                                   float displayScale, bool materials, GuitarScene& scene)
+{
+    Options options;
+    options.materials = materials;
+
+    scene = build (guitar, options);
+    auto t = frameTransform (scene, area, Framing::automatic);
+
+    // The fit says how much detail the size can show; rebuild once at that level.
+    const auto wanted = detailFor (pxPerMm (t) * juce::jmax (0.5f, displayScale));
+
+    if (wanted != options.detail)
+    {
+        options.detail = wanted;
+        scene = build (guitar, options);
+        t = frameTransform (scene, area, Framing::automatic);
+    }
+
+    return t;
 }
 
 namespace
 {
-    float scaleOf (const juce::AffineTransform& t)
+    /** Fills each subpath of `path` on its own into a single-channel image, so
+        overlapping parts (body, neck, headstock) union rather than cancel. */
+    void fillSubpaths (juce::Graphics& g, const juce::Path& path, const juce::AffineTransform& t)
     {
-        return std::sqrt (std::abs (t.getDeterminant()));
+        juce::Path sub;
+        juce::Path::Iterator it (path);
+
+        auto flush = [&]
+        {
+            if (! sub.isEmpty())
+            {
+                sub.closeSubPath();
+                g.fillPath (sub, t);
+                sub.clear();
+            }
+        };
+
+        while (it.next())
+        {
+            switch (it.elementType)
+            {
+                case juce::Path::Iterator::startNewSubPath:  flush(); sub.startNewSubPath (it.x1, it.y1); break;
+                case juce::Path::Iterator::lineTo:           sub.lineTo (it.x1, it.y1); break;
+                case juce::Path::Iterator::quadraticTo:      sub.quadraticTo (it.x1, it.y1, it.x2, it.y2); break;
+                case juce::Path::Iterator::cubicTo:          sub.cubicTo (it.x1, it.y1, it.x2, it.y2, it.x3, it.y3); break;
+                case juce::Path::Iterator::closePath:        sub.closeSubPath(); break;
+            }
+        }
+
+        flush();
+    }
+
+    /*  A soft shadow (shadowMm) or an inner shadow (innerMm), painted in pixel space:
+        the path is rendered into a single-channel image, box-blurred, and drawn in
+        the fill colour. Allocates, so it runs where the scene is rasterised into
+        its cache, once per size, not per frame. */
+    void paintSoft (juce::Graphics& g, const GuitarScene::Shape& s, const juce::AffineTransform& mmToPx, float pxPerMm)
+    {
+        const bool inner = s.innerMm > 0.0f;
+        const int radius = juce::jmax (1, juce::roundToInt ((inner ? s.innerMm : s.shadowMm) * pxPerMm * 0.5f));
+        const auto colour = s.fill.colour;
+
+        auto px = s.path;
+        px.applyTransform (mmToPx);
+
+        auto area = px.getBounds().getSmallestIntegerContainer().expanded (radius * 2 + 1)
+                      .getIntersection (g.getClipBounds().expanded (radius * 2 + 1));
+
+        if (area.getWidth() <= 2 || area.getHeight() <= 2)
+            return;
+
+        juce::Image mask (juce::Image::SingleChannel, area.getWidth(), area.getHeight(), true, juce::SoftwareImageType());
+
+        {
+            juce::Graphics g2 (mask);
+            g2.setColour (juce::Colours::white);
+            const auto shift = juce::AffineTransform::translation ((float) -area.getX(), (float) -area.getY());
+
+            if (inner)
+            {
+                // Everything outside the outline, so the blur bleeds inward.
+                juce::Path ring;
+                ring.addRectangle (area.toFloat().expanded ((float) radius * 2.0f));
+                ring.addPath (px);
+                ring.setUsingNonZeroWinding (false);
+                g2.fillPath (ring, shift);
+            }
+            else
+                fillSubpaths (g2, px, shift);
+        }
+
+        mask.getPixelData()->applySingleChannelBoxBlurEffect (radius);
+
+        juce::Graphics::ScopedSaveState save (g);
+
+        if (inner)
+            g.reduceClipRegion (px);
+
+        g.setColour (colour);
+        g.drawImageAt (mask, area.getX(), area.getY(), true);
     }
 
     void paintShape (juce::Graphics& g, const GuitarScene& scene, const GuitarScene::Shape& s, float pxPerMm)
@@ -2666,10 +3080,13 @@ namespace
             g.restoreState();
     }
 
-    void paintString (juce::Graphics& g, const GuitarScene::StringLine& s, float pxPerMm)
+    /*  Section 10's string: one stroke with a gradient across it (lit above, shaded
+        below), a shadow on the wood only when there are pixels for it, the winding's
+        dashes only when the string is wide enough to carry them. Never under a pixel. */
+    void paintString (juce::Graphics& g, const GuitarScene::StringLine& s, float pxPerMm, bool detailed)
     {
         const float zoom = juce::jlimit (0.3f, 1.0f, pxPerMm / 0.77f);
-        const float widthPx = juce::jmax (s.widthMm * pxPerMm, s.minWidthPx * zoom);
+        const float widthPx = juce::jmax (1.0f, s.widthMm * pxPerMm, s.minWidthPx * zoom);
         const float w = widthPx / pxPerMm;
 
         juce::Path line;
@@ -2680,64 +3097,72 @@ namespace
 
         const juce::PathStrokeType stroke (w, juce::PathStrokeType::mitered, juce::PathStrokeType::butt);
 
-        // A faint shadow on the wood below, then the string, then its winding.
-        if (pxPerMm > 0.5f)
+        if (detailed && pxPerMm > 0.6f)
         {
-            g.setColour (juce::Colours::black.withAlpha (0.25f));
+            g.setColour (juce::Colours::black.withAlpha (0.22f));
             juce::Path shadowLine (line);
-            shadowLine.applyTransform (juce::AffineTransform::translation (-w * 0.9f, w * 0.9f));
+            shadowLine.applyTransform (juce::AffineTransform::translation (-w * 0.8f, w * 1.1f));
             g.strokePath (shadowLine, stroke);
         }
 
-        g.setColour (s.colour);
+        if (widthPx >= 1.6f && ! s.fill.isInvisible())
+            g.setFillType (s.fill);
+        else
+            g.setColour (s.colour);
+
         g.strokePath (line, stroke);
 
-        if (s.dashedWinding && widthPx >= 1.2f)
+        if (detailed && s.dashedWinding && widthPx >= 2.0f)
         {
             juce::Path dashed;
-            const float d = juce::jmax (0.35f, 0.5f / pxPerMm);
+            const float d = juce::jmax (0.35f, 0.6f / pxPerMm);
             const float dashes[] = { d, d };
-            juce::PathStrokeType (w * 0.7f, juce::PathStrokeType::mitered, juce::PathStrokeType::butt)
+            juce::PathStrokeType (w * 0.6f, juce::PathStrokeType::mitered, juce::PathStrokeType::butt)
                 .createDashedStroke (dashed, line, dashes, 2);
-            g.setColour (s.winding);
+            g.setColour (s.winding.withAlpha (0.7f));
             g.fillPath (dashed);
-        }
-
-        // A highlight along the top of the string.
-        if (widthPx >= 1.5f)
-        {
-            g.setColour (juce::Colours::white.withAlpha (0.25f));
-            juce::Path hl (line);
-            hl.applyTransform (juce::AffineTransform::translation (0.0f, -w * 0.2f));
-            g.strokePath (hl, juce::PathStrokeType (w * 0.3f));
         }
     }
 } // namespace
 
 void GuitarRenderer::paint (juce::Graphics& g, const GuitarScene& scene, const juce::AffineTransform& mmToPx)
 {
-    const float pxPerMm = scaleOf (mmToPx);
+    const float scale = pxPerMm (mmToPx);
 
-    if (pxPerMm <= 0.0f)
+    if (scale <= 0.0f)
         return;
+
+    // Detail follows the scene (grain and shadows are built in or not); the strings
+    // read it from the scale as the builder would have.
+    const bool detailed = detailFor (scale) == Detail::full;
 
     juce::Graphics::ScopedSaveState save (g);
     g.addTransform (mmToPx);
 
     for (auto& s : scene.shapes)
-        paintShape (g, scene, s, pxPerMm);
+    {
+        if (s.shadowMm > 0.0f || s.innerMm > 0.0f)
+        {
+            // Pixel space: the blur is sized in pixels and the image drawn unscaled.
+            juce::Graphics::ScopedSaveState local (g);
+            g.addTransform (mmToPx.inverted());
+            paintSoft (g, s, mmToPx, scale);
+        }
+        else
+            paintShape (g, scene, s, scale);
+    }
 
     for (auto& s : scene.strings)
-        paintString (g, s, pxPerMm);
+        paintString (g, s, scale, detailed);
 
     for (auto& s : scene.overStrings)
-        paintShape (g, scene, s, pxPerMm);
+        paintShape (g, scene, s, scale);
 }
 
 void GuitarRenderer::paintOverlay (juce::Graphics& g, const GuitarScene& scene,
                                    const juce::AffineTransform& mmToPx, const GuitarOverlay& overlay)
 {
-    const float pxPerMm = scaleOf (mmToPx);
+    const float pxPerMm = GuitarRenderer::pxPerMm (mmToPx);
 
     if (pxPerMm <= 0.0f)
         return;
@@ -2840,6 +3265,27 @@ juce::Image GuitarRenderer::render (const WorkshopGuitar& guitar, int width, int
     }
 
     return image;
+}
+
+//==============================================================================
+juce::Colour GuitarRenderer::plasticsColour (const WorkshopGuitar& guitar)
+{
+    GuitarScene scratch;
+    SceneBuilder builder (guitar, Options {}, scratch);
+
+    // With a pickguard the plastics read as it does; without one, as the knobs do.
+    const auto pg = guitar.get (GuitarSlot::pickguard);
+    return pg != nullptr && ! pg->name.equalsIgnoreCase ("none") ? builder.drawnPickguard() : builder.drawnPlastics();
+}
+
+juce::Colour GuitarRenderer::finishColour (const WorkshopGuitar& guitar, bool burstEdge)
+{
+    const auto& f = guitar.finish;
+    const bool burst = f.type.equalsIgnoreCase ("burst");
+    const auto body = guitar.get (GuitarSlot::body);
+    const auto wood = woodColour (body != nullptr ? body->text ("wood", "alder") : juce::String ("alder"));
+    const auto& hex = burstEdge || ! burst ? f.colourA : f.colourB;
+    return hex.isNotEmpty() ? parseHex (hex, wood) : wood;
 }
 
 } // namespace luthier

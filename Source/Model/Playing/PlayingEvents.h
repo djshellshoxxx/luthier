@@ -66,6 +66,14 @@ struct NoteOnEvent
     /** strum-dynamics 5: what struck the string, as an Excitation::Material
         index, or -1 for the player's own pick (the PICK group). */
     int    strikerMaterial = -1;
+
+    /*  muting-rhythm.md 4: the strike's mute, as a MuteType index (0 open),
+        with the step's own pressure and palm position or -1 for the MUTE
+        group's defaults. Stamped by the rhythm engine on every note it
+        writes and on played notes from the live grid and the master mode. */
+    int    muteType = 0;
+    double mutePressure = -1.0;
+    double mutePositionMm = -1.0;
 };
 
 struct NoteOffEvent

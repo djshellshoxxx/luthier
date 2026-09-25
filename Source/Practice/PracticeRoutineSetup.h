@@ -51,10 +51,10 @@ struct PracticeDefaults
 
     /** Loads the defaults into the tools, through their own setters: the
         metronome's tempo, signature, subdivision, sound and accents; the
-        active loop layer's mode; the scale trainer's key and first scale; the
-        backing track's level. Starts nothing. Returns what could not be
-        applied (see the TODO hooks in the .cpp for the settings no tool takes
-        yet). */
+        active loop layer's mode and the looper's default length; the scale
+        trainer's key and first scale; both trainers' note range and question
+        count; the backing track's level. Starts nothing. Returns what could
+        not be applied. */
     juce::StringArray applyTo (const PracticeTargets& targets) const;
 
     juce::var toVar() const;
@@ -90,10 +90,15 @@ struct SessionRecorderSetup
         (11.2, performance-budget 3). */
     juce::String getSizeWarning (double sampleRate = 48000.0) const;
 
-    /** Sizes the recorder's ring. Message thread: this allocates, which is why
-        it is setup and not transport. Returns false when the recorder could
-        not get the memory. */
+    /** Sets what the recorder records and whether stopping saves, then sizes
+        its ring. Message thread: this allocates, which is why it is setup and
+        not transport. Returns false when the recorder could not get the
+        memory. */
     bool applyTo (SessionRecorder& recorder, double sampleRate) const;
+
+    /** Only the switches - record audio, record MIDI, auto-save - which cost
+        nothing and can change while the recorder runs. */
+    void applySwitchesTo (SessionRecorder& recorder) const;
 
     juce::var toVar() const;
     static SessionRecorderSetup fromVar (const juce::var& state);
@@ -125,8 +130,9 @@ public:
         layer WAVs), newest first. */
     static std::vector<Item> listLoops (const juce::File& directory = Looper::getUserDirectory());
 
-    /** Saved sessions: the WAVs SessionRecorder::saveLastTake writes, newest
-        first. The ring's own temp folder is not listed. */
+    /** Saved sessions: the takes SessionRecorder::saveLastTake writes, newest
+        first - each WAV once (its MIDI file counted into its size), and a
+        MIDI-only take by its .mid. The ring's own temp folder is not listed. */
     static std::vector<Item> listSessions (const juce::File& directory = SessionRecorder::getSessionDirectory());
 
     /** Deletes a saved loop's folder. Refuses anything that is not a loop

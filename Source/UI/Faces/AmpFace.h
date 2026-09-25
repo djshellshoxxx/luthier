@@ -21,6 +21,10 @@
     The face never draws outside `bounds`. It is deterministic, so callers
     should cache it in an image and repaint only when the model, the palette,
     the size or a shown value changes (visual-polish.md 0.3).
+
+    visual-polish.md 4's VU meter sits on the face where there is room for it:
+    on a head's covering between the name and the vent, on a combo's grille
+    at the top right. Its dial is part of the face; the needle is live.
 */
 
 #include "KnobCaps.h"
@@ -46,9 +50,13 @@ struct AmpFaceState
     float drive = 0.0f;         ///< 0-1, the level the amp reports: the valves glow with it
     bool driveStale = false;    ///< the reading is old: the glow goes grey
 
+    float vu = 0.0f;            ///< 0-1 across the VU meter's scale (vuPositionFor): the master output
+    bool vuStale = false;       ///< the reading is old: the needle goes grey
+
     bool drawKnobs = true;      ///< false when live knob components sit on the face
     bool drawSwitches = true;   ///< false when live toggle components sit on the face
     bool drawValves = true;     ///< false when the caller draws the glow itself (paintAmpFaceValves)
+    bool drawMeter = true;      ///< false when the caller draws the VU needle itself (paintAmpFaceMeter)
     bool hasSwitches = true;    ///< false for a face with no switches at all (the Easy card)
     bool enabled = true;
 };
@@ -57,6 +65,7 @@ struct AmpFaceLayout
 {
     juce::Rectangle<float> cabinet, faceplate, grille, logo, vent, pilot;
     juce::Rectangle<float> channelLeds;                                 ///< the row of channel lamps, if the model has them
+    juce::Rectangle<float> meter;                                       ///< the VU meter (visual-polish.md 4); empty where there is no room
     std::array<juce::Rectangle<float>, numAmpKnobs> knobs;              ///< knob plus its value arc
     std::array<juce::Rectangle<float>, numAmpKnobs> labels;
     std::array<juce::Rectangle<float>, numAmpSwitches> switches;        ///< empty when the face has none
@@ -78,6 +87,11 @@ void paintAmpFace (juce::Graphics&, juce::Rectangle<float> bounds, AmpModel, con
     for a panel that caches the rest of the face and redraws only the glow as
     the drive changes (visual-polish.md 0.3 and 4). */
 void paintAmpFaceValves (juce::Graphics&, juce::Rectangle<float> bounds, AmpModel, const AmpFaceState&);
+
+/** Just the VU meter's needle (nothing on a face too small for a meter), for the
+    same panel: the dial is part of the cached face, the needle follows the
+    master output at the meters' 30 Hz (visual-polish.md 4). */
+void paintAmpFaceMeter (juce::Graphics&, juce::Rectangle<float> bounds, AmpModel, const AmpFaceState&);
 
 /** What the face prints under each knob, switch and input for this layout. */
 struct AmpFaceLabels

@@ -225,18 +225,23 @@ public:
         return down (work);
     }
 
-    /** Latency the oversampler adds, in base-rate samples. The all-pass branches
-        are not linear phase, so this is the group delay near DC rather than an
-        exact figure; it is small enough that reporting it keeps the host's delay
-        compensation honest. */
+    /** Latency the oversampler adds, in base-rate samples: the up-and-down
+        pair's group delay across the guitar band, rounded. The branches are
+        all-pass IIR, so an impulse starts several samples before this and peaks
+        after it; what a host's delay compensation lines up is a tone's delay,
+        and that is flat to within 0.1 sample from 100 Hz to 2 kHz. Measured on
+        these coefficients (independent of the sample rate, in base-rate
+        samples): 2x 6.35, 4x 9.52, 8x 11.11. The figures used to be 3 / 5 / 6,
+        read off the impulse's onset, which under-reported by 3 to 5 samples.
+        Oversampler.reportedLatencyIsItsGroupDelayInTheGuitarBand holds them. */
     int getLatencySamples() const noexcept
     {
         switch (factor)
         {
             case 1:  return 0;
-            case 2:  return 3;
-            case 4:  return 5;
-            case 8:  default: return 6;
+            case 2:  return 6;
+            case 4:  return 10;
+            case 8:  default: return 11;
         }
     }
 

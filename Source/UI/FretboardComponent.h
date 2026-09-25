@@ -101,6 +101,9 @@ public:
     double getDrawnBarFret() const noexcept { return barFret; }
     float getBarOpacity() const noexcept { return barOpacity; }
 
+    /** What the 30 Hz timer does, for a test that cannot wait for it. */
+    void refreshNow();
+
 private:
     int selectedString = 0;
 

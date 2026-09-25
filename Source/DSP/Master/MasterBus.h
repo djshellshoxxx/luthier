@@ -28,6 +28,10 @@ public:
     void setLimiterEnabled (bool e) noexcept { limiterEnabled = e; }
     bool isLimiterEnabled() const noexcept { return limiterEnabled; }
 
+    /** The lookahead limiter delays the main output by its window (1.5 ms);
+        the host has to be told (performance-budget 4). */
+    int getLatencySamples() const noexcept { return limiterEnabled ? lookDelay : 0; }
+
     void processBlock (juce::AudioBuffer<float>& buffer) noexcept;
 
     //==========================================================================

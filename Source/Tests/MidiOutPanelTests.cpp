@@ -358,8 +358,13 @@ LUTHIER_TEST (MidiOutPanel, liveEventsAndWorkshopChangesGoOutAsLuthierSysEx)
     for (const auto& e : events)
         seen << e.className << "@" << e.sample << " ";
 
+    /*  A Poly-mode note sounds one chord window after it was played - the
+        latency the interpreter reports and the host compensates - so the PICK
+        event goes out with the note as it sounds, in that note's block. */
+    const int window = processor.getEngine().getMidiInterpreter().getLatencySamples();
+
     if (pick != nullptr)
-        CHECK_MSG (pick->sample >= 37 && pick->sample < 37 + 256,
+        CHECK_MSG (pick->sample >= 37 + window && pick->sample < 37 + window + 256,
                    "the PICK event went out at sample " + juce::String (pick->sample) + ", not with its note: " + seen);
 
     // Workshop: a fitted part goes out on the next block, only with its source on.

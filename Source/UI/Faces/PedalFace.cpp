@@ -286,6 +286,11 @@ juce::StringArray pedalFaceTexts (PedalType type)
     juce::StringArray texts;
     texts.add (juce::String (Pedal::getTypeName (type)).toUpperCase());
 
+    // The footswitch's state, printed by the LED.
+    texts.add ("ON");
+    texts.add ("BYPASS");
+    texts.add ("BYP");
+
     for (const auto& label : PedalFaceState::defaultsFor (type).labels)
     {
         texts.add (label);
@@ -629,7 +634,29 @@ void paintPedalFace (juce::Graphics& g, juce::Rectangle<float> bounds, PedalType
     // ---- LED and footswitch --------------------------------------------------------------------
     // visual-polish.md 2: the LED follows bypass.
     if (! l.led.isEmpty())
+    {
         drawLed (g, l.led.getCentre(), l.led.getWidth() * 0.5f, look.led, ! state.bypassed && state.enabled);
+
+        /*  The state in words, by the LED. A lit LED alone did not say which
+            way the footswitch was: players "turned every effect on" by
+            stepping on pedals that were already on, and bypassed the lot. */
+        const float d = l.led.getWidth();
+        const juce::String text = state.bypassed ? "BYPASS" : "ON";
+        const juce::String shortText = state.bypassed ? "BYP" : "ON";
+
+        auto stateArea = look.body == Body::treadle
+                           ? juce::Rectangle<float> (l.led.getRight() + d * 0.4f, l.led.getY() - d * 0.2f, d * 6.0f, d * 1.4f)
+                           : juce::Rectangle<float> (d * 7.0f, d * 1.3f).withCentre ({ l.led.getCentreX(), l.led.getBottom() + d * 0.95f });
+
+        stateArea = stateArea.getIntersection (l.enclosure.reduced (1.0f));
+
+        if (! l.footswitch.isEmpty())
+            stateArea = stateArea.withBottom (juce::jmin (stateArea.getBottom(), l.footswitch.getY() - 1.0f));
+
+        if (! stateArea.isEmpty())
+            drawFittedPrint (g, fitPrint (text, shortText, stateArea, juce::jmin (9.0f, stateArea.getHeight()), false),
+                             stateArea, labelInk, false);
+    }
 
     if (state.drawFootswitch && ! l.footswitch.isEmpty())
         drawFootswitch (g, l.footswitch, false);

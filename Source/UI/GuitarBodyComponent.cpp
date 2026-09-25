@@ -26,6 +26,7 @@ void GuitarBodyComponent::rebuildScene (bool force)
 {
     GuitarRenderer::Options options;
     options.materials = AccessibilitySettings::get().getPalette() != PaletteId::highContrast;
+    options.detail = (GuitarRenderer::Detail) scene.detail;
 
     const auto& guitar = processor.getCurrentGuitar();
     const auto key = GuitarRenderer::keyFor (guitar, options);
@@ -33,25 +34,42 @@ void GuitarBodyComponent::rebuildScene (bool force)
     if (! force && key == scene.key && ! scene.hits.empty())
         return;
 
-    scene = GuitarRenderer::build (guitar, options);
+    // Built at the detail this size can show, and framed for it (the strip crops to the body).
+    mmToPx = GuitarRenderer::buildFitted (guitar, fitArea(), displayScale(), options.materials, scene);
     cache = {};
     repaint();
 }
 
-void GuitarBodyComponent::rebuildCache()
+juce::Rectangle<float> GuitarBodyComponent::fitArea() const
 {
     auto area = getLocalBounds().toFloat().reduced ((float) Metrics::gridHalf);
     area.removeFromBottom (16.0f);   // the name plate
+    return area;
+}
 
-    mmToPx = GuitarRenderer::fitTransform (scene, area);
+float GuitarBodyComponent::displayScale() const
+{
+    return juce::Component::getApproximateScaleFactorForComponent (this);
+}
 
-    const float scale = juce::Component::getApproximateScaleFactorForComponent (this);
+void GuitarBodyComponent::rebuildCache()
+{
+    const float scale = displayScale();
+    mmToPx = GuitarRenderer::frameTransform (scene, fitArea(), GuitarRenderer::Framing::automatic);
+
+    // A resize can move the fit across a detail threshold: rebuild the scene for it.
+    if (GuitarRenderer::detailFor (GuitarRenderer::pxPerMm (mmToPx) * scale) != (GuitarRenderer::Detail) scene.detail)
+        mmToPx = GuitarRenderer::buildFitted (processor.getCurrentGuitar(), fitArea(), scale,
+                                              AccessibilitySettings::get().getPalette() != PaletteId::highContrast, scene);
+
     const int w = juce::jmax (1, juce::roundToInt ((float) getWidth() * scale));
     const int h = juce::jmax (1, juce::roundToInt ((float) getHeight() * scale));
 
+    // The one place the scene is rasterised: per size, not per frame (section 2).
     cache = juce::Image (juce::Image::ARGB, w, h, true);
     juce::Graphics g (cache);
     g.addTransform (juce::AffineTransform::scale (scale));
+    g.reduceClipRegion (getLocalBounds().withTrimmedBottom (16));
     GuitarRenderer::paint (g, scene, mmToPx);
     cacheScale = scale;
 }
@@ -183,9 +201,33 @@ void GuitarBodyComponent::paint (juce::Graphics& g)
 }
 
 //==============================================================================
+bool GuitarBodyComponent::headstockIsOutOfFrame() const
+{
+    for (auto& h : scene.hits)
+        if (h.region == GuitarRegion::headstock)
+            return h.area.getBounds().transformedBy (mmToPx).getRight() < fitArea().getX() + 4.0f;
+
+    return false;
+}
+
+bool GuitarBodyComponent::isNeckStubForTuning (juce::Point<float> px, GuitarRegion region) const
+{
+    /*  A body-cropped frame (the Advanced strip) leaves the headstock off the left
+        edge, so the visible stub of neck stands in for it: the tuning popover stays
+        one click away, and the tooltip says where it went. */
+    if (region != GuitarRegion::neck && region != GuitarRegion::fretboard && region != GuitarRegion::strings
+        && region != GuitarRegion::nut)
+        return false;
+
+    return headstockIsOutOfFrame() && toMm (px).x > scene.bodyBounds.getRight();
+}
+
 juce::String GuitarBodyComponent::describeHoverTarget (juce::Point<float> position) const
 {
     const auto region = regionAt (position);
+
+    if (isNeckStubForTuning (position, region))
+        return "Click the neck for tuning, temperament and per-string detune (the headstock is out of frame at this size).";
 
     switch (region)
     {
@@ -345,7 +387,8 @@ void GuitarBodyComponent::mouseDown (const juce::MouseEvent& e)
     }
 
     // ---- headstock and bridge, gui-integration.md 3.1 ----------------------------------
-    if (region == GuitarRegion::headstock || region == GuitarRegion::tuners || region == GuitarRegion::nut)
+    if (region == GuitarRegion::headstock || region == GuitarRegion::tuners || region == GuitarRegion::nut
+        || isNeckStubForTuning (e.position, region))
     {
         showTuningPopover();
         return;
@@ -370,7 +413,11 @@ juce::Rectangle<int> GuitarBodyComponent::screenAreaOf (GuitarRegion region) con
 void GuitarBodyComponent::showTuningPopover()
 {
     auto popover = std::make_unique<TuningPopover> (processor);
-    juce::CallOutBox::launchAsynchronously (std::move (popover), screenAreaOf (GuitarRegion::headstock), nullptr);
+
+    // Anchored on the headstock, or on the visible neck when the frame has cropped it away.
+    const auto anchor = headstockIsOutOfFrame() ? screenAreaOf (GuitarRegion::neck).getIntersection (getScreenBounds())
+                                                : screenAreaOf (GuitarRegion::headstock);
+    juce::CallOutBox::launchAsynchronously (std::move (popover), anchor.isEmpty() ? getScreenBounds() : anchor, nullptr);
 }
 
 void GuitarBodyComponent::showWhammyPopover()

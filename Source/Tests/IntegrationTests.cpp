@@ -9,6 +9,7 @@
 #include "TestFramework.h"
 
 #include "../LuthierEngine.h"
+#include "../DSP/Common/Oversampler.h"
 #include "../Parameters.h"
 #include "../Presets/PresetManager.h"
 #include "../Presets/FactoryPresets.h"
@@ -299,6 +300,108 @@ LUTHIER_TEST (Engine, aChordVoicesAcrossStrings)
     CHECK_MSG (ringing >= 4,
                "an open E should light up most of the strings, only "
                + juce::String (ringing) + " are ringing");
+}
+
+/*  The user's "cannot do chords": notes played one after another while the
+    earlier ones are held must each get a string of their own. C4 lands on the B
+    string, E4 on the high E, and G4 - cheapest on the high E at fret 3 - used to
+    take the high E and end E4. Now the held strings are out of bounds for the
+    voicer, so all three ring, and neither of the first two is ever re-struck. */
+LUTHIER_TEST (Engine, notesPlayedWhileOthersAreHeldEachGetTheirOwnString)
+{
+    LuthierEngine engine;
+    engine.prepare (kSr, kBlock);
+    engine.setGuitarType (GuitarType::Dreadnought);
+    engine.getMidiInterpreter().setPlayingMode (PlayingMode::Poly);
+    engine.getMidiInterpreter().setHumanisation ({ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 });
+
+    // Each note arrives well outside the chord window of the one before, so
+    // every one is voiced on its own against what is already held.
+    auto play = [&engine] (int midiNote, double seconds)
+    {
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::noteOn (1, midiNote, 0.8f), 0);
+        render (engine, midi, seconds);
+    };
+
+    auto stringHolding = [&engine] (int midiNote)
+    {
+        for (int s = 0; s < engine.getNumStrings(); ++s)
+            if (engine.getStringMidiNote (s) == midiNote)
+                return s;
+
+        return -1;
+    };
+
+    play (60, 0.05);
+    const int c = stringHolding (60);
+    CHECK_MSG (c >= 0, "C4 is not sounding on any string");
+
+    play (64, 0.05);
+    const int e = stringHolding (64);
+    CHECK_MSG (e >= 0 && e != c, "E4 did not get a string of its own");
+    CHECK_MSG (stringHolding (60) == c, "E4 took over C4's string");
+
+    play (67, 0.3);
+    const int g = stringHolding (67);
+    CHECK_MSG (g >= 0 && g != c && g != e, "G4 did not get a string of its own");
+    CHECK_MSG (stringHolding (60) == c, "G4 took over C4's string");
+    CHECK_MSG (stringHolding (64) == e, "G4 took over E4's string");
+
+    int ringing = 0;
+
+    for (int s = 0; s < engine.getNumStrings(); ++s)
+        if (engine.getStringLevel (s) > 1.0e-5)
+            ++ringing;
+
+    CHECK_MSG (ringing >= 3, "only " + juce::String (ringing) + " strings are ringing under a held C-E-G");
+}
+
+/*  The same three notes 10 ms apart fall inside the default chord window, so
+    they are one strummed chord - and still three strings. */
+LUTHIER_TEST (Engine, aRolledTriadInsideTheChordWindowIsOneChordOnThreeStrings)
+{
+    LuthierEngine engine;
+    engine.prepare (kSr, kBlock);
+    engine.setGuitarType (GuitarType::Dreadnought);
+    engine.getMidiInterpreter().setPlayingMode (PlayingMode::Poly);
+    engine.getMidiInterpreter().setHumanisation ({ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 });
+
+    CHECK_NEAR (engine.getMidiInterpreter().getChordWindowMs(), 15.0, 1.0e-9);
+
+    const int gap = (int) (0.010 * kSr);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 60, 0.8f), 0);
+    midi.addEvent (juce::MidiMessage::noteOn (1, 64, 0.8f), gap);
+    midi.addEvent (juce::MidiMessage::noteOn (1, 67, 0.8f), 2 * gap);
+
+    // Everything above 256 samples is delivered by hand: render() feeds the
+    // whole buffer to the first block, which only reads what falls inside it.
+    juce::AudioBuffer<float> block (2, kBlock);
+    int position = 0;
+
+    while (position < (int) (kSr * 0.3))
+    {
+        juce::MidiBuffer thisBlock;
+
+        for (const auto metadata : midi)
+            if (metadata.samplePosition >= position && metadata.samplePosition < position + kBlock)
+                thisBlock.addEvent (metadata.getMessage(), metadata.samplePosition - position);
+
+        block.clear();
+        engine.processBlock (block, thisBlock);
+        position += kBlock;
+    }
+
+    juce::Array<int> strings;
+
+    for (int s = 0; s < engine.getNumStrings(); ++s)
+        if (engine.getStringMidiNote (s) >= 0)
+            strings.addIfNotAlreadyThere (s);
+
+    CHECK_MSG (strings.size() == 3,
+               "a C major triad should hold three strings, holds " + juce::String (strings.size()));
 }
 
 LUTHIER_TEST (Engine, fastSlidesProduceNoNansOrDenormals)
@@ -652,9 +755,9 @@ LUTHIER_TEST (Parameters, everyParameterHasAUniqueIdAndSaneDefault)
         implementation detail, and something that should have to be changed on
         purpose. docs/CHANGELOG.md quotes this number; if you change the set,
         change it there too. */
-    CHECK_MSG (seen.size() == 425,
+    CHECK_MSG (seen.size() == 471,
                "the parameter list has changed size: " + juce::String (seen.size())
-                 + " parameters, expected 425 - saved host automation is indexed "
+                 + " parameters, expected 471 - saved host automation is indexed "
                    "against this list");
 }
 
@@ -1574,4 +1677,262 @@ LUTHIER_TEST (ErrorLog, arefusedPresetLoadIsRecordedAndChangesNothing)
 
     ErrorLog::setFolderForTesting ({});
     folder.deleteRecursively();
+}
+
+//==============================================================================
+//  qa-polish 5: bypass null, DC null, and the reported latency.
+//==============================================================================
+#include "../PluginProcessor.h"
+
+/*  Bypass null: an instrument bypassed produces silence. JUCE's default
+    processBlockBypassed passes the input through, and here the input is the
+    sidechain, which shares the main output's channels - so without the
+    override a bypassed Luthier would play its sidechain. */
+LUTHIER_TEST (Plugin, bypassedIsSilent)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    // Whatever the host left in the buffer (a sidechain, a previous plugin).
+    juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumOutputChannels()), kBlock);
+    juce::Random rng (7);
+
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        for (int i = 0; i < kBlock; ++i)
+            buffer.setSample (ch, i, rng.nextFloat() * 2.0f - 1.0f);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 52, 0.9f), 0);
+
+    processor.processBlockBypassed (buffer, midi);
+
+    double total = 0.0;
+
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        for (int i = 0; i < kBlock; ++i)
+            total += std::abs (buffer.getSample (ch, i));
+
+    CHECK_MSG (total == 0.0, "bypassed output is not bit-silent: sum " + juce::String (total, 6));
+
+    // Not because the plugin is broken: the same note through processBlock sounds.
+    double sounded = 0.0;
+
+    for (int b = 0; b < 20; ++b)
+    {
+        buffer.clear();
+        juce::MidiBuffer thisBlock;
+
+        if (b == 0)
+            thisBlock = midi;
+
+        processor.processBlock (buffer, thisBlock);
+        sounded += buffer.getMagnitude (0, 0, kBlock);
+    }
+
+    CHECK_MSG (sounded > 1.0e-3, "the plugin is silent even when not bypassed");
+}
+
+/*  DC null: silent input (no MIDI, nothing on the sidechain) produces silent
+    output within -100 dBFS RMS, per factory preset. Amp hiss and mains hum are
+    deliberate voicing (Engine::silenceInSilenceOut), so a preset with those on
+    cannot meet -100 dBFS: the assertion is the spec's number for every preset
+    whose idle floor is at it, and the measured floor with a margin for the ones
+    whose voicing puts noise there (the list is in DECISIONS). */
+LUTHIER_TEST (Presets, dcNullOnSilentInput)
+{
+    HarnessProcessor processor;
+    FactoryPresets::setProcessorForRanges (&processor);
+    processor.prepareToPlay (kSr, kBlock);
+
+    constexpr double kSpecRms = 1.0e-5;      // -100 dBFS
+
+    // The presets whose voicing includes an idle noise floor, and the loudest
+    // RMS each was measured at (DECISIONS: qa-polish 5 DC null). The assertion
+    // is twice the measurement, so a floor that doubles fails.
+    const std::map<juce::String, double> knownFloors =
+    {
+        { "Octave Fuzz Stoner",      0.057955 },   // -24.7 dBFS: two fuzz stages on the amp's hiss
+        { "Fuzz Face Lead",          0.027074 },   // -31.4
+        { "Tapping Etude",           0.015056 },   // -36.4
+        { "Single-Cut Crunch",       0.006000 },   // -44.4
+        { "P-Bass Flatwound",        0.001482 },   // -56.6
+        { "Violin Bass Grind",       0.001439 },   // -56.8
+        { "Shred Lead",              0.001360 },   // -57.3
+        { "J-Style Fingerstyle",     0.000850 },   // -61.4
+        { "Fretless Mwah",           0.000527 },   // -65.6
+        { "Init",                    0.000414 },   // -67.7
+        { "Ambient Swell",           0.000396 },   // -68.1
+        { "T-Style Country Twang",   0.000291 },   // -70.7
+        { "Rockabilly Slap",         0.000254 },   // -71.9
+        { "Dry Instrument",          0.000189 },   // -74.5
+        { "5-String Low B",          0.000185 },   // -74.6
+        { "Clean Double-Cut Funk",   0.0000765 },  // -82.3
+        { "Semi-Hollow Chime",       0.0000348 },  // -89.2
+        { "Transposing Trem Chords", 0.0000344 },  // -89.3
+        { "Surf Reverb",             0.0000222 },  // -93.1
+        { "Jazz Hollowbody",         0.0000162 },  // -95.8
+    };
+
+    const int count = FactoryPresets::getNumPresets();
+    juce::StringArray report;
+
+    for (int i = 0; i < count; ++i)
+    {
+        const auto& def = FactoryPresets::getPreset (i);
+        const juce::String name (def.name);
+
+        CHECK_MSG (processor.presets.fromVar (FactoryPresets::toVar (def, processor)), name + " failed to load");
+        processor.bridge.applyAllNow();
+        processor.engine.panic();
+
+        // Let any reset transient settle, then measure a second of idle output.
+        juce::MidiBuffer none;
+        render (processor.engine, none, 0.5);
+        auto buffer = render (processor.engine, none, 1.0);
+
+        auto mono = toMono (buffer);
+        double level = rms (mono.data(), (int) mono.size());
+
+        // Per-channel RMS too, since a one-sided hum would halve in the mono sum.
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        {
+            std::vector<double> channel ((size_t) buffer.getNumSamples());
+
+            for (int s = 0; s < buffer.getNumSamples(); ++s)
+                channel[(size_t) s] = buffer.getSample (ch, s);
+
+            level = juce::jmax (level, rms (channel.data(), (int) channel.size()));
+        }
+
+        const auto known = knownFloors.find (name);
+        const double allowed = known != knownFloors.end() ? known->second * 2.0 : kSpecRms;
+
+        CHECK_MSG (level < allowed,
+                   name + " idle RMS " + juce::String (level, 9) + " (" + juce::String (gainToDb (level), 1)
+                     + " dBFS) exceeds " + juce::String (allowed, 9));
+
+        if (level >= kSpecRms)
+            report.add (name + "=" + juce::String (level, 9));
+    }
+
+    // Every preset above the spec's floor is one the table names.
+    for (const auto& line : report)
+        CHECK_MSG (knownFloors.count (line.upToFirstOccurrenceOf ("=", false, false)) > 0,
+                   "not in the known-floor table: " + line);
+}
+
+/*  The latency the plugin reports is the latency it has: an impulse on the
+    sidechain, re-amped through the rig (routing-io 5B), comes out of the main
+    output getLatencySamples() later, within one sample. The sidechain enters
+    after the string and body stages, so the expected delay is the main output's
+    latency minus the DI tap's (midi + body), both from the engine's own
+    accounting.
+
+    Oversampling is off here. The oversamplers are all-pass IIR, whose impulse
+    starts several samples before their delay, so an onset measurement cannot
+    check them; what remains (convolution, limiter lookahead) is a clean shift
+    that it can. The oversamplers' own figure is checked with a tone in
+    Oversampler.reportedLatencyIsItsGroupDelayInTheGuitarBand, and the last
+    check here holds the accounting: turning oversampling on adds exactly the
+    oversampler's reported latency for each oversampled stage in the path. */
+LUTHIER_TEST (Plugin, reportedLatencyMatchesAnImpulseWithinOneSample)
+{
+    LuthierAudioProcessor processor;
+
+    // Enable the sidechain input, as a host would.
+    auto layout = processor.getBusesLayout();
+    CHECK (layout.inputBuses.size() > 0);
+
+    if (layout.inputBuses.size() > 0)
+        layout.inputBuses.getReference (0) = juce::AudioChannelSet::stereo();
+
+    CHECK_MSG (processor.setBusesLayout (layout), "the sidechain bus could not be enabled");
+    processor.prepareToPlay (kSr, kBlock);
+
+    CHECK (processor.hasSidechainInput());
+    processor.getRouting().setSidechainToAmp (true);
+
+    auto& engine = processor.getEngine();
+    const int oversampledLatency = engine.getLatencySamples();
+
+    if (auto* os = processor.getState().getParameter (ParamIDs::oversample))
+        os->setValueNotifyingHost (os->convertTo0to1 (0.0f));   // "1x (Off)"
+
+    processor.getParameterBridge().applyAllNow();
+    processor.prepareToPlay (kSr, kBlock);
+
+    CHECK_MSG (engine.getOversamplingFactor() == 1,
+               "oversampling is still " + juce::String (engine.getOversamplingFactor()) + "x");
+
+    // Turning oversampling on adds a whole number of oversamplers' worth.
+    {
+        Oversampler probe;
+        probe.prepare (kSr, 4);
+        const int perStage = probe.getLatencySamples();
+        const int added = oversampledLatency - engine.getLatencySamples();
+
+        CHECK_MSG (perStage > 0 && added > 0 && added % perStage == 0,
+                   "4x oversampling added " + juce::String (added) + " samples; one stage reports "
+                     + juce::String (perStage));
+    }
+
+    const int reported = processor.getLatencySamples();
+    const int expected = engine.getLatencySamples() - engine.getLatencySamples (AuxBus::di);
+
+    CHECK_MSG (reported == engine.getLatencySamples(),
+               "the host is told " + juce::String (reported) + ", the engine says " + juce::String (engine.getLatencySamples()));
+
+    juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumOutputChannels()), kBlock);
+    juce::MidiBuffer none;
+
+    // Warm the amp up (it starts cold) and let the sidechain routing settle.
+    for (int b = 0; b < (int) (3.0 * kSr / kBlock); ++b)
+    {
+        buffer.clear();
+        processor.processBlock (buffer, none);
+    }
+
+    // A one-sample impulse at the start of a block, then follow the output.
+    std::vector<double> out;
+    const int blocks = 8;
+
+    for (int b = 0; b < blocks; ++b)
+    {
+        buffer.clear();
+
+        if (b == 0)
+            for (int ch = 0; ch < 2; ++ch)
+                buffer.setSample (ch, 0, 0.5f);
+
+        processor.processBlock (buffer, none);
+
+        for (int i = 0; i < kBlock; ++i)
+            out.push_back (0.5 * ((double) buffer.getSample (0, i) + (double) buffer.getSample (1, i)));
+    }
+
+    // Onset: the first sample carrying a meaningful part of the response.
+    double peakOut = 0.0;
+    for (double v : out) peakOut = juce::jmax (peakOut, std::abs (v));
+
+    // The first sample of the response, at 1e-4 of the peak: the cabinet's
+    // IR and the amp's coupling filters start small, so a coarser threshold
+    // reads a few samples late.
+    auto onsetAt = [&out, peakOut] (double fraction)
+    {
+        for (size_t i = 0; i < out.size(); ++i)
+            if (std::abs (out[i]) > peakOut * fraction)
+                return (int) i;
+
+        return -1;
+    };
+
+    const int onset = onsetAt (1.0e-4);
+
+    CHECK_MSG (peakOut > 1.0e-4, "the impulse did not come out of the rig (peak " + juce::String (peakOut, 8) + ")");
+    CHECK_MSG (onset >= 0 && std::abs (onset - expected) <= 1,
+               "impulse came out at sample " + juce::String (onset) + " (at 1e-3: " + juce::String (onsetAt (1.0e-3))
+                 + ", 1e-2: " + juce::String (onsetAt (1.0e-2)) + ", 5e-2: " + juce::String (onsetAt (0.05))
+                 + "), reported latency implies " + juce::String (expected) + " (main "
+                 + juce::String (engine.getLatencySamples()) + ", DI tap "
+                 + juce::String (engine.getLatencySamples (AuxBus::di)) + ")");
 }

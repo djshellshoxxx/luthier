@@ -83,6 +83,19 @@ const char* getSectionRoleName (SectionRole v) noexcept           { return nameO
 const char* getMelodyStyleName (MelodyStyle v) noexcept           { return nameOf (kStyleNames, v); }
 const char* getTuneEditClassName (TuneEditClass v) noexcept       { return nameOf (kEditClassNames, v); }
 
+const char* getTuneNotePartName (TuneNotePart part) noexcept
+{
+    switch (part)
+    {
+        case TuneNotePart::melody:        return "melody";
+        case TuneNotePart::bass:          return "bass";
+        case TuneNotePart::countermelody: return "countermelody";
+        case TuneNotePart::numParts:      break;
+    }
+
+    return "";
+}
+
 bool parseChordEmphasis (const juce::String& t, ChordEmphasis& r)       { return parseName (kEmphasisNames, t, r); }
 bool parseNoteArticulation (const juce::String& t, NoteArticulation& r) { return parseName (kArticulationNames, t, r); }
 bool parseNoteTechnique (const juce::String& t, NoteTechnique& r)       { return parseName (kTechniqueNames, t, r); }
@@ -150,6 +163,7 @@ bool ChordCell::operator== (const ChordCell& o) const
     return root == o.root && quality == o.quality && bass == o.bass
         && extensions == o.extensions && durationBeats == o.durationBeats
         && strumOverride == o.strumOverride && emphasis == o.emphasis
+        && locked == o.locked
         && tuneExtrasEqual (extra, o.extra);
 }
 
@@ -746,6 +760,98 @@ bool Tune::setChords (int sectionIndex, std::vector<ChordCell> cells)
 
     s->chords = std::move (cells);
     return true;
+}
+
+bool Tune::setChordLocked (int sectionIndex, int chordIndex, bool locked)
+{
+    auto* s = getSection (sectionIndex);
+
+    if (s == nullptr || ! juce::isPositiveAndBelow (chordIndex, (int) s->chords.size()))
+        return false;
+
+    auto& c = s->chords[(size_t) chordIndex];
+
+    if (c.locked == locked)
+        return false;
+
+    c.locked = locked;
+    return true;
+}
+
+//==============================================================================
+const std::vector<MelodyNote>* Tune::getPartNotes (int sectionIndex, TuneNotePart part) const noexcept
+{
+    const auto* s = getSection (sectionIndex);
+
+    if (s == nullptr)
+        return nullptr;
+
+    switch (part)
+    {
+        case TuneNotePart::melody:
+            return s->melody.has_value() ? &s->melody->notes : nullptr;
+
+        case TuneNotePart::bass:
+            return s->bass.mode == BassMode::manual ? &s->bass.notes : nullptr;
+
+        case TuneNotePart::countermelody:
+            if (const auto* layer = s->findLayer (LayerType::countermelody))
+                return &layer->notes;
+            return nullptr;
+
+        case TuneNotePart::numParts:
+            break;
+    }
+
+    return nullptr;
+}
+
+bool Tune::setPartNotes (int sectionIndex, TuneNotePart part, std::vector<MelodyNote> notes)
+{
+    auto* s = getSection (sectionIndex);
+
+    if (s == nullptr)
+        return false;
+
+    // Canonical, in the caller's order: the roll keeps a note's index across
+    // an edit, and the last drawn stays on top where notes overlap.
+    for (auto& n : notes)
+        n = canonicalNote (n);
+
+    switch (part)
+    {
+        case TuneNotePart::melody:
+        {
+            if (! s->melody.has_value())
+                s->melody = MelodyTrack();
+
+            if (s->melody->notes == notes)
+                return false;
+
+            s->melody->notes = std::move (notes);
+            return true;
+        }
+
+        case TuneNotePart::bass:
+            return setBassNotes (sectionIndex, std::move (notes));
+
+        case TuneNotePart::countermelody:
+        {
+            TuneLayer layer;
+
+            if (const auto* existing = s->findLayer (LayerType::countermelody))
+                layer = *existing;
+
+            layer.type = LayerType::countermelody;
+            layer.notes = std::move (notes);
+            return setLayer (sectionIndex, layer);
+        }
+
+        case TuneNotePart::numParts:
+            break;
+    }
+
+    return false;
 }
 
 //==============================================================================

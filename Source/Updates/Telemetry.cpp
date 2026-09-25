@@ -796,7 +796,7 @@ void Telemetry::fromVar (const juce::var& state)
     if (root->hasProperty ("crashUploadUrl")) setCrashUploadUrl (root->getProperty ("crashUploadUrl").toString());
 
     if (root->hasProperty ("lastUpdateCheck"))
-        lastUpdateCheck = juce::Time ((int64_t) root->getProperty ("lastUpdateCheck"));
+        lastUpdateCheck = juce::Time ((juce::int64) root->getProperty ("lastUpdateCheck"));
 }
 
 juce::File Telemetry::getSettingsFile()
@@ -1000,8 +1000,8 @@ void License::fromVar (const juce::var& state_)
         return;
 
     storedKeyHash = root->getProperty ("keyHash").toString();
-    activatedAt = juce::Time ((int64_t) root->getProperty ("activatedAt"));
-    lastValidated = juce::Time ((int64_t) root->getProperty ("lastValidated"));
+    activatedAt = juce::Time ((juce::int64) root->getProperty ("activatedAt"));
+    lastValidated = juce::Time ((juce::int64) root->getProperty ("lastValidated"));
 
     updateStateFromDates();
 }

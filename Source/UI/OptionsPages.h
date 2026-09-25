@@ -27,6 +27,7 @@
 #include "Widgets.h"
 #include "../Controllers/ControllerProfile.h"
 #include "../Updates/Telemetry.h"
+#include "../Accessibility/Localisation.h"
 
 namespace luthier
 {
@@ -186,6 +187,11 @@ public:
 
 private:
     juce::ComboBox localeBox, fallbackBox;
+
+    // What the two boxes offer: the locales with a catalog (Localisation::
+    // getAvailableLocales), rebuilt when the catalog folder changes.
+    std::vector<LocaleInfo> offered;
+    void rebuildLocaleLists();
     juce::TextButton catalogButton { "Custom catalog..." };
     juce::Label localeNote, catalogLabel;
 
@@ -202,6 +208,10 @@ class ControllersPage final : public OptionsPage
 public:
     explicit ControllersPage (LuthierAudioProcessor& processor);
 
+    /** What resized() lays out top to bottom, plus the wizard it pins to the
+        bottom, so column 4 can size the tab to its content. */
+    int preferredHeight() const noexcept;
+
     void refresh() override;
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -216,9 +226,9 @@ private:
     juce::ComboBox profileBox;
     juce::Label profileNotes, routingLabel;
 
-    juce::Slider latencySlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::Slider deadZoneSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::Slider minimumNoteSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    WheelPassSlider latencySlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    WheelPassSlider deadZoneSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    WheelPassSlider minimumNoteSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
 
     juce::ToggleButton guitarModeToggle { "LinnStrument guitar mode: rows map to strings" };
 
@@ -409,14 +419,28 @@ public:
     /** Wired by the editor, which is the only thing that can open an overlay. */
     std::function<void()> onShowDebugWindow;
 
+    /*  onboarding.md 12: what the button's confirmation calls. Clears the
+        user-global settings (FirstRun::restoreFirstRunExperience) and tells
+        the processor the restored range preference, which it cannot read. */
+    void restoreFirstRun();
+    juce::TextButton& getRestoreFirstRunButton() noexcept { return restoreFirstRunButton; }
+
     void refresh() override;
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    /*  action-and-undo.md 12: "Show Undo Depth" adds "Undo: N / 200; Redo: M"
+        to the footer. A user-global UiPreferences key: it is about the window,
+        not the sound. The editor's footer reads it. */
+    static constexpr const char* kShowUndoDepthKey = "diagnostics.showUndoDepth";
+    juce::ToggleButton& getUndoDepthToggle() noexcept { return undoDepthToggle; }
+
 private:
     juce::TextButton debugWindowButton { "Open the debug window" };
+    juce::TextButton restoreFirstRunButton { "Restore first-run experience" };
     juce::ToggleButton crashLogToggle { "Create a log file if Luthier crashes" };
     juce::ToggleButton recorderToggle { "Keep the last hour of audio for the session recorder" };
+    juce::ToggleButton undoDepthToggle { "Show undo depth in the footer" };
 
     juce::TextButton troubleshootButton { "Export troubleshooting file" };
     juce::TextButton openFolderButton { "Open diagnostics folder" };

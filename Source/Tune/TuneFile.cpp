@@ -111,6 +111,9 @@ namespace
         if (c.emphasis != ChordEmphasis::normal)
             o->setProperty ("emphasis", getChordEmphasisName (c.emphasis));
 
+        if (c.locked)
+            o->setProperty ("locked", true);
+
         appendExtras (*o, c.extra);
         return juce::var (o);
     }
@@ -629,7 +632,8 @@ namespace
               || ! readString (r, *o, "bass", p, bass)
               || ! readStringArray (r, *o, "extensions", p, c.extensions)
               || ! readString (r, *o, "strum", p, c.strumOverride)
-              || ! readEnum (r, *o, "emphasis", p, c.emphasis, &parseChordEmphasis))
+              || ! readEnum (r, *o, "emphasis", p, c.emphasis, &parseChordEmphasis)
+              || ! readBool (r, *o, "locked", p, c.locked))
             return false;
 
         if (! resolveQuality (quality, c.quality))
@@ -643,7 +647,7 @@ namespace
                 return r.fail (TuneLoadError::invalidField, element (field (p, "extensions"), i),
                                "unknown extension \"" + c.extensions[i] + "\"");
 
-        c.extra = unknownFields (*o, { "root", "quality", "beats", "bass", "extensions", "strum", "emphasis" });
+        c.extra = unknownFields (*o, { "root", "quality", "beats", "bass", "extensions", "strum", "emphasis", "locked" });
         out = c;
         return true;
     }

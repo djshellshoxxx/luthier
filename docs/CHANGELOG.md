@@ -8,6 +8,28 @@ numbered, because what it should be called is a release decision.
 
 ### Added
 
+- **The string roll** - one lane per string with what you play scrolling
+  past, the sounding string glowing at the now edge, and a click or Enter on
+  a lane plucking that string at the fret under the mouse. On the NOTATION
+  tab above the live tab, and as the ROLL half of the FRETS | ROLL toggle on
+  the Advanced strip.
+- **RESET & STOP** - a header button beside Panic (Ctrl+Shift+P) that stops
+  the tune player, looper, backing track, metronome, rhythm engine and kill
+  switch, returns every setting to its default and silences the engine on
+  the next audio block. Panic itself now also clears effect tails, freeze,
+  feedback and the rhythm engine's pending strums, and no longer races the
+  audio thread.
+- **MIDI import** (`midi-export.md` 5) - File > Import MIDI..., IMPORT on the
+  TUNE tab, or drop a .mid on the window: tempo, meter, key and title from
+  the file, markers to sections, our own channel layout when the file is
+  ours, otherwise chords from the polyphonic track, bass by pitch or name,
+  the first single-line track as the melody and the rest as verbatim layers.
+  Also File > New Tune...
+- **Fingers on the Easy playing strip**, and acoustic guitars default to
+  fingers.
+- **Linux build** - `scripts/build.sh` builds through a lock (several agents
+  can share one tree) and runs the suite under xvfb.
+
 - **The real guitar on screen** (`guitar-illustration.md`) - every guitar is
   drawn from its parts: body outline, finish (bursts, grain, sparkle, aging),
   bridge, pickups, pickguard, neck, headstock and strings by material.
@@ -76,6 +98,40 @@ numbered, because what it should be called is a release decision.
   darker when palm-muted, from a keyswitch, a CC, a zone or the button, or
   held on the mod wheel. The rake across the strings (`pick-noise.md` 5) now
   has triggers too. Both reach the Noise output. Fourteen new parameters.
+- **Slap** (`string-slap-technique.md`, `bass-techniques.md` 2-5) - thumb
+  slaps, finger pops, palm slaps across muted strings and body taps, fired
+  from a keyswitch, a CC, an MPE zone, the velocity zone or the STRIKE
+  button through the technique layer's shared MIDI front; ghost notes, the
+  double thump and the fret clack from the fret-buzz generator. The SLAP
+  group has the controls and the five factory slaps; twenty-five new
+  parameters (426-450).
+- **Muting as rhythm** (`muting-rhythm.md`) - every pattern step carries a
+  mute type (open, palm mute light / heavy / extreme, ghost, chuka, fret
+  mute) painted in the RHYTHM tab's Mute Row; a live sixteen-step grid,
+  locked to the host, mutes what you play when the engine is not driving;
+  a master mute mode, soft strums as chukas, mute humanise and the MUTE
+  group's palm and fretting-hand controls; Easy mode's 4-way Mute button.
+  Eight new parameters (451-458; the parameter count is 458).
+- **String Detune** - a STRING DETUNE group on the CHARACTER tab: one small
+  knob per string, labelled with the string's note (E A D G B E, following
+  the tuning and string count), each detuning that string by up to +/-25
+  cents, double-click back to zero; an Out of tune knob that moves every
+  string together; Randomise (each string to a seeded offset within
+  +/- Out of tune x 25 cents) and Reset. Twenty-five cents is a quarter of a
+  semitone: clearly out against the other strings or a tuner, never a
+  different note. The offset rides the string through frets, bends, slides
+  and the capo and touches no other string, and with tuner drift and
+  realism detune the controls never take a string past 25 cents. Automatable
+  and saved with presets; presets from before load in tune. Thirteen new
+  parameters (459-471: `string_detune_1`..`string_detune_12`, `out_of_tune`;
+  the parameter count is 471).
+- **First run** (`onboarding.md` 5, 7-9, 11, 12) - a first launch takes
+  reduced motion, the high-contrast palette, a 125 % scale on a display
+  over 150 % and the locale from the operating system, once; the TUNE tab
+  and the Workshop bench show their one-time hints in the first session;
+  the practice drawer reopens as it was left; Options -> Diagnostics ->
+  Restore first-run experience clears the settings and every one-time flag
+  (the range explainer's included) and keeps the libraries.
 - **Strums that move like a hand** (`strum-dynamics.md`) - a strum
   accelerates through the strings, up-strokes are quicker and lighter, the
   hand tilts and now and then misses a string, and what strikes the strings
@@ -287,6 +343,40 @@ numbered, because what it should be called is a release decision.
   refusing to route past a destination's limit.
 
 ### Fixed
+
+- **Chords** - a note played while another was ringing used to land on the
+  same string and kill it, because the voicer never knew which strings were
+  held; it does now, notes the chord search cannot finger are placed one by
+  one instead of dropped, and the chord window default is 15 ms so keyboard
+  chords group (`spec/issues.md`).
+- **Pedals** - a pedal picked in the UI is built at once on the message
+  thread rather than after a round trip through the audio thread and an
+  async update; picking one no longer reloads IRs or re-snaps the strings;
+  the per-block parameter push runs under the chain's lock with cached
+  atomics. The footswitch says ON / BYPASS, and the Easy rack popover grows
+  when a pedal is picked.
+- **Fingers vs pick** - fingertip and thumb contacts are wider, softer
+  pulses, so fingers measure about 20% darker than a pick at the string.
+- **MOD, RHYTHM, LIVE, ROUTING, TONE MATCH, CONTROLLERS** were laid out at 80
+  px because they never set their own height: 4 px combo boxes, popup menus
+  with 4 px rows, and a LIVE snapshot grid of slivers. Each sizes itself now,
+  popup rows are clamped to 22 px, the LIVE grid is 8 x 16 labelled cells
+  with click / Shift-click / double-click / right-click gestures.
+- **Scrolling** - the wheel over a knob used to change the knob; it now
+  scrolls the column (Ctrl+wheel nudges the knob), scrollbars are thicker
+  and accent-coloured with chevron buttons, and a chevron with a tooltip
+  shows where more controls lie above or below.
+- **The guitar picture** - the Advanced strip drew the whole guitar at a
+  quarter pixel per millimetre with every flake, grain stroke and ding; the
+  renderer now picks its level of detail from the pixels per millimetre,
+  crops the strip to the body, casts one soft shadow, paints bursts as a
+  smooth gradient and tiles the grain.
+- **Pickup slots** a guitar does not have are disabled and say so, and the
+  selector offers only the positions the guitar can realise.
+- GCC portability: nested-struct default arguments, int64 casts, rvalue
+  reference bindings that MSVC allowed.
+
+### Fixed (earlier)
 
 - **Factory presets now load their pedals as designed.** Every preset's
   pedals were reset to the pedal's defaults as they loaded, so a preset's

@@ -41,6 +41,20 @@ struct StringActivityEvent
     int  midiNote = 0;
     float velocity = 0.0f;
     bool isNoteOn = true;
+
+    /*  notation-export 6.1: a bass technique the engine resolved for a note
+        (bass-techniques / string-slap-technique) rides the same queue, in the
+        same block, so the capture's BASS_TECH track comes from the same place
+        the note did. MIDI out skips these; only `note` records become notes. */
+    enum class Kind : juce::uint8 { note = 0, bassTechnique };
+
+    Kind kind = Kind::note;
+    juce::uint8 code = 0;         ///< bassTechnique: a SlapType index
+    juce::uint8 flags = 0;        ///< bassTechnique: bit 0 ghost, bit 1 the double thump's up-stroke
+    float position = 0.5f;        ///< bassTechnique: the contact point, as a fraction of the vibrating length
+
+    static constexpr juce::uint8 kGhost = 1;
+    static constexpr juce::uint8 kRebound = 2;
 };
 
 //==============================================================================

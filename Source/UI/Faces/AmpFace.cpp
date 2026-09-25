@@ -307,6 +307,7 @@ juce::StringArray ampFaceTexts (AmpModel model)
 {
     juce::StringArray texts;
     texts.add (displayName (model));
+    texts.add ("VU");
 
     for (auto* s : knobLabels)
         texts.add (s);
@@ -370,6 +371,15 @@ AmpFaceLayout layoutAmpFace (juce::Rectangle<float> bounds, AmpModel model, bool
 
             l.logo = { l.grille.getX() + l.grille.getWidth() * 0.05f, l.grille.getY() + l.grille.getHeight() * 0.1f,
                        l.grille.getWidth() * (tall ? 0.5f : 0.26f), juce::jmax (8.0f, l.grille.getHeight() * (tall ? 0.28f : 0.2f)) };
+
+            // visual-polish.md 4: the VU meter at the grille's top right, opposite the name.
+            if (l.grille.getHeight() >= 28.0f && l.grille.getWidth() >= 120.0f)
+            {
+                const float meterW = juce::jmin (l.grille.getWidth() * 0.26f, 64.0f);
+                const float meterH = juce::jmin (l.grille.getHeight() * 0.55f, meterW * 0.62f);
+                l.meter = { l.grille.getRight() - l.grille.getWidth() * 0.05f - meterW,
+                            l.grille.getY() + l.grille.getHeight() * 0.1f, meterW, meterH };
+            }
         }
         else
         {
@@ -391,6 +401,17 @@ AmpFaceLayout layoutAmpFace (juce::Rectangle<float> bounds, AmpModel model, bool
             if (look.tubes > 0)
                 l.vent = strip.withSizeKeepingCentre (strip.getWidth() * 0.28f, strip.getHeight() * 0.66f)
                               .withX (strip.getRight() - strip.getWidth() * 0.34f);
+
+            // visual-polish.md 4: the VU meter on the covering between the name and
+            // the vent, where the strip has room; the name gives up some width for it.
+            if (strip.getWidth() >= 150.0f && strip.getHeight() >= 18.0f)
+            {
+                l.logo = l.logo.withWidth (strip.getWidth() * 0.36f);
+                const float meterW = strip.getWidth() * (look.tubes > 0 ? 0.2f : 0.24f);
+                const float meterH = juce::jmin (strip.getHeight() * 0.84f, meterW * 0.62f);
+                l.meter = juce::Rectangle<float> (meterW, meterH)
+                              .withCentre ({ strip.getX() + strip.getWidth() * (look.tubes > 0 ? 0.53f : 0.62f), strip.getCentreY() });
+            }
         }
         else
         {
@@ -639,6 +660,15 @@ void paintAmpFace (juce::Graphics& g, juce::Rectangle<float> bounds, AmpModel mo
     if (state.drawValves && ! l.vent.isEmpty())
         drawTubeVent (g, l.vent, look.tubes, state.drive, state.standby, state.driveStale);
 
+    // ---- the VU meter (visual-polish.md 4) --------------------------------------------
+    if (! l.meter.isEmpty())
+    {
+        drawVuMeterFace (g, l.meter);
+
+        if (state.drawMeter)
+            drawVuMeterNeedle (g, l.meter, state.vu, state.vuStale, state.enabled);
+    }
+
     // ---- inputs -----------------------------------------------------------------------
     for (auto& in : l.inputs)
         if (in.getWidth() >= 4.0f)
@@ -711,6 +741,14 @@ void paintAmpFace (juce::Graphics& g, juce::Rectangle<float> bounds, AmpModel mo
         drawScrew (g, { l.faceplate.getX() + inset, l.faceplate.getBottom() - inset }, r);
         drawScrew (g, { l.faceplate.getRight() - inset, l.faceplate.getBottom() - inset }, r);
     }
+}
+
+void paintAmpFaceMeter (juce::Graphics& g, juce::Rectangle<float> bounds, AmpModel model, const AmpFaceState& state)
+{
+    const auto l = layoutAmpFace (bounds, model, state.hasSwitches);
+
+    if (! l.meter.isEmpty())
+        drawVuMeterNeedle (g, l.meter, state.vu, state.vuStale, state.enabled);
 }
 
 void paintAmpFaceValves (juce::Graphics& g, juce::Rectangle<float> bounds, AmpModel model, const AmpFaceState& state)

@@ -16,7 +16,8 @@
     The palette is live: the colours below are the ones in force, set from
     AccessibilitySettings by Palette::apply(), so the colourblind, High-contrast
     and Light palettes (accessibility.md 6) reach every panel. High contrast
-    turns textures and sheen off (visual-polish.md 0.2).
+    turns textures and sheen off (visual-polish.md 0.2), and so does Modern
+    Dark, the plain flat dark mode (DECISIONS: "Modern Dark palette").
 */
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -26,6 +27,7 @@ namespace luthier
 
 //==============================================================================
 struct PaletteColours;
+enum class PaletteId;
 
 namespace Palette
 {
@@ -69,12 +71,32 @@ namespace Palette
     inline juce::Colour plate           { 0xffc9a25a };   ///< engraved brass plate
     inline juce::Colour plateText       { 0xff2a1a0c };
 
-    /** False under High contrast: no grain, sheen, screws or gradients. */
+    /** The unfilled part of a knob's value arc. */
+    inline juce::Colour knobTrack       { 0x994a3726 };
+    /** The meter colour between its low (secondary) and high (warning, clip) ends. */
+    inline juce::Colour meterMid        { 0xffd4a24c };
+
+    /** False under High contrast and Modern Dark: no grain, sheen, screws or
+        gradients. Read it through usesMaterials(). */
     inline bool textured = true;
+
+    /** False only under High contrast: the guitar illustration keeps its
+        lighting and real finishes in every other palette, Modern Dark included. */
+    inline bool illustrationMaterials = true;
+
+    /** Whether the UI is dressed in the guitar-shop materials (wood grain panel
+        fills, brass section plates and fader caps, corner screws, Tolex, lit
+        knob caps). Every material drawing site is gated on this. */
+    inline bool usesMaterials() noexcept { return textured; }
 
     /** Puts a palette in force. Components already built keep their own
         colours; remap() moves those across. Message thread. */
     void apply (const PaletteColours& colours, bool texturedSurfaces);
+
+    /** The same, taking the materials and the knob, meter and track roles from
+        the palette's identity (paletteUsesMaterials()). What the editor, the
+        LookAndFeel and the Options page use. */
+    void apply (const PaletteColours& colours, PaletteId id);
 
     /** The palette last applied. */
     const PaletteColours& current();
@@ -144,6 +166,38 @@ public:
                                  juce::Rectangle<int> area, juce::Justification justification,
                                  float tracking = 0.08f);
 
+    /*  Fitting a label to the room it has. A label that does not fit at its
+        normal font first loses its tracking, then shrinks (height, then a
+        little horizontal squeeze) down to minimumLabelHeight, and only then
+        is ellipsised: a readable smaller word beats a clipped "UNERS".
+        drawTrackedText fits every label it draws this way; the measurement
+        is exposed so a layout or a test can use the very same numbers. */
+    static constexpr float minimumLabelHeight = 8.5f;
+    static constexpr float minimumHorizontalScale = 0.8f;
+
+    struct FittedLabel
+    {
+        juce::Font font { juce::FontOptions() };
+        float tracking = 0.0f;
+        juce::String text;
+        float width = 0.0f;         // drawn width, tracking included
+        float padding = 0.0f;       // horizontal padding each side (buttons)
+        bool shrunk = false;        // tracking, height or scale were reduced
+        bool ellipsised = false;    // did not fit even at the floor
+    };
+
+    /** The width drawTrackedText gives `text` in `font` (per-glyph, as it draws). */
+    static float trackedWidth (const juce::Font& font, const juce::String& text, float tracking = 0.08f);
+
+    /** `text` fitted into `availableWidth` (see above). A non-positive width
+        means "unconstrained" and returns the normal label. */
+    static FittedLabel fitLabel (const juce::String& text, const juce::Font& font,
+                                 float availableWidth, float tracking = 0.08f);
+
+    /** Draws a fitted label (the font is restored afterwards). */
+    static void drawFittedLabel (juce::Graphics& g, const FittedLabel& label,
+                                 juce::Rectangle<int> area, juce::Justification justification);
+
 private:
     static juce::String findAvailable (const juce::StringArray& candidates,
                                        const juce::String& fallback);
@@ -191,6 +245,19 @@ public:
     juce::Font getComboBoxFont (juce::ComboBox&) override;
     juce::Font getLabelFont (juce::Label&) override;
     juce::Font getTextButtonFont (juce::TextButton&, int buttonHeight) override;
+
+    /** A text button's label as drawButtonText draws it: normal padding and
+        font if they fit; else the padding drops to the minimum; else the font
+        shrinks (Fonts::fitLabel). Tests measure with this. */
+    static Fonts::FittedLabel fitButtonLabel (juce::TextButton& button);
+
+    /** The padding each side of a text button's label at a given height. */
+    static float buttonLabelPadding (int buttonHeight) noexcept;
+    static constexpr float minimumButtonLabelPadding = 2.0f;
+
+    /** The width a text button needs to show its label at its normal font and
+        padding, for a layout that wants to size or wrap buttons. */
+    static int idealTextButtonWidth (juce::TextButton& button, int buttonHeight);
     juce::Font getPopupMenuFont() override;
 
     void drawPopupMenuBackground (juce::Graphics&, int width, int height) override;
@@ -205,9 +272,36 @@ public:
                                            juce::Point<int> screenPos,
                                            juce::Rectangle<int> parentArea) override;
 
+    /*  Popup menus and combo dropdowns never shrink below a readable row. A
+        combo's popup takes its item height from the combo's own label, so a
+        combo laid out in a panel that was itself squashed opened a list of
+        eight-point rows. Clamping here covers every combo in the plugin, not
+        just the panels that have been caught at it. */
+    static constexpr int minimumPopupItemHeight = 22;
+
+    void getIdealPopupMenuItemSize (const juce::String& text, bool isSeparator,
+                                    int standardMenuItemHeight,
+                                    int& idealWidth, int& idealHeight) override;
+
+    juce::PopupMenu::Options getOptionsForComboBoxPopupMenu (juce::ComboBox&, juce::Label&) override;
+
     void drawScrollbar (juce::Graphics&, juce::ScrollBar&, int x, int y, int width, int height,
                         bool isScrollbarVertical, int thumbStartPosition, int thumbSize,
                         bool isMouseOver, bool isMouseDown) override;
+
+    /** The end buttons are shown, with accent chevrons: a scrollbar with no
+        arrows on it reads as a decoration rather than a control. */
+    bool areScrollbarButtonsVisible() override { return true; }
+
+    void drawScrollbarButton (juce::Graphics&, juce::ScrollBar&, int width, int height,
+                              int buttonDirection, bool isScrollbarVertical,
+                              bool isMouseOverButton, bool isButtonDown) override;
+
+    /** The chevron the combo box, the scrollbar buttons and the overflow hints
+        share. `direction` is 0 up, 1 right, 2 down, 3 left, as ScrollBar
+        numbers its buttons. */
+    static void drawChevron (juce::Graphics&, juce::Point<float> centre, float halfWidth,
+                             int direction, juce::Colour colour, float thickness = 1.4f);
 
     void drawTabButton (juce::TabBarButton&, juce::Graphics&, bool isMouseOver, bool isMouseDown) override;
     void drawTabbedButtonBarBackground (juce::TabbedButtonBar&, juce::Graphics&) override;
@@ -244,6 +338,25 @@ public:
 
     /** A mini toggle switch: a threaded bushing and a bat lever up (on) or down. */
     static void drawMiniToggle (juce::Graphics&, juce::Rectangle<float> area, bool on, bool enabled);
+
+    /*  accessibility 2 / qa-polish 4: the keyboard-focus ring. A 2 px accent
+        stroke just inside `bounds`, the same in every palette because every
+        palette defines the accent against its background (accessibility 10
+        checks the contrast). Every draw routine above calls this when its
+        component hasKeyboardFocus (true), so a control that gains focus by Tab
+        shows it wherever it sits. */
+    static constexpr float focusRingThickness = 2.0f;
+    static void drawFocusRing (juce::Graphics&, juce::Rectangle<float> bounds,
+                               float corner = Metrics::panelCorner);
+
+    /** Whether a draw routine should ring this component: it has keyboard
+        focus, or a test has forced it (a component can only hold focus with a
+        window peer, which the test runner has no display for). */
+    static bool wantsFocusRing (const juce::Component&) noexcept;
+
+    /** Test hook: draws the ring on `component` as if it were focused, until
+        called with nullptr. */
+    static void forceFocusRingFor (const juce::Component* component) noexcept;
 
 private:
     void drawKnurledSkirt (juce::Graphics&, juce::Point<float> centre, float radius,

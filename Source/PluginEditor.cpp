@@ -1,5 +1,8 @@
 #include "PluginEditor.h"
 #include "UI/RangesUi.h"
+#include "UI/FirstRun.h"
+#include "UI/UiPreferences.h"
+#include "Support/OpenFile.h"
 #include "Accessibility/Accessibility.h"
 
 namespace luthier
@@ -23,6 +26,10 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
       workshopOverlay (p),
       secretPanel (p)
 {
+    // onboarding.md 5: a first launch takes its palette, motion, scale and
+    // locale from the operating system, once, before anything reads them.
+    FirstRun::applyIfFirstRun();
+
     setLookAndFeel (&lookAndFeel);
 
     shownPalette = Palette::current();
@@ -105,6 +112,47 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     header.onOpenPresetBrowser = [this] { showOverlay (&presetBrowser); };
     header.onSaveAs = [this] { showOverlay (&saveAsPanel); };
 
+    // gui-integration 19: File -> New Tune... is the TUNE tab's template
+    // picker; File -> Import MIDI... (midi-export 5) loads a .mid as a tune.
+    header.onNewTune = [this]
+    {
+        if (openTuneTab())
+            if (auto* tune = findTunePanel())
+                tune->showTemplateMenu();
+    };
+
+    header.onImportMidi = [this] (const juce::File& file) { importMidiIntoTuneBuilder (file); };
+
+    // The panel's import report goes on the banner strip: its first line, with
+    // the rest (which tracks became what, what was defaulted) behind Details,
+    // because a banner is one line and the report can be ten.
+    if (auto* tune = findTunePanel())
+    {
+        tune->onNotification = [this] (const juce::String& message, bool warning)
+        {
+            Notification n;
+            n.id = "tune-import";
+            n.message = message.upToFirstOccurrenceOf ("\n", false, false);
+            n.level = warning ? Notification::Level::warning : Notification::Level::info;
+
+            if (message.containsChar ('\n'))
+            {
+                n.actionText = tr ("tune.import.details");
+                n.action = [message]
+                {
+                    juce::NativeMessageBox::showAsync (juce::MessageBoxOptions()
+                                                           .withIconType (juce::MessageBoxIconType::InfoIcon)
+                                                           .withTitle (tr ("tune.import.title"))
+                                                           .withMessage (message)
+                                                           .withButton (tr ("common.ok")),
+                                                       nullptr);
+                };
+            }
+
+            notifications.post (std::move (n));
+        };
+    }
+
     // The overlay and the HELP tab are one HelpTab in two places; both reach
     // the debug tools and the shortcut table the same way.
     auto wireHelp = [this] (HelpTab& help)
@@ -150,6 +198,9 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     setAdvancedMode (ui.advancedMode);
     header.setAdvancedMode (advancedMode);
 
+    // onboarding.md 11: the practice drawer comes back as it was left.
+    practicePanel.setOpen (ui.practiceDrawerOpen);
+
     /*  On the way in, the refusal is silent. A window restored below 1000 points
         is a window that was already this size last session, and a notice about a
         mode the user has not touched yet is noise; the disabled toggle in the
@@ -180,6 +231,7 @@ LuthierAudioProcessorEditor::~LuthierAudioProcessorEditor()
 
     processor.getUiState().editorWidth = getWidth();
     processor.getUiState().editorHeight = getHeight();
+    processor.getUiState().practiceDrawerOpen = practicePanel.isOpen();
 
     tooltips.setLookAndFeel (nullptr);
     setLookAndFeel (nullptr);
@@ -282,6 +334,156 @@ void LuthierAudioProcessorEditor::mouseMove (const juce::MouseEvent& e)
     }
 }
 
+//==============================================================================
+namespace
+{
+    bool isMidiFile (const juce::File& file)
+    {
+        const auto extension = file.getFileExtension().toLowerCase();
+        return extension == ".mid" || extension == ".midi";
+    }
+}
+
+bool LuthierAudioProcessorEditor::isInterestedInFileDrag (const juce::StringArray& files)
+{
+    for (const auto& path : files)
+        if (isMidiFile (juce::File (path)))
+            return true;
+
+    return false;
+}
+
+void LuthierAudioProcessorEditor::filesDropped (const juce::StringArray& files, int, int)
+{
+    // One tune at a time: the first MIDI file in the drop.
+    for (const auto& path : files)
+    {
+        const juce::File file (path);
+
+        if (isMidiFile (file) && file.existsAsFile())
+        {
+            importMidiIntoTuneBuilder (file);
+            return;
+        }
+    }
+}
+
+TunePanel* LuthierAudioProcessorEditor::findTunePanel() const
+{
+    for (int i = 0; i < advancedPanel.getNumWorkspaceTabs(); ++i)
+        if (auto* panel = dynamic_cast<TunePanel*> (advancedPanel.getWorkspacePanel (i)))
+            return panel;
+
+    return nullptr;
+}
+
+bool LuthierAudioProcessorEditor::openTuneTab()
+{
+    /*  The TUNE tab is column 4 of Advanced Mode (tune-builder 3), so this
+        switches mode on the way, as the IR banner does for TONE MATCH, and
+        gives up when the window is too narrow for Advanced: setAdvancedMode
+        refuses that with its own notice. */
+    if (! advancedMode)
+    {
+        setAdvancedMode (true);
+        header.setAdvancedMode (advancedMode);
+    }
+
+    return advancedMode && advancedPanel.setWorkspaceTabNamed ("TUNE");
+}
+
+bool LuthierAudioProcessorEditor::importMidiIntoTuneBuilder (const juce::File& file)
+{
+    auto* tune = findTunePanel();
+
+    if (tune == nullptr || ! openTuneTab())
+    {
+        notifications.post ({ "tune-import", tr ("tune.import.noPanel"), Notification::Level::warning });
+        return false;
+    }
+
+    juce::String error;
+
+    // On success the panel reports through onNotification (wired above).
+    if (! tune->importMidiFrom (file, error))
+    {
+        notifications.post ({ "tune-import",
+                              tr ("tune.import.failed", { { "name", file.getFileName() }, { "error", error } }),
+                              Notification::Level::warning });
+        return false;
+    }
+
+    return true;
+}
+
+bool LuthierAudioProcessorEditor::openFile (const juce::File& file)
+{
+    const auto warn = [this] (const juce::String& message)
+    {
+        notifications.post ({ "open-file", message, Notification::Level::warning });
+        return false;
+    };
+
+    const auto kind = classifyOpenFile (file);
+
+    if (kind == OpenFileKind::unknown)
+        return warn (tr ("open.file.unsupported", { { "name", file.getFileName() } }));
+
+    if (! file.existsAsFile() || ! file.hasReadAccess())
+        return warn (tr ("open.file.unreadable", { { "name", file.getFileName() } }));
+
+    switch (kind)
+    {
+        case OpenFileKind::preset:
+        {
+            // As the header's File > Open: an undo boundary, the load, the parameters now.
+            processor.pushUndoBoundary ("Open preset " + file.getFileNameWithoutExtension());
+            const bool loaded = processor.getPresetManager().loadPreset (file);
+            processor.getParameterBridge().applyAllNow();
+
+            /*  A refusal is the preset-load banner, raised now rather than on the
+                next tick - and raised again for a file refused before, because
+                this time the user asked for it by name. */
+            reportedPresetError.clear();
+            pollForNotifications();
+            return loaded;
+        }
+
+        case OpenFileKind::guitar:
+        {
+            juce::String error;
+
+            if (! processor.loadGuitarFile (file, error))
+                return warn (tr ("open.guitar.failed", { { "name", file.getFileName() }, { "error", error } }));
+
+            return true;
+        }
+
+        case OpenFileKind::tune:
+        {
+            auto* tune = findTunePanel();
+
+            if (tune == nullptr || ! openTuneTab())
+                return warn (tr ("tune.import.noPanel"));
+
+            juce::String error;
+
+            if (! tune->loadFrom (file, error))
+                return warn (tr ("open.tune.failed", { { "name", file.getFileName() }, { "error", error } }));
+
+            return true;
+        }
+
+        case OpenFileKind::midi:
+            return importMidiIntoTuneBuilder (file);
+
+        case OpenFileKind::unknown:
+            break;
+    }
+
+    return false;
+}
+
 void LuthierAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
 {
     if (getSecretPixelBounds().contains (e.getPosition()))
@@ -361,9 +563,15 @@ void LuthierAudioProcessorEditor::paint (juce::Graphics& g)
                 juce::Justification::centredRight, false);
 
     // CPU and latency, where a player can see them without opening anything.
-    g.drawText ("CPU " + juce::String (processor.getEngine().getCpuEstimate(), 1) + "%"
-                + "    latency " + juce::String (processor.getLatencySamples()) + " smp",
-                footer.reduced (Metrics::windowPadding, 0),
+    juce::String status = "CPU " + juce::String (processor.getEngine().getCpuEstimate(), 1) + "%"
+                            + "    latency " + juce::String (processor.getLatencySamples()) + " smp";
+
+    // action-and-undo.md 12: Options -> Diagnostics -> "Show Undo Depth".
+    if (UiPreferences::get().getBool (DiagnosticsPage::kShowUndoDepthKey, false))
+        status << "    Undo: " << processor.getNumUndoSteps() << " / " << LuthierAudioProcessor::getMaxUndoSteps()
+               << "; Redo: " << processor.getNumRedoSteps();
+
+    g.drawText (status, footer.reduced (Metrics::windowPadding, 0),
                 juce::Justification::centredLeft, false);
 }
 
@@ -471,7 +679,7 @@ void LuthierAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaste
     auto& settings = AccessibilitySettings::get();
     const auto& wanted = settings.getColours();
 
-    Palette::apply (wanted, settings.getPalette() != PaletteId::highContrast);
+    Palette::apply (wanted, settings.getPalette());
     Palette::remap (*this, shownPalette, wanted);
     shownPalette = wanted;
 
@@ -673,8 +881,9 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
-    if (is ("panic"))     { processor.panic();       return true; }
-    if (is ("tapTempo"))  { processor.tapTempoNow(); return true; }
+    if (is ("panic"))        { processor.panic();        return true; }
+    if (is ("resetAndStop")) { processor.resetAndStop(); return true; }
+    if (is ("tapTempo"))     { processor.tapTempoNow();  return true; }
 
     if (is ("killSwitch"))
     {
@@ -704,7 +913,8 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
             return true;
         }
 
-        processor.pushUndoState ("Load preset");
+        // action-and-undo.md 5: a preset load is a state boundary.
+        processor.pushUndoBoundary ("Load preset");
 
         if (forward) processor.getPresetManager().loadNext();
         else         processor.getPresetManager().loadPrevious();
@@ -726,8 +936,38 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return false;
     }
 
-    if (is ("undo")) { processor.undo(); return true; }
-    if (is ("redo")) { processor.redo(); return true; }
+    /*  action-and-undo.md 5 and 9. A plain undo stops once it has reversed a
+        boundary (a preset, guitar, family or setlist load) and says so;
+        Ctrl+Alt+Z crosses with a section-15 banner naming what it crossed.
+        Section 8: an entry with a warning (a family switch) posts it as it is
+        undone. Ctrl+Y is the alternate redo (section 9, Windows). */
+    if (is ("undo") || is ("undoAcrossBoundary"))
+    {
+        const bool crossing = is ("undoAcrossBoundary");
+
+        if (processor.isUndoBlockedByBoundary())
+        {
+            const auto boundary = processor.getUndoBoundaryDescription();
+
+            if (! crossing)
+            {
+                notifications.post ({ "undo-boundary", tr ("undo.boundary.stopped", { { "name", boundary } }),
+                                      Notification::Level::info });
+                return true;
+            }
+
+            notifications.post ({ "undo-boundary", tr ("undo.boundary.crossed", { { "name", boundary } }),
+                                  Notification::Level::warning });
+        }
+
+        if (const auto warning = processor.getUndoWarning(); warning.isNotEmpty())
+            notifications.post ({ "undo-warning", warning, Notification::Level::warning });
+
+        processor.undo (crossing);
+        return true;
+    }
+
+    if (is ("redo") || is ("redoAlt")) { processor.redo(); return true; }
 
     if (is ("save"))
     {
@@ -743,7 +983,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
     if (is ("resetAll"))
     {
-        processor.pushUndoState ("Reset everything");
+        // One undo step: resetEverything pushes its own.
         processor.resetEverything();
         return true;
     }

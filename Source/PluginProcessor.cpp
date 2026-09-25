@@ -579,7 +579,12 @@ void LuthierAudioProcessor::applyEditedGuitar (const WorkshopGuitar& guitar)
     guitarOverride = guitar.toEmbeddedVar();
     guitarSourceType = (int) engine.getGuitarType();
 
-    applyGuitar (guitar, engine.getGuitarType(), {}, true);
+    // Workshop paint (finish colours): the guitar looks different and plays the
+    // same, so the engine is not re-applied and no refined parameter is reset.
+    if (partsGuitarLoaded && guitar.differsOnlyInPaint (currentGuitar))
+        currentGuitar = guitar;
+    else
+        applyGuitar (guitar, engine.getGuitarType(), {}, true);
 
     loadedGuitarKey = guitarReference + "|" + juce::String (juce::JSON::toString (guitarOverride, true).hashCode64());
     presets.markModified();
@@ -602,7 +607,12 @@ bool LuthierAudioProcessor::switchGuitarFamily (const juce::String& family)
     if (! partLibrary.switchFamily (currentGuitar, family, switched, banner))
         return false;
 
-    pushUndoState ("Change guitar family");
+    /*  action-and-undo.md 5: a family switch is a state boundary, and section
+        8's inexact reverse: undoing it puts the old family and its parts back,
+        but parts fitted since the switch belong to the new family and go. */
+    pushUndoBoundary ("Change guitar family to " + family,
+                      "Undoing the switch to " + family + " puts the old family back. "
+                      "Parts fitted since the switch are lost.");
 
     // The guitar now stands for its template's type.
     const auto path = PartLibrary::getFamilyTemplate (family);
@@ -668,6 +678,73 @@ juce::File LuthierAudioProcessor::saveGuitarAs (const juce::String& name, bool b
     loadedGuitarKey = guitarReference;
     presets.markModified();
     return file;
+}
+
+bool LuthierAudioProcessor::loadGuitarFile (const juce::File& file, juce::String& error)
+{
+    WorkshopGuitar guitar;
+    PartLibrary::LoadReport report;
+
+    if (! file.existsAsFile())
+    {
+        error = "the file is missing or cannot be read";
+        return false;
+    }
+
+    if (! partLibrary.loadGuitar (file, guitar, report))
+    {
+        error = report.errors.isEmpty() ? juce::String ("not a Luthier guitar")
+                                        : report.errors.joinIntoString ("; ");
+        return false;
+    }
+
+    // Referenced the way a preset references it, when it lives where references look.
+    juce::String reference;
+    juce::var override;
+
+    const auto relativeTo = [&file] (const juce::File& folder)
+    {
+        return file.isAChildOf (folder) ? file.getRelativePathFrom (folder).replaceCharacter ('\\', '/')
+                                        : juce::String();
+    };
+
+    if (const auto user = relativeTo (PartLibrary::getUserGuitarsFolder()); user.isNotEmpty())
+        reference = "User/" + user;
+    else if (const auto factory = relativeTo (PartLibrary::getFactoryGuitarsFolder()); factory.isNotEmpty())
+        reference = "Factory/" + factory;
+    else
+        override = guitar.toEmbeddedVar();
+
+    // A factory guitar stands for its own type; any other, its family's template's.
+    auto type = engine.getGuitarType();
+    const auto factoryPath = reference.startsWith ("Factory/") ? reference.substring (8) : juce::String();
+    const auto templatePath = PartLibrary::getFamilyTemplate (guitar.family);
+    int matched = -1;
+
+    for (const auto& path : { factoryPath, templatePath })
+        for (int t = 0; t < (int) GuitarType::NumTypes && matched < 0 && path.isNotEmpty(); ++t)
+            if (getFactoryGuitarPath ((GuitarType) t) == path)
+                matched = t;
+
+    if (matched >= 0)
+        type = (GuitarType) matched;
+
+    pushUndoBoundary ("Open guitar " + (guitar.name.isNotEmpty() ? guitar.name : file.getFileNameWithoutExtension()));
+
+    guitarReference = reference;
+    guitarOverride = override;
+    guitarSourceType = (int) type;
+
+    applyGuitar (guitar, type, report, true);
+    loadedGuitarKey = guitarOverride.isVoid() ? guitarReference
+                                              : guitarReference + "|" + juce::String (juce::JSON::toString (guitarOverride, true).hashCode64());
+
+    // The type parameter follows, so the bridge sees nothing new to load (as switchGuitarFamily).
+    if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (ParamIDs::guitarType)))
+        p->setValueNotifyingHost (p->convertTo0to1 ((float) (int) type));
+
+    presets.markModified();
+    return true;
 }
 
 PartPtr LuthierAudioProcessor::savePartAs (GuitarSlot slot, const juce::String& name)
@@ -940,11 +1017,25 @@ void LuthierAudioProcessor::updateRoutingLatencyReport()
 }
 
 //==============================================================================
+void LuthierAudioProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+{
+    juce::ignoreUnused (midiMessages);
+
+    // Every output bus, aux taps and per-string included: nothing of ours
+    // reaches the host while bypassed, and nothing of the host's comes back.
+    buffer.clear();
+}
+
 void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
 
     const int numSamples = buffer.getNumSamples();
+
+    // A panic or reset the message thread asked for lands here, before anything
+    // in this block reads the engine, so it is never torn out from under a render.
+    if (const int stop = pendingStop.exchange (0, std::memory_order_acq_rel); stop != 0)
+        applyStop (stop);
 
     // ---- routing, before anything reads or writes audio -----------------------
     routing.setActiveLayout (getNegotiatedLayout());
@@ -1146,6 +1237,11 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     // 6.1: what the engine actually played - string and fret, after voicing.
     performanceCapture.captureStringActivity (engine.getStringActivity());
 
+    // notation-export 4 / 6.1: the chord track from the detector, the bar from
+    // the slide engine (both read-only here; the capture writes only on change).
+    performanceCapture.captureChord (engine.getRhythmEngine().getChordDetector());
+    performanceCapture.captureSlideBar (engine.getSlideEngine());
+
     // ---- tone match ----------------------------------------------------------------
     /*  tone-match 1: a user cabinet IR replaces the model's, so it goes on the
         main output after the engine has produced it.
@@ -1206,8 +1302,16 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
             for (int channel = 0; channel < juce::jmin (2, mainOut.getNumChannels()); ++channel)
                 mainOut.addFrom (channel, 0, backingBuffer, channel, 0, numSamples);
         }
+    }
 
-        // practice-tools 8: the session recorder takes what the plugin produced.
+    // practice-tools 8: the session recorder takes what the plugin produced and
+    // the MIDI that produced it, drawer open or not - it is switched on in
+    // Options as well as in the drawer, and off (the default) it returns at
+    // once. MIDI first: the recorder stamps a block's events against the audio
+    // it has seen so far, so they land at the block they arrived in.
+    {
+        auto mainOut = getBusBuffer (buffer, false, 0);
+        sessionRecorder.captureMidi (midiMessages, numSamples);
         sessionRecorder.processBlock (mainOut, numSamples);
     }
 
@@ -1514,6 +1618,25 @@ void LuthierAudioProcessor::releasePreviewNote (int stringIndex)
     previewMidi.addEvent (juce::MidiMessage::noteOff (juce::jlimit (1, 16, stringIndex + 1), note), 0);
 }
 
+void LuthierAudioProcessor::triggerPreviewMidiNote (int midiNote, float velocity)
+{
+    if (! juce::isPositiveAndBelow (midiNote, 128))
+        return;
+
+    const juce::ScopedLock sl (previewLock);
+    previewMidi.addEvent (juce::MidiMessage::noteOn (kPreviewKeyboardChannel, midiNote,
+                                                     juce::jlimit (0.05f, 1.0f, velocity)), 0);
+}
+
+void LuthierAudioProcessor::releasePreviewMidiNote (int midiNote)
+{
+    if (! juce::isPositiveAndBelow (midiNote, 128))
+        return;
+
+    const juce::ScopedLock sl (previewLock);
+    previewMidi.addEvent (juce::MidiMessage::noteOff (kPreviewKeyboardChannel, midiNote), 0);
+}
+
 //==============================================================================
 juce::String LuthierAudioProcessor::applyGenreKit (int kitIndex)
 {
@@ -1581,6 +1704,14 @@ void LuthierAudioProcessor::applySnapshotModules (const Snapshot& snapshot)
 
 bool LuthierAudioProcessor::captureSnapshot (int index, const juce::String& label, int colourTag)
 {
+    if (! juce::isPositiveAndBelow (index, SnapshotBank::kMaxSnapshots))
+        return false;
+
+    // action-and-undo.md 3.7: the bank is in the state block, so the entry
+    // pushed before the capture holds whatever the slot held before.
+    pushUndoState ("Save snapshot " + juce::String (index + 1)
+                     + (label.isNotEmpty() ? " " + label : juce::String()));
+
     if (! snapshots.capture (index, label, colourTag))
         return false;
 
@@ -1605,6 +1736,23 @@ bool LuthierAudioProcessor::captureSnapshot (int index, const juce::String& labe
 }
 
 bool LuthierAudioProcessor::recallSnapshot (int index)
+{
+    if (! juce::isPositiveAndBelow (index, snapshots.getNumSnapshots())
+          || snapshots.getSnapshot (index).isEmpty())
+        return false;
+
+    /*  action-and-undo.md 3.7: a recall rewrites every parameter, so the entry
+        is the pre-recall state and undo reverses to it. The bank's own recall
+        writes no gestures, so this is the only entry the recall makes. */
+    const auto& label = snapshots.getSnapshot (index).label;
+
+    pushUndoState ("Recall snapshot " + juce::String (index + 1)
+                     + (label.isNotEmpty() ? " " + label : juce::String()));
+
+    return recallSnapshotWithoutUndo (index);
+}
+
+bool LuthierAudioProcessor::recallSnapshotWithoutUndo (int index)
 {
     // ambiguity-resolutions 8: a snapshot recall during a preset morph cancels
     // the morph and settles on the recalled state.
@@ -1681,6 +1829,10 @@ bool LuthierAudioProcessor::applyCurrentSetlistEntry()
     if (data.getDynamicObject() == nullptr)
         return false;
 
+    // action-and-undo.md 3.10 / 5: the step drives a preset load, which is a
+    // boundary; the snapshot recall inside it is part of the same entry.
+    pushUndoBoundary ("Setlist: " + entry->getDisplayName());
+
     if (! presets.fromVar (data))
         return false;
 
@@ -1689,7 +1841,7 @@ bool LuthierAudioProcessor::applyCurrentSetlistEntry()
     // The preset carries its own snapshot bank, so the entry's snapshot index
     // only means anything once that bank has been loaded.
     if (entry->snapshotIndex > 0)
-        recallSnapshot (entry->snapshotIndex);
+        recallSnapshotWithoutUndo (entry->snapshotIndex);
 
     // live-performance 4: the next entry is read now, so that stepping onto it
     // costs nothing.
@@ -1699,22 +1851,85 @@ bool LuthierAudioProcessor::applyCurrentSetlistEntry()
 }
 
 //==============================================================================
+void LuthierAudioProcessor::requestStop (int flags)
+{
+    /*  Request first, carry out second. isAudioThreadActive is a 200 ms idle
+        test, so a callback the host resumes inside that window used to race
+        the stop running here. Now such a block takes the request at its top
+        (processBlock's exchange) and carries it out itself, and the exchange
+        below then finds nothing to run against the render. Parking through
+        beginStructuralChange would not close this: it keys on the same idle
+        test and does not park a thread it cannot see (DECISIONS). */
+    pendingStop.fetch_or (flags, std::memory_order_acq_rel);
+
+    if (engine.isAudioThreadActive())
+        return;
+
+    // Nothing else is rendering: the caller is the only thread in the engine.
+    if (const int stop = pendingStop.exchange (0, std::memory_order_acq_rel); stop != 0)
+        applyStop (stop);
+}
+
+void LuthierAudioProcessor::applyStop (int flags) noexcept
+{
+    // The modulation sources are fed from this thread's MIDI, so they are
+    // released here too; CC 120 / 123 was the only thing that did it before.
+    modMatrix.allNotesOff();
+    modMatrix.resetEnvelopes();
+
+    engine.panic();
+    tuneClickRinging = false;
+
+    if ((flags & stopReset) != 0)
+        engine.reset();
+}
+
 void LuthierAudioProcessor::panic()
 {
     stopAudition();
-    engine.panic();
 
-    const juce::ScopedLock sl (previewLock);
-    previewMidi.clear();
+    // A tune that keeps re-feeding its notes every block would have the strings
+    // ringing again before the panic had finished - a loop no panic could end.
+    tunePlayer.stop();
+
+    {
+        const juce::ScopedLock sl (previewLock);
+        previewMidi.clear();
+    }
+
+    requestStop (stopPanic);
 
     diagnostics.log (LogCategory::Engine, "panic", samplePosition);
 }
 
-void LuthierAudioProcessor::resetEverything()
+void LuthierAudioProcessor::resetAndStop()
 {
-    pushUndoState ("Reset");
+    pushUndoState ("Reset and stop");
 
-    panic();
+    // ---- everything that makes or re-feeds sound on its own, first ------------
+    tunePlayer.stop();
+    looper.stop();
+    backingTrack.stop();
+    metronome.setEnabled (false);
+    practiceRunner.stop();
+    sessionRecorder.setEnabled (false);
+
+    // The rhythm engine's enable and free-run are not parameters: the Easy
+    // genre box and the PRACTICE drawer switch them on directly, so a reset of
+    // the parameters alone left it strumming.
+    auto& rhythm = engine.getRhythmEngine();
+    rhythm.setEnabled (false);
+    rhythm.setFreeRun (false);
+
+    killSwitch.setActive (false);
+    stopAudition();
+
+    {
+        const juce::ScopedLock sl (previewLock);
+        previewMidi.clear();
+    }
+
+    // ---- then every setting back to its default ----------------------------------
     presets.resetToDefaults();
     midiLearn.clearAllMappings();
     lockedParameters.clear();
@@ -1722,9 +1937,16 @@ void LuthierAudioProcessor::resetEverything()
     uiState = UiState {};
 
     bridge.applyAllNow();
-    engine.reset();
 
-    diagnostics.log (LogCategory::Engine, "reset to defaults", samplePosition);
+    // ---- and the engine, on the thread that owns it --------------------------------
+    requestStop (stopPanic | stopReset);
+
+    diagnostics.log (LogCategory::Engine, "reset and stop", samplePosition);
+}
+
+void LuthierAudioProcessor::resetEverything()
+{
+    resetAndStop();
 }
 
 void LuthierAudioProcessor::hardResetAndClearCaches()
@@ -1786,10 +2008,10 @@ bool LuthierAudioProcessor::isParameterLocked (const juce::String& paramId) cons
 }
 
 //==============================================================================
-juce::MemoryBlock LuthierAudioProcessor::captureStateBlock()
+juce::MemoryBlock LuthierAudioProcessor::captureStateBlock (bool excludeTune)
 {
     juce::MemoryBlock block;
-    getStateInformation (block);
+    writeStateInformation (block, ! excludeTune);
     return block;
 }
 
@@ -1801,8 +2023,10 @@ std::unique_ptr<juce::AudioProcessor> LuthierAudioProcessor::createOfflineInstan
 //==============================================================================
 void LuthierAudioProcessor::storeToSlot (bool useSlotB)
 {
+    // A/B compares sounds (section 7: flipping is a viewport), so the slots hold
+    // no tune - recalling one must not reload the tune or wipe its history.
     auto& target = useSlotB ? slotB : slotA;
-    target = captureStateBlock();
+    target = captureStateBlock (true);
 }
 
 void LuthierAudioProcessor::recallSlot (bool useSlotB)
@@ -1810,12 +2034,20 @@ void LuthierAudioProcessor::recallSlot (bool useSlotB)
     auto& source = useSlotB ? slotB : slotA;
 
     if (source.getSize() > 0)
+    {
+        // The block carries the slotBActive it was stored with, and restoring
+        // it would flip the flag back: which slot is active is decided by the
+        // caller, not by the sound in the slot. Found by Undo::abCompare...:
+        // the second switch early-returned because the first recall had reset it.
+        const bool active = slotBActive;
         setStateInformation (source.getData(), (int) source.getSize());
+        slotBActive = active;
+    }
 }
 
 void LuthierAudioProcessor::copyAtoB()
 {
-    slotB = slotBActive ? slotA : captureStateBlock();
+    slotB = slotBActive ? slotA : captureStateBlock (true);
 
     if (! slotBActive)
         slotA = slotB;
@@ -1870,10 +2102,17 @@ void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool ge
     if (gestureIsStarting)
     {
         // Captured now, while the value is still what it was before the drag.
-        gestureStartState = captureStateBlock();
+        gestureStartState = captureStateBlock (true);
         gestureStartValue = parameter->getValue();
+        gestureStartText = parameter->getCurrentValueAsText();
         gestureParameterIndex = parameterIndex;
         gestureParameterName = parameter->getName (64);
+
+        if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameter))
+            gestureParameterId = withId->paramID;
+        else
+            gestureParameterId = juce::String (parameterIndex);
+
         return;
     }
 
@@ -1896,9 +2135,16 @@ void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool ge
         return;
     }
 
+    /*  action-and-undo.md 3.1: "Change [param name] from X to Y", with the
+        values as the parameter prints them. The id and the clock are what
+        addUndoEntry groups a rapid second gesture on the same parameter by. */
     UndoEntry entry;
     entry.state = std::move (gestureStartState);
-    entry.description = "Change " + gestureParameterName;
+    entry.parameterId = gestureParameterId;
+    entry.fromText = gestureStartText;
+    entry.toText = parameter->getCurrentValueAsText();
+    entry.timeMs = undoNowMs();
+    entry.description = "Change " + gestureParameterName + " from " + entry.fromText + " to " + entry.toText;
 
     gestureStartState.reset();
 
@@ -1908,10 +2154,28 @@ void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool ge
 void LuthierAudioProcessor::pushUndoState (const juce::String& description)
 {
     UndoEntry entry;
-    entry.state = captureStateBlock();
+    entry.state = captureStateBlock (true);
     entry.description = description;
+    entry.timeMs = undoNowMs();
 
     addUndoEntry (std::move (entry));
+}
+
+void LuthierAudioProcessor::pushUndoBoundary (const juce::String& description, const juce::String& warning)
+{
+    UndoEntry entry;
+    entry.state = captureStateBlock (true);
+    entry.description = description;
+    entry.boundary = true;
+    entry.warning = warning;
+    entry.timeMs = undoNowMs();
+
+    addUndoEntry (std::move (entry));
+}
+
+double LuthierAudioProcessor::undoNowMs() const
+{
+    return undoClock != nullptr ? undoClock() : juce::Time::getMillisecondCounterHiRes();
 }
 
 /*  The stack holds one entry per action, each carrying the state from before
@@ -1929,6 +2193,27 @@ void LuthierAudioProcessor::addUndoEntry (UndoEntry&& entry)
     while (undoStack.size() > undoPosition + 1)
         undoStack.removeLast();
 
+    /*  action-and-undo.md 3.1 / 3.2 / 4: a second gesture on the same parameter
+        within 200 ms of the last one joins it. The older entry keeps its
+        before-state, takes the new after-value, and its clock moves on so a
+        scroll through a combo box stays one entry as long as it keeps moving.
+        Neither side may be a boundary, and nothing may sit between them. */
+    if (undoPosition >= 0 && entry.parameterId.isNotEmpty() && ! entry.boundary)
+    {
+        auto& previous = undoStack.getReference (undoPosition);
+
+        if (! previous.boundary && previous.parameterId == entry.parameterId
+              && entry.timeMs - previous.timeMs <= kUndoGroupWindowMs)
+        {
+            previous.toText = entry.toText;
+            previous.timeMs = entry.timeMs;
+
+            const auto name = entry.description.upToFirstOccurrenceOf (" from ", false, false);
+            previous.description = name + " from " + previous.fromText + " to " + previous.toText;
+            return;
+        }
+    }
+
     undoStack.add (std::move (entry));
 
     while (undoStack.size() > kMaxUndoSteps)
@@ -1937,15 +2222,40 @@ void LuthierAudioProcessor::addUndoEntry (UndoEntry&& entry)
     undoPosition = undoStack.size() - 1;
 }
 
-void LuthierAudioProcessor::undo()
+bool LuthierAudioProcessor::isUndoBlockedByBoundary() const noexcept
+{
+    /*  Section 5: the boundary entry itself can be undone (it reverses the
+        load), but once it has been, the entries older than it are on the far
+        side and a plain undo stops. That is the entry just above the position,
+        the one the last undo reversed. */
+    return canUndo() && undoPosition + 1 < undoStack.size()
+             && undoStack.getReference (undoPosition + 1).boundary;
+}
+
+juce::String LuthierAudioProcessor::getUndoBoundaryDescription() const
+{
+    return isUndoBlockedByBoundary() ? undoStack.getReference (undoPosition + 1).description
+                                     : juce::String();
+}
+
+juce::String LuthierAudioProcessor::getUndoWarning() const
+{
+    return canUndo() ? undoStack.getReference (undoPosition).warning : juce::String();
+}
+
+void LuthierAudioProcessor::undo (bool crossBoundary)
 {
     if (! canUndo())
         return;
 
+    if (isUndoBlockedByBoundary() && ! crossBoundary)
+        return;
+
     auto& entry = undoStack.getReference (undoPosition);
 
-    // Where we are now is what redo comes back to.
-    entry.redoState = captureStateBlock();
+    // Where we are now is what redo comes back to. Without the tune: an undo
+    // entry never touches the Tune Builder (action-and-undo.md 0.5 / 3.9).
+    entry.redoState = captureStateBlock (true);
 
     --undoPosition;
 
@@ -1961,6 +2271,72 @@ void LuthierAudioProcessor::redo()
 
     const auto& entry = undoStack.getReference (undoPosition);
     setStateInformation (entry.redoState.getData(), (int) entry.redoState.getSize());
+}
+
+//==============================================================================
+/*  action-and-undo.md 3.6. The matrix is not in the parameter tree, so its
+    edits raise no gesture; each one pushes its own entry here, with the
+    section's wording, and the state block carries the matrix for the undo. */
+static juce::String modRouteSourceName (const ModRoute& route)
+{
+    const int slot = modSourceSlotForId (route.sourceId);
+    return slot >= 0 ? modSourceDisplayName (slot) : route.sourceId;
+}
+
+static juce::String modRouteDestinationName (LuthierAudioProcessor& processor, const ModRoute& route)
+{
+    if (auto* parameter = processor.getState().getParameter (route.destinationId))
+        return parameter->getName (40);
+
+    return route.destinationId;
+}
+
+bool LuthierAudioProcessor::addModRoute (const ModRoute& route)
+{
+    pushUndoState ("Add " + modRouteSourceName (route) + " to " + modRouteDestinationName (*this, route)
+                     + " depth " + juce::String (route.depth, 2));
+    return modMatrix.addRoute (route);
+}
+
+void LuthierAudioProcessor::removeModRoute (int index)
+{
+    if (! juce::isPositiveAndBelow (index, modMatrix.getNumRoutes()))
+        return;
+
+    const auto route = modMatrix.getRoute (index);
+    pushUndoState ("Remove " + modRouteSourceName (route) + " from " + modRouteDestinationName (*this, route));
+    modMatrix.removeRoute (index);
+}
+
+void LuthierAudioProcessor::clearModRoutes()
+{
+    if (modMatrix.getNumRoutes() == 0)
+        return;
+
+    pushUndoState ("Remove all modulation routes");
+    modMatrix.clearRoutes();
+}
+
+void LuthierAudioProcessor::setModRouteDepth (int index, float depth)
+{
+    if (! juce::isPositiveAndBelow (index, modMatrix.getNumRoutes()))
+        return;
+
+    const auto route = modMatrix.getRoute (index);
+    pushUndoState ("Change " + modRouteSourceName (route) + " to " + modRouteDestinationName (*this, route)
+                     + " depth from " + juce::String (route.depth, 2) + " to " + juce::String (depth, 2));
+    modMatrix.setRouteDepth (index, depth);
+}
+
+void LuthierAudioProcessor::setModRouteEnabled (int index, bool enabled)
+{
+    if (! juce::isPositiveAndBelow (index, modMatrix.getNumRoutes()))
+        return;
+
+    const auto route = modMatrix.getRoute (index);
+    pushUndoState (juce::String (enabled ? "Enable " : "Disable ") + modRouteSourceName (route)
+                     + " to " + modRouteDestinationName (*this, route));
+    modMatrix.setRouteEnabled (index, enabled);
 }
 
 juce::String LuthierAudioProcessor::getUndoDescription() const
@@ -2018,6 +2394,11 @@ void LuthierAudioProcessor::changeProgramName (int, const juce::String&)
 //==============================================================================
 void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
+    writeStateInformation (destData, true);
+}
+
+void LuthierAudioProcessor::writeStateInformation (juce::MemoryBlock& destData, bool includeTune)
+{
     presets.captureExtraState();
 
     auto* root = new juce::DynamicObject();
@@ -2033,6 +2414,7 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     ui->setProperty ("easterEggFound", uiState.easterEggFound);
     ui->setProperty ("editorWidth", uiState.editorWidth);
     ui->setProperty ("editorHeight", uiState.editorHeight);
+    ui->setProperty ("practiceDrawerOpen", uiState.practiceDrawerOpen);
     ui->setProperty ("auditionType", (int) uiState.auditionType);
     root->setProperty ("ui", juce::var (ui));
 
@@ -2070,8 +2452,12 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     root->setProperty ("metronome", metronome.toVar());
     root->setProperty ("clickToMain", isClickToMain());
 
-    // tune-builder 15: the tune being built is part of the session.
-    root->setProperty ("tune", tuneSession.toState());
+    // tune-builder 15: the tune being built is part of the session. Left out
+    // of undo entries and A/B slots (action-and-undo.md 0.5 / 3.9): the tune
+    // has its own undo trail, and setStateInformation leaves it alone when
+    // the property is absent.
+    if (includeTune)
+        root->setProperty ("tune", tuneSession.toState());
 
     const auto json = juce::JSON::toString (juce::var (root), false);
 
@@ -2108,6 +2494,7 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
         uiState.easterEggFound = ui->getProperty ("easterEggFound");
         uiState.editorWidth = juce::jmax (900, (int) ui->getProperty ("editorWidth"));
         uiState.editorHeight = juce::jmax (540, (int) ui->getProperty ("editorHeight"));
+        uiState.practiceDrawerOpen = (bool) ui->getProperty ("practiceDrawerOpen");
         uiState.auditionType = (AuditionPhrase::Type) juce::jlimit (
             0, (int) AuditionPhrase::Type::NumTypes - 1, (int) ui->getProperty ("auditionType"));
         auditionType = uiState.auditionType;

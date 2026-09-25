@@ -112,6 +112,25 @@ int WorkshopGuitar::getStringCount (int* excess) const noexcept
     return count;
 }
 
+juce::String WorkshopGuitar::bodyStyleOf (const Part* body)
+{
+    if (body == nullptr || ! body->illustration.isObject())
+        return {};
+
+    return body->illustration.getProperty ("body_style", juce::var()).toString();
+}
+
+bool WorkshopGuitar::differsOnlyInPaint (const WorkshopGuitar& other) const
+{
+    auto repainted = *this;
+    repainted.finish.type = other.finish.type;
+    repainted.finish.colourA = other.finish.colourA;
+    repainted.finish.colourB = other.finish.colourB;
+    repainted.finish.burstShape = other.finish.burstShape;
+    repainted.finish.plasticColour = other.finish.plasticColour;
+    return repainted == other;
+}
+
 juce::StringArray WorkshopGuitar::getCompatibilityWarnings() const
 {
     juce::StringArray warnings;
@@ -184,6 +203,37 @@ juce::var WorkshopGuitar::toVar() const
         }
     }
 
+    // 3.3: the per-string overrides ride on the strings entry, numbered for people.
+    if (! stringOverrides.isEmpty())
+    {
+        auto stringsEntry = partsObject->getProperty (getSlotId (GuitarSlot::strings));
+
+        if (auto* ref = stringsEntry.getDynamicObject())
+        {
+            juce::Array<juce::var> list;
+
+            for (const auto& o : stringOverrides)
+            {
+                if (o.isEmpty())
+                    continue;
+
+                auto* item = new juce::DynamicObject();
+                item->setProperty ("string", o.stringIndex + 1);
+
+                if (o.gaugeIn > 0.0)
+                    item->setProperty ("gauge_in", o.gaugeIn);
+                if (o.material.isNotEmpty())
+                    item->setProperty ("material", o.material);
+                if (o.wound >= 0)
+                    item->setProperty ("wound", o.wound > 0);
+
+                list.add (juce::var (item));
+            }
+
+            ref->setProperty ("per_string_override", list);
+        }
+    }
+
     partsObject->setProperty ("pickups", juce::var (pickups));
     partsObject->setProperty ("hardware_color", hardwareColour);
 
@@ -194,6 +244,12 @@ juce::var WorkshopGuitar::toVar() const
     finishObject->setProperty ("burst_shape", finish.burstShape);
     finishObject->setProperty ("gloss", finish.gloss);
     finishObject->setProperty ("aging", finish.aging);
+
+    // Written only when the player chose one, so a guitar without it reads and
+    // hashes exactly as it did before the colour picker (older builds ignore it).
+    if (finish.plasticColour.isNotEmpty())
+        finishObject->setProperty ("plastic_color", finish.plasticColour);
+
     partsObject->setProperty ("finish", juce::var (finishObject));
 
     root->setProperty ("parts", juce::var (partsObject));
@@ -326,6 +382,13 @@ bool PartLibrary::switchFamily (const WorkshopGuitar& from, const juce::String& 
             others.add (juce::String (getSlotId (slot)));
     }
 
+    // A body that crosses over (an archtop is electric and acoustic) keeps its
+    // own outline rather than the template's.
+    if (from.get (GuitarSlot::body) != nullptr && out.get (GuitarSlot::body) == from.get (GuitarSlot::body)
+        && (templ.get (GuitarSlot::body) == nullptr || templ.get (GuitarSlot::body)->name != from.get (GuitarSlot::body)->name))
+        if (const auto style = WorkshopGuitar::bodyStyleOf (from.get (GuitarSlot::body).get()); style.isNotEmpty())
+            out.bodyStyle = style;
+
     // 12.1: "Family changed to Bass. Replaced parts: pickups (2), bridge, strings, ..."
     juce::StringArray list;
 
@@ -340,11 +403,92 @@ bool PartLibrary::switchFamily (const WorkshopGuitar& from, const juce::String& 
     return true;
 }
 
+const StringOverride* WorkshopGuitar::getStringOverride (int stringIndex) const noexcept
+{
+    for (const auto& o : stringOverrides)
+        if (o.stringIndex == stringIndex && ! o.isEmpty())
+            return &o;
+
+    return nullptr;
+}
+
+void WorkshopGuitar::setStringOverride (const StringOverride& o)
+{
+    clearStringOverride (o.stringIndex);
+
+    if (o.isEmpty() || o.stringIndex < 0)
+        return;
+
+    // Kept in string order so two guitars with the same overrides serialise the same.
+    int at = 0;
+    while (at < stringOverrides.size() && stringOverrides.getReference (at).stringIndex < o.stringIndex)
+        ++at;
+
+    stringOverrides.insert (at, o);
+}
+
+bool WorkshopGuitar::clearStringOverride (int stringIndex)
+{
+    for (int i = stringOverrides.size(); --i >= 0;)
+        if (stringOverrides.getReference (i).stringIndex == stringIndex)
+        {
+            stringOverrides.remove (i);
+            return true;
+        }
+
+    return false;
+}
+
+double WorkshopGuitar::getStringGaugeIn (int stringIndex) const
+{
+    if (const auto* o = getStringOverride (stringIndex); o != nullptr && o->gaugeIn > 0.0)
+        return o->gaugeIn;
+
+    const auto strings = get (GuitarSlot::strings);
+    const auto gauges = strings != nullptr ? strings->numbers ("gauges_in") : juce::Array<double>();
+
+    if (juce::isPositiveAndBelow (stringIndex, gauges.size()))
+        return gauges[stringIndex];
+
+    // The renderer's fallback for a set that lists fewer strings than the guitar has.
+    return family == "bass" ? 0.045 + 0.02 * stringIndex : 0.010 + 0.007 * stringIndex;
+}
+
+juce::String WorkshopGuitar::getStringMaterial (int stringIndex) const
+{
+    if (const auto* o = getStringOverride (stringIndex); o != nullptr && o->material.isNotEmpty())
+        return o->material;
+
+    const auto strings = get (GuitarSlot::strings);
+    return strings != nullptr ? strings->text ("winding_material", "nickel_plated_steel") : "nickel_plated_steel";
+}
+
+bool WorkshopGuitar::isStringWound (int stringIndex) const
+{
+    if (const auto* o = getStringOverride (stringIndex); o != nullptr && o->wound >= 0)
+        return o->wound > 0;
+
+    const auto strings = get (GuitarSlot::strings);
+    const auto setMaterial = strings != nullptr ? strings->text ("winding_material", "nickel_plated_steel") : "nickel_plated_steel";
+
+    if (setMaterial == "nylon")
+        return getStringCount() != 12 && stringIndex >= 3;
+
+    return family == "bass" || getStringGaugeIn (stringIndex) >= 0.0195;
+}
+
 bool WorkshopGuitar::operator== (const WorkshopGuitar& o) const
 {
     if (name != o.name || family != o.family || bodyStyle != o.bodyStyle || seed != o.seed
         || hardwareColour != o.hardwareColour)
         return false;
+
+    if (stringOverrides.size() != o.stringOverrides.size())
+        return false;
+
+    for (int i = 0; i < stringOverrides.size(); ++i)
+        if (stringOverrides.getReference (i) != o.stringOverrides.getReference (i))
+            return false;
 
     for (int i = 0; i < kNumGuitarSlots; ++i)
     {
@@ -370,7 +514,8 @@ bool WorkshopGuitar::operator== (const WorkshopGuitar& o) const
         && setup.intonationMm == o.setup.intonationMm
         && finish.type == o.finish.type && finish.colourA == o.finish.colourA
         && finish.colourB == o.finish.colourB && finish.burstShape == o.finish.burstShape
-        && finish.gloss == o.finish.gloss && finish.aging == o.finish.aging;
+        && finish.gloss == o.finish.gloss && finish.aging == o.finish.aging
+        && finish.plasticColour == o.finish.plasticColour;
 }
 
 //==============================================================================
@@ -670,6 +815,23 @@ bool PartLibrary::buildGuitar (const juce::var& json, WorkshopGuitar& out, LoadR
         }
     }
 
+    // 3.3: per-string overrides, if the file has any (older files have none).
+    if (auto* list = partsObject.getProperty (getSlotId (GuitarSlot::strings), juce::var())
+                                .getProperty ("per_string_override", juce::var()).getArray())
+    {
+        for (const auto& item : *list)
+        {
+            StringOverride o;
+            o.stringIndex = (int) item.getProperty ("string", 0) - 1;
+            o.gaugeIn = (double) item.getProperty ("gauge_in", 0.0);
+            o.material = item.getProperty ("material", juce::var()).toString();
+            o.wound = item.hasProperty ("wound") ? ((bool) item.getProperty ("wound", false) ? 1 : 0) : -1;
+
+            if (juce::isPositiveAndBelow (o.stringIndex, 32))
+                g.setStringOverride (o);
+        }
+    }
+
     g.hardwareColour = partsObject.getProperty ("hardware_color", "nickel").toString();
 
     const auto finish = partsObject.getProperty ("finish", juce::var());
@@ -679,6 +841,7 @@ bool PartLibrary::buildGuitar (const juce::var& json, WorkshopGuitar& out, LoadR
     g.finish.burstShape = finish.getProperty ("burst_shape", g.finish.burstShape).toString();
     g.finish.gloss = (double) finish.getProperty ("gloss", g.finish.gloss);
     g.finish.aging = (double) finish.getProperty ("aging", g.finish.aging);
+    g.finish.plasticColour = finish.getProperty ("plastic_color", juce::var()).toString();
 
     const auto setup = json.getProperty ("setup", juce::var());
     g.setup.actionTrebleMm = (double) setup.getProperty ("action_treble_mm", g.setup.actionTrebleMm);

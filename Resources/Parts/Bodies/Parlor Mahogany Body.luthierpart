@@ -20,5 +20,8 @@
     "thickness_mm": 95.0,
     "area_cm2": 1600,
     "bracing": "ladder"
+  },
+  "illustration": {
+    "body_style": "parlor"
   }
 }

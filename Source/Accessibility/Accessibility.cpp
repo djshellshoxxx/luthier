@@ -18,9 +18,20 @@ const char* getPaletteName (PaletteId id) noexcept
         case PaletteId::tritanopia:   return "Tritanopia-safe";
         case PaletteId::highContrast: return "High contrast";
         case PaletteId::light:        return "Light";
+        case PaletteId::modernDark:   return "Modern Dark";
         case PaletteId::numPalettes:
         default:                      return "Default";
     }
+}
+
+bool paletteUsesMaterials (PaletteId id) noexcept
+{
+    return id != PaletteId::highContrast && id != PaletteId::modernDark;
+}
+
+bool paletteLightsIllustrations (PaletteId id) noexcept
+{
+    return id != PaletteId::highContrast;
 }
 
 const char* AccessibilitySettings::getVerbosityName (Verbosity v) noexcept
@@ -302,6 +313,39 @@ PaletteColours AccessibilitySettings::buildPalette (PaletteId id)
             palette.shadow         = juce::Colour (0x33000000);
             break;
 
+        case PaletteId::modernDark:
+            /*  A plain modern dark mode (DECISIONS: "Modern Dark palette").
+
+                Neutral greys with no warm cast, stepping up in lightness from
+                the window to the raised surfaces as material-design dark
+                themes do, 1 px mid-grey borders, off-white body text (12:1 or
+                better on every surface), a muted grey for secondary text
+                (5:1 or better) and one calm blue accent for values, selection
+                and focus (5:1 or better). Meters run green, amber, red. The
+                UI draws flat in this palette: paletteUsesMaterials() is false.
+            */
+            palette.backgroundDeep = juce::Colour (0xff111111);
+            palette.background     = juce::Colour (0xff161616);
+            palette.panel          = juce::Colour (0xff1e1e1e);
+            palette.panelRaised    = juce::Colour (0xff262626);
+            palette.panelSunken    = juce::Colour (0xff131313);
+            palette.edge           = juce::Colour (0xff3a3a3a);
+            palette.edgeBright     = juce::Colour (0xff5a5a5a);
+            palette.accent         = juce::Colour (0xff4c9aff);
+            palette.accentBright   = juce::Colour (0xff7db6ff);
+            palette.accentDim      = juce::Colour (0xff2d5c99);
+            palette.secondary      = juce::Colour (0xff3fbf7f);
+            palette.secondaryDim   = juce::Colour (0xff24704a);
+            palette.textPrimary    = juce::Colour (0xffe6e6e6);
+            palette.textMuted      = juce::Colour (0xff9e9e9e);
+            palette.textDisabled   = juce::Colour (0xff767676);
+            palette.success        = juce::Colour (0xff4cc38a);
+            palette.warning        = juce::Colour (0xfff5a623);
+            palette.clip           = juce::Colour (0xfff25c54);
+            palette.dataStream     = juce::Colour (0xff6cd49a);
+            palette.shadow         = juce::Colour (0x80000000);
+            break;
+
         case PaletteId::numPalettes:
         default:
             break;
@@ -480,8 +524,8 @@ void AccessibilitySettings::buildDefaultShortcuts()
         17's "all rebindable" true rather than decorative.
 
         Where an action's feature does not exist yet the binding is simply absent,
-        rather than present and dead: Workshop (W), Save As Guitar
-        (Ctrl+G) and New Tune (Ctrl+T) all wait on specs that are not written.
+        rather than present and dead: Workshop (W) waits on a spec that is not
+        written; Save As Guitar (Ctrl+G) and New Tune (Ctrl+T) have landed.
         GAPS.md tracks them. The Column 4 tab steps used to be on that list and
         are not any more - the Advanced workspace has a tab strip now, so there
         is something for them to step.
@@ -500,6 +544,11 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("togglePractice",   "accessibility.shortcut.togglePractice",   KP ('d', 0, 0));
 
     add ("panic",            "accessibility.shortcut.panic",            KP ('p', 0, 0));
+
+    /*  Panic's heavier sibling: it also stops the tune, the loops and the
+        rhythm engine and puts every setting back. Shifted and modified so a
+        stray P on stage cannot reach it. */
+    add ("resetAndStop",     "accessibility.shortcut.resetAndStop",     KP ('p', cmd | shift, 0));
     add ("tapTempo",         "accessibility.shortcut.tapTempo",         KP ('t', 0, 0));
     add ("killSwitch",       "accessibility.shortcut.killSwitch",       KP ('\\', 0, 0));
 
@@ -517,6 +566,12 @@ void AccessibilitySettings::buildDefaultShortcuts()
 
     add ("undo",             "accessibility.shortcut.undo",             KP ('z', cmd, 0));
     add ("redo",             "accessibility.shortcut.redo",             KP ('z', cmd | shift, 0));
+
+    /*  action-and-undo.md 9: Ctrl+Y is the second redo (Windows habit) and
+        Ctrl+Alt+Z undoes across a state boundary. The registry allows one key
+        per action, so the alternate redo is an action of its own. */
+    add ("redoAlt",          "accessibility.shortcut.redoAlt",          KP ('y', cmd, 0));
+    add ("undoAcrossBoundary", "accessibility.shortcut.undoAcrossBoundary", KP ('z', cmd | alt, 0));
 
     add ("save",             "accessibility.shortcut.save",             KP ('s', cmd, 0));
     add ("saveAs",           "accessibility.shortcut.saveAs",           KP ('s', cmd | shift, 0));
@@ -548,6 +603,11 @@ void AccessibilitySettings::buildDefaultShortcuts()
 
     add ("export",           "accessibility.shortcut.export",           KP ('e', cmd, 0));
     add ("options",          "accessibility.shortcut.options",          KP (',', cmd, 0));
+
+    /*  Section 17's "New tune" (tune-builder 2, 10): the TUNE tab's template
+        picker, which the header's File -> New Tune... also opens. The panel
+        answers it while focused; the editor forwards it to the panel otherwise. */
+    add ("newTune",          "accessibility.shortcut.newTune",          KP ('t', cmd, 0));
 
     /*  Not in section 17, kept because the debug panel is otherwise only reachable
         through Help and a diagnostics session is exactly when a user cannot
@@ -793,14 +853,30 @@ namespace AccessibleSetup
         juce::AccessibilityHandler::postAnnouncement (
             announcement, juce::AccessibilityHandler::AnnouncementPriority::high);
 
-        for (auto* child : overlay.getChildren())
-        {
-            if (child != nullptr && child->isVisible() && child->getWantsKeyboardFocus())
-            {
-                child->grabKeyboardFocus();
-                break;
-            }
-        }
+        // The first interactive element in Tab order, wherever it sits in the
+        // tree (qa-polish 4: "focus lands on first interactive element"). The
+        // overlay itself takes focus when it has nothing to give it to, so
+        // Escape still reaches it.
+        if (auto* first = findFirstInteractive (overlay))
+            first->grabKeyboardFocus();
+        else
+            overlay.grabKeyboardFocus();
+    }
+
+    juce::Component* findFirstInteractive (juce::Component& root)
+    {
+        // The same walk Tab makes, so what gets focus on open is what Tab would
+        // reach first: visible, enabled, wants focus, in (explicit order, y, x).
+        auto traverser = root.createKeyboardFocusTraverser();
+
+        if (traverser == nullptr)
+            return nullptr;
+
+        for (auto* c : traverser->getAllComponents (&root))
+            if (c != nullptr && c != &root && c->getWantsKeyboardFocus() && c->isVisible() && c->isEnabled())
+                return c;
+
+        return nullptr;
     }
 }
 

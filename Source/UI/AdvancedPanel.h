@@ -29,6 +29,8 @@
 #include "CircuitPanel.h"
 #include "WorkshopPanel.h"
 #include "FretboardComponent.h"
+#include "StringRoll.h"
+#include "PianoKeyboard.h"
 #include "GuitarBodyComponent.h"
 #include "PedalRack.h"
 #include "AmpFacePanel.h"
@@ -43,6 +45,68 @@ class LuthierAudioProcessor;
 class ControllersPage;
 class MidiOutPanel;
 class NotationPanel;
+
+//==============================================================================
+/*  A Viewport that says when there is more.
+
+    A column that is taller than its window gives no sign of it beyond a thin
+    scrollbar, and users read the bottom of the visible part as the bottom of
+    the column. This viewport overlays a fading strip with an accent chevron at
+    whichever end has content beyond it, with a tooltip saying how to get
+    there; clicking the strip pages the view. The wheel is left alone, so it
+    still reaches the Viewport underneath. */
+class ScrollHintViewport : public juce::Viewport
+{
+public:
+    explicit ScrollHintViewport (const juce::String& componentName = {});
+    ~ScrollHintViewport() override;
+
+    /** The strip's height at each end. */
+    static constexpr int hintHeight = 18;
+
+    /** The glyph's half-width: the only part of a strip that takes a click.
+        The fade either side is a look, and a control scrolled under it must
+        still get the mouse. */
+    static constexpr int hintGlyphHalfWidth = 14;
+
+    void resized() override;
+    void visibleAreaChanged (const juce::Rectangle<int>& newVisibleArea) override;
+
+    /** Content that grows or shrinks without a scroll (a workspace tab
+        switching, a group unfolding) moves the bottom hint too. */
+    void viewedComponentChanged (juce::Component* newComponent) override;
+
+    /** True while the hint at that end is on show, for the tests. */
+    bool isTopHintShowing() const noexcept;
+    bool isBottomHintShowing() const noexcept;
+
+    /** Scrolls by 80% of the visible height, up or down. */
+    void pageBy (int direction);
+
+private:
+    class OverflowChevron;
+
+    void updateHints();
+
+    /*  Watches the viewed component's size. A member, not a second base:
+        juce::Viewport is already (privately) a ComponentListener, so deriving
+        from it again makes `this` an ambiguous ComponentListener* on GCC, and
+        an override of componentMovedOrResized here would become the final
+        overrider for Viewport's own listener too, cutting off its
+        updateVisibleArea() when the content resizes. */
+    struct ContentWatcher : public juce::ComponentListener
+    {
+        explicit ContentWatcher (ScrollHintViewport& viewport) : owner (viewport) {}
+        void componentMovedOrResized (juce::Component&, bool wasMoved, bool wasResized) override;
+        ScrollHintViewport& owner;
+    };
+
+    std::unique_ptr<OverflowChevron> topHint, bottomHint;
+    juce::Component::SafePointer<juce::Component> watchedContent;
+    ContentWatcher contentWatcher { *this };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ScrollHintViewport)
+};
 
 //==============================================================================
 /** One row of the string list. */
@@ -83,7 +147,8 @@ private:
 };
 
 //==============================================================================
-class AdvancedPanel : public juce::Component
+class AdvancedPanel : public juce::Component,
+                      private juce::Timer
 {
 public:
     explicit AdvancedPanel (LuthierAudioProcessor& processor);
@@ -99,6 +164,36 @@ public:
     static constexpr int minimumUsableWidth = 1000;
 
     FretboardComponent& getFretboard() noexcept { return fretboard; }
+    /** What the strip shows beside the guitar: FRETS | ROLL | KEYS. */
+    enum class StripView { frets = 0, roll, keys };
+    StripView getStripView() const noexcept { return stripView; }
+    void setStripView (StripView view);
+
+    /** The string roll that can replace the fretboard in the strip. */
+    StringRollComponent& getStringRoll() noexcept { return stringRoll; }
+    bool isStripShowingRoll() const noexcept { return stripView == StripView::roll; }
+    void setStripShowsRoll (bool showRoll) { setStripView (showRoll ? StripView::roll : StripView::frets); }
+
+    /** The piano keyboard that can replace it too (PianoKeyboard.h). */
+    PianoKeyboardComponent& getPianoKeyboard() noexcept { return *pianoKeyboard; }
+    juce::Button& getStripButton (StripView view) noexcept;
+
+    /** Pickup slots the fitted guitar does not have are disabled and named, and
+        the selector offers only the positions the guitar can realise
+        (spec/issues.md "pickup changes don't do much"). Called from the timer;
+        public so tests can force it. */
+    void refreshPickupSlots();
+    int getFittedPickupsShown() const noexcept { return lastFittedPickups; }
+    int getPickupSelectorItemCount() const { return pickupSelector->getComboBox().getNumItems(); }
+    int getPickupSelectorEnabledCount() const
+    {
+        auto& box = pickupSelector->getComboBox();
+        int n = 0;
+        for (int i = 0; i < box.getNumItems(); ++i)
+            if (box.isItemEnabled (box.getItemId (i))) ++n;
+        return n;
+    }
+    bool isPickupSlotEnabled (int slot) const { return pickupType[slot]->isEnabled(); }
 
     //==========================================================================
     /*  Column 4's tab strip (section 4.4).
@@ -109,6 +204,8 @@ public:
         to the tabs that have a panel behind them.
     */
     int getNumWorkspaceTabs() const noexcept { return workspacePanels.size(); }
+    /** How many rows column 4's tab strip wrapped to (1 when every label fits in one). */
+    int getWorkspaceTabRows() const noexcept { return workspaceTabRows; }
     int getWorkspaceTab() const noexcept { return workspaceTab; }
 
     juce::String getWorkspaceTabName (int index) const;
@@ -210,16 +307,25 @@ private:
 
     GuitarBodyComponent guitarBody;
     FretboardComponent fretboard;
+    StringRollComponent stringRoll;
+    std::unique_ptr<PianoKeyboardComponent> pianoKeyboard;
+    std::unique_ptr<LuthierToggle> fretsButton, rollButton, keysButton;
+    StripView stripView = StripView::frets;
 
     // Columns 1 to 3. Column 4 is the workspace below, which is not a Column:
     // it shows one panel at a time rather than stacking them.
-    juce::Viewport viewports[3];
+    ScrollHintViewport viewports[3];
     std::unique_ptr<Column> columns[3];
 
     juce::OwnedArray<juce::TextButton> workspaceTabs;
     juce::Array<juce::Component*> workspacePanels;
-    juce::Viewport workspaceViewport;
+    int workspaceTabRows = 1;
+    ScrollHintViewport workspaceViewport;
     int workspaceTab = 0;
+
+    /** The height a workspace panel asks for, from its preferredHeight() when
+        it has one, else the height it set on itself, never under 80. */
+    static int workspacePanelHeight (juce::Component* panel);
 
     /*  Where resized() put the column dividers, so paint() draws them in the
         same places. Below 1280 the layout stacks columns 2 and 3, and a paint
@@ -256,6 +362,8 @@ private:
     std::unique_ptr<LuthierChoice> pickupMagnet[3];
     std::unique_ptr<LuthierKnob> pickupVolume[3];
     std::unique_ptr<LuthierToggle> coilTap;
+    int lastFittedPickups = 0;
+    void timerCallback() override;
     std::unique_ptr<LuthierKnob> piezoMicBlend, guitarTone, guitarVolume;
 
     std::unique_ptr<LuthierToggle> useFingers;

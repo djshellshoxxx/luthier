@@ -15,6 +15,20 @@
 
 #include "TestFramework.h"
 
+#if JUCE_WINDOWS
+ // windows.h defines min / max as macros and breaks std::min in every header
+ // included after it; NOMINMAX keeps them out (JUCE builds with it too).
+ #ifndef NOMINMAX
+  #define NOMINMAX
+ #endif
+ #ifndef WIN32_LEAN_AND_MEAN
+  #define WIN32_LEAN_AND_MEAN
+ #endif
+ #include <windows.h>
+#else
+ #include <time.h>
+#endif
+
 #include "../DSP/Noise/ScrapeEngine.h"
 #include "../LuthierEngine.h"
 
@@ -528,11 +542,40 @@ LUTHIER_TEST (Scrape, idleCostsNothing)
                "idle cost " + juce::String (100.0 * best / realtime, 4) + "% of real time (budget 0.05%)");
 }
 
+namespace
+{
+    /** The CPU time this thread has been given, in seconds: what the scrape
+        itself costs, whoever else is on the machine. Wall-clock time on a
+        shared box counts the neighbours too (a four-core compile ran the same
+        loop at 6.6 ms), and a best-of-N over wall-clock only helps when one of
+        the N happens to land in a quiet gap. */
+    double threadCpuSeconds()
+    {
+       #if JUCE_WINDOWS
+        FILETIME creation, exitTime, kernel, user;
+
+        if (GetThreadTimes (GetCurrentThread(), &creation, &exitTime, &kernel, &user) == 0)
+            return juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks());
+
+        const auto to100ns = [] (const FILETIME& t) { return ((juce::uint64) t.dwHighDateTime << 32) | t.dwLowDateTime; };
+        return (double) (to100ns (kernel) + to100ns (user)) * 1.0e-7;
+       #else
+        timespec ts {};
+
+        if (clock_gettime (CLOCK_THREAD_CPUTIME_ID, &ts) != 0)
+            return juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks());
+
+        return (double) ts.tv_sec + (double) ts.tv_nsec * 1.0e-9;
+       #endif
+    }
+}
+
 LUTHIER_TEST (Scrape, anActiveScrapeStaysInBudget)
 {
     // 6: an active scrape under 0.5% of real time - the default gesture on
-    // every wound string, a second of it.
-    double best = 1.0e9;
+    // every wound string, a second of it. Best of five, in this thread's own
+    // CPU time, so the budget measures the scrape and not the machine's load.
+    double best = 1.0e9, bestWall = 1.0e9;
 
     for (int run = 0; run < 5; ++run)
     {
@@ -544,17 +587,20 @@ LUTHIER_TEST (Scrape, anActiveScrapeStaysInBudget)
         scrape->setSettings (settings);
         scrape->triggerFromSettings (0);
 
-        const auto start = juce::Time::getHighResolutionTicks();
+        const auto wallStart = juce::Time::getHighResolutionTicks();
+        const double cpuStart = threadCpuSeconds();
 
         for (int b = 0; b < (int) (kSr / kBlock); ++b)
             scrape->processBlock (kBlock);
 
-        best = juce::jmin (best, juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - start));
+        best = juce::jmin (best, threadCpuSeconds() - cpuStart);
+        bestWall = juce::jmin (bestWall, juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - wallStart));
 
         CHECK (scrape->getCatchCount (5) > 0);
     }
 
-    CHECK_MSG (best < 0.005, "a second of scraping took " + juce::String (best * 1000.0, 2) + " ms (budget 5 ms)");
+    CHECK_MSG (best < 0.005, "a second of scraping took " + juce::String (best * 1000.0, 2) + " ms of CPU (budget 5 ms; "
+                               + juce::String (bestWall * 1000.0, 2) + " ms wall-clock)");
 }
 
 LUTHIER_TEST (Scrape, resetRepeatsExactly)

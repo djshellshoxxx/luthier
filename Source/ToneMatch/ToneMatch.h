@@ -346,7 +346,17 @@ public:
     static ImpulseResponse fit (const std::vector<float>& reference,
                                 const std::vector<float>& current,
                                 double sampleRate,
-                                const Options& options = {});
+                                const Options& options);
+
+    // An overload rather than a default argument: GCC cannot evaluate a nested
+    // struct's default member initialisers in a default argument inside the
+    // enclosing class, but a member function body is a complete-class context.
+    static ImpulseResponse fit (const std::vector<float>& reference,
+                                const std::vector<float>& current,
+                                double sampleRate)
+    {
+        return fit (reference, current, sampleRate, Options {});
+    }
 
     /** The magnitude response of a filter at a frequency, in dB. Used by the
         tests and by the panel's curve display. */

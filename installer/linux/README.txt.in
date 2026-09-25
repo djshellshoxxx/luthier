@@ -1,0 +1,41 @@
+Luthier @LUTHIER_VERSION@ for Linux (x86-64)
+=====================================
+
+Contents of this folder
+
+  Luthier                 standalone application
+  Luthier.vst3/           VST3 plugin (absent from the "-standalone" bundle)
+  Resources/              factory content: impulse responses, parts, guitars,
+                          tunes, fonts. Both binaries look for it beside
+                          themselves; Luthier.vst3/Resources links to it.
+  install.sh              copies the above into place (user or system)
+  uninstall.sh            removes exactly what install.sh wrote
+  luthier.desktop, luthier.xml, icons/   desktop entry, file types, icons
+  THIRD_PARTY_LICENCES.txt
+
+Run in place ("portable")
+
+  ./Luthier               runs from this folder; nothing is installed.
+                          Your presets, guitars and settings still live in
+                          ~/Documents/Luthier and ~/.config (see the manual).
+  A DAW can be pointed at this folder's Luthier.vst3 directly.
+
+Install
+
+  ./install.sh --user     ~/.vst3, ~/.local/bin, ~/.local/share/luthier
+  sudo ./install.sh --system
+                          /usr/lib/vst3, /usr/bin, /opt/Luthier
+  ./install.sh --help     the options
+
+Uninstall
+
+  ./uninstall.sh          (or: ~/.local/share/luthier/uninstall.sh,
+                           /opt/Luthier/uninstall.sh)
+  ./uninstall.sh --purge  also deletes your presets, guitars and settings
+
+Requirements
+
+  ALSA (libasound2), X11, freetype and fontconfig. JACK or PipeWire-JACK
+  are used when present. The .deb lists the exact packages.
+
+Full instructions: docs/INSTALL_LINUX.md in the source tree.

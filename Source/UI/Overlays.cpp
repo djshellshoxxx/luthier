@@ -5,6 +5,235 @@ namespace luthier
 {
 
 //==============================================================================
+//  GuitarThumbnailCache
+//==============================================================================
+GuitarThumbnailCache::GuitarThumbnailCache()
+    : juce::Thread ("Guitar thumbnails")
+{
+    idle.signal();
+    startThread (juce::Thread::Priority::low);
+}
+
+GuitarThumbnailCache::~GuitarThumbnailCache()
+{
+    cancelPendingUpdate();
+    signalThreadShouldExit();
+    wake.signal();
+    stopThread (4000);
+}
+
+GuitarRenderer::Options GuitarThumbnailCache::thumbnailOptions()
+{
+    GuitarRenderer::Options options;
+    options.detail = GuitarRenderer::Detail::thumbnail;
+    options.materials = Palette::illustrationMaterials;
+    return options;
+}
+
+juce::int64 GuitarThumbnailCache::keyFor (const WorkshopGuitar& guitar)
+{
+    return GuitarRenderer::keyFor (guitar, thumbnailOptions());
+}
+
+juce::Image GuitarThumbnailCache::get (const WorkshopGuitar& guitar)
+{
+    const auto key = keyFor (guitar);
+    const juce::ScopedLock sl (lock);
+
+    if (auto it = entries.find (key); it != entries.end())
+    {
+        touch (key);
+        return it->second.image;
+    }
+
+    if (std::find (pending.begin(), pending.end(), key) == pending.end())
+    {
+        pending.push_back (key);
+        renderQueue.push_back ({ key, guitar, Palette::illustrationMaterials });
+        ++jobsInFlight;
+        idle.reset();
+        wake.signal();
+    }
+
+    return {};
+}
+
+void GuitarThumbnailCache::requestGuitarBlock (const juce::File& presetFile)
+{
+    const juce::ScopedLock sl (lock);
+    fileQueue.push_back (presetFile);
+    ++jobsInFlight;
+    idle.reset();
+    wake.signal();
+}
+
+void GuitarThumbnailCache::touch (juce::int64 key)
+{
+    // The lock is held.
+    auto it = entries.find (key);
+
+    if (it == entries.end())
+        return;
+
+    recency.erase (it->second.recency);
+    recency.push_front (key);
+    it->second.recency = recency.begin();
+}
+
+void GuitarThumbnailCache::insert (juce::int64 key, juce::Image image)
+{
+    // The lock is held. Section 17's budget: the least recently used entry goes.
+    while ((int) entries.size() >= capacity && ! recency.empty())
+    {
+        entries.erase (recency.back());
+        recency.pop_back();
+    }
+
+    recency.push_front (key);
+    entries[key] = { std::move (image), recency.begin() };
+}
+
+bool GuitarThumbnailCache::contains (juce::int64 key) const
+{
+    const juce::ScopedLock sl (lock);
+    return entries.find (key) != entries.end();
+}
+
+int GuitarThumbnailCache::getNumCached() const
+{
+    const juce::ScopedLock sl (lock);
+    return (int) entries.size();
+}
+
+bool GuitarThumbnailCache::waitForIdle (int timeoutMs)
+{
+    return idle.wait (timeoutMs);
+}
+
+void GuitarThumbnailCache::run()
+{
+    while (! threadShouldExit())
+    {
+        RenderJob job;
+        juce::File file;
+        bool haveRender = false, haveFile = false;
+
+        {
+            const juce::ScopedLock sl (lock);
+
+            if (! fileQueue.empty())
+            {
+                file = fileQueue.front();
+                fileQueue.pop_front();
+                haveFile = true;
+            }
+            else if (! renderQueue.empty())
+            {
+                job = std::move (renderQueue.front());
+                renderQueue.pop_front();
+                haveRender = true;
+            }
+        }
+
+        if (haveFile)
+        {
+            // Just the guitar block: the rest of the preset is not parsed twice.
+            juce::var block;
+
+            if (auto parsed = juce::JSON::parse (file.loadFileAsString()); auto* obj = parsed.getDynamicObject())
+            {
+                block = obj->getProperty ("guitar");
+
+                // A preset from before the Workshop names its guitar by type only
+                // (PluginProcessor::takeGuitarBlock does the same): hand that on.
+                if (block.getDynamicObject() == nullptr)
+                {
+                    auto* synthesised = new juce::DynamicObject();
+
+                    if (auto* parameters = obj->getProperty ("parameters").getDynamicObject())
+                        synthesised->setProperty ("guitarTypeNormalised", parameters->getProperty ("guitar_type"));
+
+                    block = juce::var (synthesised);
+                }
+            }
+
+            const juce::ScopedLock sl (lock);
+            loadedBlocks.emplace_back (file, block);
+            --jobsInFlight;
+            triggerAsyncUpdate();
+        }
+        else if (haveRender)
+        {
+            GuitarRenderer::Options options;
+            options.detail = GuitarRenderer::Detail::thumbnail;
+            options.materials = job.materials;
+
+            if (juce::MessageManager::existsAndIsCurrentThread())
+                ++messageThreadRenders;
+
+            auto image = GuitarRenderer::render (job.guitar, thumbnailWidth, thumbnailHeight,
+                                                 juce::Colours::transparentBlack, options);
+            ++renders;
+
+            const juce::ScopedLock sl (lock);
+            insert (job.key, std::move (image));
+            pending.erase (std::remove (pending.begin(), pending.end(), job.key), pending.end());
+            thumbnailLanded = true;
+            --jobsInFlight;
+            triggerAsyncUpdate();
+        }
+        else
+        {
+            {
+                const juce::ScopedLock sl (lock);
+
+                if (jobsInFlight == 0)
+                    idle.signal();
+            }
+
+            wake.wait (-1);
+        }
+    }
+}
+
+void GuitarThumbnailCache::deliverResults()
+{
+    std::vector<std::pair<juce::File, juce::var>> blocks;
+    bool landed = false;
+
+    {
+        const juce::ScopedLock sl (lock);
+        blocks.swap (loadedBlocks);
+        landed = std::exchange (thumbnailLanded, false);
+    }
+
+    for (auto& [file, block] : blocks)
+        if (onGuitarBlockLoaded)
+            onGuitarBlockLoaded (file, block);
+
+    if (landed && onThumbnailReady)
+        onThumbnailReady();
+}
+
+void GuitarThumbnailCache::paintPlaceholder (juce::Graphics& g, juce::Rectangle<float> area)
+{
+    // A sunken well with a faint guitar silhouette: a body, a neck, a headstock.
+    g.setColour (Palette::panelSunken);
+    g.fillRoundedRectangle (area, 3.0f);
+
+    const auto inner = area.reduced (area.getWidth() * 0.08f, area.getHeight() * 0.2f);
+    juce::Path guitar;
+    const float bodyW = inner.getWidth() * 0.42f;
+    guitar.addEllipse (inner.getRight() - bodyW, inner.getY(), bodyW, inner.getHeight());
+    guitar.addRoundedRectangle (inner.getX() + inner.getWidth() * 0.12f, inner.getCentreY() - inner.getHeight() * 0.1f,
+                                inner.getWidth() * 0.5f, inner.getHeight() * 0.2f, 1.0f);
+    guitar.addRoundedRectangle (inner.getX(), inner.getCentreY() - inner.getHeight() * 0.16f,
+                                inner.getWidth() * 0.14f, inner.getHeight() * 0.32f, 1.0f);
+    g.setColour (Palette::textDisabled.withAlpha (0.5f));
+    g.fillPath (guitar);
+}
+
+//==============================================================================
 //  OverlayPanel
 //==============================================================================
 OverlayPanel::OverlayPanel (const juce::String& t)
@@ -206,7 +435,7 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                 .withTitle (file != juce::File() ? "Troubleshooting file written" : "Could not write the file")
                 .withMessage (file != juce::File()
                                 ? "Written to\n" + file.getFullPathName()
-                                  + "\n\nSend this to support@luthieraudio.example with a description "
+                                  + "\n\nSend this to sheldon.davidson@gmail.com with a description "
                                     "of the problem."
                                 : "The diagnostics folder could not be written to. Check the folder "
                                   "permissions for Documents/Luthier.")
@@ -684,8 +913,19 @@ ExportPanel::ExportPanel (LuthierAudioProcessor& p)
         {
             importedMidiFile = fc.getResult();
 
+            // The box shows which file was chosen, so "MIDI file..." is not
+            // all the user has to go on; cancelling goes back to the phrase.
             if (importedMidiFile == juce::File())
+            {
+                sourceBox.changeItemText (2, "MIDI file...");
                 sourceBox.setSelectedId (1, juce::dontSendNotification);
+            }
+            else
+            {
+                sourceBox.changeItemText (2, "MIDI: " + importedMidiFile.getFileName());
+                sourceBox.setSelectedId (2, juce::dontSendNotification);
+                sourceBox.setTooltip (importedMidiFile.getFullPathName());
+            }
 
             updateEstimate();
         });
@@ -1023,9 +1263,26 @@ void PresetBrowserPanel::PresetListModel::paintListBoxItem (int row, juce::Graph
         g.fillRect (0, 0, 2, height);
     }
 
+    // G 15: the preset's guitar at the left, from the cache or the placeholder
+    // while the worker draws it; never drawn here.
+    const auto well = juce::Rectangle<float> (6.0f, 3.0f, (float) PresetBrowserPanel::thumbnailColumn - 12.0f, (float) height - 6.0f);
+    const auto thumbnail = owner.thumbnailFor (*info);
+
+    if (thumbnail.isValid())
+    {
+        g.setColour (Palette::panelSunken);
+        g.fillRoundedRectangle (well, 3.0f);
+        g.drawImage (thumbnail, well.reduced (2.0f), juce::RectanglePlacement::centred);
+    }
+    else
+    {
+        GuitarThumbnailCache::paintPlaceholder (g, well);
+    }
+
     g.setColour (selected ? Palette::accent : Palette::textPrimary);
     g.setFont (Fonts::ui (12.5f, selected));
-    g.drawText (info->name, 12, 0, width - 110, height, juce::Justification::centredLeft, true);
+    g.drawText (info->name, PresetBrowserPanel::thumbnailColumn + 4, 0, width - PresetBrowserPanel::thumbnailColumn - 114, height,
+                juce::Justification::centredLeft, true);
 
     g.setColour (info->isFactory ? Palette::textDisabled : Palette::secondary);
     g.setFont (Fonts::ui (10.0f));
@@ -1075,8 +1332,12 @@ PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
 
     addAndMakeVisible (list);
     list.setModel (&listModel);
-    list.setRowHeight (26);
+    list.setRowHeight (rowHeight);
     list.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
+    list.setTitle ("Presets");
+
+    thumbnails.onThumbnailReady = [this] { list.repaint(); };
+    thumbnails.onGuitarBlockLoaded = [this] (const juce::File& file, const juce::var& block) { guitarBlockLoaded (file, block); };
 
     addAndMakeVisible (description);
     description.setFont (Fonts::ui (11.5f));
@@ -1168,6 +1429,113 @@ PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
 PresetBrowserPanel::~PresetBrowserPanel()
 {
     processor.getPresetManager().removeChangeListener (this);
+    thumbnails.onThumbnailReady = nullptr;
+    thumbnails.onGuitarBlockLoaded = nullptr;
+}
+
+//==============================================================================
+juce::Image PresetBrowserPanel::thumbnailFor (const PresetInfo& info)
+{
+    auto& row = rowGuitars[info.file.getFullPathName()];
+
+    if (! row.requested)
+    {
+        row.requested = true;
+        thumbnails.requestGuitarBlock (info.file);
+        return {};
+    }
+
+    if (row.guitar == nullptr)
+        return {};
+
+    return thumbnails.get (*row.guitar);
+}
+
+void PresetBrowserPanel::guitarBlockLoaded (const juce::File& file, const juce::var& block)
+{
+    auto& row = rowGuitars[file.getFullPathName()];
+    row.requested = true;
+    row.resolved = true;
+
+    auto guitar = std::make_unique<WorkshopGuitar>();
+
+    if (resolveGuitar (block, *guitar))
+    {
+        row.guitar = std::move (guitar);
+        thumbnails.get (*row.guitar);   // queues the render
+    }
+
+    list.repaint();
+}
+
+bool PresetBrowserPanel::resolveGuitar (const juce::var& block, WorkshopGuitar& out) const
+{
+    auto& library = processor.getPartLibrary();
+    PartLibrary::LoadReport report;
+
+    juce::String reference;
+    juce::var override;
+
+    if (auto* object = block.getDynamicObject())
+    {
+        reference = object->getProperty ("reference").toString();
+
+        if (object->getProperty ("override").getDynamicObject() != nullptr)
+            override = object->getProperty ("override");
+    }
+
+    // guitar-workshop.md 8: the override wins and needs no files.
+    if (! override.isVoid() && library.buildGuitar (override, out, report))
+        return true;
+
+    // A preset saved before the Workshop: its type's factory guitar, as the processor loads it.
+    if (reference.isEmpty() && override.isVoid())
+        if (auto* object = block.getDynamicObject(); object != nullptr && object->hasProperty ("guitarTypeNormalised"))
+        {
+            const float normalised = (float) object->getProperty ("guitarTypeNormalised");
+            const int type = juce::jlimit (0, (int) GuitarType::NumTypes - 1,
+                                           juce::roundToInt (normalised * (float) ((int) GuitarType::NumTypes - 1)));
+            const auto path = LuthierAudioProcessor::getFactoryGuitarPath ((GuitarType) type);
+            reference = path.isNotEmpty() ? "Factory/" + path : juce::String();
+        }
+
+    if (reference.isEmpty())
+        return false;
+
+    // file-formats.md 2: "Factory/..." or "User/..." is a hint; a user guitar of the name wins.
+    auto relative = reference;
+
+    for (const auto* prefix : { "Factory/", "User/" })
+        if (relative.startsWithIgnoreCase (prefix))
+            relative = relative.substring ((int) std::strlen (prefix));
+
+    relative = PartLibrary::renamedFactoryGuitar (relative);
+
+    for (const auto& root : { PartLibrary::getUserGuitarsFolder(), PartLibrary::getFactoryGuitarsFolder() })
+    {
+        const auto file = root.getChildFile (relative);
+
+        if (file.existsAsFile())
+            return library.loadGuitar (file, out, report);
+    }
+
+    const auto flat = PartLibrary::getUserGuitarsFolder().getChildFile (relative.fromLastOccurrenceOf ("/", false, false));
+
+    if (flat.existsAsFile())
+        return library.loadGuitar (flat, out, report);
+
+    return false;
+}
+
+const WorkshopGuitar* PresetBrowserPanel::getRowGuitar (int presetIndex) const
+{
+    const auto* info = processor.getPresetManager().getPreset (presetIndex);
+
+    if (info == nullptr)
+        return nullptr;
+
+    const auto it = rowGuitars.find (info->file.getFullPathName());
+    return it == rowGuitars.end() ? nullptr : it->second.guitar.get();
 }
 
 void PresetBrowserPanel::changeListenerCallback (juce::ChangeBroadcaster*)
@@ -1248,7 +1616,8 @@ void PresetBrowserPanel::loadSelected()
     if (! juce::isPositiveAndBelow (row, visibleIndices.size()))
         return;
 
-    processor.pushUndoState ("Load preset");
+    // action-and-undo.md 5: a preset load is a state boundary.
+    processor.pushUndoBoundary ("Load preset");
 
     auto& presets = processor.getPresetManager();
     presets.loadPreset (visibleIndices[row]);

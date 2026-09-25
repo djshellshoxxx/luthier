@@ -12,6 +12,7 @@
 
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
+#include "../UI/Theme.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -146,6 +147,15 @@ LUTHIER_TEST (Accessibility, colourblindPalettesSeparateTheStatesTheyTarget)
 /*  accessibility 3: the palettes round-trip through their theme files. */
 LUTHIER_TEST (Accessibility, palettesRoundTripThroughJson)
 {
+    // Every palette is selected in turn, and the last one (Modern Dark) has
+    // no materials. Restore the setting and the applied colours afterwards so
+    // later tests that measure drawn colours start from the usual palette.
+    auto& settingsToRestore = AccessibilitySettings::get();
+    const auto originalPalette = settingsToRestore.getPalette();
+    const auto savedColours = Palette::current();
+    const bool savedTextured = Palette::textured;
+    const bool savedIllustrations = Palette::illustrationMaterials;
+
     for (int i = 0; i < (int) PaletteId::numPalettes; ++i)
     {
         auto& settings = AccessibilitySettings::get();
@@ -167,6 +177,11 @@ LUTHIER_TEST (Accessibility, palettesRoundTripThroughJson)
 
         CHECK_NEAR (restored.getWorstTextContrast(), original.getWorstTextContrast(), 0.001);
     }
+
+    settingsToRestore.setPalette (originalPalette);
+    settingsToRestore.dispatchPendingMessages();
+    Palette::apply (savedColours, savedTextured);
+    Palette::illustrationMaterials = savedIllustrations;
 }
 
 //==============================================================================
@@ -662,4 +677,78 @@ LUTHIER_TEST (Accessibility, noTwoShortcutsShareADefaultKey)
             CHECK_MSG (! (shortcuts[i].key == shortcuts[j].key),
                        shortcuts[i].id + " and " + shortcuts[j].id
                          + " both default to " + shortcuts[i].key.getTextDescription());
+}
+
+/*  The language picker offers only languages with text to show: English alone
+    by default, plus any whose catalog is in the custom folder. */
+LUTHIER_TEST (Localisation, onlyLanguagesWithACatalogAreOffered)
+{
+    auto& loc = Localisation::get();
+
+    const auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                       .getChildFile ("luthier-i18n-test-" + juce::String (juce::Random::getSystemRandom().nextInt()));
+    dir.createDirectory();
+    loc.setCustomCatalogDirectory (dir);
+
+    auto codes = [&loc]
+    {
+        juce::StringArray c;
+        for (const auto& l : loc.getAvailableLocales())
+            c.add (l.code);
+        return c;
+    };
+
+    CHECK_MSG (codes() == juce::StringArray ({ "en" }), "offered: " + codes().joinIntoString (","));
+
+    dir.getChildFile ("fr.json").replaceWithText ("{ \"header.resetStop\": \"RAZ\" }");
+    CHECK (codes().contains ("fr"));
+    CHECK (codes().contains ("en"));
+    CHECK (! codes().contains ("de"));
+
+    loc.setCustomCatalogDirectory ({});
+    loc.setLocale ("en");
+    dir.deleteRecursively();
+}
+
+//==============================================================================
+/*  Modern Dark (DECISIONS: "Modern Dark palette"): held to the same text
+    contrast as the others, and written out as a theme file like them, so it
+    can be edited without a rebuild. */
+LUTHIER_TEST (Accessibility, modernDarkMeetsContrastAndShipsAsAThemeFile)
+{
+    auto& settings = AccessibilitySettings::get();
+    const auto originalPalette = settings.getPalette();
+
+    // Switching palette applies colours and material flags globally. Put
+    // them back afterwards, not only the setting, so a later test that
+    // measures drawn colours does not inherit Modern Dark's.
+    const auto savedColours = Palette::current();
+    const bool savedTextured = Palette::textured;
+    const bool savedIllustrations = Palette::illustrationMaterials;
+
+    settings.setPalette (PaletteId::modernDark);
+    CHECK (settings.getPalette() == PaletteId::modernDark);
+
+    const double worst = settings.getColours().getWorstTextContrast();
+    CHECK_MSG (worst >= 7.0, "Modern Dark: worst body-text contrast is " + juce::String (worst, 2) + ", needs 7");
+
+    CHECK (! paletteUsesMaterials (PaletteId::modernDark));
+
+    const auto dir = juce::File::createTempFile ("luthier-themes");
+    CHECK (AccessibilitySettings::writeBuiltInPalettes (dir));
+
+    const auto file = dir.getChildFile ("Modern Dark.json");
+    CHECK_MSG (file.existsAsFile(), "no Modern Dark.json theme file");
+
+    PaletteColours loaded;
+    CHECK (loaded.loadFrom (file));
+    CHECK (loaded.background == AccessibilitySettings::buildPalette (PaletteId::modernDark).background);
+    CHECK (loaded.accent == AccessibilitySettings::buildPalette (PaletteId::modernDark).accent);
+
+    dir.deleteRecursively();
+    settings.setPalette (originalPalette);
+    settings.dispatchPendingMessages();
+
+    Palette::apply (savedColours, savedTextured);
+    Palette::illustrationMaterials = savedIllustrations;
 }

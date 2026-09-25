@@ -31,16 +31,19 @@
     Times (6.4): quarter notes on the host's clock while its transport runs,
     samples (read as seconds) while it is stopped.
 
-    Wiring (not done here; see the report): LuthierEngine reports from
-    triggerNote and applyNoteOff, which is where the string and fret are known;
-    until that hook exists, captureStringActivity reads the engine's
-    StringActivityQueue after each block, which has the string but not the
-    technique.
+    Wiring: after each block the processor hands the capture the engine's
+    StringActivityQueue (captureStringActivity: notes with their string, and
+    the BASS_TECH reports the engine puts on the same queue), the rhythm
+    engine's chord detector (captureChord: notation-export 4, a symbol where
+    the settled chord changes) and the slide engine (captureSlideBar: the bar
+    where it lands, lifts or moves). LuthierEngine does not yet report from
+    triggerNote, so a note's technique flags are still not known here (TODO 9).
 */
 
 #include "CaptureRing.h"
 
 #include "../Export/MidiPerformance.h"
+#include "../Rhythm/ChordDetector.h"
 #include "../Model/Playing/PlayingEvents.h"
 #include "../Notation/NotationExport.h"
 #include "../Notation/PerformanceScore.h"
@@ -52,6 +55,7 @@
 namespace luthier
 {
 
+class SlideEngine;
 class StringActivityQueue;
 class TuningEngine;
 
@@ -219,8 +223,27 @@ public:
 
     /** Until the engine reports from triggerNote: the block's string activity,
         after engine.processBlock. Strings are the voicer's; frets are worked
-        out from setTuning's open notes; techniques are not known. */
+        out from setTuning's open notes; techniques are not known. A
+        bass-technique record on the queue becomes a BASS_TECH event (6.1). */
     void captureStringActivity (const StringActivityQueue& activity) noexcept;
+
+    /** notation-export 4: the detector's held notes, after engine.processBlock.
+        Once the held set has stood still for the detector's burst window (so a
+        strum is one chord, not six), it is detected, and a known symbol that
+        differs from the last one written goes into the take at the sample the
+        set changed. The detector is only read; nothing here allocates. */
+    void captureChord (const ChordDetector& detector) noexcept;
+
+    /** 6.1: the slide bar, after engine.processBlock: written where it lands
+        on the strings, lifts off them, moves by kBarStepFrets or changes its
+        pressure class (light under kLightPressure, full above). */
+    void captureSlideBar (const SlideEngine& slide) noexcept;
+
+    static constexpr double kBarStepFrets = 0.25;
+    static constexpr double kLightPressure = 0.5;
+
+    /** The BASS_TECH `tech` name for a queue record's slap type and flags. */
+    static const char* bassTechniqueName (int slapType, int flags) noexcept;
 
     //==========================================================================
     // Message thread.
@@ -259,6 +282,10 @@ public:
 
 private:
     CaptureRecord makeRecord (CaptureRecord::Kind kind, int sampleOffset) const noexcept;
+
+    /** A record at an absolute sample, which may lie in an earlier block (the
+        chord's onset, found once its strum has settled). */
+    CaptureRecord makeRecordAtSample (CaptureRecord::Kind kind, juce::int64 sample) const noexcept;
     bool isRecording() const noexcept { return state.load (std::memory_order_relaxed) != (int) CaptureState::off; }
 
     void apply (const CaptureRecord& record);
@@ -276,6 +303,17 @@ private:
     CaptureClock clock;
     double lastMeterBpm = -1.0;
     int lastMeterNumerator = -1, lastMeterDenominator = -1;
+
+    // captureChord: the held set as last seen, when it changed, and the last symbol written.
+    std::array<int, 24> chordHeld {};
+    int chordHeldCount = -1;
+    juce::int64 chordChangedAt = 0;
+    bool chordPending = false;
+    ChordSymbol lastChordSymbol;
+
+    // captureSlideBar: the bar as last written (pressure class -1 = nothing yet, 0 lift, 1 light, 2 full).
+    int lastBarPressure = -1;
+    double lastBarFret = -1.0;
 
     // Written by the message thread, read by captureStringActivity: each
     // string's open note with the capo on it.

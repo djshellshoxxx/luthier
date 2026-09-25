@@ -3,10 +3,51 @@
 #include "MidiExportDefaults.h"
 #include "NotationPanel.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Localisation.h"
 
 namespace luthier
 {
 
+//==============================================================================
+void TwoLineTextButton::paintButton (juce::Graphics& g, bool isHighlighted, bool isDown)
+{
+    const bool on = getToggleState();
+
+    getLookAndFeel().drawButtonBackground (g, *this,
+                                           findColour (on ? buttonOnColourId : buttonColourId),
+                                           isHighlighted, isDown);
+
+    auto colour = findColour (on ? textColourOnId : textColourOffId);
+
+    if (! isEnabled())
+        colour = Palette::textDisabled;
+    else if (isHighlighted && ! on)
+        colour = colour.brighter (0.25f);
+
+    const auto text = getButtonText().toUpperCase();
+    const int split = text.indexOf (" & ");
+    const auto first = split >= 0 ? text.substring (0, split) : text;
+    const auto second = split >= 0 ? text.substring (split + 1) : juce::String();
+
+    g.setColour (colour);
+    g.setFont (Fonts::ui (juce::jlimit (8.0f, 11.0f, (float) getHeight() * 0.28f), true));
+
+    auto area = getLocalBounds();
+
+    if (second.isEmpty())
+    {
+        Fonts::drawTrackedText (g, first, area, juce::Justification::centred);
+        return;
+    }
+
+    const int half = area.getHeight() / 2;
+    Fonts::drawTrackedText (g, first, area.removeFromTop (half).withTrimmedTop (3),
+                            juce::Justification::centredBottom);
+    Fonts::drawTrackedText (g, second, area.withTrimmedBottom (3),
+                            juce::Justification::centredTop);
+}
+
+//==============================================================================
 HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     : processor (p)
 {
@@ -18,6 +59,7 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     guitarSelector.attachTo (processor, ParamIDs::guitarType,
                              "The instrument. Changing this loads its body, woods, pickups, "
                              "strings, tuning and default rig.");
+    processor.addListener (this);   // the selector's gesture: see audioProcessorParameterChangeGestureEnd
 
     addAndMakeVisible (tuningSelector);
     tuningSelector.setLabelVisible (false);
@@ -29,7 +71,8 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     presetPrev.setTooltip ("Previous preset");
     presetPrev.onClick = [this]
     {
-        processor.pushUndoState ("Load preset");
+        // action-and-undo.md 5: a preset load is a state boundary.
+        processor.pushUndoBoundary ("Load preset");
         processor.getPresetManager().loadPrevious();
         processor.getParameterBridge().applyAllNow();
     };
@@ -38,7 +81,7 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     presetNext.setTooltip ("Next preset");
     presetNext.onClick = [this]
     {
-        processor.pushUndoState ("Load preset");
+        processor.pushUndoBoundary ("Load preset");
         processor.getPresetManager().loadNext();
         processor.getParameterBridge().applyAllNow();
     };
@@ -84,6 +127,17 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     panicButton.setTooltip ("Stop every string immediately and clear all held notes");
     panicButton.setColour (juce::TextButton::textColourOffId, Palette::warning);
     panicButton.onClick = [this] { processor.panic(); };
+
+    /*  Beside Panic, in the same warning colour: Panic ends the notes; this ends
+        the loop that would start them again. A tune left looping, a looper, a
+        free-running rhythm engine and a kill switch all survived Reset, and a
+        user with a runaway loop hit Reset and Panic "a bunch of times". */
+    addAndMakeVisible (resetStopButton);
+    resetStopButton.setButtonText (tr ("header.resetStop"));
+    resetStopButton.setTitle (tr ("header.resetStop.title"));
+    resetStopButton.setTooltip (tr ("header.resetStop.tooltip"));
+    resetStopButton.setColour (juce::TextButton::textColourOffId, Palette::warning);
+    resetStopButton.onClick = [this] { processor.resetAndStop(); refreshPresetDisplay(); };
 
     addAndMakeVisible (midiLearnButton);
     midiLearnButton.setTooltip ("Arm MIDI Learn, then click a control to assign it "
@@ -133,6 +187,19 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
             toggleSlideMode (processor);
     };
 
+    addAndMakeVisible (rhythmButton);
+    rhythmButton.setClickingTogglesState (true);
+    rhythmButton.setToggleState (processor.getEngine().getRhythmEngine().isEnabled(),
+                                 juce::dontSendNotification);
+    rhythmButton.setTooltip ("Rhythm engine. Lit while it is on: held chords are strummed "
+                             "by the pattern instead of ringing. Click to turn it off or on; "
+                             "the RHYTHM tab has the pattern.");
+    rhythmButton.setTitle ("Rhythm engine");
+    rhythmButton.onClick = [this]
+    {
+        processor.getEngine().getRhythmEngine().setEnabled (rhythmButton.getToggleState());
+    };
+
     addAndMakeVisible (liveButton);
     liveButton.setClickingTogglesState (true);
     liveButton.setToggleState (processor.isLiveMode(), juce::dontSendNotification);
@@ -160,8 +227,23 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
 HeaderBar::~HeaderBar()
 {
     stopTimer();
+    processor.removeListener (this);
     processor.getPresetManager().removeChangeListener (this);
     processor.getMidiLearn().removeChangeListener (this);
+}
+
+void HeaderBar::audioProcessorParameterChangeGestureEnd (juce::AudioProcessor*, int parameterIndex)
+{
+    auto* param = processor.getState().getParameter (ParamIDs::guitarType);
+
+    if (param == nullptr || param->getParameterIndex() != parameterIndex)
+        return;
+
+    // The guitar already loaded picked again is no pick: the pass that would
+    // consume the flag never runs, and it must not linger for a later change.
+    if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (param))
+        if (choice->getIndex() != (int) processor.getEngine().getGuitarType())
+            processor.getParameterBridge().followGuitarHandOnNextLoad();
 }
 
 //==============================================================================
@@ -281,6 +363,22 @@ void HeaderBar::timerCallback()
     if (auto* p = processor.getState().getParameter (ParamIDs::slideGuitar))
         slideButton.setToggleState (p->getValue() > 0.5f, juce::dontSendNotification);
 
+    // The rhythm engine can be switched on from Easy mode's genre box, the
+    // RHYTHM tab, a tune or a preset; follow whichever did it. While it is
+    // actually strumming (host playing, or free-run) the label says so.
+    {
+        const auto& rhythm = processor.getEngine().getRhythmEngine();
+        rhythmButton.setToggleState (rhythm.isEnabled(), juce::dontSendNotification);
+
+        const bool driving = rhythm.isEnabled() && rhythm.isDriving();
+
+        if (driving != rhythmWasDriving)
+        {
+            rhythmWasDriving = driving;
+            resized();   // relabels, compact or not
+        }
+    }
+
     // The MIDI-in indicator blinks when notes arrive.
     if (processor.getEngine().consumeMidiActivity())
         repaint();
@@ -297,6 +395,10 @@ void HeaderBar::showFileMenu()
     menu.addItem (1, "Save", ! manager.getCurrentPresetName().isEmpty());
     menu.addItem (2, "Save As...");
     menu.addItem (3, "Open preset file...");
+    menu.addSeparator();
+    // gui-integration 19: the Tune Builder's entries in the File menu.
+    menu.addItem (14, "New Tune...", onNewTune != nullptr);
+    menu.addItem (15, "Import MIDI...", onImportMidi != nullptr);
     menu.addSeparator();
     menu.addItem (4, "Import preset...");
     menu.addItem (5, "Export preset...");
@@ -351,7 +453,8 @@ void HeaderBar::showFileMenu()
                     if (file == juce::File())
                         return;
 
-                    processor.pushUndoState (isImport ? "Import preset" : "Open preset");
+                    processor.pushUndoBoundary ((isImport ? "Import preset " : "Open preset ")
+                                                  + file.getFileNameWithoutExtension());
 
                     if (isImport)
                         processor.getPresetManager().importPreset (file);
@@ -419,6 +522,32 @@ void HeaderBar::showFileMenu()
                                              : error)
                             .withButton ("OK"),
                         nullptr);
+                });
+                break;
+            }
+
+            case 14:
+                if (onNewTune)
+                    onNewTune();
+                break;
+
+            case 15:
+            {
+                // midi-export 5: File -> Import MIDI loads the file as a new
+                // tune in the Tune Builder; the editor shows the tab.
+                auto chooser = std::make_shared<juce::FileChooser> (
+                    "Import a MIDI file into the Tune Builder",
+                    PresetManager::getRenderFolder(),
+                    "*.mid;*.midi");
+
+                chooser->launchAsync (juce::FileBrowserComponent::openMode
+                                        | juce::FileBrowserComponent::canSelectFiles,
+                                      [this, chooser] (const juce::FileChooser& fc)
+                {
+                    const auto file = fc.getResult();
+
+                    if (file != juce::File() && onImportMidi)
+                        onImportMidi (file);
                 });
                 break;
             }
@@ -498,11 +627,14 @@ void HeaderBar::paint (juce::Graphics& g)
     g.fillRect (bounds.removeFromBottom (1));
 
     // ---- logo -------------------------------------------------------------------
+    // visual-polish.md 6.2 / 6.4: the plugin's name is set in the display face,
+    // the condensed vintage lettering of a 1950s amp badge, beside the brass
+    // headstock mark. High contrast keeps the face; only textures are turned off.
     auto logoArea = getLocalBounds().withTrimmedLeft (28).withWidth (96);
 
     g.setColour (Palette::textPrimary);
-    g.setFont (Fonts::ui (16.0f, true));
-    Fonts::drawTrackedText (g, "LUTHIER", logoArea, juce::Justification::centredLeft, 0.14f);
+    g.setFont (Fonts::display (22.0f));
+    Fonts::drawTrackedText (g, "LUTHIER", logoArea, juce::Justification::centredLeft, 0.16f);
 
     // ---- MIDI activity indicator ---------------------------------------------------
     const bool active = processor.getEngine().getMidiInterpreter().getActiveNoteCount() > 0;
@@ -525,36 +657,71 @@ void HeaderBar::resized()
     bounds.removeFromLeft (96 + 14);       // logo and the MIDI dot
 
     // ---- right-hand cluster ---------------------------------------------------------
-    modeButton.setBounds (bounds.removeFromRight (84).reduced (2, 0));
+    // Each button is its uppercase label plus a few pixels: the row has to fit
+    // RESET & STOP at gui-integration's 1200 px minimum with a preset name
+    // still readable in the middle.
+    modeButton.setBounds (bounds.removeFromRight (78).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
-    liveButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
-    slideButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
-    workshopButton.setBounds (bounds.removeFromRight (82).reduced (2, 0));
+    liveButton.setBounds (bounds.removeFromRight (46).reduced (2, 0));
+    slideButton.setBounds (bounds.removeFromRight (48).reduced (2, 0));
+    // Below about 1320 px the row has no room for the full label; "Rhy" keeps
+    // the light visible (the tooltip and accessible title say what it is).
+    {
+        const bool compact = getWidth() < 1320;
+        const auto label = juce::String (compact ? "Rhy" : "Rhythm") + (rhythmWasDriving ? " >" : "");
+
+        if (rhythmButton.getButtonText() != label)
+            rhythmButton.setButtonText (label);
+
+        rhythmButton.setBounds (bounds.removeFromRight (compact ? 36 : 62).reduced (2, 0));
+    }
+    workshopButton.setBounds (bounds.removeFromRight (76).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
-    helpButton.setBounds (bounds.removeFromRight (30).reduced (2, 0));
-    panicButton.setBounds (bounds.removeFromRight (56).reduced (2, 0));
-    midiLearnButton.setBounds (bounds.removeFromRight (54).reduced (2, 0));
+    helpButton.setBounds (bounds.removeFromRight (28).reduced (2, 0));
+    panicButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
+    resetStopButton.setBounds (bounds.removeFromRight (64).reduced (2, 0));
+    midiLearnButton.setBounds (bounds.removeFromRight (50).reduced (2, 0));
 
     bounds.removeFromRight (Metrics::gridHalf);
 
-    redoButton.setBounds (bounds.removeFromRight (50).reduced (2, 0));
-    undoButton.setBounds (bounds.removeFromRight (50).reduced (2, 0));
+    redoButton.setBounds (bounds.removeFromRight (46).reduced (2, 0));
+    undoButton.setBounds (bounds.removeFromRight (46).reduced (2, 0));
 
     bounds.removeFromRight (Metrics::gridHalf);
 
-    copyAB.setBounds (bounds.removeFromRight (40).reduced (2, 0));
+    copyAB.setBounds (bounds.removeFromRight (38).reduced (2, 0));
     compareB.setBounds (bounds.removeFromRight (28).reduced (2, 0));
     compareA.setBounds (bounds.removeFromRight (28).reduced (2, 0));
 
     bounds.removeFromRight (Metrics::grid);
 
     // ---- left-hand cluster -------------------------------------------------------------
-    guitarSelector.setBounds (bounds.removeFromLeft (150).reduced (2, 3));
+    /*  The selectors give way before the preset name does: below about 1280
+        the row is short, and a guitar name losing its last letters is better
+        than the preset name losing all of them (gui-integration 2, "collapses
+        gracefully"). Each has a floor its usual names still fit. */
+    int guitarWidth = 144, tuningWidth = 120;
+
+    {
+        const int presetFixed = 56 + Metrics::gridHalf + 24 + 24 + (rangePadlock.isVisible() ? 22 : 0);
+        const int wantedName = 96;
+        const int spare = bounds.getWidth() - (guitarWidth + Metrics::gridHalf + tuningWidth + Metrics::grid)
+                          - presetFixed - wantedName;
+
+        if (spare < 0)
+        {
+            const int fromGuitar = juce::jmin (-spare, guitarWidth - 96);
+            guitarWidth -= fromGuitar;
+            tuningWidth -= juce::jmin (-spare - fromGuitar, tuningWidth - 84);
+        }
+    }
+
+    guitarSelector.setBounds (bounds.removeFromLeft (guitarWidth).reduced (2, 3));
     bounds.removeFromLeft (Metrics::gridHalf);
 
-    tuningSelector.setBounds (bounds.removeFromLeft (128).reduced (2, 3));
+    tuningSelector.setBounds (bounds.removeFromLeft (tuningWidth).reduced (2, 3));
     bounds.removeFromLeft (Metrics::grid);
 
     // ---- preset, filling whatever is left -----------------------------------------------

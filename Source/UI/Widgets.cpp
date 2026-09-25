@@ -1,6 +1,8 @@
 #include "Widgets.h"
 #include "RangesUi.h"
 #include "../PluginProcessor.h"
+#include "../PluginEditor.h"
+#include "../Accessibility/Localisation.h"
 
 namespace luthier
 {
@@ -54,6 +56,35 @@ juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
         menu.addItem (5, midiLearn.isLearning() && midiLearn.getLearningParameterId() == parameterId
                             ? "MIDI Learn - move a controller..."
                             : "MIDI Learn");
+    }
+
+    // ---- assign to macro (gui-integration 16 item 6) --------------------------
+    // A macro reaches a parameter as a mod-matrix source, so this is the macro
+    // group of the Modulate submenu at full depth, under the name the spec uses.
+    // Ticked where the route already exists, so the menu also reads as a list of
+    // which macros drive this control.
+    {
+        auto& matrixForMacros = processor.getModMatrix();
+        const bool roomForMacro = matrixForMacros.getRouteCountForDestination (parameterId)
+                                    < ModMatrix::kMaxRoutesPerDestination;
+        juce::PopupMenu macros;
+
+        for (int i = 0; i < ModSourceSlots::numMacros; ++i)
+        {
+            const auto sourceId = modSourceIdForSlot (ModSourceSlots::macroBase + i);
+            bool assigned = false;
+
+            for (int r = 0; r < matrixForMacros.getNumRoutes(); ++r)
+                if (const auto& route = matrixForMacros.getRoute (r);
+                    route.destinationId == parameterId && route.sourceId == sourceId)
+                    assigned = true;
+
+            macros.addItem (kAssignMacroMenuBase + i,
+                            modSourceDisplayName (ModSourceSlots::macroBase + i),
+                            assigned || roomForMacro, assigned);
+        }
+
+        menu.addSubMenu (tr ("widgets.menu.assignToMacro"), macros);
     }
 
     menu.addSeparator();
@@ -129,6 +160,17 @@ juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
             menu.addItem (kUnlockRangeMenuId, "Unlock advanced range for this control");
         }
     }
+
+    // ---- items 12 and 13 ----------------------------------------------------------
+    // The automation id is the parameter id, which is what a host shows in its
+    // automation lane; it is read-only, and choosing it copies the id so it can
+    // be pasted into a host's search. The shortcut item opens the table where
+    // every binding lives (there is no per-parameter binding to point at, so it
+    // is offered on every control rather than "if bound").
+    menu.addSeparator();
+    menu.addItem (kAutomationIdMenuId,
+                  tr ("widgets.menu.automationId", { { "id", param->getParameterID() } }));
+    menu.addItem (kShowShortcutsMenuId, tr ("widgets.menu.showShortcuts"));
 
     return menu;
 }
@@ -262,18 +304,70 @@ void applyParameterMenuResult (int result,
 
             case 9:
             {
-                // Walk backwards so removing one does not shift the next.
+                // Walk backwards so removing one does not shift the next. One
+                // undo entry for the lot (action-and-undo.md 3.6 / 6).
                 auto& modMatrix = processor.getModMatrix();
+                bool pushed = false;
 
                 for (int i = modMatrix.getNumRoutes(); --i >= 0;)
                     if (modMatrix.getRoute (i).destinationId == parameterId)
+                    {
+                        if (! std::exchange (pushed, true))
+                            processor.pushUndoState ("Remove modulation from " + param->getName (40));
+
                         modMatrix.removeRoute (i);
+                    }
+
+                break;
+            }
+
+            case kAutomationIdMenuId:
+                juce::SystemClipboard::copyTextToClipboard (param->getParameterID());
+                break;
+
+            case kShowShortcutsMenuId:
+            {
+                // The same page HelpTab's "Rebind..." opens: the shortcut table is
+                // on Options -> Accessibility (OptionsPanel::showShortcutTable).
+                if (auto* editor = owner.findParentComponentOfClass<LuthierAudioProcessorEditor>())
+                    editor->showOptionsPage ("ACCESSIBILITY");
 
                 break;
             }
 
             default:
             {
+                if (result >= kAssignMacroMenuBase
+                      && result < kAssignMacroMenuBase + ModSourceSlots::numMacros)
+                {
+                    // Assigning a macro that already drives this control removes
+                    // the route (the item is ticked, so this is the un-assign).
+                    auto& modMatrix = processor.getModMatrix();
+                    const auto sourceId = modSourceIdForSlot (ModSourceSlots::macroBase
+                                                                + (result - kAssignMacroMenuBase));
+                    bool removed = false;
+
+                    for (int i = modMatrix.getNumRoutes(); --i >= 0;)
+                        if (const auto& route = modMatrix.getRoute (i);
+                            route.destinationId == parameterId && route.sourceId == sourceId)
+                        {
+                            processor.removeModRoute (i);   // one undo entry each (action-and-undo.md 3.6)
+                            removed = true;
+                        }
+
+                    if (! removed)
+                    {
+                        ModRoute route;
+                        route.sourceId = sourceId;
+                        route.destinationId = parameterId;
+                        route.depth = 1.0f;
+                        route.enabled = true;
+                        processor.addModRoute (route);
+                    }
+
+                    break;
+                }
+
                 if (result >= kModulateMenuBase
                       && result < kModulateMenuBase + ModSourceSlots::count)
                 {
@@ -287,7 +381,8 @@ void applyParameterMenuResult (int result,
                     route.depth = 0.33f;
                     route.enabled = true;
 
-                    processor.getModMatrix().addRoute (route);
+                    // action-and-undo.md 3.6: "Add [source] to [destination] depth X".
+                    processor.addModRoute (route);
                 }
 
                 break;
@@ -396,6 +491,11 @@ LuthierKnob::LuthierKnob (const juce::String& text, Size s)
     slider.setVelocityBasedMode (false);
     slider.setMouseDragSensitivity (180);
 
+    // accessibility 2: Tab reaches the knob and the arrow keys nudge it (a
+    // juce::Slider does not want focus by default). The ring is the look and
+    // feel's, drawn from hasKeyboardFocus.
+    slider.setWantsKeyboardFocus (true);
+
     setInterceptsMouseClicks (true, true);
 }
 
@@ -414,14 +514,20 @@ void LuthierKnob::attachTo (LuthierAudioProcessor& p, const juce::String& id, co
 
     RangesUi::tagSlider (slider, id);
 
-    if (tooltip.isNotEmpty())
+    /*  The wheel scrolls the column rather than the knob (KnobSlider), so the
+        tooltip has to say how to nudge the value instead: nothing else in the
+        window would tell the user that Ctrl is the key. */
+    juce::String tip = tooltip;
+
+    if (tip.isEmpty())
+        if (auto* param = p.getState().getParameter (id))
+            tip = param->getName (64);
+
+    if (tip.isNotEmpty())
     {
-        slider.setTooltip (tooltip);
-        setTooltip (tooltip);
-    }
-    else if (auto* param = p.getState().getParameter (id))
-    {
-        slider.setTooltip (param->getName (64));
+        tip = tr ("widgets.knob.wheelHint", { { "tip", tip } });
+        slider.setTooltip (tip);
+        setTooltip (tip);
     }
 
     updateMidiLearnIndicator();
@@ -712,6 +818,35 @@ void LuthierKnob::KnobSlider::mouseExit (const juce::MouseEvent& e)
     owner.repaint();
 }
 
+void LuthierKnob::KnobSlider::focusGained (FocusChangeType)
+{
+    repaint();
+    owner.repaint();
+}
+
+void LuthierKnob::KnobSlider::focusLost (FocusChangeType)
+{
+    repaint();
+    owner.repaint();
+}
+
+void LuthierKnob::KnobSlider::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
+{
+    /*  A knob sits in a scrolling column, and a wheel that stopped the column
+        dead whenever the pointer crossed a knob made the columns feel stuck.
+        Ctrl+wheel keeps the nudge for people who want it; the knob's tooltip
+        says so. */
+    if (WheelPassSlider::wheelAdjustsValue (e))
+    {
+        juce::Slider::mouseWheelMove (e, wheel);
+        owner.repaint();
+    }
+    else
+    {
+        juce::Component::mouseWheelMove (e, wheel);
+    }
+}
+
 //==============================================================================
 //  LuthierChoice
 //==============================================================================
@@ -838,6 +973,9 @@ LuthierSlider::LuthierSlider (const juce::String& text, bool isVertical)
     slider.setSliderStyle (vertical ? juce::Slider::LinearVertical : juce::Slider::LinearHorizontal);
     slider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 62, 18);
     slider.setColour (juce::Slider::textBoxTextColourId, Palette::textPrimary);
+
+    // As the knob: Tab reaches it, arrows nudge it.
+    slider.setWantsKeyboardFocus (true);
 }
 
 LuthierSlider::~LuthierSlider()
@@ -1188,7 +1326,7 @@ FeedbackLed::FeedbackLed (LuthierAudioProcessor& p)
                 "when the loop is sustaining a note on its own");
     AccessibleSetup::configureDescriptive (*this, "Feedback indicator",
                                            "Lights when the feedback loop is sustaining a note");
-    startTimerHz (20);
+    startTimerHz (kRefreshHz);   // gui-engine-dataflow 22: the readout drains at 30 Hz
 }
 
 FeedbackLed::~FeedbackLed()
@@ -1440,6 +1578,281 @@ void InlineNotice::paint (juce::Graphics& g)
     g.setFont (Fonts::ui (9.0f));
     g.drawText ("click to dismiss", getLocalBounds().reduced (Metrics::grid, 0),
                 juce::Justification::centredRight, false);
+}
+
+//==============================================================================
+//  SectionHeaderExtras
+//==============================================================================
+namespace
+{
+    /*  The owner of every SectionHeaderExtras attached to a parent. It lives in
+        the parent's property set as a reference-counted var, which juce::Component
+        destroys after it has detached its children - so by the time this deletes
+        the extras, they no longer point at the parent. */
+    struct SectionExtrasHolder : public juce::ReferenceCountedObject
+    {
+        using Ptr = juce::ReferenceCountedObjectPtr<SectionExtrasHolder>;
+        juce::OwnedArray<SectionHeaderExtras> extras;
+    };
+
+    const juce::Identifier kSectionExtrasProperty ("luthier.sectionExtras");
+
+    juce::File& screenshotDirectoryOverride()
+    {
+        static juce::File directory;
+        return directory;
+    }
+}
+
+SectionHeaderExtras::SectionHeaderExtras (const juce::String& h,
+                                          std::function<void (const juce::String&)> docs)
+    : heading (h), onDocs (std::move (docs))
+{
+    // Transparent over the painted header: the parent draws the plate, this
+    // only adds the button and takes the right-click.
+    setOpaque (false);
+    setWantsKeyboardFocus (false);
+    setTitle (heading + " section");
+
+    helpButton.setTooltip (tr ("widgets.section.helpTip", { { "section", heading } }));
+    helpButton.setTitle (tr ("widgets.section.helpTip", { { "section", heading } }));
+    helpButton.setConnectedEdges (0);
+    helpButton.onClick = [this] { applyMenuResult (kDocs); };
+    addAndMakeVisible (helpButton);
+}
+
+SectionHeaderExtras::~SectionHeaderExtras() = default;
+
+SectionHeaderExtras* SectionHeaderExtras::attachTo (juce::Component& parent, const juce::String& heading,
+                                                    std::function<void (const juce::String&)> onDocs)
+{
+    SectionExtrasHolder::Ptr holder;
+
+    if (auto* existing = dynamic_cast<SectionExtrasHolder*> (
+            parent.getProperties()[kSectionExtrasProperty].getObject()))
+        holder = existing;
+    else
+    {
+        holder = new SectionExtrasHolder();
+        parent.getProperties().set (kSectionExtrasProperty, juce::var (holder.get()));
+    }
+
+    auto* extras = holder->extras.add (new SectionHeaderExtras (heading, std::move (onDocs)));
+    parent.addAndMakeVisible (extras);
+    return extras;
+}
+
+void SectionHeaderExtras::setScreenshotDirectory (const juce::File& directory)
+{
+    screenshotDirectoryOverride() = directory;
+}
+
+juce::File SectionHeaderExtras::getScreenshotDirectory()
+{
+    if (screenshotDirectoryOverride() != juce::File())
+        return screenshotDirectoryOverride();
+
+    return juce::File::getSpecialLocation (juce::File::userPicturesDirectory).getChildFile ("Luthier");
+}
+
+void SectionHeaderExtras::resized()
+{
+    // A small square at the right end of the header row, inside the plate.
+    const int side = juce::jmin (16, juce::jmax (10, getHeight() - 6));
+    helpButton.setBounds (getLocalBounds().removeFromRight (side + 4).withSizeKeepingCentre (side, side));
+}
+
+void SectionHeaderExtras::paint (juce::Graphics&)
+{
+    // Nothing: the parent paints the header this sits on.
+}
+
+void SectionHeaderExtras::mouseDown (const juce::MouseEvent& e)
+{
+    if (! e.mods.isPopupMenu())
+        return;
+
+    auto menu = buildMenu();
+    menu.setLookAndFeel (&getLookAndFeel());
+
+    juce::Component::SafePointer<SectionHeaderExtras> self (this);
+
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
+                        [self] (int result)
+    {
+        if (self != nullptr)
+            self->applyMenuResult (result);
+    });
+}
+
+juce::PopupMenu SectionHeaderExtras::buildMenu() const
+{
+    juce::PopupMenu menu;
+    menu.addSectionHeader (heading);
+
+    // Section 16's panel menu, minus Collapse (see the class comment).
+    const auto ids = getSectionParameterIds();
+    menu.addItem (kResetPanel, tr ("widgets.section.resetPanel"), ! ids.isEmpty());
+    menu.addItem (kScreenshot, tr ("widgets.section.screenshot"));
+    menu.addItem (kDocs, tr ("widgets.section.docs"), onDocs != nullptr);
+
+    return menu;
+}
+
+void SectionHeaderExtras::applyMenuResult (int result)
+{
+    switch (result)
+    {
+        case kResetPanel:
+            resetSection();
+            break;
+
+        case kScreenshot:
+        {
+            const auto file = saveScreenshot();
+
+            if (auto* top = getTopLevelComponent(); top != nullptr && isShowing())
+            {
+                auto* bubble = new juce::BubbleMessageComponent();
+                top->addChildComponent (bubble);
+
+                juce::AttributedString text;
+                text.append (file.existsAsFile()
+                               ? tr ("widgets.section.screenshotSaved", { { "path", file.getFullPathName() } })
+                               : tr ("widgets.section.screenshotFailed"),
+                             Fonts::ui (12.0f), Palette::textPrimary);
+
+                bubble->showAt (this, text, 3500, true, true);
+            }
+
+            break;
+        }
+
+        case kDocs:
+            if (onDocs)
+                onDocs (heading);
+            break;
+
+        default:
+            break;
+    }
+}
+
+juce::Rectangle<int> SectionHeaderExtras::getSectionBounds() const
+{
+    auto* parent = getParentComponent();
+
+    if (parent == nullptr)
+        return getBounds();
+
+    // Down to the next header below this one, else the parent's bottom.
+    int bottom = parent->getHeight();
+
+    for (auto* sibling : parent->getChildren())
+        if (sibling != this && dynamic_cast<SectionHeaderExtras*> (sibling) != nullptr
+              && sibling->getY() > getY())
+            bottom = juce::jmin (bottom, sibling->getY());
+
+    return { getX(), getY(), getWidth(), juce::jmax (getHeight(), bottom - getY()) };
+}
+
+juce::StringArray SectionHeaderExtras::getSectionParameterIds (LuthierAudioProcessor** processorOut) const
+{
+    juce::StringArray ids;
+    auto* parent = getParentComponent();
+
+    if (processorOut != nullptr)
+        *processorOut = nullptr;
+
+    if (parent == nullptr)
+        return ids;
+
+    const auto section = getSectionBounds();
+
+    std::function<void (juce::Component&)> collect = [&] (juce::Component& c)
+    {
+        if (auto* target = dynamic_cast<LearnTarget*> (&c))
+        {
+            const auto id = target->getLearnParameterId();
+
+            if (id.isNotEmpty())
+            {
+                ids.addIfNotAlreadyThere (id);
+
+                if (processorOut != nullptr && *processorOut == nullptr)
+                    *processorOut = target->getLearnProcessor();
+            }
+        }
+
+        for (auto* child : c.getChildren())
+            collect (*child);
+    };
+
+    for (auto* sibling : parent->getChildren())
+        if (sibling != this && dynamic_cast<SectionHeaderExtras*> (sibling) == nullptr
+              && sibling->getY() >= getY() && sibling->getY() < section.getBottom())
+            collect (*sibling);
+
+    return ids;
+}
+
+int SectionHeaderExtras::resetSection()
+{
+    LuthierAudioProcessor* processor = nullptr;
+    const auto ids = getSectionParameterIds (&processor);
+
+    if (processor == nullptr || ids.isEmpty())
+        return 0;
+
+    // One undo entry for the whole section (action-and-undo: a reset is one
+    // thing the user did, however many parameters it touched).
+    LuthierAudioProcessor::ScopedUndoAction undo (*processor,
+                                                  tr ("widgets.section.resetUndo", { { "section", heading } }));
+    int count = 0;
+
+    for (const auto& id : ids)
+        if (auto* param = processor->getState().getParameter (id))
+        {
+            param->setValueNotifyingHost (param->getDefaultValue());
+            ++count;
+        }
+
+    return count;
+}
+
+juce::File SectionHeaderExtras::saveScreenshot() const
+{
+    auto* parent = getParentComponent();
+
+    if (parent == nullptr)
+        return {};
+
+    const auto image = parent->createComponentSnapshot (getSectionBounds(), true);
+
+    if (! image.isValid())
+        return {};
+
+    auto directory = getScreenshotDirectory();
+
+    if (! directory.createDirectory())
+        return {};
+
+    const auto stamp = juce::Time::getCurrentTime().formatted ("%Y-%m-%d %H%M%S");
+    auto file = directory.getChildFile (juce::File::createLegalFileName (heading) + " " + stamp + ".png")
+                         .getNonexistentSibling();
+
+    juce::FileOutputStream out (file);
+
+    if (! out.openedOk())
+        return {};
+
+    juce::PNGImageFormat png;
+
+    if (! png.writeImageToStream (image, out))
+        return {};
+
+    out.flush();
+    return file;
 }
 
 } // namespace luthier

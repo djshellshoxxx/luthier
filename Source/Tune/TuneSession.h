@@ -91,6 +91,24 @@ public:
     /** Where service() applies the player's rhythm changes (3.5, 8). */
     void attachRhythm (RhythmEngine* engine, const GenreKitLibrary* kits, const PatternLibrary* patterns);
 
+    const GenreKitLibrary* getGenreKits() const noexcept { return genreKits; }
+    const PatternLibrary* getPatternLibrary() const noexcept { return patternLibrary; }
+
+    /** The patterns a section's kit offers, in the kit's order (Vary steps
+        through them); empty without a kit library. */
+    juce::StringArray getKitPatterns (int sectionIndex) const;
+
+    //==========================================================================
+    /** tune-builder 9.1 (TuneExport): an offline render is a second plugin
+        instance loaded with this one's state, so the tune travels there in
+        the state. With the intent set, toState() also says "play this from
+        the start, once, no count-in, no click", and the instance that
+        restores such a state does exactly that, servicing itself from the
+        render (TunePlayer::setOfflineServiceHook). The intent is not kept:
+        it is set around one captureStateBlock and cleared. */
+    void setRenderIntent (bool shouldRender) noexcept { renderIntent = shouldRender; }
+    bool isRendering() const noexcept { return rendering; }
+
     TuneMidiOptions& getMidiOptions() noexcept { return midiOptions; }
     void rebuildTimeline();
 
@@ -162,6 +180,9 @@ private:
     std::array<std::pair<double, int>, 128> openNotes;  ///< Start beat and velocity; start < 0 when not held.
 
     std::function<double()> clock;
+
+    bool renderIntent = false;   ///< Written into the next toState().
+    bool rendering = false;      ///< This session was restored to render.
 };
 
 } // namespace luthier

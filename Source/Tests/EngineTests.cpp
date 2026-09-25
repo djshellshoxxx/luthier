@@ -23,6 +23,10 @@
 #include "../DSP/Effects/EffectsChain.h"
 #include "../DSP/Effects/SecretEffect.h"
 
+#include <juce_dsp/juce_dsp.h>
+#include <atomic>
+#include <thread>
+
 using namespace luthier;
 using namespace luthier::tests;
 
@@ -54,6 +58,31 @@ namespace
         p.velocity = velocity;
         p.brightness = 0.5;
         return p;
+    }
+
+    /** The power-weighted mean frequency of a signal, in Hz. */
+    double spectralCentroid (const std::vector<double>& v)
+    {
+        constexpr int order = 15, n = 1 << order;
+        std::vector<float> data ((size_t) n * 2, 0.0f);
+        const int count = juce::jmin (n, (int) v.size());
+
+        for (int i = 0; i < count; ++i)
+            data[(size_t) i] = (float) v[(size_t) i];
+
+        juce::dsp::FFT fft (order);
+        fft.performFrequencyOnlyForwardTransform (data.data());
+
+        double weighted = 0.0, total = 0.0;
+
+        for (int bin = 1; bin < n / 2; ++bin)
+        {
+            const double power = (double) data[(size_t) bin] * (double) data[(size_t) bin];
+            weighted += power * bin * kSr / n;
+            total += power;
+        }
+
+        return total > 0.0 ? weighted / total : 0.0;
     }
 }
 
@@ -1309,4 +1338,397 @@ LUTHIER_TEST (Body, modalBankIsStableAndBounded)
     CHECK_FINITE (signal.data(), n);
     CHECK_MSG (peak (signal.data(), n) < 4.0,
                "modal bank peaked at " + juce::String (peak (signal.data(), n), 3));
+}
+
+//==============================================================================
+//  Fingers
+//==============================================================================
+LUTHIER_TEST (Excitation, fingersAreAudiblyDarkerThanAPick)
+{
+    /*  "Fingers vs non fingers makes no difference": the flesh-to-nail blend
+        was linear in hertz, so the default halfway setting sat a third of an
+        octave under a celluloid pick - lost under the cabinet. pick-noise.md
+        6 wants flesh duller and longer; measured at the string, before the
+        amp, at one velocity. */
+    auto centroidFor = [] (Excitation::Material material)
+    {
+        StringEngine s;
+        s.prepare (kSr, 512);
+
+        StringEngine::Physical physical;
+        physical.sustainSeconds = 5.0;
+        physical.openBrightnessHz = 6000.0;
+        s.setPhysical (physical);
+        s.snapToFrequency (164.81);   // E3
+
+        auto p = defaultPluck (0.8);
+        p.material = material;
+        p.nailVsFlesh = 0.5;
+
+        const auto out = renderString (s, 0.4, p);
+        return spectralCentroid (out);
+    };
+
+    const double pick = centroidFor (Excitation::Material::PickCelluloid);
+    const double fingers = centroidFor (Excitation::Material::Fingertip);
+
+    CHECK_MSG (fingers < pick * 0.85,
+               "fingers centroid " + juce::String (fingers, 0) + " Hz is not 15% under the pick's "
+                 + juce::String (pick, 0) + " Hz");
+
+    // And the thumb, the warmest contact, is darker still.
+    const double thumb = centroidFor (Excitation::Material::Thumb);
+    CHECK_MSG (thumb < fingers, "thumb " + juce::String (thumb, 0) + " Hz is not darker than fingers "
+                                  + juce::String (fingers, 0) + " Hz");
+}
+
+//==============================================================================
+//  qa-polish 5 (every amp): gain sweep and tone stack.
+//==============================================================================
+#include "../DSP/Amp/ToneStack.h"
+
+namespace
+{
+    /** RMS of an amp's steady-state output for a 1 kHz sine at `inputLevel`. */
+    double ampLoudnessAt (AmpModel model, double gain, double inputLevel = 0.1)
+    {
+        AmpEngine amp;
+        amp.prepare (kSr, 512);
+        amp.setModel (model);
+        amp.setGain (gain);
+        amp.setMaster (0.5);
+        amp.setBass (0.5);
+        amp.setMid (0.5);
+        amp.setTreble (0.5);
+
+        // Warm-up, and the sag supply settling under signal.
+        for (int i = 0; i < (int) kSr; ++i)
+            amp.processSample (0.0);
+
+        const int n = 8192;
+        std::vector<double> out ((size_t) n);
+        int phase = 0;
+
+        for (int i = 0; i < (int) (kSr * 0.25); ++i)
+            amp.processSample (std::sin (2.0 * constants::kPi * 1000.0 * (phase++) / kSr) * inputLevel);
+
+        for (int i = 0; i < n; ++i)
+            out[(size_t) i] = amp.processSample (std::sin (2.0 * constants::kPi * 1000.0 * (phase++) / kSr) * inputLevel);
+
+        return rms (out.data(), n);
+    }
+
+    /** A tone stack's steady-state gain in dB at one frequency. */
+    double toneStackGainDb (ToneStack& stack, double hz)
+    {
+        stack.reset();
+
+        const int settle = (int) (kSr * 0.2);
+        const int n = (int) (kSr * 0.2);
+        std::vector<double> out ((size_t) n);
+        int phase = 0;
+
+        for (int i = 0; i < settle; ++i)
+            stack.process (std::sin (2.0 * constants::kPi * hz * (phase++) / kSr));
+
+        for (int i = 0; i < n; ++i)
+            out[(size_t) i] = stack.process (std::sin (2.0 * constants::kPi * hz * (phase++) / kSr));
+
+        return gainToDb (rms (out.data(), n) * std::sqrt (2.0));
+    }
+}
+
+LUTHIER_TEST (Amp, gainSweepIsMonotonicInLoudness)
+{
+    // Gain 0 -> 100 in eleven steps, 1 kHz sine: louder or equal at every step,
+    // on every model. A saturating stage flattens the curve at the top; it must
+    // never turn it down.
+    for (int m = 0; m < (int) AmpModel::Custom; ++m)
+    {
+        const auto model = (AmpModel) m;
+        std::vector<double> loudness;
+
+        for (int step = 0; step <= 10; ++step)
+            loudness.push_back (ampLoudnessAt (model, step / 10.0));
+
+        /*  Measured (DECISIONS, qa-polish 5 amp sweep): every model rises
+            monotonically up to its clipping knee, and past the knee the RMS of
+            a 1 kHz tone eases back by up to 1.4 dB (Champ, AC30) as the sag
+            supply settles and the stages bias-shift - which is what a tube amp
+            does, and not a fault. So: no drop before the loudest step, and
+            never more than 2.5 dB under the loudest after it. */
+        int dropsBeforeKnee = 0;
+        double worstAfterKnee = 0.0;
+        juce::String curve;
+
+        const auto loudest = (size_t) std::distance (loudness.begin(),
+                                                     std::max_element (loudness.begin(), loudness.end()));
+
+        for (size_t i = 0; i < loudness.size(); ++i)
+        {
+            const double db = gainToDb (loudness[i]);
+            curve += juce::String (db, 1) + " ";
+
+            if (i > 0 && i <= loudest && db < gainToDb (loudness[i - 1]) - 0.1)
+                ++dropsBeforeKnee;
+
+            if (i > loudest)
+                worstAfterKnee = juce::jmax (worstAfterKnee, gainToDb (loudness[loudest]) - db);
+        }
+
+        CHECK_MSG (dropsBeforeKnee == 0, "model " + juce::String (m) + " gets quieter as gain rises "
+                                           + juce::String (dropsBeforeKnee) + " times before its knee: " + curve + "dB");
+        CHECK_MSG (worstAfterKnee <= 2.5, "model " + juce::String (m) + " falls " + juce::String (worstAfterKnee, 2)
+                                            + " dB past its knee: " + curve + "dB");
+        CHECK_MSG (loudness.back() > loudness.front(),
+                   "model " + juce::String (m) + " is no louder at full gain than at none: " + curve + "dB");
+    }
+}
+
+LUTHIER_TEST (Amp, toneStackAtNeutralIsFlatAcrossItsPassband)
+{
+    /*  A passive stack is never flat at 5/5/5: the classic Fender circuit has
+        its mid dip there (measured 9 dB peak-to-peak across the band, DECISIONS).
+        Its neutral - the setting at which the network passes the guitar band
+        flat - is elsewhere on the pots (on a real 5F6-A, roughly treble down,
+        mid up, bass down). So the test finds the flattest setting on a grid and
+        asks that one to be within 1 dB across 80 Hz - 5 kHz: a model whose
+        stack cannot be set flat has the interaction wrong (engine pitfall 10).
+        The grid is the settle-and-measure of one sine per band, so it is
+        coarse (11 steps per pot). */
+    const struct { const char* name; ToneStackComponents parts; } stacks[] =
+    {
+        { "fender",   ToneStackComponents::fender() },
+        { "marshall", ToneStackComponents::marshall() },
+        { "vox",      ToneStackComponents::vox() },
+        { "modern",   ToneStackComponents::modern() },
+    };
+
+    const double band[] = { 80.0, 120.0, 200.0, 300.0, 500.0, 700.0, 1000.0, 1500.0, 2000.0, 3000.0, 4000.0, 5000.0 };
+
+    for (const auto& s : stacks)
+    {
+        ToneStack stack;
+        stack.prepare (kSr);
+        stack.setComponents (s.parts);
+
+        // Peak-to-peak deviation across the band at one setting.
+        auto deviationAt = [&] (double b, double m, double t, juce::String* curveOut)
+        {
+            stack.setControls (b, m, t);
+
+            double lo = 1.0e9, hi = -1.0e9;
+            juce::String curve;
+
+            for (double hz : band)
+            {
+                const double db = toneStackGainDb (stack, hz);
+                lo = juce::jmin (lo, db);
+                hi = juce::jmax (hi, db);
+                curve += juce::String ((int) hz) + ":" + juce::String (db, 1) + " ";
+            }
+
+            if (curveOut != nullptr)
+                *curveOut = curve;
+
+            return hi - lo;
+        };
+
+        juce::String middle;
+        const double atMiddle = deviationAt (0.5, 0.5, 0.5, &middle);
+
+        double best = 1.0e9, bb = 0.5, bm = 0.5, bt = 0.5;
+
+        for (int b = 0; b <= 10; ++b)
+            for (int m = 0; m <= 10; ++m)
+                for (int t = 0; t <= 10; ++t)
+                {
+                    const double d = deviationAt (b / 10.0, m / 10.0, t / 10.0, nullptr);
+
+                    if (d < best)
+                    {
+                        best = d;
+                        bb = b / 10.0; bm = m / 10.0; bt = t / 10.0;
+                    }
+                }
+
+        juce::String flattest;
+        deviationAt (bb, bm, bt, &flattest);
+
+        // 1 dB from flat is 2 dB peak-to-peak.
+        CHECK_MSG (best <= 2.0, juce::String (s.name) + " cannot be set flat: best "
+                                  + juce::String (best, 2) + " dB peak-to-peak at bass " + juce::String (bb, 1)
+                                  + " mid " + juce::String (bm, 1) + " treble " + juce::String (bt, 1)
+                                  + ": " + flattest + " (5/5/5: " + juce::String (atMiddle, 1) + " dB, " + middle + ")");
+        CHECK_MSG (atMiddle > 2.0, juce::String (s.name) + " at 5/5/5 is flat, which a passive stack is not");
+    }
+}
+
+//==============================================================================
+/*  Panic and reset run on the audio thread now (the top of processBlock), and
+    EffectsChain::reset took a blocking lock the message thread holds while it
+    swaps a pedal. resetFromAudioThread never waits: it resets the pedals when
+    the lock is free and otherwise leaves the reset for the next block, which
+    carries it out before it processes anything. */
+namespace
+{
+    /** An impulse into the chain, then silence; the peak over [from, to) seconds. */
+    double tailPeakAfterImpulse (EffectsChain& chain, double from, double to, bool resetAfterImpulse)
+    {
+        constexpr int block = 256;
+        std::vector<double> l ((size_t) block, 0.0), r ((size_t) block, 0.0);
+
+        l[0] = r[0] = 1.0;
+        chain.processStereo (l.data(), r.data(), block);
+
+        if (resetAfterImpulse)
+            chain.resetFromAudioThread();
+
+        double peak = 0.0;
+        const int blocks = (int) (to * kSr / block);
+
+        for (int b = 1; b < blocks; ++b)
+        {
+            std::fill (l.begin(), l.end(), 0.0);
+            std::fill (r.begin(), r.end(), 0.0);
+            chain.processStereo (l.data(), r.data(), block);
+
+            if ((double) b * block / kSr >= from)
+                for (int i = 0; i < block; ++i)
+                    peak = juce::jmax (peak, std::abs (l[(size_t) i]), std::abs (r[(size_t) i]));
+        }
+
+        return peak;
+    }
+}
+
+LUTHIER_TEST (Engine, effectsChainResetFromTheAudioThreadClearsTheTail)
+{
+    EffectsChain chain;
+    chain.prepare (kSr, 256);
+    chain.setSlotType (0, PedalType::Delay);   // 375 ms, feedback: a tail well past the impulse
+    CHECK (chain.getPedal (0) != nullptr);
+
+    const double tail = tailPeakAfterImpulse (chain, 0.3, 1.0, false);
+    CHECK_MSG (tail > 1.0e-4, "the delay left no tail to reset: peak " + juce::String (tail));
+
+    chain.resetFromAudioThread();
+    CHECK (! chain.isResetPending());
+
+    const double afterReset = tailPeakAfterImpulse (chain, 0.3, 1.0, true);
+    CHECK_MSG (afterReset < 1.0e-9, "the tail survived the reset: peak " + juce::String (afterReset));
+}
+
+LUTHIER_TEST (Engine, effectsChainResetFromTheAudioThreadNeverWaitsForAPedalPick)
+{
+    EffectsChain chain;
+    chain.prepare (kSr, 256);
+    chain.setSlotType (0, PedalType::Delay);
+
+    // Pedals picked on another thread for a while, the way the rack's combo
+    // does through setSlotType, which holds the swap lock.
+    std::atomic<bool> picking { true };
+    std::thread picker ([&chain, &picking]
+    {
+        for (int i = 0; picking.load(); ++i)
+            chain.setSlotType (1, (i % 2) == 0 ? PedalType::Chorus : PedalType::Phaser);
+    });
+
+    // Meanwhile the audio thread panics and renders; a wait would show as a
+    // hang here, and a lost reset as a tail after one.
+    const auto start = juce::Time::getMillisecondCounter();
+    double worst = 0.0;
+
+    while (juce::Time::getMillisecondCounter() - start < 150)
+        worst = juce::jmax (worst, tailPeakAfterImpulse (chain, 0.3, 0.5, true));
+
+    picking = false;
+    picker.join();
+
+    CHECK_MSG (worst < 1.0e-9, "a reset was lost under a pedal pick: peak " + juce::String (worst));
+
+    // A reset left pending is carried out by the next block, not forgotten.
+    chain.resetFromAudioThread();
+    CHECK (! chain.isResetPending());
+}
+
+/*  The oversampler's reported latency against what it really delays. The
+    half-band branches are IIR all-passes, so there is no one delay: the
+    impulse response starts early and peaks late, and what the host's delay
+    compensation needs is the group delay across the guitar band. Measured
+    here as the phase delay of a sine at 100 Hz, 1 kHz and 4 kHz (a lag found
+    by cross-correlation, refined to a fraction of a sample), which is what a
+    host lines up against the dry track. */
+LUTHIER_TEST (Oversampler, reportedLatencyIsItsGroupDelayInTheGuitarBand)
+{
+    for (int factor : { 2, 4, 8 })
+    {
+        Oversampler os;
+        os.prepare (kSr, factor);
+
+        // ---- impulse: onset and peak ---------------------------------------------
+        os.reset();
+        const int n = 64;
+        std::vector<double> h ((size_t) n);
+
+        for (int i = 0; i < n; ++i)
+            h[(size_t) i] = os.processSample (i == 0 ? 1.0 : 0.0, [] (double v) noexcept { return v; });
+
+        double peak = 0.0;
+        int peakAt = 0;
+        for (int i = 0; i < n; ++i)
+            if (std::abs (h[(size_t) i]) > peak) { peak = std::abs (h[(size_t) i]); peakAt = i; }
+
+        int onset = -1;
+        for (int i = 0; i < n; ++i)
+            if (std::abs (h[(size_t) i]) > peak * 1.0e-4) { onset = i; break; }
+
+        // ---- sine phase delay --------------------------------------------------
+        auto phaseDelayAt = [&] (double hz)
+        {
+            // Settle, then fit y = S sin(wn) + C cos(wn) over a whole number of
+            // periods (48 kHz / 100 Hz = 480 samples; 2880 holds 6, 72 and 288
+            // periods of 100 Hz, 1 kHz and 4 kHz). The phase of that fit is the
+            // phase delay; a cross-correlation over a partial period biases low
+            // tones by samples.
+            os.reset();
+            const double w = 2.0 * constants::kPi * hz / kSr;
+            const int settle = 3000, span = 2880;
+            double s = 0.0, c = 0.0;
+
+            for (int i = 0; i < settle + span; ++i)
+            {
+                const double y = os.processSample (std::sin (w * i), [] (double v) noexcept { return v; });
+
+                if (i >= settle)
+                {
+                    s += y * std::sin (w * i);
+                    c += y * std::cos (w * i);
+                }
+            }
+
+            double delay = -std::atan2 (c, s) / w;
+            const double period = kSr / hz;
+
+            while (delay < 0.0)
+                delay += period;
+
+            return delay;
+        };
+
+        const double d100 = phaseDelayAt (100.0);
+        const double d1k = phaseDelayAt (1000.0);
+        const double d4k = phaseDelayAt (4000.0);
+        const int reported = os.getLatencySamples();
+
+        const juce::String numbers ("factor " + juce::String (factor) + ": reports " + juce::String (reported)
+                                      + "; impulse onset(1e-4) " + juce::String (onset) + ", peak at " + juce::String (peakAt)
+                                      + "; phase delay 100 Hz " + juce::String (d100, 2) + ", 1 kHz " + juce::String (d1k, 2)
+                                      + ", 4 kHz " + juce::String (d4k, 2));
+
+        // The figure the host is told should be the guitar-band group delay to
+        // within a sample.
+        CHECK_MSG (std::abs (d1k - reported) <= 1.0, numbers);
+        CHECK_MSG (std::abs (d100 - reported) <= 1.0, numbers);
+    }
 }

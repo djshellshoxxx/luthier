@@ -20,6 +20,7 @@
 #include "Theme.h"
 #include "Widgets.h"
 #include "StrumGroup.h"
+#include "MuteGroup.h"
 #include "../Rhythm/GenreKit.h"
 
 namespace luthier
@@ -174,8 +175,8 @@ private:
 
     // --- voicing ------------------------------------------------------------------
     juce::ComboBox styleBox;
-    juce::Slider densitySlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::Slider handPositionSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    WheelPassSlider densitySlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    WheelPassSlider handPositionSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Label capoLabel;
     juce::TextButton capoDown { "-" }, capoUp { "+" };
 
@@ -184,15 +185,21 @@ private:
     std::unique_ptr<FingerpickGrid> fingerpickGrid;
 
     // --- feel ---------------------------------------------------------------------
-    juce::Slider swingSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::Slider timingSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::Slider velocitySlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::Slider missSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::Slider ghostSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    WheelPassSlider swingSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    WheelPassSlider timingSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    WheelPassSlider velocitySlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    WheelPassSlider missSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    WheelPassSlider ghostSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
 
     // gui-integration 4.4: the STRUM group (strum-dynamics 6.3). Its crossing
     // control and source line replace the old strum-duration slider.
     std::unique_ptr<StrumGroup> strumGroup;
+
+    /*  muting-rhythm 7 / gui-techniques 6: the Mute Row under the strum grid
+        edits the pattern's mute_type per step; the MUTE group (the TECHNIQUES
+        tab's MUTE sub-tab, until that tab exists) follows the STRUM group. */
+    std::unique_ptr<MuteGridEditor> muteRow;
+    std::unique_ptr<MuteGroup> muteGroup;
 
     // --- browser ------------------------------------------------------------------
     juce::ComboBox tagFilterBox;
@@ -221,7 +228,7 @@ private:
 
     std::unique_ptr<juce::FileChooser> chooser;
 
-    juce::Label genreHeading, voicingHeading, strumHeading, pickHeading,
+    juce::Label genreHeading, voicingHeading, strumHeading, muteRowHeading, pickHeading,
                 feelHeading, browserHeading;
 
     bool updatingControls = false;

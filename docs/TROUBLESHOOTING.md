@@ -102,6 +102,17 @@ In order:
    downstream: the track is muted, routed somewhere else, or your interface output
    is wrong.
 
+### I hear nothing after choosing a pedal
+
+The footswitch on the pedal's face is its bypass, and it reads **ON** or
+**BYPASS** so you can see which. A stray click, or a preset saved that way, leaves
+it on BYPASS: click the footswitch. Hover it and the tooltip says which way a
+click will take it. In Easy mode the same face is in the popover that opens
+when you click the slot.
+
+If the footswitch says ON and there is still nothing, check the pedal's own
+level or mix controls.
+
 ---
 
 ## Crackles, dropouts or high CPU
@@ -147,14 +158,33 @@ same as the notes you played:
 
 - If a chord needs a fret span wider than a hand, the nearest playable voicing is
   used instead.
-- Notes that cannot be reached at all are dropped rather than forced somewhere
-  absurd.
+- A note the chord search cannot finger is placed on its own, on a free string,
+  rather than forced somewhere absurd. Only when no string is free is it dropped.
 - Voicings stay near the previous chord's position, so a progression does not jump
   around the neck.
+- One note per string. A note played while others are still ringing takes a free
+  string instead of cutting one off, so it may land somewhere you did not expect.
 
 The fretboard shows what is actually being played. If you want exact control over
 which string gets which note, use **Guitar Controller** mode and send each note on
 its own MIDI channel.
+
+### Two notes at once only play one
+
+- **Check the playing mode.** Mono mode is one note at a time by design - the
+  second note becomes a hammer-on, pull-off or slide on the same string. For
+  chords and intervals use **Poly** (the Mode selector in Easy mode).
+- **Check the chord window.** Poly mode gathers notes that land within the
+  window - 15 ms by default - into one strummed chord. Set to zero, notes are
+  placed one by one as they arrive; that still gives you both notes, but a
+  keyboard chord whose fingers land a few milliseconds apart will be voiced as
+  separate notes and may not strum. It is in Options > MIDI, and in Advanced
+  under Performance.
+- **Two notes on one string is impossible**, here as on the instrument. If both
+  notes can only be fingered on the same string, one of them has to go to
+  another string or be dropped; the fretboard shows which.
+- A note played while another rings takes a free string. If every string is
+  busy - six notes already held on a six-string - the new one is dropped.
 
 ---
 
@@ -171,12 +201,25 @@ Two causes, both adjustable:
 
 ## Notes hang, or a string will not stop
 
-Press **Panic**, or `P` (unless you have rebound it). If it recurs:
+Press **Panic**, or `P` (unless you have rebound it). It stops every string and
+clears every tail - room, delays, freeze, feedback - and leaves your settings
+alone. If it recurs:
 
 - Check for stuck sustain: CC 64 held down by a controller sends "let everything
   ring".
 - Check **Freeze** is off - it sustains indefinitely by design.
 - Check the **sostenuto** pedal (CC 66).
+
+### A loop will not stop
+
+Panic ends the notes, but something that re-feeds them every block - a tune
+playing, the looper, a backing track, the metronome, the rhythm engine
+free-running from the Easy genre box or the practice drawer, or the kill
+switch held - will have the strings ringing again before Panic has finished.
+Press **RESET & STOP** in the header, beside Panic, or `Ctrl + Shift + P`. It
+stops all of those, returns every setting to its default and then panics and
+resets the engine in one step. It is one undo step: `Ctrl + Z` brings the
+settings back once the loop is dead.
 
 ---
 
@@ -195,6 +238,20 @@ Set Mic Width to zero to check. If the thinness goes away, that was it.
 
 ---
 
+## The guitar picture is tiny or ugly in Advanced mode
+
+The Advanced strip is short, so the illustration is cropped to the body and the
+last five frets when the whole guitar would collapse into a smudge, and it is
+drawn at a level of detail the size can show - fewer grain strokes, flakes and
+dings, not all of them. Nothing has moved: pickups, switch and knobs still
+respond, and the visible stub of the neck opens the tuning when the headstock
+is out of frame. Easy mode shows the whole guitar at full detail, and a taller
+window gives the strip more room. If the strip is not showing the guitar at
+all, check the FRETS | ROLL toggle has not swapped the fretboard for the string
+roll.
+
+---
+
 ## The plugin crashes
 
 1. Open **Help > Open Debug Tools** (`Ctrl + D`), or Options > DIAGNOSTICS.
@@ -203,7 +260,7 @@ Set Mic Width to zero to check. If the thinness goes away, that was it.
 3. Reproduce the crash.
 4. Reopen the plugin and press **Export troubleshooting file**.
 5. Send **both** files, from `Documents/Luthier/Diagnostics`, to
-   `support@luthieraudio.example`, with a description of what you were doing.
+   `sheldon.davidson@gmail.com`, with a description of what you were doing.
 
 The two files do different jobs:
 

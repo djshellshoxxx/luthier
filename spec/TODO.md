@@ -10,27 +10,31 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 
 ## In progress
 
-- [ ] **RESUME HERE (stopped 2026-09-24).** The last commit is not built.
-      1. Build LuthierTests; fix compile errors in the scrape and strum
-         integration (ScrapeEngine, StrumGesture, StrumGroup and their edits
-         to LuthierEngine, Parameters, RhythmEngine, Patterns,
-         MidiInterpreter, StringEngine, PluginProcessor, RhythmPanel,
-         EasyPanel, NoiseGroups, presets). Likely snags the author named:
-         `std::find` in RhythmEngine.cpp, StrumGestureTests' UI includes.
-      2. Run `Scrape`, `ScrapeEngineWiring`, `StrumDynamics`, then the full
-         suite (677 were green before). Untuned thresholds to expect:
-         chuckKillsPitch, the engine-level striker-noise test,
-         anActiveScrapeStaysInBudget.
-      3. Update docs/spec-coverage.md: SCR-*, SD-*, AR-6 rows.
-      4. Integrate Source/WIP: SlapEngine + TechniqueTriggers (params
-         426-450, count 450; ghost damping goes after the chuck line using
-         Damping::Chuck), then FirstRun / FirstEncounterHint (TODO 14c:
-         editor ctor `FirstRun::applyIfFirstRun()`, TestMain
-         `setStateForTesting (true, false)`, DiagnosticsPage "Restore
-         first-run experience", TunePanel / WorkshopPanel hints, UiState
-         practiceDrawerOpen, and five HelpContent text corrections). The
-         assistants' full edit lists are in the session transcript.
-      5. Next specs: muting-rhythm.md, then the rest of 13b.
+- [ ] **RESUME HERE (session 2026-09-24, Linux build).** The tree now builds
+      on Linux (GCC 13, JUCE 8.0.10 cloned into ThirdParty/JUCE; `scripts/build.sh`
+      builds through a lock and runs the suite under xvfb). The scrape and
+      strum integration compiled after GCC portability fixes and the full
+      suite was 720 / 721 green (chuckKillsPitch the one failure, being fixed).
+      In flight, by assistant builders, from `spec/issues.md` (the user's
+      play-test list): pedals built straight from a UI pick + the rack race
+      + fingers audibility (2), chords on free strings + RESET & STOP (3),
+      MIDI import into the Tune Builder + File menu items, the string roll
+      (done, NOTATION tab and the FRETS | ROLL strip toggle), guitar
+      illustration level-of-detail and shading (G), chuck pitch (8).
+      Remaining from the old list:
+      1. Update docs/spec-coverage.md: SCR-*, SD-*, AR-6 rows, and the
+         issues.md fixes.
+      2. [x] Source/WIP integrated (2026-09-24): SlapEngine + TechniqueTriggers
+         (params 426-450), Muting (muting-rhythm.md; params 451-458, count
+         458; Mute Row + MUTE group on RHYTHM, Easy Mute button), FirstRun /
+         FirstEncounterHint (TODO 14c: editor ctor, TestMain, DiagnosticsPage
+         Restore, TUNE / Workshop hints, UiState practiceDrawerOpen, five
+         HelpContent corrections - see DECISIONS). Left: the TECHNIQUES tab
+         itself (host SlapGroup + MuteGroup, Easy pill row), the scrape onto
+         TechniqueTriggers, muting in MIDI export (muting-rhythm 8), the
+         Playing-strip Slap / Pop tool options (string-slap 6), the cascade
+         view. Source/WIP is gone; the CMake exclusion regex is now inert.
+      3. Next specs: the rest of 13b.
 
 - [ ] **G. Realistic guitar illustration** - IN PROGRESS. Built and green
       (432 tests): `GuitarRenderer` draws every factory guitar from its parts
@@ -149,8 +153,10 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       with ROUTING (6) incl. EVENTS (noise triggers as Luthier SysEx on their
       sample) and WORKSHOP (part fits); the header's "Save last MIDI take"
       uses the defaults; TUNE source done. Remaining:
-      CHARACTER seed / environment events, import UI (5: File -> Import,
-      drop a .mid, target choice), marked-region / current-section ranges,
+      CHARACTER seed / environment events, marked-region / current-section
+      ranges; import UI (5) done into the Tune Builder (`TuneImport`,
+      File -> Import MIDI..., drop a .mid on the window, TUNE tab IMPORT;
+      `TuneImportTests`) - the session-recorder / looper targets remain,
       drag from the session recorder's own Save button (practice drawer).
       Residual: a brand-new engine's
       first 7-string render after a 6-string one differs from the next by
@@ -179,7 +185,9 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       stems and MIDI via profiles (9, C-53); kit suggested tempo (2.1);
       Ctrl+T in the shortcut registry; hum capture (13); mod routes over the
       timeline / snapshots / looper (14); tests 15-07 (offline vs live),
-      15-08 (MIDI re-import), 15-09 (hum), 15-10 (standalone relaunch);
+      15-09 (hum), 15-10 (standalone relaunch) - 15-08 (MIDI re-import) done
+      in `TuneImportTests` (export -> import -> equal chords / melody /
+      bass / sections / tempo, and the re-export is byte-identical);
       a processor-level state-boundary test; the tune's own undo stack is
       separate from the plugin's.
 - [ ] 13. HELP tab (column 4): `HelpTab` / `HelpContent`, the tab and the
@@ -205,13 +213,28 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
       build (GAPS.md "Not audited yet"); fix what they find.
 - [ ] 14b. `action-and-undo.md`: audit entry classes, grouping and state
       boundaries against the snapshot undo stack (fixed off-by-one in c0b05eb).
-- [ ] 14c. Onboarding: "Restore first-run experience" in Options ->
-      Diagnostics must also clear `ranges_first_unlock_explained`.
+- [x] 14c. Onboarding: "Restore first-run experience" in Options ->
+      Diagnostics must also clear `ranges_first_unlock_explained` (it empties
+      UiPreferences; `FirstRun.restoreClearsTheSettings...` checks the flag).
 - [ ] 15. Polish pass, performance pass, onboarding pass (brief steps 7-9).
 - [ ] 16. Installer pass (brief step 10). The platform matrix cannot be run
       from this Windows-only machine; see DECISIONS.md when reached.
+      - [x] Linux (2026-09-24): `LUTHIER_BUILD_PACKAGES` + CPack .deb and
+            .tar.gz (installer 3, 4), `installer/linux/` (desktop, MIME,
+            icons, postinst/postrm, install.sh / uninstall.sh,
+            THIRD_PARTY_LICENCES.txt, `.installed_version`),
+            `scripts/release.sh` (checksums, manifest.json, signing hook;
+            installer 10), `installer/linux/test-install.sh` (installer 13
+            install / uninstall / re-install / purge), docs/INSTALL_LINUX.md.
+      - [ ] Windows (1), macOS (2), .rpm, signing keys, content packages
+            (11), file-association open-from-argv in the standalone.
 - [ ] 17. Bug bash and final check (brief steps 11-12).
-- [ ] 18. Plugin targets (`Luthier_VST3`, `Luthier_Standalone`) build clean.
+- [x] 18. Plugin targets (`Luthier_VST3`, `Luthier_Standalone`) build clean
+      (Linux, 2026-09-24: `flock build/.build.lock ninja -C build Luthier_VST3
+      Luthier_Standalone`; three fixes on the way - `ScrollHintViewport`'s
+      ambiguous ComponentListener base, `SectionExtrasHolder::Ptr`,
+      `NotationExportTask.cpp` missing juce_events; only deprecation and
+      -Winaccessible-base warnings remain).
 
 ## Done
 

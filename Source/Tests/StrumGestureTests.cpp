@@ -855,8 +855,8 @@ LUTHIER_TEST (StrumDynamics, humanisedTimingMovesTheWholeGesture)
 
 /*  8: "Live spread wins. A keyboard chord with 40 ms of note spread produces a
     crossing of 40 ms, not the pattern's." With the chord window wide enough to
-    group it and with the default 2 ms window that splits it, the notes sound
-    at their own arrival, one window late. */
+    group it and with a 2 ms window that splits it, the notes sound at their
+    own arrival, one window late. */
 LUTHIER_TEST (StrumDynamics, liveSpreadWins)
 {
     const int step = (int) (0.008 * kSr);   // 8 ms between notes, 40 ms in all

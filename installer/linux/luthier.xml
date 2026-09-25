@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Luthier file types (spec/file-formats.md 1, installer.md 3.1).
+  Installed to /usr/share/mime/packages/luthier.xml or
+  ~/.local/share/mime/packages/luthier.xml; update-mime-database compiles it.
+  Every Luthier file is JSON with a "magic" field, hence the sub-class-of.
+-->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-luthier-preset">
+    <comment>Luthier preset</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.luthierpreset"/>
+    <icon name="luthier"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-guitar">
+    <comment>Luthier guitar</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.luthierguitar"/>
+    <icon name="luthier"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-part">
+    <comment>Luthier guitar part</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.luthierpart"/>
+    <icon name="luthier"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-tune">
+    <comment>Luthier tune</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.luthiertune"/>
+    <icon name="luthier"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-pattern">
+    <comment>Luthier rhythm pattern</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.luthierpattern"/>
+    <icon name="luthier"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-setlist">
+    <comment>Luthier setlist</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.luthierset"/>
+    <icon name="luthier"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-loop">
+    <comment>Luthier looper save</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.luthierloop"/>
+    <icon name="luthier"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-content">
+    <comment>Luthier content update</comment>
+    <glob pattern="*.luthiercontent"/>
+    <icon name="luthier"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-midprofile">
+    <comment>Luthier MIDI export profile</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.midprofile"/>
+    <icon name="luthier"/>
+  </mime-type>
+</mime-info>

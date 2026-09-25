@@ -147,6 +147,16 @@ private:
     void rebuildScene (bool force);
     void rebuildCache();
 
+    /** Where the guitar is fitted: the bounds less the padding and the name plate. */
+    juce::Rectangle<float> fitArea() const;
+    float displayScale() const;
+
+    /** True when a body-cropped frame has put the headstock off the left edge. */
+    bool headstockIsOutOfFrame() const;
+
+    /** In a cropped frame, the visible neck stands in for the headstock (tuning). */
+    bool isNeckStubForTuning (juce::Point<float> px, GuitarRegion region) const;
+
     juce::Point<float> toMm (juce::Point<float> px) const;
     GuitarRegion regionAt (juce::Point<float> px) const;
     int knobAt (juce::Point<float> px) const;

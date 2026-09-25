@@ -86,12 +86,11 @@ namespace HelpContent
     juce::String formatShortcutRows (const std::vector<ShortcutRow>& rows);
 
     //==========================================================================
-    /*  include.md: homepage, source and support. These are the addresses the
-        Help overlay has always carried, and they are placeholders: INC-HLP-02 in
-        docs/spec-coverage.md is the release blocker that replaces them. */
-    inline constexpr const char* homepageUrl  = "https://luthieraudio.example/luthier";
-    inline constexpr const char* sourceUrl    = "https://github.com/luthieraudio/luthier";
-    inline constexpr const char* supportEmail = "support@luthieraudio.example";
+    /*  include.md: homepage, source and support. The project has no separate
+        homepage, so both links go to the repository (private for now). */
+    inline constexpr const char* homepageUrl  = "https://github.com/djshellshoxxx/luthier";
+    inline constexpr const char* sourceUrl    = "https://github.com/djshellshoxxx/luthier";
+    inline constexpr const char* supportEmail = "sheldon.davidson@gmail.com";
 
     /** A mailto: with the version in the subject, so support knows what it is
         looking at before the troubleshooting file arrives. */

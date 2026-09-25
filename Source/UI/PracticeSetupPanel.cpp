@@ -1965,6 +1965,11 @@ void PracticeSetupPanel::writeSessionSetup (bool applyToRecorder)
 
     if (auto* recorder = context.targets.sessionRecorder)
     {
+        // What it records and whether stopping saves cost nothing to change,
+        // so a running recorder takes them at once: "record MIDI only" ticked
+        // while recording stops the audio side from the next block.
+        sessionSetup.applySwitchesTo (*recorder);
+
         if (applyToRecorder && recorder->isEnabled()
             && std::abs (recorder->getCapacityMinutes() - sessionSetup.ringMinutes) > 0.01)
         {

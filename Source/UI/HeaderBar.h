@@ -19,9 +19,22 @@ namespace luthier
 class LuthierAudioProcessor;
 
 //==============================================================================
+/** A TextButton whose label breaks at its " & " onto two lines, so RESET & STOP
+    takes the width of one header button rather than two. The look and feel
+    still draws the background, the colours and the state. */
+class TwoLineTextButton : public juce::TextButton
+{
+public:
+    using juce::TextButton::TextButton;
+
+    void paintButton (juce::Graphics& g, bool isHighlighted, bool isDown) override;
+};
+
+//==============================================================================
 class HeaderBar : public juce::Component,
                   private juce::ChangeListener,
-                  private juce::Timer
+                  private juce::Timer,
+                  private juce::AudioProcessorListener
 {
 public:
     explicit HeaderBar (LuthierAudioProcessor& processor);
@@ -46,6 +59,13 @@ public:
     std::function<void()> onOpenExport;
     std::function<void()> onOpenPresetBrowser;
     std::function<void()> onSaveAs;
+
+    /** gui-integration 19: File -> New Tune... (the TUNE tab's template picker)
+        and File -> Import MIDI... (midi-export 5, into the Tune Builder). The
+        editor owns the TUNE tab, so both go out to it; unset, the items are
+        disabled rather than missing. */
+    std::function<void()> onNewTune;
+    std::function<void (const juce::File&)> onImportMidi;
 
     /** gui-integration 19: the header MIDI Learn button. */
     std::function<void (bool)> onMidiLearnArmChanged;
@@ -77,6 +97,17 @@ private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void timerCallback() override;
 
+    /*  AudioProcessorListener, for one thing: the guitar selector's gesture.
+        A guitar the player picks - here, or in a host's generic editor - ends
+        a gesture; a snapshot, a setlist entry or automation moving guitar_type
+        does not. The pass that loads a picked guitar sets use_fingers from
+        it (ParameterBridge::followGuitarHandOnNextLoad); the others keep the
+        use_fingers they carry. Value changes arrive on any thread, including
+        the audio thread, and are ignored. */
+    void audioProcessorParameterChanged (juce::AudioProcessor*, int, float) override {}
+    void audioProcessorChanged (juce::AudioProcessor*, const ChangeDetails&) override {}
+    void audioProcessorParameterChangeGestureEnd (juce::AudioProcessor*, int parameterIndex) override;
+
     void showFileMenu();
     void updateUndoRedoState();
     void updateModeButtonEnablement();
@@ -96,6 +127,9 @@ private:
     juce::TextButton compareA { "A" }, compareB { "B" }, copyAB { "A>B" };
     juce::TextButton undoButton { "Undo" }, redoButton { "Redo" };
     juce::TextButton panicButton { "Panic" };
+
+    /** RESET & STOP: everything off and every setting back to default. */
+    TwoLineTextButton resetStopButton;
     juce::TextButton midiLearnButton { "Learn" };
     juce::TextButton helpButton { "?" };
     juce::TextButton modeButton { "Advanced" };
@@ -103,6 +137,20 @@ private:
 
     /** slide-guitar.md 7: Slide Mode is a header toggle (shortcut S). */
     juce::TextButton slideButton { "Slide" };
+
+    /*  Lit while the rhythm engine is on. Picking a genre in Easy mode switches
+        it on silently, and then held chords are strummed by a pattern instead
+        of ringing; this makes that visible and one click undoes it. */
+    juce::TextButton rhythmButton { "Rhythm" };
+    bool rhythmWasDriving = false;
+
+public:
+    juce::TextButton& getRhythmButton() noexcept { return rhythmButton; }
+
+    /** What the 6 Hz timer does, now: undo/redo, padlock, Slide and Rhythm. */
+    void refreshIndicators() { timerCallback(); }
+
+private:
     juce::TextButton workshopButton { "Workshop" };
 
     bool advancedMode = false;

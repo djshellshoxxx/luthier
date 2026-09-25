@@ -197,6 +197,23 @@ private:
 
     // Delay line for the mic-B time-of-flight alignment.
     std::vector<double> alignBuffer;
+
+    /*  The last kHistorySamples of the mono signal the mics see. A response is
+        installed by pumping silence through juce::dsp::Convolution
+        (ConvolutionInstaller), which also fills the convolver's latency buffer
+        with silence: the first getLatency() samples it then produces are zeros,
+        a hole of one block with a hard edge at each end, on every cabinet
+        change under a sounding note (a preset morph crossing 0.5 measured a
+        0.17 step). So a newly installed response is primed with what was
+        actually playing before it is handed to the audio thread, and its
+        first block is the tail of the note under the new cabinet. Written by
+        the audio thread, read on the loading thread: a sample torn between
+        the two is a rounding error in the primed tail, never a fault. */
+    static constexpr int kHistorySamples = 16384;   // a power of two: 340 ms at 48 kHz
+    std::vector<double> inputHistory;
+    int historyIndex = 0;
+
+    void primeConvolution (juce::dsp::Convolution& convolution);
     int alignSize = 0, alignMask = 0, alignIndex = 0, alignSamples = 0;
 
     juce::AudioBuffer<float> bufferA, bufferB;
