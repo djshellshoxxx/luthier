@@ -584,13 +584,13 @@ TuningPopover::TuningPopover (LuthierAudioProcessor& p)
         AccessibleSetup::configureSlider (*slider, "String " + juce::String (i + 1) + " detune",
                                           " cents");
 
-        /*  An undo entry per gesture rather than per value change: a drag is one
-            action to the user, and action-and-undo.md asks for the undo stack to
-            match what they think they did. */
-        slider->onDragStart = [this] { processor.pushUndoState ("Detune string"); };
-
+        /*  action-and-undo.md 4: one entry per string, grouped over 200 ms, so a
+            drag is one action - and a wheel or keyboard change, which never
+            started a drag, still makes one. */
         slider->onValueChange = [this, i, slider]
         {
+            processor.pushUndoAction ("Detune string " + juce::String (i + 1), "string-detune", juce::String (i));
+
             // tuning-stability.md 5: a lower detune is a string brought down to pitch.
             auto& engine = processor.getEngine();
             const double before = engine.getStabilityBasePitch (i);

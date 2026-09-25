@@ -729,7 +729,7 @@ bool LuthierAudioProcessor::switchGuitarFamily (const juce::String& family)
     if (! partLibrary.switchFamily (currentGuitar, family, switched, banner))
         return false;
 
-    pushUndoBoundary ("Change guitar family to " + family);   // action-and-undo.md 3.4 / 5
+    pushUndoBoundary ("Change guitar family to " + family, UndoHistory::kFamilySwitchClass);   // action-and-undo.md 3.4 / 5
 
     // The guitar now stands for its template's type.
     const auto path = PartLibrary::getFamilyTemplate (family);
@@ -2021,6 +2021,29 @@ bool LuthierAudioProcessor::recallSnapshotAsUserAction (int index)
     return recallSnapshot (index);
 }
 
+void LuthierAudioProcessor::renameSnapshotAsUserAction (int index, const juce::String& label)
+{
+    pushUndoAction ("Rename snapshot " + juce::String (index + 1) + " to " + label,
+                    "snapshot-rename", juce::String (index));   // grouped: typing
+    snapshots.setLabel (index, label);
+}
+
+void LuthierAudioProcessor::setSnapshotColourAsUserAction (int index, int colourTag)
+{
+    pushUndoAction ("Change snapshot " + juce::String (index + 1) + " colour", "snapshot-color", {});
+    snapshots.setColourTag (index, colourTag);
+}
+
+void LuthierAudioProcessor::deleteSnapshotAsUserAction (int index, bool removeSlot)
+{
+    pushUndoAction ("Delete snapshot " + juce::String (index + 1), "snapshot-delete", {});
+
+    if (removeSlot)
+        snapshots.remove (index);
+    else
+        snapshots.setSnapshot (index, Snapshot {});
+}
+
 void LuthierAudioProcessor::nextSnapshot()
 {
     const int count = snapshots.getNumSnapshots();
@@ -2394,9 +2417,10 @@ void LuthierAudioProcessor::pushUndoAction (const juce::String& description,
     undoHistory.push (std::move (entry));
 }
 
-void LuthierAudioProcessor::pushUndoBoundary (const juce::String& description)
+void LuthierAudioProcessor::pushUndoBoundary (const juce::String& description, const juce::String& actionClass)
 {
     UndoHistory::Entry entry;
+    entry.actionClass = actionClass;
     entry.before = captureStateBlock();
     entry.description = description;
     entry.boundary = true;
@@ -2436,6 +2460,10 @@ void LuthierAudioProcessor::undoOnce (bool crossBoundary)
     // Where we are now is what redo comes back to.
     entry->after = captureStateBlock();
     applyUndoState (entry->before);
+
+    // action-and-undo.md 8: undoing a family switch says what it cannot keep.
+    if (entry->actionClass == UndoHistory::kFamilySwitchClass)
+        guitarNotices.addIfNotAlreadyThere (UndoHistory::kFamilySwitchUndoWarning);
 }
 
 void LuthierAudioProcessor::undo()               { undoOnce (false); }

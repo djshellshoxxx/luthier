@@ -87,7 +87,9 @@ public:
 
     /** Message thread: finishes a learn the audio thread caught now, rather than
         when the async update arrives (tests, and anything that cannot wait). */
-    void dispatchPendingLearn() { handleUpdateNowIfNeeded(); }
+    // The audio thread no longer posts an update (it only stores learnedCc), so
+    // handleUpdateNowIfNeeded had nothing pending: finish the learn directly.
+    void dispatchPendingLearn() { handleAsyncUpdate(); }
 
     //==========================================================================
     juce::var toVar() const;

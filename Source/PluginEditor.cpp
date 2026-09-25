@@ -3,6 +3,7 @@
 #include "UI/CpuReliefUi.h"
 #include "UI/FirstRun.h"
 #include "UI/RangesUi.h"
+#include "UI/UiPreferences.h"
 #include "Accessibility/Accessibility.h"
 
 namespace luthier
@@ -433,6 +434,12 @@ void LuthierAudioProcessorEditor::paint (juce::Graphics& g)
                 + "    latency " + juce::String (processor.getLatencySamples()) + " smp",
                 footer.reduced (Metrics::windowPadding, 0),
                 juce::Justification::centredLeft, false);
+
+    // action-and-undo.md 12: Options -> Diagnostics "Show undo depth".
+    if (UiPreferences::get().getBool (UndoHistory::kShowDepthPreference, false))
+        g.drawText (UndoHistory::describeDepth (processor.getNumUndoSteps(), processor.getNumRedoSteps()),
+                    footer.reduced (Metrics::windowPadding, 0).withTrimmedRight (70),
+                    juce::Justification::centredRight, false);
 }
 
 void LuthierAudioProcessorEditor::resized()

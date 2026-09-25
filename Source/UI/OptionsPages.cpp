@@ -8,6 +8,7 @@
 #include "NoiseGroups.h"
 #include "StageTouches.h"
 #include "CpuReliefUi.h"
+#include "UiPreferences.h"
 #include "VisualAids.h"
 
 namespace luthier
@@ -2163,6 +2164,15 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
     };
 
     // performance-budget.md 8: relief 7 is opt-out here, default on.
+    // action-and-undo.md 12: "Show undo depth" puts "Undo: N / 200; Redo: M" in the footer.
+    addAndMakeVisible (undoDepthToggle);
+    undoDepthToggle.setTooltip ("Adds the undo and redo counts to the footer, for support and for "
+                                "checking that a slow drag is one step.");
+    undoDepthToggle.onClick = [this]
+    {
+        UiPreferences::get().setBool (UndoHistory::kShowDepthPreference, undoDepthToggle.getToggleState());
+    };
+
     addAndMakeVisible (cpuDropToggle);
     cpuDropToggle.setTitle ("Drop strings under CPU overload");
     cpuDropToggle.setTooltip ("The last resort when the computer cannot keep up: the least recently "
@@ -2292,6 +2302,8 @@ void DiagnosticsPage::refresh()
 
     recorderToggle.setToggleState (recorder.isEnabled(), juce::dontSendNotification);
     cpuDropToggle.setToggleState (CpuReliefUi::isStringDropAllowed(), juce::dontSendNotification);
+    undoDepthToggle.setToggleState (UiPreferences::get().getBool (UndoHistory::kShowDepthPreference, false),
+                                    juce::dontSendNotification);   // action-and-undo.md 12
 
     recorderNote.setText (
         "Buffer: " + juce::String (recorder.getCapacityMinutes(), 1) + " minutes allocated, "
@@ -2323,6 +2335,7 @@ void DiagnosticsPage::resized()
     recorderToggle.setBounds (bounds.removeFromTop (22));
     recorderNote.setBounds (bounds.removeFromTop (16));
     cpuDropToggle.setBounds (bounds.removeFromTop (22));
+    undoDepthToggle.setBounds (bounds.removeFromTop (22));   // action-and-undo.md 12
 
     bounds = getLocalBounds().withTrimmedTop (172);
 

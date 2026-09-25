@@ -435,9 +435,7 @@ void LivePanel::captureSelected()
 
 void LivePanel::clearSelected()
 {
-    processor.pushUndoAction ("Delete snapshot " + juce::String (grid.getSelectedSlot() + 1),
-                              "snapshot-delete", {});   // action-and-undo.md 3.7
-    processor.getSnapshots().remove (grid.getSelectedSlot());
+    processor.deleteSnapshotAsUserAction (grid.getSelectedSlot(), true);   // action-and-undo.md 3.7
     refresh();
 }
 
@@ -464,9 +462,7 @@ void LivePanel::renameSelected()
 
     editor->onReturnKey = [this, editor, slot, &box]
     {
-        processor.pushUndoAction ("Rename snapshot " + juce::String (slot + 1), "snapshot-rename",
-                                  juce::String (slot));   // action-and-undo.md 3.7
-        processor.getSnapshots().setLabel (slot, editor->getText());
+        processor.renameSnapshotAsUserAction (slot, editor->getText());   // action-and-undo.md 3.7
         refresh();
         box.dismiss();
     };

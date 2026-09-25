@@ -196,6 +196,10 @@ public:
         setlist recalls use recallSnapshot and push nothing. */
     bool captureSnapshotAsUserAction (int index, const juce::String& label = {});
     bool recallSnapshotAsUserAction (int index);
+    void renameSnapshotAsUserAction (int index, const juce::String& label);
+    void setSnapshotColourAsUserAction (int index, int colourTag);
+    /** `removeSlot` erases the slot (the bank shifts); false empties it in place. */
+    void deleteSnapshotAsUserAction (int index, bool removeSlot);
 
     void nextSnapshot();
     void previousSnapshot();
@@ -478,7 +482,7 @@ public:
     void pushUndoAction (const juce::String& description, const juce::String& actionClass,
                          const juce::String& target);
     /** A state boundary (5): preset / guitar load, family switch, setlist step. */
-    void pushUndoBoundary (const juce::String& description);
+    void pushUndoBoundary (const juce::String& description, const juce::String& actionClass = {});
     /** An entry for state outside the blob: undo/redo call the functions. */
     void pushUndoCallback (const juce::String& description, const juce::String& actionClass,
                            const juce::String& target, std::function<void()> undoFn,

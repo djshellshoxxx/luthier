@@ -223,9 +223,7 @@ void SnapshotStrip::showSlotMenu (int index)
 
             editor->onReturnKey = [this, editor, index, &box]
             {
-                processor.pushUndoAction ("Rename snapshot " + juce::String (index + 1), "snapshot-rename",
-                                          juce::String (index));   // action-and-undo.md 3.7
-                processor.getSnapshots().setLabel (index, editor->getText());
+                processor.renameSnapshotAsUserAction (index, editor->getText());   // action-and-undo.md 3.7
                 refresh();
                 repaint();
 
@@ -236,13 +234,11 @@ void SnapshotStrip::showSlotMenu (int index)
         }
         else if (result == 3)
         {
-            processor.pushUndoAction ("Delete snapshot " + juce::String (index + 1), "snapshot-delete", {});
-            processor.getSnapshots().setSnapshot (index, Snapshot {});
+            processor.deleteSnapshotAsUserAction (index, false);   // action-and-undo.md 3.7
         }
         else if (result >= 100 && result < 100 + Snapshot::kNumColourTags)
         {
-            processor.pushUndoAction ("Change snapshot " + juce::String (index + 1) + " colour", "snapshot-color", {});
-            processor.getSnapshots().setColourTag (index, result - 100);
+            processor.setSnapshotColourAsUserAction (index, result - 100);   // action-and-undo.md 3.7
         }
 
         refresh();

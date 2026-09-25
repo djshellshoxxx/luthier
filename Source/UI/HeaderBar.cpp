@@ -1,4 +1,5 @@
 #include "HeaderBar.h"
+#include "UndoHistoryPanel.h"
 #include "MidiOutPanel.h"
 #include "MidiExportDefaults.h"
 #include "NotationPanel.h"
@@ -305,13 +306,12 @@ void HeaderBar::applyUndoHistoryChoice (LuthierAudioProcessor& processor, int re
 
 void HeaderBar::showUndoHistory()
 {
-    buildUndoHistoryMenu (processor).showMenuAsync (
-        juce::PopupMenu::Options().withTargetComponent (&fileMenuButton),
-        [safeThis = juce::Component::SafePointer<HeaderBar> (this)] (int result)
-        {
-            if (safeThis != nullptr)
-                applyUndoHistoryChoice (safeThis->processor, result);
-        });
+    // action-and-undo.md 9: the list with its search box, in a callout.
+    auto panel = std::make_unique<UndoHistoryPanel> (processor);
+    auto* raw = panel.get();
+
+    auto& box = juce::CallOutBox::launchAsynchronously (std::move (panel), fileMenuButton.getScreenBounds(), nullptr);
+    raw->onChosen = [&box] { box.dismiss(); };
 }
 
 void HeaderBar::showFileMenu()
