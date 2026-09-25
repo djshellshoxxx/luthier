@@ -41,7 +41,7 @@ public:
                             .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
           apvts (*this, nullptr, "LUTHIER", Parameters::createLayout()),
           bridge (apvts, engine),
-          presets (*this, apvts, engine)
+          presets (*this, apvts, engine, ranges)
     {
         // Same order as the plugin: the recipes need the parameter ranges before
         // the bank can be written, and the bank has to be on disk before a scan
@@ -84,6 +84,10 @@ public:
     LuthierEngine engine;
     juce::AudioProcessorValueTreeState apvts;
     ParameterBridge bridge;
+
+    // The preset manager reads and writes each preset's ranges block through
+    // this (advanced-ranges.md); it must be declared, and so built, before it.
+    RangeState ranges;
     PresetManager presets;
 };
 
