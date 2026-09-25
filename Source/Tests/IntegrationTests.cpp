@@ -9,6 +9,7 @@
 #include "TestFramework.h"
 
 #include "../LuthierEngine.h"
+#include "../DSP/Common/Oversampler.h"
 #include "../Parameters.h"
 #include "../Presets/PresetManager.h"
 #include "../Presets/FactoryPresets.h"
@@ -1825,7 +1826,15 @@ LUTHIER_TEST (Presets, dcNullOnSilentInput)
     output getLatencySamples() later, within one sample. The sidechain enters
     after the string and body stages, so the expected delay is the main output's
     latency minus the DI tap's (midi + body), both from the engine's own
-    accounting. */
+    accounting.
+
+    Oversampling is off here. The oversamplers are all-pass IIR, whose impulse
+    starts several samples before their delay, so an onset measurement cannot
+    check them; what remains (convolution, limiter lookahead) is a clean shift
+    that it can. The oversamplers' own figure is checked with a tone in
+    Oversampler.reportedLatencyIsItsGroupDelayInTheGuitarBand, and the last
+    check here holds the accounting: turning oversampling on adds exactly the
+    oversampler's reported latency for each oversampled stage in the path. */
 LUTHIER_TEST (Plugin, reportedLatencyMatchesAnImpulseWithinOneSample)
 {
     LuthierAudioProcessor processor;
@@ -1844,6 +1853,29 @@ LUTHIER_TEST (Plugin, reportedLatencyMatchesAnImpulseWithinOneSample)
     processor.getRouting().setSidechainToAmp (true);
 
     auto& engine = processor.getEngine();
+    const int oversampledLatency = engine.getLatencySamples();
+
+    if (auto* os = processor.getState().getParameter (ParamIDs::oversample))
+        os->setValueNotifyingHost (os->convertTo0to1 (0.0f));   // "1x (Off)"
+
+    processor.getParameterBridge().applyAllNow();
+    processor.prepareToPlay (kSr, kBlock);
+
+    CHECK_MSG (engine.getOversamplingFactor() == 1,
+               "oversampling is still " + juce::String (engine.getOversamplingFactor()) + "x");
+
+    // Turning oversampling on adds a whole number of oversamplers' worth.
+    {
+        Oversampler probe;
+        probe.prepare (kSr, 4);
+        const int perStage = probe.getLatencySamples();
+        const int added = oversampledLatency - engine.getLatencySamples();
+
+        CHECK_MSG (perStage > 0 && added > 0 && added % perStage == 0,
+                   "4x oversampling added " + juce::String (added) + " samples; one stage reports "
+                     + juce::String (perStage));
+    }
+
     const int reported = processor.getLatencySamples();
     const int expected = engine.getLatencySamples() - engine.getLatencySamples (AuxBus::di);
 

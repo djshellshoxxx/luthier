@@ -1652,49 +1652,83 @@ LUTHIER_TEST (Engine, effectsChainResetFromTheAudioThreadNeverWaitsForAPedalPick
     CHECK (! chain.isResetPending());
 }
 
-/*  The oversampler's reported latency against what an impulse does. The
-    half-band branches are IIR all-passes, so the figure is the group delay
-    near DC and the response starts a little before it; the numbers here are
-    what the plugin latency test allows for. */
-LUTHIER_TEST (Oversampler, reportedLatencyIsTheGroupDelayNotTheOnset)
+/*  The oversampler's reported latency against what it really delays. The
+    half-band branches are IIR all-passes, so there is no one delay: the
+    impulse response starts early and peaks late, and what the host's delay
+    compensation needs is the group delay across the guitar band. Measured
+    here as the phase delay of a sine at 100 Hz, 1 kHz and 4 kHz (a lag found
+    by cross-correlation, refined to a fraction of a sample), which is what a
+    host lines up against the dry track. */
+LUTHIER_TEST (Oversampler, reportedLatencyIsItsGroupDelayInTheGuitarBand)
 {
     for (int factor : { 2, 4, 8 })
     {
         Oversampler os;
         os.prepare (kSr, factor);
-        os.reset();
 
+        // ---- impulse: onset and peak ---------------------------------------------
+        os.reset();
         const int n = 64;
         std::vector<double> h ((size_t) n);
 
         for (int i = 0; i < n; ++i)
             h[(size_t) i] = os.processSample (i == 0 ? 1.0 : 0.0, [] (double v) noexcept { return v; });
 
-        double peak = 0.0, sum = 0.0, weighted = 0.0;
-        for (int i = 0; i < n; ++i) { peak = juce::jmax (peak, std::abs (h[(size_t) i])); sum += h[(size_t) i]; weighted += i * h[(size_t) i]; }
+        double peak = 0.0;
+        int peakAt = 0;
+        for (int i = 0; i < n; ++i)
+            if (std::abs (h[(size_t) i]) > peak) { peak = std::abs (h[(size_t) i]); peakAt = i; }
 
-        auto onsetAt = [&] (double fraction)
+        int onset = -1;
+        for (int i = 0; i < n; ++i)
+            if (std::abs (h[(size_t) i]) > peak * 1.0e-4) { onset = i; break; }
+
+        // ---- sine phase delay --------------------------------------------------
+        auto phaseDelayAt = [&] (double hz)
         {
-            for (int i = 0; i < n; ++i)
-                if (std::abs (h[(size_t) i]) > peak * fraction)
-                    return i;
-            return -1;
+            // Settle, then fit y = S sin(wn) + C cos(wn) over a whole number of
+            // periods (48 kHz / 100 Hz = 480 samples; 2880 holds 6, 72 and 288
+            // periods of 100 Hz, 1 kHz and 4 kHz). The phase of that fit is the
+            // phase delay; a cross-correlation over a partial period biases low
+            // tones by samples.
+            os.reset();
+            const double w = 2.0 * constants::kPi * hz / kSr;
+            const int settle = 3000, span = 2880;
+            double s = 0.0, c = 0.0;
+
+            for (int i = 0; i < settle + span; ++i)
+            {
+                const double y = os.processSample (std::sin (w * i), [] (double v) noexcept { return v; });
+
+                if (i >= settle)
+                {
+                    s += y * std::sin (w * i);
+                    c += y * std::cos (w * i);
+                }
+            }
+
+            double delay = -std::atan2 (c, s) / w;
+            const double period = kSr / hz;
+
+            while (delay < 0.0)
+                delay += period;
+
+            return delay;
         };
 
-        juce::String taps;
-        for (int i = 0; i < 12; ++i) taps += juce::String (h[(size_t) i], 5) + " ";
-
+        const double d100 = phaseDelayAt (100.0);
+        const double d1k = phaseDelayAt (1000.0);
+        const double d4k = phaseDelayAt (4000.0);
         const int reported = os.getLatencySamples();
-        const int onset = onsetAt (1.0e-4);
-        const double centroid = weighted / sum;
 
-        CHECK_MSG (onset >= reported - 2 && onset <= reported,
-                   "factor " + juce::String (factor) + ": reports " + juce::String (reported)
-                     + ", onset(1e-4) " + juce::String (onset) + ", onset(1e-3) " + juce::String (onsetAt (1.0e-3))
-                     + ", peak at " + juce::String ((int) std::distance (h.begin(), std::max_element (h.begin(), h.end(), [] (double a, double b) { return std::abs (a) < std::abs (b); })))
-                     + ", centroid " + juce::String (centroid, 2) + ", taps " + taps);
-        CHECK_MSG (std::abs (centroid - reported) <= 1.0,
-                   "factor " + juce::String (factor) + ": group delay centroid " + juce::String (centroid, 2)
-                     + " vs reported " + juce::String (reported) + ", taps " + taps);
+        const juce::String numbers ("factor " + juce::String (factor) + ": reports " + juce::String (reported)
+                                      + "; impulse onset(1e-4) " + juce::String (onset) + ", peak at " + juce::String (peakAt)
+                                      + "; phase delay 100 Hz " + juce::String (d100, 2) + ", 1 kHz " + juce::String (d1k, 2)
+                                      + ", 4 kHz " + juce::String (d4k, 2));
+
+        // The figure the host is told should be the guitar-band group delay to
+        // within a sample.
+        CHECK_MSG (std::abs (d1k - reported) <= 1.0, numbers);
+        CHECK_MSG (std::abs (d100 - reported) <= 1.0, numbers);
     }
 }
