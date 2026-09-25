@@ -435,7 +435,7 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                 .withTitle (file != juce::File() ? "Troubleshooting file written" : "Could not write the file")
                 .withMessage (file != juce::File()
                                 ? "Written to\n" + file.getFullPathName()
-                                  + "\n\nSend this to support@luthieraudio.example with a description "
+                                  + "\n\nSend this to sheldon.davidson@gmail.com with a description "
                                     "of the problem."
                                 : "The diagnostics folder could not be written to. Check the folder "
                                   "permissions for Documents/Luthier.")

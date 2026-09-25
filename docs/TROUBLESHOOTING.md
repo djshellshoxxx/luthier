@@ -260,7 +260,7 @@ roll.
 3. Reproduce the crash.
 4. Reopen the plugin and press **Export troubleshooting file**.
 5. Send **both** files, from `Documents/Luthier/Diagnostics`, to
-   `support@luthieraudio.example`, with a description of what you were doing.
+   `sheldon.davidson@gmail.com`, with a description of what you were doing.
 
 The two files do different jobs:
 

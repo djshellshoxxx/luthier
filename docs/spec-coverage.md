@@ -2999,7 +2999,7 @@ updating.
 | ID | Requirement (short) | Source (file §section) | Implementation location | Verification | Status |
 |---|---|---|---|---|---|
 | INC-HLP-01 | Help section explaining every feature, workflow, GUI | include.md §Help | `HelpContent` - 28 topics, one per column, tab and Options page | `HelpTab::theContentCoversWhatIncludeMdAsksFor`, `everyPanelNamePinsOneTopic` | `verified` |
-| INC-HLP-02 | Help shows version, licence, GitHub link, homepage, support email | include.md §Help | `Overlays.cpp:394-462` | none | `partial` - URLs and email are placeholders (`luthieraudio.example`); release blocker |
+| INC-HLP-02 | Help shows version, licence, GitHub link, homepage, support email | include.md §Help | `Overlays.cpp:394-462` | none | `implemented` - support sheldon.davidson@gmail.com, homepage and source both https://github.com/djshellshoxxx/luthier (private) |
 | INC-HLP-03 | Troubleshooting: manual install/uninstall; where presets go | include.md §Help | Troubleshooting topic with this machine's preset and diagnostics folders; `docs/TROUBLESHOOTING.md` | `HelpTab::theContentCoversWhatIncludeMdAsksFor` | `verified` |
 | INC-HLP-04 | Debug button in help | include.md §Help | HelpTab footer "Open Debug Tools" (same DebugPanel as Options DIAGNOSTICS) | `HelpTab::theContentCoversWhatIncludeMdAsksFor`, `f1AndTheHeaderOpenHelpOnThePanelYouAreIn` | `verified` |
 | INC-ICO-01 | Unique app icon | include.md §Custom Icon | `Resources/icon.png`, `icon_small.png`, `luthier.ico`; `CMakeLists.txt` ICON_BIG | file present | `implemented` |

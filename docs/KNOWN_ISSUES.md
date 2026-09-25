@@ -203,7 +203,7 @@ If you hit something that is not on this list:
 2. If it is a crash, also tick **Create log file on crash**, reproduce it, and
    collect that file too.
 3. Send both, from `Documents/Luthier/Diagnostics`, to
-   `support@luthieraudio.example`, with what you were doing.
+   `sheldon.davidson@gmail.com`, with what you were doing.
 
 The troubleshooting file contains your settings, your host and your audio
 configuration. It contains no audio and nothing personal.
