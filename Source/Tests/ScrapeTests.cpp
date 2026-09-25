@@ -16,6 +16,14 @@
 #include "TestFramework.h"
 
 #if JUCE_WINDOWS
+ // windows.h defines min / max as macros and breaks std::min in every header
+ // included after it; NOMINMAX keeps them out (JUCE builds with it too).
+ #ifndef NOMINMAX
+  #define NOMINMAX
+ #endif
+ #ifndef WIN32_LEAN_AND_MEAN
+  #define WIN32_LEAN_AND_MEAN
+ #endif
  #include <windows.h>
 #else
  #include <time.h>
