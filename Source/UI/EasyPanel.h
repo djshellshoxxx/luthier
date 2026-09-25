@@ -17,12 +17,15 @@
 */
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "RightHandGroup.h"   // REALISM-B
 #include "Widgets.h"
 #include "FretboardComponent.h"
 #include "GuitarBodyComponent.h"
 #include "CircuitPanel.h"
 #include "AmpFacePanel.h"
+#include "PanelHelpButton.h"
 #include "StageTouches.h"
+#include "PianoRollStrip.h"
 
 namespace luthier
 {
@@ -72,6 +75,14 @@ public:
 
     std::function<void()> onOpenExport;
 
+    /** gui-integration 20 (TUNE-HELP-ONBOARDING): a strip's ? asks the editor
+        for Help pinned to it. */
+    std::function<void (const juce::String& topic)> onOpenHelp;
+    std::vector<PanelHelpButton*> getHelpButtons() { return { &rigHelp, &playingHelp, &toneHelp, &rhythmHelp }; }
+
+    /** onboarding 4: the Randomise button the first-week tooltip is on. */
+    juce::Button& getRandomiseButton() noexcept { return randomiseButton; }
+
     void paint (juce::Graphics&) override;
     void resized() override;
 
@@ -112,6 +123,7 @@ private:
     LuthierKnob driveKnob     { "Drive",     LuthierKnob::Size::Small };
     LuthierKnob toneKnob      { "Tone",      LuthierKnob::Size::Small };
     LuthierKnob spaceKnob     { "Space",     LuthierKnob::Size::Small };
+    std::unique_ptr<RightHandToolSelector> toolSelector;   // REALISM-B: fingerstyle-attack.md 7, the Tool selector
     LuthierKnob humanizeKnob  { "Humanize",  LuthierKnob::Size::Small };
     LuthierKnob characterKnob { "Character", LuthierKnob::Size::Small };
     LuthierKnob whammyKnob    { "Whammy",    LuthierKnob::Size::Small };
@@ -134,20 +146,22 @@ private:
     juce::TextButton resetButton { "Reset" };
 
     LevelMeter meter;
-    juce::Label chordLabel;
 
     // visual-polish.md 4 (VISUAL-WORKSHOP-QA): the VU needle and the room light.
     VuMeter vuMeter;
     RoomLight roomLight;
-    juce::OwnedArray<PanelHelpButton> helpButtons;   // gui-integration 20
-    juce::Rectangle<int> roomCardArea;
+    juce::Rectangle<int> ampCardArea;
+
+    // piano-roll-chord-display.md 1: under the guitar, 56 px (Options -> Visual aids).
+    PianoRollStrip pianoRoll { processor, false };
 
 public:
     VuMeter& getVuMeter() noexcept { return vuMeter; }
     RoomLight& getRoomLight() noexcept { return roomLight; }
+    PianoRollStrip& getPianoRoll() noexcept { return pianoRoll; }
     juce::Rectangle<int> getAmpCardArea() const noexcept { return ampCardArea; }
 private:
-    juce::Rectangle<int> ampCardArea;
+    juce::Label chordLabel;
 
     // ---- rhythm strip (3.5) ------------------------------------------------------------
     juce::Label rhythmLabel { {}, "Rhythm" };
@@ -178,6 +192,9 @@ private:
     juce::Array<std::pair<juce::Rectangle<int>, juce::String>> rigCards;
 
     juce::Array<int> stylePresetIndices;
+
+    // gui-integration 20: one ? per strip.
+    PanelHelpButton rigHelp { "Rig" }, playingHelp { "Playing" }, toneHelp { "Tone" }, rhythmHelp { "Rhythm" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EasyPanel)
 };

@@ -62,6 +62,15 @@ public:
     void setStringDropAllowed (bool allowed) noexcept { stringDropAllowed.store (allowed, std::memory_order_relaxed); }
     bool isStringDropAllowed() const noexcept { return stringDropAllowed.load (std::memory_order_relaxed); }
 
+    /** Offline (a host bounce, the offline renderer): no relief - there is no
+        deadline to miss, and an audible step would be printed into the file. */
+    void setOffline (bool offline) noexcept { isOffline.store (offline, std::memory_order_relaxed); }
+
+    /** The test runner turns the ladder off for every instance, so a busy
+        machine cannot drop strings in the middle of an unrelated test; a load
+        override (below) still drives it. */
+    static void setGloballyEnabled (bool enabled) noexcept { globallyEnabled().store (enabled, std::memory_order_relaxed); }
+
     /** Tests: every later update() sees this load instead of the measured one; negative clears it. */
     void setLoadOverrideForTest (double load) noexcept { loadOverride.store (load, std::memory_order_relaxed); }
 
@@ -76,6 +85,9 @@ private:
     std::atomic<int> step { 0 };
     std::atomic<bool> stringDropAllowed { true };
     std::atomic<double> loadOverride { -1.0 };
+    std::atomic<bool> isOffline { false };
+
+    static std::atomic<bool>& globallyEnabled() noexcept { static std::atomic<bool> enabled { true }; return enabled; }
 };
 
 } // namespace luthier

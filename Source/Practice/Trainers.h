@@ -101,8 +101,23 @@ public:
 
     void resetScore() noexcept { correct = 0; asked = 0; }
 
+    //==========================================================================
+    /*  The PRACTICE tab's trainer setup (practice-tools 11.2, MODEL-GAPS TODO
+        11): the notes that count as answers, and how many questions a session
+        is. A note outside the range is not an answer - it is not scored either
+        way. 0 questions is an open-ended session. */
+    void setNoteRange (int lowNote, int highNote) noexcept;
+    int getLowNote() const noexcept { return lowNote; }
+    int getHighNote() const noexcept { return highNote; }
+
+    void setQuestionCount (int count) noexcept { questionCount = juce::jmax (0, count); }
+    int getQuestionCount() const noexcept { return questionCount; }
+    bool isSessionComplete() const noexcept { return questionCount > 0 && asked >= questionCount; }
+
 private:
     void rebuild() noexcept;
+
+    int lowNote = 0, highNote = 127, questionCount = 0;
 
     int root = 0;
     ScaleType scale = ScaleType::ionian;
@@ -175,6 +190,17 @@ public:
 
     void resetScore() noexcept;
 
+    /*  The PRACTICE tab's trainer setup (MODEL-GAPS TODO 11): every note a
+        question plays is moved by octaves into this range where it fits; a
+        session is this many questions (0 is open-ended). */
+    void setNoteRange (int lowNote, int highNote) noexcept;
+    int getLowNote() const noexcept { return lowNote; }
+    int getHighNote() const noexcept { return highNote; }
+
+    void setQuestionCount (int count) noexcept { questionCount = juce::jmax (0, count); }
+    int getQuestionCount() const noexcept { return questionCount; }
+    bool isSessionComplete() const noexcept { return questionCount > 0 && asked >= questionCount; }
+
     //==========================================================================
     /** practice-tools 5: session stats live in the user's practice folder. */
     juce::var statsToVar() const;
@@ -203,6 +229,7 @@ private:
     juce::String questionText;
 
     int correct = 0, asked = 0, streak = 0;
+    int lowNote = 0, highNote = 127, questionCount = 0;
 
     /*  A rolling rate rather than a lifetime one.
 

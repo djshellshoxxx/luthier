@@ -21,6 +21,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "Overlays.h"
+#include "FirstEncounterHint.h"
 #include "Guitar/GuitarRenderer.h"
 #include "Guitar/IllustrationMotion.h"
 #include "../Workshop/SpectrumDelta.h"
@@ -217,6 +218,13 @@ public:
     /*  Section 10: the spectrum delta reaches a screen reader as its summary
         sentence, announced when a new result lands. The last one, for tests. */
     juce::String getLastAnnouncement() const { return lastAnnouncement; }
+    /** onboarding.md 9 (TUNE-HELP-ONBOARDING): the one-time hint under the
+        bench header, first session only. The timer calls it while on screen. */
+    bool showFirstEncounterHintIfDue();
+    FirstEncounterHint& getFirstEncounterHint() noexcept { return firstHint; }
+
+    /** The Easy overlay closes with Escape, so its hint says so; the tab does not. */
+    void setHintSaysEscapeCloses (bool says);
 
 private:
     void timerCallback() override;
@@ -284,6 +292,7 @@ private:
     juce::uint32 limitShownAt = 0;
 
     juce::Rectangle<int> illustrationArea, drawerArea, inspectorArea, setupArea, spectrumArea, headerArea;
+    FirstEncounterHint firstHint { FirstEncounterHint::kWorkshopKey, FirstEncounterHint::kWorkshopText };
     juce::int64 shownGuitarKey = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WorkshopPanel)
@@ -298,6 +307,7 @@ public:
     explicit WorkshopOverlay (LuthierAudioProcessor& processor) : OverlayPanel ("Workshop"), panel (processor)
     {
         addAndMakeVisible (panel);
+        panel.setHintSaysEscapeCloses (true);   // onboarding 9
     }
 
     juce::Point<int> getPreferredSize() const override { return { 1180, 720 }; }

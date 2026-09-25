@@ -274,7 +274,7 @@ LUTHIER_TEST (WorkshopNut, aSlotDragIsOneEntryInRealUnitsAndReachesTheEngine)
     CHECK (b.processor.getNumUndoSteps() == steps + 1);
     CHECK_MSG (b.processor.getUndoDescription().startsWith ("Set string 6 nut slot"), b.processor.getUndoDescription());
     const auto& depths = b.guitar().setup.nutSlotDepthsMm;
-    CHECK (depths.size() > 5 && std::abs (depths[5] - (start + 0.2)) < 0.026);
+    CHECK_MSG (depths.size() > 5 && std::abs (depths[5] - (start + 0.2)) < 0.026, "start " + juce::String (start) + " now " + juce::String (depths.size() > 5 ? depths[5] : -1.0));
     CHECK_NEAR (b.plain ("setup_nut_depth_6"), depths[5], 1.0e-3);
 
     // Keyboard parity: Down deepens by one snap.

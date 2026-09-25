@@ -66,9 +66,14 @@ LUTHIER_TEST (PresetPedals, pickingAPedalStillStartsItAtItsDefaults)
         if (auto* p = processor.getState().getParameter (ParamIDs::slotParam (true, 3, i)))
             p->setValueNotifyingHost (0.93f);
 
-    // The player picks a Delay: the type alone is written.
+    // The player picks a Delay: the type alone is written, inside a gesture,
+    // as the rack's selector attachment writes it.
     if (auto* type = processor.getState().getParameter (ParamIDs::slotType (true, 3)))
+    {
+        type->beginChangeGesture();
         type->setValueNotifyingHost (type->convertTo0to1 ((float) (int) PedalType::Delay));
+        type->endChangeGesture();
+    }
 
     processor.getParameterBridge().applyAllNow();
 

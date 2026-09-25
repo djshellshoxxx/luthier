@@ -93,6 +93,14 @@ private:
     void updateCaptureReadout (bool force);
     double rangeSeconds() const;
 
+public:
+    /** 4.1's range for `performance`, the MIDI capture's (MODEL-GAPS: marked region, current section). */
+    juce::Range<juce::int64> chosenRange (const MidiPerformance& performance) const;
+    juce::TextButton& getMarkInButton() noexcept  { return markInButton; }
+    juce::TextButton& getMarkOutButton() noexcept { return markOutButton; }
+
+private:
+
     void saveProfileAs();
     void loadProfile();
     void exportWithChooser();
@@ -113,6 +121,7 @@ private:
     juce::ComboBox rangeBox;
     juce::Slider secondsSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::TextButton exportButton { "EXPORT MIDI..." };
+    juce::TextButton markInButton { "MARK IN" }, markOutButton { "MARK OUT" };   // MODEL-GAPS
     std::unique_ptr<DragSource> dragSource;
     juce::String captureText, previewText;
     int shownEventCount = -1;

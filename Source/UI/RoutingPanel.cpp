@@ -270,7 +270,23 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     perStringStrip = std::make_unique<PerStringStrip> (processor);
     addAndMakeVisible (*perStringStrip);
 
+    // ambiguity-resolutions 8 (MODEL-GAPS): Aux 1's tap before or after the
+    // guitar's circuit - a saved parameter, off (post-circuit, the DI the amp
+    // hears) by default.
+    aux1PreCircuit = std::make_unique<LuthierToggle> ("AUX 1 PRE-CIRCUIT");
+    aux1PreCircuit->attachTo (processor, ParamIDs::aux1PreCircuit,
+                              "Aux 1 (DI) taps the pickup before the guitar's volume, tone and cable "
+                              "instead of after them - so what the knobs do to feedback can be heard.");
+    addAndMakeVisible (*aux1PreCircuit);
+
     // --- sidechain ------------------------------------------------------------
+    // noise-floor.md 5: the "on Aux 8" switch, mirrored on the Aux 8 strip.
+    noiseFloorToAux8 = std::make_unique<LuthierToggle> ("AUX 8: + NOISE FLOOR");
+    noiseFloorToAux8->attachTo (processor, ParamIDs::noiseFloorToAux8,
+                                "Also put the rig's noise floor and the hum on Aux 8, to identify them. "
+                                "The same switch as CHARACTER's NOISE FLOOR group.");
+    addAndMakeVisible (*noiseFloorToAux8);
+
     sidechainToAmp = std::make_unique<LuthierToggle> ("SIDECHAIN TO AMP");
     sidechainToAmp->setTooltip ("Feeds the sidechain input into the amp in place of the "
                                 "strings, for re-amping a recorded DI.");
@@ -284,13 +300,6 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
         processor.getRouting().setSidechainToAmp (sidechainToAmp->getButton().getToggleState());
     };
     addAndMakeVisible (*sidechainToAmp);
-
-    // performance-budget.md 4.4: Aux 1 as a true DI, tapped before the guitar circuit.
-    aux1PreCircuit = std::make_unique<LuthierToggle> ("AUX 1 PRE-CIRCUIT");
-    aux1PreCircuit->attachTo (processor, ParamIDs::aux1PreCircuit,
-                              "Takes Aux 1 (DI) from the pickups before the volume and tone "
-                              "circuit, for re-amping the rawest signal. Off: after the circuit.");
-    addAndMakeVisible (*aux1PreCircuit);
 
     // --- MIDI out -------------------------------------------------------------
     auto makeMidiToggle = [this] (std::unique_ptr<LuthierToggle>& toggle,
@@ -472,6 +481,8 @@ int RoutingPanel::preferredHeight() const
     int height = 18                                   // layout readout
                  + 14                                 // latency readout
                  + kNumAuxStrips * AuxStrip::preferredHeight
+                 + Metrics::buttonHeight + Metrics::gridHalf   // Aux 1 pre-circuit (MODEL-GAPS)
+                 + Metrics::buttonHeight               // Aux 8 noise-floor mirror (REALISM-C)
                  + Metrics::grid
                  + Metrics::buttonHeight               // sidechain toggle
                  + 18                                  // sidechain meter row
@@ -513,6 +524,10 @@ void RoutingPanel::resized()
     for (auto* strip : auxStrips)
         strip->setBounds (bounds.removeFromTop (AuxStrip::preferredHeight));
 
+    bounds.removeFromTop (Metrics::gridHalf);
+    aux1PreCircuit->setBounds (bounds.removeFromTop (Metrics::buttonHeight));
+    noiseFloorToAux8->setBounds (bounds.removeFromTop (Metrics::buttonHeight));
+
     if (perStringStrip->isVisible())
     {
         bounds.removeFromTop (Metrics::gridHalf);
@@ -527,11 +542,7 @@ void RoutingPanel::resized()
         sidechainMeterBounds = row.reduced (0, 3);
     }
 
-    {
-        auto row = bounds.removeFromTop (Metrics::buttonHeight);
-        sidechainToAmp->setBounds (row.removeFromLeft (row.getWidth() / 2).reduced (1, 0));
-        aux1PreCircuit->setBounds (row.reduced (1, 0));
-    }
+    sidechainToAmp->setBounds (bounds.removeFromTop (Metrics::buttonHeight));
 
     bounds.removeFromTop (Metrics::grid);
 

@@ -80,6 +80,24 @@ public:
         (ParameterBridge::adoptPedalTypesFromParameters). */
     std::function<void()> onPedalTypesLoaded;
 
+    /** Called around a whole load (fromVar), so the processor can fade its output
+        out before the first parameter moves and back in after the last. Without
+        it a ringing note was cut, or jumped to the new preset's level, mid-cycle
+        (BETA_TEST_REPORT B-06). */
+    std::function<void()> onBeforeLoad, onAfterLoad;
+
+    /*  file-formats.md 2 (MODEL-GAPS, TODO 2k): a preset the load had to migrate
+        - the legacy `format` magic, no `ranges` block (schema 1, pre-M42), a
+        pre-Workshop `guitar.name`, or the retired pickup-placement parameters -
+        has its original kept as Backup/<yyyy-mm-dd>/<name>-v<schema>.luthierpreset
+        beside it. Once per file and schema: loading it again finds the backup
+        already there (in any dated folder) and does not file another. */
+    static bool needsMigration (const juce::var& data);
+    static juce::File backupMigratedOriginal (const juce::File& original, int schema);
+
+    /** Where the last load filed its migration backup; empty when it made none. */
+    juce::File getLastMigrationBackup() const { return lastMigrationBackup; }
+
     /** Deletes backups older than kBackupRetentionDays. Called once on startup. */
     static void pruneOldBackups();
 
@@ -201,11 +219,19 @@ public:
     ExtraState& getExtraState() noexcept { return extra; }
     const ExtraState& getExtraState() const noexcept { return extra; }
 
+    /** Sets the extra state to its defaults (does not push it). */
+    void resetExtraState();
+
     /** Pushes the extra state into the engine. */
     void applyExtraState();
 
     /** Reads the engine's current per-string state back into the extra state. */
     void captureExtraState();
+
+    /** True once the per-string state holds something real: a preset or a
+        session read it, or it was captured from the engine. A fresh
+        instance's is only defaults, and applying it would undo the guitar. */
+    bool hasExtraState() const noexcept { return extraStateValid; }
 
     //==========================================================================
     static juce::File getUserPresetFolder();
@@ -267,9 +293,16 @@ private:
         would silently delete whatever that version added - which is a data-loss
         path that only shows up once two versions are in use. */
     juce::var unknownFields;
+    juce::File lastMigrationBackup;   // MODEL-GAPS
 
     juce::AudioProcessor& processor;
     juce::AudioProcessorValueTreeState& apvts;
+
+public:
+    /** noise-floor.md 3: the Options default mains region, resolved (REALISM-C). */
+    static bool defaultMainsRegionIs50Hz();
+
+private:
 
     /** advanced-ranges.md: the processor's range state, applied on load and
         written on save. */
@@ -286,6 +319,8 @@ private:
     bool modified = false;
 
     ExtraState extra;
+
+    bool extraStateValid = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PresetManager)
 };

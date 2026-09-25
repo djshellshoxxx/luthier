@@ -11,6 +11,7 @@
 #include "Capture/PerformanceCapture.h"
 #include "Presets/PresetMorph.h"
 #include "Tune/TuneSession.h"
+#include "Tune/TuneHumCapture.h"
 #include "Support/AudioExporter.h"
 #include "Support/Diagnostics.h"
 #include "Routing/RoutingMatrix.h"
@@ -36,6 +37,7 @@
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
 #include "Support/InstallLayout.h"
+#include "Support/SoundingNotesPublisher.h"
 
 namespace luthier
 {
@@ -92,6 +94,12 @@ public:
         tab, the live TAB view and notation / MIDI export. */
     PerformanceCapture& getPerformanceCapture() noexcept { return performanceCapture; }
 
+    /*  notation-export 3 (MODEL-GAPS, TODO 9): "render the current bar to the
+        on-plugin fretboard as tablature dots". The NOTATION tab's switch; the
+        fretboard reads it. Message thread. */
+    void setTabDotsOnFretboard (bool shouldShow) noexcept { tabDotsOnFretboard = shouldShow; }
+    bool isShowingTabDotsOnFretboard() const noexcept { return tabDotsOnFretboard; }
+
     /** Drains the capture and keeps its tuning current (10 Hz on the message
         thread; tests call it directly). */
     void drainPerformanceCapture();
@@ -106,6 +114,24 @@ public:
         plays (message thread). */
     TunePlayer&  getTunePlayer() noexcept  { return tunePlayer; }
     TuneSession& getTuneSession() noexcept { return tuneSession; }
+
+    /** tune-builder 13: sung / hummed melody capture from the audio input (TUNE-HELP-ONBOARDING). */
+    TuneHumCapture& getHumCapture() noexcept { return humCapture; }
+
+    /** tune-builder 14: a tune parameter's value with automation and modulation,
+        which is how routes move a section over the tune's timeline. Any thread. */
+    float tuneModValue (const char* parameterId) const noexcept;
+
+    /** tune-builder 14: "snapshots capture the current section state, so a live
+        rig can switch sections with a footswitch". What a snapshot keeps of the
+        tune (the section playing or selected, by name), and the recall's
+        request, which the message thread carries out (PluginProcessorTune.cpp). */
+    juce::var captureTuneSnapshotState() const;
+    void requestTuneSnapshotState (const juce::var& state) noexcept;
+    void applyPendingTuneSection();
+
+    /** How many tune state boundaries (8) the audio thread has acted on. */
+    int getNumTuneStateBoundaries() const noexcept { return tuneStateBoundaries.load (std::memory_order_relaxed); }
 
     /** The tune's message-thread work: rhythm changes at section starts,
         improvised passes, old timelines, the take (the timer's; tests call it). */
@@ -383,6 +409,17 @@ public:
     void releasePreviewNote (int stringIndex);
 
     //==========================================================================
+    // piano-roll-chord-display.md 2-3: what the strings sound (published by the
+    // audio thread every block) and notes played from the piano roll's keys,
+    // which reach the engine as channel 1 MIDI like any other note.
+    const SoundingNotes& getSoundingNotes() const noexcept { return soundingNotes; }
+    void playKeyboardNote (int midiNote, float velocity);
+    void releaseKeyboardNote (int midiNote);
+    /** Every note-on at the same sample, so the interpreter strums them as one chord. */
+    void playKeyboardChord (const juce::Array<int>& midiNotes, float velocity);
+    void releaseKeyboardChord (const juce::Array<int>& midiNotes);
+
+    //==========================================================================
     /** Releases every string and clears all state. The Panic button. */
     void panic();
 
@@ -482,8 +519,18 @@ public:
         int  editorHeight = 720;
         AuditionPhrase::Type auditionType = AuditionPhrase::Type::MajorScale;
 
+        /** onboarding.md 11 (TUNE-HELP-ONBOARDING): the practice drawer reopens as left. */
+        bool practiceDrawerOpen = false;
+
         /** workshop-ui.md 7: the bench's eight A/B guitars, workspace not preset. */
         std::array<juce::var, 8> benchSlots;
+
+        // piano-roll-chord-display.md 6: session state, not preset data.
+        bool pianoRollExpanded = true;
+        int  pianoRollHeight = 72;
+        bool pianoLatch = false;
+        bool pianoShowFingering = false;
+        juce::Array<int> pianoLatchedNotes;
     };
 
     UiState& getUiState() noexcept { return uiState; }
@@ -538,6 +585,7 @@ private:
     MidiLearnManager midiLearn;
     MidiCapture midiCapture;
     PerformanceCapture performanceCapture;
+    bool tabDotsOnFretboard = false;   // MODEL-GAPS
     PresetMorph presetMorph { *this };
     std::array<int, kMaxStrings> captureOpenNotes {};
     int captureStringCount = -1, captureCapo = -1;
@@ -562,6 +610,20 @@ private:
     std::array<WorkshopChange, kWorkshopQueue> workshopChanges {};
     juce::AbstractFifo workshopFifo { kWorkshopQueue };
     LuthierSysExOut sysExOut;
+
+    // midi-export 2.1 / 6 (MODEL-GAPS, TODO 10): the CHARACTER class's seed and
+    // environment, sent when they change. Audio thread.
+    uint64_t sentCharacterSeed = 0;
+    int sentTemperature = -1, sentHumidity = -1;
+    bool characterStated = false;
+    void sendCharacterChanges() noexcept;
+
+public:
+    /** The CHARACTER event's environment in the file's units (character-wear 9's three steps). */
+    static double temperatureCelsius (Temperature t) noexcept;
+    static double humidityPercent (Humidity h) noexcept;
+
+private:
     ModMatrix modMatrix;
     PatternLibrary patternLibrary;
     GenreKitLibrary genreKits;
@@ -571,6 +633,12 @@ private:
     // it); everything else goes to the engine as direct notes.
     TunePlayer tunePlayer;
     TuneSession tuneSession;
+    TuneHumCapture humCapture;
+    std::atomic<int> pendingTuneSection { -1 };
+    std::atomic<int> tuneStateBoundaries { 0 };
+
+    /** True while undo/redo restores a snapshot: the tune is not part of it. */
+    bool restoringPluginUndo = false;
     juce::MidiBuffer tuneToEngine, tuneToMidiOut, tuneDirect;
     Metronome tuneClick;                  ///< fires on the tune's grid, not its own
     juce::AudioBuffer<float> tuneClickBuffer;
@@ -607,7 +675,7 @@ private:
     PracticeActivityTracker practiceTracker;
     std::atomic<int> pendingDrawerTool { -1 };
 
-    bool practicePanelOpen = false;
+    std::atomic<bool> practicePanelOpen { false };   // set by the UI, read by the audio thread
 
     /** The metronome's click and the backing track are rendered into their own
         buffers and then mixed, so neither can be written over by the other. */
@@ -631,11 +699,17 @@ private:
     RangeState ranges;
     bool randomiseRespectsStock = true;
 
+    /*  REALISM-A (string-aging.md 8, environment.md 6): the aging state and the
+        environment reference from the state's character block, and the legacy
+        temperature / humidity conversion. After the character engine's fromVar. */
+    void applyRealismCharacterBlock (const juce::var& characterBlock);
+
     // The guitar as parts (guitar-workshop.md).
     bool loadGuitarForType (GuitarType type);
     bool loadGuitarFrom (const juce::String& reference, const juce::var& override,
                          GuitarType type, bool writeParameters);
     void writeGuitarParameters (const DerivedAcoustics& derived);
+    bool guitarLoadKeepsHostWrites = false;   ///< only a type load defers to the host's writes
 
     /** strum-dynamics 4 / bass-techniques 8: moves the strum parameters still on
         one family's defaults to the other's. */
@@ -696,10 +770,28 @@ private:
 
     // Transport state, so the matrix can retrigger synced sources exactly once
     // when the host starts rolling.
-    bool transportWasRunning = false;
+    std::atomic<bool> transportWasRunning { false };   // read by getEffectiveTempo on the UI thread
+
+    /** This block's tempo: the host's, or the tapped one when that wins. */
+    double blockTempo = 120.0;
 
     double currentSampleRate = 44100.0;
+    bool initialStateApplied = false;   ///< the bridge has built the instrument once (prepare or save)
     int currentBlockSize = 512;
+
+    /*  A host may hand processBlock more samples than it promised in
+        prepareToPlay; every scratch buffer here is sized from that promise, so
+        such a block is rendered in slices of at most currentBlockSize. These
+        carry each slice's MIDI in and the whole block's MIDI out, sized in
+        prepareToPlay. */
+    juce::MidiBuffer sliceMidi, sliceMidiOut;
+    juce::MidiBuffer liveMidiKept;   ///< handleLiveMidi's output, sized in prepareToPlay
+
+    /** The macro parameters' values, looked up once: a lookup by ID builds a
+        String, which is an allocation the audio thread must not make. */
+    std::array<std::atomic<float>*, ParamIDs::kNumMacros> macroValues {};
+
+    void processSlice (juce::AudioBuffer<float>&, juce::MidiBuffer&);
     int reportedLatency = 0;
 
     /*  gui-integration 15: "Sample rate changed to 96 kHz, IRs and circuit filters
@@ -730,6 +822,21 @@ private:
 
     // --- audition -------------------------------------------------------------
     std::atomic<bool> auditionActive { false };
+
+    /*  Declick around structural changes (ParameterBridge::beforeStructuralChange).
+        The message thread asks for a fade-out and waits (briefly) for the audio
+        thread to finish it; the change is applied into silence; the audio thread
+        then fades back in. The wait is skipped when no audio thread is running
+        (offline, or a caller rendering on the message thread itself). */
+    enum DeclickState { declickIdle = 0, declickFadingOut, declickSilent, declickFadingIn };
+    std::atomic<int> declickState { declickIdle };
+    std::atomic<double> lastAudioCallbackMs { 0.0 };
+    std::atomic<juce::Thread::ThreadID> audioThreadId { nullptr };
+    float declickGain = 1.0f;   ///< audio thread only
+    int declickDepth = 0;       ///< message thread: nesting of fade requests
+    void applyDeclick (juce::AudioBuffer<float>& buffer) noexcept;
+    void fadeOutBeforeStructuralChange();
+    void fadeInAfterStructuralChange();
     AuditionPhrase::Type auditionType = AuditionPhrase::Type::MajorScale;
     juce::MidiMessageSequence auditionSequence;
     int auditionEventIndex = 0;
@@ -739,6 +846,10 @@ private:
     // --- preview notes from the fretboard ---------------------------------------
     juce::MidiBuffer previewMidi;
     juce::CriticalSection previewLock;
+
+    // --- piano-roll-chord-display.md 2 ---------------------------------------------
+    SoundingNotes soundingNotes;
+    SoundingNotesPublisher soundingPublisher;
 
     // --- A/B and undo -------------------------------------------------------------
     juce::MemoryBlock slotA, slotB;

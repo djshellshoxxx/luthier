@@ -52,6 +52,12 @@ enum class MidiTarget
     Space,
     Body,
     Attack,
+
+    // harmonic-realism.md 6 and fingerstyle-attack.md 5 (REALISM-B), appended.
+    ArtificialHarmonic,
+    TappedHarmonic,
+    RightHandTool,
+    RestStroke,
     NumTargets
 };
 
@@ -61,6 +67,10 @@ const char* getMidiTargetName (MidiTarget t) noexcept;
 class MidiInterpreter
 {
 public:
+    /** The CC map starts at its defaults here, not in prepare(): a host
+        prepares after restoring a session and must not undo its MIDI map. */
+    MidiInterpreter() noexcept { resetCcMapToDefaults(); }
+
     void prepare (double sampleRate, int numStrings);
     void reset() noexcept;
 
@@ -133,6 +143,32 @@ public:
         from setStrumSpeedMs, which the bridge feeds from strum_crossing_sps. */
     void setStrumSettings (const StrumSettings& s) noexcept { strumSettings = s.clamped(); }
 
+    /*  harmonic-realism.md 4 (REALISM-B): the artificial and tapped offsets
+        (choice indices, harmonics::offsetFretsForChoice) and the note mapping. */
+    struct HarmonicSettings
+    {
+        int  artificialOffsetChoice = 0;
+        int  tappedOffsetChoice = 0;
+        bool soundingPitch = false;   ///< 4.2; false = touch-fret mapping (4.1)
+        double inharmonicityB[kMaxStrings] {};
+    };
+
+    void setHarmonicSettings (const HarmonicSettings& h) noexcept { harmonicSettings = h; }
+    const HarmonicSettings& getHarmonicSettings() const noexcept { return harmonicSettings; }
+
+    /*  fingerstyle-attack.md 5: CC 102's live tool override (0 Off, 1 Pick,
+        2 Finger, 3 Thumb, 4 Thumbpick, 5 Slap, 6 Pop) and CC 105's rest. */
+    int  getRightHandToolOverride() const noexcept { return rightHandTool; }
+    bool isRestStrokeForced() const noexcept { return restStrokeHeld; }
+
+    /** True once CC 70 (PickPosition) has moved since the last reset: the
+        pinch harmonic then follows it (harmonic-realism.md 3). */
+    bool hasPickPositionController() const noexcept { return pickPositionMoved; }
+
+    /*  string-interaction.md 6: the muted-string thump's level; 0 is off and
+        emits nothing. */
+    void setMutedThumpLevel (double level) noexcept { mutedThumpLevel = juce::jlimit (0.0, 1.0, level); }
+
     /** Latency the chord window adds, in samples. */
     int getLatencySamples() const noexcept;
 
@@ -184,7 +220,7 @@ public:
     int getStringMidiNote (int stringIndex) const noexcept;
 
     /** The last chord the voicer identified, for the UI. */
-    juce::String getLastChordName() const { return lastChordName; }
+    juce::String getLastChordName() const;
 
     /** Panic: releases everything. */
     void allNotesOff (PlayEventQueue& out) noexcept;
@@ -197,6 +233,7 @@ private:
         double velocity = 0.8;
         int64_t timestamp = 0;
         bool used = false;
+        int64_t releasedAt = -1;   ///< note-off seen while still waiting, or -1
     };
 
     struct StringSlot
@@ -283,6 +320,17 @@ private:
     bool nextStrumIsUp = false;
 
     StrumSettings strumSettings;
+    HarmonicSettings harmonicSettings;
+    int rightHandTool = 0;
+    bool restStrokeHeld = false;
+    bool pickPositionMoved = false;
+    double mutedThumpLevel = 0.0;
+
+    /** harmonic-realism.md 4.2: plays a harmonic-armed note named by the pitch
+        heard. True if it was handled (located or played artificially). */
+    bool emitSoundingHarmonic (int midiNote, int channel, double velocity, int64_t timestamp,
+                               int blockOffset, PlayEventQueue& out) noexcept;
+    bool isHarmonicArmed (double velocity) const noexcept;
     StrumGesture strumGesture;
     juce::uint32 strumCount = 0;
 
@@ -300,7 +348,12 @@ private:
     int activeNoteCount = 0;
     int lastMonoString = -1;
 
-    juce::String lastChordName;
+    /*  The last chord's notes, not its name: naming it builds a String, which
+        the audio thread must not do, and the UI used to copy the String while
+        the audio thread reassigned it. The UI names it (getLastChordName). */
+    mutable juce::SpinLock lastChordLock;
+    std::array<int, 16> lastChordNotes {};
+    int lastChordCount = 0;
 
     RtRandom rng { 0x4D1D1ull };
     Humanisation humanise;

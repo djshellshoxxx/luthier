@@ -1,72 +1,137 @@
-#!/bin/sh
-# Luthier tarball installer (installer.md 3.2).
+#!/bin/bash
+# Luthier for Linux: installer for the .tar.gz release (installer.md 3).
 #
-#   ./install.sh            asks: user (~/.local, ~/.vst3) or system (/usr/local, /usr/lib/vst3)
-#   ./install.sh --user     no questions, into your home folder
-#   ./install.sh --system   no questions, system-wide (run with sudo)
-#   ./install.sh --prefix DIR [--vst3 DIR]   anywhere
+#   ./install.sh            per-user install (the default when not root):
+#                             ~/.vst3/Luthier.vst3
+#                             ~/.clap/Luthier.clap
+#                             ~/.local/bin/luthier, ~/.local/bin/luthier-render
+#                             ~/.local/share/luthier/Resources   (factory content)
+#                             ~/.local/share/applications, mime, icons
+#   sudo ./install.sh --system
+#                           system-wide install (the default when root):
+#                             /usr/local/lib/vst3/Luthier.vst3
+#                             /usr/lib/clap/Luthier.clap         (the CLAP system path)
+#                             /usr/local/bin/luthier, luthier-render
+#                             /usr/local/share/luthier/Resources
+#                             /usr/local/share/applications, mime, icons
+#   Options:
+#     --user | --system     choose the mode explicitly
+#     --no-vst3 --no-clap --no-standalone --no-content
+#                           leave a component out (content is needed by all three)
+#     --yes                 do not ask for confirmation
 #
-# Everything installed is listed in <prefix>/share/luthier/.install-manifest,
-# which uninstall.sh reads.
-set -e
-here="$(cd "$(dirname "$0")" && pwd)"
-mode=""
-prefix=""
-vst3=""
+# Every file written is recorded in <content dir>/install-manifest.txt, which
+# uninstall.sh reads, so uninstalling removes exactly what was installed.
+# Nothing under ~/Documents/Luthier (user presets, guitars, tunes...) is touched.
+set -euo pipefail
 
-while [ $# -gt 0 ]; do
-    case "$1" in
-        --user)   mode=user ;;
-        --system) mode=system ;;
-        --prefix) shift; prefix="$1"; mode=custom ;;
-        --vst3)   shift; vst3="$1" ;;
-        -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
-        *) echo "unknown option: $1" >&2; exit 2 ;;
+HERE="$(cd "$(dirname "$0")" && pwd)"
+MODE=""
+WANT_VST3=1 WANT_CLAP=1 WANT_APP=1 WANT_CONTENT=1 ASSUME_YES=0
+
+for arg in "$@"; do
+    case "$arg" in
+        --user) MODE=user ;;
+        --system) MODE=system ;;
+        --no-vst3) WANT_VST3=0 ;;
+        --no-clap) WANT_CLAP=0 ;;
+        --no-standalone) WANT_APP=0 ;;
+        --no-content) WANT_CONTENT=0 ;;
+        --yes|-y) ASSUME_YES=1 ;;
+        -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
+        *) echo "install.sh: unknown option $arg (try --help)" >&2; exit 2 ;;
     esac
-    shift
 done
 
-if [ -z "$mode" ]; then
-    printf "Install Luthier for [u]ser only (no sudo) or [s]ystem-wide? [u/s] "
-    read -r answer
-    case "$answer" in s|S) mode=system ;; *) mode=user ;; esac
+if [ -z "$MODE" ]; then
+    if [ "$(id -u)" -eq 0 ]; then MODE=system; else MODE=user; fi
 fi
 
-case "$mode" in
-    user)   prefix="${prefix:-$HOME/.local}"; vst3="${vst3:-$HOME/.vst3}" ;;
-    system) prefix="${prefix:-/usr/local}";   vst3="${vst3:-/usr/lib/vst3}" ;;
-    custom) vst3="${vst3:-$prefix/lib/vst3}" ;;
-esac
+if [ "$MODE" = system ]; then
+    [ "$(id -u)" -eq 0 ] || { echo "A system install needs root: sudo $0 --system" >&2; exit 1; }
+    VST3_DIR=/usr/local/lib/vst3
+    CLAP_DIR=/usr/lib/clap
+    BIN_DIR=/usr/local/bin
+    SHARE=/usr/local/share
+else
+    VST3_DIR="$HOME/.vst3"
+    CLAP_DIR="$HOME/.clap"
+    BIN_DIR="$HOME/.local/bin"
+    SHARE="${XDG_DATA_HOME:-$HOME/.local/share}"
+fi
+CONTENT_DIR="$SHARE/luthier"
+MANIFEST="$CONTENT_DIR/install-manifest.txt"
+VERSION="$(cat "$HERE/VERSION" 2>/dev/null || echo unknown)"
 
-manifest="$prefix/share/luthier/.install-manifest"
-mkdir -p "$prefix/bin" "$prefix/share" "$vst3"
-: > "$here/.manifest.tmp"
+echo "Luthier $VERSION - $MODE install"
+[ $WANT_VST3 = 1 ]    && echo "  VST3        -> $VST3_DIR/Luthier.vst3"
+[ $WANT_CLAP = 1 ]    && [ -e "$HERE/Luthier.clap" ] && echo "  CLAP        -> $CLAP_DIR/Luthier.clap"
+[ $WANT_APP = 1 ]     && echo "  Standalone  -> $BIN_DIR/luthier"
+[ $WANT_CONTENT = 1 ] && echo "  Content     -> $CONTENT_DIR/Resources"
 
-copy_tree() {   # source dir, destination dir
-    (cd "$1" && find . -type f) | while read -r f; do
-        mkdir -p "$2/$(dirname "$f")"
-        cp -p "$1/$f" "$2/$f"
-        echo "$2/${f#./}" >> "$here/.manifest.tmp"
-    done
+if [ $ASSUME_YES = 0 ] && [ -t 0 ]; then
+    read -r -p "Continue? [Y/n] " answer
+    case "${answer:-y}" in [Yy]*) ;; *) echo "Cancelled."; exit 1 ;; esac
+fi
+
+# An earlier install is removed first, so no stale file outlives an upgrade
+# (installer.md 13: "no A artefacts remain").
+if [ -f "$MANIFEST" ] && [ -x "$HERE/uninstall.sh" ]; then
+    echo "Removing the previous install..."
+    "$HERE/uninstall.sh" --"$MODE" --yes --quiet || true
+fi
+
+mkdir -p "$CONTENT_DIR"
+: > "$MANIFEST.tmp"
+
+record() { # every path written, deepest last; uninstall removes in reverse
+    find "$1" -depth -print | tac >> "$MANIFEST.tmp"
 }
 
-install -m 755 "$here/bin/luthier" "$prefix/bin/luthier"
-echo "$prefix/bin/luthier" >> "$here/.manifest.tmp"
-copy_tree "$here/share" "$prefix/share"
-copy_tree "$here/lib/vst3" "$vst3"
+put() { # put <source> <destination>
+    local src="$1" dst="$2"
+    mkdir -p "$(dirname "$dst")"
+    rm -rf "$dst"
+    cp -R "$src" "$dst"
+    record "$dst"
+}
 
-mkdir -p "$(dirname "$manifest")"
-sort -u "$here/.manifest.tmp" > "$manifest"
-echo "$manifest" >> "$manifest"
-rm -f "$here/.manifest.tmp"
+if [ $WANT_VST3 = 1 ]; then
+    put "$HERE/Luthier.vst3" "$VST3_DIR/Luthier.vst3"
+fi
+if [ $WANT_CLAP = 1 ] && [ -e "$HERE/Luthier.clap" ]; then
+    put "$HERE/Luthier.clap" "$CLAP_DIR/Luthier.clap"
+fi
+if [ $WANT_CONTENT = 1 ]; then
+    put "$HERE/Resources" "$CONTENT_DIR/Resources"
+fi
+if [ $WANT_APP = 1 ]; then
+    put "$HERE/luthier" "$BIN_DIR/luthier"
+    chmod 755 "$BIN_DIR/luthier"
+    if [ -e "$HERE/luthier-render" ]; then
+        put "$HERE/luthier-render" "$BIN_DIR/luthier-render"
+        chmod 755 "$BIN_DIR/luthier-render"
+    fi
+    put "$HERE/share/applications/luthier.desktop" "$SHARE/applications/luthier.desktop"
+    put "$HERE/share/mime/packages/luthier.xml"    "$SHARE/mime/packages/luthier.xml"
+    put "$HERE/share/icons/hicolor/256x256/apps/luthier.png" \
+        "$SHARE/icons/hicolor/256x256/apps/luthier.png"
 
-command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q "$prefix/share/applications" 2>/dev/null || true
-command -v update-mime-database >/dev/null 2>&1 && update-mime-database "$prefix/share/mime" 2>/dev/null || true
-command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t -f "$prefix/share/icons/hicolor" 2>/dev/null || true
+    command -v update-desktop-database >/dev/null && update-desktop-database -q "$SHARE/applications" || true
+    command -v update-mime-database    >/dev/null && update-mime-database "$SHARE/mime" >/dev/null 2>&1 || true
+    command -v gtk-update-icon-cache   >/dev/null && gtk-update-icon-cache -q -t "$SHARE/icons/hicolor" 2>/dev/null || true
+fi
 
-echo "Luthier installed:"
-echo "  standalone  $prefix/bin/luthier"
-echo "  VST3        $vst3/Luthier.vst3"
-echo "  content     $prefix/share/luthier"
-case ":$PATH:" in *":$prefix/bin:"*) ;; *) echo "  (add $prefix/bin to your PATH to run 'luthier')" ;; esac
-echo "Needs: ALSA, and JACK or PipeWire (pipewire-jack) for low-latency audio; X11 or XWayland."
+cp "$HERE/uninstall.sh" "$CONTENT_DIR/uninstall.sh"
+chmod 755 "$CONTENT_DIR/uninstall.sh"
+echo "$CONTENT_DIR/uninstall.sh" >> "$MANIFEST.tmp"
+echo "$VERSION" > "$CONTENT_DIR/VERSION"
+echo "$CONTENT_DIR/VERSION" >> "$MANIFEST.tmp"
+mv "$MANIFEST.tmp" "$MANIFEST"
+
+echo
+echo "Installed. Uninstall with: $CONTENT_DIR/uninstall.sh"
+if [ "$MODE" = user ] && [ $WANT_APP = 1 ]; then
+    case ":$PATH:" in *":$BIN_DIR:"*) ;; *) echo "Note: $BIN_DIR is not on your PATH." ;; esac
+fi
+echo "Audio: Luthier's standalone uses ALSA or JACK (PipeWire's JACK layer works)."

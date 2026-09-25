@@ -66,6 +66,26 @@ struct NoteOnEvent
     /** strum-dynamics 5: what struck the string, as an Excitation::Material
         index, or -1 for the player's own pick (the PICK group). */
     int    strikerMaterial = -1;
+
+    /** bass-techniques 9 (MODEL-GAPS): the technique the bass step grid (or an
+        imported BASS_TECH event) names for this note, as a BassStepType index;
+        -1 lets the slap's own triggers decide. Inert on a guitar. */
+    int    bassTechnique = -1;
+    /*  harmonic-realism.md 4.1: where the harmonic is touched, as a fret
+        (fractional), or -1 for a note that is not touched. The string is
+        tuned to the stopped fret (fretPosition, the open string for a natural
+        harmonic); the touch only selects the partial. A Tap with a touch fret
+        is a tapped harmonic (3). */
+    double touchFret     = -1.0;
+
+    /*  string-interaction.md 6: a strum crossing a string the fretting hand
+        mutes. The string is struck but no note is reported: no string
+        activity, no held note, no MIDI out. */
+    bool   deadStrike    = false;
+
+    /*  fingerstyle-attack.md 3: the pattern's finger (a Finger from
+        Rhythm/Patterns.h: 0 p, 1 i, 2 m, 3 a, 4 e), or -1 for none. */
+    int    finger        = -1;
 };
 
 struct NoteOffEvent

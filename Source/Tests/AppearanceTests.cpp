@@ -512,57 +512,6 @@ LUTHIER_TEST (ScreenReader, everyAttachedControlHasAName)
 }
 
 //==============================================================================
-/*  gui-integration 20: every panel with more than one row of controls has a
-    `?` that opens Help pinned to that panel's docs - the Advanced columns'
-    sections, the shown workspace tab, and the Easy cards and strips. */
-LUTHIER_TEST (PanelHelp, everyPanelsQuestionMarkOpensItsOwnTopic)
-{
-    LuthierAudioProcessor processor;
-    processor.prepareToPlay (48000.0, 512);
-    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
-    CHECK (editor != nullptr && openHelpForPanel != nullptr);
-    if (editor == nullptr)
-        return;
-
-    editor->setSize (1600, 900);
-
-    auto collectButtons = [&editor]
-    {
-        juce::Array<PanelHelpButton*> found;
-        std::function<void (juce::Component&)> walk = [&] (juce::Component& c)
-        {
-            for (auto* child : c.getChildren())
-            {
-                if (auto* b = dynamic_cast<PanelHelpButton*> (child); b != nullptr && b->isVisible())
-                    found.add (b);
-                walk (*child);
-            }
-        };
-        walk (*editor);
-        return found;
-    };
-
-    const auto easy = collectButtons();
-    CHECK_MSG (easy.size() >= 8, "Easy has " + juce::String (easy.size()) + " help buttons");
-
-    editor->keyPressed (AccessibilitySettings::get().findShortcut ("toggleAdvanced")->key);
-    const auto advanced = collectButtons();
-    CHECK_MSG (advanced.size() >= 10, "Advanced has " + juce::String (advanced.size()) + " help buttons");
-
-    juce::StringArray unmapped;
-
-    for (auto* b : easy)
-        if (HelpContent::findTopic (b->getPanelName()) < 0)
-            unmapped.addIfNotAlreadyThere (b->getPanelName());
-
-    for (auto* b : advanced)
-        if (HelpContent::findTopic (b->getPanelName()) < 0)
-            unmapped.addIfNotAlreadyThere (b->getPanelName());
-
-    CHECK_MSG (unmapped.isEmpty(), "no help topic for: " + unmapped.joinIntoString (", "));
-}
-
-//==============================================================================
 /*  gui-integration 22: "Reflow: instantiate at 800, 1000, 1280, 1600, 1920,
     2560 window widths at 75 - 200 % UI scale; verify no clipping." The window
     stops at 940 (its minimum; 800 is below it, DECISIONS), Advanced needs

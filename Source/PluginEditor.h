@@ -12,6 +12,8 @@
 #include "UI/AdvancedPanel.h"
 #include "UI/Overlays.h"
 #include "UI/Notifications.h"
+#include "Export/MidiImportTargets.h"   // midi-export 5 (MODEL-GAPS)
+#include "UI/Onboarding.h"
 
 namespace luthier
 {
@@ -19,10 +21,20 @@ namespace luthier
 //==============================================================================
 class LuthierAudioProcessorEditor : public juce::AudioProcessorEditor,
                                     public juce::DragAndDropContainer,   // gui-integration 11.2: drag-to-modulate
+                                    public juce::FileDragAndDropTarget,   // midi-export 5 (MODEL-GAPS)
                                     private juce::Timer,
                                     private juce::ChangeListener
 {
 public:
+    /*  midi-export 5 (MODEL-GAPS): "File -> Import -> MIDI, or drag a .mid file
+        onto the plugin window", then the target: the session, the Tune
+        Builder or the looper. With `target` given (the tests) there is no
+        menu. The outcome is posted as a banner and returned when known. */
+    bool isInterestedInFileDrag (const juce::StringArray& files) override;
+    void filesDropped (const juce::StringArray& files, int x, int y) override;
+    void importMidiFile (const juce::File& file, std::optional<MidiImportTarget> target = {});
+    MidiImportOutcome getLastMidiImport() const { return lastMidiImport; }
+
     explicit LuthierAudioProcessorEditor (LuthierAudioProcessor&);
     ~LuthierAudioProcessorEditor() override;
 
@@ -62,6 +74,29 @@ public:
         Returns false when there is no such tab, so a caller can tell the
         difference between "opened it" and "that page does not exist here". */
     bool showOptionsPage (const juce::String& tabName);
+
+    //==========================================================================
+    // onboarding.md 2-4 (TUNE-HELP-ONBOARDING; PluginEditorOnboarding.cpp).
+
+    /** Starts the tour (the welcome banner's Yes, Help -> Take the tour). */
+    void startTour();
+    TourOverlay& getTour() noexcept                { return tour; }
+    WelcomeBanner& getWelcomeBanner() noexcept     { return welcomeBanner; }
+    DiscoveryLayer& getDiscoveryLayer() noexcept   { return discovery; }
+    DiscoveryTooltip& getRandomiseTooltip() noexcept { return randomiseTooltip; }
+
+    /** Where a tour stop points, in this component's coordinates. */
+    juce::Rectangle<int> findTourTarget (const juce::String& stepId);
+
+    /** Makes a stop's target visible: Advanced for the column stops, LIVE for snapshots. */
+    void prepareTourStep (const juce::String& stepId);
+
+    /** Records the launch and puts up the welcome banner if one is due. */
+    void runWelcome();
+
+    /** gui-integration 17 "New tune" (Ctrl+T): the TUNE tab, with its New menu.
+        Returns the tab's panel, or nullptr when it cannot be shown. */
+    TunePanel* openNewTune();
 
 private:
     void timerCallback() override;
@@ -107,6 +142,7 @@ private:
     juce::TooltipWindow tooltips { this, Metrics::tooltipDelayMs };
 
     HeaderBar header;
+    MidiImportOutcome lastMidiImport;   // MODEL-GAPS
 
     /*  Section 15 puts the banner strip "under the header strip", so it is laid
         out directly beneath the header and above the live strip: the live strip
@@ -137,6 +173,16 @@ private:
     ChordAndTabPanel chordPanel;
     WorkshopOverlay workshopOverlay;
     SecretPanel secretPanel;
+
+    // onboarding.md 2-4 (TUNE-HELP-ONBOARDING).
+    void setupOnboarding();
+
+    /** onboarding 1: a fresh install starts on the rock overdrive preset. */
+    void applyFirstRunPreset();
+    WelcomeBanner welcomeBanner;
+    TourOverlay tour;
+    DiscoveryLayer discovery;
+    DiscoveryTooltip randomiseTooltip;
 
     juce::TextButton chordButton { "Chords / Tab" };
 

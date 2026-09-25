@@ -73,6 +73,10 @@ public:
 private:
     LuthierChoice oversampling { "Oversampling" };
 
+    // noise-floor.md 3: the user-global default mains region (REALISM-C).
+    juce::ComboBox mainsRegion;
+    juce::Label mainsLabel;
+
     juce::TextButton deviceButton { "Where are the device settings?" };
     juce::Label deviceNote, sidechainNote, latencyLabel;
 };
@@ -122,6 +126,20 @@ private:
     juce::ToggleButton dataStreamToggle { "Scrolling data stream in the footer" };
     juce::ToggleButton noiseStripToggle { "Noise-event strip (CHARACTER)" };
     juce::ToggleButton vuToggle { "VU meter (Easy window)" };
+
+    // piano-roll-chord-display.md 5: "Visual aids", beside Show tooltips.
+    juce::ToggleButton chordNamesToggle { "Show chord names on the guitar" };
+    juce::ToggleButton announceChordsToggle { "Announce chord names" };
+    juce::ToggleButton pianoRollAdvancedToggle { "Show piano roll (Advanced)" };
+    juce::ToggleButton pianoRollEasyToggle { "Show piano roll (Easy)" };
+    juce::ComboBox pianoRollShowsBox;
+
+public:
+    juce::ToggleButton& getChordNamesToggle() noexcept { return chordNamesToggle; }
+    juce::ToggleButton& getAnnounceChordsToggle() noexcept { return announceChordsToggle; }
+    juce::ToggleButton& getPianoRollToggle (bool advanced) noexcept { return advanced ? pianoRollAdvancedToggle : pianoRollEasyToggle; }
+    juce::ComboBox& getPianoRollShowsBox() noexcept { return pianoRollShowsBox; }
+private:
 
     juce::Label contrastLabel, accentNote;
 
@@ -433,6 +451,12 @@ public:
     /** Wired by the editor, which is the only thing that can open an overlay. */
     std::function<void()> onShowDebugWindow;
 
+    /** onboarding.md 12 (TUNE-HELP-ONBOARDING): what the confirmation's OK does -
+        clears the user-global settings (TODO 14c: ranges_first_unlock_explained
+        too) and tells the processor the restored range preference. */
+    void restoreFirstRun();
+    juce::TextButton& getRestoreFirstRunButton() noexcept { return restoreFirstRunButton; }
+
     void refresh() override;
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -447,6 +471,7 @@ private:
     juce::TextButton troubleshootButton { "Export troubleshooting file" };
     juce::TextButton openFolderButton { "Open diagnostics folder" };
     juce::TextButton hardResetButton { "Reset all settings and clear caches" };
+    juce::TextButton restoreFirstRunButton { "Restore first-run experience" };
 
     juce::Label explanation, recorderNote, mirrorNote;
 

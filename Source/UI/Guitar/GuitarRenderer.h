@@ -146,6 +146,11 @@ struct GuitarOverlay
     bool useDots = false;
     std::array<float, 12> dotAlpha {}, dotFret {};
 
+    // piano-roll-chord-display.md 3: a voicing shown before it sounds, as hollow
+    // dots (fret from the nut; < 0 = none).
+    std::array<float, 12> ghostFret { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+    juce::Colour ghostColour { juce::Colours::white };
+
     // Section 16: parts a reduced-motion change outlines instead of fading.
     std::array<bool, (size_t) GuitarRegion::numRegions> changed {};
     juce::Colour changedColour { 0xff6fa58a };

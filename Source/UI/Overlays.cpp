@@ -1,6 +1,7 @@
 #include "Overlays.h"
 #include "OptionsPages.h"
 #include "../PluginProcessor.h"
+#include "../Support/SupportLinks.h"
 
 namespace luthier
 {
@@ -215,8 +216,8 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                 .withTitle (file != juce::File() ? "Troubleshooting file written" : "Could not write the file")
                 .withMessage (file != juce::File()
                                 ? "Written to\n" + file.getFullPathName()
-                                  + "\n\nSend this to support@luthieraudio.example with a description "
-                                    "of the problem."
+                                  + "\n\nSend this to " + juce::String (SupportLinks::supportEmail)
+                                  + " with a description of the problem."   // SupportLinks.h (TUNE-HELP-ONBOARDING)
                                 : "The diagnostics folder could not be written to. Check the folder "
                                   "permissions for Documents/Luthier.")
                 .withButton ("OK"),
@@ -232,6 +233,10 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                                 "diagnostic files and cached data, and reinstalls the factory bank.");
     hardResetButton.onClick = [this]
     {
+        // Taken here: MSVC resolves `this` inside a nested lambda's init-capture
+        // to the enclosing lambda, not the component.
+        juce::Component::SafePointer<DebugPanel> self (this);
+
         juce::NativeMessageBox::showAsync (
             juce::MessageBoxOptions()
                 .withIconType (juce::MessageBoxIconType::WarningIcon)
@@ -242,12 +247,14 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                               "This cannot be undone.")
                 .withButton ("Reset everything")
                 .withButton ("Cancel"),
-            [this] (int result)
+            [safe = self] (int result)
             {
-                if (result == 1)
+                // NativeMessageBox::showAsync reports the plain button index:
+                // 0 is "Reset everything", 1 is Cancel (and Escape).
+                if (safe != nullptr && result == 0)
                 {
-                    processor.hardResetAndClearCaches();
-                    refreshState();
+                    safe->processor.hardResetAndClearCaches();
+                    safe->refreshState();
                 }
             });
     };
@@ -928,13 +935,17 @@ void ExportPanel::startExport()
     processor.getExporter().startExport (
         options, sequence, state,
         [] { return LuthierAudioProcessor::createOfflineInstance(); },
-        [this] (const AudioExporter::Result& result)
+        [safe = juce::Component::SafePointer<ExportPanel> (this)] (const AudioExporter::Result& result)
         {
-            progressBar.setVisible (false);
-            exportButton.setEnabled (true);
-            cancelButton.setEnabled (false);
-
-            statusLabel.setText (result.message, juce::dontSendNotification);
+            // The exporter belongs to the processor and outlives this panel: the
+            // window may have been closed while it rendered.
+            if (safe != nullptr)
+            {
+                safe->progressBar.setVisible (false);
+                safe->exportButton.setEnabled (true);
+                safe->cancelButton.setEnabled (false);
+                safe->statusLabel.setText (result.message, juce::dontSendNotification);
+            }
 
             // On success the user is told everything the brief asks for: that it
             // worked, where it went, how long it is and at what quality.
@@ -1164,6 +1175,7 @@ PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
             return;
 
         const auto name = info->name;
+        juce::Component::SafePointer<PresetBrowserPanel> self (this);   // see DebugPanel: MSVC and nested init-captures
 
         juce::NativeMessageBox::showAsync (
             juce::MessageBoxOptions()
@@ -1172,12 +1184,13 @@ PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
                 .withMessage ("\"" + name + "\" will be deleted from disk. This cannot be undone.")
                 .withButton ("Delete")
                 .withButton ("Cancel"),
-            [this, index] (int result)
+            [safe = self, index] (int result)
             {
-                if (result == 1)
+                // Plain button index: 0 is Delete, 1 is Cancel (and Escape).
+                if (safe != nullptr && result == 0)
                 {
-                    processor.getPresetManager().deletePreset (index);
-                    rebuildList();
+                    safe->processor.getPresetManager().deletePreset (index);
+                    safe->rebuildList();
                 }
             });
     };

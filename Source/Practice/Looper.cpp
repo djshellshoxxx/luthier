@@ -110,7 +110,7 @@ void LoopLayer::prepareFilters (double sampleRate) noexcept
 
 //==============================================================================
 void LoopLayer::record (const float* left, const float* right,
-                        int position, int numSamples) noexcept
+                        int position, int numSamples, int wrapLength) noexcept
 {
     if (capacity <= 0 || left == nullptr)
         return;
@@ -122,7 +122,7 @@ void LoopLayer::record (const float* left, const float* right,
 
     for (int i = 0; i < numSamples; ++i)
     {
-        const int index = position + i;
+        const int index = wrapLength > 0 ? (position + i) % wrapLength : position + i;
 
         if (! juce::isPositiveAndBelow (index, capacity))
             break;
@@ -143,7 +143,8 @@ void LoopLayer::record (const float* left, const float* right,
     }
 
     recordedSamples = juce::jmax (recordedSamples,
-                                  juce::jmin (capacity, position + numSamples));
+                                  juce::jmin (wrapLength > 0 ? juce::jmin (capacity, wrapLength) : capacity,
+                                              position + numSamples));
 }
 
 void LoopLayer::playInto (float* left, float* right, int position, int numSamples,
@@ -530,20 +531,39 @@ void Looper::processBlock (juce::AudioBuffer<float>& buffer, int numSamples) noe
     const int position = getPlayPosition();
     const int length = getLoopLengthSamples();
 
-    // ---- recording ------------------------------------------------------------------
-    if (currentState == State::recordingFirst || currentState == State::overdubbing)
+    // ---- recording and playback -----------------------------------------------------
+    if (currentState == State::overdubbing && length > 0)
     {
-        auto& layer = layers[(size_t) getActiveLayer()];
-        layer.record (left, right, position, numSamples);
-    }
+        /*  Every layer, the active one included, plays what it held before this
+            block; the live input, kept aside, is then recorded over the active
+            one at the loop's own (wrapped) positions. Recording first and then
+            playing the active layer played the live signal back on top of
+            itself, and unwrapped positions put the overdub past the loop end. */
+        auto& active = layers[(size_t) getActiveLayer()];
 
-    // ---- playback --------------------------------------------------------------------
-    if (currentState != State::recordingFirst && length > 0)
-        for (int i = 0; i < kMaxLayers; ++i)
-            if (i != getActiveLayer() || currentState != State::overdubbing)
-                layers[(size_t) i].playInto (left, right, position, numSamples, length);
-            else
-                layers[(size_t) i].playInto (left, right, position, numSamples, length);
+        for (int offset = 0; offset < numSamples; offset += kOverdubChunk)
+        {
+            const int n = juce::jmin (kOverdubChunk, numSamples - offset);
+            const int at = (position + offset) % length;
+
+            std::copy (left + offset, left + offset + n, overdubL.begin());
+            std::copy (right + offset, right + offset + n, overdubR.begin());
+
+            for (auto& layer : layers)
+                layer.playInto (left + offset, right + offset, at, n, length);
+
+            active.record (overdubL.data(), overdubR.data(), at, n, length);
+        }
+    }
+    else
+    {
+        if (currentState == State::recordingFirst)
+            layers[(size_t) getActiveLayer()].record (left, right, position, numSamples);
+
+        if (currentState != State::recordingFirst && length > 0)
+            for (auto& layer : layers)
+                layer.playInto (left, right, position, numSamples, length);
+    }
 
     // ---- advance ----------------------------------------------------------------------
     int next = position + numSamples;
@@ -557,7 +577,20 @@ void Looper::processBlock (juce::AudioBuffer<float>& buffer, int numSamples) noe
             first bar line at or after the request. That is why the flag exists:
             a player hits the button roughly on the beat, and the loop has to
             close exactly on it. */
-        if (pendingClose.load (std::memory_order_relaxed))
+        // MODEL-GAPS: a set default length closes the first recording itself.
+        const int fixedLength = defaultLengthSamples.load (std::memory_order_relaxed);
+
+        if (fixedLength > 0 && next >= juce::jmin (fixedLength, capacity))
+        {
+            const int closeAt = juce::jlimit (1, capacity, fixedLength);
+
+            loopLength.store (closeAt, std::memory_order_relaxed);
+            layers[(size_t) getActiveLayer()].setRecordedSamples (closeAt);
+            pendingClose.store (false, std::memory_order_relaxed);
+            state.store ((int) State::playing, std::memory_order_relaxed);
+            next -= closeAt;
+        }
+        else if (pendingClose.load (std::memory_order_relaxed))
         {
             const int bar = barLengthSamples.load (std::memory_order_relaxed);
 
@@ -843,6 +876,34 @@ bool Looper::save (const juce::File& file) const
              .replaceWithText (juce::JSON::toString (juce::var (root), false));
 }
 
+int Looper::importLayer (int layerIndex, const juce::AudioBuffer<float>& source)
+{
+    if (! juce::isPositiveAndBelow (layerIndex, kMaxLayers) || source.getNumChannels() == 0)
+        return 0;
+
+    stop();
+
+    auto& layer = getLayer (layerIndex);
+    const int count = juce::jmin (capacity, source.getNumSamples(), layer.getAudio().getNumSamples());
+
+    layer.getAudio().clear();
+
+    for (int ch = 0; ch < juce::jmin (2, layer.getAudio().getNumChannels()); ++ch)
+        layer.getAudio().copyFrom (ch, 0, source, juce::jmin (ch, source.getNumChannels() - 1), 0, count);
+
+    layer.setRecordedSamples (count);
+
+    bool others = false;
+
+    for (int i = 0; i < kMaxLayers; ++i)
+        others = others || (i != layerIndex && getLayer (i).hasContent());
+
+    if (! others || loopLength.load (std::memory_order_relaxed) <= 0)
+        loopLength.store (count, std::memory_order_relaxed);
+
+    return count;
+}
+
 bool Looper::load (const juce::File& file)
 {
     const auto folder = file.isDirectory()
@@ -946,24 +1007,62 @@ bool SessionRecorder::prepare (double sampleRate, double minutes)
         caller is told what it got by getCapacityMinutes(). */
     constexpr int64_t kMaxSamples = 1 << 26;      // 64 M frames: about 23 minutes at 48 kHz
 
-    capacity = (int) juce::jmin (wanted, kMaxSamples);
-
-    if (capacity <= 0)
-        return false;
-
-    try
     {
-        ring.setSize (2, capacity, false, true, false);
-    }
-    catch (...)
-    {
-        capacity = 0;
-        return false;
+        const juce::SpinLock::ScopedLockType sl (ringLock);
+
+        capacity = (int) juce::jmin (wanted, kMaxSamples);
+
+        if (capacity <= 0)
+            return false;
+
+        try
+        {
+            ring.setSize (2, capacity, false, true, false);
+        }
+        catch (...)
+        {
+            capacity = 0;
+            return false;
+        }
+
+        ring.clear();
+        writePosition.store (0, std::memory_order_relaxed);
+        recorded.store (0, std::memory_order_relaxed);
     }
 
-    ring.clear();
     reset();
 
+    return true;
+}
+
+bool Looper::loadLayerAudio (int layerIndex, const juce::AudioBuffer<float>& source)
+{
+    if (capacity <= 0 || source.getNumSamples() <= 0 || getState() != State::stopped
+        || ! juce::isPositiveAndBelow (layerIndex, kMaxLayers))
+        return false;
+
+    int length = loopLength.load (std::memory_order_relaxed);
+
+    if (length <= 0)
+    {
+        length = juce::jmin (capacity, source.getNumSamples());
+        loopLength.store (length, std::memory_order_relaxed);
+    }
+
+    auto& layer = layers[(size_t) layerIndex];
+    const auto mode = layer.getMode();
+    layer.setMode (LayerMode::replace);
+
+    juce::AudioBuffer<float> fitted (2, length);
+    fitted.clear();
+
+    for (int c = 0; c < 2; ++c)
+        fitted.copyFrom (c, 0, source, juce::jmin (c, source.getNumChannels() - 1), 0,
+                         juce::jmin (length, source.getNumSamples()));
+
+    layer.record (fitted.getReadPointer (0), fitted.getReadPointer (1), 0, length);
+    layer.setRecordedSamples (length);
+    layer.setMode (mode);
     return true;
 }
 
@@ -974,16 +1073,29 @@ void SessionRecorder::reset() noexcept
     samplesSeen = 0;
 
     const juce::ScopedLock sl (midiLock);
+    midiFifo.reset();
     midi.clear();
 }
 
 void SessionRecorder::processBlock (const juce::AudioBuffer<float>& buffer, int numSamples) noexcept
 {
-    if (! isEnabled() || capacity <= 0 || buffer.getNumChannels() < 1)
+    // MODEL-GAPS: MIDI only - the clock runs, so the MIDI keeps its place.
+    if (isEnabled() && ! isRecordingAudio())
+    {
+        samplesSeen += numSamples;
+        return;
+    }
+
+    if (! isEnabled() || buffer.getNumChannels() < 1)
+        return;
+
+    const juce::SpinLock::ScopedTryLockType sl (ringLock);
+
+    if (! sl.isLocked() || capacity <= 0)
         return;
 
     // Nothing here allocates: the ring exists, and this is a copy into it.
-    int position = writePosition.load (std::memory_order_relaxed);
+    int position = juce::jlimit (0, capacity - 1, writePosition.load (std::memory_order_relaxed));
 
     const auto* srcL = buffer.getReadPointer (0);
     const auto* srcR = buffer.getNumChannels() > 1 ? buffer.getReadPointer (1) : srcL;
@@ -1011,31 +1123,103 @@ void SessionRecorder::captureMidi (const juce::MidiBuffer& incoming, int numSamp
 {
     juce::ignoreUnused (numSamples);
 
-    if (! isEnabled())
+    if (! isEnabled() || ! isRecordingMidi())
         return;
 
-    // The MIDI sequence does allocate, so it is guarded rather than written from
-    // the audio thread. The caller passes this from the message thread's copy.
-    const juce::ScopedTryLock sl (midiLock);
-
-    if (! sl.isLocked())
-        return;
-
+    // MODEL-GAPS: into the fixed FIFO; the sequence (which allocates) is the
+    // message thread's.
     for (const auto metadata : incoming)
-        midi.addEvent (metadata.getMessage(),
-                       (double) (samplesSeen + metadata.samplePosition));
+    {
+        if (metadata.numBytes <= 0 || metadata.numBytes > 3)
+            continue;
+
+        const auto scope = midiFifo.write (1);
+
+        if (scope.blockSize1 + scope.blockSize2 == 0)
+            return;   // full: the drain is late; dropping is better than blocking
+
+        auto& q = midiQueue[(size_t) (scope.blockSize1 > 0 ? scope.startIndex1 : scope.startIndex2)];
+        q.sample = samplesSeen + metadata.samplePosition;
+        q.size = metadata.numBytes;
+        std::memcpy (q.bytes, metadata.data, (size_t) metadata.numBytes);
+    }
+}
+
+void SessionRecorder::drainMidiLocked() const
+{
+    const auto scope = midiFifo.read (midiFifo.getNumReady());
+
+    auto take = [this] (int start, int count)
+    {
+        for (int i = 0; i < count; ++i)
+        {
+            const auto& q = midiQueue[(size_t) (start + i)];
+            midi.addEvent (juce::MidiMessage (q.bytes, q.size, (double) q.sample));
+        }
+    };
+
+    take (scope.startIndex1, scope.blockSize1);
+    take (scope.startIndex2, scope.blockSize2);
+}
+
+int SessionRecorder::importMidi (const juce::MidiMessageSequence& sequence)
+{
+    const juce::ScopedLock sl (midiLock);
+    drainMidiLocked();
+
+    const double after = juce::jmax ((double) samplesSeen,
+                                     midi.getNumEvents() > 0 ? midi.getEndTime() + 1.0 : 0.0);
+    int added = 0;
+
+    for (int i = 0; i < sequence.getNumEvents(); ++i)
+        if (const auto* e = sequence.getEventPointer (i))
+        {
+            midi.addEvent (e->message, after);
+            ++added;
+        }
+
+    midi.updateMatchedPairs();
+    return added;
+}
+
+void SessionRecorder::drainMidi()
+{
+    const juce::ScopedLock sl (midiLock);
+    drainMidiLocked();
+}
+
+int SessionRecorder::getNumMidiEvents() const
+{
+    const juce::ScopedLock sl (midiLock);
+    drainMidiLocked();
+    return midi.getNumEvents();
+}
+
+bool SessionRecorder::stop (const juce::File& directory)
+{
+    const bool wasOn = isEnabled();
+    setEnabled (false);
+
+    if (! wasOn || ! autoSaveOnStop)
+        return false;
+
+    return saveLastTake (directory);
 }
 
 bool SessionRecorder::saveLastTake (const juce::File& directory, double seconds) const
 {
-    const int available = recorded.load (std::memory_order_relaxed);
+    lastSaved.clear();
 
-    if (available <= 0 || capacity <= 0)
+    const int available = recorded.load (std::memory_order_relaxed);
+    const bool haveAudio = isRecordingAudio() && available > 0 && capacity > 0;
+    const bool haveMidi = isRecordingMidi() && getNumMidiEvents() > 0;   // drains the FIFO
+
+    if (! haveAudio && ! haveMidi)
         return false;
 
-    const int wanted = (seconds > 0.0)
-                         ? juce::jmin (available, (int) (seconds * sr))
-                         : available;
+    const int wanted = ! haveAudio ? 0
+                     : (seconds > 0.0) ? juce::jmin (available, (int) (seconds * sr))
+                                       : available;
 
     directory.createDirectory();
 
@@ -1059,8 +1243,11 @@ bool SessionRecorder::saveLastTake (const juce::File& directory, double seconds)
             readAt = 0;
     }
 
-    const bool wroteAudio = writeWav (directory.getChildFile ("session-" + stamp + ".wav"),
-                                      take, wanted, sr);
+    const auto wavTarget = directory.getChildFile ("session-" + stamp + ".wav");
+    const bool wroteAudio = haveAudio && writeWav (wavTarget, take, wanted, sr);
+
+    if (wroteAudio)
+        lastSaved.add (wavTarget);
 
     // And the MIDI beside it.
     bool wroteMidi = false;
@@ -1068,7 +1255,7 @@ bool SessionRecorder::saveLastTake (const juce::File& directory, double seconds)
     {
         const juce::ScopedLock sl (midiLock);
 
-        if (midi.getNumEvents() > 0)
+        if (haveMidi && midi.getNumEvents() > 0)
         {
             juce::MidiFile midiFile;
             juce::MidiMessageSequence sequence (midi);
@@ -1097,9 +1284,10 @@ bool SessionRecorder::saveLastTake (const juce::File& directory, double seconds)
         }
     }
 
-    juce::ignoreUnused (wroteMidi);
+    if (wroteMidi)
+        lastSaved.add (directory.getChildFile ("session-" + stamp + ".mid"));
 
-    return wroteAudio;
+    return wroteAudio || wroteMidi;
 }
 
 void SessionRecorder::cleanUpOldTempFiles (const juce::File& directory, double olderThanHours)

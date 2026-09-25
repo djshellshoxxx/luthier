@@ -457,7 +457,10 @@ void MatchWizard::advance()
     switch (step)
     {
         case 0:
-            // Start recording the first pass.
+            // Start recording the first pass: the reference, which comes back
+            // on the sidechain for both matches, or the plugin's own output.
+            capture.setSource (kind == Kind::capture ? Capture::Source::mainOut
+                                                     : Capture::Source::sidechain);
             capture.start (kind == Kind::cabMatch ? 6.0 : 10.0);
             step = 1;
             actionButton.setButtonText ("Recording...");
@@ -494,6 +497,7 @@ void MatchWizard::advance()
             }
 
             capture.reset();
+            capture.setSource (Capture::Source::mainOut);   // Luthier's own, to compare
             capture.start (kind == Kind::cabMatch ? 6.0 : 10.0);
 
             step = 2;

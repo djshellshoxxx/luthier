@@ -1,5 +1,7 @@
 #include "OptionsPages.h"
+#include "FirstRun.h"
 #include "RangesUi.h"
+#include "UiPreferences.h"   // REALISM-C
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
@@ -7,6 +9,7 @@
 #include "StageTouches.h"
 #include "CpuReliefUi.h"
 #include "UiPreferences.h"
+#include "VisualAids.h"
 
 namespace luthier
 {
@@ -575,6 +578,20 @@ AudioPage::AudioPage (LuthierAudioProcessor& p)
                            "Oversampling for the amp and the drive pedals. 4x is the default; "
                            "2x sounds very close and costs noticeably less.");
 
+    // noise-floor.md 3: seeds noise_mains_hz for new (Init) presets only; a
+    // loaded preset keeps its own, so a render is the same on every machine.
+    mainsRegion.addItem ("Auto (from your region)", 1);
+    mainsRegion.addItem ("50 Hz", 2);
+    mainsRegion.addItem ("60 Hz", 3);
+    mainsRegion.setSelectedId (1 + juce::jlimit (0, 2, UiPreferences::get().getInt ("defaultMainsRegion", 0)),
+                               juce::dontSendNotification);
+    mainsRegion.setTooltip ("The mains frequency an Init preset's hum starts at. Loaded presets keep their own.");
+    mainsRegion.onChange = [this] { UiPreferences::get().setInt ("defaultMainsRegion", mainsRegion.getSelectedId() - 1); };
+    addAndMakeVisible (mainsRegion);
+    mainsLabel.setText ("Default mains region", juce::dontSendNotification);
+    styleNote (mainsLabel, Palette::textMuted, 11.0f);
+    addAndMakeVisible (mainsLabel);
+
     addAndMakeVisible (deviceButton);
     deviceButton.setTooltip ("Where the device, sample rate and buffer settings actually live");
     deviceButton.onClick = [this]
@@ -660,7 +677,13 @@ void AudioPage::resized()
 
     bounds.removeFromTop (22);
 
-    oversampling.setBounds (bounds.removeFromTop (40).removeFromLeft (200));
+    {
+        auto row = bounds.removeFromTop (40);
+        oversampling.setBounds (row.removeFromLeft (200));
+        row.removeFromLeft (16);
+        mainsLabel.setBounds (row.removeFromTop (14).removeFromLeft (200));
+        mainsRegion.setBounds (row.removeFromTop (24).removeFromLeft (200));
+    }
 
     bounds = getLocalBounds().withTrimmedTop (118);
 
@@ -815,6 +838,37 @@ AppearancePage::AppearancePage (LuthierAudioProcessor& p)
 
     addAndMakeVisible (tooltipsToggle);
 
+    // piano-roll-chord-display.md 5: user preferences, saved at once, not preset data.
+    chordNamesToggle.setTooltip ("The chord or note sounding, written faintly on the guitar's body, then fading");
+    chordNamesToggle.onClick = [this]
+    {
+        VisualAids::setShowChordNames (chordNamesToggle.getToggleState());
+        refresh();
+    };
+
+    announceChordsToggle.setTooltip ("Screen readers hear the chord names, at most one every 1.5 seconds");
+    announceChordsToggle.onClick = [this] { VisualAids::setAnnounceChordNames (announceChordsToggle.getToggleState()); };
+
+    pianoRollAdvancedToggle.setTooltip ("A piano keyboard under the fretboard that shows and plays the notes");
+    pianoRollAdvancedToggle.onClick = [this] { VisualAids::setShowPianoRoll (true, pianoRollAdvancedToggle.getToggleState()); };
+
+    pianoRollEasyToggle.setTooltip ("A piano keyboard under the guitar in the Easy window");
+    pianoRollEasyToggle.onClick = [this] { VisualAids::setShowPianoRoll (false, pianoRollEasyToggle.getToggleState()); };
+
+    pianoRollShowsBox.addItem ("Piano roll shows: Keys", 1);
+    pianoRollShowsBox.addItem ("Piano roll shows: Keys + Roll", 2);
+    pianoRollShowsBox.setTitle ("Piano roll shows");
+    pianoRollShowsBox.setTooltip ("The keys alone, or the keys with the last four seconds of notes above them");
+    pianoRollShowsBox.onChange = [this]
+    {
+        if (! updatingControls)
+            VisualAids::setPianoRollShowsRoll (pianoRollShowsBox.getSelectedId() == 2);
+    };
+
+    for (auto* c : std::initializer_list<juce::Component*> { &chordNamesToggle, &announceChordsToggle, &pianoRollAdvancedToggle,
+                                                             &pianoRollEasyToggle, &pianoRollShowsBox })
+        addAndMakeVisible (c);
+
     styleNote (contrastLabel, Palette::textMuted);
     addAndMakeVisible (contrastLabel);
 
@@ -876,6 +930,13 @@ void AppearancePage::refresh()
     tooltipsToggle.setToggleState (processor.getUiState().tooltipsEnabled,
                                    juce::dontSendNotification);
 
+    chordNamesToggle.setToggleState (VisualAids::showChordNames(), juce::dontSendNotification);
+    announceChordsToggle.setToggleState (VisualAids::announceChordNamesSetting(), juce::dontSendNotification);
+    announceChordsToggle.setEnabled (VisualAids::showChordNames());   // section 5: only with the names on
+    pianoRollAdvancedToggle.setToggleState (VisualAids::showPianoRoll (true), juce::dontSendNotification);
+    pianoRollEasyToggle.setToggleState (VisualAids::showPianoRoll (false), juce::dontSendNotification);
+    pianoRollShowsBox.setSelectedId (VisualAids::pianoRollShowsRoll() ? 2 : 1, juce::dontSendNotification);
+
     for (int i = 0; i < AccessibilitySettings::kNumScales; ++i)
         if (std::abs (AccessibilitySettings::kScales[(size_t) i] - settings.getUiScale()) < 1.0e-6)
             scaleBox.setSelectedId (i + 1, juce::dontSendNotification);
@@ -898,6 +959,7 @@ void AppearancePage::paint (juce::Graphics& g)
 
     drawHeading (g, bounds.removeFromTop (18), "THEME AND SIZE");
     drawHeading (g, { 0, 136, getWidth(), 18 }, "ACCENT AND LIVE DISPLAYS");
+    drawHeading (g, { 0, 272, getWidth(), 18 }, "VISUAL AIDS");
 }
 
 void AppearancePage::resized()
@@ -938,6 +1000,23 @@ void AppearancePage::resized()
     dataStreamToggle.setBounds (lower.removeFromTop (26).removeFromLeft (300));
     noiseStripToggle.setBounds (lower.removeFromTop (26).removeFromLeft (300));
     vuToggle.setBounds (lower.removeFromTop (26).removeFromLeft (300));
+
+    // piano-roll-chord-display.md 5.
+    auto aids = getLocalBounds().withTrimmedTop (294);
+    {
+        auto row = aids.removeFromTop (26);
+        chordNamesToggle.setBounds (row.removeFromLeft (260));
+        row.removeFromLeft (8);
+        announceChordsToggle.setBounds (row.removeFromLeft (220));
+    }
+    {
+        auto row = aids.removeFromTop (26);
+        pianoRollAdvancedToggle.setBounds (row.removeFromLeft (260));
+        row.removeFromLeft (8);
+        pianoRollEasyToggle.setBounds (row.removeFromLeft (220));
+    }
+    aids.removeFromTop (2);
+    pianoRollShowsBox.setBounds (aids.removeFromTop (24).removeFromLeft (260));
 }
 
 //==============================================================================
@@ -1700,12 +1779,21 @@ void UpdatesPage::checkForUpdate()
     // message thread either - the check goes to a background job.
     updateStatus.setText ("Checking...", juce::dontSendNotification);
 
-    juce::Thread::launch ([this, running]
+    // Review R-101: the page can close while the check runs, so the job holds
+    // the Telemetry (owned by the processor) and the reply a SafePointer.
+    juce::Thread::launch ([&tel = telemetry(), running, safe = juce::Component::SafePointer<UpdatesPage> (this)]
     {
-        const auto result = telemetry().checkForUpdate (running, true);
+        const auto result = tel.checkForUpdate (running, true);
 
-        juce::MessageManager::callAsync ([this, result]
+        juce::MessageManager::callAsync ([safe, result]
         {
+            if (safe == nullptr)
+                return;
+
+            auto* self = safe.getComponent();
+            auto& updateStatus = self->updateStatus;
+            auto& releaseNotes = self->releaseNotes;
+
             if (! result.checked)
             {
                 // A failed check is reported here because the user asked for it.
@@ -1738,10 +1826,10 @@ void UpdatesPage::checkForUpdate()
 
             releaseNotes.setText (details.joinIntoString ("\n"), false);
 
-            changelogUrl = result.changelogUrl;
-            downloadUrl = result.updateAvailable ? result.downloadUrl : juce::String();
-            releaseNotesButton.setEnabled (changelogUrl.isNotEmpty());
-            downloadButton.setEnabled (downloadUrl.isNotEmpty() && ! downloader.isDownloading());
+            self->changelogUrl = result.changelogUrl;
+            self->downloadUrl = result.updateAvailable ? result.downloadUrl : juce::String();
+            self->releaseNotesButton.setEnabled (self->changelogUrl.isNotEmpty());
+            self->downloadButton.setEnabled (self->downloadUrl.isNotEmpty() && ! self->downloader.isDownloading());
         });
     });
 }
@@ -2140,11 +2228,35 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
                 .withButton ("Cancel"),
             [this] (int result)
             {
-                if (result == 1)
+                // NativeMessageBox answers the plain button index: 0 is the
+                // first ("Reset everything"), 1 is Cancel (review R-100).
+                if (result == 0)
                 {
                     processor.hardResetAndClearCaches();
                     refresh();
                 }
+            });
+    };
+
+    // onboarding.md 12 (TUNE-HELP-ONBOARDING): confirmed with a modal.
+    addAndMakeVisible (restoreFirstRunButton);
+    restoreFirstRunButton.setTooltip ("Clears your settings and one-time hints so the next launch behaves as "
+                                      "a fresh install. Your presets, guitars, tunes and parts are kept.");
+    restoreFirstRunButton.onClick = [this]
+    {
+        juce::NativeMessageBox::showAsync (
+            juce::MessageBoxOptions()
+                .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                .withTitle ("Restore first-run experience?")
+                .withMessage ("Your settings go back to a fresh install's, every one-time hint and the tour "
+                              "come back, and the next launch behaves as the first.\n\n"
+                              "Your presets, guitars, tunes and parts are kept.")
+                .withButton ("Restore")
+                .withButton ("Cancel"),
+            [safe = juce::Component::SafePointer<DiagnosticsPage> (this)] (int result)
+            {
+                if (safe != nullptr && result == 0)   // plain index: 0 is "Restore" (R-100)
+                    safe->restoreFirstRun();
             });
     };
 
@@ -2169,6 +2281,15 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
     audioPath = std::make_unique<AudioPathView> (processor);
     addAndMakeVisible (*audioPath);
 
+    refresh();
+}
+
+void DiagnosticsPage::restoreFirstRun()
+{
+    FirstRun::restoreFirstRunExperience();
+
+    // The processor cannot read UiPreferences, so it is told what Restore left.
+    RangesUi::setRandomiseRespectsStock (processor, RangesUi::randomiseRespectsStock());
     refresh();
 }
 
@@ -2198,7 +2319,7 @@ void DiagnosticsPage::paint (juce::Graphics& g)
 
     drawHeading (g, bounds.removeFromTop (18), "WHAT LUTHIER RECORDS FOR YOU");
     drawHeading (g, { 0, 150, getWidth(), 18 }, "FILES AND WINDOWS");
-    drawHeading (g, { 0, 262, getWidth(), 18 }, "WHAT'S ON THE AUDIO PATH RIGHT NOW");
+    drawHeading (g, { 0, 296, getWidth(), 18 }, "THE AUDIO PATH RIGHT NOW, AND FEATURE FLAGS");
 }
 
 void DiagnosticsPage::resized()
@@ -2236,10 +2357,13 @@ void DiagnosticsPage::resized()
         hardResetButton.setBounds (row.removeFromLeft (280));
     }
 
-    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (282).withHeight (18));
+    bounds.removeFromTop (6);
+    restoreFirstRunButton.setBounds (bounds.removeFromTop (Metrics::buttonHeight).removeFromLeft (240));
+
+    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (318).withHeight (32));
 
     if (audioPath != nullptr)
-        audioPath->setBounds (getLocalBounds().withTrimmedTop (304).withHeight (juce::jmax (80, juce::jmin (130, getHeight() - 308))));
+        audioPath->setBounds (getLocalBounds().withTrimmedTop (352).withHeight (juce::jmax (80, juce::jmin (130, getHeight() - 356))));
 }
 
 //==============================================================================

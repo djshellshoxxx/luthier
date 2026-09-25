@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 #include "UI/NewFeatureDots.h"
 #include "UI/CpuReliefUi.h"
+#include "UI/FirstRun.h"
 #include "UI/RangesUi.h"
 #include "UI/UiPreferences.h"
 #include "Accessibility/Accessibility.h"
@@ -28,6 +29,11 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 {
     setLookAndFeel (&lookAndFeel);
 
+    // onboarding.md 5 (TUNE-HELP-ONBOARDING): the OS-following defaults, once per
+    // install, before anything reads the palette.
+    if (FirstRun::applyIfFirstRun())
+        applyFirstRunPreset();
+
     shownPalette = Palette::current();
     AccessibilitySettings::get().addChangeListener (this);
 
@@ -45,6 +51,9 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     // practice-tools 9: the drawer changes the space the panels have, so the
     // window relays out when it opens or is dragged taller.
     practicePanel.onHeightChanged = [this] { resized(); };
+
+    // onboarding.md 11: the drawer reopens as it was left.
+    practicePanel.setOpen (processor.getUiState().practiceDrawerOpen);
     addChildComponent (easyPanel);
     addChildComponent (advancedPanel);
 
@@ -77,6 +86,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     addChildComponent (midiLearnArmLayer);
 
     header.onMidiLearnArmChanged = [this] (bool armed) { setMidiLearnArmed (armed); };
+    header.onImportMidi = [this] (const juce::File& file) { importMidiFile (file); };   // midi-export 5 (MODEL-GAPS)
 
     midiLearnArmLayer.onTargetPicked = [this] (juce::String parameterId)
     {
@@ -116,13 +126,6 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     if (auto* bench = advancedPanel.getWorkshopPanel())
         bench->onSaveAsGuitar = [this] { showSaveGuitarDialog(); };
     header.onOpenOptions = [this] { showOverlay (&optionsPanel); };
-
-    // gui-integration 20: a panel's `?` opens Help pinned to it.
-    openHelpForPanel = [safe = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)] (const juce::String& panel)
-    {
-        if (safe != nullptr)
-            safe->openHelp (panel);
-    };
 
     // gui-integration 16 item 13: a control's "Show in Options -> Shortcuts".
     showShortcutInOptions = [safe = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)] (const juce::String& action)
@@ -207,6 +210,9 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     seenRangeGeneration = RangeState::getGeneration();
     startTimerHz (4);
 
+    // onboarding.md 2-4 (TUNE-HELP-ONBOARDING): banner, tour, first-week hints.
+    setupOnboarding();
+
     /*  gui-integration 15. Last in the constructor, because a banner posting
         itself makes the strip visible and calls resized(), and everything it
         lays out has to exist by then. */
@@ -220,6 +226,7 @@ LuthierAudioProcessorEditor::~LuthierAudioProcessorEditor()
 
     processor.getUiState().editorWidth = getWidth();
     processor.getUiState().editorHeight = getHeight();
+    processor.getUiState().practiceDrawerOpen = practicePanel.isOpen();   // onboarding 11
 
     tooltips.setLookAndFeel (nullptr);
     setLookAndFeel (nullptr);
@@ -469,6 +476,11 @@ void LuthierAudioProcessorEditor::resized()
         notifications.setBounds (bounds.removeFromTop (NotificationCentre::preferredHeight)
                                    .reduced (Metrics::windowPadding, 2));
 
+    // onboarding.md 2: the welcome banner, also under the header.
+    if (welcomeBanner.isVisible())
+        welcomeBanner.setBounds (bounds.removeFromTop (WelcomeBanner::preferredHeight)
+                                   .reduced (Metrics::windowPadding, 2));
+
     // live-performance 10: the live strip attaches under the header when Live
     // Mode is on, and takes no space at all when it is off.
     if (liveStrip.isVisible())
@@ -494,6 +506,8 @@ void LuthierAudioProcessorEditor::resized()
 
     overlayHost.setBounds (getLocalBounds());
     midiLearnArmLayer.setBounds (getLocalBounds());
+    discovery.setBounds (getLocalBounds());
+    tour.setBounds (getLocalBounds());
 }
 
 //==============================================================================
@@ -617,6 +631,13 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     // clumsy rebind. An overlay handles it when focused; this is the backstop.
     if (key == juce::KeyPress::escapeKey)
     {
+        // onboarding 3: "Escape ends the tour."
+        if (tour.isRunning())
+        {
+            tour.skip();
+            return true;
+        }
+
         if (processor.getMidiLearn().isArmed())
         {
             setMidiLearnArmed (false);
@@ -636,6 +657,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     if (is ("options"))         { showOverlay (&optionsPanel);  return true; }
     if (is ("presetBrowser"))   { showOverlay (&presetBrowser); return true; }
     if (is ("export"))          { showOverlay (&exportPanel);   return true; }
+    if (is ("newTune"))         { openNewTune();                return true; }   // tune-builder 2 (TUNE-HELP-ONBOARDING)
     if (is ("debugPanel"))      { showOverlay (&debugPanel);    return true; }
 
     /*  Section 17's "New preset": load Init, which is the factory preset whose own
@@ -757,6 +779,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     {
         practicePanel.setOpen (! practicePanel.isOpen());
         resized();
+        processor.getUiState().practiceDrawerOpen = practicePanel.isOpen();
         return true;
     }
 
@@ -1225,6 +1248,63 @@ void LuthierAudioProcessorEditor::openHelp (const juce::String& topic)
 
     helpPanel.showTopicFor (topic);
     showOverlay (&helpPanel);
+}
+
+//==============================================================================
+// midi-export 5 (MODEL-GAPS): MIDI import by menu or by drop, then the target.
+bool LuthierAudioProcessorEditor::isInterestedInFileDrag (const juce::StringArray& files)
+{
+    for (const auto& f : files)
+        if (MidiImportTargets::isMidiFile (juce::File (f)))
+            return true;
+
+    return false;
+}
+
+void LuthierAudioProcessorEditor::filesDropped (const juce::StringArray& files, int, int)
+{
+    for (const auto& f : files)
+        if (MidiImportTargets::isMidiFile (juce::File (f)))
+        {
+            importMidiFile (juce::File (f));
+            return;
+        }
+}
+
+void LuthierAudioProcessorEditor::importMidiFile (const juce::File& file, std::optional<MidiImportTarget> target)
+{
+    auto run = [safe = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this), file] (MidiImportTarget chosen)
+    {
+        if (safe == nullptr)
+            return;
+
+        safe->lastMidiImport = MidiImportTargets::importFile (safe->processor, file, chosen);
+
+        Notification n;
+        n.id = "midi-import";
+        n.message = safe->lastMidiImport.message;
+        n.level = safe->lastMidiImport.ok ? Notification::Level::info : Notification::Level::warning;
+        safe->notifications.post (std::move (n));
+    };
+
+    if (target.has_value())
+    {
+        run (*target);
+        return;
+    }
+
+    juce::PopupMenu menu;
+    menu.addSectionHeader ("Import " + file.getFileName() + " into");
+
+    for (int t = 0; t < (int) MidiImportTarget::numTargets; ++t)
+        menu.addItem (t + 1, getMidiImportTargetName ((MidiImportTarget) t));
+
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&header),
+                        [run] (int result)
+    {
+        if (result > 0)
+            run ((MidiImportTarget) (result - 1));
+    });
 }
 
 } // namespace luthier

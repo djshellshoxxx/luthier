@@ -53,8 +53,10 @@ struct MidiOutConfig
     bool luthierEvents = false;    ///< character / noise events as Luthier SysEx
     bool workshopChanges = false;  ///< part swaps and bench moves as Luthier SysEx
 
-    /** CC number each macro is echoed on, or -1 for "not assigned". */
-    std::array<int, 6> macroCc { { -1, -1, -1, -1, -1, -1 } };
+    /** CC number each macro is echoed on, or -1 for "not assigned". One per
+        macro parameter (ParamIDs::kNumMacros); the routing panel shows them all. */
+    static constexpr int kNumMacroCcs = 8;
+    std::array<int, kNumMacroCcs> macroCc { { -1, -1, -1, -1, -1, -1, -1, -1 } };
 
     int channel = 1;
 
@@ -216,11 +218,9 @@ private:
     std::atomic<bool> sidechainPresent { false };
     std::atomic<double> sidechainLevel { 0.0 };
 
-    // performance-budget.md 0.5: the audio thread reads the MIDI-out config
-    // every block, so it is a seqlock - writers (message thread) serialise on
-    // the lock, the reader never takes it and retries on a torn copy.
-    mutable juce::CriticalSection midiOutLock;
-    std::atomic<unsigned> midiOutSequence { 0 };
+    // Read by the audio thread every block: a SpinLock around a small struct
+    // copy, not a CriticalSection it could block on behind the UI.
+    mutable juce::SpinLock midiOutLock;
     MidiOutConfig midiOut;
 
     std::atomic<int> latMain { 0 }, latDi { 0 }, latPreCab { 0 }, latString { 0 }, latNoise { 0 };

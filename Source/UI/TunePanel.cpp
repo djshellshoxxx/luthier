@@ -1,21 +1,16 @@
 #include "TunePanel.h"
 #include "../PluginProcessor.h"
 #include "../Tune/TuneTemplates.h"
+#include "../Tune/TuneExamples.h"
+#include "../Tune/TuneHarmony.h"
+#include "TuneExportDialog.h"
+#include "../Support/TuneExport.h"
 
 namespace luthier
 {
 
 namespace
 {
-    /*  action-and-undo.md 3.9: "same note within 200 ms" groups, so a drawn or
-        deleted note's grouping target is the note itself - its section, grid
-        start and pitch - kept clear of the small indices the lock edit uses. */
-    int melodyNoteTarget (int sectionIndex, double startBeat, int pitch)
-    {
-        const int ticks = (int) std::lround (juce::jmax (0.0, startBeat) * 48.0);
-        return 0x10000000 + ((sectionIndex & 0x3f) << 21) + ((ticks & 0x3fff) << 7) + (pitch & 0x7f);
-    }
-
     constexpr int kHeader = 26;
     constexpr int kRowGap = 6;
     constexpr int kStripHeight = 34;
@@ -31,6 +26,9 @@ namespace
     constexpr int kProgressionTarget = 2000;
     constexpr int kFeelTarget = 4100;
     constexpr int kStrumTarget = 4200;
+
+    // The New menu's example-tune items (onboarding 6).
+    constexpr int kExampleMenuBase = 1000;
 
     /** The first span in play order that plays `sectionIndex`, or -1. */
     int firstSpanOf (const Tune& tune, int sectionIndex)
@@ -63,6 +61,15 @@ namespace
     {
         const auto code = juce::CharacterFunctions::toUpperCase ((juce::juce_wchar) key.getKeyCode());
         return key.getModifiers().isCommandDown() && code == letter;
+    }
+
+    /** The key bound to an action in the shortcut registry (gui-integration 17:
+        every shortcut is rebindable), so a rebound save or new-tune key is the
+        one the tab answers. */
+    bool isBound (const juce::KeyPress& key, const char* actionId)
+    {
+        const auto* binding = AccessibilitySettings::get().findShortcut (actionId);
+        return binding != nullptr && binding->key == key;
     }
 }
 
@@ -189,6 +196,15 @@ void TuneSectionStrip::paint (juce::Graphics& g)
         g.setFont (Fonts::ui (11.0f, selected));
         g.drawFittedText (text, bounds.toNearestInt().reduced (4, 2), juce::Justification::centred, 2);
     }
+
+    // 3.3: where a dragged tab will land.
+    if (draggingTab && dropSlot >= 0)
+    {
+        const int x = dropSlot >= tune.getNumSections() ? getTabBounds (tune.getNumSections()).getX() - 2
+                                                       : getTabBounds (dropSlot).getX() - 2;
+        g.setColour (Palette::accentBright);
+        g.fillRect (x - 1, 0, 3, getHeight());
+    }
 }
 
 void TuneSectionStrip::mouseDown (const juce::MouseEvent& e)
@@ -206,6 +222,10 @@ void TuneSectionStrip::mouseDown (const juce::MouseEvent& e)
     }
 
     session.setSelectedSection (tab);
+
+    // 3.3: a left press may become a drag (TuneSectionStripEditing.cpp).
+    dragTab = e.mods.isPopupMenu() ? -1 : tab;
+    draggingTab = false;
 
     if (e.mods.isPopupMenu())
         buildMenu (tab).showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
@@ -226,6 +246,7 @@ juce::PopupMenu TuneSectionStrip::buildMenu (int sectionIndex) const
 
     menu.addItem (renameItem, "Rename...");
     menu.addItem (duplicateItem, "Duplicate");
+    menu.addItem (varyItem, "Vary", section != nullptr);   // 3.3
     menu.addItem (deleteItem, "Delete", section != nullptr);
     menu.addSeparator();
 
@@ -285,6 +306,12 @@ void TuneSectionStrip::performMenuItem (int sectionIndex, int itemId)
     if (itemId == customRepeatItem)
     {
         promptRepeatCount (sectionIndex);
+        return;
+    }
+
+    if (itemId == varyItem)
+    {
+        varySection (sectionIndex);
         return;
     }
 
@@ -438,6 +465,8 @@ void TuneSectionStrip::promptRepeatCount (int sectionIndex)
 //==============================================================================
 TuneChordPills::TuneChordPills (TuneSession& s) : session (s)
 {
+    setTooltip ("Click a chord to edit it; drag it to reorder, drag its right edge to change its length; "
+                "right-click for insert, duplicate, delete, copy, paste and substitutions");
     AccessibleSetup::configureDescriptive (*this, "Chord pills",
                                            "The selected section's chords, coloured by their function in the key.");
 }
@@ -518,312 +547,25 @@ void TuneChordPills::paint (juce::Graphics& g)
         g.setColour (Palette::textPrimary);
         g.fillRect (x - 1.0f, 0.0f, 2.0f, (float) getHeight());
     }
-}
 
-//==============================================================================
-// Piano roll
-//==============================================================================
-TunePianoRoll::TunePianoRoll (TuneSession& s) : session (s)
-{
-    setTooltip ("Click and drag to draw a note; right-click a note to delete or lock it. C toggles chromatic.");
-    AccessibleSetup::configureDescriptive (*this, "Melody piano roll",
-                                           "The selected section's melody. Drag to draw a note; right-click a note for its menu.");
-}
-
-double TunePianoRoll::sectionBeats() const
-{
-    return juce::jmax (1.0, session.getTune().getSectionLengthBeats (session.getSelectedSection()));
-}
-
-void TunePianoRoll::setPlayhead (const TunePlayhead& newPlayhead)
-{
-    if (newPlayhead != playhead)
+    // 3.2: what a drag in progress will do.
+    if (drag == Drag::resize && dragCell >= 0)
     {
-        playhead = newPlayhead;
-        repaint();
+        const auto cell = getCellBounds (dragCell);
+        const float x = (float) cell.getX() + (float) (dragBeats / total) * width;
+        g.setColour (Palette::accentBright);
+        g.fillRect (x - 1.5f, 0.0f, 3.0f, (float) getHeight());
+        g.setFont (Fonts::mono (10.0f));
+        g.drawText (juce::String (dragBeats, 1), juce::Rectangle<float> (x + 3.0f, 0.0f, 40.0f, 12.0f),
+                    juce::Justification::centredLeft);
     }
-}
-
-int TunePianoRoll::getLowestPitch() const
-{
-    int low = 48;
-
-    if (const auto* s = session.getTune().getSection (session.getSelectedSection()))
+    else if (drag == Drag::move && dropIndex >= 0)
     {
-        if (s->melody.has_value())
-        {
-            low = s->melody->rangeLow;
-
-            for (const auto& n : s->melody->notes)
-                low = juce::jmin (low, resolveNotePitch (session.getTune(), session.getSelectedSection(), n));
-        }
+        const int count = (int) section->chords.size();
+        const int x = dropIndex >= count ? getCellBounds (count - 1).getRight() : getCellBounds (dropIndex).getX();
+        g.setColour (Palette::accentBright);
+        g.fillRect ((float) x - 1.5f, 0.0f, 3.0f, (float) getHeight());
     }
-
-    return juce::jlimit (0, 115, low - 2);
-}
-
-int TunePianoRoll::getHighestPitch() const
-{
-    int high = 79;
-
-    if (const auto* s = session.getTune().getSection (session.getSelectedSection()))
-    {
-        if (s->melody.has_value())
-        {
-            high = s->melody->rangeHigh;
-
-            for (const auto& n : s->melody->notes)
-                high = juce::jmax (high, resolveNotePitch (session.getTune(), session.getSelectedSection(), n));
-        }
-    }
-
-    return juce::jlimit (getLowestPitch() + 12, 127, high + 2);
-}
-
-double TunePianoRoll::beatAt (float x) const
-{
-    return juce::jlimit (0.0, sectionBeats(), (double) x / juce::jmax (1.0, (double) getWidth()) * sectionBeats());
-}
-
-int TunePianoRoll::pitchAt (float y) const
-{
-    const int low = getLowestPitch();
-    const int rows = getHighestPitch() - low + 1;
-    const float rowHeight = (float) getHeight() / (float) rows;
-    return juce::jlimit (low, low + rows - 1, low + rows - 1 - (int) std::floor (y / juce::jmax (1.0f, rowHeight)));
-}
-
-juce::Rectangle<float> TunePianoRoll::getNoteBounds (double beat, int pitch, double durationBeats) const
-{
-    const int low = getLowestPitch();
-    const int rows = getHighestPitch() - low + 1;
-    const float rowHeight = (float) getHeight() / (float) rows;
-    const float x = (float) (beat / sectionBeats()) * (float) getWidth();
-    const float w = (float) (durationBeats / sectionBeats()) * (float) getWidth();
-
-    return { x, (float) (low + rows - 1 - pitch) * rowHeight, juce::jmax (2.0f, w), rowHeight };
-}
-
-int TunePianoRoll::findNoteAt (double beat, int pitch) const
-{
-    const auto& tune = session.getTune();
-    const auto* s = tune.getSection (session.getSelectedSection());
-
-    if (s == nullptr || ! s->melody.has_value())
-        return -1;
-
-    // The last drawn wins where notes overlap: it is the one on top.
-    for (int i = (int) s->melody->notes.size(); --i >= 0;)
-    {
-        const auto& n = s->melody->notes[(size_t) i];
-
-        if (beat >= n.startBeat - 1.0e-6 && beat < n.getEndBeat() - 1.0e-6
-              && resolveNotePitch (tune, session.getSelectedSection(), n) == pitch)
-            return i;
-    }
-
-    return -1;
-}
-
-bool TunePianoRoll::addNote (double beat, int pitch, double durationBeats)
-{
-    const auto& tune = session.getTune();
-    const int sectionIndex = session.getSelectedSection();
-
-    if (! tune.isValidSection (sectionIndex))
-        return false;
-
-    // 3.4: the start snaps to the grid line at or before it, the pitch to the key.
-    const double start = snapBeatToGrid (juce::jmax (0.0, beat - grid * 0.5 + 1.0e-9), grid);
-    const double length = juce::jmax (grid, snapBeatToGrid (durationBeats, grid));
-    const int snapped = chromaticMode ? pitch : snapPitchToKey (pitch, tune.meta.keyTonic, tune.meta.mode);
-
-    if (start >= sectionBeats() - 1.0e-6)
-        return false;
-
-    const auto note = MelodyNote::make (start, juce::jmin (length, sectionBeats() - start), snapped, 100);
-
-    return session.edit (TuneEditClass::melodyEdit, "Draw note",
-                         [sectionIndex, note] (Tune& t) { return t.addMelodyNote (sectionIndex, note) >= 0; },
-                         melodyNoteTarget (sectionIndex, start, snapped));   // action-and-undo.md 3.9
-}
-
-bool TunePianoRoll::deleteNoteAt (double beat, int pitch)
-{
-    const int index = findNoteAt (beat, pitch);
-    const int sectionIndex = session.getSelectedSection();
-
-    if (index < 0)
-        return false;
-
-    const auto& deleted = session.getTune().getSection (sectionIndex)->melody->notes[(size_t) index];
-
-    return session.edit (TuneEditClass::melodyEdit, "Delete note",
-                         [sectionIndex, index] (Tune& t) { return t.removeMelodyNotes (sectionIndex, { index }); },
-                         melodyNoteTarget (sectionIndex, deleted.startBeat, deleted.pitch.value));   // action-and-undo.md 3.9
-}
-
-bool TunePianoRoll::toggleLockAt (double beat, int pitch)
-{
-    const int index = findNoteAt (beat, pitch);
-    const int sectionIndex = session.getSelectedSection();
-
-    if (index < 0)
-        return false;
-
-    const bool locked = session.getTune().getSection (sectionIndex)->melody->notes[(size_t) index].locked;
-
-    return session.edit (TuneEditClass::melodyEdit, locked ? "Unlock note" : "Lock note",
-                         [sectionIndex, index, locked] (Tune& t) { return t.setMelodyNoteLocked (sectionIndex, index, ! locked); },
-                         index);
-}
-
-void TunePianoRoll::paint (juce::Graphics& g)
-{
-    const auto& tune = session.getTune();
-    const int sectionIndex = session.getSelectedSection();
-    const int low = getLowestPitch();
-    const int high = getHighestPitch();
-    const int rows = high - low + 1;
-    const float rowHeight = (float) getHeight() / (float) rows;
-
-    g.setColour (Palette::panelSunken);
-    g.fillRect (getLocalBounds());
-
-    // 3.4: key-of-scale rows shaded, the tonic a shade brighter.
-    for (int pitch = low; pitch <= high; ++pitch)
-    {
-        if (! tunetheory::isInScale (pitch, tune.meta.keyTonic, tune.meta.mode))
-            continue;
-
-        const float y = (float) (high - pitch) * rowHeight;
-        g.setColour (tunetheory::wrapPitchClass (pitch - tune.meta.keyTonic) == 0 ? Palette::panelRaised : Palette::panel);
-        g.fillRect (0.0f, y, (float) getWidth(), rowHeight);
-    }
-
-    // Beat and bar lines.
-    const double beats = sectionBeats();
-    const double bar = tune.getBeatsPerBar();
-
-    for (double b = 0.0; b <= beats + 1.0e-9; b += 1.0)
-    {
-        const float x = (float) (b / beats) * (float) getWidth();
-        const double intoBar = std::fmod (b, bar);
-        const bool isBar = intoBar < 1.0e-6 || bar - intoBar < 1.0e-6;
-        g.setColour (isBar ? Palette::edgeBright : Palette::edge.withMultipliedAlpha (0.6f));
-        g.drawVerticalLine (juce::jmin ((int) x, getWidth() - 1), 0.0f, (float) getHeight());
-    }
-
-    const auto* section = tune.getSection (sectionIndex);
-
-    if (section == nullptr)
-    {
-        g.setColour (Palette::textDisabled);
-        g.setFont (Fonts::ui (11.0f));
-        g.drawText ("Add a section to write a melody", getLocalBounds(), juce::Justification::centred);
-        return;
-    }
-
-    if (section->melody.has_value())
-    {
-        for (const auto& n : section->melody->notes)
-        {
-            const int pitch = resolveNotePitch (tune, sectionIndex, n);
-            const auto r = getNoteBounds (n.startBeat, pitch, n.durationBeats).reduced (0.5f, 1.0f);
-
-            g.setColour (n.locked ? Palette::accentBright : Palette::secondary);
-            g.fillRoundedRectangle (r, 2.0f);
-
-            if (n.locked)
-            {
-                g.setColour (Palette::textPrimary);
-                g.drawRoundedRectangle (r, 2.0f, 1.0f);
-            }
-        }
-
-        if (section->melody->source == MelodySource::improvise)
-        {
-            g.setColour (Palette::textMuted);
-            g.setFont (Fonts::ui (10.0f));
-            g.drawText ("IMPROVISING: a new line every pass", getLocalBounds().reduced (6, 4), juce::Justification::bottomLeft);
-        }
-    }
-
-    if (dragging)
-    {
-        const auto r = getNoteBounds (dragStart, dragPitch, juce::jmax (grid, dragEnd - dragStart));
-        g.setColour (Palette::accent.withMultipliedAlpha (0.6f));
-        g.fillRoundedRectangle (r.reduced (0.5f, 1.0f), 2.0f);
-    }
-
-    if (playhead.section == sectionIndex)
-    {
-        const float x = (float) juce::jlimit (0.0, 1.0, playhead.beat / beats) * (float) getWidth();
-        g.setColour (Palette::textPrimary);
-        g.fillRect (x - 0.5f, 0.0f, 1.5f, (float) getHeight());
-    }
-
-    if (chromaticMode)
-    {
-        g.setColour (Palette::textMuted);
-        g.setFont (Fonts::ui (9.0f));
-        g.drawText ("CHROMATIC", getLocalBounds().reduced (4), juce::Justification::topRight);
-    }
-}
-
-void TunePianoRoll::mouseDown (const juce::MouseEvent& e)
-{
-    const double beat = beatAt ((float) e.x);
-    const int pitch = pitchAt ((float) e.y);
-
-    if (e.mods.isPopupMenu())
-    {
-        if (findNoteAt (beat, pitch) < 0)
-            return;
-
-        juce::PopupMenu menu;
-        menu.addItem (1, "Delete");
-        menu.addItem (2, "Lock / unlock");
-        menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
-                            [safe = juce::Component::SafePointer<TunePianoRoll> (this), beat, pitch] (int result)
-        {
-            if (safe == nullptr)
-                return;
-
-            if (result == 1) safe->deleteNoteAt (beat, pitch);
-            if (result == 2) safe->toggleLockAt (beat, pitch);
-        });
-        return;
-    }
-
-    if (! drawEnabled || ! session.getTune().isValidSection (session.getSelectedSection()))
-        return;
-
-    dragging = true;
-    dragStart = snapBeatToGrid (juce::jmax (0.0, beat - grid * 0.5 + 1.0e-9), grid);
-    dragEnd = dragStart + grid;
-    dragPitch = chromaticMode ? pitch : snapPitchToKey (pitch, session.getTune().meta.keyTonic, session.getTune().meta.mode);
-    repaint();
-}
-
-void TunePianoRoll::mouseDrag (const juce::MouseEvent& e)
-{
-    if (! dragging)
-        return;
-
-    // 3.4: length sets the duration.
-    dragEnd = juce::jmax (dragStart + grid, snapBeatToGrid (beatAt ((float) e.x), grid));
-    repaint();
-}
-
-void TunePianoRoll::mouseUp (const juce::MouseEvent&)
-{
-    if (! dragging)
-        return;
-
-    dragging = false;
-    addNote (dragStart + grid * 0.5, dragPitch, dragEnd - dragStart);
-    repaint();
 }
 
 //==============================================================================
@@ -833,6 +575,7 @@ TunePanel::TunePanel (LuthierAudioProcessor& p, TunePlayer& pl, TuneSession& s)
     : processor (p),
       player (pl),
       session (s),
+      setlistStrip (s),
       sectionStrip (s),
       chordPills (s),
       pianoRoll (s)
@@ -844,6 +587,14 @@ TunePanel::TunePanel (LuthierAudioProcessor& p, TunePlayer& pl, TuneSession& s)
     buildRhythm();
     buildMelody();
     buildTransport();
+
+    // onboarding.md 8: hidden until owed.
+    addChildComponent (firstHint);
+    firstHint.onShownOrDismissed = [this]
+    {
+        setSize (getWidth(), getPreferredHeight());
+        resized();
+    };
 
     session.onChanged = [this] { refresh(); };
 
@@ -864,6 +615,9 @@ TunePanel::TunePanel (LuthierAudioProcessor& p, TunePlayer& pl, TuneSession& s)
 TunePanel::~TunePanel()
 {
     stopTimer();
+
+    if (looperWorker != nullptr)
+        looperWorker->stopThread (30000);
     session.onChanged = nullptr;
 }
 
@@ -895,12 +649,12 @@ void TunePanel::buildHeader()
     newButton.setTooltip ("A new tune from a template (Ctrl+T)");
     loadButton.setTooltip ("Open a .luthiertune");
     saveButton.setTooltip ("Save the tune (Ctrl+S)");
-    exportButton.setTooltip ("Export the tune as a MIDI file (Ctrl+E)");
+    exportButton.setTooltip ("Export the tune: audio (with stems), MIDI, notation or the project (Ctrl+E)");
 
     AccessibleSetup::configureButton (newButton, "New tune", "Starts a new tune from a template.");
     AccessibleSetup::configureButton (loadButton, "Load tune");
     AccessibleSetup::configureButton (saveButton, "Save tune");
-    AccessibleSetup::configureButton (exportButton, "Export tune as MIDI");
+    AccessibleSetup::configureButton (exportButton, "Export tune", "Opens the export dialog: audio, MIDI, notation or project.");
 
     newButton.onClick = [this] { showTemplateMenu(); };
     loadButton.onClick = [this] { chooseAndLoad(); };
@@ -966,6 +720,28 @@ void TunePanel::buildProgression()
 {
     addAndMakeVisible (sectionStrip);
 
+    // 3.3: tabs dragged into the setlist timeline above them.
+    addAndMakeVisible (setlistStrip);
+
+    sectionStrip.onTabDragged = [this] (int, juce::Point<int> screen)
+    {
+        const auto local = setlistStrip.getLocalPoint (nullptr, screen);
+        setlistStrip.showDropMarker (setlistStrip.getLocalBounds().expanded (0, 6).contains (local)
+                                       ? setlistStrip.insertIndexAt (local.x) : -1);
+    };
+
+    sectionStrip.onTabDropped = [this] (int sectionIndex, juce::Point<int> screen)
+    {
+        const auto local = setlistStrip.getLocalPoint (nullptr, screen);
+        setlistStrip.showDropMarker (-1);
+
+        if (! setlistStrip.getLocalBounds().expanded (0, 6).contains (local))
+            return false;
+
+        setlistStrip.dropSection (sectionIndex, setlistStrip.insertIndexAt (local.x));
+        return true;
+    };
+
     addAndMakeVisible (progressionEditor);
     progressionEditor.setTextToShowWhenEmpty ("Am F C G   or   [Verse] Am F C G [Chorus] F C G Am",
                                               Palette::textDisabled);
@@ -975,6 +751,32 @@ void TunePanel::buildProgression()
     progressionEditor.onTextChange = [this] { progressionTextChanged(); };
 
     addAndMakeVisible (chordPills);
+
+    // tune-builder 5: palette, suggest, reharmonize, transpose, modal shift.
+    addAndMakeVisible (toolsButton);
+    toolsButton.setTooltip ("Chord tools: the diatonic palette, suggest next chord, reharmonize, transpose, modal shift");
+    AccessibleSetup::configureButton (toolsButton, "Chord tools");
+    toolsButton.onClick = [this]
+    {
+        buildToolsMenu().showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&toolsButton),
+                                        [safe = juce::Component::SafePointer<TunePanel> (this)] (int r)
+        {
+            if (safe != nullptr && r != 0)
+                safe->performToolsItem (r);
+        });
+    };
+
+    // 3.2: the popover's strum overrides are the pattern library's patterns.
+    chordPills.getPatternNames = [this]
+    {
+        juce::StringArray names;
+        const auto& library = processor.getPatternLibrary();
+
+        for (int i = 0; i < library.getNumPatterns(); ++i)
+            names.add (library.getPattern (i).getName());
+
+        return names;
+    };
 }
 
 void TunePanel::buildRhythm()
@@ -1004,21 +806,65 @@ void TunePanel::buildRhythm()
                            : (! kit.fingerpickPatterns.isEmpty() ? kit.fingerpickPatterns[0] : juce::String());
         const double density = getKitMelodyDensity (kit.name);
 
-        editSection (TuneEditClass::sectionEdit, "Change genre kit", [kit, pattern, density] (TuneSection& s)
+        const int sectionIndex = session.getSelectedSection();
+
+        session.edit (TuneEditClass::sectionEdit, "Change genre kit", [kit, pattern, density, sectionIndex] (Tune& t)
         {
-            if (s.genreKitId == kit.name && s.rhythmPatternId == pattern)
+            auto* s = t.getSection (sectionIndex);
+
+            if (s == nullptr || (s->genreKitId == kit.name && s->rhythmPatternId == pattern))
                 return false;
 
-            s.genreKitId = kit.name;
-            s.rhythmPatternId = pattern;
+            // 2.1 (TUNE-HELP-ONBOARDING): the kit's suggested tempo and swing come
+            // with it while the tune is still on the old kit's (or the default) tempo,
+            // and its feel always does. A tempo the player chose is never overwritten.
+            const auto previous = TuneKits::getSuggestion (s->genreKitId);
+            const auto suggested = TuneKits::getSuggestion (kit.name);
+            const bool tempoUntouched = std::abs (t.meta.tempoBpm - 120.0) < 1.0e-6
+                                          || (s->genreKitId.isNotEmpty() && std::abs (t.meta.tempoBpm - previous.tempoBpm) < 1.0e-6);
+
+            if (tempoUntouched)
+            {
+                t.setTempo (suggested.tempoBpm);
+                t.meta.swingPercent = suggested.swingPercent;
+            }
+
+            s->genreKitId = kit.name;
+            s->rhythmPatternId = pattern;
+            s->feel = tunetheory::canonical (suggested.feel);
 
             // TuneMelody: the track's density follows its kit (4.1).
-            if (s.melody.has_value())
-                s.melody->density = density;
+            if (s->melody.has_value())
+                s->melody->density = density;
 
             return true;
-        }, 4000);
+        }, 4000 + sectionIndex);
     };
+
+    // 2.1: the kit's chord palette - click a chord to append it to the section.
+    addAndMakeVisible (paletteButton);
+    paletteButton.setTooltip ("The genre kit's chord palette, in this key: click one to add it to the section");
+    AccessibleSetup::configureButton (paletteButton, "Chord palette", "Adds a chord from the kit's palette.");
+    paletteButton.onClick = [this]
+    {
+        juce::PopupMenu menu;
+        const auto cells = getPaletteChords();
+
+        for (size_t i = 0; i < cells.size(); ++i)
+            menu.addItem ((int) i + 1, getChordSymbol (cells[i], session.getTune().preferFlats()));
+
+        menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&paletteButton),
+                            [safe = juce::Component::SafePointer<TunePanel> (this)] (int r)
+        {
+            if (safe != nullptr && r > 0)
+                safe->appendPaletteChord (r - 1);
+        });
+    };
+
+    addAndMakeVisible (kitTempoButton);
+    kitTempoButton.setTooltip ("Set the tempo and swing to the kit's suggestion");
+    AccessibleSetup::configureButton (kitTempoButton, "Kit tempo", "Sets the tune's tempo to the kit's suggestion.");
+    kitTempoButton.onClick = [this] { applyKitTempo(); };
 
     for (auto* slider : { &feelSlider, &strumSlider })
     {
@@ -1154,6 +1000,59 @@ void TunePanel::buildMelody()
         });
     };
 
+    // 4.5: "Play this melody like a bluegrass fiddle" - phrasing only.
+    addAndMakeVisible (styleBox);
+    styleBox.setTooltip ("Style transfer: plays the melody with another instrument's phrasing (never its pitches)");
+    AccessibleSetup::configureComboBox (styleBox, "Melody style");
+
+    for (int st = 0; st < (int) MelodyStyle::numStyles; ++st)
+        styleBox.addItem (getMelodyStyleDisplayName ((MelodyStyle) st), st + 1);
+
+    styleBox.onChange = [this]
+    {
+        if (updating || styleBox.getSelectedId() <= 0)
+            return;
+
+        const auto style = (MelodyStyle) (styleBox.getSelectedId() - 1);
+        editSection (TuneEditClass::melodyEdit, "Melody style",
+                     [style] (TuneSection& s) { if (s.style == style) return false; s.style = style; return true; }, 4600);
+    };
+
+    // 4.3: "Held notes across chord changes are optionally re-fitted to the new chord".
+    addAndMakeVisible (followChordsToggle);
+    followChordsToggle.setTooltip ("Record: a note held across a chord change moves to the new chord's nearest chord tone");
+    AccessibleSetup::configureButton (followChordsToggle.getButton(), "Follow chord changes");
+    followChordsToggle.getButton().onClick = [this]
+    {
+        const bool on = followChordsToggle.getButton().getToggleState();
+        editSection (TuneEditClass::melodyEdit, "Follow chord changes", [on] (TuneSection& s)
+        {
+            if (! s.melody.has_value())
+                s.melody = MelodyTrack();
+
+            if (s.melody->followChords == on)
+                return false;
+
+            s.melody->followChords = on;
+            return true;
+        }, 4700);
+    };
+
+    // 13: "a big Sing button on the Melody strip when audio in is present".
+    addChildComponent (singToggle);
+    singToggle.setTooltip ("Sing or hum the melody into the audio input; press again to write it down (snapped to the key "
+                           "and the grid)");
+    AccessibleSetup::configureButton (singToggle.getButton(), "Sing", "Captures a sung melody from the audio input.");
+    singToggle.getButton().onClick = [this]
+    {
+        if (singToggle.getButton().getToggleState())
+            startSinging();
+        else
+            stopSinging();
+
+        refresh();
+    };
+
     freezeButton.onClick = [this]
     {
         const int index = session.getSelectedSection();
@@ -1169,6 +1068,31 @@ void TunePanel::buildMelody()
 
     for (int g = 0; g < (int) QuantiseGrid::numGrids; ++g)
         quantiseBox.addItem (getQuantiseGridName ((QuantiseGrid) g), g + 1);
+
+    // 6 and 7: the roll is also the bass and countermelody editor.
+    addAndMakeVisible (rollTargetBox);
+    rollTargetBox.addItem ("Melody", 1);
+    rollTargetBox.addItem ("Bass", 2);
+    rollTargetBox.addItem ("Countermelody", 3);
+    rollTargetBox.setSelectedId (1, juce::dontSendNotification);
+    rollTargetBox.setTooltip ("What the piano roll edits: the melody, the bass line or the countermelody layer");
+    AccessibleSetup::configureComboBox (rollTargetBox, "Piano roll edits");
+    rollTargetBox.onChange = [this]
+    {
+        pianoRoll.setTarget ((TunePianoRoll::Target) juce::jmax (0, rollTargetBox.getSelectedId() - 1));
+    };
+
+    {
+        juce::StringArray fingerpicks;
+        const auto& library = processor.getPatternLibrary();
+
+        for (int i = 0; i < library.getNumPatterns(); ++i)
+            if (library.getPattern (i).getKind() == RhythmPattern::Kind::fingerpick)
+                fingerpicks.add (library.getPattern (i).getName());
+
+        layersStrip = std::make_unique<TuneLayersStrip> (session, fingerpicks);
+        addAndMakeVisible (*layersStrip);
+    }
 
     quantiseBox.setSelectedId ((int) QuantiseGrid::eighth + 1, juce::dontSendNotification);
     pianoRoll.setGridBeats (getQuantiseGridBeats (QuantiseGrid::eighth));
@@ -1199,6 +1123,13 @@ void TunePanel::buildTransport()
     AccessibleSetup::configureButton (loopToggle.getButton(), "Loop", "Loops the whole tune.");
     AccessibleSetup::configureButton (countInToggle.getButton(), "Count-in", "Counts in a bar before playback.");
     AccessibleSetup::configureButton (metronomeToggle.getButton(), "Metronome", "Clicks on the tune's beats.");
+
+    // tune-builder 14: the looper captures a whole render to practise over.
+    addAndMakeVisible (toLooperButton);
+    toLooperButton.setTooltip ("Render the tune once through into a looper layer, to practise over it "
+                               "(the practice drawer's looper)");
+    AccessibleSetup::configureButton (toLooperButton, "Send to looper", "Renders the tune into a looper layer.");
+    toLooperButton.onClick = [this] { sendToLooper (false); };
 
     backButton.onClick = [this] { player.skipSection (-1); };
     forwardButton.onClick = [this] { player.skipSection (1); };
@@ -1292,12 +1223,19 @@ void TunePanel::refresh()
     feelSlider.setValue (section != nullptr ? section->feel : 0.5, juce::dontSendNotification);
     strumSlider.setValue (section != nullptr ? section->strum : 0.5, juce::dontSendNotification);
     rhythmOn.getButton().setToggleState (section != nullptr && section->rhythmOn, juce::dontSendNotification);
+    kitTempoButton.setButtonText ("KIT " + juce::String (juce::roundToInt (TuneKits::getSuggestion (section != nullptr ? section->genreKitId
+                                                                                                     : juce::String()).tempoBpm)));
+
+    styleBox.setSelectedId (section != nullptr ? (int) section->style + 1 : 0, juce::dontSendNotification);
+    followChordsToggle.getButton().setToggleState (section != nullptr && section->melody.has_value()
+                                                     && section->melody->followChords, juce::dontSendNotification);
 
     const bool improvising = section != nullptr && section->melody.has_value()
                                && section->melody->source == MelodySource::improvise;
 
     improviseToggle.getButton().setToggleState (improvising, juce::dontSendNotification);
     recordToggle.getButton().setToggleState (session.isRecording(), juce::dontSendNotification);
+    singToggle.getButton().setToggleState (processor.getHumCapture().isArmed(), juce::dontSendNotification);
 
     for (auto* c : { static_cast<juce::Component*> (&kitBox), static_cast<juce::Component*> (&feelSlider),
                      static_cast<juce::Component*> (&strumSlider), static_cast<juce::Component*> (&rhythmOn),
@@ -1308,7 +1246,11 @@ void TunePanel::refresh()
     freezeButton.setEnabled (improvising);
     saveButton.setButtonText (session.isDirty() ? "SAVE *" : "SAVE");
 
+    if (layersStrip != nullptr)
+        layersStrip->refresh();
+
     sectionStrip.repaint();
+    setlistStrip.repaint();
     chordPills.repaint();
     pianoRoll.repaint();
     repaint();
@@ -1317,11 +1259,31 @@ void TunePanel::refresh()
 void TunePanel::timerCallback()
 {
     updateTransport();
+
+    if (isShowing())
+        showFirstEncounterHintIfDue();
+}
+
+bool TunePanel::showFirstEncounterHintIfDue()
+{
+    return firstHint.showIfDue();
 }
 
 void TunePanel::updateTransport()
 {
     session.service();
+
+    // 13: the sung take is analysed as it arrives; Sing shows only with an audio input.
+    if (processor.getHumCapture().isArmed())
+        processor.getHumCapture().process();
+
+    const bool audioIn = processor.hasSidechainInput() || processor.getHumCapture().isArmed();
+
+    if (singToggle.isVisible() != audioIn)
+    {
+        singToggle.setVisible (audioIn);
+        resized();
+    }
 
     // tune-builder 6: the bass plays through the instrument only when it is a bass.
     player.setBassToEngine (processor.getEngine().getGuitarSpec().category == GuitarCategory::Bass);
@@ -1411,23 +1373,30 @@ bool TunePanel::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
-    if (isShortcut (key, 'S'))
+    if (isBound (key, "save"))
     {
         chooseAndSave();
         return true;
     }
 
-    if (isShortcut (key, 'E'))
+    if (isBound (key, "export"))
     {
         chooseAndExport();
         return true;
     }
 
-    if (isShortcut (key, 'T'))
+    if (isBound (key, "newTune"))
     {
         showTemplateMenu();
         return true;
     }
+
+    // The tune's own undo stack, on whatever undo and redo are bound to.
+    if (isBound (key, "redo"))
+        return session.redo();
+
+    if (isBound (key, "undo"))
+        return session.undo();
 
     if (isShortcut (key, 'Z'))
         return mods.isShiftDown() ? session.redo() : session.undo();
@@ -1449,6 +1418,111 @@ bool TunePanel::keyPressed (const juce::KeyPress& key)
 }
 
 //==============================================================================
+bool TunePanel::startSinging()
+{
+    const int index = session.getSelectedSection();
+
+    if (! session.getTune().isValidSection (index))
+        return false;
+
+    // The take lines up with the section: where it is playing now, or from its start.
+    double beat = 0.0;
+    const auto spans = session.getTune().getPlayOrder();
+    const int span = player.getPlayingSpan();
+
+    if (player.isPlaying() && juce::isPositiveAndBelow (span, (int) spans.size()) && spans[(size_t) span].sectionIndex == index)
+        beat = juce::jmax (0.0, player.getPositionPpq() - spans[(size_t) span].startBeat);
+    else
+        player.playFromSection (juce::jmax (0, firstSpanOf (session.getTune(), index)));
+
+    auto& capture = processor.getHumCapture();
+    capture.begin (session.getTune().meta.tempoBpm, beat);
+    capture.setArmed (true);
+    singingSection = index;
+    return true;
+}
+
+bool TunePanel::stopSinging()
+{
+    auto& capture = processor.getHumCapture();
+
+    if (! capture.isArmed())
+        return false;
+
+    capture.setArmed (false);
+    const int index = singingSection;
+    singingSection = -1;
+
+    const auto grid = (QuantiseGrid) juce::jmax (0, quantiseBox.getSelectedId() - 1);
+    const auto notes = capture.finish (session.getTune(), index, grid, ! pianoRoll.isChromatic());
+
+    return session.edit (TuneEditClass::melodyRecord, "Record melody (Sing)", [index, notes] (Tune& t)
+    {
+        return t.setMelodyNotes (index, notes, MelodySource::sing);
+    });
+}
+
+int TunePanel::sendToLooper (bool synchronous)
+{
+    if (looperWorker != nullptr && looperWorker->isThreadRunning())
+        return 0;
+
+    const auto state = processor.captureStateBlock();
+    const double rate = processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0;
+
+    auto importInto = [safeProcessor = &processor] (const TuneExport::Render& render)
+    {
+        auto& looper = safeProcessor->getLooper();
+        int layer = 0;
+
+        for (int i = 0; i < looper.getNumLayers(); ++i)
+            if (! looper.getLayer (i).hasContent())
+            {
+                layer = i;
+                break;
+            }
+
+        return looper.importLayer (layer, render.main);
+    };
+
+    if (synchronous)
+    {
+        TuneExport::Render render;
+        return TuneExport::renderAudio (state, rate, 512, 0.0, false, render) ? importInto (render) : 0;
+    }
+
+    struct Worker : juce::Thread
+    {
+        Worker (std::function<void()> f) : juce::Thread ("Tune to looper"), job (std::move (f)) {}
+        void run() override { job(); }
+        std::function<void()> job;
+    };
+
+    toLooperButton.setEnabled (false);
+    toLooperButton.setButtonText ("RENDERING...");
+
+    looperWorker = std::make_unique<Worker> ([state, rate, importInto, safe = juce::Component::SafePointer<TunePanel> (this)]
+    {
+        auto render = std::make_shared<TuneExport::Render>();
+        const bool ok = TuneExport::renderAudio (state, rate, 512, 0.0, false, *render);
+
+        juce::MessageManager::callAsync ([safe, render, ok, importInto]
+        {
+            if (safe == nullptr)
+                return;
+
+            if (ok)
+                importInto (*render);
+
+            safe->toLooperButton.setEnabled (true);
+            safe->toLooperButton.setButtonText ("TO LOOPER");
+        });
+    });
+
+    looperWorker->startThread();
+    return 0;
+}
+
 bool TunePanel::saveTo (const juce::File& file, juce::String& error)
 {
     return session.saveAs (file, error);
@@ -1479,6 +1553,18 @@ void TunePanel::newFromTemplate (int templateIndex)
         session.newTune (TuneTemplateLibrary::instantiate (TuneTemplateLibrary::createBlank()));
 }
 
+bool TunePanel::openExample (int exampleIndex)
+{
+    const auto examples = TuneExamples::loadExamples();
+
+    if (! juce::isPositiveAndBelow (exampleIndex, (int) examples.size()))
+        return false;
+
+    player.stop();
+    session.newTune (examples[(size_t) exampleIndex].tune);
+    return true;
+}
+
 void TunePanel::showError (const juce::String& title, const juce::String& message)
 {
     juce::NativeMessageBox::showAsync (juce::MessageBoxOptions()
@@ -1501,10 +1587,26 @@ void TunePanel::showTemplateMenu()
     if (templates.empty())
         menu.addItem (1, "Blank");
 
+    // onboarding 6: the example tunes, ready to play.
+    const auto examples = TuneExamples::loadExamples();
+
+    if (! examples.empty())
+    {
+        juce::PopupMenu exampleMenu;
+
+        for (size_t i = 0; i < examples.size(); ++i)
+            exampleMenu.addItem (kExampleMenuBase + (int) i, examples[i].name);
+
+        menu.addSeparator();
+        menu.addSubMenu ("Example tunes", exampleMenu);
+    }
+
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&newButton),
                         [safe = juce::Component::SafePointer<TunePanel> (this)] (int result)
     {
-        if (safe != nullptr && result > 0)
+        if (safe != nullptr && result >= kExampleMenuBase)
+            safe->openExample (result - kExampleMenuBase);
+        else if (safe != nullptr && result > 0)
             safe->newFromTemplate (result - 1);
     });
 }
@@ -1564,6 +1666,16 @@ void TunePanel::chooseAndSave()
 
 void TunePanel::chooseAndExport()
 {
+    // tune-builder 2.6 and 9: one screen, four destinations (TUNE-HELP-ONBOARDING).
+    if (isShowing())
+    {
+        TuneExportDialog::launch (processor, this);
+        return;
+    }
+}
+
+void TunePanel::chooseAndExportMidiFile()
+{
     const auto name = juce::File::createLegalFileName (session.getTune().meta.title.isNotEmpty()
                                                          ? session.getTune().meta.title : juce::String ("Untitled Tune"));
 
@@ -1587,17 +1699,59 @@ void TunePanel::chooseAndExport()
 }
 
 //==============================================================================
+//==============================================================================
+std::vector<ChordCell> TunePanel::getPaletteChords() const
+{
+    const auto& tune = session.getTune();
+    const auto* s = tune.getSection (session.getSelectedSection());
+    const auto suggestion = TuneKits::getSuggestion (s != nullptr ? s->genreKitId : juce::String());
+    return TuneKits::resolvePalette (suggestion.palette, tune.meta.keyTonic, tune.meta.mode, tune.getBeatsPerBar());
+}
+
+bool TunePanel::appendPaletteChord (int paletteIndex)
+{
+    const auto cells = getPaletteChords();
+    const int index = session.getSelectedSection();
+
+    if (! juce::isPositiveAndBelow (paletteIndex, (int) cells.size()) || ! session.getTune().isValidSection (index))
+        return false;
+
+    const auto cell = cells[(size_t) paletteIndex];
+    return session.edit (TuneEditClass::chordEdit, "Add chord from palette",
+                         [index, cell] (Tune& t) { return t.insertChord (index, -1, cell); });
+}
+
+bool TunePanel::applyKitTempo()
+{
+    const auto* s = session.getTune().getSection (session.getSelectedSection());
+
+    if (s == nullptr)
+        return false;
+
+    const auto suggestion = TuneKits::getSuggestion (s->genreKitId);
+
+    return session.edit (TuneEditClass::other, "Kit tempo", [suggestion] (Tune& t)
+    {
+        const bool tempo = t.setTempo (suggestion.tempoBpm);
+        const bool swing = t.meta.swingPercent != suggestion.swingPercent;
+        t.meta.swingPercent = suggestion.swingPercent;
+        return tempo || swing;
+    });
+}
+
 int TunePanel::getPreferredHeight() const
 {
     const int button = Metrics::buttonHeight;
 
     return Metrics::grid
+         + (firstHint.isVisible() ? FirstEncounterHint::kHeight + kRowGap : 0)   // onboarding 8
          + 3 * (button + kRowGap)                                     // header: title, buttons, tempo/key
-         + kHeader + kStripHeight + kRowGap                           // sections
+         + kHeader + TuneSetlistStrip::kHeight + 4 + kStripHeight + kRowGap   // setlist and sections
          + kHeader + button + kErrorLine + kPillsHeight + kRowGap     // progression
          + kHeader + 2 * (button + kRowGap)                           // rhythm
-         + kHeader + kRollHeight + kRowGap + 2 * (button + kRowGap)   // melody
-         + kHeader + button + kRowGap + kPositionLine                 // transport
+         + kHeader + kRollHeight + kRowGap + 3 * (button + kRowGap)   // melody
+         + kHeader + (layersStrip != nullptr ? layersStrip->getPreferredHeight() : 0) + kRowGap   // bass and layers
+         + kHeader + 2 * (button + kRowGap) + kPositionLine           // transport and TO LOOPER
          + Metrics::grid;
 }
 
@@ -1614,6 +1768,7 @@ void TunePanel::paint (juce::Graphics& g)
     LuthierLookAndFeel::drawSectionHeader (g, rhythmHeader, "RHYTHM");
     LuthierLookAndFeel::drawSectionHeader (g, melodyHeader, "MELODY");
     LuthierLookAndFeel::drawSectionHeader (g, transportHeader, "TRANSPORT");
+    LuthierLookAndFeel::drawSectionHeader (g, layersHeader, "BASS AND LAYERS");
 
     g.setFont (Fonts::label());
     g.setColour (Palette::textMuted);
@@ -1621,6 +1776,7 @@ void TunePanel::paint (juce::Graphics& g)
     g.drawText ("FEEL", feelLabelBounds, juce::Justification::centredLeft);
     g.drawText ("STRUM", strumLabelBounds, juce::Justification::centredLeft);
     g.drawText ("QUANTISE", quantiseLabelBounds, juce::Justification::centredLeft);
+    g.drawText ("EDIT", rollTargetLabelBounds, juce::Justification::centredLeft);
 
     // The parse error, under the field (2.2, 15).
     const auto errorBounds = juce::Rectangle<int> (progressionEditor.getX(), progressionEditor.getBottom(),
@@ -1678,6 +1834,13 @@ void TunePanel::resized()
         }
     };
 
+    // onboarding.md 8: the first-encounter hint at the very top.
+    if (firstHint.isVisible())
+    {
+        firstHint.setBounds (bounds.removeFromTop (FirstEncounterHint::kHeight));
+        bounds.removeFromTop (kRowGap);
+    }
+
     // --- header (3.1: "TUNE [My New Tune] [Save] [Export] Tempo [120] Key [C]") ---------
     {
         auto r = row();
@@ -1697,12 +1860,19 @@ void TunePanel::resized()
 
     // --- sections ----------------------------------------------------------------------
     sectionsHeader = bounds.removeFromTop (kHeader);
+    setlistStrip.setBounds (bounds.removeFromTop (TuneSetlistStrip::kHeight));
+    bounds.removeFromTop (4);
     sectionStrip.setBounds (bounds.removeFromTop (kStripHeight));
     bounds.removeFromTop (kRowGap);
 
     // --- progression -------------------------------------------------------------------
     progressionHeader = bounds.removeFromTop (kHeader);
-    progressionEditor.setBounds (bounds.removeFromTop (button));
+    {
+        auto r = bounds.removeFromTop (button);
+        toolsButton.setBounds (r.removeFromRight (64));
+        r.removeFromRight (4);
+        progressionEditor.setBounds (r);
+    }
     bounds.removeFromTop (kErrorLine);
     chordPills.setBounds (bounds.removeFromTop (kPillsHeight));
     bounds.removeFromTop (kRowGap);
@@ -1713,6 +1883,10 @@ void TunePanel::resized()
     {
         auto r = row();
         rhythmOn.setBounds (r.removeFromRight (56));
+        r.removeFromRight (4);
+        kitTempoButton.setBounds (r.removeFromRight (80));
+        r.removeFromRight (4);
+        paletteButton.setBounds (r.removeFromRight (72));
         r.removeFromRight (4);
         kitBox.setBounds (r);
     }
@@ -1730,17 +1904,35 @@ void TunePanel::resized()
     melodyHeader = bounds.removeFromTop (kHeader);
     pianoRoll.setBounds (bounds.removeFromTop (kRollHeight));
     bounds.removeFromTop (kRowGap);
-    split (row(), { &autoButton, &drawToggle, &recordToggle, &improviseToggle, &freezeButton });
+    if (singToggle.isVisible())
+        split (row(), { &autoButton, &drawToggle, &recordToggle, &improviseToggle, &singToggle, &freezeButton });
+    else
+        split (row(), { &autoButton, &drawToggle, &recordToggle, &improviseToggle, &freezeButton });
 
     {
         auto r = row();
         quantiseLabelBounds = r.removeFromLeft (64);
         quantiseBox.setBounds (r.removeFromLeft (96));
+        r.removeFromLeft (Metrics::grid);
+        rollTargetLabelBounds = r.removeFromLeft (36);
+        rollTargetBox.setBounds (r.removeFromLeft (juce::jmin (140, r.getWidth())));
     }
+
+    {
+        auto r = row();
+        styleBox.setBounds (r.removeFromLeft (r.getWidth() * 2 / 3).withTrimmedRight (4));
+        followChordsToggle.setBounds (r);
+    }
+
+    // --- bass and layers (6, 7) --------------------------------------------------------
+    layersHeader = bounds.removeFromTop (kHeader);
+    layersStrip->setBounds (bounds.removeFromTop (layersStrip->getPreferredHeight()));
+    bounds.removeFromTop (kRowGap);
 
     // --- transport ---------------------------------------------------------------------
     transportHeader = bounds.removeFromTop (kHeader);
     split (row(), { &backButton, &playButton, &forwardButton, &loopToggle, &countInToggle, &metronomeToggle });
+    toLooperButton.setBounds (row().removeFromLeft (120));
     positionBounds = bounds.removeFromTop (kPositionLine);
 }
 

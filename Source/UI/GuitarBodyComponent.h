@@ -20,6 +20,7 @@
 #include "Widgets.h"
 #include "Guitar/GuitarRenderer.h"
 #include "Guitar/IllustrationMotion.h"
+#include "ChordNameOverlay.h"
 
 namespace luthier
 {
@@ -67,6 +68,7 @@ private:
     std::unique_ptr<LuthierKnob> concertA;
 
     juce::OwnedArray<juce::Slider> detuneSliders;
+    juce::OwnedArray<class StabilityBadge> stabilityBadges;   // tuning-stability.md 6 (REALISM-C)
     juce::StringArray noteNames;
 
     int numStrings = 6;
@@ -156,6 +158,14 @@ public:
     /** Rebuilds now if the guitar changed (the timer checks twice a second). */
     void checkForGuitarChange() { rebuildScene (false); }
 
+    /** piano-roll-chord-display.md 4: the chord name over the lower bout. */
+    ChordNameOverlay& getChordName() noexcept { return chordName; }
+
+    /** piano-roll-chord-display.md 3: "Show fingering" in Easy, which has no
+        fretboard - (string, fret from the capo) pairs, drawn hollow. */
+    void setGhostDots (const std::vector<std::pair<int, double>>& dots);
+    juce::Rectangle<float> getChordNameArea() const;
+
 private:
     void timerCallback() override;
 
@@ -191,6 +201,8 @@ private:
     // guitar-illustration.md 12.1, 16, 19 (IllustrationMotion.h).
     SceneCrossfade fade;
     NoteDots dots;
+    ChordNameOverlay chordName;   // piano-roll-chord-display.md 4
+    std::array<float, 12> ghostFrets { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
     double lastFrameMs = 0.0;
 
     int draggingKnob = -1;

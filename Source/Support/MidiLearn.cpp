@@ -6,66 +6,48 @@ namespace luthier
 MidiLearnManager::MidiLearnManager (juce::AudioProcessorValueTreeState& state)
     : apvts (state)
 {
-    for (auto& slot : ccToMapping)
-        slot.store (-1);
 }
 
 MidiLearnManager::~MidiLearnManager()
 {
     stopTimer();
+    cancelPendingUpdate();
+}
+
+void MidiLearnManager::timerCallback()
+{
+    // The CC the audio thread caught is mapped here; the timer runs only while
+    // learning (or until the caught CC is mapped).
+    handleAsyncUpdate();
+
+    if (! learning.load() && learnedCc.load() < 0)
+        stopTimer();
 }
 
 //==============================================================================
 void MidiLearnManager::startLearning (const juce::String& parameterId)
 {
     {
-        const ThreadProbe::ProbedScopedLock sl (lock);
+        const juce::ScopedLock sl (lock);
         learningParameter = parameterId;
     }
 
-    pendingLearnCc.store (-1);
     learning.store (true);
 
-    // performance-budget.md 0.4: the learned CC is picked up here, not
-    // posted from the audio thread.
+    // performance-budget.md 0.5: posting a message from the audio thread takes
+    // the message queue's lock, so the message thread polls instead.
     if (juce::MessageManager::getInstanceWithoutCreating() != nullptr)
         startTimerHz (30);
 
     sendChangeMessage();
 }
 
-void MidiLearnManager::servicePendingLearn()
-{
-    const int cc = pendingLearnCc.exchange (-1);
-
-    if (cc < 0)
-    {
-        if (! learning.load())
-            stopTimer();
-
-        return;
-    }
-
-    const auto target = getLearningParameterId();
-
-    if (target.isNotEmpty())
-    {
-        if (onBeforeLearn != nullptr)   // action-and-undo: the learn is one undo entry
-            onBeforeLearn (target, cc);
-
-        addMapping (target, cc);
-    }
-
-    cancelLearning();
-}
-
 void MidiLearnManager::cancelLearning()
 {
     learning.store (false);
-    stopTimer();
 
     {
-        const ThreadProbe::ProbedScopedLock sl (lock);
+        const juce::ScopedLock sl (lock);
         learningParameter.clear();
     }
 
@@ -109,23 +91,52 @@ bool MidiLearnManager::claimArmedLearn (const juce::String& parameterId)
 
 juce::String MidiLearnManager::getLearningParameterId() const
 {
-    const ThreadProbe::ProbedScopedLock sl (lock);
+    const juce::ScopedLock sl (lock);
     return learningParameter;
 }
 
 //==============================================================================
 void MidiLearnManager::rebuildLookup() noexcept
 {
-    for (auto& slot : ccToMapping)
-        slot.store (-1, std::memory_order_relaxed);
+    // Message thread, under `lock`. The table is built aside and copied in
+    // under the spin lock, so the audio thread waits at most for the copy.
+    std::array<LookupEntry, 128> fresh {};
 
-    for (int i = 0; i < mappings.size(); ++i)
+    for (const auto& m : mappings)
     {
-        const int cc = mappings.getReference (i).ccNumber;
+        if (! juce::isPositiveAndBelow (m.ccNumber, 128))
+            continue;
 
-        if (juce::isPositiveAndBelow (cc, 128))
-            ccToMapping[(size_t) cc].store (i, std::memory_order_relaxed);
+        auto& e = fresh[(size_t) m.ccNumber];
+        e.parameter = apvts.getParameter (m.parameterId);
+        e.channel = m.channel;
+        e.rangeMin = m.rangeMin;
+        e.rangeMax = m.rangeMax;
+        e.inverted = m.inverted;
     }
+
+    const juce::SpinLock::ScopedLockType sl (tableLock);
+    lookup = fresh;
+}
+
+void MidiLearnManager::handleAsyncUpdate()
+{
+    const int cc = learnedCc.exchange (-1);
+
+    if (cc < 0)
+        return;
+
+    const auto target = getLearningParameterId();
+
+    if (target.isNotEmpty())
+    {
+        if (onBeforeLearn != nullptr)   // action-and-undo.md 3.12: the learn is one undo entry
+            onBeforeLearn (target, cc);
+
+        addMapping (target, cc);
+    }
+
+    cancelLearning();
 }
 
 void MidiLearnManager::addMapping (const juce::String& parameterId, int ccNumber, int channel)
@@ -134,7 +145,7 @@ void MidiLearnManager::addMapping (const juce::String& parameterId, int ccNumber
         return;
 
     {
-        const ThreadProbe::ProbedScopedLock sl (lock);
+        const juce::ScopedLock sl (lock);
 
         // One CC controls one parameter, and one parameter is controlled by one
         // CC. Both directions are replaced so the map can never be ambiguous.
@@ -157,7 +168,7 @@ void MidiLearnManager::addMapping (const juce::String& parameterId, int ccNumber
 void MidiLearnManager::removeMappingForParameter (const juce::String& parameterId)
 {
     {
-        const ThreadProbe::ProbedScopedLock sl (lock);
+        const juce::ScopedLock sl (lock);
 
         for (int i = mappings.size(); --i >= 0;)
             if (mappings[i].parameterId == parameterId)
@@ -172,7 +183,7 @@ void MidiLearnManager::removeMappingForParameter (const juce::String& parameterI
 void MidiLearnManager::removeMappingForCc (int ccNumber)
 {
     {
-        const ThreadProbe::ProbedScopedLock sl (lock);
+        const juce::ScopedLock sl (lock);
 
         for (int i = mappings.size(); --i >= 0;)
             if (mappings[i].ccNumber == ccNumber)
@@ -187,7 +198,7 @@ void MidiLearnManager::removeMappingForCc (int ccNumber)
 void MidiLearnManager::clearAllMappings()
 {
     {
-        const ThreadProbe::ProbedScopedLock sl (lock);
+        const juce::ScopedLock sl (lock);
         mappings.clear();
         rebuildLookup();
     }
@@ -198,7 +209,7 @@ void MidiLearnManager::clearAllMappings()
 //==============================================================================
 int MidiLearnManager::getCcForParameter (const juce::String& parameterId) const
 {
-    const ThreadProbe::ProbedScopedLock sl (lock);
+    const juce::ScopedLock sl (lock);
 
     for (const auto& m : mappings)
         if (m.parameterId == parameterId)
@@ -209,7 +220,7 @@ int MidiLearnManager::getCcForParameter (const juce::String& parameterId) const
 
 juce::String MidiLearnManager::getParameterForCc (int ccNumber) const
 {
-    const ThreadProbe::ProbedScopedLock sl (lock);
+    const juce::ScopedLock sl (lock);
 
     for (const auto& m : mappings)
         if (m.ccNumber == ccNumber)
@@ -220,13 +231,13 @@ juce::String MidiLearnManager::getParameterForCc (int ccNumber) const
 
 int MidiLearnManager::getNumMappings() const
 {
-    const ThreadProbe::ProbedScopedLock sl (lock);
+    const juce::ScopedLock sl (lock);
     return mappings.size();
 }
 
 MidiLearnManager::Mapping MidiLearnManager::getMapping (int index) const
 {
-    const ThreadProbe::ProbedScopedLock sl (lock);
+    const juce::ScopedLock sl (lock);
 
     if (juce::isPositiveAndBelow (index, mappings.size()))
         return mappings.getReference (index);
@@ -237,7 +248,7 @@ MidiLearnManager::Mapping MidiLearnManager::getMapping (int index) const
 void MidiLearnManager::setMappingRange (const juce::String& parameterId, double min, double max, bool inverted)
 {
     {
-        const ThreadProbe::ProbedScopedLock sl (lock);
+        const juce::ScopedLock sl (lock);
 
         for (auto& m : mappings)
         {
@@ -248,6 +259,8 @@ void MidiLearnManager::setMappingRange (const juce::String& parameterId, double 
                 m.inverted = inverted;
             }
         }
+
+        rebuildLookup();
     }
 
     sendChangeMessage();
@@ -276,11 +289,11 @@ void MidiLearnManager::processMidi (const juce::MidiBuffer& midi) noexcept
             if (cc == 64 || cc == 66 || cc == 123 || cc == 120)
                 continue;
 
-            // Mapping mutates the array and reads a String under the lock, so
-            // neither happens here: the CC is published and the message
-            // thread's timer maps it (performance-budget.md 0.4 / 0.5).
+            // Mapping mutates the array, so it cannot happen here; the message
+            // thread's poll (timerCallback) does it. No triggerAsyncUpdate: posting
+            // a message takes a lock (performance-budget.md 0.5).
             if (juce::isPositiveAndBelow (cc, 128))
-                pendingLearnCc.store (cc);
+                learnedCc.store (cc);
 
             learning.store (false, std::memory_order_relaxed);
             continue;
@@ -289,15 +302,19 @@ void MidiLearnManager::processMidi (const juce::MidiBuffer& midi) noexcept
         if (! juce::isPositiveAndBelow (cc, 128))
             continue;
 
-        const int index = ccToMapping[(size_t) cc].load (std::memory_order_relaxed);
+        LookupEntry m;
 
-        if (index < 0)
+        {
+            const juce::SpinLock::ScopedTryLockType sl (tableLock);
+
+            if (! sl.isLocked())
+                continue;   // mid-rebuild: this one message is dropped
+
+            m = lookup[(size_t) cc];
+        }
+
+        if (m.parameter == nullptr)
             continue;
-
-        // Read the mapping without locking: the array is only mutated on the
-        // message thread, and a torn read here would at worst apply a stale range
-        // for one message.
-        const auto& m = mappings.getReference (juce::jlimit (0, juce::jmax (0, mappings.size() - 1), index));
 
         if (m.channel != 0 && m.channel != message.getChannel())
             continue;
@@ -307,15 +324,14 @@ void MidiLearnManager::processMidi (const juce::MidiBuffer& midi) noexcept
         if (m.inverted)
             scaled = m.rangeMax - (scaled - m.rangeMin);
 
-        if (auto* param = apvts.getParameter (m.parameterId))
-            param->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, scaled));
+        m.parameter->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, scaled));
     }
 }
 
 //==============================================================================
 juce::var MidiLearnManager::toVar() const
 {
-    const ThreadProbe::ProbedScopedLock sl (lock);
+    const juce::ScopedLock sl (lock);
 
     juce::Array<juce::var> array;
 
@@ -337,7 +353,7 @@ juce::var MidiLearnManager::toVar() const
 void MidiLearnManager::fromVar (const juce::var& data)
 {
     {
-        const ThreadProbe::ProbedScopedLock sl (lock);
+        const juce::ScopedLock sl (lock);
         mappings.clear();
 
         if (auto* array = data.getArray())

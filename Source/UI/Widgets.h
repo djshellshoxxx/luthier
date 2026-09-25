@@ -67,27 +67,6 @@ constexpr int kRestrictRangeMenuId = 11;
 constexpr int kAutomationIdMenuId = 12;
 constexpr int kShowShortcutMenuId = 13;
 
-/*  gui-integration.md 20: "Every panel with more than one row of controls has a
-    `?` icon; click opens Help pinned to that panel's docs." The button calls
-    openHelpForPanel, which the editor sets to its own help. */
-extern std::function<void (const juce::String& panelName)> openHelpForPanel;
-
-class PanelHelpButton : public juce::Button
-{
-public:
-    explicit PanelHelpButton (const juce::String& panelName);
-
-    void paintButton (juce::Graphics&, bool highlighted, bool down) override;
-    void clicked() override;
-
-    const juce::String& getPanelName() const noexcept { return panel; }
-    void setPanelName (const juce::String& name) { panel = name; setTooltip ("Help for " + name); setTitle ("Help for " + name); }
-    static constexpr int size = 16;
-
-private:
-    juce::String panel;
-};
-
 /** ui-wiring.md 21: names an attached control for screen readers after its parameter. */
 void labelForScreenReaders (juce::Component& control, LuthierAudioProcessor& processor,
                             const juce::String& parameterId, const juce::String& tooltip);
@@ -422,6 +401,10 @@ public:
 
     /** What the timer does, for the tests. */
     void refresh();
+
+    /** gui-engine-dataflow.md 22: the LED drains at 30 Hz (MODEL-GAPS, TODO 2k). */
+    static constexpr int kRefreshHz = 30;
+    int getRefreshIntervalMs() const noexcept { return getTimerInterval(); }
 
 private:
     void timerCallback() override { refresh(); }

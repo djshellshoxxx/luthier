@@ -348,6 +348,27 @@ namespace ParamIDs
     inline constexpr const char* slapSnapBack           = "slap_snap_back";
     inline constexpr const char* slapBodyPart           = "slap_body_part";
 
+    // ==== BEGIN REALISM-A params ====
+    // string-aging.md 4
+    inline constexpr const char* stringAgeHours         = "string_age_hours";
+    inline constexpr const char* stringCorrosivity      = "string_corrosivity";
+    inline constexpr const char* stringAgeDetail        = "string_age_detail";
+    inline constexpr const char* stringCoating          = "string_coating";
+    inline constexpr const char* stringAgeAccrual       = "string_age_accrual";
+    // environment.md 5
+    inline constexpr const char* envTemperatureC        = "env_temperature_c";
+    inline constexpr const char* envTunedAtC            = "env_tuned_at_c";
+    inline constexpr const char* envHumidityPct         = "env_humidity_pct";
+    inline constexpr const char* envProfile             = "env_profile";
+    inline constexpr const char* envClock               = "env_clock";
+    // body-coupling.md 4
+    inline constexpr const char* bodyCouplingAmount     = "body_coupling_amount";
+    inline constexpr const char* bodyModeMassScale      = "body_mode_mass_scale";
+    inline constexpr const char* bodyModeQScale         = "body_mode_q_scale";
+    inline constexpr const char* bodyModeFreqScale      = "body_mode_freq_scale";
+    inline constexpr const char* bodyCouplingModes      = "body_coupling_modes";
+    // ==== END REALISM-A params ====
+
     // --- effect slots ----------------------------------------------------------
     /** `post` selects the chain; `slot` 0-7; `param` 0-9. */
     juce::String slotType (bool post, int slot);
@@ -355,10 +376,97 @@ namespace ParamIDs
     juce::String slotMix (bool post, int slot);
     juce::String slotParam (bool post, int slot, int param);
 
-    // ==== BEGIN VISUAL-WORKSHOP-QA params ====
-    // performance-budget.md 4: Aux 1 (DI) taps before the GuitarCircuit when on.
-    inline constexpr const char* aux1PreCircuit = "aux1_pre_circuit";
-    // ==== END VISUAL-WORKSHOP-QA params ====
+    // ==== BEGIN MODEL-GAPS params ====
+    // bass-techniques.md 6 (fingerstyle-attack.md reuses both) and
+    // ambiguity-resolutions 8 / routing-io 2's Aux 1 pre / post-circuit toggle.
+    inline constexpr const char* fingerAlternationVariation = "finger_alternation_variation";
+    inline constexpr const char* restStroke                 = "rest_stroke";
+    inline constexpr const char* aux1PreCircuit             = "aux1_pre_circuit";
+    // ==== END MODEL-GAPS params ====
+    // ==== BEGIN REALISM-B params ====
+    // harmonic-realism.md 5 (+8).
+    inline constexpr const char* harmonicTouchPressure    = "harmonic_touch_pressure";
+    inline constexpr const char* harmonicFingerWidth      = "harmonic_finger_width";
+    inline constexpr const char* harmonicTouchTime        = "harmonic_touch_time";
+    inline constexpr const char* harmonicBriefTouch       = "harmonic_brief_touch";
+    inline constexpr const char* pinchThumbOffsetMm       = "pinch_thumb_offset_mm";
+    inline constexpr const char* artificialHarmonicOffset = "artificial_harmonic_offset";
+    inline constexpr const char* tappedHarmonicOffset     = "tapped_harmonic_offset";
+    inline constexpr const char* harmonicNoteMapping      = "harmonic_note_mapping";
+
+    // string-interaction.md 7 (+7).
+    inline constexpr const char* couplingAirAmount        = "coupling_air_amount";
+    inline constexpr const char* palmMuteSpread           = "palm_mute_spread";
+    inline constexpr const char* adjacentMuteAmount       = "adjacent_mute_amount";
+    inline constexpr const char* releaseStaggerMs         = "release_stagger_ms";
+    inline constexpr const char* releaseStaggerBias       = "release_stagger_bias";
+    inline constexpr const char* pickupApertureScale      = "pickup_aperture_scale";
+    inline constexpr const char* mutedThumpLevel          = "muted_thump_level";
+
+    // fingerstyle-attack.md 6 (+14).
+    inline constexpr const char* fingerFleshReleaseMs     = "finger_flesh_release_ms";
+    inline constexpr const char* fingerNailReleaseMs      = "finger_nail_release_ms";
+    inline constexpr const char* thumbPositionOffset      = "thumb_position_offset";
+    inline constexpr const char* restStrokeDamping        = "rest_stroke_damping";
+    inline constexpr const char* rhStroke                 = "rh_stroke";
+    inline constexpr const char* rhStyle                  = "rh_style";
+    inline constexpr const char* thumbPalmMute            = "thumb_palm_mute";
+    inline constexpr const char* hybridSnap               = "hybrid_snap";
+
+    /** rh_string_tool_1 ... _6; string 1 is the high E (routing-io.md 3). */
+    inline const char* rhStringTool (int n) noexcept
+    {
+        static constexpr const char* ids[] = { "rh_string_tool_1", "rh_string_tool_2", "rh_string_tool_3",
+                                               "rh_string_tool_4", "rh_string_tool_5", "rh_string_tool_6" };
+        return ids[juce::jlimit (1, 6, n) - 1];
+    }
+
+    /*  bass-techniques.md 11's IDs, which fingerstyle-attack.md 6 reuses and
+        does not duplicate. Read if another workstream declares them. */
+    inline constexpr const char* bassRestStroke             = "rest_stroke";
+    // ==== END REALISM-B params ====
+    // ==== BEGIN REALISM-C params ====
+    // noise-floor.md 3 (noise_amp_buzz, "Single-coil Hum", is ampBuzz above).
+    inline constexpr const char* noiseMainsHz         = "noise_mains_hz";
+    inline constexpr const char* noisePlayerAngle     = "noise_player_angle";
+    inline constexpr const char* noisePlayerDistance  = "noise_player_distance";
+    inline constexpr const char* noiseFluorescent     = "noise_fluorescent";
+    inline constexpr const char* noisePassiveHiss     = "noise_passive_hiss";
+    inline constexpr const char* noiseCableMovement   = "noise_cable_movement";
+    inline constexpr const char* noiseRadio           = "noise_radio";
+    inline constexpr const char* noiseGroundLoop      = "noise_ground_loop";
+    inline constexpr const char* noiseAmpHiss         = "noise_amp_hiss";
+    inline constexpr const char* noiseMicrophonics    = "noise_microphonics";
+    inline constexpr const char* noiseFloorToAux8     = "noise_floor_to_aux8";
+    inline constexpr const char* noiseFloorStyle      = "noise_floor_style";
+
+    // sustain-and-decay.md 6.
+    inline constexpr const char* sustainAttackTransient = "sustain_attack_transient";
+    inline constexpr const char* sustainAttackTime      = "sustain_attack_time";
+    inline constexpr const char* sustainFastShare       = "sustain_fast_share";
+    inline constexpr const char* sustainFastRatio       = "sustain_fast_ratio";
+    inline constexpr const char* sustainTensionMod      = "sustain_tension_mod";
+    inline constexpr const char* sustainReleaseTime     = "sustain_release_time";
+    inline constexpr const char* sustainReleaseSag      = "sustain_release_sag";
+    inline constexpr const char* sustainReleaseRing     = "sustain_release_ring";
+    inline constexpr const char* sustainStyle           = "sustain_style";
+
+    // tuning-stability.md 4.
+    inline constexpr const char* stabilityAmount      = "stability_amount";
+    inline constexpr const char* stabilitySettling    = "stability_settling";
+    inline constexpr const char* stabilityNutBinding  = "stability_nut_binding";
+    inline constexpr const char* stabilityBacklash    = "stability_backlash";
+    inline constexpr const char* stabilitySaddleCreep = "stability_saddle_creep";
+    inline constexpr const char* stabilityBendMemory  = "stability_bend_memory";
+    inline constexpr const char* stabilityCapoBias    = "stability_capo_bias";
+    inline constexpr const char* stabilityAutoRetune  = "stability_auto_retune";
+    // ==== END REALISM-C params ====
+    // ==== BEGIN TUNE-HELP-ONBOARDING params ====
+    // tune-builder.md 14: section parameters the mod matrix and host automation
+    // can move over the tune's timeline. Both at 0 leave every tune as written.
+    inline constexpr const char* tuneFeelMod            = "tune_feel_mod";      ///< -1..1, added to each section's feel
+    inline constexpr const char* tuneTempoDrift         = "tune_tempo_drift";   ///< -10..10 %, the tune's own clock
+    // ==== END TUNE-HELP-ONBOARDING params ====
 }
 
 //==============================================================================
@@ -378,6 +486,7 @@ public:
     static juce::StringArray stringMaterialNames();
     static juce::StringArray stringGaugeNames();
     static juce::StringArray stringAgeNames();
+    static juce::StringArray envProfileNames();   // environment.md 3.1 (REALISM-A)
     static juce::StringArray pickMaterialNames();
     static juce::StringArray bodyModeNames();
     static juce::StringArray bracingNames();
@@ -444,6 +553,18 @@ public:
     /** True while a structural change is pending. */
     bool isStructuralChangePending() const noexcept { return structuralPending.load(); }
 
+    /*  Held by the message thread while it rebuilds engine structure (a guitar,
+        a pedal, a body IR) and try-locked by the audio thread around the block.
+        Without it the structural pass ran concurrently with processBlock and
+        freed what the audio thread was using: pluginval's Automation test
+        aborted with "double free or corruption", in ReverbPedal::rebuildLines
+        and RoomEngine::rebuild (docs/audit/BETA_TEST_REPORT.md B-01). */
+    juce::CriticalSection& getEngineLock() noexcept { return engineLock; }
+    /** Runs a pending structural change now, on the calling (message) thread:
+        a host that saves state straight after changing a guitar type must get
+        the state that change produces, not the one before it. */
+    void flushPendingStructuralChange() { handleUpdateNowIfNeeded(); }
+
     /** A preset has just written its pedal types AND their parameters: build
         those pedals keeping the parameters. The structural path otherwise
         writes a new pedal's defaults over its parameters - right for a pedal
@@ -465,12 +586,22 @@ public:
     void setModMatrix (ModMatrix* matrix) noexcept { modMatrix = matrix; }
     ModMatrix* getModMatrix() const noexcept { return modMatrix; }
 
+    /** True if `id` was written (by anyone) after the guitar type last was. */
+    bool writtenSinceGuitarType (const juce::String& id) const noexcept;
+
+    /** While false, writes are not stamped for writtenSinceGuitarType(): the
+        processor's own guitar-parameter writes are the guitar's, not the host's. */
+    void setStampingWrites (bool stamp) noexcept { stampingWrites.store (stamp, std::memory_order_relaxed); }
+
+
     /** The unmodulated value, for the UI, which shows the control where
         automation put it rather than where modulation has pushed it. */
     float baseValue (const juce::String& id) const noexcept;
+    float baseValue (const char* id) const noexcept;
 
     /** The parameter's index in the processor's parameter list, or -1. */
     int parameterIndex (const juce::String& id) const noexcept;
+    int parameterIndex (const char* id) const noexcept;
 
     /*  guitar-workshop.md 0.6: a guitar type is a shortcut to a factory
         guitar file. When the type changes the bridge asks this to load it;
@@ -480,6 +611,12 @@ public:
         in the offline renderer) falls back to the compiled guitar. Message
         thread. */
     std::function<bool (GuitarType)> onLoadGuitarType;
+
+    /*  Called around every structural pass on the message thread, outermost
+        pass only: the processor fades its output out before (so a ringing note
+        is not cut mid-cycle - a preset switch clicked at 0.32 of full scale,
+        BETA_TEST_REPORT B-06) and back in after. */
+    std::function<void()> beforeStructuralChange, afterStructuralChange;
 
 private:
     void handleAsyncUpdate() override;
@@ -491,30 +628,31 @@ private:
     std::atomic<float>* raw (const juce::String& id) const noexcept;
     float value (const juce::String& id) const noexcept;
 
-    /*  performance-budget.md 0.4: the audio thread's lookups allocate nothing.
-        A ParamIDs constant is a const char*, and building a juce::String from
-        it to hash allocated - four hundred times a block. These resolve the
-        pointer through a lock-free pointer-keyed cache (filled on first use,
-        which is the prepare/warm-up block), and the per-slot IDs the ParamIDs
-        functions build are resolved once in cachePointers. */
-    float value (const char* id) const noexcept;
-    float valueAt (int index) const noexcept;
-    int indexOf (const char* id) const noexcept;
-
-    struct IdCacheSlot
+    /*  engine.md 0 (no allocation on the audio thread): the audio thread reads
+        parameters by their const char* IDs through this table, built on the
+        message thread in cachePointers(). A juce::String built from a literal
+        allocates, and applyToEngine used to build hundreds per block. */
+    struct FastEntry
     {
-        std::atomic<const char*> key { nullptr };
-        std::atomic<int> index { -2 };      ///< -2: being filled
+        juce::uint64 hash = 0;
+        std::string id;
+        std::atomic<float>* pointer = nullptr;
+        int index = -1;
     };
 
-    static constexpr int kIdCacheSize = 2048;   // power of two, > 4x the parameter count
-    mutable std::array<IdCacheSlot, kIdCacheSize> idCache;
-    std::vector<std::atomic<float>*> rawByIndex;
+    static juce::uint64 hashId (const char* id) noexcept;
+    const FastEntry* find (const char* id) const noexcept;
+    std::atomic<float>* raw (const char* id) const noexcept;
+    float value (const char* id) const noexcept;
 
-    std::array<int, PickupEngine::kMaxPickups> pickupVolumeIdx {}, pickupTypeIdx {}, pickupMagnetIdx {};
-    std::array<int, ParamIDs::kNumNutDepths> nutDepthIdx {};
-    std::array<std::array<int, EffectsChain::kNumSlots>, 2> slotTypeIdx {}, slotBypassIdx {}, slotMixIdx {};
-    std::array<std::array<std::array<int, Pedal::kMaxParams>, EffectsChain::kNumSlots>, 2> slotParamIdx {};
+    std::vector<FastEntry> fastTable;
+    size_t fastMask = 0;
+
+    // The pedal slots' IDs, built once so the audio thread never formats them.
+    std::array<std::array<std::string, EffectsChain::kNumSlots>, 2> slotBypassIds, slotMixIds, slotTypeIds;
+    std::array<std::array<std::array<std::string, Pedal::kMaxParams>, EffectsChain::kNumSlots>, 2> slotParamIds;
+    std::array<std::string, PickupEngine::kMaxPickups> pickupTypeIds, pickupMagnetIds, pickupVolumeIds;
+    std::array<std::string, ParamIDs::kNumNutDepths + 1> nutDepthIds;
 
     juce::AudioProcessorValueTreeState& apvts;
     LuthierEngine& engine;
@@ -529,15 +667,30 @@ private:
         the type, and gets its own defaults when they were not. Counters, so
         the listener is lock-free on whatever thread sets the parameter. */
     void parameterValueChanged (int parameterIndex, float newValue) override;
-    void parameterGestureChanged (int, bool) override {}
+    void parameterGestureChanged (int parameterIndex, bool starting) override;
+
+    /*  guitar-workshop 0.6 / host-integration 3: the order the host wrote
+        parameters in, per parameter. A guitar type is a shortcut that writes
+        the parameters its parts overlap; one the host wrote after the type
+        (a session restoring both, automation at the same time) is kept. */
+    std::unique_ptr<std::atomic<juce::uint32>[]> lastWrite;
+    std::unique_ptr<std::atomic<bool>[]> inGesture;       ///< per parameter: a player is holding it
+    std::atomic<bool> guitarTypeByPlayer { false };        ///< the last guitar type write was a player's pick
+    std::array<std::array<std::atomic<bool>, EffectsChain::kNumSlots>, 2> typeByPlayer {};
+    int numLastWrite = 0;
+    int guitarTypeIndex = -1;
 
     std::vector<int> slotOfParameter;      ///< parameter index -> (chain * slots + slot) * 16 + (param, or 15 for the type)
     std::atomic<juce::uint32> writeSerial { 0 };
+    std::atomic<bool> stampingWrites { true };
     std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> typeWritten {};
     std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> paramsWritten {};
     juce::Array<juce::AudioProcessorParameter*> watched;
 
     ModMatrix* modMatrix = nullptr;
+
+    juce::CriticalSection engineLock;
+    int structuralDepth = 0;   ///< message thread: nesting of structural passes
 
     // Cached structural selections, so a change is detected exactly once.
     int lastGuitarType = -1;
