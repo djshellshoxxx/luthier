@@ -43,8 +43,11 @@ IrSlotEditor::IrSlotEditor (LuthierAudioProcessor& p, Slot s)
 
     engageToggle->getButton().onClick = [this]
     {
-        if (! updatingControls)
-            slot().setEngaged (engageToggle->getButton().getToggleState());
+        if (updatingControls)
+            return;
+
+        pushIrEdit ("engage", false);   // action-and-undo.md (tone-match IR slots)
+        slot().setEngaged (engageToggle->getButton().getToggleState());
     };
 
     engageToggle->setTooltip ("Use this impulse response instead of the built-in model.");
@@ -83,6 +86,7 @@ IrSlotEditor::IrSlotEditor (LuthierAudioProcessor& p, Slot s)
     clearButton.setTooltip ("Go back to the built-in model.");
     clearButton.onClick = [this]
     {
+        pushIrEdit ("clear", false);   // action-and-undo.md (tone-match IR slots)
         slot().unload();
         refresh();
 
@@ -102,8 +106,11 @@ IrSlotEditor::IrSlotEditor (LuthierAudioProcessor& p, Slot s)
 
     channelBox.onChange = [this]
     {
-        if (! updatingControls)
-            slot().setChannel (channelBox.getSelectedId() - 2);
+        if (updatingControls)
+            return;
+
+        pushIrEdit ("channel", true);   // action-and-undo.md (tone-match IR slots)
+        slot().setChannel (channelBox.getSelectedId() - 2);
     };
 
     addAndMakeVisible (channelBox);
@@ -111,8 +118,11 @@ IrSlotEditor::IrSlotEditor (LuthierAudioProcessor& p, Slot s)
     styleSlider (gainTrim, -24.0, 24.0, 0.1, " dB");
     gainTrim.onValueChange = [this]
     {
-        if (! updatingControls)
-            slot().setGainTrimDb (gainTrim.getValue());
+        if (updatingControls)
+            return;
+
+        pushIrEdit ("gain trim", true);   // action-and-undo.md (tone-match IR slots)
+        slot().setGainTrimDb (gainTrim.getValue());
     };
     addAndMakeVisible (gainTrim);
 
@@ -120,8 +130,11 @@ IrSlotEditor::IrSlotEditor (LuthierAudioProcessor& p, Slot s)
     predelay.setTooltip ("Delay before the impulse, for cab IRs with unwanted pre-ringing.");
     predelay.onValueChange = [this]
     {
-        if (! updatingControls)
-            slot().setPredelayMs (predelay.getValue());
+        if (updatingControls)
+            return;
+
+        pushIrEdit ("predelay", true);   // action-and-undo.md (tone-match IR slots)
+        slot().setPredelayMs (predelay.getValue());
     };
     addAndMakeVisible (predelay);
 
@@ -129,16 +142,22 @@ IrSlotEditor::IrSlotEditor (LuthierAudioProcessor& p, Slot s)
     mix.setTooltip ("How much of the impulse response against the built-in model.");
     mix.onValueChange = [this]
     {
-        if (! updatingControls)
-            slot().setMix (mix.getValue() * 0.01);
+        if (updatingControls)
+            return;
+
+        pushIrEdit ("mix", true);   // action-and-undo.md (tone-match IR slots)
+        slot().setMix (mix.getValue() * 0.01);
     };
     addAndMakeVisible (mix);
 
     reverseButton.setClickingTogglesState (true);
     reverseButton.onClick = [this]
     {
-        if (! updatingControls)
-            slot().setReversed (reverseButton.getToggleState());
+        if (updatingControls)
+            return;
+
+        pushIrEdit ("reverse", false);   // action-and-undo.md (tone-match IR slots)
+        slot().setReversed (reverseButton.getToggleState());
     };
     addAndMakeVisible (reverseButton);
 
@@ -146,6 +165,12 @@ IrSlotEditor::IrSlotEditor (LuthierAudioProcessor& p, Slot s)
 }
 
 IrSlotEditor::~IrSlotEditor() = default;
+
+void IrSlotEditor::pushIrEdit (const char* what, bool groups)
+{
+    const juce::String name = juce::String (getSlotName (which)) + " IR " + what;
+    processor.pushUndoAction ("Change " + name, groups ? "ir-edit" : juce::String(), groups ? name : juce::String());
+}
 
 IrSlot& IrSlotEditor::slot()
 {
@@ -161,6 +186,8 @@ IrSlot& IrSlotEditor::slot()
 
 void IrSlotEditor::load (const juce::File& file)
 {
+    pushIrEdit ("load", false);   // action-and-undo.md (tone-match IR slots)
+
     if (! slot().load (file))
     {
         infoLabel.setText (slot().getLastError(), juce::dontSendNotification);
@@ -508,6 +535,7 @@ void MatchWizard::advance()
 
                 if (CabMatch::saveIr (ir, file, metadata))
                 {
+                    processor.pushUndoState ("Load IR " + file.getFileNameWithoutExtension());   // action-and-undo.md
                     processor.getCabIrSlot (0).load (file);
                     processor.getCabIrSlot (0).setEngaged (true);
 
@@ -554,6 +582,7 @@ void MatchWizard::advance()
 
                     if (CabMatch::saveIr (filter, file, metadata))
                     {
+                        processor.pushUndoState ("Load IR " + file.getFileNameWithoutExtension());   // action-and-undo.md
                         processor.getCabIrSlot (1).load (file);
                         processor.getCabIrSlot (1).setEngaged (true);
 
@@ -828,12 +857,14 @@ void ToneMatchPanel::loadSelectedFromLibrary()
 
     if (metadata.type == "body")
     {
+        processor.pushUndoState ("Load IR " + file.getFileNameWithoutExtension());   // action-and-undo.md
         processor.getBodyIrSlot().load (file);
         processor.getBodyIrSlot().setEngaged (true);
         bodySlot->refresh();
     }
     else
     {
+        processor.pushUndoState ("Load IR " + file.getFileNameWithoutExtension());   // action-and-undo.md
         processor.getCabIrSlot (0).load (file);
         processor.getCabIrSlot (0).setEngaged (true);
         cabSlot1->refresh();

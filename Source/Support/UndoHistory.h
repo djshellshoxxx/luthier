@@ -42,6 +42,20 @@ public:
     static constexpr int kMaxEntries = 200;          // section 2
     static constexpr double kGroupWindowMs = 200.0;  // sections 0.3 and 4
 
+    /** Section 8: a family switch's entry, and what undoing it warns. */
+    static constexpr const char* kFamilySwitchClass = "family-switch";
+    static constexpr const char* kFamilySwitchUndoWarning =
+        "Undid the family switch: the old family and its parts are back. Parts fitted "
+        "after the switch are only in Redo now, and your next change discards them.";
+
+    /** Section 12: Options -> Diagnostics "Show undo depth", and its footer text. */
+    static constexpr const char* kShowDepthPreference = "diagnostics_show_undo_depth";
+    static juce::String describeDepth (int undoSteps, int redoSteps)
+    {
+        return "Undo: " + juce::String (undoSteps) + " / " + juce::String (kMaxEntries)
+                 + "; Redo: " + juce::String (redoSteps);
+    }
+
     struct Entry
     {
         juce::MemoryBlock before;     ///< The state before the action.
