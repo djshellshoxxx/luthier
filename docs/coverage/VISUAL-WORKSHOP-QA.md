@@ -191,13 +191,40 @@ Tests are named `Suite.test`. They live in the test files this workstream added:
 | AU-8b | a&u 8 | - | - | deferred (family-switch warning not asked for in this task) |
 
 
+
+### Follow-up round (merged at `f9ba387` / `6e14780`)
+
+| ID | Spec + section | Implementation | Verification | Status |
+|---|---|---|---|---|
+| Bleed: IR slots | a&u 8 (tone-match 7) | ToneMatchPanel.cpp `IrSlotEditor::pushIrEdit` (engage, clear, load, reverse = one entry each; channel, gain trim, predelay, mix = grouped per slot and control); library, cab-match and EQ-match loads push "Load IR name" | `UndoCoverage.irSlotSettingsAreEntries` | verified |
+| Bleed: routing | a&u 8 (routing-io 9) | RoutingPanel.cpp `AuxStrip` gain (grouped per bus), mute, solo; `PerStringStrip` mute; sidechain-to-amp; MIDI-out config (grouped). The aux1PreCircuit and CPU-relief controls are not touched | `UndoCoverage.routingGainAndMuteAreEntries` | verified (solo / per-string / MIDI out untested) |
+| Bleed: rhythm settings | a&u 8 (rhythm-engine 9) | RhythmPanel.cpp enable, free-run, genre kit, voicing style/density/hand position (grouped), capo, humanise (`pushHumaniseToEngine`, grouped) | `UndoCoverage.rhythmSettingsAndPatternEditsAreEntries` (free-run, capo, humanise, swing, strum-grid click) | verified |
+| Bleed: headstock detune | a&u 8, 4 | GuitarBodyComponent.cpp `TuningPopover`: a grouped entry per string in `onValueChange`, replacing the drag-start push, so wheel and keyboard changes are covered too | `UndoCoverage.headstockDetuneIsOneGroupedEntryPerString` | verified |
+| Metronome | a&u 3.14 / 3.17 | stays a session option (dropped from the undo restore) | `Undo.laterUntrackedEditsSurviveUndo` | decision (see below) |
+| AU-8b | a&u 8 | `UndoHistory::kFamilySwitchClass` on the family-switch boundary; `undoOnce` queues `kFamilySwitchUndoWarning` in the guitar notices, which the editor already posts as a banner | `UndoCoverage.undoingAFamilySwitchWarns` | verified |
+| AU-1.2 search | a&u 9 | new `Source/UI/UndoHistoryPanel.{h,cpp}`: search box plus list, newest first, boundary rows under a rule, click undoes to before the row. Opened from File -> Undo history (menu id 15 after the merge) in a callout | `UndoCoverage.theHistoryListSearchesAndUndoesToAChosenRow` | verified |
+| AU-12 | a&u 12 | `DiagnosticsPage::undoDepthToggle` (UiPreferences `diagnostics_show_undo_depth`); editor footer draws `UndoHistory::describeDepth` ("Undo: N / 200; Redo: M") | `UndoCoverage.diagnosticsShowsUndoDepth` | verified (footer paint untested) |
+| Tests: character | a&u 3.15 | - | `UndoCoverage.characterEditsAreGroupedEntries` | verified |
+| Tests: practice | a&u 3.14 | - | `UndoCoverage.practiceScaleAndLooperLayerAreEntries` (key, layer mute, entries outlive the tabs) | verified |
+| Tests: snapshots | a&u 3.7 | new `renameSnapshotAsUserAction` (grouped per slot), `setSnapshotColourAsUserAction`, `deleteSnapshotAsUserAction (index, removeSlot)`, used by LivePanel and LiveStrip | `UndoCoverage.snapshotRenameColourAndDeleteAreEntries` | verified |
+| Tests: mod panel | a&u 3.6 | - | `UndoCoverage.modPanelRouteEditsAreEntries` (enable, curve, remove) | verified |
+| Tests: setlist | a&u 3.10 | - | `UndoCoverage.setlistEditsAreEntries` | verified |
+| Melody grouping after the merge | a&u 3.9 | `melodyNoteTarget` moved into `TunePianoRoll.cpp`; draw and delete pass it as `editNotes`'s group target | `TunePanel.melodyNoteEditsGroupOnTheSameNote` | verified |
+
+Follow-up decisions:
+
+- The metronome stays an option. It is not listed in section 3, it is a practice tool's setting rather than part of the sound, and a player who undoes a knob move mid-practice should not have the click tempo jump. Undo leaves it alone (as before) rather than giving it entries.
+- An IR load that fails still leaves an undo entry, whose undo is a no-op. The before-state must be captured before the load, and a failed load changes nothing.
+- AuxStrip solo pushes one entry for the whole exclusive-solo change (every strip's solo in one step).
+- Snapshot delete keeps each surface's semantics: the Live panel's Clear removes the slot (as before), and the Live strip's Clear empties it in place.
+- The family-switch warning goes through the existing guitar-notice queue, so it appears whichever path the undo came from (Ctrl-Z, the header, the history list).
+
 ## 8. Deferred
 
 - **performance-budget 8, relief steps 3 and 5** (mod-matrix rate, reverb taps). These are DSP trade-offs for the engine owners; the ladder reports the steps.
 - **ui-wiring: localisation wiring and translated parameter names, panel collapse memory, empty-state hints.** These need translations and a string catalogue, and touch panels owned by other workstreams (AdvancedPanel, CharacterPanel).
 - **qa-polish 2.1: golden renders.** They need a committed render set and a `--golden` CLI mode.
 - **qa-polish 5.21 / 5.24-5.29, bass and strum realism checks.** They need other workstreams' fixtures (see section 6).
-- **action-and-undo:** the history search filter, the Diagnostics "Show undo depth" footer, the family-switch warning (AU-8b), and undo entries for IR loads, routing, rhythm settings and headstock detune. The undo helper's follow-up round covers these; see section 7 for what landed.
 - **Test-only items:**
   - UW-23 scaled-up workshop and slide loops: the performance tests cover the workshop loops at 100 events.
   - SpectrumDelta against offline renders.
