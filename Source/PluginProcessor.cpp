@@ -1318,6 +1318,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     // 6.1: what the engine actually played - string and fret, after voicing.
     performanceCapture.captureStringActivity (engine.getStringActivity());
 
+    // piano-roll-chord-display.md 2: what sounds, for the roll and the chord name.
+    soundingPublisher.publish (engine, samplePosition, soundingNotes);
+
     // ---- tone match ----------------------------------------------------------------
     /*  tone-match 1: a user cabinet IR replaces the model's, so it goes on the
         main output after the engine has produced it.
@@ -1702,6 +1705,45 @@ void LuthierAudioProcessor::releasePreviewNote (int stringIndex)
 
     const juce::ScopedLock sl (previewLock);
     previewMidi.addEvent (juce::MidiMessage::noteOff (juce::jlimit (1, 16, stringIndex + 1), note), 0);
+}
+
+//==============================================================================
+// piano-roll-chord-display.md 3: the keys play through the preview MIDI, the
+// same path (and the same try-lock merge) as the fretboard's clicks.
+void LuthierAudioProcessor::playKeyboardNote (int midiNote, float velocity)
+{
+    if (! juce::isPositiveAndBelow (midiNote, 128))
+        return;
+
+    const juce::ScopedLock sl (previewLock);
+    previewMidi.addEvent (juce::MidiMessage::noteOn (1, midiNote, juce::jlimit (0.05f, 1.0f, velocity)), 0);
+}
+
+void LuthierAudioProcessor::releaseKeyboardNote (int midiNote)
+{
+    if (! juce::isPositiveAndBelow (midiNote, 128))
+        return;
+
+    const juce::ScopedLock sl (previewLock);
+    previewMidi.addEvent (juce::MidiMessage::noteOff (1, midiNote), 0);
+}
+
+void LuthierAudioProcessor::playKeyboardChord (const juce::Array<int>& midiNotes, float velocity)
+{
+    const juce::ScopedLock sl (previewLock);
+
+    for (int note : midiNotes)
+        if (juce::isPositiveAndBelow (note, 128))
+            previewMidi.addEvent (juce::MidiMessage::noteOn (1, note, juce::jlimit (0.05f, 1.0f, velocity)), 0);
+}
+
+void LuthierAudioProcessor::releaseKeyboardChord (const juce::Array<int>& midiNotes)
+{
+    const juce::ScopedLock sl (previewLock);
+
+    for (int note : midiNotes)
+        if (juce::isPositiveAndBelow (note, 128))
+            previewMidi.addEvent (juce::MidiMessage::noteOff (1, note), 0);
 }
 
 //==============================================================================
@@ -2416,6 +2458,20 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
         ui->setProperty ("benchSlots", bench);
     }
 
+    // piano-roll-chord-display.md 6: the strip's state and the latched keys.
+    ui->setProperty ("pianoRollExpanded", uiState.pianoRollExpanded);
+    ui->setProperty ("pianoRollHeight", uiState.pianoRollHeight);
+    ui->setProperty ("pianoLatch", uiState.pianoLatch);
+    ui->setProperty ("pianoShowFingering", uiState.pianoShowFingering);
+    {
+        juce::Array<juce::var> latched;
+
+        for (int note : uiState.pianoLatchedNotes)
+            latched.add (note);
+
+        ui->setProperty ("pianoLatchedNotes", latched);
+    }
+
     root->setProperty ("ui", juce::var (ui));
 
     // ui-wiring 17: the setlist reference, with its entries inline so a missing
@@ -2523,6 +2579,18 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
         if (auto* bench = ui->getProperty ("benchSlots").getArray())   // ui-wiring 17
             for (int i = 0; i < juce::jmin (bench->size(), (int) uiState.benchSlots.size()); ++i)
                 uiState.benchSlots[(size_t) i] = bench->getReference (i);
+
+        // piano-roll-chord-display.md 6
+        uiState.pianoRollExpanded = ui->hasProperty ("pianoRollExpanded") ? (bool) ui->getProperty ("pianoRollExpanded") : true;
+        uiState.pianoRollHeight = ui->hasProperty ("pianoRollHeight") ? juce::jlimit (40, 140, (int) ui->getProperty ("pianoRollHeight")) : 72;
+        uiState.pianoLatch = ui->getProperty ("pianoLatch");
+        uiState.pianoShowFingering = ui->getProperty ("pianoShowFingering");
+        uiState.pianoLatchedNotes.clear();
+
+        if (auto* latched = ui->getProperty ("pianoLatchedNotes").getArray())
+            for (const auto& n : *latched)
+                if (juce::isPositiveAndBelow ((int) n, 128))
+                    uiState.pianoLatchedNotes.addIfNotAlreadyThere ((int) n);
     }
 
     // ui-wiring 17: the setlist. Re-applied only when it differs, because

@@ -36,6 +36,7 @@
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
 #include "Support/InstallLayout.h"
+#include "Support/SoundingNotesPublisher.h"
 
 namespace luthier
 {
@@ -379,6 +380,17 @@ public:
     void releasePreviewNote (int stringIndex);
 
     //==========================================================================
+    // piano-roll-chord-display.md 2-3: what the strings sound (published by the
+    // audio thread every block) and notes played from the piano roll's keys,
+    // which reach the engine as channel 1 MIDI like any other note.
+    const SoundingNotes& getSoundingNotes() const noexcept { return soundingNotes; }
+    void playKeyboardNote (int midiNote, float velocity);
+    void releaseKeyboardNote (int midiNote);
+    /** Every note-on at the same sample, so the interpreter strums them as one chord. */
+    void playKeyboardChord (const juce::Array<int>& midiNotes, float velocity);
+    void releaseKeyboardChord (const juce::Array<int>& midiNotes);
+
+    //==========================================================================
     /** Releases every string and clears all state. The Panic button. */
     void panic();
 
@@ -480,6 +492,13 @@ public:
 
         /** workshop-ui.md 7: the bench's eight A/B guitars, workspace not preset. */
         std::array<juce::var, 8> benchSlots;
+
+        // piano-roll-chord-display.md 6: session state, not preset data.
+        bool pianoRollExpanded = true;
+        int  pianoRollHeight = 72;
+        bool pianoLatch = false;
+        bool pianoShowFingering = false;
+        juce::Array<int> pianoLatchedNotes;
     };
 
     UiState& getUiState() noexcept { return uiState; }
@@ -754,6 +773,10 @@ private:
     // --- preview notes from the fretboard ---------------------------------------
     juce::MidiBuffer previewMidi;
     juce::CriticalSection previewLock;
+
+    // --- piano-roll-chord-display.md 2 ---------------------------------------------
+    SoundingNotes soundingNotes;
+    SoundingNotesPublisher soundingPublisher;
 
     // --- A/B and undo -------------------------------------------------------------
     juce::MemoryBlock slotA, slotB;
