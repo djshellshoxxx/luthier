@@ -423,6 +423,7 @@ LUTHIER_TEST (ChordName, fadesInHoldsAndFadesOut)
     AccessibilitySettings::get().setReducedMotion (false);
 
     Rig rig;
+    AccessibilitySettings::get().setReducedMotion (false);
     ChordNameOverlay overlay (rig.processor);
 
     const auto g = frameOf ({ { 43, 1000 }, { 47, 1000 }, { 50, 1000 }, { 55, 1000 }, { 59, 1000 }, { 67, 1000 } });
@@ -454,6 +455,7 @@ LUTHIER_TEST (ChordName, aStrumIsOneName)
     AccessibilitySettings::get().setReducedMotion (false);
 
     Rig rig;
+    AccessibilitySettings::get().setReducedMotion (false);
     ChordNameOverlay overlay (rig.processor);
     const std::int64_t t0 = 48000;
     const auto step = (std::int64_t) (0.005 * kSr);   // 5 ms a string, 25 ms in all
@@ -508,6 +510,7 @@ LUTHIER_TEST (ChordName, reducedMotionHasNoFades)
     AccessibilitySettings::get().setReducedMotion (true);
 
     Rig rig;
+    AccessibilitySettings::get().setReducedMotion (true);   // after the processor, which reloads the user's settings
     ChordNameOverlay overlay (rig.processor);
     const auto e = frameOf ({ { 40, 100 }, { 47, 100 }, { 52, 100 } });
 

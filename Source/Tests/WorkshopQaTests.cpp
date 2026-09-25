@@ -106,24 +106,44 @@ LUTHIER_TEST (Workshop, everyFactoryGuitarRoundTripsInAudio)
         processor->applyGuitar (original, type, report);
         const auto before = render();
 
+        // The render-to-render floor: the realism models (string aging,
+        // tuning stability, environment) carry state from one render to the
+        // next, so the same guitar twice does not null perfectly either.
+        processor->applyGuitar (original, type, report);
+        const auto again = render();
+
         WorkshopGuitar reloaded;
         PartLibrary::LoadReport report2;
         CHECK (library.buildGuitar (juce::JSON::parse (juce::JSON::toString (original.toVar())), reloaded, report2));
 
+        // The round trip itself is exact: the reloaded guitar saves identically.
+        CHECK_MSG (juce::JSON::toString (reloaded.toVar()) == juce::JSON::toString (original.toVar()),
+                   entry.getFile().getFileName() + " does not save back identically");
+
         processor->applyGuitar (reloaded, type, report2);
         const auto after = render();
 
-        double diff = 0.0, level = 0.0;
-
-        for (size_t i = 0; i < before.size(); ++i)
+        auto nullOf = [] (const std::vector<float>& a, const std::vector<float>& b)
         {
-            diff += std::pow ((double) before[i] - after[i], 2.0);
-            level += (double) before[i] * before[i];
-        }
+            double diff = 0.0;
 
-        const double nullDb = 10.0 * std::log10 (diff / (double) before.size() + 1.0e-30);
+            for (size_t i = 0; i < juce::jmin (a.size(), b.size()); ++i)
+                diff += std::pow ((double) a[i] - b[i], 2.0);
+
+            return 10.0 * std::log10 (diff / (double) juce::jmax ((size_t) 1, a.size()) + 1.0e-30);
+        };
+
+        double level = 0.0;
+
+        for (auto s : before)
+            level += (double) s * s;
+
+        const double floorDb = nullOf (before, again);
+        const double nullDb = nullOf (again, after);
         CHECK_MSG (level > 1.0e-6, entry.getFile().getFileName() + " rendered silence");
-        CHECK_MSG (nullDb <= -80.0, entry.getFile().getFileName() + " nulls only to " + juce::String (nullDb, 1) + " dBFS");
+        CHECK_MSG (nullDb <= juce::jmax (-80.0, floorDb + 3.0),
+                   entry.getFile().getFileName() + " nulls only to " + juce::String (nullDb, 1)
+                     + " dBFS (the same guitar twice: " + juce::String (floorDb, 1) + ")");
         ++guitars;
     }
 

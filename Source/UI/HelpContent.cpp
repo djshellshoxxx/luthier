@@ -331,7 +331,7 @@ namespace
           "A legato move never re-picks the string: the vibration carries through and only the pitch changes, "
           "which is what makes a slide sound like one note rather than two." },
 
-        { "modes", "Playing Modes", "playing mode|mode|mono|poly|guitar controller mode|Playing|Tone",
+        { "modes", "Playing Modes", "playing mode|mode|mono|poly|guitar controller mode",
           "MONO / LEAD\n"
           "Every note goes to one string, chosen to keep the hand near where it already is. Overlapping notes "
           "become hammer-ons, pull-offs or slides. Best for solos.\n\n"

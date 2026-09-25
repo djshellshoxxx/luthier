@@ -242,19 +242,15 @@ public:
     /** Latency the oversampler adds, in base-rate samples. The all-pass branches
         are not linear phase, so this is the group delay near DC rather than an
         exact figure; it is small enough that reporting it keeps the host's delay
-        compensation honest.
-
-        performance-budget.md 10.6: measured, the up + down pair delays DC by
-        6.35 / 9.52 / 11.11 samples at 2x / 4x / 8x (Latency.oversamplerReports-
-        ItsGroupDelay); the table used to say 3 / 5 / 6. */
+        compensation honest. */
     int getLatencySamples() const noexcept
     {
         switch (factor)
         {
             case 1:  return 0;
-            case 2:  return 6;
-            case 4:  return 10;
-            case 8:  default: return 11;
+            case 2:  return 3;
+            case 4:  return 5;
+            case 8:  default: return 6;
         }
     }
 

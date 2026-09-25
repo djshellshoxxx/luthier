@@ -256,6 +256,7 @@ LUTHIER_TEST (StateModel, tenThousandRandomOperationsLeaveNoStuckState)
     // A snapshot recall in flight finishes within its crossfade (<= 500 ms):
     // none is stuck.
     renderBlocks (*p, (int) (0.6 * kSr / kBlock));
+    snapshots.advancePending();   // the processor's timer's work: the crossfade runs on the message thread
     CHECK_MSG (! snapshots.isRecalling(), "a snapshot recall never finished");
 
     // Back to a neutral sound (the last random preset may have feedback, an

@@ -237,6 +237,7 @@ LUTHIER_TEST (ReducedMotion, aGuitarChangeCrossfadesOrIsStaticWithAnOutline)
     {
         ReducedMotionScope scope (reduced);
         LuthierAudioProcessor processor;
+        AccessibilitySettings::get().setReducedMotion (reduced);   // the processor reloads the user's settings
         processor.prepareToPlay (48000.0, 512);
         GuitarBodyComponent body (processor);
         body.setSize (800, 360);
@@ -278,6 +279,7 @@ LUTHIER_TEST (ReducedMotion, theBenchFadesCommittedChangesOnly)
     {
         ReducedMotionScope scope (reduced);
         LuthierAudioProcessor processor;
+        AccessibilitySettings::get().setReducedMotion (reduced);   // the processor reloads the user's settings
         processor.prepareToPlay (48000.0, 512);
         WorkshopPanel panel (processor);
         panel.setVisible (true);
