@@ -374,6 +374,16 @@ public:
     void triggerPreviewNote (int stringIndex, double fretPosition, double velocity);
     void releasePreviewNote (int stringIndex);
 
+    /*  A pitch rather than a string: the piano keyboard (PianoKeyboard.h)
+        queues a real note-on / note-off into the preview MIDI, so the voicer
+        chooses the string exactly as it does for host MIDI. The channel is
+        kPreviewKeyboardChannel, which no guitar-controller string map uses by
+        default, so guitar-controller mode also falls back to voicing by pitch.
+        Message thread (any thread is safe: the preview lock guards it). */
+    static constexpr int kPreviewKeyboardChannel = 16;
+    void triggerPreviewMidiNote (int midiNote, float velocity);
+    void releasePreviewMidiNote (int midiNote);
+
     //==========================================================================
     /** live-performance 9: the Panic button (key P). Stops the audition, the
         preview notes and the tune's playback, and has the audio thread release

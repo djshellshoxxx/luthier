@@ -385,6 +385,13 @@ namespace
     constexpr int kMinWorkspaceWidth = 480;
     constexpr int kStackBelowWidth = 1280;
 
+    /*  Column 4's tab strip wraps to at most this many rows (seven fits two
+        tabs a row, enough for "CONTROLLERS" in any column the layout gives),
+        and from three rows up each row is this tall rather than a full
+        button height. */
+    constexpr int kMaxWorkspaceTabRows = 7;
+    constexpr int kCompactTabRowHeight = 24;
+
     constexpr int kKnobRow = 0;   // placeholder to keep the helpers readable
 }
 
@@ -404,20 +411,28 @@ AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
         roll that mirrors the strings). The choice is remembered; it is a view,
         not state, so it lives in UiPreferences with the other UI choices. */
     addChildComponent (stringRoll);
-    stripShowsRoll = UiPreferences::get().getBool ("advanced.stripShowsRoll", false);
 
-    auto makeStripToggle = [this] (const juce::String& key, bool roll)
+    // KEYS: a piano keyboard to play the guitar from, lit by what the strings sound.
+    pianoKeyboard = std::make_unique<PianoKeyboardComponent> (p);
+    addChildComponent (*pianoKeyboard);
+
+    // An older session remembered only FRETS or ROLL, as a bool.
+    stripView = (StripView) juce::jlimit (0, 2, UiPreferences::get().getInt (
+                    "advanced.stripView", UiPreferences::get().getBool ("advanced.stripShowsRoll", false) ? 1 : 0));
+
+    auto makeStripToggle = [this] (const juce::String& key, StripView view)
     {
         auto t = std::make_unique<LuthierToggle> (tr (key));
         t->setTooltip (tr (key + ".tooltip"));
         t->getButton().setClickingTogglesState (false);
-        t->getButton().onClick = [this, roll] { setStripShowsRoll (roll); };
+        t->getButton().onClick = [this, view] { setStripView (view); };
         AccessibleSetup::configureButton (t->getButton(), tr (key), tr (key + ".tooltip"));
         addAndMakeVisible (*t);
         return t;
     };
-    fretsButton = makeStripToggle ("advanced.strip.frets", false);
-    rollButton  = makeStripToggle ("advanced.strip.roll",  true);
+    fretsButton = makeStripToggle ("advanced.strip.frets", StripView::frets);
+    rollButton  = makeStripToggle ("advanced.strip.roll",  StripView::roll);
+    keysButton  = makeStripToggle ("advanced.strip.keys",  StripView::keys);
 
     fretboard.onStringSelected = [this] (int s) { setSelectedString (s); };
     guitarBody.onPickupSelected = [this] (int) {};
@@ -1409,14 +1424,19 @@ void AdvancedPanel::resized()
 
     auto stripBody = strip.reduced (Metrics::grid, Metrics::gridHalf);
     auto toggles = stripBody.removeFromRight (52);
-    fretsButton->setBounds (toggles.removeFromTop (22).reduced (1));
-    rollButton->setBounds (toggles.removeFromTop (22).reduced (1));
-    fretsButton->getButton().setToggleState (! stripShowsRoll, juce::dontSendNotification);
-    rollButton->getButton().setToggleState (stripShowsRoll, juce::dontSendNotification);
-    fretboard.setVisible (! stripShowsRoll);
-    stringRoll.setVisible (stripShowsRoll);
+    const int toggleHeight = juce::jmin (22, toggles.getHeight() / 3);
+    fretsButton->setBounds (toggles.removeFromTop (toggleHeight).reduced (1));
+    rollButton->setBounds (toggles.removeFromTop (toggleHeight).reduced (1));
+    keysButton->setBounds (toggles.removeFromTop (toggleHeight).reduced (1));
+    fretsButton->getButton().setToggleState (stripView == StripView::frets, juce::dontSendNotification);
+    rollButton->getButton().setToggleState (stripView == StripView::roll, juce::dontSendNotification);
+    keysButton->getButton().setToggleState (stripView == StripView::keys, juce::dontSendNotification);
+    fretboard.setVisible (stripView == StripView::frets);
+    stringRoll.setVisible (stripView == StripView::roll);
+    pianoKeyboard->setVisible (stripView == StripView::keys);
     fretboard.setBounds (stripBody);
     stringRoll.setBounds (stripBody);
+    pianoKeyboard->setBounds (stripBody);
 
     bounds.removeFromTop (Metrics::grid);
 
@@ -1480,8 +1500,12 @@ void AdvancedPanel::resized()
 
     /*  Thirteen tabs share column 4. When the widest label does not fit in an
         equal share, the strip wraps to as many rows as it takes (two at
-        1600 px, three at 1200) rather than clipping "CONTROLLERS" to
-        "ONTROLLE". */
+        1600 px, three at 1200, five in a 400-point column) rather than
+        clipping "CONTROLLERS" to "ONTROLLE". The widths are measured as the
+        button draws its label (upper case, tracked, padded), and from three
+        rows up the rows are a little shorter so the strip does not eat the
+        workspace. Past kMaxWorkspaceTabRows the button's own fitting (less
+        padding, then a smaller font) takes up what is left. */
     workspaceTabRows = 1;
 
     if (! workspaceTabs.isEmpty())
@@ -1490,35 +1514,37 @@ void AdvancedPanel::resized()
         const int count = workspaceTabs.size();
         const int available = bounds.getWidth();
 
-        float widestLabel = 0.0f;
-
-        for (auto* tab : workspaceTabs)
+        auto neededAt = [this] (int rowHeight)
         {
-            const auto font = getLookAndFeel().getTextButtonFont (*tab, Metrics::buttonHeight);
-            widestLabel = juce::jmax (widestLabel,
-                                      juce::GlyphArrangement::getStringWidth (font, tab->getButtonText()));
-        }
+            int widest = 0;
 
-        // As few rows as let the widest label fit (three at 1200 px).
-        const int needed = juce::roundToInt (widestLabel) + 2 * Metrics::grid;
+            for (auto* tab : workspaceTabs)
+                widest = juce::jmax (widest, LuthierLookAndFeel::idealTextButtonWidth (*tab, rowHeight));
 
-        for (workspaceTabRows = 1; workspaceTabRows < 4; ++workspaceTabRows)
+            return widest;
+        };
+
+        auto rowHeightFor = [] (int rows) { return rows >= 3 ? kCompactTabRowHeight : Metrics::buttonHeight; };
+
+        for (workspaceTabRows = 1; workspaceTabRows < kMaxWorkspaceTabRows; ++workspaceTabRows)
         {
             const int perRow = (count + workspaceTabRows - 1) / workspaceTabRows;
 
-            if ((available - gap * (perRow - 1)) / perRow >= needed)
+            if ((available - gap * (perRow - 1)) / perRow >= neededAt (rowHeightFor (workspaceTabRows)))
                 break;
         }
 
         const int perRow = (count + workspaceTabRows - 1) / workspaceTabRows;
+        const int rowHeight = rowHeightFor (workspaceTabRows);
+        const int rowGap = workspaceTabRows >= 3 ? 2 : gap;
         int index = 0;
 
         for (int row = 0; row < workspaceTabRows; ++row)
         {
             if (row > 0)
-                bounds.removeFromTop (gap);
+                bounds.removeFromTop (rowGap);
 
-            auto strip = bounds.removeFromTop (Metrics::buttonHeight);
+            auto strip = bounds.removeFromTop (rowHeight);
             const int inRow = juce::jmin (perRow, count - index);
             const int width = (strip.getWidth() - gap * (perRow - 1)) / perRow;
 
@@ -1646,14 +1672,18 @@ void AdvancedPanel::refreshPickupSlots()
 }
 
 //==============================================================================
-void AdvancedPanel::setStripShowsRoll (bool showRoll)
+void AdvancedPanel::setStripView (StripView view)
 {
-    if (stripShowsRoll == showRoll && fretboard.isVisible() != showRoll)
-        return;
-
-    stripShowsRoll = showRoll;
-    UiPreferences::get().setBool ("advanced.stripShowsRoll", showRoll);
+    stripView = view;
+    UiPreferences::get().setInt ("advanced.stripView", (int) view);
+    UiPreferences::get().setBool ("advanced.stripShowsRoll", view == StripView::roll);
     resized();
+}
+
+juce::Button& AdvancedPanel::getStripButton (StripView view) noexcept
+{
+    auto& toggle = view == StripView::keys ? keysButton : view == StripView::roll ? rollButton : fretsButton;
+    return toggle->getButton();
 }
 
 } // namespace luthier

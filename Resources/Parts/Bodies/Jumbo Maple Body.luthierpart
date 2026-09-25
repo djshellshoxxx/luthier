@@ -20,5 +20,8 @@
     "thickness_mm": 125.0,
     "area_cm2": 2600,
     "bracing": "scalloped_x"
+  },
+  "illustration": {
+    "body_style": "jumbo"
   }
 }

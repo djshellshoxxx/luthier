@@ -155,6 +155,36 @@ void TuningEngine::setCharacterDriftCents (int stringIndex, double cents) noexce
         strings[(size_t) stringIndex].characterDriftCents = juce::jlimit (-50.0, 50.0, cents);
 }
 
+void TuningEngine::setStringDetuneCents (int stringIndex, double cents) noexcept
+{
+    if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
+        strings[(size_t) stringIndex].stringDetuneCents
+            = std::isfinite (cents) ? juce::jlimit (-kMaxStringDetuneCents, kMaxStringDetuneCents, cents) : 0.0;
+}
+
+double TuningEngine::combineOutOfTune (double stringDetuneCents, double imperfectionCents) noexcept
+{
+    const double detune = juce::jlimit (-kMaxStringDetuneCents, kMaxStringDetuneCents, stringDetuneCents);
+
+    if (detune == 0.0)
+        return imperfectionCents;
+
+    /*  The limit is 25 cents, or the imperfections' own size when they are
+        already past it (a very loose tuner at full character can be): the
+        String Detune controls may pull a string back toward pitch, but they
+        never take it further out than 25 cents. Continuous at zero, so
+        moving the control from 0 never steps. */
+    const double limit = juce::jmax (kMaxStringDetuneCents, std::abs (imperfectionCents));
+    return juce::jlimit (-limit, limit, imperfectionCents + detune);
+}
+
+double TuningEngine::getOutOfTuneCents (int stringIndex) const noexcept
+{
+    const auto& s = getStringTuning (stringIndex);
+    return combineOutOfTune (s.stringDetuneCents,
+                             s.realismDetuneCents + s.driftCents + s.characterDriftCents);
+}
+
 void TuningEngine::setFineTuneCents (int stringIndex, double cents) noexcept
 {
     if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
@@ -290,11 +320,17 @@ double TuningEngine::temperamentRatio (double semitonesFromRoot) const noexcept
 }
 
 //==============================================================================
-double TuningEngine::getOpenFrequencyBeforeCapo (int stringIndex) const noexcept
+double TuningEngine::getOpenFrequencyBeforeCapo (int stringIndex, bool includeStringDetune) const noexcept
 {
     const auto& s = getStringTuning (stringIndex);
-    const double cents = s.detuneCents + s.realismDetuneCents + s.driftCents
-                           + s.fineTuneCents + s.characterDriftCents;
+
+    if (! includeStringDetune)
+        return s.openFrequencyHz * centsToRatio (s.detuneCents + s.fineTuneCents + s.realismDetuneCents
+                                                   + s.driftCents + s.characterDriftCents);
+
+    // The deliberate retune and the fine tuner are tuning; everything else is
+    // the string being out of tune, and String Detune is bounded within that.
+    const double cents = s.detuneCents + s.fineTuneCents + getOutOfTuneCents (stringIndex);
     return s.openFrequencyHz * centsToRatio (cents);
 }
 
@@ -366,7 +402,13 @@ double TuningEngine::frequencyToFretPosition (int stringIndex, double hz) const 
         one would not round-trip under an unequal temperament. The capo is taken
         off at the end, so what comes back is a position on the capo'd neck, which
         is what every caller wants. */
-    const double openHz = getOpenFrequencyBeforeCapo (stringIndex);
+    /*  String Detune is left out: it is the string being out of tune, not a
+        different string. A note is fretted where the player would fret it on
+        the guitar as it was, and then sounds out by the offset - otherwise
+        the guitar-controller path would fret a fraction away to cancel it,
+        and the voicer (which allows 8 cents of slop) would decide a string
+        25 cents out could not play its own notes. */
+    const double openHz = getOpenFrequencyBeforeCapo (stringIndex, false);
 
     if (openHz <= 0.0 || hz <= 0.0)
         return -1.0;

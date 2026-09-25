@@ -21,5 +21,8 @@
     "thickness_mm": 44.5,
     "area_cm2": 1150,
     "bracing": "none"
+  },
+  "illustration": {
+    "body_style": "double_cutaway_offset"
   }
 }

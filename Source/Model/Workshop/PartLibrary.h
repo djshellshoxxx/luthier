@@ -79,10 +79,18 @@ struct StringOverride
     bool operator!= (const StringOverride& o) const noexcept { return ! (*this == o); }
 };
 
+/*  guitar-illustration.md 11 / file-formats.md 3's `finish` block. colourA is
+    the body colour (a burst's edge), colourB a burst's centre. plasticColour
+    is the Workshop's plastics colour (pickguard, knobs, plastic pickup covers,
+    switch tip, backplates), `plastic_color` in the file: empty means the
+    pickguard part's own colour, which is what every guitar written before it
+    has. Colours are paint - none of them reaches the sound (gloss and aging
+    do, part-acoustics.md 9). */
 struct GuitarFinish
 {
     juce::String type = "solid", colourA = "#7A2E1B", colourB = "#F2C441", burstShape = "radial";
     double gloss = 0.8, aging = 0.0;
+    juce::String plasticColour;
 };
 
 //==============================================================================
@@ -136,6 +144,12 @@ public:
         neck and the bridge can take. `excess` reports what was dropped. */
     int getStringCount (int* excess = nullptr) const noexcept;
 
+    /*  The outline a body part draws with (guitar-illustration.md 4, 18: every
+        body part carries its own), from its `illustration.body_style`; empty
+        when the part names none. Fitting a body sets the guitar's bodyStyle
+        from this, which the illustration and the engine's body shape follow. */
+    static juce::String bodyStyleOf (const Part* body);
+
     /** Advisory warnings for parts that do not declare this family (5). */
     juce::StringArray getCompatibilityWarnings() const;
 
@@ -149,6 +163,11 @@ public:
     bool save (const juce::File& destination) const;
 
     bool operator== (const WorkshopGuitar&) const;
+
+    /*  True when the two differ at most in paint - the finish's type, colours,
+        burst shape and plastics colour - which changes how the guitar looks
+        and nothing it plays (gloss and aging are not paint: part-acoustics 9). */
+    bool differsOnlyInPaint (const WorkshopGuitar& other) const;
 };
 
 //==============================================================================

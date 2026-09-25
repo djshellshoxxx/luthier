@@ -112,6 +112,19 @@ numbered, because what it should be called is a release decision.
   a master mute mode, soft strums as chukas, mute humanise and the MUTE
   group's palm and fretting-hand controls; Easy mode's 4-way Mute button.
   Eight new parameters (451-458; the parameter count is 458).
+- **String Detune** - a STRING DETUNE group on the CHARACTER tab: one small
+  knob per string, labelled with the string's note (E A D G B E, following
+  the tuning and string count), each detuning that string by up to +/-25
+  cents, double-click back to zero; an Out of tune knob that moves every
+  string together; Randomise (each string to a seeded offset within
+  +/- Out of tune x 25 cents) and Reset. Twenty-five cents is a quarter of a
+  semitone: clearly out against the other strings or a tuner, never a
+  different note. The offset rides the string through frets, bends, slides
+  and the capo and touches no other string, and with tuner drift and
+  realism detune the controls never take a string past 25 cents. Automatable
+  and saved with presets; presets from before load in tune. Thirteen new
+  parameters (459-471: `string_detune_1`..`string_detune_12`, `out_of_tune`;
+  the parameter count is 471).
 - **First run** (`onboarding.md` 5, 7-9, 11, 12) - a first launch takes
   reduced motion, the high-contrast palette, a 125 % scale on a display
   over 150 % and the locale from the operating system, once; the TUNE tab

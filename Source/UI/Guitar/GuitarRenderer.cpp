@@ -469,6 +469,16 @@ namespace
             scene.bounds = all.expanded (4.0f);
         }
 
+        /** The pickguard as drawn (the player's plastics colour, else the part's). */
+        juce::Colour drawnPickguard() const
+        {
+            bool tortoise = false, threePly = false;
+            return pickguardColour (tortoise, threePly);
+        }
+
+        /** The small plastics (knobs, tips, covers) as drawn. */
+        juce::Colour drawnPlastics() const { return plasticColour(); }
+
     private:
         //======================================================================
         const WorkshopGuitar& guitar;
@@ -610,12 +620,19 @@ namespace
             family = guitar.family.isNotEmpty() ? guitar.family.toLowerCase() : juce::String ("electric");
             styleId = guitar.bodyStyle;
 
-            // A body part may name its own style (section 18's drawing metadata).
-            if (auto b = part (GuitarSlot::body))
-                if (b->illustration.isObject() && b->illustration.hasProperty ("body_style"))
-                    styleId = b->illustration.getProperty ("body_style", styleId).toString();
-
+            /*  Section 4 / 18: every body part names its own outline. The guitar's
+                meta.body_style says what the fitted body looks like (the bench sets
+                it from the part on every body fit, WorkshopBench::withPart), so it
+                wins; the part's own style stands in when the guitar names none or
+                one this build does not draw. */
             style = outlines::findBodyStyle (styleId.toRawUTF8());
+
+            if (style == nullptr)
+                if (const auto own = WorkshopGuitar::bodyStyleOf (part (GuitarSlot::body).get()); own.isNotEmpty())
+                {
+                    styleId = own;
+                    style = outlines::findBodyStyle (styleId.toRawUTF8());
+                }
 
             if (style == nullptr)
             {
@@ -843,7 +860,12 @@ namespace
             // Layer 4: the top.
             bool showGrain = true;
             const auto wood = topWood();
-            const bool isMetalBody = text (GuitarSlot::body, "wood") == "steel" || type == "metal";
+            /*  4.5: a metal finish is a steel body's. A wood resonator body fitted
+                under a steel guitar's "metal" finish shows its wood (the cover plate
+                stays metal); a guitar with no body part keeps the finish's word. */
+            const auto bodyWoodId = text (GuitarSlot::body, "wood");
+            const bool isMetalBody = bodyWoodId == "steel" || (type == "metal" && (bodyWoodId.isEmpty() || bodyWoodId == "steel"));
+            const bool metalOnWood = type == "metal" && ! isMetalBody;
 
             if (type == "solid" || type == "sparkle")
             {
@@ -892,6 +914,10 @@ namespace
             {
                 add (bodyPath, solid (wood));
                 add (bodyPath, solid (a.withAlpha (0.6f)));
+            }
+            else if (metalOnWood)
+            {
+                add (bodyPath, solid (wood));
             }
             else
             {
@@ -1113,8 +1139,16 @@ namespace
         juce::Colour pickguardColour (bool& tortoise, bool& threePly) const
         {
             const auto n = partName (GuitarSlot::pickguard).toLowerCase();
-            tortoise = n.contains ("tortoise");
             threePly = number (GuitarSlot::pickguard, "plies", 1.0) >= 3.0;
+
+            // The Workshop's plastics colour (finish.plastic_color) paints over the part's own.
+            if (guitar.finish.plasticColour.isNotEmpty())
+            {
+                tortoise = false;
+                return parseHex (guitar.finish.plasticColour, juce::Colour (0xfff2efe6));
+            }
+
+            tortoise = n.contains ("tortoise");
 
             if (tortoise)                  return juce::Colour (0xff6b2e14);
             if (n.contains ("black"))      return juce::Colour (0xff141414);
@@ -1443,6 +1477,7 @@ namespace
         // Helpers for the stubs.
         float spanAt (float x) const { return bridgeSpan + (nutSpan - bridgeSpan) * juce::jlimit (0.0f, 1.0f, x / scale); }
         juce::Colour plasticColour() const;
+        bool plasticChosen() const noexcept { return guitar.finish.plasticColour.isNotEmpty(); }
         void knob (Pointf c, int kind);
         void pickup (int index, PartPtr p);
         void saddleBlocks (float depth, float width, float stagger);
@@ -1458,6 +1493,14 @@ namespace
     juce::Colour SceneBuilder::plasticColour() const
     {
         bool tortoise = false, threePly = false;
+
+        // The Workshop's plastics colour: knobs, switch tip, plastic covers, backplates.
+        if (guitar.finish.plasticColour.isNotEmpty())
+        {
+            const auto chosen = parseHex (guitar.finish.plasticColour, juce::Colour (0xfff0ebdd));
+            return guitar.finish.aging > 0.0 && chosen.getBrightness() > 0.8f
+                     ? chosen.interpolatedWith (juce::Colour (0xffe6d29c), (float) guitar.finish.aging * 0.6f) : chosen;
+        }
 
         if (part (GuitarSlot::pickguard) != nullptr && ! partName (GuitarSlot::pickguard).equalsIgnoreCase ("none"))
         {
@@ -1487,10 +1530,13 @@ namespace
         {
             case 0:   // top hat, amber with a gold reflector
             {
-                add (circle (c, r + 0.8f), solid (juce::Colour (0xff2a1206)));
+                // The player's plastics colour tints the hat; the reflector stays gold.
+                const auto hat = plasticChosen() ? plasticColour() : juce::Colour (0xff7a3610);
+                add (circle (c, r + 0.8f), solid (plasticChosen() ? hat.darker (0.8f) : juce::Colour (0xff2a1206)));
                 add (circle (c, r), metalFill (juce::Colour (0xffc9a24b), circle (c, r).getBounds(), options.materials));
-                juce::ColourGradient amber (juce::Colour (0xffb8622a), c.x + 3.0f, c.y - 3.0f, juce::Colour (0xff3a1406), c.x - 6.0f, c.y + 6.0f, true);
-                add (circle (c, r * 0.72f), options.materials ? juce::FillType (amber) : solid (juce::Colour (0xff7a3610)));
+                juce::ColourGradient amber (plasticChosen() ? hat.brighter (0.3f) : juce::Colour (0xffb8622a), c.x + 3.0f, c.y - 3.0f,
+                                            plasticChosen() ? hat.darker (0.7f) : juce::Colour (0xff3a1406), c.x - 6.0f, c.y + 6.0f, true);
+                add (circle (c, r * 0.72f), options.materials ? juce::FillType (amber) : solid (hat));
                 add (pointer, none(), solid (juce::Colour (0xffe8d8a8)), 1.2f);
                 break;
             }
@@ -1521,9 +1567,9 @@ namespace
                 add (circle (c, r * 0.55f), metalFill (hardware.brighter (0.1f), circle (c, r).getBounds(), options.materials));
                 break;
             }
-            default:  // black speed knob
+            default:  // black speed knob (the player's plastics colour when chosen)
             {
-                add (circle (c, r), solid (juce::Colour (0xff121212)), solid (juce::Colours::black), 0.4f);
+                add (circle (c, r), solid (plasticChosen() ? plasticColour() : juce::Colour (0xff121212)), solid (juce::Colours::black), 0.4f);
                 if (options.materials)
                     add (circle (c + Pointf (1.8f, -1.8f), r * 0.45f), solid (juce::Colours::white.withAlpha (0.14f)), none(), 0.0f, -1, true);
                 add (pointer, none(), solid (juce::Colour (0xffd8d8d8)), 0.9f);
@@ -1586,12 +1632,13 @@ namespace
             if (toggle)
             {
                 // A toggle: a washer, then the tip leaning toward the neck.
-                add (circle (c, 10.0f), solid (plasticColour().getBrightness() > 0.5f ? juce::Colour (0xffece2c8) : juce::Colour (0xff151515)),
+                add (circle (c, 10.0f), solid (plasticChosen() ? plasticColour()
+                                               : plasticColour().getBrightness() > 0.5f ? juce::Colour (0xffece2c8) : juce::Colour (0xff151515)),
                      solid (juce::Colours::black.withAlpha (0.4f)), 0.4f);
                 add (circle (c, 3.2f), metalFill (hardware, circle (c, 4.0f).getBounds(), options.materials));
                 const auto tip = c + Pointf (5.0f, 0.0f);
                 shadow (circle (tip, 3.6f), 1.0f, 0.3f);
-                add (circle (tip, 3.6f), solid (juce::Colour (0xffeee4c8)), solid (juce::Colour (0xff8c7a58)), 0.3f);
+                add (circle (tip, 3.6f), solid (plasticChosen() ? plasticColour() : juce::Colour (0xffeee4c8)), solid (juce::Colour (0xff8c7a58)), 0.3f);
             }
             else
             {
@@ -1599,7 +1646,8 @@ namespace
                 add (rect (c.x - 11.0f, c.y - 1.5f, c.x + 11.0f, c.y + 1.5f, 1.2f), solid (juce::Colour (0xff0e0e0e)));
                 const auto tip = rect (c.x + 2.0f, c.y - 3.2f, c.x + 8.0f, c.y + 3.2f, 1.6f);
                 shadow (tip, 1.0f, 0.3f);
-                add (tip, solid (plasticColour().getBrightness() > 0.5f ? juce::Colour (0xfff2ede0) : juce::Colour (0xff1c1c1c)),
+                add (tip, solid (plasticChosen() ? plasticColour()
+                                 : plasticColour().getBrightness() > 0.5f ? juce::Colour (0xfff2ede0) : juce::Colour (0xff1c1c1c)),
                      solid (juce::Colours::black.withAlpha (0.5f)), 0.3f);
             }
 
@@ -1901,7 +1949,7 @@ namespace
             arm.startNewSubPath (-22.0f, half - 2.0f);
             arm.cubicTo (-28.0f, half + 22.0f, -70.0f, half + 42.0f, -125.0f, half + 55.0f);
             add (strokeOf (arm, 3.2f), metalFill (hardware, arm.getBounds(), options.materials));
-            add (circle ({ -125.0f, half + 55.0f }, 3.6f), solid (juce::Colour (0xff151515)));
+            add (circle ({ -125.0f, half + 55.0f }, 3.6f), solid (plasticChosen() ? plasticColour() : juce::Colour (0xff151515)));
 
             bridgeArea = base;
             for (int s = 0; s < numStrings; ++s)
@@ -2154,7 +2202,8 @@ namespace
         {
             auto ring = outline (depth + 9.0f, length + 12.0f, 4.0f);
             const bool creamRing = partName (GuitarSlot::pickguard).containsIgnoreCase ("cream") || id.contains ("arched");
-            add (ring, solid (creamRing ? juce::Colour (0xffe9dcbc) : juce::Colour (0xff141414)), solid (juce::Colours::black.withAlpha (0.5f)), 0.4f);
+            add (ring, solid (plasticChosen() ? plasticColour() : creamRing ? juce::Colour (0xffe9dcbc) : juce::Colour (0xff141414)),
+                 solid (juce::Colours::black.withAlpha (0.5f)), 0.4f);
 
             if (! reduced())
             {
@@ -2199,9 +2248,9 @@ namespace
         else
         {
             // Plastic or open covers: colour from the guitar, poles for singles and bass pickups.
-            juce::Colour c = fam == "active" || isBass || fam == "p90" || cover == "none" ? juce::Colour (0xff151515) : plasticColour();
+            juce::Colour c = ! plasticChosen() && (fam == "active" || isBass || fam == "p90" || cover == "none") ? juce::Colour (0xff151515) : plasticColour();
 
-            if (fam == "p90" && plasticColour().getBrightness() > 0.5f && id.contains ("arched"))
+            if (! plasticChosen() && fam == "p90" && plasticColour().getBrightness() > 0.5f && id.contains ("arched"))
                 c = juce::Colour (0xffece2c8);
 
             add (area, solid (c), solid (juce::Colours::black.withAlpha (0.6f)), 0.4f);
@@ -3216,6 +3265,27 @@ juce::Image GuitarRenderer::render (const WorkshopGuitar& guitar, int width, int
     }
 
     return image;
+}
+
+//==============================================================================
+juce::Colour GuitarRenderer::plasticsColour (const WorkshopGuitar& guitar)
+{
+    GuitarScene scratch;
+    SceneBuilder builder (guitar, Options {}, scratch);
+
+    // With a pickguard the plastics read as it does; without one, as the knobs do.
+    const auto pg = guitar.get (GuitarSlot::pickguard);
+    return pg != nullptr && ! pg->name.equalsIgnoreCase ("none") ? builder.drawnPickguard() : builder.drawnPlastics();
+}
+
+juce::Colour GuitarRenderer::finishColour (const WorkshopGuitar& guitar, bool burstEdge)
+{
+    const auto& f = guitar.finish;
+    const bool burst = f.type.equalsIgnoreCase ("burst");
+    const auto body = guitar.get (GuitarSlot::body);
+    const auto wood = woodColour (body != nullptr ? body->text ("wood", "alder") : juce::String ("alder"));
+    const auto& hex = burstEdge || ! burst ? f.colourA : f.colourB;
+    return hex.isNotEmpty() ? parseHex (hex, wood) : wood;
 }
 
 } // namespace luthier

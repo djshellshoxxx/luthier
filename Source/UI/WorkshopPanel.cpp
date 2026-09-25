@@ -78,7 +78,7 @@ namespace
     GuitarRenderer::Options renderOptions()
     {
         GuitarRenderer::Options o;
-        o.materials = Palette::textured;
+        o.materials = Palette::illustrationMaterials;
         return o;
     }
 }
@@ -1207,6 +1207,162 @@ juce::Array<RangeFamily> WorkshopPanel::rangeFamilies()
     return { RangeFamily::buzz };
 }
 
+//==============================================================================
+/** A colour chip in the inspector: a swatch (a burst's two colours as its
+    gradient) and, for the paint chips, the label beside it. */
+class WorkshopPanel::PaintChip : public juce::Button
+{
+public:
+    explicit PaintChip (const juce::String& name) : juce::Button (name) {}
+
+    juce::Colour colour { juce::Colours::grey }, edge;
+    bool gradient = false, showLabel = true;
+
+    void paintButton (juce::Graphics& g, bool over, bool down) override
+    {
+        auto r = getLocalBounds().toFloat().reduced (1.0f);
+        auto swatch = showLabel ? r.removeFromLeft (r.getHeight()).reduced (1.0f) : r;
+
+        if (gradient)
+        {
+            juce::ColourGradient grad (colour, swatch.getCentreX(), swatch.getCentreY(),
+                                       edge, swatch.getRight(), swatch.getBottom(), true);
+            g.setGradientFill (grad);
+        }
+        else
+        {
+            g.setColour (colour);
+        }
+
+        g.fillRoundedRectangle (swatch, 3.0f);
+        g.setColour (over || down || hasKeyboardFocus (true) ? Palette::accent : Palette::edge);
+        g.drawRoundedRectangle (swatch, 3.0f, over || down ? 1.6f : 1.0f);
+
+        if (showLabel)
+        {
+            g.setColour (Palette::textPrimary);
+            g.setFont (Fonts::ui (11.5f));
+            g.drawFittedText (getButtonText(), r.withTrimmedLeft (6.0f).toNearestInt(), juce::Justification::centredLeft, 1, 0.85f);
+        }
+    }
+};
+
+namespace
+{
+    /*  The gradient picker in the call-out: juce::ColourSelector's
+        saturation / value square and hue strip, the colour and its hex (typed
+        or read) at the top. A burst's body gets Centre and Edge tabs and a strip
+        showing the burst they make. Every drag step previews; the panel commits
+        once the drag rests or the call-out closes. */
+    class FinishColourPicker : public juce::Component,
+                               private juce::ChangeListener
+    {
+    public:
+        using Paint = WorkshopBench::Paint;
+
+        FinishColourPicker (WorkshopPanel& p, Paint w, bool burstPair)
+            : panel (&p), which (w), burst (burstPair)
+        {
+            setTitle (tr ("workshop.paint.picker"));
+            selector.setCurrentColour (p.getPaintColour (which), juce::dontSendNotification);
+            selector.addChangeListener (this);
+            addAndMakeVisible (selector);
+
+            if (burst)
+            {
+                for (auto* b : { &centreTab, &edgeTab })
+                {
+                    addAndMakeVisible (b);
+                    b->setClickingTogglesState (true);
+                    b->setRadioGroupId (0x5c);
+                }
+
+                centreTab.setToggleState (which == Paint::body, juce::dontSendNotification);
+                edgeTab.setToggleState (which == Paint::burstEdge, juce::dontSendNotification);
+                centreTab.onClick = [this] { switchTo (Paint::body); };
+                edgeTab.onClick = [this] { switchTo (Paint::burstEdge); };
+            }
+
+            setSize (260, burst ? 318 : 270);
+        }
+
+        ~FinishColourPicker() override
+        {
+            selector.removeChangeListener (this);
+
+            if (panel != nullptr)
+                panel->commitPaint();
+        }
+
+        void resized() override
+        {
+            auto r = getLocalBounds().reduced (4);
+
+            if (burst)
+            {
+                auto tabs = r.removeFromTop (26);
+                centreTab.setBounds (tabs.removeFromLeft (tabs.getWidth() / 2).reduced (1));
+                edgeTab.setBounds (tabs.reduced (1));
+                strip = r.removeFromTop (18).reduced (2, 3);
+                r.removeFromTop (2);
+            }
+
+            selector.setBounds (r);
+        }
+
+        void paint (juce::Graphics& g) override
+        {
+            if (! burst || panel == nullptr)
+                return;
+
+            // The burst the two colours make, centre on the left fading to the edge.
+            juce::ColourGradient grad (panel->getPaintColour (Paint::body), (float) strip.getX(), 0.0f,
+                                       panel->getPaintColour (Paint::burstEdge), (float) strip.getRight(), 0.0f, false);
+            grad.addColour (0.3, panel->getPaintColour (Paint::body));
+            g.setGradientFill (grad);
+            g.fillRoundedRectangle (strip.toFloat(), 3.0f);
+        }
+
+        juce::ColourSelector& getSelector() noexcept { return selector; }
+
+    private:
+        void changeListenerCallback (juce::ChangeBroadcaster*) override
+        {
+            if (panel != nullptr)
+                panel->previewPaint (which, selector.getCurrentColour());
+            repaint();
+        }
+
+        void switchTo (Paint next)
+        {
+            if (panel == nullptr || next == which)
+                return;
+
+            panel->commitPaint();
+            which = next;
+            selector.setCurrentColour (panel->getPaintColour (which), juce::dontSendNotification);
+            repaint();
+        }
+
+        juce::Component::SafePointer<WorkshopPanel> panel;
+        Paint which;
+        bool burst;
+        juce::ColourSelector selector { juce::ColourSelector::showColourAtTop | juce::ColourSelector::editableColour
+                                        | juce::ColourSelector::showColourspace, 4, 6 };
+        juce::TextButton centreTab { tr ("workshop.paint.centre") }, edgeTab { tr ("workshop.paint.edge") };
+        juce::Rectangle<int> strip;
+    };
+
+    /** Text width a button label needs at a height, tracked caps as the look-and-feel draws them. */
+    int idealButtonWidth (juce::TextButton& b, int height)
+    {
+        const auto font = b.getLookAndFeel().getTextButtonFont (b, height);
+        const auto text = b.getButtonText().toUpperCase();
+        const float tracked = juce::GlyphArrangement::getStringWidth (font, text) + 0.08f * font.getHeight() * (float) text.length();
+        return (int) std::ceil (tracked) + 14;
+    }
+}
+
 juce::String WorkshopPanel::categoryIdOfButton (int index) const
 {
     return juce::isPositiveAndBelow (index, (int) std::size (kCategories)) ? juce::String (kCategories[index].name) : juce::String();
@@ -1251,6 +1407,8 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
         AccessibleSetup::configureButton (*b, tr ("workshop.slot.name", { { "slot", WorkshopBench::slotName (i) } }));
         b->onClick = [this, i]
         {
+            commitPaint();
+
             if (juce::ModifierKeys::currentModifiers.isShiftDown())
                 bench.clearSlot (i);
             else if (bench.hasSlot (i))
@@ -1278,6 +1436,9 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (illustration);
     illustration.onSelectionChanged = [this]
     {
+        // A colour still settling belongs to what was selected before.
+        commitPaint();
+
         // Selecting a part shows its category in the drawer (section 5's Swap, done for you).
         const auto slot = slotForRegion (illustration.getSelected());
 
@@ -1327,6 +1488,7 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
     AccessibleSetup::configureButton (revertButton, tr ("workshop.revert"), tr ("workshop.revert.tip"));
     revertButton.onClick = [this]
     {
+        commitPaint();
         const auto slot = slotForRegion (illustration.getSelected());
         if (slot != GuitarSlot::numSlots)
             bench.revert (slot);
@@ -1389,6 +1551,47 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
         addAndMakeVisible (k);
     }
 
+    // ---- the inspector's paint controls (guitar-illustration.md 11) ------------------
+    for (auto which : { Paint::body, Paint::burstEdge, Paint::plastics })
+    {
+        const auto key = which == Paint::body ? "workshop.paint.body" : which == Paint::burstEdge ? "workshop.paint.edge" : "workshop.paint.plastics";
+        auto* chip = paintChips.add (new PaintChip (tr (key)));
+        chip->setButtonText (tr (key));
+        chip->setTooltip (tr ("workshop.paint.tip", { { "what", tr (key) } }));
+        AccessibleSetup::configureButton (*chip, tr (key), tr ("workshop.paint.tip", { { "what", tr (key) } }));
+        chip->onClick = [this, which] { openColourPicker (which); };
+        addChildComponent (chip);
+    }
+
+    for (const auto& id : WorkshopBench::finishPresetIds())
+    {
+        const auto label = tr ("workshop.paint.preset." + id);
+        auto* swatch = presetSwatches.add (new PaintChip (label));
+        swatch->showLabel = false;
+        GuitarFinish f;
+        WorkshopBench::finishPreset (id, f);
+        swatch->gradient = f.type == "burst";
+        swatch->colour = f.type == "burst" ? juce::Colour::fromString ("ff" + f.colourB.substring (1))
+                       : f.colourA.isNotEmpty() ? juce::Colour::fromString ("ff" + f.colourA.substring (1))
+                                                : juce::Colour (0xffc9a26b);
+        swatch->edge = juce::Colour::fromString ("ff" + f.colourA.substring (1));
+        swatch->setTooltip (tr ("workshop.paint.preset.tip", { { "name", label } }));
+        AccessibleSetup::configureButton (*swatch, label, tr ("workshop.paint.preset.tip", { { "name", label } }));
+        swatch->onClick = [this, id] { applyFinishPreset (id); };
+        addChildComponent (swatch);
+    }
+
+    plasticsReset = std::make_unique<juce::TextButton> (tr ("workshop.paint.plasticsReset"));
+    plasticsReset->setTooltip (tr ("workshop.paint.plasticsReset.tip"));
+    AccessibleSetup::configureButton (*plasticsReset, tr ("workshop.paint.plasticsReset"), tr ("workshop.paint.plasticsReset.tip"));
+    plasticsReset->onClick = [this]
+    {
+        commitPaint();
+        bench.clearPlastics();
+        refreshAll();
+    };
+    addChildComponent (*plasticsReset);
+
     showCategory (category);
     refreshAll();
     startTimerHz (20);
@@ -1397,6 +1600,16 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
 WorkshopPanel::~WorkshopPanel()
 {
     stopTimer();
+
+    // A colour still settling is the player's last pick: keep it.
+    // (An open call-out's picker holds a SafePointer to this panel and lets go.)
+    if (pendingPaint.has_value())
+    {
+        const auto which = *pendingPaint;
+        pendingPaint.reset();
+        bench.setPaint (which, pendingColour);
+    }
+
     bench.endAudition();
 }
 
@@ -1412,6 +1625,9 @@ void WorkshopPanel::showCategory (const juce::String& name)
 {
     if (findCategory (name) == nullptr)
         return;
+
+    if (name != category)
+        drawerFirstRow = 0;
 
     category = name;
 
@@ -1456,7 +1672,10 @@ void WorkshopPanel::refreshDrawer()
     const auto* c = findCategory (category);
 
     if (c == nullptr)
+    {
+        layoutDrawer();
         return;
+    }
 
     if (c->type == PartType::numTypes)
     {
@@ -1472,6 +1691,7 @@ void WorkshopPanel::refreshDrawer()
             drawerParts.add (card);
         }
 
+        layoutDrawer();
         return;
     }
 
@@ -1483,17 +1703,107 @@ void WorkshopPanel::refreshDrawer()
         drawerParts.add (p);
     }
 
-    // Factory first, then the user's (section 9's user section), each by name.
-    std::stable_sort (drawerParts.begin(), drawerParts.end(), [] (const PartPtr& a, const PartPtr& b)
+    /*  The parts made for this guitar's family first - they are the ones a
+        player is looking for, and a drawer that runs out of rows must not hide
+        them behind another family's bodies - then the rest (they still fit,
+        guitar-workshop.md 5). Within each, factory then the user's (section 9's
+        user section), each by name. */
+    const auto family = bench.current().family;
+    const bool accessory = c->type == PartType::pick || c->type == PartType::slide || c->type == PartType::capo;
+
+    std::stable_sort (drawerParts.begin(), drawerParts.end(), [&family, accessory] (const PartPtr& a, const PartPtr& b)
     {
+        if (! accessory && a->suits (family) != b->suits (family))
+            return a->suits (family);
         if (a->isFactory != b->isFactory)
             return a->isFactory;
         return a->name.compareNatural (b->name) < 0;
     });
+
+    layoutDrawer();
+    scrollFittedIntoView();
+}
+
+void WorkshopPanel::scrollFittedIntoView()
+{
+    const auto* c = findCategory (category);
+
+    if (c == nullptr || c->type == PartType::numTypes)
+        return;
+
+    const auto slot = targetSlot();
+    const auto fitted = slot != GuitarSlot::numSlots ? bench.current().get (slot) : bench.getAccessory (c->type);
+
+    for (int i = 0; i < drawerParts.size() && fitted != nullptr; ++i)
+        if (drawerParts[i]->name == fitted->name)
+        {
+            const int row = i / drawerPerRow;
+
+            if (row < drawerFirstRow || row >= drawerFirstRow + juce::jmax (1, drawerVisibleRows))
+                scrollDrawer (row - drawerFirstRow);
+            break;
+        }
+}
+
+void WorkshopPanel::layoutDrawer()
+{
+    cardBounds.clearQuick();
+
+    auto inner = drawerArea.withTrimmedTop (24 * categoryRows).reduced (6);
+
+    if (category == "Slide" && processor.getState().getRawParameterValue (ParamIDs::slideGuitar)->load() < 0.5f)
+        inner.removeFromTop (18);
+
+    cardsArea = inner;
+
+    const int cardW = 168, cardH = 42, gap = 4;
+    const int perRow = juce::jmax (1, (inner.getWidth() + gap) / (cardW + gap));
+    drawerPerRow = perRow;
+    drawerRows = (drawerParts.size() + perRow - 1) / perRow;
+    drawerVisibleRows = juce::jmax (1, (inner.getHeight() + gap) / (cardH + gap));
+    drawerFirstRow = juce::jlimit (0, juce::jmax (0, drawerRows - drawerVisibleRows), drawerFirstRow);
+    drawerHidden = 0;
+
+    for (int i = 0; i < drawerParts.size(); ++i)
+    {
+        const int row = i / perRow - drawerFirstRow;
+
+        if (row < 0 || row >= drawerVisibleRows)
+        {
+            cardBounds.add ({});
+            ++drawerHidden;
+            continue;
+        }
+
+        cardBounds.add ({ inner.getX() + (i % perRow) * (cardW + gap), inner.getY() + row * (cardH + gap), cardW, cardH });
+    }
+}
+
+void WorkshopPanel::scrollDrawer (int rows)
+{
+    drawerFirstRow += rows;
+    layoutDrawer();
+    repaint();
+}
+
+void WorkshopPanel::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
+{
+    if (drawerArea.contains (e.getPosition()) && drawerRows > drawerVisibleRows)
+    {
+        const float delta = std::abs (wheel.deltaY) >= std::abs (wheel.deltaX) ? wheel.deltaY : wheel.deltaX;
+
+        if (delta != 0.0f)
+            scrollDrawer (delta < 0.0f ? 1 : -1);
+        return;
+    }
+
+    juce::Component::mouseWheelMove (e, wheel);
 }
 
 bool WorkshopPanel::switchFamily (const juce::String& family, bool confirmed)
 {
+    commitPaint();
+
     if (family == processor.getCurrentGuitar().family)
         return false;
 
@@ -1532,6 +1842,8 @@ bool WorkshopPanel::switchFamily (const juce::String& family, bool confirmed)
 
 bool WorkshopPanel::editInspectorField (const juce::String& field, const juce::String& text)
 {
+    commitPaint();
+
     const auto slot = slotForRegion (illustration.getSelected());
     const auto trimmed = text.trim();
 
@@ -1628,6 +1940,7 @@ void WorkshopPanel::clickCard (int index)
         return;
 
     const auto part = drawerParts[index];
+    commitPaint();
     bench.endAudition();
     auditioning = false;
 
@@ -1655,7 +1968,18 @@ void WorkshopPanel::clickCard (int index)
     }
     else if (const auto slot = targetSlot(); slot != GuitarSlot::numSlots)
     {
-        bench.fit (slot, part);
+        /*  guitar-workshop.md 5: a part made for another family is fitted with a
+            warning, never refused; the banner says why it is unusual and what
+            makes a matched build (the Guitar tab rebuilds around its family). */
+        if (bench.fit (slot, part) && ! part->suits (bench.current().family) && ! part->compatibility.isEmpty())
+        {
+            const auto made = part->compatibility[0];
+            limitMessage = tr ("workshop.fit.otherFamily", { { "part", part->name },
+                                                             { "family", bench.current().family },
+                                                             { "made", made },
+                                                             { "Made", made.substring (0, 1).toUpperCase() + made.substring (1) } });
+            limitShownAt = juce::Time::getMillisecondCounter();
+        }
     }
 
     refreshAll();
@@ -1770,6 +2094,13 @@ void WorkshopPanel::refreshHeader()
 }
 
 void WorkshopPanel::refreshInspector()
+{
+    refreshInspectorText();
+    layoutPaintControls();
+    repaint (inspectorArea);
+}
+
+void WorkshopPanel::refreshInspectorText()
 {
     inspectorLines.clear();
     inspectorFields.clear();
@@ -1925,6 +2256,10 @@ void WorkshopPanel::timerCallback()
     if (worker.takeResult (r))
         takeSpectrumResult (std::move (r));
 
+    // A colour drag that has rested is one committed pick.
+    if (pendingPaint.has_value() && juce::Time::getMillisecondCounter() - pendingSince >= (juce::uint32) kPaintSettleMs)
+        commitPaint();
+
     // Alt let go without the mouse moving: the audition ends (section 3.2).
     if (auditioning && ! juce::ModifierKeys::currentModifiers.isAltDown())
         hoverCard (hoveredCard, false);
@@ -2037,13 +2372,8 @@ void WorkshopPanel::resized()
     right.removeFromBottom (Metrics::grid);
 
     inspectorArea = right;
-    {
-        auto buttons = inspectorArea.withTrimmedTop (inspectorArea.getHeight() - 28);
-        const int w = buttons.getWidth() / 3;
-        swapButton.setBounds (buttons.removeFromLeft (w).reduced (1, 2));
-        revertButton.setBounds (buttons.removeFromLeft (w).reduced (1, 2));
-        savePartButton.setBounds (buttons.reduced (1, 2));
-    }
+    layoutInspectorButtons();
+    layoutPaintControls();
 
     setupArea = area.removeFromBottom (86);
     {
@@ -2056,17 +2386,215 @@ void WorkshopPanel::resized()
     }
     area.removeFromBottom (Metrics::gridHalf);
 
-    drawerArea = area.removeFromBottom (juce::jmax (110, area.getHeight() / 3));
+    /*  Section 1's category bar. One row of equal buttons when every label fits
+        at its natural width; otherwise as many rows as it takes (two at the
+        Advanced column's width, three on a phone-narrow window), so no label is
+        ever clipped - the look-and-feel's shrink-to-fit is the fallback, not
+        the plan. */
     {
-        auto tabs = drawerArea.removeFromTop (24);
-        const int w = tabs.getWidth() / juce::jmax (1, categoryButtons.size());
+        const int rowH = 24;
+        const int n = juce::jmax (1, categoryButtons.size());
+        int widest = 0;
+
         for (auto* b : categoryButtons)
-            b->setBounds (tabs.removeFromLeft (w).reduced (1, 0));
+            widest = juce::jmax (widest, idealButtonWidth (*b, rowH) + 2);
+
+        const int width = juce::jmax (1, area.getWidth());
+        const int perRow = juce::jlimit (1, n, width / juce::jmax (1, widest));
+        categoryRows = (n + perRow - 1) / perRow;
+
+        // Balanced rows: 14 over two rows is 7 + 7, not 12 + 2.
+        const int balanced = (n + categoryRows - 1) / categoryRows;
+
+        drawerArea = area.removeFromBottom (juce::jmax (110 + rowH * (categoryRows - 1), area.getHeight() / 3));
+        auto tabs = drawerArea.withHeight (rowH * categoryRows);
+
+        for (int i = 0; i < categoryButtons.size(); ++i)
+        {
+            const int row = i / balanced, col = i % balanced;
+            const int inRow = juce::jmin (balanced, n - row * balanced);
+            const int w = tabs.getWidth() / inRow;
+            const int x = tabs.getX() + col * w;
+            categoryButtons[i]->setBounds (juce::Rectangle<int> (x, tabs.getY() + row * rowH,
+                                                                 col == inRow - 1 ? tabs.getRight() - x : w, rowH).reduced (1, 1));
+        }
     }
     area.removeFromBottom (Metrics::gridHalf);
 
     illustrationArea = area;
     illustration.setBounds (illustrationArea);
+
+    layoutDrawer();
+    scrollFittedIntoView();
+}
+
+void WorkshopPanel::layoutInspectorButtons()
+{
+    // Swap and Revert share a row; "Save as user part" gets one of its own, so
+    // none of the three is squeezed into a third of a 190 px column.
+    auto buttons = inspectorArea.withTrimmedTop (inspectorArea.getHeight() - 54).reduced (4, 0);
+    auto top = buttons.removeFromTop (27);
+    swapButton.setBounds (top.removeFromLeft (top.getWidth() / 2).reduced (1, 2));
+    revertButton.setBounds (top.reduced (1, 2));
+    savePartButton.setBounds (buttons.reduced (1, 2));
+}
+
+void WorkshopPanel::layoutPaintControls()
+{
+    const auto targets = paintTargets();
+    const bool body = targets.contains (Paint::body);
+    const bool plastics = targets.contains (Paint::plastics);
+
+    for (int i = 0; i < paintChips.size(); ++i)
+        paintChips[i]->setVisible (targets.contains ((Paint) i));
+
+    for (auto* s : presetSwatches)
+        s->setVisible (body);
+
+    plasticsReset->setVisible (plastics);
+
+    const int rows = targets.size() + (body ? 1 : 0);
+    paintArea = inspectorArea.withTrimmedBottom (58).withTrimmedTop (juce::jmax (0, inspectorArea.getHeight() - 58 - rows * 26 - 6))
+                             .reduced (8, 0);
+
+    if (rows == 0)
+    {
+        paintArea = {};
+        return;
+    }
+
+    auto r = paintArea.withTrimmedTop (4);
+
+    for (auto which : targets)
+    {
+        auto row = r.removeFromTop (26).reduced (0, 2);
+
+        if (which == Paint::plastics)
+            plasticsReset->setBounds (row.removeFromRight (juce::jmin (84, row.getWidth() / 3)).reduced (0, 1));
+
+        paintChips[(int) which]->setBounds (row);
+    }
+
+    if (body)
+    {
+        auto row = r.removeFromTop (26).reduced (0, 3);
+        const int w = row.getWidth() / juce::jmax (1, presetSwatches.size());
+
+        for (auto* s : presetSwatches)
+            s->setBounds (row.removeFromLeft (w).reduced (2, 0));
+    }
+
+    // The chips show the colours as drawn now.
+    for (int i = 0; i < paintChips.size(); ++i)
+    {
+        auto* chip = paintChips[i];
+        chip->colour = getPaintColour ((Paint) i);
+        chip->gradient = false;
+        repaint (chip->getBounds());
+    }
+
+    const bool burst = bench.current().finish.type.equalsIgnoreCase ("burst");
+    paintChips[(int) Paint::body]->setButtonText (tr (burst ? "workshop.paint.centre" : "workshop.paint.body"));
+
+    if (burst)
+    {
+        paintChips[(int) Paint::body]->gradient = true;
+        paintChips[(int) Paint::body]->edge = getPaintColour (Paint::burstEdge);
+    }
+}
+
+//==============================================================================
+juce::Array<WorkshopPanel::Paint> WorkshopPanel::paintTargets() const
+{
+    if (illustration.getSelectedTool() != BenchIllustration::Tool::none)
+        return {};
+
+    switch (illustration.getSelected())
+    {
+        case GuitarRegion::body:
+        case GuitarRegion::soundhole:
+            if (bench.current().finish.type.equalsIgnoreCase ("burst"))
+                return { Paint::body, Paint::burstEdge };
+            return { Paint::body };
+
+        case GuitarRegion::pickguard:
+        case GuitarRegion::controls:
+        case GuitarRegion::selector:
+            return { Paint::plastics };
+
+        default:
+            return {};
+    }
+}
+
+juce::Colour WorkshopPanel::getPaintColour (Paint which) const
+{
+    const auto& guitar = bench.current();
+    return which == Paint::plastics ? GuitarRenderer::plasticsColour (guitar)
+                                    : GuitarRenderer::finishColour (guitar, which == Paint::burstEdge);
+}
+
+void WorkshopPanel::previewPaint (Paint which, juce::Colour colour)
+{
+    if (pendingPaint.has_value() && *pendingPaint != which)
+        commitPaint();
+
+    bench.previewPaint (which, colour);
+    pendingPaint = which;
+    pendingColour = colour;
+    pendingSince = juce::Time::getMillisecondCounter();
+
+    illustration.refresh();
+    layoutPaintControls();
+}
+
+bool WorkshopPanel::commitPaint()
+{
+    if (! pendingPaint.has_value())
+        return false;
+
+    const auto which = *pendingPaint;
+    pendingPaint.reset();
+
+    const bool changed = bench.setPaint (which, pendingColour);
+    refreshAll();
+    return changed;
+}
+
+bool WorkshopPanel::pickPaint (Paint which, juce::Colour colour)
+{
+    commitPaint();
+    const bool changed = bench.setPaint (which, colour);
+    refreshAll();
+    return changed;
+}
+
+bool WorkshopPanel::applyFinishPreset (const juce::String& id)
+{
+    commitPaint();
+    const bool changed = bench.applyFinishPreset (id);
+    refreshAll();
+    return changed;
+}
+
+void WorkshopPanel::openColourPicker (Paint which)
+{
+    commitPaint();
+
+    auto* chip = paintChips[(int) which];
+    auto* top = getTopLevelComponent();
+
+    if (chip == nullptr || top == nullptr)
+        return;
+
+    const auto area = top->getLocalArea (chip, chip->getLocalBounds());
+    pickerBox = &juce::CallOutBox::launchAsynchronously (createColourPicker (which), area, top);
+}
+
+std::unique_ptr<juce::Component> WorkshopPanel::createColourPicker (Paint which)
+{
+    const bool burst = which != Paint::plastics && bench.current().finish.type.equalsIgnoreCase ("burst");
+    return std::make_unique<FinishColourPicker> (*this, which, burst);
 }
 
 void WorkshopPanel::paint (juce::Graphics& g)
@@ -2092,10 +2620,9 @@ void WorkshopPanel::paint (juce::Graphics& g)
 
 void WorkshopPanel::paintDrawer (juce::Graphics& g, juce::Rectangle<int> area)
 {
-    cardBounds.clear();
     LuthierLookAndFeel::drawPanel (g, area.toFloat());
 
-    auto inner = area.reduced (6);
+    auto inner = area.withTrimmedTop (24 * categoryRows).reduced (6);
     const auto slot = targetSlot();
     const auto fitted = slot != GuitarSlot::numSlots ? bench.current().get (slot) : nullptr;
     const auto* c = findCategory (category);
@@ -2111,28 +2638,21 @@ void WorkshopPanel::paintDrawer (juce::Graphics& g, juce::Rectangle<int> area)
         g.drawText (tr ("workshop.slideNeedsSlideMode"), inner.removeFromTop (18), juce::Justification::centredLeft, false);
     }
 
-    const int cardW = 168, cardH = 42;
-    int x = inner.getX(), y = inner.getY();
+    const int cardH = 42;
+    int y = inner.getY() - cardH;
     bool anyUser = false;
 
-    for (int i = 0; i < drawerParts.size(); ++i)
+    for (int i = 0; i < drawerParts.size() && i < cardBounds.size(); ++i)
     {
         const auto& part = *drawerParts[i];
         anyUser = anyUser || ! part.isFactory;
 
-        if (x + cardW > inner.getRight())
-        {
-            x = inner.getX();
-            y += cardH + 4;
-        }
+        const auto card = cardBounds[i];
 
-        const juce::Rectangle<int> card (x, y, cardW, cardH);
-        x += cardW + 4;
+        if (card.isEmpty())
+            continue;
 
-        if (card.getBottom() > inner.getBottom())
-            break;
-
-        cardBounds.add (card);
+        y = juce::jmax (y, card.getY());
 
         const bool isFitted = (fitted != nullptr && fitted->name == part.name) || (accessory != nullptr && accessory->name == part.name)
                            || (part.type == PartType::numTypes && part.text ("family") == bench.current().family);
@@ -2153,19 +2673,36 @@ void WorkshopPanel::paintDrawer (juce::Graphics& g, juce::Rectangle<int> area)
         auto line = summaryOf (part);
         if (! part.suits (bench.current().family) && part.type != PartType::pick && part.type != PartType::slide
             && part.type != PartType::capo && part.type != PartType::numTypes)
-            line = tr ("workshop.card.unusual", { { "summary", line } });
+        {
+            // Why it is unusual, in the card's own words: made for another family.
+            const auto made = part.compatibility.isEmpty() ? juce::String() : part.compatibility[0];
+            line = made.isNotEmpty() ? tr ("workshop.card.otherFamily", { { "made", made }, { "summary", line } })
+                                     : tr ("workshop.card.unusual", { { "summary", line } });
+        }
         if (! part.isFactory)
             line = tr ("workshop.card.yours", { { "summary", line } });
         g.drawText (line, text, juce::Justification::centredLeft, true);
     }
 
     // Section 9's empty user section.
-    if (! anyUser && drawerParts.size() > 0 && y + cardH + 22 < inner.getBottom())
+    if (! anyUser && drawerHidden == 0 && drawerParts.size() > 0 && y + cardH + 22 < inner.getBottom())
     {
         g.setColour (Palette::textDisabled);
         g.setFont (Fonts::ui (11.0f));
         g.drawText (tr ("workshop.drawer.noUserParts"),
                     juce::Rectangle<int> (inner.getX(), y + cardH + 6, inner.getWidth(), 16), juce::Justification::centredLeft, true);
+    }
+
+    // More cards than rows: say so, and that the wheel reaches them.
+    if (drawerHidden > 0)
+    {
+        const auto more = tr ("workshop.drawer.more", { { "n", juce::String (drawerHidden) } });
+        g.setFont (Fonts::ui (11.0f));
+        const auto r = inner.removeFromBottom (14).removeFromRight (juce::jmin (inner.getWidth(), 260)).translated (0, 4);
+        g.setColour (Palette::panel.withAlpha (0.9f));
+        g.fillRect (r.toFloat());
+        g.setColour (Palette::textMuted);
+        g.drawFittedText (more, r, juce::Justification::centredRight, 1);
     }
 
     if (drawerParts.isEmpty())
@@ -2179,7 +2716,10 @@ void WorkshopPanel::paintDrawer (juce::Graphics& g, juce::Rectangle<int> area)
 void WorkshopPanel::paintInspector (juce::Graphics& g, juce::Rectangle<int> area)
 {
     LuthierLookAndFeel::drawPanel (g, area.toFloat());
-    auto inner = area.reduced (8).withTrimmedBottom (30);
+    auto inner = area.reduced (8).withTrimmedBottom (54);
+
+    if (! paintArea.isEmpty())
+        inner.setBottom (juce::jmin (inner.getBottom(), paintArea.getY() - 2));
 
     LuthierLookAndFeel::drawSectionHeader (g, inner.removeFromTop (22), tr ("workshop.inspector"));
     inner.removeFromTop (4);

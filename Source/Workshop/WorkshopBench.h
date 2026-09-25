@@ -18,6 +18,7 @@
 
 #include "../Model/Workshop/PartLibrary.h"
 #include "../DSP/Slide/SlideEngine.h"
+#include <juce_graphics/juce_graphics.h>
 
 #include <array>
 #include <optional>
@@ -145,6 +146,42 @@ public:
     static constexpr double kMaxIntonation = 6.0, kMaxNutSlot = 1.2;
 
     //==========================================================================
+    /*  Finish colours (guitar-illustration.md 11, the inspector's colour picker).
+        Paint only: the guitar's finish block changes, the sound does not (the
+        processor leaves the engine and the parameters alone for a paint-only
+        edit). A committed pick is one undo entry; while the picker drags, the
+        colour is previewed through a gesture and the entry is written when the
+        gesture ends (endGesture), so a drag is one entry too. */
+    enum class Paint
+    {
+        body,        ///< the body colour: colour_a, or a burst's centre (colour_b)
+        burstEdge,   ///< a burst's edge colour (colour_a)
+        plastics     ///< pickguard, knobs, plastic pickup covers, switch tip (plastic_color)
+    };
+
+    /** The paint's stored hex ("#7A2E1B"), or empty when it follows the wood / the pickguard part. */
+    juce::String getPaint (Paint which) const;
+
+    /** Shows a colour live on the bench without an undo entry (opens a gesture). */
+    void previewPaint (Paint which, juce::Colour colour);
+
+    /** Commits a colour: one undo entry, "Set body colour #7A2E1B -> #B22820". False if unchanged. */
+    bool setPaint (Paint which, juce::Colour colour);
+
+    /** Puts the plastics back to the pickguard part's own colour. One undo entry. */
+    bool clearPlastics();
+
+    /*  The swatches (guitar-illustration.md 11.1 / 11.2): "sunburst", "cherry",
+        "black", "white", "seafoam", "natural". Each sets the finish's type and
+        colours; natural shows the body's wood. One undo entry. */
+    static juce::StringArray finishPresetIds();
+    static bool finishPreset (const juce::String& id, GuitarFinish& finish);
+    bool applyFinishPreset (const juce::String& id);
+
+    /** The finish sentence for an undo entry, empty when the paint is the same. */
+    static juce::StringArray describePaintChanges (const GuitarFinish& before, const GuitarFinish& after);
+
+    //==========================================================================
     // A/B slots (section 7).
     static constexpr int kNumSlots = 8;
     static juce::String slotName (int index) { return juce::String::charToString ((juce::juce_wchar) ('A' + index)); }
@@ -202,6 +239,7 @@ private:
     PartPtr pickPart, slidePart;
     double slideFret = 5.0;          ///< the bench's slide position (see setSlidePlacement)
     std::optional<WorkshopGuitar> audition;
+    std::optional<juce::String> revertBodyStyle;   ///< set while revert() refits the file's body
 };
 
 } // namespace luthier

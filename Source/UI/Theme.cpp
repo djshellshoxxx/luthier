@@ -61,7 +61,27 @@ void Palette::apply (const PaletteColours& c, bool texturedSurfaces)
     plate     = texturedSurfaces ? juce::Colour (0xffc9a25a) : c.accent;
     plateText = juce::Colour (0xff2a1a0c);
 
+    knobTrack = c.edge.withAlpha (0.6f);
+    meterMid  = c.accent;
+    illustrationMaterials = texturedSurfaces;
+
     appliedPalette() = c;
+}
+
+void Palette::apply (const PaletteColours& c, PaletteId id)
+{
+    apply (c, paletteUsesMaterials (id));
+    illustrationMaterials = paletteLightsIllustrations (id);
+
+    if (id == PaletteId::modernDark)
+    {
+        // Modern Dark: a flat knob one step lighter than the raised surfaces, so
+        // it stands off the panel; an unfilled arc that is clearly a track; and
+        // meters that run green, amber, red rather than through the blue accent.
+        knobBody  = c.panelRaised.interpolatedWith (c.edge, 0.4f);
+        knobTrack = c.edgeBright;
+        meterMid  = c.warning;
+    }
 }
 
 const PaletteColours& Palette::current()
@@ -210,23 +230,109 @@ juce::Font Fonts::sectionHeader()
     return display (14.0f);
 }
 
-void Fonts::drawTrackedText (juce::Graphics& g, const juce::String& text,
-                             juce::Rectangle<int> area, juce::Justification justification,
-                             float tracking)
+float Fonts::trackedWidth (const juce::Font& font, const juce::String& text, float tracking)
 {
     if (text.isEmpty())
-        return;
+        return 0.0f;
 
-    const auto font = g.getCurrentFont();
     const float extra = font.getHeight() * tracking;
-
-    // Measure with the tracking included so the justification stays correct.
     float total = 0.0f;
 
     for (int i = 0; i < text.length(); ++i)
-        total += font.getStringWidthFloat (text.substring (i, i + 1)) + extra;
+        total += juce::GlyphArrangement::getStringWidth (font, text.substring (i, i + 1)) + extra;
 
-    total -= extra;
+    return total - extra;
+}
+
+Fonts::FittedLabel Fonts::fitLabel (const juce::String& text, const juce::Font& font,
+                                    float availableWidth, float tracking)
+{
+    FittedLabel fit;
+    fit.font = font;
+    fit.tracking = tracking;
+    fit.text = text;
+    fit.width = trackedWidth (font, text, tracking);
+
+    if (availableWidth <= 0.0f || fit.width <= availableWidth || text.isEmpty())
+        return fit;
+
+    fit.shrunk = true;
+
+    // 1. Tighter tracking: half, then none.
+    for (const float t : { tracking * 0.5f, 0.0f })
+    {
+        fit.tracking = t;
+        fit.width = trackedWidth (font, text, t);
+
+        if (fit.width <= availableWidth)
+            return fit;
+    }
+
+    // 2. A smaller font, down to the floor (never up, for a font already below it).
+    const float normalHeight = font.getHeight();
+    const float floorHeight = juce::jmin (normalHeight, minimumLabelHeight);
+
+    // Width scales about linearly with height: start from that estimate, then step down.
+    float height = juce::jlimit (floorHeight, normalHeight,
+                                 std::floor (normalHeight * availableWidth / fit.width * 4.0f) / 4.0f);
+
+    for (;; height -= 0.25f)
+    {
+        height = juce::jmax (floorHeight, height);
+        fit.font = font.withHeight (height);
+        fit.width = trackedWidth (fit.font, text, 0.0f);
+
+        if (fit.width <= availableWidth)
+            return fit;
+
+        if (height <= floorHeight)
+            break;
+    }
+
+    // 3. A little horizontal squeeze at the floor.
+    for (float scale = 0.95f; scale >= minimumHorizontalScale - 0.001f; scale -= 0.05f)
+    {
+        fit.font = font.withHeight (floorHeight).withHorizontalScale (font.getHorizontalScale() * scale);
+        fit.width = trackedWidth (fit.font, text, 0.0f);
+
+        if (fit.width <= availableWidth)
+            return fit;
+    }
+
+    // 4. Only now: an ellipsis.
+    fit.ellipsised = true;
+    const juce::String dots (juce::CharPointer_UTF8 ("\xe2\x80\xa6"));
+    auto shortened = text.trimEnd();
+
+    while (shortened.isNotEmpty())
+    {
+        shortened = shortened.dropLastCharacters (1).trimEnd();
+        fit.text = shortened + dots;
+        fit.width = trackedWidth (fit.font, fit.text, 0.0f);
+
+        if (fit.width <= availableWidth)
+            return fit;
+    }
+
+    fit.text = {};
+    fit.width = 0.0f;
+    return fit;
+}
+
+void Fonts::drawFittedLabel (juce::Graphics& g, const FittedLabel& label,
+                             juce::Rectangle<int> area, juce::Justification justification)
+{
+    const auto& text = label.text;
+
+    if (text.isEmpty())
+        return;
+
+    const auto previous = g.getCurrentFont();
+    const auto& font = label.font;
+    g.setFont (font);
+
+    const float extra = font.getHeight() * label.tracking;
+    const float total = label.width;
 
     float x = (float) area.getX();
 
@@ -241,8 +347,21 @@ void Fonts::drawTrackedText (juce::Graphics& g, const juce::String& text,
     {
         const auto glyph = text.substring (i, i + 1);
         g.drawSingleLineText (glyph, juce::roundToInt (x), juce::roundToInt (baseline));
-        x += font.getStringWidthFloat (glyph) + extra;
+        x += juce::GlyphArrangement::getStringWidth (font, glyph) + extra;
     }
+
+    g.setFont (previous);
+}
+
+void Fonts::drawTrackedText (juce::Graphics& g, const juce::String& text,
+                             juce::Rectangle<int> area, juce::Justification justification,
+                             float tracking)
+{
+    if (text.isEmpty())
+        return;
+
+    drawFittedLabel (g, fitLabel (text, g.getCurrentFont(), (float) area.getWidth(), tracking),
+                     area, justification);
 }
 
 //==============================================================================
@@ -257,7 +376,7 @@ LuthierLookAndFeel::LuthierLookAndFeel()
     if (! applied)
     {
         auto& settings = AccessibilitySettings::get();
-        Palette::apply (settings.getColours(), settings.getPalette() != PaletteId::highContrast);
+        Palette::apply (settings.getColours(), settings.getPalette());
         applied = true;
     }
 
@@ -333,6 +452,13 @@ void LuthierLookAndFeel::refreshColours()
     setColour (juce::ListBox::backgroundColourId,         Palette::panelSunken);
     setColour (juce::ListBox::textColourId,               Palette::textPrimary);
     setColour (juce::ListBox::outlineColourId,            Palette::edge);
+
+    // Table headers (the MOD tab's route list): JUCE's default is a pale grey
+    // bar with black text, which sat in every palette like a hole in the panel.
+    setColour (juce::TableHeaderComponent::backgroundColourId, Palette::panelRaised);
+    setColour (juce::TableHeaderComponent::textColourId,       Palette::textMuted);
+    setColour (juce::TableHeaderComponent::outlineColourId,    Palette::edge);
+    setColour (juce::TableHeaderComponent::highlightColourId,  Palette::accent.withAlpha (0.15f));
 }
 
 LuthierLookAndFeel::~LuthierLookAndFeel() = default;
@@ -352,10 +478,10 @@ juce::Colour LuthierLookAndFeel::meterColourFor (float level)
     level = juce::jlimit (0.0f, 1.0f, level);
 
     if (level < 0.55f)
-        return Palette::secondary.interpolatedWith (Palette::accent, level / 0.55f);
+        return Palette::secondary.interpolatedWith (Palette::meterMid, level / 0.55f);
 
     if (level < 0.82f)
-        return Palette::accent.interpolatedWith (Palette::warning, (level - 0.55f) / 0.27f);
+        return Palette::meterMid.interpolatedWith (Palette::warning, (level - 0.55f) / 0.27f);
 
     return Palette::warning.interpolatedWith (Palette::clip, (level - 0.82f) / 0.18f);
 }
@@ -522,9 +648,8 @@ void LuthierLookAndFeel::drawSectionHeader (juce::Graphics& g, juce::Rectangle<i
 
     // An engraved brass plate sized to its text (visual-polish.md 6.2).
     g.setFont (font);
-    float textWidth = 0.0f;
-    for (int i = 0; i < label.length(); ++i)
-        textWidth += font.getStringWidthFloat (label.substring (i, i + 1)) + font.getHeight() * 0.06f;
+    // Measured as drawTrackedText draws it, so the plate never clips its own name.
+    const float textWidth = Fonts::trackedWidth (font, label);
 
     const float plateW = juce::jmin ((float) area.getWidth(), textWidth + 16.0f);
     const float plateH = juce::jmin ((float) area.getHeight(), font.getHeight() + 6.0f);
@@ -631,7 +756,7 @@ void LuthierLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int 
     backgroundArc.addCentredArc (centre.x, centre.y, arcRadius, arcRadius, 0.0f,
                                  rotaryStartAngle, rotaryEndAngle, true);
 
-    g.setColour (Palette::edge.withAlpha (0.6f));
+    g.setColour (Palette::knobTrack);
     g.strokePath (backgroundArc, juce::PathStrokeType (Metrics::arcThickness,
                                                        juce::PathStrokeType::curved,
                                                        juce::PathStrokeType::rounded));
@@ -922,10 +1047,43 @@ void LuthierLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& bu
         colour = colour.brighter (0.25f);
 
     g.setColour (colour);
-    g.setFont (getTextButtonFont (button, button.getHeight()));
 
-    Fonts::drawTrackedText (g, button.getButtonText().toUpperCase(),
-                            button.getLocalBounds(), juce::Justification::centred);
+    // Fitted, never clipped: less padding first, then a smaller font (fitButtonLabel).
+    const auto label = fitButtonLabel (button);
+    Fonts::drawFittedLabel (g, label, button.getLocalBounds().reduced (juce::roundToInt (label.padding), 0),
+                            juce::Justification::centred);
+}
+
+float LuthierLookAndFeel::buttonLabelPadding (int buttonHeight) noexcept
+{
+    return juce::jlimit (minimumButtonLabelPadding, 8.0f, (float) buttonHeight * 0.25f);
+}
+
+Fonts::FittedLabel LuthierLookAndFeel::fitButtonLabel (juce::TextButton& button)
+{
+    const auto text = button.getButtonText().toUpperCase();
+    const auto font = button.getLookAndFeel().getTextButtonFont (button, button.getHeight());
+    const float width = (float) button.getWidth();
+
+    // 1. The normal padding and font.
+    const float padding = buttonLabelPadding (button.getHeight());
+    auto fit = Fonts::fitLabel (text, font, width - 2.0f * padding);
+    fit.padding = padding;
+
+    if (! fit.shrunk)
+        return fit;
+
+    // 2. The least padding, the normal font; 3. the least padding, fitted.
+    fit = Fonts::fitLabel (text, font, width - 2.0f * minimumButtonLabelPadding);
+    fit.padding = minimumButtonLabelPadding;
+    return fit;
+}
+
+int LuthierLookAndFeel::idealTextButtonWidth (juce::TextButton& button, int buttonHeight)
+{
+    const auto font = button.getLookAndFeel().getTextButtonFont (button, buttonHeight);
+    return (int) std::ceil (Fonts::trackedWidth (font, button.getButtonText().toUpperCase())
+                            + 2.0f * buttonLabelPadding (buttonHeight));
 }
 
 void LuthierLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button,
@@ -947,8 +1105,10 @@ void LuthierLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton
 
     g.setColour (button.isEnabled() ? (on ? Palette::textPrimary : Palette::textMuted)
                                     : Palette::textDisabled);
-    g.setFont (Fonts::ui (12.0f));
-    g.drawText (button.getButtonText(), bounds, juce::Justification::centredLeft, true);
+    // Fitted like a button's label: smaller before it is ever cut short.
+    Fonts::drawFittedLabel (g, Fonts::fitLabel (button.getButtonText(), Fonts::ui (12.0f),
+                                                (float) bounds.getWidth(), 0.0f),
+                            bounds, juce::Justification::centredLeft);
 
     if (wantsFocusRing (button))
         drawFocusRing (g, button.getLocalBounds().toFloat());
@@ -1258,8 +1418,10 @@ void LuthierLookAndFeel::drawTabButton (juce::TabBarButton& button, juce::Graphi
     g.setColour (active ? Palette::accent : Palette::textMuted);
     g.setFont (Fonts::ui (11.0f, active));
 
+    // drawTrackedText fits the label (tighter, then smaller) rather than clip it.
     Fonts::drawTrackedText (g, button.getButtonText().toUpperCase(),
-                            button.getLocalBounds(), juce::Justification::centred);
+                            button.getLocalBounds().reduced (juce::jmin (4, button.getWidth() / 10), 0),
+                            juce::Justification::centred);
 
     if (wantsFocusRing (button))
         drawFocusRing (g, button.getLocalBounds().toFloat(), Metrics::controlCorner);

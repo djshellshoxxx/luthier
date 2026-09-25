@@ -20,5 +20,8 @@
     "thickness_mm": 44.0,
     "area_cm2": 1250,
     "bracing": "none"
+  },
+  "illustration": {
+    "body_style": "multiscale"
   }
 }

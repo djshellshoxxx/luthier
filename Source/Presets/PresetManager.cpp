@@ -594,6 +594,13 @@ bool PresetManager::fromVar (const juce::var& data)
                     const double v = (double) params->getProperty (withId->paramID);
                     withId->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, v));
                 }
+                else if (withId->paramID.startsWith ("string_detune_") || withId->paramID == ParamIDs::outOfTune)
+                {
+                    /*  String Detune: a preset from before it existed was
+                        saved in tune, so it loads in tune rather than keeping
+                        whatever the last preset left the strings at. */
+                    withId->setValueNotifyingHost (withId->getDefaultValue());
+                }
             }
         }
 
@@ -1178,8 +1185,13 @@ bool PresetManager::isRandomisable (const juce::String& paramId)
         ParamIDs::playingMode, ParamIDs::bendRange, ParamIDs::transposeLock,
         ParamIDs::tuningDrift, ParamIDs::chordWindow,
         ParamIDs::secretOn, ParamIDs::secretRate, ParamIDs::secretDepth,
-        ParamIDs::secretFeedback, ParamIDs::secretMix
+        ParamIDs::secretFeedback, ParamIDs::secretMix,
+        ParamIDs::outOfTune
     };
+
+    // String Detune: a random patch is a new sound, not an out-of-tune guitar.
+    if (paramId.startsWith ("string_detune_"))
+        return false;
 
     return ! excluded.contains (paramId);
 }

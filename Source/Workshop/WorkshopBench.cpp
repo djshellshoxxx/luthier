@@ -264,13 +264,32 @@ bool WorkshopBench::revert (GuitarSlot slot)
     if (! file.existsAsFile() || ! processor.getPartLibrary().loadGuitar (file, original, report))
         return false;
 
-    return fit (slot, original.get (slot));
+    // A body goes back with the outline the file drew it with (a factory guitar
+    // may draw a shared body part in its own style).
+    if (slot == GuitarSlot::body)
+        revertBodyStyle = original.bodyStyle;
+
+    const bool changed = fit (slot, original.get (slot));
+    revertBodyStyle.reset();
+    return changed;
 }
 
 WorkshopGuitar WorkshopBench::withPart (GuitarSlot slot, const PartPtr& candidate) const
 {
     auto g = processor.getCurrentGuitar();
     g.parts[(size_t) slot] = candidate;
+
+    /*  guitar-illustration.md 4 / 18: a body brings its own outline. The guitar's
+        body_style follows the fitted body, so the illustration draws it and the
+        engine's body shape (PartAcoustics' shapeFor) hears it. A body that names
+        no style (an older user part) leaves the guitar's as it was. */
+    if (slot == GuitarSlot::body)
+    {
+        if (revertBodyStyle.has_value())
+            g.bodyStyle = *revertBodyStyle;
+        else if (const auto style = WorkshopGuitar::bodyStyleOf (candidate.get()); style.isNotEmpty())
+            g.bodyStyle = style;
+    }
 
     // A pickup going into an empty slot needs somewhere to sit: the usual
     // place for that slot, scaled to this guitar's scale length.
@@ -342,6 +361,9 @@ void WorkshopBench::endGesture()
             sentences.add ("Set " + stringLabel (s) + " nut slot " + mm (na, 2) + " " + arrow() + " " + mm (nb, 2) + " mm");
     }
 
+    // Paint previewed from the colour picker (one entry for the whole drag).
+    sentences.addArray (describePaintChanges (before.finish, after.finish));
+
     // The accessories (pick, slide, capo) live in parameters, not the guitar.
     const auto placementsBefore = gesture->placementsBefore;
     const auto placementsAfter = readPlacements();
@@ -372,6 +394,153 @@ void WorkshopBench::endGesture()
     }
 
     commit (live, sentences.joinIntoString ("; "));
+}
+
+//==============================================================================
+namespace
+{
+    juce::String hexOf (juce::Colour c)   { return "#" + c.toDisplayString (false).toUpperCase(); }
+
+    bool isBurst (const GuitarFinish& f)  { return f.type.equalsIgnoreCase ("burst"); }
+
+    void paintInto (GuitarFinish& f, WorkshopBench::Paint which, juce::Colour colour)
+    {
+        switch (which)
+        {
+            case WorkshopBench::Paint::body:      (isBurst (f) ? f.colourB : f.colourA) = hexOf (colour); break;
+            case WorkshopBench::Paint::burstEdge: f.colourA = hexOf (colour); break;
+            case WorkshopBench::Paint::plastics:  f.plasticColour = hexOf (colour); break;
+        }
+    }
+}
+
+juce::String WorkshopBench::getPaint (Paint which) const
+{
+    const auto& f = current().finish;
+
+    switch (which)
+    {
+        case Paint::body:      return isBurst (f) ? f.colourB : f.colourA;
+        case Paint::burstEdge: return f.colourA;
+        case Paint::plastics:  return f.plasticColour;
+    }
+
+    return {};
+}
+
+void WorkshopBench::previewPaint (Paint which, juce::Colour colour)
+{
+    endAudition();
+
+    if (! gesture)
+        beginGesture();
+
+    paintInto (gesture->live.finish, which, colour);
+}
+
+bool WorkshopBench::setPaint (Paint which, juce::Colour colour)
+{
+    if (gesture)
+    {
+        // The drag's last value, then its one entry.
+        paintInto (gesture->live.finish, which, colour);
+        const bool changed = ! (gesture->live.finish.colourA == gesture->before.finish.colourA
+                                && gesture->live.finish.colourB == gesture->before.finish.colourB
+                                && gesture->live.finish.plasticColour == gesture->before.finish.plasticColour);
+        endGesture();
+        return changed;
+    }
+
+    endAudition();
+    auto edited = processor.getCurrentGuitar();
+    paintInto (edited.finish, which, colour);
+
+    const auto sentences = describePaintChanges (processor.getCurrentGuitar().finish, edited.finish);
+
+    if (sentences.isEmpty())
+        return false;
+
+    commit (edited, sentences.joinIntoString ("; "));
+    return true;
+}
+
+bool WorkshopBench::clearPlastics()
+{
+    endGesture();
+
+    auto edited = processor.getCurrentGuitar();
+
+    if (edited.finish.plasticColour.isEmpty())
+        return false;
+
+    edited.finish.plasticColour.clear();
+    commit (edited, describePaintChanges (processor.getCurrentGuitar().finish, edited.finish).joinIntoString ("; "));
+    return true;
+}
+
+juce::StringArray WorkshopBench::finishPresetIds()
+{
+    return { "sunburst", "cherry", "black", "white", "seafoam", "natural" };
+}
+
+bool WorkshopBench::finishPreset (const juce::String& id, GuitarFinish& f)
+{
+    // guitar-illustration.md 11.1 and 11.2's own hexes.
+    if (id == "sunburst")      { f.type = "burst"; f.colourA = "#3E2A1A"; f.colourB = "#E4D2A0"; f.burstShape = "radial"; }
+    else if (id == "cherry")   { f.type = "burst"; f.colourA = "#9E2A1E"; f.colourB = "#F0DA8C"; f.burstShape = "radial"; }
+    else if (id == "black")    { f.type = "solid"; f.colourA = "#0F0F0F"; }
+    else if (id == "white")    { f.type = "solid"; f.colourA = "#F5F1E8"; }
+    else if (id == "seafoam")  { f.type = "solid"; f.colourA = "#98C9B0"; }
+    else if (id == "natural")  { f.type = "natural"; f.colourA = {}; }
+    else                       return false;
+
+    return true;
+}
+
+bool WorkshopBench::applyFinishPreset (const juce::String& id)
+{
+    endGesture();
+    endAudition();
+
+    auto edited = processor.getCurrentGuitar();
+
+    if (! finishPreset (id, edited.finish))
+        return false;
+
+    const auto& before = processor.getCurrentGuitar().finish;
+
+    if (describePaintChanges (before, edited.finish).isEmpty())
+        return false;
+
+    const auto was = before.type + (before.colourA.isNotEmpty() ? " " + before.colourA : juce::String())
+                   + (isBurst (before) ? " / " + before.colourB : juce::String());
+    commit (edited, "Finish " + id + " (was " + was + ")");
+    return true;
+}
+
+juce::StringArray WorkshopBench::describePaintChanges (const GuitarFinish& a, const GuitarFinish& b)
+{
+    juce::StringArray out;
+    auto shown = [] (const juce::String& hex, const char* empty) { return hex.isNotEmpty() ? hex : juce::String (empty); };
+
+    if (! a.type.equalsIgnoreCase (b.type) || a.burstShape != b.burstShape)
+        out.add ("Set finish " + a.type + " " + arrow() + " " + b.type);
+
+    // A burst's body colour is its centre; its edge is colour_a.
+    const bool burst = isBurst (b);
+
+    if (burst ? a.colourB != b.colourB : a.colourA != b.colourA)
+        out.add ("Set body colour " + shown (burst ? a.colourB : a.colourA, "wood") + " " + arrow() + " "
+                 + shown (burst ? b.colourB : b.colourA, "wood"));
+
+    if (burst && a.colourA != b.colourA)
+        out.add ("Set burst edge colour " + shown (a.colourA, "wood") + " " + arrow() + " " + shown (b.colourA, "wood"));
+
+    if (a.plasticColour != b.plasticColour)
+        out.add ("Set plastics colour " + shown (a.plasticColour, "pickguard's own") + " " + arrow() + " "
+                 + shown (b.plasticColour, "pickguard's own"));
+
+    return out;
 }
 
 //==============================================================================

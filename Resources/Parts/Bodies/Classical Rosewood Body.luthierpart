@@ -19,5 +19,8 @@
     "thickness_mm": 100.0,
     "area_cm2": 2000,
     "bracing": "fan"
+  },
+  "illustration": {
+    "body_style": "classical"
   }
 }

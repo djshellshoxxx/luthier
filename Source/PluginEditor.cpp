@@ -679,7 +679,7 @@ void LuthierAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaste
     auto& settings = AccessibilitySettings::get();
     const auto& wanted = settings.getColours();
 
-    Palette::apply (wanted, settings.getPalette() != PaletteId::highContrast);
+    Palette::apply (wanted, settings.getPalette());
     Palette::remap (*this, shownPalette, wanted);
     shownPalette = wanted;
 

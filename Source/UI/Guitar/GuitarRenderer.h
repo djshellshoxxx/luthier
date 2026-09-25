@@ -222,6 +222,12 @@ public:
                                       bool flatwound = false);
     static juce::Colour hardwareColour (const juce::String& name);
     static juce::Colour woodColour (const juce::String& wood);
+
+    /** The plastics as drawn: the finish's plastic_color, else the pickguard part's colour. */
+    static juce::Colour plasticsColour (const WorkshopGuitar& guitar);
+
+    /** The body colour as drawn (a burst's centre, or its edge), else the body wood's. */
+    static juce::Colour finishColour (const WorkshopGuitar& guitar, bool burstEdge = false);
 };
 
 } // namespace luthier

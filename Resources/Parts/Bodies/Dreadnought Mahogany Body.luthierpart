@@ -20,5 +20,8 @@
     "thickness_mm": 120.0,
     "area_cm2": 2300,
     "bracing": "x"
+  },
+  "illustration": {
+    "body_style": "dreadnought"
   }
 }

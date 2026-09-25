@@ -10,6 +10,7 @@
 #include "../UI/Overlays.h"
 #include "../UI/RangesUi.h"
 #include "../Accessibility/Localisation.h"
+#include "../Model/Workshop/PartAcoustics.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -751,4 +752,431 @@ LUTHIER_TEST (WorkshopPanel, theWrenchOpensTheBenchAsAnOverlayInEasyMode)
 
     CHECK (editor->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey)));
     CHECK (! host->isShowingOverlay());
+}
+
+//==============================================================================
+//  The body swap, finish paint and the drawer's legibility (2026-09-25).
+//==============================================================================
+namespace
+{
+    juce::Array<juce::File> factoryGuitarFiles()
+    {
+        juce::Array<juce::File> files;
+        for (const auto& entry : juce::RangedDirectoryIterator (PartLibrary::getFactoryGuitarsFolder(), true, "*.luthierguitar"))
+            files.add (entry.getFile());
+        files.sort();
+        return files;
+    }
+
+    /** A processor playing one factory guitar file, and the bench open on it. */
+    struct GuitarBench
+    {
+        LuthierAudioProcessor processor;
+        std::unique_ptr<WorkshopPanel> panel;
+        bool loaded = false;
+
+        explicit GuitarBench (const juce::File& file, int width = 1200, int height = 760)
+        {
+            processor.prepareToPlay (48000.0, 512);
+            juce::String error;
+            loaded = processor.loadGuitarFile (file, error);
+
+            panel = std::make_unique<WorkshopPanel> (processor);
+            panel->setVisible (true);
+            panel->setSize (width, height);
+        }
+    };
+
+    bool sameBodyConfig (const BodyConfig& a, const BodyConfig& b)
+    {
+        return a.shape == b.shape && a.topWood == b.topWood && a.backWood == b.backWood && a.sideWood == b.sideWood
+            && a.bracing == b.bracing && a.scaleWidth == b.scaleWidth && a.scaleDepth == b.scaleDepth
+            && a.topThicknessMm == b.topThicknessMm && a.soundHoleScale == b.soundHoleScale;
+    }
+
+    bool imagesDiffer (const juce::Image& a, const juce::Image& b)
+    {
+        const juce::Image::BitmapData da (a, juce::Image::BitmapData::readOnly), db (b, juce::Image::BitmapData::readOnly);
+        int different = 0;
+
+        for (int y = 0; y < a.getHeight(); y += 2)
+            for (int x = 0; x < a.getWidth(); x += 2)
+                if (da.getPixelColour (x, y) != db.getPixelColour (x, y))
+                    ++different;
+
+        return different > 50;
+    }
+
+    /** A flat fill of about this colour (aging fades a finish a few steps, 11.7). */
+    bool sceneHasFill (const GuitarScene& scene, juce::Colour c)
+    {
+        auto near = [c] (juce::Colour f)
+        {
+            return std::abs ((int) f.getRed() - (int) c.getRed()) <= 16 && std::abs ((int) f.getGreen() - (int) c.getGreen()) <= 16
+                && std::abs ((int) f.getBlue() - (int) c.getBlue()) <= 16;
+        };
+
+        for (const auto& sh : scene.shapes)
+            if (sh.fill.isColour() && sh.fill.colour.getAlpha() > 128 && near (sh.fill.colour))
+                return true;
+        return false;
+    }
+}
+
+/*  The report: "in the workshop you are unable to change the body of the guitar".
+    Root cause: a body part carried no outline of its own, so fitting one kept
+    the guitar file's body_style - the illustration and the engine's body shape
+    stayed put - and the drawer listed bodies alphabetically with no scrolling,
+    so on most guitars the family's own bodies were cut off below the fold.
+    For every factory guitar: at least two bodies for its family, the first
+    cards; fitting a different one changes the body, the drawn outline, and the
+    engine's body config, as one undo entry that undoes. */
+LUTHIER_TEST (WorkshopPanel, everyFactoryGuitarCanChangeItsBody)
+{
+    const auto files = factoryGuitarFiles();
+    CHECK (files.size() >= 20);
+
+    for (const auto& file : files)
+    {
+        const auto name = file.getFileNameWithoutExtension();
+        GuitarBench b (file);
+        CHECK_MSG (b.loaded, name + ": did not load");
+
+        auto& panel = *b.panel;
+        panel.showCategory ("Body");
+
+        const auto before = b.processor.getCurrentGuitar();
+        const auto family = before.family;
+        const auto& parts = panel.getDrawerParts();
+
+        int suiting = 0, candidate = -1;
+
+        for (int i = 0; i < parts.size(); ++i)
+        {
+            if (! parts[i]->suits (family))
+                continue;
+
+            // The family's bodies come first in the drawer.
+            CHECK_MSG (i == suiting, name + ": " + parts[i]->name + " is listed after another family's body");
+            ++suiting;
+
+            if (candidate < 0 && parts[i]->name != before.get (GuitarSlot::body)->name)
+                candidate = i;
+        }
+
+        CHECK_MSG (suiting >= 2, name + ": only " + juce::String (suiting) + " " + family + " bodies to choose from");
+
+        if (candidate < 0)
+            continue;
+
+        CHECK_MSG (! panel.getCardBounds()[candidate].isEmpty(), name + ": the " + parts[candidate]->name + " card is out of view");
+
+        const auto choice = parts[candidate];
+        const auto sceneBefore = GuitarRenderer::build (before);
+        const auto derivedBefore = mapSpec (before);
+        const int steps = b.processor.getNumUndoSteps();
+
+        // Clicked as a person would.
+        static_cast<juce::Component&> (panel).mouseDown (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                           panel.getCardBounds()[candidate].getCentre().toFloat(), {}, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                           &panel, &panel, juce::Time::getCurrentTime(),
+                                           panel.getCardBounds()[candidate].getCentre().toFloat(), juce::Time::getCurrentTime(), 1, false));
+
+        const auto after = b.processor.getCurrentGuitar();
+        CHECK_MSG (after.get (GuitarSlot::body) != nullptr && after.get (GuitarSlot::body)->name == choice->name,
+                   name + ": clicking " + choice->name + " did not fit it");
+        CHECK_MSG (b.processor.getNumUndoSteps() == steps + 1, name + ": the body swap is not one undo entry");
+
+        // The illustration: the bench's and a fresh build both draw the new body.
+        const auto sceneAfter = GuitarRenderer::build (after);
+        const bool outlineChanged = sceneAfter.bodyStyle != sceneBefore.bodyStyle || sceneAfter.bodyBounds != sceneBefore.bodyBounds;
+        const bool sameShapeFamily = WorkshopGuitar::bodyStyleOf (choice.get()) == WorkshopGuitar::bodyStyleOf (before.get (GuitarSlot::body).get());
+
+        if (sameShapeFamily)
+            CHECK_MSG (imagesDiffer (GuitarRenderer::render (before, 480, 200), GuitarRenderer::render (after, 480, 200)),
+                       name + ": " + choice->name + " looks the same as the body it replaced");
+        else
+            CHECK_MSG (outlineChanged, name + ": the outline stayed " + sceneBefore.bodyStyle + " with " + choice->name);
+
+        CHECK_MSG (panel.getIllustration().getScene().bodyStyle == sceneAfter.bodyStyle,
+                   name + ": the bench still draws " + panel.getIllustration().getScene().bodyStyle);
+
+        // The engine's body.
+        CHECK_MSG (! sameBodyConfig (mapSpec (after).body, derivedBefore.body), name + ": the engine's body did not change");
+
+        // And undo puts the old body - and its outline - back.
+        b.processor.undo();
+        CHECK_MSG (b.processor.getCurrentGuitar().get (GuitarSlot::body)->name == before.get (GuitarSlot::body)->name,
+                   name + ": undo did not put the body back");
+        CHECK_MSG (b.processor.getCurrentGuitar().bodyStyle == before.bodyStyle, name + ": undo did not put the outline back");
+    }
+}
+
+LUTHIER_TEST (WorkshopPanel, anotherFamilysBodyFitsWithAReasonAndTheFix)
+{
+    GuitarBench b (PartLibrary::getFactoryGuitarsFolder().getChildFile ("Electric/Vintage Single-Cut.luthierguitar"));
+    auto& panel = *b.panel;
+    panel.showCategory ("Body");
+
+    int dread = -1;
+    for (int i = 0; i < panel.getDrawerParts().size(); ++i)
+        if (panel.getDrawerParts()[i]->name == "Dreadnought Mahogany Body")
+            dread = i;
+
+    CHECK (dread >= 0);
+
+    if (dread < 0)
+        return;
+
+    // Scrolled to, since the electric bodies come first.
+    while (panel.getCardBounds()[dread].isEmpty() && panel.getDrawerFirstRow() < 20)
+        panel.scrollDrawer (1);
+
+    CHECK (! panel.getCardBounds()[dread].isEmpty());
+
+    // guitar-workshop.md 5: a warning, never a refusal - and the banner says what makes a matched build.
+    panel.clickCard (dread);
+    CHECK (b.processor.getCurrentGuitar().get (GuitarSlot::body)->name == "Dreadnought Mahogany Body");
+    CHECK (b.processor.getCurrentGuitar().bodyStyle == "dreadnought");
+    CHECK_MSG (panel.getBannerMessage().contains ("acoustic") && panel.getBannerMessage().contains ("Guitar > Acoustic"),
+               "banner: " + panel.getBannerMessage());
+}
+
+LUTHIER_TEST (WorkshopPanel, revertPutsTheFilesBodyOutlineBack)
+{
+    // The 7-string draws its shared single-cut body part as a superstrat; revert keeps that.
+    GuitarBench b (PartLibrary::getFactoryGuitarsFolder().getChildFile ("Electric/7-String Modern.luthierguitar"));
+    auto& bench = b.processor.getBench();
+    const auto style = b.processor.getCurrentGuitar().bodyStyle;
+
+    CHECK (bench.fit (GuitarSlot::body, b.processor.getPartLibrary().find (PartType::body, "Alder Offset")));
+    CHECK (b.processor.getCurrentGuitar().bodyStyle == "offset");
+    CHECK (bench.revert (GuitarSlot::body));
+    CHECK_MSG (b.processor.getCurrentGuitar().bodyStyle == style, "reverted to " + b.processor.getCurrentGuitar().bodyStyle);
+}
+
+//==============================================================================
+LUTHIER_TEST (WorkshopPanel, categoryBarAndInspectorButtonsNeverClip)
+{
+    Bench b;
+
+    for (int width : { 1200, 900, 640 })
+    {
+        b.panel->setSize (width, 760);
+
+        auto fits = [] (juce::TextButton& button)
+        {
+            const auto font = button.getLookAndFeel().getTextButtonFont (button, button.getHeight());
+            const auto text = button.getButtonText().toUpperCase();
+            return juce::GlyphArrangement::getStringWidth (font, text) + 4.0f <= (float) button.getWidth();
+        };
+
+        for (int i = 0; i < WorkshopPanel::drawerCategories().size(); ++i)
+        {
+            auto* button = b.panel->getCategoryButton (i);
+            CHECK_MSG (fits (*button), "at " + juce::String (width) + " px the " + button->getButtonText() + " tab clips ("
+                                         + juce::String (button->getWidth()) + " px, " + juce::String (b.panel->getCategoryRows()) + " rows)");
+        }
+
+        for (auto* button : { &b.panel->getSwapButton(), &b.panel->getRevertButton(), &b.panel->getSavePartButton() })
+            CHECK_MSG (fits (*button), "at " + juce::String (width) + " px the inspector's " + button->getButtonText() + " clips");
+    }
+
+    // Narrow enough, the bar takes a second row rather than squeezing.
+    b.panel->setSize (640, 760);
+    CHECK (b.panel->getCategoryRows() >= 2);
+
+    // For a person to look at.
+    auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-guitar-renders");
+    dir.createDirectory();
+    for (int width : { 640, 1200 })
+    {
+        b.panel->setSize (width, 760);
+        juce::FileOutputStream out (dir.getChildFile ("workshop-" + juce::String (width) + ".png"));
+        if (out.openedOk()) { out.setPosition (0); out.truncate(); juce::PNGImageFormat().writeImageToStream (render (*b.panel), out); }
+    }
+}
+
+//==============================================================================
+LUTHIER_TEST (WorkshopPanel, bodyAndPlasticsColoursArePaintWithOneUndoEntryEach)
+{
+    GuitarBench b (PartLibrary::getFactoryGuitarsFolder().getChildFile ("Electric/Vintage Double-Cut.luthierguitar"));
+    auto& panel = *b.panel;
+    auto& ill = panel.getIllustration();
+    using Paint = WorkshopPanel::Paint;
+
+    // Nothing selected: nothing to paint.
+    CHECK (panel.paintTargets().isEmpty());
+
+    // The body of a burst: its centre and its edge.
+    ill.select (GuitarRegion::body);
+    CHECK (panel.paintTargets() == juce::Array<Paint> ({ Paint::body, Paint::burstEdge }));
+
+    const auto derivedBefore = mapSpec (b.processor.getCurrentGuitar());
+    auto* material = b.processor.getState().getParameter (ParamIDs::stringMaterial);
+    material->setValueNotifyingHost (material->convertTo0to1 (3.0f));   // a refined parameter a colour must not reset
+    const float refined = material->getValue();
+
+    // Dragging in the picker previews and pushes nothing...
+    int steps = b.processor.getNumUndoSteps();
+    const auto committedFinish = b.processor.getCurrentGuitar().finish;
+
+    for (auto c : { juce::Colour (0xff204080), juce::Colour (0xff2050a0), juce::Colour (0xff1e3e62) })
+        panel.previewPaint (Paint::burstEdge, c);
+
+    CHECK (b.processor.getNumUndoSteps() == steps);
+    CHECK (b.processor.getCurrentGuitar().finish.colourA == committedFinish.colourA);
+    CHECK (b.processor.getBench().current().finish.colourA == "#1E3E62");
+    CHECK_MSG (sceneHasFill (ill.getScene(), juce::Colour (0xff1e3e62)), "the bench does not show the colour being dragged");
+
+    // ...and settles into one entry.
+    CHECK (panel.commitPaint());
+    CHECK (b.processor.getNumUndoSteps() == steps + 1);
+    CHECK_MSG (b.processor.getUndoDescription().contains ("burst edge colour"), b.processor.getUndoDescription());
+    CHECK (b.processor.getCurrentGuitar().finish.colourA == "#1E3E62");
+    CHECK (b.processor.getCurrentGuitar().finish.colourB == committedFinish.colourB);
+
+    // The centre is colour_b.
+    steps = b.processor.getNumUndoSteps();
+    CHECK (panel.pickPaint (Paint::body, juce::Colour (0xffc0c0c0)));
+    CHECK (b.processor.getCurrentGuitar().finish.colourB == "#C0C0C0");
+    CHECK (b.processor.getNumUndoSteps() == steps + 1);
+
+    // A preset swatch: type and colours, one entry.
+    steps = b.processor.getNumUndoSteps();
+    CHECK (panel.applyFinishPreset ("seafoam"));
+    CHECK (b.processor.getCurrentGuitar().finish.type == "solid");
+    CHECK (b.processor.getCurrentGuitar().finish.colourA == "#98C9B0");
+    CHECK (b.processor.getNumUndoSteps() == steps + 1);
+    CHECK (panel.paintTargets() == juce::Array<Paint> ({ Paint::body }));
+    CHECK (sceneHasFill (ill.getScene(), juce::Colour (0xff98c9b0)));
+
+    // Plastics: the pickguard, and whatever else the renderer draws in plastic.
+    ill.select (GuitarRegion::pickguard);
+    CHECK (panel.paintTargets() == juce::Array<Paint> ({ Paint::plastics }));
+    steps = b.processor.getNumUndoSteps();
+    CHECK (panel.pickPaint (Paint::plastics, juce::Colour (0xffd3e2c6)));
+    CHECK (b.processor.getCurrentGuitar().finish.plasticColour == "#D3E2C6");
+    CHECK (b.processor.getNumUndoSteps() == steps + 1);
+    CHECK (sceneHasFill (ill.getScene(), juce::Colour (0xffd3e2c6)));
+    CHECK (panel.getPaintColour (Paint::plastics) == juce::Colour (0xffd3e2c6));
+
+    {
+        ill.select (GuitarRegion::body);
+        auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-guitar-renders");
+        dir.createDirectory();
+        juce::FileOutputStream out (dir.getChildFile ("workshop-paint-inspector.png"));
+        if (out.openedOk()) { out.setPosition (0); out.truncate(); juce::PNGImageFormat().writeImageToStream (render (panel), out); }
+
+        // The picker itself, as the call-out would show it.
+        ill.select (GuitarRegion::pickguard);
+    }
+
+    // Paint only: the engine's guitar is the same and the refined parameter stands.
+    CHECK (mapSpec (b.processor.getCurrentGuitar()) == derivedBefore);
+    CHECK (material->getValue() == refined);
+
+    // Undo walks the paint back, one pick at a time.
+    b.processor.undo();
+    CHECK (b.processor.getCurrentGuitar().finish.plasticColour.isEmpty());
+    b.processor.undo();
+    CHECK (b.processor.getCurrentGuitar().finish.type == "burst");
+
+    // The Advanced / Easy illustrations rebuild from the committed guitar's key.
+    const auto key = GuitarRenderer::keyFor (b.processor.getCurrentGuitar(), {});
+    CHECK (panel.pickPaint (Paint::plastics, juce::Colour (0xff101010)));
+    CHECK (GuitarRenderer::keyFor (b.processor.getCurrentGuitar(), {}) != key);
+}
+
+LUTHIER_TEST (WorkshopPanel, paintSavesWithTheGuitarAndOlderFilesKeepTheirFinish)
+{
+    PartLibrary library;
+    library.refreshFrom (PartLibrary::getFactoryPartsFolder(), juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-no-user-parts"));
+
+    WorkshopGuitar g;
+    PartLibrary::LoadReport report;
+    CHECK (library.loadGuitar (PartLibrary::getFactoryGuitarsFolder().getChildFile ("Electric/Vintage Single-Cut.luthierguitar"), g, report));
+
+    // A file without plastic_color: the pickguard part's own colour, and nothing written back.
+    CHECK (g.finish.plasticColour.isEmpty());
+    CHECK (! g.toVar().getProperty ("parts", {}).getProperty ("finish", {}).hasProperty ("plastic_color"));
+    CHECK (g.finish.type == "burst" && g.finish.colourA == "#7A2E1B");
+
+    // Painted, it round-trips by reference and embedded (the preset's override).
+    g.finish.colourA = "#1E3E62";
+    g.finish.plasticColour = "#D3E2C6";
+
+    for (const auto& json : { g.toVar(), g.toEmbeddedVar() })
+    {
+        WorkshopGuitar back;
+        PartLibrary::LoadReport r;
+        CHECK (library.buildGuitar (juce::JSON::parse (juce::JSON::toString (json)), back, r));
+        CHECK (back.finish.plasticColour == "#D3E2C6");
+        CHECK (back.finish.colourA == "#1E3E62");
+        CHECK (back == g);
+    }
+
+    // Paint is all that differs.
+    WorkshopGuitar original;
+    library.loadGuitar (PartLibrary::getFactoryGuitarsFolder().getChildFile ("Electric/Vintage Single-Cut.luthierguitar"), original, report);
+    CHECK (g.differsOnlyInPaint (original));
+    g.finish.gloss = 0.2;
+    CHECK (! g.differsOnlyInPaint (original));   // gloss reaches the sound (part-acoustics 9)
+}
+
+LUTHIER_TEST (WorkshopPanel, theGradientPickerPreviewsAndClosingCommitsOnce)
+{
+    GuitarBench b (PartLibrary::getFactoryGuitarsFolder().getChildFile ("Electric/Vintage Single-Cut.luthierguitar"));
+    auto& panel = *b.panel;
+    using Paint = WorkshopPanel::Paint;
+
+    panel.getIllustration().select (GuitarRegion::body);
+    const int steps = b.processor.getNumUndoSteps();
+
+    // What the call-out holds: the ColourSelector (gradient square and hue strip).
+    auto picker = panel.createColourPicker (Paint::body);
+
+    std::function<juce::ColourSelector* (juce::Component&)> findSelector = [&] (juce::Component& c) -> juce::ColourSelector*
+    {
+        if (auto* s = dynamic_cast<juce::ColourSelector*> (&c))
+            return s;
+        for (auto* child : c.getChildren())
+            if (auto* s = findSelector (*child))
+                return s;
+        return nullptr;
+    };
+
+    auto* selector = findSelector (*picker);
+    CHECK (selector != nullptr);
+
+    if (selector == nullptr)
+        return;
+
+    // A burst's centre is what it starts on.
+    CHECK (selector->getCurrentColour() == panel.getPaintColour (Paint::body));
+
+    for (auto c : { juce::Colour (0xff808080), juce::Colour (0xff90a0b0), juce::Colour (0xff4a7ab0) })
+    {
+        selector->setCurrentColour (c);
+        selector->dispatchPendingMessages();
+    }
+
+    CHECK (b.processor.getNumUndoSteps() == steps);
+    CHECK (b.processor.getBench().current().finish.colourB == "#4A7AB0");
+
+    {
+        auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-guitar-renders");
+        dir.createDirectory();
+        picker->setLookAndFeel (&panel.getLookAndFeel());
+        juce::FileOutputStream out (dir.getChildFile ("workshop-colour-picker.png"));
+        if (out.openedOk()) { out.setPosition (0); out.truncate(); juce::PNGImageFormat().writeImageToStream (render (*picker), out); }
+        picker->setLookAndFeel (nullptr);
+    }
+
+    // Closing the call-out is the committed pick: one entry.
+    picker.reset();
+    CHECK (b.processor.getNumUndoSteps() == steps + 1);
+    CHECK (b.processor.getCurrentGuitar().finish.colourB == "#4A7AB0");
+    CHECK (! b.processor.getBench().isInGesture());
+    CHECK_MSG (b.processor.getUndoDescription().contains ("body colour"), b.processor.getUndoDescription());
 }

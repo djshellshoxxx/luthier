@@ -33,10 +33,24 @@ enum class PaletteId
     tritanopia,       ///< Blue-blind.
     highContrast,
     light,
+    /** A flat, modern dark mode: charcoal surfaces, off-white text, one blue
+        accent, no guitar-shop materials. Appended last so saved palette
+        numbers (settings files, first-run defaults) keep their meaning. */
+    modernDark,
     numPalettes
 };
 
 const char* getPaletteName (PaletteId id) noexcept;
+
+/** Whether a palette dresses the UI in the guitar-shop materials (wood grain,
+    brass plates, corner screws, Tolex, lit knob caps). False for High
+    contrast and Modern Dark, which draw the same controls flat. */
+bool paletteUsesMaterials (PaletteId id) noexcept;
+
+/** Whether the guitar illustration is drawn with its lighting and real
+    finishes. Only High contrast flattens it: in Modern Dark the guitar is
+    still a picture of a guitar, only the UI around it goes flat. */
+bool paletteLightsIllustrations (PaletteId id) noexcept;
 
 //==============================================================================
 /** One palette's colours. The names match theme.md's, so a component asks for
@@ -124,7 +138,7 @@ public:
 
     static juce::File getThemeDirectory();
 
-    /** Writes the six built-in palettes out as theme files. */
+    /** Writes every built-in palette out as a theme file. */
     static bool writeBuiltInPalettes (const juce::File& directory);
 
     //==========================================================================

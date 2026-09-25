@@ -360,6 +360,15 @@ namespace ParamIDs
     inline constexpr const char* muteHumanise      = "mute_humanise";
     inline constexpr const char* muteGhostVelocity = "mute_ghost_velocity";
 
+    /*  String Detune (parameters 459-471, appended). One offset per string in
+        cents, string_detune_1 being the highest string (engine.md 1's string
+        0, as the nut depths count), for every string the engine can have; and
+        the Out of tune amount that the CHARACTER panel's Randomise scales. The
+        range is +/-25 cents - TuningEngine::kMaxStringDetuneCents says why. */
+    juce::String stringDetune (int stringNumber);
+    inline constexpr int kNumStringDetunes = kMaxStrings;
+    inline constexpr const char* outOfTune = "out_of_tune";
+
     // --- effect slots ----------------------------------------------------------
     /** `post` selects the chain; `slot` 0-7; `param` 0-9. */
     juce::String slotType (bool post, int slot);
@@ -576,6 +585,10 @@ private:
     };
 
     std::array<std::array<SlotPointers, EffectsChain::kNumSlots>, 2> slotPointers {};
+
+    // String Detune's per-string offsets, cached like the slots' so the per-block push builds no ID.
+    std::array<std::atomic<float>*, kMaxStrings> stringDetunePointers {};
+    std::array<int, kMaxStrings> stringDetuneIndices {};
     std::atomic<juce::uint32> writeSerial { 0 };
     std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> typeWritten {};
     std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> paramsWritten {};

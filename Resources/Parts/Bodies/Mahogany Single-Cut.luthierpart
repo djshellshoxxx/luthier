@@ -20,5 +20,8 @@
     "thickness_mm": 50.0,
     "area_cm2": 1080,
     "bracing": "none"
+  },
+  "illustration": {
+    "body_style": "single_cutaway_arched"
   }
 }

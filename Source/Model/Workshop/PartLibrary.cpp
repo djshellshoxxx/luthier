@@ -112,6 +112,25 @@ int WorkshopGuitar::getStringCount (int* excess) const noexcept
     return count;
 }
 
+juce::String WorkshopGuitar::bodyStyleOf (const Part* body)
+{
+    if (body == nullptr || ! body->illustration.isObject())
+        return {};
+
+    return body->illustration.getProperty ("body_style", juce::var()).toString();
+}
+
+bool WorkshopGuitar::differsOnlyInPaint (const WorkshopGuitar& other) const
+{
+    auto repainted = *this;
+    repainted.finish.type = other.finish.type;
+    repainted.finish.colourA = other.finish.colourA;
+    repainted.finish.colourB = other.finish.colourB;
+    repainted.finish.burstShape = other.finish.burstShape;
+    repainted.finish.plasticColour = other.finish.plasticColour;
+    return repainted == other;
+}
+
 juce::StringArray WorkshopGuitar::getCompatibilityWarnings() const
 {
     juce::StringArray warnings;
@@ -225,6 +244,12 @@ juce::var WorkshopGuitar::toVar() const
     finishObject->setProperty ("burst_shape", finish.burstShape);
     finishObject->setProperty ("gloss", finish.gloss);
     finishObject->setProperty ("aging", finish.aging);
+
+    // Written only when the player chose one, so a guitar without it reads and
+    // hashes exactly as it did before the colour picker (older builds ignore it).
+    if (finish.plasticColour.isNotEmpty())
+        finishObject->setProperty ("plastic_color", finish.plasticColour);
+
     partsObject->setProperty ("finish", juce::var (finishObject));
 
     root->setProperty ("parts", juce::var (partsObject));
@@ -357,6 +382,13 @@ bool PartLibrary::switchFamily (const WorkshopGuitar& from, const juce::String& 
             others.add (juce::String (getSlotId (slot)));
     }
 
+    // A body that crosses over (an archtop is electric and acoustic) keeps its
+    // own outline rather than the template's.
+    if (from.get (GuitarSlot::body) != nullptr && out.get (GuitarSlot::body) == from.get (GuitarSlot::body)
+        && (templ.get (GuitarSlot::body) == nullptr || templ.get (GuitarSlot::body)->name != from.get (GuitarSlot::body)->name))
+        if (const auto style = WorkshopGuitar::bodyStyleOf (from.get (GuitarSlot::body).get()); style.isNotEmpty())
+            out.bodyStyle = style;
+
     // 12.1: "Family changed to Bass. Replaced parts: pickups (2), bridge, strings, ..."
     juce::StringArray list;
 
@@ -482,7 +514,8 @@ bool WorkshopGuitar::operator== (const WorkshopGuitar& o) const
         && setup.intonationMm == o.setup.intonationMm
         && finish.type == o.finish.type && finish.colourA == o.finish.colourA
         && finish.colourB == o.finish.colourB && finish.burstShape == o.finish.burstShape
-        && finish.gloss == o.finish.gloss && finish.aging == o.finish.aging;
+        && finish.gloss == o.finish.gloss && finish.aging == o.finish.aging
+        && finish.plasticColour == o.finish.plasticColour;
 }
 
 //==============================================================================
@@ -808,6 +841,7 @@ bool PartLibrary::buildGuitar (const juce::var& json, WorkshopGuitar& out, LoadR
     g.finish.burstShape = finish.getProperty ("burst_shape", g.finish.burstShape).toString();
     g.finish.gloss = (double) finish.getProperty ("gloss", g.finish.gloss);
     g.finish.aging = (double) finish.getProperty ("aging", g.finish.aging);
+    g.finish.plasticColour = finish.getProperty ("plastic_color", juce::var()).toString();
 
     const auto setup = json.getProperty ("setup", juce::var());
     g.setup.actionTrebleMm = (double) setup.getProperty ("action_treble_mm", g.setup.actionTrebleMm);

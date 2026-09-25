@@ -20,5 +20,8 @@
     "thickness_mm": 44.5,
     "area_cm2": 1400,
     "bracing": "none"
+  },
+  "illustration": {
+    "body_style": "bass_offset"
   }
 }

@@ -30,6 +30,7 @@
 #include "WorkshopPanel.h"
 #include "FretboardComponent.h"
 #include "StringRoll.h"
+#include "PianoKeyboard.h"
 #include "GuitarBodyComponent.h"
 #include "PedalRack.h"
 #include "AmpFacePanel.h"
@@ -163,10 +164,19 @@ public:
     static constexpr int minimumUsableWidth = 1000;
 
     FretboardComponent& getFretboard() noexcept { return fretboard; }
-    /** The string roll that can replace the fretboard in the strip (FRETS | ROLL). */
+    /** What the strip shows beside the guitar: FRETS | ROLL | KEYS. */
+    enum class StripView { frets = 0, roll, keys };
+    StripView getStripView() const noexcept { return stripView; }
+    void setStripView (StripView view);
+
+    /** The string roll that can replace the fretboard in the strip. */
     StringRollComponent& getStringRoll() noexcept { return stringRoll; }
-    bool isStripShowingRoll() const noexcept { return stripShowsRoll; }
-    void setStripShowsRoll (bool showRoll);
+    bool isStripShowingRoll() const noexcept { return stripView == StripView::roll; }
+    void setStripShowsRoll (bool showRoll) { setStripView (showRoll ? StripView::roll : StripView::frets); }
+
+    /** The piano keyboard that can replace it too (PianoKeyboard.h). */
+    PianoKeyboardComponent& getPianoKeyboard() noexcept { return *pianoKeyboard; }
+    juce::Button& getStripButton (StripView view) noexcept;
 
     /** Pickup slots the fitted guitar does not have are disabled and named, and
         the selector offers only the positions the guitar can realise
@@ -194,7 +204,7 @@ public:
         to the tabs that have a panel behind them.
     */
     int getNumWorkspaceTabs() const noexcept { return workspacePanels.size(); }
-    /** 1, or 2 when the labels would not fit in one row (tests). */
+    /** How many rows column 4's tab strip wrapped to (1 when every label fits in one). */
     int getWorkspaceTabRows() const noexcept { return workspaceTabRows; }
     int getWorkspaceTab() const noexcept { return workspaceTab; }
 
@@ -298,8 +308,9 @@ private:
     GuitarBodyComponent guitarBody;
     FretboardComponent fretboard;
     StringRollComponent stringRoll;
-    std::unique_ptr<LuthierToggle> fretsButton, rollButton;
-    bool stripShowsRoll = false;
+    std::unique_ptr<PianoKeyboardComponent> pianoKeyboard;
+    std::unique_ptr<LuthierToggle> fretsButton, rollButton, keysButton;
+    StripView stripView = StripView::frets;
 
     // Columns 1 to 3. Column 4 is the workspace below, which is not a Column:
     // it shows one panel at a time rather than stacking them.

@@ -24,6 +24,7 @@
 #include "FirstEncounterHint.h"
 #include "Guitar/GuitarRenderer.h"
 #include "../Workshop/SpectrumDelta.h"
+#include "../Workshop/WorkshopBench.h"
 #include "../PhysicalRange.h"
 
 namespace luthier
@@ -176,6 +177,58 @@ public:
     /** The slot a card in the current category goes into. */
     GuitarSlot targetSlot() const;
 
+    /*  The drawer's cards as laid out: one rectangle per drawer part, empty for a
+        card scrolled out of view. The wheel over the drawer scrolls it a row at
+        a time; showing a category scrolls the fitted part into view. */
+    const juce::Array<juce::Rectangle<int>>& getCardBounds() const noexcept { return cardBounds; }
+    void scrollDrawer (int rows);
+    int getDrawerFirstRow() const noexcept { return drawerFirstRow; }
+
+    /** The category buttons' rows (section 1): more than one when the labels do not fit in one. */
+    int getCategoryRows() const noexcept { return categoryRows; }
+    juce::TextButton* getCategoryButton (int index) const { return categoryButtons[index]; }
+    juce::TextButton& getSwapButton() noexcept { return swapButton; }
+    juce::TextButton& getRevertButton() noexcept { return revertButton; }
+    juce::TextButton& getSavePartButton() noexcept { return savePartButton; }
+
+    //==========================================================================
+    /*  Finish colours (guitar-illustration.md 11): the inspector's colour
+        controls for the selected body (its colour, a burst's edge, the preset
+        swatches) or plastics (pickguard, knobs, switch tip, plastic covers).
+        A chip opens a gradient picker (juce::ColourSelector) in a call-out;
+        picks while it drags preview on the bench and commit as one undo entry
+        once the drag rests (kPaintSettleMs) or the call-out closes. */
+    using Paint = WorkshopBench::Paint;
+
+    /** The paints the current selection offers, in the order the chips show them. */
+    juce::Array<Paint> paintTargets() const;
+
+    /** The colour a paint shows now, as drawn. */
+    juce::Colour getPaintColour (Paint which) const;
+
+    /** What the picker does on every drag step: live on the bench, no undo entry yet. */
+    void previewPaint (Paint which, juce::Colour colour);
+
+    /** Commits a previewed colour now (the settle timer and the call-out closing call this). */
+    bool commitPaint();
+
+    /** A committed pick in one step (a swatch, a typed colour, a test). */
+    bool pickPaint (Paint which, juce::Colour colour);
+
+    /** A preset swatch ("sunburst", "cherry", ...): one undo entry. */
+    bool applyFinishPreset (const juce::String& id);
+
+    /** Opens the gradient picker for a paint, pointing at its chip. */
+    void openColourPicker (Paint which);
+
+    /*  The picker the call-out holds: a juce::ColourSelector (the colour, its
+        hex, the saturation / value square and the hue strip), with Centre and
+        Edge tabs and the burst they make for a burst's body. Closing it
+        commits what it previewed. */
+    std::unique_ptr<juce::Component> createColourPicker (Paint which);
+
+    static constexpr int kPaintSettleMs = 450;
+
     /*  guitar-illustration.md 12.1: the drawer's first category changes the
         guitar's family. The first change in a session asks first; tests and
         the second change go straight through. */
@@ -188,6 +241,9 @@ public:
     /** What the inspector is showing: "Bridge: ABR-1 Tune-o-Matic" etc. */
     juce::String getInspectorTitle() const { return inspectorTitle; }
     juce::StringArray getInspectorLines() const { return inspectorLines; }
+
+    /** The banner over the bench (a limit, a family note), for the tests. */
+    juce::String getBannerMessage() const { return limitMessage; }
 
     /** The spectrum pane's current sentence (section 10). */
     juce::String getSpectrumSummary() const { return spectrum.summary; }
@@ -220,6 +276,7 @@ private:
     void refreshAll();
     void refreshHeader();
     void refreshInspector();
+    void refreshInspectorText();
     void refreshDrawer();
     void requestSpectrum (int pickupIndex = -1, double positionMm = 0.0);
     void takeSpectrumResult (SpectrumDelta::Result&& result);
@@ -228,9 +285,15 @@ private:
     void paintInspector (juce::Graphics&, juce::Rectangle<int> area);
     int cardAt (juce::Point<int>) const;
 
+    void layoutDrawer();
+    void scrollFittedIntoView();
+    void layoutPaintControls();
+    void layoutInspectorButtons();
+
     void mouseMove (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
     void mouseDown (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     void modifierKeysChanged (const juce::ModifierKeys&) override;
 
     LuthierAudioProcessor& processor;
@@ -258,6 +321,19 @@ private:
     juce::String category = "Pickups";
     juce::Array<PartPtr> drawerParts;
     juce::Array<juce::Rectangle<int>> cardBounds;
+    juce::Rectangle<int> cardsArea;
+    int drawerFirstRow = 0, drawerPerRow = 1, drawerRows = 0, drawerVisibleRows = 0, drawerHidden = 0;
+    int categoryRows = 1;
+
+    // The inspector's paint controls: a chip per paint, the preset swatches, plastics reset.
+    class PaintChip;
+    juce::OwnedArray<PaintChip> paintChips, presetSwatches;
+    std::unique_ptr<juce::TextButton> plasticsReset;
+    juce::Rectangle<int> paintArea;
+    std::optional<Paint> pendingPaint;
+    juce::Colour pendingColour;
+    juce::uint32 pendingSince = 0;
+    juce::Component::SafePointer<juce::CallOutBox> pickerBox;
     int hoveredCard = -1;
     bool auditioning = false;
 

@@ -1,5 +1,6 @@
 #include "CharacterPanel.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Localisation.h"
 
 namespace luthier
 {
@@ -301,6 +302,164 @@ void FretWearMap::mouseDrag (const juce::MouseEvent& event)
 }
 
 //==============================================================================
+//  StringDetuneGroup
+//==============================================================================
+StringDetuneGroup::StringDetuneGroup (LuthierAudioProcessor& p)
+    : processor (p)
+{
+    heading.setText (tr ("character.stringDetune"), juce::dontSendNotification);
+    heading.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
+    heading.setColour (juce::Label::textColourId, Palette::accent);
+    addAndMakeVisible (heading);
+
+    for (int s = 0; s < kMaxStrings; ++s)
+    {
+        auto* knob = stringKnobs.add (new LuthierKnob ("String " + juce::String (s + 1), LuthierKnob::Size::Small));
+        knob->attachTo (processor, ParamIDs::stringDetune (s + 1),
+                        tr ("character.stringDetuneTip"));
+        knob->getSlider().setDoubleClickReturnValue (true, 0.0);
+        addChildComponent (knob);
+    }
+
+    outOfTuneKnob.setLabelText (tr ("character.outOfTune"));
+    outOfTuneKnob.attachTo (processor, ParamIDs::outOfTune, tr ("character.outOfTuneTip"));
+    addAndMakeVisible (outOfTuneKnob);
+
+    // The instrument's own pattern until Randomise rolls another one.
+    patternSeed = processor.getEngine().getCharacterEngine().getSeed();
+
+    auto& amount = outOfTuneKnob.getSlider();
+
+    amount.onDragStart = [this] { amountDrag.begin (processor.getState(), patternSeed); };
+    amount.onDragEnd = [this] { amountDrag.end(); };
+    amount.onValueChange = [this]
+    {
+        if (amountDrag.isActive())
+            amountDrag.update (processor.getState(), outOfTuneKnob.getSlider().getValue());
+    };
+
+    randomiseButton.setButtonText (tr ("character.detuneRandomise"));
+    randomiseButton.setTooltip (tr ("character.detuneRandomiseTip"));
+    randomiseButton.onClick = [this]
+    {
+        patternSeed = (uint64_t) juce::Random::getSystemRandom().nextInt64();
+
+        const LuthierAudioProcessor::ScopedUndoAction undo (processor, "Randomise string detune");
+        StringDetune::randomise (processor.getState(), patternSeed);
+    };
+    addAndMakeVisible (randomiseButton);
+
+    resetButton.setButtonText (tr ("character.detuneReset"));
+    resetButton.setTooltip (tr ("character.detuneResetTip"));
+    resetButton.onClick = [this]
+    {
+        const LuthierAudioProcessor::ScopedUndoAction undo (processor, "Reset string detune");
+        StringDetune::reset (processor.getState());
+    };
+    addAndMakeVisible (resetButton);
+
+    refreshStrings();
+    startTimerHz (4);
+}
+
+StringDetuneGroup::~StringDetuneGroup()
+{
+    stopTimer();
+}
+
+void StringDetuneGroup::timerCallback()
+{
+    refreshStrings();
+}
+
+void StringDetuneGroup::refreshStrings()
+{
+    auto& engine = processor.getEngine();
+    const int count = juce::jlimit (1, kMaxStrings, engine.getNumStrings());
+
+    juce::StringArray names;
+
+    for (int s = 0; s < count; ++s)
+        names.add (StringDetune::noteNameFor (engine.getTuningEngine(), s));
+
+    if (count == shownStrings && names == shownNames)
+        return;
+
+    const bool rowsChanged = (count + kKnobsPerRow - 1) / kKnobsPerRow
+                               != (juce::jmax (1, shownStrings) + kKnobsPerRow - 1) / kKnobsPerRow;
+
+    shownStrings = count;
+    shownNames = names;
+
+    for (int s = 0; s < kMaxStrings; ++s)
+    {
+        auto* knob = stringKnobs[s];
+        knob->setVisible (s < count);
+
+        if (s < count)
+        {
+            knob->setLabelText (names[s]);
+            knob->getSlider().setTitle ("String " + juce::String (s + 1) + " (" + names[s] + ") detune");
+        }
+    }
+
+    resized();
+
+    if (rowsChanged && onLayoutChanged != nullptr)
+        onLayoutChanged();
+}
+
+int StringDetuneGroup::rowsNeeded() const noexcept
+{
+    return (juce::jmax (1, shownStrings) + kKnobsPerRow - 1) / kKnobsPerRow;
+}
+
+int StringDetuneGroup::preferredHeight() const
+{
+    const int knobH = LuthierKnob::preferredHeightFor (LuthierKnob::Size::Small);
+    return 20 + rowsNeeded() * (knobH + 2) + knobH + 4;
+}
+
+void StringDetuneGroup::resized()
+{
+    auto bounds = getLocalBounds();
+    const int knobH = LuthierKnob::preferredHeightFor (LuthierKnob::Size::Small);
+
+    heading.setBounds (bounds.removeFromTop (20));
+
+    /*  Low string on the left, as a guitarist reads E A D G B E: the engine
+        counts from the highest string (engine.md 1), so the order flips here
+        and nowhere else. */
+    const int perRow = juce::jmin (kKnobsPerRow, juce::jmax (1, shownStrings));
+    const int knobW = bounds.getWidth() / perRow;
+
+    for (int row = 0; row < rowsNeeded(); ++row)
+    {
+        auto r = bounds.removeFromTop (knobH);
+        bounds.removeFromTop (2);
+
+        for (int column = 0; column < perRow; ++column)
+        {
+            const int position = row * perRow + column;
+
+            if (position >= shownStrings)
+                break;
+
+            stringKnobs[shownStrings - 1 - position]->setBounds (r.removeFromLeft (knobW));
+        }
+    }
+
+    auto r = bounds.removeFromTop (knobH);
+    outOfTuneKnob.setBounds (r.removeFromLeft (juce::jmax (knobW, LuthierKnob::preferredWidthFor (LuthierKnob::Size::Small) + 16)));
+    r.removeFromLeft (Metrics::gridHalf);
+
+    auto buttons = r.withSizeKeepingCentre (r.getWidth(), 26);
+    randomiseButton.setBounds (buttons.removeFromLeft (buttons.getWidth() / 2 - 2));
+    buttons.removeFromLeft (4);
+    resetButton.setBounds (buttons);
+}
+
+//==============================================================================
 CharacterPanel::CharacterPanel (LuthierAudioProcessor& p)
     : processor (p)
 {
@@ -325,6 +484,10 @@ CharacterPanel::CharacterPanel (LuthierAudioProcessor& p)
     slideGroup = std::make_unique<SlideGroup> (processor);
     addChildComponent (*slideGroup);
     slideGroup->onShownChanged = [this] { fitToContent(); };
+
+    stringDetuneGroup = std::make_unique<StringDetuneGroup> (processor);
+    addAndMakeVisible (*stringDetuneGroup);
+    stringDetuneGroup->onLayoutChanged = [this] { fitToContent(); };
 
     fitToContent();
 
@@ -588,6 +751,7 @@ int CharacterPanel::preferredHeight() const
          + 16 + DeadSpotMap::preferredHeight
          + FretWearMap::preferredHeight + 26          // maps and refret
          + 16 + 22 + 26 + 12                          // tuners
+         + 8 + stringDetuneGroup->preferredHeight()   // STRING DETUNE
          + 16 + 22 + 22 + 26                          // electronics
          + 16 + 22                                    // body
          + 16 + 26 + 12                               // environment
@@ -645,6 +809,10 @@ void CharacterPanel::resized()
     }
 
     driftLabel.setBounds (row (12));
+
+    // ---- string detune --------------------------------------------------------------
+    bounds.removeFromTop (8);
+    stringDetuneGroup->setBounds (bounds.removeFromTop (stringDetuneGroup->preferredHeight()));
 
     // ---- electronics ---------------------------------------------------------------
     electronicsHeading.setBounds (row (16));

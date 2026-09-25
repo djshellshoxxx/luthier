@@ -42,8 +42,10 @@ namespace
             return;
 
         g.setColour (on ? Palette::backgroundDeep : Palette::textMuted);
-        g.setFont (juce::Font (juce::FontOptions (12.0f)).boldened());
-        g.drawText (text, bounds, juce::Justification::centred, false);
+        // Fitted (smaller before it is cut) to the pad, with a little air each side.
+        Fonts::drawFittedLabel (g, Fonts::fitLabel (text, juce::Font (juce::FontOptions (12.0f)).boldened(),
+                                                    (float) bounds.getWidth() - 6.0f, 0.0f),
+                                bounds.reduced (3, 0), juce::Justification::centred);
     }
 }
 
@@ -139,7 +141,9 @@ void SnapshotStrip::paint (juce::Graphics& g)
         // without relying on colour (accessibility 2).
         g.setFont (active ? font.boldened() : font);
 
-        g.drawText (text, bounds.reduced (4, 0), juce::Justification::centred, true);
+        const auto area = bounds.reduced (4, 0);
+        Fonts::drawFittedLabel (g, Fonts::fitLabel (text, g.getCurrentFont(), (float) area.getWidth(), 0.0f),
+                                area, juce::Justification::centred);
     }
 }
 
@@ -300,12 +304,19 @@ void SetlistTriptych::paint (juce::Graphics& g)
 
     g.setFont (juce::Font (juce::FontOptions (9.0f)));
     g.setColour (Palette::textDisabled);
-    g.drawText (previousText, previousArea.reduced (4, 0), juce::Justification::centredLeft, true);
-    g.drawText (nextText, nextArea.reduced (4, 0), juce::Justification::centredRight, true);
+    // Each third fitted rather than cut: a song title shrinks before it loses letters.
+    auto fitted = [&g] (const juce::String& text, juce::Rectangle<int> area, juce::Justification j)
+    {
+        area = area.reduced (4, 0);
+        Fonts::drawFittedLabel (g, Fonts::fitLabel (text, g.getCurrentFont(), (float) area.getWidth(), 0.0f), area, j);
+    };
+
+    fitted (previousText, previousArea, juce::Justification::centredLeft);
+    fitted (nextText, nextArea, juce::Justification::centredRight);
 
     g.setFont (juce::Font (juce::FontOptions (12.0f)).boldened());
     g.setColour (Palette::textPrimary);
-    g.drawText (currentText, currentArea.reduced (4, 0), juce::Justification::centred, true);
+    fitted (currentText, currentArea, juce::Justification::centred);
 }
 
 void SetlistTriptych::mouseDown (const juce::MouseEvent&)

@@ -73,6 +73,14 @@ public:
             machine head slipping - and either writing into the other's field
             would silently cancel it. */
         double characterDriftCents = 0.0;
+
+        /*  String Detune (spec/DECISIONS.md, "String Detune"): the player's
+            automatable "this string is a little out" offset, from the
+            string_detune_N parameters. Bounded to +/- kMaxStringDetuneCents,
+            and kept apart from detuneCents, which is the headstock popover's
+            deliberate retune (+/-100, not a parameter) - one is re-tuning the
+            guitar, the other is leaving it slightly out. */
+        double stringDetuneCents = 0.0;
         double intonationSlope    = 0.30;  ///< Cents of sharpening per fret.
         double fineTuneCents      = 0.0;   ///< Per-string fine tuner.
         int    maxFrets           = 24;
@@ -96,6 +104,31 @@ public:
     void setOpenFrequency (int stringIndex, double hz) noexcept;
     void setDetuneCents (int stringIndex, double cents) noexcept;
     void setFineTuneCents (int stringIndex, double cents) noexcept;
+
+    /*  String Detune. Why 25 cents: a quarter of a semitone. Against the other
+        strings or a tuner it is plainly out - a chord beats audibly - but it
+        is still half the distance to the next note, so a guitarist hears the
+        intended note played on an out-of-tune guitar, never a different note.
+
+        The offset rides on the open string, so it follows the string across
+        every fret, bend, slide and capo, and touches no other string. It is
+        combined with the string's own imperfections (realism detune, the
+        drift toggle's walk and the character engine's tuner drift) so that
+        these controls can never push the total past 25 cents: see
+        combineOutOfTune. */
+    static constexpr double kMaxStringDetuneCents = 25.0;
+
+    void setStringDetuneCents (int stringIndex, double cents) noexcept;
+    double getStringDetuneCents (int stringIndex) const noexcept { return getStringTuning (stringIndex).stringDetuneCents; }
+
+    /** The out-of-tune total for one string: its imperfections plus the String
+        Detune offset, limited so the offset never takes the total past
+        +/-25 cents (or further past it, when the imperfections alone already
+        are). With no String Detune the imperfections pass through untouched. */
+    static double combineOutOfTune (double stringDetuneCents, double imperfectionCents) noexcept;
+
+    /** The string's total out-of-tune offset in cents, as it is applied. */
+    double getOutOfTuneCents (int stringIndex) const noexcept;
 
     /** The character engine's tuner drift, in cents (character-wear 4). */
     void setCharacterDriftCents (int stringIndex, double cents) noexcept;
@@ -215,7 +248,7 @@ private:
 
     /** The open string with no capo on it: detune, drift and fine tuning, and
         nothing else. The capo is a fret, so it belongs on the fret side. */
-    double getOpenFrequencyBeforeCapo (int stringIndex) const noexcept;
+    double getOpenFrequencyBeforeCapo (int stringIndex, bool includeStringDetune = true) const noexcept;
 
     int numStrings = 6;
     int capoFret = 0;

@@ -26,7 +26,7 @@ GuitarRenderer::Options GuitarThumbnailCache::thumbnailOptions()
 {
     GuitarRenderer::Options options;
     options.detail = GuitarRenderer::Detail::thumbnail;
-    options.materials = Palette::textured;
+    options.materials = Palette::illustrationMaterials;
     return options;
 }
 
@@ -49,7 +49,7 @@ juce::Image GuitarThumbnailCache::get (const WorkshopGuitar& guitar)
     if (std::find (pending.begin(), pending.end(), key) == pending.end())
     {
         pending.push_back (key);
-        renderQueue.push_back ({ key, guitar, Palette::textured });
+        renderQueue.push_back ({ key, guitar, Palette::illustrationMaterials });
         ++jobsInFlight;
         idle.reset();
         wake.signal();

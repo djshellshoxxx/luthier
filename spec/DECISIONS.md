@@ -1421,3 +1421,215 @@ chosen") and `ambiguity-resolutions.md`.
   `audio/midi` so "Open with Luthier" is offered for MIDI files. The other
   registered types (.luthierpart, .luthierset, .luthierloop, ...) get the
   "cannot open" banner until they have an open path.
+- **A piano keyboard plays the guitar and mirrors its strings**
+  (`Source/UI/PianoKeyboard.*`). Built on `juce::MidiKeyboardComponent`
+  over a *UI-side* `juce::MidiKeyboardState`, whose listener forwards each
+  key to the new `LuthierAudioProcessor::triggerPreviewMidiNote` /
+  `releasePreviewMidiNote`: a real note-on/off queued into the existing
+  `previewMidi` buffer (under `previewLock`, merged in `processBlock`), so the
+  normal voicer picks the string just as for host MIDI (the rhythm engine
+  also treats it as a held chord, as it does host MIDI). The state is not
+  merged on the audio thread with `processNextMidiBuffer`, because that would
+  also mark every host note as "pressed". The notes go on channel 16
+  (`kPreviewKeyboardChannel`), which no default guitar-controller string map
+  uses, so guitar-controller mode voices them by pitch rather than forcing
+  string 1. Range: lowest open string (capo'd) to the top playable fret of
+  the highest string (`computeGuitarRange`, via `TuningEngine::computeFrequency`),
+  padded to white keys, fitted to the width, zoom 1-4x (buttons or
+  Ctrl/Cmd + wheel) with JUCE's scroll arrows beyond; middle C = C4.
+  Mirroring reads `getStringMidiNote` / `getStringLevel` at 30 Hz (10 under
+  reduced motion; visibility-gated like the string roll); a released but
+  ringing string keeps its last note and fades with its level (reduced
+  motion: on/off). Per-string colours are the palette accent rotated round
+  the hue circle (no fixed colours), and every lit key also carries the
+  string's number so colour is not the only cue. White/black keys are the
+  lighter/darker of `textPrimary` and `background`, so the light palette
+  draws paper keys with ink. QWERTY playing is off by default and behind a
+  remembered toggle (`pianoKeyboard.qwerty`), because JUCE's A W S E D F T
+  G ... map collides with the S, D, T, L and P shortcuts; Left/Right/Up/Down
+  and Space/Enter always play it from the keyboard. Placement: the Advanced
+  strip toggle is now FRETS | ROLL | KEYS (`AdvancedPanel::StripView`,
+  `advanced.stripView` int, the old `advanced.stripShowsRoll` bool still
+  read and written); Easy mode has a "Keys" toggle left of the chord readout
+  that opens the keyboard (40-72 px) along the bottom of the guitar area
+  (`PianoKeyboardDrawer`, `easy.showKeys`).
+
+- **Labels shrink before they are cut; Live Mode's rig strip keeps its racks.**
+  "The words in these buttons are not able to be read": column 4's thirteen
+  tabs clipped to "RKSH MOD RHYTH ..." and the Workshop bar to "UNERS",
+  because `drawButtonText` drew tracked text centred with no fitting and the
+  tab-row maths measured the mixed-case label without its tracking. Now
+  `Fonts::fitLabel` fits any label: full tracking, then half, then none; then
+  a smaller font (never below `Fonts::minimumLabelHeight`, 8.5 pt); then a
+  horizontal squeeze to 0.8; and only then an ellipsis. `drawTrackedText`
+  fits every label it draws this way, so every panel that uses it (knob,
+  choice and slider labels, section plates, tabs) gets it for free. Text
+  buttons go through `LuthierLookAndFeel::fitButtonLabel`: normal padding
+  (a quarter of the height, 2 - 8 pt), then the 2 pt minimum padding, then
+  `fitLabel`; the test measures with the same function. The toggle's label,
+  the live strip's pads and set-list triptych, the snapshot grid and the Easy
+  rack slots are fitted as well. Column 4's tab strip measures with
+  `idealTextButtonWidth` (upper case, tracked, padded), wraps up to seven
+  rows, and from three rows uses 24-pt rows so a narrow column keeps its
+  workspace; below the widths Advanced allows, the buttons' own fitting takes
+  the rest. "Live mode's pre and post effects look squished": Live Mode's
+  strip takes 52 pt from the window, and Easy's rig cards all shrank alike, so
+  the racks became 3-pt slivers and the guitar card's knobs lost their bodies.
+  `EasyPanel::cardHeights` now gives way in order - the amp first, down to its
+  one-row face (100), then the guitar, cabinet and room to their floors
+  (`floorHeights`) - and the racks keep `kRackMinHeight` (two rows of 20-pt
+  slots). A strip shorter than every floor together (`rigFloorHeight`, 456:
+  Live Mode with the practice drawer open) scrolls - a scrollbar down its
+  right edge, the wheel over the strip - instead of squashing; the controls
+  stay children of EasyPanel (offset by the scroll), so the tests' bounds
+  checks keep their coordinates. The guitar
+  card's knobs sit at the left at their Small width with the response view
+  beside them (so they cannot overlap it), and the view hides when it has no
+  room. The cabinet card drops the model's own label (the plate says CABINET)
+  when two labelled rows do not fit, then the microphones' labels, so every
+  combo keeps its full height.
+
+- **Modern Dark palette.** "I also want a 'dark' theme ... something very
+  basic that helps you easily view all the controls ... however a modern dark
+  mode should look like." A seventh palette, `PaletteId::modernDark`, shown as
+  "Modern Dark" in Options -> Appearance, saved and switched live like the
+  others and written out as `Resources/Themes/Modern Dark.json`. It is
+  appended after Light so saved palette numbers keep their meaning. Values:
+  window #161616 (deep #111111), panels #1e1e1e, raised #262626, sunken
+  #131313, borders #3a3a3a / #5a5a5a, body text #e6e6e6, secondary #9e9e9e,
+  disabled #767676, one blue accent #4c9aff (bright #7db6ff, dim #2d5c99),
+  green #3fbf7f / #4cc38a, amber #f5a623, red #f25c54. Body text is 12:1 or
+  better on every surface (target 7), secondary text and the accent 5:1 or
+  better (target 4.5), disabled text, meter and status colours 3:1 or better;
+  `Theme.modernDarkContrastMeetsItsTargets` asserts each pair.
+  Modern Dark draws the UI flat: `paletteUsesMaterials()` (Accessibility) is
+  false for it and for High contrast, `Palette::apply (colours, id)` sets
+  `Palette::textured` from it, and `Palette::usesMaterials()` is the query
+  every material site already gates on (panel grain and sheen, corner screws,
+  brass section plates and fader caps, lit knob caps, the faces' Tolex, wood,
+  grille cloth and metal). The guitar illustration is a picture of a guitar and
+  keeps its lighting and real finishes: `Palette::illustrationMaterials`
+  (`paletteLightsIllustrations()`, false only under High contrast) drives the
+  renderer's `materials` option, and the backdrop behind it is the palette's.
+  Three palette roles make the flat look read as a modern dark mode rather
+  than High contrast in grey: `Palette::knobBody` is a flat charcoal one step
+  above the raised surface (#2e2e2e) so the knob stands off its panel,
+  `Palette::knobTrack` (the unfilled value arc) is the bright border so the
+  track is plainly visible, and `Palette::meterMid` is the warning amber so
+  meters run green, amber, red instead of through the blue accent. In the
+  other palettes these roles hold exactly the colours they drew before.
+  Table headers (the MOD tab's route list) now take the palette too; they
+  were JUCE's pale default in every palette.
+
+## String Detune (2026-09-25)
+
+User request: "slightly detune the strings in either direction, but don't
+allow them to completely change the tune of the guitar, just enough to tell
+that it is out of tune in either direction."
+
+- **+/-25 cents, and why.** A quarter of a semitone. Against the other strings
+  or a tuner it is plainly out - a chord beats several times a second - but it
+  is still half the way to the next note, so a guitarist hears the intended
+  note played on an out-of-tune guitar, never a different note. The limit is
+  `TuningEngine::kMaxStringDetuneCents`; the parameters' range, the engine
+  setter and Randomise all use it.
+- **Thirteen parameters, 459-471, appended.** `string_detune_1`..`_12` (one per
+  string the engine supports, `kMaxStrings`; 1 is the highest string, engine
+  string 0, as the nut depths count) in cents, default 0, and `out_of_tune`
+  (0..1, default 0). The count is 471. Randomise and Reset are actions that
+  write the parameters, not parameters: an automatable button would be a
+  trigger that changes twelve other automated values behind the host.
+- **Separate from the existing `detuneCents`.** The headstock popover's
+  per-string detune (+/-100, engine state, not a parameter) is re-tuning the
+  guitar. String Detune is leaving it slightly out, and is a new field,
+  `StringTuning::stringDetuneCents`, so neither can cancel the other.
+- **Applied on the open string, so it follows the string.** It goes into the
+  open frequency before the capo, so every fret, bend, slide and capo path
+  (all of which go through `computeFrequency`) carries it, and no other
+  string sees it. Pushed every block from the bridge (cached pointers, no ID
+  built), so automation moves a ringing note.
+- **Clamped together with the string's imperfections.** Realism detune, the
+  Drift toggle's walk and the character engine's tuner drift are the string
+  being out of tune too; `combineOutOfTune` adds String Detune to their sum
+  and limits the total to 25 cents (or to their own size, if they are already
+  past it - the control can pull back toward pitch, never further out). With
+  String Detune at 0 they pass through untouched. The humanise micro-detune
+  is a per-note jitter applied at the note-on, not a tuning, and is left
+  alone. The deliberate retune and the fine tuner are tuning, and outside it.
+- **The fret lookup ignores it.** `frequencyToFretPosition` works from the
+  string without String Detune: a note is fretted where the in-tune guitar
+  would fret it and then sounds out. Otherwise the guitar-controller path
+  would fret a fraction away and cancel it, and the voicer (8 cents of fret
+  slop) would decide a string 25 cents out could not play its own notes.
+- **The Out of tune knob.** Turned by hand, it scales the offsets that were
+  there when the drag began (keeping a hand-set or randomised pattern's
+  shape), or, from in tune, lays down a seeded pattern (the instrument's
+  character seed until Randomise rolls another) at the new amount. Randomise
+  sets each string uniformly within +/- amount x 25 cents from a seed
+  (`StringDetune::randomOffsets`, deterministic per seed). Automating the
+  amount alone moves no string: it is the range Randomise uses.
+- **Presets.** Saved like every parameter. A preset without the keys (every
+  preset from before, and the factory bank) loads with every string at 0 and
+  the amount at 0, rather than keeping the last preset's offsets; the patch
+  randomiser leaves them alone.
+- **Where the controls are.** A STRING DETUNE group in the CHARACTER panel
+  under TUNERS: one small knob per string, low string on the left, labelled
+  with the string's note from the current tuning and string count (six per
+  row, so a 12-string takes two), double-click to zero; the Out of tune knob,
+  Randomise and Reset. The Advanced tuning column and Easy's playing strip are
+  owned by other panels; the Easy knob is handed to the lead as a snippet.
+
+## Workshop: body swaps, finish paint and a legible drawer (2026-09-25)
+
+- **A body brings its outline.** "Unable to change the body": the body parts
+  carried no outline (guitar-illustration.md 4 / 18 say every body part does),
+  so fitting one kept the guitar file's `meta.body_style` - the drawing and
+  the engine's body shape (`PartAcoustics` shapeFor / baseTypeFor read the
+  style) stayed put and only the wood numbers moved. And the drawer listed
+  bodies alphabetically with no scrolling, so a guitar's own family's bodies
+  were often past the last visible row. Now every factory body part has
+  `illustration.body_style`; `WorkshopBench::withPart` sets the guitar's
+  body_style from the fitted body (audition too); Revert puts the file's
+  style back with the file's body; a family switch that keeps a crossover
+  body (the archtop) keeps its style. The renderer draws the guitar's
+  body_style first and the part's only when the guitar names none it can
+  draw, so a factory guitar that draws a shared body part its own way (the
+  7-string's single-cut part as a superstrat) is unchanged.
+- **Flamenca Blanca** draws and plays as `flamenco` (was `classical`): its
+  body part is the flamenca one, and 4.3's golpeador is on that outline.
+- **Wood resonator body.** 4.5: same outline as the steel body, but wood. A
+  `metal` finish is drawn as metal only on a steel body (or no body part);
+  on a wood body it shows the wood.
+- **Another family's part** is fitted with the warning guitar-workshop.md 5
+  asks for, never refused: its card reads "Made for acoustic - fits, unusual
+  here", and fitting it puts a banner up naming the matched build
+  ("Guitar > Acoustic rebuilds around it"). The drawer lists the family's own
+  parts first, then the rest; the wheel scrolls it a row at a time, a note
+  says how many are out of view, and the fitted part is scrolled into view.
+- **Finish paint.** The inspector shows colour chips when the body (its
+  colour; a burst's centre and edge) or the plastics (pickguard, knobs,
+  selector) are selected, plus six swatches (sunburst, cherry burst, black,
+  white, seafoam, natural - 11.1 / 11.2's hexes). A chip opens a
+  juce::ColourSelector (saturation/value square, hue strip, typed hex) in a
+  call-out; a burst's gets Centre / Edge tabs and a strip of the burst.
+  Colours go in the guitar's `finish`: `color_a` (body; a burst's edge),
+  `color_b` (a burst's centre) and a new optional `plastic_color` - written
+  only when chosen, so older files (and their cache keys) are unchanged and
+  an older build ignores it. The plastics colour paints the pickguard, bell /
+  top-hat / speed knobs, toggle and blade tips, plastic pickup covers,
+  humbucker rings and the whammy tip.
+- **Paint is not sound.** `LuthierAudioProcessor::applyEditedGuitar` leaves
+  the engine and the parameters alone when the edit differs only in paint
+  (`WorkshopGuitar::differsOnlyInPaint`: finish type, colours, burst shape,
+  plastics) - no 5 ms structural fade, no refined parameter reset. Gloss and
+  aging are not paint (part-acoustics.md 9 / body age) and the picker does
+  not touch them.
+- **One entry per pick.** A picker drag previews through a bench gesture
+  (the bench shows it, nothing is pushed) and commits as one undo entry,
+  "Set body colour #7A2E1B -> #B22820", once the drag has rested 450 ms or
+  the call-out closes; a swatch is one entry, "Finish seafoam (was ...)".
+- **Category bar.** The fourteen drawer tabs take as many balanced rows as
+  their natural label widths need (two at the usual bench width, three when
+  narrow), so none is clipped whatever the look-and-feel's shrink-to-fit
+  does. The inspector's Swap / Revert share a row and "Save as user part"
+  has its own.

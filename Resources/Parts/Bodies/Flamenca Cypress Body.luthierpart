@@ -19,5 +19,8 @@
     "thickness_mm": 90.0,
     "area_cm2": 1950,
     "bracing": "fan"
+  },
+  "illustration": {
+    "body_style": "flamenco"
   }
 }

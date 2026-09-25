@@ -20,5 +20,8 @@
     "thickness_mm": 44.5,
     "area_cm2": 1100,
     "bracing": "none"
+  },
+  "illustration": {
+    "body_style": "single_cutaway_slab"
   }
 }

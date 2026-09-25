@@ -3552,3 +3552,287 @@ LUTHIER_TEST (Editor, theHeaderShowsAndSwitchesTheRhythmEngine)
     CHECK (rhythm.isEnabled());
     CHECK (button.getTooltip().containsIgnoreCase ("strummed"));
 }
+
+//==============================================================================
+/*  "The words in these buttons are not able to be read": a label that does not
+    fit its button loses padding, then tracking, then size (down to an 8.5-point
+    floor), and only then an ellipsis - never at a normal size. */
+LUTHIER_TEST (Editor, aLabelShrinksBeforeItIsEverCut)
+{
+    const auto font = Fonts::ui (12.0f, true);
+    const juce::String word ("CONTROLLERS");
+    const float natural = Fonts::trackedWidth (font, word);
+
+    // Room enough: untouched.
+    {
+        const auto fit = Fonts::fitLabel (word, font, natural + 1.0f);
+        CHECK (! fit.shrunk && ! fit.ellipsised);
+        CHECK (fit.text == word);
+        CHECK_NEAR (fit.font.getHeight(), 12.0f, 0.01f);
+    }
+
+    // A little short: tighter or smaller, but the whole word, and within the room.
+    for (const float fraction : { 0.95f, 0.85f, 0.7f })
+    {
+        const float room = natural * fraction;
+        const auto fit = Fonts::fitLabel (word, font, room);
+        CHECK (fit.shrunk);
+        CHECK_MSG (! fit.ellipsised, "cut at " + juce::String (fraction));
+        CHECK (fit.text == word);
+        CHECK (fit.width <= room + 0.01f);
+        CHECK (fit.font.getHeight() >= Fonts::minimumLabelHeight - 0.01f);
+        CHECK_NEAR (fit.width, Fonts::trackedWidth (fit.font, fit.text, fit.tracking), 0.01f);
+    }
+
+    // Far too short: at the floor, then cut, and still inside the room.
+    {
+        const auto fit = Fonts::fitLabel (word, font, 20.0f);
+        CHECK (fit.ellipsised);
+        CHECK (fit.width <= 20.0f);
+        CHECK_NEAR (fit.font.getHeight(), Fonts::minimumLabelHeight, 0.01f);
+    }
+}
+
+namespace
+{
+    /** Every showing text button under `root` whose label does not fit (as the
+        look-and-feel draws it), described; empty when they all fit. */
+    juce::String unreadableButtonLabels (juce::Component& root, bool allowShrinking)
+    {
+        juce::Array<juce::TextButton*> buttons;
+        collect<juce::TextButton> (root, buttons);
+
+        juce::String bad;
+
+        for (auto* b : buttons)
+        {
+            if (! b->isShowing() || b->getWidth() <= 0 || b->getButtonText().trim().isEmpty())
+                continue;
+
+            const auto fit = LuthierLookAndFeel::fitButtonLabel (*b);
+            const float room = (float) b->getWidth() - 2.0f * fit.padding;
+            const bool fits = fit.width <= room + 0.5f && ! fit.ellipsised
+                           && fit.font.getHeight() >= juce::jmin (Fonts::minimumLabelHeight,
+                                                                  b->getLookAndFeel().getTextButtonFont (*b, b->getHeight()).getHeight()) - 0.01f;
+
+            if (! fits || (! allowShrinking && fit.shrunk))
+                bad << "\"" << b->getButtonText() << "\" (" << b->getWidth() << " px, needs "
+                    << juce::roundToInt (fit.width + 2.0f * fit.padding) << (fit.ellipsised ? ", cut" : "") << ") ";
+        }
+
+        return bad;
+    }
+}
+
+LUTHIER_TEST (Editor, everyAdvancedButtonLabelFitsItsButton)
+{
+    UiPreferences::get().reset();
+
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    LuthierLookAndFeel laf;
+    juce::Component host;
+    host.setLookAndFeel (&laf);
+    host.setVisible (true);
+
+    {
+        AdvancedPanel panel (processor);
+        host.addAndMakeVisible (panel);
+
+        for (const auto size : { juce::Point<int> (1200, 720), juce::Point<int> (1000, 640),
+                                 juce::Point<int> (1400, 840) })
+        {
+            host.setSize (size.x, size.y);
+            panel.setBounds (host.getLocalBounds());
+
+            for (int tab = 0; tab < panel.getNumWorkspaceTabs(); ++tab)
+            {
+                panel.setWorkspaceTab (tab);
+                const auto image = render (host);   // draws every label through the fitting path
+
+                if (tab == 0 || panel.getWorkspaceTabName (tab) == "LIVE")
+                {
+                    // For a person to look at.
+                    auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-guitar-renders");
+                    dir.createDirectory();
+                    const auto file = dir.getChildFile ("_advanced_" + juce::String (size.x) + "x" + juce::String (size.y)
+                                                        + "_tab" + juce::String (tab) + ".png");
+                    file.deleteFile();
+                    juce::FileOutputStream out (file);
+                    juce::PNGImageFormat().writeImageToStream (image, out);
+                }
+
+                const auto bad = unreadableButtonLabels (panel, true);
+                CHECK_MSG (bad.isEmpty(), "at " + juce::String (size.x) + " x " + juce::String (size.y)
+                                            + " on tab " + juce::String (tab) + ": " + bad);
+            }
+        }
+
+        /*  Column 4's own tab strip at every width it can be given, down to a
+            400-point column: the strip wraps, so every tab keeps its normal
+            font at the sizes Advanced mode allows, and none is ever cut. */
+        for (int width = 860; width <= 1600; width += 20)
+        {
+            host.setSize (width, 720);
+            panel.setBounds (host.getLocalBounds());
+
+            juce::Array<juce::TextButton*> buttons;
+            collect<juce::TextButton> (panel, buttons);
+
+            int tabs = 0;
+            juce::String bad;
+
+            for (auto* b : buttons)
+            {
+                if (b->getRadioGroupId() != 0x21)
+                    continue;
+
+                ++tabs;
+                const auto fit = LuthierLookAndFeel::fitButtonLabel (*b);
+
+                if (fit.ellipsised || (width >= 1000 && fit.shrunk))
+                    bad << b->getButtonText() << " (" << b->getWidth() << " px) ";
+            }
+
+            if (width == 860)
+            {
+                const auto image = render (host);
+                auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-guitar-renders");
+                dir.createDirectory();
+                const auto file = dir.getChildFile ("_advanced_860_tabs.png");
+                file.deleteFile();
+                juce::FileOutputStream out (file);
+                juce::PNGImageFormat().writeImageToStream (image, out);
+            }
+
+            CHECK (tabs == panel.getNumWorkspaceTabs());
+            CHECK_MSG (bad.isEmpty(), "at " + juce::String (width) + " px (" + juce::String (panel.getWorkspaceTabRows())
+                                        + " rows) these tabs do not fit: " + bad);
+        }
+
+        host.removeChildComponent (&panel);
+    }
+
+    host.setLookAndFeel (nullptr);
+}
+
+//==============================================================================
+/*  "In live mode the post and pre effects look squished": Live Mode's strip
+    under the header shortens the rig strip, and the cards used to shrink alike,
+    leaving the racks as 3-point slivers and the guitar card's knobs without a
+    body. The racks keep two rows of readable slots and the guitar card keeps its
+    knobs, beside (never over) the response view. */
+LUTHIER_TEST (Editor, liveModeKeepsTheRigStripUsable)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+
+    if (editor == nullptr)
+    {
+        CHECK_MSG (false, "no editor");
+        return;
+    }
+
+    editor->setVisible (true);
+    editor->setSize (LuthierAudioProcessorEditor::defaultWidth, LuthierAudioProcessorEditor::defaultHeight);
+
+    if (! processor.isLiveMode())
+        CHECK (editor->keyPressed (shortcutFor ("toggleLiveMode")));
+
+    CHECK (processor.isLiveMode());
+
+    auto* easy = findOne<EasyPanel> (*editor);
+    CHECK (easy != nullptr);
+
+    if (easy == nullptr)
+        return;
+
+    for (const auto size : { juce::Point<int> (1200, 720), juce::Point<int> (1600, 900) })
+    {
+        editor->setSize (size.x, size.y);
+        const auto at = " at " + juce::String (size.x) + " x " + juce::String (size.y);
+
+        CHECK (easy->isVisible());
+
+        for (auto* rack : { &easy->getPreRack(), &easy->getPostRack() })
+            for (int i = 0; i < CompactRack::kSlots; ++i)
+                CHECK_MSG (rack->slotBounds (i).getHeight() >= 20,
+                           "rack slot " + juce::String (i) + " is " + juce::String (rack->slotBounds (i).getHeight()) + " px tall" + at);
+
+        auto* view = easy->getCircuitView();
+
+        for (auto* knob : { &easy->getGuitarVolumeKnob(), &easy->getGuitarToneKnob() })
+        {
+            CHECK_MSG (knob->isVisible(), "a guitar knob is hidden" + at);
+            CHECK_MSG (knob->getWidth() >= LuthierKnob::preferredWidthFor (LuthierKnob::Size::Small),
+                       "a guitar knob is " + juce::String (knob->getWidth()) + " px wide" + at);
+            CHECK_MSG (knob->getHeight() >= EasyPanel::kCircuitMinHeight - 24,
+                       "a guitar knob is " + juce::String (knob->getHeight()) + " px tall" + at);
+            CHECK_MSG (knob->getSlider().getHeight() >= 24,
+                       "a guitar knob's body is " + juce::String (knob->getSlider().getHeight()) + " px" + at);
+
+            if (view != nullptr && view->isVisible())
+                CHECK_MSG (! knob->getBounds().intersects (view->getBounds()),
+                           "a guitar knob overlaps the response view" + at);
+        }
+
+        // For a person to look at.
+        const auto image = render (*editor);
+        auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-guitar-renders");
+        dir.createDirectory();
+        const auto file = dir.getChildFile ("_live_" + juce::String (size.x) + "x" + juce::String (size.y) + ".png");
+        file.deleteFile();
+        juce::FileOutputStream out (file);
+        juce::PNGImageFormat().writeImageToStream (image, out);
+    }
+
+    /*  With the practice drawer open as well the strip is shorter than every
+        card's floor together: it scrolls rather than squash, the racks keep
+        their slots, and scrolling moves the cards. */
+    {
+        editor->setSize (1200, 720);
+        auto* practice = findOne<PracticePanel> (*editor);
+        CHECK (practice != nullptr);
+
+        if (practice != nullptr && ! practice->isOpen())
+            CHECK (editor->keyPressed (shortcutFor ("togglePractice")));
+
+        CHECK (practice == nullptr || practice->isOpen());
+        CHECK_MSG (easy->getRigArea().getHeight() < EasyPanel::rigFloorHeight() || ! easy->isRigScrollable(),
+                   "the rig strip scrolls although it has room");
+
+        for (auto* rack : { &easy->getPreRack(), &easy->getPostRack() })
+            for (int i = 0; i < CompactRack::kSlots; ++i)
+                CHECK_MSG (rack->slotBounds (i).getHeight() >= 20,
+                           "with the drawer open a rack slot is " + juce::String (rack->slotBounds (i).getHeight()) + " px tall");
+
+        CHECK (easy->getGuitarVolumeKnob().getSlider().getHeight() >= 24);
+
+        if (easy->isRigScrollable())
+        {
+            const int before = easy->getPostRack().getY();
+            easy->mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                                    easy->getRigArea().getCentre().toFloat(), {}, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                                    easy, easy, juce::Time::getCurrentTime(),
+                                                    easy->getRigArea().getCentre().toFloat(), juce::Time::getCurrentTime(), 1, false),
+                                  juce::MouseWheelDetails { 0.0f, -1.0f, false, false, false });
+            CHECK_MSG (easy->getPostRack().getY() < before, "the wheel did not scroll the rig strip");
+        }
+
+        const auto image = render (*editor);
+        auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-guitar-renders");
+        const auto file = dir.getChildFile ("_live_1200x720_drawer.png");
+        file.deleteFile();
+        juce::FileOutputStream out (file);
+        juce::PNGImageFormat().writeImageToStream (image, out);
+
+        if (practice != nullptr && practice->isOpen())
+            CHECK (editor->keyPressed (shortcutFor ("togglePractice")));
+    }
+
+    CHECK (editor->keyPressed (shortcutFor ("toggleLiveMode")));
+    CHECK (! processor.isLiveMode());
+}

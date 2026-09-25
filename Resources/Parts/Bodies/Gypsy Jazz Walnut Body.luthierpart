@@ -19,5 +19,8 @@
     "thickness_mm": 100.0,
     "area_cm2": 2200,
     "bracing": "ladder"
+  },
+  "illustration": {
+    "body_style": "gypsy_jazz"
   }
 }

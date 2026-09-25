@@ -579,7 +579,12 @@ void LuthierAudioProcessor::applyEditedGuitar (const WorkshopGuitar& guitar)
     guitarOverride = guitar.toEmbeddedVar();
     guitarSourceType = (int) engine.getGuitarType();
 
-    applyGuitar (guitar, engine.getGuitarType(), {}, true);
+    // Workshop paint (finish colours): the guitar looks different and plays the
+    // same, so the engine is not re-applied and no refined parameter is reset.
+    if (partsGuitarLoaded && guitar.differsOnlyInPaint (currentGuitar))
+        currentGuitar = guitar;
+    else
+        applyGuitar (guitar, engine.getGuitarType(), {}, true);
 
     loadedGuitarKey = guitarReference + "|" + juce::String (juce::JSON::toString (guitarOverride, true).hashCode64());
     presets.markModified();
@@ -1611,6 +1616,25 @@ void LuthierAudioProcessor::releasePreviewNote (int stringIndex)
 
     const juce::ScopedLock sl (previewLock);
     previewMidi.addEvent (juce::MidiMessage::noteOff (juce::jlimit (1, 16, stringIndex + 1), note), 0);
+}
+
+void LuthierAudioProcessor::triggerPreviewMidiNote (int midiNote, float velocity)
+{
+    if (! juce::isPositiveAndBelow (midiNote, 128))
+        return;
+
+    const juce::ScopedLock sl (previewLock);
+    previewMidi.addEvent (juce::MidiMessage::noteOn (kPreviewKeyboardChannel, midiNote,
+                                                     juce::jlimit (0.05f, 1.0f, velocity)), 0);
+}
+
+void LuthierAudioProcessor::releasePreviewMidiNote (int midiNote)
+{
+    if (! juce::isPositiveAndBelow (midiNote, 128))
+        return;
+
+    const juce::ScopedLock sl (previewLock);
+    previewMidi.addEvent (juce::MidiMessage::noteOff (kPreviewKeyboardChannel, midiNote), 0);
 }
 
 //==============================================================================

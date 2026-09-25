@@ -24,6 +24,8 @@
 #include "../UI/PracticePanel.h"
 
 #include <iterator>
+#include <map>
+#include <typeinfo>
 #include <set>
 
 using namespace luthier;
@@ -34,7 +36,7 @@ namespace
     constexpr double kSr = 48000.0;
     constexpr int kBlock = 512;
 
-    const PaletteId palettes[] = { PaletteId::defaultDark, PaletteId::light, PaletteId::highContrast };
+    const PaletteId palettes[] = { PaletteId::defaultDark, PaletteId::light, PaletteId::highContrast, PaletteId::modernDark };
 
     /** Puts palettes in force as the Options page does, and the original back when it goes out of scope. */
     struct PaletteScope
@@ -42,18 +44,20 @@ namespace
         PaletteId original = AccessibilitySettings::get().getPalette();
         PaletteColours saved = Palette::current();
         bool textured = Palette::textured;
+        bool illustrations = Palette::illustrationMaterials;
 
         void use (PaletteId id)
         {
             auto& settings = AccessibilitySettings::get();
             settings.setPalette (id);
-            Palette::apply (settings.getColours(), id != PaletteId::highContrast);
+            Palette::apply (settings.getColours(), id);
         }
 
         ~PaletteScope()
         {
             AccessibilitySettings::get().setPalette (original);
             Palette::apply (saved, textured);
+            Palette::illustrationMaterials = illustrations;
         }
     };
 
@@ -836,7 +840,7 @@ LUTHIER_TEST (FacesIntegration, rendersOfBothWindowsInEveryPalette)
         }
     }
 
-    CHECK (advancedRows.size() == 3 && easyRows.size() == 3);
+    CHECK (advancedRows.size() == (int) std::size (palettes) && easyRows.size() == (int) std::size (palettes));
     CHECK (savePng (stack (advancedRows), renderFolder().getChildFile ("_advanced_faces.png")));
     CHECK (savePng (stack (easyRows), renderFolder().getChildFile ("_easy_faces.png")));
 }
@@ -1126,5 +1130,141 @@ LUTHIER_TEST (FacesIntegration, rendersOfEveryPanelInEveryPalette)
         }
     }
 
-    CHECK_MSG (shots >= 3 * 12, "only " + juce::String (shots) + " renders were written");
+    CHECK_MSG (shots >= (int) std::size (palettes) * 12, "only " + juce::String (shots) + " renders were written");
+}
+
+//==============================================================================
+/*  Modern Dark: the faces go flat as they do in High contrast (the materials are
+    gated on Palette::usesMaterials()), while the controls stay where they are. */
+LUTHIER_TEST (FacesIntegration, modernDarkFacesAreFlat)
+{
+    PaletteScope palette;
+
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    set (processor, ParamIDs::ampModel, (float) (int) AmpModel::FenderTweed);
+    processor.getEngine().getPostEffects().setSlotType (0, PedalType::Fuzz);
+
+    AmpFacePanel face (processor, AmpFacePanel::Style::section);
+    face.setSize (234, AmpFacePanel::sectionHeight);
+    face.refresh();
+
+    PedalSlotComponent slot (processor, true, 0);
+    slot.setSize (PedalSlotComponent::nominalWidth, slot.getPreferredHeight());
+    slot.refresh();
+
+    int textured[2] = {}, flat[2] = {};
+
+    for (auto id : { PaletteId::defaultDark, PaletteId::modernDark })
+    {
+        palette.use (id);
+        CHECK (Palette::usesMaterials() == (id == PaletteId::defaultDark));
+        CHECK (! faces::Materials::current().textured || id == PaletteId::defaultDark);
+        face.sendLookAndFeelChange();
+        slot.sendLookAndFeelChange();
+
+        auto* counts = id == PaletteId::modernDark ? flat : textured;
+        counts[0] = distinctColours (render (face));
+        counts[1] = distinctColours (render (slot));
+    }
+
+    CHECK_MSG (flat[0] * 3 < textured[0], "the amp face still looks textured in Modern Dark: " + juce::String (flat[0])
+                                              + " colours against " + juce::String (textured[0]));
+    CHECK_MSG (flat[1] * 3 < textured[1], "the pedal face still looks textured in Modern Dark: " + juce::String (flat[1])
+                                              + " colours against " + juce::String (textured[1]));
+}
+
+/*  Every panel of both windows in Modern Dark carries no brass: the section
+    plates, fader caps, the workbench amp's plate and the brass bands are the
+    most visible of the guitar-shop materials, and the probe is checked against
+    the guitar-shop render of the same panel so it cannot pass by being blind.
+    The guitar illustrations keep their real finishes (gold hardware included),
+    so they are masked out. */
+LUTHIER_TEST (FacesIntegration, modernDarkPanelsDrawNoBrass)
+{
+    PaletteScope palette;
+
+    auto isBrass = [] (juce::Colour c)
+    {
+        const float h = c.getHue() * 360.0f;
+        // The plate brass and its lit and shaded ends: a mid-saturated, bright
+        // gold. A saturated amber (the warning colour) blended over a dark
+        // surface never lands here: by the time it is this bright it is far
+        // more saturated.
+        return h > 30.0f && h < 50.0f && c.getSaturation() > 0.38f && c.getSaturation() < 0.68f
+               && c.getBrightness() > 0.55f;
+    };
+
+    auto illustrationAreas = [] (juce::Component& root)
+    {
+        juce::RectangleList<int> areas;
+
+        std::function<void (juce::Component&)> visit = [&] (juce::Component& c)
+        {
+            const juce::String type (typeid (c).name());
+
+            if (c.isVisible() && (type.contains ("Guitar") || type.contains ("Illustration") || type.contains ("Thumbnail")))
+            {
+                areas.add (root.getLocalArea (&c, c.getLocalBounds()));
+                return;
+            }
+
+            for (auto* child : c.getChildren())
+                visit (*child);
+        };
+
+        visit (root);
+        return areas;
+    };
+
+    auto brassPixels = [&] (juce::Component& root)
+    {
+        const auto image = render (root);
+        const auto masked = illustrationAreas (root);
+        const juce::Image::BitmapData data (image, juce::Image::BitmapData::readOnly);
+        int n = 0;
+
+        for (int y = 0; y < image.getHeight(); ++y)
+            for (int x = 0; x < image.getWidth(); ++x)
+                if (! masked.containsPoint ({ x, y }) && isBrass (data.getPixelColour (x, y)))
+                    ++n;
+
+        return n;
+    };
+
+    std::map<juce::String, int> shop, dark;
+
+    for (auto id : { PaletteId::defaultDark, PaletteId::modernDark })
+    {
+        palette.use (id);
+        auto& counts = id == PaletteId::modernDark ? dark : shop;
+
+        LuthierAudioProcessor processor;
+        processor.prepareToPlay (kSr, kBlock);
+        set (processor, ParamIDs::ampModel, (float) (int) AmpModel::MarshallPlexi);
+        fillRacks (processor);
+
+        if (auto editor = openEditor (ctx, processor, LuthierAudioProcessorEditor::defaultWidth,
+                                      LuthierAudioProcessorEditor::defaultHeight, false))
+            counts["easy"] = brassPixels (*editor);
+
+        if (auto editor = openEditor (ctx, processor, 1600, 900, true))
+            if (auto* advanced = findOne<AdvancedPanel> (*editor))
+                for (int i = 0; i < advanced->getNumWorkspaceTabs(); ++i)
+                {
+                    advanced->setWorkspaceTab (i);
+                    counts["advanced " + advanced->getWorkspaceTabName (i)] = brassPixels (*editor);
+                }
+    }
+
+    int shopTotal = 0;
+
+    for (const auto& [name, n] : shop)
+        shopTotal += n;
+
+    CHECK_MSG (shopTotal > 1000, "the brass probe found only " + juce::String (shopTotal) + " pixels in the guitar shop");
+
+    for (const auto& [name, n] : dark)
+        CHECK_MSG (n <= 40, "Modern Dark " + name + " still shows " + juce::String (n)
+                                + " brass pixels (the guitar shop shows " + juce::String (shop[name]) + ")");
 }

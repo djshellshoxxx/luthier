@@ -31,6 +31,7 @@ const char* macroByIndex (int index) noexcept
     juce::String pickupMagnet (int slot)   { return "pickup" + juce::String (slot) + "_magnet"; }
     juce::String pickupVolume (int slot)   { return "pickup" + juce::String (slot) + "_volume"; }
     juce::String setupNutDepth (int n)     { return "setup_nut_depth_" + juce::String (n); }
+    juce::String stringDetune (int n)      { return "string_detune_" + juce::String (n); }
 
     static juce::String chainPrefix (bool post, int slot)
     {
@@ -108,6 +109,29 @@ namespace
                 .withLabel ("ohm")
                 .withStringFromValueFunction ([] (float v, int) { return Parameters::formatOhms (v); })
                 .withValueFromStringFunction ([] (const juce::String& t) { return (float) Parameters::parseOhms (t); }));
+    }
+
+    /*  String Detune: shown the way a tuner shows it, signed, so "+3.0 ct" and
+        "-3.0 ct" read at a glance which way the string is out. */
+    std::unique_ptr<juce::AudioParameterFloat> centsParam (const juce::String& id,
+                                                           const juce::String& name,
+                                                           float limit)
+    {
+        RangeRegistry::noteDeclaration (id, -limit, limit);
+
+        return std::make_unique<juce::AudioParameterFloat> (
+            pid (id), name, juce::NormalisableRange<float> (-limit, limit), 0.0f,
+            juce::AudioParameterFloatAttributes()
+                .withLabel ("ct")
+                .withStringFromValueFunction ([] (float v, int)
+                {
+                    const float shown = std::abs (v) < 0.05f ? 0.0f : v;
+                    return (shown > 0.0f ? "+" : "") + juce::String (shown, 1) + " ct";
+                })
+                .withValueFromStringFunction ([] (const juce::String& t)
+                {
+                    return (float) t.retainCharacters ("+-.0123456789").getDoubleValue();
+                }));
     }
 
     std::unique_ptr<juce::AudioParameterChoice> choiceParam (const juce::String& id,
@@ -787,6 +811,15 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::muteHumanise,       "Mute Humanise",       0.0f, 1.0f, 0.0f));
     add (floatParam  (ParamIDs::muteGhostVelocity,  "Ghost Note Velocity", 0.0f, 1.0f, 0.4f));
 
+    // String Detune (parameters 459-471), appended likewise: an offset per
+    // string, then the Out of tune amount the CHARACTER panel's Randomise
+    // scales. See TuningEngine::kMaxStringDetuneCents for why 25 cents.
+    for (int n = 1; n <= ParamIDs::kNumStringDetunes; ++n)
+        add (centsParam (ParamIDs::stringDetune (n), "String " + juce::String (n) + " Detune",
+                         (float) TuningEngine::kMaxStringDetuneCents));
+
+    add (floatParam  (ParamIDs::outOfTune,          "Out of Tune",         0.0f, 1.0f, 0.0f));
+
     return layout;
 }
 
@@ -925,6 +958,13 @@ void ParameterBridge::cachePointers()
             }
         }
     }
+
+    for (int s = 0; s < kMaxStrings; ++s)
+    {
+        const auto id = ParamIDs::stringDetune (s + 1);
+        stringDetunePointers[(size_t) s] = raw (id);
+        stringDetuneIndices[(size_t) s] = parameterIndex (id);
+    }
 }
 
 int ParameterBridge::parameterIndex (const juce::String& id) const noexcept
@@ -986,6 +1026,14 @@ void ParameterBridge::applyToEngine() noexcept
 
     // ---- instrument -----------------------------------------------------------
     engine.setAttackBrightness (macroAttack);
+
+    /*  String Detune: every block, because the offsets are automatable and a
+        sounding string follows its target frequency, so a move is heard on
+        the note already ringing. Every string the engine can have, not just
+        the ones fitted, so a string count change finds them already set. */
+    for (int s = 0; s < kMaxStrings; ++s)
+        engine.getTuningEngine().setStringDetuneCents (
+            s, valueOf (stringDetunePointers[(size_t) s], stringDetuneIndices[(size_t) s]));
     engine.setPluckPosition (value (ParamIDs::pluckPosition));
     engine.setPickThickness (value (ParamIDs::pickThickness));
 

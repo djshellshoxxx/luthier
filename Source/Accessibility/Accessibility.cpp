@@ -18,9 +18,20 @@ const char* getPaletteName (PaletteId id) noexcept
         case PaletteId::tritanopia:   return "Tritanopia-safe";
         case PaletteId::highContrast: return "High contrast";
         case PaletteId::light:        return "Light";
+        case PaletteId::modernDark:   return "Modern Dark";
         case PaletteId::numPalettes:
         default:                      return "Default";
     }
+}
+
+bool paletteUsesMaterials (PaletteId id) noexcept
+{
+    return id != PaletteId::highContrast && id != PaletteId::modernDark;
+}
+
+bool paletteLightsIllustrations (PaletteId id) noexcept
+{
+    return id != PaletteId::highContrast;
 }
 
 const char* AccessibilitySettings::getVerbosityName (Verbosity v) noexcept
@@ -300,6 +311,39 @@ PaletteColours AccessibilitySettings::buildPalette (PaletteId id)
             palette.clip           = juce::Colour (0xffa32213);
             palette.dataStream     = juce::Colour (0xff2f6b3a);
             palette.shadow         = juce::Colour (0x33000000);
+            break;
+
+        case PaletteId::modernDark:
+            /*  A plain modern dark mode (DECISIONS: "Modern Dark palette").
+
+                Neutral greys with no warm cast, stepping up in lightness from
+                the window to the raised surfaces as material-design dark
+                themes do, 1 px mid-grey borders, off-white body text (12:1 or
+                better on every surface), a muted grey for secondary text
+                (5:1 or better) and one calm blue accent for values, selection
+                and focus (5:1 or better). Meters run green, amber, red. The
+                UI draws flat in this palette: paletteUsesMaterials() is false.
+            */
+            palette.backgroundDeep = juce::Colour (0xff111111);
+            palette.background     = juce::Colour (0xff161616);
+            palette.panel          = juce::Colour (0xff1e1e1e);
+            palette.panelRaised    = juce::Colour (0xff262626);
+            palette.panelSunken    = juce::Colour (0xff131313);
+            palette.edge           = juce::Colour (0xff3a3a3a);
+            palette.edgeBright     = juce::Colour (0xff5a5a5a);
+            palette.accent         = juce::Colour (0xff4c9aff);
+            palette.accentBright   = juce::Colour (0xff7db6ff);
+            palette.accentDim      = juce::Colour (0xff2d5c99);
+            palette.secondary      = juce::Colour (0xff3fbf7f);
+            palette.secondaryDim   = juce::Colour (0xff24704a);
+            palette.textPrimary    = juce::Colour (0xffe6e6e6);
+            palette.textMuted      = juce::Colour (0xff9e9e9e);
+            palette.textDisabled   = juce::Colour (0xff767676);
+            palette.success        = juce::Colour (0xff4cc38a);
+            palette.warning        = juce::Colour (0xfff5a623);
+            palette.clip           = juce::Colour (0xfff25c54);
+            palette.dataStream     = juce::Colour (0xff6cd49a);
+            palette.shadow         = juce::Colour (0x80000000);
             break;
 
         case PaletteId::numPalettes:

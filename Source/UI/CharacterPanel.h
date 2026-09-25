@@ -20,6 +20,7 @@
 #include "SetupGroup.h"
 #include "SlideGroup.h"
 #include "../Character/CharacterEngine.h"
+#include "../Character/StringDetune.h"
 
 namespace luthier
 {
@@ -94,6 +95,55 @@ private:
 };
 
 //==============================================================================
+/*  STRING DETUNE (spec/DECISIONS.md, "String Detune"): one small knob per
+    string, labelled with the string's note and ordered low to high as a
+    guitarist reads them, each +/-25 cents and double-click to zero; the Out of
+    tune knob; Randomise and Reset.
+
+    Every control is a parameter or writes parameters, so all of it is
+    automatable, undoable and saved with the preset. */
+class StringDetuneGroup : public juce::Component,
+                          private juce::Timer
+{
+public:
+    explicit StringDetuneGroup (LuthierAudioProcessor& processor);
+    ~StringDetuneGroup() override;
+
+    int preferredHeight() const;
+    void resized() override;
+
+    /** Called when the string count changes, so the panel can re-fit. */
+    std::function<void()> onLayoutChanged;
+
+    /** The knob for a string (engine index, 0 = highest), for the tests. */
+    LuthierKnob* getStringKnob (int stringIndex) noexcept { return stringKnobs[stringIndex]; }
+    juce::TextButton& getRandomiseButton() noexcept { return randomiseButton; }
+    juce::TextButton& getResetButton() noexcept { return resetButton; }
+    int getShownStringCount() const noexcept { return shownStrings; }
+
+    static constexpr int kKnobsPerRow = 6;
+
+private:
+    void timerCallback() override;
+    void refreshStrings();
+    int rowsNeeded() const noexcept;
+
+    LuthierAudioProcessor& processor;
+
+    juce::Label heading;
+    juce::OwnedArray<LuthierKnob> stringKnobs;
+    LuthierKnob outOfTuneKnob { "Out of tune", LuthierKnob::Size::Small };
+    juce::TextButton randomiseButton { "Randomise" }, resetButton { "Reset" };
+
+    StringDetune::AmountDrag amountDrag;
+    uint64_t patternSeed = 0;
+    int shownStrings = 0;
+    juce::StringArray shownNames;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (StringDetuneGroup)
+};
+
+//==============================================================================
 class CharacterPanel : public juce::Component,
                        private juce::Timer
 {
@@ -152,6 +202,7 @@ private:
     std::unique_ptr<NoiseGroups> noiseGroups;
     std::unique_ptr<SetupGroup> setupGroup;
     std::unique_ptr<SlideGroup> slideGroup;
+    std::unique_ptr<StringDetuneGroup> stringDetuneGroup;
 
     /*  Sizes the panel to its content. The workspace viewport keeps whatever
         height a panel gives itself, and this one never gave itself one - so it

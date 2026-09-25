@@ -245,6 +245,8 @@ void SnapshotGrid::paint (juce::Graphics& g)
     const auto numberFont = Fonts::mono (9.0f);
     const auto labelFont = Fonts::ui (10.0f);
     const auto emptyText = tr ("live.grid.emptyCell");
+    const int widestNumber = (int) std::ceil (juce::GlyphArrangement::getStringWidth (
+                                 numberFont, juce::String (kColumns * kRows))) + 3;
 
     for (int slot = 0; slot < kColumns * kRows; ++slot)
     {
@@ -280,7 +282,10 @@ void SnapshotGrid::paint (juce::Graphics& g)
         g.setColour (Palette::textMuted);
         g.setFont (numberFont);
         const auto number = juce::String (slot + 1);
-        const int numberWidth = juce::jmin (text.getWidth(), 16);
+
+        // Wide enough for the widest number ("128"), so "100" no longer runs
+        // into the label beside it.
+        const int numberWidth = juce::jmin (text.getWidth(), widestNumber);
         g.drawText (number, text.removeFromLeft (numberWidth), juce::Justification::centredLeft, false);
 
         if (slot == current && filled)
@@ -296,13 +301,15 @@ void SnapshotGrid::paint (juce::Graphics& g)
             if (filled)
             {
                 g.setColour (Palette::textPrimary);
-                g.drawText (truncatedLabel (bank.getSnapshot (slot).label), text,
-                            juce::Justification::centredLeft, true);
+                Fonts::drawFittedLabel (g, Fonts::fitLabel (truncatedLabel (bank.getSnapshot (slot).label),
+                                                            labelFont, (float) text.getWidth(), 0.0f),
+                                        text, juce::Justification::centredLeft);
             }
             else
             {
                 g.setColour (Palette::textDisabled);
-                g.drawText (emptyText, text, juce::Justification::centredLeft, true);
+                Fonts::drawFittedLabel (g, Fonts::fitLabel (emptyText, labelFont, (float) text.getWidth(), 0.0f),
+                                        text, juce::Justification::centredLeft);
             }
         }
     }
