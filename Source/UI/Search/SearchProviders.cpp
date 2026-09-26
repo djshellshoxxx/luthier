@@ -332,7 +332,7 @@ const std::vector<PlaceDef>& PlaceProvider::catalogue()
         using Gate = ParameterLocations::Gate;
 
         // gui-integration 4.4: column 4's tabs.
-        for (const char* tab : { "WORKSHOP", "MOD", "RHYTHM", "TUNE", "LIVE", "ROUTING", "TONE MATCH",
+        for (const char* tab : { "WORKSHOP", "MOD", "RHYTHM", "TUNE", "JAM", "LIVE", "ROUTING", "TONE MATCH",   // JAM: FEAT-JAM
                                  "CHARACTER", "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "HELP" })
             v.push_back ({ juce::String ("place:tab:") + tab, capitalised (tab) + " tab", "Advanced > Column 4",
                            location ({ LocationStep::make (T::mode, "Advanced"), LocationStep::make (T::workspaceTab, tab) }),
