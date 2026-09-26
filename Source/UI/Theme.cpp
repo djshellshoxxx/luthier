@@ -724,9 +724,9 @@ void LuthierLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int 
     // ---- body: a black bell amp knob (visual-polish.md 6.3) ------------------------
     juce::Path bodyPath;
     bodyPath.addEllipse (centre.x - radius, centre.y - radius, radius * 2.0f, radius * 2.0f);
-    juce::DropShadow (Palette::shadow, 6, { 0, 2 }).drawForPath (g, bodyPath);
+    juce::DropShadow (Palette::shadow, 8, { 0, 2 }).drawForPath (g, bodyPath);   // theme.md: 8px blur, y+2
 
-    const auto body = hover ? Palette::knobBody.brighter (0.12f) : Palette::knobBody;
+    const auto body = hover ? Palette::knobBody.brighter (0.08f) : Palette::knobBody;   // theme.md: hover brightens ~8%
 
     // The skirt: the full circle, knurled, rotating with the knob.
     g.setColour (body.brighter (0.08f));
@@ -793,8 +793,6 @@ void LuthierLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int 
                                            float sliderPos, float minSliderPos, float maxSliderPos,
                                            juce::Slider::SliderStyle style, juce::Slider& slider)
 {
-    juce::ignoreUnused (minSliderPos, maxSliderPos);
-
     const bool vertical = slider.isVertical();
     const bool enabled = slider.isEnabled();
 
@@ -829,6 +827,29 @@ void LuthierLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int 
     g.setColour (accent);
     g.fillRoundedRectangle (fill, trackThickness * 0.5f);
 
+    // ---- ticks (theme.md: 1px muted, outside the track, every 10% of its length) ----
+    if (style != juce::Slider::LinearBarVertical && style != juce::Slider::LinearBar)
+    {
+        g.setColour (Palette::textDisabled.withAlpha (0.6f));
+        constexpr int kTicks = 11;   // 0%, 10%, ..., 100%
+
+        for (int i = 0; i < kTicks; ++i)
+        {
+            const float t = (float) i / (float) (kTicks - 1);
+
+            if (vertical)
+            {
+                const float ty = minSliderPos + t * (maxSliderPos - minSliderPos);
+                g.fillRect (track.getRight() + 3.0f, ty - 0.5f, 4.0f, 1.0f);
+            }
+            else
+            {
+                const float tx = minSliderPos + t * (maxSliderPos - minSliderPos);
+                g.fillRect (tx - 0.5f, track.getBottom() + 3.0f, 1.0f, 4.0f);
+            }
+        }
+    }
+
     // ---- thumb (16 x 24 rounded rect) ----------------------------------------------
     if (style != juce::Slider::LinearBarVertical && style != juce::Slider::LinearBar)
     {
@@ -842,7 +863,7 @@ void LuthierLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int 
         else
             thumb.setCentre (sliderPos, (float) y + height * 0.5f);
 
-        juce::DropShadow (Palette::shadow, 5, { 0, 2 }).drawForRectangle (g, thumb.toNearestInt());
+        juce::DropShadow (Palette::shadow, 8, { 0, 2 }).drawForRectangle (g, thumb.toNearestInt());   // theme.md: 8px blur, y+2
 
         // A brass fader cap with a grip line across it (visual-polish.md 6.3).
         const auto brass = Palette::textured ? Palette::plate : Palette::panelRaised;

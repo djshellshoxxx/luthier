@@ -54,6 +54,12 @@ public:
     /** True while the limiter is actually reducing gain. */
     bool isClipping() const noexcept { return clipping.load (std::memory_order_relaxed); }
 
+    /*  gui-engine-dataflow.md 2 and 3: every meter/LED reading this bus needs to
+        know whether processBlock is still being called, so it can go stale
+        (-inf / unlit) rather than hold whatever the last real peak was
+        forever. One counter, incremented once per block regardless of path. */
+    std::uint32_t getProcessedBlockCount() const noexcept { return processedBlocks.load (std::memory_order_relaxed); }
+
     /** How much the limiter is pulling down right now, in dB. */
     double getGainReductionDb() const noexcept { return grDb.load (std::memory_order_relaxed); }
 
@@ -159,6 +165,7 @@ private:
     std::atomic<double> lufs { -70.0 };
     std::atomic<double> grDb { 0.0 };
     std::atomic<bool> clipping { false };
+    std::atomic<std::uint32_t> processedBlocks { 0 };
 
     JUCE_LEAK_DETECTOR (MasterBus)
 };

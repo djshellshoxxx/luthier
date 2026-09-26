@@ -111,6 +111,8 @@ void MasterBus::processBlock (juce::AudioBuffer<float>& buffer) noexcept
     if (numSamples <= 0 || numChannels <= 0 || lookSize <= 0)
         return;
 
+    processedBlocks.fetch_add (1, std::memory_order_relaxed);
+
     // output-normalization.md 4.1: a block-level branch. While the normalizer
     // is inactive this function runs exactly the loop below, as it always has.
     if (normalizationStageCompiledIn().load (std::memory_order_relaxed))

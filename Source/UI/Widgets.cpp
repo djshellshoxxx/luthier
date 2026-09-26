@@ -478,6 +478,9 @@ LuthierKnob::LuthierKnob (const juce::String& text, Size s)
     slider.setVelocityBasedMode (false);
     slider.setMouseDragSensitivity (180);
 
+    // theme.md: a vertical-drag control shows the vertical-resize cursor.
+    slider.setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
+
     setInterceptsMouseClicks (true, true);
 }
 
@@ -586,7 +589,7 @@ void LuthierKnob::paint (juce::Graphics& g)
     if (showValue)
     {
         g.setColour (accent);
-        g.setFont (Fonts::mono (12.0f));
+        g.setFont (Fonts::mono (13.0f));   // theme.md: values render 13-14px
 
         juce::String text;
 
@@ -930,6 +933,10 @@ LuthierSlider::LuthierSlider (const juce::String& text, bool isVertical)
     slider.setSliderStyle (vertical ? juce::Slider::LinearVertical : juce::Slider::LinearHorizontal);
     slider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 62, 18);
     slider.setColour (juce::Slider::textBoxTextColourId, Palette::textPrimary);
+
+    // theme.md: a vertical-drag control shows the vertical-resize cursor, even
+    // when the track itself is drawn horizontally.
+    slider.setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
 }
 
 LuthierSlider::~LuthierSlider()
@@ -1015,12 +1022,33 @@ void LevelMeter::setSource (LuthierAudioProcessor* p)
     processor = p;
 }
 
-void LevelMeter::timerCallback()
+void LevelMeter::refresh()
 {
     if (processor == nullptr)
         return;
 
     const auto& master = processor->getEngine().getMasterBus();
+    const double now = juce::Time::getMillisecondCounterHiRes();
+
+    // gui-engine-dataflow.md 5: no new block for kStaleAfterMs -> -inf, rather
+    // than decaying from whatever the last real peak happened to be.
+    const auto blocks = master.getProcessedBlockCount();
+    if (blocks != lastBlockCount)
+    {
+        lastBlockCount = blocks;
+        lastBlockChangeMs = now;
+    }
+
+    stale = (now - lastBlockChangeMs) > kStaleAfterMs;
+
+    if (stale)
+    {
+        levelL = levelR = peakHoldL = peakHoldR = 0.0f;
+        holdCountL = holdCountR = 0;
+        displayPeakDb = -100.0f;
+        repaint();
+        return;
+    }
 
     auto toNormalised = [] (double linear)
     {
@@ -1137,7 +1165,7 @@ OutputLed::OutputLed()
     setInterceptsMouseClicks (false, false);
     setTooltip ("Output level. Dark when silent, white as it approaches 0 dBFS, "
                 "red while the signal is over.");
-    motion.startTimerHz (*this, 30);
+    motion.startTimerHz (*this, kRefreshHz);
 }
 
 OutputLed::~OutputLed()
@@ -1150,33 +1178,48 @@ void OutputLed::setSource (LuthierAudioProcessor* p)
     processor = p;
 }
 
-void OutputLed::timerCallback()
+void OutputLed::refresh()
 {
     if (processor == nullptr)
         return;
 
-    const double db = processor->getEngine().getMasterBus().getPeakDb();
+    const auto& master = processor->getEngine().getMasterBus();
+    const double now = juce::Time::getMillisecondCounterHiRes();
 
-    // -inf is the dark grey; brightness rises toward white as the level nears 0 dB.
-    const float target = (float) juce::jlimit (0.0, 1.0, (db + 48.0) / 48.0);
-
-    // cpu-quality-modes 6: at Low no decay, and the clip LED latches (for a
-    // second after the level drops back) instead of pulsing.
-    if (AnimationPolicy::get().isReadoutStepped())
+    // gui-engine-dataflow.md 3: no new block for kStaleAfterMs -> unlit, not
+    // whatever the last real peak happened to be.
+    const auto blocks = master.getProcessedBlockCount();
+    if (blocks != lastBlockCount)
     {
-        brightness = target;
-        const double now = juce::Time::getMillisecondCounterHiRes();
+        lastBlockCount = blocks;
+        lastBlockChangeMs = now;
+    }
 
-        if (db > 0.0)
-            clipLatchedAtMs = now;
+    stale = (now - lastBlockChangeMs) > kStaleAfterMs;
 
-        overThreshold = (db > 0.0) || now - clipLatchedAtMs < 1000.0;
+    if (stale)
+    {
+        brightness = 0.0f;
+        overThreshold = false;
         repaint();
         return;
     }
 
-    brightness = juce::jmax (target, brightness * 0.86f);
-    overThreshold = (db > 0.0);
+    const double db = master.getPeakDb();
+
+    // -inf is the dark grey; brightness rises toward white as the level nears 0 dB.
+    const float target = (float) juce::jlimit (0.0, 1.0, (db + 48.0) / 48.0);
+
+    // gui-engine-dataflow.md 8: red is held for 400 ms before re-evaluating,
+    // so a single hot sample does not flicker.
+    if (db > 0.0)
+        clipLatchedAtMs = now;
+
+    overThreshold = now - clipLatchedAtMs < kOverHoldMs;
+
+    // cpu-quality-modes 6: at Low the LED steps with no ballistics.
+    brightness = AnimationPolicy::get().isReadoutStepped() ? target
+                                                            : juce::jmax (target, brightness * 0.86f);
 
     repaint();
 }
@@ -1189,7 +1232,7 @@ void OutputLed::paint (juce::Graphics& g)
     const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
     const auto centre = bounds.getCentre();
 
-    const auto dark = juce::Colour (0xff4a4640);
+    const auto dark = juce::Colour (0xff5A5F66);   // gui-engine-dataflow.md 8
 
     auto colour = overThreshold
                     ? Palette::clip

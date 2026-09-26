@@ -345,8 +345,20 @@ public:
 
     void paint (juce::Graphics&) override;
 
+    /** What the timer does, for the tests. */
+    void refresh();
+
+    float getPeakHoldLeft() const noexcept { return peakHoldL; }
+    float getPeakHoldRight() const noexcept { return peakHoldR; }
+    float getDisplayPeakDb() const noexcept { return displayPeakDb; }
+
+    /** gui-engine-dataflow.md 5: true 200 ms after the last processed block. */
+    bool isStale() const noexcept { return stale; }
+
+    static constexpr double kStaleAfterMs = 200.0;
+
 private:
-    void timerCallback() override;
+    void timerCallback() override { refresh(); }
 
     LuthierAudioProcessor* processor = nullptr;
     bool horizontal = false;
@@ -355,6 +367,10 @@ private:
     float peakHoldL = 0.0f, peakHoldR = 0.0f;
     int holdCountL = 0, holdCountR = 0;
     float displayPeakDb = -100.0f;
+    bool stale = true;
+
+    std::uint32_t lastBlockCount = 0;
+    double lastBlockChangeMs = -1.0e12;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LevelMeter)
 
@@ -377,13 +393,31 @@ public:
     void setSource (LuthierAudioProcessor* processor);
     void paint (juce::Graphics&) override;
 
+    /** What the timer does, for the tests (as FeedbackLed::refresh). */
+    void refresh();
+
+    float getBrightness() const noexcept { return brightness; }
+    bool isOverThreshold() const noexcept { return overThreshold; }
+
+    /** gui-engine-dataflow.md 3: true 100 ms after the last processed block. */
+    bool isStale() const noexcept { return stale; }
+
+    static constexpr int kRefreshHz = 60;
+    static constexpr double kStaleAfterMs = 100.0;
+    static constexpr double kOverHoldMs = 400.0;
+
 private:
-    void timerCallback() override;
+    void timerCallback() override { refresh(); }
 
     LuthierAudioProcessor* processor = nullptr;
     float brightness = 0.0f;
     bool overThreshold = false;
+    bool stale = true;
     double clipLatchedAtMs = -1.0e12;   // cpu-quality-modes 6
+
+    // gui-engine-dataflow.md 3 and 8: unlit after 100 ms with no new block.
+    std::uint32_t lastBlockCount = 0;
+    double lastBlockChangeMs = -1.0e12;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputLed)
 
