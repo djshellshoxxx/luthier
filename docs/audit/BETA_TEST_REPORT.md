@@ -202,6 +202,7 @@ Reproduced on the integration branch itself (`7442855`), so not caused by this b
 - `cpuQualityMotionPolicy`: the illustration's reduced-motion overlay is not set, and the string pixels change while motion is Off (the gap audit's J top gap 2: `StringMotionPolicy` checks only Reduced motion).
 - `AS25_theOptionsRows`: the VISUAL AIDS group starts 20 px below the tooltips row.
 - B-18 and B-19 (feedback loop) belong to the same owner.
+- `CQ12_everyFactoryPresetAtEveryLevel` (feat-cpu): "Fingerstyle Folk at low: -0.99 LU from High" (identical on the integration branch), and "CPU not High > Medium >= Low" on a varying handful of acoustic presets (Parlor Blues, Strummed Dreadnought, Fingerstyle Folk...). The CPU ordering is measured wall-clock on a shared 4-core container and changes preset to preset between runs, so it is load-sensitive; the loudness step is not.
 
 ### Harness corrections in round 2 (test physics, not engine changes)
 
