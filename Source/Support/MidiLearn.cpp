@@ -6,6 +6,12 @@ namespace luthier
 MidiLearnManager::MidiLearnManager (juce::AudioProcessorValueTreeState& state)
     : apvts (state)
 {
+    // SPEC-SWEEP (UW-29): the user's global mappings are there from the start.
+    loadGlobalMappings();
+
+    const juce::ScopedLock sl (lock);
+    mergeGlobalMappings();
+    rebuildLookup();
 }
 
 MidiLearnManager::~MidiLearnManager()
@@ -381,6 +387,133 @@ void MidiLearnManager::processMidi (const juce::MidiBuffer& midi) noexcept
 }
 
 //==============================================================================
+// SPEC-SWEEP (UW-29)
+namespace
+{
+    juce::File& globalFileOverride()
+    {
+        static juce::File file;
+        return file;
+    }
+}
+
+juce::File MidiLearnManager::getGlobalMappingsFile()
+{
+    if (globalFileOverride() != juce::File())
+        return globalFileOverride();
+
+    return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
+             .getChildFile ("Luthier").getChildFile ("config").getChildFile ("midi-global.json");
+}
+
+void MidiLearnManager::setGlobalMappingsFileForTesting (const juce::File& file)
+{
+    globalFileOverride() = file;
+}
+
+void MidiLearnManager::loadGlobalMappings()
+{
+    const auto file = getGlobalMappingsFile();
+    const juce::ScopedLock sl (lock);
+    globalMappings.clear();
+
+    if (! file.existsAsFile())
+        return;
+
+    const auto parsed = juce::JSON::parse (file.loadFileAsString());   // kept: getArray points into it
+
+    if (auto* array = parsed.getArray())
+        for (const auto& item : *array)
+            if (auto* obj = item.getDynamicObject())
+            {
+                Mapping m;
+                m.parameterId = obj->getProperty ("parameter").toString();
+                m.ccNumber = (int) obj->getProperty ("cc");
+                m.channel = (int) obj->getProperty ("channel");
+                m.rangeMin = obj->hasProperty ("min") ? (double) obj->getProperty ("min") : 0.0;
+                m.rangeMax = obj->hasProperty ("max") ? (double) obj->getProperty ("max") : 1.0;
+                m.inverted = obj->getProperty ("inverted");
+                m.global = true;
+
+                if (m.parameterId.isNotEmpty() && juce::isPositiveAndBelow (m.ccNumber, kNumSources))
+                    globalMappings.add (m);
+            }
+}
+
+void MidiLearnManager::saveGlobalMappings() const
+{
+    juce::Array<juce::var> array;
+
+    {
+        const juce::ScopedLock sl (lock);
+
+        for (const auto& m : globalMappings)
+        {
+            auto* obj = new juce::DynamicObject();
+            obj->setProperty ("parameter", m.parameterId);
+            obj->setProperty ("cc", m.ccNumber);
+            obj->setProperty ("channel", m.channel);
+            obj->setProperty ("min", m.rangeMin);
+            obj->setProperty ("max", m.rangeMax);
+            obj->setProperty ("inverted", m.inverted);
+            array.add (juce::var (obj));
+        }
+    }
+
+    const auto file = getGlobalMappingsFile();
+    file.getParentDirectory().createDirectory();
+    file.replaceWithText (juce::JSON::toString (juce::var (array)));
+}
+
+void MidiLearnManager::mergeGlobalMappings()
+{
+    for (const auto& g : globalMappings)
+    {
+        bool taken = false;
+
+        for (const auto& m : mappings)
+            taken = taken || m.parameterId == g.parameterId || m.ccNumber == g.ccNumber;
+
+        if (! taken && apvts.getParameter (g.parameterId) != nullptr)
+            mappings.add (g);
+    }
+}
+
+void MidiLearnManager::setMappingGlobal (const juce::String& parameterId, bool isGlobal)
+{
+    {
+        const juce::ScopedLock sl (lock);
+
+        for (int i = globalMappings.size(); --i >= 0;)
+            if (globalMappings.getReference (i).parameterId == parameterId)
+                globalMappings.remove (i);
+
+        for (auto& m : mappings)
+            if (m.parameterId == parameterId)
+            {
+                m.global = isGlobal;
+
+                if (isGlobal)
+                    globalMappings.add (m);
+            }
+    }
+
+    saveGlobalMappings();
+    sendChangeMessage();
+}
+
+bool MidiLearnManager::isMappingGlobal (const juce::String& parameterId) const
+{
+    const juce::ScopedLock sl (lock);
+
+    for (const auto& m : mappings)
+        if (m.parameterId == parameterId)
+            return m.global;
+
+    return false;
+}
+
+//==============================================================================
 // SPEC-SWEEP (IR-4)
 int MidiLearnManager::sourceKeyFor (const juce::MidiMessage& m, double& value, bool includeNotes) noexcept
 {
@@ -453,6 +586,10 @@ juce::var MidiLearnManager::toVar() const
         obj->setProperty ("min", m.rangeMin);
         obj->setProperty ("max", m.rangeMax);
         obj->setProperty ("inverted", m.inverted);
+
+        if (m.global)
+            obj->setProperty ("global", true);   // SPEC-SWEEP UW-29
+
         array.add (juce::var (obj));
     }
 
@@ -482,6 +619,7 @@ void MidiLearnManager::fromVar (const juce::var& data)
                     m.rangeMin = obj->hasProperty ("min") ? (double) obj->getProperty ("min") : 0.0;
                     m.rangeMax = obj->hasProperty ("max") ? (double) obj->getProperty ("max") : 1.0;
                     m.inverted = obj->getProperty ("inverted");
+                    m.global = obj->getProperty ("global");   // SPEC-SWEEP UW-29
 
                     if (m.parameterId.isNotEmpty() && juce::isPositiveAndBelow (m.ccNumber, kNumSources))
                         mappings.add (m);
@@ -489,6 +627,7 @@ void MidiLearnManager::fromVar (const juce::var& data)
             }
         }
 
+        mergeGlobalMappings();   // SPEC-SWEEP UW-29: under what the loaded state maps
         rebuildLookup();
     }
 

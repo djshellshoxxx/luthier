@@ -704,3 +704,51 @@ LUTHIER_TEST (InputRouting, transportStartStopAndRepositionResyncRhythmTuneAndMe
 
     processor.setPlayHead (nullptr);
 }
+
+/*  UW-29 (ui-wiring 8): a mapping kept "for every preset" lives in the user's
+    settings and comes back under whatever a newly loaded state maps. */
+LUTHIER_TEST (MidiLearn, aGlobalMappingSurvivesAPresetLoad)
+{
+    const auto file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getChildFile ("luthier-midi-global-test.json");
+    file.deleteFile();
+    MidiLearnManager::setGlobalMappingsFileForTesting (file);
+
+    {
+        LuthierAudioProcessor processor;
+        auto& learn = processor.getMidiLearn();
+        learn.addMapping (ParamIDs::ampGain, 88);
+        learn.setMappingGlobal (ParamIDs::ampGain, true);
+        CHECK (learn.isMappingGlobal (ParamIDs::ampGain));
+        CHECK (file.existsAsFile());
+
+        // A state with a different map of its own: the global one joins it.
+        LuthierAudioProcessor other;
+        other.getMidiLearn().clearAllMappings();
+        other.getMidiLearn().addMapping (ParamIDs::ampBass, 22);
+
+        juce::MemoryBlock state;
+        other.getStateInformation (state);
+
+        processor.setStateInformation (state.getData(), (int) state.getSize());
+        CHECK (learn.getCcForParameter (ParamIDs::ampBass) == 22);
+        CHECK_MSG (learn.getCcForParameter (ParamIDs::ampGain) == 88, "the global mapping did not survive the load");
+    }
+
+    // A new instance starts with it; a state that maps the same CC elsewhere wins.
+    {
+        LuthierAudioProcessor probe;
+        MidiLearnManager direct (probe.getState());
+        CHECK_MSG (direct.getNumMappings() == 1, "a directly built manager has " + juce::String (direct.getNumMappings()));
+
+        LuthierAudioProcessor fresh;
+        CHECK (fresh.getMidiLearn().getCcForParameter (ParamIDs::ampGain) == 88);
+
+        fresh.getMidiLearn().setMappingGlobal (ParamIDs::ampGain, false);
+        LuthierAudioProcessor after;
+        CHECK (after.getMidiLearn().getCcForParameter (ParamIDs::ampGain) < 0);
+    }
+
+    MidiLearnManager::setGlobalMappingsFileForTesting ({});
+    file.deleteFile();
+}

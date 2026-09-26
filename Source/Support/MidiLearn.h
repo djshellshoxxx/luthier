@@ -27,7 +27,17 @@ public:
         double rangeMin = 0.0;
         double rangeMax = 1.0;
         bool   inverted = false;
+        bool   global = false;     ///< SPEC-SWEEP UW-29: kept across presets, in the user's settings
     };
+
+    /*  SPEC-SWEEP (UW-29, ui-wiring 8): a mapping can be global - saved in the
+        user's settings rather than the session or preset, and merged under
+        whatever a loaded preset maps (a preset's own mapping for the same
+        parameter or source wins). */
+    void setMappingGlobal (const juce::String& parameterId, bool isGlobal);
+    bool isMappingGlobal (const juce::String& parameterId) const;
+    static juce::File getGlobalMappingsFile();
+    static void setGlobalMappingsFileForTesting (const juce::File& file);
 
     /*  SPEC-SWEEP (IR-4, input-routing 1.1 step 2): what a mapping listens to.
         `Mapping::ccNumber` is a source key: 0-127 are CCs (as they always were,
@@ -147,6 +157,11 @@ private:
     juce::SpinLock tableLock;
     std::array<LookupEntry, kNumSources> lookup {};   // SPEC-SWEEP IR-4: every source kind
     std::atomic<bool> learnNotes { false };
+
+    juce::Array<Mapping> globalMappings;   // SPEC-SWEEP UW-29, under `lock`
+    void loadGlobalMappings();
+    void saveGlobalMappings() const;
+    void mergeGlobalMappings();   // under `lock`
 
     /** A CC caught while learning, handed to the message thread (-1 = none). */
     std::atomic<int> learnedCc { -1 };
