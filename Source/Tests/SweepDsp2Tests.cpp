@@ -3311,3 +3311,22 @@ LUTHIER_TEST (Buzz, aBendMovesTheBuzzUpTheNeck)
     // Unbent strings are untouched.
     CHECK_NEAR (buzz.clearanceFor (s + 1, 5.0, 6), buzz.getGeometry().clearanceMm (s + 1, 5.0, 6), 1.0e-12);
 }
+
+LUTHIER_TEST (Buzz, lightBuzzSitsThirtyToFortyDecibelsUnder)
+{
+    // FB-13 (fret-buzz.md 0.4): a light contact (0.05-0.1 mm of excess) buzzes
+    // 30-40 dB under the note; a hard one comes up to about 22 dB under.
+    FretBuzz buzz;
+    SetupGeometry g;
+    g.fretHeight = 1.0;
+    buzz.setGeometry (g);
+
+    for (const double excess : { 0.05, 0.075, 0.1 })
+    {
+        const double db = gainToDb (buzz.levelFor (excess) / PlayingNoise::kNoteReference);
+        CHECK_MSG (db <= -30.0 && db >= -40.0, juce::String (excess) + " mm buzzes at " + juce::String (db, 1) + " dB");
+    }
+
+    CHECK_NEAR (gainToDb (buzz.levelFor (0.3) / PlayingNoise::kNoteReference), -22.0, 0.01);
+    CHECK (buzz.levelFor (0.0) == 0.0);
+}
