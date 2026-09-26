@@ -327,3 +327,25 @@ LUTHIER_TEST (HostState, anOldBlobIsBackedUpBeforeMigration)
         if (! before.contains (f))
             f.deleteFile();
 }
+
+//==============================================================================
+// QA-48: bypassed output must be bit-identical to no plugin at all. Luthier is
+// an instrument with no main input, so that means silence - not whatever the
+// buffer already held (the JUCE default merely passes the buffer through).
+LUTHIER_TEST (HostState, bypassOutputsSilence)
+{
+    LuthierAudioProcessor p;
+    p.prepareToPlay (48000.0, 256);
+
+    juce::AudioBuffer<float> buffer (p.getTotalNumOutputChannels(), 256);
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 60, 0.8f), 0);
+
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        buffer.getWritePointer (ch)[0] = 0.5f;   // garbage the JUCE default would pass through
+
+    p.processBlockBypassed (buffer, midi);
+
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        CHECK_NEAR (buffer.getMagnitude (ch, 0, buffer.getNumSamples()), 0.0f, 1.0e-9f);
+}

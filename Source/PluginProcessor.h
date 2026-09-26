@@ -60,6 +60,14 @@ public:
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
+    /** qa-polish QA-48: Luthier is an instrument with no main input, so "bypassed
+        output bit-identical to no plugin" means silence, not whatever the buffer
+        already held. */
+    void processBlockBypassed (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
+    {
+        buffer.clear();
+    }
+
     /** cpu-quality-modes 2.6: an offline bounce renders at High. Any thread. */
     void setNonRealtime (bool isNonRealtime) noexcept override;
 

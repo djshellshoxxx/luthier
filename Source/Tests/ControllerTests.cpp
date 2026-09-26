@@ -851,3 +851,68 @@ LUTHIER_TEST (Controllers, theChosenProfileSurvivesTheSessionRoundTrip)
 
     CHECK (restored.getEngine().getMidiInterpreter().isMpeEnabled());
 }
+
+//==============================================================================
+// CT-16: channel pressure on a per-channel controller's channel drives that
+// string's vibrato, not every string's.
+LUTHIER_TEST (Controllers, pressureOnAChannelVibratesOnlyItsString)
+{
+    ControllerProfileLibrary library;
+    const int gk = library.indexOf ("roland-gk");
+    CHECK (gk >= 0);
+
+    if (gk < 0)
+        return;
+
+    InterpreterFixture fixture;
+    ControllerProfileLibrary::apply (library.getProfile (gk), fixture.interpreter);
+
+    // roland-gk maps string index 2 (the third string) to channel 13.
+    CHECK (fixture.interpreter.getChannelForString (2) == 13);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::channelPressureChange (13, 100), 0);
+
+    PlayEventQueue out;
+    int64_t position = 0;
+    fixture.interpreter.processBlock (midi, 256, position, out);
+
+    CHECK (out.getNumPressures() == 1);
+
+    if (out.getNumPressures() == 1)
+    {
+        const auto& e = out.getPressure (0);
+        CHECK (e.stringIndex == 2);
+        CHECK_NEAR (e.value, 100.0 / 127.0, 1.0e-6);
+    }
+}
+
+//==============================================================================
+// CT-17: in MPE mode, the master channel (default 1) carries zone-wide
+// messages only. A note-on there used to fall through to the same per-channel
+// routing as a member channel and get voiced on whatever string channel 1
+// mapped to.
+LUTHIER_TEST (Controllers, mpeMasterChannelNotesAreIgnored)
+{
+    ControllerProfileLibrary library;
+    const int mpe = library.indexOf ("roli-seaboard");
+    CHECK (mpe >= 0);
+
+    if (mpe < 0)
+        return;
+
+    InterpreterFixture fixture;
+    const auto& profile = library.getProfile (mpe);
+    ControllerProfileLibrary::apply (profile, fixture.interpreter);
+
+    CHECK (fixture.interpreter.isMpeEnabled());
+    CHECK (fixture.interpreter.getMpeMasterChannel() == profile.mpeMasterChannel);
+
+    int64_t position = 0;
+    const int master = profile.mpeMasterChannel;
+
+    CHECK (fixture.noteOnString (master, 52, position) == -1);
+
+    // A member channel still plays normally.
+    CHECK (fixture.noteOnString (profile.mpeFirstMemberChannel, 52, position) >= 0);
+}
