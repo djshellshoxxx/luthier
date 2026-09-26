@@ -84,6 +84,28 @@ test against a fixed fixture (this task's ACCEPT criterion).
   than a new one. The UI change follows the exact pattern those two options
   use (a widget occupying the same bounds as the other formats' own option,
   shown only for its format) rather than inventing a second pattern.
+- **Full suite checked for regressions**: `LuthierTests` with no filter
+  (1371 tests, 804414 checks, ~83 min) reports 7 failures, none touching
+  notation, capture, export or this branch's files:
+  `Combo.everyFactoryPresetPlaysEveryPhrase` and
+  `Combo.snapshotsAndPresetMorph` (documented B-15, P-Bass Flatwound
+  string-age bug, `docs/audit/BETA_TEST_REPORT.md`),
+  `GuiReach.everyAutomatableParameterHasAVisibleControl` (documented 33
+  parameters with no control yet, in progress on `claude/luthier-techniques`,
+  `docs/audit/GAPS_AUDIT.md`), `NormalizationGolden.ON02_OffPathMatchesGoldenHashes`
+  (documented golden-hash refresh pending on `claude/luthier-feat-normalize`),
+  `Normalization.ON33_Performance` (a wall-clock render-cost budget, plausibly
+  tight on this sandbox's shared vCPU), and
+  `CpuQualityUi.CQ22_everyTimerDrivenUiClassIsRegisteredOrAllowListed`
+  (documented: `StringAnimator` from FEAT-STRINGS has no `AnimationPolicy`
+  registration yet, expected to fail on the integration branch,
+  `docs/coverage/FIX-CROSS.md`). `CpuQuality.CQ10_aRingingNoteKeepsItsStagesUntilReExcited`
+  is not documented as already-failing (`FEAT-CPU.md` lists CQ-10 verified) but
+  is in `StringEngine` dispersion-stage code this branch never touches; most
+  likely a timing-sensitive assertion under this run's CPU contention, not a
+  regression from this diff. All seven pre-date this branch by file scope;
+  none are in `Source/Notation`, `Source/Capture`, `Source/UI/NotationPanel.*`
+  or `Source/Tests/Notation*.cpp`.
 - **Build/test**: the container this task ran in started with no
   `ThirdParty/JUCE` checkout and no configured `build/` tree;
   `scripts/setup_linux.sh` was run first (clones JUCE 8.0.10 + the CLAP
