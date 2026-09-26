@@ -22,14 +22,14 @@ Every binding the doc lists exists in `AccessibilitySettings` with the documente
 | KS-16 (File) | Ctrl+Z / Ctrl+Shift+Z undo/redo | `keyPressed undo/redo` -> `processor.undo/redo` | n/a | `Editor::undoRedoAndABKeysReachTheProcessor` | DONE |
 | KS-17 (File) | Ctrl+R randomise, Ctrl+Shift+R reset everything, Ctrl+/ A/B | `keyPressed randomise/resetAll/abCompare` | n/a | `Editor::randomiseAndResetKeys`, `Editor::undoRedoAndABKeysReachTheProcessor` | DONE |
 | KS-18 (doc) | Doc lists every default binding — omits S (slide mode), Ctrl+N (new preset/Init), Ctrl+Alt+E (reveal preset), Ctrl+[ / ] (workspace tab) | `Accessibility.cpp` registry | n/a | n/a (doc) | DONE |
-| KS-19 (Control) | Left-drag adjust, Shift coarse, Ctrl ultra-fine | `UI/Widgets.cpp:LuthierKnob::KnobSlider::mouseDrag` (sensitivity 70/180/1200) | every knob | - | NO-TEST |
+| KS-19 (Control) | Left-drag adjust, Shift coarse, Ctrl ultra-fine | `UI/Widgets.cpp:LuthierKnob::KnobSlider::mouseDrag` (sensitivity 70/180/1200) | every knob | `Widgets::modifierDragSensitivity` | DONE |
 | KS-20 (Control) | Double-click resets to default | JUCE `SliderParameterAttachment` (`setDoubleClickReturnValue`) via `LuthierKnob::attachTo` | every knob | `Widgets::doubleClickReturnsAKnobToItsDefault` | DONE |
 | KS-21 (Control) | Right-click: Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise | `Widgets.cpp:showParameterContextMenu` | every knob | `Editor::rightClickOffersModulationAndBuildsTheRoute` (Modulate only), `RangesUi::rightClickUnlocksAndRestrictsOneControl` — core items not asserted | NO-TEST |
 | KS-22 (Control) | Hover row: value appears above the control, label stays; tooltip 400 ms | `LuthierKnob::paint` showValue | every knob | - | DONE |
 | KS-23 (Fretboard) | Click plays note, higher in lane = harder | `FretboardComponent::mouseDown` velocity from `withinLane` -> `triggerPreviewNote` | Easy/Advanced fretboard | - | NO-TEST |
 | KS-24 (Fretboard) | Right-click: mute string, select string, set capo, scale overlay | `FretboardComponent::mouseDown` popup, `setCapoFret` drives `capoFret` param | fretboard | - | NO-TEST |
 | KS-25 (Illustration) | Click pickup selects it; click switch advances position; drag knob = volume/tone | `GuitarBodyComponent::mouseDown/mouseDrag` | guitar illustration | `Editor::everyHitRegionOnTheIllustrationDescribesItself` (tooltips only) | NO-TEST |
-| KS-26 (Pedal rack) | Drag slot onto another reorders; right-click clear slot / reset pedal | `PedalRack.cpp:PedalSlotComponent::mouseUp/onReorderRequested`, `PedalRack::reorder`; menu items 1/2 | Advanced pedal rack | `Effects::chainReordersWithoutGlitching` (engine only) | NO-TEST |
+| KS-26 (Pedal rack) | Drag slot onto another reorders; right-click clear slot / reset pedal | `PedalRack.cpp:PedalSlotComponent::mouseUp/onReorderRequested`, `PedalRack::reorder`; menu items 1/2 | Advanced pedal rack | `PedalRack::dragOntoAnotherSlotReorders` (the clear/reset menu items are not driven) | DONE |
 | KS-27 (Overlay) | Escape, click outside, Close button all close; only one overlay at a time | `Overlays.cpp:OverlayHost::mouseDown/dismiss`, `closeButton` | every overlay | `Editor::overlaysCloseFromTheScrimAndTheirCloseButton` | DONE |
 
 <!-- counts DONE=7 NO-GUI=0 NO-TEST=18 PARTIAL=2 MISSING=0 OWNED=0 -->

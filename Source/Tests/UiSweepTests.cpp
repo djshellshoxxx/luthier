@@ -18,6 +18,7 @@
 #include "../UI/PracticePanel.h"
 #include "../UI/NextStrumArrow.h"
 #include "../UI/Overlays.h"
+#include "../UI/PedalRack.h"
 #include "../Live/Setlist.h"
 #include "../Rhythm/Patterns.h"
 #include "../Accessibility/Accessibility.h"
@@ -851,4 +852,84 @@ LUTHIER_TEST (Editor, overlaysCloseFromTheScrimAndTheirCloseButton)
         close->onClick();
         CHECK_MSG (! host->isShowingOverlay(), "the Close button did not close the overlay");
     }
+}
+
+/*  KS-19 (docs/KEYBOARD_SHORTCUTS.md "On any control"): Shift + drag is coarse,
+    Ctrl/Cmd + drag ultra-fine, a plain drag in between. */
+LUTHIER_TEST (Widgets, modifierDragSensitivity)
+{
+    LuthierAudioProcessor processor;
+    LuthierKnob knob ("Gain");
+    knob.attachTo (processor, ParamIDs::ampGain);
+    knob.setSize (LuthierKnob::preferredWidthFor (LuthierKnob::Size::Normal),
+                  LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
+
+    auto& slider = knob.getSlider();
+
+    auto dragBy = [&slider] (juce::ModifierKeys extra, float pixelsUp)
+    {
+        slider.setValue (slider.getMinimum() + 0.25 * (slider.getMaximum() - slider.getMinimum()),
+                         juce::sendNotificationSync);
+        const double before = slider.getValue();
+
+        auto source = juce::Desktop::getInstance().getMainMouseSource();
+        const juce::Point<float> start ((float) slider.getWidth() / 2.0f, (float) slider.getHeight() / 2.0f);
+        const auto mods = extra.withFlags (juce::ModifierKeys::leftButtonModifier);
+        const auto now = juce::Time::getCurrentTime();
+
+        slider.mouseDown (juce::MouseEvent (source, start, mods, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                            &slider, &slider, now, start, now, 1, false));
+
+        for (int step = 1; step <= 4; ++step)
+        {
+            const juce::Point<float> p (start.x, start.y - pixelsUp * (float) step / 4.0f);
+            slider.mouseDrag (juce::MouseEvent (source, p, mods, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                                &slider, &slider, now, start, now, 1, true));
+        }
+
+        slider.mouseUp (juce::MouseEvent (source, { start.x, start.y - pixelsUp }, mods, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                          &slider, &slider, now, start, now, 1, true));
+
+        return std::abs (slider.getValue() - before);
+    };
+
+    const double normal = dragBy ({}, 20.0f);
+    const double coarse = dragBy (juce::ModifierKeys::shiftModifier, 20.0f);
+    const double fine = dragBy (juce::ModifierKeys::commandModifier, 20.0f);
+
+    CHECK_MSG (normal > 0.0, "a plain drag did not move the knob");
+    CHECK_MSG (coarse > normal, "Shift was not coarser: " + juce::String (coarse) + " vs " + juce::String (normal));
+    CHECK_MSG (fine < normal && fine > 0.0, "Ctrl/Cmd was not finer: " + juce::String (fine) + " vs " + juce::String (normal));
+}
+
+/*  KS-26 (docs/KEYBOARD_SHORTCUTS.md "In the pedal rack"): dragging a slot onto
+    another moves that pedal there, with its settings, in the parameters. */
+LUTHIER_TEST (PedalRack, dragOntoAnotherSlotReorders)
+{
+    LuthierAudioProcessor processor;
+    PedalRack rack (processor, false);
+    CHECK (rack.getNumSlots() >= 2);
+
+    auto& state = processor.getState();
+    auto* type0 = state.getParameter (ParamIDs::slotType (false, 0));
+    auto* type1 = state.getParameter (ParamIDs::slotType (false, 1));
+    auto* mix0 = state.getParameter (ParamIDs::slotMix (false, 0));
+
+    type0->setValueNotifyingHost (type0->convertTo0to1 (1.0f));
+    type1->setValueNotifyingHost (type1->convertTo0to1 (2.0f));
+    mix0->setValueNotifyingHost (0.3f);
+
+    const float a = type0->getValue(), b = type1->getValue();
+
+    auto* slot = rack.getSlot (0);
+    CHECK (slot != nullptr && slot->onReorderRequested != nullptr);
+
+    if (slot == nullptr || slot->onReorderRequested == nullptr)
+        return;
+
+    slot->onReorderRequested (0, 1);   // what a drag released over slot 1 calls
+
+    CHECK_NEAR (type1->getValue(), a, 1.0e-6);
+    CHECK_NEAR (type0->getValue(), b, 1.0e-6);
+    CHECK_NEAR (state.getParameter (ParamIDs::slotMix (false, 1))->getValue(), 0.3f, 1.0e-6);
 }
