@@ -15,7 +15,7 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-9 (§0.5, §1.1) | Free-running LFO as per-source option: ignores notes and transport | `ModLfo::Retrigger::freeRun` | ADVANCED > MOD, LFO card `retriggerBox` | `Modulation::transportStartAndNotesRetriggerWhereTheySay` | DONE |
 | MM-10 (§0.6, §6) | Matrix stored under `modulation` in every preset (state worker's PresetBlocks) | `writePresetBlocks`/`readPresetBlocks` | n/a | `Presets::processorBlocksTravelInThePresetFile`, `Modulation::aPresetFileCarriesTheMatrixExactly` | DONE |
 | MM-11 (§1.1) | LFO x8, 8 shapes incl S+H, random smooth, custom | `Modulation/ModSources.cpp:ModLfo` | MOD LFO card `shapeBox` | `Modulation::lfoFrequencyIsAccurate`, `Modulation::sampleAndHoldHoldsForAWholeCycle` | DONE |
-| MM-12 (§1.1) | LFO custom 8-point breakpoint editor — engine only | `ModLfo::setBreakpoint` | - | - | NO-GUI |
+| MM-12 (§1.1) | LFO custom 8-point breakpoint editor — component and edit kind done; placement on the LFO card waits on the ModMatrixPanel merge | `ModLfo::setBreakpoint`, `ModSourceEdit::Kind::lfoBreakpoint` | `UI/ModSourceEditors` `LfoBreakpointEditor` (not yet on the card) | `ModMatrixUi::draggingABreakpointWritesTheLfo` | PARTIAL |
 | MM-13 (§1.1) | LFO rate 0.01-40 Hz or tempo-synced 1/32T..8 bars incl dotted/triplet | `ModLfo`, `ModSyncDivision` | MOD LFO card `rateSlider`, `syncButton`, `divisionBox` | `Modulation::syncedLfoFollowsTheHost`, `Modulation::lfoFrequencyIsAccurate` | DONE |
 | MM-14 (§1.1) | LFO phase offset 0-360 | `ModLfo::setPhaseOffsetDegrees` | MOD LFO card `phaseSlider` | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
 | MM-15 (§1.1) | LFO depth, symmetry, smoothing 0-500 ms, uni/bipolar — untested | `ModLfo::setDepth/setSymmetry/setSmoothingMs/setBipolar` | MOD LFO card sliders, `bipolarButton` | - | NO-TEST |
@@ -25,7 +25,7 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-19 (§1.2) | Envelope retrigger legato/always/one-shot | `ModEnvelope::setRetrigger` | MOD ENV card `envRetriggerBox` | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
 | MM-20 (§1.2) | Envelope loop mode off/D-S/D-R | `ModEnvelope::setLoopMode` | MOD ENV card `loopModeBox` | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
 | MM-21 (§1.3) | Step seq x2: length 4-64, grid, 5 directions, swing 0-75% | `ModStepSequencer` | MOD STEP card `lengthSlider`, `divisionBox`, `directionBox`, `swingSlider` | `Modulation::stepSequencerWalksItsSteps` | DONE |
-| MM-22 (§1.3) | Per-step value/gate/slide/probability — no step grid | `ModStepSequencer::setStep` | - | `Modulation::stepSequencerWalksItsSteps` (engine) | NO-GUI |
+| MM-22 (§1.3) | Per-step value/gate/slide/probability — step grid component and edit kind done; placement on the STEP card waits on the ModMatrixPanel merge | `ModStepSequencer::setStep`, `ModSourceEdit::Kind::seqStep` | `UI/ModSourceEditors` `StepGridEditor` (not yet on the card) | `ModMatrixUi::theStepGridWritesSteps`, `Modulation::stepSequencerWalksItsSteps` | PARTIAL |
 | MM-23 (§1.3) | Seq sync to host / internal rate (now with a control, saved in the matrix); no tap-tempo option | `ModStepSequencer::setSynced/setInternalRateHz`, `ModMatrix::toVar` "rate" | MOD STEP card `syncButton` + `seqRateSlider` | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | PARTIAL |
 | MM-24 (§1.4) | Followers x2: source main/sidechain/per-string/pickup, attack, release, detection, threshold | `ModEnvelopeFollower` | MOD FOLLOW card `followerSourceBox`, `detectionBox`, sliders | `Modulation::envelopeFollowerTracksLevel` | DONE |
 | MM-25 (§1.4) | Follower per-string index and log/linear output curve | `ModEnvelopeFollower::setStringIndex/setLogarithmic` | MOD FOLLOW card `followerStringBox` + `Log` toggle | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
@@ -61,4 +61,4 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-T4 (§8) | Test: 5-option selector changes at 1/5..4/5 | n/a | n/a | `Modulation::discreteDestinationsStepAtBoundaries` | DONE |
 | MM-T5 (§8) | Test: seeded random renders byte-identical | n/a | n/a | `Modulation::randomSourcesAreDeterministic` | DONE |
 
-<!-- counts DONE=36 NO-GUI=2 NO-TEST=5 PARTIAL=7 MISSING=5 OWNED=1 -->
+<!-- counts DONE=36 NO-GUI=0 NO-TEST=5 PARTIAL=9 MISSING=5 OWNED=1 -->

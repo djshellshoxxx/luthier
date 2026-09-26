@@ -949,6 +949,22 @@ void ModMatrix::applySourceEdit (const ModSourceEdit& e) noexcept
             break;
         }
 
+        // SPEC-SWEEP: MM-12 / MM-22.
+        case ModSourceEdit::Kind::lfoBreakpoint:
+            getLfo (e.index).setBreakpoint (e.subIndex, e.pointValue);
+            break;
+
+        case ModSourceEdit::Kind::seqStep:
+        {
+            ModStepSequencer::Step step;
+            step.value = juce::jlimit (-1.0, 1.0, e.pointValue);
+            step.gate = e.stepGate;
+            step.slide = e.stepSlide;
+            step.probability = juce::jlimit (0.0, 1.0, e.stepProbability);
+            getSequencer (e.index).setStep (e.subIndex, step);
+            break;
+        }
+
         case ModSourceEdit::Kind::none:
         default:
             break;

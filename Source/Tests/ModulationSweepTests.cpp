@@ -9,6 +9,8 @@
 #include "../PhysicalRange.h"
 #include "../PluginProcessor.h"
 #include "../UI/ModMatrixPanel.h"
+#include "../UI/ModSourceEditors.h"
+#include "../Modulation/ModSourceEdit.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -260,4 +262,110 @@ LUTHIER_TEST (Modulation, aPresetFileCarriesTheMatrixExactly)
     file.deleteFile();
 
     CHECK_MSG (before == after, "the matrix changed through a preset file:\n" + before + "\nvs\n" + after);
+}
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-12 / MM-22 - the breakpoint editor and the step grid write
+    their sources through the matrix's edit queue. */
+namespace
+{
+    juce::MouseEvent mouseAt (juce::Component& c, float x, float y, juce::ModifierKeys mods = {})
+    {
+        return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), { x, y }, mods,
+                                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &c, &c, juce::Time::getCurrentTime(),
+                                 { x, y }, juce::Time::getCurrentTime(), 1, false);
+    }
+}
+
+LUTHIER_TEST (ModMatrixUi, draggingABreakpointWritesTheLfo)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    auto& matrix = processor.getModMatrix();
+
+    LfoBreakpointEditor editor;
+    editor.setSize (140, LfoBreakpointEditor::preferredHeight);
+    editor.getPoint = [&matrix] (int i) { return matrix.getLfo (2).getBreakpoint (i); };
+    editor.setPoint = [&matrix] (int i, double v)
+    {
+        ModSourceEdit e;
+        e.kind = ModSourceEdit::Kind::lfoBreakpoint;
+        e.index = 2;
+        e.subIndex = i;
+        e.pointValue = v;
+        matrix.postSourceEdit (e);
+    };
+
+    // Point 3 sits at x = 60 (140 / 7 per point); the top is +1.
+    editor.mouseDown (mouseAt (editor, 60.0f, 0.0f));
+    CHECK_NEAR (matrix.getLfo (2).getBreakpoint (3), 1.0, 1.0e-6);
+
+    editor.mouseDrag (mouseAt (editor, 61.0f, (float) editor.getHeight() * 0.75f));
+    CHECK_NEAR (matrix.getLfo (2).getBreakpoint (3), -0.5, 1.0e-6);
+    CHECK_NEAR (matrix.getLfo (2).getBreakpoint (4), matrix.getLfo (0).getBreakpoint (4), 1.0e-12);   // neighbours untouched
+
+    juce::Image image (juce::Image::ARGB, 140, LfoBreakpointEditor::preferredHeight, true);
+    juce::Graphics g (image);
+    editor.paintEntireComponent (g, false);
+}
+
+LUTHIER_TEST (ModMatrixUi, theStepGridWritesSteps)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    auto& matrix = processor.getModMatrix();
+    auto& seq = matrix.getSequencer (1);
+
+    StepGridEditor grid;
+    grid.setSize (160, StepGridEditor::preferredHeight);   // 16 steps of 10 px
+    grid.getLength = [&seq] { return seq.getLength(); };
+    grid.getStep = [&seq] (int i) { return seq.getStep (i); };
+    grid.setStep = [&matrix] (int i, const ModStepSequencer::Step& s)
+    {
+        ModSourceEdit e;
+        e.kind = ModSourceEdit::Kind::seqStep;
+        e.index = 1;
+        e.subIndex = i;
+        e.pointValue = s.value;
+        e.stepGate = s.gate;
+        e.stepSlide = s.slide;
+        e.stepProbability = s.probability;
+        matrix.postSourceEdit (e);
+    };
+
+    CHECK (seq.getLength() == 16);
+
+    const float barHeight = (float) (StepGridEditor::preferredHeight - StepGridEditor::probabilityRowHeight);
+
+    // Step 4: drag to the top.
+    grid.mouseDown (mouseAt (grid, 45.0f, 0.0f));
+    CHECK_NEAR (seq.getStep (4).value, 1.0, 1.0e-6);
+
+    // Drag it down to a quarter below centre.
+    grid.mouseDrag (mouseAt (grid, 45.0f, barHeight * 0.625f));
+    CHECK_NEAR (seq.getStep (4).value, -0.25, 1.0e-6);
+
+    // Cmd/Ctrl-click toggles the gate, Alt-click the slide.
+    const bool gateBefore = seq.getStep (7).gate;
+    grid.mouseDown (mouseAt (grid, 75.0f, 10.0f, juce::ModifierKeys (juce::ModifierKeys::commandModifier)));
+    CHECK (seq.getStep (7).gate != gateBefore);
+
+    const bool slideBefore = seq.getStep (7).slide;
+    grid.mouseDown (mouseAt (grid, 75.0f, 10.0f, juce::ModifierKeys (juce::ModifierKeys::altModifier)));
+    CHECK (seq.getStep (7).slide != slideBefore);
+
+    // The bottom strip is probability: 30 % of the way across step 9.
+    const double valueBefore = seq.getStep (9).value;
+    grid.mouseDown (mouseAt (grid, 93.0f, (float) StepGridEditor::preferredHeight - 3.0f));
+    CHECK_NEAR (seq.getStep (9).probability, 0.3, 1.0e-3);
+    CHECK_NEAR (seq.getStep (9).value, valueBefore, 1.0e-12);   // value untouched
+
+    // And the matrix saves what the grid wrote.
+    ModMatrix copy;
+    copy.fromVar (matrix.toVar());
+    CHECK_NEAR (copy.getSequencer (1).getStep (4).value, -0.25, 1.0e-6);
+
+    juce::Image image (juce::Image::ARGB, 160, StepGridEditor::preferredHeight, true);
+    juce::Graphics g (image);
+    grid.paintEntireComponent (g, false);
 }
