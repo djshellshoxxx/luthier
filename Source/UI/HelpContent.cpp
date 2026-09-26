@@ -119,7 +119,7 @@ namespace
 
         { "signal-capture", "Column 2: Signal Capture",
           "Signal capture|PICKUPS|Pickups|CIRCUIT|Circuit|PRE-FX|PRE-EFFECTS RACK|Pedalboard (before the amp)|"
-          "Pedalboard|Playing Hand|String Noise",
+          "Pedalboard|Playing Hand|String Noise|Pre-effects",
           "- Pickups: the selector, then per slot the type, the magnet and the volume, and coil tap. "
           "Position is drawn on the instrument; move it in the Workshop.\n"
           "- Circuit: the guitar's own electronics - volume and tone pots and their taper, the tone capacitor, "
@@ -134,7 +134,7 @@ namespace
 
         { "amplification", "Column 3: Amplification",
           "Amplification|Rig|AMP|Amplifier|POST-FX|POST-EFFECTS RACK|Effects Loop (after the amp)|Effects Loop|CAB|"
-          "Cabinet and Mic|Cabinet|ROOM|Room|SUSTAIN|Sustain|Performance|Humanise|Humanize|Master",
+          "Cabinet and Mic|Cabinet|ROOM|Room|SUSTAIN|Sustain|Performance|Humanise|Humanize|Master|Post-effects",
           "- Amplifier: the model and its face - gain, bass, mid, treble, presence, master - with the bright, "
           "mid boost and standby switches. Standby mutes the amp.\n"
           "- Effects loop (after the amp): the post-amp pedal slots.\n"
@@ -636,11 +636,11 @@ namespace
     {
         { "Help and navigation", "help|showShortcuts|options|toggleAdvanced|previousWorkspaceTab|"
                                  "nextWorkspaceTab|debugPanel" },
-        { "Playing",             "panic|killSwitch|tapTempo|audition|toggleLiveMode|toggleSlideMode|"
+        { "Playing",             "panic|killSwitch|tapTempo|audition|toggleLiveMode|toggleSlideMode|toggleWorkshop|"
                                  "togglePractice|midiLearnArm" },
         { "Presets, snapshots and setlists", "previousItem|nextItem|setlistPrevious|setlistNext|abCompare|"
                                  "randomise|resetAll|newPreset|presetBrowser" },
-        { "Files and editing",   "undo|redo|save|saveAs|revealPreset|saveGuitarAs|revealGuitar|export|newTune" }
+        { "Files and editing",   "undo|redo|redoAlt|undoAcrossBoundary|save|saveAs|revealPreset|saveGuitarAs|revealGuitar|export|newTune" }
     };
 
     constexpr const char* kOtherGroup = "Other";

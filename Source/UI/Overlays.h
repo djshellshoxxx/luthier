@@ -14,6 +14,7 @@
 
 #include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "Guitar/GuitarThumbnails.h"
 #include "Widgets.h"
 #include "OptionsPages.h"
 #include "HelpTab.h"
@@ -204,7 +205,7 @@ public:
 
     /** Opens the page holding the rebindable shortcut table (accessibility 2's
         "show all shortcuts" surface). */
-    void showShortcutTable();
+    void showShortcutTable (const juce::String& filter = {});
 
     /*  The Diagnostics page offers the debug window, and an overlay cannot put
         another overlay on screen - only the editor can - so the request comes out
@@ -327,6 +328,18 @@ private:
 
     juce::Array<int> visibleIndices;
 
+    /*  guitar-illustration.md 15: each row shows its guitar, rendered on a
+        worker and cached (VISUAL-WORKSHOP-QA). */
+    GuitarThumbnails thumbnails;
+    juce::Rectangle<int> selectedThumbnailArea;
+    juce::File selectedFile;
+    void paintOverChildren (juce::Graphics&) override;
+
+public:
+    GuitarThumbnails& getThumbnails() noexcept { return thumbnails; }
+    static constexpr int kRowHeight = 38;
+
+private:
     class PresetListModel : public juce::ListBoxModel
     {
     public:

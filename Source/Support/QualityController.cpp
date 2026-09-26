@@ -255,7 +255,7 @@ void QualityController::tick()
     }
 
     // ---- governor E1 / E2 (display only; 7) --------------------------------------
-    if (offline)
+    if (offline || (! isGovernorEnabledGlobally() && ! loadFeed))
     {
         relief.store (0, std::memory_order_relaxed);
         e2Since = -1.0;

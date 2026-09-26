@@ -114,6 +114,20 @@ public:
     /** Stops the 10 Hz timer (tests drive tick() themselves). */
     void stopTimerForTesting() { stopTimer(); }
 
+    /** The test runner turns the governor (E1-E3) off for every instance, so a
+        busy machine cannot drop strings or freeze an audition inside an
+        unrelated test. An injected load feed still drives E1 / E2; a test of
+        E3 turns it back on (GovernorScope). */
+    static void setGovernorEnabledGlobally (bool enabled) noexcept { governorEnabled().store (enabled, std::memory_order_relaxed); }
+    static bool isGovernorEnabledGlobally() noexcept { return governorEnabled().load (std::memory_order_relaxed); }
+
+    struct GovernorScope
+    {
+        explicit GovernorScope (bool enabled) : before (isGovernorEnabledGlobally()) { setGovernorEnabledGlobally (enabled); }
+        ~GovernorScope() { setGovernorEnabledGlobally (before); }
+        const bool before;
+    };
+
     //==========================================================================
     /** Plain-words names (UI strings go through the catalogue at the call site). */
     static juce::String levelName (QualityLevel l);
@@ -167,6 +181,7 @@ private:
 
     std::function<double()> clock;
     std::function<LoadSnapshot()> loadFeed;
+    static std::atomic<bool>& governorEnabled() noexcept { static std::atomic<bool> enabled { true }; return enabled; }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (QualityController)
 };

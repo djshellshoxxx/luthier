@@ -53,13 +53,13 @@ poll-only allow-list for timers that only poll state).
 | CPU-21 | 5 Options -> AUDIO -> QUALITY: pills (Auto, High, Medium, Low), override combo, status, two toggles, oversampling note, disclosure | `Source/UI/QualityOptions.{h,cpp}` in `AudioPage` (both formats) | `CpuQualityUi::CQ26_audioPageBadgeAndAppearanceNote` | verified |
 | CPU-22 | 5 oversampling note as the tooltip of Advanced column 3 Master oversampling | `AdvancedPanel::setOversamplingNote`, fed by `QualityEditorLink::onOversamplingNote` | `CpuQualityUi::CQ26_masterOversamplingTooltipCarriesTheCap` | verified |
 | CPU-23 | 5 AppearancePage note at Low | `AppearancePage::lowMotionNote` | `CQ26_audioPageBadgeAndAppearanceNote` | verified |
-| CPU-24 | 5 DIAGNOSTICS: `emergency_string_drop` toggle; debug window lines; hard reset restores defaults | `DiagnosticsPage::emergencyDropToggle`, `QualityDiagnostics::describe` in `DebugPanel` | `CQ26_audioPageBadgeAndAppearanceNote` | verified (Decision 12) |
+| CPU-24 | 5 DIAGNOSTICS: `emergency_string_drop` toggle; "What's on the audio path" and the debug window show the level, effective oversampling, IR lengths, modal count, sleeping strings; hard reset restores defaults | `DiagnosticsPage::emergencyDropToggle`; `AudioPathView` (level, amp factor, modes, sleeping strings); `QualityDiagnostics::describe` in `DebugPanel` | `CQ26_audioPageBadgeAndAppearanceNote`, `CpuQualityUi::theDiagnosticsOptOutIsSavedAndReachesE3` | verified |
 | CPU-25 | 5 footer `QualityBadge`: labels, zones + glyphs, tooltip, click / Enter / Space, 4 Hz, "-" stale, last in tab order | `Source/UI/QualityBadge.{h,cpp}`; `LuthierAudioProcessorEditor` footer | `CQ26_audioPageBadgeAndAppearanceNote`, `CQ27_groupKeysNamesOrderAnnouncementsAndShortcut` | verified |
 | CPU-26 | 5 "Cycle CPU quality" shortcut, unbound | `AccessibilitySettings` shortcut table; `LuthierAudioProcessorEditor::keyPressed` | `CQ27_groupKeysNamesOrderAnnouncementsAndShortcut` | verified |
 | CPU-27 | 5 empty / error states ("Not playing yet", "-", held Auto text) | `QualityOptions::Status`, `QualityBadge`, `QualityStrings` | `CQ26_audioPageBadgeAndAppearanceNote` | verified |
 | CPU-28 | 6 `AnimationPolicy`: truth table, listeners, `getAnimationMs` delegates | `Source/UI/AnimationPolicy.{h,cpp}`; `AccessibilitySettings::animationMsHook` | `CpuQualityUi::CQ21_policyTruthTable`, `CQ25_reducedMotionAndLowStayIndependent` | verified (Decision 5) |
 | CPU-29 | 6 registry: every animated component registered; poll-only allow-list | `AnimationPolicy::Registration` in 38 UI classes; `getPollOnlyAllowList` | `CQ22_everyTimerDrivenUiClassIsRegisteredOrAllowListed` (source scan), `CQ22_builtEditorsRegisterEveryTableClassThatExists` | verified (Decisions 4, 16, 17) |
-| CPU-30 | 6 behaviour at Off per table (static glow, stepped readouts, no ballistics, latched clip, instant transitions) | `GuitarBodyComponent::staticRefresh`, `FretboardComponent` static mode, `LevelMeter`, `OutputLed`, `AmpFacePanel`, `TapPad`, `BenchIllustration`, `DiscoveryLayer`; buffered to an image at Off | `CQ23_lowMeansNoAnimationRepaints`, `CQ24_transitionsAreInstantAtLow` | verified (Decisions 19, 20) |
+| CPU-30 | 6 behaviour at Off per table (static glow, stepped readouts, no ballistics, latched clip, instant transitions) | `GuitarBodyComponent::staticRefresh` (incl. the chord name, no fades), `FretboardComponent` static mode, `LevelMeter`, `VuMeter` (no ballistics), `OutputLed`, `RoomLight` (static from size and wet), `PianoRollStrip`, `AmpFacePanel`, `TapPad`, `BenchIllustration`, `DiscoveryLayer`, `ChordNameOverlay`; buffered to an image at Off; every former `isReducedMotion()` motion check in the UI asks the policy | `CQ23_lowMeansNoAnimationRepaints`, `CQ24_transitionsAreInstantAtLow` | verified (Decisions 19, 20) |
 | CPU-31 | 6 / animated-strings 2.6: Medium forces the strings' low style, Low turns them off | `AnimationPolicy::getStringsStyle` | `CQ21_policyTruthTable` | implemented (the animated-strings renderer is another workstream's; its spec now reads the policy) |
 | CPU-32 | 7 governor E1 / E2 (message thread): relief 1, data stream suspended, relief 2, shadow audition frozen | `QualityController::tick`; `LuthierAudioProcessor::auditionGuitar` | `CQ19_governorEntersAndLeavesAtItsThresholds` | verified |
 | CPU-33 | 7 E3 on the audio thread: least-recently-excited string fades over 10 ms and stays out until re-plucked; banner; opt-out; not offline | `LuthierAudioProcessor::stampBlockLoad`, `LuthierEngine::dropLeastRecentString`, `StringEngine::fadeToSleep (s, holdUntilExcited)` | `CpuQuality::CQ19_emergencyDropFadesOneStringWithItsBanner` | verified (Decision 14) |
@@ -134,8 +134,10 @@ about 5.3 MB with every IR slot filled at 4 s.
     governor running.
 11. **JUCE's `BubbleMessageComponent` fade** is internal to JUCE and cannot be
     registered; it is the only unregistered motion.
-12. **"What's on the audio path"** does not exist as a view; only the debug
-    window gained the quality lines.
+12. **"What's on the audio path"** arrived with the integration branch
+    (`AudioPathView`); it now carries the level (flags line), the amp's
+    effective factor, the running modal count and sleeping strings. IR
+    lengths and drive factors are in the debug window's lines.
 13. **Cabinet truncation applies to every loaded cabinet IR** (user, tone
     match and factory), per mic path; a captured IR is stored full length.
 14. **E3 drops the least-recently-excited ringing string** (spec 7), and the
@@ -165,3 +167,47 @@ about 5.3 MB with every IR slot filled at 4 s.
     keeps part of its old note (the 5 ms steal), and the new pluck sums with
     it at whatever phase it has reached, so a single render moves by up to
     +-0.8 LU at High alone. The mean differs from High by 0.05-0.16 LU.
+22. **performance-budget 8's `CpuRelief` ladder is superseded and removed**
+    (merge of the integration branch). It halved the noise pools and choked
+    strings under load at any level, which section 7 forbids ("sound is
+    reduced only by the chosen level or by Auto, so an explicit High is
+    respected"); run beside the governor it would have dropped strings twice,
+    raised two banners and put two opt-outs on DIAGNOSTICS. Its steps map as
+    section 7 says: 1-2 are E1 (`NoiseGroups` drain, `DataStreamDisplay`
+    suspension), 3-4 are part of Low, 5 is dropped, 6 is E2
+    (`WorkshopBench::beginAudition`), 7 is E3 with the one opt-out
+    (`emergency_string_drop`). `Support/CpuRelief`, `UI/CpuReliefUi` and their
+    two test files are removed; their behaviour tests are ported to the
+    governor: `CpuQualityUi::governorReliefSuspendsTheStreamAndFreezesTheAudition`,
+    `CpuQualityUi::theDiagnosticsOptOutIsSavedAndReachesE3`,
+    `CpuQuality::noisePoolsHalveAtLowAndNeverUnderLoadAtHigh`; the ladder's
+    thresholds, opt-out and banner are CQ-18 / CQ-19. `docs/coverage/VISUAL-WORKSHOP-QA.md`
+    still names `CpuRelief` (another workstream's document, not edited).
+23. **The test runner turns the governor off** (`QualityController::setGovernorEnabledGlobally (false)`
+    in `TestMain`, replacing `CpuRelief::setGloballyEnabled`), so a busy
+    machine cannot drop strings or freeze an audition inside an unrelated test.
+    An injected load feed still drives E1 / E2; the E3 and CQ-20 tests turn it
+    on with `QualityController::GovernorScope`.
+24. **performance-budget 7's sample-rate downgrade composes with the cap:**
+    nominal = `LuthierEngine::effectiveOversamplingFactor (parameter, rate)`,
+    effective = min(nominal, level cap), as spec 2.2 says.
+25. **Review findings:** R-300 (sleep across `beginSample` / `endSample`)
+    fixed in 7523f4c; R-221 / R-301 fixed (`StringEngine::beginSample`
+    compares the smoothed frequency, not the glide target, so coefficients are
+    no longer recomputed every sample of a bend); R-112 was already fixed on
+    the integration branch (`MasterBus::getLatencySamples` in the engine's
+    latency).
+26. **Footer:** the integration branch's footer data stream now starts after
+    the quality badge and its latency text.
+27. **CQ-23 and the chord name.** With chord names on, the name holds 1.2 s
+    and then goes (piano-roll-chord-display 4), which falls inside the 2 s
+    window: one repaint for a change of state, not animation. The test counts
+    the name's changes (`GuitarBodyComponent::getStaticChordNameChanges`) and
+    allows exactly that many Decorative / Transition paints (at most 2).
+28. **The policy reads Reduced motion live.** `mayAnimate`, `transitionMs`,
+    `frameRateHz`, `getMotion` and `getStringsStyle` compute from the current
+    `AccessibilitySettings::isReducedMotion()` and the cached level and relief,
+    so replacing the UI's direct `isReducedMotion()` checks (data stream, noise
+    strip, illustration crossfade and note dots, bench tint and outline) with
+    the policy changes nothing at High, including right after the toggle;
+    registered timers follow on the change message.

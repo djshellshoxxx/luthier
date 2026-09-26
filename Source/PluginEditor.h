@@ -21,6 +21,7 @@ namespace luthier
 
 //==============================================================================
 class LuthierAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                    public juce::DragAndDropContainer,   // gui-integration 11.2: drag-to-modulate
                                     public juce::FileDragAndDropTarget,   // midi-export 5 (MODEL-GAPS)
                                     private juce::Timer,
                                     private juce::ChangeListener
@@ -112,6 +113,12 @@ private:
     void setAdvancedMode (bool advanced);
     void showOverlay (OverlayPanel* panel);
 
+    /** gui-integration 17 (W) and the header wrench: the Workshop on, or off
+        again back to the tab or window it came from. VISUAL-WORKSHOP-QA. */
+    void toggleWorkshop();
+    int tabBeforeWorkshop = -1;
+    bool newDotsApplied = false;   // gui-integration 20
+
     /** guitar-workshop.md 6 (Ctrl+G): asks for a name and saves the guitar. */
     void showSaveGuitarDialog();
 
@@ -188,6 +195,9 @@ private:
     // cpu-quality-modes 5 / 6: the footer badge and this editor's link.
     QualityBadge qualityBadge { processor };
     QualityEditorLink qualityLink { processor, notifications };
+    /** gui-integration 1 / 12: the footer's scrolling data stream (Options ->
+        Appearance can hide it). VISUAL-WORKSHOP-QA. */
+    DataStreamDisplay dataStream;
 
     bool advancedMode = false;
     bool secretHovered = false;
@@ -196,6 +206,8 @@ private:
         is not reposted. Without these, dismissing a banner about a preset that
         still will not load would put it straight back on screen. */
     juce::String reportedPresetError, reportedIrError;
+    juce::uint32 seenMigrationGeneration = 0;   // installer.md 8
+    bool migrationBannerShown = false;
 
     /** Remembered so the layout is only redone when Live Mode actually changes. */
     bool liveModeShown = false;

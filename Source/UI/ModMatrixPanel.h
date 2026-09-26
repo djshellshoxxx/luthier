@@ -42,7 +42,13 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    static constexpr int preferredHeight = 150;
+    /*  gui-integration 11.2 / ui-wiring 12: the card's header is the handle a
+        source is dragged by onto any control; the ghost is the card at 60%. */
+    void mouseDrag (const juce::MouseEvent&) override;
+    static juce::var dragDescriptionFor (int slot);
+
+    static constexpr int kRowHeight = 24, kLabelWidth = 66;
+    static constexpr int preferredHeight = 16 + 36 + 2 + 7 * kRowHeight + 4;   ///< the LFO's seven rows fit
 
 private:
     void timerCallback() override;

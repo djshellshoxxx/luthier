@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- installer.md 3.1: the six Luthier file associations. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-luthier-preset">
+    <comment>Luthier preset</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.luthierpreset"/>
+    <icon name="luthier"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-guitar">
+    <comment>Luthier guitar</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.luthierguitar"/>
+    <icon name="luthier"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-tune">
+    <comment>Luthier tune</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.luthiertune"/>
+    <icon name="luthier"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-loop">
+    <comment>Luthier loop</comment>
+    <glob pattern="*.luthierloop"/>
+    <icon name="luthier"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-setlist">
+    <comment>Luthier setlist</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.luthierset"/>
+    <icon name="luthier"/>
+  </mime-type>
+  <mime-type type="application/x-luthier-midprofile">
+    <comment>Luthier MIDI export profile</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.midprofile"/>
+    <icon name="luthier"/>
+  </mime-type>
+</mime-info>

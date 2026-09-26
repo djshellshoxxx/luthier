@@ -1089,10 +1089,13 @@ void StringEngine::beginSample() noexcept
     // which was most of the engine's CPU for no audible benefit. The 0.2%
     // threshold is about three and a half cents.
     // The shape's pitch ratio is part of the pitch the coefficients follow.
-    const double wantHz = pitchRatio != 1.0 ? targetHz * pitchRatio : targetHz;
+    // Review R-221 / R-301: compare what the string plays now (the smoothed
+    // frequency, which updateLoopCoefficients stores) - comparing the glide's
+    // target recomputed every sample for the whole of a bend or slide.
+    const double nowHz = getCurrentFrequency();
 
     if (needsLoopUpdate
-        || std::abs (wantHz - lastCoefficientHz) > lastCoefficientHz * 0.002)
+        || std::abs (nowHz - lastCoefficientHz) > lastCoefficientHz * 0.002)
     {
         updateLoopCoefficients();
     }

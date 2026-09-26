@@ -128,7 +128,8 @@ public:
                                    int stringIndex,
                                    double targetHz,
                                    double scaleLengthMm,
-                                   double diameterInchesOverride = 0.0) noexcept;
+                                   double diameterInchesOverride = 0.0,
+                                   int woundOverride = -1) noexcept;   ///< workshop-ui.md 3.3: -1 auto, 0 plain, 1 wound
 
     /** Fills a StringEngine::Physical from a StringSpec. */
     static StringEngine::Physical toPhysical (const StringSpec& spec, double scaleLengthMm) noexcept;

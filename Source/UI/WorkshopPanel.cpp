@@ -35,6 +35,9 @@ namespace
             case GuitarRegion::controls:      return GuitarSlot::wiring;
             case GuitarRegion::selector:      return GuitarSlot::wiring;
             case GuitarRegion::jack:          return GuitarSlot::wiring;
+            case GuitarRegion::pick:          // the player's accessories are not slots
+            case GuitarRegion::slideBar:
+            case GuitarRegion::capo:
             case GuitarRegion::none:
             case GuitarRegion::numRegions:    break;
         }
@@ -79,6 +82,208 @@ const std::vector<GuitarRegion>& BenchIllustration::builderOrder()
     return order;
 }
 
+//==============================================================================
+// The accessories on the bench (workshop-ui.md 2 and 4): the pick, the slide and
+// the capo are the player's, kept as parameters, and drawn over the guitar.
+
+double BenchIllustration::scaleMm() const
+{
+    const auto neck = bench.current().get (GuitarSlot::neck);
+    return neck != nullptr ? neck->number ("scale_length_mm", 648.0) : 648.0;
+}
+
+double BenchIllustration::getParameterPlain (const char* id) const
+{
+    if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (processor.getState().getParameter (id)))
+        return p->convertFrom0to1 (p->getValue());
+    return 0.0;
+}
+
+void BenchIllustration::setParameterPlain (const char* id, double plain)
+{
+    if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (processor.getState().getParameter (id)))
+        p->setValueNotifyingHost (p->convertTo0to1 ((float) plain));
+}
+
+void BenchIllustration::beginParameterGesture (const char* id)
+{
+    // A drag is one undo entry (workshop-ui.md 8): the parameter's own gesture.
+    if (auto* p = processor.getState().getParameter (id); p != nullptr && ! gestureIds.contains (id))
+    {
+        p->beginChangeGesture();
+        gestureIds.add (id);
+    }
+}
+
+void BenchIllustration::endParameterGestures()
+{
+    for (const auto& id : gestureIds)
+        if (auto* p = processor.getState().getParameter (id))
+            p->endChangeGesture();
+
+    gestureIds.clear();
+}
+
+void BenchIllustration::setAuditionTint (float db, const juce::String& label)
+{
+    tintDb = db;
+    tintLabel = label;
+    tintActive = true;
+    tintEndedMs = -1.0;
+    repaint();
+}
+
+void BenchIllustration::endAuditionTint()
+{
+    if (! tintActive)
+        return;
+
+    tintActive = false;
+    tintEndedMs = juce::Time::getMillisecondCounterHiRes();
+
+    // Reduced motion: the label goes at once, with nothing fading.
+    if (! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition))
+    {
+        tintEndedMs = -1.0;
+        tintDb = 0.0f;
+        tintLabel.clear();
+    }
+
+    repaint();
+}
+
+float BenchIllustration::getTintAlpha (double nowMs) const noexcept
+{
+    const float strength = juce::jlimit (0.0f, 0.3f, std::abs (tintDb) / 12.0f * 0.3f + (tintDb != 0.0f ? 0.05f : 0.0f));
+
+    if (tintActive)
+        return strength;
+
+    if (tintEndedMs < 0.0)
+        return 0.0f;
+
+    const double t = (nowMs - tintEndedMs) / kTintFadeMs;
+    return t >= 1.0 ? 0.0f : strength * (float) (1.0 - t);
+}
+
+void BenchIllustration::setPickShown (bool shown)
+{
+    if (pickShown != shown)
+    {
+        pickShown = shown;
+        repaint();
+    }
+}
+
+GuitarOverlay BenchIllustration::currentOverlay() const
+{
+    GuitarOverlay o;
+    o.accent = Palette::accent;
+    o.hovered = hovered;
+    o.selected = selected;
+    o.reducedMotion = ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition);
+    o.handles = true;
+
+    auto& engine = processor.getEngine();
+    o.capoFret = juce::roundToInt (getParameterPlain (ParamIDs::capoFret));
+    o.capoMask = engine.getTuningEngine().getCapoStringMask();
+
+    if (getParameterPlain (ParamIDs::slideGuitar) > 0.5)
+    {
+        const auto live = (float) engine.getSlideEngine().getOverlayFret();
+        o.slideFret = live >= 0.0f ? live : slideRestFret;
+        o.slideSlantDeg = (float) getParameterPlain (ParamIDs::slideSlant);
+        o.slideColour = juce::Colour (getSlideMaterial (engine.getSlideEngine().getBar().material).colour);
+    }
+
+    if (pickShown || selected == GuitarRegion::pick)
+    {
+        o.pickPositionMm = (float) (getParameterPlain (ParamIDs::pluckPosition) * scaleMm());
+        o.pickAngleDeg = (float) Parameters::pickAngleDegrees (getParameterPlain (ParamIDs::pickAngle));
+        const auto pick = bench.getAccessory (PartType::pick);
+        o.pickSizeMm = pick != nullptr && pick->text ("shape").containsIgnoreCase ("jazz") ? 25.0f : 30.0f;
+    }
+
+    return o;
+}
+
+GuitarRegion BenchIllustration::accessoryAt (juce::Point<float> px, bool* onHandle) const
+{
+    const auto mm = toMm (px);
+    const auto o = currentOverlay();
+    const float handleMm = 6.0f / juce::jmax (0.01f, std::sqrt (std::abs (mmToPx.getDeterminant())));
+
+    if (onHandle != nullptr)
+        *onHandle = false;
+
+    // Topmost first: the pick, then the slide, then the capo.
+    if (o.pickPositionMm >= 0.0f)
+    {
+        if (GuitarRenderer::pickHandle (scene, o.pickPositionMm, o.pickAngleDeg, o.pickSizeMm).getDistanceFrom (mm) <= handleMm)
+        {
+            if (onHandle != nullptr) *onHandle = true;
+            return GuitarRegion::pick;
+        }
+
+        if (GuitarRenderer::pickPath (scene, o.pickPositionMm, o.pickAngleDeg, o.pickSizeMm).contains (mm))
+            return GuitarRegion::pick;
+    }
+
+    if (o.slideFret >= 0.0f)
+    {
+        if (GuitarRenderer::slideHandle (scene, o.slideFret, o.slideSlantDeg).getDistanceFrom (mm) <= handleMm)
+        {
+            if (onHandle != nullptr) *onHandle = true;
+            return GuitarRegion::slideBar;
+        }
+
+        if (GuitarRenderer::slidePath (scene, o.slideFret, o.slideSlantDeg).contains (mm))
+            return GuitarRegion::slideBar;
+    }
+
+    if (o.capoFret > 0 && GuitarRenderer::capoPath (scene, o.capoFret, o.capoMask).contains (mm))
+        return GuitarRegion::capo;
+
+    return GuitarRegion::none;
+}
+
+juce::String BenchIllustration::describeAccessory (GuitarRegion region) const
+{
+    // guitar-illustration.md 16's sentences.
+    const auto o = currentOverlay();
+
+    if (region == GuitarRegion::pick)
+    {
+        const auto part = bench.getAccessory (PartType::pick);
+        const auto name = part != nullptr ? part->name
+                        : Parameters::pickMaterialNames()[juce::roundToInt (getParameterPlain (ParamIDs::pickMaterial))];
+        return "Pick: " + name + " " + juce::String (Parameters::pickThicknessMm (getParameterPlain (ParamIDs::pickThickness)), 2)
+             + " mm, " + (o.pickSizeMm < 28.0f ? "jazz" : "standard") + " shape, position "
+             + juce::String (juce::roundToInt (getParameterPlain (ParamIDs::pluckPosition) * scaleMm()))
+             + " mm from saddle, angle " + juce::String (juce::roundToInt (Parameters::pickAngleDegrees (getParameterPlain (ParamIDs::pickAngle))))
+             + " degrees.";
+    }
+
+    if (region == GuitarRegion::slideBar)
+    {
+        const auto& bar = processor.getEngine().getSlideEngine().getBar();
+        const double pressure = getParameterPlain (ParamIDs::slidePressure);
+        return "Slide: " + juce::String (getSlideMaterial (bar.material).name).toLowerCase() + " "
+             + juce::String (juce::roundToInt (bar.diameterMm)) + " mm; position fret " + juce::String (o.slideFret, 1)
+             + ", slant " + juce::String (juce::roundToInt (o.slideSlantDeg)) + " degrees, pressure "
+             + (pressure < 0.35 ? "light" : pressure > 0.75 ? "heavy" : "normal") + ".";
+    }
+
+    if (region == GuitarRegion::capo)
+    {
+        const auto part = processor.getCapoPart();
+        return "Capo: " + (part != nullptr ? part->name : juce::String ("capo")) + ", fret " + juce::String (o.capoFret)
+             + ". Drag along the neck to move it; drag it off the headstock end to take it off.";
+    }
+
+    return {};
+}
+
 void BenchIllustration::rebuild (bool force)
 {
     const auto* audition = bench.getAuditionGuitar();
@@ -89,7 +294,37 @@ void BenchIllustration::rebuild (bool force)
     if (! force && key == shownKey && (audition != nullptr) == shownAudition)
         return;
 
-    scene = GuitarRenderer::build (guitar, options);
+    auto next = GuitarRenderer::build (guitar, options);
+
+    // A committed change - not a drag in progress, not an audition's hover -
+    // crossfades from the old picture, or outlines what changed (12.1, 16).
+    const bool committedChange = ! scene.hits.empty() && next.key != scene.key && ! bench.isInGesture()
+                              && audition == nullptr && ! shownAudition && getWidth() > 0 && getHeight() > 0;
+
+    if (committedChange)
+    {
+        const bool reduced = ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition);
+
+        if (reduced)
+        {
+            fade.begin ({}, 0.0, true);
+            changedParts = changedRegions (scene, next);
+        }
+        else
+        {
+            juce::Image old (juce::Image::ARGB, getWidth(), getHeight(), true, juce::SoftwareImageType());
+            {
+                juce::Graphics g (old);
+                g.reduceClipRegion (getLocalBounds().reduced (1));
+                GuitarRenderer::paint (g, scene, mmToPx);
+            }
+
+            fade.begin (old, juce::Time::getMillisecondCounterHiRes(), false);
+            changedParts = {};
+        }
+    }
+
+    scene = std::move (next);
     shownKey = key;
     shownAudition = audition != nullptr;
     resized();
@@ -130,10 +365,40 @@ juce::Point<float> BenchIllustration::toPx (juce::Point<float> mm) const
 void BenchIllustration::timerCallback()
 {
     rebuild (false);
+
+    if (fade.startMs >= 0.0)
+    {
+        repaint();
+        fade.finishIfDone (juce::Time::getMillisecondCounterHiRes());
+    }
+
+    if (tintEndedMs >= 0.0)
+    {
+        repaint();
+
+        if (getTintAlpha (juce::Time::getMillisecondCounterHiRes()) <= 0.0f)
+            tintEndedMs = -1.0;
+    }
+
+    // The capo, slide and pick move from elsewhere too (a preset, the CHARACTER
+    // tab, a played note): repaint when what the overlay would draw changes.
+    const auto o = currentOverlay();
+    const double signature = o.capoFret * 1000.0 + o.slideFret * 17.0 + o.slideSlantDeg * 3.0
+                           + o.pickPositionMm * 7.0 + o.pickAngleDeg * 11.0 + (double) o.capoMask;
+
+    if (signature != lastOverlaySignature)
+    {
+        lastOverlaySignature = signature;
+        repaint();
+    }
 }
 
 GuitarRegion BenchIllustration::regionAt (juce::Point<float> px, int* stringIndex) const
 {
+    // The accessories lie over the guitar, so they are hit first (section 13.1's z-order).
+    if (const auto accessory = accessoryAt (px); accessory != GuitarRegion::none)
+        return accessory;
+
     const auto mm = toMm (px);
     const auto* hit = GuitarRenderer::hitTest (scene, mm);
 
@@ -170,12 +435,19 @@ int BenchIllustration::pickupIndexFor (GuitarRegion r) const
 void BenchIllustration::select (GuitarRegion region, int stringIndex)
 {
     selected = region;
-    selectedString = region == GuitarRegion::strings || region == GuitarRegion::bridge ? stringIndex : -1;
+    selectedString = region == GuitarRegion::strings || region == GuitarRegion::bridge || region == GuitarRegion::nut ? stringIndex : -1;
 
     // Screen readers hear the part (guitar-illustration.md 16).
     for (auto& h : scene.hits)
         if (h.region == region)
             setDescription (h.description);
+
+    if (const auto text = describeAccessory (region); text.isNotEmpty())
+        setDescription (text);
+
+    // Section 16: a selected string is announced as itself, not as the set.
+    if (region == GuitarRegion::strings && juce::isPositiveAndBelow (selectedString, (int) scene.stringDescriptions.size()))
+        setDescription (scene.stringDescriptions[(size_t) selectedString]);
 
     repaint();
 
@@ -196,11 +468,55 @@ void BenchIllustration::paint (juce::Graphics& g)
         g.reduceClipRegion (getLocalBounds().reduced (1));
         GuitarRenderer::paint (g, scene, mmToPx);
 
-        GuitarOverlay overlay;
-        overlay.accent = Palette::accent;
-        overlay.hovered = hovered;
-        overlay.selected = selected;
+        // 12.1: the old guitar fading out over the new.
+        if (const float a = fade.alpha (juce::Time::getMillisecondCounterHiRes()); a > 0.0f)
+        {
+            g.setOpacity (a);
+            g.drawImageAt (fade.previous, 0, 0);
+            g.setOpacity (1.0f);
+        }
+
+        // 14: the frequency-band tint while a change is auditioned (a label under reduced motion).
+        const double now = juce::Time::getMillisecondCounterHiRes();
+
+        if (const float tint = getTintAlpha (now); tint > 0.0f && AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition))
+            for (auto& h : scene.hits)
+                if (h.region == GuitarRegion::body)
+                {
+                    g.saveState();
+                    g.addTransform (mmToPx);
+                    g.setColour ((tintDb >= 0.0f ? juce::Colour (0xffe8823a) : juce::Colour (0xff4f8fd6)).withAlpha (tint));
+                    g.fillPath (h.area);
+                    g.restoreState();
+                }
+
+        auto overlay = currentOverlay();
+        overlay.changed = changedParts;
+        overlay.changedColour = Palette::secondary;
         GuitarRenderer::paintOverlay (g, scene, mmToPx, overlay);
+
+        // Section 4: the nut's slots, each drawn as deep as it is cut, while the nut is in hand.
+        if (selected == GuitarRegion::nut)
+        {
+            const auto& depths = bench.current().setup.nutSlotDepthsMm;
+
+            for (int s = 0; s < (int) scene.nutPoints.size(); ++s)
+            {
+                const double depth = juce::isPositiveAndBelow (s, depths.size()) ? depths[s]
+                                   : getParameterPlain (ParamIDs::setupNutDepth (s % ParamIDs::kNumNutDepths + 1).toRawUTF8());
+                const auto p = toPx (scene.nutPoints[(size_t) s]);
+                const float len = 4.0f + (float) depth * 14.0f;
+                g.setColour (s == selectedString ? Palette::accent : Palette::textMuted);
+                g.fillRect (juce::Rectangle<float> (p.x - 1.0f, p.y - 1.5f, 2.0f + len, 3.0f));
+
+                if (s == selectedString)
+                {
+                    g.setFont (Fonts::mono (10.0f));
+                    g.drawText (juce::String (depth, 2) + " mm", juce::Rectangle<float> (p.x + len + 4.0f, p.y - 6.0f, 60.0f, 12.0f),
+                                juce::Justification::centredLeft, false);
+                }
+            }
+        }
 
         // A selected string, outlined along its length.
         if (selected == GuitarRegion::strings && juce::isPositiveAndBelow (selectedString, (int) scene.saddlePoints.size()))
@@ -258,6 +574,10 @@ void BenchIllustration::paint (juce::Graphics& g)
         g.setColour (Palette::accent);
         g.setFont (Fonts::ui (11.0f, true));
         g.drawText ("AUDITIONING - release Alt to go back", getLocalBounds().reduced (10, 6), juce::Justification::topRight, false);
+
+        // 14 under reduced motion: the change as a static label rather than a tint.
+        if (! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition) && tintLabel.isNotEmpty())
+            g.drawText (tintLabel, getLocalBounds().reduced (10, 22), juce::Justification::topRight, false);
     }
 
     if (hasKeyboardFocus (false))
@@ -303,12 +623,49 @@ void BenchIllustration::mouseExit (const juce::MouseEvent&)
 void BenchIllustration::mouseDown (const juce::MouseEvent& e)
 {
     grabKeyboardFocus();
+    changedParts = {};   // 16: the reduced-motion outline lasts until the next click
 
     if (e.mods.isMiddleButtonDown() || (e.mods.isRightButtonDown() && zoom > 1.0f))
     {
         drag = Drag::pan;
         dragStartMm = e.position;
         dragStartValue = 0.0;
+        return;
+    }
+
+    // The accessories (section 4): the pick along the strings or turned at its
+    // corner, the slide along the neck or turned at its end, the capo by fret.
+    bool onHandle = false;
+
+    if (const auto accessory = accessoryAt (e.position, &onHandle); accessory != GuitarRegion::none && ! e.mods.isShiftDown())
+    {
+        const auto o = currentOverlay();
+        select (accessory);
+        dragStartMm = toMm (e.position);
+
+        if (accessory == GuitarRegion::pick)
+        {
+            drag = onHandle ? Drag::pickRotate : Drag::pick;
+            dragStartValue = o.pickPositionMm;
+            dragStartValue2 = o.pickAngleDeg;
+            beginParameterGesture (onHandle ? ParamIDs::pickAngle : ParamIDs::pluckPosition);
+        }
+        else if (accessory == GuitarRegion::slideBar)
+        {
+            drag = onHandle ? Drag::slideRotate : Drag::slide;
+            dragStartValue = o.slideFret;
+            dragStartValue2 = o.slideSlantDeg;
+
+            if (onHandle)
+                beginParameterGesture (ParamIDs::slideSlant);
+        }
+        else
+        {
+            drag = Drag::capo;
+            dragStartValue = o.capoFret;
+            beginParameterGesture (ParamIDs::capoFret);
+        }
+
         return;
     }
 
@@ -347,6 +704,25 @@ void BenchIllustration::mouseDown (const juce::MouseEvent& e)
             }
     }
 
+    // A string grabbed where it crosses the nut is its nut slot (section 4).
+    if (r == GuitarRegion::strings && juce::isPositiveAndBelow (stringIndex, (int) scene.nutPoints.size())
+        && std::abs (toMm (e.position).x - scene.nutPoints[(size_t) stringIndex].x) < 4.0f)
+        r = GuitarRegion::nut;
+
+    // A click on the nut picks the nearest string's slot.
+    if (r == GuitarRegion::nut)
+    {
+        const auto mm = toMm (e.position);
+        float best = 1.0e9f;
+
+        for (int s = 0; s < (int) scene.nutPoints.size(); ++s)
+            if (std::abs (scene.nutPoints[(size_t) s].y - mm.y) < best)
+            {
+                best = std::abs (scene.nutPoints[(size_t) s].y - mm.y);
+                stringIndex = s;
+            }
+    }
+
     select (r, stringIndex);
 
     const int pickup = pickupIndexOfRegion (r);
@@ -366,6 +742,17 @@ void BenchIllustration::mouseDown (const juce::MouseEvent& e)
         dragStartMm = toMm (e.position);
         const auto& values = bench.current().setup.intonationMm;
         dragStartValue = juce::isPositiveAndBelow (stringIndex, values.size()) ? values[stringIndex] : 0.0;
+        bench.beginGesture();
+    }
+    else if (r == GuitarRegion::nut && stringIndex >= 0)
+    {
+        // Section 4: a nut slot is dragged down to deepen it.
+        drag = Drag::nut;
+        dragIndex = stringIndex;
+        dragStartMm = e.position;
+        const auto& depths = bench.current().setup.nutSlotDepthsMm;
+        dragStartValue = juce::isPositiveAndBelow (stringIndex, depths.size()) ? depths[stringIndex]
+                       : getParameterPlain (ParamIDs::setupNutDepth (stringIndex % ParamIDs::kNumNutDepths + 1).toRawUTF8());
         bench.beginGesture();
     }
 }
@@ -408,12 +795,64 @@ void BenchIllustration::mouseDrag (const juce::MouseEvent& e)
         bench.setIntonation (dragIndex, target);
         rebuild (false);
     }
+    else if (drag == Drag::nut)
+    {
+        // 0.05 mm snap (section 4); a pixel of travel is a hundredth of a millimetre.
+        const double target = WorkshopBench::snap (dragStartValue + (double) (e.position.y - dragStartMm.y) * 0.01, fine, free, 0.05);
+        bench.setNutSlotDepth (dragIndex, target);
+        rebuild (false);
+        repaint();
+    }
+    else if (drag == Drag::pick)
+    {
+        // Along the string axis only: 1 mm snap, Shift 0.1, Alt free.
+        const double scale = scaleMm();
+        const double target = WorkshopBench::snap (dragStartValue + (double) (mm.x - dragStartMm.x), fine, free);
+        setParameterPlain (ParamIDs::pluckPosition, juce::jlimit (0.02, 0.5, target / scale));
+        repaint();
+    }
+    else if (drag == Drag::pickRotate || drag == Drag::slideRotate)
+    {
+        // Turned about its centre: 1 degree snap.
+        const auto o = currentOverlay();
+        const bool pick = drag == Drag::pickRotate;
+        const auto path = pick ? GuitarRenderer::pickPath (scene, o.pickPositionMm, 0.0f, o.pickSizeMm)
+                               : GuitarRenderer::slidePath (scene, o.slideFret, 0.0f);
+        const auto c = path.getBounds().getCentre();
+        const double a0 = std::atan2 (dragStartMm.y - c.y, dragStartMm.x - c.x);
+        const double a1 = std::atan2 (mm.y - c.y, mm.x - c.x);
+        const double delta = juce::radiansToDegrees (std::remainder (a1 - a0, juce::MathConstants<double>::twoPi));
+        const double target = WorkshopBench::snap (dragStartValue2 + delta, fine, free);
+
+        if (pick)
+            setParameterPlain (ParamIDs::pickAngle, juce::jlimit (0.0, 1.0, target / 60.0));
+        else
+            setParameterPlain (ParamIDs::slideSlant, juce::jlimit (-30.0, 30.0, target));
+
+        repaint();
+    }
+    else if (drag == Drag::slide || drag == Drag::capo)
+    {
+        // The fret under the pointer: x is mm from the saddle, the nut at the scale length.
+        const double scale = scaleMm();
+        const double x = juce::jlimit (scale * 0.25, scale * 1.2, (double) mm.x);
+        const double fret = -12.0 * std::log2 (juce::jmin (1.0, x / scale));
+
+        if (drag == Drag::slide)
+            slideRestFret = (float) juce::jlimit (0.0, 24.0, fret);
+        else
+            setParameterPlain (ParamIDs::capoFret, x > scale + 8.0 ? 0.0 : juce::jlimit (1.0, 12.0, std::ceil (fret - 0.1)));
+
+        repaint();
+    }
 }
 
 void BenchIllustration::mouseUp (const juce::MouseEvent&)
 {
-    if (drag == Drag::pickup || drag == Drag::saddle)
+    if (drag == Drag::pickup || drag == Drag::saddle || drag == Drag::nut)
         bench.endGesture();
+
+    endParameterGestures();
 
     if (drag == Drag::pickup && onPickupDragged)
         onPickupDragged (-1, 0.0);
@@ -499,6 +938,54 @@ bool BenchIllustration::keyPressed (const juce::KeyPress& key)
     const int pickup = pickupIndexOfRegion (selected);
     const bool left = key.getKeyCode() == juce::KeyPress::leftKey, right = key.getKeyCode() == juce::KeyPress::rightKey;
     const bool up = key.getKeyCode() == juce::KeyPress::upKey, down = key.getKeyCode() == juce::KeyPress::downKey;
+
+    // Keyboard parity for the nut and the accessories (sections 4 and 10): the
+    // same snaps as a drag, one undo entry per key.
+    if (selected == GuitarRegion::nut && selectedString >= 0 && (up || down || left || right))
+    {
+        if (left || right)
+        {
+            select (GuitarRegion::nut, juce::jlimit (0, (int) scene.nutPoints.size() - 1, selectedString + (right ? -1 : 1)));
+            return true;
+        }
+
+        const auto& depths = bench.current().setup.nutSlotDepthsMm;
+        const double from = juce::isPositiveAndBelow (selectedString, depths.size()) ? depths[selectedString]
+                          : getParameterPlain (ParamIDs::setupNutDepth (selectedString % ParamIDs::kNumNutDepths + 1).toRawUTF8());
+        bench.setNutSlotDepth (selectedString, from + (down ? 0.05 : -0.05) * (fine ? 0.1 : 1.0));
+        rebuild (false);
+        repaint();
+        return true;
+    }
+
+    if ((selected == GuitarRegion::pick || selected == GuitarRegion::slideBar || selected == GuitarRegion::capo)
+        && (up || down || left || right))
+    {
+        const double step = fine ? 0.1 : 1.0;
+        const auto o = currentOverlay();
+
+        auto nudge = [this] (const char* id, double plain)
+        {
+            beginParameterGesture (id);
+            setParameterPlain (id, plain);
+            endParameterGestures();
+        };
+
+        if (selected == GuitarRegion::pick && (left || right))
+            nudge (ParamIDs::pluckPosition, juce::jlimit (0.02, 0.5, ((double) o.pickPositionMm + (left ? step : -step)) / scaleMm()));
+        else if (selected == GuitarRegion::pick)
+            nudge (ParamIDs::pickAngle, juce::jlimit (0.0, 1.0, ((double) o.pickAngleDeg + (up ? step : -step)) / 60.0));
+        else if (selected == GuitarRegion::slideBar && (up || down))
+            nudge (ParamIDs::slideSlant, juce::jlimit (-30.0, 30.0, (double) o.slideSlantDeg + (up ? step : -step)));
+        else if (selected == GuitarRegion::slideBar)
+            slideRestFret = juce::jlimit (0.0f, 24.0f, slideRestFret + (left ? -1.0f : 1.0f) * (fine ? 0.1f : 1.0f));
+        else if (selected == GuitarRegion::capo && (left || right))
+            nudge (ParamIDs::capoFret, juce::jlimit (0.0, 12.0, (double) o.capoFret + (right ? 1.0 : -1.0)));
+
+        setDescription (describeAccessory (selected));
+        repaint();
+        return true;
+    }
 
     if (pickup >= 0 && (left || right))
     {
@@ -671,11 +1158,23 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
         b->onClick = [this, name = juce::String (c.name)] { showCategory (name); };
     }
 
+    // Section 1: below 700 points the categories are a dropdown.
+    addChildComponent (categoryBox);
+    categoryBox.setTitle ("Parts category");
+    for (int i = 0; i < (int) std::size (kCategories); ++i)
+        categoryBox.addItem (kCategories[i].name, i + 1);
+    categoryBox.onChange = [this] { showCategory (categoryBox.getText()); };
+
     addAndMakeVisible (illustration);
     illustration.onSelectionChanged = [this]
     {
         // Selecting a part shows its category in the drawer (section 5's Swap, done for you).
         const auto slot = slotForRegion (illustration.getSelected());
+        const auto selectedRegion = illustration.getSelected();
+
+        if (selectedRegion == GuitarRegion::pick)          showCategory ("Pick");
+        else if (selectedRegion == GuitarRegion::slideBar) showCategory ("Slide");
+        else if (selectedRegion == GuitarRegion::capo)     showCategory ("Capo");
 
         if (slot != GuitarSlot::numSlots)
             for (auto& c : kCategories)
@@ -686,6 +1185,11 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
                 }
 
         refreshInspector();
+
+        // Narrow: the inspector drawer opens and closes with the selection.
+        if (inspectorCollapsed && (illustration.getSelected() != GuitarRegion::none) != isInspectorShowing())
+            resized();
+
         repaint();
     };
     illustration.onPickupDragged = [this] (int index, double mm)
@@ -720,8 +1224,14 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
     revertButton.onClick = [this]
     {
         const auto slot = slotForRegion (illustration.getSelected());
-        if (slot != GuitarSlot::numSlots)
+
+        // Section 3.3: with a string selected, Revert clears that string's override.
+        if (slot == GuitarSlot::strings && illustration.getSelectedString() >= 0
+            && bench.current().stringOverrides[(size_t) juce::jlimit (0, 11, illustration.getSelectedString())].isSet())
+            bench.clearStringOverride (illustration.getSelectedString());
+        else if (slot != GuitarSlot::numSlots)
             bench.revert (slot);
+
         refreshAll();
     };
 
@@ -810,8 +1320,15 @@ void WorkshopPanel::showCategory (const juce::String& name)
 
     category = name;
 
+    // workshop-ui.md 2: the pick shows while its tool is in hand.
+    illustration.setPickShown (name == "Pick");
+
     for (auto* b : categoryButtons)
         b->setToggleState (b->getButtonText() == name, juce::dontSendNotification);
+
+    for (int i = 0; i < categoryBox.getNumItems(); ++i)
+        if (categoryBox.getItemText (i) == name)
+            categoryBox.setSelectedItemIndex (i, juce::dontSendNotification);
 
     refreshDrawer();
     repaint();
@@ -933,8 +1450,42 @@ bool WorkshopPanel::editInspectorField (const juce::String& field, const juce::S
     if (slot == GuitarSlot::numSlots || field.isEmpty())
         return false;
 
-    // Numbers stay numbers, true/false stay flags, lists stay lists; anything else is text.
     const auto trimmed = text.trim();
+
+    // Section 3.3: the selected string's own override.
+    if (field.startsWith (kStringFieldPrefix))
+    {
+        const int s = illustration.getSelectedString();
+
+        if (s < 0)
+            return false;
+
+        auto o = bench.current().stringOverrides[(size_t) juce::jlimit (0, 11, s)];
+        const auto which = field.fromFirstOccurrenceOf (kStringFieldPrefix, false, false);
+
+        if (which == "gauge")
+        {
+            // "0.018", "18" (thousandths, as players say it) or "set" for the set's gauge.
+            double g = trimmed.getDoubleValue();
+            if (g >= 1.0) g /= 1000.0;
+            o.gaugeIn = trimmed.equalsIgnoreCase ("set") ? 0.0 : juce::jlimit (0.0, 0.2, g);
+        }
+        else if (which == "wound")
+        {
+            o.wound = trimmed.equalsIgnoreCase ("wound") || trimmed.equalsIgnoreCase ("true") || trimmed.equalsIgnoreCase ("yes") ? 1
+                    : trimmed.equalsIgnoreCase ("plain") || trimmed.equalsIgnoreCase ("false") || trimmed.equalsIgnoreCase ("no") ? 0 : -1;
+        }
+        else if (which == "material")
+        {
+            o.material = trimmed.equalsIgnoreCase ("set") ? juce::String() : trimmed.toLowerCase().replaceCharacter (' ', '_');
+        }
+
+        const bool ok = bench.setStringOverride (s, o);
+        refreshAll();
+        return ok;
+    }
+
+    // Numbers stay numbers, true/false stay flags, lists stay lists; anything else is text.
     juce::var value;
 
     if (trimmed.startsWithChar ('['))
@@ -951,7 +1502,7 @@ bool WorkshopPanel::editInspectorField (const juce::String& field, const juce::S
     return ok;
 }
 
-void WorkshopPanel::clickCard (int index)
+void WorkshopPanel::clickCard (int index, bool ontoSelectedString)
 {
     if (! juce::isPositiveAndBelow (index, drawerParts.size()))
         return;
@@ -959,6 +1510,22 @@ void WorkshopPanel::clickCard (int index)
     const auto part = drawerParts[index];
     bench.endAudition();
     auditioning = false;
+    illustration.endAuditionTint();
+
+    // guitar-illustration.md 13.2: a strings card onto a string overrides that
+    // string only (Ctrl-click with a string selected); anywhere else it replaces the set.
+    if (ontoSelectedString && part->type == PartType::strings
+        && illustration.getSelected() == GuitarRegion::strings && illustration.getSelectedString() >= 0)
+    {
+        const int s = illustration.getSelectedString();
+        const auto gauges = part->numbers ("gauges_in");
+        StringOverride o;
+        o.gaugeIn = juce::isPositiveAndBelow (s, gauges.size()) ? gauges[s] : 0.0;
+        o.material = part->text ("winding_material", "nickel_plated_steel");
+        bench.setStringOverride (s, o);
+        refreshAll();
+        return;
+    }
 
     if (part->type == PartType::numTypes)
     {
@@ -1009,6 +1576,7 @@ void WorkshopPanel::hoverCard (int index, bool altDown)
         {
             bench.endAudition();
             auditioning = false;
+            illustration.endAuditionTint();
         }
 
         illustration.refresh();
@@ -1037,6 +1605,32 @@ void WorkshopPanel::requestSpectrum (int pickupIndex, double positionMm)
     lastRequest = worker.request (committed, candidate, processor.getEngine().getGuitarType(), std::move (notches));
 }
 
+void WorkshopPanel::takeSpectrum (SpectrumDelta::Result&& result)
+{
+    spectrum = std::move (result);
+
+    // guitar-illustration.md 14: the candidate's change, as a tint on the body.
+    if (auditioning && spectrum.requestId == lastRequest && ! spectrum.deltaDb.empty())
+    {
+        double mean = 0.0;
+        for (auto d : spectrum.deltaDb)
+            mean += d;
+        mean /= (double) spectrum.deltaDb.size();
+        illustration.setAuditionTint (spectrum.noChange ? 0.0f : (float) mean, spectrum.summary);
+    }
+
+    // Section 10: announced as a sentence ("candidate is 1.8 dB brighter above
+    // 2 kHz"), because a curve has no screen-reader form worth having. Only the
+    // newest request's, and only when it says something new.
+    if (spectrum.requestId == lastRequest && spectrum.summary.isNotEmpty() && spectrum.summary != lastAnnouncement)
+    {
+        lastAnnouncement = spectrum.summary;
+        setDescription ("The bench: take the guitar apart, swap parts, move pickups, hear what changed. Spectrum: " + lastAnnouncement);
+        juce::AccessibilityHandler::postAnnouncement ("Spectrum: " + lastAnnouncement,
+                                                      juce::AccessibilityHandler::AnnouncementPriority::medium);
+    }
+}
+
 bool WorkshopPanel::waitForSpectrum (int timeoutMs)
 {
     const auto until = juce::Time::getMillisecondCounter() + (juce::uint32) timeoutMs;
@@ -1047,7 +1641,7 @@ bool WorkshopPanel::waitForSpectrum (int timeoutMs)
 
         if (worker.takeResult (r))
         {
-            spectrum = std::move (r);
+            takeSpectrum (std::move (r));
             if (spectrum.requestId == lastRequest)
                 return true;
         }
@@ -1091,6 +1685,24 @@ void WorkshopPanel::refreshInspector()
     const auto slot = slotForRegion (region);
     const auto* audition = bench.getAuditionGuitar();
     const auto& guitar = audition != nullptr ? *audition : bench.current();
+
+    // The accessories (workshop-ui.md 4): the part, and where it is.
+    if (region == GuitarRegion::pick || region == GuitarRegion::slideBar || region == GuitarRegion::capo)
+    {
+        const auto type = region == GuitarRegion::pick ? PartType::pick : region == GuitarRegion::slideBar ? PartType::slide : PartType::capo;
+        const auto part = bench.getAccessory (type);
+        inspectorTitle = juce::String (getGuitarRegionName (region)) + ": " + (part != nullptr ? part->name : juce::String ("(default)"));
+
+        const auto sentence = illustration.describeAccessory (region);
+        for (auto clause : juce::StringArray::fromTokens (sentence.fromFirstOccurrenceOf (": ", false, false), ",;", ""))
+            if (clause.trim().isNotEmpty())
+                inspectorLines.add (clause.trim());
+
+        inspectorLines.add (region == GuitarRegion::pick ? "Drag along the strings; turn it by its corner handle. Arrows nudge."
+                          : region == GuitarRegion::slideBar ? "Drag along the neck; turn it by its end handle. Arrows nudge."
+                                                             : "Drag along the neck, one fret at a time; off the end to remove it.");
+        return;
+    }
 
     if (slot == GuitarSlot::numSlots)
     {
@@ -1139,6 +1751,28 @@ void WorkshopPanel::refreshInspector()
                             + juce::String (pl.heightBassMm, 1) + " mm bass");
     }
 
+    if (region == GuitarRegion::strings && illustration.getSelectedString() >= 0)
+    {
+        // Section 3.3: the set, and this string's override fields.
+        const int s = illustration.getSelectedString();
+        const auto& o = guitar.stringOverrides[(size_t) juce::jlimit (0, 11, s)];
+        auto addField = [this] (const juce::String& line, const juce::String& field)
+        {
+            inspectorLines.add (line);
+            while (inspectorFields.size() < inspectorLines.size() - 1)
+                inspectorFields.add ({});
+            inspectorFields.add (field);
+        };
+
+        inspectorLines.add ("STRING " + juce::String (s + 1) + ": " + bench.describeString (guitar, s)
+                            + (o.isSet() ? "  (override)" : ""));
+        addField ("string gauge: " + (o.gaugeIn > 0.0 ? juce::String (o.gaugeIn, 3) : juce::String ("set")), juce::String (kStringFieldPrefix) + "gauge");
+        addField ("string wound: " + juce::String (o.wound < 0 ? "set" : o.wound == 1 ? "wound" : "plain"), juce::String (kStringFieldPrefix) + "wound");
+        addField ("string material: " + (o.material.isNotEmpty() ? o.material.replaceCharacter ('_', ' ') : juce::String ("set")),
+                  juce::String (kStringFieldPrefix) + "material");
+        inspectorLines.add ("Ctrl-click a strings card to put its string here; Revert clears it.");
+    }
+
     if (region == GuitarRegion::bridge || region == GuitarRegion::strings)
     {
         const int s = illustration.getSelectedString();
@@ -1179,7 +1813,7 @@ void WorkshopPanel::timerCallback()
 
     if (worker.takeResult (r))
     {
-        spectrum = std::move (r);
+        takeSpectrum (std::move (r));
         repaint (spectrumArea);
     }
 
@@ -1249,7 +1883,7 @@ void WorkshopPanel::mouseDown (const juce::MouseEvent& e)
     }
 
     if (const int card = cardAt (e.getPosition()); card >= 0)
-        clickCard (card);
+        clickCard (card, e.mods.isCommandDown());
 }
 
 void WorkshopPanel::modifierKeysChanged (const juce::ModifierKeys& mods)
@@ -1284,16 +1918,98 @@ void WorkshopPanel::resized()
         area.removeFromTop (Metrics::gridHalf);
     }
 
-    // Section 1: the inspector down the right, the spectrum under it.
-    const bool wide = area.getWidth() >= 900;
-    auto right = area.removeFromRight (wide ? 240 : 190);
-    area.removeFromRight (Metrics::grid);
+    /*  Section 1: at 900 points and wider the inspector runs down the right with
+        the spectrum under it. Narrower, the inspector becomes a drawer that
+        opens beside the illustration while a part is selected, and the
+        spectrum sits beside the setup strip; below 700 the parts drawer's
+        categories become a dropdown. */
+    const bool wide = area.getWidth() >= kWideBench;
+    const bool narrow = area.getWidth() < kNarrowBench;
+    inspectorCollapsed = ! wide;
+    const bool inspectorOpen = wide || illustration.getSelected() != GuitarRegion::none;
 
-    spectrumArea = right.removeFromBottom (juce::jmin (180, right.getHeight() / 3));
+    juce::Rectangle<int> right;
+
+    if (wide)
+    {
+        right = area.removeFromRight (240);
+        area.removeFromRight (Metrics::grid);
+        spectrumArea = right.removeFromBottom (juce::jmin (180, right.getHeight() / 3));
+        right.removeFromBottom (Metrics::grid);
+    }
+
+    // The setup strip (and, narrow, the spectrum beside it).
+    auto bottom = area.removeFromBottom (wide ? 86 : 100);
+    area.removeFromBottom (Metrics::gridHalf);
+
+    if (! wide)
+    {
+        spectrumArea = bottom.removeFromRight (juce::jmin (240, bottom.getWidth() / 3));
+        bottom.removeFromRight (Metrics::grid);
+    }
+
     autoZoomToggle.setBounds (spectrumArea.getRight() - 96, spectrumArea.getY() + 2, 94, 20);
-    right.removeFromBottom (Metrics::grid);
+
+    setupArea = bottom;
+    {
+        auto s = setupArea.reduced (0, 2);
+        s.removeFromTop (wide ? 0 : 12);
+        const int knobW = juce::jmax (36, s.getWidth() / (3 + nutDepths.size()));
+        for (auto* k : { actionTreble.get(), actionBass.get(), relief.get() })
+            k->setBounds (s.removeFromLeft (knobW));
+        for (auto* k : nutDepths)
+            k->setBounds (s.removeFromLeft (knobW));
+    }
+
+    drawerArea = area.removeFromBottom (juce::jmax (110, area.getHeight() / 3));
+    {
+        categoryBox.setVisible (narrow);
+
+        if (narrow)
+        {
+            categoryBox.setBounds (drawerArea.removeFromTop (26).removeFromLeft (200));
+
+            for (auto* b : categoryButtons)
+                b->setVisible (false);
+        }
+        else
+        {
+            // One row, or two when one would squeeze the names under 64 points.
+            const int count = categoryButtons.size();
+            const int rows = drawerArea.getWidth() / juce::jmax (1, count) < 64 ? 2 : 1;
+            const int perRow = (count + rows - 1) / rows;
+            int next = 0;
+
+            for (int r = 0; r < rows; ++r)
+            {
+                auto tabs = drawerArea.removeFromTop (24);
+                const int w = tabs.getWidth() / juce::jmax (1, perRow);
+
+                for (int i = 0; i < perRow && next < count; ++i)
+                {
+                    categoryButtons[next]->setVisible (true);
+                    categoryButtons[next++]->setBounds (tabs.removeFromLeft (w).reduced (1, 0));
+                }
+            }
+        }
+    }
+    area.removeFromBottom (Metrics::gridHalf);
+
+    if (! wide)
+    {
+        // The drawer inspector: beside the illustration while a part is selected.
+        right = inspectorOpen ? area.removeFromRight (juce::jmin (230, area.getWidth() / 3)) : juce::Rectangle<int>();
+
+        if (inspectorOpen)
+            area.removeFromRight (Metrics::gridHalf);
+    }
 
     inspectorArea = right;
+
+    for (auto* b : { &swapButton, &revertButton, &savePartButton })
+        b->setVisible (! inspectorArea.isEmpty());
+
+    if (! inspectorArea.isEmpty())
     {
         auto buttons = inspectorArea.withTrimmedTop (inspectorArea.getHeight() - 28);
         const int w = buttons.getWidth() / 3;
@@ -1301,26 +2017,6 @@ void WorkshopPanel::resized()
         revertButton.setBounds (buttons.removeFromLeft (w).reduced (1, 2));
         savePartButton.setBounds (buttons.reduced (1, 2));
     }
-
-    setupArea = area.removeFromBottom (86);
-    {
-        auto s = setupArea.reduced (0, 2);
-        const int knobW = juce::jmax (48, s.getWidth() / 9);
-        for (auto* k : { actionTreble.get(), actionBass.get(), relief.get() })
-            k->setBounds (s.removeFromLeft (knobW));
-        for (auto* k : nutDepths)
-            k->setBounds (s.removeFromLeft (knobW));
-    }
-    area.removeFromBottom (Metrics::gridHalf);
-
-    drawerArea = area.removeFromBottom (juce::jmax (110, area.getHeight() / 3));
-    {
-        auto tabs = drawerArea.removeFromTop (24);
-        const int w = tabs.getWidth() / juce::jmax (1, categoryButtons.size());
-        for (auto* b : categoryButtons)
-            b->setBounds (tabs.removeFromLeft (w).reduced (1, 0));
-    }
-    area.removeFromBottom (Metrics::gridHalf);
 
     illustrationArea = area;
     illustration.setBounds (illustrationArea);
@@ -1331,7 +2027,9 @@ void WorkshopPanel::paint (juce::Graphics& g)
     g.fillAll (Palette::background);
 
     paintDrawer (g, drawerArea);
-    paintInspector (g, inspectorArea);
+
+    if (! inspectorArea.isEmpty())
+        paintInspector (g, inspectorArea);
     paintSpectrum (g, spectrumArea);
 
     LuthierLookAndFeel::drawSectionHeader (g, setupArea.withHeight (16).translated (0, -2), "Setup");

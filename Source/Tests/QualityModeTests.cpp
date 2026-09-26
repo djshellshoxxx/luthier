@@ -21,6 +21,7 @@
 #include "../DSP/Effects/PedalsDrive.h"
 #include "../DSP/Body/BodyEngine.h"
 #include "../DSP/String/StringEngine.h"
+#include "../DSP/Noise/NoiseEngine.h"
 
 #include <regex>
 
@@ -1021,4 +1022,50 @@ LUTHIER_TEST (CpuQuality, CQ31_irVariantsAddAtMost12MB)
 
     if (withVariants >= 0.0 && without >= 0.0)
         CHECK_MSG (withVariants - without <= 12.0, "IR variants add " + juce::String (withVariants - without, 1) + " MB");
+}
+
+//==============================================================================
+// Section 7: the governor is display or emergency only (supersedes the
+// performance-budget 8 ladder, which halved the noise pools under load)
+//==============================================================================
+LUTHIER_TEST (CpuQuality, noisePoolsHalveAtLowAndNeverUnderLoadAtHigh)
+{
+    QualityTestSupport::ScopedTempSettings temp;
+    const QualityController::GovernorScope governor (true);
+    LuthierAudioProcessor p;
+    p.prepareToPlay (kSr, kBlock);
+
+    const int full = p.getEngine().getNoisePool().getPoolLimit (NoiseClass::squeak);
+    juce::AudioBuffer<float> buffer (juce::jmax (2, p.getTotalNumOutputChannels()), kBlock);
+    juce::MidiBuffer midi;
+
+    auto run = [&] (int blocks)
+    {
+        for (int b = 0; b < blocks; ++b)
+        {
+            buffer.clear();
+            p.processBlock (buffer, midi);
+        }
+    };
+
+    // An explicit High under a saturated load: the sound is not reduced.
+    p.getQualityController().forceLevelForTesting ((int) QualityLevel::High);
+    const double block = (double) kBlock / kSr;
+
+    for (int i = 0; i < (int) (2.0 / block); ++i)
+        p.getCpuLoadMonitorForTesting().addBlock (1.5 * block, block);
+
+    run (8);
+    CHECK (p.getEngine().getNoisePool().getPoolLimit (NoiseClass::squeak) == full);
+
+    // Low halves them (table 2.1), and High gives them back.
+    p.getQualityController().forceLevelForTesting ((int) QualityLevel::Low);
+    run (2);
+    CHECK (p.getEngine().getNoisePool().getPoolLimit (NoiseClass::squeak) < full);
+
+    p.getQualityController().forceLevelForTesting ((int) QualityLevel::High);
+    run (2);
+    CHECK (p.getEngine().getNoisePool().getPoolLimit (NoiseClass::squeak) == full);
+
+    p.getQualityController().forceLevelForTesting (-1);
 }

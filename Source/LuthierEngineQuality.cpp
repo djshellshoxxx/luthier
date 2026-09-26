@@ -23,7 +23,8 @@ namespace luthier
 void LuthierEngine::applyOversamplingForQuality (bool crossfade) noexcept
 {
     // 2.2: effective = min(nominal, cap); 1x stays 1x; latency is the nominal's.
-    const int nominal = oversamplingFactor;
+    // Nominal is the parameter under performance-budget 7's sample-rate cap.
+    const int nominal = effectiveOversamplingFactor (oversamplingFactor, sr);
     const int ampFactor = QualityProfile::capFactor (nominal, qualityProfile.ampOversamplingCap);
     const int driveFactor = QualityProfile::capFactor (nominal, qualityProfile.driveOversamplingCap);
 

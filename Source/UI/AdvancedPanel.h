@@ -20,6 +20,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
+#include "PianoRollStrip.h"
 #include "RoutingPanel.h"
 #include "ModMatrixPanel.h"
 #include "RhythmPanel.h"
@@ -104,6 +105,9 @@ public:
     static constexpr int minimumUsableWidth = 1000;
 
     FretboardComponent& getFretboard() noexcept { return fretboard; }
+
+    /** piano-roll-chord-display.md 1: the strip under the fretboard. */
+    PianoRollStrip& getPianoRoll() noexcept { return *pianoRoll; }
 
     //==========================================================================
     /*  Column 4's tab strip (section 4.4).
@@ -233,6 +237,10 @@ private:
 
     GuitarBodyComponent guitarBody;
     FretboardComponent fretboard;
+
+    // piano-roll-chord-display.md 1: under the fretboard, the strip grown by its height.
+    std::unique_ptr<PianoRollStrip> pianoRoll;
+    int getGuitarStripHeight (int boundsHeight) const;
 
     // Columns 1 to 3. Column 4 is the workspace below, which is not a Column:
     // it shows one panel at a time rather than stacking them.

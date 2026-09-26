@@ -78,7 +78,7 @@ public:
     static AnimationPolicy& get();
 
     //==========================================================================
-    MotionLevel getMotion() const noexcept { return motion; }
+    MotionLevel getMotion() const noexcept { return live().motion; }
 
     /** Low or relief >= 2: live readouts at <= 10 Hz, stepped, no ballistics. */
     bool isReadoutStepped() const noexcept { return readoutStepped; }
@@ -192,9 +192,16 @@ private:
     void recompute();
     void updateStaticPoll();
 
+    /** The table for Reduced motion as it is this moment (read live, so a
+        query right after the toggle is already right; registered timers follow
+        on the change message) and the cached combined level and relief. */
+    State live() const noexcept;
+
     MotionLevel motion = MotionLevel::Full;
     bool readoutStepped = false;
     bool reducedMotion = false;
+    QualityLevel combinedLevel = QualityLevel::High;
+    int combinedRelief = 0;
 
     struct Source { QualityLevel level = QualityLevel::High; int relief = 0; };
     std::map<const void*, Source> sources;

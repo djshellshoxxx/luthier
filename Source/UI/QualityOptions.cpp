@@ -414,7 +414,7 @@ juce::String QualityDiagnostics::describe (LuthierAudioProcessor& p)
                                                      + (p.getQualityController().isAuto() ? " (Auto)" : "") } }) << "\n"
          << "  " << tr ("quality.diag.oversampling", { { "amp", juce::String (engine.getEffectiveAmpOversampling()) },
                                                         { "drive", juce::String (engine.getEffectiveDriveOversampling()) },
-                                                        { "nominal", juce::String (engine.getOversamplingFactor()) } }) << "\n"
+                                                        { "nominal", juce::String (engine.getEffectiveOversamplingFactor()) } }) << "\n"
          << "  " << tr ("quality.diag.irs", { { "body", juce::String (body.getIrVariants().getSecondsForLevel (l), 2) },
                                                { "cabA", juce::String (cab.getIrVariants (0).getSecondsForLevel (l), 2) },
                                                { "cabB", juce::String (cab.getIrVariants (1).getSecondsForLevel (l), 2) } }) << "\n"

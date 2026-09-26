@@ -16,6 +16,9 @@
 #include "../UI/QualityOptions.h"
 #include "../UI/OptionsPages.h"
 #include "../UI/AdvancedPanel.h"
+#include "../UI/Widgets.h"
+#include "../UI/GuitarBodyComponent.h"
+#include "../Workshop/WorkshopBench.h"
 
 #include <regex>
 #include <set>
@@ -482,8 +485,10 @@ LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
     LuthierAudioProcessor p;
     p.prepareToPlay (kSr, kBlock);
 
-    auto measure = [&p] (QualityLevel level, bool advanced, int& decorativePaints, int& worstReadoutPaints,
-                         int& runningDecorativeTimers, double& cpu, int& busiestDecorative)
+    int stateChanges = 0;
+
+    auto measure = [&p, &stateChanges] (QualityLevel level, bool advanced, int& decorativePaints, int& worstReadoutPaints,
+                                        int& runningDecorativeTimers, double& cpu, int& busiestDecorative)
     {
         EditorOnDesktop shown (p, true);
 
@@ -495,9 +500,26 @@ LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
         ringChord (p);
         pump (p, 0.3);
 
+        // The chord name appearing or going (piano-roll-chord-display 4: it
+        // holds 1.2 s) is a change of state, one repaint each, not animation.
+        std::function<int (juce::Component&)> nameChanges = [&nameChanges] (juce::Component& c)
+        {
+            int n = 0;
+
+            if (auto* body = dynamic_cast<GuitarBodyComponent*> (&c))
+                n += body->getStaticChordNameChanges();
+
+            for (auto* child : c.getChildren())
+                n += nameChanges (*child);
+
+            return n;
+        };
+
+        const int namesBefore = nameChanges (*shown.editor);
         AnimationPolicy::get().resetPaintCounts();
         const double paintBefore = shown.host->seconds;
         const double dispatching = pump (p, 2.0);
+        stateChanges = nameChanges (*shown.editor) - namesBefore;
         cpu = shown.host->seconds - paintBefore;
 
         // Timing noise: a second window, and the lower paint time. The paint
@@ -532,6 +554,9 @@ LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
                               << (r.timerRunning ? ", timer running" : "") << std::endl;
             }
 
+            if (std::getenv ("CQ23_VERBOSE") != nullptr && r.paints > 0)
+                std::cout << "    " << qualityLevelKey (level) << " " << r.name << " " << r.paints << std::endl;
+
             if (level == QualityLevel::Low && r.motionClass == AnimationPolicy::LiveReadout && r.paints > 21)
                 std::cout << "    at Low: readout " << r.name << " painted " << r.paints << std::endl;
         }
@@ -553,7 +578,9 @@ LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
                   << juce::String (cpuHigh * 1000.0, 1) << " ms; Low decorative " << decoLow
                   << " paints, worst readout " << readLow << ", " << juce::String (cpuLow * 1000.0, 1) << " ms" << std::endl;
 
-        CHECK_MSG (decoLow == 0, mode + ": Decorative and Transition registrants painted " + juce::String (decoLow) + " times at Low");
+        CHECK_MSG (stateChanges <= 2, mode + ": the chord name changed " + juce::String (stateChanges) + " times in 2 s");
+        CHECK_MSG (decoLow <= stateChanges, mode + ": Decorative and Transition registrants painted " + juce::String (decoLow)
+                                            + " times at Low, for " + juce::String (stateChanges) + " chord-name changes");
         CHECK_MSG (timersLow == 0, mode + ": " + juce::String (timersLow) + " Decorative / Transition timers still running at Low");
         CHECK_MSG (readLow <= 21, mode + ": a live readout painted " + juce::String (readLow) + " times in 2 s at Low");
         CHECK_MSG (busiestHigh > 30, mode + ": the control failed - nothing decorative animated at High (" + juce::String (busiestHigh) + ")");
@@ -818,6 +845,115 @@ LUTHIER_TEST (CpuQualityUi, CQ26_masterOversamplingTooltipCarriesTheCap)
     }
 
     p.getQualityController().forceLevelForTesting (-1);
+}
+
+//==============================================================================
+// Section 7 reaching the UI (ported from the superseded performance-budget 8
+// ladder's CpuReliefUi tests: stream, audition, opt-out)
+//==============================================================================
+LUTHIER_TEST (CpuQualityUi, governorReliefSuspendsTheStreamAndFreezesTheAudition)
+{
+    QualityTestSupport::ScopedTempSettings temp;
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& controller = processor.getQualityController();
+    controller.stopTimerForTesting();
+    double now = 0.0;
+    QualityController::LoadSnapshot load;
+    controller.setClockForTesting ([&now] { return now; });
+    controller.setLoadFeedForTesting ([&load] { return load; });
+
+    auto tickFor = [&] (double ms)
+    {
+        for (double t = 0.0; t < ms; t += 100.0)
+        {
+            now += 100.0;
+            controller.tick();
+        }
+    };
+
+    // E1 then E2: 200 ms above 85 %, then 200 ms above 90 %.
+    load.mean200ms = 0.95; load.mean2s = 0.95; load.measuredSeconds = 30.0;
+    tickFor (800.0);
+    CHECK (controller.getReliefLevel() == 2);
+
+    // E1: the stream does no work, even with records arriving.
+    DataStreamDisplay stream;
+    stream.setSource (&processor);
+    juce::Component parent;
+    parent.addAndMakeVisible (stream);
+    stream.setBounds (0, 0, 300, 100);
+    const bool wasEnabled = DataStreamDisplay::isEnabledByUser();
+    DataStreamDisplay::setEnabledByUser (true);
+    processor.getDiagnostics().setCrashLogEnabled (true);
+    processor.getDiagnostics().log (LogCategory::Engine, "governor test record");
+    stream.update (1000.0);
+    CHECK (! stream.isScrolling());
+    CHECK (stream.getNumLinesKept() == 0);
+
+    // E2: no new audition starts.
+    auto& bench = processor.getBench();
+    const auto candidates = processor.getPartLibrary().getParts (PartType::bridge);
+    CHECK (! candidates.isEmpty());
+
+    if (! candidates.isEmpty())
+    {
+        bench.beginAudition (GuitarSlot::bridge, candidates[0]);
+        CHECK_MSG (! bench.isAuditioning(), "an audition started at E2");
+    }
+
+    // The load falls (2 s mean below 70 %): both work again.
+    load.mean200ms = 0.3; load.mean2s = 0.3;
+    tickFor (800.0);
+    CHECK (controller.getReliefLevel() == 0);
+
+    processor.getDiagnostics().log (LogCategory::Engine, "governor test record 2");
+    stream.update (2000.0);
+    CHECK (stream.getNumLinesKept() > 0);
+
+    if (! candidates.isEmpty())
+    {
+        bench.beginAudition (GuitarSlot::bridge, candidates[0]);
+        CHECK (bench.isAuditioning());
+        bench.endAudition();
+    }
+
+    processor.getDiagnostics().setCrashLogEnabled (false);
+    DataStreamDisplay::setEnabledByUser (wasEnabled);
+    controller.setLoadFeedForTesting ({});
+    controller.setClockForTesting ({});
+}
+
+LUTHIER_TEST (CpuQualityUi, theDiagnosticsOptOutIsSavedAndReachesE3)
+{
+    QualityTestSupport::ScopedTempSettings temp;
+    LuthierAudioProcessor processor;
+
+    // Section 5: one toggle, the old relief 7 opt-out renamed.
+    DiagnosticsPage page (processor);
+    page.refresh();
+    juce::ToggleButton* toggle = nullptr;
+    int dropToggles = 0;
+
+    for (auto* child : page.getChildren())
+        if (auto* t = dynamic_cast<juce::ToggleButton*> (child); t != nullptr && t->getButtonText().containsIgnoreCase ("drop"))
+        {
+            toggle = t;
+            ++dropToggles;
+        }
+
+    CHECK_MSG (dropToggles == 1, juce::String (dropToggles) + " string-drop toggles on DIAGNOSTICS");
+    CHECK (toggle != nullptr);
+
+    if (toggle != nullptr)
+    {
+        CHECK (toggle->getToggleState());   // default on
+        toggle->setToggleState (false, juce::sendNotificationSync);
+        CHECK (! PerformanceSettings::get().isEmergencyStringDrop());
+        toggle->setToggleState (true, juce::sendNotificationSync);
+        CHECK (PerformanceSettings::get().isEmergencyStringDrop());
+    }
 }
 
 //==============================================================================

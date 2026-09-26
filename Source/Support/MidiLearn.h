@@ -16,7 +16,8 @@ namespace luthier
 {
 
 class MidiLearnManager : public juce::ChangeBroadcaster,
-                         private juce::AsyncUpdater
+                         private juce::AsyncUpdater,
+                         private juce::Timer   // performance-budget.md 0.5: polled, never posted from the audio thread
 {
 public:
     struct Mapping
@@ -36,6 +37,14 @@ public:
     /** Arms learning for a parameter. The next CC received is mapped to it. */
     void startLearning (const juce::String& parameterId);
     void cancelLearning();
+
+    /** action-and-undo.md 3.12: called on the message thread just before a
+        learned mapping is added, so the processor can push an undo entry. */
+    std::function<void (const juce::String& parameterId, int cc)> onBeforeLearn;
+
+    /** Maps a CC the audio thread caught while learning (the async update's
+        work, public for tests, which run no dispatch loop). */
+    void servicePendingLearn() { handleAsyncUpdate(); }
     bool isLearning() const noexcept { return learning.load(); }
     juce::String getLearningParameterId() const;
 
@@ -78,7 +87,9 @@ public:
 
     /** Message thread: finishes a learn the audio thread caught now, rather than
         when the async update arrives (tests, and anything that cannot wait). */
-    void dispatchPendingLearn() { handleUpdateNowIfNeeded(); }
+    // The audio thread no longer posts an update (it only stores learnedCc), so
+    // handleUpdateNowIfNeeded had nothing pending: finish the learn directly.
+    void dispatchPendingLearn() { handleAsyncUpdate(); }
 
     //==========================================================================
     juce::var toVar() const;
@@ -116,6 +127,7 @@ private:
 
     void rebuildLookup() noexcept;
     void handleAsyncUpdate() override;
+    void timerCallback() override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MidiLearnManager)
 };

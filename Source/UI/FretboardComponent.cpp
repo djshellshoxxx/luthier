@@ -74,6 +74,12 @@ void FretboardComponent::setScaleOverlay (ScaleOverlay s, int root)
     repaint();
 }
 
+void FretboardComponent::setGhostDots (const std::vector<GhostDot>& dots)
+{
+    ghostDots = dots;
+    repaint();
+}
+
 void FretboardComponent::setCapoFret (int fret)
 {
     /*  This used to set a number the fretboard drew and nothing else ever read.
@@ -553,6 +559,22 @@ void FretboardComponent::paint (juce::Graphics& g)
                         juce::Rectangle<float> (x - 14.0f, y - 6.0f, 28.0f, 12.0f),
                         juce::Justification::centred, false);
         }
+    }
+
+    // ---- ghost fingering (piano-roll-chord-display.md 3) ---------------------------
+    for (const auto& dot : ghostDots)
+    {
+        if (! juce::isPositiveAndBelow (dot.string, numStrings))
+            continue;
+
+        const double fret = dot.fret;   // as the sounding dots draw the engine's fret, so the ghost is where the note will light
+        const float x = (fret < 0.05) ? nutX - 6.0f
+                                      : (fretX (juce::jmax (0.0, fret - 1.0)) + fretX (fret)) * 0.5f;
+        const float y = stringY (dot.string);
+        const float radius = 6.5f;
+
+        g.setColour (Palette::textPrimary.withAlpha (0.85f));
+        g.drawEllipse (x - radius, y - radius, radius * 2.0f, radius * 2.0f, 1.6f);
     }
 
     // ---- hover ---------------------------------------------------------------------

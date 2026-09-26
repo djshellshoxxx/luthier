@@ -129,29 +129,32 @@ int AnimationPolicy::frameRateFor (const State& s, MotionClass c, int requestedH
     }
 }
 
+AnimationPolicy::State AnimationPolicy::live() const noexcept
+{
+    return compute (AccessibilitySettings::get().isReducedMotion(), combinedLevel, combinedRelief);
+}
+
 bool AnimationPolicy::mayAnimate (MotionClass c) const noexcept
 {
-    return c == LiveReadout || motion != MotionLevel::Off;
+    return c == LiveReadout || live().motion != MotionLevel::Off;
 }
 
 int AnimationPolicy::frameRateHz (MotionClass c, int requestedHz) const noexcept
 {
-    State s;
-    s.motion = motion;
-    s.readoutStepped = readoutStepped;
-    return frameRateFor (s, c, requestedHz);
+    return frameRateFor (live(), c, requestedHz);
 }
 
 int AnimationPolicy::transitionMs (int requestedMs) const noexcept
 {
-    return motion == MotionLevel::Off ? 0 : juce::jmax (0, requestedMs);
+    return live().motion == MotionLevel::Off ? 0 : juce::jmax (0, requestedMs);
 }
 
 AnimationPolicy::StringsStyle AnimationPolicy::getStringsStyle() const noexcept
 {
-    return motion == MotionLevel::Off     ? StringsStyle::Off
-         : motion == MotionLevel::Limited ? StringsStyle::LowStyle
-                                          : StringsStyle::Full;
+    const auto m = live().motion;
+    return m == MotionLevel::Off     ? StringsStyle::Off
+         : m == MotionLevel::Limited ? StringsStyle::LowStyle
+                                     : StringsStyle::Full;
 }
 
 //==============================================================================
@@ -194,6 +197,8 @@ void AnimationPolicy::recompute()
         relief = juce::jmax (relief, s.relief);
     }
 
+    combinedLevel = level;
+    combinedRelief = relief;
     const auto st = compute (reducedMotion, level, relief);
 
     if (st.motion == motion && st.readoutStepped == readoutStepped)

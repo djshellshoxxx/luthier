@@ -585,6 +585,7 @@ LUTHIER_TEST (CpuQuality, CQ14_offlineRendersAreHighAndDeterministic)
 //==============================================================================
 LUTHIER_TEST (CpuQuality, CQ19_emergencyDropFadesOneStringWithItsBanner)
 {
+    const QualityController::GovernorScope governor (true);   // TestMain turns it off for other tests
     QualityTestSupport::ScopedTempSettings temp;
 
     auto overload = [] (LuthierAudioProcessor& p)
@@ -663,6 +664,7 @@ LUTHIER_TEST (CpuQuality, CQ19_emergencyDropFadesOneStringWithItsBanner)
 //==============================================================================
 LUTHIER_TEST (CpuQuality, CQ20_switchingEveryHundredMsNeverAllocates)
 {
+    const QualityController::GovernorScope governor (true);   // TestMain turns it off for other tests
     QualityTestSupport::ScopedTempSettings temp;
     PerformanceSettings::get().setQuality (QualityChoice::Auto);
 

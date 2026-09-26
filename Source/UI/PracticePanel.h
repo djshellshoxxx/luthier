@@ -103,6 +103,8 @@ public:
     void resized() override;
 
 private:
+    /** action-and-undo.md 3.14: a layer setting change as one grouped entry. */
+    void editLayer (int layer, const char* what, const std::function<void()>& change);
     Looper& looper();
 
     juce::TextButton transportButton { "Record" }, stopButton { "Stop" }, clearButton { "Clear" };
