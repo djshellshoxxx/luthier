@@ -57,6 +57,11 @@ struct JamStatus
     std::array<ChordSymbol, kChordTrack> chordTrack {};
     std::array<uint8_t, kChordTrack> chordTrackSource {};   ///< NextSource per slot
 
+    /** The bass notes played in the current bar, in order (12: the lane
+        view's description reads them). */
+    std::array<int8_t, 16> bassNotes {};
+    int numBassNotes = 0;
+
     double drumsPeak = 0.0, bassPeak = 0.0;
     uint32_t sequence = 0;
 };

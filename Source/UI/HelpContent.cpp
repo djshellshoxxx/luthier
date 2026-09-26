@@ -151,7 +151,7 @@ namespace
 
         { "workspace", "Column 4: The Workspace", "workspace|Column 4|tabs",
           "Column 4 is a tab strip with one panel behind each tab. The tabs, in order:\n\n"
-          "WORKSHOP, MOD, RHYTHM, TUNE, LIVE, ROUTING, TONE MATCH, CHARACTER, PRACTICE, NOTATION, MIDI OUT, "
+          "WORKSHOP, MOD, RHYTHM, TUNE, JAM, LIVE, ROUTING, TONE MATCH, CHARACTER, PRACTICE, NOTATION, MIDI OUT, "
           "CONTROLLERS, HELP.\n\n"
           "Each has its own topic in this list. {key:previousWorkspaceTab} and {key:nextWorkspaceTab} step "
           "through them, wrapping at the ends, and the tab you had open last is the one that opens next time. "
@@ -224,6 +224,28 @@ namespace
           "With the tab focused, save ({key:save}) and export ({key:export}) act on the tune rather than the "
           "preset, and undo steps through the tune's own history. Playback keeps going when the window is "
           "closed." },
+
+        // FEAT-JAM (jam-mode.md 8): the band.
+        { "jam", "JAM", "JAM|jam mode|jam band|band|backing band|drums|drummer|bass player",
+          "A drummer and a bass player who follow your chords. Arm the band (the JAM pill, {key:jamArm}) and play "
+          "a chord: the band starts with it and follows every change. {key:jamStartStop} starts or stops it now, "
+          "{key:jamFill} plays a fill into the next bar.\n\n"
+          "- STYLE: ten styles (Rock, Pop, Funk, Blues Shuffle, Country, Metal, Reggae, Jazz Swing, Ballad, EDM), "
+          "each with grooves A and B, or a .luthierjam file of your own (User). Link guitar rhythm kit also switches "
+          "the guitar's rhythm genre kit.\n"
+          "- FEEL: intensity 1 to 5, fills, swing and how human it plays; Dynamics follow plays up and down with you.\n"
+          "- FOLLOW: chords from your playing, the tune, or Auto (the tune while it plays). Tight follows at once, "
+          "Bar waits for the bar line; Predict repeats anticipates a progression you repeat.\n"
+          "- START/STOP: Auto starts with the host's transport, the tune, or your first note; the count-in is the "
+          "band's sticks. It stops when you stop playing, with an ending if you like. The metronome goes quiet "
+          "while the drums are heard (a preference here).\n"
+          "- KIT, BASS, MIXER: five synthesized kits, four basses, the band's volume, balance and pans, and the "
+          "output - Main, or Separate on Aux 9 Jam Drums and Aux 10 Jam Bass (the multi-out layouts).\n"
+          "- LANES: what the band plays this bar and the chords around it; drag the last bars out as MIDI, or "
+          "Export MIDI. MIDI OUT's Jam band switch sends the band live on channels 10 and 11.\n\n"
+          "Loops record your guitar only; session takes include the band. Loading a bass makes you the bassist: "
+          "the Jam bass rests. Two plugin instances jamming means two drummers.",
+        },
 
         { "live", "LIVE", "LIVE|live mode|snapshots|snapshot|setlist|morph",
           "The setup surface for playing live. The live strip along the bottom of the window ({key:toggleLiveMode}) "
@@ -637,7 +659,7 @@ namespace
         { "Help and navigation", "help|showShortcuts|options|toggleAdvanced|previousWorkspaceTab|"
                                  "nextWorkspaceTab|debugPanel" },
         { "Playing",             "panic|killSwitch|tapTempo|audition|toggleLiveMode|toggleSlideMode|toggleWorkshop|"
-                                 "togglePractice|midiLearnArm" },
+                                 "togglePractice|midiLearnArm|jamStartStop|jamFill|jamArm" },   // FEAT-JAM
         { "Presets, snapshots and setlists", "previousItem|nextItem|setlistPrevious|setlistNext|abCompare|"
                                  "randomise|resetAll|newPreset|presetBrowser" },
         { "Files and editing",   "undo|redo|redoAlt|undoAcrossBoundary|save|saveAs|revealPreset|saveGuitarAs|revealGuitar|export|newTune" }

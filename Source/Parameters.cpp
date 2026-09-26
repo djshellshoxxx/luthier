@@ -2,7 +2,8 @@
 #include "PhysicalRange.h"
 #include "Rhythm/StrumGesture.h"
 #include "Presets/RealismStyles.h"   // REALISM-C
-#include "Jam/JamStyle.h"   // FEAT-JAM
+#include "Jam/JamStyle.h"
+#include "Jam/JamEdition.h"   // FEAT-JAM   // FEAT-JAM
 
 namespace luthier
 {
@@ -1281,6 +1282,18 @@ JamSettings ParameterBridge::readJam() const noexcept
     j.drumsMute      = value (ParamIDs::jamDrumsMute) > 0.5f;
     j.bassMute       = value (ParamIDs::jamBassMute) > 0.5f;
     j.output         = juce::roundToInt (value (ParamIDs::jamOutput));
+
+    // jam-mode 15: a Free build plays the nearest Free choice and keeps the stored value.
+    if constexpr (JamEdition::kIsFree)
+    {
+        j.style = JamEdition::nearestFree (JamEdition::Item::style, j.style);
+        j.kit = JamEdition::nearestFree (JamEdition::Item::kit, j.kit);
+        j.bassVoice = JamEdition::nearestFree (JamEdition::Item::bassVoice, j.bassVoice);
+        j.output = JamEdition::nearestFree (JamEdition::Item::output, j.output);
+        j.kitTuning = 0.0;
+        j.kitDamping = 40.0;
+    }
+
     return j;
 }
 // ==== END FEAT-JAM params ====

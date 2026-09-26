@@ -34,6 +34,7 @@
 #include "PedalRack.h"
 #include "AmpFacePanel.h"
 #include "TunePanel.h"
+#include "JamPanel.h"   // FEAT-JAM
 #include "PracticeSetupPanel.h"
 #include "HelpTab.h"
 #include "PanelHelpButton.h"
@@ -325,6 +326,7 @@ private:
     std::unique_ptr<ModMatrixPanel> modMatrixPanel;
     std::unique_ptr<RhythmPanel> rhythmPanel;
     std::unique_ptr<TunePanel> tunePanel;
+    std::unique_ptr<JamPanel> jamPanel;   // FEAT-JAM: jam-mode 8.1
     std::unique_ptr<PracticeSetupPanel> practiceSetupPanel;
     std::unique_ptr<HelpTab> helpTab;
     std::unique_ptr<LivePanel> livePanel;

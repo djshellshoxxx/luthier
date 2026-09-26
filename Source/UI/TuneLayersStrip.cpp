@@ -88,7 +88,22 @@ TuneLayersStrip::TuneLayersStrip (TuneSession& s, juce::StringArray fingerpickPa
     AccessibleSetup::configureButton (regenerateButton, "Regenerate countermelody");
     regenerateButton.onClick = [this] { regenerateCountermelody(); };
 
+    // FEAT-JAM (jam-mode 11).
+    jamNote.setFont (Fonts::ui (10.0f));
+    jamNote.setColour (juce::Label::textColourId, Palette::warning);
+    jamNote.setTooltip ("The Jam band's drums are playing, so the tune's percussion layer is left out.");
+    addChildComponent (jamNote);
+
     refresh();
+}
+
+void TuneLayersStrip::setPercussionReplaced (bool replaced)
+{
+    if (jamNote.isVisible() == replaced)
+        return;
+
+    jamNote.setVisible (replaced);
+    resized();
 }
 
 int TuneLayersStrip::getPreferredHeight() const
@@ -242,6 +257,7 @@ void TuneLayersStrip::resized()
         rows[i].toggle.setBounds (row.removeFromLeft (84).reduced (0, 1));
 
         auto extra = row.removeFromRight (i == (size_t) LayerType::arpeggio || i == (size_t) LayerType::countermelody
+                                            || (i == (size_t) LayerType::percussion && jamNote.isVisible())   // FEAT-JAM
                                             ? juce::jmin (130, row.getWidth() / 3) : 0);
 
         const int half = row.getWidth() / 2;
@@ -255,6 +271,8 @@ void TuneLayersStrip::resized()
             arpBox.setBounds (extra.reduced (2, 1));
         else if (i == (size_t) LayerType::countermelody)
             regenerateButton.setBounds (extra.reduced (2, 1));
+        else if (i == (size_t) LayerType::percussion)
+            jamNote.setBounds (extra.reduced (2, 1));   // FEAT-JAM
     }
 }
 

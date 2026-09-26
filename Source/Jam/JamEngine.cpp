@@ -1634,6 +1634,20 @@ void JamEngine::noteCapture (int64_t sample, double ppq, int part, int note, int
 
 void JamEngine::playBassNote (int note, double velocity, bool ghost, int64_t sample, double ppq) noexcept
 {
+    // 12: the bar's notes, for the lane view's description.
+    {
+        const int64_t bar = cursor.valid ? cursor.bar : 0;
+
+        if (bar != barBassNotesBar)
+        {
+            barBassNotesBar = bar;
+            numBarBassNotes = 0;
+        }
+
+        if (numBarBassNotes < (int) barBassNotes.size())
+            barBassNotes[(size_t) numBarBassNotes++] = (int8_t) juce::jlimit (0, 127, note);
+    }
+
     const int channel = bassChannel.load (std::memory_order_relaxed);
     const int offset = (int) (sample - sampleClock);
 
@@ -1951,6 +1965,8 @@ void JamEngine::publishStatus (const BlockContext& ctx) noexcept
 {
     status.state = state;
     status.bar = cursor.valid ? cursor.bar : 0;
+    status.bassNotes = barBassNotes;
+    status.numBassNotes = barBassNotesBar == status.bar ? numBarBassNotes : 0;
     status.stepsPerBeat = cursor.stepsPerQuarter;
     status.stepsInBar = cursor.stepsInBar;
 

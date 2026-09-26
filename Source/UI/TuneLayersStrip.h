@@ -49,6 +49,12 @@ public:
     juce::ComboBox& getArpeggioBox() noexcept                 { return arpBox; }
     juce::TextButton& getRegenerateButton() noexcept          { return regenerateButton; }
 
+    /** jam-mode 11 (FEAT-JAM): while the Jam drums are heard the percussion
+        layer is not played, and its row says "Replaced by Jam drums". */
+    void setPercussionReplaced (bool replaced);
+    bool isPercussionReplaced() const noexcept { return jamNote.isVisible(); }
+    juce::String getPercussionNote() const    { return jamNote.getText(); }
+
     void paint (juce::Graphics&) override;
     void resized() override;
 
@@ -73,6 +79,7 @@ private:
     std::array<Row, 4> rows { Row ("PAD"), Row ("ARPEGGIO"), Row ("COUNTER"), Row ("PERC") };
     juce::ComboBox arpBox;
     juce::TextButton regenerateButton { "REGEN" };
+    juce::Label jamNote { {}, "Replaced by Jam drums" };   // FEAT-JAM
     juce::Rectangle<int> bassLabel;
     std::array<juce::Rectangle<int>, 4> volumeLabels, panLabels;
 

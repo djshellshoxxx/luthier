@@ -4,6 +4,7 @@
 #include "UI/FirstRun.h"
 #include "UI/RangesUi.h"
 #include "UI/UiPreferences.h"
+#include "UI/JamWidgets.h"   // FEAT-JAM
 #include "Accessibility/Accessibility.h"
 
 namespace luthier
@@ -790,6 +791,9 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     }
 
     if (is ("panic"))     { processor.panic();       return true; }
+
+    if (JamShortcuts::handle (processor, key))   // FEAT-JAM: jam-mode 8.2
+        return true;
     if (is ("tapTempo"))  { processor.tapTempoNow(); return true; }
 
     if (is ("killSwitch"))

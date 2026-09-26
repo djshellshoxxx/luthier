@@ -359,6 +359,9 @@ private:
     int64_t lastBassStepMusical = INT64_MIN;
     JamBassLine bassLine;
     int bassMidiNote = -1;
+    std::array<int8_t, 16> barBassNotes {};   // the status's bassNotes (12)
+    int numBarBassNotes = 0;
+    int64_t barBassNotesBar = -1;
     bool bassSounding = false;
     ChordSymbol lastRhythmChord;
 
