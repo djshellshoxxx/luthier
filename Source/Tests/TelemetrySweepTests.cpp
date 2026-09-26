@@ -216,3 +216,49 @@ LUTHIER_TEST (Telemetry, thePrivacyPageExplainsSwitchesAndShowsTheLog)
     telemetry.fromVar (saved);
     telemetry.saveSettings();
 }
+
+//==============================================================================
+/*  UT-16 / UT-19 / UT-30: the crash writer names its file crash-<timestamp>.dmp
+    and carries stack, build and host - never preset names, audio or MIDI. */
+#include "../Updates/CrashWriter.h"
+
+LUTHIER_TEST (Telemetry, crashDumpsContainNoAudioMidiOrPresets)
+{
+    LuthierAudioProcessor processor;
+
+    // A distinctive preset name loaded, and sentinel patterns in audio / MIDI.
+    {
+        auto& presets = processor.getPresetManager();
+        presets.fromVar (presets.toVar ("Zorblax Sentinel Preset"));
+        CHECK (presets.getCurrentPresetName() == "Zorblax Sentinel Preset");
+    }
+
+    juce::AudioBuffer<float> audio (2, 256);
+    for (int i = 0; i < 256; ++i)
+        audio.setSample (0, i, 0.123456f);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 99), 0);
+    processor.prepareToPlay (48000.0, 256);
+    processor.processBlock (audio, midi);
+
+    CrashWriter::setInfo ({ "Luthier test", "TestHost", "Standalone" });
+
+    juce::TemporaryFile dir;
+    dir.getFile().createDirectory();
+
+    const auto dump = CrashWriter::writeDump (dir.getFile(), juce::SystemStats::getStackBacktrace());
+    CHECK (dump.existsAsFile());
+    CHECK (dump.getFileName().matchesWildcard ("crash-??????????????.dmp", true));
+
+    const auto text = dump.loadFileAsString();
+    CHECK (text.contains ("stack:"));
+    CHECK (text.contains ("build: Luthier test"));
+    CHECK (text.contains ("host: TestHost"));
+
+    CHECK (! text.contains ("Zorblax"));
+    CHECK (! text.contains ("MThd"));
+    CHECK (! text.contains ("0.123456"));
+
+    dir.getFile().deleteRecursively();
+}

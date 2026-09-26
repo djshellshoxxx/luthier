@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "Updates/CrashWriter.h"   // SPEC-SWEEP: UT-16
 #include "Presets/FactoryPresets.h"
 #include "Support/ErrorLog.h"
 #include "Model/Guitar/BassDefaults.h"   // MODEL-GAPS
@@ -2691,6 +2692,15 @@ void LuthierAudioProcessor::timerCallback()
     updateSnapshotMorph();
     expressionInput.syncWith (expression);
     expressionInput.feedWizard (expression);
+
+    // SPEC-SWEEP: UT-16 - the crash dump writer, once crash reports are on.
+    if (! CrashWriter::isInstalled() && telemetry.isCrashUploadEnabled())
+    {
+        CrashWriter::setInfo ({ juce::String ("Luthier ") + JucePlugin_VersionString,
+                                juce::PluginHostType().getHostDescription(),
+                                juce::AudioProcessor::getWrapperTypeDescription (wrapperType) });
+        CrashWriter::install();
+    }
 
     serviceTune();
 
