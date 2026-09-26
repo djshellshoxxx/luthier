@@ -223,7 +223,8 @@ public:
     void chordSymbol (int sampleOffset, const char* name) noexcept;
 
     /** bass-techniques: slap, pop, ghost, lhslap, thump, pluck. */
-    void bassTechnique (int sampleOffset, int stringIndex, const char* technique, double pluckPosition) noexcept;
+    void bassTechnique (int sampleOffset, int stringIndex, const char* technique, double pluckPosition,
+                        double force = 0.8, double fretContact = 0.8) noexcept;   // SPEC-SWEEP BT-24: force, contact
 
     /** slide-guitar: the bar's position in frets and its pressure (lift, light, full). */
     void slideBar (int sampleOffset, double fretPosition, const char* pressure) noexcept;

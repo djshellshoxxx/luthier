@@ -1671,7 +1671,9 @@ void LuthierEngine::captureBassTechnique (const SlapStrike& strike) noexcept
                                                         : "slap";
 
     const double position = juce::jlimit (0.0, 1.0, strike.contactMm / juce::jmax (1.0, spec.scaleLengthMm));
-    perfCapture->bassTechnique (captureOffset(), strike.stringIndex, name, position);
+    // SPEC-SWEEP BT-24: the strike's force and its fret contact go with it.
+    perfCapture->bassTechnique (captureOffset(), strike.stringIndex, name, position,
+                                strike.force, slap.getSettings().fretContact);
 }
 
 void LuthierEngine::captureBlockState() noexcept

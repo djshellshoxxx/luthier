@@ -23,6 +23,7 @@
 #include "../Practice/TimePitchShifter.h"
 #include "../ToneMatch/ToneMatch.h"
 #include "../Export/MidiImportTargets.h"
+#include "../Capture/PerformanceCapture.h"
 #include "../Notation/NotationExport.h"
 #include "../Practice/PracticeRoutineSetup.h"
 #include "../UI/PracticePanel.h"
@@ -2855,4 +2856,94 @@ LUTHIER_TEST (Notation, midiExportCarriesBendRangeBendsAndLegato)
     CHECK_MSG (wheel > 0, "the bend has no pitch-wheel movement");
     CHECK_MSG (legatoOn >= 1 && legatoOff >= 1, "the hammer-on is not bracketed by CC 68");
     file.deleteFile();
+}
+
+LUTHIER_TEST (BassTechniques, aCapturedStrikeCarriesItsForceAndContact)
+{
+    // BT-24 (midi-export 9): BASS_TECH keeps the strike's force and fret contact.
+    LuthierEngine engine;
+    engine.prepare (48000.0, 256);
+    engine.setGuitarType (GuitarType::JazzBass);
+
+    PerformanceCapture capture;
+    capture.prepare (48000.0);
+    engine.setPerformanceCapture (&capture);
+
+    CaptureClock clock;
+    clock.sampleRate = 48000.0;
+    capture.beginBlock (clock);
+
+    auto note = [&engine] (int s, double fret, double velocity, int type)
+    {
+        NoteOnEvent e;
+        e.stringIndex = s;
+        e.fretPosition = fret;
+        e.velocity = velocity;
+        e.pitchHz = engine.getTuningEngine().computeFrequency (s, fret);
+        e.bassTechnique = type;
+        return e;
+    };
+
+    engine.triggerNoteNow (note (3, 5.0, 1.0, 1));
+    engine.triggerNoteNow (note (1, 7.0, 0.3, 1));
+
+    juce::AudioBuffer<float> buffer (2, 256);
+    juce::MidiBuffer midi;
+    engine.processBlock (buffer, midi);
+    engine.setPerformanceCapture (nullptr);
+    capture.drain();
+
+    std::vector<double> forces;
+
+    for (const auto& ev : capture.getEvents())
+    {
+        if (ev.event.eventClass != LuthierEventClass::bassTech)
+            continue;
+
+        CHECK (ev.event.has ("force"));
+        CHECK (ev.event.has ("contact"));
+        CHECK_NEAR (ev.event.getReal ("contact"), engine.getSlapEngine().getSettings().fretContact, 0.01);
+        forces.push_back (ev.event.getReal ("force"));
+    }
+
+    CHECK (forces.size() == 2);
+
+    if (forces.size() == 2)
+        CHECK_MSG (forces[0] > forces[1], "a harder slap was not captured with more force");
+}
+
+LUTHIER_TEST (SlapWiring, aStringUnderTheSlideBarIsNotSlapped)
+{
+    // SS-22 (string-slap-technique.md, technique-cascade 3.4): the bar holds
+    // the string, and the thumb cannot get at it - no clack there.
+    auto clacks = [] (bool slideOn)
+    {
+        LuthierEngine engine;
+        engine.prepare (48000.0, 256);
+        engine.setGuitarType (GuitarType::JazzBass);
+
+        SlideSettings settings;
+        settings.enabled = slideOn;
+        settings.mode = SlideMode::lapSteel;
+        engine.setSlideSettings (settings);
+
+        const int low = engine.getNumStrings() - 1;
+
+        if (slideOn)
+            engine.getSlideEngine().noteOn (low, engine.getNumStrings());
+
+        NoteOnEvent e;
+        e.stringIndex = low;
+        e.fretPosition = 3.0;
+        e.velocity = 1.0;
+        e.pitchHz = engine.getTuningEngine().computeFrequency (low, 3.0);
+        e.bassTechnique = 1;   // a thumb slap
+        e.technique = slideOn ? Technique::SlideGuitar : Technique::Pluck;
+        engine.triggerNoteNow (e);
+
+        return engine.getPlayingNoise().getPool().getTriggerCount (NoiseClass::fretBuzz);
+    };
+
+    CHECK_MSG (clacks (false) >= 1, "a thumb slap off the bar did not clack");
+    CHECK_MSG (clacks (true) == 0, "a string under the bar was slapped");
 }
