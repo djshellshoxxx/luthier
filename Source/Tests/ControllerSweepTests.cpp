@@ -634,3 +634,22 @@ LUTHIER_TEST (Controllers, bendRangeCheckWritesTheProfile)
 
     CHECK_MSG (page.getBendCheckText().contains ("bent to"), "readout: " + page.getBendCheckText());
 }
+
+/*  PT-21: a reset puts CC 11 back to full level, like the pedals and the other
+    controllers. Left at the last value, a second render of the same performance
+    started quieter than the first (MidiExport::luthierRoundTripNullsEveryFactoryPreset). */
+LUTHIER_TEST (Controllers, resetRestoresTheCc11Level)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::controllerEvent (1, 11, 40), 0);
+    renderBlocks (processor, 1, &midi);
+
+    auto& interp = processor.getEngine().getMidiInterpreter();
+    CHECK (interp.getMasterLevel() < 0.5);   // any expression calibration still leaves it low
+
+    processor.getEngine().reset();
+    CHECK_NEAR (interp.getMasterLevel(), 1.0, 1.0e-9);
+}

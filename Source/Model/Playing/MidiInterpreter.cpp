@@ -87,6 +87,10 @@ void MidiInterpreter::reset() noexcept
     // starts from the old preset's last value and does not repeat.
     expressionValue = 0.5;
     pickPosition = 0.5;
+    // SPEC-SWEEP (PT-21): CC 11 too. Left at the last level, the bridge's next
+    // applyAllNow started a repeat render quieter than the first (MidiExport
+    // luthierRoundTripNullsEveryFactoryPreset: "Clean Double-Cut Funk").
+    masterLevel.store (1.0, std::memory_order_relaxed);
     globalBendCents = 0.0;
     activeNoteCount = 0;
     lastMonoString = -1;
