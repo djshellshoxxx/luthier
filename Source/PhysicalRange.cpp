@@ -126,7 +126,7 @@ namespace
             // Thickness and angle keep their shipped 0-1 declarations (1.0);
             // the advanced ends are where the physical mapping reaches the
             // spec's 0.1-10 mm and 89 degrees.
-            { ParamIDs::pickThickness,    { 0.0f, 1.0f, -0.647f, 1.585f, 0.5f,  1.0f, RangeFamily::pick } },
+            { ParamIDs::pickThickness,    { 0.0f, 1.0f, -0.647f, 1.585f, 0.316f, 1.0f, RangeFamily::pick } },
             { ParamIDs::pickAngle,        { 0.0f, 1.0f,  0.0f,   1.483f, 0.35f, 1.0f, RangeFamily::pick } },
             { ParamIDs::pickTipRadius,    { 0.2f, 4.0f,  0.05f,  20.0f,  1.0f,  0.3f, RangeFamily::pick } },
             { ParamIDs::pickClickAmount,  { 0.0f, 1.0f,  0.0f,   4.0f,   0.5f,  1.0f, RangeFamily::pick } },

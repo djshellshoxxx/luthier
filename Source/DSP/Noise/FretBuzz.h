@@ -109,6 +109,12 @@ public:
     /** The fret each string's generator was last triggered for, -1 if none. */
     int getBuzzingFret (int stringIndex) const noexcept;
 
+    /** The pool slot a string's buzz generator occupies, -1 if none. For tests. */
+    int getGeneratorIndex (int stringIndex) const noexcept
+    {
+        return juce::isPositiveAndBelow (stringIndex, SetupGeometry::kMaxStrings) ? generatorIndex[(size_t) stringIndex] : -1;
+    }
+
     /** The level a contact of `excessMm` at `fret` produces (4). For tests. */
     double levelFor (double excessMm) const noexcept;
 

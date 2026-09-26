@@ -21,6 +21,8 @@ Table: row ID | what was done | test | status
 | EN-16 | none (map already correct) | `Midi::defaultCcMapMatchesTheSpec` | DONE |
 | EN-52 | none (already correct) | `Whammy::floydSpringsRingOnReturn` | DONE |
 | EN-90 | `RoomEngine` and `ReverbPedal` FDN feedback clamp changed from 0.9985 to the spec's 0.998; added `getFeedbackGain()` accessors for the test | `Room::feedbackNeverExceedsTheCap` | DONE |
+| FB-8 | none (already correct); added `FretBuzz::getGeneratorIndex` test accessor | `Buzz::theCentreRisesWithTheContactFret` | DONE |
+| PN-9 | `pick_thickness` default changed from 0.5 (1.07 mm) to 0.316 (0.73 mm) in `Parameters.cpp` and `PhysicalRange.cpp`; `BassFamilyDefaults` already reads the parameter's own default dynamically, so bass retargeting is unaffected. Presets that omit the field now load at 0.73 mm instead of 1.07 mm | `PickNoise::theDefaultPickIsPoint73mm` | DONE |
 
 ## Notes
 

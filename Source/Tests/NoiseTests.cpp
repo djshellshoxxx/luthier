@@ -305,6 +305,17 @@ LUTHIER_TEST (PickNoise, aClickSitsAboutThirtyDecibelsUnderTheNote)
                "the click sits " + juce::String (belowDb, 1) + " dB under the note, not 25-35");
 }
 
+LUTHIER_TEST (PickNoise, theDefaultPickIsPoint73mm)
+{
+    // pick-noise.md 2, 7: default pick_thickness decodes to 0.73 mm.
+    LuthierAudioProcessor processor;
+    auto* p = processor.getState().getParameter (ParamIDs::pickThickness);
+    CHECK (p != nullptr);
+
+    const double mm = Parameters::pickThicknessMm (p->getDefaultValue());
+    CHECK_MSG (std::abs (mm - 0.73) < 0.01, "default pick thickness decodes to " + juce::String (mm, 3) + " mm");
+}
+
 //==============================================================================
 LUTHIER_TEST (Squeak, pitchTracksSpeedAndWinding)
 {

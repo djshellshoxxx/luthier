@@ -493,7 +493,8 @@ APVTS::ParameterLayout Parameters::createLayout()
     // --- right hand -----------------------------------------------------------
     add (boolParam   (ParamIDs::useFingers,    "Fingers",        false));
     add (choiceParam (ParamIDs::pickMaterial,  "Pick Material",  pickMaterialNames(), 1));
-    add (floatParam  (ParamIDs::pickThickness, "Pick Thickness", 0.0f, 1.0f, 0.5f));
+    // pick-noise.md 7: log (0.73 / 0.38) / log (3 / 0.38) so the default decodes to 0.73 mm.
+    add (floatParam  (ParamIDs::pickThickness, "Pick Thickness", 0.0f, 1.0f, 0.316f));
     add (floatParam  (ParamIDs::pickAngle,     "Pick Angle",     0.0f, 1.0f, 0.35f));
     add (floatParam  (ParamIDs::pluckPosition, "Pick Position",  0.02f, 0.5f, 0.16f));
     add (floatParam  (ParamIDs::nailVsFlesh,   "Nail / Flesh",   0.0f, 1.0f, 0.5f));

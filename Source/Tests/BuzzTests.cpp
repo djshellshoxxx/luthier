@@ -237,6 +237,53 @@ LUTHIER_TEST (Buzz, playerFriendlyBuzzesOnlyWhenAttackedHard)
     CHECK_MSG (anyBuzz (hard, 0, hard.size()), "Player-friendly never buzzed, even at 127");
 }
 
+LUTHIER_TEST (Buzz, theCentreRisesWithTheContactFret)
+{
+    // 4: metallic burst 3-6 kHz, its centre rising with the contact fret.
+    auto startHzFor = [] (double fret)
+    {
+        LuthierEngine engine;
+        engine.prepare (48000.0, 256);
+        engine.setGuitarType (GuitarType::Stratocaster);
+        engine.setSetupGeometry (withStyle (kNeedsATech));
+
+        const int low = engine.getNumStrings() - 1;
+
+        NoteOnEvent e;
+        e.stringIndex = low;
+        e.fretPosition = fret;
+        e.velocity = 1.0;
+        e.pitchHz = 82.41 * std::pow (2.0, fret / 12.0);
+        engine.triggerNoteNow (e);
+
+        juce::AudioBuffer<float> block (2, 256);
+        juce::MidiBuffer none;
+
+        for (int b = 0; b < 40; ++b)
+        {
+            block.clear();
+            engine.processBlock (block, none);
+
+            const int gen = engine.getFretBuzz().getGeneratorIndex (low);
+
+            if (gen >= 0)
+                if (auto* g = engine.getPlayingNoise().getPool().getGenerator (NoiseClass::fretBuzz, gen))
+                    return g->getEvent().startHz;
+        }
+
+        return 0.0;
+    };
+
+    const double lowFretHz = startHzFor (0.0);
+    const double highFretHz = startHzFor (18.0);
+
+    CHECK_MSG (lowFretHz >= 3000.0 && lowFretHz <= 6000.0, "low-fret buzz startHz " + juce::String (lowFretHz));
+    CHECK_MSG (highFretHz >= 3000.0 && highFretHz <= 6000.0, "high-fret buzz startHz " + juce::String (highFretHz));
+    CHECK_MSG (highFretHz > lowFretHz,
+               "the buzz spectrum should rise with the contact fret: low " + juce::String (lowFretHz)
+                 + " vs high " + juce::String (highFretHz));
+}
+
 //==============================================================================
 LUTHIER_TEST (BuzzUi, setupStylesApplyAsOneStepAndReadModified)
 {
