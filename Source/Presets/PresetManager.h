@@ -75,10 +75,23 @@ public:
     std::function<juce::var()> captureGuitarBlock;
     std::function<void (const juce::var&)> onGuitarBlockLoaded;
 
+    /** jam-mode.md 12 (FEAT-JAM): the preset's optional `jam` block, supplied on
+        save and handed over on every load (void when a preset has none, which
+        means defaults). Message thread. */
+    std::function<juce::var()> captureJamBlock;
+    std::function<void (const juce::var&)> onJamBlockLoaded;
+
+    /** FEAT-JAM (jam-mode 11): a parameter a load leaves as it is - a preset
+        load never stops a playing band. Null keeps every parameter. */
+    std::function<bool (const juce::String&)> keepOnLoad;
+
     /** After a load has written its pedal types and their parameters, so the
         pedals can be built with the loaded settings rather than their defaults
         (ParameterBridge::adoptPedalTypesFromParameters). */
     std::function<void()> onPedalTypesLoaded;
+
+    /** output-normalization.md 4.4: after a preset file loaded (message thread). */
+    std::function<void()> onPresetLoaded;
 
     /** Called around a whole load (fromVar), so the processor can fade its output
         out before the first parameter moves and back in after the last. Without

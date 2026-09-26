@@ -47,6 +47,10 @@ juce::AudioProcessor::BusesProperties LuthierAudioProcessor::buildBusesPropertie
     // Aux 8 (pick-noise 1.3), last so that no earlier bus number moves.
     props = props.withOutput (getAuxBusName (kNoiseAux), juce::AudioChannelSet::stereo(), false);
 
+    // jam-mode.md 7 (FEAT-JAM): Aux 9 and 10, after Aux 8, so nothing moves.
+    props = props.withOutput (getAuxBusName (kJamDrumsAux), juce::AudioChannelSet::stereo(), false);
+    props = props.withOutput (getAuxBusName (kJamBassAux), juce::AudioChannelSet::stereo(), false);
+
     return props;
 }
 
@@ -96,6 +100,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 
     // A preset's pedals come with their settings; build them keeping those.
     presets.onPedalTypesLoaded = [this] { bridge.adoptPedalTypesFromParameters(); };
+
+    // output-normalization.md 4.4: a preset load is a discrete configuration
+    // event, and a cached gain rides the load.
+    presets.onPresetLoaded = [this] { outputNormalization.notifyConfigurationChanged (true); };
     presets.ensureFactoryPresetsInstalled();
     presets.refresh();
 
@@ -114,6 +122,23 @@ LuthierAudioProcessor::LuthierAudioProcessor()
         if (PracticeDefaults::load (PracticeDefaults::getDefaultsFile(), defaults, error))
             defaults.applyTo (getPracticeTargets());
     }
+
+    // jam-mode.md (FEAT-JAM): the factory styles in their slots, the preset's
+    // jam block, and the tune's chord map for every timeline built.
+    for (int i = 0; i < jam::kNumFactoryStyles; ++i)
+        jam.setStyleSlot (i, jamStyles.getFactoryStyle (i));
+
+    jamStyles.loadOverrides (JamStyleLibrary::getFactoryOverrideFolder());
+
+    for (int i = 0; i < jam::kNumFactoryStyles; ++i)
+        jam.setStyleSlot (i, jamStyles.getFactoryStyle (i));
+
+    jam.setStyleSlot (jam::kUserStyleIndex, jamStyles.getFactoryStyle (0));
+    jamOutputRaw = apvts.getRawParameterValue (ParamIDs::jamOutput);
+    presets.captureJamBlock = [this] { return getJamBlock(); };
+    presets.onJamBlockLoaded = [this] (const juce::var& block) { setJamBlock (block); };
+    presets.keepOnLoad = [this] (const juce::String& id) { return id == ParamIDs::jamEnabled && jam.isBandRunning(); };
+    tuneSession.onTimelineBuilt = [this] (const TuneTimeline& timeline) { onJamTimeline (timeline); };
 
     // tune-builder 8: the tune drives the rhythm engine's pattern and kit.
     tuneSession.attachPlayer (&tunePlayer);
@@ -210,6 +235,14 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     tunePlayer.prepare (sampleRate, samplesPerBlock);
 
+    // jam-mode 13 (FEAT-JAM): a re-prepare rebuilds the band and sends it back to Armed.
+    jam.prepare (sampleRate, samplesPerBlock);
+    jamNotes.ensureSize (8192);
+    jamTuneBass.ensureSize (4096);
+    jamScratch.ensureSize (TunePlayer::kRecommendedMidiBytes);
+    jamMain.setSize (2, juce::jmax (1, samplesPerBlock), false, true, false);
+    jamMain.clear();
+
     for (auto* tuneBuffer : { &tuneToEngine, &tuneToMidiOut, &tuneDirect })
         tuneBuffer->ensureSize (TunePlayer::kRecommendedMidiBytes);
 
@@ -264,6 +297,15 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     initialStateApplied = true;
 
+    // cpu-quality-modes 2.5 / 2.6: re-read the machine's setting (another
+    // process may have changed it) and apply the level as a hard switch.
+    PerformanceSettings::get().reloadIfChanged();
+    cpuLoad.reset();
+    samplesSinceStringDrop = (juce::int64) sampleRate;   // E3 is armed from the start
+    lastNonRealtime = isNonRealtime();
+    qualityController.setNonRealtime (lastNonRealtime);
+    applyQualityForBlock (true);
+
     updateLatency();
     updateRoutingLatencyReport();
 
@@ -279,6 +321,10 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     diagnostics.logValue (LogCategory::Engine, "prepareToPlay sampleRate", sampleRate);
     diagnostics.logValue (LogCategory::Engine, "prepareToPlay blockSize", (double) samplesPerBlock);
+
+    // output-normalization.md 12: the calibration is kept across a rate change;
+    // a new rate family (NormalizationSoundState::rateFamily) re-measures.
+    outputNormalization.getTracker().markConfigDirty (true);
 }
 
 void LuthierAudioProcessor::releaseResources()
@@ -1173,6 +1219,24 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 {
     juce::ScopedNoDenormals noDenormals;
 
+    // cpu-quality-modes 2.5 and 4: one level per block, and Luthier's own share
+    // of the block's time stamped around all of it.
+    const auto qualityStartTicks = juce::Time::getHighResolutionTicks();
+    applyQualityForBlock (false);
+
+    struct LoadStamp
+    {
+        LuthierAudioProcessor& p;
+        juce::int64 start;
+        int numSamples;
+
+        ~LoadStamp()
+        {
+            const double busy = juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - start);
+            p.stampBlockLoad (busy, numSamples);
+        }
+    } loadStamp { *this, qualityStartTicks, buffer.getNumSamples() };
+
     const int numSamples = buffer.getNumSamples();
     const int maxSlice = juce::jmax (1, currentBlockSize);
 
@@ -1332,6 +1396,11 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     // engine reads the buffer and the router rewrites it.
     const auto midiOutConfig = routing.getMidiOutConfig();
 
+    // jam-mode 10 (FEAT-JAM): the band's parameters, and the wall clock taps
+    // are mapped against.
+    const auto jamSettings = bridge.readJam();
+    jamBlockWallMs.store (juce::Time::getMillisecondCounterHiRes(), std::memory_order_relaxed);
+
     if (midiOutConfig.enabled)
         midiOutRouter.captureInput (midiMessages);
 
@@ -1406,6 +1475,19 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
             engine.setTransportPosition (tuneTransport.ppq, true);
         }
 
+        // jam-mode 2.3 (FEAT-JAM): while the band runs its own clock (no host,
+        // no tune clock), its grid is the rhythm engine's.
+        if (! playing && ! (tuneTransport.running && ! tuneTransport.followingHost) && jamSettings.enabled)
+        {
+            double jamPpq = 0.0, jamBpm = 120.0;
+
+            if (jam.getOwnClock (jamPpq, jamBpm))
+            {
+                engine.setTempoBpm (jamBpm);
+                engine.setTransportPosition (jamPpq, true);
+            }
+        }
+
         // 8: a section asking for a state boundary restarts the pattern and
         // the modulation envelopes.
         if (tunePlayer.crossedStateBoundary())
@@ -1459,6 +1541,63 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
             tuneDirect.addEvent (message, metadata.samplePosition);
     }
 
+    // jam-mode 11 (FEAT-JAM): no double drums or bass. While the Jam drums are
+    // heard the tune's percussion layer stays out of the engine; the tune's
+    // bass line on a guitar plays through the Jam bass instead of its own line.
+    jamTuneBass.clear();
+    const bool jamOn = jamSettings.enabled;
+    const bool jamTakesTuneBass = jamOn && tunePlayer.isPlaying()   // the band gates it on its own start
+                                  && ! tunePlayer.isBassToEngine() && jamTuneHasBass.load (std::memory_order_relaxed)
+                                  && ! engine.getRhythmEngine().isBassFamily();
+    const bool replacePercussion = jamOn && jam.areDrumsAudible() && tunePlayer.isPlaying();
+    jamReplacesPercussion.store (replacePercussion, std::memory_order_relaxed);
+
+    if (replacePercussion && ! tuneDirect.isEmpty())
+    {
+        const int percussionChannel = TuneMidiOptions {}.layerChannelBase + (int) LayerType::percussion;
+        jamScratch.clear();
+
+        for (const auto metadata : tuneDirect)
+        {
+            const auto message = metadata.getMessage();
+
+            if (! (message.isNoteOn() && message.getChannel() == percussionChannel))
+                jamScratch.addEvent (message, metadata.samplePosition);
+        }
+
+        tuneDirect.swapWith (jamScratch);
+    }
+
+    for (const auto metadata : tuneDirect)   // observable: what percussion reached the engine (JM-42)
+        if (metadata.getMessage().isNoteOn()
+              && metadata.getMessage().getChannel() == TuneMidiOptions {}.layerChannelBase + (int) LayerType::percussion)
+            tunePercussionToEngine.fetch_add (1, std::memory_order_relaxed);
+
+    if (jamTakesTuneBass)
+        for (const auto metadata : tuneToMidiOut)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOnOrOff() && message.getChannel() == TuneMidiOptions {}.bassChannel)
+                jamTuneBass.addEvent (message, metadata.samplePosition);
+        }
+
+    // What the band listens to (3.1): the block's notes after MIDI Learn, the
+    // live consumers and the tune's chord channel, plus the looper's playback.
+    jamNotes.clear();
+
+    if (jamOn)
+    {
+        for (const auto metadata : midiMessages)
+            if (metadata.getMessage().isNoteOnOrOff() || metadata.getMessage().isAllNotesOff())
+                jamNotes.addEvent (metadata.getMessage(), metadata.samplePosition);
+
+        if (practicePanelOpen)
+            looper.renderPlaybackMidi (jamNotes, numSamples);
+    }
+    // output-normalization.md 4.3: the calibration render's phrase, as written.
+    outputNormalization.mergeCalibrationDirect (tuneDirect);
+
     engine.setDirectMidi (tuneDirect.isEmpty() ? nullptr : &tuneDirect);
 
     // ---- modulation ------------------------------------------------------------
@@ -1510,6 +1649,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         performanceCapture.beginBlock (clock);
     }
 
+    // output-normalization.md 4.1: the change tracker, and the master bus's timeline.
+    outputNormalization.processBlockStart (samplePosition, numSamples, currentSampleRate, isNonRealtime());
+
     {
         auto mainOut = getBusBuffer (buffer, false, 0);
 
@@ -1518,6 +1660,72 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         else
             mainOut.clear();
     }
+
+    // ---- jam mode (jam-mode.md, FEAT-JAM) ---------------------------------------------
+    // The band renders its stems here; they are mixed after the looper (7).
+    // Off, it is not called at all (0.7).
+    if (jamOn)
+    {
+        if (! jamWasEnabled)
+            jam.reset();
+
+        JamEngine::BlockContext ctx;
+        ctx.latency = reportedLatency;
+
+        if (auto* playHead = getPlayHead())
+        {
+            if (auto position = playHead->getPosition())
+            {
+                ctx.hasPlayHead = true;
+                ctx.hostPlaying = position->getIsPlaying();
+
+                if (auto value = position->getPpqPosition())      { ctx.hostHasPpq = true; ctx.hostPpq = *value; }
+                if (auto value = position->getBpm())              ctx.hostBpm = *value;
+                if (auto value = position->getPpqPositionOfLastBarStart()) { ctx.hostHasBarStart = true; ctx.hostBarStartPpq = *value; }
+
+                if (auto signature = position->getTimeSignature())
+                {
+                    ctx.hostHasMeter = true;
+                    ctx.hostNumerator = signature->numerator;
+                    ctx.hostDenominator = signature->denominator;
+                }
+            }
+        }
+
+        const auto& tuneTransport = tunePlayer.getBlockTransport();
+        ctx.tuneRunning = tuneTransport.running;
+        ctx.tuneFollowingHost = tuneTransport.followingHost;
+        ctx.tunePlaying = tunePlayer.isPlaying();
+        ctx.tunePpq = tuneTransport.ppq;
+        ctx.tuneBpm = tuneTransport.bpm;
+        ctx.tuneBeatsPerBar = tuneSession.getTune().getBeatsPerBar();
+        ctx.effectiveTempo = tapTempo.getEffectiveBpm (hostTempo.load(), hostPlaying);
+        ctx.rhythmDriving = engine.getRhythmEngine().isDriving();
+        ctx.rhythmChord = engine.getRhythmEngine().getCurrentChord();
+        ctx.playerIsBass = engine.getRhythmEngine().isBassFamily();
+        ctx.tuneBassActive = jamTakesTuneBass;
+
+        // Count-ins always use the band's sticks (11).
+        if (tunePlayer.isCountingIn())
+        {
+            const auto& clicks = tunePlayer.getBlockClicks();
+            jam.addStickClicks (clicks.offsets.data(), clicks.downbeat.data(), clicks.count);
+        }
+
+        jam.setMidiChannels (midiOutConfig.jamDrumChannel, midiOutConfig.jamBassChannel);
+        jam.setSettings (jamSettings);
+        // jam-mode 13: CPU relief's step between 4 and 5 halves the cymbal banks;
+        // applied with step 4 so the ladder keeps its numbering. Bass and timing never degrade.
+        jam.setReducedCymbals (qualityController.getEffectiveLevel() == QualityLevel::Low);   // jam-mode 4.5 under cpu-quality-modes: Low thins the cymbals
+        jam.process (ctx, jamNotes, &jamTuneBass, numSamples);
+    }
+    else if (jamWasEnabled)
+    {
+        jam.reset();
+        jamReplacesPercussion.store (false, std::memory_order_relaxed);
+    }
+
+    jamWasEnabled = jamOn;
 
     // 6.1: what the engine actually played - string, fret and technique, after
     // voicing - is reported by the engine itself from triggerNote (MODEL-GAPS).
@@ -1586,13 +1794,39 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     {
         auto mainOut = getBusBuffer (buffer, false, 0);
 
+        // jam-mode 11 (FEAT-JAM): while the band plays, loops are whole bars
+        // and a first recording starts on the next downbeat.
+        if (jamOn && jam.isBandRunning())
+        {
+            double intoBar = 0.0, barQuarters = 4.0, samplesPerQuarter = 24000.0;
+
+            if (jam.getBarPosition (jam.getSampleClock() - numSamples, intoBar, barQuarters, samplesPerQuarter))
+            {
+                const double barSamples = barQuarters * samplesPerQuarter;
+                looper.setBarLengthSamples ((int) std::llround (barSamples));
+
+                const int looperState = (int) looper.getState();
+
+                if (looperState == (int) Looper::State::recordingFirst && jamLooperState != looperState)
+                {
+                    const auto toBarLine = (int) std::llround ((barQuarters - intoBar) * samplesPerQuarter);
+                    looper.setRecordStartDelay (toBarLine >= (int) std::llround (barSamples) - 1 ? 0 : toBarLine);
+                }
+
+                jamLooperState = looperState;
+            }
+        }
+
         looper.processBlock (mainOut, numSamples);
         looper.captureMidi (midiMessages, numSamples);
 
         if (metronome.isEnabled())
         {
             metronome.processBlock (clickBuffer.getWritePointer (0), numSamples);
-            haveClick = true;
+
+            // 11: the click goes quiet while the band's drums are heard (the
+            // visual beat keeps running).
+            haveClick = ! (jamOn && jam.areDrumsAudible() && doesJamSilenceMetronome());
         }
 
         if (backingTrack.isPlaying())
@@ -1603,10 +1837,20 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
                 mainOut.addFrom (channel, 0, backingBuffer, channel, 0, numSamples);
         }
 
+        // jam-mode 7 (FEAT-JAM): the band joins after the looper (loops are the
+        // guitar only) and before the session recorder (takes include it).
+        if (jamOn)
+            mixJam (mainOut, numSamples);
+
         // practice-tools 8: the session recorder takes what the plugin produced,
         // and the MIDI that played it (MODEL-GAPS: it was never given the MIDI).
         sessionRecorder.captureMidi (midiMessages, numSamples);   // before the block advances its clock
         sessionRecorder.processBlock (mainOut, numSamples);
+    }
+    else if (jamOn)
+    {
+        auto mainOut = getBusBuffer (buffer, false, 0);
+        mixJam (mainOut, numSamples);   // FEAT-JAM
     }
 
     // tune-builder 3.6: the tune's count-in and metronome, on the tune's own
@@ -1614,7 +1858,11 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     {
         const auto& clicks = tunePlayer.getBlockClicks();
 
-        if (clicks.count > 0 || tuneClickRinging)
+        // FEAT-JAM (jam-mode 11): the band's sticks count in; its drums replace the click.
+        const bool jamTakesClick = jamOn && (tunePlayer.isCountingIn()
+                                             || (jam.areDrumsAudible() && doesJamSilenceMetronome()));
+
+        if ((clicks.count > 0 || tuneClickRinging) && ! jamTakesClick)
         {
             tuneClick.setSound (metronome.getSound());
             tuneClick.setLevelDb (metronome.getLevelDb());
@@ -1655,6 +1903,14 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     routing.distribute (*this, buffer, engine.getTapBuffers(), engine.getNumStrings(),
                         engine.getNoiseBusData());
 
+    // jam-mode 7 (FEAT-JAM): Aux 9 "Jam Drums" and Aux 10 "Jam Bass".
+    if (jamOn && jamSettings.output != (int) JamEngine::Output::main)
+    {
+        const float* drums[] = { jam.getDrums (0), jam.getDrums (1) };
+        const float* bass[] = { jam.getBass (0), jam.getBass (1) };
+        routing.writeJamBuses (*this, buffer, drums, bass, numSamples);
+    }
+
     // live-performance 7: the monitor mix is the performer's own, so it goes to
     // its own bus and never into the main output.
     {
@@ -1687,6 +1943,10 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     // midi-export 10 / tune-builder 8: the tune's parts, when MIDI out carries them.
     if (midiOutConfig.enabled && midiOutConfig.tunePlayback)
         midiMessages.addEvents (tuneToMidiOut, 0, numSamples, 0);
+
+    // jam-mode 9 (FEAT-JAM): the band, drums on GM channel 10, bass on 11.
+    if (jamOn && midiOutConfig.enabled && midiOutConfig.jamParts)
+        midiMessages.addEvents (jam.getMidiOut(), 0, numSamples, 0);
     sendLuthierSysEx (midiOutConfig, midiMessages, numSamples);
 
     samplePosition += numSamples;
@@ -2035,6 +2295,11 @@ void LuthierAudioProcessor::applySnapshotModules (const Snapshot& snapshot)
             object != nullptr && object->hasProperty ("character"))
             engine.getCharacterEngine().fromVar (object->getProperty ("character"));
 
+    // jam-mode 12 (FEAT-JAM): the jam block recalls with the snapshot; the band
+    // keeps playing (11).
+    if (auto* object = snapshot.bypasses.getDynamicObject(); object != nullptr && object->hasProperty ("jam"))
+        setJamBlock (object->getProperty ("jam"));
+
     // tune-builder 14: a snapshot switches the tune to its section (a footswitch
     // can move a live rig between sections). Acted on by the timer.
     if (auto* object = snapshot.bypasses.getDynamicObject(); object != nullptr && object->hasProperty ("tune"))
@@ -2059,6 +2324,7 @@ bool LuthierAudioProcessor::captureSnapshot (int index, const juce::String& labe
     {
         auto* extras = new juce::DynamicObject();
         extras->setProperty ("character", engine.getCharacterEngine().toVar());
+        extras->setProperty ("jam", getJamBlock());   // FEAT-JAM (jam-mode 12)
         extras->setProperty ("tune", captureTuneSnapshotState());   // tune-builder 14
 
         snapshot.bypasses = juce::var (extras);
@@ -2141,6 +2407,12 @@ void LuthierAudioProcessor::tapTempoNow()
     // the host is running.
     const double now = juce::Time::getMillisecondCounterHiRes() * 0.001;
 
+    // jam-mode 2.1 Tap In (FEAT-JAM): the tap on the band's sample clock.
+    {
+        const double sinceBlock = juce::jmax (0.0, now * 1000.0 - jamBlockWallMs.load (std::memory_order_relaxed));
+        jam.tapAtSample (jam.getSampleClock() + (int64_t) std::llround (juce::jmin (sinceBlock, 1000.0) * 0.001 * currentSampleRate));
+    }
+
     if (tapTempo.tap (now))
     {
         // live-performance 5: a tapped tempo drives the rhythm engine when the
@@ -2174,6 +2446,21 @@ bool LuthierAudioProcessor::loadSetlist (const juce::File& file)
 
     setlist.setSetlist (loaded);
     setlistFile = file;
+
+    // output-normalization.md 4.4: a setlist step never waits on a measurement.
+    {
+        juce::Array<juce::var> presetVars;
+
+        for (int i = 0; i < loaded.getNumEntries(); ++i)
+        {
+            const juce::File presetFile (loaded.getEntry (i).presetPath);
+
+            if (juce::File::isAbsolutePath (loaded.getEntry (i).presetPath) && presetFile.existsAsFile())
+                presetVars.add (juce::JSON::parse (presetFile));
+        }
+
+        outputNormalization.prefetchPresets (presetVars);
+    }
 
     return applyCurrentSetlistEntry (false);
 }
@@ -2218,6 +2505,13 @@ void LuthierAudioProcessor::panic()
     stopAudition();
     engine.panic();
 
+    // jam-mode 2.2 (FEAT-JAM): a 5 ms choke of the band, jam_play off, Armed.
+    jam.requestPanic();
+
+    if (auto* play = apvts.getParameter (ParamIDs::jamPlay))
+        if (play->getValue() > 0.5f)
+            play->setValueNotifyingHost (0.0f);
+
     const juce::ScopedLock sl (previewLock);
     previewMidi.clear();
 
@@ -2233,7 +2527,10 @@ void LuthierAudioProcessor::resetEverything()
     midiLearn.clearAllMappings();
     lockedParameters.clear();
 
+    // cpu-quality-modes 10: Reset never reads or writes the CPU quality.
+    const auto keptQualityOverride = uiState.qualityOverride;
     uiState = UiState {};
+    uiState.qualityOverride = keptQualityOverride;
 
     bridge.applyAllNow();
     engine.reset();
@@ -2332,7 +2629,7 @@ void LuthierAudioProcessor::recallSlot (bool useSlotB)
     auto& source = useSlotB ? slotB : slotA;
 
     if (source.getSize() > 0)
-        setStateInformation (source.getData(), (int) source.getSize());
+        restoreState (source.getData(), (int) source.getSize(), RestoreScope::soundOnly);   // output-normalization.md 6
 }
 
 void LuthierAudioProcessor::copyAtoB()
@@ -2378,6 +2675,14 @@ void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool ge
 
     if (parameter == nullptr)
         return;
+
+    // jam-mode 12 (FEAT-JAM): START, STOP and FILL are transport, never undo entries.
+    if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameter))
+        if (ParamIDs::isJamTransient (withId->paramID))
+        {
+            gestureParameterIndex = -1;
+            return;
+        }
 
     /*  section 11: the host owns its automation lane, and the user reverses a
         host-written change with the host's own undo. A gesture arriving from
@@ -2580,7 +2885,7 @@ void LuthierAudioProcessor::applyUndoState (const juce::MemoryBlock& state)
 
     const juce::ScopedValueSetter<bool> guard (restoringForUndo, true);
     const juce::ScopedValueSetter<bool> keepTune (restoringPluginUndo, true);   // the tune keeps its own undo
-    setStateInformation (restored.getData(), (int) restored.getSize());
+    restoreState (restored.getData(), (int) restored.getSize(), RestoreScope::soundOnly);   // output-normalization.md 6: undo keeps the live setting
 }
 
 // action-and-undo.md 3.8
@@ -2724,6 +3029,7 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     }
 
     ui->setProperty ("practiceDrawerOpen", uiState.practiceDrawerOpen);   // onboarding 11
+    ui->setProperty ("qualityOverride", qualityOverrideKey (uiState.qualityOverride));   // cpu-quality-modes 3
     root->setProperty ("ui", juce::var (ui));
 
     // ui-wiring 17: the setlist reference, with its entries inline so a missing
@@ -2791,6 +3097,9 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // practice-tools 1: the metronome's settings are part of the session.
     root->setProperty ("metronome", metronome.toVar());
     root->setProperty ("clickToMain", isClickToMain());
+
+    // output-normalization.md 6: session state, not preset data.
+    root->setProperty ("normalization", outputNormalization.toVar());
 
     // tune-builder 15: the tune being built is part of the session.
     root->setProperty ("tune", tuneSession.toState());
@@ -2863,6 +3172,11 @@ void LuthierAudioProcessor::applyRealismCharacterBlock (const juce::var& charact
 
 void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
+    restoreState (data, sizeInBytes, RestoreScope::full);
+}
+
+void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, RestoreScope scope)
+{
     if (data == nullptr || sizeInBytes <= 0)
         return;
 
@@ -2910,6 +3224,12 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
                 if (juce::isPositiveAndBelow ((int) n, 128))
                     uiState.pianoLatchedNotes.addIfNotAlreadyThere ((int) n);
         uiState.practiceDrawerOpen = (bool) ui->getProperty ("practiceDrawerOpen");   // onboarding 11
+
+        // cpu-quality-modes 3: the per-instance override (host session only).
+        const auto q = ui->getProperty ("qualityOverride").toString();
+        setQualityOverride (q == "high" ? QualityOverride::High : q == "medium" ? QualityOverride::Medium
+                          : q == "low" ? QualityOverride::Low : q == "auto" ? QualityOverride::Auto
+                                                                            : QualityOverride::Global);
     }
 
     // ui-wiring 17: the setlist. Re-applied only when it differs, because
@@ -3000,6 +3320,19 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
         if (auto* morph = apvts.getParameter (ParamIDs::presetMorphPosition))
             morph->setValueNotifyingHost (morph->convertTo0to1 ((float) (double) root->getProperty ("presetMorphPosition")));
 
+    // jam-mode 10 (FEAT-JAM): opening a project never starts the band.
+    for (auto* id : { ParamIDs::jamPlay, ParamIDs::jamFillNow })
+        if (auto* p = apvts.getParameter (id))
+            if (p->getValue() > 0.5f)
+                p->setValueNotifyingHost (0.0f);
+    // output-normalization.md 6: the host path restores the setting (a state
+    // without the key loads off); undo, redo and A/B keep the live one. Either
+    // way the sound just changed, which is a configuration event.
+    if (scope == RestoreScope::full)
+        outputNormalization.restoreFromSession (root->getProperty ("normalization"), root->hasProperty ("normalization"));
+
+    outputNormalization.notifyConfigurationChanged (false);
+
     // Whatever the host sends next, this state is the one the user saved.
     // (An undo is not a host restore: action-and-undo.md.)
     if (! restoringForUndo)
@@ -3075,6 +3408,7 @@ void LuthierAudioProcessor::timerCallback()
     snapshots.advancePending();
 
     serviceTune();
+    serviceJam();   // FEAT-JAM
 
     // notation-export 6.2: the capture drains at 10 Hz.
     if (++captureDrainTick >= 3)
@@ -3282,6 +3616,79 @@ void LuthierAudioProcessor::sendLuthierSysEx (const MidiOutConfig& config, juce:
         sysExOut.appendTo (midi, numSamples);
     else
         sysExOut.clear();
+}
+
+//==============================================================================
+// cpu-quality-modes: the quality level, offline rendering and E3.
+
+void LuthierAudioProcessor::setNonRealtime (bool isOffline) noexcept
+{
+    juce::AudioProcessor::setNonRealtime (isOffline);
+    qualityController.setNonRealtime (isOffline);
+}
+
+void LuthierAudioProcessor::setQualityOverride (QualityOverride o)
+{
+    uiState.qualityOverride = o;
+    qualityController.setOverride (o);
+}
+
+void LuthierAudioProcessor::applyQualityForBlock (bool forceHard) noexcept
+{
+    // 2.6: a change of isNonRealtime() is a hard switch, so a render does not
+    // depend on the level live playback was at.
+    const bool offline = isNonRealtime();
+    bool hard = forceHard;
+
+    if (offline != lastNonRealtime)
+    {
+        lastNonRealtime = offline;
+        qualityController.setNonRealtime (offline);
+        hard = true;
+    }
+
+    const auto level = qualityController.getEffectiveLevel();
+
+    if ((int) level != lastAppliedQuality || hard)
+    {
+        // The message thread may be rebuilding engine structure; never wait for
+        // it. A block that cannot take the lock applies the level next block.
+        const juce::ScopedTryLock structureLock (bridge.getEngineLock());
+
+        if (! structureLock.isLocked())
+            return;
+
+        const auto profile = QualityProfile::forLevel (level);
+        engine.applyQuality (profile, hard);
+        modMatrix.setControlIntervalMultiplier (profile.modIntervalMultiplier, profile.modFastLfoHz);
+        lastAppliedQuality = (int) level;
+        appliedQuality.store ((int) level, std::memory_order_relaxed);
+    }
+}
+
+void LuthierAudioProcessor::stampBlockLoad (double busySeconds, int numSamples) noexcept
+{
+    if (currentSampleRate <= 0.0 || numSamples <= 0)
+        return;
+
+    cpuLoad.addBlock (busySeconds, (double) numSamples / currentSampleRate);
+
+    // 7, E3: Luthier is over its whole block budget for 200 ms. Decided here,
+    // on the audio thread, so it works while the message thread is blocked.
+    samplesSinceStringDrop += numSamples;
+
+    if (! isNonRealtime()
+        && QualityController::isGovernorEnabledGlobally()
+        && PerformanceSettings::get().isEmergencyStringDrop()
+        && cpuLoad.hasShortWindowOnAudioThread()
+        && cpuLoad.getShortMeanOnAudioThread() > 1.0
+        && samplesSinceStringDrop >= (juce::int64) (0.2 * currentSampleRate))
+    {
+        samplesSinceStringDrop = 0;
+
+        if (engine.dropLeastRecentString())
+            qualityController.noteStringDropped();
+    }
 }
 
 } // namespace luthier

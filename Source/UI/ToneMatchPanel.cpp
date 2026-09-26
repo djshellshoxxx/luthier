@@ -381,12 +381,12 @@ MatchWizard::MatchWizard (LuthierAudioProcessor& p, Kind k)
     }
 
     restart();
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);
 }
 
 MatchWizard::~MatchWizard()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 juce::String MatchWizard::getStepText() const
@@ -645,6 +645,8 @@ void MatchWizard::timerCallback()
 
 void MatchWizard::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     g.setColour (Palette::panelSunken);
     g.fillRoundedRectangle (getLocalBounds().toFloat().reduced (1.0f), 3.0f);
 

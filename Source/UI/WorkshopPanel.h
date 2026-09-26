@@ -18,6 +18,8 @@
     Advanced column-4 WORKSHOP tab and the Easy-mode overlay.
 */
 
+#include "NormalizationOptions.h"   // output-normalization.md 5.4
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "Overlays.h"
@@ -156,6 +158,10 @@ private:
     double scaleMm() const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BenchIllustration)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Transition, "BenchIllustration", {}, [this] { rebuild (false); } };
 };
 
 //==============================================================================
@@ -256,6 +262,14 @@ private:
 
     juce::Label title, guitarName;
     juce::TextButton saveAsButton { "Save As Guitar" };
+
+    // output-normalization.md 5.4: the bench's muted note while normalization is on.
+    NormalizationCaption normalizationNote { processor, "workshop.normalization.note" };
+
+public:
+    NormalizationCaption& getNormalizationNote() noexcept { return normalizationNote; }
+
+private:
     juce::OwnedArray<juce::TextButton> slotButtons;
     juce::OwnedArray<juce::TextButton> categoryButtons;
     juce::TextButton swapButton { "Swap" }, revertButton { "Revert" }, savePartButton { "Save as user part" };

@@ -14,12 +14,12 @@ VuMeter::VuMeter (LuthierAudioProcessor& p) : processor (p)
     setInterceptsMouseClicks (false, false);
     setTitle ("VU meter");
     setTooltip ("Output level with VU ballistics: 0 VU is -18 dBFS");
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);   // cpu-quality-modes 6
 }
 
 VuMeter::~VuMeter()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 bool VuMeter::isEnabledByUser()
@@ -57,8 +57,9 @@ void VuMeter::update (double rms, double nowMs)
 
     const double targetVu = juce::jlimit (kMinVu - 3.0, kMaxVu + 1.0, gainToDb (juce::jmax (1.0e-9, rms)) - kReferenceDbfs);
 
-    // VU ballistics: 99% of a step in 300 ms, the same both ways.
-    const double k = 1.0 - std::exp (-dt * 4.6 / kIntegrationMs);
+    // VU ballistics: 99% of a step in 300 ms, the same both ways; none while
+    // readouts are stepped (cpu-quality-modes 6, Low).
+    const double k = AnimationPolicy::get().isReadoutStepped() ? 1.0 : 1.0 - std::exp (-dt * 4.6 / kIntegrationMs);
     const double before = needleVu;
     needleVu += (targetVu - needleVu) * k;
 
@@ -77,6 +78,7 @@ void VuMeter::timerCallback()
 
 void VuMeter::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
     auto b = getLocalBounds().toFloat().reduced (1.0f);
 
     // The face: cream under the needle, as on a tape machine; flat in High contrast.
@@ -154,12 +156,12 @@ RoomLight::RoomLight (LuthierAudioProcessor& p) : processor (p)
 {
     setInterceptsMouseClicks (false, false);
     refresh();
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);   // cpu-quality-modes 6
 }
 
 RoomLight::~RoomLight()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void RoomLight::refresh()
@@ -185,6 +187,7 @@ void RoomLight::refresh()
 
 void RoomLight::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
     if (warmth <= 0.0f || ! Palette::textured)
         return;
 

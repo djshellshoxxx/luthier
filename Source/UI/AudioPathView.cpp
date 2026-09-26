@@ -9,12 +9,12 @@ AudioPathView::AudioPathView (LuthierAudioProcessor& p) : processor (p)
 {
     setTitle ("Audio path");
     refresh();
-    startTimerHz (4);
+    motion.startTimerHz (*this, 4);   // cpu-quality-modes 6
 }
 
 AudioPathView::~AudioPathView()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 std::vector<AudioPathView::Stage> AudioPathView::readStages() const
@@ -38,11 +38,16 @@ std::vector<AudioPathView::Stage> AudioPathView::readStages() const
     std::vector<Stage> out;
     auto& engine = processor.getEngine();
 
+    // cpu-quality-modes 5: what the CPU quality level has changed on the path.
     const int strings = engine.getNumStrings();
-    out.push_back ({ "Strings", juce::String (strings) + " strings", true });
+    const int asleep = engine.getSleepingStringCount();
+    out.push_back ({ "Strings", juce::String (strings) + " strings" + (asleep > 0 ? ", " + juce::String (asleep) + " asleep" : juce::String()), true });
 
     const int bodyMode = juce::roundToInt (value (ParamIDs::bodyMode));
-    out.push_back ({ "Body", text (ParamIDs::bodyMode), bodyMode != 3 });
+    const auto& body = engine.getBodyEngine();
+    out.push_back ({ "Body", text (ParamIDs::bodyMode) + (body.getRunningModeCount() < body.getNumModes()
+                                                            ? juce::String (", ") + juce::String (body.getRunningModeCount()) + " modes" : juce::String()),
+                     bodyMode != 3 });
 
     out.push_back ({ "Pickups", text (ParamIDs::pickupSelector), true });
     out.push_back ({ "Circuit", "volume and tone", true });
@@ -60,7 +65,8 @@ std::vector<AudioPathView::Stage> AudioPathView::readStages() const
 
     const int pre = rack (false), post = rack (true);
     out.push_back ({ "Pre FX", pre == 0 ? juce::String ("empty") : juce::String (pre) + (pre == 1 ? " pedal" : " pedals"), pre > 0 });
-    out.push_back ({ "Amp", text (ParamIDs::ampModel), value (ParamIDs::ampStandby) < 0.5f });
+    out.push_back ({ "Amp", text (ParamIDs::ampModel) + ", " + juce::String (engine.getEffectiveAmpOversampling()) + "x",
+                     value (ParamIDs::ampStandby) < 0.5f });
     out.push_back ({ "Post FX", post == 0 ? juce::String ("empty") : juce::String (post) + (post == 1 ? " pedal" : " pedals"), post > 0 });
     out.push_back ({ "Cabinet", text (ParamIDs::cabType), value (ParamIDs::cabOn) > 0.5f });
     out.push_back ({ "Room", text (ParamIDs::roomSize), value (ParamIDs::roomOn) > 0.5f });
@@ -79,7 +85,9 @@ juce::String AudioPathView::describeFlags() const
 
     const bool slide = processor.getState().getRawParameterValue (ParamIDs::slideGuitar)->load() > 0.5f;
 
-    return "Workshop edit: " + juce::String (processor.isGuitarEdited() ? "yes" : "no")
+    return "CPU quality: " + QualityController::levelName (processor.getAppliedQualityLevel())   // cpu-quality-modes 5
+         + (processor.getQualityController().isAuto() ? " (Auto)" : "") + "    "
+         + "Workshop edit: " + juce::String (processor.isGuitarEdited() ? "yes" : "no")
          + "    Slide Mode: " + (slide ? "on" : "off")
          + "    Advanced ranges: " + (families.isEmpty() ? juce::String ("off") : families.joinIntoString (", "));
 }
@@ -111,6 +119,7 @@ void AudioPathView::refresh()
 
 void AudioPathView::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
     auto b = getLocalBounds().toFloat();
     auto flagRow = b.removeFromBottom (18.0f);
 

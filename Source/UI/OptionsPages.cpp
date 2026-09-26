@@ -7,7 +7,6 @@
 #include "../Accessibility/Localisation.h"
 #include "NoiseGroups.h"
 #include "StageTouches.h"
-#include "CpuReliefUi.h"
 #include "UiPreferences.h"
 #include "VisualAids.h"
 
@@ -578,6 +577,11 @@ AudioPage::AudioPage (LuthierAudioProcessor& p)
                            "Oversampling for the amp and the drive pedals. 4x is the default; "
                            "2x sounds very close and costs noticeably less.");
 
+    // cpu-quality-modes 5: the QUALITY section, with its note beside oversampling.
+    addAndMakeVisible (quality);
+    addChildComponent (quality.getOversamplingNote());
+    quality.onLayoutChanged = [this] { resized(); repaint(); };
+
     // noise-floor.md 3: seeds noise_mains_hz for new (Init) presets only; a
     // loaded preset keeps its own, so a render is the same on every machine.
     mainsRegion.addItem ("Auto (from your region)", 1);
@@ -635,11 +639,15 @@ AudioPage::AudioPage (LuthierAudioProcessor& p)
     styleNote (latencyLabel, Palette::textMuted, 11.0f);
     addAndMakeVisible (latencyLabel);
 
+    addAndMakeVisible (normalization);   // output-normalization.md 5.1
+
     refresh();
 }
 
 void AudioPage::refresh()
 {
+    quality.refresh();   // cpu-quality-modes 5
+
     const bool standalone =
         (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone);
 
@@ -667,8 +675,8 @@ void AudioPage::paint (juce::Graphics& g)
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "QUALITY");
-    drawHeading (g, { 0, 96, getWidth(), 18 }, "DEVICE, RATE AND BUFFER");
-    drawHeading (g, { 0, 214, getWidth(), 18 }, "SIDECHAIN");
+    drawHeading (g, { 0, deviceTop - 22, getWidth(), 18 }, "DEVICE, RATE AND BUFFER");
+    drawHeading (g, { 0, sidechainTop - 22, getWidth(), 18 }, "SIDECHAIN");
 }
 
 void AudioPage::resized()
@@ -676,6 +684,11 @@ void AudioPage::resized()
     auto bounds = getLocalBounds();
 
     bounds.removeFromTop (22);
+
+    // cpu-quality-modes 5: the QUALITY section first, then oversampling with
+    // its "Running at 2x while quality is Medium." note beside it.
+    quality.setBounds (bounds.removeFromTop (quality.getPreferredHeight (getWidth())));
+    bounds.removeFromTop (6);
 
     {
         auto row = bounds.removeFromTop (40);
@@ -685,7 +698,14 @@ void AudioPage::resized()
         mainsRegion.setBounds (row.removeFromTop (24).removeFromLeft (200));
     }
 
-    bounds = getLocalBounds().withTrimmedTop (118);
+    quality.getOversamplingNote().setBounds (bounds.removeFromTop (18));
+
+    // output-normalization.md 5.1: under Oversampling; everything below moves down.
+    normalization.setBounds (bounds.removeFromTop (NormalizationOptionsGroup::preferredHeight - 8));
+    bounds.removeFromTop (8);
+
+    deviceTop = bounds.getY() + 26;
+    bounds = getLocalBounds().withTrimmedTop (deviceTop);
 
     deviceNote.setBounds (bounds.removeFromTop (34));
     bounds.removeFromTop (4);
@@ -693,7 +713,8 @@ void AudioPage::resized()
     bounds.removeFromTop (4);
     latencyLabel.setBounds (bounds.removeFromTop (18));
 
-    bounds = getLocalBounds().withTrimmedTop (236);
+    sidechainTop = bounds.getY() + 26;
+    bounds = getLocalBounds().withTrimmedTop (sidechainTop);
     sidechainNote.setBounds (bounds.removeFromTop (48));
 }
 
@@ -827,9 +848,16 @@ AppearancePage::AppearancePage (LuthierAudioProcessor& p)
     {
         AccessibilitySettings::get().setReducedMotion (reducedMotionToggle.getToggleState());
         AccessibilitySettings::get().save();
+        visualAids.refresh();   // animated-strings.md 5: the "paused" line
     };
 
     addAndMakeVisible (reducedMotionToggle);
+    addAndMakeVisible (visualAids);   // animated-strings.md 5
+
+    // cpu-quality-modes 5: Low turns animation off without touching this toggle.
+    styleNote (lowMotionNote, Palette::textMuted, 11.0f);
+    lowMotionNote.setText (tr ("quality.lowAnimationsOff"), juce::dontSendNotification);
+    addChildComponent (lowMotionNote);
 
     tooltipsToggle.onClick = [this]
     {
@@ -927,6 +955,7 @@ void AppearancePage::refresh()
                                                                                                      settings.getColours()), 2)
                           + " to 1 on this palette's panels", juce::dontSendNotification);
     reducedMotionToggle.setToggleState (settings.isReducedMotion(), juce::dontSendNotification);
+    lowMotionNote.setVisible (processor.getQualityController().getLiveLevel() == QualityLevel::Low);
     tooltipsToggle.setToggleState (processor.getUiState().tooltipsEnabled,
                                    juce::dontSendNotification);
 
@@ -936,6 +965,11 @@ void AppearancePage::refresh()
     pianoRollAdvancedToggle.setToggleState (VisualAids::showPianoRoll (true), juce::dontSendNotification);
     pianoRollEasyToggle.setToggleState (VisualAids::showPianoRoll (false), juce::dontSendNotification);
     pianoRollShowsBox.setSelectedId (VisualAids::pianoRollShowsRoll() ? 2 : 1, juce::dontSendNotification);
+
+    if (visualAids.getHeight() != visualAids.getPreferredHeight())
+        resized();
+
+    visualAids.refresh();   // animated-strings.md 5
 
     for (int i = 0; i < AccessibilitySettings::kNumScales; ++i)
         if (std::abs (AccessibilitySettings::kScales[(size_t) i] - settings.getUiScale()) < 1.0e-6)
@@ -958,8 +992,8 @@ void AppearancePage::paint (juce::Graphics& g)
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "THEME AND SIZE");
-    drawHeading (g, { 0, 136, getWidth(), 18 }, "ACCENT AND LIVE DISPLAYS");
-    drawHeading (g, { 0, 272, getWidth(), 18 }, "VISUAL AIDS");
+    drawHeading (g, { 0, accentTop, getWidth(), 18 }, "ACCENT AND LIVE DISPLAYS");
+    // VISUAL AIDS is drawn by visualAids, over both specs' rows (animated-strings 5).
 }
 
 void AppearancePage::resized()
@@ -986,37 +1020,45 @@ void AppearancePage::resized()
         reducedMotionToggle.setBounds (row.removeFromLeft (160));
     }
 
+    lowMotionNote.setBounds (bounds.removeFromTop (16).withTrimmedLeft (228));   // cpu-quality-modes
+
+    // animated-strings.md 5: VISUAL AIDS starts directly under that row.
     bounds.removeFromTop (4);
-    contrastLabel.setBounds (bounds.removeFromTop (18));
+    visualAids.setBounds (bounds.removeFromTop (visualAids.getPreferredHeight()));
 
-    auto lower = getLocalBounds().withTrimmedTop (158);
+    // piano-roll-chord-display.md 5: the piano roll's rows, under the same VISUAL
+    // AIDS heading, directly below the string-animation rows (animated-strings 5).
     {
-        auto row = lower.removeFromTop (26);
-        accentBox.setBounds (row.removeFromLeft (220));
-        row.removeFromLeft (8);
-        accentNote.setBounds (row);
-    }
-    lower.removeFromTop (4);
-    dataStreamToggle.setBounds (lower.removeFromTop (26).removeFromLeft (300));
-    noiseStripToggle.setBounds (lower.removeFromTop (26).removeFromLeft (300));
-    vuToggle.setBounds (lower.removeFromTop (26).removeFromLeft (300));
-
-    // piano-roll-chord-display.md 5.
-    auto aids = getLocalBounds().withTrimmedTop (294);
-    {
-        auto row = aids.removeFromTop (26);
+        auto row = bounds.removeFromTop (26);
         chordNamesToggle.setBounds (row.removeFromLeft (260));
         row.removeFromLeft (8);
         announceChordsToggle.setBounds (row.removeFromLeft (220));
     }
     {
-        auto row = aids.removeFromTop (26);
+        auto row = bounds.removeFromTop (26);
         pianoRollAdvancedToggle.setBounds (row.removeFromLeft (260));
         row.removeFromLeft (8);
         pianoRollEasyToggle.setBounds (row.removeFromLeft (220));
     }
-    aids.removeFromTop (2);
-    pianoRollShowsBox.setBounds (aids.removeFromTop (24).removeFromLeft (260));
+    bounds.removeFromTop (2);
+    pianoRollShowsBox.setBounds (bounds.removeFromTop (24).removeFromLeft (260));
+
+    bounds.removeFromTop (4);
+    contrastLabel.setBounds (bounds.removeFromTop (18));
+
+    bounds.removeFromTop (6);
+    accentTop = bounds.getY();
+    bounds.removeFromTop (22);
+    {
+        auto row = bounds.removeFromTop (26);
+        accentBox.setBounds (row.removeFromLeft (220));
+        row.removeFromLeft (8);
+        accentNote.setBounds (row);
+    }
+    bounds.removeFromTop (4);
+    dataStreamToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
+    noiseStripToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
+    vuToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
 }
 
 //==============================================================================
@@ -1157,7 +1199,7 @@ void AccessibilityPage::ShortcutModel::paintListBoxItem (int row, juce::Graphics
     g.setColour (capturing ? Palette::backgroundDeep
                            : (binding.isRebound() ? Palette::accent : Palette::textDisabled));
 
-    g.drawText (capturing ? "press a key..." : binding.key.getTextDescription(),
+    g.drawText (capturing ? "press a key..." : binding.key.isValid() ? binding.key.getTextDescription() : juce::String ("(not bound)"),
                 width - 134, 0, 128, height, juce::Justification::centredRight, true);
 }
 
@@ -2138,6 +2180,9 @@ void PrivacyPage::resized()
 DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
     : OptionsPage (p)
 {
+    styleNote (normalizationLines, Palette::textMuted, 10.5f);   // output-normalization.md 5.4
+    addAndMakeVisible (normalizationLines);
+
     addAndMakeVisible (debugWindowButton);
     debugWindowButton.setTooltip ("The live state and data-stream view (Ctrl+D)");
     debugWindowButton.onClick = [this]
@@ -2163,7 +2208,11 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
         refresh();
     };
 
-    // performance-budget.md 8: relief 7 is opt-out here, default on.
+    // cpu-quality-modes 5 / 7: E3's opt-out (the old relief 7 opt-out).
+    emergencyDropToggle.setButtonText (tr ("quality.emergencyDrop"));
+    emergencyDropToggle.onClick = [this] { PerformanceSettings::get().setEmergencyStringDrop (emergencyDropToggle.getToggleState()); };
+    addAndMakeVisible (emergencyDropToggle);
+
     // action-and-undo.md 12: "Show undo depth" puts "Undo: N / 200; Redo: M" in the footer.
     addAndMakeVisible (undoDepthToggle);
     undoDepthToggle.setTooltip ("Adds the undo and redo counts to the footer, for support and for "
@@ -2171,16 +2220,6 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
     undoDepthToggle.onClick = [this]
     {
         UiPreferences::get().setBool (UndoHistory::kShowDepthPreference, undoDepthToggle.getToggleState());
-    };
-
-    addAndMakeVisible (cpuDropToggle);
-    cpuDropToggle.setTitle ("Drop strings under CPU overload");
-    cpuDropToggle.setTooltip ("The last resort when the computer cannot keep up: the least recently "
-                              "played strings go quiet and a CPU limit banner says so. Off: nothing "
-                              "is dropped and the audio may glitch instead.");
-    cpuDropToggle.onClick = [this]
-    {
-        CpuReliefUi::setStringDropAllowed (processor, cpuDropToggle.getToggleState());
     };
 
     addAndMakeVisible (troubleshootButton);
@@ -2233,6 +2272,12 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
                 if (result == 0)
                 {
                     processor.hardResetAndClearCaches();
+
+                    // output-normalization.md 10: this reset turns the preference off.
+                    UiPreferences::get().setBool (OutputNormalization::kPrefDefaultEnabled, false);
+                    UiPreferences::get().setBool (OutputNormalization::kPrefBannerSuppressed, false);
+                    UiPreferences::get().save();
+                    PerformanceSettings::get().resetToDefaults();   // cpu-quality-modes 10
                     refresh();
                 }
             });
@@ -2295,13 +2340,16 @@ void DiagnosticsPage::restoreFirstRun()
 
 void DiagnosticsPage::refresh()
 {
+    // output-normalization.md 5.4: what the normalization stage is doing.
+    normalizationLines.setText (NormalizationUi::diagnosticsLines (processor).joinIntoString ("\n"), juce::dontSendNotification);
+    emergencyDropToggle.setToggleState (PerformanceSettings::get().isEmergencyStringDrop(), juce::dontSendNotification);
+
     crashLogToggle.setToggleState (processor.getDiagnostics().isCrashLogEnabled(),
                                    juce::dontSendNotification);
 
     auto& recorder = processor.getSessionRecorder();
 
     recorderToggle.setToggleState (recorder.isEnabled(), juce::dontSendNotification);
-    cpuDropToggle.setToggleState (CpuReliefUi::isStringDropAllowed(), juce::dontSendNotification);
     undoDepthToggle.setToggleState (UiPreferences::get().getBool (UndoHistory::kShowDepthPreference, false),
                                     juce::dontSendNotification);   // action-and-undo.md 12
 
@@ -2334,7 +2382,7 @@ void DiagnosticsPage::resized()
     crashLogToggle.setBounds (bounds.removeFromTop (22));
     recorderToggle.setBounds (bounds.removeFromTop (22));
     recorderNote.setBounds (bounds.removeFromTop (16));
-    cpuDropToggle.setBounds (bounds.removeFromTop (22));
+    emergencyDropToggle.setBounds (bounds.removeFromTop (22));   // cpu-quality-modes
     undoDepthToggle.setBounds (bounds.removeFromTop (22));   // action-and-undo.md 12
 
     bounds = getLocalBounds().withTrimmedTop (172);
@@ -2364,6 +2412,7 @@ void DiagnosticsPage::resized()
 
     if (audioPath != nullptr)
         audioPath->setBounds (getLocalBounds().withTrimmedTop (352).withHeight (juce::jmax (80, juce::jmin (130, getHeight() - 356))));
+    normalizationLines.setBounds (getLocalBounds().removeFromBottom (48));   // output-normalization.md 5.4
 }
 
 //==============================================================================

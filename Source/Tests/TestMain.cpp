@@ -12,7 +12,7 @@
 #include <juce_events/juce_events.h>
 #include "../UI/FirstRun.h"
 #include "../UI/Onboarding.h"
-#include "../Support/CpuRelief.h"
+#include "../Support/QualityController.h"
 
 using namespace luthier::tests;
 
@@ -33,9 +33,10 @@ int main (int argc, char* argv[])
     luthier::FirstRun::setStateForTesting (true, false);
     luthier::Onboarding::setAutomaticForTesting (false);
 
-    // performance-budget.md 8: a busy test machine must not trigger CPU relief
-    // (dropped strings, a frozen audition) inside unrelated tests.
-    luthier::CpuRelief::setGloballyEnabled (false);
+    // cpu-quality-modes 7 (superseding performance-budget.md 8): a busy test
+    // machine must not trigger the governor (dropped strings, a frozen
+    // audition) inside unrelated tests.
+    luthier::QualityController::setGovernorEnabledGlobally (false);
 
     juce::StringArray filters;
     bool listOnly = false;

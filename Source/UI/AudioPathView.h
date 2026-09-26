@@ -10,6 +10,7 @@
     Diagnostics to mirror, "for confirming what telemetry would see". */
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 
 namespace luthier
 {
@@ -43,6 +44,7 @@ private:
     void timerCallback() override { refresh(); }
 
     LuthierAudioProcessor& processor;
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "AudioPathView" };   // cpu-quality-modes 6
     std::vector<Stage> stages;
     juce::String flags;
 

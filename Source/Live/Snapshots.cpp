@@ -1,4 +1,6 @@
 #include "Snapshots.h"
+#include "../Parameters.h"   // FEAT-JAM: ParamIDs::isJamTransient
+#include "../Support/ConfigChangeTracker.h"   // output-normalization.md 3.2
 
 namespace luthier
 {
@@ -183,7 +185,8 @@ bool SnapshotBank::capture (int index, const juce::String& label, int colourTag)
 
     for (auto* p : processor.getParameters())
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
-            parameters->setProperty (withId->paramID, (double) withId->getValue());
+            if (! ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: jam-mode 10
+                parameters->setProperty (withId->paramID, (double) withId->getValue());
 
     snapshot.parameters = juce::var (parameters);
 
@@ -327,6 +330,9 @@ void SnapshotBank::applyBlend (const juce::var& from, const juce::var& to, doubl
 
     if (toObject == nullptr)
         return;
+
+    // output-normalization.md 3.2: a snapshot is a performance, not a new sound.
+    const PerformanceWriteScope performanceWrites;
 
     const double b = juce::jlimit (0.0, 1.0, blend);
 

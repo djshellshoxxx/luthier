@@ -816,11 +816,25 @@ void ModMatrix::processBlock (int numSamples, const ModBlockContext& context) no
             const int live = liveTable.load (std::memory_order_acquire);
             const auto& table = tables[(size_t) live];
 
+            // cpu-quality-modes 2.1: routes every Nth tick at Low, unless an LFO is fast.
+            int multiplier = intervalMultiplier;
+
+            if (multiplier > 1)
+                for (const auto& l : lfos)
+                    if (l.getRateHz() > intervalFastLfoHz)
+                        multiplier = 1;
+
+            lastEffectiveMultiplier = multiplier;
+            const bool evaluateRoutes = multiplier <= 1 || (tickCounter % multiplier) == 0;
+            tickCounter = (tickCounter + 1) % 64;
+
             // Clear only the destinations this table touches. Zeroing all three
             // hundred parameters every tick would cost more than the routing.
-            for (int destination : table.touchedDestinations)
-                targetOffsets[(size_t) destination].store (0.0f, std::memory_order_relaxed);
+            if (evaluateRoutes)
+                for (int destination : table.touchedDestinations)
+                    targetOffsets[(size_t) destination].store (0.0f, std::memory_order_relaxed);
 
+            if (evaluateRoutes)
             for (const auto& route : table.routes)
             {
                 const float raw = sourceValues[(size_t) route.sourceSlot].load (std::memory_order_relaxed);

@@ -1,10 +1,12 @@
 #include "PluginEditor.h"
 #include "UI/NewFeatureDots.h"
-#include "UI/CpuReliefUi.h"
 #include "UI/FirstRun.h"
 #include "UI/RangesUi.h"
 #include "UI/UiPreferences.h"
+#include "UI/JamWidgets.h"   // FEAT-JAM
 #include "Accessibility/Accessibility.h"
+#include "UI/Guitar/StringAnimator.h"   // animated-strings.md 8
+#include "UI/NormalizationOptions.h"   // output-normalization.md 5
 
 namespace luthier
 {
@@ -67,6 +69,12 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     chordButton.setTooltip ("Chord library and the live tab display");
     chordButton.onClick = [this] { showOverlay (&chordPanel); };
 
+    // cpu-quality-modes 5: the footer badge, last in the footer's tab order.
+    addAndMakeVisible (qualityBadge);
+    qualityBadge.setExplicitFocusOrder (100000);
+    qualityBadge.onOpen = [this] { openQualityOptions(); };
+    qualityLink.onOversamplingNote = [this] (const juce::String& note) { advancedPanel.setOversamplingNote (note); };   // cpu-quality-modes 5
+
     /*  The notice is in the layout rather than over it, so when it takes itself
         away the window has to give the space back. It goes in before the overlay
         host deliberately: an overlay is the thing in front, and a status strip
@@ -126,6 +134,15 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     if (auto* bench = advancedPanel.getWorkshopPanel())
         bench->onSaveAsGuitar = [this] { showSaveGuitarDialog(); };
     header.onOpenOptions = [this] { showOverlay (&optionsPanel); };
+
+    // output-normalization.md 5.1 and 5.3: the badges and the "turned on" banner.
+    header.getNormalizationBadge().onOpenOptions = [this] { openNormalizationOptions(); };
+    easyPanel.getNormalizationBadge().onOpenOptions = [this] { openNormalizationOptions(); };
+    processor.getOutputNormalization().onEnabledByUser = [safeThis = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)]
+    {
+        if (auto* editor = safeThis.getComponent())
+            NormalizationUi::postEnabledBanner (editor->notifications, [safeThis] { if (auto* e = safeThis.getComponent()) e->openNormalizationOptions(); });
+    };
 
     // gui-integration 16 item 13: a control's "Show in Options -> Shortcuts".
     showShortcutInOptions = [safe = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)] (const juce::String& action)
@@ -200,9 +217,6 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 
     setWantsKeyboardFocus (true);
 
-    // performance-budget.md 8: relief 7's opt-out is a user preference.
-    CpuReliefUi::applySavedChoice (processor);
-
     // The processor cannot read UiPreferences, so it is told (advanced-ranges.md 5).
     processor.setRandomiseRespectsStock (RangesUi::randomiseRespectsStock());
 
@@ -223,6 +237,7 @@ LuthierAudioProcessorEditor::~LuthierAudioProcessorEditor()
 {
     stopTimer();
     AccessibilitySettings::get().removeChangeListener (this);
+    processor.getOutputNormalization().onEnabledByUser = nullptr;   // output-normalization.md 5.3
 
     processor.getUiState().editorWidth = getWidth();
     processor.getUiState().editorHeight = getHeight();
@@ -429,10 +444,10 @@ void LuthierAudioProcessorEditor::paint (juce::Graphics& g)
                 footer.reduced (Metrics::windowPadding, 0),
                 juce::Justification::centredRight, false);
 
-    // CPU and latency, where a player can see them without opening anything.
-    g.drawText ("CPU " + juce::String (processor.getEngine().getCpuEstimate(), 1) + "%"
-                + "    latency " + juce::String (processor.getLatencySamples()) + " smp",
-                footer.reduced (Metrics::windowPadding, 0),
+    // cpu-quality-modes 5: the quality badge carries the CPU figure now; the
+    // latency follows it.
+    g.drawText (tr ("quality.badge.latency", { { "n", juce::String (processor.getLatencySamples()) } }),
+                footer.reduced (Metrics::windowPadding, 0).withTrimmedLeft (QualityBadge::preferredWidth + 12),
                 juce::Justification::centredLeft, false);
 
     // action-and-undo.md 12: Options -> Diagnostics "Show undo depth".
@@ -488,9 +503,12 @@ void LuthierAudioProcessorEditor::resized()
 
     auto footer = bounds.removeFromBottom (Metrics::footerHeight);
     chordButton.setBounds (footer.withSizeKeepingCentre (110, Metrics::footerHeight - 2));
+    qualityBadge.setBounds (footer.reduced (Metrics::windowPadding, 1).removeFromLeft (QualityBadge::preferredWidth));   // cpu-quality-modes
 
     // 12: the data stream runs between the CPU readout and the chords button.
-    dataStream.setBounds (footer.withTrimmedLeft (230).withRight (chordButton.getX() - Metrics::grid));
+    // cpu-quality-modes 5: after the quality badge and its latency text.
+    dataStream.setBounds (footer.withTrimmedLeft (Metrics::windowPadding + QualityBadge::preferredWidth + 12 + 96)
+                                .withRight (chordButton.getX() - Metrics::grid));
 
     // practice-tools 9: the drawer sits above the footer.
     practicePanel.setBounds (bounds.removeFromBottom (practicePanel.preferredHeight()));
@@ -654,6 +672,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     }
 
     if (is ("help"))            { openHelp (getHelpContext());  return true; }
+    if (is ("cycleCpuQuality")) { qualityLink.cycleQuality();   return true; }   // cpu-quality-modes 5
     if (is ("options"))         { showOverlay (&optionsPanel);  return true; }
     if (is ("presetBrowser"))   { showOverlay (&presetBrowser); return true; }
     if (is ("export"))          { showOverlay (&exportPanel);   return true; }
@@ -754,6 +773,12 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
+    if (is ("toggleNormalization"))   // output-normalization.md 9
+    {
+        NormalizationUi::toggleFromCommand (processor);
+        return true;
+    }
+
     // gui-integration 17: W toggles the Workshop - the WORKSHOP tab in
     // Advanced, the bench overlay in Easy (VISUAL-WORKSHOP-QA).
     if (is ("toggleWorkshop"))
@@ -790,6 +815,15 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     }
 
     if (is ("panic"))     { processor.panic();       return true; }
+
+    // animated-strings.md 8: the rebindable, unbound-by-default toggle.
+    if (is ("toggleStringAnimation"))
+    {
+        StringAnimationSettings::setEnabled (! StringAnimationSettings::isEnabled());
+        return true;
+    }
+    if (JamShortcuts::handle (processor, key))   // FEAT-JAM: jam-mode 8.2
+        return true;
     if (is ("tapTempo"))  { processor.tapTempoNow(); return true; }
 
     if (is ("killSwitch"))
@@ -926,6 +960,35 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
 
 //==============================================================================
+void LuthierAudioProcessorEditor::openNormalizationOptions()
+{
+    if (showOptionsPage ("AUDIO"))
+        NormalizationUi::focusSwitchIn (optionsPanel);
+}
+
+void LuthierAudioProcessorEditor::openQualityOptions()
+{
+    if (! showOptionsPage ("AUDIO"))
+        return;
+
+    // Focus into the CPU quality group.
+    std::function<QualityOptions* (juce::Component&)> find = [&find] (juce::Component& c) -> QualityOptions*
+    {
+        if (auto* q = dynamic_cast<QualityOptions*> (&c))
+            return q;
+
+        for (auto* child : c.getChildren())
+            if (auto* q = find (*child))
+                return q;
+
+        return nullptr;
+    };
+
+    if (auto* q = find (optionsPanel))
+        if (q->isShowing())
+            q->focusGroup();
+}
+
 bool LuthierAudioProcessorEditor::showOptionsPage (const juce::String& tabName)
 {
     if (! optionsPanel.showPageNamed (tabName))
@@ -1078,6 +1141,11 @@ void LuthierAudioProcessorEditor::postStartupNotifications()
 */
 void LuthierAudioProcessorEditor::pollForNotifications()
 {
+    // output-normalization.md 12: one warning per session when measuring failed.
+    if (const auto s = processor.getNormalizationStatus();
+        s.enabled && (s.flags & (LoudnessNormalizer::flagFailed | LoudnessNormalizer::flagEstimate)) != 0)
+        NormalizationUi::postFailureBanner (notifications);
+
     /*  ---- the host moved the sample rate --------------------------------------
 
         Claimed rather than compared, because the claim is what clears it: this is
@@ -1107,33 +1175,8 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         notifications.post (std::move (n));
     }
 
-    // ---- CPU limit (performance-budget.md 8, relief 7) ------------------------
-    {
-        const bool due = processor.getEngine().getCpuRelief().isCpuLimitBannerDue();
-
-        switch (CpuReliefUi::bannerAction (due, cpuLimitEpisode))
-        {
-            case CpuReliefUi::BannerAction::post:
-            {
-                Notification n;
-                n.id = CpuReliefUi::kBannerId;
-                n.message = CpuReliefUi::bannerMessage();
-                n.level = Notification::Level::warning;
-                notifications.post (std::move (n));
-                break;
-            }
-
-            case CpuReliefUi::BannerAction::withdraw:
-                if (notifications.getCurrentId() == CpuReliefUi::kBannerId)
-                    notifications.dismissCurrent();
-                break;
-
-            case CpuReliefUi::BannerAction::none:
-                break;
-        }
-
-        cpuLimitEpisode = due;
-    }
+    // The CPU limit banner (performance-budget.md 8, relief 7) is now E3's,
+    // posted by QualityEditorLink (cpu-quality-modes 7).
 
     // ---- a part a guitar asked for and could not have (gui-integration 15) -----
     for (const auto& message : processor.takeGuitarNotices())

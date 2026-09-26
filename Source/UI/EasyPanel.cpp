@@ -269,6 +269,10 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     // ---- meter and chord readout -------------------------------------------------------
     addAndMakeVisible (meter);
 
+    // output-normalization.md 5.1: the badge under the meter, while on.
+    addChildComponent (normalizationBadge);
+    normalizationBadge.onVisibilityChanged = [this] { resized(); };
+
     // visual-polish.md 4: the room light sits behind the ROOM card's controls.
     addAndMakeVisible (roomLight);
     roomLight.toBack();
@@ -428,6 +432,10 @@ void EasyPanel::buildRhythmStrip()
     rhythmReadout.setJustificationType (juce::Justification::centredRight);
     rhythmReadout.setTooltip ("The chord the rhythm engine is playing, and the next strum");
     addAndMakeVisible (rhythmReadout);
+
+    // FEAT-JAM (jam-mode 8.2): the band's pill, style, intensity and volume.
+    jamGroup = std::make_unique<JamStripGroup> (processor);
+    addAndMakeVisible (*jamGroup);
 
     refreshRhythmStrip();
 }
@@ -634,7 +642,11 @@ void EasyPanel::resized()
 
     // 3.1: the guitar, with the level meter and the chord beside it.
     auto guitarArea = bounds;
-    auto meterColumn = guitarArea.removeFromRight (28);
+    auto meterColumn = guitarArea.removeFromRight (normalizationBadge.isVisible() ? NormalizationBadge::preferredWidth : 28);
+
+    if (normalizationBadge.isVisible())   // output-normalization.md 5.1
+        normalizationBadge.setBounds (meterColumn.removeFromBottom (24).reduced (0, 2));
+
     meter.setBounds (meterColumn.reduced (4, Metrics::grid));
     chordLabel.setBounds (guitarArea.removeFromTop (20).removeFromRight (120));
     // piano-roll-chord-display.md 1: the roll strip under the guitar illustration.
@@ -716,8 +728,11 @@ void EasyPanel::resized()
         r.removeFromLeft (Metrics::grid);
         rhythmEnableButton.setBounds (r.removeFromLeft (52));
         r.removeFromLeft (Metrics::grid);
+        if (jamGroup != nullptr)   // FEAT-JAM: the JAM group at the right end
+            jamGroup->setBounds (r.removeFromRight (juce::jmin (JamStripGroup::preferredWidth, juce::jmax (0, r.getWidth() - 290))));
+
         rhythmReadout.setBounds (r.removeFromRight (110));
-        rhythmHintLabel.setBounds (r.removeFromRight (110));
+        rhythmHintLabel.setBounds (r.removeFromRight (jamGroup != nullptr ? 90 : 110));
         rhythmFeelSlider.setBounds (r);
     }
 }

@@ -74,12 +74,12 @@ PianoRollStrip::PianoRollStrip (LuthierAudioProcessor& p, bool advancedMode)
     wasWanted = isWanted();
     lastShowsRoll = VisualAids::pianoRollShowsRoll();
     refreshButtons();
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);   // cpu-quality-modes 6
 }
 
 PianoRollStrip::~PianoRollStrip()
 {
-    stopTimer();
+    motion.stopTimer();
 
     for (int note : held)
         processor.releaseKeyboardNote (note);
@@ -606,6 +606,7 @@ void PianoRollStrip::resized()
 
 void PianoRollStrip::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
     const double now = lastTickMs > 0.0 ? lastTickMs : juce::Time::getMillisecondCounterHiRes();
 
     g.setColour (Palette::panelSunken);

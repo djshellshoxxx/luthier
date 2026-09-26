@@ -34,6 +34,7 @@
 #include "PedalRack.h"
 #include "AmpFacePanel.h"
 #include "TunePanel.h"
+#include "JamPanel.h"   // FEAT-JAM
 #include "PracticeSetupPanel.h"
 #include "HelpTab.h"
 #include "PanelHelpButton.h"
@@ -92,6 +93,10 @@ public:
     ~AdvancedPanel() override;
 
     void setSelectedString (int index);
+
+    /** cpu-quality-modes 5: column 3's Master oversampling tooltip carries the
+        "Running at 2x while quality is Medium." note ("" when not capped). */
+    void setOversamplingNote (const juce::String& note);
     int getSelectedString() const noexcept { return selectedString; }
 
     /*  Section 4.5: below 1000 points wide, Advanced Mode is unavailable. Three
@@ -325,6 +330,7 @@ private:
     std::unique_ptr<ModMatrixPanel> modMatrixPanel;
     std::unique_ptr<RhythmPanel> rhythmPanel;
     std::unique_ptr<TunePanel> tunePanel;
+    std::unique_ptr<JamPanel> jamPanel;   // FEAT-JAM: jam-mode 8.1
     std::unique_ptr<PracticeSetupPanel> practiceSetupPanel;
     std::unique_ptr<HelpTab> helpTab;
     std::unique_ptr<LivePanel> livePanel;

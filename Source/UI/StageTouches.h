@@ -16,6 +16,7 @@
 */
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 
 namespace luthier
 {
@@ -55,6 +56,8 @@ private:
     void timerCallback() override;
 
     LuthierAudioProcessor& processor;
+    // cpu-quality-modes 6: at Low, 10 Hz and no ballistics (the needle sits on the reading).
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "VuMeter" };
     double needleVu = kMinVu;
     double lastLevel = -1.0, lastChangeMs = 0.0, lastTickMs = 0.0;
     bool stale = false;
@@ -83,6 +86,9 @@ private:
     void timerCallback() override { refresh(); }
 
     LuthierAudioProcessor& processor;
+    // cpu-quality-modes 6: Decorative; at Off its timer stops and the policy's
+    // static poll keeps it following the room's size and wet.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Decorative, "RoomLight", {}, [this] { refresh(); } };
     float warmth = 0.0f, spread = 0.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RoomLight)

@@ -252,6 +252,9 @@ void PerStringStrip::mouseDown (const juce::MouseEvent& e)
 RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     : processor (p)
 {
+    addChildComponent (normalizationCaption);   // output-normalization.md 5.4
+    normalizationCaption.setVisible (processor.getOutputNormalization().isEnabled());
+
     auto configureLabel = [this] (juce::Label& label, const juce::String& text)
     {
         label.setText (text, juce::dontSendNotification);
@@ -356,12 +359,12 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     }
 
     refreshFromRouting();
-    startTimerHz (15);
+    motion.startTimerHz (*this, 15);
 }
 
 RoutingPanel::~RoutingPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void RoutingPanel::updateMidiOutFromControls()
@@ -499,6 +502,8 @@ int RoutingPanel::preferredHeight() const
 
 void RoutingPanel::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     if (! sidechainMeterBounds.isEmpty())
     {
         drawMeter (g, sidechainMeterBounds,
@@ -520,6 +525,9 @@ void RoutingPanel::resized()
 
     layoutLabel.setBounds (bounds.removeFromTop (18));
     latencyLabel.setBounds (bounds.removeFromTop (14));
+
+    if (normalizationCaption.isVisible())   // output-normalization.md 5.4
+        normalizationCaption.setBounds (bounds.removeFromTop (14));
 
     for (auto* strip : auxStrips)
         strip->setBounds (bounds.removeFromTop (AuxStrip::preferredHeight));

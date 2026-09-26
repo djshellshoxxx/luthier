@@ -3,6 +3,7 @@
 #include "../Routing/TapBuffers.h"
 #include "../Tune/TuneFile.h"
 #include "../Tune/TuneMidi.h"
+#include "../Jam/JamMidiExport.h"   // FEAT-JAM
 
 namespace luthier
 {
@@ -17,7 +18,7 @@ double TuneExport::getTuneSeconds (const Tune& tune)
 
 bool TuneExport::renderAudio (const juce::MemoryBlock& pluginState, double sampleRate, int blockSize,
                               double tailSeconds, bool stems, Render& result,
-                              const std::function<bool (double)>& progress)
+                              const std::function<bool (double)>& progress, bool includeJamBand)
 {
     auto instance = LuthierAudioProcessor::createOfflineInstance();
     auto* processor = dynamic_cast<LuthierAudioProcessor*> (instance.get());
@@ -32,6 +33,22 @@ bool TuneExport::renderAudio (const juce::MemoryBlock& pluginState, double sampl
 
     processor->prepareToPlay (sampleRate, blockSize);
     processor->setStateInformation (pluginState.getData(), (int) pluginState.getSize());
+
+    // FEAT-JAM (jam-mode 9): the band plays in the render unless it is left out;
+    // with stems it also goes to Aux 9 and 10 (Main + Separate).
+    auto setPlain = [processor] (const char* id, float plain)
+    {
+        if (auto* p = processor->getState().getParameter (id))
+            p->setValueNotifyingHost (p->convertTo0to1 (plain));
+    };
+
+    const bool jamOn = includeJamBand && processor->getState().getParameter (ParamIDs::jamEnabled) != nullptr
+                       && processor->getState().getParameter (ParamIDs::jamEnabled)->getValue() > 0.5f;
+
+    if (! includeJamBand)
+        setPlain (ParamIDs::jamEnabled, 0.0f);
+    else if (jamOn && stems)
+        setPlain (ParamIDs::jamOutput, 2.0f);
 
     const auto& tune = processor->getTuneSession().getTune();
     const double seconds = getTuneSeconds (tune);
@@ -55,8 +72,11 @@ bool TuneExport::renderAudio (const juce::MemoryBlock& pluginState, double sampl
     result.main.clear();
     result.aux.clear();
 
+    // FEAT-JAM: the band's two buses after Aux 1-8, when it plays.
+    const int numStems = kNumAuxStems + (jamOn ? 2 : 0);
+
     if (stems)
-        for (int i = 0; i < kNumAuxStems; ++i)
+        for (int i = 0; i < numStems; ++i)
         {
             result.aux.emplace_back (2, (int) total);
             result.aux.back().clear();
@@ -65,7 +85,21 @@ bool TuneExport::renderAudio (const juce::MemoryBlock& pluginState, double sampl
     juce::AudioBuffer<float> block (juce::jmax (2, processor->getTotalNumOutputChannels()), blockSize);
 
     // Aux 1-7 follow the main out; Aux 8 comes after the per-string buses.
-    auto auxBusIndex = [] (int aux) { return aux < kNumAuxBuses ? 1 + aux : 1 + kNumAuxBuses + kNumPerStringBuses; };
+    auto auxBusIndex = [processor] (int aux)
+    {
+        if (aux >= kNumAuxStems)   // FEAT-JAM: Aux 9 Jam Drums, Aux 10 Jam Bass, by name
+        {
+            const auto name = getAuxBusName (aux == kNumAuxStems ? kJamDrumsAux : kJamBassAux);
+
+            for (int b = 1; b < processor->getBusCount (false); ++b)
+                if (processor->getBus (false, b)->getName() == name)
+                    return b;
+
+            return processor->getBusCount (false);
+        }
+
+        return aux < kNumAuxBuses ? 1 + aux : 1 + kNumAuxBuses + kNumPerStringBuses;
+    };
 
     for (juce::int64 position = 0; position < total; position += blockSize)
     {
@@ -73,6 +107,7 @@ bool TuneExport::renderAudio (const juce::MemoryBlock& pluginState, double sampl
 
         // Every block: the offline render is not waiting on a UI timer.
         processor->serviceTune();
+        processor->serviceJam();   // FEAT-JAM
 
         block.setSize (block.getNumChannels(), count, false, false, true);
         block.clear();
@@ -86,7 +121,7 @@ bool TuneExport::renderAudio (const juce::MemoryBlock& pluginState, double sampl
 
         if (stems)
         {
-            for (int aux = 0; aux < kNumAuxStems; ++aux)
+            for (int aux = 0; aux < numStems; ++aux)
             {
                 const int bus = auxBusIndex (aux);
 
@@ -115,7 +150,8 @@ juce::Array<juce::File> TuneExport::exportAudio (const juce::MemoryBlock& plugin
     juce::Array<juce::File> written;
     Render render;
 
-    if (! renderAudio (pluginState, options.sampleRate, 512, options.tailSeconds, options.stems, render, progress))
+    if (! renderAudio (pluginState, options.sampleRate, 512, options.tailSeconds, options.stems, render, progress,
+                       options.includeJamBand))
     {
         error = "The tune could not be rendered (it may be empty, or the render was cancelled).";
         return written;
@@ -178,9 +214,14 @@ juce::Array<juce::File> TuneExport::exportAudio (const juce::MemoryBlock& plugin
         return written;
 
     for (size_t aux = 0; aux < render.aux.size(); ++aux)
+    {
+        // FEAT-JAM: stems 9 and 10 are the band's buses.
+        const int auxIndex = (int) aux < kNumAuxStems ? (int) aux : ((int) aux == kNumAuxStems ? kJamDrumsAux : kJamBassAux);
+
         if (! write (render.aux[aux], options.baseName + " - Aux " + juce::String ((int) aux + 1) + " "
-                                        + getAuxBusName ((int) aux)))
+                                        + getAuxBusName (auxIndex)))
             return written;
+    }
 
     return written;
 }
@@ -248,6 +289,118 @@ bool TuneExport::exportMidi (const Tune& tune, const juce::File& destination, co
     }
 
     return MidiProfiles::exportToFile (performance, options.profile, destination, &error);
+}
+
+//==============================================================================
+// FEAT-JAM (jam-mode 9): the band's two tracks in the tune's MIDI export
+//==============================================================================
+bool TuneExport::appendJamTracks (const juce::MemoryBlock& pluginState, const juce::File& midiFile, juce::String& error,
+                                  double sampleRate)
+{
+    juce::MidiFile file;
+
+    {
+        juce::FileInputStream in (midiFile);
+
+        if (! in.openedOk() || ! file.readFrom (in))
+        {
+            error = "Could not read " + midiFile.getFullPathName();
+            return false;
+        }
+    }
+
+    auto instance = LuthierAudioProcessor::createOfflineInstance();
+    auto* processor = dynamic_cast<LuthierAudioProcessor*> (instance.get());
+
+    if (processor == nullptr)
+        return false;
+
+    constexpr int blockSize = 512;
+    processor->setNonRealtime (true);
+    processor->prepareToPlay (sampleRate, blockSize);
+    processor->setStateInformation (pluginState.getData(), (int) pluginState.getSize());
+
+    auto* enabled = processor->getState().getParameter (ParamIDs::jamEnabled);
+
+    if (enabled == nullptr || enabled->getValue() < 0.5f)
+    {
+        error = "The Jam band is not enabled.";
+        return false;
+    }
+
+    const double seconds = getTuneSeconds (processor->getTuneSession().getTune());
+
+    if (seconds <= 0.0)
+    {
+        error = "The tune is empty.";
+        return false;
+    }
+
+    auto& player = processor->getTunePlayer();
+    player.stop();
+    player.setLoop (false);
+    player.setCountInBars (0);
+    player.setMetronome (false);
+    processor->serviceTune();
+    player.play();
+
+    juce::AudioBuffer<float> block (juce::jmax (2, processor->getTotalNumOutputChannels()), blockSize);
+    const auto total = (juce::int64) std::ceil ((seconds + 2.0) * sampleRate);   // room for the ending
+
+    for (juce::int64 position = 0; position < total; position += blockSize)
+    {
+        processor->serviceTune();
+        processor->serviceJam();
+        block.clear();
+        juce::MidiBuffer midi;
+        processor->processBlock (block, midi);
+    }
+
+    const auto events = processor->getJam().getCapture().copyLastBars (0);
+    processor->releaseResources();
+
+    JamMidiExportOptions options;
+    options.bars = 0;
+    options.ticksPerQuarter = juce::jmax (1, (int) file.getTimeFormat());
+    const auto cfg = processor->getRouting().getMidiOutConfig();
+    options.drumChannel = cfg.jamDrumChannel;
+    options.bassChannel = cfg.jamBassChannel;
+
+    const auto jam = JamMidiExport::build (events, options);
+    int notes = 0;
+
+    for (int t = 0; t < jam.getNumTracks(); ++t)
+    {
+        // The tune's file keeps its own tempo map and meter.
+        juce::MidiMessageSequence track;
+
+        for (const auto* e : *jam.getTrack (t))
+            if (! (e->message.isTempoMetaEvent() || e->message.isTimeSignatureMetaEvent()))
+            {
+                track.addEvent (e->message);
+                notes += e->message.isNoteOn() ? 1 : 0;
+            }
+
+        track.updateMatchedPairs();
+        file.addTrack (track);
+    }
+
+    if (notes == 0)
+    {
+        error = "The Jam band played nothing in the tune.";
+        return false;
+    }
+
+    midiFile.deleteFile();
+    juce::FileOutputStream out (midiFile);
+
+    if (! out.openedOk() || ! file.writeTo (out, 1))
+    {
+        error = "Could not write " + midiFile.getFullPathName();
+        return false;
+    }
+
+    return true;
 }
 
 //==============================================================================

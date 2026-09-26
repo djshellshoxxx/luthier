@@ -59,6 +59,11 @@ struct Notification
     /** Optional. A banner with action text gets a button and no auto-dismiss. */
     juce::String actionText;
     std::function<void()> action;
+
+    /** Optional second action, beside the first (output-normalization.md 5.3:
+        [Options] and [Don't show again]). Only shown when `action` is set. */
+    juce::String secondaryActionText;
+    std::function<void()> secondaryAction;
 };
 
 //==============================================================================
@@ -107,6 +112,10 @@ public:
         the button does. Does nothing when there is no action. */
     void performCurrentAction();
 
+    /** The second button, when the banner has one. */
+    void performCurrentSecondaryAction();
+    bool currentHasSecondaryAction() const noexcept { return current.action != nullptr && current.secondaryAction != nullptr; }
+
     /** True if this id is on screen or waiting. */
     bool contains (const juce::String& id) const;
 
@@ -128,7 +137,8 @@ private:
     Notification current;
     std::vector<Notification> queue;
 
-    juce::TextButton actionButton;
+    juce::TextButton actionButton, secondaryButton;
+    void updateButtons();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NotificationCentre)
 };

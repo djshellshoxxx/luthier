@@ -19,6 +19,7 @@ const char* getRangeFamilyName (RangeFamily family) noexcept
         case RangeFamily::strings:     return "strings";       // REALISM-A
         case RangeFamily::environment: return "environment";   // REALISM-A
         case RangeFamily::body:        return "body";          // REALISM-A
+        case RangeFamily::jam:        return "jam";   // FEAT-JAM
         case RangeFamily::numFamilies:
         default:                      return "none";
     }
@@ -219,6 +220,9 @@ namespace
             { ParamIDs::stabilityBendMemory,    { 0.0f,  2.0f, 0.0f,  8.0f,   1.0f, 1.0f, RangeFamily::strings } },
             { ParamIDs::stabilityCapoBias,      { 0.0f,  2.0f, 0.0f,  8.0f,   1.0f, 1.0f, RangeFamily::strings } },
             // ==== END REALISM-C ranges ====
+            // --- jam kit (jam-mode.md 10, FEAT-JAM): a tension change and head muffling
+            { ParamIDs::jamKitTuning,      { -6.0f,  6.0f,  -12.0f, 12.0f, 0.0f,  0.5f, RangeFamily::jam } },
+            { ParamIDs::jamKitDamping,     { 10.0f,  90.0f, 0.0f,  100.0f, 40.0f, 1.0f, RangeFamily::jam } },
         };
 
         count = (int) (sizeof (table) / sizeof (table[0]));

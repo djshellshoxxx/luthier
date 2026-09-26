@@ -30,7 +30,7 @@ void EffectsChain::prepare (double sampleRate, int maxBlockSize)
         }
     }
 
-    setOversamplingFactor (oversamplingFactor);
+    setOversamplingFactor (effectiveFactor, oversamplingFactor, false);
     retired.clear();
 }
 
@@ -66,7 +66,7 @@ void EffectsChain::setSlotType (int slot, PedalType type)
         replacement->setMix (slots[(size_t) slot].mix);
 
         if (auto* drive = dynamic_cast<DrivePedalBase*> (replacement.get()))
-            drive->setOversamplingFactor (oversamplingFactor);
+            drive->setOversamplingFactor (effectiveFactor, oversamplingFactor, false);
     }
 
     {
@@ -230,13 +230,14 @@ void EffectsChain::setExpression (double value) noexcept
             slot.pedal->setExpression (expression);
 }
 
-void EffectsChain::setOversamplingFactor (int factor) noexcept
+void EffectsChain::setOversamplingFactor (int effective, int nominal, bool crossfade) noexcept
 {
-    oversamplingFactor = juce::jlimit (1, 8, factor);
+    oversamplingFactor = juce::jlimit (1, 8, nominal);
+    effectiveFactor = juce::jlimit (1, oversamplingFactor, effective);
 
     for (auto& slot : slots)
         if (auto* drive = dynamic_cast<DrivePedalBase*> (slot.pedal.get()))
-            drive->setOversamplingFactor (oversamplingFactor);
+            drive->setOversamplingFactor (effectiveFactor, oversamplingFactor, crossfade);
 }
 
 int EffectsChain::getLatencySamples() const noexcept
