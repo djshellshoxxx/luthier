@@ -4,6 +4,7 @@
 
 #include "../LuthierEngine.h"
 #include "../DSP/Whammy/WhammyEngine.h"
+#include "../DSP/Amp/CabinetEngine.h"
 #include "../DSP/Circuit/GuitarCircuit.h"
 #include "../Model/Playing/MidiInterpreter.h"
 #include "../Model/Playing/TuningEngine.h"
@@ -458,4 +459,136 @@ LUTHIER_TEST (Pickup, selectorChangesCrossfadeIn5ms)
 
     CHECK_NEAR (level (PickupSelector::Neck, 1) / full (PickupSelector::Neck), 0.5, 0.01);
     CHECK_NEAR (level (PickupSelector::Bridge, 1) / full (PickupSelector::Bridge), 1.0, 1.0e-6);
+}
+
+//==============================================================================
+/*  EN-65: engine.md 13.1 - the cabinet's convolution is a convolution: its
+    mic tap matches a direct time-domain convolution with the IR (up to the
+    loader's normalisation gain and the reported latency) to -80 dB. */
+LUTHIER_TEST (Cabinet, convolutionMatchesOfflineConvolution)
+{
+    constexpr int block = 512;
+    CabinetEngine cab;
+    cab.prepare (kSr, block);
+    cab.setEnabled (true);
+    cab.setDualMicEnabled (false);
+
+    // A short decaying noise IR.
+    juce::Random random (7);
+    std::vector<float> ir (300);
+    for (size_t i = 0; i < ir.size(); ++i)
+        ir[i] = (float) ((random.nextDouble() * 2.0 - 1.0) * std::exp (-(double) i / 60.0));
+
+    cab.loadImpulseResponse (0, ir.data(), (int) ir.size(), kSr);
+    CHECK (cab.hasImpulseResponse (0));
+
+    const int latency = cab.getLatencySamples();
+
+    // Input: an impulse, then noise.
+    const int total = block * 24;
+    std::vector<float> in ((size_t) total, 0.0f), out;
+    in[100] = 1.0f;
+    for (int i = 2000; i < total; ++i)
+        in[(size_t) i] = (float) (random.nextDouble() * 2.0 - 1.0) * 0.3f;
+
+    for (int b = 0; b < total / block; ++b)
+    {
+        juce::AudioBuffer<float> buffer (2, block);
+        for (int ch = 0; ch < 2; ++ch)
+            buffer.copyFrom (ch, 0, in.data() + b * block, block);
+
+        cab.processBlock (buffer);
+
+        const float* tap = cab.getMicTap (0);
+        CHECK (tap != nullptr);
+        if (tap == nullptr) return;
+        out.insert (out.end(), tap, tap + block);
+    }
+
+    // The reference, delayed by the reported latency.
+    std::vector<double> ref ((size_t) total, 0.0);
+    for (int n = 0; n < total; ++n)
+    {
+        double acc = 0.0;
+        for (int k = 0; k < (int) ir.size() && k <= n; ++k)
+            acc += (double) ir[(size_t) k] * in[(size_t) (n - k)];
+        if (n + latency < total)
+            ref[(size_t) (n + latency)] = acc;
+    }
+
+    // The loader normalises the IR, so fit the one gain, then look at what is left.
+    double dot = 0.0, rr = 0.0, oo = 0.0;
+    for (int n = latency; n < total; ++n)
+    {
+        dot += out[(size_t) n] * ref[(size_t) n];
+        rr += ref[(size_t) n] * ref[(size_t) n];
+        oo += (double) out[(size_t) n] * out[(size_t) n];
+    }
+
+    const double gain = dot / juce::jmax (1.0e-30, rr);
+    double residual = 0.0;
+    for (int n = latency; n < total; ++n)
+    {
+        const double e = out[(size_t) n] - gain * ref[(size_t) n];
+        residual += e * e;
+    }
+
+    const double db = 10.0 * std::log10 (juce::jmax (1.0e-30, residual) / juce::jmax (1.0e-30, oo));
+    CHECK_MSG (oo > 1.0e-6, "the cabinet produced nothing");
+    CHECK_MSG (db < -80.0, "the convolution differs from a direct one by " + juce::String (db, 1) + " dB");
+}
+
+//==============================================================================
+/*  EN-95: engine.md 22 - MIDI in to audio out within 2 ms of the reported
+    latency: a note sent at sample k starts to change the output by
+    k + latency + 2 ms, and not before k. The onset is measured against the
+    same render without the note, so the idle noise floor (which is
+    deterministic) cancels. The chord window is zero, the only other wait. */
+LUTHIER_TEST (Engine, midiToAudioIsWithinTwoMillisecondsOfTheReportedLatency)
+{
+    for (int offset : { 0, 137, 400 })
+    {
+        int latency = 0;
+
+        auto render = [offset, &latency] (bool withNote)
+        {
+            LuthierEngine engine;
+            engine.prepare (kSr, 512);
+            engine.setGuitarType (GuitarType::Stratocaster);
+            engine.getMidiInterpreter().setChordWindowMs (0.0);
+            engine.reset();
+            latency = engine.getLatencySamples();
+
+            std::vector<float> out;
+
+            for (int b = 0; b < 8; ++b)
+            {
+                juce::AudioBuffer<float> buffer (2, 512);
+                buffer.clear();
+                juce::MidiBuffer midi;
+
+                if (b == 2 && withNote)
+                    midi.addEvent (juce::MidiMessage::noteOn (1, 52, 1.0f), offset);
+
+                engine.processBlock (buffer, midi);
+                out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 512);
+            }
+
+            return out;
+        };
+
+        const auto with = render (true);
+        const auto without = render (false);
+
+        int onset = -1;
+        for (size_t i = 0; i < with.size(); ++i)
+            if (std::abs (with[i] - without[i]) > 1.0e-4f) { onset = (int) i; break; }
+
+        const int sent = 2 * 512 + offset;
+
+        CHECK_MSG (onset >= sent, "sound before the note at offset " + juce::String (offset));
+        CHECK_MSG (onset >= 0 && onset - sent <= latency + (int) (0.002 * kSr),
+                   "offset " + juce::String (offset) + ": onset " + juce::String (onset - sent)
+                   + " samples after the note, reported latency " + juce::String (latency));
+    }
 }

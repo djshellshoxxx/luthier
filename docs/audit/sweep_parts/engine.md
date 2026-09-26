@@ -81,7 +81,7 @@ Items on `visual`: the whole-block allocation trap, the limiter-lookahead latenc
 | EN-62 (§11.4-11.6) | Phase inverter asymmetry, push-pull + sag, output transformer — no per-stage test | `AmpEngine` | amp face Master | - | OWNED (on visual: EffectsQaTests `Amp.gainSweepIsMonotonicAt1kHz`, `Amp.coldStartHasNoTransient`) |
 | EN-63 (§11.7) | Standby mutes; **30 s** warm-up — 8 s (`warmupGain.prepare (sr, 8.0)`) | `AmpEngine` warmupGain | amp face Standby | `Amp.standbyIsSilentAndWarmsUp` | PARTIAL |
 | EN-64 (§12) | Post fx chorus, phaser stages, flanger, tremolo, rotary, delay types/sync/ping-pong, reverbs, spring, EQ | `DSP/Effects/PedalsMod` | post rack | `Effects.everyPedalTypeRunsCleanly`, `ReviewRegression.theReverbPedalTailSurvivesRepeatedParameterSends` | DONE |
-| EN-65 (§13.1) | Cab IR convolution, 200+ IRs (504) — no "matches offline convolution" test | `DSP/Amp/CabinetEngine`; `Resources/CabIRs` | ADVANCED col 3 Cabinet | `Cabinet.procedualFallbackRemovesTheFizz` | NO-TEST |
+| EN-65 (§13.1) | Cab IR convolution, 200+ IRs (504) — no "matches offline convolution" test | `DSP/Amp/CabinetEngine`; `Resources/CabIRs` | ADVANCED col 3 Cabinet | `Cabinet::convolutionMatchesOfflineConvolution`, `Cabinet.procedualFallbackRemovesTheFizz` | DONE |
 | EN-66 (§13.2-13.3) | Mic type/position/distance swap IR; dual-mic blend, opposite pan | `CabinetEngine`; `mic_*`, `dual_mic`, `mic_blend`, `mic_width` | ADVANCED col 3 Mic; Easy mic cards | `Engine.monoCompatibility` | DONE |
 | EN-67 (§13.4) | Async IR load with zero-latency fallback | `CabinetEngine` fallback; `ConvolutionInstaller` | n/a | `Editor.aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` | DONE |
 | EN-68 (§14) | ER taps + FDN; size/damping/mix | `DSP/Amp/RoomEngine` | ADVANCED col 3 Room | `Room.biggerRoomsRingLonger`, `ReviewRegression.theRoomTailSurvivesRepeatedDecaySends` | DONE |
@@ -107,10 +107,10 @@ Items on `visual`: the whole-block allocation trap, the limiter-lookahead latenc
 | EN-88 (§20.5) | Coupling per block, capped — runs per sample (documented: per-block ticks) | `CouplingMatrix.h` header note | n/a | `Coupling.cannotRunAway` | PARTIAL |
 | EN-89 (§20.8) | No console logging on audio thread; lock-free queue to file | `Support/Diagnostics` ring buffer | n/a | `Diagnostics.ringBufferAndSelfTestWork` | DONE |
 | EN-90 (§20.18) | Feedback capped at 0.998 (room FDN and the reverb pedal FDN) | `RoomEngine::kMaxFeedback`, `PedalsMod.cpp`; delays 0.95 | n/a | `Room::feedbackNeverExceedsTheCap`, `Effects.secretEffectIsStableAtMaximumRegeneration` | DONE |
-| EN-91 (§20.19) | Every factory preset passes mono compatibility — test uses one synthetic rig | `MasterBus`/stereo fx | n/a | `Engine.monoCompatibility` | NO-TEST |
+| EN-91 (§20.19) | Every factory preset passes mono compatibility — test uses one synthetic rig | `MasterBus`/stereo fx | n/a | `Presets::everyFactoryPresetIsMonoCompatible`, `Engine.monoCompatibility` | DONE |
 | EN-92 (§22) | < 8 % CPU @96k/128, 6 strings, all fx | engine | n/a | - | OWNED (on visual: `PerfBudget.everyModuleWithinBudget`, `PerfBudget.scenarioTotals`) |
 | EN-93 (§22) | 16 instances @48k/256 no glitches | engine | n/a | - | OWNED (on visual: `Stress.thirtyTwoInstancesRenderInTurn`) |
-| EN-94 (§22) | Preset load < 500 ms incl. async IR | `PresetManager::fromVar`; IR installers | n/a | - | NO-TEST |
-| EN-95 (§22) | MIDI in → audio out < 2 ms (+ reported latency) | `MidiInterpreter` sample-accurate events; chord window | n/a | `Controllers.chordGroupsSoundOneWindowAfterTheyWerePlayed` | NO-TEST |
+| EN-94 (§22) | Preset load < 500 ms incl. async IR | `PresetManager::fromVar`; IR installers | n/a | `Presets::loadingAFactoryPresetTakesUnder500ms` (median ~70 ms) | DONE |
+| EN-95 (§22) | MIDI in → audio out < 2 ms (+ reported latency) | `MidiInterpreter` sample-accurate events; chord window | n/a | `Engine::midiToAudioIsWithinTwoMillisecondsOfTheReportedLatency` (fixed: the master look-ahead, always in the path, was never reported), `Controllers.chordGroupsSoundOneWindowAfterTheyWerePlayed` | DONE |
 
-<!-- counts DONE=65 NO-GUI=7 NO-TEST=5 PARTIAL=6 MISSING=2 OWNED=10 -->
+<!-- counts DONE=69 NO-GUI=7 NO-TEST=1 PARTIAL=6 MISSING=2 OWNED=10 -->
