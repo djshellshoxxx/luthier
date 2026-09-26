@@ -167,6 +167,10 @@ public:
 
 private:
     int accentTop = 300;   ///< where ACCENT AND LIVE DISPLAYS starts, below VISUAL AIDS
+    // auto-articulation.md 7.4 (FEAT-ASSIST): Visual aids.
+    juce::ToggleButton assistLabelsToggle { "Show Performance Assist labels" };
+public:
+    juce::ToggleButton& getAssistLabelsToggle() noexcept { return assistLabelsToggle; }
 };
 
 //==============================================================================

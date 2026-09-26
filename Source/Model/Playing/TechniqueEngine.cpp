@@ -108,7 +108,7 @@ Technique TechniqueEngine::decide (int stringIndex,
     {
         result = Technique::MutedPick;
     }
-    else if (state.active)
+    else if (state.active && (legatoInference || slideMode))   // FEAT-ASSIST: Assist may own legato
     {
         // ---- legato inference -------------------------------------------------
         const double elapsedMs = (double) (timestampSamples - state.lastNoteSample) * 1000.0 / sr;
@@ -149,6 +149,20 @@ Technique TechniqueEngine::decide (int stringIndex,
     state.lastTechnique = result;
 
     return result;
+}
+
+Technique TechniqueEngine::decide (int stringIndex, double newFret, double velocity, int64_t timestampSamples,
+                                   int& harmonicPartial, double& slideFromFret, bool& explicitOut) noexcept
+{
+    // auto-articulation.md 4.2 (FEAT-ASSIST): read before decide() moves the state on.
+    const bool active = juce::isPositiveAndBelow (stringIndex, kMaxStrings) && strings[(size_t) stringIndex].active;
+
+    explicitOut = palmMute > 0.05 || pinchTrigger || harmonicTrigger
+                  || (harmonicVelocityTrigger && velocity >= harmonicVelocity)
+                  || tapTrigger || slideGuitarMode || mutedPick > 0.05
+                  || (slideMode && slideEnabled && active);
+
+    return decide (stringIndex, newFret, velocity, timestampSamples, harmonicPartial, slideFromFret);
 }
 
 //==============================================================================

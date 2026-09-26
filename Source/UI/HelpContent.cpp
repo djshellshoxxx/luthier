@@ -354,6 +354,26 @@ namespace
           "A legato move never re-picks the string: the vibration carries through and only the pitch changes, "
           "which is what makes a slide sound like one note rather than two." },
 
+        // auto-articulation.md 7.5 (FEAT-ASSIST).
+        { "performance-assist", "Performance Assist", "Performance Assist|PLAYING group|auto articulation|AUTO pill|assist",
+          "Performance Assist turns plain MIDI - a keyboard, a DAW clip, the piano roll or the Tune melody - into "
+          "a guitar performance, without keyswitches. Switch it on with the AUTO pill in the playing strip, the "
+          "PLAYING group at the top of the RHYTHM tab, or {key:toggleAssist}.\n\n"
+          "- Positions: each note goes on the string a guitarist would choose, keeping the hand in one box.\n"
+          "- Legato: overlapping notes on one string become hammer-ons and pull-offs; a long overlap or a "
+          "position shift becomes a slide.\n"
+          "- Vibrato: a held lead note gets vibrato after a moment, as a player's hand does.\n"
+          "- Attack and alternate picking: accents are brighter, quick runs alternate down- and up-strokes.\n"
+          "- Strums: chords strum down on the beat and up off it; Fingerstyle rolls thumb first; Bass plays "
+          "double-stops together.\n"
+          "- Palm mute: low chugs and repeated low notes are muted, and a mute lifts if you hold the note.\n"
+          "- Ornaments: the occasional bend into a note, slide-in or fall, in the lead styles.\n\n"
+          "The style menu shapes all of it and Amount scales it; the rule switches turn single rules off. What "
+          "you ask for explicitly always wins: a palm-mute pedal, a harmonic trigger, a slap or a tap is kept. "
+          "It is off in Guitar Controller and MPE modes, where the controller already articulates. Every "
+          "decision is labelled on the fretboard (Options -> Appearance -> Show Performance Assist labels) and "
+          "listed in the PLAYING group, and it reaches the notation and MIDI export as played." },
+
         { "modes", "Playing Modes", "playing mode|mode|mono|poly|guitar controller mode",
           "MONO / LEAD\n"
           "Every note goes to one string, chosen to keep the hand near where it already is. Overlapping notes "
@@ -689,7 +709,7 @@ namespace
         { "Help and navigation", "help|search|showShortcuts|options|toggleAdvanced|previousWorkspaceTab|"
                                  "nextWorkspaceTab|debugPanel" },
         { "Playing",             "panic|killSwitch|tapTempo|audition|toggleLiveMode|toggleSlideMode|toggleWorkshop|"
-                                 "togglePractice|midiLearnArm|jamStartStop|jamFill|jamArm" },   // FEAT-JAM
+                                 "togglePractice|midiLearnArm|jamStartStop|jamFill|jamArm|toggleAssist" },   // FEAT-JAM
         { "Presets, snapshots and setlists", "previousItem|nextItem|setlistPrevious|setlistNext|abCompare|"
                                  "randomise|resetAll|newPreset|presetBrowser" },
         { "Files and editing",   "undo|redo|redoAlt|undoAcrossBoundary|save|saveAs|revealPreset|saveGuitarAs|revealGuitar|export|newTune" }

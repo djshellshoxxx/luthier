@@ -575,6 +575,7 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("toggleSlideMode",  "accessibility.shortcut.toggleSlideMode",  KP ('s', 0, 0));
     add ("toggleWorkshop",   "accessibility.shortcut.toggleWorkshop",   KP ('w', 0, 0));   // gui-integration 17 (VISUAL-WORKSHOP-QA)
     add ("togglePractice",   "accessibility.shortcut.togglePractice",   KP ('d', 0, 0));
+    add ("toggleAssist",     "accessibility.shortcut.toggleAssist",     KP ('a', 0, 0));   // auto-articulation.md 7.5
 
     // output-normalization.md 9: rebindable, unbound by default.
     add ("toggleNormalization", "accessibility.shortcut.toggleNormalization", KP());

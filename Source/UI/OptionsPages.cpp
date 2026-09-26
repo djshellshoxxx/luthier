@@ -10,6 +10,7 @@
 #include "StageTouches.h"
 #include "UiPreferences.h"
 #include "VisualAids.h"
+#include "PerformanceAssistUi.h"   // FEAT-ASSIST
 
 namespace luthier
 {
@@ -811,6 +812,13 @@ void MidiPage::resized()
 AppearancePage::AppearancePage (LuthierAudioProcessor& p)
     : OptionsPage (p)
 {
+    // auto-articulation.md 7.4 (FEAT-ASSIST): a UiPreferences entry, not preset data.
+    assistLabelsToggle.setTooltip ("Label Performance Assist's decisions on the fretboard: H, P, slides, vibrato, "
+                                   "palm mutes, strokes and bends. The PLAYING group's list fills either way.");
+    assistLabelsToggle.setToggleState (AssistUi::showLabels(), juce::dontSendNotification);
+    assistLabelsToggle.onClick = [this] { AssistUi::setShowLabels (assistLabelsToggle.getToggleState()); };
+    addAndMakeVisible (assistLabelsToggle);
+
     for (int i = 0; i < (int) PaletteId::numPalettes; ++i)
         paletteBox.addItem (getPaletteName ((PaletteId) i), i + 1);
 
@@ -1043,6 +1051,10 @@ void AppearancePage::resized()
     }
     bounds.removeFromTop (2);
     pianoRollShowsBox.setBounds (bounds.removeFromTop (24).removeFromLeft (260));
+    bounds.removeFromTop (2);
+    // auto-articulation.md 7.4 (FEAT-ASSIST): Show Performance Assist labels, the
+    // last row of VISUAL AIDS.
+    assistLabelsToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
 
     bounds.removeFromTop (4);
     contrastLabel.setBounds (bounds.removeFromTop (18));

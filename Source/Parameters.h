@@ -16,6 +16,7 @@
 #include "LuthierEngine.h"
 #include "Modulation/ModMatrix.h"
 #include "Jam/JamSettings.h"   // FEAT-JAM
+#include "Support/Edition.h"   // FEAT-ASSIST
 
 namespace luthier
 {
@@ -523,6 +524,13 @@ namespace ParamIDs
         return id == jamPlay || id == jamFillNow;
     }
     // ==== END FEAT-JAM params ====
+    // ==== BEGIN FEAT-ASSIST params ====
+    // auto-articulation.md 6: Performance Assist.
+    inline constexpr const char* aaEnabled = "aa_enabled";
+    inline constexpr const char* aaStyle   = "aa_style";
+    inline constexpr const char* aaAmount  = "aa_amount";
+    inline constexpr const char* aaRules   = "aa_rules";
+    // ==== END FEAT-ASSIST params ====
 }
 
 //==============================================================================
@@ -585,6 +593,12 @@ public:
     static juce::StringArray roomMaterialNames();
     static juce::StringArray pedalTypeNames();
     static juce::StringArray oversamplingNames();
+
+    /** FEAT-ASSIST (auto-articulation.md 4.2, 11): the four aa_* values as the
+        engine plays them - Free resolves a Pro style to its nearest Free one
+        and plays every rule. */
+    static AutoArticulationSettings effectiveAssistSettings (bool enabled, int style, float amountPercent,
+                                                             int rules, Edition edition) noexcept;
 };
 
 //==============================================================================

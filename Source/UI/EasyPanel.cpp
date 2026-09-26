@@ -184,6 +184,13 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     whammyKnob.attachTo (processor, ParamIDs::whammyPos, "The whammy arm's position.");
 
     addAndMakeVisible (playingModeSelector);
+
+    // auto-articulation.md 7.1 (FEAT-ASSIST): AUTO pill and style under the mode.
+    assistPill = std::make_unique<AssistPill> (processor);
+    assistPill->onOpenRhythmTab = [this] { if (onOpenAssistRhythmTab != nullptr) onOpenAssistRhythmTab(); };
+    addAndMakeVisible (*assistPill);
+    assistStyle = std::make_unique<AssistStyleBox> (processor);
+    addAndMakeVisible (*assistStyle);
     playingModeSelector.attachTo (processor, ParamIDs::playingMode,
                                   "Mono routes every note to one string with legato between them. "
                                   "Poly voices chords across the strings. Guitar Controller maps "
@@ -667,7 +674,17 @@ void EasyPanel::resized()
     {
         auto r = playingArea.reduced (4, 2);
         r.removeFromTop (14);
-        playingModeSelector.setBounds (r.removeFromLeft (130).withSizeKeepingCentre (130, juce::jmin (48, r.getHeight())));
+        {
+            // auto-articulation.md 7.1 (FEAT-ASSIST): the 130 px mode column is two rows.
+            auto column = r.removeFromLeft (130);
+            auto second = column.removeFromBottom (AssistPill::kHeight);
+            column.removeFromBottom (2);
+            playingModeSelector.setLabelVisible (column.getHeight() >= 40);
+            playingModeSelector.setBounds (column.withSizeKeepingCentre (130, juce::jmin (48, column.getHeight())));
+            assistPill->setBounds (second.removeFromLeft (AssistPill::kWidth));
+            second.removeFromLeft (4);
+            assistStyle->setBounds (second.removeFromLeft (70));
+        }
         r.removeFromLeft (Metrics::grid);
 
         // REALISM-B: the Tool selector takes a share of the strip beside the mode.

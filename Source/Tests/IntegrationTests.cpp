@@ -658,6 +658,7 @@ LUTHIER_TEST (Parameters, everyParameterHasAUniqueIdAndSaneDefault)
                              + 29   // REALISM-C
                              + 2    // TUNE-HELP-ONBOARDING
                              + 34   // FEAT-JAM
+                             + 4    // FEAT-ASSIST
                              ,
                "the parameter list has changed size: " + juce::String (seen.size())
                  + " parameters, not the expected total - saved host automation is indexed "

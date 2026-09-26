@@ -5,6 +5,8 @@
 #include "Jam/JamStyle.h"
 #include "Jam/JamEdition.h"   // FEAT-JAM   // FEAT-JAM
 
+#include "Support/Edition.h"   // FEAT-ASSIST: auto-articulation.md 11
+
 namespace luthier
 {
 
@@ -133,6 +135,15 @@ namespace
             pid (id), name, choices, juce::jlimit (0, juce::jmax (0, choices.size() - 1), def));
     }
 
+    /*  FEAT-ASSIST (auto-articulation.md 6): aa_rules is a bitmask, and a
+        bitmask has no meaningful value between two settings - a snapshot
+        morph switches it at the midpoint, as it does a choice. */
+    struct AssistRulesParameter : juce::AudioParameterInt
+    {
+        using juce::AudioParameterInt::AudioParameterInt;
+        bool isDiscrete() const override { return true; }
+    };
+
     std::unique_ptr<juce::AudioParameterBool> boolParam (const juce::String& id,
                                                          const juce::String& name,
                                                          bool def)
@@ -142,6 +153,25 @@ namespace
 }
 
 //==============================================================================
+AutoArticulationSettings Parameters::effectiveAssistSettings (bool enabled, int style, float amountPercent,
+                                                              int rules, Edition edition) noexcept
+{
+    // FEAT-ASSIST (auto-articulation.md 11): what Free plays for a Pro value.
+    AutoArticulationSettings s;
+    s.enabled = enabled;
+    s.style = juce::jlimit (0, AutoArticulationStyles::kNumStyles - 1, style);
+    s.amount = juce::jlimit (0.0, 1.0, (double) amountPercent / 100.0);
+    s.rules = rules & AssistRule::all;
+
+    if (edition == Edition::free)
+    {
+        s.style = AutoArticulationStyles::nearestFreeStyle (s.style);
+        s.rules = AssistRule::all;
+    }
+
+    return s;
+}
+
 juce::StringArray Parameters::guitarTypeNames()
 {
     juce::StringArray names;
@@ -938,6 +968,20 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (boolParam   (ParamIDs::jamBassMute,       "Jam Bass Mute", false));
     add (choiceParam (ParamIDs::jamOutput,         "Jam Output", { "Main", "Separate", "Main + Separate" }, 0));
     // ==== END FEAT-JAM params ====
+    // ==== BEGIN FEAT-ASSIST params ====
+    // auto-articulation.md 6, appended. Not physical: no PhysicalRange. In Free
+    // aa_rules is non-automatable with the " (Pro)" suffix (11).
+    add (boolParam   (ParamIDs::aaEnabled, "Performance Assist", false));
+    add (choiceParam (ParamIDs::aaStyle,   "Assist Style", AutoArticulationStyles::getNames(), 0));
+    add (floatParam  (ParamIDs::aaAmount,  "Assist Amount", 0.0f, 100.0f, 60.0f, 1.0f, "%"));
+    {
+        const bool pro = Editions::isPro();
+        add (std::make_unique<AssistRulesParameter> (pid (ParamIDs::aaRules),
+                                                        juce::String ("Assist Rules") + (pro ? "" : Editions::kProSuffix),
+                                                        0, AssistRule::all, AssistRule::all,
+                                                        juce::AudioParameterIntAttributes().withAutomatable (pro)));
+    }
+    // ==== END FEAT-ASSIST params ====
 
     return layout;
 }
@@ -1756,6 +1800,15 @@ void ParameterBridge::applyToEngine() noexcept
         engine.getStabilityModel().setSettings (st);
     }
     // ==== END REALISM-C params ====
+
+    // ==== BEGIN FEAT-ASSIST params ====
+    // auto-articulation.md 4.2 / 11: the four parameters, with Free's
+    // effective values (a Pro style plays as its nearest Free one, the rules
+    // are all on). The stored values are never rewritten (editions.md 5.1).
+    engine.setAutoArticulation (Parameters::effectiveAssistSettings (
+        value (ParamIDs::aaEnabled) > 0.5f, (int) value (ParamIDs::aaStyle),
+        value (ParamIDs::aaAmount), (int) value (ParamIDs::aaRules), Editions::current()));
+    // ==== END FEAT-ASSIST params ====
 
     // ---- structural change detection ---------------------------------------------
     const bool structural = readStructuralValues() || ! structuralInitialised;

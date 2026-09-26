@@ -18,6 +18,7 @@
 
 #include "MidiProfiles.h"
 #include "../Model/Guitar/GuitarLibrary.h"
+#include "../Model/Playing/AutoArticulator.h"   // FEAT-ASSIST
 
 namespace luthier
 {
@@ -54,6 +55,13 @@ namespace MidiImportTargets
     /** The looper's layer: the performance played by a fresh engine on `guitar`, stereo, at `sampleRate`. */
     juce::AudioBuffer<float> render (const MidiPerformance& performance, GuitarType guitar, double sampleRate,
                                      double maxSeconds);
+
+    /** auto-articulation.md 5, 9 (FEAT-ASSIST): the same, played with Performance
+        Assist set as `assist`. A Luthier-profile file's NOTE events already carry
+        their techniques, so its notes are pre-articulated and Assist leaves them
+        alone - a round trip does not articulate twice. */
+    juce::AudioBuffer<float> render (const MidiPerformance& performance, GuitarType guitar, double sampleRate,
+                                     double maxSeconds, const AutoArticulationSettings& assist);
 }
 
 } // namespace luthier

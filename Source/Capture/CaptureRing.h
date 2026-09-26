@@ -47,7 +47,8 @@ struct CaptureRecord
         chord,
         meter,           ///< tempo and time signature
         bassTechnique,
-        slideBar
+        slideBar,
+        autoRules        ///< auto-articulation.md 9 (FEAT-ASSIST): the sounding note's Assist bits
     };
 
     Kind kind = Kind::noteOn;

@@ -18,6 +18,7 @@
 #include "TechniqueEngine.h"
 #include "ChordVoicer.h"
 #include "RubricVoicer.h"
+#include "AutoArticulator.h"   // FEAT-ASSIST: auto-articulation.md
 #include "../../Rhythm/StrumGesture.h"
 #include <array>
 
@@ -225,6 +226,27 @@ public:
     /** Panic: releases everything. */
     void allNotesOff (PlayEventQueue& out) noexcept;
 
+    // ==== BEGIN FEAT-ASSIST ====
+    /*  Performance Assist (auto-articulation.md 4). The hooks are in
+        MidiInterpreterAssist.cpp; every one is behind isAssistEffective(), so
+        with Assist off the interpreter is exactly what it was (0.1). */
+    void setAutoArticulation (const AutoArticulationSettings& s) noexcept { autoArt.setSettings (s); }
+    const AutoArticulationSettings& getAutoArticulation() const noexcept { return autoArt.getSettings(); }
+    AutoArticulator& getAutoArticulator() noexcept { return autoArt; }
+    const AutoArticulator& getAutoArticulator() const noexcept { return autoArt; }
+
+    /** LuthierEngine, before each processBlock (4.2). */
+    void setAssistContext (const AssistExplicitContext& c, const AssistTransport& t,
+                           int64_t blockStartSample) noexcept;
+
+    /** Settings on, and neither Guitar Controller mode, MPE nor a
+        pre-articulated import (5). */
+    bool isAssistEffective() const noexcept;
+
+    /** The notice line's reason (5, 7.2). The rhythm engine's is the engine's to add. */
+    AssistBypass getAssistBypass() const noexcept;
+    // ==== END FEAT-ASSIST ====
+
 private:
     struct PendingNote
     {
@@ -366,6 +388,57 @@ private:
 
     RtRandom rng { 0x4D1D1ull };
     Humanisation humanise;
+
+    // ==== BEGIN FEAT-ASSIST ====
+    AutoArticulator autoArt;
+
+    /** The plan of the note emitVoicedNote is emitting, or null (unassisted). */
+    const AssistPlan* currentPlan = nullptr;
+    int64_t currentArrival = 0;
+
+    /** 3.3: a legato note waiting for its source's release or the slide's
+        minimum overlap, whichever comes first. */
+    struct PendingLegato
+    {
+        bool active = false;
+        AutoArticulator::SinglePlan plan;
+        int channel = 1;
+        int64_t arrival = 0;
+    };
+
+    PendingLegato pendingLegato;
+
+    /** 3.1 late join: the last chord group. */
+    int64_t lastGroupArrival = -1000000000;
+    juce::uint32 lastGroupMask = 0;
+    int lastGroupSize = 0;
+
+    /** A note-on shares the sample of the note-off being handled (3.8's fall). */
+    bool offSharesNoteOn = false;
+
+    void assistBeginBlock() noexcept;
+    void assistEndBlock (int numSamples, PlayEventQueue& out) noexcept;
+    void assistBeforeEvent (int64_t timestamp, PlayEventQueue& out) noexcept;
+    bool assistMonoNoteOn (int midiNote, int channel, double velocity, int64_t timestamp,
+                           int blockOffset, PlayEventQueue& out) noexcept;
+    bool assistNoteOff (int midiNote, int channel, int blockOffset, PlayEventQueue& out) noexcept;
+    bool assistFlushSingle (int midiNote, double velocity, int64_t arrival, int64_t releasedAt,
+                            int64_t groupTimestamp, int blockOffset, PlayEventQueue& out) noexcept;
+    void assistEmit (const VoicedNote& note, const AssistPlan& plan, int64_t arrival, int64_t timestamp,
+                     int blockOffset, int extraDelay, PlayEventQueue& out) noexcept;
+    void assistResolvePending (int64_t atSample, bool sourceReleased, PlayEventQueue& out) noexcept;
+    void assistDecorate (NoteOnEvent& e, Technique decided, bool explicitTech, int64_t soundSample) noexcept;
+    bool assistNoteIsExplicit (double velocity) const noexcept;
+    void assistPlanChordNotes (const ChordVoicing& voicing, int64_t groupTimestamp, bool playedSpread,
+                               AssistPlan& chordPlan) noexcept;
+    bool assistPlanStrum (StrumRequest& request, int* order, int numOrdered, const ChordVoicing& voicing,
+                          int64_t groupTimestamp, double speedVariation, AssistPlan& chordPlan,
+                          std::array<double, kMaxStrings>& delays) noexcept;
+    void assistShapeStrikes (StrumStrike* strikes, int count, const AssistPlan& chordPlan) const noexcept;
+    void assistEmitChordNote (const VoicedNote& note, const AssistPlan& chordPlan, int voicingIndex,
+                              const int64_t* arrivals, const int* notes, int count, int64_t groupTimestamp,
+                              int blockOffset, int delaySamples, PlayEventQueue& out) noexcept;
+    // ==== END FEAT-ASSIST ====
 
     JUCE_LEAK_DETECTOR (MidiInterpreter)
 };

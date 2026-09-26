@@ -124,6 +124,14 @@ public:
         Returns the tab's panel, or nullptr when it cannot be shown. */
     TunePanel* openNewTune();
 
+    // ==== BEGIN FEAT-ASSIST ====
+    /** auto-articulation.md 7.5: the PLAYING group's ?. */
+    void openHelpTopic (const juce::String& topic) { openHelp (topic); }
+
+    /** 7.1: the AUTO popover's "More in RHYTHM tab" - Advanced, RHYTHM. */
+    void openAssistInRhythmTab();
+    // ==== END FEAT-ASSIST ====
+
 private:
     friend class search::SearchNavigator;   // FEAT-SEARCH: navigation reaches the panels
 

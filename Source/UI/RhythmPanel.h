@@ -22,6 +22,7 @@
 #include "Widgets.h"
 #include "StrumGroup.h"
 #include "BassGridGroup.h"   // bass-techniques 9 (MODEL-GAPS)
+#include "PerformanceAssistUi.h"   // auto-articulation.md 7.2 (FEAT-ASSIST)
 #include "../Rhythm/GenreKit.h"
 
 namespace luthier
@@ -201,6 +202,10 @@ private:
 
 public:
     BassGridGroup* getBassGridGroup() const noexcept { return bassGridGroup.get(); }
+
+    // auto-articulation.md 7.2 (FEAT-ASSIST): the PLAYING group, first in the tab.
+    std::unique_ptr<PerformanceAssistGroup> playingGroup;
+    PerformanceAssistGroup* getPlayingGroup() const noexcept { return playingGroup.get(); }
 
 private:
 
