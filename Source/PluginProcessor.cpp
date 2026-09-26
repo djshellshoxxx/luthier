@@ -2107,7 +2107,14 @@ void LuthierAudioProcessor::recallSlot (bool useSlotB)
     auto& source = useSlotB ? slotB : slotA;
 
     if (source.getSize() > 0)
+    {
+        // SPEC-SWEEP (USER_MANUAL UM-8): a slot's blob carries the slotBActive
+        // flag it was captured with; recalling it must not flip which slot is
+        // showing, or the next A/B press is ignored as "already there".
+        const bool showing = slotBActive;
         setStateInformation (source.getData(), (int) source.getSize());
+        slotBActive = showing;
+    }
 }
 
 void LuthierAudioProcessor::copyAtoB()

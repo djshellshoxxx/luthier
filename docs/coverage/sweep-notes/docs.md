@@ -4,7 +4,7 @@
 - [UM-20] Easy-mode data stream paragraph kept — visual constructs `DataStreamDisplay` (RM-30), so the doc becomes true on merge.
 - [TS-22] Doc softened to the tested rig instead of adding a whole-factory-bank mono render (the Combo-style per-preset renders are already the slow part of the suite).
 - [PT-19/PF-*/KS-22] Doc-only corrections to docs/PLAYING_TECHNIQUES.md, docs/PRESET_FORMAT.md and docs/KEYBOARD_SHORTCUTS.md done here at the coordinator's request; the matching part rows were updated.
-- [UM-8] `copyAtoB` now copies the current sound into both slots — from B it used to copy the stored A into B and the next switch lost it; the manual's "copies the current one across" is the spec.
+- [UM-8] `copyAtoB` now copies the current sound into both slots — from B it used to copy the stored A into B and the next switch lost it; the manual's "copies the current one across" is the spec. Also `recallSlot` now keeps `slotBActive`: the recalled state blob carried the flag it was captured with, so switching A->B flipped it straight back and the next press did nothing.
 - [TS-6] Doc corrected rather than code: a truncated `.luthierpreset` is listed (under its file name) and refuses to load with a reason; skipping it at scan time would hide it from the user who is looking for it.
 - [JG-18] No processBlock change: `RoutingMatrix::distribute` already writes or clears every enabled non-main bus; a test now proves host garbage never survives.
 - [INC-29] LICENCE/MIDI report sections come from a provider the processor installs on Diagnostics (state name and revalidation days only, never the key); no licensing behaviour touched.
