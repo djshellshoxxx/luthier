@@ -5,7 +5,7 @@ The rhythm engine is functionally complete: chord detector (84 templates, 30 ms 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | RE-1 (§0.1, §1, §9) | MIDI transformer between interpreter and technique layer | `Rhythm/RhythmEngine.cpp:processBlock`, `LuthierEngine.cpp` (rhythm.prepare/process) | n/a | `GenreKits::everyKitSoundsWhenApplied` | DONE |
-| RE-2 (§0.2) | Never allocates in the callback — `const auto pattern = patterns[...]` (RhythmEngine.cpp:599, 702) copies a `RhythmPattern` incl. `StringArray tags` every block/step | `RhythmEngine::processBlock`, `scheduleFingerpick` | n/a | - | PARTIAL |
+| RE-2 (§0.2) | Never allocates in the callback — pattern, bass grid and humanise reach the audio thread through `Support/TripleBuffer.h` and are read by reference (SPEC-SWEEP) | `RhythmEngine::processBlock` (acquire), `scheduleFingerpick`, `Support/TripleBuffer.h` | n/a | `RhythmPatterns::processBlockDoesNotAllocate` | DONE |
 | RE-3 (§0.3) | Sample-accurate to host ppq | `RhythmEngine::processBlock` (RhythmTransport) | n/a | `RhythmPatterns::strumSchedulingIsSampleAccurate` | DONE |
 | RE-4 (§0.4) | Silent when stopped unless Free-run | `RhythmEngine::setFreeRun` | ADVANCED > RHYTHM `RhythmPanel::freeRunButton` | `RhythmPatterns::silentWhenStoppedUnlessFreeRunning` | DONE |
 | RE-5 (§0.5, §9) | Quantized on read, humanized on write from the existing HumanizeMatrix — engine owns its own `RhythmHumanise`; instrument `hum_*`/`macro_humanize` params never reach it | `RhythmEngine::setHumanise`, `Parameters.cpp:applyToEngine` (interp only) | RHYTHM feel sliders | `RhythmPatterns::humanisationIsDeterministic` | PARTIAL |
@@ -15,13 +15,13 @@ The rhythm engine is functionally complete: chord detector (84 templates, 30 ms 
 | RE-9 (§2.5) | Confidence < 0.6 -> Unknown, literal mapping | `ChordDetector::kConfidenceFloor` | n/a | `Rhythm::lowConfidenceIsReportedAsUnknown` | DONE |
 | RE-10 (§2) | Detect once per 30 ms NoteOn burst | `ChordDetector::kBurstWindowSeconds` | n/a | `Rhythm::burstWindowGroupsASpreadChord` | DONE |
 | RE-11 (§3) | Voicer constraints 1-5 and score (rubric voicer per DECISIONS) | `Model/Playing/RubricVoicer` | n/a | `RubricVoicer::everyConstraintOfFourOneRejects`, `RubricVoicer::eachScoreTermIsTheRubrics` | DONE |
-| RE-12 (§3) | handSpanFrets default 5, user 3-7 — no user control; engine hard-sets 5/6 | `RhythmEngine.cpp:344` `setMaxFretSpan` | - | `RubricVoicer::everyConstraintOfFourOneRejects` | NO-GUI |
+| RE-12 (§3) | Hand span 3-7 frets (default 5), stored in the rhythm blob, fed to the voicer | `RhythmEngine::setHandSpan`, `revoice` | RHYTHM voicing row `handSpanSlider` | `RhythmPatterns::handSpanIsASettingThatTravels` | DONE |
 | RE-13 (§3) | 8 voicing styles + bias (+bass) | `VoicingStyle`, `RubricVoicer` style bias | RHYTHM `styleBox` | `RhythmPatterns::voicingStylesProduceDifferentVoicings`, `RubricVoicer::styleBiasesAreFourThrees` | DONE |
-| RE-14 (§3) | voicing_density 0-100 caps notes — effect untested | `RhythmEngine::setVoicingDensity` -> voicer | RHYTHM `densitySlider` | - | NO-TEST |
+| RE-14 (§3) | voicing_density 0-100 caps notes — effect untested | `RhythmEngine::setVoicingDensity` -> voicer | RHYTHM `densitySlider` | `RhythmPatterns::densityCapsTheStringsSounded` | DONE |
 | RE-15 (§3) | hand_position_hint follows previous chord | `RhythmEngine.cpp:371`, `RubricVoicer::setPreferredPosition` | RHYTHM `handPositionSlider` | `RubricVoicer::oneFourFiveOneTravelsThreeFretsAtMost` | DONE |
 | RE-16 (§4) | Strum expands to per-string plucks spaced over duration, Down/Up order | `RhythmEngine::scheduleStrum`, `StrumGesture::plan` | STRUM group in RHYTHM | `StrumDynamics::rhythmEngineStrumsAreSpacedExactly` | DONE |
 | RE-17 (§4) | DownMute/UpMute set palm-mute flag | `isMutedStrum`, `emitNote` (Technique::PalmMute) | strum grid cell types | `GenreKits::everyFactoryStrumPatternSounds` | DONE |
-| RE-18 (§4) | Rake = 3-5 muted strings before the target — whole strum muted and slowed, no un-muted target | `scheduleStrum` (rake: sps/1.6, muted) | strum grid | - | PARTIAL |
+| RE-18 (§4) | Rake: muted drag across the strings, ending on an open target at full dynamic | `RhythmEngine::scheduleStrum` (rake target) | strum grid | `RhythmPatterns::rakeEndsOnAnUnmutedTarget` | DONE |
 | RE-19 (§4) | Rasgueado 4 strokes 10-20 ms apart | `scheduleStrum` strokes=4 | strum grid | `GenreKits::everyFactoryStrumPatternSounds` | DONE |
 | RE-20 (§4) | Dynamic falloff by strum_evenness | `StrumGesture::plan` | kit-set; STRUM group | `StrumDynamics::evennessBoundsTheVariation` | DONE |
 | RE-21 (§4) | string_mask per step | `StrumStep::stringMask` | strum grid right-click Mask | `GenreKits::factoryMasksSelectStringsASixStringHas` | DONE |
@@ -37,14 +37,14 @@ The rhythm engine is functionally complete: chord detector (84 templates, 30 ms 
 | RE-31 (§8.1) | Genre dropdown + randomize dice | `GenreKit::randomPattern` | RHYTHM `genreBox`, `diceButton` | `GenreKits::randomPatternStaysInsideTheKit` | DONE |
 | RE-32 (§8.2) | Capo up/down | `RhythmEngine::setCapoFret` -> TuningEngine | RHYTHM `capoDown/capoUp` | `GenreKits::capoRemovesFretsBelowItAndMovesThePitch` | DONE |
 | RE-33 (§8.3) | Strum grid 16/32 steps, right-click dynamic/mask/delete — no UI test | n/a | RHYTHM `StrumGrid::mouseDown` | - | NO-TEST |
-| RE-34 (§8.4) | Fingerpick grid 5 rows — no UI test | n/a | RHYTHM `FingerpickGrid` | - | NO-TEST |
-| RE-35 (§8.5) | Swing 0-100% — slider is 50-75%; swing effect on timing untested | `RhythmPattern::setSwing`, processBlock | RHYTHM `swingSlider` | - | NO-TEST |
+| RE-34 (§8.4) | Fingerpick grid 5 rows — no UI test | n/a | RHYTHM `FingerpickGrid` | `RhythmPanelUi::fingerpickGridTogglesAFingerStep` | DONE |
+| RE-35 (§8.5) | Swing places the offbeat at swing x the pair (0.66 = triplet); range 50-75% kept (below 50% would rush), see sweep-notes | `RhythmPattern::setSwing`, processBlock | RHYTHM `swingSlider` | `RhythmPatterns::swingDelaysTheOffbeats` | DONE |
 | RE-36 (§8.6) | Pattern browser: tag filter, load, save, export — untested | `PatternLibrary::findByTag` | RHYTHM `tagFilterBox`, `patternList`, LOAD/SAVE/EXPORT | - | NO-TEST |
 | RE-37 (§8.7) | Live indicators: chord, fretboard dots, next-strum light — untested | `getCurrentChord`, `getNextStrumType` | RHYTHM `RhythmIndicators` | - | NO-TEST |
 | RE-38 (§8) | Easy strip: kit, feel, on/off, Mono hint — only feel knob tested | `EasyPanel::buildRhythmStrip` | Easy `rhythmGenreBox`, `rhythmFeelSlider`, `rhythmEnableButton`, `rhythmHintLabel` | `StrumDynamics::theEasyFeelKnobScalesTheStrum` | NO-TEST |
 | RE-39 (§9) | Writes only NoteOn/NoteOff/palm-mute | `RhythmEngine::emitNote`, `releaseAll` | n/a | `GenreKits::everyKitSoundsWhenApplied` | DONE |
 | RE-40 (§9) | Preset params `rhythm_engine.enabled` / `.state` — stored in session state and snapshots only; `PresetManager` writes no `rhythmEngine` block; not automatable | `PluginProcessor.cpp:2212/2316`, `PresetManager.cpp:542` (known key only) | - | - | PARTIAL |
-| RE-41 (§9) | MIDI-out captures transformed stream — `MidiOutRouter::getRhythmBuffer()` never filled by the processor; notes only reach out via the string-activity source | `Routing/MidiOutRouter.cpp:96` | ROUTING / MIDI OUT `RHYTHM` switch (inert) | `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` (router fed by hand) | PARTIAL |
+| RE-41 (§9) | MIDI-out RHYTHM source carries the rhythm engine's strokes (channel = string + 1) | `LuthierEngine::writeRhythmMidi/flushRhythmMidi`, `PluginProcessor::processSlice` (setRhythmMidiOut) | ROUTING / MIDI OUT `RHYTHM` switch (inert) | `Routing::rhythmSourceCarriesTheStrum` | DONE |
 | RE-42 (§10) | Test: chord detector 1008 cases | - | n/a | `Rhythm::chordDetectorRoundTripsEveryTemplateInEveryKey`, `Rhythm::chordDetectorHandlesInversions` | DONE |
 | RE-43 (§10) | Test: voicer every chord on every ship guitar | - | n/a | `RhythmPatterns::voicerHandlesEveryChordOnEveryGuitar`, `RubricVoicer::everyShipGuitarVoicesEveryTemplate` | DONE |
 | RE-44 (§10) | Test: strum quantization +-1 sample | - | n/a | `RhythmPatterns::strumSchedulingIsSampleAccurate` | DONE |

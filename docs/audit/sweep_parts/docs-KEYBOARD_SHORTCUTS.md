@@ -8,24 +8,24 @@ Every binding the doc lists exists in `AccessibilitySettings` with the documente
 | KS-2 (Global) | F1 Help | `PluginEditor.cpp:keyPressed "help"` | overlay | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` | DONE |
 | KS-3 (Global) | Ctrl+Shift+/ opens the rebind table | `keyPressed "showShortcuts"` -> `OptionsPanel::showShortcutTable` | Options overlay | `Editor::everyOverlayShortcutOpens...` | DONE |
 | KS-4 (Global, Overlay) | Escape closes the open overlay, not rebindable; also cancels MIDI Learn | `keyPressed` escape branch, `OverlayHost::dismiss` | n/a | `Editor::everyOverlayShortcutOpens...` | DONE |
-| KS-5 (Global) | Space starts/stops the audition phrase | `keyPressed "audition"` -> `startAudition/stopAudition` | n/a | - — no test presses Space on the editor | NO-TEST |
+| KS-5 (Global) | Space starts/stops the audition phrase | `keyPressed "audition"` -> `startAudition/stopAudition` | n/a | `Editor::spaceTogglesTheAudition` | DONE |
 | KS-6 (Global) | Tab Easy/Advanced, L Live Mode, D Practice drawer | `keyPressed toggleAdvanced/toggleLiveMode/togglePractice` | n/a | `Editor::theModesThatChangeTheLayoutTakeEffectAndUndoThemselves` | DONE |
-| KS-7 (Global) | P panic, T tap tempo, \ kill switch (toggles from keyboard) | `keyPressed panic/tapTempo/killSwitch` | n/a | - — defaults only (`Accessibility::shortcutDefaultsMatch...`); no test presses them | NO-TEST |
-| KS-8 (Presets) | [ / ] previous/next preset, snapshot while Live Mode on | `keyPressed previousItem/nextItem` | n/a | - — only distinctness from Ctrl+[ checked (`Editor::theWorkspaceTabShortcutsStep...`) | NO-TEST |
-| KS-9 (Presets) | 1-9 recall snapshot 1-9 | `keyPressed` digit branch -> `recallSnapshot` | n/a | - | NO-TEST |
-| KS-10 (Presets) | Shift+1-9 recall snapshot 10-18 — uses `getTextCharacter()`, which is `!`..`(` with Shift on most layouts, so never matches | `keyPressed` digit branch | n/a | - | PARTIAL |
+| KS-7 (Global) | P panic, T tap tempo, \ kill switch (toggles from keyboard) | `keyPressed panic/tapTempo/killSwitch` | n/a | `Editor::panicTapAndKillKeysAct` | DONE |
+| KS-8 (Presets) | [ / ] previous/next preset, snapshot while Live Mode on | `keyPressed previousItem/nextItem` | n/a | `Editor::bracketsStepPresetsOrSnapshotsInLiveMode` | DONE |
+| KS-9 (Presets) | 1-9 recall snapshot 1-9 | `keyPressed` digit branch -> `recallSnapshot` | n/a | `Editor::digitsRecallSnapshots` | DONE |
+| KS-10 (Presets) | Shift+1-9 recall snapshot 10-18 — digit read from the key code | `keyPressed` digit branch | n/a | `Editor::digitsRecallSnapshots` | DONE |
 | KS-11 (Presets) | PageUp/PageDown previous/next setlist entry | `keyPressed setlistPrevious/Next` -> `Setlist::next/previous` | n/a | - | NO-TEST |
 | KS-12 (File) | Ctrl+O browser, Ctrl+Shift+S Save As, Ctrl+E export, Ctrl+, Options, Ctrl+D debug | `keyPressed presetBrowser/saveAs/export/options/debugPanel` | overlays | `Editor::everyOverlayShortcutOpens...`, `GuiReach::everyAutomatableParameterHasAVisibleControl` walk | DONE |
 | KS-13 (File) | Ctrl+S saves current preset (falls back to Save As) | `keyPressed "save"` -> `PresetManager::saveCurrent` | n/a | - | NO-TEST |
 | KS-14 (File) | Ctrl+G save guitar as .luthierguitar; Ctrl+Shift+E reveal guitar file | `keyPressed saveGuitarAs/revealGuitar`, `showSaveGuitarDialog` | dialog | - — `WorkshopPreset` tests call `saveGuitarAs` directly, not the key | NO-TEST |
-| KS-15 (File) | Ctrl+L arm MIDI Learn then click a control | `keyPressed midiLearnArm` -> `setMidiLearnArmed`, `MidiLearnArmLayer` | overlay layer | - | NO-TEST |
-| KS-16 (File) | Ctrl+Z / Ctrl+Shift+Z undo/redo | `keyPressed undo/redo` -> `processor.undo/redo` | n/a | - — editor keys untested (TunePanel's own Ctrl+Z is tested) | NO-TEST |
-| KS-17 (File) | Ctrl+R randomise, Ctrl+Shift+R reset everything, Ctrl+/ A/B | `keyPressed randomise/resetAll/abCompare` | n/a | - | NO-TEST |
-| KS-18 (doc) | Doc lists every default binding — omits S (slide mode), Ctrl+N (new preset/Init), Ctrl+Alt+E (reveal preset), Ctrl+[ / ] (workspace tab) | `Accessibility.cpp` registry | n/a | `Editor::newPresetLoadsInitAndRevealSaysSoWhenThereIsNoFile` | PARTIAL |
+| KS-15 (File) | Ctrl+L arm MIDI Learn then click a control | `keyPressed midiLearnArm` -> `setMidiLearnArmed`, `MidiLearnArmLayer` | overlay layer | `Editor::ctrlLArmsMidiLearn` | DONE |
+| KS-16 (File) | Ctrl+Z / Ctrl+Shift+Z undo/redo | `keyPressed undo/redo` -> `processor.undo/redo` | n/a | `Editor::undoRedoAndABKeysReachTheProcessor` | DONE |
+| KS-17 (File) | Ctrl+R randomise, Ctrl+Shift+R reset everything, Ctrl+/ A/B | `keyPressed randomise/resetAll/abCompare` | n/a | `Editor::randomiseAndResetKeys`, `Editor::undoRedoAndABKeysReachTheProcessor` | DONE |
+| KS-18 (doc) | Doc lists every default binding — omits S (slide mode), Ctrl+N (new preset/Init), Ctrl+Alt+E (reveal preset), Ctrl+[ / ] (workspace tab) | `Accessibility.cpp` registry | n/a | n/a (doc) | DONE |
 | KS-19 (Control) | Left-drag adjust, Shift coarse, Ctrl ultra-fine | `UI/Widgets.cpp:LuthierKnob::KnobSlider::mouseDrag` (sensitivity 70/180/1200) | every knob | - | NO-TEST |
-| KS-20 (Control) | Double-click resets to default | JUCE `SliderParameterAttachment` (`setDoubleClickReturnValue`) via `LuthierKnob::attachTo` | every knob | - | NO-TEST |
+| KS-20 (Control) | Double-click resets to default | JUCE `SliderParameterAttachment` (`setDoubleClickReturnValue`) via `LuthierKnob::attachTo` | every knob | `Widgets::doubleClickReturnsAKnobToItsDefault` | DONE |
 | KS-21 (Control) | Right-click: Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise | `Widgets.cpp:showParameterContextMenu` | every knob | `Editor::rightClickOffersModulationAndBuildsTheRoute` (Modulate only), `RangesUi::rightClickUnlocksAndRestrictsOneControl` — core items not asserted | NO-TEST |
-| KS-22 (Control) | Hover: value replaces the label — value is drawn in a row above, label stays; tooltip 400 ms is true (`Metrics::tooltipDelayMs`) | `LuthierKnob::paint` showValue | every knob | - | MISSING |
+| KS-22 (Control) | Hover: value replaces the label — value is drawn in a row above, label stays; tooltip 400 ms is true (`Metrics::tooltipDelayMs`) | `LuthierKnob::paint` showValue | every knob | n/a (doc) | DONE |
 | KS-23 (Fretboard) | Click plays note, higher in lane = harder | `FretboardComponent::mouseDown` velocity from `withinLane` -> `triggerPreviewNote` | Easy/Advanced fretboard | - | NO-TEST |
 | KS-24 (Fretboard) | Right-click: mute string, select string, set capo, scale overlay | `FretboardComponent::mouseDown` popup, `setCapoFret` drives `capoFret` param | fretboard | - | NO-TEST |
 | KS-25 (Illustration) | Click pickup selects it; click switch advances position; drag knob = volume/tone | `GuitarBodyComponent::mouseDown/mouseDrag` | guitar illustration | `Editor::everyHitRegionOnTheIllustrationDescribesItself` (tooltips only) | NO-TEST |
