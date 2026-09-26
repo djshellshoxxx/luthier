@@ -233,6 +233,7 @@ public:
     void fromVar (const juce::var& state);
 
 private:
+    int emitStrumDirection = 0;   // SPEC-SWEEP SD-5: the stroke emitNote is playing
     /** Re-detects the chord and re-voices it. Audio thread; the voicer is
         documented as running in microseconds. */
     void revoice() noexcept;

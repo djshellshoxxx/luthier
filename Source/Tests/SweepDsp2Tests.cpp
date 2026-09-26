@@ -2947,3 +2947,37 @@ LUTHIER_TEST (SlapWiring, aStringUnderTheSlideBarIsNotSlapped)
     CHECK_MSG (clacks (false) >= 1, "a thumb slap off the bar did not clack");
     CHECK_MSG (clacks (true) == 0, "a string under the bar was slapped");
 }
+
+LUTHIER_TEST (StrumDynamics, upStrokesChirpMoreAndClickLess)
+{
+    // SD-5 (strum-dynamics 2.1): the same strike as part of a down-stroke and
+    // of an up-stroke - up has more chirp and less click.
+    auto levels = [] (int direction)
+    {
+        LuthierEngine engine;
+        engine.prepare (48000.0, 256);
+        engine.setGuitarType (GuitarType::Stratocaster);   // picked (an acoustic defaults to fingers)
+
+        NoteOnEvent e;
+        e.stringIndex = 5;   // wound, so it chirps
+        e.fretPosition = 0.0;
+        e.velocity = 0.8;
+        e.pitchHz = engine.getTuningEngine().computeFrequency (5, 0.0);
+        e.strumDirection = direction;
+        engine.triggerNoteNow (e);
+
+        auto& pool = engine.getPlayingNoise().getPool();
+        return std::make_pair (activeLevel (pool, NoiseClass::pickClick), activeLevel (pool, NoiseClass::pickChirp));
+    };
+
+    const auto down = levels (1);
+    const auto up = levels (-1);
+    const auto none = levels (0);
+
+    CHECK (down.first > 0.0 && up.second > 0.0);
+    CHECK_MSG (up.first < down.first, "the up-stroke clicked no less than the down-stroke");
+    CHECK_MSG (up.second > down.second, "the up-stroke chirped no more than the down-stroke");
+
+    // The stroke's angle is for that strike only: the next plain note is as before.
+    CHECK (none.first > up.first && none.first < down.first);
+}

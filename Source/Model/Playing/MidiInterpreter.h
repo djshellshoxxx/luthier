@@ -263,6 +263,7 @@ public:
     void allNotesOff (PlayEventQueue& out) noexcept;
 
 private:
+    int pendingStrumDirection = 0;   // SPEC-SWEEP SD-5
     struct PendingNote
     {
         int midiNote = 60;

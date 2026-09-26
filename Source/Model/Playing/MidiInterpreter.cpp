@@ -782,6 +782,9 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
         planned = strumGesture.plan (live, request, strikes.data(), (int) strikes.size());
     }
 
+    // SPEC-SWEEP SD-5: the notes below are one stroke, in its direction.
+    pendingStrumDirection = planned > 0 ? (strumUp ? -1 : 1) : 0;
+
     for (int i = 0; i < voicing.numNotes; ++i)
     {
         const auto& note = voicing.notes[(size_t) i];
@@ -838,6 +841,8 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
             break;
         }
     }
+
+    pendingStrumDirection = 0;   // SPEC-SWEEP SD-5: later notes are not this stroke's
 
     // REALISM-B, string-interaction.md 6: the strum crosses the strings the
     // voicing mutes between its first and last; each is struck, pitchless.
@@ -938,6 +943,8 @@ void MidiInterpreter::emitVoicedNote (const VoicedNote& note, int64_t timestamp,
         e.shiftFromFret = heldFret;
         e.shiftSeconds = technique->slideDurationFor (note.fretPosition - heldFret);
     }
+
+    e.strumDirection = pendingStrumDirection;   // SPEC-SWEEP SD-5
 
     e.pitchHz = tuning->computeFrequency (s, note.fretPosition,
                                           getStringBendCents (s) + detune);

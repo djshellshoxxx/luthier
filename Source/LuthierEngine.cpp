@@ -1402,6 +1402,15 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     p.harmonicNumber = e.harmonicPartial;
     p.noiseAmount = pickAttackNoise * 0.4;
 
+    /*  SPEC-SWEEP SD-5 (strum-dynamics 2.1): a down-stroke meets the string at
+        a steeper angle - harder and brighter; an up-stroke at a shallower one -
+        softer. The pick noise follows below (more chirp, less click up). */
+    if (e.strumDirection != 0)
+    {
+        p.pickAngle = juce::jlimit (0.0, 1.0, pickAngle + (e.strumDirection > 0 ? -0.08 : 0.12));
+        p.brightness = juce::jlimit (0.0, 1.0, attackBrightness * (e.strumDirection > 0 ? 1.08 : 0.94));
+    }
+
     switch (e.technique)
     {
         case Technique::HammerOn:           p.kind = Excitation::Kind::HammerOn; break;
@@ -1551,9 +1560,21 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
                 pickNow.fingers = toolFingers || ! PlayingNoise::getPickMaterial (p.material).isPick;
                 pickNow.pluckPosition = p.pluckPosition;
             }
+            // SPEC-SWEEP SD-5: the stroke's angle for this strike only.
+            const double baseAngle = pickNow.angleDegrees;
+
+            if (e.strumDirection != 0)
+                pickNow.angleDegrees = juce::jlimit (0.0, 89.0, baseAngle + (e.strumDirection > 0 ? -8.0 : 12.0));
+
             playingNoise.setPick (pickNow);
 
             playingNoise.onPluck (s, info, e.velocity);
+
+            if (e.strumDirection != 0)
+            {
+                pickNow.angleDegrees = baseAngle;
+                playingNoise.setPick (pickNow);
+            }
         }
     }
 

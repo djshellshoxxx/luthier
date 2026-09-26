@@ -20,3 +20,5 @@
 - [MX-25] The session take writes its MIDI through `MidiProfiles::exportToFile` with the MIDI export defaults, passed in by the SESSION tab. The engine-only targets (the CLI) cannot see the UI defaults, so without options the old bare file is still written.
 - [HI-20/24/25] The state stays JSON; the root "formatVersion" starts at 1. Unknown root keys are kept and written back. A blob older than this build (or without a version) is backed up to Documents/Luthier/Diagnostics/state-backup-*.json, keeping the last 10.
 - [PT-22] Bug: `Looper::save` took getDynamicObject() of a temporary settings var, so it wrote through a freed object. Every loop save could crash or write garbage. Fixed by keeping the var alive.
+- [SD-5] Stroke direction gives the tone: a down-stroke is -8 degrees steeper with 8 % more brightness, an up-stroke +12 degrees shallower with 6 % less. The angle applies to that strike only, both to the excitation and to the pick noise (click via cos, chirp via sin).
+- RhythmPatterns::processBlockDoesNotAllocate ("the writer thread only published 8") failed once under heavy machine load and passes alone. It is timing-sensitive, not a regression.
