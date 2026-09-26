@@ -276,3 +276,17 @@ External agent owns: feature implementations once specced (ui-scaling, tuner,
 midi-learn, randomize+ab, tab-export, amp-cab-ir) + light instruments (tenor,
 acoustic bass, extended-range bass). Claude owns hard DSP, merges, audits,
 beta, editions. No overlap; same parameter-marker / CRLF / no-Win-Mac rules.
+
+## Codex-owned lanes (2026-09-26) — coordinator must NOT assign these to Claude
+
+Codex is running an overnight batch on these branches. Do NOT spawn Claude
+implementers for them; the coordinator only reviews + Linux-tests + merges the
+resulting codex/* branches (one at a time; resolve param-marker/sum conflicts
+mechanically). Distinct marker names keep merges clean.
+- codex/luthier-tab-export      (marker FEAT2-TAB)   — ASCII + MusicXML/GP tab export
+- codex/luthier-amp-cab-ir      (marker FEAT2-AMP)   — amp/cab section + user IR loader
+- codex/luthier-tuner           (marker FEAT2-TUNER) — tuner + global tuning reference
+- codex/luthier-ui-scaling      (marker FEAT2-UISCALE)— resizable/scalable UI
+DEFERRED off the overnight batch (touch the parameter/automation core broadly;
+higher conflict risk with running Claude helpers — do later, serialized):
+midi-learn, randomize+A/B. Claude may take these once the gap helpers settle.
