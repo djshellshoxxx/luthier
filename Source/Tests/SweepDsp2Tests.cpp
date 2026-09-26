@@ -23,6 +23,13 @@
 #include "../UI/PracticePanel.h"
 #include "../UI/ToneMatchPanel.h"
 
+#if defined (LUTHIER_ALLOCATION_COUNTER)
+namespace luthier::tests
+{
+    long allocationsOnThisThread() noexcept;   // CircuitTests.cpp
+}
+#endif
+
 using namespace luthier;
 using namespace luthier::tests;
 
@@ -1322,4 +1329,137 @@ LUTHIER_TEST (Doubler, defaultsAreTheAdtOnes)
         CHECK_NEAR (doubler.getParameterDescriptor (i).defaultValue, expected[i], 1.0e-9);
 
     CHECK (juce::String (doubler.getParameterDescriptor (3).choices[1]).containsIgnoreCase ("stereo"));
+}
+
+//==============================================================================
+//  No allocation on the audio thread (engine.md 0)
+//==============================================================================
+namespace
+{
+    /** Renders `blocks` blocks of the engine, `each` run before every block,
+        and returns the allocations it made after a warm-up. */
+    template <typename Each>
+    long allocationsWhile (LuthierEngine& engine, int blocks, Each&& each)
+    {
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+        midi.ensureSize (256);
+
+        for (int b = 0; b < 8; ++b)   // warm-up: first-use paths
+        {
+            midi.clear();
+            each (b, midi);
+            buffer.clear();
+            engine.processBlock (buffer, midi);
+        }
+
+       #if defined (LUTHIER_ALLOCATION_COUNTER)
+        const auto before = allocationsOnThisThread();
+       #endif
+
+        for (int b = 0; b < blocks; ++b)
+        {
+            midi.clear();
+            each (b, midi);
+            buffer.clear();
+            engine.processBlock (buffer, midi);
+        }
+
+       #if defined (LUTHIER_ALLOCATION_COUNTER)
+        return allocationsOnThisThread() - before;
+       #else
+        return 0;
+       #endif
+    }
+}
+
+LUTHIER_TEST (Squeak, noAllocationOnTheAudioThread)
+{
+    // SQ-T10: shift after shift with squeak forced on.
+    SqueakRig rig;
+    const long count = allocationsWhile (rig.engine, 2000, [] (int b, juce::MidiBuffer& midi)
+    {
+        midi.addEvent (juce::MidiMessage::noteOn (6, 43 + (b % 2) * 5, (juce::uint8) 110), 0);
+    });
+
+    CHECK_MSG (count == 0, juce::String (count) + " allocations while squeaking");
+}
+
+LUTHIER_TEST (Buzz, noAllocationOnTheAudioThread)
+{
+    // FB-T10: "Needs a tech", then sitar mode, with hard notes on every string.
+    for (const bool sitar : { false, true })
+    {
+        LuthierEngine engine;
+        engine.prepare (48000.0, 256);
+        engine.getMidiInterpreter().setPlayingMode (PlayingMode::GuitarController);
+
+        auto setup = needsATech();
+        setup.sitarMode = sitar;
+        engine.setSetupGeometry (setup);
+
+        const long count = allocationsWhile (engine, 1800, [] (int b, juce::MidiBuffer& midi)
+        {
+            if (b % 20 == 0)
+                midi.addEvent (juce::MidiMessage::noteOn (1 + (b / 20) % 6, 40 + (b / 20) % 24, (juce::uint8) 127), 0);
+        });
+
+        CHECK_MSG (count == 0, juce::String (count) + " allocations while buzzing" + (sitar ? " (sitar)" : ""));
+    }
+}
+
+LUTHIER_TEST (Slide, noAllocationOnTheAudioThread)
+{
+    // SG-T10: bar moves and landings in lap-steel mode.
+    LuthierEngine engine;
+    engine.prepare (48000.0, 256);
+
+    SlideSettings settings;
+    settings.enabled = true;
+    settings.mode = SlideMode::lapSteel;
+    engine.setSlideSettings (settings);
+    engine.getMidiInterpreter().setPlayingMode (PlayingMode::Mono);
+
+    const long count = allocationsWhile (engine, 1800, [] (int b, juce::MidiBuffer& midi)
+    {
+        if (b % 10 == 0)
+            midi.addEvent (juce::MidiMessage::noteOn (1, 50 + (b / 10) % 12, (juce::uint8) 100), 0);
+
+        if (b % 10 == 9)
+            midi.addEvent (juce::MidiMessage::noteOff (1, 50 + (b / 10) % 12), 0);
+    });
+
+    CHECK_MSG (count == 0, juce::String (count) + " allocations while sliding");
+}
+
+LUTHIER_TEST (PracticeTrack, theTimePitchShiftDoesNotAllocate)
+{
+    // PT-28/29: the new audio-thread path.
+    TimePitchShifter shifter;
+    shifter.prepare();
+
+    std::vector<float> left (512), right (512);
+    double phase = 0.0;
+
+    auto pull = [&phase] (float* l, float* r, int count)
+    {
+        for (int i = 0; i < count; ++i, phase += 0.05)
+            l[i] = r[i] = (float) std::sin (phase);
+    };
+
+    shifter.process (left.data(), right.data(), 512, 0.5, 7.0, 512, pull);
+
+   #if defined (LUTHIER_ALLOCATION_COUNTER)
+    const auto before = allocationsOnThisThread();
+   #endif
+
+    for (int b = 0; b < 400; ++b)
+        shifter.process (left.data(), right.data(), 512, b % 2 ? 1.7 : 0.4, b % 3 ? -12.0 : 5.0, 512, pull);
+
+   #if defined (LUTHIER_ALLOCATION_COUNTER)
+    CHECK_MSG (allocationsOnThisThread() == before, "the time/pitch shifter allocated");
+   #endif
+
+    for (auto v : left)
+        CHECK (std::isfinite (v));
 }
