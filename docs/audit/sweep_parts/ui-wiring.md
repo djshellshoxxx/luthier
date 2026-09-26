@@ -44,7 +44,7 @@ The attachment layer is solid. There is one APVTS, every standard control binds 
 | UW-38 (§13) | Pick overlay from pick position/angle — on visual: `pickPositionMm/pickAngleDeg` overlay, `WorkshopAccessories::thePickIsDraggedAndTurnedOnTheBench` | - | - | - | OWNED |
 | UW-39 (§14) | NoiseEngine: fixed pools (16 squeak...), oldest eviction, per-string bus, Aux 8 tap, event per trigger, no allocation | `DSP/Noise/NoiseEngine` (`kPoolSizes`) | n/a | `NoisePool::aFullPoolStealsTheOldest`, `NoisePool::zeroIsFree`, `PluginBuses::aux8CarriesThePlayingNoiseAndObeysItsStrip` | DONE |
 | UW-40 (§15) | GuitarCircuit coefficients at control rate on change, no allocation (audio-thread recompute accepted by DECISIONS C-08) | `DSP/Circuit` | ADVANCED col 2 CIRCUIT | `Circuit::sweepingEveryControlDoesNotAllocate` | DONE |
-| UW-41 (§15) | Update cost < 0.05% CPU per change event — not measured | `DSP/Circuit` | n/a | - | NO-TEST |
+| UW-41 (§15) | Update cost < 0.05% CPU per change event — not measured | `DSP/Circuit` | n/a | `Circuit::aParameterChangeCostsUnderFiveHundredthsOfAPercent` | DONE |
 | UW-42 (§16) | SlideEngine pressure state machine Lifted/Light/Normal/Heavy/Fretted; bar position a continuous parameter — pressure is continuous `slide_pressure` (per slide-guitar.md), bar position from MIDI | `DSP/Slide/SlideEngine` | CHARACTER > SLIDE `SlideGroup` | `SlideUi::pressureSaysWhatItMeans`, `Slide::pitchIsContinuous` | PARTIAL |
 | UW-43 (§17) | getStateInformation: APVTS, uiState, mod matrix, snapshots, MIDI maps, ranges, guitar ref/blob, circuit — MIDI export profile not saved; setlist ref and bench A/B on visual only | `PluginProcessor::getStateInformation` | n/a | `Presets::stateRoundTripsExactly`, `WorkshopPresets::anEditedGuitarTravelsWholeInTheState`, `Combo::everyParameterSurvivesTheSessionStateRoundTrip` | PARTIAL |
 | UW-44 (§17) | Missing parts fall back to factory defaults with a banner | `takeGuitarNotices` "missing-part" | notification banner | `GuitarMigration::anUnknownGuitarKeepsThePresetAndSaysSo` | DONE |
@@ -63,7 +63,7 @@ The attachment layer is solid. There is one APVTS, every standard control binds 
 | UW-T5 (§23) | Test: arm + all 128 CCs map within one block | `MidiLearnManager` | n/a | `MidiLearn::everyCcLearnsWithinOneBlock` | DONE |
 | UW-T6 (§23) | Test: display FIFO at 10x drain for 60 s, no stall, oldest dropped | - | n/a | - | MISSING |
 | UW-T7 (§23) | Test: 100 random shadow auditions leave committed spec byte-identical | - | n/a | `WorkshopBench::auditionNeverCommits` (one audition) | PARTIAL |
-| UW-T8 (§23) | Test: every physical param toggled stock<->advanced 100x, clamps right, no audio allocation | `RangeState` | n/a | `Ranges::wideningPreservesEveryPlainValue`, `Ranges::narrowingClampsAndReportsTheCount` (single pass) | PARTIAL |
+| UW-T8 (§23) | Test: every physical param toggled stock<->advanced 100x, clamps right, no audio allocation | `RangeState` | n/a | `Ranges::hundredTogglesClampCorrectlyWithoutAllocating` | DONE |
 | UW-T9 (§23) | Test: every part slot swapped 100x in playback under the click threshold | - | n/a | `WorkshopSwap::aPartSwapDuringANoteIsClickFree` (one swap) | PARTIAL |
 | UW-T10 (§23) | Test: spectrum delta on committed vs shadow matches offline within 0.2 dB | `SpectrumDelta` | n/a | `WorkshopSpectrum::aNullChangeIsFlat`, `WorkshopSpectrum::aRealChangeShowsAndIsDescribed` (no offline compare) | PARTIAL |
 
