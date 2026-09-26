@@ -76,11 +76,12 @@ f₁ = 140 Hz × sqrt( (E_eff/ρ_eff) / (12.6e9/705) ) × g_scale × g_joint
 - `g_joint`: bolt 1.00, set 1.05, through 1.10 (D; stiffer joint raises
   the clamped-end stiffness).
 
-Results (I): maple 140 Hz; hybrid 15 % 267 Hz; hybrid 30 % 312 Hz;
-woven 280 Hz; UD 405 Hz (research §5 quotes ×2.17 → ~300 Hz for UD
-at *equal* geometry but UD necks are thinner; `thickness`/`profile`
-do not enter here - `part-acoustics.md` 3 says profile is feel only,
-so this spec does not invent a thickness term).
+Results (I, bolt joint, 864 mm): maple 140 Hz; hybrid 15 % 200 Hz;
+hybrid 30 % 234 Hz; woven 209 Hz; UD 303 Hz. These agree with research
+§5's equal-geometry scaling (×1.59 woven, ×2.17 UD). Real UD necks are
+thinner than wood ones, which lowers f₁ again, but `profile` is feel-only
+in `part-acoustics.md` 3, so this spec does not invent a thickness term
+(data gap).
 
 ### 2.2 Mode Q
 
@@ -141,7 +142,7 @@ phenolic board, `Graphite Locking` nut family, 45-130 strings, active
 ## 4. Tests
 
 1. Material rows load; `cfrp_hybrid` with φ produces §1.1 values ±1 %.
-2. f₁: maple bolt 140 ± 2 Hz; hybrid 30 % set 312 × 1.05 ± 5 %.
+2. f₁: maple bolt 140 ± 2 Hz; hybrid 30 % set 234 × 1.05 = 246 ± 5 % Hz.
 3. **Dead spot is where the neck says.** Maple bolt 34": G string, the
    fret whose pitch is nearest 140 Hz (fret 5-6, C#3/D3) has the
    shortest T60 on that string, ≥ 40 % shorter than frets ±3 away.
