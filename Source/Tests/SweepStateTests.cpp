@@ -9,6 +9,7 @@
 #include "../UI/UiPreferences.h"
 #include "../Rhythm/Patterns.h"
 #include "../Rhythm/GenreKit.h"
+#include "../Presets/FactoryPresets.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -567,4 +568,114 @@ LUTHIER_TEST (StateModel, aTuneLoadStopsPlaybackAndLeavesTheRestAlone)
     CHECK_MSG (processor.getSetlist().getPosition() == 1, "a tune load stepped the setlist");
     CHECK (processor.isLiveMode());
     CHECK (processor.getUiState().advancedTab == 3);
+}
+
+//==============================================================================
+/*  ER-27 (error-recovery 3): a layout the plugin does not advertise is refused. */
+LUTHIER_TEST (PluginBuses, anUnadvertisedLayoutIsRefused)
+{
+    LuthierAudioProcessor processor;
+    auto layout = processor.getBusesLayout();
+
+    CHECK (processor.checkBusesLayoutSupported (layout));
+
+    auto surround = layout;
+    surround.outputBuses.getReference (0) = juce::AudioChannelSet::create5point1();
+    CHECK_MSG (! processor.checkBusesLayoutSupported (surround), "a 5.1 main output was accepted");
+
+    auto mono = layout;
+    mono.outputBuses.getReference (0) = juce::AudioChannelSet::mono();
+    CHECK (processor.checkBusesLayoutSupported (mono));
+
+    if (layout.inputBuses.size() > 0)
+    {
+        auto quad = layout;
+        quad.inputBuses.getReference (0) = juce::AudioChannelSet::quadraphonic();
+        CHECK_MSG (! processor.checkBusesLayoutSupported (quad), "a quad sidechain was accepted");
+    }
+}
+
+//==============================================================================
+/*  ER-35 (error-recovery 4): SysEx nobody asked for is ignored - no note, no
+    parameter change. */
+LUTHIER_TEST (Controllers, unknownSysExIsIgnored)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    juce::AudioBuffer<float> buffer (2, 512);
+    juce::MidiBuffer midi;
+
+    // The instrument's own noise floor (hum, hiss) is there with no note at all.
+    float floor = 0.0f;
+
+    for (int i = 0; i < 8; ++i)
+    {
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+        floor = juce::jmax (floor, buffer.getMagnitude (0, 512));
+    }
+
+    juce::MemoryBlock before;
+    processor.getStateInformation (before);
+
+    juce::Random random (7);
+
+    for (int i = 0; i < 16; ++i)
+    {
+        juce::uint8 payload[24];
+
+        for (auto& b : payload)
+            b = (juce::uint8) random.nextInt (128);
+
+        payload[0] = 0x7d;   // non-commercial id, which is nobody's
+        midi.clear();
+        midi.addEvent (juce::MidiMessage::createSysExMessage (payload, (int) sizeof (payload)), 0);
+
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+        CHECK_MSG (buffer.getMagnitude (0, 512) < floor * 2.0f + 1.0e-4f, "a SysEx message made a sound");
+    }
+
+    juce::MemoryBlock after;
+    processor.getStateInformation (after);
+    CHECK_MSG (before == after, "a SysEx message changed the state");
+}
+
+//==============================================================================
+/*  SM-45 (state-model 8.1): Slide Mode, Live Mode and the practice drawer
+    persist across a preset load; the snapshot strip's bank is the new preset's. */
+LUTHIER_TEST (StateModel, slideLiveAndTheDrawerPersistAcrossALoad)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    auto& presets = processor.getPresetManager();
+
+    if (presets.getNumPresets() < 1)
+        return;
+
+    auto* slide = processor.getState().getParameter (ParamIDs::slideGuitar);
+    CHECK (slide != nullptr);
+
+    if (slide == nullptr)
+        return;
+
+    slide->setValueNotifyingHost (1.0f);
+    processor.setLiveMode (true);
+    processor.getUiState().practiceDrawerOpen = true;
+    processor.captureSnapshot (0, "Old bank");
+
+    // A preset that leaves slide out (every factory preset writes every key, so
+    // strip it from one).
+    auto data = FactoryPresets::toVar (FactoryPresets::getPreset (0), processor);
+    data.getProperty ("parameters", {}).getDynamicObject()->removeProperty (ParamIDs::slideGuitar);
+    data.getProperty ("parameters", {}).getDynamicObject()->removeProperty (ParamIDs::slideMode);
+
+    CHECK (presets.fromVar (data));
+
+    CHECK_MSG (slide->getValue() > 0.5f, "a preset load turned Slide Mode off");
+    CHECK (processor.isLiveMode());
+    CHECK (processor.getUiState().practiceDrawerOpen);
+    CHECK_MSG (processor.getSnapshots().getNumSnapshots() == 0, "the snapshot strip kept the old preset's bank");
 }
