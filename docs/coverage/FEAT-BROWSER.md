@@ -80,9 +80,9 @@ keep this workstream out of a file the auditor session is editing.
 |---|---|---|
 | Search keystroke, 5,000 entries | 16 ms | well under (test gate 16 ms) |
 | Similarity, 5,000 entries | 2 ms | under (test gate 2 ms) |
-| Preview mix | 0.02 units | ~0.01 units after the vectorised path (gate 0.04) |
-| Steady-state render (median of the factory bank) | 1.0 s | ~1.17 s in the test run under load; 0.77 s average in the CLI |
-| Heaviest ("8-String Djent", "Physics Showcase") | 2.0 s | ~1.5 s |
+| Preview mix | 0.02 units | 0.0025 units (vectorised steady state; gate 0.04) |
+| Steady-state render (median of the factory bank) | 1.0 s | 0.76 s on a quiet machine; ~1.17 s with the full suite running alongside |
+| Heaviest ("8-String Djent", "Physics Showcase") | 2.0 s | under 1.0 s quiet, ~1.5 s under load |
 | Save to cached preview | 3 s | ~1.5 s |
 
 ## Decisions
@@ -117,3 +117,13 @@ keep this workstream out of a file the auditor session is editing.
 - **LuthierRender build fixed**: `PluginEditorOnboarding/Tune.cpp` excluded from engine sources and `UiPreferences.cpp` compiled into the CLI (an integration-branch change had broken the link).
 - **Factory files installed by an older build keep their old content** ("never overwrite"), so their hashes no longer match the shipped manifest after an update and they render locally, as 5.3 prescribes for an edited file.
 - **Global search alignment**: `PresetBrowserPanel::selectPresetNamed` is the "open browser at entry" hook for FEAT-SEARCH's preset provider; the matcher itself stays in the engine layer so the CLI and tests can use it.
+
+## Full-suite result
+
+Full `LuthierTests` run after merging `origin/claude/luthier-cloud-session-5lzlix`:
+11 of 1072 tests fail, all pre-existing - each also fails on the integration
+branch built on its own: the eight `Combo.*` harness cases the auditor session
+owns, `GuiReachability.everyAutomatableParameterHasAVisibleControl`,
+`Feedback.eachStringHearsItsOwnNote` and
+`TuneIntegration.aSnapshotRecallsTheTunesSection`. Every FEAT-BROWSER test
+passes. `Luthier_VST3`, `Luthier_Standalone` and `LuthierRender` build.
