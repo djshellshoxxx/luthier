@@ -104,6 +104,9 @@ private:
 
     // SPEC-SWEEP (IR-14): program change mapping, "Bank + PC" or "PC only".
     juce::ToggleButton bankSelectToggle { "Bank Select (CC 0) chooses the preset (Bank + PC)" };
+
+    // SPEC-SWEEP (IR-4): notes can be learned too (off: notes always play).
+    juce::ToggleButton learnNotesToggle { "MIDI Learn can learn notes too" };
 };
 
 //==============================================================================

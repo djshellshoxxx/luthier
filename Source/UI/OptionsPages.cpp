@@ -843,12 +843,21 @@ MidiPage::MidiPage (LuthierAudioProcessor& p)
     bankSelectToggle.onClick = [this] { processor.setBankSelectChoosesPreset (bankSelectToggle.getToggleState()); };
     addAndMakeVisible (bankSelectToggle);
 
+    // SPEC-SWEEP (IR-4): MIDI Learn takes CCs, program changes, pressure and
+    // poly aftertouch; notes only when asked, because a learned note stops
+    // playing the string.
+    learnNotesToggle.setTooltip ("On: MIDI Learn also takes a note (a pad or a key as a switch). "
+                                 "Off: notes always play the guitar.");
+    learnNotesToggle.onClick = [this] { processor.getMidiLearn().setLearnNotes (learnNotesToggle.getToggleState()); };
+    addAndMakeVisible (learnNotesToggle);
+
     refresh();
 }
 
 void MidiPage::refresh()
 {
     bankSelectToggle.setToggleState (processor.doesBankSelectChoosePreset(), juce::dontSendNotification);   // IR-14
+    learnNotesToggle.setToggleState (processor.getMidiLearn().getLearnNotes(), juce::dontSendNotification);   // IR-4
 
     const bool standalone =
         (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone);
@@ -902,6 +911,8 @@ void MidiPage::resized()
     learnLabel.setBounds (bounds.removeFromTop (32));
     bounds.removeFromTop (4);
     clearLearnButton.setBounds (bounds.removeFromTop (Metrics::buttonHeight).removeFromLeft (220));
+    bounds.removeFromTop (4);
+    learnNotesToggle.setBounds (bounds.removeFromTop (24));   // SPEC-SWEEP IR-4
 }
 
 //==============================================================================

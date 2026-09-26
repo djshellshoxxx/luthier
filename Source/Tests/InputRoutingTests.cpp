@@ -424,3 +424,106 @@ LUTHIER_TEST (InputRouting, midiClockDrivesTheRhythmEngineWhenTheHostIsStopped)
 
     CHECK_MSG (! droveAfterStop, "the rhythm engine kept driving after MIDI Stop");
 }
+
+//==============================================================================
+/*  IR-4 (input-routing 1.1 step 2): MIDI Learn takes program changes, poly
+    aftertouch and channel pressure as well as CCs. */
+LUTHIER_TEST (MidiLearn, learnsPcAftertouchAndPressure)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    auto& learn = processor.getMidiLearn();
+
+    struct Case { juce::MidiMessage message; int key; const char* param; };
+
+    const Case cases[] = {
+        { juce::MidiMessage::programChange (1, 7),              MidiLearnManager::kProgramBase + 7, ParamIDs::ampGain },
+        { juce::MidiMessage::aftertouchChange (1, 60, 90),      MidiLearnManager::kPolyBase + 60,   ParamIDs::ampTreble },
+        { juce::MidiMessage::channelPressureChange (1, 90),     MidiLearnManager::kChannelPressure, ParamIDs::ampBass },
+    };
+
+    for (const auto& c : cases)
+    {
+        learn.startLearning (c.param);
+
+        juce::MidiBuffer midi;
+        midi.addEvent (c.message, 0);
+        render (processor, midi);
+        learn.dispatchPendingLearn();
+
+        CHECK_MSG (learn.getCcForParameter (c.param) == c.key,
+                   juce::String (c.param) + " learned " + MidiLearnManager::describeSource (learn.getCcForParameter (c.param)));
+    }
+
+    // Mapped, they drive their parameters.
+    auto* bass = processor.getState().getParameter (ParamIDs::ampBass);
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::channelPressureChange (1, 127), 0);
+    render (processor, midi);
+    CHECK_NEAR (bass->getValue(), 1.0f, 1.0e-3);
+
+    midi.clear();
+    midi.addEvent (juce::MidiMessage::channelPressureChange (1, 0), 0);
+    render (processor, midi);
+    CHECK_NEAR (bass->getValue(), 0.0f, 1.0e-3);
+
+    // And they survive the session round trip.
+    juce::MemoryBlock state;
+    processor.getStateInformation (state);
+    LuthierAudioProcessor restored;
+    restored.setStateInformation (state.getData(), (int) state.getSize());
+    CHECK (restored.getMidiLearn().getCcForParameter (ParamIDs::ampTreble) == MidiLearnManager::kPolyBase + 60);
+}
+
+/*  IR-4: notes are learned only when "Learn notes too" is on; otherwise the
+    note plays and the learn waits for a controller. */
+LUTHIER_TEST (MidiLearn, notesAreLearnedOnlyWhenAllowed)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    auto& learn = processor.getMidiLearn();
+
+    learn.startLearning (ParamIDs::ampGain);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 60, 0.8f), 0);
+    render (processor, midi);
+    learn.dispatchPendingLearn();
+
+    CHECK (learn.isLearning());
+    CHECK (learn.getCcForParameter (ParamIDs::ampGain) < 0);
+
+    learn.setLearnNotes (true);
+    midi.clear();
+    midi.addEvent (juce::MidiMessage::noteOn (1, 62, 0.8f), 0);
+    render (processor, midi);
+    learn.dispatchPendingLearn();
+
+    CHECK (learn.getCcForParameter (ParamIDs::ampGain) == MidiLearnManager::kNoteBase + 62);
+    CHECK (MidiLearnManager::describeSource (MidiLearnManager::kNoteBase + 62).startsWith ("Note"));
+}
+
+/*  IR-9 (input-routing 1 step 8): with the practice drawer open, the trainers
+    hear the player's notes, and the notes still play. */
+LUTHIER_TEST (InputRouting, practiceToolsHearNotesWithoutConsumingThem)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    processor.setPracticePanelOpen (true);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 57, 0.8f), 0);
+    render (processor, midi);
+
+    int heard = -1;
+    CHECK (processor.getPracticeNoteFeed().pop (heard));
+    CHECK (heard == 57);
+
+    bool sounding = false;
+    auto& interp = processor.getEngine().getMidiInterpreter();
+
+    for (int s = 0; s < processor.getEngine().getNumStrings(); ++s)
+        sounding = sounding || interp.getStringMidiNote (s) == 57;
+
+    CHECK_MSG (sounding, "the note the trainer heard did not also play");
+}

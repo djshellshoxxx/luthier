@@ -2716,6 +2716,7 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 
     root->setProperty ("aftertouchBends", doesAftertouchBend());   // SPEC-SWEEP PT-23
     root->setProperty ("bankSelectsPreset", doesBankSelectChoosePreset());   // SPEC-SWEEP IR-14
+    root->setProperty ("midiLearnNotes", midiLearn.getLearnNotes());          // SPEC-SWEEP IR-4
     root->setProperty ("liveMode", uiState.liveMode);
 
     // tuning-stability.md 7 (REALISM-C): the strings' wear and the capo
@@ -2898,6 +2899,9 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
     presets.applyExtraState();
     bridge.applyAllNow();
     initialStateApplied = true;
+
+    // SPEC-SWEEP (IR-4)
+    midiLearn.setLearnNotes (root->hasProperty ("midiLearnNotes") && (bool) root->getProperty ("midiLearnNotes"));
 
     // SPEC-SWEEP (IR-14)
     setBankSelectChoosesPreset (! root->hasProperty ("bankSelectsPreset") || (bool) root->getProperty ("bankSelectsPreset"));

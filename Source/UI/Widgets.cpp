@@ -46,7 +46,7 @@ juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
 
     if (mappedCc >= 0)
     {
-        menu.addItem (5, "MIDI Learn (mapped to CC " + juce::String (mappedCc) + ")");
+        menu.addItem (5, "MIDI Learn (mapped to " + MidiLearnManager::describeSource (mappedCc) + ")");   // SPEC-SWEEP IR-4
         menu.addItem (6, "Clear MIDI mapping");
     }
     else

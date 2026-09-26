@@ -100,11 +100,12 @@ void MidiLearnManager::rebuildLookup() noexcept
 {
     // Message thread, under `lock`. The table is built aside and copied in
     // under the spin lock, so the audio thread waits at most for the copy.
-    std::array<LookupEntry, 128> fresh {};
+    auto freshStorage = std::make_unique<std::array<LookupEntry, kNumSources>>();   // 20 kB: off the stack
+    auto& fresh = *freshStorage;
 
     for (const auto& m : mappings)
     {
-        if (! juce::isPositiveAndBelow (m.ccNumber, 128))
+        if (! juce::isPositiveAndBelow (m.ccNumber, kNumSources))
             continue;
 
         auto& e = fresh[(size_t) m.ccNumber];
@@ -136,7 +137,7 @@ void MidiLearnManager::handleAsyncUpdate()
 
 void MidiLearnManager::addMapping (const juce::String& parameterId, int ccNumber, int channel)
 {
-    if (! juce::isPositiveAndBelow (ccNumber, 128) || parameterId.isEmpty())
+    if (! juce::isPositiveAndBelow (ccNumber, kNumSources) || parameterId.isEmpty())   // SPEC-SWEEP IR-4
         return;
 
     {
@@ -266,22 +267,20 @@ void MidiLearnManager::processMidi (juce::MidiBuffer& midi, juce::MidiBuffer& sc
 {
     if (learning.load (std::memory_order_relaxed))
     {
-        // The event the const overload will learn: the first CC it does not skip.
+        // The event the const overload will learn: the first one it does not skip.
         int learnedIndex = -1, index = 0;
+        const bool notes = learnNotes.load (std::memory_order_relaxed);
 
         for (const auto metadata : midi)
         {
-            const auto message = metadata.getMessage();
+            double unused = 0.0;
+            const int key = sourceKeyFor (metadata.getMessage(), unused, notes);
 
-            if (message.isController())
+            if (key >= 0 && ! (key == 64 || key == 66 || key == 123 || key == 120)
+                  && ! (key >= kNoteBase && ! metadata.getMessage().isNoteOn()))
             {
-                const int cc = message.getControllerNumber();
-
-                if (! (cc == 64 || cc == 66 || cc == 123 || cc == 120))
-                {
-                    learnedIndex = index;
-                    break;
-                }
+                learnedIndex = index;
+                break;
             }
 
             ++index;
@@ -313,40 +312,46 @@ void MidiLearnManager::processMidi (juce::MidiBuffer& midi, juce::MidiBuffer& sc
 
 void MidiLearnManager::processMidi (const juce::MidiBuffer& midi) noexcept
 {
-    const bool isLearningNow = learning.load (std::memory_order_relaxed);
+    bool isLearningNow = learning.load (std::memory_order_relaxed);
+    const bool notes = learnNotes.load (std::memory_order_relaxed);
 
     for (const auto metadata : midi)
     {
         const auto message = metadata.getMessage();
 
-        if (! message.isController())
-            continue;
+        // SPEC-SWEEP (IR-4): CCs, program changes, pressure, poly aftertouch
+        // and (when allowed) notes, each under its own source key.
+        double value = 0.0;
+        const int cc = sourceKeyFor (message, value, notes);
 
-        const int cc = message.getControllerNumber();
-        const double value = (double) message.getControllerValue() / 127.0;
+        if (cc < 0)
+            continue;
 
         if (isLearningNow)
         {
             // Pedals and the standard performance controllers are skipped while
             // learning: a player nudging the sustain pedal should not silently
-            // steal the mapping they were about to make.
-            if (cc == 64 || cc == 66 || cc == 123 || cc == 120)
+            // steal the mapping they were about to make. A note is learned from
+            // its note-on, never its note-off.
+            if (cc == 64 || cc == 66 || cc == 123 || cc == 120
+                  || (cc >= kNoteBase && ! message.isNoteOn()))
                 continue;
 
             // Mapping mutates the array, so it cannot happen here; the message
             // thread does it (handleAsyncUpdate), and cancelling the updater in
             // the destructor means it never runs on a deleted manager.
-            if (juce::isPositiveAndBelow (cc, 128))
+            if (juce::isPositiveAndBelow (cc, kNumSources))
             {
                 learnedCc.store (cc);
                 triggerAsyncUpdate();
             }
 
             learning.store (false, std::memory_order_relaxed);
+            isLearningNow = false;   // the rest of the block maps as usual
             continue;
         }
 
-        if (! juce::isPositiveAndBelow (cc, 128))
+        if (! juce::isPositiveAndBelow (cc, kNumSources))
             continue;
 
         LookupEntry m;
@@ -373,6 +378,63 @@ void MidiLearnManager::processMidi (const juce::MidiBuffer& midi) noexcept
 
         m.parameter->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, scaled));
     }
+}
+
+//==============================================================================
+// SPEC-SWEEP (IR-4)
+int MidiLearnManager::sourceKeyFor (const juce::MidiMessage& m, double& value, bool includeNotes) noexcept
+{
+    if (m.isController())
+    {
+        value = (double) m.getControllerValue() / 127.0;
+        return m.getControllerNumber();
+    }
+
+    if (m.isProgramChange())
+    {
+        value = 1.0;   // a program change is a press: it sets the top of the range
+        return kProgramBase + m.getProgramChangeNumber();
+    }
+
+    if (m.isChannelPressure())
+    {
+        value = (double) m.getChannelPressureValue() / 127.0;
+        return kChannelPressure;
+    }
+
+    if (m.isAftertouch())
+    {
+        value = (double) m.getAfterTouchValue() / 127.0;
+        return kPolyBase + m.getNoteNumber();
+    }
+
+    if (includeNotes && (m.isNoteOn() || m.isNoteOff()))
+    {
+        value = m.isNoteOn() ? 1.0 : 0.0;
+        return kNoteBase + m.getNoteNumber();
+    }
+
+    return -1;
+}
+
+juce::String MidiLearnManager::describeSource (int key)
+{
+    if (juce::isPositiveAndBelow (key, 128))
+        return "CC " + juce::String (key);
+
+    if (key >= kProgramBase && key < kChannelPressure)
+        return "Program " + juce::String (key - kProgramBase);
+
+    if (key == kChannelPressure)
+        return "Pressure";
+
+    if (key >= kPolyBase && key < kNoteBase)
+        return "Poly AT " + juce::MidiMessage::getMidiNoteName (key - kPolyBase, true, true, 4);
+
+    if (key >= kNoteBase && key < kNumSources)
+        return "Note " + juce::MidiMessage::getMidiNoteName (key - kNoteBase, true, true, 4);
+
+    return {};
 }
 
 //==============================================================================
@@ -421,7 +483,7 @@ void MidiLearnManager::fromVar (const juce::var& data)
                     m.rangeMax = obj->hasProperty ("max") ? (double) obj->getProperty ("max") : 1.0;
                     m.inverted = obj->getProperty ("inverted");
 
-                    if (m.parameterId.isNotEmpty() && juce::isPositiveAndBelow (m.ccNumber, 128))
+                    if (m.parameterId.isNotEmpty() && juce::isPositiveAndBelow (m.ccNumber, kNumSources))
                         mappings.add (m);
                 }
             }
