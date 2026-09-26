@@ -28,7 +28,7 @@
 | VK-22 (§5) | Treble-bleed R/C editor appears only for Custom — Bleed R, Bleed C and Bleed wiring are always shown; nothing ties their visibility to `circuit_treble_bleed` | `AdvancedPanel.cpp` ~674-690 | ADVANCED col 2 | - | PARTIAL |
 | VK-23 (§5) | Live H(s) response view with the resonant peak marked, redrawn as controls move | `CircuitResponseView` (`UI/CircuitPanel.cpp`) | ADVANCED col 2; EASY rig strip | on visual: `LiveDisplays::theFretboardDrawsTheSlideBarAndTheCircuitCurveFollowsTheVolume` | OWNED |
 | VK-24 (§5; gui-int 4.4) | CHARACTER tab CIRCUIT group, the same panel at full size — `CharacterPanel` has no circuit group on this branch or on visual | - | - | - | MISSING |
-| VK-25 (§5) | Easy compact card: volume, tone and the mini response view | `EasyPanel::buildRigStrip` | EASY rig strip | - | NO-TEST |
+| VK-25 (§5) | Easy compact card: volume, tone and the mini response view | `EasyPanel::buildRigStrip` | EASY rig strip | `Circuit::theEasyRigStripCarriesTheGuitarKnobsAndTheView` | DONE |
 | VK-T1 (§6) | Test: volume interaction (level vs taper, darkening) | - | n/a | `Circuit::turningDownDarkensAsWellAsQuietens` | DONE |
 | VK-T2 (§6) | Test: treble bleed restores top | - | n/a | `Circuit::aKinmanBleedKeepsTheTop` | DONE |
 | VK-T3 (§6) | Test: active mode removes loading | - | n/a | `Circuit::activeModeRemovesTheLoading` | DONE |
@@ -40,4 +40,4 @@
 | VK-T9 (§6) | Test: no allocation while sweeping | - | n/a | `Circuit::sweepingEveryControlDoesNotAllocate` | DONE |
 | VK-T10 (§6) | Test: feedback coupling | - | n/a | `Feedback::theVolumeKnobLowersTheLoopByTheCircuitsAttenuation` | DONE |
 
-<!-- counts DONE=30 NO-GUI=0 NO-TEST=1 PARTIAL=2 MISSING=1 OWNED=1 -->
+<!-- counts DONE=31 NO-GUI=0 NO-TEST=0 PARTIAL=2 MISSING=1 OWNED=1 -->
