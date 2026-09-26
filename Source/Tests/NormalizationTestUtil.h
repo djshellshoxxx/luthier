@@ -264,3 +264,130 @@ inline juce::String toolchainFingerprint()
 }
 
 } // namespace luthier::normtest
+
+//==============================================================================
+// Helpers that need the normalization code (NormalizationTests.cpp).
+#include "../DSP/Master/Bs1770Meter.h"
+#include "../DSP/Master/TruePeakDetector.h"
+
+namespace luthier::normtest
+{
+
+/** Integrated loudness of interleaved stereo. */
+inline double loudnessOf (const std::vector<float>& interleaved, double sr = kSr)
+{
+    const size_t n = interleaved.size() / 2;
+    std::vector<float> l (n), r (n);
+
+    for (size_t i = 0; i < n; ++i)
+    {
+        l[i] = interleaved[2 * i];
+        r[i] = interleaved[2 * i + 1];
+    }
+
+    Bs1770Meter meter;
+    meter.prepare (sr, 2);
+    meter.process (l.data(), r.data(), (int) n);
+    return meter.getIntegratedLufs();
+}
+
+inline double truePeakDbOf (const std::vector<float>& interleaved)
+{
+    const size_t n = interleaved.size() / 2;
+    std::vector<float> ch (n);
+    double peak = 0.0;
+
+    for (int c = 0; c < 2; ++c)
+    {
+        for (size_t i = 0; i < n; ++i)
+            ch[i] = interleaved[2 * i + (size_t) c];
+
+        peak = std::max (peak, TruePeakDetector::measure (ch.data(), (int) n));
+    }
+
+    return peak > 1.0e-9 ? 20.0 * std::log10 (peak) : -200.0;
+}
+
+inline double samplePeakDbOf (const std::vector<float>& interleaved)
+{
+    double peak = 0.0;
+
+    for (float v : interleaved)
+        peak = std::max (peak, (double) std::abs (v));
+
+    return peak > 1.0e-9 ? 20.0 * std::log10 (peak) : -200.0;
+}
+
+/** Normalization on (non-realtime, so every request is waited for) and
+    settled: the request fires in the first block, the result arrives, the
+    glide completes. */
+inline void enableAndSettle (LuthierAudioProcessor& p, double target = -18.0, int block = kBlock)
+{
+    p.setNonRealtime (true);
+    auto& n = p.getOutputNormalization();
+    n.setTargetLufs (target);
+    n.setEnabled (true);
+    renderEvents (p, {}, (int) (0.6 * kSr), block);
+}
+
+/** Renders with the events fed as the engine's direct MIDI, the way the
+    calibration render plays NormalizationPhrase (4.3): played as written. */
+inline std::vector<float> renderDirect (LuthierAudioProcessor& p, const juce::MidiBuffer& events,
+                                        int lengthSamples, int block = kBlock)
+{
+    juce::MidiBuffer slice;
+    auto& n = p.getOutputNormalization();
+
+    auto out = renderEvents (p, {}, lengthSamples, block, [&] (int pos)
+    {
+        slice.clear();
+        slice.addEvents (events, pos, block, -pos);
+        n.setCalibrationDirectMidi (slice.isEmpty() ? nullptr : &slice);
+    });
+
+    n.setCalibrationDirectMidi (nullptr);
+    return out;
+}
+
+/** The phrase, played on the live instance as the calibration plays it
+    (direct MIDI), measured: 15's definition of "loudness". */
+inline double phraseLoudness (LuthierAudioProcessor& p, std::vector<float>* keep = nullptr)
+{
+    int length = 0;
+    const auto events = phraseEvents (p, GoldenPhrase::normalization, kSr, length);
+    auto out = renderDirect (p, events, length);
+    const double l = loudnessOf (out);
+
+    if (keep != nullptr)
+        *keep = std::move (out);
+
+    return l;
+}
+
+/** Test isolation: private disk cache, empty memory cache, a factory table
+    that exists only in memory. */
+struct IsolatedCaches
+{
+    juce::TemporaryFile folder;
+    juce::TemporaryFile factory { ".json" };
+
+    IsolatedCaches()
+    {
+        folder.getFile().createDirectory();
+        NormalizationCalibrator::setDiskCacheFolderForTesting (folder.getFile());
+        NormalizationCalibrator::setFactoryTableFileForTesting (factory.getFile());
+        NormalizationCalibrator::clearMemoryCache();
+    }
+
+    ~IsolatedCaches()
+    {
+        NormalizationCalibrator::clearMemoryCache();
+        NormalizationCalibrator::setDiskCacheFolderForTesting ({});
+        NormalizationCalibrator::setFactoryTableFileForTesting ({});
+        NormalizationCalibrator::failRendersForTesting().store (false);
+        NormalizationCalibrator::maxInjectedDelayMsForTesting().store (0);
+        folder.getFile().deleteRecursively();
+    }
+};
+
+} // namespace luthier::normtest

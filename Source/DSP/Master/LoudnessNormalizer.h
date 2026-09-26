@@ -81,6 +81,12 @@ public:
     /** 6: restore snaps to the stored gain from the first block. */
     void snapTo (std::int32_t gainCentiDb) noexcept { applyLoadGain (gainCentiDb); }
 
+    /** Audio thread: a result applied in the next beginBlock snaps rather
+        than glides. The offline path of a preset load (4.6): cached or not,
+        the load's gain lands with the load, so a render does not depend on
+        the cache. */
+    void snapNextResult() noexcept { snapNext = true; }
+
     /** The last packed word published (for tests and the offline wait). */
     std::uint64_t getPublishedWord() const noexcept { return published.load (std::memory_order_acquire); }
     std::uint32_t getPublishedSerial() const noexcept;
@@ -129,6 +135,7 @@ private:
     // Audio-thread state.
     std::uint32_t appliedSerial = 0;
     bool wasEnabled = false;
+    bool snapNext = false;
     bool active = false;
     bool gliding = false;
     double calibratedDb = 0.0;       ///< last calibration's gain (applies while enabled)

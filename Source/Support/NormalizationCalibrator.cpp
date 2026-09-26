@@ -186,7 +186,9 @@ namespace
     {
         NormalizationCalibrator::Measurement m;
         m.ok = true;
-        m.measuredLufs = lufs;
+        // Rounded, so a value that went through a JSON cache is the same
+        // double as the one that did not (4.6: the gain is a pure function).
+        m.measuredLufs = std::round (lufs * 1.0e4) / 1.0e4;
         m.unmeasurable = lufs <= Bs1770Meter::kAbsoluteGateLufs;
         return m;
     }
@@ -241,6 +243,18 @@ std::atomic<int>& NormalizationCalibrator::maxInjectedDelayMsForTesting() noexce
 {
     static std::atomic<int> d { 0 };
     return d;
+}
+
+std::atomic<double>& NormalizationCalibrator::renderTimeoutOverrideForTesting() noexcept
+{
+    static std::atomic<double> t { 0.0 };
+    return t;
+}
+
+double NormalizationCalibrator::getRenderTimeoutSeconds() noexcept
+{
+    const double o = renderTimeoutOverrideForTesting().load();
+    return o > 0.0 ? o : kRenderTimeoutSeconds;
 }
 
 juce::String NormalizationCalibrator::getEditionName()
@@ -357,7 +371,7 @@ NormalizationCalibrator::Measurement NormalizationCalibrator::measureState (cons
     }
 
     rendering.store (true, std::memory_order_release);
-    m = renderAndMeasure (makeRenderState (state, shape), superseded);
+    m = renderAndMeasure (makeRenderState (state, shape), superseded, 48000.0 * state.rateFamily);
     rendering.store (false, std::memory_order_release);
     m.hash = hash;
 
@@ -418,6 +432,13 @@ NormalizationCalibrator::Measurement NormalizationCalibrator::measureState (cons
 //==============================================================================
 juce::String NormalizationCalibrator::hashSoundState (const NormalizationSoundState& state, const juce::AudioProcessor& shape)
 {
+    const auto canonical = canonicalSoundState (state, shape);
+    const auto utf8 = canonical.toUTF8();
+    return juce::SHA256 (utf8.getAddress(), std::strlen (utf8.getAddress())).toHexString();
+}
+
+juce::String NormalizationCalibrator::canonicalSoundState (const NormalizationSoundState& state, const juce::AudioProcessor& shape)
+{
     auto* params = new juce::DynamicObject();
     const auto& all = shape.getParameters();
 
@@ -441,13 +462,25 @@ juce::String NormalizationCalibrator::hashSoundState (const NormalizationSoundSt
     root->setProperty ("edition", getEditionName());
     root->setProperty ("revision", kCalibrationRevision);
     root->setProperty ("params", juce::var (params));
-    root->setProperty ("structural", state.structural);
+    // Per-string detune the engine derives from parameters with a random draw
+    // (string age, realism detune) is not configuration: the same preset
+    // loaded twice draws it twice. The parameters that cause it are hashed.
+    auto structural = state.structural.clone();
+
+    if (auto* strings = structural.getProperty ("preset", {}).getProperty ("strings", {}).getDynamicObject())
+    {
+        strings->removeProperty ("fineTuneCents");
+        strings->removeProperty ("realismDetuneCents");
+    }
+
+    root->setProperty ("structural", structural);
+
+    if (state.rateFamily != 1)
+        root->setProperty ("rateFamily", state.rateFamily);
 
     juce::String canonical;
     writeCanonical (juce::var (root), canonical);
-
-    const auto utf8 = canonical.toUTF8();
-    return juce::SHA256 (utf8.getAddress(), std::strlen (utf8.getAddress())).toHexString();
+    return canonical;
 }
 
 juce::MemoryBlock NormalizationCalibrator::makeRenderState (const NormalizationSoundState& state, const juce::AudioProcessor& shape)
@@ -493,7 +526,8 @@ juce::MemoryBlock NormalizationCalibrator::makeRenderState (const NormalizationS
 }
 
 NormalizationCalibrator::Measurement NormalizationCalibrator::renderAndMeasure (const juce::MemoryBlock& stateBlock,
-                                                                                std::function<bool()> shouldCancel)
+                                                                                std::function<bool()> shouldCancel,
+                                                                                double renderRate)
 {
     Measurement m;
     m.source = Source::render;
@@ -525,7 +559,7 @@ NormalizationCalibrator::Measurement NormalizationCalibrator::renderAndMeasure (
 
     try
     {
-        constexpr double sr = 48000.0;
+        const double sr = renderRate > 0.0 ? renderRate : 48000.0;
         constexpr int block = 256;
 
         auto processor = std::make_unique<LuthierAudioProcessor>();
@@ -556,7 +590,7 @@ NormalizationCalibrator::Measurement NormalizationCalibrator::renderAndMeasure (
 
         for (int pos = -settle; pos < window; pos += block)
         {
-            if ((shouldCancel && shouldCancel()) || elapsed() > kRenderTimeoutSeconds)
+            if ((shouldCancel && shouldCancel()) || elapsed() > getRenderTimeoutSeconds())
             {
                 processor->setPlayHead (nullptr);
                 m.failed = true;

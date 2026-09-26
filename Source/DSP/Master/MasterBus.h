@@ -110,6 +110,18 @@ private:
     int bypassFade = 0;              ///< limiter-off entry and exit crossfade, samples left
     int bypassFadeLength = 0;
     bool bypassFadeIn = true;
+    // The active path's attack: a sliding minimum of the required gain over the
+    // lookahead, then a box average of that minimum. Whatever the transient,
+    // the gain has fully reached what a sample needs by the time it leaves, so
+    // the true-peak ceiling holds (the exponential attack of today's loop lets
+    // a sudden 6 dB transient through by 0.4 dB).
+    std::vector<double> minValues, boxRing;
+    std::vector<std::int64_t> minIndices;
+    int minHead = 0, minTail = 0, boxIndex = 0, boxLength = 1;
+    std::int64_t minCounter = 0;
+    double boxSum = 0.0;
+    double releasedEnv = 1.0;
+
     float* gainLog = nullptr;
     int gainLogCapacity = 0, gainLogPosition = 0;
 

@@ -148,10 +148,24 @@ void LoudnessNormalizer::beginBlock (std::int64_t timelineStart, std::int64_t re
                 calibratedDb = (double) gain / 100.0;
 
                 if (enabled.load (std::memory_order_acquire))
-                    startGlide (calibratedDb, resultStartSample >= 0 ? resultStartSample : timeline);
+                {
+                    if (snapNext)
+                    {
+                        startDb = endDb = calibratedDb;
+                        glideStart = timeline - glideLength;
+                        gliding = false;
+                        segStart = INT64_MIN;
+                    }
+                    else
+                    {
+                        startGlide (calibratedDb, resultStartSample >= 0 ? resultStartSample : timeline);
+                    }
+                }
             }
         }
     }
+
+    snapNext = false;
 
     // The switch.
     const bool on = enabled.load (std::memory_order_acquire);

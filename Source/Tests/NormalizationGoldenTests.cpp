@@ -50,7 +50,10 @@ LUTHIER_TEST (NormalizationGolden, ON02_OffPathMatchesGoldenHashes)
 
         // Keep entries a partial run did not cover (a default run keeps the
         // full grid's extra entries).
-        if (auto* old = juce::JSON::parse (file).getProperty ("hashes", {}).getDynamicObject())
+        const auto oldJson = juce::JSON::parse (file);
+        const auto oldHashes = oldJson.getProperty ("hashes", {});
+
+        if (auto* old = oldHashes.getDynamicObject())
             for (const auto& prop : old->getProperties())
                 hashes->setProperty (prop.name, prop.value);
 

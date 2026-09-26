@@ -175,6 +175,13 @@ public:
     /** ON-06/ON-13: how many calibration requests the tracker has fired. */
     int getNumRequests() const noexcept { return tracker->getNumRequests(); }
 
+    /** ON-17: how many times the audio thread has waited for a result. Only
+        ever non-zero in non-realtime renders. */
+    static std::atomic<int>& offlineWaitCount() noexcept;
+
+    /** Re-captures the structural snapshot the worker reads, on or off. */
+    void refreshStructuralSnapshot() { publishStructural (captureStructural()); }
+
     /** Tests: run the message-thread poll now. */
     void pollNow() { timerCallback(); }
 
@@ -211,6 +218,7 @@ private:
 
     std::atomic<std::uint32_t> publishSerial { 0 };
     std::atomic<std::uint32_t> lastFiredSerial { 0 };
+    std::atomic<bool> loadRequestPending { false };
 
     // 3.2: preset-morph endpoints.
     juce::String morphHash[2];

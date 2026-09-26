@@ -40,6 +40,14 @@ void MasterBus::prepare (double sampleRate, int maxBlockSize)
     ceilingStepDb = (kCeilingDb - (-1.0)) / (LoudnessNormalizer::kGlideSeconds * sr);
     bypassFadeLength = juce::jmax (1, 2 * lookDelay);
 
+    // The box must fit inside the lookahead after the true-peak detector's own
+    // latency, so a peak's required gain has been averaged in for the whole box
+    // before the peak leaves.
+    boxLength = juce::jmax (1, lookDelay - TruePeakDetector::kLatency - 2);
+    minValues.assign ((size_t) lookSize, 1.0);
+    minIndices.assign ((size_t) lookSize, 0);
+    boxRing.assign ((size_t) lookSize, 1.0);
+
     reset();
 }
 
@@ -68,6 +76,11 @@ void MasterBus::reset() noexcept
     normPathRunning = false;
     ceilingNowDb = kCeilingDb;
     bypassFade = 0;
+    minHead = minTail = boxIndex = 0;
+    minCounter = 0;
+    boxSum = (double) boxLength;
+    std::fill (boxRing.begin(), boxRing.end(), 1.0);
+    releasedEnv = 1.0;
 
     resetMeters();
 }
@@ -237,6 +250,14 @@ void MasterBus::processBlockNormalized (juce::AudioBuffer<float>& buffer) noexce
         ceilingNowDb = kCeilingDb;
         bypassFade = 0;
 
+        // Carry today's envelope in, so entering the path is seamless.
+        const double start = juce::jlimit (1.0e-6, 1.0, limiterEnv > 0.0 ? limiterEnv : 1.0);
+        minHead = minTail = boxIndex = 0;
+        minCounter = 0;
+        std::fill (boxRing.begin(), boxRing.end(), start);
+        boxSum = start * boxLength;
+        releasedEnv = start;
+
         if (! limiterEnabled)
         {
             // The lookahead holds stale audio from whenever the limiter last ran.
@@ -295,12 +316,49 @@ void MasterBus::processBlockNormalized (juce::AudioBuffer<float>& buffer) noexce
         lookL[(size_t) lookIndex] = (float) l;
         lookR[(size_t) lookIndex] = (float) r;
 
-        const double peak = juce::jmax (truePeakL.process (l), truePeakR.process (r));
+        const double peak = (double) juce::jmax (truePeakL.process ((float) l), truePeakR.process ((float) r));
         const double required = (peak > ceilingLin) ? (ceilingLin / peak) : 1.0;
 
-        const double coeff = (required < limiterEnv || limiterEnv == 0.0) ? limiterAttack : limiterRelease;
-        limiterEnv = required + (limiterEnv - required) * coeff;
-        limiterEnv = juce::jlimit (0.0, 1.0, limiterEnv);
+        // Sliding minimum of the required gain over the box.
+        {
+            const int dmask = (int) minValues.size() - 1;
+
+            while (minTail != minHead && minValues[(size_t) ((minTail - 1) & dmask)] >= required)
+                minTail = (minTail - 1) & dmask;
+
+            minValues[(size_t) minTail] = required;
+            minIndices[(size_t) minTail] = minCounter;
+            minTail = (minTail + 1) & dmask;
+
+            // The window outlasts the box by the detector's latency, so a peak's
+            // requirement is still in it when the peak leaves (see prepare).
+            while (minIndices[(size_t) minHead] <= minCounter - lookDelay)
+                minHead = (minHead + 1) & dmask;
+
+            ++minCounter;
+        }
+
+        const double windowMin = minValues[(size_t) minHead];
+
+        // Box average of the minimum: the attack.
+        boxSum += windowMin - boxRing[(size_t) boxIndex];
+        boxRing[(size_t) boxIndex] = windowMin;
+        if (++boxIndex >= boxLength)
+            boxIndex = 0;
+
+        if (boxIndex == 0)   // re-sum once per box, so rounding never accumulates
+        {
+            boxSum = 0.0;
+
+            for (int k = 0; k < boxLength; ++k)
+                boxSum += boxRing[(size_t) k];
+        }
+        const double attacked = juce::jlimit (0.0, 1.0, boxSum / boxLength);
+
+        // The release is today's 80 ms.
+        releasedEnv = juce::jmin (1.0, releasedEnv + (1.0 - releasedEnv) * (1.0 - limiterRelease));
+        limiterEnv = juce::jlimit (0.0, 1.0, juce::jmin (attacked, releasedEnv));
+        releasedEnv = limiterEnv;
 
         const int readIndex = (lookIndex - lookDelay) & mask;
         double dl = (double) lookL[(size_t) readIndex] * limiterEnv;

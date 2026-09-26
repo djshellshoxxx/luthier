@@ -51,6 +51,21 @@ struct NormalizationSoundState
     std::vector<float> values;      ///< by parameter index, normalised
     juce::var structural;           ///< { preset, modulation, routing, character, toneMatch }
     bool valid = false;
+
+    /*  The live rate's family: 1 up to 50 kHz, 2 up to 100 kHz, 4 above.
+        4.3 assumes loudness is rate-invariant within 0.2 LU and renders every
+        calibration at 48 kHz. This engine is not: it plays about 3 dB louder
+        at 96 kHz than at 48 kHz (ON-30), so a 48 kHz gain would miss the
+        target by that much. A family other than 1 renders at 48 kHz x family
+        and is part of the hash; 44.1 and 48 kHz (family 1) share hashes, the
+        factory table and every stored session calibration, exactly as 4.3
+        has it. */
+    int rateFamily = 1;
+
+    static int rateFamilyFor (double sampleRate) noexcept
+    {
+        return sampleRate > 100000.0 ? 4 : (sampleRate > 50000.0 ? 2 : 1);
+    }
 };
 
 //==============================================================================
@@ -101,6 +116,9 @@ public:
     /** 3.3's hash, 64 hex digits. */
     static juce::String hashSoundState (const NormalizationSoundState& state, const juce::AudioProcessor& shape);
 
+    /** The canonical JSON the hash is taken over (Diagnostics, tests). */
+    static juce::String canonicalSoundState (const NormalizationSoundState& state, const juce::AudioProcessor& shape);
+
     /** The state block an offline instance restores to play the reference
         render: Performance parameters at their defaults, Mix forced neutral,
         Config quantised. */
@@ -109,7 +127,8 @@ public:
     /** Renders the phrase for a state block through a fresh offline instance
         and measures it. Blocking; the worker's, RenderCli's and the tests'. */
     static Measurement renderAndMeasure (const juce::MemoryBlock& stateBlock,
-                                         std::function<bool()> shouldCancel = {});
+                                         std::function<bool()> shouldCancel = {},
+                                         double sampleRate = 48000.0);
 
     /** 4.4: cache lookups in order (no render). Source is set on a hit. */
     static bool lookupCached (const juce::String& hash, Measurement& out);
@@ -147,6 +166,10 @@ public:
     static std::atomic<int>& renderCount() noexcept;
     static std::atomic<bool>& failRendersForTesting() noexcept;
     static std::atomic<int>& maxInjectedDelayMsForTesting() noexcept;
+
+    /** 4.3's 10 s, or a test's override (ON-29) when positive. */
+    static std::atomic<double>& renderTimeoutOverrideForTesting() noexcept;
+    static double getRenderTimeoutSeconds() noexcept;
 
     /** 3.3: the edition string that goes into every hash. */
     static juce::String getEditionName();

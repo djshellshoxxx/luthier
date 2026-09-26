@@ -39,6 +39,12 @@ std::function<OutputNormalization::Defaults()>& OutputNormalization::defaultsPro
     return provider;
 }
 
+std::atomic<int>& OutputNormalization::offlineWaitCount() noexcept
+{
+    static std::atomic<int> c { 0 };
+    return c;
+}
+
 int OutputNormalization::getLiveInstanceCount() noexcept
 {
     return liveInstances.load();
@@ -274,6 +280,7 @@ void OutputNormalization::processBlockStart (std::int64_t timelineStart, int num
         return;
 
     lastFiredSerial.store (tracker->getRequestSerial(), std::memory_order_release);
+    const bool loadRequest = loadRequestPending.exchange (false, std::memory_order_acq_rel);
 
     /*  4.6: the one sanctioned wait on the audio thread, and only when the
         host says the render is not realtime. The result then glides from its
@@ -283,13 +290,17 @@ void OutputNormalization::processBlockStart (std::int64_t timelineStart, int num
     {
         const auto serial = tracker->getRequestSerial();
         const auto deadline = std::chrono::steady_clock::now()
-                                + std::chrono::milliseconds ((int) (1000.0 * (NormalizationCalibrator::kRenderTimeoutSeconds + 2.0)));
+                                + std::chrono::milliseconds ((int) (1000.0 * (NormalizationCalibrator::getRenderTimeoutSeconds() + 2.0)));
+        offlineWaitCount().fetch_add (1, std::memory_order_relaxed);
 
         while ((std::int32_t) (calibrator->getHandledSerial() - serial) < 0
                  && std::chrono::steady_clock::now() < deadline)
             std::this_thread::sleep_for (std::chrono::milliseconds (1));
 
         master.setResultStartSample (fireSample);
+
+        if (loadRequest)
+            master.getNormalizer().snapNextResult();
     }
 }
 
@@ -358,6 +369,7 @@ NormalizationSoundState OutputNormalization::captureSoundState() const
     }
 
     s.valid = s.structural.isObject();
+    s.rateFamily = NormalizationSoundState::rateFamilyFor (processor.getSampleRate());
     return s;
 }
 
@@ -382,6 +394,7 @@ NormalizationSoundState OutputNormalization::soundStateFromPreset (const juce::v
     root->setProperty ("preset", stripPresetIdentity (presetVar));
     s.structural = juce::var (root);
     s.valid = presetVar.isObject();
+    s.rateFamily = NormalizationSoundState::rateFamilyFor (processor.getSampleRate());
     return s;
 }
 
@@ -392,7 +405,12 @@ void OutputNormalization::notifyConfigurationChanged (bool prefetch)
 
     publishStructural (captureStructural());
 
+    // Offline, a load's request is waited for and its result snaps with the
+    // load, cached or not (4.6); the prefetch shortcut is for realtime.
     if (prefetch)
+        loadRequestPending.store (true, std::memory_order_release);
+
+    if (prefetch && ! processor.isNonRealtime())
     {
         // 4.4 prefetch / 2.2: a cached gain rides the load itself.
         const auto state = captureSoundState();
