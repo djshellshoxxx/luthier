@@ -369,3 +369,33 @@ LUTHIER_TEST (Editor, theLocalizationPageSwitchesLocaleAndFallback)
     AccessibilitySettings::get().save();
     dir.deleteRecursively();
 }
+
+//==============================================================================
+/*  A11Y-24: the six palettes ship as Resources/Themes/*.json (copied beside
+    every binary with the rest of Resources), and they are exactly the built-in
+    ones. */
+LUTHIER_TEST (Accessibility, theShippedThemeFilesMatchTheBuiltIns)
+{
+    // LUTHIER_WRITE_THEMES=<absolute path to Resources/Themes> regenerates them.
+    if (const auto target = juce::SystemStats::getEnvironmentVariable ("LUTHIER_WRITE_THEMES", {});
+        juce::File::isAbsolutePath (target))
+        CHECK (AccessibilitySettings::writeBuiltInPalettes (juce::File (target)));
+
+    juce::TemporaryFile holder;
+    const auto fresh = holder.getFile();
+    CHECK (AccessibilitySettings::writeBuiltInPalettes (fresh));
+
+    const auto shipped = AccessibilitySettings::getThemeDirectory();
+
+    for (int i = 0; i < (int) PaletteId::numPalettes; ++i)
+    {
+        const auto name = juce::String (getPaletteName ((PaletteId) i)) + ".json";
+        const auto installed = shipped.getChildFile (name);
+
+        CHECK_MSG (installed.existsAsFile(), name + " is not beside the binary");
+        CHECK_MSG (installed.loadFileAsString() == fresh.getChildFile (name).loadFileAsString(),
+                   name + " differs from the built-in palette");
+    }
+
+    fresh.deleteRecursively();
+}

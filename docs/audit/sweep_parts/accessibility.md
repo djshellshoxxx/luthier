@@ -27,7 +27,7 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 | A11Y-21 (§3) | Deut/Prot/Trit remaps (success->blue, meter blue-teal-orange-red, clip->magenta, tritan off teal) | `AccessibilitySettings::buildPalette`; `LuthierLookAndFeel::meterColourFor` | APPEARANCE | `Accessibility::colourblindPalettesSeparateTheStatesTheyTarget` | DONE |
 | A11Y-22 (§3) | High contrast: black bg, white text, one accent, no gradients | `buildPalette(highContrast)`, `Palette::apply(..., gradients=false)` | APPEARANCE | `Theme::highContrastIsFlat` | DONE |
 | A11Y-23 (§3) | Light palette (paper bg, dark text, muted accents) | `buildPalette(light)` | APPEARANCE | `Theme::everyTextPairMeetsContrastOnTheThreePalettes` | DONE |
-| A11Y-24 (§3) | Palettes ship as `Resources/Themes/*.json` via theme system — loader and writer exist; no `Resources/Themes` folder, `writeBuiltInPalettes` never called by build/installer | `AccessibilitySettings::loadPaletteFromFile/getThemeDirectory/writeBuiltInPalettes` | n/a | `Accessibility::palettesRoundTripThroughJson` | PARTIAL |
+| A11Y-24 (§3) | Palettes ship as `Resources/Themes/*.json` via theme system — loader and writer exist; no `Resources/Themes` folder, `writeBuiltInPalettes` never called by build/installer | `Resources/Themes/*.json` (copied beside every binary with Resources) | n/a | `Accessibility::theShippedThemeFilesMatchTheBuiltIns` | DONE |
 | A11Y-25 (§3) | Meters use shape too: narrower strip under -18 dB, bracket icon over 0 dB | `LevelMeter::paint` (60% bar below -18 dBFS, bracket over 0 dBFS) | meter | `Accessibility::theMeterChangesShapeNotOnlyColour` | DONE |
 | A11Y-26 (§4) | Scale steps 75/100/125/150/175/200 offered | `AccessibilitySettings::kScales` | APPEARANCE `scaleBox` | `Accessibility::uiScaleStepsAndFontFloor` | DONE |
 | A11Y-27 (§4) | Min readable font never below 10 px at 100% | `AccessibilitySettings::scaledFont` floor 10 | n/a | `Accessibility::uiScaleStepsAndFontFloor` (>= 10) | DONE |
@@ -58,4 +58,4 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 | A11Y-52 (§10) | Test: no animation frames after reduced-motion on — here model-level only | on visual | n/a | (visual: `DataStream::itKeeps200StopsAfter500msAndHonoursReducedMotion`, `ReducedMotion::aGuitarChangeCrossfadesOrIsStaticWithAnOutline`) | OWNED |
 | A11Y-53 (§10) | Test: CJK locale shows no missing-glyph boxes in shipped strings | - | - | - | MISSING |
 
-<!-- counts DONE=22 NO-GUI=0 NO-TEST=2 PARTIAL=15 MISSING=7 OWNED=7 DEFERRED=0 -->
+<!-- counts DONE=23 NO-GUI=0 NO-TEST=2 PARTIAL=14 MISSING=7 OWNED=7 DEFERRED=0 -->
