@@ -32,7 +32,7 @@ Items on `visual`: the whole-block allocation trap, the limiter-lookahead latenc
 | EN-13 (§2) | Typed events NoteOn/Off, Bend, Pressure, CC, Sustain, Whammy | `Model/Playing/PlayingEvents.h` | n/a | `Technique.*`, `Controllers.*` | DONE |
 | EN-14 (§2) | Mode A mono / B poly-chord / C controller-MPE, per preset | `MidiInterpreter` modes | Easy `EasyPanel::playingModeSelector`; ADVANCED MPE toggle | `Technique.legatoBecomesHammerOnAndPullOff`, `Engine.aChordVoicesAcrossStrings`, `Controllers.perChannelRoutingSendsEachChannelToItsString` | DONE |
 | EN-15 (§2) | String-assignment algorithm (closest-below, clip high, prefer near hand / sweet voicing) | `ChordVoicer`, `RubricVoicer` | n/a | `ChordVoicer.singleNotesStayNearTheHand`, `RubricVoicer.*` | DONE |
-| EN-16 (§2) | Default CC map 1/2/4/11/64/65/66/67/70-79 — no test asserts the map | `MidiInterpreter::resetCcMapToDefaults` | n/a | - | NO-TEST |
+| EN-16 (§2) | Default CC map 1/2/4/11/64/65/66/67/70-79 — no test asserts the map | `MidiInterpreter::resetCcMapToDefaults` | n/a | `Midi::defaultCcMapMatchesTheSpec` | DONE |
 | EN-17 (§2) | CC map user-remappable — only via preset `midiMap`/controller profile JSON; no editor | `MidiInterpreter::setCcTarget` | - | `Controllers.everyCcMappingResolvesToARealTarget` | NO-GUI |
 | EN-18 (§2) | Aftertouch → vibrato (default) or bend (user choice) — `setAftertouchTarget` never called | `MidiInterpreter::setAftertouchTarget` | - | - | NO-GUI |
 | EN-19 (§3) | f = f_open·2^((fret+bend+detune+slope·fret)/12) | `TuningEngine::computeFrequency` | n/a | `Tuning.standardTuningIsExact`, `Tuning.fretPositionIsContinuous` | DONE |
@@ -91,9 +91,9 @@ Items on `visual`: the whole-block allocation trap, the limiter-lookahead latenc
 | EN-72 (§17) | Serial strings; workers for IR/preset; FIFO/atomics only — UI writes `TuningEngine::setDetuneCents` and calls `engine.panic()` from the message thread | `GuitarBodyComponent.cpp:478`; `PluginProcessor::panic` | n/a | - | PARTIAL |
 | EN-73 (§18) | Latency = body + cab + oversampling + lookahead — limiter lookahead / oversampler real delay not reported here | `LuthierEngine::getLatencySamples` | n/a | `Engine.latencyIsReportedAndPlausible` | OWNED (on visual 3e5c493: `Latency.anImpulseArrivesWhenReported`, `Latency.oversamplerReportsItsGroupDelay`) |
 | EN-74 (§19) | Unit: String pitch/decay/bend | `StringEngine` | n/a | `StringEngine.pluckProducesCorrectPitch`, `StringEngine.higherNotesDecayFaster`, `StringEngine.bendIsSmoothAndReachesTarget` | DONE |
-| EN-75 (§19) | Unit: every tuning within 0.1 c — only standard tuning checked at 0.1 c | `TuningEngine` | n/a | `Tuning.standardTuningIsExact`, `Tuning.everyPresetProducesSaneFrequencies` | PARTIAL |
+| EN-75 (§19) | Unit: every tuning within 0.1 c — only standard tuning checked at 0.1 c | `TuningEngine` | n/a | `Tuning::everyPresetIsExactToATenthOfACent`, `Tuning.standardTuningIsExact`, `Tuning.everyPresetProducesSaneFrequencies` | DONE |
 | EN-76 (§19) | Unit: each technique from MIDI | `TechniqueEngine` | n/a | `Technique.*`, `TechniqueTriggers.*` | DONE |
-| EN-77 (§19) | Unit: pickup comb, resonance f0 **and Q** — Q unchecked | `PickupEngine` | n/a | `Pickup.positionCombNullsTheExpectedHarmonic`, `Pickup.resonantFrequencyMatchesTheLcrValues` | PARTIAL |
+| EN-77 (§19) | Unit: pickup comb, resonance f0 **and Q** — Q unchecked | `PickupEngine` | n/a | `Pickup::resonantQMatchesTheLcrValues`, `Pickup.positionCombNullsTheExpectedHarmonic`, `Pickup.resonantFrequencyMatchesTheLcrValues` | DONE |
 | EN-78 (§19) | Unit: TransTrem keeps intervals | `WhammyEngine` | n/a | `Whammy.transTremPreservesChordIntervals` | DONE |
 | EN-79 (§19) | Unit: body IR loads correctly; modal frequencies | `BodyEngine` | n/a | `Body.modalBankReproducesTheAirResonance` (modal only) | OWNED (on visual 6b41cf2: `IrReload.theFirstNoteAfterALoadIsEveryNote`) |
 | EN-80 (§19) | Unit: amp stage harmonic content | `AmpEngine` | n/a | `Amp.gainProducesHarmonicDistortion` | OWNED (on visual: EffectsQaTests Amp.*) |
@@ -113,4 +113,4 @@ Items on `visual`: the whole-block allocation trap, the limiter-lookahead latenc
 | EN-94 (§22) | Preset load < 500 ms incl. async IR | `PresetManager::fromVar`; IR installers | n/a | - | NO-TEST |
 | EN-95 (§22) | MIDI in → audio out < 2 ms (+ reported latency) | `MidiInterpreter` sample-accurate events; chord window | n/a | `Controllers.chordGroupsSoundOneWindowAfterTheyWerePlayed` | NO-TEST |
 
-<!-- counts DONE=59 NO-GUI=7 NO-TEST=9 PARTIAL=8 MISSING=2 OWNED=10 -->
+<!-- counts DONE=62 NO-GUI=7 NO-TEST=8 PARTIAL=6 MISSING=2 OWNED=10 -->
