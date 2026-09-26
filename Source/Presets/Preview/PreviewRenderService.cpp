@@ -63,8 +63,25 @@ PreviewRenderService::~PreviewRenderService()
     renderer.releaseInstance();
 }
 
+namespace
+{
+    juce::File& shippedOverride()
+    {
+        static juce::File f;
+        return f;
+    }
+}
+
+void PreviewRenderService::setShippedFolderOverride (const juce::File& folder)
+{
+    shippedOverride() = folder;
+}
+
 juce::File PreviewRenderService::getShippedFolder()
 {
+    if (shippedOverride() != juce::File())
+        return shippedOverride();
+
     const auto resources = IrLibrary::getResourcesFolder();
     return resources == juce::File() ? juce::File()
                                      : resources.getChildFile ("Presets").getChildFile ("Previews");

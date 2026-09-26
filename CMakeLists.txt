@@ -117,6 +117,8 @@ endif()
 # WAV files every time.
 #==============================================================================
 set(LUTHIER_RESOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Resources")
+set(LUTHIER_GENERATED_PRESETS "${CMAKE_BINARY_DIR}/generated/Presets")   # FEAT-BROWSER
+file(MAKE_DIRECTORY "${LUTHIER_GENERATED_PRESETS}")
 
 function(luthier_copy_resources target destination)
     if (TARGET ${target})
@@ -130,6 +132,10 @@ function(luthier_copy_resources target destination)
             COMMAND ${CMAKE_COMMAND} -E make_directory "${destination}"
             COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
                     "${LUTHIER_RESOURCES}" "${destination}"
+            # preset-browser-previews.md 2 (FEAT-BROWSER): the factory previews
+            # scripts/render_previews.sh leaves in the build tree, when rendered.
+            COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+                    "${LUTHIER_GENERATED_PRESETS}" "${destination}/Presets"
             COMMENT "Copying Luthier resources to ${destination}"
             VERBATIM)
     endif()
@@ -173,7 +179,7 @@ endif()
 # reference to the editor.
 set(LUTHIER_ENGINE_SOURCES ${LUTHIER_SOURCES})
 list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "Source/UI/")
-list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor\.(cpp|h)$")
+list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor[A-Za-z]*\.(cpp|h)$")   # FEAT-BROWSER: PluginEditorOnboarding/Tune too
 
 # The UI, as its own list. The renderer does not want it - it renders offline and
 # has no window - but the test runner does. With Source/UI out of every target
@@ -181,7 +187,7 @@ list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor\.(cpp|h)$")
 # LuthierAudioProcessorEditor, and the panels could be verified only by opening
 # the plugin in a host by hand.
 set(LUTHIER_UI_SOURCES ${LUTHIER_SOURCES})
-list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor\.(cpp|h)$")
+list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor[A-Za-z]*\.(cpp|h)$")
 
 set(LUTHIER_CONSOLE_DEFS
     LUTHIER_HEADLESS=1
@@ -242,7 +248,10 @@ if (LUTHIER_BUILD_CLI)
 
     target_sources(LuthierRender PRIVATE
                    ${LUTHIER_ENGINE_SOURCES}
-                   "${CMAKE_CURRENT_SOURCE_DIR}/Tools/RenderCli.cpp")
+                   "${CMAKE_CURRENT_SOURCE_DIR}/Tools/RenderCli.cpp"
+                   # PresetManager reads a UiPreferences key (REALISM-C); the store is
+                   # juce_core only, so the CLI builds it too (FEAT-BROWSER).
+                   "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/UiPreferences.cpp")
 
     target_include_directories(LuthierRender PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
     target_compile_definitions(LuthierRender PRIVATE ${LUTHIER_CONSOLE_DEFS})

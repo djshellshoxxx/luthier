@@ -25,6 +25,7 @@
 #include "../Source/Support/AudioExporter.h"
 #include "../Source/Support/IrLibrary.h"
 #include "../Source/Rhythm/GenreKit.h"
+#include "../Source/Presets/Preview/FactoryPreviews.h"   // preset-browser-previews.md 2 (FEAT-BROWSER)
 
 using namespace luthier;
 
@@ -113,6 +114,7 @@ struct Options
     bool showHelp = false;
 
     juce::File writeRhythmResourcesTo;
+    juce::File renderPreviewsTo;   // preset-browser-previews.md 2
 };
 
 void printUsage()
@@ -141,6 +143,11 @@ void printUsage()
         "  --tail <seconds>         extra time after the last note, default 4\n"
         "  --tempo <bpm>            for tempo-synced effects, default 120\n"
         "  --normalise [dBFS]       normalise the result, default target -1 dBFS\n"
+        "\n"
+        "PRESET PREVIEWS\n"
+        "  --render-previews <dir>  render every factory preset's preview into\n"
+        "                           <dir>/Previews (Ogg + previews.json) and write\n"
+        "                           <dir>/descriptor-calibration.json\n"
         "\n"
         "INFORMATION\n"
         "  --list-presets           list every preset that can be loaded\n"
@@ -180,6 +187,7 @@ bool parseArguments (int argc, char* argv[], Options& options)
         else if (arg == "--list-presets")              options.listPresets = true;
         else if (arg == "--list-guitars")              options.listGuitars = true;
         else if (arg == "--list-phrases")              options.listPhrases = true;
+        else if (arg == "--render-previews")           options.renderPreviewsTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
         else if (arg == "--write-rhythm-resources")    options.writeRhythmResourcesTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
         else if (arg == "--normalise" || arg == "--normalize")
         {
@@ -624,6 +632,30 @@ int main (int argc, char* argv[])
     if (options.showHelp || argc == 1)
     {
         printUsage();
+        return 0;
+    }
+
+    // preset-browser-previews.md 2: the factory previews, through the plugin's own
+    // PreviewRenderer (a headless LuthierAudioProcessor per preset), so the CLI
+    // and the plugin render identically.
+    if (options.renderPreviewsTo != juce::File())
+    {
+        PreviewRenderer renderer;
+        const auto bank = FactoryPreviews::renderBank (renderer, [] (int done, int total, const juce::String& name)
+        {
+            std::cout << "  [" << (done + 1) << "/" << total << "] " << name << std::endl;
+        });
+
+        juce::String error;
+
+        if (! FactoryPreviews::write (bank, options.renderPreviewsTo, error))
+        {
+            std::cerr << "Could not write the previews: " << error << std::endl;
+            return 1;
+        }
+
+        std::cout << "Wrote " << bank.size() << " previews to "
+                  << options.renderPreviewsTo.getChildFile ("Previews").getFullPathName() << std::endl;
         return 0;
     }
 

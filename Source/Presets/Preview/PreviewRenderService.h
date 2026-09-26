@@ -90,6 +90,9 @@ public:
 
     /** The shipped factory previews (5.3), read once. */
     static juce::File getShippedFolder();
+
+    /** Tests: where every new service looks for shipped clips (empty restores). */
+    static void setShippedFolderOverride (const juce::File& folder);
     void setShippedFolderForTesting (const juce::File& folder);
 
     /** How many renders this service has actually run (PB-17). */

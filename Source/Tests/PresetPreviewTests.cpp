@@ -343,6 +343,7 @@ namespace
         explicit Rig (bool perString = false, bool aux = false)
         {
             PreviewCache::setDefaultFolderOverride (scratch.folder.getChildFile ("cache"));
+            PreviewRenderService::setShippedFolderOverride (scratch.folder.getChildFile ("no-shipped-previews"));
             PresetLibraryPrefs::get().setFile (scratch.folder.getChildFile ("preset-library.json"));
 
             if (auto* h = p.getState().getParameter (ParamIDs::macroHumanize))
@@ -372,6 +373,7 @@ namespace
         ~Rig()
         {
             PreviewCache::setDefaultFolderOverride ({});
+            PreviewRenderService::setShippedFolderOverride ({});
             PresetLibraryPrefs::get().setFile ({});
         }
 
@@ -1333,4 +1335,137 @@ LUTHIER_TEST (PresetPreview, PB26_uidAndPreviewPhraseRoundTrip)
     CHECK (! init->file.loadFileAsString().contains ("\"uid\""));
 
     file.deleteFile();
+}
+
+//==============================================================================
+// Editions and combinations
+//==============================================================================
+
+/*  5.3 / 12: factory presets play from the shipped clips without a render -
+    the path a Free build takes for the 20 Pro presets it cannot render. (The
+    Free build itself, and so PB-35, waits on editions.md.) */
+LUTHIER_TEST (PresetPreview, shippedClipsPlayWithoutRendering)
+{
+    Rig rig;
+    juce::String error;
+    CHECK_MSG (FactoryPreviews::write (factoryCorpus().bank, rig.scratch.folder.getChildFile ("Shipped"), error), error);
+    PreviewRenderService::setShippedFolderOverride (rig.scratch.folder.getChildFile ("Shipped").getChildFile ("Previews"));
+
+    // The installed factory file as this build writes it (a file written by an
+    // older build, with fewer parameters, is "edited" and rightly ignored).
+    auto& manager = rig.p.getPresetManager();
+    const int managerIndex = manager.indexOfPreset ("Modern Metal Chug");
+    CHECK (managerIndex >= 0);
+
+    for (int i = 0; i < FactoryPresets::getNumPresets(); ++i)
+        if (juce::String (FactoryPresets::getPreset (i).name) == "Modern Metal Chug" && managerIndex >= 0)
+            manager.getPreset (managerIndex)->file.replaceWithText (
+                juce::JSON::toString (FactoryPresets::toVar (FactoryPresets::getPreset (i), rig.p), false));
+
+    auto& library = rig.p.getPresetLibrary();
+    library.refreshSynchronously();
+    const int entry = library.getIndex().indexOfName ("Modern Metal Chug");
+    CHECK (entry >= 0);
+
+    PreviewRenderService::Ready got;
+    library.onPreviewReady = [&got] (const PreviewRenderService::Ready& r) { got = r; };
+
+    runAudio (rig.p);
+    juce::String hint;
+    CHECK (library.play (entry, true, hint));
+    CHECK (waitFor ([&] { runAudio (rig.p, 1); return rig.p.getPreviewPlayer().isActive(); }, 5000));
+    CHECK (got.ok && got.fromShipped && ! got.stale);
+    CHECK (library.getService().getNumRenders() == 0);
+
+    // The shipped features stand in for a local analysis.
+    CHECK (library.getIndex()[entry].isAnalysed());
+    CHECK (library.getIndex()[entry].descriptors.contains ("high-gain"));
+}
+
+/*  PB-36: a preview during Morph, tune playback (with whileTransport on), live
+    slide mode, an active mod matrix and a MIDI Learn arm leaves every live
+    module's output unchanged. */
+LUTHIER_TEST (PresetPreview, PB36_combinations)
+{
+    Rig with (true, true), without (true, true);
+
+    for (auto* r : { &with, &without })
+    {
+        auto& p = r->p;
+        auto& manager = p.getPresetManager();
+
+        // Morph between two factory presets.
+        auto& morph = p.getPresetMorph();
+        CHECK (manager.loadPreset (manager.indexOfPreset ("Surf Reverb")));
+        morph.setSlot (PresetMorph::slotA, manager.toVar(), "Surf Reverb");
+        CHECK (manager.loadPreset (manager.indexOfPreset ("Blues Slide")));
+        morph.setSlot (PresetMorph::slotB, manager.toVar(), "Blues Slide");
+        morph.setEnabled (true);
+        p.getParameterBridge().applyAllNow();
+
+        if (auto* position = p.getState().getParameter (ParamIDs::presetMorphPosition))
+            position->setValueNotifyingHost (0.4f);
+
+        p.updatePresetMorph();
+
+        // Slide mode, a modulation route and an armed MIDI Learn.
+        if (auto* slide = p.getState().getParameter (ParamIDs::slideGuitar))
+            slide->setValueNotifyingHost (1.0f);
+
+        ModRoute route;
+        route.sourceId = "lfo1";
+        route.destinationId = ParamIDs::ampTreble;
+        route.depth = 0.5f;
+        p.getModMatrix().addRoute (route);
+        p.getMidiLearn().setArmed (true);
+
+        // The tune plays.
+        p.getTunePlayer().play();
+        p.getParameterBridge().applyAllNow();
+        p.prepareToPlay (kSr, kBlock);
+    }
+
+    // With whileTransport on, the gate lets a preview play under the tune.
+    auto& library = with.p.getPresetLibrary();
+    auto settings = library.getSettings();
+    settings.whileTransport = true;
+    library.setSettings (settings);
+
+    juce::MidiBuffer notes;
+    notes.addEvent (juce::MidiMessage::noteOn (1, 50, (juce::uint8) 100), 0);
+    notes.addEvent (juce::MidiMessage::noteOn (1, 57, (juce::uint8) 90), 0);
+
+    double worst = 0.0;
+
+    for (int b = 0; b < 60; ++b)
+    {
+        if (b == 8)
+        {
+            CHECK (library.whyBlocked (true).isEmpty() || library.whyBlocked (true).startsWith ("Previews wait"));
+            with.p.getPreviewPlayer().start (with.clip());
+        }
+
+        auto& a = with.block (b == 0 ? notes : juce::MidiBuffer());
+        auto& n = without.block (b == 0 ? notes : juce::MidiBuffer());
+
+        for (int bus = 1; bus < with.p.getBusCount (false); ++bus)
+        {
+            auto ba = with.p.getBusBuffer (a, false, bus);
+            auto bn = without.p.getBusBuffer (n, false, bus);
+
+            for (int ch = 0; ch < ba.getNumChannels(); ++ch)
+                for (int i = 0; i < kBlock; ++i)
+                    worst = juce::jmax (worst, (double) std::abs (ba.getSample (ch, i) - bn.getSample (ch, i)));
+        }
+    }
+
+    CHECK_MSG (worst == 0.0, "a live module's output moved by " + juce::String (worst));
+    CHECK (with.p.getPreviewPlayer().isActive());
+    CHECK (with.p.getMidiLearn().isArmed());   // the preview did not take the learn
+
+    for (auto* r : { &with, &without })
+    {
+        r->p.getTunePlayer().stop();
+        r->p.getMidiLearn().setArmed (false);
+    }
 }

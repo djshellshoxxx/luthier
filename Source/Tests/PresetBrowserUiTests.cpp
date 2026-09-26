@@ -78,6 +78,7 @@ namespace
                      int height = LuthierAudioProcessorEditor::defaultHeight)
         {
             PreviewCache::setDefaultFolderOverride (scratch.folder.getChildFile ("cache"));
+            PreviewRenderService::setShippedFolderOverride (scratch.folder.getChildFile ("no-shipped-previews"));
             PresetLibraryPrefs::get().setFile (scratch.folder.getChildFile ("preset-library.json"));
 
             for (const auto& k : guard.keys)
@@ -95,6 +96,7 @@ namespace
         {
             editor.reset();
             PreviewCache::setDefaultFolderOverride ({});
+            PreviewRenderService::setShippedFolderOverride ({});
             PresetLibraryPrefs::get().setFile ({});
         }
 
