@@ -451,11 +451,13 @@ LUTHIER_TEST (Theme, theHeaderCarriesPresetSelectorAndAB)
     CHECK (header.getCompareAButton().isVisible());
     CHECK (header.getCompareBButton().isVisible());
 
+    // Not triggerClick(): that posts a message a console test never pumps.
+    // onClick is the same callback a real click calls.
     CHECK (! processor.isSlotBActive());
-    header.getCompareBButton().triggerClick();
+    header.getCompareBButton().onClick();
     CHECK (processor.isSlotBActive());
 
-    header.getCompareAButton().triggerClick();
+    header.getCompareAButton().onClick();
     CHECK (! processor.isSlotBActive());
 }
 
