@@ -13,12 +13,14 @@
 #include "UI/Overlays.h"
 #include "UI/Notifications.h"
 #include "Export/MidiImportTargets.h"   // midi-export 5 (MODEL-GAPS)
+#include "UI/Onboarding.h"
 
 namespace luthier
 {
 
 //==============================================================================
 class LuthierAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                    public juce::DragAndDropContainer,   // gui-integration 11.2: drag-to-modulate
                                     public juce::FileDragAndDropTarget,   // midi-export 5 (MODEL-GAPS)
                                     private juce::Timer,
                                     private juce::ChangeListener
@@ -73,6 +75,29 @@ public:
         difference between "opened it" and "that page does not exist here". */
     bool showOptionsPage (const juce::String& tabName);
 
+    //==========================================================================
+    // onboarding.md 2-4 (TUNE-HELP-ONBOARDING; PluginEditorOnboarding.cpp).
+
+    /** Starts the tour (the welcome banner's Yes, Help -> Take the tour). */
+    void startTour();
+    TourOverlay& getTour() noexcept                { return tour; }
+    WelcomeBanner& getWelcomeBanner() noexcept     { return welcomeBanner; }
+    DiscoveryLayer& getDiscoveryLayer() noexcept   { return discovery; }
+    DiscoveryTooltip& getRandomiseTooltip() noexcept { return randomiseTooltip; }
+
+    /** Where a tour stop points, in this component's coordinates. */
+    juce::Rectangle<int> findTourTarget (const juce::String& stepId);
+
+    /** Makes a stop's target visible: Advanced for the column stops, LIVE for snapshots. */
+    void prepareTourStep (const juce::String& stepId);
+
+    /** Records the launch and puts up the welcome banner if one is due. */
+    void runWelcome();
+
+    /** gui-integration 17 "New tune" (Ctrl+T): the TUNE tab, with its New menu.
+        Returns the tab's panel, or nullptr when it cannot be shown. */
+    TunePanel* openNewTune();
+
 private:
     void timerCallback() override;
 
@@ -80,6 +105,13 @@ private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void setAdvancedMode (bool advanced);
     void showOverlay (OverlayPanel* panel);
+
+    /** gui-integration 17 (W) and the header wrench: the Workshop on, or off
+        again back to the tab or window it came from. VISUAL-WORKSHOP-QA. */
+    void toggleWorkshop();
+    int tabBeforeWorkshop = -1;
+    bool newDotsApplied = false;   // gui-integration 20
+    bool cpuLimitEpisode = false;   ///< performance-budget.md 8: the CPU limit banner, once per episode
 
     /** guitar-workshop.md 6 (Ctrl+G): asks for a name and saves the guitar. */
     void showSaveGuitarDialog();
@@ -142,7 +174,21 @@ private:
     WorkshopOverlay workshopOverlay;
     SecretPanel secretPanel;
 
+    // onboarding.md 2-4 (TUNE-HELP-ONBOARDING).
+    void setupOnboarding();
+
+    /** onboarding 1: a fresh install starts on the rock overdrive preset. */
+    void applyFirstRunPreset();
+    WelcomeBanner welcomeBanner;
+    TourOverlay tour;
+    DiscoveryLayer discovery;
+    DiscoveryTooltip randomiseTooltip;
+
     juce::TextButton chordButton { "Chords / Tab" };
+
+    /** gui-integration 1 / 12: the footer's scrolling data stream (Options ->
+        Appearance can hide it). VISUAL-WORKSHOP-QA. */
+    DataStreamDisplay dataStream;
 
     bool advancedMode = false;
     bool secretHovered = false;
@@ -151,6 +197,8 @@ private:
         is not reposted. Without these, dismissing a banner about a preset that
         still will not load would put it straight back on screen. */
     juce::String reportedPresetError, reportedIrError;
+    juce::uint32 seenMigrationGeneration = 0;   // installer.md 8
+    bool migrationBannerShown = false;
 
     /** Remembered so the layout is only redone when Live Mode actually changes. */
     bool liveModeShown = false;

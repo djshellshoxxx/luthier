@@ -1,4 +1,5 @@
 #include "AdvancedPanel.h"
+#include "Onboarding.h"
 #include "UiPreferences.h"
 #include "RangesUi.h"
 #include "OptionsPages.h"
@@ -147,7 +148,57 @@ void AdvancedPanel::Column::addSection (const juce::String& heading)
     Item item;
     item.heading = heading;
     item.height = 24;
+
+    // gui-integration 20 (TUNE-HELP-ONBOARDING): a ? on every section heading.
+    item.help = helpButtons.add (new PanelHelpButton (heading));
+    item.help->onHelp = [this] (const juce::String& topic)
+    {
+        if (onHelp != nullptr)
+            onHelp (topic);
+    };
+    addAndMakeVisible (item.help);
+
     items.add (item);
+}
+
+juce::String AdvancedPanel::Column::getSectionAt (int y) const
+{
+    int top = Metrics::grid;
+    juce::String heading;
+
+    for (const auto& item : items)
+    {
+        if (item.heading.isNotEmpty())
+            heading = item.heading;
+
+        top += item.height + Metrics::gridHalf;
+
+        if (y < top)
+            break;
+    }
+
+    return heading;
+}
+
+void AdvancedPanel::Column::mouseDown (const juce::MouseEvent& e)
+{
+    // gui-integration 16: a panel's empty area offers its Docs.
+    if (! e.mods.isPopupMenu())
+        return;
+
+    const auto section = getSectionAt (e.y);
+
+    if (section.isEmpty())
+        return;
+
+    juce::PopupMenu menu;
+    menu.addItem (1, "Docs: " + section);
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
+                        [safe = juce::Component::SafePointer<Column> (this), section] (int result)
+    {
+        if (safe != nullptr && result == 1 && safe->onHelp != nullptr)
+            safe->onHelp (section);
+    });
 }
 
 void AdvancedPanel::Column::addControl (juce::Component* component, int height)
@@ -180,6 +231,11 @@ int AdvancedPanel::Column::layout (int width)
         if (item.component != nullptr)
             item.component->setBounds (Metrics::grid, y,
                                        juce::jmax (40, width - Metrics::grid * 2), item.height);
+
+        if (item.help != nullptr)
+            item.help->setBounds (width - Metrics::grid - PanelHelpButton::kSize,
+                                  y + (item.height - PanelHelpButton::kSize) / 2 - 1,
+                                  PanelHelpButton::kSize, PanelHelpButton::kSize);
 
         y += item.height + Metrics::gridHalf;
     }
@@ -244,6 +300,12 @@ AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (fretboard);
     fretboard.setCompact (true);
 
+    // piano-roll-chord-display.md 1: the piano roll, directly under the fretboard.
+    pianoRoll = std::make_unique<PianoRollStrip> (processor, true);
+    pianoRoll->setFretboard (&fretboard);
+    pianoRoll->onLayoutChanged = [this] { resized(); repaint(); };
+    addChildComponent (*pianoRoll);
+
     fretboard.onStringSelected = [this] (int s) { setSelectedString (s); };
     guitarBody.onPickupSelected = [this] (int) {};
 
@@ -252,6 +314,7 @@ AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
     for (int i = 0; i < 3; ++i)
     {
         columns[i] = std::make_unique<Column> (titles[i]);
+        columns[i]->onHelp = [this] (const juce::String& topic) { showHelp (topic); };   // gui-integration 20
 
         viewports[i].setViewedComponent (columns[i].get(), false);
         viewports[i].setScrollBarsShown (true, false);
@@ -262,6 +325,10 @@ AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
     workspaceViewport.setScrollBarsShown (true, false);
     workspaceViewport.setScrollBarThickness (8);
     addAndMakeVisible (workspaceViewport);
+
+    // gui-integration 20 (TUNE-HELP-ONBOARDING): the workspace panel's ?.
+    addAndMakeVisible (workspaceHelp);
+    workspaceHelp.onHelp = [this] (const juce::String& topic) { showHelp (topic); };
 
     buildColumn1();
     buildColumn2();
@@ -400,6 +467,11 @@ void AdvancedPanel::buildColumn1()
     addKnob (airGain, "Air", ParamIDs::bodyAirGain,
              "Emphasis on the air resonance: the boom of the box");
 
+    // body-coupling.md 5: the body's return path onto the strings.
+    addKnob (bodyCoupling, "Coupling", ParamIDs::bodyCouplingAmount,
+             "How much the body pushes back on the strings: wolf notes, tap tones and ring "
+             "through the body. The modes and the wolf map are on the CHARACTER tab.");
+
     bracing = std::make_unique<LuthierChoice> ("Bracing");
     bracing->attachTo (processor, ParamIDs::bodyBracing,
                        "Bracing stiffens the top, which raises every plate mode");
@@ -439,11 +511,14 @@ void AdvancedPanel::buildColumn1()
                            "the wire diameter and the scale length.");
     column.addControl (stringGauge.get(), 36);
 
-    stringAge = std::make_unique<LuthierChoice> ("Age");
-    stringAge->attachTo (processor, ParamIDs::stringAge,
-                         "Fresh strings are bright and squeaky; old ones are dull, die sooner "
-                         "and drift out of tune.");
-    column.addControl (stringAge.get(), 36);
+    // string-aging.md 7: the age slider is the set's hours now (string_age
+    // stays in the layout, inert, for old presets).
+    stringAgeHours = std::make_unique<LuthierKnob> ("Age (h)");
+    stringAgeHours->attachTo (processor, ParamIDs::stringAgeHours,
+                              "Hours played: Fresh 0, Broken in 12, Old 120. Fresh strings are bright and "
+                              "zingy; old ones are dull, die sooner and play sharp up the neck. "
+                              "Per-string aging is on the CHARACTER tab.");
+    column.addControl (stringAgeHours.get(), LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
 
     column.addGap (Metrics::gridHalf);
 
@@ -452,6 +527,10 @@ void AdvancedPanel::buildColumn1()
                        "Scales every string's decay time. Higher notes still die sooner than "
                        "low ones, as they do on a real instrument.");
     column.addControl (sustain.get(), LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
+
+    // sustain-and-decay.md 8: the DECAY row - the style and the decay sketch.
+    decayRow = std::make_unique<DecayRow> (processor);
+    column.addControl (decayRow.get(), DecayRow::preferredHeight);
 
     column.addGap (Metrics::grid);
     column.addSection ("Tuning Realism");
@@ -1012,6 +1091,33 @@ juce::String AdvancedPanel::Column::getSectionContaining (const juce::Component*
     return {};
 }
 
+std::vector<PanelHelpButton*> AdvancedPanel::getHelpButtons() const
+{
+    std::vector<PanelHelpButton*> result;
+
+    for (const auto& column : columns)
+        if (column != nullptr)
+            for (auto* b : column->helpButtons)
+                result.push_back (b);
+
+    result.push_back (const_cast<PanelHelpButton*> (&workspaceHelp));
+    return result;
+}
+
+juce::Component* AdvancedPanel::getColumnViewport (int column) noexcept
+{
+    return juce::isPositiveAndBelow (column, 3) ? &viewports[column] : nullptr;
+}
+
+juce::Button* AdvancedPanel::getWorkspaceTabButton (const juce::String& tabName) const
+{
+    for (auto* tab : workspaceTabs)
+        if (tab->getButtonText().equalsIgnoreCase (tabName))
+            return tab;
+
+    return nullptr;
+}
+
 bool AdvancedPanel::isWorkshopShowing() const noexcept
 {
     return workshopPanel != nullptr && juce::isPositiveAndBelow (workspaceTab, workspacePanels.size())
@@ -1060,7 +1166,12 @@ void AdvancedPanel::buildWorkspace()
         if (juce::String (tab.name) == "CHARACTER")
             made = new RangesUi::RangeTabButton (tab.name, processor,
                                                  { RangeFamily::pick, RangeFamily::squeak,
-                                                   RangeFamily::buzz, RangeFamily::slide });
+                                                   RangeFamily::buzz, RangeFamily::slide,
+                                                   // REALISM-A: string-aging 7, environment 7, body-coupling 5
+                                                   RangeFamily::strings, RangeFamily::environment, RangeFamily::body });
+        else if (juce::String (tab.name) == "WORKSHOP")   // gui-integration 21: the bench's setup strip, pick and slide
+            made = new RangesUi::RangeTabButton (tab.name, processor,
+                                                 { RangeFamily::buzz, RangeFamily::pick, RangeFamily::slide });
         else
             made = new juce::TextButton (tab.name);
 
@@ -1153,7 +1264,12 @@ void AdvancedPanel::showWorkspaceTab (int index, bool remember)
     {
         UiPreferences::get().setInt (workspaceTabPreferenceKey, workspaceTab);
         UiPreferences::get().setString (workspaceTabNamePreferenceKey, getWorkspaceTabName (workspaceTab));
+        Onboarding::markTabOpened (getWorkspaceTabName (workspaceTab));   // onboarding 4
     }
+
+    // gui-integration 20: the ? follows the tab; HELP needs none.
+    workspaceHelp.setTopic (getWorkspaceTabName (workspaceTab));
+    workspaceHelp.setVisible (getWorkspaceTabName (workspaceTab) != "HELP");
 
     for (int i = 0; i < workspaceTabs.size(); ++i)
         workspaceTabs[i]->setToggleState (i == workspaceTab, juce::dontSendNotification);
@@ -1190,7 +1306,7 @@ void AdvancedPanel::paint (juce::Graphics& g)
     g.fillAll (Palette::background);
 
     auto bounds = getLocalBounds().reduced (Metrics::windowPadding, Metrics::grid);
-    const int stripHeight = juce::roundToInt (bounds.getHeight() * 0.25f);
+    const int stripHeight = getGuitarStripHeight (bounds.getHeight());
     auto columnsArea = bounds.withTrimmedTop (stripHeight + Metrics::grid);
 
     g.setColour (Palette::edge);
@@ -1202,16 +1318,31 @@ void AdvancedPanel::paint (juce::Graphics& g)
         g, { bounds.getX(), bounds.getY() + stripHeight + 2, bounds.getWidth(), 1 });
 }
 
+int AdvancedPanel::getGuitarStripHeight (int boundsHeight) const
+{
+    const int rollHeight = pianoRoll != nullptr && pianoRoll->isWanted() ? pianoRoll->getPreferredHeight() + Metrics::gridHalf : 0;
+    return juce::roundToInt ((float) boundsHeight * 0.25f) + rollHeight;
+}
+
 void AdvancedPanel::resized()
 {
     auto bounds = getLocalBounds().reduced (Metrics::windowPadding, Metrics::grid);
 
     // ---- the compressed guitar strip ---------------------------------------------
-    const int stripHeight = juce::roundToInt (bounds.getHeight() * 0.25f);
+    const int stripHeight = getGuitarStripHeight (bounds.getHeight());
     auto strip = bounds.removeFromTop (stripHeight);
 
     auto guitarArea = strip.removeFromLeft (juce::jmin (260, strip.getWidth() / 3));
     guitarBody.setBounds (guitarArea);
+
+    // piano-roll-chord-display.md 1: the roll under the fretboard, its full width.
+    if (pianoRoll != nullptr)
+    {
+        pianoRoll->setVisible (pianoRoll->isWanted());
+
+        if (pianoRoll->isVisible())
+            pianoRoll->setBounds (strip.removeFromBottom (pianoRoll->getPreferredHeight()).reduced (Metrics::grid, 0));
+    }
 
     fretboard.setBounds (strip.reduced (Metrics::grid, Metrics::gridHalf));
 
@@ -1275,19 +1406,52 @@ void AdvancedPanel::resized()
     // ---- column 4: the tab strip, then whichever panel it selected ------------------
     workspaceLeft = bounds.getX();
 
-    auto tabStrip = bounds.removeFromTop (Metrics::buttonHeight);
+    // gui-integration 20: the workspace's ? at the end of the (first) tab row.
+    workspaceHelp.setBounds (bounds.withHeight (Metrics::buttonHeight).removeFromRight (Metrics::buttonHeight)
+                                     .withSizeKeepingCentre (PanelHelpButton::kSize + 2, PanelHelpButton::kSize + 2));
+    const int tabsRight = bounds.getRight() - Metrics::buttonHeight - Metrics::gridHalf;
+    workspaceTabStrip = bounds.withHeight (Metrics::buttonHeight).withRight (tabsRight);
 
     if (! workspaceTabs.isEmpty())
     {
+        /*  The strip wraps onto more rows when one row would clip the names
+            (TODO V screenshots: at 1280 the tabs read "NE MATC", "HARACTE").
+            A tab wants its widest name plus padding. */
         const int gap = Metrics::gridHalf;
-        const int width = (tabStrip.getWidth() - gap * (workspaceTabs.size() - 1))
-                            / workspaceTabs.size();
+        const int count = workspaceTabs.size();
+        const auto font = Fonts::ui (11.0f, true);
+        const int available = tabsRight - bounds.getX();
+        int wanted = 0;
 
         for (auto* tab : workspaceTabs)
+            wanted = juce::jmax (wanted, juce::roundToInt (font.getStringWidthFloat (tab->getButtonText().toUpperCase())) + 14);
+
+        const int perRowMax = juce::jmax (1, (available + gap) / (wanted + gap));
+        const int rows = (count + perRowMax - 1) / perRowMax;
+        const int perRow = (count + rows - 1) / rows;
+        int next = 0;
+
+        for (int r = 0; r < rows; ++r)
         {
-            tab->setBounds (tabStrip.removeFromLeft (width));
-            tabStrip.removeFromLeft (gap);
+            auto tabStrip = bounds.removeFromTop (Metrics::buttonHeight).withRight (tabsRight);
+            const int inRow = juce::jmin (perRow, count - next);
+            const int width = (tabStrip.getWidth() - gap * (perRow - 1)) / perRow;
+
+            for (int i = 0; i < inRow; ++i)
+            {
+                workspaceTabs[next++]->setBounds (tabStrip.removeFromLeft (width));
+                tabStrip.removeFromLeft (gap);
+            }
+
+            workspaceTabStrip = workspaceTabStrip.getUnion (tabStrip.withX (workspaceTabStrip.getX()));
+
+            if (r < rows - 1)
+                bounds.removeFromTop (2);
         }
+    }
+    else
+    {
+        bounds.removeFromTop (Metrics::buttonHeight);
     }
 
     bounds.removeFromTop (Metrics::gridHalf);
@@ -1297,11 +1461,28 @@ void AdvancedPanel::resized()
     // The panel keeps whatever height it asked for and takes the viewport's
     // width, so the workspace scrolls vertically exactly as a column does. The
     // bench fills the space instead: it is one surface, not a list.
+    /*  Panels that size themselves (a preferred height from their content) keep
+        it; the rest fill the viewport. They used to keep "whatever height they
+        had", which for panels that never set one was the 80-point floor, so they
+        rendered as a sliver (TODO V screenshots). */
     if (auto* panel = workspaceViewport.getViewedComponent())
-        panel->setSize (juce::jmax (80, workspaceViewport.getMaximumVisibleWidth()),
-                        workshop ? juce::jmax (560, workspaceViewport.getMaximumVisibleHeight())
-                                 : panel == helpTab.get() ? juce::jmax (360, workspaceViewport.getMaximumVisibleHeight())
-                                                          : juce::jmax (80, panel->getHeight()));
+    {
+        const int visible = workspaceViewport.getMaximumVisibleHeight();
+        int height = juce::jmax (80, visible);
+
+        if (workshop)
+            height = juce::jmax (440, visible);   // the bench fits a 1280x800 window without scrolling (TODO V)
+        else if (panel == helpTab.get())
+            height = juce::jmax (360, visible);
+        else if (auto* p = dynamic_cast<TunePanel*> (panel))                 height = juce::jmax (visible, p->getPreferredHeight());
+        else if (auto* p = dynamic_cast<MidiOutPanel*> (panel))              height = juce::jmax (visible, p->getPreferredHeight());
+        else if (auto* p = dynamic_cast<NotationPanel*> (panel))             height = juce::jmax (visible, p->getPreferredHeight());
+        else if (auto* p = dynamic_cast<PracticeSetupPanel*> (panel))        height = juce::jmax (visible, p->getPreferredHeight());
+        else if (panel == characterPanel.get() || panel == controllersPage.get())
+            height = juce::jmax (80, panel->getHeight());
+
+        panel->setSize (juce::jmax (80, workspaceViewport.getMaximumVisibleWidth()), height);
+    }
 }
 
 } // namespace luthier

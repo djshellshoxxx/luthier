@@ -130,7 +130,8 @@ StringSpec StringMaterials::computeSpec (StringMaterial material,
                                          int stringIndex,
                                          double targetHz,
                                          double scaleLengthMm,
-                                         double diameterInchesOverride) noexcept
+                                         double diameterInchesOverride,
+                                         int woundOverride) noexcept
 {
     const auto& mat = get (material);
     const auto& ageFx = kAgeEffects[(size_t) juce::jlimit (0, (int) StringAge::NumAges - 1, (int) age)];
@@ -153,6 +154,9 @@ StringSpec StringMaterials::computeSpec (StringMaterial material,
         wound = (stringIndex >= 3);
     else if (mat.alwaysWound)
         wound = true;
+
+    if (woundOverride >= 0)
+        wound = woundOverride == 1;
 
     spec.wound = wound;
     spec.coreDiameterMm = wound ? spec.diameterMm * mat.coreRatio : spec.diameterMm;
@@ -227,6 +231,9 @@ StringEngine::Physical StringMaterials::toPhysical (const StringSpec& spec, doub
     // Heavier strings drive the bridge harder, so they feed the sympathetic
     // coupling network more strongly.
     p.couplingSend = juce::jlimit (0.4, 1.6, std::pow (spec.linearDensity / 0.004, 0.30));
+
+    // body-coupling.md 3: the string's characteristic impedance at the bridge.
+    p.waveImpedance = std::sqrt (juce::jmax (0.0, spec.tensionNewtons) * juce::jmax (0.0, spec.linearDensity));
 
     return p;
 }

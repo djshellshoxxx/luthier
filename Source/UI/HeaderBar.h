@@ -73,8 +73,29 @@ public:
 
     void refreshPresetDisplay();
 
+    /** onboarding 3 and 4 (TUNE-HELP-ONBOARDING): the header controls the tour
+        and the first-week hints point at, by id. nullptr for an unknown id. */
+    juce::Component* getTourTarget (const juce::String& id) noexcept
+    {
+        if (id == "play")     return &led;
+        if (id == "preset")   return &presetName;
+        if (id == "mode")     return &modeButton;
+        if (id == "workshop") return &workshopButton;
+        if (id == "slide")    return &slideButton;
+        if (id == "options")  return &fileMenuButton;
+        if (id == "help")     return &helpButton;
+        return nullptr;
+    }
+
     void paint (juce::Graphics&) override;
     void resized() override;
+
+    /*  action-and-undo.md 1 / 9: File -> "Undo history...". The newest 20
+        entries, newest first; each item's id is 1 + the undos that reach the
+        state before it, and a boundary entry sits under a separator. */
+    static juce::PopupMenu buildUndoHistoryMenu (const LuthierAudioProcessor& processor);
+    static void applyUndoHistoryChoice (LuthierAudioProcessor& processor, int result);
+    void showUndoHistory();
 
 private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;

@@ -67,6 +67,7 @@ AuxStrip::AuxStrip (LuthierAudioProcessor& p, int busIndex)
 
     gain.onValueChange = [this]
     {
+        processor.pushUndoAction ("Change " + juce::String (getAuxBusName (bus)) + " gain", "routing-gain", juce::String (bus));   // action-and-undo.md
         routing().setAuxGainDb (bus, gain.getValue());
     };
 
@@ -137,11 +138,13 @@ void AuxStrip::mouseDown (const juce::MouseEvent& e)
 {
     if (muteBounds.contains (e.getPosition()))
     {
+        processor.pushUndoState ((routing().isAuxMuted (bus) ? "Unmute " : "Mute ") + juce::String (getAuxBusName (bus)));   // action-and-undo.md
         routing().setAuxMuted (bus, ! routing().isAuxMuted (bus));
         refresh();
     }
     else if (soloBounds.contains (e.getPosition()))
     {
+        processor.pushUndoState ("Solo " + juce::String (getAuxBusName (bus)));   // action-and-undo.md
         const bool wasSoloed = routing().isAuxSoloed (bus);
 
         // Plain click is exclusive solo; a modifier adds to the solo group, which
@@ -237,6 +240,7 @@ void PerStringStrip::mouseDown (const juce::MouseEvent& e)
     {
         if (cellBounds (s).contains (e.getPosition()))
         {
+            processor.pushUndoState ("Mute/unmute string " + juce::String (s + 1));   // action-and-undo.md
             processor.getRouting().setPerStringMuted (s, ! processor.getRouting().isPerStringMuted (s));
             repaint();
             return;
@@ -276,14 +280,24 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (*aux1PreCircuit);
 
     // --- sidechain ------------------------------------------------------------
+    // noise-floor.md 5: the "on Aux 8" switch, mirrored on the Aux 8 strip.
+    noiseFloorToAux8 = std::make_unique<LuthierToggle> ("AUX 8: + NOISE FLOOR");
+    noiseFloorToAux8->attachTo (processor, ParamIDs::noiseFloorToAux8,
+                                "Also put the rig's noise floor and the hum on Aux 8, to identify them. "
+                                "The same switch as CHARACTER's NOISE FLOOR group.");
+    addAndMakeVisible (*noiseFloorToAux8);
+
     sidechainToAmp = std::make_unique<LuthierToggle> ("SIDECHAIN TO AMP");
     sidechainToAmp->setTooltip ("Feeds the sidechain input into the amp in place of the "
                                 "strings, for re-amping a recorded DI.");
     sidechainToAmp->getButton().setClickingTogglesState (true);
     sidechainToAmp->getButton().onClick = [this]
     {
-        if (! updatingControls)
-            processor.getRouting().setSidechainToAmp (sidechainToAmp->getButton().getToggleState());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoState ("Toggle sidechain to amp");   // action-and-undo.md
+        processor.getRouting().setSidechainToAmp (sidechainToAmp->getButton().getToggleState());
     };
     addAndMakeVisible (*sidechainToAmp);
 
@@ -373,6 +387,7 @@ void RoutingPanel::updateMidiOutFromControls()
         cfg.macroCc[(size_t) m] = (id <= 1) ? -1 : id - 2;
     }
 
+    processor.pushUndoAction ("Change MIDI out", "routing-midi-out", "config");   // action-and-undo.md
     processor.getRouting().setMidiOutConfig (cfg);
     shownMidiOut = cfg;
 }
@@ -467,6 +482,7 @@ int RoutingPanel::preferredHeight() const
                  + 14                                 // latency readout
                  + kNumAuxStrips * AuxStrip::preferredHeight
                  + Metrics::buttonHeight + Metrics::gridHalf   // Aux 1 pre-circuit (MODEL-GAPS)
+                 + Metrics::buttonHeight               // Aux 8 noise-floor mirror (REALISM-C)
                  + Metrics::grid
                  + Metrics::buttonHeight               // sidechain toggle
                  + 18                                  // sidechain meter row
@@ -510,6 +526,7 @@ void RoutingPanel::resized()
 
     bounds.removeFromTop (Metrics::gridHalf);
     aux1PreCircuit->setBounds (bounds.removeFromTop (Metrics::buttonHeight));
+    noiseFloorToAux8->setBounds (bounds.removeFromTop (Metrics::buttonHeight));
 
     if (perStringStrip->isVisible())
     {

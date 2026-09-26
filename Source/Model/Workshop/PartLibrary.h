@@ -56,6 +56,21 @@ struct GuitarSetup
     juce::Array<double> intonationMm;
 };
 
+/*  workshop-ui.md 3.3 / guitar-illustration.md 10: one string of the set
+    changed without building a new set - a heavier third, a wound G on a set
+    with a plain one. Unset fields keep the set's value. The file keeps these
+    as `parts.strings.per_string_override` (file-formats.md 3). */
+struct StringOverride
+{
+    double gaugeIn = 0.0;          ///< 0 = the set's gauge
+    int wound = -1;                ///< -1 = as the set winds it, 0 plain, 1 wound
+    juce::String material;         ///< winding material id, empty = the set's
+
+    bool isSet() const noexcept { return gaugeIn > 0.0 || wound >= 0 || material.isNotEmpty(); }
+    bool operator== (const StringOverride& o) const noexcept { return gaugeIn == o.gaugeIn && wound == o.wound && material == o.material; }
+    bool operator!= (const StringOverride& o) const noexcept { return ! operator== (o); }
+};
+
 struct GuitarFinish
 {
     juce::String type = "solid", colourA = "#7A2E1B", colourB = "#F2C441", burstShape = "radial";
@@ -77,6 +92,7 @@ public:
     std::array<PickupPlacement, 3> placements {};    ///< neck, middle, bridge
     GuitarSetup setup;
     GuitarFinish finish;
+    std::array<StringOverride, 12> stringOverrides {};   ///< per engine string (0 = high E)
     juce::String hardwareColour = "nickel";
     juce::uint64 seed = 0;
 

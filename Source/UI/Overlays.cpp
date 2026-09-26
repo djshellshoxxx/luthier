@@ -1,5 +1,7 @@
 #include "Overlays.h"
+#include "OptionsPages.h"
 #include "../PluginProcessor.h"
+#include "../Support/SupportLinks.h"
 
 namespace luthier
 {
@@ -91,7 +93,15 @@ void OverlayHost::show (OverlayPanel* panel)
     current = panel;
     current->onDismiss = [this] { dismiss(); };
 
+    // JUCE tells a component its look and feel on a change, not on joining a
+    // parent: a panel first shown here would keep JUCE's default slider value
+    // boxes (white text, unreadable on the Light palette).
+    const bool joining = current->getParentComponent() != this;
     addAndMakeVisible (current);
+
+    if (joining)
+        current->sendLookAndFeelChange();
+
     setVisible (true);
     toFront (false);
     resized();
@@ -206,8 +216,8 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                 .withTitle (file != juce::File() ? "Troubleshooting file written" : "Could not write the file")
                 .withMessage (file != juce::File()
                                 ? "Written to\n" + file.getFullPathName()
-                                  + "\n\nSend this to support@luthieraudio.example with a description "
-                                    "of the problem."
+                                  + "\n\nSend this to " + juce::String (SupportLinks::supportEmail)
+                                  + " with a description of the problem."   // SupportLinks.h (TUNE-HELP-ONBOARDING)
                                 : "The diagnostics folder could not be written to. Check the folder "
                                   "permissions for Documents/Luthier.")
                 .withButton ("OK"),
@@ -223,6 +233,10 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                                 "diagnostic files and cached data, and reinstalls the factory bank.");
     hardResetButton.onClick = [this]
     {
+        // Taken here: MSVC resolves `this` inside a nested lambda's init-capture
+        // to the enclosing lambda, not the component.
+        juce::Component::SafePointer<DebugPanel> self (this);
+
         juce::NativeMessageBox::showAsync (
             juce::MessageBoxOptions()
                 .withIconType (juce::MessageBoxIconType::WarningIcon)
@@ -233,7 +247,7 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                               "This cannot be undone.")
                 .withButton ("Reset everything")
                 .withButton ("Cancel"),
-            [safe = juce::Component::SafePointer<DebugPanel> (this)] (int result)
+            [safe = self] (int result)
             {
                 // NativeMessageBox::showAsync reports the plain button index:
                 // 0 is "Reset everything", 1 is Cancel (and Escape).
@@ -532,7 +546,7 @@ void MidiLearnArmLayer::mouseDown (const juce::MouseEvent& e)
         onTargetPicked (parameterId);
 }
 
-void OptionsPanel::showShortcutTable()
+void OptionsPanel::showShortcutTable (const juce::String& filter)
 {
     // The shortcut table lives on the Accessibility page. Found by name rather
     // than by a hard-coded index, so that reordering the tabs cannot silently
@@ -541,6 +555,12 @@ void OptionsPanel::showShortcutTable()
         if (pageButtons[i]->getButtonText().containsIgnoreCase ("ACCESSIBILITY"))
         {
             showPage (i);
+
+            // gui-integration 16 item 13: straight to the control's row.
+            for (auto* child : getChildren())
+                if (auto* page = dynamic_cast<AccessibilityPage*> (child))
+                    page->filterShortcuts (filter);
+
             return;
         }
 }
@@ -1029,9 +1049,16 @@ void PresetBrowserPanel::PresetListModel::paintListBoxItem (int row, juce::Graph
         g.fillRect (0, 0, 2, height);
     }
 
+    // guitar-illustration.md 15: the preset's guitar, from the worker's cache.
+    const int thumbW = height * 2;
+
+    if (auto thumb = owner.thumbnails.getForPreset (info->file); thumb.isValid())
+        g.drawImage (thumb, juce::Rectangle<int> (8, 1, thumbW, height - 2).toFloat(),
+                     juce::RectanglePlacement::centred);
+
     g.setColour (selected ? Palette::accent : Palette::textPrimary);
     g.setFont (Fonts::ui (12.5f, selected));
-    g.drawText (info->name, 12, 0, width - 110, height, juce::Justification::centredLeft, true);
+    g.drawText (info->name, 14 + thumbW, 0, width - 120 - thumbW, height, juce::Justification::centredLeft, true);
 
     g.setColour (info->isFactory ? Palette::textDisabled : Palette::secondary);
     g.setFont (Fonts::ui (10.0f));
@@ -1065,6 +1092,8 @@ void PresetBrowserPanel::PresetListModel::selectedRowsChanged (int lastRow)
     text += juce::String (text.isEmpty() ? "" : "\n\n") + info->file.getFullPathName();
 
     owner.description.setText (text, juce::dontSendNotification);
+    owner.selectedFile = info->file;
+    owner.repaint();
     owner.deleteButton.setEnabled (! info->isFactory);
 }
 
@@ -1081,7 +1110,13 @@ PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
 
     addAndMakeVisible (list);
     list.setModel (&listModel);
-    list.setRowHeight (26);
+    list.setRowHeight (kRowHeight);
+
+    thumbnails.onThumbnailReady = [this]
+    {
+        list.repaint();
+        repaint (selectedThumbnailArea);
+    };
     list.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
 
     addAndMakeVisible (description);
@@ -1140,6 +1175,7 @@ PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
             return;
 
         const auto name = info->name;
+        juce::Component::SafePointer<PresetBrowserPanel> self (this);   // see DebugPanel: MSVC and nested init-captures
 
         juce::NativeMessageBox::showAsync (
             juce::MessageBoxOptions()
@@ -1148,7 +1184,7 @@ PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
                 .withMessage ("\"" + name + "\" will be deleted from disk. This cannot be undone.")
                 .withButton ("Delete")
                 .withButton ("Cancel"),
-            [safe = juce::Component::SafePointer<PresetBrowserPanel> (this), index] (int result)
+            [safe = self, index] (int result)
             {
                 // Plain button index: 0 is Delete, 1 is Cancel (and Escape).
                 if (safe != nullptr && result == 0)
@@ -1255,11 +1291,8 @@ void PresetBrowserPanel::loadSelected()
     if (! juce::isPositiveAndBelow (row, visibleIndices.size()))
         return;
 
-    processor.pushUndoState ("Load preset");
-
     auto& presets = processor.getPresetManager();
-    presets.loadPreset (visibleIndices[row]);
-    processor.getParameterBridge().applyAllNow();
+    processor.loadPresetAsUserAction (visibleIndices[row]);   // action-and-undo.md 3.8
 
     // 5.2: while morphing, a load fills the selected slot, and the sound goes
     // back to wherever the slider is between A and B.
@@ -1322,11 +1355,26 @@ void PresetBrowserPanel::layoutContent (juce::Rectangle<int> content)
         content.removeFromBottom (Metrics::gridHalf);
     }
 
-    description.setBounds (content.removeFromBottom (80));
+    {
+        auto descriptionRow = content.removeFromBottom (80);
+        selectedThumbnailArea = descriptionRow.removeFromLeft (160);
+        descriptionRow.removeFromLeft (Metrics::grid);
+        description.setBounds (descriptionRow);
+    }
     content.removeFromBottom (Metrics::gridHalf);
 
     list.setBounds (content);
     refreshMorph();
+}
+
+void PresetBrowserPanel::paintOverChildren (juce::Graphics& g)
+{
+    OverlayPanel::paintOverChildren (g);
+
+    // The selected preset's guitar, larger, beside its description.
+    if (selectedFile != juce::File() && ! selectedThumbnailArea.isEmpty())
+        if (auto thumb = thumbnails.getForPreset (selectedFile); thumb.isValid())
+            g.drawImage (thumb, selectedThumbnailArea.toFloat(), juce::RectanglePlacement::centred);
 }
 
 //==============================================================================

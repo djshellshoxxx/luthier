@@ -1,5 +1,7 @@
 #include "Looper.h"
 
+#include <cstring>
+
 namespace luthier
 {
 
@@ -26,13 +28,12 @@ void LoopLayer::prepare (int maxSamples)
     audio.setSize (2, capacity, false, true, false);
     audio.clear();
 
-    // Undo and redo hold a whole layer each. That is three times the memory per
-    // layer, which is the price of being able to undo a take without a
-    // re-render, and it is paid once here rather than on the audio thread.
-    undoBuffer.setSize (2, capacity, false, true, false);
-    redoBuffer.setSize (2, capacity, false, true, false);
-    undoBuffer.clear();
-    redoBuffer.clear();
+    // Undo and redo hold a whole layer each - three times the memory per layer.
+    // performance-budget.md 3 / 5.1: they are sized on first use instead of
+    // here (pushUndo, undo and redo are message-thread calls), so an instance
+    // that never undoes a loop take does not pay 2 x 8 layers of it at boot.
+    undoBuffer.setSize (0, 0);
+    redoBuffer.setSize (0, 0);
 
     reset();
 }
@@ -52,6 +53,26 @@ void LoopLayer::reset() noexcept
 
     lowCutL.reset();  lowCutR.reset();
     highCutL.reset(); highCutR.reset();
+}
+
+void LoopLayer::clearKeepingUndo()
+{
+    const bool had = recordedSamples > 0;
+
+    if (had)
+        pushUndo();
+
+    audio.clear();
+    midi.clear();
+    recordedSamples = 0;
+    readPosition = 0.0;
+    playedOnce = false;
+
+    if (! had)
+    {
+        undoFilled = false;
+        redoFilled = false;
+    }
 }
 
 void LoopLayer::setRecordedSamples (int samples) noexcept
@@ -228,10 +249,19 @@ void LoopLayer::playInto (float* left, float* right, int position, int numSample
 }
 
 //==============================================================================
+void LoopLayer::ensureHistoryBuffers()
+{
+    for (auto* history : { &undoBuffer, &redoBuffer })
+        if (history->getNumSamples() != capacity || history->getNumChannels() != 2)
+            history->setSize (2, capacity, false, true, false);
+}
+
 void LoopLayer::pushUndo()
 {
     if (capacity <= 0)
         return;
+
+    ensureHistoryBuffers();
 
     for (int channel = 0; channel < 2; ++channel)
         undoBuffer.copyFrom (channel, 0, audio, channel, 0, capacity);
@@ -248,6 +278,8 @@ bool LoopLayer::undo()
 {
     if (! undoFilled || capacity <= 0)
         return false;
+
+    ensureHistoryBuffers();
 
     // Keep what is being undone, so redo can put it back.
     for (int channel = 0; channel < 2; ++channel)
@@ -269,6 +301,8 @@ bool LoopLayer::redo()
 {
     if (! redoFilled || capacity <= 0)
         return false;
+
+    ensureHistoryBuffers();
 
     for (int channel = 0; channel < 2; ++channel)
         undoBuffer.copyFrom (channel, 0, audio, channel, 0, capacity);
@@ -359,10 +393,36 @@ void Looper::reset() noexcept
 
 void Looper::clear()
 {
-    for (auto& layer : layers)
-        layer.reset();
+    drainPendingMidi();   // then emptied with the layers, which keep their audio for undo
 
+    const int length = loopLength.load (std::memory_order_relaxed);
+
+    // Stopped first, so the audio thread is not writing while the layers are copied.
     reset();
+
+    for (auto& layer : layers)
+        layer.clearKeepingUndo();
+
+    if (length > 0)
+        clearedLoopLength = length;
+}
+
+bool Looper::restoreCleared()
+{
+    stop();
+
+    // Only the layers the clear emptied hold an undo buffer (clearKeepingUndo).
+    bool restored = false;
+
+    for (auto& layer : layers)
+        if (layer.canUndo())
+            restored = layer.undo() || restored;
+
+    if (clearedLoopLength > 0)
+        loopLength.store (clearedLoopLength, std::memory_order_relaxed);
+
+    clearedLoopLength = 0;
+    return restored;
 }
 
 LoopLayer& Looper::getLayer (int index) noexcept
@@ -581,16 +641,48 @@ void Looper::captureMidi (const juce::MidiBuffer& midi, int numSamples) noexcept
     if (currentState != State::recordingFirst && currentState != State::overdubbing)
         return;
 
-    auto& sequence = layers[(size_t) getActiveLayer()].getMidi();
+    const int layer = getActiveLayer();
     const int position = getPlayPosition();
 
     for (const auto metadata : midi)
     {
+        // Short messages only: SysEx is not a performance event.
+        if (metadata.numBytes <= 0 || metadata.numBytes > 3)
+            continue;
+
+        const auto scope = midiFifo.write (1);
+
+        if (scope.blockSize1 + scope.blockSize2 == 0)
+            return;                                  // full until the next drain
+
+        auto& e = pendingMidi[(size_t) (scope.blockSize1 > 0 ? scope.startIndex1 : scope.startIndex2)];
+        e.layer = layer;
         // Timestamps are in samples from the top of the loop, so the sequence can
         // be re-rendered against a different tone later.
-        sequence.addEvent (metadata.getMessage(),
-                           (double) (position + metadata.samplePosition));
+        e.position = position + metadata.samplePosition;
+        e.size = metadata.numBytes;
+        std::memcpy (e.bytes, metadata.data, (size_t) metadata.numBytes);
     }
+}
+
+void Looper::drainPendingMidi()
+{
+    const auto scope = midiFifo.read (midiFifo.getNumReady());
+
+    auto take = [this] (int start, int count)
+    {
+        for (int i = start; i < start + count; ++i)
+        {
+            const auto& e = pendingMidi[(size_t) i];
+
+            if (juce::isPositiveAndBelow (e.layer, kMaxLayers))
+                layers[(size_t) e.layer].getMidi().addEvent (juce::MidiMessage (e.bytes, e.size),
+                                                             (double) e.position);
+        }
+    };
+
+    take (scope.startIndex1, scope.blockSize1);
+    take (scope.startIndex2, scope.blockSize2);
 }
 
 //==============================================================================
@@ -707,6 +799,10 @@ juce::File Looper::getUserDirectory()
 
 bool Looper::save (const juce::File& file) const
 {
+    // Completes captures already made (performance-budget.md 0.4); saving is
+    // logically const.
+    const_cast<Looper*> (this)->drainPendingMidi();
+
     const int length = getLoopLengthSamples();
 
     if (length <= 0)
@@ -778,6 +874,34 @@ bool Looper::save (const juce::File& file) const
 
     return folder.getChildFile ("loop.json")
              .replaceWithText (juce::JSON::toString (juce::var (root), false));
+}
+
+int Looper::importLayer (int layerIndex, const juce::AudioBuffer<float>& source)
+{
+    if (! juce::isPositiveAndBelow (layerIndex, kMaxLayers) || source.getNumChannels() == 0)
+        return 0;
+
+    stop();
+
+    auto& layer = getLayer (layerIndex);
+    const int count = juce::jmin (capacity, source.getNumSamples(), layer.getAudio().getNumSamples());
+
+    layer.getAudio().clear();
+
+    for (int ch = 0; ch < juce::jmin (2, layer.getAudio().getNumChannels()); ++ch)
+        layer.getAudio().copyFrom (ch, 0, source, juce::jmin (ch, source.getNumChannels() - 1), 0, count);
+
+    layer.setRecordedSamples (count);
+
+    bool others = false;
+
+    for (int i = 0; i < kMaxLayers; ++i)
+        others = others || (i != layerIndex && getLayer (i).hasContent());
+
+    if (! others || loopLength.load (std::memory_order_relaxed) <= 0)
+        loopLength.store (count, std::memory_order_relaxed);
+
+    return count;
 }
 
 bool Looper::load (const juce::File& file)

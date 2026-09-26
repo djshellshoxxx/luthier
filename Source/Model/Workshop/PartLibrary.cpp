@@ -180,6 +180,29 @@ juce::var WorkshopGuitar::toVar() const
         }
         else
         {
+            // file-formats.md 3: the strings entry carries its per-string overrides.
+            if (slot == GuitarSlot::strings && entry.getDynamicObject() != nullptr)
+            {
+                juce::Array<juce::var> overrides;
+
+                for (int s = 0; s < (int) stringOverrides.size(); ++s)
+                {
+                    const auto& o = stringOverrides[(size_t) s];
+
+                    if (! o.isSet())
+                        continue;
+
+                    auto* item = new juce::DynamicObject();
+                    item->setProperty ("string", s + 1);   // people count from 1 = high E
+                    if (o.gaugeIn > 0.0)          item->setProperty ("gauge_in", o.gaugeIn);
+                    if (o.wound >= 0)             item->setProperty ("wound", o.wound == 1);
+                    if (o.material.isNotEmpty())  item->setProperty ("winding_material", o.material);
+                    overrides.add (juce::var (item));
+                }
+
+                entry.getDynamicObject()->setProperty ("per_string_override", overrides);
+            }
+
             partsObject->setProperty (getSlotId (slot), entry);
         }
     }
@@ -364,6 +387,9 @@ bool WorkshopGuitar::operator== (const WorkshopGuitar& o) const
             || placements[i].heightTrebleMm != o.placements[i].heightTrebleMm
             || placements[i].heightBassMm != o.placements[i].heightBassMm)
             return false;
+
+    if (stringOverrides != o.stringOverrides)
+        return false;
 
     return setup.actionTrebleMm == o.setup.actionTrebleMm && setup.actionBassMm == o.setup.actionBassMm
         && setup.reliefMm == o.setup.reliefMm && setup.nutSlotDepthsMm == o.setup.nutSlotDepthsMm
@@ -660,6 +686,21 @@ bool PartLibrary::buildGuitar (const juce::var& json, WorkshopGuitar& out, LoadR
         }
 
         g.parts[(size_t) i] = part;
+
+        if (slot == GuitarSlot::strings)
+            if (auto* overrides = entry.getProperty ("per_string_override", juce::var()).getArray())
+                for (const auto& item : *overrides)
+                {
+                    const int s = (int) item.getProperty ("string", 0) - 1;
+
+                    if (! juce::isPositiveAndBelow (s, (int) g.stringOverrides.size()))
+                        continue;
+
+                    auto& o = g.stringOverrides[(size_t) s];
+                    o.gaugeIn = juce::jlimit (0.0, 0.2, (double) item.getProperty ("gauge_in", 0.0));
+                    o.wound = item.hasProperty ("wound") ? ((bool) item.getProperty ("wound", false) ? 1 : 0) : -1;
+                    o.material = item.getProperty ("winding_material", juce::var()).toString();
+                }
 
         if (isPickup)
         {

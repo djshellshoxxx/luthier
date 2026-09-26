@@ -147,8 +147,10 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-private:
+    /** Moves a pedal between slots, as one undo entry (action-and-undo.md 3.13). Public for tests. */
     void reorder (int fromSlot, int toSlot);
+
+private:
 
     LuthierAudioProcessor& processor;
     bool postChain;

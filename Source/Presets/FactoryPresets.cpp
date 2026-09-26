@@ -762,6 +762,22 @@ juce::var FactoryPresets::toVar (const Definition& def, const juce::AudioProcess
         }
     }
 
+    /*  REALISM-A: the factory bank is voiced on the legacy string-age table and
+        without the body's return path until the listening pass re-voices it
+        (body-coupling.md 6, string-aging.md 8). Leaving these keys out makes
+        the loader's legacy mapping apply, so every factory preset sounds as
+        it did. A recipe that sets one explicitly keeps it. */
+    for (const char* id : { ParamIDs::stringAgeHours, ParamIDs::stringAgeDetail, ParamIDs::bodyCouplingAmount })
+    {
+        bool explicitlySet = false;
+
+        for (int i = 0; i < def.numEntries; ++i)
+            explicitlySet = explicitlySet || juce::String (def.entries[i].paramId) == id;
+
+        if (! explicitlySet)
+            params->removeProperty (id);
+    }
+
     root->setProperty ("parameters", juce::var (params));
 
     /*  The guitar's own parts (pickups, body woods, bracing, circuit, strings)
