@@ -92,7 +92,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-86 (§14) | Empty hints: snapshot slot done; no-mod-routes hint absent | - | `SnapshotStrip` paints `kEmptySlotHint` | `Live::shiftClickWritesAndClickRecalls` | PARTIAL |
 | GI-87 (§14) | Empty hints: setlist, backing track — texts differ from spec | - | `LivePanel::setlistEmptyLabel`, `PracticePanel` "No track loaded." | - | PARTIAL |
 | GI-88 (§14) | Empty hint: non-slide guitar in Slide Mode | `SlideEngine::kLowActionMessage` | `SlideGroup::lowAction` | `SlideTests.cpp` low-action warning check (in `Slide`/`SlideUi` suite) | DONE |
-| GI-89 (§14) | Empty hint: bass techniques inactive on a guitar — constant exists, never displayed | `SlapGroup::kInactiveMessage` | - | `BassTechniques::theSlapGroupIsShownOnlyOnABass` (text only) | PARTIAL |
+| GI-89 (§14) | Empty hint: bass techniques inactive on a guitar — constant exists, never displayed | `SlapGroup::kInactiveMessage` | - | `BassTechniques::theSlapGroupIsShownOnlyOnABass` (text only) | DEFERRED |
 | GI-90 (§14) | Empty hint: advanced-range edit on a locked preset | `RangesUi::kLockedNoticeText` | `Widgets.cpp` bubble at control | - | NO-TEST |
 | GI-91 (§15) | Banners under header, 32 px, dismissible, auto-dismiss 5 s unless actionable | - | `UI/Notifications.cpp:NotificationCentre` | `Editor::notificationBannersQueueDismissAndRespectTheirActions` | DONE |
 | GI-92 (§15) | Triggers: preset error, missing IR/part/guitar, SR change, update, policy, crash, licence | `PluginEditor::postStartupNotifications` | banners | `Editor::theWindowRaisesSectionFifteensTriggersAndIsQuietWhenItShould`, `Editor::aSampleRateChangeIsAnnouncedOnceAndTheFirstOneIsNot`, `Workshop::aMissingPartFallsBackAndSaysSo` | DONE |
@@ -149,4 +149,4 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-143 (§22) | Test: Slide toggle 100x during playback, no click, correct panels | `SlideEngine` | - | `Slide::switchingModeMidNoteIsClean` (1x); on visual `Stress::slideAndAdvancedRangeTogglesMidPlay` | OWNED |
 | GI-144 (§22) | Test: warning arc appears past stock max and disappears on return | - | `LuthierKnob` | `RangesUi::controlsFollowASwappedRangeAndMarkTheValue` | DONE |
 
-<!-- counts DONE=67 NO-GUI=0 NO-TEST=3 PARTIAL=34 MISSING=9 OWNED=31 DEFERRED=0 -->
+<!-- counts DONE=67 NO-GUI=0 NO-TEST=3 PARTIAL=33 MISSING=9 OWNED=31 DEFERRED=1 -->

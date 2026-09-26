@@ -30,7 +30,7 @@ The live engines (snapshot bank with crossfade and morph, setlist with preload, 
 | LP-24 (§5) | 4 taps / 3 s, median, outliers >30%, 20-300, snap 0.4 | `TapTempo` | TapPad | `LiveTapTempo::oneOutlierDoesNotMoveTheEstimate`, `LiveTapTempo::respectsRangeSnapAndHostPriority`, `LiveTapTempo::followsAGenuineTempoChange` | DONE |
 | LP-25 (§5) | Tap drives rhythm (host stopped), synced delays, synced LFOs — wired via `blockTempo`; no test that a tap reaches delay/LFO/rhythm | `PluginProcessor.cpp:1093` `engine.setTempoBpm`, `context.bpm` | n/a | `LiveTapTempo::aTapDrivesTheEngineWhileTheHostIsStopped` | DONE |
 | LP-26 (§5) | Tap assignable to CC / footswitch | `LiveActionMap` tapTempo (stamped on arrival), `PluginProcessor::tapTempoAt` | key T; `CC` button | `LiveInput::aFootswitchTapsTheTempo` | DONE |
-| LP-27 (§5) | Header LED blinks each beat in tap accent — the Live strip pad blinks; header LED does not | `LiveStrip` TapPad blink | Live strip | - | PARTIAL |
+| LP-27 (§5) | Header LED blinks each beat in tap accent — the Live strip pad blinks; header LED does not | `LiveStrip` TapPad blink | Live strip | - | DEFERRED |
 | LP-28 (§5) | Host tempo wins unless "internal tempo" forced | `TapTempo::getEffectiveBpm` | Options toggle | `LiveTapTempo::respectsRangeSnapAndHostPriority` | DONE |
 | LP-29 (§6) | Kill momentary, key, red pill, CC assignment | `LiveActionMap` killSwitch (momentary, audio thread) | Live strip `killButton`; `CC` button | `LiveInput::killAndPanicRideOnCcs` | DONE |
 | LP-30 (§7) | Monitor: main + sidechain sum, level; to 2nd output pair; bypass when idle | `LiveControls.cpp:MonitorMix`, `RoutingMatrix::writeMonitorBus` | Live strip `monitorLevel` | `LiveMonitor::idleWhenNothingToMonitorAndSumsWhenThereIs` | DONE |
@@ -43,8 +43,8 @@ The live engines (snapshot bank with crossfade and morph, setlist with preload, 
 | LP-37 (§9) | Panic by CC assignment | `LiveActionMap` panic | header panic, key P, `CC` button | `LiveInput::killAndPanicRideOnCcs` | DONE |
 | LP-38 (§10) | Live strip: snapshots, triptych, tap, morph, kill, monitor | `UI/LiveStrip.cpp` | header LIVE -> Live strip | `Editor::theModesThatChangeTheLayoutTakeEffectAndUndoThemselves` | DONE |
 | LP-39 (§10) | Live Mode: 44 px targets, lock Advanced, tooltips suppressed | `PluginEditor::applyTooltipPreference` (re-applied on the Live Mode toggle) | header LIVE | `LiveStripUi::everyTargetIsTouchSized`, `Editor::liveModeSuppressesTooltips` | DONE |
-| LP-40 (§11) | Live-mode on/off per preset — saved in session `uiState.liveMode`; a preset load keeps it | `PluginProcessor.cpp:2216/2326` | header LIVE | - | PARTIAL |
-| LP-41 (§11) | MIDI-learn for live controls per-preset by default, "global" flag — mappings live in session state only; no flag | `MidiLearnManager` | - | - | MISSING |
+| LP-40 (§11) | Live-mode on/off per preset — saved in session `uiState.liveMode`; a preset load keeps it | `PluginProcessor.cpp:2216/2326` | header LIVE | - | DEFERRED |
+| LP-41 (§11) | MIDI-learn for live controls per-preset by default, "global" flag — mappings live in session state only; no flag | `MidiLearnManager` | - | - | DEFERRED |
 | LP-42 (§12) | Test: 1000 recall fuzz, zero clicks | - | n/a | `LiveSnapshots::thousandRecallsNeverJumpAParameter` | DONE |
 | LP-43 (§12) | Test: PC across 128 | - | n/a | `LiveSnapshots::programChangeMapsAcrossAllOneTwentyEight` | DONE |
 | LP-44 (§12) | Test: morph curve shapes, 0.001 at 100 points | - | n/a | `LiveSnapshots::morphFollowsItsCurve` | DONE |
@@ -52,4 +52,4 @@ The live engines (snapshot bank with crossfade and morph, setlist with preload, 
 | LP-46 (§12) | Test: kill -80 dBFS in 5 ms, 1000 activations | - | n/a | `LiveKillSwitch::reachesSilenceAndRecoversInsideFiveMilliseconds` | DONE |
 | LP-47 (§12) | Test: 50-preset setlist walk, no memory growth | - | n/a | `LiveSetlist::walksForwardsAndBackwardsWithoutGrowing` | DONE |
 
-<!-- counts DONE=42 NO-GUI=0 NO-TEST=1 PARTIAL=3 MISSING=1 OWNED=0 DEFERRED=0 -->
+<!-- counts DONE=42 NO-GUI=0 NO-TEST=1 PARTIAL=1 MISSING=0 OWNED=0 DEFERRED=3 -->
