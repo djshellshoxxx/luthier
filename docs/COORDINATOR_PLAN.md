@@ -103,3 +103,55 @@ commercial product; the design is recorded here, not built yet):
 
 Exact licensing model, activation, and offline policy remain Q-L1..Q-L9,
 still to be settled with the product owner before the Pro helper starts.
+
+## Expansion wave (2026-09-26, product owner): features + new instruments
+
+Token discipline: every new helper's system prompt gets docs/helpers/TERSE_MODE.md.
+Model per task: Haiku = docs/product text; Sonnet = routine specs + UI-side
+feature implementation; Opus = hard DSP (new instrument acoustics, Chapman
+Stick excitation, tone-match), merges, and the sound-accuracy audit; Fable =
+stuck-bug escalation only (2-failed-Opus rule).
+
+### A. Product doc (Haiku, PRODUCT-DOC)
+Full feature + capability list and a product description, from the specs and
+built code. Living draft; refresh after the new features land.
+
+### B. Feature specs + implementation (all tiers from the desirability list)
+Specs first (Sonnet, FEAT2-SPECS), then implementation (Sonnet, with Opus for
+tone-match DSP), then audit + test.
+- T1-1 Resizable/scalable UI (user scale 75-200%, remembered).
+- T1-2 Built-in tuner + adjustable global tuning reference (A=432..446).
+- T1-3 MIDI Learn / CC mapping on any parameter.
+- T1-4 Constrained "Randomize" + A/B compare in header.
+- T2-1 Doubler (auto double-tracking) — confirm spec.md:315 build state.
+- T2-2 Tone-match end-to-end (tone-match.md) — Opus for DSP.
+- T2-3 Notation + MIDI export INCLUDING guitar TAB export format.
+- T3-1 Amp/cabinet section with user IR (impulse response) loading.
+- T4 polish: tooltips+learn toggle, in/out meters + clip, sympathetic-string
+  resonance control, round-robin / humanized pick attack. Confirm which already
+  exist before building.
+
+### C. New instruments (research + DSP + graphics + integration)
+None of these exist today (workshop is modular: scale length, string count,
+5/6/8-string and multi-scale already supported). Split by research need:
+- Needs scientific-literature research (Opus, INSTRUMENT-RESEARCH → per-model
+  spec): Chitarra sarda; Guitarrón mexicano (fretless mariachi bass, octave
+  courses); Chapman Stick (TWO-HAND TAPPING excitation, dual zone/split — a new
+  excitation model, biggest item); Zon (graphite/composite neck material →
+  even, bright, long sustain).
+- Mostly buildable on existing part machinery, lighter research (Sonnet):
+  Tenor guitar (4-string, CGDA/DGBE, short scale); Acoustic bass guitar (hollow
+  acoustic body + 34" bass neck); Extended-range bass (5/6-string already
+  partly there — confirm and finish).
+Each: body/part acoustics model, workshop graphical image (guitar-illustration.md
+/ guitar-workshop.md), factory preset, full integration, tests.
+
+### D. Accuracy audit (Opus, ACCURACY-AUDIT) + beta test
+- Verify EACH existing and new instrument's sound is as accurate as the model
+  allows; find any guitar using the wrong audio model or mis-modeled.
+- Same accuracy pass for strings, pickups, and other parts.
+- Beta tester confirms every instrument plays and is represented correctly.
+- Report where measured/published data is missing so the owner can source it.
+
+Sequencing: A + B-specs + C-research start now. Implementation follows its spec;
+audit + beta follow implementation. Coordinator check-in expands each wave.
