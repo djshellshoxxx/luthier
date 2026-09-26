@@ -198,6 +198,11 @@ private:
         void mouseEnter (const juce::MouseEvent&) override;
         void mouseExit (const juce::MouseEvent&) override;
 
+        /*  accessibility.md 2 (A11Y-14): plain arrows keep JUCE's own step;
+            Shift is a tenth of it, Ctrl/Cmd ten times it - JUCE's default
+            keyPressed refuses every modified key outright. */
+        bool keyPressed (const juce::KeyPress&) override;
+
     private:
         LuthierKnob& owner;
 
@@ -276,12 +281,20 @@ public:
     juce::TextButton& getButton() noexcept { return button; }
     juce::String getLearnParameterId() const override { return paramId; }
 
+    /*  ui-wiring.md 2: momentary sets the parameter while the mouse is down
+        and clears it on release (one begin/end gesture per press), instead of
+        the default latching click-toggle. Used for the Live kill pill. */
+    void setMomentary (bool shouldBeMomentary);
+    bool isMomentary() const noexcept { return momentary; }
+
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
 
 private:
     juce::TextButton button;
     juce::String paramId;
+    bool momentary = false;
+    bool wasDown = false;
 
     LuthierAudioProcessor* processor = nullptr;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> attachment;

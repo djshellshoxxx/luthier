@@ -805,6 +805,37 @@ void LuthierKnob::KnobSlider::mouseExit (const juce::MouseEvent& e)
     owner.repaint();
 }
 
+bool LuthierKnob::KnobSlider::keyPressed (const juce::KeyPress& key)
+{
+    // Not key == KeyPress::rightKey: that operator refuses to match at all
+    // once any modifier is down (see juce_KeyPress.cpp), which is exactly the
+    // JUCE default this override exists to get past. The key code alone is
+    // what identifies "an arrow key", modifiers or not.
+    const int code = key.getKeyCode();
+    const bool isArrow = code == juce::KeyPress::rightKey || code == juce::KeyPress::upKey
+                        || code == juce::KeyPress::leftKey || code == juce::KeyPress::downKey;
+
+    if (! isArrow)
+        return juce::Slider::keyPressed (key);
+
+    const auto mods = key.getModifiers();
+
+    // Plain arrows: JUCE's own single-interval step is already correct.
+    if (! mods.isShiftDown() && ! mods.isCommandDown() && ! mods.isCtrlDown())
+        return juce::Slider::keyPressed (key);
+
+    double interval = getInterval();
+
+    if (interval <= 0.0)
+        interval = (getMaximum() - getMinimum()) / 100.0;
+
+    interval *= mods.isShiftDown() ? 0.1 : 10.0;   // Shift fine, Ctrl/Cmd coarse
+
+    const bool increase = (code == juce::KeyPress::rightKey || code == juce::KeyPress::upKey);
+    setValue (getValue() + (increase ? interval : -interval), juce::sendNotificationSync);
+    return true;
+}
+
 //==============================================================================
 //  LuthierChoice
 //==============================================================================
@@ -909,6 +940,51 @@ void LuthierToggle::attachTo (LuthierAudioProcessor& p, const juce::String& id, 
 
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
         p.getState(), id, button);
+}
+
+void LuthierToggle::setMomentary (bool shouldBeMomentary)
+{
+    momentary = shouldBeMomentary;
+
+    if (! momentary)
+    {
+        button.onStateChange = nullptr;
+        button.setClickingTogglesState (true);
+        return;
+    }
+
+    // A momentary attachment still exists (so preset save/load and undo see
+    // the parameter change through the normal path); this callback drives it
+    // directly instead of letting a click latch the button's toggle state.
+    button.setClickingTogglesState (false);
+    wasDown = false;
+
+    button.onStateChange = [this]
+    {
+        if (processor == nullptr || paramId.isEmpty())
+            return;
+
+        auto* param = processor->getState().getParameter (paramId);
+
+        if (param == nullptr)
+            return;
+
+        const bool down = button.isDown();
+
+        if (down == wasDown)
+            return;
+
+        wasDown = down;
+
+        if (down)
+            param->beginChangeGesture();
+
+        param->setValueNotifyingHost (down ? 1.0f : 0.0f);
+        button.setToggleState (down, juce::dontSendNotification);
+
+        if (! down)
+            param->endChangeGesture();
+    };
 }
 
 void LuthierToggle::resized()
@@ -1101,20 +1177,31 @@ void LevelMeter::paint (juce::Graphics& g)
 
     auto drawBar = [&g, this] (juce::Rectangle<int> area, float level, float hold)
     {
+        // accessibility.md 25: shape carries the state too, not colour alone -
+        // a narrower strip below -18 dBFS (0.7 on this meter's 0..1 scale),
+        // and a bracket glyph once the held peak has reached 0 dBFS.
+        constexpr float kNarrowBelow = 0.7f;
+        const bool narrow = level < kNarrowBelow;
+
+        auto barArea = narrow
+            ? (horizontal ? area.withSizeKeepingCentre (area.getWidth(), juce::roundToInt (area.getHeight() * 0.6f))
+                          : area.withSizeKeepingCentre (juce::roundToInt (area.getWidth() * 0.6f), area.getHeight()))
+            : area;
+
         if (level > 0.001f)
         {
             // Smooth gradient rather than visible LED segments.
             juce::Rectangle<int> filled = horizontal
-                ? area.withWidth (juce::roundToInt (area.getWidth() * level))
-                : area.withTop (area.getBottom() - juce::roundToInt (area.getHeight() * level));
+                ? barArea.withWidth (juce::roundToInt (barArea.getWidth() * level))
+                : barArea.withTop (barArea.getBottom() - juce::roundToInt (barArea.getHeight() * level));
 
             juce::ColourGradient gradient (
                 LuthierLookAndFeel::meterColourFor (0.0f),
-                horizontal ? (float) area.getX() : (float) area.getCentreX(),
-                horizontal ? (float) area.getCentreY() : (float) area.getBottom(),
+                horizontal ? (float) barArea.getX() : (float) barArea.getCentreX(),
+                horizontal ? (float) barArea.getCentreY() : (float) barArea.getBottom(),
                 LuthierLookAndFeel::meterColourFor (1.0f),
-                horizontal ? (float) area.getRight() : (float) area.getCentreX(),
-                horizontal ? (float) area.getCentreY() : (float) area.getY(),
+                horizontal ? (float) barArea.getRight() : (float) barArea.getCentreX(),
+                horizontal ? (float) barArea.getCentreY() : (float) barArea.getY(),
                 false);
 
             gradient.addColour (0.55, LuthierLookAndFeel::meterColourFor (0.55f));
@@ -1129,9 +1216,26 @@ void LevelMeter::paint (juce::Graphics& g)
             g.setColour (LuthierLookAndFeel::meterColourFor (hold));
 
             if (horizontal)
-                g.fillRect (area.getX() + juce::roundToInt (area.getWidth() * hold), area.getY(), 1, area.getHeight());
+                g.fillRect (barArea.getX() + juce::roundToInt (barArea.getWidth() * hold), barArea.getY(), 1, barArea.getHeight());
             else
-                g.fillRect (area.getX(), area.getBottom() - juce::roundToInt (area.getHeight() * hold), area.getWidth(), 1);
+                g.fillRect (barArea.getX(), barArea.getBottom() - juce::roundToInt (barArea.getHeight() * hold), barArea.getWidth(), 1);
+        }
+
+        if (hold >= 0.999f)
+        {
+            g.setColour (Palette::clip);
+            constexpr float t = 3.0f;
+
+            if (horizontal)
+            {
+                g.fillRect ((float) area.getRight() - 1.0f, (float) area.getY(), 1.0f, t);
+                g.fillRect ((float) area.getRight() - 1.0f, (float) area.getBottom() - t, 1.0f, t);
+            }
+            else
+            {
+                g.fillRect ((float) area.getX(), (float) area.getY(), t, 1.0f);
+                g.fillRect ((float) area.getRight() - t, (float) area.getY(), t, 1.0f);
+            }
         }
     };
 

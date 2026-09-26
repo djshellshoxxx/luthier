@@ -557,3 +557,38 @@ LUTHIER_TEST (Theme, levelMeterHoldsDecaysAndGoesStale)
     CHECK (meter.getPeakHoldLeft() == 0.0f);
     CHECK (meter.getDisplayPeakDb() <= -99.0f);
 }
+
+//==============================================================================
+// GAPS-GUI batch 2: ui-wiring.md section 2.
+//==============================================================================
+
+/*  UW-14: momentary sets the parameter on press and clears it on release, as
+    one begin/end gesture, instead of the default latching click-toggle. */
+LUTHIER_TEST (Widgets, aMomentaryToggleSetsOnPressAndClearsOnRelease)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    LuthierToggle toggle ("Kill");
+    toggle.attachTo (processor, ParamIDs::ampStandby);
+    toggle.setMomentary (true);
+    CHECK (toggle.isMomentary());
+
+    auto* param = processor.getState().getParameter (ParamIDs::ampStandby);
+    CHECK (param != nullptr);
+    CHECK (param->getValue() < 0.5f);
+
+    // Not a real click (that posts a message a console test never pumps):
+    // Button::onStateChange is invoked directly, exactly as a mouse press and
+    // release would trigger it.
+    toggle.getButton().setState (juce::Button::buttonDown);
+    CHECK_MSG (param->getValue() > 0.5f, "pressing a momentary toggle did not set its parameter");
+
+    toggle.getButton().setState (juce::Button::buttonNormal);
+    CHECK_MSG (param->getValue() < 0.5f, "releasing a momentary toggle did not clear its parameter");
+
+    // Switching back off restores the ordinary latching click.
+    toggle.setMomentary (false);
+    CHECK (! toggle.isMomentary());
+    CHECK (toggle.getButton().getClickingTogglesState());
+}
