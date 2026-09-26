@@ -237,6 +237,7 @@ LUTHIER_TEST (Environment, ENV04_theAirModeFollowsTheSpeedOfSound)
 
     // And the body engine's air resonance - which character dead spots read - follows.
     auto engine = makeEngine (GuitarType::Dreadnought);
+    engine->getCharacterEngine().setEnabled (false);   // SPEC-SWEEP: CW-24's break-in rides on the same scaling
     const double before = engine->getBodyEngine().getAirResonanceHz();
     engine->getEnvironment().setInputs (make (42.0));
     renderBlocks (*engine, 1);

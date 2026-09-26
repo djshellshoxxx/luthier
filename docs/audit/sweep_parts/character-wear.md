@@ -6,28 +6,28 @@
 |---|---|---|---|---|---|
 | CW-1 (§0.1) | Deterministic per instance seed | `Character/CharacterEngine::generate` | n/a | `Character::fixedSeedIsByteIdentical`, `Character::valuesDoNotDependOnAccessOrder` | DONE |
 | CW-2 (§0.2) | Per-note / per-region influence with smoothed handoff, not per-sample — untested | `LuthierEngine.cpp:triggerNote` (~970), drift applied per block (~1860) | n/a | - | NO-TEST |
-| CW-3 (§0.3) | On by default at low intensity (amount 0.25, enabled) — no default-state test | `CharacterEngine::amount`, `Parameters.cpp` macroCharacter 0.25 | CHARACTER `amountSlider` | - | NO-TEST |
+| CW-3 (§0.3) | On by default at low intensity (amount 0.25, enabled, looseness 15%, jack off) | `CharacterEngine::amount`, `Parameters.cpp` macroCharacter 0.25 | CHARACTER `amountSlider` | `Character::shipsOnAtLowIntensity` | DONE |
 | CW-4 (§0.4/§11) | Character stacks with humanize; both zero = machine-perfect — no test | `LuthierEngine` (independent paths) | n/a | - | NO-TEST |
 | CW-5 (§1) | 64-bit seed stored in preset / state | `CharacterEngine::toVar/fromVar`, `PluginProcessor.cpp` "character" | CHARACTER `seedLabel` | `Character::stateRoundTrips` | DONE |
-| CW-6 (§1) | "New Character" reroll saves new seed; reroll reseeds drift — no test calls `reroll` | `CharacterEngine::reroll` | CHARACTER `newCharacterButton` | - | NO-TEST |
+| CW-6 (§1) | "New Character" reroll saves new seed and a new instrument; unsigned seeds above INT64_MAX now round-trip (fromVar used a signed parse) | `CharacterEngine::reroll`, `fromVar` | CHARACTER `newCharacterButton` | `Character::rerollChangesTheSeedAndTheInstrument` | DONE |
 | CW-7 (§1) | Different seeds sound measurably different | `CharacterEngine` | n/a | `Character::differentSeedsProduceDifferentInstruments` | DONE |
 | CW-8 (§2) | Dead spots 0-3/string, beta around frets 6-12, depth 0.1-0.7, width 2-5, Gaussian loop-gain cut | `CharacterEngine::getSustainMultiplier`, `LuthierEngine.cpp:972` | CHARACTER `DeadSpotMap` | `Character::deadSpotsAreInRangeAndClusterCorrectly`, `Character::deadSpotsReduceSustainWhereTheyAre` | DONE |
-| CW-9 (§2) | Dead spots weighted toward body air resonance — implemented, untested | `getSustainMultiplier(..., bodyResonance)` | n/a | - | NO-TEST |
+| CW-9 (§2) | Dead spots weighted toward body air resonance | `getSustainMultiplier(..., bodyResonance)` | n/a | `Character::deadSpotsBiteHarderNearTheBodyResonance` | DONE |
 | CW-10 (§3) | Per-fret wear 0-1, heavier at 1-5 / 12-17 | `CharacterEngine::getFretWear/setFretWear` | CHARACTER `FretWearMap` (click-drag) | `Character::fretWearFollowsRealWearPatterns` | DONE |
 | CW-11 (§3) | Worn fret: reduced sustain + few-cent detune | `getFretSustainMultiplier`, `getFretDetuneCents`, `LuthierEngine.cpp:973/995` | n/a | `Character::wornFretsBehaveAsDescribed` | DONE |
-| CW-12 (§3) | Worn fret: more buzz probability at low action — `getFretBuzzMultiplier` never consumed by FretBuzz | `CharacterEngine::getFretBuzzMultiplier` | n/a | `Character::wornFretsBehaveAsDescribed` (value only) | PARTIAL |
+| CW-12 (§3) | Worn fret: more buzz at low action — `getFretBuzzMultiplier` of the fretted fret narrows the buzz clearance (0.1 mm per unit) | `FretBuzz::process` wear input, `LuthierEngine` block-rate buzz sensing | n/a | `CharacterWiring::aWornFretBuzzesSooner` | DONE |
 | CW-13 (§3) | Refret button resets wear — lives on CHARACTER tab (spec: Options -> Character) | `CharacterEngine::refret` | CHARACTER `refretButton` | `Character::fretWearFollowsRealWearPatterns` | DONE |
 | CW-14 (§4) | Tuner drift LFO 0-5 c, 20-90 s, random phase; looseness 0-100% default 15% | `getTunerDriftCents`, `LuthierEngine.cpp:1862` | CHARACTER `loosenessSlider` | `Character::tunerDriftStaysWithinItsStatedAmplitude` | DONE |
 | CW-15 (§4/§9) | Environmental stability envelope over minutes; session-time drift | `CharacterEngine::advance` (sessionSeconds settling) | CHARACTER `sessionLabel` | - | OWNED |
-| CW-16 (§5) | Aged volume-pot linearity error — `applyPotTaper` never used by the circuit | `CharacterEngine::applyPotTaper` | CHARACTER `potLinearitySlider` (no audible effect) | `Character::agedPotTaperIsMonotonicAndPinned` | PARTIAL |
-| CW-17 (§5) | Tone-cap drift +/-5% per seed — `getCapacitorDrift` never used | `CharacterEngine::getCapacitorDrift` | CHARACTER `capDriftSlider` (no effect) | `Character::capacitorDriftIsInRangeAndDeterministic` | PARTIAL |
-| CW-18 (§5) | Output-jack intermittent drop 20-100 ms, off by default — `getJackGain` never applied | `CharacterEngine::getJackGain` | CHARACTER `jackToggle` (no effect) | `Character::intermittentJackIsOffByDefault` | PARTIAL |
-| CW-19 (§5) | Piezo per-saddle balance +/-2 dB — computed, unused, untested | `getSaddleBalanceDb` | n/a | - | PARTIAL |
-| CW-20 (§6) | Per-string per-pickup balance +/-1.5 dB, pole height inconsistency — computed, unused | `getPickupBalanceDb` | n/a | - | PARTIAL |
+| CW-16 (§5) | Aged volume-pot linearity error reaches the circuit (pinned at 0/1) | `LuthierEngine::getLiveCircuitComponents` -> `applyPotTaper` | CHARACTER `potLinearitySlider`; circuit view shows it | `CharacterWiring::agedPotAndCapReachTheCircuit`, `Character::agedPotTaperIsMonotonicAndPinned` | DONE |
+| CW-17 (§5) | Tone-cap drift +/-5% per seed, scaled by amount, reaches the circuit | `getToneCapMultiplier` in `getLiveCircuitComponents` | CHARACTER `capDriftSlider` | `CharacterWiring::agedPotAndCapReachTheCircuit` | DONE |
+| CW-18 (§5) | Output-jack intermittent drop 20-100 ms, off by default, 3 ms ramps | `LuthierEngine` post-circuit `jackGainNow` from `getJackGain` | CHARACTER `jackToggle` | `CharacterWiring::theIntermittentJackDropsOutAndRecovers` | DONE |
+| CW-19 (§5) | Piezo per-saddle balance +/-2 dB | `saddleGain` per block, saddle-weighted `piezoSumBuffer` into `processPiezo` | n/a | `CharacterWiring::freshIsBitIdenticalAndWornIsNot` (acoustic render) | DONE |
+| CW-20 (§6) | Per-string per-pickup balance +/-1.5 dB | `PickupEngine::setStringBalance` set per block from `getPickupBalanceDb` | n/a | `CharacterWiring::poleBalanceScalesOneStringInOnePickup`, `freshIsBitIdenticalAndWornIsNot` | DONE |
 | CW-21 (§7) | Nut slot wear dampens open strings | `getNutDamping`, `LuthierEngine.cpp:978` | n/a | `Character::fixedSeedIsByteIdentical` (determinism only) | NO-TEST |
-| CW-22 (§7) | Saddle height variation +/-0.2 mm -> intonation — computed, unused | `getSaddleHeightOffsetMm` | n/a | - | PARTIAL |
+| CW-22 (§7) | Saddle height +/-0.2 mm -> fretted intonation (1.5 c/mm at fret 12, 0 open) | `getSaddleIntonationCents` added to the per-note detune in `triggerNote` | n/a | `CharacterWiring::saddleHeightMovesFrettedIntonation` | DONE |
 | CW-23 (§7) | Bone vs synthetic nut biases HF damping | `getNutMaterialDamping`, `LuthierEngine.cpp:978` | CHARACTER `boneNutToggle` | `Character::nutMaterialChangesDamping` | DONE |
-| CW-24 (§8) | Body break-in: Q up, air -3..8%, HF damping -5..10%, applied to body engine on load — multipliers never applied to BodyEngine | `getBodyQMultiplier/getAirResonanceMultiplier/getBodyHfDampingMultiplier` | CHARACTER `bodyAgeSlider` (no effect) | `Character::bodyBreakInMovesInTheRightDirection` (values only) | PARTIAL |
+| CW-24 (§8) | Body break-in: air -5.5% and plate Q up (Q and HF-damping multipliers) at full age, via realism-a's runtime scaling | `LuthierEngine::advanceRealism` -> `BodyEngine::setRuntimeScaling` | CHARACTER `bodyAgeSlider` | `CharacterWiring::bodyBreakInLowersTheAirMode` | DONE |
 | CW-25 (§9) | Temperature cold/room/warm -> tension/tuning | `getTemperatureOffsetCents` (via drift); replaced by `EnvironmentModel` on realism-a | CHARACTER `temperatureBox` | `Character::temperatureProducesTheExpectedOffset` | OWNED |
 | CW-26 (§9) | Humidity dry/normal/humid -> body Q / compliance — unused here; realism-a `EnvironmentModel` drives BodyEngine | `getHumidityQMultiplier` | CHARACTER `humidityBox` | `Character::humidityMovesTheBodyTheRightWay` | OWNED |
 | CW-27 (§9) | Retune button zeroes drift | `CharacterEngine::retune` | CHARACTER `retuneButton` | `Character::retuneResetsTheDrift` | DONE |
@@ -38,6 +38,6 @@
 | CW-32 (§12) | Test: dead-spot audibility, T60 >=10% shorter at depth>=0.5 — test checks multiplier, not rendered 60 dB decay | | n/a | `Character::deadSpotsReduceSustainWhereTheyAre` | PARTIAL |
 | CW-33 (§12) | Test: 10 min drift at 5% looseness within 1 c of expected RMS | | n/a | `Character::tunerDriftStaysWithinItsStatedAmplitude` | DONE |
 | CW-34 (§12) | Test: 20 K temperature step measured at tuning engine per-string frequency — realism-a ENV tests replace it | | n/a | `Character::temperatureProducesTheExpectedOffset` (value only) | OWNED |
-| CW-35 (§12) | Test: zero character bitwise identical to no-wear render — test checks neutral multipliers, no audio render | | n/a | `Character::zeroCharacterIsExactlyNeutral` | PARTIAL |
+| CW-35 (§12) | Test: zero character bitwise identical to no-wear render | | n/a | `CharacterWiring::freshIsBitIdenticalAndWornIsNot` (Strat + Dreadnought renders), `Character::zeroCharacterIsExactlyNeutral` | DONE |
 
-<!-- counts DONE=14 NO-GUI=0 NO-TEST=6 PARTIAL=11 MISSING=0 OWNED=4 -->
+<!-- counts DONE=26 NO-GUI=0 NO-TEST=3 PARTIAL=2 MISSING=0 OWNED=4 -->

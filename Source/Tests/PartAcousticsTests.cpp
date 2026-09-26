@@ -362,6 +362,7 @@ LUTHIER_TEST (PartAcoustics, chamberingReachesTheBodyEngine)
         LuthierEngine engine;
         engine.prepare (48000.0, 256);
         engine.applyWorkshopGuitar (d);
+        engine.getCharacterEngine().setEnabled (false);   // body break-in (CW-24) would move it
 
         juce::AudioBuffer<float> block (2, 256);
         juce::MidiBuffer none;

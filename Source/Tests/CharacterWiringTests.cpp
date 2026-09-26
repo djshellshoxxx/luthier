@@ -383,3 +383,27 @@ LUTHIER_TEST (Character, deadSpotsBiteHarderNearTheBodyResonance)
 
     CHECK_MSG (near < far, "near " + juce::String (near, 4) + " should lose more than far " + juce::String (far, 4));
 }
+
+//==============================================================================
+/*  CW-24: body break-in reaches the body engine - at age 100 and full
+    intensity the air resonance is 3-8 % lower than new. */
+LUTHIER_TEST (CharacterWiring, bodyBreakInLowersTheAirMode)
+{
+    auto airAt = [] (double age)
+    {
+        LuthierEngine engine;
+        engine.prepare (kSr, kBlock);
+        engine.setGuitarType (GuitarType::Dreadnought);
+        auto& c = engine.getCharacterEngine();
+        c.setAmount (1.0);
+        c.setBodyAge (age);
+
+        juce::AudioBuffer<float> buffer (2, kBlock);
+        juce::MidiBuffer none;
+        engine.processBlock (buffer, none);
+        return engine.getBodyEngine().getAirResonanceHz();
+    };
+
+    const double drop = 1.0 - airAt (100.0) / airAt (0.0);
+    CHECK_MSG (drop >= 0.03 && drop <= 0.08, "air mode dropped " + juce::String (drop * 100.0, 2) + " %");
+}

@@ -1926,7 +1926,13 @@ void LuthierEngine::advanceRealism (int numSamples) noexcept
     // body-coupling.md 3 and environment.md 4: the same scaling reaches the
     // radiated body and the bank.
     const auto scaling = getBodyCouplingScaling();
-    body.setRuntimeScaling (scaling.plateFreq, scaling.airFreq, scaling.q, scaling.airQ);
+    // SPEC-SWEEP: CW-24 - character-wear 8's body break-in rides on the same
+    // scaling: the air mode drops and the plate Qs rise with body age.
+    body.setRuntimeScaling (scaling.plateFreq,
+                            scaling.airFreq * character.getAirResonanceMultiplier(),
+                            // damping falls as HF damping does: loss is 1/Q
+                            scaling.q * character.getBodyQMultiplier() / character.getBodyHfDampingMultiplier(),
+                            scaling.airQ);
     bodyCoupling.setScaling (scaling);
     bodyCoupling.beginBlock();
 
