@@ -349,7 +349,7 @@ JamPanel::JamPanel (LuthierAudioProcessor& p)
     buildGroups();
     setSize (900, getPreferredHeight());
     refresh();
-    startTimerHz (30);   // 8.3
+    motion.startTimerHz (*this, 30);   // 8.3, through the animation policy
 }
 
 JamPanel::~JamPanel()

@@ -17,6 +17,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "Widgets.h"
+#include "AnimationPolicy.h"
 #include "../Jam/JamStatus.h"
 
 namespace luthier
@@ -78,6 +79,9 @@ private:
     juce::String pillText { "JAM" };
     JamState state = JamState::off;
     double downAt = 0.0;
+
+    // cpu-quality-modes 6: the state poll is a live readout.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "JamPill" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (JamPill)
 };

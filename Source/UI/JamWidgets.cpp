@@ -88,7 +88,7 @@ JamPill::JamPill (LuthierAudioProcessor& p, Mode m)
                                      "then a press starts or stops it.");
     AccessibleSetup::configureButton (*this, "Jam band", "Arms, starts and stops the backing band");
     refresh();
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
 JamPill::~JamPill()
