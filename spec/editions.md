@@ -148,6 +148,7 @@ Legend:
 |---|---|---|---|
 | Factory presets | `factory-content.md` 1 | Free-limited | The 16 of 36 that need only Free features: 1, 2, 3, 4, 7, 10, 11, 14, 17, 21, 22, 27, 29, 31, 32, 35 (renumbered in the Free browser). The other 20 appear in the browser under "Luthier Pro" with a lock and a 20-second audio demo (4.3) |
 | User presets: save, load, browse, tags, favourites | `file-formats.md`, `state-model.md` | Both | Unlimited |
+| Preset previews, tone search and auto-tags, ratings, Sounds like | `preset-browser-previews.md` 12 | Both | Free previews its 16 presets, the user's, and the 20 Pro presets from shipped clips (locked, upsell on load); local renders use Free's effective values. `scripts/render_demos.sh` calls `scripts/render_previews.sh` (preset-browser-previews.md 2). |
 | A/B compare, undo / redo, randomize, reset | `gui-integration.md` 2, `action-and-undo.md` | Both | Randomize draws only from Free features |
 | Easy Mode | `gui-integration.md` 3 | Both | Full |
 | Advanced Mode columns 1-3 | `gui-integration.md` 4.1-4.3 | Both | With the per-control limits above |

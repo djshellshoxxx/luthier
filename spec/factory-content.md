@@ -318,3 +318,4 @@ included, scaled).
 - Every backing track streams at 48 kHz without dropouts.
 - Legal review sign-off recorded for every named entry.
 - Content-size gate: total factory content <= 200 MB compressed.
+- Factory preset previews (preset-browser-previews.md 2): 36 Ogg clips, 3 MB or less, rendered by `scripts/render_previews.sh` at build time and counted in the 200 MB.

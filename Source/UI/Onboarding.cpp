@@ -211,7 +211,7 @@ std::vector<Onboarding::TourStep> Onboarding::getTourSteps (bool includeTechniqu
     std::vector<TourStep> steps =
     {
         { "play",      "Play something",      "Hit a key on your MIDI keyboard. The output LED should light." },
-        { "preset",    "Try a preset",        "Click to browse. Try '" + juce::String (kTourSuggestedPreset) + "'." },
+        { "preset",    "Try a preset",        "Click to browse. Try '" + juce::String (kTourSuggestedPreset) + "'. Hover to hear, Enter to load." },   // preset-browser-previews 13
         { "mode",      "Switch to Advanced",  "Show every knob. You'll be here often." },
         { "guitar",    "Meet your guitar",    "Change the instrument, tuning, and character here." },
         { "rig",       "The rig",             "Pedals, amp, cabinet, room." },

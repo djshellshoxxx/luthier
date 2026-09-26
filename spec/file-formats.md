@@ -315,6 +315,24 @@ Every JSON file's `meta` block:
 - `tags`: array of short strings, used for filtering in browsers.
 - `notes`: user-facing free text.
 
+### 2.x Preset browser additions (preset-browser-previews.md 5.4, 5.2, 5.5)
+
+- Two optional top-level fields beside `name`: `uid` (a UUID written on the
+  first save of a user preset and kept afterwards; factory presets derive
+  `factory:<name>` and never write it) and `previewPhrase` (a phrase id from
+  preset-browser-previews.md 3.1). Both round-trip; no schema bump.
+  Auto-descriptors are never written into a preset.
+- `~/Documents/Luthier/config/preset-library.json`, magic
+  `luthier.presetlibrary`, schema 1: `entries` keyed by uid (or relative path)
+  with `favourite`, `rating`, `lastLoaded`, `loadCount`; `recent` (last 30).
+- The preview cache (OS cache folder, not Documents): `<hash32>.ogg` plus a
+  `<hash32>.json` sidecar, magic `luthier.preview`; written temp-then-rename
+  per section 13; `<hash32>.lock` taken exclusively; 128 MB, least recently
+  played evicted.
+- Shipped `Resources/Presets/Previews/previews.json`, magic
+  `luthier.previews`, and `Resources/Presets/descriptor-calibration.json`,
+  magic `luthier.calibration`.
+
 ## 13. Save-atomicity rules
 
 Every write path uses a temp-file-then-rename to avoid partial files
