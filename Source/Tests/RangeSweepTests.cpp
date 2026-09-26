@@ -4,6 +4,7 @@
 #include "TestFramework.h"
 
 #include "../Parameters.h"
+#include "../DSP/Common/DspCommon.h"
 #include "../PhysicalRange.h"
 #include "../PluginProcessor.h"
 
@@ -138,4 +139,88 @@ LUTHIER_TEST (Ranges, automationAndModulationFollowTheLiveRange)
 
     processor.setRanges (RangeState());
     CHECK_NEAR (modulatedTop (0.5f), range->stockMax, 0.05f);
+}
+
+//==============================================================================
+/*  AR-22: advanced-ranges.md 5 - each A/B slot carries its own ranges: A
+    stock, B with amp unlocked and gain 1.8. Switching restores each slot's
+    mode and value. */
+LUTHIER_TEST (Ranges, abSlotsCarryTheirOwnRanges)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    auto* gain = gainOf (processor);
+    CHECK (gain != nullptr);
+    if (gain == nullptr) return;
+
+    *gain = 0.4f;
+    processor.storeToSlot (false);
+
+    processor.setSlotBActive (true);
+    processor.setRanges (ampUnlocked());
+    *gain = 1.8f;
+
+    processor.setSlotBActive (false);   // stores B, recalls A
+    CHECK (! processor.getRanges().isFamilyAdvanced (RangeFamily::amp));
+    CHECK_NEAR (gain->get(), 0.4f, 1.0e-3f);
+
+    processor.setSlotBActive (true);
+    CHECK (processor.getRanges().isFamilyAdvanced (RangeFamily::amp));
+    CHECK_NEAR (gain->get(), 1.8f, 1.0e-3f);
+}
+
+//==============================================================================
+/*  AR-T2: advanced-ranges.md 10 - widening is silent: the same state and MIDI
+    render the same before and after every family is unlocked. Not bit for
+    bit: re-deriving a normalised value against the wider range moves some
+    plain values by a float ULP, which reaches the output at around -140 dBFS.
+    The bound is -120 dBFS (sweep-notes/dsp1.md). */
+LUTHIER_TEST (Ranges, wideningRendersIdentically)
+{
+    auto render = [] (bool widen)
+    {
+        LuthierAudioProcessor processor;
+        processor.prepareToPlay (kSr, kBlock);
+
+        if (auto* gain = gainOf (processor))
+            *gain = 0.7f;
+
+        if (widen)
+            for (int f = 0; f < (int) RangeFamily::numFamilies; ++f)
+            {
+                RangeState s = processor.getRanges();
+                s.setFamilyAdvanced ((RangeFamily) f, true);
+                processor.setRanges (s);
+            }
+
+        processor.getParameterBridge().applyAllNow();
+        processor.getEngine().reset();
+
+        std::vector<float> out;
+        for (int b = 0; b < 20; ++b)
+        {
+            juce::AudioBuffer<float> buffer (processor.getTotalNumOutputChannels(), kBlock);
+            buffer.clear();
+            juce::MidiBuffer midi;
+            if (b == 1)
+                midi.addEvent (juce::MidiMessage::noteOn (1, 52, 0.8f), 0);
+            processor.processBlock (buffer, midi);
+            out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + kBlock);
+        }
+
+        return out;
+    };
+
+    const auto stock = render (false);
+    const auto wide = render (true);
+
+    double worst = 0.0, peak = 0.0;
+    for (size_t i = 0; i < stock.size(); ++i)
+    {
+        worst = juce::jmax (worst, (double) std::abs (stock[i] - wide[i]));
+        peak = juce::jmax (peak, (double) std::abs (stock[i]));
+    }
+
+    CHECK (peak > 1.0e-3);
+    CHECK_MSG (worst < 1.0e-6, "unlocking every family moved the render by " + juce::String (gainToDb (worst), 1) + " dBFS");
 }

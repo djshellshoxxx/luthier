@@ -25,7 +25,7 @@ Most of the mechanism is implemented and tested: `PhysicalRange`/`RangeRegistry`
 | AR-19 (§4) | `ranges` block schema: families + per_control_unlocks; redundant unlocks dropped; malformed = absent | `RangeState::toVar/fromVar`, `setUnlockedIndividually` | n/a | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent` | DONE |
 | AR-20 (§4.1) | Legacy per-family derivation from plain values after load | `RangeState::deriveFromCurrentValues`, `PresetManager.cpp` ~694 | n/a | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent` | DONE |
 | AR-21 (§5) | Snapshots never carry mode; recall after locking clamps — `Snapshots.cpp` stores and recalls `getValue()` (normalised), so a recall against the stock range re-maps rather than clamps the plain value | `Live/Snapshots.cpp` (~182, ~368) | LIVE | `Snapshot::physicalPlain`, `SnapshotBank::liveParameters`; `Ranges::snapshotsDoNotCarryMode` | DONE |
-| AR-22 (§5) | A/B slots each carry their own ranges block | `captureStateBlock` -> `getStateInformation` | header A/B | - | NO-TEST |
+| AR-22 (§5) | A/B slots each carry their own ranges block | `captureStateBlock` -> `getStateInformation` | header A/B | `Ranges::abSlotsCarryTheirOwnRanges` | DONE |
 | AR-23 (§5, §6.2) | Randomise respects stock (pref default on); off uses the live range | `PresetManager::randomise`, `RangesUi::randomiseRespectsStock` | Options > RANGES toggle | `RangesUi::randomiseStaysInStockUnlessToldOtherwise` | DONE |
 | AR-24 (§5) | Reset to default writes defaultValue and never changes range mode — `resetToDefaults` writes the normalised `getDefaultValue()`, never checked against an advanced live range | `PresetManager::resetToDefaults` | header File menu | `Ranges::resetToDefaultsKeepsTheModeAndThePlainDefault` | DONE |
 | AR-25 (§6.1) | Tab padlock (accent unlocked / muted locked) on tabs holding physical params — CHARACTER only here; WORKSHOP padlock on visual (`AdvancedPanel` RangeTabButton for WORKSHOP); MOD waits for AR-15 | `RangesUi::RangeTabButton` | CHARACTER tab | - | OWNED |
@@ -41,7 +41,7 @@ Most of the mechanism is implemented and tested: `PhysicalRange`/`RangeRegistry`
 | AR-35 (§8) | Options -> Diagnostics mirrors the boolean | on visual: `AudioPathView::describeFlags` ("Advanced ranges: ...") on DiagnosticsPage | Options > DIAGNOSTICS | - | OWNED |
 | AR-36 (§9) | Range mode read once on change, nothing per block | `RangeState::applyTo` (message thread) | n/a | - | NO-TEST |
 | AR-T1 (§10) | Test: invariants sweep | - | n/a | `Ranges::everyPhysicalRangeIsValid` | DONE |
-| AR-T2 (§10) | Test: widening is silent (plain values within 1e-9 **and a bit-identical rendered block**) — plain values checked, no rendered-block comparison | - | n/a | `Ranges::wideningPreservesEveryPlainValue` | PARTIAL |
+| AR-T2 (§10) | Test: widening is silent (plain values within 1e-9 **and a bit-identical rendered block**) — plain values checked, no rendered-block comparison | - | n/a | `Ranges::wideningRendersIdentically` (to -120 dBFS; float re-normalisation moves plain values by an ULP), `Ranges::wideningPreservesEveryPlainValue` | DONE |
 | AR-T3 (§10) | Test: narrowing clamps and reports a count of 1 | - | n/a | `Ranges::narrowingClampsAndReportsTheCount` | DONE |
 | AR-T4 (§10) | Test: undo restores a clamp | - | n/a | `RangesUi::rightClickUnlocksAndRestrictsOneControl`, `RangesUi::theRangesPageListsLocksAndClamps` | DONE |
 | AR-T5 (§10) | Test: normalisation follows the live range | - | n/a | `Ranges::normalisationFollowsTheLiveRange` | DONE |
@@ -51,4 +51,4 @@ Most of the mechanism is implemented and tested: `PhysicalRange`/`RangeRegistry`
 | AR-T9 (§10) | Test: randomise respects stock over 1000 passes | - | n/a | `RangesUi::randomiseStaysInStockUnlessToldOtherwise` | DONE |
 | AR-T10 (§10) | Test: snapshots do not carry mode (capture advanced, lock, recall, values clamped) — no test (and AR-21 would fail it) | - | n/a | `Ranges::snapshotsDoNotCarryMode` | DONE |
 
-<!-- counts DONE=34 NO-GUI=0 NO-TEST=6 PARTIAL=2 MISSING=1 OWNED=3 -->
+<!-- counts DONE=36 NO-GUI=0 NO-TEST=5 PARTIAL=1 MISSING=1 OWNED=3 -->
