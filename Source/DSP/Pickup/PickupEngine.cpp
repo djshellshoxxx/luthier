@@ -267,7 +267,8 @@ PickupEngine::SelectedCoil PickupEngine::getSelectedCoil() const noexcept
 
 void PickupEngine::setHumAmount (double amount) noexcept
 {
-    humLevel.setTarget (juce::jlimit (0.0, 1.0, amount));
+    // noise-floor.md 3: the advanced range reaches 4.
+    humLevel.setTarget (juce::jlimit (0.0, 4.0, amount));
 }
 
 void PickupEngine::setMainsFrequency (double hz) noexcept
@@ -410,6 +411,49 @@ double PickupEngine::combSample (Coil& coil, int stringIndex, double input, doub
 }
 
 //==============================================================================
+void PickupEngine::setStringLateralOffsets (const double* mmAtFret, const double* stopFromSaddleMm,
+                                            const bool* bassward, int n, double scaleLengthMm,
+                                            double stringSpacingMm, double apertureScale) noexcept
+{
+    n = juce::jlimit (0, kMaxStrings, n);
+    bool any = false;
+
+    for (int slot = 0; slot < kMaxPickups; ++slot)
+    {
+        const auto& spec = specs[(size_t) slot];
+        const bool magnetic = spec.type != PickupType::Piezo && spec.type != PickupType::InternalMic;
+        const double sigma = apertureSigmaMm (spec.type) * juce::jlimit (0.1, 5.0, apertureScale);
+        const double sb = juce::jmax (1.0, stringSpacingMm);
+        const double xPickup = spec.position * scaleLengthMm;
+        auto A = [sigma] (double y) { return std::exp (-(y * y) / (2.0 * sigma * sigma)); };
+
+        for (int s = 0; s < kMaxStrings; ++s)
+        {
+            double g = 1.0;
+            const double atFret = s < n ? mmAtFret[s] : 0.0;
+
+            if (magnetic && atFret > 0.0)
+            {
+                const double delta = atFret * juce::jlimit (0.0, 1.0, xPickup / juce::jmax (1.0, stopFromSaddleMm[s]));
+
+                // Edge strings drop the neighbour they do not have: the high E
+                // (0) has none on the treble side, the lowest none on the bass.
+                const bool toward = bassward[s] ? s < n - 1 : s > 0;
+                const bool away   = bassward[s] ? s > 0 : s < n - 1;
+
+                const double num = A (delta) + (toward ? A (sb - delta) : 0.0) + (away ? A (sb + delta) : 0.0);
+                const double den = A (0.0) + (toward ? A (sb) : 0.0) + (away ? A (sb) : 0.0);
+                g = num / den;
+                any = true;
+            }
+
+            apertureGain[(size_t) slot][(size_t) s] = g;
+        }
+    }
+
+    anyApertureGain = any;
+}
+
 double PickupEngine::processStrings (const double* stringOutputs,
                                      const double* delaySamples,
                                      int strings) noexcept
@@ -472,9 +516,21 @@ double PickupEngine::processStrings (const double* stringOutputs,
 
             double coilSum = 0.0;
 
-            for (int s = 0; s < n; ++s)
-                coilSum += combSample (coil, s, stringOutputs[s], delaySamples[s] * pos)
-                             * (1.0 + stringBalanceDelta[(size_t) slot][(size_t) s]);   // SPEC-SWEEP: CW-20
+            // SPEC-SWEEP: CW-20 - each string's pole balance in this pickup.
+            if (anyApertureGain)
+            {
+                // string-interaction.md 5: a bent string's aperture gain.
+                for (int s = 0; s < n; ++s)
+                    coilSum += apertureGain[(size_t) slot][(size_t) s]
+                                 * combSample (coil, s, stringOutputs[s], delaySamples[s] * pos)
+                                 * (1.0 + stringBalanceDelta[(size_t) slot][(size_t) s]);
+            }
+            else
+            {
+                for (int s = 0; s < n; ++s)
+                    coilSum += combSample (coil, s, stringOutputs[s], delaySamples[s] * pos)
+                                 * (1.0 + stringBalanceDelta[(size_t) slot][(size_t) s]);
+            }
 
             // The electrical stage runs once per coil on its summed string signal,
             // because a real coil has one winding for all the strings.
@@ -495,28 +551,13 @@ double PickupEngine::processStrings (const double* stringOutputs,
     // coil cancels it. So the hum is scaled by how much of the active signal is
     // coming from single-coil-style pickups.
     const double hum = humLevel.next();
+    lastHum = 0.0;
 
     if (hum > 1.0e-5)
     {
-        double singleCoilShare = 0.0;
-        double totalShare = 0.0;
+        const double share = getSingleCoilShare();
 
-        for (int slot = 0; slot < numPickups; ++slot)
-        {
-            const double g = slotGain[(size_t) slot].getCurrent();
-            totalShare += g;
-
-            const auto& spec = specs[(size_t) slot];
-            const bool hums = (spec.type == PickupType::SingleCoil
-                               || spec.type == PickupType::P90
-                               || spec.type == PickupType::MagneticSoundhole
-                               || (spec.type == PickupType::Humbucker && spec.coilTapped));
-
-            if (hums)
-                singleCoilShare += g;
-        }
-
-        if (totalShare > 1.0e-6 && singleCoilShare > 1.0e-6)
+        if (share > 0.0)
         {
             humPhase += humIncrement;
 
@@ -528,7 +569,14 @@ double PickupEngine::processStrings (const double* stringOutputs,
                                 + 0.35 * std::sin (constants::kTwoPi * 3.0 * humPhase)
                                 + 0.15 * std::sin (constants::kTwoPi * 5.0 * humPhase);
 
-            total += buzz * hum * 0.0022 * (singleCoilShare / totalShare);
+            double h = buzz * hum * 0.0022 * share;
+
+            // noise-floor.md 2.1: only when not 1, so the legacy hum is bit-identical.
+            if (humPositionGain != 1.0)
+                h *= humPositionGain;
+
+            lastHum = h;
+            total += h;
         }
     }
 
@@ -537,6 +585,33 @@ double PickupEngine::processStrings (const double* stringOutputs,
     total = outputDc.process (total);
 
     return sanitise (total);
+}
+
+//==============================================================================
+double PickupEngine::getSingleCoilShare() const noexcept
+{
+    // Single coils pick up the mains field; a humbucker's reverse-wound second
+    // coil cancels it. So the hum is scaled by how much of the active signal is
+    // coming from single-coil-style pickups (noise-floor.md 4.1 factors it out).
+    double singleCoilShare = 0.0;
+    double totalShare = 0.0;
+
+    for (int slot = 0; slot < numPickups; ++slot)
+    {
+        const double g = slotGain[(size_t) slot].getCurrent();
+        totalShare += g;
+
+        const auto& spec = specs[(size_t) slot];
+        const bool hums = (spec.type == PickupType::SingleCoil
+                           || spec.type == PickupType::P90
+                           || spec.type == PickupType::MagneticSoundhole
+                           || (spec.type == PickupType::Humbucker && spec.coilTapped));
+
+        if (hums)
+            singleCoilShare += g;
+    }
+
+    return (totalShare > 1.0e-6 && singleCoilShare > 1.0e-6) ? singleCoilShare / totalShare : 0.0;
 }
 
 //==============================================================================

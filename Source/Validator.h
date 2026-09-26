@@ -94,6 +94,12 @@ public:
     /** Records that the coupling matrix had to limit. */
     void reportCouplingLimiting (double amount, int64_t pos) noexcept;
 
+    /*  harmonic-realism.md 2: a harmonic contact the loop was too short to
+        hold (high note, high n, low rate) fell back to band isolation. A
+        count, not a failure: the note still sounds. Never silent (HR-15). */
+    void reportHarmonicFallback() noexcept { harmonicFallbacks.fetch_add (1, std::memory_order_relaxed); }
+    int getHarmonicFallbackCount() const noexcept { return harmonicFallbacks.load (std::memory_order_relaxed); }
+
     //==========================================================================
     int getFailureCount (ValidationCheck c) const noexcept;
     int getTotalFailures() const noexcept;
@@ -119,6 +125,7 @@ private:
 
     ValidationRecord history[kHistorySize];
     std::atomic<int> writeIndex { 0 };
+    std::atomic<int> harmonicFallbacks { 0 };
 };
 
 } // namespace luthier

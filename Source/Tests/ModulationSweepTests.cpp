@@ -158,6 +158,7 @@ LUTHIER_TEST (ModMatrixUi, theSourceCardsWriteTheirNewControls)
 LUTHIER_TEST (ModMatrixUi, theRouteTableEditsDepthAndOffset)
 {
     LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
     auto& matrix = processor.getModMatrix();
 
     ModRoute route;

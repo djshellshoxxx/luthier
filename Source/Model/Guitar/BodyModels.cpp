@@ -200,7 +200,7 @@ void BodyModels::buildModes (const BodyConfig& cfg, std::vector<BodyMode>& dest)
     // gets a higher Q - the "opened up" quality of an old instrument.
     const double ageQ = 1.0 + juce::jlimit (0.0, 1.0, cfg.age) * 0.55;
 
-    auto addMode = [&dest, &cfg] (double hz, double q, double gain)
+    auto addMode = [&dest, &cfg] (double hz, double q, double gain, bool isAir = false)
     {
         if (dest.size() >= (size_t) kMaxModes)
             return;
@@ -212,6 +212,7 @@ void BodyModels::buildModes (const BodyConfig& cfg, std::vector<BodyMode>& dest)
         m.frequencyHz = hz * cfg.resonanceTrim;
         m.q = juce::jlimit (1.5, 220.0, q);
         m.gain = gain;
+        m.isAir = isAir;
         dest.push_back (m);
     };
 
@@ -228,8 +229,8 @@ void BodyModels::buildModes (const BodyConfig& cfg, std::vector<BodyMode>& dest)
         const double airBase = cfg.airHzOverride > 0.0 ? airHz / juce::jmax (0.1, cfg.resonanceTrim) : airHz;
         const double airQ = cfg.airQOverride > 0.0 ? cfg.airQOverride : 16.0;
 
-        addMode (airBase, airQ * ageQ, 1.00);
-        addMode (airBase * 1.62, 22.0 * ageQ, 0.42);
+        addMode (airBase, airQ * ageQ, 1.00, true);
+        addMode (airBase * 1.62, 22.0 * ageQ, 0.42, true);
 
         // Long-air mode running the length of the box.
         const double lengthM = shape.lowerBoutMm * 0.0016 * widthScale;

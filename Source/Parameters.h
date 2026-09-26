@@ -348,6 +348,27 @@ namespace ParamIDs
     inline constexpr const char* slapSnapBack           = "slap_snap_back";
     inline constexpr const char* slapBodyPart           = "slap_body_part";
 
+    // ==== BEGIN REALISM-A params ====
+    // string-aging.md 4
+    inline constexpr const char* stringAgeHours         = "string_age_hours";
+    inline constexpr const char* stringCorrosivity      = "string_corrosivity";
+    inline constexpr const char* stringAgeDetail        = "string_age_detail";
+    inline constexpr const char* stringCoating          = "string_coating";
+    inline constexpr const char* stringAgeAccrual       = "string_age_accrual";
+    // environment.md 5
+    inline constexpr const char* envTemperatureC        = "env_temperature_c";
+    inline constexpr const char* envTunedAtC            = "env_tuned_at_c";
+    inline constexpr const char* envHumidityPct         = "env_humidity_pct";
+    inline constexpr const char* envProfile             = "env_profile";
+    inline constexpr const char* envClock               = "env_clock";
+    // body-coupling.md 4
+    inline constexpr const char* bodyCouplingAmount     = "body_coupling_amount";
+    inline constexpr const char* bodyModeMassScale      = "body_mode_mass_scale";
+    inline constexpr const char* bodyModeQScale         = "body_mode_q_scale";
+    inline constexpr const char* bodyModeFreqScale      = "body_mode_freq_scale";
+    inline constexpr const char* bodyCouplingModes      = "body_coupling_modes";
+    // ==== END REALISM-A params ====
+
     // --- effect slots ----------------------------------------------------------
     /** `post` selects the chain; `slot` 0-7; `param` 0-9. */
     juce::String slotType (bool post, int slot);
@@ -362,6 +383,90 @@ namespace ParamIDs
     inline constexpr const char* restStroke                 = "rest_stroke";
     inline constexpr const char* aux1PreCircuit             = "aux1_pre_circuit";
     // ==== END MODEL-GAPS params ====
+    // ==== BEGIN REALISM-B params ====
+    // harmonic-realism.md 5 (+8).
+    inline constexpr const char* harmonicTouchPressure    = "harmonic_touch_pressure";
+    inline constexpr const char* harmonicFingerWidth      = "harmonic_finger_width";
+    inline constexpr const char* harmonicTouchTime        = "harmonic_touch_time";
+    inline constexpr const char* harmonicBriefTouch       = "harmonic_brief_touch";
+    inline constexpr const char* pinchThumbOffsetMm       = "pinch_thumb_offset_mm";
+    inline constexpr const char* artificialHarmonicOffset = "artificial_harmonic_offset";
+    inline constexpr const char* tappedHarmonicOffset     = "tapped_harmonic_offset";
+    inline constexpr const char* harmonicNoteMapping      = "harmonic_note_mapping";
+
+    // string-interaction.md 7 (+7).
+    inline constexpr const char* couplingAirAmount        = "coupling_air_amount";
+    inline constexpr const char* palmMuteSpread           = "palm_mute_spread";
+    inline constexpr const char* adjacentMuteAmount       = "adjacent_mute_amount";
+    inline constexpr const char* releaseStaggerMs         = "release_stagger_ms";
+    inline constexpr const char* releaseStaggerBias       = "release_stagger_bias";
+    inline constexpr const char* pickupApertureScale      = "pickup_aperture_scale";
+    inline constexpr const char* mutedThumpLevel          = "muted_thump_level";
+
+    // fingerstyle-attack.md 6 (+14).
+    inline constexpr const char* fingerFleshReleaseMs     = "finger_flesh_release_ms";
+    inline constexpr const char* fingerNailReleaseMs      = "finger_nail_release_ms";
+    inline constexpr const char* thumbPositionOffset      = "thumb_position_offset";
+    inline constexpr const char* restStrokeDamping        = "rest_stroke_damping";
+    inline constexpr const char* rhStroke                 = "rh_stroke";
+    inline constexpr const char* rhStyle                  = "rh_style";
+    inline constexpr const char* thumbPalmMute            = "thumb_palm_mute";
+    inline constexpr const char* hybridSnap               = "hybrid_snap";
+
+    /** rh_string_tool_1 ... _6; string 1 is the high E (routing-io.md 3). */
+    inline const char* rhStringTool (int n) noexcept
+    {
+        static constexpr const char* ids[] = { "rh_string_tool_1", "rh_string_tool_2", "rh_string_tool_3",
+                                               "rh_string_tool_4", "rh_string_tool_5", "rh_string_tool_6" };
+        return ids[juce::jlimit (1, 6, n) - 1];
+    }
+
+    /*  bass-techniques.md 11's IDs, which fingerstyle-attack.md 6 reuses and
+        does not duplicate. Read if another workstream declares them. */
+    inline constexpr const char* bassRestStroke             = "rest_stroke";
+    // ==== END REALISM-B params ====
+    // ==== BEGIN REALISM-C params ====
+    // noise-floor.md 3 (noise_amp_buzz, "Single-coil Hum", is ampBuzz above).
+    inline constexpr const char* noiseMainsHz         = "noise_mains_hz";
+    inline constexpr const char* noisePlayerAngle     = "noise_player_angle";
+    inline constexpr const char* noisePlayerDistance  = "noise_player_distance";
+    inline constexpr const char* noiseFluorescent     = "noise_fluorescent";
+    inline constexpr const char* noisePassiveHiss     = "noise_passive_hiss";
+    inline constexpr const char* noiseCableMovement   = "noise_cable_movement";
+    inline constexpr const char* noiseRadio           = "noise_radio";
+    inline constexpr const char* noiseGroundLoop      = "noise_ground_loop";
+    inline constexpr const char* noiseAmpHiss         = "noise_amp_hiss";
+    inline constexpr const char* noiseMicrophonics    = "noise_microphonics";
+    inline constexpr const char* noiseFloorToAux8     = "noise_floor_to_aux8";
+    inline constexpr const char* noiseFloorStyle      = "noise_floor_style";
+
+    // sustain-and-decay.md 6.
+    inline constexpr const char* sustainAttackTransient = "sustain_attack_transient";
+    inline constexpr const char* sustainAttackTime      = "sustain_attack_time";
+    inline constexpr const char* sustainFastShare       = "sustain_fast_share";
+    inline constexpr const char* sustainFastRatio       = "sustain_fast_ratio";
+    inline constexpr const char* sustainTensionMod      = "sustain_tension_mod";
+    inline constexpr const char* sustainReleaseTime     = "sustain_release_time";
+    inline constexpr const char* sustainReleaseSag      = "sustain_release_sag";
+    inline constexpr const char* sustainReleaseRing     = "sustain_release_ring";
+    inline constexpr const char* sustainStyle           = "sustain_style";
+
+    // tuning-stability.md 4.
+    inline constexpr const char* stabilityAmount      = "stability_amount";
+    inline constexpr const char* stabilitySettling    = "stability_settling";
+    inline constexpr const char* stabilityNutBinding  = "stability_nut_binding";
+    inline constexpr const char* stabilityBacklash    = "stability_backlash";
+    inline constexpr const char* stabilitySaddleCreep = "stability_saddle_creep";
+    inline constexpr const char* stabilityBendMemory  = "stability_bend_memory";
+    inline constexpr const char* stabilityCapoBias    = "stability_capo_bias";
+    inline constexpr const char* stabilityAutoRetune  = "stability_auto_retune";
+    // ==== END REALISM-C params ====
+    // ==== BEGIN TUNE-HELP-ONBOARDING params ====
+    // tune-builder.md 14: section parameters the mod matrix and host automation
+    // can move over the tune's timeline. Both at 0 leave every tune as written.
+    inline constexpr const char* tuneFeelMod            = "tune_feel_mod";      ///< -1..1, added to each section's feel
+    inline constexpr const char* tuneTempoDrift         = "tune_tempo_drift";   ///< -10..10 %, the tune's own clock
+    // ==== END TUNE-HELP-ONBOARDING params ====
 }
 
 //==============================================================================
@@ -381,6 +486,7 @@ public:
     static juce::StringArray stringMaterialNames();
     static juce::StringArray stringGaugeNames();
     static juce::StringArray stringAgeNames();
+    static juce::StringArray envProfileNames();   // environment.md 3.1 (REALISM-A)
     static juce::StringArray pickMaterialNames();
     static juce::StringArray bodyModeNames();
     static juce::StringArray bracingNames();
@@ -502,6 +608,12 @@ public:
         thread. */
     std::function<bool (GuitarType)> onLoadGuitarType;
 
+    /*  Called around every structural pass on the message thread, outermost
+        pass only: the processor fades its output out before (so a ringing note
+        is not cut mid-cycle - a preset switch clicked at 0.32 of full scale,
+        BETA_TEST_REPORT B-06) and back in after. */
+    std::function<void()> beforeStructuralChange, afterStructuralChange;
+
 private:
     void handleAsyncUpdate() override;
     void applyStructural();
@@ -573,6 +685,7 @@ private:
     ModMatrix* modMatrix = nullptr;
 
     juce::CriticalSection engineLock;
+    int structuralDepth = 0;   ///< message thread: nesting of structural passes
 
     // Cached structural selections, so a change is detected exactly once.
     int lastGuitarType = -1;

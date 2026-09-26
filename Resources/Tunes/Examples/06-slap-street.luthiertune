@@ -1,0 +1,630 @@
+{
+  "schema": 1,
+  "magic": "luthier.tune",
+  "meta": {
+    "title": "Slap Street",
+    "artist": "",
+    "author": "Factory",
+    "tempo_bpm": 100.0,
+    "time_sig": "4/4",
+    "key": "E",
+    "mode": "mixolydian",
+    "swing": 0.0,
+    "feel_pct": 0.0,
+    "tags": [
+      "example",
+      "funk"
+    ],
+    "notes": "A sixteenth-note funk groove whose bass line is written out: thumbed roots, popped octaves and ghosted dead notes. Play it on a bass (P-Bass Flatwound or J-Style Fingerstyle) with slap on; on a guitar it goes out as MIDI.",
+    "created": "2026-09-24T00:00:00Z",
+    "modified": "2026-09-24T00:00:00Z"
+  },
+  "sections": [
+    {
+      "name": "Groove",
+      "length_bars": 4,
+      "rhythm_pattern": "Funk Sixteenth",
+      "genre_kit": "Funk 16th",
+      "chords": [
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        }
+      ],
+      "bass": {
+        "mode": "manual",
+        "notes": [
+          {
+            "start": 0.0,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 112,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 0.5,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 40,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 0.75,
+            "dur": 0.25,
+            "pitch": 40,
+            "vel": 105,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 1.5,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 100,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 2.0,
+            "dur": 0.25,
+            "pitch": 40,
+            "vel": 108,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 2.5,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 38,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 3.0,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 104,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 3.5,
+            "dur": 0.25,
+            "pitch": 40,
+            "vel": 110,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 4.0,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 112,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 4.5,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 40,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 4.75,
+            "dur": 0.25,
+            "pitch": 40,
+            "vel": 105,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 5.5,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 100,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 6.0,
+            "dur": 0.25,
+            "pitch": 40,
+            "vel": 108,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 6.5,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 38,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 7.0,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 104,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 7.5,
+            "dur": 0.25,
+            "pitch": 40,
+            "vel": 110,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 8.0,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 112,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 8.5,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 40,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 8.75,
+            "dur": 0.25,
+            "pitch": 45,
+            "vel": 105,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 9.5,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 100,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 10.0,
+            "dur": 0.25,
+            "pitch": 45,
+            "vel": 108,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 10.5,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 38,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 11.0,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 104,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 11.5,
+            "dur": 0.25,
+            "pitch": 45,
+            "vel": 110,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 12.0,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 112,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 12.5,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 40,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 12.75,
+            "dur": 0.25,
+            "pitch": 40,
+            "vel": 105,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 13.5,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 100,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 14.0,
+            "dur": 0.25,
+            "pitch": 40,
+            "vel": 108,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 14.5,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 38,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 15.0,
+            "dur": 0.25,
+            "pitch": 28,
+            "vel": 104,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 15.5,
+            "dur": 0.25,
+            "pitch": 40,
+            "vel": 110,
+            "articulation": "staccato",
+            "locked": true
+          }
+        ]
+      },
+      "role": "verse",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.4,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    },
+    {
+      "name": "Turn",
+      "length_bars": 4,
+      "rhythm_pattern": "Funk Sixteenth",
+      "genre_kit": "Funk 16th",
+      "chords": [
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "B",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "B",
+          "quality": "7",
+          "beats": 4.0
+        }
+      ],
+      "bass": {
+        "mode": "manual",
+        "notes": [
+          {
+            "start": 0.0,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 112,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 0.5,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 40,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 0.75,
+            "dur": 0.25,
+            "pitch": 45,
+            "vel": 105,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 1.5,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 100,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 2.0,
+            "dur": 0.25,
+            "pitch": 45,
+            "vel": 108,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 2.5,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 38,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 3.0,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 104,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 3.5,
+            "dur": 0.25,
+            "pitch": 45,
+            "vel": 110,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 4.0,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 112,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 4.5,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 40,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 4.75,
+            "dur": 0.25,
+            "pitch": 45,
+            "vel": 105,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 5.5,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 100,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 6.0,
+            "dur": 0.25,
+            "pitch": 45,
+            "vel": 108,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 6.5,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 38,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 7.0,
+            "dur": 0.25,
+            "pitch": 33,
+            "vel": 104,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 7.5,
+            "dur": 0.25,
+            "pitch": 45,
+            "vel": 110,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 8.0,
+            "dur": 0.25,
+            "pitch": 35,
+            "vel": 112,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 8.5,
+            "dur": 0.25,
+            "pitch": 35,
+            "vel": 40,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 8.75,
+            "dur": 0.25,
+            "pitch": 47,
+            "vel": 105,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 9.5,
+            "dur": 0.25,
+            "pitch": 35,
+            "vel": 100,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 10.0,
+            "dur": 0.25,
+            "pitch": 47,
+            "vel": 108,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 10.5,
+            "dur": 0.25,
+            "pitch": 35,
+            "vel": 38,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 11.0,
+            "dur": 0.25,
+            "pitch": 35,
+            "vel": 104,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 11.5,
+            "dur": 0.25,
+            "pitch": 47,
+            "vel": 110,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 12.0,
+            "dur": 0.25,
+            "pitch": 35,
+            "vel": 112,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 12.5,
+            "dur": 0.25,
+            "pitch": 35,
+            "vel": 40,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 12.75,
+            "dur": 0.25,
+            "pitch": 47,
+            "vel": 105,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 13.5,
+            "dur": 0.25,
+            "pitch": 35,
+            "vel": 100,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 14.0,
+            "dur": 0.25,
+            "pitch": 47,
+            "vel": 108,
+            "articulation": "staccato",
+            "locked": true
+          },
+          {
+            "start": 14.5,
+            "dur": 0.25,
+            "pitch": 35,
+            "vel": 38,
+            "articulation": "palm_muted",
+            "locked": true
+          },
+          {
+            "start": 15.0,
+            "dur": 0.25,
+            "pitch": 35,
+            "vel": 104,
+            "articulation": "natural",
+            "locked": true
+          },
+          {
+            "start": 15.5,
+            "dur": 0.25,
+            "pitch": 47,
+            "vel": 110,
+            "articulation": "staccato",
+            "locked": true
+          }
+        ]
+      },
+      "role": "bridge",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.4,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    }
+  ],
+  "setlist": [
+    {
+      "section": "Groove",
+      "repeats": 2
+    },
+    {
+      "section": "Turn",
+      "repeats": 1
+    },
+    {
+      "section": "Groove",
+      "repeats": 1
+    }
+  ]
+}
