@@ -212,3 +212,26 @@ REQUIREMENT (GUI + verify only; assign a Sonnet implementer via check-in):
    still gives 0; 50 vs 60 Hz changes the fundamental.
 No new spec/engine. Additive GUI note in spec/noise-floor.md marking the
 Options surface.
+
+## Finger squeak — make it audible/discoverable (2026-09-26, owner)
+
+Owner cannot hear finger squeaks. Spec exists (spec/string-squeak.md) and is
+implemented (squeakAmount ~0.25, squeakMinTravel 1.5 frets). Root cause of
+"can't hear it": (1) it triggers ONLY on a legato position shift (finger not
+lifted); a normal new pluck at a new position is NOT a trigger, so ordinary
+plucked MIDI produces none; (2) honest level is 20-30 dB below the note.
+DO NOT rewrite the model. Assign effects-audit + a Sonnet implementer:
+1. Verify a legato/slide shift of >= squeak_min_travel actually produces
+   audible squeak on wound strings, across string types (wound vs plain: plain
+   strings squeak little/none — correct). Add a test that measures squeak
+   present on a legato shift and ~0 on a plain string.
+2. Make the squeak DISCOVERABLE and TURN-UP-ABLE: ensure squeakAmount (and
+   min-travel) have a reachable GUI control (Character/Realism area per
+   gui-integration.md), so a user who wants more can raise it well above the
+   realistic default without editing automation.
+3. Ensure Performance Assist legato/slide rules actually generate the
+   sustained position shifts that trigger squeak, so enabling Assist yields
+   audible finger noise during normal playing.
+4. Keep honest magnitudes as the DEFAULT; the control lets the owner exaggerate.
+No new spec/engine. If any of 1-3 is genuinely missing in code (not just quiet),
+that is a bug to fix, not a tuning tweak.
