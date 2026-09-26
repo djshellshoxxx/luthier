@@ -623,9 +623,18 @@ LUTHIER_TEST (Combo, modulationRoutesAtFullDepth)
         const auto phrase = (Phrase) (group % (int) Phrase::numPhrases);
         const auto stats = rig.render (phrase, 2.5);
 
+        // A route into a noise-floor level (hum, hiss, radio, the player's
+        // movement) makes the floor itself move with the LFO or random source,
+        // note or no note: the 0.25 s idle measured before the phrase cannot
+        // stand for it, so a tail at the floor's own level is not a note that
+        // fails to decay.
+        bool movesTheFloor = false;
+        for (auto& id : used)
+            movesTheFloor = movesTheFloor || id.startsWith ("noise_");
+
         Verdict v;
         v.expectSound = false;   // a route to master gain or guitar volume may legitimately mute it
-        v.expectDecay = ! holdsSound (rig) && ! slotHoldsSound (rig)
+        v.expectDecay = ! holdsSound (rig) && ! slotHoldsSound (rig) && ! movesTheFloor
                         && ! used.joinIntoString (",").containsIgnoreCase ("feedback")
                         && ! used.joinIntoString (",").containsIgnoreCase ("freeze")
                         && ! used.joinIntoString (",").containsIgnoreCase ("ebow");

@@ -302,16 +302,19 @@ struct Rig
         return stats;
     }
 
-    /** The lowest note the current guitar can sound: its lowest open string. */
+    /** The lowest note the current guitar can sound: its lowest open string, or
+        the capo on it (nothing is fretted at or behind a capo, RubricVoicer 4.5,
+        so a capo at 12 moves the floor up an octave). */
     int lowestPlayableNote()
     {
         auto& engine = processor->getEngine();
-        const auto open = PerformanceCapture::getOpenNotes (engine.getTuningEngine(), engine.getNumStrings());
+        auto& tuning = engine.getTuningEngine();
+        const auto open = PerformanceCapture::getOpenNotes (tuning, engine.getNumStrings());
         int lowest = 127;
 
         for (int s = 0; s < engine.getNumStrings(); ++s)
             if (open[(size_t) s] > 0)
-                lowest = juce::jmin (lowest, open[(size_t) s]);
+                lowest = juce::jmin (lowest, open[(size_t) s] + tuning.getCapoFretFor (s));
 
         return lowest == 127 ? 0 : lowest;
     }
