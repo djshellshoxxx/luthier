@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "UI/UiPreferences.h"   // SPEC-SWEEP: ER-65
 #include "UI/FirstRun.h"
 #include "UI/RangesUi.h"
 #include "Accessibility/Accessibility.h"
@@ -1018,6 +1019,46 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         notifications.post (std::move (n));
     }
 
+    // ---- SPEC-SWEEP: ER-38 - an arm nobody answered --------------------------
+    if (processor.getMidiLearn().expireIfIdle (juce::Time::getMillisecondCounter()))
+    {
+        Notification n;
+        n.id = "midi-learn-timeout";
+        n.message = "MIDI Learn cancelled (no MIDI received).";
+        n.level = Notification::Level::info;
+        notifications.post (std::move (n));
+    }
+
+    // ---- SPEC-SWEEP: ER-65 - preferences that could not be read -------------
+    if (UiPreferences::get().takeCorruptionNotice())
+    {
+        Notification n;
+        n.id = "preferences-reset";
+        n.message = "Preferences reset (previous file corrupted, backed up).";
+        n.level = Notification::Level::warning;
+        notifications.post (std::move (n));
+    }
+
+    // ---- SPEC-SWEEP: FF-35/SM-31 - a setlist that would not load whole -----
+    for (const auto& message : processor.takeStateWarnings())
+    {
+        Notification n;
+        n.id = "setlist-load";
+        n.message = message;
+        n.level = Notification::Level::warning;
+        notifications.post (std::move (n));
+    }
+
+    // ---- SPEC-SWEEP: SM-46 - what a load did to the layers around it --------
+    for (const auto& message : processor.takeStateNotices())
+    {
+        Notification n;
+        n.id = "state-model";
+        n.message = message;
+        n.level = Notification::Level::info;
+        notifications.post (std::move (n));
+    }
+
     // ---- a preset that would not load ----------------------------------------
     const auto presetError = processor.getPresetManager().getLastLoadError();
 
@@ -1032,6 +1073,23 @@ void LuthierAudioProcessorEditor::pollForNotifications()
             n.message = presetError;
             n.level = Notification::Level::warning;
 
+            notifications.post (std::move (n));
+        }
+    }
+
+    // ---- SPEC-SWEEP: ER-19/20/21 - a save that did not land ------------------
+    const auto saveError = processor.getPresetManager().getLastSaveError();
+
+    if (saveError != reportedPresetSaveError)
+    {
+        reportedPresetSaveError = saveError;
+
+        if (saveError.isNotEmpty())
+        {
+            Notification n;
+            n.id = "preset-save";
+            n.message = saveError;
+            n.level = Notification::Level::warning;
             notifications.post (std::move (n));
         }
     }

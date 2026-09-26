@@ -53,6 +53,13 @@ public:
         parameter, disarms, and returns true so the control swallows the click. */
     bool claimArmedLearn (const juce::String& parameterId);
 
+    /*  SPEC-SWEEP: ER-38, error-recovery 6: an arm or a learn that has waited
+        kArmTimeoutMs without catching a CC is cancelled. The window calls this
+        from its timer with the millisecond counter; returns true when it
+        cancelled, so the window can say so. */
+    static constexpr juce::uint32 kArmTimeoutMs = 30000;
+    bool expireIfIdle (juce::uint32 nowMs);
+
     //==========================================================================
     void addMapping (const juce::String& parameterId, int ccNumber, int channel = 0);
     void removeMappingForParameter (const juce::String& parameterId);
@@ -92,6 +99,7 @@ private:
 
     std::atomic<bool> learning { false };
     std::atomic<bool> armed { false };
+    juce::uint32 waitingSinceMs = 0;   // SPEC-SWEEP: ER-38, message thread
     juce::String learningParameter;
 
     /*  What the audio thread reads: one plain entry per CC, rebuilt on the

@@ -177,10 +177,12 @@ public:
         g.drawText (juce::String (row + 1), 4, 0, 22, height,
                     juce::Justification::centredLeft, false);
 
-        g.setColour (Palette::textPrimary);
+        // SPEC-SWEEP: SM-31 - an entry whose preset the load could not find is
+        // greyed and says so, before the gig rather than at the song.
+        g.setColour (entry.resolved ? Palette::textPrimary : Palette::textDisabled);
         g.setFont (Fonts::ui (11.0f));
-        g.drawText (entry.getDisplayName(), 28, 0, width - 90, height,
-                    juce::Justification::centredLeft, true);
+        g.drawText (entry.resolved ? entry.getDisplayName() : entry.getDisplayName() + " (missing)",
+                    28, 0, width - 90, height, juce::Justification::centredLeft, true);
 
         g.setColour (Palette::textDisabled);
         g.setFont (Fonts::ui (10.0f));

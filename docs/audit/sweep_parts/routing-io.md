@@ -33,9 +33,9 @@ The routing engine is complete: all four layouts are advertised (plus the Aux 8 
 | RIO-27 (§8) | Compact per-string strip shown only for Layout C/D — visibility untested | `RoutingMatrix::setPerStringMuted/GainDb` | ROUTING `PerStringStrip` | - | NO-TEST |
 | RIO-28 (§8) | MIDI out enable + source checkboxes + CC-mapping table | `MidiOutConfig` | ROUTING `midiOutEnable`, `midiPassThrough`..., `macroCc[]` | `MidiOutPanel::liveSwitchesAreTheRoutingPanelsSwitches` | DONE |
 | RIO-29 (§8) | Latency readout per active output — no test here (visual adds panel==host check, Aux 8 line) | `RoutingMatrix::getLatencyReport` | ROUTING `RoutingPanel::latencyLabel` | - | OWNED |
-| RIO-30 (§9) | Layout not stored; aux mute/solo/gain restored from the preset — saved in host session only, `.luthierpreset` has no `routing` block | `RoutingMatrix::toVar/fromVar` via `PluginProcessor::getStateInformation`; `PresetManager::toVar` omits it | n/a | `Routing::stateRoundTrips`, `Routing::loadingClearsPreviousState` (matrix only) | PARTIAL |
-| RIO-31 (§9) | MIDI-out assignments per-preset — session only | same as RIO-30 | n/a | `Routing::stateRoundTrips` (matrix only) | PARTIAL |
-| RIO-32 (§9) | Sidechain-to-amp per-preset — session only | same as RIO-30 | n/a | `Routing::stateRoundTrips` (matrix only) | PARTIAL |
+| RIO-30 (§9) | Layout not stored; aux mute/solo/gain restored from the preset — `routing` block in `.luthierpreset` (absent = defaults) | `RoutingMatrix::toVar/fromVar` via `Presets/PresetBlocks.cpp` | n/a | `Presets::processorBlocksTravelInThePresetFile`, `Routing::stateRoundTrips`, `Routing::loadingClearsPreviousState` | DONE |
+| RIO-31 (§9) | MIDI-out assignments per-preset | same as RIO-30 | n/a | `Presets::processorBlocksTravelInThePresetFile` | DONE |
+| RIO-32 (§9) | Sidechain-to-amp per-preset | same as RIO-30 | n/a | `Presets::processorBlocksTravelInThePresetFile` | DONE |
 | RIO-T1 (§10) | Test: each layout instantiates, expected sample count per output | n/a | n/a | `Routing::everyLayoutRendersCleanly` | DONE |
 | RIO-T2 (§10) | Test: Aux1 DI vs main null within -60 dBFS after re-applied amp | n/a | n/a | `Routing::diTapNullsAgainstReappliedAmp` | DONE |
 | RIO-T3 (§10) | Test: sum of per-string outs = main pre-body within -80 dBFS | n/a | n/a | `Routing::perStringOutputsSumToPreBody` | DONE |
@@ -43,4 +43,4 @@ The routing engine is complete: all four layouts are advertised (plus the Aux 8 
 | RIO-T5 (§10) | Test: sidechain-to-amp routes correctly | n/a | n/a | `Routing::sidechainToAmpReplacesTheInstrument` | DONE |
 | RIO-T6 (§10) | Test: reported main latency = measured impulse latency within 1 sample — here only ordering is checked; on visual: `Latency::anImpulseArrivesWhenReported` | n/a | n/a | `Routing::perOutputLatencyIsConsistent` (ordering) | OWNED |
 
-<!-- counts DONE=24 NO-GUI=0 NO-TEST=6 PARTIAL=4 MISSING=1 OWNED=3 -->
+<!-- counts DONE=22 NO-GUI=0 NO-TEST=6 PARTIAL=1 MISSING=1 OWNED=2 -->

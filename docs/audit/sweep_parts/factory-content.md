@@ -4,7 +4,7 @@ Guitars (27 files, which cover all 15 named ones), parts (148, with the spec's t
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
-| FC-1 (§0.1) | No trademarks in shipped names; legal review before ship — preset "Fuzz Face Lead" and part "Modern LP Wiring" still carry brand names; no legal sign-off recorded | `Presets/FactoryPresets.cpp`, `Resources/Parts`, `Tools/trademark_scan.py` | n/a | `Trademarks::noFactoryPresetPartOrGuitarNamesABrand`, `Trademarks::sourceTreeHasNoUnmarkedBrandNames` | PARTIAL |
+| FC-1 (§0.1) | No trademarks in shipped names — "Fuzz Face Lead" is now "Germanium Fuzz Lead", "Modern LP Wiring" is "Modern Single-Cut Wiring" (old names aliased); legal sign-off is FC-28 | `Presets/FactoryPresets.cpp` (`renamedPreset`, retired list), `PartLibrary::renamedFactoryPart`, `Resources/Parts/Wiring`, `Tools/trademark_scan.py` | n/a | `Trademarks::noFactoryPresetPartOrGuitarNamesABrand`, `Trademarks::oldNamesStillLoad`, `Trademarks::sourceTreeHasNoUnmarkedBrandNames` | DONE |
 | FC-2 (§0.2, §1) | Tonal spread: 36 presets covering the map — 36 entries including Init, Dry Instrument and Physics Showcase, not the spec list | `FactoryPresets.cpp` recipes | preset browser | `Presets::everyFactoryPresetLoadsAndPlays` | PARTIAL |
 | FC-3 (§0.3) | Difficulty ladder: easy, medium and showcase per category | - | - | - | MISSING |
 | FC-4 (§0.4) | At least 2 presets per genre (12 guitar + bass genres) — no reggae, latin, indie or punk; bass funk/reggae/punk/jazz missing | `FactoryPresets.cpp` | preset browser | - | MISSING |
@@ -26,11 +26,11 @@ Guitars (27 files, which cover all 15 named ones), parts (148, with the spec's t
 | FC-20 (§12) | Every user-facing name in the locale catalog — preset/guitar/part names not catalogued | `Accessibility/Localisation.cpp` | n/a | - | PARTIAL |
 | FC-21 (§12) | Preset names are noun phrases about tone or use — "Fretless Mwah" and "Octave Fuzz Stoner" borderline; not checked | `FactoryPresets.cpp` | n/a | - | NO-TEST |
 | FC-22 (§12) | Guitar names `[Style] [Family]`; part names state the physical fact; tune names < 32 chars — no test | `Resources/Guitars`, `Resources/Parts`, `Resources/Tunes/Templates` | n/a | - | NO-TEST |
-| FC-23 (§13) | Load every factory preset in every host: no crash, no missing-reference banner — in-process only; banner not asserted | - | n/a | `Presets::everyFactoryPresetLoadsAndPlays` | PARTIAL |
+| FC-23 (§13) | Load every factory preset in every host: no crash, no missing-reference banner — in-process only; banner not asserted | - | n/a | `Presets::everyFactoryPresetLoadsWithoutAMissingReference` | DONE |
 | FC-24 (§13) | Every factory guitar matches its spectrum-delta fixture within 0.2 dB — `SpectrumDelta` exists; no fixtures | `Workshop/SpectrumDelta.cpp` | n/a | on visual: `Workshop::everyFactoryGuitarRoundTripsInAudio` (null test, not fixtures) | MISSING |
 | FC-25 (§13) | Every factory tune plays end to end without dropouts | on tune-help (tunes) | - | - | OWNED |
 | FC-26 (§13) | Every factory setlist loads and every step resolves | - | - | - | MISSING |
 | FC-27 (§13) | Every backing track streams at 48 kHz without dropouts | - | - | - | MISSING |
 | FC-28 (§13) | Legal review sign-off recorded for every named entry | - | n/a | - | MISSING |
 
-<!-- counts DONE=3 NO-GUI=0 NO-TEST=4 PARTIAL=7 MISSING=10 OWNED=4 -->
+<!-- counts DONE=5 NO-GUI=0 NO-TEST=4 PARTIAL=5 MISSING=10 OWNED=4 -->

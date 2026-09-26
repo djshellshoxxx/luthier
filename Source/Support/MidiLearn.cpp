@@ -21,6 +21,7 @@ void MidiLearnManager::startLearning (const juce::String& parameterId)
         learningParameter = parameterId;
     }
 
+    waitingSinceMs = juce::Time::getMillisecondCounter();   // SPEC-SWEEP: ER-38
     learning.store (true);
     sendChangeMessage();
 }
@@ -40,6 +41,9 @@ void MidiLearnManager::cancelLearning()
 void MidiLearnManager::setArmed (bool shouldBeArmed)
 {
     const bool wasArmed = armed.exchange (shouldBeArmed);
+
+    if (shouldBeArmed && ! wasArmed)
+        waitingSinceMs = juce::Time::getMillisecondCounter();   // SPEC-SWEEP: ER-38
 
     /*  Disarming cancels a learn in flight, and does so even when the arm flag was
         already clear.
@@ -69,6 +73,19 @@ bool MidiLearnManager::claimArmedLearn (const juce::String& parameterId)
     startLearning (parameterId);
 
     // startLearning already broadcasts, so the header sees both changes at once.
+    return true;
+}
+
+bool MidiLearnManager::expireIfIdle (juce::uint32 nowMs)
+{
+    // SPEC-SWEEP: ER-38. A learn that caught its CC has already disarmed.
+    if (! armed.load() && ! learning.load())
+        return false;
+
+    if (nowMs - waitingSinceMs < kArmTimeoutMs)
+        return false;
+
+    setArmed (false);   // cancels a learn in flight as well
     return true;
 }
 
@@ -345,6 +362,10 @@ void MidiLearnManager::fromVar (const juce::var& data)
                 {
                     Mapping m;
                     m.parameterId = obj->getProperty ("parameter").toString();
+
+                    // SPEC-SWEEP: FF-26 - file-formats.md 2 spells it `param`.
+                    if (m.parameterId.isEmpty())
+                        m.parameterId = obj->getProperty ("param").toString();
                     m.ccNumber = (int) obj->getProperty ("cc");
                     m.channel = (int) obj->getProperty ("channel");
                     m.rangeMin = obj->hasProperty ("min") ? (double) obj->getProperty ("min") : 0.0;

@@ -48,6 +48,7 @@ instead and are still accepted.
 ```json
 {
   "magic": "luthier.preset",
+  "schema": 1,
   "schemaVersion": 1,
   "pluginVersion": "1.0.0",
 
@@ -81,9 +82,21 @@ instead and are still accepted.
   "midiMap": {
     "1": 1,
     "67": 6
-  }
+  },
+
+  "modulation":    { "lfos": [], "envelopes": [], "sequencers": [], "followers": [], "routes": [] },
+  "snapshots":     { "snapshots": [ { "label": "Verse", "colourTag": 3, "parameters": {} } ] },
+  "midi_mappings": [ { "parameter": "macro_drive", "cc": 21, "channel": 0,
+                       "min": 0.0, "max": 1.0, "inverted": false } ],
+  "rhythm_engine": { "enabled": false },
+  "routing":       { "aux": [], "perString": [], "sidechainToAmp": false, "midiOut": {} },
+  "character":     { "seed": "1592639710", "amount": 0.3 },
+  "tone_match":    { "body": { "file": "" }, "cab1": { "file": "" }, "cab2": { "file": "" } }
 }
 ```
+
+(The processor blocks are abbreviated here; each is whatever that module
+writes, and each is optional.)
 
 ---
 
@@ -93,8 +106,8 @@ instead and are still accepted.
 
 | Field | Type | Notes |
 |---|---|---|
-| `magic` | string | always `"luthier.preset"`; older files with `"format": "luthierpreset"` instead are still accepted |
-| `schemaVersion` | int | currently 1; a file with a higher number still loads, with unknown keys ignored |
+| `magic` | string | always `"luthier.preset"`. Files written before it was named carry `"format": "luthierpreset"` instead, which is still accepted on load |
+| `schema` | int | currently 1. `schemaVersion` is written beside it for older builds, and read when `schema` is absent; a file with neither is schema 1. A file with a **higher** number is refused with "X was made by a newer Luthier version. Update to open." (it could not be re-saved without losing what the newer version wrote); one below 1 is refused as a format Luthier no longer supports |
 | `pluginVersion` | string | which build wrote it, for support |
 | `name` | string | shown in the header and the browser |
 | `category` | string | overrides the folder name if present |
@@ -108,14 +121,17 @@ Every automatable parameter, keyed by its ID, as a **normalised** value from 0 t
 
 Normalised rather than plain because it is unambiguous: a parameter's range can be
 adjusted in a later version without silently reinterpreting every preset ever
-saved. A missing key falls back to that parameter's default, so a preset written by
-an older build still loads.
+saved. A missing key falls back to that parameter's default - not to whatever the
+previous preset set - so a preset written by an older build still loads, and loads
+the same way whatever was loaded before it. The exceptions are the preset-morph
+slider and Slide Mode (`slide_guitar`, `slide_mode`), which belong to the player
+rather than the sound and keep their value when a preset leaves them out.
 
 The IDs follow a consistent pattern:
 
 | Prefix | Covers |
 |---|---|
-| `macro_*` | the seven Easy-mode macros (attack, body, drive, tone, space, humanize, character) and the two spare modulation macros `macro_assign_a` / `macro_assign_b` |
+| `macro_*` | the Easy-mode macros (attack, body, drive, tone, space, humanize, character) and the two spare modulation macros `macro_assign_a/b` |
 | `string_*`, `fret*`, `noise_*` | strings, neck and mechanical noise |
 | `body_*` | body dimensions, woods, bracing |
 | `pickup<N>_*` | per-pickup, N = 0, 1, 2 |
@@ -153,9 +169,9 @@ is out of tune the same way today.
 ### `midiMap`
 
 CC number to performance target, for the technique controllers. Every mapped CC
-is written, defaults included. On load the map starts from the defaults and each
-entry overrides one CC, so a CC missing from the file keeps its default and a value
-of 0 (None) unmaps it. Targets are the `MidiTarget` enum:
+is written, the defaults included; a CC absent from the map is unmapped, and a
+preset with no `midiMap` at all gets the default map. Targets are the `MidiTarget`
+enum, stored as integers (so these values never change):
 
 | Value | Target | Value | Target |
 |---|---|---|---|
@@ -168,11 +184,32 @@ of 0 (None) unmaps it. Targets are the `MidiTarget` enum:
 | 6 | Palm mute | 17 | Drive |
 | 7 | Muted pick | 18 | Tone |
 | 8 | Pick position | 19 | Space |
-| 9 | Slide mode | 20 | Body |
+| 9 | Slide toggle | 20 | Body |
 | 10 | Slide guitar toggle | 21 | Attack |
 
-Generic MIDI Learn mappings are **not** stored here. They live with the plugin
-state instead, so your controller setup survives changing presets.
+### The processor blocks
+
+A preset also carries the state that does not live in parameters
+(state-model.md 1, file-formats.md 2):
+
+| Block | What |
+|---|---|
+| `modulation` | the modulation matrix: LFOs, envelopes, sequencers, followers and routes |
+| `snapshots` | the snapshot bank - up to 128 labelled states, recalled from the LIVE tab, a program change or a setlist entry |
+| `midi_mappings` | MIDI Learn: parameter, CC, channel, range, inverted |
+| `rhythm_engine` | the rhythm engine: on/off, pattern, voicing, genre kit |
+| `routing` | aux-strip mute, solo and gain, per-string buses, sidechain-to-amp and the MIDI-out assignments. Never the bus layout, which the host owns |
+| `character` | the instrument's character seed and wear |
+| `tone_match` | the body and cabinet IR slots: file (relative to the IR folder when it is inside it) and settings |
+
+A block the file leaves out goes back to its default when the preset loads, so
+nothing from the previous preset lingers - with one exception: **MIDI Learn**.
+`midi_mappings` is written only when there are mappings, and a preset without it
+leaves your current mappings alone, so a controller setup survives browsing the
+factory presets. A preset that carries mappings replaces them.
+
+Older builds spelled three of these `midiMappings`, `rhythmEngine` and
+`toneMatch`; those spellings are still read.
 
 ---
 
@@ -182,16 +219,21 @@ What a DAW saves in its project is a superset of a preset:
 
 ```json
 {
-  "preset":     { "...": "the object above" },
-  "midiLearn":  [ { "parameter": "macro_drive", "cc": 21, "channel": 0,
-                    "min": 0.0, "max": 1.0, "inverted": false } ],
+  "preset":     { "...": "the object above, processor blocks included" },
   "ui":         { "advancedMode": false, "tooltipsEnabled": true,
                   "selectedString": 0, "easterEggFound": false,
                   "editorWidth": 1200, "editorHeight": 720 },
   "lockedParameters": ["amp_model"],
-  "slotBActive": false
+  "slotBActive": false,
+  "liveMode": false,
+  "metronome": { },
+  "tune": { }
 }
 ```
+
+Sessions saved by older builds kept `midiLearn`, `modulation`, `snapshots`,
+`rhythm`, `routing`, `character` and `toneMatch` at the top level instead; they
+are still read.
 
 ---
 
@@ -210,7 +252,7 @@ default. A minimal preset is valid:
 ```json
 {
   "magic": "luthier.preset",
-  "schemaVersion": 1,
+  "schema": 1,
   "name": "Just A Les Paul",
   "category": "User",
   "parameters": { "guitar_type": 0.0833 }
@@ -228,8 +270,9 @@ is 2 / 24 = 0.0833.
 - **Sample rates.** Every time is stored in seconds or Hz, never in samples, so a
   preset written at 44.1 kHz sounds identical at 192 kHz.
 - **Older presets.** Missing keys fall back to defaults.
-- **Newer presets.** Unknown keys are ignored, so a file from a later version loads
-  as best it can rather than being refused.
+- **Newer presets.** A file with a higher schema number is refused with a message
+  saying to update. Within one schema, keys this build does not know are kept and
+  written back on save.
 - **Impulse responses.** A preset stores the cabinet and body *configuration*, not
   a path. If the matching IR is missing, the engine falls back to modal synthesis
   for the body and to the procedural speaker model for the cabinet. A preset never

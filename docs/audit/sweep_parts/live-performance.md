@@ -12,7 +12,7 @@ The live engines (snapshot bank with crossfade and morph, setlist with preload, 
 | LP-6 (§1) | 128 snapshots: params, mod matrix, bypasses, rhythm, 32-char label, 16 colours | `Snapshots.h:kMaxSnapshots/kMaxLabelLength/kNumColourTags`, `PluginProcessor::captureSnapshot` | LIVE `SnapshotGrid`; Live strip right-click Colour tag | `LiveSnapshots::captureAndRecallRoundTrip`, `Editor::theLiveTabEditsTheSnapshotBankAndTheSetlist` | DONE |
 | LP-7 (§1) | Crossfade `snapshot_xfade_ms` 0-500, default 30 | `SnapshotBank::setCrossfadeMs` | LIVE `crossfade` slider | `LiveSnapshots::recallCrossfadesContinuousAndStepsDiscrete` | DONE |
 | LP-8 (§1) | Bypass at crossfade midpoint; tails double-buffered; coupling matrix on worker — midpoint done; no tail double-buffer or coupling worker; untested | `SnapshotBank` `recallMidpointDone` | n/a | - | PARTIAL |
-| LP-9 (§1, §11) | Snapshots stored in the `.luthierpreset` `snapshots` array; empty preset = implicit "Default" — saved only in host session state; `PresetManager::toVar` writes none; no implicit Default | `PluginProcessor.cpp:2215/2322`; `PresetManager.cpp:542` (known key only) | n/a | `LiveSnapshots::bankRoundTripsThroughJson` (bank only) | PARTIAL |
+| LP-9 (§1, §11) | Snapshots stored in the `.luthierpreset` `snapshots` block; empty/absent = the empty bank, which is the implicit Default (no stored slot) | `Presets/PresetBlocks.cpp`, `SnapshotBank::toVar/fromVar` | n/a | `Presets::processorBlocksTravelInThePresetFile`, `LiveSetlist::anEntrySnapshotRecallsFromItsPresetsBank` | DONE |
 | LP-10 (§2) | PC = snapshot index; CC0 selects preset | `PluginProcessor::handleLiveMidi` | n/a | `LiveSnapshots::programChangeMapsAcrossAllOneTwentyEight` | DONE |
 | LP-11 (§2) | CC assign: next / previous / snapshot-by-CC-value | - | - | - | MISSING |
 | LP-12 (§2) | Keys `[` `]` step (Live Mode), 1-9, Shift+digit — dispatch untested | `PluginEditor::keyPressed` | keys | `Accessibility::shortcutDefaultsMatchTheCanonicalTable` (bindings only) | NO-TEST |
@@ -52,4 +52,4 @@ The live engines (snapshot bank with crossfade and morph, setlist with preload, 
 | LP-46 (§12) | Test: kill -80 dBFS in 5 ms, 1000 activations | - | n/a | `LiveKillSwitch::reachesSilenceAndRecoversInsideFiveMilliseconds` | DONE |
 | LP-47 (§12) | Test: 50-preset setlist walk, no memory growth | - | n/a | `LiveSetlist::walksForwardsAndBackwardsWithoutGrowing` | DONE |
 
-<!-- counts DONE=25 NO-GUI=3 NO-TEST=3 PARTIAL=10 MISSING=6 OWNED=0 -->
+<!-- counts DONE=26 NO-GUI=3 NO-TEST=3 PARTIAL=9 MISSING=6 OWNED=0 -->

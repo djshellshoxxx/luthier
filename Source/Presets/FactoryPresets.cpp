@@ -2,6 +2,8 @@
 #include "PresetManager.h"
 #include "../Parameters.h"
 
+#include <map>
+
 namespace luthier
 {
 
@@ -262,7 +264,7 @@ namespace
             }
 
             {
-                auto& r = make ("Fuzz Face Lead", "Electric",
+                auto& r = make ("Germanium Fuzz Lead", "Electric",   // SPEC-SWEEP: FC-1 (was a pedal's trade name)
                                 "Double-cut neck pickup into a germanium fuzz and a plexi head. "
                                 "Roll the guitar volume back and it cleans up.", "fuzz,vintage,lead");
                 addCommon (r, Strat, StdTune, Plexi, C4x12Vintage, Greenback, SM57, Off45, CloseMic);
@@ -778,6 +780,18 @@ juce::var FactoryPresets::toVar (const Definition& def, const juce::AudioProcess
 }
 
 //==============================================================================
+juce::String FactoryPresets::renamedPreset (const juce::String& name)
+{
+    // SPEC-SWEEP: FC-1. Only renames whose new name is known; the older ones
+    // in writeAll's retired list were re-voiced rather than renamed.
+    static const std::map<juce::String, juce::String> renamed {
+        { "Fuzz Face Lead", "Germanium Fuzz Lead" },   // legacy name (trademark scan skips it)
+    };
+
+    const auto it = renamed.find (name);
+    return it != renamed.end() ? it->second : name;
+}
+
 void FactoryPresets::writeAll (const juce::File& folder)
 {
     if (rangeSource == nullptr)
@@ -792,6 +806,7 @@ void FactoryPresets::writeAll (const juce::File& folder)
         { "Electric", "Clean Strat Funk" }, { "Electric", "Tele Country Twang" },     // legacy name (trademark scan skips it)
         { "Electric", "Les Paul Crunch" },  { "Bass", "Jazz Bass Fingerstyle" },      // legacy name (trademark scan skips it)
         { "Bass", "Rickenbacker Grind" },   { "Electric", "TransTrem Chords" },       // legacy name (trademark scan skips it)
+        { "Electric", "Fuzz Face Lead" },                                               // legacy name (trademark scan skips it) - SPEC-SWEEP: FC-1
     };
 
     for (const auto& r : retired)
