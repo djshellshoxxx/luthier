@@ -1912,8 +1912,16 @@ void JamEngine::mix (int numSamples) noexcept
     const double bp = juce::jlimit (-1.0, 1.0, settings.bassPan);
     const double bassAngle = (bp + 1.0) * constants::kPi * 0.25;
 
-    const double drums = settings.drumsMute ? 0.0 : volume * drumsBalance;
-    const double bassLevel = (settings.bassMute || playerIsBass) ? 0.0 : volume * bassBalance;
+    /*  The stems' calibration: at the default -6 dB the kit peaks near -6 dBFS
+        (about -20 dBFS RMS) and the bass sits a few dB under it, so the band
+        comes in at the level of a guitar through the rig rather than over it.
+        Measured across the ten styles at intensity 3: the kit's summed pieces
+        peak near +13 dBFS before this trim, the bass voice near -14 dBFS. */
+    constexpr double kDrumsTrim = 0.2239;   // -13 dB
+    constexpr double kBassTrim = 3.1623;    // +10 dB
+
+    const double drums = settings.drumsMute ? 0.0 : volume * drumsBalance * kDrumsTrim;
+    const double bassLevel = (settings.bassMute || playerIsBass) ? 0.0 : volume * bassBalance * kBassTrim;
 
     drumsGainL.setTarget (drums * (dp > 0.0 ? 1.0 - dp : 1.0));
     drumsGainR.setTarget (drums * (dp < 0.0 ? 1.0 + dp : 1.0));

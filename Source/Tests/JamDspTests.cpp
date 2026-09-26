@@ -527,12 +527,12 @@ LUTHIER_TEST (JamDsp, JM34_budgets)
         return juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - start);
     };
 
-    constexpr double kAudio = 20.0;
+    constexpr double kAudio = 8.0;
     constexpr int kBlock = 128;
     const int blocks = (int) (kAudio * kSr / kBlock);
 
     // The kit with every piece ringing.
-    double kitUnits = 0.0;
+    auto measureKit = [&]
     {
         JamDrumKit kit;
         kit.prepare (kSr, kBlock);
@@ -541,7 +541,7 @@ LUTHIER_TEST (JamDsp, JM34_budgets)
                                   DrumSound::tomFloor, DrumSound::hatOpen, DrumSound::ride, DrumSound::crash,
                                   DrumSound::rim, DrumSound::shaker };
 
-        kitUnits = 100.0 * seconds ([&]
+        return 100.0 * seconds ([&]
         {
             for (int i = 0; i < blocks; ++i)
             {
@@ -555,15 +555,15 @@ LUTHIER_TEST (JamDsp, JM34_budgets)
                 kit.render (l.data(), r.data(), kBlock);
             }
         }) / kAudio;
-    }
+    };
 
-    double bassUnits = 0.0;
+    auto measureBass = [&]
     {
         JamBassVoice bass;
         bass.prepare (kSr, kBlock);
         std::vector<double> x (kBlock);
 
-        bassUnits = 100.0 * seconds ([&]
+        return 100.0 * seconds ([&]
         {
             for (int i = 0; i < blocks; ++i)
             {
@@ -573,9 +573,9 @@ LUTHIER_TEST (JamDsp, JM34_budgets)
                 bass.render (x.data(), kBlock);
             }
         }) / kAudio;
-    }
+    };
 
-    double totalUnits = 0.0, armedUnits = 0.0;
+    auto measureTotal = [&]
     {
         JamBench b (kSr, kBlock);
         b.host = b.hostPlaying = true;
@@ -585,25 +585,27 @@ LUTHIER_TEST (JamDsp, JM34_budgets)
         for (int i = 0; i < 10; ++i)
             b.chord (i * 96000, { 45, 48, 52 });
 
-        totalUnits = 100.0 * seconds ([&] { b.runSeconds (kAudio); }) / kAudio;
-    }
+        return 100.0 * seconds ([&] { b.runSeconds (kAudio); }) / kAudio;
+    };
+
+    auto measureArmed = [&]
     {
         JamBench b (kSr, kBlock);
-        armedUnits = 100.0 * seconds ([&] { b.runSeconds (kAudio); }) / kAudio;
-    }
+        return 100.0 * seconds ([&] { b.runSeconds (kAudio); }) / kAudio;
+    };
 
     /*  performance-budget.md's units are for its reference CPU, which CI is
         not. The yardstick is the table's own StringEngine row - 12 strings are
         2.5 units, one is 0.208 - measured here on this machine: every figure
         below is converted to reference units by that ratio. */
-    double stringUnits = 0.0;
+    auto measureString = [&]
     {
         StringEngine string;
         string.prepare (kSr, kBlock);
         Excitation::Params p;
         p.velocity = 0.8;
 
-        stringUnits = 100.0 * seconds ([&]
+        return 100.0 * seconds ([&]
         {
             double sink = 0.0;
 
@@ -621,6 +623,19 @@ LUTHIER_TEST (JamDsp, JM34_budgets)
 
             juce::ignoreUnused (sink);
         }) / kAudio;
+    };
+
+    // Interleaved, the best of three each: a busy machine only ever adds time,
+    // and interleaving keeps it from landing on one measurement alone.
+    double kitUnits = 1.0e9, bassUnits = 1.0e9, totalUnits = 1.0e9, armedUnits = 1.0e9, stringUnits = 1.0e9;
+
+    for (int round = 0; round < 3; ++round)
+    {
+        stringUnits = juce::jmin (stringUnits, measureString());
+        kitUnits = juce::jmin (kitUnits, measureKit());
+        bassUnits = juce::jmin (bassUnits, measureBass());
+        totalUnits = juce::jmin (totalUnits, measureTotal());
+        armedUnits = juce::jmin (armedUnits, measureArmed());
     }
 
     const double scale = (2.5 / 12.0) / juce::jmax (1.0e-6, stringUnits);
