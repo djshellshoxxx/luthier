@@ -82,13 +82,49 @@ excitation `tap`. Family switch rules (`guitar-illustration.md` 12) add a
 `touch_default_template.luthierguitar`. All other instruments here reuse
 `bass` or `acoustic`.
 
-### 1.4 Tuning presets to add to `TuningEngine`
+### 1.4 Tuning: a guitar-level `tuning` field (required by 5 of 7)
 
-`Source/Model/Playing/TuningEngine.h:33` has 17 presets; 4- and 5-string
-bass only. Each instrument spec lists the rows it adds; the union is in
-`extended-range-bass.md` 3 and the per-instrument specs. `kMaxStrings`
-is 12 (`Source/DSP/Common/DspCommon.h:21`), which fits every instrument
-here including the 12-string touch board.
+**Finding.** A parts guitar has no tuning of its own. `mapSpec` takes
+`d.spec.tuning` from the compiled base type chosen by `baseTypeFor`
+(`Source/Model/Workshop/PartAcoustics.cpp:100`) and reads at most six
+preset frequencies (`PartAcoustics.cpp:478`); strings past six are
+"each a fourth below the last". Consequences today:
+
+- a 4-string `acoustic` (tenor) resolves to `Dreadnought` ⇒ 6-string
+  E-standard tension maths on a 4-string neck;
+- a 6-string `bass` resolves to `FiveStringBass`, whose preset has 5
+  entries, so string index 5 reads an unset slot of `open[]` (0 Hz ⇒
+  tension 0) - a latent bug, tested for in `extended-range-bass.md` 6;
+- a re-entrant tuning (guitarrón A2 on string 1, Stick melody/bass
+  zones) cannot be expressed at all.
+
+**Change.** `.luthierguitar` gains an optional top-level object:
+
+```json
+"tuning": {
+  "name": "Guitarrón standard",
+  "open_hz": [110.0, 164.814, 130.813, 97.999, 73.416, 55.0],
+  "string_order": "high_to_low_index"
+}
+```
+
+- `open_hz[i]` is string `i` using the engine's convention (string 0 is
+  the first entry in `TuningEngine::kPresets`; re-entrant tunings are
+  legal, so "string 0 = highest-pitched" becomes "string 0 = the
+  treble-side string").
+- Length must equal the guitar's string count; mismatch ⇒ fall back to
+  the base type's preset and raise the `missing part`-style notice
+  (`error-recovery.md`).
+- When present it (a) feeds `mapSpec`'s tension/inharmonicity loop
+  instead of `getPresetFrequencies`, and (b) is pushed to `TuningEngine`
+  as a `Custom` preset on load. Absent ⇒ bit-identical to today.
+- `file-formats.md` 3 gains the field; schema version unchanged (it is
+  optional and additive).
+
+New named presets for `TuningEngine` (menu shortcuts; the guitar file is
+authoritative) are listed in each instrument spec. `kMaxStrings` is 12
+(`Source/DSP/Common/DspCommon.h:21`), which fits every instrument here
+including the 12-string touch board.
 
 ## 2. Build order
 
