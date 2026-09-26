@@ -6,6 +6,7 @@
 #include "TestFramework.h"
 
 #include "../PluginProcessor.h"
+#include "../Controllers/ControllerProfile.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -279,4 +280,42 @@ LUTHIER_TEST (MidiLearn, everyCcLearnsWithinOneBlock)
     }
 
     CHECK_MSG (failures == 0, juce::String (failures) + " CCs did not learn and drive within a block");
+}
+
+/*  IR-5 (input-routing 1 step 3): the controller profile stage sits before the
+    interpreter - a hex pickup's channels land on their strings, and the note
+    moves earlier by the profile's latency budget. */
+LUTHIER_TEST (InputRouting, profileStageRemapsChannelsAndTime)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    ControllerProfileLibrary library;
+    const int gk = library.indexOf ("roland-gk");
+    CHECK (gk >= 0);
+
+    if (gk < 0)
+        return;
+
+    auto profile = library.getProfile (gk);
+    profile.latencyMsMeasured = 4.0;   // 192 samples
+    processor.applyControllerProfile (profile);
+    renderEmpty (processor, 1);
+
+    const int arrivesAt = 300;
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (13, 55, 0.8f), arrivesAt);   // GK channel 13 = string 2
+    render (processor, midi);
+
+    CHECK (processor.getEngine().getMidiInterpreter().getStringMidiNote (2) == 55);
+
+    const auto& activity = processor.getEngine().getStringActivity();
+    int onsetAt = -1;
+
+    for (int i = 0; i < activity.size(); ++i)
+        if (activity[i].isNoteOn && activity[i].stringIndex == 2)
+            onsetAt = activity[i].sampleOffset;
+
+    CHECK_MSG (onsetAt >= 0 && onsetAt <= arrivesAt - 150,
+               "the note sounded at " + juce::String (onsetAt) + ", arrived at " + juce::String (arrivesAt));
 }

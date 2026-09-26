@@ -8,9 +8,9 @@ Only the outer shape of the MIDI chain is in place: MIDI-out pass-through is cap
 | IR-2 (§1.1) | MIDI-out pass-through first, unchanged | `MidiOutRouter::captureInput` | n/a | `Routing::midiOutPassThroughIsSampleExact` | DONE |
 | IR-3 (§1.1) | Armed MIDI Learn consumes the event it learns | `MidiLearnManager::processMidi (MidiBuffer&, scratch)` | header arm / right-click Learn | `InputRouting::midiLearnConsumesTheEventItLearns` | DONE |
 | IR-4 (§1.1) | Learn accepts CC / PC / aftertouch / channel pressure; note learn opt-in in Options — CC only | `MidiLearnManager::processMidi` (`isController` only) | - | - | MISSING |
-| IR-5 (§1 step 3) | Controller profile stage remaps channels + latency compensation — profile is applied as interpreter settings; no remap/latency stage (see controllers CT-4) | `Controllers/ControllerStage` (latency + profile) before the interpreter | CONTROLLERS tab | `Controllers::latencyCompensationMovesNotesEarlierByTheBudget`, `Controllers::anMpeProfileSurvivesTheParameterBridge` | PARTIAL |
+| IR-5 (§1 step 3) | Controller profile stage remaps channels + latency compensation — profile is applied as interpreter settings; no remap/latency stage (see controllers CT-4) | `Controllers/ControllerStage` (latency + profile) before the interpreter | CONTROLLERS tab | `InputRouting::profileStageRemapsChannelsAndTime` | DONE |
 | IR-6 (§1.1) | RhythmEngine consumes the chord notes it uses | `RhythmEngine::handleMidi/processBlock` | n/a | `GenreKits::everyKitSoundsWhenApplied`, `TuneProcessor::theMelodySoundsWhileTheRhythmEngineStrums` | DONE |
-| IR-7 (§1.1) | TechniqueEngine tags, does not consume — no routing test | `Model/Playing/TechniqueEngine` | n/a | - | NO-TEST |
+| IR-7 (§1.1) | TechniqueEngine tags, does not consume — no routing test | `Model/Playing/TechniqueEngine` | n/a | `InputRouting::techniqueLayerTagsWithoutConsuming` | DONE |
 | IR-8 (§1 step 7) | TuneBuilder ignores incoming notes for playback; takes record events when armed | `PluginProcessor.cpp:1120` record path | TUNE tab | `TuneProcessor::theMelodySoundsWhileTheRhythmEngineStrums` | DONE |
 | IR-9 (§1 step 8) | Practice tools read MIDI when active, do not consume — nothing feeds them (see practice PT-34) | - | - | - | MISSING |
 | IR-10 (§1.2) | Macro CC sources and learned mappings update and pass through | `PluginProcessor::feedModulationSources`, `MidiLearnManager::processMidi` | MOD / Learn | `MidiLearn::mapsAndUnmapsCleanly`, `ReviewRegression::midiLearnLearnsAppliesAndSurvivesAClear` | DONE |
@@ -29,7 +29,7 @@ Only the outer shape of the MIDI chain is in place: MIDI-out pass-through is cap
 | IR-23 (§3.3) | IME honoured; no shortcuts during composition — JUCE TextEditor; untested | JUCE `TextEditor` | text fields | - | NO-TEST |
 | IR-24 (§5) | Host transport: rhythm start/stop/reposition, tune sync, tap defers, metronome grid, recorder regardless — metronome not transport-synced | `processSlice` playhead read, `RhythmTransport` | n/a | `RhythmPatterns::silentWhenStoppedUnlessFreeRunning`, `LiveTapTempo::respectsRangeSnapAndHostPriority` | PARTIAL |
 | IR-25 (§6) | Sidechain consumers: followers, sidechain compressor, sidechain-to-amp, EQ/cab match — no sidechain compressor pedal | `ModEnvelopeFollower`, `engine.setSidechainToAmp`, ToneMatch capture | ROUTING, MOD | `Routing::sidechainToAmpReplacesTheInstrument` | PARTIAL |
-| IR-26 (§6) | Sidechain never reaches main path unless consumed — untested | `processSlice` sidechainCopy | n/a | - | NO-TEST |
+| IR-26 (§6) | Sidechain never reaches main path unless consumed — untested | `processSlice` sidechainCopy | n/a | `Routing::sidechainDoesNotReachTheMainOutUnconsumed` | DONE |
 | IR-27 (§7) | Standalone audio input: sidechain, sung melody, trainer input — sung-melody capture is on tune-help (`humCapture`, tune-builder 13); no trainer input here | - | - | - | PARTIAL |
 | IR-28 (§8) | Options > Diagnostics "Inject fixture MIDI / audio" at chain front | - | - | - | MISSING |
 | IR-29 (§9) | `Tests/InputRouting/` suite for every consumer / veto rule | - | n/a | - | MISSING |

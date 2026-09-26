@@ -543,3 +543,31 @@ LUTHIER_TEST (Technique, sustainRingsAndSostenutoHoldsOnlyWhatIsDown)
         CHECK (letRingOffs (out, false) == 1);
     }
 }
+
+//==============================================================================
+/*  IR-7 (input-routing 1.1 step 5): the technique layer tags a note - palm
+    mute from CC 67, a tap from CC 74, a pinch from CC 72 - and the note still
+    sounds: nothing is consumed. */
+LUTHIER_TEST (InputRouting, techniqueLayerTagsWithoutConsuming)
+{
+    struct Case { int cc; Technique expected; };
+
+    for (const auto& c : { Case { 67, Technique::PalmMute }, Case { 74, Technique::Tap },
+                           Case { 72, Technique::PinchHarmonic } })
+    {
+        MpeFixture f;
+        f.send (juce::MidiMessage::controllerEvent (1, c.cc, 127));
+
+        const auto out = f.send (juce::MidiMessage::noteOn (1, 52, 0.8f));
+        CHECK_MSG (out.getNumNoteOns() == 1, "CC " + juce::String (c.cc) + " held: the note did not sound");
+
+        if (out.getNumNoteOns() == 1)
+            CHECK_MSG (out.getNoteOn (0).technique == c.expected,
+                       "CC " + juce::String (c.cc) + " did not tag the note");
+    }
+
+    // Nothing held: an ordinary pluck.
+    MpeFixture plain;
+    const auto out = plain.send (juce::MidiMessage::noteOn (1, 52, 0.8f));
+    CHECK (out.getNumNoteOns() == 1 && out.getNoteOn (0).technique == Technique::Pluck);
+}

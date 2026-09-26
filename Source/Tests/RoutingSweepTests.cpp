@@ -154,3 +154,72 @@ LUTHIER_TEST (PluginBuses, midiOutputIsDeclaredToTheHost)
                "NEEDS_MIDI_OUTPUT is '" + flag ("NEEDS_MIDI_OUTPUT") + "' but producesMidi() is true");
     CHECK_MSG (flag ("NEEDS_MIDI_INPUT") == "TRUE", "NEEDS_MIDI_INPUT does not match acceptsMidi()");
 }
+
+/*  IR-26 (input-routing 6): the sidechain reaches the main output only through
+    a consumer (sidechain-to-amp, the monitor mix, a keyed effect). With every
+    consumer off, a loud sidechain leaves the main out exactly as it was. */
+LUTHIER_TEST (Routing, sidechainDoesNotReachTheMainOutUnconsumed)
+{
+    auto render = [] (float sidechainLevel)
+    {
+        LuthierAudioProcessor processor;
+
+        auto layout = processor.getBusesLayout();
+
+        if (layout.inputBuses.size() > 0)
+            layout.inputBuses.getReference (0) = juce::AudioChannelSet::stereo();
+
+        processor.setBusesLayout (layout);
+        processor.setRateAndBufferSizeDetails (kSr, kBlock);
+        processor.prepareToPlay (kSr, kBlock);
+
+        juce::AudioBuffer<float> buffer (juce::jmax (processor.getTotalNumOutputChannels(),
+                                                     processor.getTotalNumInputChannels()), kBlock);
+        std::vector<float> mainOut;
+
+        for (int block = 0; block < 40; ++block)
+        {
+            buffer.clear();
+
+            auto sidechain = processor.getBusBuffer (buffer, true, 0);
+
+            for (int ch = 0; ch < sidechain.getNumChannels(); ++ch)
+                for (int i = 0; i < kBlock; ++i)
+                    sidechain.setSample (ch, i, sidechainLevel * (float) std::sin (0.05 * (block * kBlock + i)));
+
+            juce::MidiBuffer midi;
+
+            if (block == 0)
+                midi.addEvent (juce::MidiMessage::noteOn (1, 45, 0.8f), 0);
+
+            processor.processBlock (buffer, midi);
+
+            auto main = processor.getBusBuffer (buffer, false, 0);
+
+            for (int i = 0; i < kBlock; ++i)
+                mainOut.push_back (main.getSample (0, i));
+        }
+
+        return std::make_pair (mainOut, processor.getTotalNumInputChannels());
+    };
+
+    const auto silentA = render (0.0f);
+    const auto silentB = render (0.0f);
+    const auto loud = render (0.9f);
+
+    CHECK_MSG (loud.second > 0, "the processor declined a sidechain input");
+
+    double baseline = 0.0, leak = 0.0, level = 0.0;
+
+    for (size_t i = 0; i < silentA.first.size(); ++i)
+    {
+        baseline = juce::jmax (baseline, (double) std::abs (silentA.first[i] - silentB.first[i]));
+        leak = juce::jmax (leak, (double) std::abs (loud.first[i] - silentA.first[i]));
+        level = juce::jmax (level, (double) std::abs (silentA.first[i]));
+    }
+
+    CHECK (level > 1.0e-3);   // there is a note to compare
+    CHECK_MSG (leak <= baseline + 1.0e-6,
+               "the sidechain moved the main out by " + juce::String (leak, 6)
+                 + " (run-to-run difference " + juce::String (baseline, 6) + ")");
+}
