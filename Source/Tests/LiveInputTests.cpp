@@ -15,6 +15,7 @@
 #include "../UI/LivePanel.h"
 #include "../UI/LiveStrip.h"
 #include "../UI/LiveSetup.h"
+#include "../Accessibility/Accessibility.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -695,4 +696,37 @@ LUTHIER_TEST (Live, shiftClickWritesAndClickRecalls)
     CHECK (text.startsWith ("5  "));
     CHECK (text.substring (3).length() == SnapshotStrip::kPadLabelChars);
     CHECK (SnapshotStrip::getPadText (0, "Verse") == "1  Verse");
+}
+
+/*  LP-39 / GI-76: Live Mode suppresses tooltips the moment it is switched on,
+    and gives them back when it is switched off. */
+LUTHIER_TEST (Editor, liveModeSuppressesTooltips)
+{
+    Rig rig;
+    auto& p = rig.processor;
+    p.setLiveMode (false);
+
+    std::unique_ptr<juce::AudioProcessorEditor> base (p.createEditor());
+    auto* editor = dynamic_cast<LuthierAudioProcessorEditor*> (base.get());
+    CHECK (editor != nullptr);
+
+    if (editor == nullptr)
+        return;
+
+    editor->applyTooltipPreference();
+    const bool enabled = p.getUiState().tooltipsEnabled;
+
+    if (enabled)
+        CHECK (editor->getTooltipDelayMs() == Metrics::tooltipDelayMs);
+
+    const auto* binding = AccessibilitySettings::get().findShortcut ("toggleLiveMode");
+    CHECK (binding != nullptr && editor->keyPressed (binding->key));
+    CHECK (p.isLiveMode());
+    CHECK (editor->getTooltipDelayMs() > 60000);
+
+    CHECK (editor->keyPressed (binding->key));
+    CHECK (! p.isLiveMode());
+
+    if (enabled)
+        CHECK (editor->getTooltipDelayMs() == Metrics::tooltipDelayMs);
 }

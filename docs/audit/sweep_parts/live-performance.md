@@ -42,7 +42,7 @@ The live engines (snapshot bank with crossfade and morph, setlist with preload, 
 | LP-36 (§9) | Panic: notes off, tails, DC, coupling; keeps preset/snapshot/params | `LuthierAudioProcessor::panic` -> `LuthierEngine::panic` | header panic, key P | `Engine::panicSilencesEverything`, `Combo::unisonStringsNeverGrowAndPanicSilencesThem` | DONE |
 | LP-37 (§9) | Panic by CC assignment | `LiveActionMap` panic | header panic, key P, `CC` button | `LiveInput::killAndPanicRideOnCcs` | DONE |
 | LP-38 (§10) | Live strip: snapshots, triptych, tap, morph, kill, monitor | `UI/LiveStrip.cpp` | header LIVE -> Live strip | `Editor::theModesThatChangeTheLayoutTakeEffectAndUndoThemselves` | DONE |
-| LP-39 (§10) | Live Mode: 44 px targets (tested), lock Advanced, tooltips suppressed (no test: JUCE has no delay getter) | `PluginEditor::timerCallback` tooltip delay | header LIVE | `LiveStripUi::everyTargetIsTouchSized` | PARTIAL |
+| LP-39 (§10) | Live Mode: 44 px targets, lock Advanced, tooltips suppressed | `PluginEditor::applyTooltipPreference` (re-applied on the Live Mode toggle) | header LIVE | `LiveStripUi::everyTargetIsTouchSized`, `Editor::liveModeSuppressesTooltips` | DONE |
 | LP-40 (§11) | Live-mode on/off per preset — saved in session `uiState.liveMode`; a preset load keeps it | `PluginProcessor.cpp:2216/2326` | header LIVE | - | PARTIAL |
 | LP-41 (§11) | MIDI-learn for live controls per-preset by default, "global" flag — mappings live in session state only; no flag | `MidiLearnManager` | - | - | MISSING |
 | LP-42 (§12) | Test: 1000 recall fuzz, zero clicks | - | n/a | `LiveSnapshots::thousandRecallsNeverJumpAParameter` | DONE |
@@ -52,4 +52,4 @@ The live engines (snapshot bank with crossfade and morph, setlist with preload, 
 | LP-46 (§12) | Test: kill -80 dBFS in 5 ms, 1000 activations | - | n/a | `LiveKillSwitch::reachesSilenceAndRecoversInsideFiveMilliseconds` | DONE |
 | LP-47 (§12) | Test: 50-preset setlist walk, no memory growth | - | n/a | `LiveSetlist::walksForwardsAndBackwardsWithoutGrowing` | DONE |
 
-<!-- counts DONE=40 NO-GUI=0 NO-TEST=1 PARTIAL=5 MISSING=1 OWNED=0 DEFERRED=0 -->
+<!-- counts DONE=42 NO-GUI=0 NO-TEST=1 PARTIAL=3 MISSING=1 OWNED=0 DEFERRED=0 -->

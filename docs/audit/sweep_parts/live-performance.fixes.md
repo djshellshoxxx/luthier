@@ -3,4 +3,3 @@
 - [LP-41] effort M — Add a `global` flag per mapping in `MidiLearnManager` (UI: right-click mapping "Keep across presets"); write non-global mappings into the preset's `midiMappings` block in `PresetManager::toVar/fromVar` and keep global ones in `~/Documents/Luthier/config/midi-learn.json`. Test: `MidiLearn::globalMappingsSurviveAPresetLoadAndLocalOnesDoNot`.
 - [LP-5] effort S — NO-TEST left: FileChooser removed from the Live strip; an automated "no modal" check is not meaningful because JUCE PopupMenus enter a modal state themselves.
 - [LP-8] effort M — midpoint flip tested (`LiveSnapshots::bypassFlipsAtTheMidpoint`); tail double-buffering / coupling rebuild on a worker still DEFER (coupling is recomputed from parameters per block).
-- [LP-39] effort S — tooltips are suppressed in Live Mode (`PluginEditor::timerCallback`); a test needs a tooltip-delay getter JUCE does not expose.

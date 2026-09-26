@@ -79,7 +79,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-73 (§8) | Snapshot buttons: colour tag, 12-char label (tested); active outline is the tag colour, not the accent | - | `SnapshotStrip::paint`, `getPadText` | `Live::shiftClickWritesAndClickRecalls` (12-char text) | PARTIAL |
 | GI-74 (§9) | Live strip: snapshots, setlist triptych, tap, morph A/knob/B, kill, monitor | `Live/*` | `UI/LiveStrip.cpp` | `Editor::theModesThatChangeTheLayoutTakeEffectAndUndoThemselves`, `LiveKillSwitch::fadesRatherThanJumping` | DONE |
 | GI-75 (§9) | Live Mode: 44 px hit targets, locks Advanced toggle | - | `LiveStrip::kTouchTargetHeight`, `HeaderBar::updateModeButtonEnablement` | `LiveStripUi::everyTargetIsTouchSized` | DONE |
-| GI-76 (§9) | Live Mode suppresses tooltips (all; see sweep-notes/ui.md) | `PluginEditor::timerCallback` | all tooltips suppressed in Live Mode | - | NO-TEST |
+| GI-76 (§9) | Live Mode suppresses tooltips (all; see sweep-notes/ui.md) | `PluginEditor::applyTooltipPreference` | all tooltips suppressed in Live Mode | `Editor::liveModeSuppressesTooltips` | DONE |
 | GI-77 (§10) | Practice drawer 32-360 px, collapsed bpm/loop/track, 8 tabs | `Practice/*` | `UI/PracticePanel.cpp` | `PracticeRoutine::toolsAreInTheDrawersTabOrder`, `PracticeDrawer::aRoutineStartAsksForTheDrawerOnce` | DONE |
 | GI-78 (§1/§10) | Drawer expanded state persists per preset | - | - | on tune-help (5911597) | OWNED |
 | GI-79 (§11.1) | Mod arcs: 4 px outside, 2 px, per-source colour, segmented — single secondary-colour arc | `ModMatrix::getOffsetFor` | `Widgets.cpp:LuthierKnob::paint` | - | PARTIAL |
@@ -149,4 +149,4 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-143 (§22) | Test: Slide toggle 100x during playback, no click, correct panels | `SlideEngine` | - | `Slide::switchingModeMidNoteIsClean` (1x); on visual `Stress::slideAndAdvancedRangeTogglesMidPlay` | OWNED |
 | GI-144 (§22) | Test: warning arc appears past stock max and disappears on return | - | `LuthierKnob` | `RangesUi::controlsFollowASwappedRangeAndMarkTheValue` | DONE |
 
-<!-- counts DONE=65 NO-GUI=0 NO-TEST=5 PARTIAL=34 MISSING=9 OWNED=31 DEFERRED=0 -->
+<!-- counts DONE=66 NO-GUI=0 NO-TEST=4 PARTIAL=34 MISSING=9 OWNED=31 DEFERRED=0 -->

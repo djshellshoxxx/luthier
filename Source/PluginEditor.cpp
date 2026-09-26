@@ -485,6 +485,10 @@ void LuthierAudioProcessorEditor::updateLiveStripVisibility()
     liveModeShown = live;
     liveStrip.setVisible (live);
 
+    // SPEC-SWEEP: LP-39 / GI-76 - tooltips follow Live Mode at once, not a
+    // timer tick later.
+    applyTooltipPreference();
+
     /*  The header carries the state as well as setting it. Live Mode can be
         turned on from the shortcut as well as from the pill, and this used to
         leave the pill dark and the Advanced toggle unlocked - the mode was on and
