@@ -1073,6 +1073,13 @@ LUTHIER_TEST (Combo, everyParameterSurvivesTheSessionStateRoundTrip)
             if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (prm))
                 r->setValueNotifyingHost (r->convertTo0to1 (r->convertFrom0to1 (uni (rng))));
 
+        // FEAT-JAM: doubler_on is legacy (excluded below) and every load
+        // migrates it into a Doubler pedal in a post slot; left on at random it
+        // rewrites a slot this test then reads. It became visible when the 34
+        // Jam parameters moved every later round's random draws.
+        if (auto* legacy = source.param (ParamIDs::doublerOn))
+            legacy->setValueNotifyingHost (0.0f);
+
         source.apply();
 
         juce::MemoryBlock blob;

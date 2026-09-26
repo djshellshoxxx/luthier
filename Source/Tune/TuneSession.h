@@ -132,6 +132,10 @@ public:
     /** Called after any change (edit, undo, load, selection), for the panel. */
     std::function<void()> onChanged;
 
+    /** jam-mode.md 3.3 (FEAT-JAM): each timeline built for the player, so the
+        Jam band gets the tune's chord map. Message thread. */
+    std::function<void (const TuneTimeline&)> onTimelineBuilt;
+
     /** For tests: where "now" comes from, in milliseconds. */
     void setClock (std::function<double()> clockMs) { clock = std::move (clockMs); }
 
