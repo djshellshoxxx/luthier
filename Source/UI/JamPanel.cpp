@@ -349,12 +349,12 @@ JamPanel::JamPanel (LuthierAudioProcessor& p)
     buildGroups();
     setSize (900, getPreferredHeight());
     refresh();
-    motion.startTimerHz (*this, 30);   // 8.3, through the animation policy
+    motion.startTimerHz (*this, 30);   // 8.3
 }
 
 JamPanel::~JamPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 std::vector<juce::Component*> JamPanel::getFocusOrder() const

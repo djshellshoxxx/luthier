@@ -1,33 +1,23 @@
 # Build, test and validate Luthier on Linux, Windows (MSVC) and macOS (universal).
 #
-# Every push and pull request: plugin targets + LuthierTests + LuthierRender,
-# unit tests, pluginval at strictness 5, clap-validator. Nightly and on manual
-# dispatch: LTO on and pluginval at strictness 10. release.yml calls this
-# workflow with package=true to build the installers from the same jobs.
+# Called per push by ci-cadence.yml (Linux every push, Windows every 3rd and
+# macOS every 15th successful Linux build: plugin targets + LuthierTests +
+# LuthierRender, unit tests, pluginval at strictness 5, clap-validator). On
+# manual dispatch: any platforms, LTO on and pluginval at strictness 10.
+# release.yml calls this workflow with package=true to build the installers
+# from the same jobs.
 #
 # The heavy lifting is in scripts/ci_build.sh and scripts/ci_build.ps1 so that
 # every step can be reproduced locally with the same command.
 name: build
 
 on:
-  push:
-    branches: ['**']
-    tags-ignore: ['v*']   # release.yml handles version tags
-    paths-ignore:
-      - 'spec/**'
-      - '**/*.md'
-      - 'troubleshooting/**'
-      - '*.png'
-  pull_request:
-    paths-ignore:
-      - 'spec/**'
-      - '**/*.md'
-      - 'troubleshooting/**'
-      - '*.png'
-  schedule:
-    - cron: '17 3 * * *'   # nightly, 03:17 UTC
   workflow_dispatch:
     inputs:
+      platforms:
+        description: 'Comma-separated: linux, windows, macos'
+        type: string
+        default: 'linux,windows,macos'
       strictness:
         description: 'pluginval strictness (1-10)'
         type: number
@@ -38,6 +28,10 @@ on:
         default: true
   workflow_call:
     inputs:
+      platforms:
+        description: 'Comma-separated: linux, windows, macos (ci-cadence.yml picks per push)'
+        type: string
+        default: 'linux,windows,macos'
       strictness:
         type: number
         default: 10
@@ -63,7 +57,7 @@ permissions:
 concurrency:
   # A newer push to the same branch supersedes a running build; a release
   # (workflow_call) or nightly run is never cancelled.
-  group: build-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  group: build-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ inputs.platforms }}
   cancel-in-progress: ${{ (github.event_name == 'push' || github.event_name == 'pull_request') && !inputs.package }}
 
 env:
@@ -79,23 +73,32 @@ env:
   CONFIG: Release
 
 jobs:
+  plan:
+    name: Pick platforms
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - id: m
+        env:
+          PLATFORMS: ${{ inputs.platforms || 'linux,windows,macos' }}
+        run: |
+          items=()
+          case ",$PLATFORMS," in *,linux,*)   items+=('{"name":"Linux x64","os":"ubuntu-latest","platform":"linux"}');; esac
+          case ",$PLATFORMS," in *,windows,*) items+=('{"name":"Windows x64 (MSVC)","os":"windows-latest","platform":"windows"}');; esac
+          case ",$PLATFORMS," in *,macos,*)   items+=('{"name":"macOS universal","os":"macos-latest","platform":"macos"}');; esac
+          if [ ${#items[@]} -eq 0 ]; then echo "::error::no platforms in '$PLATFORMS'"; exit 1; fi
+          joined=$(IFS=,; echo "${items[*]}")
+          echo "matrix={\"include\":[$joined]}" >> "$GITHUB_OUTPUT"
+
   build:
     name: ${{ matrix.name }}
+    needs: plan
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: Linux x64
-            os: ubuntu-latest
-            platform: linux
-          - name: Windows x64 (MSVC)
-            os: windows-latest
-            platform: windows
-          - name: macOS universal
-            os: macos-latest
-            platform: macos
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@v4

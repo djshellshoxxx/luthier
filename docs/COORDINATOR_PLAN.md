@@ -57,3 +57,133 @@ The auditor and beta tester audit and test both Free and Pro:
 - the Pro binary scan.
 
 The CLI easter egg is the last feature. It goes into `v1.0-full` before the fork, so both editions carry it.
+
+## Model policy for helpers (2026-09-26, product owner)
+
+Default split stays: Sonnet for routine gap work, Opus for hard DSP and
+merges, Haiku for docs and text.
+
+**Fable escalation rule.** Escalate a single stuck bug to a short Fable
+helper (`claude-fable-5-1`) only when ALL of these hold:
+
+1. Opus has already made two failed attempts on the *same* bug.
+2. Confidence is medium-to-low that Opus fixes it on its next turn, or the
+   evidence says it will need several more turns first. (If Opus looks
+   likely to land it next turn, stay on Opus — do not escalate.)
+3. The Fable helper is scoped to that one bug with a tight brief.
+4. Once the bug is fixed and verified, work switches back to Opus. Fable is
+   an escalation for the stuck bug only, never the standing model.
+
+Measure each escalation: note the usage meter before and after, and compare
+against what the two Opus attempts used.
+
+## Pro copy protection: strength target (2026-09-26, product owner)
+
+The Pro edition's copy protection is to be as strong as we can reasonably
+make it, layering the standard anti-reverse-engineering hardening already
+listed in Phase 3 (build-time identifier obfuscation, hidden visibility +
+symbol strip + LTO, compile-time string encryption, scattered licence
+checks, anti-tamper integrity checks, the binary leak-scan test) AND at
+least one novel, project-specific mechanism that does not appear in
+off-the-shelf DRM.
+
+Candidate directions for the novel mechanism, to be designed and chosen with
+the product owner when we reach the Pro phase (this is DRM for our own
+commercial product; the design is recorded here, not built yet):
+
+- **DSP-fingerprint gating.** Fold the licence state into the physical
+  model itself, not a separate boolean, so that a bypassed or patched check
+  leaves the audio subtly and progressively wrong (detune drift, damping
+  errors) rather than cleanly unlocked. The correct coefficients are derived
+  from the licence, so a cracked binary that skips the check produces an
+  instrument that measurably misbehaves on the test phrases.
+- Tie that derivation to a per-licence value so a shared/leaked licence is
+  distinguishable, and keep the "unlicensed" path a graceful demo (noise
+  burst / periodic mute) rather than a crash.
+
+Exact licensing model, activation, and offline policy remain Q-L1..Q-L9,
+still to be settled with the product owner before the Pro helper starts.
+
+## Expansion wave (2026-09-26, product owner): features + new instruments
+
+Token discipline: every new helper's system prompt gets docs/helpers/TERSE_MODE.md.
+Model per task: Haiku = docs/product text; Sonnet = routine specs + UI-side
+feature implementation; Opus = hard DSP (new instrument acoustics, Chapman
+Stick excitation, tone-match), merges, and the sound-accuracy audit; Fable =
+stuck-bug escalation only (2-failed-Opus rule).
+
+### A. Product doc (Haiku, PRODUCT-DOC)
+Full feature + capability list and a product description, from the specs and
+built code. Living draft; refresh after the new features land.
+
+### B. Feature specs + implementation (all tiers from the desirability list)
+Specs first (Sonnet, FEAT2-SPECS), then implementation (Sonnet, with Opus for
+tone-match DSP), then audit + test.
+- T1-1 Resizable/scalable UI (user scale 75-200%, remembered).
+- T1-2 Built-in tuner + adjustable global tuning reference (A=432..446).
+- T1-3 MIDI Learn / CC mapping on any parameter.
+- T1-4 Constrained "Randomize" + A/B compare in header.
+- T2-1 Doubler (auto double-tracking) — confirm spec.md:315 build state.
+- T2-2 Tone-match end-to-end (tone-match.md) — Opus for DSP.
+- T2-3 Notation + MIDI export INCLUDING guitar TAB export format.
+- T3-1 Amp/cabinet section with user IR (impulse response) loading.
+- T4 polish: tooltips+learn toggle, in/out meters + clip, sympathetic-string
+  resonance control, round-robin / humanized pick attack. Confirm which already
+  exist before building.
+
+### C. New instruments (research + DSP + graphics + integration)
+None of these exist today (workshop is modular: scale length, string count,
+5/6/8-string and multi-scale already supported). Split by research need:
+- Needs scientific-literature research (Opus, INSTRUMENT-RESEARCH → per-model
+  spec): Chitarra sarda; Guitarrón mexicano (fretless mariachi bass, octave
+  courses); Chapman Stick (TWO-HAND TAPPING excitation, dual zone/split — a new
+  excitation model, biggest item); Zon (graphite/composite neck material →
+  even, bright, long sustain).
+- Mostly buildable on existing part machinery, lighter research (Sonnet):
+  Tenor guitar (4-string, CGDA/DGBE, short scale); Acoustic bass guitar (hollow
+  acoustic body + 34" bass neck); Extended-range bass (5/6-string already
+  partly there — confirm and finish).
+Each: body/part acoustics model, workshop graphical image (guitar-illustration.md
+/ guitar-workshop.md), factory preset, full integration, tests.
+
+### D. Accuracy audit (Opus, ACCURACY-AUDIT) + beta test
+- Verify EACH existing and new instrument's sound is as accurate as the model
+  allows; find any guitar using the wrong audio model or mis-modeled.
+- Same accuracy pass for strings, pickups, and other parts.
+- Beta tester confirms every instrument plays and is represented correctly.
+- Report where measured/published data is missing so the owner can source it.
+
+Sequencing: A + B-specs + C-research start now. Implementation follows its spec;
+audit + beta follow implementation. Coordinator check-in expands each wave.
+
+## Expression/effects access — DO NOT duplicate; enforce ease-of-use (2026-09-26, owner)
+
+The system the owner asked for already exists in the specs — do NOT build a
+parallel one:
+- Auto "appropriate effects" with one knob + style names = **Performance
+  Assist / Auto Articulation** (spec/auto-articulation.md): `aa_amount`
+  0-100% (the wet/dry-style knob), `aa_style` named by genre (Clean/Pop,
+  Blues, Rock, Metal, Jazz, Country, Fingerstyle, Bass). It auto-applies
+  slide on interval/octave jumps, legato, vibrato, palm mute, ornaments —
+  scaled by amount, biased by style. Explicit input always overrides.
+- Manual per-technique triggers exist via the Playing strip (gui-integration
+  3.3), keyswitch, CC, and MPE (spec/controllers.md, per-technique specs).
+- MIDI round-trip exists BOTH ways: spec/midi-export.md is "MIDI EXPORT AND
+  IMPORT" — Luthier profile is lossless (every technique/event class
+  round-trips), Generic profile imports as a PerformanceScore; File -> Import
+  -> MIDI or drag-drop.
+
+REQUIREMENT for GAPS-GUI + the beta/accuracy owners (why the owner "saw no
+way in the GUI"): make this EASY and DISCOVERABLE, and confirm it fires
+effects APPROPRIATELY. Acceptance:
+1. Performance Assist Amount + Style is a first-class, obvious control in
+   Easy mode (not buried); every automatable technique/effect param has a
+   visible control (Combo test everyAutomatableParameterHasAVisibleControl).
+2. Each noise/technique effect (slap, scrape, squeak, pick noise, buzz,
+   slide) has a discoverable manual trigger AND, where musically valid,
+   participates in Performance Assist; where auto is NOT musically valid for
+   an effect, it stays manual-only (do not force auto).
+3. Appropriateness is validated by the auto-articulation tests plus the
+   accuracy audits (existing instruments/parts, and effects). Report any
+   technique that fires at the wrong time as an accuracy finding.
+No new spec or engine for this — verification + GUI wiring only.

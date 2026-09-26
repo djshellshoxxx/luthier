@@ -75,6 +75,10 @@ private:
     struct Group;
 
     void timerCallback() override { refresh(); }
+
+    /*  cpu-quality-modes 6: the lanes' playhead and the status are a live
+        readout (10 Hz, stepped, at Low). */
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "JamPanel" };
     void buildGroups();
     int layoutGroups (int width, bool apply);
     void announce (const JamStatus& status);
@@ -143,9 +147,6 @@ private:
     double lastChordAnnouncementAt = 0.0;
 
     std::unique_ptr<juce::FileChooser> chooser;
-
-    // cpu-quality-modes 6: the 30 Hz status drain is a live readout.
-    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "JamPanel" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (JamPanel)
 };

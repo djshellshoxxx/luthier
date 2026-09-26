@@ -1,10 +1,10 @@
 # qa-polish.md 2.10 / performance-budget.md 0.1, 9: every push builds, runs the
 # whole suite, validates the VST3 and packages it.
-name: CI
+name: CI (manual Linux package)
 
 on:
-  push:
-  pull_request:
+  # Manual only since 2026-09-26: ci-cadence.yml builds Linux on every push.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}

@@ -106,7 +106,10 @@ public:
     void paint (juce::Graphics&) override;
 
     static constexpr int preferredWidth = 88 + 4 + 118 + 4 + 76 + 4 + 40;
-    static constexpr int minimumWidth = 88;   ///< the pill alone; narrower, the Easy strip hides the group
+
+    /** The style box at its narrowest: jam-mode 8.2 never hides the band's
+        style, level or state, so the strip gives this much at least. */
+    static constexpr int minimumWidth = 88 + 4 + 56 + 4 + 76 + 4 + 40;
 
     JamPill& getPill() noexcept               { return pill; }
     juce::ComboBox& getStyleBox() noexcept    { return style.getComboBox(); }

@@ -126,8 +126,9 @@ Parameters added (34, appended last in the `FEAT-JAM` block of
     the master limiter (7's mix point), so this calibration is what keeps a
     loud band inside the combination tests' ceiling
     (`Jam::JM07_defaultLevelSitsWithTheGuitar`).
-19. **Narrow Easy windows.** The Easy strip's JAM group drops its controls from
-    the right when squeezed (style box shrinks first, then intensity and the
-    Band knob hide); below the pill's 88 px the whole group hides rather than
-    hang outside the strip (`Reflow::noControlHangsOutsideItsParentAtAnyWidthOrScale`).
+19. **Narrow Easy windows.** The Easy rhythm strip gives the rest of the strip
+    way before the JAM group drops below its minimum (pill, style at 56 px,
+    intensity, Band knob); only when even that will not fit is the group
+    hidden (FIX-CROSS). Inside the group a control that does not fit is hidden
+    rather than hung outside it (`Reflow::noControlHangsOutsideItsParentAtAnyWidthOrScale`).
     The JAM tab keeps every control at every width.
