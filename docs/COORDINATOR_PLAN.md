@@ -155,3 +155,35 @@ Each: body/part acoustics model, workshop graphical image (guitar-illustration.m
 
 Sequencing: A + B-specs + C-research start now. Implementation follows its spec;
 audit + beta follow implementation. Coordinator check-in expands each wave.
+
+## Expression/effects access — DO NOT duplicate; enforce ease-of-use (2026-09-26, owner)
+
+The system the owner asked for already exists in the specs — do NOT build a
+parallel one:
+- Auto "appropriate effects" with one knob + style names = **Performance
+  Assist / Auto Articulation** (spec/auto-articulation.md): `aa_amount`
+  0-100% (the wet/dry-style knob), `aa_style` named by genre (Clean/Pop,
+  Blues, Rock, Metal, Jazz, Country, Fingerstyle, Bass). It auto-applies
+  slide on interval/octave jumps, legato, vibrato, palm mute, ornaments —
+  scaled by amount, biased by style. Explicit input always overrides.
+- Manual per-technique triggers exist via the Playing strip (gui-integration
+  3.3), keyswitch, CC, and MPE (spec/controllers.md, per-technique specs).
+- MIDI round-trip exists BOTH ways: spec/midi-export.md is "MIDI EXPORT AND
+  IMPORT" — Luthier profile is lossless (every technique/event class
+  round-trips), Generic profile imports as a PerformanceScore; File -> Import
+  -> MIDI or drag-drop.
+
+REQUIREMENT for GAPS-GUI + the beta/accuracy owners (why the owner "saw no
+way in the GUI"): make this EASY and DISCOVERABLE, and confirm it fires
+effects APPROPRIATELY. Acceptance:
+1. Performance Assist Amount + Style is a first-class, obvious control in
+   Easy mode (not buried); every automatable technique/effect param has a
+   visible control (Combo test everyAutomatableParameterHasAVisibleControl).
+2. Each noise/technique effect (slap, scrape, squeak, pick noise, buzz,
+   slide) has a discoverable manual trigger AND, where musically valid,
+   participates in Performance Assist; where auto is NOT musically valid for
+   an effect, it stays manual-only (do not force auto).
+3. Appropriateness is validated by the auto-articulation tests plus the
+   accuracy audits (existing instruments/parts, and effects). Report any
+   technique that fires at the wrong time as an accuracy finding.
+No new spec or engine for this — verification + GUI wiring only.
