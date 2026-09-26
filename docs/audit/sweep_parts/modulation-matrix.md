@@ -5,7 +5,7 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | MM-1 (§0.1) | Control rate = block/32, min 128 samples, set in prepare | `Modulation/ModMatrix.cpp:ModMatrix::prepare` | n/a | `Modulation::controlRateIsABlockOver32FlooredAt128` | DONE |
-| MM-2 (§0.2) | Linear interpolation between control ticks — implemented as a one-pole halving step per tick, read once per block by the bridge; not linear, untested | `ModMatrix::processBlock` (currentOffsets += (target-current)*0.5) | n/a | - | PARTIAL |
+| MM-2 (§0.2) | Linear interpolation between control ticks — implemented as a one-pole halving step per tick, read once per block by the bridge; not linear, untested | `ModMatrix::processBlock` (currentOffsets += (target-current)*0.5) | n/a | `Modulation::offsetsRampLinearlyBetweenTicks` (now a true linear ramp to each tick's target; was a one-pole that never arrived) | DONE |
 | MM-3 (§0.3, §3) | Additive over base, (v*depth+offset)*range, clamped to range | `ModMatrix::apply` | n/a | `Modulation::routeModulatesItsDestination` | DONE |
 | MM-4 (§0.4) | Up to 8 sources per destination | `ModMatrix::addRoute` (kMaxRoutesPerDestination) | Modulate menu disables when full | `Modulation::destinationAcceptsEightSourcesAndNoMore` | DONE |
 | MM-5 (§0.4, §3) | Per-route depth and offset -100..+100% (engine) | `ModRoute::depth/offset` | see MM-40 | `Modulation::presetRoundTripIsExact` | DONE |
@@ -61,4 +61,4 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-T4 (§8) | Test: 5-option selector changes at 1/5..4/5 | n/a | n/a | `Modulation::discreteDestinationsStepAtBoundaries` | DONE |
 | MM-T5 (§8) | Test: seeded random renders byte-identical | n/a | n/a | `Modulation::randomSourcesAreDeterministic` | DONE |
 
-<!-- counts DONE=36 NO-GUI=0 NO-TEST=5 PARTIAL=9 MISSING=5 OWNED=1 -->
+<!-- counts DONE=37 NO-GUI=0 NO-TEST=5 PARTIAL=8 MISSING=5 OWNED=1 -->

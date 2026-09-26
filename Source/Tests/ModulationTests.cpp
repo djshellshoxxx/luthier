@@ -1162,3 +1162,56 @@ LUTHIER_TEST (Modulation, transportStartAndNotesRetriggerWhereTheySay)
     CHECK_NEAR (m.getSourceValue (ModSourceSlots::lfoBase + 2), firstTick, 1.0e-6);
     CHECK (std::abs (m.getSourceValue (ModSourceSlots::lfoBase) - firstTick) > 1.0e-3);
 }
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-2 - modulation-matrix 0.2: offsets ramp linearly between
+    control ticks and land on the target exactly at the next tick. */
+LUTHIER_TEST (Modulation, offsetsRampLinearlyBetweenTicks)
+{
+    ModHarness harness;
+    auto& m = harness.matrix;
+    ModBlockContext context;
+
+    ModRoute route;
+    route.sourceId = "macro1";
+    route.destinationId = ParamIDs::ampGain;
+    route.depth = 1.0f;
+    CHECK (m.addRoute (route));
+
+    const int index = [&]
+    {
+        const auto& parameters = harness.getParameters();
+        for (int i = 0; i < parameters.size(); ++i)
+            if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameters[i]))
+                if (withId->paramID == ParamIDs::ampGain)
+                    return i;
+        return -1;
+    }();
+
+    const int tick = m.getControlRateSamples();
+    const float span = harness.apvts.getParameterRange (ParamIDs::ampGain).getRange().getLength();
+
+    // Settle at zero, then step the macro to full.
+    m.setMacroValue (0, 0.0);
+    for (int i = 0; i < 8; ++i)
+        m.processBlock (tick, context);
+    CHECK_NEAR (m.getOffsetFor (index), 0.0f, 1.0e-6f);
+
+    m.setMacroValue (0, 1.0);
+
+    // Through the next tick in quarters: equal steps up to the full target.
+    std::vector<float> seen;
+    for (int q = 0; q < 4; ++q)
+    {
+        m.processBlock (tick / 4, context);
+        seen.push_back (m.getOffsetFor (index));
+    }
+
+    CHECK_NEAR (seen[3], span, span * 1.0e-5f);
+
+    for (int q = 0; q < 4; ++q)
+    {
+        const float previous = q == 0 ? 0.0f : seen[(size_t) q - 1];
+        CHECK_NEAR (seen[(size_t) q] - previous, span * 0.25f, span * 1.0e-4f);
+    }
+}

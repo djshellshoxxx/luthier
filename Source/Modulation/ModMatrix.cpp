@@ -238,6 +238,7 @@ void ModMatrix::prepare (double newSampleRate, int newBlockSize,
     destinations.assign ((size_t) numParameters, {});
     currentOffsets = std::vector<std::atomic<float>> ((size_t) numParameters);
     targetOffsets = std::vector<std::atomic<float>> ((size_t) numParameters);
+    rampStart.assign ((size_t) numParameters, 0.0f);   // SPEC-SWEEP: MM-2
     destinationModulated = std::vector<std::atomic<bool>> ((size_t) numParameters);
 
     parameterIndexById.clear();
@@ -316,6 +317,8 @@ void ModMatrix::reset() noexcept
         currentOffsets[i].store (0.0f);
         targetOffsets[i].store (0.0f);
     }
+
+    std::fill (rampStart.begin(), rampStart.end(), 0.0f);   // SPEC-SWEEP: MM-2
 
     lastNotePitch = 0.5;
     lastNoteVelocity = 0.0;
@@ -1006,8 +1009,12 @@ void ModMatrix::processBlock (int numSamples, const ModBlockContext& context) no
 
             // Clear only the destinations this table touches. Zeroing all three
             // hundred parameters every tick would cost more than the routing.
+            // SPEC-SWEEP: MM-2 - each ramp starts where the last one got to.
             for (int destination : table.touchedDestinations)
+            {
+                rampStart[(size_t) destination] = currentOffsets[(size_t) destination].load (std::memory_order_relaxed);
                 targetOffsets[(size_t) destination].store (0.0f, std::memory_order_relaxed);
+            }
 
             for (const auto& route : table.routes)
             {
@@ -1035,24 +1042,28 @@ void ModMatrix::processBlock (int numSamples, const ModBlockContext& context) no
                             std::memory_order_relaxed);
             }
 
-            // modulation-matrix 0.2: destinations step toward the new target
-            // rather than jumping, which is what keeps a slow LFO on a filter
-            // cutoff free of zipper noise.
-            for (int destination : table.touchedDestinations)
-            {
-                const auto target = targetOffsets[(size_t) destination].load (std::memory_order_relaxed);
-                const auto current = currentOffsets[(size_t) destination].load (std::memory_order_relaxed);
-
-                currentOffsets[(size_t) destination].store (current + (target - current) * 0.5f,
-                                                            std::memory_order_relaxed);
-            }
-
             samplesUntilTick = controlRateSamples;
         }
 
         const int step = juce::jmin (remaining, samplesUntilTick);
         samplesUntilTick -= step;
         remaining -= step;
+
+        /*  modulation-matrix 0.2: destinations interpolate linearly between
+            ticks, from where they were at the tick to the new target, which
+            they reach exactly at the next tick. That keeps a slow LFO on a
+            filter cutoff free of zipper noise. (SPEC-SWEEP: MM-2 - this was a
+            one-pole halving per tick, which never arrived.) */
+        const float progress = 1.0f - (float) samplesUntilTick / (float) juce::jmax (1, controlRateSamples);
+        const auto& table = tables[(size_t) liveTable.load (std::memory_order_acquire)];
+
+        for (int destination : table.touchedDestinations)
+        {
+            const float start = rampStart[(size_t) destination];
+            const float target = targetOffsets[(size_t) destination].load (std::memory_order_relaxed);
+            currentOffsets[(size_t) destination].store (start + (target - start) * progress,
+                                                        std::memory_order_relaxed);
+        }
     }
 }
 

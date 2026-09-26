@@ -319,6 +319,10 @@ private:
     std::vector<DestinationInfo> destinations;
     std::vector<std::atomic<float>> currentOffsets;
     std::vector<std::atomic<float>> targetOffsets;
+
+    /** SPEC-SWEEP: MM-2 - where each destination's linear ramp started at the
+        last tick. Audio thread only. */
+    std::vector<float> rampStart;
     std::vector<std::atomic<bool>> destinationModulated;
 
     juce::HashMap<juce::String, int> parameterIndexById;
