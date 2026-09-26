@@ -1380,6 +1380,12 @@ LUTHIER_TEST (Riffs, captureSeesRiffNotesExactly)
     b.riff.lengthBeats = 4.0;
     const auto riff = b.build();
 
+    // Live MIDI out on, strings included: a preview is not a performance.
+    auto config = processor.getRouting().getMidiOutConfig();
+    config.enabled = true;
+    config.stringActivity = true;
+    processor.getRouting().setMidiOutConfig (config);
+
     auto& player = processor.getEngine().getRiffPlayer();
     player.setCompiled (RiffCompiler::compile (riff, {}, RiffDestinations::guitarSummary (processor)), true);
     player.setClockMode (RiffPlayer::ClockMode::own);
@@ -1387,13 +1393,19 @@ LUTHIER_TEST (Riffs, captureSeesRiffNotesExactly)
     player.play();
 
     juce::AudioBuffer<float> buffer (processor.getTotalNumOutputChannels(), 256);
+    int liveNotes = 0;
 
     for (int i = 0; i < 400; ++i)
     {
         juce::MidiBuffer midi;
         buffer.clear();
         processor.processBlock (buffer, midi);
+
+        for (const auto m : midi)
+            liveNotes += m.getMessage().isNoteOn() ? 1 : 0;
     }
+
+    CHECK_MSG (liveNotes == 0, juce::String (liveNotes) + " riff notes reached live MIDI out");
 
     processor.getPerformanceCapture().drain();
 

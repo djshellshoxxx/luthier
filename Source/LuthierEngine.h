@@ -479,6 +479,8 @@ private:
     std::array<double, kMaxStrings> riffBendCents {};
     int subBlockOffset = 0;   ///< samples into the host block this sub-block starts at
     void playRiffEvents (int numSamples) noexcept;
+    bool schedulingRiff = false;   ///< scheduleEvents is taking the riff player's queue
+    bool firingRiff = false;       ///< the event being fired came from the riff player
     const juce::MidiBuffer* directMidi = nullptr;      ///< for the current processBlock
     const juce::MidiBuffer* directForSubBlock = nullptr;
     juce::MidiBuffer directSlice;
@@ -505,6 +507,7 @@ private:
         NoteOffEvent noteOff {};
         int64_t absoluteSample = 0;
         bool fingerAlternated = false;   ///< bass-techniques 6: already given its finger's timing
+        bool fromRiff = false;           ///< riff-library 5.3: a riff audition event
     };
 
     static constexpr int kMaxScheduledEvents = 192;

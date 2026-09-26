@@ -891,6 +891,7 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
                 later.noteOn = e;
                 later.absoluteSample = blockStartSample + activeSampleOffset + delay;
                 later.fingerAlternated = true;
+                later.fromRiff = firingRiff;
                 scheduled[(size_t) numScheduled++] = later;
                 return;
             }
@@ -929,7 +930,7 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     stringMidiNote[(size_t) s] = e.midiNote;
 
     // Routing-io 6: what is actually ringing, at the sample it started.
-    stringActivity.push ({ activeSampleOffset, s, e.midiNote, (float) e.velocity, true });
+    stringActivity.push ({ activeSampleOffset, s, e.midiNote, (float) e.velocity, true, firingRiff });
 
     // notation-export 6.1 (MODEL-GAPS): the note as played, technique and all.
     if (perfCapture != nullptr)
@@ -1394,7 +1395,7 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
     const int soundingNote = stringMidiNote[(size_t) s];
 
     if (soundingNote >= 0)
-        stringActivity.push ({ activeSampleOffset, s, soundingNote, 0.0f, false });
+        stringActivity.push ({ activeSampleOffset, s, soundingNote, 0.0f, false, firingRiff });
 
     /*  bass-techniques 6 (MODEL-GAPS): a middle-finger note still waiting for
         its finger has not started yet; its note-off waits until just after it,
@@ -1466,7 +1467,9 @@ void LuthierEngine::playRiffEvents (int numSamples) noexcept
         e.pitchHz = tuning.computeFrequency (s, e.fretPosition, riffOut.startCents[(size_t) i]);
     }
 
+    schedulingRiff = true;
     scheduleEvents (queue, numSamples);
+    schedulingRiff = false;
 }
 
 void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples) noexcept
@@ -1487,10 +1490,14 @@ void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples)
         activeSampleOffset = (int) juce::jlimit ((int64_t) 0, (int64_t) taps.getMaxBlockSize(),
                                                  e.absoluteSample - blockStartSample);
 
+        firingRiff = e.fromRiff;
+
         if (e.isNoteOn)
             triggerNote (e.noteOn);
         else
             applyNoteOff (e.noteOff);
+
+        firingRiff = false;
     };
 
     for (int i = 0; i < queue.getNumNoteOns(); ++i)
@@ -1499,6 +1506,7 @@ void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples)
         e.isNoteOn = true;
         e.noteOn = queue.getNoteOn (i);
         e.absoluteSample = samplePosition + e.noteOn.sampleOffset;
+        e.fromRiff = schedulingRiff;
         push (e);
     }
 
@@ -1508,6 +1516,7 @@ void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples)
         e.isNoteOn = false;
         e.noteOff = queue.getNoteOff (i);
         e.absoluteSample = samplePosition + e.noteOff.sampleOffset;
+        e.fromRiff = schedulingRiff;
         push (e);
     }
 }
@@ -1536,6 +1545,8 @@ void LuthierEngine::fireScheduledEvents (int64_t absoluteSample) noexcept
         const auto fired = e;
         scheduled[(size_t) i] = scheduled[(size_t) (--numScheduled)];
 
+        firingRiff = fired.fromRiff;   // riff-library 5.3: kept off live MIDI out
+
         if (fired.isNoteOn)
         {
             firingAlternated = fired.fingerAlternated;
@@ -1546,6 +1557,8 @@ void LuthierEngine::fireScheduledEvents (int64_t absoluteSample) noexcept
         {
             applyNoteOff (fired.noteOff);
         }
+
+        firingRiff = false;
 
         // Swap-removed above: order within a single sample does not matter,
         // and it keeps the cost at O(1) per event.

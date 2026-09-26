@@ -107,6 +107,10 @@ void MidiOutRouter::emit (juce::MidiBuffer& midiMessages,
         for (int i = 0; i < n; ++i)
         {
             const auto& e = stringActivity[i];
+
+            if (e.preview)
+                continue;   // riff-library 5.3
+
             const int note = juce::jlimit (0, 127, e.midiNote);
             const int offset = juce::jlimit (0, lastSample, e.sampleOffset);
 
