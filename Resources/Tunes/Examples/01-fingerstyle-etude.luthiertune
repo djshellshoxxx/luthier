@@ -1,0 +1,514 @@
+{
+  "schema": 1,
+  "magic": "luthier.tune",
+  "meta": {
+    "title": "Fingerstyle Etude",
+    "artist": "",
+    "author": "Factory",
+    "tempo_bpm": 72.0,
+    "time_sig": "4/4",
+    "key": "Em",
+    "mode": "aeolian",
+    "swing": 0.0,
+    "feel_pct": 0.0,
+    "tags": [
+      "example",
+      "fingerstyle"
+    ],
+    "notes": "Two eight-bar halves over a fingerpicked arpeggio, the melody phrased like a classical guitarist. Try it on Nylon Classical.",
+    "created": "2026-09-24T00:00:00Z",
+    "modified": "2026-09-24T00:00:00Z"
+  },
+  "sections": [
+    {
+      "name": "A",
+      "length_bars": 8,
+      "rhythm_pattern": "Classical Ascending",
+      "genre_kit": "Classical Arpeggio",
+      "chords": [
+        {
+          "root": "E",
+          "quality": "min",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "min",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "G",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "C",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "min",
+          "beats": 4.0
+        },
+        {
+          "root": "B",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "min",
+          "beats": 4.0
+        }
+      ],
+      "melody": [
+        {
+          "start": 0.0,
+          "dur": 1.0,
+          "pitch": 67,
+          "vel": 93
+        },
+        {
+          "start": 1.0,
+          "dur": 0.5,
+          "pitch": 78,
+          "vel": 90
+        },
+        {
+          "start": 1.5,
+          "dur": 1.0,
+          "pitch": 66,
+          "vel": 80
+        },
+        {
+          "start": 2.5,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 78
+        },
+        {
+          "start": 4.0,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 91
+        },
+        {
+          "start": 4.5,
+          "dur": 1.5,
+          "pitch": 66,
+          "vel": 83
+        },
+        {
+          "start": 6.0,
+          "dur": 0.5,
+          "pitch": 67,
+          "vel": 87
+        },
+        {
+          "start": 6.5,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 81
+        },
+        {
+          "start": 8.0,
+          "dur": 1.5,
+          "pitch": 62,
+          "vel": 92
+        },
+        {
+          "start": 9.5,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 83
+        },
+        {
+          "start": 10.0,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 88
+        },
+        {
+          "start": 10.5,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 82
+        },
+        {
+          "start": 12.0,
+          "dur": 1.0,
+          "pitch": 50,
+          "vel": 96
+        },
+        {
+          "start": 13.0,
+          "dur": 0.5,
+          "pitch": 52,
+          "vel": 91
+        },
+        {
+          "start": 13.5,
+          "dur": 1.0,
+          "pitch": 54,
+          "vel": 82
+        },
+        {
+          "start": 14.5,
+          "dur": 0.5,
+          "pitch": 50,
+          "vel": 83
+        },
+        {
+          "start": 16.0,
+          "dur": 1.0,
+          "pitch": 48,
+          "vel": 91
+        },
+        {
+          "start": 17.0,
+          "dur": 0.5,
+          "pitch": 50,
+          "vel": 85
+        },
+        {
+          "start": 17.5,
+          "dur": 1.0,
+          "pitch": 48,
+          "vel": 82
+        },
+        {
+          "start": 18.5,
+          "dur": 0.5,
+          "pitch": 50,
+          "vel": 80
+        },
+        {
+          "start": 20.0,
+          "dur": 1.0,
+          "pitch": 52,
+          "vel": 93
+        },
+        {
+          "start": 21.0,
+          "dur": 0.5,
+          "pitch": 54,
+          "vel": 86
+        },
+        {
+          "start": 21.5,
+          "dur": 1.0,
+          "pitch": 55,
+          "vel": 82
+        },
+        {
+          "start": 22.5,
+          "dur": 0.5,
+          "pitch": 66,
+          "vel": 81
+        },
+        {
+          "start": 24.0,
+          "dur": 1.0,
+          "pitch": 66,
+          "vel": 94
+        },
+        {
+          "start": 25.0,
+          "dur": 0.5,
+          "pitch": 69,
+          "vel": 91
+        },
+        {
+          "start": 25.5,
+          "dur": 0.5,
+          "pitch": 63,
+          "vel": 83
+        },
+        {
+          "start": 26.0,
+          "dur": 1.0,
+          "pitch": 59,
+          "vel": 85
+        }
+      ],
+      "melody_track": {
+        "string_hint": "auto",
+        "articulation": "natural",
+        "source": "auto",
+        "seed": 3,
+        "density": 4.0,
+        "range_low": 48,
+        "range_high": 79,
+        "follow_chords": false
+      },
+      "bass": {
+        "mode": "root"
+      },
+      "role": "verse",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.6,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "classical_guitar"
+    },
+    {
+      "name": "B",
+      "length_bars": 8,
+      "rhythm_pattern": "Classical Ascending",
+      "genre_kit": "Classical Arpeggio",
+      "chords": [
+        {
+          "root": "C",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "G",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "min",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "min",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "min",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "B",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "min",
+          "beats": 4.0
+        }
+      ],
+      "melody": [
+        {
+          "start": 0.0,
+          "dur": 1.5,
+          "pitch": 64,
+          "vel": 92
+        },
+        {
+          "start": 1.5,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 82
+        },
+        {
+          "start": 2.0,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 86
+        },
+        {
+          "start": 2.5,
+          "dur": 0.5,
+          "pitch": 67,
+          "vel": 78
+        },
+        {
+          "start": 4.0,
+          "dur": 1.0,
+          "pitch": 71,
+          "vel": 91
+        },
+        {
+          "start": 5.0,
+          "dur": 1.0,
+          "pitch": 69,
+          "vel": 90
+        },
+        {
+          "start": 6.0,
+          "dur": 0.5,
+          "pitch": 67,
+          "vel": 85
+        },
+        {
+          "start": 6.5,
+          "dur": 0.5,
+          "pitch": 69,
+          "vel": 79
+        },
+        {
+          "start": 8.0,
+          "dur": 0.5,
+          "pitch": 72,
+          "vel": 97
+        },
+        {
+          "start": 8.5,
+          "dur": 0.5,
+          "pitch": 71,
+          "vel": 82
+        },
+        {
+          "start": 9.0,
+          "dur": 1.5,
+          "pitch": 69,
+          "vel": 89
+        },
+        {
+          "start": 10.5,
+          "dur": 0.5,
+          "pitch": 67,
+          "vel": 83
+        },
+        {
+          "start": 12.0,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 97
+        },
+        {
+          "start": 12.5,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 80
+        },
+        {
+          "start": 13.0,
+          "dur": 0.5,
+          "pitch": 67,
+          "vel": 85
+        },
+        {
+          "start": 13.5,
+          "dur": 1.5,
+          "pitch": 71,
+          "vel": 82
+        },
+        {
+          "start": 16.0,
+          "dur": 0.5,
+          "pitch": 69,
+          "vel": 91
+        },
+        {
+          "start": 16.5,
+          "dur": 1.0,
+          "pitch": 64,
+          "vel": 80
+        },
+        {
+          "start": 17.5,
+          "dur": 1.0,
+          "pitch": 52,
+          "vel": 80
+        },
+        {
+          "start": 18.5,
+          "dur": 0.5,
+          "pitch": 54,
+          "vel": 78
+        },
+        {
+          "start": 20.0,
+          "dur": 1.5,
+          "pitch": 50,
+          "vel": 91
+        },
+        {
+          "start": 21.5,
+          "dur": 0.5,
+          "pitch": 52,
+          "vel": 83
+        },
+        {
+          "start": 22.0,
+          "dur": 0.5,
+          "pitch": 50,
+          "vel": 85
+        },
+        {
+          "start": 22.5,
+          "dur": 0.5,
+          "pitch": 52,
+          "vel": 79
+        },
+        {
+          "start": 24.0,
+          "dur": 1.0,
+          "pitch": 54,
+          "vel": 92
+        },
+        {
+          "start": 25.0,
+          "dur": 0.5,
+          "pitch": 55,
+          "vel": 91
+        },
+        {
+          "start": 25.5,
+          "dur": 1.0,
+          "pitch": 57,
+          "vel": 83
+        },
+        {
+          "start": 26.5,
+          "dur": 0.5,
+          "pitch": 59,
+          "vel": 79
+        }
+      ],
+      "melody_track": {
+        "string_hint": "auto",
+        "articulation": "natural",
+        "source": "auto",
+        "seed": 5,
+        "density": 4.0,
+        "range_low": 48,
+        "range_high": 79,
+        "follow_chords": false
+      },
+      "bass": {
+        "mode": "root"
+      },
+      "role": "bridge",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.6,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "classical_guitar"
+    }
+  ],
+  "setlist": [
+    {
+      "section": "A",
+      "repeats": 2
+    },
+    {
+      "section": "B",
+      "repeats": 1
+    },
+    {
+      "section": "A",
+      "repeats": 1
+    }
+  ]
+}

@@ -64,6 +64,12 @@ public:
 
     void setNumStrings (int n) noexcept;
 
+    /*  string-aging.md 3.1: a per-instance value for another module, from the
+        seed. `category` must be one no value of this class uses; the ones
+        taken by other specs are listed here. */
+    static constexpr int kCategoryStringAge = 40;   // REALISM-A
+    double hashedValue (int category, int a, int b = 0) const noexcept { return hashed (category, a, b); }
+
     //==========================================================================
     // The seed (character-wear 1).
 
@@ -132,6 +138,9 @@ public:
     /** character-wear 9: back to zero, and drifting again from there. */
     void retune() noexcept;
 
+    /** tuning-stability.md 3: Retune string n clears that string's drift only. */
+    void retuneString (int stringIndex) noexcept;
+
     /** How long the instrument has been "played" since the last retune. */
     double getSessionSeconds() const noexcept { return sessionSeconds; }
 
@@ -196,7 +205,11 @@ public:
     double getBodyHfDampingMultiplier() const noexcept;
 
     //==========================================================================
-    // Environment (character-wear 9).
+    /*  Environment (character-wear 9) is environment.md's EnvironmentModel now:
+        a physical, lagged model that is state rather than wear. What is left
+        here is the legacy three-step choice, read from presets saved before it
+        (environment.md 6) so the loader can convert it; it no longer reaches
+        the audio and is no longer saved. */
 
     void setTemperature (Temperature t) noexcept;
     Temperature getTemperature() const noexcept { return (Temperature) temperature.load (std::memory_order_relaxed); }
@@ -204,17 +217,12 @@ public:
     void setHumidity (Humidity h) noexcept;
     Humidity getHumidity() const noexcept { return (Humidity) humidity.load (std::memory_order_relaxed); }
 
-    /** The tuning offset the current temperature implies, in cents.
-
-        Steel contracts when it cools, which raises its tension and so its pitch.
-        The coefficient is the one that falls out of steel's thermal expansion
-        against a maple neck's: roughly two and a half cents per ten kelvin,
-        sharp when cold. */
-    double getTemperatureOffsetCents() const noexcept;
-
-    /** What humidity does to the body's Q and top compliance. */
-    double getHumidityQMultiplier() const noexcept;
-    double getHumidityComplianceMultiplier() const noexcept;
+    /** environment.md 6: the old model's offset for the legacy choice,
+        +-2.5 cents x amount, which the loader converts to a temperature. */
+    static double legacyTemperatureOffsetCents (Temperature t, double amount) noexcept
+    {
+        return t == Temperature::cold ? 2.5 * amount : (t == Temperature::warm ? -2.5 * amount : 0.0);
+    }
 
     //==========================================================================
     // Presets (character-wear 10).

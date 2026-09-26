@@ -25,6 +25,15 @@ StringNoiseInfo StringNoiseInfo::fromSpec (const StringSpec& spec, StringMateria
     return info;
 }
 
+StringNoiseInfo StringNoiseInfo::fromSpec (const StringSpec& spec, StringMaterial material,
+                                           double ageRoughness, double squeakCentroid) noexcept
+{
+    auto info = fromSpec (spec, material, StringAge::Fresh);
+    info.ageRoughness = juce::jlimit (0.5, 3.0, ageRoughness);
+    info.squeakCentroid = juce::jlimit (0.3, 1.5, squeakCentroid);
+    return info;
+}
+
 //==============================================================================
 PlayingNoise::PickMaterialProperties PlayingNoise::getPickMaterial (Excitation::Material m) noexcept
 {
@@ -237,7 +246,7 @@ NoiseEvent PlayingNoise::makeSqueak (const SqueakSettings& s, const StringNoiseI
 
     // f = speed x windingPitch. The hand accelerates into a shift, so the
     // squeak glides up to that from about half of it.
-    const double peak = speed * string.windingPitchPerMm;
+    const double peak = speed * string.windingPitchPerMm * string.squeakCentroid;   // string-aging.md 3.5
     e.startHz = peak * 0.5;
     e.endHz = peak;
 
