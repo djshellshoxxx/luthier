@@ -1500,6 +1500,7 @@ void AdvancedPanel::resized()
         else if (auto* p = dynamic_cast<MidiOutPanel*> (panel))              height = juce::jmax (visible, p->getPreferredHeight());
         else if (auto* p = dynamic_cast<NotationPanel*> (panel))             height = juce::jmax (visible, p->getPreferredHeight());
         else if (auto* p = dynamic_cast<PracticeSetupPanel*> (panel))        height = juce::jmax (visible, p->getPreferredHeight());
+        else if (auto* p = dynamic_cast<RhythmPanel*> (panel))               height = juce::jmax (visible, p->preferredHeight());   // issues.md 8: the STRUM group's lower rows
         else if (panel == characterPanel.get() || panel == controllersPage.get())
             height = juce::jmax (80, panel->getHeight());
 

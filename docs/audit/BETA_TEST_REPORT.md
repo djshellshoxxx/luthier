@@ -65,6 +65,8 @@ and pull-off, palm-muted chugs (CC67), natural and pinch harmonics
 | pluginval, strictness 10, default timeout, after | Parameter thread safety **times out at 30 s** (B-12) |
 | clap-validator 0.3.2, CLAP, first run (own CLAP target) | 12 pass, 6 fail: preset-morph position lost from state (B-10), Pick Tip Radius text round trip, param events with a foreign namespace applied, state flush not reproducible |
 | clap-validator 0.3.2 on the integration branch's CLAP target (after merging review) | **18 pass, 0 fail**, 3 skipped |
+| Round 2 (helpers and feat-strings/-normalize/-jam/-cpu merged, `e726444`): pluginval strictness 10, `--timeout-ms 900000` | **SUCCESS**, every test (Parameter thread safety still needs the long timeout, B-12) |
+| Round 2: clap-validator 0.3.2 | 15 pass, 3 fail (the three state-reproducibility tests: `jam_play` / `jam_fill_now` restored off by design, 'Whammy Up' one ulp; B-20), 3 skipped |
 
 ## Findings
 
@@ -127,7 +129,7 @@ IN PROGRESS (a helper branch covers it).
 
 - Test: `GuiReach.everyAutomatableParameterHasAVisibleControl`.
 - Round 2 (merged tree, after the GuiReach corrections above), no control anywhere: `scrape_*` (14) and the slap arm/trigger set (13: `slap_armed`, `slap_type`, `slap_trigger`, `slap_velocity_zone`, `slap_trigger_cc`, `slap_ghost_cc`, `slap_force`, `slap_palm_position_mm`, `slap_string_mask`, `slap_ghost_mode`, `slap_rebound_gap`, `slap_snap_back`, `slap_body_part`) - **in progress on `claude/luthier-techniques`** (TECHNIQUES tab); the other 12 slap/pop/ghost controls now sit in CHARACTER's SlapGroup (bass only). Still no control and no owner: `macro_assign_a`, `macro_assign_b` (Macro 7/8), `pickup_blend` (also never read by `PickupEngine` in process).
-- Control exists but never on screen: `strum_acceleration`, `strum_up_velocity_ratio`, `strum_tilt`, `strum_miss_probability`, `chuck_amount`, `chuck_damping`. Cause: the RHYTHM tab lays `RhythmPanel` out at the viewport height, not `RhythmPanel::preferredHeight()` (AdvancedPanel), so the STRUM group's lower rows get no height.
+- Control exists but never on screen: `strum_acceleration`, `strum_up_velocity_ratio`, `strum_tilt`, `strum_miss_probability`, `chuck_amount`, `chuck_damping`. Cause: the RHYTHM tab laid `RhythmPanel` out at the viewport height, not `RhythmPanel::preferredHeight()`, so the STRUM group's lower rows got no height. **FIXED in round 2** (`AdvancedPanel::resized` sizes the RHYTHM tab like TUNE, JAM, MIDI OUT, NOTATION and PRACTICE; issues.md 8): all six are now reached and operated.
 - Pedal slots: slot `pN` knobs a given pedal type does not use are summarised, not failed.
 - Intentionally hidden (documented in the test): `feedback_on/threshold/speed`, `strum_speed`, `doubler_on/amount`, `fret_action`, and since round 2 `string_age`, `tune_feel_mod`, `tune_tempo_drift`.
 
@@ -172,12 +174,18 @@ IN PROGRESS (a helper branch covers it).
 
 - `octave bias 1: the feedback peaks at 441.12 Hz, 7.4 cents from 439.24 Hz` (limit 5). Already failing on the integration branch before this branch was merged back (`e763adf`: 18.6 cents), so it comes from the helper merges (realism-b's harmonic contacts / realism-c's tuning stability both move string pitch), not from this branch's fixes.
 
+### B-20 clap-validator state reproducibility: jam transients restored off; 'Whammy Up' one ulp. BY DESIGN / OPEN (low; round 2)
+
+- `state-reproducibility-basic`, `-null-cookies`, `-flush`-style checks: `jam_play` and `jam_fill_now` come back 0.0 after the validator set them to 1.0 and reloaded. jam-mode.md 10 and JM-35 make them transient on purpose: "Host state restores them off, so opening a project never starts the band." The validator cannot tell a deliberate transient from a lost value; a CLAP-side answer would be to flag them as non-state parameters, which JUCE's wrapper does not expose. Left as designed.
+- 'Whammy Up' (`whammy_up`, a skewed range) comes back one float ulp off (0.0568653494 vs 0.0568653531): the same normalised -> plain -> normalised non-idempotence as B-16's 'Distance to Amp'. Harmless to audio.
+
 ### Harness corrections in round 2 (test physics, not engine changes)
 
 - **Capo raises the playable floor** (`ComboHarness::lowestPlayableNote`): nothing is fretted at or behind a capo (RubricVoicer 4.5), so under a capo at 12 the phrases were moved onto notes the guitar cannot play and rendered silent (pairwise row 15, Classical Drop D capo 12). Now the floor is the open string plus the capo it sees.
 - **Noise-floor routes are not held to the decay check** (`modulationRoutesAtFullDepth`): an LFO/random route into the `noise_*` levels moves the floor itself (tail -42.6 dBFS, -42.3 a second earlier), which the 0.25 s idle measurement cannot stand for.
 - **Exact-partial sympathetic ring** (`Verdict`): "J-Style Fingerstyle" (tail 18 dB down, falling 4.4 dB/s) and two British 800 pairwise rows (15-17 dB down, falling 8-10 dB/s) ring through the bridge coupling: at `coupling_amount` 0 their tails fall to the floor (-61 / -56 dBFS). Measured at the strings, E3 on a bass's G string rings the open A (third partial 2 cents away) 23 dB under the note and the open E 31 dB under; the pickup and amp weight the low strings, so the mix reads 18 dB down, and a high-gain amp compresses it further. They fall at the open strings' own T60. A tail 15 dB down and falling at least 3 dB a second (T60 under 20 s) now also passes; the released string itself stays held to SUS-08 by `releasedStringIsDampedQuickly`.
 - **`releasedStringIsDampedQuickly` isolates the string again**: it now zeroes the two sympathetic paths the realism merges added (`coupling_air_amount`, `body_coupling_amount`) as well as `coupling_amount`; the acoustic types (Jumbo 33.8, 12-String 32.2, Resonator 32.6 dB) were measuring the air and body return, and all 24 types now pass.
+- **A saturated amp holds the tail while the strings die** (`Verdict`): "Tapping Etude" (JCM800, gain 0.68) and "Single-Cut Crunch" (Plexi) keep the output at the note's level and pitch (E3, 165 Hz) for seconds after release while every string has fallen 45-60 dB; the amp clips anything above its knee to one level (at amp gain 0.1 the tails fall to -35 / -50 dBFS). Bisected: present since the realism merges and unchanged through each feat-* merge. `RenderStats` now records the loudest string level before the release and at the end, and a tail passes when the strings themselves fell 30 dB; a released string that keeps ringing (B-03) still fails.
 - **GuiReach operates custom controls**: the RIGHT HAND per-string tool cells (`rh_string_tool_1..6`) and the NOISE FLOOR position pad (`noise_player_angle`, `noise_player_distance`) write their parameters directly, not through an attachment; the walk now operates them. `string_age` (read only at a preset load, mapped to `string_age_hours`) and `tune_feel_mod` / `tune_tempo_drift` (tune-builder 14 modulation destinations) joined the documented hidden list.
 
 ## Passed
