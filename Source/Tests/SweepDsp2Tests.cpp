@@ -3531,3 +3531,70 @@ LUTHIER_TEST (Notation, aGraceHammerIsAGraceNote)
         CHECK_NEAR (notes[2]->startBeat, 1.0, 1.0e-6);
     }
 }
+
+LUTHIER_TEST (Notation, guitarProRoundTripsStringsAndFrets)
+{
+    // NE-4 / NE-34 (notation-export 2.2): a .gp written by Luthier reads back
+    // note for note - timing, string, fret and the techniques GPIF carries -
+    // with chords as one beat, not an arpeggio.
+    PerformanceScore score;
+    score.beginCapture (100.0, 4, 4);
+
+    const int open[6] = { 64, 59, 55, 50, 45, 40 };
+
+    // A chord on beat 0, then a bent note, a hammer-on, a palm mute, a rest, a slide.
+    for (int s = 2; s < 5; ++s)
+        score.noteStarted (s, 2, open[s] + 2, 440.0, 0.8, 0.0);
+
+    for (int s = 2; s < 5; ++s)
+        score.noteEnded (s, 1.0);
+
+    ScoreTechnique bend;
+    bend.type = ScoreTechnique::Type::bend;
+    bend.value = 1.0;
+    score.noteStarted (1, 8, open[1] + 8, 440.0, 0.8, 1.0);
+    score.addTechnique (1, bend);
+    score.noteEnded (1, 2.0);
+
+    score.noteStarted (1, 10, open[1] + 10, 440.0, 0.8, 2.0);
+    score.addTechnique (1, { ScoreTechnique::Type::hammerOn });
+    score.noteEnded (1, 2.5);
+
+    score.noteStarted (5, 0, open[5], 440.0, 0.8, 2.5);
+    score.addTechnique (5, { ScoreTechnique::Type::palmMute });
+    score.noteEnded (5, 3.0);
+
+    score.noteStarted (0, 12, open[0] + 12, 440.0, 0.8, 3.5);
+    score.addTechnique (0, { ScoreTechnique::Type::slideUp });
+    score.noteEnded (0, 4.0);
+    score.endCapture (4.0);
+
+    const auto file = juce::File::createTempFile (".gp");
+    NotationExporter exporter;
+    CHECK_MSG (exporter.write (score, NotationFormat::guitarPro, file), exporter.getLastError());
+    CHECK (NotationImporter::canRead (file));
+
+    NotationImporter importer;
+    PerformanceScore back;
+    CHECK_MSG (importer.read (file, back), importer.getLastError());
+
+    const auto a = score.getTrack (0).measures[0].collectNotes();
+    const auto b = back.getTrack (0).measures[0].collectNotes();
+    CHECK_MSG (a.size() == b.size(), juce::String ((int) b.size()) + " notes back of " + juce::String ((int) a.size()));
+
+    for (size_t i = 0; i < juce::jmin (a.size(), b.size()); ++i)
+    {
+        CHECK_MSG (a[i]->stringIndex == b[i]->stringIndex && a[i]->fret == b[i]->fret && a[i]->midiNote == b[i]->midiNote,
+                   "note " + juce::String ((int) i) + " moved");
+        CHECK_NEAR (b[i]->startBeat, a[i]->startBeat, 1.0e-6);
+
+        for (const auto& t : a[i]->techniques)
+            CHECK_MSG (b[i]->hasTechnique (t.type), "note " + juce::String ((int) i) + " lost " + getTechniqueName (t.type));
+    }
+
+    if (b.size() >= 4)
+        CHECK_NEAR (b[3]->findTechnique (ScoreTechnique::Type::bend) != nullptr ? b[3]->findTechnique (ScoreTechnique::Type::bend)->value : 0.0, 1.0, 1.0e-6);
+
+    CHECK (back.getMeta().tempoBpm > 99.0 && back.getMeta().tempoBpm < 101.0);
+    file.deleteFile();
+}

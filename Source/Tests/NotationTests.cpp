@@ -686,8 +686,9 @@ LUTHIER_TEST (Notation, importerIsHonestAboutWhatItReads)
     CHECK (NotationImporter::canRead (juce::File ("song.xml")));
 
     // What it does not.
+    CHECK (NotationImporter::canRead (juce::File ("song.gp")));   // SPEC-SWEEP NE-4: GP7/8 is read now
+
     CHECK (! NotationImporter::canRead (juce::File ("song.gp5")));
-    CHECK (! NotationImporter::canRead (juce::File ("song.gp")));
     CHECK (! NotationImporter::canRead (juce::File ("song.ptb")));
 
     // And the message says why, and what to do instead.

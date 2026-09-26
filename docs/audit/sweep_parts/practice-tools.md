@@ -43,7 +43,7 @@ The drawer (eight tabs, strip readouts, practice level, tap, panic) and the PRAC
 | PT-37 (§4) | Custom scale via interval list — engine only | `ScaleTrainer::setCustomIntervals` | SCALE "Custom..." + step list editor | `PracticePanelUi.aCustomScaleIsHighlighted` | DONE |
 | PT-38 (§5) | Ear training: intervals, 11 chord qualities, adaptive, stats.json — 14 progressions (spec: 5 named + 10 = 15) | `kProgressions` (15, +I-IV-vi-V) | drawer EAR | `PracticeTrainers.fifteenProgressions` | DONE |
 | PT-39 (§5) | Uses Luthier's own guitar sound — untested | `EarTab::placeOnStrings` (was string i, fret note%24: wrong pitches) | EAR | `PracticeTrainers.earQuestionsPlayThroughTheEngine` | DONE |
-| PT-40 (§6) | Tab formats GP5/GP/ASCII/MusicXML/PTB — ASCII and MusicXML only | `Notation/NotationImporter` | drawer TAB Open | `Notation::importerIsHonestAboutWhatItReads` | PARTIAL |
+| PT-40 (§6) | Tab formats GP5/GP/ASCII/MusicXML/PTB — ASCII and MusicXML only | `NotationImporter::readGuitarPro` (.gp, GP7/8) | drawer TAB Open | `Notation.guitarProRoundTripsStringsAndFrets` | PARTIAL |
 | PT-41 (§6) | Scrolling tab view, cursor, tempo, section loop, count-in — static TextEditor | `TabReaderTab::tabView` | TAB | - | MISSING |
 | PT-42 (§6) | Highlight current fret on the fretboard | - | - | - | MISSING |
 | PT-43 (§6) | Speed trainer (+N% per pass until misses) — in routines only, not in TAB | `SpeedTrainer` (PracticeRoutineTempo) | PRACTICE routines | `PracticeRoutine::theSpeedTrainerClimbsUntilAPassMissesNotes` | PARTIAL |

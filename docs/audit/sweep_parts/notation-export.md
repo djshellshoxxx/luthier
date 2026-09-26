@@ -7,7 +7,7 @@
 | NE-1 (§0.1) | Export offline on a worker thread — NOTATION tab and File menu use `writeAsync`; tab-reader export (`PracticePanel.cpp` ~1211) still calls `exporter.write` on the message thread | `UI/NotationPanel.cpp:NotationTakeExport::writeAsync` | NOTATION tab Export, File > Export notation... | `ModelGapsUi::notationExportRunsOnAWorkerThread` | PARTIAL |
 | NE-2 (§0.2) | Guitar-aware output: string/fret, not pitch | `Notation/PerformanceScore:ScoreNote` | n/a | `Notation::stringAndFretAreNotDerivedFromPitch` | DONE |
 | NE-3 (§0.3) | Technique metadata preserved (bends, slides, legato, PM, harmonics, tap, whammy) | `ScoreTechnique`, `Capture/PerformanceCapture` | n/a | `Capture::techniquesBendsChordsAndMetersReachTheScore`, `ModelGapsUi::theCaptureHearsTechniquesAndChordsFromTheEngine` | DONE |
-| NE-4 (§0.4) | Exports round-trip with documented per-format losses — no GP re-import | `NotationImporter::read` (txt/musicxml only) | n/a | `Notation::musicXmlRoundTrips`, `Notation::asciiTabRoundTrips`, `Notation::formatsDeclareTheirLosses` | PARTIAL |
+| NE-4 (§0.4) | Exports round-trip with documented per-format losses — no GP re-import | `NotationImporter::readGuitarPro/readGpif`; the writer now emits GPIF Bars/Voices/Beats (a chord is one beat, gaps are rest beats) | n/a | `Notation.guitarProRoundTripsStringsAndFrets` | DONE |
 | NE-5 (§1) | PerformanceScore model (meta, tracks, measures, voices, notes, techniques) | `Notation/PerformanceScore.h` | n/a | `Notation::captureBuildsMeasures` | DONE |
 | NE-6 (§1) | Capture last N minutes, default 10 | `PerformanceCapture::kDefaultRollingMinutes` | NOTATION `rollingMinutes` slider | `Capture::rollingKeepsTheLastMinutes` | DONE |
 | NE-7 (§2.1) | MusicXML 4.0 `<technical>` bend/slide/hammer/pull/PM/harmonic/tap/string/fret | `NotationExporter::renderMusicXml` | NOTATION format box | `Notation::musicXmlIsWellFormedAndGuitarAware` | DONE |
@@ -37,7 +37,7 @@
 | NE-31 (§6.3) | States off / rolling (default) / armed | `PerformanceCapture::setState` | NOTATION state buttons | `Capture::offWritesNothingAndLeavesTheAudioAlone`, `Capture::armedStartsCleanFromTheNextNote`, `NotationTab::stateButtonsLiveTabAndPreview` | DONE |
 | NE-32 (§6.4) | Quarter notes vs transport, seconds when stopped, quantise afterwards | `CaptureClock`, quantise options | NOTATION `quantiseBox` | `Capture::transportTimingIsInQuarterNotes`, `Capture::freePlayIsInSecondsAndQuantisesAfterwards` | DONE |
 | NE-33 (§7) | Test: MusicXML round trip via MuseScore fixture, zero technique loss — uses own importer and only asserts some techniques survive | `NotationImporter::readMusicXml` | n/a | `Notation::musicXmlRoundTrips` | PARTIAL |
-| NE-34 (§7) | Test: Guitar Pro round trip via fixture parser, string/fret identical — no GP parser | - | n/a | - | MISSING |
+| NE-34 (§7) | Test: Guitar Pro round trip via fixture parser, string/fret identical — no GP parser | - | n/a | `Notation.guitarProRoundTripsStringsAndFrets` | DONE |
 | NE-35 (§7) | Test: ASCII column alignment at 4/4 | `renderAsciiTab` | n/a | `Notation::asciiTabColumnsAlign` | DONE |
 | NE-36 (§7) | Test: exported MIDI re-rendered nulls at -60 dBFS | `MidiProfiles`, `MidiPerformance` | n/a | `MidiExport::luthierRoundTripNullsEveryFactoryPreset`, `Capture::aCapturedPhraseRoundTripsThroughLuthierMidi` | DONE |
 | NE-37 (§7) | Test: 100 chord progressions, >95% detection — only a two-chord case exists | chord detector / offline extraction | n/a | `Notation.chordExtractionOnAHundredProgressions` (the detector both paths use) | DONE |
