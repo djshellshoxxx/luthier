@@ -370,7 +370,7 @@ NormalizationSoundState OutputNormalization::captureSoundState() const
     }
 
     s.valid = s.structural.isObject();
-    s.rateFamily = NormalizationSoundState::rateFamilyFor (processor.getSampleRate());
+    s.rateFamily = NormalizationSoundState::rateFamilyFor (processor.getEngine().getSampleRate());
     return s;
 }
 
@@ -395,7 +395,7 @@ NormalizationSoundState OutputNormalization::soundStateFromPreset (const juce::v
     root->setProperty ("preset", stripPresetIdentity (presetVar));
     s.structural = juce::var (root);
     s.valid = presetVar.isObject();
-    s.rateFamily = NormalizationSoundState::rateFamilyFor (processor.getSampleRate());
+    s.rateFamily = NormalizationSoundState::rateFamilyFor (processor.getEngine().getSampleRate());
     return s;
 }
 
@@ -413,6 +413,15 @@ void OutputNormalization::notifyConfigurationChanged (bool prefetch)
 
     if (prefetch && ! processor.isNonRealtime())
     {
+        // The load is applied to the engine now rather than on the bridge's
+        // next async pass (as the header's own load path does), so the hash is
+        // the loaded sound's: per-string state is read back from the engine.
+        if (juce::MessageManager::existsAndIsCurrentThread())
+        {
+            processor.getParameterBridge().applyAllNow();
+            publishStructural (captureStructural());
+        }
+
         // 4.4 prefetch / 2.2: a cached gain rides the load itself.
         const auto state = captureSoundState();
         const auto hash = NormalizationCalibrator::hashSoundState (state, processor);
