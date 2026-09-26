@@ -1220,6 +1220,13 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
                 if (auto seconds = position->getTimeInSeconds())
                     hostSeconds = *seconds;
+
+                // SPEC-SWEEP HI-29: the host's metre, for the practice click.
+                if (auto signature = position->getTimeSignature())
+                {
+                    hostTimeSigNumerator = signature->numerator;
+                    hostTimeSigDenominator = signature->denominator;
+                }
             }
         }
 
@@ -1447,6 +1454,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         if (metronome.isEnabled())
         {
             metronome.followTempo (blockTempo);   // SPEC-SWEEP PT-6
+            metronome.followTimeSignature (hostTimeSigNumerator, hostTimeSigDenominator);   // SPEC-SWEEP HI-29
             metronome.processBlock (clickBuffer.getWritePointer (0), numSamples);
             haveClick = true;
         }

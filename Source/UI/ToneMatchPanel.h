@@ -100,6 +100,12 @@ private:
     void advance();
     void restart();
 
+    /** SPEC-SWEEP TM-5: the worker's result, on the message thread. */
+    void finishAnalysis (const juce::File& file, const juce::String& text, int slotIndex,
+                         double nullDb, bool fitted);
+
+    bool analysing = false;   // SPEC-SWEEP TM-5
+
     juce::String getStepText() const;
 
     LuthierAudioProcessor& processor;

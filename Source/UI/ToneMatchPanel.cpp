@@ -475,6 +475,8 @@ juce::String MatchWizard::getStepText() const
 
 void MatchWizard::restart()
 {
+    analysing = false;   // SPEC-SWEEP TM-5: a result still on its way is dropped
+
     if (kind == Kind::cabMatch)
         processor.getCabMatchSignal().stop();   // SPEC-SWEEP TM-17
 
@@ -576,105 +578,160 @@ void MatchWizard::advance()
                 current[(size_t) i] = buffer.getSample (0, i);
 
             // ---- do the work -----------------------------------------------------
-            if (kind == Kind::cabMatch)
+            /*  SPEC-SWEEP TM-5 (tone-match 0.5): the deconvolution and the fit
+                run on a worker thread, and only the result - a file to load
+                and a line of text - comes back to the message thread. */
+            struct Job
             {
-                const auto signal = (CabMatch::TestSignal) juce::jmax (0, signalBox.getSelectedId() - 1);
-
-                const auto testSignal = CabMatch::generateTestSignal (
-                    signal, processor.getSampleRate(), 6.0);
-
-                const auto ir = CabMatch::deconvolve (testSignal, reference,
-                                                      processor.getSampleRate(), signal);
-
-                IrMetadata metadata;
-                metadata.name = "Cab Match " + juce::Time::getCurrentTime().formatted ("%Y-%m-%d %H%M");
-                metadata.type = "cabinet";
-                metadata.author = "user";
-                metadata.notes = "captured with Luthier cab match";
-                metadata.tags = { "cab-match" };
-
-                const auto file = CabMatch::getMatchDirectory()
-                                    .getChildFile (juce::File::createLegalFileName (metadata.name) + ".wav");
-
-                if (CabMatch::saveIr (ir, file, metadata))
-                {
-                    processor.getCabIrSlot (0).load (file);
-                    processor.getCabIrSlot (0).setEngaged (true);
-
-                    nullResultDb = CabMatch::measureNull (reference, current);
-                    haveResult = true;
-
-                    resultLabel.setText ("Saved " + file.getFileName()
-                                           + "    null " + juce::String (nullResultDb, 1) + " dB"
-                                           + "    tail " + juce::String (ir.getLengthMs(), 0) + " ms",
-                                         juce::dontSendNotification);
-                }
-                else
-                {
-                    resultLabel.setText ("Could not write the matched IR.",
-                                         juce::dontSendNotification);
-                }
-            }
-            else if (kind == Kind::eqMatch)
-            {
+                Kind kind;
+                double sampleRate;
+                CabMatch::TestSignal signal;
                 EqMatch::Options options;
+                std::vector<float> reference, current;
+            };
 
-                options.length = (EqMatch::FilterLength) juce::jlimit (
+            auto job = std::make_shared<Job>();
+            job->kind = kind;
+            job->sampleRate = processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0;
+            job->signal = (CabMatch::TestSignal) juce::jmax (0, signalBox.getSelectedId() - 1);
+            job->reference = reference;
+            job->current = current;
+
+            if (kind == Kind::eqMatch)
+            {
+                job->options.length = (EqMatch::FilterLength) juce::jlimit (
                     0, (int) EqMatch::FilterLength::numLengths - 1, lengthBox.getSelectedId() - 1);
 
-                options.aggressiveness = aggressiveness.getValue() * 0.01;
-                options.lowHz = lowBand.getValue();    // SPEC-SWEEP TM-25
-                options.highHz = juce::jmax (lowBand.getValue() * 2.0, highBand.getValue());
-                options.preserveDynamics = preserveDynamics.getToggleState();
+                job->options.aggressiveness = aggressiveness.getValue() * 0.01;
+                job->options.preserveDynamics = preserveDynamics.getToggleState();
+                job->options.lowHz = lowBand.getValue();    // SPEC-SWEEP TM-25
+                job->options.highHz = juce::jmax (lowBand.getValue() * 2.0, highBand.getValue());
+            }
 
-                const auto filter = EqMatch::fit (reference, current,
-                                                  processor.getSampleRate(), options);
+            juce::Component::SafePointer<MatchWizard> safeThis (this);
+            analysing = true;
+            actionButton.setEnabled (false);
+            actionButton.setButtonText ("Analysing...");
+            resultLabel.setText ("Analysing...", juce::dontSendNotification);
 
-                if (! filter.isEmpty())
+            juce::Thread::launch ([job, safeThis]
+            {
+                juce::File file;
+                juce::String text;
+                int slotIndex = 0;
+                double nullDb = 0.0;
+                bool fitted = false;
+
+                if (job->kind == Kind::cabMatch)
                 {
-                    // The fitted filter is an IR like any other, so it goes into
-                    // the second cabinet slot rather than into a special path.
-                    const auto file = IrLibraryPaths::getSpecial()
-                                        .getChildFile ("EQ Match "
-                                                         + juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M")
-                                                         + ".wav");
+                    const auto testSignal = CabMatch::generateTestSignal (job->signal, job->sampleRate, 6.0);
+                    const auto ir = CabMatch::deconvolve (testSignal, job->reference, job->sampleRate, job->signal);
 
                     IrMetadata metadata;
-                    metadata.name = file.getFileNameWithoutExtension();
-                    metadata.type = "special";
-                    metadata.tags = { "eq-match" };
+                    metadata.name = "Cab Match " + juce::Time::getCurrentTime().formatted ("%Y-%m-%d %H%M");
+                    metadata.type = "cabinet";
+                    metadata.author = "user";
+                    metadata.notes = "captured with Luthier cab match";
+                    metadata.tags = { "cab-match" };
 
-                    if (CabMatch::saveIr (filter, file, metadata))
+                    file = CabMatch::getMatchDirectory()
+                             .getChildFile (juce::File::createLegalFileName (metadata.name) + ".wav");
+
+                    if (CabMatch::saveIr (ir, file, metadata))
                     {
-                        processor.getCabIrSlot (1).load (file);
-                        processor.getCabIrSlot (1).setEngaged (true);
-
-                        resultLabel.setText ("Fitted " + juce::String (filter.getLength())
-                                               + " taps, saved as " + file.getFileName(),
-                                             juce::dontSendNotification);
+                        nullDb = CabMatch::measureNull (job->reference, job->current);
+                        fitted = true;
+                        text = "Saved " + file.getFileName()
+                                 + "    null " + juce::String (nullDb, 1) + " dB"
+                                 + "    tail " + juce::String (ir.getLengthMs(), 0) + " ms";
+                    }
+                    else
+                    {
+                        text = "Could not write the matched IR.";
                     }
                 }
                 else
                 {
-                    resultLabel.setText ("The fit produced nothing; try a longer passage.",
-                                         juce::dontSendNotification);
+                    const auto filter = EqMatch::fit (job->reference, job->current, job->sampleRate, job->options);
+                    slotIndex = 1;
+
+                    if (! filter.isEmpty())
+                    {
+                        // The fitted filter is an IR like any other, so it goes into
+                        // the second cabinet slot rather than into a special path.
+                        file = IrLibraryPaths::getSpecial()
+                                 .getChildFile ("EQ Match " + juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M")
+                                                  + ".wav");
+
+                        IrMetadata metadata;
+                        metadata.name = file.getFileNameWithoutExtension();
+                        metadata.type = "special";
+                        metadata.tags = { "eq-match" };
+
+                        fitted = CabMatch::saveIr (filter, file, metadata);
+                        text = fitted ? "Fitted " + juce::String (filter.getLength()) + " taps, saved as " + file.getFileName()
+                                      : juce::String ("Could not write the fitted filter.");
+                    }
+                    else
+                    {
+                        text = "The fit produced nothing; try a longer passage.";
+                    }
                 }
-            }
 
-            step = 3;
-            actionButton.setButtonText ("Again");
-            actionButton.setEnabled (true);
+                juce::MessageManager::callAsync ([safeThis, file, text, slotIndex, nullDb, fitted]
+                {
+                    if (auto* wizard = safeThis.getComponent())
+                        wizard->finishAnalysis (file, text, slotIndex, nullDb, fitted);
+                });
+            });
 
-            if (onFinished != nullptr)
-                onFinished();
-
-            break;
+            return;
         }
 
         case 3:
         default:
+            if (analysing)
+                return;
+
             restart();
             break;
+    }
+
+    stepLabel.setText (getStepText(), juce::dontSendNotification);
+    repaint();
+}
+
+void MatchWizard::finishAnalysis (const juce::File& file, const juce::String& text, int slotIndex,
+                                  double nullDb, bool fitted)
+{
+    // SPEC-SWEEP TM-5: back on the message thread with the result - unless
+    // the wizard was cancelled while it worked.
+    if (! analysing)
+        return;
+
+    analysing = false;
+
+    if (fitted && file.existsAsFile())
+    {
+        processor.getCabIrSlot (slotIndex).load (file);
+        processor.getCabIrSlot (slotIndex).setEngaged (true);
+
+        if (kind == Kind::cabMatch)
+        {
+            nullResultDb = nullDb;
+            haveResult = true;
+        }
+    }
+
+    resultLabel.setText (text, juce::dontSendNotification);
+
+    {
+        step = 3;
+        actionButton.setButtonText ("Again");
+        actionButton.setEnabled (true);
+
+        if (onFinished != nullptr)
+            onFinished();
     }
 
     stepLabel.setText (getStepText(), juce::dontSendNotification);
@@ -687,7 +744,7 @@ void MatchWizard::timerCallback()
 
     // A recording step advances itself when the capture is full, so the user is
     // not left holding a button while the sweep plays.
-    if ((step == 1 || step == 2) && ! actionButton.isEnabled())
+    if ((step == 1 || step == 2) && ! actionButton.isEnabled() && ! analysing)   // SPEC-SWEEP TM-5
     {
         if (capture.isComplete())
         {

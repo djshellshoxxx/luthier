@@ -14,3 +14,5 @@
 - [TM-17] Cab Match plays its test signal on Aux 1 (DI), or on the main out when there is no aux bus, and starts the reference capture in the same block.
 - [BT-6] slap/pop position join the buzz range family. The stock range is the declared 5-400 mm, because the spec's 20-200 and 10-150 would re-map saved values. Advanced is 2-800 mm.
 - [SG-10] Slide pressure above 0.8 chokes the note: at 1.0 up to 35 % comes off the sustain scale.
+- [HI-29] The host time signature reaches the practice metronome while it follows. The rhythm engine is step-based and has no metre, so that part is left open.
+- [TM-5] Cab/EQ match analysis runs on a juce::Thread::launch worker, and only the saved file and the result text come back through callAsync. Cancelling (restart) drops a result that is still on its way.

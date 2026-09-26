@@ -15,6 +15,7 @@
 #include "../PluginProcessor.h"
 #include "../Practice/Metronome.h"
 #include "../DSP/Slide/SlideEngine.h"
+#include "../DSP/Effects/PedalsMod.h"
 #include "../Practice/BackingTrack.h"
 #include "../Practice/TimePitchShifter.h"
 #include "../ToneMatch/ToneMatch.h"
@@ -248,8 +249,14 @@ LUTHIER_TEST (PracticeMetronome, followsTheHostAndTheTap)
 
     host.bpm = 90.0;
     host.playing = true;
+    host.numerator = 3;
+    host.denominator = 4;
     runBlocks (processor, 2);
     CHECK_NEAR (metronome.getTempo(), 90.0, 1.0e-6);
+
+    // HI-29 (host-integration 6): and the host's metre.
+    CHECK (metronome.getTimeSignature().numerator == 3);
+    CHECK (metronome.getTimeSignature().denominator == 4);
 
     // Host stopped: a tapped tempo wins.
     host.playing = false;
@@ -1172,4 +1179,147 @@ LUTHIER_TEST (PluginBuses, midiOutputIsAnnounced)
         CHECK_MSG (text.contains ("NEEDS_MIDI_OUTPUT           TRUE"), "CMakeLists.txt does not announce MIDI output");
         CHECK (! text.contains ("NEEDS_MIDI_OUTPUT           FALSE"));
     }
+}
+
+//==============================================================================
+//  string-squeak: the tests the audit found missing
+//==============================================================================
+namespace
+{
+    StringNoiseInfo woundE()
+    {
+        StringNoiseInfo info;
+        info.wound = true;
+        info.windingPitchPerMm = 6.5;
+        info.windingDepth = 1.0;
+        info.material = StringMaterial::PhosphorBronze;
+        return info;
+    }
+}
+
+LUTHIER_TEST (Squeak, moistureLowersOddsAndBrightness)
+{
+    // SQ-16 (string-squeak.md 6).
+    SqueakSettings dry, damp;
+    dry.moisture = 0.1;
+    damp.moisture = 0.9;
+    dry.probability = damp.probability = 0.8;
+
+    const auto a = PlayingNoise::makeSqueak (dry, woundE(), 5, 120.0, 0.25, 5.0);
+    const auto b = PlayingNoise::makeSqueak (damp, woundE(), 5, 120.0, 0.25, 5.0);
+    CHECK (a.brightness > b.brightness);
+    CHECK (a.level > b.level);
+
+    auto hits = [] (const SqueakSettings& settings)
+    {
+        PlayingNoise noise;
+        noise.prepare (48000.0);
+        noise.setSqueak (settings);
+        int count = 0;
+
+        for (juce::uint32 i = 0; i < 256; ++i)
+        {
+            if (noise.onShift (5, woundE(), 648.0, 2.0, 7.0, 0.12, i))
+                ++count;
+
+            noise.getPool().reset();
+        }
+
+        return count;
+    };
+
+    CHECK_MSG (hits (dry) > hits (damp) + 20, "damp fingers should squeak less often");
+}
+
+LUTHIER_TEST (Squeak, pressureRaisesLevelAndCoarsensTexture)
+{
+    // SQ-17 (string-squeak.md 3): level follows pressure^1.3, and pressure
+    // changes the texture's resonance.
+    SqueakSettings light, firm;
+    light.pressure = 0.4;
+    firm.pressure = 0.8;
+
+    const auto a = PlayingNoise::makeSqueak (light, woundE(), 5, 120.0, 0.25, 5.0);
+    const auto b = PlayingNoise::makeSqueak (firm, woundE(), 5, 120.0, 0.25, 5.0);
+
+    CHECK_NEAR (b.level / a.level, std::pow (2.0, 1.3), 1.0e-6);
+    CHECK (a.q != b.q);
+}
+
+LUTHIER_TEST (Squeak, aBendAndVibratoDoNotSqueak)
+{
+    // SQ-9 / SQ-T7 (string-squeak.md 2): the finger does not travel along
+    // the string in a bend or vibrato - pitch wheel at several depths, and a
+    // 6 Hz wobble, on a held wound note.
+    SqueakRig rig;
+    rig.play (juce::MidiMessage::noteOn (6, 45, (juce::uint8) 100));
+    CHECK (rig.squeaks() == 0);
+
+    for (const int depth : { 1000, 3000, 8191 })
+    {
+        for (int b = 0; b < 40; ++b)
+        {
+            const double wobble = std::sin (juce::MathConstants<double>::twoPi * 6.0 * b * 256.0 / 48000.0);
+            rig.play (juce::MidiMessage::pitchWheel (6, 8192 + (int) (wobble * depth * 0.99)));
+        }
+
+        rig.play (juce::MidiMessage::pitchWheel (6, juce::jmin (16383, 8192 + depth)));   // a full bend
+    }
+
+    CHECK_MSG (rig.squeaks() == 0, "a bend or vibrato squeaked " + juce::String (rig.squeaks()) + " times");
+}
+
+LUTHIER_TEST (Squeak, noFactoryGuitarSqueaksOnAPlainString)
+{
+    // SQ-T1 (string-squeak.md 0.1): every guitar, every plain string, a
+    // five-fret legato slide with squeak forced on.
+    for (int g = 0; g < (int) GuitarType::NumTypes; ++g)
+    {
+        LuthierEngine engine;
+        engine.prepare (48000.0, 256);
+        engine.setGuitarType ((GuitarType) g);
+
+        SqueakSettings always;
+        always.probability = 1.0;
+        always.moisture = 0.0;
+        engine.setSqueak (always);
+
+        for (int s = 0; s < engine.getNumStrings(); ++s)
+        {
+            if (engine.getStringSpec (s).wound)
+                continue;
+
+            NoteOnEvent pluck;
+            pluck.stringIndex = s;
+            pluck.fretPosition = 2.0;
+            engine.triggerNoteNow (pluck);
+
+            NoteOnEvent slide = pluck;
+            slide.technique = Technique::Slide;
+            slide.slideFromFret = 2.0;
+            slide.fretPosition = 7.0;
+            slide.slideSeconds = 0.12;
+            engine.triggerNoteNow (slide);
+        }
+
+        CHECK_MSG (engine.getPlayingNoise().getPool().getTriggerCount (NoiseClass::squeak) == 0,
+                   "guitar " + juce::String (g) + " squeaked on a plain string");
+    }
+}
+
+//==============================================================================
+//  ambiguity-resolutions
+//==============================================================================
+LUTHIER_TEST (Doubler, defaultsAreTheAdtOnes)
+{
+    // AR-14 (ambiguity-resolutions: the ADT defaults).
+    DoublerPedal doubler;
+    CHECK (doubler.getNumParameters() == 7);
+
+    const double expected[] = { 22.0, -8.0, -0.7, 1.0, 40.0, 100.0, 8000.0 };
+
+    for (int i = 0; i < 7; ++i)
+        CHECK_NEAR (doubler.getParameterDescriptor (i).defaultValue, expected[i], 1.0e-9);
+
+    CHECK (juce::String (doubler.getParameterDescriptor (3).choices[1]).containsIgnoreCase ("stereo"));
 }

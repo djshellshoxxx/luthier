@@ -117,6 +117,19 @@ public:
             setTempo (effectiveBpm);
     }
 
+    /** SPEC-SWEEP HI-29 (host-integration 6): while following, the host's
+        time signature too. Audio thread; a no-op when the host has none. */
+    void followTimeSignature (int hostNumerator, int hostDenominator) noexcept
+    {
+        if (getFollowsTempo() && hostNumerator > 0 && hostDenominator > 0)
+        {
+            const auto now = getTimeSignature();
+
+            if (now.numerator != hostNumerator || now.denominator != hostDenominator)
+                setTimeSignature (hostNumerator, hostDenominator);
+        }
+    }
+
     void setTimeSignature (int numerator, int denominator) noexcept;
     TimeSignature getTimeSignature() const noexcept;
 

@@ -709,6 +709,7 @@ private:
 
     /** This block's tempo: the host's, or the tapped one when that wins. */
     double blockTempo = 120.0;
+    int hostTimeSigNumerator = 0, hostTimeSigDenominator = 0;   // SPEC-SWEEP HI-29: 0 = the host gave none
 
     double currentSampleRate = 44100.0;
     bool initialStateApplied = false;   ///< the bridge has built the instrument once (prepare or save)
