@@ -10,8 +10,8 @@
 | PA-4 (§0.4) | Honest magnitudes: a small part swap gives a small real delta — no test bounds the size of a swap's spectral change | `mapSpec` multipliers | n/a | - | NO-TEST |
 | PA-5 (§0.5) | Every constant named and sourced — fitted constants have no source: magnet 0.09/-0.9, coupling ×1.4, chamber feedback 0.1-0.8, shape-area 1.3×0.78, fretboard tanδ ×20 | `PartAcoustics.cpp`, `LuthierEngine.cpp:applyWorkshopGuitar` | n/a | - | PARTIAL |
 | PA-6 (§1) | 17-wood table (ρ, E, tanδ) | `lookUpWood` | WORKSHOP inspector (`WorkshopPanel` fieldEditor -> `WorkshopBench::editField`) | `PartAcoustics::theWoodTableIsTheSpecs` | DONE |
-| PA-7 (§1.1) | Body/top density and E set mode frequency, `f ∝ sqrt(E/ρ)` — body modes come from `BodyModels` kWoods, which have different ρ/E; the §1 table only trims by a density override | `mapSpec` (`engineWood`, `resonanceTrim`), `Model/Guitar/BodyModels.cpp` | WORKSHOP inspector | `PartAcoustics::theMappingIsMonotonic` (density only) | PARTIAL |
-| PA-8 (§1.1) | tanδ sets mode Q, `Q≈1/(2tanδ)` — Q comes from BodyModels' loss factors (e.g. alder 0.013, not 8.5e-3); §1 tanδ is used only for fretboard brightness | `BodyModels.cpp` (Q from loss factor) | n/a | - | PARTIAL |
+| PA-7 (§1.1) | Body/top density and E set mode frequency, `f ∝ sqrt(E/ρ)` — body modes come from `BodyModels` kWoods, which have different ρ/E; the §1 table only trims by a density override | `mapSpec` (`engineWood`, `resonanceTrim`), `Model/Guitar/BodyModels.cpp` | WORKSHOP inspector | `mapSpec` resonance trim from the table; `PartAcoustics::stifferLighterWoodRaisesTheModes`, `PartAcoustics::theMappingIsMonotonic` (density only) | DONE |
+| PA-8 (§1.1) | tanδ sets mode Q, `Q≈1/(2tanδ)` — Q comes from BodyModels' loss factors (e.g. alder 0.013, not 8.5e-3); §1 tanδ is used only for fretboard brightness | `BodyModels.cpp` (Q from loss factor) | n/a | `BodyConfig::topLossScale/backLossScale`; `PartAcoustics::theTableLossSetsThePlateQ` | DONE |
 | PA-9 (§1.1, §3) | Neck and fretboard wood/density feed neck mass, body coupling and dead-spot frequency — not mapped | - | - | - | MISSING |
 | PA-10 (§2) | body.wood and a `density_kg_m3` override | `mapSpec` body block | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` | DONE |
 | PA-11 (§2) | body.thickness_mm: mode frequency and mass | `scaleDepth`, `shapeFor` | WORKSHOP inspector | `PartAcoustics::theMappingIsMonotonic`, `PartAcoustics::everyMappedFieldMovesSomething` | DONE |
@@ -76,4 +76,4 @@
 | PA-T10 (§11) | Test: mapping runs once per swap | - | n/a | `WorkshopSwap::aSwapMapsOnceNotPerBlock` | DONE |
 | PA-T11 (§11) | Test: determinism | - | n/a | `PartAcoustics::theMappingIsDeterministic` | DONE |
 
-<!-- counts DONE=55 NO-GUI=0 NO-TEST=1 PARTIAL=7 MISSING=7 OWNED=1 -->
+<!-- counts DONE=57 NO-GUI=0 NO-TEST=1 PARTIAL=5 MISSING=7 OWNED=1 -->

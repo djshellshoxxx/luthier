@@ -721,3 +721,61 @@ LUTHIER_TEST (PartAcoustics, polePiecesTiltTheTop)
     CHECK_MSG (steel < alnico * 0.95, "steel poles should dull the top: " + juce::String (10.0 * std::log10 (steel / alnico), 2) + " dB");
     CHECK_MSG (ceramic > alnico * 1.02, "ceramic poles should brighten the top: " + juce::String (10.0 * std::log10 (ceramic / alnico), 2) + " dB");
 }
+
+/*  SPEC-SWEEP: PA-7 - the 1 table moves the body's modes as sqrt(E / rho):
+    swamp ash (11.0 GPa, 480) is a faster wood than basswood (9.0, 420), so
+    its modes sit higher. */
+LUTHIER_TEST (PartAcoustics, stifferLighterWoodRaisesTheModes)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+
+    auto firstMode = [&base] (const char* wood)
+    {
+        auto g = base;
+        // The table's own density: the factory body states its alder's.
+        auto body = std::make_shared<Part> (*base.get (GuitarSlot::body));
+        auto fields = juce::JSON::parse (juce::JSON::toString (body->fields));
+        fields.getDynamicObject()->setProperty ("wood", wood);
+        fields.getDynamicObject()->removeProperty ("density_kg_m3");
+        body->fields = fields;
+
+        g.parts[(size_t) GuitarSlot::body] = body;
+        g.parts[(size_t) GuitarSlot::top] = nullptr;
+        return BodyModels::computeTopFundamental (mapSpec (g).body);
+    };
+
+    const double ash = firstMode ("ash_swamp"), bass = firstMode ("basswood");
+    CHECK_MSG (ash > bass, "ash " + juce::String (ash, 1) + " Hz should be above basswood " + juce::String (bass, 1) + " Hz");
+
+    // And by the table's ratio, not the engine's own wood list.
+    const double expected = std::sqrt ((11.0 / 480.0) / (9.0 / 420.0));
+    CHECK_NEAR (ash / bass, expected, expected * 0.01);
+}
+
+/*  SPEC-SWEEP: PA-8 - the table's loss factor sets the plate Q: an ebony top
+    rings longer than a basswood one by the tan(delta) ratio, 11 / 4.5. */
+LUTHIER_TEST (PartAcoustics, theTableLossSetsThePlateQ)
+{
+    auto base = factory ("Acoustic/Dreadnought.luthierguitar");
+    CHECK (base.get (GuitarSlot::top) != nullptr);
+    if (base.get (GuitarSlot::top) == nullptr) return;
+
+    auto topQ = [&base] (const char* wood)
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::top] = withField (base.get (GuitarSlot::top), "wood", wood);
+        const auto d = mapSpec (g);
+
+        std::vector<BodyMode> modes;
+        BodyModels::buildModes (d.body, modes);
+
+        const double f = BodyModels::computeTopFundamental (d.body);
+        double best = 1.0e9, q = 0.0;
+        for (const auto& m : modes)
+            if (! m.isAir && std::abs (m.frequencyHz - f) < best) { best = std::abs (m.frequencyHz - f); q = m.q; }
+        return q;
+    };
+
+    const double ratio = topQ ("ebony") / topQ ("basswood");
+    CHECK_NEAR (ratio, 11.0 / 4.5, (11.0 / 4.5) * 0.2);
+}
