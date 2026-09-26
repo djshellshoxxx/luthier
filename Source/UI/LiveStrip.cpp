@@ -382,12 +382,12 @@ TapPad::TapPad (LuthierAudioProcessor& p)
     setTooltip ("Tap tempo. Tap four times or more. While the host is playing, "
                 "the host's tempo wins unless internal tempo is forced.");
 
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
 TapPad::~TapPad()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void TapPad::timerCallback()
@@ -400,6 +400,14 @@ void TapPad::timerCallback()
 
     bool shouldRepaint = false;
 
+    // cpu-quality-modes 6: no flash at Off; the BPM still updates.
+    if (! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition))
+    {
+        shouldRepaint = beatLit;
+        beatLit = false;
+        lastBeatMs = now;
+    }
+    else
     if (now - lastBeatMs >= beatMs)
     {
         lastBeatMs = now;
@@ -424,6 +432,8 @@ void TapPad::timerCallback()
 
 void TapPad::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     drawLiveButton (g, getLocalBounds(), {}, beatLit, Palette::accent, true);
 
     g.setColour (Palette::textMuted);
@@ -531,12 +541,12 @@ LiveStrip::LiveStrip (LuthierAudioProcessor& p)
     addAndMakeVisible (monitorLevel);
 
     refreshMorphControls();
-    startTimerHz (20);
+    motion.startTimerHz (*this, 20);
 }
 
 LiveStrip::~LiveStrip()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void LiveStrip::refreshMorphControls()
@@ -621,6 +631,8 @@ void LiveStrip::timerCallback()
 
 void LiveStrip::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     g.setColour (Palette::panel);
     g.fillRect (getLocalBounds());
 

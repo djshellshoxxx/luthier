@@ -61,12 +61,12 @@ BenchIllustration::BenchIllustration (LuthierAudioProcessor& p)
     setTitle ("Workshop guitar");
     setDescription ("The guitar on the bench. Tab walks the parts; arrow keys nudge the selected one.");
     rebuild (true);
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
 BenchIllustration::~BenchIllustration()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 const std::vector<GuitarRegion>& BenchIllustration::builderOrder()
@@ -142,7 +142,7 @@ void BenchIllustration::endAuditionTint()
     tintEndedMs = juce::Time::getMillisecondCounterHiRes();
 
     // Reduced motion: the label goes at once, with nothing fading.
-    if (AccessibilitySettings::get().isReducedMotion())
+    if (! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition))
     {
         tintEndedMs = -1.0;
         tintDb = 0.0f;
@@ -181,7 +181,7 @@ GuitarOverlay BenchIllustration::currentOverlay() const
     o.accent = Palette::accent;
     o.hovered = hovered;
     o.selected = selected;
-    o.reducedMotion = AccessibilitySettings::get().isReducedMotion();
+    o.reducedMotion = ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition);
     o.handles = true;
 
     auto& engine = processor.getEngine();
@@ -303,7 +303,7 @@ void BenchIllustration::rebuild (bool force)
 
     if (committedChange)
     {
-        const bool reduced = AccessibilitySettings::get().isReducedMotion();
+        const bool reduced = ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition);
 
         if (reduced)
         {
@@ -458,6 +458,8 @@ void BenchIllustration::select (GuitarRegion region, int stringIndex)
 //==============================================================================
 void BenchIllustration::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     g.setColour (Palette::panelSunken);
     g.fillRoundedRectangle (getLocalBounds().toFloat(), Metrics::panelCorner);
 
@@ -477,7 +479,7 @@ void BenchIllustration::paint (juce::Graphics& g)
         // 14: the frequency-band tint while a change is auditioned (a label under reduced motion).
         const double now = juce::Time::getMillisecondCounterHiRes();
 
-        if (const float tint = getTintAlpha (now); tint > 0.0f && ! AccessibilitySettings::get().isReducedMotion())
+        if (const float tint = getTintAlpha (now); tint > 0.0f && AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition))
             for (auto& h : scene.hits)
                 if (h.region == GuitarRegion::body)
                 {
@@ -574,7 +576,7 @@ void BenchIllustration::paint (juce::Graphics& g)
         g.drawText ("AUDITIONING - release Alt to go back", getLocalBounds().reduced (10, 6), juce::Justification::topRight, false);
 
         // 14 under reduced motion: the change as a static label rather than a tint.
-        if (AccessibilitySettings::get().isReducedMotion() && tintLabel.isNotEmpty())
+        if (! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition) && tintLabel.isNotEmpty())
             g.drawText (tintLabel, getLocalBounds().reduced (10, 22), juce::Justification::topRight, false);
     }
 

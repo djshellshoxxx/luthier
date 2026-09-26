@@ -147,6 +147,13 @@ in both Easy and Advanced, wherever `GuitarBodyComponent` is drawn.
 **Reduced motion** (accessibility 5): no fades. The name appears at peak
 opacity and disappears after the hold.
 
+**CPU quality (cpu-quality-modes 6):** the fades ask
+`AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition)` instead
+of `isReducedMotion()`, so CPU quality Low also shows the name at peak
+opacity with no intermediate frames (CQ-24). The component registers as a
+Transition (`ChordNameDisplay`) and the piano roll's key fade as
+`PianoRollKeyFade`, both through `AnimationPolicy::Registration`.
+
 **Screen reader:** off by default. The Options page has "Announce chord
 names" under the main toggle, which sends the name as a polite
 announcement, rate-limited to one every 1.5 s.

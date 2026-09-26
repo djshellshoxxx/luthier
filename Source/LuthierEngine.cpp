@@ -124,13 +124,6 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     secret.prepare (sr);
     master.prepare (sr, maxBlock);
 
-    // performance-budget.md 8: the relief ladder starts at rest.
-    cpuRelief.prepare (sr);
-
-    if (appliedReliefStep >= CpuRelief::halveNoisePools)
-        playingNoise.getPool().setDegraded (false);
-
-    appliedReliefStep = 0;
     freezeOverlay.prepare (sr, 2);
 
     // --- scratch --------------------------------------------------------------
@@ -1106,13 +1099,10 @@ int LuthierEngine::effectiveOversamplingFactor (int userFactor, double sampleRat
 
 void LuthierEngine::setOversamplingFactor (int factor) noexcept
 {
+    // cpu-quality-modes 2.2: this is the nominal factor; the quality level
+    // caps what actually runs (LuthierEngineQuality.cpp).
     oversamplingFactor = juce::jlimit (1, 8, factor);
-
-    // performance-budget.md 7: the user's factor, downgraded at high rates.
-    const int effective = effectiveOversamplingFactor (oversamplingFactor, sr);
-    amp.setOversamplingFactor (effective);
-    preEffects.setOversamplingFactor (effective);
-    postEffects.setOversamplingFactor (effective);
+    applyOversamplingForQuality (true);
 }
 
 void LuthierEngine::setTempoBpm (double bpm) noexcept
@@ -1483,6 +1473,7 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
 
     lastExcitation[(size_t) s] = p;   // REALISM-B: for the tests (FA-09)
     str.excite (p);
+    qualityNoteOn (s);   // cpu-quality-modes 2.4
 
     // animated-strings.md 4.1: where and how this note is stopped, for the display.
     noteStartSample[(size_t) s] = blockStartSample + activeSampleOffset;
@@ -1663,6 +1654,7 @@ void LuthierEngine::playSlapStrike (const SlapStrike& strike, double pitchHz, do
         str.snapToFrequency (pitchHz);
 
     str.excite (p);
+    qualityNoteOn (s);   // cpu-quality-modes 2.4
 
     // animated-strings.md 4.1: a slap's strike restarts the display's envelope too.
     noteStartSample[(size_t) s] = blockStartSample + activeSampleOffset;
@@ -1830,6 +1822,7 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
     // sustain-and-decay.md 5: open strings, a bar and a fretless neck do not sag.
     const double releaseFret = (fretless || slide.isUnderBar (s)) ? 0.0 : currentFret[(size_t) s];
     strings[(size_t) s].release (e.letRing || ebowHolds, releaseFret);
+    qualityNoteOff (s, e.letRing || ebowHolds);   // cpu-quality-modes 2.4
     slide.noteOff (s);
     stringMidiNote[(size_t) s] = -1;
 
@@ -2364,6 +2357,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         return;
 
     const auto startTicks = juce::Time::getHighResolutionTicks();
+
+    qualityPerBlock();   // cpu-quality-modes 2.4: exemptions, ring-out, the ringing cap
 
     blockStartSample = samplePosition;
     lastSubBlockNumSamples = numSamples;
@@ -3043,6 +3038,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     }
 
 
+    qualityAfterBlock (buffer);   // cpu-quality-modes 2.5: silence for a hard switch
+
     samplePosition += numSamples;
 
     // ---- CPU estimate ----------------------------------------------------------
@@ -3056,48 +3053,9 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     cpuEstimate.store (cpuEstimate.load (std::memory_order_relaxed) * 0.9 + instant * 0.1,
                        std::memory_order_relaxed);
 
-    // performance-budget.md 8: the relief ladder. Only step 4 has a hook in the
-    // engine (the NoiseEngine pools), applied on a change of step, so a
-    // normal load never touches it.
-    const int reliefStep = cpuRelief.updateMeasured (instant * 0.01, numSamples);
-
-    if ((reliefStep >= CpuRelief::halveNoisePools) != (appliedReliefStep >= CpuRelief::halveNoisePools))
-        playingNoise.getPool().setDegraded (reliefStep >= CpuRelief::halveNoisePools);
-
-    appliedReliefStep = reliefStep;
-
-    // Step 7: one string at a time, every 200 ms while it holds, the quietest
-    // sounding one first - the one that has been ringing longest, so the least
-    // recently played. Only strings that are sounding are candidates.
-    if (reliefStep >= CpuRelief::dropStrings)
-    {
-        reliefDropCountdown -= numSamples;
-
-        if (reliefDropCountdown <= 0)
-        {
-            reliefDropCountdown = (int) (sr * CpuRelief::kStepUpSeconds);
-            int quietest = -1;
-            double lowest = 1.0e9;
-
-            for (int s = 0; s < numStrings; ++s)
-                if (const double level = getStringLevel (s); level > 1.0e-4 && level < lowest)
-                {
-                    lowest = level;
-                    quietest = s;
-                }
-
-            if (quietest >= 0)
-            {
-                strings[(size_t) quietest].setDamping (StringEngine::Damping::Choked, 1.0);
-                ++reliefDroppedStrings;
-            }
-        }
-    }
-    else
-    {
-        reliefDropCountdown = 0;
-        reliefDroppedStrings = 0;
-    }
+    // performance-budget.md 8's relief ladder is superseded by cpu-quality-modes
+    // 7: the processor's CpuLoadMonitor feeds QualityController (E1 / E2) and
+    // the audio-thread E3 drop; the noise pools halve only at Low.
 }
 
 //==============================================================================

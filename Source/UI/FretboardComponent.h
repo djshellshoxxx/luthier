@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
+
 /*  The interactive fretboard.
 
     Shows every string and fret, lights up the notes the engine is actually
@@ -109,6 +111,16 @@ private:
         lifts. */
     double barFret = -1.0;
     float barOpacity = 0.0f;
+
+    /*  cpu-quality-modes 6: Decorative. At Off the timer stops and the
+        policy's 4 Hz poll runs the same refresh in static mode: sounding
+        strings get a fixed glow, the slide bar jumps instead of easing, and it
+        repaints only when something shown changed. */
+    bool staticMode = false;
+    void staticRefresh() { staticMode = true; timerCallback(); staticMode = false; }
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Decorative, "FretboardComponent",
+                                           [this] { staticRefresh(); repaint(); },
+                                           [this] { staticRefresh(); } };
     float barSlantDegrees = 0.0f;
     juce::Colour barColour;
 

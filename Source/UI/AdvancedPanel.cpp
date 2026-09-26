@@ -341,6 +341,23 @@ AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
 AdvancedPanel::~AdvancedPanel() = default;
 
 //==============================================================================
+void AdvancedPanel::setOversamplingNote (const juce::String& note)   // cpu-quality-modes 5
+{
+    if (oversampling == nullptr)
+        return;
+
+    juce::String text ("Oversampling for the nonlinear stages. Higher is cleaner and costs more CPU.");
+
+    if (note.isNotEmpty())
+        text << " " << note;
+
+    oversampling->setTooltip (text);
+
+    for (auto* child : oversampling->getChildren())
+        if (auto* client = dynamic_cast<juce::SettableTooltipClient*> (child))
+            client->setTooltip (text);
+}
+
 void AdvancedPanel::setSelectedString (int index)
 {
     selectedString = juce::jlimit (0, kMaxStrings - 1, index);

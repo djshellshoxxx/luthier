@@ -653,6 +653,8 @@ void AccessibilitySettings::buildDefaultShortcuts()
 
     // animated-strings.md 8: rebindable, unbound by default.
     add ("toggleStringAnimation", "accessibility.shortcut.toggleStringAnimation", KP());
+    // cpu-quality-modes 5: rebindable, unbound by default.
+    add ("cycleCpuQuality",  "quality.shortcut.cycle",                  KP());
 }
 
 bool AccessibilitySettings::rebind (const juce::String& actionId, const juce::KeyPress& key)

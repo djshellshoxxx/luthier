@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
+
 /*  The guitar illustration.
 
     The brief asks for a photo-realistic image of the selected instrument. Shipping
@@ -206,6 +208,14 @@ private:
     float cacheScale = 1.0f;
     int ticksSinceKeyCheck = 0;
 
+    /*  cpu-quality-modes 6: Decorative. At Off the timer stops; the policy's
+        4 Hz poll calls staticRefresh, which draws a fixed glow on the strings
+        that are sounding and repaints only when that set or a fret changes. */
+    void staticRefresh();
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Decorative, "GuitarBodyComponent",
+                                           [this] { staticRefresh(); repaint(); },
+                                           [this] { staticRefresh(); } };
+
     GuitarOverlay overlay;
     GuitarRegion hoveredRegion = GuitarRegion::none;
 
@@ -218,6 +228,13 @@ private:
     ChordNameOverlay chordName;   // piano-roll-chord-display.md 4
     std::array<float, 12> ghostFrets { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
     double lastFrameMs = 0.0;
+    juce::String staticChordName;   ///< cpu-quality-modes 6: the chord name shown at Off
+    int staticChordNameChanges = 0;
+public:
+    /** cpu-quality-modes 6: times the chord name appeared, changed or went at
+        Off - each one a change of state and one repaint (CQ-23). */
+    int getStaticChordNameChanges() const noexcept { return staticChordNameChanges; }
+private:
 
     int draggingKnob = -1;
     double dragStartValue = 0.0;

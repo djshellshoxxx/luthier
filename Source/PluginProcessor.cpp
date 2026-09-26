@@ -297,6 +297,15 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     initialStateApplied = true;
 
+    // cpu-quality-modes 2.5 / 2.6: re-read the machine's setting (another
+    // process may have changed it) and apply the level as a hard switch.
+    PerformanceSettings::get().reloadIfChanged();
+    cpuLoad.reset();
+    samplesSinceStringDrop = (juce::int64) sampleRate;   // E3 is armed from the start
+    lastNonRealtime = isNonRealtime();
+    qualityController.setNonRealtime (lastNonRealtime);
+    applyQualityForBlock (true);
+
     updateLatency();
     updateRoutingLatencyReport();
 
@@ -1198,6 +1207,24 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 {
     juce::ScopedNoDenormals noDenormals;
 
+    // cpu-quality-modes 2.5 and 4: one level per block, and Luthier's own share
+    // of the block's time stamped around all of it.
+    const auto qualityStartTicks = juce::Time::getHighResolutionTicks();
+    applyQualityForBlock (false);
+
+    struct LoadStamp
+    {
+        LuthierAudioProcessor& p;
+        juce::int64 start;
+        int numSamples;
+
+        ~LoadStamp()
+        {
+            const double busy = juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - start);
+            p.stampBlockLoad (busy, numSamples);
+        }
+    } loadStamp { *this, qualityStartTicks, buffer.getNumSamples() };
+
     const int numSamples = buffer.getNumSamples();
     const int maxSlice = juce::jmax (1, currentBlockSize);
 
@@ -1677,7 +1704,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         jam.setSettings (jamSettings);
         // jam-mode 13: CPU relief's step between 4 and 5 halves the cymbal banks;
         // applied with step 4 so the ladder keeps its numbering. Bass and timing never degrade.
-        jam.setReducedCymbals (engine.getCpuRelief().getStep() >= CpuRelief::halveNoisePools);
+        jam.setReducedCymbals (qualityController.getEffectiveLevel() == QualityLevel::Low);   // jam-mode 4.5 under cpu-quality-modes: Low thins the cymbals
         jam.process (ctx, jamNotes, &jamTuneBass, numSamples);
     }
     else if (jamWasEnabled)
@@ -2488,7 +2515,10 @@ void LuthierAudioProcessor::resetEverything()
     midiLearn.clearAllMappings();
     lockedParameters.clear();
 
+    // cpu-quality-modes 10: Reset never reads or writes the CPU quality.
+    const auto keptQualityOverride = uiState.qualityOverride;
     uiState = UiState {};
+    uiState.qualityOverride = keptQualityOverride;
 
     bridge.applyAllNow();
     engine.reset();
@@ -2987,6 +3017,7 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     }
 
     ui->setProperty ("practiceDrawerOpen", uiState.practiceDrawerOpen);   // onboarding 11
+    ui->setProperty ("qualityOverride", qualityOverrideKey (uiState.qualityOverride));   // cpu-quality-modes 3
     root->setProperty ("ui", juce::var (ui));
 
     // ui-wiring 17: the setlist reference, with its entries inline so a missing
@@ -3181,6 +3212,12 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
                 if (juce::isPositiveAndBelow ((int) n, 128))
                     uiState.pianoLatchedNotes.addIfNotAlreadyThere ((int) n);
         uiState.practiceDrawerOpen = (bool) ui->getProperty ("practiceDrawerOpen");   // onboarding 11
+
+        // cpu-quality-modes 3: the per-instance override (host session only).
+        const auto q = ui->getProperty ("qualityOverride").toString();
+        setQualityOverride (q == "high" ? QualityOverride::High : q == "medium" ? QualityOverride::Medium
+                          : q == "low" ? QualityOverride::Low : q == "auto" ? QualityOverride::Auto
+                                                                            : QualityOverride::Global);
     }
 
     // ui-wiring 17: the setlist. Re-applied only when it differs, because
@@ -3567,6 +3604,79 @@ void LuthierAudioProcessor::sendLuthierSysEx (const MidiOutConfig& config, juce:
         sysExOut.appendTo (midi, numSamples);
     else
         sysExOut.clear();
+}
+
+//==============================================================================
+// cpu-quality-modes: the quality level, offline rendering and E3.
+
+void LuthierAudioProcessor::setNonRealtime (bool isOffline) noexcept
+{
+    juce::AudioProcessor::setNonRealtime (isOffline);
+    qualityController.setNonRealtime (isOffline);
+}
+
+void LuthierAudioProcessor::setQualityOverride (QualityOverride o)
+{
+    uiState.qualityOverride = o;
+    qualityController.setOverride (o);
+}
+
+void LuthierAudioProcessor::applyQualityForBlock (bool forceHard) noexcept
+{
+    // 2.6: a change of isNonRealtime() is a hard switch, so a render does not
+    // depend on the level live playback was at.
+    const bool offline = isNonRealtime();
+    bool hard = forceHard;
+
+    if (offline != lastNonRealtime)
+    {
+        lastNonRealtime = offline;
+        qualityController.setNonRealtime (offline);
+        hard = true;
+    }
+
+    const auto level = qualityController.getEffectiveLevel();
+
+    if ((int) level != lastAppliedQuality || hard)
+    {
+        // The message thread may be rebuilding engine structure; never wait for
+        // it. A block that cannot take the lock applies the level next block.
+        const juce::ScopedTryLock structureLock (bridge.getEngineLock());
+
+        if (! structureLock.isLocked())
+            return;
+
+        const auto profile = QualityProfile::forLevel (level);
+        engine.applyQuality (profile, hard);
+        modMatrix.setControlIntervalMultiplier (profile.modIntervalMultiplier, profile.modFastLfoHz);
+        lastAppliedQuality = (int) level;
+        appliedQuality.store ((int) level, std::memory_order_relaxed);
+    }
+}
+
+void LuthierAudioProcessor::stampBlockLoad (double busySeconds, int numSamples) noexcept
+{
+    if (currentSampleRate <= 0.0 || numSamples <= 0)
+        return;
+
+    cpuLoad.addBlock (busySeconds, (double) numSamples / currentSampleRate);
+
+    // 7, E3: Luthier is over its whole block budget for 200 ms. Decided here,
+    // on the audio thread, so it works while the message thread is blocked.
+    samplesSinceStringDrop += numSamples;
+
+    if (! isNonRealtime()
+        && QualityController::isGovernorEnabledGlobally()
+        && PerformanceSettings::get().isEmergencyStringDrop()
+        && cpuLoad.hasShortWindowOnAudioThread()
+        && cpuLoad.getShortMeanOnAudioThread() > 1.0
+        && samplesSinceStringDrop >= (juce::int64) (0.2 * currentSampleRate))
+    {
+        samplesSinceStringDrop = 0;
+
+        if (engine.dropLeastRecentString())
+            qualityController.noteStringDropped();
+    }
 }
 
 } // namespace luthier

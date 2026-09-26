@@ -348,6 +348,7 @@ void AudioExporter::run()
     const int numChannels = juce::jlimit (1, 2, options.numChannels);
 
     processor->setPlayConfigDetails (0, numChannels, sr, blockSize);
+    processor->setNonRealtime (true);   // cpu-quality-modes 2.6: an offline render, so High
     processor->prepareToPlay (sr, blockSize);
 
     const double musicSeconds = juce::jmax (0.25, sequence.getEndTime());

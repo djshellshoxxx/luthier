@@ -243,15 +243,13 @@ public:
         are not linear phase, so this is the group delay near DC rather than an
         exact figure; it is small enough that reporting it keeps the host's delay
         compensation honest. */
-    int getLatencySamples() const noexcept
+    int getLatencySamples() const noexcept { return latencyFor (factor); }
+
+    /** cpu-quality-modes 2.2: the same table for any factor, so a stage can
+        report its nominal factor's latency while running at a lower one. */
+    static constexpr int latencyFor (int f) noexcept
     {
-        switch (factor)
-        {
-            case 1:  return 0;
-            case 2:  return 3;
-            case 4:  return 5;
-            case 8:  default: return 6;
-        }
+        return f >= 8 ? 6 : f >= 4 ? 5 : f >= 2 ? 3 : 0;
     }
 
 private:
@@ -260,6 +258,82 @@ private:
 
     HalfbandStage upStage[3];
     HalfbandStage downStage[3];
+};
+
+//==============================================================================
+/** cpu-quality-modes 2.2: an integer delay that pads a stage running below its
+    nominal oversampling factor up to the nominal factor's latency, so the
+    latency reported to the host never follows the quality level. Preallocated;
+    a length of 0 is an exact pass-through. */
+class LatencyPad
+{
+public:
+    static constexpr int kMaxSamples = 8;
+
+    void setLength (int samples) noexcept
+    {
+        const int n = samples < 0 ? 0 : (samples > kMaxSamples ? kMaxSamples : samples);
+
+        if (n != length)
+        {
+            length = n;
+            reset();
+        }
+    }
+
+    int getLength() const noexcept { return length; }
+
+    void reset() noexcept
+    {
+        for (auto& v : buffer)
+            v = 0.0;
+
+        index = 0;
+    }
+
+    inline double process (double x) noexcept
+    {
+        if (length == 0)
+            return x;
+
+        const double out = buffer[index];
+        buffer[index] = x;
+        index = (index + 1) % length;
+        return out;
+    }
+
+private:
+    double buffer[kMaxSamples] = {};
+    int length = 0, index = 0;
+};
+
+/** cpu-quality-modes 2.2: the last 32 input samples of a stage, for priming a
+    new oversampling path from the old one's recent input. */
+class InputHistory
+{
+public:
+    static constexpr int kSize = 32;
+
+    void reset() noexcept
+    {
+        for (auto& v : buffer)
+            v = 0.0;
+
+        index = 0;
+    }
+
+    inline void push (double x) noexcept
+    {
+        buffer[index] = x;
+        index = (index + 1) & (kSize - 1);
+    }
+
+    /** Oldest first. */
+    double get (int i) const noexcept { return buffer[(index + i) & (kSize - 1)]; }
+
+private:
+    double buffer[kSize] = {};
+    int index = 0;
 };
 
 } // namespace luthier

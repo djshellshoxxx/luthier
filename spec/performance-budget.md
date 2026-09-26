@@ -160,6 +160,12 @@ Above 96 kHz, some oversampled modules downgrade internal factor (4x
 
 ## 8. CPU relief mechanisms
 
+> **Superseded by `cpu-quality-modes.md` 7 (load governor) and 8 (CPU
+> targets per quality level).** The list below is kept for history; the
+> governor's E1-E3 replace it, and the per-level table there (High /
+> Medium / Low, printed by CQ-13) is this spec's budget table once measured
+> on a mid-class runner.
+
 Rolling 200 ms average > 85% of block budget:
 
 1. Drop display FIFO drain rate (UI slows, audio unaffected).

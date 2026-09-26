@@ -115,6 +115,9 @@ public:
     void prepare (double sampleRate) noexcept { sr = sampleRate; reset(); }
     void reset() noexcept { z = 0.0; }
 
+    /** cpu-quality-modes 2.2: a new rate that keeps the filter's state. */
+    void setSampleRateKeepingState (double sampleRate) noexcept { sr = sampleRate; }
+
     void setCutoff (double hz) noexcept
     {
         hz = juce::jlimit (1.0, sr * 0.49, hz);
@@ -149,6 +152,7 @@ class OnePoleHP
 public:
     void prepare (double sampleRate) noexcept { lp.prepare (sampleRate); }
     void reset() noexcept { lp.reset(); }
+    void setSampleRateKeepingState (double sampleRate) noexcept { lp.setSampleRateKeepingState (sampleRate); }
     void setCutoff (double hz) noexcept { lp.setCutoff (hz); }
     inline double process (double x) noexcept { return x - lp.process (x); }
 
@@ -449,6 +453,9 @@ class EnvelopeFollower
 public:
     void prepare (double sampleRate) noexcept { sr = sampleRate; reset(); }
     void reset() noexcept { env = 0.0; }
+
+    /** cpu-quality-modes 2.2: a new rate that keeps the envelope. Call setTimes after. */
+    void setSampleRateKeepingState (double sampleRate) noexcept { sr = sampleRate; }
 
     void setTimes (double attackSeconds, double releaseSeconds) noexcept
     {

@@ -18,6 +18,7 @@
     hand while holding a neck, cannot be asked to hit a 20-px button.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
@@ -117,6 +118,10 @@ private:
     double displayedBpm = 120.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TapPad)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Transition, "TapPad", {}, [this] { timerCallback(); } };
 };
 
 //==============================================================================
@@ -168,6 +173,10 @@ private:
     bool lastKillActive = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LiveStrip)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "LiveStrip" };
 };
 
 } // namespace luthier

@@ -86,8 +86,15 @@ public:
     static const char* getRoomSizeName (RoomSize s) noexcept;
     static const char* getMaterialName (RoomMaterial m) noexcept;
 
-private:
     static constexpr int kNumTaps = 16;
+
+    /*  cpu-quality-modes 2.1: run only the `count` loudest early-reflection
+        taps, energy-compensated so the room's level holds; the FDN tail is
+        untouched. Dropped taps ramp to 0 over 20 ms (unless `hard`). */
+    void setTapCount (int count, bool hard) noexcept;
+    int getTapCount() const noexcept { return tapTarget; }
+
+private:
     static constexpr int kFdnSize = 8;
 
     void rebuild();
@@ -113,6 +120,19 @@ private:
     double tapGainsL[kNumTaps] = {};
     double tapGainsR[kNumTaps] = {};
     Biquad tapFilterL, tapFilterR;
+
+    /*  cpu-quality-modes 2.1: the reduced tap set. Taps that share a delay
+        (a big room clamps its later reflections to the buffer's length) are
+        merged first - exactly equivalent - and the loudest `tapTarget` merged
+        taps then run, scaled so their energy equals the full set's. The full
+        and reduced sets crossfade over 20 ms on a switch. */
+    int tapTarget = kNumTaps;
+    int reducedCount = 0;
+    int reducedDelays[kNumTaps] = {};
+    double reducedGainsL[kNumTaps] = {}, reducedGainsR[kNumTaps] = {};
+    double reducedCompL[kNumTaps + 1] = {}, reducedCompR[kNumTaps + 1] = {};
+    double reducedMix = 0.0, reducedStep = 1.0;   ///< 0 = the full set, 1 = the reduced set
+    void computeTapCompensation() noexcept;
 
     // Late reverb.
     std::vector<double> lines[kFdnSize];

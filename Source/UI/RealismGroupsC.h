@@ -22,6 +22,7 @@
     (tuning-stability.md 3).
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "../Model/Workshop/PartLibrary.h"
@@ -85,6 +86,10 @@ private:
     LuthierAudioProcessor& processor;
     double shownDb = -240.0, lastUpdateTime = -1.0e9;
     juce::uint32 lastUpdates = 0;
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "NoiseMeter" };
 };
 
 //==============================================================================
@@ -142,6 +147,10 @@ private:
     std::array<double, kMaxStrings> shown {};
     double lastUpdateTime = -1.0e9;
     juce::uint32 lastBlocks = 0;
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "PitchOffsetReadout" };
 };
 
 class SustainShapeGroup : public juce::Component, private juce::Timer
@@ -205,6 +214,10 @@ private:
     double lastUpdateTime = -1.0e9;
     juce::uint32 lastBlocks = 0;
     int numStrings = 6;
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "OffsetStrip" };
 };
 
 class TuningStabilityGroup : public juce::Component, private juce::Timer
@@ -301,6 +314,10 @@ private:
     int stringIndex;
     juce::Label label;
     juce::TextButton retune { "Retune" };
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "StabilityBadge" };
 };
 
 //==============================================================================

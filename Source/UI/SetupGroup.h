@@ -8,6 +8,7 @@
     watch the low frets light up.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 
@@ -50,6 +51,10 @@ private:
     double lastChange = -1.0e9;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BuzzHeatmap)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "BuzzHeatmap" };
 };
 
 //==============================================================================

@@ -13,12 +13,12 @@ CircuitResponseView::CircuitResponseView (LuthierAudioProcessor& p)
     setTitle ("Circuit response");
     setInterceptsMouseClicks (false, false);
     refresh();
-    startTimerHz (15);
+    motion.startTimerHz (*this, 15);
 }
 
 CircuitResponseView::~CircuitResponseView()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 bool CircuitResponseView::refresh()
@@ -59,6 +59,8 @@ void CircuitResponseView::resized()
 
 void CircuitResponseView::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds().toFloat();
 
     g.setColour (Palette::panelSunken);

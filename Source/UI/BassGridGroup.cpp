@@ -231,12 +231,12 @@ BassGridGroup::BassGridGroup (LuthierAudioProcessor& p)
     shown = processor.getEngine().getGuitarSpec().category == GuitarCategory::Bass;
     setVisible (shown);
     refresh();
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);
 }
 
 BassGridGroup::~BassGridGroup()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 RhythmEngine& BassGridGroup::rhythm()

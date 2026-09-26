@@ -23,6 +23,7 @@
 
 #include "PianoRollModel.h"
 #include "FretboardComponent.h"
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 
 namespace luthier
 {
@@ -115,6 +116,8 @@ private:
     static bool isBlack (int note) noexcept;
 
     LuthierAudioProcessor& processor;
+    // cpu-quality-modes 6: the roll's scroll is a live readout (10 Hz, stepped, at Low).
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "PianoRollStrip" };
     const bool advanced;
     FretboardComponent* fretboard = nullptr;
 

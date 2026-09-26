@@ -21,6 +21,7 @@
     them in tab order and shows one at a time.
 */
 
+#include "QualityOptions.h"   // cpu-quality-modes
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
@@ -72,8 +73,13 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    /** cpu-quality-modes 5: the QUALITY section. */
+    QualityOptions& getQualityOptions() noexcept { return quality; }
+
 private:
     LuthierChoice oversampling { "Oversampling" };
+    QualityOptions quality { processor };   // cpu-quality-modes 5
+    int deviceTop = 118, sidechainTop = 236;
 
     // noise-floor.md 3: the user-global default mains region (REALISM-C).
     juce::ComboBox mainsRegion;
@@ -127,6 +133,7 @@ public:
 private:
     juce::ComboBox paletteBox, scaleBox;
     juce::ToggleButton reducedMotionToggle { "Reduced motion" };
+    juce::Label lowMotionNote;   // cpu-quality-modes 5
     juce::ToggleButton tooltipsToggle { "Show tooltips on hover" };
 
     // gui-integration 5 / visual-polish.md 5: the accent, the data stream, the noise strip.
@@ -481,7 +488,7 @@ private:
     juce::TextButton debugWindowButton { "Open the debug window" };
     juce::ToggleButton crashLogToggle { "Create a log file if Luthier crashes" };
     juce::ToggleButton recorderToggle { "Keep the last hour of audio for the session recorder" };
-    juce::ToggleButton cpuDropToggle { "Under CPU overload, drop the least active strings" };   // performance-budget.md 8
+    juce::ToggleButton emergencyDropToggle;   // cpu-quality-modes 5 / 7 (E3)
     juce::ToggleButton undoDepthToggle { "Show undo depth in the footer" };   // action-and-undo.md 12
 
     juce::TextButton troubleshootButton { "Export troubleshooting file" };

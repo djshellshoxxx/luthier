@@ -45,7 +45,7 @@
 #include "Routing/MidiOutRouter.h"
 #include "Rhythm/RhythmEngine.h"
 #include "Character/CharacterEngine.h"
-#include "Support/CpuRelief.h"
+#include "Support/QualityProfile.h"   // cpu-quality-modes
 #include "Character/EnvironmentModel.h"          // environment.md (REALISM-A)
 #include "DSP/String/StringAging.h"              // string-aging.md (REALISM-A)
 #include "DSP/Coupling/BodyCouplingBank.h"       // body-coupling.md (REALISM-A)
@@ -364,6 +364,25 @@ public:
     void setOversamplingFactor (int factor) noexcept;
     int getOversamplingFactor() const noexcept { return oversamplingFactor; }
 
+    //==========================================================================
+    // cpu-quality-modes (implemented in LuthierEngineQuality.cpp).
+
+    /** 2.5: sets integers and flags and starts crossfades; never allocates. A
+        hard switch (prepare, reset, or 50 ms of output below -90 dBFS) changes
+        everything at once. Audio thread (or with the audio thread parked). */
+    void applyQuality (const QualityProfile& profile, bool hardSwitch) noexcept;
+    const QualityProfile& getQualityProfile() const noexcept { return qualityProfile; }
+
+    /** 7, E3: fades the least-recently-excited ringing string over 10 ms.
+        Returns false if nothing was ringing. Audio thread. */
+    bool dropLeastRecentString() noexcept;
+
+    /** For Diagnostics and the tests. */
+    int getSleepingStringCount() const noexcept;
+    int getEffectiveAmpOversampling() const noexcept   { return amp.getEffectiveOversamplingFactor(); }
+    int getEffectiveDriveOversampling() const noexcept { return preEffects.getEffectiveOversamplingFactor(); }
+    int getHardQualitySwitchCount() const noexcept { return hardQualitySwitches; }
+
     /*  performance-budget.md 7: above 96 kHz the oversampled modules run at a
         lower internal factor - the user's factor halved above 96 kHz and
         quartered above 176.4 kHz, never below 1x - so the internal rate stays
@@ -550,8 +569,6 @@ public:
 
     /** How many times publishSoundingNotes has run (AS-17's test counter). */
     uint64_t getSoundingNotesPublishCount() const noexcept { return soundingPublishCount.load (std::memory_order_relaxed); }
-    /** performance-budget.md 8: the relief ladder, fed each block's load. */
-    CpuRelief& getCpuRelief() noexcept { return cpuRelief; }
     // ==== BEGIN REALISM-B engine ====
     // harmonic-realism.md, string-interaction.md, fingerstyle-attack.md.
     // Implemented in LuthierEngineRealismB.cpp.
@@ -917,14 +934,6 @@ private:
     juce::MidiBuffer parkedMidi;
 
     std::atomic<double> cpuEstimate { 0.0 };
-    CpuRelief cpuRelief;                 // performance-budget.md 8
-    int appliedReliefStep = 0;
-    int reliefDropCountdown = 0;         // performance-budget.md 8 step 7: samples to the next drop
-    int reliefDroppedStrings = 0;        // strings dropped this episode (tests, diagnostics)
-public:
-    /** Strings relief 7 has dropped since the load last fell below it. */
-    int getReliefDroppedStrings() const noexcept { return reliefDroppedStrings; }
-private:
 
     // --- routing ----------------------------------------------------------------
     TapBuffers taps;
@@ -961,6 +970,18 @@ private:
 
     RtRandom rng { 0xA11CE5ull };
 
+    // ---- cpu-quality-modes --------------------------------------------------------
+    QualityProfile qualityProfile;
+    std::array<double, kMaxStrings> qualityNotePeak {};
+    std::array<bool, kMaxStrings> qualityRingOutEligible {};
+    std::array<juce::int64, kMaxStrings> qualityLastExcite {};
+    juce::int64 qualitySilentSamples = 0;
+    int hardQualitySwitches = 0;
+    void applyOversamplingForQuality (bool crossfade) noexcept;
+    void qualityNoteOn (int stringIndex) noexcept;
+    void qualityNoteOff (int stringIndex, bool heldOn) noexcept;
+    void qualityPerBlock() noexcept;
+    void qualityAfterBlock (const juce::AudioBuffer<float>& output) noexcept;
     // ==== BEGIN REALISM-B engine state ====
     HarmonicTouchSettings harmonicTouch;
     StringInteractionSettings interaction;

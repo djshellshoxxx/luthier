@@ -3,6 +3,7 @@
 #include "VisualAids.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
+#include "AnimationPolicy.h"
 
 namespace luthier
 {
@@ -25,7 +26,7 @@ ChordNaming::Spelling ChordNameOverlay::spelling() const
 
 void ChordNameOverlay::tick (double nowMs)
 {
-    fader.setReducedMotion (AccessibilitySettings::get().isReducedMotion());
+    fader.setReducedMotion (! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition));   // cpu-quality-modes 6
 
     if (! VisualAids::showChordNames())
     {
@@ -60,7 +61,7 @@ void ChordNameOverlay::observe (double nowMs, const SoundingNotes::Frame& frame,
     if (! VisualAids::showChordNames())
         return;
 
-    fader.setReducedMotion (AccessibilitySettings::get().isReducedMotion());
+    fader.setReducedMotion (! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition));   // cpu-quality-modes 6
 
     // What changed since the last look: onsets (a start sample moved, or a
     // string began) and the set of notes.

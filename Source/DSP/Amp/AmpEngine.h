@@ -110,8 +110,21 @@ public:
     void setCustomPowerTube (PowerTube t) noexcept;
     void setCustomToneStackStyle (int style) noexcept;
 
-    void setOversamplingFactor (int factor) noexcept;
-    int getLatencySamples() const noexcept { return oversampler.getLatencySamples(); }
+    /** A factor change at once (the old behaviour; used by prepare and tests). */
+    void setOversamplingFactor (int factor) noexcept { setOversamplingFactor (factor, factor, false); }
+
+    /*  cpu-quality-modes 2.2: run at `effective`, report `nominal`. The
+        difference in latency is made up by a LatencyPad, so the host's figure
+        never follows the quality level. With `crossfade`, a factor change runs
+        the old and the new path together for 10 ms: the new one starts from a
+        copy of the old state (coefficients recomputed for its rate) and is
+        primed with the last 32 input samples. */
+    void setOversamplingFactor (int effective, int nominal, bool crossfade) noexcept;
+
+    int getLatencySamples() const noexcept { return Oversampler::latencyFor (nominalFactor); }
+    int getEffectiveOversamplingFactor() const noexcept { return oversampler.getFactor(); }
+    int getNominalOversamplingFactor() const noexcept { return nominalFactor; }
+    bool isOversamplingCrossfading() const noexcept { return fadeLeft > 0; }
     double getOversampledRate() const noexcept { return oversampler.getOversampledRate(); }   // performance-budget.md 7
 
     //==========================================================================
@@ -125,6 +138,26 @@ public:
 
 private:
     static constexpr int kMaxStages = 5;
+
+    // ---- cpu-quality-modes 2.2 --------------------------------------------------
+    double processCore (double x) noexcept;
+    void retuneForFactor (int factor) noexcept;
+
+    /** The old path during a crossfade. Its copy constructor and assignment do
+        nothing, so `*twin.engine = *this` copies every DSP member but this one. */
+    struct TwinHolder
+    {
+        TwinHolder() = default;
+        TwinHolder (const TwinHolder&) {}
+        TwinHolder& operator= (const TwinHolder&) { return *this; }
+        std::shared_ptr<AmpEngine> engine;
+    };
+
+    TwinHolder twin;
+    LatencyPad latencyPad;
+    InputHistory history;
+    int nominalFactor = 4;
+    int fadeLeft = 0, fadeTotal = 1;
 
     void updateVoicing() noexcept;
     void updateFilters() noexcept;

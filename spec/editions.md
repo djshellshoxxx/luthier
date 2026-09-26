@@ -193,8 +193,9 @@ Legend:
 | License activation | `updates-telemetry.md` 5, `licensing.md` | **Pro only** | Free contains no licensing code at all |
 | Content updates (`.luthiercontent`) | `installer.md` 11 | Both | A pack declares its edition; Free rejects Pro packs with the upsell notice |
 | Diagnostics, error recovery, safe mode | `error-recovery.md` | Both | |
+| CPU quality modes (High / Medium / Low / Auto) | `cpu-quality-modes.md` | Both | Identical, no Free limit: relief matters most on the low-end machines Free users are likeliest to have |
 
-Count: of the 79 rows above, 36 are Both (a few of them with Pro-only deep
+Count: of the 80 rows above, 37 are Both (a few of them with Pro-only deep
 controls), 21 Free-limited and 22 Pro.
 Free keeps every row a beginner-to-intermediate guitarist or a producer
 who needs "a great guitar" touches; Pro keeps the eight headline groups.

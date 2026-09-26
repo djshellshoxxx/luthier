@@ -14,12 +14,12 @@ NoiseEventStrip::NoiseEventStrip (LuthierAudioProcessor& p)
     setTitle ("Noise events");
     setTooltip ("The last eight seconds of playing noise: squeak, click, chirp, scrape, buzz "
                 "and clank, as ticks. Taller is louder.");
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
 NoiseEventStrip::~NoiseEventStrip()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 juce::Colour NoiseEventStrip::colourFor (NoiseClass c)
@@ -99,8 +99,9 @@ void NoiseEventStrip::timerCallback()
 
     // Drained even when hidden, or the ring fills and the first thing a user
     // sees on opening the tab is a burst of stale events.
-    // performance-budget.md 8 step 1: under CPU load the display drain halves.
-    if (processor.getEngine().getCpuRelief().getStep() >= CpuRelief::slowDisplay && (++reliefTick & 1) != 0)
+    // cpu-quality-modes 7, E1 (was performance-budget.md 8 step 1): under CPU
+    // load the display drain halves.
+    if (processor.getQualityController().getReliefLevel() >= 1 && (++reliefTick & 1) != 0)
         return;
 
     const int before = shown.size();
@@ -108,7 +109,7 @@ void NoiseEventStrip::timerCallback()
 
     // gui-integration 21 / ui-wiring 10: under reduced motion the strip is a
     // static count, redrawn at most five times a second and only on change.
-    if (AccessibilitySettings::get().isReducedMotion())
+    if (! AnimationPolicy::get().mayAnimate (AnimationPolicy::Decorative))
     {
         const auto counts = getClassCounts();
 
@@ -128,13 +129,15 @@ void NoiseEventStrip::timerCallback()
 
 void NoiseEventStrip::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds().toFloat();
 
     g.setColour (Palette::panelSunken);
     g.fillRoundedRectangle (bounds, 3.0f);
 
     // Reduced motion: a static count per kind instead of scrolling ticks.
-    if (AccessibilitySettings::get().isReducedMotion())
+    if (! AnimationPolicy::get().mayAnimate (AnimationPolicy::Decorative))
     {
         static const char* const names[] = { "squeak", "click", "chirp", "scrape", "buzz", "clank" };
         const auto counts = getClassCounts();
