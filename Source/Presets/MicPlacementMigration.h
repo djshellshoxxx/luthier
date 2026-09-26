@@ -74,6 +74,10 @@ namespace MicPlacementMigration
     void restoreLiveLegacy (const juce::var& block, juce::AudioProcessorValueTreeState& state);
 
     inline constexpr const char* kLegacyBlockKey = "micLegacy";
+
+    /** The randomiser's stock-range rule (mic-placement.md 9): u <= 1.0 and
+        distance <= 30 cm, for every mic whose parameters are not locked. */
+    void keepPlacementPlausible (juce::AudioProcessorValueTreeState& state, const juce::StringArray& locked);
 }
 
 //==============================================================================

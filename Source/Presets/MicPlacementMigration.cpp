@@ -286,6 +286,38 @@ namespace MicPlacementMigration
                         p->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, (double) obj->getProperty (id)));
     }
 
+    void keepPlacementPlausible (juce::AudioProcessorValueTreeState& state, const juce::StringArray& locked)
+    {
+        const auto write = [&state, &locked] (const char* id, double plain)
+        {
+            if (locked.contains (id))
+                return;
+
+            if (auto* p = ranged (state, id))
+                p->setValueNotifyingHost (p->convertTo0to1 ((float) plain));
+        };
+
+        for (int mic = 0; mic < 2; ++mic)
+        {
+            const auto& ids = kIds[mic];
+            const double x = currentPlain (state, ids.x), y = currentPlain (state, ids.y);
+            const double u = std::hypot (x, y);
+
+            if (u > 1.0)
+            {
+                write (ids.x, x / u);
+                write (ids.y, y / u);
+            }
+
+            if (currentPlain (state, ids.dist) > 30.0)
+                write (ids.dist, 30.0);
+        }
+
+        for (const char* id : { ParamIDs::acMicDist, ParamIDs::acMicDist2 })
+            if (currentPlain (state, id) > 30.0)
+                write (id, 30.0);
+    }
+
     void writeMapped (juce::AudioProcessorValueTreeState& state, int mic, int position, int distance)
     {
         for (const auto& [id, plain] : mappedValues (mic, position, distance))

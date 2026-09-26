@@ -1393,6 +1393,11 @@ void PresetManager::randomise (uint64_t seed, const juce::StringArray& lockedPar
         p->setValueNotifyingHost ((float) v);
     }
 
+    // mic-placement.md 9 (FEAT-MIC): respecting stock ranges keeps each mic on
+    // the cone (u <= 1) and within 30 cm, where a real session puts it.
+    if (respectStockRanges)
+        MicPlacementMigration::keepPlacementPlausible (apvts, lockedParameters);
+
     currentName = "Random";
     modified = true;
     sendChangeMessage();

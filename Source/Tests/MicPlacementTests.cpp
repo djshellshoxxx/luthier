@@ -1831,3 +1831,30 @@ LUTHIER_TEST (MicPlacement, allTwentyFiveRoundTripThroughEveryContainer)
         CHECK_MSG (a != b, "moving the mic changed nothing");
     }
 }
+
+//==============================================================================
+// mic-placement.md 9: the header dice, respecting stock ranges.
+LUTHIER_TEST (MicPlacement, randomiseKeepsMicsPlausible)
+{
+    auto p = makeProcessor();
+    auto& s = p->getState();
+
+    for (uint64_t seed = 1; seed <= 40; ++seed)
+    {
+        p->getPresetManager().randomise (seed, {}, true);
+
+        for (int mic = 0; mic < 2; ++mic)
+        {
+            const auto& ids = MicPlacementMigration::idsFor (mic);
+            CHECK (std::hypot (plainOf (s, ids.x), plainOf (s, ids.y)) <= 1.0 + 1.0e-4);
+            CHECK (plainOf (s, ids.dist) <= 30.0f + 1.0e-3f);
+        }
+
+        CHECK (plainOf (s, ParamIDs::acMicDist) <= 30.0f + 1.0e-3f);
+    }
+
+    // A locked mic is left where it is.
+    setPlain (s, ParamIDs::micDist, 80.0f);
+    p->getPresetManager().randomise (7, { ParamIDs::micDist }, true);
+    CHECK_NEAR (plainOf (s, ParamIDs::micDist), 80.0, 1.0e-3);
+}
