@@ -1701,3 +1701,54 @@ LUTHIER_TEST (Sustain, theLevelFloorIsSilent)
     freeze.setLevelDb (0.0);
     CHECK_NEAR (freeze.getLevelGain(), 1.0, 1.0e-12);
 }
+
+LUTHIER_TEST (MidiExport, genericKeepsTheSlapGhostDistinction)
+{
+    // BT-25 (bass-techniques 10): without BASS_TECH, velocity carries it.
+    MidiPerformance performance (48000.0);
+    performance.setTempo (120.0);
+
+    for (int i = 0; i < 2; ++i)
+    {
+        performance.addMessage (i * 24000, juce::MidiMessage::noteOn (1, 40, (juce::uint8) 80), 1);
+        performance.addMessage (i * 24000 + 12000, juce::MidiMessage::noteOff (1, 40), 1);
+    }
+
+    performance.addEvent (LuthierEvent::make (LuthierEventClass::bassTech, 0, 1).set ("tech", "slap"));
+    performance.addEvent (LuthierEvent::make (LuthierEventClass::bassTech, 24000, 1).set ("tech", "ghost"));
+
+    auto file = juce::File::createTempFile (".mid");
+    MidiExportOptions options;
+    options.profile = MidiProfile::generic;
+    juce::String error;
+    CHECK_MSG (MidiProfiles::exportToFile (performance, options, file, &error), error);
+
+    MidiPerformance read (48000.0);
+    CHECK (MidiProfiles::importFromFile (file, read, 48000.0).ok);
+
+    std::vector<int> velocities;
+
+    for (const auto& m : read.getMessages())
+        if (m.message.isNoteOn())
+            velocities.push_back (m.message.getVelocity());
+
+    CHECK (velocities.size() == 2);
+
+    if (velocities.size() == 2)
+    {
+        CHECK_MSG (velocities[0] >= 110, "the slap came out at " + juce::String (velocities[0]));
+        CHECK_MSG (velocities[1] <= 30, "the ghost came out at " + juce::String (velocities[1]));
+    }
+
+    // The Luthier profile leaves the velocities alone: BASS_TECH says it.
+    options.profile = MidiProfile::luthier;
+    CHECK (MidiProfiles::exportToFile (performance, options, file, &error));
+    MidiPerformance luthier (48000.0);
+    CHECK (MidiProfiles::importFromFile (file, luthier, 48000.0).ok);
+
+    for (const auto& m : luthier.getMessages())
+        if (m.message.isNoteOn())
+            CHECK (m.message.getVelocity() == 80);
+
+    file.deleteFile();
+}
