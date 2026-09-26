@@ -326,7 +326,8 @@ Tabs across the top:
 `AUDIO | MIDI | APPEARANCE | ACCESSIBILITY | LOCALIZATION | EXPRESSION | RANGES | UPDATES | PRIVACY | DIAGNOSTICS | FILE LOCATIONS`
 
 - **AUDIO** (Standalone): output device, buffer, sample rate, sidechain
-  input.
+  input. Also (all builds) oversampling and output normalization
+  (`output-normalization.md` 5.1).
 - **MIDI** (Standalone): input port picker, virtual MIDI out toggle.
 - **APPEARANCE**: theme accent tint, palette, reduced motion, UI scale,
   tooltip toggle, scrolling data-stream toggle, noise-event strip
@@ -625,6 +626,7 @@ the UI.
 | Randomize | Support | Header dice | - | Ctrl+R |
 | Reset | Support | Header reset | - | Ctrl+Shift+R |
 | Export audio | AudioExport | File menu, Options AUDIO | - | - |
+| Output normalization | MasterBus::LoudnessNormalizer, NormalizationCalibrator | Options AUDIO | Header meter badge (Easy + Adv) | - |
 | Export MIDI | MidiCapture | Col 4 MIDI OUT tab, drag-out on session recorder | Col 4 NOTATION | - |
 | Import MIDI | MidiCapture | File menu, drag onto plugin | - | - |
 | Help | UI | Header ?, Col 4 HELP | - | F1 |

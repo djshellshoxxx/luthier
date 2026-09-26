@@ -270,6 +270,10 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     diagnostics.logValue (LogCategory::Engine, "prepareToPlay sampleRate", sampleRate);
     diagnostics.logValue (LogCategory::Engine, "prepareToPlay blockSize", (double) samplesPerBlock);
+
+    // output-normalization.md 12: the calibration is kept across a rate change;
+    // a new rate family (NormalizationSoundState::rateFamily) re-measures.
+    outputNormalization.getTracker().markConfigDirty (true);
 }
 
 void LuthierAudioProcessor::releaseResources()

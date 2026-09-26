@@ -152,6 +152,11 @@ void OutputNormalization::setEnabled (bool on, bool fromUser)
     // 6: the host marks the project dirty.
     processor.updateHostDisplay (juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged (true));
 
+    // 10: one opt-in usage boolean (updates-telemetry.md 6).
+    if (fromUser)
+        processor.getTelemetry().record (Telemetry::Category::usage, "normalization_enabled",
+                                         { { "enabled", on ? "true" : "false" } });
+
     if (on && fromUser && onEnabledByUser)
         onEnabledByUser();
 
