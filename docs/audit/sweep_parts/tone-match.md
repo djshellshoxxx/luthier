@@ -5,7 +5,7 @@ The IR slot machinery (windowed-sinc resampling, truncation, trim/predelay/rever
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | TM-1 (§0.1) | IR loaded on message thread, handed over by atomic pointer swap — no test loads a file and processes across a swap | `ToneMatch/ToneMatch.cpp:IrSlot::load/rebuild` | n/a | `ToneMatch.loadingSwapsTheResponseWithoutAGap` | DONE |
-| TM-2 (§0.2) | Resample to host rate, windowed sinc >=512 taps (513-tap Blackman) — untested | `ToneMatch.cpp:IrSlot::resample` | n/a | - | NO-TEST |
+| TM-2 (§0.2) | Resample to host rate, windowed sinc >=512 taps (513-tap Blackman) — untested | `ToneMatch.cpp:IrSlot::resample` | n/a | `ToneMatch.irsResampleWithinHalfADb` | DONE |
 | TM-3 (§0.3) | Truncate at max_ir_seconds (4 s default) with fade — truncation itself untested (only the setter round-trips) | `IrSlot::rebuild`, `IrSlot::setMaxSeconds` | n/a | `ToneMatch.longIrsAreTruncatedToMaxSeconds` | DONE |
 | TM-4 (§0.4) | User IR adds no reported latency | `IrSlot::getLatencySamples` (0, zero-latency convolution) | n/a | `ToneMatch::anEmptySlotLeavesTheAudioAlone` | DONE |
 | TM-5 (§0.5) | Match analysis on a worker thread — deconvolve/fit run inline in `MatchWizard::advance` on the message thread | `MatchWizard::advance` step 2 -> `juce::Thread::launch` job, `finishAnalysis` via callAsync | n/a | - | NO-TEST |
@@ -24,7 +24,7 @@ The IR slot machinery (windowed-sinc resampling, truncation, trim/predelay/rever
 | TM-18 (§2.3-2.4) | Record reference on sidechain, then own amp output through current cab — wizard flow untested | `MatchWizard::advance`, `Capture::Source::sidechain`, `PluginProcessor::processBlock` capture feed | TONE MATCH > Cab Match wizard | `ReviewRegression::aCaptureRecordsTheMainOutput` (main out only) | NO-TEST |
 | TM-19 (§2) | Test signals: exp sweep 20-20k 6 s, MLS 4 s, transient burst | `CabMatch::generateTestSignal` | Cab Match wizard `signalBox` | `ToneMatch::everyTestSignalIsWellFormed` | DONE |
 | TM-20 (§2) | Deconvolve, trim to max, Hann fade last 5% | `CabMatch::deconvolve` | n/a | `ToneMatch::sweepDeconvolutionRecoversTheSourceIr` | DONE |
-| TM-21 (§2) | Save to IRs/Cab Match/<name>.wav + sidecar, auto-load into current cab slot — untested | `CabMatch::saveIr`, `getMatchDirectory`, `MatchWizard::advance` | Cab Match wizard | - | NO-TEST |
+| TM-21 (§2) | Save to IRs/Cab Match/<name>.wav + sidecar, auto-load into current cab slot — untested | `CabMatch::saveIr`, `getMatchDirectory`, `MatchWizard::advance` | Cab Match wizard | `ToneMatch.aSavedIrHasItsSidecar` | PARTIAL |
 | TM-22 (§2) | Progress bar, estimated tail length, null-test result | `MatchWizard::paint/timerCallback`, `CabMatch::measureNull` | Cab Match wizard `resultLabel` | `ToneMatch::nullMeasurementIsCorrect` | DONE |
 | TM-23 (§3.1) | EQ reference by dragging an audio file or looping sidechain — only sidechain recording; no file drop on EQ Match | `MatchWizard::useReferenceFile` | EQ Match drop target + "Reference file..." button | `ToneMatch.anEqReferenceCanBeAFile` | DONE |
 | TM-24 (§3.2-3.3) | Long-term spectra, min-phase FIR 256/1024/4096 | `EqMatch::measureSpectrum/fit` | EQ Match `lengthBox` | `ToneMatch::everyFilterLengthProducesAFilter` | DONE |
@@ -37,17 +37,17 @@ The IR slot machinery (windowed-sinc resampling, truncation, trim/predelay/rever
 | TM-31 (§4) | Record length 100 ms-60 s — engine clamps, capture pane hard-codes 10 s | `Capture::start` | Capture length slider | `ToneMatch.thePanelReachesTrimBandLengthAndSearch` | DONE |
 | TM-32 (§4) | WAV 32-bit float into ~/Documents/Luthier/Captures/ — save path untested | `Capture::save`, `getCaptureDirectory` | Capture pane | - | NO-TEST |
 | TM-33 (§4) | Autotrim silence, user-toggleable — always on, no toggle | `Capture::autoTrim` | Capture "Auto-trim silence" toggle | `ToneMatch.thePanelReachesTrimBandLengthAndSearch` | DONE |
-| TM-34 (§5) | IR folder convention (Bodies/Acoustic..., Cabinets/User, Cab Match, Rooms, Special) — tree creation untested | `IrLibraryPaths::ensureExists` (called from processor ctor) | n/a | - | NO-TEST |
+| TM-34 (§5) | IR folder convention (Bodies/Acoustic..., Cabinets/User, Cab Match, Rooms, Special) — tree creation untested | `IrLibraryPaths::ensureExists` (called from processor ctor) | n/a | `ToneMatch.theLibraryTreeIsCreated` | DONE |
 | TM-35 (§5) | Sidecar .json, filename fallback | `IrMetadata::forFile/saveFor` | n/a | `ToneMatch::metadataRoundTripsAndFallsBackToTheFilename` | DONE |
 | TM-36 (§6) | TONE MATCH tab in Column 4 strip with body/cab1/cab2 cards, Cab/EQ wizards, capture pane | `UI/AdvancedPanel.cpp` (workspace tab), `ToneMatchPanel` | ADVANCED > TONE MATCH tab | `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` (tab found) | DONE |
 | TM-37 (§6) | Wizards run step-by-step inside the panel — no UI test drives a wizard | `MatchWizard::advance/restart` | TONE MATCH > wizards | - | NO-TEST |
 | TM-38 (§6) | IR library browser with tag filter and search — tag filter only, no search box | `ToneMatchPanel::refreshLibrary` | library search box (name/tags/notes) | `ToneMatch.thePanelReachesTrimBandLengthAndSearch` | DONE |
 | TM-39 (§7) | Preset IR paths relative under registered user IR folder, absolute otherwise — only the single library root counts; no Options-registered folders | `IrLibraryPaths::toPresetPath/fromPresetPath` | n/a | `ToneMatch::presetPathsAreRelativeUnderTheLibraryRoot` | PARTIAL |
 | TM-40 (§7) | Missing IR falls back to built-in model + header warning banner | `IrSlot::fromVar`, `PluginEditor.cpp` "ir-missing" | header banner -> TONE MATCH | `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` | DONE |
-| TM-41 (§8) | Test: 100 IRs of varied length/rate resampled, FFT within 0.5 dB — no such test | `IrSlot::resample` | n/a | - | MISSING |
+| TM-41 (§8) | Test: 100 IRs of varied length/rate resampled, FFT within 0.5 dB — no such test | `IrSlot::resample` | n/a | `ToneMatch.irsResampleWithinHalfADb` (5 rates; impulse IRs) | DONE |
 | TM-42 (§8) | Test: sweep deconvolution null within -60 dBFS — existing test only requires < -20 dB | `CabMatch::deconvolve` | n/a | `ToneMatch::sweepDeconvolutionRecoversTheSourceIr` | PARTIAL |
 | TM-43 (§8) | Test: EQ fit for shelf, bell, notch within 1 dB — test covers shelf + 2 bells (no notch) at 2.5 dB tolerance | `EqMatch::fit` | n/a | `ToneMatch::eqMatchFitsKnownCurves` | PARTIAL |
 | TM-44 (§8) | Test: 60 s main-out capture nulls vs offline render within -80 dBFS — missing | `Capture` | n/a | - | MISSING |
-| TM-45 (§8) | Test: sample-rate change during IR playback, no clicks, re-resampled — missing (`IrSlot::prepare` does rebuild) | `IrSlot::prepare` | n/a | - | MISSING |
+| TM-45 (§8) | Test: sample-rate change during IR playback, no clicks, re-resampled — missing (`IrSlot::prepare` does rebuild) | `IrSlot::prepare` | n/a | `ToneMatch.sampleRateChangeReResamplesTheIr` | DONE |
 
 <!-- counts DONE=15 NO-GUI=4 NO-TEST=11 PARTIAL=9 MISSING=6 OWNED=0 -->

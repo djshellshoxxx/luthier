@@ -2104,3 +2104,162 @@ LUTHIER_TEST (Slide, aLowSetupBuzzesUnderTheBar)
     CHECK_MSG (engine.getPlayingNoise().getPool().getTriggerCount (NoiseClass::fretBuzz) >= 1,
                "a hard bar note on a low setup did not buzz");
 }
+
+//==============================================================================
+namespace
+{
+    /** The slot's response to a unit impulse, 8192 samples, at 48 kHz. */
+    std::vector<float> slotImpulseResponse (IrSlot& slot)
+    {
+        std::vector<float> out;
+        juce::AudioBuffer<float> block (2, 512);
+
+        for (int b = 0; b < 16; ++b)
+        {
+            block.clear();
+
+            if (b == 0)
+                block.setSample (0, 0, 1.0f), block.setSample (1, 0, 1.0f);
+
+            slot.process (block.getArrayOfWritePointers(), 2, 512);
+            out.insert (out.end(), block.getReadPointer (0), block.getReadPointer (0) + 512);
+        }
+
+        return out;
+    }
+
+    /** Magnitude in dB per FFT bin (order 13). */
+    std::vector<double> magnitudeDb (const std::vector<float>& x)
+    {
+        juce::dsp::FFT fft (13);
+        std::vector<float> data (16384, 0.0f);
+        std::copy (x.begin(), x.begin() + juce::jmin ((size_t) 8192, x.size()), data.begin());
+        fft.performFrequencyOnlyForwardTransform (data.data());
+
+        std::vector<double> db (4097);
+
+        for (size_t i = 0; i < db.size(); ++i)
+            db[i] = 20.0 * std::log10 (juce::jmax (1.0e-12, (double) data[i]));
+
+        return db;
+    }
+}
+
+LUTHIER_TEST (ToneMatch, irsResampleWithinHalfADb)
+{
+    // TM-2 / TM-41 (tone-match 0.2): an impulse IR at any common rate, loaded
+    // into a 48 kHz slot, stays flat within 0.5 dB up to 0.9 x the lower Nyquist.
+    for (const double rate : { 44100.0, 48000.0, 88200.0, 96000.0, 192000.0 })
+    {
+        juce::WavAudioFormat wav;
+        const auto file = writeIr (wav, ".wav", 0.05, 1, rate, true);
+
+        IrSlot slot;
+        slot.prepare (48000.0, 512);
+        CHECK (slot.load (file));
+        slot.setEngaged (true);
+        slot.setMix (1.0);
+        juce::Thread::sleep (200);   // the convolution swaps its response in off the audio thread
+
+        {
+            juce::AudioBuffer<float> warm (2, 512);
+            warm.clear();
+            slot.process (warm.getArrayOfWritePointers(), 2, 512);
+        }
+
+        const auto db = magnitudeDb (slotImpulseResponse (slot));
+        const double binHz = 48000.0 / 8192.0;
+        const double top = 0.9 * juce::jmin (24000.0, rate * 0.5);
+        const double reference = db[(size_t) std::round (1000.0 / binHz)];
+        double worst = 0.0;
+
+        for (size_t i = (size_t) std::round (50.0 / binHz); i < (size_t) (top / binHz); ++i)
+            worst = juce::jmax (worst, std::abs (db[i] - reference));
+
+        CHECK_MSG (worst < 0.5, juce::String (rate) + " Hz IR deviates " + juce::String (worst, 2) + " dB");
+
+        slot.unload();
+        file.deleteFile();
+    }
+}
+
+LUTHIER_TEST (ToneMatch, sampleRateChangeReResamplesTheIr)
+{
+    // TM-45 (tone-match 0.2): the IR keeps its length in time at a new rate.
+    juce::WavAudioFormat wav;
+    const auto file = writeIr (wav, ".wav", 0.25);
+
+    IrSlot slot;
+    slot.prepare (48000.0, 512);
+    CHECK (slot.load (file));
+    const double ms = slot.getLengthMs();
+
+    slot.prepare (96000.0, 512);
+    CHECK_NEAR (slot.getLengthMs(), ms, 0.5);
+    CHECK (slot.isLoaded());
+
+    slot.setEngaged (true);
+    juce::AudioBuffer<float> block (2, 512);
+
+    for (int b = 0; b < 8; ++b)
+    {
+        for (int i = 0; i < 512; ++i)
+            block.setSample (0, i, (float) std::sin (0.02 * (b * 512 + i))), block.setSample (1, i, block.getSample (0, i));
+
+        slot.process (block.getArrayOfWritePointers(), 2, 512);
+
+        for (int i = 0; i < 512; ++i)
+            CHECK (std::isfinite (block.getSample (0, i)));
+    }
+
+    slot.unload();
+    file.deleteFile();
+}
+
+LUTHIER_TEST (ToneMatch, theLibraryTreeIsCreated)
+{
+    // TM-34 (tone-match 5).
+    IrLibraryPaths::ensureExists();
+
+    for (const auto& folder : { IrLibraryPaths::getRoot(), IrLibraryPaths::getBodies(), IrLibraryPaths::getBodiesAcoustic(),
+                                IrLibraryPaths::getBodiesElectric(), IrLibraryPaths::getCabinets(),
+                                IrLibraryPaths::getCabinetsUser(), IrLibraryPaths::getCabinetsMatch(),
+                                IrLibraryPaths::getRooms(), IrLibraryPaths::getSpecial() })
+        CHECK_MSG (folder.isDirectory(), folder.getFullPathName() + " was not created");
+}
+
+LUTHIER_TEST (ToneMatch, aSavedIrHasItsSidecar)
+{
+    // TM-21 (tone-match 2, 5): saveIr writes a readable WAV and a .json beside it.
+    ImpulseResponse ir;
+    ir.sampleRate = 48000.0;
+    ir.samples.assign (2400, 0.0f);
+    ir.samples[0] = 0.8f;
+    ir.samples[100] = -0.3f;
+
+    IrMetadata metadata;
+    metadata.name = "Sweep test";
+    metadata.type = "cabinet";
+    metadata.tags = { "cab-match" };
+
+    auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-saveir");
+    dir.deleteRecursively();
+    dir.createDirectory();
+    const auto file = dir.getChildFile ("Sweep test.wav");
+
+    CHECK (CabMatch::saveIr (ir, file, metadata));
+    CHECK (file.existsAsFile());
+    CHECK (file.withFileExtension ("json").existsAsFile());
+
+    const auto read = IrMetadata::forFile (file);
+    CHECK (read.name == "Sweep test");
+    CHECK (read.tags.contains ("cab-match"));
+
+    IrSlot slot;
+    slot.prepare (48000.0, 512);
+    CHECK (slot.load (file));
+    CHECK_NEAR (slot.getLengthMs(), 50.0, 1.0);
+
+    slot.unload();
+    dir.deleteRecursively();
+}
