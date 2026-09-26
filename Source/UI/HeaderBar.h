@@ -9,6 +9,7 @@
     The output LED lives here too, in the top-left corner, as the theme requires.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "RangesUi.h"
@@ -141,6 +142,10 @@ private:
     bool advancedAvailable = true;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HeaderBar)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "HeaderBar" };
 };
 
 } // namespace luthier

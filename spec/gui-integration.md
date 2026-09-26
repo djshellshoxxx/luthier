@@ -181,6 +181,9 @@ Compact per rhythm-engine.md section 8:
   strum-dynamics.md 6).
 - Enable switch.
 - Small readout: current chord symbol, next strum arrow.
+- JAM group at the right end (jam-mode.md 8.2): the 88 x 32 JAM pill
+  (first press arms; ARMED / COUNT / PLAYING / ENDING), the band's style,
+  a 5-dot intensity and a "Band" volume mini-knob.
 
 ### 3.6 What Easy Mode intentionally omits
 
@@ -250,7 +253,9 @@ tab strip at the top.
 
 Tab strip at the top, in this fixed order:
 
-`WORKSHOP | MOD | RHYTHM | TUNE | LIVE | ROUTING | TONE MATCH | CHARACTER | PRACTICE | NOTATION | MIDI OUT | CONTROLLERS | HELP`
+`WORKSHOP | MOD | RHYTHM | TUNE | JAM | LIVE | ROUTING | TONE MATCH | CHARACTER | PRACTICE | NOTATION | MIDI OUT | CONTROLLERS | HELP`
+
+(jam-mode.md 8.1: JAM, the backing band, sits directly after TUNE.)
 
 - **WORKSHOP** — enters the bench (section 6). While active, the tab
   expands across Columns 3 + 4 as one workspace; Column 3's panels stack
@@ -326,8 +331,12 @@ Tabs across the top:
 `AUDIO | MIDI | APPEARANCE | ACCESSIBILITY | LOCALIZATION | EXPRESSION | RANGES | UPDATES | PRIVACY | DIAGNOSTICS | FILE LOCATIONS`
 
 - **AUDIO** (Standalone): output device, buffer, sample rate, sidechain
-  input. Also (all builds) oversampling and output normalization
-  (`output-normalization.md` 5.1).
+  input. **QUALITY** (both formats; cpu-quality-modes 5): the CPU quality
+  radio group (Auto | High | Medium | Low, default High), "This instance"
+  override, "Now running" status, "Always render offline at High", "Tell
+  me when Auto changes quality", the oversampling control with its
+  "Running at 2x while quality is Medium." note, and the "What each level
+  changes" disclosure Also output normalization (`output-normalization.md` 5.1).
 - **MIDI** (Standalone): input port picker, virtual MIDI out toggle.
 - **APPEARANCE**: theme accent tint, palette, reduced motion, UI scale,
   tooltip toggle, scrolling data-stream toggle, noise-event strip
@@ -461,6 +470,9 @@ Right-click any control includes a "Modulate ->" submenu.
 ## 12. Footer
 
 16 px. Left: version. Centre: status line. Right: CPU %, voice count.
+The CPU % is the `QualityBadge` (cpu-quality-modes 5): level label, a
+five-cell load bar and Luthier's share, a focusable button last in the
+footer tab order that opens Options -> AUDIO -> QUALITY.
 
 Scrolling data stream (theme.md) fills empty vertical space in the main
 area, not the footer. Under reduced motion the stream is a static count
@@ -563,6 +575,7 @@ All rebindable. Defaults:
 | Reset all | Ctrl+Shift+R |
 | A / B compare | Ctrl+/ |
 | Tap tempo | T |
+| Jam band start / stop, fill, arm (jam-mode.md 8.2) | J / Shift+J / Alt+J |
 | MIDI Learn arm | Ctrl+L |
 | Undo / Redo | Ctrl+Z / Ctrl+Shift+Z |
 | Help | F1 |
@@ -594,6 +607,7 @@ the UI.
 
 | Feature | Backend module | Primary UI location | Secondary access | Shortcut |
 |---|---|---|---|---|
+| CPU quality (High / Medium / Low / Auto; cpu-quality-modes) | QualityController, PerformanceSettings | Options -> AUDIO -> QUALITY | Footer `QualityBadge`; Adv Col 3 Master oversampling tooltip | "Cycle CPU quality" (unbound) |
 | Instrument load | Model::GuitarLibrary | Adv Col 1 GUITAR, Preset browser | Header preset | Ctrl+O |
 | Save As Guitar | Workshop | Workshop header | - | Ctrl+G |
 | Per-string tuning | TuningEngine | Adv Col 1 GUITAR | Easy: headstock click | - |
@@ -652,6 +666,7 @@ the UI.
 | Setlist | LivePerf | Col 4 LIVE | Live Strip | PgUp/Dn |
 | Morph | LivePerf | Col 4 LIVE, Live Strip knob | - | - |
 | Tap tempo | LivePerf | Header tap | Live Strip pad | T |
+| Jam band (jam-mode.md 8) | Jam | Col 4 JAM, Easy rhythm strip JAM group | Live Strip JAM pill (while `jam_enabled`) | J, Shift+J, Alt+J |
 | Kill switch | LivePerf | Live Strip pill | - | \ |
 | Monitor mix | LivePerf | Live Strip, Col 4 LIVE | - | - |
 | Expression cal | LivePerf | Options EXPRESSION | - | - |

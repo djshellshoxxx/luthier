@@ -14,6 +14,7 @@
     and is checked.
 */
 
+#include <atomic>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <array>
@@ -177,8 +178,18 @@ public:
         (accessibility 5). */
     int getAnimationMs (int normalMs) const noexcept
     {
+        // cpu-quality-modes 4: AnimationPolicy (UI) decides once it exists;
+        // it combines Reduced motion with the CPU quality level.
+        if (auto* hook = animationMsHook.load (std::memory_order_relaxed))
+            return hook (normalMs);
+
         return reducedMotion ? 0 : normalMs;
     }
+
+    /** cpu-quality-modes 4: set by AnimationPolicy, which lives in the UI
+        sources the headless renderer does not link. */
+    using AnimationMsHook = int (*) (int) noexcept;
+    static inline std::atomic<AnimationMsHook> animationMsHook { nullptr };
 
     //==========================================================================
     void setVerbosity (Verbosity v);

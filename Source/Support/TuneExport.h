@@ -57,6 +57,7 @@ namespace TuneExport
         double sampleRate = 48000.0;              ///< "current host or user-selected"
         bool stems = false;                       ///< every aux bus as its own file
         double tailSeconds = 2.0;                 ///< 0 - 5 s after the final beat
+        bool includeJamBand = true;               ///< FEAT-JAM (jam-mode 9): the band in the render, when it is enabled
     };
 
     static constexpr int kNumAuxStems = 8;
@@ -77,7 +78,8 @@ namespace TuneExport
         may return false to cancel. */
     bool renderAudio (const juce::MemoryBlock& pluginState, double sampleRate, int blockSize,
                       double tailSeconds, bool stems, Render& result,
-                      const std::function<bool (double)>& progress = {});
+                      const std::function<bool (double)>& progress = {},
+                      bool includeJamBand = true);   // FEAT-JAM: with stems, Aux 9 and 10 as well
 
     /** Renders and writes the files: "<base>.wav", and with stems
         "<base> - Aux 1.wav" ... Returns the files written; `error` says why not. */
@@ -91,6 +93,7 @@ namespace TuneExport
     {
         MidiExportOptions profile;       ///< Luthier or Generic, split, PPQ (midi-export)
         bool includeRealism = true;      ///< "with realism events ... or as plain note-on / note-off"
+        bool includeJamBand = true;      ///< FEAT-JAM (jam-mode 9): appendJamTracks after the tune's own
     };
 
     /** The tune as a performance: its instrument parts (0 guitar, 1 bass) and
@@ -98,6 +101,14 @@ namespace TuneExport
     MidiPerformance buildPerformance (const Tune& tune, double sampleRate, bool includeRealism);
 
     bool exportMidi (const Tune& tune, const juce::File& destination, const MidiOptions& options, juce::String& error);
+
+    /** FEAT-JAM (jam-mode 9): plays the tune once through a fresh offline
+        instance with the Jam band as `pluginState` has it, and appends the
+        band's "Jam Drums" and "Jam Bass" tracks to the MIDI file already at
+        `midiFile`, on its PPQ. False, with a reason, when the band is not
+        enabled in the state or played nothing. */
+    bool appendJamTracks (const juce::MemoryBlock& pluginState, const juce::File& midiFile, juce::String& error,
+                          double sampleRate = 48000.0);
 
     //==========================================================================
     // 9.3 Notation

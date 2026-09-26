@@ -69,6 +69,8 @@ void MidiInterpreter::reset() noexcept
         s.startedAt = 0;
         s.releaseDueAt = -1;
         s.releaseWasLetRing = false;
+        s.pedalRinging = false;
+        s.pedalRingingNote = -1;
     }
 
     numPending = 0;
@@ -787,6 +789,7 @@ void MidiInterpreter::emitVoicedNote (const VoicedNote& note, int64_t timestamp,
 
     slots[(size_t) s].midiNote = note.midiNote;
     slots[(size_t) s].held = true;
+    slots[(size_t) s].pedalRinging = false;
     slots[(size_t) s].startedAt = timestamp;
     slots[(size_t) s].releaseDueAt = -1;
 }
@@ -941,6 +944,8 @@ void MidiInterpreter::flushDeferredReleases (int64_t blockStartSample, int numSa
         e.letRing = slot.releaseWasLetRing;
         out.addNoteOff (e);
 
+        slot.pedalRinging = slot.releaseWasLetRing;
+        slot.pedalRingingNote = slot.midiNote;
         slot.held = false;
         slot.midiNote = -1;
         slot.bendCents = 0.0;
@@ -990,6 +995,8 @@ void MidiInterpreter::releaseString (int stringIndex, int blockOffset, PlayEvent
     e.letRing = letRing;
     out.addNoteOff (e);
 
+    slot.pedalRinging = letRing;
+    slot.pedalRingingNote = slot.midiNote;
     slot.held = false;
     slot.midiNote = -1;
     slot.bendCents = 0.0;
@@ -1017,15 +1024,16 @@ void MidiInterpreter::handleController (int cc, int value, int channel,
     {
         const bool down = value >= 64;
 
-        if (sustainDown && ! down)
-        {
-            // Releasing the pedal drops every string whose key is already up.
-            for (int s = 0; s < numStrings; ++s)
-                if (! slots[(size_t) s].held && ! slots[(size_t) s].sostenutoHeld)
-                    continue;
-        }
-
+        const bool lifting = sustainDown && ! down;
         sustainDown = down;
+
+        // Releasing the pedal drops every string whose key is already up. This
+        // loop used to only `continue`, so a note let go under the pedal rang on
+        // at its open sustain for seconds after the pedal lifted (B-03/class 5).
+        if (lifting)
+            for (int s = 0; s < numStrings; ++s)
+                releasePedalRinging (s, blockOffset, out);
+
         return;
     }
 
@@ -1042,6 +1050,10 @@ void MidiInterpreter::handleController (int cc, int value, int channel,
         {
             for (int s = 0; s < numStrings; ++s)
                 slots[(size_t) s].sostenutoHeld = false;
+
+            if (sostenutoDown && ! sustainDown)
+                for (int s = 0; s < numStrings; ++s)
+                    releasePedalRinging (s, blockOffset, out);
         }
 
         sostenutoDown = down;
@@ -1128,6 +1140,28 @@ void MidiInterpreter::applyTarget (MidiTarget target, double value, int blockOff
 }
 
 //==============================================================================
+void MidiInterpreter::releasePedalRinging (int stringIndex, int blockOffset, PlayEventQueue& out) noexcept
+{
+    auto& slot = slots[(size_t) stringIndex];
+
+    if (! slot.pedalRinging || slot.held || slot.sostenutoHeld || sustainDown)
+        return;
+
+    NoteOffEvent e;
+    e.stringIndex = stringIndex;
+    e.midiNote = slot.pedalRingingNote;
+    e.sampleOffset = blockOffset;
+    e.letRing = false;
+    out.addNoteOff (e);
+
+    slot.pedalRinging = false;
+    slot.pedalRingingNote = -1;
+
+    if (technique != nullptr)
+        technique->noteEnded (stringIndex, 0);
+}
+
+//==============================================================================
 void MidiInterpreter::allNotesOff (PlayEventQueue& out) noexcept
 {
     numPending = 0;
@@ -1136,15 +1170,20 @@ void MidiInterpreter::allNotesOff (PlayEventQueue& out) noexcept
     {
         slots[(size_t) s].sostenutoHeld = false;
 
-        if (slots[(size_t) s].held)
+        // A string a pedal was holding open is sounding too: all notes off
+        // stops it as well.
+        if (slots[(size_t) s].held || slots[(size_t) s].pedalRinging)
         {
             NoteOffEvent e;
             e.stringIndex = s;
-            e.midiNote = slots[(size_t) s].midiNote;
+            e.midiNote = slots[(size_t) s].held ? slots[(size_t) s].midiNote : slots[(size_t) s].pedalRingingNote;
             e.sampleOffset = 0;
             e.letRing = false;
             out.addNoteOff (e);
         }
+
+        slots[(size_t) s].pedalRinging = false;
+        slots[(size_t) s].pedalRingingNote = -1;
 
         slots[(size_t) s].held = false;
         slots[(size_t) s].midiNote = -1;

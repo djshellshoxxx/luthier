@@ -1,4 +1,5 @@
 #include "Localisation.h"
+#include "QualityStrings.h"   // cpu-quality-modes
 
 namespace luthier
 {
@@ -251,7 +252,8 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         meaning, because a translator works from the key's context as much as
         from its English text.
     */
-    static const std::map<juce::String, juce::String> catalog =
+    // cpu-quality-modes: the CPU-quality strings live in QualityStrings.cpp.
+    static const std::map<juce::String, juce::String> catalog = QualityStrings::mergeInto (
     {
         // ---- application ------------------------------------------------------------
         { "app.name",                 "Luthier" },
@@ -426,6 +428,9 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "accessibility.shortcut.panic",           "Panic: silence all notes" },
         { "accessibility.shortcut.tapTempo",        "Tap tempo" },
         { "accessibility.shortcut.killSwitch",      "Kill switch" },
+        { "accessibility.shortcut.jamStartStop",    "Jam band: start or stop" },   // FEAT-JAM
+        { "accessibility.shortcut.jamFill",         "Jam band: fill" },
+        { "accessibility.shortcut.jamArm",          "Jam band: arm or disarm" },
         { "accessibility.shortcut.previousItem",    "Previous preset or snapshot" },
         { "accessibility.shortcut.nextItem",        "Next preset or snapshot" },
         { "accessibility.shortcut.previousWorkspaceTab", "Previous workspace tab" },
@@ -460,6 +465,17 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "accessibility.shortcut.options",         "Open options" },
         { "accessibility.shortcut.debugPanel",      "Open the debug panel" },
         { "accessibility.shortcut.audition",        "Audition" },
+        { "accessibility.shortcut.toggleStringAnimation", "Toggle string animation" },
+
+        // ---- animated-strings.md 5 and 8: Options -> Appearance -> Visual aids ------------------
+        { "options.appearance.visualAids.heading",        "VISUAL AIDS" },
+        { "options.appearance.visualAids.animateStrings", "Animate strings" },
+        { "options.appearance.visualAids.quality",        "Quality" },
+        { "options.appearance.visualAids.qualityName",    "String animation quality" },
+        { "options.appearance.visualAids.qualityLow",     "Low" },
+        { "options.appearance.visualAids.qualityHigh",    "High" },
+        { "options.appearance.visualAids.help",           "Strings vibrate on the guitar and fretboard while they sound. Display only: no effect on the sound." },
+        { "options.appearance.visualAids.paused",         "Paused while Reduced motion is on." },
 
         // ---- accessible descriptions -----------------------------------------------------------
         { "a11y.knob.role",           "Rotary control" },
@@ -551,7 +567,7 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "routing.normalization.caption", "Output normalization applies to the main output only." },
         { "workshop.normalization.note",   "Normalization is on: level differences between parts are evened out. Shadow audition (Alt-hover) still plays at the real level." },
         { "accessibility.shortcut.toggleNormalization", "Toggle output normalization" },
-    };
+    });
 
     return catalog;
 }

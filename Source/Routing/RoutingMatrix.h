@@ -53,6 +53,10 @@ struct MidiOutConfig
     bool luthierEvents = false;    ///< character / noise events as Luthier SysEx
     bool workshopChanges = false;  ///< part swaps and bench moves as Luthier SysEx
 
+    // jam-mode.md 9 (FEAT-JAM): the Jam band, drums on GM channel 10, bass on 11.
+    bool jamParts = false;
+    int jamDrumChannel = 10, jamBassChannel = 11;
+
     /** CC number each macro is echoed on, or -1 for "not assigned". One per
         macro parameter (ParamIDs::kNumMacros); the routing panel shows them all. */
     static constexpr int kNumMacroCcs = 8;
@@ -65,7 +69,8 @@ struct MidiOutConfig
         return enabled == o.enabled && passThrough == o.passThrough && rhythmEngine == o.rhythmEngine
             && stringActivity == o.stringActivity && ccBroadcast == o.ccBroadcast
             && tunePlayback == o.tunePlayback && luthierEvents == o.luthierEvents
-            && workshopChanges == o.workshopChanges && macroCc == o.macroCc && channel == o.channel;
+            && workshopChanges == o.workshopChanges && macroCc == o.macroCc && channel == o.channel
+            && jamParts == o.jamParts && jamDrumChannel == o.jamDrumChannel && jamBassChannel == o.jamBassChannel;
     }
 
     bool operator!= (const MidiOutConfig& o) const noexcept { return ! operator== (o); }
@@ -170,6 +175,12 @@ public:
                           juce::AudioBuffer<float>& buffer,
                           const juce::AudioBuffer<float>& monitor,
                           int numSamples) noexcept;
+
+    /** jam-mode 7 (FEAT-JAM): writes Aux 9 "Jam Drums" and Aux 10 "Jam Bass"
+        from the Jam mixer's stems, through their strips. Returns false when
+        the layout has neither (Separate then falls back to Main). */
+    bool writeJamBuses (juce::AudioProcessor& processor, juce::AudioBuffer<float>& buffer,
+                        const float* const* drums, const float* const* bass, int numSamples) noexcept;
 
     //==========================================================================
     // Latency (routing-io 7).

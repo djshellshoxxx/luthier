@@ -83,6 +83,10 @@ strip; over 0 dB uses a bracket icon that a colour-blind user still sees.
   disables the header LED pulse.
 - Value changes still animate visually via a static colour change to
   preserve feedback.
+- **The list of what moves is `AnimationPolicy`'s** (cpu-quality-modes 6):
+  every animated component registers with it and asks it, not
+  `isReducedMotion()`, whether and how fast to move. Reduced motion and
+  CPU quality Low combine only there; Low never flips this toggle.
 
 ## 6. Localization
 

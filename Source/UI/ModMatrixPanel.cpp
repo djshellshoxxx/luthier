@@ -142,12 +142,12 @@ ModSourceCard::ModSourceCard (LuthierAudioProcessor& p)
     history.fill (0.0f);
 
     setSlot (ModSourceSlots::lfoBase);
-    startTimerHz (20);
+    motion.startTimerHz (*this, 20);
 }
 
 ModSourceCard::~ModSourceCard()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void ModSourceCard::setSlot (int newSlot)
@@ -340,6 +340,8 @@ void ModSourceCard::mouseDrag (const juce::MouseEvent& e)
 
 void ModSourceCard::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds();
 
     // Each visible slider's name, in the space its row leaves on the left.

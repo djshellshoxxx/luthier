@@ -149,12 +149,12 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     refreshPresetDisplay();
     updateUndoRedoState();
 
-    startTimerHz (6);
+    motion.startTimerHz (*this, 6);
 }
 
 HeaderBar::~HeaderBar()
 {
-    stopTimer();
+    motion.stopTimer();
     processor.getPresetManager().removeChangeListener (this);
     processor.getMidiLearn().removeChangeListener (this);
 }
@@ -549,6 +549,8 @@ void HeaderBar::showFileMenu()
 //==============================================================================
 void HeaderBar::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds();
 
     g.setColour (Palette::panel);

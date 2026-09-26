@@ -609,12 +609,12 @@ TunePanel::TunePanel (LuthierAudioProcessor& p, TunePlayer& pl, TuneSession& s)
 
     refresh();
     setSize (360, getPreferredHeight());
-    startTimerHz (30);   // gui-engine-dataflow 24: the transport indicator drains at 30 Hz
+    motion.startTimerHz (*this, 30);   // gui-engine-dataflow 24: the transport indicator drains at 30 Hz
 }
 
 TunePanel::~TunePanel()
 {
-    stopTimer();
+    motion.stopTimer();
 
     if (looperWorker != nullptr)
         looperWorker->stopThread (30000);
@@ -1260,6 +1260,9 @@ void TunePanel::timerCallback()
 {
     updateTransport();
 
+    if (layersStrip != nullptr)   // FEAT-JAM: jam-mode 11
+        layersStrip->setPercussionReplaced (processor.isTunePercussionReplacedByJam());
+
     if (isShowing())
         showFirstEncounterHintIfDue();
 }
@@ -1757,6 +1760,8 @@ int TunePanel::getPreferredHeight() const
 
 void TunePanel::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     g.fillAll (Palette::background);
 
     g.setFont (Fonts::ui (13.0f, true));

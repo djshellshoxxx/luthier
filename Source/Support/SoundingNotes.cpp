@@ -34,6 +34,12 @@ SoundingNotes::String SoundingNotes::unpack (std::uint64_t word) noexcept
 
 void SoundingNotes::publish (const int* notes, const int* bendCents, const std::int64_t* startSamples, int numStrings) noexcept
 {
+    publish (notes, bendCents, startSamples, numStrings, nullptr, 0, 44100.0);
+}
+
+void SoundingNotes::publish (const int* notes, const int* bendCents, const std::int64_t* startSamples, int numStrings,
+                             const Motion* motion, std::int64_t samplePosition, double sampleRate) noexcept
+{
     const auto seq = sequence.load (std::memory_order_relaxed);
     auto& target = buffers[(size_t) ((seq + 1) & 1u)];   // the one readers are not pointed at
 
@@ -54,11 +60,44 @@ void SoundingNotes::publish (const int* notes, const int* bendCents, const std::
                                           std::memory_order_relaxed);
     }
 
+    // animated-strings.md 4.1: the display's record, in the same buffer.
+    for (int s = 0; s < n; ++s)
+    {
+        const Motion m = motion != nullptr ? motion[s] : Motion {};
+        target.level[(size_t) s].store (m.level, std::memory_order_relaxed);
+        target.stopFret[(size_t) s].store (m.stopFret, std::memory_order_relaxed);
+        target.pushCents[(size_t) s].store (m.pushCents, std::memory_order_relaxed);
+        target.pluckPosition[(size_t) s].store (m.pluckPosition, std::memory_order_relaxed);
+        target.fret[(size_t) s].store (m.fret, std::memory_order_relaxed);
+        target.exciteSample[(size_t) s].store (m.exciteSample, std::memory_order_relaxed);
+        target.flags[(size_t) s].store ((std::uint32_t) m.damping | ((std::uint32_t) m.harmonicPartial << 8)
+                                          | ((std::uint32_t) m.stopKind << 16), std::memory_order_relaxed);
+    }
+
+    target.samplePosition.store (samplePosition, std::memory_order_relaxed);
+    target.sampleRate.store (sampleRate, std::memory_order_relaxed);
+
     target.bits[0].store (bits[0], std::memory_order_relaxed);
     target.bits[1].store (bits[1], std::memory_order_relaxed);
     target.numStrings.store (n, std::memory_order_relaxed);
 
     sequence.store (seq + 1, std::memory_order_release);
+}
+
+float SoundingNotes::readLevel (int s) const noexcept
+{
+    if (! juce::isPositiveAndBelow (s, kMaxStrings))
+        return 0.0f;
+
+    return buffers[(size_t) (sequence.load (std::memory_order_acquire) & 1u)].level[(size_t) s].load (std::memory_order_relaxed);
+}
+
+float SoundingNotes::readFret (int s) const noexcept
+{
+    if (! juce::isPositiveAndBelow (s, kMaxStrings))
+        return 0.0f;
+
+    return buffers[(size_t) (sequence.load (std::memory_order_acquire) & 1u)].fret[(size_t) s].load (std::memory_order_relaxed);
 }
 
 bool SoundingNotes::read (Frame& out) const noexcept
@@ -81,6 +120,25 @@ bool SoundingNotes::read (Frame& out) const noexcept
 
         for (int s = 0; s < f.numStrings; ++s)
             f.strings[(size_t) s] = unpack (source.strings[(size_t) s].load (std::memory_order_relaxed));
+
+        // animated-strings.md 4.1.
+        for (int s = 0; s < f.numStrings; ++s)
+        {
+            auto& m = f.motion[(size_t) s];
+            m.level = source.level[(size_t) s].load (std::memory_order_relaxed);
+            m.stopFret = source.stopFret[(size_t) s].load (std::memory_order_relaxed);
+            m.pushCents = source.pushCents[(size_t) s].load (std::memory_order_relaxed);
+            m.pluckPosition = source.pluckPosition[(size_t) s].load (std::memory_order_relaxed);
+            m.fret = source.fret[(size_t) s].load (std::memory_order_relaxed);
+            m.exciteSample = source.exciteSample[(size_t) s].load (std::memory_order_relaxed);
+            const auto flags = source.flags[(size_t) s].load (std::memory_order_relaxed);
+            m.damping = (std::uint8_t) (flags & 0xff);
+            m.harmonicPartial = (std::uint8_t) ((flags >> 8) & 0xff);
+            m.stopKind = (std::uint8_t) ((flags >> 16) & 0xff);
+        }
+
+        f.samplePosition = source.samplePosition.load (std::memory_order_relaxed);
+        f.sampleRate = source.sampleRate.load (std::memory_order_relaxed);
 
         f.sequence = seq;
 

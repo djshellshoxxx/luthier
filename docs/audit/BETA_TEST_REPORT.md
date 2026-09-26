@@ -76,47 +76,46 @@ IN PROGRESS (a helper branch covers it).
 - Fix: `ParameterBridge::getEngineLock()`; the structural pass holds it, `processSlice` try-locks it around `applyToEngine` and the engine render, and outputs silence for a block that loses the race (the audio thread never waits). 6 clean stress runs after.
 - Still open behind it: `ReverbPedal::rebuildLines` calls `std::vector::assign` on the audio thread when the Size parameter changes (allocation when the new length exceeds capacity) - RT-safety, not a crash any more.
 
-### B-02 Strings self-excite after the rhythm engine stops; panic does not silence them. OPEN, critical
+### B-02 Strings grew after the rhythm engine stopped; panic did not silence them. RESOLVED
 
-- Test: `Combo.unisonStringsNeverGrowAndPanicSilencesThem`, and `Combo.everyRhythmPatternAndGenreKit` ("keeps sounding after off", 27 of 65).
-- Settings: defaults (`resetEverything`), factory pattern (any; e.g. #2 "Classic Strum"), rhythm engine free-running, chord C3-E3-G3 (48, 52, 55) held 2 s, then `RhythmEngine::setEnabled(false)`, all-notes-off on 16 channels and `LuthierAudioProcessor::panic()`.
-- Symptom: with nothing played the output **grows** from -42 dBFS to -14 dBFS over 8 s (peak 0.36). `panic()` called again leaves it at -45 dBFS one second later.
-- State at 8 s: strings 0-1 at 330 Hz, 2-3 at 196 Hz, 4-5 at 130.8/130.9 Hz (each chord tone voiced on two strings), all `Damping::None`, loop gain 0.989-0.992, strings 4-5 level 0.23. The unison pair is the one growing (f0 of the output 130.9 Hz).
-- Suspected cause: (a) the rhythm engine's voiced strings are never released when it is disabled, and `LuthierEngine::panic()` chokes then `reset()`s the strings, after which something re-excites them; (b) the sympathetic coupling between two strings 0.1 Hz apart has a combined loop gain above 1 (the same pitch held on two strings in Guitar Controller mode, plucked and released, does NOT grow, so the energy must be coming from a driven source - check the feedback loop and the strum/chuck state the rhythm engine leaves behind). Owner: rhythm engine / string interaction (realism helpers).
+- `Combo.unisonStringsNeverGrowAndPanicSilencesThem` and `Combo.everyRhythmPatternAndGenreKit` (all 37 patterns and 32 kits) pass on the current branch: the integration branch's review fixes plus class 5 here (pedal-up release, released-string damping) left no growing or undamped string after the engine stops and panic. Both tests stay in the suite as the regression guard.
 
-### B-03 Released notes keep ringing through sympathetic coupling. OPEN, high
+### B-03 Released notes rang on. FIXED (class 5: release cap + pedal-up release; test corrected)
 
-- Tests: `Combo.everyGuitarTypePlaysEveryPhrase` (27 of 192), pairwise (86 of 614), factory presets (32 of 288), snapshots (3).
-- Settings (simplest): defaults, note 52 (a fretted E3) for 0.6 s. With `coupling_amount` 0.85 (default) the output 250 ms after note-off is only 6-9 dB under the note and decays at about 11 dB/s (-43 dBFS 2.2 s after release). With `coupling_amount` at its minimum (0.05) it drops 32 dB in 0.5 s.
-- sustain-and-decay.md SUS-08 wants the released string more than 40 dB down by 250 ms. The released string is; the undamped open strings it excited carry most of the note on. Real sympathetic ring is roughly -25 to -40 dB relative.
-- Suspected cause: coupling gain into undamped open strings too high at the default (string-interaction.md). Owner: realism helpers.
+- Tests: `Combo.everyGuitarTypePlaysEveryPhrase`, pairwise, factory presets, snapshots ("does not decay after release"); `Combo.releasedStringIsDampedQuickly`, `Combo.liftingTheSustainPedalReleasesItsNotes`.
+- What was wrong in the TEST: it demanded the mix fall 30 dB within ~2.5 s of the release. Measured per string, the sympathetic ring the played note leaves on the open strings is 26-37 dB under it at the default `coupling_amount` (the engine spec's weak coupling; real guitars 20-40 dB), and those undamped strings decay at their own open T60 of several seconds, exactly as a real guitar's do until a hand mutes them. The earlier "6-9 dB down at 250 ms, coupling too strong" reading in this report was wrong. The check is now: tail 20 dB under the note (or under -60 dBFS, or at the rig's floor) AND still falling (2 dB over the last second).
+- What was wrong in the ENGINE (two things):
+  1. `StringEngine` `Released` damping scaled the open T60 by 0.13, so a released note on a 4.5-7 s string took 0.6-0.9 s to die (21-28 dB down at 250 ms; SUS-08 asks > 40, and a lifted fingertip stops a string in 0.2-0.4 s). The released T60 is now capped at 0.3 s (geometric in the damping amount, so SUS 5.1's release ramp still eases in). At the output with coupling at minimum: 36-40 dB at 250 ms for every guitar type (the test allows 35 at the output for amp/cab/coupling residue).
+  2. `MidiInterpreter` pedal-up was a stub (a loop that only `continue`d): notes let go under the sustain pedal were never damped when it lifted, and all-notes-off skipped them too. Implemented for CC 64 and CC 66 (sostenuto), plus all-notes-off. This was every "does not decay" case on the basses (phrase sustainPedal).
 
-### B-04 Loud idle noise floor at high gain; no gate. OPEN, medium
+### B-04 Loud idle noise floor. FIXED (class 4: wrong pickups on every factory preset; threshold made physical)
 
-- Test: `Combo.sustainFeaturesStayBounded` ("loud idle noise floor", 14), also 7 factory-preset renders and 6 advanced-range renders.
-- Settings: defaults with `amp_gain` 1.0, `amp_master` 1.0, `sustain_scale` 1.0, `amp_model` 1, 4, 5, 8, 10, 11, 13. Idle floor -22.3 to -29.8 dBFS with nothing played (`hum_noise` 0.25, `noise_amp_buzz` 0.12 at their defaults, amplified by the amp).
-- A NoiseGate pedal type exists, but no high-gain factory preset loads one and there is no gate on the amp path or the Easy tone strip (see GAPS_AUDIT U-2).
+- Root cause of most reports: factory presets (and Reset) carried the layout defaults for the parameters a guitar's parts own, and a preset's values beat the parts - so every SG, Les Paul and 335 preset played three single coils (and an X-braced spruce top) and hummed like a Strat. "Octave Fuzz Stoner" (an SG) idled at -25 dBFS. Fixed with B-05 (below).
+- The threshold: the absolute -30 dBFS ceiling was physically wrong. The idle floor is entirely the pickup's mains hum (`noise_amp_buzz`; with it at 0 the floor is -100 dBFS: no DC, no oscillation, no hiss). At the pickup it sits about 50 dB under a clean chord (real single coils: 30-50 dB). An amp with gain and master both on 10 gives the hum its full small-signal gain while the chord saturates, so it lands 3.5-18 dB under the playing depending on the model (British 800 3.5, Boutique Lead 4.3, Crunch 120 5.6, Plexi 7.6, the rest 11-24) - which is what a real dimed high-gain amp does with single coils, and why players gate. The check is now signal-to-noise: any rig's floor below its own playing level; a shipped factory sound's 20 dB below (above -60 dBFS).
+- Fuzz Face Lead (single coil, germanium fuzz, Plexi) sat 12-18 dB under: it now sets a quieter `noise_amp_buzz` (0.04, a shielded guitar) rather than a gate that would cut the fuzz's decay.
+- Still open: no gate on the amp path or the Easy tone strip (GAPS_AUDIT U-2); the four hottest amp models at full gain/master are physically plausible but noisy.
 
-### B-05 Reset to defaults leaves the default guitar's body inconsistent. OPEN, medium
+### B-05 Reset and every factory preset ignored the guitar's own parts. FIXED (class 4)
 
-- `LuthierAudioProcessor::resetEverything()` vs a fresh instance: `body_bracing` Solid Body -> X-Brace, `body_top_wood` Alder -> Sitka Spruce, `body_back_wood` Alder -> Rosewood, `pickup0-2_magnet` Alnico 3 -> 5, `circuit_volume_pot`/`tone_pot` 250k -> 500k, `circuit_tone_cap` 47 -> 22 nF, `setup_fret_height`, `body_width/depth/age` also differ. The fresh instance has the default Strat's parts written into the parameters; Reset writes raw parameter defaults and the guitar reload does not overwrite them, so the UI shows an acoustic's woods on the Strat.
+- Factory presets now carry a guitar block with `partsWin` and the recipe's own values (`keep`); the load writes the guitar's parts even over the just-loaded layout defaults (bypassing the `writtenSinceGuitarType` guard, which took the preset's own writes for the host's), then restores only the recipe values the parts replaced - so "Drop C Riff" keeps its tuning and a host's later edits are untouched. Reset passes `partsWin` too. Generated factory files carry `factoryRevision` (3); `writeAll` regenerates an older generated file (never a user edit: PresetManager writes no revision, and older generated files had no guitar block while every saved preset has one).
+- Test: `Combo.factoryPresetsAndResetUseTheGuitarsOwnParts`.
 
-### B-06 Click at a preset switch. OPEN, medium
+### B-06 Click at a preset switch. FIXED (class 2)
 
-- Test: `Combo.presetSwitchUnderARingingNoteDoesNotClick`.
-- Settings: preset #9 "J-Style Fingerstyle", note 52 ringing, switch to preset #10 "P-Bass Flatwound" at 0.5 s: sample step 0.311 in the 20 ms after the switch vs 0.034 before. The other 35 transitions are clean.
+- A preset switch under a ringing note cut it mid-cycle: J-Style Fingerstyle -> P-Bass Flatwound stepped 0.32 of full scale 72 samples into the next block. The processor now fades out (5 ms) before a preset load or structural pass and back in after, the message thread waiting up to 60 ms for the audio thread's fade (outermost call only; skipped when no other thread is rendering). The fade length first collapsed to one sample because `getSampleRate()` is 0 until a host sets it; it uses the prepared rate.
+- The test now renders on its own thread while the message thread loads, as a host does; all 36 factory transitions pass.
 
 ### B-07 Legacy `doubler_on` migrates on every load. OPEN, low
 
 - `PresetManager::fromVar`: any state with `doubler_on` > 0.5 adds a Doubler pedal and sets `doubler_on` to 0, regardless of the preset's version. A host automating the (hidden) parameter, or a session saved with it on, changes its own rig on reload. Excluded from `everyParameterSurvivesTheSessionStateRoundTrip` with a pointer here. Suggest gating the migration on the preset's format version.
 
-### B-08 Render not bit-reproducible after reset / across instances. OPEN, low
+### B-08 Render depended on what was played before. FIXED (class 3)
 
-- `Combo.renderIsDeterministicAfterReset` (first run: 9 presets, max diff up to 0.016 on #25 "Shred Lead"; after merging review: passes) and `Combo.sessionStateRoundTripReproducesAudio` (after merge: #14 "8-String Djent" 0.00016, #18 "Drop C Riff" 0.0016, #21 "Modern Metal Chug" 0.00053; parameters all identical). Some noise or humanisation source is seeded per instance rather than from the state. Matters for offline bounce and freeze-track reproducibility.
+- "State round trip differs" (8-String Djent, Drop C Riff, Modern Metal Chug, up to 0.0016) was not missing state: the saved state was identical. The source instance had played other presets first, and `StringEngine::reset()` kept each string's last-note termination brightness (nut or fret material, part-acoustics 4) and sustain scale - a loop cutoff 0.9% high on four strings. Both are now reset. Test: `Combo.renderDoesNotDependOnWhatWasPlayedBefore` (bit-identical).
 
-### B-09 Notes below the instrument's range are silent. OPEN, info
+### B-09 Notes below the instrument's range are silent. BY DESIGN (class 1); notice still missing
 
-- Preset #4 "Nashville High-Strung", palm-mute phrase (E2, note 40): noteRms -82 dBFS. Also one pairwise row. Out-of-range notes are dropped without transposing and without a notice; a user playing a keyboard part hears nothing.
+- The voicer drops pitches no string can sound (RubricVoicer, exact mode). Nashville High-Strung's low strings are an octave up, so the palm-mute phrase's E2 is not the instrument's to play. The harness now moves each phrase up by whole octaves to the guitar's lowest open string, and `Combo.notesBelowTheRangeAreDroppedAndInRangeNotesSound` pins the behaviour. A notice or an octave-fold option is still worth having (GAPS_AUDIT U-7).
 
 ### B-10 Preset-morph position lost from session state. FIXED (`748aeb9`, superseded by the integration branch's identical fix; `91f946f`)
 
@@ -142,6 +141,18 @@ IN PROGRESS (a helper branch covers it).
 ### B-14 Panic and Reset do not stop the transport-side players. OPEN, medium
 
 - From the gap audit (A): `LuthierAudioProcessor::panic()` stops the audition and the engine only; the looper, backing track, tune player, metronome, progression looper and rhythm engine keep going.
+
+### B-15 `string_age` Old nearly silences a bass above E3. OPEN (realism-a owns string aging)
+
+- Found while fixing B-05: with the P-Bass's real parts, "P-Bass Flatwound" (`string_age` Old) plays G3 at -52 dBFS where the same bass with Fresh strings plays it at -12; notes above about A3 are silent. Old strings go dull and short, not mute. `Combo.everyFactoryPresetPlaysEveryPhrase` fails 5 renders of this preset on it; left failing for the owner.
+
+### B-16 clap-validator after the helpers landed: family switch overwrote host values; one parameter drifts an ulp. FIXED / OPEN (low)
+
+- After merging realism-a/b/c, model-gaps, tune-help, visual, release and review, clap-validator's three state-reproducibility tests failed: `setup_style` came back 0.0 instead of 0.2, and 'Distance to Amp' (`noise_player_distance`) came back 0.45275941 instead of 0.45275944.
+- `setup_style` (FIXED): a guitar-type change flushed at save time crossed guitar<->bass, and `BassFamilyDefaults::retarget` and the strum-default retarget wrote the family defaults over values the host had just written with the type. Both now honour the host-write guard the guitar-parameter writes use (`guitarLoadKeepsHostWrites && writtenSinceGuitarType`), and their own writes are unstamped, so switching back still restores the family defaults (`BassTechniques.bassDefaultsApplyOnLoad` passes).
+- `RangeState::applyTo` (FIXED on the way): re-wrote every ranged parameter through a float plain-value round trip even when its range did not change; it now skips unchanged ranges.
+- 'Distance to Amp' (OPEN, low): our state stores and restores the normalised float bit-exactly (checked directly); the value clap-validator expects is the one it sent, and only this skewed-range parameter shows the drift, so it sits between the CLAP wrapper's cached value and JUCE's plain-value storage (`AudioParameterFloat` keeps the plain value; on a skewed range normalised -> plain -> normalised is not idempotent at the last bit). Nudging the restored value by a few ulps did not change the result. Harmless to audio.
+- pluginval strictness 10 on the merged build: every test passes except Parameter thread safety, which still exceeds its default 30 s timeout on this shared 4-core container (B-12).
 
 ## Passed
 

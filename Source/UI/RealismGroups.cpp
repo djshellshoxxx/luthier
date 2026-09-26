@@ -79,12 +79,12 @@ StringAgingGroup::StringAgingGroup (LuthierAudioProcessor& p)
     restringAllButton.onClick = [this] { restringAll(); };
     addAndMakeVisible (restringAllButton);
 
-    startTimerHz (4);
+    motion.startTimerHz (*this, 4);
 }
 
 StringAgingGroup::~StringAgingGroup()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void StringAgingGroup::restring (int stringIndex)
@@ -170,6 +170,8 @@ void StringAgingGroup::resized()
 
 void StringAgingGroup::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     // One row per string: effective hours and a brightness bar.
     if (restringButtons.isEmpty())
         return;
@@ -297,12 +299,12 @@ EnvironmentGroup::EnvironmentGroup (LuthierAudioProcessor& p)
     convolutionNote.setColour (juce::Label::textColourId, Palette::textDisabled);
     addChildComponent (convolutionNote);
 
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);
 }
 
 EnvironmentGroup::~EnvironmentGroup()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void EnvironmentGroup::retune()
@@ -520,13 +522,13 @@ BodyCouplingGroup::BodyCouplingGroup (LuthierAudioProcessor& p)
     tapButton.onClick = [this] { processor.getEngine().requestBodyTap (0.8); };
     addAndMakeVisible (tapButton);
 
-    startTimerHz (4);
+    motion.startTimerHz (*this, 4);
     refreshNow();
 }
 
 BodyCouplingGroup::~BodyCouplingGroup()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 std::vector<float> BodyCouplingGroup::computeWolfMap (const LuthierAudioProcessor& p, int& numStrings)

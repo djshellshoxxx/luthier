@@ -433,6 +433,10 @@ void EasyPanel::buildRhythmStrip()
     rhythmReadout.setTooltip ("The chord the rhythm engine is playing, and the next strum");
     addAndMakeVisible (rhythmReadout);
 
+    // FEAT-JAM (jam-mode 8.2): the band's pill, style, intensity and volume.
+    jamGroup = std::make_unique<JamStripGroup> (processor);
+    addAndMakeVisible (*jamGroup);
+
     refreshRhythmStrip();
 }
 
@@ -724,8 +728,11 @@ void EasyPanel::resized()
         r.removeFromLeft (Metrics::grid);
         rhythmEnableButton.setBounds (r.removeFromLeft (52));
         r.removeFromLeft (Metrics::grid);
+        if (jamGroup != nullptr)   // FEAT-JAM: the JAM group at the right end
+            jamGroup->setBounds (r.removeFromRight (juce::jmin (JamStripGroup::preferredWidth, juce::jmax (0, r.getWidth() - 290))));
+
         rhythmReadout.setBounds (r.removeFromRight (110));
-        rhythmHintLabel.setBounds (r.removeFromRight (110));
+        rhythmHintLabel.setBounds (r.removeFromRight (jamGroup != nullptr ? 90 : 110));
         rhythmFeelSlider.setBounds (r);
     }
 }

@@ -14,6 +14,7 @@
 #include "UI/Notifications.h"
 #include "Export/MidiImportTargets.h"   // midi-export 5 (MODEL-GAPS)
 #include "UI/Onboarding.h"
+#include "UI/QualityBadge.h"   // cpu-quality-modes
 
 namespace luthier
 {
@@ -78,6 +79,11 @@ public:
     /** output-normalization.md 5.1: Options -> AUDIO with the switch focused
         (the header / Easy badge, the banner's [Options]). */
     void openNormalizationOptions();
+    /*  cpu-quality-modes 5: the footer badge's destination - Options -> AUDIO
+        with focus in the CPU quality group. */
+    void openQualityOptions();
+    QualityBadge& getQualityBadge() noexcept { return qualityBadge; }
+    QualityEditorLink& getQualityLink() noexcept { return qualityLink; }
 
     //==========================================================================
     // onboarding.md 2-4 (TUNE-HELP-ONBOARDING; PluginEditorOnboarding.cpp).
@@ -115,7 +121,6 @@ private:
     void toggleWorkshop();
     int tabBeforeWorkshop = -1;
     bool newDotsApplied = false;   // gui-integration 20
-    bool cpuLimitEpisode = false;   ///< performance-budget.md 8: the CPU limit banner, once per episode
 
     /** guitar-workshop.md 6 (Ctrl+G): asks for a name and saves the guitar. */
     void showSaveGuitarDialog();
@@ -190,6 +195,9 @@ private:
 
     juce::TextButton chordButton { "Chords / Tab" };
 
+    // cpu-quality-modes 5 / 6: the footer badge and this editor's link.
+    QualityBadge qualityBadge { processor };
+    QualityEditorLink qualityLink { processor, notifications };
     /** gui-integration 1 / 12: the footer's scrolling data stream (Options ->
         Appearance can hide it). VISUAL-WORKSHOP-QA. */
     DataStreamDisplay dataStream;

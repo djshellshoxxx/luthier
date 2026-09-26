@@ -12,6 +12,7 @@
     be shown without them.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Guitar/GuitarThumbnails.h"
 #include "Widgets.h"
@@ -176,6 +177,10 @@ private:
     int lastStreamCount = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DebugPanel)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "DebugPanel" };
 };
 
 //==============================================================================
@@ -274,6 +279,10 @@ private:
     double progress = 0.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ExportPanel)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "ExportPanel" };
 };
 
 //==============================================================================

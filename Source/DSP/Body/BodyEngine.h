@@ -16,6 +16,8 @@
 
 #include "../Common/DspCommon.h"
 #include "../Common/ConvolutionInstaller.h"
+#include "../Common/IrVariants.h"
+#include "../../Support/QualityProfile.h"
 #include "../../Model/Guitar/BodyModels.h"
 #include <atomic>
 #include <vector>
@@ -115,6 +117,21 @@ public:
     /** Latency the convolution path adds, in samples. Reported to the host. */
     int getLatencySamples() const noexcept;
 
+    //==========================================================================
+    /*  cpu-quality-modes 2.1 / 2.3: the level's IR variant and modal cap. The
+        modes that run are the eight lowest-frequency ones plus the rest by
+        energy; dropped modes ramp to 0 over 20 ms before being skipped (a hard
+        switch drops them at once). Audio thread. */
+    void setQualityLevel (const QualityProfile& profile, bool hard) noexcept;
+
+    /** Modes actually running (<= getNumModes()). */
+    int getRunningModeCount() const noexcept { return juce::jmin (modeRunCount, numActiveModes); }
+
+    /** The priority order the modal cap uses: indices into getModes(). */
+    const int* getModePriority() const noexcept { return modePriority.data(); }
+
+    const IrVariants& getIrVariants() const noexcept { return irVariants; }
+
     /** Number of active modes in the modal bank. */
     int getNumModes() const noexcept { return numActiveModes; }
     const BodyMode* getModes() const noexcept { return activeModes.data(); }
@@ -166,6 +183,19 @@ private:
     std::atomic<bool> stagedReady { false };
 
     std::vector<BodyMode> buildScratch;
+
+    // --- cpu-quality-modes ----------------------------------------------------
+    IrVariants irVariants;
+    std::array<int, BodyModels::kMaxModes> modePriority {}, stagedPriority {};
+    int modeCap = BodyModels::kMaxModes;
+    int modeRunCount = BodyModels::kMaxModes;   ///< modes processed (priority order)
+    int modeTarget = BodyModels::kMaxModes;     ///< where a ramp ends
+    int modeRampLeft = 0, modeRampTotal = 1;
+
+    void updateModeRun (bool hard) noexcept;
+    bool modesCapped() const noexcept { return modeRunCount < numActiveModes || modeRampLeft > 0; }
+    inline double runModes (double in, int sampleInBlock) noexcept;
+    void advanceModeRamp (int numSamples) noexcept;
 
     // --- shared --------------------------------------------------------------
     Biquad airShelf;

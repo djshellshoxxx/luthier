@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
+
 /*  The amp's own face with its live controls on it (proposals/visual-polish.md
     2-4, gui-integration.md 3.2 and 4.3).
 
@@ -120,6 +122,12 @@ private:
 
     float shownDrive = 0.0f;
     bool shownStale = false;
+
+    /*  cpu-quality-modes 6: the valve glow is Decorative. At Off the timer
+        stops, the glow is drawn static from the drive parameter, and the
+        policy's 4 Hz poll keeps the model and the pilot light current. */
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Decorative, "AmpFacePanel",
+                                           [this] { refresh(); }, [this] { refresh(); } };
     double lastSag = 0.0, lastSagChange = 0.0;
 
     juce::Image faceImage;

@@ -528,6 +528,20 @@ void Looper::processBlock (juce::AudioBuffer<float>& buffer, int numSamples) noe
     auto* left = buffer.getWritePointer (0);
     auto* right = buffer.getWritePointer (1);
 
+    // jam-mode 11 (FEAT-JAM): a first recording waits for the band's downbeat.
+    if (currentState == State::recordingFirst && recordStartDelay > 0)
+    {
+        const int skip = juce::jmin (recordStartDelay, numSamples);
+        recordStartDelay -= skip;
+
+        if (skip == numSamples)
+            return;
+
+        left += skip;
+        right += skip;
+        numSamples -= skip;
+    }
+
     const int position = getPlayPosition();
     const int length = getLoopLengthSamples();
 
@@ -632,6 +646,52 @@ void Looper::processBlock (juce::AudioBuffer<float>& buffer, int numSamples) noe
                         std::memory_order_relaxed);
 }
 
+void Looper::renderPlaybackMidi (juce::MidiBuffer& out, int numSamples) const noexcept
+{
+    const auto currentState = getState();
+    const int length = getLoopLengthSamples();
+
+    if ((currentState != State::playing && currentState != State::overdubbing) || length <= 0 || numSamples <= 0)
+        return;
+
+    const int position = getPlayPosition();
+
+    for (const auto& layer : layers)
+    {
+        // A layer the message thread is still appending to (performance-budget
+        // 0.4's drain) is skipped this block rather than read mid-write.
+        if (! layer.hasContent() || layer.isMuted()
+              || pendingPerLayer[(size_t) (&layer - layers.data())].load (std::memory_order_acquire) != 0
+              || (currentState == State::overdubbing && (int) (&layer - layers.data()) == getActiveLayer()))
+            continue;
+
+        const auto& sequence = layer.getMidi();
+
+        // The block's window of the loop, in at most two pieces (it may wrap).
+        for (int piece = 0; piece < 2; ++piece)
+        {
+            const int from = piece == 0 ? position : 0;
+            const int to = piece == 0 ? juce::jmin (length, position + numSamples) : position + numSamples - length;
+            const int shift = piece == 0 ? -position : length - position;
+
+            if (to <= from)
+                continue;
+
+            for (int i = sequence.getNextIndexAtTime ((double) from); i < sequence.getNumEvents(); ++i)
+            {
+                const auto* e = sequence.getEventPointer (i);
+                const double t = e->message.getTimeStamp();
+
+                if (t >= (double) to)
+                    break;
+
+                if (e->message.isNoteOnOrOff())
+                    out.addEvent (e->message, juce::jlimit (0, numSamples - 1, (int) t + shift));
+            }
+        }
+    }
+}
+
 void Looper::captureMidi (const juce::MidiBuffer& midi, int numSamples) noexcept
 {
     juce::ignoreUnused (numSamples);
@@ -662,6 +722,7 @@ void Looper::captureMidi (const juce::MidiBuffer& midi, int numSamples) noexcept
         e.position = position + metadata.samplePosition;
         e.size = metadata.numBytes;
         std::memcpy (e.bytes, metadata.data, (size_t) metadata.numBytes);
+        pendingPerLayer[(size_t) juce::jlimit (0, kMaxLayers - 1, layer)].fetch_add (1, std::memory_order_relaxed);   // FEAT-JAM
     }
 }
 
@@ -678,6 +739,9 @@ void Looper::drainPendingMidi()
             if (juce::isPositiveAndBelow (e.layer, kMaxLayers))
                 layers[(size_t) e.layer].getMidi().addEvent (juce::MidiMessage (e.bytes, e.size),
                                                              (double) e.position);
+
+            // FEAT-JAM: the audio thread reads this layer again once its events are in.
+            pendingPerLayer[(size_t) juce::jlimit (0, kMaxLayers - 1, e.layer)].fetch_sub (1, std::memory_order_release);
         }
     };
 

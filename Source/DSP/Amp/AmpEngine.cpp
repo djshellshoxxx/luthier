@@ -1,4 +1,5 @@
 #include "AmpEngine.h"
+#include "../../Support/QualityProfile.h"
 
 namespace luthier
 {
@@ -101,11 +102,23 @@ void AmpEngine::prepare (double sampleRate, int /*maxBlockSize*/)
     warmupGain.snapTo (standby ? 0.0 : 1.0);
 
     updateVoicing();
+
+    // cpu-quality-modes 2.2: the pad and the crossfade's old path, made here
+    // on the message thread so a factor change never allocates.
+    nominalFactor = 4;
+    latencyPad.setLength (0);
+
+    if (twin.engine == nullptr)
+        twin.engine = std::make_shared<AmpEngine>();
+
     reset();
 }
 
 void AmpEngine::reset() noexcept
 {
+    latencyPad.reset();
+    history.reset();
+    fadeLeft = 0;
     oversampler.reset();
     toneStack.reset();
     brightShelf.reset();
@@ -266,8 +279,10 @@ void AmpEngine::setCustomToneStackStyle (int style) noexcept
         updateVoicing();
 }
 
-void AmpEngine::setOversamplingFactor (int factor) noexcept
+void AmpEngine::retuneForFactor (int factor) noexcept
 {
+    // cpu-quality-modes 2.2: the oversampled-rate filters keep their state and
+    // only their coefficients move to the new rate.
     oversampler.setFactor (factor);
     const double newRate = oversampler.getOversampledRate();
 
@@ -276,24 +291,99 @@ void AmpEngine::setOversamplingFactor (int factor) noexcept
 
     osRate = newRate;
 
-    toneStack.prepare (osRate);
+    toneStack.setSampleRateKeepingState (osRate);
 
     for (int i = 0; i < kMaxStages; ++i)
     {
-        stageCoupling[i].prepare (osRate);
-        stageSmoothing[i].prepare (osRate);
+        stageCoupling[i].setSampleRateKeepingState (osRate);
+        stageSmoothing[i].setSampleRateKeepingState (osRate);
     }
 
-    piCoupling.prepare (osRate);
-    transformerHf.prepare (osRate);
-    transformerLf.prepare (osRate);
-    sagFollower.prepare (osRate);
+    piCoupling.setSampleRateKeepingState (osRate);
+    transformerHf.setSampleRateKeepingState (osRate);
+    transformerLf.setSampleRateKeepingState (osRate);
+    sagFollower.setSampleRateKeepingState (osRate);
 
     sagAttack = std::exp (-1.0 / (0.020 * osRate));
     sagRelease = std::exp (-1.0 / (0.350 * osRate));
     sagFollower.setTimes (0.008, 0.220);
 
     updateVoicing();
+}
+
+void AmpEngine::setOversamplingFactor (int effective, int nominal, bool crossfade) noexcept
+{
+    auto clampFactor = [] (int f) { return f >= 8 ? 8 : f >= 4 ? 4 : f >= 2 ? 2 : 1; };
+    nominal = clampFactor (nominal);
+    effective = juce::jmin (clampFactor (effective), nominal);
+    nominalFactor = nominal;
+
+    const int padLength = Oversampler::latencyFor (nominal) - Oversampler::latencyFor (effective);
+
+    if (effective == oversampler.getFactor())
+    {
+        latencyPad.setLength (padLength);
+        return;
+    }
+
+    if (! crossfade || twin.engine == nullptr)
+    {
+        // A hard switch: exactly what a factor change always did.
+        fadeLeft = 0;
+        oversampler.setFactor (effective);
+        const double newRate = oversampler.getOversampledRate();
+
+        if (std::abs (newRate - osRate) >= 1.0)
+        {
+            osRate = newRate;
+            toneStack.prepare (osRate);
+
+            for (int i = 0; i < kMaxStages; ++i)
+            {
+                stageCoupling[i].prepare (osRate);
+                stageSmoothing[i].prepare (osRate);
+            }
+
+            piCoupling.prepare (osRate);
+            transformerHf.prepare (osRate);
+            transformerLf.prepare (osRate);
+            sagFollower.prepare (osRate);
+
+            sagAttack = std::exp (-1.0 / (0.020 * osRate));
+            sagRelease = std::exp (-1.0 / (0.350 * osRate));
+            sagFollower.setTimes (0.008, 0.220);
+
+            updateVoicing();
+        }
+
+        latencyPad.setLength (padLength);
+        return;
+    }
+
+    // The old path carries on in the twin, exactly as it was (no allocation:
+    // the twin was made in prepare and this is a plain copy).
+    *twin.engine = *this;
+    twin.engine->fadeLeft = 0;
+
+    // The new path: same state, new rate, primed from the recent input so the
+    // half-band filters are not starting from silence.
+    retuneForFactor (effective);
+    oversampler.reset();
+
+    for (int i = 0; i < InputHistory::kSize; ++i)
+    {
+        double work[Oversampler::kMaxFactor];
+        oversampler.up (history.get (i), work);
+        oversampler.down (work);
+    }
+
+    latencyPad.setLength (padLength);
+
+    // A pad whose length changed restarts empty; the crossfade starts on the
+    // old path, so those few samples are not heard.
+    fadeTotal = juce::jmax (1, (int) std::round (QualityProfile::kOversamplerFadeSeconds * sr))
+                  + QualityProfile::kSwitchSettleSamples;
+    fadeLeft = fadeTotal;
 }
 
 //==============================================================================
@@ -371,6 +461,23 @@ inline double AmpEngine::powerAmpStage (double x) noexcept
 
 //==============================================================================
 double AmpEngine::processSample (double x) noexcept
+{
+    history.push (x);
+
+    if (fadeLeft > 0)
+    {
+        // cpu-quality-modes 2.2: both paths for 10 ms under a linear crossfade.
+        const double oldOut = twin.engine->latencyPad.process (twin.engine->processCore (x));
+        const double newOut = latencyPad.process (processCore (x));
+        const double t = juce::jlimit (0.0, 1.0, 1.0 - (double) fadeLeft / (double) (fadeTotal - QualityProfile::kSwitchSettleSamples));
+        --fadeLeft;
+        return sanitise (oldOut * (1.0 - t) + newOut * t);
+    }
+
+    return latencyPad.process (processCore (x));
+}
+
+double AmpEngine::processCore (double x) noexcept
 {
     const double warm = warmupGain.next();
 

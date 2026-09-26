@@ -11,6 +11,7 @@
     accessors. Everything inside processBlock is allocation-free.
 */
 
+#include "Support/SoundingNotes.h"   // animated-strings.md 4.1
 #include "DSP/String/StringEngine.h"
 #include "DSP/Coupling/CouplingMatrix.h"
 #include "DSP/Body/BodyEngine.h"
@@ -44,7 +45,7 @@
 #include "Routing/MidiOutRouter.h"
 #include "Rhythm/RhythmEngine.h"
 #include "Character/CharacterEngine.h"
-#include "Support/CpuRelief.h"
+#include "Support/QualityProfile.h"   // cpu-quality-modes
 #include "Character/EnvironmentModel.h"          // environment.md (REALISM-A)
 #include "DSP/String/StringAging.h"              // string-aging.md (REALISM-A)
 #include "DSP/Coupling/BodyCouplingBank.h"       // body-coupling.md (REALISM-A)
@@ -363,6 +364,25 @@ public:
     void setOversamplingFactor (int factor) noexcept;
     int getOversamplingFactor() const noexcept { return oversamplingFactor; }
 
+    //==========================================================================
+    // cpu-quality-modes (implemented in LuthierEngineQuality.cpp).
+
+    /** 2.5: sets integers and flags and starts crossfades; never allocates. A
+        hard switch (prepare, reset, or 50 ms of output below -90 dBFS) changes
+        everything at once. Audio thread (or with the audio thread parked). */
+    void applyQuality (const QualityProfile& profile, bool hardSwitch) noexcept;
+    const QualityProfile& getQualityProfile() const noexcept { return qualityProfile; }
+
+    /** 7, E3: fades the least-recently-excited ringing string over 10 ms.
+        Returns false if nothing was ringing. Audio thread. */
+    bool dropLeastRecentString() noexcept;
+
+    /** For Diagnostics and the tests. */
+    int getSleepingStringCount() const noexcept;
+    int getEffectiveAmpOversampling() const noexcept   { return amp.getEffectiveOversamplingFactor(); }
+    int getEffectiveDriveOversampling() const noexcept { return preEffects.getEffectiveOversamplingFactor(); }
+    int getHardQualitySwitchCount() const noexcept { return hardQualitySwitches; }
+
     /*  performance-budget.md 7: above 96 kHz the oversampled modules run at a
         lower internal factor - the user's factor halved above 96 kHz and
         quartered above 176.4 kHz, never below 1x - so the internal rate stays
@@ -379,6 +399,9 @@ public:
         hostPpq = ppqPosition;
         hostPlaying = isPlaying;
     }
+
+    /** The grid the rhythm engine strums on this block (FEAT-JAM, JM-46). */
+    double getTransportPpq() const noexcept { return hostPpq; }
 
     /*  notation-export 6.1 / TODO 9 (MODEL-GAPS): the capture the engine reports
         to from triggerNote and applyNoteOff - string, fret and technique as
@@ -540,8 +563,12 @@ public:
 
     double getCpuEstimate() const noexcept { return cpuEstimate.load (std::memory_order_relaxed); }
 
-    /** performance-budget.md 8: the relief ladder, fed each block's load. */
-    CpuRelief& getCpuRelief() noexcept { return cpuRelief; }
+    // animated-strings.md 4.1: the per-string display snapshot, published once per
+    // sub-block whatever the display settings (the piano roll shares it).
+    const SoundingNotes& getSoundingNotes() const noexcept { return soundingNotes; }
+
+    /** How many times publishSoundingNotes has run (AS-17's test counter). */
+    uint64_t getSoundingNotesPublishCount() const noexcept { return soundingPublishCount.load (std::memory_order_relaxed); }
     // ==== BEGIN REALISM-B engine ====
     // harmonic-realism.md, string-interaction.md, fingerstyle-attack.md.
     // Implemented in LuthierEngineRealismB.cpp.
@@ -589,6 +616,10 @@ private:
     void triggerNote (const NoteOnEvent& e) noexcept;
     void applyNoteOff (const NoteOffEvent& e) noexcept;
     void updatePerBlockModulation (int numSamples) noexcept;
+
+    /** animated-strings.md 4.1: the end-of-sub-block store into soundingNotes. Audio thread, never waits. */
+    void publishSoundingNotes() noexcept;
+    void resetSoundingState() noexcept;
     void advanceRealism (int numSamples) noexcept;   // REALISM-A: aging, environment, body coupling
     void refreshAgingJitter() noexcept;              // REALISM-A
     void pushAgingFactors() noexcept;                // REALISM-A
@@ -806,6 +837,16 @@ private:
     std::array<Lfo, kMaxStrings> vibratoLfo;
     std::array<double, kMaxStrings> vibratoAmount {};
 
+    // animated-strings.md 4.1: what the display snapshot needs of each note.
+    SoundingNotes soundingNotes;
+    std::atomic<uint64_t> soundingPublishCount { 0 };
+    std::array<int64_t, kMaxStrings> noteStartSample {};
+    std::array<float, kMaxStrings> notePluckPosition {};
+    std::array<uint8_t, kMaxStrings> noteStopKind {};
+    std::array<double, kMaxStrings> slideStopFret {};     ///< the bar's contact the block used; < 0 = not under a bar
+    std::array<double, kMaxStrings> fingerBendCents {};   ///< bend + vibrato, no whammy or slide (2.4)
+    std::array<double, kMaxStrings> pitchOffsetCents {};  ///< the whole offset from the note, for the piano roll's key
+
     Excitation::Material pickMaterial = Excitation::Material::PickCelluloid;
     double pluckPosition = 0.16;
 
@@ -893,14 +934,6 @@ private:
     juce::MidiBuffer parkedMidi;
 
     std::atomic<double> cpuEstimate { 0.0 };
-    CpuRelief cpuRelief;                 // performance-budget.md 8
-    int appliedReliefStep = 0;
-    int reliefDropCountdown = 0;         // performance-budget.md 8 step 7: samples to the next drop
-    int reliefDroppedStrings = 0;        // strings dropped this episode (tests, diagnostics)
-public:
-    /** Strings relief 7 has dropped since the load last fell below it. */
-    int getReliefDroppedStrings() const noexcept { return reliefDroppedStrings; }
-private:
 
     // --- routing ----------------------------------------------------------------
     TapBuffers taps;
@@ -937,6 +970,18 @@ private:
 
     RtRandom rng { 0xA11CE5ull };
 
+    // ---- cpu-quality-modes --------------------------------------------------------
+    QualityProfile qualityProfile;
+    std::array<double, kMaxStrings> qualityNotePeak {};
+    std::array<bool, kMaxStrings> qualityRingOutEligible {};
+    std::array<juce::int64, kMaxStrings> qualityLastExcite {};
+    juce::int64 qualitySilentSamples = 0;
+    int hardQualitySwitches = 0;
+    void applyOversamplingForQuality (bool crossfade) noexcept;
+    void qualityNoteOn (int stringIndex) noexcept;
+    void qualityNoteOff (int stringIndex, bool heldOn) noexcept;
+    void qualityPerBlock() noexcept;
+    void qualityAfterBlock (const juce::AudioBuffer<float>& output) noexcept;
     // ==== BEGIN REALISM-B engine state ====
     HarmonicTouchSettings harmonicTouch;
     StringInteractionSettings interaction;

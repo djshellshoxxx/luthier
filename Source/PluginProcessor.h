@@ -36,7 +36,9 @@
 #include "Workshop/WorkshopBench.h"
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
+#include "Jam/JamEngine.h"   // FEAT-JAM
 #include "Support/OutputNormalization.h"   // output-normalization.md
+#include "Support/QualityController.h"   // cpu-quality-modes
 #include "Support/InstallLayout.h"
 #include "Support/SoundingNotesPublisher.h"
 
@@ -57,6 +59,9 @@ public:
     void releaseResources() override;
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    /** cpu-quality-modes 2.6: an offline bounce renders at High. Any thread. */
+    void setNonRealtime (bool isNonRealtime) noexcept override;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return ! LUTHIER_HEADLESS; }
@@ -433,6 +438,52 @@ public:
     /** Releases every string and clears all state. The Panic button. */
     void panic();
 
+    //==========================================================================
+    // Jam mode (jam-mode.md, FEAT-JAM): the band beside the metronome and looper.
+
+    JamEngine&        getJam() noexcept        { return jam; }
+    JamStyleLibrary&  getJamStyles() noexcept  { return jamStyles; }
+
+    /** START / STOP as the J key, the pills and the button (2.1, 2.2). Not
+        undoable (12): transport, like tap tempo. */
+    void jamStartStop();
+    void jamFill();
+
+    /** Alt+J: arms (jam_enabled on) or disarms the band. */
+    void jamArmToggle();
+
+    /** The preset's `jam` block (12). */
+    juce::var getJamBlock() const;
+    void setJamBlock (const juce::var& block);
+
+    /** Picks a user style file (12): one undo entry, "jam-style-file". A
+        malformed file falls back (13) and the warning is returned. */
+    juce::String loadJamStyleFile (const juce::File& file);
+    const juce::String& getJamStyleRef() const noexcept { return jamStyleRef; }
+    const juce::String& getJamStyleWarning() const noexcept { return jamStyleWarning; }
+
+    bool isJamRhythmKitLinked() const noexcept { return jamLinkRhythmKit; }
+    void setJamRhythmKitLinked (bool linked);
+
+    /** 11: "Metronome goes quiet while the band plays", a user preference the
+        editor mirrors here (default on). */
+    void setJamSilencesMetronome (bool silences) noexcept { jamSilencesMetronome.store (silences, std::memory_order_relaxed); }
+    bool doesJamSilenceMetronome() const noexcept { return jamSilencesMetronome.load (std::memory_order_relaxed); }
+
+    /** 8.4: Separate was asked for and the layout has no aux (A or C). */
+    bool isJamSeparateFallingBack() const noexcept { return jamSeparateFallback.load (std::memory_order_relaxed); }
+
+    /** 11: the tune's percussion layer is being replaced by the Jam drums. */
+    bool isTunePercussionReplacedByJam() const noexcept { return jamReplacesPercussion.load (std::memory_order_relaxed); }
+
+    /** The Jam's message-thread work: jam_play mirrored to the band's state,
+        jam_fill_now reset, the linked rhythm kit, garbage (the timer's; tests
+        call it). */
+    void serviceJam();
+
+    /** Tune percussion note-ons that reached the engine so far (JM-42). */
+    int getTunePercussionToEngine() const noexcept { return tunePercussionToEngine.load (std::memory_order_relaxed); }
+
     /** Restores every parameter, the MIDI map and the UI state to defaults. */
     void resetEverything();
 
@@ -535,6 +586,8 @@ public:
         /** workshop-ui.md 7: the bench's eight A/B guitars, workspace not preset. */
         std::array<juce::var, 8> benchSlots;
 
+        /** cpu-quality-modes 3: this instance's CPU quality, or the global one. */
+        QualityOverride qualityOverride = QualityOverride::Global;
         // piano-roll-chord-display.md 6: session state, not preset data.
         bool pianoRollExpanded = true;
         int  pianoRollHeight = 72;
@@ -544,6 +597,18 @@ public:
     };
 
     UiState& getUiState() noexcept { return uiState; }
+
+    //==========================================================================
+    // cpu-quality-modes: the CPU quality level and Luthier's own load.
+    QualityController& getQualityController() noexcept { return qualityController; }
+    const CpuLoadMonitor& getCpuLoadMonitor() const noexcept { return cpuLoad; }
+    CpuLoadMonitor& getCpuLoadMonitorForTesting() noexcept { return cpuLoad; }   // CQ-19 E3
+
+    /** Sets uiState.qualityOverride and applies it (not undoable: 9). */
+    void setQualityOverride (QualityOverride o);
+
+    /** The level the engine last applied, and whether E3 is armed. */
+    QualityLevel getAppliedQualityLevel() const noexcept { return (QualityLevel) appliedQuality.load (std::memory_order_relaxed); }
 
     /** Host tempo, updated each block. */
     double getHostTempo() const noexcept { return hostTempo.load(); }
@@ -635,6 +700,16 @@ public:
 
 private:
     ModMatrix modMatrix;
+
+    // cpu-quality-modes: declared before anything that reads them.
+    CpuLoadMonitor cpuLoad;
+    QualityController qualityController { cpuLoad };
+    std::atomic<int> appliedQuality { -1 };
+    int lastAppliedQuality = -1;
+    bool lastNonRealtime = false;
+    juce::int64 samplesSinceStringDrop = 0;
+    void applyQualityForBlock (bool forceHard) noexcept;
+    void stampBlockLoad (double busySeconds, int numSamples) noexcept;
     PatternLibrary patternLibrary;
     GenreKitLibrary genreKits;
 
@@ -666,6 +741,27 @@ private:
         monitor aux bus, because it must not be summed into the main output: the
         whole point of it is that the audience does not hear it. */
     juce::AudioBuffer<float> monitorBuffer;
+
+    // --- jam mode (FEAT-JAM) ---------------------------------------------------------
+    JamStyleLibrary jamStyles;
+    JamEngine jam;
+    juce::MidiBuffer jamNotes, jamTuneBass, jamScratch;
+    juce::AudioBuffer<float> jamMain;
+    juce::String jamStyleRef, jamStyleWarning;
+    bool jamLinkRhythmKit = false;
+    int jamLinkedStyle = -1;
+    std::atomic<bool> jamSilencesMetronome { true }, jamSeparateFallback { false }, jamReplacesPercussion { false };
+    std::atomic<bool> jamTuneHasBass { false };
+    std::atomic<int> tunePercussionToEngine { 0 };
+    std::atomic<double> jamBlockWallMs { 0.0 };
+    bool jamWasEnabled = false;
+    int jamMirrorState = -1;
+    double jamMirrorSince = 0.0;
+    int jamLooperState = 0;
+    std::atomic<float>* jamOutputRaw = nullptr;   ///< looked up once: a lookup by ID allocates
+
+    void onJamTimeline (const TuneTimeline& timeline);
+    void mixJam (juce::AudioBuffer<float>& mainOut, int numSamples) noexcept;
 
     // --- practice tools ---------------------------------------------------------------
     Metronome metronome;
@@ -757,6 +853,17 @@ private:
         and are the refinements to keep, so the load must not overwrite them
         with the guitar's own values. */
     bool guitarParametersFromState = false;
+
+    /*  A factory preset or a reset names its guitar's parts as the winners
+        (guitar block "partsWin") and lists the recipe values to restore over
+        them ("keep", parameter id -> normalised). Applied after the parts are
+        written, then cleared. Message thread. */
+    juce::NamedValueSet pendingGuitarKeep;
+
+    /** Set with partsWin: the parts are written even over values the preset or
+        reset has just written (which the writtenSinceGuitarType guard would
+        otherwise take for the host's). Cleared after the load. */
+    bool guitarPartsWin = false;
 
     /*  live-performance 2: a program change or bank select arrives on the audio
         thread, but acting on either can allocate - a snapshot recall walks the

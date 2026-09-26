@@ -33,6 +33,10 @@ public:
         int numEntries;
     };
 
+    /** Bumped when generated factory files change meaning; older generated files
+        (never user edits) are rewritten by writeAll. 2: the guitar block. 3: Fuzz Face Lead's hum. */
+    static constexpr int kFactoryRevision = 3;
+
     static int getNumPresets() noexcept;
     static const Definition& getPreset (int index) noexcept;
 

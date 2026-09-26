@@ -545,9 +545,10 @@ void WorkshopBench::clearSlot (int index)
 //==============================================================================
 void WorkshopBench::beginAudition (GuitarSlot slot, const PartPtr& candidate)
 {
-    // performance-budget.md 8 step 6: under heavy CPU load the shadow audition
-    // is frozen - whatever is sounding stays, no new one is built.
-    if (gesture || processor.getEngine().getCpuRelief().getStep() >= CpuRelief::freezeAudition)
+    // cpu-quality-modes 7, E2 (was performance-budget.md 8 step 6): under heavy
+    // CPU load the shadow audition is frozen - whatever is sounding stays, no
+    // new one is built.
+    if (gesture || processor.getQualityController().isShadowAuditionFrozen())
         return;
 
     audition = withPart (slot, candidate);

@@ -376,7 +376,8 @@ juce::var PresetManager::toVar (const juce::String& name,
     // saving it would make loading a morph slot drag the slider back.
     for (auto* p : processor.getParameters())
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
-            if (withId->paramID != ParamIDs::presetMorphPosition)
+            if (withId->paramID != ParamIDs::presetMorphPosition
+                  && ! ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: jam-mode 10
             {
                 // Written as it reads back: a skewed range turns a normalised
                 // value into a plain one and back with a float's error, so
@@ -410,6 +411,10 @@ juce::var PresetManager::toVar (const juce::String& name,
     // guitar-workshop.md 8: which guitar, and the whole guitar if it was edited.
     if (captureGuitarBlock != nullptr)
         root->setProperty ("guitar", captureGuitarBlock());
+
+    // jam-mode.md 12 (FEAT-JAM): the band's style file, rhythm-kit link and seed.
+    if (captureJamBlock != nullptr)
+        root->setProperty ("jam", captureJamBlock());
 
     // ---- per-string extras ----------------------------------------------------
     auto* strings = new juce::DynamicObject();
@@ -550,7 +555,8 @@ bool PresetManager::fromVar (const juce::var& data)
             "rhythmEngine", "routing", "character", "toneMatch",
             // Written by this build too (a known key read back as unknown moved
             // to the front of the next save, so save -> load -> save differed).
-            "ranges", "guitar", "midiMap"
+            "ranges", "guitar", "midiMap",
+            "jam"   // FEAT-JAM (jam-mode 12)
         };
 
         auto* preserved = new juce::DynamicObject();
@@ -622,7 +628,9 @@ bool PresetManager::fromVar (const juce::var& data)
         {
             if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
             {
-                if (params->hasProperty (withId->paramID) && withId->paramID != ParamIDs::presetMorphPosition)
+                if (params->hasProperty (withId->paramID) && withId->paramID != ParamIDs::presetMorphPosition
+                      && ! ParamIDs::isJamTransient (withId->paramID)   // FEAT-JAM
+                      && ! (keepOnLoad != nullptr && keepOnLoad (withId->paramID)))
                 {
                     const double v = (double) params->getProperty (withId->paramID);
                     withId->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, v));
@@ -817,6 +825,8 @@ bool PresetManager::fromVar (const juce::var& data)
     // capoComp cleared, every offset cleared.
     if (auto* age = dynamic_cast<juce::AudioParameterChoice*> (apvts.getParameter (ParamIDs::stringAge)))
         engine.getStabilityModel().beginPresetLoad ((StringAge) juce::jlimit (0, (int) StringAge::NumAges - 1, age->getIndex()));
+    if (onJamBlockLoaded != nullptr)   // FEAT-JAM: a missing block means defaults
+        onJamBlockLoaded (obj->getProperty ("jam"));
 
     currentName = obj->getProperty ("name").toString();
     currentCategory = obj->getProperty ("category").toString();
@@ -1322,9 +1332,18 @@ void PresetManager::resetToDefaults()
     if (auto* mains = apvts.getParameter (ParamIDs::noiseMainsHz))
         mains->setValueNotifyingHost (mains->convertTo0to1 (defaultMainsRegionIs50Hz() ? 1.0f : 0.0f));
 
-    // The default guitar type's factory guitar, as shipped, under the defaults.
+    // The default guitar type's factory guitar, as shipped: its parts win over the
+    // layout defaults just written (a reset used to leave an X-braced spruce top
+    // and 500k pots on the default solid-body, BETA_TEST_REPORT B-05).
     if (onGuitarBlockLoaded != nullptr)
-        onGuitarBlockLoaded ({});
+    {
+        auto* block = new juce::DynamicObject();
+        block->setProperty ("partsWin", true);
+        onGuitarBlockLoaded (juce::var (block));
+    }
+
+    if (onJamBlockLoaded != nullptr)   // FEAT-JAM
+        onJamBlockLoaded ({});
 
     currentName = "Init";
     currentCategory = "User";
@@ -1352,7 +1371,8 @@ bool PresetManager::isRandomisable (const juce::String& paramId)
 
     // tune-builder 14 (TUNE-HELP-ONBOARDING): the tune's timeline controls are
     // not part of a sound.
-    return ! excluded.contains (paramId) && ! paramId.startsWith ("tune_");
+    return ! excluded.contains (paramId) && ! paramId.startsWith ("tune_")
+        && ! ParamIDs::isJamTransient (paramId);   // FEAT-JAM
 }
 
 void PresetManager::randomise (uint64_t seed, const juce::StringArray& lockedParameters,

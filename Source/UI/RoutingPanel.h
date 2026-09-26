@@ -13,6 +13,7 @@
     one more section in that list, which is where every other rig control lives.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
@@ -149,6 +150,10 @@ private:
     MidiOutConfig shownMidiOut;   ///< what the controls show; a difference means someone else changed it
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RoutingPanel)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "RoutingPanel" };
 };
 
 } // namespace luthier

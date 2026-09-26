@@ -19,6 +19,7 @@
 */
 
 #include "NormalizationOptions.h"   // output-normalization.md 5.4
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "Overlays.h"
@@ -157,6 +158,10 @@ private:
     double scaleMm() const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BenchIllustration)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Transition, "BenchIllustration", {}, [this] { rebuild (false); } };
 };
 
 //==============================================================================

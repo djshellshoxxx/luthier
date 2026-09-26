@@ -657,6 +657,7 @@ LUTHIER_TEST (Parameters, everyParameterHasAUniqueIdAndSaneDefault)
                              + 29   // REALISM-B
                              + 29   // REALISM-C
                              + 2    // TUNE-HELP-ONBOARDING
+                             + 34   // FEAT-JAM
                              ,
                "the parameter list has changed size: " + juce::String (seen.size())
                  + " parameters, not the expected total - saved host automation is indexed "
@@ -770,7 +771,8 @@ LUTHIER_TEST (Presets, stateRoundTripsExactly)
 
         // A preset never carries the morph position (ambiguity-resolutions 5).
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
-            if (withId->paramID == ParamIDs::presetMorphPosition)
+            if (withId->paramID == ParamIDs::presetMorphPosition
+                  || ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: jam-mode 10
                 continue;
 
         if (std::abs (now - then) > 1.0e-4f)

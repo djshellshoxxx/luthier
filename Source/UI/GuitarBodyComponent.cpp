@@ -8,14 +8,66 @@ namespace luthier
 
 //==============================================================================
 GuitarBodyComponent::GuitarBodyComponent (LuthierAudioProcessor& p)
-    : processor (p), chordName (p)
+    : processor (p),
+      animator (*this, p.getEngine().getSoundingNotes(),
+                [this] (StringMotionGeometry& g) { return fillMotionGeometry (g); }),
+      chordName (p)
 {
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);   // cpu-quality-modes 6
 }
 
 GuitarBodyComponent::~GuitarBodyComponent()
 {
-    stopTimer();
+    motion.stopTimer();
+}
+
+void GuitarBodyComponent::staticRefresh()
+{
+    // Off: a fixed glow on each sounding string; changes only when the set does.
+    rebuildScene (false);
+
+    auto& engine = processor.getEngine();
+    bool changed = ! overlay.reducedMotion;
+    overlay.reducedMotion = ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Decorative);
+
+    if (! overlay.reducedMotion)
+        return;
+
+    for (int s = 0; s < juce::jmin (12, engine.getNumStrings()); ++s)
+    {
+        // Sounding = holding a note, or still audibly ringing after it: a
+        // held note decaying is not a change of state.
+        const float level = (engine.getStringMidiNote (s) >= 0 || engine.getStringLevel (s) > 1.0e-3) ? 1.0f : 0.0f;
+        const auto fret = (float) engine.getStringFret (s);
+
+        changed = changed || level != overlay.stringLevel[(size_t) s]
+                          || std::abs (fret - overlay.stringFret[(size_t) s]) > 0.01f;
+
+        overlay.stringLevel[(size_t) s] = level;
+        overlay.stringFret[(size_t) s] = fret;
+    }
+
+    const auto slideFret = (float) engine.getSlideEngine().getOverlayFret();
+    changed = changed || std::abs (slideFret - overlay.slideFret) > 0.01f;
+    overlay.slideFret = slideFret;
+
+    if (changed)
+        repaint();
+
+    // piano-roll-chord-display 4 at Off: the name appears at peak and goes
+    // after the hold, with no fade - repainted only when it appears, changes
+    // or goes.
+    const double nowMs = juce::Time::getMillisecondCounterHiRes();
+    chordName.tick (nowMs);
+    const auto shownName = chordName.getFader().isVisible (nowMs) ? chordName.getFader().getText() : juce::String();
+
+    if (shownName != staticChordName)
+    {
+        staticChordName = shownName;
+        ++staticChordNameChanges;
+        lastFrameMs = nowMs;
+        repaint (getChordNameArea().getSmallestIntegerContainer().expanded (8));
+    }
 }
 
 //==============================================================================
@@ -42,7 +94,7 @@ void GuitarBodyComponent::rebuildScene (bool force)
     if (! scene.hits.empty() && next.key != scene.key)
     {
         const double now = juce::Time::getMillisecondCounterHiRes();
-        const bool reduced = AccessibilitySettings::get().isReducedMotion();
+        const bool reduced = ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition);
 
         fade.begin (cache, now, reduced);
         overlay.changed = reduced ? changedRegions (scene, next) : std::array<bool, (size_t) GuitarRegion::numRegions> {};
@@ -50,6 +102,7 @@ void GuitarBodyComponent::rebuildScene (bool force)
 
     scene = std::move (next);
     cache = {};
+    animator.resetMotion();   // animated-strings.md 10: a family switch starts from rest
     repaint();
 }
 
@@ -60,6 +113,10 @@ void GuitarBodyComponent::rebuildCache()
 
     mmToPx = GuitarRenderer::fitTransform (scene, area);
 
+    // animated-strings.md 4.4: while the strings animate, their speaking lengths
+    // are painted per frame (layer 25a) rather than baked into the cache.
+    cacheOmitsSpeaking = animator.isAnimationEnabled();
+
     const float scale = juce::Component::getApproximateScaleFactorForComponent (this);
     const int w = juce::jmax (1, juce::roundToInt ((float) getWidth() * scale));
     const int h = juce::jmax (1, juce::roundToInt ((float) getHeight() * scale));
@@ -67,8 +124,53 @@ void GuitarBodyComponent::rebuildCache()
     cache = juce::Image (juce::Image::ARGB, w, h, true);
     juce::Graphics g (cache);
     g.addTransform (juce::AffineTransform::scale (scale));
-    GuitarRenderer::paint (g, scene, mmToPx);
+    GuitarRenderer::PaintLayers layers;
+    layers.omitSpeakingLengths = cacheOmitsSpeaking;
+    GuitarRenderer::paint (g, scene, mmToPx, layers);
     cacheScale = scale;
+}
+
+void GuitarBodyComponent::ensureTransform()
+{
+    if (scene.hits.empty())
+        rebuildScene (true);
+
+    auto area = getLocalBounds().toFloat().reduced ((float) Metrics::gridHalf);
+    area.removeFromBottom (16.0f);   // the name plate, as rebuildCache
+    mmToPx = GuitarRenderer::fitTransform (scene, area);
+}
+
+bool GuitarBodyComponent::fillMotionGeometry (StringMotionGeometry& geometry)
+{
+    // 12: nothing moves until the scene exists.
+    if (scene.strings.empty() || getWidth() <= 0 || getHeight() <= 0)
+        return false;
+
+    if (cache.isNull())
+        ensureTransform();
+
+    const float pxPerMm = std::sqrt (std::abs (mmToPx.getDeterminant()));
+
+    if (pxPerMm <= 0.0f)
+        return false;
+
+    geometry.numStrings = 0;
+
+    for (const auto& line : scene.strings)
+    {
+        if (! juce::isPositiveAndBelow (line.index, StringMotionGeometry::kMaxStrings))
+            continue;
+
+        auto& out = geometry.strings[(size_t) line.index];
+        out.nut = line.nut.transformedBy (mmToPx);
+        out.bridge = line.saddle.transformedBy (mmToPx);
+        out.strokeWidthPx = GuitarRenderer::stringWidthPx (line.widthMm, line.minWidthPx, pxPerMm);
+        geometry.numStrings = juce::jmax (geometry.numStrings, line.index + 1);
+    }
+
+    geometry.numFrets = (float) juce::jmax (1, scene.numFrets);
+    geometry.clip = getLocalBounds().toFloat();
+    return geometry.numStrings > 0;
 }
 
 juce::Point<float> GuitarBodyComponent::toMm (juce::Point<float> px) const
@@ -158,17 +260,36 @@ void GuitarBodyComponent::updateLiveOverlay (double nowMs)
 {
     auto& engine = processor.getEngine();
     lastFrameMs = nowMs;
-    const bool reducedMotion = AccessibilitySettings::get().isReducedMotion();
+    const bool reducedMotion = ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition);   // cpu-quality-modes 6
 
     bool changed = fade.isActive (nowMs);
     fade.finishIfDone (nowMs);
 
+    // animated-strings.md 2.6 and 4.3: the animator reads its gates on this tick.
+    animator.poll();
+
+    if (animator.isAnimationEnabled() != cacheOmitsSpeaking)
+    {
+        cache = {};
+        changed = true;
+    }
+
+    const bool motion = animator.isMotionActive();
+    changed = changed || motion != overlay.motionActive;
+    overlay.motionActive = motion;
+
     for (int s = 0; s < juce::jmin (12, engine.getNumStrings()); ++s)
     {
-        const auto level = (float) juce::jlimit (0.0, 1.0, engine.getStringLevel (s) * 4.0);
+        const auto level = (float) StringMotion::normaliseLevel ((float) engine.getStringLevel (s));
         const auto fret = (float) engine.getStringFret (s);
+        const auto oldLevel = overlay.stringLevel[(size_t) s];
 
-        if (std::abs (level - overlay.stringLevel[(size_t) s]) > 0.004f || std::abs (fret - overlay.stringFret[(size_t) s]) > 0.01f)
+        // While the strings animate the level only draws the ghost, which repaints
+        // itself; here only the dot turning on or off matters (4.3: no full repaints).
+        const bool levelChanged = (motion || overlay.reducedMotion) ? ((level > 0.01f) != (oldLevel > 0.01f))
+                                                                    : std::abs (level - oldLevel) > 0.004f;
+
+        if (levelChanged || std::abs (fret - overlay.stringFret[(size_t) s]) > 0.01f)
             changed = true;
 
         overlay.stringLevel[(size_t) s] = level;
@@ -204,8 +325,10 @@ void GuitarBodyComponent::updateLiveOverlay (double nowMs)
         changed = true;
     }
 
-    changed = changed || reducedMotion != overlay.reducedMotion;
-    overlay.reducedMotion = reducedMotion;
+    // cpu-quality-modes 6: the policy combines Reduced motion and the level.
+    const bool reduced = ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Decorative);
+    changed = changed || reduced != overlay.reducedMotion;
+    overlay.reducedMotion = reduced;
 
     // piano-roll-chord-display.md 4, 7: the chord name is part of the live pass.
     const bool nameWas = chordName.getFader().isVisible (nowMs - 34.0);
@@ -255,6 +378,8 @@ juce::Rectangle<float> GuitarBodyComponent::getChordNameArea() const
 //==============================================================================
 void GuitarBodyComponent::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     if (scene.hits.empty())
         rebuildScene (true);
 
@@ -264,6 +389,20 @@ void GuitarBodyComponent::paint (juce::Graphics& g)
         rebuildCache();
 
     g.drawImage (cache, getLocalBounds().toFloat());
+
+    // animated-strings.md 4.4: layer 25a, the speaking lengths, under every overlay.
+    if (cacheOmitsSpeaking)
+    {
+        const auto start = juce::Time::getHighResolutionTicks();
+
+        GuitarRenderer::SpeakingStyle style;
+        style.highContrast = AccessibilitySettings::get().getPalette() == PaletteId::highContrast;
+        style.highContrastColour = Palette::textPrimary;
+        GuitarRenderer::paintSpeakingLengths (g, scene, mmToPx, animator.getFrameToPaint(), style);
+
+        animator.notePaintMilliseconds (juce::Time::highResolutionTicksToSeconds (
+                                            juce::Time::getHighResolutionTicks() - start) * 1000.0);
+    }
 
     // 12.1: the old guitar fading out over the new one.
     if (const float a = fade.alpha (lastFrameMs); a > 0.0f && fade.previous.isValid())

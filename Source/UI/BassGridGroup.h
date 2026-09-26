@@ -15,6 +15,7 @@
     not through parameters. Shown only on a bass (gui-integration 0.7).
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
@@ -94,6 +95,10 @@ private:
     bool shown = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BassGridGroup)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "BassGridGroup" };
 };
 
 } // namespace luthier

@@ -92,7 +92,8 @@ void PresetMorph::apply (double position)
         {
             auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p);
 
-            if (withId == nullptr || withId->paramID == ParamIDs::presetMorphPosition)
+            if (withId == nullptr || withId->paramID == ParamIDs::presetMorphPosition
+                  || ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM
                 continue;
 
             const juce::Identifier id (withId->paramID);

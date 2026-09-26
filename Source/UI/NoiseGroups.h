@@ -10,6 +10,7 @@
     (pick-noise.md 8, strum-dynamics.md 5).
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "../DSP/Noise/NoiseEngine.h"
@@ -69,6 +70,10 @@ private:
     int reliefTick = 0;   ///< performance-budget.md 8 step 1: every other tick under CPU load
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NoiseEventStrip)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Decorative, "NoiseEventStrip", {}, [this] { if (pollNow() > 0) repaint(); } };
 };
 
 //==============================================================================

@@ -13,6 +13,7 @@
     design whenever the design or the scaling moves - never streamed.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "../DSP/Coupling/BodyCouplingBank.h"
@@ -60,6 +61,10 @@ private:
     double lastChange = -1.0e9;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (StringAgingGroup)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "StringAgingGroup" };
 };
 
 //==============================================================================
@@ -116,6 +121,10 @@ private:
     double lastChange = -1.0e9;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EnvironmentGroup)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "EnvironmentGroup" };
 };
 
 //==============================================================================
@@ -186,6 +195,10 @@ private:
     juce::uint64 lastDigest = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BodyCouplingGroup)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "BodyCouplingGroup" };
 };
 
 } // namespace luthier

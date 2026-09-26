@@ -62,7 +62,12 @@ public:
     //==========================================================================
     void setTempoBpm (double bpm) noexcept;
     void setExpression (double value) noexcept;
-    void setOversamplingFactor (int factor) noexcept;
+    void setOversamplingFactor (int factor) noexcept { setOversamplingFactor (factor, factor, false); }
+
+    /** cpu-quality-modes 2.2: drive pedals run at `effective` and report
+        `nominal`'s latency; a factor change crossfades when asked. */
+    void setOversamplingFactor (int effective, int nominal, bool crossfade) noexcept;
+    int getEffectiveOversamplingFactor() const noexcept { return effectiveFactor; }
 
     /** Total latency of the chain, in samples. */
     int getLatencySamples() const noexcept;
@@ -91,6 +96,7 @@ private:
     double tempoBpm = 120.0;
     double expression = 0.5;
     int oversamplingFactor = 4;
+    int effectiveFactor = 4;   // cpu-quality-modes 2.2
 
     std::array<Slot, kNumSlots> slots;
 
