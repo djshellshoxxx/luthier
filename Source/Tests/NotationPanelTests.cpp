@@ -114,6 +114,42 @@ LUTHIER_TEST (NotationTab, stateButtonsLiveTabAndPreview)
     CHECK (processor.getPerformanceCapture().getNotes().empty());
 }
 
+/*  Task X: the STAFF NOTATION toggle is MusicXML's own option (like the tab
+    lane's line width and chord diagrams), and it actually changes what gets
+    exported. */
+LUTHIER_TEST (NotationTab, staffNotationToggleIsMusicXmlOnlyAndTakesEffect)
+{
+    LuthierAudioProcessor processor;
+    NotationPanel panel (processor);
+
+    playPhrase (processor);
+    panel.refresh();
+
+    choose (panel.getFormatBox(), 1 + (int) NotationFormat::asciiTab);
+    CHECK_MSG (! panel.getStaffNotationButton().isVisible(), "shown for a format with no staff to choose");
+
+    choose (panel.getFormatBox(), 1 + (int) NotationFormat::musicXml);
+    CHECK_MSG (panel.getStaffNotationButton().isVisible(), "hidden for MusicXML, where it belongs");
+
+    const auto folder = juce::File::createTempFile ("notationStaff");
+    folder.createDirectory();
+
+    panel.getStaffNotationButton().setToggleState (false, juce::dontSendNotification);
+    const auto tabFile = folder.getChildFile ("tab.musicxml");
+    juce::String error;
+    CHECK_MSG (panel.exportTo (tabFile, &error), error);
+    CHECK (tabFile.loadFileAsString().contains ("<sign>TAB</sign>"));
+
+    panel.getStaffNotationButton().setToggleState (true, juce::dontSendNotification);
+    const auto staffFile = folder.getChildFile ("staff.musicxml");
+    CHECK_MSG (panel.exportTo (staffFile, &error), error);
+    const auto staffXml = staffFile.loadFileAsString();
+    CHECK (staffXml.contains ("<sign>G</sign>"));
+    CHECK (! staffXml.contains ("<sign>TAB</sign>"));
+
+    folder.deleteRecursively();
+}
+
 LUTHIER_TEST (NotationTab, exportsEveryFormat)
 {
     LuthierAudioProcessor processor;

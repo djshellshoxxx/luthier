@@ -4,7 +4,9 @@
 
     Four formats, written from one PerformanceScore:
 
-      - MusicXML 4.0, which every notation program reads.
+      - MusicXML 4.0, which every notation program reads. Written as a TAB
+        staff by default, or as a standard staff (real noteheads, no tab)
+        when `NotationExportOptions::staffMode` asks for one.
       - Guitar Pro, which is what the target audience actually uses.
       - ASCII tab, which is what gets pasted into a forum post.
       - Standard MIDI, which is what gets dragged into a DAW.
@@ -47,6 +49,13 @@ struct NotationExportOptions
     /** ASCII tab: how much technique notation to include. */
     enum class SymbolDensity { full = 0, minimal, notesOnly };
     SymbolDensity density = SymbolDensity::full;
+
+    /** MusicXML: which staff to write. The ASCII/GP tab lane owns tablature;
+        `standardStaff` is the plain staff a reader who does not tab needs -
+        noteheads on a five-line staff, treble clef with the standard guitar
+        octave-down convention, no string/fret or tab-only technique marks. */
+    enum class StaffMode { tabStaff = 0, standardStaff };
+    StaffMode staffMode = StaffMode::tabStaff;
 };
 
 //==============================================================================

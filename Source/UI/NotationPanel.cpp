@@ -289,6 +289,12 @@ NotationPanel::NotationPanel (LuthierAudioProcessor& p)
                                 [] {});
     chordDiagrams->getButton().setToggleState (true, juce::dontSendNotification);
 
+    // Task X (notation-export.md 2.1): MusicXML's own option, a real staff
+    // instead of a TAB staff - the ASCII/GP tab lane already owns tab.
+    staffNotation = makeToggle ("STAFF NOTATION", "MusicXML: write a standard staff (noteheads, no tab) "
+                                                  "instead of a TAB staff.", [this] { updatePreview(); });
+    staffNotation->getButton().setToggleState (false, juce::dontSendNotification);
+
     previewView.setMultiLine (true);
     previewView.setReadOnly (true);
     previewView.setFont (Fonts::mono (10.0f));
@@ -345,6 +351,9 @@ NotationExportOptions NotationPanel::currentOptions() const
     options.lineWidth = (int) lineWidth.getValue();
     options.chordDiagrams = chordDiagrams->getButton().getToggleState();
     options.density = (NotationExportOptions::SymbolDensity) juce::jlimit (0, 2, densityBox.getSelectedId() - 1);
+    options.staffMode = staffNotation->getButton().getToggleState()
+                           ? NotationExportOptions::StaffMode::standardStaff
+                           : NotationExportOptions::StaffMode::tabStaff;
     return options;
 }
 
@@ -400,6 +409,7 @@ void NotationPanel::updatePreview()
 
     lineWidth.setVisible (format == NotationFormat::asciiTab);
     chordDiagrams->setVisible (format == NotationFormat::guitarPro);
+    staffNotation->setVisible (format == NotationFormat::musicXml);
     lastSeconds.setVisible (rangeBox.getSelectedId() == 2);
     markInButton.setVisible (rangeBox.getSelectedId() == CaptureRanges::markedRegion);
     markOutButton.setVisible (rangeBox.getSelectedId() == CaptureRanges::markedRegion);
@@ -566,9 +576,11 @@ void NotationPanel::resized()
     {
         auto r = row();
 
-        // The format's own option: ASCII's line width or Guitar Pro's diagrams.
+        // The format's own option: ASCII's line width, Guitar Pro's diagrams,
+        // or MusicXML's staff/tab choice.
         lineWidth.setBounds (r.reduced (1));
         chordDiagrams->setBounds (r.reduced (1));
+        staffNotation->setBounds (r.reduced (1));
     }
 
     previewView.setBounds (bounds.removeFromTop (110));
