@@ -355,6 +355,66 @@ LUTHIER_TEST (Squeak, theMinimumTravelIsRespected)
     CHECK (PlayingNoise::makeSqueak (s, woundLowE(), 0, 60.0, 0.1, 2.0).level > 0.0);
 }
 
+LUTHIER_TEST (Squeak, moistureLowersOddsAndBrightness)
+{
+    // 6, 7: moisture dulls the squeak and lowers its odds.
+    SqueakSettings dry, damp;
+    dry.moisture = 0.1;
+    damp.moisture = 0.9;
+
+    const auto dryEvent = PlayingNoise::makeSqueak (dry, woundLowE(), 0, 90.0, 0.3, 4.0);
+    const auto dampEvent = PlayingNoise::makeSqueak (damp, woundLowE(), 0, 90.0, 0.3, 4.0);
+
+    CHECK_MSG (dampEvent.brightness < dryEvent.brightness,
+               "damp fingers should sound duller: dry " + juce::String (dryEvent.brightness, 3)
+                 + " vs damp " + juce::String (dampEvent.brightness, 3));
+    CHECK_MSG (dampEvent.level < dryEvent.level,
+               "damp fingers should also squeak quieter: dry " + juce::String (dryEvent.level, 4)
+                 + " vs damp " + juce::String (dampEvent.level, 4));
+
+    PlayingNoise dryPlayer, dampPlayer;
+    dryPlayer.prepare (48000.0);
+    dampPlayer.prepare (48000.0);
+    dryPlayer.setSqueak (dry);
+    dampPlayer.setSqueak (damp);
+
+    int dryHits = 0, dampHits = 0;
+
+    for (juce::uint32 i = 0; i < 256; ++i)
+    {
+        if (dryPlayer.onShift (0, woundLowE(), 648.0, 2.0, 7.0, 0.1, i))
+            ++dryHits;
+
+        if (dampPlayer.onShift (0, woundLowE(), 648.0, 2.0, 7.0, 0.1, i))
+            ++dampHits;
+    }
+
+    CHECK_MSG (dampHits < dryHits,
+               "damp fingers should squeak less often: dry " + juce::String (dryHits)
+                 + " vs damp " + juce::String (dampHits));
+}
+
+LUTHIER_TEST (Squeak, pressureRaisesLevelAndCoarsensTexture)
+{
+    // 7: pressure^1.3 raises the level; heavier pressure coarsens (lowers) q.
+    SqueakSettings light, heavy;
+    light.pressure = 0.2;
+    heavy.pressure = 0.9;
+
+    const auto lightEvent = PlayingNoise::makeSqueak (light, woundLowE(), 0, 90.0, 0.3, 4.0);
+    const auto heavyEvent = PlayingNoise::makeSqueak (heavy, woundLowE(), 0, 90.0, 0.3, 4.0);
+
+    CHECK_MSG (heavyEvent.level > lightEvent.level, "heavier pressure should squeak louder");
+
+    const double ratio = heavyEvent.level / lightEvent.level;
+    const double expected = std::pow (heavy.pressure / light.pressure, 1.3);
+    CHECK_NEAR (ratio, expected, expected * 0.05);
+
+    CHECK_MSG (heavyEvent.q < lightEvent.q,
+               "heavier pressure should coarsen the texture (lower q): light " + juce::String (lightEvent.q, 2)
+                 + " vs heavy " + juce::String (heavyEvent.q, 2));
+}
+
 LUTHIER_TEST (Squeak, theProbabilityRollIsDeterministic)
 {
     auto pattern = [] (juce::uint32 seed)

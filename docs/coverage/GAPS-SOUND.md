@@ -28,6 +28,8 @@ Table: row ID | what was done | test | status
 | RIO-4 | none (already correct) | `Routing::sidechainDrivesTheEnvelopeFollower` | DONE |
 | RIO-13 | none (already correct) | `Routing::sidechainNeverReachesTheMainOut` | DONE |
 | RIO-14 | none (already correct) | `Routing::sidechainMeterReadsTheSidechain` | DONE |
+| SQ-16 | none (already correct) | `Squeak::moistureLowersOddsAndBrightness` | DONE |
+| SQ-17 | none (already correct) | `Squeak::pressureRaisesLevelAndCoarsensTexture` | DONE |
 
 ## Notes
 
