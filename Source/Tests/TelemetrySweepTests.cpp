@@ -315,3 +315,48 @@ LUTHIER_TEST (Telemetry, aPolicyLocksThePrivacyPage)
 
     Policy::setPolicyFileForTesting ({});
 }
+
+//==============================================================================
+/*  UT-4: the update check's network call runs on a worker thread. */
+namespace
+{
+    class ThreadRecordingTransport final : public Transport
+    {
+    public:
+        Result get (const juce::String&, int) override
+        {
+            onMessageThread = juce::MessageManager::getInstance()->isThisTheMessageThread();
+            called.signal();
+
+            Result r;
+            r.succeeded = false;
+            r.error = "offline";
+            return r;
+        }
+
+        Result post (const juce::String&, const juce::String&, int) override { return {}; }
+
+        std::atomic<bool> onMessageThread { true };
+        juce::WaitableEvent called;
+    };
+}
+
+LUTHIER_TEST (Telemetry, theUpdateCheckRunsOffTheMessageThread)
+{
+    Telemetry telemetry;
+
+    if (telemetry.isManagedByPolicy() && ! telemetry.getPolicy().allowUpdateCheck)
+        return;
+
+    auto fake = std::make_unique<ThreadRecordingTransport>();
+    auto* transport = fake.get();
+    telemetry.setTransport (std::move (fake));
+    telemetry.setUpdateCheckEnabled (true);
+
+    telemetry.checkForUpdateAsync (Version::parse ("0.0.1"), true, nullptr);
+
+    CHECK_MSG (transport->called.wait (5000), "the check never reached the transport");
+    CHECK (! transport->onMessageThread.load());
+
+    juce::Thread::sleep (50);   // let the worker return before the Telemetry goes
+}

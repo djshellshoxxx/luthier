@@ -1,5 +1,7 @@
 #include "Telemetry.h"
 
+#include <juce_events/juce_events.h>   // SPEC-SWEEP: UT-4 (MessageManager)
+
 namespace luthier
 {
 
@@ -599,6 +601,19 @@ juce::StringArray Telemetry::readTelemetryLog() const
 }
 
 //==============================================================================
+void Telemetry::checkForUpdateAsync (const Version& runningVersion, bool force,
+                                     std::function<void (const UpdateResult&)> onResult)
+{
+    // SPEC-SWEEP: UT-4
+    juce::Thread::launch ([this, runningVersion, force, onResult = std::move (onResult)]
+    {
+        const auto result = checkForUpdate (runningVersion, force);
+
+        if (onResult != nullptr)
+            juce::MessageManager::callAsync ([onResult, result] { onResult (result); });
+    });
+}
+
 bool Telemetry::hasPendingCrashReport() const
 {
     return getPendingCrashReport() != juce::File();

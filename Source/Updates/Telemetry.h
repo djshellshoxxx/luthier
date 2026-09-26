@@ -210,6 +210,12 @@ public:
         Throttled to once per 24 hours unless `force` is set. */
     UpdateResult checkForUpdate (const Version& runningVersion, bool force = false);
 
+    /** SPEC-SWEEP: UT-4 - the same check on a worker thread, never the message
+        or audio thread; `onResult` is posted back to the message thread. The
+        Telemetry must outlive the call (it is the processor's). */
+    void checkForUpdateAsync (const Version& runningVersion, bool force,
+                              std::function<void (const UpdateResult&)> onResult);
+
     /** When the last check happened, for the throttle and for the UI. */
     juce::Time getLastUpdateCheckTime() const { return lastUpdateCheck; }
 
