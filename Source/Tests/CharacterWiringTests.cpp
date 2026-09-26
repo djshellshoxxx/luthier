@@ -474,3 +474,95 @@ LUTHIER_TEST (CharacterWiring, nutWearShortensOnlyTheOpenString)
                + ", nut damping " + juce::String (wornNut, 4));
 }
 
+
+//==============================================================================
+/*  CW-32: character-wear 12 - a dead spot of depth >= 0.5 shortens the note's
+    rendered decay (the string's level to -60 dB) by at least 10 % against the
+    same note with the spot gone. */
+LUTHIER_TEST (Character, deadSpotShortensTheRenderedT60)
+{
+    auto t60 = [] (double depth)
+    {
+        LuthierEngine engine;
+        engine.prepare (kSr, kBlock);
+        engine.setGuitarType (GuitarType::Stratocaster);
+        quietRig (engine);
+
+        auto& c = engine.getCharacterEngine();
+        c.setSeed (0x1357ull);
+        c.setAmount (1.0);
+        c.setTunerLooseness (0.0);
+        c.refret();
+
+        for (int s = 0; s < 6; ++s)
+            for (int i = 0; i < CharacterEngine::kMaxDeadSpotsPerString; ++i)
+                c.setDeadSpot (s, i, DeadSpot { 7, 0.0, 3.0 });
+
+        c.setDeadSpot (2, 0, DeadSpot { 7, depth, 2.0 });
+        engine.reset();
+
+        NoteOnEvent e;
+        e.stringIndex = 2;
+        e.velocity = 0.9;
+        e.fretPosition = 7.0;
+        e.pitchHz = 196.0 * std::pow (2.0, 7.0 / 12.0);
+        engine.triggerNoteNow (e);
+
+        juce::AudioBuffer<float> buffer (2, kBlock);
+        juce::MidiBuffer none;
+        double peak = 0.0;
+
+        for (int b = 0; b < (int) (20.0 * kSr / kBlock); ++b)
+        {
+            buffer.clear();
+            engine.processBlock (buffer, none);
+
+            const double level = engine.getStringLevel (2);
+            peak = juce::jmax (peak, level);
+
+            if (b > 20 && level < peak * 0.001)
+                return b * (double) kBlock / kSr;
+        }
+
+        return 20.0;
+    };
+
+    const double clean = t60 (0.0);
+    const double dead = t60 (0.6);
+
+    CHECK_MSG (dead <= clean * 0.9,
+               "a 0.6 dead spot left T60 at " + juce::String (dead, 2) + " s against " + juce::String (clean, 2) + " s");
+}
+
+//==============================================================================
+/*  CW-2: character-wear 0.2 - the tuner drift moves at block rate and slowly:
+    no block-to-block step bigger than a fiftieth of a cent at full looseness
+    and intensity, so nothing in it can zipper. */
+LUTHIER_TEST (Character, driftChangesOnlyPerBlockAndSlowly)
+{
+    CharacterEngine c;
+    c.prepare (kSr, 6);
+    c.setSeed (0x9999ull);
+    c.setAmount (1.0);
+    c.setTunerLooseness (100.0);
+
+    double worst = 0.0, range = 0.0;
+    std::array<double, 6> last {};
+    for (int s = 0; s < 6; ++s) last[(size_t) s] = c.getTunerDriftCents (s);
+
+    for (int b = 0; b < (int) (120.0 * kSr / 512.0); ++b)   // two minutes of 512-sample blocks
+    {
+        c.advance (512.0 / kSr);
+
+        for (int s = 0; s < 6; ++s)
+        {
+            const double d = c.getTunerDriftCents (s);
+            worst = juce::jmax (worst, std::abs (d - last[(size_t) s]));
+            range = juce::jmax (range, std::abs (d));
+            last[(size_t) s] = d;
+        }
+    }
+
+    CHECK_MSG (range > 0.5, "the drift did not move: " + juce::String (range, 3) + " cents");
+    CHECK_MSG (worst < 0.02, "a block stepped the drift by " + juce::String (worst, 4) + " cents");
+}

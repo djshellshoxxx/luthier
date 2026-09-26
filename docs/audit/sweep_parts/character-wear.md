@@ -5,7 +5,7 @@
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | CW-1 (§0.1) | Deterministic per instance seed | `Character/CharacterEngine::generate` | n/a | `Character::fixedSeedIsByteIdentical`, `Character::valuesDoNotDependOnAccessOrder` | DONE |
-| CW-2 (§0.2) | Per-note / per-region influence with smoothed handoff, not per-sample — untested | `LuthierEngine.cpp:triggerNote` (~970), drift applied per block (~1860) | n/a | - | NO-TEST |
+| CW-2 (§0.2) | Per-note / per-region influence with smoothed handoff, not per-sample — untested | `LuthierEngine.cpp:triggerNote` (~970), drift applied per block (~1860) | n/a | `Character::driftChangesOnlyPerBlockAndSlowly` | DONE |
 | CW-3 (§0.3) | On by default at low intensity (amount 0.25, enabled, looseness 15%, jack off) | `CharacterEngine::amount`, `Parameters.cpp` macroCharacter 0.25 | CHARACTER `amountSlider` | `Character::shipsOnAtLowIntensity` | DONE |
 | CW-4 (§0.4/§11) | Character stacks with humanize; both zero = machine-perfect — no test | `LuthierEngine` (independent paths) | n/a | - | NO-TEST |
 | CW-5 (§1) | 64-bit seed stored in preset / state | `CharacterEngine::toVar/fromVar`, `PluginProcessor.cpp` "character" | CHARACTER `seedLabel` | `Character::stateRoundTrips` | DONE |
@@ -35,9 +35,9 @@
 | CW-29 (§10) | Dead-spot map with per-spot depth AND width sliders — depth by vertical drag only; width fixed at 3.0 on add, no width control | `DeadSpotMap::mouseDrag` | CHARACTER `DeadSpotMap` | - | PARTIAL |
 | CW-30 (§10) | All fresh / All old presets | `setAllFresh/setAllOld` | CHARACTER `allFreshButton/allOldButton` | `Character::allFreshAndAllOldPresets` | DONE |
 | CW-31 (§12) | Test: determinism of dead spots, wear, drift phases, cap values | | n/a | `Character::fixedSeedIsByteIdentical` | DONE |
-| CW-32 (§12) | Test: dead-spot audibility, T60 >=10% shorter at depth>=0.5 — test checks multiplier, not rendered 60 dB decay | | n/a | `Character::deadSpotsReduceSustainWhereTheyAre` | PARTIAL |
+| CW-32 (§12) | Test: dead-spot audibility, T60 >=10% shorter at depth>=0.5 — test checks multiplier, not rendered 60 dB decay | | n/a | `Character::deadSpotShortensTheRenderedT60`, `Character::deadSpotsReduceSustainWhereTheyAre` | DONE |
 | CW-33 (§12) | Test: 10 min drift at 5% looseness within 1 c of expected RMS | | n/a | `Character::tunerDriftStaysWithinItsStatedAmplitude` | DONE |
 | CW-34 (§12) | Test: 20 K temperature step measured at tuning engine per-string frequency — realism-a ENV tests replace it | | n/a | `Character::temperatureProducesTheExpectedOffset` (value only) | OWNED |
 | CW-35 (§12) | Test: zero character bitwise identical to no-wear render | | n/a | `CharacterWiring::freshIsBitIdenticalAndWornIsNot` (Strat + Dreadnought renders), `Character::zeroCharacterIsExactlyNeutral` | DONE |
 
-<!-- counts DONE=26 NO-GUI=0 NO-TEST=3 PARTIAL=2 MISSING=0 OWNED=4 -->
+<!-- counts DONE=29 NO-GUI=0 NO-TEST=1 PARTIAL=1 MISSING=0 OWNED=4 -->

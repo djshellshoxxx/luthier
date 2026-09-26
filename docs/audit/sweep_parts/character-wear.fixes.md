@@ -1,4 +1,2 @@
-- [CW-2] effort S — add `Character::driftAndWearChangeOnlyPerNoteOrBlock`: render a sustained note with high looseness through `LuthierEngine`, assert the applied frequency changes only at block boundaries and is slewed (no step > N cents per block), and fret-wear detune is fixed for the note's life.
 - [CW-4] effort S — add a processor-level test: humanize params at 0 and character disabled/All fresh render two identical takes bit-for-bit (same MIDI); enabling either alone makes them differ.
 - [CW-29] effort S — add width editing to `DeadSpotMap` (e.g. horizontal drag with Alt / mouse wheel adjusts `spot.width` 2-5) or show depth/width sliders for the selected spot below the map; UI test that dragging changes `getDeadSpot().width`.
-- [CW-32] effort M — add `Character::deadSpotShortensTheRenderedT60`: render a note through `LuthierEngine` at a depth>=0.5 dead spot and at an adjacent fret, measure 60 dB decay time on the rendered output, assert >=10% shorter.
