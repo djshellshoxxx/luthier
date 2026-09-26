@@ -2109,6 +2109,9 @@ juce::MemoryBlock LuthierAudioProcessor::captureStateBlock()
 
 std::unique_ptr<juce::AudioProcessor> LuthierAudioProcessor::createOfflineInstance()
 {
+    // FEAT-BROWSER: built as a render instance, which also skips the user-global
+    // loads and factory writes review R-213 left open, and never starts the timer.
+    const ScopedOfflineRenderConstruction scope;
     auto instance = std::make_unique<LuthierAudioProcessor>();
 
     /*  The exporter builds, renders and destroys this instance on its own
