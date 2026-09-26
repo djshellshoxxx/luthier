@@ -16,6 +16,7 @@
 #include "../DSP/Pickup/PickupEngine.h"
 #include "../LuthierEngine.h"
 #include "../PluginProcessor.h"
+#include "../UI/CharacterPanel.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -565,4 +566,38 @@ LUTHIER_TEST (Character, driftChangesOnlyPerBlockAndSlowly)
 
     CHECK_MSG (range > 0.5, "the drift did not move: " + juce::String (range, 3) + " cents");
     CHECK_MSG (worst < 0.02, "a block stepped the drift by " + juce::String (worst, 4) + " cents");
+}
+
+//==============================================================================
+/*  CW-29: the dead-spot map edits a spot's width as well as its depth. */
+LUTHIER_TEST (CharacterUi, theWheelSetsADeadSpotsWidth)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, 512);
+
+    auto& c = processor.getEngine().getCharacterEngine();
+    c.setDeadSpot (1, 0, DeadSpot { 7, 0.4, 3.0 });
+
+    DeadSpotMap map (processor);
+    map.setSize (24 + 22 * 20, DeadSpotMap::preferredHeight);
+
+    const float x = 20.0f + (float) (map.getWidth() - 24) * 7.0f / 22.0f;
+    const float y = 1.5f * DeadSpotMap::rowHeight;
+
+    const juce::MouseEvent e (juce::Desktop::getInstance().getMainMouseSource(), { x, y },
+                              juce::ModifierKeys(), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &map, &map,
+                              juce::Time::getCurrentTime(), { x, y }, juce::Time::getCurrentTime(), 1, false);
+
+    juce::MouseWheelDetails up {};
+    up.deltaY = 0.5f;
+    map.mouseWheelMove (e, up);
+    map.mouseWheelMove (e, up);
+    CHECK_NEAR (c.getDeadSpot (1, 0).width, 3.5, 1.0e-9);
+
+    juce::MouseWheelDetails down {};
+    down.deltaY = -0.5f;
+    for (int i = 0; i < 10; ++i)
+        map.mouseWheelMove (e, down);
+    CHECK_NEAR (c.getDeadSpot (1, 0).width, 2.0, 1.0e-9);   // held at the spec's 2-fret floor
+    CHECK_NEAR (c.getDeadSpot (1, 0).depth, 0.4, 1.0e-9);   // depth untouched
 }

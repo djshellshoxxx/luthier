@@ -28,7 +28,8 @@ DeadSpotMap::DeadSpotMap (LuthierAudioProcessor& p)
     : processor (p)
 {
     setTooltip ("Dead spots. Each marker is a fret where that string sustains "
-                "less. Drag sideways to move one, up and down to deepen it.");
+                "less. Drag sideways to move one, up and down to deepen it, "
+                "and scroll over one to widen or narrow it.");
 }
 
 DeadSpotMap::~DeadSpotMap() = default;
@@ -199,6 +200,45 @@ void DeadSpotMap::mouseDrag (const juce::MouseEvent& event)
     spot.depth = juce::jlimit (0.1, 0.7, spot.depth - (double) event.getDistanceFromDragStartY() * 0.004);
 
     engine.setDeadSpot (draggingString, draggingSpot, spot);
+
+    refresh();
+
+    if (onEdited != nullptr)
+        onEdited();
+}
+
+// SPEC-SWEEP: CW-29 - character-wear 10 asks for each spot's depth AND width.
+// Depth is the vertical drag; width is the wheel (or a trackpad scroll) over it.
+void DeadSpotMap::mouseWheelMove (const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
+{
+    int stringIndex = 0;
+    double fret = 0.0;
+
+    if (! hitTest (event.getPosition(), stringIndex, fret))
+        return;
+
+    auto& engine = character();
+
+    int nearest = -1;
+    double bestDistance = 2.5;
+
+    for (int i = 0; i < engine.getNumDeadSpots (stringIndex); ++i)
+    {
+        const double distance = std::abs ((double) engine.getDeadSpot (stringIndex, i).fret - fret);
+
+        if (distance < bestDistance)
+        {
+            bestDistance = distance;
+            nearest = i;
+        }
+    }
+
+    if (nearest < 0 || wheel.deltaY == 0.0f)
+        return;
+
+    auto spot = engine.getDeadSpot (stringIndex, nearest);
+    spot.width = juce::jlimit (2.0, 5.0, spot.width + (wheel.deltaY > 0.0f ? 0.25 : -0.25));
+    engine.setDeadSpot (stringIndex, nearest, spot);
 
     refresh();
 

@@ -1,2 +1,1 @@
-- [CW-4] effort S — add a processor-level test: humanize params at 0 and character disabled/All fresh render two identical takes bit-for-bit (same MIDI); enabling either alone makes them differ.
-- [CW-29] effort S — add width editing to `DeadSpotMap` (e.g. horizontal drag with Alt / mouse wheel adjusts `spot.width` 2-5) or show depth/width sliders for the selected spot below the map; UI test that dragging changes `getDeadSpot().width`.
+- [CW-4] DEFERRED: two back-to-back takes are never bit-identical in this engine because the noise floor and pick noise run free. Determinism at zero character is covered by `CharacterWiring::freshIsBitIdenticalAndWornIsNot` (two engines). See sweep-notes/dsp1.md.
