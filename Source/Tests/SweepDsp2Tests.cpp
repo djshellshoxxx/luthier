@@ -1752,3 +1752,39 @@ LUTHIER_TEST (MidiExport, genericKeepsTheSlapGhostDistinction)
 
     file.deleteFile();
 }
+
+LUTHIER_TEST (Buzz, theCentreRisesWithTheContactFret)
+{
+    // FB-8 (fret-buzz.md 4): the buzz's centre sits in 3-6 kHz and rises
+    // with the fret the string hits.
+    auto centreFor = [] (double fretted)
+    {
+        NoiseEngine pool;
+        pool.prepare (48000.0);
+
+        FretBuzz buzz;
+        buzz.setGeometry (needsATech());
+
+        const std::array<double, 6> levels { 0.0, 0.0, 0.0, 0.0, 0.0, 1.0 };
+        const std::array<double, 6> frets { 0.0, 0.0, 0.0, 0.0, 0.0, fretted };
+        const std::array<double, 6> hz { 330.0, 247.0, 196.0, 147.0, 110.0, 82.4 };
+        buzz.process (pool, levels.data(), frets.data(), hz.data(), 6, 0.2);
+
+        return std::make_pair (activeLevel (pool, NoiseClass::fretBuzz) > 0.0 ? buzz.getBuzzingFret (5) : -1,
+                               [&pool]
+                               {
+                                   for (int i = 0; i < pool.getPoolLimit (NoiseClass::fretBuzz); ++i)
+                                       if (auto* g = pool.getGenerator (NoiseClass::fretBuzz, i); g != nullptr && g->isActive())
+                                           return g->getEvent().startHz;
+                                   return 0.0;
+                               }());
+    };
+
+    const auto low = centreFor (0.0);
+    const auto high = centreFor (9.0);
+
+    CHECK (low.first > 0 && high.first > low.first);
+    CHECK (low.second >= 3000.0 && low.second <= 6000.0);
+    CHECK (high.second >= 3000.0 && high.second <= 6000.0);
+    CHECK_MSG (high.second > low.second, "the buzz centre did not rise with the contact fret");
+}

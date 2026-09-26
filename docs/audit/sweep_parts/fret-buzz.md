@@ -11,7 +11,7 @@ The setup geometry and sensed buzz are in and well tested: `SetupGeometry::clear
 | FB-5 (§2) | Modal amplitude sum_k A_k sin(k pi x/L) at each fret, block rate | `FretBuzz::displacementMm` (3 modes, pluck weights) | n/a | `Buzz.theHeatmapAgreesWithTheGenerator` | DONE |
 | FB-6 (§3.2) | `setup_buzz_threshold` trims +/-0.15 mm, not a mute | `sense` (trim = (t-0.5) x 0.3) | SETUP `threshold` | `Buzz.theThresholdIsATrimNotAMute` | DONE |
 | FB-7 (§4) | Generator: burst per contact at the fundamental while excess > 0 | `process` (`NoiseEvent::burstHz`) | n/a | `Buzz.buzzStopsAsTheNoteDecays` | DONE |
-| FB-8 (§4) | Spectrum metallic 3-6 kHz, centre rising with contact fret — no test | `process` (startHz 3-6 kHz by fret, metallic texture) | n/a | - | NO-TEST |
+| FB-8 (§4) | Spectrum metallic 3-6 kHz, centre rising with contact fret — no test | `process` (startHz 3-6 kHz by fret, metallic texture) | n/a | `Buzz.theCentreRisesWithTheContactFret` | DONE |
 | FB-9 (§4) | Fret material sets brightness (nickel-silver dull, stainless bright, EVO between) — no fret-material field exists | none | n/a | - | MISSING |
 | FB-10 (§4) | Level min(1, excess/0.3) scaled by fret height | `FretBuzz::levelFor` | SETUP `fretHeight` | `Buzz.fretHeightChangesLevelNotPosition` | DONE |
 | FB-11 (§4) | Envelope 0.5 ms attack, decay tracks excess (buzzes on attack, cleans up) | `process` (setSustainLevel / release) | n/a | `Buzz.buzzStopsAsTheNoteDecays` | DONE |
