@@ -810,11 +810,14 @@ void EasyPanel::resized()
         r.removeFromLeft (Metrics::grid);
         riffsButton.setBounds (r.removeFromRight (64).reduced (2, 0));   // riff-library 7.3
         r.removeFromRight (Metrics::gridHalf);
-        if (jamGroup != nullptr)   // FEAT-JAM: the JAM group at the right end
-            jamGroup->setBounds (r.removeFromRight (juce::jmin (JamStripGroup::preferredWidth, juce::jmax (0, r.getWidth() - 290))));
+        // FEAT-JAM: the JAM group at the right end. INTEGRATE-2: the Riffs
+        // button's 68 px come out of the hint, so the group keeps its width
+        // (readout 110 + hint 52 + a 60 px feel slider stay).
+        if (jamGroup != nullptr)
+            jamGroup->setBounds (r.removeFromRight (juce::jmin (JamStripGroup::preferredWidth, juce::jmax (0, r.getWidth() - 222))));
 
         rhythmReadout.setBounds (r.removeFromRight (110));
-        rhythmHintLabel.setBounds (r.removeFromRight (jamGroup != nullptr ? 90 : 110));
+        rhythmHintLabel.setBounds (r.removeFromRight (jamGroup != nullptr ? 52 : 110));
         rhythmFeelSlider.setBounds (r);
     }
 
