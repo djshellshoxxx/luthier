@@ -60,16 +60,22 @@ jobs:
         run: |
           before=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=ci-linux-success&per_page=1" --jq '.total_count')
           n=$((before + 1))
+          # PAUSED 2026-09-26 (owner request): Windows and macOS builds are held
+          # until the project is fully complete. The cadence logic below is kept
+          # but forced off. To resume: restore the modulo lines and delete the
+          # two "false  # PAUSED" overrides.
           windows=false; macos=false
-          [ $((n % 3)) -eq 0 ] && windows=true
-          [ $((n % 15)) -eq 0 ] && macos=true
+          # [ $((n % 3)) -eq 0 ] && windows=true    # PAUSED
+          # [ $((n % 15)) -eq 0 ] && macos=true     # PAUSED
+          windows=false   # PAUSED until project complete
+          macos=false     # PAUSED until project complete
           echo "number=$n" >> "$GITHUB_OUTPUT"
           echo "windows=$windows" >> "$GITHUB_OUTPUT"
           echo "macos=$macos" >> "$GITHUB_OUTPUT"
           {
             echo "### Successful Linux build #$n"
-            echo "- Windows this time: $windows (every 3rd)"
-            echo "- macOS this time: $macos (every 15th)"
+            echo "- Windows this time: $windows (PAUSED until project complete)"
+            echo "- macOS this time: $macos (PAUSED until project complete)"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "$n" > marker.txt
       - uses: actions/upload-artifact@v4

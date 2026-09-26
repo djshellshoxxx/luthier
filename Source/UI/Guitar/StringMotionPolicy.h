@@ -3,12 +3,11 @@
 /*  How much the strings may move: cpu-quality-modes.md 6's AnimationPolicy as
     the animated strings see it (animated-strings.md 2.6).
 
-    A thin adapter, so the swap is one function body: when FEAT-CPU's
-    Source/UI/AnimationPolicy lands, getMotion() returns
-    AnimationPolicy::get().getMotion() (the strings are its Decorative class).
-    Until then it derives the same answer from what exists: Reduced motion is
-    Off; nothing yet produces Limited (CPU quality Medium / relief 1) or Off
-    from CPU quality Low, and tests set those through the override.
+    Retired as a policy: it used to derive the answer itself (Reduced motion
+    only), so CPU quality never reached the strings and the illustration (which
+    reads AnimationPolicy) disagreed with them. It is now a read-only view of
+    AnimationPolicy::getStringsStyle(), kept only as a bridge for older callers
+    and tests. New code reads AnimationPolicy directly.
 
         Full     the preference's quality, up to 60 Hz
         Limited  forced to the Low style at 30 Hz
@@ -24,6 +23,8 @@ namespace luthier::StringMotionPolicy
     /** Message thread. */
     Motion getMotion();
 
-    /** Stands in for AnimationPolicy's inputs in tests; nullopt restores them. */
+    /** Tests: feeds AnimationPolicy a source at the matching CPU quality level
+        (Limited = Medium, Off = Low), so every consumer of the policy sees it;
+        nullopt removes that source. */
     void setOverrideForTesting (std::optional<Motion> motion);
 }

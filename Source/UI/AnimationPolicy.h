@@ -207,7 +207,10 @@ private:
     std::map<const void*, Source> sources;
 
     juce::ListenerList<Listener> listeners;
-    std::map<const juce::Component*, Registration*> registry;
+    /** A component may hold more than one registration (an illustration's own
+        and its StringAnimator's), so this is a multimap. */
+    std::multimap<const juce::Component*, Registration*> registry;
+    bool isRegistered (const Registration* r) const;
     bool listeningToAccessibility = false;
 
     JUCE_DECLARE_NON_COPYABLE (AnimationPolicy)

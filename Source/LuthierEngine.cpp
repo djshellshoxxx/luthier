@@ -2574,13 +2574,31 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         std::array<double, kMaxStrings> hz {}, levels {};
         std::array<bool, kMaxStrings> wound {};
 
+        // Above the note, the loop locks on the string's own partial 2^bias,
+        // which dispersion stretches a little sharp of the plain multiple: the
+        // note handed over is scaled so that note * 2^bias lands on it.
+        const int bias = feedbackLoop.getSettings().octaveBias;
+        const int partial = bias > 0 ? (1 << bias) : 1;
+
         for (int s = 0; s < numStrings; ++s)
         {
-            hz[(size_t) s] = strings[(size_t) s].getCurrentFrequency();
-            levels[(size_t) s] = strings[(size_t) s].getLevel();
+            auto& str = strings[(size_t) s];
+            double stretch = 1.0;
+
+            if (partial > 1)
+            {
+                const double first = str.getPartialFrequency (1);
+                stretch = first > 0.0 ? str.getPartialFrequency (partial) / ((double) partial * first) : 1.0;
+            }
+
+            hz[(size_t) s] = str.getCurrentFrequency() * stretch;
+            levels[(size_t) s] = str.getLevel();
             wound[(size_t) s] = stringSpecs[(size_t) s].wound;
         }
 
+        // What lies between the strings and the amp's output that is the
+        // plug-in's latency, not the room's (FeedbackLoop::setProcessingLatency).
+        feedbackLoop.setProcessingLatency (preEffects.getLatencySamples() + amp.getLatencySamples());
         feedbackLoop.beginBlock (hz.data(), levels.data(), wound.data(), numStrings);
     }
 
@@ -2660,7 +2678,6 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         const double bodyDrive = slap.isBodyTapSounding() ? slap.nextBodyDrive() : 0.0;
         slapBodyDrive[(size_t) i] = bodyDrive;
 
-        const double fbAmp = feedbackOn ? feedbackLoop.delayedAmp (i) : 0.0;
         double fbSum = 0.0;
 
         coupling.process (bridgeOutputs.data(), couplingInputs.data());
@@ -2709,7 +2726,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             // through the air, at this string's own note.
             if (feedbackOn)
             {
-                const double fb = feedbackLoop.process (s, fbAmp);
+                const double fb = feedbackLoop.process (s, i);
                 couplingIn += fb;
                 fbSum += fb;
             }
