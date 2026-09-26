@@ -20,7 +20,7 @@
 | SG-14 (§5.1) | Friction noise ∝ amount x material friction x bar speed; replaces squeak on barred strings — no friction test | `LuthierEngine::triggerNote` `str.setNoiseAmount(...friction...)` | SLIDE `noise` | - | NO-TEST |
 | SG-15 (§5.2) | Clank (8-generator pool) on landing and rattle below 0.3 pressure; brass ~1.2 kHz, glass ~2.5 kHz, mass lowers | `SlideEngine::makeClank`; `NoiseEngine::kPoolSizes` clank 8 | SLIDE `clank` | `Slide.theBarClanksWhenItLands` | DONE |
 | SG-16 (§0.5, 6) | Action < 2.2 mm bass shows the exact empty-state message; setup not changed; Slide style one click away | `SlideEngine::kLowActionMessage`; `SlideGroup` `lowAction`, `useSlideSetup` | SLIDE group | `SlideUi.theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` | DONE |
-| SG-17 (§6, 8) | Fret buzz stays active under a slide | `FretBuzz::process` unchanged | n/a | - | NO-TEST |
+| SG-17 (§6, 8) | Fret buzz stays active under a slide | `FretBuzz::process` unchanged | n/a | `Slide.aLowSetupBuzzesUnderTheBar` | DONE |
 | SG-18 (§7) | Params: enable (`slide_guitar` re-pointed, DECISIONS), mode, pressure, slant, damping, noise, clank, assist with defaults | `Parameters.cpp` slide block | SLIDE group + header toggle | `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
 | SG-19 (§7) | `slide` family advanced ranges (slant ±60, noise/clank 0-4) | `PhysicalRange.cpp` slide rows | CHARACTER padlock | `Ranges.stockMatchesTheDeclaredRange` | DONE |
 | SG-20 (§7) | SLIDE group on CHARACTER only in Slide Mode: pressure state, slant, material/mass mirror, noise, clank | `UI/SlideGroup.*`; `CharacterPanel` addChildComponent | CHARACTER > SLIDE | `SlideUi.theSlideGroupAppearsWithSlideModeAndTheTabFitsIt`, `SlideUi.pressureSaysWhatItMeans` | DONE |

@@ -2027,3 +2027,80 @@ LUTHIER_TEST (StrumDynamics, aPalmMuteKeepsPitchAndAChuckDoesNot)
     CHECK_MSG (muted > 0.05, "a palm mute lost its pitch: " + juce::String (muted));
     CHECK_MSG (chucked < muted * 0.5, "a chuck kept its pitch: " + juce::String (chucked) + " vs " + juce::String (muted));
 }
+
+//==============================================================================
+LUTHIER_TEST (Buzz, squeakAndBuzzCoexist)
+{
+    // SQ-25 / FB-25 (string-squeak.md 10, fret-buzz.md 8): a shift across a
+    // buzzing region produces both, with no ducking.
+    LuthierEngine engine;
+    engine.prepare (48000.0, 256);
+    engine.setGuitarType (GuitarType::Dreadnought);
+    engine.setSetupGeometry (needsATech());
+
+    SqueakSettings always;
+    always.probability = 1.0;
+    always.moisture = 0.0;
+    engine.setSqueak (always);
+
+    const int low = engine.getNumStrings() - 1;
+    juce::AudioBuffer<float> buffer (2, 256);
+    juce::MidiBuffer midi;
+
+    NoteOnEvent pluck;
+    pluck.stringIndex = low;
+    pluck.fretPosition = 1.0;
+    pluck.velocity = 1.0;
+    pluck.pitchHz = engine.getTuningEngine().computeFrequency (low, 1.0);
+    engine.triggerNoteNow (pluck);
+
+    for (int b = 0; b < 4; ++b)
+        engine.processBlock (buffer, midi);
+
+    NoteOnEvent slide = pluck;
+    slide.technique = Technique::Slide;
+    slide.slideFromFret = 1.0;
+    slide.fretPosition = 5.0;
+    slide.slideSeconds = 0.12;
+    slide.pitchHz = engine.getTuningEngine().computeFrequency (low, 5.0);
+    engine.triggerNoteNow (slide);
+
+    for (int b = 0; b < 8; ++b)
+        engine.processBlock (buffer, midi);
+
+    const auto& pool = engine.getPlayingNoise().getPool();
+    CHECK_MSG (pool.getTriggerCount (NoiseClass::squeak) >= 1, "the shift did not squeak");
+    CHECK_MSG (pool.getTriggerCount (NoiseClass::fretBuzz) >= 1, "the hard note on a bad setup did not buzz");
+}
+
+LUTHIER_TEST (Slide, aLowSetupBuzzesUnderTheBar)
+{
+    // SG-17 (slide-guitar.md 5 / fret-buzz.md 8): a bar note on "Needs a tech"
+    // still rattles on the frets underneath.
+    LuthierEngine engine;
+    engine.prepare (48000.0, 256);
+    engine.setGuitarType (GuitarType::Dreadnought);
+    engine.setSetupGeometry (needsATech());
+
+    SlideSettings settings;
+    settings.enabled = true;
+    settings.mode = SlideMode::lapSteel;
+    engine.setSlideSettings (settings);
+    engine.getMidiInterpreter().setPlayingMode (PlayingMode::Mono);
+
+    juce::AudioBuffer<float> buffer (2, 256);
+
+    for (int b = 0; b < 12; ++b)
+    {
+        juce::MidiBuffer midi;
+
+        if (b == 0)
+            midi.addEvent (juce::MidiMessage::noteOn (1, 45, (juce::uint8) 127), 0);
+
+        buffer.clear();
+        engine.processBlock (buffer, midi);
+    }
+
+    CHECK_MSG (engine.getPlayingNoise().getPool().getTriggerCount (NoiseClass::fretBuzz) >= 1,
+               "a hard bar note on a low setup did not buzz");
+}
