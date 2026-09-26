@@ -535,6 +535,34 @@ bool ControllerProfileLibrary::save (const ControllerProfile& profile)
 void ControllerProfileLibrary::apply (const ControllerProfile& profile,
                                       MidiInterpreter& interpreter)
 {
+    // CT-9: "Guitar mode" turns a normally-MPE controller (LinnStrument) into a
+    // per-channel one for the duration of the toggle, regardless of its own
+    // mode field. LinnStrument's own default Guitar-mode channel assignment
+    // puts the lowest row on channel 2; Luthier only needs six of its rows, so
+    // rows 1-6 map to channels 2-7, high string to low, at MPE's 48-semitone
+    // bend range (the controller does not change its own bend behaviour when
+    // Guitar mode is enabled).
+    if (profile.rowsAsStrings)
+    {
+        interpreter.setMpeEnabled (false);
+        interpreter.setPlayingMode (PlayingMode::GuitarController);
+        interpreter.setPitchBendRange (48.0);
+
+        constexpr int kGuitarModeFirstChannel = 2;
+        constexpr int kGuitarModeStrings = 6;
+
+        for (int s = 0; s < kMaxStrings; ++s)
+        {
+            const int channel = (s < kGuitarModeStrings) ? (kGuitarModeFirstChannel + s) : 0;
+            interpreter.setChannelForString (s, channel);
+
+            if (channel > 0)
+                interpreter.setStringBendRange (s, 48.0);
+        }
+
+        return;
+    }
+
     switch (profile.mode)
     {
         case ControllerMode::mpe:

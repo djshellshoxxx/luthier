@@ -916,3 +916,37 @@ LUTHIER_TEST (Controllers, mpeMasterChannelNotesAreIgnored)
     // A member channel still plays normally.
     CHECK (fixture.noteOnString (profile.mpeFirstMemberChannel, 52, position) >= 0);
 }
+
+//==============================================================================
+// CT-9: LinnStrument's "Guitar mode" (rowsAsStrings) used to be stored but
+// never applied - the profile stayed in MPE mode regardless of the toggle.
+LUTHIER_TEST (Controllers, linnstrumentGuitarModeMapsRowsToStrings)
+{
+    ControllerProfileLibrary library;
+    const int index = library.indexOf ("linnstrument");
+    CHECK (index >= 0);
+
+    if (index < 0)
+        return;
+
+    auto profile = library.getProfile (index);
+    CHECK (profile.mode == ControllerMode::mpe);   // its normal, non-Guitar-mode behaviour
+
+    profile.rowsAsStrings = true;
+
+    InterpreterFixture fixture;
+    ControllerProfileLibrary::apply (profile, fixture.interpreter);
+
+    CHECK (! fixture.interpreter.isMpeEnabled());
+    CHECK (fixture.interpreter.getPlayingMode() == PlayingMode::GuitarController);
+
+    for (int s = 0; s < 6; ++s)
+        CHECK_MSG (fixture.interpreter.getChannelForString (s) == 2 + s,
+                   "string " + juce::String (s) + " went to channel "
+                     + juce::String (fixture.interpreter.getChannelForString (s)));
+
+    int64_t position = 0;
+
+    // Channel 2 (row 1, high string) plays string 0.
+    CHECK (fixture.noteOnString (2, 64, position) == 0);
+}
