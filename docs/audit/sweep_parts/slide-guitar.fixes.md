@@ -4,4 +4,3 @@
 - [SG-17] effort S — Add `Slide.aLowSetupBuzzesUnderTheBar`: "Needs a tech" setup, Slide Mode on, bar note; assert `fretBuzz` trigger count > 0.
 - [SG-24] effort M — In `GuitarBodyComponent.cpp:TuningPopover`, when `slide_guitar` is on show each string's continuous sounding pitch (Hz / note + cents from `SlideEngine::getOverlayFret` and `contactFret`) instead of a fret; test in `EditorTests.cpp` (`TuningPopover` shows cents in Slide Mode).
 - [SG-26] effort M — Pass the bar slant into `perfCapture->slideBar` (LuthierEngine ~1320, fill the `slant` field) and, for the Generic profile in `MidiPerformance::addScoreNote`/capture writer, render SLIDE_BAR movement as pitch-wheel points relative to the note's key. Extend `Capture.bassAndSlideEventsBecomeLuthierEvents` for slant and add `MidiExport.genericRendersTheSlideAsPitchBend`.
-- [SG-T10] effort S — Add `Slide.noAllocationOnTheAudioThread` with the allocation counter: 10 s of bar moves, landings and mode switches.

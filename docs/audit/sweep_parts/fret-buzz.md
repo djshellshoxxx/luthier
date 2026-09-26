@@ -39,6 +39,6 @@ The setup geometry and sensed buzz are in and well tested: `SetupGeometry::clear
 | FB-T7 (§9) | Test: sitar mode continuous | | n/a | `Buzz.sitarModeIsContinuous` | DONE |
 | FB-T8 (§9) | Test: heatmap matches audio — random 400-block run, not a 30 s engine performance | | n/a | `Buzz.theHeatmapAgreesWithTheGenerator` | DONE |
 | FB-T9 (§9) | Test: block-rate sensing within 0.2-unit budget at 6 voices — missing (visual's `PerfBudget.everyModuleWithinBudget` has no FretBuzz row) | | n/a | - | NO-TEST |
-| FB-T10 (§9) | Test: no allocation on the audio thread — missing | | n/a | - | NO-TEST |
+| FB-T10 (§9) | Test: no allocation on the audio thread — missing | n/a | n/a | `Buzz.noAllocationOnTheAudioThread` | DONE |
 
 <!-- counts DONE=27 NO-GUI=0 NO-TEST=6 PARTIAL=0 MISSING=3 OWNED=0 -->

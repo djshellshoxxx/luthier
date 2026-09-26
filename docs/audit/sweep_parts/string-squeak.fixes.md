@@ -1,4 +1,3 @@
 - [SQ-8] PARTIAL: revoice of a held note squeaks (dsp2); imported Luthier SLIDE replay is left with BT-12
 - [SQ-24] effort M — Make `NoiseGroups::windingMaterial` a true mirror of the Workshop string part: show the current part's material and either write through the Workshop part API (`PartAcoustics` stringMaterial via the processor's workshop state) or add a "Change in Workshop" jump button (gui-integration.md 0.1 mirror rule). Test in `NoiseUi.theWindingSelectorMirrorsTheWorkshopPart`.
 - [SQ-25] effort S — Add `Squeak.aShiftAcrossABuzzingRegionProducesBoth`: engine with a low action buzz + legato slide; assert both `fretBuzz` and `squeak` trigger counts increase (no ducking).
-- [SQ-T10] effort S — Add `Squeak.noAllocationOnTheAudioThread` using the `allocationsOnThisThread()` counter (as in CaptureTests.cpp): 10 000 engine shifts with squeak on, assert zero allocations.

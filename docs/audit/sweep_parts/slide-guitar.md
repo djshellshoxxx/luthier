@@ -39,6 +39,6 @@
 | SG-T7 (§9) | Test: squeak suppressed under the bar, fires beside it in hybrid | | n/a | `Slide.squeakStopsUnderTheBarButNotBesideIt` | DONE |
 | SG-T8 (§9) | Test: low-action warning shown, setup not modified | | n/a | `SlideUi.theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` | DONE |
 | SG-T9 (§9) | Test: mode switch mid-note clean (< -60 dBFS) | | n/a | `Slide.switchingModeMidNoteIsClean` | DONE |
-| SG-T10 (§9) | Test: no allocation on the audio thread — missing | | n/a | - | NO-TEST |
+| SG-T10 (§9) | Test: no allocation on the audio thread — missing | n/a | n/a | `Slide.noAllocationOnTheAudioThread` | DONE |
 
 <!-- counts DONE=26 NO-GUI=0 NO-TEST=4 PARTIAL=2 MISSING=2 OWNED=2 -->

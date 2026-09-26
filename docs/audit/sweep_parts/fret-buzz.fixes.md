@@ -5,4 +5,3 @@
 - [FB-25] effort S — Add `Buzz.squeakAndBuzzCoexist` (shared with string-squeak SQ-25): legato slide across a buzzing region on "Needs a tech"; assert both `fretBuzz` and `squeak` trigger counts increase.
 - [FB-26] effort M — Pass per-string bend (semitones/cents from `BendEngine`/pitch bend) into `FretBuzz::process`; in `clearanceMm` raise the string height near the fretted position by a lateral-deflection term and reduce clearance on frets further up. Test `Buzz.aBendMovesTheBuzzUpTheNeck`.
 - [FB-T9] effort S — Add a `FretBuzz` row to the perf budget test (visual's `PerfBudget.everyModuleWithinBudget` once merged, else a `Buzz.senseStaysInItsBudget` timing test: 6 strings, `process` per 64-sample block, <= 0.2 units x 1.1).
-- [FB-T10] effort S — Add `Buzz.noAllocationOnTheAudioThread` using the allocation counter (CaptureTests.cpp pattern): 10 s engine render on "Needs a tech" and sitar mode, assert zero allocations.

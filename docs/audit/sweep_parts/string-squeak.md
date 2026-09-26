@@ -44,6 +44,6 @@ The generated squeak is in place: `PlayingNoise::makeSqueak` / `onShift` impleme
 | SQ-T7 (§13) | Test: bend and vibrato do not squeak | n/a | n/a | `Squeak.aBendAndVibratoDoNotSqueak` | DONE |
 | SQ-T8 (§13) | Test: Slide Mode suppresses it | | n/a | `Squeak.zeroIsFreeAndSlideModeSuppressesIt` | DONE |
 | SQ-T9 (§13) | Test: zero is free over 10 000 shifts | | n/a | `Squeak.zeroIsFreeAndSlideModeSuppressesIt` | DONE |
-| SQ-T10 (§13) | Test: no allocation on the audio thread — missing | | n/a | - | NO-TEST |
+| SQ-T10 (§13) | Test: no allocation on the audio thread — missing | n/a | n/a | `Squeak.noAllocationOnTheAudioThread` | DONE |
 
 <!-- counts DONE=29 NO-GUI=0 NO-TEST=6 PARTIAL=3 MISSING=1 OWNED=2 -->
