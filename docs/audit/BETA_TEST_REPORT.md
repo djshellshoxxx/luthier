@@ -168,13 +168,13 @@ IN PROGRESS (a helper branch covers it).
 - Cause: the preset's type (Custom) has no parts guitar, so the bridge falls back to the compiled guitar, but `partsGuitarLoaded` stayed set from the previous (Strat) parts guitar; `prepareToPlay` then rebuilt the engine from those parts. The processor that loaded the preset played the Strat's parts after a restart, a fresh instance restoring the session did not.
 - Fix: `loadGuitarForType` clears `partsGuitarLoaded` and `loadedGuitarKey` when no parts guitar loads. Regression test `Combo.compiledGuitarSurvivesATransportRestart` (fails before, passes after).
 
-### B-18 `Feedback.aLoudRigTakesOverAndACleanOneDoesNot`: Shred Lead at full amount never feeds back. OPEN (feedback-loop owner; round 2)
+### B-18 `Feedback.aLoudRigTakesOverAndACleanOneDoesNot`: Shred Lead at full amount never feeds back. FIXED by FIX-CROSS (`bdab6fa`, feedback loop in phase on the partial; round 2)
 
 - `line 179: a loud high-gain rig at full amount never fed back (peak activity 0.0746)`. Fails on the integration branch too (`e4dee39`), and passed on it before this branch's class-4 fix (B-05) was merged.
 - Cause, measured: before B-05, "Shred Lead" loaded the wrong parts (X-brace spruce/rosewood body, single coils, 500k pots). With the RG's own parts (ceramic humbuckers, solid basswood, 250k pots) the loop peaks at activity 0.0746; putting a single coil in slot 0, nothing else changed, reaches 0.081 and takes over. Body bracing and treble bleed make no difference.
 - Physically a hot ceramic humbucker into a Rectifier at 0.5 m and 100% should take over at least as readily as a single coil (the loop is string -> amp -> string; the pickup only has to hear the string). So either the loop's gain is too low overall (even the single coil only just crosses) or its pickup dependence runs the wrong way. The loop's gain staging is a tuning decision for its owner (ambiguity-resolutions 1), so it is not changed here and the test is not loosened.
 
-### B-19 `Feedback.eachStringHearsItsOwnNote`: octave-bias feedback 7.4 cents off target. OPEN (helper merges; round 2)
+### B-19 `Feedback.eachStringHearsItsOwnNote`: octave-bias feedback 7.4 cents off target. FIXED by FIX-CROSS (`bdab6fa`; round 2)
 
 - `octave bias 1: the feedback peaks at 441.12 Hz, 7.4 cents from 439.24 Hz` (limit 5). Already failing on the integration branch before this branch was merged back (`e763adf`: 18.6 cents), so it comes from the helper merges (realism-b's harmonic contacts / realism-c's tuning stability both move string pitch), not from this branch's fixes.
 
@@ -193,7 +193,16 @@ IN PROGRESS (a helper branch covers it).
 
 - The ASan build (`-fsanitize=address`, `ASAN_OPTIONS=detect_leaks=0:alloc_dealloc_mismatch=0`) stopped in `FingerstyleAttack.FA07_restDampsTheNeighbour`: heap-buffer-overflow reading `after[i]` (FingerstyleAttackTests.cpp:385). The test measured a 10 ms window ending three of the watched string's periods plus 10 ms after the stroke, but rendered a fixed 30 ms (1536 samples); for the low E (thumb rest 4 -> 5) the window ends at 2229, so its "< 1 dB" check read uninitialised memory. The render now covers the window. Test code only; the engine was not involved.
 
-### B-23 Integration-side failures after the feat-* merges. OPEN (owned by FIX-CROSS; round 2)
+### B-23 Integration-side failures after the feat-* merges. MOSTLY FIXED by FIX-CROSS (`b152502`); three left (round 2)
+
+After merging FIX-CROSS (full suite at `b502836` + this branch: 8 of 1371 tests fail, from 17), the shortcut clashes, the Jam pill layout, AS25, `cpuQualityMotionPolicy`, CQ12 and the feedback tests (B-18, B-19) pass. Still failing, on the integration branch too:
+
+- `ON02_OffPathMatchesGoldenHashes`: `p06_gown_phrase` / `p06_gown_chord` differ from their golden hashes with normalization off - the feedback-phase and dispersion changes moved preset 6's audio; the hashes need `scripts/regen_normalization_hashes.sh`.
+- `CQ10_aRingingNoteKeepsItsStagesUntilReExcited`: expects `getLatchedDispersionStages() == 8` and more active stages than at Low - FIX-CROSS latches dispersion at the pluck, so this feat-cpu test and that change disagree.
+- `CQ22_everyTimerDrivenUiClassIsRegisteredOrAllowListed`: `NormalizationBadge`, `NormalizationOptionsGroup`, `NormalizationCaption` and `JamPill` still run timers without an `AnimationPolicy::Registration`.
+- `BC13_budgetAndSafety` and `CQ13_scenarioBudgets` failed once in the full run and pass twice in isolation (and on the integration branch): wall-clock budgets on a shared 4-core container.
+
+Original list (round 2, before FIX-CROSS):
 
 Reproduced on the integration branch itself (`7442855`), so not caused by this branch; `docs/helpers/GAP_FILL_INSTRUCTIONS.md` gives AnimationPolicy wiring, the feedback loop, shortcut clashes and the jam layout to the FIX-CROSS helper, so they are reported here and not fixed:
 
