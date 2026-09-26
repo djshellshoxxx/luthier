@@ -435,7 +435,10 @@ LUTHIER_TEST (Accessibility, shortcutsRebindAndRefuseClashes)
     {
         for (size_t j = i + 1; j < shortcuts.size(); ++j)
         {
-            CHECK_MSG (! (shortcuts[i].key == shortcuts[j].key),
+            // Unbound actions (animated-strings 8, cpu-quality-modes 5,
+            // output-normalization 9) have no key to share: rebind() treats
+            // unbound as never clashing, and so does this check.
+            CHECK_MSG (! (shortcuts[i].key.isValid() && shortcuts[i].key == shortcuts[j].key),
                        shortcuts[i].id + " and " + shortcuts[j].id + " share a key");
         }
     }
@@ -664,7 +667,7 @@ LUTHIER_TEST (Accessibility, noTwoShortcutsShareADefaultKey)
 
     for (size_t i = 0; i < shortcuts.size(); ++i)
         for (size_t j = i + 1; j < shortcuts.size(); ++j)
-            CHECK_MSG (! (shortcuts[i].key == shortcuts[j].key),
+            CHECK_MSG (! (shortcuts[i].key.isValid() && shortcuts[i].key == shortcuts[j].key),   // unbound never clashes
                        shortcuts[i].id + " and " + shortcuts[j].id
                          + " both default to " + shortcuts[i].key.getTextDescription());
 }
