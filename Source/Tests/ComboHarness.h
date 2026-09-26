@@ -519,6 +519,16 @@ struct Verdict
     double cpuCeilingPercent = 60.0;
     bool checkIdleFloor = true;     ///< off for random rigs, whose noise controls are random too
 
+    /*  The idle floor is judged against the rig's own playing level, not an
+        absolute level. A real amp with gain and master both on 10 turns a
+        single coil's mains hum into a buzz almost as loud as a played chord -
+        the preamp's small-signal gain applies to the hum in full while the
+        chord saturates - which is why players of such rigs use a gate. So an
+        absolute ceiling (formerly -30 dBFS) fails physically honest extremes.
+        Any rig: the floor may not reach the playing level (0 dB). A shipped
+        factory sound: 20 dB under it (CombinationTests sets that). */
+    double minSnrDb = 0.0;
+
     juce::String judge (const RenderStats& s) const
     {
         juce::StringArray why;
@@ -546,9 +556,11 @@ struct Verdict
                          + " dBFS vs note " + juce::String (juce::Decibels::gainToDecibels (s.maxWindowRms), 1) + " dBFS)");
         }
 
-        if (checkIdleFloor && s.idleRms > 0.0316)
+        if (checkIdleFloor && s.idleRms > 1.0e-3 && s.maxWindowRms > 1.0e-4   // below -60 dBFS nobody hears it
+            && juce::Decibels::gainToDecibels (s.maxWindowRms / s.idleRms) < minSnrDb)
             why.add ("loud idle noise floor: " + juce::String (juce::Decibels::gainToDecibels (s.idleRms), 1)
-                     + " dBFS with nothing played");
+                     + " dBFS with nothing played, " + juce::String (juce::Decibels::gainToDecibels (s.maxWindowRms / s.idleRms), 1)
+                     + " dB under the playing level (minimum " + juce::String (minSnrDb, 0) + ")");
 
         if (s.cpuPercent > cpuCeilingPercent)
             why.add ("CPU " + juce::String (s.cpuPercent, 1) + "% of real time > " + juce::String (cpuCeilingPercent, 0) + "%");

@@ -641,6 +641,17 @@ private:
         with the guitar's own values. */
     bool guitarParametersFromState = false;
 
+    /*  A factory preset or a reset names its guitar's parts as the winners
+        (guitar block "partsWin") and lists the recipe values to restore over
+        them ("keep", parameter id -> normalised). Applied after the parts are
+        written, then cleared. Message thread. */
+    juce::NamedValueSet pendingGuitarKeep;
+
+    /** Set with partsWin: the parts are written even over values the preset or
+        reset has just written (which the writtenSinceGuitarType guard would
+        otherwise take for the host's). Cleared after the load. */
+    bool guitarPartsWin = false;
+
     /*  live-performance 2: a program change or bank select arrives on the audio
         thread, but acting on either can allocate - a snapshot recall walks the
         parameter tree, and a preset load reads a file. The audio thread records

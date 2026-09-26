@@ -457,6 +457,21 @@ void LuthierAudioProcessor::takeGuitarBlock (const juce::var& block)
     guitarOverride = override;
     guitarSourceType = type;
     guitarParametersFromState = true;
+    pendingGuitarKeep.clear();
+
+    // A factory preset, or a reset: the guitar's own parts win over the layout
+    // defaults in the parameter block, and the recipe's own values go back on top.
+    guitarPartsWin = false;
+
+    if ((bool) block.getProperty ("partsWin", false))
+    {
+        guitarPartsWin = true;
+        guitarParametersFromState = false;
+        loadedGuitarKey.clear();
+
+        if (auto* keep = block.getProperty ("keep", {}).getDynamicObject())
+            pendingGuitarKeep = keep->getProperties();
+    }
 
     // Old placements to migrate edit the guitar, even when it is already loaded.
     if (presets.hasLegacyPickupPlacements())
@@ -515,7 +530,36 @@ bool LuthierAudioProcessor::loadGuitarForType (GuitarType type)
         guitarSourceType = (int) type;
     }
 
-    return loadGuitarFrom (guitarReference, guitarOverride, type, writeParameters);
+    // Which values the guitar load itself replaces: only those get the recipe's
+    // value back. Anything else the recipe set was never touched by the load,
+    // and may have been changed since by the player or the host.
+    std::vector<float> before;
+
+    if (! pendingGuitarKeep.isEmpty())
+        for (auto* p : getParameters())
+            before.push_back (p->getValue());
+
+    const bool loaded = loadGuitarFrom (guitarReference, guitarOverride, type, writeParameters);
+    guitarPartsWin = false;
+
+    if (! pendingGuitarKeep.isEmpty())
+    {
+        const auto keep = std::exchange (pendingGuitarKeep, {});
+        const auto& params = getParameters();
+
+        for (int i = 0; i < juce::jmin ((int) before.size(), params.size()); ++i)
+        {
+            auto* p = dynamic_cast<juce::RangedAudioParameter*> (params[i]);
+
+            if (p == nullptr || p->getValue() == before[(size_t) i] || p->getParameterID() == ParamIDs::guitarType)
+                continue;
+
+            if (const auto* value = keep.getVarPointer (p->getParameterID()))
+                p->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, (double) *value));
+        }
+    }
+
+    return loaded;
 }
 
 bool LuthierAudioProcessor::loadGuitarFrom (const juce::String& reference, const juce::var& override,
@@ -859,7 +903,7 @@ void LuthierAudioProcessor::writeGuitarParameters (const DerivedAcoustics& d)
     {
         // A value the host wrote after the guitar type is the host's (a session
         // restoring both, or automation landing together): keep it.
-        if (bridge.writtenSinceGuitarType (id))
+        if (! guitarPartsWin && bridge.writtenSinceGuitarType (id))
             return;
 
         if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (id)))

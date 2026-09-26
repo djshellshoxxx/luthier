@@ -386,6 +386,7 @@ LUTHIER_TEST (Combo, everyFactoryPresetPlaysEveryPhrase)
             const auto stats = rig.render ((Phrase) ph, 3.0);
             Verdict v;
             v.expectDecay = ! holdsSound (rig) && ! slotHoldsSound (rig);
+            v.minSnrDb = 20.0;   // a shipped sound: the floor 20 dB under the playing
             judgeAndLog (ctx, log, rig, label + juce::String (" phrase=") + phraseName ((Phrase) ph), stats, v);
             rig.quiet();
         }
@@ -1400,4 +1401,43 @@ LUTHIER_TEST (Combo, renderDoesNotDependOnWhatWasPlayedBefore)
     }
 
     log.flush();
+}
+
+//==============================================================================
+/*  A factory preset plays its guitar's own parts, and Reset gives the default
+    guitar its own parts. Found through the idle noise floor: "Octave Fuzz
+    Stoner" (an SG) hummed like a Strat because every factory preset carried the
+    layout defaults for the parameters a guitar's parts own - three single
+    coils, an X-braced spruce top, 500k pots - and a preset's values beat the
+    parts. Reset left the same on the default solid-body (B-05). */
+LUTHIER_TEST (Combo, factoryPresetsAndResetUseTheGuitarsOwnParts)
+{
+    auto pickup0 = [] (Rig& r) { return r.param (ParamIDs::pickupType (0))->getCurrentValueAsText(); };
+    auto bracing = [] (Rig& r) { return r.param (ParamIDs::bodyBracing)->getCurrentValueAsText(); };
+
+    {
+        Rig r;
+        auto& p = r.p().getPresetManager();
+        p.loadPreset (p.indexOfPreset ("Octave Fuzz Stoner"));
+        r.apply();
+        CHECK_MSG (pickup0 (r) == "Humbucker", "the SG preset's bridge pickup is " + pickup0 (r));
+        CHECK_MSG (bracing (r) == "Solid Body", "the SG preset's body is " + bracing (r));
+        CHECK_MSG ((int) r.p().getEngine().getPickupEngine().getPickupSpec (0).type == 1, "the engine's SG pickup is not a humbucker");
+    }
+
+    {
+        Rig r;
+        r.p().resetEverything();
+        CHECK_MSG (bracing (r) == "Solid Body", "Reset left the default solid-body " + bracing (r));
+    }
+
+    // And the recipe's own choices survive the parts: the tuning a preset picks.
+    {
+        Rig r;
+        auto& p = r.p().getPresetManager();
+        p.loadPreset (p.indexOfPreset ("Drop C Riff"));
+        r.apply();
+        CHECK_MSG (r.param (ParamIDs::tuningPreset)->getCurrentValueAsText().containsIgnoreCase ("C"),
+                   "Drop C Riff lost its tuning to the guitar's parts: " + r.param (ParamIDs::tuningPreset)->getCurrentValueAsText());
+    }
 }

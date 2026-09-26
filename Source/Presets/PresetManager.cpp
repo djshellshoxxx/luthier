@@ -1224,9 +1224,15 @@ void PresetManager::resetToDefaults()
     engine.getMidiInterpreter().resetCcMapToDefaults();
     applyExtraState();
 
-    // The default guitar type's factory guitar, as shipped, under the defaults.
+    // The default guitar type's factory guitar, as shipped: its parts win over the
+    // layout defaults just written (a reset used to leave an X-braced spruce top
+    // and 500k pots on the default solid-body, BETA_TEST_REPORT B-05).
     if (onGuitarBlockLoaded != nullptr)
-        onGuitarBlockLoaded ({});
+    {
+        auto* block = new juce::DynamicObject();
+        block->setProperty ("partsWin", true);
+        onGuitarBlockLoaded (juce::var (block));
+    }
 
     currentName = "Init";
     currentCategory = "User";
