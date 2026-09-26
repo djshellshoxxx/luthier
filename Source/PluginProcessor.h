@@ -189,7 +189,6 @@ public:
 
     // SPEC-SWEEP: LP-11 / LP-34 - live actions on CCs, calibrated pedal input.
     LiveActionMap&   getLiveActions() noexcept    { return liveActions; }
-    ExpressionInput& getExpressionInput() noexcept { return expressionInput; }
 
     /** SPEC-SWEEP: LP-16 - where the automatable snapshot morph last moved the
         bank to (the timer follows the parameter, modulation included). */
@@ -656,7 +655,6 @@ private:
     MonitorMix monitorMix;
     ExpressionCalibrationSet expression;
     LiveActionMap liveActions;          // SPEC-SWEEP: LP-11
-    ExpressionInput expressionInput;    // SPEC-SWEEP: LP-33 / LP-34
     float lastSnapshotMorph = -1.0f;    // SPEC-SWEEP: LP-16
 
     /*  The monitor mix is rendered into its own buffer and then written to the
