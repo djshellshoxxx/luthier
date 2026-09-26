@@ -585,7 +585,8 @@ LUTHIER_TEST (PluginBuses, anUnadvertisedLayoutIsRefused)
 
     auto mono = layout;
     mono.outputBuses.getReference (0) = juce::AudioChannelSet::mono();
-    CHECK (processor.checkBusesLayoutSupported (mono));
+    // host-integration 2 / DECISIONS C-26: a mono main out is refused too.
+    CHECK_MSG (! processor.checkBusesLayoutSupported (mono), "a mono main output was accepted");
 
     if (layout.inputBuses.size() > 0)
     {
