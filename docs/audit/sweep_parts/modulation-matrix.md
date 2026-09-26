@@ -32,7 +32,7 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-26 (§1.5) | Note pitch/velocity/trigger/held/AT/poly-AT sources | `ModMatrix` note handling, `ModSourceSlots` 16-21 | MOD source selector / ADD ROUTE menu | `Modulation::noteSourcesFollowNotes` | DONE |
 | MM-27 (§1.6) | Any CC, 14-bit pairs, PB, mod wheel, ch pressure | `ModSourceSlots::ccBase/cc14Base/pitchBend...` | MOD source selector | `Modulation::controllerSourcesFollowMidi` | DONE |
 | MM-28 (§1.7) | 8 macros, named 32-char slots, host params "Macro 1..8" — 6 fixed-function macros + 2 assign, no naming | `Parameters.h:macro_*`, `ModSourceSlots::macroBase` | Easy/Advanced macro knobs | `GuiReach::everyAutomatableParameterHasAVisibleControl` | PARTIAL |
-| MM-29 (§1.7) | Macros assignable to any control and themselves modulatable — untested as such | macro source slots; macro params are destinations | right-click Modulate on macro knobs | - | NO-TEST |
+| MM-29 (§1.7) | Macros assignable to any control and themselves modulatable — untested as such | macro source slots; macro params are destinations | right-click Modulate on macro knobs | `Modulation::aMacroCanBeModulatedAndModulate` (fixed: the macro source took the raw knob, so a modulated macro modulated nothing) | DONE |
 | MM-30 (§1.8) | Random per-note / per-bar / smooth, seeded | `ModRandomSource` | MOD source selector | `Modulation::randomSourcesAreDeterministic` | DONE |
 | MM-31 (§2) | Every automatable parameter is a destination | `ModMatrix` destinations = parameter index | right-click Modulate on any `AttachedKnob` | `Modulation::routeModulatesItsDestination`, `ModelGapsUi::theSustainControlsAreModulationDestinations` | DONE |
 | MM-32 (§2) | Per-string destinations (tuning cents, damping, pluck...) — per-string values are not parameters | - | - | - | MISSING |
@@ -54,11 +54,11 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-48 (§5) | Per-source user colour tag; routes and arcs inherit; defaults alternate accents — arc is always `Palette::secondary` | - | - | - | MISSING |
 | MM-49 (§6) | Snapshot flag "includes modulation" vs "preset-level only" — snapshots always capture the matrix | `LuthierAudioProcessor::captureSnapshot` | - | - | MISSING |
 | MM-50 (§6) | Import validates destination IDs and warns on unknown — list collected, no user-visible warning, and preset files carry no matrix | `ModMatrix::getUnknownDestinations` | - | `Modulation::unknownDestinationsAreReportedNotFatal` | PARTIAL |
-| MM-51 (§7) | Automation moves base/control; modulation does not move the control; both stack — untested | `ParameterBridge` reads param then `ModMatrix::apply` | knob + arc | - | NO-TEST |
+| MM-51 (§7) | Automation moves base/control; modulation does not move the control; both stack — untested | `ParameterBridge` reads param then `ModMatrix::apply` | knob + arc | `Modulation::automationAndModulationStack` | DONE |
 | MM-T1 (§8) | Test: each source's expected output (LFO freq, EG times, S+H hold) | n/a | n/a | `Modulation::lfoFrequencyIsAccurate`, `Modulation::envelopeStageTimesAreAccurate`, `Modulation::sampleAndHoldHoldsForAWholeCycle` | DONE |
 | MM-T2 (§8) | Test: 1000-route stress under CPU budget | n/a | n/a | `Modulation::thousandRouteStressTest` | DONE |
 | MM-T3 (§8) | Test: preset round trip byte-identical, through a saved preset file | n/a | n/a | `Modulation::aPresetFileCarriesTheMatrixExactly`, `presetRoundTripIsExact` | DONE |
 | MM-T4 (§8) | Test: 5-option selector changes at 1/5..4/5 | n/a | n/a | `Modulation::discreteDestinationsStepAtBoundaries` | DONE |
 | MM-T5 (§8) | Test: seeded random renders byte-identical | n/a | n/a | `Modulation::randomSourcesAreDeterministic` | DONE |
 
-<!-- counts DONE=37 NO-GUI=0 NO-TEST=5 PARTIAL=8 MISSING=5 OWNED=1 -->
+<!-- counts DONE=39 NO-GUI=0 NO-TEST=3 PARTIAL=8 MISSING=5 OWNED=1 -->

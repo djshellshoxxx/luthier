@@ -811,6 +811,7 @@ private:
     /** The macro parameters' values, looked up once: a lookup by ID builds a
         String, which is an allocation the audio thread must not make. */
     std::array<std::atomic<float>*, ParamIDs::kNumMacros> macroValues {};
+    std::array<int, ParamIDs::kNumMacros> macroParamIndex {};   // SPEC-SWEEP: MM-29, index into getParameters()
 
     void processSlice (juce::AudioBuffer<float>&, juce::MidiBuffer&);
     int reportedLatency = 0;

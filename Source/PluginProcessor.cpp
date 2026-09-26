@@ -61,7 +61,18 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     FactoryPresets::setProcessorForRanges (this);
 
     for (int m = 0; m < ParamIDs::kNumMacros; ++m)
+    {
         macroValues[(size_t) m] = apvts.getRawParameterValue (ParamIDs::macroByIndex (m));
+
+        // SPEC-SWEEP: MM-29 - where the macro sits in the parameter list, so its
+        // modulated value (not only the knob's) can feed the macro source.
+        macroParamIndex[(size_t) m] = -1;
+        const auto& all = getParameters();
+        for (int i = 0; i < all.size(); ++i)
+            if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (all[i]))
+                if (withId->paramID == ParamIDs::macroByIndex (m))
+                    macroParamIndex[(size_t) m] = i;
+    }
 
     // notation-export 6.1 (MODEL-GAPS): the engine reports what it plays - string,
     // fret and technique - straight to the capture.
@@ -1727,9 +1738,13 @@ void LuthierAudioProcessor::feedModulationSources (const juce::MidiBuffer& midi)
         }
     }
 
+    /*  modulation-matrix 1.7: a macro can itself be modulated, and then it
+        modulates with its modulated value (SPEC-SWEEP: MM-29). The offset is
+        the one the matrix computed last block, so a macro routed into itself
+        is a one-block feedback, not a loop within a tick. */
     for (int m = 0; m < ParamIDs::kNumMacros; ++m)
         if (auto* raw = macroValues[(size_t) m])
-            modMatrix.setMacroValue (m, (double) raw->load());
+            modMatrix.setMacroValue (m, (double) modMatrix.apply (macroParamIndex[(size_t) m], raw->load()));
 }
 
 void LuthierAudioProcessor::buildModBlockContext (const juce::AudioBuffer<float>& output,

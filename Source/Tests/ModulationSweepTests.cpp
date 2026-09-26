@@ -369,3 +369,84 @@ LUTHIER_TEST (ModMatrixUi, theStepGridWritesSteps)
     juce::Graphics g (image);
     grid.paintEntireComponent (g, false);
 }
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-29 - modulation-matrix 1.7: a macro can be modulated, and
+    then modulates with its modulated value. An LFO on Assign A (macro 7) makes
+    the macro-7 source move although nobody touches the knob. */
+LUTHIER_TEST (Modulation, aMacroCanBeModulatedAndModulate)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    auto& m = processor.getModMatrix();
+
+    m.getLfo (0).setRateHz (4.0);
+
+    ModRoute intoMacro;
+    intoMacro.sourceId = "lfo1";
+    intoMacro.destinationId = ParamIDs::macroAssignA;
+    intoMacro.depth = 0.5f;
+    CHECK (m.addRoute (intoMacro));
+
+    ModRoute outOfMacro;
+    outOfMacro.sourceId = "macro7";
+    outOfMacro.destinationId = ParamIDs::ampGain;
+    outOfMacro.depth = 1.0f;
+    CHECK (m.addRoute (outOfMacro));
+
+    if (auto* knob = processor.getState().getParameter (ParamIDs::macroAssignA))
+        knob->setValueNotifyingHost (0.5f);
+
+    float lo = 1.0e9f, hi = -1.0e9f;
+
+    for (int b = 0; b < 60; ++b)
+    {
+        juce::AudioBuffer<float> buffer (processor.getTotalNumOutputChannels(), 512);
+        buffer.clear();
+        juce::MidiBuffer midi;
+        processor.processBlock (buffer, midi);
+
+        const float v = m.getSourceValue (ModSourceSlots::macroBase + 6);
+        lo = juce::jmin (lo, v);
+        hi = juce::jmax (hi, v);
+    }
+
+    CHECK_MSG (hi - lo > 0.2f, "the macro-7 source only moved " + juce::String (hi - lo, 3) + " under an LFO");
+}
+
+/*  SPEC-SWEEP: MM-51 - modulation-matrix 7: automation moves the parameter,
+    modulation moves only what the engine hears, and the two stack. */
+LUTHIER_TEST (Modulation, automationAndModulationStack)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    auto& m = processor.getModMatrix();
+
+    auto* gain = dynamic_cast<juce::AudioParameterFloat*> (processor.getState().getParameter (ParamIDs::ampGain));
+    CHECK (gain != nullptr);
+    if (gain == nullptr) return;
+
+    int index = -1;
+    for (int i = 0; i < processor.getParameters().size(); ++i)
+        if (processor.getParameters()[i] == gain) index = i;
+
+    ModRoute route;
+    route.sourceId = "macro1";
+    route.destinationId = ParamIDs::ampGain;
+    route.depth = 0.2f;
+    CHECK (m.addRoute (route));
+    m.setMacroValue (0, 1.0);
+
+    ModBlockContext context;
+    for (int i = 0; i < 16; ++i)
+        m.processBlock (512, context);
+
+    const float span = gain->getNormalisableRange().getRange().getLength();
+
+    *gain = 0.3f;
+    CHECK_NEAR (m.apply (index, gain->get()), 0.3f + 0.2f * span, 1.0e-3f);
+    CHECK_NEAR (gain->get(), 0.3f, 1.0e-6f);   // the knob is where automation put it
+
+    *gain = 0.5f;
+    CHECK_NEAR (m.apply (index, gain->get()) - m.apply (index, 0.3f), 0.2f, 1.0e-3f);
+}
