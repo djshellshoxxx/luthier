@@ -619,7 +619,10 @@ void EasyPanel::resized()
             // mic-placement.md 6.3 (FEAT-MIC): the pad under the cabinet's
             // choices; the mics (or, on an acoustic, Pickup <-> Mic) beside it.
             micPadAcoustic = MicUi::isAcoustic (processor);
-            auto top = cab.removeFromTop (juce::jmax (36, cab.getHeight() - MicPad::kHeight - 4));
+            // Two rows: model and blend, then the pad beside the mics (side by
+            // side, so each keeps its full row height at small window sizes).
+            const int bottomH = juce::jmin (MicPad::kHeight + 4, juce::jmax (cab.getHeight() / 2, cab.getHeight() - 44));
+            auto top = cab.removeFromTop (cab.getHeight() - bottomH);
             {
                 auto left = top.removeFromLeft (top.getWidth() / 2);
                 cabModel.setBounds (left.withSizeKeepingCentre (left.getWidth(), juce::jmin (left.getHeight(), 40)));
@@ -640,7 +643,7 @@ void EasyPanel::resized()
             }
             else
             {
-                mic1.setBounds (cab.removeFromTop (cab.getHeight() / 2));
+                mic1.setBounds (cab.removeFromLeft (cab.getWidth() / 2));
                 mic2.setBounds (cab);
             }
         }
