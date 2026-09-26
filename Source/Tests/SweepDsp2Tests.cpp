@@ -1597,3 +1597,91 @@ LUTHIER_TEST (LiveTapTempo, midiClockDrivesTheTempoWhenTheHostIsStopped)
 
     processor.releaseResources();
 }
+
+LUTHIER_TEST (PracticeTrainers, intervalTrainerScoresChoices)
+{
+    // PT-35 (practice-tools 4).
+    ScaleTrainer trainer;
+    trainer.setKey (0);
+    trainer.setScale (ScaleType::ionian);
+    trainer.setMode (ScaleTrainer::Mode::intervalTrainer);
+
+    juce::Random random (11);
+    int right = 0;
+
+    for (int q = 0; q < 20; ++q)
+    {
+        trainer.nextQuestion (random);
+        const int semis = trainer.getIntervalSemitones();
+        CHECK (semis >= 0 && semis < 12);
+
+        int notes[4] {};
+        CHECK (trainer.getQuestionNotes (notes, 4) == 2);
+        CHECK ((notes[1] - notes[0] + 12) % 12 == semis);
+
+        const bool answerRight = q % 2 == 0;
+        CHECK (trainer.answerInterval (answerRight ? semis : semis + 1) == answerRight);
+        CHECK (! trainer.answerInterval (semis));   // one answer a question
+
+        right += answerRight ? 1 : 0;
+    }
+
+    CHECK (trainer.getScore() == right);
+    CHECK (trainer.getAsked() == 20);
+
+    // Through the tab: Ask plays the two notes, a button answers.
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    ScaleTab tab (processor);
+    tab.setSize (700, 300);
+
+    auto& shared = processor.getScaleTrainer();
+    shared.setMode (ScaleTrainer::Mode::intervalTrainer);
+    shared.resetScore();
+    tab.ask();
+    tab.chooseInterval (shared.getIntervalSemitones());
+    CHECK (shared.getScore() == 1);
+
+    runBlocks (processor, 2);
+    int ringing = 0;
+
+    for (int s = 0; s < processor.getEngine().getNumStrings(); ++s)
+        ringing += processor.getEngine().getStringMidiNote (s) >= 0 ? 1 : 0;
+
+    CHECK_MSG (ringing == 2, "the interval was not played: " + juce::String (ringing) + " strings ringing");
+    processor.releaseResources();
+}
+
+LUTHIER_TEST (PracticeTrainers, chordToneTrainerNeedsThirdAndSeventhInTime)
+{
+    // PT-35 (practice-tools 4).
+    ScaleTrainer trainer;
+    trainer.setKey (7);   // G mixolydian: B and F
+    trainer.setScale (ScaleType::mixolydian);
+    trainer.setMode (ScaleTrainer::Mode::chordToneTrainer);
+    trainer.setTimeLimitSeconds (5.0);
+
+    juce::Random random (5);
+    trainer.nextQuestion (random);
+
+    int notes[8] {};
+    CHECK (trainer.getQuestionNotes (notes, 8) == 4);
+
+    CHECK (! trainer.answer (59, 1.0));      // B: the 3rd, half way
+    CHECK (trainer.isQuestionOpen());
+    CHECK (! trainer.answer (62, 1.5));      // D: not a wanted tone
+    CHECK (trainer.answer (65, 2.0));        // F: the 7th, done
+    CHECK (trainer.getScore() == 1);
+
+    // Too late.
+    trainer.nextQuestion (random);
+    CHECK (! trainer.answer (59, 1.0));
+    CHECK (! trainer.answer (65, 6.0));
+    CHECK (! trainer.isQuestionOpen());
+    CHECK (trainer.getScore() == 1);
+
+    // A pentatonic has no 7th: the 3rd alone answers.
+    trainer.setScale (ScaleType::majorPentatonic);
+    trainer.nextQuestion (random);
+    CHECK (trainer.answer (59, 0.5));
+}

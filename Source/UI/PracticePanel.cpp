@@ -1046,12 +1046,19 @@ ScaleTab::ScaleTab (LuthierAudioProcessor& p)
     styleReadout (scoreLabel);
     addAndMakeVisible (scoreLabel);
 
-    nextButton.onClick = [this]
-    {
-        questionLabel.setText (trainer().nextQuestion (random), juce::dontSendNotification);
-        refresh();
-    };
+    nextButton.onClick = [this] { ask(); };
     addAndMakeVisible (nextButton);
+
+    // SPEC-SWEEP PT-35: the interval trainer's answers.
+    static const char* const intervalNames[12] =
+        { "P1", "m2", "M2", "m3", "M3", "P4", "TT", "P5", "m6", "M6", "m7", "M7" };
+
+    for (int i = 0; i < 12; ++i)
+    {
+        auto* button = intervalButtons.add (new juce::TextButton (intervalNames[i]));
+        button->onClick = [this, i] { chooseInterval (i); };
+        addChildComponent (*button);
+    }
 
     addAndMakeVisible (scaleView);
 
@@ -1178,6 +1185,51 @@ void ScaleTab::paint (juce::Graphics& g)
     }
 }
 
+void ScaleTab::ask()
+{
+    questionLabel.setText (trainer().nextQuestion (random), juce::dontSendNotification);
+    feedbackLabel.setText ({}, juce::dontSendNotification);
+    askedAtMs = juce::Time::getMillisecondCounterHiRes();
+    playQuestion();
+    refresh();
+}
+
+void ScaleTab::playQuestion()
+{
+    // SPEC-SWEEP PT-35: the interval and chord-tone questions are heard.
+    int notes[8] {};
+    const int count = trainer().getQuestionNotes (notes, 8);
+
+    if (count == 0)
+        return;
+
+    int strings[8] {}, frets[8] {};
+    EarTab::placeOnStrings (processor.getEngine().getTuningEngine(), processor.getEngine().getNumStrings(),
+                            notes, count, strings, frets);
+
+    for (int i = 0; i < count; ++i)
+        if (strings[i] >= 0)
+            processor.triggerPreviewNote (strings[i], (double) frets[i], 0.7);
+}
+
+void ScaleTab::chooseInterval (int semitones)
+{
+    auto& t = trainer();
+
+    if (t.getMode() != ScaleTrainer::Mode::intervalTrainer || ! t.isQuestionOpen())
+        return;
+
+    static const char* const intervalNames[12] =
+        { "P1", "m2", "M2", "m3", "M3", "P4", "TT", "P5", "m6", "M6", "m7", "M7" };
+
+    const int wanted = t.getIntervalSemitones();
+
+    feedbackLabel.setText (t.answerInterval (semitones) ? juce::String ("Right")
+                                                        : juce::String ("No - ") + intervalNames[wanted],
+                           juce::dontSendNotification);
+    refresh();
+}
+
 void ScaleTab::notePlayed (int midiNote)
 {
     // SPEC-SWEEP PT-34 (practice-tools 4): the quiz is answered on the guitar.
@@ -1190,6 +1242,26 @@ void ScaleTab::notePlayed (int midiNote)
         { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
 
     const int expected = t.getExpectedPitchClass();
+
+    // SPEC-SWEEP PT-35: the interval trainer is answered with its buttons, and
+    // the chord-tone trainer wants both tones, in time.
+    if (t.getMode() == ScaleTrainer::Mode::intervalTrainer)
+        return;
+
+    if (t.getMode() == ScaleTrainer::Mode::chordToneTrainer)
+    {
+        const double seconds = (juce::Time::getMillisecondCounterHiRes() - askedAtMs) * 0.001;
+
+        if (t.answer (midiNote, seconds))
+            feedbackLabel.setText ("Right - both chord tones", juce::dontSendNotification);
+        else if (! t.isQuestionOpen())
+            feedbackLabel.setText ("Too late - ask again", juce::dontSendNotification);
+        else
+            feedbackLabel.setText ("Keep going", juce::dontSendNotification);
+
+        refresh();
+        return;
+    }
 
     if (t.answer (midiNote))
     {
@@ -1222,6 +1294,21 @@ void ScaleTab::refresh()
 
     nextButton.setEnabled (t.getMode() != ScaleTrainer::Mode::explore);
 
+    // SPEC-SWEEP PT-35: interval answers only for the interval trainer; the
+    // chord-tone question runs out.
+    const bool intervals = t.getMode() == ScaleTrainer::Mode::intervalTrainer;
+
+    for (auto* button : intervalButtons)
+        if (button->isVisible() != intervals)
+            button->setVisible (intervals), resized();
+
+    if (t.getMode() == ScaleTrainer::Mode::chordToneTrainer && t.isQuestionOpen()
+          && (juce::Time::getMillisecondCounterHiRes() - askedAtMs) * 0.001 > t.getTimeLimitSeconds())
+    {
+        t.answer (-1, t.getTimeLimitSeconds() + 1.0);   // missed
+        feedbackLabel.setText ("Time's up - ask again", juce::dontSendNotification);
+    }
+
     repaint();
 }
 
@@ -1245,6 +1332,18 @@ void ScaleTab::resized()
     }
 
     bounds.removeFromTop (3);
+
+    // SPEC-SWEEP PT-35.
+    if (! intervalButtons.isEmpty() && intervalButtons[0]->isVisible())
+    {
+        auto line = bounds.removeFromTop (22);
+        const int width = juce::jmax (24, line.getWidth() / 12);
+
+        for (auto* button : intervalButtons)
+            button->setBounds (line.removeFromLeft (width).reduced (1, 0));
+
+        bounds.removeFromTop (3);
+    }
 
     {
         auto line = bounds.removeFromTop (20);

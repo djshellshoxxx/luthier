@@ -196,6 +196,19 @@ private:
     ScaleTrainer& trainer();
     juce::Label feedbackLabel;   // SPEC-SWEEP PT-34
     juce::ComboBox overlayBox;   // SPEC-SWEEP PT-33
+
+    // SPEC-SWEEP PT-35: the interval answers, and when the question was asked.
+    juce::OwnedArray<juce::TextButton> intervalButtons;
+    double askedAtMs = 0.0;
+
+    void playQuestion();
+
+public:
+    /** SPEC-SWEEP PT-35: answers the interval trainer as its button does. */
+    void chooseInterval (int semitones);
+
+    /** SPEC-SWEEP PT-35: poses the next question, as Ask does. */
+    void ask();
     juce::TextEditor customSteps;   // SPEC-SWEEP PT-37
 
     juce::ComboBox keyBox, scaleBox, modeBox;
