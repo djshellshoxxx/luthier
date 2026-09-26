@@ -9,7 +9,7 @@ The routing engine is complete: all four layouts are advertised (plus the Aux 8 
 | RIO-3 (§0.3) | Extra outs post-limiter unless tap points; taps documented | `Routing/TapBuffers.h`, `RoutingMatrix::distribute` | n/a | `Routing::diTapNullsAgainstReappliedAmp` | DONE |
 | RIO-4 (§0.4, §4) | Sidechain optional; makes follower source `sidechain` live — no test drives a follower from the sidechain bus | `ModEnvelopeFollower::Source::sidechain`, `ModBlockContext` sidechain peak | ADVANCED > MOD, follower card `followerSourceBox` | `Routing::sidechainDrivesTheEnvelopeFollower` | DONE |
 | RIO-5 (§0.5, §6) | MIDI out sample-accurate for pass-through and generated events | `Routing/MidiOutRouter.cpp` | n/a | `Routing::midiOutPassThroughIsSampleExact`, `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` | DONE |
-| RIO-6 (§2) | Aux 1-7 tap assignments (DI, pre-cab, mic1, mic2, room, wet, monitor) — only Aux1/Aux6 (and Aux 8) are asserted by tests | `TapBuffers`, `RoutingMatrix::distribute/writeMonitorBus` | n/a | `Routing::diTapNullsAgainstReappliedAmp` (Aux1 only) | NO-TEST |
+| RIO-6 (§2) | Aux 1-7 tap assignments (DI, pre-cab, mic1, mic2, room, wet, monitor) — only Aux1/Aux6 (and Aux 8) are asserted by tests | `TapBuffers`, `RoutingMatrix::distribute/writeMonitorBus` | n/a | `Routing::everyAuxTapCarriesItsOwnSignal`, `Routing::diTapNullsAgainstReappliedAmp` (Aux1 only) | DONE |
 | RIO-7 (§2) | Per-aux gain trim | `RoutingMatrix::setAuxGainDb` | ADVANCED > ROUTING, `AuxStrip::gain` | `PluginBuses::aux8CarriesThePlayingNoiseAndObeysItsStrip`, `Routing::stateRoundTrips` | DONE |
 | RIO-8 (§2) | Muted aux bus skips its tap render | `RoutingMatrix::updateWantedTaps` | ROUTING `AuxStrip` mute | `Routing::muteAndSoloResolveTogether` | DONE |
 | RIO-9 (§3) | 12 mono per-string buses, post-body pre-pickup, silence when unused | `RoutingMatrix::distribute` per-string | ROUTING `PerStringStrip` | `Routing::perStringOutputsSumToPreBody`, `PluginBuses::perStringLayoutPutsEachStringOnItsOwnBus` | DONE |
@@ -43,4 +43,4 @@ The routing engine is complete: all four layouts are advertised (plus the Aux 8 
 | RIO-T5 (§10) | Test: sidechain-to-amp routes correctly | n/a | n/a | `Routing::sidechainToAmpReplacesTheInstrument` | DONE |
 | RIO-T6 (§10) | Test: reported main latency = measured impulse latency within 1 sample — here only ordering is checked; on visual: `Latency::anImpulseArrivesWhenReported` | n/a | n/a | `Routing::perOutputLatencyIsConsistent` (ordering) | OWNED |
 
-<!-- counts DONE=30 NO-GUI=0 NO-TEST=3 PARTIAL=1 MISSING=1 OWNED=3 -->
+<!-- counts DONE=31 NO-GUI=0 NO-TEST=2 PARTIAL=1 MISSING=1 OWNED=3 -->

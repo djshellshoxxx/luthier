@@ -6,6 +6,8 @@
 
 #include "../PluginProcessor.h"
 #include "../Routing/RoutingMatrix.h"
+#include "../Parameters.h"
+#include "../DSP/Effects/Pedal.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -140,4 +142,74 @@ LUTHIER_TEST (Routing, sidechainNeverReachesTheMainOut)
     CHECK_MSG (worst < std::pow (10.0, -120.0 / 20.0),
                "the sidechain leaked into the main output: "
                + juce::String (20.0 * std::log10 (juce::jmax (1.0e-30, worst)), 1) + " dBFS");
+}
+
+//==============================================================================
+/*  RIO-6: in layout B every aux carries its own signal: the amp before the
+    cab, each mic, the room, the wet tails and the monitor all sound, the two
+    mics differ, the room goes silent with the room off and the wet bus with no
+    wet pedal. */
+LUTHIER_TEST (Routing, everyAuxTapCarriesItsOwnSignal)
+{
+    auto setParam = [] (LuthierAudioProcessor& p, const juce::String& id, float plain)
+    {
+        if (auto* prm = dynamic_cast<juce::RangedAudioParameter*> (p.getState().getParameter (id)))
+            prm->setValueNotifyingHost (prm->convertTo0to1 (plain));
+    };
+
+    auto run = [&] (bool roomOn, bool reverb)
+    {
+        LuthierAudioProcessor processor;
+        enableSidechain (processor, true);
+
+        setParam (processor, ParamIDs::dualMic, 1.0f);
+        setParam (processor, ParamIDs::roomOn, roomOn ? 1.0f : 0.0f);
+        setParam (processor, ParamIDs::slotType (true, 0), reverb ? (float) (int) PedalType::Reverb : 0.0f);
+        processor.getParameterBridge().applyAllNow();   // the pedal type is structural
+
+        std::array<double, kNumAuxBuses> energy {};
+        std::array<std::vector<float>, kNumAuxBuses> left;
+
+        for (int b = 0; b < 60; ++b)
+        {
+            juce::AudioBuffer<float> buffer (processor.getTotalNumOutputChannels(), kBlock);
+            buffer.clear();
+
+            juce::MidiBuffer midi;
+            if (b == 2)
+                for (int note : { 40, 47, 52 })
+                    midi.addEvent (juce::MidiMessage::noteOn (1, note, 0.9f), 0);
+
+            processor.processBlock (buffer, midi);
+
+            for (int bus = 0; bus < kNumAuxBuses; ++bus)
+            {
+                auto aux = processor.getBusBuffer (buffer, false, 1 + bus);
+
+                for (int i = 0; i < kBlock; ++i)
+                {
+                    const float v = aux.getSample (0, i);
+                    energy[(size_t) bus] += (double) v * v;
+                    left[(size_t) bus].push_back (v);
+                }
+            }
+        }
+
+        return std::make_pair (energy, left);
+    };
+
+    const auto [all, allLeft] = run (true, true);
+
+    for (auto bus : { AuxBus::ampPreCab, AuxBus::cabMic1, AuxBus::cabMic2, AuxBus::roomMic, AuxBus::wetFx })
+        CHECK_MSG (all[(size_t) bus] > 1.0e-6, juce::String (getAuxBusName ((int) bus)) + " is silent");
+
+    double micDiff = 0.0;
+    for (size_t i = 0; i < allLeft[(size_t) AuxBus::cabMic1].size(); ++i)
+        micDiff += std::abs ((double) allLeft[(size_t) AuxBus::cabMic1][i] - allLeft[(size_t) AuxBus::cabMic2][i]);
+    CHECK_MSG (micDiff > 1.0e-3, "the two mic taps carry the same signal");
+
+    const auto [dry, dryLeft] = run (false, false);
+    juce::ignoreUnused (dryLeft);
+    CHECK_MSG (dry[(size_t) AuxBus::roomMic] < 1.0e-12, "the room tap sounds with the room off");
+    CHECK_MSG (dry[(size_t) AuxBus::wetFx] < 1.0e-12, "the wet tap sounds with no wet pedal");
 }

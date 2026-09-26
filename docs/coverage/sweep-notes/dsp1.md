@@ -18,3 +18,4 @@
 - [PA-40] The coil_turns reference windings are 8000 (single coil), 10000 (P-90) and 5000 per coil (humbucker). The dB offset adds to output_dbfs_reference. Why: a part that states only its turns then lands at its family's default level.
 - [MM-8] Transport start resets the envelopes, followers and random sources. LFOs restart per their own retrigger mode, and a free-running one is exempt. Why: section 1.1 makes free-run a per-source option, and restarting it on transport start would defeat that option.
 - [MM-6] `ModMatrix::fromVar` used to call `reset()` on the message thread, racing the audio thread's tick. It now sets `sourceResetPending`, and the next `processBlock` restarts the sources. Offsets are not zeroed, because the next tick recomputes them.
+- [RIO-6] The monitor bus (Aux 7) is not required to sound. Live-performance's monitor path feeds it, and with no monitor send it is legitimately silent.
