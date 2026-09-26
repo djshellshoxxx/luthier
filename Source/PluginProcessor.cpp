@@ -1938,6 +1938,21 @@ bool LuthierAudioProcessor::loadSetlist (const juce::File& file)
 
     setlist.setSetlist (loaded);
 
+    // output-normalization.md 4.4: a setlist step never waits on a measurement.
+    {
+        juce::Array<juce::var> presetVars;
+
+        for (int i = 0; i < loaded.getNumEntries(); ++i)
+        {
+            const juce::File presetFile (loaded.getEntry (i).presetPath);
+
+            if (juce::File::isAbsolutePath (loaded.getEntry (i).presetPath) && presetFile.existsAsFile())
+                presetVars.add (juce::JSON::parse (presetFile));
+        }
+
+        outputNormalization.prefetchPresets (presetVars);
+    }
+
     return applyCurrentSetlistEntry();
 }
 

@@ -27,7 +27,7 @@ behind one block-level branch, and the change tracker does nothing per block
 | Reference render + phrase | 4.3 | `Source/Support/NormalizationPhrase.{h,cpp}`, `NormalizationCalibrator::renderAndMeasure` | ON-03, ON-30, ON-33 | done |
 | BS.1770-4 meter | 4.3 | `Source/DSP/Master/Bs1770Meter.{h,cpp}` | `Bs1770MeterReadsReferenceTones` | done |
 | Caches: LRU, factory table, disk | 4.4 | `NormalizationCalibrator` caches, `Resources/NormalizationFactory.json`, `Tools/RenderCli.cpp --calibrate-factory` | ON-27, ON-03 (drift gate) | done |
-| Tune / setlist prefetch | 4.4 | `OutputNormalization::prefetchPresets` | ON-31 | done (API; see deferred) |
+| Tune / setlist prefetch | 4.4 | `OutputNormalization::prefetchPresets`; `LuthierAudioProcessor::loadSetlist` queues every entry's preset | ON-31 | setlist done; tune deferred |
 | Analytic estimate | 4.5 | `NormalizationCalibrator::estimateFor` | ON-29 | done |
 | Offline determinism, the one sanctioned wait | 4.6 | `OutputNormalization::processBlockStart`, `AudioExporter` (`setNonRealtime`) | ON-16, ON-17, ON-29 | done |
 | Options -> AUDIO group | 5.1 | `Source/UI/NormalizationOptions.{h,cpp}`, `AudioPage` | ON-34 | done |
@@ -136,10 +136,9 @@ table) valid.
 - **ON-32 Free edition**: there is no Edition.h and no Free CI configuration in
   this build. The edition string is part of every hash and of the factory table,
   so a Free build gets its own table when editions land.
-- **ON-31 tune playback across sections** and the setlist prefetch trigger:
-  `OutputNormalization::prefetchPresets` exists and is tested; calling it from
-  the tune / setlist load paths waits on those loaders exposing their preset
-  list (TuneSession / Setlist owners).
+- **ON-31 tune playback across sections**: `OutputNormalization::prefetchPresets`
+  exists and is tested, and a setlist load uses it; calling it from the tune
+  load path waits on TuneSession exposing the presets a tune's sections use.
 - **Preview player gain** (10): `getPreviewGainOffsetDb` is ready for
   `PreviewPlayer` (FEAT-BROWSER), which does not exist on this branch.
 - **Full-grid sweeps** run only with `LUTHIER_SLOW_TESTS=1` (about 35 min for
