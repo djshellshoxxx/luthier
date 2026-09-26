@@ -988,10 +988,65 @@ juce::String NotationExporter::renderGuitarProXml (const PerformanceScore& score
         xml << "            <Property name=\"CapoFret\"><Fret>" << track.capoFret
             << "</Fret></Property>\n";
 
+    /*  SPEC-SWEEP NE-13 (notation-export 2.2): real chord diagrams. Each chord's
+        diagram is the voicing played where it first occurs - the string and
+        fret of every note starting within half a beat of the symbol. */
+    juce::StringArray chordNames;
+    juce::String diagramsXml;
+
+    if (options.chordDiagrams)
+    {
+        for (int m = firstMeasure; m <= lastMeasure && juce::isPositiveAndBelow (m, (int) track.measures.size()); ++m)
+        {
+            const auto& measure = track.measures[(size_t) m];
+
+            for (const auto& [beat, symbol] : measure.chordSymbols)
+            {
+                if (chordNames.contains (symbol))
+                    continue;
+
+                std::vector<std::pair<int, int>> frets;   // (GPIF string, fret)
+                int lowest = 99;
+
+                for (const auto* note : measure.collectNotes())
+                    if (note->startBeat >= beat - 1.0e-6 && note->startBeat < beat + 0.5)
+                    {
+                        frets.emplace_back (track.numStrings - 1 - note->stringIndex, note->fret);
+
+                        if (note->fret > 0)
+                            lowest = juce::jmin (lowest, note->fret);
+                    }
+
+                const int baseFret = (lowest == 99 || lowest <= 3) ? 0 : lowest - 1;
+
+                diagramsXml << "              <Item id=\"" << chordNames.size() << "\" name=\"" << escapeXml (symbol) << "\">\n"
+                            << "                <Diagram stringCount=\"" << track.numStrings
+                            << "\" fretCount=\"5\" baseFret=\"" << baseFret << "\">\n";
+
+                for (const auto& [string, fret] : frets)
+                    diagramsXml << "                  <Fret string=\"" << string << "\" fret=\"" << (fret - baseFret) << "\"/>\n";
+
+                diagramsXml << "                </Diagram>\n"
+                            << "              </Item>\n";
+
+                chordNames.add (symbol);
+            }
+        }
+    }
+
     xml << "          </Properties>\n"
         << "        </Staff>\n"
-        << "      </Staves>\n"
-        << "    </Track>\n"
+        << "      </Staves>\n";
+
+    if (chordNames.size() > 0)
+        xml << "      <Properties>\n"
+            << "        <Property name=\"DiagramCollection\">\n"
+            << "          <Items>\n" << diagramsXml
+            << "          </Items>\n"
+            << "        </Property>\n"
+            << "      </Properties>\n";
+
+    xml << "    </Track>\n"
         << "  </Tracks>\n"
         << "  <MasterBars>\n";
 
@@ -1037,12 +1092,45 @@ juce::String NotationExporter::renderGuitarProXml (const PerformanceScore& score
         xml << "    </MasterBar>\n";
 
         // ---- the beats and notes of this bar ---------------------------------------
+        juce::StringArray chordsPlaced;   // SPEC-SWEEP NE-13: the first note at a symbol carries it
+
         for (const auto* note : measure.collectNotes())
         {
             beatsXml << "    <Beat id=\"" << beatId << "\">\n"
                      << "      <Notes>" << noteId << "</Notes>\n"
-                     << "      <Rhythm ref=\"" << beatId << "\"/>\n"
-                     << "    </Beat>\n";
+                     << "      <Rhythm ref=\"" << beatId << "\"/>\n";
+
+            // SPEC-SWEEP NE-13: the beat names its chord's diagram.
+            for (const auto& [beat, symbol] : measure.chordSymbols)
+                if (std::abs (note->startBeat - beat) < 1.0e-6 && ! chordsPlaced.contains (symbol + "@" + juce::String (beat))
+                      && chordNames.contains (symbol))
+                {
+                    beatsXml << "      <Chord>" << chordNames.indexOf (symbol) << "</Chord>\n";
+                    chordsPlaced.add (symbol + "@" + juce::String (beat));
+                }
+
+            // SPEC-SWEEP NE-12: whammy is a beat property in GPIF, with its
+            // curve's first, middle and last points (100 = a whole tone).
+            if (const auto* whammy = note->findTechnique (ScoreTechnique::Type::whammy))
+            {
+                const auto valueAt = [whammy] (size_t i)
+                {
+                    return whammy->curve.empty() ? whammy->value
+                                                 : whammy->curve[juce::jmin (i, whammy->curve.size() - 1)].second;
+                };
+
+                const auto middle = whammy->curve.empty() ? (size_t) 0 : whammy->curve.size() / 2;
+                const auto last = whammy->curve.empty() ? (size_t) 0 : whammy->curve.size() - 1;
+
+                beatsXml << "      <Properties>\n"
+                         << "        <Property name=\"WhammyBar\"><Enable/></Property>\n"
+                         << "        <Property name=\"WhammyBarOriginValue\"><Float>" << juce::String (valueAt (0) * 50.0, 2) << "</Float></Property>\n"
+                         << "        <Property name=\"WhammyBarMiddleValue\"><Float>" << juce::String (valueAt (middle) * 50.0, 2) << "</Float></Property>\n"
+                         << "        <Property name=\"WhammyBarDestinationValue\"><Float>" << juce::String (valueAt (last) * 50.0, 2) << "</Float></Property>\n"
+                         << "      </Properties>\n";
+            }
+
+            beatsXml << "    </Beat>\n";
 
             rhythmsXml << "    <Rhythm id=\"" << beatId << "\">\n"
                        << "      <NoteValue>" << noteTypeForBeats (note->durationBeats)
@@ -1138,10 +1226,30 @@ juce::String NotationExporter::renderGuitarProXml (const PerformanceScore& score
                         break;
 
                     case ScoreTechnique::Type::whammy:
-                        // Whammy is a bar event in Guitar Pro, so it is written on
-                        // the beat rather than on the note.
-                        beatsXml << "    <!-- whammy " << juce::String (technique.value, 2)
-                                 << " on beat " << beatId << " -->\n";
+                        // Whammy is a bar event in Guitar Pro: written on the beat
+                        // above (SPEC-SWEEP NE-12 - it was an XML comment).
+                        break;
+
+                    // SPEC-SWEEP NE-12: the rest of the note-level techniques GPIF has.
+                    case ScoreTechnique::Type::letRing:
+                        notesXml << "        <Property name=\"LetRing\"><Enable/></Property>\n";
+                        break;
+
+                    case ScoreTechnique::Type::ghostNote:
+                        notesXml << "        <Property name=\"AntiAccent\"><Enable/></Property>\n";
+                        break;
+
+                    case ScoreTechnique::Type::accent:
+                        notesXml << "        <Property name=\"Accent\"><Flags>1</Flags></Property>\n";
+                        break;
+
+                    case ScoreTechnique::Type::staccato:
+                        notesXml << "        <Property name=\"Accent\"><Flags>4</Flags></Property>\n";
+                        break;
+
+                    case ScoreTechnique::Type::trill:
+                        notesXml << "        <Property name=\"Trill\"><Fret>"
+                                 << juce::roundToInt (technique.value) << "</Fret></Property>\n";
                         break;
 
                     default:

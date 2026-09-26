@@ -3424,3 +3424,72 @@ LUTHIER_TEST (Notation, chordExtractionOnAHundredProgressions)
     CHECK_MSG (right >= total * 95 / 100,
                juce::String (right) + " of " + juce::String (total) + " right: " + wrong.joinIntoString ("; "));
 }
+
+LUTHIER_TEST (Notation, guitarProCarriesDiagramsAndWhammy)
+{
+    // NE-12 / NE-13 (notation-export 2.2): one diagram per chord, from the
+    // voicing played; whammy as beat properties; the other note techniques.
+    PerformanceScore score;
+    score.beginCapture (120.0, 4, 4);
+
+    // An open C chord (x32010), then G (320003), then C again.
+    const int open[6] = { 64, 59, 55, 50, 45, 40 };
+    auto chord = [&] (const int* frets, double beat)
+    {
+        for (int s = 0; s < 6; ++s)
+            if (frets[s] >= 0)
+                score.noteStarted (s, frets[s], open[s] + frets[s], 440.0, 0.8, beat);
+
+        for (int s = 0; s < 6; ++s)
+            if (frets[s] >= 0)
+                score.noteEnded (s, beat + 1.0);
+    };
+
+    const int c[6] = { 0, 1, 0, 2, 3, -1 };
+    const int g[6] = { 3, 0, 0, 0, 2, 3 };
+    score.addChordSymbol (0.0, "C");
+    chord (c, 0.0);
+    score.addChordSymbol (1.0, "G");
+    chord (g, 1.0);
+    score.addChordSymbol (2.0, "C");
+    chord (c, 2.0);
+
+    score.noteStarted (0, 5, 69, 880.0, 0.8, 3.0);
+    ScoreTechnique whammy;
+    whammy.type = ScoreTechnique::Type::whammy;
+    whammy.curve = { { 0.0, 0.0 }, { 0.5, -1.0 }, { 1.0, 0.0 } };
+    score.addTechnique (0, whammy);
+    score.addTechnique (0, { ScoreTechnique::Type::letRing });
+    score.noteEnded (0, 4.0);
+    score.endCapture (4.0);
+
+    NotationExporter exporter;
+    NotationExportOptions options;
+    options.chordDiagrams = true;
+    const auto xml = exporter.renderGuitarProXml (score, options);
+
+    CHECK (xml.contains ("<Property name=\"DiagramCollection\">"));
+    CHECK (xml.contains ("name=\"C\"") && xml.contains ("name=\"G\""));
+
+    int items = 0;
+
+    for (int i = xml.indexOf ("<Item "); i >= 0; i = xml.indexOf (i + 1, "<Item "))
+        ++items;
+
+    CHECK_MSG (items == 2, juce::String (items) + " diagrams for two chords");
+
+    // The C diagram has the five strings it was played on; the G all six.
+    const auto cItem = xml.fromFirstOccurrenceOf ("name=\"C\"", false, false).upToFirstOccurrenceOf ("</Item>", false, false);
+    const auto gItem = xml.fromFirstOccurrenceOf ("name=\"G\"", false, false).upToFirstOccurrenceOf ("</Item>", false, false);
+    CHECK (juce::StringArray::fromTokens (cItem, "\n", "").size() > 0);
+    CHECK (cItem.contains ("<Fret string=\"1\" fret=\"3\"/>"));   // C on the A string (GPIF counts up from the low E)
+    CHECK (gItem.contains ("<Fret string=\"0\" fret=\"3\"/>"));
+
+    // Beats reference the diagrams; the second C reuses the first.
+    CHECK (xml.contains ("<Chord>0</Chord>") && xml.contains ("<Chord>1</Chord>"));
+
+    CHECK (xml.contains ("<Property name=\"WhammyBar\"><Enable/></Property>"));
+    CHECK (xml.contains ("WhammyBarMiddleValue\"><Float>-50.00</Float>"));
+    CHECK (! xml.contains ("<!-- whammy"));
+    CHECK (xml.contains ("<Property name=\"LetRing\">"));
+}
