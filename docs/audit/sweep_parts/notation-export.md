@@ -12,7 +12,7 @@
 | NE-6 (§1) | Capture last N minutes, default 10 | `PerformanceCapture::kDefaultRollingMinutes` | NOTATION `rollingMinutes` slider | `Capture::rollingKeepsTheLastMinutes` | DONE |
 | NE-7 (§2.1) | MusicXML 4.0 `<technical>` bend/slide/hammer/pull/PM/harmonic/tap/string/fret | `NotationExporter::renderMusicXml` | NOTATION format box | `Notation::musicXmlIsWellFormedAndGuitarAware` | DONE |
 | NE-8 (§2.1/§4) | MusicXML chord symbols from detector (`<harmony>`) | `renderMusicXml` (chordSymbols) | NOTATION export | `ModelGapsUi::theCaptureHearsTechniquesAndChordsFromTheEngine` | DONE |
-| NE-9 (§2.1) | Grace notes for hammer-on/pull-off ornaments — not written | - | - | - | MISSING |
+| NE-9 (§2.1) | Grace notes for hammer-on/pull-off ornaments — not written | `renderMusicXml` writes grace notes (slurred to a hammer/pull target); `readMusicXml` reads them back | - | `Notation.aGraceHammerIsAGraceNote` | DONE |
 | NE-10 (§2.1) | Multi-voice per staff (`<voice>`/`<backup>`) — implemented, no test exercises a second voice | `PerformanceScore` voice split, `renderMusicXml` | n/a | `Notation.polyphonicMaterialGetsASecondVoice` | DONE |
 | NE-11 (§2.1) | Whammy as pitch-bend text direction | `renderMusicXml` whammy words | n/a | `Notation::formatsDeclareTheirLosses` | DONE |
 | NE-12 (§2.2) | Guitar Pro .gp bundle: string/fret, bend curves, slide types, PM, harmonics, tapping — no semi harmonic, no whammy bar events; fidelity only checked as valid zip + note count | `renderGuitarProXml`: whammy as beat WhammyBar properties (was an XML comment), LetRing/AntiAccent/Accent/Trill | NOTATION format box | `Notation.guitarProCarriesDiagramsAndWhammy` | PARTIAL |

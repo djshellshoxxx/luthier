@@ -350,9 +350,79 @@ juce::String NotationExporter::renderMusicXml (const PerformanceScore& score,
                 writtenTo = 0.0;
             }
 
+            double graceBeats = 0.0;   // SPEC-SWEEP NE-9: the grace note before this one took this long
+
             for (size_t noteIndex = 0; noteIndex < voice.notes.size(); ++noteIndex)
             {
-                const auto& note = voice.notes[noteIndex];
+                const auto& noteAsPlayed = voice.notes[noteIndex];
+
+                /*  SPEC-SWEEP NE-9 (notation-export 2.1): a very short note that a
+                    hammer-on or pull-off on the same string follows straight away
+                    is an ornament - written as a grace note slurred to its target,
+                    which takes the grace's time. */
+                const auto isGrace = [&voice] (size_t i)
+                {
+                    const auto& n = voice.notes[i];
+
+                    if (i + 1 >= voice.notes.size() || n.durationBeats >= 0.25 - 1.0e-6)
+                        return false;
+
+                    if (i > 0 && std::abs (voice.notes[i - 1].startBeat - n.startBeat) < 1.0e-6)
+                        return false;
+
+                    const auto& next = voice.notes[i + 1];
+                    return next.stringIndex == n.stringIndex
+                           && std::abs (next.startBeat - (n.startBeat + n.durationBeats)) < 1.0e-6
+                           && (next.hasTechnique (ScoreTechnique::Type::hammerOn)
+                                 || next.hasTechnique (ScoreTechnique::Type::pullOff));
+                };
+
+                if (isGrace (noteIndex))
+                {
+                    if (noteAsPlayed.startBeat > writtenTo + 1.0e-6)
+                    {
+                        const double restBeats = noteAsPlayed.startBeat - writtenTo;
+                        xml << "      <note>\n        <rest/>\n"
+                            << "        <duration>" << (int) std::round (restBeats * divisions) << "</duration>\n"
+                            << "        <voice>" << (voiceIndex + 1) << "</voice>\n"
+                            << "        <type>" << noteTypeForBeats (restBeats) << "</type>\n      </note>\n";
+                        writtenTo = noteAsPlayed.startBeat;
+                    }
+
+                    juce::String graceStep;
+                    int graceAlter = 0, graceOctave = 0;
+                    PerformanceScore::getMusicXmlPitch (noteAsPlayed.midiNote, graceStep, graceAlter, graceOctave);
+
+                    xml << "      <note>\n        <grace slash=\"yes\"/>\n"
+                        << "        <pitch><step>" << graceStep << "</step>";
+
+                    if (graceAlter != 0)
+                        xml << "<alter>" << graceAlter << "</alter>";
+
+                    xml << "<octave>" << graceOctave << "</octave></pitch>\n"
+                        << "        <voice>" << (voiceIndex + 1) << "</voice>\n"
+                        << "        <type>16th</type>\n"
+                        << "        <notations>\n          <technical>\n"
+                        << "            <string>" << (noteAsPlayed.stringIndex + 1) << "</string>\n"
+                        << "            <fret>" << noteAsPlayed.fret << "</fret>\n"
+                        << "          </technical>\n"
+                        << "          <slur type=\"start\"/>\n"
+                        << "        </notations>\n      </note>\n";
+
+                    graceBeats = noteAsPlayed.durationBeats;
+                    continue;
+                }
+
+                // The grace's target starts where the grace did and lasts as long as both.
+                auto note = noteAsPlayed;
+                const bool graceTarget = graceBeats > 0.0;
+
+                if (graceTarget)
+                {
+                    note.startBeat -= graceBeats;
+                    note.durationBeats += graceBeats;
+                    graceBeats = 0.0;
+                }
 
                 // A rest, where the voice is silent before this note.
                 if (note.startBeat > writtenTo + 1.0e-6)
@@ -371,8 +441,8 @@ juce::String NotationExporter::renderMusicXml (const PerformanceScore& score,
                 }
 
                 // Notes that start together are a chord.
-                const bool isChordMember = noteIndex > 0
-                    && std::abs (voice.notes[noteIndex - 1].startBeat - note.startBeat) < 1.0e-6;
+                const bool isChordMember = noteIndex > 0 && ! graceTarget
+                    && std::abs (voice.notes[noteIndex - 1].startBeat - noteAsPlayed.startBeat) < 1.0e-6;
 
                 juce::String step;
                 int alter = 0, octave = 0;
@@ -464,6 +534,9 @@ juce::String NotationExporter::renderMusicXml (const PerformanceScore& score,
                 }
 
                 xml << "          </technical>\n";
+
+                if (graceTarget)
+                    xml << "          <slur type=\"stop\"/>\n";   // SPEC-SWEEP NE-9
 
                 for (const auto& technique : note.techniques)
                 {
@@ -1591,6 +1664,7 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
 
         beat = (double) measureIndex * beatsPerMeasure;
         double voiceBeat = beat;
+        double pendingGraceBeats = 0.0;   // SPEC-SWEEP NE-9
         double lastNoteStart = beat;   // where a <chord/> note starts
 
         for (auto* element : measure->getChildIterator())
@@ -1659,9 +1733,30 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
                                          (octave + 1) * 12 + offsets[letterIndex] + alter);
             }
 
+            // SPEC-SWEEP NE-9: a grace note takes the first eighth of a beat
+            // of the note it leads into, as the writer made it.
+            if (element->getChildByName ("grace") != nullptr)
+            {
+                constexpr double graceLength = 0.125;
+                destination.noteStarted (stringIndex, fret, midiNote, 440.0, 0.8, voiceBeat);
+                destination.noteEnded (stringIndex, voiceBeat + graceLength);
+                pendingGraceBeats = graceLength;
+                ++notesRead;
+                continue;
+            }
+
             // A <chord/> note sounds with the note before it; voiceBeat has
             // already moved past that one.
-            const double startBeat = isChord ? lastNoteStart : voiceBeat;
+            double startBeat = isChord ? lastNoteStart : voiceBeat;
+            double soundingBeats = duration;
+
+            if (! isChord && pendingGraceBeats > 0.0)
+            {
+                startBeat += pendingGraceBeats;
+                soundingBeats = juce::jmax (0.0625, duration - pendingGraceBeats);
+                pendingGraceBeats = 0.0;
+            }
+
             lastNoteStart = startBeat;
 
             destination.noteStarted (stringIndex, fret, midiNote, 440.0, 0.8, startBeat);
@@ -1710,12 +1805,12 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
                     destination.addTechnique (stringIndex, { ScoreTechnique::Type::slideLegato });
             }
 
-            destination.noteEnded (stringIndex, startBeat + juce::jmax (0.0625, duration));
+            destination.noteEnded (stringIndex, startBeat + juce::jmax (0.0625, soundingBeats));
 
             ++notesRead;
 
             if (! isChord)
-                voiceBeat += duration;
+                voiceBeat = startBeat + soundingBeats;   // SPEC-SWEEP NE-9: the grace's time included
         }
 
         ++measureIndex;

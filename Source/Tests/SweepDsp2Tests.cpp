@@ -3493,3 +3493,41 @@ LUTHIER_TEST (Notation, guitarProCarriesDiagramsAndWhammy)
     CHECK (! xml.contains ("<!-- whammy"));
     CHECK (xml.contains ("<Property name=\"LetRing\">"));
 }
+
+LUTHIER_TEST (Notation, aGraceHammerIsAGraceNote)
+{
+    // NE-9 (notation-export 2.1): a quick hammered ornament is a grace note
+    // slurred into its target, and reads back as the same two notes.
+    PerformanceScore score;
+    score.beginCapture (120.0, 4, 4);
+    score.noteStarted (2, 5, 60, 261.6, 0.8, 0.0);
+    score.noteEnded (2, 0.125);
+    score.noteStarted (2, 7, 62, 293.7, 0.8, 0.125);
+    score.addTechnique (2, { ScoreTechnique::Type::hammerOn });
+    score.noteEnded (2, 1.0);
+    score.noteStarted (2, 5, 60, 261.6, 0.8, 1.0);   // an ordinary note after it
+    score.noteEnded (2, 2.0);
+    score.endCapture (4.0);
+
+    NotationExporter exporter;
+    const auto xml = exporter.renderMusicXml (score);
+
+    CHECK (xml.contains ("<grace"));
+    CHECK (xml.contains ("<slur type=\"start\"/>") && xml.contains ("<slur type=\"stop\"/>"));
+    CHECK (xml.indexOf ("<grace") == xml.lastIndexOf ("<grace"));   // one grace, not the ordinary note
+
+    NotationImporter importer;
+    PerformanceScore back;
+    CHECK (importer.readMusicXml (xml, back));
+    CHECK (back.getTotalNoteCount() == 3);
+
+    const auto notes = back.getTrack (0).measures[0].collectNotes();
+
+    if (notes.size() == 3)
+    {
+        CHECK (notes[0]->midiNote == 60 && notes[0]->durationBeats < 0.25);
+        CHECK (notes[1]->midiNote == 62 && notes[1]->hasTechnique (ScoreTechnique::Type::hammerOn));
+        CHECK_NEAR (notes[1]->startBeat, 0.125, 0.01);
+        CHECK_NEAR (notes[2]->startBeat, 1.0, 1.0e-6);
+    }
+}
