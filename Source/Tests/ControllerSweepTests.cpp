@@ -12,6 +12,7 @@
 #include "../Model/Playing/TuningEngine.h"
 #include "../Model/Playing/TechniqueEngine.h"
 #include "../Model/Playing/RubricVoicer.h"
+#include "../UI/OptionsPages.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -88,6 +89,21 @@ namespace
             buffer.clear();
             processor.processBlock (buffer, (i == 0 && midi != nullptr) ? *midi : empty);
         }
+    }
+
+    template <typename T>
+    T* findChild (juce::Component& root)
+    {
+        for (auto* child : root.getChildren())
+        {
+            if (auto* t = dynamic_cast<T*> (child))
+                return t;
+
+            if (auto* t = findChild<T> (*child))
+                return t;
+        }
+
+        return nullptr;
     }
 
     ControllerProfile profileById (const char* id)
@@ -570,4 +586,42 @@ LUTHIER_TEST (InputRouting, techniqueLayerTagsWithoutConsuming)
     MpeFixture plain;
     const auto out = plain.send (juce::MidiMessage::noteOn (1, 52, 0.8f));
     CHECK (out.getNumNoteOns() == 1 && out.getNoteOn (0).technique == Technique::Pluck);
+}
+
+/*  CT-19 (controllers 2): the bend-range check - the page reads the note a full
+    bend reaches, and its stepper sets the profile's range, applied at once and
+    carried into what SAVE writes. */
+LUTHIER_TEST (Controllers, bendRangeCheckWritesTheProfile)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    ControllersPage page (processor);
+    page.setSize (600, 700);
+
+    ControllerProfileLibrary library;
+    const int generic = library.indexOf ("generic-midi");
+    CHECK (generic >= 0);
+
+    if (generic < 0)
+        return;
+
+    auto& box = *findChild<juce::ComboBox> (page);
+    box.setSelectedId (generic + 1, juce::sendNotificationSync);
+    page.refresh();
+
+    page.getBendRangeStepper().setValue (12.0, juce::sendNotificationSync);
+    CHECK_NEAR (page.getEditedProfile().pitchBendSemis, 12.0, 1.0e-9);
+
+    renderBlocks (processor, 1);
+    CHECK_NEAR (processor.getEngine().getMidiInterpreter().getPitchBendRange(), 12.0, 1.0e-6);
+
+    // Play a note and bend it fully up: the readout names where it went.
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 52, 0.8f), 0);
+    midi.addEvent (juce::MidiMessage::pitchWheel (1, 16383), 10);
+    renderBlocks (processor, 1, &midi);
+    page.refresh();
+
+    CHECK_MSG (page.getBendCheckText().contains ("bent to"), "readout: " + page.getBendCheckText());
 }

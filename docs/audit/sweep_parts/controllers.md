@@ -22,7 +22,7 @@ The profile model, JSON format, the nine ship profiles, user overrides and the p
 | CT-16 (§4) | Per-channel pressure drives that string's vibrato — untested | `MidiInterpreter` pressure path `slots[].pressure` | n/a | `Controllers::pressureOnAChannelVibratesOnlyItsString` | DONE |
 | CT-17 (§4) | MPE: master-channel notes ignored | `MidiInterpreter::handleNoteOn` (mpeMasterChannel) | profile | `Controllers::mpeMasterChannelNotesAreIgnored` | DONE |
 | CT-18 (§4) | MPE: sticky string per member channel | `MidiInterpreter::handleNoteOn` (lastStringForChannel), `mpeStringForChannel` | profile | `Controllers::mpeMemberChannelsStickToTheirString` | DONE |
-| CT-19 (§5) | Calibrate bend range by confirming target pitch in UI | - | - | - | MISSING |
+| CT-19 (§5) | Bend range check: live 'bent to' note readout and a range stepper that applies at once and is saved with the profile | - | CONTROLLERS `bendCheckLabel`, `bendRangeStepper` | `Controllers::bendRangeCheckWritesTheProfile` | DONE |
 | CT-20 (§5) | Minimum note duration | `MidiInterpreter::setMinimumNoteDurationMs` | CONTROLLERS `minimumNoteSlider` | `Controllers::minimumNoteDurationSurvivesAnEarlyNoteOff` | DONE |
 | CT-21 (§5) | Pitch dead-zone, default 5 cents | `MidiInterpreter::setPitchDeadZoneCents` | CONTROLLERS `deadZoneSlider` | `Controllers::pitchDeadZoneRejectsTrackingNoiseButNotRealBends` | DONE |
 | CT-22 (§6) | Multi-controller merge, source tags, most-recent-wins, contention warning — `ControllerMerge` exists but is unused in `processBlock` | `Controllers/ControllerProfile.h:ControllerMerge` | - | `Controllers::multiControllerMergeNeverLosesAString`, `Controllers::oneControllerPlayingNormallyReportsNoContention` | PARTIAL |

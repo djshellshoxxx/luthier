@@ -115,6 +115,14 @@ public:
     void setHumanise (const RhythmHumanise& h) noexcept;
     RhythmHumanise getHumanise() const noexcept;
 
+    /** SPEC-SWEEP (RE-5, rhythm-engine 0.5): the instrument's Humanize macro
+        scales the kit's own feel (1 = as the kit wrote it). The bridge sets it
+        every block; the kit and the RHYTHM feel sliders stay the base. */
+    void setHumaniseScale (double scale) noexcept { humaniseScale.store (juce::jlimit (0.0, 4.0, scale), std::memory_order_relaxed); }
+    double getHumaniseScale() const noexcept { return humaniseScale.load (std::memory_order_relaxed); }
+    /** The humanise the audio thread used for the last block (scale applied). */
+    const RhythmHumanise& getBlockHumanise() const noexcept { return blockHumanise; }
+
     void setVoicingStyle (VoicingStyle style) noexcept { voicingStyle.store ((int) style, std::memory_order_relaxed); }
 
     /*  ambiguity-resolutions 4.3 / 4.7 (MODEL-GAPS): what the Bass style voices -
@@ -306,6 +314,8 @@ private:
     mutable juce::CriticalSection humaniseLock;  // serialises writers only
     RhythmHumanise writtenHumanise;
     TripleBuffer<RhythmHumanise> humaniseBuffer;
+    std::atomic<double> humaniseScale { 1.0 };   // SPEC-SWEEP RE-5
+    RhythmHumanise blockHumanise;                // audio thread: this block's, scaled
 
     // --- transport ------------------------------------------------------------------
     double freeRunPpq = 0.0;

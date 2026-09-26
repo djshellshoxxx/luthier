@@ -455,7 +455,7 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
     if (step.isRest() || ! voicingValid)
         return;
 
-    const auto& h = humaniseBuffer.current();   // SPEC-SWEEP RE-2: acquired at the top of processBlock
+    const auto& h = blockHumanise;   // SPEC-SWEEP RE-2: acquired at the top of processBlock
 
     // rhythm-engine 4: a scheduled stroke can simply not happen.
     if (h.missPercent > 0.0 && rng.nextDouble() * 100.0 < h.missPercent * h.amount)
@@ -646,7 +646,7 @@ void RhythmEngine::scheduleFingerpick (const FingerpickStep& step, int sampleOff
     if (! step.active || ! voicingValid)
         return;
 
-    const auto& h = humaniseBuffer.current();   // SPEC-SWEEP RE-2
+    const auto& h = blockHumanise;   // SPEC-SWEEP RE-2
 
     if (h.missPercent > 0.0 && rng.nextDouble() * 100.0 < h.missPercent * h.amount)
         return;
@@ -678,6 +678,10 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
     patternBuffer.acquire();
     bassGridBuffer.acquire();
     humaniseBuffer.acquire();
+
+    // SPEC-SWEEP (RE-5): the instrument's Humanize macro scales the kit's feel.
+    blockHumanise = humaniseBuffer.current();
+    blockHumanise.amount *= humaniseScale.load (std::memory_order_relaxed);
 
     // ---- bypass ---------------------------------------------------------------
     if (pendingRelease.exchange (false))
@@ -815,7 +819,7 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
             // A ghost stroke is an extra muted brush just before the hit, which
             // is most of what makes a strummed part sound played rather than
             // programmed.
-            const auto& h = humaniseBuffer.current();
+            const auto& h = blockHumanise;
 
             if (! step.isRest() && h.ghostPercent > 0.0
                   && rng.nextDouble() * 100.0 < h.ghostPercent * h.amount)

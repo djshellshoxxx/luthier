@@ -229,6 +229,7 @@ private:
 
     juce::ToggleButton guitarModeToggle { "LinnStrument guitar mode: rows map to strings" };
     int lastRefreshedProfile = -1;   // SPEC-SWEEP CT-9
+    int lastBendProfile = -1;        // SPEC-SWEEP CT-19
 
     // SPEC-SWEEP (PT-23): aftertouch drives vibrato depth, or bends.
     juce::ToggleButton aftertouchBendToggle { "Aftertouch bends the note (instead of adding vibrato)" };
@@ -239,6 +240,20 @@ private:
 
     juce::TextButton saveProfileButton { "Save as my profile" };
 
+    // SPEC-SWEEP (CT-19, controllers 2): "Check bend range" - bend fully up and
+    // read the note; step the range until the name matches what the controller
+    // is set to. The range is applied at once and saved with SAVE.
+    juce::Label bendCheckLabel;
+    juce::Slider bendRangeStepper { juce::Slider::IncDecButtons, juce::Slider::TextBoxLeft };
+
+public:
+    /** The live readout: the last note played and where the bend has taken it. */
+    juce::String getBendCheckText() const { return bendCheckLabel.getText(); }
+    juce::Slider& getBendRangeStepper() noexcept { return bendRangeStepper; }
+    /** The selected profile with the page's edits, as SAVE would write it. */
+    ControllerProfile getEditedProfile() const;
+
+private:
     bool updatingControls = false;
 };
 
