@@ -301,29 +301,29 @@ LUTHIER_TEST (Presets, savingAFactoryPresetMakesAUserCopy)
 
 /*  PROGRESS PR-31, PRESET_FORMAT PF-11: a preset from a newer schema loads and
     the log says so. */
-LUTHIER_TEST (Presets, aNewerSchemaPresetLoadsAndIsLogged)
+LUTHIER_TEST (Presets, aNewerSchemaPresetIsRefusedAndLeavesTheSoundAlone)
 {
+    // SPEC-SWEEP: error-recovery 1 / spec-coverage C-20 - a newer-schema file is
+    // refused with the update message (PresetFileErrors covers the message); this
+    // checks the current sound survives the refusal.
     const auto folder = sweepTempFolder ("LuthierSweepNewerSchema");
-    ErrorLog::setFolderForTesting (folder);
-    ErrorLog::setVerbose (true);
 
     LuthierAudioProcessor processor;
     processor.prepareToPlay (kSweepSr, kSweepBlock);
+
+    auto* drive = processor.getState().getParameter (ParamIDs::macroDrive);
+    CHECK (drive != nullptr);
+    if (drive == nullptr)
+        return;
+    drive->setValueNotifyingHost (0.2f);
 
     auto file = folder.getChildFile (juce::String ("Future") + PresetManager::kFileExtension);
     file.replaceWithText ("{\"magic\":\"luthier.preset\",\"schemaVersion\":99,\"name\":\"Future\","
                           "\"someFutureBlock\":{\"x\":1},\"parameters\":{\"macro_drive\":0.9}}");
 
-    CHECK (processor.getPresetManager().loadPreset (file));
+    CHECK (! processor.getPresetManager().loadPreset (file));
+    CHECK (std::abs (drive->getValue() - 0.2f) < 1.0e-3f);
 
-    auto* drive = processor.getState().getParameter (ParamIDs::macroDrive);
-    CHECK (drive != nullptr && std::abs (drive->getValue() - 0.9f) < 1.0e-3f);
-
-    const auto log = ErrorLog::getLogFile().loadFileAsString();
-    CHECK_MSG (log.contains ("NEWER_SCHEMA"), log);
-
-    ErrorLog::setVerbose (false);
-    ErrorLog::setFolderForTesting ({});
     folder.deleteRecursively();
 }
 

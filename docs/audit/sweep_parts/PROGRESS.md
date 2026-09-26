@@ -34,7 +34,7 @@ PROGRESS.md is the milestone log and it is stale. It still gives 310 tests, 349 
 | PR-28 (Phase 5) | Test target builds `PluginProcessor` (undo, uiState, A/B, snapshots exercised) | `CMakeLists.txt` | n/a | `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` | DONE |
 | PR-29 (Phase 5 / er 5) | ErrorLog JSON lines; debug / info only when verbose, warn / error always | `Support/ErrorLog` | Options DIAGNOSTICS | `ErrorLog::failuresAreLoggedAsReadableJsonLines` | DONE |
 | PR-30 (Phase 5) | Error-log and preset-backup retention sweeps date from the filename, not the file timestamp — backups are tested, `ErrorLog::pruneOldLogs` is not | `ErrorLog::pruneOldLogs`, `PresetManager::pruneOldBackups` | n/a | `ErrorLog::retentionSweepDatesFromTheFilename` | DONE |
-| PR-31 (Phase 5 / er 1) | A newer-schema preset loads rather than being refused, and logs `NEWER_SCHEMA` — no test | `PresetManager.cpp:523` | n/a | `Presets::aNewerSchemaPresetLoadsAndIsLogged` | DONE |
+| PR-31 (Phase 5 / er 1) | PROGRESS says a newer-schema preset loads and logs `NEWER_SCHEMA`; superseded by error-recovery 1 / C-20 (refused with the update message, sound untouched) | `PresetManager.cpp:523` | n/a | `Presets::aNewerSchemaIsRefusedWithTheUpdateMessage`, `Presets::aNewerSchemaPresetIsRefusedAndLeavesTheSoundAlone` | DONE |
 | PR-32 (Targets) | Four targets build: `Luthier_VST3`, `Luthier_Standalone`, `LuthierTests`, `LuthierRender` | `CMakeLists.txt:213,241` | n/a | CI `scripts/ci_build.sh:102` (all four) | DONE |
 | PR-33 (Not done) | CLAP and Linux builds — now an optional CLAP target and Linux CI | `CMakeLists.txt:27`, `.github/workflows/build.yml` | n/a | CI clap-validator | DONE |
 | PR-34 (Not done) | Signed installers | `packaging/*` (unsigned) | n/a | - | OWNED |
