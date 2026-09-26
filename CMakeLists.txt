@@ -173,7 +173,7 @@ endif()
 # reference to the editor.
 set(LUTHIER_ENGINE_SOURCES ${LUTHIER_SOURCES})
 list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "Source/UI/")
-list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor\.(cpp|h)$")
+list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor[A-Za-z]*\.(cpp|h)$")   # FEAT-NORMALIZE: PluginEditorOnboarding.cpp too
 
 # The UI, as its own list. The renderer does not want it - it renders offline and
 # has no window - but the test runner does. With Source/UI out of every target
@@ -181,7 +181,7 @@ list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor\.(cpp|h)$")
 # LuthierAudioProcessorEditor, and the panels could be verified only by opening
 # the plugin in a host by hand.
 set(LUTHIER_UI_SOURCES ${LUTHIER_SOURCES})
-list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor\.(cpp|h)$")
+list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor[A-Za-z]*\.(cpp|h)$")   # FEAT-NORMALIZE: PluginEditorOnboarding.cpp too
 
 set(LUTHIER_CONSOLE_DEFS
     LUTHIER_HEADLESS=1
@@ -242,7 +242,10 @@ if (LUTHIER_BUILD_CLI)
 
     target_sources(LuthierRender PRIVATE
                    ${LUTHIER_ENGINE_SOURCES}
-                   "${CMAKE_CURRENT_SOURCE_DIR}/Tools/RenderCli.cpp")
+                   "${CMAKE_CURRENT_SOURCE_DIR}/Tools/RenderCli.cpp"
+                   # PresetManager reads UiPreferences (plain file I/O, no UI);
+                   # FEAT-NORMALIZE restored the renderer's link after that landed.
+                   "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/UiPreferences.cpp")
 
     target_include_directories(LuthierRender PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
     target_compile_definitions(LuthierRender PRIVATE ${LUTHIER_CONSOLE_DEFS})
