@@ -87,3 +87,33 @@ LUTHIER_TEST (Editor, abCompareIsTransientAndNotSaved)
     const auto preset = juce::JSON::toString (p.getPresetManager().toVar ("sweep"));
     CHECK (! preset.contains ("slotA") && ! preset.contains ("slotB"));
 }
+
+//==============================================================================
+/*  AU-22 / AU-36: saving a preset is not an undo entry, and undoing after a
+    save changes the sound, never the file. */
+LUTHIER_TEST (Undo, savingMakesNoEntryAndUndoLeavesTheFileAlone)
+{
+    LuthierAudioProcessor p;
+    auto& presets = p.getPresetManager();
+
+    const juce::File file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                              .getChildFile ("luthier-sweep-undo.luthierpreset");
+    file.deleteFile();
+
+    set (p, ParamIDs::ampGain, 0.4f);
+    const int before = p.getNumUndoSteps();
+
+    CHECK (presets.exportPreset (file));
+    CHECK (p.getNumUndoSteps() == before);
+
+    const auto bytes = file.loadFileAsString();
+
+    p.pushUndoState ("sweep change");
+    set (p, ParamIDs::ampGain, 0.9f);
+    p.undo();
+
+    CHECK_NEAR (get (p, ParamIDs::ampGain), 0.4f, 1.0e-4f);
+    CHECK (file.loadFileAsString() == bytes);
+
+    file.deleteFile();
+}
