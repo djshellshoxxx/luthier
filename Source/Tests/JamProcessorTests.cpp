@@ -6,6 +6,7 @@
 #include "TestFramework.h"
 #include "../PluginProcessor.h"
 #include "../Jam/JamMidiExport.h"
+#include "../Support/TuneExport.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -785,4 +786,85 @@ LUTHIER_TEST (JamPlugin, JM46_strumsLandOnTheBandsGrid)
     b.run (4.0);
     CHECK (blocks > 100);
     CHECK_MSG (worst <= 1, "the rhythm engine's grid is " + juce::String (worst) + " samples off the band's");
+}
+
+//==============================================================================
+/*  9: tune export includes the band - audio renders play it, MIDI exports add
+    its two tracks - and leaves it out when asked. */
+LUTHIER_TEST (JamPlugin, JM09_tuneExportIncludesTheBand)
+{
+    Plugin b (false);
+    b.set (ParamIDs::jamEnabled, 1.0f);
+    b.p->getTuneSession().newTune (jamTune (false, true));
+    b.p->serviceTune();
+    const auto state = b.p->captureStateBlock();
+
+    TuneExport::Render with, without;
+    CHECK (TuneExport::renderAudio (state, kSr, 512, 0.5, true, with, {}, true));
+    CHECK (TuneExport::renderAudio (state, kSr, 512, 0.5, false, without, {}, false));
+
+    double diff = 0.0;
+
+    for (int i = 0; i < juce::jmin (with.main.getNumSamples(), without.main.getNumSamples()); ++i)
+        diff = juce::jmax (diff, (double) std::abs (with.main.getSample (0, i) - without.main.getSample (0, i)));
+
+    CHECK_MSG (diff > 1.0e-3, "the render with the band is the render without it");
+    CHECK_MSG (with.aux.size() == (size_t) TuneExport::kNumAuxStems + 2, "no Jam stems: " + juce::String ((int) with.aux.size()));
+
+    if (with.aux.size() == (size_t) TuneExport::kNumAuxStems + 2)
+        CHECK_MSG (with.aux[(size_t) TuneExport::kNumAuxStems].getMagnitude (0, with.aux[(size_t) TuneExport::kNumAuxStems].getNumSamples()) > 1.0e-3,
+                   "the Jam Drums stem is silent");
+
+    juce::TemporaryFile temp (".mid");
+    TuneExport::MidiOptions options;
+    juce::String error;
+    CHECK_MSG (TuneExport::exportMidi (b.p->getTuneSession().getTune(), temp.getFile(), options, error), error);
+
+    int tracksBefore = 0;
+    {
+        juce::FileInputStream in (temp.getFile());
+        juce::MidiFile file;
+        CHECK (file.readFrom (in));
+        tracksBefore = file.getNumTracks();
+    }
+
+    CHECK_MSG (TuneExport::appendJamTracks (state, temp.getFile(), error), error);
+
+    juce::FileInputStream in (temp.getFile());
+    juce::MidiFile file;
+    CHECK (file.readFrom (in));
+    CHECK (file.getNumTracks() == tracksBefore + 2);
+
+    int drums = 0, bass = 0;
+
+    for (int t = tracksBefore; t < file.getNumTracks(); ++t)
+        for (const auto* e : *file.getTrack (t))
+            if (e->message.isNoteOn())
+                (e->message.getChannel() == 10 ? drums : bass)++;
+
+    CHECK (drums > 10 && bass >= 4);
+}
+
+//==============================================================================
+/*  12: knob moves are undo entries; START, STOP and FILL are transport and
+    never are. */
+LUTHIER_TEST (JamPlugin, JM12_transportIsNotUndoable)
+{
+    Plugin b;
+
+    auto gesture = [&b] (const char* id, float normalised)
+    {
+        auto* prm = b.p->getState().getParameter (id);
+        prm->beginChangeGesture();
+        prm->setValueNotifyingHost (normalised);
+        prm->endChangeGesture();
+    };
+
+    const int before = b.p->getNumUndoSteps();
+    gesture (ParamIDs::jamPlay, 1.0f);
+    gesture (ParamIDs::jamFillNow, 1.0f);
+    CHECK_MSG (b.p->getNumUndoSteps() == before, "START or FILL made an undo entry");
+
+    gesture (ParamIDs::jamVolume, 0.3f);
+    CHECK_MSG (b.p->getNumUndoSteps() == before + 1, "a Jam knob move made no undo entry");
 }

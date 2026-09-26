@@ -1600,6 +1600,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
         jam.setMidiChannels (midiOutConfig.jamDrumChannel, midiOutConfig.jamBassChannel);
         jam.setSettings (jamSettings);
+        // jam-mode 13: CPU relief's step between 4 and 5 halves the cymbal banks;
+        // applied with step 4 so the ladder keeps its numbering. Bass and timing never degrade.
+        jam.setReducedCymbals (engine.getCpuRelief().getStep() >= CpuRelief::halveNoisePools);
         jam.process (ctx, jamNotes, &jamTuneBass, numSamples);
     }
     else if (jamWasEnabled)
@@ -2540,6 +2543,14 @@ void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool ge
 
     if (parameter == nullptr)
         return;
+
+    // jam-mode 12 (FEAT-JAM): START, STOP and FILL are transport, never undo entries.
+    if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameter))
+        if (ParamIDs::isJamTransient (withId->paramID))
+        {
+            gestureParameterIndex = -1;
+            return;
+        }
 
     /*  section 11: the host owns its automation lane, and the user reverses a
         host-written change with the host's own undo. A gesture arriving from

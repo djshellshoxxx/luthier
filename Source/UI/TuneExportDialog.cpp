@@ -78,6 +78,18 @@ TuneExportDialog::TuneExportDialog (LuthierAudioProcessor& p)
     splitBox.setSelectedId (3, juce::dontSendNotification);
     realismToggle.setToggleState (true, juce::dontSendNotification);
 
+    // FEAT-JAM (jam-mode 9): on by default while the band is enabled.
+    {
+        auto* jamEnabled = processor.getState().getParameter (ParamIDs::jamEnabled);
+        const bool jamOn = jamEnabled != nullptr && jamEnabled->getValue() > 0.5f;
+        jamToggle.setToggleState (jamOn, juce::dontSendNotification);
+        jamToggle.setEnabled (jamOn);
+        jamToggle.setTooltip (jamOn ? "Audio includes the Jam band; MIDI adds its Jam Drums and Jam Bass tracks."
+                                    : "The Jam band is off (arm it in the JAM tab to include it).");
+        AccessibleSetup::configureButton (jamToggle, "Include Jam band");
+        addAndMakeVisible (jamToggle);
+    }
+
     // --- notation (9.3) ------------------------------------------------------------
     notationBox.addItem ("MusicXML (standard and tab)", 1);
     notationBox.addItem ("Guitar Pro (standard and tab)", 2);
@@ -165,6 +177,8 @@ void TuneExportDialog::refreshVisibility()
     for (auto* c : std::initializer_list<juce::Component*> { &profileBox, &splitBox, &realismToggle })
         c->setVisible (midi);
 
+    jamToggle.setVisible (audio || midi);   // FEAT-JAM
+
     notationBox.setVisible (notation);
     chordsToggle.setVisible (notation);
     bundleToggle.setVisible (project);
@@ -182,6 +196,7 @@ TuneExport::AudioOptions TuneExportDialog::getAudioOptions() const
                  : (processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0);
     o.stems = stemsToggle.getToggleState();
     o.tailSeconds = tailSlider.getValue();
+    o.includeJamBand = jamToggle.getToggleState();   // FEAT-JAM
     return o;
 }
 
@@ -200,6 +215,7 @@ TuneExport::MidiOptions TuneExportDialog::getMidiOptions() const
     }
 
     o.includeRealism = realismToggle.getToggleState();
+    o.includeJamBand = jamToggle.getToggleState();   // FEAT-JAM
     return o;
 }
 
@@ -231,7 +247,7 @@ juce::File TuneExportDialog::getTargetFile() const
 juce::Array<juce::File> TuneExportDialog::exportNow (juce::String& message)
 {
     juce::Array<juce::File> files;
-    juce::String error;
+    juce::String error, jamNote;   // FEAT-JAM
     const auto& tune = processor.getTuneSession().getTune();
     const auto target = getTargetFile();
     folder.createDirectory();
@@ -244,7 +260,14 @@ juce::Array<juce::File> TuneExportDialog::exportNow (juce::String& message)
 
         case Destination::midi:
             if (TuneExport::exportMidi (tune, target, getMidiOptions(), error))
+            {
                 files.add (target);
+
+                // FEAT-JAM (jam-mode 9): the band's two tracks.
+                if (getMidiOptions().includeJamBand)
+                    if (! TuneExport::appendJamTracks (processor.captureStateBlock(), target, error))
+                        jamNote = " (without the Jam band: " + error + ")";
+            }
             break;
 
         case Destination::notation:
@@ -267,7 +290,7 @@ juce::Array<juce::File> TuneExportDialog::exportNow (juce::String& message)
 
     message = files.isEmpty() ? "Export failed: " + error
                               : "Exported " + juce::String (files.size()) + (files.size() == 1 ? " file" : " files")
-                                  + " to " + folder.getFullPathName();
+                                  + " to " + folder.getFullPathName() + jamNote;
     return files;
 }
 
@@ -425,12 +448,14 @@ void TuneExportDialog::resized()
             labelled ("SAMPLE RATE", sampleRateBox);
             labelled ("LOOP TAIL", tailSlider);
             plain (stemsToggle);
+            plain (jamToggle);   // FEAT-JAM
             break;
 
         case Destination::midi:
             labelled ("PROFILE", profileBox);
             labelled ("TRACKS", splitBox);
             plain (realismToggle);
+            plain (jamToggle);   // FEAT-JAM
             break;
 
         case Destination::notation:
