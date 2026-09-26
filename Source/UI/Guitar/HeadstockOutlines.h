@@ -115,6 +115,20 @@ namespace headstock_data
     inline constexpr HeadPt superstrat_inline6_buttons[] = {
         { 42.61f, -43.36f }, { 65.01f, -41.01f }, { 87.41f, -38.65f }, { 109.81f, -36.3f }, { 132.21f, -33.95f }, { 154.61f, -31.59f } };
 
+    // reverse_inline6
+    //   guitar-illustration.md 6's reverse 6-in-line: the pointed in-line head mirrored across
+    //   the strings, so its tuners run along the treble edge and the low E post is the far one.
+    inline constexpr HeadPt reverse_inline6_outline[] = {
+        { 0, 21.5f, true }, { 0.47f, 22.37f }, { 4.37f, 23.06f }, { 5.95f, 23.52f }, { 7, 24.5f }, { 8.85f, 27.02f },
+        { 11.38f, 28.88f }, { 18, 31.19f }, { 23.38f, 31.91f }, { 34, 30.69f }, { 204, 12.83f, true }, { 195.99f, -2.21f },
+        { 189.72f, -10 }, { 183.4f, -15.3f }, { 176.21f, -19.3f }, { 163.2f, -24 }, { 148.92f, -27.54f }, { 134.14f, -28.94f },
+        { 112.2f, -29 }, { 89.82f, -28.97f }, { 69.74f, -28.57f }, { 50, -27.5f }, { 35.64f, -27.2f }, { 26.89f, -26.38f },
+        { 20, -24.5f }, { 12.48f, -22.57f }, { 0, -21.5f, true } };
+    inline constexpr HeadPt reverse_inline6_posts[] = {
+        { 152, 6.73f }, { 129.6f, 9.08f }, { 107.2f, 11.44f }, { 84.8f, 13.79f }, { 62.4f, 16.15f }, { 40, 18.5f } };
+    inline constexpr HeadPt reverse_inline6_buttons[] = {
+        { 154.61f, 31.59f }, { 132.21f, 33.95f }, { 109.81f, 36.3f }, { 87.41f, 38.65f }, { 65.01f, 41.01f }, { 42.61f, 43.36f } };
+
     // inline7
     //   Seven-string pointed in-line headstock.
     inline constexpr HeadPt inline7_outline[] = {
@@ -547,6 +561,13 @@ inline constexpr HeadstockStyle kHeadstockStyles[] = {
       headstock_data::superstrat_inline6_outline, headstock_data::count (headstock_data::superstrat_inline6_outline),
       headstock_data::superstrat_inline6_posts, 6,
       headstock_data::superstrat_inline6_buttons, 6, 14, 10,
+      nullptr, 0,
+      { nullptr, nullptr }, { 0, 0 },
+      { 0, 0 }, false },
+    { "reverse_inline6", HeadLayout::inlineReverse,
+      headstock_data::reverse_inline6_outline, headstock_data::count (headstock_data::reverse_inline6_outline),
+      headstock_data::reverse_inline6_posts, 6,
+      headstock_data::reverse_inline6_buttons, 6, 14, 10,
       nullptr, 0,
       { nullptr, nullptr }, { 0, 0 },
       { 0, 0 }, false },

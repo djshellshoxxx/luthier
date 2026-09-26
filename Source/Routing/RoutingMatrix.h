@@ -180,6 +180,7 @@ public:
         int auxDi = 0;
         int auxPreCab = 0;
         int perString = 0;
+        int auxNoise = 0;      ///< Aux 8, the noise bus (performance-budget.md 4)
     };
 
     void setLatencyReport (const LatencyReport& r) noexcept;
@@ -222,7 +223,7 @@ private:
     mutable juce::SpinLock midiOutLock;
     MidiOutConfig midiOut;
 
-    std::atomic<int> latMain { 0 }, latDi { 0 }, latPreCab { 0 }, latString { 0 };
+    std::atomic<int> latMain { 0 }, latDi { 0 }, latPreCab { 0 }, latString { 0 }, latNoise { 0 };
 
     BusLayout activeLayout = BusLayout::stereoOnly;
 

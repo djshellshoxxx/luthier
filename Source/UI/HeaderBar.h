@@ -98,6 +98,13 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    /*  action-and-undo.md 1 / 9: File -> "Undo history...". The newest 20
+        entries, newest first; each item's id is 1 + the undos that reach the
+        state before it, and a boundary entry sits under a separator. */
+    static juce::PopupMenu buildUndoHistoryMenu (const LuthierAudioProcessor& processor);
+    static void applyUndoHistoryChoice (LuthierAudioProcessor& processor, int result);
+    void showUndoHistory();
+
 private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void timerCallback() override;

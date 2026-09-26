@@ -62,6 +62,31 @@ void applyParameterMenuResult (int result,
 constexpr int kUnlockRangeMenuId = 10;
 constexpr int kRestrictRangeMenuId = 11;
 
+/** gui-integration 16 items 12-13: the read-only automation ID, and "Show in
+    Options -> Shortcuts" for a control a shortcut also drives. */
+constexpr int kAutomationIdMenuId = 12;
+constexpr int kShowShortcutMenuId = 13;
+
+/** ui-wiring.md 21: names an attached control for screen readers after its parameter. */
+void labelForScreenReaders (juce::Component& control, LuthierAudioProcessor& processor,
+                            const juce::String& parameterId, const juce::String& tooltip);
+
+/** gui-integration 11.2: a MOD source card's drag description is this prefix and its slot. */
+inline constexpr const char* kModSourceDragPrefix = "luthier.modsource:";
+
+/** The source slot a drag carries, or -1 if it is not a mod source. */
+int modSourceSlotFromDrag (const juce::var& description);
+
+/*  gui-integration 11.2: a dropped source becomes a route at 25% depth - one
+    undo entry. Returns false when the control's routes are full. */
+bool addModulationFromDrop (LuthierAudioProcessor& processor, int sourceSlot, const juce::String& parameterId);
+
+/** The shortcut action that drives a parameter (Slide Mode's S), or empty. */
+juce::String shortcutActionForParameter (const juce::String& parameterId);
+
+/** Set by the editor: opens Options -> Accessibility's shortcut table filtered to an action. */
+extern std::function<void (const juce::String& actionId)> showShortcutInOptions;
+
 /*  advanced-ranges.md 6.3: a drag on a physical control that has reached the
     edge of its stock range while that range is locked. Shows the fixed inline
     notice at `owner`; the control itself simply stops at the edge. Returns
@@ -117,10 +142,24 @@ struct LearnTarget
 /** A rotary control with its label below and its value above. */
 class LuthierKnob : public juce::Component,
                     public juce::SettableTooltipClient,
-                    public LearnTarget
+                    public LearnTarget,
+                    public juce::DragAndDropTarget   // gui-integration 11.2
 {
 public:
     enum class Size { Small, Normal, Large, Macro };
+
+    // gui-integration 11.2: a MOD source dropped here routes to this knob at 25%.
+    bool isInterestedInDragSource (const SourceDetails& d) override { return processor != nullptr && modSourceSlotFromDrag (d.description) >= 0; }
+    void itemDragEnter (const SourceDetails&) override { dropHighlight = true; repaint(); }
+    void itemDragExit (const SourceDetails&) override  { dropHighlight = false; repaint(); }
+    void itemDropped (const SourceDetails& d) override
+    {
+        dropHighlight = false;
+        repaint();
+
+        if (processor != nullptr)
+            addModulationFromDrop (*processor, modSourceSlotFromDrag (d.description), paramId);
+    }
 
     LuthierKnob (const juce::String& labelText, Size size = Size::Normal);
     ~LuthierKnob() override;
@@ -182,6 +221,7 @@ private:
 
     bool showDiceAndLock = false;
     bool hovering = false;
+    bool dropHighlight = false;   // a mod source is being dragged over (11.2)
     int mappedCc = -1;
 
     juce::Rectangle<int> diceBounds, lockBounds;
@@ -259,9 +299,17 @@ private:
 /** Horizontal or vertical slider bound to a float parameter, with a label. */
 class LuthierSlider : public LearnTarget,
                       public juce::Component,
-                      public juce::SettableTooltipClient
+                      public juce::SettableTooltipClient,
+                      public juce::DragAndDropTarget   // gui-integration 11.2
 {
 public:
+    bool isInterestedInDragSource (const SourceDetails& d) override { return processor != nullptr && modSourceSlotFromDrag (d.description) >= 0; }
+    void itemDropped (const SourceDetails& d) override
+    {
+        if (processor != nullptr)
+            addModulationFromDrop (*processor, modSourceSlotFromDrag (d.description), paramId);
+    }
+
     LuthierSlider (const juce::String& labelText, bool vertical = false);
     ~LuthierSlider() override;
 
@@ -418,9 +466,22 @@ public:
     ~DataStreamDisplay() override;
 
     void setSource (LuthierAudioProcessor* processor);
-    void setNumLines (int lines) { numLines = juce::jlimit (4, 24, lines); }
+    void setNumLines (int lines) { numLines = juce::jlimit (1, 24, lines); }
 
     void paint (juce::Graphics&) override;
+
+    /*  ui-wiring.md 11: the stream keeps the last 200 lines, stops scrolling
+        500 ms after the last record, and does no work under reduced motion.
+        gui-integration 5: Options -> Appearance can hide it. */
+    static constexpr int kMaxLines = 200;
+    static constexpr double kStopAfterMs = 500.0;
+    static bool isEnabledByUser();
+    static void setEnabledByUser (bool enabled);
+
+    /** One tick of the timer, with the clock passed in (tests). */
+    void update (double nowMs);
+    bool isScrolling() const noexcept { return scrolling; }
+    int getNumLinesKept() const noexcept { return lines.size(); }
 
 private:
     void timerCallback() override;
@@ -431,6 +492,7 @@ private:
     int lastRecordCount = 0;
     float scrollOffset = 0.0f;
     bool scrolling = false;
+    double lastArrivalMs = 0.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DataStreamDisplay)
 };

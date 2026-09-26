@@ -52,9 +52,7 @@ LUTHIER_TEST (StateModel, loadingAPresetLeavesTheLayersAboveItAlone)
     processor.setLiveMode (true);
     processor.getMidiLearn().setArmed (true);
 
-    /*  Two entries, because one stored state is not something to go back *to*:
-        pushUndoState records where things stood before a change, so canUndo only
-        becomes true once there is a previous state as well as a current one. */
+    // One entry is enough: each entry holds the state from before its action.
     processor.pushUndoState ("Something the user did");
     processor.pushUndoState ("Something else the user did");
 

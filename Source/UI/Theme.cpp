@@ -1,4 +1,5 @@
 #include "Theme.h"
+#include "NewFeatureDots.h"
 #include "RangesUi.h"
 #include "../Accessibility/Accessibility.h"
 #include "../Support/IrLibrary.h"
@@ -217,16 +218,38 @@ void Fonts::drawTrackedText (juce::Graphics& g, const juce::String& text,
     if (text.isEmpty())
         return;
 
-    const auto font = g.getCurrentFont();
-    const float extra = font.getHeight() * tracking;
+    auto font = g.getCurrentFont();
+
+    auto measure = [&text] (const juce::Font& f, float t)
+    {
+        float w = 0.0f;
+        for (int i = 0; i < text.length(); ++i)
+            w += f.getStringWidthFloat (text.substring (i, i + 1)) + f.getHeight() * t;
+        return w - f.getHeight() * t;
+    };
 
     // Measure with the tracking included so the justification stays correct.
-    float total = 0.0f;
+    float total = measure (font, tracking);
 
-    for (int i = 0; i < text.length(); ++i)
-        total += font.getStringWidthFloat (text.substring (i, i + 1)) + extra;
+    /*  Text that does not fit loses its tracking first, then shrinks (to 7.5 pt
+        at the least), rather than running into its neighbours ("ACTION TACTION
+        B") or being clipped (TODO V, screenshots of every panel). */
+    const float room = (float) area.getWidth();
 
-    total -= extra;
+    if (total > room && room > 0.0f)
+    {
+        tracking = 0.0f;
+        total = measure (font, 0.0f);
+
+        if (total > room)
+        {
+            font = font.withHeight (juce::jmax (7.5f, font.getHeight() * room / total));
+            g.setFont (font);
+            total = measure (font, 0.0f);
+        }
+    }
+
+    const float extra = font.getHeight() * tracking;
 
     float x = (float) area.getX();
 
@@ -264,6 +287,19 @@ LuthierLookAndFeel::LuthierLookAndFeel()
     refreshColours();
 }
 
+juce::Label* LuthierLookAndFeel::createSliderTextBox (juce::Slider& slider)
+{
+    auto* label = LookAndFeel_V4::createSliderTextBox (slider);
+
+    // A colour the slider set itself wins; otherwise the current palette, not
+    // whatever look and feel the slider had when it was built.
+    label->setColour (juce::Label::textColourId,
+                      slider.isColourSpecified (juce::Slider::textBoxTextColourId)
+                          ? slider.findColour (juce::Slider::textBoxTextColourId)
+                          : Palette::textPrimary);
+    return label;
+}
+
 void LuthierLookAndFeel::refreshColours()
 {
     setColour (juce::ResizableWindow::backgroundColourId, Palette::background);
@@ -275,6 +311,12 @@ void LuthierLookAndFeel::refreshColours()
     setColour (juce::Label::textWhenEditingColourId,      Palette::textPrimary);
     setColour (juce::Label::backgroundWhenEditingColourId, Palette::panelSunken);
     setColour (juce::Label::outlineWhenEditingColourId,   Palette::accent);
+
+    // Table headers (the mod matrix's routes) were JUCE's light grey on every palette (TODO V).
+    setColour (juce::TableHeaderComponent::backgroundColourId, Palette::panelRaised);
+    setColour (juce::TableHeaderComponent::textColourId,       Palette::textMuted);
+    setColour (juce::TableHeaderComponent::outlineColourId,    Palette::edge);
+    setColour (juce::TableHeaderComponent::highlightColourId,  Palette::accent.withAlpha (0.25f));
 
     setColour (juce::Slider::rotarySliderFillColourId,    Palette::accent);
     setColour (juce::Slider::rotarySliderOutlineColourId, Palette::edge);
@@ -883,10 +925,14 @@ void LuthierLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& bu
         colour = colour.brighter (0.25f);
 
     g.setColour (colour);
-    g.setFont (getTextButtonFont (button, button.getHeight()));
 
+    // drawTrackedText fits a label that is too long for the button (TODO V).
+    g.setFont (getTextButtonFont (button, button.getHeight()));
     Fonts::drawTrackedText (g, button.getButtonText().toUpperCase(),
-                            button.getLocalBounds(), juce::Justification::centred);
+                            button.getLocalBounds().reduced (3, 0), juce::Justification::centred);
+
+    // gui-integration 20: a feature new in this version carries a dot for its first week.
+    NewFeatureDots::paintDot (g, button);
 }
 
 void LuthierLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button,
@@ -952,7 +998,18 @@ void LuthierLookAndFeel::positionComboBoxText (juce::ComboBox& box, juce::Label&
 }
 
 juce::Font LuthierLookAndFeel::getComboBoxFont (juce::ComboBox&)  { return Fonts::ui (12.0f); }
-juce::Font LuthierLookAndFeel::getLabelFont (juce::Label&)        { return Fonts::ui (12.0f); }
+juce::Font LuthierLookAndFeel::getLabelFont (juce::Label& label)
+{
+    // A label left at JUCE's default font takes the theme's; one given its own
+    // (the Workshop's display-face title) keeps it. Returning the theme's font
+    // for every label hid each setFont in the plugin (TODO V screenshots).
+    const auto f = label.getFont();
+
+    if (std::abs (f.getHeight() - 15.0f) < 0.01f && f.getTypefaceName() == juce::Font::getDefaultSansSerifFontName())
+        return Fonts::ui (12.0f);
+
+    return f;
+}
 juce::Font LuthierLookAndFeel::getPopupMenuFont()                 { return Fonts::ui (13.0f); }
 
 juce::Font LuthierLookAndFeel::getTextButtonFont (juce::TextButton&, int buttonHeight)

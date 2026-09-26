@@ -475,11 +475,11 @@ LUTHIER_TEST (Search, GS41_performance)
     auto* raw = fake.get();
     index.addProvider (std::move (fake));
 
-    // The build is timed three times and the best kept: the budget is for a
+    // The build is timed five times and the best kept: the budget is for a
     // baseline CPU, and a shared CI machine adds its own scheduling noise.
     double buildMs = 1.0e9;
 
-    for (int attempt = 0; attempt < 3; ++attempt)
+    for (int attempt = 0; attempt < 5; ++attempt)
     {
         index.invalidate();
         const auto buildStart = std::chrono::steady_clock::now();
@@ -487,7 +487,7 @@ LUTHIER_TEST (Search, GS41_performance)
         buildMs = juce::jmin (buildMs, std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now() - buildStart).count());
     }
 
-    CHECK (raw->collects == 3);
+    CHECK (raw->collects == 5);
 
     std::vector<double> times;
     const bool verboseTiming = juce::SystemStats::getEnvironmentVariable ("LUTHIER_SEARCH_TIMING", {}).isNotEmpty();

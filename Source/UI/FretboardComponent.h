@@ -36,6 +36,9 @@ public:
     explicit FretboardComponent (LuthierAudioProcessor& processor);
     ~FretboardComponent() override;
 
+    /** One frame of the timer's work (tests). */
+    void tickForTest() { timerCallback(); }
+
     //==========================================================================
     void setScaleOverlay (ScaleOverlay scale, int rootPitchClass);
     ScaleOverlay getScaleOverlay() const noexcept { return scale; }
@@ -43,6 +46,13 @@ public:
 
     void setCapoFret (int fret);
     int getCapoFret() const noexcept { return capoFret; }
+
+    /*  piano-roll-chord-display.md 3, "Show fingering": the voicing a pianist's
+        keys would get, as hollow ghost dots, before anything sounds. `fret` is
+        counted from the capo, as the engine counts it. */
+    struct GhostDot { int string = 0; double fret = 0.0; };
+    void setGhostDots (const std::vector<GhostDot>& dots);
+    const std::vector<GhostDot>& getGhostDots() const noexcept { return ghostDots; }
 
     void setStringMuted (int stringIndex, bool muted);
     bool isStringMuted (int stringIndex) const;
@@ -52,6 +62,10 @@ public:
     int getSelectedString() const noexcept { return selectedString; }
 
     std::function<void (int stringIndex)> onStringSelected;
+
+private:
+    std::vector<GhostDot> ghostDots;   // piano-roll-chord-display.md 3
+public:
 
     /** Compact mode drops the fret numbers and inlay row to save height. */
     void setCompact (bool shouldBeCompact);

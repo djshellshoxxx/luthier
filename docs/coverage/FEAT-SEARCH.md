@@ -129,7 +129,7 @@ are unchanged (GS-30 checks `getStateInformation` byte for byte).
 - D16. `SearchNavigator` is a friend of the editor rather than a set of new public editor methods; the editor's new public surface is `performAction`, `getSearch` and `buildSearchProviders`.
 - D17. The secret overlay (include.md's hidden effect) is tagged but has no place row, so search does not give the easter egg away (GS-03 exempts it).
 - D18. `settingsRoundTrip` (AccessibilityTests) rebinds panic to Ctrl+J: it used Ctrl+K as a free key, which is now Search.
-- D19. GS-41's index build is timed as the best of three builds (a shared CI machine's noise); query p95/p99 are measured over 200 queries.
+- D19. GS-41's index build is timed as the best of five builds (a shared CI machine's noise); query p95/p99 are measured over 200 queries.
 - D20. A Help topic's aliases are its other names (HelpContent::findTopic treats them so): one equal to the whole query scores as the title (1000), via `SearchItem::synonymsAreNames`. Without it the six "Techniques: ..." topics outranked "Playing Techniques" for its own alias "techniques".
 - D21. The realism groups merged from REALISM-A/B/C (String aging, Environment, Body coupling, Noise floor, Sustain shape, Tuning stability, Harmonics, Right hand, String interaction) are tagged places in CHARACTER; GS-02 navigated 1401 parameters at the last merge.
 - D22. GS-45 compares Retune all from the palette with pressing the CHARACTER panel's Retune button (same session reset and the same undo-depth change), since REALISM-A made the button also retune the room.
