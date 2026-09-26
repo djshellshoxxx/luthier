@@ -22,6 +22,7 @@
 #include "Live/Setlist.h"
 #include "Live/TapTempo.h"
 #include "Live/MidiClockTempo.h"   // SPEC-SWEEP HI-32
+#include "Support/HostStateEnvelope.h"   // SPEC-SWEEP HI-20
 #include "Live/LiveControls.h"
 #include "Live/LiveInput.h"   // SPEC-SWEEP: LP-11 / LP-33 / LP-34
 #include "Practice/Metronome.h"
@@ -370,6 +371,9 @@ public:
         did to the layers around it ("A/B cleared by preset load."). Taken once
         by the editor. */
     juce::StringArray takeStateNotices();
+
+    /** SPEC-SWEEP HI-20/24/25: the state blob's version, kept sections and backups. */
+    HostStateEnvelope& getStateEnvelope() noexcept { return stateEnvelope; }
 
     /** SPEC-SWEEP: FF-35/SM-31 - the same, for warnings (a refused setlist). */
     juce::StringArray takeStateWarnings();
@@ -738,6 +742,7 @@ private:
     // SPEC-SWEEP: SM-46 - what a user-facing preset load clears (state-model 8.1).
     void presetFileLoaded();
     juce::StringArray stateNotices, stateWarnings;
+    HostStateEnvelope stateEnvelope;   // SPEC-SWEEP HI-20
 
     /** Resolves a preset's reference to a guitar file: user, then factory. */
     static juce::File resolveGuitarReference (const juce::String& reference);

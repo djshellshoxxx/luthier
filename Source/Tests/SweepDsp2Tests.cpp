@@ -1788,3 +1788,132 @@ LUTHIER_TEST (Buzz, theCentreRisesWithTheContactFret)
     CHECK (high.second >= 3000.0 && high.second <= 6000.0);
     CHECK_MSG (high.second > low.second, "the buzz centre did not rise with the contact fret");
 }
+
+//==============================================================================
+//  host-integration 4: the state envelope
+//==============================================================================
+namespace
+{
+    juce::var stateOf (LuthierAudioProcessor& processor)
+    {
+        juce::MemoryBlock block;
+        processor.getStateInformation (block);
+        return juce::JSON::parse (block.toString());
+    }
+
+    void setState (LuthierAudioProcessor& processor, const juce::var& state)
+    {
+        const auto json = juce::JSON::toString (state, true);
+        processor.setStateInformation (json.toRawUTF8(), (int) json.getNumBytesAsUTF8());
+    }
+}
+
+LUTHIER_TEST (HostState, theStateCarriesAFormatVersion)
+{
+    // HI-20 (host-integration 4).
+    LuthierAudioProcessor processor;
+    const auto state = stateOf (processor);
+    CHECK (state.getDynamicObject() != nullptr);
+    CHECK ((int) state["formatVersion"] == HostStateEnvelope::kFormatVersion);
+}
+
+LUTHIER_TEST (HostState, unknownSectionsSurviveWriteBack)
+{
+    // HI-24 (host-integration 4.1): a later build's blob loads, says so, and
+    // what this build does not know goes back out unchanged.
+    auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-state-envelope");
+    folder.deleteRecursively();
+
+    LuthierAudioProcessor processor;
+    processor.getStateEnvelope().setBackupFolder (folder);
+    processor.takeStateNotices();
+
+    auto state = stateOf (processor);
+    state.getDynamicObject()->setProperty ("formatVersion", HostStateEnvelope::kFormatVersion + 1);
+
+    auto* future = new juce::DynamicObject();
+    future->setProperty ("hologram", 42);
+    state.getDynamicObject()->setProperty ("futureSection", juce::var (future));
+
+    setState (processor, state);
+
+    const auto notices = processor.takeStateNotices();
+    CHECK_MSG (notices.joinIntoString (" ").contains ("newer version"), "no notice for a newer session");
+
+    const auto written = stateOf (processor);
+    CHECK ((int) written["futureSection"]["hologram"] == 42);
+    CHECK ((int) written["formatVersion"] == HostStateEnvelope::kFormatVersion);
+
+    // A newer blob is not backed up: nothing migrates it.
+    CHECK (folder.findChildFiles (juce::File::findFiles, false, "*.json").isEmpty());
+    folder.deleteRecursively();
+}
+
+LUTHIER_TEST (HostState, anOldBlobIsBackedUpBeforeMigration)
+{
+    // HI-25 (host-integration 4.2).
+    auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-state-backup");
+    folder.deleteRecursively();
+
+    LuthierAudioProcessor processor;
+    processor.getStateEnvelope().setBackupFolder (folder);
+
+    auto state = stateOf (processor);
+    state.getDynamicObject()->removeProperty ("formatVersion");   // as saved before HI-20
+    const auto json = juce::JSON::toString (state, true);
+    processor.setStateInformation (json.toRawUTF8(), (int) json.getNumBytesAsUTF8());
+
+    const auto backups = folder.findChildFiles (juce::File::findFiles, false, "state-backup-*.json");
+    CHECK (backups.size() == 1);
+
+    if (backups.size() == 1)
+        CHECK (backups[0].loadFileAsString() == json);
+
+    // A current blob is not.
+    const auto current = juce::JSON::toString (stateOf (processor), true);
+    processor.setStateInformation (current.toRawUTF8(), (int) current.getNumBytesAsUTF8());
+    CHECK (folder.findChildFiles (juce::File::findFiles, false, "state-backup-*.json").size() == 1);
+
+    // Only the last few are kept.
+    for (int i = 0; i < HostStateEnvelope::kMaxBackups + 3; ++i)
+        processor.setStateInformation (json.toRawUTF8(), (int) json.getNumBytesAsUTF8());
+
+    CHECK (folder.findChildFiles (juce::File::findFiles, false, "state-backup-*.json").size() == HostStateEnvelope::kMaxBackups);
+    folder.deleteRecursively();
+}
+
+//==============================================================================
+//  pick-noise
+//==============================================================================
+LUTHIER_TEST (PickNoise, decayWearAndPositionShapeTheClick)
+{
+    // PN-15 (pick-noise.md 3).
+    PickSettings base;
+    base.wear = 0.0;
+
+    const auto plain = PlayingNoise::makeClick (base, 0, 0.8);
+    CHECK (plain.decayMs >= 3.0 && plain.decayMs <= 15.0);
+    CHECK (plain.subResonanceLevel == 0.0);
+
+    auto sharp = base;
+    sharp.tipRadiusMm = 0.3;
+    CHECK (PlayingNoise::makeClick (sharp, 0, 0.8).decayMs < plain.decayMs);
+
+    auto damped = base;
+    damped.material = Excitation::Material::PickNylon;
+    auto stiff = base;
+    stiff.material = Excitation::Material::PickMetal;
+    CHECK (PlayingNoise::getPickMaterial (damped.material).damping > PlayingNoise::getPickMaterial (stiff.material).damping);
+    CHECK (PlayingNoise::makeClick (damped, 0, 0.8).decayMs < PlayingNoise::makeClick (stiff, 0, 0.8).decayMs);
+
+    auto worn = base;
+    worn.wear = 0.8;
+    const auto wornClick = PlayingNoise::makeClick (worn, 0, 0.8);
+    CHECK (wornClick.subResonanceLevel > 0.0);
+    CHECK (wornClick.decayMs > plain.decayMs);
+
+    auto nearBridge = base, nearNeck = base;
+    nearBridge.pluckPosition = 0.05;
+    nearNeck.pluckPosition = 0.4;
+    CHECK (PlayingNoise::makeClick (nearBridge, 0, 0.8).brightness > PlayingNoise::makeClick (nearNeck, 0, 0.8).brightness);
+}

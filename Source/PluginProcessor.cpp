@@ -2716,6 +2716,9 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     if (auto* morph = apvts.getRawParameterValue (ParamIDs::presetMorphPosition))
         root->setProperty ("presetMorphPosition", (double) morph->load());
 
+    // SPEC-SWEEP HI-20/HI-24: the format version, and a later build's sections.
+    stateEnvelope.stamp (*root);
+
     const auto json = juce::JSON::toString (juce::var (root), false);
 
     destData.reset();
@@ -2790,6 +2793,16 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
 
     if (root == nullptr)
         return;
+
+    // SPEC-SWEEP HI-20/24/25 (host-integration 4): read the version, keep what
+    // a later build wrote, and back up an older blob before migrating it.
+    {
+        const auto reading = stateEnvelope.read (*root, json);
+
+        if (reading.newer)
+            stateNotices.addIfNotAlreadyThere ("This session was saved by a newer version of Luthier. "
+                                               "What this version does not know is kept and saved back unchanged.");
+    }
 
     if (root->hasProperty ("preset"))
         presets.fromVar (root->getProperty ("preset"));
