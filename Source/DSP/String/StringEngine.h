@@ -220,6 +220,8 @@ public:
         partial at its first node. 0 clears every contact. */
     void setHarmonicRestriction (int partial) noexcept;
 
+    /** animated-strings.md 4.1: the partial the string is restricted to; 0 = none. */
+    int getHarmonicPartial() const noexcept { return harmonicPartial; }
     //==========================================================================
     /*  harmonic-realism.md 2: a contact - a finger, thumb or tap touching the
         string at a point - realised in the lumped loop as the n-tap node comb

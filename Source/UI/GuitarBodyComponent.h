@@ -19,6 +19,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "Guitar/GuitarRenderer.h"
+#include "Guitar/StringAnimator.h"   // animated-strings.md 4.3
+#include "Guitar/StringMotionPolicy.h"   // cpu-quality-modes.md 6
 #include "Guitar/IllustrationMotion.h"
 #include "ChordNameOverlay.h"
 
@@ -143,6 +145,11 @@ public:
     /** What the illustration currently shows, for tests and the Workshop. */
     const GuitarScene& getScene() const noexcept { return scene; }
 
+    // animated-strings.md 4.3: the strings' frame driver, and one 30 Hz tick for tests.
+    StringAnimator& getStringAnimator() noexcept { return animator; }
+    void tickForTesting() { timerCallback(); }
+    const GuitarOverlay& getOverlayForTesting() const noexcept { return overlay; }
+    juce::AffineTransform getMmToPxForTesting() { ensureTransform(); return mmToPx; }
     /*  One frame of the live overlay at `nowMs` (the timer's work, public so the
         60 ms dot timing and the reduced-motion rules can be tested with a
         clock): played notes, slide, capo, and the crossfade's progress. */
@@ -173,6 +180,10 @@ private:
     void rebuildScene (bool force);
     void rebuildCache();
 
+    // animated-strings.md 4.4.
+    void ensureTransform();
+    bool fillMotionGeometry (StringMotionGeometry&);
+
     juce::Point<float> toMm (juce::Point<float> px) const;
     GuitarRegion regionAt (juce::Point<float> px) const;
     int knobAt (juce::Point<float> px) const;
@@ -198,6 +209,9 @@ private:
     GuitarOverlay overlay;
     GuitarRegion hoveredRegion = GuitarRegion::none;
 
+    // animated-strings.md: declared after the scene it reads.
+    StringAnimator animator;
+    bool cacheOmitsSpeaking = false;
     // guitar-illustration.md 12.1, 16, 19 (IllustrationMotion.h).
     SceneCrossfade fade;
     NoteDots dots;

@@ -827,9 +827,11 @@ AppearancePage::AppearancePage (LuthierAudioProcessor& p)
     {
         AccessibilitySettings::get().setReducedMotion (reducedMotionToggle.getToggleState());
         AccessibilitySettings::get().save();
+        visualAids.refresh();   // animated-strings.md 5: the "paused" line
     };
 
     addAndMakeVisible (reducedMotionToggle);
+    addAndMakeVisible (visualAids);   // animated-strings.md 5
 
     tooltipsToggle.onClick = [this]
     {
@@ -937,6 +939,11 @@ void AppearancePage::refresh()
     pianoRollEasyToggle.setToggleState (VisualAids::showPianoRoll (false), juce::dontSendNotification);
     pianoRollShowsBox.setSelectedId (VisualAids::pianoRollShowsRoll() ? 2 : 1, juce::dontSendNotification);
 
+    if (visualAids.getHeight() != visualAids.getPreferredHeight())
+        resized();
+
+    visualAids.refresh();   // animated-strings.md 5
+
     for (int i = 0; i < AccessibilitySettings::kNumScales; ++i)
         if (std::abs (AccessibilitySettings::kScales[(size_t) i] - settings.getUiScale()) < 1.0e-6)
             scaleBox.setSelectedId (i + 1, juce::dontSendNotification);
@@ -958,8 +965,8 @@ void AppearancePage::paint (juce::Graphics& g)
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "THEME AND SIZE");
-    drawHeading (g, { 0, 136, getWidth(), 18 }, "ACCENT AND LIVE DISPLAYS");
-    drawHeading (g, { 0, 272, getWidth(), 18 }, "VISUAL AIDS");
+    drawHeading (g, { 0, accentTop, getWidth(), 18 }, "ACCENT AND LIVE DISPLAYS");
+    // VISUAL AIDS is drawn by visualAids, over both specs' rows (animated-strings 5).
 }
 
 void AppearancePage::resized()
@@ -986,37 +993,43 @@ void AppearancePage::resized()
         reducedMotionToggle.setBounds (row.removeFromLeft (160));
     }
 
+    // animated-strings.md 5: VISUAL AIDS starts directly under that row.
     bounds.removeFromTop (4);
-    contrastLabel.setBounds (bounds.removeFromTop (18));
+    visualAids.setBounds (bounds.removeFromTop (visualAids.getPreferredHeight()));
 
-    auto lower = getLocalBounds().withTrimmedTop (158);
+    // piano-roll-chord-display.md 5: the piano roll's rows, under the same VISUAL
+    // AIDS heading, directly below the string-animation rows (animated-strings 5).
     {
-        auto row = lower.removeFromTop (26);
-        accentBox.setBounds (row.removeFromLeft (220));
-        row.removeFromLeft (8);
-        accentNote.setBounds (row);
-    }
-    lower.removeFromTop (4);
-    dataStreamToggle.setBounds (lower.removeFromTop (26).removeFromLeft (300));
-    noiseStripToggle.setBounds (lower.removeFromTop (26).removeFromLeft (300));
-    vuToggle.setBounds (lower.removeFromTop (26).removeFromLeft (300));
-
-    // piano-roll-chord-display.md 5.
-    auto aids = getLocalBounds().withTrimmedTop (294);
-    {
-        auto row = aids.removeFromTop (26);
+        auto row = bounds.removeFromTop (26);
         chordNamesToggle.setBounds (row.removeFromLeft (260));
         row.removeFromLeft (8);
         announceChordsToggle.setBounds (row.removeFromLeft (220));
     }
     {
-        auto row = aids.removeFromTop (26);
+        auto row = bounds.removeFromTop (26);
         pianoRollAdvancedToggle.setBounds (row.removeFromLeft (260));
         row.removeFromLeft (8);
         pianoRollEasyToggle.setBounds (row.removeFromLeft (220));
     }
-    aids.removeFromTop (2);
-    pianoRollShowsBox.setBounds (aids.removeFromTop (24).removeFromLeft (260));
+    bounds.removeFromTop (2);
+    pianoRollShowsBox.setBounds (bounds.removeFromTop (24).removeFromLeft (260));
+
+    bounds.removeFromTop (4);
+    contrastLabel.setBounds (bounds.removeFromTop (18));
+
+    bounds.removeFromTop (6);
+    accentTop = bounds.getY();
+    bounds.removeFromTop (22);
+    {
+        auto row = bounds.removeFromTop (26);
+        accentBox.setBounds (row.removeFromLeft (220));
+        row.removeFromLeft (8);
+        accentNote.setBounds (row);
+    }
+    bounds.removeFromTop (4);
+    dataStreamToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
+    noiseStripToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
+    vuToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
 }
 
 //==============================================================================
@@ -1157,7 +1170,7 @@ void AccessibilityPage::ShortcutModel::paintListBoxItem (int row, juce::Graphics
     g.setColour (capturing ? Palette::backgroundDeep
                            : (binding.isRebound() ? Palette::accent : Palette::textDisabled));
 
-    g.drawText (capturing ? "press a key..." : binding.key.getTextDescription(),
+    g.drawText (capturing ? "press a key..." : binding.key.isValid() ? binding.key.getTextDescription() : juce::String ("(not bound)"),
                 width - 134, 0, 128, height, juce::Justification::centredRight, true);
 }
 

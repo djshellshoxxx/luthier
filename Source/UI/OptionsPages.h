@@ -25,6 +25,7 @@
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "VisualAidsSection.h"   // animated-strings.md 5
 #include "AudioPathView.h"
 #include "../Controllers/ControllerProfile.h"
 #include "../Updates/Telemetry.h"
@@ -144,6 +145,14 @@ private:
     juce::Label contrastLabel, accentNote;
 
     bool updatingControls = false;
+
+public:
+    /** animated-strings.md 5 / piano-roll-chord-display.md 5: VISUAL AIDS, directly
+        under the tooltips / reduced-motion row. */
+    VisualAidsSection visualAids;
+
+private:
+    int accentTop = 300;   ///< where ACCENT AND LIVE DISPLAYS starts, below VISUAL AIDS
 };
 
 //==============================================================================

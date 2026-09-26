@@ -11,6 +11,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Theme.h"
+#include "Guitar/GuitarRenderer.h"
+#include "Guitar/StringAnimator.h"   // animated-strings.md 4.3
 
 namespace luthier
 {
@@ -127,6 +129,15 @@ public:
     /** The current bar's notes, from the capture: what the timer does. */
     void refreshTabDots();
 
+    // animated-strings.md 4.3: the strings' frame driver, and one 30 Hz tick for tests.
+    StringAnimator& getStringAnimator() noexcept { return animator; }
+    void tickForTesting() { timerCallback(); }
+    const std::array<StringLook, 12>& getStringLooks() const noexcept { return looks; }
+
+    /** The fretboard's drawn width of a string: the 0.9 + 1.5 s / (n - 1) rule,
+        scaled by its gauge relative to the set's mean (animated-strings 2.3). */
+    float stringThickness (int stringIndex) const;
+
     /** For tests: where the bar is drawn, and how visible it is (0-1). */
     double getDrawnBarFret() const noexcept { return barFret; }
     float getBarOpacity() const noexcept { return barOpacity; }
@@ -166,6 +177,25 @@ public:
 
 private:
     // ==== END REALISM-B fretboard ====
+
+    // animated-strings.md 2.1 and 6.1.
+    bool fillMotionGeometry (StringMotionGeometry&);
+    void refreshStringLooks (bool force);
+    juce::Rectangle<int> noteDotArea (int stringIndex, double fret) const;
+
+    // animated-strings.md 11: the static board, cached while the strings animate.
+    void paintStaticLayer (juce::Graphics&);
+    void paintLiveLayer (juce::Graphics&);
+    void paintFretNumbers (juce::Graphics&);
+    juce::int64 staticLayerKey (float scale) const;
+    juce::Image staticCache;
+    juce::int64 staticCacheKey = 0;
+
+    std::array<StringLook, 12> looks {};
+    juce::int64 looksKey = 0;
+    int ticksSinceLooksCheck = 1000;
+
+    StringAnimator animator;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FretboardComponent)
 };

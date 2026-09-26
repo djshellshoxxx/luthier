@@ -8,7 +8,10 @@ namespace luthier
 
 //==============================================================================
 GuitarBodyComponent::GuitarBodyComponent (LuthierAudioProcessor& p)
-    : processor (p), chordName (p)
+    : processor (p),
+      animator (*this, p.getEngine().getSoundingNotes(),
+                [this] (StringMotionGeometry& g) { return fillMotionGeometry (g); }),
+      chordName (p)
 {
     startTimerHz (30);
 }
@@ -50,6 +53,7 @@ void GuitarBodyComponent::rebuildScene (bool force)
 
     scene = std::move (next);
     cache = {};
+    animator.resetMotion();   // animated-strings.md 10: a family switch starts from rest
     repaint();
 }
 
@@ -60,6 +64,10 @@ void GuitarBodyComponent::rebuildCache()
 
     mmToPx = GuitarRenderer::fitTransform (scene, area);
 
+    // animated-strings.md 4.4: while the strings animate, their speaking lengths
+    // are painted per frame (layer 25a) rather than baked into the cache.
+    cacheOmitsSpeaking = animator.isAnimationEnabled();
+
     const float scale = juce::Component::getApproximateScaleFactorForComponent (this);
     const int w = juce::jmax (1, juce::roundToInt ((float) getWidth() * scale));
     const int h = juce::jmax (1, juce::roundToInt ((float) getHeight() * scale));
@@ -67,8 +75,53 @@ void GuitarBodyComponent::rebuildCache()
     cache = juce::Image (juce::Image::ARGB, w, h, true);
     juce::Graphics g (cache);
     g.addTransform (juce::AffineTransform::scale (scale));
-    GuitarRenderer::paint (g, scene, mmToPx);
+    GuitarRenderer::PaintLayers layers;
+    layers.omitSpeakingLengths = cacheOmitsSpeaking;
+    GuitarRenderer::paint (g, scene, mmToPx, layers);
     cacheScale = scale;
+}
+
+void GuitarBodyComponent::ensureTransform()
+{
+    if (scene.hits.empty())
+        rebuildScene (true);
+
+    auto area = getLocalBounds().toFloat().reduced ((float) Metrics::gridHalf);
+    area.removeFromBottom (16.0f);   // the name plate, as rebuildCache
+    mmToPx = GuitarRenderer::fitTransform (scene, area);
+}
+
+bool GuitarBodyComponent::fillMotionGeometry (StringMotionGeometry& geometry)
+{
+    // 12: nothing moves until the scene exists.
+    if (scene.strings.empty() || getWidth() <= 0 || getHeight() <= 0)
+        return false;
+
+    if (cache.isNull())
+        ensureTransform();
+
+    const float pxPerMm = std::sqrt (std::abs (mmToPx.getDeterminant()));
+
+    if (pxPerMm <= 0.0f)
+        return false;
+
+    geometry.numStrings = 0;
+
+    for (const auto& line : scene.strings)
+    {
+        if (! juce::isPositiveAndBelow (line.index, StringMotionGeometry::kMaxStrings))
+            continue;
+
+        auto& out = geometry.strings[(size_t) line.index];
+        out.nut = line.nut.transformedBy (mmToPx);
+        out.bridge = line.saddle.transformedBy (mmToPx);
+        out.strokeWidthPx = GuitarRenderer::stringWidthPx (line.widthMm, line.minWidthPx, pxPerMm);
+        geometry.numStrings = juce::jmax (geometry.numStrings, line.index + 1);
+    }
+
+    geometry.numFrets = (float) juce::jmax (1, scene.numFrets);
+    geometry.clip = getLocalBounds().toFloat();
+    return geometry.numStrings > 0;
 }
 
 juce::Point<float> GuitarBodyComponent::toMm (juce::Point<float> px) const
@@ -158,17 +211,38 @@ void GuitarBodyComponent::updateLiveOverlay (double nowMs)
 {
     auto& engine = processor.getEngine();
     lastFrameMs = nowMs;
-    const bool reducedMotion = AccessibilitySettings::get().isReducedMotion();
+    // cpu-quality-modes 6 (animated-strings 2.6): motion Off - reduced motion, or CPU
+    // quality Low - means no fades and a fixed glow.
+    const bool reducedMotion = StringMotionPolicy::getMotion() == StringMotionPolicy::Motion::off;
 
     bool changed = fade.isActive (nowMs);
     fade.finishIfDone (nowMs);
 
+    // animated-strings.md 2.6 and 4.3: the animator reads its gates on this tick.
+    animator.poll();
+
+    if (animator.isAnimationEnabled() != cacheOmitsSpeaking)
+    {
+        cache = {};
+        changed = true;
+    }
+
+    const bool motion = animator.isMotionActive();
+    changed = changed || motion != overlay.motionActive;
+    overlay.motionActive = motion;
+
     for (int s = 0; s < juce::jmin (12, engine.getNumStrings()); ++s)
     {
-        const auto level = (float) juce::jlimit (0.0, 1.0, engine.getStringLevel (s) * 4.0);
+        const auto level = (float) StringMotion::normaliseLevel ((float) engine.getStringLevel (s));
         const auto fret = (float) engine.getStringFret (s);
+        const auto oldLevel = overlay.stringLevel[(size_t) s];
 
-        if (std::abs (level - overlay.stringLevel[(size_t) s]) > 0.004f || std::abs (fret - overlay.stringFret[(size_t) s]) > 0.01f)
+        // While the strings animate the level only draws the ghost, which repaints
+        // itself; here only the dot turning on or off matters (4.3: no full repaints).
+        const bool levelChanged = (motion || overlay.reducedMotion) ? ((level > 0.01f) != (oldLevel > 0.01f))
+                                                                    : std::abs (level - oldLevel) > 0.004f;
+
+        if (levelChanged || std::abs (fret - overlay.stringFret[(size_t) s]) > 0.01f)
             changed = true;
 
         overlay.stringLevel[(size_t) s] = level;
@@ -264,6 +338,20 @@ void GuitarBodyComponent::paint (juce::Graphics& g)
         rebuildCache();
 
     g.drawImage (cache, getLocalBounds().toFloat());
+
+    // animated-strings.md 4.4: layer 25a, the speaking lengths, under every overlay.
+    if (cacheOmitsSpeaking)
+    {
+        const auto start = juce::Time::getHighResolutionTicks();
+
+        GuitarRenderer::SpeakingStyle style;
+        style.highContrast = AccessibilitySettings::get().getPalette() == PaletteId::highContrast;
+        style.highContrastColour = Palette::textPrimary;
+        GuitarRenderer::paintSpeakingLengths (g, scene, mmToPx, animator.getFrameToPaint(), style);
+
+        animator.notePaintMilliseconds (juce::Time::highResolutionTicksToSeconds (
+                                            juce::Time::getHighResolutionTicks() - start) * 1000.0);
+    }
 
     // 12.1: the old guitar fading out over the new one.
     if (const float a = fade.alpha (lastFrameMs); a > 0.0f && fade.previous.isValid())
