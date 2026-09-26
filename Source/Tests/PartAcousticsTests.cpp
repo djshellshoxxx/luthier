@@ -5,6 +5,9 @@
 #include "../Model/Workshop/PartAcoustics.h"
 #include "../LuthierEngine.h"
 
+#include <algorithm>
+#include <vector>
+
 using namespace luthier;
 using namespace luthier::tests;
 
@@ -322,6 +325,255 @@ LUTHIER_TEST (PartAcoustics, everyMappedFieldMovesSomething)
         CHECK_MSG (! (mapSpec (g) == reference),
                    juce::String (getPartTypeId (part->type)) + "." + probe.field + " moved nothing");
     }
+}
+
+LUTHIER_TEST (PartAcoustics, theWoodTableIsTheSpecs)
+{
+    // 1: the 17-wood table (plus cypress and steel), exactly.
+    struct Row { const char* id; double density, youngs, tanDelta; };
+
+    static const Row rows[] =
+    {
+        { "alder", 420, 9.5, 8.5e-3 }, { "ash_swamp", 480, 11.0, 7.5e-3 }, { "ash_northern", 680, 13.0, 6.5e-3 },
+        { "basswood", 420, 9.0, 11.0e-3 }, { "mahogany", 550, 10.5, 9.0e-3 }, { "mahogany_african", 530, 9.8, 9.5e-3 },
+        { "maple_hard", 705, 12.6, 6.0e-3 }, { "maple_soft", 545, 10.0, 7.5e-3 }, { "korina", 480, 10.0, 8.5e-3 },
+        { "poplar", 455, 10.9, 10.0e-3 }, { "walnut", 610, 11.5, 7.0e-3 }, { "rosewood", 830, 12.0, 6.0e-3 },
+        { "ebony", 1040, 16.0, 4.5e-3 }, { "pau_ferro", 860, 13.5, 5.5e-3 }, { "spruce", 400, 11.0, 7.0e-3 },
+        { "cedar", 350, 8.0, 9.0e-3 }, { "koa", 610, 10.5, 8.0e-3 }, { "cypress", 510, 9.0, 7.8e-3 },
+        { "steel", 7850, 200.0, 0.5e-3 },
+    };
+
+    for (const auto& row : rows)
+    {
+        WoodData data {};
+        CHECK_MSG (lookUpWood (row.id, data), juce::String (row.id) + " missing from the wood table");
+        CHECK_MSG (std::abs (data.densityKgM3 - row.density) < 1.0e-9
+                     && std::abs (data.youngsGPa - row.youngs) < 1.0e-9
+                     && std::abs (data.lossTangent - row.tanDelta) < 1.0e-12,
+                   juce::String (row.id) + " does not match the spec's row");
+    }
+
+    WoodData unknown {};
+    CHECK (! lookUpWood ("unobtanium", unknown));
+}
+
+LUTHIER_TEST (PartAcoustics, chamberingPicksItsShape)
+{
+    // 2.1: solid/chambered/semi_hollow/hollow map to their BodyShape, and the
+    // modal count rises in that order; acoustic falls back to the guitar's
+    // own family/style (a dreadnought here).
+    auto base = factory ("Electric/Classic T-Style.luthierguitar");
+
+    struct Row { const char* chambering; BodyShape shape; };
+
+    const Row rows[] =
+    {
+        { "solid",       BodyShape::SolidStandard },
+        { "chambered",   BodyShape::Chambered },
+        { "semi_hollow", BodyShape::SemiHollow },
+        { "hollow",      BodyShape::Hollow },
+    };
+
+    int previousModes = 0;
+
+    for (const auto& row : rows)
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::body] = withField (base.get (GuitarSlot::body), "chambering", juce::String (row.chambering));
+        const auto d = mapSpec (g);
+
+        CHECK_MSG (d.body.shape == row.shape, juce::String (row.chambering) + " picked the wrong BodyShape");
+
+        std::vector<BodyMode> modes;
+        BodyModels::buildModes (d.body, modes);
+        CHECK_MSG ((int) modes.size() >= previousModes,
+                   juce::String (row.chambering) + ": " + juce::String ((int) modes.size())
+                     + " modes, fewer than the chambering before it");
+        previousModes = (int) modes.size();
+    }
+
+    auto acousticGuitar = base;
+    acousticGuitar.parts[(size_t) GuitarSlot::body] = withField (base.get (GuitarSlot::body), "chambering", "acoustic");
+    CHECK (mapSpec (acousticGuitar).body.shape == BodyShape::Dreadnought);
+}
+
+LUTHIER_TEST (PartAcoustics, fretMaterialsAreTheSpecsTable)
+{
+    // 4: stainless/gold_evo/brass/nickel-silver termination brightness
+    // 0.90/0.80/0.60/0.70. Every other multiplier (fretboard wood, break
+    // angle, fret width) is held fixed, so the ratio to nickel-silver is exact.
+    auto base = factory ("Electric/Classic T-Style.luthierguitar");
+
+    auto brightnessFor = [&base] (const char* material)
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::frets] = withField (base.get (GuitarSlot::frets), "material", juce::String (material));
+        return mapSpec (g).fretBrightness;
+    };
+
+    const double nickel = brightnessFor ("nickel_silver");
+    struct Row { const char* material; double expected; };
+
+    for (const auto& row : { Row { "stainless", 0.90 }, Row { "gold_evo", 0.80 }, Row { "brass", 0.60 } })
+    {
+        const double ratio = brightnessFor (row.material) / nickel;
+        CHECK_MSG (std::abs (ratio - row.expected / 0.70) < 0.02,
+                   juce::String (row.material) + ": ratio " + juce::String (ratio, 3));
+    }
+}
+
+LUTHIER_TEST (PartAcoustics, nutMaterialsAreTheSpecsTable)
+{
+    // 4: brass/graphite/plastic/tusq/bone open-string termination brightness
+    // 0.85/0.70/0.60/0.72/0.75, applied with no other multiplier.
+    auto base = factory ("Electric/Classic T-Style.luthierguitar");
+
+    auto brightnessFor = [&base] (const char* material)
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::nut] = withField (base.get (GuitarSlot::nut), "material", juce::String (material));
+        return mapSpec (g).nutBrightness;
+    };
+
+    struct Row { const char* material; double expected; };
+
+    for (const auto& row : { Row { "bone", 0.75 }, Row { "brass", 0.85 }, Row { "graphite", 0.70 },
+                             Row { "plastic", 0.60 }, Row { "tusq", 0.72 } })
+        CHECK_MSG (std::abs (brightnessFor (row.material) - row.expected) < 1.0e-9,
+                   juce::String (row.material) + ": " + juce::String (brightnessFor (row.material), 3));
+}
+
+LUTHIER_TEST (PartAcoustics, fretsCountSetsThePlayableRange)
+{
+    // 4: frets.count sets the playable range (clamped 12-27).
+    auto base = factory ("Electric/Classic T-Style.luthierguitar");
+
+    auto maxFretsFor = [&base] (double count)
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::frets] = withField (base.get (GuitarSlot::frets), "count", count);
+        return mapSpec (g).spec.maxFrets;
+    };
+
+    CHECK (maxFretsFor (21.0) == 21);
+    CHECK (maxFretsFor (24.0) == 24);
+    CHECK (maxFretsFor (21.0) != maxFretsFor (24.0));
+}
+
+LUTHIER_TEST (PartAcoustics, nutSlotDepthsReachSetupWhenTheGuitarOmitsThem)
+{
+    // 4: slot_depths_mm from the nut part reaches d.setup.nutDepth when the
+    // guitar's own setup measurement omits per-string values.
+    auto base = factory ("Electric/Classic T-Style.luthierguitar");
+    auto g = base;
+    g.setup.nutSlotDepthsMm.clear();
+
+    juce::Array<juce::var> depths;
+    for (int s = 0; s < 6; ++s)
+        depths.add (0.40 + s * 0.02);
+
+    g.parts[(size_t) GuitarSlot::nut] = withField (base.get (GuitarSlot::nut), "slot_depths_mm", juce::var (depths));
+
+    const auto d = mapSpec (g);
+
+    for (int s = 0; s < 6; ++s)
+        CHECK_MSG (std::abs (d.setup.nutDepth[(size_t) s] - (double) depths[s]) < 1.0e-9,
+                   "string " + juce::String (s));
+}
+
+LUTHIER_TEST (PartAcoustics, tremoloTypeSelectsTheWhammyBridge)
+{
+    // 5: has_tremolo / tremolo_type maps to WhammyEngine's bridge type.
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+
+    auto bridgeFor = [&base] (const char* tremolo)
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::bridge] = withField (base.get (GuitarSlot::bridge), "tremolo_type", juce::String (tremolo));
+        return mapSpec (g).spec.bridge;
+    };
+
+    CHECK (bridgeFor ("floyd") == WhammyEngine::BridgeType::FloydRose);
+    CHECK (bridgeFor ("bigsby") == WhammyEngine::BridgeType::Bigsby);
+    CHECK (bridgeFor ("vintage") == WhammyEngine::BridgeType::VintageTrem);
+    CHECK (bridgeFor ("two_point") == WhammyEngine::BridgeType::VintageTrem);
+    CHECK (bridgeFor ("none") == WhammyEngine::BridgeType::Fixed);
+}
+
+LUTHIER_TEST (PartAcoustics, everyFactoryBridgeMatchesItsTypeRow)
+{
+    // 5: the bridge.type -> mass/coupling table. Bass bridges reuse "hardtail"
+    // with intentionally heavier values (heavier anchors), so they are excluded.
+    struct Row { const char* type; double mass, coupling; };
+
+    static const Row rows[] =
+    {
+        { "tune_o_matic", 95.0, 0.55 }, { "hardtail", 110.0, 0.70 }, { "vintage_tremolo", 165.0, 0.45 },
+        { "two_point_tremolo", 150.0, 0.48 }, { "floyd_rose", 320.0, 0.30 }, { "bigsby", 480.0, 0.35 },
+        { "pin_bridge", 28.0, 0.92 }, { "resonator_spider", 45.0, 0.88 },
+    };
+
+    const auto folder = PartLibrary::getFactoryPartsFolder().getChildFile ("Bridges");
+    int checked = 0;
+
+    for (const auto& file : folder.findChildFiles (juce::File::findFiles, false, "*.luthierpart"))
+    {
+        const auto json = juce::JSON::parse (file);
+        const auto fields = json.getProperty ("fields", juce::var());
+        const auto compat = json.getProperty ("meta", juce::var()).getProperty ("compatibility", juce::var());
+
+        if (auto* compatArray = compat.getArray())
+            if (std::any_of (compatArray->begin(), compatArray->end(),
+                              [] (const juce::var& v) { return v.toString() == "bass"; }))
+                continue;
+
+        const auto type = fields.getProperty ("type", juce::var()).toString();
+
+        for (const auto& row : rows)
+        {
+            if (type != row.type)
+                continue;
+
+            const double mass = (double) fields.getProperty ("mass_g", 0.0);
+            const double coupling = (double) fields.getProperty ("coupling", 0.0);
+
+            CHECK_MSG (std::abs (mass - row.mass) / row.mass < 0.35,
+                       file.getFileName() + ": mass " + juce::String (mass) + " vs the spec's " + juce::String (row.mass));
+            CHECK_MSG (std::abs (coupling - row.coupling) < 0.15,
+                       file.getFileName() + ": coupling " + juce::String (coupling) + " vs the spec's "
+                         + juce::String (row.coupling));
+            ++checked;
+        }
+    }
+
+    CHECK_MSG (checked >= (int) (sizeof (rows) / sizeof (rows[0])), "not every bridge type row was exercised by a factory part");
+}
+
+LUTHIER_TEST (PartAcoustics, windingMapsToItsStringMaterial)
+{
+    // 8: winding style decides before the metal does.
+    auto base = factory ("Electric/Classic T-Style.luthierguitar");
+
+    auto materialFor = [&base] (const char* winding, const char* material)
+    {
+        auto g = base;
+        auto part = withField (base.get (GuitarSlot::strings), "winding", juce::String (winding));
+        part = withField (part, "winding_material", juce::String (material));
+        g.parts[(size_t) GuitarSlot::strings] = part;
+        return mapSpec (g).stringMaterial;
+    };
+
+    CHECK (materialFor ("round", "pure_nickel") == StringMaterial::PureNickel);
+    CHECK (materialFor ("round", "stainless") == StringMaterial::StainlessSteel);
+    CHECK (materialFor ("round", "cobalt") == StringMaterial::Cobalt);
+    CHECK (materialFor ("round", "phosphor_bronze") == StringMaterial::PhosphorBronze);
+    CHECK (materialFor ("round", "bronze_8020") == StringMaterial::Bronze8020);
+    CHECK (materialFor ("round", "silk_steel") == StringMaterial::SilkAndSteel);
+    CHECK (materialFor ("round", "nylon") == StringMaterial::Nylon);
+    CHECK (materialFor ("round", "fluorocarbon") == StringMaterial::Fluorocarbon);
+    CHECK (materialFor ("flat", "pure_nickel") == StringMaterial::Flatwound);
+    CHECK (materialFor ("half", "pure_nickel") == StringMaterial::Halfwound);
+    CHECK (materialFor ("coated", "pure_nickel") == StringMaterial::Coated);
 }
 
 LUTHIER_TEST (PartAcoustics, aReferenceGuitarSoundsLikeTheEngineDefault)

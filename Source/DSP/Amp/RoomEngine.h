@@ -83,6 +83,9 @@ public:
     bool hasRoomTap() const noexcept { return roomTapValid; }
     int getRoomTapNumSamples() const noexcept { return roomTapSamples; }
 
+    /** engine.md 20.18: the FDN's per-tap feedback, capped at 0.998 whatever the decay setting. */
+    double getFeedbackGain() const noexcept { return feedbackGain; }
+
     static const char* getRoomSizeName (RoomSize s) noexcept;
     static const char* getMaterialName (RoomMaterial m) noexcept;
 

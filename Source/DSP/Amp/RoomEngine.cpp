@@ -297,7 +297,7 @@ void RoomEngine::updateFeedbackGain() noexcept
                                                    * (1.0 + (1.0 - mat.absorption) * 1.2));
 
     feedbackGain = std::exp (-6.907755 * avgLength / (rt60 * sr));
-    feedbackGain = juce::jlimit (0.0, 0.9985, feedbackGain);
+    feedbackGain = juce::jlimit (0.0, 0.998, feedbackGain);   // engine.md 20.18: never exceeds 0.998
 }
 
 //==============================================================================

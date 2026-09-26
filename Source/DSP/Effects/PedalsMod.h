@@ -270,6 +270,9 @@ public:
     int getNumParameters() const noexcept override { return 6; }
     const PedalParam& getParameterDescriptor (int index) const noexcept override;
 
+    /** engine.md 20.18: the FDN's per-tap feedback, capped at 0.998 whatever the decay setting. */
+    double getFeedbackGain() const noexcept { return feedbackGain; }
+
 protected:
     void parameterChanged (int index, double value) override;
 

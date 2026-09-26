@@ -857,7 +857,7 @@ void ReverbPedal::process (double* left, double* right, int numSamples) noexcept
     avgLength /= (double) kFdnSize;
 
     feedbackGain = std::exp (-6.907755 * avgLength / (juce::jmax (0.05, decaySeconds) * sr));
-    feedbackGain = juce::jlimit (0.0, 0.9985, feedbackGain);
+    feedbackGain = juce::jlimit (0.0, 0.998, feedbackGain);   // engine.md 20.18: never exceeds 0.998
 
     for (int n = 0; n < numSamples; ++n)
     {

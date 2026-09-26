@@ -238,6 +238,23 @@ namespace
         if (m == "ceramic") return 1.05;
         return 1.0;                          // alnico
     }
+
+    // part-acoustics.md 5: bridge.type preset mass/coupling, used only when a
+    // part omits mass_g/coupling (every factory part supplies both).
+    struct BridgeTypeDefault { double massG, coupling; };
+
+    BridgeTypeDefault bridgeTypeDefault (const juce::String& type)
+    {
+        if (type == "tune_o_matic")     return { 95.0,  0.55 };
+        if (type == "hardtail")         return { 110.0, 0.70 };
+        if (type == "vintage_tremolo")  return { 165.0, 0.45 };
+        if (type == "two_point_tremolo") return { 150.0, 0.48 };
+        if (type == "floyd_rose")       return { 320.0, 0.30 };
+        if (type == "bigsby")           return { 480.0, 0.35 };
+        if (type == "pin_bridge")       return { 28.0,  0.92 };
+        if (type == "resonator_spider") return { 45.0,  0.88 };
+        return { 100.0, 0.55 };              // unlisted types keep the old flat default
+    }
 }
 
 //==============================================================================
@@ -424,8 +441,9 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
     }
 
     // ---- termination: masses add, couplings multiply (10) ------------------------------------
-    d.terminationMassG = num (bridge, "mass_g", 100.0) + num (tail, "mass_g", 0.0) + num (guard, "mass_g", 0.0);
-    d.couplingFraction = jointCoupling (str (neck, "joint", "bolt")) * num (bridge, "coupling", 0.55);
+    const auto bridgeDefault = bridgeTypeDefault (str (bridge, "type", ""));
+    d.terminationMassG = num (bridge, "mass_g", bridgeDefault.massG) + num (tail, "mass_g", 0.0) + num (guard, "mass_g", 0.0);
+    d.couplingFraction = jointCoupling (str (neck, "joint", "bolt")) * num (bridge, "coupling", bridgeDefault.coupling);
 
     // 5: heavier is less lossy and sustains more. Normalised to a 100 g
     // tune-o-matic, a gentle cube root so a 480 g Bigsby is not magic; then

@@ -22,6 +22,7 @@
 #include "../DSP/Master/MasterBus.h"
 #include "../DSP/Effects/EffectsChain.h"
 #include "../DSP/Effects/SecretEffect.h"
+#include "../DSP/Effects/PedalsMod.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -851,6 +852,57 @@ LUTHIER_TEST (Whammy, fixedBridgeDoesNothing)
         CHECK_NEAR (w.getCentOffset (s), 0.0, 1.0e-9);
 }
 
+LUTHIER_TEST (Whammy, floydSpringsRingOnReturn)
+{
+    // engine.md 8.2: a fast dive and return sets a Floyd's spring cavity
+    // ringing 200-500 Hz for a short burst; a vintage trem has no springs.
+    auto burstFor = [] (WhammyEngine::BridgeType type)
+    {
+        WhammyEngine w;
+        w.prepare (kSr, 6);
+        w.setBridgeType (type);
+        w.setSpringAmount (1.0);
+
+        w.setPosition (-1.0);
+
+        for (int i = 0; i < 20; ++i)
+            w.updateBlock (512);
+
+        w.setPosition (0.0);
+        w.updateBlock (512);   // the fast return that should trigger the springs
+
+        double energy = 0.0;
+        int zeroCrossings = 0;
+        double previous = 0.0;
+        const int n = (int) (kSr * 0.1);
+
+        for (int i = 0; i < n; ++i)
+        {
+            const double v = w.processSpringNoise();
+            energy += v * v;
+
+            if (i > 0 && (v > 0.0) != (previous > 0.0))
+                ++zeroCrossings;
+
+            previous = v;
+        }
+
+        return std::make_pair (std::sqrt (energy / n), zeroCrossings);
+    };
+
+    const auto floyd = burstFor (WhammyEngine::BridgeType::FloydRose);
+    const auto vintage = burstFor (WhammyEngine::BridgeType::VintageTrem);
+
+    CHECK_MSG (floyd.first > 1.0e-4,
+               "a Floyd's fast return should ring the springs, RMS was " + juce::String (floyd.first, 6));
+    CHECK_MSG (vintage.first < 1.0e-9,
+               "a vintage trem has no spring cavity, RMS was " + juce::String (vintage.first, 6));
+
+    // 200-500 Hz over a 100 ms window is roughly 40-100 zero crossings.
+    CHECK_MSG (floyd.second > 20 && floyd.second < 200,
+               "the spring ring should sit near 200-500 Hz, saw " + juce::String (floyd.second) + " zero crossings in 100 ms");
+}
+
 //==============================================================================
 //  Cable, amp, cabinet, room, master
 //==============================================================================
@@ -1022,6 +1074,26 @@ LUTHIER_TEST (Room, biggerRoomsRingLonger)
     CHECK_MSG (hall > 1.0e-4,
                "the hall tail is implausibly quiet at one second: "
                + juce::String (hall, 8));
+}
+
+LUTHIER_TEST (Room, feedbackNeverExceedsTheCap)
+{
+    // engine.md 20.18: feedback is capped at 0.998, in both FDN reverbs.
+    RoomEngine room;
+    room.prepare (kSr, 512);
+    room.setRoomSize (RoomSize::ConcertHall);
+    room.setMaterial (RoomMaterial::Stone);
+    room.setDecayScale (4.0);   // the maximum the parameter allows
+
+    CHECK_MSG (room.getFeedbackGain() <= 0.998,
+               "room feedback gain " + juce::String (room.getFeedbackGain(), 6) + " exceeds the cap");
+
+    ReverbPedal reverb;
+    reverb.prepare (kSr, 512);
+    reverb.setParameterNormalised (1, 1.0);   // Decay's maximum (15 s)
+
+    CHECK_MSG (reverb.getFeedbackGain() <= 0.998,
+               "reverb pedal feedback gain " + juce::String (reverb.getFeedbackGain(), 6) + " exceeds the cap");
 }
 
 LUTHIER_TEST (Master, limiterHoldsTheCeiling)

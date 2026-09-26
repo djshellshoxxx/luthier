@@ -82,6 +82,31 @@ namespace
 }
 
 //==============================================================================
+/*  engine.md 2: the default CC map, exact. */
+LUTHIER_TEST (Midi, defaultCcMapMatchesTheSpec)
+{
+    MidiInterpreter interpreter;
+
+    struct Row { int cc; MidiTarget target; };
+    const Row rows[] =
+    {
+        { 1, MidiTarget::VibratoDepth }, { 2, MidiTarget::WhammyBar }, { 4, MidiTarget::Expression },
+        { 11, MidiTarget::MasterLevel }, { 65, MidiTarget::SlideToggle }, { 67, MidiTarget::PalmMute },
+        { 70, MidiTarget::PickPosition }, { 71, MidiTarget::MutedPick }, { 72, MidiTarget::PinchHarmonic },
+        { 73, MidiTarget::NaturalHarmonic }, { 74, MidiTarget::Tap }, { 75, MidiTarget::SlideGuitarToggle },
+        { 76, MidiTarget::StrumSpeed }, { 77, MidiTarget::StrumDirection }, { 78, MidiTarget::VibratoRate },
+        { 79, MidiTarget::Humanize }, { 102, MidiTarget::RightHandTool }, { 103, MidiTarget::ArtificialHarmonic },
+        { 104, MidiTarget::TappedHarmonic }, { 105, MidiTarget::RestStroke },
+    };
+
+    for (const auto& row : rows)
+        CHECK_MSG (interpreter.getCcTarget (row.cc) == row.target, "CC " + juce::String (row.cc));
+
+    // An untouched CC stays unmapped.
+    CHECK (interpreter.getCcTarget (20) == MidiTarget::None);
+}
+
+//==============================================================================
 /*  controllers.md 1 names nine profiles that must ship. Each has to be coherent:
     named, in a known mode, with a bend range and a latency budget that make
     sense. */
