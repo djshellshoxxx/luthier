@@ -262,7 +262,7 @@ namespace
             }
 
             {
-                auto& r = make ("Fuzz Face Lead", "Electric",
+                auto& r = make ("Germanium Fuzz Lead", "Electric",   // FC-1: renamed off a brand name
                                 "Double-cut neck pickup into a germanium fuzz and a plexi head. "
                                 "Roll the guitar volume back and it cleans up.", "fuzz,vintage,lead");
                 addCommon (r, Strat, StdTune, Plexi, C4x12Vintage, Greenback, SM57, Off45, CloseMic);

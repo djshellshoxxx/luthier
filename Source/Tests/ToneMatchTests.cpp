@@ -10,6 +10,7 @@
 #include "TestFramework.h"
 
 #include "../ToneMatch/ToneMatch.h"
+#include "../Support/IrLibrary.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -657,4 +658,38 @@ LUTHIER_TEST (ToneMatch, eqMatchSaysWhatItCannotDo)
                  || description.containsIgnoreCase ("reflection")
                  || description.containsIgnoreCase ("ringing"),
                "the EQ match description does not mention what it cannot capture");
+}
+
+//==============================================================================
+/*  FC-18, factory-content.md 10: the shipped IR library is the full 216 body +
+    504 cabinet set, and a default lookup actually resolves to a file that is
+    there. */
+LUTHIER_TEST (ToneMatch, theFactoryIrLibraryIsComplete)
+{
+    CHECK_MSG (IrLibrary::isAvailable(), "the resources folder was not found");
+
+    CHECK_MSG (IrLibrary::countBodyIrs() == 216,
+               "found " + juce::String (IrLibrary::countBodyIrs()) + " body IRs, expected 216");
+
+    CHECK_MSG (IrLibrary::countCabIrs() == 504,
+               "found " + juce::String (IrLibrary::countCabIrs()) + " cabinet IRs, expected 504");
+
+    const auto bodyIr = IrLibrary::findBodyIr (BodyConfig {});
+    CHECK_MSG (bodyIr.existsAsFile(), "the default body config resolved to no file");
+
+    const auto cabIr = IrLibrary::findCabIr (CabinetConfig {});
+    CHECK_MSG (cabIr.existsAsFile(), "the default cabinet config resolved to no file");
+
+    juce::WavAudioFormat wav;
+
+    for (const auto& file : { bodyIr, cabIr })
+    {
+        std::unique_ptr<juce::AudioFormatReader> reader (wav.createReaderFor (
+            new juce::FileInputStream (file), true));
+
+        CHECK_MSG (reader != nullptr, file.getFileName() + " is not a readable WAV");
+
+        if (reader != nullptr)
+            CHECK_MSG (reader->lengthInSamples > 0, file.getFileName() + " has no samples");
+    }
 }

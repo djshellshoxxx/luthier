@@ -494,6 +494,10 @@ public:
 
     const StringActivityQueue& getStringActivity() const noexcept { return stringActivity; }
 
+    // RE-41, rhythm-engine.md 9: the rhythm engine's own emitted stream, empty
+    // whenever it is not driving, for the MIDI-out RHYTHM source.
+    const PlayEventQueue& getRhythmEvents() const noexcept { return rhythmEvents; }
+
     /** Points the engine at this block's sidechain input. The pointers belong to
         the caller and must outlive the processBlock call; passing nullptr (or a
         zero channel count) means "no sidechain this block", which is the normal

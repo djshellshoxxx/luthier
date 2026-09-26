@@ -745,6 +745,19 @@ void RhythmPanel::buildVoicingControls()
     };
     addAndMakeVisible (handPositionSlider);
 
+    // RE-12: user-settable hand span (3-7 frets, default 5), replacing the
+    // engine's former hard-coded 5/6.
+    styleValueSlider (handSpanSlider, 3.0, 7.0, 1.0, " fr");
+    handSpanSlider.onValueChange = [this]
+    {
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change hand span", "rhythm-setting", "handSpan");   // action-and-undo.md (rhythm settings)
+        rhythm().setHandSpanFrets ((int) handSpanSlider.getValue());
+    };
+    addAndMakeVisible (handSpanSlider);
+
     capoLabel.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
     capoLabel.setColour (juce::Label::textColourId, Palette::textPrimary);
     capoLabel.setJustificationType (juce::Justification::centred);
@@ -974,6 +987,7 @@ void RhythmPanel::refreshFromEngine()
     styleBox.setSelectedId ((int) engine.getVoicingStyle() + 1, juce::dontSendNotification);
     densitySlider.setValue (engine.getVoicingDensity(), juce::dontSendNotification);
     handPositionSlider.setValue (engine.getHandPositionHint(), juce::dontSendNotification);
+    handSpanSlider.setValue (engine.getHandSpanFrets(), juce::dontSendNotification);
 
     const int capo = engine.getCapoFret();
     capoLabel.setText (capo == 0 ? "Capo: off" : "Capo: fret " + juce::String (capo),
@@ -1023,7 +1037,7 @@ int RhythmPanel::preferredHeight() const
     return 14 + Metrics::buttonHeight            // enable row
          + 16 + 26                               // genre heading + kit row
          + 12                                    // rig hint
-         + 16 + 26 + 22 + 22 + 26                // voicing heading + controls
+         + 16 + 26 + 22 + 22 + 22 + 26           // voicing heading + controls (incl. RE-12 hand span)
          + 16 + StrumGrid::preferredHeight       // strum grid
          + 16 + FingerpickGrid::preferredHeight  // fingerpick grid
          + 16 + 22 * 5                           // feel heading + five sliders
@@ -1081,6 +1095,7 @@ void RhythmPanel::resized()
     styleBox.setBounds (row (26));
     densitySlider.setBounds (row (22));
     handPositionSlider.setBounds (row (22));
+    handSpanSlider.setBounds (row (22));
     {
         auto r = row (26);
         capoDown.setBounds (r.removeFromLeft (30));

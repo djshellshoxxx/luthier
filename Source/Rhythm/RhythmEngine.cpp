@@ -342,7 +342,8 @@ void RhythmEngine::revoice() noexcept
     voicer->setMaxSoundingStrings (juce::jmax (1, (int) std::round ((double) numStrings * getVoicingDensity() / 100.0)));
     voicer->setAllowOpenStrings (style != VoicingStyle::barre);
     voicer->setPreferredPosition (getHandPositionHint());
-    voicer->setMaxFretSpan (style == VoicingStyle::wide ? 6 : 5);
+    // RE-12: user hand span (3-7, default 5), wide style keeps its extra fret on top.
+    voicer->setMaxFretSpan (getHandSpanFrets() + (style == VoicingStyle::wide ? 1 : 0));
     /*  Zero, not the capo. TuningEngine measures fret positions from the capo now
         (ambiguity-resolutions 4.5), so frequencyToFretPosition already hands the
         voicer capo-relative frets, and filtering below the capo a second time here
@@ -577,9 +578,13 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
             if (strike.missed)
                 continue;
 
+            // RE-18, muting-rhythm.md: a rake mutes the strings it drags across but
+            // rings the last one it reaches - its target.
+            const bool strikeIsMuted = muted && ! (step.type == StrumType::rake && i == planned - 1);
+
             const double offset = gestureOffset + strokeOffsetMs * 0.001 * sr + strike.timeSeconds * sr;
 
-            emitNote (strike.stringIndex, baseVelocity * strike.force, muted, chuckAmount,
+            emitNote (strike.stringIndex, baseVelocity * strike.force, strikeIsMuted, chuckAmount,
                       strikerMaterial, (int) std::round (juce::jmax (0.0, offset)), out);
         }
 
@@ -634,7 +639,8 @@ void RhythmEngine::scheduleFingerpick (const FingerpickStep& step, int sampleOff
     if (h.missPercent > 0.0 && rng.nextDouble() * 100.0 < h.missPercent * h.amount)
         return;
 
-    const auto pattern = patterns[livePattern.load (std::memory_order_acquire)];
+    // RE-2: reference, not a copy - the live slot is never written while read (double buffer).
+    const auto& pattern = patterns[livePattern.load (std::memory_order_acquire)];
     const int stringIndex = pattern.getStringForFinger (step.finger);
 
     double velocity = step.dynamic;
@@ -732,12 +738,14 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
     // bass-techniques 9 (MODEL-GAPS): on a bass, a grid with steps in it plays.
     if (isBassGridActive())
     {
-        const auto grid = bassGrids[liveBassGrid.load (std::memory_order_acquire)];
+        // RE-2: reference, not a copy - same double-buffer guarantee as patterns[].
+        const auto& grid = bassGrids[liveBassGrid.load (std::memory_order_acquire)];
         return processBassGrid (grid, startBeats, startBeats + blockBeats, beatsPerSample, numSamples, out);
     }
 
     // ---- walk the pattern's grid over this block ----------------------------------
-    const auto pattern = patterns[livePattern.load (std::memory_order_acquire)];
+    // RE-2: reference, not a copy - the live slot is never written while read (double buffer).
+    const auto& pattern = patterns[livePattern.load (std::memory_order_acquire)];
 
     if (pattern.isEmpty() || pattern.getLength() <= 0)
         return 0;
@@ -828,6 +836,7 @@ juce::var RhythmEngine::toVar() const
     root->setProperty ("bassPattern", (int) getBassPattern());
     root->setProperty ("voicingDensity", getVoicingDensity());
     root->setProperty ("handPosition", getHandPositionHint());
+    root->setProperty ("handSpanFrets", getHandSpanFrets());   // RE-12
 
     /*  No "capoFret" here any more. The capo is a parameter now (ParamIDs::capoFret),
         so it is saved with every other parameter in the same preset, and writing
@@ -866,6 +875,8 @@ void RhythmEngine::fromVar (const juce::var& state)
                                                       (int) (root->hasProperty ("bassPattern") ? root->getProperty ("bassPattern") : juce::var (0))));
     setVoicingDensity ((double) root->getProperty ("voicingDensity"));
     setHandPositionHint ((int) root->getProperty ("handPosition"));
+    // RE-12: absent in older saves - keep the default of 5.
+    setHandSpanFrets ((int) (root->hasProperty ("handSpanFrets") ? root->getProperty ("handSpanFrets") : juce::var (5)));
 
     /*  A capo saved by a build that kept one here. It is applied so an old
         session does not silently lose it, and it is not written back: the

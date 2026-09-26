@@ -130,6 +130,12 @@ public:
     void setHandPositionHint (int fret) noexcept { handPositionHint.store (juce::jlimit (0, 22, fret), std::memory_order_relaxed); }
     int getHandPositionHint() const noexcept { return handPositionHint.load (std::memory_order_relaxed); }
 
+    /*  RE-12, rhythm-engine.md 3: 3-7 frets, default 5 (6 for the wide style,
+        which is a further +1 the user span still bounds). Replaces the engine's
+        former hard-coded 5/6. */
+    void setHandSpanFrets (int frets) noexcept { handSpanFrets.store (juce::jlimit (3, 7, frets), std::memory_order_relaxed); }
+    int getHandSpanFrets() const noexcept { return handSpanFrets.load (std::memory_order_relaxed); }
+
     /*  Where the capo sits, 0 for none (rhythm-engine 3, 8.2).
 
         This used to be the rhythm engine's own field, and it was one of three
@@ -261,6 +267,7 @@ private:
     std::atomic<int> voicingStyle { (int) VoicingStyle::open };
     std::atomic<int> bassPattern { (int) RubricBassPattern::root };
     std::atomic<double> voicingDensity { 100.0 };
+    std::atomic<int> handSpanFrets { 5 };   // RE-12
     std::atomic<int> handPositionHint { 0 };
     // No capoFret here any more: TuningEngine owns the one capo. See setCapoFret.
     std::atomic<double> strumEvenness { 0.75 };   // strum-dynamics 4 / 7

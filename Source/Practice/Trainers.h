@@ -149,7 +149,7 @@ public:
     static constexpr int kNumChordQualities = 11;
 
     /** practice-tools 5: fourteen progressions. */
-    static constexpr int kNumProgressions = 14;
+    static constexpr int kNumProgressions = 15;   // PT-38: five named plus ten more
 
     static constexpr int kMaxNotesInQuestion = 16;
 

@@ -12,6 +12,7 @@
 #include "../Routing/RoutingMatrix.h"
 #include "../Routing/MidiOutRouter.h"
 #include "../DSP/Amp/AmpEngine.h"
+#include "../Rhythm/Patterns.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -741,4 +742,129 @@ LUTHIER_TEST (Routing, loadingClearsPreviousState)
 
     CHECK (! matrix.isAuxMuted ((int) AuxBus::di));
     CHECK_NEAR (matrix.getPerStringGainDb (2), 0.0, 1.0e-6);
+}
+
+//==============================================================================
+/*  RE-41, rhythm-engine.md 9: the RHYTHM MIDI-out source used to carry nothing
+    because nobody converted the rhythm engine's PlayEvents into MIDI for it.
+    This drives the conversion PluginProcessor::processBlock performs, so a
+    regression there breaks the test rather than only the live plugin. */
+LUTHIER_TEST (Routing, rhythmSourceCarriesTheStrum)
+{
+    auto feedRhythmBuffer = [] (LuthierEngine& engine, MidiOutRouter& router)
+    {
+        auto& rhythmBuffer = router.getRhythmBuffer();
+        const auto& events = engine.getRhythmEvents();
+
+        for (int i = 0; i < events.getNumNoteOns(); ++i)
+        {
+            const auto& e = events.getNoteOn (i);
+            rhythmBuffer.addEvent (juce::MidiMessage::noteOn (juce::jlimit (1, 16, e.stringIndex + 1),
+                                                              juce::jlimit (0, 127, e.midiNote),
+                                                              (float) juce::jlimit (0.0, 1.0, e.velocity)),
+                                   juce::jlimit (0, kBlock - 1, e.sampleOffset));
+        }
+    };
+
+    LuthierEngine engine;
+    engine.prepare (kSr, kBlock);
+    engine.getRhythmEngine().setEnabled (true);
+    engine.setTempoBpm (120.0);
+
+    RhythmPattern pattern;
+    pattern.setName ("Test Down Strums");
+    pattern.setKind (RhythmPattern::Kind::strum);
+    pattern.setSubdivision (Subdivision::sixteenth);
+    pattern.setLength (16);
+    pattern.setSwing (0.5);
+
+    for (int i = 0; i < 16; ++i)
+    {
+        StrumStep step;
+        step.type = (i % 4 == 0) ? StrumType::down : StrumType::rest;
+        step.dynamic = 1.0;
+        step.stringMask = 0x0FFF;
+        pattern.setStrumStep (i, step);
+    }
+
+    engine.getRhythmEngine().setPattern (pattern);
+
+    juce::AudioBuffer<float> buffer (2, kBlock);
+    juce::MidiBuffer midi;
+
+    for (int note : { 40, 47, 52, 56, 59, 64 })
+        midi.addEvent (juce::MidiMessage::noteOn (1, note, 0.8f), 0);
+
+    const double samplesPerBeat = 60.0 / 120.0 * kSr;
+
+    MidiOutConfig cfg;
+    cfg.enabled = true;
+    cfg.passThrough = false;
+    cfg.rhythmEngine = true;
+    cfg.stringActivity = false;
+    cfg.ccBroadcast = false;
+
+    StringActivityQueue emptyActivity;
+
+    MidiOutRouter routerOn;
+    routerOn.prepare (kSr, kBlock);
+
+    int noteOnsWithSwitchOn = 0;
+
+    for (int block = 0; block < 4; ++block)
+    {
+        buffer.clear();
+        engine.setTransportPosition ((double) (block * kBlock) / samplesPerBeat, true);
+        engine.processBlock (buffer, midi);
+        midi.clear();
+
+        feedRhythmBuffer (engine, routerOn);
+
+        juce::MidiBuffer out;
+        routerOn.emit (out, cfg, emptyActivity, kBlock);
+
+        for (const auto metadata : out)
+            if (metadata.getMessage().isNoteOn())
+                ++noteOnsWithSwitchOn;
+    }
+
+    CHECK_MSG (noteOnsWithSwitchOn > 0, "the RHYTHM MIDI-out source carried no note-ons");
+
+    // Same strumming engine, switch off: nothing should get out.
+    LuthierEngine engineOff;
+    engineOff.prepare (kSr, kBlock);
+    engineOff.getRhythmEngine().setEnabled (true);
+    engineOff.setTempoBpm (120.0);
+    engineOff.getRhythmEngine().setPattern (pattern);
+
+    juce::MidiBuffer midiOff;
+
+    for (int note : { 40, 47, 52, 56, 59, 64 })
+        midiOff.addEvent (juce::MidiMessage::noteOn (1, note, 0.8f), 0);
+
+    cfg.rhythmEngine = false;
+
+    MidiOutRouter routerOff;
+    routerOff.prepare (kSr, kBlock);
+
+    int noteOnsWithSwitchOff = 0;
+
+    for (int block = 0; block < 4; ++block)
+    {
+        buffer.clear();
+        engineOff.setTransportPosition ((double) (block * kBlock) / samplesPerBeat, true);
+        engineOff.processBlock (buffer, midiOff);
+        midiOff.clear();
+
+        feedRhythmBuffer (engineOff, routerOff);
+
+        juce::MidiBuffer out;
+        routerOff.emit (out, cfg, emptyActivity, kBlock);
+
+        for (const auto metadata : out)
+            if (metadata.getMessage().isNoteOn())
+                ++noteOnsWithSwitchOff;
+    }
+
+    CHECK_MSG (noteOnsWithSwitchOff == 0, "the RHYTHM switch did not gate the output");
 }

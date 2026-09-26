@@ -527,7 +527,7 @@ std::vector<Setlist> TuneExamples::buildExampleSetlists (const PresetManager& pr
     const struct { const char* name; double bpm; const char* notes; std::initializer_list<const char*> entries; } lists[] =
     {
         { "Example - Rock Night", 120, "A club set: crunch, lead, drop tuning, fuzz, and surf to close.",
-          { "Single-Cut Crunch", "Shred Lead", "Drop C Riff", "Fuzz Face Lead", "Surf Reverb" } },
+          { "Single-Cut Crunch", "Shred Lead", "Drop C Riff", "Germanium Fuzz Lead", "Surf Reverb" } },   // FC-1
         { "Example - Acoustic Set", 92, "Fingerpicked to strummed to open tunings.",
           { "Fingerstyle Folk", "Strummed Dreadnought", "12-String Jangle", "Parlor Blues", "DADGAD Drone" } },
         { "Example - Blues Club", 88, "Slide, parlor, crunch and chime.",

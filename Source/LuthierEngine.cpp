@@ -1347,7 +1347,12 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         str.setSustainScale (noteSustainScale[(size_t) s]);
 
         // A worn crown alters the effective string length by a few cents.
-        const double detune = character.getFretDetuneCents (fret);
+        // CW-22, character-wear.md 7: saddle height variation shifts intonation
+        // relative to the compensation the saddle was set for, worse the higher
+        // up the neck (0 at the open string, where there is no fret to be sharp
+        // or flat against).
+        const double detune = character.getFretDetuneCents (fret)
+                                + character.getSaddleHeightOffsetMm (s) * fret * 1.2;
 
         if (detune != 0.0)
             str.setTargetFrequency (e.pitchHz * std::pow (2.0, detune / 1200.0));
@@ -2615,16 +2620,18 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     // A fretless neck has nothing to buzz against.
     if (! fretless)
     {
-        std::array<double, kMaxStrings> levels {}, fundamentals {};
+        std::array<double, kMaxStrings> levels {}, fundamentals {}, buzzMultiplier {};
 
         for (int s = 0; s < numStrings; ++s)
         {
             levels[(size_t) s] = strings[(size_t) s].getLevel();
             fundamentals[(size_t) s] = strings[(size_t) s].getCurrentFrequency();
+            // CW-12, character-wear.md 3: worn frets buzz more readily.
+            buzzMultiplier[(size_t) s] = character.getFretBuzzMultiplier (currentFret[(size_t) s]);
         }
 
         fretBuzzModel.process (playingNoise.getPool(), levels.data(), currentFret.data(),
-                               fundamentals.data(), numStrings, pluckPosition);
+                               fundamentals.data(), numStrings, pluckPosition, buzzMultiplier.data());
     }
 
     for (int i = 0; i < numSamples; ++i)

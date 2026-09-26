@@ -512,6 +512,7 @@ juce::String PartLibrary::renamedFactoryPart (const juce::String& name)
         { "Modern Strat Wiring", "Modern Double-Cut Wiring" },   // legacy name (trademark scan skips it)
         { "Active EMG Wiring", "Active Two-Knob Wiring" },   // legacy name (trademark scan skips it)
         { "50s LP Wiring", "50s Single-Cut Wiring" },   // legacy name (trademark scan skips it)
+        { "Modern LP Wiring", "Modern Single-Cut Wiring" },   // FC-1, legacy name (trademark scan skips it)
     };
 
     const auto it = renamed.find (name);

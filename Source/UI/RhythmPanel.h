@@ -178,6 +178,7 @@ private:
     juce::ComboBox styleBox;
     juce::Slider densitySlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Slider handPositionSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider handSpanSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };   // RE-12
     juce::Label capoLabel;
     juce::TextButton capoDown { "-" }, capoUp { "+" };
 

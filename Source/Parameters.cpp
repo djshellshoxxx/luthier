@@ -1579,10 +1579,18 @@ void ParameterBridge::applyToEngine() noexcept
         // The Tone macro turns the guitar's own tone control as well as the amp.
         circuit.tone = juce::jlimit (0.0, 1.0, value (ParamIDs::guitarTone) * (0.45 + macroTone * 1.1));
 
+        // CW-16, character-wear.md 5: an aged volume pot's linearity error - a
+        // no-op when Character is off or the pot amount is zero.
+        circuit.volume = engine.getCharacterEngine().applyPotTaper (circuit.volume);
+
         circuit.volumePot = value (ParamIDs::circuitVolumePot);
         circuit.tonePot   = value (ParamIDs::circuitTonePot);
         circuit.toneCap   = value (ParamIDs::circuitToneCap) * 1.0e-9;
         circuit.taper     = (PotTaper) (int) value (ParamIDs::circuitPotTaper);
+
+        // CW-17, character-wear.md 5: tone-cap value drift, +/-5% by seed.
+        if (engine.getCharacterEngine().isEnabled())
+            circuit.toneCap *= engine.getCharacterEngine().getCapacitorDrift();
 
         circuit.bleed            = (TrebleBleed) (int) value (ParamIDs::circuitTrebleBleed);
         circuit.bleedResistance  = value (ParamIDs::circuitBleedR);

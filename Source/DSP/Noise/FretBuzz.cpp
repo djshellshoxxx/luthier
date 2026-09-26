@@ -155,7 +155,8 @@ double FretBuzz::levelFor (double excessMm) const noexcept
 }
 
 void FretBuzz::process (NoiseEngine& pool, const double* levels, const double* fretted,
-                        const double* fundamentalHz, int numStrings, double pluckPosition) noexcept
+                        const double* fundamentalHz, int numStrings, double pluckPosition,
+                        const double* wornMultiplier) noexcept
 {
     const int strings = juce::jmin (numStrings, SetupGeometry::kMaxStrings);
 
@@ -163,6 +164,12 @@ void FretBuzz::process (NoiseEngine& pool, const double* levels, const double* f
     {
         const double level = levels[s];
         auto contact = sense (s, fretted[s], level, pluckPosition);
+
+        // CW-12: a worn fret's contact reads slightly closer than the geometry
+        // alone says, so buzz becomes more likely there without changing the
+        // fresh-fret behaviour (multiplier == 1).
+        if (wornMultiplier != nullptr)
+            contact.excessMm += (wornMultiplier[s] - 1.0) * 0.10;
 
         // The heatmap sees every fret, not only the worst one.
         {

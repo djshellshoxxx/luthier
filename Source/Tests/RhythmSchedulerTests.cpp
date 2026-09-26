@@ -13,9 +13,14 @@
 #include "../Model/Guitar/GuitarLibrary.h"
 
 #include <limits>
+#include <algorithm>
+#include <utility>
 
 using namespace luthier;
 using namespace luthier::tests;
+
+// RE-2: the global-allocation counter defined once in CircuitTests.cpp.
+namespace luthier::tests { long allocationsOnThisThread() noexcept; }
 
 namespace
 {
@@ -576,4 +581,217 @@ LUTHIER_TEST (RhythmPatterns, voicingStylesProduceDifferentVoicings)
 
     CHECK_MSG (shell <= 4,
                "a shell voicing used " + juce::String (shell) + " strings, expected at most 4");
+}
+
+//==============================================================================
+/*  RE-2: processBlock (strum patterns) and scheduleFingerpick (fingerpick
+    patterns) used to copy the whole live RhythmPattern - name, tags and all -
+    every call. They now take a reference to the double-buffered slot. */
+LUTHIER_TEST (RhythmPatterns, processBlockDoesNotAllocate)
+{
+    RhythmFixture strumFixture;
+    strumFixture.holdChord();
+    strumFixture.engine.setPattern (quarterNoteDowns());
+
+    PatternLibrary library;
+    const int fingerpickIndex = library.findByKind (RhythmPattern::Kind::fingerpick).getFirst();
+
+    RhythmFixture fingerpickFixture;
+    fingerpickFixture.holdChord();
+    fingerpickFixture.engine.setPattern (library.getPattern (fingerpickIndex));
+
+    const double bpm = 120.0;
+    long allocations = 0;
+
+    for (int block = 0; block < 100; ++block)
+    {
+        RhythmTransport transport;
+        transport.bpm = bpm;
+        transport.isPlaying = true;
+        transport.ppqPosition = (double) (block * kBlock) / samplesPerBeatAt (bpm);
+
+        PlayEventQueue strumOut;
+        long a0 = allocationsOnThisThread();
+        strumFixture.engine.processBlock (kBlock, transport, strumOut);
+        allocations += allocationsOnThisThread() - a0;
+
+        PlayEventQueue fingerpickOut;
+        a0 = allocationsOnThisThread();
+        fingerpickFixture.engine.processBlock (kBlock, transport, fingerpickOut);
+        allocations += allocationsOnThisThread() - a0;
+    }
+
+    CHECK_MSG (allocations == 0,
+               juce::String (allocations) + " allocations in RhythmEngine::processBlock");
+}
+
+//==============================================================================
+/*  RE-18, muting-rhythm.md: a rake mutes the strings it drags across but rings
+    the string it finally reaches - its target - at full dynamic. */
+LUTHIER_TEST (RhythmPatterns, rakeEndsOnAnUnmutedTarget)
+{
+    RhythmFixture fixture;
+    fixture.holdChord();
+    fixture.engine.setStrumDurationMs (20.0);   // slow enough for distinct strike times
+
+    RhythmPattern p;
+    p.setName ("Test Rake");
+    p.setKind (RhythmPattern::Kind::strum);
+    p.setSubdivision (Subdivision::sixteenth);
+    p.setLength (16);
+    p.setSwing (0.5);
+
+    for (int i = 0; i < 16; ++i)
+    {
+        StrumStep step;
+        step.type = (i == 0) ? StrumType::rake : StrumType::rest;
+        step.dynamic = 1.0;
+        step.stringMask = 0x0FFF;
+        p.setStrumStep (i, step);
+    }
+
+    fixture.engine.setPattern (p);
+
+    RhythmTransport transport;
+    transport.bpm = 120.0;
+    transport.isPlaying = true;
+
+    juce::Array<std::pair<int64_t, Technique>> strikes;
+
+    for (int block = 0; block < 6; ++block)
+    {
+        PlayEventQueue out;
+        transport.ppqPosition = (double) (block * kBlock) / samplesPerBeatAt (transport.bpm);
+        fixture.engine.processBlock (kBlock, transport, out);
+
+        for (int i = 0; i < out.getNumNoteOns(); ++i)
+        {
+            const auto& e = out.getNoteOn (i);
+            strikes.add ({ (int64_t) block * kBlock + e.sampleOffset, e.technique });
+        }
+    }
+
+    CHECK_MSG (strikes.size() >= 2, "only " + juce::String (strikes.size()) + " rake strikes seen");
+
+    std::sort (strikes.begin(), strikes.end(),
+              [] (const auto& a, const auto& b) { return a.first < b.first; });
+
+    for (int i = 0; i < strikes.size(); ++i)
+    {
+        const bool isLast = (i == strikes.size() - 1);
+
+        CHECK_MSG (strikes[i].second == (isLast ? Technique::Pluck : Technique::PalmMute),
+                   juce::String ("rake strike ") + juce::String (i) + " had the wrong technique");
+    }
+}
+
+//==============================================================================
+/*  RE-14: voicing_density caps how many held-chord strings the voicer sounds. */
+LUTHIER_TEST (RhythmPatterns, densityCapsTheStringsSounded)
+{
+    auto strikesAtDensity = [] (double density) -> int
+    {
+        RhythmFixture fixture;
+        fixture.holdChord();
+        fixture.engine.setPattern (quarterNoteDowns());
+        fixture.engine.setVoicingDensity (density);
+
+        RhythmTransport transport;
+        transport.bpm = 120.0;
+        transport.isPlaying = true;
+        transport.ppqPosition = 0.0;
+
+        PlayEventQueue out;
+        fixture.engine.processBlock (kBlock, transport, out);
+        return out.getNumNoteOns();
+    };
+
+    const int full = strikesAtDensity (100.0);
+    const int low = strikesAtDensity (20.0);
+
+    CHECK_MSG (full > 0, "100% density voiced nothing");
+    CHECK_MSG (low < full,
+               "20% density (" + juce::String (low) + ") did not sound fewer strings than 100% ("
+                 + juce::String (full) + ")");
+}
+
+//==============================================================================
+/*  RE-35: swing pushes the odd (offbeat) grid steps later by the amount the
+    slider says, without stretching the bar. */
+LUTHIER_TEST (RhythmPatterns, swingDelaysTheOffbeats)
+{
+    auto allOnPattern = [] (double swing)
+    {
+        RhythmPattern p;
+        p.setName ("Test Swing");
+        p.setKind (RhythmPattern::Kind::strum);
+        p.setSubdivision (Subdivision::sixteenth);
+        p.setLength (4);
+        p.setSwing (swing);
+
+        for (int i = 0; i < 4; ++i)
+        {
+            StrumStep step;
+            step.type = StrumType::down;
+            step.dynamic = 1.0;
+            step.stringMask = 0x0FFF;
+            p.setStrumStep (i, step);
+        }
+
+        return p;
+    };
+
+    auto secondHitOffset = [&allOnPattern] (double swing) -> int64_t
+    {
+        RhythmFixture fixture;
+        fixture.holdChord();
+        fixture.engine.setPattern (allOnPattern (swing));
+        fixture.engine.setStrumDurationMs (1.0);
+
+        const double bpm = 120.0;
+        const double perBeat = samplesPerBeatAt (bpm);
+
+        juce::Array<int64_t> hits;
+
+        for (int block = 0; block < 20 && hits.size() < 2; ++block)
+        {
+            PlayEventQueue out;
+            RhythmTransport transport;
+            transport.bpm = bpm;
+            transport.isPlaying = true;
+            transport.ppqPosition = (double) (block * kBlock) / perBeat;
+
+            fixture.engine.processBlock (kBlock, transport, out);
+
+            if (out.getNumNoteOns() == 0)
+                continue;
+
+            int earliest = std::numeric_limits<int>::max();
+
+            for (int i = 0; i < out.getNumNoteOns(); ++i)
+                earliest = juce::jmin (earliest, out.getNoteOn (i).sampleOffset);
+
+            const int64_t absolute = (int64_t) block * kBlock + earliest;
+
+            if (hits.isEmpty() || absolute > hits.getLast() + 100)
+                hits.add (absolute);
+        }
+
+        return hits.size() >= 2 ? hits[1] : -1;
+    };
+
+    const int64_t straight = secondHitOffset (0.5);
+    const int64_t swung = secondHitOffset (0.66);
+
+    CHECK_MSG (straight >= 0 && swung >= 0, "the offbeat grid step was never scheduled");
+    CHECK_MSG (swung > straight, "swing did not delay the offbeat");
+
+    // RhythmEngine.cpp's swing formula: beatPosition += (swing - 0.5) * 2 * stepBeats * 0.5,
+    // stepBeats = 1/4 at sixteenth-note subdivision.
+    const double perBeat = samplesPerBeatAt (120.0);
+    const double expectedDelta = (0.66 - 0.5) * 2.0 * 0.25 * 0.5 * perBeat;
+
+    CHECK_MSG (std::llabs ((swung - straight) - (int64_t) std::llround (expectedDelta)) <= 1,
+               "swing delay was " + juce::String ((int) (swung - straight))
+                 + " samples, expected " + juce::String ((int) std::llround (expectedDelta)));
 }

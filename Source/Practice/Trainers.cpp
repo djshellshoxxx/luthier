@@ -48,9 +48,10 @@ namespace
         int count;
     };
 
-    // practice-tools 5: the four named, plus ten more.
+    // practice-tools 5, PT-38: five named, plus ten more.
     const Progression kProgressions[EarTrainer::kNumProgressions] =
     {
+        { "I-IV-vi-V",         {  1,  4, -6,  5,  0,  0,  0,  0,  0,  0,  0,  0 },  4 },
         { "I-IV-V",            {  1,  4,  5,  0,  0,  0,  0,  0,  0,  0,  0,  0 },  3 },
         { "I-vi-IV-V",         {  1, -6,  4,  5,  0,  0,  0,  0,  0,  0,  0,  0 },  4 },
         { "ii-V-I",            { -2,  5,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0 },  3 },

@@ -691,7 +691,9 @@ TrackTab::TrackTab (LuthierAudioProcessor& p)
         chooser = std::make_unique<juce::FileChooser> (
             "Open a backing track",
             juce::File::getSpecialLocation (juce::File::userMusicDirectory),
-            "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
+            // PT-24: no MP3 reader is registered (registerBasicFormats() does not
+            // include one), so offering *.mp3 here just invites a load that fails.
+            "*.wav;*.aif;*.aiff;*.flac;*.ogg");
 
         chooser->launchAsync (juce::FileBrowserComponent::openMode
                                 | juce::FileBrowserComponent::canSelectFiles,
@@ -926,6 +928,8 @@ ScaleTab::ScaleTab (LuthierAudioProcessor& p)
     for (int i = 0; i < (int) ScaleType::custom; ++i)
         scaleBox.addItem (getScaleTypeName ((ScaleType) i), i + 1);
 
+    scaleBox.addItem (getScaleTypeName (ScaleType::custom), (int) ScaleType::custom + 1);   // PT-37
+
     scaleBox.setSelectedId (1, juce::dontSendNotification);
     scaleBox.onChange = [this]
     {
@@ -933,12 +937,25 @@ ScaleTab::ScaleTab (LuthierAudioProcessor& p)
         auto* t = &trainer();
         const auto before = t->getScale();
         const auto after = (ScaleType) (scaleBox.getSelectedId() - 1);
-        processor.pushUndoCallback ("Change practice scale", "practice-scale", "scale",
-                                    [t, before] { t->setScale (before); }, [t, after] { t->setScale (after); });
+
+        if (after == ScaleType::custom)
+            applyCustomIntervals();
+        else
+            processor.pushUndoCallback ("Change practice scale", "practice-scale", "scale",
+                                        [t, before] { t->setScale (before); }, [t, after] { t->setScale (after); });
+
         trainer().setScale (after);
+        refresh();
         repaint();
     };
     addAndMakeVisible (scaleBox);
+
+    // PT-37: a custom scale is typed as an interval list, e.g. "2 1 2 2 1 2 2"
+    // (semitone steps, root to root).
+    customIntervalsEditor.setTextToShowWhenEmpty ("2 1 2 2 1 2 2", Palette::textDisabled);
+    customIntervalsEditor.onReturnKey = [this] { applyCustomIntervals(); };
+    customIntervalsEditor.onFocusLost = [this] { applyCustomIntervals(); };
+    addAndMakeVisible (customIntervalsEditor);
 
     modeBox.addItem ("Explore", 1);
     modeBox.addItem ("Quiz", 2);
@@ -990,7 +1007,30 @@ void ScaleTab::refresh()
 
     nextButton.setEnabled (t.getMode() != ScaleTrainer::Mode::explore);
 
+    // PT-37: only relevant once Custom is picked.
+    customIntervalsEditor.setVisible (t.getScale() == ScaleType::custom);
+
     repaint();
+}
+
+void ScaleTab::applyCustomIntervals()
+{
+    juce::StringArray tokens;
+    tokens.addTokens (customIntervalsEditor.getText(), " ,", "");
+    tokens.removeEmptyStrings();
+
+    std::array<int, ScaleTrainer::kMaxIntervals> intervals {};
+    int count = 0;
+
+    for (const auto& token : tokens)
+    {
+        if (count >= ScaleTrainer::kMaxIntervals)
+            break;
+
+        intervals[(size_t) count++] = token.getIntValue();
+    }
+
+    trainer().setCustomIntervals (intervals.data(), count);
 }
 
 void ScaleTab::resized()
@@ -1008,6 +1048,13 @@ void ScaleTab::resized()
     }
 
     bounds.removeFromTop (3);
+
+    if (customIntervalsEditor.isVisible())
+    {
+        customIntervalsEditor.setBounds (bounds.removeFromTop (Metrics::buttonHeight));
+        bounds.removeFromTop (3);
+    }
+
     questionLabel.setBounds (bounds.removeFromTop (20));
     bounds.removeFromTop (3);
 

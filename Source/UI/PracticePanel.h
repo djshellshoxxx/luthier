@@ -172,6 +172,10 @@ private:
     juce::Label questionLabel, scoreLabel;
     juce::TextButton nextButton { "Ask" };
 
+    // PT-37: a custom scale is typed as an interval list, e.g. "2 1 2 2 1 2 2".
+    juce::TextEditor customIntervalsEditor;
+    void applyCustomIntervals();
+
     /** The scale drawn on a fretboard, which is what "explore" means. */
     juce::Component scaleView;
 

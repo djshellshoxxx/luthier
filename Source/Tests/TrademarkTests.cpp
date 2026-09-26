@@ -21,7 +21,7 @@ namespace
             "Soldano", "Bogner", "Diezel", "Ampeg", "SVT", "JCM", "AC30", "Deluxe", "Champ", "Bassman",
             "Twin Reverb", "Celestion", "Greenback", "Jensen", "EVM", "Shure", "SM57", "SM7B", "Royer",
             "Neumann", "Sennheiser", "MD421", "AKG", "C414", "D112", "U87", "Tube Screamer", "Big Muff",
-            "Klon", "Boss", "MXR", "Electro-Harmonix", "Uni-Vibe", "Leslie", "D'Addario", "NYXL",
+            "Fuzz Face", "Klon", "Boss", "MXR", "Electro-Harmonix", "Uni-Vibe", "Leslie", "D'Addario", "NYXL",
             "Ernie Ball", "Elixir", "Selmer", "Dobro", "Gretsch", "Epiphone", "PRS", "Danelectro",
             "TransTrem", "Kinman", "Alnico Blue"
         };
