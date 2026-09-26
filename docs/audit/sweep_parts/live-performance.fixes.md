@@ -1,5 +1,5 @@
-- [LP-27] effort S — Drive the header's LED (`HeaderBar`, theme.md beat LED) from `TapTempo` phase in the editor timer, blinking in the tap accent colour; test `HeaderBar` repaints/LED state toggles at the beat.
+- [LP-27] effort S — DEFERRED until the visual merge: the header LED lives in HeaderBar, which the visual branch rewrites.
 - [LP-40] effort S — DEFER: spec/state-model.md treats Live Mode as UI/session state (a preset load must not leave Live Mode — `StateModel` test asserts exactly that), contradicting §11's "per-preset". Record in DECISIONS.md.
-- [LP-41] effort M — Add a `global` flag per mapping in `MidiLearnManager` (UI: right-click mapping "Keep across presets"); write non-global mappings into the preset's `midiMappings` block in `PresetManager::toVar/fromVar` and keep global ones in `~/Documents/Luthier/config/midi-learn.json`. Test: `MidiLearn::globalMappingsSurviveAPresetLoadAndLocalOnesDoNot`.
+- [LP-41] effort M — DEFERRED: per-preset MIDI mappings need a `midiMappings` preset block and a global flag in MidiLearnManager, which both the visual and rtmidi branches rework; live-action CCs are already user-global (sweep-notes/ui.md).
 - [LP-5] effort S — NO-TEST left: FileChooser removed from the Live strip; an automated "no modal" check is not meaningful because JUCE PopupMenus enter a modal state themselves.
 - [LP-8] effort M — midpoint flip tested (`LiveSnapshots::bypassFlipsAtTheMidpoint`); tail double-buffering / coupling rebuild on a worker still DEFER (coupling is recomputed from parameters per block).
