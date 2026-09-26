@@ -32,7 +32,7 @@ public:
     /** How much material is currently held, in seconds. */
     double getCapturedSeconds() const noexcept;
 
-    int getEventCount() const noexcept { return juce::jmin (written.load(), capacity); }
+    int getEventCount() const noexcept { return (int) juce::jmin (written.load(), (int64_t) capacity); }
 
     /** The sample the oldest held event arrived at: sample 0 of buildMidiFile's
         timeline, and of MidiPerformance::fromCapture (MODEL-GAPS: the marked
@@ -63,8 +63,10 @@ private:
     int capacity = 0;
 
     std::vector<Event> ring;
-    std::atomic<int> writeIndex { 0 };
-    std::atomic<int> written { 0 };
+    // 64-bit: an int counter wrapped negative after 2^31 events (weeks of a
+    // dense CC or clock stream) and `% capacity` then indexed before the ring.
+    std::atomic<int64_t> writeIndex { 0 };
+    std::atomic<int64_t> written { 0 };
     std::atomic<bool> enabled { true };
     std::atomic<int64_t> newestSample { 0 };
     std::atomic<int64_t> oldestSample { 0 };

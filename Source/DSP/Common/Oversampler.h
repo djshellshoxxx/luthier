@@ -21,30 +21,37 @@ namespace luthier
 {
 
 //==============================================================================
-/** Second-order all-pass section, H(z) = (a + z^-2) / (1 + a z^-2).
+/** One all-pass section of a half-band branch.
 
-    In difference-equation form that is
+    The half-band filter is H(z) = 0.5 * (A0(z^2) + z^-1 A1(z^2)), each A a chain
+    of (a + z^-2) / (1 + a z^-2) sections at the oversampled rate. The branches
+    here run at the base rate (one input sample per up() call, one per branch
+    per down() call), where z^2 is one sample, so each section is
 
-        y[n] = a * (x[n] - y[n-2]) + x[n-2]
+        y[n] = a * (x[n] - y[n-1]) + x[n-1]
 
-    The signs matter. The mirror-image form `a*(x + y[n-2]) - x[n-2]` is also a
-    stable all-pass, but its phase response is not the one the half-band pair
-    needs, so the two branches stop being complementary and the filter passes the
-    images it is supposed to remove. There is a test that measures the aliasing. */
+    It used y[n-2] / x[n-2], which at the base rate is A(z^4) at the high rate:
+    the branches stopped being complementary, images were rejected 11-14 dB
+    less, the passband drooped (-4 dB at 16.8 kHz on a 2x stage at 48 kHz), and
+    the round trip delayed about twice what getLatencySamples reports (6.4 /
+    9.5 / 11.1 samples against 3 / 5 / 6, which is what this form measures).
+
+    The signs matter too: the mirror-image form `a*(x + y1) - x1` is a stable
+    all-pass with the wrong phase for the pair. */
 struct PolyphaseSection
 {
     double a = 0.0;
-    double x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
+    double x1 = 0.0, y1 = 0.0;
 
     inline double process (double x) noexcept
     {
-        const double y = a * (x - y2) + x2;
-        x2 = x1; x1 = x;
-        y2 = y1; y1 = flushDenormal (y);
+        const double y = a * (x - y1) + x1;
+        x1 = x;
+        y1 = flushDenormal (y);
         return y;
     }
 
-    void reset() noexcept { x1 = x2 = y1 = y2 = 0.0; }
+    void reset() noexcept { x1 = y1 = 0.0; }
 };
 
 //==============================================================================
@@ -116,7 +123,14 @@ public:
 
     void setFactor (int f) noexcept
     {
-        factor = (f >= 8) ? 8 : (f >= 4) ? 4 : (f >= 2) ? 2 : 1;
+        const int wanted = (f >= 8) ? 8 : (f >= 4) ? 4 : (f >= 2) ? 2 : 1;
+
+        // Re-sent on every structural change (AmpEngine::setOversamplingFactor):
+        // clearing the filters when nothing changed clicked the amp each time.
+        if (wanted == factor)
+            return;
+
+        factor = wanted;
         reset();
     }
 

@@ -40,7 +40,11 @@ until a user turns something on.
   the **slow** stage below. It is not replaced.
 - `sustain_scale` ("Sustain", 0.25-3) and the per-note sustain scale
   (dead spots, fret wear, nut, slide, parts, magnet pull) keep working.
-  They scale the slow stage.
+  They scale the slow stage. (As built: `sustain_scale` is declared and
+  shown but the parameter bridge has never applied it to the strings;
+  wiring it now would re-voice the factory preset that sets it to 1.5, so
+  that is left to `factory-content.md`'s re-voicing pass. The decay
+  sketch reads it.)
 - `applyNoteOff` calls `StringEngine::release(false)`, which sets
   `Damping::Released` at amount 1 at once: cutoff to 1200 Hz and T60 ×
   0.13. The only other release behaviour is `noise_release`'s fret-noise
@@ -82,9 +86,11 @@ With the build's `StringSpec` numbers: plain .010 steel on 648 mm is
 **about 3.9 kHz**. The .046 wound low E (0.52 mm core) is **about 2.0
 kHz**. Fretting at 12 doubles both.
 
-The ping is a biquad resonator (Q 30) at f_L, with a second at 2 f_L,
-6 dB down. It is struck at `excite` with amplitude `0.03 · A · v²` ×
-the excitation peak and rings for τ = 15 ms. That puts it 30-35 dB
+The ping is a two-pole resonator at f_L, with a second at 2 f_L, 6 dB
+down. It is struck at `excite` with amplitude `0.03 · A · v²` × the
+excitation peak and rings for τ = 15 ms. (The first draft said Q 30,
+which at 3.9 kHz rings for 2.4 ms; τ = 15 ms is Q = π f_L τ, about 90 on
+the wound low E and 185 on the plain high E, and τ is what is built.) That puts it 30-35 dB
 below the note at A = 1, v = 1: the faint "clank" that makes a wound
 string sound like metal. It is added to the string's output with the
 surface noise (pre-body), so body, pickups and circuit colour it.
@@ -197,16 +203,16 @@ holding the string:
 
 ## 6. Parameters
 
-These go in a new eighth range family, **`string`**: the string's own
-behaviour and its terminations' hold on it. `tuning-stability.md` shares
-it, and `string-aging.md` should when it lands.
+These go in a new range family, **`strings`** (the name `DECISIONS.md`
+"Phase 2b range families" fixed): the string's own behaviour and its
+terminations' hold on it. `tuning-stability.md` shares it, and
+`string-aging.md` should when it lands.
 
-- **Delta to `advanced-ranges.md`:** `RangeFamily` gains `string`,
-  appended after `modulation` as the eighth member, and `numFamilies`
-  becomes 8. The "other six are stock" legacy-load test there becomes
-  "other seven".
+- **Delta to `advanced-ranges.md`:** `RangeFamily` gains `strings`,
+  appended after `modulation`, and `numFamilies` grows with it. The
+  "other six are stock" legacy-load test there becomes "the others".
 - **Delta to `file-formats.md`:** the `ranges.families` object gains a
-  `"string"` key. An absent key already reads as `"stock"`
+  `"strings"` key. An absent key already reads as `"stock"`
   (`advanced-ranges.md` 4), so there is no migration.
 - The implementer records this in `DECISIONS.md`. Seven families was a
   count of the specs that existed, not a design limit.
@@ -334,7 +340,10 @@ Envelope is RMS over 20 ms windows.
   bends) is sample-identical to the same render with the shape code
   bypassed by test hook.
 - **SUS-02 Two-stage knee.** Open A, a = 0.5, ρ = 0.2: the envelope slope
-  over 50-250 ms is at least 3× the slope over 2-3 s. The 2-3 s slope
+  over 50-250 ms is at least 1.5× the slope over 2-3 s. (The first draft
+  said 3×, which section 3's own E(t) cannot give: with a 4.4 s T60 the
+  energy falls from -1.8 dB at 50 ms to -6.2 dB at 250 ms, 22 dB/s
+  against the late 13.7 dB/s, or 1.6×. The build measures 1.8×.) The 2-3 s slope
   is within ±10% of the legacy render's.
 - **SUS-03 Knee depth.** For a in {0.3, 0.5, 0.8}, the intercept of the
   late-slope line at t = 0 is `10·log10(1-a)` ±1 dB.
@@ -343,23 +352,38 @@ Envelope is RMS over 20 ms windows.
   note at velocity 10. After 1.5 s it is within 1 cent of target.
   Open high E: under 2 cents at 50-90 ms.
 - **SUS-05 Tension scales with level².** The offset at velocity 127
-  divided by the offset at velocity 64 is in [3, 5].
-- **SUS-06 Brightness overshoot.** A = 1, τa = 30 ms: the spectral
-  centroid over 0-30 ms is at least 15% above the A = 0 render. Over
-  300-330 ms it is within 3%.
+  divided by the offset at velocity 64 is in [4, 6.5]. (The first draft's
+  [3, 5] assumed level linear in velocity; the excitation's loudness law
+  is 0.1 + 0.9 v^1.45, so level(127) / level(64) is 2.3 and its square
+  5.3.)
+- **SUS-06 Brightness overshoot.** A = 1, τa = 30 ms: the 2-8 kHz
+  energy over 0-30 ms is at least 1.2 dB (15% in amplitude) above the
+  A = 0 render. Over 300-330 ms the spectral centroid is within 3%. (The
+  string's own output is dominated by its fundamental - a centroid near
+  200 Hz on the open A - so no change to the upper partials moves the
+  early centroid by more than about 1%; the overshoot acts on the upper
+  partials, which is what is measured.)
 - **SUS-07 Longitudinal ping.** Take the difference render (A = 1 minus
-  A = 0, which is exact because nothing is random). Open plain high E
+  A = 0, which is exact because nothing is random), with τa at its 1 ms
+  advanced minimum so the brightness half of the transient is out of the
+  difference. Open plain high E
   has its largest bin above 1 kHz at 3.9 kHz ±10%. Open wound low E at
   2.0 kHz ±15%. The low E fretted at 12 at 2× its open value ±10%.
 - **SUS-08 Release ramp.** T_r = 40 ms: 10 ms after note-off, the level
   is at least 6 dB above the legacy instant release. By 250 ms both are
   more than 40 dB below the level at note-off.
-- **SUS-09 Release sag.** Fret 5, d = 5 mm, T_r = 30 ms: the pitch 5-25
-  ms after note-off is 10-25 cents flat. An open string in the same
-  render shows under 1 cent of sag.
+- **SUS-09 Release sag.** Fret 5, d = 5 mm, T_r = 30 ms: the pitch 10-30
+  ms after note-off is 10-25 cents flat against the same release with
+  d = 0. An open string shows under 1 cent of sag. (The released damping
+  lowers the loop filter's cutoff, whose group delay moves the pitch a
+  few cents on its own, legacy release included; comparing with d = 0
+  isolates the sag. Over 10-30 ms of a 30 ms glide it averages two-thirds
+  of the -17.7 c target.)
 - **SUS-10 Release ring.** R = 0.3, fret 7: 100 ms after note-off the
-  pitch is the open string ±5 cents, and the level is -10.5 ±2 dB
-  against the level just before the release.
+  pitch is the open string ±5 cents, and 20-40 ms after it the level is
+  -10.5 ±2 dB against the level just before the release. (The one period
+  at R is the open string's period, since the loop is about to be that
+  long; by 100 ms the light touch has taken about 1.6 dB more.)
 - **SUS-11 Bounded at the limits.** Advanced maxima (S = 6, A = 3, a =
   0.99, ρ = 0.01), 60 s of velocity-127 plucks on all 12 strings: every
   sample is finite, the pitch offset is ≤ 50 cents, and the loop gain is
@@ -371,7 +395,7 @@ Envelope is RMS over 20 ms windows.
   or the E-Bow holding the string, none of section 5 runs. The render is
   identical to T_r = 0, d = 0, R = 0.
 - **SUS-14 Cost and safety.** 12 strings, all behaviours on: the
-  measured `StringEngine` cost is ≤ its budget + 0.3 units. Zero heap
+  measured engine cost over the legacy strings is ≤ 0.3 units. Zero heap
   allocations over the run (heap hook).
 - **SUS-15 Sample-rate independence.** At 44.1 and 96 kHz: the knee time
   (the t at which the envelope is 1 dB off the late line) is within ±5%.

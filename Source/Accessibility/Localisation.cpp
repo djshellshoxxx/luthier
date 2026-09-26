@@ -455,6 +455,7 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "accessibility.shortcut.resetAll",        "Reset all" },
         { "accessibility.shortcut.midiLearnArm",    "Arm MIDI Learn" },
         { "accessibility.shortcut.export",          "Open export" },
+        { "accessibility.shortcut.newTune",         "New tune" },
         { "accessibility.shortcut.options",         "Open options" },
         { "accessibility.shortcut.debugPanel",      "Open the debug panel" },
         { "accessibility.shortcut.audition",        "Audition" },
