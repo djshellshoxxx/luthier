@@ -16,7 +16,7 @@ Status: **spec only**. No DSP in this pass.
 | `composite-neck.md` | `INSTR_composite_neck_bass.md` | any (neck material) | Small: non-wood neck materials in `lookUpWood` + neck mobility |
 | `tenor-guitar.md` | `INSTR_tenor_guitar.md` | `acoustic` | Tuning presets only |
 | `acoustic-bass-guitar.md` | `INSTR_acoustic_bass_guitar.md` | `bass` | Body shape row + radiation high-pass |
-| `extended-range-bass.md` | `INSTR_composite_neck_bass.md` §ext | `bass` | Tuning presets, true multi-scale neck fields |
+| `extended-range-bass.md` | `INSTR_composite_neck_bass.md` §3–4 | `bass` | Tuning presets, 6-string bug, multi-scale in audio |
 
 ## 0. Ground rules (in addition to `part-acoustics.md` 0)
 
@@ -39,21 +39,33 @@ here; the instrument specs reference this section.
 
 ### 1.1 Neck: true multi-scale fields
 
-`Source/` today has a factory `Multi-Scale` neck part with a single
-`scale_length_mm` (698.5); no fan is modelled (verified by grep for
-`fan`/`multi` in `Source/Model` and `Source/DSP`: only the classical
-fan *brace* exists). Extended-range bass and the 8-string need:
+**Finding.** The *renderer* already draws fans:
+`Source/UI/Guitar/GuitarRenderer.cpp:488-532` treats a neck as fanned
+when the guitar is tagged `fanned` or the neck is named "multi-scale",
+takes `scale_length_mm` as the **bass (longest) side**, reads an
+optional `scale_length_treble_mm` (default `scale − 38`), and makes
+fret 7 perpendicular. The *audio* ignores all of it: `mapSpec` uses one
+`scale_length_mm` for every string (`PartAcoustics.cpp:350`). So the
+factory 8-String Modern is drawn fanned 27"→28" but every string is
+modelled at 698.5 mm - a breach of `guitar-illustration.md` 0.5
+("the illustration is authoritative to the ear").
+
+**Change.** Formalise the renderer's fields as part fields and consume
+them in `mapSpec`:
 
 | Field | Type | Default | Engine effect |
 |---|---|---|---|
-| `scale_length_mm` | mm | — | Treble-side (string 0) scale, as today |
-| `scale_length_bass_mm` | mm | = `scale_length_mm` | Bass-side (last string) scale |
-| `neutral_fret` | 0–24 | 7 | Fret perpendicular to the centre line (illustration only) |
+| `scale_length_mm` | mm | — | Bass-side (last string) scale, as the renderer already reads it |
+| `scale_length_treble_mm` | mm | = `scale_length_mm` | Treble-side (string 0) scale |
+| `perpendicular_fret` | 0–24 | 7 | Renderer only (already hard-coded 7) |
 
-Per-string scale: `L_i = L_treble + (L_bass − L_treble) × i / (N − 1)`
-(linear fan, which is how every fanned-fret maker lays it out). `L_i`
-replaces the single scale in `T = (2 L f)² μ` and in the fret-position
-table per string. Absent field ⇒ bit-identical to today.
+Per-string scale, linear fan (how fanned boards are laid out):
+`L_i = L_treble + (L_bass − L_treble) × i / (N − 1)`, string 0 treble.
+`L_i` replaces the single scale in `T = (2 L f)² μ`, in the fret-position
+table and in `B ∝ d⁴E/(T L²)` per string. Field absent ⇒ bit-identical
+to today, **except** the renderer's implicit `scale − 38` default for
+necks named "multi-scale", which must become explicit in those part
+files so audio and picture agree (`extended-range-bass.md` 4).
 
 ### 1.2 Neck: non-wood materials
 
