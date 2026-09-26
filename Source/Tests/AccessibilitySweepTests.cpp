@@ -399,3 +399,55 @@ LUTHIER_TEST (Accessibility, theShippedThemeFilesMatchTheBuiltIns)
 
     fresh.deleteRecursively();
 }
+
+//==============================================================================
+/*  A11Y-32: Resources/i18n/en.json ships beside the binary as the translators'
+    template: flat JSON, exactly the built-in English keys and texts, and every
+    other shipped catalog uses only known keys.
+    LUTHIER_WRITE_I18N=<absolute path to Resources/i18n> regenerates en.json. */
+LUTHIER_TEST (Localisation, everyShippedCatalogIsFlatJsonWithKnownKeys)
+{
+    const auto& english = Localisation::getBuiltInEnglish();
+
+    auto toJson = [&english]
+    {
+        auto* object = new juce::DynamicObject();
+        for (const auto& [key, text] : english)
+            object->setProperty (key, text);
+        return juce::JSON::toString (juce::var (object), false);
+    };
+
+    if (const auto target = juce::SystemStats::getEnvironmentVariable ("LUTHIER_WRITE_I18N", {});
+        juce::File::isAbsolutePath (target))
+    {
+        juce::File (target).createDirectory();
+        CHECK (juce::File (target).getChildFile ("en.json").replaceWithText (toJson()));
+    }
+
+    const auto dir = Localisation::getCatalogDirectory();
+    const auto en = dir.getChildFile ("en.json");
+    CHECK_MSG (en.existsAsFile(), "no en.json beside the binary");
+
+    for (const auto& entry : juce::RangedDirectoryIterator (dir, false, "*.json"))
+    {
+        const auto parsed = juce::JSON::parse (entry.getFile().loadFileAsString());
+        auto* object = parsed.getDynamicObject();
+        CHECK_MSG (object != nullptr, entry.getFile().getFileName() + " is not a JSON object");
+
+        if (object == nullptr)
+            continue;
+
+        for (const auto& property : object->getProperties())
+        {
+            CHECK_MSG (! property.value.isObject() && ! property.value.isArray(),
+                       entry.getFile().getFileName() + ": " + property.name.toString() + " is not flat");
+            CHECK_MSG (english.count (property.name.toString()) == 1,
+                       entry.getFile().getFileName() + ": unknown key " + property.name.toString());
+        }
+
+        if (entry.getFile() == en)
+            CHECK_MSG ((size_t) object->getProperties().size() == english.size()
+                         && juce::JSON::toString (parsed, false) == toJson(),
+                       "en.json is not the built-in English (regenerate it)");
+    }
+}
