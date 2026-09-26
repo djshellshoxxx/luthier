@@ -3,6 +3,7 @@
 #include "TestFramework.h"
 
 #include "../LuthierEngine.h"
+#include "../DSP/Whammy/WhammyEngine.h"
 #include "../DSP/Circuit/GuitarCircuit.h"
 #include "../Model/Playing/MidiInterpreter.h"
 #include "../Model/Playing/TuningEngine.h"
@@ -173,4 +174,288 @@ LUTHIER_TEST (Pickup, resonantQMatchesTheLcrValues)
                    juce::String (type == PickupType::SingleCoil ? "single coil" : "humbucker")
                    + ": measured Q " + juce::String (measuredQ, 2) + " vs LCR " + juce::String (expectedQ, 2));
     }
+}
+
+//==============================================================================
+/*  EN-52: engine.md 8.2 - a Floyd Rose's springs ring on a fast return: a
+    burst concentrated in 200-500 Hz whose envelope falls to 1/e in 50-100 ms.
+    A vintage trem's do not. */
+LUTHIER_TEST (Whammy, floydSpringsRingOnReturn)
+{
+    auto burst = [] (WhammyEngine::BridgeType type)
+    {
+        WhammyEngine w;
+        w.prepare (kSr, 6);
+        w.setBridgeType (type);
+        w.setSpringAmount (1.0);
+
+        // Dive, hold, then snap back.
+        w.setPosition (-1.0);
+        for (int b = 0; b < 200; ++b)
+        {
+            w.updateBlock (kBlock);
+            for (int i = 0; i < kBlock; ++i)
+                w.processSpringNoise();
+        }
+
+        w.setPosition (0.0);
+
+        std::vector<double> out;
+        for (int b = 0; b < (int) (0.6 * kSr / kBlock); ++b)
+        {
+            w.updateBlock (kBlock);
+            for (int i = 0; i < kBlock; ++i)
+                out.push_back (w.processSpringNoise());
+        }
+
+        return out;
+    };
+
+    const auto vintage = burst (WhammyEngine::BridgeType::VintageTrem);
+    double vintageEnergy = 0.0;
+    for (double v : vintage) vintageEnergy += v * v;
+    CHECK_MSG (vintageEnergy == 0.0, "a vintage trem's springs should not ring");
+
+    const auto floyd = burst (WhammyEngine::BridgeType::FloydRose);
+
+    // Envelope in 5 ms windows.
+    const int window = (int) (0.005 * kSr);
+    std::vector<double> env;
+    for (size_t start = 0; start + (size_t) window <= floyd.size(); start += (size_t) window)
+    {
+        double e = 0.0;
+        for (int i = 0; i < window; ++i) e += floyd[start + (size_t) i] * floyd[start + (size_t) i];
+        env.push_back (std::sqrt (e / window));
+    }
+
+    size_t peakAt = 0;
+    for (size_t i = 0; i < env.size(); ++i)
+        if (env[i] > env[peakAt]) peakAt = i;
+
+    CHECK_MSG (env[peakAt] > 1.0e-5, "the Floyd's springs did not ring");
+
+    size_t fallAt = peakAt;
+    while (fallAt < env.size() && env[fallAt] > env[peakAt] / std::exp (1.0)) ++fallAt;
+    const double decayMs = (double) (fallAt - peakAt) * 5.0;
+    CHECK_MSG (decayMs >= 50.0 && decayMs <= 100.0, "spring decay to 1/e took " + juce::String (decayMs) + " ms");
+
+    // Spectrum: most of the energy between 200 and 500 Hz.
+    double inBand = 0.0, total = 0.0;
+    const int n = juce::jmin ((int) floyd.size(), 8192);
+
+    for (double f = 50.0; f <= 5000.0; f += 25.0)
+    {
+        double re = 0.0, im = 0.0;
+        for (int i = 0; i < n; ++i)
+        {
+            const double a = 2.0 * juce::MathConstants<double>::pi * f * i / kSr;
+            re += floyd[(size_t) i] * std::cos (a);
+            im += floyd[(size_t) i] * std::sin (a);
+        }
+
+        const double p = re * re + im * im;
+        total += p;
+        if (f >= 200.0 && f <= 500.0) inBand += p;
+    }
+
+    CHECK_MSG (inBand / total > 0.6, "only " + juce::String (100.0 * inBand / total, 1) + " % of the burst is in 200-500 Hz");
+}
+
+//==============================================================================
+/*  EN-49: engine.md 7.3-7.6 - the magnets colour their stated bands, a
+    humbucker's two coils comb and the coil tap removes it, the piezo is band
+    limited with a 3 kHz presence peak, and the internal mic tilts down and
+    warms the low mids. */
+namespace
+{
+    /** Steady-state gain of a single-string feed through a pickup, at `hz`. */
+    double pickupGain (const PickupSpec& spec, double hz)
+    {
+        PickupEngine p;
+        p.prepare (kSr, 1);
+        p.setNumPickups (1);
+        auto s = spec;
+        s.inductanceHenries = 0.0;
+        s.capacitancePf = 0.0;
+        p.setPickupSpec (0, s);
+        p.setSelector (PickupSelector::Bridge);
+        p.reset();
+
+        const int n = 16384;
+        double in = 0.0, out = 0.0;
+
+        for (int i = 0; i < n; ++i)
+        {
+            const double x = std::sin (2.0 * juce::MathConstants<double>::pi * hz * i / kSr);
+            const double ins[1] = { x };
+            const double delays[1] = { 400.0 };
+            const double y = p.processStrings (ins, delays, 1);
+
+            if (i >= n / 2) { in += x * x; out += y * y; }
+        }
+
+        return std::sqrt (out / juce::jmax (1.0e-30, in));
+    }
+
+    template <typename Fn>
+    double filterGain (Fn&& process, double hz)
+    {
+        const int n = 16384;
+        double in = 0.0, out = 0.0;
+
+        for (int i = 0; i < n; ++i)
+        {
+            const double x = std::sin (2.0 * juce::MathConstants<double>::pi * hz * i / kSr);
+            const double y = process (x);
+            if (i >= n / 2) { in += x * x; out += y * y; }
+        }
+
+        return std::sqrt (out / juce::jmax (1.0e-30, in));
+    }
+}
+
+LUTHIER_TEST (Pickup, magnetsDifferInTheirStatedBands)
+{
+    auto withMagnet = [] (MagnetType m)
+    {
+        auto s = PickupSpec::makeDefault (PickupType::SingleCoil, 0.13);
+        s.magnet = m;
+        return s;
+    };
+
+    // Relative to alnico 3, the flattest: alnico 2's bump is at 800 Hz, and
+    // ceramic lifts the top.
+    auto rel = [&] (MagnetType m, double hz) { return gainToDb (pickupGain (withMagnet (m), hz) / pickupGain (withMagnet (MagnetType::Alnico3), hz)); };
+
+    CHECK_MSG (rel (MagnetType::Alnico2, 800.0) > rel (MagnetType::Alnico2, 150.0) + 1.5, "alnico 2 has no 800 Hz bump");
+    CHECK_MSG (rel (MagnetType::Ceramic, 8000.0) > rel (MagnetType::Ceramic, 300.0) + 2.0, "ceramic is not brighter");
+}
+
+LUTHIER_TEST (Pickup, humbuckerCombAndCoilTap)
+{
+    auto hb = PickupSpec::makeDefault (PickupType::Humbucker, 0.14);
+    auto tapped = hb;
+    tapped.coilTapped = true;
+
+    double minDb = 1.0e9, maxDb = -1.0e9;
+
+    for (double hz = 200.0; hz < 8000.0; hz *= 1.12)
+    {
+        const double d = gainToDb (pickupGain (hb, hz) / pickupGain (tapped, hz));
+        minDb = juce::jmin (minDb, d);
+        maxDb = juce::jmax (maxDb, d);
+    }
+
+    CHECK_MSG (maxDb - minDb > 6.0,
+               "the humbucker's inter-coil comb should shape it against the tapped coil by more than 6 dB, got "
+               + juce::String (maxDb - minDb, 2));
+}
+
+LUTHIER_TEST (Pickup, piezoAndMicFilters)
+{
+    PickupEngine p;
+    p.prepare (kSr, 6);
+
+    auto piezo = [&p] (double hz) { p.reset(); return filterGain ([&p] (double x) { return p.processPiezo (x); }, hz); };
+    auto mic = [&p] (double hz) { p.reset(); return filterGain ([&p] (double x) { return p.processInternalMic (x); }, hz); };
+
+    const double ref = piezo (1000.0);
+    CHECK_NEAR (gainToDb (piezo (40.0) / ref), -3.0, 1.5);
+    CHECK_NEAR (gainToDb (piezo (15000.0) / ref), -3.0, 2.5);
+    CHECK_MSG (piezo (3000.0) > ref * dbToGain (2.0), "the piezo has no 3 kHz peak");
+
+    CHECK_MSG (mic (10000.0) < mic (1000.0) * dbToGain (-1.5), "the internal mic does not tilt down");
+    CHECK_MSG (mic (250.0) > mic (1000.0), "the internal mic has no low-mid warmth");
+}
+
+//==============================================================================
+/*  EN-50: engine.md 7.7 - the selector crossfades within 5 ms without a step,
+    and each pickup's volume scales only its own slot. */
+LUTHIER_TEST (Pickup, selectorChangesCrossfadeIn5ms)
+{
+    auto make = [] (PickupEngine& p)
+    {
+        p.prepare (kSr, 1);
+        p.setNumPickups (2);
+
+        for (int slot = 0; slot < 2; ++slot)
+        {
+            auto s = PickupSpec::makeDefault (PickupType::SingleCoil, slot == 0 ? 0.10 : 0.30);
+            s.inductanceHenries = 0.0;
+            s.capacitancePf = 0.0;
+            p.setPickupSpec (slot, s);
+        }
+
+        p.setSelector (PickupSelector::Bridge);
+        p.reset();
+    };
+
+    auto sample = [] (PickupEngine& p, int i)
+    {
+        const double ins[1] = { std::sin (2.0 * juce::MathConstants<double>::pi * 330.0 * i / kSr) };
+        const double delays[1] = { 400.0 };
+        return p.processStrings (ins, delays, 1);
+    };
+
+    PickupEngine switching, neckOnly;
+    make (switching);
+    make (neckOnly);
+    neckOnly.setSelector (PickupSelector::Neck);
+    neckOnly.reset();
+
+    const int switchAt = 8000;
+    double worstStep = 0.0, steadyStep = 0.0, prev = 0.0;
+    double settledError = 0.0;
+
+    for (int i = 0; i < 16000; ++i)
+    {
+        if (i == switchAt)
+            switching.setSelector (PickupSelector::Neck);
+
+        const double y = sample (switching, i);
+        const double ref = sample (neckOnly, i);
+
+        if (i > 100)
+        {
+            const double step = std::abs (y - prev);
+            if (i < switchAt) steadyStep = juce::jmax (steadyStep, step);
+            else if (i < switchAt + 480) worstStep = juce::jmax (worstStep, step);
+        }
+
+        if (i >= switchAt + (int) (0.005 * kSr) && i < switchAt + 2000)
+            settledError = juce::jmax (settledError, std::abs (y - ref));
+
+        prev = y;
+    }
+
+    CHECK_MSG (worstStep < steadyStep * 2.0, "the switch stepped: " + juce::String (worstStep, 5) + " vs steady " + juce::String (steadyStep, 5));
+    CHECK_MSG (settledError < 0.02, "not settled 5 ms after the switch: error " + juce::String (settledError, 5));
+
+    // Volumes: the neck's knob scales the neck, and not the bridge.
+    auto level = [&] (PickupSelector sel, int slotTurnedDown)
+    {
+        PickupEngine p;
+        make (p);
+        p.setSelector (sel);
+        p.setPickupVolume (slotTurnedDown, 0.5);
+        p.reset();
+
+        double e = 0.0;
+        for (int i = 0; i < 8000; ++i) { const double y = sample (p, i); if (i > 4000) e += y * y; }
+        return std::sqrt (e);
+    };
+
+    auto full = [&] (PickupSelector sel)
+    {
+        PickupEngine p;
+        make (p);
+        p.setSelector (sel);
+        p.reset();
+        double e = 0.0;
+        for (int i = 0; i < 8000; ++i) { const double y = sample (p, i); if (i > 4000) e += y * y; }
+        return std::sqrt (e);
+    };
+
+    CHECK_NEAR (level (PickupSelector::Neck, 1) / full (PickupSelector::Neck), 0.5, 0.01);
+    CHECK_NEAR (level (PickupSelector::Bridge, 1) / full (PickupSelector::Bridge), 1.0, 1.0e-6);
 }

@@ -109,7 +109,10 @@ void PickupEngine::prepare (double sampleRate, int strings)
                 coils[(size_t) p][(size_t) c].history[(size_t) s].assign ((size_t) combSize, 0.0);
         }
 
-        slotGain[(size_t) p].prepare (sr, constants::kSwitchCrossfadeSeconds);
+        // SPEC-SWEEP: EN-50 - engine.md 7.7's 5 ms crossfade is the time to be
+        // there (-40 dB of the old position left), not the one-pole's time
+        // constant, which left 37 % of the old pickup at 5 ms.
+        slotGain[(size_t) p].prepare (sr, constants::kSwitchCrossfadeSeconds / 4.6);
         slotGain[(size_t) p].snapTo (0.0);
     }
 
@@ -378,6 +381,18 @@ void PickupEngine::updateSelection() noexcept
 }
 
 //==============================================================================
+void PickupEngine::writeHistory (Coil& coil, int stringIndex, double input) noexcept
+{
+    auto& hist = coil.history[(size_t) stringIndex];
+
+    if (hist.empty())
+        return;
+
+    int& widx = coil.writeIndex[(size_t) stringIndex];
+    hist[(size_t) widx] = flushDenormal (input);
+    widx = (widx + 1) & ((int) hist.size() - 1);
+}
+
 double PickupEngine::combSample (Coil& coil, int stringIndex, double input, double delaySamples) noexcept
 {
     auto& hist = coil.history[(size_t) stringIndex];
@@ -494,7 +509,16 @@ double PickupEngine::processStrings (const double* stringOutputs,
         if (slot == highSlot) g *= highWeight;
 
         if (g <= 1.0e-6)
+        {
+            // SPEC-SWEEP: EN-50 - a switched-off pickup still hears the strings,
+            // so its comb has the right history when the switch brings it in
+            // (it used to start from silence: a comb-length transient).
+            for (auto& coil : coils[(size_t) slot])
+                for (int s = 0; s < n; ++s)
+                    writeHistory (coil, s, stringOutputs[s]);
+
             continue;
+        }
 
         const auto& spec = specs[(size_t) slot];
 

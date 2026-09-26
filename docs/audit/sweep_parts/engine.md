@@ -65,10 +65,10 @@ Items on `visual`: the whole-block allocation trap, the limiter-lookahead latenc
 | EN-46 (§7) | Pickup types SC/HB/P90/Piezo/Soundhole/Mic; position, coils, R/L/C, magnet, height | `DSP/Pickup/PickupEngine`; Workshop parts | ADVANCED col 2 Pickups; WORKSHOP bench | `Pickup.*`, `WorkshopBench.*` | DONE |
 | EN-47 (§7.1) | Position comb nulls n·p harmonics | `PickupEngine` per-string comb | WORKSHOP drag | `Pickup.positionCombNullsTheExpectedHarmonic` | DONE |
 | EN-48 (§7.2) | LCR resonance f0 and Q | `GuitarCircuit`, `PickupEngine::getResonantFrequency` | ADVANCED Circuit panel | `Pickup.resonantFrequencyMatchesTheLcrValues`, `Circuit.potValueMovesTheResonance` | DONE |
-| EN-49 (§7.3-7.6) | Magnet EQ curves; HB two coils + comb, coil tap; piezo HP40/LP15k/3k peak; internal-mic tilt — none tested | `PickupEngine` | ADVANCED col 2 magnet, coil tap, piezo/mic blend | - | NO-TEST |
-| EN-50 (§7.7) | 3/5-way selector, independent volumes, per-HB coil tap, 5 ms crossfade | `pickup_selector`, `pickupN_volume`, slot-gain crossfade | ADVANCED col 2 `pickupSelector`; illustration switch | `WorkshopBench.*` (selector write only) | NO-TEST |
+| EN-49 (§7.3-7.6) | Magnet EQ curves; HB two coils + comb, coil tap; piezo HP40/LP15k/3k peak; internal-mic tilt — none tested | `PickupEngine` | ADVANCED col 2 magnet, coil tap, piezo/mic blend | `Pickup::magnetsDifferInTheirStatedBands`, `Pickup::humbuckerCombAndCoilTap`, `Pickup::piezoAndMicFilters` | DONE |
+| EN-50 (§7.7) | 3/5-way selector, independent volumes, per-HB coil tap, 5 ms crossfade | `pickup_selector`, `pickupN_volume`, slot-gain crossfade | ADVANCED col 2 `pickupSelector`; illustration switch | `Pickup::selectorChangesCrossfadeIn5ms` (fixed: the one-pole left 37 % of the old pickup at 5 ms, and a switched-off pickup started its comb from silence), `WorkshopBench.*` (selector write only) | DONE |
 | EN-51 (§8.1-8.4) | Vintage (down-only via up range 0), Floyd ±24/+12, TransTrem ratio + detents, Bigsby | `DSP/Whammy/WhammyEngine`; `bridge_type`, `whammy_down/up_range`, `transpose_lock` | ADVANCED col 1 Bridge; illustration bridge popover | `Whammy.transTremPreservesChordIntervals`, `Whammy.vintageTremDetunesChords`, `Whammy.fixedBridgeDoesNothing` | DONE |
-| EN-52 (§8.2) | Floyd spring burst 50-100 ms, 200-500 Hz on return — no test | `WhammyEngine` springBand1/2 (240/430 Hz, 80 ms) | `whammy_springs` knob | - | NO-TEST |
+| EN-52 (§8.2) | Floyd spring burst 50-100 ms, 200-500 Hz on return — no test | `WhammyEngine` springBand1/2 (240/430 Hz, 80 ms) | `whammy_springs` knob | `Whammy::floydSpringsRingOnReturn` | DONE |
 | EN-53 (§8) | 5 ms whammy smoothing; CC2 / MPE Y | `positionSmooth (0.005)`; ccMap[2] | n/a | `Whammy.*` | DONE |
 | EN-54 (§8) | "Per-string whammy" toggle — `setPerStringEnabled` has no caller | `WhammyEngine::setPerStringEnabled` | - | - | NO-GUI |
 | EN-55 (§9) | Cable roll-off by length + ~4 kHz bump (superseded by circuit loading model) | `DSP/Circuit/GuitarCircuit` cable | ADVANCED Circuit `cable_length`, `cable_quality` | `Circuit.cableCapacitanceMovesTheResonance` | DONE |
@@ -113,4 +113,4 @@ Items on `visual`: the whole-block allocation trap, the limiter-lookahead latenc
 | EN-94 (§22) | Preset load < 500 ms incl. async IR | `PresetManager::fromVar`; IR installers | n/a | - | NO-TEST |
 | EN-95 (§22) | MIDI in → audio out < 2 ms (+ reported latency) | `MidiInterpreter` sample-accurate events; chord window | n/a | `Controllers.chordGroupsSoundOneWindowAfterTheyWerePlayed` | NO-TEST |
 
-<!-- counts DONE=62 NO-GUI=7 NO-TEST=8 PARTIAL=6 MISSING=2 OWNED=10 -->
+<!-- counts DONE=65 NO-GUI=7 NO-TEST=5 PARTIAL=6 MISSING=2 OWNED=10 -->

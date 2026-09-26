@@ -219,6 +219,7 @@ private:
     static void applyMagnetEq (Biquad& eq, MagnetType m, double sr) noexcept;
 
     double combSample (Coil& coil, int stringIndex, double input, double delaySamples) noexcept;
+    static void writeHistory (Coil& coil, int stringIndex, double input) noexcept;   // SPEC-SWEEP: EN-50
 
     double sr = 44100.0;
     int numStrings = 6;
