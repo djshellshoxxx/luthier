@@ -535,6 +535,16 @@ namespace
                         for (int i = 0; i < c->choices.size(); ++i)
                             if (c->choices[i].containsIgnoreCase ("bass")) { r.setIndex (ParamIDs::guitarType, i); break; }
                 } },
+            // FEAT-MIC (mic-placement.md 6.1): the external mics' controls are
+            // shown on an acoustic guitar, with its second mic on.
+            { "acoustic", [] (Rig& r)
+                {
+                    auto* c = dynamic_cast<juce::AudioParameterChoice*> (r.param (ParamIDs::guitarType));
+                    if (c != nullptr)
+                        for (int i = 0; i < c->choices.size(); ++i)
+                            if (c->choices[i].containsIgnoreCase ("dread")) { r.setIndex (ParamIDs::guitarType, i); break; }
+                    r.setIndex (ParamIDs::acMic2On, 1);
+                } },
             { "whammy+slide+slap", [] (Rig& r)
                 {
                     auto* c = dynamic_cast<juce::AudioParameterChoice*> (r.param (ParamIDs::bridgeType));

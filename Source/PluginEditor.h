@@ -164,6 +164,7 @@ private:
     SaveAsPanel saveAsPanel;
     ChordAndTabPanel chordPanel;
     WorkshopOverlay workshopOverlay;
+    MicPlacementOverlay micPlacementOverlay;   // mic-placement.md 6.3 (FEAT-MIC)
     SecretPanel secretPanel;
 
     // onboarding.md 2-4 (TUNE-HELP-ONBOARDING).

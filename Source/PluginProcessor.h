@@ -455,6 +455,8 @@ public:
     struct UiState
     {
         bool advancedMode = false;
+        bool micGrilleVisible = true;   // mic-placement.md 6.5 (per window, not preset data)
+        int  micFocusedHandle = 0;      // mic-placement.md 6.5
         bool liveMode = false;
         bool tooltipsEnabled = true;
         int  selectedString = 0;

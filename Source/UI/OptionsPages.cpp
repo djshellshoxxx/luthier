@@ -817,6 +817,14 @@ AppearancePage::AppearancePage (LuthierAudioProcessor& p)
 
     addAndMakeVisible (tooltipsToggle);
 
+    // mic-placement.md 6.5 (FEAT-MIC).
+    micSnapToggle.setButtonText (tr ("mic.options.snap"));
+    micPlotToggle.setButtonText (tr ("mic.options.plot"));
+    micSnapToggle.onClick = [this] { UiPreferences::get().setBool ("mic.snapToLandmarks", micSnapToggle.getToggleState()); };
+    micPlotToggle.onClick = [this] { UiPreferences::get().setBool ("mic.showResponsePlot", micPlotToggle.getToggleState()); };
+    addAndMakeVisible (micSnapToggle);
+    addAndMakeVisible (micPlotToggle);
+
     styleNote (contrastLabel, Palette::textMuted);
     addAndMakeVisible (contrastLabel);
 
@@ -843,6 +851,8 @@ void AppearancePage::refresh()
     reducedMotionToggle.setToggleState (settings.isReducedMotion(), juce::dontSendNotification);
     tooltipsToggle.setToggleState (processor.getUiState().tooltipsEnabled,
                                    juce::dontSendNotification);
+    micSnapToggle.setToggleState (UiPreferences::get().getBool ("mic.snapToLandmarks", true), juce::dontSendNotification);
+    micPlotToggle.setToggleState (UiPreferences::get().getBool ("mic.showResponsePlot", true), juce::dontSendNotification);
 
     for (int i = 0; i < AccessibilitySettings::kNumScales; ++i)
         if (std::abs (AccessibilitySettings::kScales[(size_t) i] - settings.getUiScale()) < 1.0e-6)
@@ -865,7 +875,7 @@ void AppearancePage::paint (juce::Graphics& g)
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "THEME AND SIZE");
-    drawHeading (g, { 0, 130, getWidth(), 18 }, "NOT BUILT YET");
+    drawHeading (g, { 0, 154, getWidth(), 18 }, "NOT BUILT YET");
 }
 
 void AppearancePage::resized()
@@ -895,7 +905,15 @@ void AppearancePage::resized()
     bounds.removeFromTop (4);
     contrastLabel.setBounds (bounds.removeFromTop (18));
 
-    pendingLabel.setBounds (getLocalBounds().withTrimmedTop (150).withHeight (32));
+    bounds.removeFromTop (4);
+    {
+        auto row = bounds.removeFromTop (22);   // FEAT-MIC
+        micSnapToggle.setBounds (row.removeFromLeft (220));
+        row.removeFromLeft (8);
+        micPlotToggle.setBounds (row.removeFromLeft (220));
+    }
+
+    pendingLabel.setBounds (getLocalBounds().withTrimmedTop (174).withHeight (32));
 }
 
 //==============================================================================

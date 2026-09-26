@@ -214,6 +214,15 @@ void AdvancedPanel::Column::addControl (juce::Component* component, int height)
     items.add (item);
 }
 
+void AdvancedPanel::Column::renameSection (const juce::String& from, const juce::String& to)
+{
+    for (auto& item : items)
+        if (item.heading == from)
+            item.heading = to;
+
+    repaint();
+}
+
 void AdvancedPanel::Column::addGap (int height)
 {
     Item item;
@@ -874,7 +883,8 @@ void AdvancedPanel::buildColumn3()
 
     // ---- cabinet --------------------------------------------------------------------------
     column.addGap (Metrics::grid);
-    column.addSection ("Cabinet and Mic");
+    micSectionTitle = MicUi::text ("mic.section.cabinet");
+    column.addSection (micSectionTitle);
 
     addToggle (cabOn, "Cabinet", ParamIDs::cabOn, "Speaker and microphone simulation");
     addChoice (cabType, "Cabinet", ParamIDs::cabType, "Cabinet size and back construction");
@@ -883,15 +893,16 @@ void AdvancedPanel::buildColumn3()
              "A broken-in speaker has a looser surround: lower and less peaky");
 
     addChoice (micType, "Mic 1", ParamIDs::micType, "First microphone");
-    addChoice (micPosition, "Position 1", ParamIDs::micPosition,
-               "On axis at the dust cap is brightest; off axis at the cone edge is darkest");
-    addChoice (micDistance, "Distance 1", ParamIDs::micDistance,
-               "Close gives proximity bass; far trades it for room");
-
     addToggle (dualMic, "Second mic", ParamIDs::dualMic, "Blend a second microphone");
     addChoice (micType2, "Mic 2", ParamIDs::micType2, "Second microphone");
-    addChoice (micPosition2, "Position 2", ParamIDs::micPosition2, "Second mic position");
-    addChoice (micDistance2, "Distance 2", ParamIDs::micDistance2, "Second mic distance");
+
+    /*  mic-placement.md 6.1 (FEAT-MIC): the placement view replaces the
+        Position and Distance combos; they live on inside it as the Quick
+        choices, their canonical controls. */
+    micView = std::make_unique<MicPlacementView> (processor);
+    micView->onOpenEditor = [this] { if (isMicEditorShowing()) closeMicEditor(); else openMicEditor(); };
+    micView->onFamilyChanged = [this] { if (getWidth() > 0) resized(); };
+    column.addControl (micView.get(), micView->getPreferredHeight());
 
     addKnob (micBlend, "Mic Blend", ParamIDs::micBlend, "Balance between the two mics");
     addKnob (micWidth, "Width", ParamIDs::micWidth,
@@ -1110,6 +1121,35 @@ juce::Button* AdvancedPanel::getWorkspaceTabButton (const juce::String& tabName)
             return tab;
 
     return nullptr;
+}
+
+//==============================================================================
+void AdvancedPanel::openMicEditor()   // mic-placement.md 6.2 (FEAT-MIC)
+{
+    if (micEditor == nullptr)
+    {
+        micEditor = std::make_unique<MicPlacementEditor> (processor);
+        micEditor->onClose = [this] { closeMicEditor(); };
+        addChildComponent (*micEditor);
+    }
+
+    micEditor->setVisible (true);
+    resized();
+    micEditor->resized();   // the family may have changed while it was closed
+    micEditor->grabKeyboardFocus();
+}
+
+void AdvancedPanel::closeMicEditor()
+{
+    if (micEditor == nullptr || ! micEditor->isVisible())
+        return;
+
+    micEditor->setVisible (false);
+    resized();
+
+    // Focus back to the button that opened it (6.2).
+    if (micView != nullptr)
+        micView->restoreFocusToExpand();
 }
 
 bool AdvancedPanel::isWorkshopShowing() const noexcept
@@ -1406,6 +1446,33 @@ void AdvancedPanel::resized()
     bounds.removeFromTop (Metrics::gridHalf);
 
     workspaceViewport.setBounds (bounds.reduced (1, 0));
+
+    // mic-placement.md 6.2 (FEAT-MIC): the expanded editor takes Column 3 and
+    // the workspace under the tab strip; the strip stays.
+    if (isMicEditorShowing())
+    {
+        auto takeover = bounds;
+
+        if (viewports[2].isVisible())
+            takeover = takeover.getUnion (viewports[2].getBounds().withTop (bounds.getY()));
+
+        micEditor->setBounds (takeover);
+        micEditor->toFront (false);
+    }
+
+    viewports[2].setVisible (viewports[2].isVisible() && ! isMicEditorShowing());
+    workspaceViewport.setVisible (! isMicEditorShowing());
+
+    if (micView != nullptr)
+    {
+        const auto title = micView->getSectionTitle();
+
+        if (title != micSectionTitle)
+        {
+            columns[2]->renameSection (micSectionTitle, title);
+            micSectionTitle = title;
+        }
+    }
 
     // The panel keeps whatever height it asked for and takes the viewport's
     // width, so the workspace scrolls vertically exactly as a column does. The

@@ -119,6 +119,10 @@ private:
     juce::ToggleButton reducedMotionToggle { "Reduced motion" };
     juce::ToggleButton tooltipsToggle { "Show tooltips on hover" };
 
+    // mic-placement.md 6.5 (FEAT-MIC): UiPreferences, not preset data.
+    juce::ToggleButton micSnapToggle { "Snap mics to landmarks" };
+    juce::ToggleButton micPlotToggle { "Show mic response plot" };
+
     juce::Label contrastLabel, pendingLabel;
 
     bool updatingControls = false;

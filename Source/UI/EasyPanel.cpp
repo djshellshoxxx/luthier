@@ -315,6 +315,12 @@ void EasyPanel::buildRigStrip()
         addAndMakeVisible (c);
     addAndMakeVisible (micBlend);
 
+    // mic-placement.md 6.3 (FEAT-MIC): bright <-> warm, close <-> far.
+    addAndMakeVisible (micPad);
+    micPad.onOpenEditor = [this] { if (onOpenMicEditor) onOpenMicEditor(); };
+    acMicMix.attachTo (processor, ParamIDs::acMicMix, "Pickup against the external microphones");
+    addChildComponent (acMicMix);
+
     // 6. Room.
     roomSize.attachTo (processor, ParamIDs::roomSize, "Room size");
     roomMix.attachTo (processor, ParamIDs::roomBlend, "How much of the room you hear");
@@ -510,6 +516,10 @@ void EasyPanel::applyStylePreset (int listIndex)
 //==============================================================================
 void EasyPanel::timerCallback()
 {
+    // FEAT-MIC: the Cabinet card follows the guitar family (6.3).
+    if (MicUi::isAcoustic (processor) != micPadAcoustic)
+        resized();
+
     auditionButton.setButtonText (processor.isAuditioning() ? "Stop" : "Audition");
 
     const auto chord = processor.getEngine().getLastChordName();
@@ -562,7 +572,7 @@ void EasyPanel::resized()
             return inner;
         };
 
-        auto circuit = card (0.20f, "Guitar");
+        auto circuit = card (0.19f, "Guitar");   // 0.20 before FEAT-MIC's pad
         {
             auto knobs = circuit.removeFromLeft (circuit.getWidth() / 2);
             guitarVolumeKnob.setBounds (knobs.removeFromLeft (knobs.getWidth() / 2));
@@ -572,7 +582,7 @@ void EasyPanel::resized()
 
         preRack.setBounds (card (0.12f, "Pre-effects"));
 
-        auto amp = card (0.26f, "Amp");
+        auto amp = card (0.24f, "Amp");   // 0.26 before FEAT-MIC's pad
         {
             // TODO 2h: the knobs sit on the face in one row, each with the card's
             // full width to share, rather than two cramped rows of three.
@@ -583,16 +593,38 @@ void EasyPanel::resized()
 
         postRack.setBounds (card (0.12f, "Post-effects"));
 
-        auto cab = card (0.17f, "Cabinet");
+        auto cab = card (0.21f, "Cabinet");   // 0.17 before FEAT-MIC's pad (6.3)
         {
-            auto top = cab.removeFromTop (cab.getHeight() / 2);
-            cabModel.setBounds (top.removeFromLeft (top.getWidth() / 2));
+            // mic-placement.md 6.3 (FEAT-MIC): the pad under the cabinet's
+            // choices; the mics (or, on an acoustic, Pickup <-> Mic) beside it.
+            micPadAcoustic = MicUi::isAcoustic (processor);
+            auto top = cab.removeFromTop (juce::jmax (36, cab.getHeight() - MicPad::kHeight - 4));
+            {
+                auto left = top.removeFromLeft (top.getWidth() / 2);
+                cabModel.setBounds (left.withSizeKeepingCentre (left.getWidth(), juce::jmin (left.getHeight(), 40)));
+            }
             micBlend.setBounds (top);
-            mic1.setBounds (cab.removeFromLeft (cab.getWidth() / 2));
-            mic2.setBounds (cab);
+
+            auto padArea = cab.removeFromLeft (juce::jmin (MicPad::kWidth, cab.getWidth() / 2));
+            micPad.setBounds (padArea.withSizeKeepingCentre (padArea.getWidth(), juce::jmin (MicPad::kHeight, padArea.getHeight())));
+            cab.removeFromLeft (4);
+
+            mic1.setVisible (! micPadAcoustic);
+            mic2.setVisible (! micPadAcoustic);
+            acMicMix.setVisible (micPadAcoustic);
+
+            if (micPadAcoustic)
+            {
+                acMicMix.setBounds (cab);
+            }
+            else
+            {
+                mic1.setBounds (cab.removeFromTop (cab.getHeight() / 2));
+                mic2.setBounds (cab);
+            }
         }
 
-        auto room = card (0.13f, "Room");
+        auto room = card (0.12f, "Room");
         {
             roomSize.setBounds (room.removeFromLeft (room.getWidth() / 2));
             roomMix.setBounds (room);
