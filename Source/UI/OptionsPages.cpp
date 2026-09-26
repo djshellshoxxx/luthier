@@ -1,4 +1,5 @@
 #include "OptionsPages.h"
+#include "Search/SearchOptionsGroup.h"   // global-search.md 7 (FEAT-SEARCH)
 #include "FirstRun.h"
 #include "RangesUi.h"
 #include "UiPreferences.h"   // REALISM-C
@@ -1067,6 +1068,9 @@ AccessibilityPage::AccessibilityPage (LuthierAudioProcessor& p)
 {
     setWantsKeyboardFocus (true);
 
+    searchGroup = std::make_unique<search::SearchOptionsGroup>();   // FEAT-SEARCH
+    addAndMakeVisible (*searchGroup);
+
     for (int i = 0; i < (int) AccessibilitySettings::Verbosity::numLevels; ++i)
         verbosityBox.addItem (AccessibilitySettings::getVerbosityName (
                                   (AccessibilitySettings::Verbosity) i), i + 1);
@@ -1286,14 +1290,20 @@ void AccessibilityPage::refresh()
     }
 
     fontBox.setSelectedId (fontId, juce::dontSendNotification);
+
+    if (auto* group = dynamic_cast<search::SearchOptionsGroup*> (searchGroup.get()))   // FEAT-SEARCH
+        group->refresh();
 }
+
+/** FEAT-SEARCH: the room the Search group takes above the shortcut table. */
+static constexpr int kSearchGroupSpace = 60;
 
 void AccessibilityPage::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "SCREEN READER AND TEXT");
-    drawHeading (g, { 0, 76, getWidth(), 18 }, "KEYBOARD SHORTCUTS");
+    drawHeading (g, { 0, 76 + kSearchGroupSpace, getWidth(), 18 }, "KEYBOARD SHORTCUTS");
 }
 
 void AccessibilityPage::resized()
@@ -1310,8 +1320,11 @@ void AccessibilityPage::resized()
         fontBox.setBounds (row.removeFromLeft (220));
     }
 
+    // ---- search (global-search.md 7, FEAT-SEARCH) ---------------------------------------
+    searchGroup->setBounds (0, 56, getWidth(), search::SearchOptionsGroup::preferredHeight);
+
     // ---- shortcuts ---------------------------------------------------------------------
-    bounds = getLocalBounds().withTrimmedTop (96);
+    bounds = getLocalBounds().withTrimmedTop (96 + kSearchGroupSpace);
 
     {
         auto row = bounds.removeFromTop (26);

@@ -126,7 +126,14 @@ private:
     until it finds one of these. */
 struct LearnTarget
 {
-    virtual ~LearnTarget() = default;
+    /*  global-search.md 3.2 (FEAT-SEARCH): the constructor and destructor add
+        and remove this control from search::LiveControls, so the palette can
+        find any parameter's control without a registration list. Defined in
+        Search/LiveControls.cpp. */
+    LearnTarget();
+    virtual ~LearnTarget();
+    LearnTarget (const LearnTarget&) = delete;
+    LearnTarget& operator= (const LearnTarget&) = delete;
 
     /** The parameter this control edits, or empty if it is not attached yet. */
     virtual juce::String getLearnParameterId() const = 0;

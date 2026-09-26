@@ -476,6 +476,7 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "options.appearance.visualAids.qualityHigh",    "High" },
         { "options.appearance.visualAids.help",           "Strings vibrate on the guitar and fretboard while they sound. Display only: no effect on the sound." },
         { "options.appearance.visualAids.paused",         "Paused while Reduced motion is on." },
+        { "accessibility.shortcut.search",          "Search everything" },   // FEAT-SEARCH
 
         // ---- accessible descriptions -----------------------------------------------------------
         { "a11y.knob.role",           "Rotary control" },

@@ -548,7 +548,8 @@ LUTHIER_TEST (Accessibility, settingsRoundTrip)
     settings.setReducedMotion (true);
     settings.setVerbosity (AccessibilitySettings::Verbosity::verbose);
     settings.setFontOverride ("Arial");
-    settings.rebind ("panic", juce::KeyPress ('k', juce::ModifierKeys::commandModifier, 0));
+    // Ctrl+J: free. (Ctrl+K was, until global-search.md made it Search.)
+    settings.rebind ("panic", juce::KeyPress ('j', juce::ModifierKeys::commandModifier, 0));
 
     const auto text = juce::JSON::toString (settings.toVar(), false);
 

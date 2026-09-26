@@ -655,6 +655,8 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("toggleStringAnimation", "accessibility.shortcut.toggleStringAnimation", KP());
     // cpu-quality-modes 5: rebindable, unbound by default.
     add ("cycleCpuQuality",  "quality.shortcut.cycle",                  KP());
+    // global-search.md 6.1 (FEAT-SEARCH): Ctrl/Cmd+K opens the search palette.
+    add ("search",           "accessibility.shortcut.search",           KP ('k', cmd, 0));
 }
 
 bool AccessibilitySettings::rebind (const juce::String& actionId, const juce::KeyPress& key)

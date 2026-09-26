@@ -4,6 +4,7 @@
 #include "MidiExportDefaults.h"
 #include "NotationPanel.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Accessibility.h"
 
 namespace luthier
 {
@@ -93,6 +94,10 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     addAndMakeVisible (helpButton);
     helpButton.setTooltip ("Help, troubleshooting and debug tools");
     helpButton.onClick = [this] { if (onOpenHelp) onOpenHelp(); };
+
+    // global-search.md 6.1 (FEAT-SEARCH): the magnifier opens the palette.
+    addAndMakeVisible (searchButton);
+    searchButton.onClick = [this] { if (onOpenSearch) onOpenSearch(); };
 
     // ---- mode ----------------------------------------------------------------------
     addAndMakeVisible (modeButton);
@@ -342,6 +347,12 @@ void HeaderBar::showFileMenu()
     menu.addItem (8, "Open user preset folder");
     menu.addItem (9, "Open render folder");
     menu.addSeparator();
+    {
+        // global-search.md 6.1 (FEAT-SEARCH): always here, the only route below 1280.
+        const auto* binding = AccessibilitySettings::get().findShortcut ("search");
+        menu.addItem (40, "Search..." + (binding != nullptr && binding->key.isValid()
+                                          ? "  " + binding->key.getTextDescription() : juce::String()));
+    }
     menu.addItem (10, "Options...");
     menu.addSeparator();
     menu.addItem (15, "Undo history...", processor.getNumUndoSteps() > 0);   // action-and-undo.md 9
@@ -364,6 +375,11 @@ void HeaderBar::showFileMenu()
             case 2:
                 if (onSaveAs)
                     onSaveAs();
+                break;
+
+            case 40:   // FEAT-SEARCH (an id clear of the menu's 1-15)
+                if (onOpenSearch)
+                    onOpenSearch();
                 break;
 
             case 3:
@@ -613,6 +629,17 @@ void HeaderBar::resized()
     bounds.removeFromRight (Metrics::gridHalf);
 
     helpButton.setBounds (bounds.removeFromRight (w (30, 26)).reduced (2, 0));
+
+    // FEAT-SEARCH: the magnifier sits beside Help; below 1280 it is File -> Search.
+    {
+        const auto* binding = AccessibilitySettings::get().findShortcut ("search");
+        const auto key = binding != nullptr && binding->key.isValid() ? binding->key.getTextDescription() : juce::String();
+        searchButton.setTooltip ("Search everything" + (key.isNotEmpty() ? " (" + key + ")" : juce::String()));
+        searchButton.setVisible (getWidth() >= searchButtonMinWidth);
+
+        if (searchButton.isVisible())
+            searchButton.setBounds (bounds.removeFromRight (w (30, 26)).reduced (2, 0));
+    }
     panicButton.setBounds (bounds.removeFromRight (w (56, 50)).reduced (2, 0));
     midiLearnButton.setBounds (bounds.removeFromRight (w (54, 48)).reduced (2, 0));
 

@@ -178,6 +178,20 @@ public:
     static constexpr const char* workspaceTabPreferenceKey = "advanced.workspaceTab";
     static constexpr const char* workspaceTabNamePreferenceKey = "advanced.workspaceTabName";
 
+    //==========================================================================
+    // global-search.md 3.2 (FEAT-SEARCH): column section headings are drawn,
+    // not components, so the palette asks here.
+
+    /** The section headings of column 1-3, in order. */
+    juce::StringArray getColumnSections (int column) const;
+
+    /** The column (1-3) and section heading holding `c`; empty if none. */
+    juce::String getColumnSectionFor (const juce::Component* c, int& column) const;
+
+    /** Brings a column section on screen (leaving WORKSHOP if it hides the
+        column) and scrolls its heading into view. */
+    bool revealColumnSection (const juce::String& heading);
+
     void paint (juce::Graphics&) override;
     void resized() override;
 
@@ -201,6 +215,9 @@ private:
         /** The heading of the section holding `c`, or empty. */
         juce::String getSectionContaining (const juce::Component* c) const;
 
+        /** FEAT-SEARCH: the headings, and where one starts (-1 if absent). */
+        juce::StringArray getSections() const;
+        int getSectionY (const juce::String& heading) const;
         /** gui-integration 16 and 20: the section heading at a height, the ?
             on each heading, and Help on either. */
         juce::String getSectionAt (int y) const;
