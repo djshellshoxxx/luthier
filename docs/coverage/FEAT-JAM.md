@@ -40,7 +40,7 @@ Parameters added (34, appended last in the `FEAT-JAM` block of
 | JAM-4.4 | 4.4 changes while playing land on beats / bars | `JamEngine` latches | `Jam::JM19_changesLandOnBeatsAndBars`, `JamPlugin::JM45_recallsAndPresetLoadsKeepTheBand` | verified |
 | JAM-5 | 5 kit synth: pieces, physics, voice pool, kits, tuning / damping / room / perspective | `DrumPieces`, `JamDrumKit`, `KitRoom` | `JamDsp::JM24_kickModesAndPitchDrop`, `JM25_snareWires`, `JM26_closingTheHatChokesIt`, `JM27_rideRestrikeIsContinuous`, `JM28_kitTuningIsATensionChange` | verified |
 | JAM-6 | 6 bass voice: ping-pong StringEngines, string choice, excitations, tone, lines | `JamBassVoice`, `JamBassLine` | `JamDsp::JM29_bassPitchAndClicklessChanges`, `JM30_bassStaysInPositionAndAlternates` | verified |
-| JAM-7 | 7 mixer, bassist rests, outputs Main / Separate (Aux 9, 10) with fallback, ROUTING strips, mix point, kill ramp | `JamEngine` mixer, `mixJam`, `RoutingMatrix::writeJamBuses`, `KillSwitch::applyBlockRamp`, `TapBuffers` `kJamDrumsAux` / `kJamBassAux` | `JamPlugin::JM37_separateOutputs`, `JM38`, `JM43_theTunesBassPlaysThroughTheJamBass` | verified |
+| JAM-7 | 7 mixer (calibrated stems), bassist rests, outputs Main / Separate (Aux 9, 10) with fallback, ROUTING strips, mix point, kill ramp | `JamEngine` mixer, `mixJam`, `RoutingMatrix::writeJamBuses`, `KillSwitch::applyBlockRamp`, `TapBuffers` `kJamDrumsAux` / `kJamBassAux` | `JamPlugin::JM37_separateOutputs`, `JM38`, `JM43_theTunesBassPlaysThroughTheJamBass`, `Jam::JM07_defaultLevelSitsWithTheGuitar` | verified |
 | JAM-8.1 | 8.1 JAM tab after TUNE, the sketch's groups, lanes, drag / export, 480 px stacking | `Source/UI/JamPanel`, `JamLaneView`, `AdvancedPanel` tabs table | `JamPanel::JM47_theTabSitsBetweenTuneAndLiveAndLaysOutAt480To1600` | verified |
 | JAM-8.2 | 8.2 Easy strip group, Live pill, shortcuts in the cheat sheet | `JamStripGroup`, `JamPill`, `LiveStrip::refreshJamPill`, `JamShortcuts`, registry `jamStartStop` / `jamFill` / `jamArm` | `JamPanel::JM48_easyGroupAndLivePill`, `JM49_shortcutsAreRebindableListedAndIgnoredWhileTyping` | verified |
 | JAM-8.3 | 8.3 `JamStatus` double buffer, 30 Hz drain, 250 ms stale | `JamStatusChannel`, `JamPanel::refresh` | `JamPanel::JM50` (stale case) | verified |
@@ -119,3 +119,10 @@ Parameters added (34, appended last in the `FEAT-JAM` block of
     so the ladder keeps its seven numbered steps.
 17. **Variation A / B** is a dropdown in the JAM tab rather than a radio
     pair (same parameter, same order).
+18. **Stem calibration.** The band's mixer trims the drum stem by -13 dB and
+    the bass by +10 dB, measured across the ten styles, so at the default
+    `jam_volume` (-6 dB) the kit peaks near -6 dBFS and the bass sits a few
+    dB under it - the level of a guitar through the rig. The band mixes after
+    the master limiter (7's mix point), so this calibration is what keeps a
+    loud band inside the combination tests' ceiling
+    (`Jam::JM07_defaultLevelSitsWithTheGuitar`).

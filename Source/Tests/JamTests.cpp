@@ -886,3 +886,47 @@ LUTHIER_TEST (Jam, JM23_cycleJumpResyncs)
     CHECK (on - off <= 1);
 }
 
+
+//==============================================================================
+/*  7: the band at its default volume sits at the level of a guitar through the
+    rig - under full scale, drums and bass within reach of each other. */
+LUTHIER_TEST (Jam, JM07_defaultLevelSitsWithTheGuitar)
+{
+    for (int style = 0; style < jam::kNumFactoryStyles; ++style)
+    {
+        double peak[2] {}, rms[2] {};
+
+        for (int part = 0; part < 2; ++part)
+        {
+            JamBench b (48000.0, 512);
+            b.keepAudio = true;
+            b.settings.style = style;
+            b.settings.startMode = 2;
+            b.settings.bassMute = part == 0;
+            b.settings.drumsMute = part == 1;
+
+            for (int i = 0; i < 8; ++i)
+                b.chord (i * 48000, { 45, 48, 52 });
+
+            b.runSeconds (10.0);
+
+            double sum = 0.0;
+
+            for (size_t i = 0; i < b.left.size(); ++i)
+            {
+                peak[part] = juce::jmax (peak[part], (double) std::abs (b.left[i]), (double) std::abs (b.right[i]));
+                sum += (double) b.left[i] * b.left[i];
+            }
+
+            rms[part] = std::sqrt (sum / (double) juce::jmax<size_t> (1, b.left.size()));
+        }
+
+        const auto name = juce::String (JamStyleLibrary::getFactoryStyleName (style));
+        const double drumsPeakDb = juce::Decibels::gainToDecibels (peak[0]);
+        const double gapDb = juce::Decibels::gainToDecibels (rms[0]) - juce::Decibels::gainToDecibels (rms[1]);
+
+        CHECK_MSG (drumsPeakDb < -1.0 && drumsPeakDb > -14.0, name + ": drums peak at " + juce::String (drumsPeakDb, 1) + " dBFS");
+        CHECK_MSG (peak[1] < juce::Decibels::decibelsToGain (-3.0), name + ": bass peaks at " + juce::String (juce::Decibels::gainToDecibels (peak[1]), 1) + " dBFS");
+        CHECK_MSG (std::abs (gapDb) < 18.0, name + ": drums and bass are " + juce::String (gapDb, 1) + " dB apart");
+    }
+}
