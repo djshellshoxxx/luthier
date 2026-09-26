@@ -383,6 +383,9 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
     transportButton.onClick = [this] { looper().press(); refresh(); };
     addAndMakeVisible (transportButton);
 
+    statusLed.setTitle ("Looper status");   // SPEC-SWEEP GD-31
+    addAndMakeVisible (statusLed);
+
     stopButton.onClick = [this] { looper().stop(); refresh(); };
     addAndMakeVisible (stopButton);
 
@@ -544,9 +547,55 @@ Looper& LooperTab::looper()
     return processor.getLooper();
 }
 
+//==============================================================================
+// SPEC-SWEEP (GD-31)
+juce::Colour LooperTab::ledColourFor (Looper::State state, double nowMs) noexcept
+{
+    switch (state)
+    {
+        case Looper::State::recordingFirst:
+        case Looper::State::overdubbing:
+        {
+            const bool bright = ((juce::int64) (nowMs / 125.0) & 1) == 0;   // 4 Hz
+            return juce::Colour (0xfff2544e).withAlpha (bright ? 1.0f : 0.35f);
+        }
+
+        case Looper::State::playing:   return juce::Colour (0xff4caf6a);
+        case Looper::State::stopped:
+        default:                       return juce::Colours::transparentBlack;
+    }
+}
+
+void LooperTab::StatusLed::paint (juce::Graphics& g)
+{
+    auto r = getLocalBounds().toFloat().reduced (2.0f);
+    const float d = juce::jmin (r.getWidth(), r.getHeight());
+    auto dot = r.withSizeKeepingCentre (d, d);
+
+    g.setColour (Palette::edge);
+    g.drawEllipse (dot, 1.0f);
+
+    if (! colour.isTransparent())
+    {
+        g.setColour (colour);
+        g.fillEllipse (dot.reduced (1.0f));
+    }
+}
+
 void LooperTab::refresh()
 {
     auto& l = looper();
+
+    // SPEC-SWEEP (GD-31): the LED follows the state on the panel's 20 Hz tick.
+    {
+        const auto c = ledColourFor (l.getState(), juce::Time::getMillisecondCounterHiRes());
+
+        if (c != statusLed.colour)
+        {
+            statusLed.colour = c;
+            statusLed.repaint();
+        }
+    }
 
     switch (l.getState())
     {
@@ -616,6 +665,7 @@ void LooperTab::resized()
     {
         RowLayout r { bounds.removeFromTop (Metrics::buttonHeight) };
 
+        statusLed.setBounds (r.take (18));   // SPEC-SWEEP GD-31
         transportButton.setBounds (r.take (110));
         stopButton.setBounds (r.take (64));
         clearButton.setBounds (r.take (64));
@@ -1562,6 +1612,18 @@ SessionRecorderSetup SessionTab::storedSetup()
     return SessionRecorderSetup::fromVar (defaults.extra["session_recorder"]);
 }
 
+void SessionTab::paint (juce::Graphics& g)
+{
+    // SPEC-SWEEP (GD-33): recorded / capacity.
+    if (fillBarBounds.isEmpty())
+        return;
+
+    g.setColour (Palette::panelSunken);
+    g.fillRect (fillBarBounds);
+    g.setColour (Palette::accent);
+    g.fillRect (fillBarBounds.withWidth (juce::roundToInt ((float) fillBarBounds.getWidth() * fillFraction)));
+}
+
 void SessionTab::refresh()
 {
     auto& recorder = processor.getSessionRecorder();
@@ -1575,6 +1637,17 @@ void SessionTab::refresh()
     statusLabel.setText (juce::String (recorded, 1) + " of " + juce::String (minutes, 1)
                            + " minutes held",
                          juce::dontSendNotification);
+
+    // SPEC-SWEEP (GD-33): the fill bar under it.
+    {
+        const auto fraction = (float) juce::jlimit (0.0, 1.0, minutes > 0.0 ? recorded / minutes : 0.0);
+
+        if (std::abs (fraction - fillFraction) > 1.0e-4f)
+        {
+            fillFraction = fraction;
+            repaint (fillBarBounds);
+        }
+    }
 
     // practice-tools 8 sizes the default at 1.4 GB, which this machine will not
     // allocate. The capacity is reported rather than the request, and the
@@ -1604,6 +1677,7 @@ void SessionTab::resized()
 
     bounds.removeFromTop (4);
     statusLabel.setBounds (bounds.removeFromTop (16));
+    fillBarBounds = bounds.removeFromTop (4).reduced (0, 1);   // SPEC-SWEEP GD-33
     warningLabel.setBounds (bounds.removeFromTop (16));
 }
 

@@ -347,3 +347,52 @@ LUTHIER_TEST (RhythmPatterns, handSpanIsASettingThatTravels)
     f.engine.processBlock (kBlock, f.transportAt (0), out);
     CHECK (out.getNumNoteOns() >= 3);
 }
+
+/*  RE-22 (rhythm-engine 2): triplet and dotted grids put each step on its own
+    sample - a sixteenth triplet every 1/6 beat, a dotted eighth every 3/4. */
+LUTHIER_TEST (RhythmPatterns, tripletAndDottedGridsLandOnTheirSamples)
+{
+    const double perBeat = 60.0 / 120.0 * kSr;
+
+    for (auto sub : { Subdivision::sixteenthTriplet, Subdivision::eighthDotted, Subdivision::sixteenthDotted })
+    {
+        SweepRhythmFixture f;
+        f.holdChord();
+
+        auto pattern = everyStep (StrumType::down);
+        pattern.setSubdivision (sub);
+        f.engine.setPattern (pattern);
+
+        auto notes = collectNoteOns (f, 200);
+        std::set<int64_t> starts;
+
+        for (const auto& n : notes)
+            starts.insert (n.first);
+
+        // One strum per step: the earliest note of each stroke.
+        std::vector<int64_t> strokes;
+
+        for (auto t : starts)
+            if (strokes.empty() || t - strokes.back() > 200)
+                strokes.push_back (t);
+
+        CHECK (strokes.size() >= 6);
+
+        const double stepSamples = perBeat / subdivisionsPerBeat (sub);
+        int worst = 0;
+
+        for (size_t i = 0; i < strokes.size(); ++i)
+        {
+            const double expected = (double) std::llround ((double) strokes[i] / stepSamples) * stepSamples;
+            worst = std::max (worst, (int) std::llabs (strokes[i] - (int64_t) std::llround (expected)));
+        }
+
+        CHECK_MSG (worst <= 1, juce::String (getSubdivisionName (sub)) + ": worst step error " + juce::String (worst));
+
+        if (strokes.size() >= 2)
+            CHECK_NEAR ((double) (strokes[1] - strokes[0]), stepSamples, 1.5);
+    }
+
+    CHECK_NEAR (subdivisionsPerBeat (Subdivision::eighthDotted), 4.0 / 3.0, 1.0e-12);
+    CHECK (juce::String (getSubdivisionName (Subdivision::sixteenthDotted)) == "16.");
+}

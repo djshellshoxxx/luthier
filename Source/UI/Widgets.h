@@ -110,6 +110,15 @@ struct LearnTarget
 /** A rotary control with its label below and its value above. */
 class ModArcHub;   // SPEC-SWEEP UW-35 (Widgets.cpp)
 
+/** SPEC-SWEEP (GD-30, gui-engine-dataflow 20): the 1 Hz pulse the armed MIDI
+    Learn button and the control being learned share - on for half a second,
+    off for half a second, on the same clock everywhere. */
+struct LearnPulse
+{
+    static bool isOn (double nowMs) noexcept { return ((juce::int64) (nowMs / 500.0) & 1) == 0; }
+    static bool isOnNow() noexcept { return isOn (juce::Time::getMillisecondCounterHiRes()); }
+};
+
 class LuthierKnob : public juce::Component,
                     public juce::SettableTooltipClient,
                     public LearnTarget
@@ -155,6 +164,11 @@ public:
     bool pollModulationArc();
     int getArcRepaintCount() const noexcept { return arcRepaints; }
 
+    /** GD-30: whether the learning outline is in its bright half, and the hub
+        tick that follows the pulse (also called by pollModulationArc). */
+    bool isLearnOutlineBright() const noexcept { return learnPulseOn; }
+    bool pollLearnPulse (double nowMs);
+
     /** Tests: poll even when the knob is not on screen. */
     void setPollArcWhileHidden (bool b) noexcept { pollWhileHidden = b; }
 
@@ -169,6 +183,7 @@ private:
     float lastArcNorm = 0.0f;
     int arcRepaints = 0;
     bool pollWhileHidden = false;
+    bool learnPulseOn = true, wasLearning = false;
     int modIndex = -1;
 
     class KnobSlider : public juce::Slider

@@ -275,6 +275,14 @@ void HeaderBar::changeListenerCallback (juce::ChangeBroadcaster*)
 
 void HeaderBar::timerCallback()
 {
+    // SPEC-SWEEP (GD-30): the armed MIDI Learn button pulses at 1 Hz.
+    if (midiLearnButton.getToggleState())
+    {
+        const bool on = LearnPulse::isOnNow();
+        midiLearnButton.setColour (juce::TextButton::buttonOnColourId,
+                                   Palette::accent.withAlpha (on ? 0.45f : 0.15f));
+    }
+
     updateUndoRedoState();
     updateRangePadlock();
 

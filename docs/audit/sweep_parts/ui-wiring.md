@@ -50,7 +50,7 @@ The attachment layer is solid. There is one APVTS, every standard control binds 
 | UW-44 (§17) | Missing parts fall back to factory defaults with a banner | `takeGuitarNotices` "missing-part" | notification banner | `GuitarMigration::anUnknownGuitarKeepsThePresetAndSaysSo` | DONE |
 | UW-45 (§18) | Every param change undoable; structural changes push compound entries — parameter gestures here; mod routes/patterns/snapshots/pedal moves on visual (undo tier 4) | `PluginProcessor::pushUndoState` | header Undo/Redo | `Undo::stepsOneActionAtATimeBothWays` | OWNED |
 | UW-46 (§18) | Workshop entries with real-unit strings | Workshop bench descriptions | Workshop | `WorkshopBench::aDragIsOneUndoEntryWithItsBeforeAndAfter` | DONE |
-| UW-47 (§18) | Undo per instance on the processor; UI listens for enable state + last-action tooltip | `PluginProcessor::canUndo/getUndoDescription` | `HeaderBar::updateUndoRedoState` | - | NO-TEST |
+| UW-47 (§18) | Undo per instance on the processor; UI listens for enable state + last-action tooltip | `PluginProcessor::canUndo/getUndoDescription` | `HeaderBar::updateUndoRedoState` | `Undo::theHeaderFollowsTheStack` | DONE |
 | UW-48 (§19) | Threading table; shared `juce::ThreadPool` of 2 for long tasks — spectrum delta own thread, notation export a 1-thread pool, IR/guitar loads on message thread | `SpectrumDelta`, `NotationPanel.cpp` l.76 | n/a | `ModelGapsUi::notationExportRunsOnAWorkerThread` | PARTIAL |
 | UW-49 (§20) | Every string from the catalog; LocaleChanged -> `refreshStrings`, no restart — ~12 `tr` uses in UI, `Localisation` has no broadcaster; Options locale change does not refresh panels | `Accessibility/Localisation` | Options LOCALIZATION `LocalizationPage` | `Localisation::catalogCoversTheUi` | PARTIAL |
 | UW-50 (§21) | Every attached control has an accessible name from its parameter — on visual: "accessible names on attached controls" (`Widgets.cpp` l.211, `AppearanceTests`) | - | - | - | OWNED |
@@ -60,7 +60,7 @@ The attachment layer is solid. There is one APVTS, every standard control binds 
 | UW-T2 (§23) | Test: 60 s session with message-manager lock detector, no audio-thread UI access — on visual `Engine::fiveMinutesOfPlaybackNeitherAllocatesNorLocks` covers locks/allocation only | `Support/ThreadProbe.h` | n/a | - | PARTIAL |
 | UW-T3 (§23) | Test: 20 presets x 10 random loads match an offline render | - | n/a | `Presets::audioIsIdenticalAfterARoundTrip`, `Combo::renderIsDeterministicAfterReset` (narrower) | PARTIAL |
 | UW-T4 (§23) | Test: 1000 random changes + undo/redo equal forward sequence — on visual: `Undo::randomWalkUndoesBackToTheStart`, `Stress::undoRedoThousandTimes` | - | - | - | OWNED |
-| UW-T5 (§23) | Test: arm + all 128 CCs map within one block | `MidiLearnManager` | n/a | `MidiLearn::mapsAndUnmapsCleanly` (few CCs) | PARTIAL |
+| UW-T5 (§23) | Test: arm + all 128 CCs map within one block | `MidiLearnManager` | n/a | `MidiLearn::everyCcLearnsWithinOneBlock` | DONE |
 | UW-T6 (§23) | Test: display FIFO at 10x drain for 60 s, no stall, oldest dropped | - | n/a | - | MISSING |
 | UW-T7 (§23) | Test: 100 random shadow auditions leave committed spec byte-identical | - | n/a | `WorkshopBench::auditionNeverCommits` (one audition) | PARTIAL |
 | UW-T8 (§23) | Test: every physical param toggled stock<->advanced 100x, clamps right, no audio allocation | `RangeState` | n/a | `Ranges::wideningPreservesEveryPlainValue`, `Ranges::narrowingClampsAndReportsTheCount` (single pass) | PARTIAL |

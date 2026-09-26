@@ -233,3 +233,50 @@ LUTHIER_TEST (InputRouting, ccsOnlyReachEnginesThroughTheInterpreter)
     CHECK ((int) rhythm.getVoicingStyle() == styleBefore);
     CHECK_NEAR (tuning.getEffectiveOpenFrequency (0), hzBefore, 0.01);   // tuning-stability drift is allowed; a CC-driven retune is not
 }
+
+/*  UW-T5 (ui-wiring 23): every CC except the pedals and channel-mode messages
+    the learner skips (64, 66, 120-127) is learned within one block, and the
+    next block drives the parameter. */
+LUTHIER_TEST (MidiLearn, everyCcLearnsWithinOneBlock)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& learn = processor.getMidiLearn();
+    auto* param = processor.getState().getParameter (ParamIDs::ampGain);
+    CHECK (param != nullptr);
+
+    if (param == nullptr)
+        return;
+
+    int failures = 0;
+
+    for (int cc = 0; cc < 120; ++cc)
+    {
+        if (cc == 64 || cc == 66)
+            continue;
+
+        learn.clearAllMappings();
+        learn.startLearning (ParamIDs::ampGain);
+
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::controllerEvent (1, cc, 10), 0);
+        render (processor, midi);
+        learn.dispatchPendingLearn();
+
+        if (learn.getCcForParameter (ParamIDs::ampGain) != cc)
+        {
+            ++failures;
+            continue;
+        }
+
+        midi.clear();
+        midi.addEvent (juce::MidiMessage::controllerEvent (1, cc, 127), 0);
+        render (processor, midi);
+
+        if (param->getValue() < 0.99f)
+            ++failures;
+    }
+
+    CHECK_MSG (failures == 0, juce::String (failures) + " CCs did not learn and drive within a block");
+}

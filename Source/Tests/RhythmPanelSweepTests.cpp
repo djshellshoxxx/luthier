@@ -57,3 +57,44 @@ LUTHIER_TEST (RhythmPanelUi, fingerpickGridTogglesAFingerStep)
     grid.mouseDown (clickAt (grid, cell));
     CHECK (! rhythm.getPattern().getFingerpickStep (step).active);
 }
+
+/*  RE-37 (rhythm-engine 8.7): with a chord held and the rhythm engine playing,
+    the indicators name the chord and show its voicing as dots. */
+LUTHIER_TEST (RhythmPanelUi, indicatorsShowChordVoicingAndNextStroke)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& rhythm = processor.getEngine().getRhythmEngine();
+    PatternLibrary patterns;
+    const auto strums = patterns.findByKind (RhythmPattern::Kind::strum);
+    CHECK (! strums.isEmpty());
+
+    if (strums.isEmpty())
+        return;
+
+    rhythm.setPattern (patterns.getPattern (strums[0]));
+    rhythm.setFreeRun (true);
+    rhythm.setEnabled (true);
+
+    juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumInputChannels(),
+                                                 processor.getTotalNumOutputChannels()), kBlock);
+
+    for (int block = 0; block < 20; ++block)
+    {
+        juce::MidiBuffer midi;
+
+        if (block == 0)
+            for (int n : { 48, 52, 55 })
+                midi.addEvent (juce::MidiMessage::noteOn (1, n, 0.8f), 0);
+
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+    }
+
+    RhythmIndicators indicators (processor);
+    indicators.refresh();
+
+    CHECK_MSG (indicators.getChordText().startsWith ("C"), "indicator chord was '" + indicators.getChordText() + "'");
+    CHECK (indicators.getNumVoicedDots() >= 3);
+}

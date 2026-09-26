@@ -220,6 +220,12 @@ public:
     ChordSymbol detectHeldChord() const noexcept { return detector.detect (detector.getHeldNotes(), detector.getNumHeldNotes()); }
     const ChordVoicing& getCurrentVoicing() const noexcept { return currentVoicing; }
     int getCurrentStep() const noexcept { return lastStepPlayed.load (std::memory_order_relaxed); }
+
+    /** SPEC-SWEEP (GD-10): blocks in which the engine drove the strings, so a
+        display can tell a live engine from one that has stopped reporting. */
+    juce::uint32 getDrivenBlockCount() const noexcept { return drivenBlocks.load (std::memory_order_relaxed); }
+    /** Strokes scheduled so far (the arrow flashes on each). */
+    juce::uint32 getStrokeCount() const noexcept { return strokesScheduled.load (std::memory_order_relaxed); }
     StrumType getNextStrumType() const noexcept { return (StrumType) nextStrumType.load (std::memory_order_relaxed); }
 
     //==========================================================================
@@ -313,6 +319,7 @@ private:
     bool driving = false;
 
     std::atomic<int> lastStepPlayed { -1 };
+    std::atomic<juce::uint32> drivenBlocks { 0 }, strokesScheduled { 0 };   // SPEC-SWEEP GD-10
     std::atomic<int> nextStrumType { (int) StrumType::rest };
 
     RtRandom rng { 0x12345678ull };

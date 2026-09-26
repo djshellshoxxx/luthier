@@ -35,6 +35,15 @@ class FretboardComponent : public juce::Component,
 public:
     /** SPEC-SWEEP (GD-2, gui-engine-dataflow 0.2): the spec's drain rate. */
     static constexpr int kRefreshHz = 60;
+
+    /** SPEC-SWEEP (GD-14, gui-engine-dataflow 6.4): the slide bar's alpha - 80%
+        of its fade-in opacity, dimmed to 60% of that once the bar has not moved
+        for kSlideStaleMs. */
+    static constexpr double kSlideStaleMs = 200.0;
+    static float slideBarAlpha (float opacity, double msSinceMove) noexcept
+    {
+        return 0.8f * opacity * (msSinceMove > kSlideStaleMs ? 0.6f : 1.0f);
+    }
     int getRefreshIntervalMs() const noexcept { return getTimerInterval(); }
 
     explicit FretboardComponent (LuthierAudioProcessor& processor);
@@ -98,6 +107,7 @@ private:
     double barFret = -1.0;
     float barOpacity = 0.0f;
     float barSlantDegrees = 0.0f;
+    double barLastMoveMs = 0.0, barLastTarget = -1.0;   // SPEC-SWEEP GD-14
     juce::Colour barColour;
 
 public:

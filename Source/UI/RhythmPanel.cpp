@@ -587,6 +587,7 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
 {
     buildGenreControls();
     buildVoicingControls();
+    buildGridControls();   // SPEC-SWEEP RE-22
 
     strumGrid = std::make_unique<StrumGrid> (processor);
     fingerpickGrid = std::make_unique<FingerpickGrid> (processor);
@@ -766,6 +767,43 @@ void RhythmPanel::buildVoicingControls()
 
     addAndMakeVisible (capoDown);
     addAndMakeVisible (capoUp);
+}
+
+// SPEC-SWEEP (RE-22, rhythm-engine 8.3): pattern length and subdivision.
+void RhythmPanel::buildGridControls()
+{
+    for (int length : { 4, 6, 8, 12, 16, 24, 32 })
+        lengthBox.addItem (juce::String (length) + " steps", length);
+
+    for (int i = 0; i < (int) Subdivision::numSubdivisions; ++i)
+        subdivisionBox.addItem (juce::String ("1/") + getSubdivisionName ((Subdivision) i), i + 1);
+
+    lengthBox.setTooltip ("Pattern length in grid steps. The grids show the first 16.");
+    subdivisionBox.setTooltip ("Grid: eighths, sixteenths, triplets, dotted notes or thirty-seconds.");
+
+    auto push = [this]
+    {
+        if (updatingControls)
+            return;
+
+        auto pattern = rhythm().getPattern();
+
+        if (lengthBox.getSelectedId() > 0)
+            pattern.setLength (lengthBox.getSelectedId());
+
+        if (subdivisionBox.getSelectedId() > 0)
+            pattern.setSubdivision ((Subdivision) (subdivisionBox.getSelectedId() - 1));
+
+        rhythm().setPattern (pattern);
+        strumGrid->refresh();
+        fingerpickGrid->refresh();
+    };
+
+    lengthBox.onChange = push;
+    subdivisionBox.onChange = push;
+
+    addAndMakeVisible (lengthBox);
+    addAndMakeVisible (subdivisionBox);
 }
 
 void RhythmPanel::buildFeelControls()
@@ -978,6 +1016,12 @@ void RhythmPanel::refreshFromEngine()
     handPositionSlider.setValue (engine.getHandPositionHint(), juce::dontSendNotification);
     handSpanSlider.setValue (engine.getHandSpan(), juce::dontSendNotification);   // SPEC-SWEEP RE-12
 
+    {   // SPEC-SWEEP RE-22
+        const auto current = engine.getPattern();
+        lengthBox.setSelectedId (current.getLength(), juce::dontSendNotification);
+        subdivisionBox.setSelectedId ((int) current.getSubdivision() + 1, juce::dontSendNotification);
+    }
+
     const int capo = engine.getCapoFret();
     capoLabel.setText (capo == 0 ? "Capo: off" : "Capo: fret " + juce::String (capo),
                        juce::dontSendNotification);
@@ -1027,7 +1071,7 @@ int RhythmPanel::preferredHeight() const
          + 16 + 26                               // genre heading + kit row
          + 12                                    // rig hint
          + 16 + 26 + 22 + 22 + 22 + 26           // voicing heading + controls (+ hand span, RE-12)
-         + 16 + StrumGrid::preferredHeight       // strum grid
+         + 16 + 24 + 2 + StrumGrid::preferredHeight   // strum grid (+ length/grid row, RE-22)
          + 16 + FingerpickGrid::preferredHeight  // fingerpick grid
          + 16 + 22 * 5                           // feel heading + five sliders
          + StrumGroup::preferredHeight + 4       // STRUM group
@@ -1092,6 +1136,12 @@ void RhythmPanel::resized()
 
     // ---- pattern editors -----------------------------------------------------------
     strumHeading.setBounds (row (16));
+    {   // SPEC-SWEEP RE-22
+        auto r = row (24);
+        lengthBox.setBounds (r.removeFromLeft (r.getWidth() / 2 - 2));
+        r.removeFromLeft (4);
+        subdivisionBox.setBounds (r);
+    }
     strumGrid->setBounds (row (StrumGrid::preferredHeight));
 
     pickHeading.setBounds (row (16));

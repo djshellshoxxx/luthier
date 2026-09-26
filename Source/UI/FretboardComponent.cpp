@@ -170,8 +170,16 @@ void FretboardComponent::timerCallback()
         const auto& slide = engine.getSlideEngine();
         const double target = slide.getOverlayFret();
 
-        // 80 ms ease at the 30 Hz this runs at.
-        const double ease = 1.0 - std::exp (-(1.0 / 30.0) / 0.080);
+        // 80 ms ease at the rate this runs at (SPEC-SWEEP GD-2: 60 Hz now).
+        const double ease = 1.0 - std::exp (-(1.0 / (double) kRefreshHz) / 0.080);
+
+        // SPEC-SWEEP (GD-14): when the bar last moved, for the stale dim.
+        if (std::abs (target - barLastTarget) > 1.0e-4)
+        {
+            barLastTarget = target;
+            barLastMoveMs = juce::Time::getMillisecondCounterHiRes();
+            changed = true;
+        }
 
         if (target >= 0.0)
         {
@@ -475,7 +483,8 @@ void FretboardComponent::paint (juce::Graphics& g)
         bar.applyTransform (juce::AffineTransform::rotation (juce::degreesToRadians (barSlantDegrees))
                               .translated (centre));
 
-        g.setColour (barColour.withAlpha (0.8f * barOpacity));
+        g.setColour (barColour.withAlpha (slideBarAlpha (barOpacity,
+                                                          juce::Time::getMillisecondCounterHiRes() - barLastMoveMs)));
         g.fillPath (bar);
     }
 

@@ -24,6 +24,7 @@
 #include "CircuitPanel.h"
 #include "AmpFacePanel.h"
 #include "PanelHelpButton.h"
+#include "NextStrumArrow.h"   // SPEC-SWEEP GD-10
 
 namespace luthier
 {
@@ -104,9 +105,13 @@ public:
 
     /** 3.5's readout: the chord and the next strum's arrow. */
     juce::String getRhythmReadout() const { return rhythmReadout.getText(); }
+    NextStrumArrow* getNextStrumArrow() noexcept { return nextStrumArrow.get(); }   // SPEC-SWEEP GD-10
 
     /** For tests: the rhythm strip's Feel knob. */
     juce::Slider& getRhythmFeelSlider() noexcept { return rhythmFeelSlider; }
+    juce::ComboBox& getRhythmGenreBox() noexcept { return rhythmGenreBox; }         // SPEC-SWEEP RE-38
+    juce::String getRhythmHintText() const { return rhythmHintLabel.getText(); }    // SPEC-SWEEP RE-38
+    void refreshRhythmStripForTest() { refreshRhythmStrip(); }                        // SPEC-SWEEP RE-38
 
     /** 3.5's dice: a random genre kit. */
     void rollRhythmDice();
@@ -162,6 +167,7 @@ private:
     juce::Slider rhythmFeelSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
     juce::TextButton rhythmEnableButton { "OFF" };
     juce::Label rhythmHintLabel, rhythmReadout;
+    std::unique_ptr<NextStrumArrow> nextStrumArrow;   // SPEC-SWEEP GD-10
 
     // ---- rig strip (3.2) ---------------------------------------------------------------
     LuthierKnob guitarVolumeKnob { "Volume", LuthierKnob::Size::Small };

@@ -404,8 +404,13 @@ void EasyPanel::buildRhythmStrip()
     rhythmReadout.setFont (Fonts::mono (13.0f));
     rhythmReadout.setColour (juce::Label::textColourId, Palette::accent);
     rhythmReadout.setJustificationType (juce::Justification::centredRight);
-    rhythmReadout.setTooltip ("The chord the rhythm engine is playing, and the next strum");
+    rhythmReadout.setTooltip ("The chord the rhythm engine is playing");
     addAndMakeVisible (rhythmReadout);
+
+    // SPEC-SWEEP (GD-10): the next strum is its own 60 Hz arrow now.
+    nextStrumArrow = std::make_unique<NextStrumArrow> (processor);
+    nextStrumArrow->setTooltip ("The next strum's direction; it flashes on each stroke");
+    addAndMakeVisible (*nextStrumArrow);
 
     refreshRhythmStrip();
 }
@@ -450,13 +455,9 @@ void EasyPanel::refreshRhythmStrip()
 
     if (on)
     {
+        // SPEC-SWEEP (GD-10): the arrow is NextStrumArrow's; this is the chord.
         const auto chord = processor.getEngine().getLastChordName();
-        const auto next = engine.getNextStrumType();
-        const auto arrow = next == StrumType::down || next == StrumType::downMute ? juce::String::fromUTF8 ("\xe2\x86\x93")
-                         : next == StrumType::up || next == StrumType::upMute     ? juce::String::fromUTF8 ("\xe2\x86\x91")
-                         : next == StrumType::rest                                ? juce::String ("-")
-                                                                                  : juce::String ("~");
-        readout = (chord.isNotEmpty() ? chord : juce::String ("--")) + "  " + arrow;
+        readout = chord.isNotEmpty() ? chord : juce::String ("--");
     }
 
     rhythmReadout.setText (readout, juce::dontSendNotification);
@@ -698,7 +699,8 @@ void EasyPanel::resized()
         r.removeFromLeft (Metrics::grid);
         rhythmEnableButton.setBounds (r.removeFromLeft (52));
         r.removeFromLeft (Metrics::grid);
-        rhythmReadout.setBounds (r.removeFromRight (110));
+        nextStrumArrow->setBounds (r.removeFromRight (20));   // SPEC-SWEEP GD-10
+        rhythmReadout.setBounds (r.removeFromRight (90));
         rhythmHintLabel.setBounds (r.removeFromRight (110));
         rhythmFeelSlider.setBounds (r);
     }

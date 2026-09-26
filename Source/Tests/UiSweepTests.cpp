@@ -13,6 +13,11 @@
 #include "../UI/RoutingPanel.h"
 #include "../UI/CircuitPanel.h"
 #include "../UI/EasyPanel.h"
+#include "../UI/HeaderBar.h"
+#include "../UI/SetupGroup.h"
+#include "../UI/PracticePanel.h"
+#include "../UI/NextStrumArrow.h"
+#include "../Rhythm/Patterns.h"
 #include "../Accessibility/Accessibility.h"
 
 using namespace luthier;
@@ -465,4 +470,282 @@ LUTHIER_TEST (Widgets, doubleClickReturnsAKnobToItsDefault)
     const auto range = processor.getState().getParameterRange (ParamIDs::ampGain);
     auto* param = processor.getState().getParameter (ParamIDs::ampGain);
     CHECK_NEAR (slider.getDoubleClickReturnValue(), range.convertFrom0to1 (param->getDefaultValue()), 1.0e-3);
+}
+
+/*  RE-38 (rhythm-engine 8, gui-integration 3.5): picking a kit in the Easy
+    strip turns the rhythm engine on with that kit; outside Poly mode the strip
+    says it needs Poly. */
+LUTHIER_TEST (EasyLayout, theRhythmStripEnablesAKitAndHintsInMono)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    EasyPanel panel (processor);
+
+    auto& rhythm = processor.getEngine().getRhythmEngine();
+    rhythm.setEnabled (false);
+
+    auto& box = panel.getRhythmGenreBox();
+    CHECK (box.getNumItems() > 0);
+    box.setSelectedId (1, juce::sendNotificationSync);
+
+    CHECK (rhythm.isEnabled());
+    CHECK (! rhythm.getPattern().isEmpty());
+
+    if (auto* mode = processor.getState().getParameter (ParamIDs::playingMode))
+    {
+        mode->setValueNotifyingHost (mode->convertTo0to1 (0.0f));   // Mono
+        panel.refreshRhythmStripForTest();
+        CHECK_MSG (panel.getRhythmHintText().isNotEmpty(), "no hint in Mono");
+
+        mode->setValueNotifyingHost (mode->convertTo0to1 (1.0f));   // Poly
+        panel.refreshRhythmStripForTest();
+        CHECK (panel.getRhythmHintText().isEmpty());
+    }
+}
+
+namespace
+{
+    juce::TextButton* headerButton (juce::Component& root, const juce::String& text)
+    {
+        for (auto* child : root.getChildren())
+        {
+            if (auto* b = dynamic_cast<juce::TextButton*> (child); b != nullptr && b->getButtonText() == text)
+                return b;
+
+            if (auto* found = headerButton (*child, text))
+                return found;
+        }
+
+        return nullptr;
+    }
+}
+
+/*  UW-47 (ui-wiring 18): the header's undo button follows this instance's
+    stack: enabled with "Undo <what>", and "Nothing to undo" once undone. */
+LUTHIER_TEST (Undo, theHeaderFollowsTheStack)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    processor.pushUndoState ("Test");
+
+    HeaderBar header (processor);
+    auto* undo = headerButton (header, "Undo");
+    CHECK (undo != nullptr);
+
+    if (undo == nullptr)
+        return;
+
+    CHECK (undo->isEnabled());
+    CHECK_MSG (undo->getTooltip() == "Undo Test", "tooltip was '" + undo->getTooltip() + "'");
+
+    undo->onClick();
+    CHECK (! undo->isEnabled());
+    CHECK (undo->getTooltip() == "Nothing to undo");
+
+    // Per instance: another processor's header has nothing to undo.
+    LuthierAudioProcessor other;
+    HeaderBar otherHeader (other);
+
+    if (auto* otherUndo = headerButton (otherHeader, "Undo"))
+        CHECK (! otherUndo->isEnabled());
+}
+
+/*  GD-29 (gui-engine-dataflow 19): the A/B buttons show the active slot, and
+    clicking one switches the processor's slot. */
+LUTHIER_TEST (Editor, abButtonsHighlightTheActiveSlot)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    HeaderBar header (processor);
+
+    auto* a = headerButton (header, "A");
+    auto* b = headerButton (header, "B");
+    CHECK (a != nullptr && b != nullptr);
+
+    if (a == nullptr || b == nullptr)
+        return;
+
+    processor.setSlotBActive (true);
+    header.refreshPresetDisplay();
+    CHECK (b->getToggleState());
+    CHECK (! a->getToggleState());
+
+    a->onClick();
+    CHECK (! processor.isSlotBActive());
+    CHECK (a->getToggleState());
+    CHECK (! b->getToggleState());
+}
+
+/*  GD-30 (gui-engine-dataflow 20): while armed, the control being learned
+    pulses at 1 Hz - bright for half a second, dim for half a second. */
+LUTHIER_TEST (MidiLearn, armedButtonAndTargetPulse)
+{
+    LuthierAudioProcessor processor;
+    LuthierKnob knob ("Gain");
+    knob.attachTo (processor, ParamIDs::ampGain);
+
+    CHECK (LearnPulse::isOn (0.0));
+    CHECK (! LearnPulse::isOn (600.0));
+    CHECK (LearnPulse::isOn (1100.0));
+
+    processor.getMidiLearn().startLearning (ParamIDs::ampGain);
+
+    CHECK (knob.pollLearnPulse (100.0));
+    CHECK (knob.isLearnOutlineBright());
+    CHECK (knob.pollLearnPulse (600.0));
+    CHECK (! knob.isLearnOutlineBright());
+    CHECK (! knob.pollLearnPulse (700.0));   // no repaint inside a half-period
+    CHECK (knob.pollLearnPulse (1050.0));
+    CHECK (knob.isLearnOutlineBright());
+
+    processor.getMidiLearn().cancelLearning();
+    knob.pollLearnPulse (1100.0);
+    CHECK (! knob.isLearnOutlineBright());
+}
+
+/*  GD-13 (gui-engine-dataflow 6.3): the buzz heatmap is stale after 500 ms
+    without a change and fades out over 200 ms rather than switching off. */
+LUTHIER_TEST (BuzzUi, theHeatmapFadesWhenStale)
+{
+    CHECK_NEAR (BuzzHeatmap::freshnessFor (0.0), 1.0f, 1.0e-6);
+    CHECK_NEAR (BuzzHeatmap::freshnessFor (0.5), 1.0f, 1.0e-6);
+    CHECK_NEAR (BuzzHeatmap::freshnessFor (0.6), 0.5f, 1.0e-3);
+    CHECK_NEAR (BuzzHeatmap::freshnessFor (0.7), 0.0f, 1.0e-6);
+    CHECK_NEAR (BuzzHeatmap::freshnessFor (5.0), 0.0f, 1.0e-6);
+
+    LuthierAudioProcessor processor;
+    BuzzHeatmap heatmap (processor);
+    CHECK (heatmap.isStale());   // never changed
+}
+
+/*  GD-14 (gui-engine-dataflow 6.4): the slide bar draws at 80% while moving and
+    freezes at 60% of that after 200 ms without movement. */
+LUTHIER_TEST (SlideUi, theBarFreezesDimmedWhenStale)
+{
+    CHECK_NEAR (FretboardComponent::slideBarAlpha (1.0f, 0.0), 0.8f, 1.0e-6);
+    CHECK_NEAR (FretboardComponent::slideBarAlpha (1.0f, 150.0), 0.8f, 1.0e-6);
+    CHECK_NEAR (FretboardComponent::slideBarAlpha (1.0f, 250.0), 0.48f, 1.0e-6);
+    CHECK_NEAR (FretboardComponent::slideBarAlpha (0.5f, 250.0), 0.24f, 1.0e-6);
+}
+
+/*  GD-31 (gui-engine-dataflow 21): the looper LED is red and pulsing at 4 Hz
+    while recording or overdubbing, green while playing, off when stopped. */
+LUTHIER_TEST (PracticeDrawer, theLooperLedFollowsTheState)
+{
+    using S = Looper::State;
+
+    CHECK (LooperTab::ledColourFor (S::stopped, 0.0).isTransparent());
+    CHECK (LooperTab::ledColourFor (S::playing, 0.0).getGreen() > LooperTab::ledColourFor (S::playing, 0.0).getRed());
+
+    for (auto s : { S::recordingFirst, S::overdubbing })
+    {
+        const auto a = LooperTab::ledColourFor (s, 0.0);
+        const auto b = LooperTab::ledColourFor (s, 130.0);   // half a 4 Hz period later
+        const auto c = LooperTab::ledColourFor (s, 260.0);
+
+        CHECK (a.getRed() > a.getGreen());
+        CHECK (a.getAlpha() > b.getAlpha());
+        CHECK (a == c);
+    }
+
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    LooperTab tab (processor);
+    tab.refresh();
+    CHECK (tab.getLedColour().isTransparent());
+}
+
+/*  GD-33 (gui-engine-dataflow 23): the session tab's fill bar is recorded over
+    capacity. */
+LUTHIER_TEST (PracticeDrawer, theSessionFillBarIsRecordedOverCapacity)
+{
+    LuthierAudioProcessor processor;
+    processor.setRateAndBufferSizeDetails (kSr, kBlock);   // as a host does; the tab reads getSampleRate()
+    processor.prepareToPlay (kSr, kBlock);
+    processor.setPracticePanelOpen (true);
+
+    SessionTab tab (processor);
+    tab.setSize (400, 300);
+    tab.refresh();
+    CHECK_NEAR (tab.getFillFraction(), 0.0f, 1.0e-6);
+
+    auto& recorder = processor.getSessionRecorder();
+
+    // The way the drawer turns it on (it sizes the ring first).
+    tab.getEnableToggle().getButton().setToggleState (true, juce::dontSendNotification);
+    tab.getEnableToggle().getButton().onClick();
+    CHECK (recorder.isEnabled());
+
+    juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumInputChannels(),
+                                                 processor.getTotalNumOutputChannels()), kBlock);
+
+    for (int i = 0; i < 400; ++i)   // about 4 s
+    {
+        juce::MidiBuffer midi;
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+    }
+
+    tab.refresh();
+
+    const double expected = ((double) recorder.getRecordedSamples() / kSr / 60.0)
+                              / juce::jmax (1.0e-9, recorder.getCapacityMinutes());
+    CHECK (tab.getFillFraction() > 0.0f);
+    CHECK_NEAR (tab.getFillFraction(), (float) expected, 1.0e-3);
+}
+
+/*  GD-10 (gui-engine-dataflow 5): the next-strum arrow flashes on each stroke
+    and hides when the rhythm engine has not reported for 500 ms. */
+LUTHIER_TEST (EasyLayout, theNextStrumArrowFlashesAndHides)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& rhythm = processor.getEngine().getRhythmEngine();
+    PatternLibrary patterns;
+    const auto strums = patterns.findByKind (RhythmPattern::Kind::strum);
+    CHECK (! strums.isEmpty());
+
+    if (strums.isEmpty())
+        return;
+
+    rhythm.setPattern (patterns.getPattern (strums[0]));
+    rhythm.setFreeRun (true);
+    rhythm.setEnabled (true);
+
+    NextStrumArrow arrow (processor);
+    CHECK (NextStrumArrow::kRefreshHz == 60);
+    arrow.tick (0.0);
+    CHECK (! arrow.isShown());
+
+    juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumInputChannels(),
+                                                 processor.getTotalNumOutputChannels()), kBlock);
+    bool flashed = false;
+    double now = 0.0;
+
+    for (int block = 0; block < 200 && ! flashed; ++block)
+    {
+        juce::MidiBuffer midi;
+
+        if (block == 0)
+            for (int n : { 48, 52, 55 })
+                midi.addEvent (juce::MidiMessage::noteOn (1, n, 0.8f), 0);
+
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+
+        now += 1000.0 * kBlock / kSr;
+        arrow.tick (now);
+        flashed = arrow.isFlashing();
+    }
+
+    CHECK (arrow.isShown());
+    CHECK_MSG (flashed, "the arrow never flashed on a stroke");
+
+    arrow.tick (now + 100.0);
+    CHECK (! arrow.isFlashing());   // a flash is brief
+    CHECK (arrow.isShown());
+
+    arrow.tick (now + 600.0);   // no block for 600 ms
+    CHECK (! arrow.isShown());
 }

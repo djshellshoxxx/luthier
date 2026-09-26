@@ -446,8 +446,28 @@ LuthierKnob::~LuthierKnob()
     attachment.reset();
 }
 
+bool LuthierKnob::pollLearnPulse (double nowMs)
+{
+    const bool learningThis = processor != nullptr && processor->getMidiLearn().isLearning()
+                               && processor->getMidiLearn().getLearningParameterId() == paramId;
+
+    const bool on = learningThis && LearnPulse::isOn (nowMs);
+
+    if (learningThis == wasLearning && on == learnPulseOn)
+        return false;
+
+    wasLearning = learningThis;
+    learnPulseOn = on;
+    repaint();
+    return true;
+}
+
 bool LuthierKnob::pollModulationArc()
 {
+    // SPEC-SWEEP (GD-30): the learning outline pulses on the hub's clock.
+    if (processor != nullptr && (pollWhileHidden || isShowing()))
+        pollLearnPulse (juce::Time::getMillisecondCounterHiRes());
+
     if (processor == nullptr || modIndex < 0 || ! (pollWhileHidden || isShowing()))
         return false;
 
@@ -695,7 +715,8 @@ void LuthierKnob::paint (juce::Graphics& g)
     if (processor != nullptr && processor->getMidiLearn().isLearning()
         && processor->getMidiLearn().getLearningParameterId() == paramId)
     {
-        g.setColour (Palette::secondary.withAlpha (0.65f));
+        // SPEC-SWEEP (GD-30): at 1 Hz with the header's MIDI Learn button.
+        g.setColour (Palette::secondary.withAlpha (learnPulseOn ? 0.85f : 0.3f));
         g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (1.0f), Metrics::panelCorner, 1.5f);
     }
 }

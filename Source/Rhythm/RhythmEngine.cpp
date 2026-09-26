@@ -637,6 +637,7 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
     }
 
     nextStrumType.store ((int) step.type, std::memory_order_relaxed);
+    strokesScheduled.fetch_add (1, std::memory_order_relaxed);   // SPEC-SWEEP GD-10
 }
 
 void RhythmEngine::scheduleFingerpick (const FingerpickStep& step, int sampleOffset,
@@ -749,6 +750,7 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
 
     wasPlaying = transport.isPlaying;
     driving = true;
+    drivenBlocks.fetch_add (1, std::memory_order_relaxed);   // SPEC-SWEEP GD-10
 
     // bass-techniques 9 (MODEL-GAPS): on a bass, a grid with steps in it plays.
     if (isBassGridActive())

@@ -15,3 +15,6 @@
 - [RE-35] Swing now places the offbeat at swing x the pair (0.66 means triplet feel). Before, it moved only half as far. The 50-75% slider range stays; spec 5 says 0-100%, but values below 50% would pull the offbeat early.
 - [RE-12] The hand span (3-7, default 5) is a rhythm-engine setting saved in the rhythm blob. The Wide style adds one fret.
 - [PR-13] `NEEDS_MIDI_OUTPUT TRUE`. The test target is a console app without the JucePlugin_* defines, so `PluginBuses::midiOutputIsDeclaredToTheHost` reads CMakeLists.txt.
+- [env] The shared `/home/user/luthier/ThirdParty/JUCE` became a symlink to itself partway through the sweep, which broke every worktree build. This worktree now has its own untracked clones of JUCE 8.0.10 and clap-juce-extensions@55525c9 (the versions `scripts/ci_build.sh` pins) in `ThirdParty/`.
+- [GD-10] The next-strum arrow is a separate component (`UI/NextStrumArrow`). The Easy rhythm readout now shows only the chord.
+- [GD-26] Deferred: a `kill_switch_active` parameter would be a new automatable parameter. The momentary toggle it needs (UW-14) is in place.

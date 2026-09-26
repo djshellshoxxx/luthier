@@ -101,11 +101,24 @@ public:
     void refresh() override;
     void resized() override;
 
+    /** SPEC-SWEEP (GD-31, gui-engine-dataflow 21): the looper's status LED -
+        red pulsing at 4 Hz while recording or overdubbing, green while playing,
+        unlit (transparent) when stopped. */
+    static juce::Colour ledColourFor (Looper::State state, double nowMs) noexcept;
+    juce::Colour getLedColour() const noexcept { return statusLed.colour; }
+
 private:
     Looper& looper();
 
+    struct StatusLed : public juce::Component
+    {
+        juce::Colour colour { juce::Colours::transparentBlack };
+        void paint (juce::Graphics& g) override;
+    };
+
     juce::TextButton transportButton { "Record" }, stopButton { "Stop" }, clearButton { "Clear" };
     juce::Label statusLabel;
+    StatusLed statusLed;   // SPEC-SWEEP GD-31
 
     /** One strip per layer: select, mute, mode, level, pan, and undo. */
     struct LayerStrip
@@ -294,8 +307,15 @@ public:
     LuthierToggle& getEnableToggle() noexcept { return *enableToggle; }
     juce::String getStatusText() const { return statusLabel.getText(); }
 
+    /** SPEC-SWEEP (GD-33, gui-engine-dataflow 23): recorded / capacity, drawn as
+        a fill bar under the status line. */
+    float getFillFraction() const noexcept { return fillFraction; }
+    void paint (juce::Graphics&) override;
+
 private:
     bool saveTake();
+    float fillFraction = 0.0f;
+    juce::Rectangle<int> fillBarBounds;
 
     SaveButton saveButton { *this };
     juce::TextButton openFolderButton { "Open folder" };
