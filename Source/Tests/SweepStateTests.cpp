@@ -6,6 +6,7 @@
 
 #include "../PluginProcessor.h"
 #include "../Support/ErrorLog.h"
+#include "../UI/UiPreferences.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -392,4 +393,76 @@ LUTHIER_TEST (Presets, savingAFactoryPresetMakesAUserCopy)
                "the save did not become a user preset");
 
     expected.deleteFile();
+}
+
+//==============================================================================
+/*  ER-65/66 (error-recovery 10): a preferences file that does not parse, or
+    names a newer schema, is set aside and the defaults used, once, with a
+    notice for the window. */
+LUTHIER_TEST (UiPreferences, aCorruptFileIsBackedUpAndReset)
+{
+    const auto file = UiPreferences::getConfigFile();
+    const bool existed = file.existsAsFile();
+    const auto original = existed ? file.loadFileAsString() : juce::String();
+
+    auto asideCount = [&]
+    {
+        return file.getParentDirectory().findChildFiles (juce::File::findFiles, false,
+                                                         file.getFileName() + ".corrupted-*").size();
+    };
+
+    const int before = asideCount();
+    auto& prefs = UiPreferences::get();
+
+    for (const auto* text : { "{ this is not json", "{ \"schema\": 99, \"someKey\": 5 }" })
+    {
+        file.getParentDirectory().createDirectory();
+        file.replaceWithText (text);
+        prefs.takeCorruptionNotice();
+
+        CHECK (! prefs.load());
+        CHECK_MSG (prefs.takeCorruptionNotice(), juce::String ("no notice for: ") + text);
+        CHECK_MSG (! prefs.takeCorruptionNotice(), "the notice was given twice");
+        CHECK_MSG (! file.existsAsFile(), "the corrupt file was left in place");
+        CHECK (prefs.getInt ("someKey", -1) == -1);
+    }
+
+    CHECK_MSG (asideCount() == before + 2, "the corrupt files were not kept aside");
+
+    for (const auto& f : file.getParentDirectory().findChildFiles (juce::File::findFiles, false,
+                                                                  file.getFileName() + ".corrupted-*"))
+        f.deleteFile();
+
+    if (existed) file.replaceWithText (original);
+    else         file.deleteFile();
+
+    prefs.reset();
+    prefs.load();
+    prefs.takeCorruptionNotice();
+}
+
+//==============================================================================
+/*  ER-79 (error-recovery 12): the startup sweep removes month logs older than
+    the retention. */
+LUTHIER_TEST (ErrorLog, oldLogsArePrunedAtStartup)
+{
+    auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-errorlog-prune-test");
+    folder.deleteRecursively();
+    folder.createDirectory();
+
+    ErrorLog::setFolderForTesting (folder);
+
+    const auto thisMonth = ErrorLog::getLogFile (juce::Time::getCurrentTime());
+    const auto old = folder.getChildFile ("errors-201901.log");
+    thisMonth.replaceWithText ("{}\n");
+    old.replaceWithText ("{}\n");
+
+    // What the processor's startup does.
+    { LuthierAudioProcessor processor; }
+
+    CHECK_MSG (! old.existsAsFile(), "a 2019 log survived the startup sweep");
+    CHECK_MSG (thisMonth.existsAsFile(), "the sweep deleted this month's log");
+
+    ErrorLog::setFolderForTesting ({});
+    folder.deleteRecursively();
 }

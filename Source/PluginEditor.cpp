@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "UI/UiPreferences.h"   // SPEC-SWEEP: ER-65
 #include "UI/FirstRun.h"
 #include "UI/RangesUi.h"
 #include "Accessibility/Accessibility.h"
@@ -1008,6 +1009,16 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         n.id = "midi-learn-timeout";
         n.message = "MIDI Learn cancelled (no MIDI received).";
         n.level = Notification::Level::info;
+        notifications.post (std::move (n));
+    }
+
+    // ---- SPEC-SWEEP: ER-65 - preferences that could not be read -------------
+    if (UiPreferences::get().takeCorruptionNotice())
+    {
+        Notification n;
+        n.id = "preferences-reset";
+        n.message = "Preferences reset (previous file corrupted, backed up).";
+        n.level = Notification::Level::warning;
         notifications.post (std::move (n));
     }
 
