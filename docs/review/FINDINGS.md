@@ -100,6 +100,7 @@ unless stated otherwise.
 | R-225 | low | Source/UI/Overlays.cpp:384-386 | Debug stream "trim" empties the view (`fromLastOccurrenceOf("\n")` of text ending in a newline). Keep the tail instead. | reported-for-claude/luthier-tune-help, -visual, -techniques |
 
 | R-226 | medium | ASan full run (asan-tests3) | One intermittent SEGV in `juce::String` release inside `setPracticeStatsFile` on a freshly constructed processor (PracticeDrawerTests), not reproduced alone or in the next full run: points at a background thread or timer from an earlier test writing into freed/reused memory. Candidates: R-213 (export instance timer), R-101/R-102 update-check threads. | open (investigating) |
+| R-227 | medium | Source/Tests/FeedbackTests.cpp:246 (feedback / string pitch) | `Feedback::eachStringHearsItsOwnNote` fails on the merged tree (octave bias 1: the feedback peaks at 444.1 Hz, 18.6 cents from the 439.3 Hz target). It passed on this branch before merging REALISM-A/B/C and techniques, so the pitch the loop tracks and the pitch the string plays have drifted apart in the merged engine (candidates: aging detune / tuning-stability pitch terms not reaching FeedbackLoop's tracked frequency). | open (merge regression; owner: realism workstream) |
 
 ## Feature branches (claude/luthier-feat-*), reviewed before merge — report only
 

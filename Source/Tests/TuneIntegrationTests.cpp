@@ -475,6 +475,10 @@ namespace
             block.clear();
             juce::MidiBuffer midi;
             p.processBlock (block, midi);
+
+            // What the processor's timer does: a snapshot recall's crossfade
+            // is applied on the message thread (SnapshotBank::advancePending).
+            p.getSnapshots().advancePending();
         }
     }
 }
