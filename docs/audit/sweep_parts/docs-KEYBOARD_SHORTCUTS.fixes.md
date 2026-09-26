@@ -6,4 +6,3 @@
 - [KS-24] effort S — extract the fretboard menu's result handling into a callable (`applyMenuResult(s,f,id)`) and test mute/select/capo(sets `capoFret` param)/scale overlay.
 - [KS-25] effort S — add `Editor::illustrationClicksSelectPickupAndStepSwitch`: `mouseDown` on the `selector` hit area advances `pickupSelector`; on `pickupBridge` sets Bridge; drag in `controls` changes volume.
 - [KS-26] effort S — add `PedalRack::dragOntoAnotherSlotReorders` (call `onReorderRequested(0,1)` / mouseDrag+mouseUp between slots, CHECK slot types swap in params) and clear/reset menu results.
-- [KS-27] effort S — extend `Editor::everyOverlayShortcutOpens...`: close one via `OverlayHost::mouseDown` on the scrim and one via its Close button `onClick`.

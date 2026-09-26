@@ -30,6 +30,6 @@ Every binding the doc lists exists in `AccessibilitySettings` with the documente
 | KS-24 (Fretboard) | Right-click: mute string, select string, set capo, scale overlay | `FretboardComponent::mouseDown` popup, `setCapoFret` drives `capoFret` param | fretboard | - | NO-TEST |
 | KS-25 (Illustration) | Click pickup selects it; click switch advances position; drag knob = volume/tone | `GuitarBodyComponent::mouseDown/mouseDrag` | guitar illustration | `Editor::everyHitRegionOnTheIllustrationDescribesItself` (tooltips only) | NO-TEST |
 | KS-26 (Pedal rack) | Drag slot onto another reorders; right-click clear slot / reset pedal | `PedalRack.cpp:PedalSlotComponent::mouseUp/onReorderRequested`, `PedalRack::reorder`; menu items 1/2 | Advanced pedal rack | `Effects::chainReordersWithoutGlitching` (engine only) | NO-TEST |
-| KS-27 (Overlay) | Escape, click outside, Close button all close; only one overlay at a time | `Overlays.cpp:OverlayHost::mouseDown/dismiss`, `closeButton` | every overlay | `Editor::everyOverlayShortcutOpens...` (Escape + one-at-a-time) | NO-TEST |
+| KS-27 (Overlay) | Escape, click outside, Close button all close; only one overlay at a time | `Overlays.cpp:OverlayHost::mouseDown/dismiss`, `closeButton` | every overlay | `Editor::overlaysCloseFromTheScrimAndTheirCloseButton` | DONE |
 
 <!-- counts DONE=7 NO-GUI=0 NO-TEST=18 PARTIAL=2 MISSING=0 OWNED=0 -->

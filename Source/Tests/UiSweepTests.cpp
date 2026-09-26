@@ -781,3 +781,74 @@ LUTHIER_TEST (Editor, pageKeysStepTheSetlist)
     CHECK (player.getPosition() == 0);
 }
 
+
+/*  KS-27 / IR-17 (docs/KEYBOARD_SHORTCUTS.md "In an overlay"): every overlay
+    closes by Escape (covered elsewhere), by a click outside it on the scrim,
+    and by its Close button. A click inside the panel does not close it. */
+LUTHIER_TEST (Editor, overlaysCloseFromTheScrimAndTheirCloseButton)
+{
+    EditorFixture f;
+    CHECK (f.editor != nullptr);
+
+    OverlayHost* host = nullptr;
+
+    std::function<void (juce::Component&)> find = [&] (juce::Component& c)
+    {
+        for (auto* child : c.getChildren())
+        {
+            if (auto* h = dynamic_cast<OverlayHost*> (child))
+                host = h;
+
+            if (host == nullptr)
+                find (*child);
+        }
+    };
+
+    find (*f.editor);
+    CHECK (host != nullptr);
+
+    if (host == nullptr)
+        return;
+
+    auto click = [host] (juce::Point<float> p)
+    {
+        auto source = juce::Desktop::getInstance().getMainMouseSource();
+        host->mouseDown (juce::MouseEvent (source, p, {}, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, host, host,
+                                           juce::Time::getCurrentTime(), p, juce::Time::getCurrentTime(), 1, false));
+    };
+
+    // ---- the scrim --------------------------------------------------------------
+    CHECK (f.press (shortcutFor ("help")));
+    CHECK (host->isShowingOverlay());
+
+    auto* panel = host->getCurrentOverlay();
+    CHECK (panel != nullptr);
+
+    if (panel != nullptr)
+    {
+        click (panel->getBounds().getCentre().toFloat());
+        CHECK_MSG (host->isShowingOverlay(), "a click inside the panel closed it");
+    }
+
+    click ({ 2.0f, 2.0f });
+    CHECK_MSG (! host->isShowingOverlay(), "a click on the scrim did not close the overlay");
+
+    // ---- the Close button -------------------------------------------------------
+    CHECK (f.press (shortcutFor ("options")));
+    CHECK (host->isShowingOverlay());
+
+    juce::TextButton* close = nullptr;
+
+    if (auto* shown = host->getCurrentOverlay())
+        for (auto* child : shown->getChildren())
+            if (auto* b = dynamic_cast<juce::TextButton*> (child); b != nullptr && b->getButtonText() == "Close")
+                close = b;
+
+    CHECK (close != nullptr && close->onClick != nullptr);
+
+    if (close != nullptr && close->onClick != nullptr)
+    {
+        close->onClick();
+        CHECK_MSG (! host->isShowingOverlay(), "the Close button did not close the overlay");
+    }
+}
