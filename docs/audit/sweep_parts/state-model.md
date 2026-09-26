@@ -32,9 +32,9 @@ The layers exist (host state, uiState, setlist, tune, preset, snapshot bank, gui
 | SM-26 (§3) | A recall pushes an undo entry, not a boundary | on visual: tier 4 | - | on visual: `Undo::snapshotSaveAndRecallAreEntries` | OWNED |
 | SM-27 (§4 msg 2) | Tune sections load their presets on demand at play time | `Tune/TunePlayer`, `TuneSession` | TUNE tab | - | NO-TEST |
 | SM-28 (§4 msg 3) | Bundled preset/guitar files in a tune are extracted to a temp folder | - | - | - | MISSING |
-| SM-29 (§4 audio 2, §8.3) | A tune load stops playback; the new tune starts at bar 0 | `TuneSession::newTune` / load | TUNE tab | - | NO-TEST |
+| SM-29 (§4 audio 2, §8.3) | A tune load stops playback; the new tune starts at bar 0 | `TuneSession::newTune` (stops the attached player; `load` goes through it) | TUNE tab | `StateModel::aTuneLoadStopsPlaybackAndLeavesTheRestAlone` | DONE |
 | SM-30 (§4) | A tune load pushes a boundary — TuneSession clears its own stack; the plugin undo stack has no boundary | `Tune/TuneSession.cpp` (3.9 comment) | TUNE tab | - | PARTIAL |
-| SM-31 (§5 2) | Setlist load verifies every referenced preset; unresolved entries flagged in the UI — `Setlist::loadFrom` does no check | `Live/Setlist.cpp:loadFrom` | LIVE tab setlist | - | MISSING |
+| SM-31 (§5 2) | Setlist load verifies every referenced preset; unresolved entries flagged in the UI | `Setlist::loadFrom` (`SetlistEntry::resolved`), `PluginProcessor::loadSetlist` warning | LIVE tab setlist list greys "(missing)" entries (`LivePanel`); warning banner | `LiveSetlist::missingEntriesAreFlagged`, `LiveSetlist::aCorruptOrIncompleteSetlistRaisesABanner` | DONE |
 | SM-32 (§5 3) | Setlist lives in session state and does not change audio on its own | `SetlistPlayer` | LIVE tab | `LiveSetlist.*` | DONE |
 | SM-33 (§5 4) | Load the first entry's preset and snapshot — the snapshot is recalled from the entry preset's own bank | `PluginProcessor::applyCurrentSetlistEntry` | Live Strip | `LiveSetlist::anEntrySnapshotRecallsFromItsPresetsBank` | DONE |
 | SM-34 (§6 2) | Guitar load resolves parts; a missing part falls back with a banner | `PartLibrary` load report | banner | `Workshop::aMissingPartFallsBackAndSaysSo` | DONE |
@@ -48,13 +48,13 @@ The layers exist (host state, uiState, setlist, tune, preset, snapshot bank, gui
 | SM-42 (§8.1-8.4, §8.6) | Looper and session recorder capture preset/recall/tune/guitar/range changes as state-boundary events | - | - | - | MISSING |
 | SM-43 (§8.1, §8.7) | MIDI Learn arm persists across a load; disarm if the target no longer exists — targets are parameter ids and every preset has every parameter, so the arm always persists | `MidiLearn` | n/a | `StateModel::aLearnInProgressSurvivesAPresetLoad`, `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` | DONE |
 | SM-44 (§8.1, §8.4) | Bench unsaved changes: Save / Discard / Cancel-load prompt before a preset or guitar load | - | - | - | MISSING |
-| SM-45 (§8.1) | Slide Mode, Live Mode and the Practice drawer persist; the snapshot strip refreshes | processor state | Live Strip | `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` (Live only) | NO-TEST |
+| SM-45 (§8.1) | Slide Mode, Live Mode and the Practice drawer persist; the snapshot strip refreshes | processor state | Live Strip | `StateModel::slideLiveAndTheDrawerPersistAcrossALoad`, `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` | DONE |
 | SM-46 (§8.1) | A/B compare clears + "A/B cleared by preset load." banner (8.1 wins over §2's list; §2 edited) | `PluginProcessor::presetFileLoaded` (`Presets/PresetBlocks.cpp`) via `PresetManager::onPresetFileLoaded` | info banner, `PluginEditor::pollForNotifications` (`takeStateNotices`) | `StateModel::aPresetLoadClearsABCompareWithABanner`, `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` | DONE |
 | SM-47 (§8.1, §8.2) | Freeze and E-Bow clear on a load or recall — through their parameters: every factory preset has them off and a key a file leaves out resets to its default (PF-14) | params `freezeEnable`, `ebowEnable` | n/a | `StateModel::aLoadClearsFreezeAndEBow` | DONE |
 | SM-48 (§8.1, §8.2) | Feedback loop damps over 100 ms on a load or recall | - | - | - | MISSING |
 | SM-49 (§8.1, §8.2) | Held notes continue/decay through the new parameters without retriggering | engine voices | n/a | `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` (no burst only) | PARTIAL |
 | SM-50 (§8.2) | A recall replaces the selected A/B slot with the recalled state | - | - | - | MISSING |
-| SM-51 (§8.3) | Tune load: setlist stays, Live and Workshop persist | separate objects | n/a | - | NO-TEST |
+| SM-51 (§8.3) | Tune load: setlist stays, Live and Workshop persist | separate objects | n/a | `StateModel::aTuneLoadStopsPlaybackAndLeavesTheRestAlone` | DONE |
 | SM-52 (§8.4) | Guitar load with a string-count change: extra strings silence, missing ones decay | `LuthierEngine` swap | n/a | `Workshop::aStringCountMismatchClamps` (spec only, not voices) | PARTIAL |
 | SM-53 (§8.4) | A guitar load discards an in-flight part swap | bench parking | n/a | - | NO-TEST |
 | SM-54 (§8.4) | Slide Mode + a non-slide guitar: banner; the overlay shows but the slide's acoustic effect is muted — a low-action label shows in SlideGroup; no mute | `SlideEngine::kLowActionMessage` | CHARACTER tab (Slide Mode), `SlideGroup::lowAction` | `SlideUi::theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` (label only) | PARTIAL |
@@ -70,4 +70,4 @@ The layers exist (host state, uiState, setlist, tune, preset, snapshot bank, gui
 | SM-64 (§13) | A test for every §8 intersection in `Tests/StateModel/Intersections/`, and a "never touches" test for every load path in §2-7 — 4 tests only | - | - | `StateModelTests.cpp` (4), `PresetBlockTests.cpp`, `SweepStateTests.cpp` (8.1 A/B, recall, learn, freeze) | PARTIAL |
 | SM-65 (§13) | Fuzz: 10,000 random operations with no crash, orphaned state or memory growth | on visual: `Tests/RobustnessTests.cpp` 6d0066f | - | on visual: `StateModel::tenThousandRandomOperationsLeaveNoStuckState` | OWNED |
 
-<!-- counts DONE=30 NO-GUI=0 NO-TEST=7 PARTIAL=15 MISSING=9 OWNED=4 -->
+<!-- counts DONE=34 NO-GUI=0 NO-TEST=4 PARTIAL=15 MISSING=8 OWNED=4 -->

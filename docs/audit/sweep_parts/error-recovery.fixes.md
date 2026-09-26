@@ -8,14 +8,12 @@
 - [ER-22] effort M — record the target file's modification time when a preset is loaded/saved; on save, if the file on disk is newer, still write (later wins) but post "Warning: your save overwrote another change" (backup already keeps the other); test `Presets::aConcurrentSaveWarnsAndKeepsBoth`.
 - [ER-23] effort S — add `PracticeLooper::theSessionRecorderNeverReusesAName` (two saves in the same second produce two files, and a pre-existing file with the planned name is not overwritten).
 - [ER-24] effort M — replace `flush()` with `FileOutputStream::flush` + platform fsync (`fsync(fileno)` / `FlushFileBuffers`) in the shared writer (ER-3) and move `replaceWithText` callers (Setlist, Part, PartLibrary, Telemetry, UiPreferences, Accessibility settings) onto it.
-- [ER-27] effort S — add `PluginBuses::anUnadvertisedLayoutIsRefused`: `isBusesLayoutSupported` false for a 5.1 main and a quad sidechain, true for stereo/mono. (Mid-play change covered on visual by `Stress::busLayoutChangesMidPlay`.)
 - [ER-28] effort M — make the guard count: a lock-free atomic counter per module incremented when `sanitise` replaces a non-finite value (a checked variant in hot modules), drained on the message thread into `ErrorLog::write(warn, module, "NON_FINITE")` and shown as a counter on Options > DIAGNOSTICS; test `Engine::aNanIsCountedAndLoggedWithItsModule`.
 - [ER-30] effort M — extend visual's `CpuRelief` banner: if all stages engaged for >10 s, switch the banner to warning and add an action "Turn off <heaviest>" (feedback/freeze/reverb, chosen by per-module cost); test `CpuReliefUi::sustainedOverloadOffersToDisableTheHeaviestModule`. Build on visual after merge.
 - [ER-31] effort S — DEFER: plugins get no host underrun callback; for Standalone, poll `AudioIODevice::getXRunCount()` in the standalone wrapper and show it in Options > DIAGNOSTICS; log via ErrorLog.
 - [ER-32] effort S — when the cabinet falls back (IR decode failure or non-finite output), set a processor flag read by `pollForNotifications` -> "Cabinet IR failed to load; bypassed."; test `Editor::aBrokenCabIrIsBypassedWithABanner`.
 - [ER-33] effort S — log dropped malformed events in the MIDI interpreter via a lock-free counter drained to `ErrorLog` (code MIDI_MALFORMED); test feeding a truncated message.
 - [ER-34] effort S — add `Controllers::outOfRangeValuesClamp` (CC/pitch-bend/NRPN beyond range map to the parameter's end, no failure).
-- [ER-35] effort S — add `Controllers::unknownSysExIsIgnored` (random SysEx produces no notes, no parameter change, no log).
 - [ER-36] effort S — in the Luthier-profile SysEx reader, on checksum/length mismatch drop just that event and log MIDI_SYSEX_CORRUPT; test with a corrupted profile message between valid notes.
 - [ER-37] effort M — in `processBlock`, cap MIDI events handled per block to the budget equivalent of 5000/s, count the rest, and expose a throttled (5 s) "MIDI flood: N events dropped" banner; test `Controllers::aFloodIsThrottledAndReported`.
 - [ER-41] effort M — on guitar-family change while voices sound, let held voices finish on the old engine settings (or crossfade), and post the info banner; test `Workshop::aFamilyChangeMidNoteBridgesAndSaysSo`.
@@ -32,8 +30,8 @@
 - [ER-57] effort S — when `uploadPendingCrashReport` fails, post "Could not upload crash report; the dump is at <path>." with a Reveal action; test via a failing upload URL.
 - [ER-63] effort M — in the Standalone wrapper (visual's `StandaloneApp.cpp` after merge), listen to `AudioDeviceManager` change messages, poll device list on loss, reopen a compatible device and banner "Audio device changed to Y", or "No audio device available" with Retry; manual QA + unit test with a fake device type.
 - [ER-64] effort M — same for MIDI inputs: poll `MidiInput::getAvailableDevices()`, re-enable a reappearing device, banner.
-- [ER-65] effort S — in `UiPreferences::load`, `AccessibilitySettings::load` and Telemetry settings load: if the file exists but does not parse, rename to `<name>.corrupted-<yyyymmdd-hhmmss>`, write defaults, and set a flag the editor posts as "Preferences reset (previous file corrupted, backed up)."; test `UiPreferences::aCorruptFileIsBackedUpAndReset`.
-- [ER-66] effort S — same path when the parsed object lacks/has an unknown `schema` field; extend the ER-65 test.
+- [ER-65] effort S — `ui.json` done (SPEC-SWEEP state, `UiPreferences::load`/`takeCorruptionNotice`). Remaining: the same in `AccessibilitySettings::load` and Telemetry settings load, feeding the same banner.
+- [ER-66] effort S — `ui.json` done with ER-65. Remaining: accessibility and telemetry settings.
 - [ER-67] effort S — create `~/Documents/Luthier/{Presets,Guitars,Parts,Tunes,Diagnostics}` at startup (or reuse visual's `InstallLayout`) and log FOLDER_CREATED; test with a temp home.
 - [ER-69] effort M — at startup, if the Documents folder is not writable, prompt (FileChooser) for an alternative and store it in an install-adjacent config consulted by every `get*Folder`; test via an injectable root.
 - [ER-70] effort S — DEFER: the installer/DAW enforce the OS minimum (installer.md); a plugin-side check can only be a `SystemStats::getOperatingSystemType()` guard showing a modal in the editor — low value.
@@ -43,7 +41,6 @@
 - [ER-74] effort S — becomes live with ER-72; add an Editor test that a planted `crash-*.dmp` with upload enabled raises the "crash" banner whose action opens PRIVACY.
 - [ER-75] effort S — when crash upload is off, change the banner to info "Luthier crashed last session; the dump is at <path>." with a Reveal action; test with a planted dump.
 - [ER-77] effort S — add a "Verbose error log" toggle to Options > DIAGNOSTICS (`DiagnosticsPage`) bound to `ErrorLog::setVerbose`, persisted in UI preferences and applied at startup; test `Editor::theVerboseLogToggleReachesErrorLog`.
-- [ER-79] effort S — Called at startup (SPEC-SWEEP state). Remaining: a test with backdated `errors-yyyymm.log` files under `ErrorLog::setFolderForTesting`.
 - [ER-80] effort M — per C-22, show up to three banners stacked in `NotificationCentre` (4th replaces the oldest), adjust the editor layout for the extra height; update `Editor::notificationBannersQueueDismissAndRespectTheirActions`.
 - [ER-81] effort S — with ER-6's error level, order visible banners error > warning > info; colours warning/warning/accent; test in the same Editor test.
 - [ER-83] effort L — create `Source/Tests/Fixtures/Errors/<section>/` with one fixture per §1/§2/§10 failure (not-found, no-permission, latin-1, not-json, bad-magic, newer-schema, failing migration, corrupt part, corrupt config) and a table-driven `ErrorRecovery::everyFixtureGetsItsDocumentedResponse` test.

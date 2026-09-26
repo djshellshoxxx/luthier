@@ -30,7 +30,7 @@ The preset load/refuse path (named banner, session untouched, JSON-lines error l
 | ER-24 (§2) | Every save temp-file, fsync, rename (file-formats 13) — preset saves only; `flush()` not fsync; guitar/tune/settings writers use `replaceWithText` | `PresetManager::writeToFile` | n/a | - | PARTIAL |
 | ER-25 (§3) | Sample-rate change -> re-prepare, IRs re-resampled, info banner | `LuthierAudioProcessor::prepareToPlay`, `claimSampleRateChange` | banner "sample-rate" | `Editor::aSampleRateChangeIsAnnouncedOnceAndTheFirstOneIsNot`, `Engine::sampleRateChangesAreSurvived` | DONE |
 | ER-26 (§3) | Block-size change -> re-prepare | `prepareToPlay` | n/a | `Engine::blockSizeChangesAreSurvived` | DONE |
-| ER-27 (§3) | Bus layout change re-prepares; unadvertised layout returns false — refusal untested (visual: `Stress::busLayoutChangesMidPlay`) | `PluginProcessor::isBusesLayoutSupported` | n/a | `Routing::everyLayoutRendersCleanly` (render only) | NO-TEST |
+| ER-27 (§3) | Bus layout change re-prepares; unadvertised layout returns false — refusal untested (visual: `Stress::busLayoutChangesMidPlay`) | `PluginProcessor::isBusesLayoutSupported` | n/a | `PluginBuses::anUnadvertisedLayoutIsRefused` | DONE |
 | ER-28 (§3) | NaN/denormal guard -> zero, log with module id, Diagnostics counter — `sanitise` everywhere, no log, no counter | `DSP/*:sanitise` | Options > DIAGNOSTICS (no counter) | `Engine::fastSlidesProduceNoNansOrDenormals` | PARTIAL |
 | ER-29 (§3) | CPU overrun -> relief ladder, "CPU limit reached" banner — on visual | (visual) `Support/CpuRelief.cpp` | (visual) banner | (visual: `CpuReliefUi::theBannerComesOncePerEpisodeAndGoes`, `CpuRelief::laddersUpAtEightyFivePercentAndBackDown`) | OWNED |
 | ER-30 (§3) | Sustained overrun after relief -> warning colour; +10 s offer to switch off heaviest module in-banner — not on visual either | - | - | - | MISSING |
@@ -38,7 +38,7 @@ The preset load/refuse path (named banner, session untouched, JSON-lines error l
 | ER-32 (§3) | Convolution returns garbage -> bypass + "Cabinet IR failed to load; bypassed" — procedural fallback, no banner | `DSP/Amp/CabinetEngine.cpp:processFallback` | - | `Cabinet::procedualFallbackRemovesTheFizz` | PARTIAL |
 | ER-33 (§4) | Malformed MIDI event -> log, drop — dropped, not logged | `Controllers/MidiInterpreter` | n/a | - | PARTIAL |
 | ER-34 (§4) | CC out of range -> clamp | JUCE 7-bit `MidiMessage`; parameter clamping | n/a | - | NO-TEST |
-| ER-35 (§4) | Unknown SysEx ignored silently | `MidiInterpreter` | n/a | - | NO-TEST |
+| ER-35 (§4) | Unknown SysEx ignored silently | `MidiInterpreter` | n/a | `Controllers::unknownSysExIsIgnored` | DONE |
 | ER-36 (§4) | Corrupt Luthier-profile SysEx -> log, drop, continue — dropped, not logged | `MidiInterpreter` / `Notation` profile reader | n/a | - | PARTIAL |
 | ER-37 (§4) | MIDI flood > 5000 ev/s -> process what fits, throttled "MIDI flood: N events dropped" banner every 5 s | - | - | - | MISSING |
 | ER-38 (§4) | MIDI Learn arm/learn 30 s with no MIDI -> disarm + "MIDI Learn cancelled (no MIDI received)." banner | `MidiLearnManager::expireIfIdle` | info banner from `PluginEditor::pollForNotifications` | `MidiLearn::armingTimesOutAfterThirtySeconds` | DONE |
@@ -68,8 +68,8 @@ The preset load/refuse path (named banner, session untouched, JSON-lines error l
 | ER-62 (§9) | Host crash -> restore from host's saved state | `setStateInformation` | n/a | `HostState::aSessionSurvivesThePrepareThatFollowsIt` | DONE |
 | ER-63 (§9) | Standalone audio device lost -> poll, switch to compatible device + banner, else "No audio device" with retry | - | - | - | MISSING |
 | ER-64 (§9) | Standalone MIDI input lost -> poll, auto-recover, banner | - | - | - | MISSING |
-| ER-65 (§10) | User config unreadable -> rename `.corrupted-<ts>`, fresh defaults, "Preferences reset" banner — `UiPreferences::load` treats it as absent and later overwrites | `UI/UiPreferences.cpp:load`, `AccessibilitySettings::load`, `Telemetry` settings | - | - | MISSING |
-| ER-66 (§10) | User config invalid schema -> same | - | - | - | MISSING |
+| ER-65 (§10) | Corrupt config -> renamed to `.corrupted-<timestamp>`, defaults used, banner "Preferences reset (previous file corrupted, backed up)." — UI preferences (`ui.json`); accessibility and telemetry settings files not yet | `UiPreferences::load` | warning banner "preferences-reset" (`PluginEditor::pollForNotifications`) | `UiPreferences::aCorruptFileIsBackedUpAndReset` | PARTIAL |
+| ER-66 (§10) | Config with an unknown (newer) `schema` -> same path — `ui.json` now writes `schema` and treats a newer one as corrupt | `UiPreferences::load/save` | same banner | `UiPreferences::aCorruptFileIsBackedUpAndReset` | PARTIAL |
 | ER-67 (§10) | Expected folder missing -> create + log — created lazily, not logged | `writeToFile` `createDirectory` | n/a | - | PARTIAL |
 | ER-68 (§10) | Content-update folder missing -> log, treat as not installed — content packages on visual | (visual) `Updates/ContentPackage.cpp` | - | (visual: `ContentPackage::*`) | OWNED |
 | ER-69 (§11) | No writable Documents -> prompt for alternative location, saved to install-adjacent config | - | - | - | MISSING |
@@ -82,11 +82,11 @@ The preset load/refuse path (named banner, session untouched, JSON-lines error l
 | ER-76 (§13) | Log format: JSON lines ts/severity/module/code/message/context | `ErrorLog::write` | n/a | `ErrorLog::failuresAreLoggedAsReadableJsonLines` | DONE |
 | ER-77 (§13) | debug/info only when Diagnostics verbose is on (Options > Diagnostics) — `setVerbose` never called, no toggle | `ErrorLog::setVerbose` | Options > DIAGNOSTICS (no toggle) | `ErrorLog::failuresAreLoggedAsReadableJsonLines` | NO-GUI |
 | ER-78 (§13) | Rotates monthly | `ErrorLog::getLogFile(yyyymm)` | n/a | `ErrorLog::theFileNameFollowsTheMonth` | DONE |
-| ER-79 (§13) | Old logs pruned by the 30-day sweep — called at startup beside the preset backup sweep | `PresetManager` ctor -> `ErrorLog::pruneOldLogs` | n/a | - | NO-TEST |
+| ER-79 (§13) | Old logs pruned by the 30-day sweep — called at startup beside the preset backup sweep | `PresetManager` ctor -> `ErrorLog::pruneOldLogs` | n/a | `ErrorLog::oldLogsArePrunedAtStartup` | DONE |
 | ER-80 (§14) | At most 3 banners visible, 4th replaces oldest — one visible, rest queued (C-22 decided: show up to three) | `NotificationCentre` | banner strip | `Editor::notificationBannersQueueDismissAndRespectTheirActions` | PARTIAL |
 | ER-81 (§14) | Priority errors > warnings > info (warning colour / accent) — no error level, FIFO order | `Notification::Level` | banner strip | - | PARTIAL |
 | ER-82 (§14) | Auto-dismiss after 5 s unless action required | `NotificationCentre::autoDismissMs` | banner strip | `Editor::notificationBannersQueueDismissAndRespectTheirActions` | DONE |
 | ER-83 (§15) | Every failure mode has a fixture in `Tests/Fixtures/Errors/<section>` and a test | - | - | - | MISSING |
 | ER-84 (§15) | Bug-bash "break the plugin" pass maps every symptom to a response | - | - | - | MISSING |
 
-<!-- counts DONE=26 NO-GUI=1 NO-TEST=6 PARTIAL=18 MISSING=25 OWNED=8 -->
+<!-- counts DONE=29 NO-GUI=1 NO-TEST=3 PARTIAL=20 MISSING=23 OWNED=8 -->

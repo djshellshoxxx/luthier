@@ -7,7 +7,7 @@ The on-disk format matches the doc's structure: magic `luthier.preset` with lega
 | PF-1 (intro) | Plain JSON, `.luthierpreset` | `Presets/PresetManager.cpp:toVar/saveToFile` | n/a | `Presets::stateRoundTripsExactly` | DONE |
 | PF-2 (Where) | Factory in bundle `Resources/Presets/Factory/<Category>/`; user `Documents/Luthier/Presets/User/<Category>/` | `PresetManager.cpp:~60-141` | n/a | `Presets::folderLayoutMatchesTheDoc` | DONE |
 | PF-3 (Where) | Extra folders registered in Options; sub-folder = category, root = "User" | `PresetManager::addSearchFolder`, scan `info.category` | Options > FILE LOCATIONS "Add a preset folder..." | `Presets::anAddedFolderIsScannedAndItsSubfolderIsTheCategory` | DONE |
-| PF-4 (Where) | Factory preset never overwritten; saving makes user copy | `PresetManager::saveCurrent` (`isFactory`) + editor Save As fallback | Ctrl+S / File > Save | - | NO-TEST |
+| PF-4 (Where) | Factory preset never overwritten; saving makes user copy | `PresetManager::saveCurrent` (`isFactory`) + editor Save As fallback | Ctrl+S / File > Save | `Presets::savingAFactoryPresetMakesAUserCopy` | DONE |
 | PF-5 (Safety) | Atomic save: temp file, flush, rename | `PresetManager.cpp:~1059 juce::TemporaryFile::overwriteTargetFileWithTemporary` | n/a | `Presets::aFailedSaveLeavesTheOldFileAndSaysWhy` | DONE |
 | PF-6 (Safety) | Replaced version copied to `Backup/<yyyy-mm-dd>/`, several per day | `PresetManager.cpp:~948-1012` | n/a | `Presets::savingBacksUpTheVersionItReplaces` | DONE |
 | PF-7 (Safety) | Startup sweep deletes backups > 30 days by folder name (root and category `Backup/` folders) | `PresetManager::pruneOldBackupsUnder` | n/a | `Presets::backupPruningKeepsThirtyDays` | DONE |
@@ -30,4 +30,4 @@ The on-disk format matches the doc's structure: magic `luthier.preset` with lega
 | PF-24 (Compat) | Times in seconds/Hz; identical at other sample rates | params in ms/Hz | n/a | `Engine::sampleRateChangesAreSurvived` | DONE |
 | PF-25 (Compat) | IR missing -> modal body and procedural cab; preset never fails to load | `IrLibrary`, `Cabinet` fallback | n/a | `Cabinet::procedualFallbackRemovesTheFizz`, `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` | DONE |
 
-<!-- counts DONE=24 NO-GUI=0 NO-TEST=1 PARTIAL=0 MISSING=0 OWNED=0 -->
+<!-- counts DONE=25 NO-GUI=0 NO-TEST=0 PARTIAL=0 MISSING=0 OWNED=0 -->
