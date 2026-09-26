@@ -169,6 +169,7 @@ struct RenderStats
     double peak = 0.0;
     double maxWindowRms = 0.0;      ///< loudest 20 ms window up to the release
     double tailRms = 0.0;           ///< last 300 ms of the render
+    double earlierTailRms = 0.0;    ///< the 300 ms one second before that: the tail must still be falling
     double idleRms = 0.0;           ///< the same rig with nothing played, just before: its noise floor
     int subnormals = 0;
     double meanBlockMs = 0.0;
@@ -433,6 +434,7 @@ struct Rig
 
         const int tailLen = juce::jmin (total, (int) (0.3 * kSr));
         stats.tailRms = windowRms (stats.mono, total - tailLen, tailLen);
+        stats.earlierTailRms = windowRms (stats.mono, juce::jmax (0, total - tailLen - (int) kSr), tailLen);
 
         return stats;
     }
@@ -547,13 +549,26 @@ struct Verdict
 
         if (expectDecay && s.finite && s.maxWindowRms > 1.0e-4)
         {
-            // -60 dBFS (the default rig's hum floor is -68), or 30 dB under the
-            // note, or within 3 dB of the rig's own idle floor.
-            const bool quietEnough = s.tailRms < 1.0e-3 || s.tailRms < s.maxWindowRms * 0.0316
-                                     || (s.idleRms > 0.0 && s.tailRms < s.idleRms * 1.41);
+            /*  What a real guitar does after a note-off: the released string is
+                damped within a few hundred ms (sustain-and-decay SUS-08, checked
+                string by string in Combo.releasedStringIsDampedQuickly), but the
+                open strings it excited through the bridge keep ringing at their
+                own T60 - several seconds - 20-40 dB under the note until a hand
+                mutes them (engine.md 5.6, string-interaction 0.2). So the mix is
+                not asked to vanish; it is asked to be clearly down (20 dB under
+                the note, or under -60 dBFS, or at the rig's own floor) and still
+                falling (2 dB over the last second: a 12-string's coupled courses ring
+                that long). Formerly 30 dB, which failed
+                physically honest sympathetic ring. */
+            const bool atFloor = s.tailRms < 1.0e-3 || (s.idleRms > 0.0 && s.tailRms < s.idleRms * 1.41);
+            const bool down    = s.tailRms < s.maxWindowRms * 0.1;
+            const bool falling = s.earlierTailRms <= 0.0 || s.tailRms < s.earlierTailRms * 0.794;
+            const bool deepDown = s.tailRms < s.maxWindowRms * 0.05;   // 26 dB under: decayed, falling or not
+            const bool quietEnough = atFloor || deepDown || (down && falling);
             if (! quietEnough)
                 why.add ("does not decay after release (tail " + juce::String (juce::Decibels::gainToDecibels (s.tailRms), 1)
-                         + " dBFS vs note " + juce::String (juce::Decibels::gainToDecibels (s.maxWindowRms), 1) + " dBFS)");
+                         + " dBFS vs note " + juce::String (juce::Decibels::gainToDecibels (s.maxWindowRms), 1) + " dBFS, "
+                         + juce::String (juce::Decibels::gainToDecibels (s.earlierTailRms), 1) + " dBFS a second earlier)");
         }
 
         if (checkIdleFloor && s.idleRms > 1.0e-3 && s.maxWindowRms > 1.0e-4   // below -60 dBFS nobody hears it

@@ -337,6 +337,15 @@ void StringEngine::updateLoopCoefficients() noexcept
     if (damping == Damping::Chuck)
         t60 = std::exp (juce::jmap (dampingAmount, std::log (juce::jmax (0.01, t60)), std::log (0.01)));
 
+    /*  A lifted fingertip stops a string in a few hundred ms whatever its open
+        sustain: the pad's own damping dominates. As a fraction alone (0.13 x a
+        4.5-7 s open T60) a released note took 0.6-0.9 s to die, 21-28 dB down
+        at 250 ms where sustain-and-decay SUS-08 has more than 40 (B-03). So the
+        released T60 is capped at 0.3 s (50 dB in 250 ms), geometric in the
+        damping amount so a release ramp (SUS 5.1) still eases in. */
+    if (damping == Damping::Released)
+        t60 = juce::jmin (t60, std::exp (juce::jmap (dampingAmount, std::log (juce::jmax (0.01, t60)), std::log (0.3))));
+
     t60 = juce::jlimit (0.01, 60.0, t60);
 
     loopGain = std::exp (-kT60Constant * loopSamples / (t60 * sr));

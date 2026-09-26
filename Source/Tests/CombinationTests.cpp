@@ -171,6 +171,21 @@ namespace
                     || name.contains ("shimmer") || name.contains ("looper") || name.contains ("freeze")
                     || name.contains ("swell") || name.contains ("infinite"))
                     return true;
+
+                /*  A fuzz, distortion or compressor holds its output up while its
+                    input decays: the open strings' sympathetic ring (seconds on a
+                    bass or a 12-string's courses) comes out near the note's level
+                    until a hand mutes it. That is the pedal doing its job, so a
+                    "the mix must fall" check means nothing through one. */
+                if (! t->getCurrentChoiceName().equalsIgnoreCase ("None")
+                    && (name.contains ("fuzz") || name.contains ("distortion") || name.contains ("overdrive")
+                        || name.contains ("drive") || name.contains ("compressor") || name.contains ("sustain")
+                        || name.contains ("octave") || name.contains ("boost") || name.contains ("metal")))
+                {
+                    auto* bypass = rig.param (ParamIDs::slotBypass (chain == 1, slot));
+                    if (bypass == nullptr || bypass->getValue() < 0.5f)
+                        return true;
+                }
             }
 
         return false;
@@ -1439,5 +1454,109 @@ LUTHIER_TEST (Combo, factoryPresetsAndResetUseTheGuitarsOwnParts)
         r.apply();
         CHECK_MSG (r.param (ParamIDs::tuningPreset)->getCurrentValueAsText().containsIgnoreCase ("C"),
                    "Drop C Riff lost its tuning to the guitar's parts: " + r.param (ParamIDs::tuningPreset)->getCurrentValueAsText());
+    }
+}
+
+//==============================================================================
+/*  The released string itself is damped quickly (sustain-and-decay SUS-08:
+    by 250 ms more than 40 dB below its level at note-off). The mix-level decay
+    check in Verdict allows the sympathetic ring of the other open strings; this
+    is the half that holds the fretting finger to account, for every guitar
+    type. A fretted note: the lowest string's second fret. */
+LUTHIER_TEST (Combo, releasedStringIsDampedQuickly)
+{
+    FindingLog log { "Combo.releasedString" };
+    Rig rig;
+    auto* types = dynamic_cast<juce::AudioParameterChoice*> (rig.param (ParamIDs::guitarType));
+
+    for (int t = 0; t < types->choices.size(); ++t)
+    {
+        rig.p().resetEverything();
+        rig.setIndex (ParamIDs::guitarType, t);
+
+        // The released string alone: sympathetic coupling at its minimum and no
+        // room, so the output is that string (StringEngine::getLevel is an
+        // envelope follower with its own release and cannot show this).
+        rig.setNormalised (ParamIDs::couplingAmount, 0.0f);
+        rig.setIndex (ParamIDs::roomOn, 0);
+        rig.apply();
+        rig.processSilence (4);
+
+        const int note = rig.lowestPlayableNote() + 2;   // second fret of the lowest string: fretted, never open
+        const int releaseAt = (int) (0.5 * kSr);
+        std::vector<TimedMidi> ev { { 0, juce::MidiMessage::noteOn (1, note, (juce::uint8) 100) },
+                                    { releaseAt, juce::MidiMessage::noteOff (1, note) } };
+        const auto s = rig.renderEvents (ev, releaseAt, 0.4);
+
+        const double before = Rig::windowRms (s.mono, releaseAt - (int) (0.03 * kSr), (int) (0.03 * kSr));
+        const double after  = Rig::windowRms (s.mono, releaseAt + (int) (0.25 * kSr), (int) (0.03 * kSr));
+        const double dropDb = juce::Decibels::gainToDecibels (juce::jmax (after, s.idleRms, 1.0e-7) / juce::jmax (1.0e-9, before));
+        const auto label = "guitar_type=" + types->choices[t] + " note " + juce::String (note);
+
+        ++ctx.checks;
+        // SUS-08 asks 40 dB of the string itself; this reads the whole rig
+        // (amp, cabinet and the minimum sympathetic coupling still ring a
+        // little), so it allows 35. Before the release cap it read 21-28.
+        if (before > 1.0e-3 && dropDb > -35.0 && after > 2.0 * s.idleRms)
+        {
+            const auto why = "released note only " + juce::String (-dropDb, 1) + " dB down 250 ms after note-off (35 at the output; SUS-08: 40 at the string)";
+            ctx.fail (why + " | " + label);
+            log.add (label, why);
+        }
+
+        rig.quiet();
+    }
+
+    log.flush();
+}
+
+//==============================================================================
+/*  Lifting the sustain pedal releases the notes whose keys are already up (and
+    all-notes-off stops them). The pedal-up handler used to be a loop that only
+    `continue`d, so after the pedal a released note rang on at its open sustain:
+    "does not decay after release", phrase sustainPedal, every bass (a bass
+    string's open T60 is several seconds). Checked per string: the strings the
+    phrase played end the pedal-up damped, not open. */
+LUTHIER_TEST (Combo, liftingTheSustainPedalReleasesItsNotes)
+{
+    for (const auto* type : { "P-Style Bass", "Vintage Double-Cut" })
+    {
+        Rig rig;
+        auto* types = dynamic_cast<juce::AudioParameterChoice*> (rig.param (ParamIDs::guitarType));
+        rig.setIndex (ParamIDs::guitarType, types->choices.indexOf (type));
+        rig.apply();
+        rig.processSilence (4);
+
+        int released = 0;
+        auto events = makePhrase (Phrase::sustainPedal, released);
+        rig.transposeIntoRange (events);
+        rig.renderEvents (events, released, 0.05);
+
+        auto& engine = rig.p().getEngine();
+        int damped = 0, open = 0;
+
+        // The strings the phrase played are the ones tuned (fretted) to its pitches;
+        // the others may still ring sympathetically, open, as a real guitar's do.
+        juce::Array<double> pitches;
+        for (auto& e : events)
+            if (e.message.isNoteOn())
+                pitches.add (juce::MidiMessage::getMidiNoteInHertz (e.message.getNoteNumber()));
+
+        for (int s = 0; s < engine.getNumStrings(); ++s)
+        {
+            bool played = false;
+            for (auto hz : pitches)
+                played = played || std::abs (1200.0 * std::log2 (engine.getString (s).getTargetFrequency() / hz)) < 60.0;
+
+            if (! played)
+                continue;
+
+            if (engine.getString (s).getDamping() == StringEngine::Damping::Open) ++open;
+            else                                                                  ++damped;
+        }
+
+        CHECK_MSG (damped >= 2 && open == 0,
+                   juce::String (type) + ": after pedal-up " + juce::String (damped) + " played strings damped, "
+                     + juce::String (open) + " still open");
     }
 }
