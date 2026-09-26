@@ -69,6 +69,7 @@ and pull-off, palm-muted chugs (CC67), natural and pinch harmonics
 | clap-validator 0.3.2, CLAP, first run (own CLAP target) | 12 pass, 6 fail: preset-morph position lost from state (B-10), Pick Tip Radius text round trip, param events with a foreign namespace applied, state flush not reproducible |
 | clap-validator 0.3.2 on the integration branch's CLAP target (after merging review) | **18 pass, 0 fail**, 3 skipped |
 | Round 2 (helpers and feat-strings/-normalize/-jam/-cpu merged, `e726444`): pluginval strictness 10, `--timeout-ms 900000` | **SUCCESS**, every test (Parameter thread safety still needs the long timeout, B-12) |
+| Round 2: AddressSanitizer build (`-fsanitize=address -fsanitize-recover=address`, `ASAN_OPTIONS=detect_leaks=0:halt_on_error=0:alloc_dealloc_mismatch=0`), whole suite with `LUTHIER_COMBO_SCALE=0.1` | first run stopped at B-22 (test code, fixed); after the fix **0 AddressSanitizer errors** in 1371 tests. The 22 failing tests under ASan are the known ones (B-11, B-18, B-19, B-23, and the normalization tables this build predates) plus real-time budget tests the instrumentation slows (AS15, CQ13, HR18, SI13, ON33, scrape budget, instantiation) |
 | Round 2: clap-validator 0.3.2 | 15 pass, 3 fail (the three state-reproducibility tests: `jam_play` / `jam_fill_now` restored off by design, 'Whammy Up' one ulp; B-20), 3 skipped |
 
 ## Findings
