@@ -535,6 +535,10 @@ bool ControllerProfileLibrary::save (const ControllerProfile& profile)
 void ControllerProfileLibrary::apply (const ControllerProfile& profile,
                                       MidiInterpreter& interpreter)
 {
+    // CT-10: the profile's pitch curve (empty for every profile but Osmose),
+    // set unconditionally so switching away from a curved profile clears it.
+    interpreter.setPitchCurve (profile.pitchCurve);
+
     // CT-9: "Guitar mode" turns a normally-MPE controller (LinnStrument) into a
     // per-channel one for the duration of the toggle, regardless of its own
     // mode field. LinnStrument's own default Guitar-mode channel assignment
@@ -571,6 +575,16 @@ void ControllerProfileLibrary::apply (const ControllerProfile& profile,
             interpreter.setPitchBendRange (profile.memberPitchBendSemis);
             interpreter.setMpeMasterChannel (profile.mpeMasterChannel);   // CT-17
             interpreter.resetChannelMap();
+
+            // Bug found alongside CT-10: setPitchBendRange above only sets the
+            // interpreter's *global* bend range. MPE mode routes per-note bend
+            // through the same per-string path as a hex pickup (setPlayingMode
+            // (GuitarController) above), which reads stringBendRange - left at
+            // its 2-semitone default otherwise, so a member channel's bend was
+            // never actually 48 semitones regardless of what the profile said.
+            for (int s = 0; s < kMaxStrings; ++s)
+                interpreter.setStringBendRange (s, profile.memberPitchBendSemis);
+
             break;
 
         case ControllerMode::perChannel:

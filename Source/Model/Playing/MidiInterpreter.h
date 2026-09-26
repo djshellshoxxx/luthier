@@ -20,6 +20,7 @@
 #include "RubricVoicer.h"
 #include "../../Rhythm/StrumGesture.h"
 #include <array>
+#include <vector>
 
 namespace luthier
 {
@@ -97,6 +98,13 @@ public:
 
     /** Per-string bend range, for guitar controller mode. */
     void setStringBendRange (int stringIndex, double semitones) noexcept;
+
+    /** controllers.md 1 (CT-10): a continuous-pitch controller's non-linear
+        physical response (e.g. Osmose), copied from the active profile so
+        per-note/per-string bend can undo it. An empty curve (fewer than two
+        points) restores a plain linear response. Message thread only; the
+        audio thread only ever reads the fixed array this fills. */
+    void setPitchCurve (const std::vector<double>& curve) noexcept;
 
     //==========================================================================
     /*  Which MIDI channel drives which string in guitar-controller mode
@@ -314,6 +322,11 @@ private:
     int blockLength = 0;
     bool mpeEnabled = false;
     int mpeMasterChannel = 1;
+
+    // CT-10: the active profile's pitch-response curve, RT-safe fixed storage.
+    std::array<float, 32> pitchCurve {};
+    int pitchCurvePoints = 0;
+    double applyPitchCurve (double normalised) const noexcept;
 
     double bendRangeSemitones = 2.0;
     std::array<double, kMaxStrings> stringBendRange {};

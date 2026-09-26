@@ -950,3 +950,52 @@ LUTHIER_TEST (Controllers, linnstrumentGuitarModeMapsRowsToStrings)
     // Channel 2 (row 1, high string) plays string 0.
     CHECK (fixture.noteOnString (2, 64, position) == 0);
 }
+
+//==============================================================================
+// CT-10: Osmose's non-linear key-travel curve was stored on the profile but
+// never applied - the interpreter turned its pitch bend into cents linearly.
+LUTHIER_TEST (Controllers, osmoseBendFollowsTheCurveThroughTheInterpreter)
+{
+    ControllerProfileLibrary library;
+    const int index = library.indexOf ("osmose");
+    CHECK (index >= 0);
+
+    if (index < 0)
+        return;
+
+    const auto& profile = library.getProfile (index);
+    CHECK (profile.pitchCurve.size() >= 2);
+
+    InterpreterFixture fixture;
+    ControllerProfileLibrary::apply (profile, fixture.interpreter);
+
+    const int memberChannel = profile.mpeFirstMemberChannel;
+    const int wheelValue = 8192 + 3277;   // an arbitrary partial bend upward
+
+    // The same integer-quantised value the interpreter itself will decode, so
+    // the expected figure below isn't thrown off by rounding.
+    const double normalised = ((double) wheelValue - 8192.0) / 8192.0;
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::pitchWheel (memberChannel, wheelValue), 0);
+
+    PlayEventQueue out;
+    int64_t position = 0;
+    fixture.interpreter.processBlock (midi, 256, position, out);
+
+    CHECK (out.getNumBends() == 1);
+
+    if (out.getNumBends() == 1)
+    {
+        const double expectedNormalised = profile.applyPitchCurve (normalised);
+        const double expectedCents = expectedNormalised * profile.memberPitchBendSemis * 100.0;
+
+        // The raw (uncurved) figure the bug would have produced, for contrast.
+        const double linearCents = normalised * profile.memberPitchBendSemis * 100.0;
+
+        CHECK_MSG (std::abs (expectedCents - linearCents) > 1.0,
+                   "the curve fixture is too close to linear to distinguish the two");
+
+        CHECK_NEAR (out.getBend (0).cents, expectedCents, 1.0);
+    }
+}
