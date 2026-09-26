@@ -6,6 +6,9 @@
 #include "../Model/Workshop/PartAcoustics.h"
 
 #include <functional>
+#include <thread>
+#include <atomic>
+#include <chrono>
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -249,4 +252,93 @@ LUTHIER_TEST (Presets, randomPresetLoadsAreDeterministic)
                    "trial " + juce::String (trial) + ": the same load sequence rendered differently by "
                      + juce::String (juce::Decibels::gainToDecibels (worst, -200.0), 1) + " dB");
     }
+}
+
+//==============================================================================
+/*  UW-25 (ui-wiring 6.3): ending an audition returns to the committed guitar
+    through the swap path with a 30 ms fade (1440 samples at 48 kHz), and the
+    return does not click. */
+LUTHIER_TEST (WorkshopBench, endingAnAuditionCrossfadesIn30ms)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 256);
+
+    std::atomic<bool> stop { false };
+    std::vector<float> out;
+    out.reserve (48000 * 6);
+    std::atomic<int> written { 0 };
+
+    std::thread audio ([&]
+    {
+        juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumOutputChannels(),
+                                                     processor.getTotalNumInputChannels()), 256);
+        int block = 0;
+
+        while (! stop.load() && out.size() + 256 <= out.capacity())
+        {
+            juce::MidiBuffer midi;
+
+            if (block++ % 150 == 0)
+                for (int note : { 45, 52, 57 })
+                    midi.addEvent (juce::MidiMessage::noteOn (1, note, 0.9f), 0);
+
+            buffer.clear();
+            processor.processBlock (buffer, midi);
+            out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 256);
+            written.store ((int) out.size());
+            std::this_thread::sleep_for (std::chrono::microseconds (500));
+        }
+    });
+
+    auto waitFor = [&written] (int samples)
+    {
+        const int target = written.load() + samples;
+
+        while (written.load() < target)
+            std::this_thread::sleep_for (std::chrono::milliseconds (1));
+    };
+
+    waitFor (48000 / 2);
+
+    auto& bench = processor.getBench();
+    const auto current = processor.getCurrentGuitar().get (GuitarSlot::pickupBridge);
+    PartPtr candidate;
+
+    for (const auto& p : processor.getPartLibrary().getParts (PartType::pickup))
+        if (current == nullptr || p->name != current->name)
+        {
+            candidate = p;
+            break;
+        }
+
+    CHECK (candidate != nullptr);
+
+    if (candidate != nullptr)
+    {
+        bench.beginAudition (GuitarSlot::pickupBridge, candidate);
+        waitFor (48000 / 2);
+        bench.endAudition();
+        waitFor (48000 / 2);
+    }
+
+    stop.store (true);
+    audio.join();
+
+    const int fade = processor.getEngine().getLastSwapFadeInSamples();
+    CHECK_MSG (std::abs (fade - 1440) <= 64, "the return faded in over " + juce::String (fade) + " samples");
+
+    // No step anywhere steeper than the chord's own strikes (first half second).
+    float natural = 0.0f, worst = 0.0f;
+
+    for (size_t i = 1; i < out.size(); ++i)
+    {
+        const float step = std::abs (out[i] - out[i - 1]);
+        worst = juce::jmax (worst, step);
+
+        if (i < 24000)
+            natural = juce::jmax (natural, step);
+    }
+
+    CHECK_MSG (worst <= natural * 1.1f + 0.001f,
+               "the audition's end stepped " + juce::String (worst, 5) + " against " + juce::String (natural, 5));
 }

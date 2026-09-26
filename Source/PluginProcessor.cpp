@@ -715,6 +715,11 @@ void LuthierAudioProcessor::auditionGuitar (const WorkshopGuitar* candidate)
     if (! partsGuitarLoaded)
         return;
 
+    // SPEC-SWEEP (UW-25, ui-wiring 6.3): ending an audition returns to the
+    // committed guitar over 30 ms rather than the 5 ms a part swap uses.
+    if (candidate == nullptr)
+        engine.setNextSwapFadeSeconds (0.030);
+
     // The engine plays the candidate; nothing else learns of it.
     engine.applyWorkshopGuitar (mapSpec (candidate != nullptr ? *candidate : currentGuitar), engine.getGuitarType());
 }
