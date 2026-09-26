@@ -144,6 +144,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
 
 void LuthierEngine::reset() noexcept
 {
+    pendingBassTechnique.fill (-1);   // SPEC-SWEEP BT-12
     stringActivity.clear();
     sidechainFollower.reset();
     sidechainEnv.store (0.0);
@@ -1124,7 +1125,25 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     /*  string-slap-technique.md 2: what the note becomes. A palm slap or a
         body tap replaces the note with the hand; a thumb strike or a pop is
         played below with the slap's excitation; a ghost is damped first. */
-    SlapStrike slapStrike = slap.classify (e, slide.isUnderBar (s));
+    // SPEC-SWEEP BT-12: an imported BASS_TECH names this note's technique.
+    NoteOnEvent withTechnique;
+    const NoteOnEvent* classified = &e;
+
+    if (e.bassTechnique < 0)
+    {
+        auto& pending = pendingBassTechnique[(size_t) s] >= 0 ? pendingBassTechnique[(size_t) s]
+                                                              : pendingBassTechnique[(size_t) kMaxStrings];
+
+        if (pending >= 0)
+        {
+            withTechnique = e;
+            withTechnique.bassTechnique = pending;
+            classified = &withTechnique;
+            pending = -1;
+        }
+    }
+
+    SlapStrike slapStrike = slap.classify (*classified, slide.isUnderBar (s));
 
     // REALISM-B, fingerstyle-attack.md 3-4: the right hand's tool. The Slap
     // and Pop tools are the slap's thumb and pop whether or not it is armed.

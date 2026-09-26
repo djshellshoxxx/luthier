@@ -13,13 +13,13 @@
 | NE-7 (§2.1) | MusicXML 4.0 `<technical>` bend/slide/hammer/pull/PM/harmonic/tap/string/fret | `NotationExporter::renderMusicXml` | NOTATION format box | `Notation::musicXmlIsWellFormedAndGuitarAware` | DONE |
 | NE-8 (§2.1/§4) | MusicXML chord symbols from detector (`<harmony>`) | `renderMusicXml` (chordSymbols) | NOTATION export | `ModelGapsUi::theCaptureHearsTechniquesAndChordsFromTheEngine` | DONE |
 | NE-9 (§2.1) | Grace notes for hammer-on/pull-off ornaments — not written | - | - | - | MISSING |
-| NE-10 (§2.1) | Multi-voice per staff (`<voice>`/`<backup>`) — implemented, no test exercises a second voice | `PerformanceScore` voice split, `renderMusicXml` | n/a | - | NO-TEST |
+| NE-10 (§2.1) | Multi-voice per staff (`<voice>`/`<backup>`) — implemented, no test exercises a second voice | `PerformanceScore` voice split, `renderMusicXml` | n/a | `Notation.polyphonicMaterialGetsASecondVoice` | DONE |
 | NE-11 (§2.1) | Whammy as pitch-bend text direction | `renderMusicXml` whammy words | n/a | `Notation::formatsDeclareTheirLosses` | DONE |
 | NE-12 (§2.2) | Guitar Pro .gp bundle: string/fret, bend curves, slide types, PM, harmonics, tapping — no semi harmonic, no whammy bar events; fidelity only checked as valid zip + note count | `NotationExporter::writeGuitarPro/renderGuitarProXml` | NOTATION format box | `Notation::guitarProBundleIsAValidZip` | PARTIAL |
 | NE-13 (§2.2) | GP chord diagrams at first occurrence — writes `<Chord firstOccurrence>` name only, no fret diagram | `renderGuitarProXml` | NOTATION `chordDiagrams` toggle | - | PARTIAL |
 | NE-14 (§2.3) | ASCII: 6 lines low-bottom, ruler, symbols b r h p / \ ~ PM <12> [12], width 80 default, section headings | `NotationExporter::renderAsciiTab` | NOTATION `lineWidth` slider | `Notation::asciiTabColumnsAlign`, `Notation::asciiTabUsesTheSpecifiedSymbols` | DONE |
 | NE-15 (§2.4) | MIDI per-string tracks (16 max) | `NotationExporter::writeMidi` | NOTATION format box | `Notation::midiExportIsPerString` | DONE |
-| NE-16 (§2.4) | MIDI RPN string/fret hints, pitch bend for bend/whammy, CC68 legato — written, not asserted by any test | `NotationExporter::writeMidi` | n/a | - | NO-TEST |
+| NE-16 (§2.4) | MIDI RPN string/fret hints, pitch bend for bend/whammy, CC68 legato — written, not asserted by any test | `NotationExporter::writeMidi` | n/a | `Notation.midiExportCarriesBendRangeBendsAndLegato` | DONE |
 | NE-17 (§3) | Live TAB view (last N beats) in practice panel + NOTATION tab | `renderAsciiTabWindow`, `NotationPanel`, practice TAB drawer | Practice drawer TAB; ADVANCED > NOTATION | `Notation::liveTabWindowRendersASlice`, `Capture::theLiveTabShowsWhatWasPlayed` | DONE |
 | NE-18 (§3) | Current bar as tab dots on the fretboard | `FretboardComponent::refreshTabDots` | fretboard | `ModelGapsUi::theCurrentBarIsDrawnOnTheFretboardAsTabDots` | DONE |
 | NE-19 (§3) | Controls: bar count 1-8, symbol density full/minimal/notes-only | `NotationExportOptions::density`, window | NOTATION `barsBox`, `densityBox` | `Notation::liveTabWindowRendersASlice`, `Notation::asciiTabUsesTheSpecifiedSymbols` | DONE |

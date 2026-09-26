@@ -23,6 +23,7 @@
 #include "../Practice/TimePitchShifter.h"
 #include "../ToneMatch/ToneMatch.h"
 #include "../Export/MidiImportTargets.h"
+#include "../Notation/NotationExport.h"
 #include "../Practice/PracticeRoutineSetup.h"
 #include "../UI/PracticePanel.h"
 #include "../UI/ToneMatchPanel.h"
@@ -2697,4 +2698,161 @@ LUTHIER_TEST (HostState, aSnapshotRecallAndPresetLoadNotifyTheHost)
 
     for (auto* p : params)
         p->removeListener (&listener);
+}
+
+//==============================================================================
+//  bass-techniques
+//==============================================================================
+LUTHIER_TEST (BassTechniques, anImportedBassTechGhostsItsNote)
+{
+    // BT-12 (bass-techniques 10): a BASS_TECH ghost on a note plays it ghosted
+    // when the file is rendered (the looper import); a slap plays it slapped.
+    auto renderWith = [] (const char* tech)
+    {
+        MidiPerformance performance (48000.0);
+        performance.setTempo (120.0);
+        performance.addMessage (0, juce::MidiMessage::noteOn (1, 40, (juce::uint8) 100), 1);
+        performance.addMessage (24000, juce::MidiMessage::noteOff (1, 40), 1);
+
+        if (tech != nullptr)
+            performance.addEvent (LuthierEvent::make (LuthierEventClass::bassTech, 0, 1).set ("tech", tech));
+
+        return MidiImportTargets::render (performance, GuitarType::JazzBass, 48000.0, 1.0);
+    };
+
+    const auto plain = renderWith (nullptr);
+    const auto ghost = renderWith ("ghost");
+    const auto slap = renderWith ("slap");
+    const int n = juce::jmin (24000, plain.getNumSamples());
+
+    const float plainRms = plain.getRMSLevel (0, 0, n);
+    CHECK (plainRms > 0.0f);
+    CHECK_MSG (ghost.getRMSLevel (0, 0, n) < plainRms * 0.6f,
+               "a BASS_TECH ghost was not ghosted: " + juce::String (ghost.getRMSLevel (0, 0, n) / plainRms));
+
+    double difference = 0.0, energy = 0.0;
+
+    for (int i = 0; i < n; ++i)
+    {
+        const double d = slap.getSample (0, i) - plain.getSample (0, i);
+        difference += d * d;
+        energy += (double) plain.getSample (0, i) * plain.getSample (0, i);
+    }
+
+    CHECK_MSG (difference > energy * 0.05, "a BASS_TECH slap sounded like a plain note: " + juce::String (difference / energy));
+}
+
+//==============================================================================
+//  notation-export
+//==============================================================================
+LUTHIER_TEST (Notation, polyphonicMaterialGetsASecondVoice)
+{
+    // NE-10 (notation-export 2.1): a bass note held under a moving melody is
+    // a second voice, in the score, in MusicXML, and back again.
+    PerformanceScore score;
+    score.beginCapture (120.0, 4, 4);
+
+    score.noteStarted (5, 0, 40, 82.4, 0.8, 0.0);   // low E, the whole bar
+
+    const int melody[] = { 64, 67, 69, 67 };
+
+    for (int i = 0; i < 4; ++i)
+    {
+        score.noteStarted (0, melody[i] - 64, melody[i], 440.0, 0.8, (double) i);
+        score.noteEnded (0, i + 1.0);
+    }
+
+    score.noteEnded (5, 4.0);
+    score.endCapture (4.0);
+
+    const auto& measure = score.getTrack (0).measures[0];
+    CHECK_MSG (measure.voices.size() == 2, juce::String ((int) measure.voices.size()) + " voices, expected 2");
+
+    NotationExporter exporter;
+    const auto xml = exporter.renderMusicXml (score);
+    CHECK (xml.contains ("<backup>"));
+    CHECK (xml.contains ("<voice>2</voice>"));
+
+    NotationImporter importer;
+    PerformanceScore back;
+    CHECK (importer.readMusicXml (xml, back));
+    CHECK (back.getTotalNoteCount() == 5);
+
+    const auto notes = back.getTrack (0).measures[0].collectNotes();
+    bool haveBass = false;
+
+    for (const auto* n : notes)
+        haveBass = haveBass || n->midiNote == 40;
+
+    CHECK (haveBass);
+}
+
+LUTHIER_TEST (Notation, midiExportCarriesBendRangeBendsAndLegato)
+{
+    // NE-16 (notation-export 2.4): per-string tracks open with the pitch-bend
+    // range RPN, a bent note has pitch-wheel moves, and a hammer-on is
+    // bracketed by the legato pedal (CC 68).
+    PerformanceScore score;
+    score.beginCapture (120.0, 4, 4);
+
+    score.noteStarted (2, 5, 60, 261.6, 0.8, 0.0);
+    ScoreTechnique bend;
+    bend.type = ScoreTechnique::Type::bend;
+    bend.value = 1.0;
+    bend.curve = { { 0.0, 0.0 }, { 0.5, 1.0 }, { 1.0, 1.0 } };
+    score.addTechnique (2, bend);
+    score.noteEnded (2, 1.0);
+
+    score.noteStarted (1, 5, 64, 329.6, 0.8, 1.0);
+    score.noteEnded (1, 1.5);
+    score.noteStarted (1, 7, 66, 370.0, 0.8, 1.5);
+    score.addTechnique (1, { ScoreTechnique::Type::hammerOn });
+    score.noteEnded (1, 2.0);
+    score.endCapture (4.0);
+
+    const auto file = juce::File::createTempFile (".mid");
+    NotationExporter exporter;
+    CHECK_MSG (exporter.write (score, NotationFormat::midi, file), exporter.getLastError());
+
+    juce::MidiFile midi;
+    {
+        juce::FileInputStream stream (file);
+        CHECK (midi.readFrom (stream));
+    }
+
+    int rpnTracks = 0, noteTracks = 0, wheel = 0, legatoOn = 0, legatoOff = 0;
+
+    for (int t = 0; t < midi.getNumTracks(); ++t)
+    {
+        const auto* track = midi.getTrack (t);
+        bool notes = false, rpn101 = false, rpn100 = false, data6 = false;
+
+        for (int i = 0; i < track->getNumEvents(); ++i)
+        {
+            const auto& m = track->getEventPointer (i)->message;
+            notes = notes || m.isNoteOn();
+
+            if (m.isController() && m.getTimeStamp() <= 0.0)
+            {
+                rpn101 = rpn101 || (m.getControllerNumber() == 101 && m.getControllerValue() == 0);
+                rpn100 = rpn100 || (m.getControllerNumber() == 100 && m.getControllerValue() == 0);
+                data6 = data6 || m.getControllerNumber() == 6;
+            }
+
+            if (m.isPitchWheel() && m.getPitchWheelValue() != 8192)
+                ++wheel;
+
+            if (m.isController() && m.getControllerNumber() == 68)
+                (m.getControllerValue() >= 64 ? legatoOn : legatoOff)++;
+        }
+
+        noteTracks += notes ? 1 : 0;
+        rpnTracks += (notes && rpn101 && rpn100 && data6) ? 1 : 0;
+    }
+
+    CHECK (noteTracks >= 2);
+    CHECK_MSG (rpnTracks == noteTracks, "a string track does not set its bend range at tick 0");
+    CHECK_MSG (wheel > 0, "the bend has no pitch-wheel movement");
+    CHECK_MSG (legatoOn >= 1 && legatoOff >= 1, "the hammer-on is not bracketed by CC 68");
+    file.deleteFile();
 }

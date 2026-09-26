@@ -375,6 +375,16 @@ public:
         replaces the body's response while engaged. Owned by the caller, set
         before audio starts; nullptr for none. */
     void setBodyIrSlot (IrSlot* slot) noexcept { bodyIrSlot = slot; }
+
+    /*  SPEC-SWEEP BT-12 (bass-techniques 10, midi-export 9): the next note on
+        `stringIndex` (-1: on any string) is played with this BassStepType
+        technique (1 thumb, 2 pop, 3 ghost), as an imported BASS_TECH event
+        says. Audio thread, before the block holding the note. */
+    void setNextBassTechnique (int stringIndex, int bassStepType) noexcept
+    {
+        const int slot = juce::isPositiveAndBelow (stringIndex, kMaxStrings) ? stringIndex : kMaxStrings;
+        pendingBassTechnique[(size_t) slot] = bassStepType;
+    }
     PerformanceCapture* getPerformanceCapture() const noexcept { return perfCapture; }
 
     /*  ambiguity-resolutions 8 / routing-io 2 (MODEL-GAPS): Aux 1 (DI) taps the
@@ -762,6 +772,7 @@ private:
     // ---- MODEL-GAPS: capture reporting and fingerstyle bass --------------------
     PerformanceCapture* perfCapture = nullptr;
     IrSlot* bodyIrSlot = nullptr;           // SPEC-SWEEP TM-6
+    std::array<int, 13> pendingBassTechnique { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };   // SPEC-SWEEP BT-12
     std::vector<float> bodyIrInput;         // SPEC-SWEEP TM-6: the body's excitation, kept for the IR
     juce::int64 hostBlockStart = 0;
     ChordSymbol lastCapturedChord;
