@@ -207,3 +207,13 @@ Three rules for integration:
 
 Every new file has its own "Tests" section. Add those tests to the
 existing `LuthierTests` target.
+
+## Instrument extensions (spec only, 2026-09-26)
+
+`instruments/README.md` indexes seven instrument specs realised in the
+parts model - touch board (Chapman-Stick style), guitarrón, chitarra
+sarda, composite neck, tenor guitar, acoustic bass guitar and
+extended-range bass - with cited research in `docs/research/INSTR_*.md`.
+Read `instruments/README.md` 1 first: it records three findings against
+the current build (parts guitars have no tuning of their own; the
+6-string-bass `open[5] = 0` bug; fanned necks drawn but not heard).

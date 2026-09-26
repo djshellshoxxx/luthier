@@ -176,8 +176,11 @@ length `L_k`.
    (`two-hand-tapping.md` 2), lateral flick per its setting. If none:
    the open string is excited by the reverse ramp (amplitude `h`) but
    the **nut damper** is in the loop: loop gain × `(1 − g_damper)` with
-   `g_damper` = 0.35 (D) ⇒ T60 ≈ 40–80 ms: the characteristic short
-   muted blip (research §6.6).
+   `g_damper` = 0.35 (D) ⇒ −ln(0.65) = 0.43 per round trip ⇒ 60 dB in
+   ≈ 16 round trips: **≈ 55 ms on D4, ≈ 0.5 s on C1**. The short muted
+   blip (research §6.6) is therefore a melody-zone fact; a low bass open
+   string rings audibly longer through the foam unless `g_damper` is
+   raised - which is a prediction the owner recording (§12.2) settles.
 
 ### 3.2 Waveguide realisation (cheap; no new string model)
 
@@ -408,9 +411,9 @@ family's excitation defaults (banner lists it).
 7. **Velocity → brightness, not just level**: v_f 0.3 → 2.5 m/s raises
    the first-20-ms spectral centroid ≥ 1.8× while peak level rises
    ≤ 16 dB (the §3.3 prediction; re-baseline on measurement).
-8. **Release blip**: tap-off with no other fret held ⇒ open-string
-   burst with T60 ≤ 100 ms at `nut_damper` 0.35; with `nut_damper` 0 the
-   open string rings (T60 > 1 s).
+8. **Release blip**: tap-off on string 0 (D4) with no other fret held ⇒
+   open-string burst with T60 55 ± 15 ms at `nut_damper` 0.35; on
+   string 5 (C1) 0.5 ± 0.15 s; with `nut_damper` 0 both ring > 1 s.
 9. **Beam dead spots**: bamboo beam ⇒ shortest bass-zone T60 at the
    fret nearest f₁ or f₂ on strings 5–7; aluminium beam ⇒ narrower
    dip (higher Q); `cfrp_ud` ⇒ dip moves ≥ 1 octave up.
