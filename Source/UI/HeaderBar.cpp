@@ -287,8 +287,10 @@ void HeaderBar::timerCallback()
 }
 
 //==============================================================================
-void HeaderBar::showFileMenu()
+juce::PopupMenu HeaderBar::buildFileMenu()
 {
+    // SPEC-SWEEP (USER_MANUAL UM-7): built and handled apart from showing, so a
+    // test can check every documented item and drive the results.
     auto& manager = processor.getPresetManager();
 
     juce::PopupMenu menu;
@@ -316,197 +318,204 @@ void HeaderBar::showFileMenu()
     menu.addItem (11, "Randomise");
     menu.addItem (12, "Reset all settings to default");
 
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&fileMenuButton),
-                        [this] (int result)
+    return menu;
+}
+
+void HeaderBar::showFileMenu()
+{
+    buildFileMenu().showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&fileMenuButton),
+                                   [this] (int result) { handleFileMenuResult (result); });
+}
+
+void HeaderBar::handleFileMenuResult (int result)
+{
+    auto& presetManager = processor.getPresetManager();
+
+    switch (result)
     {
-        auto& presetManager = processor.getPresetManager();
+        case 1:
+            if (! presetManager.saveCurrent())
+                if (onSaveAs) onSaveAs();
+            break;
 
-        switch (result)
+        case 2:
+            if (onSaveAs)
+                onSaveAs();
+            break;
+
+        case 3:
+        case 4:
         {
-            case 1:
-                if (! presetManager.saveCurrent())
-                    if (onSaveAs) onSaveAs();
-                break;
+            auto chooser = std::make_shared<juce::FileChooser> (
+                "Open a Luthier preset",
+                PresetManager::getUserPresetFolder(),
+                "*" + juce::String (PresetManager::kFileExtension));
 
-            case 2:
-                if (onSaveAs)
-                    onSaveAs();
-                break;
+            const bool isImport = (result == 4);
 
-            case 3:
-            case 4:
+            chooser->launchAsync (juce::FileBrowserComponent::openMode
+                                    | juce::FileBrowserComponent::canSelectFiles,
+                                  [this, chooser, isImport] (const juce::FileChooser& fc)
             {
-                auto chooser = std::make_shared<juce::FileChooser> (
-                    "Open a Luthier preset",
-                    PresetManager::getUserPresetFolder(),
-                    "*" + juce::String (PresetManager::kFileExtension));
+                const auto file = fc.getResult();
 
-                const bool isImport = (result == 4);
+                if (file == juce::File())
+                    return;
 
-                chooser->launchAsync (juce::FileBrowserComponent::openMode
-                                        | juce::FileBrowserComponent::canSelectFiles,
-                                      [this, chooser, isImport] (const juce::FileChooser& fc)
-                {
-                    const auto file = fc.getResult();
+                processor.pushUndoState (isImport ? "Import preset" : "Open preset");
 
-                    if (file == juce::File())
-                        return;
+                if (isImport)
+                    processor.getPresetManager().importPreset (file);
+                else
+                    processor.getPresetManager().loadPreset (file);
 
-                    processor.pushUndoState (isImport ? "Import preset" : "Open preset");
+                processor.getParameterBridge().applyAllNow();
+            });
+            break;
+        }
 
-                    if (isImport)
-                        processor.getPresetManager().importPreset (file);
-                    else
-                        processor.getPresetManager().loadPreset (file);
+        case 5:
+        {
+            auto chooser = std::make_shared<juce::FileChooser> (
+                "Export the current preset",
+                PresetManager::getUserPresetFolder()
+                    .getChildFile (processor.getPresetManager().getCurrentPresetName()
+                                   + PresetManager::kFileExtension),
+                "*" + juce::String (PresetManager::kFileExtension));
 
-                    processor.getParameterBridge().applyAllNow();
-                });
-                break;
-            }
-
-            case 5:
+            chooser->launchAsync (juce::FileBrowserComponent::saveMode
+                                    | juce::FileBrowserComponent::warnAboutOverwriting,
+                                  [this, chooser] (const juce::FileChooser& fc)
             {
-                auto chooser = std::make_shared<juce::FileChooser> (
-                    "Export the current preset",
-                    PresetManager::getUserPresetFolder()
-                        .getChildFile (processor.getPresetManager().getCurrentPresetName()
-                                       + PresetManager::kFileExtension),
-                    "*" + juce::String (PresetManager::kFileExtension));
+                const auto file = fc.getResult();
 
-                chooser->launchAsync (juce::FileBrowserComponent::saveMode
-                                        | juce::FileBrowserComponent::warnAboutOverwriting,
-                                      [this, chooser] (const juce::FileChooser& fc)
-                {
-                    const auto file = fc.getResult();
+                if (file != juce::File())
+                    processor.getPresetManager().exportPreset (file);
+            });
+            break;
+        }
 
-                    if (file != juce::File())
-                        processor.getPresetManager().exportPreset (file);
-                });
-                break;
-            }
+        case 6:
+            if (onOpenExport)
+                onOpenExport();
+            break;
 
-            case 6:
-                if (onOpenExport)
-                    onOpenExport();
-                break;
+        case 7:
+        {
+            auto chooser = std::make_shared<juce::FileChooser> (
+                "Save the last take as MIDI",
+                PresetManager::getRenderFolder().getChildFile (MidiCapture::makeDefaultFileName()),
+                "*.mid");
 
-            case 7:
+            chooser->launchAsync (juce::FileBrowserComponent::saveMode
+                                    | juce::FileBrowserComponent::warnAboutOverwriting,
+                                  [this, chooser] (const juce::FileChooser& fc)
             {
-                auto chooser = std::make_shared<juce::FileChooser> (
-                    "Save the last take as MIDI",
-                    PresetManager::getRenderFolder().getChildFile (MidiCapture::makeDefaultFileName()),
-                    "*.mid");
+                const auto file = fc.getResult();
 
-                chooser->launchAsync (juce::FileBrowserComponent::saveMode
-                                        | juce::FileBrowserComponent::warnAboutOverwriting,
-                                      [this, chooser] (const juce::FileChooser& fc)
+                if (file == juce::File())
+                    return;
+
+                // midi-export 8: the take goes out in the Options -> MIDI profile.
+                juce::String error;
+                const bool ok = MidiTakeExport::exportCapture (processor, file, MidiExportDefaults::load(),
+                                                               0.0, &error);
+
+                juce::NativeMessageBox::showAsync (
+                    juce::MessageBoxOptions()
+                        .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
+                                          : juce::MessageBoxIconType::WarningIcon)
+                        .withTitle (ok ? "MIDI saved" : "Could not save")
+                        .withMessage (ok ? "Saved to\n" + file.getFullPathName()
+                                         : error)
+                        .withButton ("OK"),
+                    nullptr);
+            });
+            break;
+        }
+
+        case 8:
+            PresetManager::getUserPresetFolder().revealToUser();
+            break;
+
+        case 9:
+            PresetManager::getRenderFolder().revealToUser();
+            break;
+
+        case 10:
+            if (onOpenOptions)
+                onOpenOptions();
+            break;
+
+        case 11:
+            processor.randomiseParameters();
+            break;
+
+        case 13:
+        {
+            // The format follows the extension chosen; the NOTATION tab has the options.
+            auto chooser = std::make_shared<juce::FileChooser> (
+                "Export the take as notation",
+                PresetManager::getRenderFolder().getChildFile ("Luthier Take.musicxml"),
+                "*.musicxml;*.gp;*.txt;*.mid");
+
+            chooser->launchAsync (juce::FileBrowserComponent::saveMode
+                                    | juce::FileBrowserComponent::warnAboutOverwriting,
+                                  [this, chooser] (const juce::FileChooser& fc)
+            {
+                const auto file = fc.getResult();
+
+                if (file == juce::File())
+                    return;
+
+                auto report = [file] (bool ok, const juce::String& error)
                 {
-                    const auto file = fc.getResult();
-
-                    if (file == juce::File())
-                        return;
-
-                    // midi-export 8: the take goes out in the Options -> MIDI profile.
-                    juce::String error;
-                    const bool ok = MidiTakeExport::exportCapture (processor, file, MidiExportDefaults::load(),
-                                                                   0.0, &error);
-
                     juce::NativeMessageBox::showAsync (
                         juce::MessageBoxOptions()
                             .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
                                               : juce::MessageBoxIconType::WarningIcon)
-                            .withTitle (ok ? "MIDI saved" : "Could not save")
-                            .withMessage (ok ? "Saved to\n" + file.getFullPathName()
-                                             : error)
+                            .withTitle (ok ? "Notation exported" : "Could not export")
+                            .withMessage (ok ? "Saved to\n" + file.getFullPathName() : error)
                             .withButton ("OK"),
                         nullptr);
-                });
-                break;
-            }
+                };
 
-            case 8:
-                PresetManager::getUserPresetFolder().revealToUser();
-                break;
+                // notation-export 0.1: written on the export worker (MODEL-GAPS).
+                juce::String error;
 
-            case 9:
-                PresetManager::getRenderFolder().revealToUser();
-                break;
-
-            case 10:
-                if (onOpenOptions)
-                    onOpenOptions();
-                break;
-
-            case 11:
-                processor.randomiseParameters();
-                break;
-
-            case 13:
-            {
-                // The format follows the extension chosen; the NOTATION tab has the options.
-                auto chooser = std::make_shared<juce::FileChooser> (
-                    "Export the take as notation",
-                    PresetManager::getRenderFolder().getChildFile ("Luthier Take.musicxml"),
-                    "*.musicxml;*.gp;*.txt;*.mid");
-
-                chooser->launchAsync (juce::FileBrowserComponent::saveMode
-                                        | juce::FileBrowserComponent::warnAboutOverwriting,
-                                      [this, chooser] (const juce::FileChooser& fc)
-                {
-                    const auto file = fc.getResult();
-
-                    if (file == juce::File())
-                        return;
-
-                    auto report = [file] (bool ok, const juce::String& error)
-                    {
-                        juce::NativeMessageBox::showAsync (
-                            juce::MessageBoxOptions()
-                                .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
-                                                  : juce::MessageBoxIconType::WarningIcon)
-                                .withTitle (ok ? "Notation exported" : "Could not export")
-                                .withMessage (ok ? "Saved to\n" + file.getFullPathName() : error)
-                                .withButton ("OK"),
-                            nullptr);
-                    };
-
-                    // notation-export 0.1: written on the export worker (MODEL-GAPS).
-                    juce::String error;
-
-                    if (! NotationTakeExport::writeAsync (processor, NotationTakeExport::formatForFile (file),
-                                                          file, {}, {}, report, &error))
-                        report (false, error);
-                });
-                break;
-            }
-
-            case 12:
-                processor.resetEverything();
-                break;
-
-            case 14:
-            {
-                // midi-export 5 (MODEL-GAPS): the window asks where it goes.
-                auto chooser = std::make_shared<juce::FileChooser> (
-                    "Import MIDI", juce::File::getSpecialLocation (juce::File::userDocumentsDirectory), "*.mid;*.midi");
-
-                chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
-                                      [this, chooser] (const juce::FileChooser& fc)
-                {
-                    const auto file = fc.getResult();
-
-                    if (file != juce::File() && onImportMidi)
-                        onImportMidi (file);
-                });
-                break;
-            }
-
-            default:
-                break;
+                if (! NotationTakeExport::writeAsync (processor, NotationTakeExport::formatForFile (file),
+                                                      file, {}, {}, report, &error))
+                    report (false, error);
+            });
+            break;
         }
 
-        refreshPresetDisplay();
-    });
+        case 12:
+            processor.resetEverything();
+            break;
+
+        case 14:
+        {
+            // midi-export 5 (MODEL-GAPS): the window asks where it goes.
+            auto chooser = std::make_shared<juce::FileChooser> (
+                "Import MIDI", juce::File::getSpecialLocation (juce::File::userDocumentsDirectory), "*.mid;*.midi");
+
+            chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                                  [this, chooser] (const juce::FileChooser& fc)
+            {
+                const auto file = fc.getResult();
+
+                if (file != juce::File() && onImportMidi)
+                    onImportMidi (file);
+            });
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    refreshPresetDisplay();
 }
 
 //==============================================================================

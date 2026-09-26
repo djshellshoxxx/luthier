@@ -1453,3 +1453,61 @@ LUTHIER_TEST (Editor, theTooltipSwitchDisablesTooltips)
 
     processor.getUiState().tooltipsEnabled = was;
 }
+
+//==============================================================================
+/*  USER_MANUAL UM-7: the File menu has every item the manual lists, and
+    Options / Randomise / Reset do what they say. */
+LUTHIER_TEST (Editor, theFileMenuHasEveryDocumentedItem)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSweepSr, kSweepBlock);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    editor->setVisible (true);
+    editor->setSize (LuthierAudioProcessorEditor::defaultWidth, LuthierAudioProcessorEditor::defaultHeight);
+
+    auto* header = findFirstChild<HeaderBar> (*editor);
+    auto* host = findFirstChild<OverlayHost> (*editor);
+    CHECK (header != nullptr && host != nullptr);
+
+    if (header == nullptr || host == nullptr)
+        return;
+
+    juce::StringArray items;
+    const auto menu = header->buildFileMenu();
+
+    for (juce::PopupMenu::MenuItemIterator it (menu, true); it.next();)
+        if (it.getItem().itemID != 0)
+            items.add (it.getItem().text);
+
+    for (const auto* text : { "Save", "Save As...", "Open preset file...", "Import preset...", "Export preset...",
+                              "Export audio...", "Save last MIDI take...", "Export notation...",
+                              "Open user preset folder", "Open render folder", "Options...", "Randomise",
+                              "Reset all settings to default" })
+        CHECK_MSG (items.contains (text), juce::String ("the File menu has no \"") + text + "\"");
+
+    // Options...
+    header->handleFileMenuResult (10);
+    CHECK_MSG (host->isShowingOverlay(), "Options... did not open the Options overlay");
+    host->dismiss();
+
+    // Randomise moves something; Reset puts it back to its default.
+    auto* drive = processor.getState().getParameter (ParamIDs::macroDrive);
+    const float def = drive->getDefaultValue();
+
+    bool moved = false;
+
+    for (int attempt = 0; attempt < 5 && ! moved; ++attempt)
+    {
+        header->handleFileMenuResult (11);
+
+        for (auto* p : processor.getParameters())
+            if (std::abs (p->getValue() - p->getDefaultValue()) > 1.0e-3f)
+                moved = true;
+    }
+
+    CHECK_MSG (moved, "Randomise left every parameter at its default");
+
+    header->handleFileMenuResult (12);
+    CHECK (std::abs (drive->getValue() - def) < 1.0e-3f);
+}

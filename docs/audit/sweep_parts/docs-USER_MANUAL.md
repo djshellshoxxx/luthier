@@ -10,7 +10,7 @@ Most of the manual is accurate: the header, the File menu, Advanced columns 1-3,
 | UM-4 (Header) | Instrument and Tuning selectors (per-string tuning in Advanced) | `ParamIDs::guitarType/tuningPreset` | `HeaderBar::guitarSelector/tuningSelector`; headstock popover | `Engine::everyGuitarTypeLoadsAndSounds`, `Engine::everyTuningLoadsAndSounds`, `Editor::theHeadstockPopoverEditsPerStringTuning` | DONE |
 | UM-5 (Header) | Preset name with prev/next, click name to browse | `PresetManager::loadNext/loadPrevious` | `HeaderBar::presetPrev/presetNext/presetName` | `Editor::headerAndFooterDoWhatTheManualSays` | DONE |
 | UM-6 (Header) | Range padlock only in Advanced when ranges unlocked, opens Options RANGES | `HeaderBar::rangePadlock` | header | `RangesUi::theHeaderPadlockShowsOnlyWhenSomethingIsUnlocked` | DONE |
-| UM-7 (Header) | File menu: save/save as/open/import/export preset, export audio, save last MIDI take, export notation, open preset & render folders, options, randomise, reset | `HeaderBar::showFileMenu` | header File | - | NO-TEST |
+| UM-7 (Header) | File menu: save/save as/open/import/export preset, export audio, save last MIDI take, export notation, open preset & render folders, options, randomise, reset | `HeaderBar::buildFileMenu/handleFileMenuResult` (split out of showFileMenu) | header File | `Editor::theFileMenuHasEveryDocumentedItem` | DONE |
 | UM-8 (Header) | A / B slots and A>B copy — `copyAtoB` fixed: from B it copied the stored A into B (then lost on the next switch); now copies the current sound into both; and `recallSlot` no longer lets the recalled blob flip `slotBActive` (that made every second A/B press a no-op) | `LuthierAudioProcessor::copyAtoB/setSlotBActive` | `HeaderBar::compareA/B/copyAB` | `Presets::abSlotsCompareAndCopyTheCurrentOneAcross` | DONE |
 | UM-9 (Header) | Undo/Redo — manual now says 200 steps (`kMaxUndoSteps = 200`) | `PluginProcessor.h:kMaxUndoSteps` | `HeaderBar::undoButton/redoButton` | `Undo::stepsOneActionAtATimeBothWays` | DONE |
 | UM-10 (Header) | Panic stops every string | `processor.panic` | `HeaderBar::panicButton` | `Engine::panicSilencesEverything` | DONE |
@@ -65,4 +65,4 @@ Most of the manual is accurate: the header, the File menu, Advanced columns 1-3,
 | UM-59 (Help/debug) | Help content + live shortcut list; debug window (state view, event stream, crash log off on load, troubleshooting export, hard reset keeps user presets) | `HelpTab`, `Overlays.cpp:DebugPanel` | Help, Ctrl+D | `HelpTab::aRebindShowsUpInTheCheatSheetAndTheText`, `Diagnostics::ringBufferAndSelfTestWork` — hard reset untested | DEFERRED |
 | UM-60 (Performance) | Footer shows CPU share and reported latency | `LuthierAudioProcessorEditor::getFooterText` (drawn by paint) | footer | `Editor::headerAndFooterDoWhatTheManualSays` | DONE |
 
-<!-- counts DONE=49 NO-GUI=0 NO-TEST=9 PARTIAL=0 MISSING=0 OWNED=1 DEFERRED=1 -->
+<!-- counts DONE=50 NO-GUI=0 NO-TEST=8 PARTIAL=0 MISSING=0 OWNED=1 DEFERRED=1 -->
