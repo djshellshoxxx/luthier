@@ -22,7 +22,7 @@ Table: row ID | what was done | test | status
 | EN-52 | none (already correct) | `Whammy::floydSpringsRingOnReturn` | DONE |
 | EN-90 | `RoomEngine` and `ReverbPedal` FDN feedback clamp changed from 0.9985 to the spec's 0.998; added `getFeedbackGain()` accessors for the test | `Room::feedbackNeverExceedsTheCap` | DONE |
 | FB-8 | none (already correct); added `FretBuzz::getGeneratorIndex` test accessor | `Buzz::theCentreRisesWithTheContactFret` | DONE |
-| PN-9 | `pick_thickness` default changed from 0.5 (1.07 mm) to 0.316 (0.73 mm) in `Parameters.cpp` and `PhysicalRange.cpp`; `BassFamilyDefaults` already reads the parameter's own default dynamically, so bass retargeting is unaffected. Presets that omit the field now load at 0.73 mm instead of 1.07 mm | `PickNoise::theDefaultPickIsPoint73mm` | DONE |
+| PN-9 | Tried changing the default from 0.5 (1.07 mm) to the spec's 0.316 (0.73 mm); reverted. Every factory preset relies on the parameter default rather than setting it explicitly, so the change moved every guitar's click pitch slightly and broke `NormalizationGolden::ON02_OffPathMatchesGoldenHashes`'s sibling checks and `Normalization::ON03_FactoryTableDoesNotDrift`/`ON33_Performance` (confirmed by reverting and re-running: those three pass again, unrelated `ON02` mismatch on `p06_gown_*` persists either way and is not caused by this change) | - | DEFERRED - fixing the default needs the calibration/normalization owner to regenerate the factory table and golden hashes alongside it |
 | MM-1 | none (already correct) | `Modulation::controlRateIsABlockOver32FlooredAt128` | DONE |
 | MM-41 | none (already correct); extended the existing `routeModulatesItsDestination` test to also check re-enabling a route | `Modulation::routeModulatesItsDestination` | DONE |
 | RIO-4 | none (already correct) | `Routing::sidechainDrivesTheEnvelopeFollower` | DONE |
@@ -38,6 +38,15 @@ Table: row ID | what was done | test | status
   `mass_g`/`coupling` (a hand-authored Workshop part); every shipped
   `.luthierpart` file already specifies both fields explicitly, so no factory
   guitar's rendered audio changes.
-- Full suite not yet re-run to completion this session (see handoff process);
-  targeted suites (`PartAcoustics`, `Room`, `Whammy`, `Midi`, `Effects`,
-  `Controllers`) pass clean after each change.
+- Full suite run once (3908 s, 9 of 1390 tests failed). Three failures
+  (`ON03_FactoryTableDoesNotDrift`, `ON33_Performance`, and one of
+  `ON02_OffPathMatchesGoldenHashes`'s two mismatches) were this session's PN-9
+  attempt and are gone now that it is reverted. The other six were already
+  failing independent of anything in this branch (confirmed one, `ON02`'s
+  remaining `p06_gown_phrase`/`p06_gown_chord` mismatch, by reverting PN-9 and
+  re-running; did not chase the rest given they are outside this helper's
+  specs) and are not mine to fix: `everyFactoryPresetPlaysEveryPhrase` /
+  `snapshotsAndPresetMorph` (preset #10 "P-Bass Flatwound" renders silent -
+  bass-techniques/normalize territory), `everyAutomatableParameterHasAVisibleControl`
+  (gui-integration/gui-reach), `ON27_Cache` (normalize), `CQ10`/`CQ22`
+  (cpu-quality-modes, owned by FIX-CROSS). Worth flagging to the coordinator.
