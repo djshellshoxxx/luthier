@@ -15,6 +15,15 @@ namespace luthier
 
 namespace
 {
+    /*  action-and-undo.md 3.9: "same note within 200 ms" groups, so a drawn or
+        deleted note's grouping target is the note itself - its section, grid
+        start and pitch - kept clear of the small indices the lock edit uses. */
+    int melodyNoteTarget (int sectionIndex, double startBeat, int pitch)
+    {
+        const int ticks = (int) std::lround (juce::jmax (0.0, startBeat) * 48.0);
+        return 0x10000000 + ((sectionIndex & 0x3f) << 21) + ((ticks & 0x3fff) << 7) + (pitch & 0x7f);
+    }
+
     /** 3.4's cut / copy / paste: absolute pitches, starts from the first note. */
     struct NoteClipboard
     {
@@ -289,7 +298,7 @@ bool TunePianoRoll::addNote (double beat, int pitch, double durationBeats)
         notes.push_back (note);
         keep = { (int) notes.size() - 1 };
         return true;
-    });
+    }, melodyNoteTarget (session.getSelectedSection(), start, snapped));   // action-and-undo.md 3.9
 }
 
 bool TunePianoRoll::deleteNoteAt (double beat, int pitch)
@@ -299,6 +308,10 @@ bool TunePianoRoll::deleteNoteAt (double beat, int pitch)
     if (index < 0)
         return false;
 
+    // action-and-undo.md 3.9: grouped with a draw of the same note.
+    const auto deleted = getShownNotes()[(size_t) index];
+    const int groupTarget = melodyNoteTarget (session.getSelectedSection(), deleted.startBeat, pitchOf (deleted));
+
     return editNotes (TuneEditClass::melodyEdit, "Delete note", [index] (std::vector<MelodyNote>& notes, std::vector<int>&)
     {
         if (! juce::isPositiveAndBelow (index, (int) notes.size()))
@@ -306,7 +319,7 @@ bool TunePianoRoll::deleteNoteAt (double beat, int pitch)
 
         notes.erase (notes.begin() + index);
         return true;
-    });
+    }, groupTarget);
 }
 
 bool TunePianoRoll::toggleLockAt (double beat, int pitch)

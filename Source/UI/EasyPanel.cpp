@@ -120,7 +120,9 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     : processor (p),
       guitarBody (p),
       preRack (p, false),
-      postRack (p, true)
+      postRack (p, true),
+      vuMeter (p),
+      roomLight (p)
 {
     addAndMakeVisible (guitarBody);
 
@@ -266,6 +268,26 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
 
     // ---- meter and chord readout -------------------------------------------------------
     addAndMakeVisible (meter);
+
+    // visual-polish.md 4: the room light sits behind the ROOM card's controls.
+    addAndMakeVisible (roomLight);
+    roomLight.toBack();
+    addChildComponent (vuMeter);
+    vuMeter.setVisible (VuMeter::isEnabledByUser());
+
+    // piano-roll-chord-display.md 1, 3: the piano roll under the guitar; Easy
+    // has no fretboard, so "Show fingering" draws on the illustration.
+    addChildComponent (pianoRoll);
+    pianoRoll.onLayoutChanged = [this] { resized(); };
+    pianoRoll.onGhostDots = [this] (const std::vector<FretboardComponent::GhostDot>& dots)
+    {
+        std::vector<std::pair<int, double>> pairs;
+
+        for (const auto& d : dots)
+            pairs.emplace_back (d.string, d.fret);
+
+        guitarBody.setGhostDots (pairs);
+    };
     meter.setSource (&processor);
 
     addAndMakeVisible (chordLabel);
@@ -508,9 +530,7 @@ void EasyPanel::applyStylePreset (int listIndex)
     if (! juce::isPositiveAndBelow (listIndex, stylePresetIndices.size()))
         return;
 
-    processor.pushUndoState ("Load style");
-    processor.getPresetManager().loadPreset (stylePresetIndices[listIndex]);
-    processor.getParameterBridge().applyAllNow();
+    processor.loadPresetAsUserAction (stylePresetIndices[listIndex]);   // action-and-undo.md 3.8
 }
 
 //==============================================================================
@@ -572,7 +592,9 @@ void EasyPanel::resized()
             return inner;
         };
 
-        auto circuit = card (0.19f, "Guitar");   // 0.20 before FEAT-MIC's pad
+        // TODO 2h: the amp card gets the height the racks' second rows did not
+        // need, so its six knobs sit full size on the face at 1200 x 720.
+        auto circuit = card (0.15f, "Guitar");
         {
             auto knobs = circuit.removeFromLeft (circuit.getWidth() / 2);
             guitarVolumeKnob.setBounds (knobs.removeFromLeft (knobs.getWidth() / 2));
@@ -580,20 +602,19 @@ void EasyPanel::resized()
             circuitView->setBounds (circuit.reduced (2));
         }
 
-        preRack.setBounds (card (0.12f, "Pre-effects"));
+        preRack.setBounds (card (0.09f, "Pre-effects"));
 
-        auto amp = card (0.24f, "Amp");   // 0.26 before FEAT-MIC's pad
+        auto amp = card (0.34f, "Amp");
         {
-            // TODO 2h: the knobs sit on the face in one row, each with the card's
-            // full width to share, rather than two cramped rows of three.
-            ampModel.setBounds (amp.removeFromTop (juce::jmin (amp.getHeight() / 3, 44)));
+            ampCardArea = amp;
+            ampModel.setBounds (amp.removeFromTop (26));
             amp.removeFromTop (2);
             ampFace.setBounds (amp);
         }
 
-        postRack.setBounds (card (0.12f, "Post-effects"));
+        postRack.setBounds (card (0.09f, "Post-effects"));
 
-        auto cab = card (0.21f, "Cabinet");   // 0.17 before FEAT-MIC's pad (6.3)
+        auto cab = card (0.21f, "Cabinet");   // 0.20 before FEAT-MIC's pad (6.3)
         {
             // mic-placement.md 6.3 (FEAT-MIC): the pad under the cabinet's
             // choices; the mics (or, on an acoustic, Pickup <-> Mic) beside it.
@@ -624,8 +645,9 @@ void EasyPanel::resized()
             }
         }
 
-        auto room = card (0.12f, "Room");
+        auto room = card (0.12f, "Room");   // 0.13 before FEAT-MIC's pad
         {
+            roomLight.setBounds (rigCards.getLast().first);
             roomSize.setBounds (room.removeFromLeft (room.getWidth() / 2));
             roomMix.setBounds (room);
         }
@@ -646,7 +668,19 @@ void EasyPanel::resized()
     auto meterColumn = guitarArea.removeFromRight (28);
     meter.setBounds (meterColumn.reduced (4, Metrics::grid));
     chordLabel.setBounds (guitarArea.removeFromTop (20).removeFromRight (120));
+    // piano-roll-chord-display.md 1: the roll strip under the guitar illustration.
+    pianoRoll.setVisible (pianoRoll.isWanted());
+
+    if (pianoRoll.isVisible())
+    {
+        pianoRoll.setBounds (guitarArea.removeFromBottom (PianoRollStrip::kEasyHeight));
+        guitarArea.removeFromBottom (Metrics::gridHalf);
+    }
+
     guitarBody.setBounds (guitarArea);
+
+    // visual-polish.md 4: the VU needle over the guitar's top-left corner, beside the level meter's column.
+    vuMeter.setBounds (guitarArea.getX() + 4, guitarArea.getY() - 16, 128, 66);
 
     // 3.3 playing strip: mode, then the macros, then the whammy if fitted.
     {

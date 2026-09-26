@@ -14,6 +14,8 @@
 #include <juce_dsp/juce_dsp.h>
 #include <functional>
 #include <vector>
+#include <algorithm>
+#include <ctime>
 
 namespace luthier::tests
 {
@@ -145,5 +147,45 @@ double measureDecayTime (const double* samples, int numSamples, double sampleRat
 /** Total harmonic distortion, as a fraction, for a signal known to be a sine at
     `fundamentalHz`. */
 double measureThd (const double* samples, int numSamples, double sampleRate, double fundamentalHz);
+
+//==============================================================================
+/*  performance-budget.md 1 / 10: CPU "units" are percent of one core at the
+    measured audio duration. Measured on the calling thread's CPU clock rather
+    than a stopwatch, so another process competing for the core does not count
+    against the code (see Modulation.thousandRouteStressTest for the history).
+    The best of `repeats`: noise only ever adds. */
+inline double threadCpuTimeSeconds() noexcept
+{
+   #if JUCE_WINDOWS
+    return juce::Time::getMillisecondCounterHiRes() * 0.001;   // no thread clock without windows.h here
+   #else
+    timespec ts {};
+    if (clock_gettime (CLOCK_THREAD_CPUTIME_ID, &ts) != 0)
+        return 0.0;
+    return (double) ts.tv_sec + (double) ts.tv_nsec * 1.0e-9;
+   #endif
+}
+
+template <typename RenderFn>
+double cpuUnits (RenderFn&& render, double audioSeconds, int repeats = 3)
+{
+    double best = 1.0e30;
+
+    for (int r = 0; r < repeats; ++r)
+    {
+        const double start = threadCpuTimeSeconds();
+        render();
+        best = std::min (best, threadCpuTimeSeconds() - start);
+    }
+
+    return 100.0 * best / std::max (1.0e-9, audioSeconds);
+}
+
+/** LUTHIER_PERF=1: the machine-relative performance tests (CPU units, scaling
+    curves, the long memory session) run; otherwise they skip. */
+inline bool perfRunRequested()
+{
+    return juce::SystemStats::getEnvironmentVariable ("LUTHIER_PERF", {}) == "1";
+}
 
 } // namespace luthier::tests

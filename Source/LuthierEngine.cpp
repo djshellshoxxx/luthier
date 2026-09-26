@@ -10,6 +10,9 @@ LuthierEngine::LuthierEngine()
 {
     spec = GuitarLibrary::get (guitarType);
 
+    partsStringMaterial.fill (-1);   // workshop-ui.md 3.3: no string overrides until a parts guitar sets them
+    partsStringWound.fill (-1);
+
     for (int i = 0; i < kMaxStrings; ++i)
     {
         strings[(size_t) i].setIndex (i);
@@ -115,6 +118,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     postEffects.setPosition (EffectsChain::Position::PostAmp);
     cabinet.prepare (sr, maxBlock);
     room.prepare (sr, maxBlock);
+    setOversamplingFactor (oversamplingFactor);   // performance-budget.md 7: the rate's effective factor
     acMic.prepare (sr, maxBlock);                                // mic-placement.md 3
     acMic.setBody (computeAcousticLandmarks (body.getBodyConfig().shape, spec.scaleLengthMm),
                    body.getAirResonanceHz());
@@ -123,6 +127,14 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     acMicBuffer.assign ((size_t) maxBlock, 0.0);
     secret.prepare (sr);
     master.prepare (sr, maxBlock);
+
+    // performance-budget.md 8: the relief ladder starts at rest.
+    cpuRelief.prepare (sr);
+
+    if (appliedReliefStep >= CpuRelief::halveNoisePools)
+        playingNoise.getPool().setDegraded (false);
+
+    appliedReliefStep = 0;
     freezeOverlay.prepare (sr, 2);
 
     // --- scratch --------------------------------------------------------------
@@ -333,6 +345,9 @@ void LuthierEngine::setGuitarType (GuitarType type)
     if (hasPartsOverride)
         customGauges.fill (0.0);
 
+    partsStringMaterial.fill (-1);   // workshop-ui.md 3.3: a compiled type has no string overrides
+    partsStringWound.fill (-1);
+
     hasPartsOverride = false;
     partsSustain = fretBrightnessFactor = nutBrightnessFactor = magnetSustain = 1.0;
 
@@ -357,7 +372,13 @@ void LuthierEngine::applyWorkshopGuitar (const DerivedAcoustics& d, GuitarType s
     hasPartsOverride = true;
 
     for (int i = 0; i < kMaxStrings; ++i)
+    {
         customGauges[(size_t) i] = i < (int) d.gaugesIn.size() ? d.gaugesIn[(size_t) i] : 0.0;
+
+        // workshop-ui.md 3.3: per-string overrides.
+        partsStringMaterial[(size_t) i] = i < (int) d.stringMaterialOverride.size() ? d.stringMaterialOverride[(size_t) i] : -1;
+        partsStringWound[(size_t) i] = i < (int) d.stringWoundOverride.size() ? d.stringWoundOverride[(size_t) i] : -1;
+    }
 
     partsBody = d.body;
 
@@ -858,15 +879,19 @@ void LuthierEngine::refreshStringPhysics()
     {
         const double openHz = tuning.getEffectiveOpenFrequency (i);
 
+        // workshop-ui.md 3.3: a parts guitar may override one string's material or winding.
         // string-aging.md 5: the spec is always Fresh; the set's age comes
         // from StringAging, per string, as multipliers on the string.
-        auto s = StringMaterials::computeSpec (spec.stringMaterial,
+        const int materialOverride = partsStringMaterial[(size_t) i];
+
+        auto s = StringMaterials::computeSpec (materialOverride >= 0 ? (StringMaterial) materialOverride : spec.stringMaterial,
                                                spec.stringGauge,
                                                StringAge::Fresh,
                                                i,
                                                openHz,
                                                spec.scaleLengthMm,
-                                               customGauges[(size_t) i]);
+                                               customGauges[(size_t) i],
+                                               partsStringWound[(size_t) i]);
 
         // Validator check 1: a tuning that would need an impossible tension is
         // corrected, and the correction is logged.
@@ -1075,12 +1100,27 @@ void LuthierEngine::setVibratoShape (Lfo::Shape s) noexcept
         vibratoLfo[(size_t) i].setShape (s);
 }
 
+int LuthierEngine::effectiveOversamplingFactor (int userFactor, double sampleRate) noexcept
+{
+    int factor = juce::jlimit (1, 8, userFactor);
+
+    if (sampleRate > 176400.0 + 1.0)
+        factor /= 4;
+    else if (sampleRate > 96000.0 + 1.0)
+        factor /= 2;
+
+    return juce::jmax (1, factor);
+}
+
 void LuthierEngine::setOversamplingFactor (int factor) noexcept
 {
     oversamplingFactor = juce::jlimit (1, 8, factor);
-    amp.setOversamplingFactor (oversamplingFactor);
-    preEffects.setOversamplingFactor (oversamplingFactor);
-    postEffects.setOversamplingFactor (oversamplingFactor);
+
+    // performance-budget.md 7: the user's factor, downgraded at high rates.
+    const int effective = effectiveOversamplingFactor (oversamplingFactor, sr);
+    amp.setOversamplingFactor (effective);
+    preEffects.setOversamplingFactor (effective);
+    postEffects.setOversamplingFactor (effective);
 }
 
 void LuthierEngine::setTempoBpm (double bpm) noexcept
@@ -1109,6 +1149,15 @@ void LuthierEngine::panic() noexcept
     scrape.stopAll();
     slap.reset();
     numScheduled = 0;
+
+    // qa-polish.md 2.3 (the state fuzz): a playing-noise voice and the
+    // sympathetic coupling's memory outlived a panic and kept the strings
+    // sounding; a panic silences them too.
+    playingNoise.reset();
+    coupling.reset();
+    noteSustainScale.fill (1.0);
+    bridgeOutputs.fill (0.0);
+    couplingInputs.fill (0.0);
     resetRealismB();   // REALISM-B: string-interaction.md 9, panic clears the runtime flags
 }
 
@@ -2767,6 +2816,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         if (noiseFloorOn)
             instrument += noiseFloor.circuitInSample (i);
 
+        // performance-budget.md 4: the pre-circuit DI is the pickup signal
+        // itself (or the re-amped sidechain, which has no guitar circuit).
+        preCircuitBuffer[(size_t) i] = sidechainToAmp ? sanitise (readSidechain (i)) : sanitise (instrument);
+
         instrument = circuit.process (instrument);
 
         if (noiseFloorOn)
@@ -3011,6 +3064,49 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     cpuEstimate.store (cpuEstimate.load (std::memory_order_relaxed) * 0.9 + instant * 0.1,
                        std::memory_order_relaxed);
+
+    // performance-budget.md 8: the relief ladder. Only step 4 has a hook in the
+    // engine (the NoiseEngine pools), applied on a change of step, so a
+    // normal load never touches it.
+    const int reliefStep = cpuRelief.updateMeasured (instant * 0.01, numSamples);
+
+    if ((reliefStep >= CpuRelief::halveNoisePools) != (appliedReliefStep >= CpuRelief::halveNoisePools))
+        playingNoise.getPool().setDegraded (reliefStep >= CpuRelief::halveNoisePools);
+
+    appliedReliefStep = reliefStep;
+
+    // Step 7: one string at a time, every 200 ms while it holds, the quietest
+    // sounding one first - the one that has been ringing longest, so the least
+    // recently played. Only strings that are sounding are candidates.
+    if (reliefStep >= CpuRelief::dropStrings)
+    {
+        reliefDropCountdown -= numSamples;
+
+        if (reliefDropCountdown <= 0)
+        {
+            reliefDropCountdown = (int) (sr * CpuRelief::kStepUpSeconds);
+            int quietest = -1;
+            double lowest = 1.0e9;
+
+            for (int s = 0; s < numStrings; ++s)
+                if (const double level = getStringLevel (s); level > 1.0e-4 && level < lowest)
+                {
+                    lowest = level;
+                    quietest = s;
+                }
+
+            if (quietest >= 0)
+            {
+                strings[(size_t) quietest].setDamping (StringEngine::Damping::Choked, 1.0);
+                ++reliefDroppedStrings;
+            }
+        }
+    }
+    else
+    {
+        reliefDropCountdown = 0;
+        reliefDroppedStrings = 0;
+    }
 }
 
 //==============================================================================
@@ -3024,6 +3120,7 @@ int LuthierEngine::getLatencySamples() const noexcept
     latency += postEffects.getLatencySamples();
     latency += amp.getLatencySamples();
     latency += midi.getLatencySamples();
+    latency += master.getLatencySamples();   // performance-budget.md 10.6: the limiter's lookahead
 
     return latency;
 }

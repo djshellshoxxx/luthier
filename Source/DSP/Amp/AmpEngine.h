@@ -112,6 +112,7 @@ public:
 
     void setOversamplingFactor (int factor) noexcept;
     int getLatencySamples() const noexcept { return oversampler.getLatencySamples(); }
+    double getOversampledRate() const noexcept { return oversampler.getOversampledRate(); }   // performance-budget.md 7
 
     //==========================================================================
     /** Mono in, mono out. The amp is a mono device; stereo appears later, at the
@@ -169,6 +170,7 @@ private:
     OnePoleLP transformerHf;
     OnePoleHP transformerLf;
     EnvelopeFollower sagFollower;
+    double stageRest = 0.0;   ///< tubeShape (0, bias): subtracted so a cold start is silent (qa-polish.md 5.10)
     double supplyVoltage = 1.0;
     double sagAttack = 0.0, sagRelease = 0.0;
     double lastOutput = 0.0;

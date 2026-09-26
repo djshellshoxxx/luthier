@@ -6,6 +6,7 @@
 #include "Parameters.h"
 #include "Presets/PresetManager.h"
 #include "Support/MidiLearn.h"
+#include "Support/UndoHistory.h"
 #include "Support/MidiCapture.h"
 #include "Capture/PerformanceCapture.h"
 #include "Presets/PresetMorph.h"
@@ -36,6 +37,8 @@
 #include "Workshop/WorkshopBench.h"
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
+#include "Support/InstallLayout.h"
+#include "Support/SoundingNotesPublisher.h"
 
 namespace luthier
 {
@@ -193,6 +196,16 @@ public:
         clock, so this returns before the fade has finished. */
     bool recallSnapshot (int index);
 
+    /*  action-and-undo.md 3.7: the UI's save and recall, each one entry
+        ("Save snapshot [i] [name]", "Recall snapshot [i] [name]"). MIDI and
+        setlist recalls use recallSnapshot and push nothing. */
+    bool captureSnapshotAsUserAction (int index, const juce::String& label = {});
+    bool recallSnapshotAsUserAction (int index);
+    void renameSnapshotAsUserAction (int index, const juce::String& label);
+    void setSnapshotColourAsUserAction (int index, int colourTag);
+    /** `removeSlot` erases the slot (the bank shifts); false empties it in place. */
+    void deleteSnapshotAsUserAction (int index, bool removeSlot);
+
     void nextSnapshot();
     void previousSnapshot();
 
@@ -208,10 +221,11 @@ public:
 
     /** Loads a setlist file and moves to its first entry. */
     bool loadSetlist (const juce::File& file);
+    const juce::File& getSetlistFile() const noexcept { return setlistFile; }
 
     /** Applies the setlist's current entry - its preset and its snapshot - and
         pre-loads the one after it. */
-    bool applyCurrentSetlistEntry();
+    bool applyCurrentSetlistEntry (bool asUndoStep = true);   // action-and-undo.md 3.10
 
     //==========================================================================
     // The practice tools (practice-tools.md).
@@ -337,6 +351,16 @@ public:
     void setCapoPart (const PartPtr& capo);
     PartPtr getCapoPart() const noexcept { return capoPart; }
 
+    /*  The fitted slide (guitar-workshop.md 2, the drawer's Slide card): the
+        engine plays its material, mass and size (slide-guitar.md 2.1). Travels
+        in the preset's guitar block like the capo; nullptr is the engine's own
+        default bar, which is what a preset without one gets (VISUAL-WORKSHOP-QA). */
+    void setSlidePart (const PartPtr& slidePart);
+    PartPtr getSlidePart() const noexcept { return slidePart; }
+
+    /** A slide part's bar as the engine takes it; the default bar for nullptr. */
+    static SlideBar slideBarFor (const Part* slidePart);
+
     /** "Factory/<Family>/<Name>.luthierguitar" or "User/<Name>.luthierguitar". */
     const juce::String& getGuitarReference() const noexcept { return guitarReference; }
 
@@ -390,6 +414,17 @@ public:
     void releasePreviewNote (int stringIndex);
 
     //==========================================================================
+    // piano-roll-chord-display.md 2-3: what the strings sound (published by the
+    // audio thread every block) and notes played from the piano roll's keys,
+    // which reach the engine as channel 1 MIDI like any other note.
+    const SoundingNotes& getSoundingNotes() const noexcept { return soundingNotes; }
+    void playKeyboardNote (int midiNote, float velocity);
+    void releaseKeyboardNote (int midiNote);
+    /** Every note-on at the same sample, so the interpreter strums them as one chord. */
+    void playKeyboardChord (const juce::Array<int>& midiNotes, float velocity);
+    void releaseKeyboardChord (const juce::Array<int>& midiNotes);
+
+    //==========================================================================
     /** Releases every string and clears all state. The Panic button. */
     void panic();
 
@@ -439,15 +474,40 @@ public:
 
         JUCE_DECLARE_NON_COPYABLE (ScopedUndoAction)
     };
-    bool canUndo() const noexcept { return undoPosition >= 0; }
+    bool canUndo() const noexcept { return undoHistory.canUndo(); }
 
     /** How many actions can be undone (tests, and the Edit menu's count). */
-    int getNumUndoSteps() const noexcept { return undoPosition + 1; }
-    bool canRedo() const noexcept { return undoPosition + 1 < undoStack.size(); }
+    int getNumUndoSteps() const noexcept { return undoHistory.getNumUndoSteps(); }
+    bool canRedo() const noexcept { return undoHistory.canRedo(); }
     void undo();
     void redo();
+
+    // ---- action-and-undo.md 1, 4, 5, 9, 12 (the stack lives in Support/UndoHistory) ----
+    /** An entry with a class and target, so repeats within 200 ms group (4). */
+    void pushUndoAction (const juce::String& description, const juce::String& actionClass,
+                         const juce::String& target);
+    /** A state boundary (5): preset / guitar load, family switch, setlist step. */
+    void pushUndoBoundary (const juce::String& description, const juce::String& actionClass = {});
+    /** An entry for state outside the blob: undo/redo call the functions. */
+    void pushUndoCallback (const juce::String& description, const juce::String& actionClass,
+                           const juce::String& target, std::function<void()> undoFn,
+                           std::function<void()> redoFn);
+    bool isUndoStoppedAtBoundary() const noexcept { return undoHistory.isStoppedAtBoundary(); }
+    /** Ctrl-Alt-Z: one undo that may cross a boundary. */
+    void undoAcrossBoundary();
+    int getNumRedoSteps() const noexcept { return undoHistory.getNumRedoSteps(); }
+    /** Newest first; stepsBack undos reach the state before each entry. */
+    juce::Array<UndoHistory::Item> getUndoHistory (int maxItems = UndoHistory::kMaxEntries) const { return undoHistory.getHistory (maxItems); }
+    /** Undoes `steps` entries, crossing boundaries (the history list's click). */
+    void undoSteps (int steps);
+    void setUndoClock (std::function<double()> clock) { undoHistory.setClock (std::move (clock)); }
     juce::String getUndoDescription() const;
     juce::String getRedoDescription() const;
+
+    /*  action-and-undo.md 3.8: a preset load from the UI - one entry named
+        "Load preset [name]", the load, then the engine update. */
+    bool loadPresetAsUserAction (int index);
+    bool stepPresetAsUserAction (bool forward);
 
     //==========================================================================
     // UI state that belongs with the plugin rather than with the editor.
@@ -471,6 +531,13 @@ public:
 
         /** workshop-ui.md 7: the bench's eight A/B guitars, workspace not preset. */
         std::array<juce::var, 8> benchSlots;
+
+        // piano-roll-chord-display.md 6: session state, not preset data.
+        bool pianoRollExpanded = true;
+        int  pianoRollHeight = 72;
+        bool pianoLatch = false;
+        bool pianoShowFingering = false;
+        juce::Array<int> pianoLatchedNotes;
     };
 
     UiState& getUiState() noexcept { return uiState; }
@@ -483,6 +550,10 @@ public:
 
     /** Factory used by the exporter to make an offline instance. */
     static std::unique_ptr<juce::AudioProcessor> createOfflineInstance();
+
+    /** installer.md 6: what the constructor's first-run check found (first run,
+        or the version this install upgraded from). */
+    const InstallLayout::Result& getInstallLayoutResult() const noexcept { return installLayoutResult; }
 
 private:
     /** The advertised bus layout. A static member because BusesProperties is
@@ -646,6 +717,7 @@ private:
     bool loadGuitarFrom (const juce::String& reference, const juce::var& override,
                          GuitarType type, bool writeParameters);
     void writeGuitarParameters (const DerivedAcoustics& derived);
+    bool guitarLoadKeepsHostWrites = false;   ///< only a type load defers to the host's writes
 
     /** strum-dynamics 4 / bass-techniques 8: moves the strum parameters still on
         one family's defaults to the other's. */
@@ -659,7 +731,9 @@ private:
     static juce::File resolveGuitarReference (const juce::String& reference);
 
     PartLibrary partLibrary;
+    InstallLayout::Result installLayoutResult;   // installer.md 6
     PartPtr capoPart;
+    PartPtr slidePart;   // VISUAL-WORKSHOP-QA: the fitted slide
     WorkshopGuitar currentGuitar;
     WorkshopBench bench { *this };
     bool partsGuitarLoaded = false;
@@ -781,6 +855,10 @@ private:
     juce::MidiBuffer previewMidi;
     juce::CriticalSection previewLock;
 
+    // --- piano-roll-chord-display.md 2 ---------------------------------------------
+    SoundingNotes soundingNotes;
+    SoundingNotesPublisher soundingPublisher;
+
     // --- A/B and undo -------------------------------------------------------------
     juce::MemoryBlock slotA, slotB;
     bool slotBActive = false;
@@ -797,26 +875,18 @@ private:
     void parameterValueChanged (int parameterIndex, float newValue) override;
     void parameterGestureChanged (int parameterIndex, bool gestureIsStarting) override;
 
-    struct UndoEntry
-    {
-        /** The state before the action. */
-        juce::MemoryBlock state;
+    void undoOnce (bool crossBoundary);
 
-        /** The state after it, filled in when the action is undone. */
-        juce::MemoryBlock redoState;
-
-        juce::String description;
-    };
-
-    void addUndoEntry (UndoEntry&& entry);
+    /*  action-and-undo.md 3.17 / 7: restores an entry's state but leaves the
+        session layers (view, Live Mode, A/B, locks, tune, metronome) alone. */
+    void applyUndoState (const juce::MemoryBlock& state);
+    bool restoringForUndo = false;
 
     bool gestureUndoSuppressed = false;
 
-    juce::Array<UndoEntry> undoStack;
-    int undoPosition = -1;
-
-    /** action-and-undo.md 2. */
-    static constexpr int kMaxUndoSteps = 200;
+    UndoHistory undoHistory;   // action-and-undo.md
+    juce::File setlistFile;    // ui-wiring 17: the loaded setlist's reference
+    double gestureStartMs = 0.0;
 
     /*  The state as it was when the current gesture started, held until the
         gesture ends and we know whether anything actually changed. */

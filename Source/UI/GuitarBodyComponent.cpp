@@ -8,7 +8,7 @@ namespace luthier
 
 //==============================================================================
 GuitarBodyComponent::GuitarBodyComponent (LuthierAudioProcessor& p)
-    : processor (p)
+    : processor (p), chordName (p)
 {
     startTimerHz (30);
 }
@@ -34,7 +34,21 @@ void GuitarBodyComponent::rebuildScene (bool force)
     if (! force && key == scene.key && ! scene.hits.empty())
         return;
 
-    scene = GuitarRenderer::build (guitar, options);
+    auto next = GuitarRenderer::build (guitar, options);
+
+    // A different guitar (not a resize or a palette): 12.1's crossfade from the
+    // old picture, or under reduced motion an instant change with the changed
+    // parts outlined (16).
+    if (! scene.hits.empty() && next.key != scene.key)
+    {
+        const double now = juce::Time::getMillisecondCounterHiRes();
+        const bool reduced = AccessibilitySettings::get().isReducedMotion();
+
+        fade.begin (cache, now, reduced);
+        overlay.changed = reduced ? changedRegions (scene, next) : std::array<bool, (size_t) GuitarRegion::numRegions> {};
+    }
+
+    scene = std::move (next);
     cache = {};
     repaint();
 }
@@ -118,8 +132,6 @@ void GuitarBodyComponent::resized()
 
 void GuitarBodyComponent::timerCallback()
 {
-    auto& engine = processor.getEngine();
-
     // The guitar can change under us (Workshop, preset, type); twice a second is enough to notice.
     if (++ticksSinceKeyCheck >= 15)
     {
@@ -127,7 +139,29 @@ void GuitarBodyComponent::timerCallback()
         rebuildScene (false);
     }
 
-    bool changed = false;
+    updateLiveOverlay (juce::Time::getMillisecondCounterHiRes());
+}
+
+bool GuitarBodyComponent::isAnimating (double nowMs) const noexcept
+{
+    if (fade.isActive (nowMs))
+        return true;
+
+    for (int s = 0; s < 12; ++s)
+        if (dots.alpha[(size_t) s] > 0.0f && dots.alpha[(size_t) s] < 1.0f)
+            return true;
+
+    return false;
+}
+
+void GuitarBodyComponent::updateLiveOverlay (double nowMs)
+{
+    auto& engine = processor.getEngine();
+    lastFrameMs = nowMs;
+    const bool reducedMotion = AccessibilitySettings::get().isReducedMotion();
+
+    bool changed = fade.isActive (nowMs);
+    fade.finishIfDone (nowMs);
 
     for (int s = 0; s < juce::jmin (12, engine.getNumStrings()); ++s)
     {
@@ -139,7 +173,12 @@ void GuitarBodyComponent::timerCallback()
 
         overlay.stringLevel[(size_t) s] = level;
         overlay.stringFret[(size_t) s] = fret;
+
+        // Section 19: the dot is on from the first frame and fades over 60 ms after.
+        changed = dots.update (s, level, fret, nowMs, reducedMotion) || changed;
     }
+
+    dots.copyTo (overlay);
 
     const auto slideFret = (float) engine.getSlideEngine().getOverlayFret();
 
@@ -149,12 +188,68 @@ void GuitarBodyComponent::timerCallback()
         changed = true;
     }
 
-    const bool reduced = AccessibilitySettings::get().isReducedMotion();
-    changed = changed || reduced != overlay.reducedMotion;
-    overlay.reducedMotion = reduced;
+    // The capo on the neck (TODO G) and the slide's slant and material
+    // (gui-integration.md 21), as the bench draws them.
+    const int capoFret = engine.getTuningEngine().getCapoFret();
+    const auto capoMask = engine.getTuningEngine().getCapoStringMask();
+    const auto slant = (float) engine.getSlideEngine().getSettings().slantDegrees;
+    const auto slideColour = juce::Colour (getSlideMaterial (engine.getSlideEngine().getBar().material).colour);
+
+    if (capoFret != overlay.capoFret || capoMask != overlay.capoMask || slant != overlay.slideSlantDeg || slideColour != overlay.slideColour)
+    {
+        overlay.capoFret = capoFret;
+        overlay.capoMask = capoMask;
+        overlay.slideSlantDeg = slant;
+        overlay.slideColour = slideColour;
+        changed = true;
+    }
+
+    changed = changed || reducedMotion != overlay.reducedMotion;
+    overlay.reducedMotion = reducedMotion;
+
+    // piano-roll-chord-display.md 4, 7: the chord name is part of the live pass.
+    const bool nameWas = chordName.getFader().isVisible (nowMs - 34.0);
+    chordName.tick (nowMs);
+
+    if (nameWas || chordName.getFader().isVisible (nowMs))
+        repaint (getChordNameArea().getSmallestIntegerContainer().expanded (8));
 
     if (changed)
         repaint();
+}
+
+void GuitarBodyComponent::setGhostDots (const std::vector<std::pair<int, double>>& dots)
+{
+    ghostFrets.fill (-1.0f);
+    const int capo = processor.getEngine().getTuningEngine().getCapoFret();
+
+    for (const auto& [string, fret] : dots)
+        if (juce::isPositiveAndBelow (string, 12))
+            ghostFrets[(size_t) string] = (float) (fret + capo);
+
+    repaint();
+}
+
+juce::Rectangle<float> GuitarBodyComponent::getChordNameArea() const
+{
+    juce::Rectangle<float> body;
+
+    for (const auto& hit : scene.hits)
+        if (hit.region == GuitarRegion::body)
+            body = body.isEmpty() ? hit.area.getBounds() : body.getUnion (hit.area.getBounds());
+
+    if (body.isEmpty() || scene.nutPoints.empty())
+        return {};
+
+    juce::Point<float> nut;
+
+    for (const auto& p : scene.nutPoints)
+        nut += p;
+
+    nut /= (float) scene.nutPoints.size();
+
+    const auto bodyPx = body.transformedBy (mmToPx);
+    return ChordNameOverlay::lowerBout (bodyPx, nut.transformedBy (mmToPx)).getIntersection (getLocalBounds().toFloat());
 }
 
 //==============================================================================
@@ -170,9 +265,23 @@ void GuitarBodyComponent::paint (juce::Graphics& g)
 
     g.drawImage (cache, getLocalBounds().toFloat());
 
+    // 12.1: the old guitar fading out over the new one.
+    if (const float a = fade.alpha (lastFrameMs); a > 0.0f && fade.previous.isValid())
+    {
+        g.setOpacity (a);
+        g.drawImage (fade.previous, getLocalBounds().toFloat());
+        g.setOpacity (1.0f);
+    }
+
     overlay.accent = Palette::accent;
+    overlay.ghostFret = ghostFrets;
+    overlay.ghostColour = Palette::textPrimary;
+    overlay.changedColour = Palette::secondary;
     overlay.hovered = hoveredRegion;
     GuitarRenderer::paintOverlay (g, scene, mmToPx, overlay);
+
+    // piano-roll-chord-display.md 4: the chord name, over the lower bout.
+    chordName.paint (g, getChordNameArea(), (float) getHeight(), lastFrameMs);
 
     // ---- name plate -------------------------------------------------------------------
     g.setColour (Palette::textMuted);
@@ -237,6 +346,9 @@ juce::String GuitarBodyComponent::describeHoverTarget (juce::Point<float> positi
         case GuitarRegion::neck:
         case GuitarRegion::fretboard:
         case GuitarRegion::jack:
+        case GuitarRegion::pick:
+        case GuitarRegion::slideBar:
+        case GuitarRegion::capo:
         case GuitarRegion::numRegions:
             break;
     }
@@ -284,6 +396,9 @@ void GuitarBodyComponent::mouseExit (const juce::MouseEvent&)
 void GuitarBodyComponent::mouseDown (const juce::MouseEvent& e)
 {
     auto& state = processor.getState();
+
+    // 16: the reduced-motion outline of what changed lasts until the next click.
+    overlay.changed = {};
 
     // ---- knobs: drawn on top of the body, tested first -------------------------------
     if (const int knob = knobAt (e.position); knob >= 0)
@@ -469,13 +584,13 @@ TuningPopover::TuningPopover (LuthierAudioProcessor& p)
         AccessibleSetup::configureSlider (*slider, "String " + juce::String (i + 1) + " detune",
                                           " cents");
 
-        /*  An undo entry per gesture rather than per value change: a drag is one
-            action to the user, and action-and-undo.md asks for the undo stack to
-            match what they think they did. */
-        slider->onDragStart = [this] { processor.pushUndoState ("Detune string"); };
-
+        /*  action-and-undo.md 4: one entry per string, grouped over 200 ms, so a
+            drag is one action - and a wheel or keyboard change, which never
+            started a drag, still makes one. */
         slider->onValueChange = [this, i, slider]
         {
+            processor.pushUndoAction ("Detune string " + juce::String (i + 1), "string-detune", juce::String (i));
+
             // tuning-stability.md 5: a lower detune is a string brought down to pitch.
             auto& engine = processor.getEngine();
             const double before = engine.getStabilityBasePitch (i);

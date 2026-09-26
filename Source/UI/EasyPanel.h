@@ -25,6 +25,8 @@
 #include "AmpFacePanel.h"
 #include "PanelHelpButton.h"
 #include "MicPlacementEditor.h"   // mic-placement.md 6.3 (FEAT-MIC)
+#include "StageTouches.h"
+#include "PianoRollStrip.h"
 
 namespace luthier
 {
@@ -151,6 +153,21 @@ private:
     juce::TextButton resetButton { "Reset" };
 
     LevelMeter meter;
+
+    // visual-polish.md 4 (VISUAL-WORKSHOP-QA): the VU needle and the room light.
+    VuMeter vuMeter;
+    RoomLight roomLight;
+    juce::Rectangle<int> ampCardArea;
+
+    // piano-roll-chord-display.md 1: under the guitar, 56 px (Options -> Visual aids).
+    PianoRollStrip pianoRoll { processor, false };
+
+public:
+    VuMeter& getVuMeter() noexcept { return vuMeter; }
+    RoomLight& getRoomLight() noexcept { return roomLight; }
+    PianoRollStrip& getPianoRoll() noexcept { return pianoRoll; }
+    juce::Rectangle<int> getAmpCardArea() const noexcept { return ampCardArea; }
+private:
     juce::Label chordLabel;
 
     // ---- rhythm strip (3.5) ------------------------------------------------------------
@@ -179,7 +196,7 @@ private:
     bool micPadAcoustic = false;                                         // FEAT-MIC
 
     LuthierChoice roomSize { "Room" };
-    LuthierKnob roomMix { "Wet/Dry", LuthierKnob::Size::Small };
+    LuthierKnob roomMix { "Wet/Dry", LuthierKnob::Size::Normal };
 
     juce::Rectangle<int> rigArea, playingArea, toneArea, rhythmArea;
     juce::Array<std::pair<juce::Rectangle<int>, juce::String>> rigCards;

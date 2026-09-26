@@ -19,6 +19,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "Guitar/GuitarRenderer.h"
+#include "Guitar/IllustrationMotion.h"
+#include "ChordNameOverlay.h"
 
 namespace luthier
 {
@@ -141,6 +143,29 @@ public:
     /** What the illustration currently shows, for tests and the Workshop. */
     const GuitarScene& getScene() const noexcept { return scene; }
 
+    /*  One frame of the live overlay at `nowMs` (the timer's work, public so the
+        60 ms dot timing and the reduced-motion rules can be tested with a
+        clock): played notes, slide, capo, and the crossfade's progress. */
+    void updateLiveOverlay (double nowMs);
+    const GuitarOverlay& getOverlay() const noexcept { return overlay; }
+
+    /** How often the live overlay is refreshed (19: 30 Hz, so a note's first frame is under 60 ms away). */
+    int getFrameIntervalMs() const noexcept { return getTimerInterval(); }
+
+    /** True while something moves: a crossfade (250 ms) or a fading dot (60 ms). */
+    bool isAnimating (double nowMs) const noexcept;
+
+    /** Rebuilds now if the guitar changed (the timer checks twice a second). */
+    void checkForGuitarChange() { rebuildScene (false); }
+
+    /** piano-roll-chord-display.md 4: the chord name over the lower bout. */
+    ChordNameOverlay& getChordName() noexcept { return chordName; }
+
+    /** piano-roll-chord-display.md 3: "Show fingering" in Easy, which has no
+        fretboard - (string, fret from the capo) pairs, drawn hollow. */
+    void setGhostDots (const std::vector<std::pair<int, double>>& dots);
+    juce::Rectangle<float> getChordNameArea() const;
+
 private:
     void timerCallback() override;
 
@@ -172,6 +197,13 @@ private:
 
     GuitarOverlay overlay;
     GuitarRegion hoveredRegion = GuitarRegion::none;
+
+    // guitar-illustration.md 12.1, 16, 19 (IllustrationMotion.h).
+    SceneCrossfade fade;
+    NoteDots dots;
+    ChordNameOverlay chordName;   // piano-roll-chord-display.md 4
+    std::array<float, 12> ghostFrets { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+    double lastFrameMs = 0.0;
 
     int draggingKnob = -1;
     double dragStartValue = 0.0;

@@ -45,6 +45,7 @@
 #include "Routing/MidiOutRouter.h"
 #include "Rhythm/RhythmEngine.h"
 #include "Character/CharacterEngine.h"
+#include "Support/CpuRelief.h"
 #include "Character/EnvironmentModel.h"          // environment.md (REALISM-A)
 #include "DSP/String/StringAging.h"              // string-aging.md (REALISM-A)
 #include "DSP/Coupling/BodyCouplingBank.h"       // body-coupling.md (REALISM-A)
@@ -217,6 +218,15 @@ public:
     /** slide-guitar.md: Slide Mode's settings, from the parameters. */
     void setSlideSettings (const SlideSettings& settings) noexcept { slide.setSettings (settings); }
     SlideEngine& getSlideEngine() noexcept { return slide; }
+
+    /*  guitar-workshop.md 2 / TODO 5b (VISUAL-WORKSHOP-QA): the fitted slide
+        part's bar - material, mass, length, diameter. Message thread; parks the
+        audio thread for the swap like any structural change. */
+    void setSlideBar (const SlideBar& bar)
+    {
+        const ScopedStructuralChange change (*this);
+        slide.setBar (bar);
+    }
     const SlideEngine& getSlideEngine() const noexcept { return slide; }
 
     /** pick-noise.md 5: a deliberate rake along the wound strings. */
@@ -361,6 +371,14 @@ public:
     void setOversamplingFactor (int factor) noexcept;
     int getOversamplingFactor() const noexcept { return oversamplingFactor; }
 
+    /*  performance-budget.md 7: above 96 kHz the oversampled modules run at a
+        lower internal factor - the user's factor halved above 96 kHz and
+        quartered above 176.4 kHz, never below 1x - so the internal rate stays
+        near 384 kHz. Transparent: the images it guards against sit above
+        20 kHz at those rates anyway. */
+    static int effectiveOversamplingFactor (int userFactor, double sampleRate) noexcept;
+    int getEffectiveOversamplingFactor() const noexcept { return effectiveOversamplingFactor (oversamplingFactor, sr); }
+
     void setTempoBpm (double bpm) noexcept;
 
     /** Host transport position, for the rhythm engine's grid. */
@@ -472,6 +490,10 @@ public:
     void setSidechainToAmp (bool on) noexcept { sidechainToAmp = on; }
     bool isSidechainToAmp() const noexcept { return sidechainToAmp; }
 
+    /** performance-budget.md 4: the same switch as setAuxDiPreCircuit (MODEL-GAPS). */
+    void setDiPreCircuit (bool pre) noexcept { setAuxDiPreCircuit (pre); }
+    bool isDiPreCircuit() const noexcept { return isAuxDiPreCircuit(); }
+
     /** Envelope of the sidechain input, for the modulation matrix's
         SidechainEnvFollower source. Zero when no sidechain is connected. */
     double getSidechainEnvelope() const noexcept { return sidechainEnv.load (std::memory_order_relaxed); }
@@ -526,6 +548,8 @@ public:
 
     double getCpuEstimate() const noexcept { return cpuEstimate.load (std::memory_order_relaxed); }
 
+    /** performance-budget.md 8: the relief ladder, fed each block's load. */
+    CpuRelief& getCpuRelief() noexcept { return cpuRelief; }
     // ==== BEGIN REALISM-B engine ====
     // harmonic-realism.md, string-interaction.md, fingerstyle-attack.md.
     // Implemented in LuthierEngineRealismB.cpp.
@@ -656,6 +680,10 @@ private:
     std::array<StringSpec, kMaxStrings> stringSpecs {};
     StringAge stringAge = StringAge::BrokenIn;
     std::array<double, kMaxStrings> customGauges {};
+
+    // workshop-ui.md 3.3 (VISUAL-WORKSHOP-QA): a parts guitar's per-string
+    // material and plain/wound overrides; -1 = the set's.
+    std::array<int, kMaxStrings> partsStringMaterial {}, partsStringWound {};
     CouplingMatrix coupling;
     BodyEngine body;
     PickupEngine pickups;
@@ -880,6 +908,14 @@ private:
     juce::MidiBuffer parkedMidi;
 
     std::atomic<double> cpuEstimate { 0.0 };
+    CpuRelief cpuRelief;                 // performance-budget.md 8
+    int appliedReliefStep = 0;
+    int reliefDropCountdown = 0;         // performance-budget.md 8 step 7: samples to the next drop
+    int reliefDroppedStrings = 0;        // strings dropped this episode (tests, diagnostics)
+public:
+    /** Strings relief 7 has dropped since the load last fell below it. */
+    int getReliefDroppedStrings() const noexcept { return reliefDroppedStrings; }
+private:
 
     // --- routing ----------------------------------------------------------------
     TapBuffers taps;
