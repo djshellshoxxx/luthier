@@ -30,6 +30,7 @@ Table: row ID | what was done | test | status
 | RIO-14 | none (already correct) | `Routing::sidechainMeterReadsTheSidechain` | DONE |
 | SQ-16 | none (already correct) | `Squeak::moistureLowersOddsAndBrightness` | DONE |
 | SQ-17 | none (already correct) | `Squeak::pressureRaisesLevelAndCoarsensTexture` | DONE |
+| SG-12 | none (already correct); test covers `SlideEngine::vibratoCents`'s formula directly (depth and sounding-length scaling), not a full engine-level render with `vibrato_depth` and the damped-segment sustain scale, which the work list also asks for | `Slide::vibratoCentsFollowsDepthAndSoundingLength` | PARTIAL - the formula is covered; an engine-level render test is still open |
 
 ## Notes
 

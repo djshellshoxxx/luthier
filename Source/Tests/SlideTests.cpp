@@ -177,6 +177,21 @@ LUTHIER_TEST (Slide, slantGivesEachStringItsOwnInterval)
                  + " cents apart");
 }
 
+LUTHIER_TEST (Slide, vibratoCentsFollowsDepthAndSoundingLength)
+{
+    // 3.2: dx cents ~ 1200/ln2 x depth / sounding length. A higher bar position
+    // halves the sounding length, which doubles the cents for the same depth
+    // in mm; doubling the depth doubles the cents, linearly.
+    const double atNut = SlideEngine::vibratoCents (0.3, 0.0, 648.0);
+    const double atOctave = SlideEngine::vibratoCents (0.3, 12.0, 648.0);
+
+    CHECK_MSG (atNut > 0.0, "vibrato should produce a nonzero cent deviation");
+    CHECK_NEAR (atOctave / atNut, 2.0, 0.05);
+
+    const double doubledDepth = SlideEngine::vibratoCents (0.6, 0.0, 648.0);
+    CHECK_NEAR (doubledDepth / atNut, 2.0, 1.0e-9);
+}
+
 LUTHIER_TEST (Slide, aHeavierBarSustainsLonger)
 {
     SlideEngine slide;
