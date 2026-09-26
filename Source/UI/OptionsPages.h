@@ -71,6 +71,10 @@ public:
 private:
     LuthierChoice oversampling { "Oversampling" };
 
+    // noise-floor.md 3: the user-global default mains region (REALISM-C).
+    juce::ComboBox mainsRegion;
+    juce::Label mainsLabel;
+
     juce::TextButton deviceButton { "Where are the device settings?" };
     juce::Label deviceNote, sidechainNote, latencyLabel;
 };
@@ -412,6 +416,12 @@ public:
     /** Wired by the editor, which is the only thing that can open an overlay. */
     std::function<void()> onShowDebugWindow;
 
+    /** onboarding.md 12 (TUNE-HELP-ONBOARDING): what the confirmation's OK does -
+        clears the user-global settings (TODO 14c: ranges_first_unlock_explained
+        too) and tells the processor the restored range preference. */
+    void restoreFirstRun();
+    juce::TextButton& getRestoreFirstRunButton() noexcept { return restoreFirstRunButton; }
+
     void refresh() override;
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -424,6 +434,7 @@ private:
     juce::TextButton troubleshootButton { "Export troubleshooting file" };
     juce::TextButton openFolderButton { "Open diagnostics folder" };
     juce::TextButton hardResetButton { "Reset all settings and clear caches" };
+    juce::TextButton restoreFirstRunButton { "Restore first-run experience" };
 
     juce::Label explanation, recorderNote, mirrorNote;
 };

@@ -35,6 +35,7 @@
 #include "TunePanel.h"
 #include "PracticeSetupPanel.h"
 #include "HelpTab.h"
+#include "PanelHelpButton.h"
 
 namespace luthier
 {
@@ -136,6 +137,16 @@ public:
 
     void setWorkspaceTab (int index);
 
+    //==========================================================================
+    /*  TUNE-HELP-ONBOARDING (gui-integration 20, onboarding 3 and 4): the ?
+        icons on every column section and on the workspace, and where the tour
+        and the first-week hints find things. */
+    std::vector<PanelHelpButton*> getHelpButtons() const;
+    PanelHelpButton& getWorkspaceHelpButton() noexcept { return workspaceHelp; }
+    juce::Component* getColumnViewport (int column) noexcept;
+    juce::Button* getWorkspaceTabButton (const juce::String& tabName) const;
+    juce::Rectangle<int> getWorkspaceTabStripBounds() const noexcept { return workspaceTabStrip; }
+
     /*  Selects a tab by the name on it. For callers that want a particular panel
         and should not have to know where it sits - a notification banner offering
         to show the user the IR slots, for one. Section 4.4 fixes the order, but
@@ -198,6 +209,12 @@ private:
         /** FEAT-SEARCH: the headings, and where one starts (-1 if absent). */
         juce::StringArray getSections() const;
         int getSectionY (const juce::String& heading) const;
+        /** gui-integration 16 and 20: the section heading at a height, the ?
+            on each heading, and Help on either. */
+        juce::String getSectionAt (int y) const;
+        std::function<void (const juce::String&)> onHelp;
+        juce::OwnedArray<PanelHelpButton> helpButtons;
+        void mouseDown (const juce::MouseEvent&) override;
 
     private:
         struct Item
@@ -206,6 +223,7 @@ private:
             juce::String heading;
             int height = 0;
             bool isGap = false;
+            PanelHelpButton* help = nullptr;
         };
 
         juce::String title;
@@ -239,6 +257,10 @@ private:
     juce::Viewport workspaceViewport;
     int workspaceTab = 0;
 
+    // gui-integration 20: the workspace panel's ?, at the end of the tab strip.
+    PanelHelpButton workspaceHelp;
+    juce::Rectangle<int> workspaceTabStrip;
+
     /*  Where resized() put the column dividers, so paint() draws them in the
         same places. Below 1280 the layout stacks columns 2 and 3, and a paint
         that recomputed the geometry itself would eventually disagree with it. */
@@ -249,8 +271,10 @@ private:
 
     // --- column 1 -----------------------------------------------------------------
     juce::OwnedArray<StringRow> stringRows;
-    std::unique_ptr<LuthierChoice> stringMaterial, stringGauge, stringAge;
+    std::unique_ptr<LuthierChoice> stringMaterial, stringGauge;
+    std::unique_ptr<LuthierKnob> stringAgeHours, bodyCoupling;   // REALISM-A
     std::unique_ptr<LuthierKnob> realismDetune, intonation, sustain;
+    std::unique_ptr<DecayRow> decayRow;   // sustain-and-decay.md 8 (REALISM-C)
     std::unique_ptr<LuthierToggle> driftToggle;
 
     // --- column 2 -----------------------------------------------------------------

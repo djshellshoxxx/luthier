@@ -459,7 +459,9 @@ LUTHIER_TEST (Technique, controllersTakePriorityOverInference)
     tech.reset();
     tech.setPinchHarmonicTrigger (true);
     CHECK (tech.decide (0, 3.0, 0.9, 0, partial, slideFrom) == Technique::PinchHarmonic);
-    CHECK_MSG (partial >= 2, "a pinch harmonic must target a partial above the fundamental");
+    // harmonic-realism.md 3: the pinch's partial follows from where the thumb
+    // grazes (the engine's node search at the pick), no longer from velocity.
+    CHECK_MSG (partial == 0, "the pinch's partial is the engine's to find, not the technique engine's");
     tech.setPinchHarmonicTrigger (false);
 
     tech.reset();

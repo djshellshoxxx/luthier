@@ -130,6 +130,11 @@ struct SearchItem
         counted as indexed. */
     bool hiddenByDefault = false;
 
+    /** The synonyms are other names for the item, not related words: one
+        equal to the whole query scores as the title itself (a Help topic's
+        aliases, which HelpContent::findTopic treats as names). */
+    bool synonymsAreNames = false;
+
     /** Visible in Easy (true), Advanced (false), or wherever (both true). */
     bool inEasy = true, inAdvanced = true;
 

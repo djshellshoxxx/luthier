@@ -1,0 +1,664 @@
+{
+  "schema": 1,
+  "magic": "luthier.tune",
+  "meta": {
+    "title": "Morning Folk Sketch",
+    "artist": "",
+    "author": "Factory",
+    "tempo_bpm": 92.0,
+    "time_sig": "4/4",
+    "key": "G",
+    "mode": "ionian",
+    "swing": 0.0,
+    "feel_pct": 0.0,
+    "tags": [
+      "example",
+      "folk"
+    ],
+    "notes": "Verse and chorus, strummed, with a soft pad under the chorus and a countermelody answering the tune. Try it on Strummed Dreadnought.",
+    "created": "2026-09-24T00:00:00Z",
+    "modified": "2026-09-24T00:00:00Z"
+  },
+  "sections": [
+    {
+      "name": "Verse",
+      "length_bars": 8,
+      "rhythm_pattern": "Folk Down Up",
+      "genre_kit": "Folk Fingerstyle",
+      "chords": [
+        {
+          "root": "G",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "min",
+          "beats": 4.0
+        },
+        {
+          "root": "C",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "G",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "C",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "G",
+          "quality": "maj",
+          "beats": 4.0
+        }
+      ],
+      "melody": [
+        {
+          "start": 0.0,
+          "dur": 0.5,
+          "pitch": 59,
+          "vel": 96
+        },
+        {
+          "start": 0.5,
+          "dur": 1.0,
+          "pitch": 57,
+          "vel": 83
+        },
+        {
+          "start": 1.5,
+          "dur": 0.5,
+          "pitch": 55,
+          "vel": 78
+        },
+        {
+          "start": 2.0,
+          "dur": 1.0,
+          "pitch": 59,
+          "vel": 89
+        },
+        {
+          "start": 4.0,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 93
+        },
+        {
+          "start": 4.5,
+          "dur": 1.0,
+          "pitch": 60,
+          "vel": 83
+        },
+        {
+          "start": 5.5,
+          "dur": 1.0,
+          "pitch": 57,
+          "vel": 81
+        },
+        {
+          "start": 6.5,
+          "dur": 0.5,
+          "pitch": 50,
+          "vel": 77
+        },
+        {
+          "start": 8.0,
+          "dur": 0.5,
+          "pitch": 59,
+          "vel": 97
+        },
+        {
+          "start": 8.5,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 79
+        },
+        {
+          "start": 9.0,
+          "dur": 1.5,
+          "pitch": 62,
+          "vel": 90
+        },
+        {
+          "start": 10.5,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 83
+        },
+        {
+          "start": 12.0,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 94
+        },
+        {
+          "start": 12.5,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 79
+        },
+        {
+          "start": 13.0,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 86
+        },
+        {
+          "start": 13.5,
+          "dur": 1.5,
+          "pitch": 59,
+          "vel": 77
+        },
+        {
+          "start": 16.0,
+          "dur": 0.5,
+          "pitch": 55,
+          "vel": 94
+        },
+        {
+          "start": 16.5,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 80
+        },
+        {
+          "start": 17.0,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 88
+        },
+        {
+          "start": 17.5,
+          "dur": 1.5,
+          "pitch": 66,
+          "vel": 77
+        },
+        {
+          "start": 20.0,
+          "dur": 1.5,
+          "pitch": 62,
+          "vel": 92
+        },
+        {
+          "start": 21.5,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 77
+        },
+        {
+          "start": 22.0,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 90
+        },
+        {
+          "start": 22.5,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 79
+        },
+        {
+          "start": 24.0,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 97
+        },
+        {
+          "start": 24.5,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 80
+        },
+        {
+          "start": 25.0,
+          "dur": 1.0,
+          "pitch": 60,
+          "vel": 85
+        },
+        {
+          "start": 26.0,
+          "dur": 1.0,
+          "pitch": 60,
+          "vel": 89
+        }
+      ],
+      "melody_track": {
+        "string_hint": "auto",
+        "articulation": "natural",
+        "source": "auto",
+        "seed": 21,
+        "density": 4.0,
+        "range_low": 48,
+        "range_high": 79,
+        "follow_chords": false
+      },
+      "bass": {
+        "mode": "root_fifth"
+      },
+      "role": "verse",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.55,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    },
+    {
+      "name": "Chorus",
+      "length_bars": 8,
+      "rhythm_pattern": "Folk Down Up",
+      "genre_kit": "Folk Fingerstyle",
+      "chords": [
+        {
+          "root": "C",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "G",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "G",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "C",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "G",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "maj",
+          "beats": 4.0
+        }
+      ],
+      "melody": [
+        {
+          "start": 0.0,
+          "dur": 1.0,
+          "pitch": 64,
+          "vel": 96
+        },
+        {
+          "start": 1.0,
+          "dur": 1.0,
+          "pitch": 62,
+          "vel": 90
+        },
+        {
+          "start": 2.0,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 90
+        },
+        {
+          "start": 2.5,
+          "dur": 0.5,
+          "pitch": 55,
+          "vel": 83
+        },
+        {
+          "start": 4.0,
+          "dur": 1.0,
+          "pitch": 55,
+          "vel": 92
+        },
+        {
+          "start": 5.0,
+          "dur": 0.5,
+          "pitch": 57,
+          "vel": 89
+        },
+        {
+          "start": 5.5,
+          "dur": 1.0,
+          "pitch": 62,
+          "vel": 80
+        },
+        {
+          "start": 6.5,
+          "dur": 0.5,
+          "pitch": 67,
+          "vel": 83
+        },
+        {
+          "start": 8.0,
+          "dur": 0.5,
+          "pitch": 66,
+          "vel": 92
+        },
+        {
+          "start": 8.5,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 83
+        },
+        {
+          "start": 9.0,
+          "dur": 1.0,
+          "pitch": 69,
+          "vel": 87
+        },
+        {
+          "start": 10.0,
+          "dur": 1.0,
+          "pitch": 71,
+          "vel": 88
+        },
+        {
+          "start": 12.0,
+          "dur": 1.0,
+          "pitch": 62,
+          "vel": 93
+        },
+        {
+          "start": 13.0,
+          "dur": 0.5,
+          "pitch": 59,
+          "vel": 91
+        },
+        {
+          "start": 13.5,
+          "dur": 1.0,
+          "pitch": 69,
+          "vel": 78
+        },
+        {
+          "start": 14.5,
+          "dur": 0.5,
+          "pitch": 67,
+          "vel": 82
+        },
+        {
+          "start": 16.0,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 93
+        },
+        {
+          "start": 16.5,
+          "dur": 1.0,
+          "pitch": 67,
+          "vel": 80
+        },
+        {
+          "start": 17.5,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 79
+        },
+        {
+          "start": 18.0,
+          "dur": 1.0,
+          "pitch": 62,
+          "vel": 85
+        },
+        {
+          "start": 20.0,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 96
+        },
+        {
+          "start": 20.5,
+          "dur": 1.5,
+          "pitch": 64,
+          "vel": 77
+        },
+        {
+          "start": 22.0,
+          "dur": 0.5,
+          "pitch": 66,
+          "vel": 89
+        },
+        {
+          "start": 22.5,
+          "dur": 0.5,
+          "pitch": 71,
+          "vel": 80
+        },
+        {
+          "start": 24.0,
+          "dur": 0.5,
+          "pitch": 74,
+          "vel": 91
+        },
+        {
+          "start": 24.5,
+          "dur": 0.5,
+          "pitch": 72,
+          "vel": 82
+        },
+        {
+          "start": 25.0,
+          "dur": 0.5,
+          "pitch": 66,
+          "vel": 87
+        },
+        {
+          "start": 25.5,
+          "dur": 1.5,
+          "pitch": 62,
+          "vel": 83
+        }
+      ],
+      "melody_track": {
+        "string_hint": "auto",
+        "articulation": "natural",
+        "source": "auto",
+        "seed": 22,
+        "density": 4.0,
+        "range_low": 48,
+        "range_high": 79,
+        "follow_chords": false
+      },
+      "bass": {
+        "mode": "root_fifth"
+      },
+      "layers": [
+        {
+          "type": "pad",
+          "on": true,
+          "volume": 0.5,
+          "pan": -0.3,
+          "pattern": "",
+          "seed": 1
+        },
+        {
+          "type": "countermelody",
+          "on": true,
+          "volume": 0.6,
+          "pan": 0.3,
+          "pattern": "",
+          "seed": 4,
+          "notes": [
+            {
+              "start": 0.5,
+              "dur": 1.0,
+              "pitch": 60,
+              "vel": 67
+            },
+            {
+              "start": 1.5,
+              "dur": 1.5,
+              "pitch": 55,
+              "vel": 69
+            },
+            {
+              "start": 6.0,
+              "dur": 1.5,
+              "pitch": 59,
+              "vel": 71
+            },
+            {
+              "start": 7.5,
+              "dur": 1.5,
+              "pitch": 62,
+              "vel": 74
+            },
+            {
+              "start": 10.0,
+              "dur": 1.0,
+              "pitch": 66,
+              "vel": 73
+            },
+            {
+              "start": 11.0,
+              "dur": 1.5,
+              "pitch": 62,
+              "vel": 67
+            },
+            {
+              "start": 14.0,
+              "dur": 1.0,
+              "pitch": 59,
+              "vel": 69
+            },
+            {
+              "start": 15.0,
+              "dur": 0.5,
+              "pitch": 55,
+              "vel": 68
+            },
+            {
+              "start": 15.5,
+              "dur": 1.0,
+              "pitch": 59,
+              "vel": 73
+            },
+            {
+              "start": 16.5,
+              "dur": 1.5,
+              "pitch": 55,
+              "vel": 72
+            },
+            {
+              "start": 19.0,
+              "dur": 0.5,
+              "pitch": 52,
+              "vel": 74
+            },
+            {
+              "start": 19.5,
+              "dur": 1.5,
+              "pitch": 55,
+              "vel": 71
+            },
+            {
+              "start": 21.0,
+              "dur": 1.5,
+              "pitch": 59,
+              "vel": 68
+            },
+            {
+              "start": 23.0,
+              "dur": 0.5,
+              "pitch": 62,
+              "vel": 72
+            },
+            {
+              "start": 23.5,
+              "dur": 1.5,
+              "pitch": 59,
+              "vel": 69
+            },
+            {
+              "start": 26.0,
+              "dur": 0.5,
+              "pitch": 57,
+              "vel": 66
+            },
+            {
+              "start": 26.5,
+              "dur": 1.0,
+              "pitch": 54,
+              "vel": 73
+            },
+            {
+              "start": 27.5,
+              "dur": 0.5,
+              "pitch": 57,
+              "vel": 72
+            },
+            {
+              "start": 28.0,
+              "dur": 1.0,
+              "pitch": 54,
+              "vel": 69
+            },
+            {
+              "start": 29.0,
+              "dur": 0.5,
+              "pitch": 50,
+              "vel": 70
+            },
+            {
+              "start": 29.5,
+              "dur": 1.5,
+              "pitch": 54,
+              "vel": 68
+            }
+          ]
+        }
+      ],
+      "role": "chorus",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.55,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    }
+  ],
+  "setlist": [
+    {
+      "section": "Verse",
+      "repeats": 1
+    },
+    {
+      "section": "Chorus",
+      "repeats": 1
+    },
+    {
+      "section": "Verse",
+      "repeats": 1
+    },
+    {
+      "section": "Chorus",
+      "repeats": 2
+    }
+  ]
+}

@@ -202,8 +202,9 @@ Set Mic Width to zero to check. If the thinness goes away, that was it.
    purpose.
 3. Reproduce the crash.
 4. Reopen the plugin and press **Export troubleshooting file**.
-5. Send **both** files, from `Documents/Luthier/Diagnostics`, to
-   `support@luthieraudio.example`, with a description of what you were doing.
+5. Send **both** files, from `Documents/Luthier/Diagnostics`, to the support
+   address shown in **Help > About and Licence** (and on the HELP tab's Email
+   Support button), with a description of what you were doing.
 
 The two files do different jobs:
 
@@ -212,6 +213,18 @@ The two files do different jobs:
   anything that is merely not working as expected. It contains no audio.
 - The **crash log** is a running record of what the plugin was doing, with a copy
   of the troubleshooting report at the top. It is only useful for an actual crash.
+
+---
+
+## The welcome banner, the tour or the hints are gone (or will not go away)
+
+- **Take the tour again** from the HELP tab: the **Take the tour** button at the top.
+- **The first-week hints** (pulsing `?` icons, dots on unopened tabs) stop by
+  themselves after seven launches or seven days.
+- **Bring everything back**: Options > DIAGNOSTICS > **Restore first-run
+  experience**. It asks first, puts your settings back to a fresh install's, and
+  re-arms the welcome banner, the tour offer, every one-time hint and the advanced
+  range explainer. Your presets, guitars, tunes and parts are kept.
 
 ---
 

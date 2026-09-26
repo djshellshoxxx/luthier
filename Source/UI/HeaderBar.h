@@ -81,6 +81,20 @@ public:
 
     void refreshPresetDisplay();
 
+    /** onboarding 3 and 4 (TUNE-HELP-ONBOARDING): the header controls the tour
+        and the first-week hints point at, by id. nullptr for an unknown id. */
+    juce::Component* getTourTarget (const juce::String& id) noexcept
+    {
+        if (id == "play")     return &led;
+        if (id == "preset")   return &presetName;
+        if (id == "mode")     return &modeButton;
+        if (id == "workshop") return &workshopButton;
+        if (id == "slide")    return &slideButton;
+        if (id == "options")  return &fileMenuButton;
+        if (id == "help")     return &helpButton;
+        return nullptr;
+    }
+
     void paint (juce::Graphics&) override;
     void resized() override;
 

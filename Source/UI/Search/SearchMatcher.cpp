@@ -469,13 +469,13 @@ double scoreItem (const Query& query, const SearchItem& item, double englishWeig
         if (hasEnglish)
             best = std::max (best, englishWeight * std::max (englishFloor, scoreTitleToken (token, english, previousEnglishWord)));
 
-        if (best < Score::synonymWholeQuery)
+        if (best < (item.synonymsAreNames ? Score::wholeTitle : Score::synonymWholeQuery))
         {
             for (const auto& syn : item.preparedSynonyms)
             {
                 if (syn.text == query.whole)
                 {
-                    best = std::max (best, (double) Score::synonymWholeQuery);
+                    best = std::max (best, (double) (item.synonymsAreNames ? Score::wholeTitle : Score::synonymWholeQuery));
                     break;
                 }
 

@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "UI/FirstRun.h"
 #include "UI/RangesUi.h"
 #include "Accessibility/Accessibility.h"
 #include "UI/Search/SearchNavigator.h"   // global-search.md (FEAT-SEARCH)
@@ -27,6 +28,11 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 {
     setLookAndFeel (&lookAndFeel);
 
+    // onboarding.md 5 (TUNE-HELP-ONBOARDING): the OS-following defaults, once per
+    // install, before anything reads the palette.
+    if (FirstRun::applyIfFirstRun())
+        applyFirstRunPreset();
+
     shownPalette = Palette::current();
     AccessibilitySettings::get().addChangeListener (this);
 
@@ -37,6 +43,9 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     // practice-tools 9: the drawer changes the space the panels have, so the
     // window relays out when it opens or is dragged taller.
     practicePanel.onHeightChanged = [this] { resized(); };
+
+    // onboarding.md 11: the drawer reopens as it was left.
+    practicePanel.setOpen (processor.getUiState().practiceDrawerOpen);
     addChildComponent (easyPanel);
     addChildComponent (advancedPanel);
 
@@ -178,6 +187,8 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     startTimerHz (4);
 
     buildSearchProviders();   // global-search.md 8 (FEAT-SEARCH)
+    // onboarding.md 2-4 (TUNE-HELP-ONBOARDING): banner, tour, first-week hints.
+    setupOnboarding();
 
     /*  gui-integration 15. Last in the constructor, because a banner posting
         itself makes the strip visible and calls resized(), and everything it
@@ -192,6 +203,7 @@ LuthierAudioProcessorEditor::~LuthierAudioProcessorEditor()
 
     processor.getUiState().editorWidth = getWidth();
     processor.getUiState().editorHeight = getHeight();
+    processor.getUiState().practiceDrawerOpen = practicePanel.isOpen();   // onboarding 11
 
     tooltips.setLookAndFeel (nullptr);
     setLookAndFeel (nullptr);
@@ -413,6 +425,11 @@ void LuthierAudioProcessorEditor::resized()
         notifications.setBounds (bounds.removeFromTop (NotificationCentre::preferredHeight)
                                    .reduced (Metrics::windowPadding, 2));
 
+    // onboarding.md 2: the welcome banner, also under the header.
+    if (welcomeBanner.isVisible())
+        welcomeBanner.setBounds (bounds.removeFromTop (WelcomeBanner::preferredHeight)
+                                   .reduced (Metrics::windowPadding, 2));
+
     // live-performance 10: the live strip attaches under the header when Live
     // Mode is on, and takes no space at all when it is off.
     if (liveStrip.isVisible())
@@ -438,6 +455,8 @@ void LuthierAudioProcessorEditor::resized()
 
     if (searchNav != nullptr)   // FEAT-SEARCH
         searchNav->layout (getLocalBounds(), Metrics::headerHeight);
+    discovery.setBounds (getLocalBounds());
+    tour.setBounds (getLocalBounds());
 }
 
 //==============================================================================
@@ -552,6 +571,13 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
             return true;
         }
 
+        // onboarding 3: "Escape ends the tour."
+        if (tour.isRunning())
+        {
+            tour.skip();
+            return true;
+        }
+
         if (processor.getMidiLearn().isArmed())
         {
             setMidiLearnArmed (false);
@@ -617,6 +643,7 @@ bool LuthierAudioProcessorEditor::performAction (const juce::String& actionId)
     if (is ("options"))         { showOverlay (&optionsPanel);  return true; }
     if (is ("presetBrowser"))   { showOverlay (&presetBrowser); return true; }
     if (is ("export"))          { showOverlay (&exportPanel);   return true; }
+    if (is ("newTune"))         { openNewTune();                return true; }   // tune-builder 2 (TUNE-HELP-ONBOARDING)
     if (is ("debugPanel"))      { showOverlay (&debugPanel);    return true; }
 
     /*  Section 17's "New preset": load Init, which is the factory preset whose own
@@ -730,6 +757,7 @@ bool LuthierAudioProcessorEditor::performAction (const juce::String& actionId)
     {
         practicePanel.setOpen (! practicePanel.isOpen());
         resized();
+        processor.getUiState().practiceDrawerOpen = practicePanel.isOpen();
         return true;
     }
 

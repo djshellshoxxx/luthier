@@ -1336,24 +1336,52 @@ LUTHIER_TEST (SearchEditor, GS45_commandsMatchTheirButtons)
 {
     CleanRecent clean;
 
-    // Retune all: the CHARACTER panel's Retune.
+    // Retune all: the CHARACTER panel's Retune, compared with pressing it.
     {
-        Win w;
-        auto& character = w.p().getEngine().getCharacterEngine();
-        w.p().prepareToPlay (kSr, kBlock);
+        auto runUp = [] (Win& w)
+        {
+            w.p().prepareToPlay (kSr, kBlock);
+            juce::AudioBuffer<float> buffer (2, kBlock);
+            juce::MidiBuffer midi;
 
-        juce::AudioBuffer<float> buffer (2, kBlock);
-        juce::MidiBuffer midi;
+            for (int b = 0; b < 200; ++b)
+                w.p().processBlock (buffer, midi);
+        };
 
-        for (int b = 0; b < 200; ++b)
-            w.p().processBlock (buffer, midi);
+        Win byButton, byPalette;
+        runUp (byButton);
+        runUp (byPalette);
 
-        const int depth = w.p().getNumUndoSteps();
-        CHECK (character.getSessionSeconds() > 0.0);
-        CHECK (w.nav->activate (*w.item ("cmd:retuneAll"), ActivationKind::primary, false).status == SearchNavigator::Outcome::Status::done);
-        CHECK (character.getSessionSeconds() == 0.0);
-        CHECK (w.p().getNumUndoSteps() == depth);
-        CHECK (w.nav->getActions().find ("retuneAll")->undo == UndoClass::none);
+        juce::TextButton* retune = nullptr;
+        std::function<void (juce::Component&)> find = [&] (juce::Component& c)
+        {
+            for (auto* child : c.getChildren())
+            {
+                if (auto* b = dynamic_cast<juce::TextButton*> (child); b != nullptr && b->getButtonText() == "Retune")
+                    retune = b;
+
+                find (*child);
+            }
+        };
+
+        for (int i = 0; i < 64; ++i)
+            if (auto* adv = dynamic_cast<AdvancedPanel*> (byButton.ed->getChildComponent (i)))
+                for (int t = 0; t < adv->getNumWorkspaceTabs(); ++t)
+                    if (adv->getWorkspaceTabName (t) == "CHARACTER")
+                        find (*adv->getWorkspacePanel (t));
+
+        CHECK (retune != nullptr);
+
+        const int depthButton = byButton.p().getNumUndoSteps(), depthPalette = byPalette.p().getNumUndoSteps();
+        CHECK (byPalette.p().getEngine().getCharacterEngine().getSessionSeconds() > 0.0);
+
+        if (retune != nullptr)
+            retune->onClick();
+
+        CHECK (byPalette.nav->activate (*byPalette.item ("cmd:retuneAll"), ActivationKind::primary, false).status == SearchNavigator::Outcome::Status::done);
+        CHECK (byPalette.p().getEngine().getCharacterEngine().getSessionSeconds() == 0.0);
+        CHECK (byButton.p().getEngine().getCharacterEngine().getSessionSeconds() == 0.0);
+        CHECK (byPalette.p().getNumUndoSteps() - depthPalette == byButton.p().getNumUndoSteps() - depthButton);
     }
 
     // Export MIDI: the MIDI OUT tab's export.

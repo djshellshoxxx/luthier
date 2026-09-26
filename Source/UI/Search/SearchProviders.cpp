@@ -413,6 +413,15 @@ const std::vector<PlaceDef>& PlaceProvider::catalogue()
             { "CHARACTER", "SLAP",  "Slap group", Gate::bass },
             { "RHYTHM",    "STRUM", "Strum group", Gate::none },
             { "RHYTHM",    "BASS GRID", "Bass grid", Gate::bass },
+            { "CHARACTER", "STRING AGING", "String aging", Gate::none },
+            { "CHARACTER", "ENVIRONMENT", "Environment (humidity, temperature)", Gate::none },
+            { "CHARACTER", "BODY COUPLING", "Body coupling", Gate::none },
+            { "CHARACTER", "NOISE FLOOR", "Noise floor", Gate::none },
+            { "CHARACTER", "SUSTAIN SHAPE", "Sustain shape", Gate::none },
+            { "CHARACTER", "TUNING STABILITY", "Tuning stability", Gate::none },
+            { "CHARACTER", "HARMONICS", "Harmonics", Gate::none },
+            { "CHARACTER", "RIGHT HAND", "Right hand", Gate::none },
+            { "CHARACTER", "STRING INTERACTION", "String interaction", Gate::none },
         };
 
         for (const auto& g : groups)
@@ -1061,6 +1070,7 @@ void HelpProvider::collect (std::vector<SearchItem>& out) const
         item.englishTitle = item.title;
         item.breadcrumb = "Help";
         item.synonyms = HelpContent::getAliases (topic);   // an alias is another name (2)
+        item.synonymsAreNames = true;
         item.keywords.add (topic.id);
 
         out.push_back (std::move (item));

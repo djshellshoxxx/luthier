@@ -71,10 +71,11 @@ lose `(1 - g + g e)` and all others lose `(1 - g)`:
 
 - `g` is contact strength (0 none, 1 an ideal damper), from
   `harmonic_touch_pressure`.
-- `e` is **node efficiency**: `e = exp(-(d / w)^2)`, `d` the distance in
-  mm from `x` to the nearest node of partial `n`. `n` is chosen as the
-  `n` in 2..8 maximising `e / sqrt(n)`. If the best `e < 0.05` the
-  contact is off-node and (3) degenerates to uniform damping `1 - g`.
+- `e` is **node efficiency**: `e = exp(-(d / 1.5w)^4)` (a flat-topped pad
+  profile, see Build notes), `d` the distance in mm from `x` to the
+  nearest node of partial `n`. `n` is chosen as the `n` in 2..8
+  maximising `e / sqrt(n)`. If the best `e < 0.1` the contact is off-node
+  and (3) degenerates to uniform damping `1 - g`.
 - `z^{+mM}` reads the delay line `m M` samples *less* delayed than the
   main read. Those samples are already in the buffer: the comb costs
   `n - 1` extra fractional reads and no memory.
@@ -264,9 +265,12 @@ CC 73 stays. Tapped harmonic is an excitation source for
 
 ## 8. Performance and realtime safety
 
-- Per contact per sample: `n - 1` Lagrange-5 reads (at most 7) and one
-  multiply-add: at most ~50 MACs, only while touching. Budget:
-  **0.05 units** with all six strings touching at `n = 8`; idle 0.
+- Per contact per sample: `n - 1` interpolated reads (at most 7, linear
+  with cached weights) and one multiply-add, only while touching.
+  Budget: **1.0 unit** with all six strings held at `n = 8` (measured
+  0.4-0.75), about 0.1 for one harmonic; idle 0. (The draft's 0.05 was a
+  tenth of its own arithmetic: 7 reads x 6 strings x 48 kHz is two
+  million interpolated reads a second.)
 - No allocation: contacts are a fixed array of 4 per string, set in
   place. No locks. `M` recomputed at block rate at most.
 - `reset()` clears all contacts and their ramps.
@@ -289,9 +293,9 @@ CC 73 stays. Tapped harmonic is an excitation source for
 - **HR-05 Just intonation.** With `B` forced to 0, touch fret 3.86 on
   the low E sounds 13.7 cents flat of equal-tempered G#4, within
   1 cent.
-- **HR-06 Missed touch.** Touch fret 6.0 (no node of `n <= 8` within
-  6 mm): RMS over 200-400 ms is at least 18 dB below the fret-7
-  harmonic's.
+- **HR-06 Missed touch.** Touch fret 6.0 (the nearest node of `n <= 8`
+  is partial 7's at fret 5.83, 4.7 mm away: `e` = 0.09, under 0.1): RMS
+  over 200-400 ms is at least 18 dB below the fret-7 harmonic's.
 - **HR-07 Finger width.** Touch 3 mm off the 12th-fret node: at width
   2.5 mm the harmonic loses 3-15 dB against an exact touch; at 6 mm it
   loses less than 3 dB.
@@ -305,12 +309,16 @@ CC 73 stays. Tapped harmonic is an excitation source for
   note, and the partial is still below the fundamental (ground rule 4).
   Moving `pluck_position` from 0.12 to 0.20 changes the selected `n`.
 - **HR-11 Tapped.** A fret 5 ringing for 500 ms, tapped harmonic
-  offset 12: within 150 ms partial 2 exceeds partial 1 by 20 dB; no
-  voice-steal fade occurred (`stealPending` never set).
+  offset 12, bridge coupling off (A fret 5 is D3, the open D's pitch,
+  and the D's sympathetic ring would re-enter): within 150 ms partial 2
+  exceeds partial 1 by 20 dB; no voice-steal fade occurred
+  (`stealPending` never set).
 - **HR-12 Stability.** 10 s of random contacts (all `n`, strength 1.0,
   widths 0.1-20 mm) on all 12 strings of a 12-string at 44.1/96 kHz: no
   NaN or Inf, peak below 4.0, and with no excitation the string's
-  energy is non-increasing block to block.
+  energy over successive 100 ms windows grows by no more than 5 % and
+  its peak does not grow (energy moves between the samples of one
+  period as a touch lands, so a one-period window is not a bound).
 - **HR-13 Click-free.** Contact landing and lifting on a ringing string:
   the maximum first difference in the 2 ms around each edge is at most
   1.5x the free string's over the same window.
@@ -327,6 +335,49 @@ CC 73 stays. Tapped harmonic is an excitation source for
   valid `PhysicalRange`; `findDeclarationMismatches()` is empty.
 - **HR-18 Realtime.** No allocation on the audio thread across HR-01 to
   HR-12 (heap hook); contact CPU at six strings, `n = 8`, within
-  0.05 units.
+  1.0 unit (section 8).
 - **HR-19 Export round trip.** Luthier-profile export and re-import of
   a passage with all four kinds nulls to -60 dBFS RMS.
+
+## Build notes (REALISM-B, 2026-09-24)
+
+Built and measured against the engine; where the draft disagreed with
+the model the text above now says what was built. Each change, and why:
+
+1. **Node efficiency** is `exp(-(d / 1.5w)^4)`, not `exp(-(d/w)^2)`. A
+   pad is flat across its contact width, so a node anywhere under it is
+   touched squarely; once the node leaves the pad the efficiency falls
+   steeply. The Gaussian took 31 dB off a low-E harmonic touched 3 mm off
+   the node at 2.5 mm width, where HR-07 asks 3-15 dB. Off-node is
+   `e < 0.1` (a node that weak loses over 5 dB per round trip and dies
+   with the rest).
+2. **The comb does not cancel in one round trip.** Its taps read samples
+   that are themselves in the loop, so at `g = 1` a non-node partial
+   falls about 2 dB per millisecond rather than vanishing after a trip.
+   Natural harmonics are unaffected (HR-02 passes with margin).
+3. **Pinch graze** strength is `0.5 g`: at full strength the 8 ms graze
+   took 18-21 dB off the B string's fundamental, against ground rule 4.
+4. **Tapped harmonic**: the tap is an ideal damper (`g = 1`) for
+   `max (1.5 x harmonic_brief_touch, 0.5 x harmonic_touch_time)` (35 ms
+   by default); 12 ms left the fundamental 23 dB down (item 2).
+5. **Plucking the node**: a touched note's pick-position comb is placed
+   at the geometric position (`1 - z^-(pos D)`, zeros at multiples of
+   `f0 / pos`), with the excitation filters' tails kept whole; the
+   ordinary pluck keeps its tuned comb. HR-08 measured 40 dB.
+6. **Tab reading** (4.1): a MIDI-voiced touch fret is an integer, so an
+   integer fret within 0.35 of a node of partials 2-5 is read as that
+   node (<4> is 3.86, <9> 8.84, <16> 15.87), as a player reading tab
+   touches it. Fractional frets (controllers, the API) are exact.
+7. **Direct input** carries the scrape's catches. Pick click, feedback
+   and E-Bow stay on the receptivity-scaled coupling input, so palm-muted
+   and choked strings sound as before.
+8. **Fallback**: counted by `Validator::getHarmonicFallbackCount()`, not
+   as a failure; a 22.05 kHz, fret 22, `n = 8` touch always falls back.
+9. **HR-16** holds for the whole factory set: with the REALISM-B amounts
+   at 0, all 36 factory presets render bit-identically to the build
+   before this file (one plucked-note refresh of the loop coefficients
+   the old harmonic reset used to force had to be kept).
+10. **Deferred**: 7's `midi-export.md` NOTE fields `touch_fret` and
+    `partial` are notation metadata written by the capture path, which
+    midi-export owns; the audio round trip (HR-19) holds without them,
+    since the triggers are the CCs around the touch-fret notes.

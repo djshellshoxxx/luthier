@@ -95,6 +95,10 @@ public:
         on the ? scope with what was typed. */
     std::function<void (const juce::String&)> onOpenSearch;
     juce::TextEditor& getSearchField() noexcept { return searchField; }
+    /** onboarding 2: "user can restart the tour from Help -> Take the tour"
+        (TUNE-HELP-ONBOARDING). The editor runs it. */
+    std::function<void()> onTakeTour;
+    juce::Button& getTourButton() noexcept          { return tourButton; }
 
     int getPreferredHeight() const noexcept { return 640; }
 
@@ -151,6 +155,7 @@ private:
     juce::TextButton sourceButton { "GitHub" };
     juce::TextButton homepageButton { "Homepage" };
     juce::TextButton supportButton { "Email Support" };
+    juce::TextButton tourButton { "Take the tour" };
 
     juce::Rectangle<int> headerBounds, versionBounds, shortcutHeaderBounds;
 

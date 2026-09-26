@@ -14,6 +14,11 @@
 #include "../StrumGroup.h"
 #include "../BassGridGroup.h"
 #include "../NoiseGroups.h"
+#include "../RealismGroups.h"
+#include "../RealismGroupsC.h"
+#include "../HarmonicsGroup.h"
+#include "../RightHandGroup.h"
+#include "../StringInteractionGroup.h"
 #include "../MidiOutPanel.h"
 #include "../HelpContent.h"
 
@@ -357,6 +362,17 @@ void SearchNavigator::tagSurfaces()
         tagGroup (findFirst<SlapGroup> (*panel),     "group:CHARACTER:SLAP", "Slap");
         tagGroup (findFirst<StrumGroup> (*panel),    "group:RHYTHM:STRUM", "Strum");
         tagGroup (findFirst<BassGridGroup> (*panel), "group:RHYTHM:BASS GRID", "Bass grid");
+
+        // The realism groups (REALISM-A/B/C), also in CHARACTER.
+        tagGroup (findFirst<StringAgingGroup> (*panel),       "group:CHARACTER:STRING AGING", "String aging");
+        tagGroup (findFirst<EnvironmentGroup> (*panel),       "group:CHARACTER:ENVIRONMENT", "Environment");
+        tagGroup (findFirst<BodyCouplingGroup> (*panel),      "group:CHARACTER:BODY COUPLING", "Body coupling");
+        tagGroup (findFirst<NoiseFloorGroup> (*panel),        "group:CHARACTER:NOISE FLOOR", "Noise floor");
+        tagGroup (findFirst<SustainShapeGroup> (*panel),      "group:CHARACTER:SUSTAIN SHAPE", "Sustain shape");
+        tagGroup (findFirst<TuningStabilityGroup> (*panel),   "group:CHARACTER:TUNING STABILITY", "Tuning stability");
+        tagGroup (findFirst<HarmonicsGroup> (*panel),         "group:CHARACTER:HARMONICS", "Harmonics");
+        tagGroup (findFirst<RightHandGroup> (*panel),         "group:CHARACTER:RIGHT HAND", "Right hand");
+        tagGroup (findFirst<StringInteractionGroup> (*panel), "group:CHARACTER:STRING INTERACTION", "String interaction");
     }
 }
 
@@ -403,7 +419,7 @@ void SearchNavigator::registerActions()
     add ("exportMidi", "search.cmd.exportMidi", UndoClass::none);
     add ("importMidi", "search.cmd.importMidi", UndoClass::none);
     add ("retuneAll", "search.cmd.retuneAll", UndoClass::none);
-    add ("newTune", "search.cmd.newTune", UndoClass::none);
+    // "New tune" is a shortcut now (Ctrl+T, TUNE-HELP-ONBOARDING): registered above.
     add ("openChords", "search.cmd.openChords", UndoClass::none);
     add ("clearRecentSearches", "search.cmd.clearRecentSearches", UndoClass::none);
 
@@ -461,30 +477,20 @@ bool SearchNavigator::performExtendedAction (const juce::String& id)
     if (id == "exportAudio") { editor.showOverlay (&editor.exportPanel); return true; }
     if (id == "openChords")  { editor.showOverlay (&editor.chordPanel);  return true; }
 
-    if (id == "exportMidi" || id == "newTune")
+    if (id == "exportMidi")
     {
-        // Both live on column 4 tabs: switch there (auto-switch rules), then
-        // press the tab's own button, so there is one code path.
+        // The MIDI OUT tab's own export: switch there (auto-switch rules),
+        // then press its button, so there is one code path.
         Outcome outcome;
 
-        if (! switchModeFor (Mode::advanced, SearchCatalog::text (id == "exportMidi" ? "search.cmd.exportMidi" : "search.cmd.newTune"),
-                             true, outcome))
+        if (! switchModeFor (Mode::advanced, SearchCatalog::text ("search.cmd.exportMidi"), true, outcome))
         {
             showFooterMessage (outcome.message, true);
             return false;
         }
 
-        editor.advancedPanel.setWorkspaceTabNamed (id == "exportMidi" ? "MIDI OUT" : "TUNE");
+        editor.advancedPanel.setWorkspaceTabNamed ("MIDI OUT");
         editor.resized();
-
-        if (id == "newTune")
-        {
-            if (auto* tune = findFirst<TunePanel> (editor.advancedPanel))
-                if (tune->getNewButton().onClick != nullptr)
-                    tune->getNewButton().onClick();
-
-            return true;
-        }
 
         if (onExportMidiPressed != nullptr)
         {
