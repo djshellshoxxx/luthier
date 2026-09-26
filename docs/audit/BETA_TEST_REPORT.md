@@ -188,6 +188,21 @@ IN PROGRESS (a helper branch covers it).
 - Cause: `LuthierEngine::reset` left the cpu-quality-modes 2.4 ring-out bookkeeping (`qualityNotePeak`, `qualityRingOutEligible`, `qualityLastExcite`, `qualitySilentSamples`) behind. A string released before the reset stayed "eligible to ring out" against the old note's peak, so its sympathetic ring after the reset was faded to sleep at Medium/Low where a fresh instance let it ring.
 - Fix: reset clears them; `resetRealismB` also reseeds the release-stagger generator (string-interaction.md 0.3: stagger repeats bit-for-bit). Regression test `Combo.qualityLevelsForgetWhatWasPlayedAtReset` (fails before at Medium and Low, passes after).
 
+### B-22 ASan: FA07 read past its render buffer. FIXED (`01c9863`, round 2)
+
+- The ASan build (`-fsanitize=address`, `ASAN_OPTIONS=detect_leaks=0:alloc_dealloc_mismatch=0`) stopped in `FingerstyleAttack.FA07_restDampsTheNeighbour`: heap-buffer-overflow reading `after[i]` (FingerstyleAttackTests.cpp:385). The test measured a 10 ms window ending three of the watched string's periods plus 10 ms after the stroke, but rendered a fixed 30 ms (1536 samples); for the low E (thumb rest 4 -> 5) the window ends at 2229, so its "< 1 dB" check read uninitialised memory. The render now covers the window. Test code only; the engine was not involved.
+
+### B-23 Integration-side failures after the feat-* merges. OPEN (owned by FIX-CROSS; round 2)
+
+Reproduced on the integration branch itself (`7442855`), so not caused by this branch; `docs/helpers/GAP_FILL_INSTRUCTIONS.md` gives AnimationPolicy wiring, the feedback loop, shortcut clashes and the jam layout to the FIX-CROSS helper, so they are reported here and not fixed:
+
+- `Shortcuts.noTwoShortcutsShareADefaultKey`, `shortcutsRebindAndRefuseClashes`: `toggleNormalization`, `toggleStringAnimation` and `cycleCpuQuality` (feat-normalize, feat-strings, feat-cpu) share one default key.
+- `noControlHangsOutsideItsParentAtAnyWidthOrScale`: the Easy header's `JamPill`, its style box and `JamDots` sit at negative x (-44, -28, -38) at 940 and 1000 px wide.
+- `CQ22_everyTimerDrivenUiClassIsRegisteredOrAllowListed`, `CQ22_builtEditorsRegisterEveryTableClassThatExists`: `StringAnimator`, `JamPanel`, `NormalizationBadge`, `NormalizationOptionsGroup` run timers without an `AnimationPolicy::Registration` (cpu-quality-modes 6).
+- `cpuQualityMotionPolicy`: the illustration's reduced-motion overlay is not set, and the string pixels change while motion is Off (the gap audit's J top gap 2: `StringMotionPolicy` checks only Reduced motion).
+- `AS25_theOptionsRows`: the VISUAL AIDS group starts 20 px below the tooltips row.
+- B-18 and B-19 (feedback loop) belong to the same owner.
+
 ### Harness corrections in round 2 (test physics, not engine changes)
 
 - **Capo raises the playable floor** (`ComboHarness::lowestPlayableNote`): nothing is fretted at or behind a capo (RubricVoicer 4.5), so under a capo at 12 the phrases were moved onto notes the guitar cannot play and rendered silent (pairwise row 15, Classical Drop D capo 12). Now the floor is the open string plus the capo it sees.
