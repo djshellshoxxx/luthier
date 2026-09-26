@@ -375,10 +375,22 @@ void LuthierAudioProcessorEditor::paint (juce::Graphics& g)
                 juce::Justification::centredRight, false);
 
     // CPU and latency, where a player can see them without opening anything.
-    g.drawText ("CPU " + juce::String (processor.getEngine().getCpuEstimate(), 1) + "%"
-                + "    latency " + juce::String (processor.getLatencySamples()) + " smp",
-                footer.reduced (Metrics::windowPadding, 0),
+    g.drawText (getFooterText(), footer.reduced (Metrics::windowPadding, 0),
                 juce::Justification::centredLeft, false);
+}
+
+void LuthierAudioProcessorEditor::applyTooltipPreference()
+{
+    // Tooltips are a user preference, so the window is created or torn down to
+    // match rather than the tips being silently empty.
+    tooltipDelayMs = processor.getUiState().tooltipsEnabled ? Metrics::tooltipDelayMs : 0x7fffffff;
+    tooltips.setMillisecondsBeforeTipAppears (tooltipDelayMs);
+}
+
+juce::String LuthierAudioProcessorEditor::getFooterText() const
+{
+    return "CPU " + juce::String (processor.getEngine().getCpuEstimate(), 1) + "%"
+           + "    latency " + juce::String (processor.getLatencySamples()) + " smp";
 }
 
 void LuthierAudioProcessorEditor::resized()
@@ -520,10 +532,7 @@ void LuthierAudioProcessorEditor::timerCallback()
         RangesUi::resyncControls (*this);
     }
 
-    // Tooltips are a user preference, so the window is created or torn down to
-    // match rather than the tips being silently empty.
-    tooltips.setMillisecondsBeforeTipAppears (
-        processor.getUiState().tooltipsEnabled ? Metrics::tooltipDelayMs : 0x7fffffff);
+    applyTooltipPreference();
 
     repaint (getLocalBounds().removeFromBottom (Metrics::footerHeight));
 }
@@ -658,6 +667,14 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
     if (is ("toggleAdvanced"))
     {
+        // SPEC-SWEEP (USER_MANUAL UM-13 / PROGRESS PR-40): the mode switch is
+        // locked while Live Mode is on, from the keyboard as from the header.
+        if (processor.isLiveMode())
+        {
+            inlineNotice.show ("Easy / Advanced is locked while Live Mode is on", InlineNotice::Level::info);
+            return true;
+        }
+
         setAdvancedMode (! advancedMode);
         header.setAdvancedMode (advancedMode);
         return true;

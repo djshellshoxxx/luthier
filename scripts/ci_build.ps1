@@ -117,6 +117,20 @@ function Step-Test {
     Write-Step 'Running the unit tests'
     & $runner 2>&1 | Tee-Object -FilePath (Join-Path $LogDir 'unit-tests.log')
     if ($LASTEXITCODE -ne 0) { throw "Tests failed ($LASTEXITCODE)." }
+
+    # SPEC-SWEEP (TROUBLESHOOTING TS-1, README RM-17): the documented install
+    # paths match the installers, and luthier-render's documented flags work.
+    & cmake -P scripts/check_packaging_paths.cmake
+    if ($LASTEXITCODE -ne 0) { throw "Install locations have drifted from docs/TROUBLESHOOTING.md." }
+
+    $render = Join-Path $BuildDir "LuthierRender_artefacts/$Config/LuthierRender.exe"
+    if (Test-Path $render) {
+        Write-Step 'Smoke-testing luthier-render'
+        & cmake "-DRENDER=$render" "-DMIDI=$PWD/Tools/testdata/two_bars.mid" `
+                "-DOUT_DIR=$BuildDir/render-cli-smoke" -P scripts/render_cli_smoke.cmake 2>&1 |
+            Tee-Object -FilePath (Join-Path $LogDir 'render-cli.log')
+        if ($LASTEXITCODE -ne 0) { throw "luthier-render smoke test failed ($LASTEXITCODE)." }
+    }
 }
 
 function Get-Pluginval {

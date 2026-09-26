@@ -461,6 +461,7 @@ private:
     juce::TextButton openDiagnosticsFolder { "Open diagnostics folder" };
     juce::TextButton addFolderButton { "Add a preset folder..." };
     juce::TextButton rescanButton { "Rescan presets" };
+    juce::TextButton removeFolderButton { "Remove folder" };   // SPEC-SWEEP (spec.md SP-108)
 
     juce::Label pathLabel, formatNote;
     juce::ListBox folderList;

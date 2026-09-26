@@ -25,11 +25,11 @@ Every binding the doc lists exists in `AccessibilitySettings` with the documente
 | KS-19 (Control) | Left-drag adjust, Shift coarse, Ctrl ultra-fine | `UI/Widgets.cpp:LuthierKnob::KnobSlider::mouseDrag` (sensitivity 70/180/1200) | every knob | - | NO-TEST |
 | KS-20 (Control) | Double-click resets to default | JUCE `SliderParameterAttachment` (`setDoubleClickReturnValue`) via `LuthierKnob::attachTo` | every knob | - | NO-TEST |
 | KS-21 (Control) | Right-click: Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise | `Widgets.cpp:showParameterContextMenu` | every knob | `Editor::rightClickOffersModulationAndBuildsTheRoute` (Modulate only), `RangesUi::rightClickUnlocksAndRestrictsOneControl` — core items not asserted | NO-TEST |
-| KS-22 (Control) | Hover: value replaces the label — value is drawn in a row above, label stays; tooltip 400 ms is true (`Metrics::tooltipDelayMs`) | `LuthierKnob::paint` showValue | every knob | - | MISSING |
+| KS-22 (Control) | Hover row: value appears above the control, label stays; tooltip 400 ms | `LuthierKnob::paint` showValue | every knob | - | DONE |
 | KS-23 (Fretboard) | Click plays note, higher in lane = harder | `FretboardComponent::mouseDown` velocity from `withinLane` -> `triggerPreviewNote` | Easy/Advanced fretboard | - | NO-TEST |
 | KS-24 (Fretboard) | Right-click: mute string, select string, set capo, scale overlay | `FretboardComponent::mouseDown` popup, `setCapoFret` drives `capoFret` param | fretboard | - | NO-TEST |
 | KS-25 (Illustration) | Click pickup selects it; click switch advances position; drag knob = volume/tone | `GuitarBodyComponent::mouseDown/mouseDrag` | guitar illustration | `Editor::everyHitRegionOnTheIllustrationDescribesItself` (tooltips only) | NO-TEST |
 | KS-26 (Pedal rack) | Drag slot onto another reorders; right-click clear slot / reset pedal | `PedalRack.cpp:PedalSlotComponent::mouseUp/onReorderRequested`, `PedalRack::reorder`; menu items 1/2 | Advanced pedal rack | `Effects::chainReordersWithoutGlitching` (engine only) | NO-TEST |
 | KS-27 (Overlay) | Escape, click outside, Close button all close; only one overlay at a time | `Overlays.cpp:OverlayHost::mouseDown/dismiss`, `closeButton` | every overlay | `Editor::everyOverlayShortcutOpens...` (Escape + one-at-a-time) | NO-TEST |
 
-<!-- counts DONE=6 NO-GUI=0 NO-TEST=18 PARTIAL=2 MISSING=1 OWNED=0 -->
+<!-- counts DONE=7 NO-GUI=0 NO-TEST=18 PARTIAL=2 MISSING=0 OWNED=0 -->

@@ -42,8 +42,6 @@
 - [SP-103] effort S — add "Mark this fret" to the `FretboardComponent` right-click menu, drawing a user dot kept in `UiState`. Test `Fretboard.aMarkedFretIsDrawnAndSaved`.
 - [SP-105] effort S — extend `Editor.everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` with a click-outside case (mouseDown on `OverlayHost` scrim) and a close-button case (find the panel's close `TextButton` and click it) for every overlay. Also assert that opening a second overlay closes the first.
 - [SP-107] DEFER: factory presets are generated from code at first run into the factory folder (FactoryPresets::writeAll), which avoids stale bundle copies. Custom/User are user-side categories. Optional S: add "Custom" factory examples built from Workshop guitars.
-- [SP-108] effort S — add a "Remove" button (and Delete key) to `FileLocationsPage::folderList` that drops the selected extra folder from `PresetManager` and saves the preference. Test `Presets.anExtraFolderCanBeAddedAndRemoved`.
-- [SP-109] effort S — covered by INC-15 (`AudioExporter.rendersAPhraseToAWavAtTheChosenQuality`), and add the AIFF/FLAC formats to the same test.
 - [SP-111] effort S — when `Validator::checkTension` clamps or rejects, post a Notifications banner ("String 6 would need 142 N — tuning clamped") via the processor → editor notification queue. Test with `Editor.notificationBannersQueueDismissAndRespectTheirActions`-style `Editor.anImpossibleTuningRaisesATensionWarning`.
 - [SP-114] effort S — surface `Validator::checkPickupOutput` as a small inline notice in col 2 PICKUPS / Easy rig strip ("All pickups off — silent"). Test `Editor.allPickupsOffShowsAWarning`.
 - [SP-118] effort M — make validator check 5 compare the output's spectral tilt against the expected band per pickup type (piezo bright, humbucker darker), not just level. Add `Validator.pickupSpectralShapeIsChecked`.
@@ -53,8 +51,6 @@
 - [SP-126] effort S — persist the last `ExportPanel` settings (format, depth, rate, tail, normalise, filename pattern) as audio-export defaults in `UiPreferences`, editable in Options > File locations. Test `Export.defaultsArePersisted`.
 - [SP-128] effort S — add Options "Realism defaults" (humanise amount, string age, intonation error) applied by `PresetManager::resetToDefaults` / Init. Test that Init picks them up.
 - [SP-131] DEFER: the flat `Source/UI` layout with feature-named files (EasyPanel, AdvancedPanel, FretboardComponent) is established and referenced by tests and CMake globs. Moving files churns every branch for no behaviour.
-- [SP-133] effort S — add a root `README.md` (build steps for Win/mac/Linux, architecture overview linking docs/*.md, test and pluginval commands).
-- [SP-137] effort S — add a CI smoke step (or `RenderCli.rendersAMidiFileWithAPreset` in LuthierTests by factoring the CLI's render function): render a 2-bar MIDI file with a factory preset and assert a non-silent WAV of the expected length.
 - [SP-141] effort S — covered by the SP-105 overlay test. Pluginval L10 already runs nightly in CI.
 - [SP-142] effort M — the same as EN-86: run the 7-host × 30-minute matrix and record it in docs/RELEASING.md before 1.0.
 - [SP-143] effort M — the same as EN-87: record the hardware-controller runs (GK-3/TriplePlay, Seaboard/LinnStrument) in docs/RELEASING.md.

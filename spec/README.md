@@ -99,7 +99,7 @@ body, woods, bracing, scale length, pickups, string set, tuning and default rig.
 **12 string materials** and eleven gauge sets, with tension, mass, inharmonicity,
 sustain and brightness all computed from the wire rather than looked up.
 
-**21 pedals** across two eight-slot, reorderable racks - one before the amp, one in
+**22 pedals** (21 effects plus the Doubler) across two eight-slot, reorderable racks - one before the amp, one in
 the effects loop.
 
 **13 amplifiers** with real passive tone stacks, cascaded valve stages, push-pull
@@ -139,7 +139,7 @@ BodyEngine ............. partitioned convolution, or modal synthesis built
 PickupEngine ........... per-string positional comb, then the coil's LCR tank
    |
    v
-CableSim -> PreEffectsChain -> AmpEngine -> PostEffectsChain
+GuitarCircuit -> PreEffectsChain -> AmpEngine -> PostEffectsChain
    |
    v
 CabinetEngine -> RoomEngine -> MasterBus -> out
@@ -149,24 +149,46 @@ CabinetEngine -> RoomEngine -> MasterBus -> out
 
 ```
 Source/
+  PluginProcessor, PluginEditor, LuthierEngine, Parameters, PhysicalRange, Validator
   DSP/
-    Common/       guards, filters, smoothing, LFOs, oversampling
+    Common/       guards, filters, smoothing, LFOs, oversampling, IR installer
     String/       waveguide, fractional delay, excitation
     Coupling/     the sympathetic resonance matrix
     Body/         convolution and modal synthesis
     Pickup/       positional comb plus the electrical model
-    Whammy/       vintage, Floyd Rose, TransTrem, Bigsby
-    Cable/        capacitance roll-off
-    Effects/      pedal base class, 21 pedals, the racks, the hidden effect
+    Circuit/      GuitarCircuit: volume/tone pots, cap, treble bleed, buffer, cable
+    Whammy/       hardtail, vintage, locking and transposing tremolos, vintage vibrato
+    Effects/      pedal base class, 22 pedals, the racks, the hidden effect
     Amp/          preamp, tone stack, power amp, cabinet, room
-    Master/       gain, limiter, metering
+    Feedback/     amp-to-string feedback loop and the E-Bow driver
+    Noise/        fret buzz and mechanical playing noise
+    Slap/         bass slap, pop and fingerstyle
+    Slide/        bottleneck and lap-steel slide
+    Master/       gain, limiter, metering, freeze
   Model/
     Guitar/       string materials, body models, the instrument library
     Playing/      tuning, technique detection, chord voicing, MIDI interpretation
-  Presets/        the preset format and the factory bank
-  Support/        MIDI learn, MIDI capture, audio export, diagnostics, IR lookup
+    Workshop/     parts, part library, part acoustics
+  Rhythm/         strum patterns, genre kits, bass step grid, chord detection
+  Tune/           the TUNE player, harmony and melody
+  Workshop/       the Workshop bench and spectrum comparison
+  Live/           snapshots, setlists, live controls
+  Practice/       looper, backing track, metronome
+  Routing/        output routing matrix and MIDI out
+  Modulation/     modulation matrix and sources
+  ToneMatch/      matching a reference recording
+  Notation/       score and notation export
+  Export/         Luthier MIDI profile, import and live MIDI out
+  Capture/        performance capture
+  Character/      wear and ageing character
+  Controllers/    controller profiles
+  Accessibility/  shortcuts, accessibility settings, localisation
+  Updates/        update check, opt-in telemetry, crash reporting, licensing
+  Presets/        the preset format, morphing and the factory bank
+  Support/        MIDI learn, audio export, diagnostics, error log, IR lookup
   UI/             theme, widgets, fretboard, guitar illustration, panels, overlays
   Tests/          the test suite
+  WIP/            not compiled: work in progress
 Tools/            the offline renderer
 scripts/          icon and IR generation
 ```
@@ -200,7 +222,7 @@ audible failure in a real host.
 
 ```bash
 luthier-render --midi riff.mid --preset "Modern Metal Chug" --out riff.wav
-luthier-render --audition "Major Scale" --guitar "Les Paul" --out demo.wav --verbose
+luthier-render --audition "Major Scale" --guitar "Vintage Single-Cut" --out demo.wav --verbose
 luthier-render --list-presets
 luthier-render --help
 ```
@@ -231,8 +253,9 @@ preset round trip verified by comparing rendered audio rather than just numbers,
 and a mono-compatibility check. It returns a non-zero exit code on failure, so it
 drops straight into CI.
 
-For plugin-level validation, [pluginval](https://github.com/Tracktion/pluginval)
-1.0.3 passes at strictness 10 with nothing reported - including the parameter
+For plugin-level validation, CI runs [pluginval](https://github.com/Tracktion/pluginval)
+1.0.4 at strictness 5 on every push and pull request and at strictness 10 in the
+nightly run - including the parameter
 thread-safety, background-thread-state, bus-layout and parameter-fuzz tests, which
 are the ones that catch what a plugin does wrong outside its own audio path:
 
@@ -251,7 +274,11 @@ python scripts/make_icon.py     # application icon
 
 The IRs are **synthesised**, not measured - see
 [Deliberate deviations](#deliberate-deviations-from-the-brief). Both scripts are
-deterministic, so regenerating produces byte-identical files.
+deterministic: `make_irs.py` seeds its random mode scatter from a stable hash of each
+IR's name, so two regenerations are byte-identical. It keeps files that already
+exist; `python scripts/make_irs.py --out DIR` writes a fresh library elsewhere. The
+shipped IRs were generated before the seed was made stable, so a fresh library
+differs from them in the high-frequency mode scatter.
 
 ---
 
@@ -304,7 +331,8 @@ instrument the user just built, which a photograph could never be.
 spec recommends both. Allpass interpolation is an IIR whose state has to settle
 whenever the delay changes, which is audible as a chirp under the fast modulation
 dive-bombs and vibrato require. Fifth-order Lagrange has negligible HF loss below
-0.4 fs and no modulation artefacts. All three are implemented and selectable.
+0.4 fs and no modulation artefacts. All three are implemented (`FractionalDelayLine`)
+and tested; the engine uses Lagrange. The choice is not exposed as a control.
 
 **Damping is expressed as a filter cutoff, not as a raw coefficient.** The engine
 spec's section 5.3 says a higher damping coefficient means brighter and longer,

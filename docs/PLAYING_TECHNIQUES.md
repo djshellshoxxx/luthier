@@ -234,23 +234,26 @@ The bar moves the bridge, changing every string's tension at once. The important
 difference between bridge types is *how* that shared movement maps onto individual
 strings.
 
-| Bridge | Range | Behaviour |
+| Bridge | Typical range | Behaviour |
 |---|---|---|
-| Fixed | none | the bar does nothing |
-| Vintage tremolo | -2 / +1 st | chords detune as you bend |
-| Floyd Rose | -24 / +12 st | same, far wider, plus spring resonance |
-| TransTrem | -12 / +5 st | chords stay in tune |
-| Bigsby | -1 / +0.5 st | gentle |
+| Fixed / Hardtail | none | the bar does nothing |
+| Vintage Tremolo | -2 / +1 st | chords detune as you bend |
+| Locking Tremolo | -24 / +12 st | same, far wider, plus spring resonance |
+| Transposing Tremolo | -12 / +5 st | chords stay in tune |
+| Vintage Vibrato | -1 / +0.5 st | gentle |
 
-A **TransTrem** applies the same frequency *ratio* to every string, so the
+The ranges are each bridge's usual travel; the **Down Range** and **Up Range**
+knobs set the actual range.
+
+A **Transposing Tremolo** applies the same frequency *ratio* to every string, so the
 intervals inside a chord are preserved. That is the whole point of the design, and
 there is a test that asserts every string receives an identical cent offset.
 
-A **vintage trem** applies the same bridge *movement*, which is a bigger pitch
+A **Vintage Tremolo** applies the same bridge *movement*, which is a bigger pitch
 change on the slacker strings. Modelling that unevenness is what makes it detune a
 chord the way the real thing does - and there is a test for that too.
 
-On a Floyd Rose, snapping the bar back sets the springs behind the bridge ringing:
+On a Locking Tremolo, snapping the bar back sets the springs behind the bridge ringing:
 a short filtered noise burst around 240 and 430 Hz. It is very audible on records
 and is often what people notice missing from cheap plugins.
 
@@ -261,14 +264,15 @@ and is often what people notice missing from cheap plugins.
 ### Strumming
 
 In Poly mode a chord is not triggered simultaneously. The pick crosses the strings
-over time:
+over time, at the **Strum Crossing** speed in strings per second (20 to 800; 200 is
+a medium strum):
 
 ```
-delay = order * strumSpeed        order counts from the string struck first
+delay = order / crossingSpeed     order counts from the string struck first
 ```
 
 A downstroke crosses the low strings first; an upstroke reverses. Up-strokes are
-lighter (about 78% velocity), and the pick loses a little energy as it crosses, so
+lighter (about 85% of the force), and the pick loses a little energy as it crosses, so
 each successive string is slightly quieter.
 
 The speed varies slightly every time, scaled by the Humanize macro. A
@@ -276,7 +280,15 @@ machine-even strum is instantly recognisable.
 
 ---
 
-### Freeze (E-Bow)
+### Freeze
+
+**Freeze** captures a window of what is sounding and loops it underneath whatever
+you play next, crossfaded at the seam so the held layer does not pulse. A second
+Freeze replaces the first.
+
+---
+
+### E-Bow
 
 Infinite sustain, implemented the way an E-Bow actually works: the string is driven
 electromagnetically at its own resonance.
@@ -291,12 +303,18 @@ runaway - which a simple "set the loss to 1.0" implementation could not promise.
 ### Amp feedback
 
 With the amp loud and a note sustaining, the speaker drives the string. The engine
-watches the master output; above the threshold, feedback builds gradually and then
-takes over. As it grows it climbs to a higher harmonic, which is what a guitar in
-front of a loud amp actually does.
+models that as a physical loop: the amp's output travels back through the air to
+every ringing string, delayed by the distance, weakened by distance and by which
+way the guitar faces the speaker, and heard by each string only near its own note
+(or an octave of it). It goes in where the string is excited, so the pickups, the
+guitar's circuit and the volume knob are all inside the loop - rolling the volume
+back kills feedback, as it does on a real guitar. The loop saturates softly rather
+than running away.
 
-The loudest ringing string is chosen as the one that feeds back. Threshold and
-speed are yours to set.
+The controls, in Advanced column 3 under Sustain: **Feedback** (how much of the
+amp reaches the strings), **Distance**, **Angle**, **Focus** (how narrowly each
+string hears its own note) and **Octave** (which octave of the note the feedback
+settles on). A light beside them shows when feedback has taken hold.
 
 ---
 

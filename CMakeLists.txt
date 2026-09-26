@@ -173,7 +173,9 @@ endif()
 # reference to the editor.
 set(LUTHIER_ENGINE_SOURCES ${LUTHIER_SOURCES})
 list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "Source/UI/")
-list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor\.(cpp|h)$")
+# SPEC-SWEEP: UiPreferences (juce_core only) is engine code too - PresetManager reads it (REALISM-C).
+list(APPEND LUTHIER_ENGINE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/UiPreferences.cpp")
+list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor[A-Za-z]*\.(cpp|h)$")   # SPEC-SWEEP: + PluginEditorTune/Onboarding
 
 # The UI, as its own list. The renderer does not want it - it renders offline and
 # has no window - but the test runner does. With Source/UI out of every target
@@ -181,7 +183,8 @@ list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor\.(cpp|h)$")
 # LuthierAudioProcessorEditor, and the panels could be verified only by opening
 # the plugin in a host by hand.
 set(LUTHIER_UI_SOURCES ${LUTHIER_SOURCES})
-list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor\.(cpp|h)$")
+list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor[A-Za-z]*\.(cpp|h)$")
+list(FILTER LUTHIER_UI_SOURCES EXCLUDE REGEX "Source/UI/UiPreferences\.cpp$")
 
 set(LUTHIER_CONSOLE_DEFS
     LUTHIER_HEADLESS=1
@@ -235,6 +238,8 @@ if (LUTHIER_BUILD_TESTS)
 
     enable_testing()
     add_test(NAME LuthierUnitTests COMMAND LuthierTests)
+    # SPEC-SWEEP (TROUBLESHOOTING TS-1): the documented install paths match the installers.
+    add_test(NAME PackagingPaths COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_packaging_paths.cmake)
 endif()
 
 if (LUTHIER_BUILD_CLI)
@@ -255,4 +260,13 @@ if (LUTHIER_BUILD_CLI)
         juce::juce_recommended_config_flags)
 
     luthier_copy_resources(LuthierRender "$<TARGET_FILE_DIR:LuthierRender>/Resources")
+
+    # SPEC-SWEEP (README RM-17): every documented luthier-render flag, end to end.
+    enable_testing()
+    add_test(NAME LuthierRenderCli
+             COMMAND ${CMAKE_COMMAND}
+                     -DRENDER=$<TARGET_FILE:LuthierRender>
+                     -DMIDI=${CMAKE_CURRENT_SOURCE_DIR}/Tools/testdata/two_bars.mid
+                     -DOUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/render-cli-smoke
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/render_cli_smoke.cmake)
 endif()

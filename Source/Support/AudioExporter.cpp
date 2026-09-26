@@ -302,6 +302,19 @@ void AudioExporter::cancelExport()
 }
 
 //==============================================================================
+juce::String AudioExporter::describeResult (const Result& result)
+{
+    if (! result.success)
+        return result.message;
+
+    return "Saved\n  " + result.file.getFileName()
+         + "\n\nLocation\n  " + result.file.getParentDirectory().getFullPathName()
+         + "\n\nLength\n  " + juce::String (result.lengthSeconds, 2) + " seconds"
+         + "\n\nQuality\n  " + result.qualityDescription
+         + "\n\nPeak\n  " + juce::String (result.peakDb, 2) + " dBFS";
+}
+
+//==============================================================================
 void AudioExporter::run()
 {
     Result result;

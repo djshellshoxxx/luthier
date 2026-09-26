@@ -939,13 +939,7 @@ void ExportPanel::startExport()
                     .withIconType (result.success ? juce::MessageBoxIconType::InfoIcon
                                                   : juce::MessageBoxIconType::WarningIcon)
                     .withTitle (result.success ? "Export finished" : "Export failed")
-                    .withMessage (result.success
-                                    ? "Saved\n  " + result.file.getFileName()
-                                      + "\n\nLocation\n  " + result.file.getParentDirectory().getFullPathName()
-                                      + "\n\nLength\n  " + juce::String (result.lengthSeconds, 2) + " seconds"
-                                      + "\n\nQuality\n  " + result.qualityDescription
-                                      + "\n\nPeak\n  " + juce::String (result.peakDb, 2) + " dBFS"
-                                    : result.message)
+                    .withMessage (AudioExporter::describeResult (result))   // SPEC-SWEEP INC-16
                     .withButton ("OK"),
                 nullptr);
         });

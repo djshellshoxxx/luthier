@@ -23,7 +23,7 @@ combination.
 3. Press **AUDITION** to hear it without touching a keyboard.
 4. Play.
 
-Six macro knobs cover most of what you will want to change. When you want more,
+Seven macro knobs cover most of what you will want to change. When you want more,
 press **Advanced** at the top right - nothing is hidden there that is not also
 reachable from Easy mode; Advanced just stops summarising.
 
@@ -71,7 +71,7 @@ Always visible, in both modes.
 | **Padlock** | Advanced mode only, and only when this preset has advanced ranges unlocked. Opens Options, RANGES. |
 | **File** | save, save as, open, import and export a preset; export audio, save the last MIDI take, export notation; open the preset and render folders; options; randomise; reset. |
 | **A / B** | two comparison slots. `A>B` copies the current one across. |
-| **Undo / Redo** | 64 steps. |
+| **Undo / Redo** | 200 steps. |
 | **Panic** | stops every string immediately. |
 | **Learn** | arms MIDI Learn: the next control you click is assigned to the next CC you move. |
 | **?** | help. In Advanced mode it opens the HELP tab on the panel you were using; in Easy mode, the same help over the window. |
@@ -96,9 +96,11 @@ pieces glow with what each string is doing.
 - Click the selector switch to advance its position.
 - Drag the volume and tone knobs on the body.
 
-The **fretboard** below shows every string and fret. Notes light up as they sound -
-and what is lit is what is actually ringing, including notes the chord voicer put
-somewhere you did not expect, which is exactly when you want to see it.
+The fretboard on the illustration shows the notes as they sound - and what is lit
+is what is actually ringing, including notes the chord voicer put somewhere you did
+not expect, which is exactly when you want to see it.
+
+The **playable fretboard** is the strip across the top of Advanced mode:
 
 - Click a fret to hear that note. How high in the string's lane you click sets how
   hard it is picked.
@@ -120,6 +122,7 @@ parameter changes, engine events. It stops when nothing is happening.
 | **Tone** | global tone, dark to bright. Moves the guitar's tone control and the amp's treble together. |
 | **Space** | room and ambience. |
 | **Humanize** | timing, velocity, tuning and attack variation. At zero the plugin is machine-perfect. |
+| **Character** | dead spots, tuner drift, fret wear, body age and string noise together - the amount on the CHARACTER tab, which has each one on its own. |
 
 Under each: a **dice** (randomise just this one) and a **padlock** (exclude it from
 Randomise).
@@ -267,7 +270,7 @@ Every control behaves the same way.
 | `Shift` + drag | Coarse |
 | `Ctrl` / `Cmd` + drag | Ultra-fine |
 | Double-click | Reset to default |
-| Hover | The value replaces the label; a tooltip follows after 400 ms |
+| Hover | The value appears above the control (the label stays); a tooltip follows after 400 ms |
 | Right-click | Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise, Modulate |
 
 ### MIDI Learn

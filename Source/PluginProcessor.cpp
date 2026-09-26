@@ -144,6 +144,35 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     for (auto* parameter : getParameters())
         parameter->addListener (this);
 
+    // SPEC-SWEEP (include.md INC-29): the troubleshooting report's LICENCE and
+    // MIDI sections. Message thread, while a report is built; never the key.
+    diagnostics.setReportSectionsProvider ([this]
+    {
+        auto text = [this] (const char* id)
+        {
+            auto* p = apvts.getParameter (id);
+            return p != nullptr ? p->getCurrentValueAsText() : juce::String ("?");
+        };
+
+        const auto state = license.getState();
+        juce::String r;
+
+        r << "---- LICENCE ---------------------------------------------------\n"
+          << "State:            " << License::getStateName (state) << "\n";
+
+        if (state == License::State::activated || state == License::State::grace)
+            r << "Revalidate in:    " << license.getDaysUntilRevalidation() << " days\n";
+
+        r << "\n"
+          << "---- MIDI ------------------------------------------------------\n"
+          << "Playing mode:     " << text (ParamIDs::playingMode) << "\n"
+          << "MPE:              " << text (ParamIDs::mpeEnabled) << "\n"
+          << "MIDI Learn:       " << midiLearn.getNumMappings() << " mapping(s)\n"
+          << "Wrapper:          " << juce::AudioProcessor::getWrapperTypeDescription (wrapperType) << "\n";
+
+        return r;
+    });
+
     // 30 Hz is fast enough for the meters and the data stream, and slow enough
     // that it costs nothing.
     startTimerHz (30);
@@ -2078,15 +2107,24 @@ void LuthierAudioProcessor::recallSlot (bool useSlotB)
     auto& source = useSlotB ? slotB : slotA;
 
     if (source.getSize() > 0)
+    {
+        // SPEC-SWEEP (USER_MANUAL UM-8): a slot's blob carries the slotBActive
+        // flag it was captured with; recalling it must not flip which slot is
+        // showing, or the next A/B press is ignored as "already there".
+        const bool showing = slotBActive;
         setStateInformation (source.getData(), (int) source.getSize());
+        slotBActive = showing;
+    }
 }
 
 void LuthierAudioProcessor::copyAtoB()
 {
-    slotB = slotBActive ? slotA : captureStateBlock();
-
-    if (! slotBActive)
-        slotA = slotB;
+    /*  SPEC-SWEEP (USER_MANUAL UM-8): "A>B copies the current one across" - the
+        sound on screen goes into both slots. With B showing, this used to copy
+        the stored A into B, which the next switch to A then overwrote with B's
+        screen state, so the button did nothing from B. */
+    slotA = captureStateBlock();
+    slotB = slotA;
 }
 
 void LuthierAudioProcessor::setSlotBActive (bool b)

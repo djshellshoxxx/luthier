@@ -17,7 +17,7 @@ The audio-thread allocation / lock rules are being closed on visual. The context
 | JG-1 (§1) | Query context7 before writing or reviewing JUCE code — a workflow rule, not checkable in code | n/a | n/a | - | PARTIAL |
 | JG-2 (§2) | No allocation, `std::function` assignment or container growth on the audio thread; pre-size in `prepareToPlay` — counter defined for tests; the full audio-thread trap and fixes are on visual | `LuthierAudioProcessor::prepareToPlay`, `CMakeLists.txt:205` | n/a | `Circuit::sweepingEveryControlDoesNotAllocate`, `Capture::capturingTenThousandNotesDoesNotAllocate`, `PracticeGaps::theSessionRecorderTakesMidiWithoutAllocating` | OWNED |
 | JG-3 (§2) | No locks on the audio thread — HEAD uses `ScopedTryLock` / `SpinLock` try in `EffectsChain`, `BodyEngine`, `CabinetEngine`, `TunePlayer`; the no-blocking-lock work is on visual | `DSP/Effects/EffectsChain.cpp`, `DSP/Body/BodyEngine.cpp`, `ConvolutionInstaller.h` | n/a | `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` | OWNED |
-| JG-4 (§2) | No `dynamic_cast` or exceptions on the audio thread — `EffectsChain::setOversamplingFactor` does `dynamic_cast<DrivePedalBase*>` per slot and is reached from `LuthierEngine::setOversamplingFactor` (parameter bridge) | `EffectsChain.cpp:238` | n/a | - | PARTIAL |
+| JG-4 (§2) | `Pedal::setOversamplingFactor` is virtual (no-op default, DrivePedalBase overrides); `EffectsChain` no longer dynamic_casts | `EffectsChain.cpp:238` | n/a | `Effects::oversamplingChangeReachesEveryDrivePedal` | DONE |
 | JG-5 (§2 / §5) | No GUI calls from the audio thread; `parameterChanged` marshals via `AsyncUpdater`; editor polls on timers | `ParameterBridge : AsyncUpdater` (`Parameters.h:430`) | n/a | CI pluginval "Open editor whilst processing"; `Editor::itLaysOutAndPaintsAcrossItsResizeRange` | DONE |
 | JG-6 (§3) | DSP code free of GUI headers | `Source/DSP` (includes `juce_dsp` only, `DspCommon.h:12`) | n/a | builds headless (`LUTHIER_HEADLESS=1` render target) | DONE |
 | JG-7 (§4) | JUCE pinned to a tag, never `develop` (spec says submodule; pinned by clone of tag 8.0.10) | `scripts/ci_build.sh:33`, `scripts/setup_linux.sh:12` | n/a | CI build.yml | DONE |
@@ -31,7 +31,7 @@ The audio-thread allocation / lock rules are being closed on visual. The context
 | JG-15 (§6) | `ScopedNoDenormals` at the top of `processBlock` | `PluginProcessor.cpp:999`, `LuthierEngine.cpp:1832` | n/a | `Engine::fastSlidesProduceNoNansOrDenormals` | DONE |
 | JG-16 (§6) | Variable block sizes, including blocks larger than prepared | `processSlice` | n/a | `Engine::blockSizeChangesAreSurvived`, `ReviewRegression::aBlockBiggerThanPreparedIsRenderedWhole` | DONE |
 | JG-17 (§6) | Bus layouts validated explicitly in `isBusesLayoutSupported` | `PluginProcessor.cpp:284` | n/a | `PluginBuses::perStringLayoutPutsEachStringOnItsOwnBus` | DONE |
-| JG-18 (§6 / §12) | Clear unused output channels at the top of `processBlock` — cleared per bus inside `RoutingMatrix` only; nothing guarantees a host-allocated channel nobody writes is zeroed | `Routing/RoutingMatrix.cpp:442` | n/a | - | PARTIAL |
+| JG-18 (§6 / §12) | Verified: `RoutingMatrix::distribute` writes or clears every enabled non-main bus each block (auditor missed the else/clear branches); test proves host garbage never survives | `Routing/RoutingMatrix.cpp:442` | n/a | `PluginBuses::anEnabledBusNobodyWritesIsSilent` | DONE |
 | JG-19 (§6) | Oversampling factor is a parameter | `ParamIDs::oversample`, `LuthierEngine::setOversamplingFactor` | Options AUDIO; Advanced | `Combo::pairwiseAcrossMajorSettings` | DONE |
 | JG-20 (§6) | MIDI processed at its sample position | `processSlice` slicing | n/a | `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample`, `Controllers::chordGroupsSoundOneWindowAfterTheyWerePlayed` | DONE |
 | JG-21 (§7) | Background → audio by building off-thread and swapping atomically | `LuthierEngine::swapPartsAtBlockBoundary`, `ConvolutionInstaller.h` | n/a | `PartSwap::aSwapKeepingTheStructureIsTakenAtABlockBoundaryWithoutSilence`, `WorkshopSwap::noFileIsTouchedFromTheAudioThreadDuringASwap` | DONE |
@@ -45,4 +45,4 @@ The audio-thread allocation / lock rules are being closed on visual. The context
 | JG-29 (§11) | VST3 parameter count and IDs locked once shipped; new params appended | `Parameters.cpp` | n/a | `Parameters::everyParameterHasAUniqueIdAndSaneDefault` (exact count 453) | DONE |
 | JG-30 (§11) | AAX only with PACE — not built | `CMakeLists.txt:35` | n/a | n/a | DONE |
 
-<!-- counts DONE=19 NO-GUI=0 NO-TEST=0 PARTIAL=7 MISSING=2 OWNED=2 -->
+<!-- counts DONE=21 NO-GUI=0 NO-TEST=0 PARTIAL=5 MISSING=2 OWNED=2 -->
