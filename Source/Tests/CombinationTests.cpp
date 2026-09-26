@@ -1523,6 +1523,8 @@ LUTHIER_TEST (Combo, releasedStringIsDampedQuickly)
         // room, so the output is that string (StringEngine::getLevel is an
         // envelope follower with its own release and cannot show this).
         rig.setNormalised (ParamIDs::couplingAmount, 0.0f);
+        rig.setNormalised (ParamIDs::couplingAirAmount, 0.0f);    // string-interaction 1: the air path is sympathetic too
+        rig.setNormalised (ParamIDs::bodyCouplingAmount, 0.0f);   // body-coupling 3: the body rings the other strings back
         rig.setIndex (ParamIDs::roomOn, 0);
         rig.apply();
         rig.processSilence (4);

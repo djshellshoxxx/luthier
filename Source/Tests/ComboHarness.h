@@ -563,12 +563,25 @@ struct Verdict
                 the note, or under -60 dBFS, or at the rig's own floor) and still
                 falling (2 dB over the last second: a 12-string's coupled courses ring
                 that long). Formerly 30 dB, which failed
-                physically honest sympathetic ring. */
+                physically honest sympathetic ring.
+
+                A partial that matches exactly rings louder than that at the
+                output. Measured on "J-Style Fingerstyle" (E3 on the G string):
+                the open A's third partial is 2 cents from the note and rings
+                23 dB under it at the string, the open E 31 dB under; the pickup
+                and amp weight the low strings, so the mix tail reads 18 dB down.
+                A high-gain amp compresses the same ring further (15 dB down on
+                a 7-string through the British 800). Both fall at the open
+                strings' own T60 (4-11 dB/s). So a tail 15 dB down that is
+                falling by at least 3 dB a second (T60 under 20 s: strings
+                dying, not a note held or fed) also passes. */
             const bool atFloor = s.tailRms < 1.0e-3 || (s.idleRms > 0.0 && s.tailRms < s.idleRms * 1.41);
             const bool down    = s.tailRms < s.maxWindowRms * 0.1;
             const bool falling = s.earlierTailRms <= 0.0 || s.tailRms < s.earlierTailRms * 0.794;
             const bool deepDown = s.tailRms < s.maxWindowRms * 0.05;   // 26 dB under: decayed, falling or not
-            const bool quietEnough = atFloor || deepDown || (down && falling);
+            const bool ringingDown = s.tailRms < s.maxWindowRms * 0.178                 // 15 dB under the note
+                                  && s.earlierTailRms > 0.0 && s.tailRms < s.earlierTailRms * 0.708;   // 3 dB in the last second
+            const bool quietEnough = atFloor || deepDown || (down && falling) || ringingDown;
             if (! quietEnough)
                 why.add ("does not decay after release (tail " + juce::String (juce::Decibels::gainToDecibels (s.tailRms), 1)
                          + " dBFS vs note " + juce::String (juce::Decibels::gainToDecibels (s.maxWindowRms), 1) + " dBFS, "
