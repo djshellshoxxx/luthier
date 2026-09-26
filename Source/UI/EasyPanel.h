@@ -23,6 +23,7 @@
 #include "GuitarBodyComponent.h"
 #include "CircuitPanel.h"
 #include "AmpFacePanel.h"
+#include "RiffBrowser.h"   // riff-library 7.3
 #include "PanelHelpButton.h"
 #include "NormalizationBadge.h"   // output-normalization.md 5.1
 #include "StageTouches.h"
@@ -117,6 +118,17 @@ public:
     /** 3.5's dice: a random genre kit. */
     void rollRhythmDice();
 
+    /*  riff-library 7.3: the Riff drawer. It slides in from the right over
+        the rig strip, 320 points wide and the main area's full height, from
+        the Riffs button in the rhythm strip (or R); Escape or the button
+        closes it, and focus returns to the button. */
+    static constexpr int kRiffDrawerWidth = 320;
+    void setRiffDrawerOpen (bool shouldBeOpen);
+    bool isRiffDrawerOpen() const noexcept { return riffDrawer != nullptr && riffDrawerOpen; }
+    juce::Button& getRiffsButton() noexcept { return riffsButton; }
+    RiffBrowser* getRiffDrawer() const noexcept { return riffDrawer.get(); }
+    juce::Rectangle<int> getRiffDrawerBounds() const;
+
 private:
     void timerCallback() override;
     void refreshStyleList();
@@ -194,6 +206,11 @@ private:
     juce::TextButton rhythmEnableButton { "OFF" };
     juce::Label rhythmHintLabel, rhythmReadout;
     std::unique_ptr<JamStripGroup> jamGroup;   // FEAT-JAM: jam-mode 8.2, at the strip's right end
+
+    // riff-library 7.3
+    juce::TextButton riffsButton { "Riffs" };
+    std::unique_ptr<RiffBrowser> riffDrawer;
+    bool riffDrawerOpen = false;
 
     // ---- rig strip (3.2) ---------------------------------------------------------------
     LuthierKnob guitarVolumeKnob { "Volume", LuthierKnob::Size::Small };

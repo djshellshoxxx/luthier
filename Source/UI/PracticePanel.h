@@ -223,6 +223,11 @@ public:
 
     const PerformanceScore& getScore() const noexcept { return score; }
 
+    /** riff-library 6.4 (Learn It): shows a score that did not come from a
+        file, under `title`. */
+    void openScore (const PerformanceScore& newScore, const juce::String& title);
+    juce::String getScoreTitle() const { return scoreTitle; }
+
 private:
     juce::TextButton openButton { "Open..." }, exportButton { "Export..." };
     juce::Label statusLabel;
@@ -231,6 +236,7 @@ private:
     juce::Slider barsSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
 
     PerformanceScore score;
+    juce::String scoreTitle;
     NotationExporter exporter;
     NotationImporter importer;
 

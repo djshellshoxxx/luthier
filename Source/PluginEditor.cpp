@@ -9,6 +9,7 @@
 #include "UI/NormalizationOptions.h"   // output-normalization.md 5
 #include "UI/Search/SearchNavigator.h"   // global-search.md (FEAT-SEARCH)
 #include "UI/Search/CommandPalette.h"
+#include "UI/Search/RiffSearchProvider.h"   // INTEGRATE-2
 
 namespace luthier
 {
@@ -742,6 +743,11 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 void LuthierAudioProcessorEditor::buildSearchProviders()
 {
     searchNav->initialise();
+
+    // riff-library (FEAT-RIFFS, INTEGRATE-2): every riff is a riff: item that
+    // opens the RIFFS tab at it.
+    searchNav->getIndex().addProvider (std::make_unique<search::RiffSearchProvider> (processor.getRiffLibrary(),
+                                                                                    [this] { return advancedPanel.getRiffsPanel(); }));
 }
 
 //==============================================================================
@@ -828,6 +834,18 @@ bool LuthierAudioProcessorEditor::performAction (const juce::String& actionId)
             processor.stopAudition();
         else
             processor.startAudition (processor.getUiState().auditionType);
+
+        return true;
+    }
+
+    // riff-library 7.1: R selects the RIFFS tab in Advanced and toggles the
+    // Riff drawer in Easy.
+    if (is ("riffs"))
+    {
+        if (advancedMode)
+            advancedPanel.setWorkspaceTabNamed ("RIFFS");
+        else
+            easyPanel.setRiffDrawerOpen (! easyPanel.isRiffDrawerOpen());
 
         return true;
     }

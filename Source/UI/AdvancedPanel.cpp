@@ -1227,6 +1227,7 @@ void AdvancedPanel::buildWorkspace()
     rhythmPanel     = std::make_unique<RhythmPanel> (processor);
     tunePanel       = std::make_unique<TunePanel> (processor, processor.getTunePlayer(), processor.getTuneSession());
     jamPanel        = std::make_unique<JamPanel> (processor);   // FEAT-JAM
+    riffsPanel      = std::make_unique<RiffBrowser> (processor, false);   // riff-library 7.1
     livePanel       = std::make_unique<LivePanel> (processor);
     routingPanel    = std::make_unique<RoutingPanel> (processor);
     toneMatchPanel  = std::make_unique<ToneMatchPanel> (processor);
@@ -1244,6 +1245,7 @@ void AdvancedPanel::buildWorkspace()
         { "RHYTHM",      rhythmPanel.get() },
         { "TUNE",        tunePanel.get() },
         { "JAM",         jamPanel.get() },   // FEAT-JAM: jam-mode 8.1, between TUNE and LIVE
+        { "RIFFS",       riffsPanel.get() },   // riff-library 7.1: between TUNE and LIVE
         { "LIVE",        livePanel.get() },
         { "ROUTING",     routingPanel.get() },
         { "TONE MATCH",  toneMatchPanel.get() },
@@ -1290,9 +1292,18 @@ void AdvancedPanel::buildWorkspace()
                                           "Workspace tab. Shows the " + juce::String (tab.name)
                                             + " panel in column four.");
 
-        addAndMakeVisible (*button);
-
         workspacePanels.add (tab.panel);
+    }
+
+    // FEAT-RIFFS: the strip lays the buttons out, scrolling when they overflow.
+    {
+        juce::Array<juce::Button*> buttons;
+
+        for (auto* b : workspaceTabs)
+            buttons.add (b);
+
+        workspaceStrip.setTabs (buttons);
+        addAndMakeVisible (workspaceStrip);
     }
 
     /*  Section 4.4: the last-used tab persists across sessions in the plugin's
@@ -1373,6 +1384,8 @@ void AdvancedPanel::showWorkspaceTab (int index, bool remember)
 
     for (int i = 0; i < workspaceTabs.size(); ++i)
         workspaceTabs[i]->setToggleState (i == workspaceTab, juce::dontSendNotification);
+
+    workspaceStrip.setSelectedIndex (workspaceTab);
 
     /*  Only the selected panel is on screen. Without this the panels that are not
         in the viewport keep whatever visibility they were built with, and a test
@@ -1512,47 +1525,11 @@ void AdvancedPanel::resized()
     const int tabsRight = bounds.getRight() - Metrics::buttonHeight - Metrics::gridHalf;
     workspaceTabStrip = bounds.withHeight (Metrics::buttonHeight).withRight (tabsRight);
 
-    if (! workspaceTabs.isEmpty())
-    {
-        /*  The strip wraps onto more rows when one row would clip the names
-            (TODO V screenshots: at 1280 the tabs read "NE MATC", "HARACTE").
-            A tab wants its widest name plus padding. */
-        const int gap = Metrics::gridHalf;
-        const int count = workspaceTabs.size();
-        const auto font = Fonts::ui (11.0f, true);
-        const int available = tabsRight - bounds.getX();
-        int wanted = 0;
-
-        for (auto* tab : workspaceTabs)
-            wanted = juce::jmax (wanted, juce::roundToInt (font.getStringWidthFloat (tab->getButtonText().toUpperCase())) + 14);
-
-        const int perRowMax = juce::jmax (1, (available + gap) / (wanted + gap));
-        const int rows = (count + perRowMax - 1) / perRowMax;
-        const int perRow = (count + rows - 1) / rows;
-        int next = 0;
-
-        for (int r = 0; r < rows; ++r)
-        {
-            auto tabStrip = bounds.removeFromTop (Metrics::buttonHeight).withRight (tabsRight);
-            const int inRow = juce::jmin (perRow, count - next);
-            const int width = (tabStrip.getWidth() - gap * (perRow - 1)) / perRow;
-
-            for (int i = 0; i < inRow; ++i)
-            {
-                workspaceTabs[next++]->setBounds (tabStrip.removeFromLeft (width));
-                tabStrip.removeFromLeft (gap);
-            }
-
-            workspaceTabStrip = workspaceTabStrip.getUnion (tabStrip.withX (workspaceTabStrip.getX()));
-
-            if (r < rows - 1)
-                bounds.removeFromTop (2);
-        }
-    }
-    else
-    {
-        bounds.removeFromTop (Metrics::buttonHeight);
-    }
+    // FEAT-RIFFS: one row. WorkspaceTabStrip gives each tab its label's width
+    // (sharing out any spare room) and, when they do not all fit, scrolls with
+    // arrows and an overflow menu, keeping the selected tab whole on screen.
+    workspaceStrip.setBounds (workspaceTabStrip);
+    bounds.removeFromTop (Metrics::buttonHeight);
 
     bounds.removeFromTop (Metrics::gridHalf);
 
@@ -1574,6 +1551,8 @@ void AdvancedPanel::resized()
             height = juce::jmax (440, visible);   // the bench fits a 1280x800 window without scrolling (TODO V)
         else if (panel == helpTab.get())
             height = juce::jmax (360, visible);
+        else if (panel == riffsPanel.get())
+            height = juce::jmax (480, visible);   // riff-library 7.2
         else if (auto* p = dynamic_cast<TunePanel*> (panel))                 height = juce::jmax (visible, p->getPreferredHeight());
         else if (auto* p = dynamic_cast<JamPanel*> (panel))                  height = juce::jmax (visible, p->getPreferredHeightFor (workspaceViewport.getMaximumVisibleWidth()));   // FEAT-JAM
         else if (auto* p = dynamic_cast<MidiOutPanel*> (panel))              height = juce::jmax (visible, p->getPreferredHeight());

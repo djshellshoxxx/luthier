@@ -46,6 +46,7 @@
 #include "Rhythm/RhythmEngine.h"
 #include "Character/CharacterEngine.h"
 #include "Support/QualityProfile.h"   // cpu-quality-modes
+#include "Riffs/RiffPlayer.h"   // riff-library 5.3
 #include "Character/EnvironmentModel.h"          // environment.md (REALISM-A)
 #include "DSP/String/StringAging.h"              // string-aging.md (REALISM-A)
 #include "DSP/Coupling/BodyCouplingBank.h"       // body-coupling.md (REALISM-A)
@@ -424,6 +425,16 @@ public:
     /** The rhythm engine sits between the interpreter and the technique engine
         and rewrites the event stream when it is switched on. */
     RhythmEngine& getRhythmEngine() noexcept { return rhythm; }
+
+    /** riff-library 5.3: the riff audition player, played into the strings
+        after the direct notes of each sub-block. */
+    RiffPlayer& getRiffPlayer() noexcept { return riffPlayer; }
+    const RiffPlayer& getRiffPlayer() const noexcept { return riffPlayer; }
+    /** The cents a riff note's bend holds a string at (tests). */
+    double getRiffBendCents (int stringIndex) const noexcept
+    {
+        return riffBendCents[(size_t) juce::jlimit (0, kMaxStrings - 1, stringIndex)];
+    }
     const RhythmEngine& getRhythmEngine() const noexcept { return rhythm; }
 
     /** The instrument's physical imperfections (character-wear.md). Applied at
@@ -660,6 +671,16 @@ private:
     PlayEventQueue events;
     PlayEventQueue rhythmEvents;
     PlayEventQueue directEvents;
+
+    // riff-library 5.3: the riff player, its sub-block's events, and the bend
+    // each string's riff note holds (added to the MIDI bend per block).
+    RiffPlayer riffPlayer;
+    RiffPlayer::Output riffOut;
+    std::array<double, kMaxStrings> riffBendCents {};
+    int subBlockOffset = 0;   ///< samples into the host block this sub-block starts at
+    void playRiffEvents (int numSamples) noexcept;
+    bool schedulingRiff = false;   ///< scheduleEvents is taking the riff player's queue
+    bool firingRiff = false;       ///< the event being fired came from the riff player
     const juce::MidiBuffer* directMidi = nullptr;      ///< for the current processBlock
     const juce::MidiBuffer* directForSubBlock = nullptr;
     juce::MidiBuffer directSlice;
@@ -704,6 +725,7 @@ private:
         NoteOffEvent noteOff {};
         int64_t absoluteSample = 0;
         bool fingerAlternated = false;   ///< bass-techniques 6: already given its finger's timing
+        bool fromRiff = false;           ///< riff-library 5.3: a riff audition event
         bool staggered = false;   ///< REALISM-B: string-interaction.md 4 delayed this note-off
         bool cancelled = false;   ///< REALISM-B: a new note on the string took it first
 

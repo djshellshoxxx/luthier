@@ -583,7 +583,8 @@ LUTHIER_TEST (Editor, everyWorkspaceTabSelectsAndPaints)
 
     // In order: tune-builder 3 puts TUNE between RHYTHM and LIVE (jam-mode 8.1: JAM after TUNE); practice-tools
     // 11 puts PRACTICE between CHARACTER and NOTATION.
-    const juce::StringArray tabNames { "WORKSHOP", "MOD", "RHYTHM", "TUNE", "JAM", "LIVE", "ROUTING", "TONE MATCH",
+    // riff-library 7.1 puts RIFFS between TUNE (JAM) and LIVE.
+    const juce::StringArray tabNames { "WORKSHOP", "MOD", "RHYTHM", "TUNE", "JAM", "RIFFS", "LIVE", "ROUTING", "TONE MATCH",
                                        "CHARACTER", "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "HELP" };
 
     CHECK_MSG (panel.getNumWorkspaceTabs() == tabNames.size(),
@@ -608,7 +609,8 @@ LUTHIER_TEST (Editor, everyWorkspaceTabSelectsAndPaints)
             pass a test that called the method directly. */
         juce::Button* button = nullptr;
 
-        for (auto* child : panel.getChildren())
+        // The buttons live in the tab strip (FEAT-RIFFS: it scrolls when they overflow).
+        for (auto* child : panel.getWorkspaceTabStrip().getChildren())
             if (auto* candidate = dynamic_cast<juce::TextButton*> (child))
                 if (candidate->getButtonText() == name)
                     button = candidate;

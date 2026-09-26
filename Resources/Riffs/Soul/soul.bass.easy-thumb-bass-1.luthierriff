@@ -1,0 +1,68 @@
+{
+ "bass_tech": [
+  {"beat":0,"force":0.8,"pos":0.5,"str":3,"tech":"slap"},
+  {"beat":1,"force":0.8,"pos":0.5,"str":1,"tech":"pop"},
+  {"beat":1.5,"force":0.8,"pos":0.5,"str":3,"tech":"slap"},
+  {"beat":2.25,"force":0.8,"pos":0.5,"str":3,"tech":"slap"},
+  {"beat":2.5,"force":0.8,"pos":0.5,"str":1,"tech":"pop"},
+  {"beat":3.5,"force":0.8,"pos":0.5,"str":2,"tech":"slap"},
+  {"beat":4,"force":0.8,"pos":0.5,"str":2,"tech":"slap"},
+  {"beat":5,"force":0.8,"pos":0.5,"str":0,"tech":"pop"},
+  {"beat":5.5,"force":0.8,"pos":0.5,"str":2,"tech":"slap"},
+  {"beat":6.25,"force":0.8,"pos":0.5,"str":2,"tech":"slap"},
+  {"beat":6.5,"force":0.8,"pos":0.5,"str":0,"tech":"pop"},
+  {"beat":7.5,"force":0.8,"pos":0.5,"str":3,"tech":"slap"}
+ ],
+ "magic": "luthier.riff",
+ "meta": {
+  "author": "L",
+  "created": "2026-09-24T00:00:00Z",
+  "id": "soul.bass.easy-thumb-bass-1",
+  "modified": "2026-09-24T00:00:00Z",
+  "name": "Easy Thumb Bass 1",
+  "notes": "",
+  "origin": "original",
+  "tags": ["slap","eighths"],
+  "version_created": "1.3.0",
+  "version_modified": "1.3.0"
+ },
+ "notes": [
+  {"beat":0,"dur":0.5,"fret":3,"str":3,"tech":[],"vel":0.8},
+  {"beat":1,"dur":0.5,"fret":5,"str":1,"tech":[],"vel":0.8},
+  {"beat":1.5,"dur":0.5,"fret":3,"str":3,"tech":[],"vel":0.8},
+  {"beat":2.25,"dur":0.25,"fret":5,"str":3,"tech":[],"vel":0.8},
+  {"beat":2.5,"dur":0.5,"fret":7,"str":1,"tech":[],"vel":0.8},
+  {"beat":3.5,"dur":0.5,"fret":2,"str":2,"tech":[],"vel":0.8},
+  {"beat":4,"dur":0.5,"fret":3,"str":2,"tech":[],"vel":0.8},
+  {"beat":5,"dur":0.5,"fret":5,"str":0,"tech":[],"vel":0.8},
+  {"beat":5.5,"dur":0.5,"fret":3,"str":2,"tech":[],"vel":0.8},
+  {"beat":6.25,"dur":0.25,"fret":5,"str":2,"tech":[],"vel":0.8},
+  {"beat":6.5,"dur":0.5,"fret":7,"str":0,"tech":[],"vel":0.8},
+  {"beat":7.5,"dur":0.5,"fret":2,"str":3,"tech":[],"vel":0.8}
+ ],
+ "riff": {
+  "capo": 0,
+  "chords": [
+   {"beat":0,"symbol":"G"},
+   {"beat":4,"symbol":"C"}
+  ],
+  "difficulty": 2,
+  "feel": "straight",
+  "genre": "soul",
+  "instrument": "bass4",
+  "key": {
+   "root": "G",
+   "scale": "ionian"
+  },
+  "length_beats": 8,
+  "meter": [4,4],
+  "techniques": ["slap","pop"],
+  "tempo_bpm": 88,
+  "tuning": [43,38,33,28],
+  "tuning_name": "Standard",
+  "type": "bass"
+ },
+ "schema": 1,
+ "source": "e: sl4.3 r po2.5 sl4.3 s: r sl4.5 e: po2.7 r sl3.2 | e: sl3.3 r po1.5 sl3.3 s: r sl3.5 e: po1.7 r sl4.2 |",
+ "strums": []
+}

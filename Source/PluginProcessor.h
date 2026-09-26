@@ -40,6 +40,7 @@
 #include "Jam/JamEngine.h"   // FEAT-JAM
 #include "Support/OutputNormalization.h"   // output-normalization.md
 #include "Support/QualityController.h"   // cpu-quality-modes
+#include "Riffs/RiffLibrary.h"   // riff-library 4
 #include "Support/InstallLayout.h"
 #include "Support/SoundingNotesPublisher.h"
 
@@ -131,6 +132,9 @@ public:
     TunePlayer&  getTunePlayer() noexcept  { return tunePlayer; }
     TuneSession& getTuneSession() noexcept { return tuneSession; }
 
+    /** riff-library 4: the riff index, shared by the RIFFS tab and the Easy
+        drawer. Nothing loads until one of them first opens. */
+    RiffLibrary& getRiffLibrary() noexcept { return riffLibrary; }
     /** tune-builder 13: sung / hummed melody capture from the audio input (TUNE-HELP-ONBOARDING). */
     TuneHumCapture& getHumCapture() noexcept { return humCapture; }
 
@@ -589,6 +593,10 @@ public:
 
         /** cpu-quality-modes 3: this instance's CPU quality, or the global one. */
         QualityOverride qualityOverride = QualityOverride::Global;
+        /** riff-library 8: the riff browser's per-instance view state
+            (selection, filters, audition settings, Drag-as, drawer), saved
+            with the host project and never in a preset. RiffUiState reads it. */
+        juce::var riffs;
         // piano-roll-chord-display.md 6: session state, not preset data.
         bool pianoRollExpanded = true;
         int  pianoRollHeight = 72;
@@ -726,6 +734,7 @@ private:
     // it); everything else goes to the engine as direct notes.
     TunePlayer tunePlayer;
     TuneSession tuneSession;
+    RiffLibrary riffLibrary;   // riff-library 4
     TuneHumCapture humCapture;
     std::atomic<int> pendingTuneSection { -1 };
     std::atomic<int> tuneStateBoundaries { 0 };
@@ -963,7 +972,16 @@ private:
     void fadeOutBeforeStructuralChange();
     void fadeInAfterStructuralChange();
     AuditionPhrase::Type auditionType = AuditionPhrase::Type::MajorScale;
-    juce::MidiMessageSequence auditionSequence;
+    /*  riff-library (FEAT-RIFFS fix b): startAudition used to rebuild the
+        sequence on the message thread while the audio thread read it. It is
+        now built into a fresh object and handed over as TunePlayer does: a
+        waiting slot under a SpinLock, taken by the audio thread with a
+        ScopedTryLock, the displaced one retired for the timer to free. */
+    juce::SpinLock auditionLock;
+    std::shared_ptr<const juce::MidiMessageSequence> auditionWaiting;      // guarded by auditionLock
+    std::shared_ptr<const juce::MidiMessageSequence> auditionRetired;      // guarded by auditionLock
+    bool auditionHasWaiting = false;                                        // guarded by auditionLock
+    std::shared_ptr<const juce::MidiMessageSequence> auditionSequence;     // audio thread only
     int auditionEventIndex = 0;
     double auditionPositionSeconds = 0.0;
     double auditionEndSeconds = 0.0;

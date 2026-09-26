@@ -2090,10 +2090,16 @@ void LuthierAudioProcessor::startAudition (AuditionPhrase::Type type)
     auditionType = type;
     uiState.auditionType = type;
 
-    auditionSequence = AuditionPhrase::build (type, hostTempo.load());
-    auditionEndSeconds = auditionSequence.getEndTime() + 0.25;
-    auditionEventIndex = 0;
-    auditionPositionSeconds = 0.0;
+    // Built here, handed over whole: the audio thread never sees it half-made.
+    auto sequence = std::make_shared<const juce::MidiMessageSequence> (AuditionPhrase::build (type, hostTempo.load()));
+    std::shared_ptr<const juce::MidiMessageSequence> displaced;
+
+    {
+        const juce::SpinLock::ScopedLockType sl (auditionLock);
+        displaced = std::move (auditionWaiting);
+        auditionWaiting = std::move (sequence);
+        auditionHasWaiting = true;
+    }
 
     auditionActive.store (true);
 
@@ -2117,13 +2123,34 @@ void LuthierAudioProcessor::processAuditionMidi (juce::MidiBuffer& midi, int num
     if (! auditionActive.load() || numSamples <= 0)
         return;
 
+    // A new phrase comes in at the block boundary; the old one is retired for
+    // the timer to free, so nothing is freed here.
+    {
+        const juce::SpinLock::ScopedTryLockType sl (auditionLock);
+
+        if (sl.isLocked() && auditionHasWaiting && auditionRetired == nullptr)
+        {
+            auditionRetired = std::move (auditionSequence);
+            auditionSequence = std::move (auditionWaiting);
+            auditionHasWaiting = false;
+            auditionEventIndex = 0;
+            auditionPositionSeconds = 0.0;
+            auditionEndSeconds = auditionSequence != nullptr ? auditionSequence->getEndTime() + 0.25 : 0.0;
+        }
+    }
+
+    if (auditionSequence == nullptr)
+        return;
+
+    const auto& phrase = *auditionSequence;
+
     const double blockSeconds = (double) numSamples / currentSampleRate;
     const double blockStart = auditionPositionSeconds;
     const double blockEnd = blockStart + blockSeconds;
 
-    while (auditionEventIndex < auditionSequence.getNumEvents())
+    while (auditionEventIndex < phrase.getNumEvents())
     {
-        const auto* event = auditionSequence.getEventPointer (auditionEventIndex);
+        const auto* event = phrase.getEventPointer (auditionEventIndex);
 
         if (event == nullptr)
         {
@@ -2503,6 +2530,7 @@ bool LuthierAudioProcessor::applyCurrentSetlistEntry (bool asUndoStep)
 void LuthierAudioProcessor::panic()
 {
     stopAudition();
+    engine.getRiffPlayer().stop();   // riff-library 5.3
     engine.panic();
 
     // jam-mode 2.2 (FEAT-JAM): a 5 ms choke of the band, jam_play off, Armed.
@@ -3002,6 +3030,8 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     ui->setProperty ("editorHeight", uiState.editorHeight);
     ui->setProperty ("auditionType", (int) uiState.auditionType);
 
+    if (! uiState.riffs.isVoid())
+        ui->setProperty ("riffs", uiState.riffs);   // riff-library 8
     // ui-wiring 17 / workshop-ui 7: the bench's A/B slots are workspace - in
     // the plugin state, not in presets, and not restored by undo ("ui" is a
     // session layer there).
@@ -3211,6 +3241,9 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
             0, (int) AuditionPhrase::Type::NumTypes - 1, (int) ui->getProperty ("auditionType"));
         auditionType = uiState.auditionType;
 
+        // riff-library 8: the riff browser's view; audition is never restored playing.
+        uiState.riffs = ui->getProperty ("riffs");
+        engine.getRiffPlayer().stop();
         if (auto* bench = ui->getProperty ("benchSlots").getArray())   // ui-wiring 17
             for (int i = 0; i < juce::jmin (bench->size(), (int) uiState.benchSlots.size()); ++i)
                 uiState.benchSlots[(size_t) i] = bench->getReference (i);
@@ -3406,6 +3439,18 @@ void LuthierAudioProcessor::timerCallback()
 {
     // ambiguity-resolutions 5.2: the morph follows its (automatable) slider.
     updatePresetMorph();
+
+    // What the audio thread retired: the audition phrase, the riff player's riffs.
+    {
+        std::shared_ptr<const juce::MidiMessageSequence> done;
+
+        {
+            const juce::SpinLock::ScopedLockType sl (auditionLock);
+            done = std::move (auditionRetired);
+        }
+    }
+
+    engine.getRiffPlayer().collectGarbage();   // riff-library 5.3
 
     // live-performance 1: an in-flight snapshot recall, on the audio clock.
     snapshots.advancePending();

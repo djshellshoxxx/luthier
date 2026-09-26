@@ -227,6 +227,7 @@ const std::map<juce::String, juce::String>& builtInEnglish()
         { "search.syn.place:tab:MOD",         "modulation|lfo|envelope|matrix" },
         { "search.syn.place:tab:RHYTHM",      "strumming|groove|pattern|genre kit|drums" },
         { "search.syn.place:tab:TUNE",        "song|compose|arrange|sketch|tune builder" },
+        { "search.syn.place:tab:RIFFS",       "riff|riffs|lick|licks|riff library|phrase library" },   // FEAT-RIFFS
         { "search.syn.place:tab:JAM",         "jam mode|jam band|band|backing band|drums|drummer|bass player" },   // FEAT-JAM
         { "search.syn.place:tab:LIVE",        "snapshots|setlist|stage|performance" },
         { "search.syn.place:tab:ROUTING",     "sidechain|aux|outputs|signal flow" },

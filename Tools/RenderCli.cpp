@@ -27,6 +27,8 @@
 #include "../Source/Rhythm/GenreKit.h"
 #include "../Source/PluginProcessor.h"                      // output-normalization.md 4.4
 #include "../Source/Support/NormalizationCalibrator.h"      // output-normalization.md 4.4
+#include "../Source/Riffs/RiffLibrary.h"        // riff-library 2.3: --export-riffs
+#include "../Source/Riffs/RiffDestinations.h"
 
 using namespace luthier;
 
@@ -118,6 +120,8 @@ struct Options
 
     // output-normalization.md 4.4: build Resources/NormalizationFactory.json.
     juce::File calibrateFactoryTo;
+    juce::File exportRiffsTo;          ///< riff-library 2.3
+    bool riffsGeneric = false;
 };
 
 void printUsage()
@@ -150,6 +154,8 @@ void printUsage()
         "INFORMATION\n"
         "  --calibrate-factory <f>  measure every factory preset x guitar type for output\n"
         "                           normalization and write the factory table (4.4)\n"
+        "  --export-riffs <dir>     write every factory riff as a .mid file, by genre\n"
+        "  --profile luthier|generic  the .mid profile for --export-riffs, default luthier\n"
         "  --list-presets           list every preset that can be loaded\n"
         "  --list-guitars           list every instrument\n"
         "  --list-phrases           list the built-in audition phrases\n"
@@ -188,6 +194,8 @@ bool parseArguments (int argc, char* argv[], Options& options)
         else if (arg == "--list-guitars")              options.listGuitars = true;
         else if (arg == "--list-phrases")              options.listPhrases = true;
         else if (arg == "--calibrate-factory")         options.calibrateFactoryTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
+        else if (arg == "--export-riffs")              options.exportRiffsTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
+        else if (arg == "--profile")                   options.riffsGeneric = next (i).equalsIgnoreCase ("generic");
         else if (arg == "--write-rhythm-resources")    options.writeRhythmResourcesTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
         else if (arg == "--normalise" || arg == "--normalize")
         {
@@ -243,6 +251,51 @@ int listPresets (RenderHost& host)
     sections 6 and 7 also want them on disk as editable files, and this writes
     that copy from the same tables, so the two can never drift apart.
 */
+/*  riff-library 2.3: batch .mid packs, for marketing and review, through the
+    same C++ path as the drag-out (RiffDestinations::writeDragFile). */
+int exportRiffs (const juce::File& root, bool generic)
+{
+    RiffLibrary library;
+    library.setFolders (RiffLibrary::getDefaultFactoryFolder(), {}, {});
+    library.loadIndexNow();
+
+    if (library.isFactoryMissing() || library.getNumEntries() == 0)
+    {
+        std::cerr << "Factory riffs not found beside the renderer." << std::endl;
+        return 1;
+    }
+
+    int written = 0;
+
+    for (int i = 0; i < library.getNumEntries(); ++i)
+    {
+        const auto* entry = library.getEntry (i);
+        const auto riff = library.getRiff (entry->id);
+
+        if (riff == nullptr)
+        {
+            std::cerr << "Unreadable: " << entry->file.getFullPathName() << std::endl;
+            continue;
+        }
+
+        const auto compiled = RiffCompiler::compile (*riff, {}, GuitarSpecSummary::forRiff (*riff));
+        const int genre = RiffVocabulary::indexOfGenre (riff->genre);
+        const auto folder = root.getChildFile (genre >= 0 ? RiffVocabulary::genres()[(size_t) genre].folder : "User");
+
+        juce::String error;
+        const auto file = RiffDestinations::writeDragFile (*riff, *compiled, generic ? MidiProfile::generic : MidiProfile::luthier,
+                                                          folder, 960, 0.0, &error);
+
+        if (file == juce::File())
+            std::cerr << "Could not write " << riff->meta.id << ": " << error << std::endl;
+        else
+            ++written;
+    }
+
+    std::cout << written << " riffs written to " << root.getFullPathName() << std::endl;
+    return written == library.getNumEntries() ? 0 : 1;
+}
+
 int writeRhythmResources (const juce::File& root)
 {
     const auto patternDirectory = root.getChildFile ("Rhythm");
@@ -736,6 +789,9 @@ int main (int argc, char* argv[])
 
     if (options.writeRhythmResourcesTo != juce::File())
         return writeRhythmResources (options.writeRhythmResourcesTo);
+
+    if (options.exportRiffsTo != juce::File())
+        return exportRiffs (options.exportRiffsTo, options.riffsGeneric);
 
     if (options.outputFile == juce::File())
     {

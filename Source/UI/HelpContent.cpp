@@ -152,12 +152,13 @@ namespace
 
         { "workspace", "Column 4: The Workspace", "workspace|Column 4|tabs",
           "Column 4 is a tab strip with one panel behind each tab. The tabs, in order:\n\n"
-          "WORKSHOP, MOD, RHYTHM, TUNE, JAM, LIVE, ROUTING, TONE MATCH, CHARACTER, PRACTICE, NOTATION, MIDI OUT, "
+          "WORKSHOP, MOD, RHYTHM, TUNE, JAM, RIFFS, LIVE, ROUTING, TONE MATCH, CHARACTER, PRACTICE, NOTATION, MIDI OUT, "
           "CONTROLLERS, HELP.\n\n"
           "Each has its own topic in this list. {key:previousWorkspaceTab} and {key:nextWorkspaceTab} step "
           "through them, wrapping at the ends, and the tab you had open last is the one that opens next time. "
           "WORKSHOP is different from the others: it takes over columns 3 and 4, and the tab strip stays so "
-          "you can leave it again." },
+          "you can leave it again. When there are more tabs than room, the strip scrolls: the arrows at its "
+          "ends step it, and the ... button lists every tab." },
 
         { "workshop", "WORKSHOP", "WORKSHOP|bench|Workshop bench|parts",
           "The bench. Every part of the guitar is a real part you can swap, and the illustration is the "
@@ -247,6 +248,18 @@ namespace
           "Loops record your guitar only; session takes include the band. Loading a bass makes you the bassist: "
           "the Jam bass rests. Two plugin instances jamming means two drummers.",
         },
+        // riff-library 7.1
+        { "riffs", "RIFFS", "RIFFS|riff|riffs|lick|licks|riff library|audition",
+          "A library of original riffs, licks, strum parts and bass lines, each with its techniques written "
+          "in - bends, slides, hammer-ons, palm mutes, harmonics.\n\n"
+          "- Search, the genre chips and the filter row narrow the list; \"Fits this instrument\" hides what "
+          "would need another instrument.\n"
+          "- Space plays the selected riff through your current sound, in any key and at any tempo. On the "
+          "host's clock it starts on the next bar.\n"
+          "- Drag .mid drags it onto a MIDI track (Alt for Generic); Add to Tune puts it in the selected "
+          "section; Looper records it as a layer; Learn It opens it in the practice tab reader at 70%.\n"
+          "- + Save riff keeps a phrase you just played as your own riff.\n\n"
+          "{key:riffs} opens this tab (and the Riff drawer in Easy mode). Nothing here is saved in presets." },
 
         { "live", "LIVE", "LIVE|live mode|snapshots|snapshot|setlist|morph",
           "The setup surface for playing live. The live strip along the bottom of the window ({key:toggleLiveMode}) "

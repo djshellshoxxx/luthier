@@ -37,6 +37,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
 {
     sr = sampleRate;
     maxBlock = juce::jmax (1, maxBlockSize);
+    riffPlayer.prepare (sr);   // riff-library 5.3
 
     // --- routing -------------------------------------------------------------
     taps.prepare (maxBlock);
@@ -220,6 +221,11 @@ void LuthierEngine::reset() noexcept
 
     bridgeOutputs.fill (0.0);
     couplingInputs.fill (0.0);
+
+    // riff-library 5.3 / 14: a reset ends the riff's notes; playback carries on
+    // from its next event.
+    riffBendCents.fill (0.0);
+    riffPlayer.notifyEngineReset();
     stringOutputs.fill (0.0);
     stringDelays.fill (100.0);
     vibratoAmount.fill (0.0);
@@ -1207,6 +1213,7 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
                 later.noteOn = e;
                 later.absoluteSample = blockStartSample + activeSampleOffset + delay;
                 later.fingerAlternated = true;
+                later.fromRiff = firingRiff;
                 scheduled[(size_t) numScheduled++] = later;
                 return;
             }
@@ -1257,7 +1264,7 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         stringMidiNote[(size_t) s] = e.midiNote;
 
         // Routing-io 6: what is actually ringing, at the sample it started.
-        stringActivity.push ({ activeSampleOffset, s, e.midiNote, (float) e.velocity, true });
+        stringActivity.push ({ activeSampleOffset, s, e.midiNote, (float) e.velocity, true, firingRiff });
 
         // REALISM-B: this note's own hand replaces any other's on the string;
         // a staggered note-off still owed to it would end the new note.
@@ -1373,7 +1380,8 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
             // bass-techniques 7 (MODEL-GAPS): a bass has its own palm-mute profile.
             str.setDamping (spec.category == GuitarCategory::Bass ? StringEngine::Damping::PalmMuteBass
                                                                    : StringEngine::Damping::PalmMute,
-                            e.palmMuteAmount >= 0.0 ? e.palmMuteAmount   // FEAT-ASSIST: 3.6's auto amount
+                            e.palmMuteDepth >= 0.0 ? juce::jlimit (0.0, 1.0, e.palmMuteDepth)   // riff-library 5.1
+                          : e.palmMuteAmount >= 0.0 ? e.palmMuteAmount   // FEAT-ASSIST: 3.6's auto amount
                                                     : technique.getPalmMuteAmount());
             notePalmStrike (s);   // REALISM-B: string-interaction.md 2's palm centre
             break;
@@ -1800,7 +1808,7 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
     const int soundingNote = stringMidiNote[(size_t) s];
 
     if (soundingNote >= 0)
-        stringActivity.push ({ activeSampleOffset, s, soundingNote, 0.0f, false });
+        stringActivity.push ({ activeSampleOffset, s, soundingNote, 0.0f, false, firingRiff });
 
     /*  bass-techniques 6 (MODEL-GAPS): a middle-finger note still waiting for
         its finger has not started yet; its note-off waits until just after it,
@@ -1845,6 +1853,43 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
 }
 
 //==============================================================================
+void LuthierEngine::playRiffEvents (int numSamples) noexcept
+{
+    // riff-library 5.3. The player's clock is the host's position at this
+    // sub-block's first sample: a split block advances it slice by slice.
+    riffOut.clear();
+
+    const double ppq = hostPpq + (double) subBlockOffset * tempoBpm / (60.0 * juce::jmax (1.0, sr));
+    riffPlayer.renderSubBlock (numSamples, ppq, hostPlaying, tempoBpm, riffOut);
+
+    auto& queue = riffOut.queue;
+
+    if (queue.getNumNoteOns() == 0 && queue.getNumNoteOffs() == 0 && queue.getNumBends() == 0)
+        return;
+
+    // The bend a riff note holds its string at, for the per-block pitch.
+    for (int i = 0; i < queue.getNumBends(); ++i)
+    {
+        const auto& b = queue.getBend (i);
+
+        if (juce::isPositiveAndBelow (b.stringIndex, kMaxStrings))
+            riffBendCents[(size_t) b.stringIndex] = std::isfinite (b.cents) ? juce::jlimit (-4800.0, 4800.0, b.cents) : 0.0;
+    }
+
+    // The pitch each note starts at: its fret on this guitar, plus a prebend.
+    for (int i = 0; i < queue.getNumNoteOns(); ++i)
+    {
+        auto& e = queue.getMutableNoteOn (i);
+        const int s = juce::jlimit (0, numStrings - 1, e.stringIndex);
+        e.stringIndex = s;
+        e.pitchHz = tuning.computeFrequency (s, e.fretPosition, riffOut.startCents[(size_t) i]);
+    }
+
+    schedulingRiff = true;
+    scheduleEvents (queue, numSamples);
+    schedulingRiff = false;
+}
+
 void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples) noexcept
 {
     juce::ignoreUnused (numSamples);
@@ -1863,10 +1908,14 @@ void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples)
         activeSampleOffset = (int) juce::jlimit ((int64_t) 0, (int64_t) taps.getMaxBlockSize(),
                                                  e.absoluteSample - blockStartSample);
 
+        firingRiff = e.fromRiff;
+
         if (e.isNoteOn)
             triggerNote (e.noteOn);
         else
             applyNoteOff (e.noteOff);
+
+        firingRiff = false;
     };
 
     for (int i = 0; i < queue.getNumNoteOns(); ++i)
@@ -1875,6 +1924,7 @@ void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples)
         e.isNoteOn = true;
         e.noteOn = queue.getNoteOn (i);
         e.absoluteSample = samplePosition + e.noteOn.sampleOffset;
+        e.fromRiff = schedulingRiff;
         push (e);
     }
 
@@ -1889,6 +1939,7 @@ void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples)
         e.noteOff = queue.getNoteOff (i);
         e.absoluteSample = offDue[(size_t) i];
         e.staggered = staggered > 0 && offDue[(size_t) i] != samplePosition + e.noteOff.sampleOffset;
+        e.fromRiff = schedulingRiff;
         push (e);
     }
 }
@@ -1917,6 +1968,8 @@ void LuthierEngine::fireScheduledEvents (int64_t absoluteSample) noexcept
         const auto fired = e;
         scheduled[(size_t) i] = scheduled[(size_t) (--numScheduled)];
 
+        firingRiff = fired.fromRiff;   // riff-library 5.3: kept off live MIDI out
+
         if (fired.kind == kDampingLift)
         {
             assistFireLift (fired);   // FEAT-ASSIST: 3.6
@@ -1931,6 +1984,8 @@ void LuthierEngine::fireScheduledEvents (int64_t absoluteSample) noexcept
         {
             applyNoteOff (fired.noteOff);
         }
+
+        firingRiff = false;
 
         // Swap-removed above: order within a single sample does not matter,
         // and it keeps the cost at O(1) per event.
@@ -2047,7 +2102,7 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
         // the auto pitch curve, from absolute time, ride the vibrato's path.
         assistPerBlockCents (s, numSamples, vib);
 
-        const double bend = midi.getStringBendCents (s);
+        const double bend = midi.getStringBendCents (s) + riffBendCents[(size_t) s];   // riff-library 5.3
         const double whammyCents = whammy.getCentOffset (s);
 
         double hz;
@@ -2189,6 +2244,7 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 
     if (numSamples <= maxBlock)
     {
+        subBlockOffset = 0;
         directForSubBlock = directMidi;
         processSubBlock (buffer, midiMessages);
         directMidi = nullptr;
@@ -2241,9 +2297,12 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         taps.setWriteOffset (offset);
         sidechainReadOffset = offset;
 
+        subBlockOffset = offset;   // riff-library 5.3: the riff clock's place in the host block
         processSubBlock (slice, sliceMidi);
         offset += count;
     }
+
+    subBlockOffset = 0;
 
     directMidi = nullptr;
     directForSubBlock = nullptr;
@@ -2475,6 +2534,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         midi.processBlock (*directForSubBlock, numSamples, samplePosition, directEvents);
         scheduleEvents (directEvents, numSamples);
     }
+
+    // riff-library 5.3: riff audition, straight after the direct notes. Its
+    // notes bypass the interpreter and the voicer, as the tune's do.
+    playRiffEvents (numSamples);
 
     // ---- 1b. string scraping (string-scraping.md 3) --------------------------
     // After the MIDI, before the strings: the block's catches are scheduled

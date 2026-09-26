@@ -658,6 +658,8 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("cycleCpuQuality",  "quality.shortcut.cycle",                  KP());
     // global-search.md 6.1 (FEAT-SEARCH): Ctrl/Cmd+K opens the search palette.
     add ("search",           "accessibility.shortcut.search",           KP ('k', cmd, 0));
+    // riff-library 7.1: R opens the RIFFS tab (Advanced) or the Riff drawer (Easy).
+    add ("riffs",            "accessibility.shortcut.riffs",            KP ('r', 0, 0));
 }
 
 bool AccessibilitySettings::rebind (const juce::String& actionId, const juce::KeyPress& key)

@@ -41,6 +41,10 @@ struct StringActivityEvent
     int  midiNote = 0;
     float velocity = 0.0f;
     bool isNoteOn = true;
+
+    /** riff-library 5.3: a riff audition note. The fretboard, capture and
+        meters see it; live MIDI out does not (a preview is not a performance). */
+    bool preview = false;
 };
 
 //==============================================================================

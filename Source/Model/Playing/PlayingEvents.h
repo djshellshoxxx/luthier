@@ -71,6 +71,16 @@ struct NoteOnEvent
         imported BASS_TECH event) names for this note, as a BassStepType index;
         -1 lets the slap's own triggers decide. Inert on a guitar. */
     int    bassTechnique = -1;
+
+    /** riff-library 5.1: the palm-mute depth this note asks for, 0 to 1; -1
+        uses TechniqueEngine::getPalmMuteAmount(). Read at the PalmMute
+        damping switch in LuthierEngine::triggerNote. */
+    double palmMuteDepth = -1.0;
+
+    /** riff-library 5.1 / 5.4: the note's string, fret and technique were
+        chosen explicitly (a riff note, or an imported Luthier-profile NOTE):
+        auto-articulation must leave it alone. */
+    bool   explicitArticulation = false;
     /*  harmonic-realism.md 4.1: where the harmonic is touched, as a fret
         (fractional), or -1 for a note that is not touched. The string is
         tuned to the stopped fret (fretPosition, the open string for a natural
@@ -101,9 +111,7 @@ struct NoteOnEvent
     bool   autoAccent = false;              ///< 3.5: captured with an accent mark
     juce::uint16 autoStrumMask = 0;         ///< 3.7: a strum's struck strings, on its first note
 
-    /** riff-library / Luthier-profile import: the note's articulation is the
-        file's own, and Performance Assist leaves it alone (5). */
-    bool   explicitArticulation = false;
+    // explicitArticulation (auto-articulation.md 5) is riff-library 5.1's field above.
     // ==== END FEAT-ASSIST fields ====
 };
 

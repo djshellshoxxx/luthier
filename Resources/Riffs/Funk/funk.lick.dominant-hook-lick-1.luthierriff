@@ -1,0 +1,55 @@
+{
+ "bass_tech": [],
+ "magic": "luthier.riff",
+ "meta": {
+  "author": "L",
+  "created": "2026-09-24T00:00:00Z",
+  "id": "funk.lick.dominant-hook-lick-1",
+  "modified": "2026-09-24T00:00:00Z",
+  "name": "Dominant Hook Lick 1",
+  "notes": "",
+  "origin": "original",
+  "tags": ["hook","dominant"],
+  "version_created": "1.3.0",
+  "version_modified": "1.3.0"
+ },
+ "notes": [
+  {"beat":0,"dur":0.5,"fret":4,"str":3,"tech":[],"vel":0.8},
+  {"beat":0.5,"dur":0.5,"fret":7,"str":3,"tech":[],"vel":0.8},
+  {"beat":1,"dur":0.5,"fret":4,"str":2,"tech":[],"vel":0.8},
+  {"beat":1.5,"dur":0.5,"fret":5,"str":2,"tech":[],"vel":0.8},
+  {"beat":2,"dur":1,"fret":7,"str":2,"tech":[],"vel":0.8},
+  {"beat":3,"dur":0.5,"fret":7,"str":1,"tech":[],"vel":0.8},
+  {"beat":4,"dur":0.5,"fret":7,"str":1,"tech":[],"vel":0.8},
+  {"beat":4.5,"dur":0.5,"fret":7,"str":2,"tech":[],"vel":0.8},
+  {"beat":5,"dur":0.25,"fret":5,"str":2,"tech":[],"vel":0.8},
+  {"beat":5.25,"dur":0.25,"fret":4,"str":2,"tech":[],"vel":0.8},
+  {"beat":5.5,"dur":0.5,"fret":7,"str":3,"tech":[],"vel":0.8},
+  {"beat":6,"dur":1,"fret":4,"str":3,"tech":[{"second":0,"type":"staccato","value":0}],"vel":0.8},
+  {"beat":7,"dur":1,"fret":0,"str":3,"tech":[],"vel":0.8}
+ ],
+ "riff": {
+  "capo": 0,
+  "chords": [
+   {"beat":0,"symbol":"D7"}
+  ],
+  "difficulty": 2,
+  "feel": "straight",
+  "genre": "funk",
+  "instrument": "guitar6",
+  "key": {
+   "root": "D",
+   "scale": "mixolydian"
+  },
+  "length_beats": 8,
+  "meter": [4,4],
+  "techniques": ["staccato"],
+  "tempo_bpm": 96,
+  "tuning": [64,59,55,50,45,40],
+  "tuning_name": "Standard",
+  "type": "lick"
+ },
+ "schema": 1,
+ "source": "e: 4.4 4.7 3.4 3.5 q: 3.7 e: 2.7 r | e: 2.7 3.7 s: 3.5 3.4 e: 4.7 q: 4.4' 4.0 |",
+ "strums": []
+}

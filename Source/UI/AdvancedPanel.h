@@ -37,6 +37,8 @@
 #include "JamPanel.h"   // FEAT-JAM
 #include "PracticeSetupPanel.h"
 #include "HelpTab.h"
+#include "RiffBrowser.h"         // riff-library 7.1
+#include "WorkspaceTabStrip.h"   // FEAT-RIFFS: the strip scrolls when the tabs overflow
 #include "PanelHelpButton.h"
 
 namespace luthier
@@ -134,6 +136,12 @@ public:
 
     /** The HELP tab (gui-integration 4.4). */
     HelpTab* getHelpTab() const noexcept { return helpTab.get(); }
+
+    /** riff-library 7.1: the RIFFS tab, between TUNE and LIVE. */
+    RiffBrowser* getRiffsPanel() const noexcept { return riffsPanel.get(); }
+
+    /** The strip the tab buttons live in (it scrolls when they overflow). */
+    WorkspaceTabStrip& getWorkspaceTabStrip() noexcept { return workspaceStrip; }
 
     /** Opens the HELP tab pinned to a topic (a tab name, a column section, an
         Options page). */
@@ -266,6 +274,7 @@ private:
     std::unique_ptr<Column> columns[3];
 
     juce::OwnedArray<juce::TextButton> workspaceTabs;
+    WorkspaceTabStrip workspaceStrip;
     juce::Array<juce::Component*> workspacePanels;
     juce::Viewport workspaceViewport;
     int workspaceTab = 0;
@@ -348,6 +357,7 @@ private:
     std::unique_ptr<RhythmPanel> rhythmPanel;
     std::unique_ptr<TunePanel> tunePanel;
     std::unique_ptr<JamPanel> jamPanel;   // FEAT-JAM: jam-mode 8.1
+    std::unique_ptr<RiffBrowser> riffsPanel;   // riff-library 7.1
     std::unique_ptr<PracticeSetupPanel> practiceSetupPanel;
     std::unique_ptr<HelpTab> helpTab;
     std::unique_ptr<LivePanel> livePanel;
