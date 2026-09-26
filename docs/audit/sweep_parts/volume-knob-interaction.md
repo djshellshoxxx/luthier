@@ -17,7 +17,7 @@
 | VK-11 (§2) | Cable pF/m table 52/98/160/220 and length | `cableCapacitancePerMetre` | ADVANCED col 2 Length + Cable quality | `Circuit::cableCapacitanceMovesTheResonance` | DONE |
 | VK-12 (§2) | `cable_on` off = zero-length cable, not silence | `cableCapacitance` | ADVANCED col 2 "Cable" toggle | `Circuit::bypassIsNeutral` | DONE |
 | VK-13 (§3) | All IDs, types and defaults per the table | `Parameters.cpp` ~606-620 | ADVANCED col 2 Circuit | `Circuit::parametersMatchTheSpecTable` | DONE |
-| VK-14 (§3) | `guitar_volume`/`guitar_tone` are the wipers — the Easy Tone macro rescales the tone wiper (`guitarTone × (0.45 + macroTone×1.1)`), so the physical control's value is not what the circuit sees | `Parameters.cpp` ~1345 | EASY Tone macro | - | PARTIAL |
+| VK-14 (§3) | `guitar_volume`/`guitar_tone` are the wipers — the Easy Tone macro rescales the tone wiper (`guitarTone × (0.45 + macroTone×1.1)`), so the physical control's value is not what the circuit sees | `Parameters.cpp` ~1345 | EASY Tone macro | - | DEFERRED |
 | VK-15 (§3) | Circuit-family stock/advanced ranges | `PhysicalRange.cpp` circuit rows | Options > RANGES; knobs | `Circuit::everyCornerOfTheAdvancedRangeIsStable`, `Ranges::stockMatchesTheDeclaredRange` | DONE |
 | VK-16 (§3.1) | 50s wiring topology keeps the top as volume comes down | `PotTaper::fiftiesWiring` in the netlist | ADVANCED col 2 "Taper" | `Circuit::fiftiesWiringKeepsTheTop` | DONE |
 | VK-17 (§4) | Feedback level taken after the circuit; volume 5 lowers the loop by the circuit's attenuation ±0.5 dB | `FeedbackLoop` | n/a | `Feedback::theVolumeKnobLowersTheLoopByTheCircuitsAttenuation` | DONE |
@@ -40,4 +40,4 @@
 | VK-T9 (§6) | Test: no allocation while sweeping | - | n/a | `Circuit::sweepingEveryControlDoesNotAllocate` | DONE |
 | VK-T10 (§6) | Test: feedback coupling | - | n/a | `Feedback::theVolumeKnobLowersTheLoopByTheCircuitsAttenuation` | DONE |
 
-<!-- counts DONE=31 NO-GUI=0 NO-TEST=0 PARTIAL=2 MISSING=1 OWNED=1 -->
+<!-- counts DONE=31 NO-GUI=0 NO-TEST=0 PARTIAL=1 MISSING=1 OWNED=1 DEFERRED=1 -->
