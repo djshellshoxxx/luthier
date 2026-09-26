@@ -407,3 +407,65 @@ LUTHIER_TEST (CharacterWiring, bodyBreakInLowersTheAirMode)
     const double drop = 1.0 - airAt (100.0) / airAt (0.0);
     CHECK_MSG (drop >= 0.03 && drop <= 0.08, "air mode dropped " + juce::String (drop * 100.0, 2) + " %");
 }
+
+//==============================================================================
+/*  CW-21: nut slot wear shortens an open string and leaves a fretted note
+    alone (character-wear 7). */
+LUTHIER_TEST (CharacterWiring, nutWearShortensOnlyTheOpenString)
+{
+    auto levelAfter = [] (double amount, double fret, int& stringUsed)
+    {
+        LuthierEngine engine;
+        engine.prepare (kSr, kBlock);
+        engine.setGuitarType (GuitarType::Stratocaster);
+        quietRig (engine);
+
+        auto& c = engine.getCharacterEngine();
+        c.setSeed (0x2468ull);
+        c.setAmount (amount);
+        c.setTunerLooseness (0.0);
+        c.refret();
+
+        for (int s = 0; s < 6; ++s)
+            for (int i = 0; i < CharacterEngine::kMaxDeadSpotsPerString; ++i)
+                c.setDeadSpot (s, i, DeadSpot { 7, 0.0, 3.0 });
+
+        // The string whose slot is most worn.
+        int best = 0;
+        for (int s = 1; s < 6; ++s)
+            if (c.getNutDamping (s) > c.getNutDamping (best))
+                best = s;
+        stringUsed = best;
+
+        engine.reset();
+
+        NoteOnEvent e;
+        e.stringIndex = best;
+        e.velocity = 0.9;
+        e.fretPosition = fret;
+        e.pitchHz = 110.0 * std::pow (2.0, (best * 5.0 + fret) / 12.0);
+        engine.triggerNoteNow (e);
+
+        juce::AudioBuffer<float> buffer (2, kBlock);
+        juce::MidiBuffer none;
+
+        for (int b = 0; b < (int) (2.0 * kSr / kBlock); ++b)
+        {
+            buffer.clear();
+            engine.processBlock (buffer, none);
+        }
+
+        return engine.getStringLevel (best);
+    };
+
+    int s = 0;
+    const double wornOpen = levelAfter (1.0, 0.0, s);
+    const double freshOpen = levelAfter (0.0, 0.0, s);
+    const double wornFretted = levelAfter (1.0, 5.0, s);
+    const double freshFretted = levelAfter (0.0, 5.0, s);
+
+    CHECK_MSG (wornOpen < freshOpen * 0.95,
+               "a worn nut should shorten the open string: " + juce::String (wornOpen, 6) + " vs " + juce::String (freshOpen, 6));
+    CHECK_MSG (std::abs (wornFretted / juce::jmax (1.0e-12, freshFretted) - 1.0) < 0.02,
+               "the nut must not touch a fretted note: " + juce::String (wornFretted, 6) + " vs " + juce::String (freshFretted, 6));
+}
