@@ -202,6 +202,18 @@ this score.
   quantisation is an export and edit option.
 - It does not run when `off`, and `off` costs nothing.
 
+### 6.6 A second producer: `TuneToScore`
+
+`PerformanceCapture` is not the only thing that can fill a
+`PerformanceScore`. `tab-export.md` specifies `TuneToScore`, a symbolic,
+worker-thread converter that turns a `tune-builder.md` `Tune` directly
+into a `PerformanceScore` without playing it - deterministic, and
+available the instant a tune is written rather than after it has been
+performed. It also specifies one additive export format, a combined
+printable tab-and-standard-notation page, on top of the four formats this
+file owns. Nothing in sections 1-5 changes: both producers feed the same
+struct, and the exporters here don't know or care which one filled it.
+
 ## 7. Tests
 
 - MusicXML round trip: export, reimport into MuseScore fixture, compare
