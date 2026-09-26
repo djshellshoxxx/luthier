@@ -1322,7 +1322,9 @@ FeedbackLed::~FeedbackLed()
 void FeedbackLed::refresh()
 {
     const auto& loop = processor.getEngine().getFeedbackLoop();
-    const float nowActivity = loop.isActive() ? (float) loop.getActivity() : 0.0f;
+    // The glow builds towards the point the loop takes over (1 = resonant).
+    const float nowActivity = loop.isActive() ? (float) juce::jmin (1.0, loop.getActivity() / FeedbackLoop::kResonantShare)
+                                              : 0.0f;
     const bool nowResonant = loop.isActive() && loop.isResonant();
 
     if (std::abs (nowActivity - activity) > 0.01f || nowResonant != resonant)
@@ -1343,11 +1345,11 @@ void FeedbackLed::paint (juce::Graphics& g)
 
     const auto dark = juce::Colour (0xff4a4640);
     const auto colour = resonant ? Palette::warning
-                                 : dark.interpolatedWith (Palette::accent, juce::jlimit (0.0f, 1.0f, activity * 4.0f));
+                                 : dark.interpolatedWith (Palette::accent, juce::jlimit (0.0f, 1.0f, activity));
 
-    if (resonant || activity > 0.02f)
+    if (resonant || activity > 0.08f)
     {
-        g.setColour (colour.withAlpha (resonant ? 0.35f : 0.25f * juce::jmin (1.0f, activity * 4.0f)));
+        g.setColour (colour.withAlpha (resonant ? 0.35f : 0.25f * juce::jmin (1.0f, activity)));
         g.fillEllipse (centre.x - radius * 1.9f, centre.y - radius * 1.9f, radius * 3.8f, radius * 3.8f);
     }
 
