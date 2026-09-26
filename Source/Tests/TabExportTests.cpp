@@ -2,6 +2,8 @@
 #include "TestFramework.h"
 #include "../Notation/NotationExport.h"
 #include "../Export/MidiPerformance.h"
+#include <algorithm>
+#include <initializer_list>
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -52,6 +54,26 @@ LUTHIER_TEST (TabExport, knownRiffHasExactStringsAndBars)
     CHECK_MSG (window (score) == expected, window (score));
 }
 
+LUTHIER_TEST (TabExport, techniquesHaveExactAlignedOutput)
+{
+    auto score = tabScore();
+    score.getTrack (0).measures[0].voices[0].notes = {
+        tabNote (0, 5, 0, {{ScoreTechnique::Type::bend}}),
+        tabNote (1, 7, 1, {{ScoreTechnique::Type::slideUp}}),
+        tabNote (5, 3, 2, {{ScoreTechnique::Type::palmMute}})
+    };
+    const juce::String expected =
+        "             PM--\n"
+        "   1 ---2 ---3  ---4--- \n"
+        "E |5b------------------|\n"
+        "B |-----7/-------------|\n"
+        "G |--------------------|\n"
+        "D |--------------------|\n"
+        "A |--------------------|\n"
+        "E |----------3PM-------|\n";
+    CHECK_MSG (window (score) == expected, window (score));
+}
+
 LUTHIER_TEST (TabExport, widenedCellsKeepBeatRulerAligned)
 {
     auto score = tabScore();
@@ -75,7 +97,7 @@ LUTHIER_TEST (TabExport, denseOnsetsDoNotOverwriteOrConcatenateFrets)
         tabNote (1, 12, 0.0625)
     };
     const auto lines = juce::StringArray::fromLines (window (score));
-    CHECK (lines[1].contains ("5-7--9"));
+    CHECK (lines[1].contains ("5-7-9"));
     CHECK (lines[1].indexOfChar ('7') == lines[2].indexOf ("12"));
 }
 
@@ -190,13 +212,13 @@ LUTHIER_TEST (TabExport, denseBarWrapsWithoutDroppingTokens)
     CHECK (count == 32);
 }
 
-LUTHIER_TEST (TabExport, invalidWindowIsEmpty)
+LUTHIER_TEST (TabExport, windowClampsToExistingMeasures)
 {
     const auto score = tabScore();
     NotationExporter exporter;
     CHECK (exporter.renderAsciiTabWindow (score, 0, 0).isEmpty());
-    CHECK (exporter.renderAsciiTabWindow (score, 4, 1).isEmpty());
-    CHECK (exporter.renderAsciiTabWindow (score, -1, 1).isEmpty());
+    CHECK (exporter.renderAsciiTabWindow (score, 4, 1) == window (score));
+    CHECK (exporter.renderAsciiTabWindow (score, -1, 1) == window (score));
 }
 
 LUTHIER_TEST (TabExport, midiPerformanceTechniquesReachBothNotationWriters)
@@ -225,4 +247,3 @@ LUTHIER_TEST (TabExport, midiPerformanceTechniquesReachBothNotationWriters)
     CHECK (xml.contains ("<string>2</string>"));
     CHECK (xml.contains ("<fret>7</fret>"));
 }
-
