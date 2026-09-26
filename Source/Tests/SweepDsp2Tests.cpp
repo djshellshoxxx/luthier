@@ -15,6 +15,7 @@
 #include "../LuthierEngine.h"
 #include "../PluginProcessor.h"
 #include "../Practice/Metronome.h"
+#include "../Practice/Looper.h"
 #include "../DSP/Slide/SlideEngine.h"
 #include "../DSP/Effects/PedalsMod.h"
 #include "../DSP/Master/FreezeOverlay.h"
@@ -2262,4 +2263,298 @@ LUTHIER_TEST (ToneMatch, aSavedIrHasItsSidecar)
 
     slot.unload();
     dir.deleteRecursively();
+}
+
+//==============================================================================
+//  practice-tools: the tests the audit found missing
+//==============================================================================
+namespace
+{
+    juce::AudioBuffer<float> toneBuffer (double hz, int samples, float level = 0.3f)
+    {
+        juce::AudioBuffer<float> audio (2, samples);
+
+        for (int i = 0; i < samples; ++i)
+        {
+            const float v = level * (float) std::sin (juce::MathConstants<double>::twoPi * hz * i / 48000.0);
+            audio.setSample (0, i, v);
+            audio.setSample (1, i, v);
+        }
+
+        return audio;
+    }
+
+    juce::AudioBuffer<float> readWav (const juce::File& file)
+    {
+        juce::AudioFormatManager formats;
+        formats.registerBasicFormats();
+        std::unique_ptr<juce::AudioFormatReader> reader (formats.createReaderFor (file));
+
+        if (reader == nullptr)
+            return {};
+
+        juce::AudioBuffer<float> audio ((int) reader->numChannels, (int) reader->lengthInSamples);
+        reader->read (&audio, 0, audio.getNumSamples(), 0, true, true);
+        return audio;
+    }
+}
+
+LUTHIER_TEST (PracticeLooper, exportWritesAMixdownAndOneStemPerLayer)
+{
+    // PT-21 (practice-tools 2).
+    Looper looper;
+    looper.prepare (48000.0, 10.0);
+    CHECK (looper.loadLayerAudio (0, toneBuffer (220.0, 24000)));
+    CHECK (looper.loadLayerAudio (1, toneBuffer (330.0, 24000, 0.2f)));
+    CHECK (looper.loadLayerAudio (2, toneBuffer (440.0, 24000, 0.1f)));
+
+    auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-loop-export");
+    dir.deleteRecursively();
+    dir.createDirectory();
+
+    CHECK (looper.exportMixdown (dir.getChildFile ("mix.wav")));
+    CHECK (looper.exportStems (dir.getChildFile ("stems")));
+
+    const auto stems = dir.getChildFile ("stems").findChildFiles (juce::File::findFiles, false, "*.wav");
+    CHECK (stems.size() == 3);
+
+    const auto mix = readWav (dir.getChildFile ("mix.wav"));
+    CHECK (mix.getNumSamples() == 24000);
+
+    juce::AudioBuffer<float> sum (mix.getNumChannels(), mix.getNumSamples());
+    sum.clear();
+
+    for (const auto& stem : stems)
+    {
+        const auto audio = readWav (stem);
+
+        for (int c = 0; c < sum.getNumChannels(); ++c)
+            sum.addFrom (c, 0, audio, juce::jmin (c, audio.getNumChannels() - 1), 0, juce::jmin (sum.getNumSamples(), audio.getNumSamples()));
+    }
+
+    float worst = 0.0f;
+
+    for (int c = 0; c < sum.getNumChannels(); ++c)
+        for (int i = 0; i < sum.getNumSamples(); ++i)
+            worst = juce::jmax (worst, std::abs (sum.getSample (c, i) - mix.getSample (c, i)));
+
+    CHECK_MSG (worst < 1.0e-4f, "the mixdown is not the sum of its stems: " + juce::String (worst));
+    dir.deleteRecursively();
+}
+
+LUTHIER_TEST (PracticeLooper, aSavedLoopReloadsIdentically)
+{
+    // PT-22 (practice-tools 2).
+    Looper looper;
+    looper.prepare (48000.0, 10.0);
+    CHECK (looper.loadLayerAudio (0, toneBuffer (220.0, 24000)));
+    CHECK (looper.loadLayerAudio (1, toneBuffer (330.0, 24000, 0.2f)));
+    looper.getLayer (1).setPan (-0.4);
+    looper.getLayer (1).setLevelDb (-3.0);
+    looper.getLayer (1).setLowCutHz (150.0);
+    looper.getLayer (0).getMidi().addEvent (juce::MidiMessage::noteOn (1, 40, (juce::uint8) 90), 10.0);
+
+    auto file = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-loop-save").getChildFile ("take.luthierloop");
+    file.getParentDirectory().deleteRecursively();
+    file.getParentDirectory().createDirectory();
+    CHECK (looper.save (file));
+
+    Looper restored;
+    restored.prepare (48000.0, 10.0);
+    CHECK (restored.load (file));
+
+    CHECK (restored.getLoopLengthSamples() == looper.getLoopLengthSamples());
+    CHECK (restored.getNumRecordedLayers() == 2);
+    CHECK_NEAR (restored.getLayer (1).getPan(), -0.4, 1.0e-6);
+    CHECK_NEAR (restored.getLayer (1).getLevelDb(), -3.0, 1.0e-6);
+    CHECK_NEAR (restored.getLayer (1).getLowCutHz(), 150.0, 1.0e-6);
+    CHECK (restored.getLayer (0).getMidi().getNumEvents() == looper.getLayer (0).getMidi().getNumEvents());
+
+    float worst = 0.0f;
+
+    for (int i = 0; i < 24000; ++i)
+        worst = juce::jmax (worst, std::abs (restored.getLayer (0).readLeft()[i] - looper.getLayer (0).readLeft()[i]));
+
+    CHECK_MSG (worst < 1.0e-4f, "the reloaded audio differs by " + juce::String (worst));
+    file.getParentDirectory().deleteRecursively();
+}
+
+LUTHIER_TEST (PracticeSession, oldTempFilesAreCleanedAfterADay)
+{
+    // PT-48 (practice-tools 8).
+    auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-session-tmp");
+    dir.deleteRecursively();
+    dir.createDirectory();
+
+    const auto old = dir.getChildFile ("session-old.wav");
+    const auto fresh = dir.getChildFile ("session-new.wav");
+    old.replaceWithText ("x");
+    fresh.replaceWithText ("y");
+    old.setLastModificationTime (juce::Time::getCurrentTime() - juce::RelativeTime::hours (30));
+
+    SessionRecorder::cleanUpOldTempFiles (dir, 24.0);
+
+    CHECK (! old.existsAsFile());
+    CHECK (fresh.existsAsFile());
+    dir.deleteRecursively();
+}
+
+LUTHIER_TEST (PracticeTrack, levelAndMonoApply)
+{
+    // PT-25 (practice-tools 3): level in dB, and mono sums the sides.
+    auto file = juce::File::createTempFile (".wav");
+    {
+        juce::AudioBuffer<float> audio (2, 48000);
+
+        for (int i = 0; i < 48000; ++i)
+        {
+            audio.setSample (0, i, 0.5f * (float) std::sin (0.05 * i));
+            audio.setSample (1, i, 0.0f);   // hard left
+        }
+
+        juce::WavAudioFormat wav;
+        std::unique_ptr<juce::OutputStream> stream (file.createOutputStream().release());
+        std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (stream.get(), 48000.0, 2, 24, {}, 0));
+        stream.release();
+        writer->writeFromAudioSampleBuffer (audio, 0, 48000);
+    }
+
+    auto rmsAt = [&file] (double levelDb, bool mono)
+    {
+        BackingTrackPlayer player;
+        player.prepare (48000.0, 512);
+        player.load (file);
+        player.setLevelDb (levelDb);
+        player.setMonoSum (mono);
+        juce::Thread::sleep (300);
+        player.play();
+
+        juce::AudioBuffer<float> block (2, 512);
+        double l = 0.0, r = 0.0;
+
+        for (int b = 0; b < 20; ++b)
+        {
+            player.processBlock (block, 512);
+
+            if (b >= 4)
+                l += block.getRMSLevel (0, 0, 512), r += block.getRMSLevel (1, 0, 512);
+        }
+
+        player.unload();
+        return std::make_pair (l, r);
+    };
+
+    const auto loud = rmsAt (0.0, false);
+    const auto quiet = rmsAt (-12.0, false);
+    const auto mono = rmsAt (0.0, true);
+
+    CHECK_NEAR (20.0 * std::log10 (quiet.first / loud.first), -12.0, 0.2);
+    CHECK (loud.second < loud.first * 0.01);
+    CHECK_NEAR (mono.first, mono.second, mono.first * 0.01);
+    file.deleteFile();
+}
+
+LUTHIER_TEST (PracticeTrack, loopPointsSnapToZeroCrossingsAndWrap)
+{
+    // PT-27 (practice-tools 3).
+    juce::WavAudioFormat wav;
+    const auto file = writeSine (wav, ".wav", 100.0, 3.0);   // a rising crossing every 10 ms
+
+    BackingTrackPlayer player;
+    player.prepare (48000.0, 512);
+    CHECK (player.load (file));
+
+    player.setLoopSeconds (0.5033, 1.2071);
+    const double start = player.getLoopStartSeconds() * 48000.0;
+    const double end = player.getLoopEndSeconds() * 48000.0;
+
+    // Each end on a rising crossing: a multiple of 480 samples, within a sample.
+    CHECK_MSG (std::abs (start - 480.0 * std::round (start / 480.0)) <= 1.0, "start " + juce::String (start));
+    CHECK_MSG (std::abs (end - 480.0 * std::round (end / 480.0)) <= 1.0, "end " + juce::String (end));
+
+    // And the loop goes round: playing past the end comes back to the start.
+    player.setLoopEnabled (true);
+    player.setPositionSeconds (player.getLoopEndSeconds() - 0.05);
+    juce::Thread::sleep (300);
+    player.play();
+
+    juce::AudioBuffer<float> block (2, 512);
+
+    for (int b = 0; b < 20; ++b)
+        player.processBlock (block, 512);
+
+    CHECK (player.isPlaying());
+    CHECK (player.getPositionSeconds() < player.getLoopEndSeconds());
+    CHECK (player.getPositionSeconds() >= player.getLoopStartSeconds() - 0.01);
+
+    player.unload();
+    file.deleteFile();
+}
+
+LUTHIER_TEST (PracticeTrack, estimatesTheTempoOfAClickTrack)
+{
+    // PT-31 (practice-tools 3): a 100 bpm click.
+    auto file = juce::File::createTempFile (".wav");
+    {
+        const int n = 48000 * 12;
+        juce::AudioBuffer<float> audio (1, n);
+        audio.clear();
+
+        for (int beat = 0; beat * 28800 < n; ++beat)
+            for (int i = 0; i < 480 && beat * 28800 + i < n; ++i)
+                audio.setSample (0, beat * 28800 + i, 0.8f * (float) std::exp (-i / 80.0) * (float) std::sin (0.3 * i));
+
+        juce::WavAudioFormat wav;
+        std::unique_ptr<juce::OutputStream> stream (file.createOutputStream().release());
+        std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (stream.get(), 48000.0, 1, 24, {}, 0));
+        stream.release();
+        writer->writeFromAudioSampleBuffer (audio, 0, n);
+    }
+
+    BackingTrackPlayer player;
+    player.prepare (48000.0, 512);
+    CHECK (player.load (file));
+    CHECK_MSG (std::abs (player.getDetectedTempo() - 100.0) <= 1.0,
+               "detected " + juce::String (player.getDetectedTempo()) + " bpm");
+    player.unload();
+    file.deleteFile();
+}
+
+LUTHIER_TEST (ToneMatch, captureSavesThirtyTwoBitFloatWav)
+{
+    // TM-32 (tone-match 4).
+    Capture capture;
+    capture.prepare (48000.0, 2.0);
+    capture.start (0.5);
+
+    const auto audio = toneBuffer (440.0, 24000, 0.4f);
+    capture.processBlock (audio.getArrayOfReadPointers(), 2, 24000);
+    CHECK (capture.isComplete() || capture.getRecordedSamples() == 24000);
+
+    auto file = juce::File::createTempFile (".wav");
+    CHECK (capture.save (file));
+
+    juce::AudioFormatManager formats;
+    formats.registerBasicFormats();
+    std::unique_ptr<juce::AudioFormatReader> reader (formats.createReaderFor (file));
+    CHECK (reader != nullptr);
+
+    if (reader != nullptr)
+    {
+        CHECK (reader->bitsPerSample == 32);
+        CHECK (reader->usesFloatingPointData);
+
+        juce::AudioBuffer<float> back (2, 24000);
+        reader->read (&back, 0, 24000, 0, true, true);
+
+        float worst = 0.0f;
+
+        for (int i = 0; i < 24000; ++i)
+            worst = juce::jmax (worst, std::abs (back.getSample (0, i) - audio.getSample (0, i)));
+
+        CHECK (worst == 0.0f);
+    }
+
+    reader.reset();
+    file.deleteFile();
 }

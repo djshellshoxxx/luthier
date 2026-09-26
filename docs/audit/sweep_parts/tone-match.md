@@ -35,7 +35,7 @@ The IR slot machinery (windowed-sinc resampling, truncation, trim/predelay/rever
 | TM-29 (§3) | Clearly labelled "not a substitute for cab match" | `EqMatch::getDescription` | EQ Match wizard step text | `ToneMatch::eqMatchSaysWhatItCannotDo` | DONE |
 | TM-30 (§4) | Record from main out, DI, sidechain, per-string — only mainOut/sidechain; no source picker in the capture pane | `Capture::Source` | Capture pane (hard-wired mainOut) | `ReviewRegression::aCaptureRecordsTheMainOutput` | PARTIAL |
 | TM-31 (§4) | Record length 100 ms-60 s — engine clamps, capture pane hard-codes 10 s | `Capture::start` | Capture length slider | `ToneMatch.thePanelReachesTrimBandLengthAndSearch` | DONE |
-| TM-32 (§4) | WAV 32-bit float into ~/Documents/Luthier/Captures/ — save path untested | `Capture::save`, `getCaptureDirectory` | Capture pane | - | NO-TEST |
+| TM-32 (§4) | WAV 32-bit float into ~/Documents/Luthier/Captures/ — save path untested | `Capture::save`, `getCaptureDirectory` | Capture pane | `ToneMatch.captureSavesThirtyTwoBitFloatWav` | DONE |
 | TM-33 (§4) | Autotrim silence, user-toggleable — always on, no toggle | `Capture::autoTrim` | Capture "Auto-trim silence" toggle | `ToneMatch.thePanelReachesTrimBandLengthAndSearch` | DONE |
 | TM-34 (§5) | IR folder convention (Bodies/Acoustic..., Cabinets/User, Cab Match, Rooms, Special) — tree creation untested | `IrLibraryPaths::ensureExists` (called from processor ctor) | n/a | `ToneMatch.theLibraryTreeIsCreated` | DONE |
 | TM-35 (§5) | Sidecar .json, filename fallback | `IrMetadata::forFile/saveFor` | n/a | `ToneMatch::metadataRoundTripsAndFallsBackToTheFilename` | DONE |

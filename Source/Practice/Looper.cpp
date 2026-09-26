@@ -734,7 +734,10 @@ bool Looper::save (const juce::File& file) const
     {
         const auto& layer = getLayer (i);
 
-        auto* entry = layer.settingsToVar().getDynamicObject();
+        // SPEC-SWEEP (PT-22): the var must outlive the pointer into it - taking
+        // getDynamicObject() of the temporary freed the object before it was used.
+        const auto settings = layer.settingsToVar();
+        auto* entry = settings.getDynamicObject();
 
         if (entry == nullptr)
             continue;
