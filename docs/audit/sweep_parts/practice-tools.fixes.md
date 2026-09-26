@@ -1,7 +1,6 @@
 - [PT-1] effort S — Add `PracticeDrawer::aClosedDrawerCostsNothing`: with the drawer closed and metronome/looper/track "enabled", render blocks and assert the click/looper/track render functions are not entered (counter in `processSlice`) and the practice buffers stay untouched.
 - [PT-3] effort L — Implement re-render: on tone change (preset/parameter generation bump) with a closed loop, render each layer's stored MIDI offline through a second `LuthierEngine` instance on a worker thread (as `Capture`/tune offline render does) and swap the new audio into the layer; UI: a "Re-render with this tone" button on LOOP (auto per §0.3 optional). Test = PT-60.
 - [PT-4] effort S — Covered by PT-61's streaming test; additionally assert `BackingTrackPlayer` never holds more than `kRingBufferSeconds * sr` frames.
-- [PT-8] effort S — Add `PracticeMetronome::subdivisionsClickAtTheirOwnLevel`: dotted-eighth and triplet grids land on the right samples and the subdivision level dB scales only off-beat clicks.
 - [PT-10] effort S — DEFER: synthesized clicks avoid shipping 16 WAVs and sound identical at any rate; record in DECISIONS.md and drop the `Resources/Practice/Clicks` path from §10/§11.2's defaults (the defaults pick one of the six synth sounds).
 - [PT-13] effort S — Add `PracticePanelUi::theFourDotsFollowTheBeat` rendering MetronomeTab at two beat positions and comparing the lit dot.
 - [PT-18] effort S — Add `PracticeLooper::replaceAndPlayOnceModesBehave`: replace erases the prior layer content during recording; play-once plays one pass then stays silent.

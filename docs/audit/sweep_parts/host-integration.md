@@ -19,13 +19,13 @@ The core host surface is in place and tested: VST3/AU/Standalone (plus optional 
 | HI-13 (§3) | APVTS single source; count stable; stable IDs, range, default, text converters | `Parameters.cpp:createLayout` | n/a | `Parameters::everyParameterHasAUniqueIdAndSaneDefault`, `Parameters::everyParameterTextRoundTrips`, `HostState::parameterTextRoundTripsStably` | DONE |
 | HI-14 (§3) | Parameters grouped by ParameterCategory — flat layout, no `AudioProcessorParameterGroup` | `Parameters.cpp:createLayout` | n/a | - | MISSING |
 | HI-15 (§3) | Display names translated per locale — hard-coded English | `Parameters.cpp` | n/a | - | MISSING |
-| HI-16 (§3.1) | Internal changes (snapshot recall, preset load) notify host | `setValueNotifyingHost` in PresetManager / SnapshotBank apply | n/a | `HostState::processingDoesNotMoveParameters` (indirect) | NO-TEST |
+| HI-16 (§3.1) | Internal changes (snapshot recall, preset load) notify host | `setValueNotifyingHost` in PresetManager / SnapshotBank apply | n/a | `HostState.aSnapshotRecallAndPresetLoadNotifyTheHost` | DONE |
 | HI-17 (§3.1) | Batching: only last write per block per parameter notified — relies on JUCE default, not implemented | - | n/a | - | PARTIAL |
 | HI-18 (§3.2) | Automation moves base, modulation adds on top | `Modulation/ModMatrix` | n/a | `Modulation::*` (e.g. `Combo::modulationRoutesAtFullDepth`) | DONE |
 | HI-19 (§3.3) | Discrete params integer 0..N-1 with module crossfade | choice params + module crossfades | n/a | `Modulation::discreteDestinationsStepAtBoundaries` | DONE |
 | HI-20 (§4) | State blob: format version tag (u32) + padding — root JSON has no version | `Support/HostStateEnvelope` stamps formatVersion | n/a | `HostState.theStateCarriesAFormatVersion` | DONE |
 | HI-21 (§4) | APVTS + uiState + structural (mod matrix, snapshots, MIDI mappings, ranges, guitar ref/inline, circuit, MIDI export profile) — JSON rather than XML, content equivalent | `getStateInformation` / `setStateInformation` | n/a | `Presets::stateRoundTripsExactly`, `Combo::everyParameterSurvivesTheSessionStateRoundTrip`, `Routing::stateRoundTrips` | DONE |
-| HI-22 (§4) | Size < 200 KB typical / < 2 MB inline guitar — never measured | `getStateInformation` | n/a | - | NO-TEST |
+| HI-22 (§4) | Size < 200 KB typical / < 2 MB inline guitar — never measured | `getStateInformation` | n/a | `HostState.typicalStateIsSmall` | PARTIAL |
 | HI-23 (§4) | setStateInformation applies via swap pattern | direct apply on message thread; engine picks up via bridge | n/a | `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` | DONE |
 | HI-24 (§4.1) | Older build + newer blob: warn, keep unknown sections on write-back — only preset-level unknownFields kept; host-level keys dropped, no warning | `HostStateEnvelope` keeps unknown root keys; newer-blob notice via stateNotices | n/a | `HostState.unknownSectionsSurviveWriteBack` | DONE |
 | HI-25 (§4.2) | Newer build + older blob: migrate and back up old blob to diagnostics — migrations run, no blob backup | `HostStateEnvelope::read` backs up older blobs to Diagnostics (last 10) | n/a | `HostState.anOldBlobIsBackedUpBeforeMigration` | DONE |
@@ -41,14 +41,14 @@ The core host surface is in place and tested: VST3/AU/Standalone (plus optional 
 | HI-35 (§8) | Instances fully independent, no shared state beyond settings/content — untested here | per-instance members | n/a | - (visual `Stress::thirtyTwoInstancesRenderInTurn`) | OWNED |
 | HI-36 (§9.1) | Ableton: first program change after state restore swallowed | `setCurrentProgram`, `ignoreNextProgramChange` | n/a | `StateModel::aProgramChangeRightAfterAStateRestoreDoesNotWipeIt` | DONE |
 | HI-37 (§9.1) | Ableton MPE auto-detect from channel-1-plus-member traffic — no auto-detect; MPE is a chosen profile | - | n/a | - | MISSING |
-| HI-38 (§9.2) | Logic: state < 500 KB via guitar file refs — refs used when saved; never measured | `getStateInformation` preset guitar ref | n/a | `WorkshopPresets::saveAsGuitarWritesAFileAndPointsThePresetAtIt` | NO-TEST |
+| HI-38 (§9.2) | Logic: state < 500 KB via guitar file refs — refs used when saved; never measured | `getStateInformation` preset guitar ref | n/a | `HostState.typicalStateIsSmall` | DONE |
 | HI-39 (§9.2) | Logic: routing panel exposes the PC / Bank Select mapping mode — no such control | `PluginProcessor.cpp` PC -> snapshot, CC0 -> preset (fixed) | none | - | MISSING |
 | HI-40 (§9.2) | prepareToPlay idempotent and fast | `prepareToPlay` | n/a | `HostState::aSessionSurvivesThePrepareThatFollowsIt`, `Engine::sampleRateChangesAreSurvived` | DONE |
 | HI-41 (§9.9) | Standalone: device disconnect polling, virtual MIDI-out toggle — neither built (JUCE default standalone) | - | none | - | MISSING |
 | HI-42 (§9.9) | Standalone resizable window with minimum size, native file dialogs | `PluginEditor.cpp` constrainer `setSizeLimits`, `FileChooser` | editor window | `Editor::itLaysOutAndPaintsAcrossItsResizeRange` | DONE |
 | HI-43 (§10) | pluginval strictness 10 on every merge — CI runs 5 per push, 10 nightly | `.github/workflows/build.yml`, `scripts/ci_build.sh validate` | n/a | CI pluginval step | PARTIAL |
 | HI-44 (§11) | Plugin undo is per-instance, not host-integrated | `PluginProcessor::undo` | Header undo | `Undo::stepsOneActionAtATimeBothWays` | DONE |
-| HI-45 (§12) | Factory presets via getNumPrograms/getProgramName, PC addressable — user presets included, so count changes on save | `PluginProcessor.cpp:getNumPrograms` | host browser | - | NO-TEST |
+| HI-45 (§12) | Factory presets via getNumPrograms/getProgramName, PC addressable — user presets included, so count changes on save | `PluginProcessor.cpp:getNumPrograms` | host browser | `HostState.programsEnumeratePresetsAndLoadByIndex` | DONE |
 | HI-46 (§13) | Threading contract: state save doesn't block audio | message-thread `captureExtraState`; audio uses tryLock | n/a | `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` | DONE |
 | HI-47 (§14.1) | VST3 units per Column-4 tab / Easy strip — needs parameter groups | - | n/a | - | MISSING |
 | HI-48 (§14.2-14.3) | AU cocoa view standard; state chunk + typed params | JUCE wrappers | n/a | CI auval/pluginval | DONE |

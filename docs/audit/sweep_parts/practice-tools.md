@@ -11,7 +11,7 @@ The drawer (eight tabs, strip readouts, practice level, tap, panic) and the PRAC
 | PT-5 (§1) | Time signatures incl. custom | `Metronome::setTimeSignature` | drawer METRO | `PracticeMetronome::settingsRoundTrip` | DONE |
 | PT-6 (§1) | Tempo 20-300, follows tap + host tempo — never follows either | `Metronome::followTempo` from `processSlice` (blockTempo) | METRO "FOLLOW TEMPO" toggle | `PracticeMetronome.followsTheHostAndTheTap` | DONE |
 | PT-7 (§1) | Accent map, accent/normal/ghost (+silent) | `Metronome::setBeatAccent` | METRO beat buttons | `PracticeMetronome::accentPatternIsObeyed` | DONE |
-| PT-8 (§1) | Subdivisions incl. dotted, each with own gain — untested | `Metronome::setSubdivision/setSubdivisionLevelDb` | METRO | - | NO-TEST |
+| PT-8 (§1) | Subdivisions incl. dotted, each with own gain — untested | `Metronome::setSubdivision/setSubdivisionLevelDb` | METRO | `PracticeMetronome.subdivisionsClickAtTheirOwnLevel` | DONE |
 | PT-9 (§1) | 6 click sounds | `ClickSound` | METRO sound box | `PracticeMetronome::everyClickSoundIsAudibleAndFinite` | DONE |
 | PT-10 (§1, §10) | 16 click WAVs in Resources/Practice/Clicks — clicks synthesized; folder absent | `Metronome` synth | - | - | MISSING |
 | PT-11 (§1) | Silent bars every N (1-16) | `Metronome::setSilentBarPeriod` | METRO | `PracticeMetronome::silentBarsMuteTheClickWithoutStoppingTheCount` | DONE |

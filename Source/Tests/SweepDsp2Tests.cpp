@@ -2558,3 +2558,143 @@ LUTHIER_TEST (ToneMatch, captureSavesThirtyTwoBitFloatWav)
     reader.reset();
     file.deleteFile();
 }
+
+LUTHIER_TEST (PracticeMetronome, subdivisionsClickAtTheirOwnLevel)
+{
+    // PT-8 (practice-tools 1): each subdivision lands on its grid, and the
+    // subdivision level moves only the off-beat clicks.
+    auto render = [] (ClickSubdivision sub, double subDb)
+    {
+        Metronome m;
+        m.prepare (48000.0, 512);
+        m.setTempo (120.0);   // a beat every 24000 samples
+        m.setSubdivision (sub);
+        m.setSubdivisionLevelDb (subDb);
+        m.setEnabled (true);
+
+        std::vector<float> out (48000 * 2, 0.0f);
+
+        for (int at = 0; at < (int) out.size(); at += 512)
+            m.processBlock (out.data() + at, juce::jmin (512, (int) out.size() - at));
+
+        return out;
+    };
+
+    auto peakNear = [] (const std::vector<float>& x, int at)
+    {
+        float peak = 0.0f;
+
+        for (int i = juce::jmax (0, at - 20); i < juce::jmin ((int) x.size(), at + 600); ++i)
+            peak = juce::jmax (peak, std::abs (x[(size_t) i]));
+
+        return peak;
+    };
+
+    const struct { ClickSubdivision sub; int spacing; } grids[] =
+    {
+        { ClickSubdivision::eighth, 12000 }, { ClickSubdivision::triplet, 8000 },
+        { ClickSubdivision::sixteenth, 6000 }, { ClickSubdivision::dottedEighth, 18000 }
+    };
+
+    for (const auto& g : grids)
+    {
+        const auto x = render (g.sub, -6.0);
+
+        // The first off-beat click is on its grid; midway before it, silence.
+        CHECK_MSG (peakNear (x, g.spacing) > 0.01f, juce::String (getClickSubdivisionName (g.sub)) + ": no click on its grid");
+        CHECK_MSG (peakNear (x, g.spacing / 2) < 1.0e-4f, juce::String (getClickSubdivisionName (g.sub)) + ": a click off its grid");
+    }
+
+    const auto loud = render (ClickSubdivision::eighth, -6.0);
+    const auto soft = render (ClickSubdivision::eighth, -18.0);
+
+    CHECK_NEAR (peakNear (loud, 24000), peakNear (soft, 24000), 1.0e-6);   // the beat is untouched
+    CHECK_NEAR (20.0 * std::log10 (peakNear (soft, 12000) / peakNear (loud, 12000)), -12.0, 0.5);
+}
+
+LUTHIER_TEST (HostState, programsEnumeratePresetsAndLoadByIndex)
+{
+    // HI-45 (host-integration 12).
+    LuthierAudioProcessor processor;
+    auto& presets = processor.getPresetManager();
+
+    CHECK (processor.getNumPrograms() == juce::jmax (1, presets.getNumPresets()));
+    CHECK (presets.getNumPresets() > 1);
+
+    for (int i = 0; i < juce::jmin (5, presets.getNumPresets()); ++i)
+        CHECK (processor.getProgramName (i) == presets.getPreset (i)->name);
+
+    processor.setCurrentProgram (1);
+    CHECK (processor.getCurrentProgram() == 1);
+    CHECK (presets.getCurrentPresetName() == processor.getProgramName (1));
+}
+
+LUTHIER_TEST (HostState, typicalStateIsSmall)
+{
+    // HI-22 / HI-38 (host-integration 4, 9.2): a session is well under 200 KB
+    // for every factory preset (guitar by reference), and under 500 KB always.
+    LuthierAudioProcessor processor;
+    auto& presets = processor.getPresetManager();
+    size_t largest = 0;
+    juce::String largestName;
+
+    for (int i = 0; i < presets.getNumPresets(); ++i)
+    {
+        if (! presets.loadPreset (i))
+            continue;
+
+        juce::MemoryBlock block;
+        processor.getStateInformation (block);
+
+        if (block.getSize() > largest)
+        {
+            largest = block.getSize();
+            largestName = presets.getCurrentPresetName();
+        }
+    }
+
+    CHECK_MSG (largest < 200 * 1024, "the largest state (" + largestName + ") is " + juce::String ((int) (largest / 1024)) + " KB");
+}
+
+LUTHIER_TEST (HostState, aSnapshotRecallAndPresetLoadNotifyTheHost)
+{
+    // HI-16 (host-integration 3.1): the host hears about every parameter a
+    // snapshot or a preset changes.
+    LuthierAudioProcessor processor;
+
+    struct Listener final : public juce::AudioProcessorParameter::Listener
+    {
+        std::set<int> changed;
+        void parameterValueChanged (int index, float) override { changed.insert (index); }
+        void parameterGestureChanged (int, bool) override {}
+    } listener;
+
+    auto& params = processor.getParameters();
+
+    for (auto* p : params)
+        p->addListener (&listener);
+
+    // A snapshot of a different state, recalled.
+    auto* gain = processor.getState().getParameter (ParamIDs::macroCharacter);
+    CHECK (gain != nullptr);
+
+    if (gain != nullptr)
+    {
+        processor.getSnapshots().setCrossfadeMs (0.0);   // applied inside the call
+        gain->setValueNotifyingHost (0.9f);
+        CHECK (processor.captureSnapshot (0, "A", 1));
+        gain->setValueNotifyingHost (0.1f);
+
+        listener.changed.clear();
+        CHECK (processor.recallSnapshot (0));
+        CHECK_MSG (listener.changed.count (gain->getParameterIndex()) == 1, "a snapshot recall did not notify the host");
+    }
+
+    // A preset load.
+    listener.changed.clear();
+    CHECK (processor.getPresetManager().loadPreset (1));
+    CHECK_MSG (! listener.changed.empty(), "a preset load did not notify the host of anything");
+
+    for (auto* p : params)
+        p->removeListener (&listener);
+}
