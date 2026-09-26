@@ -651,6 +651,18 @@ bool LuthierAudioProcessor::loadGuitarForType (GuitarType type)
     const bool loaded = loadGuitarFrom (guitarReference, guitarOverride, type, writeParameters);
     guitarPartsWin = false;
 
+    /*  No parts guitar for this type (Custom has no factory file; or none is
+        installed): the bridge falls back to the compiled guitar, so the previous
+        parts guitar is no longer the instrument. Left marked as loaded, the next
+        prepareToPlay rebuilt the engine from it - a preset on the Custom type
+        played the Strat's parts after a transport restart, and its saved session
+        did not (state round trip 0.285 apart, BETA_TEST_REPORT B-17). */
+    if (! loaded)
+    {
+        partsGuitarLoaded = false;
+        loadedGuitarKey.clear();
+    }
+
     if (! pendingGuitarKeep.isEmpty())
     {
         const auto keep = std::exchange (pendingGuitarKeep, {});

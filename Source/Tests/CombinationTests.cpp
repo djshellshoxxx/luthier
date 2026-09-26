@@ -623,9 +623,18 @@ LUTHIER_TEST (Combo, modulationRoutesAtFullDepth)
         const auto phrase = (Phrase) (group % (int) Phrase::numPhrases);
         const auto stats = rig.render (phrase, 2.5);
 
+        // A route into a noise-floor level (hum, hiss, radio, the player's
+        // movement) makes the floor itself move with the LFO or random source,
+        // note or no note: the 0.25 s idle measured before the phrase cannot
+        // stand for it, so a tail at the floor's own level is not a note that
+        // fails to decay.
+        bool movesTheFloor = false;
+        for (auto& id : used)
+            movesTheFloor = movesTheFloor || id.startsWith ("noise_");
+
         Verdict v;
         v.expectSound = false;   // a route to master gain or guitar volume may legitimately mute it
-        v.expectDecay = ! holdsSound (rig) && ! slotHoldsSound (rig)
+        v.expectDecay = ! holdsSound (rig) && ! slotHoldsSound (rig) && ! movesTheFloor
                         && ! used.joinIntoString (",").containsIgnoreCase ("feedback")
                         && ! used.joinIntoString (",").containsIgnoreCase ("freeze")
                         && ! used.joinIntoString (",").containsIgnoreCase ("ebow");
@@ -1466,6 +1475,34 @@ LUTHIER_TEST (Combo, factoryPresetsAndResetUseTheGuitarsOwnParts)
 }
 
 //==============================================================================
+/*  B-17: a preset on a type with no parts guitar (Custom) plays the compiled
+    guitar, and a transport restart (prepareToPlay) must not bring back the
+    parts guitar that was loaded before it. It did: the processor kept the
+    previous parts guitar marked as loaded and re-applied it in prepareToPlay,
+    so "Transposing Trem Chords" played the default Strat's parts after a
+    restart and its saved session did not (0.285 apart). */
+LUTHIER_TEST (Combo, compiledGuitarSurvivesATransportRestart)
+{
+    Rig r;
+    auto& p = r.p().getPresetManager();
+    const int index = p.indexOfPreset ("Transposing Trem Chords");
+    CHECK_MSG (index >= 0, "the Custom-type factory preset is missing");
+    if (index < 0)
+        return;
+
+    p.loadPreset (index);
+    r.apply();
+    const bool before = r.p().getEngine().isWorkshopGuitar();
+
+    r.p().releaseResources();
+    r.p().prepareToPlay (kSr, kBlock);
+    r.apply();
+    CHECK_MSG (r.p().getEngine().isWorkshopGuitar() == before,
+               juce::String ("prepareToPlay changed the guitar: parts guitar ") + (before ? "on" : "off") + " before, "
+                   + (r.p().getEngine().isWorkshopGuitar() ? "on" : "off") + " after");
+}
+
+//==============================================================================
 /*  The released string itself is damped quickly (sustain-and-decay SUS-08:
     by 250 ms more than 40 dB below its level at note-off). The mix-level decay
     check in Verdict allows the sympathetic ring of the other open strings; this
@@ -1486,6 +1523,8 @@ LUTHIER_TEST (Combo, releasedStringIsDampedQuickly)
         // room, so the output is that string (StringEngine::getLevel is an
         // envelope follower with its own release and cannot show this).
         rig.setNormalised (ParamIDs::couplingAmount, 0.0f);
+        rig.setNormalised (ParamIDs::couplingAirAmount, 0.0f);    // string-interaction 1: the air path is sympathetic too
+        rig.setNormalised (ParamIDs::bodyCouplingAmount, 0.0f);   // body-coupling 3: the body rings the other strings back
         rig.setIndex (ParamIDs::roomOn, 0);
         rig.apply();
         rig.processSilence (4);
