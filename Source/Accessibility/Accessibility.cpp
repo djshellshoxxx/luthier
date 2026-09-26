@@ -547,6 +547,9 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("midiLearnArm",     "accessibility.shortcut.midiLearnArm",     KP ('l', cmd, 0));
 
     add ("export",           "accessibility.shortcut.export",           KP ('e', cmd, 0));
+
+    // Section 17's "New tune" (tune-builder 2; TUNE-HELP-ONBOARDING).
+    add ("newTune",          "accessibility.shortcut.newTune",          KP ('t', cmd, 0));
     add ("options",          "accessibility.shortcut.options",          KP (',', cmd, 0));
 
     /*  Not in section 17, kept because the debug panel is otherwise only reachable

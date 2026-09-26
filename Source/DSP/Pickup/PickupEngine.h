@@ -129,6 +129,17 @@ public:
     void setHumAmount (double amount) noexcept;
     void setMainsFrequency (double hz) noexcept;
 
+    /*  noise-floor.md 2.1: the player's position and angle scale the hum, as a
+        loop antenna in the room's field. 1 (the default) is the legacy path. */
+    void setHumPositionGain (double g) noexcept { humPositionGain = g; }
+
+    /** noise-floor.md 4.1: the share of the active magnetic signal that hears
+        hum (single coils, P90s, soundhole pickups, a tapped humbucker). */
+    double getSingleCoilShare() const noexcept;
+
+    /** The hum this sample carried, for noise-floor.md 4.6's Aux 8 stem. */
+    double getLastHumSample() const noexcept { return lastHum; }
+
     /** Identity rule 4: with every pickup off the instrument is silent and the UI
         must say so. */
     bool isSilent() const noexcept { return activeCount == 0; }
@@ -144,6 +155,30 @@ public:
     double processStrings (const double* stringOutputs,
                            const double* delaySamples,
                            int numStrings) noexcept;
+
+    /*  string-interaction.md 5: pickup crosstalk. A pole senses its string
+        through a Gaussian aperture; a bent string moves off its own pole and
+        toward the next. `mmAtFret` is each string's lateral displacement where
+        it is fretted, `stopFromSaddleMm` how far that point is from the saddle
+        (the displacement falls linearly to the saddle), `bassward` whether it
+        is pushed toward the bass side. Unbent strings are sensed with gain 1
+        exactly; piezo and internal mic are not affected. Block rate. */
+    void setStringLateralOffsets (const double* mmAtFret, const double* stopFromSaddleMm,
+                                  const bool* bassward, int n, double scaleLengthMm,
+                                  double stringSpacingMm, double apertureScale) noexcept;
+
+    /** The aperture gain in use for a slot and string (1 unbent). */
+    double getApertureGain (int slot, int stringIndex) const noexcept
+    {
+        return apertureGain[(size_t) juce::jlimit (0, kMaxPickups - 1, slot)]
+                           [(size_t) juce::jlimit (0, kMaxStrings - 1, stringIndex)];
+    }
+
+    /** The aperture sigma of a pickup type in mm, before the scale (5). */
+    static double apertureSigmaMm (PickupType t) noexcept
+    {
+        return t == PickupType::Humbucker ? 5.0 : t == PickupType::P90 ? 5.5 : 4.0;
+    }
 
     /** Piezo and internal-mic pickups tap the bridge and the body instead of the
         magnetic field, so they get their own inputs. */
@@ -188,6 +223,13 @@ private:
     std::array<PickupSpec, kMaxPickups> specs {};
     std::array<std::array<Coil, 2>, kMaxPickups> coils {};
     std::array<ExpSmoother, kMaxPickups> slotGain {};
+
+    // string-interaction.md 5: 1 unless a string is bent.
+    std::array<std::array<double, kMaxStrings>, kMaxPickups> apertureGain = [] {
+        std::array<std::array<double, kMaxStrings>, kMaxPickups> a {};
+        for (auto& row : a) row.fill (1.0);
+        return a; }();
+    bool anyApertureGain = false;
     std::array<double, kMaxPickups> userVolume { { 1.0, 1.0, 1.0 } };
 
     PickupSelector selector = PickupSelector::Bridge;
@@ -207,6 +249,7 @@ private:
     double humPhase = 0.0;
     double humIncrement = 0.0;
     ExpSmoother humLevel;
+    double humPositionGain = 1.0, lastHum = 0.0;   // noise-floor.md 2.1
 
     DCBlocker outputDc;
 

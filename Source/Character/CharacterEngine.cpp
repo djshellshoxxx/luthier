@@ -410,7 +410,8 @@ double CharacterEngine::getTunerDriftCents (int stringIndex) const noexcept
     if (! isEnabled() || ! juce::isPositiveAndBelow (stringIndex, kMaxStrings))
         return 0.0;
 
-    return driftCents[(size_t) stringIndex] + getTemperatureOffsetCents();
+    // environment.md 1: the temperature offset is EnvironmentModel's now.
+    return driftCents[(size_t) stringIndex];
 }
 
 void CharacterEngine::retune() noexcept
@@ -422,6 +423,15 @@ void CharacterEngine::retune() noexcept
     // in-tune rather than jumping there and then immediately moving.
     for (int s = 0; s < kMaxStrings; ++s)
         driftPhase[(size_t) s] = 0.0;
+}
+
+void CharacterEngine::retuneString (int stringIndex) noexcept
+{
+    if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
+    {
+        driftCents[(size_t) stringIndex] = 0.0;
+        driftPhase[(size_t) stringIndex] = 0.0;
+    }
 }
 
 //==============================================================================
@@ -552,71 +562,6 @@ void CharacterEngine::setHumidity (Humidity h) noexcept
                     std::memory_order_relaxed);
 }
 
-double CharacterEngine::getTemperatureOffsetCents() const noexcept
-{
-    if (! isEnabled())
-        return 0.0;
-
-    /*  character-wear 9 and 12: a twenty-kelvin step produces a measurable
-        offset.
-
-        Steel's thermal expansion is about 12 parts per million per kelvin, and
-        the neck it is stretched over expands too but less. The net is roughly a
-        quarter of a cent per kelvin: cooling tightens the string and sharpens
-        it. Cold and warm are taken as twenty kelvin either side of room.
-    */
-    constexpr double centsPerKelvin = 0.125;
-    constexpr double kelvinStep = 20.0;
-
-    double offset = 0.0;
-
-    switch (getTemperature())
-    {
-        case Temperature::cold: offset = centsPerKelvin * kelvinStep; break;
-        case Temperature::warm: offset = -centsPerKelvin * kelvinStep; break;
-
-        case Temperature::room:
-        case Temperature::numTemperatures:
-        default:                offset = 0.0; break;
-    }
-
-    return offset * getAmount();
-}
-
-double CharacterEngine::getHumidityQMultiplier() const noexcept
-{
-    if (! isEnabled())
-        return 1.0;
-
-    // Damp wood is lossier, so its resonances are broader.
-    switch (getHumidity())
-    {
-        case Humidity::dry:   return 1.0 + 0.08 * getAmount();
-        case Humidity::humid: return 1.0 - 0.10 * getAmount();
-
-        case Humidity::normal:
-        case Humidity::numHumidities:
-        default:              return 1.0;
-    }
-}
-
-double CharacterEngine::getHumidityComplianceMultiplier() const noexcept
-{
-    if (! isEnabled())
-        return 1.0;
-
-    // A damp top is softer, and a dry one stiffer.
-    switch (getHumidity())
-    {
-        case Humidity::dry:   return 1.0 - 0.05 * getAmount();
-        case Humidity::humid: return 1.0 + 0.07 * getAmount();
-
-        case Humidity::normal:
-        case Humidity::numHumidities:
-        default:              return 1.0;
-    }
-}
-
 //==============================================================================
 void CharacterEngine::setAllFresh()
 {
@@ -675,8 +620,8 @@ juce::var CharacterEngine::toVar() const
     root->setProperty ("jackIntermittent", isJackIntermittentEnabled());
     root->setProperty ("boneNut", isBoneNut());
     root->setProperty ("bodyAge", getBodyAge());
-    root->setProperty ("temperature", (int) getTemperature());
-    root->setProperty ("humidity", (int) getHumidity());
+    // environment.md 6: temperature and humidity are env_* parameters now;
+    // the old keys are only read, for presets saved before.
 
     // The fret wear map and the dead spots are stored because the panel lets the
     // user nudge them, and an edit has to survive a reload.
@@ -746,11 +691,16 @@ void CharacterEngine::fromVar (const juce::var& state)
     setBoneNut (root->hasProperty ("boneNut") ? (bool) root->getProperty ("boneNut") : true);
     setBodyAge ((double) root->getProperty ("bodyAge"));
 
-    setTemperature ((Temperature) juce::jlimit (
-        0, (int) Temperature::numTemperatures - 1, (int) root->getProperty ("temperature")));
+    // environment.md 6: legacy keys, read for one schema; absent is room / normal.
+    setTemperature (root->hasProperty ("temperature")
+                      ? (Temperature) juce::jlimit (0, (int) Temperature::numTemperatures - 1,
+                                                    (int) root->getProperty ("temperature"))
+                      : Temperature::room);
 
-    setHumidity ((Humidity) juce::jlimit (
-        0, (int) Humidity::numHumidities - 1, (int) root->getProperty ("humidity")));
+    setHumidity (root->hasProperty ("humidity")
+                   ? (Humidity) juce::jlimit (0, (int) Humidity::numHumidities - 1,
+                                              (int) root->getProperty ("humidity"))
+                   : Humidity::normal);
 
     if (const auto* wearArray = root->getProperty ("fretWear").getArray())
         for (int fret = 0; fret <= juce::jmin (kMaxFrets, wearArray->size() - 1); ++fret)
