@@ -531,8 +531,13 @@ LUTHIER_TEST (CpuQuality, CQ10_aRingingNoteKeepsItsStagesUntilReExcited)
         }
     }
 
+    // The re-excite of a ringing string is a voice steal: the new note is
+    // plucked, and takes its stages, after the 5 ms fade (FIX-CROSS item 4).
     str.excite (Excitation::Params {});
-    str.processSample (0.0);
+
+    for (int i = 0; i < (int) (0.010 * kSr); ++i)
+        str.processSample (0.0);
+
     CHECK (str.getLatchedDispersionStages() == 8);
     CHECK (str.getActiveDispersionStages() > stagesAtLow);
 }

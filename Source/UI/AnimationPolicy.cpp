@@ -54,7 +54,8 @@ const std::vector<std::pair<const char*, const char*>>& AnimationPolicy::getPoll
         { "PositionPad",           "10 Hz: redraws only when the player's position parameters change" },
         { "RightHandToolSelector", "4 Hz: syncs the selected tool with its parameter" },
         { "SustainShapeGroup",     "4 Hz: sustain-style combo text" },
-        { "TuningStabilityGroup",  "2 Hz: capo-bias text and string count" }
+        { "TuningStabilityGroup",  "2 Hz: capo-bias text and string count" },
+        { "NormalizationCaption",  "4 Hz: shows or hides with the normalization switch; static text" }
     };
 
     return list;

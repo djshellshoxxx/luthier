@@ -18,6 +18,7 @@
 
 #include "Widgets.h"
 #include "../Jam/JamStatus.h"
+#include "AnimationPolicy.h"
 
 namespace luthier
 {
@@ -75,6 +76,9 @@ private:
 
     LuthierAudioProcessor& processor;
     Mode mode;
+
+    // cpu-quality-modes 6: the band's state (ARMED, COUNT, PLAYING...) is a live readout.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "JamPill" };
     juce::String pillText { "JAM" };
     JamState state = JamState::off;
     double downAt = 0.0;
