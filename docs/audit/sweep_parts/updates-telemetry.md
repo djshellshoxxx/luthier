@@ -12,7 +12,7 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 | UT-6 (§1) | Opt-in toggle in Options -> Updates, on-load 24 h throttle, Check now | `Telemetry::checkForUpdate` | UPDATES `updateCheckToggle`, `checkNowButton` | `Telemetry::updateCheckIsThrottled` | DONE |
 | UT-7 (§1) | Manifest JSON (schema, stable, beta, min, changelog, per-platform downloads) + semver compare | `UpdateManifest::parse`, `Version::compare` | n/a | `Telemetry::updateCheckReadsTheManifest`, `Telemetry::versionComparison` | DONE |
 | UT-8 (§1) | Non-modal header banner with "What's new" and "Download" links — banner has one "Details" action to the UPDATES page, links shown as text; on visual: "Updates page: Release notes opens the browser, Download fetches to Downloads" | `PluginEditor.cpp` "update" notification | header banner -> UPDATES | - | OWNED |
-| UT-9 (§1) | Beta channel toggle — no test that beta releases are offered only when on | `Telemetry::setBetaChannelEnabled` | UPDATES `betaToggle` | `Telemetry::settingsRoundTrip` | NO-TEST |
+| UT-9 (§1) | Beta channel toggle — no test that beta releases are offered only when on | `Telemetry::setBetaChannelEnabled` | UPDATES `betaToggle` | `Telemetry::updateCheckReadsTheManifest` (beta off: stable only; beta on: 1.5.0-beta3) | DONE |
 | UT-10 (§2) | File-level (rsync-style) resource-tree delta packages, full installer fallback — on visual: `Updates/ContentPackage` delta kind + `ContentPackage::aBadHashRollsBackAndOffersTheFullDownload` | - | - | - | OWNED |
 | UT-11 (§2) | bsdiff-style binary patches — not implemented anywhere (visual deltas are whole-file replace) | - | - | - | MISSING |
 | UT-12 (§3A) | Usage telemetry: panels opened, presets loaded, CPU, flag adoption, daily send — `record`/`sendPending` never called outside tests | `Telemetry::record/sendPending` | PRIVACY `usageToggle` | `Telemetry::recordsAreLoggedLocallyAndSentWhenAllowed` (API only) | PARTIAL |
@@ -24,8 +24,8 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 | UT-18 (§4) | Single HTTPS POST, max 3 attempts, dump kept on failure — untested (test only checks refusal when off) | `Telemetry::uploadPendingCrashReport` | none (no upload button) | `Telemetry::crashUploadTriesThreeTimesThenKeepsTheDump` | DONE |
 | UT-19 (§4) | Crash dumps never contain audio/MIDI | (no dumps written) | n/a | - | MISSING |
 | UT-20 (§5) | License activation, 30-day revalidation, 14-day grace, offline challenge, one-click deactivate — licensing.md deferred to release helper | `Updates/Telemetry.h:License` | none | `Telemetry::licenceActivationAndGrace`, `Telemetry::revalidationCountdownAndOfflineTolerance` | OWNED |
-| UT-21 (§6) | Privacy tab: plain-English explanation + toggle per category | `PrivacyPage` | Options > PRIVACY | - | NO-TEST |
-| UT-22 (§6) | View last upload, Clear all local logs | `Telemetry::readTelemetryLog/clearLocalLogs` | PRIVACY `viewLogButton`, `clearLogsButton` | - | NO-TEST |
+| UT-21 (§6) | Privacy tab: plain-English explanation + toggle per category | `PrivacyPage` | Options > PRIVACY | `Telemetry::thePrivacyPageExplainsSwitchesAndShowsTheLog` | DONE |
+| UT-22 (§6) | View last upload, Clear all local logs | `Telemetry::readTelemetryLog/clearLocalLogs` | PRIVACY `viewLogButton`, `clearLogsButton` | `Telemetry::thePrivacyPageExplainsSwitchesAndShowsTheLog` | DONE |
 | UT-23 (§6) | Editable endpoint URLs | `Telemetry::setManifestUrl/...` | PRIVACY `manifestUrlBox` etc. | `Telemetry::settingsRoundTrip` | DONE |
 | UT-24 (§6) | One-click turn everything off + delete diagnostics | `Telemetry::turnEverythingOffAndDelete` | PRIVACY `paranoiaButton` | `Telemetry::turnEverythingOffDeletesAndDisables` | DONE |
 | UT-25 (§7) | System-wide `luthier-policy.json` forces telemetry off / private mirror / no crash uploads | `Policy::load/getPolicyFile` | n/a | `Telemetry::policyOverridesTheUser` | DONE |
@@ -36,4 +36,4 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 | UT-30 (§8) | Test: crash dump privacy grep fixtures — no dumps, no test | | n/a | - | MISSING |
 | UT-31 (§8) | Test: 5 sequential delta patches -> SHA equals full installer — not on any branch | | n/a | - | MISSING |
 
-<!-- counts DONE=15 NO-GUI=0 NO-TEST=5 PARTIAL=3 MISSING=5 OWNED=3 DEFERRED=0 -->
+<!-- counts DONE=18 NO-GUI=0 NO-TEST=2 PARTIAL=3 MISSING=5 OWNED=3 DEFERRED=0 -->

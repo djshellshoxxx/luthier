@@ -7,3 +7,4 @@
 - [LP-31/GI-119] Monitor level/pan/EQ live on the LIVE tab (MONITOR section) rather than the ROUTING panel: that panel is being reworked on the visual branch and the LIVE tab is the setup surface for the Live strip (gui-integration 4.4). Monitor mix settings are still session-only (not saved in state) - pre-existing, left open.
 - [LP-39/GI-76] Live Mode suppresses all tooltips (no "critical" exception): the Live strip's controls are self-describing and a tip over the snapshot strip mid-song is noise.
 - [A11Y-27] Font floor raised from 9 to 10 (accessibility 4: "never below 10 px effective at 100%"); test updated.
+- [GI-72] A plain click on an empty snapshot pad no longer captures (it shows the §14 hint); Shift-click writes. The keyboard/screen-reader pad button still captures an empty slot, since it has no Shift.

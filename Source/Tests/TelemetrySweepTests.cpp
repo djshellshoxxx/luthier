@@ -110,3 +110,109 @@ LUTHIER_TEST (Telemetry, crashUploadTriesThreeTimesThenKeepsTheDump)
 
     dump.deleteFile();
 }
+
+//==============================================================================
+/*  UT-21 / UT-22: the PRIVACY page explains each category, its toggles write
+    the switches, View shows the log and Clear empties it. */
+#include "../PluginProcessor.h"
+#include "../UI/OptionsPages.h"
+
+namespace
+{
+    template <typename T>
+    void collectAllOf (juce::Component& root, juce::Array<T*>& found)
+    {
+        for (auto* child : root.getChildren())
+        {
+            if (auto* match = dynamic_cast<T*> (child))
+                found.add (match);
+
+            collectAllOf<T> (*child, found);
+        }
+    }
+}
+
+LUTHIER_TEST (Telemetry, thePrivacyPageExplainsSwitchesAndShowsTheLog)
+{
+    LuthierAudioProcessor processor;
+    auto& telemetry = processor.getTelemetry();
+    const auto saved = telemetry.toVar();
+
+    PrivacyPage page (processor);
+    page.setSize (700, 900);
+    page.refresh();
+
+    juce::Array<juce::Label*> labels;
+    collectAllOf (page, labels);
+
+    int explanations = 0;
+    for (auto* l : labels)
+        if (l->getText().contains ("identifies you") || l->getText().contains ("never contain audio"))
+            ++explanations;
+
+    CHECK (explanations == 3);
+
+    juce::Array<juce::ToggleButton*> toggles;
+    collectAllOf (page, toggles);
+
+    auto toggle = [&toggles] (const juce::String& text) -> juce::ToggleButton*
+    {
+        for (auto* t : toggles)
+            if (t->getButtonText() == text)
+                return t;
+        return nullptr;
+    };
+
+    auto* usage = toggle ("Usage telemetry");
+    auto* crash = toggle ("Crash reports");
+    CHECK (usage != nullptr && crash != nullptr);
+
+    if (telemetry.isManagedByPolicy() || usage == nullptr || crash == nullptr)
+        return;
+
+    usage->setToggleState (true, juce::sendNotificationSync);
+    CHECK (telemetry.isCategoryEnabled (Telemetry::Category::usage));
+    usage->setToggleState (false, juce::sendNotificationSync);
+    CHECK (! telemetry.isCategoryEnabled (Telemetry::Category::usage));
+
+    crash->setToggleState (true, juce::sendNotificationSync);
+    CHECK (telemetry.isCrashUploadEnabled());
+    crash->setToggleState (false, juce::sendNotificationSync);
+
+    // View / Clear.
+    telemetry.record (Telemetry::Category::usage, "sweep.view");
+    telemetry.checkForUpdate (Version::parse ("0.0.1"), true);   // no transport in tests: a logged, unsent call
+
+    juce::Array<juce::TextButton*> buttons;
+    collectAllOf (page, buttons);
+
+    juce::TextButton* view = nullptr;
+    juce::TextButton* clear = nullptr;
+    for (auto* b : buttons)
+    {
+        if (b->getButtonText() == "View last upload")     view = b;
+        if (b->getButtonText() == "Clear all local logs") clear = b;
+    }
+
+    CHECK (view != nullptr && clear != nullptr);
+
+    juce::Array<juce::TextEditor*> editors;
+    collectAllOf (page, editors);
+
+    if (view != nullptr && clear != nullptr)
+    {
+        view->onClick();
+
+        bool shown = false;
+        for (auto* e : editors)
+            shown = shown || e->getText().isNotEmpty() && e->isReadOnly();
+
+        CHECK_MSG (shown || telemetry.readNetworkLog().isEmpty(), "View did not show the log");
+
+        clear->onClick();
+        CHECK (telemetry.readTelemetryLog().isEmpty());
+    }
+
+    telemetry.fromVar (saved);
+    telemetry.saveSettings();
+}
