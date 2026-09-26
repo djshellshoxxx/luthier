@@ -374,19 +374,23 @@ void AcousticMicModel::processBlock (const float* body, const double* strings, d
                 send[i] = strings[start + i];
             }
 
-            for (auto* f : { &m.top, &m.pres, &m.prox, &m.air, &m.low, &m.mid, &m.shelf })
-                for (int i = 0; i < n; ++i)
-                    y[i] = f->process (y[i]);
+            {
+                TptSvf* chain[] = { &m.top, &m.pres, &m.prox, &m.air, &m.low, &m.mid, &m.shelf };
+                TptSvf::processCascade (chain, 7, y, n);
+            }
+
+            m.sendHp.processBlock (send, n);
 
             for (int i = 0; i < n; ++i)
-                y[i] += m.sendSmooth.next() * m.sendHp.process (send[i]);
+                y[i] += (m.sendSmooth.isSmoothing() ? m.sendSmooth.next() : m.sendSmooth.getCurrent()) * send[i];
 
             // The floor bounce of a seated player.
             for (int i = 0; i < n; ++i)
             {
                 m.floorBuffer[(size_t) m.floorIndex] = y[i];
-                const double fg = m.floorGainSmooth.next();
-                const double fd = juce::jlimit (1.0, (double) m.floorMask - 2.0, m.floorDelaySmooth.next());
+                const double fg = m.floorGainSmooth.isSmoothing() ? m.floorGainSmooth.next() : m.floorGainSmooth.getCurrent();
+                const double fd = juce::jlimit (1.0, (double) m.floorMask - 2.0,
+                                                m.floorDelaySmooth.isSmoothing() ? m.floorDelaySmooth.next() : m.floorDelaySmooth.getCurrent());
                 const int di = (int) fd;
                 const double frac = fd - di;
                 const double a0 = m.floorBuffer[(size_t) ((m.floorIndex - di) & m.floorMask)];
@@ -396,7 +400,7 @@ void AcousticMicModel::processBlock (const float* body, const double* strings, d
             }
 
             for (int i = 0; i < n; ++i)
-                m.tap[(size_t) (start + i)] = sanitise (y[i] * m.gainSmooth.next());
+                m.tap[(size_t) (start + i)] = sanitise (y[i] * (m.gainSmooth.isSmoothing() ? m.gainSmooth.next() : m.gainSmooth.getCurrent()));
         }
 
         controlCountdown -= n;

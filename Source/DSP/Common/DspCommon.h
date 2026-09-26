@@ -623,16 +623,22 @@ public:
         steps (mic-placement.md 0.4). */
     void rampTo (const TptSvf& target, int samples) noexcept
     {
-        if (target.g == g && target.k == k && target.m0 == m0 && target.m1 == m1 && target.m2 == m2)
+        if (target.a1 == a1 && target.a2 == a2 && target.a3 == a3
+            && target.m0 == m0 && target.m1 == m1 && target.m2 == m2)
         {
+            g = target.g; k = target.k;
             rampLeft = 0;
             return;
         }
 
-        endG = target.g; endK = target.k; endM0 = target.m0; endM1 = target.m1; endM2 = target.m2;
+        // The recurrence's own coefficients glide linearly (no division per
+        // sample); g and k, which only the response readout uses, jump.
+        g = target.g; k = target.k;
+        endA1 = target.a1; endA2 = target.a2; endA3 = target.a3;
+        endM0 = target.m0; endM1 = target.m1; endM2 = target.m2;
         rampLeft = juce::jmax (1, samples);
         const double inv = 1.0 / rampLeft;
-        dG = (endG - g) * inv; dK = (endK - k) * inv;
+        dA1 = (endA1 - a1) * inv; dA2 = (endA2 - a2) * inv; dA3 = (endA3 - a3) * inv;
         dM0 = (endM0 - m0) * inv; dM1 = (endM1 - m1) * inv; dM2 = (endM2 - m2) * inv;
     }
 
@@ -647,20 +653,7 @@ public:
     inline double process (double x) noexcept
     {
         if (rampLeft > 0)
-        {
-            if (--rampLeft == 0)
-            {
-                g = endG; k = endK; m0 = endM0; m1 = endM1; m2 = endM2;
-            }
-            else
-            {
-                g += dG; k += dK; m0 += dM0; m1 += dM1; m2 += dM2;
-            }
-
-            a1 = 1.0 / (1.0 + g * (g + k));
-            a2 = g * a1;
-            a3 = g * a2;
-        }
+            stepRamp();
 
         const double v3 = x - ic2;
         const double v1 = a1 * ic1 + a2 * v3;
@@ -676,6 +669,144 @@ public:
         }
 
         return m0 * x + m1 * v1 + m2 * v2;
+    }
+
+    /** Runs a run of samples in place. Coefficients glide per sample while a
+        ramp is in flight; otherwise the loop is branch-free and the state is
+        checked (non-finite -> reset) and denormal-flushed once at the end,
+        which is what makes seven of these cheap enough per mic. */
+    void processBlock (double* x, int n) noexcept
+    {
+        if (rampLeft > 0)
+        {
+            for (int i = 0; i < n; ++i)
+                x[i] = process (x[i]);
+
+            return;
+        }
+
+        double s1 = ic1, s2 = ic2;
+        const double c1 = a1, c2 = a2, c3 = a3, o0 = m0, o1 = m1, o2 = m2;
+
+        for (int i = 0; i < n; ++i)
+        {
+            const double in = x[i];
+            const double v3 = in - s2;
+            const double v1 = c1 * s1 + c2 * v3;
+            const double v2 = s2 + c2 * s1 + c3 * v3;
+            s1 = 2.0 * v1 - s1;
+            s2 = 2.0 * v2 - s2;
+            x[i] = o0 * in + o1 * v1 + o2 * v2;
+        }
+
+        if (! std::isfinite (s1) || ! std::isfinite (s2))
+        {
+            reset();
+
+            for (int i = 0; i < n; ++i)
+                x[i] = 0.0;
+
+            return;
+        }
+
+        ic1 = flushDenormal (s1);
+        ic2 = flushDenormal (s2);
+    }
+
+    /** Runs a series cascade of filters over a run of samples, interleaved
+        per sample. Each filter's recurrence is latency-bound on its own
+        state; interleaving lets the CPU overlap the independent chains, where
+        filter-after-filter over a run leaves them in series. Falls back to one
+        filter at a time while any coefficient ramp is in flight. */
+    static void processCascade (TptSvf* const* filters, int count, double* x, int n) noexcept
+    {
+        constexpr int maxFilters = 8;
+        count = juce::jmin (count, maxFilters);
+
+        bool ramping = false;
+
+        for (int f = 0; f < count; ++f)
+            ramping = ramping || filters[f]->rampLeft > 0;
+
+        if (ramping)
+        {
+            // Interleaved still, stepping each filter's coefficient ramp.
+            for (int i = 0; i < n; ++i)
+            {
+                double v = x[i];
+
+                for (int f = 0; f < count; ++f)
+                    v = filters[f]->process (v);
+
+                x[i] = v;
+            }
+
+            return;
+        }
+
+        double s1[maxFilters], s2[maxFilters], c1[maxFilters], c2[maxFilters], c3[maxFilters];
+        double o0[maxFilters], o1[maxFilters], o2[maxFilters];
+
+        for (int f = 0; f < count; ++f)
+        {
+            const auto& t = *filters[f];
+            s1[f] = t.ic1; s2[f] = t.ic2; c1[f] = t.a1; c2[f] = t.a2; c3[f] = t.a3;
+            o0[f] = t.m0; o1[f] = t.m1; o2[f] = t.m2;
+        }
+
+        for (int i = 0; i < n; ++i)
+        {
+            double v = x[i];
+
+            for (int f = 0; f < count; ++f)
+            {
+                const double v3 = v - s2[f];
+                const double v1 = c1[f] * s1[f] + c2[f] * v3;
+                const double v2 = s2[f] + c2[f] * s1[f] + c3[f] * v3;
+                s1[f] = 2.0 * v1 - s1[f];
+                s2[f] = 2.0 * v2 - s2[f];
+                v = o0[f] * v + o1[f] * v1 + o2[f] * v2;
+            }
+
+            x[i] = v;
+        }
+
+        bool finite = true;
+
+        for (int f = 0; f < count; ++f)
+        {
+            finite = finite && std::isfinite (s1[f]) && std::isfinite (s2[f]);
+            filters[f]->ic1 = flushDenormal (s1[f]);
+            filters[f]->ic2 = flushDenormal (s2[f]);
+        }
+
+        if (! finite)
+        {
+            for (int f = 0; f < count; ++f)
+                filters[f]->reset();
+
+            for (int i = 0; i < n; ++i)
+                x[i] = 0.0;
+        }
+    }
+
+    /** The analogue prototype's response at `hz` for a bell / shelf designed
+        at `fc` - no tan, for control-rate work that must be rate-free. */
+    static std::complex<double> analogBell (double hz, double fc, double q, double gainDb) noexcept
+    {
+        const double A = std::pow (10.0, gainDb / 40.0);
+        const double k = 1.0 / (juce::jmax (0.05, q) * A);
+        const std::complex<double> s (0.0, hz / fc);
+        return 1.0 + k * (A * A - 1.0) * s / (s * s + k * s + 1.0);
+    }
+
+    static std::complex<double> analogHighShelf (double hz, double fc, double q, double gainDb) noexcept
+    {
+        const double A = std::pow (10.0, gainDb / 40.0);
+        const double k = 1.0 / juce::jmax (0.05, q);
+        const std::complex<double> s (0.0, hz / (fc * std::sqrt (A)));
+        const auto den = s * s + k * s + 1.0;
+        return A * A + k * (1.0 - A) * A * s / den + (1.0 - A * A) / den;
     }
 
     /** The exact digital response at `hz`, for plots and tests. A TPT SVF is
@@ -705,9 +836,21 @@ private:
     double m0 = 1.0, m1 = 0.0, m2 = 0.0;
     double ic1 = 0.0, ic2 = 0.0;
 
+    inline void stepRamp() noexcept
+    {
+        if (--rampLeft == 0)
+        {
+            a1 = endA1; a2 = endA2; a3 = endA3; m0 = endM0; m1 = endM1; m2 = endM2;
+        }
+        else
+        {
+            a1 += dA1; a2 += dA2; a3 += dA3; m0 += dM0; m1 += dM1; m2 += dM2;
+        }
+    }
+
     int rampLeft = 0;
-    double endG = 0.0, endK = 0.0, endM0 = 1.0, endM1 = 0.0, endM2 = 0.0;
-    double dG = 0.0, dK = 0.0, dM0 = 0.0, dM1 = 0.0, dM2 = 0.0;
+    double endA1 = 1.0, endA2 = 0.0, endA3 = 0.0, endM0 = 1.0, endM1 = 0.0, endM2 = 0.0;
+    double dA1 = 0.0, dA2 = 0.0, dA3 = 0.0, dM0 = 0.0, dM1 = 0.0, dM2 = 0.0;
 };
 
 //==============================================================================

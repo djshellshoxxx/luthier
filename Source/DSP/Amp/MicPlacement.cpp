@@ -194,6 +194,17 @@ double MicPlacementModel::floorRhoFor (int roomMaterial, bool roomOn) noexcept
 }
 
 //==============================================================================
+double MicPlacementModel::analogToneDbAt1k (const PlacementTerms& t) noexcept
+{
+    // The terms' analogue prototypes at 1 kHz: rate-free, and no tan.
+    constexpr double f = 1000.0;
+    auto h = TptSvf::analogBell (f, t.proxHz, kProxQ, t.proxDb) * TptSvf::analogBell (f, t.presHz, kPresQ, t.presDb)
+           * TptSvf::analogBell (f, t.capHz, kCapQ, t.capDb) * TptSvf::analogBell (f, t.surrHz, kSurrQ, t.surrDb);
+    const auto shelf = TptSvf::analogHighShelf (f, t.shelfHz, kShelfQ, t.shelfDbEach);
+    return gainToDb (std::abs (h * shelf * shelf));
+}
+
+//==============================================================================
 PlacementTerms MicPlacementModel::evaluate (const Input& in) noexcept
 {
     PlacementTerms t;
@@ -290,7 +301,7 @@ PlacementTerms MicPlacementModel::evaluate (const Input& in) noexcept
         // engineer sets the gain: a backed-off mic hears the whole cone, and
         // its blend toward the cone's mean moves the mids a little too.
         if (! (t.proxDb == 0.0 && t.presDb == 0.0 && t.capDb == 0.0 && t.surrDb == 0.0 && t.shelfDbEach == 0.0))
-            levelDb -= PlacementResponse::toneDb (t, kAnalogRate, 1000.0);
+            levelDb -= analogToneDbAt1k (t);
     }
 
     const double polarity = polarSign (polar.a, theta);
@@ -570,20 +581,6 @@ bool MicPlacementStage::sameInput (const MicPlacementModel::Input& a, const MicP
 
 namespace
 {
-    /** Runs one filter over a chunk, or nothing when it is an exact
-        pass-through (its state is then held at rest, so it restarts clean). */
-    inline void runFilter (TptSvf& f, double* x, int n) noexcept
-    {
-        if (f.isIdentity())
-        {
-            f.reset();
-            return;
-        }
-
-        for (int i = 0; i < n; ++i)
-            x[i] = f.process (x[i]);
-    }
-
     /** One step of a smoother, or its value when it has arrived. */
     inline double step (ExpSmoother& s) noexcept
     {
@@ -618,12 +615,21 @@ void MicPlacementStage::process (float* data, int numSamples) noexcept
         for (int i = 0; i < n; ++i)
             x[i] = y[i] = (double) data[start + i];
 
-        runFilter (prox, y, n);
-        runFilter (pres, y, n);
-        runFilter (cap, y, n);
-        runFilter (surr, y, n);
-        runFilter (shelf1, y, n);
-        runFilter (shelf2, y, n);
+        {
+            // Only the filters that do something, interleaved.
+            TptSvf* active[6];
+            int count = 0;
+
+            for (auto* f : { &prox, &pres, &cap, &surr, &shelf1, &shelf2 })
+            {
+                if (f->isIdentity())
+                    f->reset();
+                else
+                    active[count++] = f;
+            }
+
+            TptSvf::processCascade (active, count, y, n);
+        }
 
         // Through the back panel: glided per sample, so a rear toggle is a
         // crossfade rather than 32-sample steps.
@@ -643,7 +649,31 @@ void MicPlacementStage::process (float* data, int numSamples) noexcept
         // Floor bounce: a delayed, darkened copy off the floor image.
         const bool floorActive = floorGainSmooth.isSmoothing() || floorGainSmooth.getCurrent() > 0.0;
 
-        for (int i = 0; i < n; ++i)
+        if (floorActive && ! floorGainSmooth.isSmoothing() && ! floorDelaySmooth.isSmoothing())
+        {
+            // A still mic: the reflection's gain, delay and interpolation
+            // weights are constant over the chunk.
+            const double fg = floorGainSmooth.getCurrent();
+            const double delay = juce::jlimit (1.0, (double) floorMask - 4.0, floorDelaySmooth.getCurrent());
+            const int di = (int) delay;
+            const double frac = delay - di;
+            const double c0 = -frac * (frac - 1.0) * (frac - 2.0) * (1.0 / 6.0);
+            const double c1 = (frac + 1.0) * (frac - 1.0) * (frac - 2.0) * 0.5;
+            const double c2 = -(frac + 1.0) * frac * (frac - 2.0) * 0.5;
+            const double c3 = (frac + 1.0) * frac * (frac - 1.0) * (1.0 / 6.0);
+
+            for (int i = 0; i < n; ++i)
+            {
+                floorBuffer[(size_t) floorIndex] = y[i];
+                const double r = c0 * floorBuffer[(size_t) ((floorIndex - di + 1) & floorMask)]
+                               + c1 * floorBuffer[(size_t) ((floorIndex - di) & floorMask)]
+                               + c2 * floorBuffer[(size_t) ((floorIndex - di - 1) & floorMask)]
+                               + c3 * floorBuffer[(size_t) ((floorIndex - di - 2) & floorMask)];
+                y[i] += fg * floorLp.process (r);
+                floorIndex = (floorIndex + 1) & floorMask;
+            }
+        }
+        else for (int i = 0; i < n; ++i)
         {
             floorBuffer[(size_t) floorIndex] = y[i];
 
@@ -719,6 +749,41 @@ void SlewedDelayLine::process (float* data, int numSamples) noexcept
 {
     if (buffer.empty() || data == nullptr)
         return;
+
+    // Arrived and non-zero: fixed weights for the whole block.
+    if (current == targetDelay && current > 0.0)
+    {
+        const int di = juce::jmax (1, (int) current);
+        const double frac = current - (double) di;
+        const double c0 = -frac * (frac - 1.0) * (frac - 2.0) * (1.0 / 6.0);
+        const double c1 = (frac + 1.0) * (frac - 1.0) * (frac - 2.0) * 0.5;
+        const double c2 = -(frac + 1.0) * frac * (frac - 2.0) * 0.5;
+        const double c3 = (frac + 1.0) * frac * (frac - 1.0) * (1.0 / 6.0);
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            buffer[(size_t) writeIndex] = (double) data[i];
+            data[i] = (float) sanitise (c0 * buffer[(size_t) ((writeIndex - di + 1) & mask)]
+                                      + c1 * buffer[(size_t) ((writeIndex - di) & mask)]
+                                      + c2 * buffer[(size_t) ((writeIndex - di - 1) & mask)]
+                                      + c3 * buffer[(size_t) ((writeIndex - di - 2) & mask)]);
+            writeIndex = (writeIndex + 1) & mask;
+        }
+
+        return;
+    }
+
+    // Arrived at zero: an exact pass-through, only the history to keep.
+    if (current == targetDelay && current <= 0.0)
+    {
+        for (int i = 0; i < numSamples; ++i)
+        {
+            buffer[(size_t) writeIndex] = (double) data[i];
+            writeIndex = (writeIndex + 1) & mask;
+        }
+
+        return;
+    }
 
     for (int i = 0; i < numSamples; ++i)
     {

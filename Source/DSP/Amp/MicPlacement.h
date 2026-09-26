@@ -179,6 +179,9 @@ public:
     static void speakerVariation (CabinetType cab, int speaker, double out[3]) noexcept;
 
     static double floorRhoFor (int roomMaterial, bool roomOn) noexcept;
+
+    /** The tone terms' own level at 1 kHz, which level match trims. */
+    static double analogToneDbAt1k (const PlacementTerms& t) noexcept;
 };
 
 //==============================================================================
