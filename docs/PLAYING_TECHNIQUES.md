@@ -18,7 +18,7 @@ to play.
 ```
 1.  Palm mute            CC 67 above threshold
 2.  Pinch harmonic       CC 72 held
-3.  Natural harmonic     CC 73 held, or velocity in the harmonic range
+3.  Natural harmonic     CC 73 held
 4.  Tap                  CC 74 held (when MPE is off)
 5.  Slide guitar         CC 75, or the Advanced toggle
 6.  Muted picking        CC 71 above threshold
@@ -236,21 +236,21 @@ strings.
 
 | Bridge | Range | Behaviour |
 |---|---|---|
-| Fixed | none | the bar does nothing |
-| Vintage tremolo | -2 / +1 st | chords detune as you bend |
-| Floyd Rose | -24 / +12 st | same, far wider, plus spring resonance |
-| TransTrem | -12 / +5 st | chords stay in tune |
-| Bigsby | -1 / +0.5 st | gentle |
+| Fixed / Hardtail | none | the bar does nothing |
+| Vintage Tremolo | -2 / +1 st | chords detune as you bend |
+| Locking Tremolo | -24 / +12 st | same, far wider, plus spring resonance |
+| Transposing Tremolo | -12 / +5 st | chords stay in tune |
+| Vintage Vibrato | -1 / +0.5 st | gentle |
 
-A **TransTrem** applies the same frequency *ratio* to every string, so the
+A **Transposing Tremolo** applies the same frequency *ratio* to every string, so the
 intervals inside a chord are preserved. That is the whole point of the design, and
 there is a test that asserts every string receives an identical cent offset.
 
-A **vintage trem** applies the same bridge *movement*, which is a bigger pitch
+A **Vintage Tremolo** applies the same bridge *movement*, which is a bigger pitch
 change on the slacker strings. Modelling that unevenness is what makes it detune a
 chord the way the real thing does - and there is a test for that too.
 
-On a Floyd Rose, snapping the bar back sets the springs behind the bridge ringing:
+On a Locking Tremolo, snapping the bar back sets the springs behind the bridge ringing:
 a short filtered noise burst around 240 and 430 Hz. It is very audible on records
 and is often what people notice missing from cheap plugins.
 
@@ -261,22 +261,21 @@ and is often what people notice missing from cheap plugins.
 ### Strumming
 
 In Poly mode a chord is not triggered simultaneously. The pick crosses the strings
-over time:
-
-```
-delay = order * strumSpeed        order counts from the string struck first
-```
+over time, at the **Strum Crossing** speed (strings per second): each string sounds
+when the pick reaches it, so a faster crossing packs the chord tighter, and the
+pick accelerates a little through the stroke rather than moving at one fixed step
+per string.
 
 A downstroke crosses the low strings first; an upstroke reverses. Up-strokes are
-lighter (about 78% velocity), and the pick loses a little energy as it crosses, so
-each successive string is slightly quieter.
+lighter (about 85% of the force), and the pick loses a little energy as it
+crosses, so each successive string is slightly quieter.
 
 The speed varies slightly every time, scaled by the Humanize macro. A
 machine-even strum is instantly recognisable.
 
 ---
 
-### Freeze (E-Bow)
+### E-Bow
 
 Infinite sustain, implemented the way an E-Bow actually works: the string is driven
 electromagnetically at its own resonance.
@@ -288,15 +287,29 @@ runaway - which a simple "set the loss to 1.0" implementation could not promise.
 
 ---
 
+### Freeze
+
+Freeze captures a short window of whatever is sounding and loops it underneath
+what you play next, so a chord can hang while you play over it. Switch it on again
+to capture a new window. The capture length, level, attack and release, and a
+low-/high-cut on the frozen sound are in the Advanced FREEZE group.
+
+---
+
 ### Amp feedback
 
-With the amp loud and a note sustaining, the speaker drives the string. The engine
-watches the master output; above the threshold, feedback builds gradually and then
-takes over. As it grows it climbs to a higher harmonic, which is what a guitar in
-front of a loud amp actually does.
+With the amp loud and a note sustaining, the speaker drives the string. This is a
+physical loop, not a trigger: the amp's output reaches each ringing string after
+the time sound takes to travel the distance between them, shaped by the angle
+the guitar faces the speaker, and it grows where the loop gain peaks - at the
+note itself, or an octave up, depending on Focus and Octave bias. Rolling the
+guitar's volume back takes the loop gain away and the feedback dies, as it does
+in front of a real amp.
 
-The loudest ringing string is chosen as the one that feeds back. Threshold and
-speed are yours to set.
+The controls are **Amount** (how much of the amp reaches the strings),
+**Distance** (metres to the speaker), **Angle** (which way the guitar faces it),
+**Focus** (how narrowly the loop picks one note) and **Octave bias** (whether it
+favours the fundamental or climbs to the octave).
 
 ---
 
@@ -318,14 +331,15 @@ Defaults, all remappable in the preset.
 | 71 | Muted picking |
 | 72 | Pinch harmonic |
 | 73 | Natural harmonic |
-| 74 | Tap (MPE timbre when MPE is on) |
+| 74 | Tap (with MPE on, CC 74 is per-note timbre instead) |
 | 75 | Slide guitar mode |
 | 76 | Strum speed |
 | 77 | Strum direction |
 | 78 | Vibrato rate |
 | 79 | Humanize amount |
 
-Aftertouch drives vibrato depth by default; it can be switched to bend.
+Aftertouch drives vibrato depth by default; it can be switched to bend (Options >
+Controllers, "Aftertouch bends the note").
 
 MIDI Learn on any other control is per-control, through its right-click menu, and
 is stored with the plugin state rather than with the preset - so your controller
@@ -368,8 +382,11 @@ the host.
 MIDI channel 1 is the high E, channel 2 the B, and so on - the convention hex
 pickups use. Per-string bend and pressure work natively.
 
-Turn **MPE** on for expressive controllers. Each note then gets its own channel,
-with per-note bend, pressure and timbre.
+Turn **MPE** on for expressive controllers (or pick an MPE profile in Options >
+Controllers). Each note then gets its own channel, with per-note bend and
+pressure; notes on the zone's master channel are ignored, and a member channel
+keeps to the string it last played while that string can reach the note. CC 74,
+MPE's timbre dimension, is read per note but does not yet change the sound.
 
 ---
 

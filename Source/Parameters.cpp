@@ -1407,7 +1407,13 @@ void ParameterBridge::applyToEngine() noexcept
     roomEngine.setWidth (value (ParamIDs::roomWidth));
 
     // ---- master ------------------------------------------------------------------
-    engine.getMasterBus().setGainDb (value (ParamIDs::masterGain));
+    // SPEC-SWEEP (PT-21): CC 11 (master level) scales the master gain; its
+    // square is the usual expression-pedal taper, and 0 bottoms out at -60 dB.
+    {
+        const double level = engine.getMidiInterpreter().getMasterLevel();
+        const double levelDb = level >= 1.0 ? 0.0 : juce::Decibels::gainToDecibels (level * level, -60.0);
+        engine.getMasterBus().setGainDb (value (ParamIDs::masterGain) + levelDb);
+    }
     engine.setInputGainDb (value (ParamIDs::inputGain));
     engine.setOutputMix (value (ParamIDs::outputMix));
     engine.setStereoWidth (value (ParamIDs::stereoWidth));

@@ -730,13 +730,36 @@ void RhythmPanel::buildVoicingControls()
     };
     addAndMakeVisible (handPositionSlider);
 
+    // SPEC-SWEEP (RE-12): how far the hand may stretch.
+    styleValueSlider (handSpanSlider, 3.0, 7.0, 1.0, " fr span");
+    handSpanSlider.setTooltip ("Hand span: the widest stretch, in frets, a voicing may use.");
+    handSpanSlider.onValueChange = [this]
+    {
+        if (! updatingControls)
+            rhythm().setHandSpan ((int) handSpanSlider.getValue());
+    };
+    addAndMakeVisible (handSpanSlider);
+
     capoLabel.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
     capoLabel.setColour (juce::Label::textColourId, Palette::textPrimary);
     capoLabel.setJustificationType (juce::Justification::centred);
     addAndMakeVisible (capoLabel);
 
-    capoDown.onClick = [this] { rhythm().setCapoFret (rhythm().getCapoFret() - 1); refreshFromEngine(); };
-    capoUp.onClick   = [this] { rhythm().setCapoFret (rhythm().getCapoFret() + 1); refreshFromEngine(); };
+    // SPEC-SWEEP (UW-2): the capo is the capo_fret parameter; writing the tuning
+    // engine from here raced the audio thread and was undone by the bridge.
+    auto moveCapo = [this] (int delta)
+    {
+        if (auto* p = processor.getState().getParameter (ParamIDs::capoFret))
+        {
+            const int wanted = juce::jlimit (0, 12, rhythm().getCapoFret() + delta);
+            p->setValueNotifyingHost (p->convertTo0to1 ((float) wanted));
+        }
+
+        refreshFromEngine();
+    };
+
+    capoDown.onClick = [moveCapo] { moveCapo (-1); };
+    capoUp.onClick   = [moveCapo] { moveCapo (+1); };
 
     capoDown.setTooltip ("Move the capo down a fret.");
     capoUp.setTooltip ("Move the capo up a fret.");
@@ -953,6 +976,7 @@ void RhythmPanel::refreshFromEngine()
     styleBox.setSelectedId ((int) engine.getVoicingStyle() + 1, juce::dontSendNotification);
     densitySlider.setValue (engine.getVoicingDensity(), juce::dontSendNotification);
     handPositionSlider.setValue (engine.getHandPositionHint(), juce::dontSendNotification);
+    handSpanSlider.setValue (engine.getHandSpan(), juce::dontSendNotification);   // SPEC-SWEEP RE-12
 
     const int capo = engine.getCapoFret();
     capoLabel.setText (capo == 0 ? "Capo: off" : "Capo: fret " + juce::String (capo),
@@ -1002,7 +1026,7 @@ int RhythmPanel::preferredHeight() const
     return 14 + Metrics::buttonHeight            // enable row
          + 16 + 26                               // genre heading + kit row
          + 12                                    // rig hint
-         + 16 + 26 + 22 + 22 + 26                // voicing heading + controls
+         + 16 + 26 + 22 + 22 + 22 + 26           // voicing heading + controls (+ hand span, RE-12)
          + 16 + StrumGrid::preferredHeight       // strum grid
          + 16 + FingerpickGrid::preferredHeight  // fingerpick grid
          + 16 + 22 * 5                           // feel heading + five sliders
@@ -1058,6 +1082,7 @@ void RhythmPanel::resized()
     styleBox.setBounds (row (26));
     densitySlider.setBounds (row (22));
     handPositionSlider.setBounds (row (22));
+    handSpanSlider.setBounds (row (22));   // SPEC-SWEEP RE-12
     {
         auto r = row (26);
         capoDown.setBounds (r.removeFromLeft (30));

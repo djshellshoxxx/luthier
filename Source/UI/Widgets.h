@@ -108,6 +108,8 @@ struct LearnTarget
 
 //==============================================================================
 /** A rotary control with its label below and its value above. */
+class ModArcHub;   // SPEC-SWEEP UW-35 (Widgets.cpp)
+
 class LuthierKnob : public juce::Component,
                     public juce::SettableTooltipClient,
                     public LearnTarget
@@ -146,8 +148,24 @@ public:
     static int preferredWidthFor (Size s) noexcept;
     static int preferredHeightFor (Size s) noexcept;
 
+    /** SPEC-SWEEP (UW-35 / GD-17): called by one shared 30 Hz timer for every
+        attached knob. Repaints when this knob's modulation arc has moved by more
+        than half a pixel (or appeared / gone), so an LFO-driven arc is live
+        without the user touching anything. Returns true if it repainted. */
+    bool pollModulationArc();
+    int getArcRepaintCount() const noexcept { return arcRepaints; }
+
+    /** The shared hub's refresh rate. */
+    static constexpr int kModArcRefreshHz = 30;
+
 private:
     void updateMidiLearnIndicator();
+
+    std::unique_ptr<juce::SharedResourcePointer<ModArcHub>> arcHub;   // UW-35
+    bool lastArcModulated = false;
+    float lastArcNorm = 0.0f;
+    int arcRepaints = 0;
+    int modIndex = -1;
 
     class KnobSlider : public juce::Slider
     {

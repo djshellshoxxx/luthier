@@ -399,9 +399,81 @@ LuthierKnob::LuthierKnob (const juce::String& text, Size s)
     setInterceptsMouseClicks (true, true);
 }
 
+//==============================================================================
+/*  SPEC-SWEEP (UW-35 / GD-17): one 30 Hz timer for every attached knob, shared
+    through a SharedResourcePointer so it exists only while knobs do. Each tick
+    asks each knob whether its modulation arc moved; most answer no after two
+    atomic reads, so a screen of unmodulated knobs costs next to nothing. */
+class ModArcHub : private juce::Timer
+{
+public:
+    ~ModArcHub() override { stopTimer(); }
+
+    void add (LuthierKnob* knob)
+    {
+        knobs.addIfNotAlreadyThere (knob);
+
+        if (! isTimerRunning())
+            startTimerHz (LuthierKnob::kModArcRefreshHz);
+    }
+
+    void remove (LuthierKnob* knob)
+    {
+        knobs.removeAllInstancesOf (knob);
+
+        if (knobs.isEmpty())
+            stopTimer();
+    }
+
+    int getIntervalMs() const noexcept { return getTimerInterval(); }
+
+private:
+    void timerCallback() override
+    {
+        for (int i = knobs.size(); --i >= 0;)
+            if (auto* knob = knobs[i])
+                knob->pollModulationArc();
+    }
+
+    juce::Array<LuthierKnob*> knobs;
+};
+
 LuthierKnob::~LuthierKnob()
 {
+    if (arcHub != nullptr)
+        (*arcHub)->remove (this);
+
     attachment.reset();
+}
+
+bool LuthierKnob::pollModulationArc()
+{
+    if (processor == nullptr || modIndex < 0 || ! isShowing())
+        return false;
+
+    auto& matrix = processor->getModMatrix();
+    const bool modulated = matrix.isDestinationModulated (modIndex);
+
+    float norm = 0.0f;
+
+    if (modulated)
+    {
+        const auto range = processor->getState().getParameterRange (paramId);
+        norm = matrix.getOffsetFor (modIndex) / juce::jmax (1.0e-9f, range.end - range.start);
+    }
+
+    // Half a pixel of arc: the arc spans 1.6 pi radians of the knob's radius.
+    const float radius = juce::jmax (4.0f, (float) juce::jmin (getWidth(), getHeight()) * 0.5f);
+    const float threshold = 0.5f / (radius * 1.6f * juce::MathConstants<float>::pi);
+
+    if (modulated == lastArcModulated && std::abs (norm - lastArcNorm) <= threshold)
+        return false;
+
+    lastArcModulated = modulated;
+    lastArcNorm = norm;
+    ++arcRepaints;
+    repaint();
+    return true;
 }
 
 void LuthierKnob::attachTo (LuthierAudioProcessor& p, const juce::String& id, const juce::String& tooltip)
@@ -413,6 +485,14 @@ void LuthierKnob::attachTo (LuthierAudioProcessor& p, const juce::String& id, co
         p.getState(), id, slider);
 
     RangesUi::tagSlider (slider, id);
+
+    // SPEC-SWEEP (UW-35): live modulation arcs.
+    modIndex = p.getParameterBridge().parameterIndex (id);
+
+    if (arcHub == nullptr)
+        arcHub = std::make_unique<juce::SharedResourcePointer<ModArcHub>>();
+
+    (*arcHub)->add (this);
 
     if (tooltip.isNotEmpty())
     {

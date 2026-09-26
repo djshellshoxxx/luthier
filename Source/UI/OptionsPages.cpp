@@ -46,6 +46,10 @@ ControllersPage::ControllersPage (LuthierAudioProcessor& p)
         profileBox.addItem (name, itemId++);
 
     profileBox.setSelectedId (1, juce::dontSendNotification);
+
+    // SPEC-SWEEP (CT-2): show the profile the session is using.
+    if (const int current = library.indexOf (processor.getControllerProfileId()); current >= 0)
+        profileBox.setSelectedId (current + 1, juce::dontSendNotification);
     profileBox.onChange = [this] { if (! updatingControls) applySelectedProfile(); };
     addAndMakeVisible (profileBox);
 
@@ -122,6 +126,14 @@ ControllersPage::ControllersPage (LuthierAudioProcessor& p)
 
     addAndMakeVisible (saveProfileButton);
 
+    // SPEC-SWEEP (PT-23): controllers.md 2 / PLAYING_TECHNIQUES "it can be
+    // switched to bend". Saved with the session.
+    aftertouchBendToggle.setToggleState (processor.doesAftertouchBend(), juce::dontSendNotification);
+    aftertouchBendToggle.setTooltip ("Channel and poly aftertouch normally deepen the vibrato. "
+                                     "Switched on, pressing harder bends the note up instead.");
+    aftertouchBendToggle.onClick = [this] { processor.setAftertouchBends (aftertouchBendToggle.getToggleState()); };
+    addAndMakeVisible (aftertouchBendToggle);
+
     refresh();
 }
 
@@ -134,7 +146,10 @@ void ControllersPage::applySelectedProfile()
 
     const auto& profile = library.getProfile (index);
 
-    ControllerProfileLibrary::apply (profile, processor.getEngine().getMidiInterpreter());
+    // SPEC-SWEEP (CT-2/CT-7): through the processor, which saves the choice with
+    // the session, sets mpe_enabled / bend_range so the parameter bridge keeps
+    // them, and applies the rest on the audio thread.
+    processor.applyControllerProfile (profile);
 
     refresh();
 }
@@ -154,6 +169,7 @@ void ControllersPage::runWizardStep()
 
         processor.getMetronome().setTempo (100.0);
         processor.getMetronome().setEnabled (true);
+        processor.setLatencyWizardListening (true);   // SPEC-SWEEP CT-11
 
         wizardButton.setButtonText ("Stop measuring");
         wizardLabel.setText ("Play along with the click. Ten notes.",
@@ -162,6 +178,7 @@ void ControllersPage::runWizardStep()
     }
 
     wizard.cancel();
+    processor.setLatencyWizardListening (false);   // SPEC-SWEEP CT-11
     processor.getMetronome().setEnabled (false);
     wizardButton.setButtonText ("Measure latency");
     wizardLabel.setText ("Cancelled.", juce::dontSendNotification);
@@ -225,6 +242,18 @@ void ControllersPage::refresh()
     guitarModeToggle.setEnabled (profile.id == "linnstrument");
 
     // ---- the wizard's own readout -------------------------------------------------
+    // SPEC-SWEEP (CT-11): the notes the processor measured against the click.
+    if (wizard.isRunning() && processor.isLatencyWizardListening())
+    {
+        processor.drainLatencyMeasurements (wizard);
+
+        if (! wizard.isRunning())
+        {
+            processor.setLatencyWizardListening (false);
+            processor.getMetronome().setEnabled (false);
+        }
+    }
+
     if (wizard.isRunning())
     {
         wizardLabel.setText (juce::String (wizard.getNumMeasurements()) + " of "
@@ -240,9 +269,19 @@ void ControllersPage::refresh()
         {
             latencySlider.setValue (measured, juce::dontSendNotification);
 
-            wizardLabel.setText (juce::String (measured, 2) + " ms, scatter "
-                                   + juce::String (sigma, 2) + " ms. Good enough to use.",
-                                 juce::dontSendNotification);
+            juce::String text = juce::String (measured, 2) + " ms, scatter "
+                                  + juce::String (sigma, 2) + " ms. Good enough to use.";
+
+            // SPEC-SWEEP (CT-12, controllers 3): more than two blocks of latency
+            // is the host buffer, not the controller.
+            const double blockMs = 1000.0 * (double) processor.getBlockSize()
+                                     / juce::jmax (1.0, processor.getSampleRate());
+
+            if (processor.getBlockSize() > 0 && measured > 2.0 * blockMs)
+                text << " Lower the host buffer size: this is more than two audio blocks ("
+                     << juce::String (blockMs, 1) << " ms each).";
+
+            wizardLabel.setText (text, juce::dontSendNotification);
         }
         else
         {
@@ -288,6 +327,8 @@ void ControllersPage::resized()
     minimumNoteSlider.setBounds (bounds.removeFromTop (24));
     bounds.removeFromTop (4);
     guitarModeToggle.setBounds (bounds.removeFromTop (24));
+    bounds.removeFromTop (4);
+    aftertouchBendToggle.setBounds (bounds.removeFromTop (24));   // SPEC-SWEEP PT-23
 
     // ---- wizard, pinned to the bottom -------------------------------------------
     auto wizardArea = getLocalBounds().removeFromBottom (96);
@@ -684,11 +725,20 @@ MidiPage::MidiPage (LuthierAudioProcessor& p)
         refresh();
     };
 
+    // SPEC-SWEEP (IR-14, input-routing 1.4). Program Change always recalls a
+    // snapshot; this decides whether Bank Select also chooses the preset.
+    bankSelectToggle.setTooltip ("On: Bank Select (CC 0) picks the preset and Program Change the snapshot. "
+                                 "Off: only Program Change is used, and CC 0 passes through.");
+    bankSelectToggle.onClick = [this] { processor.setBankSelectChoosesPreset (bankSelectToggle.getToggleState()); };
+    addAndMakeVisible (bankSelectToggle);
+
     refresh();
 }
 
 void MidiPage::refresh()
 {
+    bankSelectToggle.setToggleState (processor.doesBankSelectChoosePreset(), juce::dontSendNotification);   // IR-14
+
     const bool standalone =
         (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone);
 
@@ -716,7 +766,7 @@ void MidiPage::paint (juce::Graphics& g)
 
     drawHeading (g, bounds.removeFromTop (18), "HOW LUTHIER READS MIDI");
     drawHeading (g, { 0, 120, getWidth(), 18 }, "PORTS");
-    drawHeading (g, { 0, 220, getWidth(), 18 }, "MIDI LEARN");
+    drawHeading (g, { 0, 252, getWidth(), 18 }, "MIDI LEARN");   // SPEC-SWEEP: below the IR-14 toggle
 }
 
 void MidiPage::resized()
@@ -734,8 +784,9 @@ void MidiPage::resized()
     portNote.setBounds (bounds.removeFromTop (30));
     bounds.removeFromTop (4);
     outNote.setBounds (bounds.removeFromTop (48));
+    bankSelectToggle.setBounds (bounds.removeFromTop (24));   // SPEC-SWEEP IR-14
 
-    bounds = getLocalBounds().withTrimmedTop (242);
+    bounds = getLocalBounds().withTrimmedTop (274);
 
     learnLabel.setBounds (bounds.removeFromTop (32));
     bounds.removeFromTop (4);

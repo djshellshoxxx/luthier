@@ -475,7 +475,7 @@ TuningPopover::TuningPopover (LuthierAudioProcessor& p)
 
         slider->onValueChange = [this, i, slider]
         {
-            processor.getEngine().getTuningEngine().setDetuneCents (i, slider->getValue());
+            processor.setStringDetuneCents (i, slider->getValue());   // SPEC-SWEEP UW-5: via the command queue
             refreshNoteNames();
             repaint();
         };
@@ -514,8 +514,16 @@ void TuningPopover::refreshNoteNames()
     noteNames.clearQuick();
 
     for (int i = 0; i < numStrings; ++i)
-        noteNames.add (TuningEngine::describeFrequency (tuning.getEffectiveOpenFrequency (i),
-                                                       tuning.getConcertA()));
+    {
+        // SPEC-SWEEP (UW-5): the slider's detune reaches the engine on the next
+        // audio block, so the name is corrected by what is still in flight.
+        double hz = tuning.getEffectiveOpenFrequency (i);
+
+        if (auto* slider = detuneSliders[i])
+            hz *= std::pow (2.0, (slider->getValue() - tuning.getStringTuning (i).detuneCents) / 1200.0);
+
+        noteNames.add (TuningEngine::describeFrequency (hz, tuning.getConcertA()));
+    }
 }
 
 void TuningPopover::paint (juce::Graphics& g)

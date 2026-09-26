@@ -1827,6 +1827,65 @@ void LuthierEngine::applyLivePickupPlacements() noexcept
     }
 }
 
+//==============================================================================
+// SPEC-SWEEP (RE-41): the rhythm engine's strokes, as MIDI for routing-io's
+// rhythm source. Held strokes land in the sub-block they fall in.
+void LuthierEngine::writeRhythmMidi (const PlayEventQueue& strokes) noexcept
+{
+    auto hold = [this] (juce::uint8 status, int note, int velocity, int when) noexcept
+    {
+        if (numPendingRhythmMidi >= kMaxPendingRhythmMidi)
+            return;
+
+        auto& p = pendingRhythmMidi[(size_t) numPendingRhythmMidi++];
+        p.bytes[0] = status;
+        p.bytes[1] = (juce::uint8) juce::jlimit (0, 127, note);
+        p.bytes[2] = (juce::uint8) juce::jlimit (0, 127, velocity);
+        p.samplesFromNow = juce::jmax (0, when);
+    };
+
+    for (int i = 0; i < strokes.getNumNoteOffs(); ++i)
+    {
+        const auto& e = strokes.getNoteOff (i);
+        hold ((juce::uint8) (0x80 | juce::jlimit (0, 15, e.stringIndex)), e.midiNote, 0, e.sampleOffset);
+    }
+
+    for (int i = 0; i < strokes.getNumNoteOns(); ++i)
+    {
+        const auto& e = strokes.getNoteOn (i);
+        hold ((juce::uint8) (0x90 | juce::jlimit (0, 15, e.stringIndex)), e.midiNote,
+              juce::jlimit (1, 127, (int) std::lround (e.velocity * 127.0)), e.sampleOffset);
+    }
+}
+
+void LuthierEngine::flushRhythmMidi (int numSamples) noexcept
+{
+    if (rhythmMidiOut == nullptr)
+    {
+        numPendingRhythmMidi = 0;
+        return;
+    }
+
+    int kept = 0;
+
+    for (int i = 0; i < numPendingRhythmMidi; ++i)
+    {
+        auto p = pendingRhythmMidi[(size_t) i];
+
+        if (p.samplesFromNow < numSamples)
+        {
+            rhythmMidiOut->addEvent (p.bytes, 3, sidechainReadOffset + p.samplesFromNow);
+        }
+        else
+        {
+            p.samplesFromNow -= numSamples;
+            pendingRhythmMidi[(size_t) kept++] = p;
+        }
+    }
+
+    numPendingRhythmMidi = kept;
+}
+
 void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) noexcept
 {
     juce::ScopedNoDenormals noDenormals;
@@ -1913,6 +1972,9 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         rhythm.processBlock (numSamples, transport, rhythmEvents);
 
+        if (rhythmMidiOut != nullptr && rhythm.isDriving())   // SPEC-SWEEP RE-41
+            writeRhythmMidi (rhythmEvents);
+
         // When the rhythm engine is driving, its stream replaces the
         // interpreter's note events; the interpreter's bends and controllers
         // still apply, because those are the player's hands, not the pattern's.
@@ -1922,6 +1984,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     {
         scheduleEvents (events, numSamples);
     }
+
+    flushRhythmMidi (numSamples);   // SPEC-SWEEP RE-41: strokes held from earlier blocks too
 
     // Direct notes play as written whether or not the rhythm engine drives.
     if (directForSubBlock != nullptr && ! directForSubBlock->isEmpty())

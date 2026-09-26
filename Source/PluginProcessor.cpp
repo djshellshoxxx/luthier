@@ -112,6 +112,7 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     // live-performance 11: pedal calibrations are user-global, so they come from
     // the user's config rather than from whatever preset happens to load first.
     expression.load();
+    expressionStage.update (expression);   // SPEC-SWEEP IR-11
 
     // accessibility 9 and updates-telemetry 6: both of these describe the person
     // rather than the sound, so they are user-global too.
@@ -197,6 +198,7 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     sliceMidi.ensureSize (8192);
     sliceMidiOut.ensureSize (8192);
     liveMidiKept.ensureSize (8192);
+    controllerScratch.ensureSize (8192);   // SPEC-SWEEP CT-4
     captureStringCount = -1;   // re-sent at the next drain
     diagnostics.prepare (sampleRate);
 
@@ -1148,11 +1150,23 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     }
 
     // MIDI Learn gets first look, so a CC being learned is not also acted on.
-    midiLearn.processMidi (midiMessages);
+    // SPEC-SWEEP (CT-11): the latency wizard measures the notes as they arrived.
+    if (latencyListening.load (std::memory_order_relaxed))
+        captureLatencyMeasurements (midiMessages);
+
+    // SPEC-SWEEP (IR-11): calibrated expression pedals first, so everything after
+    // - MIDI Learn included - sees the pedal's real travel as a clean 0..127.
+    expressionStage.process (midiMessages, controllerScratch);
+
+    midiLearn.processMidi (midiMessages, controllerScratch);   // SPEC-SWEEP IR-3: consumes what it learns
 
     // live-performance 2: program change and bank select drive the live surface,
     // and are consumed so nothing downstream sees them as musical events.
     handleLiveMidi (midiMessages);
+
+    // SPEC-SWEEP (CT-4 / IR-5): the controller stage - the chosen profile's
+    // latency budget moves the block's events earlier (never before the block).
+    controllerStage.compensateLatency (midiMessages, numSamples, currentSampleRate, controllerScratch);
 
     midiCapture.capture (midiMessages, samplePosition);
     logMidiForDiagnostics (midiMessages);
@@ -1192,6 +1206,10 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
     engine.setDirectMidi (tuneDirect.isEmpty() ? nullptr : &tuneDirect);
 
+    // SPEC-SWEEP (RE-41): the rhythm engine's strokes feed MIDI out's rhythm source.
+    engine.setRhythmMidiOut ((midiOutConfig.enabled && midiOutConfig.rhythmEngine)
+                                 ? &midiOutRouter.getRhythmBuffer() : nullptr);
+
     // ---- modulation ------------------------------------------------------------
     // Sources first, then the matrix, then the bridge: the bridge reads every
     // parameter through ModMatrix::apply, so the offsets have to be current
@@ -1209,7 +1227,15 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     const juce::ScopedTryLock engineLock (bridge.getEngineLock());
 
     if (engineLock.isLocked())
+    {
         bridge.applyToEngine();
+
+        // SPEC-SWEEP (CT-7): a newly chosen controller profile, then the UI's
+        // queued commands (UW-5), both after the bridge so they have the last word
+        // for this block and neither is ever written from the message thread.
+        controllerStage.applyPending (engine.getMidiInterpreter());
+        engineCommands.drain ([this] (const EngineCommand& c) { applyEngineCommand (c); });
+    }
 
     // The engine only ever writes the main output pair; every other bus belongs
     // to the routing matrix, and a bus nobody writes must be cleared rather than
@@ -1335,6 +1361,12 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         // and the MIDI that played it (MODEL-GAPS: it was never given the MIDI).
         sessionRecorder.captureMidi (midiMessages, numSamples);   // before the block advances its clock
         sessionRecorder.processBlock (mainOut, numSamples);
+    }
+    else if (latencyListening.load (std::memory_order_relaxed) && metronome.isEnabled())
+    {
+        // SPEC-SWEEP (CT-11): the wizard's click, with the drawer shut.
+        metronome.processBlock (clickBuffer.getWritePointer (0), numSamples);
+        haveClick = true;
     }
 
     // tune-builder 3.6: the tune's count-in and metronome, on the tune's own
@@ -1665,9 +1697,12 @@ void LuthierAudioProcessor::handleLiveMidi (juce::MidiBuffer& midi) noexcept
     if (midi.isEmpty())
         return;
 
-    auto isLiveControl = [] (const juce::MidiMessage& m)
+    // SPEC-SWEEP (IR-14): in "PC only" mode Bank Select is just another CC.
+    const bool bankPlusPc = bankSelectsPreset.load (std::memory_order_relaxed);
+
+    auto isLiveControl = [bankPlusPc] (const juce::MidiMessage& m)
     {
-        return m.isProgramChange() || (m.isController() && m.getControllerNumber() == 0);
+        return m.isProgramChange() || (bankPlusPc && m.isController() && m.getControllerNumber() == 0);
     };
 
     // Most blocks carry neither: nothing to take out, nothing to copy.
@@ -1699,7 +1734,7 @@ void LuthierAudioProcessor::handleLiveMidi (juce::MidiBuffer& midi) noexcept
 
         // Bank select picks the preset. Loading one touches the file system, so
         // the audio thread only records the request and the timer acts on it.
-        if (message.isController() && message.getControllerNumber() == 0)
+        if (bankPlusPc && message.isController() && message.getControllerNumber() == 0)
         {
             pendingPresetSelect.store (message.getControllerValue(), std::memory_order_relaxed);
             continue;
@@ -1708,7 +1743,14 @@ void LuthierAudioProcessor::handleLiveMidi (juce::MidiBuffer& midi) noexcept
         kept.addEvent (message, metadata.samplePosition);
     }
 
-    midi.swapWith (kept);
+    // SPEC-SWEEP (input-routing RT safety): copied back rather than swapped, so
+    // the pre-sized buffer stays ours and the host's storage stays the host's.
+    midi.clear();
+
+    for (const auto metadata : kept)
+        midi.addEvent (metadata.data, metadata.numBytes, metadata.samplePosition);
+
+    kept.clear();
 }
 
 void LuthierAudioProcessor::applySnapshotModules (const Snapshot& snapshot)
@@ -1849,12 +1891,149 @@ bool LuthierAudioProcessor::applyCurrentSetlistEntry()
 void LuthierAudioProcessor::panic()
 {
     stopAudition();
-    engine.panic();
+
+    // SPEC-SWEEP (UW-5): the engine is the audio thread's; the release happens
+    // at the top of the next block rather than under its feet.
+    postEngineCommand (EngineCommand::make (EngineCommand::Type::panic));
 
     const juce::ScopedLock sl (previewLock);
     previewMidi.clear();
 
     diagnostics.log (LogCategory::Engine, "panic", samplePosition);
+}
+
+//==============================================================================
+// SPEC-SWEEP (UW-5 / CB-17): the command queue's consumer, on the audio thread.
+void LuthierAudioProcessor::applyEngineCommand (const EngineCommand& command) noexcept
+{
+    const int numStrings = engine.getNumStrings();
+
+    switch (command.type)
+    {
+        case EngineCommand::Type::panic:
+            engine.panic();
+            break;
+
+        case EngineCommand::Type::stringMute:
+            if (juce::isPositiveAndBelow (command.index, numStrings))
+                engine.getString (command.index).setDamping (command.value > 0.5f ? StringEngine::Damping::Choked
+                                                                                   : StringEngine::Damping::Open, 1.0);
+            break;
+
+        case EngineCommand::Type::stringDetune:
+            engine.getTuningEngine().setDetuneCents (command.index, (double) command.value);
+            break;
+
+        case EngineCommand::Type::rhythmReset:
+            engine.getRhythmEngine().reset();
+            break;
+
+        case EngineCommand::Type::aftertouchTarget:
+            engine.getMidiInterpreter().setAftertouchTarget ((MidiTarget) command.index);
+            break;
+
+        case EngineCommand::Type::none:
+        default:
+            break;
+    }
+}
+
+void LuthierAudioProcessor::setStringMuted (int stringIndex, bool muted)
+{
+    if (! juce::isPositiveAndBelow (stringIndex, kMaxStrings))
+        return;
+
+    stringMuted[(size_t) stringIndex].store (muted);
+    postEngineCommand (EngineCommand::make (EngineCommand::Type::stringMute, stringIndex, muted ? 1.0f : 0.0f));
+}
+
+bool LuthierAudioProcessor::isStringMuted (int stringIndex) const noexcept
+{
+    return juce::isPositiveAndBelow (stringIndex, kMaxStrings) && stringMuted[(size_t) stringIndex].load();
+}
+
+void LuthierAudioProcessor::setAftertouchBends (bool shouldBend)
+{
+    aftertouchBends.store (shouldBend);
+    postEngineCommand (EngineCommand::make (EngineCommand::Type::aftertouchTarget,
+                                            (int) (shouldBend ? MidiTarget::PitchBend : MidiTarget::VibratoDepth)));
+}
+
+void LuthierAudioProcessor::setLatencyWizardListening (bool listening)
+{
+    latencyListening.store (listening);
+
+    if (! listening)
+        latencyFifo.finishedRead (latencyFifo.getNumReady());   // discard; reset() is not thread-safe
+}
+
+void LuthierAudioProcessor::captureLatencyMeasurements (const juce::MidiBuffer& midi) noexcept
+{
+    if (! metronome.isEnabled())
+        return;
+
+    // The metronome's phase is where the previous block left it: this block's
+    // first sample. A note answers the nearest click - late ones are positive.
+    const double bpm = juce::jmax (1.0, metronome.getTempo());
+    const double samplesPerBeat = 60.0 / bpm * juce::jmax (1.0, currentSampleRate);
+    const double phaseAtStart = metronome.getBeatPhase();
+
+    for (const auto metadata : midi)
+    {
+        if (! metadata.getMessage().isNoteOn())
+            continue;
+
+        double phase = phaseAtStart + (double) metadata.samplePosition / samplesPerBeat;
+        phase -= std::floor (phase);
+
+        if (phase > 0.5)
+            phase -= 1.0;
+
+        const float ms = (float) (phase * samplesPerBeat / juce::jmax (1.0, currentSampleRate) * 1000.0);
+
+        int start1, size1, start2, size2;
+        latencyFifo.prepareToWrite (1, start1, size1, start2, size2);
+
+        if (size1 + size2 > 0)
+        {
+            latencyMeasurements[(size_t) (size1 > 0 ? start1 : start2)] = ms;
+            latencyFifo.finishedWrite (1);
+        }
+    }
+}
+
+int LuthierAudioProcessor::drainLatencyMeasurements (LatencyWizard& wizard)
+{
+    int start1, size1, start2, size2;
+    latencyFifo.prepareToRead (latencyFifo.getNumReady(), start1, size1, start2, size2);
+
+    for (int i = 0; i < size1; ++i) wizard.addMeasurement ((double) latencyMeasurements[(size_t) (start1 + i)]);
+    for (int i = 0; i < size2; ++i) wizard.addMeasurement ((double) latencyMeasurements[(size_t) (start2 + i)]);
+
+    latencyFifo.finishedRead (size1 + size2);
+    return size1 + size2;
+}
+
+void LuthierAudioProcessor::setStringDetuneCents (int stringIndex, double cents)
+{
+    postEngineCommand (EngineCommand::make (EngineCommand::Type::stringDetune, stringIndex, (float) cents));
+}
+
+void LuthierAudioProcessor::applyControllerProfile (const ControllerProfile& profile)
+{
+    // The two things the parameter bridge re-applies every block follow the
+    // profile as parameters, so the bridge carries the profile's values rather
+    // than overwriting them (CT-7). Set before publishing, so the block that
+    // applies the profile already reads them.
+    const auto rt = ControllerRtSettings::fromProfile (profile);
+
+    if (auto* mpe = apvts.getParameter (ParamIDs::mpeEnabled))
+        mpe->setValueNotifyingHost (rt.impliesMpe() ? 1.0f : 0.0f);
+
+    if (auto* bend = apvts.getParameter (ParamIDs::bendRange))
+        bend->setValueNotifyingHost (bend->convertTo0to1 ((float) rt.bendSemis));
+
+    controllerStage.setProfile (profile);
 }
 
 void LuthierAudioProcessor::resetEverything()
@@ -2211,6 +2390,13 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     root->setProperty ("modulation", modMatrix.toVar());
     root->setProperty ("rhythm", engine.getRhythmEngine().toVar());
 
+    // SPEC-SWEEP (CT-2): the controller profile the player chose.
+    if (controllerStage.getProfileId().isNotEmpty())
+        root->setProperty ("controllerProfile", controllerStage.getProfileId());
+
+    root->setProperty ("aftertouchBends", doesAftertouchBend());   // SPEC-SWEEP PT-23
+    root->setProperty ("bankSelectsPreset", doesBankSelectChoosePreset());   // SPEC-SWEEP IR-14
+
     // live-performance 1: the snapshot bank travels inside the preset.
     root->setProperty ("snapshots", snapshots.toVar());
     root->setProperty ("liveMode", uiState.liveMode);
@@ -2347,6 +2533,22 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
     bridge.applyAllNow();
     initialStateApplied = true;
 
+    // SPEC-SWEEP (IR-14)
+    setBankSelectChoosesPreset (! root->hasProperty ("bankSelectsPreset") || (bool) root->getProperty ("bankSelectsPreset"));
+
+    // SPEC-SWEEP (PT-23)
+    setAftertouchBends (root->hasProperty ("aftertouchBends") && (bool) root->getProperty ("aftertouchBends"));
+
+    // SPEC-SWEEP (CT-2): re-apply the controller profile the session was using.
+    if (root->hasProperty ("controllerProfile"))
+    {
+        const ControllerProfileLibrary library;
+        const int index = library.indexOf (root->getProperty ("controllerProfile").toString());
+
+        if (index >= 0)
+            applyControllerProfile (library.getProfile (index));
+    }
+
     if (root->hasProperty ("presetMorphPosition"))
         if (auto* morph = apvts.getParameter (ParamIDs::presetMorphPosition))
             morph->setValueNotifyingHost (morph->convertTo0to1 ((float) (double) root->getProperty ("presetMorphPosition")));
@@ -2413,6 +2615,20 @@ void LuthierAudioProcessor::serviceTune()
     tuneSession.service();
 }
 
+// SPEC-SWEEP (IR-11 / LP-34): the expression calibration's audio-thread table
+// follows the set, and the wizard hears the pedal it is listening to.
+void LuthierAudioProcessor::serviceExpressionCalibration()
+{
+    expressionStage.update (expression);
+
+    const auto stage = expression.getWizardStage();
+    const bool listening = stage == ExpressionCalibrationSet::WizardStage::heel
+                        || stage == ExpressionCalibrationSet::WizardStage::toe;
+
+    expressionStage.setObservedCc (listening ? expression.getWizardCc() : -1);
+    expressionStage.drainObserved (expression);
+}
+
 void LuthierAudioProcessor::timerCallback()
 {
     // ambiguity-resolutions 5.2: the morph follows its (automatable) slider.
@@ -2422,6 +2638,23 @@ void LuthierAudioProcessor::timerCallback()
     snapshots.advancePending();
 
     serviceTune();
+
+    serviceExpressionCalibration();   // SPEC-SWEEP IR-11 / LP-34
+
+    // SPEC-SWEEP (PT-21): a CC mapped to a macro (controller profiles map CCs to
+    // Drive, Tone, Space, Body, Attack) moves that macro parameter here, on the
+    // message thread, so the host sees the change like any other edit.
+    {
+        const std::pair<MidiTarget, const char*> macroTargets[] = {
+            { MidiTarget::Drive, ParamIDs::macroDrive }, { MidiTarget::Tone, ParamIDs::macroTone },
+            { MidiTarget::Space, ParamIDs::macroSpace }, { MidiTarget::Body, ParamIDs::macroBody },
+            { MidiTarget::Attack, ParamIDs::macroAttack } };
+
+        for (const auto& [target, id] : macroTargets)
+            if (const float v = engine.getMidiInterpreter().takeMacroTarget (target); v >= 0.0f)
+                if (auto* p = apvts.getParameter (id))
+                    p->setValueNotifyingHost (v);
+    }
 
     // notation-export 6.2: the capture drains at 10 Hz.
     if (++captureDrainTick >= 3)

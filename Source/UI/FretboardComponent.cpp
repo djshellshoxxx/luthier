@@ -100,9 +100,9 @@ void FretboardComponent::setStringMuted (int stringIndex, bool isMuted)
     {
         muted[(size_t) stringIndex] = isMuted;
 
-        auto& engine = processor.getEngine();
-        engine.getString (stringIndex).setDamping (
-            isMuted ? StringEngine::Damping::Choked : StringEngine::Damping::Open, 1.0);
+        // SPEC-SWEEP (UW-5): through the processor's command queue; the string
+        // belongs to the audio thread.
+        processor.setStringMuted (stringIndex, isMuted);
 
         repaint();
     }

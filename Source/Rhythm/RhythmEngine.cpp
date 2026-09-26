@@ -29,8 +29,9 @@ RhythmEngine::RhythmEngine()
 {
     // A pattern that does nothing is the honest default: the engine is off until
     // the user chooses something for it to play.
-    patterns[0] = RhythmPattern();
-    patterns[1] = patterns[0];
+    patternBuffer.resetAll (writtenPattern);
+    bassGridBuffer.resetAll (writtenBassGrid);
+    humaniseBuffer.resetAll (writtenHumanise);
 }
 
 void RhythmEngine::prepare (double sampleRate, int maxBlockSize,
@@ -103,28 +104,27 @@ void RhythmEngine::setEnabled (bool shouldBeEnabled) noexcept
 void RhythmEngine::setPattern (const RhythmPattern& pattern)
 {
     const juce::ScopedLock sl (patternLock);
-
-    const int building = 1 - livePattern.load (std::memory_order_relaxed);
-    patterns[building] = pattern;
-    livePattern.store (building, std::memory_order_release);
+    writtenPattern = pattern;
+    patternBuffer.write (pattern);   // SPEC-SWEEP RE-2
 }
 
 RhythmPattern RhythmEngine::getPattern() const
 {
     const juce::ScopedLock sl (patternLock);
-    return patterns[livePattern.load (std::memory_order_acquire)];
+    return writtenPattern;
 }
 
 void RhythmEngine::setHumanise (const RhythmHumanise& h) noexcept
 {
     const juce::ScopedLock sl (humaniseLock);
-    humanise = h;
+    writtenHumanise = h;
+    humaniseBuffer.write (h);   // SPEC-SWEEP RE-2: the audio thread never takes this lock
 }
 
 RhythmHumanise RhythmEngine::getHumanise() const noexcept
 {
     const juce::ScopedLock sl (humaniseLock);
-    return humanise;
+    return writtenHumanise;
 }
 
 //==============================================================================
@@ -182,20 +182,20 @@ void RhythmEngine::handleMidi (const juce::MidiBuffer& midi, int64_t blockStartS
 void RhythmEngine::setBassGrid (const BassStepGrid& grid)
 {
     const juce::ScopedLock sl (patternLock);
-    const int next = 1 - liveBassGrid.load (std::memory_order_relaxed);
-    bassGrids[next] = grid;
-    liveBassGrid.store (next, std::memory_order_release);
+    writtenBassGrid = grid;
+    bassGridHasSteps.store (! grid.isEmpty(), std::memory_order_release);
+    bassGridBuffer.write (grid);   // SPEC-SWEEP RE-2
 }
 
 BassStepGrid RhythmEngine::getBassGrid() const
 {
     const juce::ScopedLock sl (patternLock);
-    return bassGrids[liveBassGrid.load (std::memory_order_acquire)];
+    return writtenBassGrid;
 }
 
 bool RhythmEngine::isBassGridActive() const noexcept
 {
-    return isBassFamily() && ! bassGrids[liveBassGrid.load (std::memory_order_acquire)].isEmpty();
+    return isBassFamily() && bassGridHasSteps.load (std::memory_order_acquire);
 }
 
 int RhythmEngine::processBassGrid (const BassStepGrid& grid, double startBeats, double endBeats,
@@ -341,7 +341,7 @@ void RhythmEngine::revoice() noexcept
     voicer->setMaxSoundingStrings (juce::jmax (1, (int) std::round ((double) numStrings * getVoicingDensity() / 100.0)));
     voicer->setAllowOpenStrings (style != VoicingStyle::barre);
     voicer->setPreferredPosition (getHandPositionHint());
-    voicer->setMaxFretSpan (style == VoicingStyle::wide ? 6 : 5);
+    voicer->setMaxFretSpan (getHandSpan() + (style == VoicingStyle::wide ? 1 : 0));   // SPEC-SWEEP RE-12
     /*  Zero, not the capo. TuningEngine measures fret positions from the capo now
         (ambiguity-resolutions 4.5), so frequencyToFretPosition already hands the
         voicer capo-relative frets, and filtering below the capo a second time here
@@ -453,7 +453,7 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
     if (step.isRest() || ! voicingValid)
         return;
 
-    const auto h = getHumanise();
+    const auto& h = humaniseBuffer.current();   // SPEC-SWEEP RE-2: acquired at the top of processBlock
 
     // rhythm-engine 4: a scheduled stroke can simply not happen.
     if (h.missPercent > 0.0 && rng.nextDouble() * 100.0 < h.missPercent * h.amount)
@@ -567,6 +567,19 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
 
         const int planned = gesture.plan (settings, request, strikes.data(), (int) strikes.size());
 
+        // SPEC-SWEEP (RE-18, rhythm-engine 2): a rake drags muted across the
+        // strings and lands on its target - the last string it strikes - open
+        // and at the step's full dynamic.
+        int rakeTarget = -1;
+
+        if (step.type == StrumType::rake)
+            for (int i = planned; --i >= 0;)
+                if (! strikes[(size_t) i].missed)
+                {
+                    rakeTarget = i;
+                    break;
+                }
+
         for (int i = 0; i < planned; ++i)
         {
             const auto& strike = strikes[(size_t) i];
@@ -576,8 +589,11 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
                 continue;
 
             const double offset = gestureOffset + strokeOffsetMs * 0.001 * sr + strike.timeSeconds * sr;
+            const bool isRakeTarget = (i == rakeTarget);
 
-            emitNote (strike.stringIndex, baseVelocity * strike.force, muted, chuckAmount,
+            emitNote (strike.stringIndex,
+                      isRakeTarget ? baseVelocity : baseVelocity * strike.force,
+                      muted && ! isRakeTarget, chuckAmount,
                       strikerMaterial, (int) std::round (juce::jmax (0.0, offset)), out);
         }
     }
@@ -591,12 +607,12 @@ void RhythmEngine::scheduleFingerpick (const FingerpickStep& step, int sampleOff
     if (! step.active || ! voicingValid)
         return;
 
-    const auto h = getHumanise();
+    const auto& h = humaniseBuffer.current();   // SPEC-SWEEP RE-2
 
     if (h.missPercent > 0.0 && rng.nextDouble() * 100.0 < h.missPercent * h.amount)
         return;
 
-    const auto pattern = patterns[livePattern.load (std::memory_order_acquire)];
+    const auto& pattern = patternBuffer.current();   // SPEC-SWEEP RE-2: no copy on the audio thread
     const int stringIndex = pattern.getStringForFinger (step.finger);
 
     double velocity = step.dynamic;
@@ -618,11 +634,16 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
 {
     driving = false;
 
+    // SPEC-SWEEP (RE-2): pick up whatever the message thread published since the
+    // last block; everything below reads these slots by reference.
+    patternBuffer.acquire();
+    bassGridBuffer.acquire();
+    humaniseBuffer.acquire();
+
     // ---- bypass ---------------------------------------------------------------
-    if (pendingRelease)
+    if (pendingRelease.exchange (false))
     {
         releaseAll (0, out);
-        pendingRelease = false;
     }
 
     if (! isEnabled())
@@ -694,12 +715,12 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
     // bass-techniques 9 (MODEL-GAPS): on a bass, a grid with steps in it plays.
     if (isBassGridActive())
     {
-        const auto grid = bassGrids[liveBassGrid.load (std::memory_order_acquire)];
+        const auto& grid = bassGridBuffer.current();
         return processBassGrid (grid, startBeats, startBeats + blockBeats, beatsPerSample, numSamples, out);
     }
 
     // ---- walk the pattern's grid over this block ----------------------------------
-    const auto pattern = patterns[livePattern.load (std::memory_order_acquire)];
+    const auto& pattern = patternBuffer.current();   // SPEC-SWEEP RE-2: no copy on the audio thread
 
     if (pattern.isEmpty() || pattern.getLength() <= 0)
         return 0;
@@ -725,9 +746,12 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
         double beatPosition = (double) index * stepBeats;
 
         // Swing pushes the odd steps later. The pair still spans the same total
-        // time, so the bar does not stretch.
+        // time, so the bar does not stretch. SPEC-SWEEP (RE-35): swing is the
+        // share of the pair the on-beat step takes - 0.5 straight, 0.66 a
+        // triplet feel, 0.75 a dotted feel - so the offbeat lands at swing x the
+        // pair; it used to move only half as far.
         if ((index % 2) != 0 && swing > 0.5)
-            beatPosition += (swing - 0.5) * 2.0 * stepBeats * 0.5;
+            beatPosition += (swing - 0.5) * 2.0 * stepBeats;
 
         if (beatPosition < startBeats || beatPosition >= endBeats)
             continue;
@@ -751,7 +775,7 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
             // A ghost stroke is an extra muted brush just before the hit, which
             // is most of what makes a strummed part sound played rather than
             // programmed.
-            const auto h = getHumanise();
+            const auto& h = humaniseBuffer.current();
 
             if (! step.isRest() && h.ghostPercent > 0.0
                   && rng.nextDouble() * 100.0 < h.ghostPercent * h.amount)
@@ -789,6 +813,7 @@ juce::var RhythmEngine::toVar() const
     root->setProperty ("voicingStyle", (int) getVoicingStyle());
     root->setProperty ("bassPattern", (int) getBassPattern());
     root->setProperty ("voicingDensity", getVoicingDensity());
+    root->setProperty ("handSpan", getHandSpan());   // SPEC-SWEEP RE-12
     root->setProperty ("handPosition", getHandPositionHint());
 
     /*  No "capoFret" here any more. The capo is a parameter now (ParamIDs::capoFret),
@@ -827,6 +852,7 @@ void RhythmEngine::fromVar (const juce::var& state)
     setBassPattern ((RubricBassPattern) juce::jlimit (0, (int) RubricBassPattern::walking,
                                                       (int) (root->hasProperty ("bassPattern") ? root->getProperty ("bassPattern") : juce::var (0))));
     setVoicingDensity ((double) root->getProperty ("voicingDensity"));
+    setHandSpan (root->hasProperty ("handSpan") ? (int) root->getProperty ("handSpan") : 5);   // SPEC-SWEEP RE-12
     setHandPositionHint ((int) root->getProperty ("handPosition"));
 
     /*  A capo saved by a build that kept one here. It is applied so an old

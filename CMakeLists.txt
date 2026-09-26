@@ -46,7 +46,7 @@ juce_add_plugin(Luthier
     PRODUCT_NAME                "Luthier"
     IS_SYNTH                    TRUE
     NEEDS_MIDI_INPUT            TRUE
-    NEEDS_MIDI_OUTPUT           FALSE
+    NEEDS_MIDI_OUTPUT           TRUE    # SPEC-SWEEP PR-13: matches producesMidi(), so VST3/AU declare the event output
     IS_MIDI_EFFECT              FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
     COPY_PLUGIN_AFTER_BUILD     FALSE

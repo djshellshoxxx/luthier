@@ -235,63 +235,64 @@ void ModSourceCard::pushToSource()
     if (updating)
         return;
 
-    auto& matrix = processor.getModMatrix();
+    // SPEC-SWEEP (UW-5): the sources tick on the audio thread, so the card
+    // posts its settings as one plain edit instead of calling their setters.
+    ModSourceEdit e;
 
     switch (kindOf (slot))
     {
         case SourceKind::lfo:
-        {
-            auto& lfo = matrix.getLfo (slot - ModSourceSlots::lfoBase);
-            lfo.setShape ((ModLfo::Shape) juce::jmax (0, shapeBox.getSelectedId() - 1));
-            lfo.setRateHz (rateSlider.getValue());
-            lfo.setDepth (depthSlider.getValue());
-            lfo.setSymmetry (symmetrySlider.getValue());
-            lfo.setSmoothingMs (smoothingSlider.getValue());
-            lfo.setSynced (syncButton.getToggleState());
-            lfo.setBipolar (bipolarButton.getToggleState());
-            lfo.setSyncDivision ((ModSyncDivision) juce::jmax (0, divisionBox.getSelectedId() - 1));
-            lfo.setRetrigger ((ModLfo::Retrigger) juce::jmax (0, retriggerBox.getSelectedId() - 1));
+            e.kind = ModSourceEdit::Kind::lfo;
+            e.index = slot - ModSourceSlots::lfoBase;
+            e.lfoShape = juce::jmax (0, shapeBox.getSelectedId() - 1);
+            e.lfoRateHz = rateSlider.getValue();
+            e.lfoDepth = depthSlider.getValue();
+            e.lfoSymmetry = symmetrySlider.getValue();
+            e.lfoSmoothingMs = smoothingSlider.getValue();
+            e.lfoSynced = syncButton.getToggleState();
+            e.lfoBipolar = bipolarButton.getToggleState();
+            e.lfoDivision = juce::jmax (0, divisionBox.getSelectedId() - 1);
+            e.lfoRetrigger = juce::jmax (0, retriggerBox.getSelectedId() - 1);
             break;
-        }
 
         case SourceKind::envelope:
-        {
-            auto& env = matrix.getEnvelope (slot - ModSourceSlots::envBase);
-            env.setDelaySeconds (delaySlider.getValue());
-            env.setAttackSeconds (attackSlider.getValue());
-            env.setHoldSeconds (holdSlider.getValue());
-            env.setDecaySeconds (decaySlider.getValue());
-            env.setSustainLevel (sustainSlider.getValue());
-            env.setReleaseSeconds (releaseSlider.getValue());
+            e.kind = ModSourceEdit::Kind::envelope;
+            e.index = slot - ModSourceSlots::envBase;
+            e.envDelay = delaySlider.getValue();
+            e.envAttack = attackSlider.getValue();
+            e.envHold = holdSlider.getValue();
+            e.envDecay = decaySlider.getValue();
+            e.envSustain = sustainSlider.getValue();
+            e.envRelease = releaseSlider.getValue();
             break;
-        }
 
         case SourceKind::sequencer:
-        {
-            auto& seq = matrix.getSequencer (slot - ModSourceSlots::seqBase);
-            seq.setLength ((int) lengthSlider.getValue());
-            seq.setSwing (swingSlider.getValue());
-            seq.setDirection ((ModStepSequencer::Direction) juce::jmax (0, directionBox.getSelectedId() - 1));
-            seq.setDivision ((ModSyncDivision) juce::jmax (0, divisionBox.getSelectedId() - 1));
-            seq.setSynced (syncButton.getToggleState());
+            e.kind = ModSourceEdit::Kind::sequencer;
+            e.index = slot - ModSourceSlots::seqBase;
+            e.seqLength = (int) lengthSlider.getValue();
+            e.seqSwing = swingSlider.getValue();
+            e.seqDirection = juce::jmax (0, directionBox.getSelectedId() - 1);
+            e.seqDivision = juce::jmax (0, divisionBox.getSelectedId() - 1);
+            e.seqSynced = syncButton.getToggleState();
             break;
-        }
 
         case SourceKind::follower:
-        {
-            auto& follower = matrix.getFollower (slot - ModSourceSlots::followerBase);
-            follower.setSource ((ModEnvelopeFollower::Source) juce::jmax (0, followerSourceBox.getSelectedId() - 1));
-            follower.setDetection ((ModEnvelopeFollower::Detection) juce::jmax (0, detectionBox.getSelectedId() - 1));
-            follower.setAttackMs (followerAttackSlider.getValue());
-            follower.setReleaseMs (followerReleaseSlider.getValue());
-            follower.setThreshold (thresholdSlider.getValue());
+            e.kind = ModSourceEdit::Kind::follower;
+            e.index = slot - ModSourceSlots::followerBase;
+            e.followerSource = juce::jmax (0, followerSourceBox.getSelectedId() - 1);
+            e.followerDetection = juce::jmax (0, detectionBox.getSelectedId() - 1);
+            e.followerAttackMs = followerAttackSlider.getValue();
+            e.followerReleaseMs = followerReleaseSlider.getValue();
+            e.followerThreshold = thresholdSlider.getValue();
             break;
-        }
 
         case SourceKind::plain:
         default:
             break;
     }
+
+    if (e.kind != ModSourceEdit::Kind::none)
+        processor.getModMatrix().postSourceEdit (e);
 }
 
 void ModSourceCard::timerCallback()

@@ -76,6 +76,12 @@ public:
         writes use setValueNotifyingHost, which is designed for this. */
     void processMidi (const juce::MidiBuffer& midi) noexcept;
 
+    /** SPEC-SWEEP (IR-3, input-routing 5): as above, and while learning the CC
+        that is learned is taken out of @p midi, so the gesture that assigns a
+        control does not also play the instrument. @p scratch must be pre-sized
+        (ensureSize) by the caller; nothing allocates. */
+    void processMidi (juce::MidiBuffer& midi, juce::MidiBuffer& scratch) noexcept;
+
     /** Message thread: finishes a learn the audio thread caught now, rather than
         when the async update arrives (tests, and anything that cannot wait). */
     void dispatchPendingLearn() { handleUpdateNowIfNeeded(); }

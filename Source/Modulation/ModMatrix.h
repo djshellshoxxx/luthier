@@ -27,6 +27,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "ModSourceEdit.h"                 // SPEC-SWEEP UW-5
+#include "../Support/CommandQueue.h"       // SPEC-SWEEP UW-5
 #include "ModSources.h"
 
 #include <atomic>
@@ -215,6 +217,13 @@ public:
     ModEnvelopeFollower& getFollower (int index) noexcept;
     ModRandomSource& getRandomSource() noexcept { return randomSource; }
 
+    /** SPEC-SWEEP (UW-5): the UI's way to change a source's settings. Applied
+        by the audio thread at the top of its next processBlock; applied at once
+        when no block has run for kIdleApplyMs (a stopped host). Message thread. */
+    bool postSourceEdit (const ModSourceEdit& edit);
+    int getNumPendingSourceEdits() const noexcept { return sourceEdits.getNumPending(); }
+    static constexpr juce::uint32 kIdleApplyMs = 250;
+
     /** The live value of a source slot, for the UI's source cards. */
     float getSourceValue (int slot) const noexcept;
 
@@ -250,6 +259,10 @@ private:
     };
 
     void rebuildTable();
+    void applySourceEdit (const ModSourceEdit& edit) noexcept;   // SPEC-SWEEP UW-5
+    CommandQueue<ModSourceEdit, 64> sourceEdits;
+    std::atomic<juce::uint32> lastBlockMs { 0 };
+    juce::SpinLock idleApplyLock;
     int destinationIndexFor (const juce::String& parameterId) const;
     void updateSources (const ModBlockContext& context) noexcept;
 

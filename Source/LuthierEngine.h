@@ -402,6 +402,12 @@ public:
         the next processBlock call; pass nullptr for none. Audio thread. */
     void setDirectMidi (const juce::MidiBuffer* direct) noexcept { directMidi = direct; }
 
+    /** SPEC-SWEEP (RE-41, routing-io MIDI out): where the rhythm engine's strokes
+        go as MIDI for the next processBlock - note on/off, channel = string + 1,
+        at their samples. A stroke scheduled past the block's end is held and
+        written in the block it lands in. nullptr for none. Audio thread. */
+    void setRhythmMidiOut (juce::MidiBuffer* out) noexcept { rhythmMidiOut = out; }
+
     /** The real work. processBlock splits anything larger than the block size
         the engine was prepared for and calls this for each piece. */
     void processSubBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) noexcept;
@@ -465,6 +471,15 @@ private:
     juce::MidiBuffer directSlice;
     RhythmEngine rhythm;
     CharacterEngine character;
+
+    // SPEC-SWEEP (RE-41): the rhythm engine's strokes as MIDI out.
+    struct PendingRhythmMidi { juce::uint8 bytes[3]; int samplesFromNow; };
+    static constexpr int kMaxPendingRhythmMidi = 128;
+    std::array<PendingRhythmMidi, kMaxPendingRhythmMidi> pendingRhythmMidi {};
+    int numPendingRhythmMidi = 0;
+    juce::MidiBuffer* rhythmMidiOut = nullptr;
+    void writeRhythmMidi (const PlayEventQueue& strokes) noexcept;
+    void flushRhythmMidi (int numSamples) noexcept;
 
     /** The drift last written into the tuning engine, so a block that did not
         move it does not rewrite it. */

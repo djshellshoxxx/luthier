@@ -34,6 +34,9 @@
 #include "Workshop/WorkshopBench.h"
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
+#include "Controllers/ControllerStage.h"   // SPEC-SWEEP CT-2/CT-7
+#include "Support/CommandQueue.h"         // SPEC-SWEEP UW-5
+#include "Live/ExpressionStage.h"          // SPEC-SWEEP IR-11
 
 namespace luthier
 {
@@ -368,6 +371,51 @@ public:
     //==========================================================================
     /** Releases every string and clears all state. The Panic button. */
     void panic();
+
+    //==========================================================================
+    // SPEC-SWEEP (UW-5 / CB-17): the UI's writes to audio-thread state go
+    // through this queue and are applied at the top of the next block.
+    bool postEngineCommand (const EngineCommand& command) noexcept { return engineCommands.push (command); }
+    int getNumPendingEngineCommands() const noexcept { return engineCommands.getNumPending(); }
+
+    /** String mute (the fretboard's per-string menu): choked, or open again. */
+    void setStringMuted (int stringIndex, bool muted);
+    bool isStringMuted (int stringIndex) const noexcept;
+
+    /** A string's deliberate detune in cents (the headstock popover). */
+    void setStringDetuneCents (int stringIndex, double cents);
+
+    /** SPEC-SWEEP (PT-23): aftertouch bends instead of adding vibrato. Saved
+        with the session; a setting rather than a parameter. */
+    void setAftertouchBends (bool shouldBend);
+    bool doesAftertouchBend() const noexcept { return aftertouchBends.load(); }
+
+    /** SPEC-SWEEP (IR-14, input-routing 1.4): "Bank + PC" (true, the default)
+        lets Bank Select (CC 0) choose the preset; "PC only" passes CC 0 on. */
+    void setBankSelectChoosesPreset (bool on) noexcept { bankSelectsPreset.store (on); }
+    bool doesBankSelectChoosePreset() const noexcept { return bankSelectsPreset.load(); }
+
+    //==========================================================================
+    // SPEC-SWEEP (CT-2/CT-7): the controller profile the player chose. Its
+    // settings reach the interpreter on the audio thread; its MPE flag and bend
+    // range become the mpe_enabled / bend_range parameters, so the parameter
+    // bridge carries them instead of overwriting them.
+    void applyControllerProfile (const ControllerProfile& profile);
+    juce::String getControllerProfileId() const { return controllerStage.getProfileId(); }
+    ControllerStage& getControllerStage() noexcept { return controllerStage; }
+
+    /** SPEC-SWEEP (CT-11): while the latency wizard listens, the metronome
+        clicks even with the practice drawer shut, and every incoming note-on is
+        measured against the click it answers (ms after it; negative if early)
+        on the audio thread. The Controllers page drains the measurements. */
+    void setLatencyWizardListening (bool listening);
+    bool isLatencyWizardListening() const noexcept { return latencyListening.load(); }
+    int drainLatencyMeasurements (LatencyWizard& wizard);
+
+    /** SPEC-SWEEP (IR-11 / LP-34): republishes the expression calibrations to the
+        audio thread and feeds the calibration wizard what the pedal sent. The
+        processor's timer calls it; so can a test. Message thread. */
+    void serviceExpressionCalibration();
 
     /** Restores every parameter, the MIDI map and the UI state to defaults. */
     void resetEverything();
@@ -785,6 +833,23 @@ private:
     int gestureParameterIndex = -1;
 
     juce::StringArray lockedParameters;
+
+    // SPEC-SWEEP (UW-5, CT-2/CT-4/CT-7)
+    CommandQueue<EngineCommand, 128> engineCommands;
+    ControllerStage controllerStage;
+    ExpressionStage expressionStage;   // IR-11
+    juce::MidiBuffer controllerScratch;
+    std::array<std::atomic<bool>, kMaxStrings> stringMuted {};
+    std::atomic<bool> aftertouchBends { false };   // PT-23
+    std::atomic<bool> bankSelectsPreset { true };  // IR-14
+
+    // CT-11: the latency wizard's measurements, audio -> message thread.
+    std::atomic<bool> latencyListening { false };
+    static constexpr int kLatencyFifo = 64;
+    juce::AbstractFifo latencyFifo { kLatencyFifo };
+    std::array<float, kLatencyFifo> latencyMeasurements {};
+    void captureLatencyMeasurements (const juce::MidiBuffer& midi) noexcept;
+    void applyEngineCommand (const EngineCommand& command) noexcept;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessor)
 };

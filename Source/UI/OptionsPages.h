@@ -97,6 +97,9 @@ private:
 
     juce::Label portNote, outNote, learnLabel;
     juce::TextButton clearLearnButton { "Clear all MIDI mappings" };
+
+    // SPEC-SWEEP (IR-14): program change mapping, "Bank + PC" or "PC only".
+    juce::ToggleButton bankSelectToggle { "Bank Select (CC 0) chooses the preset (Bank + PC)" };
 };
 
 //==============================================================================
@@ -221,6 +224,9 @@ private:
     juce::Slider minimumNoteSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
 
     juce::ToggleButton guitarModeToggle { "LinnStrument guitar mode: rows map to strings" };
+
+    // SPEC-SWEEP (PT-23): aftertouch drives vibrato depth, or bends.
+    juce::ToggleButton aftertouchBendToggle { "Aftertouch bends the note (instead of adding vibrato)" };
 
     // The latency wizard (controllers 3).
     juce::TextButton wizardButton { "Measure latency" };
