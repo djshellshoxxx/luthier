@@ -187,3 +187,28 @@ effects APPROPRIATELY. Acceptance:
    accuracy audits (existing instruments/parts, and effects). Report any
    technique that fires at the wrong time as an accuracy finding.
 No new spec or engine for this — verification + GUI wiring only.
+
+## Single-coil hum — surface in Options; DO NOT duplicate (2026-09-26, owner)
+
+Owner wants an Options switch for pickup/mains hum on electric + bass, level
+adjustable, audibly dynamic as played. This ALREADY EXISTS as the noise-floor
+model — do NOT build a new hum engine:
+- Engine: PickupEngine mains hum = fundamental + 0.35×3rd + 0.15×5th, scaled
+  by `noise_amp_buzz` × single-coil share; humbucker = exactly 0; volume knob
+  and amp gain change it; region via `noise_mains_hz` (50/60). Spec:
+  spec/noise-floor.md 2.1. Applies to bass single-coils too (J-bass hums,
+  split-P cancels) — correct as-is.
+REQUIREMENT (GUI + verify only; assign a Sonnet implementer via check-in):
+1. Add an easy **Options -> AUDIO** switch "Single-coil hum" + a level control
+   (bind to `noise_amp_buzz`; region toggle 50/60 Hz bound to `noise_mains_hz`),
+   discoverable, with a one-line caption ("Realistic single-coil/mains hum;
+   humbuckers cancel it"). Default OFF so factory presets are unchanged.
+2. Works for electric AND bass guitars (already does via single-coil share).
+3. Confirm noise-floor.md 2.x sources are actually built; if only the legacy
+   `noise_amp_buzz` exists, the plain hum satisfies the owner's fallback
+   ("just a background hum will do") — the extended sources are a realism bonus,
+   not a blocker.
+4. Tests: the Options switch toggles the hum (NF-style level check); humbucker
+   still gives 0; 50 vs 60 Hz changes the fundamental.
+No new spec/engine. Additive GUI note in spec/noise-floor.md marking the
+Options surface.
