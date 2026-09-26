@@ -47,6 +47,10 @@ void LuthierEngine::resetRealismB() noexcept
     lastNoteOnString = -1;
     crosstalkWasBent = true;   // so the next block writes the unbent gains
 
+    // string-interaction.md 0.3: stagger is seeded, so a render repeats
+    // bit-for-bit after a reset (the seed the member starts from).
+    staggerRng.setSeed (0x57A66E5ull);
+
     for (int s = 0; s < kMaxStrings; ++s)
     {
         contactDisplay[(size_t) s].fret.store (-1.0f, std::memory_order_relaxed);
