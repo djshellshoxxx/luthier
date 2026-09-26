@@ -86,6 +86,7 @@ struct BodyMode
     double frequencyHz = 100.0;
     double q           = 30.0;
     double gain        = 1.0;
+    bool   isAir       = false;   ///< environment.md 4: the two Helmholtz modes scale with the air
 };
 
 /** Everything that defines one body, before it is turned into modes. */

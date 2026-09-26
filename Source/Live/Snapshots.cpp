@@ -145,8 +145,12 @@ bool SnapshotBank::isDiscrete (const juce::AudioProcessorParameter& parameter) n
     // A choice or a boolean has no meaningful value between two settings. Asking
     // the parameter itself rather than testing its type catches the custom
     // parameter classes too.
+    // Integer parameters too: here they are string bitmasks and CC numbers,
+    // where a value between two settings is a different mask or controller
+    // (a morph from strings 1-2 to 5-6 passed through arbitrary subsets).
     return parameter.isDiscrete() || parameter.isBoolean()
-             || parameter.getNumSteps() <= 2;
+             || parameter.getNumSteps() <= 2
+             || dynamic_cast<const juce::AudioParameterInt*> (&parameter) != nullptr;
 }
 
 //==============================================================================

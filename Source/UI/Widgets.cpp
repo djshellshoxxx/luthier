@@ -689,7 +689,7 @@ bool LuthierKnob::KnobSlider::keyPressed (const juce::KeyPress& key)
     const double fraction = mods.isShiftDown() ? 0.001 : (mods.isCommandDown() || mods.isCtrlDown()) ? 0.1 : 0.01;
 
     // At least one step of a stepped range, so a choice or an integer moves.
-    const double step = juce::jmax (span * fraction, range.interval);
+    const double step = juce::jmax (span * fraction, getInterval());
 
     setValue (getValue() + direction * step, juce::sendNotificationSync);
     return true;

@@ -1,0 +1,411 @@
+{
+  "schema": 1,
+  "magic": "luthier.tune",
+  "meta": {
+    "title": "Bottleneck Blues",
+    "artist": "",
+    "author": "Factory",
+    "tempo_bpm": 80.0,
+    "time_sig": "4/4",
+    "key": "A",
+    "mode": "ionian",
+    "swing": 60.0,
+    "feel_pct": 0.0,
+    "tags": [
+      "example",
+      "blues"
+    ],
+    "notes": "Twelve-bar blues in A with a shuffle. The melody's notes are marked as slides: turn Slide Mode on (the header's Slide, or S) and play it on Blues Slide.",
+    "created": "2026-09-24T00:00:00Z",
+    "modified": "2026-09-24T00:00:00Z"
+  },
+  "sections": [
+    {
+      "name": "Blues",
+      "length_bars": 12,
+      "rhythm_pattern": "Blues Shuffle",
+      "genre_kit": "Delta Blues",
+      "chords": [
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "7",
+          "beats": 4.0
+        }
+      ],
+      "melody": [
+        {
+          "start": 0.0,
+          "dur": 0.5,
+          "pitch": 61,
+          "vel": 91,
+          "technique": "slide"
+        },
+        {
+          "start": 0.5,
+          "dur": 1.5,
+          "pitch": 57,
+          "vel": 81,
+          "technique": "vibrato"
+        },
+        {
+          "start": 2.0,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 89,
+          "technique": "slide"
+        },
+        {
+          "start": 2.5,
+          "dur": 0.5,
+          "pitch": 52,
+          "vel": 81
+        },
+        {
+          "start": 4.0,
+          "dur": 0.5,
+          "pitch": 55,
+          "vel": 93,
+          "technique": "slide"
+        },
+        {
+          "start": 4.5,
+          "dur": 1.5,
+          "pitch": 61,
+          "vel": 80
+        },
+        {
+          "start": 6.0,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 91,
+          "technique": "slide"
+        },
+        {
+          "start": 6.5,
+          "dur": 0.5,
+          "pitch": 63,
+          "vel": 77
+        },
+        {
+          "start": 8.0,
+          "dur": 1.5,
+          "pitch": 52,
+          "vel": 94,
+          "technique": "slide"
+        },
+        {
+          "start": 9.5,
+          "dur": 0.5,
+          "pitch": 55,
+          "vel": 80
+        },
+        {
+          "start": 10.0,
+          "dur": 0.5,
+          "pitch": 52,
+          "vel": 88,
+          "technique": "slide"
+        },
+        {
+          "start": 10.5,
+          "dur": 0.5,
+          "pitch": 55,
+          "vel": 83,
+          "technique": "vibrato"
+        },
+        {
+          "start": 12.0,
+          "dur": 0.5,
+          "pitch": 57,
+          "vel": 92,
+          "technique": "slide"
+        },
+        {
+          "start": 12.5,
+          "dur": 0.5,
+          "pitch": 61,
+          "vel": 82
+        },
+        {
+          "start": 13.0,
+          "dur": 1.5,
+          "pitch": 62,
+          "vel": 88,
+          "technique": "slide"
+        },
+        {
+          "start": 14.5,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 83
+        },
+        {
+          "start": 16.0,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 91,
+          "technique": "slide"
+        },
+        {
+          "start": 16.5,
+          "dur": 1.5,
+          "pitch": 60,
+          "vel": 83
+        },
+        {
+          "start": 18.0,
+          "dur": 0.5,
+          "pitch": 69,
+          "vel": 88,
+          "technique": "slide"
+        },
+        {
+          "start": 18.5,
+          "dur": 0.5,
+          "pitch": 72,
+          "vel": 83
+        },
+        {
+          "start": 20.0,
+          "dur": 0.5,
+          "pitch": 69,
+          "vel": 91,
+          "technique": "slide"
+        },
+        {
+          "start": 20.5,
+          "dur": 0.5,
+          "pitch": 67,
+          "vel": 83,
+          "technique": "vibrato"
+        },
+        {
+          "start": 21.0,
+          "dur": 0.5,
+          "pitch": 69,
+          "vel": 91,
+          "technique": "slide"
+        },
+        {
+          "start": 21.5,
+          "dur": 1.5,
+          "pitch": 67,
+          "vel": 77
+        },
+        {
+          "start": 24.0,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 95,
+          "technique": "slide"
+        },
+        {
+          "start": 24.5,
+          "dur": 0.5,
+          "pitch": 63,
+          "vel": 79
+        },
+        {
+          "start": 25.0,
+          "dur": 1.0,
+          "pitch": 64,
+          "vel": 90,
+          "technique": "slide"
+        },
+        {
+          "start": 26.0,
+          "dur": 1.0,
+          "pitch": 63,
+          "vel": 88
+        },
+        {
+          "start": 28.0,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 94,
+          "technique": "slide"
+        },
+        {
+          "start": 28.5,
+          "dur": 0.5,
+          "pitch": 67,
+          "vel": 81
+        },
+        {
+          "start": 29.0,
+          "dur": 0.5,
+          "pitch": 64,
+          "vel": 86,
+          "technique": "slide"
+        },
+        {
+          "start": 29.5,
+          "dur": 1.5,
+          "pitch": 63,
+          "vel": 77,
+          "technique": "vibrato"
+        },
+        {
+          "start": 32.0,
+          "dur": 0.5,
+          "pitch": 59,
+          "vel": 96,
+          "technique": "slide"
+        },
+        {
+          "start": 32.5,
+          "dur": 0.5,
+          "pitch": 56,
+          "vel": 77
+        },
+        {
+          "start": 33.0,
+          "dur": 1.0,
+          "pitch": 55,
+          "vel": 85,
+          "technique": "slide"
+        },
+        {
+          "start": 34.0,
+          "dur": 1.0,
+          "pitch": 57,
+          "vel": 86
+        },
+        {
+          "start": 36.0,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 95,
+          "technique": "slide"
+        },
+        {
+          "start": 36.5,
+          "dur": 0.5,
+          "pitch": 57,
+          "vel": 80
+        },
+        {
+          "start": 37.0,
+          "dur": 1.5,
+          "pitch": 60,
+          "vel": 90,
+          "technique": "slide"
+        },
+        {
+          "start": 38.5,
+          "dur": 0.5,
+          "pitch": 57,
+          "vel": 77
+        },
+        {
+          "start": 40.0,
+          "dur": 0.5,
+          "pitch": 61,
+          "vel": 91,
+          "technique": "slide"
+        },
+        {
+          "start": 40.5,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 80,
+          "technique": "vibrato"
+        },
+        {
+          "start": 41.0,
+          "dur": 1.0,
+          "pitch": 63,
+          "vel": 87,
+          "technique": "slide"
+        },
+        {
+          "start": 42.0,
+          "dur": 1.0,
+          "pitch": 57,
+          "vel": 91
+        }
+      ],
+      "melody_track": {
+        "string_hint": "auto",
+        "articulation": "natural",
+        "source": "auto",
+        "seed": 41,
+        "density": 4.0,
+        "range_low": 48,
+        "range_high": 79,
+        "follow_chords": false
+      },
+      "bass": {
+        "mode": "genre"
+      },
+      "role": "verse",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.65,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "blues_guitar"
+    }
+  ],
+  "setlist": [
+    {
+      "section": "Blues",
+      "repeats": 3
+    }
+  ]
+}

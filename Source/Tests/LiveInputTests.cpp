@@ -413,7 +413,8 @@ LUTHIER_TEST (LivePanelUi, excludingAParameterHoldsItAtA)
     const int gainIndex = p.getState().getParameter (ParamIDs::ampGain)->getParameterIndex();
 
     bool found = false;
-    for (juce::PopupMenu::MenuItemIterator it (morph.buildExclusionMenu(), true); it.next();)
+    const auto menu = morph.buildExclusionMenu();
+    for (juce::PopupMenu::MenuItemIterator it (menu, true); it.next();)
         if (it.getItem().itemID == gainIndex + 1)
             found = true;
 
@@ -448,8 +449,8 @@ LUTHIER_TEST (LivePanelUi, bezierHandlesSetTheCurve)
     panel.refresh();
 
     // The timer-driven refresh is what shows them; drive it directly.
-    morph.getBezierSlider (0).setValue (0.4);
-    morph.getBezierSlider (3).setValue (0.6);
+    morph.getBezierSlider (0).setValue (0.4, juce::sendNotificationSync);
+    morph.getBezierSlider (3).setValue (0.6, juce::sendNotificationSync);
 
     CHECK_NEAR (p.getSnapshots().getBezierControlPoint (0), 0.4, 1.0e-6);
     CHECK_NEAR (p.getSnapshots().getBezierControlPoint (3), 0.6, 1.0e-6);
@@ -468,11 +469,11 @@ LUTHIER_TEST (LivePanelUi, monitorPanAndEqShapeTheMonitorOnly)
     panel.setSize (420, 900);
     auto& monitor = panel.getMonitorSetup();
 
-    monitor.getControl (MonitorSetupPanel::level).setValue (-6.0);
-    monitor.getControl (MonitorSetupPanel::pan).setValue (-0.5);
-    monitor.getControl (MonitorSetupPanel::low).setValue (3.0);
-    monitor.getControl (MonitorSetupPanel::mid).setValue (-2.0);
-    monitor.getControl (MonitorSetupPanel::high).setValue (4.5);
+    monitor.getControl (MonitorSetupPanel::level).setValue (-6.0, juce::sendNotificationSync);
+    monitor.getControl (MonitorSetupPanel::pan).setValue (-0.5, juce::sendNotificationSync);
+    monitor.getControl (MonitorSetupPanel::low).setValue (3.0, juce::sendNotificationSync);
+    monitor.getControl (MonitorSetupPanel::mid).setValue (-2.0, juce::sendNotificationSync);
+    monitor.getControl (MonitorSetupPanel::high).setValue (4.5, juce::sendNotificationSync);
 
     auto& mix = p.getMonitorMix();
     CHECK_NEAR (mix.getLevelDb(), -6.0, 0.05);
@@ -496,7 +497,8 @@ LUTHIER_TEST (LiveStripUi, theCcButtonArmsLearningForEachAction)
     LiveActionButton button (p, "CC");
 
     int items = 0;
-    for (juce::PopupMenu::MenuItemIterator it (button.buildMenu()); it.next();)
+    const auto menu = button.buildMenu();
+    for (juce::PopupMenu::MenuItemIterator it (menu); it.next();)
         if (it.getItem().itemID >= 1 && it.getItem().itemID <= LiveActionMap::kNumActions)
             ++items;
 
@@ -594,7 +596,8 @@ LUTHIER_TEST (Live, theSnapshotColourIsReachableWithoutRightClick)
     CHECK (panel.getColourButton().isEnabled());
 
     int items = 0;
-    for (juce::PopupMenu::MenuItemIterator it (panel.buildColourMenu()); it.next();)
+    const auto menu = panel.buildColourMenu();
+    for (juce::PopupMenu::MenuItemIterator it (menu); it.next();)
         if (it.getItem().itemID > 0)
             ++items;
 

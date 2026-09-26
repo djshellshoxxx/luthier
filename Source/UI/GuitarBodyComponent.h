@@ -66,6 +66,7 @@ private:
     std::unique_ptr<LuthierKnob> concertA;
 
     juce::OwnedArray<juce::Slider> detuneSliders;
+    juce::OwnedArray<class StabilityBadge> stabilityBadges;   // tuning-stability.md 6 (REALISM-C)
     juce::StringArray noteNames;
 
     int numStrings = 6;

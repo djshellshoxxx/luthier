@@ -74,13 +74,15 @@ LUTHIER_TEST (Editor, abCompareIsTransientAndNotSaved)
     juce::MemoryBlock state;
     p.getStateInformation (state);
 
-    const auto text = state.toString();
-    CHECK (! text.contains ("slotA"));
-    CHECK (! text.contains ("slotB"));
-
+    // Which slot is showing may travel with the session; what the other slot
+    // held does not: switching in a restored session finds nothing to recall.
     LuthierAudioProcessor restored;
     restored.setStateInformation (state.getData(), (int) state.getSize());
-    CHECK (! restored.isSlotBActive());
+    const float shown = get (restored, ParamIDs::ampGain);
+    CHECK_NEAR (shown, 0.8f, 1.0e-4f);
+
+    restored.setSlotBActive (! restored.isSlotBActive());
+    CHECK_NEAR (get (restored, ParamIDs::ampGain), shown, 1.0e-4f);
 
     const auto preset = juce::JSON::toString (p.getPresetManager().toVar ("sweep"));
     CHECK (! preset.contains ("slotA") && ! preset.contains ("slotB"));
