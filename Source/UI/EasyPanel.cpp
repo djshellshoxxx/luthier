@@ -728,8 +728,14 @@ void EasyPanel::resized()
         r.removeFromLeft (Metrics::grid);
         rhythmEnableButton.setBounds (r.removeFromLeft (52));
         r.removeFromLeft (Metrics::grid);
-        if (jamGroup != nullptr)   // FEAT-JAM: the JAM group at the right end
-            jamGroup->setBounds (r.removeFromRight (juce::jmin (JamStripGroup::preferredWidth, juce::jmax (0, r.getWidth() - 290))));
+        if (jamGroup != nullptr)   // FEAT-JAM: the JAM group at the right end, hidden when there is no room for its pill
+        {
+            const int jamWidth = juce::jmin (JamStripGroup::preferredWidth, juce::jmax (0, r.getWidth() - 290));
+            jamGroup->setVisible (jamWidth >= JamStripGroup::minimumWidth);
+
+            if (jamGroup->isVisible())
+                jamGroup->setBounds (r.removeFromRight (jamWidth));
+        }
 
         rhythmReadout.setBounds (r.removeFromRight (110));
         rhythmHintLabel.setBounds (r.removeFromRight (jamGroup != nullptr ? 90 : 110));

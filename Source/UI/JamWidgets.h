@@ -102,6 +102,7 @@ public:
     void paint (juce::Graphics&) override;
 
     static constexpr int preferredWidth = 88 + 4 + 118 + 4 + 76 + 4 + 40;
+    static constexpr int minimumWidth = 88;   ///< the pill alone; narrower, the Easy strip hides the group
 
     JamPill& getPill() noexcept               { return pill; }
     juce::ComboBox& getStyleBox() noexcept    { return style.getComboBox(); }

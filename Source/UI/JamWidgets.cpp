@@ -224,16 +224,33 @@ void JamStripGroup::resized()
     auto r = getLocalBounds();
     const int h = juce::jmin (32, r.getHeight());
 
-    // Narrower than preferred: the style box gives way first.
+    // Narrower than preferred: the style box gives way first, then the controls
+    // drop off from the right; one that does not fit is hidden, never hung
+    // outside the group. The pill (the band's state) goes last.
     const int styleW = juce::jmax (56, 118 - juce::jmax (0, preferredWidth - getWidth()));
 
-    pill.setBounds (r.removeFromLeft (88).withSizeKeepingCentre (88, h));
-    r.removeFromLeft (4);
-    style.setBounds (r.removeFromLeft (styleW).withSizeKeepingCentre (styleW, juce::jmin (26, r.getHeight())));
-    r.removeFromLeft (4);
-    intensity.setBounds (r.removeFromLeft (76).withSizeKeepingCentre (76, juce::jmin (22, r.getHeight())));
-    r.removeFromLeft (4);
-    bandVolume.setBounds (r.removeFromLeft (40).withTrimmedBottom (juce::jmin (10, r.getHeight() / 4)));
+    auto place = [&r] (juce::Component& c, int width, int height, bool gap)
+    {
+        const int need = width + (gap ? 4 : 0);
+        const bool fits = r.getWidth() >= need && r.getHeight() > 0;
+        c.setVisible (fits);
+
+        if (! fits)
+        {
+            r.setWidth (0);   // nothing after a dropped control
+            return;
+        }
+
+        if (gap)
+            r.removeFromLeft (4);
+
+        c.setBounds (r.removeFromLeft (width).withSizeKeepingCentre (width, juce::jmin (height, r.getHeight())));
+    };
+
+    place (pill, 88, h, false);
+    place (style, styleW, 26, true);
+    place (intensity, 76, 22, true);
+    place (bandVolume, 40, juce::jmax (1, r.getHeight() - juce::jmin (10, r.getHeight() / 4)), true);
 }
 
 void JamStripGroup::paint (juce::Graphics& g)
@@ -241,7 +258,8 @@ void JamStripGroup::paint (juce::Graphics& g)
     // The mini-knob's name under it.
     g.setColour (Palette::textMuted);
     g.setFont (Fonts::ui (9.0f));
-    g.drawText ("Band", bandVolume.getBounds().withY (bandVolume.getBottom()).withHeight (10), juce::Justification::centred);
+    if (bandVolume.isVisible())
+        g.drawText ("Band", bandVolume.getBounds().withY (bandVolume.getBottom()).withHeight (10), juce::Justification::centred);
 }
 
 } // namespace luthier
