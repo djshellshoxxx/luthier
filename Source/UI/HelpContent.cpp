@@ -415,7 +415,7 @@ namespace
           "FIND\n"
           "Type part of a name. Typos, abbreviations (\"tb\" for Treble Bleed) and other words for the same "
           "thing (\"drive\" for the amp's gain, \"reverb\" for the room) all work. A first character narrows "
-          "the search: > commands and shortcuts, ? help, # presets, guitars, parts and pedals, @ places, "
+          "the search: > commands and shortcuts, ? help, # presets, guitars, parts and pedals, the at sign for places, "
           "= controls only. The chips under the field do the same.\n\n"
           "GO\n"
           "Enter goes to the result: the control is shown, scrolled into view, focused and ringed, so the "
