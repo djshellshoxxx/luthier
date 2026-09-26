@@ -8,3 +8,7 @@
 - [LP-39/GI-76] Live Mode suppresses all tooltips (no "critical" exception): the Live strip's controls are self-describing and a tip over the snapshot strip mid-song is noise.
 - [A11Y-27] Font floor raised from 9 to 10 (accessibility 4: "never below 10 px effective at 100%"); test updated.
 - [GI-72] A plain click on an empty snapshot pad no longer captures (it shows the §14 hint); Shift-click writes. The keyboard/screen-reader pad button still captures an empty slot, since it has no Shift.
+- [LP-27, GI-13, GI-15..GI-20, GI-82, GI-112] Left for after the visual merge: each adds controls to `HeaderBar` or the editor footer, which the visual branch rewrites (HeaderBar.cpp +109/-, PluginEditor.cpp +186). Doing them now would guarantee conflicts in the two busiest UI files.
+- [LP-40] Not changed: Live Mode stays session/UI state (state-model.md; `StateModel` asserts a preset load keeps it).
+- [UT-16] Crash handler is process-wide and installed only after the user turns crash reports on (processor timer), since a plugin shares the host's process.
+- [Integration] `TuneIntegration::aSnapshotRecallsTheTunesSection` fails after the TUNE-HELP merge independent of this branch: its `runFor` never calls `SnapshotBank::advancePending`, so a 30 ms crossfade recall never reaches its midpoint.
