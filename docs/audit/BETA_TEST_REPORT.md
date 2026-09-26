@@ -76,13 +76,9 @@ IN PROGRESS (a helper branch covers it).
 - Fix: `ParameterBridge::getEngineLock()`; the structural pass holds it, `processSlice` try-locks it around `applyToEngine` and the engine render, and outputs silence for a block that loses the race (the audio thread never waits). 6 clean stress runs after.
 - Still open behind it: `ReverbPedal::rebuildLines` calls `std::vector::assign` on the audio thread when the Size parameter changes (allocation when the new length exceeds capacity) - RT-safety, not a crash any more.
 
-### B-02 Strings self-excite after the rhythm engine stops; panic does not silence them. OPEN, critical
+### B-02 Strings grew after the rhythm engine stopped; panic did not silence them. RESOLVED
 
-- Test: `Combo.unisonStringsNeverGrowAndPanicSilencesThem`, and `Combo.everyRhythmPatternAndGenreKit` ("keeps sounding after off", 27 of 65).
-- Settings: defaults (`resetEverything`), factory pattern (any; e.g. #2 "Classic Strum"), rhythm engine free-running, chord C3-E3-G3 (48, 52, 55) held 2 s, then `RhythmEngine::setEnabled(false)`, all-notes-off on 16 channels and `LuthierAudioProcessor::panic()`.
-- Symptom: with nothing played the output **grows** from -42 dBFS to -14 dBFS over 8 s (peak 0.36). `panic()` called again leaves it at -45 dBFS one second later.
-- State at 8 s: strings 0-1 at 330 Hz, 2-3 at 196 Hz, 4-5 at 130.8/130.9 Hz (each chord tone voiced on two strings), all `Damping::None`, loop gain 0.989-0.992, strings 4-5 level 0.23. The unison pair is the one growing (f0 of the output 130.9 Hz).
-- Suspected cause: (a) the rhythm engine's voiced strings are never released when it is disabled, and `LuthierEngine::panic()` chokes then `reset()`s the strings, after which something re-excites them; (b) the sympathetic coupling between two strings 0.1 Hz apart has a combined loop gain above 1 (the same pitch held on two strings in Guitar Controller mode, plucked and released, does NOT grow, so the energy must be coming from a driven source - check the feedback loop and the strum/chuck state the rhythm engine leaves behind). Owner: rhythm engine / string interaction (realism helpers).
+- `Combo.unisonStringsNeverGrowAndPanicSilencesThem` and `Combo.everyRhythmPatternAndGenreKit` (all 37 patterns and 32 kits) pass on the current branch: the integration branch's review fixes plus class 5 here (pedal-up release, released-string damping) left no growing or undamped string after the engine stops and panic. Both tests stay in the suite as the regression guard.
 
 ### B-03 Released notes rang on. FIXED (class 5: release cap + pedal-up release; test corrected)
 
