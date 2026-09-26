@@ -55,7 +55,32 @@ merged back here after its own suites passed. Per-worker decision notes are in
 
 ## Decisions
 
-(Collected from `docs/coverage/sweep-notes/*.md` as workers land.)
+Each worker's decisions, one line per requirement with the reason, are in
+`docs/coverage/sweep-notes/<worker>.md` (state, rtmidi, dsp1, dsp2, ui, docs).
+Decisions taken while merging the workers:
+
+- [ER-12 / C-20 / PR-31] A newer-schema preset is refused with the update message
+  and leaves the current sound untouched (error-recovery 1 wins over the PROGRESS
+  judgement call). The docs worker's test that expected a load was changed to
+  assert the refusal.
+- [ER-27 / HI-10] A mono main output is refused (host-integration 2, DECISIONS
+  C-26); the state worker's layout test expected it accepted and was corrected.
+- [UW-5 x MM-14/18/19/20/23/25] MOD source-card edits travel as one
+  `ModSourceEdit` applied on the audio thread; the new dsp1 card controls (LFO
+  phase, envelope curves / retrigger / loop, sequencer rate, follower string /
+  log) were added as fields of that edit instead of calling the setters from the
+  message thread.
+- [LP-39 x UM-13] Tooltip delay is set in one place
+  (`LuthierAudioProcessorEditor::applyTooltipPreference`) and is off in Live Mode.
+- [SM-1] The session keeps character, modulation, snapshots, rhythm, routing,
+  MIDI Learn and tone-match inside its preset block; `Environment::ENV11` builds
+  its legacy session by moving the character block to the top level.
+- [CW-21] The nut-wear test reads the note's starting sustain multiplier
+  (`LuthierEngine::getNoteSustainScale`); the level-after-2 s version passed with
+  the nut term removed.
+- Worktree snapshots had committed the `ThirdParty/JUCE` and
+  `clap-juce-extensions` symlinks; they are untracked again and `.gitignore` now
+  matches them as files too.
 
 ## Test baseline (integration c29e228 + spec merge, before any fix)
 
