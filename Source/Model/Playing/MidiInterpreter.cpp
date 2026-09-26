@@ -330,6 +330,22 @@ void MidiInterpreter::processBlock (const juce::MidiBuffer& midi,
         const int64_t timestamp = blockStartSample + offset;
         const int channel = message.getChannel();
 
+        // SPEC-SWEEP HI-37 (host-integration 9.1): notes held on two or more
+        // member channels with per-channel bend or CC 74 is MPE traffic.
+        if (! mpeEnabled && mode != PlayingMode::GuitarController && channel >= 2 && channel <= 16)
+        {
+            const auto bit = (juce::uint32) 1u << (juce::uint32) channel;
+
+            if (message.isNoteOn())
+                mpeChannelsWithNotes |= bit;
+            else if (message.isNoteOff())
+                mpeChannelsWithNotes &= ~bit;
+            else if ((message.isPitchWheel() || (message.isController() && message.getControllerNumber() == 74))
+                     && (mpeChannelsWithNotes & bit) != 0
+                     && juce::countNumberOfBits (mpeChannelsWithNotes) >= 2)
+                mpeTrafficDetected.store (true, std::memory_order_relaxed);
+        }
+
         if (message.isNoteOn())
         {
             activity = true;

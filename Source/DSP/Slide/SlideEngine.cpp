@@ -66,6 +66,22 @@ bool SlideEngine::noteOn (int s, int numStrings) noexcept
 
         barString = s;
     }
+    else if (anyUnder)
+    {
+        /*  SPEC-SWEEP SG-6 (slide-guitar.md 2): a bar covers only as many
+            strings as its length reaches at the bar's string spacing. A note
+            outside that span, from the strings already under it, cannot be
+            under the same bar - it is fretted. */
+        const int reach = juce::jmax (1, (int) std::floor (bar.lengthMm / kStringSpacingMm) + 1);
+        int lowest = s, highest = s;
+
+        for (int i = 0; i < juce::jmin (numStrings, kMaxStrings); ++i)
+            if (underBar[(size_t) i])
+                lowest = juce::jmin (lowest, i), highest = juce::jmax (highest, i);
+
+        if (highest - lowest + 1 > reach)
+            return false;
+    }
 
     landing = ! anyUnder;
     underBar[(size_t) s] = true;
@@ -188,7 +204,10 @@ double SlideEngine::sustainScale (int s) const noexcept
     // ...and the bar absorbs energy at the contact: softer materials more,
     // heavier bars less, because they couple less.
     const double massFactor = std::pow (65.0 / juce::jlimit (5.0, 500.0, bar.massGrams), 0.6);
-    const double contact = 1.0 - material.damping * 0.5 * juce::jmin (2.0, massFactor);
+    // SPEC-SWEEP SG-6: a larger diameter is a flatter, softer contact that
+    // absorbs a little less (22 mm, the default, leaves it as it was).
+    const double curvature = std::pow (22.0 / juce::jlimit (5.0, 60.0, bar.diameterMm), 0.3);
+    const double contact = 1.0 - material.damping * 0.5 * juce::jmin (2.0, massFactor) * curvature;
 
     // Too little pressure and the string rides on the bar and loses more.
     const double pressure = 0.85 + 0.15 * juce::jlimit (0.0, 1.0, settings.pressure);
@@ -218,7 +237,9 @@ NoiseEvent SlideEngine::makeClank (int s, double velocity) const noexcept
               * (juce::jlimit (0.0, 1.0, velocity) + 0.5 * rattle);
 
     // Spectrum by material, and mass lowers it.
-    e.startHz = e.endHz = material.clankHz * std::pow (65.0 / juce::jlimit (5.0, 500.0, bar.massGrams), 0.25);
+    // SPEC-SWEEP SG-6: a fatter bar clanks slightly lower.
+    e.startHz = e.endHz = material.clankHz * std::pow (65.0 / juce::jlimit (5.0, 500.0, bar.massGrams), 0.25)
+                          * std::pow (22.0 / juce::jlimit (5.0, 60.0, bar.diameterMm), 0.15);
     e.q = 5.0 + 10.0 * (1.0 - material.damping);
     e.brightness = material.brightness * 0.6;
     e.texture = NoiseTexture::metallic;

@@ -87,6 +87,10 @@ public:
     PlayingMode getPlayingMode() const noexcept { return mode; }
 
     void setMpeEnabled (bool e) noexcept { mpeEnabled = e; }
+
+    /** SPEC-SWEEP HI-37: MPE-shaped input seen while MPE is off - true once,
+        then cleared, so the UI can suggest turning MPE on. Any thread. */
+    bool takeMpeTrafficDetected() noexcept { return mpeTrafficDetected.exchange (false, std::memory_order_relaxed); }
     bool isMpeEnabled() const noexcept { return mpeEnabled; }
 
     /** SPEC-SWEEP (CT-17): the MPE zone's master channel (1 for a lower zone).
@@ -263,6 +267,8 @@ public:
     void allNotesOff (PlayEventQueue& out) noexcept;
 
 private:
+    juce::uint32 mpeChannelsWithNotes = 0;                // SPEC-SWEEP HI-37
+    std::atomic<bool> mpeTrafficDetected { false };       // SPEC-SWEEP HI-37
     int pendingStrumDirection = 0;   // SPEC-SWEEP SD-5
     struct PendingNote
     {

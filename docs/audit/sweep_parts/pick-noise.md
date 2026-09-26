@@ -16,7 +16,7 @@ Pool degradation, the pick illustration and the audio-thread allocation test exi
 | PN-3 (§1) | Degradation step 4 halves every pool | `NoiseEngine::setDegraded` (no caller here) | n/a | - | OWNED (on visual: CpuRelief `halveNoisePools` calls `setDegraded`; CpuReliefTests) |
 | PN-4 (§1) | Per-material noise textures synthesised once, read at a random offset — only 5 shared texture classes, not one per material | `NoiseEngine::prepare` (`NoiseTexture` enum) | n/a | `NoisePool.aSeedRepeatsExactly` | DEFERRED |
 | PN-5 (§1.1) | Generator = excitation → 1-3 pole resonator → envelope | `DSP/Noise/NoiseEngine.h:NoiseGenerator` | n/a | `NoisePool.aSeedRepeatsExactly` | DONE |
-| PN-6 (§1.2) | Click enters the excitation; chirp, scrape and other classes enter pre-body — no test that noise goes through body/pickup | `NoiseEngine::process` (excitation vs surface out); `LuthierEngine.cpp` string loop | n/a | - | NO-TEST |
+| PN-6 (§1.2) | Click enters the excitation; chirp, scrape and other classes enter pre-body — no test that noise goes through body/pickup | `NoiseEngine::process` (excitation vs surface out); `LuthierEngine.cpp` string loop | n/a | `NoisePool.clickIsExcitationAndTheRestAreSurface` | DONE |
 | PN-7 (§1.3) | Aux 8 carries the sum of all noise | `LuthierEngine.cpp` aux8; `Routing/RoutingMatrix` | ADVANCED > ROUTING, Aux 8 strip | `PluginBuses.aux8CarriesThePlayingNoiseAndObeysItsStrip` | DONE |
 | PN-8 (§2, §2.1) | `pick_material`, default Celluloid, 8 materials — Ultex, Tortex and Stone/horn missing (DECISIONS.md keeps the 12-choice list) | `PlayingNoise::getPickMaterial`; `Parameters::pickMaterialNames` | CHARACTER > PICK, `NoiseGroups::pickMaterial` | `PickNoise.clickPitchTracksMaterialAndThickness` | DEFERRED |
 | PN-9 (§2, §7) | `pick_thickness` 0.38-3 mm, default 0.73 — shipped default 0.5 normalised decodes to 1.07 mm | `Parameters.cpp:486`, `Parameters::pickThicknessMm`; `PhysicalRange.cpp:125` | CHARACTER > PICK, `NoiseGroups::pickThickness` | `Ranges.stockMatchesTheDeclaredRange` | DEFERRED |
@@ -37,7 +37,7 @@ Pool degradation, the pick illustration and the audio-thread allocation test exi
 | PN-T2 (§9) | Test: nylon 0.6 mm clicks an octave above metal 3 mm | - | - | `PickNoise.clickPitchTracksMaterialAndThickness` | DONE |
 | PN-T3 (§9) | Test: angle lowers click and raises chirp | - | - | `PickNoise.angleTradesClickForChirp` | DONE |
 | PN-T4 (§9) | Test: plain strings never chirp, every factory guitar | - | - | `PickNoise.plainStringsNeverChirp` | DONE |
-| PN-T5 (§9) | Test: two bodies give different click spectra; amount 0 is bit-identical to noise off — missing | - | - | - | NO-TEST |
+| PN-T5 (§9) | Test: two bodies give different click spectra; amount 0 is bit-identical to noise off — missing | - | - | `PickNoise.noiseRidesTheInstrument` | DONE |
 | PN-T6 (§9) | Test: zero amounts take no generator over 10 000 notes | - | - | `NoisePool.zeroIsFree` | DONE |
 | PN-T7 (§9) | Test: 20 clicks into a 16-pool | - | - | `NoisePool.aFullPoolStealsTheOldest` | DONE |
 | PN-T8 (§9) | Test: no audio-thread allocation for noise | - | - | - | OWNED (on visual: `Engine.fiveMinutesOfPlaybackNeitherAllocatesNorLocks`) |

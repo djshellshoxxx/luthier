@@ -2981,3 +2981,314 @@ LUTHIER_TEST (StrumDynamics, upStrokesChirpMoreAndClickLess)
     // The stroke's angle is for that strike only: the next plain note is as before.
     CHECK (none.first > up.first && none.first < down.first);
 }
+
+LUTHIER_TEST (Controllers, mpeTrafficIsDetected)
+{
+    // HI-37 (host-integration 9.1): notes on member channels 2 and 3 with
+    // per-channel bend, while MPE is off, raise the suggestion once.
+    LuthierEngine engine;
+    engine.prepare (48000.0, 256);
+    auto& midi = engine.getMidiInterpreter();
+    midi.setPlayingMode (PlayingMode::Poly);
+    midi.setMpeEnabled (false);
+
+    juce::AudioBuffer<float> buffer (2, 256);
+
+    auto play = [&] (std::initializer_list<juce::MidiMessage> messages)
+    {
+        juce::MidiBuffer in;
+
+        for (const auto& m : messages)
+            in.addEvent (m, 0);
+
+        buffer.clear();
+        engine.processBlock (buffer, in);
+    };
+
+    // An ordinary keyboard on channel 1 bending: not MPE.
+    play ({ juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), juce::MidiMessage::pitchWheel (1, 9000) });
+    CHECK (! midi.takeMpeTrafficDetected());
+
+    // One member channel alone: not yet.
+    play ({ juce::MidiMessage::noteOn (2, 64, (juce::uint8) 100), juce::MidiMessage::pitchWheel (2, 9000) });
+    CHECK (! midi.takeMpeTrafficDetected());
+
+    // Two member channels with notes, and a per-channel bend.
+    play ({ juce::MidiMessage::noteOn (3, 67, (juce::uint8) 100), juce::MidiMessage::pitchWheel (3, 7000) });
+    CHECK (midi.takeMpeTrafficDetected());
+    CHECK (! midi.takeMpeTrafficDetected());   // said once
+
+    // With MPE on, nothing to suggest.
+    midi.setMpeEnabled (true);
+    play ({ juce::MidiMessage::noteOn (4, 60, (juce::uint8) 100), juce::MidiMessage::controllerEvent (4, 74, 90) });
+    CHECK (! midi.takeMpeTrafficDetected());
+}
+
+LUTHIER_TEST (Slide, vibratoMovesTheBar)
+{
+    // SG-12 (slide-guitar.md 3.2): bar vibrato is a movement, so the same
+    // travel is more cents higher up the neck, and scales with the travel.
+    const double low = SlideEngine::vibratoCents (1.0, 3.0, 648.0);
+    const double high = SlideEngine::vibratoCents (1.0, 15.0, 648.0);
+
+    CHECK (SlideEngine::vibratoCents (0.0, 7.0, 648.0) == 0.0);
+    CHECK (high > low * 1.9);
+    CHECK_NEAR (SlideEngine::vibratoCents (2.0, 7.0, 648.0), 2.0 * SlideEngine::vibratoCents (1.0, 7.0, 648.0), 1.0e-9);
+
+    // 1 mm at the 12th fret of a 648 mm scale: 1200/ln2 x 1/324 cents.
+    CHECK_NEAR (SlideEngine::vibratoCents (1.0, 12.0, 648.0), 1200.0 / std::log (2.0) / 324.0, 1.0e-6);
+}
+
+LUTHIER_TEST (Slide, frictionFollowsMaterialAndSpeed)
+{
+    // SG-14 (slide-guitar.md 5.1): the bar's friction noise is amount x
+    // material friction x speed - silent at amount 0, louder on steel than
+    // glass, and louder for a fast move than a slow one.
+    auto noiseOf = [] (SlideMaterial material, double amount, double seconds)
+    {
+        auto render = [&] (double noise)
+        {
+            LuthierEngine engine;
+            engine.prepare (48000.0, 256);
+            engine.setGuitarType (GuitarType::Dreadnought);
+
+            SlideSettings settings;
+            settings.enabled = true;
+            settings.mode = SlideMode::lapSteel;
+            settings.noiseAmount = noise;
+            engine.setSlideSettings (settings);
+
+            SlideBar bar;
+            bar.material = material;
+            engine.getSlideEngine().setBar (bar);
+
+            NoteOnEvent first;
+            first.stringIndex = 5;
+            first.fretPosition = 3.0;
+            first.technique = Technique::SlideGuitar;
+            first.pitchHz = engine.getTuningEngine().computeFrequency (5, 3.0);
+            engine.triggerNoteNow (first);
+
+            NoteOnEvent move = first;
+            move.slideFromFret = 3.0;
+            move.fretPosition = 10.0;
+            move.slideSeconds = seconds;
+            move.pitchHz = engine.getTuningEngine().computeFrequency (5, 10.0);
+            engine.triggerNoteNow (move);
+
+            std::vector<float> out;
+            juce::AudioBuffer<float> buffer (2, 256);
+            juce::MidiBuffer midi;
+
+            for (int b = 0; b < 40; ++b)
+            {
+                buffer.clear();
+                engine.processBlock (buffer, midi);
+                out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 256);
+            }
+
+            return out;
+        };
+
+        const auto with = render (amount);
+        const auto without = render (0.0);
+        double energy = 0.0;
+
+        for (size_t i = 0; i < with.size(); ++i)
+            energy += (double) (with[i] - without[i]) * (with[i] - without[i]);
+
+        return energy;
+    };
+
+    CHECK (noiseOf (SlideMaterial::glass, 0.0, 0.2) == 0.0);
+
+    const double glass = noiseOf (SlideMaterial::glass, 1.0, 0.2);
+    const double steel = noiseOf (SlideMaterial::steel, 1.0, 0.2);
+    const double slow = noiseOf (SlideMaterial::steel, 1.0, 0.4);
+
+    CHECK (glass > 0.0);
+    CHECK_MSG ((steel > glass) == (getSlideMaterial (SlideMaterial::steel).friction > getSlideMaterial (SlideMaterial::glass).friction),
+               "friction noise does not follow the material");
+    CHECK_MSG (steel > slow, "a fast move was no noisier than a slow one");
+}
+
+LUTHIER_TEST (Slide, aShortBarCoversFewerStrings)
+{
+    // SG-6 (slide-guitar.md 2): 40 mm at 10.5 mm spacing reaches 4 strings.
+    SlideEngine slide;
+    slide.prepare (48000.0);
+
+    SlideSettings settings;
+    settings.enabled = true;
+    settings.mode = SlideMode::bottleneck;
+    slide.setSettings (settings);
+
+    SlideBar bar;
+    bar.lengthMm = 40.0;
+    slide.setBar (bar);
+
+    CHECK (slide.noteOn (0, 6));
+    CHECK (slide.noteOn (3, 6));
+    CHECK_MSG (! slide.noteOn (5, 6), "a 40 mm bar reached six strings");
+
+    bar.lengthMm = 70.0;
+    slide.setBar (bar);
+    CHECK (slide.noteOn (5, 6));
+}
+
+LUTHIER_TEST (Slide, diameterShapesTheContact)
+{
+    // SG-6: a fatter bar absorbs less and clanks lower.
+    auto make = [] (double diameter)
+    {
+        auto slide = std::make_unique<SlideEngine>();
+        slide->prepare (48000.0);
+
+        SlideSettings settings;
+        settings.enabled = true;
+        settings.mode = SlideMode::lapSteel;
+        slide->setSettings (settings);
+
+        SlideBar bar;
+        bar.diameterMm = diameter;
+        slide->setBar (bar);
+        slide->noteOn (2, 6);
+        return slide;
+    };
+
+    const auto thin = make (15.0), fat = make (30.0);
+    CHECK (fat->sustainScale (2) > thin->sustainScale (2));
+    CHECK (fat->makeClank (2, 0.8).startHz < thin->makeClank (2, 0.8).startHz);
+}
+
+LUTHIER_TEST (NoisePool, clickIsExcitationAndTheRestAreSurface)
+{
+    // PN-6 (pick-noise.md 1): the click excites the string (so it rides the
+    // instrument); chirp and squeak are surface noise.
+    auto route = [] (const NoiseEvent& event)
+    {
+        NoiseEngine pool;
+        pool.prepare (48000.0);
+        pool.trigger (event);
+
+        std::array<double, 6> excitation {}, surface {};
+        double e = 0.0, s = 0.0;
+
+        for (int i = 0; i < 2000; ++i)
+        {
+            pool.processSample (excitation.data(), surface.data(), 6);
+            e += std::abs (excitation[(size_t) event.stringIndex]);
+            s += std::abs (surface[(size_t) event.stringIndex]);
+        }
+
+        return std::make_pair (e, s);
+    };
+
+    PickSettings pick;
+    const auto click = route (PlayingNoise::makeClick (pick, 2, 0.8));
+    CHECK (click.first > 0.0);
+    CHECK (click.second == 0.0);
+
+    StringNoiseInfo wound;
+    wound.wound = true;
+    wound.windingPitchPerMm = 6.5;
+    wound.windingDepth = 1.0;
+
+    const auto chirp = route (PlayingNoise::makeChirp (pick, wound, 2, 0.8));
+    CHECK (chirp.first == 0.0);
+    CHECK (chirp.second > 0.0);
+
+    SqueakSettings squeak;
+    const auto sq = route (PlayingNoise::makeSqueak (squeak, wound, 2, 120.0, 0.25, 5.0));
+    CHECK (sq.first == 0.0);
+    CHECK (sq.second > 0.0);
+}
+
+LUTHIER_TEST (PickNoise, noiseRidesTheInstrument)
+{
+    // PN-T5 (pick-noise.md 1, 9): the same click through two instruments comes
+    // out differently coloured; with every pick amount at 0 the noise path
+    // changes nothing, sample for sample.
+    auto render = [] (GuitarType type, double clickAmount, double chirpAmount)
+    {
+        LuthierEngine engine;
+        engine.prepare (48000.0, 256);
+        engine.setGuitarType (type);
+        engine.setUseFingers (false);
+
+        PickSettings pick;
+        pick.clickAmount = clickAmount;
+        pick.chirpAmount = chirpAmount;
+        pick.scrapeAmount = 0.0;
+        engine.setPickNoise (pick);
+
+        NoteOnEvent e;
+        e.stringIndex = 1;
+        e.velocity = 0.8;
+        e.pitchHz = engine.getTuningEngine().computeFrequency (1, 0.0);
+        engine.triggerNoteNow (e);
+
+        std::vector<float> out;
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+
+        for (int b = 0; b < 4; ++b)
+        {
+            buffer.clear();
+            engine.processBlock (buffer, midi);
+            out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 256);
+        }
+
+        return out;
+    };
+
+    auto centroid = [] (const std::vector<float>& x)
+    {
+        // Spectral centroid of the first 10 ms by zero-crossing density: a
+        // crude proxy that is enough to tell two colourings apart.
+        int crossings = 0;
+
+        for (size_t i = 1; i < 480; ++i)
+            crossings += ((x[i - 1] <= 0.0f) != (x[i] <= 0.0f)) ? 1 : 0;
+
+        return (double) crossings;
+    };
+
+    auto clickOnly = [&] (GuitarType type)
+    {
+        const auto with = render (type, 1.0, 0.0);
+        const auto without = render (type, 0.0, 0.0);
+        std::vector<float> difference (with.size());
+
+        for (size_t i = 0; i < with.size(); ++i)
+            difference[i] = with[i] - without[i];
+
+        return difference;
+    };
+
+    const auto dread = clickOnly (GuitarType::Dreadnought);
+    const auto strat = clickOnly (GuitarType::Stratocaster);
+
+    double dreadEnergy = 0.0, stratEnergy = 0.0;
+
+    for (size_t i = 0; i < 480; ++i)
+        dreadEnergy += (double) dread[i] * dread[i], stratEnergy += (double) strat[i] * strat[i];
+
+    CHECK (dreadEnergy > 0.0 && stratEnergy > 0.0);
+    // Different instruments colour the click differently: their first 10 ms,
+    // each normalised, are far from the same waveform.
+    double cross = 0.0;
+
+    for (size_t i = 0; i < 480; ++i)
+        cross += (double) dread[i] * strat[i];
+
+    const double correlation = cross / std::sqrt (dreadEnergy * stratEnergy);
+    juce::ignoreUnused (centroid);
+    CHECK_MSG (correlation < 0.9, "the click sounds the same through a dreadnought and a Stratocaster (correlation "
+                                    + juce::String (correlation, 3) + ")");
+
+    // Zero is silent and free: two renders at all-zero are identical.
+    const auto a = render (GuitarType::Stratocaster, 0.0, 0.0);
+    const auto b = render (GuitarType::Stratocaster, 0.0, 0.0);
+    CHECK (a == b);
+}

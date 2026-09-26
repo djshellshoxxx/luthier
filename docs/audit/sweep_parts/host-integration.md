@@ -40,7 +40,7 @@ The core host surface is in place and tested: VST3/AU/Standalone (plus optional 
 | HI-34 (§7) | Sample-accurate MIDI in/out timestamps | `MidiOutRouter` | n/a | `Routing::midiOutPassThroughIsSampleExact`, `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` | DONE |
 | HI-35 (§8) | Instances fully independent, no shared state beyond settings/content — untested here | per-instance members | n/a | - (visual `Stress::thirtyTwoInstancesRenderInTurn`) | OWNED |
 | HI-36 (§9.1) | Ableton: first program change after state restore swallowed | `setCurrentProgram`, `ignoreNextProgramChange` | n/a | `StateModel::aProgramChangeRightAfterAStateRestoreDoesNotWipeIt` | DONE |
-| HI-37 (§9.1) | Ableton MPE auto-detect from channel-1-plus-member traffic — no auto-detect; MPE is a chosen profile | - | n/a | - | MISSING |
+| HI-37 (§9.1) | Ableton MPE auto-detect from channel-1-plus-member traffic — no auto-detect; MPE is a chosen profile | `MidiInterpreter` flags member-channel bend/CC74 traffic while MPE is off | notification in the editor (id mpe-detected) | `Controllers.mpeTrafficIsDetected` | DONE |
 | HI-38 (§9.2) | Logic: state < 500 KB via guitar file refs — refs used when saved; never measured | `getStateInformation` preset guitar ref | n/a | `HostState.typicalStateIsSmall` | DONE |
 | HI-39 (§9.2) | Logic: routing panel exposes the PC / Bank Select mapping mode — no such control | `PluginProcessor.cpp` PC -> snapshot, CC0 -> preset (fixed) | none | - | MISSING |
 | HI-40 (§9.2) | prepareToPlay idempotent and fast | `prepareToPlay` | n/a | `HostState::aSessionSurvivesThePrepareThatFollowsIt`, `Engine::sampleRateChangesAreSurvived` | DONE |
@@ -57,6 +57,6 @@ The core host surface is in place and tested: VST3/AU/Standalone (plus optional 
 | HI-51 (§15) | Test: host format switching VST3 -> AU -> VST3 (macOS) — manual host test | - | n/a | - | DEFERRED |
 | HI-52 (§15) | Test: transport follow play/stop/seek with rhythm engine and tune builder together | processBlock transport | n/a | `TunePlayer::theHostWinsWhenItPlaysAndTheClockRunsWhenItDoesNot` (tune only) | PARTIAL |
 | HI-53 (§15) | Test: state round trip in every host; MIDI I/O in every host | - | n/a | `Combo::sessionStateRoundTripReproducesAudio` (in-process only) | DEFERRED |
-| HI-54 (§16) | `docs/HOST_COMPATIBILITY.md` documents every §9 quirk — file missing | - | n/a | - | MISSING |
+| HI-54 (§16) | `docs/HOST_COMPATIBILITY.md` documents every §9 quirk — file missing | docs/HOST_COMPATIBILITY.md | n/a | n/a | DONE |
 
 <!-- counts DONE=26 NO-GUI=0 NO-TEST=4 PARTIAL=12 MISSING=10 OWNED=4 -->

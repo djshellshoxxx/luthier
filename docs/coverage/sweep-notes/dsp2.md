@@ -22,3 +22,6 @@
 - [PT-22] Bug: `Looper::save` took getDynamicObject() of a temporary settings var, so it wrote through a freed object. Every loop save could crash or write garbage. Fixed by keeping the var alive.
 - [SD-5] Stroke direction gives the tone: a down-stroke is -8 degrees steeper with 8 % more brightness, an up-stroke +12 degrees shallower with 6 % less. The angle applies to that strike only, both to the excitation and to the pick noise (click via cos, chirp via sin).
 - RhythmPatterns::processBlockDoesNotAllocate ("the writer thread only published 8") failed once under heavy machine load and passes alone. It is timing-sensitive, not a regression.
+- [SG-6] In bottleneck, lap-steel and dobro modes the bar reaches floor(length / 10.5 mm) + 1 strings. A note beyond that span from the strings already under it is played fretted. Diameter scales the contact loss by (22/d)^0.3 and the clank pitch by (22/d)^0.15, so the 22 mm default is unchanged.
+- [HI-37] MPE-shaped input seen while MPE is off (notes on 2 or more member channels 2-16, plus a per-channel bend or CC 74) posts an info notification suggesting MPE, once per detection. MPE is not switched on automatically.
+- Controllers::cc11MovesTheMasterLevel fails on the merged tip without my changes (0.528 vs 0.5). It is not dsp2s.
