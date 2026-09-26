@@ -199,6 +199,9 @@ public:
         modules that do not live in the parameter tree. */
     bool captureSnapshot (int index, const juce::String& label = {}, int colourTag = -1);
 
+    /** SPEC-SWEEP: MM-49 - whether a snapshot carries the mod matrix. */
+    bool setSnapshotIncludesModulation (int index, bool includes);
+
     /** Recalls a snapshot. The crossfade is carried by the audio thread's own
         clock, so this returns before the fade has finished. */
     bool recallSnapshot (int index);

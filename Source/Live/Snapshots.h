@@ -76,6 +76,10 @@ struct Snapshot
         Absent in snapshots saved before it; those recall as normalised. */
     juce::var physicalPlain;
 
+    /*  SPEC-SWEEP: MM-49 - modulation-matrix 6: a snapshot either carries the
+        matrix (the default) or is "preset-level only" and leaves it alone. */
+    bool includesModulation = true;
+
     /** The state of the systems that do not live in the parameter tree. */
     juce::var modMatrix;
     juce::var rhythm;

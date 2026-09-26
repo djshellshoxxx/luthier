@@ -105,6 +105,9 @@ juce::var Snapshot::toVar() const
     if (physicalPlain.getDynamicObject() != nullptr)   // SPEC-SWEEP: AR-21
         object->setProperty ("physical", physicalPlain);
 
+    if (! includesModulation)                           // SPEC-SWEEP: MM-49
+        object->setProperty ("includesModulation", false);
+
     if (modMatrix.getDynamicObject() != nullptr) object->setProperty ("modMatrix", modMatrix);
     if (rhythm.getDynamicObject() != nullptr)    object->setProperty ("rhythm", rhythm);
     if (bypasses.getDynamicObject() != nullptr)  object->setProperty ("bypasses", bypasses);
@@ -129,6 +132,8 @@ Snapshot Snapshot::fromVar (const juce::var& state)
 
     snapshot.parameters = object->getProperty ("parameters");
     snapshot.physicalPlain = object->getProperty ("physical");   // SPEC-SWEEP: AR-21
+    snapshot.includesModulation = ! object->hasProperty ("includesModulation")
+                                    || (bool) object->getProperty ("includesModulation");   // SPEC-SWEEP: MM-49
     snapshot.modMatrix  = object->getProperty ("modMatrix");
     snapshot.rhythm     = object->getProperty ("rhythm");
     snapshot.bypasses   = object->getProperty ("bypasses");

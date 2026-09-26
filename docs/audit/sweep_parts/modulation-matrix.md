@@ -52,7 +52,7 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-46 (§5) | Right-click any control -> Modulate submenu creates a route | `UI/Widgets.cpp` kModulateMenuBase | any `AttachedKnob` right-click | `Editor::rightClickOffersModulationAndBuildsTheRoute` | DONE |
 | MM-47 (§5, §7) | Depth arc drawn around modulated controls — untested | `Widgets.cpp` "modulation arc" paint | every `AttachedKnob` | - | NO-TEST |
 | MM-48 (§5) | Per-source user colour tag; routes and arcs inherit; defaults alternate accents — arc is always `Palette::secondary` | - | - | - | MISSING |
-| MM-49 (§6) | Snapshot flag "includes modulation" vs "preset-level only" — snapshots always capture the matrix | `LuthierAudioProcessor::captureSnapshot` | - | - | MISSING |
+| MM-49 (§6) | Snapshot flag "includes modulation" vs "preset-level only" | `Snapshot::includesModulation`, `LuthierAudioProcessor::setSnapshotIncludesModulation`, `captureSnapshot` | LIVE snapshot pad right-click "Includes modulation" | `Live::aPresetLevelOnlySnapshotLeavesTheMatrixAlone` | DONE |
 | MM-50 (§6) | Import validates destination IDs and warns on unknown — list collected, no user-visible warning, and preset files carry no matrix | `ModMatrix::getUnknownDestinations` | - | `Modulation::unknownDestinationsAreReportedNotFatal` | PARTIAL |
 | MM-51 (§7) | Automation moves base/control; modulation does not move the control; both stack — untested | `ParameterBridge` reads param then `ModMatrix::apply` | knob + arc | `Modulation::automationAndModulationStack` | DONE |
 | MM-T1 (§8) | Test: each source's expected output (LFO freq, EG times, S+H hold) | n/a | n/a | `Modulation::lfoFrequencyIsAccurate`, `Modulation::envelopeStageTimesAreAccurate`, `Modulation::sampleAndHoldHoldsForAWholeCycle` | DONE |
@@ -61,4 +61,4 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-T4 (§8) | Test: 5-option selector changes at 1/5..4/5 | n/a | n/a | `Modulation::discreteDestinationsStepAtBoundaries` | DONE |
 | MM-T5 (§8) | Test: seeded random renders byte-identical | n/a | n/a | `Modulation::randomSourcesAreDeterministic` | DONE |
 
-<!-- counts DONE=39 NO-GUI=0 NO-TEST=3 PARTIAL=8 MISSING=5 OWNED=1 -->
+<!-- counts DONE=40 NO-GUI=0 NO-TEST=3 PARTIAL=8 MISSING=4 OWNED=1 -->

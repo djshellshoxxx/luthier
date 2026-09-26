@@ -450,3 +450,36 @@ LUTHIER_TEST (Modulation, automationAndModulationStack)
     *gain = 0.5f;
     CHECK_NEAR (m.apply (index, gain->get()) - m.apply (index, 0.3f), 0.2f, 1.0e-3f);
 }
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-49 - a "preset-level only" snapshot leaves the matrix alone
+    on recall, and the flag survives the snapshot's round trip. */
+LUTHIER_TEST (Live, aPresetLevelOnlySnapshotLeavesTheMatrixAlone)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    processor.getSnapshots().setCrossfadeMs (0.0);
+    auto& m = processor.getModMatrix();
+
+    CHECK (processor.captureSnapshot (0, "No routes"));
+    CHECK (processor.captureSnapshot (1, "Level only"));
+    CHECK (processor.setSnapshotIncludesModulation (1, false));
+
+    ModRoute route;
+    route.sourceId = "macro1";
+    route.destinationId = ParamIDs::ampGain;
+    route.depth = 0.5f;
+    CHECK (m.addRoute (route));
+
+    // The preset-level snapshot keeps the route that exists now...
+    CHECK (processor.recallSnapshot (1));
+    CHECK (m.getNumRoutes() == 1);
+
+    // ...the full one brings back its empty matrix.
+    CHECK (processor.recallSnapshot (0));
+    CHECK (m.getNumRoutes() == 0);
+
+    const auto restored = Snapshot::fromVar (processor.getSnapshots().getSnapshot (1).toVar());
+    CHECK (! restored.includesModulation);
+    CHECK (Snapshot::fromVar (processor.getSnapshots().getSnapshot (0).toVar()).includesModulation);
+}
