@@ -40,6 +40,9 @@
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "FirstEncounterHint.h"
+#include "TuneSetlistStrip.h"
+#include "TuneLayersStrip.h"
 #include "../Tune/TuneSession.h"
 
 #include <cmath>
@@ -69,6 +72,7 @@ public:
     enum MenuItem
     {
         renameItem = 1, duplicateItem, deleteItem, addItem, customRepeatItem, stateBoundaryItem, unlinkItem,
+        varyItem,           ///< 3.3 "Vary" (TUNE-HELP-ONBOARDING)
         repeatBase = 100,   ///< + 1, 2, 3, 4, 8
         roleBase = 200,     ///< + SectionRole
         linkBase = 300      ///< + the section to link the rhythm to
@@ -91,6 +95,24 @@ public:
 
     void setPlayhead (const TunePlayhead& playhead);
 
+    //==========================================================================
+    // 3.3, TUNE-HELP-ONBOARDING: "Drag sections to reorder", "Vary", and
+    // dragging a tab into the setlist timeline.
+
+    /** The slot (0 .. number of sections) a tab dropped at x lands in. */
+    int dropSlotAt (int x) const;
+    bool moveSectionTo (int fromIndex, int toSlot);
+    int varySection (int sectionIndex);
+
+    /** A tab dragged, while it moves and when it is let go, with the mouse in
+        screen coordinates; returns true when the panel took the drop (the
+        setlist), so the strip does not also reorder. */
+    std::function<void (int sectionIndex, juce::Point<int> screen)> onTabDragged;
+    std::function<bool (int sectionIndex, juce::Point<int> screen)> onTabDropped;
+
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+
     static juce::Colour colourForRole (SectionRole role);
     static juce::String getRoleName (SectionRole role);
 
@@ -104,6 +126,10 @@ private:
     TuneSession& session;
     TunePlayhead playhead;
 
+    int dragTab = -1, dropSlot = -1;
+    bool draggingTab = false;
+    int varySeed = 1;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TuneSectionStrip)
 };
 
@@ -111,9 +137,17 @@ private:
 /** The chord pills (3.2): one per cell of the selected section, as wide as
     it lasts, coloured by its function in the key, with the beat marker when
     the section is playing (gui-engine-dataflow 24). */
-class TuneChordPills : public juce::Component
+class TuneChordPills : public juce::Component,
+                       public juce::SettableTooltipClient
 {
 public:
+    /** 3.2's right-click menu. */
+    enum MenuItem
+    {
+        editItem = 1, insertBeforeItem, insertAfterItem, duplicateItem, deleteItem, copyItem, pasteItem,
+        substitutionBase = 100   ///< + the substitution's index in suggestSubstitutions
+    };
+
     explicit TuneChordPills (TuneSession& session);
 
     /** The Palette role a degree is shown in; non-diatonic chords are neutral. */
@@ -121,22 +155,88 @@ public:
 
     void setPlayhead (const TunePlayhead& playhead);
 
+    /** The strum patterns the popover offers as overrides (the panel supplies them). */
+    std::function<juce::StringArray()> getPatternNames;
+
+    //==========================================================================
+    // 3.2, TUNE-HELP-ONBOARDING: what the mouse does, callable from tests.
+
+    /** Where a cell's pill is drawn, and the cell under a point (-1 for none). */
+    juce::Rectangle<int> getCellBounds (int cellIndex) const;
+    int getCellAt (juce::Point<int> position) const;
+    bool isOnRightEdge (int cellIndex, juce::Point<int> position) const;
+
+    juce::PopupMenu buildMenu (int cellIndex) const;
+    void performMenuItem (int cellIndex, int itemId);
+
+    /** "Drag a cell's right edge to change duration in beats": the beats the
+        edge at `x` stands for, snapped to half a beat, at least half a beat. */
+    double beatsForEdgeAt (int cellIndex, int x) const;
+    bool resizeCell (int cellIndex, double beats);
+
+    /** "Drag a cell left / right to reorder": the slot a drop at `x` lands in. */
+    int dropIndexAt (int x) const;
+    bool moveCell (int fromIndex, int toIndex);
+
+    /** Click: the popover (TuneChordEditor). */
+    void openEditor (int cellIndex);
+
+    static bool hasClipboard() noexcept;
+
     void paint (juce::Graphics&) override;
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
 
 private:
+    double sectionBeats() const;
+
     TuneSession& session;
     TunePlayhead playhead;
+
+    enum class Drag { none, pending, resize, move };
+    Drag drag = Drag::none;
+    int dragCell = -1;
+    int dropIndex = -1;
+    double dragBeats = 0.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TuneChordPills)
 };
 
 //==============================================================================
-/** The melody piano roll (3.4) for the selected section. */
+/** The piano roll (3.4) for the selected section: the melody, or - tune-builder
+    6 and 7's "same piano-roll editor" - the manual bass line or the
+    countermelody layer. Implemented in TunePianoRoll.cpp (TUNE-HELP-ONBOARDING
+    added the note menu, multi-select, clipboard, nudge and the targets).
+
+    Mouse: click-drag on empty space draws a note (Draw on); Shift-drag, or any
+    drag with Draw off, draws a selection box; click a note to select it,
+    Shift-click to add or remove it; drag a selected note to move the selection;
+    right-click a note for velocity, articulation, technique, lock and delete.
+    Keys (with the roll focused): arrows nudge (left/right by the grid, up/down
+    by a scale step, or a semitone in chromatic; Shift for a bar or an octave),
+    Delete removes, Ctrl+X / C / V cut, copy and paste, Ctrl+A selects all,
+    Escape deselects. Every edit is a manual one, so it locks the notes it
+    touches (0.3). */
 class TunePianoRoll : public juce::Component,
                       public juce::SettableTooltipClient
 {
 public:
+    enum class Target { melody = 0, bass, countermelody };
+
+    enum MenuItem
+    {
+        deleteItem = 1, lockItem, unlockItem, cutItem, copyItem, pasteItem, selectAllItem,
+        velocityBase = 100,       ///< + velocity (1..127)
+        articulationBase = 300,   ///< + NoteArticulation
+        techniqueBase = 400       ///< + NoteTechnique
+    };
+
     explicit TunePianoRoll (TuneSession& session);
+
+    void setTarget (Target newTarget);
+    Target getTarget() const noexcept             { return target; }
 
     void setDrawEnabled (bool enabled) noexcept   { drawEnabled = enabled; }
     bool isDrawEnabled() const noexcept           { return drawEnabled; }
@@ -147,6 +247,11 @@ public:
 
     void setGridBeats (double beats)              { grid = juce::jmax (1.0 / 16.0, beats); repaint(); }
     double getGridBeats() const noexcept          { return grid; }
+
+    /** The notes the roll shows for the selected section and target: stored
+        ones, or for a bass not yet manual, the line its mode generates. */
+    std::vector<MelodyNote> getShownNotes() const;
+    bool isShowingGeneratedBass() const;
 
     /** Draws a note as a click-drag would: start snapped to the grid, pitch to
         the key unless chromatic, at least one grid step long. Locked, because
@@ -161,6 +266,34 @@ public:
 
     int findNoteAt (double beat, int pitch) const;
 
+    //==========================================================================
+    // Selection, clipboard, nudge (3.4)
+    void selectNote (int noteIndex, bool addToSelection);
+    void selectInBox (juce::Rectangle<float> box, bool addToSelection);
+    void selectAll();
+    void clearSelection();
+    const std::vector<int>& getSelection() const noexcept { return selection; }
+
+    bool deleteSelected();
+    bool copySelected();
+    bool cutSelected();
+    /** Pastes at `beat` (snapped), or at the paste point when negative: where
+        the roll was last clicked, or straight after what was copied. */
+    bool paste (double beat = -1.0);
+    static bool hasClipboard() noexcept;
+
+    /** Moves the selection by grid steps and scale steps (semitones in chromatic). */
+    bool nudgeSelected (int gridSteps, int pitchSteps, bool large);
+
+    bool setSelectedVelocity (int velocity);
+    bool setSelectedArticulation (NoteArticulation articulation);
+    bool setSelectedTechnique (NoteTechnique technique);
+    bool setSelectedLocked (bool locked);
+
+    juce::PopupMenu buildNoteMenu() const;
+    void performNoteMenuItem (int itemId);
+
+    //==========================================================================
     /** The pitch and beat a point in the roll stands for, and back. */
     double beatAt (float x) const;
     int pitchAt (float y) const;
@@ -175,20 +308,40 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
+    bool keyPressed (const juce::KeyPress&) override;
 
 private:
     double sectionBeats() const;
+    int pitchOf (const MelodyNote& note) const;
+    int transposeStep (int pitch, int steps, bool large) const;
+
+    /** One undoable change to the target's stored notes. `change` edits the
+        vector; the target's track, manual bass or layer is created as needed.
+        `keep` returns, after the change, the notes to leave selected. */
+    bool editNotes (TuneEditClass editClass, const juce::String& description,
+                    const std::function<bool (std::vector<MelodyNote>&, std::vector<int>& keep)>& change,
+                    int groupTarget = -1);
 
     TuneSession& session;
     TunePlayhead playhead;
+    Target target = Target::melody;
     bool drawEnabled = true;
     bool chromaticMode = false;
     double grid = 0.5;
 
-    // A note being drawn.
-    bool dragging = false;
+    std::vector<int> selection;
+    int selectionSection = -1;
+    double pasteBeat = -1.0;
+
+    // What the mouse is doing.
+    enum class Drag { none, draw, box, move };
+    Drag drag = Drag::none;
     double dragStart = 0.0, dragEnd = 0.0;
     int dragPitch = 60;
+    juce::Point<float> boxStart, boxEnd;
+    double moveBeats = 0.0;
+    int movePitchRows = 0;
+    bool boxAdds = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TunePianoRoll)
 };
@@ -218,6 +371,13 @@ public:
     bool exportMidiTo (const juce::File& file, juce::String& error);
     void newFromTemplate (int templateIndex);
 
+    /** The New menu (templates and example tunes); Ctrl+T from anywhere opens it. */
+    void showNewTuneMenu() { showTemplateMenu(); }
+
+    /** onboarding 6 / 10 path C: opens a shipped example tune as a new, unsaved
+        tune (so Save asks where, and the factory file is never overwritten). */
+    bool openExample (int exampleIndex);
+
     /** The progression field's parse result. */
     juce::String getProgressionError() const   { return progressionError; }
     int getProgressionErrorPosition() const    { return progressionErrorPosition; }
@@ -227,6 +387,12 @@ public:
 
     /** The 30 Hz drain, callable from tests. */
     void updateTransport();
+
+    /** onboarding.md 8 (TUNE-HELP-ONBOARDING): the one-time hint at the top of
+        the tab, in the first session only. The timer calls this while the tab
+        is on screen; the tab grows by the hint's height while it shows. */
+    bool showFirstEncounterHintIfDue();
+    FirstEncounterHint& getFirstEncounterHint() noexcept { return firstHint; }
 
     //==========================================================================
     // For tests: the controls, by what they do.
@@ -240,17 +406,62 @@ public:
     juce::ComboBox& getKeyBox() noexcept             { return keyBox; }
     juce::ComboBox& getModeBox() noexcept            { return modeBox; }
     TuneSectionStrip& getSectionStrip() noexcept     { return sectionStrip; }
+    TuneSetlistStrip& getSetlistStrip() noexcept     { return setlistStrip; }
     juce::TextEditor& getProgressionEditor() noexcept { return progressionEditor; }
     TuneChordPills& getChordPills() noexcept         { return chordPills; }
     juce::ComboBox& getKitBox() noexcept             { return kitBox; }
+    juce::TextButton& getPaletteButton() noexcept    { return paletteButton; }
+    juce::TextButton& getKitTempoButton() noexcept   { return kitTempoButton; }
+
+    /** 2.1 (TUNE-HELP-ONBOARDING): the section kit's chord palette in the key,
+        adding one of its chords, and the kit's suggested tempo and swing. */
+    std::vector<ChordCell> getPaletteChords() const;
+    bool appendPaletteChord (int paletteIndex);
+    bool applyKitTempo();
+
+    /** tune-builder 5's chord tools (TUNE-HELP-ONBOARDING, TuneToolsMenu.cpp):
+        the TOOLS menu beside the progression. */
+    enum ToolsItem
+    {
+        reharmonizeItem = 1, followModeItem,
+        diatonicBase = 100,     ///< + degree (1..7); + 10 for the seventh chord
+        suggestBase = 200,      ///< + suggestion index
+        transposeBase = 300,    ///< + 12 + semitones (-12..12)
+        modeBase = 400          ///< + TuneMode
+    };
+
+    juce::PopupMenu buildToolsMenu() const;
+    void performToolsItem (int itemId);
+    bool isFollowMode() const noexcept { return followMode; }
+
+    /** 4.5 style transfer and 4.3 "Follow chord changes", on the melody row. */
+    juce::ComboBox& getStyleBox() noexcept           { return styleBox; }
+    juce::TextButton& getFollowChordsButton() noexcept { return followChordsToggle.getButton(); }
+    juce::TextButton& getToolsButton() noexcept      { return toolsButton; }
     juce::Slider& getFeelSlider() noexcept           { return feelSlider; }
     juce::Slider& getStrumSlider() noexcept          { return strumSlider; }
     juce::TextButton& getRhythmOnButton() noexcept   { return rhythmOn.getButton(); }
     TunePianoRoll& getPianoRoll() noexcept           { return pianoRoll; }
+    juce::ComboBox& getRollTargetBox() noexcept      { return rollTargetBox; }
+    TuneLayersStrip& getLayersStrip() noexcept       { return *layersStrip; }
     juce::TextButton& getAutoButton() noexcept       { return autoButton; }
     juce::TextButton& getDrawButton() noexcept       { return drawToggle.getButton(); }
     juce::TextButton& getRecordButton() noexcept     { return recordToggle.getButton(); }
     juce::TextButton& getImproviseButton() noexcept  { return improviseToggle.getButton(); }
+    juce::TextButton& getSingButton() noexcept       { return singToggle.getButton(); }
+
+    /** tune-builder 13 (TUNE-HELP-ONBOARDING): Sing on captures the audio input
+        against the section; off transcribes it into the melody. The button is
+        offered only while there is an audio input. */
+    bool startSinging();
+    bool stopSinging();
+
+    /** tune-builder 14: renders the tune once through and puts it in the practice
+        looper's first empty layer (layer 1 when all are full), for practising
+        over. `synchronous` renders here (tests); the button renders on a
+        worker. Returns the samples imported (0 while a worker runs). */
+    int sendToLooper (bool synchronous);
+    juce::TextButton& getToLooperButton() noexcept { return toLooperButton; }
     juce::TextButton& getFreezeButton() noexcept     { return freezeButton; }
     juce::ComboBox& getQuantiseBox() noexcept        { return quantiseBox; }
     juce::TextButton& getBackButton() noexcept       { return backButton; }
@@ -277,6 +488,7 @@ private:
     void chooseAndLoad();
     void chooseAndSave();
     void chooseAndExport();
+    void chooseAndExportMidiFile();
     void showTemplateMenu();
     void showError (const juce::String& title, const juce::String& message);
 
@@ -287,6 +499,8 @@ private:
     bool updating = false;
     TunePlayhead playhead;
 
+    FirstEncounterHint firstHint { FirstEncounterHint::kTuneKey, FirstEncounterHint::kTuneText };
+
     // --- header -------------------------------------------------------------------
     juce::TextEditor titleEditor;
     juce::TextButton newButton { "NEW" }, loadButton { "LOAD" }, saveButton { "SAVE" }, exportButton { "EXPORT" };
@@ -294,6 +508,7 @@ private:
     juce::ComboBox keyBox, modeBox;
 
     // --- sections and progression ----------------------------------------------------
+    TuneSetlistStrip setlistStrip;   // 3.3's timeline, above the tabs
     TuneSectionStrip sectionStrip;
     juce::TextEditor progressionEditor;
     TuneChordPills chordPills;
@@ -306,16 +521,30 @@ private:
     juce::Slider feelSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
     juce::Slider strumSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
     LuthierToggle rhythmOn { "ON" };
+    juce::TextButton paletteButton { "PALETTE" }, kitTempoButton { "KIT TEMPO" };
+    juce::TextButton toolsButton { "TOOLS" };
+    juce::ComboBox styleBox;
+    LuthierToggle followChordsToggle { "FOLLOW" };
+    bool followMode = false;
 
     // --- melody -----------------------------------------------------------------------
     TunePianoRoll pianoRoll;
     juce::TextButton autoButton { "AUTO" }, freezeButton { "FREEZE" };
     LuthierToggle drawToggle { "DRAW" }, recordToggle { "RECORD" }, improviseToggle { "IMPROVISE" };
+    LuthierToggle singToggle { "SING" };
+    int singingSection = -1;
     juce::ComboBox quantiseBox;
+
+    // --- bass and layers (6, 7; TUNE-HELP-ONBOARDING) -----------------------------------
+    juce::ComboBox rollTargetBox;   ///< what the roll edits: melody, bass, countermelody
+    std::unique_ptr<TuneLayersStrip> layersStrip;
+    juce::Rectangle<int> layersHeader, rollTargetLabelBounds;
 
     // --- transport ---------------------------------------------------------------------
     juce::TextButton backButton { "<<" }, playButton { "PLAY" }, forwardButton { ">>" };
     LuthierToggle loopToggle { "LOOP" }, countInToggle { "COUNT-IN" }, metronomeToggle { "CLICK" };
+    juce::TextButton toLooperButton { "TO LOOPER" };
+    std::unique_ptr<juce::Thread> looperWorker;
     juce::String positionText;
 
     // Laid out in resized(), drawn in paint().

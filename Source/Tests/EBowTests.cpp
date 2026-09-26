@@ -34,6 +34,11 @@ namespace
 
             processor.setBusesLayout (layout);
             processor.prepareToPlay (kSr, kBlock);
+
+            /*  REALISM-B: the character seed is drawn from the clock per
+                instance, so every rig was a different guitar - dead spots and
+                drift included. A fixed one makes each run the same guitar. */
+            processor.getEngine().getCharacterEngine().setSeed (0x5EEDE80Bull);
         }
 
         /** Runs `seconds`, recording the loudest string's level each block. */
@@ -187,20 +192,33 @@ LUTHIER_TEST (EBow, theHarmonicChoiceTakesTheString)
         rig.run (3.0, Rig::note (true, 52));
 
         const double f0 = 440.0 * std::pow (2.0, (52 - 69) / 12.0);
+
+        /*  REALISM-B: the strongest Hann-windowed bin within 1.5 % of each
+            partial, not one Goertzel bin at the nominal frequency. A second
+            of signal resolves 1 Hz, so a few cents of drift, stretch or a
+            dead spot's detune put the old single bin on the skirt of the
+            peak - the intermittent failure this test was known for. */
         auto power = [&rig] (double f)
         {
             const size_t from = (size_t) (2.0 * kSr), n = (size_t) kSr;
-            const double coeff = 2.0 * std::cos (juce::MathConstants<double>::twoPi * f / kSr);
-            double s1 = 0.0, s2 = 0.0;
+            double best = 0.0;
 
-            for (size_t i = 0; i < n; ++i)
+            for (double g = f * 0.985; g <= f * 1.015; g += f * 0.001)
             {
-                const double s0 = rig.out[from + i] + coeff * s1 - s2;
-                s2 = s1;
-                s1 = s0;
+                double re = 0.0, im = 0.0;
+
+                for (size_t i = 0; i < n; ++i)
+                {
+                    const double w = 0.5 - 0.5 * std::cos (juce::MathConstants<double>::twoPi * (double) i / (double) (n - 1));
+                    const double ph = juce::MathConstants<double>::twoPi * g * (double) i / kSr;
+                    re += rig.out[from + i] * w * std::cos (ph);
+                    im -= rig.out[from + i] * w * std::sin (ph);
+                }
+
+                best = juce::jmax (best, re * re + im * im);
             }
 
-            return s1 * s1 + s2 * s2 - coeff * s1 * s2;
+            return best;
         };
 
         return power (2.0 * f0) / juce::jmax (1.0e-30, power (f0));

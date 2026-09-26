@@ -71,7 +71,7 @@ public:
 
     /** Total records pushed since the last reset, including ones that have
         scrolled out of the ring. */
-    int getTotalRecords() const noexcept { return totalWritten.load(); }
+    int getTotalRecords() const noexcept { return (int) juce::jmin (totalWritten.load(), (int64_t) std::numeric_limits<int>::max()); }
 
     /** Formats one record for display. */
     static juce::String formatRecord (const Record& r, double sampleRate);
@@ -148,8 +148,10 @@ private:
     double sr = 44100.0;
 
     std::array<Record, kRingSize> ring {};
-    std::atomic<int> writeIndex { 0 };
-    std::atomic<int> totalWritten { 0 };
+    // 64-bit: an int wrapped negative after 2^31 records and `% kRingSize`
+    // then indexed before the ring.
+    std::atomic<int64_t> writeIndex { 0 };
+    std::atomic<int64_t> totalWritten { 0 };
 
     mutable juce::CriticalSection infoLock;
     HostInfo hostInfo;
@@ -157,7 +159,7 @@ private:
     std::function<juce::String()> reportSections;   // SPEC-SWEEP INC-29
 
     juce::File crashLogFile;
-    int crashLogFlushedUpTo = 0;
+    int64_t crashLogFlushedUpTo = 0;
     bool crashLogHeaderWritten = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Diagnostics)

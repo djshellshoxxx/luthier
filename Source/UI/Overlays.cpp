@@ -1,5 +1,6 @@
 #include "Overlays.h"
 #include "../PluginProcessor.h"
+#include "../Support/SupportLinks.h"
 
 namespace luthier
 {
@@ -206,8 +207,8 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                 .withTitle (file != juce::File() ? "Troubleshooting file written" : "Could not write the file")
                 .withMessage (file != juce::File()
                                 ? "Written to\n" + file.getFullPathName()
-                                  + "\n\nSend this to support@luthieraudio.example with a description "
-                                    "of the problem."
+                                  + "\n\nSend this to " + juce::String (SupportLinks::supportEmail)
+                                  + " with a description of the problem."   // SupportLinks.h (TUNE-HELP-ONBOARDING)
                                 : "The diagnostics folder could not be written to. Check the folder "
                                   "permissions for Documents/Luthier.")
                 .withButton ("OK"),

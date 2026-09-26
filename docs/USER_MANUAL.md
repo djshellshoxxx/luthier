@@ -27,6 +27,35 @@ Seven macro knobs cover most of what you will want to change. When you want more
 press **Advanced** at the top right - nothing is hidden there that is not also
 reachable from Easy mode; Advanced just stops summarising.
 
+### The first launch
+
+A fresh install opens in Easy mode on **Single-Cut Crunch**, a finished rock sound,
+so the first note you play already sounds like a guitar. It follows your system's
+high-contrast, reduced-motion, display-scale and language settings, and makes no
+network connection.
+
+A banner under the header offers a **two-minute tour**: twelve stops, one callout
+each, pointing at the control it describes. **Next**, **Back** and **Skip** move
+through it and **Escape** ends it. **Maybe later** brings the offer back next time
+(three times at most); **Don't ask again** means it. The HELP tab's **Take the
+tour** button starts it at any time.
+
+For your first week (seven launches or seven days) new things are marked: every
+panel's `?` pulses the first time you see it, each workspace tab you have not
+opened carries a small dot, and the Workshop wrench, the TUNE tab and the Slide
+switch pulse once.
+
+Three ways in:
+
+- **30 seconds** - play. The default sound is enough.
+- **2 minutes** - take the tour, then press **Randomise** a few times.
+- **5 minutes** - take the tour, load an example tune in the TUNE tab, press play,
+  and swap the guitar in the Workshop while it loops.
+
+Every panel with more than one row of controls has a `?` in its corner: it opens
+Help on that panel. Right-clicking an empty part of an Advanced column offers the
+same, as **Docs**.
+
 ---
 
 ## The header
@@ -215,7 +244,7 @@ A tab strip across the top, one panel behind each tab, in this order:
 | **WORKSHOP** | the bench: swap any part of the guitar, drag pickups, compare builds, Save As Guitar. It takes over columns 3 and 4 while it is open. |
 | **MOD** | the modulation matrix - LFOs, envelopes, step sequencers, envelope followers, macros, a random source, and the route table. |
 | **RHYTHM** | the chord voicer, the strum and fingerpick pattern editors, feel, and genre kits. A bass step grid when the guitar is a bass. |
-| **TUNE** | write a whole tune: sections, a chord progression typed in shorthand, a melody piano roll, and a transport. |
+| **TUNE** | write a whole tune: a setlist timeline and sections (drag, Vary), a chord progression typed in shorthand or edited as pills (popover, drag, substitutions, chord tools), a piano roll for the melody, bass line and countermelody (select, nudge, copy, note menu), Sing into the audio input, bass and layers, a transport with TO LOOPER, example tunes, and one-screen export of audio (with stems), MIDI, notation or the project. |
 | **LIVE** | set up for the stage: the 128-snapshot bank, the setlist, crossfade and morph. |
 | **ROUTING** | bus layout, aux buses 1 to 8 (Aux 8 is the playing noise on its own), per-string outputs, the sidechain and MIDI out. |
 | **TONE MATCH** | impulse-response slots, the cab and EQ match wizards, capture, and the IR library. |
