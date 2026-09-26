@@ -30,6 +30,10 @@ class CircuitResponseView : public juce::Component,
                             private juce::Timer
 {
 public:
+    /** SPEC-SWEEP (GD-2, gui-engine-dataflow 0.2): the spec's drain rate. */
+    static constexpr int kRefreshHz = 30;
+    int getRefreshIntervalMs() const noexcept { return getTimerInterval(); }
+
     explicit CircuitResponseView (LuthierAudioProcessor& processor);
     ~CircuitResponseView() override;
 

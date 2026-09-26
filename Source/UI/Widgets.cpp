@@ -399,9 +399,101 @@ LuthierKnob::LuthierKnob (const juce::String& text, Size s)
     setInterceptsMouseClicks (true, true);
 }
 
+//==============================================================================
+/*  SPEC-SWEEP (UW-35 / GD-17): one 30 Hz timer for every attached knob, shared
+    through a SharedResourcePointer so it exists only while knobs do. Each tick
+    asks each knob whether its modulation arc moved; most answer no after two
+    atomic reads, so a screen of unmodulated knobs costs next to nothing. */
+class ModArcHub : private juce::Timer
+{
+public:
+    ~ModArcHub() override { stopTimer(); }
+
+    void add (LuthierKnob* knob)
+    {
+        knobs.addIfNotAlreadyThere (knob);
+
+        if (! isTimerRunning())
+            startTimerHz (LuthierKnob::kModArcRefreshHz);
+    }
+
+    void remove (LuthierKnob* knob)
+    {
+        knobs.removeAllInstancesOf (knob);
+
+        if (knobs.isEmpty())
+            stopTimer();
+    }
+
+    int getIntervalMs() const noexcept { return getTimerInterval(); }
+
+private:
+    void timerCallback() override
+    {
+        for (int i = knobs.size(); --i >= 0;)
+            if (auto* knob = knobs[i])
+                knob->pollModulationArc();
+    }
+
+    juce::Array<LuthierKnob*> knobs;
+};
+
 LuthierKnob::~LuthierKnob()
 {
+    if (arcHub != nullptr)
+        (*arcHub)->remove (this);
+
     attachment.reset();
+}
+
+bool LuthierKnob::pollLearnPulse (double nowMs)
+{
+    const bool learningThis = processor != nullptr && processor->getMidiLearn().isLearning()
+                               && processor->getMidiLearn().getLearningParameterId() == paramId;
+
+    const bool on = learningThis && LearnPulse::isOn (nowMs);
+
+    if (learningThis == wasLearning && on == learnPulseOn)
+        return false;
+
+    wasLearning = learningThis;
+    learnPulseOn = on;
+    repaint();
+    return true;
+}
+
+bool LuthierKnob::pollModulationArc()
+{
+    // SPEC-SWEEP (GD-30): the learning outline pulses on the hub's clock.
+    if (processor != nullptr && (pollWhileHidden || isShowing()))
+        pollLearnPulse (juce::Time::getMillisecondCounterHiRes());
+
+    if (processor == nullptr || modIndex < 0 || ! (pollWhileHidden || isShowing()))
+        return false;
+
+    auto& matrix = processor->getModMatrix();
+    const bool modulated = matrix.isDestinationModulated (modIndex);
+
+    float norm = 0.0f;
+
+    if (modulated)
+    {
+        const auto range = processor->getState().getParameterRange (paramId);
+        norm = matrix.getOffsetFor (modIndex) / juce::jmax (1.0e-9f, range.end - range.start);
+    }
+
+    // Half a pixel of arc: the arc spans 1.6 pi radians of the knob's radius.
+    const float radius = juce::jmax (4.0f, (float) juce::jmin (getWidth(), getHeight()) * 0.5f);
+    const float threshold = 0.5f / (radius * 1.6f * juce::MathConstants<float>::pi);
+
+    if (modulated == lastArcModulated && std::abs (norm - lastArcNorm) <= threshold)
+        return false;
+
+    lastArcModulated = modulated;
+    lastArcNorm = norm;
+    ++arcRepaints;
+    repaint();
+    return true;
 }
 
 void LuthierKnob::attachTo (LuthierAudioProcessor& p, const juce::String& id, const juce::String& tooltip)
@@ -413,6 +505,14 @@ void LuthierKnob::attachTo (LuthierAudioProcessor& p, const juce::String& id, co
         p.getState(), id, slider);
 
     RangesUi::tagSlider (slider, id);
+
+    // SPEC-SWEEP (UW-35): live modulation arcs.
+    modIndex = p.getParameterBridge().parameterIndex (id);
+
+    if (arcHub == nullptr)
+        arcHub = std::make_unique<juce::SharedResourcePointer<ModArcHub>>();
+
+    (*arcHub)->add (this);
 
     if (tooltip.isNotEmpty())
     {
@@ -615,7 +715,8 @@ void LuthierKnob::paint (juce::Graphics& g)
     if (processor != nullptr && processor->getMidiLearn().isLearning()
         && processor->getMidiLearn().getLearningParameterId() == paramId)
     {
-        g.setColour (Palette::secondary.withAlpha (0.65f));
+        // SPEC-SWEEP (GD-30): at 1 Hz with the header's MIDI Learn button.
+        g.setColour (Palette::secondary.withAlpha (learnPulseOn ? 0.85f : 0.3f));
         g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (1.0f), Metrics::panelCorner, 1.5f);
     }
 }
@@ -814,6 +915,45 @@ void LuthierToggle::attachTo (LuthierAudioProcessor& p, const juce::String& id, 
 
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
         p.getState(), id, button);
+}
+
+void LuthierToggle::setMomentary (bool shouldBeMomentary)
+{
+    momentary = shouldBeMomentary;
+    button.setClickingTogglesState (! momentary);
+
+    if (! momentary)
+    {
+        button.onStateChange = nullptr;
+
+        if (processor != nullptr && paramId.isNotEmpty())
+            attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+                processor->getState(), paramId, button);
+        return;
+    }
+
+    // The attachment writes on click (mouse up); a momentary control writes on
+    // press and on release itself.
+    attachment.reset();
+
+    button.onStateChange = [this]
+    {
+        const bool down = button.isDown();
+
+        if (down == momentaryHeld || processor == nullptr)
+            return;
+
+        momentaryHeld = down;
+
+        if (auto* param = processor->getState().getParameter (paramId))
+        {
+            param->beginChangeGesture();
+            param->setValueNotifyingHost (down ? 1.0f : 0.0f);
+            param->endChangeGesture();
+        }
+
+        button.setToggleState (down, juce::dontSendNotification);
+    };
 }
 
 void LuthierToggle::resized()
@@ -1031,7 +1171,7 @@ OutputLed::OutputLed()
     setInterceptsMouseClicks (false, false);
     setTooltip ("Output level. Dark when silent, white as it approaches 0 dBFS, "
                 "red while the signal is over.");
-    startTimerHz (30);
+    startTimerHz (kRefreshHz);   // SPEC-SWEEP GD-8
 }
 
 OutputLed::~OutputLed()
@@ -1046,16 +1186,37 @@ void OutputLed::setSource (LuthierAudioProcessor* p)
 
 void OutputLed::timerCallback()
 {
+    tick (juce::Time::getMillisecondCounterHiRes());
+}
+
+void OutputLed::tick (double nowMs)
+{
     if (processor == nullptr)
         return;
 
-    const double db = processor->getEngine().getMasterBus().getPeakDb();
+    auto& bus = processor->getEngine().getMasterBus();
+    const auto blocks = bus.getBlockCount();
+
+    if (blocks != lastBlockCount)
+    {
+        lastBlockCount = blocks;
+        lastFreshMs = nowMs;
+    }
+
+    const bool stale = nowMs - lastFreshMs > kStaleMs;
+    const double db = stale ? -200.0 : bus.getPeakDb();
 
     // -inf is the dark grey; brightness rises toward white as the level nears 0 dB.
     const float target = (float) juce::jlimit (0.0, 1.0, (db + 48.0) / 48.0);
 
-    brightness = juce::jmax (target, brightness * 0.86f);
-    overThreshold = (db > 0.0);
+    // A stale reading goes dark at once rather than fading from the last value.
+    brightness = stale ? 0.0f : juce::jmax (target, brightness * 0.93f);
+
+    // Red latches for kRedHoldMs from the last over, then re-evaluates.
+    if (db > 0.0)
+        redSinceMs = nowMs;
+
+    overThreshold = ! stale && (nowMs - redSinceMs) < kRedHoldMs;
 
     repaint();
 }
@@ -1066,10 +1227,10 @@ void OutputLed::paint (juce::Graphics& g)
     const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
     const auto centre = bounds.getCentre();
 
-    const auto dark = juce::Colour (0xff4a4640);
+    const auto dark = darkColour();   // SPEC-SWEEP GD-8: #5A5F66
 
     auto colour = overThreshold
-                    ? Palette::clip
+                    ? redColour()
                     : dark.interpolatedWith (juce::Colours::white, brightness);
 
     // Glow, so a hot signal reads from across the room.

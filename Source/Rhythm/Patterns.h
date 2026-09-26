@@ -60,6 +60,7 @@ Finger fingerFromLetter (juce::juce_wchar letter) noexcept;
 enum class Subdivision
 {
     eighth = 0, eighthTriplet, sixteenth, sixteenthTriplet, thirtySecond,
+    eighthDotted, sixteenthDotted,   // SPEC-SWEEP (RE-22); saved by name, so appending is safe
     numSubdivisions
 };
 

@@ -24,6 +24,7 @@
 #include "CircuitPanel.h"
 #include "AmpFacePanel.h"
 #include "PanelHelpButton.h"
+#include "NextStrumArrow.h"   // SPEC-SWEEP GD-10
 
 namespace luthier
 {
@@ -37,6 +38,7 @@ class CompactRack : public juce::Component,
                     private juce::Timer
 {
 public:
+
     CompactRack (LuthierAudioProcessor& processor, bool postChain);
     ~CompactRack() override;
 
@@ -68,6 +70,13 @@ class EasyPanel : public juce::Component,
                   private juce::Timer
 {
 public:
+    /** SPEC-SWEEP (GD-9, gui-engine-dataflow 4): the chord readout keeps the
+        last chord and dims it once kChordStaleMs pass without a new one. */
+    static constexpr double kChordStaleMs = 3000.0;
+    void tickChordReadout (double nowMs);
+    juce::String getChordReadoutText() const { return chordLabel.getText(); }
+    bool isChordReadoutDimmed() const { return chordLabel.findColour (juce::Label::textColourId) != Palette::accent; }
+
     explicit EasyPanel (LuthierAudioProcessor& processor);
     ~EasyPanel() override;
 
@@ -96,9 +105,13 @@ public:
 
     /** 3.5's readout: the chord and the next strum's arrow. */
     juce::String getRhythmReadout() const { return rhythmReadout.getText(); }
+    NextStrumArrow* getNextStrumArrow() noexcept { return nextStrumArrow.get(); }   // SPEC-SWEEP GD-10
 
     /** For tests: the rhythm strip's Feel knob. */
     juce::Slider& getRhythmFeelSlider() noexcept { return rhythmFeelSlider; }
+    juce::ComboBox& getRhythmGenreBox() noexcept { return rhythmGenreBox; }         // SPEC-SWEEP RE-38
+    juce::String getRhythmHintText() const { return rhythmHintLabel.getText(); }    // SPEC-SWEEP RE-38
+    void refreshRhythmStripForTest() { refreshRhythmStrip(); }                        // SPEC-SWEEP RE-38
 
     /** 3.5's dice: a random genre kit. */
     void rollRhythmDice();
@@ -145,6 +158,7 @@ private:
 
     LevelMeter meter;
     juce::Label chordLabel;
+    double lastChordMs = -1.0e9;   // SPEC-SWEEP GD-9
 
     // ---- rhythm strip (3.5) ------------------------------------------------------------
     juce::Label rhythmLabel { {}, "Rhythm" };
@@ -153,6 +167,7 @@ private:
     juce::Slider rhythmFeelSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
     juce::TextButton rhythmEnableButton { "OFF" };
     juce::Label rhythmHintLabel, rhythmReadout;
+    std::unique_ptr<NextStrumArrow> nextStrumArrow;   // SPEC-SWEEP GD-10
 
     // ---- rig strip (3.2) ---------------------------------------------------------------
     LuthierKnob guitarVolumeKnob { "Volume", LuthierKnob::Size::Small };

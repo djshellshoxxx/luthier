@@ -86,6 +86,8 @@ void MasterBus::processBlock (juce::AudioBuffer<float>& buffer) noexcept
     if (numSamples <= 0 || numChannels <= 0 || lookSize <= 0)
         return;
 
+    blockCount.fetch_add (1, std::memory_order_relaxed);   // SPEC-SWEEP GD-8
+
     auto* left = buffer.getWritePointer (0);
     auto* right = (numChannels > 1) ? buffer.getWritePointer (1) : left;
 

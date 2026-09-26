@@ -797,8 +797,102 @@ void ModMatrix::updateSources (const ModBlockContext& context) noexcept
     }
 }
 
+//==============================================================================
+// SPEC-SWEEP (UW-5): source settings edited by the UI.
+bool ModMatrix::postSourceEdit (const ModSourceEdit& edit)
+{
+    const bool queued = sourceEdits.push (edit);
+
+    // No audio block for a while (a stopped host, an unprepared instance): the
+    // audio thread is not ticking the sources, so the message thread applies
+    // the queue itself, under the lock processBlock only ever try-locks.
+    const auto now = juce::Time::getMillisecondCounter();
+
+    if (now - lastBlockMs.load (std::memory_order_relaxed) > kIdleApplyMs)
+    {
+        const juce::SpinLock::ScopedLockType sl (idleApplyLock);
+        sourceEdits.drain ([this] (const ModSourceEdit& e) { applySourceEdit (e); });
+
+        if (! queued)
+            applySourceEdit (edit);
+
+        return true;
+    }
+
+    return queued;
+}
+
+void ModMatrix::applySourceEdit (const ModSourceEdit& e) noexcept
+{
+    switch (e.kind)
+    {
+        case ModSourceEdit::Kind::lfo:
+        {
+            auto& lfo = getLfo (e.index);
+            lfo.setShape ((ModLfo::Shape) juce::jmax (0, e.lfoShape));
+            lfo.setRateHz (e.lfoRateHz);
+            lfo.setDepth (e.lfoDepth);
+            lfo.setSymmetry (e.lfoSymmetry);
+            lfo.setSmoothingMs (e.lfoSmoothingMs);
+            lfo.setSynced (e.lfoSynced);
+            lfo.setBipolar (e.lfoBipolar);
+            lfo.setSyncDivision ((ModSyncDivision) juce::jmax (0, e.lfoDivision));
+            lfo.setRetrigger ((ModLfo::Retrigger) juce::jmax (0, e.lfoRetrigger));
+            break;
+        }
+
+        case ModSourceEdit::Kind::envelope:
+        {
+            auto& env = getEnvelope (e.index);
+            env.setDelaySeconds (e.envDelay);
+            env.setAttackSeconds (e.envAttack);
+            env.setHoldSeconds (e.envHold);
+            env.setDecaySeconds (e.envDecay);
+            env.setSustainLevel (e.envSustain);
+            env.setReleaseSeconds (e.envRelease);
+            break;
+        }
+
+        case ModSourceEdit::Kind::sequencer:
+        {
+            auto& seq = getSequencer (e.index);
+            seq.setLength (e.seqLength);
+            seq.setSwing (e.seqSwing);
+            seq.setDirection ((ModStepSequencer::Direction) juce::jmax (0, e.seqDirection));
+            seq.setDivision ((ModSyncDivision) juce::jmax (0, e.seqDivision));
+            seq.setSynced (e.seqSynced);
+            break;
+        }
+
+        case ModSourceEdit::Kind::follower:
+        {
+            auto& follower = getFollower (e.index);
+            follower.setSource ((ModEnvelopeFollower::Source) juce::jmax (0, e.followerSource));
+            follower.setDetection ((ModEnvelopeFollower::Detection) juce::jmax (0, e.followerDetection));
+            follower.setAttackMs (e.followerAttackMs);
+            follower.setReleaseMs (e.followerReleaseMs);
+            follower.setThreshold (e.followerThreshold);
+            break;
+        }
+
+        case ModSourceEdit::Kind::none:
+        default:
+            break;
+    }
+}
+
 void ModMatrix::processBlock (int numSamples, const ModBlockContext& context) noexcept
 {
+    // SPEC-SWEEP (UW-5): the message thread applies edits itself only while no
+    // block runs; if it is doing so now, this block keeps the last offsets.
+    const juce::SpinLock::ScopedTryLockType idleGuard (idleApplyLock);
+
+    if (! idleGuard.isLocked())
+        return;
+
+    lastBlockMs.store (juce::Time::getMillisecondCounter(), std::memory_order_relaxed);
+    sourceEdits.drain ([this] (const ModSourceEdit& e) { applySourceEdit (e); });
+
     if (destinations.empty())
         return;
 

@@ -42,6 +42,16 @@ public:
 
     bool isStale() const noexcept;
 
+    /** SPEC-SWEEP (GD-13, gui-engine-dataflow 6.3): stale after 500 ms without a
+        change, fading out over the next 200 ms rather than switching. 1 is
+        fresh, 0 fully faded, for a map @p ageSeconds old. */
+    static constexpr double kStaleSeconds = 0.5;
+    static constexpr double kFadeSeconds = 0.2;
+    static float freshnessFor (double ageSeconds) noexcept
+    {
+        return (float) juce::jlimit (0.0, 1.0, 1.0 - (ageSeconds - kStaleSeconds) / kFadeSeconds);
+    }
+
 private:
     void timerCallback() override;
 

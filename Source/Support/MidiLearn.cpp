@@ -262,6 +262,55 @@ void MidiLearnManager::setMappingRange (const juce::String& parameterId, double 
 }
 
 //==============================================================================
+void MidiLearnManager::processMidi (juce::MidiBuffer& midi, juce::MidiBuffer& scratch) noexcept
+{
+    if (learning.load (std::memory_order_relaxed))
+    {
+        // The event the const overload will learn: the first CC it does not skip.
+        int learnedIndex = -1, index = 0;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isController())
+            {
+                const int cc = message.getControllerNumber();
+
+                if (! (cc == 64 || cc == 66 || cc == 123 || cc == 120))
+                {
+                    learnedIndex = index;
+                    break;
+                }
+            }
+
+            ++index;
+        }
+
+        if (learnedIndex >= 0)
+        {
+            processMidi (static_cast<const juce::MidiBuffer&> (midi));   // learns it, maps the rest
+
+            scratch.clear();
+            index = 0;
+
+            for (const auto metadata : midi)
+                if (index++ != learnedIndex)
+                    scratch.addEvent (metadata.data, metadata.numBytes, metadata.samplePosition);
+
+            midi.clear();
+
+            for (const auto metadata : scratch)
+                midi.addEvent (metadata.data, metadata.numBytes, metadata.samplePosition);
+
+            scratch.clear();
+            return;
+        }
+    }
+
+    processMidi (static_cast<const juce::MidiBuffer&> (midi));
+}
+
 void MidiLearnManager::processMidi (const juce::MidiBuffer& midi) noexcept
 {
     const bool isLearningNow = learning.load (std::memory_order_relaxed);

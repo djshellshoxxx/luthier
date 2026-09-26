@@ -349,7 +349,7 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     }
 
     refreshFromRouting();
-    startTimerHz (15);
+    startTimerHz (kRefreshHz);   // SPEC-SWEEP GD-2
 }
 
 RoutingPanel::~RoutingPanel()

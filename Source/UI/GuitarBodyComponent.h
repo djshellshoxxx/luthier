@@ -116,6 +116,10 @@ class GuitarBodyComponent : public juce::Component,
                             private juce::Timer
 {
 public:
+    /** SPEC-SWEEP (GD-2, gui-engine-dataflow 0.2): the spec's drain rate. */
+    static constexpr int kRefreshHz = 60;
+    int getRefreshIntervalMs() const noexcept { return getTimerInterval(); }
+
     explicit GuitarBodyComponent (LuthierAudioProcessor& processor);
     ~GuitarBodyComponent() override;
 

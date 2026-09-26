@@ -1,4 +1,5 @@
 #include "ControllerProfile.h"
+#include "ControllerStage.h"   // SPEC-SWEEP
 
 #include <algorithm>
 
@@ -535,53 +536,9 @@ bool ControllerProfileLibrary::save (const ControllerProfile& profile)
 void ControllerProfileLibrary::apply (const ControllerProfile& profile,
                                       MidiInterpreter& interpreter)
 {
-    switch (profile.mode)
-    {
-        case ControllerMode::mpe:
-            interpreter.setMpeEnabled (true);
-            interpreter.setPlayingMode (PlayingMode::GuitarController);
-            interpreter.setPitchBendRange (profile.memberPitchBendSemis);
-            interpreter.resetChannelMap();
-            break;
-
-        case ControllerMode::perChannel:
-            interpreter.setMpeEnabled (false);
-            interpreter.setPlayingMode (PlayingMode::GuitarController);
-            interpreter.setPitchBendRange (profile.pitchBendSemis);
-
-            for (int s = 0; s < kMaxStrings; ++s)
-            {
-                const auto& routing = profile.perString[(size_t) s];
-
-                interpreter.setChannelForString (s, routing.channel);
-
-                if (routing.channel > 0)
-                    interpreter.setStringBendRange (s, routing.pitchBendSemis);
-            }
-            break;
-
-        case ControllerMode::standard:
-        case ControllerMode::numModes:
-        default:
-            interpreter.setMpeEnabled (false);
-            interpreter.setPitchBendRange (profile.pitchBendSemis);
-            interpreter.resetChannelMap();
-
-            // A standard controller says nothing about how the player wants to
-            // play, so the playing mode is deliberately left alone here.
-            break;
-    }
-
-    // The CC map is replaced wholesale rather than merged, so that switching
-    // profiles cannot leave a mapping behind from the previous one.
-    interpreter.resetCcMapToDefaults();
-
-    for (int number = 0; number < 128; ++number)
-        if (profile.ccMap[(size_t) number] != MidiTarget::None)
-            interpreter.setCcTarget (number, profile.ccMap[(size_t) number]);
-
-    interpreter.setPitchDeadZoneCents (profile.pitchDeadZoneCents);
-    interpreter.setMinimumNoteDurationMs (profile.minimumNoteDurationMs);
+    // SPEC-SWEEP (CT-7/CT-10/CT-17): one translation of a profile into interpreter
+    // state, shared with the processor's audio-thread ControllerStage.
+    ControllerRtSettings::fromProfile (profile).applyTo (interpreter);
 }
 
 //==============================================================================

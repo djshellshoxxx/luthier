@@ -57,6 +57,8 @@ const char* getSubdivisionName (Subdivision s) noexcept
         case Subdivision::sixteenth:        return "16";
         case Subdivision::sixteenthTriplet: return "16T";
         case Subdivision::thirtySecond:     return "32";
+        case Subdivision::eighthDotted:     return "8.";
+        case Subdivision::sixteenthDotted:  return "16.";
         case Subdivision::numSubdivisions:
         default:                            return "16";
     }
@@ -71,6 +73,8 @@ double subdivisionsPerBeat (Subdivision s) noexcept
         case Subdivision::sixteenth:        return 4.0;
         case Subdivision::sixteenthTriplet: return 6.0;
         case Subdivision::thirtySecond:     return 8.0;
+        case Subdivision::eighthDotted:     return 4.0 / 3.0;   // a step is three sixteenths
+        case Subdivision::sixteenthDotted:  return 8.0 / 3.0;   // three thirty-seconds
         case Subdivision::numSubdivisions:
         default:                            return 4.0;
     }

@@ -18,7 +18,7 @@ to play.
 ```
 1.  Palm mute            CC 67 above threshold
 2.  Pinch harmonic       CC 72 held
-3.  Natural harmonic     CC 73 held, or velocity in the harmonic range
+3.  Natural harmonic     CC 73 held
 4.  Tap                  CC 74 held (when MPE is off)
 5.  Slide guitar         CC 75, or the Advanced toggle
 6.  Muted picking        CC 71 above threshold
@@ -265,11 +265,9 @@ and is often what people notice missing from cheap plugins.
 
 In Poly mode a chord is not triggered simultaneously. The pick crosses the strings
 over time, at the **Strum Crossing** speed in strings per second (20 to 800; 200 is
-a medium strum):
-
-```
-delay = order / crossingSpeed     order counts from the string struck first
-```
+a medium strum): each string sounds when the pick reaches it, so a faster crossing
+packs the chord tighter, and the pick accelerates a little through the stroke
+rather than moving at one fixed step per string.
 
 A downstroke crosses the low strings first; an upstroke reverses. Up-strokes are
 lighter (about 85% of the force), and the pick loses a little energy as it crosses, so
@@ -297,6 +295,15 @@ The engine feeds a small amount of each ringing string's own output back into it
 but **only while its level is below a target**. Above that, driving stops. The loop
 gain never reaches unity, so this sustains indefinitely without any possibility of
 runaway - which a simple "set the loss to 1.0" implementation could not promise.
+
+---
+
+### Freeze
+
+Freeze captures a short window of whatever is sounding and loops it underneath
+what you play next, so a chord can hang while you play over it. Switch it on again
+to capture a new window. The capture length, level, attack and release, and a
+low-/high-cut on the frozen sound are in the Advanced FREEZE group.
 
 ---
 
@@ -336,14 +343,15 @@ Defaults, all remappable in the preset.
 | 71 | Muted picking |
 | 72 | Pinch harmonic |
 | 73 | Natural harmonic |
-| 74 | Tap (MPE timbre when MPE is on) |
+| 74 | Tap (with MPE on, CC 74 is per-note timbre instead) |
 | 75 | Slide guitar mode |
 | 76 | Strum speed |
 | 77 | Strum direction |
 | 78 | Vibrato rate |
 | 79 | Humanize amount |
 
-Aftertouch drives vibrato depth by default; it can be switched to bend.
+Aftertouch drives vibrato depth by default; it can be switched to bend (Options >
+Controllers, "Aftertouch bends the note").
 
 MIDI Learn on any other control is per-control, through its right-click menu, and
 is stored with the plugin state rather than with the preset - so your controller
@@ -386,8 +394,11 @@ the host.
 MIDI channel 1 is the high E, channel 2 the B, and so on - the convention hex
 pickups use. Per-string bend and pressure work natively.
 
-Turn **MPE** on for expressive controllers. Each note then gets its own channel,
-with per-note bend, pressure and timbre.
+Turn **MPE** on for expressive controllers (or pick an MPE profile in Options >
+Controllers). Each note then gets its own channel, with per-note bend and
+pressure; notes on the zone's master channel are ignored, and a member channel
+keeps to the string it last played while that string can reach the note. CC 74,
+MPE's timbre dimension, is read per note but does not yet change the sound.
 
 ---
 
