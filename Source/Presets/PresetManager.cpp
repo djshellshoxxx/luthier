@@ -621,7 +621,8 @@ bool PresetManager::fromVar (const juce::var& data)
             if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
             {
                 if (params->hasProperty (withId->paramID) && withId->paramID != ParamIDs::presetMorphPosition
-                      && ! ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM
+                      && ! ParamIDs::isJamTransient (withId->paramID)   // FEAT-JAM
+                      && ! (keepOnLoad != nullptr && keepOnLoad (withId->paramID)))
                 {
                     const double v = (double) params->getProperty (withId->paramID);
                     withId->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, v));

@@ -219,6 +219,20 @@ void JamEngine::tapAtSample (int64_t sample) noexcept
     tapWrite.store (slot + 1, std::memory_order_release);
 }
 
+bool JamEngine::getBarPosition (int64_t sample, double& quartersIntoBar, double& barQuarters,
+                                double& samplesPerQuarter) const noexcept
+{
+    if (! isBandRunning() || ! cursor.valid)
+        return false;
+
+    const double ppq = mapping.ppqOf (sample);
+    barQuarters = cursor.barLength;
+    const double k = std::floor ((ppq - cursor.barStart) / barQuarters + 1.0e-9);
+    quartersIntoBar = juce::jmax (0.0, ppq - (cursor.barStart + k * barQuarters));
+    samplesPerQuarter = mapping.samplesPerQuarter;
+    return ppq >= 0.0;
+}
+
 bool JamEngine::getOwnClock (double& ppq, double& bpm) const noexcept
 {
     if (! (state == JamState::playing || state == JamState::ending) || clockSource != JamStatus::Clock::own || ! cursor.valid)
@@ -1672,7 +1686,7 @@ void JamEngine::fire (const Event& e, int64_t now) noexcept
             off.note = (int16_t) note;
             off.sample = now + (int64_t) (0.030 * sr);
             off.musical = off.sample;
-            off.ppq = e.ppq;
+            off.ppq = e.ppq + 0.030 * currentBpm / 60.0;
             queue (off);
             break;
         }
@@ -1752,8 +1766,10 @@ void JamEngine::render (const BlockContext& ctx, const juce::MidiBuffer* tuneBas
     playerIsBass = ctx.playerIsBass;
     tuneBassPlaying.store (ctx.tuneBassActive, std::memory_order_relaxed);
 
-    // The tune's bass notes, at their samples plus L.
-    if (tuneBass != nullptr && ctx.tuneBassActive && ! ctx.playerIsBass)
+    // The tune's bass notes, at their samples plus L - from the block the band
+    // starts in, so a tune's first note is not lost to the start.
+    if (tuneBass != nullptr && ctx.tuneBassActive && ! ctx.playerIsBass
+          && state != JamState::armed && state != JamState::off)
     {
         for (const auto metadata : *tuneBass)
         {

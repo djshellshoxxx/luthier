@@ -81,6 +81,10 @@ public:
     std::function<juce::var()> captureJamBlock;
     std::function<void (const juce::var&)> onJamBlockLoaded;
 
+    /** FEAT-JAM (jam-mode 11): a parameter a load leaves as it is - a preset
+        load never stops a playing band. Null keeps every parameter. */
+    std::function<bool (const juce::String&)> keepOnLoad;
+
     /** After a load has written its pedal types and their parameters, so the
         pedals can be built with the loaded settings rather than their defaults
         (ParameterBridge::adoptPedalTypesFromParameters). */

@@ -432,6 +432,9 @@ public:
         call it). */
     void serviceJam();
 
+    /** Tune percussion note-ons that reached the engine so far (JM-42). */
+    int getTunePercussionToEngine() const noexcept { return tunePercussionToEngine.load (std::memory_order_relaxed); }
+
     /** Restores every parameter, the MIDI map and the UI state to defaults. */
     void resetEverything();
 
@@ -640,6 +643,7 @@ private:
     int jamLinkedStyle = -1;
     std::atomic<bool> jamSilencesMetronome { true }, jamSeparateFallback { false }, jamReplacesPercussion { false };
     std::atomic<bool> jamTuneHasBass { false };
+    std::atomic<int> tunePercussionToEngine { 0 };
     std::atomic<double> jamBlockWallMs { 0.0 };
     bool jamWasEnabled = false;
     int jamMirrorState = -1;

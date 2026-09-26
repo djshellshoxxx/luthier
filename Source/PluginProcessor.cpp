@@ -120,6 +120,7 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     jamOutputRaw = apvts.getRawParameterValue (ParamIDs::jamOutput);
     presets.captureJamBlock = [this] { return getJamBlock(); };
     presets.onJamBlockLoaded = [this] (const juce::var& block) { setJamBlock (block); };
+    presets.keepOnLoad = [this] (const juce::String& id) { return id == ParamIDs::jamEnabled && jam.isBandRunning(); };
     tuneSession.onTimelineBuilt = [this] (const TuneTimeline& timeline) { onJamTimeline (timeline); };
 
     // tune-builder 8: the tune drives the rhythm engine's pattern and kit.
@@ -1347,7 +1348,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     // bass line on a guitar plays through the Jam bass instead of its own line.
     jamTuneBass.clear();
     const bool jamOn = jamSettings.enabled;
-    const bool jamTakesTuneBass = jamOn && jam.isBandRunning() && tunePlayer.isPlaying()
+    const bool jamTakesTuneBass = jamOn && tunePlayer.isPlaying()   // the band gates it on its own start
                                   && ! tunePlayer.isBassToEngine() && jamTuneHasBass.load (std::memory_order_relaxed)
                                   && ! engine.getRhythmEngine().isBassFamily();
     const bool replacePercussion = jamOn && jam.areDrumsAudible() && tunePlayer.isPlaying();
@@ -1368,6 +1369,11 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
         tuneDirect.swapWith (jamScratch);
     }
+
+    for (const auto metadata : tuneDirect)   // observable: what percussion reached the engine (JM-42)
+        if (metadata.getMessage().isNoteOn()
+              && metadata.getMessage().getChannel() == TuneMidiOptions {}.layerChannelBase + (int) LayerType::percussion)
+            tunePercussionToEngine.fetch_add (1, std::memory_order_relaxed);
 
     if (jamTakesTuneBass)
         for (const auto metadata : tuneToMidiOut)
@@ -1583,22 +1589,19 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         // and a first recording starts on the next downbeat.
         if (jamOn && jam.isBandRunning())
         {
-            JamStatus status;
+            double intoBar = 0.0, barQuarters = 4.0, samplesPerQuarter = 24000.0;
 
-            if (jam.getStatusChannel().read (status))
+            if (jam.getBarPosition (jam.getSampleClock() - numSamples, intoBar, barQuarters, samplesPerQuarter))
             {
-                const double barSamples = status.meterNumerator * 4.0 / juce::jmax (1, status.meterDenominator)
-                                            * 60.0 * currentSampleRate / juce::jmax (1.0, status.bpm);
+                const double barSamples = barQuarters * samplesPerQuarter;
                 looper.setBarLengthSamples ((int) std::llround (barSamples));
 
                 const int looperState = (int) looper.getState();
 
                 if (looperState == (int) Looper::State::recordingFirst && jamLooperState != looperState)
                 {
-                    const double beatInBar = (double) status.step / juce::jmax (1, status.stepsPerBeat);
-                    const double samplesPerBeat = 60.0 * currentSampleRate / juce::jmax (1.0, status.bpm);
-                    const double toBarLine = barSamples - beatInBar * samplesPerBeat;
-                    looper.setRecordStartDelay (juce::jlimit (0, (int) barSamples, (int) std::llround (toBarLine)));
+                    const auto toBarLine = (int) std::llround ((barQuarters - intoBar) * samplesPerQuarter);
+                    looper.setRecordStartDelay (toBarLine >= (int) std::llround (barSamples) - 1 ? 0 : toBarLine);
                 }
 
                 jamLooperState = looperState;

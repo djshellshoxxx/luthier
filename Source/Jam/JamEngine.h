@@ -173,6 +173,11 @@ public:
     /** True while the Jam bass plays the tune's bass line (11). */
     bool isTuneBassPlaying() const noexcept { return tuneBassPlaying.load (std::memory_order_relaxed); }
 
+    /** Where `sample` falls in the band's bar, for the looper's downbeat (11).
+        False when the band is not running. */
+    bool getBarPosition (int64_t sample, double& quartersIntoBar, double& barQuarters,
+                         double& samplesPerQuarter) const noexcept;
+
     /** The band's position when it runs its own clock, for the rhythm engine (2.3). */
     bool getOwnClock (double& ppq, double& bpm) const noexcept;
 
