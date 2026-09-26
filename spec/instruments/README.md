@@ -10,7 +10,7 @@ Status: **spec only**. No DSP in this pass.
 
 | Spec | Research | Family | New code needed |
 |---|---|---|---|
-| `chapman-stick.md` | `INSTR_chapman_stick.md` | `touch` (new) | Yes: family, zone model, `TapEngine`, split stereo |
+| `chapman-stick.md` | `INSTR_chapman_stick.md` | `touch` (new) | Yes: family, `ZoneRouter`, physical tap excitation, per-zone pickup masks, stereo zone wiring, beam modes |
 | `guitarron.md` | `INSTR_guitarron.md` | `bass` | Small: convex-back body shape, octave-pair gesture |
 | `chitarra-sarda.md` | `INSTR_chitarra_sarda.md` | `acoustic` | Data only (parts + presets) |
 | `composite-neck.md` | `INSTR_composite_neck_bass.md` | any (neck material) | Small: non-wood neck materials in `lookUpWood` + neck mobility |
