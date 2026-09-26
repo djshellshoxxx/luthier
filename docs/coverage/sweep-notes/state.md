@@ -15,3 +15,4 @@
 - [ER-38] The 30 s timeout covers both the global arm and a learn claimed from it (the user clicked a control and no CC came).
 - [FC-22] Not tested: "Dreadnought", "Jumbo", "Parlor" and "Classical" guitars are single words, which breaks the section 12 `[Style Descriptor] [Family Word]` rule; renaming factory guitars is content work with migration aliases (left for FC-2's re-voice).
 - [SM-47] Freeze and E-Bow clear on a load through their parameters (factory presets have them off; an absent key now resets to default), which is tested; no separate engine clear was added.
+- [FF-5] Genre kit files use magic `luthier.genrekit` (file-formats.md 0.5 names none for kits); files without a marker are older ones and still load.

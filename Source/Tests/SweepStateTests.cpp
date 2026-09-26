@@ -7,6 +7,8 @@
 #include "../PluginProcessor.h"
 #include "../Support/ErrorLog.h"
 #include "../UI/UiPreferences.h"
+#include "../Rhythm/Patterns.h"
+#include "../Rhythm/GenreKit.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -464,5 +466,55 @@ LUTHIER_TEST (ErrorLog, oldLogsArePrunedAtStartup)
     CHECK_MSG (thisMonth.existsAsFile(), "the sweep deleted this month's log");
 
     ErrorLog::setFolderForTesting ({});
+    folder.deleteRecursively();
+}
+
+//==============================================================================
+/*  FF-5 / FF-12 (file-formats 0.5): a pattern file and a kit file carry their
+    marker; an unmarked (older) file still loads, a wrong marker is refused. */
+LUTHIER_TEST (RhythmPatterns, aFileWithTheWrongMagicIsRefused)
+{
+    auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-pattern-magic-test");
+    folder.deleteRecursively();
+    folder.createDirectory();
+
+    RhythmPattern pattern;
+    pattern.setName ("Marked");
+    const auto file = folder.getChildFile ("Marked.luthierpattern");
+    CHECK (pattern.saveTo (file));
+    CHECK (juce::JSON::parse (file).getProperty ("magic", {}).toString() == "luthier.pattern");
+
+    RhythmPattern loaded;
+    CHECK (loaded.loadFrom (file));
+    CHECK (loaded.getName() == "Marked");
+
+    // Older files: no marker at all.
+    const auto legacy = folder.getChildFile ("Legacy.luthierpattern");
+    auto data = pattern.toVar();
+    data.getDynamicObject()->setProperty ("name", "Legacy");
+    legacy.replaceWithText (juce::JSON::toString (data));
+    CHECK (loaded.loadFrom (legacy));
+
+    const auto wrong = folder.getChildFile ("Wrong.luthierpattern");
+    data.getDynamicObject()->setProperty ("magic", "luthier.preset");
+    wrong.replaceWithText (juce::JSON::toString (data));
+    CHECK_MSG (! loaded.loadFrom (wrong), "a file marked as something else loaded as a pattern");
+    CHECK (loaded.getName() == "Legacy");
+
+    GenreKit kit = GenreKit::fromVar (juce::JSON::parse ("{ \"name\": \"Test Kit\", \"strum_patterns\": [\"x\"] }"));
+    const auto kitFile = folder.getChildFile ("Kit.luthierkit");
+
+    if (kit.saveTo (kitFile))
+    {
+        CHECK (juce::JSON::parse (kitFile).getProperty ("magic", {}).toString() == "luthier.genrekit");
+
+        auto kitData = juce::JSON::parse (kitFile);
+        kitData.getDynamicObject()->setProperty ("magic", "luthier.pattern");
+        kitFile.replaceWithText (juce::JSON::toString (kitData));
+
+        GenreKit other;
+        CHECK_MSG (! other.loadFrom (kitFile), "a kit marked as a pattern loaded");
+    }
+
     folder.deleteRecursively();
 }
