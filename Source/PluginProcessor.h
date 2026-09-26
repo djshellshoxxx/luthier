@@ -349,6 +349,9 @@ public:
         by the editor. */
     juce::StringArray takeStateNotices();
 
+    /** SPEC-SWEEP: FF-35/SM-31 - the same, for warnings (a refused setlist). */
+    juce::StringArray takeStateWarnings();
+
     /*  advanced-ranges.md 5: randomise stays inside stock by default. The
         preference is user-global and lives in UiPreferences, which the engine
         cannot see, so the editor mirrors it here. */
@@ -661,7 +664,7 @@ private:
 
     // SPEC-SWEEP: SM-46 - what a user-facing preset load clears (state-model 8.1).
     void presetFileLoaded();
-    juce::StringArray stateNotices;
+    juce::StringArray stateNotices, stateWarnings;
 
     /** Resolves a preset's reference to a guitar file: user, then factory. */
     static juce::File resolveGuitarReference (const juce::String& reference);

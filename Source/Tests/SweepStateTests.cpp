@@ -314,3 +314,82 @@ LUTHIER_TEST (LiveSetlist, missingEntriesAreFlagged)
 
     folder.deleteRecursively();
 }
+
+//==============================================================================
+/*  FF-35 / SM-31: loading a setlist that is refused, or that has entries whose
+    preset is gone, raises a warning for the window. */
+LUTHIER_TEST (LiveSetlist, aCorruptOrIncompleteSetlistRaisesABanner)
+{
+    LuthierAudioProcessor processor;
+    processor.takeStateWarnings();
+
+    auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-setlist-banner-test");
+    folder.deleteRecursively();
+    folder.createDirectory();
+
+    const auto corrupt = folder.getChildFile ("Corrupt.luthierset");
+    corrupt.replaceWithText ("{ not json");
+
+    CHECK (! processor.loadSetlist (corrupt));
+    CHECK_MSG (processor.takeStateWarnings().size() == 1, "a refused setlist was silent");
+
+    Setlist list;
+    SetlistEntry gone;
+    gone.presetPath = folder.getChildFile ("Gone.luthierpreset").getFullPathName();
+    list.addEntry (gone);
+
+    const auto incomplete = folder.getChildFile ("Incomplete.luthierset");
+    CHECK (list.saveTo (incomplete));
+
+    processor.loadSetlist (incomplete);
+    const auto warnings = processor.takeStateWarnings();
+    CHECK_MSG (warnings.size() == 1 && warnings[0].contains ("marked missing"),
+               "a setlist with a missing preset was silent");
+    CHECK (! processor.getSetlist().getSetlist().getEntry (0).resolved);
+
+    folder.deleteRecursively();
+}
+
+//==============================================================================
+/*  PF-4: saving over a factory preset makes a user copy and leaves the factory
+    file alone. */
+LUTHIER_TEST (Presets, savingAFactoryPresetMakesAUserCopy)
+{
+    LuthierAudioProcessor processor;
+    auto& presets = processor.getPresetManager();
+
+    int factory = -1;
+
+    for (int i = 0; i < presets.getNumPresets() && factory < 0; ++i)
+        if (presets.getPreset (i)->isFactory)
+            factory = i;
+
+    if (factory < 0)
+    {
+        CHECK_MSG (false, "no factory preset to save over");
+        return;
+    }
+
+    const auto factoryFile = presets.getPreset (factory)->file;
+    const auto factoryText = factoryFile.loadFileAsString();
+    const auto name = presets.getPreset (factory)->name;
+
+    // Never touch a user preset that was already there.
+    const auto expected = PresetManager::getUserPresetFolder().getChildFile ("User")
+                            .getChildFile (juce::File::createLegalFileName (name) + PresetManager::kFileExtension);
+
+    if (expected.exists())
+        return;
+
+    CHECK (presets.loadPreset (factory));
+    CHECK (presets.saveCurrent());
+
+    CHECK_MSG (factoryFile.loadFileAsString() == factoryText, "saving a factory preset rewrote the factory file");
+
+    const auto* current = presets.getPreset (presets.getCurrentPresetIndex());
+    CHECK_MSG (current != nullptr && ! current->isFactory
+                 && current->file.isAChildOf (PresetManager::getUserPresetFolder()),
+               "the save did not become a user preset");
+
+    expected.deleteFile();
+}

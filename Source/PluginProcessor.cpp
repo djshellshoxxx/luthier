@@ -1926,8 +1926,19 @@ bool LuthierAudioProcessor::loadSetlist (const juce::File& file)
 {
     Setlist loaded;
 
+    // SPEC-SWEEP: FF-35/SM-31 - a refused setlist, or one with entries whose
+    // preset is gone, says so in a warning banner.
     if (! loaded.loadFrom (file))
+    {
+        stateWarnings.addIfNotAlreadyThere (loaded.getLoadError());
         return false;
+    }
+
+    if (const int missing = loaded.getNumUnresolvedEntries(); missing > 0)
+        stateWarnings.addIfNotAlreadyThere (juce::String (missing) + (missing == 1 ? " entry" : " entries")
+                                              + " in " + file.getFileNameWithoutExtension()
+                                              + " could not be found and " + (missing == 1 ? "is" : "are")
+                                              + " marked missing.");
 
     setlist.setSetlist (loaded);
 

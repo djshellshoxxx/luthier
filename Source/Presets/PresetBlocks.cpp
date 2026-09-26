@@ -171,4 +171,11 @@ juce::StringArray LuthierAudioProcessor::takeStateNotices()
     return out;
 }
 
+juce::StringArray LuthierAudioProcessor::takeStateWarnings()
+{
+    auto out = stateWarnings;
+    stateWarnings.clear();
+    return out;
+}
+
 } // namespace luthier

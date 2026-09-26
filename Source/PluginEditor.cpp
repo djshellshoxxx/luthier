@@ -1011,6 +1011,16 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         notifications.post (std::move (n));
     }
 
+    // ---- SPEC-SWEEP: FF-35/SM-31 - a setlist that would not load whole -----
+    for (const auto& message : processor.takeStateWarnings())
+    {
+        Notification n;
+        n.id = "setlist-load";
+        n.message = message;
+        n.level = Notification::Level::warning;
+        notifications.post (std::move (n));
+    }
+
     // ---- SPEC-SWEEP: SM-46 - what a load did to the layers around it --------
     for (const auto& message : processor.takeStateNotices())
     {
