@@ -79,6 +79,13 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 
     // A preset's pedals come with their settings; build them keeping those.
     presets.onPedalTypesLoaded = [this] { bridge.adoptPedalTypesFromParameters(); };
+
+    // SPEC-SWEEP: SM-1/SM-16/FF-24..29 - the processor's preset blocks, with
+    // the modules' as-built state as the default for a block a file lacks.
+    captureDefaultPresetBlocks();
+    presets.capturePresetBlocks = [this] (juce::DynamicObject& root) { writePresetBlocks (root); };
+    presets.onPresetBlocksLoaded = [this] (const juce::DynamicObject& root) { readPresetBlocks (root); };
+    presets.onPresetFileLoaded = [this] { presetFileLoaded(); };   // SPEC-SWEEP: SM-46
     presets.ensureFactoryPresetsInstalled();
     presets.refresh();
 
@@ -1973,6 +1980,11 @@ void LuthierAudioProcessor::setSlotBActive (bool b)
     if (b == slotBActive)
         return;
 
+    // SPEC-SWEEP: ER-54, error-recovery 9: an empty B says so. The toggle still
+    // happens - B starts as the current state and is filled on the way out.
+    if (b && slotB.getSize() == 0)
+        stateNotices.addIfNotAlreadyThere ("B slot is empty; save current state to B first.");
+
     // Store what is on screen into the slot being left, then recall the other.
     storeToSlot (slotBActive);
     slotBActive = b;
@@ -2187,7 +2199,6 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     auto* root = new juce::DynamicObject();
 
     root->setProperty ("preset", presets.toVar (presets.getCurrentPresetName()));
-    root->setProperty ("midiLearn", midiLearn.toVar());
 
     auto* ui = new juce::DynamicObject();
     ui->setProperty ("advancedMode", uiState.advancedMode);
@@ -2207,38 +2218,11 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 
     root->setProperty ("lockedParameters", locks);
     root->setProperty ("slotBActive", slotBActive);
-    root->setProperty ("routing", routing.toVar());
-    root->setProperty ("modulation", modMatrix.toVar());
-    root->setProperty ("rhythm", engine.getRhythmEngine().toVar());
-
-    // live-performance 1: the snapshot bank travels inside the preset.
-    root->setProperty ("snapshots", snapshots.toVar());
+    // SPEC-SWEEP: SM-1/SM-16 - routing, modulation, rhythm, snapshots, MIDI
+    // Learn, character and tone-match are inside the "preset" block now
+    // (PresetBlocks.cpp); the top-level keys below are only read, for sessions
+    // saved before.
     root->setProperty ("liveMode", uiState.liveMode);
-
-    // character-wear 1: the seed and the wear map are the instrument's identity,
-    // so they belong to the preset rather than to the user.
-    // The character amount is the character macro (character-wear 0.3): save
-    // the parameter, which the engine only picks up on its next block.
-    {
-        auto character = engine.getCharacterEngine().toVar();
-
-        if (auto* o = character.getDynamicObject())
-            if (auto* amount = apvts.getRawParameterValue (ParamIDs::macroCharacter))
-                o->setProperty ("amount", (double) amount->load());
-
-        root->setProperty ("character", character);
-    }
-
-    // tone-match 7: the IR slots store their file by path plus their settings.
-    {
-        auto* irs = new juce::DynamicObject();
-
-        irs->setProperty ("body", bodyIr.toVar());
-        irs->setProperty ("cab1", cabIr[0].toVar());
-        irs->setProperty ("cab2", cabIr[1].toVar());
-
-        root->setProperty ("toneMatch", juce::var (irs));
-    }
 
     // practice-tools 1: the metronome's settings are part of the session.
     root->setProperty ("metronome", metronome.toVar());
@@ -2318,10 +2302,10 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
     // live-performance 1 and 11: the snapshots and the live-mode preference are
     // both per-preset. A preset saved before snapshots existed simply has none,
     // which the spec treats as one implicit snapshot equal to the preset.
+    // (SPEC-SWEEP: a session saved before SM-1 has them here rather than in its
+    // preset block, which has already set them to their defaults.)
     if (root->hasProperty ("snapshots"))
         snapshots.fromVar (root->getProperty ("snapshots"));
-    else
-        snapshots.clear();
 
     uiState.liveMode = (bool) root->getProperty ("liveMode");
 

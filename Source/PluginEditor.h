@@ -151,6 +151,7 @@ private:
         is not reposted. Without these, dismissing a banner about a preset that
         still will not load would put it straight back on screen. */
     juce::String reportedPresetError, reportedIrError;
+    juce::String reportedPresetSaveError;   // SPEC-SWEEP: ER-19
 
     /** Remembered so the layout is only redone when Live Mode actually changes. */
     bool liveModeShown = false;

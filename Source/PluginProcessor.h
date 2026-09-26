@@ -325,6 +325,11 @@ public:
     /** The notices applyGuitar raised since the last call (gui-integration 15). */
     juce::StringArray takeGuitarNotices();
 
+    /*  SPEC-SWEEP: SM-46 and friends - info banners about what a state change
+        did to the layers around it ("A/B cleared by preset load."). Taken once
+        by the editor. */
+    juce::StringArray takeStateNotices();
+
     /*  advanced-ranges.md 5: randomise stays inside stock by default. The
         preference is user-global and lives in UiPreferences, which the engine
         cannot see, so the editor mirrors it here. */
@@ -613,6 +618,17 @@ private:
     /*  A state load hands over its `guitar` block here; the guitar is then
         loaded (or kept) by loadGuitarForType when the bridge next applies. */
     void takeGuitarBlock (const juce::var& block);
+
+    // SPEC-SWEEP: SM-1/SM-16/FF-24..29 - the preset blocks the processor owns
+    // (Presets/PresetBlocks.cpp). Absent blocks go back to defaultPresetBlocks.
+    void writePresetBlocks (juce::DynamicObject& root) const;
+    void readPresetBlocks (const juce::DynamicObject& root);
+    void captureDefaultPresetBlocks();
+    juce::var defaultPresetBlocks;
+
+    // SPEC-SWEEP: SM-46 - what a user-facing preset load clears (state-model 8.1).
+    void presetFileLoaded();
+    juce::StringArray stateNotices;
 
     /** Resolves a preset's reference to a guitar file: user, then factory. */
     static juce::File resolveGuitarReference (const juce::String& reference);

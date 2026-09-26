@@ -112,7 +112,8 @@ Message thread:
 Never touches:
 - User-global settings.
 - uiState VT (which tab is open, which snapshot slot you're viewing).
-- Session state (undo stack, MIDI Learn arm, A/B).
+- Session state (undo stack, MIDI Learn arm). A/B compare is the
+  exception: it clears, per 8.1.
 - Setlist state.
 - Tune state.
 - Loop state.

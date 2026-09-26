@@ -972,6 +972,26 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         notifications.post (std::move (n));
     }
 
+    // ---- SPEC-SWEEP: ER-38 - an arm nobody answered --------------------------
+    if (processor.getMidiLearn().expireIfIdle (juce::Time::getMillisecondCounter()))
+    {
+        Notification n;
+        n.id = "midi-learn-timeout";
+        n.message = "MIDI Learn cancelled (no MIDI received).";
+        n.level = Notification::Level::info;
+        notifications.post (std::move (n));
+    }
+
+    // ---- SPEC-SWEEP: SM-46 - what a load did to the layers around it --------
+    for (const auto& message : processor.takeStateNotices())
+    {
+        Notification n;
+        n.id = "state-model";
+        n.message = message;
+        n.level = Notification::Level::info;
+        notifications.post (std::move (n));
+    }
+
     // ---- a preset that would not load ----------------------------------------
     const auto presetError = processor.getPresetManager().getLastLoadError();
 
@@ -986,6 +1006,23 @@ void LuthierAudioProcessorEditor::pollForNotifications()
             n.message = presetError;
             n.level = Notification::Level::warning;
 
+            notifications.post (std::move (n));
+        }
+    }
+
+    // ---- SPEC-SWEEP: ER-19/20/21 - a save that did not land ------------------
+    const auto saveError = processor.getPresetManager().getLastSaveError();
+
+    if (saveError != reportedPresetSaveError)
+    {
+        reportedPresetSaveError = saveError;
+
+        if (saveError.isNotEmpty())
+        {
+            Notification n;
+            n.id = "preset-save";
+            n.message = saveError;
+            n.level = Notification::Level::warning;
             notifications.post (std::move (n));
         }
     }

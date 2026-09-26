@@ -40,6 +40,11 @@ public:
         Existing files are left alone so a user who edited one keeps their edit. */
     static void writeAll (const juce::File& folder);
 
+    /*  SPEC-SWEEP: FC-1. A factory preset's current name for a name it shipped
+        under before the trademark sweep, or the name unchanged. Lets a setlist
+        or a lookup by name that still says the old one find the preset. */
+    static juce::String renamedPreset (const juce::String& name);
+
     /** Builds one preset's JSON using a live processor for the parameter ranges. */
     static juce::var toVar (const Definition& def, const juce::AudioProcessor& processor);
 

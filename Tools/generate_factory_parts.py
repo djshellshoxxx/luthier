@@ -194,7 +194,7 @@ def wiring(name, vol, tone, cap, taper, bleed, switching, active=False, compat=(
                                  "treble_bleed": bleed, "switching": switching, "active": active}, compat=compat, default=default)
 
 W["lp50"] = wiring("50s Single-Cut Wiring", 500e3, 500e3, 22e-9, "fifties", "none", "3way_independent")
-W["lp_modern"] = wiring("Modern LP Wiring", 500e3, 500e3, 22e-9, "audio", "none", "3way_independent")
+W["lp_modern"] = wiring("Modern Single-Cut Wiring", 500e3, 500e3, 22e-9, "audio", "none", "3way_independent")
 W["strat_vintage"] = wiring("Vintage Double-Cut Wiring", 250e3, 250e3, 47e-9, "audio", "none", "5way", default=True)
 W["strat_modern"] = wiring("Modern Double-Cut Wiring", 250e3, 250e3, 22e-9, "audio", "modern", "5way")
 W["t_style"] = wiring("T-Style Wiring", 250e3, 250e3, 47e-9, "audio", "vintage", "3way")
