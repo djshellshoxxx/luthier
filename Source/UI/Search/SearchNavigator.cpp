@@ -1103,19 +1103,23 @@ SearchNavigator::Outcome SearchNavigator::goToParameterControl (const SearchItem
         return outcome;
     }
 
-    if (availability == Availability::needsBass || availability == Availability::needsWhammy)
+    if (availability == Availability::needsBass || availability == Availability::needsWhammy
+        || availability == Availability::needsAcoustic)
     {
-        const bool bass = availability == Availability::needsBass;
+        const bool whammy = availability == Availability::needsWhammy;
+        const char* part = availability == Availability::needsBass ? "search.part.bass"
+                         : whammy                                  ? "search.part.whammy"
+                                                                   : "search.part.acoustic";
 
         if (! confirmed)
         {
             outcome.status = Outcome::Status::needsConfirm;
-            outcome.message = SearchCatalog::text ("search.needsPart", { { "part", SearchCatalog::text (bass ? "search.part.bass" : "search.part.whammy") },
-                                                                         { "category", bass ? "Body" : "Bridge" } });
+            outcome.message = SearchCatalog::text ("search.needsPart", { { "part", SearchCatalog::text (part) },
+                                                                         { "category", whammy ? "Bridge" : "Body" } });
             return outcome;
         }
 
-        openWorkshopOn (bass ? PartType::body : PartType::bridge, {});
+        openWorkshopOn (whammy ? PartType::bridge : PartType::body, {});
         outcome.status = Outcome::Status::done;
         return outcome;
     }
@@ -1660,6 +1664,7 @@ juce::String SearchNavigator::subtitleFor (const SearchItem& item, Availability 
         case Availability::needsSlideMode:  return SearchCatalog::text ("search.needsSlideMode");
         case Availability::needsBass:       return SearchCatalog::text ("search.needsPart", { { "part", SearchCatalog::text ("search.part.bass") }, { "category", "Body" } });
         case Availability::needsWhammy:     return SearchCatalog::text ("search.needsPart", { { "part", SearchCatalog::text ("search.part.whammy") }, { "category", "Bridge" } });
+        case Availability::needsAcoustic:   return SearchCatalog::text ("search.needsPart", { { "part", SearchCatalog::text ("search.part.acoustic") }, { "category", "Body" } });
         case Availability::needsEmptySlot:  return SearchCatalog::text ("search.needsEmptySlot");
         case Availability::proLocked:       return SearchCatalog::text ("search.proLocked");
         case Availability::modeUnavailable: return SearchCatalog::text (processor.isLiveMode() ? "search.advancedLocked" : "search.advancedUnavailable");

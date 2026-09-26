@@ -44,6 +44,10 @@ const std::vector<Row>& rows()
         // only with a bass loaded.
         { "slap_*|pop_*|double_thump_*|ghost_*|finger_alternation_variation|rest_stroke",
           {}, Gate::bass, {} },
+
+        // mic-placement.md 3 and 6 (FEAT-MIC, INTEGRATE-2): the acoustic mics
+        // show only with an acoustic guitar loaded.
+        { "ac_mic_*", {}, Gate::acoustic, {} },
     };
 
     return table;
@@ -128,6 +132,11 @@ bool isBassLoaded (LuthierAudioProcessor& processor)
     return processor.getEngine().getGuitarSpec().category == GuitarCategory::Bass;
 }
 
+bool isAcousticLoaded (LuthierAudioProcessor& processor)
+{
+    return processor.getEngine().getGuitarSpec().category == GuitarCategory::Acoustic;   // MicUi::isAcoustic
+}
+
 bool isWhammyFitted (LuthierAudioProcessor& processor)
 {
     return WhammyPopover::isWhammyFitted (processor);
@@ -140,6 +149,7 @@ Availability evaluate (Gate gate, LuthierAudioProcessor& processor)
         case Gate::slideMode: return isSlideModeOn (processor) ? Availability::available : Availability::needsSlideMode;
         case Gate::bass:      return isBassLoaded (processor)  ? Availability::available : Availability::needsBass;
         case Gate::whammy:    return isWhammyFitted (processor) ? Availability::available : Availability::needsWhammy;
+        case Gate::acoustic:  return isAcousticLoaded (processor) ? Availability::available : Availability::needsAcoustic;
         case Gate::none:
         default: break;
     }

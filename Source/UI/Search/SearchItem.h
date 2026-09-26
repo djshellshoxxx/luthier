@@ -51,6 +51,7 @@ enum class Availability
     needsSlideMode,
     needsBass,
     needsWhammy,
+    needsAcoustic,     ///< mic-placement.md 3 (INTEGRATE-2): the acoustic mics
     needsEmptySlot,
     modeUnavailable,
     proLocked,
@@ -65,7 +66,8 @@ inline bool isLocked (Availability a) noexcept
 inline bool isContextGate (Availability a) noexcept
 {
     return a == Availability::needsSlideMode || a == Availability::needsBass
-        || a == Availability::needsWhammy || a == Availability::needsEmptySlot;
+        || a == Availability::needsWhammy || a == Availability::needsEmptySlot
+        || a == Availability::needsAcoustic;
 }
 
 //==============================================================================

@@ -388,7 +388,9 @@ LUTHIER_TEST (MicPlacementUi, expandedEditorTakesOverColumnsThreeAndFour)
     CHECK (ed->getBounds().getRight() >= strip.getRight() - 2);
     CHECK_MSG (ed->getWidth() > strip.getWidth(), "the editor did not take Column 3 as well");
 
-    if (auto* tab = adv.getWorkspaceTabButton ("MOD"))
+    // INTEGRATE-2: with JAM and RIFFS the strip scrolls (FEAT-RIFFS), so any one
+    // tab may be scrolled aside; the selected tab is always whole on screen.
+    if (auto* tab = adv.getWorkspaceTabButton (adv.getWorkspaceTabName (adv.getWorkspaceTab())))
         CHECK (onScreen (*tab));
 
     // Escape closes it and returns focus to the expand button.

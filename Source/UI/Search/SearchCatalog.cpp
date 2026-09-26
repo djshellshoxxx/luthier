@@ -33,6 +33,7 @@ const std::map<juce::String, juce::String>& builtInEnglish()
         { "search.needsPart",           "Appears on guitars with {part}. Open Workshop -> {category}?" },
         { "search.part.bass",           "a bass body" },
         { "search.part.whammy",         "a whammy bridge" },
+        { "search.part.acoustic",       "an acoustic body" },   // FEAT-MIC (INTEGRATE-2)
         { "search.needsEmptySlot",      "Every slot in that chain is full. Remove a pedal first." },
         { "search.advancedUnavailable", "Advanced Mode is unavailable at this width. Adjust here, or widen the window." },
         { "search.advancedLocked",      "Advanced Mode is locked by Live Mode. Adjust here." },

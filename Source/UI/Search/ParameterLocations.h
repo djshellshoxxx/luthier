@@ -12,7 +12,8 @@
 
       - context gates (3.4): parameters that do nothing, and are refused an
         inline set, unless Slide Mode is on (the SLIDE group), a bass is
-        loaded (SLAP and the bass grid) or a whammy bridge is fitted.
+        loaded (SLAP and the bass grid), a whammy bridge is fitted or an
+        acoustic guitar is loaded (the acoustic mics, mic-placement.md 3).
 
     Patterns are juce wildcards, '|'-separated.
 */
@@ -31,7 +32,7 @@ namespace luthier::search
 
 namespace ParameterLocations
 {
-    enum class Gate { none, slideMode, bass, whammy };
+    enum class Gate { none, slideMode, bass, whammy, acoustic };
 
     struct Row
     {
@@ -59,6 +60,7 @@ namespace ParameterLocations
     bool isSlideModeOn (LuthierAudioProcessor& processor);
     bool isBassLoaded (LuthierAudioProcessor& processor);
     bool isWhammyFitted (LuthierAudioProcessor& processor);
+    bool isAcousticLoaded (LuthierAudioProcessor& processor);
 
     /** "pre3_p2" -> chain (false = pre), slot 2 (0-based), param 2; false if
         it is not a pedal-slot parameter. `param` is -1 for type/bypass/mix. */
