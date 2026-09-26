@@ -40,7 +40,7 @@
 | NE-34 (§7) | Test: Guitar Pro round trip via fixture parser, string/fret identical — no GP parser | - | n/a | - | MISSING |
 | NE-35 (§7) | Test: ASCII column alignment at 4/4 | `renderAsciiTab` | n/a | `Notation::asciiTabColumnsAlign` | DONE |
 | NE-36 (§7) | Test: exported MIDI re-rendered nulls at -60 dBFS | `MidiProfiles`, `MidiPerformance` | n/a | `MidiExport::luthierRoundTripNullsEveryFactoryPreset`, `Capture::aCapturedPhraseRoundTripsThroughLuthierMidi` | DONE |
-| NE-37 (§7) | Test: 100 chord progressions, >95% detection — only a two-chord case exists | chord detector / offline extraction | n/a | `ModelGaps::aMonoTakeGetsItsChordsOffline` (2 chords) | MISSING |
+| NE-37 (§7) | Test: 100 chord progressions, >95% detection — only a two-chord case exists | chord detector / offline extraction | n/a | `Notation.chordExtractionOnAHundredProgressions` (the detector both paths use) | DONE |
 | NE-38 (§7.1) | Capture test: voiced notes not MIDI | | n/a | `Capture::recordsVoicedNotesNotMidi` | DONE |
 | NE-39 (§7.1) | Capture test: no allocation over 10 000 notes | | n/a | `Capture::capturingTenThousandNotesDoesNotAllocate` | DONE |
 | NE-40 (§7.1) | Capture test: overflow drops oldest, exact counter | | n/a | `Capture::ringOverflowDropsTheOldestAndCountsExactly` | DONE |

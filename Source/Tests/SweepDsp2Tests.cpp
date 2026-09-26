@@ -25,6 +25,7 @@
 #include "../Export/MidiImportTargets.h"
 #include "../Capture/PerformanceCapture.h"
 #include "../Notation/NotationExport.h"
+#include "../Rhythm/ChordDetector.h"
 #include "../Practice/PracticeRoutineSetup.h"
 #include "../UI/PracticePanel.h"
 #include "../UI/ToneMatchPanel.h"
@@ -3368,4 +3369,58 @@ LUTHIER_TEST (MidiExport, captureCarriesTheLiveNoiseEvents)
     CHECK (MidiProfiles::importFromFile (file, back, 48000.0).ok);
     CHECK (back.countEvents (LuthierEventClass::pick) == take.countEvents (LuthierEventClass::pick));
     file.deleteFile();
+}
+
+LUTHIER_TEST (Notation, chordExtractionOnAHundredProgressions)
+{
+    // NE-37 (notation-export 4): 100 four-chord progressions of common
+    // qualities, voiced as a guitarist would (root in the bass, the rest
+    // spread above), named right at least 95 % of the time.
+    struct Quality { const char* suffix; std::vector<int> intervals; };
+
+    const Quality qualities[] =
+    {
+        { "", { 0, 4, 7 } }, { "m", { 0, 3, 7 } }, { "7", { 0, 4, 7, 10 } }, { "maj7", { 0, 4, 7, 11 } },
+        { "m7", { 0, 3, 7, 10 } }, { "dim", { 0, 3, 6 } }, { "sus4", { 0, 5, 7 } }, { "sus2", { 0, 2, 7 } },
+        { "m7b5", { 0, 3, 6, 10 } }, { "aug", { 0, 4, 8 } }
+    };
+
+    ChordDetector detector;
+    detector.prepare (48000.0);
+    juce::Random random (0x37);
+    int right = 0, total = 0;
+    juce::StringArray wrong;
+
+    for (int progression = 0; progression < 100; ++progression)
+    {
+        for (int chord = 0; chord < 4; ++chord)
+        {
+            const int root = random.nextInt (12);
+            const auto& q = qualities[random.nextInt ((int) std::size (qualities))];
+
+            // Bass note in the low register, then the chord tones above it,
+            // one voicing in three doubling the root an octave up.
+            const int bass = 40 + ((root - 40 % 12) + 12) % 12;
+            std::vector<int> notes { bass };
+
+            for (size_t i = 1; i < q.intervals.size(); ++i)
+                notes.push_back (bass + 12 + q.intervals[i]);
+
+            if (random.nextInt (3) == 0)
+                notes.push_back (bass + 12);
+
+            const auto symbol = detector.detect (notes.data(), (int) notes.size());
+            const auto expected = juce::String (getPitchClassName (root)) + q.suffix;
+
+            ++total;
+
+            if (symbol.toString() == expected)
+                ++right;
+            else if (wrong.size() < 8)
+                wrong.add (expected + " read as " + symbol.toString());
+        }
+    }
+
+    CHECK_MSG (right >= total * 95 / 100,
+               juce::String (right) + " of " + juce::String (total) + " right: " + wrong.joinIntoString ("; "));
 }
