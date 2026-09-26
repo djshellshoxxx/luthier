@@ -132,6 +132,19 @@ namespace
 }
 
 //==============================================================================
+/*  modulation-matrix.md 0.1: control rate is block/32, floored at 128 samples. */
+LUTHIER_TEST (Modulation, controlRateIsABlockOver32FlooredAt128)
+{
+    ModHarness small;   // constructed with kBlock == 512: 512/32 = 16, floored to 128
+    CHECK (small.matrix.getControlRateSamples() == 128);
+    CHECK_NEAR (small.matrix.getControlRateHz(), kSr / 128.0, 1.0e-6);
+
+    small.matrix.prepare (kSr, 8192, small.apvts);
+    CHECK (small.matrix.getControlRateSamples() == 256);
+    CHECK_NEAR (small.matrix.getControlRateHz(), kSr / 256.0, 1.0e-6);
+}
+
+//==============================================================================
 /*  Test 1: LFO frequency accuracy. A 2 Hz LFO run for four seconds of control
     ticks must complete eight cycles. */
 LUTHIER_TEST (Modulation, lfoFrequencyIsAccurate)
@@ -470,6 +483,14 @@ LUTHIER_TEST (Modulation, routeModulatesItsDestination)
         matrix.processBlock (kBlock, context);
 
     CHECK_NEAR (matrix.apply (index, base), base, 1.0e-3);
+
+    // Re-enabling it brings the modulation straight back (modulation-matrix.md 3).
+    matrix.setRouteEnabled (0, true);
+
+    for (int i = 0; i < 128; ++i)
+        matrix.processBlock (kBlock, context);
+
+    CHECK_NEAR (matrix.apply (index, base) - base, range.getRange().getLength() * 0.25, range.getRange().getLength() * 0.02);
 }
 
 //==============================================================================

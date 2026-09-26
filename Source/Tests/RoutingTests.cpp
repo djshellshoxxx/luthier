@@ -12,6 +12,8 @@
 #include "../Routing/RoutingMatrix.h"
 #include "../Routing/MidiOutRouter.h"
 #include "../DSP/Amp/AmpEngine.h"
+#include "../Modulation/ModMatrix.h"
+#include "../Parameters.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -135,6 +137,40 @@ namespace
     {
         return (linear <= 1.0e-12) ? -240.0 : 20.0 * std::log10 (linear);
     }
+
+    /** Just enough of an AudioProcessor to give a ModMatrix a real parameter
+        tree (routing-io.md 0.4: the sidechain bus feeds a follower). */
+    class ModMatrixHarness : public juce::AudioProcessor
+    {
+    public:
+        ModMatrixHarness()
+            : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+              apvts (*this, nullptr, "LUTHIER", Parameters::createLayout())
+        {
+            matrix.prepare (kSr, kBlock, apvts);
+        }
+
+        void prepareToPlay (double, int) override {}
+        void releaseResources() override {}
+        void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override {}
+        const juce::String getName() const override { return "ModMatrixHarness"; }
+        double getTailLengthSeconds() const override { return 0.0; }
+        bool acceptsMidi() const override { return true; }
+        bool producesMidi() const override { return false; }
+        bool isMidiEffect() const override { return false; }
+        juce::AudioProcessorEditor* createEditor() override { return nullptr; }
+        bool hasEditor() const override { return false; }
+        int getNumPrograms() override { return 1; }
+        int getCurrentProgram() override { return 0; }
+        void setCurrentProgram (int) override {}
+        const juce::String getProgramName (int) override { return {}; }
+        void changeProgramName (int, const juce::String&) override {}
+        void getStateInformation (juce::MemoryBlock&) override {}
+        void setStateInformation (const void*, int) override {}
+
+        juce::AudioProcessorValueTreeState apvts;
+        ModMatrix matrix;
+    };
 }
 
 //==============================================================================
@@ -583,6 +619,102 @@ LUTHIER_TEST (Routing, sidechainToAmpReplacesTheInstrument)
     CHECK_MSG (dbOf (worstDiff) < -80.0,
                "DI tap did not carry the sidechain; worst difference "
                  + juce::String (dbOf (worstDiff), 1) + " dBFS");
+}
+
+//==============================================================================
+/*  routing-io.md 0.4: the sidechain bus is optional and makes the follower's
+    "sidechain" source live. */
+LUTHIER_TEST (Routing, sidechainDrivesTheEnvelopeFollower)
+{
+    ModMatrixHarness harness;
+    auto& follower = harness.matrix.getFollower (1);   // defaults to Source::sidechain
+    follower.setSource (ModEnvelopeFollower::Source::sidechain);
+    follower.setAttackMs (5.0);
+    follower.setReleaseMs (150.0);
+
+    ModBlockContext context;
+    context.sidechainPeak = 0.5;
+    context.sidechainMeanSquare = 0.25;
+
+    for (int i = 0; i < 20; ++i)
+        harness.matrix.processBlock (kBlock, context);
+
+    CHECK_MSG (harness.matrix.getSourceValue (ModSourceSlots::followerBase + 1) > 0.3,
+               "the sidechain follower did not respond to a live sidechain bus");
+
+    context.sidechainPeak = 0.0;
+    context.sidechainMeanSquare = 0.0;
+
+    for (int i = 0; i < 400; ++i)
+        harness.matrix.processBlock (kBlock, context);
+
+    CHECK_MSG (harness.matrix.getSourceValue (ModSourceSlots::followerBase + 1) < 0.05,
+               "the sidechain follower did not decay once the sidechain went silent");
+}
+
+//==============================================================================
+/*  routing-io.md 0.4: an unconsumed sidechain must never sum into the main out. */
+LUTHIER_TEST (Routing, sidechainNeverReachesTheMainOut)
+{
+    RoutingHarness harness (BusLayout::studio);
+    harness.setRateAndBufferSizeDetails (kSr, kBlock);
+    harness.prepareToPlay (kSr, kBlock);
+    harness.routing.setActiveLayout (BusLayout::studio);
+    harness.engine.setSidechainToAmp (false);
+
+    juce::AudioBuffer<float> buffer (harness.getTotalNumOutputChannels(), kBlock);
+    juce::MidiBuffer midi;   // no notes played: nothing but the sidechain is live
+
+    double mainPeak = 0.0;
+
+    for (int block = 0; block < 8; ++block)
+    {
+        buffer.clear();
+        auto sidechain = harness.getBusBuffer (buffer, true, 0);
+
+        for (int i = 0; i < kBlock; ++i)
+        {
+            const double phase = 2.0 * juce::MathConstants<double>::pi * 220.0
+                                   * (double) (block * kBlock + i) / kSr;
+            const auto value = (float) (0.9 * std::sin (phase));
+
+            for (int ch = 0; ch < sidechain.getNumChannels(); ++ch)
+                sidechain.getWritePointer (ch)[i] = value;
+        }
+
+        harness.processBlock (buffer, midi);
+
+        auto main = harness.getBusBuffer (buffer, false, 0);
+        mainPeak = juce::jmax (mainPeak, peakOf (main.getReadPointer (0), kBlock));
+    }
+
+    CHECK_MSG (dbOf (mainPeak) < -120.0,
+               "an unconsumed sidechain reached the main out: " + juce::String (dbOf (mainPeak), 1) + " dBFS");
+}
+
+//==============================================================================
+/*  routing-io.md 4, 8: the routing panel's sidechain meter reads the sidechain
+    bus, and reads zero without one. */
+LUTHIER_TEST (Routing, sidechainMeterReadsTheSidechain)
+{
+    RoutingMatrix routing;
+    routing.prepare (kSr, kBlock);
+
+    std::vector<float> sine ((size_t) kBlock);
+    const double amplitude = std::pow (10.0, -6.0 / 20.0);   // -6 dBFS
+
+    for (int i = 0; i < kBlock; ++i)
+        sine[(size_t) i] = (float) (amplitude * std::sin (2.0 * juce::MathConstants<double>::pi * 220.0 * i / kSr));
+
+    const float* channels[1] = { sine.data() };
+
+    for (int i = 0; i < 10; ++i)
+        routing.meterSidechain (channels, 1, kBlock);
+
+    CHECK_NEAR (routing.getSidechainLevel(), amplitude, 0.02);
+
+    routing.meterSidechain (nullptr, 0, 0);
+    CHECK (routing.getSidechainLevel() == 0.0);
 }
 
 //==============================================================================
