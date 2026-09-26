@@ -173,7 +173,9 @@ endif()
 # reference to the editor.
 set(LUTHIER_ENGINE_SOURCES ${LUTHIER_SOURCES})
 list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "Source/UI/")
-list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor\.(cpp|h)$")
+# SPEC-SWEEP: UiPreferences (juce_core only) is engine code too - PresetManager reads it (REALISM-C).
+list(APPEND LUTHIER_ENGINE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/UiPreferences.cpp")
+list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor[A-Za-z]*\.(cpp|h)$")   # SPEC-SWEEP: + PluginEditorTune/Onboarding
 
 # The UI, as its own list. The renderer does not want it - it renders offline and
 # has no window - but the test runner does. With Source/UI out of every target
@@ -181,7 +183,8 @@ list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor\.(cpp|h)$")
 # LuthierAudioProcessorEditor, and the panels could be verified only by opening
 # the plugin in a host by hand.
 set(LUTHIER_UI_SOURCES ${LUTHIER_SOURCES})
-list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor\.(cpp|h)$")
+list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor[A-Za-z]*\.(cpp|h)$")
+list(FILTER LUTHIER_UI_SOURCES EXCLUDE REGEX "Source/UI/UiPreferences\.cpp$")
 
 set(LUTHIER_CONSOLE_DEFS
     LUTHIER_HEADLESS=1
