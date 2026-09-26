@@ -124,7 +124,10 @@ void SearchHighlighter::flash (juce::Component* newTarget, juce::Rectangle<int> 
 {
     target = newTarget;
     targetArea = area;
-    reduced = AccessibilitySettings::get().isReducedMotion();
+    // accessibility 5, and cpu-quality-modes 6 (INTEGRATE-2): with Reduced
+    // motion or a quality that stops transitions, a static ring.
+    reduced = AccessibilitySettings::get().isReducedMotion()
+           || ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition);
     elapsed = 0.0;
     flashing = newTarget != nullptr;
     frameAlphas.clear();
@@ -136,7 +139,12 @@ void SearchHighlighter::flash (juce::Component* newTarget, juce::Rectangle<int> 
     if (flashing)
     {
         toFront (false);
-        startTimerHz (60);
+
+        // The pulse animates at 60 Hz; the static ring needs one tick to end.
+        if (reduced)
+            startTimer ((int) kStaticMs);
+        else
+            startTimerHz (60);
     }
 
     repaint();

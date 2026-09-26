@@ -236,7 +236,7 @@ CommandPalette::CommandPalette (SearchNavigator& n)
 
 CommandPalette::~CommandPalette()
 {
-    stopTimer();
+    motion.stopTimer();
     field.removeKeyListener (this);
     list.removeKeyListener (this);
 
@@ -279,7 +279,7 @@ void CommandPalette::open (const juce::String& initialText)
     rebuildRows();
     navigator.requestFocus (&field);
 
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);   // cpu-quality-modes 6
     announce (SearchCatalog::text ("search.announce.open"));
 
     if (initialText.isNotEmpty())
@@ -295,7 +295,7 @@ void CommandPalette::close (bool restoreFocus)
         return;
 
     navigator.endNudgeGesture();
-    stopTimer();
+    motion.stopTimer();
     setVisible (false);
 
     // accessibility 1: focus goes back where it was.
@@ -596,6 +596,7 @@ void CommandPalette::resized()
 
 void CommandPalette::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
     // A 40% scrim (6.2).
     g.fillAll (juce::Colours::black.withAlpha (0.4f));
 

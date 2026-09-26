@@ -24,6 +24,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "SearchNavigator.h"
+#include "../AnimationPolicy.h"   // cpu-quality-modes 6 (INTEGRATE-2)
 
 namespace luthier::search
 {
@@ -166,6 +167,9 @@ private:
     bool announcePending = false;
     int valueRefreshTicks = 0;
     bool updatingField = false;
+
+    // cpu-quality-modes 6: the rows' live values are a readout (10 Hz, stepped at Low).
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "CommandPalette" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CommandPalette)
 };

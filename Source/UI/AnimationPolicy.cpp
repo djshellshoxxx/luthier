@@ -54,7 +54,9 @@ const std::vector<std::pair<const char*, const char*>>& AnimationPolicy::getPoll
         { "PositionPad",           "10 Hz: redraws only when the player's position parameters change" },
         { "RightHandToolSelector", "4 Hz: syncs the selected tool with its parameter" },
         { "SustainShapeGroup",     "4 Hz: sustain-style combo text" },
-        { "TuningStabilityGroup",  "2 Hz: capo-bias text and string count" }
+        { "TuningStabilityGroup",  "2 Hz: capo-bias text and string count" },
+        { "SearchHighlighter",     "the 900 ms pulse runs only when mayAnimate (Transition); otherwise one tick ends the static ring" },   // FEAT-SEARCH (INTEGRATE-2)
+        { "SearchNavigator",       "40 ms one-shot: waits for the SLIDE group to appear after Slide Mode is switched on" }   // FEAT-SEARCH (INTEGRATE-2)
     };
 
     return list;
