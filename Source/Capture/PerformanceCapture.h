@@ -229,6 +229,13 @@ public:
     /** slide-guitar: the bar's position in frets and its pressure (lift, light, full). */
     void slideBar (int sampleOffset, double fretPosition, const char* pressure) noexcept;
 
+    /*  SPEC-SWEEP MX-1 (midi-export 6): a live noise event - what the live
+        MIDI out sends as PICK, SQUEAK, BUZZ or CLANK - so an exported take
+        carries it too. `kind`: 0 pick, 1 squeak (shift), 2 squeak (drag),
+        3 buzz, 4 clank. Audio thread. */
+    enum class NoiseKind : juce::uint8 { pick = 0, squeakShift, squeakDrag, buzz, clank };
+    void noiseEvent (int sampleOffset, NoiseKind kind, int stringIndex, double durationMs, double level) noexcept;
+
     /** Until the engine reports from triggerNote: the block's string activity,
         after engine.processBlock. Strings are the voicer's; frets are worked
         out from setTuning's open notes; techniques are not known. */

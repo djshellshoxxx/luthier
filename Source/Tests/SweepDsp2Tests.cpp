@@ -3330,3 +3330,42 @@ LUTHIER_TEST (Buzz, lightBuzzSitsThirtyToFortyDecibelsUnder)
     CHECK_NEAR (gainToDb (buzz.levelFor (0.3) / PlayingNoise::kNoteReference), -22.0, 0.01);
     CHECK (buzz.levelFor (0.0) == 0.0);
 }
+
+LUTHIER_TEST (MidiExport, captureCarriesTheLiveNoiseEvents)
+{
+    // MX-1 (midi-export 6): what the live MIDI out sends as PICK (and SQUEAK,
+    // BUZZ, CLANK) is in the captured take, and survives a Luthier export.
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    if (auto* type = processor.getState().getParameter (ParamIDs::guitarType))
+        type->setValueNotifyingHost (type->convertTo0to1 ((float) (int) GuitarType::Stratocaster));
+
+    juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumOutputChannels()), 512);
+
+    for (int b = 0; b < 20; ++b)
+    {
+        juce::MidiBuffer midi;
+
+        if (b == 4)
+            midi.addEvent (juce::MidiMessage::noteOn (1, 52, (juce::uint8) 110), 10);
+
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+    }
+
+    processor.drainPerformanceCapture();
+    const auto take = processor.getPerformanceCapture().toPerformance (48000.0);
+    CHECK_MSG (take.countEvents (LuthierEventClass::pick) >= 1, "the take has no PICK event");
+
+    auto file = juce::File::createTempFile (".mid");
+    MidiExportOptions options;
+    options.profile = MidiProfile::luthier;
+    juce::String error;
+    CHECK_MSG (MidiProfiles::exportToFile (take, options, file, &error), error);
+
+    MidiPerformance back (48000.0);
+    CHECK (MidiProfiles::importFromFile (file, back, 48000.0).ok);
+    CHECK (back.countEvents (LuthierEventClass::pick) == take.countEvents (LuthierEventClass::pick));
+    file.deleteFile();
+}

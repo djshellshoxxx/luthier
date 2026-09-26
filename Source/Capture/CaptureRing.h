@@ -47,7 +47,8 @@ struct CaptureRecord
         chord,
         meter,           ///< tempo and time signature
         bassTechnique,
-        slideBar
+        slideBar,
+        noise            ///< SPEC-SWEEP MX-1: a playing-noise trigger (code = the kind below)
     };
 
     Kind kind = Kind::noteOn;

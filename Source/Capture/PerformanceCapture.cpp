@@ -324,6 +324,20 @@ void PerformanceCapture::bassTechnique (int sampleOffset, int stringIndex, const
     ring.push (record);
 }
 
+void PerformanceCapture::noiseEvent (int sampleOffset, NoiseKind kind, int stringIndex,
+                                     double durationMs, double level) noexcept
+{
+    if (! isRecording())
+        return;
+
+    auto record = makeRecord (CaptureRecord::Kind::noise, sampleOffset);
+    record.code = (juce::uint8) kind;
+    record.stringIndex = (juce::int8) juce::jlimit (-1, kMaxStrings - 1, stringIndex);
+    record.fret = (float) durationMs;
+    record.value = (float) level;
+    ring.push (record);
+}
+
 void PerformanceCapture::slideBar (int sampleOffset, double fretPosition, const char* pressure) noexcept
 {
     if (! isRecording())
@@ -511,6 +525,50 @@ void PerformanceCapture::apply (const CaptureRecord& record)
             captured.event = LuthierEvent::make (LuthierEventClass::slideBar, record.sample);
             captured.event.setReal ("pos", record.value)
                           .set ("pressure", textOf (record));
+            events.push_back (captured);
+            break;
+        }
+
+        case Kind::noise:
+        {
+            // SPEC-SWEEP MX-1: the same fields the live SysEx sends.
+            CapturedEvent captured;
+            captured.sample = record.sample;
+            captured.musical = record.musical;
+            captured.ppq = record.ppq;
+
+            switch ((NoiseKind) record.code)
+            {
+                case NoiseKind::pick:
+                    captured.event = LuthierEvent::make (LuthierEventClass::pick, record.sample);
+                    captured.event.setInt ("str", record.stringIndex);
+                    break;
+
+                case NoiseKind::squeakShift:
+                case NoiseKind::squeakDrag:
+                    captured.event = LuthierEvent::make (LuthierEventClass::squeak, record.sample);
+                    captured.event.set ("trigger", (NoiseKind) record.code == NoiseKind::squeakShift ? "shift" : "drag")
+                                  .setInt ("str", record.stringIndex)
+                                  .setReal ("dur", record.fret)
+                                  .setReal ("intensity", record.value);
+                    break;
+
+                case NoiseKind::buzz:
+                    captured.event = LuthierEvent::make (LuthierEventClass::buzz, record.sample);
+                    captured.event.setInt ("str", record.stringIndex)
+                                  .setReal ("dur", record.fret)
+                                  .setReal ("intensity", record.value);
+                    break;
+
+                case NoiseKind::clank:
+                default:
+                    captured.event = LuthierEvent::make (LuthierEventClass::clank, record.sample);
+                    captured.event.set ("trigger", "land")
+                                  .setInt ("mask", 1 << juce::jlimit (0, 11, (int) record.stringIndex))
+                                  .setReal ("intensity", record.value);
+                    break;
+            }
+
             events.push_back (captured);
             break;
         }

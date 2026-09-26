@@ -1478,6 +1478,31 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
             mainOut.clear();
     }
 
+    /*  SPEC-SWEEP MX-1 (midi-export 6): the block's noise events - the ones
+        the live MIDI out sends as PICK, SQUEAK, BUZZ and CLANK - go into the
+        take as well, so an exported take carries them. */
+    {
+        const auto& pool = engine.getNoisePool();
+
+        for (int i = 0; i < pool.getNumBlockTriggers(); ++i)
+        {
+            const auto& t = pool.getBlockTrigger (i);
+            using Kind = PerformanceCapture::NoiseKind;
+
+            switch (t.noiseClass)
+            {
+                case NoiseClass::pickClick:  performanceCapture.noiseEvent (t.offset, Kind::pick, t.stringIndex, t.durationMs, t.level); break;
+                case NoiseClass::squeak:     performanceCapture.noiseEvent (t.offset, Kind::squeakShift, t.stringIndex, t.durationMs, t.level); break;
+                case NoiseClass::pickScrape: performanceCapture.noiseEvent (t.offset, Kind::squeakDrag, t.stringIndex, t.durationMs, t.level); break;
+                case NoiseClass::fretBuzz:   performanceCapture.noiseEvent (t.offset, Kind::buzz, t.stringIndex, t.durationMs, t.level); break;
+                case NoiseClass::clank:      performanceCapture.noiseEvent (t.offset, Kind::clank, t.stringIndex, t.durationMs, t.level); break;
+                case NoiseClass::pickChirp:
+                case NoiseClass::numClasses:
+                default:                     break;
+            }
+        }
+    }
+
     // 6.1: what the engine actually played - string, fret and technique, after
     // voicing - is reported by the engine itself from triggerNote (MODEL-GAPS).
 
