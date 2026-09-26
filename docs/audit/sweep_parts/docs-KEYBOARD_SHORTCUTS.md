@@ -14,7 +14,7 @@ Every binding the doc lists exists in `AccessibilitySettings` with the documente
 | KS-8 (Presets) | [ / ] previous/next preset, snapshot while Live Mode on | `keyPressed previousItem/nextItem` | n/a | `Editor::bracketsStepPresetsOrSnapshotsInLiveMode` | DONE |
 | KS-9 (Presets) | 1-9 recall snapshot 1-9 | `keyPressed` digit branch -> `recallSnapshot` | n/a | `Editor::digitsRecallSnapshots` | DONE |
 | KS-10 (Presets) | Shift+1-9 recall snapshot 10-18 — digit read from the key code | `keyPressed` digit branch | n/a | `Editor::digitsRecallSnapshots` | DONE |
-| KS-11 (Presets) | PageUp/PageDown previous/next setlist entry | `keyPressed setlistPrevious/Next` -> `Setlist::next/previous` | n/a | - | NO-TEST |
+| KS-11 (Presets) | PageUp/PageDown previous/next setlist entry | `keyPressed setlistPrevious/Next` -> `Setlist::next/previous` | n/a | `Editor::pageKeysStepTheSetlist` | DONE |
 | KS-12 (File) | Ctrl+O browser, Ctrl+Shift+S Save As, Ctrl+E export, Ctrl+, Options, Ctrl+D debug | `keyPressed presetBrowser/saveAs/export/options/debugPanel` | overlays | `Editor::everyOverlayShortcutOpens...`, `GuiReach::everyAutomatableParameterHasAVisibleControl` walk | DONE |
 | KS-13 (File) | Ctrl+S saves current preset (falls back to Save As) | `keyPressed "save"` -> `PresetManager::saveCurrent` | n/a | - | NO-TEST |
 | KS-14 (File) | Ctrl+G save guitar as .luthierguitar; Ctrl+Shift+E reveal guitar file | `keyPressed saveGuitarAs/revealGuitar`, `showSaveGuitarDialog` | dialog | - — `WorkshopPreset` tests call `saveGuitarAs` directly, not the key | NO-TEST |

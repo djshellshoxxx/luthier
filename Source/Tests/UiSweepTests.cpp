@@ -17,6 +17,8 @@
 #include "../UI/SetupGroup.h"
 #include "../UI/PracticePanel.h"
 #include "../UI/NextStrumArrow.h"
+#include "../UI/Overlays.h"
+#include "../Live/Setlist.h"
 #include "../Rhythm/Patterns.h"
 #include "../Accessibility/Accessibility.h"
 
@@ -749,3 +751,33 @@ LUTHIER_TEST (EasyLayout, theNextStrumArrowFlashesAndHides)
     arrow.tick (now + 600.0);   // no block for 600 ms
     CHECK (! arrow.isShown());
 }
+
+/*  KS-11: PageDown / PageUp step the setlist; with nowhere to go the key is
+    not swallowed. */
+LUTHIER_TEST (Editor, pageKeysStepTheSetlist)
+{
+    EditorFixture f;
+    CHECK (f.editor != nullptr);
+
+    Setlist list;
+    SetlistEntry a, b;
+    a.presetPath = "missing-a.luthierpreset";
+    b.presetPath = "missing-b.luthierpreset";
+    list.addEntry (a);
+    list.addEntry (b);
+
+    auto& player = f.processor.getSetlist();
+    player.setSetlist (list);
+    player.goTo (0);
+    CHECK (player.getPosition() == 0);
+
+    f.press (shortcutFor ("setlistNext"));
+    CHECK_MSG (player.getPosition() == 1, "PageDown left the setlist at " + juce::String (player.getPosition()));
+
+    CHECK (! f.press (shortcutFor ("setlistNext")));   // the end: not swallowed
+    CHECK (player.getPosition() == 1);
+
+    f.press (shortcutFor ("setlistPrevious"));
+    CHECK (player.getPosition() == 0);
+}
+
