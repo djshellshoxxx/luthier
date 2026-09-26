@@ -381,15 +381,32 @@ LUTHIER_TEST (JamPlugin, JM36_jamParametersAreTheLast34InTableOrder)
     const int n = params.size();
     CHECK (n > ParamIDs::kNumJamParameters);
 
+    // INTEGRATE-2: the 34 were last when FEAT-JAM landed; workstreams merged
+    // after it (FEAT-ASSIST, FEAT-MIC) append their own blocks behind them. The
+    // rule is the append-only one: one contiguous block in table order, and no
+    // jam_ parameter anywhere else.
+    int first = -1;
+
+    for (int i = 0; i < n && first < 0; ++i)
+        if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (params[i]))
+            if (withId->paramID == ParamIDs::jamParameters[0])
+                first = i;
+
+    CHECK (first >= 0 && first + ParamIDs::kNumJamParameters <= n);
+
+    if (first < 0 || first + ParamIDs::kNumJamParameters > n)
+        return;
+
     for (int i = 0; i < ParamIDs::kNumJamParameters; ++i)
     {
-        auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (params[n - ParamIDs::kNumJamParameters + i]);
+        auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (params[first + i]);
         CHECK (withId != nullptr && withId->paramID == ParamIDs::jamParameters[i]);
     }
 
-    for (int i = 0; i < n - ParamIDs::kNumJamParameters; ++i)
-        if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (params[i]))
-            CHECK_MSG (! withId->paramID.startsWith ("jam_"), withId->paramID + " sits before the Jam block");
+    for (int i = 0; i < n; ++i)
+        if (i < first || i >= first + ParamIDs::kNumJamParameters)
+            if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (params[i]))
+                CHECK_MSG (! withId->paramID.startsWith ("jam_"), withId->paramID + " sits outside the Jam block");
 }
 
 //==============================================================================
