@@ -1028,6 +1028,14 @@ void LevelMeter::paint (juce::Graphics& g)
 
     auto drawBar = [&g, this] (juce::Rectangle<int> area, float level, float hold)
     {
+        // SPEC-SWEEP: A11Y-25 - shape as well as colour: below -18 dBFS the bar
+        // is drawn at 60% of its thickness, so "quiet" reads without the green.
+        const float quietBelow = (60.0f - 18.0f) / 60.0f;
+
+        if (level > 0.001f && level < quietBelow)
+            area = horizontal ? area.withSizeKeepingCentre (area.getWidth(), juce::jmax (1, area.getHeight() * 3 / 5))
+                              : area.withSizeKeepingCentre (juce::jmax (1, area.getWidth() * 3 / 5), area.getHeight());
+
         if (level > 0.001f)
         {
             // Smooth gradient rather than visible LED segments.
@@ -1075,6 +1083,29 @@ void LevelMeter::paint (juce::Graphics& g)
         auto right = bounds.reduced (1);
         drawBar (left, levelL, peakHoldL);
         drawBar (right, levelR, peakHoldR);
+    }
+
+    // SPEC-SWEEP: A11Y-25 - over 0 dBFS a bracket marks the clipped end, so the
+    // overload is a shape and not only red.
+    if (displayPeakDb > 0.0f)
+    {
+        const auto meterArea = horizontal ? getLocalBounds().withTrimmedRight (46) : getLocalBounds().withTrimmedTop (12);
+        g.setColour (Palette::clip);
+
+        if (horizontal)
+        {
+            const int x = meterArea.getRight() - 4;
+            g.fillRect (x, meterArea.getY(), 4, 1);
+            g.fillRect (x + 3, meterArea.getY(), 1, meterArea.getHeight());
+            g.fillRect (x, meterArea.getBottom() - 1, 4, 1);
+        }
+        else
+        {
+            const int y = meterArea.getY();
+            g.fillRect (meterArea.getX(), y, 1, 4);
+            g.fillRect (meterArea.getX(), y, meterArea.getWidth(), 1);
+            g.fillRect (meterArea.getRight() - 1, y, 1, 4);
+        }
     }
 
     g.setColour (displayPeakDb > -0.3f ? Palette::clip : Palette::textMuted);

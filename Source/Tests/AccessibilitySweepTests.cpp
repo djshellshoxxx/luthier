@@ -271,3 +271,48 @@ LUTHIER_TEST (Accessibility, verbosityGatesAnnouncements)
     CHECK (AccessibleSetup::shouldAnnounce (A::standard, V::verbose));
     CHECK (AccessibleSetup::shouldAnnounce (A::valueChange, V::verbose));
 }
+
+/*  A11Y-25: the meter changes shape, not only colour - a thin bar when quiet,
+    a bracket when over. Compared in greyscale-free terms: pixel footprints. */
+LUTHIER_TEST (Accessibility, theMeterChangesShapeNotOnlyColour)
+{
+    LevelMeter meter;
+    meter.setSize (20, 112);
+
+    auto render = [&meter] (float level, float peakDb)
+    {
+        meter.setLevelsForTest (level, level, peakDb);
+        return meter.createComponentSnapshot (meter.getLocalBounds(), true, 1.0f);
+    };
+
+    // Filled width on a row near the bottom of the left bar.
+    auto filledWidth = [] (const juce::Image& image, int y)
+    {
+        int n = 0;
+        const auto background = image.getPixelAt (0, 20);
+
+        for (int x = 0; x < image.getWidth() / 2; ++x)
+            if (image.getPixelAt (x, y) != background)
+                ++n;
+
+        return n;
+    };
+
+    const auto quiet = render (0.5f, -30.0f);    // -30 dBFS
+    const auto loud  = render (0.95f, -3.0f);    // -3 dBFS
+
+    const int y = quiet.getHeight() - 4;
+    CHECK_MSG (filledWidth (quiet, y) < filledWidth (loud, y),
+               "quiet " + juce::String (filledWidth (quiet, y)) + " px, loud " + juce::String (filledWidth (loud, y)) + " px");
+
+    // Over: the top edge of the bar area gains a bracket.
+    const auto over = render (1.0f, 1.0f);
+    const auto notOver = render (1.0f, -0.5f);
+
+    int differing = 0;
+    for (int x = 0; x < over.getWidth(); ++x)
+        if (over.getPixelAt (x, 12) != notOver.getPixelAt (x, 12))
+            ++differing;
+
+    CHECK_MSG (differing > 0, "no bracket at 0 dBFS+");
+}

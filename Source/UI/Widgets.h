@@ -305,6 +305,12 @@ public:
     std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override;
     float getDisplayPeakDb() const noexcept { return displayPeakDb; }
 
+    /** SPEC-SWEEP: A11Y-25 (tests) - sets what the meter shows, as a tick would. */
+    void setLevelsForTest (float normalisedL, float normalisedR, float peakDb) noexcept
+    {
+        levelL = normalisedL; levelR = normalisedR; displayPeakDb = peakDb;
+    }
+
 private:
     void timerCallback() override;
 
