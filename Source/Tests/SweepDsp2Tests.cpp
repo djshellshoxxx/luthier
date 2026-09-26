@@ -3598,3 +3598,75 @@ LUTHIER_TEST (Notation, guitarProRoundTripsStringsAndFrets)
     CHECK (back.getMeta().tempoBpm > 99.0 && back.getMeta().tempoBpm < 101.0);
     file.deleteFile();
 }
+
+LUTHIER_TEST (ToneMatch, cabinetSlotsReplaceTheirOwnMic)
+{
+    // TM-7 (tone-match 1): cab slot 1 replaces mic 1, slot 2 mic 2 - so with
+    // the second mic out of use, slot 2 changes nothing.
+    juce::WavAudioFormat wav;
+    const auto file = writeIr (wav, ".wav", 0.1);
+
+    IrSlot slotA, slotB;
+
+    for (auto* slot : { &slotA, &slotB })
+    {
+        slot->prepare (48000.0, 512);
+        CHECK (slot->load (file));
+        slot->setMix (1.0);
+    }
+
+    juce::Thread::sleep (300);
+
+    auto render = [&] (bool engageA, bool engageB)
+    {
+        slotA.setEngaged (engageA);
+        slotB.setEngaged (engageB);
+
+        LuthierEngine engine;
+        engine.prepare (48000.0, 512);
+        engine.setGuitarType (GuitarType::Stratocaster);
+        engine.getCabinetEngine().setEnabled (true);
+        engine.getCabinetEngine().setDualMicEnabled (false);
+        engine.getCabinetEngine().setUserIrSlots (&slotA, &slotB);
+
+        NoteOnEvent e;
+        e.stringIndex = 3;
+        e.fretPosition = 2.0;
+        e.pitchHz = engine.getTuningEngine().computeFrequency (3, 2.0);
+        engine.triggerNoteNow (e);
+
+        std::vector<float> out;
+        juce::AudioBuffer<float> buffer (2, 512);
+        juce::MidiBuffer midi;
+
+        for (int b = 0; b < 20; ++b)
+        {
+            buffer.clear();
+            engine.processBlock (buffer, midi);
+            out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 512);
+        }
+
+        return out;
+    };
+
+    const auto none = render (false, false);
+    const auto onlyB = render (false, true);
+    const auto onlyA = render (true, false);
+
+    double diffB = 0.0, diffA = 0.0, energy = 0.0;
+
+    for (size_t i = 0; i < none.size(); ++i)
+    {
+        diffB = juce::jmax (diffB, (double) std::abs (onlyB[i] - none[i]));
+        diffA += (double) (onlyA[i] - none[i]) * (onlyA[i] - none[i]);
+        energy += (double) none[i] * none[i];
+    }
+
+    CHECK (energy > 0.0);
+    CHECK_MSG (diffB == 0.0, "cab slot 2 changed the sound with the second mic off");
+    CHECK_MSG (diffA > energy * 0.01, "cab slot 1 did not replace mic 1");
+
+    slotA.unload();
+    slotB.unload();
+    file.deleteFile();
+}

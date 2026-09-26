@@ -1,4 +1,5 @@
 #include "CabinetEngine.h"
+#include "../../ToneMatch/ToneMatch.h"   // SPEC-SWEEP TM-7
 #include "../../Support/ThreadProbe.h"
 
 namespace luthier
@@ -209,6 +210,7 @@ void CabinetEngine::prepare (double sampleRate, int maxBlockSize)
 
     bufferA.setSize (1, maxBlock, false, true, true);
     bufferB.setSize (1, maxBlock, false, true, true);
+    micInput.assign ((size_t) maxBlock, 0.0f);   // SPEC-SWEEP TM-7
 
     dcL.prepare (sr, 10.0);
     dcR.prepare (sr, 10.0);
@@ -421,6 +423,12 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
         b[i] = mono;
     }
 
+    // SPEC-SWEEP TM-7: what each mic hears, for a user IR that replaces it.
+    const bool haveInputCopy = numSamples <= (int) micInput.size();
+
+    if (haveInputCopy)
+        std::copy (a, a + numSamples, micInput.begin());
+
     // ---- mic A ----------------------------------------------------------------
     {
         const juce::SpinLock::ScopedTryLockType lock (pathA.convolutionLock);
@@ -437,6 +445,10 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
             for (int i = 0; i < numSamples; ++i)
                 a[i] = (float) sanitise (pathA.processFallback ((double) a[i]));
         }
+
+        // SPEC-SWEEP TM-7: cabinet slot 1 in place of mic A's response.
+        if (userSlotA != nullptr && haveInputCopy && userSlotA->isEngaged())
+            userSlotA->processReplacing (micInput.data(), a, numSamples);
     }
 
     // ---- mic B ----------------------------------------------------------------
@@ -456,6 +468,10 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
             for (int i = 0; i < numSamples; ++i)
                 b[i] = (float) sanitise (pathB.processFallback ((double) b[i]));
         }
+
+        // SPEC-SWEEP TM-7: cabinet slot 2 in place of mic B's response.
+        if (userSlotB != nullptr && haveInputCopy && userSlotB->isEngaged())
+            userSlotB->processReplacing (micInput.data(), b, numSamples);
 
         // Time-of-flight alignment: the further mic hears the cabinet later, and
         // summing them without compensating comb-filters the result.

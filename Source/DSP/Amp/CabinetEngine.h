@@ -62,6 +62,8 @@ struct CabinetConfig
 };
 
 //==============================================================================
+class IrSlot;   // SPEC-SWEEP TM-7
+
 class CabinetEngine
 {
 public:
@@ -146,6 +148,11 @@ public:
 
     int getMicTapNumSamples() const noexcept { return micTapSamples; }
 
+    /*  SPEC-SWEEP TM-7 (tone-match 1): the TONE MATCH cabinet slots replace mic
+        A's and mic B's response while engaged, blended by each slot's mix.
+        Owned by the caller; set before audio starts; nullptr for none. */
+    void setUserIrSlots (IrSlot* micA, IrSlot* micB) noexcept { userSlotA = micA; userSlotB = micB; }
+
 private:
     struct MicPath
     {
@@ -200,6 +207,10 @@ private:
     int alignSize = 0, alignMask = 0, alignIndex = 0, alignSamples = 0;
 
     juce::AudioBuffer<float> bufferA, bufferB;
+
+    IrSlot* userSlotA = nullptr;          // SPEC-SWEEP TM-7
+    IrSlot* userSlotB = nullptr;
+    std::vector<float> micInput;          // the mono feed, kept for a user slot
 
     // Set at the end of processBlock, cleared when the cabinet is bypassed, so a
     // caller can never read a stale or never-written mic buffer.

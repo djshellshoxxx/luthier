@@ -108,6 +108,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     // where the body is.
     engine.setBodyIrSlot (&bodyIr);
 
+    // SPEC-SWEEP TM-7 (tone-match 1): the cabinet pair replace mic 1 and mic 2
+    // inside the cabinet, rather than convolving the finished output in series.
+    engine.getCabinetEngine().setUserIrSlots (&cabIr[0], &cabIr[1]);
+
     // practice-tools 12.1: the routine runner drives the processor's own tools,
     // the history is the saved one, and the saved defaults apply at start.
     practiceRunner.setTargets (getPracticeTargets());
@@ -1507,18 +1511,13 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     // voicing - is reported by the engine itself from triggerNote (MODEL-GAPS).
 
     // ---- tone match ----------------------------------------------------------------
-    /*  tone-match 1: a user cabinet IR replaces the model's, so it goes on the
-        main output after the engine has produced it.
-
-        The body IR slot is handled inside the engine, where the body is; this is
-        the cabinet pair, which is the last thing before the master and therefore
-        the last thing this can reach. */
+    /*  tone-match 1: the IR slots run inside the engine - the body slot where
+        the body is, the cabinet pair in place of the cabinet's two mics
+        (SPEC-SWEEP TM-6, TM-7). What is left here is the capture. */
     {
         auto mainOut = getBusBuffer (buffer, false, 0);
 
-        for (auto& slot : cabIr)
-            slot.process (mainOut.getArrayOfWritePointers(),
-                          mainOut.getNumChannels(), numSamples);
+        // (SPEC-SWEEP TM-7: the cabinet slots now run inside the cabinet.)
 
         // SPEC-SWEEP TM-17: a Cab Match pass starts its capture in the block
         // its test signal starts, so both share sample zero.
