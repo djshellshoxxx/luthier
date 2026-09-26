@@ -55,9 +55,34 @@ untouched and not repeated here.
 
 - `ninja -C build LuthierTests`: green.
 - `ninja -C build Luthier_VST3 Luthier_Standalone`: green.
-- Targeted suites run this pass, all green: `RhythmPatterns`, `Routing`,
+- Targeted suites run first, all green: `RhythmPatterns`, `Routing`,
   `Character`, `PracticeTrainers`, `ToneMatch`, `Trademarks`, `Integration`,
   `RubricVoicer`, `GenreKits`, `StrumDynamics`, `Presets`, `Workshop`.
-- Full suite: see the run at the end of this branch's history (this doc is
-  written before that run completes; check the commit log for a `full suite`
-  commit message if one follows).
+- Full suite (`LuthierTests` with no filter): 1377 tests, 804637 checks,
+  16 tests failed (187 checks). Checked every failing test against
+  `docs/audit/GAPS_AUDIT.md` / `BETA_TEST_REPORT.md`: all 16 are pre-existing,
+  already-documented issues owned by other workstreams, none touched by this
+  branch - **no new failures**:
+  - `shortcutsRebindAndRefuseClashes`, `noTwoShortcutsShareADefaultKey`,
+    `AS25_theOptionsRows`, `cpuQualityMotionPolicy`,
+    `noControlHangsOutsideItsParentAtAnyWidthOrScale`,
+    `CQ22_everyTimerDrivenUiClassIsRegisteredOrAllowListed`,
+    `CQ22_builtEditorsRegisterEveryTableClassThatExists`: the FEAT-STRINGS
+    `StringAnimator` integration gap (no `AnimationPolicy::Registration`) and
+    related UI/shortcut items tracked in FEAT-CPU.md / FEAT-STRINGS.md.
+  - `everyFactoryPresetPlaysEveryPhrase`, `snapshotsAndPresetMorph`:
+    BETA_TEST_REPORT B-15, "P-Bass Flatwound" with legacy `string_age` Old
+    silences notes above ~A3; explicitly left failing for its owner, and
+    `string-aging.md`'s SA-02 pins the legacy behaviour on purpose.
+  - `everyAutomatableParameterHasAVisibleControl`: BETA B-11, 27
+    scrape/slap technique params plus `macro_assign_a/b` and `pickup_blend`
+    have no control yet (in progress on the techniques workstream).
+  - `ON02_OffPathMatchesGoldenHashes`, `ON03_FactoryTableDoesNotDrift`,
+    `ON30_SampleRates`: output-normalization workstream, tracked in
+    FEAT-NORMALIZE.md.
+  - `CQ12_everyFactoryPresetAtEveryLevel`: CPU-quality workstream, tracked in
+    FEAT-CPU.md as "relaxed gates" / partial.
+  - `aLoudRigTakesOverAndACleanOneDoesNot`, `eachStringHearsItsOwnNote`:
+    feedback-loop tuning, pre-existing per the same audit trail.
+  - None of the 16 reference rhythm-engine, character-wear, practice-tools or
+    factory-content code paths.
