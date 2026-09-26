@@ -136,6 +136,8 @@ Root: HKA; Subkey: "Software\Classes\.midprofile\OpenWithProgids"; ValueType: st
 [Run]
 ; Optional launch, default off (installer.md 1.1.9).
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Components: standalone; Flags: nowait postinstall skipifsilent unchecked
+; installer.md 1.1.9: a "What's new" link on the finished page, unchecked (SPEC-SWEEP IN-14).
+Filename: "https://luthieraudio.com/releases/{#AppVersion}"; Description: "Show what's new in {#AppName} {#AppVersion}"; Flags: shellexec postinstall skipifsilent unchecked nowait
 
 [UninstallDelete]
 Type: dirifempty; Name: "{commonappdata}\Luthier"

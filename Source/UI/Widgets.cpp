@@ -481,6 +481,9 @@ LuthierKnob::LuthierKnob (const juce::String& text, Size s)
     // SPEC-SWEEP: A11Y-13 - every knob is on the Tab walk.
     slider.setWantsKeyboardFocus (true);
 
+    // SPEC-SWEEP: TH-27 - theme.md: knobs show a vertical-resize cursor.
+    slider.setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
+
     setInterceptsMouseClicks (true, true);
 }
 

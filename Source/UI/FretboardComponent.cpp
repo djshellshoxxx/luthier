@@ -164,6 +164,7 @@ void FretboardComponent::timerCallback()
 
     if (motion)
         refreshStringLooks (false);
+    updateFretCells();   // SPEC-SWEEP: A11Y-8 (cheap unless something changed)
 
     for (int s = 0; s < numStrings; ++s)
     {
@@ -395,6 +396,95 @@ void FretboardComponent::resized()
 
     if (! compact)
         boardArea.removeFromBottom (14);   // fret number row
+
+    layoutFretCells();   // SPEC-SWEEP: A11Y-8
+}
+
+//==============================================================================
+// SPEC-SWEEP: A11Y-8 - the painted board, readable cell by cell.
+class FretboardComponent::FretCell : public juce::Component
+{
+public:
+    FretCell()
+    {
+        setInterceptsMouseClicks (false, false);
+        setWantsKeyboardFocus (false);   // 150 tab stops would bury the rest
+    }
+
+    std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override
+    {
+        return std::make_unique<juce::AccessibilityHandler> (*this, juce::AccessibilityRole::cell);
+    }
+};
+
+juce::Component* FretboardComponent::getFretCell (int stringIndex, int fret) const
+{
+    const int index = stringIndex * (numFrets + 1) + fret;
+    return juce::isPositiveAndBelow (stringIndex, numStrings) && juce::isPositiveAndBelow (fret, numFrets + 1)
+             ? fretCells[index] : nullptr;
+}
+
+void FretboardComponent::updateFretCells()
+{
+    const auto& tuning = processor.getEngine().getTuningEngine();
+
+    auto noteAt = [&tuning] (int s, int f)
+    {
+        const double hz = tuning.computeFrequency (s, (double) f, 0.0);
+        return (int) std::round (hzToMidi (hz, tuning.getConcertA()));
+    };
+
+    juce::String signature;
+    signature << numStrings << '/' << numFrets << '/' << capoFret;
+
+    for (int s = 0; s < numStrings; ++s)
+        signature << ',' << noteAt (s, 0);
+
+    if (signature == fretCellsSignature)
+        return;
+
+    fretCellsSignature = signature;
+
+    const int wanted = numStrings * (numFrets + 1);
+
+    while (fretCells.size() > wanted)
+        fretCells.removeLast();
+
+    while (fretCells.size() < wanted)
+        addAndMakeVisible (fretCells.add (new FretCell()));
+
+    for (int s = 0; s < numStrings; ++s)
+        for (int f = 0; f <= numFrets; ++f)
+        {
+            juce::String title ("String " + juce::String (s + 1) + ", "
+                                + (f == 0 ? juce::String ("open") : "fret " + juce::String (f)) + ", "
+                                + juce::MidiMessage::getMidiNoteName (noteAt (s, f), true, true, 4));
+
+            if (f > 0 && f <= capoFret)
+                title << " (behind the capo)";
+
+            fretCells[s * (numFrets + 1) + f]->setTitle (title);
+        }
+
+    layoutFretCells();
+}
+
+void FretboardComponent::layoutFretCells()
+{
+    if (fretCells.size() != numStrings * (numFrets + 1))
+        return;
+
+    const float spacing = (float) boardArea.getHeight() / (float) juce::jmax (1, numStrings);
+
+    for (int s = 0; s < numStrings; ++s)
+        for (int f = 0; f <= numFrets; ++f)
+        {
+            const float left = f == 0 ? (float) boardArea.getX() : fretX (f - 1);
+            const float right = fretX (f);
+            fretCells[s * (numFrets + 1) + f]->setBounds (
+                juce::Rectangle<float> (left, stringY (s) - spacing * 0.5f,
+                                        juce::jmax (1.0f, right - left), spacing).toNearestInt());
+        }
 }
 
 float FretboardComponent::fretX (double fret) const

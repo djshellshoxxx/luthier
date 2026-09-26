@@ -571,6 +571,10 @@ void LuthierAudioProcessorEditor::updateLiveStripVisibility()
     liveModeShown = live;
     liveStrip.setVisible (live);
 
+    // SPEC-SWEEP: LP-39 / GI-76 - tooltips follow Live Mode at once, not a
+    // timer tick later.
+    applyTooltipPreference();
+
     /*  The header carries the state as well as setting it. Live Mode can be
         turned on from the shortcut as well as from the pill, and this used to
         leave the pill dark and the Advanced toggle unlocked - the mode was on and
@@ -1113,24 +1117,26 @@ void LuthierAudioProcessorEditor::postStartupNotifications()
 
             Unthrottled here, unlike the Options page's button, which forces. If
             the 24-hour window has not elapsed this returns without a request. */
-        juce::Thread::launch ([this, running]
-        {
-            const auto result = processor.getTelemetry().checkForUpdate (running);
+        // SPEC-SWEEP: UT-4 - Telemetry::checkForUpdateAsync; a SafePointer, so
+        // an editor closed before the answer arrives is not touched.
+        juce::Component::SafePointer<LuthierAudioProcessorEditor> safe (this);
 
-            if (! result.updateAvailable)
+        processor.getTelemetry().checkForUpdateAsync (running, false, [safe] (const Telemetry::UpdateResult& result)
+        {
+            if (safe == nullptr || ! result.updateAvailable)
                 return;
 
-            juce::MessageManager::callAsync ([this, result]
+            auto* self = safe.getComponent();
             {
                 Notification n;
                 n.id = "update";
                 n.message = "Luthier " + result.available.toString() + " is available.";
                 n.level = Notification::Level::info;
                 n.actionText = "Details";
-                n.action = [this] { showOptionsPage ("UPDATES"); };
+                n.action = [safe] { if (safe != nullptr) safe->showOptionsPage ("UPDATES"); };
 
-                notifications.post (std::move (n));
-            });
+                self->notifications.post (std::move (n));
+            }
         });
     }
 

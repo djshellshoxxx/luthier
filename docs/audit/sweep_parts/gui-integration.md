@@ -79,7 +79,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-73 (§8) | Snapshot buttons: colour tag, 12-char label (tested); active outline is the tag colour, not the accent | - | `SnapshotStrip::paint`, `getPadText` | `Live::shiftClickWritesAndClickRecalls` (12-char text) | PARTIAL |
 | GI-74 (§9) | Live strip: snapshots, setlist triptych, tap, morph A/knob/B, kill, monitor | `Live/*` | `UI/LiveStrip.cpp` | `Editor::theModesThatChangeTheLayoutTakeEffectAndUndoThemselves`, `LiveKillSwitch::fadesRatherThanJumping` | DONE |
 | GI-75 (§9) | Live Mode: 44 px hit targets, locks Advanced toggle | - | `LiveStrip::kTouchTargetHeight`, `HeaderBar::updateModeButtonEnablement` | `LiveStripUi::everyTargetIsTouchSized` | DONE |
-| GI-76 (§9) | Live Mode suppresses tooltips (all; see sweep-notes/ui.md) | `PluginEditor::timerCallback` | all tooltips suppressed in Live Mode | - | NO-TEST |
+| GI-76 (§9) | Live Mode suppresses tooltips (all; see sweep-notes/ui.md) | `PluginEditor::applyTooltipPreference` | all tooltips suppressed in Live Mode | `Editor::liveModeSuppressesTooltips` | DONE |
 | GI-77 (§10) | Practice drawer 32-360 px, collapsed bpm/loop/track, 8 tabs | `Practice/*` | `UI/PracticePanel.cpp` | `PracticeRoutine::toolsAreInTheDrawersTabOrder`, `PracticeDrawer::aRoutineStartAsksForTheDrawerOnce` | DONE |
 | GI-78 (§1/§10) | Drawer expanded state persists per preset — kept in plugin state, not per preset | `UiState::practiceDrawerOpen` | Practice drawer | `ReturningUser.thePracticeDrawerComesBackAsItWasLeft` | PARTIAL |
 | GI-79 (§11.1) | Mod arcs: 4 px outside, 2 px, per-source colour, segmented — single secondary-colour arc | `ModMatrix::getOffsetFor` | `Widgets.cpp:LuthierKnob::paint` | - | PARTIAL |
@@ -92,7 +92,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-86 (§14) | Empty hints: snapshot slot done; no-mod-routes hint absent | - | `SnapshotStrip` paints `kEmptySlotHint` | `Live::shiftClickWritesAndClickRecalls` | PARTIAL |
 | GI-87 (§14) | Empty hints: setlist, backing track — texts differ from spec | - | `LivePanel::setlistEmptyLabel`, `PracticePanel` "No track loaded." | - | PARTIAL |
 | GI-88 (§14) | Empty hint: non-slide guitar in Slide Mode | `SlideEngine::kLowActionMessage` | `SlideGroup::lowAction` | `SlideTests.cpp` low-action warning check (in `Slide`/`SlideUi` suite) | DONE |
-| GI-89 (§14) | Empty hint: bass techniques inactive on a guitar — constant exists, never displayed | `SlapGroup::kInactiveMessage` | - | `BassTechniques::theSlapGroupIsShownOnlyOnABass` (text only) | PARTIAL |
+| GI-89 (§14) | Empty hint: bass techniques inactive on a guitar — constant exists, never displayed | `SlapGroup::kInactiveMessage` | - | `BassTechniques::theSlapGroupIsShownOnlyOnABass` (text only) | DEFERRED |
 | GI-90 (§14) | Empty hint: advanced-range edit on a locked preset | `RangesUi::kLockedNoticeText` | `Widgets.cpp` bubble at control | - | NO-TEST |
 | GI-91 (§15) | Banners under header, 32 px, dismissible, auto-dismiss 5 s unless actionable | - | `UI/Notifications.cpp:NotificationCentre` | `Editor::notificationBannersQueueDismissAndRespectTheirActions` | DONE |
 | GI-92 (§15) | Triggers: preset error, missing IR/part/guitar, SR change, update, policy, crash, licence | `PluginEditor::postStartupNotifications` | banners | `Editor::theWindowRaisesSectionFifteensTriggersAndIsQuietWhenItShould`, `Editor::aSampleRateChangeIsAnnouncedOnceAndTheFirstOneIsNot`, `Workshop::aMissingPartFallsBackAndSaysSo` | DONE |
@@ -103,7 +103,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-97 (§16) | Panel right-click: collapse, reset panel, screenshot to clipboard, docs | - | - | - | MISSING |
 | GI-98 (§17) | All shortcuts rebindable; defaults match table | `Accessibility.cpp:buildDefaultShortcuts` | Options ACCESSIBILITY table | `Accessibility::shortcutDefaultsMatchTheCanonicalTable`, `Accessibility::shortcutsRebindAndRefuseClashes` | DONE |
 | GI-99 (§17) | Overlay/mode shortcuts: Tab, L, D, S, Ctrl+, , Ctrl+O, Ctrl+Shift+S, F1, Ctrl+] / Ctrl+[ | `PluginEditor::keyPressed` | - | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt`, `Editor::theWorkspaceTabShortcutsStepTheTabsInAdvancedModeOnly`, `HelpTab::f1AndTheHeaderOpenHelpOnThePanelYouAreIn` | DONE |
-| GI-100 (§17) | Action shortcuts: P, \ , [ ], 1-9, Shift+1-9, T, Ctrl+L, Ctrl+S/N/R/Shift+R, Ctrl+/, Ctrl+Z/Shift+Z, Ctrl+?, PgUp/PgDn, Ctrl+G, Ctrl+Alt+E, Ctrl+Shift+E — dispatch untested (kill toggles, not hold) | `PluginEditor::keyPressed` | - | `Editor::newPresetLoadsInitAndRevealSaysSoWhenThereIsNoFile` (Ctrl+N/Ctrl+Alt+E only) | NO-TEST |
+| GI-100 (§17) | Action shortcuts: P, \ , [ ], 1-9, Shift+1-9, T, Ctrl+L, Ctrl+S/N/R/Shift+R, Ctrl+/, Ctrl+Z/Shift+Z, Ctrl+?, PgUp/PgDn, Ctrl+G, Ctrl+Alt+E, Ctrl+Shift+E — dispatch untested (kill toggles, not hold) | `PluginEditor::keyPressed` | - | `Editor::everyActionShortcutDispatches` (all but the file-writing ones; workspace-tab steps in Advanced) | DONE |
 | GI-101 (§17) | W toggles Workshop | - | - | on visual: `toggleWorkshop` (9f67749) | OWNED |
 | GI-102 (§17) | Ctrl+T new tune; Space play/pause (TUNE-focused per DECISIONS) | `TunePlayer`; `AccessibilitySettings` `newTune` | `TunePanel::keyPressed` | `TunePanel.theTransportAndSpaceDriveThePlayer`, `TuneIntegration.ctrlTIsInTheShortcutRegistryAndOpensTheTuneTab` | DONE |
 | GI-103 (§17) | Ctrl+E context-aware export (tune / preset / take) — always the audio ExportPanel outside a focused TUNE tab | `AudioExporter` | `PluginEditor` `export` -> `exportPanel` | - | PARTIAL |
@@ -149,4 +149,4 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-143 (§22) | Test: Slide toggle 100x during playback, no click, correct panels | `SlideEngine` | - | `Slide::switchingModeMidNoteIsClean` (1x); on visual `Stress::slideAndAdvancedRangeTogglesMidPlay` | OWNED |
 | GI-144 (§22) | Test: warning arc appears past stock max and disappears on return | - | `LuthierKnob` | `RangesUi::controlsFollowASwappedRangeAndMarkTheValue` | DONE |
 
-<!-- counts DONE=67 NO-GUI=0 NO-TEST=5 PARTIAL=35 MISSING=9 OWNED=28 DEFERRED=0 -->
+<!-- counts DONE=67 NO-GUI=0 NO-TEST=3 PARTIAL=33 MISSING=9 OWNED=31 DEFERRED=1 -->

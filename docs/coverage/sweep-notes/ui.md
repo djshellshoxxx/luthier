@@ -12,3 +12,5 @@
 - [LP-40] Not changed: Live Mode stays session/UI state (state-model.md; `StateModel` asserts a preset load keeps it).
 - [UT-16] Crash handler is process-wide and installed only after the user turns crash reports on (processor timer), since a plugin shares the host's process.
 - [Integration] `TuneIntegration::aSnapshotRecallsTheTunesSection` fails after the TUNE-HELP merge independent of this branch: its `runFor` never calls `SnapshotBank::advancePending`, so a 30 ms crossfade recall never reaches its midpoint.
+- [LP-33/LP-34] After the rtmidi merge the pedal calibration ran twice (my ExpressionInput, then rtmidi's ExpressionStage), squaring the curve. ExpressionInput is removed; ExpressionStage + serviceExpressionCalibration own it, and LiveExpression tests now drive that path (incl. a mid-travel 'mapped once' check).
+- [A11Y-24] Resources/Themes/*.json are generated from the built-in palettes (LUTHIER_WRITE_THEMES=<abs path> on the test regenerates them); after the visual merge changes a palette, regenerate or the test fails - intended.

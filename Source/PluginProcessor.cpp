@@ -189,7 +189,6 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     liveActions.handlers.setlistPrevious  = [this] { if (setlist.previous()) applyCurrentSetlistEntry(); };
     liveActions.handlers.onCcAssigned     = [this] (int cc) { midiLearn.removeMappingForCc (cc); };
     liveActions.load();
-    expressionInput.syncWith (expression);
 
     // accessibility 9 and updates-telemetry 6: both of these describe the person
     // rather than the sound, so they are user-global too.
@@ -1588,10 +1587,6 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
             tuneStateBoundaries.fetch_add (1, std::memory_order_relaxed);   // observable (TUNE-HELP-ONBOARDING test)
         }
     }
-
-    // SPEC-SWEEP: LP-33 / LP-34 - calibrated pedals are remapped before
-    // anything downstream (MIDI Learn, modulation) sees them.
-    expressionInput.processMidi (midiMessages);
 
     // MIDI Learn gets first look, so a CC being learned is not also acted on.
     // SPEC-SWEEP (CT-11): the latency wizard measures the notes as they arrived.
@@ -3816,12 +3811,10 @@ void LuthierAudioProcessor::timerCallback()
     // live-performance 1: an in-flight snapshot recall, on the audio clock.
     snapshots.advancePending();
 
-    // SPEC-SWEEP: LP-11 / LP-16 / LP-33 - live actions, the automatable
-    // morph and the pedal wizard.
+    // SPEC-SWEEP: LP-11 / LP-16 - live actions and the automatable morph
+    // (the pedal calibration and wizard are serviceExpressionCalibration's).
     liveActions.service();
     updateSnapshotMorph();
-    expressionInput.syncWith (expression);
-    expressionInput.feedWizard (expression);
 
     // SPEC-SWEEP: UT-16 - the crash dump writer, once crash reports are on.
     if (! CrashWriter::isInstalled() && telemetry.isCrashUploadEnabled())
