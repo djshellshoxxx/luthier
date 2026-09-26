@@ -40,7 +40,11 @@ struct BassFamilyDefaults
     static double pickThicknessNormalised (double mm) noexcept;
 
     /** Moves what is still at `fromBass`'s default to `toBass`'s. */
-    static void retarget (juce::AudioProcessorValueTreeState& state, bool fromBass, bool toBass);
+    /** `keep` (optional) names parameters to leave alone whatever their value:
+        the ones a host wrote together with the guitar type (a session restore
+        or automation), which a family switch must not overwrite. */
+    static void retarget (juce::AudioProcessorValueTreeState& state, bool fromBass, bool toBass,
+                          const std::function<bool (const juce::String&)>& keep = {});
 };
 
 } // namespace luthier

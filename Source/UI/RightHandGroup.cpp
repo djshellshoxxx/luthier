@@ -173,13 +173,13 @@ RightHandGroup::RightHandGroup (LuthierAudioProcessor& p)
         addAndMakeVisible (*l);
     }
 
-    startTimerHz (4);
+    motion.startTimerHz (*this, 4);
     timerCallback();
 }
 
 RightHandGroup::~RightHandGroup()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void RightHandGroup::applyStyle (LuthierAudioProcessor& p, int styleIndex)

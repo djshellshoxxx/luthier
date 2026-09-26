@@ -475,6 +475,9 @@ namespace
             block.clear();
             juce::MidiBuffer midi;
             p.processBlock (block, midi);
+            // The processor's timer: a snapshot recall's crossfade runs on the
+            // message thread since the recall race fix (live-performance 1).
+            p.getSnapshots().advancePending();
         }
     }
 }

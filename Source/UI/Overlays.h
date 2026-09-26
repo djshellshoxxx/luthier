@@ -12,7 +12,9 @@
     be shown without them.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "Guitar/GuitarThumbnails.h"
 #include "Widgets.h"
 #include "OptionsPages.h"
 #include "HelpTab.h"
@@ -180,6 +182,10 @@ private:
     int lastStreamCount = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DebugPanel)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "DebugPanel" };
 };
 
 //==============================================================================
@@ -204,7 +210,7 @@ public:
 
     /** Opens the page holding the rebindable shortcut table (accessibility 2's
         "show all shortcuts" surface). */
-    void showShortcutTable();
+    void showShortcutTable (const juce::String& filter = {});
 
     /*  The Diagnostics page offers the debug window, and an overlay cannot put
         another overlay on screen - only the editor can - so the request comes out
@@ -278,6 +284,10 @@ private:
     double progress = 0.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ExportPanel)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "ExportPanel" };
 };
 
 //==============================================================================
@@ -323,6 +333,18 @@ private:
 
     juce::Array<int> visibleIndices;
 
+    /*  guitar-illustration.md 15: each row shows its guitar, rendered on a
+        worker and cached (VISUAL-WORKSHOP-QA). */
+    GuitarThumbnails thumbnails;
+    juce::Rectangle<int> selectedThumbnailArea;
+    juce::File selectedFile;
+    void paintOverChildren (juce::Graphics&) override;
+
+public:
+    GuitarThumbnails& getThumbnails() noexcept { return thumbnails; }
+    static constexpr int kRowHeight = 38;
+
+private:
     class PresetListModel : public juce::ListBoxModel
     {
     public:

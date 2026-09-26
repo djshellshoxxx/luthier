@@ -103,6 +103,11 @@ public:
     bool redo();
 
     bool canUndo() const noexcept { return undoFilled; }
+
+    /** Sizes undo / redo to the layer on first use. Message thread. */
+    void ensureHistoryBuffers();
+    /** Empties the layer but keeps its audio in the undo buffer. Message thread. */
+    void clearKeepingUndo();
     bool canRedo() const noexcept { return redoFilled; }
 
     //==========================================================================
@@ -180,7 +185,14 @@ public:
     void press() noexcept;
 
     void stop() noexcept;
+
+    /*  Empties every layer, keeping each one's audio in its undo buffer so a
+        clear can be taken back (action-and-undo.md 3.14: deleting a layer is
+        restorable, recording one is not). Message thread. */
     void clear();
+
+    /** Puts back what the last clear() removed. False if nothing to restore. */
+    bool restoreCleared();
 
     /** practice-tools 2: a loop is quantised to bars when the metronome is
         running. The caller supplies the bar length; zero means free. */
@@ -224,8 +236,28 @@ public:
         layer's playback into the buffer. Audio thread. */
     void processBlock (juce::AudioBuffer<float>& buffer, int numSamples) noexcept;
 
-    /** Feeds the looper the MIDI to store alongside the audio. */
+    /** Feeds the looper the MIDI to store alongside the audio. Audio thread:
+        the events go into a pre-sized lock-free FIFO (performance-budget.md
+        0.4 - a MidiMessageSequence allocates), and drainPendingMidi moves them
+        into the layers. Events past the FIFO's capacity between drains are
+        dropped rather than allocated for. */
     void captureMidi (const juce::MidiBuffer& midi, int numSamples) noexcept;
+
+    /*  jam-mode.md 11 (FEAT-JAM): the playing layers' stored MIDI for this
+        block, so the Jam band keeps following a looped rhythm part. Call
+        before processBlock advances the position. Audio thread; no
+        allocation beyond `out`'s own capacity. */
+    void renderPlaybackMidi (juce::MidiBuffer& out, int numSamples) const noexcept;
+
+    /*  jam-mode 11 (FEAT-JAM): while the band plays, a first recording starts
+        on the next downbeat, this many samples on. Audio thread. */
+    void setRecordStartDelay (int samples) noexcept { recordStartDelay = juce::jmax (0, samples); }
+    int getRecordStartDelay() const noexcept       { return recordStartDelay; }
+    /** Moves captured MIDI into the layers' sequences. Message thread; the
+        processor's timer calls it, and save() does before writing. */
+    void drainPendingMidi();
+
+    static constexpr int kMidiFifoSize = 8192;
 
     //==========================================================================
     /** practice-tools 2: bounce all layers to one file, or each to its own. */
@@ -268,14 +300,30 @@ private:
     static constexpr int kOverdubChunk = 256;
     std::array<float, kOverdubChunk> overdubL {}, overdubR {};
     std::atomic<int> loopLength { 0 };
+    int clearedLoopLength = 0;   // action-and-undo.md 3.14
     std::atomic<int> playPosition { 0 };
     std::atomic<int> activeLayer { 0 };
     std::atomic<int> barLengthSamples { 0 };
     std::atomic<int> defaultLengthSamples { 0 };
 
+    // performance-budget.md 0.4: captureMidi's lock-free hand-over.
+    struct PendingMidi
+    {
+        int layer = 0;
+        int position = 0;
+        int size = 0;
+        juce::uint8 bytes[3] {};
+    };
+
+    juce::AbstractFifo midiFifo { kMidiFifoSize };
+    std::array<PendingMidi, kMidiFifoSize> pendingMidi {};
+    std::array<std::atomic<int>, kMaxLayers> pendingPerLayer {};   // FEAT-JAM: renderPlaybackMidi skips a layer still being drained
+
     /** Set by press() and acted on by the audio thread at the loop boundary, so
         that closing a loop lands on the beat rather than on the key press. */
     std::atomic<bool> pendingClose { false };
+
+    int recordStartDelay = 0;   ///< FEAT-JAM: samples before a first recording begins
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Looper)
 };

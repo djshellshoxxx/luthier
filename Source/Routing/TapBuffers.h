@@ -48,7 +48,13 @@ inline constexpr int kNumPerStringBuses = kMaxStrings;
     bus numbers sessions already use (layouts C and D) do not move; its strip
     in the routing panel is the eighth aux strip, index kNoiseAux. */
 inline constexpr int kNoiseAux = kNumAuxBuses;
-inline constexpr int kNumAuxStrips = kNumAuxBuses + 1;
+
+/*  jam-mode.md 7 (FEAT-JAM): Aux 9 "Jam Drums" and Aux 10 "Jam Bass", declared
+    after Aux 8 so no bus number moves. They carry the band, post Jam mixer;
+    the processor writes them (RoutingMatrix::writeJamBuses), not the taps. */
+inline constexpr int kJamDrumsAux = kNumAuxBuses + 1;
+inline constexpr int kJamBassAux = kNumAuxBuses + 2;
+inline constexpr int kNumAuxStrips = kNumAuxBuses + 3;
 
 const char* getAuxBusName (int index) noexcept;
 const char* getAuxBusTapDescription (int index) noexcept;

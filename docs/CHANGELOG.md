@@ -83,6 +83,11 @@ numbered, because what it should be called is a release decision.
   down and up. A chuck stroke mutes as it strikes. A pattern or genre kit
   can set its own crossing speed. The RHYTHM tab's new STRUM group has the
   controls; nine new parameters (the parameter count is 425).
+- **DI before or after the guitar's circuit** (`performance-budget.md` 4) -
+  `aux1_pre_circuit` taps Aux 1 before the GuitarCircuit (volume, tone,
+  cable), so the DI is the pickup itself for re-amping. Off by default, which
+  is the DI as before. One new parameter, appended; the parameter count is
+  451.
 - **Amp and pedal faces in the rack** (`proposals/visual-polish.md` 2-3) -
   each pedal in the rack is drawn as its enclosure, with its own knob caps,
   and the amp card in Easy and Advanced modes shows the amp's faceplate. The
@@ -288,6 +293,20 @@ numbered, because what it should be called is a release decision.
 
 ### Fixed
 
+- **The reported latency matches the audio.** The master limiter's 1.5 ms
+  lookahead was never reported to the host, and the amp's oversampler
+  reported about half its real delay (3 / 5 / 6 samples at 2x / 4x / 8x
+  against a measured 6 / 10 / 11), so host delay compensation was short by
+  about 77 samples at the defaults.
+- **Nothing allocates or locks on the audio thread.** The parameter bridge
+  built a few hundred temporary strings every block; the MIDI-out routing
+  config took a lock every block; the looper's MIDI recording and MIDI Learn
+  allocated while recording or learning. All four are lock-free now, and a
+  test renders the whole plugin with allocation and lock traps armed.
+- **An amp no longer thumps when it starts cold.** The preamp's tube bias
+  stepped in on the first sample; the step is gone and the sound is
+  otherwise unchanged.
+- **Delay at Mix 0 is a true bypass.** Its DC blocker sat on the dry path.
 - **Factory presets now load their pedals as designed.** Every preset's
   pedals were reset to the pedal's defaults as they loaded, so a preset's
   drive, delay or chorus settings never reached the sound. A pedal you pick

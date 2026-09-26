@@ -67,6 +67,7 @@ AuxStrip::AuxStrip (LuthierAudioProcessor& p, int busIndex)
 
     gain.onValueChange = [this]
     {
+        processor.pushUndoAction ("Change " + juce::String (getAuxBusName (bus)) + " gain", "routing-gain", juce::String (bus));   // action-and-undo.md
         routing().setAuxGainDb (bus, gain.getValue());
     };
 
@@ -137,11 +138,13 @@ void AuxStrip::mouseDown (const juce::MouseEvent& e)
 {
     if (muteBounds.contains (e.getPosition()))
     {
+        processor.pushUndoState ((routing().isAuxMuted (bus) ? "Unmute " : "Mute ") + juce::String (getAuxBusName (bus)));   // action-and-undo.md
         routing().setAuxMuted (bus, ! routing().isAuxMuted (bus));
         refresh();
     }
     else if (soloBounds.contains (e.getPosition()))
     {
+        processor.pushUndoState ("Solo " + juce::String (getAuxBusName (bus)));   // action-and-undo.md
         const bool wasSoloed = routing().isAuxSoloed (bus);
 
         // Plain click is exclusive solo; a modifier adds to the solo group, which
@@ -237,6 +240,7 @@ void PerStringStrip::mouseDown (const juce::MouseEvent& e)
     {
         if (cellBounds (s).contains (e.getPosition()))
         {
+            processor.pushUndoState ("Mute/unmute string " + juce::String (s + 1));   // action-and-undo.md
             processor.getRouting().setPerStringMuted (s, ! processor.getRouting().isPerStringMuted (s));
             repaint();
             return;
@@ -248,6 +252,9 @@ void PerStringStrip::mouseDown (const juce::MouseEvent& e)
 RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     : processor (p)
 {
+    addChildComponent (normalizationCaption);   // output-normalization.md 5.4
+    normalizationCaption.setVisible (processor.getOutputNormalization().isEnabled());
+
     auto configureLabel = [this] (juce::Label& label, const juce::String& text)
     {
         label.setText (text, juce::dontSendNotification);
@@ -289,8 +296,11 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     sidechainToAmp->getButton().setClickingTogglesState (true);
     sidechainToAmp->getButton().onClick = [this]
     {
-        if (! updatingControls)
-            processor.getRouting().setSidechainToAmp (sidechainToAmp->getButton().getToggleState());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoState ("Toggle sidechain to amp");   // action-and-undo.md
+        processor.getRouting().setSidechainToAmp (sidechainToAmp->getButton().getToggleState());
     };
     addAndMakeVisible (*sidechainToAmp);
 
@@ -349,12 +359,12 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     }
 
     refreshFromRouting();
-    startTimerHz (kRefreshHz);   // SPEC-SWEEP GD-2
+    motion.startTimerHz (*this, kRefreshHz);   // SPEC-SWEEP GD-2 rate, via cpu-quality-modes 6
 }
 
 RoutingPanel::~RoutingPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void RoutingPanel::updateMidiOutFromControls()
@@ -380,6 +390,7 @@ void RoutingPanel::updateMidiOutFromControls()
         cfg.macroCc[(size_t) m] = (id <= 1) ? -1 : id - 2;
     }
 
+    processor.pushUndoAction ("Change MIDI out", "routing-midi-out", "config");   // action-and-undo.md
     processor.getRouting().setMidiOutConfig (cfg);
     shownMidiOut = cfg;
 }
@@ -491,6 +502,8 @@ int RoutingPanel::preferredHeight() const
 
 void RoutingPanel::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     if (! sidechainMeterBounds.isEmpty())
     {
         drawMeter (g, sidechainMeterBounds,
@@ -512,6 +525,9 @@ void RoutingPanel::resized()
 
     layoutLabel.setBounds (bounds.removeFromTop (18));
     latencyLabel.setBounds (bounds.removeFromTop (14));
+
+    if (normalizationCaption.isVisible())   // output-normalization.md 5.4
+        normalizationCaption.setBounds (bounds.removeFromTop (14));
 
     for (auto* strip : auxStrips)
         strip->setBounds (bounds.removeFromTop (AuxStrip::preferredHeight));

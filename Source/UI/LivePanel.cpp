@@ -234,7 +234,7 @@ LivePanel::LivePanel (LuthierAudioProcessor& p)
     addButton (recallButton, "Load the selected slot, crossfading over the time below",
                [this]
                {
-                   processor.getSnapshots().recall (grid.getSelectedSlot());
+                   processor.recallSnapshotAsUserAction (grid.getSelectedSlot());   // action-and-undo.md 3.7
                    refresh();
                });
 
@@ -278,6 +278,7 @@ LivePanel::LivePanel (LuthierAudioProcessor& p)
 
                    if (set.removeEntry (setlistBox.getSelectedRow()))
                    {
+                       processor.pushUndoState ("Remove setlist entry");   // action-and-undo.md 3.10
                        processor.getSetlist().setSetlist (set);
                        rebuildSetlistRows();
                    }
@@ -291,6 +292,7 @@ LivePanel::LivePanel (LuthierAudioProcessor& p)
 
                    if (row > 0 && set.moveEntry (row, row - 1))
                    {
+                       processor.pushUndoState ("Move setlist entry");   // action-and-undo.md 3.10
                        processor.getSetlist().setSetlist (set);
                        rebuildSetlistRows();
                        setlistBox.selectRow (row - 1);
@@ -305,6 +307,7 @@ LivePanel::LivePanel (LuthierAudioProcessor& p)
 
                    if (row >= 0 && row + 1 < set.getNumEntries() && set.moveEntry (row, row + 1))
                    {
+                       processor.pushUndoState ("Move setlist entry");   // action-and-undo.md 3.10
                        processor.getSetlist().setSetlist (set);
                        rebuildSetlistRows();
                        setlistBox.selectRow (row + 1);
@@ -469,23 +472,23 @@ void LivePanel::captureSelected()
 {
     const int slot = grid.getSelectedSlot();
 
-    /*  A capture over a filled slot destroys what was there, and there is no undo
-        through the snapshot bank, so the existing label is carried across rather
-        than silently replaced with nothing - the slot keeps its name and gets a
-        new sound, which is what re-capturing a pad means to a player. */
+    /*  A capture over a filled slot keeps the existing label rather than
+        silently replacing it with nothing - the slot keeps its name and gets a
+        new sound, which is what re-capturing a pad means to a player. The
+        capture is one undo entry (action-and-undo.md 3.7). */
     const auto& bank = processor.getSnapshots();
 
     const juce::String existing = (slot < bank.getNumSnapshots() && ! bank.getSnapshot (slot).isEmpty())
                                     ? bank.getSnapshot (slot).label
                                     : juce::String();
 
-    processor.getSnapshots().capture (slot, existing);
+    processor.captureSnapshotAsUserAction (slot, existing);
     refresh();
 }
 
 void LivePanel::clearSelected()
 {
-    processor.getSnapshots().remove (grid.getSelectedSlot());
+    processor.deleteSnapshotAsUserAction (grid.getSelectedSlot(), true);   // action-and-undo.md 3.7
     refresh();
 }
 
@@ -512,7 +515,7 @@ void LivePanel::renameSelected()
 
     editor->onReturnKey = [this, editor, slot, &box]
     {
-        processor.getSnapshots().setLabel (slot, editor->getText());
+        processor.renameSnapshotAsUserAction (slot, editor->getText());   // action-and-undo.md 3.7
         refresh();
         box.dismiss();
     };
@@ -534,6 +537,7 @@ void LivePanel::addSelectedToSetlist()
     auto set = processor.getSetlist().getSetlist();
     set.addEntry (entry);
 
+    processor.pushUndoState ("Add setlist entry");   // action-and-undo.md 3.10
     processor.getSetlist().setSetlist (set);
     rebuildSetlistRows();
 }

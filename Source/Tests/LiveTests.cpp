@@ -123,7 +123,7 @@ namespace
 
             const auto entry = expected.find (withId->paramID);
 
-            if (entry == expected.end())
+            if (entry == expected.end() || ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: never in a snapshot
                 continue;
 
             if (std::abs ((double) withId->getValue() - entry->second) > tolerance)

@@ -8,6 +8,7 @@
     It replaces the arrow glyph the Easy rhythm readout used to carry. */
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "AnimationPolicy.h"
 
 namespace luthier
 {
@@ -42,6 +43,9 @@ private:
     juce::uint32 lastBlocks = 0, lastStrokes = 0;
     double lastReportMs = -1.0e9, flashUntilMs = -1.0e9;
     bool shown = false, flashing = false, down = true;
+
+    // cpu-quality-modes 6: the motion switch (merge with the integration branch).
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "NextStrumArrow" };
 };
 
 } // namespace luthier

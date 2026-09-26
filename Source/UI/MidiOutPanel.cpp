@@ -13,7 +13,8 @@ namespace
     constexpr int kPpqChoices[] = { 96, 192, 240, 384, 480, 960, 1920, 3840 };
 
     const char* const kSourceNames[] = { "PASS-THRU", "RHYTHM", "STRINGS", "MACRO CC",
-                                         "TUNE", "EVENTS", "WORKSHOP" };
+                                         "TUNE", "EVENTS", "WORKSHOP",
+                                         "JAM BAND" };   // FEAT-JAM
 
     const char* const kSourceTips[] = {
         "Echoes incoming MIDI unchanged, at its original timestamps.",
@@ -23,7 +24,8 @@ namespace
         "Sends the tune builder's playback, each event on its own sample.",
         "Sends character and noise events (squeaks, pick, buzz, clank) as Luthier SysEx. "
         "Other hosts drop SysEx; nothing else in the stream depends on it.",
-        "Sends Workshop part changes as Luthier SysEx, for automation lanes."
+        "Sends Workshop part changes as Luthier SysEx, for automation lanes.",
+        "Sends the Jam band's drums and bass on their own channels (GM drums on 10 by default)."   // FEAT-JAM
     };
 
     bool& sourceFlag (MidiOutConfig& cfg, MidiOutPanel::Source source)
@@ -36,6 +38,7 @@ namespace
             case MidiOutPanel::Source::macroCc:     return cfg.ccBroadcast;
             case MidiOutPanel::Source::tune:        return cfg.tunePlayback;
             case MidiOutPanel::Source::events:      return cfg.luthierEvents;
+            case MidiOutPanel::Source::jam:         return cfg.jamParts;   // FEAT-JAM
             case MidiOutPanel::Source::workshop:
             case MidiOutPanel::Source::numSources:  break;
         }
@@ -263,6 +266,25 @@ MidiOutPanel::MidiOutPanel (LuthierAudioProcessor& p)
     for (int ch = 1; ch <= 16; ++ch)
         liveChannel.addItem ("Ch " + juce::String (ch), ch);
 
+    // FEAT-JAM (jam-mode 9): the band's two channels.
+    for (auto* box : { &jamDrumChannel, &jamBassChannel })
+    {
+        for (int ch = 1; ch <= 16; ++ch)
+            box->addItem ((box == &jamDrumChannel ? "Drums ch " : "Bass ch ") + juce::String (ch), ch);
+
+        box->onChange = [this] { writeLiveConfig(); };
+        addAndMakeVisible (*box);
+    }
+
+    jamDrumChannel.setTooltip ("The Jam band's drums go out on this channel (10 is General MIDI drums).");
+    jamBassChannel.setTooltip ("The Jam band's bass goes out on this channel.");
+    AccessibleSetup::configureComboBox (jamDrumChannel, "Jam drums MIDI channel");
+    AccessibleSetup::configureComboBox (jamBassChannel, "Jam bass MIDI channel");
+    jamChannelLabel.setText ("Jam band", juce::dontSendNotification);
+    jamChannelLabel.setFont (Fonts::ui (11.0f));
+    jamChannelLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+    addAndMakeVisible (jamChannelLabel);
+
     liveChannel.setTooltip ("MIDI channel for generated events. Pass-through keeps its own channel.");
     liveChannel.onChange = [this] { writeLiveConfig(); };
     AccessibleSetup::configureComboBox (liveChannel, "MIDI out channel");
@@ -346,6 +368,8 @@ void MidiOutPanel::refresh()
         sourceToggles[s]->getButton().setToggleState (sourceFlag (shownLive, (Source) s), juce::dontSendNotification);
 
     liveChannel.setSelectedId (juce::jlimit (1, 16, shownLive.channel), juce::dontSendNotification);
+    jamDrumChannel.setSelectedId (juce::jlimit (1, 16, shownLive.jamDrumChannel), juce::dontSendNotification);   // FEAT-JAM
+    jamBassChannel.setSelectedId (juce::jlimit (1, 16, shownLive.jamBassChannel), juce::dontSendNotification);
 
     for (int m = 0; m < ParamIDs::kNumMacros; ++m)
     {
@@ -389,6 +413,8 @@ void MidiOutPanel::writeLiveConfig()
         sourceFlag (cfg, (Source) s) = sourceToggles[s]->getButton().getToggleState();
 
     cfg.channel = juce::jlimit (1, 16, liveChannel.getSelectedId());
+    cfg.jamDrumChannel = juce::jlimit (1, 16, jamDrumChannel.getSelectedId() > 0 ? jamDrumChannel.getSelectedId() : cfg.jamDrumChannel);   // FEAT-JAM
+    cfg.jamBassChannel = juce::jlimit (1, 16, jamBassChannel.getSelectedId() > 0 ? jamBassChannel.getSelectedId() : cfg.jamBassChannel);
 
     for (int m = 0; m < ParamIDs::kNumMacros; ++m)
     {
@@ -588,7 +614,8 @@ int MidiOutPanel::getPreferredHeight() const
 
     return kHeader + 3 * (button + kRowGap) + classRows * (button + kRowGap) + button + Metrics::grid
          + kHeader + 2 * (button + kRowGap) + 32 + 40 + Metrics::grid
-         + kHeader + 3 * (button + kRowGap) + 2 * 40 + Metrics::grid;
+         + kHeader + 3 * (button + kRowGap) + 2 * 40 + Metrics::grid
+         + (button + kRowGap);   // FEAT-JAM: the Jam band's channels
 }
 
 void MidiOutPanel::paint (juce::Graphics& g)
@@ -671,6 +698,13 @@ void MidiOutPanel::resized()
 
         for (int s = first; s < juce::jmin (first + 4, sourceToggles.size()); ++s)
             sourceToggles[s]->setBounds (r.removeFromLeft (w).reduced (1));
+    }
+
+    {
+        // FEAT-JAM (jam-mode 9): the band's channels, under its source switch.
+        auto r = row();
+        jamChannelLabel.setBounds (r.removeFromLeft (r.getWidth() / 3));
+        split (r, { &jamDrumChannel, &jamBassChannel });
     }
 
     for (int line = 0; line < 2; ++line)

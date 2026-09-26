@@ -344,6 +344,9 @@ void PedalSlotComponent::mouseDown (const juce::MouseEvent& e)
 
             if (result == 1)
             {
+                // action-and-undo.md 3.13: pedal-remove.
+                const LuthierAudioProcessor::ScopedUndoAction undo (processor, "Remove pedal from slot " + juce::String (slotIndex + 1));
+
                 if (auto* p = state.getParameter (ParamIDs::slotType (postChain, slotIndex)))
                     p->setValueNotifyingHost (0.0f);
             }
@@ -449,6 +452,10 @@ void PedalRack::reorder (int fromSlot, int toSlot)
         return;
 
     auto& state = processor.getState();
+
+    // action-and-undo.md 3.13: pedal-move, one entry for every write below.
+    const LuthierAudioProcessor::ScopedUndoAction undo (processor, "Move pedal " + juce::String (fromSlot + 1)
+                                                                     + " to " + juce::String (toSlot + 1));
 
     // Reordering has to move the parameters, not just the engine's pedals, or the
     // next state save would put everything back where it started.

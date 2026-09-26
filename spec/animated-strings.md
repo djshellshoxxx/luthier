@@ -230,6 +230,13 @@ animate = pref.animateStrings
   drain rate") forces Low. Step 2 or higher pauses the animation.
   `StringAnimator::setReliefLevel(int)` is the hook, fed by whatever
   implements section 8.
+- **CPU quality (cpu-quality-modes 6):** the gate reads
+  `AnimationPolicy::get().getStringsStyle()`, not `isReducedMotion()`:
+  `Full` animates as above, `LowStyle` (CPU quality Medium, or relief 1)
+  forces this spec's Low style, and `Off` (Reduced motion, CPU quality
+  Low, or relief >= 2) renders the static overlay. `StringAnimator` holds
+  an `AnimationPolicy::Registration` (class Decorative) and starts its
+  timer through it, so CQ-22 finds it.
 
 ## 3. Where it shows
 

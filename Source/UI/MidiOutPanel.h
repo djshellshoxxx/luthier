@@ -62,7 +62,9 @@ public:
 
     //==========================================================================
     // For tests: the controls, by what they do.
-    enum class Source { passThrough, rhythm, strings, macroCc, tune, events, workshop, numSources };
+    enum class Source { passThrough, rhythm, strings, macroCc, tune, events, workshop,
+                        jam,   // FEAT-JAM: jam-mode 9, the band's parts
+                        numSources };
 
     juce::Button& getProfileButton (MidiProfile profile) noexcept;
     juce::Button& getClassToggle (LuthierEventClass eventClass) noexcept;
@@ -73,6 +75,7 @@ public:
     juce::ComboBox& getPpqBox() noexcept                { return ppqBox; }
     juce::ComboBox& getSplitBox() noexcept              { return splitBox; }
     juce::ComboBox& getRangeBox() noexcept              { return rangeBox; }
+    juce::ComboBox& getJamChannelBox (bool bass) noexcept { return bass ? jamBassChannel : jamDrumChannel; }   // FEAT-JAM
     juce::ComboBox& getMacroCcBox (int macro) noexcept  { return macroCc[juce::jlimit (0, ParamIDs::kNumMacros - 1, macro)]; }
     juce::String getPreviewText() const                 { return previewText; }
     juce::String getCaptureText() const                 { return captureText; }
@@ -130,6 +133,8 @@ private:
     std::unique_ptr<LuthierToggle> liveEnable;
     juce::OwnedArray<LuthierToggle> sourceToggles;
     juce::ComboBox liveChannel;
+    juce::ComboBox jamDrumChannel, jamBassChannel;   // FEAT-JAM: jam-mode 9
+    juce::Label jamChannelLabel;                     // FEAT-JAM
     juce::ComboBox macroCc[ParamIDs::kNumMacros];
     juce::Label macroCcLabels[ParamIDs::kNumMacros];
 

@@ -160,19 +160,12 @@ namespace
              : (thicknessMm > 48.0 ? BodyShape::SolidHeavy : BodyShape::SolidStandard);
     }
 
-    StringMaterial materialFor (const Part* strings)
+    StringMaterial materialFromIds (const juce::String& winding, const juce::String& m)
     {
-        if (strings == nullptr)
-            return StringMaterial::NickelPlatedSteel;
-
-        const auto winding = strings->text ("winding", "round");
-
         // 8: the winding style decides before the metal does.
         if (winding == "flat")   return StringMaterial::Flatwound;
         if (winding == "half")   return StringMaterial::Halfwound;
         if (winding == "coated") return StringMaterial::Coated;
-
-        const auto m = strings->text ("winding_material", "nickel_plated_steel");
 
         if (m == "pure_nickel")     return StringMaterial::PureNickel;
         if (m == "stainless")       return StringMaterial::StainlessSteel;
@@ -183,6 +176,14 @@ namespace
         if (m == "nylon")           return StringMaterial::Nylon;
         if (m == "fluorocarbon")    return StringMaterial::Fluorocarbon;
         return StringMaterial::NickelPlatedSteel;
+    }
+
+    StringMaterial materialFor (const Part* strings)
+    {
+        if (strings == nullptr)
+            return StringMaterial::NickelPlatedSteel;
+
+        return materialFromIds (strings->text ("winding", "round"), strings->text ("winding_material", "nickel_plated_steel"));
     }
 
     PickupType pickupTypeFor (const juce::String& family)
@@ -281,7 +282,8 @@ bool DerivedAcoustics::operator== (const DerivedAcoustics& o) const
 
     for (size_t i = 0; i < gaugesIn.size(); ++i)
         if (! same (gaugesIn[i], o.gaugesIn[i]) || ! same (tensionNewtons[i], o.tensionNewtons[i])
-            || ! same (windingPitchPerMm[i], o.windingPitchPerMm[i]))
+            || ! same (windingPitchPerMm[i], o.windingPitchPerMm[i])
+            || stringMaterialOverride[i] != o.stringMaterialOverride[i] || stringWoundOverride[i] != o.stringWoundOverride[i])
             return false;
 
     for (size_t i = 0; i < pickups.size(); ++i)
@@ -497,11 +499,26 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
             hz = open[juce::jlimit (0, 5, GuitarLibrary::courseForString (s))]
                  * semitonesToRatio (GuitarLibrary::twelveStringOctaveOffset (s));
 
-        const double gauge = juce::isPositiveAndBelow (s, gauges.size()) ? gauges[s] : 0.0;
+        double gauge = juce::isPositiveAndBelow (s, gauges.size()) ? gauges[s] : 0.0;
+
+        // workshop-ui.md 3.3: one string of the set overridden.
+        const auto& over = g.stringOverrides[(size_t) s];
+        auto material = d.stringMaterial;
+
+        if (over.gaugeIn > 0.0)
+            gauge = over.gaugeIn;
+
+        if (over.material.isNotEmpty())
+        {
+            material = materialFromIds ("round", over.material);
+            d.stringMaterialOverride[(size_t) s] = (int) material;
+        }
+
+        d.stringWoundOverride[(size_t) s] = over.wound;
         d.gaugesIn[(size_t) s] = gauge;
 
-        const auto computed = StringMaterials::computeSpec (d.stringMaterial, d.spec.stringGauge, StringAge::Fresh,
-                                                            s, hz, d.spec.scaleLengthMm, gauge);
+        const auto computed = StringMaterials::computeSpec (material, d.spec.stringGauge, StringAge::Fresh,
+                                                            s, hz, d.spec.scaleLengthMm, gauge, over.wound);
         d.tensionNewtons[(size_t) s] = computed.tensionNewtons;
 
         if (computed.wound)

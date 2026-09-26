@@ -581,9 +581,9 @@ LUTHIER_TEST (Editor, everyWorkspaceTabSelectsAndPaints)
     panel.setVisible (true);
     panel.setSize (1600, 900);
 
-    // In order: tune-builder 3 puts TUNE between RHYTHM and LIVE; practice-tools
+    // In order: tune-builder 3 puts TUNE between RHYTHM and LIVE (jam-mode 8.1: JAM after TUNE); practice-tools
     // 11 puts PRACTICE between CHARACTER and NOTATION.
-    const juce::StringArray tabNames { "WORKSHOP", "MOD", "RHYTHM", "TUNE", "LIVE", "ROUTING", "TONE MATCH",
+    const juce::StringArray tabNames { "WORKSHOP", "MOD", "RHYTHM", "TUNE", "JAM", "LIVE", "ROUTING", "TONE MATCH",
                                        "CHARACTER", "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "HELP" };
 
     CHECK_MSG (panel.getNumWorkspaceTabs() == tabNames.size(),

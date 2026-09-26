@@ -15,6 +15,7 @@
     files go to ~/Documents/Luthier/Renders unless another folder is chosen.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "../Support/TuneExport.h"
@@ -61,6 +62,7 @@ public:
     juce::ComboBox& getProfileBox() noexcept       { return profileBox; }
     juce::ComboBox& getSplitBox() noexcept         { return splitBox; }
     juce::ToggleButton& getRealismToggle() noexcept { return realismToggle; }
+    juce::ToggleButton& getJamToggle() noexcept     { return jamToggle; }   // FEAT-JAM
     juce::ComboBox& getNotationBox() noexcept      { return notationBox; }
     juce::ToggleButton& getChordsToggle() noexcept { return chordsToggle; }
     juce::ToggleButton& getBundleToggle() noexcept { return bundleToggle; }
@@ -93,6 +95,7 @@ private:
 
     juce::ComboBox profileBox, splitBox;
     juce::ToggleButton realismToggle { "Realism events (bends, slides, vibrato)" };
+    juce::ToggleButton jamToggle { "Include Jam band" };   // FEAT-JAM: jam-mode 9, audio and MIDI
 
     juce::ComboBox notationBox;
     juce::ToggleButton chordsToggle { "Chord symbols above the staff" };
@@ -116,6 +119,10 @@ private:
     juce::StringArray labels;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TuneExportDialog)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "TuneExportDialog" };
 };
 
 } // namespace luthier

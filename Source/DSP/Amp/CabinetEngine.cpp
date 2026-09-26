@@ -195,6 +195,13 @@ void CabinetEngine::prepare (double sampleRate, int maxBlockSize)
     pathB.convolution->prepare (spec);
     prepared = true;
 
+    // cpu-quality-modes 2.3: the Medium and Low variants, same partition latency.
+    for (auto* path : { &pathA, &pathB })
+        path->variants.prepare (sr, maxBlock, 1, kCabPartitionSize,
+                                { QualityProfile::forLevel (QualityLevel::Medium).cabinetIrSeconds,
+                                  QualityProfile::forLevel (QualityLevel::Low).cabinetIrSeconds },
+                        QualityProfile::kCabinetMicVariantBudgetMegabytes);
+
     blendSmooth.prepare (sr, constants::kParamSmoothSeconds);
     widthSmooth.prepare (sr, constants::kParamSmoothSeconds);
     blendSmooth.snapTo (0.0);
@@ -229,7 +236,10 @@ void CabinetEngine::reset() noexcept
         const juce::SpinLock::ScopedTryLockType lock (path->convolutionLock);
 
         if (lock.isLocked() && path->convolution != nullptr)
+        {
             path->convolution->reset();
+            path->variants.reset();
+        }
     }
 
     std::fill (alignBuffer.begin(), alignBuffer.end(), 0.0);
@@ -308,6 +318,7 @@ bool CabinetEngine::loadImpulseResponse (int slot, const juce::File& file)
     path.loaded.store (false);
 
     const juce::SpinLock::ScopedLockType lock (path.convolutionLock);
+    path.variants.clear();
 
     if (prepared)
         ConvolutionInstaller::installUnitImpulse (*path.convolution, sr, 1, maxBlock);
@@ -324,6 +335,10 @@ bool CabinetEngine::loadImpulseResponse (int slot, const juce::File& file)
             return false;
 
         path.convolution->reset();
+
+        // cpu-quality-modes 2.3: the shorter responses, under the same lock.
+        path.variants.buildFromFile (file, juce::dsp::Convolution::Stereo::no,
+                                     juce::dsp::Convolution::Trim::yes, juce::dsp::Convolution::Normalise::yes);
     }
 
     path.loadedFile = file;
@@ -345,10 +360,12 @@ void CabinetEngine::loadImpulseResponse (int slot, const float* samples, int num
 
     juce::AudioBuffer<float> ir (1, numSamples);
     ir.copyFrom (0, 0, samples, numSamples);
+    const auto rawForVariants = ir;   // cpu-quality-modes 2.3
 
     path.loaded.store (false);
 
     const juce::SpinLock::ScopedLockType lock (path.convolutionLock);
+    path.variants.clear();
 
     if (prepared)
         ConvolutionInstaller::installUnitImpulse (*path.convolution, sr, 1, maxBlock);
@@ -365,6 +382,8 @@ void CabinetEngine::loadImpulseResponse (int slot, const float* samples, int num
             return;
 
         path.convolution->reset();
+        path.variants.buildFromBuffer (rawForVariants, irSampleRate, juce::dsp::Convolution::Stereo::no,
+                                       juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
     }
 
     path.loaded.store (true);
@@ -429,8 +448,7 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
         {
             juce::dsp::AudioBlock<float> blockA (bufferA);
             auto sub = blockA.getSubBlock (0, (size_t) numSamples);
-            juce::dsp::ProcessContextReplacing<float> ctx (sub);
-            pathA.convolution->process (ctx);
+            pathA.variants.process (*pathA.convolution, sub);   // the full IR at High
         }
         else
         {
@@ -448,8 +466,7 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
         {
             juce::dsp::AudioBlock<float> blockB (bufferB);
             auto sub = blockB.getSubBlock (0, (size_t) numSamples);
-            juce::dsp::ProcessContextReplacing<float> ctx (sub);
-            pathB.convolution->process (ctx);
+            pathB.variants.process (*pathB.convolution, sub);   // the full IR at High
         }
         else
         {

@@ -13,6 +13,28 @@ NotificationCentre::NotificationCentre()
     actionButton.onClick = [this] { performCurrentAction(); };
 
     addChildComponent (actionButton);
+
+    secondaryButton.setVisible (false);
+    secondaryButton.onClick = [this] { performCurrentSecondaryAction(); };
+    addChildComponent (secondaryButton);
+}
+
+void NotificationCentre::updateButtons()
+{
+    actionButton.setButtonText (current.actionText);
+    actionButton.setVisible (current.action != nullptr);
+    secondaryButton.setButtonText (current.secondaryActionText);
+    secondaryButton.setVisible (currentHasSecondaryAction());
+}
+
+void NotificationCentre::performCurrentSecondaryAction()
+{
+    if (! currentHasSecondaryAction())
+        return;
+
+    auto action = current.secondaryAction;
+    dismissCurrent();
+    action();
 }
 
 NotificationCentre::~NotificationCentre()
@@ -51,8 +73,7 @@ void NotificationCentre::post (Notification notification)
 
         current = std::move (notification);
 
-        actionButton.setButtonText (current.actionText);
-        actionButton.setVisible (current.action != nullptr);
+        updateButtons();
 
         // If it has gained or lost its action, the timer rule changes with it.
         if (hadAction != (current.action != nullptr))
@@ -95,6 +116,7 @@ void NotificationCentre::showNext()
         current = {};
 
         actionButton.setVisible (false);
+        secondaryButton.setVisible (false);
         setVisible (false);
 
         if (wasVisible && onVisibilityChanged != nullptr)
@@ -106,8 +128,7 @@ void NotificationCentre::showNext()
     current = std::move (queue.front());
     queue.erase (queue.begin());
 
-    actionButton.setButtonText (current.actionText);
-    actionButton.setVisible (current.action != nullptr);
+    updateButtons();
 
     setVisible (true);
 
@@ -169,11 +190,18 @@ void NotificationCentre::resized()
     if (current.action == nullptr)
     {
         actionButton.setBounds ({});
+        secondaryButton.setBounds ({});
         return;
     }
 
     auto bounds = getLocalBounds();
     bounds.removeFromRight (preferredHeight);           // the dismiss cross
+
+    if (currentHasSecondaryAction())
+        secondaryButton.setBounds (bounds.removeFromRight (Metrics::grid * 16).reduced (Metrics::gridHalf, 5));
+    else
+        secondaryButton.setBounds ({});
+
     bounds = bounds.removeFromRight (Metrics::grid * 14);
 
     actionButton.setBounds (bounds.reduced (Metrics::gridHalf, 5));
@@ -208,6 +236,9 @@ void NotificationCentre::paint (juce::Graphics& g)
 
     if (current.action != nullptr)
         textArea.removeFromRight (actionButton.getWidth() + Metrics::grid);
+
+    if (currentHasSecondaryAction())
+        textArea.removeFromRight (secondaryButton.getWidth() + Metrics::grid);
 
     g.setColour (Palette::textPrimary);
     g.setFont (Fonts::ui (11.5f));

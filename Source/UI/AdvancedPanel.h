@@ -20,6 +20,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
+#include "PianoRollStrip.h"
 #include "RoutingPanel.h"
 #include "ModMatrixPanel.h"
 #include "RhythmPanel.h"
@@ -33,6 +34,7 @@
 #include "PedalRack.h"
 #include "AmpFacePanel.h"
 #include "TunePanel.h"
+#include "JamPanel.h"   // FEAT-JAM
 #include "PracticeSetupPanel.h"
 #include "HelpTab.h"
 #include "PanelHelpButton.h"
@@ -91,6 +93,10 @@ public:
     ~AdvancedPanel() override;
 
     void setSelectedString (int index);
+
+    /** cpu-quality-modes 5: column 3's Master oversampling tooltip carries the
+        "Running at 2x while quality is Medium." note ("" when not capped). */
+    void setOversamplingNote (const juce::String& note);
     int getSelectedString() const noexcept { return selectedString; }
 
     /*  Section 4.5: below 1000 points wide, Advanced Mode is unavailable. Three
@@ -100,6 +106,9 @@ public:
     static constexpr int minimumUsableWidth = 1000;
 
     FretboardComponent& getFretboard() noexcept { return fretboard; }
+
+    /** piano-roll-chord-display.md 1: the strip under the fretboard. */
+    PianoRollStrip& getPianoRoll() noexcept { return *pianoRoll; }
 
     //==========================================================================
     /*  Column 4's tab strip (section 4.4).
@@ -230,6 +239,10 @@ private:
     GuitarBodyComponent guitarBody;
     FretboardComponent fretboard;
 
+    // piano-roll-chord-display.md 1: under the fretboard, the strip grown by its height.
+    std::unique_ptr<PianoRollStrip> pianoRoll;
+    int getGuitarStripHeight (int boundsHeight) const;
+
     // Columns 1 to 3. Column 4 is the workspace below, which is not a Column:
     // it shows one panel at a time rather than stacking them.
     juce::Viewport viewports[3];
@@ -318,6 +331,7 @@ private:
     std::unique_ptr<ModMatrixPanel> modMatrixPanel;
     std::unique_ptr<RhythmPanel> rhythmPanel;
     std::unique_ptr<TunePanel> tunePanel;
+    std::unique_ptr<JamPanel> jamPanel;   // FEAT-JAM: jam-mode 8.1
     std::unique_ptr<PracticeSetupPanel> practiceSetupPanel;
     std::unique_ptr<HelpTab> helpTab;
     std::unique_ptr<LivePanel> livePanel;

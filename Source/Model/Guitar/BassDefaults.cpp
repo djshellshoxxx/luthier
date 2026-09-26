@@ -29,7 +29,8 @@ double BassFamilyDefaults::pickThicknessNormalised (double mm) noexcept
     return juce::jlimit (0.0, 1.0, std::log (juce::jmax (0.38, mm) / 0.38) / std::log (3.0 / 0.38));
 }
 
-void BassFamilyDefaults::retarget (juce::AudioProcessorValueTreeState& state, bool fromBass, bool toBass)
+void BassFamilyDefaults::retarget (juce::AudioProcessorValueTreeState& state, bool fromBass, bool toBass,
+                                   const std::function<bool (const juce::String&)>& keep)
 {
     if (fromBass == toBass)
         return;
@@ -48,8 +49,11 @@ void BassFamilyDefaults::retarget (juce::AudioProcessorValueTreeState& state, bo
         return p != nullptr ? (double) p->convertFrom0to1 (p->getValue()) : 0.0;
     };
 
-    auto write = [&parameter] (const juce::String& id, double v)
+    auto write = [&parameter, &keep] (const juce::String& id, double v)
     {
+        if (keep != nullptr && keep (id))
+            return;
+
         if (auto* p = parameter (id))
             p->setValueNotifyingHost (p->convertTo0to1 ((float) v));
     };
