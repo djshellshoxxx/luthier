@@ -52,6 +52,11 @@ public:
         latency, as drawn. */
     juce::String getFooterText() const;
 
+    /** SPEC-SWEEP (include.md INC-12): applies the tooltip on/off preference to
+        the tooltip window (the timer calls this) and reports the delay it set. */
+    void applyTooltipPreference();
+    int getTooltipDelayMs() const noexcept { return tooltipDelayMs; }
+
     /*  gui-integration 15: the triggers the plugin can raise on its own, checked
         once when the window opens. Public so a test can drive it against a
         processor it has arranged, rather than waiting for a real crash, a real
@@ -136,6 +141,7 @@ private:
 
     LuthierLookAndFeel lookAndFeel;
     juce::TooltipWindow tooltips { this, Metrics::tooltipDelayMs };
+    int tooltipDelayMs = Metrics::tooltipDelayMs;   // SPEC-SWEEP INC-12
 
     HeaderBar header;
     MidiImportOutcome lastMidiImport;   // MODEL-GAPS

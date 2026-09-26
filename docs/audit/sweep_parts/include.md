@@ -21,7 +21,7 @@ The Help section is complete and tested by `HelpTab.theContentCoversWhatIncludeM
 | INC-9 (Presets) | Preset bank with descriptive names | `Presets/FactoryPresets` | header preset browser | `Presets.everyFactoryPresetLoadsAndPlays` | DONE |
 | INC-10 (Reset) | Reset returns all settings **and functions** to defaults — running looper/backing/TUNE/rhythm aren't stopped (see ISS-9) | `PluginProcessor::resetEverything` | Easy `EasyPanel::resetButton`; File > "Reset all settings to default"; Ctrl+Shift+R | `Presets.resetRestoresDefaults` | PARTIAL |
 | INC-11 (Menus) | File dropdown: Save / Save As / Open / Options | `PresetManager` | header `HeaderBar::showFileMenu` items 1-3, 10 | `Presets.stateRoundTripsExactly`, `Editor.everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` (saveAs, options) | DONE |
-| INC-12 (Menus) | Options: tooltips on/off — no test that toggling it changes the TooltipWindow delay | `UiState::tooltipsEnabled`; `PluginEditor.cpp:506` | Options > Appearance `tooltipsToggle` | `StateModel.loadingAPresetLeavesTheLayersAboveItAlone` (persistence only) | NO-TEST |
+| INC-12 (Menus) | Options: tooltips on/off — no test that toggling it changes the TooltipWindow delay | `LuthierAudioProcessorEditor::applyTooltipPreference/getTooltipDelayMs` | Options > Appearance `tooltipsToggle` | `Editor::theTooltipSwitchDisablesTooltips` | DONE |
 | INC-13 (Menus) | Options: choose MIDI and audio card — only an info box pointing at the standalone toolbar / host | - | Options > Audio `AudioPage::deviceButton` (message only) | - | PARTIAL |
 | INC-14 (Menus) | "Open location in explorer" | `File::revealToUser` | File > "Open user preset folder", "Open render folder" | `Editor.newPresetLoadsInitAndRevealSaysSoWhenThereIsNoFile` | DONE |
 | INC-15 (Export) | Export audio to WAV with basic quality options — `AudioExporter` has no test | `Support/AudioExporter` | File > "Export audio..." / Easy `exportButton` → `ExportPanel` (depth, rate, length, normalise) | `AudioExporter::rendersThePhraseToWavAiffAndFlac` | DONE |
@@ -42,4 +42,4 @@ The Help section is complete and tested by `HelpTab.theContentCoversWhatIncludeM
 | INC-30 (Easter egg) | Pixel click reveals a hidden effect tab with a close button and "secret" tooltips — exists (`SecretPanel`, Wolf), reveal untested | `LuthierEngine.cpp` §8b hidden effect | notch pixel → `SecretPanel` | `Effects.secretEffectIsStableAtMaximumRegeneration` | OWNED (CLI/easter-egg items deferred to last per brief) |
 | INC-31 (theme) | Implement theme.md | see theme.md part | - | - | PARTIAL |
 
-<!-- counts DONE=20 NO-GUI=0 NO-TEST=3 PARTIAL=4 MISSING=0 OWNED=0 DEFERRED=1 -->
+<!-- counts DONE=21 NO-GUI=0 NO-TEST=2 PARTIAL=4 MISSING=0 OWNED=0 DEFERRED=1 -->

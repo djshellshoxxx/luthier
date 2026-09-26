@@ -379,6 +379,14 @@ void LuthierAudioProcessorEditor::paint (juce::Graphics& g)
                 juce::Justification::centredLeft, false);
 }
 
+void LuthierAudioProcessorEditor::applyTooltipPreference()
+{
+    // Tooltips are a user preference, so the window is created or torn down to
+    // match rather than the tips being silently empty.
+    tooltipDelayMs = processor.getUiState().tooltipsEnabled ? Metrics::tooltipDelayMs : 0x7fffffff;
+    tooltips.setMillisecondsBeforeTipAppears (tooltipDelayMs);
+}
+
 juce::String LuthierAudioProcessorEditor::getFooterText() const
 {
     return "CPU " + juce::String (processor.getEngine().getCpuEstimate(), 1) + "%"
@@ -524,10 +532,7 @@ void LuthierAudioProcessorEditor::timerCallback()
         RangesUi::resyncControls (*this);
     }
 
-    // Tooltips are a user preference, so the window is created or torn down to
-    // match rather than the tips being silently empty.
-    tooltips.setMillisecondsBeforeTipAppears (
-        processor.getUiState().tooltipsEnabled ? Metrics::tooltipDelayMs : 0x7fffffff);
+    applyTooltipPreference();
 
     repaint (getLocalBounds().removeFromBottom (Metrics::footerHeight));
 }

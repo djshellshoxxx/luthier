@@ -1408,3 +1408,48 @@ LUTHIER_TEST (Excitation, fingersSoundDifferentFromAPick)
                "fingers are not darker than a pick: " + juce::String (fingerBright, 5)
                  + " vs " + juce::String (pickBright, 5));
 }
+
+//==============================================================================
+/*  include.md INC-12: Options > APPEARANCE's tooltip switch turns the editor's
+    tooltips off and back on. */
+LUTHIER_TEST (Editor, theTooltipSwitchDisablesTooltips)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSweepSr, kSweepBlock);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    auto* window = dynamic_cast<LuthierAudioProcessorEditor*> (editor.get());
+    CHECK (window != nullptr);
+
+    if (window == nullptr)
+        return;
+
+    AppearancePage page (processor);
+    page.setSize (700, 500);
+
+    juce::ToggleButton* toggle = nullptr;
+
+    for (auto* child : page.getChildren())
+        if (auto* t = dynamic_cast<juce::ToggleButton*> (child); t != nullptr && t->getButtonText().containsIgnoreCase ("tooltip"))
+            toggle = t;
+
+    CHECK_MSG (toggle != nullptr, "no tooltip switch on the Appearance page");
+
+    if (toggle == nullptr)
+        return;
+
+    const bool was = processor.getUiState().tooltipsEnabled;
+
+    toggle->setToggleState (false, juce::dontSendNotification);
+    toggle->onClick();
+    window->applyTooltipPreference();
+    CHECK (! processor.getUiState().tooltipsEnabled);
+    CHECK (window->getTooltipDelayMs() > 1000000);
+
+    toggle->setToggleState (true, juce::dontSendNotification);
+    toggle->onClick();
+    window->applyTooltipPreference();
+    CHECK (window->getTooltipDelayMs() == Metrics::tooltipDelayMs);
+
+    processor.getUiState().tooltipsEnabled = was;
+}
