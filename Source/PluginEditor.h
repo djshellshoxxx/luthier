@@ -47,6 +47,10 @@ public:
     static constexpr int minimumWidth = 940;
     static constexpr int minimumHeight = 560;
 
+    /** SPEC-SWEEP (USER_MANUAL UM-60): the footer's CPU share and reported
+        latency, as drawn. */
+    juce::String getFooterText() const;
+
     /*  gui-integration 15: the triggers the plugin can raise on its own, checked
         once when the window opens. Public so a test can drive it against a
         processor it has arranged, rather than waiting for a real crash, a real

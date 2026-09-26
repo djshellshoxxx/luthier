@@ -222,7 +222,7 @@ audible failure in a real host.
 
 ```bash
 luthier-render --midi riff.mid --preset "Modern Metal Chug" --out riff.wav
-luthier-render --audition "Major Scale" --guitar "Les Paul" --out demo.wav --verbose
+luthier-render --audition "Major Scale" --guitar "Vintage Single-Cut" --out demo.wav --verbose
 luthier-render --list-presets
 luthier-render --help
 ```

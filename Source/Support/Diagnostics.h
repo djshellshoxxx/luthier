@@ -22,6 +22,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <array>
 #include <atomic>
+#include <functional>
 
 namespace luthier
 {
@@ -111,6 +112,12 @@ public:
                                              const juce::String& validatorSummary,
                                              const juce::String& extraNotes = {}) const;
 
+    /** SPEC-SWEEP (include.md INC-29): extra report sections the plugin knows
+        and Diagnostics does not - the LICENCE and MIDI sections. Called on the
+        message thread while a report is built; whatever it returns goes in
+        after HOST. Set once, by the processor that owns this Diagnostics. */
+    void setReportSectionsProvider (std::function<juce::String()> provider);
+
     /** Writes the report. Returns the file written, or an invalid File on failure. */
     juce::File writeTroubleshootingReport (const juce::String& settingsJson,
                                            const juce::String& validatorSummary,
@@ -146,6 +153,8 @@ private:
 
     mutable juce::CriticalSection infoLock;
     HostInfo hostInfo;
+
+    std::function<juce::String()> reportSections;   // SPEC-SWEEP INC-29
 
     juce::File crashLogFile;
     int crashLogFlushedUpTo = 0;

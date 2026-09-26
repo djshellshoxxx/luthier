@@ -1,11 +1,6 @@
-- [TS-1] effort S — add a packaging check to `scripts/` (or a CTest shell test) that greps `Luthier.iss` for `{commoncf64}\VST3` and `install.sh` for `~/.vst3`, so the doc table and installers cannot drift; DEFER if packaging has its own CI.
 - [TS-3] effort S — DEFER: 64-bit-only is a build/installer property (`ArchitecturesInstallIn64BitMode`), not unit-testable; covered by the release checklist.
 - [TS-4] effort S — DEFER to the installer workstream (visual branch owns installer items): verify on the release checklist that uninstall keeps `Documents/Luthier` unless the user opts in.
-- [TS-5] effort S — covered by UM-49's `Options::fileLocationsRescanFindsANewPreset`; additionally CHECK the HELP Presets topic text contains `getUserPresetFolder().getFullPathName()`.
-- [TS-6] effort S — add `Presets::onlyTheExactExtensionIsScannedAndTruncatedFilesAreSkipped`: files `a.luthierpreset`, `b.luthierpreset.txt`, and a truncated `c.luthierpreset`; CHECK only `a` is listed and the scan does not throw.
-- [TS-8] effort S — add `Presets::theFactoryBankFallsBackToDocumentsWhenReadOnly`: make the resolved shipped folder unwritable (or inject the probe) and CHECK `getFactoryPresetFolder()` is under `Documents/Luthier/Presets/Factory` and `ensureFactoryPresetsInstalled()` populates it.
-- [TS-9] effort S — add `Diagnostics::hardResetKeepsUserPresetsAndReinstallsFactory` (extends UM-59): user preset survives, factory file deleted beforehand is back, MIDI mappings empty, diagnostics folder emptied.
+- [TS-8] DEFERRED: hard reset / the read-only fallback act on the real Documents/Luthier folder (deleting diagnostics *.txt and Cache); a test needs a Documents-root override hook in PresetManager/Diagnostics first (state worker). Crash-log-off-on-load is covered by `Diagnostics::crashLogIsOffOnEveryLoadAndStartsWithTheReport`.
+- [TS-9] DEFERRED: hard reset / the read-only fallback act on the real Documents/Luthier folder (deleting diagnostics *.txt and Cache); a test needs a Documents-root override hook in PresetManager/Diagnostics first (state worker). Crash-log-off-on-load is covered by `Diagnostics::crashLogIsOffOnEveryLoadAndStartsWithTheReport`.
 - [TS-15] effort M — add `Engine::emptySlotsAreFreeAndTheSecondMicCostsTheConvolution`: measure `getCpuEstimate()` (or a deterministic op counter) with 0 vs 8 loaded-but-bypassed slots and dual mic on/off; if bypassed pedals turn out to be free, correct the doc instead.
-- [TS-16] effort S — same as UM-60 (footer CPU/latency text).
-- [TS-21] effort S — covered by PT-22 (`Technique::sustainRingsAndSostenutoHoldsOnlyWhatIsDown`).
-- [TS-24] effort S — add `Diagnostics::crashLogIsOffOnEveryLoadAndTheExportHasItsSections`: new processor has `isCrashLogEnabled() == false` even after state saved with it on; `writeTroubleshootingReport` output contains settings, audio/MIDI config, host, version and self-test headings and no audio data.
+- [TS-21] (see docs-PLAYING_TECHNIQUES PT-22 row) — same test.

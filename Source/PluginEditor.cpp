@@ -362,10 +362,14 @@ void LuthierAudioProcessorEditor::paint (juce::Graphics& g)
                 juce::Justification::centredRight, false);
 
     // CPU and latency, where a player can see them without opening anything.
-    g.drawText ("CPU " + juce::String (processor.getEngine().getCpuEstimate(), 1) + "%"
-                + "    latency " + juce::String (processor.getLatencySamples()) + " smp",
-                footer.reduced (Metrics::windowPadding, 0),
+    g.drawText (getFooterText(), footer.reduced (Metrics::windowPadding, 0),
                 juce::Justification::centredLeft, false);
+}
+
+juce::String LuthierAudioProcessorEditor::getFooterText() const
+{
+    return "CPU " + juce::String (processor.getEngine().getCpuEstimate(), 1) + "%"
+           + "    latency " + juce::String (processor.getLatencySamples()) + " smp";
 }
 
 void LuthierAudioProcessorEditor::resized()

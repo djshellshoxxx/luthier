@@ -235,6 +235,8 @@ if (LUTHIER_BUILD_TESTS)
 
     enable_testing()
     add_test(NAME LuthierUnitTests COMMAND LuthierTests)
+    # SPEC-SWEEP (TROUBLESHOOTING TS-1): the documented install paths match the installers.
+    add_test(NAME PackagingPaths COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_packaging_paths.cmake)
 endif()
 
 if (LUTHIER_BUILD_CLI)
@@ -255,4 +257,13 @@ if (LUTHIER_BUILD_CLI)
         juce::juce_recommended_config_flags)
 
     luthier_copy_resources(LuthierRender "$<TARGET_FILE_DIR:LuthierRender>/Resources")
+
+    # SPEC-SWEEP (README RM-17): every documented luthier-render flag, end to end.
+    enable_testing()
+    add_test(NAME LuthierRenderCli
+             COMMAND ${CMAKE_COMMAND}
+                     -DRENDER=$<TARGET_FILE:LuthierRender>
+                     -DMIDI=${CMAKE_CURRENT_SOURCE_DIR}/Tools/testdata/two_bars.mid
+                     -DOUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/render-cli-smoke
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/render_cli_smoke.cmake)
 endif()

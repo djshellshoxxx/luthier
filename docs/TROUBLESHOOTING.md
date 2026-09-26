@@ -78,7 +78,9 @@ you want everything gone.
    somewhere else - a shared drive, a Dropbox folder, a repository.
 6. **Check the file is valid JSON.** Open it in a text editor; it should start with
    `{` and contain `"magic": "luthier.preset"` (older presets have
-   `"format": "luthierpreset"`, which is also accepted). A truncated file is skipped.
+   `"format": "luthierpreset"`, which is also accepted). A truncated or damaged
+   file still appears in the list under its file name, but refuses to load and
+   says why.
 
 ### The factory presets are missing
 

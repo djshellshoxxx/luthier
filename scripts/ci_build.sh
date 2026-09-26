@@ -138,6 +138,19 @@ do_test() {
     set +e
     ${wrap[@]+"${wrap[@]}"} "$runner" 2>&1 | tee "$LOG_DIR/unit-tests.log"
     local rc=${PIPESTATUS[0]}
+
+    # SPEC-SWEEP (TROUBLESHOOTING TS-1): the documented install paths match the installers.
+    cmake -P scripts/check_packaging_paths.cmake || rc=1
+
+    # SPEC-SWEEP (README RM-17): luthier-render's documented flags, end to end.
+    local render="$BUILD_DIR/LuthierRender_artefacts/$CONFIG/LuthierRender"
+    if [ -x "$render" ]; then
+        step "Smoke-testing luthier-render"
+        cmake -DRENDER="$render" -DMIDI="$PWD/Tools/testdata/two_bars.mid" \
+              -DOUT_DIR="$BUILD_DIR/render-cli-smoke" -P scripts/render_cli_smoke.cmake \
+              2>&1 | tee "$LOG_DIR/render-cli.log"
+        [ "${PIPESTATUS[0]}" -eq 0 ] || rc=1
+    fi
     set -e
     return "$rc"
 }

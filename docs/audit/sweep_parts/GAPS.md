@@ -43,7 +43,7 @@ GAPS.md is the old gap list against gui-integration §19. The file says it is th
 | GAP-37 (A6) | Missing guitar and missing part raise a banner (formerly "cannot happen" / blocked) | `LuthierAudioProcessor::applyGuitar` `guitarNotices`, `PluginEditor.cpp:966` | banner strip | `GuitarMigration::anUnknownGuitarKeepsThePresetAndSaysSo`, `Workshop::aMissingPartFallsBackAndSaysSo` | DONE |
 | GAP-38 (B1) | One capo in `TuningEngine` (`capo_fret` Off-12), applied as a fret position; neck shortens; RhythmEngine delegates; voicer bounded by the playable span | `TuningEngine`, `RhythmEngine::setCapoFret` | col 1 GUITAR, headstock popover, fretboard right-click | `GenreKits::capoRemovesFretsBelowItAndMovesThePitch`, `RubricVoicer::theCapoIsWhereTheNeckStarts` | DONE |
 | GAP-39 (B1) | Partial capo from the Workshop capo part's string mask | `TuningEngine::setCapoStringMask` | Workshop capo part | `WorkshopCapo::aPartialCapoClampsOnlyItsStrings`, `WorkshopCapo::theCapoTravelsWithThePreset` | DONE |
-| GAP-40 (B1) | An old session's rhythm-state `capoFret` is read, applied, and not written back — no test | `RhythmEngine.cpp:839` | n/a | - | NO-TEST |
+| GAP-40 (B1) | An old session's rhythm-state `capoFret` is read, applied, and not written back — no test | `RhythmEngine.cpp:839` | n/a | `Rhythm::anOldRhythmStateCapoIsAppliedButNotWrittenBack` | DONE |
 | GAP-41 (A5) | Shortcut registry is the only source; defaults match §17 (Ctrl+O browser, Ctrl+Shift+R reset, A/B, Live, Practice, Options bound); Ctrl+Shift+/ opens the table; each binding has a catalog description | `Accessibility.cpp:490-560` | Options > ACCESSIBILITY | `Accessibility::shortcutDefaultsMatchTheCanonicalTable`, `Accessibility::everyShortcutHasADescriptionInTheCatalog` | DONE |
 | GAP-42 (A5) | `S` Slide and `Ctrl+G` Save As Guitar in the registry | `Accessibility.cpp:499,539` | keys | `Accessibility::shortcutDefaultsMatchTheCanonicalTable` | DONE |
 | GAP-43 (A5) | `W` toggles the Workshop — not in HEAD's registry | - | keys | - | OWNED |
@@ -60,4 +60,4 @@ GAPS.md is the old gap list against gui-integration §19. The file says it is th
 | GAP-54 (Fixed) | `chordWindow` has a canonical Advanced Performance home; Options MIDI is a mirror | `AdvancedPanel.cpp:911` | Adv Performance; Options > MIDI | `GuiReach::everyAutomatableParameterHasAVisibleControl` | DONE |
 | GAP-55 (Not audited) | ui-wiring, onboarding, perf, qa, installer, tune-builder, midi-export, gi 20-22 audited — now `docs/spec-coverage.md` and this sweep | `docs/spec-coverage.md`, `docs/audit/sweep_parts/*` | n/a | n/a | DONE |
 
-<!-- counts DONE=42 NO-GUI=0 NO-TEST=3 PARTIAL=1 MISSING=2 OWNED=7 -->
+<!-- counts DONE=43 NO-GUI=0 NO-TEST=2 PARTIAL=1 MISSING=2 OWNED=7 -->

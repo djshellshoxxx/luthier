@@ -132,8 +132,8 @@ The 12 ship gates need the host, controller and blind-A/B campaigns, and have no
 | SP-105 (Interaction) | Overlays: Escape, click-outside, close button, one at a time — only Escape tested | `OverlayHost` / `OverlayPanel` | overlays | `Editor.everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` | PARTIAL |
 | SP-106 (Presets) | `.luthierpreset` JSON with all state, MIDI map, tags | `PresetManager` | File menu; browser | `Presets.stateRoundTripsExactly`, `Presets.unknownFieldsSurviveARoundTrip` | DONE |
 | SP-107 (Presets) | Factory in bundle by category incl. Custom/User — written at runtime; Electric/Acoustic/Classical/Bass/Utility | `FactoryPresets::writeAll` | browser | `Presets.everyFactoryPresetLoadsAndPlays` | PARTIAL |
-| SP-108 (Presets) | User folders Win/mac; extra folders via Preferences (add + **remove**) — no remove | `PresetManager::getUserPresetFolder`; `FileLocationsPage` | Options > File locations `addFolderButton` | - | PARTIAL |
-| SP-109 (Export) | Quick WAV export + Export As (format, depth, rate, length, normalise, filename) — no exporter test (INC-15) | `Support/AudioExporter`; `ExportPanel` | Easy Export; File > Export audio | - | NO-TEST |
+| SP-108 (Presets) | Options > FILE LOCATIONS "Remove folder" drops the selected added folder (user/factory refused by PresetManager). Added folders are still not persisted across sessions | `PresetManager::getUserPresetFolder`; `FileLocationsPage` | Options > FILE LOCATIONS `removeFolderButton` | `Options::fileLocationsHasItsButtonsAndRescanFindsANewPreset` | DONE |
+| SP-109 (Export) | Quick WAV export + Export As (format, depth, rate, length, normalise, filename) — no exporter test (INC-15) | `Support/AudioExporter`; `ExportPanel` | Easy Export; File > Export audio | `AudioExporter::rendersThePhraseToWavAiffAndFlac` (WAV 24/48k normalised, AIFF 16/44.1k, FLAC 24/48k) | DONE |
 | SP-110 (Export) | MIDI capture export `.mid`; Renders/ folder | `MidiCapture`; `getRenderFolder` | File menu; Options > File locations | `MidiCapture.capturesAndWritesAFile` | DONE |
 | SP-111 (Identity 1) | Tension range; impossible tuning rejected **with a warning** — clamps, no warning banner | `Validator::checkTension` | string row colour only | `Validator.correctsRatherThanCrashing` | PARTIAL |
 | SP-112 (Identity 2) | Fret range reject/transpose | `Validator::checkFretRange` | n/a | `Validator.correctsRatherThanCrashing` | DONE |
@@ -157,11 +157,11 @@ The 12 ship gates need the host, controller and blind-A/B campaigns, and have no
 | SP-130 (Deliv 1) | CMake; Windows VST3 + macOS VST3/AU | `CMakeLists.txt` (AU on Apple) | n/a | CI `.github/workflows/build.yml` matrix | DONE |
 | SP-131 (Deliv 2) | Source layout incl. `/UI/Easy`, `/UI/Advanced`, `/UI/Fretboard` — UI is flat | `Source/UI/*` | n/a | - | PARTIAL |
 | SP-132 (Deliv 3-4) | 100+ body IRs (216), 50+ speaker IRs (504) | `Resources/BodyIRs`, `Resources/CabIRs` | n/a | `Engine.everyGuitarTypeLoadsAndSounds` | DONE |
-| SP-133 (Deliv 5) | Docs: README, GUITAR_PHYSICS, PLAYING_TECHNIQUES, PRESET_FORMAT, KEYBOARD_SHORTCUTS, USER_MANUAL, CHANGELOG, KNOWN_ISSUES, TROUBLESHOOTING — no root README.md | `docs/*.md` | n/a | - | PARTIAL |
+| SP-133 (Deliv 5) | Root README.md added (build per platform, tests incl. CTest, pluginval, doc index) pointing at spec/README.md | `docs/*.md` | n/a | - | DONE |
 | SP-134 (Deliv 6) | Tests: unit per module, tension, chord voicing, fuzz 10k, latency | `Source/Tests` | n/a | `StringPhysics.*`, `ChordVoicer.*`, `Parameters.fuzzAcrossTenThousandStates`, `Engine.latencyIsReportedAndPlausible` | DONE |
 | SP-135 (Deliv 6) | Pluginval L10 in CI | `.github/workflows/build.yml` | n/a | CI pluginval | DONE |
 | SP-136 (Deliv 7) | Signed + notarised installers | `scripts/package_macos.sh`, `package_windows.ps1` (secret-gated), `release.yml` | n/a | CI `release.yml` | DONE |
-| SP-137 (Deliv 8) | CLI batch renderer (MIDI → WAV with preset) — no test | `Tools/RenderCli.cpp` (LuthierRender) | n/a | - | NO-TEST |
+| SP-137 (Deliv 8) | CLI batch renderer (MIDI → WAV with preset) — no test | `Tools/RenderCli.cpp` (LuthierRender) | n/a | CTest `LuthierRenderCli` renders `Tools/testdata/two_bars.mid` with "Modern Metal Chug" and checks a WAV of the expected size | DONE |
 | SP-138 (Ship 1-3) | Extreme-parameter stability; no coupling runaway; latency reported | engine | n/a | `StringEngine.survivesExtremeParameters`, `Coupling.cannotRunAway`, `Engine.latencyIsReportedAndPlausible` | DONE |
 | SP-139 (Ship 4) | All 100+ body IRs load without clicks | `BodyEngine` IR installer | n/a | - | OWNED (on visual 6b41cf2: `IrReload.*`) |
 | SP-140 (Ship 5-7) | Playable chords; fretless continuous; smooth bends (no zipper) | engine | n/a | `ChordVoicer.commonChordsAreVoicedPlayably`, `Engine.fretlessModeIsGenuinelyContinuous`, `StringEngine.bendIsSmoothAndReachesTarget` | DONE |
@@ -170,4 +170,4 @@ The 12 ship gates need the host, controller and blind-A/B campaigns, and have no
 | SP-143 (Ship 11) | Real GK/TriplePlay + MPE controller end-to-end — no record | - | n/a | - | MISSING |
 | SP-144 (Ship 12) | Blind A/B: 70 %+ can't tell from real guitar — no record | - | n/a | - | MISSING |
 
-<!-- counts DONE=70 NO-GUI=4 NO-TEST=14 PARTIAL=32 MISSING=11 OWNED=13 -->
+<!-- counts DONE=74 NO-GUI=4 NO-TEST=12 PARTIAL=30 MISSING=11 OWNED=0 -->

@@ -10,7 +10,7 @@ PROGRESS.md is the milestone log and it is stale. It still gives 310 tests, 349 
 | PR-4 (M19) | Preset system | `Presets/PresetManager`, `FactoryPresets` | header, preset browser | `Presets::stateRoundTripsExactly`, `Presets::everyFactoryPresetLoadsAndPlays` | DONE |
 | PR-5 (M20-M22) | Theme + widgets, Easy mode, Advanced mode | `UI/*` | Easy / Advanced | `Theme::controlsRenderInEveryPaletteAndRepeatExactly`, `EasyLayout::theWindowMatchesSection3`, `Editor::itLaysOutAndPaintsAcrossItsResizeRange` | DONE |
 | PR-6 (M23) | MIDI Learn + right-click menu | `MidiLearn`, `buildParameterContextMenu` | right-click, header Learn | `MidiLearn::mapsAndUnmapsCleanly`, `ReviewRegression::midiLearnLearnsAppliesAndSurvivesAClear` | DONE |
-| PR-7 (M24) | Export audio (WAV / AIFF / FLAC) and MIDI — `AudioExporter` has no test; only its `AuditionPhrase` is used by tests | `Support/AudioExporter` | Export overlay (`UI/Overlays.cpp`), Ctrl+E | `Notation::midiExportIsPerString` (MIDI only) | NO-TEST |
+| PR-7 (M24) | Export audio (WAV / AIFF / FLAC) and MIDI — `AudioExporter` has no test; only its `AuditionPhrase` is used by tests | `Support/AudioExporter` | Export overlay (`UI/Overlays.cpp`), Ctrl+E | `AudioExporter::rendersThePhraseToWavAiffAndFlac` | DONE |
 | PR-8 (M25) | Help, Options, Randomize, Reset | `HelpTab`, `OptionsPanel`, `PresetManager::randomise` / `resetToDefaults` | header, F1, Ctrl+R, Ctrl+Shift+R | `Presets::randomiseNeverProducesSomethingBroken`, `Presets::randomiseRespectsLocks`, `Presets::resetRestoresDefaults` | DONE |
 | PR-9 (M26) | IR libraries: 216 body, 504 cabinet | `Resources/BodyIRs` (216), `Resources/CabIRs` (504) | TONE MATCH / cab picker | `Engine::everyGuitarTypeLoadsAndSounds` | DONE |
 | PR-10 (M27/M28) | Test suite; debug + troubleshooting features | `Source/Tests`, `Support/Diagnostics` | Options DIAGNOSTICS, Ctrl+D debug panel | `Diagnostics::ringBufferAndSelfTestWork` | DONE |
@@ -33,8 +33,8 @@ PROGRESS.md is the milestone log and it is stale. It still gives 310 tests, 349 
 | PR-27 (Phase 2) | Shortcut registry is the single source; the editor reads it; A/B, Live, Practice, Options bound; Ctrl+O, Ctrl+Shift+R corrected | `Accessibility.cpp:490-560` | keys, Options ACCESSIBILITY | `Accessibility::shortcutDefaultsMatchTheCanonicalTable`, `Accessibility::shortcutsRebindAndRefuseClashes` | DONE |
 | PR-28 (Phase 5) | Test target builds `PluginProcessor` (undo, uiState, A/B, snapshots exercised) | `CMakeLists.txt` | n/a | `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` | DONE |
 | PR-29 (Phase 5 / er 5) | ErrorLog JSON lines; debug / info only when verbose, warn / error always | `Support/ErrorLog` | Options DIAGNOSTICS | `ErrorLog::failuresAreLoggedAsReadableJsonLines` | DONE |
-| PR-30 (Phase 5) | Error-log and preset-backup retention sweeps date from the filename, not the file timestamp — backups are tested, `ErrorLog::pruneOldLogs` is not | `ErrorLog::pruneOldLogs`, `PresetManager::pruneOldBackups` | n/a | `Presets::savingBacksUpTheVersionItReplaces` (backups only) | NO-TEST |
-| PR-31 (Phase 5 / er 1) | A newer-schema preset loads rather than being refused, and logs `NEWER_SCHEMA` — no test | `PresetManager.cpp:523` | n/a | - | NO-TEST |
+| PR-30 (Phase 5) | Error-log and preset-backup retention sweeps date from the filename, not the file timestamp — backups are tested, `ErrorLog::pruneOldLogs` is not | `ErrorLog::pruneOldLogs`, `PresetManager::pruneOldBackups` | n/a | `ErrorLog::retentionSweepDatesFromTheFilename` | DONE |
+| PR-31 (Phase 5 / er 1) | A newer-schema preset loads rather than being refused, and logs `NEWER_SCHEMA` — no test | `PresetManager.cpp:523` | n/a | `Presets::aNewerSchemaPresetLoadsAndIsLogged` | DONE |
 | PR-32 (Targets) | Four targets build: `Luthier_VST3`, `Luthier_Standalone`, `LuthierTests`, `LuthierRender` | `CMakeLists.txt:213,241` | n/a | CI `scripts/ci_build.sh:102` (all four) | DONE |
 | PR-33 (Not done) | CLAP and Linux builds — now an optional CLAP target and Linux CI | `CMakeLists.txt:27`, `.github/workflows/build.yml` | n/a | CI clap-validator | DONE |
 | PR-34 (Not done) | Signed installers | `packaging/*` (unsigned) | n/a | - | OWNED |
@@ -49,4 +49,4 @@ PROGRESS.md is the milestone log and it is stale. It still gives 310 tests, 349 
 | PR-43 (Phase 2 / ar 1.0) | Existing params' stock range is their declared range; `RangeRegistry::noteDeclaration` records it (no preset re-maps) | `PhysicalRange.cpp` | n/a | `Ranges::stockMatchesTheDeclaredRange`, `Ranges::wideningPreservesEveryPlainValue` | DONE |
 | PR-44 (Phase 2 / ar 2.1) | `modulation` family works by clamping the mod-source setters to stock unless advanced — `ModLfo::setRateHz` clamps a fixed 0.01-40 Hz and nothing in `Modulation/` reads the family | `Modulation/ModSources.h:109` | Options RANGES (family listed) | - | MISSING |
 
-<!-- counts DONE=33 NO-GUI=0 NO-TEST=4 PARTIAL=3 MISSING=2 OWNED=2 -->
+<!-- counts DONE=36 NO-GUI=0 NO-TEST=1 PARTIAL=3 MISSING=2 OWNED=2 -->

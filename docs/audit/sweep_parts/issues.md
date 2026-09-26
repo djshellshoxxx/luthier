@@ -4,9 +4,9 @@ Of the 12 user-reported issues, three are fixed and tested: chords, MIDI import 
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
-| ISS-1 (#1) | Effects must audibly work — no processor-level test that turning a pedal on changes the output | `DSP/Effects/EffectsChain`; `ParameterBridge` pedal-type/param ordering (PresetPedals fix) | ADVANCED col 2/3 pedal racks `PedalRack`; Easy compact rack | `PresetPedals.aFreshLoadKeepsThePresetsPedalSettings`, `Effects.everyPedalTypeRunsCleanly` (stability only) | NO-TEST |
+| ISS-1 (#1) | Effects must audibly work — no processor-level test that turning a pedal on changes the output | `DSP/Effects/EffectsChain`; `ParameterBridge` pedal-type/param ordering (PresetPedals fix) | ADVANCED col 2/3 pedal racks `PedalRack`; Easy compact rack | `Effects::aPedalSwitchedOnThroughItsParametersChangesTheOutput` (pre Overdrive, post Delay through APVTS slot params) | DONE |
 | ISS-2 (#2) | Pickup changes audible — `pickup_blend` dead (`PickupEngine::blendAmount` set, never read in process); no selector audibility test | `DSP/Pickup/PickupEngine::setBlend`; `pickup_selector` slot gains | ADVANCED col 2 Pickups; illustration switch | `Pickup.positionCombNullsTheExpectedHarmonic`, `Circuit.*` | PARTIAL |
-| ISS-3 (#3) | Pre-amp pedals / pedalboard functional — same as ISS-1, no audibility test | `EffectsChain` pre chain | col 2 pre rack `PedalRack`; Easy rack | `PresetPedals.*` | NO-TEST |
+| ISS-3 (#3) | Pre-amp pedals / pedalboard functional — same as ISS-1, no audibility test | `EffectsChain` pre chain | col 2 pre rack `PedalRack`; Easy rack | `Effects::aPedalSwitchedOnThroughItsParametersChangesTheOutput` (full eight-pedal pre chain vs empty) | DONE |
 | ISS-4 (#4) | Fingers vs pick makes a difference — wired, no test compares them | `Parameters.cpp` bridge → `LuthierEngine::setPickMaterialAndFingers` (`use_fingers`) | ADVANCED col 2 Playing Hand "Fingers" | - | NO-TEST |
 | ISS-5 (#5) | Chords: two notes at once play | `Model/Playing/ChordVoicer`, `MidiInterpreter` Poly default | Easy `EasyPanel::playingModeSelector` | `Engine.aChordVoicesAcrossStrings`, `ReviewRegression.aNoteReleasedInsideTheChordWindowIsReleased` | DONE |
 | ISS-6 (#6) | Guitar picture must look good | `UI/Guitar/GuitarRenderer` | Easy / Advanced illustration | `GuitarIllustration.*` | OWNED (visual: guitar-illustration rework, 8cfd2a5, 8b77b82) |
@@ -17,4 +17,4 @@ Of the 12 user-reported issues, three are fixed and tested: chords, MIDI import 
 | ISS-10b (#10) | Basic internal sequencer | `Tune/*` (TuneBuilder, TunePlayer) | ADVANCED > TUNE tab `TunePanel` | `TuneBuilder.*`, `TunePlayer.*` | DONE |
 | ISS-11 (#11) | Small piano roll that mirrors plucked strings and plays them back | - (TunePianoRoll is a melody editor only) | - | - | OWNED (visual e401027 piano-roll groundwork; piano-roll-chord-display) |
 
-<!-- counts DONE=3 NO-GUI=0 NO-TEST=3 PARTIAL=2 MISSING=1 OWNED=3 -->
+<!-- counts DONE=5 NO-GUI=0 NO-TEST=1 PARTIAL=2 MISSING=1 OWNED=0 -->

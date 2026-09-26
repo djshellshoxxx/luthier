@@ -212,7 +212,7 @@ public:
     int getNumParameters() const noexcept override { return 5; }
     int getLatencySamples() const noexcept override { return oversampler.getLatencySamples(); }
 
-    void setOversamplingFactor (int factor) noexcept;
+    void setOversamplingFactor (int factor) noexcept override;
 
 protected:
     void parameterChanged (int index, double value) override;

@@ -2126,6 +2126,25 @@ FileLocationsPage::FileLocationsPage (LuthierAudioProcessor& p)
         folderList.updateContent();
     };
 
+    // SPEC-SWEEP (spec.md SP-108): an added folder can be taken off the search
+    // path again. PresetManager refuses the user and factory folders.
+    addAndMakeVisible (removeFolderButton);
+    removeFolderButton.setTooltip ("Stop scanning the selected folder. The files in it are not touched; "
+                                   "the user and factory folders cannot be removed.");
+    removeFolderButton.onClick = [this]
+    {
+        const auto folders = processor.getPresetManager().getSearchFolders();
+        const int row = folderList.getSelectedRow();
+
+        if (juce::isPositiveAndBelow (row, folders.size()))
+        {
+            processor.getPresetManager().removeSearchFolder (folders[row]);
+            folderList.deselectAllRows();
+            folderList.updateContent();
+            folderList.repaint();
+        }
+    };
+
     addAndMakeVisible (pathLabel);
     pathLabel.setFont (Fonts::ui (11.0f));
     pathLabel.setColour (juce::Label::textColourId, Palette::textMuted);
@@ -2223,6 +2242,8 @@ void FileLocationsPage::resized()
         addFolderButton.setBounds (row.removeFromLeft (180));
         row.removeFromLeft (Metrics::gridHalf);
         rescanButton.setBounds (row.removeFromLeft (140));
+        row.removeFromLeft (Metrics::gridHalf);
+        removeFolderButton.setBounds (row.removeFromLeft (140));
     }
 
     bounds.removeFromTop (Metrics::grid);

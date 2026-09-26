@@ -33,4 +33,4 @@ The brief is process: reading order, a 12-step build order, rules of engagement,
 
 Notes: CB-3 on realism-a/b/c (`StringAging.h`, `EnvironmentModel.h`, `BodyCouplingBank.h`, `Harmonics.h`, `RightHand.h`, `NoiseFloor.h`, `StabilityModel.h`). CB-4 on techniques (`DSP/Techniques/TapEngine.h`, `BendEngine.h`, `MuteEngine.h`, `CascadeResolver.h`). CB-10, CB-11 and CB-13 on visual ("QA: ..." commits, "Performance: boot/load/swap timings...", "Packaging and CI: CPack..."). CB-12 on tune-help (onboarding). CB-24: TECHNIQUES tab on techniques, remaining rows on visual.
 
-<!-- counts DONE=9 NO-GUI=0 NO-TEST=0 PARTIAL=9 MISSING=2 OWNED=6 -->
+<!-- counts DONE=8 NO-GUI=0 NO-TEST=0 PARTIAL=9 MISSING=2 OWNED=7 -->
