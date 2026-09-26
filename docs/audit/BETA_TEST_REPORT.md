@@ -1,10 +1,12 @@
 # Beta test report
 
 Auditor branch `claude/luthier-audit`. Code under test: the integration branch
-`claude/luthier-cloud-session-5lzlix` at `6bda872` (review merged), plus the
-fixes on this branch. None of the seven helper branches had landed on the
-integration branch when this was written; each one gets the harness below
-when it does.
+`claude/luthier-cloud-session-5lzlix` at `e4dee39` (realism-a/b/c, model-gaps,
+tune-help, visual, release, review, feat-strings, feat-normalize, feat-jam and
+feat-cpu merged), plus the fixes on this branch. Still to land and be tested:
+`claude/luthier-techniques` and the open feat-* branches (assist, browser,
+mic, riffs, search). The first round (before the helpers landed) is kept
+below; each finding says which round it belongs to.
 
 ## How to reproduce
 
@@ -121,13 +123,13 @@ IN PROGRESS (a helper branch covers it).
 
 - clap-validator state-reproducibility (3 tests): `preset_morph_position` 0.295 -> 0.0 after reload. Now covered by `Combo.everyParameterSurvivesTheSessionStateRoundTrip`.
 
-### B-11 GUI: 45 automatable parameters have no control. OPEN / IN PROGRESS
+### B-11 GUI: automatable parameters with no control. OPEN / IN PROGRESS
 
 - Test: `GuiReach.everyAutomatableParameterHasAVisibleControl`.
-- No control anywhere: `scrape_*` (14), slap/pop/ghost/double-thump (25) - **in progress on `claude/luthier-techniques`** (TECHNIQUES tab); `macro_assign_a`, `macro_assign_b` (Macro 7/8, mod sources only); `pickup_blend` (also not read by the engine: `PickupEngine::setBlend` value unused in process).
-- Control exists but never on screen: `strum_acceleration`, `strum_up_velocity_ratio`, `strum_tilt`, `strum_miss_probability`, `chuck_amount`, `chuck_damping`. Cause: the RHYTHM tab panel is laid out at the viewport height, not `RhythmPanel::preferredHeight()`, so the STRUM group's lower rows get zero height (at 1600x1000 the panel is 80 px tall on the integration branch; `claude/luthier-visual` makes it fill the viewport but still not its preferred height).
-- Pedal slots: 69 slot `pN` knobs never appeared in the three pedal fills; p9 is used by no pedal type (max 9 parameters), the rest depend on which type sits in which slot. Summarised, not failed.
-- Intentionally hidden (documented in the test): `feedback_on/threshold/speed`, `strum_speed`, `doubler_on/amount`, `fret_action`.
+- Round 2 (merged tree, after the GuiReach corrections above), no control anywhere: `scrape_*` (14) and the slap arm/trigger set (13: `slap_armed`, `slap_type`, `slap_trigger`, `slap_velocity_zone`, `slap_trigger_cc`, `slap_ghost_cc`, `slap_force`, `slap_palm_position_mm`, `slap_string_mask`, `slap_ghost_mode`, `slap_rebound_gap`, `slap_snap_back`, `slap_body_part`) - **in progress on `claude/luthier-techniques`** (TECHNIQUES tab); the other 12 slap/pop/ghost controls now sit in CHARACTER's SlapGroup (bass only). Still no control and no owner: `macro_assign_a`, `macro_assign_b` (Macro 7/8), `pickup_blend` (also never read by `PickupEngine` in process).
+- Control exists but never on screen: `strum_acceleration`, `strum_up_velocity_ratio`, `strum_tilt`, `strum_miss_probability`, `chuck_amount`, `chuck_damping`. Cause: the RHYTHM tab lays `RhythmPanel` out at the viewport height, not `RhythmPanel::preferredHeight()` (AdvancedPanel), so the STRUM group's lower rows get no height.
+- Pedal slots: slot `pN` knobs a given pedal type does not use are summarised, not failed.
+- Intentionally hidden (documented in the test): `feedback_on/threshold/speed`, `strum_speed`, `doubler_on/amount`, `fret_action`, and since round 2 `string_age`, `tune_feel_mod`, `tune_tempo_drift`.
 
 ### B-12 pluginval Parameter thread safety exceeds its 30 s timeout. OPEN, low
 
@@ -144,7 +146,7 @@ IN PROGRESS (a helper branch covers it).
 
 ### B-15 `string_age` Old nearly silences a bass above E3. OPEN (realism-a owns string aging)
 
-- Found while fixing B-05: with the P-Bass's real parts, "P-Bass Flatwound" (`string_age` Old) plays G3 at -52 dBFS where the same bass with Fresh strings plays it at -12; notes above about A3 are silent. Old strings go dull and short, not mute. `Combo.everyFactoryPresetPlaysEveryPhrase` fails 5 renders of this preset on it; left failing for the owner.
+- Found while fixing B-05: with the P-Bass's real parts, "P-Bass Flatwound" (`string_age` Old) plays G3 at -52 dBFS where the same bass with Fresh strings plays it at -12; notes above about A3 are silent. Old strings go dull and short, not mute. `Combo.everyFactoryPresetPlaysEveryPhrase` fails 5 renders of this preset on it, and `Combo.snapshotsAndPresetMorph` fails the "5-String Low B" / "P-Bass Flatwound" pair; left failing for the owner. Round 2: unchanged after realism-a landed - the new aging model maps `string_age` Old to 120 h and SA-02 pins the legacy behaviour, so the new model reproduces it.
 
 ### B-16 clap-validator after the helpers landed: family switch overwrote host values; one parameter drifts an ulp. FIXED / OPEN (low)
 
@@ -153,6 +155,30 @@ IN PROGRESS (a helper branch covers it).
 - `RangeState::applyTo` (FIXED on the way): re-wrote every ranged parameter through a float plain-value round trip even when its range did not change; it now skips unchanged ranges.
 - 'Distance to Amp' (OPEN, low): our state stores and restores the normalised float bit-exactly (checked directly); the value clap-validator expects is the one it sent, and only this skewed-range parameter shows the drift, so it sits between the CLAP wrapper's cached value and JUCE's plain-value storage (`AudioParameterFloat` keeps the plain value; on a skewed range normalised -> plain -> normalised is not idempotent at the last bit). Nudging the restored value by a few ulps did not change the result. Harmless to audio.
 - pluginval strictness 10 on the merged build: every test passes except Parameter thread safety, which still exceeds its default 30 s timeout on this shared 4-core container (B-12).
+
+### B-17 A Custom-type preset played the previous parts guitar after a transport restart. FIXED (`bb0da84`, round 2)
+
+- `Combo.sessionStateRoundTripReproducesAudio`: preset#35 "Transposing Trem Chords" differed by 0.285 between the rig and its saved session.
+- Cause: the preset's type (Custom) has no parts guitar, so the bridge falls back to the compiled guitar, but `partsGuitarLoaded` stayed set from the previous (Strat) parts guitar; `prepareToPlay` then rebuilt the engine from those parts. The processor that loaded the preset played the Strat's parts after a restart, a fresh instance restoring the session did not.
+- Fix: `loadGuitarForType` clears `partsGuitarLoaded` and `loadedGuitarKey` when no parts guitar loads. Regression test `Combo.compiledGuitarSurvivesATransportRestart` (fails before, passes after).
+
+### B-18 `Feedback.aLoudRigTakesOverAndACleanOneDoesNot`: Shred Lead at full amount never feeds back. OPEN (feedback-loop owner; round 2)
+
+- `line 179: a loud high-gain rig at full amount never fed back (peak activity 0.0746)`. Fails on the integration branch too (`e4dee39`), and passed on it before this branch's class-4 fix (B-05) was merged.
+- Cause, measured: before B-05, "Shred Lead" loaded the wrong parts (X-brace spruce/rosewood body, single coils, 500k pots). With the RG's own parts (ceramic humbuckers, solid basswood, 250k pots) the loop peaks at activity 0.0746; putting a single coil in slot 0, nothing else changed, reaches 0.081 and takes over. Body bracing and treble bleed make no difference.
+- Physically a hot ceramic humbucker into a Rectifier at 0.5 m and 100% should take over at least as readily as a single coil (the loop is string -> amp -> string; the pickup only has to hear the string). So either the loop's gain is too low overall (even the single coil only just crosses) or its pickup dependence runs the wrong way. The loop's gain staging is a tuning decision for its owner (ambiguity-resolutions 1), so it is not changed here and the test is not loosened.
+
+### B-19 `Feedback.eachStringHearsItsOwnNote`: octave-bias feedback 7.4 cents off target. OPEN (helper merges; round 2)
+
+- `octave bias 1: the feedback peaks at 441.12 Hz, 7.4 cents from 439.24 Hz` (limit 5). Already failing on the integration branch before this branch was merged back (`e763adf`: 18.6 cents), so it comes from the helper merges (realism-b's harmonic contacts / realism-c's tuning stability both move string pitch), not from this branch's fixes.
+
+### Harness corrections in round 2 (test physics, not engine changes)
+
+- **Capo raises the playable floor** (`ComboHarness::lowestPlayableNote`): nothing is fretted at or behind a capo (RubricVoicer 4.5), so under a capo at 12 the phrases were moved onto notes the guitar cannot play and rendered silent (pairwise row 15, Classical Drop D capo 12). Now the floor is the open string plus the capo it sees.
+- **Noise-floor routes are not held to the decay check** (`modulationRoutesAtFullDepth`): an LFO/random route into the `noise_*` levels moves the floor itself (tail -42.6 dBFS, -42.3 a second earlier), which the 0.25 s idle measurement cannot stand for.
+- **Exact-partial sympathetic ring** (`Verdict`): "J-Style Fingerstyle" (tail 18 dB down, falling 4.4 dB/s) and two British 800 pairwise rows (15-17 dB down, falling 8-10 dB/s) ring through the bridge coupling: at `coupling_amount` 0 their tails fall to the floor (-61 / -56 dBFS). Measured at the strings, E3 on a bass's G string rings the open A (third partial 2 cents away) 23 dB under the note and the open E 31 dB under; the pickup and amp weight the low strings, so the mix reads 18 dB down, and a high-gain amp compresses it further. They fall at the open strings' own T60. A tail 15 dB down and falling at least 3 dB a second (T60 under 20 s) now also passes; the released string itself stays held to SUS-08 by `releasedStringIsDampedQuickly`.
+- **`releasedStringIsDampedQuickly` isolates the string again**: it now zeroes the two sympathetic paths the realism merges added (`coupling_air_amount`, `body_coupling_amount`) as well as `coupling_amount`; the acoustic types (Jumbo 33.8, 12-String 32.2, Resonator 32.6 dB) were measuring the air and body return, and all 24 types now pass.
+- **GuiReach operates custom controls**: the RIGHT HAND per-string tool cells (`rh_string_tool_1..6`) and the NOISE FLOOR position pad (`noise_player_angle`, `noise_player_distance`) write their parameters directly, not through an attachment; the walk now operates them. `string_age` (read only at a preset load, mapped to `string_age_hours`) and `tune_feel_mod` / `tune_tempo_drift` (tune-builder 14 modulation destinations) joined the documented hidden list.
 
 ## Passed
 
