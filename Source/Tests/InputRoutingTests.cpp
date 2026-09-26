@@ -633,3 +633,74 @@ LUTHIER_TEST (InputRouting, consumersSeeEventsInTheDocumentedOrder)
         CHECK (interp.getStringMidiNote (5) == 45);
     }
 }
+
+namespace
+{
+    /** A host at a settable position and transport state. */
+    struct MovablePlayHead final : public juce::AudioPlayHead
+    {
+        double bpm = 120.0, ppq = 0.0;
+        bool playing = false;
+
+        juce::Optional<PositionInfo> getPosition() const override
+        {
+            PositionInfo info;
+            info.setBpm (bpm);
+            info.setIsPlaying (playing);
+            info.setPpqPosition (ppq);
+            info.setTimeSignature (juce::AudioPlayHead::TimeSignature { 4, 4 });
+            return info;
+        }
+    };
+}
+
+/*  IR-24 (input-routing 7): host start, stop and relocation resync the practice
+    click - it sits on the host's beat grid while the host plays. */
+LUTHIER_TEST (InputRouting, transportStartStopAndRepositionResyncRhythmTuneAndMetronome)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    processor.setPracticePanelOpen (true);
+
+    MovablePlayHead host;
+    processor.setPlayHead (&host);
+
+    auto& metronome = processor.getMetronome();
+    metronome.setEnabled (true);
+
+    const double blockBeats = (double) kBlock / kSr * host.bpm / 60.0;
+
+    auto blockAt = [&] (double ppq)
+    {
+        host.ppq = ppq;
+        juce::MidiBuffer none;
+        render (processor, none);
+    };
+
+    // Stopped host: the click free-runs from wherever it was.
+    renderEmpty (processor, 5);
+
+    // Host starts mid-bar, at beat 2.5 (0-based): the click is there.
+    host.playing = true;
+    blockAt (2.5);
+    CHECK_NEAR (metronome.getBeatPhase(), std::fmod (2.5 + blockBeats, 1.0), 0.02);
+
+    // ... and the next click is beat 4 of the bar, when the host gets there.
+    double ppq = 2.5 + blockBeats;
+
+    while (ppq < 3.0)
+    {
+        blockAt (ppq);
+        ppq += blockBeats;
+    }
+
+    CHECK (metronome.getCurrentBeat() == 3);
+
+    // Relocation to bar 3 beat 1 (ppq 8): the grid jumps with it.
+    blockAt (8.0);
+    CHECK (metronome.getCurrentBeat() == 0);
+    CHECK (metronome.getCurrentBar() == 2);
+    CHECK_NEAR (metronome.getBeatPhase(), blockBeats, 0.02);
+
+    processor.setPlayHead (nullptr);
+}

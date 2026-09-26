@@ -937,6 +937,8 @@ private:
     ExpressionStage expressionStage;   // IR-11
     MidiClockTransport clockTransport; // IR-16
     LuthierSysExIn sysExIn;            // IR-15
+    bool blockHostPlaying = false;     // IR-24: this block's host transport
+    double blockHostPpq = 0.0;
 
 public:
     /** SPEC-SWEEP (IR-16): where incoming MIDI clock says the song is. */

@@ -1307,6 +1307,8 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         }
 
         engine.setTransportPosition (ppq, playing);
+        blockHostPlaying = playing && hasPosition;   // SPEC-SWEEP IR-24
+        blockHostPpq = ppq;
 
         /*  SPEC-SWEEP (IR-16): with the host stopped, a running MIDI clock
             (start / continue / stop / song position) drives the grid, at the
@@ -1581,6 +1583,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         {
             metronome.followTempo (blockTempo);   // SPEC-SWEEP PT-6
             metronome.followTimeSignature (hostTimeSigNumerator, hostTimeSigDenominator);   // SPEC-SWEEP HI-29
+
+            if (blockHostPlaying)
+                metronome.lockToHostPosition (blockHostPpq);   // SPEC-SWEEP IR-24
             metronome.processBlock (clickBuffer.getWritePointer (0), numSamples);
             haveClick = true;
         }
