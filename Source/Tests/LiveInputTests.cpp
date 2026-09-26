@@ -643,3 +643,56 @@ LUTHIER_TEST (LiveSnapshots, bypassFlipsAtTheMidpoint)
     bank.advance (0.1);
     CHECK (! bank.isRecalling());
 }
+
+//==============================================================================
+/*  GI-72 / GI-73 / GI-86: click loads, Shift-click writes, a click on an empty
+    pad only shows the hint, and pad labels are cut to twelve characters. */
+LUTHIER_TEST (Live, shiftClickWritesAndClickRecalls)
+{
+    Rig rig;
+    auto& p = rig.processor;
+    p.getSnapshots().setCrossfadeMs (0.0);
+
+    SnapshotStrip strip (p);
+    strip.setSize (800, 44);
+    strip.refresh();
+
+    auto padCentre = [&strip] (int slot)
+    {
+        auto* accessor = strip.getSlotAccessor (slot);
+        return accessor->getBounds().getCentre().toFloat();
+    };
+
+    auto click = [&] (int slot, juce::ModifierKeys mods)
+    {
+        auto source = juce::Desktop::getInstance().getMainMouseSource();
+        const auto at = padCentre (slot);
+        juce::MouseEvent e (source, at, mods.withFlags (juce::ModifierKeys::leftButtonModifier), 0.0f, 0.0f, 0.0f,
+                            0.0f, 0.0f, &strip, &strip, juce::Time::getCurrentTime(), at,
+                            juce::Time::getCurrentTime(), 1, false);
+        strip.mouseDown (e);
+    };
+
+    // A plain click on an empty pad writes nothing and shows the hint.
+    click (2, {});
+    CHECK (p.getSnapshots().getSnapshot (2).isEmpty());
+    CHECK (strip.isShowingEmptyHint());
+
+    // Shift-click writes.
+    auto* gain = p.getState().getParameter (ParamIDs::ampGain);
+    gain->setValueNotifyingHost (0.3f);
+    click (2, juce::ModifierKeys::shiftModifier);
+    CHECK (! p.getSnapshots().getSnapshot (2).isEmpty());
+    CHECK (! strip.isShowingEmptyHint());
+
+    // A plain click recalls.
+    gain->setValueNotifyingHost (0.9f);
+    click (2, {});
+    CHECK_NEAR (normalised (p, ParamIDs::ampGain), 0.3f, 0.01f);
+
+    // Twelve characters.
+    const auto text = SnapshotStrip::getPadText (4, "A very long snapshot name");
+    CHECK (text.startsWith ("5  "));
+    CHECK (text.substring (3).length() == SnapshotStrip::kPadLabelChars);
+    CHECK (SnapshotStrip::getPadText (0, "Verse") == "1  Verse");
+}

@@ -75,8 +75,8 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-69 (§7) | Fretboard overlay draws slide bar at position + slant; Workshop illustration draws the same bar — bench bar/slant on visual | `SlideEngine::getOverlayFret` | `FretboardComponent` slide bar, `GuitarBodyComponent` overlay | on visual: `LiveDisplays::theFretboardDrawsTheSlideBarAndTheCircuitCurveFollowsTheVolume` | OWNED |
 | GI-70 (§7) | Tuning popover shows current glide target in Slide Mode | `SlideEngine` | `TuningPopover` (none) | - | MISSING |
 | GI-71 (§7) | Squeak suppressed on strings the slide contacts | `SlideEngine`, `NoiseEngine` | n/a | `Slide::squeakStopsUnderTheBarButNotBesideIt` | DONE |
-| GI-72 (§8) | Snapshot click loads, Shift-click writes, right-click rename/colour/clear — click on empty captures, no Shift-click write | `Live/Snapshots.cpp` | `SnapshotStrip::mouseDown` | - | PARTIAL |
-| GI-73 (§8) | Snapshot buttons: colour tag, 12-char label, accent outline on active | - | `SnapshotStrip::paint` | - | NO-TEST |
+| GI-72 (§8) | Snapshot click loads, Shift-click writes, right-click rename/colour/clear | `Live/Snapshots.cpp` | `SnapshotStrip::mouseDown` (click recalls, Shift-click writes, empty click shows hint) | `Live::shiftClickWritesAndClickRecalls` | DONE |
+| GI-73 (§8) | Snapshot buttons: colour tag, 12-char label (tested); active outline is the tag colour, not the accent | - | `SnapshotStrip::paint`, `getPadText` | `Live::shiftClickWritesAndClickRecalls` (12-char text) | PARTIAL |
 | GI-74 (§9) | Live strip: snapshots, setlist triptych, tap, morph A/knob/B, kill, monitor | `Live/*` | `UI/LiveStrip.cpp` | `Editor::theModesThatChangeTheLayoutTakeEffectAndUndoThemselves`, `LiveKillSwitch::fadesRatherThanJumping` | DONE |
 | GI-75 (§9) | Live Mode: 44 px hit targets, locks Advanced toggle | - | `LiveStrip::kTouchTargetHeight`, `HeaderBar::updateModeButtonEnablement` | `LiveStripUi::everyTargetIsTouchSized` | DONE |
 | GI-76 (§9) | Live Mode suppresses tooltips (all; see sweep-notes/ui.md) | `PluginEditor::timerCallback` | all tooltips suppressed in Live Mode | - | NO-TEST |
@@ -89,7 +89,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-83 (§12) | Scrolling data stream in empty main area; static count under reduced motion — class never instantiated here | `Widgets.cpp:DataStreamDisplay` | - | on visual: `DataStream::itKeeps200StopsAfter500msAndHonoursReducedMotion` | OWNED |
 | GI-84 (§13) | Easy below 900: rig strip becomes "Guitar / Rig" tab | - | - | - | MISSING |
 | GI-85 (§13) | UI scale applied; >125% auto-picks smaller scale when clipped + one-time notice — scale not applied here; auto-pick nowhere | `AccessibilitySettings::getUiScale` | - | on visual: `Reflow::noControlHangsOutsideItsParentAtAnyWidthOrScale` (b908806) | OWNED |
-| GI-86 (§14) | Empty hints: snapshot slot, no mod routes — absent | - | - | - | MISSING |
+| GI-86 (§14) | Empty hints: snapshot slot done; no-mod-routes hint absent | - | `SnapshotStrip` paints `kEmptySlotHint` | `Live::shiftClickWritesAndClickRecalls` | PARTIAL |
 | GI-87 (§14) | Empty hints: setlist, backing track — texts differ from spec | - | `LivePanel::setlistEmptyLabel`, `PracticePanel` "No track loaded." | - | PARTIAL |
 | GI-88 (§14) | Empty hint: non-slide guitar in Slide Mode | `SlideEngine::kLowActionMessage` | `SlideGroup::lowAction` | `SlideTests.cpp` low-action warning check (in `Slide`/`SlideUi` suite) | DONE |
 | GI-89 (§14) | Empty hint: bass techniques inactive on a guitar — constant exists, never displayed | `SlapGroup::kInactiveMessage` | - | `BassTechniques::theSlapGroupIsShownOnlyOnABass` (text only) | PARTIAL |
@@ -149,4 +149,4 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-143 (§22) | Test: Slide toggle 100x during playback, no click, correct panels | `SlideEngine` | - | `Slide::switchingModeMidNoteIsClean` (1x); on visual `Stress::slideAndAdvancedRangeTogglesMidPlay` | OWNED |
 | GI-144 (§22) | Test: warning arc appears past stock max and disappears on return | - | `LuthierKnob` | `RangesUi::controlsFollowASwappedRangeAndMarkTheValue` | DONE |
 
-<!-- counts DONE=64 NO-GUI=0 NO-TEST=6 PARTIAL=33 MISSING=10 OWNED=31 DEFERRED=0 -->
+<!-- counts DONE=65 NO-GUI=0 NO-TEST=5 PARTIAL=34 MISSING=9 OWNED=31 DEFERRED=0 -->

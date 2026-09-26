@@ -56,6 +56,15 @@ public:
         empty slot), as a click does. */
     juce::Button* getSlotAccessor (int slot) const;
 
+    /** SPEC-SWEEP: GI-73 - the text a pad shows: its number and its label cut
+        to twelve characters. */
+    static juce::String getPadText (int index, const juce::String& label);
+    static constexpr int kPadLabelChars = 12;
+
+    /** SPEC-SWEEP: GI-86 - gui-integration 14's empty-slot hint. */
+    static constexpr const char* kEmptySlotHint = "Shift-click to save current state here.";
+    bool isShowingEmptyHint() const noexcept { return showEmptyHint; }
+
 private:
     class SlotAccessor;
     juce::OwnedArray<SlotAccessor> slotAccessors;
@@ -75,6 +84,8 @@ private:
 
     int lastCurrent = -1;
     int lastCount = -1;
+
+    bool showEmptyHint = false;   // SPEC-SWEEP: GI-86
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SnapshotStrip)
 };

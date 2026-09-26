@@ -104,8 +104,8 @@ SnapshotStrip::SnapshotStrip (LuthierAudioProcessor& p)
     prevButton.setTitle ("Previous snapshot");
     nextButton.setTitle ("Next snapshot");
 
-    setTooltip ("Snapshots. Click to recall, right-click to capture, rename or "
-                "tag. Keys 1-9 recall directly; [ and ] step.");
+    setTooltip ("Snapshots. Click to recall, Shift-click to save the current state, "
+                "right-click to capture, rename or tag. Keys 1-9 recall directly; [ and ] step.");   // SPEC-SWEEP: GI-72
 
     prevButton.onClick = [this] { processor.previousSnapshot(); refresh(); };
     nextButton.onClick = [this] { processor.nextSnapshot(); refresh(); };
@@ -125,6 +125,17 @@ int SnapshotStrip::bankStart() const
     const int current = juce::jmax (0, processor.getSnapshots().getCurrentSnapshot());
 
     return (current / kButtonsShown) * kButtonsShown;
+}
+
+juce::String SnapshotStrip::getPadText (int index, const juce::String& label)
+{
+    auto text = juce::String (index + 1);
+
+    if (label.isNotEmpty())
+        text << "  " << (label.length() > kPadLabelChars ? label.substring (0, kPadLabelChars - 1) + juce::String::fromUTF8 ("\u2026")
+                                                         : label);
+
+    return text;
 }
 
 juce::Button* SnapshotStrip::getSlotAccessor (int slot) const
@@ -215,10 +226,9 @@ void SnapshotStrip::paint (juce::Graphics& g)
 
         // The number always shows; the label only when there is room for it, so
         // that an eight-across strip on a narrow window stays readable.
-        auto text = juce::String (index + 1);
-
-        if (filled && snapshot.label.isNotEmpty() && bounds.getWidth() > 64)
-            text += "  " + snapshot.label;
+        // SPEC-SWEEP: GI-73 - the label is cut to twelve characters.
+        const auto text = (filled && bounds.getWidth() > 64) ? getPadText (index, snapshot.label)
+                                                             : juce::String (index + 1);
 
         g.setColour (active ? Palette::backgroundDeep
                             : (filled ? Palette::textPrimary : Palette::textDisabled));
@@ -230,6 +240,22 @@ void SnapshotStrip::paint (juce::Graphics& g)
         g.setFont (active ? font.boldened() : font);
 
         g.drawText (text, bounds.reduced (4, 0), juce::Justification::centred, true);
+    }
+
+    // SPEC-SWEEP: GI-86 - an empty bank, or a click on an empty pad, says how
+    // to fill it.
+    bool anyFilled = false;
+
+    for (int slot = 0; slot < kButtonsShown; ++slot)
+        anyFilled = anyFilled || ! bank.getSnapshot (start + slot).isEmpty();
+
+    if (showEmptyHint || ! anyFilled)
+    {
+        auto area = getLocalBounds().withTrimmedLeft (26).withTrimmedRight (26);
+        g.setColour (Palette::textMuted);
+        g.setFont (juce::Font (juce::FontOptions (11.0f)));
+        g.drawText (kEmptySlotHint, area.removeFromBottom (juce::jmin (14, area.getHeight() / 3)),
+                    juce::Justification::centred, true);
     }
 }
 
@@ -259,12 +285,28 @@ void SnapshotStrip::mouseDown (const juce::MouseEvent& event)
         return;
     }
 
-    if (! processor.getSnapshots().getSnapshot (index).isEmpty())
+    // SPEC-SWEEP: GI-72 - click loads, Shift-click writes (keeping the pad's
+    // label); a plain click on an empty pad only explains how to fill it
+    // (GI-86), so a stray tap on stage never overwrites anything.
+    const auto existing = processor.getSnapshots().getSnapshot (index);
+
+    if (event.mods.isShiftDown())
+    {
+        processor.captureSnapshot (index, existing.label);
+        showEmptyHint = false;
+    }
+    else if (! existing.isEmpty())
+    {
         processor.recallSnapshot (index);
+        showEmptyHint = false;
+    }
     else
-        processor.captureSnapshot (index);
+    {
+        showEmptyHint = true;
+    }
 
     refresh();
+    repaint();
 }
 
 void SnapshotStrip::showSlotMenu (int index)
