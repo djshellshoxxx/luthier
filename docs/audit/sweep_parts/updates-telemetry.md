@@ -5,7 +5,7 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | UT-1 (§0.1/§8) | Every telemetry/crash/update option off by default | `Updates/Telemetry` ctor | Options > UPDATES / PRIVACY | `Telemetry::everythingIsOffByDefault` | DONE |
-| UT-2 (§0.2) | No PII (no license, filenames, preset names) — no test asserts record payloads are PII-free | `Telemetry::record` | n/a | - | NO-TEST |
+| UT-2 (§0.2) | No PII (no license, filenames, preset names) — no test asserts record payloads are PII-free | `Telemetry::record` + `isAllowedField` key allowlist, path/address values dropped | n/a | `Telemetry::recordsCarryNoPersonalData` | DONE |
 | UT-3 (§0.3) | Every outbound call logged in a rotating local file (dest, size, time, category) | `Telemetry::logNetworkCall` | PRIVACY `viewLogButton` | `Telemetry::everyOutboundCallIsLogged` | DONE |
 | UT-4 (§0.4) | Update checks on a worker thread — `juce::Thread::launch` in editor; untested | `PluginEditor.cpp` (~875), `UpdatesPage::checkForUpdate` | n/a | - | NO-TEST |
 | UT-5 (§0.5) | Never auto-installs; only notifies | `PluginEditor.cpp` update banner | header banner | `Telemetry::updateCheckReadsTheManifest` | DONE |
@@ -21,7 +21,7 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 | UT-15 (§4) | Crash reporting opt-in toggle | `Telemetry::setCrashUploadEnabled` | PRIVACY `crashToggle` (spec: Diagnostics) | `Telemetry::everythingIsOffByDefault` | DONE |
 | UT-16 (§4) | On crash write `crash-<ts>.dmp` + troubleshooting file — no crash handler installed; nothing creates dumps | - | - | - | MISSING |
 | UT-17 (§4) | Next launch: prompt to upload with diff viewer of what would be sent — banner "Review" opens PRIVACY, which shows neither `describePendingCrashReport` nor an upload/discard button | `Telemetry::hasPendingCrashReport/describePendingCrashReport` | header "crash" banner -> PRIVACY (no viewer) | `Telemetry::crashReportDescribesItself` | PARTIAL |
-| UT-18 (§4) | Single HTTPS POST, max 3 attempts, dump kept on failure — untested (test only checks refusal when off) | `Telemetry::uploadPendingCrashReport` | none (no upload button) | - | PARTIAL |
+| UT-18 (§4) | Single HTTPS POST, max 3 attempts, dump kept on failure — untested (test only checks refusal when off) | `Telemetry::uploadPendingCrashReport` | none (no upload button) | `Telemetry::crashUploadTriesThreeTimesThenKeepsTheDump` | DONE |
 | UT-19 (§4) | Crash dumps never contain audio/MIDI | (no dumps written) | n/a | - | MISSING |
 | UT-20 (§5) | License activation, 30-day revalidation, 14-day grace, offline challenge, one-click deactivate — licensing.md deferred to release helper | `Updates/Telemetry.h:License` | none | `Telemetry::licenceActivationAndGrace`, `Telemetry::revalidationCountdownAndOfflineTolerance` | OWNED |
 | UT-21 (§6) | Privacy tab: plain-English explanation + toggle per category | `PrivacyPage` | Options > PRIVACY | - | NO-TEST |
@@ -36,4 +36,4 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 | UT-30 (§8) | Test: crash dump privacy grep fixtures — no dumps, no test | | n/a | - | MISSING |
 | UT-31 (§8) | Test: 5 sequential delta patches -> SHA equals full installer — not on any branch | | n/a | - | MISSING |
 
-<!-- counts DONE=13 NO-GUI=0 NO-TEST=6 PARTIAL=4 MISSING=5 OWNED=3 -->
+<!-- counts DONE=15 NO-GUI=0 NO-TEST=5 PARTIAL=3 MISSING=5 OWNED=3 DEFERRED=0 -->

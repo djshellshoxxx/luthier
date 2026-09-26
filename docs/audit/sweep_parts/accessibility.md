@@ -10,14 +10,14 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 | A11Y-4 (§0.4/§6) | All UI strings in a catalog — only ~12 `tr()` calls in UI; hundreds of literals | `Accessibility/Localisation.cpp:getBuiltInEnglish/tr` | n/a | `Localisation::catalogCoversTheUi` (keys only) | PARTIAL |
 | A11Y-5 (§0.5/§4) | Font/UI scale 75–200% applied without breaking layout — here `setUiScale` is never consumed; on visual: `setScaleFactor` in editor ctor + change listener | `AccessibilitySettings::setUiScale` | Options > APPEARANCE, `AppearancePage::scaleBox` | - (visual: `Reflow::noControlHangsOutsideItsParentAtAnyWidthOrScale`) | OWNED |
 | A11Y-6 (§1) | AccessibilityHandler + value interface on every knob/slider/button/toggle/dropdown/meter/list — JUCE defaults for stock widgets; painted widgets (LevelMeter, SnapshotStrip, Fretboard) have none; no test | JUCE defaults, `AccessibleSetup::configureSlider` | all panels | - | PARTIAL |
-| A11Y-7 (§1) | Meters report peak dBFS as accessible value — `configureMeter` exists but is never called | `AccessibleSetup::configureMeter`; `UI/Widgets.cpp:LevelMeter` | header/footer meter | - | MISSING |
+| A11Y-7 (§1) | Meters report peak dBFS as accessible value | `LevelMeter::createAccessibilityHandler` (read-only dBFS value), `configureMeter` in `setSource` | header/footer meter | `ScreenReader::theMeterReportsItsPeakInDbfs` | DONE |
 | A11Y-8 (§1) | Fretboard exposes each fret as a child ("String 3, fret 5, current note: G") | `UI/FretboardComponent` (no handler) | Fretboard | - | MISSING |
-| A11Y-9 (§1) | Snapshot strip: each button exposes its snapshot name — strip is painted, only prev/next are components | `UI/LiveStrip.cpp:SnapshotStrip` | Live strip | - | MISSING |
-| A11Y-10 (§1) | Overlay announces "X dialog opened" and focus lands on first interactive element — `show` grabs focus on the panel; `announceOverlayOpened` never called | `UI/Overlays.cpp:OverlayHost::show` | all overlays | - | PARTIAL |
-| A11Y-11 (§1) | Escape closes overlay and returns focus to the launcher — focus goes to the editor, not the launching control | `OverlayPanel::keyPressed`, `OverlayHost::dismiss` | all overlays | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` | PARTIAL |
+| A11Y-9 (§1) | Snapshot strip: each button exposes its snapshot name | `SnapshotStrip::SlotAccessor` (one focusable, titled button per pad) | Live strip | `ScreenReader::theSnapshotStripNamesEachSnapshot` | DONE |
+| A11Y-10 (§1) | Overlay announces itself and focuses its first control — code done; focus not testable headless | `OverlayHost::show` -> `AccessibleSetup::announceOverlayOpened` (traverser default component) | all overlays | `Editor::anOverlayOpensAndDismissesWithoutALauncher` (focus hand-off needs a desktop peer) | PARTIAL |
+| A11Y-11 (§1) | Escape closes overlay and returns focus to the launcher — code done; focus not testable headless | `OverlayHost` launcher SafePointer, restored in `dismiss` | all overlays | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt`, `Editor::anOverlayOpensAndDismissesWithoutALauncher` | PARTIAL |
 | A11Y-12 (§1) | Verified with NVDA / VoiceOver / Orca; every element reachable by Tab and read by NVDA | - | - | - | MISSING |
-| A11Y-13 (§2) | Tab / Shift-Tab reaches every control in a defined order — knob sliders not focusable (JUCE Slider default), no explicit order | JUCE default traverser | all panels | - | PARTIAL |
-| A11Y-14 (§2) | Arrow keys adjust value; Shift finer, Ctrl coarser — JUCE `Slider::keyPressed` ignores any modified key | JUCE `Slider::Pimpl::keyPressed` | knobs/sliders | - | PARTIAL |
+| A11Y-13 (§2) | Tab reaches every knob; no explicit column order yet | `LuthierKnob` slider `setWantsKeyboardFocus(true)` | all panels | `Keyboard::aTabWalkReachesEveryKnob` | PARTIAL |
+| A11Y-14 (§2) | Arrow keys adjust value; Shift finer, Ctrl coarser | `LuthierKnob::KnobSlider::keyPressed` (1% / Shift 0.1% / Ctrl 10%, Home/End) | knobs/sliders | `Accessibility::arrowKeysStepFineAndCoarse` | DONE |
 | A11Y-15 (§2) | Enter opens dropdowns and confirms dialogs — JUCE defaults, untested | JUCE `ComboBox::keyPressed`, AlertWindow buttons | dropdowns, Save As dialogs | - | NO-TEST |
 | A11Y-16 (§2) | Escape cancels dialogs / dismisses overlays (not rebindable) | `PluginEditor::keyPressed`, `OverlayPanel::keyPressed` | all overlays | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` | DONE |
 | A11Y-17 (§2) | F1 opens context help for the focused control (section-level) | `PluginEditor::keyPressed` "help" -> `openHelp(getHelpContext())` | F1 / header ? | `HelpTab::f1AndTheHeaderOpenHelpOnThePanelYouAreIn` | DONE |
@@ -30,7 +30,7 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 | A11Y-24 (§3) | Palettes ship as `Resources/Themes/*.json` via theme system — loader and writer exist; no `Resources/Themes` folder, `writeBuiltInPalettes` never called by build/installer | `AccessibilitySettings::loadPaletteFromFile/getThemeDirectory/writeBuiltInPalettes` | n/a | `Accessibility::palettesRoundTripThroughJson` | PARTIAL |
 | A11Y-25 (§3) | Meters use shape too: narrower strip under -18 dB, bracket icon over 0 dB | `UI/Widgets.cpp:LevelMeter::paint` (gradient only) | meter | - | MISSING |
 | A11Y-26 (§4) | Scale steps 75/100/125/150/175/200 offered | `AccessibilitySettings::kScales` | APPEARANCE `scaleBox` | `Accessibility::uiScaleStepsAndFontFloor` | DONE |
-| A11Y-27 (§4) | Min readable font never below 10 px at 100% — floor is 9 pt in `scaledFont`, test asserts >= 9 | `AccessibilitySettings::scaledFont` | n/a | `Accessibility::uiScaleStepsAndFontFloor` | PARTIAL |
+| A11Y-27 (§4) | Min readable font never below 10 px at 100% | `AccessibilitySettings::scaledFont` floor 10 | n/a | `Accessibility::uiScaleStepsAndFontFloor` (>= 10) | DONE |
 | A11Y-28 (§4) | Panels reflow at larger scale (knobs to small variant, wrap) | on visual: reflow across widths and scales | all panels | - (visual: `Reflow::noControlHangsOutsideItsParentAtAnyWidthOrScale`) | OWNED |
 | A11Y-29 (§4) | Window min size grows with scale; host-restored too-small size picks a smaller scale and warns once — `stepScaleDown` exists, never called (not on visual either) | `AccessibilitySettings::stepScaleDown`; `PluginEditor` resize limits | n/a | - | MISSING |
 | A11Y-30 (§5) | Reduced-motion toggle in Options | `AccessibilitySettings::setReducedMotion` | APPEARANCE `reducedMotionToggle` | `Accessibility::reducedMotionRemovesAnimation` | DONE |
@@ -46,16 +46,16 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 | A11Y-40 (§8) | Honour system font / font override — override stored but `AccessibilitySettings::getFont` is used by nothing; `Fonts::ui` ignores it | `AccessibilitySettings::setFontOverride/getFont` | Options > ACCESSIBILITY `fontBox` | `Accessibility::settingsRoundTrip` (storage only) | PARTIAL |
 | A11Y-41 (§8) | Numeric readouts in tabular mono regardless of locale | `UI/Theme.h:Fonts::mono` | readouts | - | NO-TEST |
 | A11Y-42 (§8) | CJK / Arabic fallback font stack — CJK flag in unused `getFont`; no Arabic | `Localisation::needsCjkFallbackFont`, `AccessibilitySettings::getFont` | n/a | - | PARTIAL |
-| A11Y-43 (§9) | Options > Accessibility: screen-reader verbosity minimal/standard/verbose — stored, never read by any announcement | `AccessibilitySettings::setVerbosity` | ACCESSIBILITY `verbosityBox` | `Accessibility::settingsRoundTrip` | PARTIAL |
+| A11Y-43 (§9) | Screen-reader verbosity gates announcements | `AccessibleSetup::announce/shouldAnnounce` (InlineNotice, overlays) | ACCESSIBILITY `verbosityBox` | `Accessibility::verbosityGatesAnnouncements` | DONE |
 | A11Y-44 (§9) | Options > Accessibility: full rebind table with search and reset-to-default | `AccessibilityPage::shortcutList/searchBox/resetAllButton` | Options > ACCESSIBILITY | `Accessibility::shortcutsRebindAndRefuseClashes`, `Editor::everyOptionsPageSelectsAndPaints` | DONE |
 | A11Y-45 (§9) | UI scale, palette, reduced motion, font override in Options (scale/palette/motion on APPEARANCE per gui-integration 5) | `AppearancePage`, `AccessibilityPage::fontBox` | Options > APPEARANCE / ACCESSIBILITY | `Editor::everyOptionsPageSelectsAndPaints` | DONE |
 | A11Y-46 (§9) | Options > Localization: locale, fallback (default en), custom catalog path | `LocalizationPage::localeBox/fallbackBox/catalogButton` | Options > LOCALIZATION | `Editor::everyOptionsPageSelectsAndPaints` (paint only) | NO-TEST |
 | A11Y-47 (§10) | Test: automated screen-reader smoke over every panel (label + value) | - | - | - | MISSING |
-| A11Y-48 (§10) | Test: keyboard-only Tab walk hits every advertised control, no dead end | - | - | - | MISSING |
+| A11Y-48 (§10) | Tab walk test covers knobs in the default view; not every control / view | - | - | `Keyboard::aTabWalkReachesEveryKnob` (knobs in the default view) | PARTIAL |
 | A11Y-49 (§10) | Test: text/background contrast >= 4.5 on Default, High contrast, Light | `PaletteColours::getWorstTextContrast` | n/a | `Theme::everyTextPairMeetsContrastOnTheThreePalettes` | DONE |
 | A11Y-50 (§10) | Test: palette switch does not clip any panel | on visual | n/a | (visual: `Screenshots::everyPanelInEveryPalette`, `Reflow::*`) | OWNED |
 | A11Y-51 (§10) | Test: every ship locale renders every panel without clipping at 100% and 150% | - | - | - | MISSING |
 | A11Y-52 (§10) | Test: no animation frames after reduced-motion on — here model-level only | on visual | n/a | (visual: `DataStream::itKeeps200StopsAfter500msAndHonoursReducedMotion`, `ReducedMotion::aGuitarChangeCrossfadesOrIsStaticWithAnOutline`) | OWNED |
 | A11Y-53 (§10) | Test: CJK locale shows no missing-glyph boxes in shipped strings | - | - | - | MISSING |
 
-<!-- counts DONE=15 NO-GUI=0 NO-TEST=3 PARTIAL=17 MISSING=11 OWNED=7 -->
+<!-- counts DONE=20 NO-GUI=0 NO-TEST=3 PARTIAL=15 MISSING=8 OWNED=7 DEFERRED=0 -->

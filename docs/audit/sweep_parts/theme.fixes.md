@@ -3,7 +3,6 @@
 - [TH-5] DEFER: visual-polish.md 6.2 plus DECISIONS 2026-09-23 set Lato + Bebas.
 - [TH-6] effort S — add `Theme.monoFontIsAPreferredFaceOrFallback`, which checks that `Fonts::mono` resolves to JetBrains Mono or IBM Plex Mono when bundled. Bundle JetBrains Mono in Resources/Fonts if it is not already there.
 - [TH-7] effort S — change `Fonts::drawTrackedText`'s default tracking to 0.08em and the knob value readout in `LuthierKnob::paint` to 13px. Add an assertion on the tracked width to `Theme.*`.
-- [TH-8] effort S — add `Theme.knobSizesAreTheSpecsThree`: construct a `LuthierKnob` of each Size and assert `Metrics` 36/48/64 and the preferred height.
 - [TH-9] DEFER: visual-polish.md 6.3 black bell knobs, approved by the user (DECISIONS 2026-09-23). High Contrast keeps flat knobs.
 - [TH-10] effort S — cover it with `Theme.knobRenderShowsIndicatorArcAndDot`, which renders a `LuthierKnob` at a known value and probes pixels on the indicator line, the arc (filled vs unfilled) and the centre dot (accent vs muted at the default). Put it in Source/Tests/ThemeTests.cpp.
 - [TH-12] effort S — covered by the TH-10 render-probe test.
@@ -21,7 +20,7 @@
 - [TH-26] effort M — add a value tween in `LuthierKnob`/`LuthierLookAndFeel`: animate displayed slider positions for programmatic value changes (preset load, undo, automation) over `Metrics::animationMs` with ease-out, skipped under reduced motion. Test with an injectable clock that the displayed angle lags and settles within 80 ms.
 - [TH-27] effort S — call `setMouseCursor (juce::MouseCursor::UpDownResizeCursor)` in the `LuthierKnob` and linear-slider constructors (Widgets.cpp) and change the hover brightness to 0.08. Add `Theme.knobsShowAVerticalResizeCursor`.
 - [TH-28] effort S — add `Editor.knobDragModifiersChangeSensitivity`: feed synthetic MouseEvents with Shift/Cmd to `KnobSlider::mouseDrag` and assert the value deltas are ordered coarse > normal > fine.
-- [TH-29] effort S — add `Theme.tooltipIsADarkPillAfter400ms`: assert `TooltipWindow` delay == `Metrics::tooltipDelayMs` on the editor and render `drawTooltip`.
+- [TH-29] effort S — delay covered via the Metrics constant; drawTooltip render probe still open.
 - [TH-30] DEFER: spec.md's GUI section fixes the header at 48 px, and the per-plugin spec wins over the shared house style.
 - [TH-31] effort S — add `Editor.theHeaderCarriesPresetSelectorAndAB`: find `HeaderBar`, assert that presetName, compareA and compareB are visible and right of the name, and that clicking B swaps slots (`processor.isSlotBActive`).
 - [TH-32] DEFER: visual-polish.md 6.4 replaced the notch with the brass headstock mark (DECISIONS 2026-09-23).

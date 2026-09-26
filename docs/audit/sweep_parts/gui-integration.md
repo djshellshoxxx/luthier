@@ -7,7 +7,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-1 (§0.1) | Every automatable param has one canonical visible control — scrape_* (14), slap_* string-slap (13), macro_assign_a/b, pickup_blend have none | `Parameters.cpp` | all panels; `UI/Widgets.cpp:LuthierKnob::attachTo` | `GuiReach::everyAutomatableParameterHasAVisibleControl` (fails on those ids) | PARTIAL |
 | GI-2 (§0.2) | Every feature within 3 interactions — scrape/string-slap unreachable; no test | - | - | - | PARTIAL |
 | GI-3 (§0.3) | Easy Mode never hides audible behaviour — scrape/slap armed via MIDI has no Easy summary (techniques pills) | - | Easy | - | OWNED |
-| GI-4 (§0.4) | Nothing only by right-click — snapshot colour tag only via right-click (LivePanel has rename but no colour) | `Live/Snapshots.cpp` | `UI/LiveStrip.cpp:SnapshotStrip::showSlotMenu` | - | PARTIAL |
+| GI-4 (§0.4) | Nothing only by right-click — snapshot colour tag also on the LIVE tab | `Live/Snapshots.cpp` | LIVE tab `colourButton` (16-tag menu) | `Live::theSnapshotColourIsReachableWithoutRightClick` | DONE |
 | GI-5 (§0.5) | Panel layout fixed, no dock/drag | - | `UI/AdvancedPanel.cpp` | - | NO-TEST |
 | GI-6 (§0.6) | Panel header: uppercase + accent bar, status line, collapse chevron, collapse state per preset — only name + bar | - | `UI/Theme.cpp:drawSectionHeader`, `AdvancedPanel::Column::addSection` | - | PARTIAL |
 | GI-7 (§0.7) | Panels present/absent, never greyed — col-1 whammy knobs shown on hardtails | - | `AdvancedPanel::buildColumn1` "Bridge" | `BassTechniques::theSlapGroupIsShownOnlyOnABass`, `SlideUi::theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` | PARTIAL |
@@ -24,7 +24,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-18 (§2) | Overflow icons: gear (Options), Help, dice, reset — only Help; rest are File-menu items | `randomiseParameters`, `resetEverything` | `HeaderBar::helpButton`, `HeaderBar::showFileMenu` | `Presets::randomiseRespectsLocks`, `Presets::resetRestoresDefaults` | PARTIAL |
 | GI-19 (§2) | Header collapses below 1280: numeric snapshot readout + 3-dot overflow menu | - | - | - | PARTIAL |
 | GI-20 (§2) | Every header control has tooltip + documented shortcut — guitar/tuning selectors, copyAB have no shortcut | - | `HeaderBar` ctor `setTooltip` | - | PARTIAL |
-| GI-21 (§2) | A/B compare: two transient states, not serialized | `PluginProcessor` A/B slots | `HeaderBar::compareA/compareB/copyAB` | - | NO-TEST |
+| GI-21 (§2) | A/B compare: two transient states; slot contents not serialized (which slot is active is) | `PluginProcessor` A/B slots | `HeaderBar::compareA/compareB/copyAB` | `Editor::abCompareIsTransientAndNotSaved` | DONE |
 | GI-22 (§2) | Range-lock padlock beside preset name opens Options -> Ranges | `RangeState` | `HeaderBar::rangePadlock` | `RangesUi::theHeaderPadlockShowsOnlyWhenSomethingIsUnlocked` | DONE |
 | GI-23 (§3) | Easy layout: illustration, rig strip (280), playing / tone / rhythm strips | - | `UI/EasyPanel.cpp` | `EasyLayout::theWindowMatchesSection3` | DONE |
 | GI-24 (§3.1) | Headstock click -> tuning popover (per-string, capo, temperament) | `TuningEngine` | `GuitarBodyComponent.cpp:TuningPopover` | `Editor::theHeadstockPopoverEditsPerStringTuning` | DONE |
@@ -78,8 +78,8 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-72 (§8) | Snapshot click loads, Shift-click writes, right-click rename/colour/clear — click on empty captures, no Shift-click write | `Live/Snapshots.cpp` | `SnapshotStrip::mouseDown` | - | PARTIAL |
 | GI-73 (§8) | Snapshot buttons: colour tag, 12-char label, accent outline on active | - | `SnapshotStrip::paint` | - | NO-TEST |
 | GI-74 (§9) | Live strip: snapshots, setlist triptych, tap, morph A/knob/B, kill, monitor | `Live/*` | `UI/LiveStrip.cpp` | `Editor::theModesThatChangeTheLayoutTakeEffectAndUndoThemselves`, `LiveKillSwitch::fadesRatherThanJumping` | DONE |
-| GI-75 (§9) | Live Mode: 44 px hit targets, locks Advanced toggle | - | `LiveStrip::kTouchTargetHeight`, `HeaderBar::updateModeButtonEnablement` | - | NO-TEST |
-| GI-76 (§9) | Live Mode suppresses non-critical tooltips | - | - | - | MISSING |
+| GI-75 (§9) | Live Mode: 44 px hit targets, locks Advanced toggle | - | `LiveStrip::kTouchTargetHeight`, `HeaderBar::updateModeButtonEnablement` | `LiveStripUi::everyTargetIsTouchSized` | DONE |
+| GI-76 (§9) | Live Mode suppresses tooltips (all; see sweep-notes/ui.md) | `PluginEditor::timerCallback` | all tooltips suppressed in Live Mode | - | NO-TEST |
 | GI-77 (§10) | Practice drawer 32-360 px, collapsed bpm/loop/track, 8 tabs | `Practice/*` | `UI/PracticePanel.cpp` | `PracticeRoutine::toolsAreInTheDrawersTabOrder`, `PracticeDrawer::aRoutineStartAsksForTheDrawerOnce` | DONE |
 | GI-78 (§1/§10) | Drawer expanded state persists per preset | - | - | on tune-help (5911597) | OWNED |
 | GI-79 (§11.1) | Mod arcs: 4 px outside, 2 px, per-source colour, segmented — single secondary-colour arc | `ModMatrix::getOffsetFor` | `Widgets.cpp:LuthierKnob::paint` | - | PARTIAL |
@@ -109,7 +109,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-103 (§17) | Ctrl+E context-aware export (tune / preset / take) — always the audio ExportPanel outside a focused TUNE tab | `AudioExporter` | `PluginEditor` `export` -> `exportPanel` | - | PARTIAL |
 | GI-104 (§18) | Undo stack of 64 — code 200 per action-and-undo.md 2 | `PluginProcessor::kMaxUndoSteps` | header Undo/Redo | `Undo::stepsOneActionAtATimeBothWays` | PARTIAL |
 | GI-105 (§18) | Undo groups within 200 ms; boundaries at snapshot/preset/guitar/setlist need a modifier to cross | `PluginProcessor` undo | - | on visual: `Undo::gesturesGroupWithin200ms`, `Undo::aPresetLoadIsABoundary` (a816101) | OWNED |
-| GI-106 (§18) | Undo per-instance, not persisted | `PluginProcessor` | - | - | NO-TEST |
+| GI-106 (§18) | Undo per-instance, not persisted | `PluginProcessor` | - | `Undo::isPerInstanceAndNotPersisted` | DONE |
 | GI-107 (§19) | Instrument load: Adv Col1 GUITAR + preset browser + Ctrl+O — only header selector / browser | `GuitarLibrary` | `HeaderBar::guitarSelector`, `PresetBrowser` | `WorkshopPresets::choosingAGuitarTypeFitsItsParts` | PARTIAL |
 | GI-108 (§19) | Save As Guitar (Workshop header, Ctrl+G) | `WorkshopBench` | `WorkshopPanel::onSaveAsGuitar` | `WorkshopPresets::saveAsGuitarWritesAFileAndPointsThePresetAtIt` | DONE |
 | GI-109 (§19) | Capo fret/partial (Col1 + Workshop capo drag) — drag on visual | `TuningEngine` | `AdvancedPanel::capo`, Workshop capo part | `WorkshopCapo::aPartialCapoClampsOnlyItsStrings`; on visual `WorkshopAccessories::theCapoIsDrawnAndDraggedByFrets` | OWNED |
@@ -122,7 +122,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-116 (§19) | Easter egg (signature notch pixel) | - | - | - | OWNED |
 | GI-117 (§19) | Macros 1-8 in MOD -> MACROS and header in Live Mode — macros 7/8 no control; no MACROS knobs | `Parameters.cpp` macro_* | Easy macro knobs (1-6 only) | - | PARTIAL |
 | GI-118 (§19) | Snapshots / setlist / morph / kill / expression cal | `Live/*` | `LiveStrip`, `LivePanel`, `ExpressionPage` | `LiveSnapshots::captureAndRecallRoundTrip`, `LiveSetlist::walksForwardsAndBackwardsWithoutGrowing`, `LiveSnapshots::morphFollowsItsCurve` | DONE |
-| GI-119 (§19) | Monitor mix: Live strip + Col 4 LIVE — not in LIVE tab | `LiveMonitor` | `LiveStrip` monitor slider | `LiveMonitor::idleWhenNothingToMonitorAndSumsWhenThereIs` | PARTIAL |
+| GI-119 (§19) | Monitor mix: Live strip + Col 4 LIVE | `LiveMonitor` | Live strip slider + LIVE tab MONITOR (`MonitorSetupPanel`) | `LivePanelUi::monitorPanAndEqShapeTheMonitorOnly` | DONE |
 | GI-120 (§19) | Notation export, live TAB view, chord-symbol history | `Notation/*` | `NotationPanel` | `NotationTab::stateButtonsLiveTabAndPreview`, `NotationTab::exportsEveryFormat` | DONE |
 | GI-121 (§19) | Workshop parts drawer via right-click illustration part; guided build rail | `Workshop` | - | - (workshop-ui owned by visual) | OWNED |
 | GI-122 (§19) | Bass slap/pop/ghost/double thump/alternation: RHYTHM (bass) + CHARACTER | `DSP/Slap`, `BassStepGrid` | `SlapGroup`, `BassGridGroup` | `BassTechniques::theSlapGroupIsShownOnlyOnABass`, `BassTechniques::autoGhostingFiresBelowTheThresholdOnly` | DONE |
@@ -149,4 +149,4 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-143 (§22) | Test: Slide toggle 100x during playback, no click, correct panels | `SlideEngine` | - | `Slide::switchingModeMidNoteIsClean` (1x); on visual `Stress::slideAndAdvancedRangeTogglesMidPlay` | OWNED |
 | GI-144 (§22) | Test: warning arc appears past stock max and disappears on return | - | `LuthierKnob` | `RangesUi::controlsFollowASwappedRangeAndMarkTheValue` | DONE |
 
-<!-- counts DONE=64 NO-GUI=0 NO-TEST=9 PARTIAL=36 MISSING=11 OWNED=24 -->
+<!-- counts DONE=64 NO-GUI=0 NO-TEST=6 PARTIAL=33 MISSING=10 OWNED=31 DEFERRED=0 -->

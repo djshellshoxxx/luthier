@@ -8,7 +8,7 @@ On this checkout undo is still the simple whole-state snapshot stack in `Luthier
 | AU-2 (§0.2, §5) | Boundaries divide the stack; undo stops there — none here | - | - | - (visual `Undo::aPresetLoadIsABoundary`) | OWNED |
 | AU-3 (§0.3, §4) | 200 ms same-class same-target grouping — none here | - | - | - (visual `Undo::gesturesGroupWithin200ms`, 199/201 ms) | OWNED |
 | AU-4 (§0.4, §7) | Never undoable: live audio/MIDI, recorder, banners, A/B, panic, tap, browsing — by construction, untested | gesture-only entries | n/a | - | NO-TEST |
-| AU-5 (§0.5) | Per-instance stack | `PluginProcessor::undoStack` member | n/a | - | NO-TEST |
+| AU-5 (§0.5) | Per-instance stack | `PluginProcessor::undoStack` member | n/a | `Undo::isPerInstanceAndNotPersisted` | DONE |
 | AU-6 (§0.6, §10) | Not persisted / not in preset / empty on new instance | not in `getStateInformation` | n/a | `Undo::stepsOneActionAtATimeBothWays` (fresh processor has nothing) | DONE |
 | AU-7 (§1) | Entry: class, target, before/after, timestamp, description, boundary — here only state/redoState/description | `PluginProcessor.h:UndoEntry` | n/a | - (visual `Support/UndoHistory.h:Entry`) | OWNED |
 | AU-8 (§1, §9) | Undo History dropdown, newest first, click undoes to that point — none here | - | - | - (visual HeaderBar "Undo history...", `Undo::theHistoryListsNewestFirstAndUndoesToAPoint`) | OWNED |
@@ -47,4 +47,4 @@ On this checkout undo is still the simple whole-state snapshot stack in `Luthier
 | AU-41 (§13) | Per-class fixture tests (entry type, description, reverse, grouping) | - | n/a | - (visual UndoTests.cpp, one per class) | OWNED |
 | AU-42 (§13) | Concurrent audio: undo mid-play no dropouts | - | n/a | - (visual `Undo::undoMidPlayProducesNoGarbage`) | OWNED |
 
-<!-- counts DONE=8 NO-GUI=0 NO-TEST=6 PARTIAL=0 MISSING=3 OWNED=25 -->
+<!-- counts DONE=9 NO-GUI=0 NO-TEST=4 PARTIAL=0 MISSING=3 OWNED=26 DEFERRED=0 -->
