@@ -1364,3 +1364,25 @@ LUTHIER_TEST (Body, modalBankIsStableAndBounded)
     CHECK_MSG (peak (signal.data(), n) < 4.0,
                "modal bank peaked at " + juce::String (peak (signal.data(), n), 3));
 }
+
+//==============================================================================
+/*  SPEC-SWEEP: EN-90 - engine.md 20.18: the room's FDN feedback never exceeds
+    0.998, even for the longest room, the liveliest material and the longest
+    decay. */
+LUTHIER_TEST (Room, feedbackNeverExceedsTheCap)
+{
+    RoomEngine room;
+    room.prepare (kSr, 512);
+    room.setEnabled (true);
+    room.setRoomSize (RoomSize::Cathedral);
+    room.setMaterial (RoomMaterial::Stone);
+    room.setDecayScale (4.0);
+
+    juce::AudioBuffer<float> buffer (2, 512);
+    buffer.clear();
+    room.processBlock (buffer);
+
+    CHECK_MSG (room.getFeedbackGain() <= RoomEngine::kMaxFeedback,
+               "feedback " + juce::String (room.getFeedbackGain(), 6));
+    CHECK (room.getFeedbackGain() > 0.9);
+}

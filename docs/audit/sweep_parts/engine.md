@@ -106,11 +106,11 @@ Items on `visual`: the whole-block allocation trap, the limiter-lookahead latenc
 | EN-87 (§19) | MIDI controller matrix (keyboard, MPE, GK/TriplePlay) end-to-end — no record | `ControllerProfile` | CONTROLLERS page | `Controllers.*` (synthetic) | MISSING |
 | EN-88 (§20.5) | Coupling per block, capped — runs per sample (documented: per-block ticks) | `CouplingMatrix.h` header note | n/a | `Coupling.cannotRunAway` | PARTIAL |
 | EN-89 (§20.8) | No console logging on audio thread; lock-free queue to file | `Support/Diagnostics` ring buffer | n/a | `Diagnostics.ringBufferAndSelfTestWork` | DONE |
-| EN-90 (§20.18) | Feedback capped at 0.998 — FDN caps at 0.9985 | `RoomEngine.cpp:225`, `PedalsMod.cpp:858`; delays 0.95 | n/a | `Effects.secretEffectIsStableAtMaximumRegeneration` | PARTIAL |
+| EN-90 (§20.18) | Feedback capped at 0.998 (room FDN and the reverb pedal FDN) | `RoomEngine::kMaxFeedback`, `PedalsMod.cpp`; delays 0.95 | n/a | `Room::feedbackNeverExceedsTheCap`, `Effects.secretEffectIsStableAtMaximumRegeneration` | DONE |
 | EN-91 (§20.19) | Every factory preset passes mono compatibility — test uses one synthetic rig | `MasterBus`/stereo fx | n/a | `Engine.monoCompatibility` | NO-TEST |
 | EN-92 (§22) | < 8 % CPU @96k/128, 6 strings, all fx | engine | n/a | - | OWNED (on visual: `PerfBudget.everyModuleWithinBudget`, `PerfBudget.scenarioTotals`) |
 | EN-93 (§22) | 16 instances @48k/256 no glitches | engine | n/a | - | OWNED (on visual: `Stress.thirtyTwoInstancesRenderInTurn`) |
 | EN-94 (§22) | Preset load < 500 ms incl. async IR | `PresetManager::fromVar`; IR installers | n/a | - | NO-TEST |
 | EN-95 (§22) | MIDI in → audio out < 2 ms (+ reported latency) | `MidiInterpreter` sample-accurate events; chord window | n/a | `Controllers.chordGroupsSoundOneWindowAfterTheyWerePlayed` | NO-TEST |
 
-<!-- counts DONE=58 NO-GUI=7 NO-TEST=9 PARTIAL=9 MISSING=2 OWNED=10 -->
+<!-- counts DONE=59 NO-GUI=7 NO-TEST=9 PARTIAL=8 MISSING=2 OWNED=10 -->

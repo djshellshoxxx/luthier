@@ -54,6 +54,10 @@ public:
     /** Multiplier on the room's natural decay, 0.25 to 4. */
     void setDecayScale (double scale) noexcept;
 
+    /** SPEC-SWEEP: EN-90 - engine.md 20.18: no feedback path above 0.998. */
+    static constexpr double kMaxFeedback = 0.998;
+    double getFeedbackGain() const noexcept { return feedbackGain; }
+
     /** Stereo width of the room mics, 0 to 1. */
     void setWidth (double width) noexcept;
 
