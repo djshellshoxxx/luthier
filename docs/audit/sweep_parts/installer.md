@@ -6,7 +6,7 @@ This spec has changed most since the baseline. The integration branch now has re
 |---|---|---|---|---|---|
 | IN-1 (§0.2, §1, §2) | Code-signed Windows (EV), notarised macOS, PGP Linux — built in, but runs only when the secrets exist; no CI check that the signatures verify | `scripts/package_windows.ps1` (signtool), `scripts/package_macos.sh` (codesign, notarytool, stapler), `scripts/package_linux.sh` (gpg) | n/a | - | NO-TEST |
 | IN-2 (§0.3, §1.3, §2.3) | Uninstall removes every installed file, keeps user data, explicit purge — Inno prompt (not a checkbox), `Uninstall.command` prompt, `uninstall.sh` manifest; no automated cycle test | `packaging/windows/Luthier.iss` `CurUninstallStepChanged`, `packaging/macos/Uninstall.command`, `packaging/linux/uninstall.sh` | installer UI | - | NO-TEST |
-| IN-3 (§0.4) | No elevation beyond need — Win `PrivilegesRequired=admin` (needed for Common Files); Linux user mode by default; macOS admin for /Library | `Luthier.iss`, `install.sh` | n/a | - | NO-TEST |
+| IN-3 (§0.4) | No elevation beyond need — Win `PrivilegesRequired=admin` (needed for Common Files); Linux user mode by default; macOS admin for /Library | `Luthier.iss`, `install.sh` | n/a | docs/RELEASING.md 9 (why each platform elevates) | DONE |
 | IN-4 (§0.5) | Deterministic byte-identical installers — Linux archives reproducible (`SOURCE_DATE_EPOCH`); Win/mac not (signing timestamps; documented) | `scripts/package_linux.sh` | n/a | - | PARTIAL |
 | IN-5 (§1) | Windows Inno Setup `.exe` named `Luthier-<v>-Setup-win64.exe` | `packaging/windows/Luthier.iss` | installer | CI `release.yml` package build | DONE |
 | IN-6 (§1.1.1) | Splash with logo, version, "Preparing installer" | - | - | - | MISSING |
@@ -16,10 +16,10 @@ This spec has changed most since the baseline. The integration branch now has re
 | IN-10 (§1.1.5) | Locations: VST3 fixed; standalone editable; content `C:\ProgramData\Luthier` editable — content path fixed by design (`IrLibrary` search) | `Luthier.iss`, `Support/IrLibrary.cpp:searchForResources` | installer | on visual: `IrLibrary::candidatesIncludeTheInstallerLayout` | PARTIAL |
 | IN-11 (§1.1.6) | Space check: required + 200 MB | `Luthier.iss ExtraDiskSpaceRequired=209715200` | installer | CI package build | DONE |
 | IN-12 (§1.1.7) | Version check: same/newer asks; older offers upgrade | `Luthier.iss InitializeSetup`, `[InstallDelete]` | installer | - | NO-TEST |
-| IN-13 (§1.1.8) | Progress with safe cancel/rollback | Inno built-in | installer | - | NO-TEST |
+| IN-13 (§1.1.8) | Progress with safe cancel/rollback | Inno built-in | installer | Inno built-in; documented in docs/RELEASING.md 9 | DEFERRED |
 | IN-14 (§1.1.9) | Post-install: Add/Remove entry, 6 file associations, Start menu, optional launch (off), "What's new" link — no "What's new" link | `Luthier.iss [Registry]/[Icons]/[Run]` | installer | CI package build | PARTIAL |
 | IN-15 (§1.1.9, §2.1.6, §13) | Double-clicking a Luthier file opens it in the standalone — the OS registration exists on Win/Linux, but the HEAD standalone ignores its command line | on visual: `Source/StandaloneApp.cpp`, `Support/FileOpenRouter` (5b1ff56) | standalone | on visual: `FileOpen::theCommandLineNamesTheFile`, `FileOpen::everyAssociationRoutesToItsLoader` | OWNED |
-| IN-16 (§1.2) | Silent install `/S`, `/D=`, documented exit codes, HKLM keys — Inno `/VERYSILENT` and `/DIR=` (documented deviation in RELEASING §8); HKLM `Software\Luthier` keys | `Luthier.iss [Registry]`, `docs/RELEASING.md` | n/a | - | PARTIAL |
+| IN-16 (§1.2) | Silent install `/S`, `/D=`, documented exit codes, HKLM keys — Inno `/VERYSILENT` and `/DIR=` (documented deviation in RELEASING §8); HKLM `Software\Luthier` keys | `Luthier.iss [Registry]`, `docs/RELEASING.md` | n/a | docs/RELEASING.md 9 (switches and exit codes) | DONE |
 | IN-17 (§1.3) | Uninstaller refuses while a DAW holding the plugin runs — Restart Manager `CloseApplications` only (known gap) | `Luthier.iss CloseApplications=yes` | installer | - | PARTIAL |
 | IN-18 (§2) | macOS `.pkg` inside a signed, notarised `.dmg`, `Luthier-<v>-macOS.dmg` | `scripts/package_macos.sh` | installer | CI `release.yml` package build | DONE |
 | IN-19 (§2.1) | .dmg "Read me first"; standard paths for AU/VST3/app/content; admin only for system paths; "Open Luthier" post-install button — no post-install button | `package_macos.sh` | installer | CI package build | PARTIAL |
@@ -37,7 +37,7 @@ This spec has changed most since the baseline. The integration branch now has re
 | IN-31 (§5.2) | Delta patches: offered under 50% of full size, one-way, SHA-256, roll back and prompt full download | on visual: `Updates/ContentPackage` delta (ec0e866) | - | on visual: `ContentPackage::aBadHashRollsBackAndOffersTheFullDownload` | OWNED |
 | IN-32 (§6) | First load creates the `~/Documents/Luthier` tree (18 subfolders), `config/plugin.json`, `.installed_version` | on visual: `Support/InstallLayout` (9d9daa6) | n/a | on visual: `InstallLayout::createsTheTreeAndMarker` | OWNED |
 | IN-33 (§6) | Absent marker -> onboarding; different version -> upgrade banner + migrations | on visual: `InstallLayout` upgrade report; on tune-help: onboarding | banner / onboarding | on visual: `InstallLayout::differentVersionReportsUpgrade`, `InstallLayout::sameVersionIsQuiet` | OWNED |
-| IN-34 (§7) | Managed installers take command-line config; `luthier-policy.json` pre-placeable — the plugin honours a policy file; installers cannot place one | `Updates/Telemetry` policy | Options "managed by policy" | `Telemetry::policyOverridesTheUser` | PARTIAL |
+| IN-34 (§7) | Managed installers take command-line config; `luthier-policy.json` pre-placeable — the plugin honours a policy file; installers cannot place one | `Updates/Telemetry` policy | Options "managed by policy" | docs/RELEASING.md 9 (pre-placing the policy) | PARTIAL |
 | IN-35 (§7) | MSI wrapper for Group Policy | - | - | - | MISSING |
 | IN-36 (§8) | Preset without ranges gets a block on load; original backed up to `Presets/Backup/<date>/` — derived rather than stock-only (advanced-ranges supersedes) | `PresetManager::fromVar`, `PresetManager::backupMigratedOriginal` | n/a | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent`, `ModelGapsUi::aMigratedPresetKeepsItsOriginal` | DONE |
 | IN-37 (§8) | Pre-parts guitar reference resolves via `migration.json`; same backup | `PartLibrary` migration table, `PresetManager::needsMigration` | n/a | `GuitarMigration::aPresetNamingAnOldGuitarLoadsItsReplacement`, `GuitarMigration::everyPreM49NameResolvesToItsShippedGuitar` | DONE |
@@ -46,7 +46,7 @@ This spec has changed most since the baseline. The integration branch now has re
 | IN-40 (§9) | Portable Windows zip: no registry, no Start menu, no auto-update; no writes outside the folder — the plugin still writes `Documents\Luthier` | `package_windows.ps1` portable zip | n/a | CI package build | PARTIAL |
 | IN-41 (§10) | SHA-256 for every installer + PGP-signed manifest + canonical URL | `.github/workflows/release.yml` (SHA256SUMS.txt + gpg) | n/a | CI `release.yml` | DONE |
 | IN-42 (§11) | Signed `.luthiercontent` applied to `ContentUpdates/<name>/`, data only; drag onto the plugin or Options > Updates | on visual: `Updates/ContentPackage` | Options > Updates (on visual) | on visual: `ContentPackage::aSignedPackageInstallsIntoItsFolder`, `ContentPackage::pathTraversalAndCodeAreRefused` | OWNED |
-| IN-43 (§12) | Rollback: manifest revert within 30 min, old installers stay, downgrade prompt, rollback banner in the plugin — Windows downgrade prompt exists; no rollback banner or runbook | `Luthier.iss InitializeSetup` | - | - | PARTIAL |
+| IN-43 (§12) | Rollback: manifest revert within 30 min, old installers stay, downgrade prompt, rollback banner in the plugin — Windows downgrade prompt exists; no rollback banner or runbook | `Luthier.iss InitializeSetup` | - | docs/RELEASING.md 10 (rollback runbook) | PARTIAL |
 | IN-44 (§13) | Test: install/uninstall cycle per platform, files match the manifest — manual (RELEASING §6) | - | n/a | - | MISSING |
 | IN-45 (§13) | Test: upgrade A->B leaves no A artefacts; downgrade B->A clean | - | n/a | - | MISSING |
 | IN-46 (§13) | Test: silent install with a policy takes effect on first run | - | n/a | - | MISSING |
@@ -54,4 +54,4 @@ This spec has changed most since the baseline. The integration branch now has re
 | IN-48 (§13) | Test: portable Windows writes nothing outside its folder | - | n/a | - | MISSING |
 | IN-49 (§13) | Test: 200 pre-parts fixture presets load, back up and render within -60 dBFS of golden | - | n/a | - | MISSING |
 
-<!-- counts DONE=13 NO-GUI=0 NO-TEST=7 PARTIAL=12 MISSING=10 OWNED=7 DEFERRED=0 -->
+<!-- counts DONE=15 NO-GUI=0 NO-TEST=5 PARTIAL=11 MISSING=10 OWNED=7 DEFERRED=1 -->

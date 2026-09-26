@@ -81,6 +81,6 @@ This spec is a ship-gate checklist, and a large part of it is process: the host 
 | QA-75 (§11) | Every IR generated or licensed, with documentation | `scripts/make_irs.py` | n/a | n/a | DONE |
 | QA-76 (§11) | EULA finalised; refund policy documented — the EULA is a placeholder | `packaging/common/EULA.txt` | installer licence page | - | PARTIAL |
 | QA-77 (§12) | Final 30-minute human check including a from-scratch Workshop guitar save/reopen | process | n/a | - | MISSING |
-| QA-78 (§13) | 72 h post-release monitoring, support SLA, rehearsed 30-minute rollback, 24 h hotfix path — RELEASING.md covers publishing, not rollback | `docs/RELEASING.md` | n/a | - | MISSING |
+| QA-78 (§13) | 72 h post-release monitoring, support SLA, rehearsed 30-minute rollback, 24 h hotfix path — RELEASING.md covers publishing, not rollback | docs/RELEASING.md 10 | n/a | - | PARTIAL |
 
-<!-- counts DONE=18 NO-GUI=0 NO-TEST=1 PARTIAL=13 MISSING=10 OWNED=36 DEFERRED=0 -->
+<!-- counts DONE=18 NO-GUI=0 NO-TEST=1 PARTIAL=14 MISSING=9 OWNED=36 DEFERRED=0 -->

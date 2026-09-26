@@ -21,4 +21,4 @@
 - [QA-74 (§11)] effort S — Same fix as factory-content FC-1: rename "Fuzz Face Lead" and "Modern LP Wiring" and extend the trademark scanner.
 - [QA-76 (§11)] effort S — DEFER: legal. Replace `packaging/common/EULA.txt` and publish the refund policy (the product owner's task per RELEASING.md §7).
 - [QA-77 (§12)] effort S — DEFER: human process. Add the 30-minute check and the Workshop from-scratch round trip to SHIP_GATE. The round trip could also be automated as `WorkshopPresets::aGuitarBuiltFromATemplateSurvivesReopen`.
-- [QA-78 (§13)] effort M — Add a "Rollback" section to `docs/RELEASING.md`: revert the update manifest, keep the old assets, and use the in-plugin banner through the update-check manifest's `rollback` field (the `Telemetry` update check reads it and posts a banner). Hotfix path: tag, then release.yml with gates 1-5. The monitoring SLA is process.
+- [QA-78 (§13)] effort M — rollback/hotfix runbook written (RELEASING 10); the monitoring SLA is process, the manifest-driven banner is open (IN-43).
