@@ -31,12 +31,22 @@ Verified documentation against code and corrected factual errors. Focused on cri
 | PT-19 | PLAYING_TECHNIQUES | Amp feedback: rewrote to physical loop model with 5 controls | DONE |
 | PT-23 | PLAYING_TECHNIQUES | Aftertouch: removed "can be switched to bend" (not implemented) | DONE |
 
+## Additional work completed
+
+| Row ID | Section | Issue | Status |
+|--------|---------|-------|--------|
+| KS-18 | KEYBOARD_SHORTCUTS | Added S (Slide), Ctrl+N (New preset), Ctrl+Alt+E (Show preset), Ctrl+[/] (tabs) | DONE |
+
 ## Not yet completed
+
+These items require code changes or extensive testing beyond documentation scope:
 
 | Row ID | Section | Notes |
 |--------|---------|-------|
-| KS-18 | KEYBOARD_SHORTCUTS | New shortcuts (S, Ctrl+N, Ctrl+Alt+E, Ctrl+[/]) - requires code verification |
-| PF-14 | PRESET_FORMAT | Missing keys should fall back to default - requires code fix or extensive testing |
+| PF-14 | PRESET_FORMAT | Missing keys should fall back to default - requires ParameterBridge code fix |
+| PT-2 | PLAYING_TECHNIQUES | Harmonic velocity trigger - requires parameter wiring |
+| PT-4, PT-8, PT-11, PT-22, PT-23, PT-29 | PLAYING_TECHNIQUES | Various test additions - not docs scope |
+| UM-*, TS-*, KS-* | Various | Most remaining rows are NO-TEST (need tests added), not docs issues |
 
 ## Verification notes
 
