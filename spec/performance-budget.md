@@ -33,7 +33,8 @@ core.
 | PreEffectsChain (8 slots) | 1.0 | Average pedal cost |
 | AmpEngine | 1.5 | 4x oversampled |
 | PostEffectsChain (8 slots) | 1.0 | Same as pre |
-| CabinetEngine (2 mics) | 0.4 | Convolution |
+| CabinetEngine (2 mics) | 0.5 | Convolution; mic-placement.md 11 (FEAT-MIC): 0.4 before the placement stage (<= 0.05 per mic) and ToF delay |
+| AcousticMicModel (2 mics) | 0.12 | mic-placement.md 11 (FEAT-MIC); 0 at `ac_mic_mix` 0 |
 | RoomEngine | 0.3 | Convolution |
 | MasterBus | 0.15 | Limiter, metering |
 | MidiInterpreter + Technique | 0.05 | Message thread mostly |

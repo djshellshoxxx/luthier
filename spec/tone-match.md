@@ -23,6 +23,11 @@ sample-based product.
 Two slots per convolution point:
 - **Body IR slot**: replaces the body engine's IR when engaged.
 - **Cabinet IR slots (2)**: replace mic 1 and mic 2 IR respectively.
+  (mic-placement.md, FEAT-MIC): an engaged user cabinet IR bypasses that
+  mic's placement stage (the IR already is a placement); the placement view
+  shows the user IR's name instead of the handle. The factory non-anchor
+  cabinet IRs remain browsable here but are no longer auto-loaded by the
+  mic position.
 
 Each slot exposes:
 - File path (any WAV, AIFF, FLAC, up to 6 channels).

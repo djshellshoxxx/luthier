@@ -52,6 +52,10 @@ routing get D.
 | Aux 6 | Wet effects only (reverb/delay tails) | post-post-fx |
 | Aux 7 | Monitor bus (see live-performance.md) | monitor path |
 
+(mic-placement.md, FEAT-MIC): on an acoustic guitar with the external mics on
+(`ac_mic_mix` > 0), Aux 3 and Aux 4 carry acoustic mic 1 and mic 2 instead
+of the cabinet mics. Aux 5 is the room without the close-mic bleed.
+
 Each aux bus has its own gain trim in the routing panel. Muted aux buses
 do not process their tap point (skip the render).
 
