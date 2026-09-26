@@ -35,6 +35,10 @@ enum class LogCategory
 
 const char* getLogCategoryName (LogCategory c) noexcept;
 
+/** host-integration HI-8: LUTHIER_VERSION major.minor.patch plus a build string
+    (CI run / git short SHA), e.g. "1.0.0+a1b2c3d4", for bug reports and About. */
+juce::String getFullVersionString();
+
 //==============================================================================
 class Diagnostics
 {

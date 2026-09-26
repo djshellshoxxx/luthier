@@ -128,6 +128,20 @@ ControllersPage::ControllersPage (LuthierAudioProcessor& p)
 
     addAndMakeVisible (saveProfileButton);
 
+    // controllers.md 0.2/CT-2: reselect and re-apply whichever profile the session
+    // last had active, instead of always starting from Generic MIDI.
+    {
+        const auto savedId = processor.getControllerProfileId();
+        const int savedIndex = savedId.isNotEmpty() ? library.indexOf (savedId) : -1;
+
+        if (savedIndex >= 0)
+        {
+            profileBox.setSelectedId (savedIndex + 1, juce::dontSendNotification);
+            applySelectedProfile();
+            return;
+        }
+    }
+
     refresh();
 }
 
@@ -141,6 +155,25 @@ void ControllersPage::applySelectedProfile()
     const auto& profile = library.getProfile (index);
 
     ControllerProfileLibrary::apply (profile, processor.getEngine().getMidiInterpreter());
+    processor.setControllerProfileId (profile.id);   // controllers.md 0.2/CT-2
+
+    // CT-7: ParameterBridge::applyToEngine rewrites setMpeEnabled/setPitchBendRange
+    // from the mpe_enabled/bend_range parameters on every block, which would
+    // otherwise undo the profile's MPE flag and member bend range on the very next
+    // block. Push the profile's values into those parameters so the bridge re-applies
+    // the same thing instead of clobbering it, and so they travel with the normal
+    // parameter state.
+    auto& state = processor.getState();
+
+    if (auto* mpe = state.getParameter (ParamIDs::mpeEnabled))
+        mpe->setValueNotifyingHost (profile.mode == ControllerMode::mpe ? 1.0f : 0.0f);
+
+    if (auto* bend = state.getParameter (ParamIDs::bendRange))
+    {
+        const float semis = (float) (profile.mode == ControllerMode::mpe ? profile.memberPitchBendSemis
+                                                                          : profile.pitchBendSemis);
+        bend->setValueNotifyingHost (bend->convertTo0to1 (juce::jlimit (1.0f, 48.0f, semis)));
+    }
 
     refresh();
 }
@@ -2223,8 +2256,10 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
     };
 
     addAndMakeVisible (troubleshootButton);
-    troubleshootButton.setTooltip ("Writes a file describing the build, the host and the "
-                                   "current state, for a support thread.");
+    // host-integration HI-8: names the exact build (version + git SHA / CI run),
+    // not just the marketing version, so a support thread can tell builds apart.
+    troubleshootButton.setTooltip ("Writes a file describing the build (" + getFullVersionString()
+                                   + "), the host and the current state, for a support thread.");
     troubleshootButton.onClick = [this]
     {
         processor.getPresetManager().captureExtraState();

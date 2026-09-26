@@ -86,8 +86,18 @@ public:
     const juce::String getProgramName (int index) override;
     void changeProgramName (int index, const juce::String& newName) override;
 
+    // host-integration HI-20/HI-24/HI-25: the root JSON's format version. Bumped
+    // whenever a root-level key's meaning changes in a way an older build could
+    // not read correctly.
+    static constexpr int kCurrentStateFormatVersion = 1;
+
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
+
+    /** HI-24: root-level keys this build did not recognise on the last load,
+        kept so a save writes them straight back rather than silently dropping
+        a newer build's data. */
+    juce::NamedValueSet getUnknownHostSections() const noexcept { return unknownHostSections; }
 
     /*  output-normalization.md 6: undo, redo and A/B recall restore the sound
         only; the host restores everything, the normalization setting included. */
@@ -496,6 +506,11 @@ public:
     void setParameterLocked (const juce::String& paramId, bool locked);
     bool isParameterLocked (const juce::String& paramId) const;
     juce::StringArray getLockedParameters() const { return lockedParameters; }
+
+    // controllers.md 0.2/CT-2: which controller profile is active, so it can be
+    // restored across a session (the profile itself lives in ControllerProfileLibrary).
+    void setControllerProfileId (const juce::String& id) { controllerProfileId = id; }
+    juce::String getControllerProfileId() const noexcept { return controllerProfileId; }
 
     //==========================================================================
     // A/B compare and undo, both owned by the processor so they survive the editor.
@@ -1020,6 +1035,8 @@ private:
     int gestureParameterIndex = -1;
 
     juce::StringArray lockedParameters;
+    juce::String controllerProfileId;   // controllers.md 0.2/CT-2
+    juce::NamedValueSet unknownHostSections;   // host-integration HI-24
 
     // output-normalization.md: declared last, so every parameter and the engine
     // exist when its change tracker is built.

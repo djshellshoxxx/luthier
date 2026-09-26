@@ -17,6 +17,8 @@
 #include "../Model/Playing/TechniqueEngine.h"
 #include "../Model/Playing/ChordVoicer.h"
 #include "../Model/Playing/RubricVoicer.h"
+#include "../PluginProcessor.h"
+#include "../UI/OptionsPages.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -762,4 +764,90 @@ LUTHIER_TEST (Controllers, chordGroupsSoundOneWindowAfterTheyWerePlayed)
     CHECK (offsets.isEmpty());
     offsets = block ({}, 8192 + 256);
     CHECK (offsets.size() == 1 && offsets[0] == 220 + window - 256);
+}
+
+//==============================================================================
+// CT-7: ParameterBridge::applyToEngine used to rewrite setMpeEnabled/
+// setPitchBendRange from the mpe_enabled/bend_range parameters on every block,
+// undoing an MPE profile's flag and 48-semitone member bend the instant the next
+// block ran. ControllersPage::applySelectedProfile now pushes the profile's
+// values into those parameters, so the bridge re-applies the same thing.
+LUTHIER_TEST (Controllers, anMpeProfileSurvivesTheParameterBridge)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 128);
+
+    ControllersPage page (processor);
+    page.setSize (400, 500);
+
+    ControllerProfileLibrary library;
+    library.refresh();
+    const int index = library.indexOf ("roli-seaboard");
+    CHECK (index >= 0);
+
+    // Simulate choosing the Seaboard MPE profile in the combo box.
+    bool foundBox = false;
+
+    for (int i = 0; i < page.getNumChildComponents(); ++i)
+    {
+        if (auto* box = dynamic_cast<juce::ComboBox*> (page.getChildComponent (i)))
+        {
+            box->setSelectedId (index + 1, juce::sendNotificationSync);
+            foundBox = true;
+        }
+    }
+
+    CHECK (foundBox);
+    CHECK (processor.getEngine().getMidiInterpreter().isMpeEnabled());
+    CHECK_NEAR (processor.getEngine().getMidiInterpreter().getPitchBendRange(), 48.0, 1.0e-6);
+
+    // The bug: a block used to run the bridge straight from the (still Generic)
+    // mpe_enabled/bend_range parameters and stomp on what the profile just set.
+    processor.getParameterBridge().applyToEngine();
+
+    CHECK (processor.getEngine().getMidiInterpreter().isMpeEnabled());
+    CHECK_NEAR (processor.getEngine().getMidiInterpreter().getPitchBendRange(), 48.0, 1.0e-6);
+    CHECK (processor.getControllerProfileId() == "roli-seaboard");
+}
+
+//==============================================================================
+// CT-2: the chosen profile used to live only in the ControllersPage combo box,
+// so reopening the editor after a session round trip always fell back to
+// Generic MIDI. It now travels in the processor's state.
+LUTHIER_TEST (Controllers, theChosenProfileSurvivesTheSessionRoundTrip)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 128);
+
+    {
+        ControllersPage page (processor);
+        page.setSize (400, 500);
+
+        ControllerProfileLibrary library;
+        library.refresh();
+        const int index = library.indexOf ("roli-seaboard");
+        CHECK (index >= 0);
+
+        for (int i = 0; i < page.getNumChildComponents(); ++i)
+            if (auto* box = dynamic_cast<juce::ComboBox*> (page.getChildComponent (i)))
+                box->setSelectedId (index + 1, juce::sendNotificationSync);
+    }
+
+    CHECK (processor.getControllerProfileId() == "roli-seaboard");
+
+    juce::MemoryBlock saved;
+    processor.getStateInformation (saved);
+
+    LuthierAudioProcessor restored;
+    restored.prepareToPlay (48000.0, 128);
+    restored.setStateInformation (saved.getData(), (int) saved.getSize());
+
+    CHECK (restored.getControllerProfileId() == "roli-seaboard");
+
+    // Reopening the page selects and re-applies it rather than resetting to
+    // Generic MIDI (id 1).
+    ControllersPage page (restored);
+    page.setSize (400, 500);
+
+    CHECK (restored.getEngine().getMidiInterpreter().isMpeEnabled());
 }

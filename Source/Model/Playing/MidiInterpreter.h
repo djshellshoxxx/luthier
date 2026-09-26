@@ -86,6 +86,11 @@ public:
     void setMpeEnabled (bool e) noexcept { mpeEnabled = e; }
     bool isMpeEnabled() const noexcept { return mpeEnabled; }
 
+    /** controllers.md 4 (CT-17): MPE's master channel (1-16) carries zone-wide
+        messages, never notes; a note-on there is ignored rather than voiced. */
+    void setMpeMasterChannel (int channel) noexcept { mpeMasterChannel = juce::jlimit (1, 16, channel); }
+    int getMpeMasterChannel() const noexcept { return mpeMasterChannel; }
+
     /** Pitch-bend range in semitones. MPE controllers default to 48. */
     void setPitchBendRange (double semitones) noexcept;
     double getPitchBendRange() const noexcept { return bendRangeSemitones; }
@@ -308,6 +313,7 @@ private:
     int64_t blockStart = 0;
     int blockLength = 0;
     bool mpeEnabled = false;
+    int mpeMasterChannel = 1;
 
     double bendRangeSemitones = 2.0;
     std::array<double, kMaxStrings> stringBendRange {};

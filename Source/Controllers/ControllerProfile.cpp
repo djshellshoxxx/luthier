@@ -541,6 +541,7 @@ void ControllerProfileLibrary::apply (const ControllerProfile& profile,
             interpreter.setMpeEnabled (true);
             interpreter.setPlayingMode (PlayingMode::GuitarController);
             interpreter.setPitchBendRange (profile.memberPitchBendSemis);
+            interpreter.setMpeMasterChannel (profile.mpeMasterChannel);   // CT-17
             interpreter.resetChannelMap();
             break;
 

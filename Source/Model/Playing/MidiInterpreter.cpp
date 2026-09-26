@@ -426,6 +426,13 @@ void MidiInterpreter::handleNoteOn (int midiNote, int channel, double velocity,
 
     if (mode == PlayingMode::GuitarController)
     {
+        // controllers.md 4 (CT-17): MPE's master channel carries zone-wide
+        // messages, not notes - it used to fall through to the same per-channel
+        // routing as a member channel and get voiced on whatever string channel
+        // 1 mapped to.
+        if (mpeEnabled && channel == mpeMasterChannel)
+            return;
+
         int stringIndex = stringForChannel (channel);
 
         if (stringIndex < 0)
