@@ -80,6 +80,37 @@ public:
        #endif
     }
 
+    /** Pushes a sample into the history without running the filter. For a
+        caller that knows the output cannot matter (see l1Norm). */
+    void push (float x) noexcept
+    {
+        writeIndex = (writeIndex == 0) ? kTapsPerPhase - 1 : writeIndex - 1;
+        const float v = std::isfinite (x) ? x : 0.0f;
+        history[(size_t) writeIndex] = v;
+        history[(size_t) (writeIndex + kTapsPerPhase)] = v;
+    }
+
+    /** The largest L1 norm of any phase: no interpolated point can exceed the
+        largest of the last kTapsPerPhase samples by more than this factor. */
+    static float l1Norm() noexcept
+    {
+        static const float n = []
+        {
+            double best = 0.0;
+
+            for (const auto& phase : coefficients())
+            {
+                double sum = 0.0;
+                for (double c : phase) sum += std::abs (c);
+                best = std::max (best, sum);
+            }
+
+            return (float) best;
+        }();
+
+        return n;
+    }
+
     /** The true peak of a whole buffer (tests and offline measurement). */
     static double measure (const float* samples, int numSamples) noexcept
     {

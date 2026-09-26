@@ -188,7 +188,21 @@ void LoudnessNormalizer::beginBlock (std::int64_t timelineStart, std::int64_t re
 double LoudnessNormalizer::next() noexcept
 {
     const std::int64_t t = timeline++;
-    const std::int64_t s = t - (((t % kSegment) + kSegment) % kSegment);
+
+    // At rest (no glide running or pending): a constant.
+    if (t >= glideStart + glideLength + kSegment)
+    {
+        if (segStart != INT64_MIN + 1)
+        {
+            segStart = INT64_MIN + 1;   // marks the rest state
+            segGainA = segGainB = std::pow (10.0, endDb / 20.0);
+            currentDb.store (endDb, std::memory_order_relaxed);
+        }
+
+        return segGainA;
+    }
+
+    const std::int64_t s = t - (t & (std::int64_t) (kSegment - 1));
 
     if (s != segStart)
         loadSegment (s);

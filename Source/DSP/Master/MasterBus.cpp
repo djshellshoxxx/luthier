@@ -263,6 +263,7 @@ void MasterBus::processBlockNormalized (juce::AudioBuffer<float>& buffer) noexce
         normPathRunning = true;
         truePeakL.reset();
         truePeakR.reset();
+        truePeakHot = 0;
         ceilingNowDb = kCeilingDb;
         bypassFade = 0;
 
@@ -332,8 +333,31 @@ void MasterBus::processBlockNormalized (juce::AudioBuffer<float>& buffer) noexce
         lookL[(size_t) lookIndex] = (float) l;
         lookR[(size_t) lookIndex] = (float) r;
 
-        const double peak = (double) juce::jmax (truePeakL.process ((float) l), truePeakR.process ((float) r));
-        const double required = (peak > ceilingLin) ? (ceilingLin / peak) : 1.0;
+        /*  The true-peak FIR only runs while a sample in its window is above
+            ceiling / L1: below that, no interpolated point can reach the
+            ceiling (the FIR's L1 norm bounds it), so the required gain is
+            exactly 1 and the filter's output is not needed. Exact, and it
+            takes most of the detector's cost away from all but the loudest
+            passages. */
+        double required = 1.0;
+        {
+            const float threshold = (float) ceilingLin / TruePeakDetector::l1Norm();
+
+            if (std::abs ((float) l) > threshold || std::abs ((float) r) > threshold)
+                truePeakHot = TruePeakDetector::kTapsPerPhase + 1;
+
+            if (truePeakHot > 0)
+            {
+                --truePeakHot;
+                const double peak = (double) juce::jmax (truePeakL.process ((float) l), truePeakR.process ((float) r));
+                required = (peak > ceilingLin) ? (ceilingLin / peak) : 1.0;
+            }
+            else
+            {
+                truePeakL.push ((float) l);
+                truePeakR.push ((float) r);
+            }
+        }
 
         // Sliding minimum of the required gain over the box.
         {

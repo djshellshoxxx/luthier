@@ -314,6 +314,41 @@ LUTHIER_TEST (Normalization, ON03_ON04_FactoryCombinationsLandOnTarget)
 }
 
 
+LUTHIER_TEST (Normalization, ON03_FactoryTableDoesNotDrift)
+{
+    // 3.3 / ON-03's CI gate: a fresh render of a factory combination is within
+    // 0.5 LU of its NormalizationFactory.json entry; beyond that the engine's
+    // level has moved and the table (and kCalibrationRevision) must follow
+    // (scripts/regen_normalization_factory.sh).
+    NormalizationCalibrator::setFactoryTableFileForTesting ({});
+    NormalizationCalibrator::reloadFactoryTable();
+    NormalizationCalibrator::clearMemoryCache();
+
+    for (const auto& c : sampleCombos (4, 27))
+    {
+        auto p = makeProcessor();
+        loadCombo (*p, c.preset, c.guitarType);
+        auto& n = p->getOutputNormalization();
+        n.refreshStructuralSnapshot();
+        const auto state = n.captureSoundState();
+        const auto hash = NormalizationCalibrator::hashSoundState (state, *p);
+
+        NormalizationCalibrator::Measurement table;
+        const bool hit = NormalizationCalibrator::lookupCached (hash, table) && table.source == NormalizationCalibrator::Source::factory;
+        CHECK_MSG (hit, c.key() + " is not in the factory table");
+
+        if (! hit)
+            continue;
+
+        const auto fresh = NormalizationCalibrator::renderAndMeasure (NormalizationCalibrator::makeRenderState (state, *p));
+        std::cout << "    " << c.key() << ": table " << table.measuredLufs << ", fresh " << fresh.measuredLufs << " LUFS" << std::endl;
+        CHECK_MSG (std::abs (fresh.measuredLufs - table.measuredLufs) <= 0.5,
+                   c.key() + " drifted " + juce::String (fresh.measuredLufs - table.measuredLufs, 2) + " LU from the factory table");
+    }
+
+    NormalizationCalibrator::clearMemoryCache();
+}
+
 //==============================================================================
 namespace
 {
@@ -1826,9 +1861,13 @@ LUTHIER_TEST (Normalization, ON32_EditionIsPartOfTheHash)
 
 LUTHIER_TEST (Normalization, ON33_Performance)
 {
-    // MasterBus cost: inactive within 10 % of the stage bypassed outright;
-    // active within 0.22 / 0.15 of it (13).
-    auto timeBus = [] (int mode)
+    // MasterBus cost on real program material (a factory phrase, rendered
+    // with normalization off, fed in as the master's input), in budget units
+    // (performance-budget.md: 1 unit = 1 % of one core in real time).
+    const auto program = renderCombo ({ 3, -1, GoldenPhrase::normalization });
+    const int frames = (int) program.size() / 2;
+
+    auto timeBus = [&program, frames] (int mode)
     {
         MasterBus master;
         master.prepare (kSr, kBlock);
@@ -1836,39 +1875,42 @@ LUTHIER_TEST (Normalization, ON33_Performance)
         if (mode == 2)
         {
             master.getNormalizer().setEnabled (true);
-            master.getNormalizer().publishResult (1, 600, 0);
+            master.getNormalizer().publishResult (1, 800, 0);   // +8 dB
         }
 
         MasterBus::normalizationStageCompiledIn().store (mode != 0);
 
         juce::AudioBuffer<float> buffer (2, kBlock);
-        juce::Random rng (3);
         double best = 1.0e9;
 
         for (int rep = 0; rep < 5; ++rep)
         {
-            const auto t0 = std::chrono::steady_clock::now();
+            double seconds = 0.0;
 
-            for (int b = 0; b < 2000; ++b)
+            for (int pos = 0; pos + kBlock <= frames; pos += kBlock)
             {
-                for (int ch = 0; ch < 2; ++ch)
-                    buffer.setSample (ch, b % kBlock, rng.nextFloat() * 0.5f);
+                for (int i = 0; i < kBlock; ++i)
+                {
+                    buffer.setSample (0, i, program[(size_t) (2 * (pos + i))]);
+                    buffer.setSample (1, i, program[(size_t) (2 * (pos + i) + 1)]);
+                }
 
+                const auto t0 = std::chrono::steady_clock::now();
                 master.processBlock (buffer);
+                seconds += std::chrono::duration<double> (std::chrono::steady_clock::now() - t0).count();
             }
 
-            best = juce::jmin (best, std::chrono::duration<double> (std::chrono::steady_clock::now() - t0).count());
+            best = juce::jmin (best, seconds);
         }
 
         MasterBus::normalizationStageCompiledIn().store (true);
-        return best;
+        return 100.0 * best / (frames / kSr);   // units
     };
 
     const double bypassed = timeBus (0), inactive = timeBus (1), active = timeBus (2);
-    std::cout << "    MasterBus per 2000 blocks: bypassed " << bypassed * 1000.0 << " ms, inactive "
-              << inactive * 1000.0 << " ms, active " << active * 1000.0 << " ms" << std::endl;
-    CHECK (inactive <= bypassed * 1.10 + 0.002);
-    CHECK (active <= bypassed * (0.22 / 0.15) + 0.002);
+    std::cout << "    MasterBus units: bypassed " << bypassed << ", inactive " << inactive << ", active " << active << std::endl;
+    CHECK (inactive <= juce::jmax (0.15, bypassed) * 1.10 + 0.01);
+    CHECK (active <= 0.22);
 
     // A calibration render of a heavy preset.
     IsolatedCaches caches;

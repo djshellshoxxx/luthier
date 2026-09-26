@@ -124,6 +124,7 @@ private:
     std::int64_t minCounter = 0;
     double boxSum = 0.0;
     double releasedEnv = 1.0;
+    int truePeakHot = 0;             ///< samples left in which the FIR must run
 
     float* gainLog = nullptr;
     int gainLogCapacity = 0, gainLogPosition = 0;
