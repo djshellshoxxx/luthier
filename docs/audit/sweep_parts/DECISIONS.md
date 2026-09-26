@@ -84,6 +84,6 @@ DECISIONS.md is the log of judgement calls. Most of them are in the code and tes
 | DEC-78 (sd / amb-res 6) | Strum dynamics: inverse smoothstep, up x0.85, misses, crossing precedence step > pattern > kit > knob with USE KNOB, `strum_speed` migrates at 1000/ms, Easy Feel scaling | `Rhythm/StrumGesture`, `UI/StrumGroup` (panel sized to `preferredHeight`) | RHYTHM STRUM group; Easy Feel | `StrumDynamics::crossingSourcesResolveInOrder`, `StrumDynamics::olderPresetsKeepTheirStrumSpeed`, `StrumDynamics::theEasyFeelKnobScalesTheStrum`, `StrumDynamics::theStrumGroupDrivesTheModel` | DONE |
 | DEC-79 (sd 6.1) | A chuck damps every string, the ones the voicing skips included | `StringEngine` `Damping::Chuck` | n/a | `StrumDynamics::chuckKillsPitch` | DONE |
 | DEC-80 (sd) | MIDI chuck key range — deferred, no range specified | - | - | - | MISSING |
-| DEC-81 (adv-ranges) | Phase-2b range families `strings` / `environment` / `body` appended after `modulation` — HEAD has 7 families | `PhysicalRange.h:29` | Options RANGES | - | OWNED |
+| DEC-81 (adv-ranges) | Phase-2b range families `strings` / `environment` / `body` appended after `modulation` | `PhysicalRange.h` `RangeFamily::strings/environment/body` | Options RANGES; CHARACTER padlock | `StringAging.SA15_theStringsRangeFamily`, `Environment.ENV15_budgetSafetyAndCorners` | DONE |
 
-<!-- counts DONE=64 NO-GUI=0 NO-TEST=4 PARTIAL=6 MISSING=2 OWNED=5 -->
+<!-- counts DONE=65 NO-GUI=0 NO-TEST=4 PARTIAL=6 MISSING=2 OWNED=4 -->

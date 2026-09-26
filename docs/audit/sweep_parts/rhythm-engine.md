@@ -27,7 +27,7 @@ The rhythm engine is functionally complete: chord detector (84 templates, 30 ms 
 | RE-21 (§4) | string_mask per step | `StrumStep::stringMask` | strum grid right-click Mask | `GenreKits::factoryMasksSelectStringsASixStringHas` | DONE |
 | RE-22 (§4) | 16/32 steps, triplet and dotted per pattern — no dotted subdivision; no UI to set length/subdivision | `Subdivision::eighthDotted/sixteenthDotted`, `subdivisionsPerBeat` | RHYTHM `lengthBox` / `subdivisionBox` above the strum grid | `RhythmPatterns::tripletAndDottedGridsLandOnTheirSamples` | DONE |
 | RE-23 (§4) | Humanize timing/velocity/miss/ghost | `scheduleStrum`, `processBlock` ghost | RHYTHM timing/velocity/miss/ghost sliders | `RhythmPatterns::humanisationIsDeterministic`, `StrumDynamics::missesAreWeightedAndDeterministic` | DONE |
-| RE-24 (§5) | Fingerpick p/i/m/a/e assignment, per-finger excitation profile — here `emitNote` gets no finger; on realism-b: `emitNote(..., finger)` sets `on.finger` (fingerstyle-attack 3) | `RhythmEngine::scheduleFingerpick`, `RhythmPattern::getStringForFinger` | FingerpickGrid | - | OWNED |
+| RE-24 (§5) | Fingerpick p/i/m/a/e assignment, per-finger excitation profile | `RhythmEngine::scheduleFingerpick` -> `emitNote(..., finger)` sets `on.finger` | FingerpickGrid | `FingerstyleAttack.FA09_patternFingersReachTheString` | DONE |
 | RE-25 (§5) | 7 factory fingerpick patterns | `PatternLibrary` (Patterns.cpp:598-625) | pattern browser | `RhythmPatterns::factoryPatternsAreWellFormed` | DONE |
 | RE-26 (§6) | `.luthierpattern` JSON format incl. mask, finger | `RhythmPattern::toVar/fromVar` | RHYTHM SAVE/EXPORT | `RhythmPatterns::patternsRoundTripThroughJson` | DONE |
 | RE-27 (§6) | Factory patterns in Resources/Rhythm, user in ~/Documents/Luthier/Rhythm — factory built in code; no Resources/Rhythm | `PatternLibrary::addFactoryPatterns`, `Patterns.cpp:668` | - | - | PARTIAL |
@@ -52,4 +52,4 @@ The rhythm engine is functionally complete: chord detector (84 templates, 30 ms 
 | RE-46 (§10) | Test: bypass no click | - | n/a | `RhythmPatterns::bypassIsCleanAndImmediate` | DONE |
 | RE-47 (§10) | Test: free-run tempo | - | n/a | `RhythmPatterns::silentWhenStoppedUnlessFreeRunning` | DONE |
 
-<!-- counts DONE=30 NO-GUI=1 NO-TEST=7 PARTIAL=8 MISSING=0 OWNED=1 -->
+<!-- counts DONE=41 NO-GUI=0 NO-TEST=2 PARTIAL=4 MISSING=0 OWNED=0 -->

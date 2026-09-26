@@ -17,3 +17,4 @@
 - [FC-26 (§13)] effort S — After FC-15: `LiveSetlist::everyFactorySetlistResolves` loads each shipped setlist and asserts every entry's preset exists.
 - [FC-27 (§13)] effort S — After FC-16: a BackingTrack streaming test at 48 kHz with no underrun. DEFER with FC-16.
 - [FC-28 (§13)] effort S — Process: add `docs/LEGAL_REVIEW.md` listing every shipped name with a reviewer/date column, and link it from RELEASING.md. It is not code.
+- [FC-25] OWNER-GAP (landed) effort S — render every example tune end to end: `SampleContent::everyExampleTunePlaysToTheEnd` loads each of the six `Resources/Tunes/Examples` files, renders it offline (`TuneExport::renderAudio`), and asserts finite, never silent for more than a bar, under 0 dBFS and the expected length.

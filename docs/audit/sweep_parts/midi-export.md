@@ -17,7 +17,7 @@ The codec is complete: 18 event classes with text + SysEx redundancy, Luthier/Ge
 | MX-11 (§2.2) | Unknown classes kept as opaque blobs on save | `LuthierEventClass::unknown`, `opaqueSysEx` | n/a | `MidiExport::everyEventClassRoundTripsWithEveryField` (blob case) | DONE |
 | MX-12 (§3) | Generic: CC1/11/64/74 and a per-track RPN 0 bend range | `MidiProfiles` | n/a | `MidiExport::genericProfileIsPlainMidi` | DONE |
 | MX-13 (§4.1) | Export dialog opens from the MIDI OUT tab | `MidiOutPanel::exportWithChooser` | MIDI OUT tab | `MidiOutPanel::exportWritesTheCaptureInTheChosenProfile` | DONE |
-| MX-14 (§4.1) | Export from the tune builder's dialog | on tune-help: `TuneExportDialog` MIDI destination -> `MidiProfiles::exportToFile` | TUNE | - | OWNED |
+| MX-14 (§4.1) | Export from the tune builder's dialog | `TuneExportDialog` MIDI destination -> `TuneExport::exportMidi` / `MidiProfiles` | TUNE | `TuneIntegration.theExportDialogWritesEachDestinationFromOneScreen`, `TuneIntegration.aLuthierProfileMidiExportReimportsToTheSameAudio` | DONE |
 | MX-15 (§4.1) | File -> Export -> MIDI opens the export dialog — the File menu's "Save last MIDI take..." writes with the defaults and never opens the dialog (no range/split/preview) | `HeaderBar.cpp` case 7 | Header File menu | - | PARTIAL |
 | MX-16 (§4.1) | Dialog fields: profile, range (entire/section/last N/marked), split, realism, PPQ, destination, preview | `MidiOutPanel`, `CaptureRanges` | MIDI OUT | `MidiExport::previewDescribesTheOpeningBar`, `CaptureRanges::theMarkedRegionIsWhatWasPlayedBetweenTheMarks`, `CaptureRanges::theCurrentSectionIsTheTunesSelectedSection` | DONE |
 | MX-17 (§4.2) | The session recorder's Save button drags out a Luthier file (Alt = Generic) | `SessionTab::SaveButton::filesToDrag`, `MidiProfiles::writeDragOutFile` | PRACTICE > SESSION Save; MIDI OUT drag source | `PracticeGaps::theSaveButtonDragsTheSavedTakeOut`, `MidiExport::dragOutWritesAValidMidiFile` | DONE |
@@ -43,4 +43,4 @@ The codec is complete: 18 event classes with text + SysEx redundancy, Luthier/Ge
 | MX-T8 (§12) | Test: live MIDI-out timing over a 10k-event fuzz | - | n/a | `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` | DONE |
 | MX-T9 (§12) | Test: live SysEx dropped by other hosts, parsed by Luthier | - | n/a | `MidiExport::liveSysExIsDroppedByOtherHostsAndReadByLuthier` | DONE |
 
-<!-- counts DONE=30 NO-GUI=0 NO-TEST=0 PARTIAL=7 MISSING=0 OWNED=1 -->
+<!-- counts DONE=33 NO-GUI=0 NO-TEST=0 PARTIAL=5 MISSING=0 OWNED=0 -->

@@ -39,12 +39,15 @@ the decisions taken while fixing, and the state of the owned workstreams.
 
 ### Update 2026-09-26
 
-REALISM-A, REALISM-B, REALISM-C, TECHNIQUES and TUNE-HELP were merged into the
-integration branch (commits 62a537c, bdd86cc, 8d23818, 4439443) and from there into
-this branch. Their rows stay OWNED in the audit tables (verified by the owners'
-coverage docs, `docs/coverage/REALISM-*.md`, `TECHNIQUES.md`,
-`TUNE-HELP-ONBOARDING.md`); the OWNER-GAP bullets in their `.fixes.md` files are
-the requirements those workstreams left open. VISUAL (52 commits) is not merged yet.
+REALISM-A, REALISM-B, REALISM-C and TUNE-HELP were merged into the integration
+branch (commits 62a537c, bdd86cc, 8d23818, 4439443) and from there into this
+branch. Their OWNED rows were re-verified on this checkout and set to DONE, or to
+PARTIAL / NO-TEST / MISSING with a note; the requirements those workstreams left
+open are the "OWNER-GAP (landed)" bullets in their `.fixes.md` files.
+TECHNIQUES is NOT merged: commit 4439443 is titled "Merge TECHNIQUES and
+TUNE-HELP-ONBOARDING" but its only second parent is the tune-help branch, so the
+seven technique specs (and the cross-spec rows that point at the techniques
+branch) stay OWNED. VISUAL is not merged either.
 
 ## Phase-2 organisation
 

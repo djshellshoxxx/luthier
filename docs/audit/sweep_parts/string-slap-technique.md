@@ -27,7 +27,7 @@ The generalised `SlapEngine` is complete here: four slap types, five trigger sou
 | SS-21 (§5) | Cascade: tap alternation — TapEngine only on techniques (`Cascade.everyPairResolvesAsDocumented`) | n/a here | n/a | (branch) `Cascade.everyPairResolvesAsDocumented` | OWNED |
 | SS-22 (§5) | Not compatible with slide (bar under string) or scraping the same string — scrape conflict tested; the slide gate (`classify(e, underBar)`) has no test | `SlapEngine::classify(e, slide.isUnderBar)`; `scrape.preempt`/`slap.preempt` | n/a | `SlapWiring.slapAndScrapeTakeTheStringFromEachOther` (scrape only) | NO-TEST |
 | SS-23 (§6) | GUI: TECHNIQUES > Slap sub-tab — none here; on techniques: `TechniquesPanel` SLAP page | n/a | (branch) TECHNIQUES > SLAP | (branch) `TechniquesUi.everySubTabRendersItsControls` | OWNED |
-| SS-24 (§6) | Playing strip Tool selector gains Slap / Pop — on realism-b: `RhTool::slap/pop`, `RightHandToolSelector`, test FA13 | n/a here | (branch) Easy tool selector | (branch) `FA13_slapAndPopTools` | OWNED |
+| SS-24 (§6) | Playing strip Tool selector gains Slap / Pop — "Slap" style segment (thumb slap / finger pop via `RhTool::slap/pop`) | `RhTool::slap/pop` | Easy `RightHandToolSelector` | `FingerstyleAttack.FA13_slapAndPopTools` | DONE |
 | SS-T1 (§7) | Test: thumb slap 60 mm force 0.6 within 1 dB of the bass reference (all trigger paths agree) | | n/a | `SlapWiring.aThumbSlapIsTheSameHoweverItIsFired` | DONE |
 | SS-T2 (§7) | Test: palm slap broadband, < -25 dB pitched | | n/a | `SlapWiring.aPalmSlapIsBroadbandAndPitchless` | DONE |
 | SS-T3 (§7) | Test: body tap < -60 dB on string outputs | | n/a | `SlapWiring.aBodyTapLeavesTheStringsAlone` | DONE |
@@ -37,4 +37,4 @@ The generalised `SlapEngine` is complete here: four slap types, five trigger sou
 | SS-T7 (§7) | Test: CPU idle < 0.05 %, active < 0.6 % | | n/a | `Slap.idleAndActiveStayInBudget` | DONE |
 | SS-T8 (§7) | Test: preset save/restore round-trips every added field | | n/a | `SlapPresets.everySlapFieldRoundTrips` | DONE |
 
-<!-- counts DONE=15 NO-GUI=0 NO-TEST=1 PARTIAL=2 MISSING=0 OWNED=14 -->
+<!-- counts DONE=16 NO-GUI=0 NO-TEST=1 PARTIAL=2 MISSING=0 OWNED=13 -->
