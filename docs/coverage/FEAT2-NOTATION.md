@@ -44,7 +44,7 @@ test against a fixed fixture (this task's ACCEPT criterion).
 | N-8 | notation-export 5 | Toggle visible only when the format box is MusicXML; hidden for ASCII/GP/MIDI | staffNotationToggleIsMusicXmlOnlyAndTakesEffect | verified |
 | N-9 | notation-export 5, gui-integration 19 | Reachable exactly where the rest of notation export already is: Col 4 NOTATION tab and the header's File -> "Export notation..." (`HeaderBar::showFileMenu` -> `NotationTakeExport::writeAsync`) — no new entry point needed, the toggle rides the existing dialog/options plumbing | staffNotationToggleIsMusicXmlOnlyAndTakesEffect (through `NotationPanel::exportTo`, the same path the header menu calls) | verified |
 | N-10 | (ACCEPT criterion) | Fixed `PerformanceScore` fixture (`makeTestScore()`, the same fixture the existing tab-mode tests use) renders to deterministic notation with correct pitches and durations | musicXmlStandardStaffHasCorrectPitchesAndDurations | verified |
-| N-11 | (regression) | Default (`tabStaff`) MusicXML, ASCII tab, Guitar Pro, MIDI, round trips, live-tab window, capture — everything that existed before this task | full `Notation` + `NotationTab` suites | verified (see Decisions: not run in this sandbox, no toolchain) |
+| N-11 | (regression) | Default (`tabStaff`) MusicXML, ASCII tab, Guitar Pro, MIDI, round trips, live-tab window, capture — everything that existed before this task | full `Notation` + `NotationTab` suites: 21 tests, 339 checks, all pass | verified |
 
 ## Decisions
 
@@ -84,10 +84,17 @@ test against a fixed fixture (this task's ACCEPT criterion).
   than a new one. The UI change follows the exact pattern those two options
   use (a widget occupying the same bounds as the other formats' own option,
   shown only for its format) rather than inventing a second pattern.
-- **Build/test not run in this sandbox**: the container this task ran in had
-  no `ThirdParty/JUCE` checkout and no configured `build/` tree.
-  `scripts/setup_linux.sh` was started (clones JUCE 8.0.10 + the CLAP
-  extension, configures Ninja+clang) to build `LuthierTests` and run the
-  `Notation`/`NotationTab` suites per the task's "build incrementally, run
-  relevant suites, do not regress" instruction; if that run surfaces a
-  failure it is not reflected in the "verified" rows above until reconciled.
+- **Build/test**: the container this task ran in started with no
+  `ThirdParty/JUCE` checkout and no configured `build/` tree;
+  `scripts/setup_linux.sh` was run first (clones JUCE 8.0.10 + the CLAP
+  extension, configures Ninja+clang), then `ninja -C build LuthierTests`.
+  Both `Notation` and `NotationTab` (21 tests, 339 checks) pass. The first
+  cut of `staffNotationToggleIsMusicXmlOnlyAndTakesEffect` checked
+  `getStaffNotationButton().isVisible()`, which reads the inner
+  `juce::TextButton`'s own flag, not the `LuthierToggle` wrapper
+  `NotationPanel::updatePreview()` actually calls `setVisible` on; a
+  freshly-constructed button defaults to visible regardless of the
+  wrapper's state, so the check passed for the wrong reason on MusicXML and
+  failed outright on ASCII. Fixed by adding
+  `NotationPanel::isStaffNotationShown()` (reads the wrapper) instead of
+  inferring visibility from the button.

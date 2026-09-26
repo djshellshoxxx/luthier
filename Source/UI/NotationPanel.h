@@ -75,6 +75,7 @@ public:
     juce::Button& getStateButton (CaptureState state) noexcept;
     juce::ComboBox& getFormatBox() noexcept      { return formatBox; }
     juce::Button& getStaffNotationButton() noexcept { return staffNotation->getButton(); }
+    bool isStaffNotationShown() const noexcept { return staffNotation->isVisible(); }
     juce::ComboBox& getBarsBox() noexcept        { return barsBox; }
     juce::ComboBox& getSpeedBox() noexcept       { return speedBox; }
     juce::ComboBox& getQuantiseBox() noexcept    { return quantiseBox; }

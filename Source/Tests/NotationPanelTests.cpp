@@ -126,10 +126,10 @@ LUTHIER_TEST (NotationTab, staffNotationToggleIsMusicXmlOnlyAndTakesEffect)
     panel.refresh();
 
     choose (panel.getFormatBox(), 1 + (int) NotationFormat::asciiTab);
-    CHECK_MSG (! panel.getStaffNotationButton().isVisible(), "shown for a format with no staff to choose");
+    CHECK_MSG (! panel.isStaffNotationShown(), "shown for a format with no staff to choose");
 
     choose (panel.getFormatBox(), 1 + (int) NotationFormat::musicXml);
-    CHECK_MSG (panel.getStaffNotationButton().isVisible(), "hidden for MusicXML, where it belongs");
+    CHECK_MSG (panel.isStaffNotationShown(), "hidden for MusicXML, where it belongs");
 
     const auto folder = juce::File::createTempFile ("notationStaff");
     folder.createDirectory();
