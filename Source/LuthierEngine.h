@@ -513,6 +513,13 @@ public:
     // Live state for the UI. All lock-free reads.
 
     double getStringLevel (int i) const noexcept;
+
+    /** SPEC-SWEEP (character-wear 7 test): the sustain multiplier the note now on
+        string i started with (dead spot x fret wear x nut x slide x parts). */
+    double getNoteSustainScale (int i) const noexcept
+    {
+        return juce::isPositiveAndBelow (i, kMaxStrings) ? noteSustainScale[(size_t) i] : 1.0;
+    }
     double getStringFrequency (int i) const noexcept;
     int    getStringMidiNote (int i) const noexcept;
     double getStringFret (int i) const noexcept;

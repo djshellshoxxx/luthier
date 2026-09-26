@@ -413,7 +413,10 @@ LUTHIER_TEST (CharacterWiring, bodyBreakInLowersTheAirMode)
     alone (character-wear 7). */
 LUTHIER_TEST (CharacterWiring, nutWearShortensOnlyTheOpenString)
 {
-    auto levelAfter = [] (double amount, double fret, int& stringUsed)
+    // character-wear 7: a worn nut slot damps the open string and nothing else.
+    // Read as the sustain multiplier each note starts with, so the rest of the
+    // wear (pickups, saddles, body) cannot stand in for it.
+    auto scaleFor = [] (double amount, double fret, int& stringUsed, double& nutDamping)
     {
         LuthierEngine engine;
         engine.prepare (kSr, kBlock);
@@ -430,12 +433,12 @@ LUTHIER_TEST (CharacterWiring, nutWearShortensOnlyTheOpenString)
             for (int i = 0; i < CharacterEngine::kMaxDeadSpotsPerString; ++i)
                 c.setDeadSpot (s, i, DeadSpot { 7, 0.0, 3.0 });
 
-        // The string whose slot is most worn.
         int best = 0;
         for (int s = 1; s < 6; ++s)
             if (c.getNutDamping (s) > c.getNutDamping (best))
                 best = s;
         stringUsed = best;
+        nutDamping = c.getNutDamping (best);
 
         engine.reset();
 
@@ -448,24 +451,26 @@ LUTHIER_TEST (CharacterWiring, nutWearShortensOnlyTheOpenString)
 
         juce::AudioBuffer<float> buffer (2, kBlock);
         juce::MidiBuffer none;
+        engine.processBlock (buffer, none);
 
-        for (int b = 0; b < (int) (2.0 * kSr / kBlock); ++b)
-        {
-            buffer.clear();
-            engine.processBlock (buffer, none);
-        }
-
-        return engine.getStringLevel (best);
+        return engine.getNoteSustainScale (best);
     };
 
     int s = 0;
-    const double wornOpen = levelAfter (1.0, 0.0, s);
-    const double freshOpen = levelAfter (0.0, 0.0, s);
-    const double wornFretted = levelAfter (1.0, 5.0, s);
-    const double freshFretted = levelAfter (0.0, 5.0, s);
+    double wornNut = 0.0, freshNut = 0.0;
+    const double wornOpen = scaleFor (1.0, 0.0, s, wornNut);
+    const double wornFretted = scaleFor (1.0, 5.0, s, wornNut);
+    const double freshOpen = scaleFor (0.0, 0.0, s, freshNut);
+    const double freshFretted = scaleFor (0.0, 5.0, s, freshNut);
 
-    CHECK_MSG (wornOpen < freshOpen * 0.95,
-               "a worn nut should shorten the open string: " + juce::String (wornOpen, 6) + " vs " + juce::String (freshOpen, 6));
-    CHECK_MSG (std::abs (wornFretted / juce::jmax (1.0e-12, freshFretted) - 1.0) < 0.02,
-               "the nut must not touch a fretted note: " + juce::String (wornFretted, 6) + " vs " + juce::String (freshFretted, 6));
+    CHECK_MSG (wornNut > 0.01, "the seed should wear a nut slot: " + juce::String (wornNut, 4));
+    CHECK_MSG (freshNut == 0.0, "a fresh nut is not worn");
+
+    // The open note loses exactly the nut's share; the fretted note loses nothing to it.
+    const double wornRatio = wornOpen / juce::jmax (1.0e-12, wornFretted);
+    const double freshRatio = freshOpen / juce::jmax (1.0e-12, freshFretted);
+    CHECK_MSG (std::abs (wornRatio / freshRatio - (1.0 - wornNut)) < 0.01,
+               "open/fretted " + juce::String (wornRatio, 4) + " vs fresh " + juce::String (freshRatio, 4)
+               + ", nut damping " + juce::String (wornNut, 4));
 }
+
