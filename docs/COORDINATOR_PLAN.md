@@ -57,3 +57,49 @@ The auditor and beta tester audit and test both Free and Pro:
 - the Pro binary scan.
 
 The CLI easter egg is the last feature. It goes into `v1.0-full` before the fork, so both editions carry it.
+
+## Model policy for helpers (2026-09-26, product owner)
+
+Default split stays: Sonnet for routine gap work, Opus for hard DSP and
+merges, Haiku for docs and text.
+
+**Fable escalation rule.** Escalate a single stuck bug to a short Fable
+helper (`claude-fable-5-1`) only when ALL of these hold:
+
+1. Opus has already made two failed attempts on the *same* bug.
+2. Confidence is medium-to-low that Opus fixes it on its next turn, or the
+   evidence says it will need several more turns first. (If Opus looks
+   likely to land it next turn, stay on Opus — do not escalate.)
+3. The Fable helper is scoped to that one bug with a tight brief.
+4. Once the bug is fixed and verified, work switches back to Opus. Fable is
+   an escalation for the stuck bug only, never the standing model.
+
+Measure each escalation: note the usage meter before and after, and compare
+against what the two Opus attempts used.
+
+## Pro copy protection: strength target (2026-09-26, product owner)
+
+The Pro edition's copy protection is to be as strong as we can reasonably
+make it, layering the standard anti-reverse-engineering hardening already
+listed in Phase 3 (build-time identifier obfuscation, hidden visibility +
+symbol strip + LTO, compile-time string encryption, scattered licence
+checks, anti-tamper integrity checks, the binary leak-scan test) AND at
+least one novel, project-specific mechanism that does not appear in
+off-the-shelf DRM.
+
+Candidate directions for the novel mechanism, to be designed and chosen with
+the product owner when we reach the Pro phase (this is DRM for our own
+commercial product; the design is recorded here, not built yet):
+
+- **DSP-fingerprint gating.** Fold the licence state into the physical
+  model itself, not a separate boolean, so that a bypassed or patched check
+  leaves the audio subtly and progressively wrong (detune drift, damping
+  errors) rather than cleanly unlocked. The correct coefficients are derived
+  from the licence, so a cracked binary that skips the check produces an
+  instrument that measurably misbehaves on the test phrases.
+- Tie that derivation to a per-licence value so a shared/leaked licence is
+  distinguishable, and keep the "unlicensed" path a graceful demo (noise
+  burst / periodic mute) rather than a crash.
+
+Exact licensing model, activation, and offline policy remain Q-L1..Q-L9,
+still to be settled with the product owner before the Pro helper starts.
