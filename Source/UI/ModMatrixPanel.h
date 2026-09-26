@@ -41,12 +41,32 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    static constexpr int preferredHeight = 150;
+    // SPEC-SWEEP: room for the envelope's eight rows (MM-18/19/20).
+    static constexpr int preferredHeight = 200;
+
+    /** SPEC-SWEEP: the controls the source cards gained, for the tests. */
+    struct SweepControls
+    {
+        juce::Slider* phase; juce::Slider* seqRate;
+        juce::ComboBox* envRetrigger; juce::ComboBox* loopMode;
+        juce::ComboBox* attackCurve; juce::ComboBox* decayCurve; juce::ComboBox* releaseCurve;
+        juce::ComboBox* followerString; juce::ToggleButton* followerLog;
+        juce::Slider* rate; juce::Slider* attack; juce::Slider* followerRelease;
+    };
+
+    SweepControls getSweepControls() noexcept
+    {
+        return { &phaseSlider, &seqRateSlider, &envRetriggerBox, &loopModeBox,
+                 &attackCurveBox, &decayCurveBox, &releaseCurveBox,
+                 &followerStringBox, &followerLogButton,
+                 &rateSlider, &attackSlider, &followerReleaseSlider };
+    }
 
 private:
     void timerCallback() override;
     void rebuildControls();
     void pushToSource();
+    void applyRangeLimits();   // SPEC-SWEEP: PR-44
 
     LuthierAudioProcessor& processor;
     int slot = ModSourceSlots::lfoBase;
@@ -57,6 +77,14 @@ private:
     juce::Slider lengthSlider, swingSlider;
     juce::Slider followerAttackSlider, followerReleaseSlider, thresholdSlider;
     juce::ToggleButton syncButton { "Sync" }, bipolarButton { "Bipolar" };
+
+    // SPEC-SWEEP: MM-14 (LFO phase), MM-18/19/20 (envelope curves, retrigger,
+    // loop), MM-23 (free sequencer rate), MM-25 (follower string and log).
+    juce::Slider phaseSlider, seqRateSlider;
+    juce::ComboBox envRetriggerBox, loopModeBox, attackCurveBox, decayCurveBox, releaseCurveBox;
+    juce::ComboBox followerStringBox;
+    juce::ToggleButton followerLogButton { "Log" };
+    bool shownRangeAdvanced = false;   // PR-44: the family state the slider ranges were set for
 
     juce::OwnedArray<juce::Label> labels;
 
@@ -91,7 +119,17 @@ public:
     std::function<void()> onRoutesChanged;
 
 private:
-    enum ColumnId { source = 1, destination, depth, curve, enabled, remove };
+    enum ColumnId { source = 1, destination, depth, curve, enabled, remove,
+                    offset };   // SPEC-SWEEP: MM-40
+
+    /** Types a depth or offset for a row into a call-out editor. */
+    void editValue (int row, bool isOffset, const juce::MouseEvent& e);
+
+public:
+    /** SPEC-SWEEP: MM-40 - the value a typed edit writes, without the call-out. */
+    void applyTypedValue (int row, bool isOffset, float value);
+
+private:
 
     LuthierAudioProcessor& processor;
     juce::TableListBox table;

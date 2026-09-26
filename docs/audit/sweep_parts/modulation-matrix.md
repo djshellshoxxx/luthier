@@ -4,7 +4,7 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
-| MM-1 (§0.1) | Control rate = block/32, min 128 samples, set in prepare — untested | `Modulation/ModMatrix.cpp:ModMatrix::prepare` | n/a | - | NO-TEST |
+| MM-1 (§0.1) | Control rate = block/32, min 128 samples, set in prepare | `Modulation/ModMatrix.cpp:ModMatrix::prepare` | n/a | `Modulation::controlRateIsABlockOver32FlooredAt128` | DONE |
 | MM-2 (§0.2) | Linear interpolation between control ticks — implemented as a one-pole halving step per tick, read once per block by the bridge; not linear, untested | `ModMatrix::processBlock` (currentOffsets += (target-current)*0.5) | n/a | - | PARTIAL |
 | MM-3 (§0.3, §3) | Additive over base, (v*depth+offset)*range, clamped to range | `ModMatrix::apply` | n/a | `Modulation::routeModulatesItsDestination` | DONE |
 | MM-4 (§0.4) | Up to 8 sources per destination | `ModMatrix::addRoute` (kMaxRoutesPerDestination) | Modulate menu disables when full | `Modulation::destinationAcceptsEightSourcesAndNoMore` | DONE |
@@ -17,20 +17,20 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-11 (§1.1) | LFO x8, 8 shapes incl S+H, random smooth, custom | `Modulation/ModSources.cpp:ModLfo` | MOD LFO card `shapeBox` | `Modulation::lfoFrequencyIsAccurate`, `Modulation::sampleAndHoldHoldsForAWholeCycle` | DONE |
 | MM-12 (§1.1) | LFO custom 8-point breakpoint editor — engine only | `ModLfo::setBreakpoint` | - | - | NO-GUI |
 | MM-13 (§1.1) | LFO rate 0.01-40 Hz or tempo-synced 1/32T..8 bars incl dotted/triplet | `ModLfo`, `ModSyncDivision` | MOD LFO card `rateSlider`, `syncButton`, `divisionBox` | `Modulation::syncedLfoFollowsTheHost`, `Modulation::lfoFrequencyIsAccurate` | DONE |
-| MM-14 (§1.1) | LFO phase offset 0-360 — engine only | `ModLfo::setPhaseOffsetDegrees` | - | - | NO-GUI |
+| MM-14 (§1.1) | LFO phase offset 0-360 | `ModLfo::setPhaseOffsetDegrees` | MOD LFO card `phaseSlider` | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
 | MM-15 (§1.1) | LFO depth, symmetry, smoothing 0-500 ms, uni/bipolar — untested | `ModLfo::setDepth/setSymmetry/setSmoothingMs/setBipolar` | MOD LFO card sliders, `bipolarButton` | - | NO-TEST |
 | MM-16 (§1.1) | LFO retrigger free/NoteOn/transport/sync boundary — untested | `ModLfo::Retrigger` | MOD LFO card `retriggerBox` | - | NO-TEST |
 | MM-17 (§1.2) | Envelope x4 DAHDSR, 0-30 s stages, sustain 0-100% | `ModEnvelope` | MOD ENV card sliders | `Modulation::envelopeStageTimesAreAccurate` | DONE |
-| MM-18 (§1.2) | Envelope curve per stage — engine only | `ModEnvelope::setStageCurve` | - | - | NO-GUI |
-| MM-19 (§1.2) | Envelope retrigger legato/always/one-shot — engine only (card's retrigger box is LFO-only) | `ModEnvelope::setRetrigger` | - | - | NO-GUI |
-| MM-20 (§1.2) | Envelope loop mode off/D-S/D-R — engine only | `ModEnvelope::setLoopMode` | - | - | NO-GUI |
+| MM-18 (§1.2) | Envelope curve per stage | `ModEnvelope::setStageCurve` | MOD ENV card attack/decay/release curve combos | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
+| MM-19 (§1.2) | Envelope retrigger legato/always/one-shot | `ModEnvelope::setRetrigger` | MOD ENV card `envRetriggerBox` | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
+| MM-20 (§1.2) | Envelope loop mode off/D-S/D-R | `ModEnvelope::setLoopMode` | MOD ENV card `loopModeBox` | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
 | MM-21 (§1.3) | Step seq x2: length 4-64, grid, 5 directions, swing 0-75% | `ModStepSequencer` | MOD STEP card `lengthSlider`, `divisionBox`, `directionBox`, `swingSlider` | `Modulation::stepSequencerWalksItsSteps` | DONE |
 | MM-22 (§1.3) | Per-step value/gate/slide/probability — no step grid | `ModStepSequencer::setStep` | - | `Modulation::stepSequencerWalksItsSteps` (engine) | NO-GUI |
-| MM-23 (§1.3) | Seq sync to host / tap / internal — host or internal only (no tap), internal rate has no control | `ModStepSequencer::setSynced/setInternalRateHz` | MOD STEP card `syncButton` | - | PARTIAL |
+| MM-23 (§1.3) | Seq sync to host / internal rate (now with a control, saved in the matrix); no tap-tempo option | `ModStepSequencer::setSynced/setInternalRateHz`, `ModMatrix::toVar` "rate" | MOD STEP card `syncButton` + `seqRateSlider` | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | PARTIAL |
 | MM-24 (§1.4) | Followers x2: source main/sidechain/per-string/pickup, attack, release, detection, threshold | `ModEnvelopeFollower` | MOD FOLLOW card `followerSourceBox`, `detectionBox`, sliders | `Modulation::envelopeFollowerTracksLevel` | DONE |
-| MM-25 (§1.4) | Follower per-string index and log/linear output curve — engine only | `ModEnvelopeFollower::setStringIndex/setLogarithmic` | - | - | NO-GUI |
-| MM-26 (§1.5) | Note pitch/velocity/trigger/held/AT/poly-AT sources — only id resolution tested | `ModMatrix` note handling, `ModSourceSlots` 16-21 | MOD source selector / ADD ROUTE menu | `Modulation::sourceIdsResolveBothWays` (ids only) | NO-TEST |
-| MM-27 (§1.6) | Any CC, 14-bit pairs, PB, mod wheel, ch pressure — only id resolution tested | `ModSourceSlots::ccBase/cc14Base/pitchBend...` | MOD source selector | `Modulation::sourceIdsResolveBothWays` (ids only) | NO-TEST |
+| MM-25 (§1.4) | Follower per-string index and log/linear output curve | `ModEnvelopeFollower::setStringIndex/setLogarithmic` | MOD FOLLOW card `followerStringBox` + `Log` toggle | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
+| MM-26 (§1.5) | Note pitch/velocity/trigger/held/AT/poly-AT sources | `ModMatrix` note handling, `ModSourceSlots` 16-21 | MOD source selector / ADD ROUTE menu | `Modulation::noteSourcesFollowNotes` | DONE |
+| MM-27 (§1.6) | Any CC, 14-bit pairs, PB, mod wheel, ch pressure | `ModSourceSlots::ccBase/cc14Base/pitchBend...` | MOD source selector | `Modulation::controllerSourcesFollowMidi` | DONE |
 | MM-28 (§1.7) | 8 macros, named 32-char slots, host params "Macro 1..8" — 6 fixed-function macros + 2 assign, no naming | `Parameters.h:macro_*`, `ModSourceSlots::macroBase` | Easy/Advanced macro knobs | `GuiReach::everyAutomatableParameterHasAVisibleControl` | PARTIAL |
 | MM-29 (§1.7) | Macros assignable to any control and themselves modulatable — untested as such | macro source slots; macro params are destinations | right-click Modulate on macro knobs | - | NO-TEST |
 | MM-30 (§1.8) | Random per-note / per-bar / smooth, seeded | `ModRandomSource` | MOD source selector | `Modulation::randomSourcesAreDeterministic` | DONE |
@@ -43,8 +43,8 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-37 (§3) | Route record {source_id, channel, destination_id, depth, offset, curve, enabled}, interned ids | `ModRoute`, `modSourceSlotForId` | n/a | `Modulation::presetRoundTripIsExact`, `Modulation::sourceIdsResolveBothWays` | DONE |
 | MM-38 (§3) | Curves Linear/Exp/Log/S | `ModCurve` | MOD route table curve cell (click cycles) | `Modulation::curvesPreserveSignAndFixedPoints` | DONE |
 | MM-39 (§3) | Custom(name) curve — `ModCurve` has no custom entry | - | - | - | MISSING |
-| MM-40 (§5) | Route table columns source/destination/depth/offset/curve/enabled/delete — no Offset column | `ModMatrix::setRouteDepth...` | MOD `ModRouteTable` (ColumnId has no offset) | - | NO-GUI |
-| MM-41 (§3) | Enabled toggle per route — untested | `ModRoute::enabled` | MOD `ModRouteTable` "On" column | - | NO-TEST |
+| MM-40 (§5) | Route table columns source/destination/depth/offset/curve/enabled/delete | `ModMatrix::setRouteDepth/setRouteOffset` | MOD `ModRouteTable` (Offset column, typed like depth) | `ModMatrixUi::theRouteTableEditsDepthAndOffset` | DONE |
+| MM-41 (§3) | Enabled toggle per route | `ModRoute::enabled` | MOD `ModRouteTable` "On" column | `Modulation::routeModulatesItsDestination` (disabled route returns to base) | DONE |
 | MM-42 (§5) | MOD tab in Advanced Column 4 | `UI/ModMatrixPanel.cpp` | ADVANCED > MOD tab | `Editor::everyWorkspaceTabSelectsAndPaints` | DONE |
 | MM-43 (§5) | Left-third source pool / right two-thirds table — stacked vertically (documented in ModMatrixPanel.h) | n/a | MOD `ModMatrixPanel::resized` | - | PARTIAL |
 | MM-44 (§5) | Add-route button — untested | `ModMatrix::addRoute` | MOD `ModMatrixPanel::addButton` | - | NO-TEST |
@@ -61,4 +61,4 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-T4 (§8) | Test: 5-option selector changes at 1/5..4/5 | n/a | n/a | `Modulation::discreteDestinationsStepAtBoundaries` | DONE |
 | MM-T5 (§8) | Test: seeded random renders byte-identical | n/a | n/a | `Modulation::randomSourcesAreDeterministic` | DONE |
 
-<!-- counts DONE=20 NO-GUI=8 NO-TEST=11 PARTIAL=10 MISSING=6 OWNED=1 -->
+<!-- counts DONE=29 NO-GUI=2 NO-TEST=8 PARTIAL=11 MISSING=5 OWNED=1 -->

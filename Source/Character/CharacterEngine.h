@@ -158,6 +158,10 @@ public:
 
     void setCapacitorDriftRange (double fraction) noexcept;
 
+    /** SPEC-SWEEP: CW-17 - what the circuit multiplies its tone cap by: the
+        seed's drift, scaled by the master intensity, 1 when character is off. */
+    double getToneCapMultiplier() const noexcept;
+
     /** character-wear 5: off by default, because it will surprise people. */
     void setJackIntermittentEnabled (bool shouldBeEnabled) noexcept
     {
@@ -186,6 +190,12 @@ public:
 
     /** character-wear 7: saddle height variation, in millimetres. */
     double getSaddleHeightOffsetMm (int stringIndex) const noexcept;
+
+    /** SPEC-SWEEP: CW-22 - that height as an intonation offset for a note at
+        `fretPosition`, in cents: a higher saddle is more stretch when fretted,
+        so sharper, growing with the fret (1.5 cents per mm at the 12th, none
+        open). */
+    double getSaddleIntonationCents (int stringIndex, double fretPosition) const noexcept;
 
     void setBoneNut (bool bone) noexcept { boneNut.store (bone, std::memory_order_relaxed); }
     bool isBoneNut() const noexcept { return boneNut.load (std::memory_order_relaxed); }

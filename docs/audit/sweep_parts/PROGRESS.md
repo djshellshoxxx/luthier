@@ -47,6 +47,6 @@ PROGRESS.md is the milestone log and it is stale. It still gives 310 tests, 349 
 | PR-41 (A1) | `UiPreferences` at `Documents/Luthier/config/ui.json`; getters default at the call site | `UI/UiPreferences` | n/a | `Editor::theWorkspaceTabWrapsAndIsRemembered` | DONE |
 | PR-42 (A1) | Mod stress test measures thread CPU time, under 1% of a core | `ModMatrix` | n/a | `Modulation::thousandRouteStressTest` | DONE |
 | PR-43 (Phase 2 / ar 1.0) | Existing params' stock range is their declared range; `RangeRegistry::noteDeclaration` records it (no preset re-maps) | `PhysicalRange.cpp` | n/a | `Ranges::stockMatchesTheDeclaredRange`, `Ranges::wideningPreservesEveryPlainValue` | DONE |
-| PR-44 (Phase 2 / ar 2.1) | `modulation` family works by clamping the mod-source setters to stock unless advanced — `ModLfo::setRateHz` clamps a fixed 0.01-40 Hz and nothing in `Modulation/` reads the family | `Modulation/ModSources.h:109` | Options RANGES (family listed) | - | MISSING |
+| PR-44 (Phase 2 / ar 2.1) | `modulation` family clamps the mod-source setters to stock unless advanced (`Modulation/ModRanges.h`); synced from `setRanges`, preset load and state restore | `ModSources.h` setters, `ModMatrix::setModulationRangeAdvanced` | Options RANGES; MOD tab padlock; source-card sliders follow the pair | `Ranges::modulationSettersClampUnlessAdvanced` | DONE |
 
 <!-- counts DONE=37 NO-GUI=0 NO-TEST=0 PARTIAL=3 MISSING=2 OWNED=2 -->

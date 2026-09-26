@@ -128,6 +128,10 @@ double BodyModels::getBracingStiffness (Bracing b) noexcept
 //==============================================================================
 double BodyModels::computeAirResonance (const BodyConfig& cfg) noexcept
 {
+    // SPEC-SWEEP: PA-14 - a Workshop body's chambering states its air mode.
+    if (cfg.airHzOverride > 0.0)
+        return juce::jlimit (40.0, 400.0, cfg.airHzOverride);
+
     const auto& shape = getShape (cfg.shape);
 
     const double holeMm = shape.soundHoleMm * juce::jlimit (0.2, 2.0, cfg.soundHoleScale);
@@ -220,8 +224,13 @@ void BodyModels::buildModes (const BodyConfig& cfg, std::vector<BodyMode>& dest)
         // The Helmholtz mode and the top's fundamental couple into a pair split
         // either side of the uncoupled frequencies; this is the classic guitar
         // "double resonance" in the low end.
-        addMode (airHz, 16.0 * ageQ, 1.00, true);
-        addMode (airHz * 1.62, 22.0 * ageQ, 0.42, true);
+        // SPEC-SWEEP: PA-14 - an override is the final frequency, so undo the
+        // trim addMode applies; its Q replaces the Helmholtz mode's.
+        const double airBase = cfg.airHzOverride > 0.0 ? airHz / juce::jmax (0.1, cfg.resonanceTrim) : airHz;
+        const double airQ = cfg.airQOverride > 0.0 ? cfg.airQOverride : 16.0;
+
+        addMode (airBase, airQ * ageQ, 1.00, true);
+        addMode (airBase * 1.62, 22.0 * ageQ, 0.42, true);
 
         // Long-air mode running the length of the box.
         const double lengthM = shape.lowerBoutMm * 0.0016 * widthScale;
@@ -237,6 +246,11 @@ void BodyModels::buildModes (const BodyConfig& cfg, std::vector<BodyMode>& dest)
 
     // ---- 2. Top plate modes --------------------------------------------------
     const int topModeCount = shape.acoustic ? 10 : 5;
+    const size_t firstTopMode = dest.size();
+
+    // SPEC-SWEEP: PA-56 - a thick finish damps the top: Q x0.92 at -0.5 dB.
+    const double finish = juce::jlimit (-3.0, 0.0, cfg.topDampingDb);
+    const double finishQ = 1.0 + 0.16 * finish;
 
     for (int i = 0; i < topModeCount; ++i)
     {
@@ -246,13 +260,15 @@ void BodyModels::buildModes (const BodyConfig& cfg, std::vector<BodyMode>& dest)
 
         // Q from the wood's loss factor: less internal damping means a longer,
         // more singing resonance.
-        const double q = (1.0 / juce::jmax (1.0e-4, topWood.lossFactor)) * 0.42 * ageQ;
+        const double q = (1.0 / juce::jmax (1.0e-4, topWood.lossFactor)) * 0.42 * ageQ * finishQ;
 
         // Higher modes radiate less efficiently.
         const double gain = 0.95 / (1.0 + 0.55 * (double) i);
 
         addMode (f, q, gain);
     }
+
+    const size_t endTopMode = dest.size();
 
     // ---- 3. Back plate modes -------------------------------------------------
     const int backModeCount = shape.acoustic ? 7 : 3;
@@ -314,6 +330,20 @@ void BodyModels::buildModes (const BodyConfig& cfg, std::vector<BodyMode>& dest)
 
         for (auto& m : dest)
             m.gain *= norm;
+    }
+
+    // SPEC-SWEEP: PA-56 and PA-15, after the normalisation so they are heard:
+    // the finish's loss on the top modes, then chambering's gain on them all.
+    if (finish < 0.0)
+        for (size_t i = firstTopMode; i < endTopMode; ++i)
+            dest[i].gain *= dbToGain (finish);
+
+    if (cfg.modeGainDb != 0.0)
+    {
+        const double g = dbToGain (juce::jlimit (-24.0, 24.0, cfg.modeGainDb));
+
+        for (auto& m : dest)
+            m.gain *= g;
     }
 }
 

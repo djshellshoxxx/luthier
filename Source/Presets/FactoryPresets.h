@@ -51,6 +51,14 @@ public:
     /** Called once at startup by the processor so writeAll has ranges to work with. */
     static void setProcessorForRanges (const juce::AudioProcessor* processor) noexcept;
 
+    /** SPEC-SWEEP: a processor going away stops being the range source, so the
+        next one's PresetManager does not read a dangling pointer. */
+    static void forgetProcessorForRanges (const juce::AudioProcessor* processor) noexcept
+    {
+        if (rangeSource == processor)
+            rangeSource = nullptr;
+    }
+
 private:
     static const juce::AudioProcessor* rangeSource;
 };

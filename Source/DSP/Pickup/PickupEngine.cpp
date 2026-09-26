@@ -223,6 +223,12 @@ void PickupEngine::setPickupVolume (int slot, double linearGain) noexcept
     }
 }
 
+void PickupEngine::setStringBalance (int slot, int stringIndex, double linearGain) noexcept
+{
+    if (juce::isPositiveAndBelow (slot, kMaxPickups) && juce::isPositiveAndBelow (stringIndex, kMaxStrings))
+        stringBalanceDelta[(size_t) slot][(size_t) stringIndex] = juce::jlimit (0.25, 4.0, linearGain) - 1.0;
+}
+
 void PickupEngine::setBlend (double blend) noexcept
 {
     blendAmount.setTarget (juce::jlimit (0.0, 1.0, blend));
@@ -459,9 +465,33 @@ double PickupEngine::processStrings (const double* stringOutputs,
 
     double total = 0.0;
 
+    // SPEC-SWEEP: SP-17 / ISS-2 - the blend knob pans between the two outermost
+    // switched-in pickups (0 = the bridge-side one, 1 = the neck-side one). It is
+    // a centre-detent blend: at 0.5 both are at full level, so the default
+    // leaves every switch position as it was; with one pickup selected it does
+    // nothing.
+    const double blend = blendAmount.next();
+    int lowSlot = -1, highSlot = -1;
+
     for (int slot = 0; slot < numPickups; ++slot)
     {
-        const double g = slotGain[(size_t) slot].next();
+        if (slotOn[(size_t) slot])
+        {
+            if (lowSlot < 0) lowSlot = slot;
+            highSlot = slot;
+        }
+    }
+
+    const bool blending = lowSlot >= 0 && highSlot > lowSlot;
+    const double lowWeight  = blending ? juce::jmin (1.0, 2.0 * (1.0 - blend)) : 1.0;
+    const double highWeight = blending ? juce::jmin (1.0, 2.0 * blend) : 1.0;
+
+    for (int slot = 0; slot < numPickups; ++slot)
+    {
+        double g = slotGain[(size_t) slot].next();
+
+        if (slot == lowSlot)  g *= lowWeight;
+        if (slot == highSlot) g *= highWeight;
 
         if (g <= 1.0e-6)
             continue;
@@ -486,17 +516,20 @@ double PickupEngine::processStrings (const double* stringOutputs,
 
             double coilSum = 0.0;
 
+            // SPEC-SWEEP: CW-20 - each string's pole balance in this pickup.
             if (anyApertureGain)
             {
                 // string-interaction.md 5: a bent string's aperture gain.
                 for (int s = 0; s < n; ++s)
                     coilSum += apertureGain[(size_t) slot][(size_t) s]
-                                 * combSample (coil, s, stringOutputs[s], delaySamples[s] * pos);
+                                 * combSample (coil, s, stringOutputs[s], delaySamples[s] * pos)
+                                 * (1.0 + stringBalanceDelta[(size_t) slot][(size_t) s]);
             }
             else
             {
                 for (int s = 0; s < n; ++s)
-                    coilSum += combSample (coil, s, stringOutputs[s], delaySamples[s] * pos);
+                    coilSum += combSample (coil, s, stringOutputs[s], delaySamples[s] * pos)
+                                 * (1.0 + stringBalanceDelta[(size_t) slot][(size_t) s]);
             }
 
             // The electrical stage runs once per coil on its summed string signal,

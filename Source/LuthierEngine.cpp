@@ -123,6 +123,9 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     stringSumBuffer.assign ((size_t) maxBlock, 0.0);
     noiseBuffer.assign ((size_t) maxBlock, 0.0);
     magneticBuffer.assign ((size_t) maxBlock, 0.0);
+    piezoSumBuffer.assign ((size_t) maxBlock, 0.0);   // SPEC-SWEEP: CW-19
+    saddleGain.fill (1.0);
+    jackRampCoeff = 1.0 - std::exp (-1.0 / (0.003 * sr));   // SPEC-SWEEP: CW-18, 2-5 ms ramps
     instrumentBuffer.assign ((size_t) maxBlock, 0.0);
     preCircuitBuffer.assign ((size_t) maxBlock, 0.0);   // MODEL-GAPS: Aux 1 pre-circuit
     bodyBuffer.setSize (1, maxBlock, false, true, true);
@@ -219,6 +222,7 @@ void LuthierEngine::reset() noexcept
     // tuning.reset() zeroes each string's character drift; this cache of what
     // was last sent must agree, or an unchanged drift is never re-applied.
     lastAppliedDrift.fill (0.0);
+    jackGainNow = 1.0;   // SPEC-SWEEP: CW-18
 
     // Articulation state has to go back to its initial value too. Without this a
     // reset leaves the last note's fret position and string assignment behind, so
@@ -263,6 +267,7 @@ void LuthierEngine::releaseResources()
 {
     stringSumBuffer.clear();
     magneticBuffer.clear();
+    piezoSumBuffer.clear();
     instrumentBuffer.clear();
     preCircuitBuffer.clear();
     bodyBuffer.setSize (0, 0);
@@ -1302,7 +1307,10 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         str.setSustainScale (noteSustainScale[(size_t) s]);
 
         // A worn crown alters the effective string length by a few cents.
-        const double detune = character.getFretDetuneCents (fret);
+        // SPEC-SWEEP: CW-22 - and the saddle's height variation moves the
+        // fretted intonation (character-wear 7).
+        const double detune = character.getFretDetuneCents (fret)
+                              + character.getSaddleIntonationCents (s, fret);
 
         if (detune != 0.0)
             str.setTargetFrequency (e.pitchHz * std::pow (2.0, detune / 1200.0));
@@ -1918,7 +1926,13 @@ void LuthierEngine::advanceRealism (int numSamples) noexcept
     // body-coupling.md 3 and environment.md 4: the same scaling reaches the
     // radiated body and the bank.
     const auto scaling = getBodyCouplingScaling();
-    body.setRuntimeScaling (scaling.plateFreq, scaling.airFreq, scaling.q, scaling.airQ);
+    // SPEC-SWEEP: CW-24 - character-wear 8's body break-in rides on the same
+    // scaling: the air mode drops and the plate Qs rise with body age.
+    body.setRuntimeScaling (scaling.plateFreq,
+                            scaling.airFreq * character.getAirResonanceMultiplier(),
+                            // damping falls as HF damping does: loss is 1/Q
+                            scaling.q * character.getBodyQMultiplier() / character.getBodyHfDampingMultiplier(),
+                            scaling.airQ);
     bodyCoupling.setScaling (scaling);
     bodyCoupling.beginBlock();
 
@@ -2048,6 +2062,13 @@ CircuitComponents LuthierEngine::getLiveCircuitComponents() const noexcept
         parts.coilResistance = coil.resistance;
         parts.coilCapacitance = coil.capacitance;
     }
+
+    // SPEC-SWEEP: CW-16 / CW-17 - character-wear 5's aged electronics: the
+    // volume pot's worn track bends the knob-to-wiper law (still pinned at 0
+    // and 1), and the tone cap is not quite its marked value. Both neutral
+    // with character off.
+    parts.volume = character.applyPotTaper (parts.volume);
+    parts.toneCap *= character.getToneCapMultiplier();
 
     return parts;
 }
@@ -2382,6 +2403,17 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         }
     }
 
+    // SPEC-SWEEP: CW-19 / CW-20 - per-saddle piezo balance and per-string,
+    // per-pickup pole balance (character-wear 5 and 6). Zero dB, so unity,
+    // when character is off.
+    for (int s = 0; s < numStrings; ++s)
+    {
+        saddleGain[(size_t) s] = dbToGain (character.getSaddleBalanceDb (s));
+
+        for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
+            pickups.setStringBalance (slot, s, dbToGain (character.getPickupBalanceDb (s, slot)));
+    }
+
     // ---- 0. sidechain --------------------------------------------------------
     // The envelope runs whether or not anything is listening: it is a modulation
     // source, and a source that only updates when someone looks at it would lag.
@@ -2608,16 +2640,21 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     // A fretless neck has nothing to buzz against.
     if (! fretless)
     {
-        std::array<double, kMaxStrings> levels {}, fundamentals {};
+        std::array<double, kMaxStrings> levels {}, fundamentals {}, wear {};
 
         for (int s = 0; s < numStrings; ++s)
         {
             levels[(size_t) s] = strings[(size_t) s].getLevel();
             fundamentals[(size_t) s] = strings[(size_t) s].getCurrentFrequency();
+
+            // SPEC-SWEEP: CW-12 - a worn fret under the finger buzzes sooner;
+            // under a slide no fret is touched.
+            wear[(size_t) s] = (currentFret[(size_t) s] > 0.0 && ! slide.isUnderBar (s))
+                                 ? character.getFretBuzzMultiplier (currentFret[(size_t) s]) : 1.0;
         }
 
         fretBuzzModel.process (playingNoise.getPool(), levels.data(), currentFret.data(),
-                               fundamentals.data(), numStrings, pluckPosition);
+                               fundamentals.data(), numStrings, pluckPosition, wear.data());
     }
 
     for (int i = 0; i < numSamples; ++i)
@@ -2674,6 +2711,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         noiseBuffer[(size_t) i] += bodyDrive;
 
         double sum = 0.0;
+        double piezoSum = 0.0;   // SPEC-SWEEP: CW-19
 
         for (int s = 0; s < numStrings; ++s)
         {
@@ -2712,6 +2750,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             stringDelays[(size_t) s] = strings[(size_t) s].getCurrentDelaySamples();
 
             sum += out;
+            piezoSum += out * saddleGain[(size_t) s];   // SPEC-SWEEP: CW-19, the saddle under this string
         }
 
         // Per-string outputs (routing-io 3). Taken here, before the body, which
@@ -2724,11 +2763,15 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         // Normalise by string count so a 12-string is not twice as loud as a 6.
         sum *= 1.0 / std::sqrt ((double) juce::jmax (1, numStrings));
+        piezoSum *= 1.0 / std::sqrt ((double) juce::jmax (1, numStrings));
 
         // Whammy spring noise rides on the instrument bus, not the strings.
-        sum += whammy.processSpringNoise();
+        const double springNoise = whammy.processSpringNoise();
+        sum += springNoise;
+        piezoSum += springNoise;
 
         stringSumBuffer[(size_t) i] = sanitise (sum);
+        piezoSumBuffer[(size_t) i] = sanitise (piezoSum);
 
         if (i < (int) feedbackInjection.size())
             feedbackInjection[(size_t) i] = fbSum;
@@ -2776,6 +2819,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     const bool diPreCircuit = auxDiPreCircuit.load (std::memory_order_relaxed) && taps.isAuxWanted (AuxBus::di);
 
     double blockPeak = 0.0;
+    const double jackTarget = character.getJackGain();   // SPEC-SWEEP: CW-18, advanced at the block's start
 
     for (int i = 0; i < numSamples; ++i)
     {
@@ -2785,7 +2829,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         {
             // Piezo senses the bridge (the raw string sum); the internal mic hears
             // the body. The blend between them is the acoustic-electric sound.
-            const double piezo = pickups.processPiezo (stringSumBuffer[(size_t) i]);
+            const double piezo = pickups.processPiezo (piezoSumBuffer[(size_t) i]);   // SPEC-SWEEP: CW-19
             const double mic = pickups.processInternalMic ((double) bodyData[i]);
             instrument = piezo * (1.0 - micBlend) + mic * micBlend;
         }
@@ -2808,6 +2852,19 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             instrument += noiseFloor.circuitInSample (i);
 
         instrument = circuit.process (instrument);
+
+        // SPEC-SWEEP: CW-18 - the intermittent output jack (character-wear 5,
+        // off by default): a 20-100 ms drop, ramped over a few ms so it is a
+        // dropout and not a click. Exactly unity while nothing is happening.
+        if (jackGainNow != 1.0 || jackTarget != 1.0)
+        {
+            jackGainNow += (jackTarget - jackGainNow) * jackRampCoeff;
+
+            if (std::abs (jackGainNow - jackTarget) < 1.0e-7)
+                jackGainNow = jackTarget;
+
+            instrument *= jackGainNow;
+        }
 
         if (noiseFloorOn)
             instrument += noiseFloor.diSample (i);

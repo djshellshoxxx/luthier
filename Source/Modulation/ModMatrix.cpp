@@ -317,6 +317,20 @@ void ModMatrix::reset() noexcept
     samplesUntilTick = 0;
 }
 
+// SPEC-SWEEP: PR-44 / AR-15 - advanced-ranges.md 2.1.
+int ModMatrix::setModulationRangeAdvanced (bool advanced) noexcept
+{
+    modulationAdvanced = advanced;
+    int clamped = 0;
+
+    for (auto& l : lfos)       clamped += l.setAdvancedRange (advanced);
+    for (auto& e : envelopes)  clamped += e.setAdvancedRange (advanced);
+    for (auto& s : sequencers) clamped += s.setAdvancedRange (advanced);
+    for (auto& f : followers)  clamped += f.setAdvancedRange (advanced);
+
+    return clamped;
+}
+
 void ModMatrix::releaseResources()
 {
     destinations.clear();
@@ -838,6 +852,7 @@ void ModMatrix::applySourceEdit (const ModSourceEdit& e) noexcept
             lfo.setBipolar (e.lfoBipolar);
             lfo.setSyncDivision ((ModSyncDivision) juce::jmax (0, e.lfoDivision));
             lfo.setRetrigger ((ModLfo::Retrigger) juce::jmax (0, e.lfoRetrigger));
+            lfo.setPhaseOffsetDegrees (e.lfoPhaseDegrees);   // SPEC-SWEEP: MM-14
             break;
         }
 
@@ -850,6 +865,12 @@ void ModMatrix::applySourceEdit (const ModSourceEdit& e) noexcept
             env.setDecaySeconds (e.envDecay);
             env.setSustainLevel (e.envSustain);
             env.setReleaseSeconds (e.envRelease);
+            // SPEC-SWEEP: MM-18 / MM-19 / MM-20.
+            env.setRetrigger ((ModEnvelope::Retrigger) juce::jlimit (0, 2, e.envRetrigger));
+            env.setLoopMode ((ModEnvelope::LoopMode) juce::jlimit (0, 2, e.envLoopMode));
+            env.setStageCurve (ModEnvelope::Stage::attack,  (ModCurve) juce::jmax (0, e.envAttackCurve));
+            env.setStageCurve (ModEnvelope::Stage::decay,   (ModCurve) juce::jmax (0, e.envDecayCurve));
+            env.setStageCurve (ModEnvelope::Stage::release, (ModCurve) juce::jmax (0, e.envReleaseCurve));
             break;
         }
 
@@ -861,6 +882,7 @@ void ModMatrix::applySourceEdit (const ModSourceEdit& e) noexcept
             seq.setDirection ((ModStepSequencer::Direction) juce::jmax (0, e.seqDirection));
             seq.setDivision ((ModSyncDivision) juce::jmax (0, e.seqDivision));
             seq.setSynced (e.seqSynced);
+            seq.setInternalRateHz (e.seqInternalRateHz);   // SPEC-SWEEP: MM-23
             break;
         }
 
@@ -872,6 +894,8 @@ void ModMatrix::applySourceEdit (const ModSourceEdit& e) noexcept
             follower.setAttackMs (e.followerAttackMs);
             follower.setReleaseMs (e.followerReleaseMs);
             follower.setThreshold (e.followerThreshold);
+            follower.setStringIndex (e.followerString);   // SPEC-SWEEP: MM-25
+            follower.setLogarithmic (e.followerLogarithmic);
             break;
         }
 
@@ -1102,6 +1126,7 @@ juce::var ModMatrix::toVar() const
         o->setProperty ("direction", (int) s.getDirection());
         o->setProperty ("swing", s.getSwing());
         o->setProperty ("sync", s.isSynced());
+        o->setProperty ("rate", s.getInternalRateHz());   // SPEC-SWEEP: MM-23
 
         juce::Array<juce::var> stepArray;
 
@@ -1219,6 +1244,10 @@ void ModMatrix::fromVar (const juce::var& state)
                 s.setDirection ((ModStepSequencer::Direction) juce::jlimit (0, 4, (int) o->getProperty ("direction")));
                 s.setSwing ((double) o->getProperty ("swing"));
                 s.setSynced ((bool) o->getProperty ("sync"));
+
+                // SPEC-SWEEP: MM-23 - the free-running rate travels too.
+                if (o->hasProperty ("rate"))
+                    s.setInternalRateHz ((double) o->getProperty ("rate"));
 
                 if (auto* stepArray = o->getProperty ("steps").getArray())
                 {

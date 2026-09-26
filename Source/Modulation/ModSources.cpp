@@ -649,13 +649,13 @@ void ModEnvelopeFollower::reset() noexcept
 
 void ModEnvelopeFollower::setAttackMs (double ms) noexcept
 {
-    attackMs = juce::jlimit (0.1, 500.0, ms);
+    attackMs = ModRanges::followerMs (advancedRange).clamp (ms);   // SPEC-SWEEP: PR-44
     attackCoeff = std::exp (-1.0 / juce::jmax (1.0e-6, attackMs * 0.001 * controlRate));
 }
 
 void ModEnvelopeFollower::setReleaseMs (double ms) noexcept
 {
-    releaseMs = juce::jlimit (1.0, 5000.0, ms);
+    releaseMs = ModRanges::followerMs (advancedRange).clamp (ms);   // SPEC-SWEEP: PR-44
     releaseCoeff = std::exp (-1.0 / juce::jmax (1.0e-6, releaseMs * 0.001 * controlRate));
 }
 

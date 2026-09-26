@@ -155,7 +155,8 @@ double FretBuzz::levelFor (double excessMm) const noexcept
 }
 
 void FretBuzz::process (NoiseEngine& pool, const double* levels, const double* fretted,
-                        const double* fundamentalHz, int numStrings, double pluckPosition) noexcept
+                        const double* fundamentalHz, int numStrings, double pluckPosition,
+                        const double* wearMultiplier) noexcept
 {
     const int strings = juce::jmin (numStrings, SetupGeometry::kMaxStrings);
 
@@ -163,6 +164,10 @@ void FretBuzz::process (NoiseEngine& pool, const double* levels, const double* f
     {
         const double level = levels[s];
         auto contact = sense (s, fretted[s], level, pluckPosition);
+
+        // SPEC-SWEEP: CW-12 - the worn fret under the finger (character-wear 3).
+        if (wearMultiplier != nullptr && wearMultiplier[s] > 1.0 && contact.fret >= 0)
+            contact.excessMm += (wearMultiplier[s] - 1.0) * kWearClearanceMm;
 
         // The heatmap sees every fret, not only the worst one.
         {

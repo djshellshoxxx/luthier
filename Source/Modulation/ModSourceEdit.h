@@ -26,18 +26,23 @@ struct ModSourceEdit
     int lfoShape = 0, lfoDivision = 0, lfoRetrigger = 0;
     double lfoRateHz = 1.0, lfoDepth = 1.0, lfoSymmetry = 0.5, lfoSmoothingMs = 0.0;
     bool lfoSynced = false, lfoBipolar = true;
+    double lfoPhaseDegrees = 0.0;   // SPEC-SWEEP: MM-14
 
     // Envelope
     double envDelay = 0.0, envAttack = 0.01, envHold = 0.0, envDecay = 0.2, envSustain = 0.7, envRelease = 0.3;
+    int envRetrigger = 0, envLoopMode = 0, envAttackCurve = 0, envDecayCurve = 0, envReleaseCurve = 0;   // SPEC-SWEEP: MM-18/19/20
 
     // Sequencer
     int seqLength = 16, seqDirection = 0, seqDivision = 0;
     double seqSwing = 0.0;
     bool seqSynced = true;
+    double seqInternalRateHz = 2.0;   // SPEC-SWEEP: MM-23
 
     // Follower
     int followerSource = 0, followerDetection = 0;
     double followerAttackMs = 5.0, followerReleaseMs = 100.0, followerThreshold = 0.0;
+    int followerString = 0;          // SPEC-SWEEP: MM-25
+    bool followerLogarithmic = false;
 };
 
 } // namespace luthier
