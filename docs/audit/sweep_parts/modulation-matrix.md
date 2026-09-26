@@ -38,7 +38,7 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-32 (§2) | Per-string destinations (tuning cents, damping, pluck...) — per-string values are not parameters | - | - | - | MISSING |
 | MM-33 (§2) | Rhythm-engine destinations (density, hand position, humanize) — only `hum_*` exist as params; density/hand position are not | `RhythmEngine::setVoicingDensity` (not a param) | - | - | PARTIAL |
 | MM-34 (§2) | Master volume, output pan — `master_gain` yes, no pan parameter | `Parameters.h:master_gain`, `stereo_width` | - | - | PARTIAL |
-| MM-35 (§2) | Snapshot morph position as destination — not a parameter (`preset_morph_position` is the preset morph) | `SnapshotBank::setMorphPosition` | - | - | MISSING |
+| MM-35 (§2) | Snapshot morph position as destination — the ui sweep made it the `snapshot_morph` parameter (LP-16), read through `ModMatrix::apply` | `LuthierAudioProcessor` snapshot-morph update, `SnapshotBank::setMorphPosition` | LIVE strip morph slider | `LiveSnapshots::aModSourceOnTheMorphParameterSweepsTheMorph` | DONE |
 | MM-36 (§2, §4) | Discrete destinations step at integer boundaries; bypass at 0.5 | `ModMatrix::apply` discrete branch | n/a | `Modulation::discreteDestinationsStepAtBoundaries`, `Modulation::aRouteAtZeroLeavesEveryChoiceWhereItIs` | DONE |
 | MM-37 (§3) | Route record {source_id, channel, destination_id, depth, offset, curve, enabled}, interned ids | `ModRoute`, `modSourceSlotForId` | n/a | `Modulation::presetRoundTripIsExact`, `Modulation::sourceIdsResolveBothWays` | DONE |
 | MM-38 (§3) | Curves Linear/Exp/Log/S | `ModCurve` | MOD route table curve cell (click cycles) | `Modulation::curvesPreserveSignAndFixedPoints` | DONE |
@@ -61,4 +61,4 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-T4 (§8) | Test: 5-option selector changes at 1/5..4/5 | n/a | n/a | `Modulation::discreteDestinationsStepAtBoundaries` | DONE |
 | MM-T5 (§8) | Test: seeded random renders byte-identical | n/a | n/a | `Modulation::randomSourcesAreDeterministic` | DONE |
 
-<!-- counts DONE=40 NO-GUI=0 NO-TEST=3 PARTIAL=8 MISSING=4 OWNED=1 -->
+<!-- counts DONE=41 NO-GUI=0 NO-TEST=3 PARTIAL=8 MISSING=3 OWNED=1 -->
