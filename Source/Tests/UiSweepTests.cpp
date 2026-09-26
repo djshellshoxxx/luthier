@@ -1034,3 +1034,33 @@ LUTHIER_TEST (Editor, illustrationClicksSelectPickupAndStepSwitch)
 
     CHECK_MSG (moved, "no drag on the illustration's controls moved volume or tone");
 }
+
+/*  KS-14: Ctrl+Shift+E on a guitar edited since it was loaded has no file to
+    show, and says so in a banner rather than opening the wrong folder. */
+LUTHIER_TEST (Editor, guitarFileShortcuts)
+{
+    EditorFixture f;
+    auto* editor = dynamic_cast<LuthierAudioProcessorEditor*> (f.editor.get());
+    CHECK (editor != nullptr);
+
+    if (editor == nullptr)
+        return;
+
+    // Edit the guitar: a different bridge from the library.
+    auto& library = f.processor.getPartLibrary();
+    const auto current = f.processor.getCurrentGuitar().get (GuitarSlot::bridge);
+
+    for (const auto& part : library.getParts (getSlotPartType (GuitarSlot::bridge)))
+        if (current == nullptr || part->name != current->name)
+        {
+            f.processor.getBench().fit (GuitarSlot::bridge, part);
+            break;
+        }
+
+    CHECK (f.processor.isGuitarEdited());
+
+    editor->getNotifications().clear();
+    CHECK (f.press (shortcutFor ("revealGuitar")));
+    CHECK_MSG (editor->getNotifications().getCurrentId() == "reveal-guitar",
+               "the banner was '" + editor->getNotifications().getCurrentId() + "'");
+}

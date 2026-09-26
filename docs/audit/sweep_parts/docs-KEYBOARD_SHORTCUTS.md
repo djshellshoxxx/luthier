@@ -17,7 +17,7 @@ Every binding the doc lists exists in `AccessibilitySettings` with the documente
 | KS-11 (Presets) | PageUp/PageDown previous/next setlist entry | `keyPressed setlistPrevious/Next` -> `Setlist::next/previous` | n/a | `Editor::pageKeysStepTheSetlist` | DONE |
 | KS-12 (File) | Ctrl+O browser, Ctrl+Shift+S Save As, Ctrl+E export, Ctrl+, Options, Ctrl+D debug | `keyPressed presetBrowser/saveAs/export/options/debugPanel` | overlays | `Editor::everyOverlayShortcutOpens...`, `GuiReach::everyAutomatableParameterHasAVisibleControl` walk | DONE |
 | KS-13 (File) | Ctrl+S saves current preset (falls back to Save As) | `keyPressed "save"` -> `PresetManager::saveCurrent` | n/a | - | NO-TEST |
-| KS-14 (File) | Ctrl+G save guitar as .luthierguitar; Ctrl+Shift+E reveal guitar file | `keyPressed saveGuitarAs/revealGuitar`, `showSaveGuitarDialog` | dialog | - — `WorkshopPreset` tests call `saveGuitarAs` directly, not the key | NO-TEST |
+| KS-14 (File) | Ctrl+G save guitar as .luthierguitar; Ctrl+Shift+E reveal guitar file | `keyPressed saveGuitarAs/revealGuitar`, `showSaveGuitarDialog` | dialog | `Editor::guitarFileShortcuts` (Ctrl+Shift+E on an edited guitar) | PARTIAL |
 | KS-15 (File) | Ctrl+L arm MIDI Learn then click a control | `keyPressed midiLearnArm` -> `setMidiLearnArmed`, `MidiLearnArmLayer` | overlay layer | `Editor::ctrlLArmsMidiLearn` | DONE |
 | KS-16 (File) | Ctrl+Z / Ctrl+Shift+Z undo/redo | `keyPressed undo/redo` -> `processor.undo/redo` | n/a | `Editor::undoRedoAndABKeysReachTheProcessor` | DONE |
 | KS-17 (File) | Ctrl+R randomise, Ctrl+Shift+R reset everything, Ctrl+/ A/B | `keyPressed randomise/resetAll/abCompare` | n/a | `Editor::randomiseAndResetKeys`, `Editor::undoRedoAndABKeysReachTheProcessor` | DONE |
