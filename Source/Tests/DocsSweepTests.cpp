@@ -1292,3 +1292,55 @@ LUTHIER_TEST (RangesUi, theMasterToggleClearsPerControlUnlocks)
         page.setAllFamilies (false);
     }
 }
+
+//==============================================================================
+/*  USER_MANUAL UM-13, PROGRESS PR-40: Live Mode from the keyboard lights the
+    header's Live pill and locks the Easy/Advanced switch - the header button is
+    disabled and says why, and the Tab shortcut is refused too. */
+LUTHIER_TEST (Editor, liveModeFromTheKeyboardLocksTheModeSwitch)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSweepSr, kSweepBlock);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    editor->setVisible (true);
+    editor->setSize (LuthierAudioProcessorEditor::defaultWidth, LuthierAudioProcessorEditor::defaultHeight);
+
+    auto* header = findFirstChild<HeaderBar> (*editor);
+    CHECK (header != nullptr);
+
+    if (header == nullptr)
+        return;
+
+    auto key = [] (const char* action)
+    {
+        const auto* binding = AccessibilitySettings::get().findShortcut (action);
+        return binding != nullptr ? binding->key : juce::KeyPress();
+    };
+
+    auto* mode = dynamic_cast<juce::Button*> (header->getTourTarget ("mode"));
+    CHECK (mode != nullptr);
+
+    const bool advancedBefore = processor.getUiState().advancedMode;
+
+    CHECK (editor->keyPressed (key ("toggleLiveMode")));
+    CHECK (processor.isLiveMode());
+
+    if (mode != nullptr)
+    {
+        CHECK_MSG (! mode->isEnabled(), "the Easy/Advanced switch is not locked in Live Mode");
+        CHECK (mode->getTooltip().containsIgnoreCase ("Live Mode"));
+    }
+
+    CHECK (editor->keyPressed (key ("toggleAdvanced")));
+    CHECK_MSG (processor.getUiState().advancedMode == advancedBefore, "Tab changed the mode in Live Mode");
+
+    CHECK (editor->keyPressed (key ("toggleLiveMode")));
+    CHECK (! processor.isLiveMode());
+
+    if (mode != nullptr)
+        CHECK (mode->isEnabled());
+
+    CHECK (editor->keyPressed (key ("toggleAdvanced")));
+    CHECK (processor.getUiState().advancedMode != advancedBefore);
+}

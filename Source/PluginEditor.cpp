@@ -662,6 +662,14 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
     if (is ("toggleAdvanced"))
     {
+        // SPEC-SWEEP (USER_MANUAL UM-13 / PROGRESS PR-40): the mode switch is
+        // locked while Live Mode is on, from the keyboard as from the header.
+        if (processor.isLiveMode())
+        {
+            inlineNotice.show ("Easy / Advanced is locked while Live Mode is on", InlineNotice::Level::info);
+            return true;
+        }
+
         setAdvancedMode (! advancedMode);
         header.setAdvancedMode (advancedMode);
         return true;

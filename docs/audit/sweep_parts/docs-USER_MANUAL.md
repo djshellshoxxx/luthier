@@ -16,7 +16,7 @@ Most of the manual is accurate: the header, the File menu, Advanced columns 1-3,
 | UM-10 (Header) | Panic stops every string | `processor.panic` | `HeaderBar::panicButton` | `Engine::panicSilencesEverything` | DONE |
 | UM-11 (Header, MIDI Learn) | Learn arms, window tints, next clicked control is target; clicking a non-control or Escape cancels | `MidiLearn`, `Overlays.cpp:MidiLearnArmLayer::mouseDown` | `HeaderBar::midiLearnButton` | `MidiLearn::armingIsSeparateFromLearningUntilAControlClaimsIt`, `MidiLearn::disarmingCancelsAnInFlightLearn` | DONE |
 | UM-12 (Header, Help) | ? opens HELP tab on current panel in Advanced, overlay in Easy | `PluginEditor::openHelp/getHelpContext` | `HeaderBar::helpButton` | `HelpTab::f1AndTheHeaderOpenHelpOnThePanelYouAreIn` | DONE |
-| UM-13 (Header) | Advanced switch locked while Live Mode on; Live strip; Slide Mode | `HeaderBar::updateModeButtonEnablement`, `toggleSlideMode` | `modeButton/liveButton/slideButton` | `Editor::theModesThatChangeTheLayout...` (Live), `GuiReach.*` (Slide) — lock not asserted | NO-TEST |
+| UM-13 (Header) | Advanced switch locked while Live Mode is on — header button disabled with tooltip, and now the Tab shortcut is refused too (inline notice) | `HeaderBar::updateModeButtonEnablement`, `toggleSlideMode` | `modeButton/liveButton/slideButton` | `Editor::liveModeFromTheKeyboardLocksTheModeSwitch` | DONE |
 | UM-14 (Header) | Workshop: WORKSHOP tab in Advanced, overlay in Easy | `PluginEditor.cpp header.onOpenWorkshop` | `HeaderBar::workshopButton` | `Editor::headerAndFooterDoWhatTheManualSays` | DONE |
 | UM-15 (Header) | MIDI activity dot beside logo | `HeaderBar::paint midiDot`, `engine.consumeMidiActivity` | header | `Engine::midiActivityIsFlaggedOnceAndConsumed` (the flag the header timer reads; the repaint is not asserted) | DONE |
 | UM-16 (Easy top) | Illustration generated from settings in use; pickups move; pole pieces glow | `UI/Guitar/GuitarRenderer.cpp` | Easy/Advanced `GuitarBodyComponent` | `GuitarIllustration.*`, `WorkshopBench::aMovedPickupIsSeenReadAndHeard` | DONE |
@@ -65,4 +65,4 @@ Most of the manual is accurate: the header, the File menu, Advanced columns 1-3,
 | UM-59 (Help/debug) | Help content + live shortcut list; debug window (state view, event stream, crash log off on load, troubleshooting export, hard reset keeps user presets) | `HelpTab`, `Overlays.cpp:DebugPanel` | Help, Ctrl+D | `HelpTab::aRebindShowsUpInTheCheatSheetAndTheText`, `Diagnostics::ringBufferAndSelfTestWork` — hard reset untested | DEFERRED |
 | UM-60 (Performance) | Footer shows CPU share and reported latency | `LuthierAudioProcessorEditor::getFooterText` (drawn by paint) | footer | `Editor::headerAndFooterDoWhatTheManualSays` | DONE |
 
-<!-- counts DONE=48 NO-GUI=0 NO-TEST=10 PARTIAL=0 MISSING=0 OWNED=1 DEFERRED=1 -->
+<!-- counts DONE=49 NO-GUI=0 NO-TEST=9 PARTIAL=0 MISSING=0 OWNED=1 DEFERRED=1 -->

@@ -43,10 +43,10 @@ PROGRESS.md is the milestone log and it is stale. It still gives 310 tests, 349 
 | PR-37 (Not done) | pluginval 1.0.3 at strictness 10 passes | `.github/workflows/build.yml` (10 nightly / release, 5 on push) | n/a | CI pluginval | DONE |
 | PR-38 (Not done) | Editor run-verified by the test target (window sizes, overlays, modes) | `Tests/EditorTests.cpp` | n/a | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt`, `Editor::theModesThatChangeTheLayoutTakeEffectAndUndoThemselves` | DONE |
 | PR-39 (A1) | Advanced minimum width with `InlineNotice` (announced, gone after 6 s); constructor hands the header the mode actually set | `PluginEditor.cpp:210,393`, `InlineNotice` | header switch | `Editor::advancedModeIsRefusedBelowItsMinimumWidth` | DONE |
-| PR-40 (A1) | `L` from the keyboard updates the header Live pill and locks the Easy/Advanced switch (live-performance 10) — the test checks the strip only | `PluginEditor` live-mode path, `HeaderBar` lock | header Live pill / mode switch | `Editor::theModesThatChangeTheLayoutTakeEffectAndUndoThemselves` (strip only) | NO-TEST |
+| PR-40 (A1) | `L` from the keyboard updates the header Live pill and locks the Easy/Advanced switch (live-performance 10) — the test checks the strip only | `PluginEditor` live-mode path, `HeaderBar` lock | header Live pill / mode switch | `Editor::liveModeFromTheKeyboardLocksTheModeSwitch` | DONE |
 | PR-41 (A1) | `UiPreferences` at `Documents/Luthier/config/ui.json`; getters default at the call site | `UI/UiPreferences` | n/a | `Editor::theWorkspaceTabWrapsAndIsRemembered` | DONE |
 | PR-42 (A1) | Mod stress test measures thread CPU time, under 1% of a core | `ModMatrix` | n/a | `Modulation::thousandRouteStressTest` | DONE |
 | PR-43 (Phase 2 / ar 1.0) | Existing params' stock range is their declared range; `RangeRegistry::noteDeclaration` records it (no preset re-maps) | `PhysicalRange.cpp` | n/a | `Ranges::stockMatchesTheDeclaredRange`, `Ranges::wideningPreservesEveryPlainValue` | DONE |
 | PR-44 (Phase 2 / ar 2.1) | `modulation` family works by clamping the mod-source setters to stock unless advanced — `ModLfo::setRateHz` clamps a fixed 0.01-40 Hz and nothing in `Modulation/` reads the family | `Modulation/ModSources.h:109` | Options RANGES (family listed) | - | MISSING |
 
-<!-- counts DONE=36 NO-GUI=0 NO-TEST=1 PARTIAL=3 MISSING=2 OWNED=2 -->
+<!-- counts DONE=37 NO-GUI=0 NO-TEST=0 PARTIAL=3 MISSING=2 OWNED=2 -->

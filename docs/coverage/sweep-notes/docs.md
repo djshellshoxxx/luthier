@@ -12,3 +12,5 @@
 - [MX-22] Deferred: the 4M-event cap cannot be tested cheaply until `kMaxEvents` is injectable.
 - [UM-59/TS-9/INC-28/TS-8] Deferred: hard reset and the read-only factory fallback act on the real Documents/Luthier folder; they need a Documents-root test hook before a test can run them without deleting a developer's diagnostics files.
 - [RM-17] CLI smoke test is a CMake script (`scripts/render_cli_smoke.cmake`) registered as CTest `LuthierRenderCli` and run from the test step of both `ci_build.sh` and `ci_build.ps1` (with `check_packaging_paths.cmake`).
+- [RM-17] LuthierRender had stopped linking after the REALISM-C/TUNE-HELP merge (PluginEditorOnboarding/Tune.cpp in the engine list; PresetManager now reads UiPreferences). CMake engine list fixed; the CTest smoke test caught it.
+- [UM-13] Tab (toggleAdvanced) is refused in Live Mode with an inline notice, matching the header's locked switch.

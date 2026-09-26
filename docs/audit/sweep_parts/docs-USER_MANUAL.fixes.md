@@ -1,6 +1,5 @@
 - [UM-3] effort S — add `Editor::theOutputLedTracksLevelAndGoesRedWhenOver`: drive `OutputLed::timerCallback` with processor peak at -60 dB / -1 dB / +1 dB and CHECK brightness order and `overThreshold`.
 - [UM-7] effort S — make `HeaderBar::showFileMenu` build its menu through a `buildFileMenu()` accessor and add `Editor::theFileMenuHasEveryDocumentedItem` checking the 14 items; drive `handleFileMenuResult` for Options/Randomise/Reset.
-- [UM-13] effort S — extend `Editor::theModesThatChangeTheLayout...`: with Live Mode on CHECK `HeaderBar` modeButton `!isEnabled()`; and decide whether the Tab shortcut should also be refused in Live Mode (it currently is not: `PluginEditor::keyPressed toggleAdvanced`); if so, guard it and test.
 - [UM-17] (see docs-KEYBOARD_SHORTCUTS KS-25 row) — same test.
 - [UM-19] effort S — add `Fretboard::clicksAndMenuDriveTheEngine` (see KS-23/KS-24) and a spacing check that `fretX(12)` is at half the scale.
 - [UM-20] OWNED by visual (RM-30): `DataStreamDisplay` is constructed in the editor there, with the Options > Appearance switch; doc paragraph left as is.
