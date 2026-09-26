@@ -1027,18 +1027,15 @@ void StringEngine::beginSample() noexcept
     // cpu-quality-modes 2.4: a sleeping string costs nothing until coupling,
     // excitation or a touch reaches it. It still receives (the matrix keeps
     // feeding it) and sends 0, so sympathetic ring survives.
+    // The wake decision needs this sample's coupling input, which only
+    // endSample has, so a sleeping string defers to it.
+    sleptThisSample = sleeping;
+
     if (sleeping)
     {
-        if (stealPending || excitation.isActive() || touchSamplesLeft > 0
-            || std::abs (couplingInput * couplingReceptivity) > QualityProfile::kSleepCouplingLevel)
-        {
-            wake();
-        }
-        else
-        {
-            bridgeOut = 0.0;
-            return 0.0;
-        }
+        bridgeWave = 0.0;
+        pendingDelayOut = 0.0;
+        return;
     }
 
     // ---- voice stealing ------------------------------------------------------
@@ -1168,6 +1165,22 @@ void StringEngine::beginSample() noexcept
 
 double StringEngine::endSample (double couplingInput, double directInput) noexcept
 {
+    // cpu-quality-modes 2.4: asleep until coupling, excitation or a touch arrives.
+    if (sleptThisSample)
+    {
+        if (stealPending || excitation.isActive() || touchSamplesLeft > 0
+            || std::abs (couplingInput * couplingReceptivity + directInput) > QualityProfile::kSleepCouplingLevel)
+        {
+            wake();
+            beginSample();
+        }
+        else
+        {
+            bridgeOut = 0.0;
+            return 0.0;
+        }
+    }
+
     const double delayOut = pendingDelayOut;
     double fb = bridgeWave;   // the bass touch below damps it (MODEL-GAPS)
 
@@ -1263,7 +1276,7 @@ double StringEngine::endSample (double couplingInput, double directInput) noexce
     {
         if (levelFollower.current() < QualityProfile::kSleepLevel && ! excitation.isActive()
             && ! stealPending && touchSamplesLeft == 0
-            && std::abs (couplingInput * couplingReceptivity) < QualityProfile::kSleepCouplingLevel)
+            && std::abs (couplingInput * couplingReceptivity + directInput) < QualityProfile::kSleepCouplingLevel)
         {
             if (++quietSamples >= sleepAfterSamples)
                 goToSleep();

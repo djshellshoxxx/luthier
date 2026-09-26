@@ -346,6 +346,7 @@ private:
     double cappedCoeff = 0.0;
     double cappedCompensation = 0.0;    ///< holds the fundamental where High has it
     bool sleepEnabled = false, sleepExempt = false, sleeping = false;
+    bool sleptThisSample = false;
     int quietSamples = 0, sleepAfterSamples = 4410;
     int fadeLeft = 0, fadeTotal = 1;
 

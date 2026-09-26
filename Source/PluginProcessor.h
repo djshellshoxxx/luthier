@@ -479,6 +479,7 @@ public:
     // cpu-quality-modes: the CPU quality level and Luthier's own load.
     QualityController& getQualityController() noexcept { return qualityController; }
     const CpuLoadMonitor& getCpuLoadMonitor() const noexcept { return cpuLoad; }
+    CpuLoadMonitor& getCpuLoadMonitorForTesting() noexcept { return cpuLoad; }   // CQ-19 E3
 
     /** Sets uiState.qualityOverride and applies it (not undoable: 9). */
     void setQualityOverride (QualityOverride o);
