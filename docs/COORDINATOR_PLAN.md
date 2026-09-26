@@ -235,3 +235,33 @@ DO NOT rewrite the model. Assign effects-audit + a Sonnet implementer:
 4. Keep honest magnitudes as the DEFAULT; the control lets the owner exaggerate.
 No new spec/engine. If any of 1-3 is genuinely missing in code (not just quiet),
 that is a bug to fix, not a tuning tweak.
+
+## Windows + macOS PAUSED (2026-09-26, owner)
+
+Hold ALL Windows and macOS work until the project is fully complete; build
+cross-platform versions only at the very end.
+- CI: ci-cadence.yml gate forced windows=false, macos=false (revert note in
+  the file). Linux is the only CI platform for now.
+- Helpers: do NOT spawn Windows/macOS build/test/packaging work. Task #8
+  (macOS build) stays deferred. Cross-platform verification is the final step
+  before release, after everything else is done, audited and tested.
+- Linux Standalone + VST3 + CLAP remain the working targets.
+
+## Credit-resilience: finish everything across usage resets (2026-09-26, owner)
+
+The whole job (all workers, full beta test, full audit) must COMPLETE even if
+we hit the weekly usage limit mid-flight. Design:
+- The coordinator check-in is RECURRING (cron), so it keeps firing and
+  auto-resumes after each usage-limit reset without manual re-arming.
+- Every check-in: for EACH tracked worker call get_session. If a worker is
+  failed / stalled / stopped at a usage limit / idle with work still left in
+  its coverage or handoff, restart a FRESH session on the SAME model + branch,
+  told to continue from its branch state and handoff note (never lose progress;
+  branches hold committed work). Do this after each reset for any that stalled.
+- The auditor and beta tester KEEP LOOPING until everything is audited and
+  tested: every existing + new instrument, every effect/technique, every
+  feature spec, GUI reachability, state save/restore, Standalone/VST3/CLAP
+  (Linux only for now). Only stop when the coverage/audit docs show all items
+  verified with no open findings.
+- Do NOT declare the project done while any worker has remaining rows, any
+  audit/beta item is unverified, or any open finding stands.
