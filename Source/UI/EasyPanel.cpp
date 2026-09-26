@@ -722,17 +722,51 @@ void EasyPanel::resized()
     {
         auto r = rhythmArea.reduced (4, 6);
         r.removeFromRight (PanelHelpButton::kSize + 4);   // the strip's ?
+        /*  FEAT-JAM (jam-mode 8.2): the JAM group sits at the right end and never
+            hides the band's style, level or state, so on a narrow window the
+            rest of the strip gives way first - the hint, then the readout, then
+            the genre box, then the group itself down to its minimum. Only
+            when even that does not fit (narrower than the window's minimum)
+            is the group hidden rather than drawn outside the strip. */
+        const bool hasJam = jamGroup != nullptr;
+        const int fixedW = 56 + 48 + Metrics::grid + 52 + Metrics::grid;
+        constexpr int feelMin = 60;
+        int genreW = 170, readoutW = 110, hintW = hasJam ? 90 : 110;
+        int jamW = hasJam ? JamStripGroup::preferredWidth : 0;
+        int deficit = fixedW + genreW + jamW + readoutW + hintW + feelMin - r.getWidth();
+
+        auto give = [&deficit] (int& w, int minimum)
+        {
+            const int cut = juce::jlimit (0, juce::jmax (0, w - minimum), deficit);
+            w -= cut;
+            deficit -= cut;
+        };
+
+        give (hintW, 0);
+        give (readoutW, 70);
+        give (genreW, 110);
+
+        if (hasJam)
+        {
+            give (jamW, JamStripGroup::minimumWidth);
+            jamGroup->setVisible (deficit <= 0);
+
+            if (deficit > 0)
+                jamW = 0;
+        }
+
         rhythmLabel.setBounds (r.removeFromLeft (56));
-        rhythmGenreBox.setBounds (r.removeFromLeft (170));
+        rhythmGenreBox.setBounds (r.removeFromLeft (genreW));
         rhythmDice.setBounds (r.removeFromLeft (48).reduced (2, 0));
         r.removeFromLeft (Metrics::grid);
         rhythmEnableButton.setBounds (r.removeFromLeft (52));
         r.removeFromLeft (Metrics::grid);
-        if (jamGroup != nullptr)   // FEAT-JAM: the JAM group at the right end
-            jamGroup->setBounds (r.removeFromRight (juce::jmin (JamStripGroup::preferredWidth, juce::jmax (0, r.getWidth() - 290))));
 
-        rhythmReadout.setBounds (r.removeFromRight (110));
-        rhythmHintLabel.setBounds (r.removeFromRight (jamGroup != nullptr ? 90 : 110));
+        if (hasJam)
+            jamGroup->setBounds (r.removeFromRight (jamW));
+
+        rhythmReadout.setBounds (r.removeFromRight (readoutW));
+        rhythmHintLabel.setBounds (r.removeFromRight (hintW));
         rhythmFeelSlider.setBounds (r);
     }
 }

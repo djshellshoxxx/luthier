@@ -1,26 +1,34 @@
 #include "StringMotionPolicy.h"
-#include "../../Accessibility/Accessibility.h"
+#include "../AnimationPolicy.h"
 
 namespace luthier::StringMotionPolicy
 {
 
 namespace
 {
-    std::optional<Motion> testOverride;
+    // The key of the test source in AnimationPolicy's source table.
+    const char testSourceKey = 0;
 }
 
 Motion getMotion()
 {
-    if (testOverride.has_value())
-        return *testOverride;
-
-    // cpu-quality-modes 6: Reduced motion is Off. Swap for AnimationPolicy::get().getMotion().
-    return AccessibilitySettings::get().isReducedMotion() ? Motion::off : Motion::full;
+    switch (AnimationPolicy::get().getStringsStyle())
+    {
+        case AnimationPolicy::StringsStyle::Off:      return Motion::off;
+        case AnimationPolicy::StringsStyle::LowStyle: return Motion::limited;
+        case AnimationPolicy::StringsStyle::Full:
+        default:                                      return Motion::full;
+    }
 }
 
 void setOverrideForTesting (std::optional<Motion> motion)
 {
-    testOverride = motion;
+    auto& policy = AnimationPolicy::get();
+
+    if (! motion.has_value() || *motion == Motion::full)
+        policy.removeSource (&testSourceKey);
+    else
+        policy.setSource (&testSourceKey, *motion == Motion::off ? QualityLevel::Low : QualityLevel::Medium, 0);
 }
 
 } // namespace luthier::StringMotionPolicy

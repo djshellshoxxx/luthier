@@ -241,18 +241,29 @@ void AnimationPolicy::timerCallback()
     }
 
     for (auto* r : due)
-        if (registry.count (&r->owner) > 0 && r->onStaticPoll)
+        if (isRegistered (r) && r->onStaticPoll)
             r->onStaticPoll();
 
     updateStaticPoll();
 }
 
+bool AnimationPolicy::isRegistered (const Registration* r) const
+{
+    const auto range = registry.equal_range (&r->owner);
+
+    for (auto it = range.first; it != range.second; ++it)
+        if (it->second == r)
+            return true;
+
+    return false;
+}
+
 //==============================================================================
 void AnimationPolicy::notePaint (const juce::Component& c) noexcept
 {
-    auto& reg = get().registry;
+    const auto range = get().registry.equal_range (&c);
 
-    if (const auto it = reg.find (&c); it != reg.end())
+    for (auto it = range.first; it != range.second; ++it)
         it->second->paints.fetch_add (1, std::memory_order_relaxed);
 }
 
@@ -292,7 +303,7 @@ AnimationPolicy::Registration::Registration (juce::Component& o, MotionClass cls
       onPolicyChange (std::move (changeFn)), onStaticPoll (std::move (staticPollFn))
 {
     auto& policy = AnimationPolicy::get();
-    policy.registry[&owner] = this;
+    policy.registry.emplace (&owner, this);
     policy.addListener (this);
     apply();
 }
@@ -302,8 +313,16 @@ AnimationPolicy::Registration::~Registration()
     auto& policy = AnimationPolicy::get();
     policy.removeListener (this);
 
-    if (const auto it = policy.registry.find (&owner); it != policy.registry.end() && it->second == this)
-        policy.registry.erase (it);
+    const auto range = policy.registry.equal_range (&owner);
+
+    for (auto it = range.first; it != range.second; ++it)
+    {
+        if (it->second == this)
+        {
+            policy.registry.erase (it);
+            break;
+        }
+    }
 
     policy.updateStaticPoll();
 }

@@ -21,6 +21,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "StringMotion.h"
+#include "../AnimationPolicy.h"   // cpu-quality-modes 6
 
 #include <functional>
 #include <memory>
@@ -122,6 +123,12 @@ private:
     juce::Component& owner;
     const SoundingNotes& source;
     GeometryProvider geometryProvider;
+
+    /*  cpu-quality-modes 6 / animated-strings 2.6: the strings are Decorative.
+        The 30 Hz fallback clock runs through the registration, and a policy
+        change re-polls (Limited forces the Low style, Off the static overlay). */
+    AnimationPolicy::Registration motionRegistration { owner, AnimationPolicy::Decorative, "StringAnimator",
+                                                        [this] { poll(); } };
 
     StringMotion motion;
     StringMotionFrame frame;

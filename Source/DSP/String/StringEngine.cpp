@@ -199,11 +199,9 @@ void StringEngine::excite (const Excitation::Params& params) noexcept
     auto p = params;
     p.delaySamples = juce::jmax (4.0, smoothedDelay.getCurrent());
 
-    // cpu-quality-modes 2.4: a note takes its dispersion stage count here and
-    // keeps it until it is re-excited; a sleeping string wakes.
+    // A sleeping string wakes (cpu-quality-modes 2.4).
     wake();
     fadeLeft = 0;
-    latchDispersion();
 
     const bool isLegato = (p.kind == Excitation::Kind::HammerOn
                            || p.kind == Excitation::Kind::PullOff
@@ -220,6 +218,13 @@ void StringEngine::excite (const Excitation::Params& params) noexcept
         return;
     }
 
+    /*  cpu-quality-modes 2.4: a note takes its dispersion stage count (and, when
+        capped, its own coefficient) when it is plucked, and keeps it until it
+        is re-excited. FIX-CROSS: on a stolen voice that is after the 5 ms steal
+        (processSample), not here - latching here re-tuned the old note's
+        partials while it faded, and the part of it the new pluck sums with came
+        out at a different phase than at High. */
+    latchDispersion();
     excitation.trigger (p, rng);
     sounded = true;
     onShapeExcite (p);
@@ -1068,6 +1073,7 @@ void StringEngine::beginSample() noexcept
         }
         else
         {
+            latchDispersion();   // cpu-quality-modes 2.4: the new note's, at its pluck
             excitation.trigger (pendingParams, rng);
             sounded = true;
             onShapeExcite (pendingParams);

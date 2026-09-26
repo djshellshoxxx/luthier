@@ -955,7 +955,9 @@ void AppearancePage::refresh()
                                                                                                      settings.getColours()), 2)
                           + " to 1 on this palette's panels", juce::dontSendNotification);
     reducedMotionToggle.setToggleState (settings.isReducedMotion(), juce::dontSendNotification);
-    lowMotionNote.setVisible (processor.getQualityController().getLiveLevel() == QualityLevel::Low);
+    const bool lowNoteWanted = processor.getQualityController().getLiveLevel() == QualityLevel::Low;
+    const bool lowNoteChanged = lowNoteWanted != lowMotionNote.isVisible();
+    lowMotionNote.setVisible (lowNoteWanted);
     tooltipsToggle.setToggleState (processor.getUiState().tooltipsEnabled,
                                    juce::dontSendNotification);
 
@@ -966,7 +968,7 @@ void AppearancePage::refresh()
     pianoRollEasyToggle.setToggleState (VisualAids::showPianoRoll (false), juce::dontSendNotification);
     pianoRollShowsBox.setSelectedId (VisualAids::pianoRollShowsRoll() ? 2 : 1, juce::dontSendNotification);
 
-    if (visualAids.getHeight() != visualAids.getPreferredHeight())
+    if (lowNoteChanged || visualAids.getHeight() != visualAids.getPreferredHeight())
         resized();
 
     visualAids.refresh();   // animated-strings.md 5
@@ -1020,7 +1022,11 @@ void AppearancePage::resized()
         reducedMotionToggle.setBounds (row.removeFromLeft (160));
     }
 
-    lowMotionNote.setBounds (bounds.removeFromTop (16).withTrimmedLeft (228));   // cpu-quality-modes
+    /*  cpu-quality-modes 5: a muted line under Reduced motion while at Low. It
+        belongs to the row above and takes space only while it shows, so VISUAL
+        AIDS still starts directly under that row (animated-strings.md 5). */
+    if (lowMotionNote.isVisible())
+        lowMotionNote.setBounds (bounds.removeFromTop (16).withTrimmedLeft (228));
 
     // animated-strings.md 5: VISUAL AIDS starts directly under that row.
     bounds.removeFromTop (4);
