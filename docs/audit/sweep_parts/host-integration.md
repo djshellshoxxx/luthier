@@ -5,7 +5,7 @@ The core host surface is in place and tested: VST3/AU/Standalone (plus optional 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | HI-1 (§0.2) | No blocking calls on audio thread, no stdout — no alloc/lock trap here (engine uses tryLock on `engineLock`) | `PluginProcessor.cpp:processBlock` | n/a | `WorkshopSwap::noFileIsTouchedFromTheAudioThreadDuringASwap` (file only) | OWNED |
-| HI-2 (§0.3) | Announce every capability — MIDI out not announced (`NEEDS_MIDI_OUTPUT FALSE`) | `CMakeLists.txt:juce_add_plugin` | n/a | - | PARTIAL |
+| HI-2 (§0.3) | Announce every capability — MIDI out not announced (`NEEDS_MIDI_OUTPUT FALSE`) | `NEEDS_MIDI_OUTPUT TRUE` | n/a | `PluginBuses.midiOutputIsAnnounced` | DONE |
 | HI-3 (§0.4) | Host transport wins; internal free-run when stopped | `PluginProcessor.cpp:processBlock` (`tapTempo.getEffectiveBpm`, `setTransportPosition`) | n/a | `RhythmPatterns::silentWhenStoppedUnlessFreeRunning`, `TunePlayer::theHostWinsWhenItPlaysAndTheClockRunsWhenItDoesNot`, `LiveTapTempo::respectsRangeSnapAndHostPriority` | DONE |
 | HI-4 (§0.5) | Layout/param/latency changes only at documented moments | `PluginProcessor.cpp:updateLatency` (prepare + per block) | n/a | `HostState::aSessionSurvivesThePrepareThatFollowsIt` | DONE |
 | HI-5 (§0.6) | No IR blobs in state, references only | `IrSlot::toVar` (path) in `getStateInformation` "toneMatch" | n/a | `ToneMatch::irSlotSettingsRoundTrip` | DONE |
@@ -13,7 +13,7 @@ The core host surface is in place and tested: VST3/AU/Standalone (plus optional 
 | HI-7 (§1) | CLAP v1.1 / AAX v1.5 not required for v1.0 (CLAP optional target exists) | `CMakeLists.txt:LUTHIER_HAS_CLAP` | n/a | CI clap-validator | DONE |
 | HI-8 (§1) | Version = LUTHIER_VERSION major.minor.patch plus a build string — no build string | `CMakeLists.txt:JucePlugin_VersionString` | n/a | - | PARTIAL |
 | HI-9 (§2) | Layouts A-D (8 stereo aux incl. Aux 8, 12 mono per-string) and any subset | `PluginProcessor.cpp:buildBusesProperties`, `isBusesLayoutSupported` | ADVANCED > ROUTING tab | `Routing::everyLayoutRendersCleanly`, `PluginBuses::perStringLayoutPutsEachStringOnItsOwnBus`, `PluginBuses::aux8NoiseIsDeclaredLastSoNoBusNumberMoved` | DONE |
-| HI-10 (§2) | Mono main output rejected — accepted (`main != mono` branch) | `PluginProcessor.cpp:isBusesLayoutSupported` | n/a | - | MISSING |
+| HI-10 (§2) | Mono main output rejected — accepted (`main != mono` branch) | `isBusesLayoutSupported` stereo-only main | n/a | `PluginBuses.monoMainOutputIsRefused` | DONE |
 | HI-11 (§2) | Optional stereo sidechain on every layout | `buildBusesProperties` `.withInput("Sidechain")` | ROUTING tab sidechain-to-amp | `Routing::sidechainToAmpReplacesTheInstrument` | DONE |
 | HI-12 (§2) | Bus layout change mid-play re-prepares without crash — no test here | JUCE + `prepareToPlay` | n/a | - (visual `Stress::busLayoutChangesMidPlay`) | OWNED |
 | HI-13 (§3) | APVTS single source; count stable; stable IDs, range, default, text converters | `Parameters.cpp:createLayout` | n/a | `Parameters::everyParameterHasAUniqueIdAndSaneDefault`, `Parameters::everyParameterTextRoundTrips`, `HostState::parameterTextRoundTripsStably` | DONE |
@@ -34,7 +34,7 @@ The core host surface is in place and tested: VST3/AU/Standalone (plus optional 
 | HI-28 (§6) | Read tempo, isPlaying, ppq every block; missing playhead -> internal transport | `processBlock` getPlayHead blocks | n/a | `Modulation::syncedLfoFollowsTheHost`, `TunePlayer::theHostWinsWhenItPlaysAndTheClockRunsWhenItDoesNot` | DONE |
 | HI-29 (§6) | Read time signature, isRecording, host sample rate for rhythm/tune/metronome — time sig only feeds capture | `processBlock` (CaptureClock only) | n/a | `Capture::transportTimingIsInQuarterNotes` | PARTIAL |
 | HI-30 (§7) | acceptsMidi true; channels 1-16; notes/CC/PB/AT/PC accepted | `PluginProcessor.h:acceptsMidi`, MidiInterpreter | n/a | `LiveSnapshots::programChangeMapsAcrossAllOneTwentyEight`, `Controllers::perChannelRoutingSendsEachChannelToItsString` | DONE |
-| HI-31 (§7) | producesMidi true and usable in hosts — VST3/AU have no MIDI out port (`NEEDS_MIDI_OUTPUT FALSE`) | `producesMidi()`, `MidiOutRouter` | ADVANCED > MIDI OUT tab | `Routing::midiOutPassThroughIsSampleExact` (in-process only) | PARTIAL |
+| HI-31 (§7) | producesMidi true and usable in hosts — VST3/AU have no MIDI out port (`NEEDS_MIDI_OUTPUT FALSE`) | `NEEDS_MIDI_OUTPUT TRUE` | ADVANCED > MIDI OUT tab | `PluginBuses.midiOutputIsAnnounced` | DONE |
 | HI-32 (§7) | MIDI clock / transport / SysEx accepted — Luthier SysEx read; MIDI clock not followed | MidiInterpreter, MidiOutRouter | n/a | `MidiExport::liveSysExIsDroppedByOtherHostsAndReadByLuthier` | PARTIAL |
 | HI-33 (§7) | MPE full support | `Controllers/ControllerProfile` MPE mode, MidiInterpreter | Options > Controllers | `StrumDynamics::mpePassesThrough`, `Controllers::applyingAProfileConfiguresTheInterpreter` | DONE |
 | HI-34 (§7) | Sample-accurate MIDI in/out timestamps | `MidiOutRouter` | n/a | `Routing::midiOutPassThroughIsSampleExact`, `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` | DONE |

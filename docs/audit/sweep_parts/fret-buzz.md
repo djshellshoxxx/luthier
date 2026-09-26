@@ -24,7 +24,7 @@ The setup geometry and sensed buzz are in and well tested: `SetupGeometry::clear
 | FB-18 (§6.2) | Heatmap updates at 30 Hz, greys after 2 s stale — implemented, untested | `BuzzHeatmap` (startTimerHz 30, isStale) | SETUP `heatmap` | - | NO-TEST |
 | FB-19 (§7) | Params with stock/advanced ranges in `buzz` family, +16 | `PhysicalRange.cpp` buzz rows | CHARACTER padlock | `Ranges.stockMatchesTheDeclaredRange`, `Ranges.everyPhysicalRangeIsValid` | DONE |
 | FB-20 (§7) | Legacy `fret_action` superseded by the geometry | `LuthierEngine::setSetupGeometry` (in-loop clipper from same setup) | hidden (GuiReach `intentionallyHidden`) | `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
-| FB-21 (§8) | Fret wear: worn fret lower (less buzz there), uneven crown raises neighbours — not implemented | none (`CharacterEngine` wear affects sustain only) | n/a | - | MISSING |
+| FB-21 (§8) | Fret wear: worn fret lower (less buzz there), uneven crown raises neighbours — not implemented | `SetupGeometry::fretWearMm` filled in `LuthierEngine::setSetupGeometry` from `CharacterEngine` | n/a | `Buzz.fretWearMovesTheBuzz` | DONE |
 | FB-22 (§8) | Slide Mode suggests the Slide setup style | `SlideGroup` `useSlideSetup` + low-action warning | CHARACTER > SLIDE | `SlideUi.theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` | DONE |
 | FB-23 (§8) | Bass defaults lower action (Factory low) | `Model/Guitar/BassDefaults.cpp` setupStyle 0 | n/a | `BassTechniques.bassDefaultsApplyOnLoad` | DONE |
 | FB-24 (§8) | Slap/pop drive the string into the frets (clack via buzz generator) | `SlapEngine::makeContactBuzz` with `fretBuzzModel` | n/a | `Slap.theClackIsTheFretBuzzGenerator`, `SlapWiring.theClackComesFromTheBuzzGenerator` | DONE |

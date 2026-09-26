@@ -1104,9 +1104,18 @@ bool ScaleTab::setCustomSteps (const juce::String& text)
         total += step;
     }
 
-    // The steps come back to the octave, or stop short of it.
+    // The steps come back to the octave, or stop short of it - and then the
+    // last step lands on a note of the scale too.
     if (count == 0 || total > 12)
         return false;
+
+    if (total < 12)
+    {
+        if (count >= ScaleTrainer::kMaxIntervals)
+            return false;
+
+        offsets[count++] = total;
+    }
 
     trainer().setCustomIntervals (offsets, count);
     return true;

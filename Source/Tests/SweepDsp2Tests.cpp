@@ -14,11 +14,13 @@
 #include "../LuthierEngine.h"
 #include "../PluginProcessor.h"
 #include "../Practice/Metronome.h"
+#include "../DSP/Slide/SlideEngine.h"
 #include "../Practice/BackingTrack.h"
 #include "../Practice/TimePitchShifter.h"
 #include "../ToneMatch/ToneMatch.h"
 #include "../Export/MidiImportTargets.h"
 #include "../UI/PracticePanel.h"
+#include "../UI/ToneMatchPanel.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -158,7 +160,7 @@ LUTHIER_TEST (Squeak, fretWearRaisesSqueak)
 
         SqueakSettings always;
         always.probability = 1.0;
-        always.moisture = 0.0;
+        always.moisture = 0.3;   // clear of the roughness ceiling, still certain to roll
         engine.setSqueak (always);
 
         const int wound = engine.getNumStrings() - 1;
@@ -897,8 +899,8 @@ LUTHIER_TEST (PracticeLooper, layerFiltersCutWhatTheySay)
     if (low == nullptr || high == nullptr)
         return;
 
-    low->setValue (300.0);
-    high->setValue (5000.0);
+    low->setValue (300.0, juce::sendNotificationSync);
+    high->setValue (5000.0, juce::sendNotificationSync);
 
     CHECK_NEAR (processor.getLooper().getLayer (1).getLowCutHz(), 300.0, 0.5);
     CHECK_NEAR (processor.getLooper().getLayer (1).getHighCutHz(), 5000.0, 0.5);
@@ -920,9 +922,9 @@ LUTHIER_TEST (PracticeTrack, panAndFiltersShapeTheTrack)
     if (pan == nullptr || low == nullptr || high == nullptr)
         return;
 
-    pan->setValue (-0.5);
-    low->setValue (150.0);
-    high->setValue (8000.0);
+    pan->setValue (-0.5, juce::sendNotificationSync);
+    low->setValue (150.0, juce::sendNotificationSync);
+    high->setValue (8000.0, juce::sendNotificationSync);
 
     auto& track = processor.getBackingTrack();
     CHECK_NEAR (track.getPan(), -0.5, 1.0e-6);
@@ -1048,4 +1050,126 @@ LUTHIER_TEST (MidiImport, theNotificationListsDefaultedFields)
     CHECK_MSG (outcome.message.contains ("Defaults used for: STRUM."), outcome.message);
 
     file.deleteFile();
+}
+
+LUTHIER_TEST (ToneMatch, thePanelReachesTrimBandLengthAndSearch)
+{
+    // TM-11, TM-25, TM-31, TM-33, TM-38 (tone-match 1, 3, 4, 6).
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    juce::WavAudioFormat wav;
+    const auto file = writeIr (wav, ".wav", 0.2);
+    CHECK (processor.getCabIrSlot (0).load (file));
+
+    ToneMatchPanel panel (processor);
+    panel.setSize (900, panel.preferredHeight());
+
+    auto* start = findByTitle<juce::Slider> (panel, "Cabinet IR 1 start trim");
+    auto* end = findByTitle<juce::Slider> (panel, "Cabinet IR 1 end trim");
+    CHECK (start != nullptr && end != nullptr);
+
+    if (start != nullptr && end != nullptr)
+    {
+        start->setValue (100.0, juce::sendNotificationSync);
+        end->setValue (200.0, juce::sendNotificationSync);
+        CHECK (processor.getCabIrSlot (0).getStartTrim() == 100);
+        CHECK (processor.getCabIrSlot (0).getEndTrim() == 200);
+    }
+
+    CHECK (findByTitle<juce::Slider> (panel, "EQ match low band edge") != nullptr);
+    CHECK (findByTitle<juce::Slider> (panel, "EQ match high band edge") != nullptr);
+    CHECK (findByTitle<juce::Slider> (panel, "Capture length") != nullptr);
+    CHECK (findButton (panel, "Auto-trim silence") != nullptr);
+
+    // The library search.
+    auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-ir-search");
+    dir.deleteRecursively();
+    dir.createDirectory();
+    const auto greenback = dir.getChildFile ("Greenback 4x12.wav");
+    const auto vintage = dir.getChildFile ("Vintage 1x12.wav");
+    file.copyFileTo (greenback);
+    file.copyFileTo (vintage);
+
+    panel.setLibraryFilesForTesting ({ greenback, vintage });
+    CHECK (panel.getVisibleLibraryFiles().size() == 2);
+
+    auto* search = findByTitle<juce::TextEditor> (panel, "Search IRs");
+    CHECK (search != nullptr);
+
+    if (search != nullptr)
+    {
+        search->setText ("greenback", false);
+        search->onTextChange();
+        CHECK (panel.getVisibleLibraryFiles().size() == 1);
+        CHECK (panel.getVisibleLibraryFiles()[0] == greenback);
+
+        search->setText ("", false);
+        search->onTextChange();
+        CHECK (panel.getVisibleLibraryFiles().size() == 2);
+    }
+
+    processor.getCabIrSlot (0).unload();
+    dir.deleteRecursively();
+    file.deleteFile();
+}
+
+//==============================================================================
+//  slide-guitar
+//==============================================================================
+LUTHIER_TEST (Slide, tooMuchPressureChokes)
+{
+    // SG-10 (slide-guitar.md 3): past firm, the string is pressed onto the
+    // frets and loses sustain; up to firm, more pressure sustains more.
+    auto scaleAt = [] (double pressure)
+    {
+        SlideEngine slide;
+        slide.prepare (48000.0);
+
+        SlideSettings settings;
+        settings.enabled = true;
+        settings.mode = SlideMode::lapSteel;
+        settings.pressure = pressure;
+        slide.setSettings (settings);
+        slide.noteOn (2, 6);
+        return slide.sustainScale (2);
+    };
+
+    CHECK (scaleAt (0.6) > scaleAt (0.3));
+    CHECK (scaleAt (0.8) >= scaleAt (0.6));
+    CHECK_MSG (scaleAt (1.0) < scaleAt (0.6) * 0.8,
+               "full pressure should choke: " + juce::String (scaleAt (1.0)) + " vs " + juce::String (scaleAt (0.6)));
+}
+
+//==============================================================================
+//  host-integration
+//==============================================================================
+LUTHIER_TEST (PluginBuses, monoMainOutputIsRefused)
+{
+    // HI-10 (host-integration 2): stereo main out only.
+    LuthierAudioProcessor processor;
+    auto layout = processor.getBusesLayout();
+
+    CHECK (processor.checkBusesLayoutSupported (layout));
+
+    layout.outputBuses.getReference (0) = juce::AudioChannelSet::mono();
+    CHECK_MSG (! processor.checkBusesLayoutSupported (layout), "a mono main output was accepted");
+}
+
+LUTHIER_TEST (PluginBuses, midiOutputIsAnnounced)
+{
+    // HI-2 / HI-31 (host-integration 0.3, 7): the processor says it makes MIDI,
+    // and the plugin target announces it, so VST3 and AU get an event output.
+    LuthierAudioProcessor processor;
+    CHECK (processor.producesMidi());
+
+    const auto cmake = juce::File (__FILE__).getParentDirectory().getParentDirectory().getParentDirectory()
+                           .getChildFile ("CMakeLists.txt");
+
+    if (cmake.existsAsFile())
+    {
+        const auto text = cmake.loadFileAsString();
+        CHECK_MSG (text.contains ("NEEDS_MIDI_OUTPUT           TRUE"), "CMakeLists.txt does not announce MIDI output");
+        CHECK (! text.contains ("NEEDS_MIDI_OUTPUT           FALSE"));
+    }
 }

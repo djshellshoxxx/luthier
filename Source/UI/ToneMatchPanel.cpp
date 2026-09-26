@@ -838,6 +838,12 @@ ToneMatchPanel::ToneMatchPanel (LuthierAudioProcessor& p)
     tagFilter.onChange = [this] { refreshLibrary(); };
     addAndMakeVisible (tagFilter);
 
+    // SPEC-SWEEP TM-38 (tone-match 6): search by name, tag or note.
+    searchBox.setTextToShowWhenEmpty ("Search IRs", Palette::textMuted);
+    searchBox.setTitle ("Search IRs");
+    searchBox.onTextChange = [this] { refreshLibrary(); };
+    addAndMakeVisible (searchBox);
+
     refreshButton.setTooltip ("Re-scan your IR folder.");
     refreshButton.onClick = [this]
     {
@@ -907,9 +913,32 @@ void ToneMatchPanel::refreshLibrary()
     const bool all = tagFilter.getSelectedId() <= 1;
     const auto wanted = tagFilter.getText();
 
+    const auto search = searchBox.getText().trim();
+
     for (const auto& file : libraryFiles)
-        if (all || IrMetadata::forFile (file).tags.contains (wanted, true))
-            visibleFiles.add (file);
+    {
+        const auto metadata = IrMetadata::forFile (file);
+
+        if (! all && ! metadata.tags.contains (wanted, true))
+            continue;
+
+        // SPEC-SWEEP TM-38: every word of the search in the name, tags or notes.
+        if (search.isNotEmpty())
+        {
+            const auto haystack = file.getFileNameWithoutExtension() + " " + metadata.name + " "
+                                  + metadata.tags.joinIntoString (" ") + " " + metadata.notes;
+            bool matches = true;
+
+            for (const auto& word : juce::StringArray::fromTokens (search, " ", ""))
+                if (word.isNotEmpty() && ! haystack.containsIgnoreCase (word))
+                    matches = false;
+
+            if (! matches)
+                continue;
+        }
+
+        visibleFiles.add (file);
+    }
 
     libraryList.updateContent();
     libraryList.repaint();
@@ -992,6 +1021,8 @@ void ToneMatchPanel::resized()
     {
         auto r = row (26);
         refreshButton.setBounds (r.removeFromRight (72));
+        r.removeFromRight (4);
+        searchBox.setBounds (r.removeFromRight (r.getWidth() / 2));   // SPEC-SWEEP TM-38
         r.removeFromRight (4);
         tagFilter.setBounds (r);
     }

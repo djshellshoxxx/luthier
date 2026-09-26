@@ -147,6 +147,12 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    /** SPEC-SWEEP TM-38: the library files the tag filter and search let through. */
+    const juce::Array<juce::File>& getVisibleLibraryFiles() const noexcept { return visibleFiles; }
+
+    /** SPEC-SWEEP TM-38: the library to browse, for tests (normally the IR root's scan). */
+    void setLibraryFilesForTesting (const juce::Array<juce::File>& files) { libraryFiles = files; refreshLibrary(); }
+
 private:
     void refreshLibrary();
     void loadSelectedFromLibrary();
@@ -158,6 +164,7 @@ private:
 
     // --- library browser (tone-match 6) -------------------------------------------
     juce::ComboBox tagFilter;
+    juce::TextEditor searchBox;   // SPEC-SWEEP TM-38: name, tags or notes
     juce::ListBox libraryList;
     juce::TextButton refreshButton { "Rescan" };
     juce::Label libraryHint;
