@@ -417,26 +417,39 @@ bool AssistPill::keyPressed (const juce::KeyPress& key)
 
 void AssistPill::showPopover()
 {
-    if (popover != nullptr)
+    if (isPopoverOpen())
         return;
 
-    auto content = std::make_unique<AssistPopover> (processor, [this]
-    {
-        closePopover();
+    closePopover();
 
-        if (onOpenRhythmTab != nullptr)
-            onOpenRhythmTab();
+    popoverContent = std::make_unique<AssistPopover> (processor, [this]
+    {
+        juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<AssistPill> (this)]
+        {
+            if (safe == nullptr)
+                return;
+
+            safe->closePopover();
+
+            if (safe->onOpenRhythmTab != nullptr)
+                safe->onOpenRhythmTab();
+        });
     });
 
-    popover = &juce::CallOutBox::launchAsynchronously (std::move (content), getScreenBounds(), nullptr);
+    auto* parent = getTopLevelComponent();
+    const auto area = parent != nullptr && parent != this ? parent->getLocalArea (this, getLocalBounds())
+                                                          : getLocalBounds();
+
+    popoverBox = std::make_unique<juce::CallOutBox> (*popoverContent, area, parent != this ? parent : nullptr);
+    popoverBox->setDismissalMouseClicksAreAlwaysConsumed (true);
+    popoverBox->setVisible (true);
+    popoverBox->toFront (true);
 }
 
 void AssistPill::closePopover()
 {
-    if (popover != nullptr)
-        popover->dismiss();
-
-    popover = nullptr;
+    popoverBox.reset();
+    popoverContent.reset();
 }
 
 void AssistPill::timerCallback()

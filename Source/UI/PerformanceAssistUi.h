@@ -147,7 +147,7 @@ public:
     std::function<void()> onOpenRhythmTab;
 
     void showPopover();
-    bool isPopoverOpen() const noexcept { return popover != nullptr; }
+    bool isPopoverOpen() const noexcept { return popoverBox != nullptr && popoverBox->isVisible(); }
     void closePopover();
 
     /** True while the state dot is lit by a decision (7.1). */
@@ -169,7 +169,10 @@ private:
     double nowMs() const { return testClock ? testClock() : juce::Time::getMillisecondCounterHiRes(); }
 
     LuthierAudioProcessor& processor;
-    juce::Component::SafePointer<juce::CallOutBox> popover;
+    // The popover is a child of the editor, not a desktop window: plugin hosts
+    // handle a second top-level window badly, and it closes with the editor.
+    std::unique_ptr<juce::Component> popoverContent;
+    std::unique_ptr<juce::CallOutBox> popoverBox;
     double pressedAtMs = -1.0;
     bool holdFired = false;
     double flashUntilMs = -1.0;
