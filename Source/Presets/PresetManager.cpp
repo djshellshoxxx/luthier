@@ -2,6 +2,7 @@
 #include "FactoryPresets.h"
 #include "../Support/IrLibrary.h"
 #include "../Support/ErrorLog.h"
+#include "../UI/UiPreferences.h"   // REALISM-C
 
 namespace luthier
 {
@@ -472,6 +473,13 @@ juce::var PresetManager::toVar (const juce::String& name,
 //==============================================================================
 bool PresetManager::fromVar (const juce::var& data)
 {
+    struct LoadFade
+    {
+        explicit LoadFade (PresetManager& m) : manager (m) { if (manager.onBeforeLoad != nullptr) manager.onBeforeLoad(); }
+        ~LoadFade() { if (manager.onAfterLoad != nullptr) manager.onAfterLoad(); }
+        PresetManager& manager;
+    } fade (*this);
+
     auto* obj = data.getDynamicObject();
 
     if (obj == nullptr)
@@ -641,6 +649,36 @@ bool PresetManager::fromVar (const juce::var& data)
             }
         }
 
+        // ==== BEGIN REALISM-A legacy load ====
+        /*  string-aging.md 8: a preset from before the continuous model had only
+            the three-step choice. Its hours are that row's anchor and the
+            detail is 0, which is the old table exactly - it sounds as it did.
+            body-coupling.md 6: likewise without the body's return path. */
+        {
+            auto setPlain = [this] (const char* id, float plain)
+            {
+                if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (id)))
+                    p->setValueNotifyingHost (p->convertTo0to1 (plain));
+            };
+
+            if (! params->hasProperty (ParamIDs::stringAgeHours))
+            {
+                int age = 1;   // the old default, Broken In
+
+                if (auto* old = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (ParamIDs::stringAge)))
+                    age = juce::jlimit (0, 2, juce::roundToInt (old->convertFrom0to1 (old->getValue())));
+
+                static constexpr float kAnchorHours[] = { 0.0f, 12.0f, 120.0f };
+                setPlain (ParamIDs::stringAgeHours, kAnchorHours[age]);
+                setPlain (ParamIDs::stringAgeDetail, 0.0f);
+                setPlain (ParamIDs::stringCoating, 0.0f);
+            }
+
+            if (! params->hasProperty (ParamIDs::bodyCouplingAmount))
+                setPlain (ParamIDs::bodyCouplingAmount, 0.0f);
+        }
+        // ==== END REALISM-A legacy load ====
+
         /*  auto-articulation.md 8 (FEAT-ASSIST): a preset from before Performance
             Assist has no aa_* keys and loads with the defaults - off, which is
             the sound it was saved with - whatever the last preset had. */
@@ -767,6 +805,11 @@ bool PresetManager::fromVar (const juce::var& data)
     if (onGuitarBlockLoaded != nullptr)
         onGuitarBlockLoaded (obj->getProperty ("guitar"));
 
+    // tuning-stability.md 7 (REALISM-C): sigma from the preset's string age,
+    // capoComp cleared, every offset cleared.
+    if (auto* age = dynamic_cast<juce::AudioParameterChoice*> (apvts.getParameter (ParamIDs::stringAge)))
+        engine.getStabilityModel().beginPresetLoad ((StringAge) juce::jlimit (0, (int) StringAge::NumAges - 1, age->getIndex()));
+
     currentName = obj->getProperty ("name").toString();
     currentCategory = obj->getProperty ("category").toString();
 
@@ -813,7 +856,10 @@ void PresetManager::captureExtraState()
         const auto& t = tuningEngine.getStringTuning (i);
         extra.detuneCents[(size_t) i] = t.detuneCents;
         extra.realismDetuneCents[(size_t) i] = t.realismDetuneCents;
-        extra.fineTuneCents[(size_t) i] = t.fineTuneCents;
+        // string-aging.md 5 (REALISM-A): the aging detune rides on the fine
+        // tune and is rebuilt from the parameters on load, so only what is
+        // left beyond it is state.
+        extra.fineTuneCents[(size_t) i] = t.fineTuneCents - engine.getStringAging().computeNow (i).detuneCents;
         extra.openFrequencyHz[(size_t) i] = t.openFrequencyHz;
         extra.customGaugeInches[(size_t) i] = engine.getCustomStringGauge (i);
     }
@@ -1201,6 +1247,21 @@ bool PresetManager::exportPreset (const juce::File& destination)
 }
 
 //==============================================================================
+bool PresetManager::defaultMainsRegionIs50Hz()
+{
+    // noise-floor.md 3: Auto from the OS region, or the user's 50 / 60.
+    const int pref = UiPreferences::get().getInt ("defaultMainsRegion", 0);
+
+    if (pref == 1) return true;
+    if (pref == 2) return false;
+
+    static const juce::StringArray sixtyHz { "US", "CA", "MX", "BR", "CO", "VE", "KR", "TW", "PH", "SA",
+                                             "CR", "PA", "GT", "HN", "NI", "SV", "DO", "PR", "CU", "EC",
+                                             "PE", "JP", "LR", "BS", "BZ", "GU", "AS", "TT" };
+    const auto region = juce::SystemStats::getUserRegion().toUpperCase();
+    return region.isNotEmpty() && ! sixtyHz.contains (region);
+}
+
 void PresetManager::resetExtraState()
 {
     extra = ExtraState {};
@@ -1224,6 +1285,11 @@ void PresetManager::resetToDefaults()
 
     engine.getMidiInterpreter().resetCcMapToDefaults();
     applyExtraState();
+
+    // noise-floor.md 3 (REALISM-C): the user's default mains region seeds an
+    // Init preset. A loaded preset keeps its own.
+    if (auto* mains = apvts.getParameter (ParamIDs::noiseMainsHz))
+        mains->setValueNotifyingHost (mains->convertTo0to1 (defaultMainsRegionIs50Hz() ? 1.0f : 0.0f));
 
     // The default guitar type's factory guitar, as shipped, under the defaults.
     if (onGuitarBlockLoaded != nullptr)
@@ -1253,7 +1319,9 @@ bool PresetManager::isRandomisable (const juce::String& paramId)
         ParamIDs::secretFeedback, ParamIDs::secretMix
     };
 
-    return ! excluded.contains (paramId);
+    // tune-builder 14 (TUNE-HELP-ONBOARDING): the tune's timeline controls are
+    // not part of a sound.
+    return ! excluded.contains (paramId) && ! paramId.startsWith ("tune_");
 }
 
 void PresetManager::randomise (uint64_t seed, const juce::StringArray& lockedParameters,

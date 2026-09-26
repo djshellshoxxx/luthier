@@ -276,6 +276,13 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (*aux1PreCircuit);
 
     // --- sidechain ------------------------------------------------------------
+    // noise-floor.md 5: the "on Aux 8" switch, mirrored on the Aux 8 strip.
+    noiseFloorToAux8 = std::make_unique<LuthierToggle> ("AUX 8: + NOISE FLOOR");
+    noiseFloorToAux8->attachTo (processor, ParamIDs::noiseFloorToAux8,
+                                "Also put the rig's noise floor and the hum on Aux 8, to identify them. "
+                                "The same switch as CHARACTER's NOISE FLOOR group.");
+    addAndMakeVisible (*noiseFloorToAux8);
+
     sidechainToAmp = std::make_unique<LuthierToggle> ("SIDECHAIN TO AMP");
     sidechainToAmp->setTooltip ("Feeds the sidechain input into the amp in place of the "
                                 "strings, for re-amping a recorded DI.");
@@ -467,6 +474,7 @@ int RoutingPanel::preferredHeight() const
                  + 14                                 // latency readout
                  + kNumAuxStrips * AuxStrip::preferredHeight
                  + Metrics::buttonHeight + Metrics::gridHalf   // Aux 1 pre-circuit (MODEL-GAPS)
+                 + Metrics::buttonHeight               // Aux 8 noise-floor mirror (REALISM-C)
                  + Metrics::grid
                  + Metrics::buttonHeight               // sidechain toggle
                  + 18                                  // sidechain meter row
@@ -510,6 +518,7 @@ void RoutingPanel::resized()
 
     bounds.removeFromTop (Metrics::gridHalf);
     aux1PreCircuit->setBounds (bounds.removeFromTop (Metrics::buttonHeight));
+    noiseFloorToAux8->setBounds (bounds.removeFromTop (Metrics::buttonHeight));
 
     if (perStringStrip->isVisible())
     {

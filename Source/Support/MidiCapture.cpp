@@ -43,7 +43,7 @@ void MidiCapture::capture (const juce::MidiBuffer& midi, int64_t blockStartSampl
         if (size <= 0 || size > 3)
             continue;
 
-        const int index = writeIndex.fetch_add (1, std::memory_order_relaxed) % capacity;
+        const int index = (int) (writeIndex.fetch_add (1, std::memory_order_relaxed) % capacity);
 
         auto& e = ring[(size_t) index];
         e.sample = blockStartSample + metadata.samplePosition;
@@ -56,7 +56,7 @@ void MidiCapture::capture (const juce::MidiBuffer& midi, int64_t blockStartSampl
 
         newestSample.store (e.sample, std::memory_order_relaxed);
 
-        const int count = written.fetch_add (1, std::memory_order_relaxed) + 1;
+        const int64_t count = written.fetch_add (1, std::memory_order_relaxed) + 1;
 
         if (count > capacity)
         {
@@ -82,12 +82,12 @@ double MidiCapture::getCapturedSeconds() const noexcept
 //==============================================================================
 int64_t MidiCapture::getFirstHeldSample() const noexcept
 {
-    const int count = juce::jmin (written.load(), capacity);
+    const int count = (int) juce::jmin (written.load(), (int64_t) capacity);
 
     if (count <= 0)
         return -1;
 
-    const int start = (written.load() > capacity) ? (writeIndex.load() % capacity) : 0;
+    const int start = (written.load() > capacity) ? (int) (writeIndex.load() % capacity) : 0;
     int64_t first = std::numeric_limits<int64_t>::max();
 
     for (int i = 0; i < count; ++i)
@@ -112,7 +112,7 @@ juce::MidiFile MidiCapture::buildMidiFile (double tempoBpm) const
 
     juce::MidiMessageSequence notes;
 
-    const int count = juce::jmin (written.load(), capacity);
+    const int count = (int) juce::jmin (written.load(), (int64_t) capacity);
 
     if (count <= 0)
     {
@@ -121,7 +121,7 @@ juce::MidiFile MidiCapture::buildMidiFile (double tempoBpm) const
     }
 
     // Walk the ring oldest-first.
-    const int start = (written.load() > capacity) ? (writeIndex.load() % capacity) : 0;
+    const int start = (written.load() > capacity) ? (int) (writeIndex.load() % capacity) : 0;
 
     int64_t firstSample = std::numeric_limits<int64_t>::max();
 
@@ -160,7 +160,7 @@ juce::MidiFile MidiCapture::buildMidiFile (double tempoBpm) const
 
 bool MidiCapture::writeToFile (const juce::File& file, double tempoBpm) const
 {
-    if (juce::jmin (written.load(), capacity) <= 0)
+    if (juce::jmin (written.load(), (int64_t) capacity) <= 0)
         return false;
 
     file.getParentDirectory().createDirectory();

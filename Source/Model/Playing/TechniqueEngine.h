@@ -36,6 +36,17 @@ public:
     void setPinchHarmonicTrigger (bool on) noexcept { pinchTrigger = on; }
     void setNaturalHarmonicTrigger (bool on) noexcept { harmonicTrigger = on; }
     void setTapTrigger (bool on) noexcept { tapTrigger = on; }
+
+    /** harmonic-realism.md 6: CC 103 and CC 104, held. */
+    void setArtificialHarmonicTrigger (bool on) noexcept { artificialTrigger = on; }
+    void setTappedHarmonicTrigger (bool on) noexcept { tappedHarmonicTrigger = on; }
+    bool isNaturalHarmonicTriggerHeld() const noexcept { return harmonicTrigger; }
+    bool isArtificialHarmonicTriggerHeld() const noexcept { return artificialTrigger; }
+    bool isHarmonicVelocityTriggerEnabled() const noexcept { return harmonicVelocityTrigger; }
+
+    /** True when the last decide() returned Tap because the tapped-harmonic
+        trigger was held (a Tap with a touch, harmonic-realism.md 3). */
+    bool lastDecisionWasTappedHarmonic() const noexcept { return lastTappedHarmonic; }
     void setSlideMode (bool on) noexcept { slideMode = on; }
     void setSlideGuitarMode (bool on) noexcept { slideGuitarMode = on; }
     void setFretlessMode (bool on) noexcept { fretless = on; }
@@ -47,6 +58,14 @@ public:
         velocity trigger is enabled. */
     void setHarmonicVelocityThreshold (double v) noexcept { harmonicVelocity = juce::jlimit (0.0, 1.0, v); }
     void setHarmonicVelocityTriggerEnabled (bool e) noexcept { harmonicVelocityTrigger = e; }
+
+    /** harmonic-realism.md 4.2: whether the next note at this velocity will be a
+        natural harmonic (nothing of higher priority held). */
+    bool isNaturalHarmonicArmed (double velocity) const noexcept
+    {
+        return palmMute <= 0.05 && ! pinchTrigger
+               && (harmonicTrigger || (harmonicVelocityTrigger && velocity >= harmonicVelocity));
+    }
 
     /** Legato window: notes closer together than this on the same string are read
         as a slide rather than two separate articulations. */
@@ -105,7 +124,8 @@ public:
     double slideDurationFor (double semitoneDistance) const noexcept;
 
     /** The partial a natural harmonic at a given fret produces. Returns 0 if that
-        fret is not a node. */
+        fret is not a node. harmonic-realism.md 4.1: the analytic node search
+        (default 648 mm scale, 2.5 mm finger), so fret 3.86 is partial 5. */
     static int harmonicPartialForFret (double fret) noexcept;
 
 private:
@@ -128,6 +148,9 @@ private:
     bool pinchTrigger = false;
     bool harmonicTrigger = false;
     bool tapTrigger = false;
+    bool artificialTrigger = false;
+    bool tappedHarmonicTrigger = false;
+    bool lastTappedHarmonic = false;
     bool slideMode = false;
     bool slideGuitarMode = false;
     bool fretless = false;

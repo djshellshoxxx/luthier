@@ -1,6 +1,8 @@
 #include "Parameters.h"
 #include "PhysicalRange.h"
 #include "Rhythm/StrumGesture.h"
+#include "Presets/RealismStyles.h"   // REALISM-C
+
 #include "Support/Edition.h"   // FEAT-ASSIST: auto-articulation.md 11
 
 namespace luthier
@@ -235,6 +237,13 @@ juce::StringArray Parameters::stringGaugeNames()
 juce::StringArray Parameters::stringAgeNames()
 {
     return { "Fresh", "Broken In", "Old" };
+}
+
+// environment.md 3.1 (REALISM-A): the order is the EnvProfile enum's.
+juce::StringArray Parameters::envProfileNames()
+{
+    return { "Static", "Stage lights", "Outdoor evening", "Cold case to room",
+             "Air-conditioned studio", "Humid club" };
 }
 
 juce::StringArray Parameters::pickMaterialNames()
@@ -565,7 +574,7 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::slideNoiseAmount,      "Slide Noise",         0.0f,   1.0f,  0.4f));
     add (floatParam  (ParamIDs::slideClankAmount,      "Slide Clank",         0.0f,   1.0f,  0.45f));
     add (floatParam  (ParamIDs::slideIntonationAssist, "Intonation Assist",   0.0f,   1.0f,  0.15f));
-    add (floatParam (ParamIDs::ampBuzz,      "Amp Buzz",      0.0f, 1.0f, 0.12f));
+    add (floatParam (ParamIDs::ampBuzz,      "Single-coil Hum", 0.0f, 1.0f, 0.12f));   // noise-floor.md 1: relabelled, same ID
 
     // --- body -----------------------------------------------------------------
     add (choiceParam (ParamIDs::bodyMode,      "Body Mode",     bodyModeNames(), 0));
@@ -819,6 +828,105 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (boolParam   (ParamIDs::restStroke,                 "Rest Stroke", true));
     add (boolParam   (ParamIDs::aux1PreCircuit,             "Aux 1 Pre-Circuit", false));
     // ==== END MODEL-GAPS params ====
+    // ==== BEGIN REALISM-A params ====
+    // string-aging.md 4: hours skewed so 24 h sits mid-travel; the default is the
+    // old Broken In row (12 h), which is what `string_age`'s default was.
+    add (floatParam  (ParamIDs::stringAgeHours,    "String Age",          0.0f, 200.0f, 12.0f, 0.12f, "h"));
+    add (floatParam  (ParamIDs::stringCorrosivity, "Hand Corrosivity",    0.5f, 2.0f,   1.0f,  1.0f,  "x"));
+    add (floatParam  (ParamIDs::stringAgeDetail,   "Aging Detail",        0.0f, 1.0f,   1.0f));
+    add (choiceParam (ParamIDs::stringCoating,     "Coating",             { "None", "Thin", "Thick" }, 0));
+    add (choiceParam (ParamIDs::stringAgeAccrual,  "Age While Playing",   { "Off", "Real time", "x10", "x100" }, 0));
+    // environment.md 5
+    add (floatParam  (ParamIDs::envTemperatureC,   "Ambient Temperature", 5.0f,  40.0f, 22.0f, 1.0f, "C"));
+    add (floatParam  (ParamIDs::envTunedAtC,       "Tuned At",            5.0f,  40.0f, 22.0f, 1.0f, "C"));
+    add (floatParam  (ParamIDs::envHumidityPct,    "Humidity",            20.0f, 85.0f, 45.0f, 1.0f, "% RH"));
+    add (choiceParam (ParamIDs::envProfile,        "Session Profile",     envProfileNames(), 0));
+    add (choiceParam (ParamIDs::envClock,          "Profile Clock",       { "Host timeline", "Free-running" }, 0));
+    // body-coupling.md 4
+    add (floatParam  (ParamIDs::bodyCouplingAmount, "Body Coupling",      0.0f, 1.0f, 1.0f));
+    add (floatParam  (ParamIDs::bodyModeMassScale,  "Body Mode Mass",     0.5f, 2.0f, 1.0f, 1.0f / 3.0f, "x"));
+    add (floatParam  (ParamIDs::bodyModeQScale,     "Body Mode Q",        0.5f, 2.0f, 1.0f, 1.0f / 3.0f, "x"));
+    add (floatParam  (ParamIDs::bodyModeFreqScale,  "Body Mode Tuning",   0.9f, 1.1f, 1.0f, 0.5f, "x"));
+    add (choiceParam (ParamIDs::bodyCouplingModes,  "Coupling Modes",     { "4", "8", "12", "16" }, 1));
+    // ==== END REALISM-A params ====
+    // ==== BEGIN REALISM-B params ====
+    // harmonic-realism.md 5: +8. Physical rows join the pick family (PhysicalRange.cpp).
+    {
+        const juce::StringArray offsets { "12", "7", "5", "4", "19", "24" };
+        add (floatParam  (ParamIDs::harmonicTouchPressure, "Harmonic Touch",       0.2f, 1.0f, 0.6f));
+        add (floatParam  (ParamIDs::harmonicFingerWidth,   "Finger Contact Width", 1.0f, 6.0f, 2.5f, 1.0f, "mm"));
+        add (floatParam  (ParamIDs::harmonicTouchTime,     "Touch Time",           20.0f, 200.0f, 70.0f, 1.0f, "ms"));
+        add (floatParam  (ParamIDs::harmonicBriefTouch,    "Pinch / Tap Graze",    3.0f, 20.0f, 8.0f, 1.0f, "ms"));
+        add (floatParam  (ParamIDs::pinchThumbOffsetMm,    "Thumb Offset",         2.0f, 12.0f, 6.0f, 1.0f, "mm"));
+        add (choiceParam (ParamIDs::artificialHarmonicOffset, "Artificial Offset", offsets, 0));
+        add (choiceParam (ParamIDs::tappedHarmonicOffset,  "Tapped Offset",        offsets, 0));
+        add (choiceParam (ParamIDs::harmonicNoteMapping,   "Harmonic Notes",       { "Touch fret", "Sounding" }, 0));
+    }
+
+    // string-interaction.md 7: +7.
+    add (floatParam  (ParamIDs::couplingAirAmount,   "Air Coupling",       0.0f, 1.0f, 1.0f));
+    add (floatParam  (ParamIDs::palmMuteSpread,      "Palm Width",         20.0f, 60.0f, 35.0f, 1.0f, "mm"));
+    add (floatParam  (ParamIDs::adjacentMuteAmount,  "Neighbour Mute",     0.0f, 1.0f, 0.6f));
+    add (floatParam  (ParamIDs::releaseStaggerMs,    "Release Stagger",    0.0f, 40.0f, 12.0f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::releaseStaggerBias,  "Stagger Order",     -1.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::pickupApertureScale, "Pole Aperture",      0.5f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::mutedThumpLevel,     "Muted-String Thump", 0.0f, 1.0f, 0.5f));
+
+    // fingerstyle-attack.md 6: +14.
+    add (floatParam  (ParamIDs::fingerFleshReleaseMs, "Flesh Release",   0.04f, 0.20f, 0.0723f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::fingerNailReleaseMs,  "Nail Release",    0.015f, 0.06f, 0.0227f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::thumbPositionOffset,  "Thumb Position", -0.05f, 0.10f, 0.04f));
+    add (floatParam  (ParamIDs::restStrokeDamping,    "Rest Damping",    0.0f, 1.0f, 0.8f));
+    add (choiceParam (ParamIDs::rhStroke,             "Stroke",          rhStrokeNames(), 0));
+    add (choiceParam (ParamIDs::rhStyle,              "Right-Hand Style", rhStyleNames(), 0));
+
+    for (int n = 1; n <= 6; ++n)
+        add (choiceParam (ParamIDs::rhStringTool (n), "String " + juce::String (n) + " Tool", rhToolNames(), 0));
+
+    add (floatParam  (ParamIDs::thumbPalmMute,        "Thumb Palm Mute", 0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::hybridSnap,           "Hybrid Snap",     0.0f, 1.0f, 0.3f));
+    // ==== END REALISM-B params ====
+    // ==== BEGIN REALISM-C params ====
+    // Every default is neutral: existing presets render as before
+    // (noise-floor.md 0.5, sustain-and-decay.md 0.3, tuning-stability.md 0).
+    add (choiceParam (ParamIDs::noiseMainsHz,        "Mains Region",        { "60 Hz", "50 Hz" }, 0));
+    add (floatParam  (ParamIDs::noisePlayerAngle,    "Facing Angle",        0.0f, 90.0f, 0.0f, 1.0f, "deg"));
+    add (floatParam  (ParamIDs::noisePlayerDistance, "Distance to Amp",     0.3f, 5.0f, 1.0f, 0.149f, "m"));
+    add (floatParam  (ParamIDs::noiseFluorescent,    "Fluorescent Buzz",    0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noisePassiveHiss,    "Passive Hiss",        0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseCableMovement,  "Cable Movement",      0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseRadio,          "Radio Pickup",        0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseGroundLoop,     "Ground Loop",         0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseAmpHiss,        "Amp Hiss",            0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseMicrophonics,   "Microphonics",        0.0f, 1.0f, 0.0f));
+    add (boolParam   (ParamIDs::noiseFloorToAux8,    "Noise Floor on Aux 8", false));
+    add (choiceParam (ParamIDs::noiseFloorStyle,     "Noise Floor Style",   RealismStyles::noiseFloorStyleNames(), 0));
+
+    add (floatParam  (ParamIDs::sustainAttackTransient, "Attack Transient", 0.0f,  1.0f,  0.0f));
+    add (floatParam  (ParamIDs::sustainAttackTime,      "Attack Time",      5.0f,  80.0f, 30.0f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::sustainFastShare,       "Fast Decay Share", 0.0f,  0.9f,  0.0f));
+    add (floatParam  (ParamIDs::sustainFastRatio,       "Fast Decay Ratio", 0.05f, 0.5f,  0.2f));
+    add (floatParam  (ParamIDs::sustainTensionMod,      "Tension Pitch",    0.0f,  1.5f,  0.0f));
+    add (floatParam  (ParamIDs::sustainReleaseTime,     "Release Time",     0.0f,  60.0f, 0.0f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::sustainReleaseSag,      "Release Sag",      0.0f,  8.0f,  0.0f, 1.0f, "mm"));
+    add (floatParam  (ParamIDs::sustainReleaseRing,     "Release Ring",     0.0f,  0.3f,  0.0f));
+    add (choiceParam (ParamIDs::sustainStyle,           "Sustain Style",    RealismStyles::sustainStyleNames(), 0));
+
+    add (floatParam  (ParamIDs::stabilityAmount,      "Tuning Instability", 0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::stabilitySettling,    "String Settling",    0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilityNutBinding,  "Nut Binding",        0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilityBacklash,    "Tuner Backlash",     0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilitySaddleCreep, "Bridge / Saddle",    0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilityBendMemory,  "Bend Memory",        0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilityCapoBias,    "Capo Bias",          0.0f, 2.0f, 1.0f));
+    add (choiceParam (ParamIDs::stabilityAutoRetune,  "Auto Retune",        { "Off", "Idle", "Transport Stop", "Idle + Stop" }, 1));
+    // ==== END REALISM-C params ====
+    // ==== BEGIN TUNE-HELP-ONBOARDING params ====
+    // tune-builder 14: read by the processor for the TUNE tab's player and
+    // session (LuthierAudioProcessor::applyTuneModulation), not by the engine.
+    add (floatParam  (ParamIDs::tuneFeelMod,        "Tune Feel",          -1.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::tuneTempoDrift,     "Tune Tempo Drift",  -10.0f, 10.0f, 0.0f, 1.0f, "%"));
+    // ==== END TUNE-HELP-ONBOARDING params ====
 
     // ==== BEGIN FEAT-ASSIST params ====
     // auto-articulation.md 6, appended. Not physical: no PhysicalRange. In Free
@@ -1345,6 +1453,38 @@ void ParameterBridge::applyToEngine() noexcept
         engine.setSlapSettings (slap);
     }
 
+    // ==== BEGIN REALISM-A params ====
+    {
+        // string-aging.md 5
+        StringAging::Inputs in;
+        in.hours = value (ParamIDs::stringAgeHours);
+        in.corrosivity = value (ParamIDs::stringCorrosivity);
+        in.detail = value (ParamIDs::stringAgeDetail);
+        in.coating = (StringCoating) juce::jlimit (0, (int) StringCoating::numCoatings - 1,
+                                                   juce::roundToInt (value (ParamIDs::stringCoating)));
+        in.accrual = (AgeAccrual) juce::jlimit (0, (int) AgeAccrual::numRates - 1,
+                                                juce::roundToInt (value (ParamIDs::stringAgeAccrual)));
+        engine.getStringAging().setInputs (in);
+
+        // environment.md 5
+        EnvironmentModel::Inputs env;
+        env.temperatureC = value (ParamIDs::envTemperatureC);
+        env.tunedAtC = value (ParamIDs::envTunedAtC);
+        env.humidityPct = value (ParamIDs::envHumidityPct);
+        env.profile = (EnvProfile) juce::jlimit (0, (int) EnvProfile::numProfiles - 1,
+                                                 juce::roundToInt (value (ParamIDs::envProfile)));
+        env.clock = (EnvClock) juce::jlimit (0, (int) EnvClock::numClocks - 1,
+                                             juce::roundToInt (value (ParamIDs::envClock)));
+        engine.getEnvironment().setInputs (env);
+
+        // body-coupling.md 4
+        engine.getBodyCoupling().setAmount (value (ParamIDs::bodyCouplingAmount));
+        engine.getBodyCoupling().setModeCount (4 * (1 + juce::jlimit (0, 3, juce::roundToInt (value (ParamIDs::bodyCouplingModes)))));
+        engine.setBodyModeScales (value (ParamIDs::bodyModeFreqScale), value (ParamIDs::bodyModeQScale),
+                                  value (ParamIDs::bodyModeMassScale));
+    }
+    // ==== END REALISM-A params ====
+
     auto& tech = engine.getTechniqueEngine();
     tech.setLegatoWindowMs (value (ParamIDs::legatoWindow));
     tech.setSlideGuitarMode (value (ParamIDs::slideGuitar) > 0.5f);
@@ -1511,6 +1651,60 @@ void ParameterBridge::applyToEngine() noexcept
         engine.setAuxDiPreCircuit (value (ParamIDs::aux1PreCircuit) > 0.5f);
     }
     // ==== END MODEL-GAPS params ====
+    // ==== BEGIN REALISM-C params ====
+    // noise-floor.md 4.5: the settings once per block; the region drives the
+    // pickups' hum and the noise floor together.
+    {
+        NoiseFloorSettings nf;
+        nf.mainsHz        = (int) value (ParamIDs::noiseMainsHz) == 1 ? 50.0 : 60.0;
+        nf.angleDegrees   = value (ParamIDs::noisePlayerAngle);
+        nf.distanceMetres = value (ParamIDs::noisePlayerDistance);
+        nf.fluorescent    = value (ParamIDs::noiseFluorescent);
+        nf.passiveHiss    = value (ParamIDs::noisePassiveHiss);
+        nf.cableMovement  = value (ParamIDs::noiseCableMovement);
+        nf.radio          = value (ParamIDs::noiseRadio);
+        nf.groundLoop     = value (ParamIDs::noiseGroundLoop);
+        nf.ampHiss        = value (ParamIDs::noiseAmpHiss);
+        nf.microphonics   = value (ParamIDs::noiseMicrophonics);
+        nf.toAux8         = value (ParamIDs::noiseFloorToAux8) > 0.5f;
+        engine.setNoiseFloorSettings (nf);
+        engine.getNoiseFloor().setHumForMeter (value (ParamIDs::ampBuzz));
+        engine.getPickupEngine().setMainsFrequency (nf.mainsHz);
+    }
+
+    // sustain-and-decay.md 7: the shape, set at block rate.
+    {
+        StringEngine::SustainShape shape;
+        shape.attackTransient   = value (ParamIDs::sustainAttackTransient);
+        shape.attackTimeSeconds = value (ParamIDs::sustainAttackTime) * 0.001;
+        shape.fastShare         = value (ParamIDs::sustainFastShare);
+        shape.fastRatio         = value (ParamIDs::sustainFastRatio);
+        shape.tensionMod        = value (ParamIDs::sustainTensionMod);
+        shape.releaseSeconds    = value (ParamIDs::sustainReleaseTime) * 0.001;
+        shape.releaseSagMm      = value (ParamIDs::sustainReleaseSag);
+        shape.releaseRing       = value (ParamIDs::sustainReleaseRing);
+
+        // 4: +25 c in stock, +50 c in advanced. A value past its stock end is
+        // only reachable with the strings family unlocked.
+        shape.advanced = shape.tensionMod > 1.5 || shape.attackTransient > 1.0 || shape.fastShare > 0.9;
+        engine.setSustainShape (shape);
+    }
+
+    // tuning-stability.md 4.
+    {
+        StabilitySettings st;
+        st.amount      = value (ParamIDs::stabilityAmount);
+        st.settling    = value (ParamIDs::stabilitySettling);
+        st.nutBinding  = value (ParamIDs::stabilityNutBinding);
+        st.backlash    = value (ParamIDs::stabilityBacklash);
+        st.saddleCreep = value (ParamIDs::stabilitySaddleCreep);
+        st.bendMemory  = value (ParamIDs::stabilityBendMemory);
+        st.capoBias    = value (ParamIDs::stabilityCapoBias);
+        st.autoRetune  = (AutoRetune) juce::jlimit (0, (int) AutoRetune::numModes - 1,
+                                                    (int) value (ParamIDs::stabilityAutoRetune));
+        engine.getStabilityModel().setSettings (st);
+    }
+    // ==== END REALISM-C params ====
 
     // ==== BEGIN FEAT-ASSIST params ====
     // auto-articulation.md 4.2 / 11: the four parameters, with Free's
@@ -1529,6 +1723,69 @@ void ParameterBridge::applyToEngine() noexcept
         structuralPending.store (true);
         triggerAsyncUpdate();
     }
+
+    // ==== BEGIN REALISM-B params ====
+    {
+        // harmonic-realism.md 5.
+        HarmonicTouchSettings touch;
+        touch.pressure      = value (ParamIDs::harmonicTouchPressure);
+        touch.fingerWidthMm = value (ParamIDs::harmonicFingerWidth);
+        touch.touchSeconds  = value (ParamIDs::harmonicTouchTime) * 0.001;
+        touch.briefSeconds  = value (ParamIDs::harmonicBriefTouch) * 0.001;
+        touch.thumbOffsetMm = value (ParamIDs::pinchThumbOffsetMm);
+        engine.setHarmonicTouch (touch);
+
+        MidiInterpreter::HarmonicSettings mapping;
+        mapping.artificialOffsetChoice = juce::roundToInt (value (ParamIDs::artificialHarmonicOffset));
+        mapping.tappedOffsetChoice     = juce::roundToInt (value (ParamIDs::tappedHarmonicOffset));
+        mapping.soundingPitch          = value (ParamIDs::harmonicNoteMapping) > 0.5f;
+
+        for (int s = 0; s < kMaxStrings; ++s)
+            mapping.inharmonicityB[s] = engine.getString (s).getPhysical().inharmonicityB;
+
+        engine.getMidiInterpreter().setHarmonicSettings (mapping);
+
+        // fingerstyle-attack.md 6.
+        RightHandSettings hand;
+        hand.fleshReleaseMs      = value (ParamIDs::fingerFleshReleaseMs);
+        hand.nailReleaseMs       = value (ParamIDs::fingerNailReleaseMs);
+        hand.thumbPositionOffset = value (ParamIDs::thumbPositionOffset);
+        hand.restStrokeDamping   = value (ParamIDs::restStrokeDamping);
+        hand.stroke = (RhStroke) juce::jlimit (0, (int) RhStroke::numStrokes - 1, juce::roundToInt (value (ParamIDs::rhStroke)));
+        hand.style  = (RhStyle) juce::jlimit (0, (int) RhStyle::numStyles - 1, juce::roundToInt (value (ParamIDs::rhStyle)));
+
+        for (int n = 1; n <= 6; ++n)
+            hand.stringTool[(size_t) (n - 1)] = (RhTool) juce::jlimit (0, (int) RhTool::numTools - 1,
+                                                                       juce::roundToInt (value (ParamIDs::rhStringTool (n))));
+
+        hand.thumbPalmMute = value (ParamIDs::thumbPalmMute);
+        hand.hybridSnap    = value (ParamIDs::hybridSnap);
+
+        // Reused from bass-techniques.md 11 when that spec's parameters exist.
+        if (raw (ParamIDs::fingerAlternationVariation) != nullptr)
+            hand.alternationVariation = value (ParamIDs::fingerAlternationVariation);
+
+        if (raw (ParamIDs::bassRestStroke) != nullptr)
+            hand.bassRestStroke = value (ParamIDs::bassRestStroke) > 0.5f;
+
+        engine.setRightHand (hand);
+
+        // string-interaction.md 7.
+        StringInteractionSettings interaction;
+        interaction.airAmount          = value (ParamIDs::couplingAirAmount);
+        interaction.palmSpreadMm       = value (ParamIDs::palmMuteSpread);
+        interaction.adjacentMute       = value (ParamIDs::adjacentMuteAmount);
+        interaction.releaseStaggerMs   = value (ParamIDs::releaseStaggerMs);
+        interaction.releaseStaggerBias = value (ParamIDs::releaseStaggerBias);
+        interaction.apertureScale      = value (ParamIDs::pickupApertureScale);
+        interaction.mutedThumpLevel    = value (ParamIDs::mutedThumpLevel);
+
+        // 3's fretting style: muting-rhythm.md's when it lands; until then a
+        // classical right hand means classical, arched fingers.
+        interaction.frettingStyle = hand.style == RhStyle::classical ? 0.1 : 1.0;
+        engine.setStringInteraction (interaction);
+    }
+    // ==== END REALISM-B params ====
 }
 
 bool ParameterBridge::readStructuralValues() noexcept
@@ -1548,7 +1805,8 @@ bool ParameterBridge::readStructuralValues() noexcept
     structural |= changed (lastTuning,         (int) value (ParamIDs::tuningPreset));
     structural |= changed (lastStringMaterial, (int) value (ParamIDs::stringMaterial));
     structural |= changed (lastStringGauge,    (int) value (ParamIDs::stringGauge));
-    structural |= changed (lastStringAge,      (int) value (ParamIDs::stringAge));
+    // string-aging.md 1: string_age is inert after load (the loader maps it to
+    // string_age_hours); it no longer rebuilds the strings. (REALISM-A)
     structural |= changed (lastBodyMode,       (int) value (ParamIDs::bodyMode));
     structural |= changed (lastBracing,        (int) value (ParamIDs::bodyBracing));
     structural |= changed (lastTopWood,        (int) value (ParamIDs::bodyTopWood));
@@ -1622,8 +1880,33 @@ void ParameterBridge::pushSlotParameters (bool post, int slot)
 }
 
 //==============================================================================
+namespace
+{
+    /** Runs the fade hooks around the outermost structural pass only: a guitar
+        load inside a preset load re-enters applyAllNow. Message thread. */
+    struct StructuralFade
+    {
+        StructuralFade (int& depthIn, const std::function<void()>& before, const std::function<void()>& afterIn)
+            : depth (depthIn), after (afterIn)
+        {
+            if (depth++ == 0 && before != nullptr)
+                before();
+        }
+
+        ~StructuralFade()
+        {
+            if (--depth == 0 && after != nullptr)
+                after();
+        }
+
+        int& depth;
+        const std::function<void()>& after;
+    };
+}
+
 void ParameterBridge::handleAsyncUpdate()
 {
+    const StructuralFade fade (structuralDepth, beforeStructuralChange, afterStructuralChange);
     const juce::ScopedLock sl (engineLock);
     applyStructural();
     structuralPending.store (false);
@@ -1631,6 +1914,7 @@ void ParameterBridge::handleAsyncUpdate()
 
 void ParameterBridge::applyAllNow()
 {
+    const StructuralFade fade (structuralDepth, beforeStructuralChange, afterStructuralChange);
     const juce::ScopedLock sl (engineLock);
     structuralInitialised = false;
     applyToEngine();
@@ -1675,7 +1959,6 @@ void ParameterBridge::applyStructural()
 
     engine.setStringMaterial ((StringMaterial) juce::jlimit (0, (int) StringMaterial::NumMaterials - 1, lastStringMaterial));
     engine.setStringGauge ((StringGauge) juce::jlimit (0, (int) StringGauge::NumGauges - 1, lastStringGauge));
-    engine.setStringAge ((StringAge) juce::jlimit (0, (int) StringAge::NumAges - 1, lastStringAge));
     engine.setFretless (value (ParamIDs::fretless) > 0.5f);
 
     // ---- body ------------------------------------------------------------------
@@ -1691,6 +1974,7 @@ void ParameterBridge::applyStructural()
         cfg.soundHoleScale = value (ParamIDs::bodySoundhole);
         cfg.age = value (ParamIDs::bodyAge);
         engine.getBodyEngine().setBodyConfig (cfg);
+        engine.rebuildBodyCoupling();   // body-coupling.md 3: one body, two views (REALISM-A)
 
         const int mode = juce::jlimit (0, 3, lastBodyMode);
         engine.getBodyEngine().setMode (mode == 0 ? BodyEngine::Mode::Convolution
@@ -1823,6 +2107,12 @@ void ParameterBridge::applyStructural()
 
     // Anything that depends on the string physics has to be recomputed last.
     engine.refreshStringPhysics();
+
+    // ==== BEGIN REALISM-C params ====
+    // tuning-stability.md 7: a preset's own tuning changes are applied by now;
+    // later ones are the player's, and events again.
+    engine.getStabilityModel().endStructuralApply();
+    // ==== END REALISM-C params ====
 }
 
 } // namespace luthier

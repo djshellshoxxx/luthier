@@ -876,9 +876,14 @@ bool NotationExporter::writeMidi (const PerformanceScore& score, const juce::Fil
                 const bool legato = note->hasTechnique (ScoreTechnique::Type::hammerOn)
                                       || note->hasTechnique (ScoreTechnique::Type::pullOff);
 
+                // At the note-on's own tick, as MidiPerformance does: a tick
+                // earlier put it before the previous legato note's CC 68 off
+                // (at that note's end, which is this start), so in 5h7p5 the
+                // third note's legato was switched off before it and re-plucked.
+                // Added later, it lands after that off at the same tick.
                 if (legato)
                     sequence.addEvent (juce::MidiMessage::controllerEvent (channel, 68, 127),
-                                       startTicks - 1.0);
+                                       startTicks);
 
                 sequence.addEvent (juce::MidiMessage::noteOn (
                     channel, note->midiNote,
@@ -1315,6 +1320,24 @@ bool NotationImporter::readAsciiTab (const juce::String& text, PerformanceScore&
             {
                 // The lowest string is the bottom line, so the block is read
                 // upward into string indices.
+                /*  The writer widens a slot on every string of the system where
+                    any string has a two-digit fret, so the columns that are the
+                    second digit of such a fret carry no time, on any line. */
+                std::vector<bool> widened;
+
+                for (int line = 0; line < numLines; ++line)
+                {
+                    const auto& content = lines[blockStart + line];
+
+                    if ((int) widened.size() < content.length() + 1)
+                        widened.resize ((size_t) content.length() + 1, false);
+
+                    for (int c = 0; c + 1 < content.length(); ++c)
+                        if (juce::CharacterFunctions::isDigit (content[c])
+                              && juce::CharacterFunctions::isDigit (content[c + 1]))
+                            widened[(size_t) c + 1] = true;
+                }
+
                 for (int line = 0; line < numLines; ++line)
                 {
                     const auto& content = lines[blockStart + line];
@@ -1327,9 +1350,23 @@ bool NotationImporter::readAsciiTab (const juce::String& text, PerformanceScore&
                     int column = content.indexOfChar ('|');
                     column = (column >= 0) ? column + 1 : 0;
 
+                    // Beats count from the bar line before the note, in its
+                    // own measure: counting from the line's start added each
+                    // bar line and the writer's pad column as time, half a beat
+                    // a measure.
+                    int barInLine = 0;
+                    int measureColumn = column;
+
                     for (int c = column; c < content.length(); ++c)
                     {
                         const auto character = content[c];
+
+                        if (character == '|')
+                        {
+                            ++barInLine;
+                            measureColumn = c + 1;
+                            continue;
+                        }
 
                         if (! juce::CharacterFunctions::isDigit (character))
                             continue;
@@ -1348,8 +1385,14 @@ bool NotationImporter::readAsciiTab (const juce::String& text, PerformanceScore&
 
                         // Columns to beats: four columns to a beat, which is what
                         // the writer uses.
-                        const double beat = (double) measureNumber * 4.0
-                                              + (double) (c - column) / 4.0;
+                        int slots = 0;
+
+                        for (int k = measureColumn; k < c; ++k)
+                            if (! widened[(size_t) k])
+                                ++slots;
+
+                        const double beat = (double) (measureNumber + barInLine) * 4.0
+                                              + (double) slots / 4.0;
 
                         const auto& track = destination.getTrack (0);
                         const int open = track.tuning[(size_t) juce::jlimit (0, kMaxStrings - 1, stringIndex)];

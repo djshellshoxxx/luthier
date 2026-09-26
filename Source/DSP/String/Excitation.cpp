@@ -35,8 +35,9 @@ void Excitation::prepare (double sampleRate)
     // Worst case: the longest string we support, plucked at the midpoint, with the
     // comb tail (3x the pluck length) and the material length scale on top.
     const int maxPluck = (int) std::ceil (sr / constants::kMinStringHz * 0.5);
-    const int maxLen = (int) (maxPluck * 3.4) + 64;
+    const int maxLen = (int) (maxPluck * 3.4) + 64 + (int) std::ceil (0.004 * sr);   // + a late stroke (fingerstyle-attack 3)
 
+    basicCapacity = (int) (maxPluck * 3.4) + 64;
     buffer.assign ((size_t) maxLen, 0.0);
     scratch.assign ((size_t) maxLen, 0.0);
 
@@ -65,8 +66,31 @@ void Excitation::trigger (const Params& p, RtRandom& rng) noexcept
     if (buffer.empty())
         return;
 
-    const auto& ms = specFor (p.material);
-    const int capacity = (int) buffer.size();
+    /*  fingerstyle-attack.md 1: with a contact profile, every field of the
+        finger materials is blended by nail_vs_flesh, not only the cutoff, so
+        there is no step at 0.5. Without one the table is used as it was. */
+    const bool profile = p.releaseSeconds >= 0.0;
+    MaterialSpec ms = specFor (p.material);
+
+    if (profile && (p.material == Material::Fingertip || p.material == Material::Fingernail
+                    || p.material == Material::Thumb))
+    {
+        const auto& from = specFor (p.material == Material::Thumb ? Material::Thumb : Material::Fingertip);
+        const auto& nail = specFor (Material::Fingernail);
+        const double b = juce::jlimit (0.0, 1.0, p.nailVsFlesh) * (p.material == Material::Thumb ? 0.5 : 1.0);
+        auto mix = [b] (double x, double y) { return x + (y - x) * b; };
+
+        ms.lowpassHz   = mix (from.lowpassHz, nail.lowpassHz);
+        ms.peakHz      = mix (from.peakHz, nail.peakHz);
+        ms.peakDb      = mix (from.peakDb, nail.peakDb);
+        ms.noiseScale  = mix (from.noiseScale, nail.noiseScale);
+        ms.lengthScale = mix (from.lengthScale, nail.lengthScale);
+    }
+
+    if (profile)
+        ms.lowpassHz = cutoffForRelease (p.releaseSeconds);
+
+    const int capacity = juce::jmin (basicCapacity, (int) buffer.size());
 
     const double vel = juce::jlimit (0.0, 1.0, p.velocity);
 
@@ -74,7 +98,7 @@ void Excitation::trigger (const Params& p, RtRandom& rng) noexcept
     // The triangle spans the distance from the pluck point to the nearer end, so
     // it scales with both the string length and where the hand is.
     const double pos = juce::jlimit (0.02, 0.5, p.pluckPosition);
-    int pluckLen = (int) std::round (p.delaySamples * pos * ms.lengthScale);
+    int pluckLen = (int) std::round (p.delaySamples * pos * ms.lengthScale * juce::jlimit (0.25, 4.0, p.contactScale));
 
     // A thicker pick and a more angled attack both lengthen the contact.
     const double contactStretch = 1.0 + p.pickThickness * 0.45 + p.pickAngle * 0.30;
@@ -88,7 +112,12 @@ void Excitation::trigger (const Params& p, RtRandom& rng) noexcept
         case Kind::HammerOn:      pluckLen = (int) (pluckLen * 0.55); kindGain = 0.28; break;
         case Kind::PullOff:       pluckLen = (int) (pluckLen * 0.45); kindGain = 0.24; break;
         case Kind::Tap:           pluckLen = (int) (pluckLen * 0.50); kindGain = 0.42; break;
-        case Kind::Harmonic:      pluckLen = (int) (pluckLen * 0.80); kindGain = 0.75; break;
+        // harmonic-realism.md 3: a natural or artificial harmonic is plucked
+        // as an ordinary note; the contact does the rest. The band-isolation
+        // fallback keeps the old, quieter shaping it was tuned with.
+        case Kind::Harmonic:
+            if (p.isolateHarmonic) { pluckLen = (int) (pluckLen * 0.80); kindGain = 0.75; }
+            break;
         case Kind::PinchHarmonic: pluckLen = (int) (pluckLen * 0.35); kindGain = 0.90; break;
         case Kind::Scrape:        pluckLen = (int) (pluckLen * 2.20); kindGain = 0.55; break;
         case Kind::Slap:          pluckLen = (int) (pluckLen * 0.40); kindGain = 1.25; break;
@@ -106,8 +135,12 @@ void Excitation::trigger (const Params& p, RtRandom& rng) noexcept
     // would make the comb delay and the total length negative too.
     pluckLen = juce::jlimit (3, juce::jmax (3, (capacity - 16) / 3), pluckLen);
 
-    const int combDelay = 2 * pluckLen;
-    const int total = juce::jlimit (1, capacity - 1, pluckLen + combDelay + 8);
+    const int combDelay = p.exactPluckComb
+                            ? juce::jlimit (1, juce::jmax (1, (capacity - 16) / 3), (int) std::round (p.delaySamples * pos))
+                            : 2 * pluckLen;
+    // A touched note's filters ring out in full, so the node's notch is not
+    // refilled by truncating their tails (harmonic-realism.md 3).
+    const int total = juce::jlimit (1, capacity - 1, pluckLen + combDelay + (p.exactPluckComb ? 1024 : 8));
 
     // ---- 2. Triangle displacement -------------------------------------------
     // Apex position follows the pick angle: a parallel attack gives a sharp,
@@ -164,14 +197,22 @@ void Excitation::trigger (const Params& p, RtRandom& rng) noexcept
     // one, so the contact bandwidth moves by well over an octave across the
     // velocity range. A narrower mapping makes velocity read as volume alone.
     const double velBright = 0.45 + 1.15 * vel;
-    const double brightTrim = 0.60 + 1.10 * juce::jlimit (0.0, 1.0, p.brightness);
+    const double brightTrim = (0.60 + 1.10 * juce::jlimit (0.0, 1.0, p.brightness))
+                              * juce::jlimit (0.25, 4.0, p.brightnessScale);
     const double thicknessTrim = 1.25 - 0.55 * juce::jlimit (0.0, 1.0, p.pickThickness);
     const double angleTrim = 1.15 - 0.45 * juce::jlimit (0.0, 1.0, p.pickAngle);
 
     double cutoff = ms.lowpassHz * velBright * brightTrim * thicknessTrim * angleTrim;
 
     // Fingerstyle blends between flesh and nail rather than switching.
-    if (p.material == Material::Fingertip || p.material == Material::Fingernail)
+    if (profile && (p.material == Material::Fingertip || p.material == Material::Fingernail
+                    || p.material == Material::Thumb))
+    {
+        // A profile's cutoff is already the blend (1 / 2 pi tau); the pick's
+        // thickness and angle do not apply to flesh.
+        cutoff = ms.lowpassHz * velBright * brightTrim;
+    }
+    else if (p.material == Material::Fingertip || p.material == Material::Fingernail)
     {
         const auto& flesh = specFor (Material::Fingertip);
         const auto& nail  = specFor (Material::Fingernail);
@@ -194,7 +235,8 @@ void Excitation::trigger (const Params& p, RtRandom& rng) noexcept
     // ---- 6. Harmonic isolation ----------------------------------------------
     // Touching a node kills every partial that does not have a node there. We
     // approximate that by band-limiting the excitation around the target partial.
-    if ((p.kind == Kind::Harmonic || p.kind == Kind::PinchHarmonic) && p.harmonicNumber > 1)
+    if ((p.kind == Kind::Harmonic || p.kind == Kind::PinchHarmonic) && p.harmonicNumber > 1
+        && p.isolateHarmonic)
     {
         const double f0 = sr / juce::jmax (1.0, p.delaySamples);
         const double target = juce::jlimit (40.0, sr * 0.45, f0 * (double) p.harmonicNumber);
@@ -229,14 +271,27 @@ void Excitation::trigger (const Params& p, RtRandom& rng) noexcept
 
     // Loudness follows velocity with a mild curve; guitars are not linear in
     // velocity and a squared law feels far too steep under the fingers.
-    const double amplitude = kindGain * (0.10 + 0.90 * std::pow (vel, 1.45));
+    const double amplitude = kindGain * juce::jlimit (0.0, 4.0, p.levelScale)
+                             * (0.10 + 0.90 * std::pow (vel, 1.45));
     const double norm = (maxAbs > 1.0e-9) ? (amplitude / maxAbs) : 0.0;
 
     for (int i = 0; i < total; ++i)
         buffer[(size_t) i] = sanitise (buffer[(size_t) i] * norm);
 
+    // fingerstyle-attack.md 3: a late stroke, as leading silence.
+    const int pad = juce::jlimit (0, juce::jmax (0, (int) buffer.size() - 1 - total), p.startDelaySamples);
+
+    if (pad > 0)
+    {
+        for (int i = total - 1; i >= 0; --i)
+            buffer[(size_t) (i + pad)] = buffer[(size_t) i];
+
+        for (int i = 0; i < pad; ++i)
+            buffer[(size_t) i] = 0.0;
+    }
+
     peak = amplitude;
-    length = total;
+    length = total + pad;
     readPos = 0;
 }
 
