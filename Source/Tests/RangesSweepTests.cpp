@@ -4,6 +4,7 @@
 
 #include "../PluginProcessor.h"
 #include "../PhysicalRange.h"
+#include "../ParamMeta.h"
 
 #include <atomic>
 #include <thread>
@@ -134,4 +135,34 @@ LUTHIER_TEST (Ranges, hundredTogglesClampCorrectlyWithoutAllocating)
     CHECK_MSG (finite.load(), "the render produced a non-finite sample during the toggles");
     CHECK_MSG (renderAllocations.load() == 0,
                juce::String (renderAllocations.load()) + " allocations on the render thread while ranges toggled");
+}
+
+/*  UW-10 (ui-wiring 1): every parameter has a unit and a category. */
+LUTHIER_TEST (Parameters, everyParameterHasAUnitAndACategory)
+{
+    LuthierAudioProcessor processor;
+    juce::StringArray unknown;
+
+    for (auto* p : processor.getParameters())
+    {
+        auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p);
+
+        if (withId == nullptr)
+            continue;
+
+        if (ParamMeta::getUnit (*p) == ParamUnit::unknown)
+            unknown.add (withId->paramID + " (label '" + p->getLabel() + "')");
+
+        CHECK (ParamMeta::getCategory (withId->paramID).isNotEmpty());
+    }
+
+    CHECK_MSG (unknown.isEmpty(), "no unit for: " + unknown.joinIntoString (", "));
+
+    if (auto* gain = processor.getState().getParameter (ParamIDs::masterGain))
+    {
+        CHECK (ParamMeta::getUnit (*gain) == ParamUnit::db);
+        CHECK (ParamMeta::getUnitName (ParamUnit::db) == "decibels");
+    }
+
+    CHECK (ParamMeta::getCategory (ParamIDs::ampGain) == "amp");
 }
