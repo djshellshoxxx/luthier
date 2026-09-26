@@ -248,6 +248,7 @@ void StrumGrid::showStepMenu (int step)
 
 void StrumGrid::commit()
 {
+    processor.pushUndoAction ("Edit strum pattern", "rhythm-pattern", "strum");   // gui-integration 18
     processor.getEngine().getRhythmEngine().setPattern (pattern);
 
     if (onPatternEdited != nullptr)
@@ -382,6 +383,7 @@ void FingerpickGrid::mouseDown (const juce::MouseEvent& event)
 
 void FingerpickGrid::commit()
 {
+    processor.pushUndoAction ("Edit fingerpick pattern", "rhythm-pattern", "fingerpick");   // gui-integration 18
     processor.getEngine().getRhythmEngine().setPattern (pattern);
 
     if (onPatternEdited != nullptr)
@@ -660,6 +662,7 @@ void RhythmPanel::buildGenreControls()
         if (updatingControls)
             return;
 
+        processor.pushUndoState ("Turn rhythm engine on/off");   // action-and-undo.md (rhythm settings)
         rhythm().setEnabled (enableToggle->getButton().getToggleState());
     };
 
@@ -672,8 +675,11 @@ void RhythmPanel::buildGenreControls()
                               "transport is stopped.");
     freeRunButton.onClick = [this]
     {
-        if (! updatingControls)
-            rhythm().setFreeRun (freeRunButton.getToggleState());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoState ("Toggle rhythm free-run");   // action-and-undo.md (rhythm settings)
+        rhythm().setFreeRun (freeRunButton.getToggleState());
     };
     addAndMakeVisible (freeRunButton);
 
@@ -709,24 +715,33 @@ void RhythmPanel::buildVoicingControls()
 
     styleBox.onChange = [this]
     {
-        if (! updatingControls)
-            rhythm().setVoicingStyle ((VoicingStyle) (styleBox.getSelectedId() - 1));
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change voicing style", "rhythm-setting", "voicingStyle");   // action-and-undo.md (rhythm settings)
+        rhythm().setVoicingStyle ((VoicingStyle) (styleBox.getSelectedId() - 1));
     };
     addAndMakeVisible (styleBox);
 
     styleValueSlider (densitySlider, 0.0, 100.0, 1.0, " %");
     densitySlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            rhythm().setVoicingDensity (densitySlider.getValue());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change voicing density", "rhythm-setting", "density");   // action-and-undo.md (rhythm settings)
+        rhythm().setVoicingDensity (densitySlider.getValue());
     };
     addAndMakeVisible (densitySlider);
 
     styleValueSlider (handPositionSlider, 0.0, 22.0, 1.0, " fr");
     handPositionSlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            rhythm().setHandPositionHint ((int) handPositionSlider.getValue());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change hand position", "rhythm-setting", "handPosition");   // action-and-undo.md (rhythm settings)
+        rhythm().setHandPositionHint ((int) handPositionSlider.getValue());
     };
     addAndMakeVisible (handPositionSlider);
 
@@ -735,8 +750,8 @@ void RhythmPanel::buildVoicingControls()
     capoLabel.setJustificationType (juce::Justification::centred);
     addAndMakeVisible (capoLabel);
 
-    capoDown.onClick = [this] { rhythm().setCapoFret (rhythm().getCapoFret() - 1); refreshFromEngine(); };
-    capoUp.onClick   = [this] { rhythm().setCapoFret (rhythm().getCapoFret() + 1); refreshFromEngine(); };
+    capoDown.onClick = [this] { processor.pushUndoAction ("Change rhythm capo", "rhythm-setting", "capo"); rhythm().setCapoFret (rhythm().getCapoFret() - 1); refreshFromEngine(); };
+    capoUp.onClick   = [this] { processor.pushUndoAction ("Change rhythm capo", "rhythm-setting", "capo"); rhythm().setCapoFret (rhythm().getCapoFret() + 1); refreshFromEngine(); };
 
     capoDown.setTooltip ("Move the capo down a fret.");
     capoUp.setTooltip ("Move the capo up a fret.");
@@ -756,6 +771,7 @@ void RhythmPanel::buildFeelControls()
 
         // Swing lives in the pattern rather than in the engine, because it is a
         // property of the figure being played.
+        processor.pushUndoAction ("Change swing", "rhythm-pattern", "swing");   // gui-integration 18
         auto pattern = rhythm().getPattern();
         pattern.setSwing (swingSlider.getValue() / 100.0);
         rhythm().setPattern (pattern);
@@ -834,6 +850,7 @@ void RhythmPanel::applySelectedKit()
     if (! juce::isPositiveAndBelow (index, processor.getGenreKits().getNumKits()))
         return;
 
+    processor.pushUndoState ("Apply genre kit " + genreBox.getText());   // action-and-undo.md (rhythm settings)
     const auto preferredPreset = processor.applyGenreKit (index);
 
     // rhythm-engine 7: the rig is a suggestion. It is named, never loaded.
@@ -860,6 +877,7 @@ void RhythmPanel::randomiseWithinStyle()
     if (patternIndex < 0)
         return;
 
+    processor.pushUndoState ("Randomise rhythm pattern");   // gui-integration 18
     rhythm().setPattern (processor.getPatternLibrary().getPattern (patternIndex));
     refreshFromEngine();
 }
@@ -892,6 +910,7 @@ void RhythmPanel::loadSelectedPattern()
     if (! juce::isPositiveAndBelow (row, visiblePatterns.size()))
         return;
 
+    processor.pushUndoState ("Load rhythm pattern");   // gui-integration 18
     rhythm().setPattern (processor.getPatternLibrary().getPattern (visiblePatterns[row]));
     refreshFromEngine();
 }
@@ -930,6 +949,8 @@ void RhythmPanel::pushHumaniseToEngine()
 {
     if (updatingControls)
         return;
+
+    processor.pushUndoAction ("Change humanise", "rhythm-setting", "humanise");   // action-and-undo.md (rhythm settings)
 
     auto humanise = rhythm().getHumanise();
 

@@ -40,6 +40,7 @@
 #include "../UI/OptionsPages.h"
 #include "../UI/UiPreferences.h"
 #include "../UI/WorkshopPanel.h"
+#include "../UI/VisualAids.h"
 
 #include <algorithm>
 
@@ -695,7 +696,8 @@ LUTHIER_TEST (AnimatedStrings, AS12_AS13_dirtyRectsMatchAFullRepaint)
         const auto& o = ill.body.getOverlayForTesting();
         juce::String k;
         for (int s = 0; s < 12; ++s)
-            k << (o.stringLevel[(size_t) s] > 0.01f ? "1" : "0") << juce::String (o.stringFret[(size_t) s], 2);
+            k << (o.stringLevel[(size_t) s] > 0.01f ? "1" : "0") << juce::String (o.stringFret[(size_t) s], 2)
+              << "a" << juce::String (o.dotAlpha[(size_t) s], 3);   // the played-note dots' 60 ms fades
         k << o.slideFret << (o.motionActive ? "m" : "") << (int) o.hovered;
         return k;
     };
@@ -752,9 +754,16 @@ LUTHIER_TEST (AnimatedStrings, AS12_AS13_dirtyRectsMatchAFullRepaint)
             }
             else
             {
-                if (! animator.getLastDirtyRects().isEmpty())
+                // The chord name repaints its own area as it fades (piano roll 4);
+                // the component asks for that itself, so the harness does too.
+                auto regions = animator.getLastDirtyRects();
+                const auto nameArea = ill.body.getChordNameArea().getSmallestIntegerContainer().expanded (8);
+                if (! nameArea.isEmpty())
+                    regions.add (nameArea.getIntersection (ill.body.getLocalBounds()));
+
+                if (! regions.isEmpty())
                 {
-                    g.reduceClipRegion (animator.getLastDirtyRects());
+                    g.reduceClipRegion (regions);
                     g.setColour (juce::Colours::transparentBlack);
                     g.getInternalContext().fillRect (persistent.getBounds(), true);   // clear what is repainted
                     g.setColour (juce::Colours::black);   // a peer's paint starts opaque
@@ -1814,6 +1823,7 @@ LUTHIER_TEST (AnimatedStrings, overBudgetFramesDropToLow)
 LUTHIER_TEST (AnimatedStrings, cpuQualityMotionPolicy)
 {
     PrefsGuard prefs (true);
+    VisualAids::setShowChordNames (false);   // the chord name's own fade is not string motion
     LuthierAudioProcessor processor;
     processor.prepareToPlay (kSr, kBlock);
     Clock clock;

@@ -66,6 +66,9 @@ SlideGroup::SlideGroup (LuthierAudioProcessor& p)
         addAndMakeVisible (*label);
     }
 
+    // gui-integration 21: "Pressure-state readout (slide): mono-font text label".
+    pressureState.setFont (Fonts::mono (11.0f));
+
     shown = isSlideModeOn();
     setVisible (shown);
     startTimerHz (4);
