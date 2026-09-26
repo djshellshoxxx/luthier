@@ -445,8 +445,18 @@ int RangeState::applyTo (juce::AudioProcessorValueTreeState& state) const
             normalisation is what keeps the sound unchanged across a widening
             and makes a narrowing clamp exactly once. */
         const float before = parameter->get();
+        const auto next = physical->makeRange (advanced);
 
-        parameter->range = physical->makeRange (advanced);
+        /*  The range it already has: nothing to do. Re-writing the value through
+            a float plain-value round trip anyway moved it by an ulp (0.45275944
+            -> 0.45275941 on 'Distance to Amp'), and clap-validator's state tests
+            compare parameter values exactly. */
+        if (next.start == parameter->range.start && next.end == parameter->range.end
+            && next.skew == parameter->range.skew && next.symmetricSkew == parameter->range.symmetricSkew
+            && next.interval == parameter->range.interval)
+            continue;
+
+        parameter->range = next;
 
         const float after = juce::jlimit (parameter->range.start,
                                           parameter->range.end,

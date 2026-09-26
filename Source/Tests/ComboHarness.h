@@ -26,6 +26,7 @@
 #include <map>
 #include <random>
 #include <thread>
+#include <iomanip>
 
 namespace luthier::combo
 {

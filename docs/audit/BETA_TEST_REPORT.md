@@ -146,6 +146,14 @@ IN PROGRESS (a helper branch covers it).
 
 - Found while fixing B-05: with the P-Bass's real parts, "P-Bass Flatwound" (`string_age` Old) plays G3 at -52 dBFS where the same bass with Fresh strings plays it at -12; notes above about A3 are silent. Old strings go dull and short, not mute. `Combo.everyFactoryPresetPlaysEveryPhrase` fails 5 renders of this preset on it; left failing for the owner.
 
+### B-16 clap-validator after the helpers landed: family switch overwrote host values; one parameter drifts an ulp. FIXED / OPEN (low)
+
+- After merging realism-a/b/c, model-gaps, tune-help, visual, release and review, clap-validator's three state-reproducibility tests failed: `setup_style` came back 0.0 instead of 0.2, and 'Distance to Amp' (`noise_player_distance`) came back 0.45275941 instead of 0.45275944.
+- `setup_style` (FIXED): a guitar-type change flushed at save time crossed guitar<->bass, and `BassFamilyDefaults::retarget` and the strum-default retarget wrote the family defaults over values the host had just written with the type. Both now honour the host-write guard the guitar-parameter writes use (`guitarLoadKeepsHostWrites && writtenSinceGuitarType`), and their own writes are unstamped, so switching back still restores the family defaults (`BassTechniques.bassDefaultsApplyOnLoad` passes).
+- `RangeState::applyTo` (FIXED on the way): re-wrote every ranged parameter through a float plain-value round trip even when its range did not change; it now skips unchanged ranges.
+- 'Distance to Amp' (OPEN, low): our state stores and restores the normalised float bit-exactly (checked directly); the value clap-validator expects is the one it sent, and only this skewed-range parameter shows the drift, so it sits between the CLAP wrapper's cached value and JUCE's plain-value storage (`AudioParameterFloat` keeps the plain value; on a skewed range normalised -> plain -> normalised is not idempotent at the last bit). Nudging the restored value by a few ulps did not change the result. Harmless to audio.
+- pluginval strictness 10 on the merged build: every test passes except Parameter thread safety, which still exceeds its default 30 s timeout on this shared 4-core container (B-12).
+
 ## Passed
 
 - 2000 seeded random rigs (every parameter random): finite, bounded, no subnormal storm, affordable - all pass.

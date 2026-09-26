@@ -909,7 +909,17 @@ void LuthierAudioProcessor::applyGuitar (const WorkshopGuitar& guitar, GuitarTyp
             retargetStrumDefaults (strumFamilyIsBass, isBass);
 
             // bass-techniques 8 (MODEL-GAPS): the rest of the family's defaults.
-            BassFamilyDefaults::retarget (apvts, strumFamilyIsBass, isBass);
+            // A value the host wrote with the type stays the host's (clap-validator
+            // found setup_style overwritten after a state reload).
+            // The family's defaults are the guitar's own values, not the host's:
+            // unstamped, like writeGuitarParameters' (or switching back reads
+            // them as host writes and keeps them).
+            bridge.setStampingWrites (false);
+            BassFamilyDefaults::retarget (apvts, strumFamilyIsBass, isBass, [this] (const juce::String& id)
+            {
+                return guitarLoadKeepsHostWrites && bridge.writtenSinceGuitarType (id);
+            });
+            bridge.setStampingWrites (true);
         }
     }
 
@@ -945,8 +955,16 @@ void LuthierAudioProcessor::retargetStrumDefaults (bool fromBass, bool toBass)
 
     auto write = [this] (const char* id, double v)
     {
+        // The host's value, written with the type, stays (as writeGuitarParameters).
+        if (guitarLoadKeepsHostWrites && bridge.writtenSinceGuitarType (id))
+            return;
+
         if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (id)))
+        {
+            bridge.setStampingWrites (false);
             p->setValueNotifyingHost (p->convertTo0to1 ((float) v));
+            bridge.setStampingWrites (true);
+        }
     };
 
     auto& rhythm = engine.getRhythmEngine();
