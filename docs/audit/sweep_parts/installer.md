@@ -17,7 +17,7 @@ This spec has changed most since the baseline. The integration branch now has re
 | IN-11 (§1.1.6) | Space check: required + 200 MB | `Luthier.iss ExtraDiskSpaceRequired=209715200` | installer | CI package build | DONE |
 | IN-12 (§1.1.7) | Version check: same/newer asks; older offers upgrade | `Luthier.iss InitializeSetup`, `[InstallDelete]` | installer | - | NO-TEST |
 | IN-13 (§1.1.8) | Progress with safe cancel/rollback | Inno built-in | installer | Inno built-in; documented in docs/RELEASING.md 9 | DEFERRED |
-| IN-14 (§1.1.9) | Post-install: Add/Remove entry, 6 file associations, Start menu, optional launch (off), "What's new" link — no "What's new" link | `Luthier.iss [Registry]/[Icons]/[Run]` | installer | CI package build | PARTIAL |
+| IN-14 (§1.1.9) | Post-install: Add/Remove entry, 6 file associations, Start menu, optional launch (off), "What's new" link — no "What's new" link | `Luthier.iss [Run]` What's new link (shellexec, unchecked) | installer | - | NO-TEST |
 | IN-15 (§1.1.9, §2.1.6, §13) | Double-clicking a Luthier file opens it in the standalone — the OS registration exists on Win/Linux, but the HEAD standalone ignores its command line | on visual: `Source/StandaloneApp.cpp`, `Support/FileOpenRouter` (5b1ff56) | standalone | on visual: `FileOpen::theCommandLineNamesTheFile`, `FileOpen::everyAssociationRoutesToItsLoader` | OWNED |
 | IN-16 (§1.2) | Silent install `/S`, `/D=`, documented exit codes, HKLM keys — Inno `/VERYSILENT` and `/DIR=` (documented deviation in RELEASING §8); HKLM `Software\Luthier` keys | `Luthier.iss [Registry]`, `docs/RELEASING.md` | n/a | docs/RELEASING.md 9 (switches and exit codes) | DONE |
 | IN-17 (§1.3) | Uninstaller refuses while a DAW holding the plugin runs — Restart Manager `CloseApplications` only (known gap) | `Luthier.iss CloseApplications=yes` | installer | - | PARTIAL |
@@ -54,4 +54,4 @@ This spec has changed most since the baseline. The integration branch now has re
 | IN-48 (§13) | Test: portable Windows writes nothing outside its folder | - | n/a | - | MISSING |
 | IN-49 (§13) | Test: 200 pre-parts fixture presets load, back up and render within -60 dBFS of golden | - | n/a | - | MISSING |
 
-<!-- counts DONE=15 NO-GUI=0 NO-TEST=5 PARTIAL=11 MISSING=10 OWNED=7 DEFERRED=1 -->
+<!-- counts DONE=15 NO-GUI=0 NO-TEST=6 PARTIAL=10 MISSING=10 OWNED=7 DEFERRED=1 -->

@@ -7,7 +7,7 @@
 - [IN-10 (§1.1.5)] effort S — DEFER: the content path is fixed so every plugin format finds it (`IrLibrary::searchForResources`). Allowing an edit needs a registry/plist pointer read by `IrLibrary`. Record in DECISIONS.md.
 - [IN-12 (§1.1.7)] effort S — Covered by the IN-45 upgrade/downgrade test.
 - [IN-13 (§1.1.8)] DEFERRED: Inno Setup's cancel/rollback is native; documented in RELEASING 9. Nothing to build or test in-repo.
-- [IN-14 (§1.1.9)] effort S — Add a "What's new" link to the finished page (`[Run]` entry with `postinstall shellexec` to the release-notes URL, unchecked) in `Luthier.iss`.
+- [IN-14 (§1.1.9)] effort S — link added; covered only by a Windows install-test run (IN-2).
 - [IN-17 (§1.3)] effort M — In `Luthier.iss` `InitializeUninstall`/`InitializeSetup`, check for known DAW processes that hold `Luthier.vst3` (Restart Manager session or a `tasklist` scan) and refuse with a message. RELEASING §8 lists this as a known gap.
 - [IN-19 (§2.1)] effort S — Add a `<conclusion>` page to the productbuild `distribution.xml` with an "Open Luthier" instruction (productbuild cannot run a button; a postinstall `open -a Luthier` for the app component, off by default, is the closest).
 - [IN-20 (§2.1.6)] effort S — Add `DOCUMENT_EXTENSIONS luthierpreset luthierguitar luthiertune luthierloop luthierset midprofile` (plus UTI declarations) to the Standalone target in `CMakeLists.txt` `juce_add_plugin`, and handle `anotherInstanceStarted`/open-file events. The in-app routing (`FileOpenRouter`) comes with visual.
