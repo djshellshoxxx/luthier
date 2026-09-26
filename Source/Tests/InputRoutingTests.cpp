@@ -9,6 +9,7 @@
 #include "../Controllers/ControllerProfile.h"
 #include "../Live/MidiClockTransport.h"
 #include "../Rhythm/Patterns.h"
+#include "../Export/LuthierMidiEvents.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -526,4 +527,62 @@ LUTHIER_TEST (InputRouting, practiceToolsHearNotesWithoutConsumingThem)
         sounding = sounding || interp.getStringMidiNote (s) == 57;
 
     CHECK_MSG (sounding, "the note the trainer heard did not also play");
+}
+
+//==============================================================================
+/*  IR-15 (input-routing 1.5): Luthier SysEx arriving at the plugin drives its
+    non-parameter state - a CHARACTER seed and environment, a SNAPSHOT recall,
+    a RANGES unlock - and other SysEx is ignored. */
+LUTHIER_TEST (InputRouting, luthierSysExDrivesACharacterEventAndOthersAreIgnored)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto send = [&processor] (const LuthierEvent& e)
+    {
+        juce::MidiBuffer midi;
+        midi.addEvent (LuthierEvents::encodeSysEx (e, {}), 0);
+        render (processor, midi);
+        return processor.serviceInboundSysEx();
+    };
+
+    // CHARACTER: seed, then environment.
+    auto seed = LuthierEvent::make (LuthierEventClass::character, 0);
+    seed.set ("what", "seed").set ("seed", "123456789");
+    CHECK (send (seed) == 1);
+    CHECK (processor.getEngine().getCharacterEngine().getSeed() == 123456789ull);
+
+    auto environment = LuthierEvent::make (LuthierEventClass::character, 0);
+    environment.set ("what", "environment").set ("temp", "31").set ("humidity", "72");
+    CHECK (send (environment) == 1);
+    CHECK (processor.getEngine().getCharacterEngine().getTemperature() == Temperature::warm);
+    CHECK (processor.getEngine().getCharacterEngine().getHumidity() == Humidity::humid);
+
+    // SNAPSHOT: recall slot 1.
+    processor.getSnapshots().setCrossfadeMs (0.0);
+    CHECK (processor.captureSnapshot (0, "A"));
+    CHECK (processor.captureSnapshot (1, "B"));
+    CHECK (processor.recallSnapshot (0));
+
+    auto snap = LuthierEvent::make (LuthierEventClass::snapshot, 0);
+    snap.setInt ("slot", 1);
+    CHECK (send (snap) == 1);
+    CHECK (processor.getSnapshots().getCurrentSnapshot() == 1);
+
+    // RANGES: unlock amp_gain past its stock top and set it there.
+    auto range = LuthierEvent::make (LuthierEventClass::ranges, 0);
+    range.set ("param", ParamIDs::ampGain).setInt ("on", 1).set ("value", "1.5");
+    CHECK (send (range) == 1);
+    CHECK (processor.getRanges().isParameterAdvanced (ParamIDs::ampGain));
+
+    if (auto* gain = processor.getState().getRawParameterValue (ParamIDs::ampGain))
+        CHECK_NEAR (gain->load(), 1.5f, 0.01f);
+
+    // Someone else's SysEx: nothing queued, nothing changed.
+    const juce::uint8 foreign[] = { 0x43, 0x10, 0x4c, 0x00, 0x00, 0x7e, 0x00 };
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::createSysExMessage (foreign, (int) sizeof (foreign)), 0);
+    render (processor, midi);
+    CHECK (processor.serviceInboundSysEx() == 0);
+    CHECK (processor.getEngine().getCharacterEngine().getSeed() == 123456789ull);
 }

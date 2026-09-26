@@ -1380,6 +1380,10 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     // and are consumed so nothing downstream sees them as musical events.
     handleLiveMidi (midiMessages);
 
+    // SPEC-SWEEP (IR-15): Luthier SysEx is queued for the message thread to
+    // decode and apply; it stays in the stream (nothing downstream plays it).
+    sysExIn.capture (midiMessages);
+
     // SPEC-SWEEP (CT-4 / IR-5): the controller stage - the chosen profile's
     // latency budget moves the block's events earlier (never before the block).
     controllerStage.compensateLatency (midiMessages, numSamples, currentSampleRate, controllerScratch);
@@ -3059,6 +3063,7 @@ void LuthierAudioProcessor::timerCallback()
     serviceTune();
 
     serviceExpressionCalibration();   // SPEC-SWEEP IR-11 / LP-34
+    serviceInboundSysEx();            // SPEC-SWEEP IR-15
 
     // SPEC-SWEEP (CT-14, controllers 5): a note a string could not reach was
     // clipped into range rather than dropped; the diagnostic log says so.
@@ -3166,6 +3171,80 @@ double LuthierAudioProcessor::humidityPercent (Humidity h) noexcept
         case Humidity::normal:
         case Humidity::numHumidities:
         default:              return 45.0;
+    }
+}
+
+//==============================================================================
+// SPEC-SWEEP (IR-15, input-routing 1.5): inbound Luthier SysEx.
+int LuthierAudioProcessor::serviceInboundSysEx()
+{
+    return sysExIn.drain ([this] (const LuthierEvent& e) { applyInboundLuthierEvent (e); });
+}
+
+void LuthierAudioProcessor::applyInboundLuthierEvent (const LuthierEvent& event)
+{
+    switch (event.eventClass)
+    {
+        case LuthierEventClass::character:
+        {
+            auto& character = engine.getCharacterEngine();
+
+            if (event.get ("what") == "seed")
+            {
+                character.setSeed ((uint64_t) event.get ("seed").getLargeIntValue());
+            }
+            else if (event.get ("what") == "environment")
+            {
+                const double celsius = event.getReal ("temp");
+                const double humidity = event.getReal ("humidity");
+
+                auto nearestTemperature = Temperature::room;
+                auto nearestHumidity = Humidity::normal;
+
+                for (auto t : { Temperature::cold, Temperature::room, Temperature::warm })
+                    if (std::abs (temperatureCelsius (t) - celsius) < std::abs (temperatureCelsius (nearestTemperature) - celsius))
+                        nearestTemperature = t;
+
+                for (auto h : { Humidity::dry, Humidity::normal, Humidity::humid })
+                    if (std::abs (humidityPercent (h) - humidity) < std::abs (humidityPercent (nearestHumidity) - humidity))
+                        nearestHumidity = h;
+
+                character.setTemperature (nearestTemperature);
+                character.setHumidity (nearestHumidity);
+            }
+            break;
+        }
+
+        case LuthierEventClass::snapshot:
+        {
+            const int slot = (int) event.getInt ("slot");
+
+            if (juce::isPositiveAndBelow (slot, snapshots.getNumSnapshots()))
+                recallSnapshot (slot);
+            break;
+        }
+
+        case LuthierEventClass::ranges:
+        {
+            const auto param = event.get ("param");
+
+            if (param.isNotEmpty() && apvts.getParameter (param) != nullptr)
+            {
+                auto state = ranges;
+                state.setUnlockedIndividually (param, event.getInt ("on") != 0);
+                setRanges (state);
+
+                if (event.getInt ("on") != 0 && event.has ("value"))
+                    if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (param)))
+                        p->setValueNotifyingHost (p->convertTo0to1 ((float) event.getReal ("value")));
+            }
+            break;
+        }
+
+        default:
+            // Performance classes (NOTE, STRUM, ...) describe playing, which the
+            // MIDI itself carries; WORKSHOP needs the part library (not wired).
+            break;
     }
 }
 

@@ -43,6 +43,7 @@
 #include "Support/CommandQueue.h"         // SPEC-SWEEP UW-5
 #include "Live/ExpressionStage.h"          // SPEC-SWEEP IR-11
 #include "Live/MidiClockTransport.h"       // SPEC-SWEEP IR-16
+#include "Export/LuthierSysExIn.h"         // SPEC-SWEEP IR-15
 
 namespace luthier
 {
@@ -935,10 +936,17 @@ private:
     ControllerStage controllerStage;
     ExpressionStage expressionStage;   // IR-11
     MidiClockTransport clockTransport; // IR-16
+    LuthierSysExIn sysExIn;            // IR-15
 
 public:
     /** SPEC-SWEEP (IR-16): where incoming MIDI clock says the song is. */
     const MidiClockTransport& getMidiClockTransport() const noexcept { return clockTransport; }
+
+    /** SPEC-SWEEP (IR-15): applies Luthier SysEx that arrived at the input
+        (CHARACTER seed / environment, SNAPSHOT recall, RANGES unlock). The
+        timer calls it; so can a test. Message thread. Returns events applied. */
+    int serviceInboundSysEx();
+    void applyInboundLuthierEvent (const LuthierEvent& event);
 private:
     juce::MidiBuffer controllerScratch;
     std::array<std::atomic<bool>, kMaxStrings> stringMuted {};
