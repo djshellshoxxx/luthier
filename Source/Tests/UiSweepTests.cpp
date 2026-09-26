@@ -933,3 +933,104 @@ LUTHIER_TEST (PedalRack, dragOntoAnotherSlotReorders)
     CHECK_NEAR (type0->getValue(), b, 1.0e-6);
     CHECK_NEAR (state.getParameter (ParamIDs::slotMix (false, 1))->getValue(), 0.3f, 1.0e-6);
 }
+
+/*  KS-25 (docs/KEYBOARD_SHORTCUTS.md "On the guitar illustration"): clicking the
+    switch advances the selector, clicking the bridge pickup selects it, and a
+    drag on a knob moves the guitar's volume or tone. */
+LUTHIER_TEST (Editor, illustrationClicksSelectPickupAndStepSwitch)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    GuitarBodyComponent body (processor);
+    body.setVisible (true);
+    body.setSize (300, 620);
+
+    auto source = juce::Desktop::getInstance().getMainMouseSource();
+
+    auto event = [&body, &source] (juce::Point<float> p, juce::Point<float> down, bool dragged)
+    {
+        return juce::MouseEvent (source, p, juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier),
+                                 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, &body, &body, juce::Time::getCurrentTime(),
+                                 down, juce::Time::getCurrentTime(), 1, dragged);
+    };
+
+    // Sweep the illustration for the regions by what they say about themselves.
+    juce::Point<float> selector { -1.0f, -1.0f }, bridgePickup { -1.0f, -1.0f };
+    juce::Array<juce::Point<float>> controls;
+    double nearestSaddleMm = 1.0e9;
+
+    for (int y = 2; y < body.getHeight(); y += 3)
+        for (int x = 2; x < body.getWidth(); x += 3)
+        {
+            const juce::Point<float> p ((float) x, (float) y);
+            body.mouseMove (event (p, p, false));
+            const auto text = body.getTooltip();
+
+            if (text.startsWith ("Click the switch"))
+                selector = p;
+            else if (text.startsWith ("Drag a knob"))
+                controls.add (p);
+            else if (text.contains ("mm from the saddle"))
+            {
+                const double mm = text.fromFirstOccurrenceOf (" at ", false, false).getDoubleValue();
+
+                if (mm < nearestSaddleMm)
+                {
+                    nearestSaddleMm = mm;
+                    bridgePickup = p;
+                }
+            }
+        }
+
+    auto* selectorParam = processor.getState().getParameter (ParamIDs::pickupSelector);
+    CHECK (selectorParam != nullptr);
+
+    if (selectorParam == nullptr)
+        return;
+
+    // ---- the switch -------------------------------------------------------------
+    if (selector.x >= 0.0f)
+    {
+        const float before = selectorParam->getValue();
+        body.mouseDown (event (selector, selector, false));
+        body.mouseUp (event (selector, selector, false));
+        CHECK_MSG (selectorParam->getValue() != before, "clicking the switch did not move the selector");
+    }
+
+    // ---- the bridge pickup ------------------------------------------------------
+    CHECK (bridgePickup.x >= 0.0f);
+
+    if (bridgePickup.x >= 0.0f)
+    {
+        body.mouseDown (event (bridgePickup, bridgePickup, false));
+        body.mouseUp (event (bridgePickup, bridgePickup, false));
+
+        if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (selectorParam))
+            CHECK_MSG (choice->getIndex() == (int) PickupSelector::Bridge,
+                       "clicking the bridge pickup left the selector at " + juce::String (choice->getIndex()));
+    }
+
+    // ---- a knob -----------------------------------------------------------------
+    auto* volume = processor.getState().getParameter (ParamIDs::guitarVolume);
+    auto* tone = processor.getState().getParameter (ParamIDs::guitarTone);
+    volume->setValueNotifyingHost (0.5f);
+    tone->setValueNotifyingHost (0.5f);
+
+    bool moved = false;
+
+    for (const auto& p : controls)
+    {
+        body.mouseDown (event (p, p, false));
+        body.mouseDrag (event ({ p.x, p.y + 30.0f }, p, true));
+        body.mouseUp (event ({ p.x, p.y + 30.0f }, p, true));
+
+        if (volume->getValue() < 0.45f || tone->getValue() < 0.45f)
+        {
+            moved = true;
+            break;
+        }
+    }
+
+    CHECK_MSG (moved, "no drag on the illustration's controls moved volume or tone");
+}

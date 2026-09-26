@@ -3,4 +3,3 @@
 - [KS-21] effort S — factor the item list out of `showParameterContextMenu` (it already builds a PopupMenu) and assert in `Editor::rightClickOffersModulationAndBuildsTheRoute` that "Enter value...", "Reset to default", "Copy value", "Paste value", "MIDI Learn", "Lock", "Randomise this control" are present; drive `applyParameterMenuResult` for Reset/Lock.
 - [KS-23] effort S — add `Fretboard::clickPlaysAPreviewNoteHarderNearTheTop`: two `mouseDown`s at top/bottom of one lane, CHECK the preview velocity ordering (expose last preview velocity or spy on `triggerPreviewNote`).
 - [KS-24] effort S — extract the fretboard menu's result handling into a callable (`applyMenuResult(s,f,id)`) and test mute/select/capo(sets `capoFret` param)/scale overlay.
-- [KS-25] effort S — add `Editor::illustrationClicksSelectPickupAndStepSwitch`: `mouseDown` on the `selector` hit area advances `pickupSelector`; on `pickupBridge` sets Bridge; drag in `controls` changes volume.
