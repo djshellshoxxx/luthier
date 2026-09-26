@@ -70,6 +70,12 @@ struct Snapshot
         two can be compared and copied without a conversion step. */
     juce::var parameters;
 
+    /*  SPEC-SWEEP: AR-21 - advanced-ranges.md 5: the plain values of the
+        physical parameters (id -> plain), so a recall under a different range
+        mode clamps the value rather than re-mapping its normalised position.
+        Absent in snapshots saved before it; those recall as normalised. */
+    juce::var physicalPlain;
+
     /** The state of the systems that do not live in the parameter tree. */
     juce::var modMatrix;
     juce::var rhythm;
@@ -204,6 +210,10 @@ public:
     void fromVar (const juce::var& state);
 
 private:
+    /** SPEC-SWEEP: AR-21 - a snapshot's parameters normalised against the
+        ranges live now, physical values clamped into them. */
+    juce::var liveParameters (const Snapshot& snapshot) const;
+
     /** Writes `blend` of the way from `from` to `to` into the parameter tree.
 
         Discrete parameters take `to` once blend passes 0.5 and `from` before

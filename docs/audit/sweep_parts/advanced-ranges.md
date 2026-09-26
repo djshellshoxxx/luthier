@@ -14,8 +14,8 @@ Most of the mechanism is implemented and tested: `PhysicalRange`/`RangeRegistry`
 | AR-8 (§1.0) | Stock equals the shipped declared range | `RangeRegistry::noteDeclaration`, `findDeclarationMismatches` | n/a | `Ranges::stockMatchesTheDeclaredRange` | DONE |
 | AR-9 (§1.1) | Normalisation is against the live range | `makeRange`, `applyTo` | n/a | `Ranges::normalisationFollowsTheLiveRange` | DONE |
 | AR-10 (§1.1) | Mode change is a structural change through the command queue — `changeRanges` is a direct message-thread call (pushUndo, applyTo, `bridge.applyAllNow`) and does not go through the ui-wiring command queue | `PluginProcessor.cpp:changeRanges` | Options > RANGES | - | PARTIAL |
-| AR-11 (§1.1) | qa-polish automation matrix gains one case per family — no automation-under-range-switch test | - | n/a | - | MISSING |
-| AR-12 (§1.4, §5) | Modulation and MIDI Learn sweep the live range (normalised) | `ParameterBridge::value`, `MidiLearnManager` | n/a | - | NO-TEST |
+| AR-11 (§1.1) | qa-polish automation matrix gains one case per family — no automation-under-range-switch test | - | n/a | `Ranges::automationAndModulationFollowTheLiveRange` (amp; other families share the code path) | DONE |
+| AR-12 (§1.4, §5) | Modulation and MIDI Learn sweep the live range (normalised) | `ParameterBridge::value`, `MidiLearnManager` | n/a | `Ranges::automationAndModulationFollowTheLiveRange` (fixed: ModMatrix clamped modulation to the range it saw at prepare; `refreshDestinationRanges` on every range change) | DONE |
 | AR-13 (§2) | Seven family keys | `RangeFamily`, `getRangeFamilyName` | Options > RANGES | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent` | DONE |
 | AR-14 (§2, §4) | Per-control unlock via right-click; "Restrict to stock" offered only for listed controls | `showParameterContextMenu` (`Widgets.cpp`) | right-click any physical knob | `RangesUi::rightClickUnlocksAndRestrictsOneControl` | DONE |
 | AR-15 (§2.1, §3.4) | `modulation` family: LFO/env/seq/follower setters clamp to the 3.4 stock pair unless advanced; locking clamps and counts; unlocked values survive state/preset | `Modulation/ModRanges.h`, `ModSources.h` setters, `ModMatrix::setModulationRangeAdvanced`, `LuthierAudioProcessor::setRanges` | MOD tab padlock (`RangeTabButton`); source-card sliders follow the live pair | `Ranges::modulationSettersClampUnlessAdvanced`, `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
@@ -24,10 +24,10 @@ Most of the mechanism is implemented and tested: `PhysicalRange`/`RangeRegistry`
 | AR-18 (§3.3) | squeak/pick/buzz/slide rows from their specs; same-pair rows need no entry | `PhysicalRange.cpp` table | CHARACTER / WORKSHOP | `Ranges::everyPhysicalRangeIsValid`, `Ranges::stockMatchesTheDeclaredRange` | DONE |
 | AR-19 (§4) | `ranges` block schema: families + per_control_unlocks; redundant unlocks dropped; malformed = absent | `RangeState::toVar/fromVar`, `setUnlockedIndividually` | n/a | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent` | DONE |
 | AR-20 (§4.1) | Legacy per-family derivation from plain values after load | `RangeState::deriveFromCurrentValues`, `PresetManager.cpp` ~694 | n/a | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent` | DONE |
-| AR-21 (§5) | Snapshots never carry mode; recall after locking clamps — `Snapshots.cpp` stores and recalls `getValue()` (normalised), so a recall against the stock range re-maps rather than clamps the plain value | `Live/Snapshots.cpp` (~182, ~368) | LIVE | - | PARTIAL |
+| AR-21 (§5) | Snapshots never carry mode; recall after locking clamps — `Snapshots.cpp` stores and recalls `getValue()` (normalised), so a recall against the stock range re-maps rather than clamps the plain value | `Live/Snapshots.cpp` (~182, ~368) | LIVE | `Snapshot::physicalPlain`, `SnapshotBank::liveParameters`; `Ranges::snapshotsDoNotCarryMode` | DONE |
 | AR-22 (§5) | A/B slots each carry their own ranges block | `captureStateBlock` -> `getStateInformation` | header A/B | - | NO-TEST |
 | AR-23 (§5, §6.2) | Randomise respects stock (pref default on); off uses the live range | `PresetManager::randomise`, `RangesUi::randomiseRespectsStock` | Options > RANGES toggle | `RangesUi::randomiseStaysInStockUnlessToldOtherwise` | DONE |
-| AR-24 (§5) | Reset to default writes defaultValue and never changes range mode — `resetToDefaults` writes the normalised `getDefaultValue()`, never checked against an advanced live range | `PresetManager::resetToDefaults` | header File menu | - | NO-TEST |
+| AR-24 (§5) | Reset to default writes defaultValue and never changes range mode — `resetToDefaults` writes the normalised `getDefaultValue()`, never checked against an advanced live range | `PresetManager::resetToDefaults` | header File menu | `Ranges::resetToDefaultsKeepsTheModeAndThePlainDefault` | DONE |
 | AR-25 (§6.1) | Tab padlock (accent unlocked / muted locked) on tabs holding physical params — CHARACTER only here; WORKSHOP padlock on visual (`AdvancedPanel` RangeTabButton for WORKSHOP); MOD waits for AR-15 | `RangesUi::RangeTabButton` | CHARACTER tab | - | OWNED |
 | AR-26 (§6.1, gui-int 2) | Header padlock while anything is unlocked | `RangesUi` PadlockButton | header | `RangesUi::theHeaderPadlockShowsOnlyWhenSomethingIsUnlocked` | DONE |
 | AR-27 (§6.2.1) | Master per-preset toggle with the clamp count before commit | `RangesPage::masterToggled/setAllFamilies` | Options > RANGES | `RangesUi::theRangesPageListsLocksAndClamps` | DONE |
@@ -49,6 +49,6 @@ Most of the mechanism is implemented and tested: `PhysicalRange`/`RangeRegistry`
 | AR-T7 (§10) | Test: legacy load of an ordinary preset stays stock | - | n/a | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent` | DONE |
 | AR-T8 (§10) | Test: marking follows the value | - | n/a | `Ranges::markingFollowsTheValueNotTheMode` | DONE |
 | AR-T9 (§10) | Test: randomise respects stock over 1000 passes | - | n/a | `RangesUi::randomiseStaysInStockUnlessToldOtherwise` | DONE |
-| AR-T10 (§10) | Test: snapshots do not carry mode (capture advanced, lock, recall, values clamped) — no test (and AR-21 would fail it) | - | n/a | - | MISSING |
+| AR-T10 (§10) | Test: snapshots do not carry mode (capture advanced, lock, recall, values clamped) — no test (and AR-21 would fail it) | - | n/a | `Ranges::snapshotsDoNotCarryMode` | DONE |
 
-<!-- counts DONE=29 NO-GUI=0 NO-TEST=8 PARTIAL=3 MISSING=3 OWNED=3 -->
+<!-- counts DONE=34 NO-GUI=0 NO-TEST=6 PARTIAL=2 MISSING=1 OWNED=3 -->

@@ -333,6 +333,12 @@ void ModMatrix::reset() noexcept
 int ModMatrix::setModulationRangeAdvanced (bool advanced) noexcept
 {
     modulationAdvanced = advanced;
+
+    // SPEC-SWEEP: AR-12 - every caller has just applied a RangeState, so the
+    // parameters' live ranges may have moved: modulation sweeps the live range
+    // (advanced-ranges.md 1.4), not the one it saw at prepare.
+    refreshDestinationRanges();
+
     int clamped = 0;
 
     for (auto& l : lfos)       clamped += l.setAdvancedRange (advanced);
@@ -341,6 +347,26 @@ int ModMatrix::setModulationRangeAdvanced (bool advanced) noexcept
     for (auto& f : followers)  clamped += f.setAdvancedRange (advanced);
 
     return clamped;
+}
+
+void ModMatrix::refreshDestinationRanges() noexcept
+{
+    if (apvts == nullptr)
+        return;
+
+    const auto& parameters = apvts->processor.getParameters();
+
+    for (int i = 0; i < juce::jmin (parameters.size(), (int) destinations.size()); ++i)
+    {
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameters[i]))
+        {
+            const auto& range = ranged->getNormalisableRange();
+            auto& info = destinations[(size_t) i];
+            info.minimum = range.start;
+            info.maximum = range.end;
+            info.range = juce::jmax (1.0e-9f, range.end - range.start);
+        }
+    }
 }
 
 void ModMatrix::releaseResources()

@@ -154,6 +154,10 @@ public:
     int setModulationRangeAdvanced (bool advanced) noexcept;
     bool isModulationRangeAdvanced() const noexcept { return modulationAdvanced; }
 
+    /** SPEC-SWEEP: AR-12 - re-reads each destination's live range after a
+        range-mode change (called by setModulationRangeAdvanced). */
+    void refreshDestinationRanges() noexcept;
+
     //==========================================================================
     // Routes. Message thread only.
 
