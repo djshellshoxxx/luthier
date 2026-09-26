@@ -2718,6 +2718,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             // under a slide no fret is touched.
             wear[(size_t) s] = (currentFret[(size_t) s] > 0.0 && ! slide.isUnderBar (s))
                                  ? character.getFretBuzzMultiplier (currentFret[(size_t) s]) : 1.0;
+
+            fretBuzzModel.setBendCents (s, midi.getStringBendCents (s));   // SPEC-SWEEP FB-26
         }
 
         fretBuzzModel.process (playingNoise.getPool(), levels.data(), currentFret.data(),

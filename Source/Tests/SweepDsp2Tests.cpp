@@ -3292,3 +3292,22 @@ LUTHIER_TEST (PickNoise, noiseRidesTheInstrument)
     const auto b = render (GuitarType::Stratocaster, 0.0, 0.0);
     CHECK (a == b);
 }
+
+LUTHIER_TEST (Buzz, aBendMovesTheBuzzUpTheNeck)
+{
+    // FB-26 (fret-buzz.md 8): a bend lifts the string next to the finger and
+    // brings it closer further up.
+    FretBuzz buzz;
+    buzz.setGeometry (needsATech());
+
+    const int s = 2;
+    const double near0 = buzz.clearanceFor (s, 5.0, 6);
+    const double far0 = buzz.clearanceFor (s, 5.0, 12);
+
+    buzz.setBendCents (s, 200.0);
+    CHECK (buzz.clearanceFor (s, 5.0, 6) > near0 + 0.1);
+    CHECK (buzz.clearanceFor (s, 5.0, 12) < far0 - 0.1);
+
+    // Unbent strings are untouched.
+    CHECK_NEAR (buzz.clearanceFor (s + 1, 5.0, 6), buzz.getGeometry().clearanceMm (s + 1, 5.0, 6), 1.0e-12);
+}
