@@ -29,11 +29,11 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 | UT-23 (§6) | Editable endpoint URLs | `Telemetry::setManifestUrl/...` | PRIVACY `manifestUrlBox` etc. | `Telemetry::settingsRoundTrip` | DONE |
 | UT-24 (§6) | One-click turn everything off + delete diagnostics | `Telemetry::turnEverythingOffAndDelete` | PRIVACY `paranoiaButton` | `Telemetry::turnEverythingOffDeletesAndDisables` | DONE |
 | UT-25 (§7) | System-wide `luthier-policy.json` forces telemetry off / private mirror / no crash uploads | `Policy::load/getPolicyFile` | n/a | `Telemetry::policyOverridesTheUser` | DONE |
-| UT-26 (§7) | "Managed by policy" indicator — header banner + page label, untested | `PluginEditor.cpp` "policy" notification | header banner, PRIVACY/UPDATES `policyLabel` | - | NO-TEST |
+| UT-26 (§7) | "Managed by policy" indicator — header banner + page label, untested | `Policy::setPolicyFileForTesting` | header banner, PRIVACY/UPDATES `policyLabel` | `Telemetry::aPolicyLocksThePrivacyPage` | DONE |
 | UT-27 (§8) | Test: no-network mode silent | | n/a | `Telemetry::noNetworkIsSilentRatherThanAnError` | DONE |
 | UT-28 (§8) | Test: fresh install has all four toggles off | | n/a | `Telemetry::everythingIsOffByDefault` | DONE |
 | UT-29 (§8) | Test: policy file blocks disallowed features | | n/a | `Telemetry::policyOverridesTheUser` | DONE |
 | UT-30 (§8) | Test: crash dump privacy grep | | n/a | `Telemetry::crashDumpsContainNoAudioMidiOrPresets` | DONE |
 | UT-31 (§8) | Test: 5 sequential delta patches -> SHA equals full installer — not on any branch | | n/a | - | MISSING |
 
-<!-- counts DONE=20 NO-GUI=0 NO-TEST=2 PARTIAL=4 MISSING=2 OWNED=3 DEFERRED=0 -->
+<!-- counts DONE=21 NO-GUI=0 NO-TEST=1 PARTIAL=4 MISSING=2 OWNED=3 DEFERRED=0 -->

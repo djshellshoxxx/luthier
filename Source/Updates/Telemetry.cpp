@@ -181,8 +181,22 @@ std::unique_ptr<Transport> createHttpsTransport()
 }
 
 //==============================================================================
+static juce::File& policyFileOverride()
+{
+    static juce::File file;
+    return file;
+}
+
+void Policy::setPolicyFileForTesting (const juce::File& file)
+{
+    policyFileOverride() = file;
+}
+
 juce::File Policy::getPolicyFile()
 {
+    if (policyFileOverride() != juce::File())   // SPEC-SWEEP: UT-26
+        return policyFileOverride();
+
     // A documented, system-wide path, so an administrator can deploy it.
    #if JUCE_WINDOWS
     return juce::File::getSpecialLocation (juce::File::commonApplicationDataDirectory)

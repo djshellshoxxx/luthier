@@ -262,3 +262,56 @@ LUTHIER_TEST (Telemetry, crashDumpsContainNoAudioMidiOrPresets)
 
     dir.getFile().deleteRecursively();
 }
+
+//==============================================================================
+/*  UT-26: a policy file switches things off, the switches refuse to turn back
+    on, and the PRIVACY page says it is managed and greys the locked toggles. */
+LUTHIER_TEST (Telemetry, aPolicyLocksThePrivacyPage)
+{
+    juce::TemporaryFile policyFile (".json");
+    CHECK (policyFile.getFile().replaceWithText (R"({ "allow_usage_telemetry": false, "allow_crash_upload": false })"));
+    Policy::setPolicyFileForTesting (policyFile.getFile());
+
+    {
+        LuthierAudioProcessor processor;
+        auto& telemetry = processor.getTelemetry();
+        const auto saved = telemetry.toVar();
+        telemetry.refreshPolicy();
+
+        CHECK (telemetry.isManagedByPolicy());
+
+        telemetry.setCategoryEnabled (Telemetry::Category::usage, true);
+        telemetry.setCrashUploadEnabled (true);
+        CHECK (! telemetry.isCrashUploadEnabled());
+
+        PrivacyPage page (processor);
+        page.setSize (700, 900);
+        page.refresh();
+
+        juce::Array<juce::Label*> labels;
+        collectAllOf (page, labels);
+
+        bool managed = false;
+        for (auto* l : labels)
+            managed = managed || l->getText().startsWith ("Managed by policy");
+
+        CHECK (managed);
+
+        juce::Array<juce::ToggleButton*> toggles;
+        collectAllOf (page, toggles);
+
+        for (auto* t : toggles)
+        {
+            if (t->getButtonText() == "Usage telemetry" || t->getButtonText() == "Crash reports")
+                CHECK_MSG (! t->isEnabled(), t->getButtonText() + " is not locked");
+
+            if (t->getButtonText() == "Diagnostics telemetry")
+                CHECK (t->isEnabled());
+        }
+
+        telemetry.setCategoryEnabled (Telemetry::Category::usage, false);
+        telemetry.fromVar (saved);
+    }
+
+    Policy::setPolicyFileForTesting ({});
+}

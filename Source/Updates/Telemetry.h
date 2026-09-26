@@ -133,6 +133,10 @@ struct Policy
 
     static Policy load();
     static juce::File getPolicyFile();
+
+    /** SPEC-SWEEP: UT-26 - tests point the policy at a temporary file; an
+        empty File restores the system path. */
+    static void setPolicyFileForTesting (const juce::File& file);
 };
 
 //==============================================================================
