@@ -91,6 +91,10 @@ class RoutingPanel : public juce::Component,
                      private juce::Timer
 {
 public:
+    /** SPEC-SWEEP (GD-2, gui-engine-dataflow 0.2): the spec's drain rate. */
+    static constexpr int kRefreshHz = 30;
+    int getRefreshIntervalMs() const noexcept { return getTimerInterval(); }
+
     explicit RoutingPanel (LuthierAudioProcessor& processor);
     ~RoutingPanel() override;
 
@@ -123,6 +127,7 @@ public:
     LuthierToggle* getAux1PreCircuitToggle() const noexcept { return aux1PreCircuit.get(); }
 
 private:
+    std::unique_ptr<LuthierToggle> noiseFloorToAux8;   // noise-floor.md 5: mirrors CHARACTER's (REALISM-C)
     juce::Rectangle<int> sidechainMeterBounds;
     float sidechainLevel = 0.0f;
 

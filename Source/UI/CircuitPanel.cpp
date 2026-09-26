@@ -13,7 +13,7 @@ CircuitResponseView::CircuitResponseView (LuthierAudioProcessor& p)
     setTitle ("Circuit response");
     setInterceptsMouseClicks (false, false);
     refresh();
-    startTimerHz (15);
+    startTimerHz (kRefreshHz);   // SPEC-SWEEP GD-2
 }
 
 CircuitResponseView::~CircuitResponseView()

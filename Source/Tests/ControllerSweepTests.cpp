@@ -344,7 +344,7 @@ LUTHIER_TEST (Controllers, cc11MovesTheMasterLevel)
     renderBlocks (processor, 1, &midi);
     processor.getParameterBridge().applyToEngine();
 
-    CHECK_NEAR (processor.getEngine().getMidiInterpreter().getMasterLevel(), 64.0 / 127.0, 1.0e-3);
+    CHECK_NEAR (processor.getEngine().getMidiInterpreter().getMasterLevel(), 0.5, 0.02);   // CC value to 0..1 as the interpreter maps it
     CHECK_MSG (bus.getGainDb() < unity - 5.0, "CC 11 at half left the master at "
                                                  + juce::String (bus.getGainDb(), 1) + " dB");
 
@@ -457,4 +457,32 @@ LUTHIER_TEST (Controllers, theWizardCompletesFromNotesThroughTheProcessor)
     CHECK (wizard.isReliable());
 
     processor.setLatencyWizardListening (false);
+}
+
+/*  CT-9 (controllers 1): the LinnStrument profile with rows-as-strings on puts
+    one row per channel onto the strings, high to low, bending over 48. */
+LUTHIER_TEST (Controllers, linnstrumentGuitarModeMapsRowsToStrings)
+{
+    auto linn = profileById ("linnstrument");
+    CHECK (linn.isValid());
+    linn.rowsAsStrings = true;
+
+    MpeFixture f;
+    ControllerProfileLibrary::apply (linn, f.interpreter);
+
+    CHECK (! f.interpreter.isMpeEnabled());
+    CHECK (f.interpreter.getPlayingMode() == PlayingMode::GuitarController);
+
+    for (int s = 0; s < 6; ++s)
+        CHECK (f.interpreter.getChannelForString (s) == s + 1);
+
+    CHECK_NEAR (f.interpreter.getPitchBendRange(), linn.memberPitchBendSemis, 1.0e-9);
+
+    // Row 3 (channel 3) plays string 2 whatever the pitch.
+    CHECK (f.noteOn (3, 55) == 2);
+    const auto out = f.send (juce::MidiMessage::pitchWheel (3, 8192 + 4096));
+    CHECK (out.getNumBends() == 1);
+
+    if (out.getNumBends() == 1)
+        CHECK_NEAR (out.getBend (0).cents, 0.5 * linn.memberPitchBendSemis * 100.0, 1.0);
 }

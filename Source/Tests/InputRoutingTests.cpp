@@ -198,3 +198,38 @@ LUTHIER_TEST (LiveSnapshots, bankSelectOnlySelectsAPresetInBankPlusPcMode)
     restored.setStateInformation (state.getData(), (int) state.getSize());
     CHECK (! restored.doesBankSelectChoosePreset());
 }
+
+/*  IR-12 (input-routing 1.3): controllers reach the engines only through the
+    interpreter's mapping. With the rhythm engine running, the mod wheel and
+    CC 74 change the mapped targets and nothing about the pattern or the
+    strings' tuning. */
+LUTHIER_TEST (InputRouting, ccsOnlyReachEnginesThroughTheInterpreter)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& rhythm = processor.getEngine().getRhythmEngine();
+    rhythm.setEnabled (true);
+    rhythm.setFreeRun (true);
+
+    const auto patternBefore = juce::JSON::toString (rhythm.getPattern().toVar());
+    const double densityBefore = rhythm.getVoicingDensity();
+    const int styleBefore = (int) rhythm.getVoicingStyle();
+
+    auto& tuning = processor.getEngine().getTuningEngine();
+    const double hzBefore = tuning.getEffectiveOpenFrequency (0);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::controllerEvent (1, 1, 127), 0);
+    midi.addEvent (juce::MidiMessage::controllerEvent (1, 74, 100), 1);
+    render (processor, midi);
+    renderEmpty (processor, 2);
+
+    auto& interp = processor.getEngine().getMidiInterpreter();
+    CHECK (interp.getVibratoDepth() > 0.9);   // CC 1's mapped target
+
+    CHECK (juce::JSON::toString (rhythm.getPattern().toVar()) == patternBefore);
+    CHECK_NEAR (rhythm.getVoicingDensity(), densityBefore, 1.0e-9);
+    CHECK ((int) rhythm.getVoicingStyle() == styleBefore);
+    CHECK_NEAR (tuning.getEffectiveOpenFrequency (0), hzBefore, 0.01);   // tuning-stability drift is allowed; a CC-driven retune is not
+}

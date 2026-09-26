@@ -1,4 +1,5 @@
 #include "RhythmEngine.h"
+#include "MutedThump.h"   // REALISM-B: string-interaction.md 6
 
 namespace luthier
 {
@@ -374,7 +375,7 @@ void RhythmEngine::revoice() noexcept
 
 //==============================================================================
 void RhythmEngine::emitNote (int stringIndex, double velocity, bool muted, double chuck,
-                             int strikerMaterial, int sampleOffset, PlayEventQueue& out) noexcept
+                             int strikerMaterial, int sampleOffset, PlayEventQueue& out, int finger) noexcept
 {
     if (! juce::isPositiveAndBelow (stringIndex, numStrings))
         return;
@@ -420,6 +421,7 @@ void RhythmEngine::emitNote (int stringIndex, double velocity, bool muted, doubl
     on.slideSeconds = 0.0;
     on.chuck = chuck;
     on.strikerMaterial = strikerMaterial;
+    on.finger = finger;   // REALISM-B: fingerstyle-attack.md 3, the pattern's finger reaches the string
 
     if (tuning != nullptr)
         on.pitchHz = tuning->computeFrequency (stringIndex, found->fretPosition, 0.0);
@@ -596,6 +598,42 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
                       muted && ! isRakeTarget, chuckAmount,
                       strikerMaterial, (int) std::round (juce::jmax (0.0, offset)), out);
         }
+
+        // REALISM-B, string-interaction.md 6: muted strings inside the STRUM
+        // mask and the strum's span are struck too. Skipped entirely at 0.
+        if (mutedThumpLevel > 0.0)
+        {
+            juce::uint32 candidates = 0;
+
+            for (int s = 0; s < numStrings; ++s)
+            {
+                if (((step.stringMask >> s) & 1u) == 0)
+                    continue;
+
+                bool voiced = false;
+
+                for (int i = 0; i < currentVoicing.numNotes; ++i)
+                    voiced = voiced || (currentVoicing.notes[(size_t) i].valid
+                                          && currentVoicing.notes[(size_t) i].stringIndex == s);
+
+                if (! voiced)
+                    candidates |= (juce::uint32) 1u << (juce::uint32) s;
+            }
+
+            std::array<MutedThump, kMaxStrings> thumps {};
+            const int numThumps = planMutedThumps (strikes.data(), planned, candidates, thumps.data(), (int) thumps.size(), false);
+            const int hand = handPositionHint.load (std::memory_order_relaxed);
+
+            for (int k = 0; k < numThumps; ++k)
+            {
+                const auto& t = thumps[(size_t) k];
+                const double offset = gestureOffset + strokeOffsetMs * 0.001 * sr + t.timeSeconds * sr;
+                const double hz = tuning != nullptr ? tuning->computeFrequency (t.stringIndex, (double) hand, 0.0) : 110.0;
+
+                out.addNoteOn (makeThumpEvent (t.stringIndex, baseVelocity * t.force, mutedThumpLevel, hz,
+                                               (int) std::round (juce::jmax (0.0, offset)), strikerMaterial));
+            }
+        }
     }
 
     nextStrumType.store ((int) step.type, std::memory_order_relaxed);
@@ -625,7 +663,7 @@ void RhythmEngine::scheduleFingerpick (const FingerpickStep& step, int sampleOff
     if (h.timingMs > 0.0)
         offset += rng.nextGaussian() * h.timingMs * 0.001 * sr * h.amount * 0.5;
 
-    emitNote (stringIndex, velocity, false, 0.0, -1, (int) juce::jmax (0.0, offset), out);
+    emitNote (stringIndex, velocity, false, 0.0, -1, (int) juce::jmax (0.0, offset), out, (int) step.finger);
 }
 
 //==============================================================================

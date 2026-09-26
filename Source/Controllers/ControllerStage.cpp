@@ -23,6 +23,22 @@ ControllerRtSettings ControllerRtSettings::fromProfile (const ControllerProfile&
     s.mpeMasterChannel = profile.mpeMasterChannel;
     s.latencyMs = juce::jmax (0.0, profile.getEffectiveLatencyMs());
 
+    // CT-9 (controllers 1): LinnStrument "guitar mode" - its rows act as strings.
+    // The instrument is set to one channel per row, rows 1-6 are the strings
+    // from high to low, and each row bends over the member range (48).
+    if (profile.rowsAsStrings)
+    {
+        s.mode = ControllerMode::perChannel;
+
+        for (int i = 0; i < kMaxStrings; ++i)
+        {
+            s.channelForString[(size_t) i] = i < 6 ? i + 1 : 0;
+            s.stringBendSemis[(size_t) i] = profile.memberPitchBendSemis;
+        }
+
+        s.bendSemis = profile.memberPitchBendSemis;
+    }
+
     // CT-10: the curve, resampled into a fixed table the interpreter can copy.
     if (profile.pitchCurve.size() >= 2)
     {

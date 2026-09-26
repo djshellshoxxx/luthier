@@ -1,5 +1,7 @@
 #include "OptionsPages.h"
+#include "FirstRun.h"
 #include "RangesUi.h"
+#include "UiPreferences.h"   // REALISM-C
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
@@ -91,6 +93,7 @@ ControllersPage::ControllersPage (LuthierAudioProcessor& p)
     addAndMakeVisible (minimumNoteSlider);
 
     guitarModeToggle.setTooltip ("On a LinnStrument, map each row to a string.");
+    guitarModeToggle.onClick = [this] { if (! updatingControls) applySelectedProfile(); };   // SPEC-SWEEP CT-9
     addAndMakeVisible (guitarModeToggle);
 
     wizardButton.setTooltip ("Plays a click and measures how long after it your "
@@ -144,7 +147,11 @@ void ControllersPage::applySelectedProfile()
     if (! juce::isPositiveAndBelow (index, library.getNumProfiles()))
         return;
 
-    const auto& profile = library.getProfile (index);
+    auto profile = library.getProfile (index);
+
+    // SPEC-SWEEP (CT-9): the guitar-mode switch is part of what is applied.
+    if (profile.id == "linnstrument" && index == lastRefreshedProfile)
+        profile.rowsAsStrings = guitarModeToggle.getToggleState();
 
     // SPEC-SWEEP (CT-2/CT-7): through the processor, which saves the choice with
     // the session, sets mpe_enabled / bend_range so the parameter bridge keeps
@@ -237,7 +244,12 @@ void ControllersPage::refresh()
     latencySlider.setValue (profile.getEffectiveLatencyMs(), juce::dontSendNotification);
     deadZoneSlider.setValue (profile.pitchDeadZoneCents, juce::dontSendNotification);
     minimumNoteSlider.setValue (profile.minimumNoteDurationMs, juce::dontSendNotification);
-    guitarModeToggle.setToggleState (profile.rowsAsStrings, juce::dontSendNotification);
+    // SPEC-SWEEP (CT-9): only when the profile changes, so the periodic refresh
+    // does not undo the player's switch.
+    if (index != lastRefreshedProfile)
+        guitarModeToggle.setToggleState (profile.rowsAsStrings, juce::dontSendNotification);
+
+    lastRefreshedProfile = index;
 
     guitarModeToggle.setEnabled (profile.id == "linnstrument");
 
@@ -596,6 +608,20 @@ AudioPage::AudioPage (LuthierAudioProcessor& p)
                            "Oversampling for the amp and the drive pedals. 4x is the default; "
                            "2x sounds very close and costs noticeably less.");
 
+    // noise-floor.md 3: seeds noise_mains_hz for new (Init) presets only; a
+    // loaded preset keeps its own, so a render is the same on every machine.
+    mainsRegion.addItem ("Auto (from your region)", 1);
+    mainsRegion.addItem ("50 Hz", 2);
+    mainsRegion.addItem ("60 Hz", 3);
+    mainsRegion.setSelectedId (1 + juce::jlimit (0, 2, UiPreferences::get().getInt ("defaultMainsRegion", 0)),
+                               juce::dontSendNotification);
+    mainsRegion.setTooltip ("The mains frequency an Init preset's hum starts at. Loaded presets keep their own.");
+    mainsRegion.onChange = [this] { UiPreferences::get().setInt ("defaultMainsRegion", mainsRegion.getSelectedId() - 1); };
+    addAndMakeVisible (mainsRegion);
+    mainsLabel.setText ("Default mains region", juce::dontSendNotification);
+    styleNote (mainsLabel, Palette::textMuted, 11.0f);
+    addAndMakeVisible (mainsLabel);
+
     addAndMakeVisible (deviceButton);
     deviceButton.setTooltip ("Where the device, sample rate and buffer settings actually live");
     deviceButton.onClick = [this]
@@ -681,7 +707,13 @@ void AudioPage::resized()
 
     bounds.removeFromTop (22);
 
-    oversampling.setBounds (bounds.removeFromTop (40).removeFromLeft (200));
+    {
+        auto row = bounds.removeFromTop (40);
+        oversampling.setBounds (row.removeFromLeft (200));
+        row.removeFromLeft (16);
+        mainsLabel.setBounds (row.removeFromTop (14).removeFromLeft (200));
+        mainsRegion.setBounds (row.removeFromTop (24).removeFromLeft (200));
+    }
 
     bounds = getLocalBounds().withTrimmedTop (118);
 
@@ -1655,12 +1687,21 @@ void UpdatesPage::checkForUpdate()
     // message thread either - the check goes to a background job.
     updateStatus.setText ("Checking...", juce::dontSendNotification);
 
-    juce::Thread::launch ([this, running]
+    // Review R-101: the page can close while the check runs, so the job holds
+    // the Telemetry (owned by the processor) and the reply a SafePointer.
+    juce::Thread::launch ([&tel = telemetry(), running, safe = juce::Component::SafePointer<UpdatesPage> (this)]
     {
-        const auto result = telemetry().checkForUpdate (running, true);
+        const auto result = tel.checkForUpdate (running, true);
 
-        juce::MessageManager::callAsync ([this, result]
+        juce::MessageManager::callAsync ([safe, result]
         {
+            if (safe == nullptr)
+                return;
+
+            auto* self = safe.getComponent();
+            auto& updateStatus = self->updateStatus;
+            auto& releaseNotes = self->releaseNotes;
+
             if (! result.checked)
             {
                 // A failed check is reported here because the user asked for it.
@@ -2042,11 +2083,35 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
                 .withButton ("Cancel"),
             [this] (int result)
             {
-                if (result == 1)
+                // NativeMessageBox answers the plain button index: 0 is the
+                // first ("Reset everything"), 1 is Cancel (review R-100).
+                if (result == 0)
                 {
                     processor.hardResetAndClearCaches();
                     refresh();
                 }
+            });
+    };
+
+    // onboarding.md 12 (TUNE-HELP-ONBOARDING): confirmed with a modal.
+    addAndMakeVisible (restoreFirstRunButton);
+    restoreFirstRunButton.setTooltip ("Clears your settings and one-time hints so the next launch behaves as "
+                                      "a fresh install. Your presets, guitars, tunes and parts are kept.");
+    restoreFirstRunButton.onClick = [this]
+    {
+        juce::NativeMessageBox::showAsync (
+            juce::MessageBoxOptions()
+                .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                .withTitle ("Restore first-run experience?")
+                .withMessage ("Your settings go back to a fresh install's, every one-time hint and the tour "
+                              "come back, and the next launch behaves as the first.\n\n"
+                              "Your presets, guitars, tunes and parts are kept.")
+                .withButton ("Restore")
+                .withButton ("Cancel"),
+            [safe = juce::Component::SafePointer<DiagnosticsPage> (this)] (int result)
+            {
+                if (safe != nullptr && result == 0)   // plain index: 0 is "Restore" (R-100)
+                    safe->restoreFirstRun();
             });
     };
 
@@ -2069,6 +2134,15 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
                         juce::dontSendNotification);
     addAndMakeVisible (mirrorNote);
 
+    refresh();
+}
+
+void DiagnosticsPage::restoreFirstRun()
+{
+    FirstRun::restoreFirstRunExperience();
+
+    // The processor cannot read UiPreferences, so it is told what Restore left.
+    RangesUi::setRandomiseRespectsStock (processor, RangesUi::randomiseRespectsStock());
     refresh();
 }
 
@@ -2095,7 +2169,7 @@ void DiagnosticsPage::paint (juce::Graphics& g)
 
     drawHeading (g, bounds.removeFromTop (18), "WHAT LUTHIER RECORDS FOR YOU");
     drawHeading (g, { 0, 150, getWidth(), 18 }, "FILES AND WINDOWS");
-    drawHeading (g, { 0, 262, getWidth(), 18 }, "FEATURE FLAGS");
+    drawHeading (g, { 0, 296, getWidth(), 18 }, "FEATURE FLAGS");
 }
 
 void DiagnosticsPage::resized()
@@ -2131,7 +2205,10 @@ void DiagnosticsPage::resized()
         hardResetButton.setBounds (row.removeFromLeft (280));
     }
 
-    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (284).withHeight (32));
+    bounds.removeFromTop (6);
+    restoreFirstRunButton.setBounds (bounds.removeFromTop (Metrics::buttonHeight).removeFromLeft (240));
+
+    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (318).withHeight (32));
 }
 
 //==============================================================================

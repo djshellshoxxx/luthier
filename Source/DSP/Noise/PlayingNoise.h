@@ -58,8 +58,13 @@ struct StringNoiseInfo
     double windingDepth = 0.0;        ///< 0 plain, up to 1 for a heavy winding
     StringMaterial material = StringMaterial::NickelPlatedSteel;
     double ageRoughness = 1.0;        ///< 1 fresh, up to 1.4 old (string-squeak.md 10)
+    double squeakCentroid = 1.0;      ///< string-aging.md 3.5: grime lowers the squeak's band-pass centre
 
     static StringNoiseInfo fromSpec (const StringSpec& spec, StringMaterial material, StringAge age) noexcept;
+
+    /** string-aging.md 5: the roughness and centroid come from StringAging. */
+    static StringNoiseInfo fromSpec (const StringSpec& spec, StringMaterial material,
+                                     double ageRoughness, double squeakCentroid) noexcept;
 };
 
 //==============================================================================

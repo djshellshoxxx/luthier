@@ -448,7 +448,7 @@ LuthierKnob::~LuthierKnob()
 
 bool LuthierKnob::pollModulationArc()
 {
-    if (processor == nullptr || modIndex < 0 || ! isShowing())
+    if (processor == nullptr || modIndex < 0 || ! (pollWhileHidden || isShowing()))
         return false;
 
     auto& matrix = processor->getModMatrix();
@@ -896,6 +896,45 @@ void LuthierToggle::attachTo (LuthierAudioProcessor& p, const juce::String& id, 
         p.getState(), id, button);
 }
 
+void LuthierToggle::setMomentary (bool shouldBeMomentary)
+{
+    momentary = shouldBeMomentary;
+    button.setClickingTogglesState (! momentary);
+
+    if (! momentary)
+    {
+        button.onStateChange = nullptr;
+
+        if (processor != nullptr && paramId.isNotEmpty())
+            attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+                processor->getState(), paramId, button);
+        return;
+    }
+
+    // The attachment writes on click (mouse up); a momentary control writes on
+    // press and on release itself.
+    attachment.reset();
+
+    button.onStateChange = [this]
+    {
+        const bool down = button.isDown();
+
+        if (down == momentaryHeld || processor == nullptr)
+            return;
+
+        momentaryHeld = down;
+
+        if (auto* param = processor->getState().getParameter (paramId))
+        {
+            param->beginChangeGesture();
+            param->setValueNotifyingHost (down ? 1.0f : 0.0f);
+            param->endChangeGesture();
+        }
+
+        button.setToggleState (down, juce::dontSendNotification);
+    };
+}
+
 void LuthierToggle::resized()
 {
     button.setBounds (getLocalBounds());
@@ -1111,7 +1150,7 @@ OutputLed::OutputLed()
     setInterceptsMouseClicks (false, false);
     setTooltip ("Output level. Dark when silent, white as it approaches 0 dBFS, "
                 "red while the signal is over.");
-    startTimerHz (30);
+    startTimerHz (kRefreshHz);   // SPEC-SWEEP GD-8
 }
 
 OutputLed::~OutputLed()
@@ -1126,16 +1165,37 @@ void OutputLed::setSource (LuthierAudioProcessor* p)
 
 void OutputLed::timerCallback()
 {
+    tick (juce::Time::getMillisecondCounterHiRes());
+}
+
+void OutputLed::tick (double nowMs)
+{
     if (processor == nullptr)
         return;
 
-    const double db = processor->getEngine().getMasterBus().getPeakDb();
+    auto& bus = processor->getEngine().getMasterBus();
+    const auto blocks = bus.getBlockCount();
+
+    if (blocks != lastBlockCount)
+    {
+        lastBlockCount = blocks;
+        lastFreshMs = nowMs;
+    }
+
+    const bool stale = nowMs - lastFreshMs > kStaleMs;
+    const double db = stale ? -200.0 : bus.getPeakDb();
 
     // -inf is the dark grey; brightness rises toward white as the level nears 0 dB.
     const float target = (float) juce::jlimit (0.0, 1.0, (db + 48.0) / 48.0);
 
-    brightness = juce::jmax (target, brightness * 0.86f);
-    overThreshold = (db > 0.0);
+    // A stale reading goes dark at once rather than fading from the last value.
+    brightness = stale ? 0.0f : juce::jmax (target, brightness * 0.93f);
+
+    // Red latches for kRedHoldMs from the last over, then re-evaluates.
+    if (db > 0.0)
+        redSinceMs = nowMs;
+
+    overThreshold = ! stale && (nowMs - redSinceMs) < kRedHoldMs;
 
     repaint();
 }
@@ -1146,10 +1206,10 @@ void OutputLed::paint (juce::Graphics& g)
     const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
     const auto centre = bounds.getCentre();
 
-    const auto dark = juce::Colour (0xff4a4640);
+    const auto dark = darkColour();   // SPEC-SWEEP GD-8: #5A5F66
 
     auto colour = overThreshold
-                    ? Palette::clip
+                    ? redColour()
                     : dark.interpolatedWith (juce::Colours::white, brightness);
 
     // Glow, so a hot signal reads from across the room.

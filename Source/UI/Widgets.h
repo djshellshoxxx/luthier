@@ -155,6 +155,9 @@ public:
     bool pollModulationArc();
     int getArcRepaintCount() const noexcept { return arcRepaints; }
 
+    /** Tests: poll even when the knob is not on screen. */
+    void setPollArcWhileHidden (bool b) noexcept { pollWhileHidden = b; }
+
     /** The shared hub's refresh rate. */
     static constexpr int kModArcRefreshHz = 30;
 
@@ -165,6 +168,7 @@ private:
     bool lastArcModulated = false;
     float lastArcNorm = 0.0f;
     int arcRepaints = 0;
+    bool pollWhileHidden = false;
     int modIndex = -1;
 
     class KnobSlider : public juce::Slider
@@ -253,12 +257,19 @@ public:
     juce::TextButton& getButton() noexcept { return button; }
     juce::String getLearnParameterId() const override { return paramId; }
 
+    /** SPEC-SWEEP (UW-14, ui-wiring 2): momentary - the parameter is on while
+        the button is held and off when it is let go, each inside a gesture.
+        Call after attachTo. */
+    void setMomentary (bool shouldBeMomentary);
+    bool isMomentary() const noexcept { return momentary; }
+
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
 
 private:
     juce::TextButton button;
     juce::String paramId;
+    bool momentary = false, momentaryHeld = false;
 
     LuthierAudioProcessor* processor = nullptr;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> attachment;
@@ -342,12 +353,30 @@ public:
     void setSource (LuthierAudioProcessor* processor);
     void paint (juce::Graphics&) override;
 
+    /** SPEC-SWEEP (GD-8, gui-engine-dataflow 3): 60 Hz; red above 0 dBFS and
+        held 400 ms before it re-evaluates; unlit after 100 ms with no new
+        block from the master bus. */
+    static constexpr int kRefreshHz = 60;
+    static constexpr double kRedHoldMs = 400.0;
+    static constexpr double kStaleMs = 100.0;
+    static juce::Colour darkColour() noexcept { return juce::Colour (0xff5a5f66); }
+    static juce::Colour redColour() noexcept  { return juce::Colour (0xfff2544e); }
+
+    /** One refresh at @p nowMs (the timer passes the real clock; tests their own). */
+    void tick (double nowMs);
+    bool isRed() const noexcept { return overThreshold; }
+    bool isLit() const noexcept { return brightness > 0.0f || overThreshold; }
+    float getBrightness() const noexcept { return brightness; }
+
 private:
     void timerCallback() override;
 
     LuthierAudioProcessor* processor = nullptr;
     float brightness = 0.0f;
     bool overThreshold = false;
+    double redSinceMs = -1.0e9;
+    double lastFreshMs = -1.0e9;
+    juce::uint32 lastBlockCount = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputLed)
 };

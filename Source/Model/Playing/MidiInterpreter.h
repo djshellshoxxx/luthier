@@ -53,6 +53,13 @@ enum class MidiTarget
     Space,
     Body,
     Attack,
+
+    // harmonic-realism.md 6 and fingerstyle-attack.md 5 (REALISM-B), appended.
+    ArtificialHarmonic,
+    TappedHarmonic,
+    RightHandTool,
+    RestStroke,
+
     PitchBend,     ///< SPEC-SWEEP (PT-23): an upward bend; appended so saved indices keep their meaning
     NumTargets
 };
@@ -105,6 +112,10 @@ public:
         last call. The processor's timer takes these and moves the macro
         parameters on the message thread. Any thread. */
     float takeMacroTarget (MidiTarget target) noexcept;
+
+    /** SPEC-SWEEP (CT-14): notes a per-string controller asked for that the
+        string could not reach and were clipped into range (identity rule 2). */
+    juce::uint32 getClippedNoteCount() const noexcept { return clippedNotes.load (std::memory_order_relaxed); }
 
     /** SPEC-SWEEP (CT-18): the string a member channel last played, or -1. */
     int getLastStringForChannel (int channel) const noexcept
@@ -168,6 +179,32 @@ public:
     /** strum-dynamics 7: the gesture's shape for live chords. Their speed comes
         from setStrumSpeedMs, which the bridge feeds from strum_crossing_sps. */
     void setStrumSettings (const StrumSettings& s) noexcept { strumSettings = s.clamped(); }
+
+    /*  harmonic-realism.md 4 (REALISM-B): the artificial and tapped offsets
+        (choice indices, harmonics::offsetFretsForChoice) and the note mapping. */
+    struct HarmonicSettings
+    {
+        int  artificialOffsetChoice = 0;
+        int  tappedOffsetChoice = 0;
+        bool soundingPitch = false;   ///< 4.2; false = touch-fret mapping (4.1)
+        double inharmonicityB[kMaxStrings] {};
+    };
+
+    void setHarmonicSettings (const HarmonicSettings& h) noexcept { harmonicSettings = h; }
+    const HarmonicSettings& getHarmonicSettings() const noexcept { return harmonicSettings; }
+
+    /*  fingerstyle-attack.md 5: CC 102's live tool override (0 Off, 1 Pick,
+        2 Finger, 3 Thumb, 4 Thumbpick, 5 Slap, 6 Pop) and CC 105's rest. */
+    int  getRightHandToolOverride() const noexcept { return rightHandTool; }
+    bool isRestStrokeForced() const noexcept { return restStrokeHeld; }
+
+    /** True once CC 70 (PickPosition) has moved since the last reset: the
+        pinch harmonic then follows it (harmonic-realism.md 3). */
+    bool hasPickPositionController() const noexcept { return pickPositionMoved; }
+
+    /*  string-interaction.md 6: the muted-string thump's level; 0 is off and
+        emits nothing. */
+    void setMutedThumpLevel (double level) noexcept { mutedThumpLevel = juce::jlimit (0.0, 1.0, level); }
 
     /** Latency the chord window adds, in samples. */
     int getLatencySamples() const noexcept;
@@ -301,6 +338,7 @@ private:
     bool mpeEnabled = false;
     int mpeMasterChannel = 1;                                // SPEC-SWEEP CT-17
     std::atomic<double> masterLevel { 1.0 };                 // SPEC-SWEEP PT-21
+    std::atomic<juce::uint32> clippedNotes { 0 };            // SPEC-SWEEP CT-14
     std::array<std::atomic<float>, 5> macroTargets { { -1.0f, -1.0f, -1.0f, -1.0f, -1.0f } };   // PT-21
     static int macroTargetSlot (MidiTarget target) noexcept;
     std::array<float, kPitchCurvePoints> pitchCurve {};      // SPEC-SWEEP CT-10
@@ -331,6 +369,17 @@ private:
     bool nextStrumIsUp = false;
 
     StrumSettings strumSettings;
+    HarmonicSettings harmonicSettings;
+    int rightHandTool = 0;
+    bool restStrokeHeld = false;
+    bool pickPositionMoved = false;
+    double mutedThumpLevel = 0.0;
+
+    /** harmonic-realism.md 4.2: plays a harmonic-armed note named by the pitch
+        heard. True if it was handled (located or played artificially). */
+    bool emitSoundingHarmonic (int midiNote, int channel, double velocity, int64_t timestamp,
+                               int blockOffset, PlayEventQueue& out) noexcept;
+    bool isHarmonicArmed (double velocity) const noexcept;
     StrumGesture strumGesture;
     juce::uint32 strumCount = 0;
 

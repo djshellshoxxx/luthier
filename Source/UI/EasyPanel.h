@@ -17,11 +17,13 @@
 */
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "RightHandGroup.h"   // REALISM-B
 #include "Widgets.h"
 #include "FretboardComponent.h"
 #include "GuitarBodyComponent.h"
 #include "CircuitPanel.h"
 #include "AmpFacePanel.h"
+#include "PanelHelpButton.h"
 
 namespace luthier
 {
@@ -35,6 +37,7 @@ class CompactRack : public juce::Component,
                     private juce::Timer
 {
 public:
+
     CompactRack (LuthierAudioProcessor& processor, bool postChain);
     ~CompactRack() override;
 
@@ -66,10 +69,25 @@ class EasyPanel : public juce::Component,
                   private juce::Timer
 {
 public:
+    /** SPEC-SWEEP (GD-9, gui-engine-dataflow 4): the chord readout keeps the
+        last chord and dims it once kChordStaleMs pass without a new one. */
+    static constexpr double kChordStaleMs = 3000.0;
+    void tickChordReadout (double nowMs);
+    juce::String getChordReadoutText() const { return chordLabel.getText(); }
+    bool isChordReadoutDimmed() const { return chordLabel.findColour (juce::Label::textColourId) != Palette::accent; }
+
     explicit EasyPanel (LuthierAudioProcessor& processor);
     ~EasyPanel() override;
 
     std::function<void()> onOpenExport;
+
+    /** gui-integration 20 (TUNE-HELP-ONBOARDING): a strip's ? asks the editor
+        for Help pinned to it. */
+    std::function<void (const juce::String& topic)> onOpenHelp;
+    std::vector<PanelHelpButton*> getHelpButtons() { return { &rigHelp, &playingHelp, &toneHelp, &rhythmHelp }; }
+
+    /** onboarding 4: the Randomise button the first-week tooltip is on. */
+    juce::Button& getRandomiseButton() noexcept { return randomiseButton; }
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -111,6 +129,7 @@ private:
     LuthierKnob driveKnob     { "Drive",     LuthierKnob::Size::Small };
     LuthierKnob toneKnob      { "Tone",      LuthierKnob::Size::Small };
     LuthierKnob spaceKnob     { "Space",     LuthierKnob::Size::Small };
+    std::unique_ptr<RightHandToolSelector> toolSelector;   // REALISM-B: fingerstyle-attack.md 7, the Tool selector
     LuthierKnob humanizeKnob  { "Humanize",  LuthierKnob::Size::Small };
     LuthierKnob characterKnob { "Character", LuthierKnob::Size::Small };
     LuthierKnob whammyKnob    { "Whammy",    LuthierKnob::Size::Small };
@@ -134,6 +153,7 @@ private:
 
     LevelMeter meter;
     juce::Label chordLabel;
+    double lastChordMs = -1.0e9;   // SPEC-SWEEP GD-9
 
     // ---- rhythm strip (3.5) ------------------------------------------------------------
     juce::Label rhythmLabel { {}, "Rhythm" };
@@ -164,6 +184,9 @@ private:
     juce::Array<std::pair<juce::Rectangle<int>, juce::String>> rigCards;
 
     juce::Array<int> stylePresetIndices;
+
+    // gui-integration 20: one ? per strip.
+    PanelHelpButton rigHelp { "Rig" }, playingHelp { "Playing" }, toneHelp { "Tone" }, rhythmHelp { "Rhythm" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EasyPanel)
 };

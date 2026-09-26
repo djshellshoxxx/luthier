@@ -58,7 +58,7 @@ FretboardComponent::FretboardComponent (LuthierAudioProcessor& p)
     liveNote.fill (-1);
 
     setTooltip ("Click a fret to hear that note. Right-click for string options.");
-    startTimerHz (30);
+    startTimerHz (kRefreshHz);   // SPEC-SWEEP GD-2
 }
 
 FretboardComponent::~FretboardComponent()
@@ -205,6 +205,8 @@ void FretboardComponent::timerCallback()
         if (tabDots.size() != before || (! tabDots.empty() && tabDots.back().fret != newestBefore))
             changed = true;
     }
+    if (refreshRealismB())   // REALISM-B: contact rings, palm bands, tool glyphs
+        changed = true;
 
     if (changed)
         repaint();
@@ -552,6 +554,8 @@ void FretboardComponent::paint (juce::Graphics& g)
         g.setColour (Palette::textPrimary.withAlpha (0.45f));
         g.drawEllipse (x - 7.0f, y - 7.0f, 14.0f, 14.0f, 1.2f);
     }
+
+    paintRealismB (g);   // REALISM-B
 
     // ---- fret numbers ----------------------------------------------------------------
     if (! compact)

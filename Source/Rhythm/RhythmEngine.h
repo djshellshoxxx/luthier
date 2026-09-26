@@ -173,6 +173,9 @@ public:
     /** 7: the STRUM group's settings, pushed every block by the ParameterBridge.
         Their crossing velocity is the plugin-global default (1.1 source 4). */
     void setStrumSettings (const StrumSettings& s) noexcept { strumSettings = s.clamped(); }
+
+    /** REALISM-B, string-interaction.md 6: the muted-string thump's level; 0 emits nothing. */
+    void setMutedThumpLevel (double level) noexcept { mutedThumpLevel = juce::jlimit (0.0, 1.0, level); }
     StrumSettings getStrumSettings() const noexcept { return strumSettings; }
 
     double getStrumEvenness() const noexcept { return strumEvenness.load (std::memory_order_relaxed); }
@@ -238,7 +241,7 @@ private:
                              PlayEventQueue& out) noexcept;
 
     void emitNote (int stringIndex, double velocity, bool muted, double chuck,
-                   int strikerMaterial, int sampleOffset, PlayEventQueue& out) noexcept;
+                   int strikerMaterial, int sampleOffset, PlayEventQueue& out, int finger = -1) noexcept;
 
     void releaseAll (int sampleOffset, PlayEventQueue& out) noexcept;
 
@@ -271,6 +274,7 @@ private:
     std::atomic<double> strumDurationMs { 0.0 };  // no kit crossing until a kit sets one
 
     StrumSettings strumSettings;
+    double mutedThumpLevel = 0.0;   // REALISM-B
     std::atomic<double> strumFeel { 0.5 };
     StrumGesture gesture;
     juce::uint32 strumCount = 0;

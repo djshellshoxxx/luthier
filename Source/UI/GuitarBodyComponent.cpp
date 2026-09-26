@@ -1,4 +1,5 @@
 #include "GuitarBodyComponent.h"
+#include "RealismGroupsC.h"   // REALISM-C
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 
@@ -9,7 +10,7 @@ namespace luthier
 GuitarBodyComponent::GuitarBodyComponent (LuthierAudioProcessor& p)
     : processor (p)
 {
-    startTimerHz (30);
+    startTimerHz (kRefreshHz);   // SPEC-SWEEP GD-2
 }
 
 GuitarBodyComponent::~GuitarBodyComponent()
@@ -475,12 +476,17 @@ TuningPopover::TuningPopover (LuthierAudioProcessor& p)
 
         slider->onValueChange = [this, i, slider]
         {
+            // SPEC-SWEEP (UW-5): via the command queue; the audio thread applies the
+            // detune and tells the stability model (tuning-stability.md 5) there.
             processor.setStringDetuneCents (i, slider->getValue());   // SPEC-SWEEP UW-5: via the command queue
             refreshNoteNames();
             repaint();
         };
 
         addAndMakeVisible (slider);
+
+        // tuning-stability.md 6: the string's offset, and its Retune.
+        addAndMakeVisible (stabilityBadges.add (new StabilityBadge (processor, i)));
     }
 
     refreshNoteNames();
@@ -504,7 +510,7 @@ juce::Rectangle<int> TuningPopover::preferredSize (int numStrings)
                          + rows * kRowHeight
                          + 8 + 28;
 
-    return { 0, 0, 300, height };
+    return { 0, 0, 300 + StabilityBadge::preferredWidth, height };
 }
 
 void TuningPopover::refreshNoteNames()
@@ -579,11 +585,15 @@ void TuningPopover::resized()
     bounds.removeFromTop (8);
     bounds.removeFromBottom (8 + 28);
 
-    for (auto* slider : detuneSliders)
+    for (int i = 0; i < detuneSliders.size(); ++i)
     {
         auto row = bounds.removeFromTop (kRowHeight);
         row.removeFromLeft (kNoteColumnWidth);          // the note name paint() draws
-        slider->setBounds (row);
+
+        if (auto* badge = stabilityBadges[i])
+            badge->setBounds (row.removeFromRight (StabilityBadge::preferredWidth));
+
+        detuneSliders[i]->setBounds (row);
     }
 }
 

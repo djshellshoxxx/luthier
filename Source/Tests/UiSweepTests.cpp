@@ -8,6 +8,11 @@
 #include "../PluginEditor.h"
 #include "../PluginProcessor.h"
 #include "../UI/Widgets.h"
+#include "../UI/FretboardComponent.h"
+#include "../UI/GuitarBodyComponent.h"
+#include "../UI/RoutingPanel.h"
+#include "../UI/CircuitPanel.h"
+#include "../UI/EasyPanel.h"
 #include "../Accessibility/Accessibility.h"
 
 using namespace luthier;
@@ -65,8 +70,7 @@ LUTHIER_TEST (ModMatrixUi, aModulatedKnobRepaintsWithoutBeingTouched)
     {
         knob->setSize (LuthierKnob::preferredWidthFor (LuthierKnob::Size::Normal),
                        LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
-        knob->addToDesktop (0);
-        knob->setVisible (true);
+        knob->setPollArcWhileHidden (true);   // no desktop peer in a headless run
     }
 
     auto& matrix = processor.getModMatrix();
@@ -101,9 +105,6 @@ LUTHIER_TEST (ModMatrixUi, aModulatedKnobRepaintsWithoutBeingTouched)
     // Holding the macro still stops the repaints after the arc settles.
     modulated.pollModulationArc();
     CHECK (! modulated.pollModulationArc());
-
-    for (auto* knob : { &modulated, &still })
-        knob->removeFromDesktop();
 }
 
 /*  UW-5: the MOD card's source settings reach the source on the audio thread,
@@ -246,4 +247,222 @@ LUTHIER_TEST (Editor, undoRedoAndABKeysReachTheProcessor)
     const bool b = f.processor.isSlotBActive();
     CHECK (f.press (shortcutFor ("abCompare")));
     CHECK (f.processor.isSlotBActive() != b);
+}
+
+//==============================================================================
+/*  GD-8 (gui-engine-dataflow 3): the output LED refreshes at 60 Hz, holds red
+    for 400 ms after an over, and goes unlit 100 ms after the last block. */
+LUTHIER_TEST (Dataflow, theOutputLedHoldsRedFor400ms)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    OutputLed led;
+    led.setSource (&processor);
+    CHECK (OutputLed::kRefreshHz == 60);
+    CHECK (OutputLed::darkColour() == juce::Colour (0xff5a5f66));
+
+    auto& bus = processor.getEngine().getMasterBus();
+    bus.setLimiterEnabled (false);
+
+    auto feed = [&bus] (float level)
+    {
+        juce::AudioBuffer<float> b (2, kBlock);
+
+        // A fresh buffer each block (the bus works in place), alternating signs
+        // (its DC blocker would eat a constant).
+        for (int block = 0; block < 8; ++block)
+        {
+            for (int ch = 0; ch < 2; ++ch)
+                for (int i = 0; i < kBlock; ++i)
+                    b.setSample (ch, i, (i % 2 == 0) ? level : -level);
+
+            bus.processBlock (b);
+        }
+    };
+
+    feed (2.0f);   // +6 dBFS
+    led.tick (1000.0);
+    CHECK (led.isRed());
+
+    feed (0.1f);   // well under, still playing
+    led.tick (1200.0);
+    CHECK_MSG (bus.getPeakDb() < 0.0, "peak after the over " + juce::String (bus.getPeakDb(), 2) + " dB");
+    CHECK_MSG (led.isRed(), "red did not hold for 400 ms");
+
+    feed (0.1f);
+    led.tick (1450.0);
+    CHECK_MSG (! led.isRed(), "red held past 400 ms; peak " + juce::String (bus.getPeakDb(), 2) + " dB");
+    CHECK (led.isLit());
+
+    // No new block for more than 100 ms: dark.
+    led.tick (1600.0);
+    CHECK (! led.isLit());
+}
+
+/*  GD-2 (gui-engine-dataflow 0.2): each live element drains at its spec rate -
+    the fretboard and the illustration at 60 Hz, the routing meters and the
+    circuit response at 30 Hz. */
+LUTHIER_TEST (Dataflow, everyLiveElementDrainsAtItsSpecRate)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto intervalFor = [] (int hz) { return 1000 / hz; };
+
+    FretboardComponent fretboard (processor);
+    GuitarBodyComponent body (processor);
+    RoutingPanel routing (processor);
+    CircuitResponseView circuit (processor);
+
+    CHECK (FretboardComponent::kRefreshHz == 60);
+    CHECK (GuitarBodyComponent::kRefreshHz == 60);
+    CHECK (RoutingPanel::kRefreshHz == 30);
+    CHECK (CircuitResponseView::kRefreshHz == 30);
+
+    CHECK_MSG (fretboard.getRefreshIntervalMs() == intervalFor (60), juce::String (fretboard.getRefreshIntervalMs()));
+    CHECK_MSG (body.getRefreshIntervalMs() == intervalFor (60), juce::String (body.getRefreshIntervalMs()));
+    CHECK_MSG (routing.getRefreshIntervalMs() == intervalFor (30), juce::String (routing.getRefreshIntervalMs()));
+    CHECK_MSG (circuit.getRefreshIntervalMs() == intervalFor (30), juce::String (circuit.getRefreshIntervalMs()));
+
+    OutputLed led;
+    CHECK (OutputLed::kRefreshHz == 60);
+}
+
+/*  GD-9 (gui-engine-dataflow 4): the Easy chord readout keeps the last chord
+    after the hand lifts and dims it after three seconds without a new one. */
+LUTHIER_TEST (EasyLayout, theChordReadoutDimsAfterThreeSeconds)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    EasyPanel panel (processor);
+
+    juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumInputChannels(),
+                                                 processor.getTotalNumOutputChannels()), kBlock);
+    auto render = [&] (juce::MidiBuffer& midi) { buffer.clear(); processor.processBlock (buffer, midi); };
+
+    juce::MidiBuffer midi;
+
+    for (int n : { 48, 52, 55 })
+        midi.addEvent (juce::MidiMessage::noteOn (1, n, 0.8f), 0);
+
+    render (midi);
+
+    for (int i = 0; i < 4; ++i) { juce::MidiBuffer none; render (none); }
+
+    panel.tickChordReadout (0.0);
+    const auto chord = panel.getChordReadoutText();
+    CHECK_MSG (chord.isNotEmpty(), "no chord shown while a C major was held");
+    CHECK (! panel.isChordReadoutDimmed());
+
+    midi.clear();
+
+    for (int n : { 48, 52, 55 })
+        midi.addEvent (juce::MidiMessage::noteOff (1, n), 0);
+
+    render (midi);
+
+    panel.tickChordReadout (1000.0);
+    CHECK (panel.getChordReadoutText() == chord);
+    CHECK (! panel.isChordReadoutDimmed());
+
+    panel.tickChordReadout (3500.0);
+    CHECK (panel.getChordReadoutText() == chord);
+    CHECK (panel.isChordReadoutDimmed());
+}
+
+/*  UW-14 (ui-wiring 2): a momentary toggle is on while held and releases on
+    mouse up. */
+LUTHIER_TEST (Widgets, aMomentaryToggleReleasesOnMouseUp)
+{
+    LuthierAudioProcessor processor;
+    auto* param = processor.getState().getParameter (ParamIDs::mpeEnabled);
+    CHECK (param != nullptr);
+
+    if (param == nullptr)
+        return;
+
+    LuthierToggle toggle ("MPE");
+    toggle.attachTo (processor, ParamIDs::mpeEnabled);
+    toggle.setMomentary (true);
+    CHECK (toggle.isMomentary());
+
+    CHECK (param->getValue() < 0.5f);
+
+    toggle.getButton().setState (juce::Button::buttonDown);
+    CHECK_MSG (param->getValue() > 0.5f, "pressing did not switch it on");
+
+    toggle.getButton().setState (juce::Button::buttonNormal);
+    CHECK_MSG (param->getValue() < 0.5f, "letting go did not switch it off");
+}
+
+/*  KS-8: [ and ] step presets, or snapshots while Live Mode is on. */
+LUTHIER_TEST (Editor, bracketsStepPresetsOrSnapshotsInLiveMode)
+{
+    EditorFixture f;
+    CHECK (f.editor != nullptr);
+
+    auto& presets = f.processor.getPresetManager();
+    CHECK (presets.getNumPresets() >= 3);
+    presets.loadPreset (1);
+
+    CHECK (f.press (shortcutFor ("nextItem")));
+    CHECK (presets.getCurrentPresetIndex() == 2);
+    CHECK (f.press (shortcutFor ("previousItem")));
+    CHECK (presets.getCurrentPresetIndex() == 1);
+
+    auto& bank = f.processor.getSnapshots();
+    bank.setCrossfadeMs (0.0);
+    CHECK (f.processor.captureSnapshot (0, "A"));
+    CHECK (f.processor.captureSnapshot (1, "B"));
+    CHECK (f.processor.recallSnapshot (0));
+
+    f.processor.setLiveMode (true);
+    const int presetBefore = presets.getCurrentPresetIndex();
+
+    CHECK (f.press (shortcutFor ("nextItem")));
+    CHECK_MSG (bank.getCurrentSnapshot() == 1, "] in Live Mode left snapshot " + juce::String (bank.getCurrentSnapshot()));
+    CHECK (presets.getCurrentPresetIndex() == presetBefore);
+}
+
+/*  KS-17: Ctrl+R moves an unlocked parameter; Ctrl+Shift+R returns it. */
+LUTHIER_TEST (Editor, randomiseAndResetKeys)
+{
+    EditorFixture f;
+    CHECK (f.editor != nullptr);
+
+    auto* gain = f.processor.getState().getParameter (ParamIDs::ampGain);
+    CHECK (gain != nullptr);
+
+    if (gain == nullptr)
+        return;
+
+    bool moved = false;
+
+    for (int i = 0; i < 5 && ! moved; ++i)
+    {
+        const float before = gain->getValue();
+        CHECK (f.press (shortcutFor ("randomise")));
+        moved = std::abs (gain->getValue() - before) > 1.0e-4f;
+    }
+
+    CHECK_MSG (moved, "five randomises never moved amp_gain");
+
+    CHECK (f.press (shortcutFor ("resetAll")));
+    CHECK_NEAR (gain->getValue(), gain->getDefaultValue(), 1.0e-4);
+}
+
+/*  KS-20: double-click on a knob returns it to the parameter's default. */
+LUTHIER_TEST (Widgets, doubleClickReturnsAKnobToItsDefault)
+{
+    LuthierAudioProcessor processor;
+    LuthierKnob knob ("Gain");
+    knob.attachTo (processor, ParamIDs::ampGain);
+
+    auto& slider = knob.getSlider();
+    CHECK (slider.isDoubleClickReturnEnabled());
+
+    const auto range = processor.getState().getParameterRange (ParamIDs::ampGain);
+    auto* param = processor.getState().getParameter (ParamIDs::ampGain);
+    CHECK_NEAR (slider.getDoubleClickReturnValue(), range.convertFrom0to1 (param->getDefaultValue()), 1.0e-3);
 }

@@ -106,12 +106,31 @@ LUTHIER_TEST (PluginBuses, midiOutputIsDeclaredToTheHost)
     CHECK (processor.producesMidi());
     CHECK (processor.acceptsMidi());
 
-    const auto cmake = juce::File (__FILE__).getParentDirectory().getParentDirectory()
-                                            .getParentDirectory().getChildFile ("CMakeLists.txt");
+    // The project root: the first folder above the working directory or the
+    // test binary that holds the plugin's CMakeLists.txt.
+    auto findCmake = []
+    {
+        for (auto start : { juce::File::getCurrentWorkingDirectory(),
+                            juce::File::getSpecialLocation (juce::File::currentExecutableFile) })
+            for (auto dir = start; dir.getFullPathName().length() > 1; dir = dir.getParentDirectory())
+            {
+                const auto candidate = dir.getChildFile ("CMakeLists.txt");
+
+                if (candidate.existsAsFile() && candidate.loadFileAsString().contains ("juce_add_plugin(Luthier"))
+                    return candidate;
+
+                if (dir == dir.getParentDirectory())
+                    break;
+            }
+
+        return juce::File();
+    };
+
+    const auto cmake = findCmake();
 
     if (! cmake.existsAsFile())
     {
-        CHECK_MSG (false, "cannot find " + cmake.getFullPathName());
+        CHECK_MSG (false, "cannot find the project's CMakeLists.txt");
         return;
     }
 
