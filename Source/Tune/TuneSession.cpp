@@ -118,6 +118,11 @@ juce::String TuneSession::getRedoDescription() const
 //==============================================================================
 void TuneSession::newTune (const Tune& from)
 {
+    // SPEC-SWEEP: SM-29, state-model 8.3: a tune load stops the playing tune;
+    // the new one starts at bar 0.
+    if (player != nullptr && player->isPlaying())
+        player->stop();
+
     tune = from;
     file = juce::File();
     dirty = false;

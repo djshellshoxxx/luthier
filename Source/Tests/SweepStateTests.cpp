@@ -518,3 +518,53 @@ LUTHIER_TEST (RhythmPatterns, aFileWithTheWrongMagicIsRefused)
 
     folder.deleteRecursively();
 }
+
+//==============================================================================
+/*  SM-29 / SM-51 (state-model 8.3): a tune load stops the playing tune and
+    starts the new one at bar 0; the setlist, Live Mode and uiState stay. */
+LUTHIER_TEST (StateModel, aTuneLoadStopsPlaybackAndLeavesTheRestAlone)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    Tune first;
+    first.addSection (TuneSection());
+    processor.getTuneSession().newTune (first);
+
+    Setlist list;
+    SetlistEntry entry;
+    entry.presetPath = "/nowhere/A.luthierpreset";
+    list.addEntry (entry);
+    list.addEntry (entry);
+    processor.getSetlist().setSetlist (list);
+    processor.getSetlist().goTo (1);
+    processor.setLiveMode (true);
+    processor.getUiState().advancedTab = 3;
+
+    processor.getTunePlayer().play();
+
+    juce::AudioBuffer<float> buffer (2, 512);
+    juce::MidiBuffer midi;
+
+    for (int i = 0; i < 20; ++i)
+    {
+        processor.serviceTune();
+        processor.processBlock (buffer, midi);
+    }
+
+    Tune second;
+    second.addSection (TuneSection());
+    processor.getTuneSession().newTune (second);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        processor.serviceTune();
+        processor.processBlock (buffer, midi);
+    }
+
+    CHECK_MSG (! processor.getTunePlayer().isPlaying(), "a tune load left the old tune playing");
+    CHECK_MSG (processor.getTunePlayer().getPositionPpq() < 1.0e-6, "the new tune does not start at bar 0");
+    CHECK_MSG (processor.getSetlist().getPosition() == 1, "a tune load stepped the setlist");
+    CHECK (processor.isLiveMode());
+    CHECK (processor.getUiState().advancedTab == 3);
+}
