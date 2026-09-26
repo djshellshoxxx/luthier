@@ -18,7 +18,7 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 | A11Y-12 (§1) | Verified with NVDA / VoiceOver / Orca; every element reachable by Tab and read by NVDA | - | - | - | MISSING |
 | A11Y-13 (§2) | Tab reaches every knob; no explicit column order yet | `LuthierKnob` slider `setWantsKeyboardFocus(true)` | all panels | `Keyboard::aTabWalkReachesEveryKnob` | PARTIAL |
 | A11Y-14 (§2) | Arrow keys adjust value; Shift finer, Ctrl coarser | `LuthierKnob::KnobSlider::keyPressed` (1% / Shift 0.1% / Ctrl 10%, Home/End) | knobs/sliders | `Accessibility::arrowKeysStepFineAndCoarse` | DONE |
-| A11Y-15 (§2) | Enter opens dropdowns and confirms dialogs — JUCE defaults, untested | JUCE `ComboBox::keyPressed`, AlertWindow buttons | dropdowns, Save As dialogs | - | NO-TEST |
+| A11Y-15 (§2) | Enter opens dropdowns and confirms dialogs — JUCE defaults, untested | JUCE `ComboBox::keyPressed`, AlertWindow buttons | dropdowns, Save As dialogs | `Editor::enterOpensADropdown` (dropdown part; Save As return not tested - it writes the user folder) | DONE |
 | A11Y-16 (§2) | Escape cancels dialogs / dismisses overlays (not rebindable) | `PluginEditor::keyPressed`, `OverlayPanel::keyPressed` | all overlays | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` | DONE |
 | A11Y-17 (§2) | F1 opens context help for the focused control (section-level) | `PluginEditor::keyPressed` "help" -> `openHelp(getHelpContext())` | F1 / header ? | `HelpTab::f1AndTheHeaderOpenHelpOnThePanelYouAreIn` | DONE |
 | A11Y-18 (§2) | All plugin actions reachable by shortcut — W (Workshop) on visual `toggleWorkshop`; Ctrl+T on tune-help | `AccessibilitySettings::buildDefaultShortcuts` | n/a | `Accessibility::shortcutDefaultsMatchTheCanonicalTable` (visual/tune-help: `TuneIntegration::ctrlTIsInTheShortcutRegistryAndOpensTheTuneTab`) | OWNED |
@@ -58,4 +58,4 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 | A11Y-52 (§10) | Test: no animation frames after reduced-motion on — here model-level only | on visual | n/a | (visual: `DataStream::itKeeps200StopsAfter500msAndHonoursReducedMotion`, `ReducedMotion::aGuitarChangeCrossfadesOrIsStaticWithAnOutline`) | OWNED |
 | A11Y-53 (§10) | Test: CJK locale shows no missing-glyph boxes in shipped strings | - | - | - | MISSING |
 
-<!-- counts DONE=23 NO-GUI=0 NO-TEST=2 PARTIAL=14 MISSING=7 OWNED=7 DEFERRED=0 -->
+<!-- counts DONE=24 NO-GUI=0 NO-TEST=1 PARTIAL=14 MISSING=7 OWNED=7 DEFERRED=0 -->

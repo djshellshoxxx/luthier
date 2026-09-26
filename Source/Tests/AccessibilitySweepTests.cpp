@@ -451,3 +451,23 @@ LUTHIER_TEST (Localisation, everyShippedCatalogIsFlatJsonWithKnownKeys)
                        "en.json is not the built-in English (regenerate it)");
     }
 }
+
+//==============================================================================
+/*  A11Y-15: Enter opens a focused dropdown (Space too). */
+LUTHIER_TEST (Editor, enterOpensADropdown)
+{
+    LuthierAudioProcessor processor;
+    LuthierChoice choice ("Amp");
+    choice.attachTo (processor, ParamIDs::ampModel);
+    choice.setSize (160, 40);
+
+    auto& box = choice.getComboBox();
+    CHECK (box.getWantsKeyboardFocus());
+    CHECK (! box.isPopupActive());
+
+    CHECK (box.keyPressed (juce::KeyPress (juce::KeyPress::returnKey)));
+    CHECK (box.isPopupActive());
+
+    box.hidePopup();
+    juce::PopupMenu::dismissAllActiveMenus();
+}
