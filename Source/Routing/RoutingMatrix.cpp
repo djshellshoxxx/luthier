@@ -1,5 +1,8 @@
 #include "RoutingMatrix.h"
 
+#include <cstring>
+#include <type_traits>
+
 namespace luthier
 {
 
@@ -455,6 +458,7 @@ void RoutingMatrix::setLatencyReport (const LatencyReport& r) noexcept
     latDi.store (r.auxDi, std::memory_order_relaxed);
     latPreCab.store (r.auxPreCab, std::memory_order_relaxed);
     latString.store (r.perString, std::memory_order_relaxed);
+    latNoise.store (r.auxNoise, std::memory_order_relaxed);
 }
 
 RoutingMatrix::LatencyReport RoutingMatrix::getLatencyReport() const noexcept
@@ -464,6 +468,7 @@ RoutingMatrix::LatencyReport RoutingMatrix::getLatencyReport() const noexcept
     r.auxDi = latDi.load (std::memory_order_relaxed);
     r.auxPreCab = latPreCab.load (std::memory_order_relaxed);
     r.perString = latString.load (std::memory_order_relaxed);
+    r.auxNoise = latNoise.load (std::memory_order_relaxed);
     return r;
 }
 

@@ -1,6 +1,9 @@
 #include "PluginEditor.h"
+#include "UI/NewFeatureDots.h"
+#include "UI/CpuReliefUi.h"
 #include "UI/FirstRun.h"
 #include "UI/RangesUi.h"
+#include "UI/UiPreferences.h"
 #include "Accessibility/Accessibility.h"
 #include "UI/NormalizationOptions.h"   // output-normalization.md 5
 
@@ -35,6 +38,13 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     shownPalette = Palette::current();
     AccessibilitySettings::get().addChangeListener (this);
 
+    // accessibility.md 4: the UI scale (75-200 %) was stored and offered but
+    // never applied; the host is told through the editor's scale factor.
+    setScaleFactor ((float) AccessibilitySettings::get().getUiScale());
+
+    // gui-integration 20's NEW dots: the first launch of this version starts the week.
+    NewFeatureDots::noteLaunch (JucePlugin_VersionString, juce::Time::getCurrentTime());
+
     addAndMakeVisible (header);
     addChildComponent (liveStrip);
     addAndMakeVisible (practicePanel);
@@ -49,6 +59,12 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     addChildComponent (advancedPanel);
 
     addAndMakeVisible (chordButton);
+
+    // gui-integration 12: the footer's data stream, one line of the internals.
+    addChildComponent (dataStream);
+    dataStream.setNumLines (1);
+    dataStream.setSource (&processor);
+    dataStream.setVisible (DataStreamDisplay::isEnabledByUser());
     chordButton.setTooltip ("Chord library and the live tab display");
     chordButton.onClick = [this] { showOverlay (&chordPanel); };
 
@@ -120,6 +136,20 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
         if (auto* editor = safeThis.getComponent())
             NormalizationUi::postEnabledBanner (editor->notifications, [safeThis] { if (auto* e = safeThis.getComponent()) e->openNormalizationOptions(); });
     };
+
+    // gui-integration 16 item 13: a control's "Show in Options -> Shortcuts".
+    showShortcutInOptions = [safe = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)] (const juce::String& action)
+    {
+        if (safe == nullptr)
+            return;
+
+        juce::String description;
+        if (const auto* binding = AccessibilitySettings::get().findShortcut (action))
+            description = tr (binding->descriptionKey);
+
+        safe->optionsPanel.showShortcutTable (description);
+        safe->showOverlay (&safe->optionsPanel);
+    };
     header.onOpenRanges = [this] { showOptionsPage ("RANGES"); };
     header.onOpenExport = [this] { showOverlay (&exportPanel); };
     header.onOpenPresetBrowser = [this] { showOverlay (&presetBrowser); };
@@ -179,6 +209,9 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     tooltips.setLookAndFeel (&lookAndFeel);
 
     setWantsKeyboardFocus (true);
+
+    // performance-budget.md 8: relief 7's opt-out is a user preference.
+    CpuReliefUi::applySavedChoice (processor);
 
     // The processor cannot read UiPreferences, so it is told (advanced-ranges.md 5).
     processor.setRandomiseRespectsStock (RangesUi::randomiseRespectsStock());
@@ -250,6 +283,28 @@ void LuthierAudioProcessorEditor::setAdvancedMode (bool advanced)
 void LuthierAudioProcessorEditor::showOverlay (OverlayPanel* panel)
 {
     overlayHost.show (panel);
+}
+
+void LuthierAudioProcessorEditor::toggleWorkshop()
+{
+    if (advancedMode)
+    {
+        if (advancedPanel.isWorkshopShowing())
+        {
+            advancedPanel.setWorkspaceTab (juce::jmax (1, tabBeforeWorkshop));
+        }
+        else
+        {
+            tabBeforeWorkshop = advancedPanel.getWorkspaceTab();
+            advancedPanel.setWorkspaceTabNamed ("WORKSHOP");
+        }
+        return;
+    }
+
+    if (overlayHost.getCurrentOverlay() == &workshopOverlay)
+        overlayHost.dismiss();
+    else
+        showOverlay (&workshopOverlay);
 }
 
 void LuthierAudioProcessorEditor::showSaveGuitarDialog()
@@ -390,6 +445,12 @@ void LuthierAudioProcessorEditor::paint (juce::Graphics& g)
                 + "    latency " + juce::String (processor.getLatencySamples()) + " smp",
                 footer.reduced (Metrics::windowPadding, 0),
                 juce::Justification::centredLeft, false);
+
+    // action-and-undo.md 12: Options -> Diagnostics "Show undo depth".
+    if (UiPreferences::get().getBool (UndoHistory::kShowDepthPreference, false))
+        g.drawText (UndoHistory::describeDepth (processor.getNumUndoSteps(), processor.getNumRedoSteps()),
+                    footer.reduced (Metrics::windowPadding, 0).withTrimmedRight (70),
+                    juce::Justification::centredRight, false);
 }
 
 void LuthierAudioProcessorEditor::resized()
@@ -438,6 +499,9 @@ void LuthierAudioProcessorEditor::resized()
 
     auto footer = bounds.removeFromBottom (Metrics::footerHeight);
     chordButton.setBounds (footer.withSizeKeepingCentre (110, Metrics::footerHeight - 2));
+
+    // 12: the data stream runs between the CPU readout and the chords button.
+    dataStream.setBounds (footer.withTrimmedLeft (230).withRight (chordButton.getX() - Metrics::grid));
 
     // practice-tools 9: the drawer sits above the footer.
     practicePanel.setBounds (bounds.removeFromBottom (practicePanel.preferredHeight()));
@@ -507,6 +571,9 @@ void LuthierAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaste
     Palette::remap (*this, shownPalette, wanted);
     shownPalette = wanted;
 
+    if (std::abs (getTransform().getScaleFactor() - (float) settings.getUiScale()) > 1.0e-3f)
+        setScaleFactor ((float) settings.getUiScale());   // accessibility.md 4
+
     lookAndFeel.refreshColours();
     sendLookAndFeelChange();
     repaint();
@@ -516,6 +583,17 @@ void LuthierAudioProcessorEditor::timerCallback()
 {
     updateLiveStripVisibility();
     pollForNotifications();
+
+    // gui-integration 20: mark this version's new entry points, once the window is built.
+    if (! newDotsApplied)
+    {
+        newDotsApplied = true;
+        NewFeatureDots::apply (*this, JucePlugin_VersionString, juce::Time::getCurrentTime());
+    }
+
+    // visual-polish.md 5: "Follow the guitar" takes the accent from the finish.
+    AccessibilitySettings::get().setGuitarAccentSource (
+        juce::Colour::fromString ("ff" + processor.getCurrentGuitar().finish.colourA.trimCharactersAtStart ("#")));
 
     // practice-tools 11.2: the PRACTICE tab's START opens the drawer on the
     // routine's first tool.
@@ -599,7 +677,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         thing a shortcut in this window can do. */
     if (is ("newPreset"))
     {
-        processor.pushUndoState ("New preset");
+        processor.pushUndoBoundary ("New preset");   // action-and-undo.md 5
 
         auto& presets = processor.getPresetManager();
         const int init = presets.indexOfPreset ("Init");
@@ -693,6 +771,14 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
+    // gui-integration 17: W toggles the Workshop - the WORKSHOP tab in
+    // Advanced, the bench overlay in Easy (VISUAL-WORKSHOP-QA).
+    if (is ("toggleWorkshop"))
+    {
+        toggleWorkshop();
+        return true;
+    }
+
     if (is ("toggleSlideMode"))
     {
         HeaderBar::toggleSlideMode (processor);
@@ -751,12 +837,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
             return true;
         }
 
-        processor.pushUndoState ("Load preset");
-
-        if (forward) processor.getPresetManager().loadNext();
-        else         processor.getPresetManager().loadPrevious();
-
-        processor.getParameterBridge().applyAllNow();
+        processor.stepPresetAsUserAction (forward);   // action-and-undo.md 3.8
         return true;
     }
 
@@ -773,8 +854,43 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return false;
     }
 
-    if (is ("undo")) { processor.undo(); return true; }
-    if (is ("redo")) { processor.redo(); return true; }
+    if (is ("undo"))
+    {
+        // action-and-undo.md 5: plain undo stops at a boundary and says how to cross it.
+        if (processor.isUndoStoppedAtBoundary())
+            notifications.post ({ "undo-boundary",
+                                  "Undo stopped at a preset or guitar load. Ctrl+Alt+Z goes further back.",
+                                  Notification::Level::info });
+        else
+            processor.undo();
+
+        return true;
+    }
+
+    if (is ("undoAcrossBoundary"))
+    {
+        // action-and-undo.md 9: crossing a boundary asks first, in a banner.
+        if (! processor.isUndoStoppedAtBoundary())
+        {
+            processor.undo();
+            return true;
+        }
+
+        Notification n;
+        n.id = "undo-boundary";
+        n.message = "Undo past the load, back to \"" + processor.getUndoHistory (1)[0].description + "\"?";
+        n.level = Notification::Level::warning;
+        n.actionText = "Undo";
+        n.action = [safeThis = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)]
+        {
+            if (safeThis != nullptr)
+                safeThis->processor.undoAcrossBoundary();
+        };
+        notifications.post (n);
+        return true;
+    }
+
+    if (is ("redo") || is ("redoAlt")) { processor.redo(); return true; }   // action-and-undo.md 9
 
     if (is ("save"))
     {
@@ -790,7 +906,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
     if (is ("resetAll"))
     {
-        processor.pushUndoState ("Reset everything");
+        // action-and-undo.md 0.1: resetEverything pushes its own entry.
         processor.resetEverything();
         return true;
     }
@@ -1019,6 +1135,34 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         notifications.post (std::move (n));
     }
 
+    // ---- CPU limit (performance-budget.md 8, relief 7) ------------------------
+    {
+        const bool due = processor.getEngine().getCpuRelief().isCpuLimitBannerDue();
+
+        switch (CpuReliefUi::bannerAction (due, cpuLimitEpisode))
+        {
+            case CpuReliefUi::BannerAction::post:
+            {
+                Notification n;
+                n.id = CpuReliefUi::kBannerId;
+                n.message = CpuReliefUi::bannerMessage();
+                n.level = Notification::Level::warning;
+                notifications.post (std::move (n));
+                break;
+            }
+
+            case CpuReliefUi::BannerAction::withdraw:
+                if (notifications.getCurrentId() == CpuReliefUi::kBannerId)
+                    notifications.dismissCurrent();
+                break;
+
+            case CpuReliefUi::BannerAction::none:
+                break;
+        }
+
+        cpuLimitEpisode = due;
+    }
+
     // ---- a part a guitar asked for and could not have (gui-integration 15) -----
     for (const auto& message : processor.takeGuitarNotices())
     {
@@ -1043,6 +1187,28 @@ void LuthierAudioProcessorEditor::pollForNotifications()
             n.message = presetError;
             n.level = Notification::Level::warning;
 
+            notifications.post (std::move (n));
+        }
+    }
+
+    // ---- installer.md 8: a load that migrated an old file ----------------------
+    /*  "A subtle info banner on the first affected load": one per window, not
+        one per migrated preset, however many old presets are browsed. */
+    if (const auto generation = processor.getPresetManager().getMigrationGeneration();
+        generation != seenMigrationGeneration)
+    {
+        seenMigrationGeneration = generation;
+
+        if (! migrationBannerShown)
+        {
+            migrationBannerShown = true;
+
+            Notification n;
+            n.id = "migrated";
+            n.message = "This preset was made with an older version of Luthier and has been "
+                        "updated (" + processor.getPresetManager().getLastMigration()
+                        + "). Saving it keeps the original in Presets/Backup.";
+            n.level = Notification::Level::info;
             notifications.post (std::move (n));
         }
     }

@@ -708,8 +708,10 @@ void DelayPedal::process (double* left, double* right, int numSamples) noexcept
 
         writeIndex = (writeIndex + 1) & mask;
 
-        left[i]  = sanitise (dcL.process (left[i]  * (1.0 - mix * 0.35) + wetL * mix));
-        right[i] = sanitise (dcR.process (right[i] * (1.0 - mix * 0.35) + wetR * mix));
+        // qa-polish.md 5.9: the DC blocker is on the wet path only, so the dry
+        // path is untouched and Mix 0 is a true bypass.
+        left[i]  = sanitise (left[i]  * (1.0 - mix * 0.35) + dcL.process (wetL * mix));
+        right[i] = sanitise (right[i] * (1.0 - mix * 0.35) + dcR.process (wetR * mix));
     }
 }
 
