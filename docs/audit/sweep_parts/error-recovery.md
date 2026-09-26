@@ -11,20 +11,20 @@ The preset load/refuse path (named banner, session untouched, JSON-lines error l
 | ER-5 (§0.5) | Every failure logged to `Diagnostics/errors-<yyyymm>.log` — only PresetManager (9) and PluginProcessor (7) call `ErrorLog::write` | `Support/ErrorLog.cpp:write` | n/a | `ErrorLog::failuresAreLoggedAsReadableJsonLines` | PARTIAL |
 | ER-6 (§0.6) | Recoverable -> banner; disruptive -> banner + halt; unrecoverable -> modal with reset instructions — no modal path, no "halt" semantics | `Notification::Level {info, warning}` | banner strip | - | PARTIAL |
 | ER-7 (§1) | File not found -> "Preset X not found" banner, keep state | `PresetManager::loadPreset` FILE_NOT_FOUND | banner "preset-load" | `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` | DONE |
-| ER-8 (§1) | Permission denied -> "Cannot read X (permission denied)" — not distinguished from empty file | `loadPreset` FILE_UNREADABLE | banner "preset-load" | - | PARTIAL |
-| ER-9 (§1) | Not UTF-8 -> "not a valid Luthier file", no guessing — falls through to JSON parse failure | `loadPreset` | banner | - | PARTIAL |
-| ER-10 (§1) | Not JSON -> banner + suggest re-saving from a working install — no re-save hint | `loadPreset` NOT_JSON | banner | - | PARTIAL |
+| ER-8 (§1) | Permission denied -> "Cannot read X (permission denied)." | `PresetManager::loadPreset` FILE_PERMISSION | banner "preset-load" | `Presets::anUnreadableFileSaysPermissionDenied` (skips as root) | DONE |
+| ER-9 (§1) | Not UTF-8 -> "File X is not a valid Luthier file.", no guessing | `loadPreset` NOT_UTF8 | banner | `Presets::aLatin1FileIsRefusedAsNotUtf8` | DONE |
+| ER-10 (§1) | Not JSON -> banner + suggest re-saving from a working install | `loadPreset` NOT_JSON | banner | `Presets::notJsonSuggestsReSaving` | DONE |
 | ER-11 (§1) | Magic missing/wrong -> "does not appear to be a Luthier file" | `PresetManager::fromVar` BAD_MAGIC | banner | `Presets::aFileWithoutTheMagicMarkerIsRefused`, `ErrorLog::arefusedPresetLoadIsRecordedAndChangesNothing` | DONE |
-| ER-12 (§1) | Newer schema -> refuse "made by a newer Luthier version" — loads and logs NEWER_SCHEMA (C-20 decided: refuse) | `fromVar` NEWER_SCHEMA | - | - | PARTIAL |
-| ER-13 (§1) | Older schema without migration -> "format no longer supported" — schema <= 0 refused with generic text | `fromVar` BAD_SCHEMA | banner (generic) | - | PARTIAL |
+| ER-12 (§1) | Newer schema -> refuse "made by a newer Luthier version. Update to open." (C-20) | `fromVar` NEWER_SCHEMA + `lastRefusal` | banner "preset-load" | `Presets::aNewerSchemaIsRefusedWithTheUpdateMessage` | DONE |
+| ER-13 (§1) | Older schema without migration -> "uses a format Luthier no longer supports." | `fromVar` UNSUPPORTED_SCHEMA | banner "preset-load" | `Presets::aSchemaBelowOneIsNoLongerSupported` | DONE |
 | ER-14 (§1) | Migration: original to Backup + 5 s info banner "Migrated X from schema N to M" — backup here; banner on visual | `PresetManager::backupMigratedOriginal` | (visual) banner | `ModelGapsUi::aMigratedPresetKeepsItsOriginal` (visual: `Editor::aMigratedPresetRaisesOneInfoBanner`) | OWNED |
 | ER-15 (§1) | Migration fails partway -> "Could not migrate X, original preserved", no disk change | - | - | - | MISSING |
 | ER-16 (§1) | Referenced guitar/IR/part missing -> info banner, load succeeds | `IrSlot::fromVar`, `PartLibrary`, guitar-name migration | banners "ir-missing", "missing-part" | `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce`, `GuitarMigration::anUnknownGuitarKeepsThePresetAndSaysSo` | DONE |
 | ER-17 (§1) | Referenced file corrupt -> same as missing — IR decode failure falls back; untested | `IrSlot::load`, `PartLibrary::loadGuitar` | banner | - | NO-TEST |
 | ER-18 (§1) | Cyclic reference refused with banner, cycle logged | - | - | - | MISSING |
-| ER-19 (§2) | Destination not writable -> banner, nothing changed — logged SAVE_UNWRITABLE, no named banner | `PresetManager::writeToFile` | Save As overlay stays open | - | PARTIAL |
-| ER-20 (§2) | Disk full -> same | `writeToFile` | - | - | PARTIAL |
-| ER-21 (§2) | Rename failed -> temp deleted, banner — temp removed by `TemporaryFile`, logged, no banner | `writeToFile` SAVE_RENAME_FAILED | - | - | PARTIAL |
+| ER-19 (§2) | Destination not writable -> banner, nothing changed | `PresetManager::writeToFile` -> `getLastSaveError` | warning banner "preset-save" (`PluginEditor::pollForNotifications`) | `Presets::aFailedSaveLeavesTheOldFileAndSaysWhy` (injected) | DONE |
+| ER-20 (§2) | Disk full -> same (a failed write status is caught before the rename) | `writeToFile` (`stream->getStatus()`) | banner "preset-save" | `Presets::aFailedSaveLeavesTheOldFileAndSaysWhy` (injected) | DONE |
+| ER-21 (§2) | Rename failed -> temp deleted, banner | `writeToFile` SAVE_RENAME_FAILED | banner "preset-save" | `Presets::aFailedSaveLeavesTheOldFileAndSaysWhy` (injected) | DONE |
 | ER-22 (§2) | Concurrent save from two instances -> later wins + "overwrote another change" banner | - | - | - | MISSING |
 | ER-23 (§2) | Session recorder picks a different unique name and continues | `Practice/Looper` timestamped names | Options > DIAGNOSTICS recorder toggle | - | NO-TEST |
 | ER-24 (§2) | Every save temp-file, fsync, rename (file-formats 13) — preset saves only; `flush()` not fsync; guitar/tune/settings writers use `replaceWithText` | `PresetManager::writeToFile` | n/a | - | PARTIAL |
@@ -41,7 +41,7 @@ The preset load/refuse path (named banner, session untouched, JSON-lines error l
 | ER-35 (§4) | Unknown SysEx ignored silently | `MidiInterpreter` | n/a | - | NO-TEST |
 | ER-36 (§4) | Corrupt Luthier-profile SysEx -> log, drop, continue — dropped, not logged | `MidiInterpreter` / `Notation` profile reader | n/a | - | PARTIAL |
 | ER-37 (§4) | MIDI flood > 5000 ev/s -> process what fits, throttled "MIDI flood: N events dropped" banner every 5 s | - | - | - | MISSING |
-| ER-38 (§4) | MIDI Learn arm 30 s with no MIDI -> disarm + "MIDI Learn cancelled" banner | `Support/MidiLearn.h` (no timer) | header MIDI Learn button | - | MISSING |
+| ER-38 (§4) | MIDI Learn arm/learn 30 s with no MIDI -> disarm + "MIDI Learn cancelled (no MIDI received)." banner | `MidiLearnManager::expireIfIdle` | info banner from `PluginEditor::pollForNotifications` | `MidiLearn::armingTimesOutAfterThirtySeconds` | DONE |
 | ER-39 (§5) | Part swap under CPU queues to block boundary, < 50 ms | `Workshop/WorkshopBench` swap parking | WORKSHOP tab | `WorkshopSwap::aPartSwapDuringANoteIsClickFree`, `WorkshopSwap::aNotePlayedWhileParkedIsKeptNotDropped` | DONE |
 | ER-40 (§5) | Incompatible part -> warning badge (advisory per C-21; refusal row does not apply) | `PartLibrary` compatibility warning | WORKSHOP card | `Workshop::incompatiblePartsFitWithAWarning` | DONE |
 | ER-41 (§5) | Family change during playback -> held notes decay, "Changed to family X..." info banner | - | - | - | MISSING |
@@ -56,8 +56,8 @@ The preset load/refuse path (named banner, session untouched, JSON-lines error l
 | ER-50 (§7) | Snapshot recall during preset load queued; discarded with info banner if load fails — both run serially on the message thread; no discard banner | `PluginProcessor::recallSnapshot` | Live strip | - | PARTIAL |
 | ER-51 (§7) | Snapshot recall while looper records -> state-boundary event in the layer's MIDI | - | - | - | MISSING |
 | ER-52 (§7) | Preset load mid-tune -> at next section boundary if < 4 s, else now + info banner | - | - | - | MISSING |
-| ER-53 (§7) | Undo with nothing to undo -> shortcut/button disabled, API no-op | `HeaderBar::updateUndoRedoState`, `canUndo` | header Undo | - | NO-TEST |
-| ER-54 (§7) | A/B compare with empty B -> "B slot is empty; save current state to B first" — `recallSlot` silently no-ops | `PluginProcessor::recallSlot` | header A/B | - | MISSING |
+| ER-53 (§7) | Undo with nothing to undo -> shortcut/button disabled, API no-op | `HeaderBar::updateUndoRedoState`, `canUndo` | header Undo | `Undo::nothingToUndoIsANoOp` (API; button state untested) | DONE |
+| ER-54 (§7) | A/B compare with empty B -> "B slot is empty; save current state to B first." | `PluginProcessor::setSlotBActive` -> `stateNotices` | info banner (`takeStateNotices`) | `StateModel::anEmptyBSlotSaysSo` | DONE |
 | ER-55 (§8) | Update check network error -> silent, retry next window, log to error log — silent yes, not written to ErrorLog | `Updates/Telemetry.cpp:checkForUpdate` | n/a | `Telemetry::noNetworkIsSilentRatherThanAnError` | PARTIAL |
 | ER-56 (§8) | Update download interrupted -> partial file discarded, retry — on visual | (visual) `Updates/UpdateDownloader.cpp` | Options > UPDATES | (visual: `Updates::theDownloadLandsInDownloadsUnderItsOwnName`) | OWNED |
 | ER-57 (§8) | Crash upload failure -> dump stays, banner with path | `Telemetry::uploadPendingCrashReport` (no banner) | - | - | MISSING |
@@ -81,12 +81,12 @@ The preset load/refuse path (named banner, session untouched, JSON-lines error l
 | ER-75 (§12) | Next launch, opted out -> "crashed last session; the dump is at [path]" info banner — no path, same banner | same | banner | - | PARTIAL |
 | ER-76 (§13) | Log format: JSON lines ts/severity/module/code/message/context | `ErrorLog::write` | n/a | `ErrorLog::failuresAreLoggedAsReadableJsonLines` | DONE |
 | ER-77 (§13) | debug/info only when Diagnostics verbose is on (Options > Diagnostics) — `setVerbose` never called, no toggle | `ErrorLog::setVerbose` | Options > DIAGNOSTICS (no toggle) | `ErrorLog::failuresAreLoggedAsReadableJsonLines` | NO-GUI |
-| ER-78 (§13) | Rotates monthly | `ErrorLog::getLogFile(yyyymm)` | n/a | - | NO-TEST |
-| ER-79 (§13) | Old logs pruned by the 30-day sweep — `pruneOldLogs` exists, never called | `ErrorLog::pruneOldLogs` | n/a | - | PARTIAL |
+| ER-78 (§13) | Rotates monthly | `ErrorLog::getLogFile(yyyymm)` | n/a | `ErrorLog::theFileNameFollowsTheMonth` | DONE |
+| ER-79 (§13) | Old logs pruned by the 30-day sweep — called at startup beside the preset backup sweep | `PresetManager` ctor -> `ErrorLog::pruneOldLogs` | n/a | - | NO-TEST |
 | ER-80 (§14) | At most 3 banners visible, 4th replaces oldest — one visible, rest queued (C-22 decided: show up to three) | `NotificationCentre` | banner strip | `Editor::notificationBannersQueueDismissAndRespectTheirActions` | PARTIAL |
 | ER-81 (§14) | Priority errors > warnings > info (warning colour / accent) — no error level, FIFO order | `Notification::Level` | banner strip | - | PARTIAL |
 | ER-82 (§14) | Auto-dismiss after 5 s unless action required | `NotificationCentre::autoDismissMs` | banner strip | `Editor::notificationBannersQueueDismissAndRespectTheirActions` | DONE |
 | ER-83 (§15) | Every failure mode has a fixture in `Tests/Fixtures/Errors/<section>` and a test | - | - | - | MISSING |
 | ER-84 (§15) | Bug-bash "break the plugin" pass maps every symptom to a response | - | - | - | MISSING |
 
-<!-- counts DONE=14 NO-GUI=1 NO-TEST=7 PARTIAL=27 MISSING=27 OWNED=8 -->
+<!-- counts DONE=26 NO-GUI=1 NO-TEST=6 PARTIAL=18 MISSING=25 OWNED=8 -->
