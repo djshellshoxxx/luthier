@@ -38,8 +38,8 @@ someone else's preset does not quietly strip it.
 
 **Files that are not presets are refused.** The `magic` marker is checked before
 anything is applied, so a JSON file that happens to parse is not half-loaded.
-Presets written before the marker was named carry `"format": "luthierpreset"`
-instead and are still accepted.
+Older presets written before the marker was named carry `"format": "luthierpreset"`
+instead and are still accepted for backward compatibility.
 
 ---
 
@@ -93,7 +93,7 @@ instead and are still accepted.
 
 | Field | Type | Notes |
 |---|---|---|
-| `format` | string | always `"luthierpreset"` |
+| `magic` | string | `"luthier.preset"` - identifies the file as a Luthier preset |
 | `schemaVersion` | int | currently 1; a file with a higher number still loads, with unknown keys ignored |
 | `pluginVersion` | string | which build wrote it, for support |
 | `name` | string | shown in the header and the browser |
@@ -115,7 +115,7 @@ The IDs follow a consistent pattern:
 
 | Prefix | Covers |
 |---|---|
-| `macro_*` | the six Easy-mode macros |
+| `macro_*` | the Easy-mode macros (attack, body, drive, tone, space, humanize, character) and the two spare modulation macros (macro_assign_a/b) |
 | `string_*`, `fret*`, `noise_*` | strings, neck and mechanical noise |
 | `body_*` | body dimensions, woods, bracing |
 | `pickup<N>_*` | per-pickup, N = 0, 1, 2 |
@@ -152,22 +152,22 @@ is out of tune the same way today.
 
 ### `midiMap`
 
-CC number to performance target, for the technique controllers. Only non-default
-entries are written. Targets are the `MidiTarget` enum:
+CC number to performance target, for the technique controllers. Every mapped CC is
+written, defaults included. Targets are the `MidiTarget` enum:
 
 | Value | Target | Value | Target |
 |---|---|---|---|
-| 0 | None | 11 | Slide guitar |
-| 1 | Vibrato depth | 12 | Pinch harmonic |
-| 2 | Vibrato rate | 13 | Natural harmonic |
-| 3 | Whammy bar | 14 | Tap |
-| 4 | Expression | 15 | Strum speed |
-| 5 | Master level | 16 | Strum direction |
-| 6 | Palm mute | 17 | Humanize |
-| 7 | Muted pick | 18 | Drive |
-| 8 | Pick position | 19 | Tone |
-| 9 | Slide mode | 20 | Space |
-| 10 | Slide guitar toggle | 21 | Body |
+| 0 | None | 11 | Pinch harmonic |
+| 1 | Vibrato depth | 12 | Natural harmonic |
+| 2 | Vibrato rate | 13 | Tap |
+| 3 | Whammy bar | 14 | Strum speed |
+| 4 | Expression | 15 | Strum direction |
+| 5 | Master level | 16 | Humanize |
+| 6 | Palm mute | 17 | Drive |
+| 7 | Muted pick | 18 | Tone |
+| 8 | Pick position | 19 | Space |
+| 9 | Slide toggle | 20 | Body |
+| 10 | Slide guitar toggle | 21 | Attack |
 
 Generic MIDI Learn mappings are **not** stored here. They live with the plugin
 state instead, so your controller setup survives changing presets.
@@ -207,7 +207,7 @@ default. A minimal preset is valid:
 
 ```json
 {
-  "format": "luthierpreset",
+  "magic": "luthier.preset",
   "schemaVersion": 1,
   "name": "Just A Les Paul",
   "category": "User",

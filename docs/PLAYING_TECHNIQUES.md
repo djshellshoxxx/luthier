@@ -236,11 +236,11 @@ strings.
 
 | Bridge | Range | Behaviour |
 |---|---|---|
-| Fixed | none | the bar does nothing |
-| Vintage tremolo | -2 / +1 st | chords detune as you bend |
-| Floyd Rose | -24 / +12 st | same, far wider, plus spring resonance |
-| TransTrem | -12 / +5 st | chords stay in tune |
-| Bigsby | -1 / +0.5 st | gentle |
+| Fixed / Hardtail | none | the bar does nothing |
+| Vintage Tremolo | -2 / +1 st | chords detune as you bend |
+| Locking Tremolo | -24 / +12 st | same, far wider, plus spring resonance |
+| Transposing Tremolo | -12 / +5 st | chords stay in tune |
+| Vintage Vibrato | -1 / +0.5 st | gentle |
 
 A **TransTrem** applies the same frequency *ratio* to every string, so the
 intervals inside a chord are preserved. That is the whole point of the design, and
@@ -268,7 +268,7 @@ delay = order * strumSpeed        order counts from the string struck first
 ```
 
 A downstroke crosses the low strings first; an upstroke reverses. Up-strokes are
-lighter (about 78% velocity), and the pick loses a little energy as it crosses, so
+lighter (about 85% force), and the pick loses a little energy as it crosses, so
 each successive string is slightly quieter.
 
 The speed varies slightly every time, scaled by the Humanize macro. A
@@ -276,7 +276,7 @@ machine-even strum is instantly recognisable.
 
 ---
 
-### Freeze (E-Bow)
+### E-Bow
 
 Infinite sustain, implemented the way an E-Bow actually works: the string is driven
 electromagnetically at its own resonance.
@@ -284,19 +284,26 @@ electromagnetically at its own resonance.
 The engine feeds a small amount of each ringing string's own output back into it,
 but **only while its level is below a target**. Above that, driving stops. The loop
 gain never reaches unity, so this sustains indefinitely without any possibility of
-runaway - which a simple "set the loss to 1.0" implementation could not promise.
+runaway.
+
+### Freeze
+
+Captures a window of the audio (typically 200-1000 ms) and loops it indefinitely.
+Switch it on again to capture a new window. Use it to sustain a riff or chord while
+you play over the top.
 
 ---
 
 ### Amp feedback
 
-With the amp loud and a note sustaining, the speaker drives the string. The engine
-watches the master output; above the threshold, feedback builds gradually and then
-takes over. As it grows it climbs to a higher harmonic, which is what a guitar in
-front of a loud amp actually does.
+With the amp loud and a note sustaining, the speaker drives the string. The feedback
+path models the physical loop: the amp's output reaches each ringing string, delayed
+by distance, shaped by the speaker's angle and directivity, peaked at the note or an
+octave per the Focus and Octave Bias controls.
 
-The loudest ringing string is chosen as the one that feeds back. Threshold and
-speed are yours to set.
+Rolling the guitar volume back kills the feedback. The controls are Amount (loop
+gain), Distance (speaker-to-guitar delay), Angle (directional response), Focus
+(which harmonic is emphasised), and Octave Bias (harmonic shift).
 
 ---
 
@@ -325,7 +332,7 @@ Defaults, all remappable in the preset.
 | 78 | Vibrato rate |
 | 79 | Humanize amount |
 
-Aftertouch drives vibrato depth by default; it can be switched to bend.
+Aftertouch drives vibrato depth.
 
 MIDI Learn on any other control is per-control, through its right-click menu, and
 is stored with the plugin state rather than with the preset - so your controller

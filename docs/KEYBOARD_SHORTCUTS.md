@@ -16,6 +16,7 @@ them with a search box. The defaults are below.
 | `Escape` | Close whatever overlay is open - not rebindable, on purpose |
 | `Space` | Start or stop the audition phrase |
 | `Tab` | Switch between Easy and Advanced |
+| `S` | Slide Mode on or off |
 | `L` | Live Mode on or off |
 | `D` | Open or close the Practice drawer |
 | `P` | Panic - stop every string immediately |
@@ -36,10 +37,12 @@ them with a search box. The defaults are below.
 | Key | Action |
 |---|---|
 | `Ctrl + O` | Preset browser |
+| `Ctrl + N` | New preset (loads Init) |
 | `Ctrl + S` | Save the current preset |
 | `Ctrl + Shift + S` | Save As |
 | `Ctrl + G` | Save the guitar as a `.luthierguitar` file |
 | `Ctrl + Shift + E` | Show the guitar file on disk |
+| `Ctrl + Alt + E` | Show the preset file on disk |
 | `Ctrl + E` | Export audio |
 | `Ctrl + L` | Arm MIDI Learn, then click a control |
 | `Ctrl + Z` | Undo |
@@ -50,6 +53,12 @@ them with a search box. The defaults are below.
 | `Ctrl + ,` | Options |
 | `Ctrl + D` | Debug tools |
 
+## Advanced mode
+
+| Key | Action |
+|---|---|
+| `Ctrl + [` / `Ctrl + ]` | Previous / next workspace tab |
+
 ## On any control
 
 | Input | Action |
@@ -59,7 +68,7 @@ them with a search box. The defaults are below.
 | `Ctrl` + drag | Ultra-fine |
 | Double-click | Reset to default |
 | Right-click | Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise |
-| Hover | The value replaces the label; a tooltip follows after 400 ms |
+| Hover | The value appears above the control; a tooltip follows after 400 ms |
 
 ## On the fretboard
 
