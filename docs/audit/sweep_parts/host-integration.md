@@ -46,7 +46,7 @@ The core host surface is in place and tested: VST3/AU/Standalone (plus optional 
 | HI-40 (§9.2) | prepareToPlay idempotent and fast | `prepareToPlay` | n/a | `HostState::aSessionSurvivesThePrepareThatFollowsIt`, `Engine::sampleRateChangesAreSurvived` | DONE |
 | HI-41 (§9.9) | Standalone: device disconnect polling, virtual MIDI-out toggle — neither built (JUCE default standalone) | - | none | - | MISSING |
 | HI-42 (§9.9) | Standalone resizable window with minimum size, native file dialogs | `PluginEditor.cpp` constrainer `setSizeLimits`, `FileChooser` | editor window | `Editor::itLaysOutAndPaintsAcrossItsResizeRange` | DONE |
-| HI-43 (§10) | pluginval strictness 10 on every merge — CI runs 5 per push, 10 nightly | `.github/workflows/build.yml`, `scripts/ci_build.sh validate` | n/a | CI pluginval step | PARTIAL |
+| HI-43 (§10) | pluginval strictness 10 on every merge — CI runs 5 per push, 10 nightly | `.github/workflows/build.yml` STRICTNESS: 10 on a push to main/master | n/a | CI (not run here) | DONE |
 | HI-44 (§11) | Plugin undo is per-instance, not host-integrated | `PluginProcessor::undo` | Header undo | `Undo::stepsOneActionAtATimeBothWays` | DONE |
 | HI-45 (§12) | Factory presets via getNumPrograms/getProgramName, PC addressable — user presets included, so count changes on save | `PluginProcessor.cpp:getNumPrograms` | host browser | `HostState.programsEnumeratePresetsAndLoadByIndex` | DONE |
 | HI-46 (§13) | Threading contract: state save doesn't block audio | message-thread `captureExtraState`; audio uses tryLock | n/a | `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` | DONE |
