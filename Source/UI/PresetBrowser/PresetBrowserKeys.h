@@ -62,7 +62,7 @@ public:
 
     static void reset (const juce::String& id)
     {
-        UiPreferences::get().setString ("presetBrowser.key." + id, {});
+        UiPreferences::get().remove ("presetBrowser.key." + id);
     }
 
     static bool matches (const juce::String& id, const juce::KeyPress& key)

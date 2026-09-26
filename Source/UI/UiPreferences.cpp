@@ -66,6 +66,21 @@ void UiPreferences::setBool (const juce::String& key, bool value)
     }
 }
 
+bool UiPreferences::has (const juce::String& key) const
+{
+    auto* object = values.getDynamicObject();
+    return object != nullptr && object->hasProperty (key);
+}
+
+void UiPreferences::remove (const juce::String& key)
+{
+    if (auto* object = values.getDynamicObject(); object != nullptr && object->hasProperty (key))
+    {
+        object->removeProperty (key);
+        save();
+    }
+}
+
 juce::String UiPreferences::getString (const juce::String& key, const juce::String& fallback) const
 {
     if (auto* object = values.getDynamicObject())

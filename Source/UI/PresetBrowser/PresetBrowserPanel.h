@@ -47,6 +47,10 @@ public:
     void overlayHidden() override;
 
     bool keyPressed (const juce::KeyPress&) override;
+
+    /** Keys arriving at the search box or the list (a KeyListener on both). */
+    bool keyPressed (const juce::KeyPress&, juce::Component* originator) override;
+
     void mouseExit (const juce::MouseEvent&) override;
 
     //==========================================================================
@@ -147,7 +151,6 @@ private:
     friend class PresetRow;
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
-    bool keyPressed (const juce::KeyPress&, juce::Component* originator) override;
     void timerCallback() override;
 
     void rebuildChipRow();
