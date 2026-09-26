@@ -28,6 +28,8 @@
 #include "../Controllers/ControllerProfile.h"
 #include "../Updates/Telemetry.h"
 
+#include "PresetBrowser/PresetBrowserOptions.h"   // preset-browser-previews.md 8 (FEAT-BROWSER)
+
 namespace luthier
 {
 
@@ -122,6 +124,9 @@ private:
     juce::Label contrastLabel, pendingLabel;
 
     bool updatingControls = false;
+
+public:
+    PresetBrowserAppearanceGroup presetBrowserGroup { processor };   // preset-browser-previews 8
 };
 
 //==============================================================================
@@ -175,6 +180,9 @@ private:
 
     /** Catches the key press for a rebind. */
     bool keyPressed (const juce::KeyPress& key) override;
+
+public:
+    PresetBrowserKeysGroup presetBrowserKeys;   // preset-browser-previews 7.4
 };
 
 //==============================================================================
@@ -480,6 +488,9 @@ private:
     };
 
     FolderListModel folderModel { *this };
+
+public:
+    PresetCacheGroup previewCacheGroup { processor };   // preset-browser-previews 5.2
 };
 
 } // namespace luthier
