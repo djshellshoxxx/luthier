@@ -14,3 +14,4 @@
 - [RM-17] CLI smoke test is a CMake script (`scripts/render_cli_smoke.cmake`) registered as CTest `LuthierRenderCli` and run from the test step of both `ci_build.sh` and `ci_build.ps1` (with `check_packaging_paths.cmake`).
 - [RM-17] LuthierRender had stopped linking after the REALISM-C/TUNE-HELP merge (PluginEditorOnboarding/Tune.cpp in the engine list; PresetManager now reads UiPreferences). CMake engine list fixed; the CTest smoke test caught it.
 - [UM-13] Tab (toggleAdvanced) is refused in Live Mode with an inline notice, matching the header's locked switch.
+- [ISS-4] Fingers vs pick differ audibly only in the first ~20 ms through the default rig; over 100 ms brightness is equal within 1%. Test asserts the attack; dsp1/dsp2 may want to look at how much of the excitation survives the chain.

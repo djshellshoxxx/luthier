@@ -1344,3 +1344,67 @@ LUTHIER_TEST (Editor, liveModeFromTheKeyboardLocksTheModeSwitch)
     CHECK (editor->keyPressed (key ("toggleAdvanced")));
     CHECK (processor.getUiState().advancedMode != advancedBefore);
 }
+
+//==============================================================================
+namespace
+{
+    /** 0.5 s of one plucked note through the whole plugin, left channel. */
+    std::vector<float> renderOneNote (bool fingers)
+    {
+        LuthierAudioProcessor processor;
+        setPlain (processor, ParamIDs::macroHumanize, 0.0f);
+        setChoice (processor, ParamIDs::useFingers, fingers ? 1 : 0);
+        processor.prepareToPlay (kSweepSr, 256);
+        processor.getParameterBridge().applyAllNow();
+
+        std::vector<float> out;
+        juce::AudioBuffer<float> buffer (juce::jmax (processor.getTotalNumOutputChannels(),
+                                                     processor.getTotalNumInputChannels()), 256);
+
+        for (int block = 0; block < (int) (kSweepSr * 0.5 / 256); ++block)
+        {
+            buffer.clear();
+            juce::MidiBuffer midi;
+
+            if (block == 0)
+                midi.addEvent (juce::MidiMessage::noteOn (1, 57, (juce::uint8) 100), 0);
+
+            processor.processBlock (buffer, midi);
+            out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 256);
+        }
+
+        return out;
+    }
+
+    /** Energy of the first difference over energy: a brightness measure that
+        rises with the spectral centroid. */
+    double brightness (const std::vector<float>& x, size_t from, size_t to)
+    {
+        double e = 0.0, d = 0.0;
+
+        for (size_t i = juce::jmax<size_t> (from, 1); i < juce::jmin (to, x.size()); ++i)
+        {
+            e += (double) x[i] * x[i];
+            d += ((double) x[i] - x[i - 1]) * ((double) x[i] - x[i - 1]);
+        }
+
+        return d / juce::jmax (1.0e-20, e);
+    }
+}
+
+/*  issues ISS-4: fingers sound different from a pick - darker, through the
+    whole plugin, with the same note and velocity. */
+LUTHIER_TEST (Excitation, fingersSoundDifferentFromAPick)
+{
+    const auto pick = renderOneNote (false);
+    const auto finger = renderOneNote (true);
+
+    const auto attackEnd = (size_t) (kSweepSr * 0.02);
+    const double pickBright = brightness (pick, 0, attackEnd);
+    const double fingerBright = brightness (finger, 0, attackEnd);
+
+    CHECK_MSG (relativeDifference (pick, finger) > 0.05, "fingers and pick render the same");
+    CHECK_MSG (fingerBright < pickBright,
+               "fingers are not darker than a pick: " + juce::String (fingerBright, 5)
+                 + " vs " + juce::String (pickBright, 5));
+}
