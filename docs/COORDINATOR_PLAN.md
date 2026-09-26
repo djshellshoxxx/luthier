@@ -265,3 +265,14 @@ we hit the weekly usage limit mid-flight. Design:
   verified with no open findings.
 - Do NOT declare the project done while any worker has remaining rows, any
   audit/beta item is unverified, or any open finding stands.
+
+## External agent (ChatGPT/Codex) collaboration (2026-09-26, owner)
+
+An external agent collaborates via the repo. See docs/helpers/EXTERNAL_AGENT_BRIEF.md.
+Coordinator each check-in: `git fetch` also lists `codex/luthier-*` branches;
+treat a green, up-to-date codex branch exactly like a helper branch — Linux
+build + test, then merge into integration (coordinator is the ONLY merger).
+External agent owns: feature implementations once specced (ui-scaling, tuner,
+midi-learn, randomize+ab, tab-export, amp-cab-ir) + light instruments (tenor,
+acoustic bass, extended-range bass). Claude owns hard DSP, merges, audits,
+beta, editions. No overlap; same parameter-marker / CRLF / no-Win-Mac rules.
