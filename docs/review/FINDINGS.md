@@ -101,6 +101,20 @@ unless stated otherwise.
 
 | R-226 | medium | ASan full run (asan-tests3) | One intermittent SEGV in `juce::String` release inside `setPracticeStatsFile` on a freshly constructed processor (PracticeDrawerTests), not reproduced alone or in the next full run: points at a background thread or timer from an earlier test writing into freed/reused memory. Candidates: R-213 (export instance timer), R-101/R-102 update-check threads. | open (investigating) |
 
+## Feature branches (claude/luthier-feat-*), reviewed before merge — report only
+
+Reviewed against `origin/claude/luthier-cloud-session-5lzlix` at 366b772. Added code scanned for the patterns found on the integration branch (raw-`this` async callbacks, NativeMessageBox result index, audio-thread locks / allocation / String lookups, thread lifetimes), and the audio-thread paths read.
+
+| ID | Sev | Branch / location | Finding | Status |
+|----|-----|-------------------|---------|--------|
+| R-300 | high | feat-cpu: Source/DSP/String/StringEngine.cpp processSample | The idle-sleep early return, the ring-out fade and `goToSleep` are added inside `StringEngine::processSample`. On the integration branch (REALISM-A, body coupling) the engine drives strings through `beginSample()` / `endSample()` whenever body coupling is on (LuthierEngine.cpp:2642) and `processSample` is only a wrapper. Merged as written, sleeping strings are never skipped and `fadeToSleep` never completes on that path, so the Medium/Low CPU savings and the E3 emergency string drop silently do nothing (and `isFadingToSleep` stays true, excluding the string from the ring-out cap). Move the sleep test into `beginSample` and the fade into `endSample`. | reported-for-claude/luthier-feat-cpu |
+| R-301 | medium | feat-cpu: StringEngine beginSample (integration) | R-221 still applies after the merges: loop coefficients are recomputed every sample while a glide/bend is in progress (target compared with the last *current* frequency). The CPU workstream is the natural owner. | reported-for-claude/luthier-feat-cpu |
+| — | — | feat-strings | Sounding-notes snapshot published through a seqlock once per sub-block; also removes the UI's unsynchronised reads of `currentFret` / string level (a pre-existing race). No findings. | reviewed |
+| — | — | feat-riffs | Audition / riff handover: audio thread try-locks a SpinLock, retired sequences freed on the timer (fixes the audition-restart race noted in the first review pass). AlertWindow result codes explicit. No findings. | reviewed |
+| — | — | feat-search | PopupMenu item IDs; file choosers held by member. No findings. | reviewed |
+| — | — | feat-browser, feat-normalize | std::mutex / lock_guard only in preview-render and calibration worker code (off the audio thread). No findings. | reviewed |
+| — | — | feat-assist, feat-jam, feat-mic | Pattern scan clean (the `getRawParameterValue` calls are in UI / migration code). Audio-path diffs not yet read line by line. | scanned |
+
 ## Third-party / sanitizer notes
 
 | ID | Where | Note | Status |
