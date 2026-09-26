@@ -266,6 +266,10 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
 
     // ---- meter and chord readout -------------------------------------------------------
     addAndMakeVisible (meter);
+
+    // output-normalization.md 5.1: the badge under the meter, while on.
+    addChildComponent (normalizationBadge);
+    normalizationBadge.onVisibilityChanged = [this] { resized(); };
     meter.setSource (&processor);
 
     addAndMakeVisible (chordLabel);
@@ -611,7 +615,11 @@ void EasyPanel::resized()
 
     // 3.1: the guitar, with the level meter and the chord beside it.
     auto guitarArea = bounds;
-    auto meterColumn = guitarArea.removeFromRight (28);
+    auto meterColumn = guitarArea.removeFromRight (normalizationBadge.isVisible() ? NormalizationBadge::preferredWidth : 28);
+
+    if (normalizationBadge.isVisible())   // output-normalization.md 5.1
+        normalizationBadge.setBounds (meterColumn.removeFromBottom (24).reduced (0, 2));
+
     meter.setBounds (meterColumn.reduced (4, Metrics::grid));
     chordLabel.setBounds (guitarArea.removeFromTop (20).removeFromRight (120));
     guitarBody.setBounds (guitarArea);

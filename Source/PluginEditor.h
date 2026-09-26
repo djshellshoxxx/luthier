@@ -74,6 +74,10 @@ public:
         difference between "opened it" and "that page does not exist here". */
     bool showOptionsPage (const juce::String& tabName);
 
+    /** output-normalization.md 5.1: Options -> AUDIO with the switch focused
+        (the header / Easy badge, the banner's [Options]). */
+    void openNormalizationOptions();
+
     //==========================================================================
     // onboarding.md 2-4 (TUNE-HELP-ONBOARDING; PluginEditorOnboarding.cpp).
 

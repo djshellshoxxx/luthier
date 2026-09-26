@@ -1,6 +1,7 @@
 #include "OutputNormalization.h"
 #include "../PluginProcessor.h"
 #include "../DSP/Master/Bs1770Meter.h"
+#include "../Accessibility/Localisation.h"
 
 #include <chrono>
 #include <thread>
@@ -786,24 +787,22 @@ OutputNormalization::Status OutputNormalization::getStatus() const
 
 juce::String OutputNormalization::readoutText (const Status& s)
 {
+    // 5.2, through the locale catalog (options.audio.normalization.readout.*).
+    const auto gain = signedDb (s.gainDb, 1);
+
     switch (s.state)
     {
-        case State::off:
-            return "Off. Each sound plays at its natural level.";
-        case State::measuring:
-            return juce::String::fromUTF8 ("Measuring this sound\xe2\x80\xa6");
-        case State::applied:
-            return "Normalization: " + signedDb (s.gainDb, 1) + " dB (this sound measures "
-                     + juce::String (s.measuredLufs, 1) + " LUFS)";
-        case State::clamped:
-            return "Normalization: " + signedDb (s.gainDb, 1) + " dB (at the limit; this sound is very "
-                     + juce::String ((s.flags & LoudnessNormalizer::flagClampedHigh) != 0 ? "quiet" : "loud") + ")";
-        case State::estimate:
-            return "Normalization: about " + signedDb (std::round (s.gainDb), 0) + " dB (estimated; measuring failed)";
-        case State::unmeasurable:
-            return "This sound is silent on the test phrase; level unchanged.";
-        case State::morphing:
-            return "Normalization: " + signedDb (s.gainDb, 1) + " dB (between the two morph presets)";
+        case State::off:          return tr ("options.audio.normalization.readout.off");
+        case State::measuring:    return tr ("options.audio.normalization.readout.measuring");
+        case State::applied:      return tr ("options.audio.normalization.readout.applied",
+                                             { { "gain", gain }, { "lufs", juce::String (s.measuredLufs, 1) } });
+        case State::clamped:      return tr ((s.flags & LoudnessNormalizer::flagClampedHigh) != 0
+                                               ? "options.audio.normalization.readout.clampedQuiet"
+                                               : "options.audio.normalization.readout.clampedLoud", { { "gain", gain } });
+        case State::estimate:     return tr ("options.audio.normalization.readout.estimate",
+                                             { { "gain", signedDb (std::round (s.gainDb), 0) } });
+        case State::unmeasurable: return tr ("options.audio.normalization.readout.unmeasurable");
+        case State::morphing:     return tr ("options.audio.normalization.readout.morphing", { { "gain", gain } });
     }
 
     return {};
@@ -814,7 +813,7 @@ juce::String OutputNormalization::badgeText (const Status& s)
     switch (s.state)
     {
         case State::off:          return {};
-        case State::measuring:    return juce::String::fromUTF8 ("N \xe2\x80\xa6");
+        case State::measuring:    return "N ...";
         case State::applied:      return "N " + signedDb (s.gainDb, 1);
         case State::morphing:     return "N " + signedDb (s.gainDb, 1);
         case State::clamped:      return "N " + signedDb (s.gainDb, 0) + "!";
@@ -827,15 +826,14 @@ juce::String OutputNormalization::badgeText (const Status& s)
 
 juce::String OutputNormalization::badgeTooltip (const Status& s)
 {
-    return "Output normalization " + signedDb (s.gainDb, 1) + " dB, target "
-             + juce::String (s.targetLufs, 0) + " LUFS. Click for options.";
+    return tr ("badge.normalization.tooltip", { { "gain", signedDb (s.gainDb, 1) },
+                                                { "target", juce::String (s.targetLufs, 0) } });
 }
 
 juce::String OutputNormalization::accessibleBadgeName (const Status& s)
 {
-    const double db = s.gainDb;
-    return "Output normalization, " + juce::String (db < 0.0 ? "minus " : "plus ")
-             + juce::String (std::abs (db), 1) + " decibels";
+    return tr ("badge.normalization.name", { { "sign", s.gainDb < 0.0 ? "minus" : "plus" },
+                                             { "value", juce::String (std::abs (s.gainDb), 1) } });
 }
 
 double OutputNormalization::getPreviewGainOffsetDb (double clipTruePeakDbtp) const noexcept

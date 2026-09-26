@@ -499,6 +499,9 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("toggleSlideMode",  "accessibility.shortcut.toggleSlideMode",  KP ('s', 0, 0));
     add ("togglePractice",   "accessibility.shortcut.togglePractice",   KP ('d', 0, 0));
 
+    // output-normalization.md 9: rebindable, unbound by default.
+    add ("toggleNormalization", "accessibility.shortcut.toggleNormalization", KP());
+
     add ("panic",            "accessibility.shortcut.panic",            KP ('p', 0, 0));
     add ("tapTempo",         "accessibility.shortcut.tapTempo",         KP ('t', 0, 0));
     add ("killSwitch",       "accessibility.shortcut.killSwitch",       KP ('\\', 0, 0));

@@ -17,6 +17,7 @@
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "NormalizationOptions.h"   // output-normalization.md 5.4
 #include "../Routing/RoutingMatrix.h"
 #include "../Parameters.h"
 
@@ -109,6 +110,14 @@ private:
     LuthierAudioProcessor& processor;
 
     juce::Label layoutLabel, latencyLabel, sidechainLabel;
+
+    // output-normalization.md 5.4: "applies to the main output only", while on.
+    NormalizationCaption normalizationCaption { processor, "routing.normalization.caption" };
+
+public:
+    NormalizationCaption& getNormalizationCaption() noexcept { return normalizationCaption; }
+
+private:
 
     juce::OwnedArray<AuxStrip> auxStrips;
     std::unique_ptr<PerStringStrip> perStringStrip;

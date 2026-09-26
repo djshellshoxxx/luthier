@@ -786,7 +786,10 @@ juce::File NormalizationCalibrator::getDiskCacheFolder()
             return c.diskOverride;
     }
 
-    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+    // Under the cache folder Diagnostics "Reset all settings and clear caches"
+    // deletes (4.4); the preview cache root of preset-browser-previews.md
+    // lives there too.
+    return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
              .getChildFile ("Luthier").getChildFile ("Cache").getChildFile ("normalization");
 }
 

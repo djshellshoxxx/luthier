@@ -12,6 +12,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "RangesUi.h"
+#include "NormalizationBadge.h"   // output-normalization.md 5.1
 
 namespace luthier
 {
@@ -102,6 +103,13 @@ private:
     LuthierAudioProcessor& processor;
 
     OutputLed led;
+
+public:
+    /** output-normalization.md 5.1: the badge beside the output LED. */
+    NormalizationBadge& getNormalizationBadge() noexcept { return normalizationBadge; }
+
+private:
+    NormalizationBadge normalizationBadge { processor };
 
     LuthierChoice guitarSelector, tuningSelector;
 

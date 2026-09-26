@@ -25,6 +25,7 @@
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "NormalizationOptions.h"   // output-normalization.md 5.1
 #include "../Controllers/ControllerProfile.h"
 #include "../Updates/Telemetry.h"
 
@@ -77,6 +78,12 @@ private:
 
     juce::TextButton deviceButton { "Where are the device settings?" };
     juce::Label deviceNote, sidechainNote, latencyLabel;
+
+    // output-normalization.md 5.1: under Oversampling, in its own group.
+    NormalizationOptionsGroup normalization { processor };
+
+public:
+    NormalizationOptionsGroup& getNormalizationGroup() noexcept { return normalization; }
 };
 
 //==============================================================================
@@ -434,6 +441,9 @@ private:
     juce::TextButton restoreFirstRunButton { "Restore first-run experience" };
 
     juce::Label explanation, recorderNote, mirrorNote;
+
+    // output-normalization.md 5.4: the stage on the audio path, with its gain.
+    juce::Label normalizationLines;
 };
 
 //==============================================================================
