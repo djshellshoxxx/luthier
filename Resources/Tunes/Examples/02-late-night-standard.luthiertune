@@ -1,0 +1,514 @@
+{
+  "schema": 1,
+  "magic": "luthier.tune",
+  "meta": {
+    "title": "Late Night Standard",
+    "artist": "",
+    "author": "Factory",
+    "tempo_bpm": 132.0,
+    "time_sig": "4/4",
+    "key": "Bb",
+    "mode": "ionian",
+    "swing": 60.0,
+    "feel_pct": 0.0,
+    "tags": [
+      "example",
+      "jazz"
+    ],
+    "notes": "An AABA head over ii-V changes: comping, a walking bass and a melody phrased like a tenor sax. Try it on Jazz Hollowbody.",
+    "created": "2026-09-24T00:00:00Z",
+    "modified": "2026-09-24T00:00:00Z"
+  },
+  "sections": [
+    {
+      "name": "A",
+      "length_bars": 8,
+      "rhythm_pattern": "Freddie Green",
+      "genre_kit": "Jazz Comping",
+      "chords": [
+        {
+          "root": "Bb",
+          "quality": "maj7",
+          "beats": 4.0
+        },
+        {
+          "root": "G",
+          "quality": "m7",
+          "beats": 4.0
+        },
+        {
+          "root": "C",
+          "quality": "m7",
+          "beats": 4.0
+        },
+        {
+          "root": "F",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "m7",
+          "beats": 4.0
+        },
+        {
+          "root": "G",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "C",
+          "quality": "m7",
+          "beats": 4.0
+        },
+        {
+          "root": "F",
+          "quality": "7",
+          "beats": 4.0
+        }
+      ],
+      "melody": [
+        {
+          "start": 0.0,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 94
+        },
+        {
+          "start": 0.5,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 78
+        },
+        {
+          "start": 1.0,
+          "dur": 1.5,
+          "pitch": 62,
+          "vel": 89
+        },
+        {
+          "start": 2.5,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 82
+        },
+        {
+          "start": 4.0,
+          "dur": 1.0,
+          "pitch": 58,
+          "vel": 92
+        },
+        {
+          "start": 5.0,
+          "dur": 0.5,
+          "pitch": 55,
+          "vel": 89
+        },
+        {
+          "start": 5.5,
+          "dur": 1.0,
+          "pitch": 53,
+          "vel": 80
+        },
+        {
+          "start": 6.5,
+          "dur": 0.5,
+          "pitch": 55,
+          "vel": 78
+        },
+        {
+          "start": 8.0,
+          "dur": 1.0,
+          "pitch": 58,
+          "vel": 93
+        },
+        {
+          "start": 9.0,
+          "dur": 1.0,
+          "pitch": 55,
+          "vel": 85
+        },
+        {
+          "start": 10.0,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 91
+        },
+        {
+          "start": 10.5,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 82
+        },
+        {
+          "start": 12.0,
+          "dur": 0.5,
+          "pitch": 63,
+          "vel": 97
+        },
+        {
+          "start": 12.5,
+          "dur": 0.5,
+          "pitch": 65,
+          "vel": 80
+        },
+        {
+          "start": 13.0,
+          "dur": 0.5,
+          "pitch": 67,
+          "vel": 91
+        },
+        {
+          "start": 13.5,
+          "dur": 1.5,
+          "pitch": 65,
+          "vel": 78
+        },
+        {
+          "start": 16.0,
+          "dur": 1.0,
+          "pitch": 65,
+          "vel": 91
+        },
+        {
+          "start": 17.0,
+          "dur": 1.0,
+          "pitch": 63,
+          "vel": 85
+        },
+        {
+          "start": 18.0,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 85
+        },
+        {
+          "start": 18.5,
+          "dur": 0.5,
+          "pitch": 74,
+          "vel": 80
+        },
+        {
+          "start": 20.0,
+          "dur": 1.0,
+          "pitch": 71,
+          "vel": 92
+        },
+        {
+          "start": 21.0,
+          "dur": 0.5,
+          "pitch": 72,
+          "vel": 89
+        },
+        {
+          "start": 21.5,
+          "dur": 1.0,
+          "pitch": 70,
+          "vel": 83
+        },
+        {
+          "start": 22.5,
+          "dur": 0.5,
+          "pitch": 72,
+          "vel": 83
+        },
+        {
+          "start": 24.0,
+          "dur": 0.5,
+          "pitch": 70,
+          "vel": 97
+        },
+        {
+          "start": 24.5,
+          "dur": 0.5,
+          "pitch": 69,
+          "vel": 81
+        },
+        {
+          "start": 25.0,
+          "dur": 1.5,
+          "pitch": 67,
+          "vel": 85
+        },
+        {
+          "start": 26.5,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 82
+        }
+      ],
+      "melody_track": {
+        "string_hint": "auto",
+        "articulation": "natural",
+        "source": "auto",
+        "seed": 11,
+        "density": 4.0,
+        "range_low": 48,
+        "range_high": 79,
+        "follow_chords": false
+      },
+      "bass": {
+        "mode": "walking"
+      },
+      "role": "verse",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.55,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "jazz_sax"
+    },
+    {
+      "name": "B",
+      "length_bars": 8,
+      "rhythm_pattern": "Freddie Green",
+      "genre_kit": "Jazz Comping",
+      "chords": [
+        {
+          "root": "F",
+          "quality": "m7",
+          "beats": 4.0
+        },
+        {
+          "root": "Bb",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "Eb",
+          "quality": "maj7",
+          "beats": 4.0
+        },
+        {
+          "root": "Eb",
+          "quality": "maj7",
+          "beats": 4.0
+        },
+        {
+          "root": "A",
+          "quality": "m7",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "7",
+          "beats": 4.0
+        },
+        {
+          "root": "C",
+          "quality": "m7",
+          "beats": 4.0
+        },
+        {
+          "root": "F",
+          "quality": "7",
+          "beats": 4.0
+        }
+      ],
+      "melody": [
+        {
+          "start": 0.0,
+          "dur": 0.5,
+          "pitch": 68,
+          "vel": 97
+        },
+        {
+          "start": 0.5,
+          "dur": 0.5,
+          "pitch": 67,
+          "vel": 83
+        },
+        {
+          "start": 1.0,
+          "dur": 1.5,
+          "pitch": 65,
+          "vel": 85
+        },
+        {
+          "start": 2.5,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 79
+        },
+        {
+          "start": 4.0,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 97
+        },
+        {
+          "start": 4.5,
+          "dur": 1.5,
+          "pitch": 60,
+          "vel": 78
+        },
+        {
+          "start": 6.0,
+          "dur": 0.5,
+          "pitch": 65,
+          "vel": 89
+        },
+        {
+          "start": 6.5,
+          "dur": 0.5,
+          "pitch": 67,
+          "vel": 83
+        },
+        {
+          "start": 8.0,
+          "dur": 0.5,
+          "pitch": 67,
+          "vel": 96
+        },
+        {
+          "start": 8.5,
+          "dur": 0.5,
+          "pitch": 65,
+          "vel": 77
+        },
+        {
+          "start": 9.0,
+          "dur": 1.0,
+          "pitch": 70,
+          "vel": 91
+        },
+        {
+          "start": 10.0,
+          "dur": 1.0,
+          "pitch": 60,
+          "vel": 90
+        },
+        {
+          "start": 12.0,
+          "dur": 0.5,
+          "pitch": 62,
+          "vel": 93
+        },
+        {
+          "start": 12.5,
+          "dur": 0.5,
+          "pitch": 67,
+          "vel": 80
+        },
+        {
+          "start": 13.0,
+          "dur": 1.0,
+          "pitch": 65,
+          "vel": 85
+        },
+        {
+          "start": 14.0,
+          "dur": 1.0,
+          "pitch": 67,
+          "vel": 89
+        },
+        {
+          "start": 16.0,
+          "dur": 1.0,
+          "pitch": 67,
+          "vel": 96
+        },
+        {
+          "start": 17.0,
+          "dur": 1.0,
+          "pitch": 65,
+          "vel": 89
+        },
+        {
+          "start": 18.0,
+          "dur": 0.5,
+          "pitch": 55,
+          "vel": 87
+        },
+        {
+          "start": 18.5,
+          "dur": 0.5,
+          "pitch": 48,
+          "vel": 81
+        },
+        {
+          "start": 20.0,
+          "dur": 1.5,
+          "pitch": 48,
+          "vel": 95
+        },
+        {
+          "start": 21.5,
+          "dur": 0.5,
+          "pitch": 50,
+          "vel": 79
+        },
+        {
+          "start": 22.0,
+          "dur": 0.5,
+          "pitch": 51,
+          "vel": 86
+        },
+        {
+          "start": 22.5,
+          "dur": 0.5,
+          "pitch": 57,
+          "vel": 82
+        },
+        {
+          "start": 24.0,
+          "dur": 0.5,
+          "pitch": 58,
+          "vel": 96
+        },
+        {
+          "start": 24.5,
+          "dur": 1.0,
+          "pitch": 60,
+          "vel": 80
+        },
+        {
+          "start": 25.5,
+          "dur": 1.0,
+          "pitch": 62,
+          "vel": 82
+        },
+        {
+          "start": 26.5,
+          "dur": 0.5,
+          "pitch": 60,
+          "vel": 81
+        }
+      ],
+      "melody_track": {
+        "string_hint": "auto",
+        "articulation": "natural",
+        "source": "auto",
+        "seed": 12,
+        "density": 4.0,
+        "range_low": 48,
+        "range_high": 79,
+        "follow_chords": false
+      },
+      "bass": {
+        "mode": "walking"
+      },
+      "role": "bridge",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.55,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "jazz_sax"
+    }
+  ],
+  "setlist": [
+    {
+      "section": "A",
+      "repeats": 2
+    },
+    {
+      "section": "B",
+      "repeats": 1
+    },
+    {
+      "section": "A",
+      "repeats": 1
+    }
+  ]
+}
