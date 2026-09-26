@@ -64,7 +64,7 @@ The attachment layer is solid. There is one APVTS, every standard control binds 
 | UW-T6 (§23) | Test: display FIFO at 10x drain for 60 s, no stall, oldest dropped | - | n/a | - | MISSING |
 | UW-T7 (§23) | Test: 100 random shadow auditions leave committed spec byte-identical | - | n/a | `WorkshopBench::aHundredRandomAuditionsNeverCommit` | DONE |
 | UW-T8 (§23) | Test: every physical param toggled stock<->advanced 100x, clamps right, no audio allocation | `RangeState` | n/a | `Ranges::hundredTogglesClampCorrectlyWithoutAllocating` | DONE |
-| UW-T9 (§23) | Test: every part slot swapped 100x in playback under the click threshold | - | n/a | `WorkshopSwap::aPartSwapDuringANoteIsClickFree` (one swap) | PARTIAL |
+| UW-T9 (§23) | Test: every part slot swapped 100x in playback under the click threshold | - | n/a | `WorkshopSwap::everySlotSwapsHundredTimesClickFree` | DONE |
 | UW-T10 (§23) | Test: spectrum delta on committed vs shadow matches offline within 0.2 dB | `SpectrumDelta` | n/a | `WorkshopSpectrum::aNullChangeIsFlat`, `WorkshopSpectrum::aRealChangeShowsAndIsDescribed` (no offline compare) | PARTIAL |
 
 <!-- counts DONE=18 NO-GUI=0 NO-TEST=5 PARTIAL=25 MISSING=7 OWNED=7 -->

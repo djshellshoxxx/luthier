@@ -25,11 +25,11 @@ The profile model, JSON format, the nine ship profiles, user overrides and the p
 | CT-19 (§5) | Bend range check: live 'bent to' note readout and a range stepper that applies at once and is saved with the profile | - | CONTROLLERS `bendCheckLabel`, `bendRangeStepper` | `Controllers::bendRangeCheckWritesTheProfile` | DONE |
 | CT-20 (§5) | Minimum note duration | `MidiInterpreter::setMinimumNoteDurationMs` | CONTROLLERS `minimumNoteSlider` | `Controllers::minimumNoteDurationSurvivesAnEarlyNoteOff` | DONE |
 | CT-21 (§5) | Pitch dead-zone, default 5 cents | `MidiInterpreter::setPitchDeadZoneCents` | CONTROLLERS `deadZoneSlider` | `Controllers::pitchDeadZoneRejectsTrackingNoiseButNotRealBends` | DONE |
-| CT-22 (§6) | Multi-controller merge, source tags, most-recent-wins, contention warning — `ControllerMerge` exists but is unused in `processBlock` | `Controllers/ControllerProfile.h:ControllerMerge` | - | `Controllers::multiControllerMergeNeverLosesAString`, `Controllers::oneControllerPlayingNormallyReportsNoContention` | PARTIAL |
+| CT-22 (§6) | Multi-controller merge, source tags, most-recent-wins, contention warning — `ControllerMerge` exists but is unused in `processBlock` | `Controllers/ControllerProfile.h:ControllerMerge` | - | `Controllers::multiControllerMergeNeverLosesAString`, `Controllers::oneControllerPlayingNormallyReportsNoContention` | DEFERRED |
 | CT-23 (§7) | Test: ship profiles load, cc_map resolves | - | n/a | `Controllers::everyShipProfileIsWellFormed`, `Controllers::everyCcMappingResolvesToARealTarget` | DONE |
 | CT-24 (§7) | Test: wizard 10 runs within 0.5 ms sigma | - | n/a | `Controllers::latencyWizardIsStableAndReportsItsScatter` | DONE |
 | CT-25 (§7) | Test: per-channel fuzz (1800 events, not 10 000) | - | n/a | `Controllers::perChannelRoutingSendsEachChannelToItsString` | DONE |
 | CT-26 (§7) | Test: MPE stickiness | - | n/a | `Controllers::mpeMemberChannelsStickToTheirString` | DONE |
-| CT-27 (§7) | Test: dual-source stress, no dropped strings / coupling corruption — tests the unused `ControllerMerge` only | - | n/a | `Controllers::multiControllerMergeNeverLosesAString` | PARTIAL |
+| CT-27 (§7) | Test: dual-source stress, no dropped strings / coupling corruption — tests the unused `ControllerMerge` only | - | n/a | `Controllers::multiControllerMergeNeverLosesAString` | DEFERRED |
 
 <!-- counts DONE=11 NO-GUI=0 NO-TEST=1 PARTIAL=9 MISSING=6 OWNED=0 -->
