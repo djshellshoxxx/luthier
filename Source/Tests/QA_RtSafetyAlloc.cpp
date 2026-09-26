@@ -60,7 +60,7 @@ namespace
         otherwise slip past. This is message-thread work (setSlotType
         allocates by contract; see EffectsChain.h), so it is called outside
         any AudioThreadScope. */
-    void fillSlots (EffectsChain& chain, int typeOffset)
+    void fillSlots (TestContext& ctx, EffectsChain& chain, int typeOffset)
     {
         constexpr int numRealTypes = (int) PedalType::NumTypes - 1;   // excludes None
 
@@ -111,8 +111,8 @@ LUTHIER_TEST (QaRtSafety, everyPedalTypeInEverySlotProcessesWithoutAllocatingOrL
 
     for (int round = 0; round < rounds; ++round)
     {
-        fillSlots (pre,  round * 3);
-        fillSlots (post, round * 3 + numRealTypes / 2);
+        fillSlots (ctx, pre,  round * 3);
+        fillSlots (ctx, post, round * 3 + numRealTypes / 2);
 
         for (int block = 0; block < 25; ++block)
         {
@@ -164,7 +164,7 @@ LUTHIER_TEST (QaRtSafety, slotTypeSwapWhileProcessingNeverAllocatesOrLocksOnTheA
 {
     EffectsChain chain;
     chain.prepare (kSr, kBlock);
-    fillSlots (chain, 0);
+    fillSlots (ctx, chain, 0);
 
     std::atomic<bool> stop { false };
     std::atomic<long> allocations { 0 };
