@@ -222,6 +222,22 @@ namespace
         return 0.75;                         // bone
     }
 
+    // SPEC-SWEEP: PA-33 - part-acoustics.md 5's bridge-type table.
+    struct BridgeDefaults { double massG, coupling; };
+
+    BridgeDefaults bridgeTypeDefaults (const juce::String& type)
+    {
+        if (type == "tune_o_matic")                         return { 95.0,  0.55 };
+        if (type == "hardtail" || type == "wraparound")     return { 110.0, 0.70 };
+        if (type == "vintage_tremolo")                      return { 165.0, 0.45 };
+        if (type == "two_point_tremolo")                    return { 150.0, 0.48 };
+        if (type == "floyd_rose")                           return { 320.0, 0.30 };
+        if (type == "bigsby")                               return { 480.0, 0.35 };
+        if (type == "pin_bridge" || type == "tie_block")    return { 28.0,  0.92 };
+        if (type == "resonator_spider")                     return { 45.0,  0.88 };
+        return { 100.0, 0.55 };   // unknown: the reference
+    }
+
     // part-acoustics.md 3: joint coupling.
     double jointCoupling (const juce::String& joint)
     {
@@ -432,8 +448,12 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
     d.body.modeGainDb = (chambering == "acoustic") ? 0.0 : d.bodyGainDb;
 
     // ---- termination: masses add, couplings multiply (10) ------------------------------------
-    d.terminationMassG = num (bridge, "mass_g", 100.0) + num (tail, "mass_g", 0.0) + num (guard, "mass_g", 0.0);
-    d.couplingFraction = jointCoupling (str (neck, "joint", "bolt")) * num (bridge, "coupling", 0.55);
+    // SPEC-SWEEP: PA-33 - 5: a bridge that states no mass or coupling takes
+    // its type's row, not one number for every bridge.
+    const auto bridgeDefaults = bridgeTypeDefaults (str (bridge, "type", "tune_o_matic"));
+
+    d.terminationMassG = num (bridge, "mass_g", bridgeDefaults.massG) + num (tail, "mass_g", 0.0) + num (guard, "mass_g", 0.0);
+    d.couplingFraction = jointCoupling (str (neck, "joint", "bolt")) * num (bridge, "coupling", bridgeDefaults.coupling);
 
     // 5: heavier is less lossy and sustains more. Normalised to a 100 g
     // tune-o-matic, a gentle cube root so a 480 g Bigsby is not magic; then

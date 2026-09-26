@@ -36,7 +36,7 @@
 | PA-30 (§4) | nut.friction: tuning stability under bends | on realism-c: `d.nutFriction` (tuning-stability) | - | - | OWNED |
 | PA-31 (§5) | bridge.mass_g: termination impedance and sustain | `terminationMassG` -> `sustainScale` | WORKSHOP inspector | `PartAcoustics::theMappingIsMonotonic` | DONE |
 | PA-32 (§5) | bridge.coupling | `couplingFraction` -> `spec.couplingAmount` | WORKSHOP inspector | `PartAcoustics::couplingsMultiply` | DONE |
-| PA-33 (§5) | bridge.type preset mass/coupling table — the part files match the table, but `mapSpec` falls back to 100 g / 0.55 whatever the type, and no test checks the files | `Resources/Parts/Bridges/*.luthierpart` | WORKSHOP part swap | - | NO-TEST |
+| PA-33 (§5) | bridge.type preset mass/coupling table — the part files match the table, but `mapSpec` falls back to 100 g / 0.55 whatever the type, and no test checks the files | `Resources/Parts/Bridges/*.luthierpart` | WORKSHOP part swap | `bridgeTypeDefaults` fallback in `mapSpec`; `PartAcoustics::aBridgeTypeSetsItsDefaults` (the factory parts state their own values, several off-table, so only the fallback is tested) | DONE |
 | PA-34 (§5) | has_tremolo / tremolo_type -> WhammyEngine type | `mapSpec` (`d.spec.bridge`) | WORKSHOP part swap | `PartAcoustics::bridgeAndTailpieceMapTheirFields` | DONE |
 | PA-35 (§5) | bridge.piezo adds a saddle piezo source, no pickup slot used | `mapSpec` sets `hasPiezo` from `bridge.piezo` | WORKSHOP bridge part | `PartAcoustics::aPiezoBridgeAddsAPiezoSource` | DONE |
 | PA-36 (§5) | tailpiece.mass_g adds to termination mass | `terminationMassG` | WORKSHOP inspector | `PartAcoustics::bridgeAndTailpieceMapTheirFields` | DONE |
@@ -44,7 +44,7 @@
 | PA-38 (§6) | Pickup L/R/C set the resonant peak with the load | `PickupDerived::spec` | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething`, `PartAcoustics::theMappingIsMonotonic` | DONE |
 | PA-39 (§6, §6.2) | Magnet table: pull, damping, sustain and flat pull | `lookUpMagnet`, `LuthierEngine::applyWorkshopGuitar` (magnetSustain/Detune) | WORKSHOP inspector | `PartAcoustics::magnetPullShortensSustainAndPullsFlat` | DONE |
 | PA-40 (§6) | coil_turns: output ∝ turns (dB against a per-family reference winding), inductance ∝ turns² unless stated | `mapSpec` pickup block | WORKSHOP pickup part | `PartAcoustics::coilTurnsSetTheOutput` | DONE |
-| PA-41 (§6) | pole_piece_material eddy losses | `poleBrightness` -> `PickupEngine` | WORKSHOP inspector | - | NO-TEST |
+| PA-41 (§6) | pole_piece_material eddy losses | `poleBrightness` -> `PickupEngine` | WORKSHOP inspector | `PartAcoustics::polePiecesTiltTheTop` | DONE |
 | PA-42 (§6) | Nickel cover -0.8 dB at 4 kHz | `coverLossDbAt4k` -> `PickupEngine` | WORKSHOP inspector | `PartAcoustics::aCoverCostsTopEnd` | DONE |
 | PA-43 (§6.1) | Position sets the comb | `spec.position` | WORKSHOP pickup drag | `PartAcoustics::pickupPositionSetsTheComb` | DONE |
 | PA-44 (§6) | Height: output level and magnetic damping | `heightMm` -> `PickupEngine` heightGain, magnet proximity | WORKSHOP wheel/drag | `PartAcoustics::magnetPullShortensSustainAndPullsFlat` | DONE |
@@ -76,4 +76,4 @@
 | PA-T10 (§11) | Test: mapping runs once per swap | - | n/a | `WorkshopSwap::aSwapMapsOnceNotPerBlock` | DONE |
 | PA-T11 (§11) | Test: determinism | - | n/a | `PartAcoustics::theMappingIsDeterministic` | DONE |
 
-<!-- counts DONE=53 NO-GUI=0 NO-TEST=3 PARTIAL=7 MISSING=7 OWNED=1 -->
+<!-- counts DONE=55 NO-GUI=0 NO-TEST=1 PARTIAL=7 MISSING=7 OWNED=1 -->

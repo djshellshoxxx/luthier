@@ -641,3 +641,83 @@ LUTHIER_TEST (PartAcoustics, stringsAndFinishMapTheirFields)
     BodyModels::buildModes (df.body, mf);
     CHECK (! ma.empty() && ma.size() == mf.size() && ma[0].q > mf[0].q);
 }
+
+/*  SPEC-SWEEP: PA-33 - a bridge that states no mass or coupling takes its
+    type's row of the 5 table. */
+LUTHIER_TEST (PartAcoustics, aBridgeTypeSetsItsDefaults)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+
+    auto withType = [&base] (const char* type)
+    {
+        auto part = std::make_shared<Part> (*base.get (GuitarSlot::bridge));
+        auto fields = juce::JSON::parse (juce::JSON::toString (part->fields));
+        fields.getDynamicObject()->removeProperty ("mass_g");
+        fields.getDynamicObject()->removeProperty ("coupling");
+        fields.getDynamicObject()->setProperty ("type", type);
+        part->fields = fields;
+
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::bridge] = part;
+
+        auto tailless = g;
+        tailless.parts[(size_t) GuitarSlot::tailpiece] = nullptr;
+        tailless.parts[(size_t) GuitarSlot::pickguard] = nullptr;
+        return mapSpec (tailless);
+    };
+
+    struct Row { const char* type; double mass, coupling; };
+
+    for (const auto& row : { Row { "tune_o_matic", 95, 0.55 }, Row { "hardtail", 110, 0.70 },
+                             Row { "vintage_tremolo", 165, 0.45 }, Row { "floyd_rose", 320, 0.30 },
+                             Row { "bigsby", 480, 0.35 }, Row { "pin_bridge", 28, 0.92 } })
+    {
+        const auto d = withType (row.type);
+        CHECK_MSG (std::abs (d.terminationMassG - row.mass) < 1.0e-9,
+                   juce::String (row.type) + ": mass " + juce::String (d.terminationMassG));
+
+        // The joint's factor multiplies it, so compare two types' ratio instead of the value.
+        const auto ref = withType ("tune_o_matic");
+        CHECK_NEAR (d.couplingFraction / ref.couplingFraction, row.coupling / 0.55, 1.0e-9);
+    }
+}
+
+/*  SPEC-SWEEP: PA-41 - 6: steel pole pieces cost top end against alnico, and
+    ceramic ones add it. Through the pickup, at 4 kHz. */
+LUTHIER_TEST (PartAcoustics, polePiecesTiltTheTop)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+
+    auto levelAt4k = [&base] (const char* material)
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::pickupBridge] = withField (base.get (GuitarSlot::pickupBridge), "pole_piece_material", material);
+        const auto d = mapSpec (g);
+
+        PickupEngine p;
+        p.prepare (48000.0, 1);
+        p.setNumPickups (1);
+
+        auto spec = d.pickups[0].spec;
+        spec.poleBrightness = d.pickups[0].poleBrightness;
+        spec.coverLossDbAt4k = d.pickups[0].coverLossDbAt4k;
+        p.setPickupSpec (0, spec);
+        p.setSelector (PickupSelector::Bridge);
+
+        double power = 0.0;
+        const double delays[1] = { 200.0 };
+
+        for (int i = 0; i < 48000; ++i)
+        {
+            const double in[1] = { std::sin (constants::kTwoPi * 4000.0 * i / 48000.0) };
+            const double out = p.processStrings (in, delays, 1);
+            if (i > 24000) power += out * out;
+        }
+
+        return power;
+    };
+
+    const double alnico = levelAt4k ("alnico"), steel = levelAt4k ("steel"), ceramic = levelAt4k ("ceramic");
+    CHECK_MSG (steel < alnico * 0.95, "steel poles should dull the top: " + juce::String (10.0 * std::log10 (steel / alnico), 2) + " dB");
+    CHECK_MSG (ceramic > alnico * 1.02, "ceramic poles should brighten the top: " + juce::String (10.0 * std::log10 (ceramic / alnico), 2) + " dB");
+}
