@@ -86,7 +86,8 @@ private:
 };
 
 //==============================================================================
-class AdvancedPanel : public juce::Component
+class AdvancedPanel : public juce::Component,
+                      private juce::ComboBox::Listener
 {
 public:
     explicit AdvancedPanel (LuthierAudioProcessor& processor);
@@ -226,6 +227,13 @@ private:
     void buildColumn1();
     void buildColumn2();
     void buildColumn3();
+
+    /*  gui-integration.md 0.7 / 4.1 (GI-7, GI-35): the WHAMMY group only means
+        anything once a bridge with an arm is fitted - a hardtail shows no
+        bar, so there is nothing to dive, pull up, spring, or lock. Absent,
+        not greyed. */
+    void updateBridgeVisibility();
+    void comboBoxChanged (juce::ComboBox*) override;
 
     /** Column 4: the tab strip and the panels behind it (section 4.4). */
     void buildWorkspace();

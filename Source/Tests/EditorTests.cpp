@@ -450,6 +450,71 @@ LUTHIER_TEST (Editor, theModesThatChangeTheLayoutTakeEffectAndUndoThemselves)
 }
 
 //==============================================================================
+/*  GI-7 / GI-35: the WHAMMY group means nothing on a hardtail - no bar, no
+    dive, no spring - so it is absent rather than greyed, alongside
+    BassTechniques::theSlapGroupIsShownOnlyOnABass's SLAP group. */
+LUTHIER_TEST (Editor, theWhammyPanelIsAbsentOnAHardtail)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+
+    if (editor == nullptr)
+    {
+        CHECK_MSG (false, "no editor to check the whammy panel on");
+        return;
+    }
+
+    editor->setVisible (true);
+    editor->setSize (LuthierAudioProcessorEditor::defaultWidth, LuthierAudioProcessorEditor::defaultHeight);
+    CHECK (editor->keyPressed (shortcutFor ("toggleAdvanced")));
+
+    auto* advanced = findOne<AdvancedPanel> (*editor);
+    CHECK (advanced != nullptr);
+
+    if (advanced == nullptr)
+        return;
+
+    juce::Array<LuthierKnob*> knobs;
+    collect<LuthierKnob> (*advanced, knobs);
+
+    juce::Array<LuthierChoice*> choices;
+    collect<LuthierChoice> (*advanced, choices);
+
+    LuthierKnob* whammyPos = nullptr;
+
+    for (auto* k : knobs)
+        if (k->getParameterId() == ParamIDs::whammyPos)
+            whammyPos = k;
+
+    LuthierChoice* bridgeChoice = nullptr;
+
+    for (auto* c : choices)
+        if (c->getLearnParameterId() == ParamIDs::bridgeType)
+            bridgeChoice = c;
+
+    CHECK (whammyPos != nullptr && bridgeChoice != nullptr);
+
+    if (whammyPos == nullptr || bridgeChoice == nullptr)
+        return;
+
+    // Not the attachment's own path (that updates via an AsyncUpdater a
+    // console test never pumps): driving the ComboBox itself is exactly what
+    // a user's selection does, synchronously, through the same listener this
+    // row wires up.
+    auto& box = bridgeChoice->getComboBox();
+    const int lastIndex = box.getNumItems() - 1;
+    CHECK (lastIndex > 0);
+
+    box.setSelectedItemIndex (0, juce::sendNotificationSync);   // "Fixed / Hardtail"
+    CHECK_MSG (! whammyPos->isVisible(), "the whammy knob is still visible on a hardtail");
+
+    box.setSelectedItemIndex (lastIndex, juce::sendNotificationSync);
+    CHECK_MSG (whammyPos->isVisible(), "the whammy knob did not come back once a whammy bridge was chosen");
+}
+
+//==============================================================================
 /*  Every Options page can be selected, and selecting it puts that page on screen.
 
     The five tabs are General plus the four pages the extension specs added
