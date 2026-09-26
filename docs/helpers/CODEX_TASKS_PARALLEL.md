@@ -1,3 +1,8 @@
+> REASSIGNED 2026-09-26: doubler, notation-export, qa-rtsafety, qa-robustness were
+> not completed by Codex (empty branches) and are now being finished by Claude helpers
+> on claude/luthier-{feat2-doubler,feat2-notation,qa-rtsafety,qa-robustness}. CODEX: SKIP
+> these four; do not recreate or push them. Take only lanes not marked reassigned.
+
 # Codex task board — PARALLEL SET (for the coordinator's 3 subagents)
 
 Run these ALONGSIDE the phase-1 lanes the coordinator is already doing
