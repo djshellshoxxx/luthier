@@ -1349,3 +1349,84 @@ LUTHIER_TEST (Combo, notesBelowTheRangeAreDroppedAndInRangeNotesSound)
     CHECK_MSG (play (lowest) > 1.0e-3, "the lowest open string did not sound");
     CHECK_MSG (play (lowest + 12) > 1.0e-3, "a pitch an octave above the lowest string did not sound");
 }
+
+//==============================================================================
+/*  auto-articulation.md AA-42 (FEAT-ASSIST): Performance Assist on, crossed with
+    Slide Mode, feedback, the E-Bow, whammy, capo 5, drop D, a 12-string and a
+    5-string bass, in all eight styles, every ComboHarness phrase: the output is
+    finite, bounded and present, and every note the capture saw lies on a
+    string of the instrument, between its nut (or capo) and its last fret. */
+LUTHIER_TEST (Combo, performanceAssistAcrossContexts)
+{
+    FindingLog log { "Combo.performanceAssist" };
+
+    struct Context
+    {
+        const char* name;
+        std::function<void (Rig&)> setup;
+    };
+
+    const std::vector<Context> contexts =
+    {
+        { "slide mode", [] (Rig& r) { r.setIndex (ParamIDs::slideGuitar, 1); } },
+        { "feedback",   [] (Rig& r) { r.setPlain (ParamIDs::feedbackAmount, 60.0f); } },
+        { "e-bow",      [] (Rig& r) { r.setIndex (ParamIDs::ebowEnable, 1); } },
+        { "whammy",     [] (Rig& r) { r.setNormalised (ParamIDs::whammyPos, 0.8f); } },
+        { "capo 5",     [] (Rig& r) { r.setIndex (ParamIDs::capoFret, 5); } },
+        { "drop D",     [] (Rig& r) { r.setIndex (ParamIDs::tuningPreset, (int) TuningPreset::DropD); } },
+        { "12-string",  [] (Rig& r) { r.setIndex (ParamIDs::guitarType, (int) GuitarType::TwelveString); } },
+        { "5-string",   [] (Rig& r) { r.setIndex (ParamIDs::guitarType, (int) GuitarType::FiveStringBass); } },
+    };
+
+    const int styles = juce::jmax (1, (int) std::round (AutoArticulationStyles::kNumStyles * juce::jmin (1.0, scale())));
+
+    for (const auto& context : contexts)
+    {
+        for (int style = 0; style < styles; ++style)
+        {
+            for (int ph = 0; ph < (int) Phrase::numPhrases; ++ph)
+            {
+                Rig rig;
+                rig.p().resetEverything();
+                context.setup (rig);
+                rig.setIndex (ParamIDs::aaEnabled, 1);
+                rig.setIndex (ParamIDs::aaStyle, style);
+                rig.setIndex (ParamIDs::playingMode, ph % 2 == 0 ? (int) PlayingMode::Mono : (int) PlayingMode::Poly);
+                rig.apply();
+                rig.processSilence (2);
+
+                const auto stats = rig.render ((Phrase) ph, 1.0);
+                const juce::String label = juce::String (context.name) + " style=" + AutoArticulationStyles::get (style).name
+                                         + " phrase=" + phraseName ((Phrase) ph);
+
+                Verdict v;
+                v.expectDecay = false;        // an E-Bow, feedback and a slide sustain by design
+                v.checkIdleFloor = false;
+                judgeAndLog (ctx, log, rig, label, stats, v);
+
+                // Every captured note is on a string, inside its range.
+                auto& capture = rig.p().getPerformanceCapture();
+                capture.drain();
+                auto& tuning = rig.p().getEngine().getTuningEngine();
+                const int strings = rig.p().getEngine().getNumStrings();
+
+                for (const auto& note : capture.getNotes())
+                {
+                    ++ctx.checks;
+                    const bool inRange = note.stringIndex >= 0 && note.stringIndex < strings && note.fret >= -1.0e-6
+                                         && note.fret <= tuning.getHighestPlayableFret (note.stringIndex) + 1.0e-6;
+
+                    if (! inRange)
+                    {
+                        const auto why = "note " + juce::String (note.midiNote) + " on string " + juce::String (note.stringIndex)
+                                       + " fret " + juce::String (note.fret, 2) + " is outside the string";
+                        ctx.fail (why + " | " + label);
+                        log.add (label, why);
+                    }
+                }
+            }
+        }
+    }
+
+    log.flush();
+}
