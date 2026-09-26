@@ -334,6 +334,10 @@ LUTHIER_TEST (Controllers, cc11MovesTheMasterLevel)
 {
     LuthierAudioProcessor processor;
     processor.prepareToPlay (kSr, kBlock);
+
+    // The raw CC, whatever calibration another run left in the user's config.
+    processor.getExpression().remove (11);
+    processor.serviceExpressionCalibration();
     renderBlocks (processor, 2);
 
     auto& bus = processor.getEngine().getMasterBus();
@@ -344,7 +348,7 @@ LUTHIER_TEST (Controllers, cc11MovesTheMasterLevel)
     renderBlocks (processor, 1, &midi);
     processor.getParameterBridge().applyToEngine();
 
-    CHECK_NEAR (processor.getEngine().getMidiInterpreter().getMasterLevel(), 0.5, 0.02);   // CC value to 0..1 as the interpreter maps it
+    CHECK_NEAR (processor.getEngine().getMidiInterpreter().getMasterLevel(), 64.0 / 127.0, 0.01);
     CHECK_MSG (bus.getGainDb() < unity - 5.0, "CC 11 at half left the master at "
                                                  + juce::String (bus.getGainDb(), 1) + " dB");
 
@@ -485,4 +489,57 @@ LUTHIER_TEST (Controllers, linnstrumentGuitarModeMapsRowsToStrings)
 
     if (out.getNumBends() == 1)
         CHECK_NEAR (out.getBend (0).cents, 0.5 * linn.memberPitchBendSemis * 100.0, 1.0);
+}
+
+//==============================================================================
+/*  PT-22 (docs/PLAYING_TECHNIQUES.md, CC 64 / CC 66): the sustain pedal keeps
+    every released note ringing until it lifts; sostenuto keeps only the notes
+    that were down when it was pressed. */
+LUTHIER_TEST (Technique, sustainRingsAndSostenutoHoldsOnlyWhatIsDown)
+{
+    // A key let go under a pedal is a note-off that lets the string ring
+    // (letRing); lifting the pedal is a plain note-off that stops it.
+    auto letRingOffs = [] (const PlayEventQueue& q, bool wanted)
+    {
+        int n = 0;
+
+        for (int i = 0; i < q.getNumNoteOffs(); ++i)
+            n += q.getNoteOff (i).letRing == wanted ? 1 : 0;
+
+        return n;
+    };
+
+    // ---- sustain ---------------------------------------------------------------
+    {
+        MpeFixture f;
+        f.send (juce::MidiMessage::controllerEvent (1, 64, 127));
+        CHECK (f.noteOn (1, 52) >= 0);
+
+        auto out = f.send (juce::MidiMessage::noteOff (1, 52));
+        CHECK_MSG (letRingOffs (out, false) == 0 && letRingOffs (out, true) == 1,
+                   "a note released under the sustain pedal was stopped");
+        CHECK (f.interpreter.isSustainPedalDown());
+
+        out = f.send (juce::MidiMessage::controllerEvent (1, 64, 0));
+        CHECK_MSG (letRingOffs (out, false) == 1, "lifting the pedal stopped " + juce::String (letRingOffs (out, false)) + " strings");
+    }
+
+    // ---- sostenuto -------------------------------------------------------------
+    {
+        MpeFixture f;
+        CHECK (f.noteOn (1, 52) >= 0);                                   // A, held
+        f.send (juce::MidiMessage::controllerEvent (1, 66, 127));        // catches A only
+        CHECK (f.interpreter.isSostenutoDown());
+
+        CHECK (f.noteOn (1, 64) >= 0);                                   // B, after the pedal
+        auto out = f.send (juce::MidiMessage::noteOff (1, 64));
+        CHECK_MSG (letRingOffs (out, false) == 1, "sostenuto held a note that was not down when it was pressed");
+
+        out = f.send (juce::MidiMessage::noteOff (1, 52));
+        CHECK_MSG (letRingOffs (out, true) == 1 && letRingOffs (out, false) == 0,
+                   "sostenuto did not hold the note that was down");
+
+        out = f.send (juce::MidiMessage::controllerEvent (1, 66, 0));
+        CHECK (letRingOffs (out, false) == 1);
+    }
 }

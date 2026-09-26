@@ -18,3 +18,5 @@
 - [env] The shared `/home/user/luthier/ThirdParty/JUCE` became a symlink to itself partway through the sweep, which broke every worktree build. This worktree now has its own untracked clones of JUCE 8.0.10 and clap-juce-extensions@55525c9 (the versions `scripts/ci_build.sh` pins) in `ThirdParty/`.
 - [GD-10] The next-strum arrow is a separate component (`UI/NextStrumArrow`). The Easy rhythm readout now shows only the chord.
 - [GD-26] Deferred: a `kill_switch_active` parameter would be a new automatable parameter. The momentary toggle it needs (UW-14) is in place.
+- [PT-11] The PLAYING_TECHNIQUES pinch formula (`2 + floor(velocity*3)`) was superseded by harmonic-realism 3 (REALISM-B), where the partial follows the thumb's node at the pick position. The doc now says so, and `HarmonicRealism::HR10_pinchHarmonic` covers it.
+- [PT-22] Bug fixed: lifting the sustain pedal (or sostenuto) never stopped the strings it had held. The loop that should have found them did nothing, so they rang to natural decay. `MidiInterpreter::releasePedalHeldStrings` now sends a plain note-off for them.

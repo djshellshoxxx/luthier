@@ -971,6 +971,7 @@ void MidiInterpreter::emitVoicedNote (const VoicedNote& note, int64_t timestamp,
 
     slots[(size_t) s].midiNote = note.midiNote;
     slots[(size_t) s].held = true;
+    slots[(size_t) s].pedalRinging = false;   // SPEC-SWEEP PT-22: a new note owns the string
     slots[(size_t) s].startedAt = timestamp;
     slots[(size_t) s].releaseDueAt = -1;
 }
@@ -1125,6 +1126,8 @@ void MidiInterpreter::flushDeferredReleases (int64_t blockStartSample, int numSa
         e.letRing = slot.releaseWasLetRing;
         out.addNoteOff (e);
 
+        slot.pedalRinging = slot.releaseWasLetRing;   // SPEC-SWEEP PT-22
+        slot.pedalNote = slot.midiNote;
         slot.held = false;
         slot.midiNote = -1;
         slot.bendCents = 0.0;
@@ -1133,6 +1136,32 @@ void MidiInterpreter::flushDeferredReleases (int64_t blockStartSample, int numSa
 
         if (technique != nullptr && ! slot.releaseWasLetRing)
             technique->noteEnded (s, 0);
+    }
+}
+
+void MidiInterpreter::releasePedalHeldStrings (bool sustainLifted, int blockOffset, PlayEventQueue& out) noexcept
+{
+    for (int s = 0; s < numStrings; ++s)
+    {
+        auto& slot = slots[(size_t) s];
+
+        if (slot.held || ! slot.pedalRinging)
+            continue;
+
+        // Sostenuto lifting leaves a string the sustain pedal still holds, and
+        // the other way round.
+        if (sustainLifted ? (sostenutoDown && slot.sostenutoHeld) : sustainDown)
+            continue;
+
+        NoteOffEvent e;
+        e.stringIndex = s;
+        e.midiNote = slot.pedalNote;
+        e.sampleOffset = blockOffset;
+        e.letRing = false;
+        out.addNoteOff (e);
+
+        slot.pedalRinging = false;
+        slot.pedalNote = -1;
     }
 }
 
@@ -1174,6 +1203,8 @@ void MidiInterpreter::releaseString (int stringIndex, int blockOffset, PlayEvent
     e.letRing = letRing;
     out.addNoteOff (e);
 
+    slot.pedalRinging = letRing;   // SPEC-SWEEP PT-22
+    slot.pedalNote = slot.midiNote;
     slot.held = false;
     slot.midiNote = -1;
     slot.bendCents = 0.0;
@@ -1201,15 +1232,14 @@ void MidiInterpreter::handleController (int cc, int value, int channel,
     {
         const bool down = value >= 64;
 
-        if (sustainDown && ! down)
-        {
-            // Releasing the pedal drops every string whose key is already up.
-            for (int s = 0; s < numStrings; ++s)
-                if (! slots[(size_t) s].held && ! slots[(size_t) s].sostenutoHeld)
-                    continue;
-        }
-
+        const bool lifted = sustainDown && ! down;
         sustainDown = down;
+
+        // Releasing the pedal drops every string whose key is already up (the
+        // loop that was here found them and did nothing: SPEC-SWEEP PT-22).
+        if (lifted)
+            releasePedalHeldStrings (true, blockOffset, out);
+
         return;
     }
 
@@ -1222,8 +1252,11 @@ void MidiInterpreter::handleController (int cc, int value, int channel,
             for (int s = 0; s < numStrings; ++s)
                 slots[(size_t) s].sostenutoHeld = slots[(size_t) s].held;
         }
-        else if (! down)
+        else if (! down && sostenutoDown)
         {
+            sostenutoDown = false;
+            releasePedalHeldStrings (false, blockOffset, out);   // SPEC-SWEEP PT-22
+
             for (int s = 0; s < numStrings; ++s)
                 slots[(size_t) s].sostenutoHeld = false;
         }

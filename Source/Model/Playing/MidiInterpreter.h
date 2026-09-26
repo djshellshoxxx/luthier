@@ -293,6 +293,11 @@ private:
         int64_t startedAt = 0;
         int64_t releaseDueAt = -1;
         bool releaseWasLetRing = false;
+
+        /*  SPEC-SWEEP (PT-22): released while a pedal held it, so still ringing
+            open; lifting the pedal stops it. The note it was, for the note-off. */
+        bool pedalRinging = false;
+        int pedalNote = -1;
     };
 
     void handleNoteOn (int midiNote, int channel, double velocity,
@@ -312,6 +317,9 @@ private:
 
     int stringForChannel (int channel) const noexcept;
     void releaseString (int stringIndex, int blockOffset, PlayEventQueue& out) noexcept;
+
+    /** SPEC-SWEEP (PT-22): the pedal came up; stop what it was holding. */
+    void releasePedalHeldStrings (bool sustainLifted, int blockOffset, PlayEventQueue& out) noexcept;
 
     double sr = 44100.0;
     int numStrings = 6;
