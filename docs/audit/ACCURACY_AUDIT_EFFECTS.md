@@ -130,11 +130,44 @@ covered by its own regression tests.
 ## Tests run
 
 Built `LuthierTests` (Release/Ninja/clang via `scripts/setup_linux.sh`) and
-ran the full suite headless under `xvfb-run`. All effects/technique-relevant
-suites pass: `Feedback` (6/6), `Buzz`, `Scrape`, `Slap`, `Squeak`, `PickNoise`,
-`NoisePool`, `Slide`, `HarmonicRealism` (`HR01`–`HR19`, 19/19), `Effects`,
-`Amp`, `ReviewRegression` (incl. both oversampler regressions), `Latency`.
-The only failure in the full run, `FacesIntegration::theAdvancedAmpSectionHasItsControlsOnTheFace`,
-is a GUI knob-size layout check unrelated to audio DSP (pre-existing on this
-branch, not touched by anything in this audit's scope) — see
-`build/logs/full_run.log`.
+ran the full suite headless under `xvfb-run`: **1369 tests, 804347 checks,
+1362 passed / 7 failed** (`build/logs/full_run.log`). Every
+effects/technique-relevant suite in this audit's scope passes: `Feedback`
+(6/6, incl. `eachStringHearsItsOwnNote` and
+`aLoudRigTakesOverAndACleanOneDoesNot`), `Buzz`, `Scrape`, `Slap`, `Squeak`,
+`PickNoise`, `NoisePool`, `Slide`, `HarmonicRealism` (`HR01`–`HR19`, 19/19),
+`Effects`, `Amp`, `ReviewRegression` (incl. both oversampler regressions),
+`Latency`. No code in this audit's scope was changed, so this is a baseline
+read of the branch, not a check against any push of mine.
+
+The 7 failures, none in this audit's scope (effects/technique DSP), for the
+next person touching that area:
+
+- `Combo::everyFactoryPresetPlaysEveryPhrase` and
+  `Combo::snapshotsAndPresetMorph` — both flag preset **"P-Bass Flatwound"**
+  (`Source/Presets/FactoryPresets.cpp`) as **completely silent** (`noteRms`
+  exactly `0.0000000`) across every phrase type (single note, bend,
+  hammer-on, harmonic, fast repeat). Exact-zero output on a plain single
+  note means nothing downstream of the string excitation ever produces a
+  signal, not a quiet mix — this looks like a string/pickup/instrument
+  configuration bug (the preset is `useFingers=1`, `Flatwound`, `OldStrings`,
+  `Flesh` on a P-Bass), which is the other audit's territory, not an
+  effects-chain issue. I checked its one pedal (`Comp`, a `CompressorPedal`)
+  and its `RoomEngine` mix (0.08) — neither can produce hard-zero output
+  from a nonzero input, and the cabinet's 8×10 bass IRs are present on disk
+  (not missing/LFS-pointer stubs), so it isn't an effects-side or
+  missing-resource cause. Not investigated further; flagging for whoever
+  owns strings/pickups.
+- `everyAutomatableParameterHasAVisibleControl`, `CQ22_everyTimerDrivenUiClassIsRegisteredOrAllowListed`
+  — GUI/editor reachability checks, not audio.
+- `ON02_OffPathMatchesGoldenHashes` — normalisation golden-hash comparison;
+  could be this sandbox's compiler/float environment differing from
+  whatever generated the golden hashes, not investigated.
+- `CQ13_scenarioBudgets`, `CQ10_aRingingNoteKeepsItsStagesUntilReExcited` —
+  CPU-quality-mode budget/stage tests, not accuracy.
+
+An earlier, smaller run of mine (before the full suite) also logged
+`FacesIntegration::theAdvancedAmpSectionHasItsControlsOnTheFace` as failing;
+it passed cleanly in this full run, so that looks like ordering/flakiness in
+a partial run under `xvfb`, not a real failure — the full-suite result above
+is the one to trust.
