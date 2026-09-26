@@ -1286,3 +1286,479 @@ LUTHIER_TEST (MicPlacement, speakersVaryALittleAndDeterministically)
     CHECK (cab.getPlacementStage (0).getCurrentTerms().isIdentity());
     CHECK (cab.getMicPlacement (0).speaker == 5);
 }
+
+//==============================================================================
+// MP-20
+namespace
+{
+    std::vector<float> renderPresetPhrase (LuthierAudioProcessor& p, int blocks)
+    {
+        std::vector<float> out;
+        juce::AudioBuffer<float> buffer (juce::jmax (2, p.getTotalNumOutputChannels()), 256);
+
+        for (int b = 0; b < blocks; ++b)
+        {
+            juce::MidiBuffer midi;
+
+            if (b % 40 == 0)
+                for (int note : { 40, 47, 52, 56, 59, 64 })
+                    midi.addEvent (juce::MidiMessage::noteOn (1, note + (b / 40) % 5, (juce::uint8) 96), 0);
+
+            if (b % 40 == 30)
+                midi.addEvent (juce::MidiMessage::allNotesOff (1), 0);
+
+            buffer.clear();
+            p.processBlock (buffer, midi);
+            out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 256);
+        }
+
+        return out;
+    }
+
+    bool loadFactory (LuthierAudioProcessor& p, const juce::String& name)
+    {
+        auto& presets = p.getPresetManager();
+
+        for (int i = 0; i < presets.getNumPresets(); ++i)
+            if (presets.getPreset (i)->name == name)
+            {
+                const bool ok = presets.loadPreset (i);
+                p.getParameterBridge().applyAllNow();
+                return ok;
+            }
+
+        return false;
+    }
+}
+
+LUTHIER_TEST (MicPlacement, acousticMicsOffCostNothingAndChangeNothing)
+{
+    /*  The pre-feature build's reference render of every factory preset was
+        checked bit-identical (md5, LuthierRender --audition "Open Chords",
+        32-bit float) when this landed - docs/coverage/FEAT-MIC.md. Here: at
+        ac_mic_mix = 0 the model never runs, and nothing about the external
+        mics - where they are, which mics, how many - reaches the output. */
+    std::vector<float> reference;
+
+    for (int pass = 0; pass < 2; ++pass)
+    {
+        auto p = makeProcessor();
+        CHECK (loadFactory (*p, "Fingerstyle Folk"));
+        CHECK_NEAR (plainOf (p->getState(), ParamIDs::acMicMix), 0.0, 1.0e-9);
+
+        if (pass == 1)
+        {
+            auto& s = p->getState();
+            setPlain (s, ParamIDs::acMicAlong, 1.0f);
+            setPlain (s, ParamIDs::acMicDist, 80.0f);
+            setPlain (s, ParamIDs::acMic2On, 1.0f);
+            setPlain (s, ParamIDs::acMicBlend, 0.9f);
+            setPlain (s, ParamIDs::micTofMode, 1.0f);
+        }
+
+        const auto out = renderPresetPhrase (*p, 400);
+        CHECK (p->getEngine().getAcousticMicModel().getProcessCount() == 0);
+
+        if (pass == 0)
+            reference = out;
+        else
+            CHECK_MSG (out == reference, "the external mics changed the output at ac_mic_mix = 0");
+    }
+}
+
+//==============================================================================
+// MP-21
+LUTHIER_TEST (MicPlacement, acousticPositionsHaveTheirVoices)
+{
+    for (auto shape : { BodyShape::Dreadnought, BodyShape::Parlor, BodyShape::Jumbo, BodyShape::Auditorium })
+    {
+        const auto lm = computeAcousticLandmarks (shape, 645.0);
+        const double fAir = 100.0;
+
+        const auto termsAt = [&] (double along)
+        {
+            AcousticMicModel::Input in;
+            in.landmarks = lm;
+            in.airHz = fAir;
+            in.mic = MicType::SM57;
+            in.placement = { along, 0.0, 10.0, 0.0 };
+            in.floorRho = 0.0;
+            return AcousticMicModel::evaluate (in);
+        };
+
+        const auto band = [] (const AcousticMicTerms& t, double lo, double hi)
+        {
+            double sum = 0.0;
+            for (int i = 0; i < 64; ++i)
+                sum += std::norm (AcousticMicModel::response (t, kSr, lo * std::pow (hi / lo, (i + 0.5) / 64.0)));
+            return 10.0 * std::log10 (sum / 64.0);
+        };
+
+        const auto hole = termsAt (3.0), fret = termsAt (4.0);
+        const double airHole = band (hole, 0.8 * fAir, 1.25 * fAir) - band (hole, 707.0, 1414.0);
+        const double airFret = band (fret, 0.8 * fAir, 1.25 * fAir) - band (fret, 707.0, 1414.0);
+        const double hfHole = band (hole, 4000.0, 8000.0) - band (hole, 707.0, 1414.0);
+        const double hfFret = band (fret, 4000.0, 8000.0) - band (fret, 707.0, 1414.0);
+
+        const juce::String name = BodyModels::getShapeName (shape);
+        CHECK_MSG (airHole - airFret >= 6.0, name + ": soundhole booms only " + juce::String (airHole - airFret, 2) + " dB more");
+        CHECK_MSG (hfFret - hfHole >= 3.0, name + ": 12th fret is only " + juce::String (hfFret - hfHole, 2) + " dB brighter");
+
+        // The 12th fret hears the strings directly; the soundhole mostly air.
+        CHECK (fret.send > hole.send);
+    }
+}
+
+//==============================================================================
+// MP-22
+LUTHIER_TEST (MicPlacement, acousticLandmarks)
+{
+    for (auto type : { GuitarType::Parlor, GuitarType::Dreadnought, GuitarType::Jumbo })
+    {
+        const auto& spec = GuitarLibrary::get (type);
+        const auto lm = computeAcousticLandmarks (spec);
+        CHECK_NEAR (lm.alongToMm (4.0), spec.scaleLengthMm * 0.5, 1.0);
+
+        for (int i = 0; i < 4; ++i)
+            CHECK (lm.alongMm[i] < lm.alongMm[i + 1]);
+
+        CHECK_NEAR (lm.alongToMm (2.0), 0.0, 1.0e-9);   // the saddle is the origin
+    }
+
+    // No soundhole: no air peak at along = 3.
+    {
+        const auto lm = computeAcousticLandmarks (BodyShape::Resonator, 635.0);
+        CHECK (! lm.hasSoundhole);
+        AcousticMicModel::Input in;
+        in.landmarks = lm;
+        in.placement = { 3.0, 0.0, 10.0, 0.0 };
+        CHECK (AcousticMicModel::evaluate (in).airDb == 0.0);
+    }
+
+    // A Workshop body swap moves the landmarks under the mic and keeps along.
+    {
+        AcousticMicModel model;
+        model.prepare (kSr, 256);
+        model.setPlacement (0, { 4.0, 0.0, 20.0, 0.0 });
+        model.setBody (computeAcousticLandmarks (BodyShape::Dreadnought, 645.0), 100.0);
+        const double before = model.getLandmarks().alongToMm (4.0);
+        model.setBody (computeAcousticLandmarks (BodyShape::Parlor, 610.0), 120.0);
+        CHECK_NEAR (model.getLandmarks().alongToMm (4.0), 305.0, 1.0e-6);
+        CHECK (before != model.getLandmarks().alongToMm (4.0));
+    }
+
+    // The engine hands the model its guitar's landmarks.
+    {
+        LuthierEngine engine;
+        engine.prepare (kSr, 256);
+        engine.setGuitarType (GuitarType::Parlor);
+        CHECK_NEAR (engine.getAcousticMicModel().getLandmarks().alongToMm (4.0),
+                    GuitarLibrary::get (GuitarType::Parlor).scaleLengthMm * 0.5, 1.0);
+    }
+}
+
+//==============================================================================
+// MP-23
+LUTHIER_TEST (MicPlacement, deterministicAndRateIndependent)
+{
+    // An LFO on mic_x, rendered twice: bit-identical.
+    std::vector<float> first;
+
+    for (int pass = 0; pass < 2; ++pass)
+    {
+        auto p = makeProcessor();
+        auto& matrix = p->getModMatrix();
+        matrix.getLfo (0).setRateHz (5.0);
+
+        ModRoute route;
+        route.sourceId = modSourceIdForSlot (ModSourceSlots::lfoBase);
+        route.destinationId = ParamIDs::micX;
+        route.depth = 0.5f;
+        CHECK (matrix.addRoute (route));
+
+        const auto out = renderPresetPhrase (*p, 200);
+
+        if (pass == 0)
+            first = out;
+        else
+            CHECK_MSG (out == first, "two renders with an LFO on mic_x differ");
+    }
+
+    // The curves agree across 44.1, 48 and 96 kHz below 16 kHz.
+    const MicPlacement cases[] = { at (0.0, 2.5), at (0.9, 2.5), at (0.62, 15.0, 45.0), at (1.2, 50.0, 70.0),
+                                   at (0.35, 30.0, 0.0, true), at (0.35, 0.5) };
+
+    for (const auto& c : cases)
+    {
+        auto in = makeInput (CabinetType::Cab4x12, SpeakerType::Vintage30, MicType::SM57, c.x, c.distCm, c.angleDeg);
+        in.rearAmount = c.rear ? 1.0 : 0.0;
+        const auto t = Model::evaluate (in);
+        double worst = 0.0;
+
+        for (double f = 20.0; f <= 16000.0; f *= 1.03)
+        {
+            const double r48 = PlacementResponse::magnitudeDb (t, 48000.0, f);
+            worst = juce::jmax (worst, std::abs (PlacementResponse::magnitudeDb (t, 44100.0, f) - r48));
+            worst = juce::jmax (worst, std::abs (PlacementResponse::magnitudeDb (t, 96000.0, f) - r48));
+        }
+
+        CHECK_MSG (worst <= 0.2, "rates disagree by " + juce::String (worst, 3) + " dB at u " + juce::String (c.x)
+                                   + ", " + juce::String (c.distCm) + " cm, " + juce::String (c.angleDeg) + " deg");
+    }
+}
+
+//==============================================================================
+// MP-24
+LUTHIER_TEST (MicPlacement, cpuWithinBudget)
+{
+    /*  performance-budget.md: one unit is 1% of one core of the reference CPU.
+        Measured as the share of real time a minute of audio takes. This
+        machine is not the reference; the gate is the spec's budget. */
+    const int n = (int) (60.0 * kSr);
+    const int block = 256;
+    const auto x = pinkish (block * 64);
+
+    const auto unitsFor = [&] (auto&& processOneBlock)
+    {
+        const auto t0 = juce::Time::getMillisecondCounterHiRes();
+
+        for (int start = 0; start < n; start += block)
+            processOneBlock (start);
+
+        const double seconds = (juce::Time::getMillisecondCounterHiRes() - t0) * 0.001;
+        return 100.0 * seconds / 60.0;
+    };
+
+    // CabinetEngine, two mics, placement, ToF, floor: the convolution is the
+    // anchor IR when the library is there, the procedural speaker when not.
+    CabinetEngine cab;
+    cab.prepare (kSr, block);
+    CabinetConfig cfg;
+    cab.setConfigA (cfg);
+    cfg.mic = MicType::RibbonR121;
+    cab.setConfigB (cfg);
+
+    for (int slot = 0; slot < 2; ++slot)
+    {
+        const auto file = IrLibrary::findCabIr (CabinetEngine::anchorConfig (slot == 0 ? cab.getConfigA() : cab.getConfigB()));
+        if (file.existsAsFile())
+            cab.loadImpulseResponse (slot, file);
+    }
+
+    cab.setDualMicEnabled (true);
+    cab.setMicBlend (0.5);
+    cab.setTimeOfFlightMode (TofMode::Physical);
+    juce::AudioBuffer<float> buf (2, block);
+
+    const double cabUnits = unitsFor ([&] (int start)
+    {
+        cab.setMicPlacement (0, at (0.35 + 0.3 * std::sin (start * 1.0e-5), 2.5 + start * 1.0e-6));
+        cab.setMicPlacement (1, at (0.6, 30.0, 45.0));
+
+        for (int ch = 0; ch < 2; ++ch)
+            buf.copyFrom (ch, 0, x.data() + (start % (block * 63)), block);
+
+        cab.processBlock (buf);
+    });
+
+    // The placement stage alone, per mic.
+    auto stage = makeStage (CabinetType::Cab4x12, SpeakerType::Vintage30, MicType::SM57, at (0.6, 20.0, 30.0));
+    std::vector<float> scratch ((size_t) block);
+
+    const double stageUnits = unitsFor ([&] (int start)
+    {
+        std::copy (x.begin() + (start % (block * 63)), x.begin() + (start % (block * 63)) + block, scratch.begin());
+        stage->process (scratch.data(), block);
+    });
+
+    // AcousticMicModel, two mics.
+    AcousticMicModel ac;
+    ac.prepare (kSr, block);
+    ac.setBody (computeAcousticLandmarks (BodyShape::Dreadnought, 645.0), 100.0);
+    ac.setSecondMicOn (true);
+    ac.setTimeOfFlightMode (TofMode::Physical);
+    std::vector<double> strings ((size_t) block), out ((size_t) block);
+
+    const double acUnits = unitsFor ([&] (int start)
+    {
+        const float* body = x.data() + (start % (block * 63));
+
+        for (int i = 0; i < block; ++i)
+            strings[(size_t) i] = body[i];
+
+        ac.processBlock (body, strings.data(), out.data(), block);
+    });
+
+    std::cout << "    MP-24: cabinet (2 mics) " << cabUnits << " units, stage " << stageUnits
+              << " units per mic, acoustic mics (2) " << acUnits << " units\n";
+
+    CHECK_MSG (cabUnits <= 0.5, "CabinetEngine with two mics costs " + juce::String (cabUnits, 3) + " units");
+    CHECK_MSG (stageUnits <= 0.05, "the placement stage costs " + juce::String (stageUnits, 3) + " units per mic");
+    CHECK_MSG (acUnits <= 0.12, "AcousticMicModel with two mics costs " + juce::String (acUnits, 3) + " units");
+}
+
+//==============================================================================
+// MP-25
+LUTHIER_TEST (MicPlacement, plotEqualsEngine)
+{
+    const MicPlacement cases[] = { at (0.0, 2.5), at (0.9, 2.5), at (0.62, 15.0, 45.0), at (1.2, 50.0, 70.0),
+                                   at (0.35, 30.0, 0.0, true), at (0.35, 100.0) };
+
+    for (const auto& c : cases)
+    {
+        auto stage = makeStage (CabinetType::Cab4x12, SpeakerType::Vintage30, MicType::SM57, c);
+        stage->snapToTargets();
+        const auto terms = stage->getCurrentTerms();
+        double worst = 0.0;
+
+        // Stepped sines: the level after the filters have settled.
+        for (double f = 40.0; f <= 16000.0; f *= 1.25)
+        {
+            const int n = (int) (0.25 * kSr);
+            auto y = sine (f, n, 0.25);
+            stage->reset();
+            stage->process (y.data(), n);
+
+            double in = 0.0, outE = 0.0;
+            const auto x = sine (f, n, 0.25);
+
+            for (int i = n / 2; i < n; ++i)
+            {
+                in += (double) x[(size_t) i] * x[(size_t) i];
+                outE += (double) y[(size_t) i] * y[(size_t) i];
+            }
+
+            const double measured = 10.0 * std::log10 (outE / in);
+            worst = juce::jmax (worst, std::abs (measured - PlacementResponse::magnitudeDb (terms, kSr, f)));
+        }
+
+        CHECK_MSG (worst <= 0.3, "the plot and the stage differ by " + juce::String (worst, 3) + " dB");
+    }
+}
+
+//==============================================================================
+// MP-33
+LUTHIER_TEST (MicPlacement, aUserIrBypassesItsMicsStage)
+{
+    CabinetEngine placed, identity;
+
+    for (auto* cab : { &placed, &identity })
+    {
+        cab->prepare (kSr, 256);
+        cab->setConfigA ({});
+    }
+
+    placed.setMicPlacement (0, at (0.9, 40.0, 60.0));
+    placed.setPlacementBypassed (0, true);
+    placed.getPlacementStage (0).snapToTargets();
+    CHECK (placed.isPlacementBypassed (0));
+
+    const auto noise = pinkish (24000);
+    double worst = 0.0;
+
+    for (int start = 0; start + 256 <= (int) noise.size(); start += 256)
+    {
+        juce::AudioBuffer<float> a (2, 256), b (2, 256);
+
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            a.copyFrom (ch, 0, noise.data() + start, 256);
+            b.copyFrom (ch, 0, noise.data() + start, 256);
+        }
+
+        placed.processBlock (a);
+        identity.processBlock (b);
+
+        for (int i = 0; i < 256; ++i)
+            worst = juce::jmax (worst, (double) std::abs (a.getSample (0, i) - b.getSample (0, i)));
+    }
+
+    CHECK_MSG (gainToDb (worst) <= -90.0, "bypassed stage nulls only to " + juce::String (gainToDb (worst), 1) + " dBFS");
+
+    // Through the processor: engaging a user IR in cab slot 1 bypasses mic 1.
+    auto p = makeProcessor();
+    const auto file = IrLibrary::findCabIr (CabinetConfig {});
+
+    if (file.existsAsFile())
+    {
+        auto& slot = p->getCabIrSlot (0);
+        CHECK (slot.load (file));
+        slot.setEngaged (true);
+        runBlocks (*p, 2);
+        CHECK (p->getEngine().getCabinetEngine().isPlacementBypassed (0));
+        CHECK (! p->getEngine().getCabinetEngine().isPlacementBypassed (1));
+        slot.setEngaged (false);
+        runBlocks (*p, 2);
+        CHECK (! p->getEngine().getCabinetEngine().isPlacementBypassed (0));
+    }
+}
+
+//==============================================================================
+// MP-35 (state and editions; the morph and rhythm-engine parts are in
+// CombinationTests' Combo.micPlacement*)
+LUTHIER_TEST (MicPlacement, allTwentyFiveRoundTripThroughEveryContainer)
+{
+    auto p = makeProcessor();
+    auto& s = p->getState();
+    RtRandom rng (2024);
+    std::map<juce::String, float> written;
+
+    for (const char* id : featMicIds())
+    {
+        auto* prm = s.getParameter (id);
+        prm->setValueNotifyingHost ((float) rng.nextDouble());
+        written[id] = prm->getValue();
+
+        // Automatable everywhere, with no edition gate (mic-placement.md 12).
+        CHECK_MSG (prm->isAutomatable(), juce::String (id) + " is not automatable");
+    }
+
+    const auto check = [&] (LuthierAudioProcessor& q, const juce::String& where)
+    {
+        for (const auto& [id, v] : written)
+            CHECK_MSG (std::abs (q.getState().getParameter (id)->getValue() - v) < 1.0e-6,
+                       id + " did not survive " + where);
+    };
+
+    // A preset.
+    {
+        const auto preset = p->getPresetManager().toVar ("All");
+        auto q = makeProcessor();
+        CHECK (q->getPresetManager().fromVar (preset));
+        check (*q, "a preset");
+    }
+
+    // Host state.
+    {
+        juce::MemoryBlock block;
+        p->getStateInformation (block);
+        auto q = makeProcessor();
+        q->setStateInformation (block.getData(), (int) block.getSize());
+        check (*q, "the host state");
+    }
+
+    // A snapshot.
+    {
+        CHECK (p->getSnapshots().capture (0, "placed"));
+        const auto bank = p->getSnapshots().toVar();
+        auto q = makeProcessor();
+        q->getSnapshots().fromVar (bank);
+        q->getSnapshots().setCrossfadeMs (0.0);
+        CHECK (q->getSnapshots().recall (0));
+        check (*q, "a snapshot");
+    }
+
+    // Audible: moving the mic changes what comes out.
+    {
+        auto q = makeProcessor();
+        const auto a = renderPresetPhrase (*q, 60);
+        setPlain (q->getState(), ParamIDs::micX, 1.0f);
+        setPlain (q->getState(), ParamIDs::micDist, 40.0f);
+        auto r = makeProcessor();
+        setPlain (r->getState(), ParamIDs::micX, 1.0f);
+        setPlain (r->getState(), ParamIDs::micDist, 40.0f);
+        r->getParameterBridge().applyAllNow();
+        const auto b = renderPresetPhrase (*r, 60);
+        CHECK_MSG (a != b, "moving the mic changed nothing");
+    }
+}

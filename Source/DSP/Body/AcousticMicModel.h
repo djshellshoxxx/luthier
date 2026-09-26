@@ -126,6 +126,9 @@ private:
         SlewedDelayLine tof;
         std::vector<double> tap;
         std::vector<float> scratch;
+        Input last;
+        bool lastValid = false;
+        int bodyVersion = -1;
     };
 
     void updateControl (Mic& m) noexcept;
@@ -148,6 +151,7 @@ private:
     double calibration = 1.0;
 
     std::array<Mic, 2> mics;
+    int bodyVersion = 0;
     int controlCountdown = 0;
     int processCount = 0;
 };

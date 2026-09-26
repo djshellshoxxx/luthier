@@ -241,6 +241,7 @@ void AcousticMicModel::reset() noexcept
 void AcousticMicModel::setBody (const AcousticLandmarks& lm, double hz) noexcept
 {
     landmarks = lm;
+    ++bodyVersion;
     airHz = hz > 0.0 ? hz : 100.0;
     recalibrate();
 }
@@ -315,8 +316,23 @@ void AcousticMicModel::updateControl (Mic& m) noexcept
     for (auto* s : { &m.sAlong, &m.sAcross, &m.sDist, &m.sAngle })
         s->next();
 
-    m.terms = evaluate (makeInput (m, true));
-    applyTerms (m);
+    // Only when something moved: a static mic costs its filters alone.
+    const auto in = makeInput (m, true);
+    const bool same = m.lastValid && m.last.mic == in.mic && m.last.airHz == in.airHz
+                      && m.last.placement.along == in.placement.along && m.last.placement.across == in.placement.across
+                      && m.last.placement.distCm == in.placement.distCm && m.last.placement.angleDeg == in.placement.angleDeg
+                      && m.last.levelMatch == in.levelMatch && m.last.floorRho == in.floorRho
+                      && m.last.calibration == in.calibration && m.bodyVersion == bodyVersion;
+
+    if (! same)
+    {
+        m.terms = evaluate (in);
+        applyTerms (m);
+        m.last = in;
+        m.lastValid = true;
+        m.bodyVersion = bodyVersion;
+    }
+
     m.gainSmooth.setTarget (m.terms.gain);
     m.sendSmooth.setTarget (m.terms.send);
     m.floorGainSmooth.setTarget (m.terms.floorGain);
@@ -332,6 +348,8 @@ void AcousticMicModel::processBlock (const float* body, const double* strings, d
     ++processCount;
 
     const int numMics = secondOn ? 2 : 1;
+    constexpr int chunk = MicPlacementStage::kControlInterval;
+    double y[chunk], send[chunk];
 
     // Controls advance in 32-sample steps, shared by both mics.
     for (int start = 0; start < numSamples; )
@@ -341,43 +359,48 @@ void AcousticMicModel::processBlock (const float* body, const double* strings, d
             for (int k = 0; k < numMics; ++k)
                 updateControl (mics[(size_t) k]);
 
-            controlCountdown = MicPlacementStage::kControlInterval;
+            controlCountdown = chunk;
         }
 
-        const int run = juce::jmin (controlCountdown, numSamples - start);
+        const int n = juce::jmin (controlCountdown, numSamples - start);
 
         for (int k = 0; k < numMics; ++k)
         {
             auto& m = mics[(size_t) k];
 
-            for (int i = start; i < start + run; ++i)
+            for (int i = 0; i < n; ++i)
             {
-                double y = m.top.process ((double) body[i]);
-                y = m.pres.process (y);
-                y = m.prox.process (y);
-                y = m.air.process (y);
-                y = m.low.process (y);
-                y = m.mid.process (y);
-                y = m.shelf.process (y);
-                y += m.sendSmooth.next() * m.sendHp.process (strings[i]);
+                y[i] = (double) body[start + i];
+                send[i] = strings[start + i];
+            }
 
-                // The floor bounce of a seated player.
-                m.floorBuffer[(size_t) m.floorIndex] = y;
+            for (auto* f : { &m.top, &m.pres, &m.prox, &m.air, &m.low, &m.mid, &m.shelf })
+                for (int i = 0; i < n; ++i)
+                    y[i] = f->process (y[i]);
+
+            for (int i = 0; i < n; ++i)
+                y[i] += m.sendSmooth.next() * m.sendHp.process (send[i]);
+
+            // The floor bounce of a seated player.
+            for (int i = 0; i < n; ++i)
+            {
+                m.floorBuffer[(size_t) m.floorIndex] = y[i];
                 const double fg = m.floorGainSmooth.next();
                 const double fd = juce::jlimit (1.0, (double) m.floorMask - 2.0, m.floorDelaySmooth.next());
                 const int di = (int) fd;
                 const double frac = fd - di;
                 const double a0 = m.floorBuffer[(size_t) ((m.floorIndex - di) & m.floorMask)];
                 const double a1 = m.floorBuffer[(size_t) ((m.floorIndex - di - 1) & m.floorMask)];
-                y += fg * m.floorLp.process (a0 + frac * (a1 - a0));
+                y[i] += fg * m.floorLp.process (a0 + frac * (a1 - a0));
                 m.floorIndex = (m.floorIndex + 1) & m.floorMask;
-
-                m.tap[(size_t) i] = sanitise (y * m.gainSmooth.next());
             }
+
+            for (int i = 0; i < n; ++i)
+                m.tap[(size_t) (start + i)] = sanitise (y[i] * m.gainSmooth.next());
         }
 
-        controlCountdown -= run;
-        start += run;
+        controlCountdown -= n;
+        start += n;
     }
 
     // Time of arrival between the two mics (mic-placement.md 2.3's rules).

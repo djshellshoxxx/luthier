@@ -238,6 +238,14 @@ public:
 private:
     void updateControl() noexcept;
     void applyTerms (bool glide) noexcept;
+    static bool sameInput (const MicPlacementModel::Input& a, const MicPlacementModel::Input& b) noexcept;
+
+    MicPlacementModel::Input lastInput;
+    bool lastInputValid = false;
+    int cachedSpeaker = -1;
+    CabinetType cachedCabinet = CabinetType::Cab4x12;
+    double cachedRho[3] = { 0.0, 0.0, 0.0 };
+    double cachedHeight = 0.62;
 
     double sr = 44100.0;
     bool prepared = false;

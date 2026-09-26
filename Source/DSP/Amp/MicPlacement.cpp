@@ -456,6 +456,8 @@ MicPlacementModel::Input MicPlacementStage::getCurrentInput() const noexcept
 
 void MicPlacementStage::snapToTargets() noexcept
 {
+    lastInputValid = false;
+    cachedSpeaker = -1;
     const int spk = resolveSpeaker (cabinet, target.speaker);
     double rho[3];
     MicPlacementModel::speakerVariation (cabinet, spk, rho);
@@ -511,28 +513,43 @@ void MicPlacementStage::updateControl() noexcept
 {
     // The switches' derived targets, then one step of every control smoother.
     const int spk = resolveSpeaker (cabinet, target.speaker);
-    double rho[3];
-    MicPlacementModel::speakerVariation (cabinet, spk, rho);
+
+    if (spk != cachedSpeaker || cabinet != cachedCabinet)
+    {
+        MicPlacementModel::speakerVariation (cabinet, spk, cachedRho);
+        cachedHeight = speakerHeightM (cabinet, spk);
+        cachedSpeaker = spk;
+        cachedCabinet = cabinet;
+    }
 
     sx.setTarget (juce::jlimit (-1.4, 1.4, std::isfinite (target.x) ? target.x : 0.35));
     sy.setTarget (juce::jlimit (-1.4, 1.4, std::isfinite (target.y) ? target.y : 0.0));
     sd.setTarget (juce::jlimit (0.0, 300.0, std::isfinite (target.distCm) ? target.distCm : 2.5));
     sa.setTarget (juce::jlimit (0.0, 180.0, std::isfinite (target.angleDeg) ? target.angleDeg : 0.0));
     sRear.setTarget (target.rear ? 1.0 : 0.0);
-    sHeight.setTarget (speakerHeightM (cabinet, spk));
+    sHeight.setTarget (cachedHeight);
 
     for (int i = 0; i < 3; ++i)
     {
-        sVar[i].setTarget (rho[i]);
+        sVar[i].setTarget (cachedRho[i]);
         sVar[i].next();
     }
 
     for (auto* s : { &sx, &sy, &sd, &sa, &sRear, &sHeight })
         s->next();
 
-    terms = MicPlacementModel::evaluate (getCurrentInput());
-    ++evaluateCount;
-    applyTerms (true);
+    // Nothing moved since the last evaluation: the terms stand (a static mic
+    // costs its filters and nothing else).
+    const auto in = getCurrentInput();
+
+    if (! lastInputValid || ! sameInput (in, lastInput))
+    {
+        terms = MicPlacementModel::evaluate (in);
+        ++evaluateCount;
+        applyTerms (true);
+        lastInput = in;
+        lastInputValid = true;
+    }
 
     gainSmooth.setTarget (terms.gain);
     rearMixSmooth.setTarget (terms.rearLowpass ? terms.rearAmount : 0.0);
@@ -541,72 +558,138 @@ void MicPlacementStage::updateControl() noexcept
     wetSmooth.setTarget (bypassTarget);
 }
 
+bool MicPlacementStage::sameInput (const MicPlacementModel::Input& a, const MicPlacementModel::Input& b) noexcept
+{
+    return a.cabinet == b.cabinet && a.speaker == b.speaker && a.mic == b.mic
+        && a.x == b.x && a.y == b.y && a.distCm == b.distCm && a.angleDeg == b.angleDeg
+        && a.rearAmount == b.rearAmount && a.variation[0] == b.variation[0]
+        && a.variation[1] == b.variation[1] && a.variation[2] == b.variation[2]
+        && a.speakerHeightM == b.speakerHeightM && a.levelMatch == b.levelMatch
+        && a.floorRho == b.floorRho && a.invertRearPolarity == b.invertRearPolarity;
+}
+
+namespace
+{
+    /** Runs one filter over a chunk, or nothing when it is an exact
+        pass-through (its state is then held at rest, so it restarts clean). */
+    inline void runFilter (TptSvf& f, double* x, int n) noexcept
+    {
+        if (f.isIdentity())
+        {
+            f.reset();
+            return;
+        }
+
+        for (int i = 0; i < n; ++i)
+            x[i] = f.process (x[i]);
+    }
+
+    /** One step of a smoother, or its value when it has arrived. */
+    inline double step (ExpSmoother& s) noexcept
+    {
+        return s.isSmoothing() ? s.next() : s.getCurrent();
+    }
+}
+
 void MicPlacementStage::process (float* data, int numSamples) noexcept
 {
     if (! prepared || data == nullptr || numSamples <= 0)
         return;
 
-    for (int i = 0; i < numSamples; ++i)
+    // Bypassed and settled: exactly nothing to do.
+    if (bypassTarget == 0.0 && ! wetSmooth.isSmoothing() && wetSmooth.getCurrent() == 0.0)
     {
-        if (--controlCountdown < 0)
+        controlCountdown = 0;
+        return;
+    }
+
+    double x[kControlInterval], y[kControlInterval];
+
+    for (int start = 0; start < numSamples; )
+    {
+        if (controlCountdown <= 0)
         {
             updateControl();
-            controlCountdown = kControlInterval - 1;
+            controlCountdown = kControlInterval;
         }
 
-        const double wet = wetSmooth.next();
-        const double x = (double) data[i];
+        const int n = juce::jmin (controlCountdown, numSamples - start);
 
-        double y = prox.process (x);
-        y = pres.process (y);
-        y = cap.process (y);
-        y = surr.process (y);
-        y = shelf2.process (shelf1.process (y));
+        for (int i = 0; i < n; ++i)
+            x[i] = y[i] = (double) data[start + i];
+
+        runFilter (prox, y, n);
+        runFilter (pres, y, n);
+        runFilter (cap, y, n);
+        runFilter (surr, y, n);
+        runFilter (shelf1, y, n);
+        runFilter (shelf2, y, n);
 
         // Through the back panel: glided per sample, so a rear toggle is a
         // crossfade rather than 32-sample steps.
+        if (rearMixSmooth.isSmoothing() || rearMixSmooth.getCurrent() != 0.0)
         {
-            const double lp = rearLp.process (y);
-            const double r = rearMixSmooth.next();
-
-            if (r != 0.0)
-                y += r * (lp - y);
-        }
-
-        // Floor bounce: a delayed, darkened copy off the floor image.
-        floorBuffer[(size_t) floorIndex] = y;
-        const double fg = floorGainSmooth.next();
-        const double fd = floorDelaySmooth.next();
-
-        if (fg > 0.0)
-        {
-            const double delay = juce::jlimit (1.0, (double) floorMask - 4.0, fd);
-            const int di = (int) delay;
-            const double frac = delay - di;
-
-            // 4-point Lagrange around the read point.
-            const double xm1 = floorBuffer[(size_t) ((floorIndex - di + 1) & floorMask)];
-            const double x0  = floorBuffer[(size_t) ((floorIndex - di) & floorMask)];
-            const double x1  = floorBuffer[(size_t) ((floorIndex - di - 1) & floorMask)];
-            const double x2  = floorBuffer[(size_t) ((floorIndex - di - 2) & floorMask)];
-            const double c0 = -frac * (frac - 1.0) * (frac - 2.0) / 6.0;
-            const double c1 = (frac + 1.0) * (frac - 1.0) * (frac - 2.0) / 2.0;
-            const double c2 = -(frac + 1.0) * frac * (frac - 2.0) / 2.0;
-            const double c3 = (frac + 1.0) * frac * (frac - 1.0) / 6.0;
-            const double reflected = c0 * xm1 + c1 * x0 + c2 * x1 + c3 * x2;
-            y += fg * floorLp.process (reflected);
+            for (int i = 0; i < n; ++i)
+            {
+                const double lp = rearLp.process (y[i]);
+                y[i] += rearMixSmooth.next() * (lp - y[i]);
+            }
         }
         else
         {
-            floorLp.process (0.0);
+            rearLp.reset();
         }
 
-        floorIndex = (floorIndex + 1) & floorMask;
+        // Floor bounce: a delayed, darkened copy off the floor image.
+        const bool floorActive = floorGainSmooth.isSmoothing() || floorGainSmooth.getCurrent() > 0.0;
 
-        y *= gainSmooth.next();
-        y = sanitise (y);
+        for (int i = 0; i < n; ++i)
+        {
+            floorBuffer[(size_t) floorIndex] = y[i];
 
-        data[i] = (float) (wet == 1.0 ? y : x + wet * (y - x));
+            if (floorActive)
+            {
+                const double fg = step (floorGainSmooth);
+                const double delay = juce::jlimit (1.0, (double) floorMask - 4.0, step (floorDelaySmooth));
+                const int di = (int) delay;
+                const double frac = delay - di;
+
+                // 4-point Lagrange around the read point.
+                const double xm1 = floorBuffer[(size_t) ((floorIndex - di + 1) & floorMask)];
+                const double x0  = floorBuffer[(size_t) ((floorIndex - di) & floorMask)];
+                const double x1  = floorBuffer[(size_t) ((floorIndex - di - 1) & floorMask)];
+                const double x2  = floorBuffer[(size_t) ((floorIndex - di - 2) & floorMask)];
+                const double c0 = -frac * (frac - 1.0) * (frac - 2.0) * (1.0 / 6.0);
+                const double c1 = (frac + 1.0) * (frac - 1.0) * (frac - 2.0) * 0.5;
+                const double c2 = -(frac + 1.0) * frac * (frac - 2.0) * 0.5;
+                const double c3 = (frac + 1.0) * frac * (frac - 1.0) * (1.0 / 6.0);
+                y[i] += fg * floorLp.process (c0 * xm1 + c1 * x0 + c2 * x1 + c3 * x2);
+            }
+
+            floorIndex = (floorIndex + 1) & floorMask;
+        }
+
+        if (! floorActive)
+        {
+            floorLp.reset();
+            floorDelaySmooth.snapToTarget();
+        }
+
+        // Signed gain, then the bypass crossfade.
+        const bool gainMoving = gainSmooth.isSmoothing();
+        const double gain = gainSmooth.getCurrent();
+        const bool wetMoving = wetSmooth.isSmoothing();
+
+        for (int i = 0; i < n; ++i)
+        {
+            const double g = gainMoving ? gainSmooth.next() : gain;
+            const double out = sanitise (y[i] * g);
+            const double wet = wetMoving ? wetSmooth.next() : wetSmooth.getCurrent();
+            data[start + i] = (float) (wet == 1.0 ? out : x[i] + wet * (out - x[i]));
+        }
+
+        controlCountdown -= n;
+        start += n;
     }
 }
 
