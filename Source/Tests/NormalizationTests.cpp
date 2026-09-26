@@ -1024,12 +1024,25 @@ namespace
             if (pos % step != 0 || pos == 0)
                 return;
 
+            /*  ParameterBridge::writtenSinceGuitarType decides with a 250 ms
+                wall-clock window whether a guitar-type change keeps earlier
+                writes (host-integration 3). Rendering speed differs with the
+                block size, so without this pause the session itself would
+                differ between block sizes, not the normalizer. */
+            juce::Thread::sleep (300);
+
             const int event = pos / step;
 
             if (event <= 6)
                 loadCombo (*p, presetsToLoad[event - 1], -1);
             else if (event <= 9)
-                loadCombo (*p, presetsToLoad[event - 7], 3 + event);
+            {
+                // A guitar-type change on its own: the bridge's wall-clock
+                // "written together" window (see above) never sees a preset's
+                // writes a moment before it.
+                setPlain (*p, ParamIDs::guitarType, (float) (3 + event));
+                p->getParameterBridge().applyAllNow();
+            }
             else if (model != nullptr)
                 model->setValueNotifyingHost (model->convertTo0to1 ((float) (event % model->choices.size())));
         });
@@ -1067,6 +1080,15 @@ LUTHIER_TEST (Normalization, ON16_OfflineDeterminism)
     // The gain curve does not depend on the block size.
     const auto small = renderSession (64, seconds);
     const auto large = renderSession (1024, seconds);
+
+    for (size_t i = 0; i < juce::jmin (small.gain.size(), large.gain.size()); ++i)
+        if (small.gain[i] != large.gain[i])
+        {
+            std::cout << "    block sizes diverge at sample " << i << " (" << i / kSr << " s): "
+                      << small.gain[i] << " vs " << large.gain[i] << std::endl;
+            break;
+        }
+
     CHECK (small.gain == large.gain);
     CHECK (small.gain == cold.gain);
 

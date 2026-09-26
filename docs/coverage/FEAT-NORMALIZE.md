@@ -127,7 +127,13 @@ table) valid.
    compiled-in catalog is ASCII.
 14. **Morph**: during a morph between presets, calibrations triggered by the
    morph's own structural preset loads are suppressed and the lerp rules.
-15. **Build fixes** outside the spec, needed after the merge: the headless
+15. **ON-16's session** changes the guitar type on its own (not straight
+   after a preset load) and pauses 300 ms of wall time before each event:
+   `ParameterBridge::writtenSinceGuitarType` keeps or replaces a guitar's
+   parameters by a 250 ms wall-clock window, so a preset load immediately
+   followed by a type change produced a different sound depending on how fast
+   the blocks rendered (engine behaviour, reported here, not changed).
+16. **Build fixes** outside the spec, needed after the merge: the headless
    renderer excluded `PluginEditorOnboarding.cpp` and now compiles
    `UiPreferences.cpp` (PresetManager reads it).
 
