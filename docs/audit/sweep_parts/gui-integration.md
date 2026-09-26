@@ -103,7 +103,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-97 (§16) | Panel right-click: collapse, reset panel, screenshot to clipboard, docs | - | - | - | MISSING |
 | GI-98 (§17) | All shortcuts rebindable; defaults match table | `Accessibility.cpp:buildDefaultShortcuts` | Options ACCESSIBILITY table | `Accessibility::shortcutDefaultsMatchTheCanonicalTable`, `Accessibility::shortcutsRebindAndRefuseClashes` | DONE |
 | GI-99 (§17) | Overlay/mode shortcuts: Tab, L, D, S, Ctrl+, , Ctrl+O, Ctrl+Shift+S, F1, Ctrl+] / Ctrl+[ | `PluginEditor::keyPressed` | - | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt`, `Editor::theWorkspaceTabShortcutsStepTheTabsInAdvancedModeOnly`, `HelpTab::f1AndTheHeaderOpenHelpOnThePanelYouAreIn` | DONE |
-| GI-100 (§17) | Action shortcuts: P, \ , [ ], 1-9, Shift+1-9, T, Ctrl+L, Ctrl+S/N/R/Shift+R, Ctrl+/, Ctrl+Z/Shift+Z, Ctrl+?, PgUp/PgDn, Ctrl+G, Ctrl+Alt+E, Ctrl+Shift+E — dispatch untested (kill toggles, not hold) | `PluginEditor::keyPressed` | - | `Editor::newPresetLoadsInitAndRevealSaysSoWhenThereIsNoFile` (Ctrl+N/Ctrl+Alt+E only) | NO-TEST |
+| GI-100 (§17) | Action shortcuts: P, \ , [ ], 1-9, Shift+1-9, T, Ctrl+L, Ctrl+S/N/R/Shift+R, Ctrl+/, Ctrl+Z/Shift+Z, Ctrl+?, PgUp/PgDn, Ctrl+G, Ctrl+Alt+E, Ctrl+Shift+E — dispatch untested (kill toggles, not hold) | `PluginEditor::keyPressed` | - | `Editor::everyActionShortcutDispatches` (all but the file-writing ones; workspace-tab steps in Advanced) | DONE |
 | GI-101 (§17) | W toggles Workshop | - | - | on visual: `toggleWorkshop` (9f67749) | OWNED |
 | GI-102 (§17) | Ctrl+T new tune; Space play/pause (TUNE-focused per DECISIONS) | `TunePlayer` | `TunePanel::keyPressed` | `TunePanel::theTransportAndSpaceDriveThePlayer`; Ctrl+T on tune-help (2327622) | OWNED |
 | GI-103 (§17) | Ctrl+E context-aware export (tune / preset / take) — always the audio ExportPanel outside a focused TUNE tab | `AudioExporter` | `PluginEditor` `export` -> `exportPanel` | - | PARTIAL |
@@ -149,4 +149,4 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-143 (§22) | Test: Slide toggle 100x during playback, no click, correct panels | `SlideEngine` | - | `Slide::switchingModeMidNoteIsClean` (1x); on visual `Stress::slideAndAdvancedRangeTogglesMidPlay` | OWNED |
 | GI-144 (§22) | Test: warning arc appears past stock max and disappears on return | - | `LuthierKnob` | `RangesUi::controlsFollowASwappedRangeAndMarkTheValue` | DONE |
 
-<!-- counts DONE=66 NO-GUI=0 NO-TEST=4 PARTIAL=34 MISSING=9 OWNED=31 DEFERRED=0 -->
+<!-- counts DONE=67 NO-GUI=0 NO-TEST=3 PARTIAL=34 MISSING=9 OWNED=31 DEFERRED=0 -->
