@@ -11,7 +11,7 @@ The setup geometry and sensed buzz are in and well tested: `SetupGeometry::clear
 | FB-5 (§2) | Modal amplitude sum_k A_k sin(k pi x/L) at each fret, block rate | `FretBuzz::displacementMm` (3 modes, pluck weights) | n/a | `Buzz.theHeatmapAgreesWithTheGenerator` | DONE |
 | FB-6 (§3.2) | `setup_buzz_threshold` trims +/-0.15 mm, not a mute | `sense` (trim = (t-0.5) x 0.3) | SETUP `threshold` | `Buzz.theThresholdIsATrimNotAMute` | DONE |
 | FB-7 (§4) | Generator: burst per contact at the fundamental while excess > 0 | `process` (`NoiseEvent::burstHz`) | n/a | `Buzz.buzzStopsAsTheNoteDecays` | DONE |
-| FB-8 (§4) | Spectrum metallic 3-6 kHz, centre rising with contact fret — no test | `process` (startHz 3-6 kHz by fret, metallic texture) | n/a | - | NO-TEST |
+| FB-8 (§4) | Spectrum metallic 3-6 kHz, centre rising with contact fret — no test | `process` (startHz 3-6 kHz by fret, metallic texture) | n/a | `Buzz.theCentreRisesWithTheContactFret` | DONE |
 | FB-9 (§4) | Fret material sets brightness (nickel-silver dull, stainless bright, EVO between) — no fret-material field exists | none | n/a | - | MISSING |
 | FB-10 (§4) | Level min(1, excess/0.3) scaled by fret height | `FretBuzz::levelFor` | SETUP `fretHeight` | `Buzz.fretHeightChangesLevelNotPosition` | DONE |
 | FB-11 (§4) | Envelope 0.5 ms attack, decay tracks excess (buzzes on attack, cleans up) | `process` (setSustainLevel / release) | n/a | `Buzz.buzzStopsAsTheNoteDecays` | DONE |
@@ -24,7 +24,7 @@ The setup geometry and sensed buzz are in and well tested: `SetupGeometry::clear
 | FB-18 (§6.2) | Heatmap updates at 30 Hz, greys after 2 s stale — implemented, untested | `BuzzHeatmap` (startTimerHz 30, isStale) | SETUP `heatmap` | - | NO-TEST |
 | FB-19 (§7) | Params with stock/advanced ranges in `buzz` family, +16 | `PhysicalRange.cpp` buzz rows | CHARACTER padlock | `Ranges.stockMatchesTheDeclaredRange`, `Ranges.everyPhysicalRangeIsValid` | DONE |
 | FB-20 (§7) | Legacy `fret_action` superseded by the geometry | `LuthierEngine::setSetupGeometry` (in-loop clipper from same setup) | hidden (GuiReach `intentionallyHidden`) | `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
-| FB-21 (§8) | Fret wear: worn fret lower (less buzz there), uneven crown raises neighbours — not implemented | none (`CharacterEngine` wear affects sustain only) | n/a | - | MISSING |
+| FB-21 (§8) | Fret wear: worn fret lower (less buzz there), uneven crown raises neighbours — not implemented | `SetupGeometry::fretWearMm` filled in `LuthierEngine::setSetupGeometry` from `CharacterEngine` | n/a | `Buzz.fretWearMovesTheBuzz` | DONE |
 | FB-22 (§8) | Slide Mode suggests the Slide setup style | `SlideGroup` `useSlideSetup` + low-action warning | CHARACTER > SLIDE | `SlideUi.theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` | DONE |
 | FB-23 (§8) | Bass defaults lower action (Factory low) | `Model/Guitar/BassDefaults.cpp` setupStyle 0 | n/a | `BassTechniques.bassDefaultsApplyOnLoad` | DONE |
 | FB-24 (§8) | Slap/pop drive the string into the frets (clack via buzz generator) | `SlapEngine::makeContactBuzz` with `fretBuzzModel` | n/a | `Slap.theClackIsTheFretBuzzGenerator`, `SlapWiring.theClackComesFromTheBuzzGenerator` | DONE |
@@ -39,6 +39,6 @@ The setup geometry and sensed buzz are in and well tested: `SetupGeometry::clear
 | FB-T7 (§9) | Test: sitar mode continuous | | n/a | `Buzz.sitarModeIsContinuous` | DONE |
 | FB-T8 (§9) | Test: heatmap matches audio — random 400-block run, not a 30 s engine performance | | n/a | `Buzz.theHeatmapAgreesWithTheGenerator` | DONE |
 | FB-T9 (§9) | Test: block-rate sensing within 0.2-unit budget at 6 voices — missing (visual's `PerfBudget.everyModuleWithinBudget` has no FretBuzz row) | | n/a | - | NO-TEST |
-| FB-T10 (§9) | Test: no allocation on the audio thread — missing | | n/a | - | NO-TEST |
+| FB-T10 (§9) | Test: no allocation on the audio thread — missing | n/a | n/a | `Buzz.noAllocationOnTheAudioThread` | DONE |
 
 <!-- counts DONE=27 NO-GUI=0 NO-TEST=6 PARTIAL=0 MISSING=3 OWNED=0 -->

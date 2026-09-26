@@ -144,6 +144,12 @@ public:
         Audio thread; never allocates. */
     void process (float* const* channels, int numChannels, int numSamples) noexcept;
 
+    /*  SPEC-SWEEP TM-6 (tone-match 1): the body slot replaces the body model's
+        response. `input` is what excites the body; `modelOutput` holds the
+        model's response to it and is blended toward the IR's by the mix. Mono,
+        audio thread, never allocates; untouched when the slot is not engaged. */
+    void processReplacing (const float* input, float* modelOutput, int numSamples) noexcept;
+
     /** The latency the convolution reports. Matches the built-in cabinet's, per
         tone-match 0.4. */
     int getLatencySamples() const noexcept;

@@ -48,7 +48,7 @@ namespace
         int count;
     };
 
-    // practice-tools 5: the four named, plus ten more.
+    // practice-tools 5: the five named, plus ten more (SPEC-SWEEP PT-38: was 14).
     const Progression kProgressions[EarTrainer::kNumProgressions] =
     {
         { "I-IV-V",            {  1,  4,  5,  0,  0,  0,  0,  0,  0,  0,  0,  0 },  3 },
@@ -64,7 +64,8 @@ namespace
         { "I-IV-I-V",          {  1,  4,  1,  5,  0,  0,  0,  0,  0,  0,  0,  0 },  4 },
         { "vi-V-IV-V",         { -6,  5,  4,  5,  0,  0,  0,  0,  0,  0,  0,  0 },  4 },
         { "I-vi-ii-V",         {  1, -6, -2,  5,  0,  0,  0,  0,  0,  0,  0,  0 },  4 },
-        { "IV-V-iii-vi",       {  4,  5, -3, -6,  0,  0,  0,  0,  0,  0,  0,  0 },  4 }
+        { "IV-V-iii-vi",       {  4,  5, -3, -6,  0,  0,  0,  0,  0,  0,  0,  0 },  4 },
+        { "I-IV-vi-V",         {  1,  4, -6,  5,  0,  0,  0,  0,  0,  0,  0,  0 },  4 }   // SPEC-SWEEP PT-38
     };
 
     /** The semitone offset of a major-scale degree from its root. */
@@ -283,8 +284,14 @@ juce::String ScaleTrainer::nextQuestion (juce::Random& random)
         case Mode::chordToneTrainer:
             // practice-tools 4: the chord-tone trainer asks for the third and
             // the seventh, which are the notes that carry the harmony.
-            question = "Play the 3rd and 7th of " + keyName + " " + scaleName;
+            // SPEC-SWEEP PT-35: both are wanted, inside the time limit.
+            question = "Play the 3rd and 7th of " + keyName + " " + scaleName
+                         + " (" + juce::String (timeLimitSeconds, 0) + " s)";
             expectedPitchClass = getPitchClassOfDegree (3);
+            chordTonesRemaining = 1 << expectedPitchClass;
+
+            if (numIntervals >= 7)
+                chordTonesRemaining |= 1 << getPitchClassOfDegree (7);
             break;
 
         case Mode::intervalTrainer:
@@ -306,10 +313,88 @@ juce::String ScaleTrainer::nextQuestion (juce::Random& random)
     return question;
 }
 
+int ScaleTrainer::getIntervalSemitones() const noexcept
+{
+    return expectedPitchClass >= 0 ? (expectedPitchClass - root + 12) % 12 : -1;
+}
+
+bool ScaleTrainer::answerInterval (int semitones)
+{
+    // SPEC-SWEEP PT-35: one answer per question.
+    if (mode != Mode::intervalTrainer || expectedPitchClass < 0)
+        return false;
+
+    const bool right = ((semitones % 12) + 12) % 12 == getIntervalSemitones();
+
+    if (right)
+        ++correct;
+
+    expectedPitchClass = -1;
+    return right;
+}
+
+int ScaleTrainer::getQuestionNotes (int* notes, int maxNotes) const noexcept
+{
+    if (notes == nullptr || maxNotes <= 0 || expectedPitchClass < 0)
+        return 0;
+
+    const int base = 48 + root;   // the key's root in the guitar's middle register
+    int count = 0;
+
+    auto add = [&] (int note) { if (count < maxNotes) notes[count++] = note; };
+    auto above = [base] (int pitchClass) { return base + ((pitchClass - base % 12) + 12) % 12; };
+
+    if (mode == Mode::intervalTrainer)
+    {
+        add (base);
+        add (above (expectedPitchClass));
+    }
+    else if (mode == Mode::chordToneTrainer)
+    {
+        add (base);
+
+        for (const int degree : { 3, 5, 7 })
+            if (degree <= numIntervals)
+                add (above (getPitchClassOfDegree (degree)));
+    }
+
+    return count;
+}
+
+bool ScaleTrainer::answer (int midiNote, double secondsSinceAsked)
+{
+    if (mode != Mode::chordToneTrainer)
+        return answer (midiNote);
+
+    // SPEC-SWEEP PT-35: late is missed.
+    if (expectedPitchClass < 0 || secondsSinceAsked > timeLimitSeconds)
+    {
+        expectedPitchClass = -1;
+        chordTonesRemaining = 0;
+        return false;
+    }
+
+    if (midiNote < lowNote || midiNote > highNote)
+        return false;
+
+    chordTonesRemaining &= ~(1 << (((midiNote % 12) + 12) % 12));
+
+    if (chordTonesRemaining != 0)
+        return false;
+
+    ++correct;
+    expectedPitchClass = -1;
+    return true;
+}
+
 bool ScaleTrainer::answer (int midiNote)
 {
     if (expectedPitchClass < 0)
         return false;
+
+    // SPEC-SWEEP PT-35: chord tones are timed; untimed, the clock is not used.
+    if (mode == Mode::chordToneTrainer)
+        return answer (midiNote, 0.0);
 
     // MODEL-GAPS: a note outside the set range is not an answer.
     if (midiNote < lowNote || midiNote > highNote)

@@ -57,6 +57,7 @@ namespace luthier
 {
 
 class PerformanceCapture;
+class IrSlot;   // SPEC-SWEEP TM-6
 
 //==============================================================================
 class LuthierEngine
@@ -368,6 +369,11 @@ public:
         and the slide bar. Null (the default) reports nothing. The capture must
         outlive the engine or be cleared first. */
     void setPerformanceCapture (PerformanceCapture* c) noexcept { perfCapture = c; }
+
+    /** SPEC-SWEEP TM-6 (tone-match 1): the TONE MATCH body IR slot, which
+        replaces the body's response while engaged. Owned by the caller, set
+        before audio starts; nullptr for none. */
+    void setBodyIrSlot (IrSlot* slot) noexcept { bodyIrSlot = slot; }
     PerformanceCapture* getPerformanceCapture() const noexcept { return perfCapture; }
 
     /*  ambiguity-resolutions 8 / routing-io 2 (MODEL-GAPS): Aux 1 (DI) taps the
@@ -754,6 +760,8 @@ private:
 
     // ---- MODEL-GAPS: capture reporting and fingerstyle bass --------------------
     PerformanceCapture* perfCapture = nullptr;
+    IrSlot* bodyIrSlot = nullptr;           // SPEC-SWEEP TM-6
+    std::vector<float> bodyIrInput;         // SPEC-SWEEP TM-6: the body's excitation, kept for the IR
     juce::int64 hostBlockStart = 0;
     ChordSymbol lastCapturedChord;
     double lastCapturedBarFret = -2.0;

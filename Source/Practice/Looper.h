@@ -25,6 +25,8 @@
 namespace luthier
 {
 
+struct MidiExportOptions;   // SPEC-SWEEP MX-25
+
 //==============================================================================
 /** What a layer does when the loop comes round (practice-tools 2). */
 enum class LayerMode
@@ -359,7 +361,11 @@ public:
     /** practice-tools 8: freezes the buffer to a WAV and a MIDI file, named by
         timestamp - each only when that part is recorded. True if anything was
         written. Message thread. */
-    bool saveLastTake (const juce::File& directory, double seconds = 0.0) const;
+    /*  SPEC-SWEEP MX-25 (midi-export 8): with `midiOptions`, the MIDI is
+        written as every other export is - in the chosen profile, PPQ and
+        split, through MidiProfiles - instead of a bare 960-PPQ file. */
+    bool saveLastTake (const juce::File& directory, double seconds = 0.0,
+                       const MidiExportOptions* midiOptions = nullptr) const;
 
     /** What the last save wrote (the WAV, the MIDI, or both), for the drag-out. */
     juce::Array<juce::File> getLastSavedFiles() const { return lastSaved; }

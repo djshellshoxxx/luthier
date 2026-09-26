@@ -193,7 +193,13 @@ double SlideEngine::sustainScale (int s) const noexcept
     // Too little pressure and the string rides on the bar and loses more.
     const double pressure = 0.85 + 0.15 * juce::jlimit (0.0, 1.0, settings.pressure);
 
-    return juce::jlimit (0.05, 1.0, behind * contact * pressure);
+    // SPEC-SWEEP SG-10 (slide-guitar.md 3): too much, and the string is
+    // pressed onto the frets underneath and chokes - from 0.8 up to a third
+    // off the sustain at full pressure.
+    const double over = juce::jmax (0.0, juce::jlimit (0.0, 1.0, settings.pressure) - 0.8) / 0.2;
+    const double choke = 1.0 - 0.35 * over * over;
+
+    return juce::jlimit (0.05, 1.0, behind * contact * pressure * choke);
 }
 
 NoiseEvent SlideEngine::makeClank (int s, double velocity) const noexcept

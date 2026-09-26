@@ -86,6 +86,14 @@ struct NoteOnEvent
     /*  fingerstyle-attack.md 3: the pattern's finger (a Finger from
         Rhythm/Patterns.h: 0 p, 1 i, 2 m, 3 a, 4 e), or -1 for none. */
     int    finger        = -1;
+
+    /** SPEC-SWEEP SQ-8 (string-squeak.md 2): the fret this string's finger was
+        still holding when the note was re-voiced here - a chord change that
+        moves a held note, the finger travelling along the string without
+        lifting. -1 when the finger was lifted (or nothing was held). The note
+        is still struck as its technique says; this only adds the travel. */
+    double shiftFromFret = -1.0;
+    double shiftSeconds  = 0.0;
 };
 
 struct NoteOffEvent

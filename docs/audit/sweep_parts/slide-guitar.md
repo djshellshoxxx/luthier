@@ -13,7 +13,7 @@
 | SG-7 (§2.1) | Seven materials with damping/brightness/friction/clank spectrum | `getSlideMaterial` | via Workshop part (see SG-4) | `Slide.theBarClanksWhenItLands` | DONE |
 | SG-8 (§0.2, 3) | Segment behind damped: 1.0 lap/dobro, 0.55 bottleneck/hybrid (per-mode default applied on mode change) | `SlideEngine::sustainScale`; `Parameters::defaultDampingBehind`; `SlideGroup` mode handler | SLIDE `damping` | `Slide.theSegmentBehindIsDamped` | DONE |
 | SG-9 (§3) | Contact loss by material damping and mass (heavier sustains longer) | `sustainScale` | n/a (mass via part, SG-4) | `Slide.aHeavierBarSustainsLonger` | DONE |
-| SG-10 (§3) | Pressure: too light rattles against the bar; too heavy chokes against the frets — rattle done, no choke (pressure only raises sustain) | `sustainScale`, `makeClank` rattle | SLIDE `pressure` + pressure-state readout | `SlideUi.pressureSaysWhatItMeans` | PARTIAL |
+| SG-10 (§3) | Pressure: too light rattles against the bar; too heavy chokes against the frets — rattle done, no choke (pressure only raises sustain) | `SlideEngine::sustainScale` choke above 0.8 | SLIDE `pressure` + pressure-state readout | `Slide.tooMuchPressureChokes` | DONE |
 | SG-11 (§3.1) | Slant -30..+30 deg, per-string offset tan(slant) x spacing x (s - centre) | `contactFret` | SLIDE `slant` | `Slide.slantGivesEachStringItsOwnInterval` | DONE |
 | SG-12 (§3.2) | Slide vibrato moves x (pitch and damped length), depth in mm (DECISIONS: tenths of mm) — no test | `SlideEngine::vibratoCents`; `LuthierEngine.cpp` ~1557 | Advanced vibrato rate/depth | - | NO-TEST |
 | SG-13 (§4) | Intonation assist 0-1 (default 0.15), 120 ms pull to ET, labelled as an aid | `SlideEngine` assist | SLIDE `assist` (tooltip marks it an aid) | `Slide.theAssistPullsToPitch` | DONE |
@@ -39,6 +39,6 @@
 | SG-T7 (§9) | Test: squeak suppressed under the bar, fires beside it in hybrid | | n/a | `Slide.squeakStopsUnderTheBarButNotBesideIt` | DONE |
 | SG-T8 (§9) | Test: low-action warning shown, setup not modified | | n/a | `SlideUi.theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` | DONE |
 | SG-T9 (§9) | Test: mode switch mid-note clean (< -60 dBFS) | | n/a | `Slide.switchingModeMidNoteIsClean` | DONE |
-| SG-T10 (§9) | Test: no allocation on the audio thread — missing | | n/a | - | NO-TEST |
+| SG-T10 (§9) | Test: no allocation on the audio thread — missing | n/a | n/a | `Slide.noAllocationOnTheAudioThread` | DONE |
 
 <!-- counts DONE=26 NO-GUI=0 NO-TEST=4 PARTIAL=2 MISSING=2 OWNED=2 -->

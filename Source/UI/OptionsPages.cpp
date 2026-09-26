@@ -174,6 +174,7 @@ void ControllersPage::runWizardStep()
     {
         wizard.begin();
 
+        processor.getMetronome().setFollowsTempo (false);   // SPEC-SWEEP PT-6
         processor.getMetronome().setTempo (100.0);
         processor.getMetronome().setEnabled (true);
         processor.setLatencyWizardListening (true);   // SPEC-SWEEP CT-11

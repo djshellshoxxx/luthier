@@ -37,6 +37,13 @@ struct SetupGeometry
     double buzzThreshold = 0.35;   ///< sensitivity trim, 3.2
     bool sitarMode = false;
 
+    /*  SPEC-SWEEP FB-21 (fret-buzz.md 8, character-wear.md 3): how far each
+        fret's crown has worn below a new one, mm. A worn fret is lower, so the
+        string clears it more easily - but a note fretted on it starts lower
+        too, so the frets ahead of it come closer. Wear moves buzz around
+        rather than removing it. Index 0 is the nut and is ignored. */
+    std::array<double, kMaxFrets + 1> fretWearMm {};
+
     double scaleLengthMm = 648.0;
     int numStrings = 6;
     int numFrets = 22;
