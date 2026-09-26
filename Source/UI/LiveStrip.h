@@ -22,11 +22,16 @@
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "LiveSetup.h"   // SPEC-SWEEP: LP-11
 
 namespace luthier
 {
 
 class LuthierAudioProcessor;
+
+/** SPEC-SWEEP: GI-4 - one of the sixteen snapshot colour tags, for the LIVE
+    tab's colour button as well as the strip. */
+juce::Colour getSnapshotTagColour (int tag);
 
 //==============================================================================
 /** The bank of eight snapshot buttons plus its prev/next pair
@@ -46,7 +51,16 @@ public:
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
 
+    /** SPEC-SWEEP: A11Y-9 - one accessible, focusable button per shown slot,
+        titled with its number and label; pressing it recalls (or captures an
+        empty slot), as a click does. */
+    juce::Button* getSlotAccessor (int slot) const;
+
 private:
+    class SlotAccessor;
+    juce::OwnedArray<SlotAccessor> slotAccessors;
+    void updateSlotAccessors();
+
     juce::Rectangle<int> buttonBounds (int slot) const;
     int slotAt (juce::Point<int> position) const;
 
@@ -86,7 +100,8 @@ private:
 
     juce::String previousText, currentText, nextText;
 
-    std::unique_ptr<juce::FileChooser> chooser;
+    // SPEC-SWEEP: LP-5 - no FileChooser here: the menu lists the setlists in
+    // the user's folder and nothing on the live surface opens a dialog.
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SetlistTriptych)
 };
@@ -145,12 +160,14 @@ private:
     std::unique_ptr<SnapshotStrip> snapshotStrip;
     std::unique_ptr<SetlistTriptych> triptych;
     std::unique_ptr<TapPad> tapPad;
+    std::unique_ptr<LiveActionButton> ccButton;   // SPEC-SWEEP: LP-11
 
     // --- morph --------------------------------------------------------------------
     juce::TextButton morphEnable { "MORPH" };
     juce::TextButton slotAButton { "A" }, slotBButton { "B" };
     juce::Slider morphSlider { juce::Slider::RotaryHorizontalVerticalDrag,
                                juce::Slider::NoTextBox };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> morphAttachment;   // SPEC-SWEEP: LP-16
 
     // --- kill and monitor -----------------------------------------------------------
     juce::TextButton killButton { "KILL" };

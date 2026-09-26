@@ -791,6 +791,10 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (boolParam   (ParamIDs::aux1PreCircuit,             "Aux 1 Pre-Circuit", false));
     // ==== END MODEL-GAPS params ====
 
+    // ==== BEGIN SPEC-SWEEP params ====
+    add (floatParam  (ParamIDs::snapshotMorph, "Snapshot Morph", 0.0f, 1.0f, 0.0f));   // LP-16
+    // ==== END SPEC-SWEEP params ====
+
     return layout;
 }
 
@@ -1467,6 +1471,11 @@ void ParameterBridge::applyToEngine() noexcept
         engine.setAuxDiPreCircuit (value (ParamIDs::aux1PreCircuit) > 0.5f);
     }
     // ==== END MODEL-GAPS params ====
+
+    // ==== BEGIN SPEC-SWEEP params ====
+    // snapshot_morph (LP-16) is read by LuthierAudioProcessor::updateSnapshotMorph
+    // on the message thread; the morph writes parameters, so it cannot run here.
+    // ==== END SPEC-SWEEP params ====
 
     // ---- structural change detection ---------------------------------------------
     const bool structural = readStructuralValues() || ! structuralInitialised;

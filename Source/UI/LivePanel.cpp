@@ -1,6 +1,7 @@
 #include "LivePanel.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
+#include "LiveStrip.h"   // SPEC-SWEEP: GI-4 (tag colours)
 
 namespace luthier
 {
@@ -196,7 +197,7 @@ private:
 //  LivePanel
 //==============================================================================
 LivePanel::LivePanel (LuthierAudioProcessor& p)
-    : processor (p), grid (p)
+    : processor (p), grid (p), morphSetup (p), monitorSetup (p)
 {
     setlistModel = std::make_unique<SetlistModel> (processor);
 
@@ -239,6 +240,20 @@ LivePanel::LivePanel (LuthierAudioProcessor& p)
                [this] { renameSelected(); });
 
     addButton (clearButton, "Empty the selected slot", [this] { clearSelected(); });
+
+    // SPEC-SWEEP: GI-4 - the colour tag without a right-click.
+    addButton (colourButton, "Give the selected snapshot one of sixteen colour tags",
+               [this]
+               {
+                   juce::Component::SafePointer<LivePanel> safe (this);
+
+                   buildColourMenu().showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&colourButton),
+                                                    [safe] (int result)
+                   {
+                       if (safe != nullptr)
+                           safe->applyColourMenuResult (result);
+                   });
+               });
 
     // ---- the setlist ---------------------------------------------------------
     setlistBox.setModel (setlistModel.get());
@@ -338,6 +353,15 @@ LivePanel::LivePanel (LuthierAudioProcessor& p)
     styleNote (morphSlotsLabel, Palette::textDisabled);
     addAndMakeVisible (morphSlotsLabel);
 
+    // SPEC-SWEEP: LP-16 / LP-18 / LP-19 / LP-11 - position, exclusions, Bezier,
+    // footswitch CCs; LP-31 / GI-119 - the monitor mix.
+    addAndMakeVisible (morphSetup);
+    morphSetup.onLayoutChanged = [this] { resized(); };
+
+    styleHeading (monitorHeading, "MONITOR");
+    addAndMakeVisible (monitorHeading);
+    addAndMakeVisible (monitorSetup);
+
     refresh();
     startTimerHz (6);
 }
@@ -375,6 +399,7 @@ void LivePanel::refresh()
     recallButton.setEnabled (filled);
     renameButton.setEnabled (filled);
     clearButton.setEnabled (filled);
+    colourButton.setEnabled (filled);   // SPEC-SWEEP: GI-4
     addToSetlistButton.setEnabled (filled);
 
     crossfade.setValue (bank.getCrossfadeMs(), juce::dontSendNotification);
@@ -387,7 +412,7 @@ void LivePanel::refresh()
                                ? "Morphing between snapshots "
                                    + juce::String (bank.getMorphSlotA() + 1) + " and "
                                    + juce::String (bank.getMorphSlotB() + 1)
-                                   + ". The live strip drives the position."
+                                   + ". Position: below, the live strip, automation or a mod source."
                                : "Off: a recall steps to the new sound over the crossfade time.",
                              juce::dontSendNotification);
 
@@ -402,6 +427,32 @@ void LivePanel::refresh()
                                     && setlistBox.getSelectedRow() + 1 < rows);
 
     grid.repaint();
+}
+
+juce::PopupMenu LivePanel::buildColourMenu() const
+{
+    // SPEC-SWEEP: GI-4
+    const int slot = grid.getSelectedSlot();
+    const auto& bank = processor.getSnapshots();
+    const int current = slot < bank.getNumSnapshots() ? bank.getSnapshot (slot).colourTag : -1;
+
+    juce::PopupMenu menu;
+    menu.addSectionHeader ("Colour tag");
+
+    for (int tag = 0; tag < Snapshot::kNumColourTags; ++tag)
+        menu.addColouredItem (1 + tag, "Tag " + juce::String (tag + 1), getSnapshotTagColour (tag),
+                              true, tag == current);
+
+    return menu;
+}
+
+void LivePanel::applyColourMenuResult (int result)
+{
+    if (result < 1 || result > Snapshot::kNumColourTags)
+        return;
+
+    processor.getSnapshots().setColourTag (grid.getSelectedSlot(), result - 1);
+    refresh();
 }
 
 void LivePanel::rebuildSetlistRows()
@@ -507,7 +558,7 @@ void LivePanel::resized()
     slotLabel.setBounds (bounds.removeFromTop (18));
 
     auto buttonRow = bounds.removeFromTop (kRowHeight);
-    const int buttonWidth = juce::jmax (52, buttonRow.getWidth() / 4 - 4);
+    const int buttonWidth = juce::jmax (48, buttonRow.getWidth() / 5 - 4);   // SPEC-SWEEP: GI-4, five buttons
 
     captureButton.setBounds (buttonRow.removeFromLeft (buttonWidth));
     buttonRow.removeFromLeft (4);
@@ -516,6 +567,8 @@ void LivePanel::resized()
     renameButton.setBounds (buttonRow.removeFromLeft (buttonWidth));
     buttonRow.removeFromLeft (4);
     clearButton.setBounds (buttonRow.removeFromLeft (buttonWidth));
+    buttonRow.removeFromLeft (4);
+    colourButton.setBounds (buttonRow.removeFromLeft (buttonWidth));   // SPEC-SWEEP: GI-4
 
     bounds.removeFromTop (kPad);
 
@@ -532,6 +585,14 @@ void LivePanel::resized()
     morphCurveBox.setBounds (curveRow.removeFromLeft (juce::jmin (180, curveRow.getWidth())));
 
     morphSlotsLabel.setBounds (bounds.removeFromTop (18));
+
+    morphSetup.setBounds (bounds.removeFromTop (morphSetup.getPreferredHeight()));   // SPEC-SWEEP
+
+    bounds.removeFromTop (kPad);
+
+    // SPEC-SWEEP: LP-31 / GI-119
+    monitorHeading.setBounds (bounds.removeFromTop (kHeadingHeight));
+    monitorSetup.setBounds (bounds.removeFromTop (MonitorSetupPanel::kPreferredHeight));
 
     bounds.removeFromTop (kPad);
 

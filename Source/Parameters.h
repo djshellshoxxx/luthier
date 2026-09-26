@@ -362,6 +362,12 @@ namespace ParamIDs
     inline constexpr const char* restStroke                 = "rest_stroke";
     inline constexpr const char* aux1PreCircuit             = "aux1_pre_circuit";
     // ==== END MODEL-GAPS params ====
+
+    // ==== BEGIN SPEC-SWEEP params ====
+    // live-performance 3 (LP-16): the snapshot morph position, automatable and
+    // a modulation destination. Never captured into a snapshot itself.
+    inline constexpr const char* snapshotMorph = "snapshot_morph";
+    // ==== END SPEC-SWEEP params ====
 }
 
 //==============================================================================

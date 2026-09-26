@@ -502,8 +502,10 @@ void LuthierAudioProcessorEditor::timerCallback()
 
     // Tooltips are a user preference, so the window is created or torn down to
     // match rather than the tips being silently empty.
+    // SPEC-SWEEP: LP-39 / GI-76 - Live Mode suppresses tooltips too: a tip
+    // popping over the snapshot strip mid-song is noise.
     tooltips.setMillisecondsBeforeTipAppears (
-        processor.getUiState().tooltipsEnabled ? Metrics::tooltipDelayMs : 0x7fffffff);
+        processor.getUiState().tooltipsEnabled && ! processor.isLiveMode() ? Metrics::tooltipDelayMs : 0x7fffffff);
 
     repaint (getLocalBounds().removeFromBottom (Metrics::footerHeight));
 }

@@ -113,6 +113,20 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     // the user's config rather than from whatever preset happens to load first.
     expression.load();
 
+    // SPEC-SWEEP: LP-11 - live actions on learned CCs. User-global like the
+    // calibrations; the audio thread flips atomics, the timer acts.
+    liveActions.setKillSwitch (&killSwitch);
+    liveActions.handlers.nextSnapshot     = [this] { nextSnapshot(); };
+    liveActions.handlers.previousSnapshot = [this] { previousSnapshot(); };
+    liveActions.handlers.recallSnapshot   = [this] (int index) { recallSnapshot (index); };
+    liveActions.handlers.tapAt            = [this] (double t) { tapTempoAt (t); };
+    liveActions.handlers.panic            = [this] { panic(); };
+    liveActions.handlers.setlistNext      = [this] { if (setlist.next()) applyCurrentSetlistEntry(); };
+    liveActions.handlers.setlistPrevious  = [this] { if (setlist.previous()) applyCurrentSetlistEntry(); };
+    liveActions.handlers.onCcAssigned     = [this] (int cc) { midiLearn.removeMappingForCc (cc); };
+    liveActions.load();
+    expressionInput.syncWith (expression);
+
     // accessibility 9 and updates-telemetry 6: both of these describe the person
     // rather than the sound, so they are user-global too.
     AccessibilitySettings::get().load();
@@ -1147,6 +1161,10 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         }
     }
 
+    // SPEC-SWEEP: LP-33 / LP-34 - calibrated pedals are remapped before
+    // anything downstream (MIDI Learn, modulation) sees them.
+    expressionInput.processMidi (midiMessages);
+
     // MIDI Learn gets first look, so a CC being learned is not also acted on.
     midiLearn.processMidi (midiMessages);
 
@@ -1670,11 +1688,17 @@ void LuthierAudioProcessor::handleLiveMidi (juce::MidiBuffer& midi) noexcept
         return m.isProgramChange() || (m.isController() && m.getControllerNumber() == 0);
     };
 
+    // SPEC-SWEEP: LP-11 - a CC assigned to (or being learned for) a live action.
+    auto isLiveAction = [this] (const juce::MidiMessage& m)
+    {
+        return m.isController() && liveActions.wants (m.getControllerNumber());
+    };
+
     // Most blocks carry neither: nothing to take out, nothing to copy.
     bool any = false;
 
     for (const auto metadata : midi)
-        if (isLiveControl (metadata.getMessage()))
+        if (isLiveControl (metadata.getMessage()) || isLiveAction (metadata.getMessage()))
             any = true;
 
     if (! any)
@@ -1704,6 +1728,12 @@ void LuthierAudioProcessor::handleLiveMidi (juce::MidiBuffer& midi) noexcept
             pendingPresetSelect.store (message.getControllerValue(), std::memory_order_relaxed);
             continue;
         }
+
+        // SPEC-SWEEP: LP-11 - consumed, so a footswitch does not also reach the
+        // engine as a controller.
+        if (message.isController()
+            && liveActions.handleController (message.getControllerNumber(), message.getControllerValue()))
+            continue;
 
         kept.addEvent (message, metadata.samplePosition);
     }
@@ -1781,8 +1811,11 @@ void LuthierAudioProcessor::tapTempoNow()
 {
     // The plugin's own clock, so that tapping works identically whether or not
     // the host is running.
-    const double now = juce::Time::getMillisecondCounterHiRes() * 0.001;
+    tapTempoAt (juce::Time::getMillisecondCounterHiRes() * 0.001);
+}
 
+void LuthierAudioProcessor::tapTempoAt (double now)
+{
     if (tapTempo.tap (now))
     {
         // live-performance 5: a tapped tempo drives the rhythm engine when the
@@ -2386,6 +2419,37 @@ void LuthierAudioProcessor::updatePresetMorph()
         presetMorph.apply ((double) position->load());
 }
 
+void LuthierAudioProcessor::updateSnapshotMorph()
+{
+    // SPEC-SWEEP: LP-16 - the snapshot morph is a parameter, so host
+    // automation, MIDI Learn and the modulation matrix (LFO, mod wheel, an
+    // expression pedal, the sidechain follower) all drive it. The matrix's
+    // offset is read here as the bridge would on the audio thread.
+    if (! snapshots.isMorphEnabled())
+    {
+        lastSnapshotMorph = -1.0f;
+        return;
+    }
+
+    auto* raw = apvts.getRawParameterValue (ParamIDs::snapshotMorph);
+
+    if (raw == nullptr)
+        return;
+
+    float value = raw->load();
+
+    if (auto* parameter = apvts.getParameter (ParamIDs::snapshotMorph))
+        value = modMatrix.apply (parameter->getParameterIndex(), value);
+
+    value = juce::jlimit (0.0f, 1.0f, value);
+
+    if (std::abs (value - lastSnapshotMorph) < 1.0e-4f)
+        return;
+
+    lastSnapshotMorph = value;
+    snapshots.setMorphPosition ((double) value);
+}
+
 bool LuthierAudioProcessor::savePracticeStats() const
 {
     juce::String error;
@@ -2420,6 +2484,13 @@ void LuthierAudioProcessor::timerCallback()
 
     // live-performance 1: an in-flight snapshot recall, on the audio clock.
     snapshots.advancePending();
+
+    // SPEC-SWEEP: LP-11 / LP-16 / LP-33 - live actions, the automatable
+    // morph and the pedal wizard.
+    liveActions.service();
+    updateSnapshotMorph();
+    expressionInput.syncWith (expression);
+    expressionInput.feedWizard (expression);
 
     serviceTune();
 

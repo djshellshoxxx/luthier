@@ -396,6 +396,9 @@ LuthierKnob::LuthierKnob (const juce::String& text, Size s)
     slider.setVelocityBasedMode (false);
     slider.setMouseDragSensitivity (180);
 
+    // SPEC-SWEEP: A11Y-13 - every knob is on the Tab walk.
+    slider.setWantsKeyboardFocus (true);
+
     setInterceptsMouseClicks (true, true);
 }
 
@@ -663,6 +666,35 @@ void LuthierKnob::mouseDown (const juce::MouseEvent& e)
 }
 
 //==============================================================================
+bool LuthierKnob::KnobSlider::keyPressed (const juce::KeyPress& key)
+{
+    // SPEC-SWEEP: A11Y-14
+    const auto range = getRange();
+    const double span = range.getLength();
+
+    if (span <= 0.0 || ! isEnabled())
+        return false;
+
+    if (key.isKeyCode (juce::KeyPress::homeKey)) { setValue (range.getStart(), juce::sendNotificationSync); return true; }
+    if (key.isKeyCode (juce::KeyPress::endKey))  { setValue (range.getEnd(),   juce::sendNotificationSync); return true; }
+
+    const int code = key.getKeyCode();
+    double direction = 0.0;
+
+    if (code == juce::KeyPress::upKey || code == juce::KeyPress::rightKey)        direction = 1.0;
+    else if (code == juce::KeyPress::downKey || code == juce::KeyPress::leftKey)  direction = -1.0;
+    else return false;
+
+    const auto mods = key.getModifiers();
+    const double fraction = mods.isShiftDown() ? 0.001 : (mods.isCommandDown() || mods.isCtrlDown()) ? 0.1 : 0.01;
+
+    // At least one step of a stepped range, so a choice or an integer moves.
+    const double step = juce::jmax (span * fraction, range.interval);
+
+    setValue (getValue() + direction * step, juce::sendNotificationSync);
+    return true;
+}
+
 void LuthierKnob::KnobSlider::mouseDown (const juce::MouseEvent& e)
 {
     if (e.mods.isPopupMenu())
@@ -920,6 +952,35 @@ LevelMeter::~LevelMeter()
 void LevelMeter::setSource (LuthierAudioProcessor* p)
 {
     processor = p;
+
+    // SPEC-SWEEP: A11Y-7
+    AccessibleSetup::configureMeter (*this, "Output level", [this] { return (double) displayPeakDb; });
+}
+
+std::unique_ptr<juce::AccessibilityHandler> LevelMeter::createAccessibilityHandler()
+{
+    // SPEC-SWEEP: A11Y-7 - read-only, reported in dBFS.
+    struct PeakValue : juce::AccessibilityValueInterface
+    {
+        explicit PeakValue (LevelMeter& m) : meter (m) {}
+
+        bool isReadOnly() const override { return true; }
+        double getCurrentValue() const override { return meter.getDisplayPeakDb(); }
+        juce::String getCurrentValueAsString() const override
+        {
+            const float db = meter.getDisplayPeakDb();
+            return db <= -99.0f ? juce::String ("silent") : juce::String (db, 1) + " dBFS";
+        }
+        void setValue (double) override {}
+        void setValueAsString (const juce::String&) override {}
+        AccessibleValueRange getRange() const override { return { { -100.0, 12.0 }, 0.1 }; }
+
+        LevelMeter& meter;
+    };
+
+    return std::make_unique<juce::AccessibilityHandler> (*this, juce::AccessibilityRole::progressBar,
+                                                         juce::AccessibilityActions {},
+                                                         juce::AccessibilityHandler::Interfaces { std::make_unique<PeakValue> (*this) });
 }
 
 void LevelMeter::timerCallback()
@@ -1382,8 +1443,10 @@ void InlineNotice::show (const juce::String& newMessage, Level newLevel, int mil
     /*  accessibility 1: announced rather than only drawn. A notice explaining why
         the window changed shape is exactly the case where a user who cannot see
         the window needs it most. */
-    juce::AccessibilityHandler::postAnnouncement (
-        message, juce::AccessibilityHandler::AnnouncementPriority::high);
+    // SPEC-SWEEP: A11Y-43 - gated by the verbosity setting; a warning counts
+    // as an error, which even "minimal" speaks.
+    AccessibleSetup::announce (message, level == Level::warning ? AccessibleSetup::Announcement::error
+                                                                : AccessibleSetup::Announcement::standard);
 
     if (millisecondsToLive > 0)
         startTimer (millisecondsToLive);
