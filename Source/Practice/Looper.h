@@ -246,6 +246,12 @@ public:
         audio sets the loop length (capped at the capacity), otherwise it is
         fitted to the loop. The looper must be stopped. Message thread. */
     bool loadLayerAudio (int layer, const juce::AudioBuffer<float>& audio);
+    /** tune-builder 14 (TUNE-HELP-ONBOARDING): "the looper can capture a whole
+        Tune render into a loop layer". Stops the looper, writes `audio` (stereo,
+        at the looper's rate) into the layer, truncated to the capacity, and makes
+        it the loop's length when no other layer holds anything. Message thread.
+        Returns the samples taken. */
+    int importLayer (int layerIndex, const juce::AudioBuffer<float>& audio);
 
     /** The `.luthierloop` file: settings, MIDI and the audio of every layer. */
     bool save (const juce::File& file) const;

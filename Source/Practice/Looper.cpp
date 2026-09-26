@@ -836,6 +836,34 @@ bool Looper::save (const juce::File& file) const
              .replaceWithText (juce::JSON::toString (juce::var (root), false));
 }
 
+int Looper::importLayer (int layerIndex, const juce::AudioBuffer<float>& source)
+{
+    if (! juce::isPositiveAndBelow (layerIndex, kMaxLayers) || source.getNumChannels() == 0)
+        return 0;
+
+    stop();
+
+    auto& layer = getLayer (layerIndex);
+    const int count = juce::jmin (capacity, source.getNumSamples(), layer.getAudio().getNumSamples());
+
+    layer.getAudio().clear();
+
+    for (int ch = 0; ch < juce::jmin (2, layer.getAudio().getNumChannels()); ++ch)
+        layer.getAudio().copyFrom (ch, 0, source, juce::jmin (ch, source.getNumChannels() - 1), 0, count);
+
+    layer.setRecordedSamples (count);
+
+    bool others = false;
+
+    for (int i = 0; i < kMaxLayers; ++i)
+        others = others || (i != layerIndex && getLayer (i).hasContent());
+
+    if (! others || loopLength.load (std::memory_order_relaxed) <= 0)
+        loopLength.store (count, std::memory_order_relaxed);
+
+    return count;
+}
+
 bool Looper::load (const juce::File& file)
 {
     const auto folder = file.isDirectory()

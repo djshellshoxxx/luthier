@@ -134,7 +134,8 @@ LUTHIER_TEST (PluginBuses, aux8CarriesThePlayingNoiseAndObeysItsStrip)
     auto old = juce::JSON::parse (juce::JSON::toString (state));
 
     if (auto* aux = old.getProperty ("aux", {}).getArray())
-        aux->removeLast();
+        while (aux->size() > kNumAuxBuses)   // FEAT-JAM: Aux 9 and 10 come after it
+            aux->removeLast();
 
     restored.fromVar (old);
     CHECK (! restored.isAuxMuted (kNoiseAux));

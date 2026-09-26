@@ -35,6 +35,15 @@ enum class RangeFamily
     pick,
     slide,
     modulation,
+
+    // ==== BEGIN REALISM-A range families ====
+    // DECISIONS.md "Phase 2b range families": appended after `modulation` so no
+    // index moves; an absent key reads as stock, an unknown one is ignored.
+    strings,        ///< string-aging.md 4 (shared with sustain-and-decay, tuning-stability)
+    environment,    ///< environment.md 5
+    body,           ///< body-coupling.md 4
+    // ==== END REALISM-A range families ====
+
     jam,            ///< jam-mode.md 10: jam_kit_tuning, jam_kit_damping (FEAT-JAM)
     numFamilies,
 

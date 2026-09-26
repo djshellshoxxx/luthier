@@ -334,7 +334,7 @@ void JamBassVoice::render (double* out, int n) noexcept
             for (int k = 0; k < 2; ++k)
                 live[(size_t) k] = strings[(size_t) k].isRinging() || (sounding && k == active);
 
-        double y = tone.process (s * 0.22);
+        double y = tone.process (s * 0.18);
 
         if (fading)
         {
