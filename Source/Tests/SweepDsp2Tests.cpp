@@ -16,6 +16,7 @@
 #include "../Practice/Metronome.h"
 #include "../DSP/Slide/SlideEngine.h"
 #include "../DSP/Effects/PedalsMod.h"
+#include "../DSP/Master/FreezeOverlay.h"
 #include "../Practice/BackingTrack.h"
 #include "../Practice/TimePitchShifter.h"
 #include "../ToneMatch/ToneMatch.h"
@@ -1684,4 +1685,19 @@ LUTHIER_TEST (PracticeTrainers, chordToneTrainerNeedsThirdAndSeventhInTime)
     trainer.setScale (ScaleType::majorPentatonic);
     trainer.nextQuestion (random);
     CHECK (trainer.answer (59, 0.5));
+}
+
+LUTHIER_TEST (Sustain, theLevelFloorIsSilent)
+{
+    // AR-10 (ambiguity-resolutions: freeze level -inf to 0 dB): the bottom of
+    // freeze_level's range is silence.
+    FreezeOverlay freeze;
+    freeze.setLevelDb (-60.0);
+    CHECK (freeze.getLevelGain() == 0.0);
+
+    freeze.setLevelDb (-59.0);
+    CHECK (freeze.getLevelGain() > 0.0);
+
+    freeze.setLevelDb (0.0);
+    CHECK_NEAR (freeze.getLevelGain(), 1.0, 1.0e-12);
 }
