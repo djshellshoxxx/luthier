@@ -1341,3 +1341,63 @@ LUTHIER_TEST (Combo, notesBelowTheRangeAreDroppedAndInRangeNotesSound)
     CHECK_MSG (play (lowest) > 1.0e-3, "the lowest open string did not sound");
     CHECK_MSG (play (lowest + 12) > 1.0e-3, "a pitch an octave above the lowest string did not sound");
 }
+
+//==============================================================================
+/*  What was played before a reset must not colour what is played after it.
+    Found as "state round trip differs" (8-String Djent, Drop C Riff, Modern
+    Metal Chug, up to 0.0016): the saved state was identical, but the source
+    instance had played other presets first and each string kept its last
+    note's termination brightness (nut or fret material) through reset(). The
+    fresh instance, and the copy made from the state, started from 1.0. */
+LUTHIER_TEST (Combo, renderDoesNotDependOnWhatWasPlayedBefore)
+{
+    FindingLog log { "Combo.history" };
+
+    auto play = [] (Rig& r)
+    {
+        r.p().releaseResources();
+        r.p().prepareToPlay (kSr, kBlock);
+        r.p().reset();
+        r.apply();
+        return r.render (Phrase::chord, 0.5).mono;
+    };
+
+    for (auto* name : { "Drop C Riff", "8-String Djent", "Modern Metal Chug" })
+    {
+        Rig fresh;
+        auto& pf = fresh.p().getPresetManager();
+        pf.loadPreset (pf.indexOfPreset (name));
+        fresh.apply();
+        const auto reference = play (fresh);
+
+        for (int before : { 4, 5, 7, 8, 16 })
+        {
+            Rig used;
+            auto& pu = used.p().getPresetManager();
+            used.p().resetEverything();
+            pu.loadPreset (before);
+            used.apply();
+            used.render (Phrase::chord, 0.3);
+            used.quiet();
+            used.p().resetEverything();
+            pu.loadPreset (pu.indexOfPreset (name));
+            used.apply();
+
+            const auto after = play (used);
+            double diff = 0.0;
+            for (size_t s = 0; s < juce::jmin (after.size(), reference.size()); ++s)
+                diff = juce::jmax (diff, (double) std::abs (after[s] - reference[s]));
+
+            ++ctx.checks;
+            if (diff > 1.0e-6)
+            {
+                const auto label = juce::String (name) + " after playing " + presetLabel (used, before);
+                const auto why = "render depends on what was played before: max diff " + juce::String (diff, 7);
+                ctx.fail (why + " | " + label);
+                log.add (label, why);
+            }
+        }
+    }
+
+    log.flush();
+}

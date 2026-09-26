@@ -80,6 +80,14 @@ void StringEngine::reset() noexcept
     damping = Damping::Open;
     dampingAmount = 1.0;
     harmonicPartial = 0;
+
+    // Per-note state the engine sets at each note-on (what the string is stopped
+    // against, and that note's sustain). Left behind, the last note of the
+    // previous guitar coloured the first of the next one: the same session
+    // rendered differently depending on what had been played before it
+    // (BETA_TEST_REPORT B-08, loop cutoff 0.9% high on four strings).
+    terminationBrightness = 1.0;
+    sustainScale = 1.0;
     couplingReceptivity = 1.0;
 
     // Reseed, so that resetting really does return to a known state. Without
