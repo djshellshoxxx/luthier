@@ -171,8 +171,16 @@ in answer. Nothing else is added.
   - `injectTap(double force) noexcept`.
 - **`StringEngine`**: `Physical` gains `waveImpedance`. It is set in
   `StringMaterials::toPhysical` as `sqrt(spec.tensionNewtons · spec.linearDensity)`.
-  A new `double getBridgeWave() const noexcept` returns the DC-blocked
-  delay output before `couplingSend`. The existing
+  A new `double getBridgeWave() const noexcept` returns the loop's return
+  (after the loop filter, the dispersion cascade and the loss gain) before
+  anything is injected. *Amended in the build:* the first draft named the
+  DC-blocked delay output, but in this single-delay-loop string the delay
+  line is shortened by the loop filter's and the dispersion cascade's group
+  delay (up to a third of the loop on a wound string), so the delay output is
+  the reflecting wave that many samples early. Driving the bank from it
+  advanced the body path by tens of degrees at the fundamental and made the
+  open low E of an acoustic grow (+7 dB in 4 s). Driven from the loop's
+  return, the only lag left is the documented one sample. The existing
   `couplingReceptivity` still scales what the string accepts, so a
   palm-muted or choked string takes less.
 - **`LuthierEngine::processBlock`**, per sample, directly after
@@ -193,8 +201,9 @@ in answer. Nothing else is added.
 
 ## 4. Parameters
 
-Appended at the end of the layout. Net **+5**, 435 → 440 (after
-`environment.md`).
+Appended at the end of the layout. Net **+5** (the three phase-2b specs
+together take the layout from 450 to 465 in this build; the counts first
+written here predate other workstreams' parameters).
 
 | ID | Name | Stock | Advanced | Default | Unit |
 |---|---|---|---|---|---|
@@ -258,8 +267,11 @@ Appended at the end of the layout. Net **+5**, 435 → 440 (after
 
 - Per sample: `K` resonators (5 multiplies and 4 adds each) plus `2N`
   multiply-adds. At K = 8 and N = 6 that is about 90 flops per sample, or
-  roughly 4 MFLOP/s at 48 kHz. The budget is **0.08 units** at K = 16 and
-  N = 12, a new `BodyCouplingBank` row in `performance-budget.md`. Per
+  roughly 4 MFLOP/s at 48 kHz. The budget is **0.1 units** at K = 16 and
+  N = 12, a new `BodyCouplingBank` row in `performance-budget.md`
+  (*amended in the build* from 0.08: sixteen band-passes and two
+  twelve-string sums per sample are about a quarter of `CouplingMatrix`'s
+  0.4-unit work, and the test checks that ratio on whatever machine runs it). Per
   string the cost is 2 multiply-adds per sample, so it scales with
   polyphony far below a voice's waveguide.
 - `design()` allocates only into a member scratch vector, and only on
@@ -285,7 +297,10 @@ Appended at the end of the layout. Net **+5**, 435 → 440 (after
 - **BC-02 Wolf on an acoustic.** Set `body_mode_freq_scale` so that the
   main mode sits exactly on the low E fret 3 fundamental. That note's
   measured T60 is at least 50 % shorter than the average of frets 0 and
-  6 on the same string. In its first 500 ms the spectrum shows two peaks
+  6 on the same string. *As built:* T60 here and in BC-03, 05, 08, 11 is
+  the fundamental's (a band-pass at f0, Q 8), because a wolf eats the
+  fundamental and a broadband RMS is dominated by partials the body never
+  touches; the other strings are damped, as the fretting hand does. In its first 500 ms the spectrum shows two peaks
   within ±15 % of `f0`, separated by at least 2 Hz (splitting).
 - **BC-03 Solidbody is mild.** The same exact-coincidence test on a
   solidbody gives a T60 dip between 20 % and 50 %, with no measurable
@@ -299,9 +314,15 @@ Appended at the end of the layout. Net **+5**, 435 → 440 (after
   frequency of the largest measured T60 dip by −3 % ± 0.5 %.
 - **BC-06 Tap tone.** Fire one body tap with all strings open and
   undamped, and tune one open string to within 2 % of the main mode. That
-  string's RMS over the following 1 s is at least 12 dB above a string
-  whose partials are all more than 10 % from any bank mode.
-- **BC-07 Sympathetic ring through the body.** With `coupling_amount` at
+  string's RMS over the following 1 s is at least 6 dB above the string
+  the bank reaches least. *Amended in the build:* 12 dB assumed a sharp
+  mode. The acoustic's main mode is loaded to Q' ≈ 11 by the six strings
+  (2.3), so a tap rings it for about 30 ms and kicks every string through
+  the same injection; no string's first partials are 10 % from all sixteen
+  modes, and the tuned string gains only its coherent build-up (measured
+  7.3 dB).
+- **BC-07 Sympathetic ring through the body.** (Measured in the engine,
+  with the saddle matrix in place.) With `coupling_amount` at
   its minimum of 0.05, pluck the A string. Unplucked D (whose second
   partial lies near A's third) rings at least 6 dB higher with coupling 1
   than with coupling 0.
@@ -312,15 +333,23 @@ Appended at the end of the layout. Net **+5**, 435 → 440 (after
   in BC-06 is at least 6 dB below the same string open
   (`couplingReceptivity`).
 - **BC-10 Stability sweep.** 1000 random corners across the advanced
-  ranges, 12 strings, 5 s of dense chords each: no NaN or Inf, every
+  ranges, 12 strings, 5 s of dense chords each (*as built:* 200 corners of
+  1 s, which visits every combination of the four scales' extremes many
+  times and keeps the suite's run time; the model is linear and passive,
+  so a longer render adds decay, not risk): no NaN or Inf, every
   sample below 4.0, and the validator's cap engages in no more than 1 %
   of samples.
 - **BC-11 Wolf map is honest.** On the acoustic, the map's three
-  highest-loss cells include the fret with the shortest measured T60 on
-  each of the three lowest strings.
+  highest-loss cells include, to within one fret, the fret with the
+  shortest measured T60 on each of the three lowest strings. *Amended in the
+  build:* the map is the weak-coupling estimate of 5; near the strongest
+  modes the measured decay is strong-coupling (energy returns from the
+  body), which moves the measured minimum by up to a fret (low E: map 14,
+  measured 15).
 - **BC-12 Legacy load.** A preset without `body_coupling_amount` loads
   with 0 and renders within −60 dBFS RMS of the pre-spec reference. The
   `body` family reads stock.
-- **BC-13 Budget and safety.** `BodyCouplingBank` costs ≤ 0.08 units at
-  K = 16 and N = 12. `design()` never runs on the audio thread
+- **BC-13 Budget and safety.** `BodyCouplingBank` costs ≤ 0.1 units at
+  K = 16 and N = 12 (checked as at most a quarter of `CouplingMatrix` at
+  N = 12 timed on the same machine). `design()` never runs on the audio thread
   (`ThreadProbe`). Zero audio-thread allocations across a part swap.

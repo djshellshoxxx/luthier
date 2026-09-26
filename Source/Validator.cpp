@@ -27,6 +27,7 @@ void Validator::reset() noexcept
         c.store (0);
 
     writeIndex.store (0);
+    harmonicFallbacks.store (0);
 
     for (auto& r : history)
         r = ValidationRecord {};

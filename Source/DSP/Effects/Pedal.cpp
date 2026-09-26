@@ -45,7 +45,12 @@ void Pedal::processWithBypass (double* left, double* right, int numSamples) noex
         return;
     }
 
-    const bool needsDry = (mixTarget < 0.999) || bypassFade.isActive() || (bypassed != lastBypassState);
+    // Also while the mix is still travelling to its target: skipping the blend as
+    // soon as the target reached 1 jumped straight to fully wet (a click), and
+    // left the smoother at the old value for the next move to jump from.
+    const bool mixMoving = std::abs (mixSmooth.getCurrent() - mixTarget) > 1.0e-4;
+    const bool needsDry = (mixTarget < 0.999) || mixMoving || bypassFade.isActive()
+                            || (bypassed != lastBypassState);
 
     if (needsDry && (int) dryL.size() >= numSamples)
     {
