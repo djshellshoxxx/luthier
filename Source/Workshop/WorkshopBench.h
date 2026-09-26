@@ -49,10 +49,19 @@ public:
 
     /*  The player's accessories (the drawer's Pick, Slide and Capo cards).
         A pick writes the pick parameters; a capo is the processor's capo part;
-        a slide is remembered (the engine has no slide material yet - TODO 5b).
+        a slide is the processor's slide part, whose bar the engine plays.
         One undo entry each. */
     bool fitAccessory (const PartPtr& part);
     PartPtr getAccessory (PartType type) const;
+
+    /*  Section 3.3: overrides one string of the set (engine index, 0 = high E).
+        One undo entry: "Set string 3 to 0.018 plain (was 0.017 plain)". An
+        override equal to nothing set clears it. */
+    bool setStringOverride (int stringIndex, const StringOverride& override);
+    bool clearStringOverride (int stringIndex) { return setStringOverride (stringIndex, {}); }
+
+    /** "0.017 plain" / "0.046 phosphor bronze wound": a string as the set and override make it. */
+    juce::String describeString (const WorkshopGuitar& guitar, int stringIndex) const;
 
     /** Puts a slot back to what the guitar file had ("Revert", section 5). */
     bool revert (GuitarSlot slot);
@@ -77,7 +86,7 @@ public:
     /** Moves a pickup; returns where it ended up, and the reason if it was stopped. */
     double movePickup (int index, double positionMm, juce::String* stoppedBecause = nullptr);
 
-    /** Sets a pickup's heights (0.8 - 6 mm, guitar-illustration.md 19). */
+    /** Sets a pickup's heights (0.8 - 6 mm, or from 0.5 with ranges unlocked; guitar-illustration.md 19). */
     void setPickupHeights (int index, double trebleMm, double bassMm);
 
     /** Saddle intonation for a string (engine index), +-6 mm. */
@@ -98,6 +107,10 @@ public:
     }
 
     static constexpr double kMinPickupHeight = 0.8, kMaxPickupHeight = 6.0;
+    static constexpr double kAdvancedMinPickupHeight = 0.5;
+
+    /** 0.8 mm, or 0.5 mm with the setup (buzz) range family unlocked (guitar-illustration.md 19). */
+    double getMinPickupHeight() const;
     static constexpr double kMaxIntonation = 6.0, kMaxNutSlot = 1.2;
 
     //==========================================================================
@@ -141,7 +154,7 @@ private:
     };
 
     std::optional<Gesture> gesture;
-    PartPtr pickPart, slidePart;
+    PartPtr pickPart;
     std::optional<WorkshopGuitar> audition;
 };
 

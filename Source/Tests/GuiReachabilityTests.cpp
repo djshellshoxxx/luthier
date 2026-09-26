@@ -29,6 +29,8 @@
 #include "../UI/PracticePanel.h"
 #include "../UI/Widgets.h"
 #include "../UI/GuitarBodyComponent.h"
+#include "../UI/RightHandGroup.h"
+#include "../UI/RealismGroupsC.h"
 
 #include <set>
 
@@ -51,6 +53,9 @@ namespace
             { "doubler_on",         "legacy engine doubler: a load migrates it to a Doubler pedal (PresetManager::fromVar)" },
             { "doubler_amount",     "legacy engine doubler; the Doubler pedal's own knobs replace it" },
             { "strum_speed",        "superseded by strum_crossing_sps (strum-dynamics 7); kept for automation indices" },
+            { "string_age",         "legacy: read only at a preset load, mapped to string_age_hours (string-aging 1) and the stability spread (tuning-stability 7)" },
+            { "tune_feel_mod",      "a modulation destination for the tune's timeline (tune-builder 14), reached from the MOD matrix" },
+            { "tune_tempo_drift",   "a modulation destination for the tune's timeline (tune-builder 14), reached from the MOD matrix" },
         };
 
         return m;
@@ -235,6 +240,29 @@ namespace
             m->toggle (0); drain();
             m->toggle (0); drain();
         }
+        else if (auto* cell = dynamic_cast<StringToolCell*> (c))
+        {
+            // A click steps the tool; operated through the cell's own setter.
+            const int was = cell->getTool();
+            cell->setTool (was == 0 ? 1 : 0); drain();
+            cell->setTool (was);              drain();
+        }
+        else if (auto* pad = dynamic_cast<PositionPad*> (c))
+        {
+            // Press to set the distance, turn the wheel to set the angle - the
+            // pad's own mouse handlers, as a user reaches them.
+            auto source = juce::Desktop::getInstance().getMainMouseSource();
+            const auto now = juce::Time::getCurrentTime();
+            const juce::Point<float> at (pad->getWidth() * 0.5f, pad->getHeight() * 0.5f);
+            const juce::MouseEvent e (source, at, {}, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, pad, pad, now, at, now, 1, false);
+            juce::MouseWheelDetails wheel {};
+            wheel.deltaY = 1.0f;
+
+            pad->mouseDown (e); pad->mouseUp (e); drain();
+            pad->mouseWheelMove (e, wheel);       drain();
+            wheel.deltaY = -1.0f;
+            pad->mouseWheelMove (e, wheel);       drain();
+        }
 
         juce::ignoreUnused (problem);
         return ids;
@@ -335,11 +363,12 @@ namespace
             const bool isSlider = dynamic_cast<juce::Slider*> (c) != nullptr;
             const bool isCombo  = dynamic_cast<juce::ComboBox*> (c) != nullptr;
             const bool isMask   = dynamic_cast<StringMaskSelector*> (c) != nullptr;
+            const bool isCustom = dynamic_cast<StringToolCell*> (c) != nullptr || dynamic_cast<PositionPad*> (c) != nullptr;
             auto* button = dynamic_cast<juce::Button*> (c);
             const bool isToggle = button != nullptr && button->getClickingTogglesState()
                                   && button->getRadioGroupId() == 0;
 
-            if (! (isSlider || isCombo || isToggle || isMask))
+            if (! (isSlider || isCombo || isToggle || isMask || isCustom))
                 continue;
 
             if (! onScreen (c, &root) || operatedControls.count (c) > 0)
@@ -361,9 +390,16 @@ namespace
 
             if (credit)
             {
-                auto& r = walk.reach[ids.front()];
-                r.visibleIn.insert (view + " (raw " + (isSlider ? "slider" : isCombo ? "combo" : isMask ? "mask" : "toggle") + ")");
-                r.operatedOk = true;
+                // A custom control may own two parameters (the pad: distance
+                // and angle); each one it wrote is credited.
+                const size_t credited = isCustom ? ids.size() : 1;
+
+                for (size_t k = 0; k < credited; ++k)
+                {
+                    auto& r = walk.reach[ids[k]];
+                    r.visibleIn.insert (view + " (raw " + (isSlider ? "slider" : isCombo ? "combo" : isMask ? "mask" : isCustom ? "custom" : "toggle") + ")");
+                    r.operatedOk = true;
+                }
             }
         }
     }

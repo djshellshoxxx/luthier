@@ -45,3 +45,4 @@
 - [ER-81] effort S — with ER-6's error level, order visible banners error > warning > info; colours warning/warning/accent; test in the same Editor test.
 - [ER-83] effort L — create `Source/Tests/Fixtures/Errors/<section>/` with one fixture per §1/§2/§10 failure (not-found, no-permission, latin-1, not-json, bad-magic, newer-schema, failing migration, corrupt part, corrupt config) and a table-driven `ErrorRecovery::everyFixtureGetsItsDocumentedResponse` test.
 - [ER-84] effort S — DEFER: a manual QA process item; add the "break the plugin" checklist to qa-polish's bug-bash script when that pass is scheduled.
+- [ER-47] OWNER-GAP (landed) effort S — TUNE-HELP's hum capture drops low-confidence frames (`TuneHumCapture` `kMinConfidence`) but shows nothing. When a capture yields no notes because confidence stayed under 0.6, show the "Could not detect pitch reliably" banner in `TunePanel` and leave the section untouched; test in `HumCapture` with a noise fixture.

@@ -345,7 +345,10 @@ Upright.
   falls back to Main with the notice in 8.4.
 - **Mix point in `processBlock`:** after `looper.processBlock` (the
   looper records guitar only) and before `sessionRecorder` (takes
-  include the band). Tone-match capture and the monitor mix never
+  include the band). This is after `master.processBlock`, which
+  output-normalization.md 10 requires: the band is never normalized and
+  never in the calibration's reference render; never mix it into the
+  engine ahead of the master bus. Tone-match capture and the monitor mix never
   contain the band. The kill switch mutes it through a new
   `KillSwitch::applyBlockRamp`, which reapplies this block's computed
   ramp without advancing it.

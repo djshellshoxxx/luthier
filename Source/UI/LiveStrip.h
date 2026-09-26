@@ -18,11 +18,13 @@
     hand while holding a neck, cannot be asked to hit a 20-px button.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
 #include "Widgets.h"
 #include "LiveSetup.h"   // SPEC-SWEEP: LP-11
+#include "JamWidgets.h"   // FEAT-JAM
 
 namespace luthier
 {
@@ -142,6 +144,10 @@ private:
     double displayedBpm = 120.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TapPad)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Transition, "TapPad", {}, [this] { timerCallback(); } };
 };
 
 //==============================================================================
@@ -160,6 +166,12 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    /** For tests: the JAM pill (FEAT-JAM). */
+    JamPill& getJamPill() noexcept { return *jamPill; }
+
+    /** Shows the JAM pill only while jam_enabled is on; the timer calls it. */
+    void refreshJamPill();
+
 private:
     void timerCallback() override;
 
@@ -172,6 +184,7 @@ private:
     std::unique_ptr<SetlistTriptych> triptych;
     std::unique_ptr<TapPad> tapPad;
     std::unique_ptr<LiveActionButton> ccButton;   // SPEC-SWEEP: LP-11
+    std::unique_ptr<JamPill> jamPill;   // FEAT-JAM: jam-mode 8.2, after Tap while jam_enabled is on
 
     // --- morph --------------------------------------------------------------------
     juce::TextButton morphEnable { "MORPH" };
@@ -188,6 +201,10 @@ private:
     bool lastKillActive = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LiveStrip)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "LiveStrip" };
 };
 
 } // namespace luthier

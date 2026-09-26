@@ -33,6 +33,10 @@ public:
     /** Forces the next call to search again. Used after a hand install. */
     static void forgetResourcesFolder();
 
+    /** Every folder searched for the resources, in order (installer.md 1.1,
+        2.1, 3.1: the installers' factory-content paths are among them). */
+    static juce::Array<juce::File> getCandidateFolders();
+
     static juce::File getBodyIrFolder();
     static juce::File getCabIrFolder();
 

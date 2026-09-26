@@ -29,6 +29,7 @@ are reference; this file is the source of truth.
 | `.luthierpart` | Single part | `"magic": "luthier.part"` | Workshop |
 | `.luthiertune` | Tune (composition) | `"magic": "luthier.tune"` | TuneBuilder |
 | `.luthierpattern` | Rhythm pattern | `"magic": "luthier.pattern"` | RhythmEngine |
+| `.luthierjam` | Jam band style (jam-mode.md 12) | `"magic": "luthier.jam"` | Jam |
 | `.luthierset` | Setlist | `"magic": "luthier.setlist"` | LivePerf |
 | `.luthierloop` | Looper save | `"magic": "luthier.loop"` | Practice |
 | `.luthiercontent` | Content update bundle | Signed manifest | Installer |
@@ -36,6 +37,7 @@ are reference; this file is the source of truth.
 | `.mid` / `.midi` | Standard MIDI (Luthier or Generic profile) | See midi-export.md 2 | MidiExport |
 | `.wav` / `.aiff` / `.flac` | Audio (renders, captures, IRs) | Standard | AudioExport / ToneMatch |
 | `.mp3` | Audio in (backing tracks only) | Standard | Practice |
+| `config/performance.json` | CPU quality preference (cpu-quality-modes 3) | `"magic": "luthier.performance"`, `"schema": 1` | PerformanceSettings; written temp-and-rename (13); missing or corrupt -> defaults, never an error |
 
 ## 2. `.luthierpreset`
 

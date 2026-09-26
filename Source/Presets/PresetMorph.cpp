@@ -1,4 +1,5 @@
 #include "PresetMorph.h"
+#include "../Support/ConfigChangeTracker.h"   // output-normalization.md 3.2
 #include "../PluginProcessor.h"
 
 namespace luthier
@@ -61,6 +62,9 @@ void PresetMorph::apply (double position)
     if (! enabled || ! hasBothSlots())
         return;
 
+    // output-normalization.md 3.2: the morph has its own gain rule.
+    const PerformanceWriteScope performanceWrites;
+
     const double b = juce::jlimit (0.0, 1.0, position);
 
     if (b == appliedPosition)
@@ -88,7 +92,8 @@ void PresetMorph::apply (double position)
         {
             auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p);
 
-            if (withId == nullptr || withId->paramID == ParamIDs::presetMorphPosition)
+            if (withId == nullptr || withId->paramID == ParamIDs::presetMorphPosition
+                  || ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM
                 continue;
 
             const juce::Identifier id (withId->paramID);

@@ -11,12 +11,12 @@ NextStrumArrow::NextStrumArrow (LuthierAudioProcessor& p)
 {
     setInterceptsMouseClicks (false, false);
     setTitle ("Next strum");
-    startTimerHz (kRefreshHz);
+    motion.startTimerHz (*this, kRefreshHz);   // merge: through cpu-quality-modes 6's motion switch
 }
 
 NextStrumArrow::~NextStrumArrow()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void NextStrumArrow::timerCallback()
@@ -59,6 +59,8 @@ void NextStrumArrow::tick (double nowMs)
 
 void NextStrumArrow::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     if (! shown)
         return;
 

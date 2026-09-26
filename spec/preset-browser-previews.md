@@ -124,6 +124,12 @@ The renderer runs on a worker thread, has no UI, and is shared by the plugin and
 6. Analyse the result (6.2).
 7. Normalise loudness to BS.1770-4 integrated **-18 LUFS**, lowering the gain further if the 4x true peak would
    exceed **-3 dBTP**. No limiter is used, and the gain goes in the sidecar.
+   (output-normalization.md 4.3, 10:) measure with the shared `Source/DSP/Master/Bs1770Meter.h` and 4x
+   `TruePeakDetector.h` rather than a meter of its own, and record the clip's `truePeakDbtp` in the sidecar.
+   Preview renders always run with output normalization off (`setCalibrationRenderMode`); while it is on,
+   `PreviewPlayer` adds `OutputNormalization::getPreviewGainOffsetDb (truePeakDbtp)` (`target + 18` dB, limited
+   to -1 dBTP). The calibrator borrows this service's offline instance through a top-priority `calibration`
+   lane once the service exists.
 8. Encode Ogg Vorbis, 48 kHz stereo, q0.5, 64 KB or less, plus a 64-point peak envelope.
 
 A cancel flag is checked every block. A job that runs longer than 10 s of wall time is abandoned and marked

@@ -159,6 +159,7 @@ Legend:
 | Live Mode strip | `gui-integration.md` 9 | Free-limited | Snapshot, tap, kill; setlist and morph controls Pro |
 | Modulation matrix | `modulation-matrix.md` | Free-limited | 2 LFOs, 1 envelope follower, 2 macros, 4 routes. Pro: every source (EGs, step sequencers, all LFOs and followers, 8 macros) and the full routing table |
 | Rhythm engine: chord detector, voicer, strum and fingerpick schedulers, pattern editor, Feel | `rhythm-engine.md` | Both | Saving user patterns included |
+| Jam band | `jam-mode.md` 15 | Free-limited | Free: Rock, Pop, Blues Shuffle, Ballad; Studio and Vintage kits; Finger and Pick bass; every start, stop and follow mode; main output. Pro: the other styles and user styles, Arena / Jazz / Machine kits, Muted Pick and Upright, kit tuning and damping, Separate outputs, Jam MIDI out and export. The table is `Source/Jam/JamEdition.h` |
 | Genre kits and rhythm patterns | `factory-content.md` 5, 6 | Free-limited | 8 kits with their patterns: Country, Blues shuffle, Funk 16th, Reggae, Punk, Metal, Bossa, Folk arpeggio. Pro: all ~28 |
 | Muting-rhythm 16-step mute grid, chuka, ghost | `muting-rhythm.md` | **Pro** (H3) | |
 | Tune Builder (TUNE tab, `.luthiertune`) | `tune-builder.md` | **Pro** (H2) | Free can *play back* the six example tunes read-only in the practice drawer as a demo (4.3); it cannot edit or export |
@@ -192,8 +193,9 @@ Legend:
 | License activation | `updates-telemetry.md` 5, `licensing.md` | **Pro only** | Free contains no licensing code at all |
 | Content updates (`.luthiercontent`) | `installer.md` 11 | Both | A pack declares its edition; Free rejects Pro packs with the upsell notice |
 | Diagnostics, error recovery, safe mode | `error-recovery.md` | Both | |
+| CPU quality modes (High / Medium / Low / Auto) | `cpu-quality-modes.md` | Both | Identical, no Free limit: relief matters most on the low-end machines Free users are likeliest to have |
 
-Count: of the 79 rows above, 36 are Both (a few of them with Pro-only deep
+Count: of the 80 rows above, 37 are Both (a few of them with Pro-only deep
 controls), 21 Free-limited and 22 Pro.
 Free keeps every row a beginner-to-intermediate guitarist or a producer
 who needs "a great guitar" touches; Pro keeps the eight headline groups.

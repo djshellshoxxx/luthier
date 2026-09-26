@@ -63,24 +63,21 @@ public:
     void beginBlock (const double* stringHz, const double* stringLevels, const bool* wound,
                      int numStrings) noexcept;
 
-    /** The amp's output from `delay` samples ago, for sample `i` of this block. */
-    double delayedAmp (int i) const noexcept
-    {
-        const int size = (int) ring.size();
+    /*  The samples between a string's output and the amp's output that are
+        the plug-in's doing, not the room's: the drive pedals' and the amp's
+        oversampling latency (with cpu-quality-modes 2.2's pad, the nominal
+        factor's, whatever the level). Part of the loop's delay, which is
+        padded to whole periods (updateReadDelay). Audio thread, per block. */
+    void setProcessingLatency (int samples) noexcept;
 
-        if (size == 0)
-            return 0.0;
+    /** The amp's output as string s hears it, for sample `i` of this block:
+        at least the block and the air late, padded to a whole number of the
+        string's periods at its target (updateReadDelay). */
+    double delayedAmp (int s, int i) const noexcept;
 
-        int index = blockStartWrite - delaySamples + i;
-
-        while (index < 0)
-            index += size;
-
-        return ring[(size_t) (index % size)];
-    }
-
-    /** String s's share of `ampSample`, at its excitation point. */
-    double process (int s, double ampSample) noexcept;
+    /** String s's share of the amp's output, at its excitation point, for
+        sample `i` of this block. */
+    double process (int s, int i) noexcept;
 
     /** After the amp: this block's output, for the blocks to come. */
     void pushAmpOutput (const double* amp, int numSamples) noexcept;
@@ -89,9 +86,13 @@ public:
     double getActivity() const noexcept { return juce::jlimit (0.0, 1.0, injectionEnv / kInjectionCeiling); }
 
     /** The loop has taken over: the injection is sustaining a string by itself.
-        A loud high-gain rig at full amount settles near 19% of the ceiling (the
-        amp saturates first); a clean amp at 20% stays under 2%. 8% is between. */
-    bool isResonant() const noexcept { return injectionEnv > 0.08 * kInjectionCeiling; }
+        A loud high-gain rig at full amount settles near 3.4% of the ceiling (the
+        amp saturates first); a clean amp at 20% peaks under 0.8% on the pluck
+        and then decays. 1.6% is between, on a ratio scale. */
+    bool isResonant() const noexcept { return injectionEnv > kResonantShare * kInjectionCeiling; }
+
+    /** isResonant()'s threshold, as a share of the ceiling (getActivity()'s scale). */
+    static constexpr double kResonantShare = 0.016;
 
     /*  part-acoustics.md 2.1: the body's chambering feeds the loop's gain. A
         hollow body is moved by the air far more than a solid one; 1 is the
@@ -108,8 +109,15 @@ public:
 
     int getDelaySamples() const noexcept { return delaySamples; }
 
+    /** The whole delay string s's path reads at, artefacts and padding included (tests). */
+    double getStringDelaySamples (int s) const noexcept { return readDelay[(size_t) juce::jlimit (0, kMaxStrings - 1, s)]; }
+
+    /** The longest artefact latency the ring is sized for. */
+    static constexpr int kMaxProcessingLatency = 4096;
+
 private:
     void updateCoupling() noexcept;
+    void updateReadDelay (int s) noexcept;
 
     double sr = 48000.0;
     int maxBlock = 512;
@@ -119,7 +127,9 @@ private:
     std::vector<double> ring;
     int writePos = 0;
     int blockStartWrite = 0;
-    int delaySamples = 512;
+    int delaySamples = 512;       ///< the block plus the air
+    int processingLatency = 0;
+    std::array<double, kMaxStrings> readDelay {};
 
     std::array<Biquad, kMaxStrings> peaks {};
     std::array<double, kMaxStrings> designedHz {};

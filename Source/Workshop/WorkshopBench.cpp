@@ -197,8 +197,10 @@ bool WorkshopBench::fitAccessory (const PartPtr& part)
 
     if (part->type == PartType::slide)
     {
-        processor.pushUndoState ("Fitted " + part->name + (slidePart != nullptr ? " (was " + slidePart->name + ")" : juce::String()));
-        slidePart = part;
+        // The engine plays the bar's material and mass (slide-guitar.md 2.1).
+        const auto old = processor.getSlidePart();
+        processor.pushUndoState ("Fitted " + part->name + (old != nullptr ? " (was " + old->name + ")" : juce::String()));
+        processor.setSlidePart (part);
         return true;
     }
 
@@ -209,8 +211,47 @@ PartPtr WorkshopBench::getAccessory (PartType type) const
 {
     if (type == PartType::capo)   return processor.getCapoPart();
     if (type == PartType::pick)   return pickPart;
-    if (type == PartType::slide)  return slidePart;
+    if (type == PartType::slide)  return processor.getSlidePart();
     return nullptr;
+}
+
+juce::String WorkshopBench::describeString (const WorkshopGuitar& g, int s) const
+{
+    const auto set = g.get (GuitarSlot::strings);
+    const auto gauges = set != nullptr ? set->numbers ("gauges_in") : juce::Array<double>();
+    const auto& over = g.stringOverrides[(size_t) juce::jlimit (0, 11, s)];
+    const double gauge = over.gaugeIn > 0.0 ? over.gaugeIn : juce::isPositiveAndBelow (s, gauges.size()) ? gauges[s] : 0.0;
+    const auto setMaterial = set != nullptr ? set->text ("winding_material", "nickel_plated_steel") : juce::String ("nickel_plated_steel");
+    const auto material = over.material.isNotEmpty() ? over.material : setMaterial;
+
+    // As the engine decides it (StringMaterials::computeSpec): nylon trebles plain,
+    // steel wound from 0.0195", unless the override says.
+    bool wound = material == "nylon" ? s >= 3 : (g.family == "bass" || gauge >= 0.0195);
+    if (over.wound >= 0)
+        wound = over.wound == 1;
+
+    return juce::String (gauge, 3) + (wound ? " " + material.replaceCharacter ('_', ' ') + " wound" : juce::String (" plain"));
+}
+
+bool WorkshopBench::setStringOverride (int stringIndex, const StringOverride& override)
+{
+    const auto& committed = processor.getCurrentGuitar();
+
+    if (! juce::isPositiveAndBelow (stringIndex, juce::jmin (12, committed.getStringCount())))
+        return false;
+
+    if (committed.stringOverrides[(size_t) stringIndex] == override)
+        return false;
+
+    endAudition();
+
+    auto edited = committed;
+    edited.stringOverrides[(size_t) stringIndex] = override;
+
+    // Section 8: "Set string 3 to 0.018 plain (was 0.017 plain)".
+    commit (edited, "Set " + stringLabel (stringIndex) + " to " + describeString (edited, stringIndex)
+                      + " (was " + describeString (committed, stringIndex) + ")");
+    return true;
 }
 
 bool WorkshopBench::revert (GuitarSlot slot)
@@ -230,6 +271,10 @@ WorkshopGuitar WorkshopBench::withPart (GuitarSlot slot, const PartPtr& candidat
 {
     auto g = processor.getCurrentGuitar();
     g.parts[(size_t) slot] = candidate;
+
+    // guitar-illustration.md 13.2: a new set replaces the whole set, overrides included.
+    if (slot == GuitarSlot::strings)
+        g.stringOverrides = {};
 
     // A pickup going into an empty slot needs somewhere to sit: the usual
     // place for that slot, scaled to this guitar's scale length.
@@ -388,8 +433,9 @@ void WorkshopBench::setPickupHeights (int index, double trebleMm, double bassMm)
     beginGesture();
 
     auto& p = gesture->live.placements[(size_t) index];
-    p.heightTrebleMm = juce::jlimit (kMinPickupHeight, kMaxPickupHeight, trebleMm);
-    p.heightBassMm = juce::jlimit (kMinPickupHeight, kMaxPickupHeight, bassMm);
+    const double lowest = getMinPickupHeight();
+    p.heightTrebleMm = juce::jlimit (lowest, kMaxPickupHeight, trebleMm);
+    p.heightBassMm = juce::jlimit (lowest, kMaxPickupHeight, bassMm);
     applyLive();
 
     if (own)
@@ -454,6 +500,13 @@ void WorkshopBench::applyLive()
     }
 }
 
+double WorkshopBench::getMinPickupHeight() const
+{
+    // guitar-illustration.md 19: not below 0.8 mm without advanced ranges; with
+    // the setup family (buzz) unlocked, down to workshop-ui.md 4's 0.5 mm.
+    return processor.getRanges().isFamilyAdvanced (RangeFamily::buzz) ? kAdvancedMinPickupHeight : kMinPickupHeight;
+}
+
 //==============================================================================
 bool WorkshopBench::hasSlot (int index) const
 {
@@ -492,7 +545,10 @@ void WorkshopBench::clearSlot (int index)
 //==============================================================================
 void WorkshopBench::beginAudition (GuitarSlot slot, const PartPtr& candidate)
 {
-    if (gesture)
+    // cpu-quality-modes 7, E2 (was performance-budget.md 8 step 6): under heavy
+    // CPU load the shadow audition is frozen - whatever is sounding stays, no
+    // new one is built.
+    if (gesture || processor.getQualityController().isShadowAuditionFrozen())
         return;
 
     audition = withPart (slot, candidate);

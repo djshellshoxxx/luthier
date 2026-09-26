@@ -171,6 +171,21 @@ namespace
                     || name.contains ("shimmer") || name.contains ("looper") || name.contains ("freeze")
                     || name.contains ("swell") || name.contains ("infinite"))
                     return true;
+
+                /*  A fuzz, distortion or compressor holds its output up while its
+                    input decays: the open strings' sympathetic ring (seconds on a
+                    bass or a 12-string's courses) comes out near the note's level
+                    until a hand mutes it. That is the pedal doing its job, so a
+                    "the mix must fall" check means nothing through one. */
+                if (! t->getCurrentChoiceName().equalsIgnoreCase ("None")
+                    && (name.contains ("fuzz") || name.contains ("distortion") || name.contains ("overdrive")
+                        || name.contains ("drive") || name.contains ("compressor") || name.contains ("sustain")
+                        || name.contains ("octave") || name.contains ("boost") || name.contains ("metal")))
+                {
+                    auto* bypass = rig.param (ParamIDs::slotBypass (chain == 1, slot));
+                    if (bypass == nullptr || bypass->getValue() < 0.5f)
+                        return true;
+                }
             }
 
         return false;
@@ -386,6 +401,7 @@ LUTHIER_TEST (Combo, everyFactoryPresetPlaysEveryPhrase)
             const auto stats = rig.render ((Phrase) ph, 3.0);
             Verdict v;
             v.expectDecay = ! holdsSound (rig) && ! slotHoldsSound (rig);
+            v.minSnrDb = 20.0;   // a shipped sound: the floor 20 dB under the playing
             judgeAndLog (ctx, log, rig, label + juce::String (" phrase=") + phraseName ((Phrase) ph), stats, v);
             rig.quiet();
         }
@@ -607,9 +623,18 @@ LUTHIER_TEST (Combo, modulationRoutesAtFullDepth)
         const auto phrase = (Phrase) (group % (int) Phrase::numPhrases);
         const auto stats = rig.render (phrase, 2.5);
 
+        // A route into a noise-floor level (hum, hiss, radio, the player's
+        // movement) makes the floor itself move with the LFO or random source,
+        // note or no note: the 0.25 s idle measured before the phrase cannot
+        // stand for it, so a tail at the floor's own level is not a note that
+        // fails to decay.
+        bool movesTheFloor = false;
+        for (auto& id : used)
+            movesTheFloor = movesTheFloor || id.startsWith ("noise_");
+
         Verdict v;
         v.expectSound = false;   // a route to master gain or guitar volume may legitimately mute it
-        v.expectDecay = ! holdsSound (rig) && ! slotHoldsSound (rig)
+        v.expectDecay = ! holdsSound (rig) && ! slotHoldsSound (rig) && ! movesTheFloor
                         && ! used.joinIntoString (",").containsIgnoreCase ("feedback")
                         && ! used.joinIntoString (",").containsIgnoreCase ("freeze")
                         && ! used.joinIntoString (",").containsIgnoreCase ("ebow");
@@ -1073,6 +1098,13 @@ LUTHIER_TEST (Combo, everyParameterSurvivesTheSessionStateRoundTrip)
             if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (prm))
                 r->setValueNotifyingHost (r->convertTo0to1 (r->convertFrom0to1 (uni (rng))));
 
+        // FEAT-JAM: doubler_on is legacy (excluded below) and every load
+        // migrates it into a Doubler pedal in a post slot; left on at random it
+        // rewrites a slot this test then reads. It became visible when the 34
+        // Jam parameters moved every later round's random draws.
+        if (auto* legacy = source.param (ParamIDs::doublerOn))
+            legacy->setValueNotifyingHost (0.0f);
+
         source.apply();
 
         juce::MemoryBlock blob;
@@ -1088,6 +1120,7 @@ LUTHIER_TEST (Combo, everyParameterSurvivesTheSessionStateRoundTrip)
             if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (prm))
                 if (auto* other = copy.param (r->getParameterID()))
                     if (r->getParameterID() != ParamIDs::doublerOn   // legacy: every load migrates it to a Doubler pedal (BETA_TEST_REPORT B-07)
+                        && ! ParamIDs::isJamTransient (r->getParameterID())   // FEAT-JAM: jam-mode 10, off after a reload
                         && std::abs (r->getValue() - other->getValue()) > 1.0e-4f)
                         differing.add (r->getParameterID() + " (" + juce::String (r->getValue(), 4)
                                        + " -> " + juce::String (other->getValue(), 4) + ")");
@@ -1340,4 +1373,237 @@ LUTHIER_TEST (Combo, notesBelowTheRangeAreDroppedAndInRangeNotesSound)
     CHECK_MSG (play (lowest - 12) < 3.0e-4, "a pitch an octave below the lowest string sounded");
     CHECK_MSG (play (lowest) > 1.0e-3, "the lowest open string did not sound");
     CHECK_MSG (play (lowest + 12) > 1.0e-3, "a pitch an octave above the lowest string did not sound");
+}
+
+//==============================================================================
+/*  What was played before a reset must not colour what is played after it.
+    Found as "state round trip differs" (8-String Djent, Drop C Riff, Modern
+    Metal Chug, up to 0.0016): the saved state was identical, but the source
+    instance had played other presets first and each string kept its last
+    note's termination brightness (nut or fret material) through reset(). The
+    fresh instance, and the copy made from the state, started from 1.0. */
+LUTHIER_TEST (Combo, renderDoesNotDependOnWhatWasPlayedBefore)
+{
+    FindingLog log { "Combo.history" };
+
+    auto play = [] (Rig& r)
+    {
+        r.p().releaseResources();
+        r.p().prepareToPlay (kSr, kBlock);
+        r.p().reset();
+        r.apply();
+        return r.render (Phrase::chord, 0.5).mono;
+    };
+
+    for (auto* name : { "Drop C Riff", "8-String Djent", "Modern Metal Chug" })
+    {
+        Rig fresh;
+        auto& pf = fresh.p().getPresetManager();
+        pf.loadPreset (pf.indexOfPreset (name));
+        fresh.apply();
+        const auto reference = play (fresh);
+
+        for (int before : { 4, 5, 7, 8, 16 })
+        {
+            Rig used;
+            auto& pu = used.p().getPresetManager();
+            used.p().resetEverything();
+            pu.loadPreset (before);
+            used.apply();
+            used.render (Phrase::chord, 0.3);
+            used.quiet();
+            used.p().resetEverything();
+            pu.loadPreset (pu.indexOfPreset (name));
+            used.apply();
+
+            const auto after = play (used);
+            double diff = 0.0;
+            for (size_t s = 0; s < juce::jmin (after.size(), reference.size()); ++s)
+                diff = juce::jmax (diff, (double) std::abs (after[s] - reference[s]));
+
+            ++ctx.checks;
+            if (diff > 1.0e-6)
+            {
+                const auto label = juce::String (name) + " after playing " + presetLabel (used, before);
+                const auto why = "render depends on what was played before: max diff " + juce::String (diff, 7);
+                ctx.fail (why + " | " + label);
+                log.add (label, why);
+            }
+        }
+    }
+
+    log.flush();
+}
+
+//==============================================================================
+/*  A factory preset plays its guitar's own parts, and Reset gives the default
+    guitar its own parts. Found through the idle noise floor: "Octave Fuzz
+    Stoner" (an SG) hummed like a Strat because every factory preset carried the
+    layout defaults for the parameters a guitar's parts own - three single
+    coils, an X-braced spruce top, 500k pots - and a preset's values beat the
+    parts. Reset left the same on the default solid-body (B-05). */
+LUTHIER_TEST (Combo, factoryPresetsAndResetUseTheGuitarsOwnParts)
+{
+    auto pickup0 = [] (Rig& r) { return r.param (ParamIDs::pickupType (0))->getCurrentValueAsText(); };
+    auto bracing = [] (Rig& r) { return r.param (ParamIDs::bodyBracing)->getCurrentValueAsText(); };
+
+    {
+        Rig r;
+        auto& p = r.p().getPresetManager();
+        p.loadPreset (p.indexOfPreset ("Octave Fuzz Stoner"));
+        r.apply();
+        CHECK_MSG (pickup0 (r) == "Humbucker", "the SG preset's bridge pickup is " + pickup0 (r));
+        CHECK_MSG (bracing (r) == "Solid Body", "the SG preset's body is " + bracing (r));
+        CHECK_MSG ((int) r.p().getEngine().getPickupEngine().getPickupSpec (0).type == 1, "the engine's SG pickup is not a humbucker");
+    }
+
+    {
+        Rig r;
+        r.p().resetEverything();
+        CHECK_MSG (bracing (r) == "Solid Body", "Reset left the default solid-body " + bracing (r));
+    }
+
+    // And the recipe's own choices survive the parts: the tuning a preset picks.
+    {
+        Rig r;
+        auto& p = r.p().getPresetManager();
+        p.loadPreset (p.indexOfPreset ("Drop C Riff"));
+        r.apply();
+        CHECK_MSG (r.param (ParamIDs::tuningPreset)->getCurrentValueAsText().containsIgnoreCase ("C"),
+                   "Drop C Riff lost its tuning to the guitar's parts: " + r.param (ParamIDs::tuningPreset)->getCurrentValueAsText());
+    }
+}
+
+//==============================================================================
+/*  B-17: a preset on a type with no parts guitar (Custom) plays the compiled
+    guitar, and a transport restart (prepareToPlay) must not bring back the
+    parts guitar that was loaded before it. It did: the processor kept the
+    previous parts guitar marked as loaded and re-applied it in prepareToPlay,
+    so "Transposing Trem Chords" played the default Strat's parts after a
+    restart and its saved session did not (0.285 apart). */
+LUTHIER_TEST (Combo, compiledGuitarSurvivesATransportRestart)
+{
+    Rig r;
+    auto& p = r.p().getPresetManager();
+    const int index = p.indexOfPreset ("Transposing Trem Chords");
+    CHECK_MSG (index >= 0, "the Custom-type factory preset is missing");
+    if (index < 0)
+        return;
+
+    p.loadPreset (index);
+    r.apply();
+    const bool before = r.p().getEngine().isWorkshopGuitar();
+
+    r.p().releaseResources();
+    r.p().prepareToPlay (kSr, kBlock);
+    r.apply();
+    CHECK_MSG (r.p().getEngine().isWorkshopGuitar() == before,
+               juce::String ("prepareToPlay changed the guitar: parts guitar ") + (before ? "on" : "off") + " before, "
+                   + (r.p().getEngine().isWorkshopGuitar() ? "on" : "off") + " after");
+}
+
+//==============================================================================
+/*  The released string itself is damped quickly (sustain-and-decay SUS-08:
+    by 250 ms more than 40 dB below its level at note-off). The mix-level decay
+    check in Verdict allows the sympathetic ring of the other open strings; this
+    is the half that holds the fretting finger to account, for every guitar
+    type. A fretted note: the lowest string's second fret. */
+LUTHIER_TEST (Combo, releasedStringIsDampedQuickly)
+{
+    FindingLog log { "Combo.releasedString" };
+    Rig rig;
+    auto* types = dynamic_cast<juce::AudioParameterChoice*> (rig.param (ParamIDs::guitarType));
+
+    for (int t = 0; t < types->choices.size(); ++t)
+    {
+        rig.p().resetEverything();
+        rig.setIndex (ParamIDs::guitarType, t);
+
+        // The released string alone: sympathetic coupling at its minimum and no
+        // room, so the output is that string (StringEngine::getLevel is an
+        // envelope follower with its own release and cannot show this).
+        rig.setNormalised (ParamIDs::couplingAmount, 0.0f);
+        rig.setNormalised (ParamIDs::couplingAirAmount, 0.0f);    // string-interaction 1: the air path is sympathetic too
+        rig.setNormalised (ParamIDs::bodyCouplingAmount, 0.0f);   // body-coupling 3: the body rings the other strings back
+        rig.setIndex (ParamIDs::roomOn, 0);
+        rig.apply();
+        rig.processSilence (4);
+
+        const int note = rig.lowestPlayableNote() + 2;   // second fret of the lowest string: fretted, never open
+        const int releaseAt = (int) (0.5 * kSr);
+        std::vector<TimedMidi> ev { { 0, juce::MidiMessage::noteOn (1, note, (juce::uint8) 100) },
+                                    { releaseAt, juce::MidiMessage::noteOff (1, note) } };
+        const auto s = rig.renderEvents (ev, releaseAt, 0.4);
+
+        const double before = Rig::windowRms (s.mono, releaseAt - (int) (0.03 * kSr), (int) (0.03 * kSr));
+        const double after  = Rig::windowRms (s.mono, releaseAt + (int) (0.25 * kSr), (int) (0.03 * kSr));
+        const double dropDb = juce::Decibels::gainToDecibels (juce::jmax (after, s.idleRms, 1.0e-7) / juce::jmax (1.0e-9, before));
+        const auto label = "guitar_type=" + types->choices[t] + " note " + juce::String (note);
+
+        ++ctx.checks;
+        // SUS-08 asks 40 dB of the string itself; this reads the whole rig
+        // (amp, cabinet and the minimum sympathetic coupling still ring a
+        // little), so it allows 35. Before the release cap it read 21-28.
+        if (before > 1.0e-3 && dropDb > -35.0 && after > 2.0 * s.idleRms)
+        {
+            const auto why = "released note only " + juce::String (-dropDb, 1) + " dB down 250 ms after note-off (35 at the output; SUS-08: 40 at the string)";
+            ctx.fail (why + " | " + label);
+            log.add (label, why);
+        }
+
+        rig.quiet();
+    }
+
+    log.flush();
+}
+
+//==============================================================================
+/*  Lifting the sustain pedal releases the notes whose keys are already up (and
+    all-notes-off stops them). The pedal-up handler used to be a loop that only
+    `continue`d, so after the pedal a released note rang on at its open sustain:
+    "does not decay after release", phrase sustainPedal, every bass (a bass
+    string's open T60 is several seconds). Checked per string: the strings the
+    phrase played end the pedal-up damped, not open. */
+LUTHIER_TEST (Combo, liftingTheSustainPedalReleasesItsNotes)
+{
+    for (const auto* type : { "P-Style Bass", "Vintage Double-Cut" })
+    {
+        Rig rig;
+        auto* types = dynamic_cast<juce::AudioParameterChoice*> (rig.param (ParamIDs::guitarType));
+        rig.setIndex (ParamIDs::guitarType, types->choices.indexOf (type));
+        rig.apply();
+        rig.processSilence (4);
+
+        int released = 0;
+        auto events = makePhrase (Phrase::sustainPedal, released);
+        rig.transposeIntoRange (events);
+        rig.renderEvents (events, released, 0.05);
+
+        auto& engine = rig.p().getEngine();
+        int damped = 0, open = 0;
+
+        // The strings the phrase played are the ones tuned (fretted) to its pitches;
+        // the others may still ring sympathetically, open, as a real guitar's do.
+        juce::Array<double> pitches;
+        for (auto& e : events)
+            if (e.message.isNoteOn())
+                pitches.add (juce::MidiMessage::getMidiNoteInHertz (e.message.getNoteNumber()));
+
+        for (int s = 0; s < engine.getNumStrings(); ++s)
+        {
+            bool played = false;
+            for (auto hz : pitches)
+                played = played || std::abs (1200.0 * std::log2 (engine.getString (s).getTargetFrequency() / hz)) < 60.0;
+
+            if (! played)
+                continue;
+
+            if (engine.getString (s).getDamping() == StringEngine::Damping::Open) ++open;
+            else                                                                  ++damped;
+        }
+
+        CHECK_MSG (damped >= 2 && open == 0,
+                   juce::String (type) + ": after pedal-up " + juce::String (damped) + " played strings damped, "
+                     + juce::String (open) + " still open");
+    }
 }

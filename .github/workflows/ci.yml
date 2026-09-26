@@ -1,0 +1,65 @@
+# qa-polish.md 2.10 / performance-budget.md 0.1, 9: every push builds, runs the
+# whole suite, validates the VST3 and packages it.
+name: CI (manual Linux package)
+
+on:
+  # Manual only since 2026-09-26: ci-cadence.yml builds Linux on every push.
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      SOURCE_DATE_EPOCH: "1767225600"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up (dependencies, JUCE 8.0.10, Release Ninja tree)
+        run: |
+          sudo -E scripts/setup_linux.sh
+          sudo chown -R "$USER" .
+          sudo apt-get install -y desktop-file-utils ccache unzip
+
+      - name: Build
+        run: ninja -C build -j4 LuthierTests Luthier_VST3 Luthier_Standalone
+
+      - name: Test
+        run: xvfb-run -a build/LuthierTests_artefacts/Release/LuthierTests | tee build/tests.log
+
+      - name: pluginval (strictness 10, warnings fail)
+        run: scripts/pluginval.sh
+
+      - name: Package (.tar.gz, .deb)
+        run: |
+          cd build && cpack
+          dpkg-deb -c luthier_*_amd64.deb | awk '{print $6}' > deb-contents.txt
+          for p in ./usr/bin/luthier \
+                   ./usr/lib/vst3/Luthier.vst3/Contents/x86_64-linux/Luthier.so \
+                   ./usr/share/luthier/BodyIRs/ ./usr/share/luthier/CabIRs/ \
+                   ./usr/share/luthier/THIRD_PARTY_LICENCES.txt \
+                   ./usr/share/applications/luthier.desktop \
+                   ./usr/share/mime/packages/luthier.xml \
+                   ./usr/share/icons/hicolor/512x512/apps/luthier.png; do
+            grep -qxF "$p" deb-contents.txt || { echo "missing from the .deb: $p"; exit 1; }
+          done
+          tar tzf Luthier-*-linux-x64.tar.gz | grep -q '/install.sh$'
+          desktop-file-validate ../packaging/linux/luthier.desktop
+
+      - name: Checksums and manifest
+        run: scripts/release_manifest.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: luthier-linux
+          path: |
+            build/*.deb
+            build/*.tar.gz
+            build/manifest.txt
+            build/SHA256SUMS
+            build/tests.log
+            build/pluginval.log

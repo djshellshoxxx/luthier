@@ -175,10 +175,10 @@ void PositionPad::paint (juce::Graphics& g)
 NoiseMeter::NoiseMeter (LuthierAudioProcessor& p) : processor (p)
 {
     setTitle ("Noise floor level");
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);
 }
 
-NoiseMeter::~NoiseMeter() { stopTimer(); }
+NoiseMeter::~NoiseMeter() { motion.stopTimer(); }
 
 bool NoiseMeter::isStale() const noexcept { return nowSeconds() - lastUpdateTime > kStaleSeconds; }
 
@@ -205,6 +205,8 @@ void NoiseMeter::timerCallback()
 
 void NoiseMeter::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds().toFloat();
     g.setColour (Palette::panelSunken);
     g.fillRoundedRectangle (bounds, 2.0f);
@@ -325,10 +327,10 @@ void NoiseFloorGroup::resized()
 PitchOffsetReadout::PitchOffsetReadout (LuthierAudioProcessor& p) : processor (p)
 {
     setTitle ("Tension pitch per string");
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
-PitchOffsetReadout::~PitchOffsetReadout() { stopTimer(); }
+PitchOffsetReadout::~PitchOffsetReadout() { motion.stopTimer(); }
 
 bool PitchOffsetReadout::isStale() const noexcept { return nowSeconds() - lastUpdateTime > kStaleSeconds; }
 
@@ -357,6 +359,8 @@ void PitchOffsetReadout::timerCallback()
 
 void PitchOffsetReadout::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     const int n = juce::jlimit (1, kMaxStrings, processor.getEngine().getNumStrings());
     auto bounds = getLocalBounds();
     const int w = bounds.getWidth() / n;
@@ -462,10 +466,10 @@ OffsetStrip::OffsetStrip (LuthierAudioProcessor& p) : processor (p)
 {
     setTitle ("Tuning offsets per string");
     setTooltip ("Each string's offset from pitch, coloured by its main cause. Click a bar to retune that string.");
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);
 }
 
-OffsetStrip::~OffsetStrip() { stopTimer(); }
+OffsetStrip::~OffsetStrip() { motion.stopTimer(); }
 
 juce::Colour OffsetStrip::colourFor (int cause)
 {
@@ -562,6 +566,8 @@ void OffsetStrip::mouseDown (const juce::MouseEvent& e)
 
 void OffsetStrip::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds().reduced (0, 2);
     const bool stale = isStale();
     const float centre = (float) bounds.getCentreX();
@@ -816,11 +822,11 @@ StabilityBadge::StabilityBadge (LuthierAudioProcessor& p, int s)
     retune.onClick = [this] { processor.getEngine().getStabilityModel().requestRetune (1u << stringIndex); };
     addChildComponent (retune);
 
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);
     timerCallback();
 }
 
-StabilityBadge::~StabilityBadge() { stopTimer(); }
+StabilityBadge::~StabilityBadge() { motion.stopTimer(); }
 
 void StabilityBadge::timerCallback()
 {

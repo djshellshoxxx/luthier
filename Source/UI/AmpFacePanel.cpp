@@ -82,12 +82,12 @@ AmpFacePanel::AmpFacePanel (LuthierAudioProcessor& p, Style s)
     }
 
     refresh();
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);   // cpu-quality-modes 6
 }
 
 AmpFacePanel::~AmpFacePanel()
 {
-    stopTimer();
+    motion.stopTimer();
     setLookAndFeel (nullptr);
 }
 
@@ -147,8 +147,17 @@ void AmpFacePanel::refresh()
         lastSagChange = now;
     }
 
-    const bool stale = sag > 1.0e-4 && now - lastSagChange > staleAfterSeconds;
-    const float drive = std::round (juce::jlimit (0.0f, 1.0f, (float) (sag / fullGlowSag)) * glowSteps) / glowSteps;
+    bool stale = sag > 1.0e-4 && now - lastSagChange > staleAfterSeconds;
+    float drive = std::round (juce::jlimit (0.0f, 1.0f, (float) (sag / fullGlowSag)) * glowSteps) / glowSteps;
+
+    // cpu-quality-modes 6: at Off the glow is static, from the drive parameter.
+    if (! AnimationPolicy::get().mayAnimate (AnimationPolicy::Decorative))
+    {
+        const auto* gain = processor.getState().getRawParameterValue (ParamIDs::ampGain);
+        const float g = gain != nullptr ? juce::jlimit (0.0f, 1.0f, gain->load()) : 0.0f;
+        drive = std::round (g * glowSteps) / glowSteps;
+        stale = false;
+    }
 
     if (drive != shownDrive || stale != shownStale)
     {
@@ -222,6 +231,8 @@ void AmpFacePanel::renderFace (float scale)
 
 void AmpFacePanel::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     if (getWidth() <= 0 || getHeight() <= 0)
         return;
 

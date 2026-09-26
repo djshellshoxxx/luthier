@@ -16,7 +16,18 @@ MidiLearnManager::MidiLearnManager (juce::AudioProcessorValueTreeState& state)
 
 MidiLearnManager::~MidiLearnManager()
 {
+    stopTimer();
     cancelPendingUpdate();
+}
+
+void MidiLearnManager::timerCallback()
+{
+    // The CC the audio thread caught is mapped here; the timer runs only while
+    // learning (or until the caught CC is mapped).
+    handleAsyncUpdate();
+
+    if (! learning.load() && learnedCc.load() < 0)
+        stopTimer();
 }
 
 //==============================================================================
@@ -29,6 +40,12 @@ void MidiLearnManager::startLearning (const juce::String& parameterId)
 
     waitingSinceMs = juce::Time::getMillisecondCounter();   // SPEC-SWEEP: ER-38
     learning.store (true);
+
+    // performance-budget.md 0.5: posting a message from the audio thread takes
+    // the message queue's lock, so the message thread polls instead.
+    if (juce::MessageManager::getInstanceWithoutCreating() != nullptr)
+        startTimerHz (30);
+
     sendChangeMessage();
 }
 
@@ -136,7 +153,12 @@ void MidiLearnManager::handleAsyncUpdate()
     const auto target = getLearningParameterId();
 
     if (target.isNotEmpty())
+    {
+        if (onBeforeLearn != nullptr)   // action-and-undo.md 3.12: the learn is one undo entry
+            onBeforeLearn (target, cc);
+
         addMapping (target, cc);
+    }
 
     cancelLearning();
 }
@@ -344,13 +366,10 @@ void MidiLearnManager::processMidi (const juce::MidiBuffer& midi) noexcept
                 continue;
 
             // Mapping mutates the array, so it cannot happen here; the message
-            // thread does it (handleAsyncUpdate), and cancelling the updater in
-            // the destructor means it never runs on a deleted manager.
+            // thread's poll (timerCallback) does it. No triggerAsyncUpdate: posting
+            // a message takes a lock (performance-budget.md 0.5).
             if (juce::isPositiveAndBelow (cc, kNumSources))
-            {
                 learnedCc.store (cc);
-                triggerAsyncUpdate();
-            }
 
             learning.store (false, std::memory_order_relaxed);
             isLearningNow = false;   // the rest of the block maps as usual

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
+
 /*  The guitar illustration.
 
     The brief asks for a photo-realistic image of the selected instrument. Shipping
@@ -19,6 +21,9 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "Guitar/GuitarRenderer.h"
+#include "Guitar/StringAnimator.h"   // animated-strings.md 4.3
+#include "Guitar/IllustrationMotion.h"
+#include "ChordNameOverlay.h"
 
 namespace luthier
 {
@@ -145,12 +150,44 @@ public:
     /** What the illustration currently shows, for tests and the Workshop. */
     const GuitarScene& getScene() const noexcept { return scene; }
 
+    // animated-strings.md 4.3: the strings' frame driver, and one 30 Hz tick for tests.
+    StringAnimator& getStringAnimator() noexcept { return animator; }
+    void tickForTesting() { timerCallback(); }
+    const GuitarOverlay& getOverlayForTesting() const noexcept { return overlay; }
+    juce::AffineTransform getMmToPxForTesting() { ensureTransform(); return mmToPx; }
+    /*  One frame of the live overlay at `nowMs` (the timer's work, public so the
+        60 ms dot timing and the reduced-motion rules can be tested with a
+        clock): played notes, slide, capo, and the crossfade's progress. */
+    void updateLiveOverlay (double nowMs);
+    const GuitarOverlay& getOverlay() const noexcept { return overlay; }
+
+    /** How often the live overlay is refreshed (19: 30 Hz, so a note's first frame is under 60 ms away). */
+    int getFrameIntervalMs() const noexcept { return getTimerInterval(); }
+
+    /** True while something moves: a crossfade (250 ms) or a fading dot (60 ms). */
+    bool isAnimating (double nowMs) const noexcept;
+
+    /** Rebuilds now if the guitar changed (the timer checks twice a second). */
+    void checkForGuitarChange() { rebuildScene (false); }
+
+    /** piano-roll-chord-display.md 4: the chord name over the lower bout. */
+    ChordNameOverlay& getChordName() noexcept { return chordName; }
+
+    /** piano-roll-chord-display.md 3: "Show fingering" in Easy, which has no
+        fretboard - (string, fret from the capo) pairs, drawn hollow. */
+    void setGhostDots (const std::vector<std::pair<int, double>>& dots);
+    juce::Rectangle<float> getChordNameArea() const;
+
 private:
     void timerCallback() override;
 
     /** Rebuilds the static scene when the guitar (or the palette) changed. */
     void rebuildScene (bool force);
     void rebuildCache();
+
+    // animated-strings.md 4.4.
+    void ensureTransform();
+    bool fillMotionGeometry (StringMotionGeometry&);
 
     juce::Point<float> toMm (juce::Point<float> px) const;
     GuitarRegion regionAt (juce::Point<float> px) const;
@@ -174,8 +211,33 @@ private:
     float cacheScale = 1.0f;
     int ticksSinceKeyCheck = 0;
 
+    /*  cpu-quality-modes 6: Decorative. At Off the timer stops; the policy's
+        4 Hz poll calls staticRefresh, which draws a fixed glow on the strings
+        that are sounding and repaints only when that set or a fret changes. */
+    void staticRefresh();
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Decorative, "GuitarBodyComponent",
+                                           [this] { staticRefresh(); repaint(); },
+                                           [this] { staticRefresh(); } };
+
     GuitarOverlay overlay;
     GuitarRegion hoveredRegion = GuitarRegion::none;
+
+    // animated-strings.md: declared after the scene it reads.
+    StringAnimator animator;
+    bool cacheOmitsSpeaking = false;
+    // guitar-illustration.md 12.1, 16, 19 (IllustrationMotion.h).
+    SceneCrossfade fade;
+    NoteDots dots;
+    ChordNameOverlay chordName;   // piano-roll-chord-display.md 4
+    std::array<float, 12> ghostFrets { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+    double lastFrameMs = 0.0;
+    juce::String staticChordName;   ///< cpu-quality-modes 6: the chord name shown at Off
+    int staticChordNameChanges = 0;
+public:
+    /** cpu-quality-modes 6: times the chord name appeared, changed or went at
+        Off - each one a change of state and one repaint (CQ-23). */
+    int getStaticChordNameChanges() const noexcept { return staticChordNameChanges; }
+private:
 
     int draggingKnob = -1;
     double dragStartValue = 0.0;
