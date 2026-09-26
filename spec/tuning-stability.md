@@ -48,7 +48,12 @@ plays exactly in tune as it does today.
   more field, **`stabilityCents`**, to the same sum. Nothing else in
   the pitch path changes.
 - The capo is a fret (`ambiguity-resolutions.md` 4.5, `capo_fret`, the
-  string mask). Capo *bias* (section 2.6) is new.
+  string mask). Capo *bias* (section 2.6) is new. The capo part is the
+  player's accessory, not a guitar slot: its pressure is read when it is
+  chosen, its gap from its kind (screw 4 mm, trigger and partial 6 mm),
+  and with no capo part 0.7 and 5 mm. The derived "Capo bias: +2.2 to
+  +8.6 c" figure is shown under the TUNING STABILITY offset strip, since
+  the Workshop inspector has no capo slot.
 - `CharacterEngine::retune()` zeroes all tuner drift, and CHARACTER's
   Retune button calls it. **Shared:** that button becomes "Retune all"
   (section 3), which also clears this spec's offsets. character-wear's
@@ -203,7 +208,9 @@ with the capo on.
   - **Off.**
   - **Idle** (default): Retune all once every string has been below
     level 1e-3 for 10 s. That is the between-songs tune-up. It never
-    fires while anything rings.
+    fires while anything rings, and only with the amount above 0 and an
+    offset to clear, so the default leaves the character engine's drift
+    of an existing preset alone.
   - **Transport stop.**
   - **Idle + stop.**
 - **Threading.** Buttons write an atomic string mask
@@ -217,8 +224,8 @@ with the capo on.
 
 ## 4. Parameters
 
-Family **`string`**, the eighth family introduced by
-`sustain-and-decay.md` 6. Every mechanism scale defaults to 1
+Family **`strings`**, the family introduced by `sustain-and-decay.md` 6
+(`DECISIONS.md` "Phase 2b range families"). Every mechanism scale defaults to 1
 (physical), so enabling the master amount gives the physically derived
 behaviour at once.
 
@@ -269,6 +276,15 @@ That is about 20 doubles × 12 strings, in `std::array`. The instance
 also holds T_total, excursionIndex, idleSeconds and the atomic retune
 mask.
 
+**Caps, stock and advanced.** The stock caps (±50 total, ±6 stuck, -10
+memory, ±8 return error) are x4 once any stability value is past its
+stock end, which is only reachable with the family unlocked.
+
+**Floating equilibrium bookkeeping.** The equilibrium offsets are held
+unscaled, like the other mechanisms; a retune's correction, which is the
+offset heard (already scaled), is divided back by amount x scale before
+it is added to the other strings.
+
 **Reset and determinism.** `reset()` zeroes every event offset and W,
 and restores σ from `σ_committed`. σ commits on a retune only while the
 host transport is stopped. Playback renders therefore start from the
@@ -300,7 +316,9 @@ same σ every time, while live noodling does wear strings in.
   presets load at amount 0 and play in tune.
 - Per-string σ_committed and capoComp are **session** state. They go in
   the plugin state's extras object, next to `"character"`, as
-  `"stability": {"sigma":[...], "capo_comp":[...]}`, so a DAW project
+  `"stability": {"sigma":[...], "capo_comp":[...]}` (each value written
+  as 17-significant-digit text, because JSON's number formatting rounds
+  and TS-15 asks for an exact round trip), so a DAW project
   reopens on the same strings. A preset load recomputes σ from
   `string_age` and clears capoComp.
 - The other offsets are runtime-only and cleared by `reset()`.

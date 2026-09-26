@@ -272,6 +272,7 @@ void RiffPlayer::emit (const RiffEvent& e, double offset, double samplesPerBeat,
         n.velocity = e.velocity;
         n.technique = e.technique;
         n.harmonicPartial = e.harmonicPartial;
+        n.touchFret = e.touchFret;
         n.sampleOffset = at;
         n.slideFromFret = e.slideFromFret;
         n.slideSeconds = e.slideBeats * samplesPerBeat / sampleRate;

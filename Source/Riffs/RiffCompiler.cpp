@@ -2,6 +2,7 @@
 
 #include "../Model/Playing/TechniqueEngine.h"
 #include "../Rhythm/BassStepGrid.h"
+#include "../DSP/String/Harmonics.h"
 
 #include <algorithm>
 #include <cmath>
@@ -15,7 +16,8 @@ bool RiffEvent::operator== (const RiffEvent& o) const noexcept
     return juce::exactlyEqual (beat, o.beat) && juce::exactlyEqual (delaySeconds, o.delaySeconds)
         && kind == o.kind && stringIndex == o.stringIndex && juce::exactlyEqual (fret, o.fret)
         && midiNote == o.midiNote && juce::exactlyEqual (velocity, o.velocity) && technique == o.technique
-        && harmonicPartial == o.harmonicPartial && juce::exactlyEqual (slideFromFret, o.slideFromFret)
+        && harmonicPartial == o.harmonicPartial && juce::exactlyEqual (touchFret, o.touchFret)
+        && juce::exactlyEqual (slideFromFret, o.slideFromFret)
         && juce::exactlyEqual (slideBeats, o.slideBeats) && juce::exactlyEqual (palmMuteDepth, o.palmMuteDepth)
         && bassTechnique == o.bassTechnique && letRing == o.letRing && bendSegment == o.bendSegment
         && noteIndex == o.noteIndex;
@@ -299,12 +301,30 @@ namespace RiffCompiler
             {
                 on.technique = Technique::MutedPick;
             }
-            else if (natural != nullptr || artificial != nullptr || tapped != nullptr)
+            else if (natural != nullptr)
             {
-                const int partial = natural != nullptr ? harmonicPartialFor ((double) n.fret)
-                                  : harmonicPartialFor (artificial != nullptr ? artificial->value : tapped->value);
-                on.technique = partial > 0 ? Technique::NaturalHarmonic : Technique::Pluck;
-                on.harmonicPartial = partial;
+                // harmonic-realism 4.1: the string stops open; the touch at the
+                // node picks the partial.
+                on.touchFret = harmonics::tabTouchFret ((double) n.fret);
+                on.harmonicPartial = harmonics::partialForFret (on.touchFret);
+                on.fret = 0.0;
+                on.technique = on.harmonicPartial > 0 ? Technique::NaturalHarmonic : Technique::Pluck;
+
+                if (on.harmonicPartial <= 0)
+                {
+                    on.fret = (double) n.fret;
+                    on.touchFret = -1.0;
+                }
+            }
+            else if (artificial != nullptr || tapped != nullptr)
+            {
+                // Stopped at the fret, touched (or tapped) `value` frets above it.
+                const double offset = (artificial != nullptr ? artificial->value : tapped->value) > 0.0
+                                        ? (artificial != nullptr ? artificial->value : tapped->value) : 12.0;
+                on.touchFret = (double) n.fret + offset;
+                on.harmonicPartial = harmonics::findNode (harmonics::touchFractionFromBridge (on.touchFret, (double) n.fret),
+                                                          648.0, 2.5).partial;
+                on.technique = artificial != nullptr ? Technique::ArtificialHarmonic : Technique::Tap;
             }
             else if (n.hasTechnique (T::tap))
             {

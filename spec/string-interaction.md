@@ -256,7 +256,9 @@ MPE, `microtonal-bends.md`).
 
 - Air: one sum, N subtractions and one one-pole per sample; palm,
   neighbour and crosstalk: block rate; stagger and thump: per event.
-  Total budget **0.1 units** at 12 strings; everything is skipped at 0.
+  Total budget **0.2 units** at 12 strings (0.1 at six), measured; the
+  air term needs each string's own 120 Hz high-pass to subtract itself
+  exactly. Everything is skipped at 0.
 - No allocation: the air delay is sized in `prepare`, flags are fixed
   arrays, staggered offs use the existing schedule.
 - The air term goes through the existing receive filter, DC blocker and
@@ -265,7 +267,7 @@ MPE, `microtonal-bends.md`).
 ## 11. Tests
 
 - **SI-01 Air magnitudes.** `CouplingMatrix` alone, noise on string 5:
-  output energy on string 0 from the air term is 0.4-0.8x that from the
+  output level (RMS) on string 0 from the air term is 0.4-0.8x that from the
   bridge term on an acoustic, at most 0.05x on a solid body; for the
   adjacent pair 4-5 it is at most 0.25x.
 - **SI-02 Air off is bit-identical.** `coupling_air_amount` 0 produces
@@ -279,7 +281,8 @@ MPE, `microtonal-bends.md`).
 - **SI-05 Palm lift restores.** Setting CC 67 to 0 returns every
   spread-muted string to its prior damping within one block; its loop
   gain equals the pre-mute value within 1e-9.
-- **SI-06 Neighbour mute, rock.** Open B ringing, fret G at 5 with
+- **SI-06 Neighbour mute, rock.** Open B ringing (let go under the
+  sustain pedal: only a string with no held note is muted), fret G at 5 with
   rock spread and amount 0.6: B drops at least 10 dB within 150 ms;
   high E changes by less than 0.5 dB.
 - **SI-07 Neighbour mute, classical and chords.** Same with classical
@@ -309,3 +312,31 @@ MPE, `microtonal-bends.md`).
 - **SI-14 Ranges and presets.** Physical rows valid in `RangeRegistry`;
   declaration mismatches empty; a preset with every field changed
   round-trips.
+
+## Build notes (REALISM-B, 2026-09-24)
+
+1. **Muted-string thump span.** A live chord's strum crosses only the
+   strings between its first and last struck string; a pattern's crosses
+   every string in its STRUM mask, so a muted string outside the struck
+   span (the `x` of `x32010`) is reached one string interval before or
+   after the span. The thump is timed by interpolating the strikes the
+   gesture already planned, so the sounding strings keep their timing and
+   level 0 is bit-identical.
+2. **Crosstalk interface.** `PickupEngine::setStringLateralOffsets (mmAtFret,
+   stopFromSaddleMm, bassward, n, scaleMm, stringSpacingMm, apertureScale)`:
+   the displacement falls linearly from the stopping point to the saddle,
+   so the pickup needs where each string is stopped.
+3. **Fretting style.** `muting-rhythm.md`'s `MuteSettings::frettingStyle`
+   is not built yet; until it is, the style is 0.1 when the right-hand
+   style is Classical and 1.0 otherwise, and the STRING INTERACTION group
+   says which is in force.
+4. **Defaults change factory presets, as this file intends.** At the
+   defaults (air 1.0, palm 35 mm, neighbour 0.6, stagger 12 ms, thump
+   0.5) the factory presets' renders move by a few tenths of a dB to a
+   couple of dB, most where chords are released or muted strings ring;
+   at 0 every factory preset is bit-identical to the build before this
+   file (docs/coverage/REALISM-B.md lists the measured deltas).
+5. **Section 9's rows** for `gui-integration.md` 19 and the mute-zone
+   shading of `gui-techniques-updates.md` 4 are drawn in the CHARACTER
+   group's palm strip and on the fretboard; the index rows themselves are
+   left for the owner of `gui-integration.md`.

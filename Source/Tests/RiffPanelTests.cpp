@@ -206,10 +206,14 @@ LUTHIER_TEST (RiffPanel, workspaceTabStripOverflowsCleanlyAt1200And1920)
             CHECK_MSG (panel->getWorkspaceTab() == count / 2, label + "the menu did not select its tab");
             CHECK (strip.isTabVisible (count / 2));
 
-            // Keyboard reachable: the controls take focus and have names.
+            // Keyboard reachable: the controls take focus (an arrow at its end is
+            // disabled, and JUCE gives a disabled control no focus) and have names;
+            // the menu, which reaches every tab, is always enabled.
+            CHECK (strip.getMenuButton().isEnabled() && strip.getMenuButton().getWantsKeyboardFocus());
+
             for (auto* b : { &strip.getLeftArrow(), &strip.getRightArrow(), &strip.getMenuButton() })
             {
-                CHECK (b->getWantsKeyboardFocus());
+                CHECK (b->getWantsKeyboardFocus() || ! b->isEnabled());
                 CHECK (b->getTitle().isNotEmpty());
             }
         }

@@ -1,4 +1,6 @@
 #include "MidiInterpreter.h"
+#include "../../DSP/String/Harmonics.h"
+#include "../../Rhythm/MutedThump.h"
 
 #include <algorithm>
 
@@ -32,6 +34,10 @@ const char* getMidiTargetName (MidiTarget t) noexcept
         case MidiTarget::Space:             return "Space";
         case MidiTarget::Body:              return "Body";
         case MidiTarget::Attack:            return "Attack";
+        case MidiTarget::ArtificialHarmonic: return "Artificial Harmonic";
+        case MidiTarget::TappedHarmonic:    return "Tapped Harmonic";
+        case MidiTarget::RightHandTool:     return "Right-Hand Tool";
+        case MidiTarget::RestStroke:        return "Rest Stroke";
         case MidiTarget::NumTargets:
         default:                            return "None";
     }
@@ -89,6 +95,9 @@ void MidiInterpreter::reset() noexcept
     // Deterministic humanisation after a reset, for reproducible renders.
     rng.setSeed (0x4D1D1ull);
     strumCount = 0;
+    rightHandTool = 0;
+    restStrokeHeld = false;
+    pickPositionMoved = false;
 }
 
 void MidiInterpreter::setNumStrings (int n) noexcept
@@ -194,6 +203,13 @@ void MidiInterpreter::resetCcMapToDefaults() noexcept
     ccMap[77] = MidiTarget::StrumDirection;
     ccMap[78] = MidiTarget::VibratoRate;
     ccMap[79] = MidiTarget::Humanize;
+
+    // harmonic-realism.md 6 and fingerstyle-attack.md 5: CC 102-119 are
+    // undefined in MIDI 1.0 and were unused here.
+    ccMap[102] = MidiTarget::RightHandTool;
+    ccMap[103] = MidiTarget::ArtificialHarmonic;
+    ccMap[104] = MidiTarget::TappedHarmonic;
+    ccMap[105] = MidiTarget::RestStroke;
 }
 
 void MidiInterpreter::setCcTarget (int ccNumber, MidiTarget target) noexcept
@@ -398,6 +414,13 @@ void MidiInterpreter::handleNoteOn (int midiNote, int channel, double velocity,
     // Humanised velocity: no two strokes of a real hand are the same.
     const double velJitter = humanise.velocityVariation * humanise.amount;
     velocity = juce::jlimit (0.02, 1.0, velocity * (1.0 + rng.nextGaussian() * velJitter * 0.5));
+
+    // harmonic-realism.md 4.2: with the sounding-pitch mapping a harmonic-
+    // armed note names the pitch heard, and bypasses the voicer.
+    if (harmonicSettings.soundingPitch && mode != PlayingMode::GuitarController
+        && isHarmonicArmed (velocity)
+        && emitSoundingHarmonic (midiNote, channel, velocity, timestamp, blockOffset, out))
+        return;
 
     if (mode == PlayingMode::GuitarController)
     {
@@ -646,6 +669,44 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
         }
     }
 
+    // REALISM-B, string-interaction.md 6: the strum crosses the strings the
+    // voicing mutes between its first and last; each is struck, pitchless.
+    if (planned > 0 && mutedThumpLevel > 0.0)
+    {
+        juce::uint32 candidates = 0;
+        double velocitySum = 0.0;
+        int voiced = 0;
+
+        for (int st = 0; st < numStrings; ++st)
+            candidates |= (juce::uint32) 1u << (juce::uint32) st;
+
+        for (int i = 0; i < voicing.numNotes; ++i)
+        {
+            const auto& note = voicing.notes[(size_t) i];
+
+            if (note.valid)
+            {
+                candidates &= ~((juce::uint32) 1u << (juce::uint32) note.stringIndex);
+                velocitySum += note.velocity;
+                ++voiced;
+            }
+        }
+
+        std::array<MutedThump, kMaxStrings> thumps {};
+        const int numThumps = planMutedThumps (strikes.data(), planned, candidates, thumps.data(), (int) thumps.size());
+        const double hand = (double) voicer->getPreferredPosition();
+
+        for (int k = 0; k < numThumps; ++k)
+        {
+            const auto& t = thumps[(size_t) k];
+            const double strike = (voiced > 0 ? velocitySum / voiced : 0.8) * t.force;
+
+            out.addNoteOn (makeThumpEvent (t.stringIndex, strike, mutedThumpLevel,
+                                           tuning->computeFrequency (t.stringIndex, hand, 0.0),
+                                           blockOffset + (int) std::round (t.timeSeconds * sr), -1));
+        }
+    }
+
     juce::ignoreUnused (numSamples);
 }
 
@@ -697,6 +758,31 @@ void MidiInterpreter::emitVoicedNote (const VoicedNote& note, int64_t timestamp,
     e.pitchHz = tuning->computeFrequency (s, note.fretPosition,
                                           getStringBendCents (s) + detune);
 
+    /*  harmonic-realism.md 4.1 (the pitch fix): the voiced note names the
+        TOUCH, as tab writes a harmonic. The string stays at its stopped
+        length - open for a natural harmonic, the fretted note for artificial
+        and tapped ones - and the contact selects partial n of that. It used
+        to be tuned to the touch fret and then partial n isolated on top, so
+        a 12th-fret natural harmonic on the low E sounded E4, not E3. */
+    const bool tappedHarmonic = tech == Technique::Tap && technique->lastDecisionWasTappedHarmonic();
+
+    if (tech == Technique::NaturalHarmonic)
+    {
+        e.touchFret = harmonics::tabTouchFret (note.fretPosition);
+        e.fretPosition = 0.0;
+        e.harmonicPartial = harmonics::partialForFret (e.touchFret);
+        e.pitchHz = tuning->computeFrequency (s, 0.0, getStringBendCents (s) + detune);
+    }
+    else if (tech == Technique::ArtificialHarmonic || tappedHarmonic)
+    {
+        const int choice = tappedHarmonic ? harmonicSettings.tappedOffsetChoice
+                                          : harmonicSettings.artificialOffsetChoice;
+        const double offset = harmonics::offsetFretsForChoice (choice);
+        e.touchFret = note.fretPosition + offset;
+        e.harmonicPartial = harmonics::findNode (harmonics::touchFractionFromBridge (e.touchFret, note.fretPosition),
+                                                 648.0, 2.5).partial;
+    }
+
     out.addNoteOn (e);
 
     slots[(size_t) s].midiNote = note.midiNote;
@@ -720,6 +806,75 @@ juce::String MidiInterpreter::getLastChordName() const
     return count > 0 ? ChordVoicer::identifyChord (chord.data(), count) : juce::String();
 }
 
+bool MidiInterpreter::isHarmonicArmed (double velocity) const noexcept
+{
+    return technique != nullptr && technique->isNaturalHarmonicArmed (velocity);
+}
+
+bool MidiInterpreter::emitSoundingHarmonic (int midiNote, int channel, double velocity, int64_t timestamp,
+                                            int blockOffset, PlayEventQueue& out) noexcept
+{
+    if (tuning == nullptr || technique == nullptr || voicer == nullptr)
+        return false;
+
+    const double targetHz = midiToHz ((double) midiNote, tuning->getConcertA());
+
+    double openHz[kMaxStrings] {};
+    int maxFrets = 24;
+
+    for (int s = 0; s < numStrings; ++s)
+    {
+        openHz[s] = tuning->computeFrequency (s, 0.0, 0.0);
+        maxFrets = juce::jmin (maxFrets, tuning->getHighestPlayableFret (s));
+    }
+
+    const double handFret = lastMonoString >= 0 ? technique->getStringFret (lastMonoString) : 5.0;
+    const auto found = harmonics::locate (targetHz, openHz, harmonicSettings.inharmonicityB,
+                                          numStrings, maxFrets, handFret);
+
+    if (found.found)
+    {
+        VoicedNote v;
+        v.midiNote = midiNote;
+        v.stringIndex = found.stringIndex;
+        v.fretPosition = found.touchFret;   // the touch; emitVoicedNote stops it open
+        v.velocity = velocity;
+        v.valid = true;
+
+        slots[(size_t) v.stringIndex].channel = channel;
+        emitVoicedNote (v, timestamp, blockOffset, 0, out);
+        return true;
+    }
+
+    /*  None found: an artificial harmonic of the note `offset` semitones down
+        (4.2), so the pitch asked for is still the pitch heard. */
+    const double offset = harmonics::offsetFretsForChoice (harmonicSettings.artificialOffsetChoice);
+    const auto v = voicer->voiceSingleNote (midiNote - (int) std::round (offset), velocity, lastMonoString);
+
+    if (! v.valid)
+        return false;
+
+    const bool naturalHeld = technique->isNaturalHarmonicTriggerHeld();
+    const bool artificialHeld = technique->isArtificialHarmonicTriggerHeld();
+    const bool velocityTrigger = technique->isHarmonicVelocityTriggerEnabled();
+
+    technique->setNaturalHarmonicTrigger (false);
+    technique->setHarmonicVelocityTriggerEnabled (false);
+    technique->setArtificialHarmonicTrigger (true);
+
+    slots[(size_t) v.stringIndex].channel = channel;
+    auto played = v;
+    played.midiNote = midiNote;
+    emitVoicedNote (played, timestamp, blockOffset, 0, out);
+
+    // Hand the triggers back as the controllers left them.
+    technique->setArtificialHarmonicTrigger (artificialHeld);
+    technique->setNaturalHarmonicTrigger (naturalHeld);
+    technique->setHarmonicVelocityTriggerEnabled (velocityTrigger);
+    return true;
+}
+
+//==============================================================================
 void MidiInterpreter::handleNoteOff (int midiNote, int channel, int blockOffset,
                                      PlayEventQueue& out) noexcept
 {
@@ -929,7 +1084,7 @@ void MidiInterpreter::applyTarget (MidiTarget target, double value, int blockOff
         case MidiTarget::VibratoRate:       vibratoRate = juce::jmap (value, 3.0, 8.0); break;
         case MidiTarget::WhammyBar:         whammyPosition = value * 2.0 - 1.0; break;
         case MidiTarget::Expression:        expressionValue = value; break;
-        case MidiTarget::PickPosition:      pickPosition = value; break;
+        case MidiTarget::PickPosition:      pickPosition = value; pickPositionMoved = true; break;
         case MidiTarget::PalmMute:          technique->setPalmMuteAmount (value); break;
         case MidiTarget::MutedPick:         technique->setMutedPickAmount (value); break;
         case MidiTarget::SlideToggle:       technique->setSlideMode (value >= 0.5); break;
@@ -937,6 +1092,16 @@ void MidiInterpreter::applyTarget (MidiTarget target, double value, int blockOff
         case MidiTarget::PinchHarmonic:     technique->setPinchHarmonicTrigger (value >= 0.5); break;
         case MidiTarget::NaturalHarmonic:   technique->setNaturalHarmonicTrigger (value >= 0.5); break;
         case MidiTarget::Tap:               technique->setTapTrigger (value >= 0.5); break;
+        case MidiTarget::ArtificialHarmonic: technique->setArtificialHarmonicTrigger (value >= 0.5); break;
+        case MidiTarget::TappedHarmonic:    technique->setTappedHarmonicTrigger (value >= 0.5); break;
+
+        // fingerstyle-attack.md 5: seven bands of 128/7 - Off, Pick, Finger,
+        // Thumb, Thumbpick, Slap, Pop.
+        case MidiTarget::RightHandTool:
+            rightHandTool = juce::jlimit (0, 6, (int) (juce::jlimit (0.0, 1.0, value) * 127.0 / (128.0 / 7.0)));
+            break;
+
+        case MidiTarget::RestStroke:        restStrokeHeld = value >= 0.5; break;
         case MidiTarget::StrumSpeed:        setStrumSpeedMs (juce::jmap (value, 0.0, 30.0)); break;
 
         case MidiTarget::StrumDirection:

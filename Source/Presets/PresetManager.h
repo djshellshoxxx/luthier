@@ -80,6 +80,12 @@ public:
         (ParameterBridge::adoptPedalTypesFromParameters). */
     std::function<void()> onPedalTypesLoaded;
 
+    /** Called around a whole load (fromVar), so the processor can fade its output
+        out before the first parameter moves and back in after the last. Without
+        it a ringing note was cut, or jumped to the new preset's level, mid-cycle
+        (BETA_TEST_REPORT B-06). */
+    std::function<void()> onBeforeLoad, onAfterLoad;
+
     /*  file-formats.md 2 (MODEL-GAPS, TODO 2k): a preset the load had to migrate
         - the legacy `format` magic, no `ranges` block (schema 1, pre-M42), a
         pre-Workshop `guitar.name`, or the retired pickup-placement parameters -
@@ -159,6 +165,18 @@ public:
         five call sites each remembering to report would be five chances to
         forget. Cleared by the next load that succeeds. */
     juce::String getLastLoadError() const { return lastLoadError; }
+
+    /*  installer.md 8: "User sees a subtle info banner on the first affected
+        load." A load that had to migrate something (a derived ranges block, a
+        pre-parts guitar name, retired parameters) bumps the generation and says
+        what; the window polls it like lastLoadError. Message thread. */
+    void noteMigration (const juce::String& what) { lastMigration = what; ++migrationGeneration; }
+    juce::uint32 getMigrationGeneration() const noexcept { return migrationGeneration; }
+    juce::String getLastMigration() const { return lastMigration; }
+
+    /** installer.md 8: <presets root>/Backup/<yyyy-mm-dd>/ for a file inside a
+        Presets tree; the file's own folder's Backup otherwise. */
+    static juce::File backupFolderFor (const juce::File& target);
 
     /** Saves over the current user preset, or falls back to Save As behaviour if
         the current preset is a factory one. */
@@ -261,6 +279,9 @@ private:
     /** Set on every load failure beside the error-log line, cleared on success. */
     juce::String lastLoadError;
 
+    juce::String lastMigration;            // installer.md 8
+    juce::uint32 migrationGeneration = 0;
+
     /** Where the current preset came from. Empty until something is loaded. */
     juce::File currentFile;
 
@@ -276,6 +297,12 @@ private:
 
     juce::AudioProcessor& processor;
     juce::AudioProcessorValueTreeState& apvts;
+
+public:
+    /** noise-floor.md 3: the Options default mains region, resolved (REALISM-C). */
+    static bool defaultMainsRegionIs50Hz();
+
+private:
 
     /** advanced-ranges.md: the processor's range state, applied on load and
         written on save. */

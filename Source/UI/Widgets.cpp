@@ -1,6 +1,8 @@
 #include "Widgets.h"
 #include "RangesUi.h"
+#include "UiPreferences.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Accessibility.h"
 
 namespace luthier
 {
@@ -130,7 +132,72 @@ juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
         }
     }
 
+    // ---- gui-integration 16 items 11-13 ------------------------------------------
+    menu.addSeparator();
+    menu.addItem (kAutomationIdMenuId, "Automation ID: " + parameterId, false);
+
+    if (const auto action = shortcutActionForParameter (parameterId); action.isNotEmpty())
+        if (const auto* binding = AccessibilitySettings::get().findShortcut (action); binding != nullptr && binding->key.isValid())
+            menu.addItem (kShowShortcutMenuId, "Show in Options -> Shortcuts (" + binding->key.getTextDescription() + ")");
+
     return menu;
+}
+
+std::function<void (const juce::String&)> showShortcutInOptions;
+
+int modSourceSlotFromDrag (const juce::var& description)
+{
+    const auto text = description.toString();
+
+    if (! text.startsWith (kModSourceDragPrefix))
+        return -1;
+
+    const int slot = text.fromFirstOccurrenceOf (kModSourceDragPrefix, false, false).getIntValue();
+    return juce::isPositiveAndBelow (slot, (int) ModSourceSlots::count) ? slot : -1;
+}
+
+bool addModulationFromDrop (LuthierAudioProcessor& processor, int sourceSlot, const juce::String& parameterId)
+{
+    if (sourceSlot < 0 || parameterId.isEmpty() || processor.getState().getParameter (parameterId) == nullptr)
+        return false;
+
+    auto& matrix = processor.getModMatrix();
+
+    if (matrix.getRouteCountForDestination (parameterId) >= ModMatrix::kMaxRoutesPerDestination)
+        return false;
+
+    ModRoute route;
+    route.sourceId = modSourceIdForSlot (sourceSlot);
+    route.destinationId = parameterId;
+    route.depth = 0.25f;   // gui-integration 11.2: "default depth 25%"
+    route.enabled = true;
+
+    // One undo entry, in words (action-and-undo.md).
+    processor.pushUndoState ("Modulate " + processor.getState().getParameter (parameterId)->getName (40)
+                             + " from " + modSourceDisplayName (sourceSlot) + " at 25%");
+    return matrix.addRoute (route);
+}
+
+void labelForScreenReaders (juce::Component& control, LuthierAudioProcessor& processor,
+                            const juce::String& parameterId, const juce::String& tooltip)
+{
+    // ui-wiring.md 21: every attached control has a name a screen reader reads
+    // (the parameter's) and its help (the tooltip); the value comes from the
+    // attachment's own text function, so it carries the unit.
+    if (auto* param = processor.getState().getParameter (parameterId))
+    {
+        control.setTitle (param->getName (64));
+        control.setHelpText (tooltip.isNotEmpty() ? tooltip : param->getName (64));
+    }
+}
+
+juce::String shortcutActionForParameter (const juce::String& parameterId)
+{
+    // The parameters a shortcut in accessibility.md 2's table toggles.
+    if (parameterId == ParamIDs::slideGuitar)
+        return "toggleSlideMode";
+
+    return {};
 }
 
 //==============================================================================
@@ -205,6 +272,7 @@ void applyParameterMenuResult (int result,
                 break;
 
             case 6:
+                processor.pushUndoAction ("Remove MIDI mapping", "midi-mapping-delete", {});   // action-and-undo.md 3.12
                 learn.removeMappingForParameter (parameterId);
                 break;
 
@@ -227,6 +295,11 @@ void applyParameterMenuResult (int result,
                 param->setValueNotifyingHost (v);
                 break;
             }
+
+            case kShowShortcutMenuId:
+                if (showShortcutInOptions)
+                    showShortcutInOptions (shortcutActionForParameter (parameterId));
+                break;
 
             case kUnlockRangeMenuId:
             case kRestrictRangeMenuId:
@@ -265,6 +338,10 @@ void applyParameterMenuResult (int result,
                 // Walk backwards so removing one does not shift the next.
                 auto& modMatrix = processor.getModMatrix();
 
+                // action-and-undo.md 3.6 / ui-wiring 18: one entry for the removal.
+                if (auto* p = processor.getState().getParameter (parameterId))
+                    processor.pushUndoAction ("Remove modulation from " + p->getName (64), "mod-route-delete", {});
+
                 for (int i = modMatrix.getNumRoutes(); --i >= 0;)
                     if (modMatrix.getRoute (i).destinationId == parameterId)
                         modMatrix.removeRoute (i);
@@ -286,6 +363,11 @@ void applyParameterMenuResult (int result,
                     // control the user just right-clicked.
                     route.depth = 0.33f;
                     route.enabled = true;
+
+                    // action-and-undo.md 3.6: "Add [source] to [destination] depth X".
+                    if (auto* p = processor.getState().getParameter (parameterId))
+                        processor.pushUndoAction ("Add " + modSourceDisplayName (result - kModulateMenuBase) + " to "
+                                                    + p->getName (64) + " depth 0.33", "mod-route-create", {});
 
                     processor.getModMatrix().addRoute (route);
                 }
@@ -424,6 +506,7 @@ void LuthierKnob::attachTo (LuthierAudioProcessor& p, const juce::String& id, co
         slider.setTooltip (param->getName (64));
     }
 
+    labelForScreenReaders (slider, p, id, tooltip);
     updateMidiLearnIndicator();
 }
 
@@ -618,6 +701,13 @@ void LuthierKnob::paint (juce::Graphics& g)
         g.setColour (Palette::secondary.withAlpha (0.65f));
         g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (1.0f), Metrics::panelCorner, 1.5f);
     }
+
+    // gui-integration 11.2: the drop target a dragged source would route to.
+    if (dropHighlight)
+    {
+        g.setColour (Palette::accent);
+        g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (1.0f), Metrics::panelCorner, 2.0f);
+    }
 }
 
 void LuthierKnob::mouseEnter (const juce::MouseEvent&)
@@ -739,6 +829,7 @@ void LuthierChoice::attachTo (LuthierAudioProcessor& p, const juce::String& id, 
 
         box.setTooltip (tooltip.isNotEmpty() ? tooltip : param->getName (64));
         setTooltip (box.getTooltip());
+        labelForScreenReaders (box, p, id, tooltip);
     }
 
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
@@ -810,6 +901,7 @@ void LuthierToggle::attachTo (LuthierAudioProcessor& p, const juce::String& id, 
     {
         button.setTooltip (tooltip.isNotEmpty() ? tooltip : param->getName (64));
         setTooltip (button.getTooltip());
+        labelForScreenReaders (button, p, id, tooltip);
     }
 
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
@@ -854,6 +946,7 @@ void LuthierSlider::attachTo (LuthierAudioProcessor& p, const juce::String& id, 
     {
         slider.setTooltip (tooltip.isNotEmpty() ? tooltip : param->getName (64));
         setTooltip (slider.getTooltip());
+        labelForScreenReaders (slider, p, id, tooltip);
     }
 
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
@@ -1256,16 +1349,33 @@ void DataStreamDisplay::setSource (LuthierAudioProcessor* p)
         processor->getDiagnostics().setEnabled (true);
 }
 
+bool DataStreamDisplay::isEnabledByUser()
+{
+    return UiPreferences::get().getBool ("appearance.dataStream", true);
+}
+
+void DataStreamDisplay::setEnabledByUser (bool enabled)
+{
+    UiPreferences::get().setBool ("appearance.dataStream", enabled);
+}
+
 void DataStreamDisplay::timerCallback()
 {
-    if (processor == nullptr)
+    update (juce::Time::getMillisecondCounterHiRes());
+}
+
+void DataStreamDisplay::update (double nowMs)
+{
+    // Options -> Appearance's switch, followed here so no one else has to.
+    if (const bool wanted = isEnabledByUser(); wanted != isVisible() && getParentComponent() != nullptr)
+        setVisible (wanted);
+
+    // ui-wiring 11: a moving readout is motion; under reduced motion it holds still.
+    if (processor == nullptr || ! isVisible() || AccessibilitySettings::get().isReducedMotion())
         return;
 
-    auto& diagnostics = processor->getDiagnostics();
-    const int total = diagnostics.getTotalRecords();
-
-    // The stream stops when nothing is happening, and starts again on new data.
-    if (total == lastRecordCount)
+    // performance-budget.md 8 step 2: the scrolling stream is suspended under CPU load.
+    if (processor->getEngine().getCpuRelief().getStep() >= CpuRelief::suspendScrolling)
     {
         if (scrolling)
         {
@@ -1275,8 +1385,23 @@ void DataStreamDisplay::timerCallback()
         return;
     }
 
-    const int newRecords = juce::jmin (total - lastRecordCount, numLines);
+    auto& diagnostics = processor->getDiagnostics();
+    const int total = diagnostics.getTotalRecords();
+
+    // The stream stops 500 ms after the last record, and starts again on new data.
+    if (total == lastRecordCount)
+    {
+        if (scrolling && nowMs - lastArrivalMs >= kStopAfterMs)
+        {
+            scrolling = false;
+            repaint();
+        }
+        return;
+    }
+
+    const int newRecords = juce::jmin (total - lastRecordCount, kMaxLines);
     lastRecordCount = total;
+    lastArrivalMs = nowMs;
     scrolling = true;
 
     std::vector<Diagnostics::Record> records ((size_t) juce::jmax (1, newRecords));
@@ -1286,7 +1411,7 @@ void DataStreamDisplay::timerCallback()
         lines.add (Diagnostics::formatRecord (records[(size_t) i],
                                               processor->getEngine().getSampleRate()));
 
-    while (lines.size() > numLines)
+    while (lines.size() > kMaxLines)
         lines.remove (0);
 
     repaint();
@@ -1301,16 +1426,21 @@ void DataStreamDisplay::paint (juce::Graphics& g)
 
     g.setFont (Fonts::mono (juce::jlimit (7.0f, 11.0f, lineHeight * 0.78f)));
 
-    for (int i = 0; i < lines.size(); ++i)
+    // The newest numLines of the 200 kept.
+    const int first = juce::jmax (0, lines.size() - numLines);
+
+    for (int i = first; i < lines.size(); ++i)
     {
-        // The top two and bottom two lines fade away, as specified.
-        const int fromTop = i;
+        // The top two and bottom two lines fade away, as specified - when
+        // there are lines enough to fade (the footer shows one).
+        const int fromTop = i - first;
         const int fromBottom = lines.size() - 1 - i;
 
         float alpha = 1.0f;
 
-        if (fromTop == 0 || fromBottom == 0)       alpha = 0.12f;
-        else if (fromTop == 1 || fromBottom == 1)  alpha = 0.38f;
+        if (numLines <= 2)                          alpha = 0.62f;
+        else if (fromTop == 0 || fromBottom == 0)   alpha = 0.12f;
+        else if (fromTop == 1 || fromBottom == 1)   alpha = 0.38f;
         else                                        alpha = 0.62f;
 
         if (! scrolling)
@@ -1318,7 +1448,7 @@ void DataStreamDisplay::paint (juce::Graphics& g)
 
         g.setColour (Palette::dataStream.withAlpha (alpha * 0.85f));
 
-        const juce::Rectangle<int> row (0, juce::roundToInt ((float) i * lineHeight),
+        const juce::Rectangle<int> row (0, juce::roundToInt ((float) fromTop * lineHeight),
                                         getWidth(), juce::roundToInt (lineHeight));
 
         g.drawText (lines[i], row.reduced (4, 0), juce::Justification::centredLeft, false);

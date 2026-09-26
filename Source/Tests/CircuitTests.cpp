@@ -37,6 +37,11 @@ struct AllocationCounter
     static long count() noexcept { return threadAllocationCount; }
 };
 
+/** The same count for other test files (REALISM-A's budget tests). */
+long luthierAllocationCount() noexcept { return threadAllocationCount; }
+// REALISM-B: the same counter for the suites in other files.
+long luthierAllocationsOnThisThread() noexcept { return threadAllocationCount; }
+
 void* operator new (std::size_t size)
 {
     ++threadAllocationCount;
@@ -572,4 +577,11 @@ LUTHIER_TEST (AmpRanges, pastTheKnobIsAudible)
 
     for (double v : past)
         if (! std::isfinite (v)) { ctx.fail ("non-finite output past the knob"); break; }
+}
+
+// REALISM-C: the counter above, for the noise-floor, sustain and tuning-stability
+// tests' no-allocation checks (they live in other files).
+namespace luthier::tests
+{
+    long realismCAllocationCount() noexcept { return threadAllocationCount; }
 }

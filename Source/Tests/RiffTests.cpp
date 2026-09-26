@@ -419,10 +419,16 @@ LUTHIER_TEST (Riffs, techniquesMapOntoTheEngine)
     CHECK_NEAR (onAt (5.0)->palmMuteDepth, 0.6, 1.0e-12);
     CHECK_NEAR (onAt (13.0)->palmMuteDepth, -1.0, 1.0e-12);
     CHECK (onAt (6.0)->technique == Technique::MutedPick);
+    // harmonic-realism 4.1: a natural harmonic stops open and is touched at
+    // its node; an artificial one stops at its fret and is touched 12 above.
     CHECK (onAt (7.0)->technique == Technique::NaturalHarmonic);
     CHECK (onAt (7.0)->harmonicPartial == 2);
-    CHECK (onAt (8.0)->technique == Technique::NaturalHarmonic);
+    CHECK_NEAR (onAt (7.0)->fret, 0.0, 1.0e-12);
+    CHECK (onAt (7.0)->touchFret > 11.0 && onAt (7.0)->touchFret < 13.0);
+    CHECK (onAt (8.0)->technique == Technique::ArtificialHarmonic);
     CHECK (onAt (8.0)->harmonicPartial == 2);
+    CHECK_NEAR (onAt (8.0)->fret, 5.0, 1.0e-12);
+    CHECK_NEAR (onAt (8.0)->touchFret, 17.0, 1.0e-12);
     CHECK (onAt (9.0)->technique == Technique::PinchHarmonic);
     CHECK (onAt (11.0)->technique == Technique::Slide);
     CHECK_NEAR (onAt (11.0)->slideFromFret, 7.0, 1.0e-12);

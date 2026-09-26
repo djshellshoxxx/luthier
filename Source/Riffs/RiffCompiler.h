@@ -11,8 +11,10 @@
     Technique mapping (5.1.3):
       hammer -> HammerOn, pull -> PullOff, tap -> Tap, pm -> PalmMute
       (palmMuteDepth from the pm value, -1 for the player's own), dead ->
-      MutedPick, natural / artificial / tapharm -> NaturalHarmonic with the
-      partial from the node, pinch -> PinchHarmonic, the arrival of a legato
+      MutedPick, natural -> NaturalHarmonic stopped open and touched at its
+      node, artificial -> ArtificialHarmonic and tapharm -> Tap, stopped at
+      the fret and touched `value` frets above it (harmonic-realism 4.1's
+      touchFret contract), pinch -> PinchHarmonic, the arrival of a legato
       slide and slideup / slidedown -> Slide with slideFromFret, trill ->
       alternating HammerOn / PullOff at 12 Hz, ghost x0.45 velocity, accent
       x1.2, staccato half length. Anything else plucks.
@@ -51,6 +53,7 @@ struct RiffEvent
     double velocity = 0.8;
     Technique technique = Technique::Pluck;
     int harmonicPartial = 0;
+    double touchFret = -1.0;         ///< harmonic-realism 4.1: where a harmonic is touched
     double slideFromFret = -1.0;
     double slideBeats = 0.0;         ///< converted to seconds at the playing tempo
     double palmMuteDepth = -1.0;

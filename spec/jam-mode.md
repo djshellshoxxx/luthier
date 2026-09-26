@@ -1,840 +1,788 @@
 # JAM MODE SPEC: a synthesized backing band that follows your chords
 
-A drummer and a bass player who listen to what the guitarist plays and
-play along, live and in time. The chords come from what the player
-holds (or from the Tune Builder's progression). The tempo comes from the
-host transport, or from the plugin's own clock and tap tempo. Every
-sound is synthesized: a small modal drum kit and a physically modelled
-bass string. No samples.
+A drummer and a bass player who listen to the chords the guitarist plays
+(or the Tune Builder's progression) and play along, live and in time.
+Tempo comes from the host transport, or from the plugin's own clock and
+tap tempo. Every sound is synthesized: a small modal drum kit and a
+waveguide bass string. No samples.
 
-Added 2026-09-24. Additive to `gui-integration.md`: it adds one Column 4
-tab, one group to the Easy rhythm strip and one Live Strip pill, and it
-moves nothing that is already placed. Test prefix **JM-**.
+Added 2026-09-24. It is additive to `gui-integration.md`. It adds one
+Column 4 tab, one group in the Easy rhythm strip, a Live Strip pill and
+two aux buses at the end. It moves nothing already placed. Test prefix
+**JM-**.
 
 ## 0. Ground rules
 
-1. **No samples.** Drums are modal and stochastic-particle synthesis
-   (section 5). The bass is a waveguide string (section 6). Nothing is
-   read from an audio file. Count-in clicks are stick hits from the kit
-   synth.
-2. **The band is an audio module that belongs to the processor, not the
-   guitar.** `JamEngine` sits next to `Metronome` and `Looper` in
-   `LuthierAudioProcessor`. It never goes through the guitar's body,
-   pickup, amp or cab, and it never writes into the guitar's event
-   queue. The Tune Builder stays a MIDI writer (INDEX "Tune Builder is a
-   MIDI writer"): Jam only *reads* the tune's chords.
+1. **No samples.** The drums use modal and stochastic-particle synthesis
+   (section 5). The bass is a `StringEngine` waveguide (6). Count-in
+   clicks are stick hits from the kit synth.
+2. **The band belongs to the processor, not the guitar.** `JamEngine`
+   sits beside `Metronome` and `Looper` in `LuthierAudioProcessor`. It
+   never passes through the guitar's body, pickup, amp or cab, and it
+   never writes into the guitar's event queue. The Tune Builder stays a
+   MIDI writer (INDEX global rules). Jam only *reads* the tune's chords.
 3. **Musical, not instant.** The bass changes chord on a musical
-   boundary (section 3.3), the way a real bassist does. Drums never wait
-   for a chord.
-4. **Real-time safe.** Everything that runs per block is pre-allocated
-   in `prepareToPlay`. Styles and chord maps cross threads by atomic
-   pointer swap (ui-wiring 4.3). No locks, no allocation, no strings on
-   the audio thread (engine.md 0.2, performance-budget 0.4-0.5).
-5. **Deterministic.** The same MIDI, transport, parameters and seed
-   produce bit-identical audio at any block size, online or offline.
-   All randomness is `RtRandom` seeded by (preset jam seed, bar index,
+   boundary (3.3), the way a bassist does. The drums never wait for a
+   chord.
+4. **Real-time safe.** All per-block storage is allocated in
+   `prepareToPlay`. Styles and chord maps cross threads by atomic
+   pointer swap (ui-wiring 4.3). The audio thread uses no locks, no
+   allocation and no strings.
+5. **Deterministic.** The same MIDI, transport, parameters and seed give
+   bit-identical audio at any block size, online or offline. All
+   randomness is `RtRandom`, seeded by (preset jam seed, bar index,
    lane).
 6. **Aligned with the guitar.** Jam reports no latency of its own. It
-   schedules every event `L` samples after its musical time, where `L`
-   is the plugin's reported latency (`getLatencySamples()`). After the
-   host's delay compensation, band and guitar land together on the grid.
-7. **Silent and free when off.** With `jam_enabled` off, `JamEngine` is
-   not called. With it on but stopped, only the conductor runs
-   (<= 0.02 units).
+   schedules every event `L` samples after its musical time, where
+   `L = getLatencySamples()`. After host delay compensation, band and
+   guitar land together on the grid.
+7. **Free when off.** With `jam_enabled` off, `JamEngine` is not called.
+   While armed but stopped, only the conductor runs (<= 0.02 units).
 
-## 1. Purpose and user stories
+## 1. User stories
 
-- *Practising alone:* "I strum Am-F-C-G and a drummer and bassist play
-  along, and they change when I change."
-- *Standalone on the couch:* "I play one chord, the band comes in on it,
-  and it stops when I put the guitar down."
-- *Stage / busking:* "I tap four beats on a footswitch and the band
-  enters in that tempo, then I call a fill with another switch."
-- *Songwriting:* "My Tune Builder progression plays, and the bass lands
-  exactly on each change with a walk-up into the chorus."
-- *In a DAW:* "The band locks to my session tempo. I send drums and bass
-  to their own tracks, then drag the last 8 bars out as MIDI."
+- *Practising alone:* "I strum Am-F-C-G. Drums and bass come in and
+  change when I change."
+- *Standalone:* "I play one chord and the band starts on it. When I put
+  the guitar down, it stops."
+- *Stage:* "I tap four beats on a footswitch and the band enters at that
+  tempo. Another switch calls a fill."
+- *Songwriting:* "My tune plays, and the bass lands exactly on every
+  change, with a walk-up into the chorus."
+- *DAW:* "The band locks to my session. I route drums and bass to their
+  own tracks and drag the last 8 bars out as MIDI."
 
-## 2. Behaviour overview
+## 2. Transport behaviour
 
-`JamEngine` has four states: **Off** (`jam_enabled` false), **Armed**
-(enabled, waiting for its start trigger), **Counting** (count-in),
-**Playing**, and **Ending** (playing its ending, then Armed).
+The engine has five states: **Off**, **Armed** (enabled, waiting for its
+start), **Counting**, **Playing** and **Ending**.
 
-### 2.1 Start modes (`jam_start_mode`)
+### 2.1 Start (`jam_start_mode`)
 
 | Mode | Starts when | Clock |
 |---|---|---|
-| Auto (default) | Host transport starts; with no host transport running, the first note | Host if playing, else own |
-| Host Transport | Host transport starts. Never on its own | Host ppq, bar position, tempo, meter |
-| First Note | The first note-on (velocity >= 20) while Armed. Beat 1 is that note's sample | Own clock at `getEffectiveTempo()` |
-| Count-In | JAM Start pressed: `jam_count_in_bars` bars of stick clicks, then beat 1 | Own clock |
-| Tap In | The 4th tap of TapTempo (header T, Live Strip pad, learned footswitch). The taps set tempo and phase; beat 1 lands one beat after the 4th tap | Own clock at the tapped tempo |
+| Auto (default) | the host transport starts; with no host transport running, the first note | host if playing, else own |
+| Host Transport | the host transport starts, and only then | host ppq, bar start, tempo, meter |
+| First Note | first note-on (velocity >= 20) while Armed; beat 1 = that note's sample | own clock |
+| Count-In | START pressed; `jam_count_in_bars` of stick clicks, then beat 1 | own clock |
+| Tap In | the 4th TapTempo tap (header T, Live Strip pad, learned footswitch); taps set tempo *and* phase; beat 1 = one beat after tap 4 | own clock |
 
-Pressing JAM Start (or `J`, or `jam_play` rising) in any mode except Host
-Transport starts at once: Count-In mode counts in, and the other modes
-start on the next beat of the own clock. With the host playing, pressing
-Start joins the host grid at the next bar line.
+START (the button, `J`, or `jam_play` rising) starts the band in every
+mode except Host Transport. It counts in when the mode is Count-In, and
+otherwise starts on the next own-clock beat. With the host playing, the
+band joins the host grid at the next bar line.
 
 ### 2.2 Stop
 
-- **Host stops** (in Auto or Host Transport): the band plays its ending
-  if `jam_ending` is on, otherwise it cuts. Returns to Armed.
-- **JAM Stop / `J` / `jam_play` falling:** ending on the next downbeat.
-  Pressing it again during the ending cuts at once (20 ms fade).
-- **Stop when I stop playing** (`jam_stop_on_silence`): no note-on for
-  `jam_silence_bars` whole bars (held or sustained notes do not count,
-  looper playback MIDI does). The band plays its ending on the next
-  downbeat. In Auto and First Note modes the next note restarts it.
-  The check is ignored while following the host transport, because the
-  DAW owns start and stop there.
-- **Ending:** the drums play the style's ending figure (a crash and kick
-  on the downbeat, choked after the style's ring time). The bass plays
-  the current root, which rings for 1 beat and is then damped. No ending
-  when `jam_ending` is off.
-- **Panic** (header P): stops the band with a 5 ms choke of every voice,
-  sets `jam_play` false and returns to Armed.
+- **Host stops** (Auto, Host Transport): the ending plays, or the band
+  cuts if `jam_ending` is off. The engine goes back to Armed.
+- **STOP** (`J`, or `jam_play` falling): the ending plays on the next
+  downbeat. A second STOP during the ending cuts with a 20 ms fade.
+- **Stop when I stop playing** (`jam_stop_on_silence`): if no note-on
+  arrives for `jam_silence_bars` whole bars, the ending plays on the next
+  downbeat. Held or sustained notes do not count as playing. Looper
+  playback MIDI does. In Auto and First Note modes, the next note starts
+  the band again. The rule does not apply while the band follows the
+  host transport, because the DAW owns start and stop.
+- **Ending:** drums play the style's ending (crash and kick on the
+  downbeat, choked after the style's ring time). The bass holds the root
+  for one beat, then damps it.
+- **Panic:** a 5 ms choke of every voice, `jam_play` set off, back to
+  Armed.
 
 ### 2.3 Tempo and meter
 
-Priority, highest first: host tempo while the host plays; the Tune
-Builder's own clock while a tune plays with the host stopped; the Jam
-own clock at `LuthierAudioProcessor::getEffectiveTempo()` (tap tempo,
-then last host tempo, then 120). A tap while Playing on the own clock
-changes the tempo at the next bar line. Meter comes from the host
-(`PositionInfo::getTimeSignature`), else from the tune, else 4/4. A
-style declares the meters it has patterns for (all have 4/4; Ballad and
-Country have 3/4; Ballad has 6/8). For any other meter the band plays
-the built-in *generic* bar: kick on 1, hat on every beat, snare on the
-last beat, bass on the root on beat 1. The status line says "Generic
-groove (style has no 7/8)". Below 50 bpm a style plays its double-time
-pattern; above 220 bpm, its half-time pattern.
+Tempo priority:
+1. The host tempo while the host plays.
+2. The tune's own clock while a tune plays and the host is stopped.
+3. `LuthierAudioProcessor::getEffectiveTempo()`: tap, then the last host
+   tempo, then 120.
 
-When the own clock is driving, the processor hands its ppq and tempo to
-`LuthierEngine::setTransportPosition` / `setTempoBpm`, the way it does
-for the tune's clock today, so the RhythmEngine strums on the band's
-grid.
+A tap while the band plays on its own clock re-tempos at the next bar.
+
+Meter comes from the host (`PositionInfo::getTimeSignature`), else from
+the tune, else 4/4. Every style has 4/4. Country and Ballad also have
+3/4, and Ballad has 6/8. For any other meter the band plays a generic
+bar: kick on 1, hat on every beat, snare on the last beat, bass root on 1.
+Below 50 bpm a style plays its double-time bar, and above 220 bpm its
+half-time bar.
+
+While the band's own clock drives, the processor passes its ppq and
+tempo to `LuthierEngine::setTransportPosition` / `setTempoBpm`, as it
+already does for the tune's clock. The RhythmEngine then strums on the
+band's grid.
 
 ## 3. Following the chords
 
-### 3.1 Chord sources (`jam_chord_source`)
+### 3.1 Sources (`jam_chord_source`: Auto, Live, Tune)
 
 - **Live:** `JamChordFollower` owns its own `ChordDetector` (same class,
-  same templates and confidence floor as the rhythm engine). It is fed
-  the block's MIDI after MIDI Learn, the live-performance consumers and
-  the tune's chord-channel merge in `processBlock`, plus the looper's
-  playback-layer MIDI (section 11). If `RhythmEngine::isDriving()` is
-  true, Jam takes `getCurrentChord()` instead, so the band and the
-  strum always agree.
-- **Tune:** the chord map of the playing tune (3.4).
-- **Auto (default):** Tune while `TunePlayer::isPlaying()` or the
-  practice PROG looper plays a progression; otherwise Live.
+  templates, burst window and `kConfidenceFloor` as the rhythm engine).
+  It is fed the block's MIDI after MIDI Learn, after the live consumers
+  and after the tune chord-channel merge in `processBlock`, plus the
+  looper's playback MIDI (11). While `RhythmEngine::isDriving()` is true,
+  Jam uses `getCurrentChord()` instead, so strum and band always agree.
+- **Tune:** the playing tune's chord map (3.4).
+- **Auto** (default): Tune while `TunePlayer::isPlaying()`, or while the
+  practice PROG looper plays a progression. Otherwise Live.
 
-**What changes the chord.** Only a detection with at least 2 pitch
-classes (a power chord counts) and confidence >= `kConfidenceFloor`.
-Single notes are melody: they never change the band's chord. An Unknown
-detection keeps the previous chord. Before any chord is known the bass
-rests and the status reads "Waiting for a chord". The chord's bass note
-is used when the chord is a slash chord (`ChordSymbol::isSlash()`) and
-the style's bass line plays roots.
+Only a detection with >= 2 pitch classes (power chords count) at or
+above the confidence floor changes the chord. Single notes are melody.
+An Unknown detection keeps the old chord. Before the first chord, the
+bass rests and the status reads "Waiting for a chord". Slash chords
+(`ChordSymbol::isSlash()`) make `R` tokens play the bass note.
 
-### 3.2 What each part does with a chord
+Drums ignore harmony. Bass tokens resolve against the chord's
+`ChordTemplate::intervalMask`:
+- `R`: the root.
+- `3`: the template's third, or R if the template has no third.
+- `5`: the fifth (b5 or #5 if the template has one).
+- `7`: the template's seventh, or the octave if it has none.
+- `8`: the octave.
 
-The drums ignore harmony. The bass line (section 6.2) turns the style's
-degree tokens into notes from the chord's `ChordTemplate::intervalMask`:
-R = root (or slash bass), 3 = the template's third (major or minor; no
-third means R), 5 = fifth (b5 / #5 when the template has one), 7 = the
-template's seventh, else the octave, 8 = octave.
+### 3.2 Reaction latency (live chords)
 
-### 3.3 Reaction latency rules (live chords)
+A chord is detected when the burst window closes (<= 30 ms after its
+first note). The bass changes at the next quantum Q of `jam_follow`:
 
-A chord is *detected* when the ChordDetector burst window closes
-(<= 30 ms after its first note). The bass changes on the next
-**quantum** Q of `jam_follow`:
-
-| Follow | Q | Typical use |
+| Follow | Q | Default for |
 |---|---|---|
-| Tight | next 8th | funk, EDM |
-| Natural (default) | next beat | most styles |
-| Relaxed | next half-bar | ballad, reggae |
-| Bar | next bar line | jazz, very slow songs |
+| Tight | next 8th | Funk, Metal, EDM |
+| Natural | next beat | most styles |
+| Relaxed | next half-bar | Reggae, Ballad |
+| Bar | next bar line | Jazz Swing |
 
-**Grace window:** if the chord's first note came within
-G = min(90 ms, one 16th) *after* a quantum boundary, the bass changes
-immediately at the detection sample, not at the next Q. A bassist who
-hears the change right on the beat plays it slightly late rather than
-a whole beat late. A note already sounding keeps sounding until the
-change. At the change the old note is damped (Released) and the new one
-is plucked.
+**Grace window.** If the chord's first note falls within
+G = min(90 ms, one 16th) *after* a quantum boundary, the bass changes at
+once, at the detection sample. A bassist who hears the change on the
+beat plays it slightly late rather than a whole beat late. At every
+change, the old note is damped (`Damping::Released`) and the new one
+plucked.
 
-### 3.4 Anticipation
+### 3.3 Anticipation
 
-When the next chord is known ahead of time, the bass changes *exactly*
-on the chord's time and may play the style's approach token (`A`, a
-chromatic or diatonic step into the next root) on the last 8th before
-it:
-- **Tune:** `TuneTimeline::build` also emits a `JamChordMap` (sorted
-  array of { ppq, root, bass, templateIndex, sectionIndex }, max 1024
-  entries). The message thread builds it with the timeline and passes it
-  to `JamEngine::setChordMap` by atomic pointer swap. The retired map is
-  freed on the message thread.
-- **Section changes** in the map schedule an automatic fill into the new
-  section, and apply the section's jam intensity if it has one (13.2).
-- **Prediction** (`jam_predict`, Live only): `JamChordFollower` keeps
-  the last 32 bar-aligned chord changes. When one cycle of 1, 2, 4, 8
-  or 16 bars has repeated *twice* in full (same chords at the same
-  beat, within one quantum), it predicts the next change and treats it
-  as anticipated. If a live chord contradicts a prediction, the bass
-  corrects at the next Q. Prediction then stays off until the cycle has
-  repeated twice again. The status line shows the predicted next chord
-  in italics.
+When the next chord is known ahead of time, the bass changes exactly on
+time, and a style's `A` token plays an approach note on the last 8th
+before the change.
+- **Tune:** `TuneTimeline::build` also emits a `JamChordMap`, a sorted
+  array of at most 1024 entries `{ppq, root, bass, templateIndex,
+  sectionIndex}`. It is handed to `JamEngine::setChordMap` by atomic
+  swap, and freed on the message thread. A section change schedules a
+  fill into the section and applies the section's jam hint (11).
+- **Prediction** (`jam_predict`, Live only): the follower keeps the last
+  32 bar-aligned changes. Once a cycle of 1, 2, 4, 8 or 16 bars has
+  repeated twice in full (same chords, same beat, within one Q), the
+  next change counts as anticipated. A contradicting live chord is
+  corrected at the next Q, and prediction stays off until two more clean
+  cycles. The status line shows predicted chords in italics.
 
-## 4. Grooves, intensity and fills
+## 4. Grooves
 
 ### 4.1 Factory styles
 
-Ten styles. The style suggests a kit, a bass voice and a RhythmEngine
-genre kit (`GenreKitLibrary` name, applied only if the preset's
-`link_rhythm_kit` is on).
+| # | Style | Grid | Kit | Bass voice | Follow |
+|---|---|---|---|---|---|
+| 0 | Rock | 16 | Studio | Pick | Natural |
+| 1 | Pop | 16 | Studio | Finger | Natural |
+| 2 | Funk | 16, swing 8 % | Studio | Finger + ghosts | Tight |
+| 3 | Blues Shuffle | 12 (triplet) | Vintage | Finger | Natural |
+| 4 | Country | 16, + 3/4 | Vintage | Pick | Natural |
+| 5 | Metal | 16 | Arena | Muted Pick | Tight |
+| 6 | Reggae | 16, swing 12 % | Vintage | Finger | Relaxed |
+| 7 | Jazz Swing | 12 (triplet) | Jazz | Upright, walking | Bar |
+| 8 | Ballad | 16, + 3/4, 6/8 | Vintage | Finger | Relaxed |
+| 9 | EDM | 16 | Machine | Muted Pick | Tight |
 
-| # | Style | Grid | Swing | Kit | Bass voice | Default follow |
-|---|---|---|---|---|---|---|
-| 0 | Rock | 16 | 0 | Studio | Pick | Natural |
-| 1 | Pop | 16 | 0 | Studio | Finger | Natural |
-| 2 | Funk | 16 | 8 % | Studio | Finger (muted ghosts) | Tight |
-| 3 | Blues Shuffle | 12 (triplet) | n/a | Vintage | Finger | Natural |
-| 4 | Country | 16 (+3/4) | 0 | Vintage | Pick | Natural |
-| 5 | Metal | 16 | 0 | Arena | Muted Pick | Tight |
-| 6 | Reggae | 16 | 12 % | Vintage | Finger | Relaxed |
-| 7 | Jazz Swing | 12 (triplet) | n/a | Jazz | Upright (walking) | Bar |
-| 8 | Ballad | 16 (+3/4, 6/8) | 0 | Vintage | Finger | Relaxed |
-| 9 | EDM | 16 | 0 | Machine | Muted Pick | Tight |
-
-Each style has variations **A** and **B**, each with a groove for each
-intensity 1-5, at least 4 fills (1 beat, 2 beats, 1 bar, 1 bar big), an
-ending, and a double-time and a half-time bar.
+Every style has variations A and B with a groove per intensity, at
+least four fills (1 beat, 2 beats, 1 bar, 1 bar big), an ending, a
+double-time and a half-time bar, and a suggested RhythmEngine genre kit.
+The kit is applied via `GenreKitLibrary::apply` only if the preset's
+`link_rhythm_kit` is on; its rig preset is never loaded.
 
 ### 4.2 Intensity (`jam_intensity`, 1-5)
 
-- **1:** Sparse. Rim or brushes (Jazz, Ballad) and closed hat or ride.
-  Bass in whole or half notes on R.
-- **2:** Light. Kick on 1 and 3, snare on the backbeat. Bass on the
-  quarters.
-- **3:** The standard groove.
-- **4:** Full. Open hats, busier kick. 8ths in the bass with 5 and 8.
-  Fills every `jam_fill_every` bars.
-- **5:** Driving. Ride or crash on the quarters, crash on every
-  4-bar downbeat, busiest bass line, fills twice as often.
+1. Rim or brushes with hat or ride; bass in whole or half notes.
+2. Kick on 1 and 3, backbeat snare; bass in quarters.
+3. The standard groove.
+4. Open hats and a busier kick; bass in 8ths using 5 and 8.
+5. Ride or crash quarters, a crash every 4 bars, the busiest bass, and
+   fills twice as often.
 
-**Dynamics follow** (`jam_dynamics_follow`): the mean note-on velocity
-over the last 2 bars, compared with 80, moves the *effective* intensity
-by -1, 0 or +1. The boundaries are velocity 55 and 105, with a hysteresis
-of 8. The result is clamped to 1-5. The status shows it as "3 (+1)".
+**Dynamics follow** (`jam_dynamics_follow`) moves the *effective*
+intensity by -1 when the mean note-on velocity over the last 2 bars is
+below 55, and +1 above 105, with 8 points of hysteresis, clamped to 1-5.
+The status line shows it as "3 (+1)".
 
 ### 4.3 Fills, humanise, swing
 
-- `jam_fill_every` (Off / 2 / 4 / 8 / 16 bars) plays a fill in the last
-  bar of each period. The fill size grows with intensity (1-2: 1-beat,
-  3: 2-beat, 4-5: 1-bar). The choice among a style's fills of that size
-  uses the bar-seeded RNG.
-- **Fill Now** (`jam_fill_now` rising, the FILL button, `Shift+J`):
-  starts on the next beat and runs to the bar line. With less than one
-  beat left, it plays the last 2 beats of the next bar. Tune section
-  changes and the ending also call fills.
-- **Humanise** (`jam_humanise`, 0-100 %): at 100 %, timing sigma is
-  6 ms for drums and 8 ms for bass, and velocity sigma is 8 %. Drums
-  have a consistent per-lane push/pull (hat -2 ms, snare +3 ms at
-  100 %). The downbeat kick is never moved more than 2 ms. Applied when
-  scheduled, never stored (rhythm-engine rule 5).
-- **Swing** (`jam_swing`, -50..+50 %) offsets the style's swing (16-step
-  grids only). Triplet-grid styles ignore it.
+- **Fill period.** `jam_fill_every` (Off, 2, 4, 8 or 16 bars) puts a fill
+  in the last bar of each period. The fill grows with intensity: 1 beat
+  at 1-2, 2 beats at 3, 1 bar at 4-5. A bar-seeded draw chooses among
+  fills of that size.
+- **Fill Now** (`jam_fill_now` rising, FILL, `Shift+J`) plays from the
+  next beat to the bar line. If less than one beat is left, it plays the
+  last 2 beats of the next bar.
+- **Humanise** (`jam_humanise`). At 100 %, timing sigma is 6 ms for drums
+  and 8 ms for bass, and velocity sigma is 8 %. Each lane keeps a steady
+  push or pull (hat -2 ms, snare +3 ms). The downbeat kick never moves
+  more than 2 ms. Humanise is applied at scheduling time and never stored
+  (rhythm-engine rule 5).
+- **Swing.** `jam_swing` offsets a 16-grid style's swing. Triplet grids
+  ignore it.
 
-### 4.4 Style changes while playing
+### 4.4 Changes while playing
 
 | Change | Takes effect |
 |---|---|
-| `jam_intensity`, dynamics offset | next beat |
-| `jam_style`, `jam_variation`, `jam_kit`, `jam_bass_voice` | next bar line (a fill is not interrupted; it waits for the bar after the fill) |
-| `jam_swing`, `jam_humanise`, `jam_follow` | next scheduled event |
-| Mixer parameters | at once, smoothed 20 ms (engine.md 0.4) |
-| Kit tuning / damping | next hit per piece (ringing modes keep their coefficients) |
+| intensity, dynamics offset | next beat |
+| style, variation, kit, bass voice | next bar line; a running fill finishes first |
+| swing, humanise, follow | next scheduled event |
+| mixer | immediately, smoothed over 20 ms (engine.md 0.4) |
+| kit tuning, damping | each piece's next hit |
 
-## 5. The drum kit synth (`JamDrumKit`)
+## 5. Drum kit synth (`JamDrumKit`)
 
-Physically-informed modal synthesis. Each piece is a bank of damped
-two-pole resonators (`ModalResonatorBank`, 4-wide SIMD, double
-precision). The bank is driven by a contact-force pulse or a stochastic
-exciter. Each piece has a DC blocker and a NaN guard (engine.md 0.3).
+The kit is physically informed. Each piece is a bank of damped two-pole
+resonators (`ModalResonatorBank`: double precision, 4-wide SIMD), driven
+by a contact-force pulse or a stochastic exciter. Every piece has a DC
+blocker and a NaN guard (engine.md 0.3).
 
-| Piece | Model | Key physics |
-|---|---|---|
-| Kick | 6 membrane modes (ratios 1, 1.594, 2.136, 2.296, 2.653, 2.918) + 2 resonant-head modes coupled at 0.3 | Beater: raised-cosine force pulse 1.5 ms (felt) / 0.6 ms (plastic). Tension modulation: f(t) = f0 (1 + k a(t)^2), k up to 0.25 at velocity 127 (the pitch drop of a hard hit) |
-| Snare | 8 batter modes + snare-wire collision | Wires: noise gated by max(0, abs(head displacement) - threshold), band-passed 3.5 kHz, decay 80-250 ms. Accent > 115 adds a rim-shot contact. Brush excitation: filtered-noise sweep of 120-400 ms (Jazz, Ballad at intensity <= 2) |
-| Toms x3 | 6 membrane modes each, with pitch drop | Tuned a 4th / 3rd apart per kit |
-| Hi-hat | 32 inharmonic modes, f_k = f_h k^1.35 with seeded +-3 % jitter | One choke group. Closed T60 50-90 ms, open 0.9-1.4 s, pedal "chick" 30 ms. Closing chokes an open hat by ramping damping over 10 ms (a physical choke, not a fade) |
-| Ride | 48 modes 300 Hz-14 kHz, T60 3-6 s (low) / 1-2 s (high) | Bell hits weight the lowest 8 modes. Re-striking adds to the ringing state (no voice restart) |
-| Crash | 48 modes, T60 2-3 s | "Bloom": high-band energy rises with a 30 ms attack, a cheap stand-in for the nonlinear energy cascade |
-| Rim / sticks | 3 wood modes + 4 faint batter modes | Also the count-in click |
-| Shaker | PhISEM stochastic particles (64 beads) | Two resonances (3.2 kHz, 6.5 kHz), energy decay per shake |
+| Piece | Model and physics |
+|---|---|
+| Kick | 6 membrane modes (ratios 1, 1.594, 2.136, 2.296, 2.653, 2.918) plus 2 resonant-head modes coupled at 0.3. Beater: raised-cosine force pulse, 1.5 ms felt / 0.6 ms plastic. Tension modulation f(t) = f0 (1 + k a(t)^2), k up to 0.25 at velocity 127. |
+| Snare | 8 batter modes. Snare-wire collision: noise gated by max(0, abs(head) - threshold), band-passed at 3.5 kHz, 80-250 ms decay. Accents > 115 add rim contact. Brush excitation: 120-400 ms filtered-noise sweep (Jazz, Ballad, intensity <= 2). |
+| Toms x3 | 6 membrane modes each, with pitch drop, tuned a 4th or 3rd apart |
+| Hi-hat | 32 inharmonic modes, f_k = f_h k^1.35 with seeded +-3 % jitter. T60: closed 50-90 ms, open 0.9-1.4 s, pedal chick 30 ms. Closing an open hat chokes it by ramping damping over 10 ms. |
+| Ride | 48 modes, 300 Hz-14 kHz, T60 3-6 s low / 1-2 s high. A bell hit weights the lowest 8 modes. A re-strike adds to the ringing state. |
+| Crash | 48 modes, T60 2-3 s. "Bloom": the high band rises over 30 ms, a stand-in for the nonlinear energy cascade. |
+| Rim / sticks | 3 wood modes and faint batter modes; also the count-in |
+| Shaker | PhISEM stochastic particles (64 beads), resonances at 3.2 and 6.5 kHz |
 
-**Voices:** a fixed pool. Kick 2, snare 2, each tom 2, hat 1, ride 1,
-crash 1, rim 1, shaker 1. The oldest voice of a piece is stolen with a
-2 ms damping ramp. A piece whose bank energy is below -100 dBFS is
-skipped.
+**Voice pool (fixed).** Kick 2, snare 2, each tom 2, hat 1, ride 1,
+crash 1, rim 1, shaker 1. Stealing takes the oldest voice with a 2 ms
+damping ramp. A bank below -100 dBFS is skipped.
 
-**Kit styles** (`jam_kit`) set f0, damping, shell size and cymbal
-brightness. `jam_kit_auto` lets the style pick the kit.
+**Kit styles** (`jam_kit`, or chosen by the style when `jam_kit_auto` is
+on):
 
 | Kit | Kick f0 | Snare f0 | Character |
 |---|---|---|---|
 | Studio | 55 Hz | 200 Hz | tight, medium damping |
 | Vintage | 62 Hz | 185 Hz | looser heads, darker cymbals |
 | Arena | 48 Hz | 175 Hz | low, long toms, more room |
-| Jazz | 78 Hz | 240 Hz | 18" kick, ride-led, brushes available |
-| Machine | 50 Hz, 120 ms sweep | 220 Hz | short decays, strong pitch sweeps (EDM) |
+| Jazz | 78 Hz | 240 Hz | 18" kick, ride-led, brushes |
+| Machine | 50 Hz, 120 ms sweep | 220 Hz | short decays, strong sweeps (EDM) |
 
-`jam_kit_tuning` shifts every membrane f0 by semitones. It stays a
-tension change: mode ratios hold and pitch drop scales with tension.
-`jam_kit_damping` scales membrane T60 (head muffling). `jam_kit_room` is
-the send to a 4-line FDN kit room (0.1 s-0.6 s). The pieces are panned
-per `jam_kit_perspective` (Audience: hat on the right) and scaled by
-`jam_kit_width`.
+**Kit controls.**
+- `jam_kit_tuning` is a tension change. It shifts every membrane f0 but
+  keeps the mode ratios, and the pitch drop scales with it.
+- `jam_kit_damping` scales membrane T60 (head muffling).
+- `jam_kit_room` sends to a 4-line FDN room (0.1-0.6 s).
+- Pan follows `jam_kit_perspective` (Audience puts the hat on the right),
+  scaled by `jam_kit_width`.
 
-## 6. The bass (`JamBassVoice`)
+## 6. Bass (`JamBassVoice`)
 
-### 6.1 Decision: a dedicated bass voice, not a second `LuthierEngine`
+### 6.1 Decision: a dedicated voice, not a second `LuthierEngine`
 
-A second full `LuthierEngine` running a bass guitar would cost about
-**5.8 units**, using performance-budget.md 1: strings 4/12 of 2.5 =
-0.83, coupling 0.4, body 0.6, pickup 0.5, circuit 0.05, amp 1.5,
-cab 0.4, room 0.3, master 0.15, noise engines about 0.5, bass
-techniques 0.25, plus a few pedals. That is 73 % of the 8-unit
-steady-state budget, it would break the 22-unit heavy-preset cap, and it
-adds about 30 MB of DSP state, a second IR set and a 300 ms guitar load.
+A second full engine running a bass would cost about **5.8 units** by
+performance-budget.md 1: strings 0.83 (4/12 of 2.5), coupling 0.4, body
+0.6, pickup 0.5, circuit 0.05, amp 1.5, cab 0.4, room 0.3, master 0.15,
+noise engines ~0.5, bass techniques 0.25, plus pedals. That is 73 % of
+the 8-unit steady-state budget. It breaks the 22-unit
+heavy cap and adds about 30 MB of DSP state, a second IR set and a
+300 ms guitar load.
 
-`JamBassVoice` reuses the parts of that chain that carry the realism,
-the waveguide and the excitation:
-- **Two `StringEngine` instances**, ping-ponged. The new note plucks the
-  idle one while the previous one is set to `Damping::Released` (the
-  fretting finger lifting), so a note change never clicks and never
-  cuts a tail unnaturally.
-- **String choice like a bassist:** 4 strings E1 A1 D2 G2, 864 mm scale,
-  roundwound .105-.045 via `StringMaterials`. Each note goes on the
-  string that gives the lowest fret <= 7 nearest the previous note's
-  position. `setPhysical` is applied to the idle instance before the
-  pluck.
-- **`Excitation`** in finger, pick or palm-muted pick
+`JamBassVoice` instead keeps the parts that carry the realism:
+- **Two `StringEngine` instances, ping-ponged.** The new note plucks the
+  idle instance. The previous one gets `Damping::Released` (the finger
+  lifting), so there is no click and no cut tail.
+- **String choice like a bassist.** Four strings (E1 A1 D2 G2), 864 mm
+  scale, roundwound .105-.045 via `StringMaterials`. The engine picks the
+  string giving the lowest fret <= 7 nearest the previous position, and
+  applies `setPhysical` to the idle instance before the pluck.
+- **`Excitation`:** finger, pick, or palm-muted pick
   (`Damping::PalmMuteBass`). Upright uses a flesh pluck at 0.18 of the
-  string length with higher loop damping.
-- **`JamBassTone`**: a pickup-position comb (P-style at 0.21 of the
-  scale length, not used for Upright), a 2-pole pickup resonance at
-  4.5 kHz, Q 1.2, a 3-band tone controlled by `jam_bass_tone`, and a
-  gentle tube-style saturation at 2x oversampling. Upright uses a 2-mode
-  body (95 Hz, 180 Hz) instead of the pickup.
+  scale, with higher loop damping.
+- **`JamBassTone`:** a pickup-position comb at 0.21 of the scale, a
+  2-pole pickup resonance at 4.5 kHz (Q 1.2), a 3-band tone
+  (`jam_bass_tone`) and tube saturation at 2x oversampling. Upright
+  replaces the pickup with 2 body modes (95 and 180 Hz).
 
-Measured budget **0.6 units** (2 x 0.21 string + 0.08 tone + 0.05
-saturation). That is 10 % of the full-engine option. For full-rig bass
-realism, Pro users send the Jam bass part to MIDI out (section 9) and
-into a second Luthier instance loaded with a bass (the
-companion-instance path in tune-builder 6).
+Budget: **0.6 units** (2 x 0.21 + 0.08 + 0.05), about a tenth of the
+full-engine option. For full-rig realism, Pro users send the Jam bass
+part to MIDI out (9) and into a second Luthier instance loaded with a
+bass. That is the companion-instance path of tune-builder 6.
 
-### 6.2 Bass lines
+### 6.2 Lines
 
-Each style's groove has a bass lane of degree tokens per step: `R 3 5 7
-8` (3.2), `A` (approach, only when the next chord is anticipated;
-otherwise R), `W` (walking step: a chord tone or passing tone toward the
-next root, Jazz), `m` (muted ghost at 40 % velocity), `-` (tie) and `.`
-(rest). Register: E1-C3. The octave of each note is chosen to minimise
-the leap from the previous note, with the root kept within E1-A2.
-Deterministic: no RNG in the pitch choice.
+Each style's bass lane holds one token per step:
+- `R 3 5 7 8`: chord tones (3.1).
+- `A`: approach, only when the next chord is anticipated; otherwise R.
+- `W`: walking step toward the next root.
+- `m`: muted ghost at 40 % velocity.
+- `-`: tie. `.`: rest.
 
-**Bass voice** `jam_bass_voice`: Auto (the style's), Finger, Pick,
-Muted Pick, Upright.
+The register is E1-C3. Each octave is chosen for the smallest leap, with
+the root kept within E1-A2. No randomness is used in pitch choice.
+`jam_bass_voice` is Auto (the style's own), Finger, Pick, Muted Pick or
+Upright.
 
 ## 7. Mixer and routing
 
-- `jam_volume` sets the band level (dB). `jam_balance` is an
-  equal-power crossfade: -1 drums only, +1 bass only.
-  `jam_drums_pan` and `jam_bass_pan` pan each part. `jam_drums_mute`
-  and `jam_bass_mute` mute each part.
-- **The bass rests when the player is the bassist:** if the loaded
-  guitar's family is bass (`RhythmEngine::isBassFamily()`), the Jam bass
-  is silent. The status says "You're the bassist - Jam bass is resting".
-- **Output** (`jam_output`): Main; Separate (Aux 9 "Jam Drums" and
-  Aux 10 "Jam Bass", both stereo); or Main + Separate. The two buses are
-  **appended after Aux 8** in `buildBusesProperties()`, so no existing
-  bus number moves. `isBusesLayoutSupported`'s aux test is extended to
-  them. The ROUTING tab gains two aux strips (mute, solo, gain, meter)
-  with tap description "Jam band, post Jam mixer". On Layout A or C
-  (no aux), Separate falls back to Main and the JAM tab shows the inline
-  notice of section 8.4.
-- Jam is summed **after the looper** (the looper records the guitar
-  only; 11) and **before the session recorder** (a take includes the
-  band). Tone-match capture and the monitor mix never include it. The
-  kill switch mutes it too, through a new `KillSwitch::applyBlockRamp`
-  that applies the ramp this block already computed, without advancing
-  it.
+- **Mix.** `jam_volume`, plus `jam_balance`, an equal-power drums/bass
+  crossfade (-1 drums only, +1 bass only). Each part has its own pan and
+  mute.
+- **The player is the bassist.** If the loaded guitar is a bass
+  (`RhythmEngine::isBassFamily()`), Jam bass is silent, and the status
+  reads "You're the bassist - Jam bass is resting".
+- **`jam_output`.** Choices are Main, Separate, or Main + Separate.
+  Separate uses **Aux 9 "Jam Drums"** and **Aux 10 "Jam Bass"** (both
+  stereo), appended after Aux 8 in `buildBusesProperties()` so no
+  existing bus number moves; `isBusesLayoutSupported` treats them as aux
+  pairs. ROUTING gains two strips (mute, solo, gain, meter; tap
+  description "Jam band, post Jam mixer"). On Layout A or C, Separate
+  falls back to Main with the notice in 8.4.
+- **Mix point in `processBlock`:** after `looper.processBlock` (the
+  looper records guitar only) and before `sessionRecorder` (takes
+  include the band). Tone-match capture and the monitor mix never
+  contain the band. The kill switch mutes it through a new
+  `KillSwitch::applyBlockRamp`, which reapplies this block's computed
+  ramp without advancing it.
 
 ## 8. UI
 
-### 8.1 Advanced Mode: Column 4 JAM tab
+### 8.1 Advanced: Column 4 JAM tab
 
-The tab goes right after TUNE. The fixed order (gui-integration 4.4,
-with gui-techniques-updates' TECHNIQUES) becomes:
+JAM goes directly after TUNE:
+
 `WORKSHOP | MOD | RHYTHM | TUNE | JAM | LIVE | ROUTING | TONE MATCH |
 CHARACTER | PRACTICE | NOTATION | MIDI OUT | CONTROLLERS | TECHNIQUES |
-HELP`. The `AdvancedPanel` tabs table gets `{ "JAM", jamPanel.get() }`
-after TUNE.
+HELP`
+
+The band is the tune's companion: RHYTHM, TUNE and JAM sit together. In
+code, add `{ "JAM", jamPanel.get() }` after TUNE in the `AdvancedPanel`
+tabs table.
 
 ```
 +--------------------------------------------------------------------+
-| JAM [ARMED o] [> START / [] STOP] [FILL]  PLAYING . Rock B . 3(+1) |
-|      Am7 -> F (predicted) . 112 bpm host . bar 17.3          [?][v]|
+| JAM [ARMED o] [> START | [] STOP] [FILL]   PLAYING . Rock B . 3(+1)|
+|      Am7 -> F (predicted) . 112 bpm host . bar 17.3         [?] [v]|
 +----------------------------+---------------------------------------+
-| STYLE                      | FEEL                                  |
-| [ list: 10 styles + User ] | Intensity (1)(2)(3)(4)(5)             |
-| Variation (A)(B)           | Fills every [8 bars v]  Swing  Human. |
+| STYLE  [10 styles + User]  | FEEL  Intensity (1)(2)(3)(4)(5)       |
+| Variation (A)(B)           | Fills every [8 v]  Swing ( ) Human ( )|
 | [x] Link guitar rhythm kit | [x] Dynamics follow                   |
 +----------------------------+---------------------------------------+
-| FOLLOW                     | START / STOP                          |
-| Source [Auto v]            | Start [Auto v]   Count-in [1 v] bars  |
-| Follow (Tight)(Natural)    | [x] Stop when I stop playing  [2] bars|
-|        (Relaxed)(Bar)      | [x] Play an ending                    |
-| [x] Predict repeats        |                                       |
+| FOLLOW  Source [Auto v]    | START/STOP  Start [Auto v] Count [1 v]|
+| (Tight)(Natural)(Relaxed)  | [x] Stop when I stop playing  [2] bars|
+| (Bar)  [x] Predict repeats | [x] Play an ending                    |
 +----------------------------+---------------------------------------+
-| KIT  [Studio v] [x] auto   | BASS  [Auto v]  Tone ( )              |
-| Tuning ( ) Damping ( ) Room ( ) Width ( ) Perspective [Audience v] |
+| KIT [Studio v][x]auto Tuning( ) Damping( ) Room( ) Width( ) [Aud v]|
+| BASS [Auto v] Tone ( )                                             |
+| MIXER Vol( ) Bal( ) Drums pan( )[M] Bass pan( )[M] Out[Main v] ||| |
 +--------------------------------------------------------------------+
-| MIXER  Volume ( )  Balance ( )  Drums pan ( ) [M]  Bass pan ( ) [M]|
-|        Output [Main v]   drums meter ||||   bass meter ||||        |
-+--------------------------------------------------------------------+
-| LANES  chord  | Am7        | F          | C  (pred) | G  (pred)   |
-|  crash  ride  hat  snare  kick  toms  bass   (1 bar, playhead)     |
-|  [Drag last [8 v] bars]  [Export MIDI...]                          |
+| LANES chord | Am7 | F | C (pred) | G (pred) |   + 7 drum lanes,    |
+|       bass lane, playhead      [Drag last [8 v] bars] [Export MIDI]|
 +--------------------------------------------------------------------+
 ```
 
-- The lane view is read-only. It shows the bar being played, with
-  lanes, velocity as opacity and the playhead. The chord track shows the
-  last 2 bars and the next 2, with predicted and tune chords marked. It
-  is drawn from the `JamStatus` snapshot (8.3).
-- At the 480 px minimum column width, FEEL/START and KIT/BASS stack into
-  single columns and the lane view keeps 96 px.
+- The lane view is read-only. It shows the current bar (velocity drawn as
+  opacity, with a playhead) and a chord track of 2 bars back and 2 ahead,
+  with predicted and tune chords marked.
+- At the 480 px minimum width, the paired groups stack and the lanes
+  keep 96 px.
+- The "Metronome goes quiet while the band plays" switch sits in
+  START/STOP (see 11).
 
-### 8.2 Easy Mode and Live Strip
+### 8.2 Easy Mode, Live Strip, shortcuts
 
-- **Easy rhythm strip** (gui-integration 3.5) gains a **JAM** group at
-  its right end. It has a large JAM toggle pill (88 x 32 px): the first
-  press arms, and it shows ARMED, COUNT, PLAYING or ENDING. Then a style
-  dropdown (10 + User), a 5-dot intensity control and a "Band" volume
-  mini-knob (`jam_volume`). Clicking the pill while Playing stops the
-  band. This satisfies gui-integration 0.3: the band's style, level and
-  on/off are all visible in Easy.
-- **Live Strip** (gui-integration 9) gains a JAM pill after Tap: tap to
-  start or stop, long-press for FILL. It shows only while `jam_enabled`
-  is on. The live 44 px hit target applies.
-- **Shortcuts** (gui-integration 17, rebindable): `J` start/stop,
-  `Shift+J` fill, `Alt+J` arm/disarm. The Help cheat sheet lists them.
+- **Easy rhythm strip** (gui-integration 3.5). A JAM group is added at
+  the right end:
+  - JAM pill (88 x 32 px): the first press arms. The pill shows ARMED,
+    COUNT, PLAYING or ENDING, and a press while playing stops the band.
+  - Style dropdown.
+  - 5-dot intensity control.
+  - "Band" volume mini-knob.
+
+  This meets gui-integration 0.3: the band's style, level and state are
+  never hidden.
+- **Live Strip** (gui-integration 9). A JAM pill after Tap: a tap
+  starts or stops the band, a long press is FILL. It is shown only while
+  `jam_enabled` is on, and uses 44 px targets.
+- **Shortcuts** (gui-integration 17, rebindable). `J` start/stop,
+  `Shift+J` fill, `Alt+J` arm/disarm. They appear in the cheat sheet.
 
 ### 8.3 Live data (gui-engine-dataflow)
 
-`JamStatus` is published by the audio thread after each block. It is
-double-buffered with an atomic sequence number and holds: state, bar,
-beat, effective intensity, style, variation, current chord, next chord
-and its source (tune / predicted / none), active fill, 16 lane-hit
-bitmasks for the current bar, and peak levels. The UI drains it at
-30 Hz. Stale after 250 ms: the playhead hides and the status line shows
+The audio thread publishes a `JamStatus` snapshot after each block
+(double buffer plus an atomic sequence number): state, bar, beat,
+effective intensity, style, variation, current chord, next chord and its
+source (tune, predicted or none), active fill, 16 lane-hit bitmasks and
+part peaks. The UI drains it at 30 Hz. After 250 ms without an update,
+the snapshot is stale: the playhead hides and the status line shows
 "-".
 
 ### 8.4 Empty states and errors
 
-- Armed, no chord yet: "Play a chord - the band follows. Or press
-  START for drums first."
-- Source Tune, no tune: "No tune is playing - following what you play."
-- Separate output without aux buses: "Separate outputs need the
-  multi-out layout (B or D). The band is on the main output."
-- Bass family loaded: the bass group shows the resting message of 7.
+- Armed, no chord yet: "Play a chord - the band follows. Or press START
+  for drums first."
+- Source Tune, nothing playing: "No tune is playing - following what you
+  play."
+- Separate output without aux: "Separate outputs need the multi-out
+  layout (B or D). The band is on the main output."
 - Unsupported meter: "Generic groove - Rock has no 7/8."
-- Style file failed to load (13): banner plus fallback name in STYLE.
-- Host Transport mode with no play head: "This host sends no transport;
+- No play head in Host Transport mode: "This host sends no transport;
   the band keeps its own time."
+- A bass is loaded: the bass group shows the resting message from 7.
+- A style file failed to load: the banner of 13, and the fallback name
+  in STYLE.
 
 ## 9. MIDI out and export
 
-- **Live MIDI out:** `MidiOutConfig` gains `jamParts` (default off). A
-  routing-panel checkbox "Jam band" sits next to "Tune-builder
-  playback". Drums use GM channel 10 (kick 36, rim 37, snare 38, closed
-  hat 42, pedal hat 44, open hat 46, toms 45/47/50, crash 49, ride 51,
-  bell 53, shaker 82). Bass uses channel 11. Both channels can be set in
-  the MIDI OUT tab and are saved in the preset's `midi_out` block. The
-  events are sample-accurate, including the latency offset of rule 0.6.
-- **Capture:** `JamCapture` keeps a fixed ring of 8192 events (the last
-  64 bars at most), written on the audio thread with no allocation.
-- **Drag-out:** the lane view's handle drags the last N bars (4 / 8 / 16
-  / 32 / all). It is a Type 1 file with tracks "Jam Drums" and "Jam
-  Bass" and a tempo map, as the midi-export 4.2 drag-out. The Generic
-  profile is the default. In the Luthier profile, a
-  `LUTHIER: JAM style=... variation=... intensity=... kit=...` text meta
-  is added at each change.
-- **Export MIDI...** opens the midi-export 4.1 dialog with the range
-  preset to Jam capture, and the track split "per instrument".
+- **Live MIDI out.** `MidiOutConfig` gains `jamParts` (default off),
+  shown as the checkbox "Jam band" next to "Tune-builder playback".
+  Drums go out on GM channel 10 (kick 36, rim 37, snare 38, closed hat
+  42, pedal hat 44, open hat 46, toms 45/47/50, crash 49, ride 51, bell
+  53, shaker 82), bass on channel 11. Both channels are editable in MIDI
+  OUT and saved with the preset's MIDI-out config. Events are
+  sample-accurate, including the `L` offset of rule 0.6.
+- **Capture.** `JamCapture` is a fixed ring of 8192 events (at most the
+  last 64 bars), written on the audio thread without allocation.
+- **Drag-out.** The lanes' handle drags the last 4, 8, 16 or 32 bars, or
+  all of them, as in midi-export 4.2. The file is Type 1 with a tempo map
+  and two tracks, "Jam Drums" and "Jam Bass". The Generic profile is the
+  default. The Luthier profile adds a `LUTHIER: JAM style= variation=
+  intensity= kit=` text meta at each change.
+- **Export MIDI...** opens the midi-export 4.1 dialog, with range "Jam
+  capture" and split "per instrument".
 - **Tune export** (tune-builder 9) gains "Include Jam band" (default on
-  when `jam_enabled`). Audio: the band is in the render. MIDI: the two
-  Jam tracks are added.
+  while `jam_enabled`). Audio renders include the band. MIDI exports add
+  the two Jam tracks.
 
 ## 10. Parameters
 
-Appended at the end of the parameter list, in this order, after the last
-existing parameter. They are never reordered. The
-`jam_kit_tuning` / `jam_kit_damping` pair is physical: `PhysicalRange`,
-new `RangeFamily::jam`, appended before `numFamilies` in
-`PhysicalRange.h`.
+All jam parameters are appended after the last existing parameter, in
+this order, and never reordered. `jam_kit_tuning` and `jam_kit_damping`
+are physical: they are `PhysicalRange` in a new `RangeFamily::jam`,
+inserted before `numFamilies` in `PhysicalRange.h`.
 
-| # | ID | Name | Range | Default |
-|---|---|---|---|---|
-| 1 | `jam_enabled` | Jam | bool | off |
-| 2 | `jam_play` | Jam Play | bool (transient) | off |
-| 3 | `jam_fill_now` | Jam Fill | bool (transient, momentary) | off |
-| 4 | `jam_style` | Jam Style | Rock, Pop, Funk, Blues Shuffle, Country, Metal, Reggae, Jazz Swing, Ballad, EDM, User | Rock |
-| 5 | `jam_variation` | Jam Variation | A, B | A |
-| 6 | `jam_intensity` | Jam Intensity | int 1-5 | 3 |
-| 7 | `jam_fill_every` | Jam Fills Every | Off, 2, 4, 8, 16 bars | 8 |
-| 8 | `jam_follow` | Jam Follow | Tight, Natural, Relaxed, Bar | Natural |
-| 9 | `jam_predict` | Jam Predict | bool | on |
-| 10 | `jam_chord_source` | Jam Chords From | Auto, Live, Tune | Auto |
-| 11 | `jam_start_mode` | Jam Start | Auto, Host Transport, First Note, Count-In, Tap In | Auto |
-| 12 | `jam_count_in_bars` | Jam Count-In | int 0-2 | 1 |
-| 13 | `jam_stop_on_silence` | Jam Stop When I Stop | bool | on |
-| 14 | `jam_silence_bars` | Jam Silence Bars | int 1-8 | 2 |
-| 15 | `jam_ending` | Jam Ending | bool | on |
-| 16 | `jam_dynamics_follow` | Jam Dynamics Follow | bool | on |
-| 17 | `jam_swing` | Jam Swing | -50..+50 % | 0 |
-| 18 | `jam_humanise` | Jam Humanise | 0-100 % | 50 |
-| 19 | `jam_kit` | Jam Kit | Studio, Vintage, Arena, Jazz, Machine | Studio |
-| 20 | `jam_kit_auto` | Jam Kit From Style | bool | on |
-| 21 | `jam_kit_tuning` | Jam Kit Tuning | stock -6..+6 st; advanced -12..+12 st | 0 |
-| 22 | `jam_kit_damping` | Jam Kit Damping | stock 10-90 %; advanced 0-100 % | 40 |
-| 23 | `jam_kit_room` | Jam Kit Room | 0-100 % | 25 |
-| 24 | `jam_kit_width` | Jam Kit Width | 0-100 % | 70 |
-| 25 | `jam_kit_perspective` | Jam Kit Perspective | Audience, Drummer | Audience |
-| 26 | `jam_bass_voice` | Jam Bass Voice | Auto, Finger, Pick, Muted Pick, Upright | Auto |
-| 27 | `jam_bass_tone` | Jam Bass Tone | 0-1 | 0.5 |
-| 28 | `jam_volume` | Jam Volume | -60..+6 dB | -6 |
-| 29 | `jam_balance` | Jam Drums/Bass | -1..+1 | 0 |
-| 30 | `jam_drums_pan` | Jam Drums Pan | -1..+1 | 0 |
-| 31 | `jam_bass_pan` | Jam Bass Pan | -1..+1 | 0 |
-| 32 | `jam_drums_mute` | Jam Drums Mute | bool | off |
-| 33 | `jam_bass_mute` | Jam Bass Mute | bool | off |
-| 34 | `jam_output` | Jam Output | Main, Separate, Main + Separate | Main |
+| # | ID | Range | Default |
+|---|---|---|---|
+| 1 | `jam_enabled` | bool | off |
+| 2 | `jam_play` | bool, transient | off |
+| 3 | `jam_fill_now` | bool, transient, momentary | off |
+| 4 | `jam_style` | Rock, Pop, Funk, Blues Shuffle, Country, Metal, Reggae, Jazz Swing, Ballad, EDM, User | Rock |
+| 5 | `jam_variation` | A, B | A |
+| 6 | `jam_intensity` | int 1-5 | 3 |
+| 7 | `jam_fill_every` | Off, 2, 4, 8, 16 bars | 8 |
+| 8 | `jam_follow` | Tight, Natural, Relaxed, Bar | Natural |
+| 9 | `jam_predict` | bool | on |
+| 10 | `jam_chord_source` | Auto, Live, Tune | Auto |
+| 11 | `jam_start_mode` | Auto, Host Transport, First Note, Count-In, Tap In | Auto |
+| 12 | `jam_count_in_bars` | int 0-2 | 1 |
+| 13 | `jam_stop_on_silence` | bool | on |
+| 14 | `jam_silence_bars` | int 1-8 | 2 |
+| 15 | `jam_ending` | bool | on |
+| 16 | `jam_dynamics_follow` | bool | on |
+| 17 | `jam_swing` | -50..+50 % | 0 |
+| 18 | `jam_humanise` | 0-100 % | 50 |
+| 19 | `jam_kit` | Studio, Vintage, Arena, Jazz, Machine | Studio |
+| 20 | `jam_kit_auto` | bool | on |
+| 21 | `jam_kit_tuning` | stock -6..+6 st; advanced -12..+12 st | 0 |
+| 22 | `jam_kit_damping` | stock 10-90 %; advanced 0-100 % | 40 |
+| 23 | `jam_kit_room` | 0-100 % | 25 |
+| 24 | `jam_kit_width` | 0-100 % | 70 |
+| 25 | `jam_kit_perspective` | Audience, Drummer | Audience |
+| 26 | `jam_bass_voice` | Auto, Finger, Pick, Muted Pick, Upright | Auto |
+| 27 | `jam_bass_tone` | 0-1 | 0.5 |
+| 28 | `jam_volume` | -60..+6 dB | -6 |
+| 29 | `jam_balance` | -1..+1 | 0 |
+| 30 | `jam_drums_pan` | -1..+1 | 0 |
+| 31 | `jam_bass_pan` | -1..+1 | 0 |
+| 32 | `jam_drums_mute` | bool | off |
+| 33 | `jam_bass_mute` | bool | off |
+| 34 | `jam_output` | Main, Separate, Main + Separate | Main |
 
-Net new: **+34**. **Transient** (`jam_play`, `jam_fill_now`): automatable
-and MIDI-learnable (a footswitch starts the band). They are excluded
-from preset save and load, snapshot capture and recall, morph and
-randomise, the same way `preset_morph_position` is excluded in
-`PresetManager.cpp`. A host session restores them as off, so reopening
-a project never starts the band. `jam_fill_now` resets itself to off
-one block after it rises. Every parameter except these two is captured
-in snapshots.
+Display names follow the pattern "Jam Style", "Jam Kit Tuning" and so
+on. Net new: **+34**.
+
+**Transient parameters** (`jam_play`, `jam_fill_now`) are automatable
+and MIDI-learnable, so a footswitch can start the band. They are
+excluded from preset save/load, snapshots, morph and randomise, the way
+`preset_morph_position` is excluded in `PresetManager.cpp`. Host state
+restores them off, so opening a project never starts the band.
+`jam_fill_now` resets itself one block after it rises.
 
 ## 11. Interactions
 
-- **Rhythm engine:** the band uses the rhythm engine's chord while it is
-  driving (3.1). The own clock feeds the rhythm engine's transport (2.3).
-  `link_rhythm_kit` applies the style's genre kit through
-  `GenreKitLibrary::apply` on style change (message thread). The rig
-  preset is never loaded.
-- **Looper:** while the band plays, a new loop's length is quantised to
-  whole bars and recording starts on the next downbeat. The loop records
-  the guitar only (7). The looper's playback-layer MIDI feeds the chord
-  follower (new `Looper::renderPlaybackMidi (juce::MidiBuffer&, int)`),
-  so a looped rhythm part keeps the band changing while the player
-  solos. It does not count as "playing" for stop-on-silence unless the
-  loop is playing.
-- **Metronome and tune click:** while the band's drums are audible, the
-  practice metronome and the tune click go silent. The visual beat dots
-  keep running. User preference "Metronome goes quiet while the band
-  plays" (default on) sits in the JAM tab and is stored in
-  UiPreferences. A count-in always uses the band's sticks.
-- **Tune Builder playback, no double drums:** while Jam drums are
-  audible, the tune's Percussion layer (TunePart::percussion, chuck
-  noise) is not sent to the engine. Its layer strip shows the pill
-  "Replaced by Jam drums". If the section has a bass line other than
-  Off and the instrument is not a bass, the tune's bass-channel notes
-  are played by `JamBassVoice` *instead of* Jam's own bass line. This
-  gives the tune's bass an actual sound on a guitar instance
-  (tune-builder 6). If the instrument is a bass, the engine plays the
-  tune bass and Jam bass rests (7). Sections may carry jam hints (13.2).
-- **Practice PROG and backing track:** PROG is an anticipated chord
-  source (3.1). A backing track plays alongside without any automatic
-  muting. The JAM tab shows the hint "A backing track is also playing".
-- **Snapshots / setlist:** jam parameters recall like any parameter,
-  with the quantisation of 4.4. A setlist step changes style at the next
-  bar and never stops a playing band.
-- **Host sync:** with the host playing, the band is locked to ppq and
-  `ppqPositionOfLastBarStart`. A cycle jump or locate re-syncs at the
-  new position: the pattern restarts at the right step, ringing voices
-  decay naturally and the bass re-plucks. Tempo automation is followed
-  per block.
-- **Techniques / realism:** unaffected. The band does not touch the
-  guitar path, so guitar CPU relief, technique cascade and noise engines
-  are independent.
-- **Multi-instance:** each instance has its own band. Help notes that
-  two jamming instances means two drummers.
+- **Rhythm engine.** Jam uses its chord while it drives (3.1); the
+  band's own clock drives its grid (2.3); `link_rhythm_kit` applies the
+  style's genre kit (4.1).
+- **Looper.** While the band plays, new loops are quantised to whole
+  bars and start recording on the next downbeat. Loops record the guitar
+  only (7). A new `Looper::renderPlaybackMidi (juce::MidiBuffer&, int)`
+  feeds the loop's stored MIDI to the chord follower, so the band keeps
+  following a looped rhythm part while the player solos.
+- **Metronome and tune click.** Both go silent while the drums are
+  audible; the visual beat keeps running. This is the user preference
+  "Metronome goes quiet while the band plays" (UiPreferences, default
+  on). Count-ins always use the band's sticks.
+- **Tune playback: no double drums or bass.**
+  - While Jam drums are audible, the tune's Percussion layer
+    (`TunePart::percussion`, chuck noise) is not sent to the engine, and
+    its layer strip shows "Replaced by Jam drums".
+  - Tune section has a bass line (not Off), guitar instrument: the
+    tune's bass-channel notes play through `JamBassVoice` *instead of*
+    Jam's own line. This gives the tune bass a real sound (tune-builder
+    6).
+  - Bass instrument: the engine plays the tune bass and Jam bass rests.
+  - `.luthiertune` sections may carry an optional jam hint,
+    `"jam": {"intensity": 1-5, "fill_into": true}`. Old tunes are
+    unaffected.
+- **PROG looper and backing track.** PROG is an anticipated chord source.
+  A backing track plays alongside with no automatic muting; the JAM tab
+  hints "A backing track is also playing".
+- **Snapshots and setlist.** Jam parameters recall like any other, with
+  the quantisation of 4.4. A recall or setlist step never stops a
+  playing band. A preset load keeps the band running with the new
+  preset's jam settings.
+- **Host sync.** The band locks to ppq and `ppqPositionOfLastBarStart`.
+  A cycle jump or locate re-syncs at the new position (pattern step
+  recomputed, ringing voices decay naturally, bass re-plucks). Tempo
+  automation is followed every block.
+- **Techniques and realism.** Unaffected: the band never touches the
+  guitar path.
+- **Multi-instance.** Each instance has its own band. Help notes that two
+  jamming instances means two drummers.
 
 ## 12. State, undo, accessibility
 
-**Preset** (`.luthierpreset`, file-formats 2): the parameters, plus a
-new top-level block
-`"jam": { "style_ref": null | "User/My Shuffle.luthierjam",
-"link_rhythm_kit": false, "seed": 4849997 }`.
-A missing block loads defaults. Schema stays 3: the block is optional
-and additive. Snapshots store the `jam` block beside the parameters.
+**Preset.** The parameters, plus an optional top-level block
+`"jam": {"style_ref": null | "User/My Shuffle.luthierjam",
+"link_rhythm_kit": false, "seed": 4849997}`. It stays schema 3, and a
+missing block means defaults. Snapshots store the block too.
 
-**`.luthierjam`** (new row in file-formats 1): JSON with
+**`.luthierjam`** is a new row in file-formats 1: JSON with
 `"magic": "luthier.jam"`, `"schema": 1`, `meta`, `meters`, `grid`,
-`swing`, `kit`, `bass_voice`, `rhythm_kit`, `follow`, `grooves.{A,B}.
-{1..5}.lanes` (step strings: `.` rest, `g` ghost 30, `x` 90, `X` 118,
-`?` 50 % chance of 90, `o` open hat), `bass` (token strings), `fills`,
-`ending`, `double_time`, `half_time`. Factory styles are built in code
-(`JamStyleLibrary::addFactoryStyles`). They can be overridden by name
-from `Resources/Jam/`. User styles live in `~/Documents/Luthier/Jam/`,
-appear as "User" plus a picker, and are saved atomically (file-formats
-13). An in-plugin groove editor is out of scope here. It goes to
-`spec/proposals/` if wanted.
+`swing`, `kit`, `bass_voice`, `rhythm_kit`, `follow`,
+`grooves.{A,B}.{1..5}` (drum lanes as step strings: `.` rest, `g` ghost
+30, `x` 90, `X` 118, `?` 50 % chance of 90, `o` open hat; `bass` token
+strings), `fills`, `ending`, `double_time`, `half_time`.
 
-**Undo** (action-and-undo): jam parameter moves are class 3.1 (grouped,
-200 ms). Style, kit, voice, output and follow choices are class 3.2.
-Toggles are class 3.3. Start, stop, fill, count-in and tap-in are
-**not undoable** (transport, like tap tempo; section 7). Choosing a user
-style file is one entry `jam-style-file`.
+Factory styles are built in code (`JamStyleLibrary::addFactoryStyles`)
+and can be overridden by name from `Resources/Jam/`. User styles live in
+`~/Documents/Luthier/Jam/`, appear as "User" plus a file picker, and are
+saved atomically (file-formats 13). An in-plugin groove editor is out of
+scope; propose it in `spec/proposals/`.
 
-**Accessibility:** every control has a label, a value interface, a
-tooltip and a docs entry. The tab order follows the sketch, left to
-right and top to bottom. The JAM pill announces its state changes
-("Band playing, Rock, intensity 3"). At verbosity High, chord changes
-are announced at most once per 2 s. The lane view exposes a text
-description of the current bar ("Kick 1 and 3, snare 2 and 4, hats 8ths;
-bass A, A, E, G"). Under reduced motion the playhead jumps per beat.
-Lanes carry glyphs as well as colours, so they read in monochrome and
-in every palette.
+**Undo** (action-and-undo): knob moves are class 3.1 (grouped within
+200 ms), choices 3.2, toggles 3.3; picking a user style file is one
+`jam-style-file` entry. START, STOP, FILL, count-in and tap-in are
+**not undoable** (transport, like tap tempo in section 7).
+
+**Accessibility.** Every control has a label, a value interface, a
+tooltip and docs; Tab order follows the sketch. The pill announces state
+changes ("Band playing, Rock, intensity 3"). At verbosity High, chord
+changes are announced at most once every 2 s. The lane view's accessible
+description reads the bar ("Kick 1 and 3, snare 2 and 4, hats 8ths;
+bass A A E G"). Under reduced motion the playhead steps per beat. Lanes
+use glyphs as well as colour.
 
 ## 13. Failure modes
 
-1. **Malformed or missing style file:** use the factory style named in
-   its `style` field, else Rock. Banner (error-recovery "warning"),
-   logged once. `style_ref` is kept verbatim for the next save.
-2. **Chord map larger than 1024 entries:** truncated at the message
-   thread with a log line. Anticipation ends at the truncation point.
-3. **No play head, or one without ppq:** own clock (8.4 notice).
-4. **Sample-rate change or re-prepare:** coefficients rebuilt in
-   `prepare`, state reset, band returns to Armed.
-5. **CPU relief** (performance-budget 8): a new step between 4 and 5,
-   "cymbal banks 48 -> 24 modes, hat 32 -> 16". Bass and timing are
-   never degraded.
-6. **Oversized host block:** handled by the processor's existing
-   slicing. The Jam clock is sample-based, so slices change nothing
-   (JM-05).
-7. **NaN/Inf in a bank:** guard clamps it and resets that piece. The
-   diagnostics counter increments.
-
-### 13.2 Tune jam hints
-
-`.luthiertune` sections may carry `"jam": { "intensity": 1-5,
-"fill_into": true }`. This is optional and additive, and old tunes load
-unchanged. Coordinate with tune-builder 11.
+| Failure | Response |
+|---|---|
+| Malformed or missing `.luthierjam` | Fall back to the factory style named in its `style` field, else Rock. Warning banner, logged once. `style_ref` is kept on save. |
+| Chord map over 1024 entries | Truncated on the message thread and logged. Anticipation stops there. |
+| No play head, or no ppq | Own clock, with the 8.4 notice. |
+| Sample-rate change / re-prepare | Coefficients rebuilt, state reset, back to Armed. |
+| CPU relief (performance-budget 8) | A new step between 4 and 5: cymbal banks 48 -> 24 modes, hat 32 -> 16. Bass and timing are never degraded. |
+| Oversized host block | The processor's existing slicing handles it. The Jam clock is sample-based (JM-05). |
+| NaN/Inf in a bank | The guard clamps, the piece is reset, and a diagnostics counter is incremented. |
 
 ## 14. Performance budget
 
-New rows for performance-budget.md 1 (48 kHz, 128-sample block):
+Add to performance-budget.md 1 (48 kHz, 128-sample block):
 
-| Module | Budget (units) | Notes |
+| Module | Units | Notes |
 |---|---|---|
-| JamConductor + ChordFollower | 0.05 | control rate; <= 0.02 when stopped |
-| JamDrumKit | 0.9 | worst case, every piece ringing (about 200 modes, SIMD); typically 0.4 |
-| JamBassVoice | 0.6 | 2 x StringEngine 0.42 + tone 0.08 + 2x OS saturation 0.05 |
+| JamConductor + JamChordFollower | 0.05 | control rate; <= 0.02 when stopped |
+| JamDrumKit | 0.9 | all pieces ringing (~200 modes, SIMD); typically 0.4 |
+| JamBassVoice | 0.6 | 2 x StringEngine 0.42, tone 0.08, 2x OS saturation 0.05 |
 | JamMixer + kit room | 0.15 | 4-line FDN, pans, meters |
 
-Jam total: <= 1.7 worst case, typically about 1.1. New total scenario
-**Jam** (Rock preset, 4 voices, band at intensity 5): <= 10 units.
-Memory: under 2 MB (banks, 128 KB capture ring, style library).
-Style library load: <= 20 ms on the message thread. Added latency: 0
-samples (rule 0.6). Reaction latency: drum start in First Note mode is
-0 musical samples (same block and sample offset as the note, + L). Bass
-change is as in 3.3, and exactly on time when anticipated.
+Jam total <= 1.7 units (typically ~1.1). New scenario **"Jam"** (Rock
+preset, 4 voices, band at intensity 5): <= 10 units. Memory under 2 MB;
+style library load <= 20 ms; added plugin latency 0. Reaction latency:
+First Note drums 0 musical samples (same block and offset as the note,
+plus `L`); bass per 3.2, exactly on time when anticipated.
 
-## 15. Edition split (editions.md)
+## 15. Edition split (editions.md 2.3, beside the rhythm engine)
 
-**Free-limited** (a new row in editions 2.3, beside the rhythm engine).
-A band to play with is the most direct "play for an hour" hook, and the
-rhythm engine it builds on is fundamental.
-- **Free:** 4 styles (Rock, Pop, Blues Shuffle, Ballad), both
-  variations and all intensities and fills. 2 kits (Studio, Vintage).
-  Bass voices Finger and Pick. Every start, stop and follow mode,
-  prediction, and following the read-only demo tunes. Main output only.
-- **Pro:** the other 6 styles and user `.luthierjam` styles, the Arena,
-  Jazz and Machine kits, Muted Pick and Upright, `jam_kit_tuning` and
-  `jam_kit_damping` (H8 deep realism), Separate outputs (H7), Jam MIDI
-  out, drag-out and export (H5), and Tune anticipation from edited tunes
-  (H2).
-- Locked entries are marked per editions 4.1. A Pro preset loaded in
-  Free plays the nearest Free style and kit, and carries the values
-  (editions 5.1).
+**Free-limited.** A band to play along with is the strongest "play for
+an hour" hook, and it builds on the rhythm engine, which is
+fundamental.
 
-## 16. New classes and files
+**Free:** Rock, Pop, Blues Shuffle and Ballad (both variations, every
+intensity, fills); Studio and Vintage kits; Finger and Pick bass; every
+start, stop and follow mode, plus prediction; following the read-only
+demo tunes; main output.
 
-`Source/Jam/`: `JamEngine`, `JamConductor`, `JamChordFollower`
-(`JamChordMap`), `JamBassLine`, `JamStyle` + `JamStyleLibrary`,
-`JamCapture`, `JamStatus`. `Source/DSP/Jam/`: `ModalResonatorBank`,
-`DrumPieces` (Membrane, SnareWires, CymbalBank, Rim, PhisemShaker),
-`JamDrumKit`, `JamBassVoice` (`JamBassTone`), `KitRoom`. `Source/UI/`:
-`JamPanel`, `JamLaneView`, plus a JAM group in `EasyPanel` and a pill in
-`LiveStrip`. Tests: `Source/Tests/JamTests.cpp`, `JamDspTests.cpp`,
-`JamPanelTests.cpp`. The `processBlock` insertion points are:
-1. `jam.handleMidi` after the tune merge (`engine.setDirectMidi` line).
+**Pro:** the other 6 styles and user styles; Arena, Jazz and Machine
+kits; Muted Pick and Upright bass; kit tuning and damping (H8); Separate
+outputs (H7); Jam MIDI out, drag-out and export (H5); anticipation from
+edited tunes (H2).
+
+Locked items follow editions 4.1. A Pro preset in Free plays the nearest
+Free style and kit, and keeps the stored values (editions 5.1).
+
+## 16. New classes and insertion points
+
+- `Source/Jam/`: `JamEngine`, `JamConductor`, `JamChordFollower`
+  (`JamChordMap`), `JamBassLine`, `JamStyle` / `JamStyleLibrary`,
+  `JamCapture`, `JamStatus`.
+- `Source/DSP/Jam/`: `ModalResonatorBank`, `DrumPieces` (Membrane,
+  SnareWires, CymbalBank, Rim, PhisemShaker), `JamDrumKit`,
+  `JamBassVoice` (`JamBassTone`), `KitRoom`.
+- UI: `JamPanel`, `JamLaneView`, a JAM group in `EasyPanel`, a pill in
+  `LiveStrip`.
+- Tests: `Source/Tests/JamTests.cpp`, `JamDspTests.cpp`,
+  `JamPanelTests.cpp`.
+
+Insertion points in `LuthierAudioProcessor::processBlock`:
+1. `jam.handleMidi` after the tune merge (the `engine.setDirectMidi`
+   line).
 2. The clock in the transport section.
 3. `jam.renderBlock` into `jamStems` after `engine.processBlock`.
 4. The mix after `looper.processBlock`, before `sessionRecorder`.
-5. `routing.distribute` for Aux 9/10.
-6. The MIDI out after `midiOutRouter.emit`.
+5. Aux 9 and 10 in `routing.distribute`.
+6. Jam MIDI after `midiOutRouter.emit`.
 
 ## 17. Tests
 
-Unit (LuthierTests):
-- **JM-01** Every factory style parses. It has A/B x intensity 1-5
-  grooves, >= 4 fills, an ending, and double- and half-time bars. Every
-  lane string length equals its grid.
-- **JM-02** Transport lock: host at 120 bpm 4/4 playing from ppq 0.
-  Every kick of Rock intensity 3 starts within 1 sample of
-  (grid sample + L), with humanise 0, over 64 bars.
-- **JM-03** Tempo automation 90 -> 140 bpm over 8 bars. The hit drift
+Engine and timing (unit tests in `LuthierTests`):
+- **JM-01** Every factory style parses and is complete: A/B x 1-5
+  grooves, >= 4 fills, an ending, double-time and half-time bars. Every
+  lane length equals its grid.
+- **JM-02** Host at 120 bpm 4/4: with humanise 0, every Rock kick over 64
+  bars starts within 1 sample of grid + `L`.
+- **JM-03** Tempo automation from 90 to 140 bpm over 8 bars: drift
   against the host grid is <= 1 sample at every beat.
-- **JM-04** Determinism: two offline renders of the same 30 s MIDI
-  fixture with seed S are bit-identical. A different seed differs.
-- **JM-05** Block-size independence: renders at blocks 32, 128, 512 and
-  2048 (sliced) null to <= -120 dBFS.
-- **JM-06** Natural follow: Am held, F played 200 ms after beat 2. The
-  bass plays F on beat 3 (+-1 sample + humanise 0), not before.
-- **JM-07** Grace window: F played 40 ms after beat 2 at 120 bpm. The
-  bass changes at the detection sample (<= 30 ms + 1 block after the
-  note).
-- **JM-08** Tight / Relaxed / Bar quanta land on the next 8th /
-  half-bar / bar for a chord at a random offset (100 trials).
-- **JM-09** Single notes and Unknown detections never change the bass
-  chord (1000 random single-note phrases).
-- **JM-10** Slash chord C/G with style tokens R: the bass plays G.
-- **JM-11** Anticipation from a tune: every chord change's bass note
-  starts exactly at the change (+L). `A` tokens produce an approach
-  note a semitone or diatonic step from the next root.
-- **JM-12** Prediction: a 4-bar loop repeated twice turns prediction on
-  in cycle 3. A deviating chord in cycle 4 is corrected at the next Q
-  and turns prediction off until 2 more clean cycles.
-- **JM-13** RhythmEngine driving: the Jam chord equals
-  `getCurrentChord()` at every block.
-- **JM-14** First Note start: the kick and crash of beat 1 start at the
-  note's sample offset + L.
-- **JM-15** Tap In: 4 taps at 500 ms put beat 1 at tap4 + 500 ms
-  (+-1 ms), tempo 120.
-- **JM-16** Count-in: 1 bar of 4 stick hits, then beat 1. With
-  count-in 0 there are no sticks.
-- **JM-17** Stop on silence (2 bars): the ending starts on the downbeat
-  after 2 full silent bars. A held chord does not count as playing.
-  Following host transport disables the check.
-- **JM-18** Host stop plays the ending (on) or cuts within 20 ms (off).
-  Panic chokes all voices to < -90 dBFS within 10 ms and sets `jam_play`
-  off.
-- **JM-19** Intensity changes at the next beat. Style, variation and kit
-  change at the next bar line, never mid-fill.
-- **JM-20** Fill Now pressed with more than 1 beat left fills to the bar
-  line. With less than 1 beat left, it fills the last 2 beats of the
-  next bar.
-- **JM-21** Dynamics follow: velocity 40 for 2 bars gives effective
-  intensity -1, and 120 gives +1. Clamped at 1 and 5, with hysteresis
-  (no flapping at 55 +- 4).
-- **JM-22** Unsupported meter 7/8 plays the generic bar. 3/4 Ballad uses
-  its own 3/4 groove.
-- **JM-23** Host cycle jump from bar 9 to bar 1: the next hit is the
-  bar-1 pattern step and nothing is left hanging.
+- **JM-04** Two offline renders of the same 30 s fixture and seed are
+  bit-identical. A different seed gives a different render.
+- **JM-05** Renders at block sizes 32, 128, 512 and 2048 (sliced) null
+  to <= -120 dBFS.
+- **JM-06** Natural follow, F played 200 ms after beat 2: the bass
+  changes on beat 3 exactly, not before.
+- **JM-07** Grace window, F played 40 ms after beat 2 at 120 bpm: the
+  bass changes at the detection sample, <= 30 ms plus one block after
+  the note.
+- **JM-08** Tight, Relaxed and Bar: in 100 random trials, the bass
+  changes on the next 8th, half-bar and bar respectively.
+- **JM-09** 1000 random single-note phrases and Unknown detections never
+  change the bass chord.
+- **JM-10** C/G with `R` tokens: the bass plays G.
+- **JM-11** Tune anticipation: every change's bass note starts exactly
+  at the change + `L`. `A` tokens approach the next root by a semitone
+  or a scale step.
+- **JM-12** Prediction: a 4-bar cycle repeated twice predicts in
+  cycle 3. A deviation in cycle 4 is corrected at the next Q and switches
+  prediction off until 2 clean cycles.
+- **JM-13** While `RhythmEngine::isDriving()`, Jam's chord equals
+  `getCurrentChord()` every block.
+- **JM-14** First Note: beat 1's kick and crash start at the note's
+  offset + `L`.
+- **JM-15** Tap In, 4 taps 500 ms apart: tempo 120, beat 1 at tap 4 +
+  500 ms (+-1 ms).
+- **JM-16** Count-in 1 gives 4 stick hits then beat 1. Count-in 0 gives
+  no sticks.
+- **JM-17** Stop on silence (2 bars): the ending falls on the downbeat
+  after 2 silent bars. A held chord does not count as playing. The rule
+  is disabled under host transport.
+- **JM-18** Host stop: with the ending on, the ending plays; off, the
+  band cuts within 20 ms. Panic brings every voice below -90 dBFS within
+  10 ms and sets `jam_play` off.
+- **JM-19** Intensity changes on the next beat. Style, variation and kit
+  change on the next bar, never mid-fill.
+- **JM-20** Fill Now with more than 1 beat left fills to the bar line.
+  With less than 1 beat left, it fills the last 2 beats of the next bar.
+- **JM-21** Dynamics follow: velocity 40 gives -1 and velocity 120 gives
+  +1, clamped at 1 and 5, with no flapping at velocity 55 +- 4.
+- **JM-22** 7/8 plays the generic bar. Ballad in 3/4 plays its own
+  groove.
+- **JM-23** A host cycle jump from bar 9 to bar 1 plays bar 1's step
+  next and leaves no voices hanging.
 
 DSP:
-- **JM-24** Kick modes: the FFT of a 127-velocity kick has peaks at
-  f0 x {1, 1.594, 2.136} +- 2 %. The pitch 5 ms after onset is higher
-  than at 150 ms by 10-25 %.
-- **JM-25** Snare wires: raising the wire threshold to max removes
-  > 90 % of energy in 3-6 kHz after 20 ms. Default wires decay within
-  250 ms.
-- **JM-26** Hat choke: closed after open drops the hat's 5-10 kHz energy
-  by >= 40 dB within 15 ms, without a click (max sample step < 0.05).
-- **JM-27** Ride re-strike adds to the ringing state: no discontinuity
-  at the second hit.
-- **JM-28** `jam_kit_tuning` +12 st (advanced) doubles the kick f0
-  +- 1 %. Stock clamps at +-6 st.
-- **JM-29** Bass pitch: the fundamental of every note E1-C3 is within
-  +-3 cents after 100 ms. Note changes have no click (max step < 0.05).
-- **JM-30** Bass string choice: an A1-D2-G2 walk uses one position
-  (frets <= 7). The two `StringEngine` instances alternate.
-- **JM-31** No sample files are opened: the file-open hook sees zero
-  audio-file reads over a 60 s jam.
-- **JM-32** Stability: 10 min of intensity 5 at 44.1-192 kHz produces no
-  NaN/Inf and DC < -60 dBFS.
+- **JM-24** Velocity-127 kick: FFT peaks at f0 x {1, 1.594, 2.136}
+  +- 2 %. Pitch at 5 ms is 10-25 % above pitch at 150 ms.
+- **JM-25** Snare wires at maximum threshold remove > 90 % of the
+  3-6 kHz energy after 20 ms. Default wires decay within 250 ms.
+- **JM-26** Closing an open hat drops its 5-10 kHz energy by >= 40 dB
+  within 15 ms, and the maximum sample step stays < 0.05.
+- **JM-27** A ride re-strike causes no discontinuity.
+- **JM-28** `jam_kit_tuning` +12 st (advanced) doubles kick f0 +- 1 %.
+  In stock range it clamps at +-6 st.
+- **JM-29** Bass notes E1-C3 are within 3 cents of pitch after 100 ms,
+  and note changes step < 0.05.
+- **JM-30** An A1-D2-G2 line stays in one position (frets <= 7), and the
+  two `StringEngine` instances alternate.
+- **JM-31** A 60 s jam performs no audio-file reads (file-open hook).
+- **JM-32** 10 min at intensity 5, at every rate from 44.1 to 192 kHz:
+  no NaN or Inf, and DC below -60 dBFS.
 
 Real-time and performance:
-- **JM-33** Zero allocations and zero lock acquisitions on the audio
-  thread over 5 min of jamming with style, kit and chord-map swaps every
-  bar (heap and mutex traps).
-- **JM-34** Budgets: JamDrumKit <= 0.9 x 1.10, JamBassVoice <= 0.6 x
-  1.10, total Jam <= 1.7. Jam scenario <= 10 units. Jam enabled but
-  stopped <= 0.02. Jam off costs 0.
+- **JM-33** 5 min of jamming, with style, kit and chord-map swaps every
+  bar: zero audio-thread allocations and zero audio-thread locks.
+- **JM-34** Budgets, each within 1.10 x its figure in 14: JamDrumKit
+  <= 0.9 units, JamBassVoice <= 0.6, Jam total <= 1.7, "Jam" scenario
+  <= 10, armed and stopped <= 0.02, off 0.
 
 State, routing, MIDI:
-- **JM-35** Preset round-trip of all 32 non-transient params and the
-  `jam` block is exact. `jam_play` and `jam_fill_now` are never written
-  to presets or snapshots and come back off after host state reload.
-- **JM-36** Parameter append: the indices of every pre-existing
-  parameter are unchanged, and the jam IDs are the last 34 in table
-  order.
-- **JM-37** Separate output on Layout B: the band is on Aux 9/10 and
-  absent from main, and main + separate is on both. On Layout A the
-  band is on main. The bus numbers of Aux 1-8 and the per-string buses
-  are unchanged.
-- **JM-38** The looper records without the band (a looper loop nulls
-  against a jam-off render). The session recorder take contains it.
-  The kill switch mutes it in 3 ms.
-- **JM-39** Jam MIDI out: drums on ch 10 with the GM map, bass on ch 11.
-  Note-ons are sample-aligned with the audio onsets (+-1 sample).
-- **JM-40** Drag-out of 8 bars gives a valid Type 1 file with 2 tracks,
-  the correct tempo map and bar-aligned events that re-import to the
-  same notes.
+- **JM-35** The 32 non-transient jam parameters and the `jam` block
+  round-trip exactly through a preset. `jam_play` and `jam_fill_now`
+  never reach presets or snapshots, and are off after a host-state
+  reload.
+- **JM-36** Every pre-existing parameter index is unchanged, and the jam
+  IDs are the last 34, in table order.
+- **JM-37** Layout B, Separate: the band is on Aux 9 and 10 and not on
+  main. Main + Separate: it is on both. Layout A: it is on main. Aux 1-8
+  and the per-string bus numbers are unchanged.
+- **JM-38** A loop recorded with the band playing nulls against a jam-off
+  loop. The session take contains the band. The kill switch mutes the
+  band within 3 ms.
+- **JM-39** Jam MIDI out: drums on channel 10 with the GM map, bass on
+  channel 11. Note-ons are within 1 sample of the audio onsets.
+- **JM-40** An 8-bar drag-out is a valid Type 1 file with 2 tracks and a
+  tempo map, and re-imports to the same notes.
 - **JM-41** A malformed `.luthierjam` falls back to its named factory
-  style, raises a banner and keeps `style_ref` on save.
+  style, shows a banner, and keeps `style_ref` on save.
 
 Combination:
-- **JM-42** Tune playing with the percussion layer on and Jam drums on:
-  no chuck-noise percussion events reach the engine. Drums off:
-  percussion returns.
-- **JM-43** Tune bass line on a guitar instance with Jam bass on:
-  `JamBassVoice` plays exactly the tune bass-channel notes, and Jam's
-  own line is silent. On a bass instrument, Jam bass is silent.
-- **JM-44** The metronome goes silent while the drums are audible (pref
-  on) and clicks with the pref off.
-- **JM-45** Snapshot recall mid-bar changes style at the next bar and
-  never stops the band. A preset load while Playing keeps the band
-  running with the new preset's jam params.
-- **JM-46** Own clock drives the RhythmEngine: with the host stopped and
-  the band playing, strums land on the band's grid within 1 sample.
+- **JM-42** Tune with its percussion layer on and Jam drums on: no chuck
+  percussion reaches the engine. With Jam drums off, the percussion
+  returns.
+- **JM-43** Tune bass on a guitar instance: `JamBassVoice` plays exactly
+  the tune's bass-channel notes and Jam's own line is silent. On a bass
+  instrument, Jam bass is silent.
+- **JM-44** The metronome is silent while the drums are audible with the
+  preference on, and clicks with it off.
+- **JM-45** A mid-bar snapshot recall changes style at the next bar.
+  Neither a recall nor a preset load stops the band.
+- **JM-46** Host stopped, band playing: rhythm-engine strums land on the
+  band's grid within 1 sample.
 
-GUI (xvfb, as in `EditorTests.cpp`):
-- **JM-47** The JAM tab sits between TUNE and LIVE, selects and paints
-  at 480-1600 px Col 4 widths without clipping. Every control named in
-  8.1 is present and focusable in the documented Tab order.
-- **JM-48** Easy mode: the JAM pill, style, intensity and Band volume
-  exist and drive their parameters. The pill cycles ARMED -> PLAYING ->
-  ENDING with the engine state. The Live Strip pill shows only when
-  `jam_enabled` is on.
-- **JM-49** Shortcuts J, Shift+J and Alt+J act only when no text field
-  has focus. They are rebindable and listed in the cheat sheet.
-- **JM-50** Every empty-state and error string of 8.4 appears in its
-  forced state. Screen-reader labels exist for every control. The lane
-  view's accessible description matches the current bar.
+GUI (xvfb, in the style of `EditorTests.cpp`):
+- **JM-47** The JAM tab sits between TUNE and LIVE. It selects and paints
+  without clipping at Col 4 widths of 480-1600 px. Every control in 8.1
+  is focusable, in the sketch's order.
+- **JM-48** The Easy pill, style, intensity and Band volume drive their
+  parameters. The pill follows ARMED, PLAYING, ENDING. The Live Strip
+  pill shows only while `jam_enabled` is on.
+- **JM-49** `J`, `Shift+J` and `Alt+J` do nothing while a text field has
+  focus. They are rebindable and appear in the cheat sheet.
+- **JM-50** Every 8.4 message appears in its forced state. Every control
+  has a screen-reader label. The lane description matches the bar.
 - **JM-51** Free build: the locked styles, kits, voices and outputs show
-  the lock glyph and the upsell panel, and a Pro preset plays the
-  nearest Free style.
+  the lock and the upsell panel. A Pro preset plays the nearest Free
+  style.

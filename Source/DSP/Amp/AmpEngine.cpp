@@ -149,6 +149,7 @@ void AmpEngine::setModel (AmpModel m) noexcept
 void AmpEngine::updateVoicing() noexcept
 {
     voicing = getVoicing (model);
+    stageRest = tubeShape (0.0, voicing.stageBias);   // qa-polish.md 5.10
 
     if (model == AmpModel::Custom)
     {
@@ -301,7 +302,11 @@ inline double AmpEngine::preampStage (double x, int stageIndex) noexcept
     // Asymmetric transfer curve: a triode clips the two halves of the waveform
     // differently, which is what generates the even harmonics that make tube
     // distortion sound warm rather than buzzy.
-    double y = tubeShape (x, voicing.stageBias);
+    // qa-polish.md 5.10: less the curve's resting point. The coupling cap below
+    // removes that constant anyway once it has settled, so the steady-state
+    // sound is unchanged; without the subtraction a cold start stepped from 0
+    // to the bias point and the cascade amplified the step into a thump.
+    double y = tubeShape (x, voicing.stageBias) - stageRest;
 
     // Cathode bypass cap: a low-mid lift on each stage.
     y = stageEq[stageIndex].process (y);
