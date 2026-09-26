@@ -20,7 +20,7 @@ The core host surface is in place and tested: VST3/AU/Standalone (plus optional 
 | HI-14 (§3) | Parameters grouped by ParameterCategory — flat layout, no `AudioProcessorParameterGroup` | `Parameters.cpp:createLayout` | n/a | - | MISSING |
 | HI-15 (§3) | Display names translated per locale — hard-coded English | `Parameters.cpp` | n/a | - | MISSING |
 | HI-16 (§3.1) | Internal changes (snapshot recall, preset load) notify host | `setValueNotifyingHost` in PresetManager / SnapshotBank apply | n/a | `HostState.aSnapshotRecallAndPresetLoadNotifyTheHost` | DONE |
-| HI-17 (§3.1) | Batching: only last write per block per parameter notified — relies on JUCE default, not implemented | - | n/a | - | PARTIAL |
+| HI-17 (§3.1) | Batching: only last write per block per parameter notified — relies on JUCE default, not implemented | - | n/a | - | DEFERRED |
 | HI-18 (§3.2) | Automation moves base, modulation adds on top | `Modulation/ModMatrix` | n/a | `Modulation::*` (e.g. `Combo::modulationRoutesAtFullDepth`) | DONE |
 | HI-19 (§3.3) | Discrete params integer 0..N-1 with module crossfade | choice params + module crossfades | n/a | `Modulation::discreteDestinationsStepAtBoundaries` | DONE |
 | HI-20 (§4) | State blob: format version tag (u32) + padding — root JSON has no version | `Support/HostStateEnvelope` stamps formatVersion | n/a | `HostState.theStateCarriesAFormatVersion` | DONE |
@@ -54,9 +54,9 @@ The core host surface is in place and tested: VST3/AU/Standalone (plus optional 
 | HI-48 (§14.2-14.3) | AU cocoa view standard; state chunk + typed params | JUCE wrappers | n/a | CI auval/pluginval | DONE |
 | HI-49 (§15) | Test: SR change / block size change mid-play | engine prepare | n/a | `Engine::sampleRateChangesAreSurvived`, `Engine::blockSizeChangesAreSurvived` | DONE |
 | HI-50 (§15) | Test: 32 instances, bus layout change mid-play | - | n/a | - (visual `Stress::thirtyTwoInstancesRenderInTurn`, `Stress::busLayoutChangesMidPlay`) | OWNED |
-| HI-51 (§15) | Test: host format switching VST3 -> AU -> VST3 (macOS) — manual host test | - | n/a | - | MISSING |
+| HI-51 (§15) | Test: host format switching VST3 -> AU -> VST3 (macOS) — manual host test | - | n/a | - | DEFERRED |
 | HI-52 (§15) | Test: transport follow play/stop/seek with rhythm engine and tune builder together | processBlock transport | n/a | `TunePlayer::theHostWinsWhenItPlaysAndTheClockRunsWhenItDoesNot` (tune only) | PARTIAL |
-| HI-53 (§15) | Test: state round trip in every host; MIDI I/O in every host | - | n/a | `Combo::sessionStateRoundTripReproducesAudio` (in-process only) | PARTIAL |
+| HI-53 (§15) | Test: state round trip in every host; MIDI I/O in every host | - | n/a | `Combo::sessionStateRoundTripReproducesAudio` (in-process only) | DEFERRED |
 | HI-54 (§16) | `docs/HOST_COMPATIBILITY.md` documents every §9 quirk — file missing | - | n/a | - | MISSING |
 
 <!-- counts DONE=26 NO-GUI=0 NO-TEST=4 PARTIAL=12 MISSING=10 OWNED=4 -->

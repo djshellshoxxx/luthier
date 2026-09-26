@@ -20,7 +20,7 @@ Strum dynamics are essentially complete: `Rhythm/StrumGesture` plans one gesture
 | SD-14 (§6.1) | Chuck: all strings damped hard (chuck_damping 0.92) before the crossing; pitch gone, body kept | `StringEngine` `Damping::Chuck`; `LuthierEngine::triggerNote` | STRUM `chuckDamping` | `StrumDynamics.chuckKillsPitch` | DONE |
 | SD-15 (§6.1) | chuck_amount blends toward a full mute | `StrumGesture` chuck | STRUM `chuckAmount` | `StrumDynamics.chuckStepsCarryTheChuck` | DONE |
 | SD-16 (§6.1) | Chuck from the pattern's chuck step type | `RhythmEngine` chuck step | RHYTHM pattern editor | `StrumDynamics.chuckStepsCarryTheChuck`, `StrumDynamics.patternCrossingAndChuckRoundTrip` | DONE |
-| SD-17 (§6.1) | Chuck from a MIDI note in the chuck key range — deferred by DECISIONS (no range specified) | none | none | - | MISSING |
+| SD-17 (§6.1) | Chuck from a MIDI note in the chuck key range — deferred by DECISIONS (no range specified) | none | none | - | DEFERRED |
 | SD-18 (§6.2) | Palm-muted strum keeps pitch, chuck loses it — both available, no test of the distinction | `TechniqueEngine` palm mute; `Damping::Chuck` | n/a | `StrumDynamics.aPalmMuteKeepsPitchAndAChuckDoesNot` | DONE |
 | SD-19 (§6.3) | STRUM group on RHYTHM: crossing, acceleration, tilt, evenness, misses, two strikers, chuck amount/damping | `UI/StrumGroup.*` | RHYTHM > STRUM (`RhythmPanel`) | `StrumDynamics.theStrumGroupDrivesTheModel`, `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
 | SD-20 (§6.3) | Easy Feel knob: crossing 60->400 sps, evenness 0.45->0.95, 0.5 = defaults | `StrumFeel` | Easy rhythm strip `rhythmFeelSlider` | `StrumDynamics.feelMapsAsSpecified`, `StrumDynamics.theEasyFeelKnobScalesTheStrum` | DONE |
