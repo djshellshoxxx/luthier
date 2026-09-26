@@ -332,7 +332,7 @@ namespace
           "which is what makes a slide sound like one note rather than two." },
 
         // auto-articulation.md 7.5 (FEAT-ASSIST).
-        { "performance-assist", "Performance Assist", "Performance Assist|PLAYING|auto articulation|AUTO|assist",
+        { "performance-assist", "Performance Assist", "Performance Assist|PLAYING group|auto articulation|AUTO pill|assist",
           "Performance Assist turns plain MIDI - a keyboard, a DAW clip, the piano roll or the Tune melody - into "
           "a guitar performance, without keyswitches. Switch it on with the AUTO pill in the playing strip, the "
           "PLAYING group at the top of the RHYTHM tab, or {key:toggleAssist}.\n\n"
