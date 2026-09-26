@@ -172,6 +172,8 @@ struct RenderStats
     double tailRms = 0.0;           ///< last 300 ms of the render
     double earlierTailRms = 0.0;    ///< the 300 ms one second before that: the tail must still be falling
     double idleRms = 0.0;           ///< the same rig with nothing played, just before: its noise floor
+    double stringPeak = 0.0;        ///< loudest string (StringEngine level) up to the release
+    double stringEnd = 0.0;         ///< loudest string in the last block: did the strings themselves die?
     int subnormals = 0;
     double meanBlockMs = 0.0;
     double maxBlockMs = 0.0;
@@ -397,6 +399,19 @@ struct Rig
                 ++tailBlocks;
             }
 
+            {
+                auto& engine = processor->getEngine();
+                double loudest = 0.0;
+
+                for (int st = 0; st < engine.getNumStrings(); ++st)
+                    loudest = juce::jmax (loudest, engine.getString (st).getLevel());
+
+                if (pos < releasedAt)
+                    stats.stringPeak = juce::jmax (stats.stringPeak, loudest);
+
+                stats.stringEnd = loudest;
+            }
+
             const int outChannels = juce::jmin (2, buffer.getNumChannels());
 
             for (int i = 0; i < n; ++i)
@@ -574,18 +589,32 @@ struct Verdict
                 a 7-string through the British 800). Both fall at the open
                 strings' own T60 (4-11 dB/s). So a tail 15 dB down that is
                 falling by at least 3 dB a second (T60 under 20 s: strings
-                dying, not a note held or fed) also passes. */
+                dying, not a note held or fed) also passes.
+
+                A saturated amp holds the output up while the strings die: on
+                "Tapping Etude" (JCM800, gain 0.68) and "Single-Cut Crunch"
+                (Plexi) the tail stays at the note's level and pitch (E3, 165
+                Hz) while every string has fallen 45-60 dB, because the amp
+                clips anything above its knee to the same level - high-gain
+                sustain, and why such players mute the strings they are not
+                playing. The output alone cannot judge that; the strings can.
+                So when the strings themselves fell 30 dB from their loudest
+                before the release, the tail is the amp's, not a note left
+                ringing, and it passes. A released string that keeps ringing
+                (B-03) still fails: its own level does not fall. */
             const bool atFloor = s.tailRms < 1.0e-3 || (s.idleRms > 0.0 && s.tailRms < s.idleRms * 1.41);
             const bool down    = s.tailRms < s.maxWindowRms * 0.1;
             const bool falling = s.earlierTailRms <= 0.0 || s.tailRms < s.earlierTailRms * 0.794;
             const bool deepDown = s.tailRms < s.maxWindowRms * 0.05;   // 26 dB under: decayed, falling or not
             const bool ringingDown = s.tailRms < s.maxWindowRms * 0.178                 // 15 dB under the note
                                   && s.earlierTailRms > 0.0 && s.tailRms < s.earlierTailRms * 0.708;   // 3 dB in the last second
-            const bool quietEnough = atFloor || deepDown || (down && falling) || ringingDown;
+            const bool stringsDied = s.stringPeak > 0.0 && s.stringEnd < s.stringPeak * 0.0316;   // 30 dB at the strings
+            const bool quietEnough = atFloor || deepDown || (down && falling) || ringingDown || stringsDied;
             if (! quietEnough)
                 why.add ("does not decay after release (tail " + juce::String (juce::Decibels::gainToDecibels (s.tailRms), 1)
                          + " dBFS vs note " + juce::String (juce::Decibels::gainToDecibels (s.maxWindowRms), 1) + " dBFS, "
-                         + juce::String (juce::Decibels::gainToDecibels (s.earlierTailRms), 1) + " dBFS a second earlier)");
+                         + juce::String (juce::Decibels::gainToDecibels (s.earlierTailRms), 1) + " dBFS a second earlier; strings "
+                         + juce::String (juce::Decibels::gainToDecibels (s.stringEnd / juce::jmax (1.0e-12, s.stringPeak)), 1) + " dB from their peak)");
         }
 
         if (checkIdleFloor && s.idleRms > 1.0e-3 && s.maxWindowRms > 1.0e-4   // below -60 dBFS nobody hears it
