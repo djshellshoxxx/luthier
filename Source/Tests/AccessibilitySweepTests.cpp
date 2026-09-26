@@ -316,3 +316,56 @@ LUTHIER_TEST (Accessibility, theMeterChangesShapeNotOnlyColour)
 
     CHECK_MSG (differing > 0, "no bracket at 0 dBFS+");
 }
+
+//==============================================================================
+/*  A11Y-46: the LOCALIZATION page switches the locale and the fallback, and a
+    custom catalog folder is honoured. */
+#include "../UI/OptionsPages.h"
+#include "../Accessibility/Localisation.h"
+
+LUTHIER_TEST (Editor, theLocalizationPageSwitchesLocaleAndFallback)
+{
+    auto& loc = Localisation::get();
+    const auto savedLocale = loc.getLocale();
+    const auto savedFallback = loc.getFallbackLocale();
+    const auto savedSettings = AccessibilitySettings::get().toVar();
+
+    // A custom catalog for German, so the switch has something to load.
+    juce::TemporaryFile holder;
+    const auto dir = holder.getFile();
+    dir.createDirectory();
+    CHECK (dir.getChildFile ("de.json").replaceWithText (R"({ "a11y.dialog.opened": "Dialog geoeffnet" })"));
+    loc.setCustomCatalogDirectory (dir);
+
+    LuthierAudioProcessor processor;
+    LocalizationPage page (processor);
+    page.setSize (600, 500);
+
+    juce::Array<juce::ComboBox*> boxes;
+    collectAll<juce::ComboBox> (page, boxes);
+    CHECK (boxes.size() >= 2);
+
+    const auto& locales = Localisation::getShipLocales();
+    int german = -1;
+    for (size_t i = 0; i < locales.size(); ++i)
+        if (locales[i].code == "de")
+            german = (int) i + 1;
+
+    CHECK (german > 0);
+
+    if (boxes.size() >= 2 && german > 0)
+    {
+        boxes[0]->setSelectedId (german, juce::sendNotificationSync);
+        CHECK_MSG (loc.getLocale() == "de", "locale is " + loc.getLocale());
+
+        boxes[1]->setSelectedId (german, juce::sendNotificationSync);
+        CHECK (loc.getFallbackLocale() == "de");
+    }
+
+    loc.setCustomCatalogDirectory ({});
+    loc.setFallbackLocale (savedFallback);
+    loc.setLocale (savedLocale);
+    AccessibilitySettings::get().fromVar (savedSettings);
+    AccessibilitySettings::get().save();
+    dir.deleteRecursively();
+}

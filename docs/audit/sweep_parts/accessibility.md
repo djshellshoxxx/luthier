@@ -49,7 +49,7 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 | A11Y-43 (§9) | Screen-reader verbosity gates announcements | `AccessibleSetup::announce/shouldAnnounce` (InlineNotice, overlays) | ACCESSIBILITY `verbosityBox` | `Accessibility::verbosityGatesAnnouncements` | DONE |
 | A11Y-44 (§9) | Options > Accessibility: full rebind table with search and reset-to-default | `AccessibilityPage::shortcutList/searchBox/resetAllButton` | Options > ACCESSIBILITY | `Accessibility::shortcutsRebindAndRefuseClashes`, `Editor::everyOptionsPageSelectsAndPaints` | DONE |
 | A11Y-45 (§9) | UI scale, palette, reduced motion, font override in Options (scale/palette/motion on APPEARANCE per gui-integration 5) | `AppearancePage`, `AccessibilityPage::fontBox` | Options > APPEARANCE / ACCESSIBILITY | `Editor::everyOptionsPageSelectsAndPaints` | DONE |
-| A11Y-46 (§9) | Options > Localization: locale, fallback (default en), custom catalog path | `LocalizationPage::localeBox/fallbackBox/catalogButton` | Options > LOCALIZATION | `Editor::everyOptionsPageSelectsAndPaints` (paint only) | NO-TEST |
+| A11Y-46 (§9) | Options > Localization: locale, fallback (default en), custom catalog path | `LocalizationPage::localeBox/fallbackBox/catalogButton` | Options > LOCALIZATION | `Editor::theLocalizationPageSwitchesLocaleAndFallback` | DONE |
 | A11Y-47 (§10) | Test: automated screen-reader smoke over every panel (label + value) | - | - | - | MISSING |
 | A11Y-48 (§10) | Tab walk test covers knobs in the default view; not every control / view | - | - | `Keyboard::aTabWalkReachesEveryKnob` (knobs in the default view) | PARTIAL |
 | A11Y-49 (§10) | Test: text/background contrast >= 4.5 on Default, High contrast, Light | `PaletteColours::getWorstTextContrast` | n/a | `Theme::everyTextPairMeetsContrastOnTheThreePalettes` | DONE |
@@ -58,4 +58,4 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 | A11Y-52 (§10) | Test: no animation frames after reduced-motion on — here model-level only | on visual | n/a | (visual: `DataStream::itKeeps200StopsAfter500msAndHonoursReducedMotion`, `ReducedMotion::aGuitarChangeCrossfadesOrIsStaticWithAnOutline`) | OWNED |
 | A11Y-53 (§10) | Test: CJK locale shows no missing-glyph boxes in shipped strings | - | - | - | MISSING |
 
-<!-- counts DONE=21 NO-GUI=0 NO-TEST=3 PARTIAL=15 MISSING=7 OWNED=7 DEFERRED=0 -->
+<!-- counts DONE=22 NO-GUI=0 NO-TEST=2 PARTIAL=15 MISSING=7 OWNED=7 DEFERRED=0 -->
