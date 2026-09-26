@@ -51,32 +51,62 @@ whatever the last real reading was.
 - Full CI pipeline (VST3/Standalone build, complete `LuthierTests` run) not yet re-run this batch; scheduled before
   this workstream calls itself done.
 
-## Remaining rows in scope (not started this batch)
+## Batch 2: arrow-key stepping, momentary toggle, meter shape
+
+| Row | What was done | Test | Status |
+|---|---|---|---|
+| A11Y-14 | `LuthierKnob::KnobSlider::keyPressed` override: Shift steps a tenth of the interval, Ctrl/Cmd ten times it; plain arrows still use JUCE's own step. `KeyPress::operator==(int)` refuses to match once any modifier is down, so the arrow check compares `getKeyCode()` instead | `Accessibility::arrowKeysStepFineAndCoarse` | DONE |
+| A11Y-25 | `LevelMeter`'s bar narrows to 60% width below -18 dBFS (0.7 on its 0..1 scale) and draws a small bracket at the top of the track once the held peak reaches 0 dBFS - colour is not the only signal | `Accessibility::theMeterChangesShapeNotOnlyColour` | DONE |
+| UW-14 | `LuthierToggle::setMomentary(bool)`: drives the parameter (with a begin/end gesture) from `Button::onStateChange` on press/release, instead of the default latching click-toggle | `Widgets::aMomentaryToggleSetsOnPressAndClearsOnRelease` | PARTIAL -> the capability is DONE and tested; it is not wired into the Live kill pill yet (`LiveStrip::killButton` still drives `KillSwitch` directly, not a parameter - that is GD-26, which also wants a new `kill_switch_active` parameter, left for a session that can add one deliberately) |
+
+### Verified (batch 2)
+
+`Theme Accessibility Widgets` - 40/42 tests, 2500/2506 checks green; the two failures are the same pre-existing
+shortcut-key-clash pair from batch 1, still unrelated to any file this branch touches.
+
+## Batch 3: hide WHAMMY on a hardtail
+
+| Row | What was done | Test | Status |
+|---|---|---|---|
+| GI-7 / GI-35 | `AdvancedPanel` now implements `juce::ComboBox::Listener` (not `onChange` - that belongs to the `ComboBoxAttachment`) and hides `whammyPos/whammyDown/whammyUp/whammySprings/transposeLock` when `bridge_type` is index 0 ("Fixed / Hardtail"), the same test `GuitarBodyComponent`'s `WhammyPopover::isWhammyFitted` uses | `Editor::theWhammyPanelIsAbsentOnAHardtail` | PARTIAL -> DONE for visibility; `AdvancedPanel::Column::layout` still reserves the group's height slot while hidden rather than compacting around it (it is not visible or interactive, just leaves blank space) - fixing that generically is a `Column::layout`/`paint` change that touches every section in all three columns, left for a dedicated pass rather than risked here |
+
+### Verified (batch 3)
+
+`Editor RangesUi BassTechniques SlideUi GuiReach QualityModeUi FacesIntegration` - 55/57 tests green; the two
+failures are the same pre-existing, unrelated ones (`GuiReach::everyAutomatableParameterHasAVisibleControl` on the
+techniques-workstream params, `QualityModeUi::CQ22_builtEditorsRegisterEveryTableClassThatExists` on
+`StringAnimator`, and the `FacesIntegration` amp-face sizing check - all present before this branch touched
+anything).
+
+## Remaining rows in scope (not started)
 
 Left for the next batch, roughly in the order the SPEC_SWEEP work lists put them (effort S/M first):
 
-- **gui-integration.md**: GI-7/GI-35 (hide WHAMMY group on a hardtail), GI-13 (header Save button), GI-16/GI-17/GI-18/GI-19/GI-20
-  (header input/output meters, tap/kill/gear/dice/reset, collapse-below-1280, tooltips+shortcuts), GI-21 (A/B transient test),
-  GI-33 (Body -> Character link), GI-70 (slide glide-target in the tuning popover), GI-72/GI-73 (snapshot shift-click write +
-  label test), GI-90 (locked-range notice test), GI-93 (DECISIONS note only), GI-95 (Assign-to-macro; note: macros are already
-  reachable via the existing "Modulate -> Macro" submenu, so this may turn out to be a DECISIONS-documented equivalent rather
-  than new code - needs a product call on whether a separate top-level entry is still wanted), GI-104 (DECISIONS note: 200 not
-  64), GI-106 (per-instance undo test), GI-107 (Ctrl+O binding), GI-112 (Advanced-header playing-mode control), GI-113
-  (Options > Audio "Export audio..." button), GI-130 (first-unlock explainer test).
+- **gui-integration.md**: GI-13 (header Save button), GI-16/GI-17/GI-18/GI-19/GI-20 (header input/output meters, tap/kill/
+  gear/dice/reset, collapse-below-1280, tooltips+shortcuts), GI-21 (A/B transient test), GI-33 (Body -> Character link),
+  GI-70 (slide glide-target in the tuning popover), GI-72/GI-73 (snapshot shift-click write + label test), GI-90 (locked-range
+  notice test), GI-93 (DECISIONS note only), GI-95 (Assign-to-macro; note: macros are already reachable via the existing
+  "Modulate -> Macro" submenu, so this may turn out to be a DECISIONS-documented equivalent rather than new code - needs a
+  product call on whether a separate top-level entry is still wanted), GI-104 (DECISIONS note: 200 not 64), GI-106
+  (per-instance undo test), GI-107 (Ctrl+O binding), GI-112 (Advanced-header playing-mode control), GI-113 (Options > Audio
+  "Export audio..." button), GI-130 (first-unlock explainer test).
 - **gui-engine-dataflow.md**: GD-2 (fretboard/aux/circuit timer rates to spec), GD-9 (chord dims instead of clearing), GD-13
-  (heatmap 500 ms stale + fade), GD-14 (slide bar freeze), GD-25 (header tap LED), GD-26 (kill-switch parameter), GD-29 (A/B
-  highlight test), GD-30 (MIDI Learn 1 Hz pulses), GD-31 (looper LED), GD-33 (session buffer bar).
+  (heatmap 500 ms stale + fade), GD-14 (slide bar freeze), GD-25 (header tap LED), GD-26 (kill-switch parameter - pairs with
+  UW-14's now-ready `LuthierToggle::setMomentary`), GD-29 (A/B highlight test), GD-30 (MIDI Learn 1 Hz pulses), GD-31 (looper
+  LED), GD-33 (session buffer bar).
 - **theme.md**: TH-17 (real timed flash - see DEFERRED note above), TH-28/TH-29/TH-33 (drag-modifier ordering, tooltip delay,
   footer version text - all plausible but need either simulated `MouseEvent` drag sequences or a text-capture test hook that
   does not exist yet in this codebase).
-- **ui-wiring.md**: UW-14 (momentary `LuthierToggle`), UW-15 (`LuthierChoice::rebuildItems`), UW-41 (circuit update-cost test),
-  UW-47 (header undo/redo state test), UW-T5 (MIDI Learn 128-CC test).
-- **accessibility.md**: effort-S items not yet started - A11Y-7 (meter accessible value), A11Y-9 (snapshot strip accessible
-  children), A11Y-10/A11Y-11 (overlay announce + focus return), A11Y-14 (arrow-key stepping), A11Y-15 (Enter opens
-  dropdown/dialog test), A11Y-24 (write `Resources/Themes/*.json`), A11Y-25 (meter shape, not just colour), A11Y-27 (10 pt
-  font floor), A11Y-40 (font override reaching `Fonts::ui`), A11Y-41 (mono-readout-in-every-locale test), A11Y-46
-  (Localization page test).
-- Larger, higher-risk items intentionally left for a dedicated pass rather than rushed into this batch: GD-35 (the
+- **ui-wiring.md**: UW-15 (`LuthierChoice::rebuildItems` - note: `AudioParameterChoice::choices` is `const` in stock JUCE, so
+  no parameter on this checkout can actually change its list; the row as written may not apply until a dynamic-choice
+  parameter type exists), UW-41 (circuit update-cost test), UW-47 (header undo/redo state test), UW-T5 (MIDI Learn 128-CC
+  test).
+- **accessibility.md**: A11Y-7 (meter accessible value), A11Y-9 (snapshot strip accessible children), A11Y-10/A11Y-11
+  (overlay announce + focus return), A11Y-15 (Enter opens dropdown/dialog test), A11Y-24 (write `Resources/Themes/*.json`),
+  A11Y-27 (10 pt font floor), A11Y-40 (font override reaching `Fonts::ui`), A11Y-41 (mono-readout-in-every-locale test),
+  A11Y-46 (Localization page test).
+- Larger, higher-risk items intentionally left for a dedicated pass rather than rushed into a batch: GD-35 (the
   `Tests/Ui/Dataflow/` suite), GD-36 (diagnostics data-flow overlay), UW-6 (the SPSC command/result queue), UW-20 (the
   per-subsystem display FIFO), UW-49 (locale-change broadcaster + `refreshStrings()`), GI-15/GI-79 (header snapshot strip;
-  per-source segmented mod arcs), A11Y-4/A11Y-32/A11Y-33 (string-catalog migration and the 14 non-English catalogs).
+  per-source segmented mod arcs), A11Y-4/A11Y-32/A11Y-33 (string-catalog migration and the 14 non-English catalogs),
+  `AdvancedPanel::Column::layout` compacting around hidden items (noted under GI-7/GI-35 above).
