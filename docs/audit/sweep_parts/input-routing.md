@@ -4,7 +4,7 @@ Only the outer shape of the MIDI chain is in place: MIDI-out pass-through is cap
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
-| IR-1 (§0.1, §1) | Fixed consumer order export -> learn -> profile -> interpreter -> technique -> rhythm -> tune -> practice -> strings — no profile stage; practice absent; tune chord channel merged after learn (DECISIONS "TUNE in the plugin") | `PluginProcessor::processSlice` (1074, 1149-1180), `LuthierEngine` | n/a | - | PARTIAL |
+| IR-1 (§0.1, §1) | The chain is explicit in processSlice: pass-through capture, expression calibration, MIDI Learn (consuming), live PC, controller stage, SysEx queue, practice feed, then the engine | `PluginProcessor::processSlice` (1074, 1149-1180), `LuthierEngine` | n/a | `InputRouting::consumersSeeEventsInTheDocumentedOrder` | DONE |
 | IR-2 (§1.1) | MIDI-out pass-through first, unchanged | `MidiOutRouter::captureInput` | n/a | `Routing::midiOutPassThroughIsSampleExact` | DONE |
 | IR-3 (§1.1) | Armed MIDI Learn consumes the event it learns | `MidiLearnManager::processMidi (MidiBuffer&, scratch)` | header arm / right-click Learn | `InputRouting::midiLearnConsumesTheEventItLearns` | DONE |
 | IR-4 (§1.1) | MIDI Learn takes CCs, program changes, poly aftertouch, channel pressure and (Options > MIDI 'learn notes too') notes | `MidiLearnManager::sourceKeyFor` (source keys; CC keys unchanged) | Options > MIDI `learnNotesToggle`; knob menu names the source | `MidiLearn::learnsPcAftertouchAndPressure`, `MidiLearn::notesAreLearnedOnlyWhenAllowed` | DONE |
@@ -32,7 +32,7 @@ Only the outer shape of the MIDI chain is in place: MIDI-out pass-through is cap
 | IR-26 (§6) | Sidechain never reaches main path unless consumed — untested | `processSlice` sidechainCopy | n/a | `Routing::sidechainDoesNotReachTheMainOutUnconsumed` | DONE |
 | IR-27 (§7) | Standalone audio input: sidechain, sung melody, trainer input — sung-melody capture is on tune-help (`humCapture`, tune-builder 13); no trainer input here | - | - | - | PARTIAL |
 | IR-28 (§8) | Options > Diagnostics "Inject fixture MIDI / audio" at chain front | - | - | - | MISSING |
-| IR-29 (§9) | `Tests/InputRouting/` suite for every consumer / veto rule | - | n/a | - | MISSING |
+| IR-29 (§9) | `Source/Tests/InputRoutingTests.cpp` (suite InputRouting) holds the per-consumer and veto tests | - | n/a | `InputRouting::*` (11 tests) | DONE |
 | IR-30 (§9) | 60 s scripted integration session | - | n/a | - | MISSING |
 
 <!-- counts DONE=7 NO-GUI=0 NO-TEST=6 PARTIAL=9 MISSING=8 OWNED=0 -->

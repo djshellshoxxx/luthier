@@ -586,3 +586,50 @@ LUTHIER_TEST (InputRouting, luthierSysExDrivesACharacterEventAndOthersAreIgnored
     CHECK (processor.serviceInboundSysEx() == 0);
     CHECK (processor.getEngine().getCharacterEngine().getSeed() == 123456789ull);
 }
+
+/*  IR-1 (input-routing 1): the chain's order, observed from its ends.
+    MIDI-out pass-through (1) sees the raw event even when MIDI Learn (2) then
+    consumes it, so the interpreter (4) never does; and a controller profile's
+    stage (3) has already moved a note to its string before the interpreter. */
+LUTHIER_TEST (InputRouting, consumersSeeEventsInTheDocumentedOrder)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    MidiOutConfig cfg;
+    cfg.enabled = true;
+    cfg.passThrough = true;
+    processor.getRouting().setMidiOutConfig (cfg);
+
+    auto& interp = processor.getEngine().getMidiInterpreter();
+    processor.getMidiLearn().startLearning (ParamIDs::ampGain);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::controllerEvent (1, 1, 100), 0);
+    render (processor, midi);
+
+    bool echoed = false;
+
+    for (const auto m : midi)
+        echoed = echoed || (m.getMessage().isControllerOfType (1) && m.getMessage().getControllerValue() == 100);
+
+    CHECK_MSG (echoed, "pass-through (step 1) did not see the event MIDI Learn consumed");
+    CHECK_MSG (interp.getVibratoDepth() == 0.0, "the interpreter (step 4) saw an event MIDI Learn (step 2) consumed");
+    processor.getMidiLearn().dispatchPendingLearn();
+    CHECK (processor.getMidiLearn().getCcForParameter (ParamIDs::ampGain) == 1);
+
+    // Step 3 before step 4: the hex profile's channel decides the string.
+    ControllerProfileLibrary library;
+    const int gk = library.indexOf ("roland-gk");
+
+    if (gk >= 0)
+    {
+        processor.applyControllerProfile (library.getProfile (gk));
+        renderEmpty (processor, 1);
+
+        midi.clear();
+        midi.addEvent (juce::MidiMessage::noteOn (16, 45, 0.8f), 0);   // GK channel 16 = string 5
+        render (processor, midi);
+        CHECK (interp.getStringMidiNote (5) == 45);
+    }
+}
