@@ -195,6 +195,10 @@ private:
         void mouseEnter (const juce::MouseEvent&) override;
         void mouseExit (const juce::MouseEvent&) override;
 
+        /** SPEC-SWEEP: A11Y-14 - arrows step 1% of the range, Shift 0.1%,
+            Ctrl/Cmd 10%; Home/End go to the ends. */
+        bool keyPressed (const juce::KeyPress&) override;
+
     private:
         LuthierKnob& owner;
 
@@ -339,6 +343,17 @@ public:
     void setHorizontal (bool h) { horizontal = h; }
 
     void paint (juce::Graphics&) override;
+
+    /** SPEC-SWEEP: A11Y-7 - a read-only value a screen reader reads as the
+        peak in dBFS. */
+    std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override;
+    float getDisplayPeakDb() const noexcept { return displayPeakDb; }
+
+    /** SPEC-SWEEP: A11Y-25 (tests) - sets what the meter shows, as a tick would. */
+    void setLevelsForTest (float normalisedL, float normalisedR, float peakDb) noexcept
+    {
+        levelL = normalisedL; levelR = normalisedR; displayPeakDb = peakDb;
+    }
 
 private:
     void timerCallback() override;

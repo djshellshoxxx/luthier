@@ -111,8 +111,13 @@ public:
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
 
+    /** SPEC-SWEEP: A11Y-11 - the control that had focus when the overlay
+        opened, which gets it back on dismiss. */
+    juce::Component* getLauncher() const noexcept { return launcher.getComponent(); }
+
 private:
     OverlayPanel* current = nullptr;
+    juce::Component::SafePointer<juce::Component> launcher;   // SPEC-SWEEP: A11Y-11
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OverlayHost)
 };

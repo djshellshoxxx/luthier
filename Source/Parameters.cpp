@@ -898,6 +898,10 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::tuneTempoDrift,     "Tune Tempo Drift",  -10.0f, 10.0f, 0.0f, 1.0f, "%"));
     // ==== END TUNE-HELP-ONBOARDING params ====
 
+    // ==== BEGIN SPEC-SWEEP params ====
+    add (floatParam  (ParamIDs::snapshotMorph, "Snapshot Morph", 0.0f, 1.0f, 0.0f));   // LP-16
+    // ==== END SPEC-SWEEP params ====
+
     return layout;
 }
 
@@ -1666,6 +1670,11 @@ void ParameterBridge::applyToEngine() noexcept
         engine.getStabilityModel().setSettings (st);
     }
     // ==== END REALISM-C params ====
+
+    // ==== BEGIN SPEC-SWEEP params ====
+    // snapshot_morph (LP-16) is read by LuthierAudioProcessor::updateSnapshotMorph
+    // on the message thread; the morph writes parameters, so it cannot run here.
+    // ==== END SPEC-SWEEP params ====
 
     // ---- structural change detection ---------------------------------------------
     const bool structural = readStructuralValues() || ! structuralInitialised;

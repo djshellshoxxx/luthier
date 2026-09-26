@@ -467,6 +467,12 @@ namespace ParamIDs
     inline constexpr const char* tuneFeelMod            = "tune_feel_mod";      ///< -1..1, added to each section's feel
     inline constexpr const char* tuneTempoDrift         = "tune_tempo_drift";   ///< -10..10 %, the tune's own clock
     // ==== END TUNE-HELP-ONBOARDING params ====
+
+    // ==== BEGIN SPEC-SWEEP params ====
+    // live-performance 3 (LP-16): the snapshot morph position, automatable and
+    // a modulation destination. Never captured into a snapshot itself.
+    inline constexpr const char* snapshotMorph = "snapshot_morph";
+    // ==== END SPEC-SWEEP params ====
 }
 
 //==============================================================================

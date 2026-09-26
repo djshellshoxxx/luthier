@@ -342,6 +342,23 @@ bool Telemetry::isAllowed (Category category) const
 }
 
 //==============================================================================
+bool Telemetry::isAllowedField (const juce::String& key, const juce::String& value)
+{
+    /*  SPEC-SWEEP: UT-2 - updates-telemetry 3's allowlist. Only non-identifying
+        facts: the host and its setup, which panel or feature, counts and CPU.
+        A value that looks like a path is dropped even under an allowed key,
+        because a host name field is one careless call away from a file name. */
+    static const juce::StringArray allowed { "host", "format", "wrapper", "sampleRate", "blockSize",
+                                             "os", "version", "panel", "tab", "page", "feature",
+                                             "source", "count", "cpu", "error", "code", "enabled" };
+
+    if (! allowed.contains (key))
+        return false;
+
+    return ! (value.containsChar ('/') || value.containsChar ('\\') || value.containsChar ('@')
+              || value.length() > 64);
+}
+
 void Telemetry::record (Category category, const juce::String& eventName,
                         const std::map<juce::String, juce::String>& fields)
 {
@@ -363,7 +380,8 @@ void Telemetry::record (Category category, const juce::String& eventName,
         rather than anonymous.
     */
     for (const auto& [key, value] : fields)
-        object->setProperty (key, value);
+        if (isAllowedField (key, value))   // SPEC-SWEEP: UT-2 - enforced, not remembered
+            object->setProperty (key, value);
 
     const auto line = juce::JSON::toString (juce::var (object), true);
 

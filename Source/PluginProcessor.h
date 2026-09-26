@@ -23,6 +23,7 @@
 #include "Live/TapTempo.h"
 #include "Live/MidiClockTempo.h"   // SPEC-SWEEP HI-32
 #include "Live/LiveControls.h"
+#include "Live/LiveInput.h"   // SPEC-SWEEP: LP-11 / LP-33 / LP-34
 #include "Practice/Metronome.h"
 #include "Practice/Looper.h"
 #include "Practice/BackingTrack.h"
@@ -186,6 +187,14 @@ public:
     ExpressionCalibrationSet&       getExpression() noexcept       { return expression; }
     const ExpressionCalibrationSet& getExpression() const noexcept { return expression; }
 
+    // SPEC-SWEEP: LP-11 / LP-34 - live actions on CCs, calibrated pedal input.
+    LiveActionMap&   getLiveActions() noexcept    { return liveActions; }
+    ExpressionInput& getExpressionInput() noexcept { return expressionInput; }
+
+    /** SPEC-SWEEP: LP-16 - where the automatable snapshot morph last moved the
+        bank to (the timer follows the parameter, modulation included). */
+    void updateSnapshotMorph();
+
     /** Captures the live state into a snapshot, including the state of the
         modules that do not live in the parameter tree. */
     bool captureSnapshot (int index, const juce::String& label = {}, int colourTag = -1);
@@ -199,6 +208,9 @@ public:
 
     /** live-performance 5: registers a tap, using the plugin's own clock. */
     void tapTempoNow();
+
+    /** SPEC-SWEEP: LP-26 - a tap stamped elsewhere (a footswitch CC). */
+    void tapTempoAt (double timeSeconds);
 
     /** The tempo everything tempo-synced should use, host or tapped. */
     double getEffectiveTempo() const noexcept;
@@ -643,6 +655,9 @@ private:
     KillSwitch killSwitch;
     MonitorMix monitorMix;
     ExpressionCalibrationSet expression;
+    LiveActionMap liveActions;          // SPEC-SWEEP: LP-11
+    ExpressionInput expressionInput;    // SPEC-SWEEP: LP-33 / LP-34
+    float lastSnapshotMorph = -1.0f;    // SPEC-SWEEP: LP-16
 
     /*  The monitor mix is rendered into its own buffer and then written to the
         monitor aux bus, because it must not be summed into the main output: the

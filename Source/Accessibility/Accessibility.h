@@ -145,7 +145,8 @@ public:
         (accessibility 4). */
     float scaledFont (float points) const noexcept
     {
-        return juce::jmax (9.0f, (float) ((double) points * uiScale));
+        // SPEC-SWEEP: A11Y-27 - accessibility 4: never below 10 px effective.
+        return juce::jmax (10.0f, (float) ((double) points * uiScale));
     }
 
     //==========================================================================
@@ -251,6 +252,16 @@ namespace AccessibleSetup
     /** accessibility 1: an overlay announces itself and moves focus to its first
         interactive child. */
     void announceOverlayOpened (juce::Component& overlay, const juce::String& name);
+
+    /** SPEC-SWEEP: A11Y-43 - what an announcement is, for the verbosity setting:
+        minimal speaks errors only, standard adds overlays / banners / notices,
+        verbose adds value changes. */
+    enum class Announcement { error = 0, standard, valueChange };
+
+    bool shouldAnnounce (Announcement kind, AccessibilitySettings::Verbosity verbosity) noexcept;
+
+    /** Posts `text` when the user's verbosity asks for this kind. */
+    void announce (const juce::String& text, Announcement kind);
 }
 
 } // namespace luthier

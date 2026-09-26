@@ -355,6 +355,7 @@ public:
     int getOversamplingFactor() const noexcept { return oversamplingFactor; }
 
     void setTempoBpm (double bpm) noexcept;
+    double getTempoBpm() const noexcept { return tempoBpm; }   // SPEC-SWEEP: LP-25 (tests)
 
     /** Host transport position, for the rhythm engine's grid. */
     void setTransportPosition (double ppqPosition, bool isPlaying) noexcept

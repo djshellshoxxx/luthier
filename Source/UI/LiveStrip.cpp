@@ -47,18 +47,73 @@ namespace
     }
 }
 
+juce::Colour getSnapshotTagColour (int tag)
+{
+    return snapshotTagColour (tag);
+}
+
 //==============================================================================
+/*  SPEC-SWEEP: A11Y-9 - the strip paints its eight pads, so a screen reader and
+    the Tab key see nothing there. Each pad gets an invisible button over it that
+    carries the name and does what a click does; it lets mouse clicks through, so
+    the strip's own right-click menu is untouched. */
+class SnapshotStrip::SlotAccessor : public juce::Button
+{
+public:
+    SlotAccessor() : juce::Button ({})
+    {
+        setInterceptsMouseClicks (false, false);
+        setWantsKeyboardFocus (true);
+    }
+
+    void paintButton (juce::Graphics& g, bool, bool) override
+    {
+        if (hasKeyboardFocus (false))
+        {
+            g.setColour (Palette::accentBright);
+            g.drawRect (getLocalBounds(), 2);
+        }
+    }
+
+    void focusGained (FocusChangeType) override { repaint(); }
+    void focusLost (FocusChangeType) override   { repaint(); }
+};
+
 SnapshotStrip::SnapshotStrip (LuthierAudioProcessor& p)
     : processor (p)
 {
-    setTooltip ("Snapshots. Click to recall, right-click to capture, rename or "
-                "tag. Keys 1-9 recall directly; [ and ] step.");
+    for (int slot = 0; slot < kButtonsShown; ++slot)
+    {
+        auto* accessor = slotAccessors.add (new SlotAccessor());
+
+        accessor->onClick = [this, slot]
+        {
+            const int index = bankStart() + slot;
+
+            if (! processor.getSnapshots().getSnapshot (index).isEmpty())
+                processor.recallSnapshot (index);
+            else
+                processor.captureSnapshot (index);
+
+            refresh();
+        };
+
+        addAndMakeVisible (accessor);
+    }
+
+    prevButton.setTitle ("Previous snapshot");
+    nextButton.setTitle ("Next snapshot");
+
+    setTooltip ("Snapshots. Click to recall, Shift-click to save the current state, "
+                "right-click to capture, rename or tag. Keys 1-9 recall directly; [ and ] step.");   // SPEC-SWEEP: GI-72
 
     prevButton.onClick = [this] { processor.previousSnapshot(); refresh(); };
     nextButton.onClick = [this] { processor.nextSnapshot(); refresh(); };
 
     addAndMakeVisible (prevButton);
     addAndMakeVisible (nextButton);
+
+    updateSlotAccessors();
 }
 
 SnapshotStrip::~SnapshotStrip() = default;
@@ -72,8 +127,54 @@ int SnapshotStrip::bankStart() const
     return (current / kButtonsShown) * kButtonsShown;
 }
 
+juce::String SnapshotStrip::getPadText (int index, const juce::String& label)
+{
+    auto text = juce::String (index + 1);
+
+    if (label.isNotEmpty())
+        text << "  " << (label.length() > kPadLabelChars ? label.substring (0, kPadLabelChars - 1) + juce::String::fromUTF8 ("\u2026")
+                                                         : label);
+
+    return text;
+}
+
+juce::Button* SnapshotStrip::getSlotAccessor (int slot) const
+{
+    return slotAccessors[slot];
+}
+
+void SnapshotStrip::updateSlotAccessors()
+{
+    const auto& bank = processor.getSnapshots();
+    const int start = bankStart();
+
+    for (int slot = 0; slot < slotAccessors.size(); ++slot)
+    {
+        const int index = start + slot;
+        const auto& snapshot = bank.getSnapshot (index);
+
+        juce::String title ("Snapshot " + juce::String (index + 1));
+
+        if (snapshot.isEmpty())
+            title << ", empty";
+        else
+            title << ": " << snapshot.label << (index == bank.getCurrentSnapshot() ? ", active" : "");
+
+        auto* accessor = slotAccessors[slot];
+
+        if (accessor->getTitle() != title)
+        {
+            accessor->setTitle (title);
+            accessor->setButtonText (title);
+            accessor->setTooltip (title);
+        }
+    }
+}
+
 void SnapshotStrip::refresh()
 {
+    updateSlotAccessors();   // SPEC-SWEEP: A11Y-9
+
     const int current = processor.getSnapshots().getCurrentSnapshot();
     const int count = processor.getSnapshots().getNumSnapshots();
 
@@ -125,10 +226,9 @@ void SnapshotStrip::paint (juce::Graphics& g)
 
         // The number always shows; the label only when there is room for it, so
         // that an eight-across strip on a narrow window stays readable.
-        auto text = juce::String (index + 1);
-
-        if (filled && snapshot.label.isNotEmpty() && bounds.getWidth() > 64)
-            text += "  " + snapshot.label;
+        // SPEC-SWEEP: GI-73 - the label is cut to twelve characters.
+        const auto text = (filled && bounds.getWidth() > 64) ? getPadText (index, snapshot.label)
+                                                             : juce::String (index + 1);
 
         g.setColour (active ? Palette::backgroundDeep
                             : (filled ? Palette::textPrimary : Palette::textDisabled));
@@ -141,6 +241,22 @@ void SnapshotStrip::paint (juce::Graphics& g)
 
         g.drawText (text, bounds.reduced (4, 0), juce::Justification::centred, true);
     }
+
+    // SPEC-SWEEP: GI-86 - an empty bank, or a click on an empty pad, says how
+    // to fill it.
+    bool anyFilled = false;
+
+    for (int slot = 0; slot < kButtonsShown; ++slot)
+        anyFilled = anyFilled || ! bank.getSnapshot (start + slot).isEmpty();
+
+    if (showEmptyHint || ! anyFilled)
+    {
+        auto area = getLocalBounds().withTrimmedLeft (26).withTrimmedRight (26);
+        g.setColour (Palette::textMuted);
+        g.setFont (juce::Font (juce::FontOptions (11.0f)));
+        g.drawText (kEmptySlotHint, area.removeFromBottom (juce::jmin (14, area.getHeight() / 3)),
+                    juce::Justification::centred, true);
+    }
 }
 
 void SnapshotStrip::resized()
@@ -149,6 +265,9 @@ void SnapshotStrip::resized()
 
     prevButton.setBounds (bounds.removeFromLeft (26).reduced (1));
     nextButton.setBounds (bounds.removeFromRight (26).reduced (1));
+
+    for (int slot = 0; slot < slotAccessors.size(); ++slot)   // SPEC-SWEEP: A11Y-9
+        slotAccessors[slot]->setBounds (buttonBounds (slot));
 }
 
 void SnapshotStrip::mouseDown (const juce::MouseEvent& event)
@@ -166,12 +285,28 @@ void SnapshotStrip::mouseDown (const juce::MouseEvent& event)
         return;
     }
 
-    if (! processor.getSnapshots().getSnapshot (index).isEmpty())
+    // SPEC-SWEEP: GI-72 - click loads, Shift-click writes (keeping the pad's
+    // label); a plain click on an empty pad only explains how to fill it
+    // (GI-86), so a stray tap on stage never overwrites anything.
+    const auto existing = processor.getSnapshots().getSnapshot (index);
+
+    if (event.mods.isShiftDown())
+    {
+        processor.captureSnapshot (index, existing.label);
+        showEmptyHint = false;
+    }
+    else if (! existing.isEmpty())
+    {
         processor.recallSnapshot (index);
+        showEmptyHint = false;
+    }
     else
-        processor.captureSnapshot (index);
+    {
+        showEmptyHint = true;
+    }
 
     refresh();
+    repaint();
 }
 
 void SnapshotStrip::showSlotMenu (int index)
@@ -323,8 +458,9 @@ void SetlistTriptych::showSetlistMenu()
         for (int i = 0; i < files.size(); ++i)
             menu.addItem (100 + i, files[i].getFileNameWithoutExtension());
 
+    // SPEC-SWEEP: LP-5 - no "Open a setlist file..." here: a file dialog is
+    // modal, and the LIVE tab is where setlists are managed.
     menu.addSeparator();
-    menu.addItem (2, "Open a setlist file...");
 
     const bool haveSetlist = processor.getSetlist().getSetlist().getNumEntries() > 0;
 
@@ -337,25 +473,7 @@ void SetlistTriptych::showSetlistMenu()
         if (result == 0)
             return;
 
-        if (result == 2)
-        {
-            chooser = std::make_unique<juce::FileChooser> (
-                "Open a setlist", Setlist::getUserDirectory(),
-                juce::String ("*") + Setlist::kFileExtension);
-
-            chooser->launchAsync (juce::FileBrowserComponent::openMode
-                                    | juce::FileBrowserComponent::canSelectFiles,
-                                  [this] (const juce::FileChooser& fc)
-            {
-                const auto file = fc.getResult();
-
-                if (file != juce::File())
-                    processor.loadSetlist (file);
-
-                refresh();
-            });
-        }
-        else if (result == 3)
+        if (result == 3)
         {
             if (processor.getSetlist().previous())
                 processor.applyCurrentSetlistEntry();
@@ -453,6 +571,10 @@ LiveStrip::LiveStrip (LuthierAudioProcessor& p)
     addAndMakeVisible (*triptych);
     addAndMakeVisible (*tapPad);
 
+    // SPEC-SWEEP: LP-11 - footswitch / CC assignment for every live action.
+    ccButton = std::make_unique<LiveActionButton> (processor, "CC");
+    addAndMakeVisible (*ccButton);
+
     // ---- morph -------------------------------------------------------------------
     morphEnable.setClickingTogglesState (true);
     morphEnable.setTooltip ("Morph continuously between the two snapshot slots.");
@@ -478,10 +600,10 @@ LiveStrip::LiveStrip (LuthierAudioProcessor& p)
     morphSlider.setTooltip ("Morph position. Assign an expression pedal to this "
                             "through MIDI Learn.");
 
-    morphSlider.onValueChange = [this]
-    {
-        processor.getSnapshots().setMorphPosition (morphSlider.getValue());
-    };
+    // SPEC-SWEEP: LP-16 - the knob is the snapshot_morph parameter, which the
+    // processor's timer follows (automation and modulation included).
+    morphAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        processor.getState(), ParamIDs::snapshotMorph, morphSlider);
 
     addAndMakeVisible (morphSlider);
 
@@ -542,7 +664,6 @@ void LiveStrip::refreshMorphControls()
     slotAButton.setButtonText ("A" + juce::String (bank.getMorphSlotA() + 1));
     slotBButton.setButtonText ("B" + juce::String (bank.getMorphSlotB() + 1));
 
-    morphSlider.setValue (bank.getMorphPosition(), juce::dontSendNotification);
     morphSlider.setEnabled (bank.isMorphEnabled());
 }
 
@@ -588,11 +709,6 @@ void LiveStrip::timerCallback()
 {
     snapshotStrip->refresh();
     triptych->refresh();
-
-    const auto& bank = processor.getSnapshots();
-
-    if (std::abs (morphSlider.getValue() - bank.getMorphPosition()) > 0.001)
-        morphSlider.setValue (bank.getMorphPosition(), juce::dontSendNotification);
 
     if (std::abs (monitorLevel.getValue() - processor.getMonitorMix().getLevelDb()) > 0.05)
         monitorLevel.setValue (processor.getMonitorMix().getLevelDb(), juce::dontSendNotification);
@@ -649,6 +765,7 @@ void LiveStrip::resized()
     morphEnable.setBounds (takeRight (64));
 
     tapPad->setBounds (takeLeft (64));
+    ccButton->setBounds (takeLeft (LiveStrip::kTouchTargetHeight));   // SPEC-SWEEP: LP-11
     triptych->setBounds (takeLeft (juce::jmax (120, bounds.getWidth() / 3)));
 
     snapshotStrip->setBounds (bounds.withHeight (height));
