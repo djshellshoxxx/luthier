@@ -535,13 +535,24 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
         const auto& placement = g.placements[(size_t) fileIndex];
 
         out.spec = PickupSpec::makeDefault (pickupTypeFor (family), 0.13);
+
+        /*  SPEC-SWEEP: PA-40 - 6: output goes with coil turns, and inductance
+            with their square. Against a typical winding per family, so a part
+            that states only its turns lands at that family's default; a stated
+            inductance wins over the derived one. */
+        const double turns = p->number ("coil_turns", 0.0);
+        const double referenceTurns = family == "humbucker" ? 5000.0 : (family == "p90" ? 10000.0 : 8000.0);
+        const double turnsRatio = turns > 0.0 ? juce::jlimit (0.25, 4.0, turns / referenceTurns) : 1.0;
+
+        out.spec.inductanceHenries *= turnsRatio * turnsRatio;
         out.spec.inductanceHenries = p->number ("inductance_h", out.spec.inductanceHenries);
         out.spec.resistanceKOhm = p->number ("dc_resistance_k", out.spec.resistanceKOhm);
         out.spec.capacitancePf = p->number ("capacitance_pf", out.spec.capacitancePf);
         out.spec.magnet = magnetTypeFor (p->text ("magnet", "alnico5"));
 
         // 6: output goes with turns; the reference level is the part's own.
-        out.spec.outputTrimDb = juce::jlimit (-12.0, 12.0, p->number ("output_dbfs_reference", -6.0) + 6.0);
+        out.spec.outputTrimDb = juce::jlimit (-12.0, 12.0, p->number ("output_dbfs_reference", -6.0) + 6.0
+                                                             + 20.0 * std::log10 (turnsRatio));   // SPEC-SWEEP: PA-40
 
         out.positionMm = placement.positionMm;
         out.heightMm = 0.5 * (placement.heightTrebleMm + placement.heightBassMm);
@@ -564,6 +575,12 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
 
     d.numPickups = slot;
     d.spec.numPickups = juce::jmax (0, slot);
+
+    // SPEC-SWEEP: PA-35 - 5: a bridge with a saddle piezo is a piezo source
+    // too, with no pickup slot used.
+    if (bridge != nullptr && bridge->flag ("piezo"))
+        d.hasPiezo = true;
+
     d.spec.hasPiezo = d.hasPiezo;
 
     for (int i = 0; i < 3; ++i)

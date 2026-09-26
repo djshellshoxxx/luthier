@@ -15,3 +15,4 @@
 - [MM-41] The row was wrong: `Modulation::routeModulatesItsDestination` already checks that a disabled route contributes nothing.
 - [FactoryPresets] Fixed a use-after-free. `FactoryPresets::rangeSource` outlived its processor, and the next processor's `PresetManager` constructor called `writeAll` through it (a segfault in the sweep's test runs). The processor destructor now clears it.
 - [TuneIntegration::aSnapshotRecallsTheTunesSection] This test fails on the merged tree, run alone, with or without these changes. It comes from the TUNE-HELP merge and is not this branch's.
+- [PA-40] The coil_turns reference windings are 8000 (single coil), 10000 (P-90) and 5000 per coil (humbucker). The dB offset adds to output_dbfs_reference. Why: a part that states only its turns then lands at its family's default level.

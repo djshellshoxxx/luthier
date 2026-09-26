@@ -428,3 +428,36 @@ LUTHIER_TEST (PartAcoustics, aThickFinishDampsTheTop)
     CHECK_NEAR (gainToDb (gloss.gain / matte.gain), -0.5, 0.01);
     CHECK_NEAR (gloss.q / matte.q, 0.92, 0.005);
 }
+
+//==============================================================================
+/*  SPEC-SWEEP: PA-40 - twice the turns is +6 dB of output. */
+LUTHIER_TEST (PartAcoustics, coilTurnsSetTheOutput)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+    const auto pickup = base.get (GuitarSlot::pickupBridge);
+    CHECK (pickup != nullptr);
+
+    auto with = [&] (double turns)
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::pickupBridge] = withField (pickup, "coil_turns", turns);
+        return mapSpec (g).pickups[0].spec.outputTrimDb;
+    };
+
+    CHECK_NEAR (with (16000.0) - with (8000.0), 20.0 * std::log10 (2.0), 1.0e-6);
+}
+
+/*  SPEC-SWEEP: PA-35 - a bridge with a saddle piezo makes the guitar a piezo
+    source without using a pickup slot. */
+LUTHIER_TEST (PartAcoustics, aPiezoBridgeAddsAPiezoSource)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+    CHECK (! mapSpec (base).hasPiezo);
+
+    auto g = base;
+    g.parts[(size_t) GuitarSlot::bridge] = withField (base.get (GuitarSlot::bridge), "piezo", true);
+    const auto d = mapSpec (g);
+
+    CHECK (d.hasPiezo && d.spec.hasPiezo);
+    CHECK (d.numPickups == mapSpec (base).numPickups);
+}
