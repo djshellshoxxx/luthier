@@ -127,11 +127,27 @@ public:
     /** The current bar's notes, from the capture: what the timer does. */
     void refreshTabDots();
 
+    /** SPEC-SWEEP: A11Y-8 - one invisible, titled cell per string and fret
+        ("String 1, fret 3, G4") that a screen reader can walk; clicks pass
+        through to the board. Rebuilt when the tuning, capo or size changes. */
+    juce::Component* getFretCell (int stringIndex, int fret) const;
+    int getNumFretCells() const noexcept { return fretCells.size(); }
+
+    /** Rebuilds the cells' titles if the tuning, capo or size changed (the
+        timer calls it; public for tests). */
+    void updateFretCells();
+
     /** For tests: where the bar is drawn, and how visible it is (0-1). */
     double getDrawnBarFret() const noexcept { return barFret; }
     float getBarOpacity() const noexcept { return barOpacity; }
 
 private:
+    // SPEC-SWEEP: A11Y-8
+    class FretCell;
+    juce::OwnedArray<juce::Component> fretCells;
+    juce::String fretCellsSignature;
+    void layoutFretCells();
+
     int selectedString = 0;
 
     std::array<bool, 12> muted {};

@@ -471,3 +471,40 @@ LUTHIER_TEST (Editor, enterOpensADropdown)
     box.hidePopup();
     juce::PopupMenu::dismissAllActiveMenus();
 }
+
+//==============================================================================
+/*  A11Y-8: the fretboard names each fret for a screen reader. */
+#include "../UI/FretboardComponent.h"
+
+LUTHIER_TEST (ScreenReader, theFretboardNamesEachFret)
+{
+    LuthierAudioProcessor processor;
+    FretboardComponent board (processor);
+    board.setSize (900, 160);
+    board.updateFretCells();
+
+    const int strings = processor.getEngine().getNumStrings();
+    CHECK (board.getNumFretCells() >= strings * 13);
+
+    auto* cell = board.getFretCell (0, 3);
+    CHECK (cell != nullptr);
+
+    if (cell != nullptr)
+    {
+        CHECK_MSG (cell->getTitle().startsWith ("String 1, fret 3, "), cell->getTitle());
+        CHECK (cell->getWidth() > 0 && cell->getHeight() > 0);
+    }
+
+    auto* open = board.getFretCell (strings - 1, 0);
+    CHECK (open != nullptr && open->getTitle().contains ("open"));
+
+    // Fret 12 is an octave above the open string on every string.
+    for (int s = 0; s < strings; ++s)
+    {
+        const auto openName = board.getFretCell (s, 0)->getTitle().fromLastOccurrenceOf (", ", false, false);
+        const auto twelve = board.getFretCell (s, 12)->getTitle().fromLastOccurrenceOf (", ", false, false);
+        CHECK_MSG (openName.dropLastCharacters (1) == twelve.dropLastCharacters (1)
+                     && openName.getLastCharacter() + 1 == twelve.getLastCharacter(),
+                   openName + " vs " + twelve);
+    }
+}

@@ -11,7 +11,7 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 | A11Y-5 (§0.5/§4) | Font/UI scale 75–200% applied without breaking layout — here `setUiScale` is never consumed; on visual: `setScaleFactor` in editor ctor + change listener | `AccessibilitySettings::setUiScale` | Options > APPEARANCE, `AppearancePage::scaleBox` | - (visual: `Reflow::noControlHangsOutsideItsParentAtAnyWidthOrScale`) | OWNED |
 | A11Y-6 (§1) | AccessibilityHandler + value interface on every knob/slider/button/toggle/dropdown/meter/list — JUCE defaults for stock widgets; painted widgets (LevelMeter, SnapshotStrip, Fretboard) have none; no test | JUCE defaults, `AccessibleSetup::configureSlider` | all panels | - | PARTIAL |
 | A11Y-7 (§1) | Meters report peak dBFS as accessible value | `LevelMeter::createAccessibilityHandler` (read-only dBFS value), `configureMeter` in `setSource` | header/footer meter | `ScreenReader::theMeterReportsItsPeakInDbfs` | DONE |
-| A11Y-8 (§1) | Fretboard exposes each fret as a child ("String 3, fret 5, current note: G") | `UI/FretboardComponent` (no handler) | Fretboard | - | MISSING |
+| A11Y-8 (§1) | Fretboard exposes each fret as a child ("String 3, fret 5, current note: G") | `FretboardComponent::FretCell` (one titled cell per string x fret; rebuilt on tuning/capo/size change) | Fretboard | `ScreenReader::theFretboardNamesEachFret` | DONE |
 | A11Y-9 (§1) | Snapshot strip: each button exposes its snapshot name | `SnapshotStrip::SlotAccessor` (one focusable, titled button per pad) | Live strip | `ScreenReader::theSnapshotStripNamesEachSnapshot` | DONE |
 | A11Y-10 (§1) | Overlay announces itself and focuses its first control — code done; focus not testable headless | `OverlayHost::show` -> `AccessibleSetup::announceOverlayOpened` (traverser default component) | all overlays | `Editor::anOverlayOpensAndDismissesWithoutALauncher` (focus hand-off needs a desktop peer) | PARTIAL |
 | A11Y-11 (§1) | Escape closes overlay and returns focus to the launcher — code done; focus not testable headless | `OverlayHost` launcher SafePointer, restored in `dismiss` | all overlays | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt`, `Editor::anOverlayOpensAndDismissesWithoutALauncher` | PARTIAL |
@@ -58,4 +58,4 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 | A11Y-52 (§10) | Test: no animation frames after reduced-motion on — here model-level only | on visual | n/a | (visual: `DataStream::itKeeps200StopsAfter500msAndHonoursReducedMotion`, `ReducedMotion::aGuitarChangeCrossfadesOrIsStaticWithAnOutline`) | OWNED |
 | A11Y-53 (§10) | Test: CJK locale shows no missing-glyph boxes in shipped strings | - | - | - | MISSING |
 
-<!-- counts DONE=24 NO-GUI=0 NO-TEST=1 PARTIAL=14 MISSING=7 OWNED=7 DEFERRED=0 -->
+<!-- counts DONE=25 NO-GUI=0 NO-TEST=1 PARTIAL=14 MISSING=6 OWNED=7 DEFERRED=0 -->
