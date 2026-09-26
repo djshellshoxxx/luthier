@@ -18,7 +18,7 @@ Most of the mechanism is implemented and tested: `PhysicalRange`/`RangeRegistry`
 | AR-12 (§1.4, §5) | Modulation and MIDI Learn sweep the live range (normalised) | `ParameterBridge::value`, `MidiLearnManager` | n/a | - | NO-TEST |
 | AR-13 (§2) | Seven family keys | `RangeFamily`, `getRangeFamilyName` | Options > RANGES | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent` | DONE |
 | AR-14 (§2, §4) | Per-control unlock via right-click; "Restrict to stock" offered only for listed controls | `showParameterContextMenu` (`Widgets.cpp`) | right-click any physical knob | `RangesUi::rightClickUnlocksAndRestrictsOneControl` | DONE |
-| AR-15 (§2.1, §3.4) | `modulation` family: LFO/env/seq/follower setters clamp to stock unless advanced — `ModSources::setRateHz` is a fixed `jlimit(0.01, 40)`; no envelope/sequencer/follower clamps consult `RangeState` | `Modulation/ModSources.h:setRateHz` | MOD tab | - | MISSING |
+| AR-15 (§2.1, §3.4) | `modulation` family: LFO/env/seq/follower setters clamp to the 3.4 stock pair unless advanced; locking clamps and counts; unlocked values survive state/preset | `Modulation/ModRanges.h`, `ModSources.h` setters, `ModMatrix::setModulationRangeAdvanced`, `LuthierAudioProcessor::setRanges` | MOD tab padlock (`RangeTabButton`); source-card sliders follow the live pair | `Ranges::modulationSettersClampUnlessAdvanced`, `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
 | AR-16 (§3.1) | amp rows (gain, bass/mid/treble, presence, master) | `PhysicalRange.cpp` table | main face amp knobs | `Ranges::everyPhysicalRangeIsValid` | DONE |
 | AR-17 (§3.2) | circuit rows (volume/tone pot, tone cap, cable, input Z); treble bleed non-physical | `PhysicalRange.cpp` table | Circuit panel | `Ranges::stockMatchesTheDeclaredRange` | DONE |
 | AR-18 (§3.3) | squeak/pick/buzz/slide rows from their specs; same-pair rows need no entry | `PhysicalRange.cpp` table | CHARACTER / WORKSHOP | `Ranges::everyPhysicalRangeIsValid`, `Ranges::stockMatchesTheDeclaredRange` | DONE |
@@ -51,4 +51,4 @@ Most of the mechanism is implemented and tested: `PhysicalRange`/`RangeRegistry`
 | AR-T9 (§10) | Test: randomise respects stock over 1000 passes | - | n/a | `RangesUi::randomiseStaysInStockUnlessToldOtherwise` | DONE |
 | AR-T10 (§10) | Test: snapshots do not carry mode (capture advanced, lock, recall, values clamped) — no test (and AR-21 would fail it) | - | n/a | - | MISSING |
 
-<!-- counts DONE=28 NO-GUI=0 NO-TEST=8 PARTIAL=3 MISSING=4 OWNED=3 -->
+<!-- counts DONE=29 NO-GUI=0 NO-TEST=8 PARTIAL=3 MISSING=3 OWNED=3 -->

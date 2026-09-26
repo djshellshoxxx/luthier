@@ -5,8 +5,6 @@
 - [PA-8] effort M — Carry the §1 tanδ ratio into `BodyConfig` (a new `lossScale` field) that `BodyModels` multiplies into each mode's loss before Q. Test: ebony top Q / basswood top Q ≈ 11e-3/4.5e-3 within 20%.
 - [PA-9] effort M — Map neck `wood`/`density` into a `d.neckMassKg` value, plus a dead-spot frequency that character-wear's dead-spot model consumes (Source/Character). Feed neck mass into `couplingFraction` weighting. Test that a maple neck and a mahogany neck move the dead-spot frequency in the right direction.
 - [PA-13] effort S — Add `PartAcoustics::chamberingPicksItsShape`: solid/chambered/semi_hollow/hollow/acoustic map to the expected `BodyShape`, and `BodyModels` builds a mode count that rises in that order.
-- [PA-14] effort M — Consume `d.airResonanceHz/Q`: pass them to `BodyEngine` (the air mode's frequency/Q override, e.g. via the `BodyConfig` air fields realism-a's `getAirResonanceHz` scaling uses) in `LuthierEngine::applyWorkshopGuitar`. Then change `chamberingPutsTheAirModeInItsRange` to measure the rendered body impulse's air peak.
-- [PA-15] effort S — Apply `d.bodyGainDb` as the body path's gain in `applyWorkshopGuitar` (BodyEngine output trim or body-mix level), relative to the solid reference. Test: the body contribution is ~+6 dB for semi_hollow against solid.
 - [PA-16] effort S — Add a test: solid vs hollow `partsSustain` ratio ≈ 0.80, and rendered T60 is shorter for hollow.
 - [PA-18] effort S — Add a test that bracing x/fan/ladder produces different `BodyModels` mode sets for an acoustic body.
 - [PA-20] effort S — DEFER: the spec itself says the profile makes no tonal claim. Its only role is a mass term for the neck, so fold it into PA-9's neck mass when that lands.
@@ -30,9 +28,7 @@
 - [PA-51] effort S — When `strings.tension_kg[s]` is present, use it for tension (and derive μ) in `mapSpec`. Test: the override shows up in `d.tensionNewtons`.
 - [PA-52] effort M — Compute wound μ from core diameter + wrap wire geometry in `stringLinearDensity`, instead of `woundMassFactor`. Test: two 0.046 strings with different cores differ in μ/tension.
 - [PA-54] effort S — Add a pickguard top-damping term (loss added to acoustic/thinline top modes, scaled by mass and chambering), consumed with PA-56's damping. Test: it is audible on acoustic and negligible on solid.
-- [PA-56] effort S — Consume `d.finishDampingDb` (and a Q ×0.92 at full gloss) on acoustic top modes in the BodyEngine config. Test: gloss 1.0 vs 0.5 on the Dreadnought shows ≈-0.5 dB on body modes.
 - [PA-57] effort S — Add a test: finish.aging 0 vs 1 moves `d.body.age`, and the body output in the break-in direction (`Character::bodyBreakInMovesInTheRightDirection` harness).
 - [PA-58] effort S — Covered by the PA-36 test (bridge + tailpiece + pickguard sum).
 - [PA-60] effort M — Compose losses: the termination, chambering and pickguard/finish damping contributions add as 1/Q terms (or loss factors) before becoming sustain, instead of multiplying `sustainScale` factors. Test: two parts each adding loss L give 2L total.
 - [PA-T1] effort M — Upgrade `everyMappedFieldMovesSomething` to render a note through `LuthierEngine::applyWorkshopGuitar`, and compare spectra against the noise floor. Add the fields PA-9/23/35/40/46/49/51 map as they land.
-- [PA-T7] effort S — Measure the rendered air peak once PA-14 lands (see PA-14).

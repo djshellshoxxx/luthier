@@ -17,8 +17,8 @@
 | PA-11 (§2) | body.thickness_mm: mode frequency and mass | `scaleDepth`, `shapeFor` | WORKSHOP inspector | `PartAcoustics::theMappingIsMonotonic`, `PartAcoustics::everyMappedFieldMovesSomething` | DONE |
 | PA-12 (§2) | body.area_cm2: mode frequency ∝ 1/area; air volume | `scaleWidth` | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` | DONE |
 | PA-13 (§2.1) | Chambering sets mode count (3/5/7/9/12), by BodyShape — no test checks the shape or mode count per value | `shapeFor` | WORKSHOP inspector | - | NO-TEST |
-| PA-14 (§2.1) | Air resonance per row (range, Q, 1/sqrt(V)) — `d.airResonanceHz/Q` are computed but never read by the engine; the air mode comes from the BodyShape preset only | `mapSpec` chamber block | n/a | `PartAcoustics::chamberingPutsTheAirModeInItsRange` (struct only) | PARTIAL |
-| PA-15 (§2.1) | Chambering mode gain +3/+6/+10/+14 dB — `d.bodyGainDb` is never consumed | `mapSpec` | n/a | - | PARTIAL |
+| PA-14 (§2.1) | Air resonance per row (range, Q, 1/sqrt(V)) reaches the body: `BodyConfig::airHzOverride/airQOverride` from `mapSpec` build the Helmholtz mode | `mapSpec` chamber block -> `BodyModels::buildModes`/`computeAirResonance` | n/a | `PartAcoustics::chamberingReachesTheBodyEngine`, `chamberingPutsTheAirModeInItsRange` | DONE |
+| PA-15 (§2.1) | Chambering mode gain +3/+6/+10 dB against solid on the body modes (electric chamberings; acoustic is the whole mic signal, not a colour) | `BodyConfig::modeGainDb` applied after normalisation | n/a | `PartAcoustics::chamberingReachesTheBodyEngine` (+6 dB semi-hollow) | DONE |
 | PA-16 (§2.1) | Chambering sustain -5/-12/-20/-25% | `sustainScale × chamber.sustain` -> `partsSustain` | n/a | - | NO-TEST |
 | PA-17 (§2.1) | Chambering feedback coupling into the feedback loop | `d.feedbackGain` -> `FeedbackLoop::setBodyCoupling` | n/a | `ModelGaps::chamberingFeedsTheFeedbackCoupling` | DONE |
 | PA-18 (§2) | Bracing: acoustic mode splitting | `engineBracing` -> `BodyConfig::bracing` | WORKSHOP inspector | - | NO-TEST |
@@ -59,7 +59,7 @@
 | PA-53 (§8) | Inharmonicity `B ∝ d⁴E/(TL²)` | `StringMaterials::computeSpec` | n/a | `StringPhysics::woundStringsAreLessStiffThanTheirDiameterSuggests` | DONE |
 | PA-54 (§9) | pickguard.mass_g: top damping on acoustics/thinlines — only added to termination mass | `terminationMassG` | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` | PARTIAL |
 | PA-55 (§9) | hardware_color has no audio effect | (not read by `mapSpec`) | n/a | `PartAcoustics::hardwareColourIsSilent` | DONE |
-| PA-56 (§9) | finish.gloss: -0.5 dB and Q -8% on acoustic modes — `d.finishDampingDb` is never consumed and there is no Q term | `mapSpec` | n/a | - | PARTIAL |
+| PA-56 (§9) | finish.gloss: -0.5 dB and Q x0.92 on acoustic top modes (heard in Modal/Hybrid body mode; the default acoustic IR is a recording) | `BodyConfig::topDampingDb` in `buildModes` | n/a | `PartAcoustics::aThickFinishDampsTheTop` | DONE |
 | PA-57 (§9) | finish.aging -> body break-in | `d.body.age` | n/a (guitar-file field) | - | NO-TEST |
 | PA-58 (§10) | Masses add (bridge + tailpiece + pickguard) | `terminationMassG` | n/a | - | NO-TEST |
 | PA-59 (§10) | Couplings multiply | `couplingFraction` | n/a | `PartAcoustics::couplingsMultiply` | DONE |
@@ -70,10 +70,10 @@
 | PA-T4 (§11) | Test: magnet pull shortens sustain ≥15% and pulls flat | - | n/a | `PartAcoustics::magnetPullShortensSustainAndPullsFlat` | DONE |
 | PA-T5 (§11) | Test: first comb null within 5% | - | n/a | `PartAcoustics::pickupPositionSetsTheComb` | DONE |
 | PA-T6 (§11) | Test: cover -0.8±0.2 dB | - | n/a | `PartAcoustics::aCoverCostsTopEnd` | DONE |
-| PA-T7 (§11) | Test: chambering air mode in range — checks a struct field the engine never consumes, not rendered audio | - | n/a | `PartAcoustics::chamberingPutsTheAirModeInItsRange` | PARTIAL |
+| PA-T7 (§11) | Test: chambering air mode in range, and the body engine builds it | - | n/a | `PartAcoustics::chamberingReachesTheBodyEngine` | DONE |
 | PA-T8 (§11) | Test: hardware colour silent | - | n/a | `PartAcoustics::hardwareColourIsSilent` | DONE |
 | PA-T9 (§11) | Test: composition, two halves make a quarter | - | n/a | `PartAcoustics::couplingsMultiply` | DONE |
 | PA-T10 (§11) | Test: mapping runs once per swap | - | n/a | `WorkshopSwap::aSwapMapsOnceNotPerBlock` | DONE |
 | PA-T11 (§11) | Test: determinism | - | n/a | `PartAcoustics::theMappingIsDeterministic` | DONE |
 
-<!-- counts DONE=32 NO-GUI=0 NO-TEST=18 PARTIAL=11 MISSING=9 OWNED=1 -->
+<!-- counts DONE=36 NO-GUI=0 NO-TEST=18 PARTIAL=7 MISSING=9 OWNED=1 -->
