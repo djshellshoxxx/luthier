@@ -225,7 +225,7 @@ void JamStripGroup::resized()
     const int h = juce::jmin (32, r.getHeight());
 
     // Narrower than preferred: the style box gives way first.
-    const int styleW = juce::jmax (56, 118 - juce::jmax (0, preferredWidth - getWidth()));
+    const int styleW = juce::jlimit (56, 118, 118 - (preferredWidth - getWidth()));
 
     pill.setBounds (r.removeFromLeft (88).withSizeKeepingCentre (88, h));
     r.removeFromLeft (4);

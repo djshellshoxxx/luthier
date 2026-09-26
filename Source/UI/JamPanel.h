@@ -20,6 +20,7 @@
 #include "JamWidgets.h"
 #include "JamLaneView.h"
 #include "JamUiText.h"
+#include "AnimationPolicy.h"
 
 namespace luthier
 {
@@ -74,6 +75,10 @@ private:
     struct Group;
 
     void timerCallback() override { refresh(); }
+
+    /*  cpu-quality-modes 6: the lanes' playhead and the status are a live
+        readout (10 Hz, stepped, at Low). */
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "JamPanel" };
     void buildGroups();
     int layoutGroups (int width, bool apply);
     void announce (const JamStatus& status);
