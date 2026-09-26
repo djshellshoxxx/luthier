@@ -580,6 +580,11 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("tapTempo",         "accessibility.shortcut.tapTempo",         KP ('t', 0, 0));
     add ("killSwitch",       "accessibility.shortcut.killSwitch",       KP ('\\', 0, 0));
 
+    // FEAT-JAM (jam-mode 8.2): the band - start/stop, fill, arm.
+    add ("jamStartStop",     "accessibility.shortcut.jamStartStop",     KP ('j', 0, 0));
+    add ("jamFill",          "accessibility.shortcut.jamFill",          KP ('j', shift, 0));
+    add ("jamArm",           "accessibility.shortcut.jamArm",           KP ('j', alt, 0));
+
     add ("previousItem",     "accessibility.shortcut.previousItem",     KP ('[', 0, 0));
     add ("nextItem",         "accessibility.shortcut.nextItem",         KP (']', 0, 0));
 

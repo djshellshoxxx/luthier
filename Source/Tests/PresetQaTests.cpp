@@ -91,7 +91,8 @@ LUTHIER_TEST (Presets, everyFactoryPresetRoundTripsToTheUlp)
         {
             const auto then = before[index++];
 
-            if (paramIdOf (p) == ParamIDs::presetMorphPosition)
+            if (paramIdOf (p) == ParamIDs::presetMorphPosition
+                  || ParamIDs::isJamTransient (paramIdOf (p)))   // FEAT-JAM: jam-mode 12, never in a preset
                 continue;
 
             if (ulpDistance (p->getValue(), then) > 1)

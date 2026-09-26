@@ -1,4 +1,5 @@
 #include "Snapshots.h"
+#include "../Parameters.h"   // FEAT-JAM: ParamIDs::isJamTransient
 
 namespace luthier
 {
@@ -183,7 +184,8 @@ bool SnapshotBank::capture (int index, const juce::String& label, int colourTag)
 
     for (auto* p : processor.getParameters())
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
-            parameters->setProperty (withId->paramID, (double) withId->getValue());
+            if (! ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: jam-mode 10
+                parameters->setProperty (withId->paramID, (double) withId->getValue());
 
     snapshot.parameters = juce::var (parameters);
 

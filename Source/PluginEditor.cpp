@@ -4,6 +4,7 @@
 #include "UI/FirstRun.h"
 #include "UI/RangesUi.h"
 #include "UI/UiPreferences.h"
+#include "UI/JamWidgets.h"   // FEAT-JAM
 #include "Accessibility/Accessibility.h"
 #include "UI/Guitar/StringAnimator.h"   // animated-strings.md 8
 
@@ -798,6 +799,8 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         StringAnimationSettings::setEnabled (! StringAnimationSettings::isEnabled());
         return true;
     }
+    if (JamShortcuts::handle (processor, key))   // FEAT-JAM: jam-mode 8.2
+        return true;
     if (is ("tapTempo"))  { processor.tapTempoNow(); return true; }
 
     if (is ("killSwitch"))

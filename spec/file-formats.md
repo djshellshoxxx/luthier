@@ -29,6 +29,7 @@ are reference; this file is the source of truth.
 | `.luthierpart` | Single part | `"magic": "luthier.part"` | Workshop |
 | `.luthiertune` | Tune (composition) | `"magic": "luthier.tune"` | TuneBuilder |
 | `.luthierpattern` | Rhythm pattern | `"magic": "luthier.pattern"` | RhythmEngine |
+| `.luthierjam` | Jam band style (jam-mode.md 12) | `"magic": "luthier.jam"` | Jam |
 | `.luthierset` | Setlist | `"magic": "luthier.setlist"` | LivePerf |
 | `.luthierloop` | Looper save | `"magic": "luthier.loop"` | Practice |
 | `.luthiercontent` | Content update bundle | Signed manifest | Installer |

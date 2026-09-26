@@ -181,6 +181,9 @@ Compact per rhythm-engine.md section 8:
   strum-dynamics.md 6).
 - Enable switch.
 - Small readout: current chord symbol, next strum arrow.
+- JAM group at the right end (jam-mode.md 8.2): the 88 x 32 JAM pill
+  (first press arms; ARMED / COUNT / PLAYING / ENDING), the band's style,
+  a 5-dot intensity and a "Band" volume mini-knob.
 
 ### 3.6 What Easy Mode intentionally omits
 
@@ -250,7 +253,9 @@ tab strip at the top.
 
 Tab strip at the top, in this fixed order:
 
-`WORKSHOP | MOD | RHYTHM | TUNE | LIVE | ROUTING | TONE MATCH | CHARACTER | PRACTICE | NOTATION | MIDI OUT | CONTROLLERS | HELP`
+`WORKSHOP | MOD | RHYTHM | TUNE | JAM | LIVE | ROUTING | TONE MATCH | CHARACTER | PRACTICE | NOTATION | MIDI OUT | CONTROLLERS | HELP`
+
+(jam-mode.md 8.1: JAM, the backing band, sits directly after TUNE.)
 
 - **WORKSHOP** — enters the bench (section 6). While active, the tab
   expands across Columns 3 + 4 as one workspace; Column 3's panels stack
@@ -562,6 +567,7 @@ All rebindable. Defaults:
 | Reset all | Ctrl+Shift+R |
 | A / B compare | Ctrl+/ |
 | Tap tempo | T |
+| Jam band start / stop, fill, arm (jam-mode.md 8.2) | J / Shift+J / Alt+J |
 | MIDI Learn arm | Ctrl+L |
 | Undo / Redo | Ctrl+Z / Ctrl+Shift+Z |
 | Help | F1 |
@@ -650,6 +656,7 @@ the UI.
 | Setlist | LivePerf | Col 4 LIVE | Live Strip | PgUp/Dn |
 | Morph | LivePerf | Col 4 LIVE, Live Strip knob | - | - |
 | Tap tempo | LivePerf | Header tap | Live Strip pad | T |
+| Jam band (jam-mode.md 8) | Jam | Col 4 JAM, Easy rhythm strip JAM group | Live Strip JAM pill (while `jam_enabled`) | J, Shift+J, Alt+J |
 | Kill switch | LivePerf | Live Strip pill | - | \ |
 | Monitor mix | LivePerf | Live Strip, Col 4 LIVE | - | - |
 | Expression cal | LivePerf | Options EXPRESSION | - | - |

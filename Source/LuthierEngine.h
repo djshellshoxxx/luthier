@@ -381,6 +381,9 @@ public:
         hostPlaying = isPlaying;
     }
 
+    /** The grid the rhythm engine strums on this block (FEAT-JAM, JM-46). */
+    double getTransportPpq() const noexcept { return hostPpq; }
+
     /*  notation-export 6.1 / TODO 9 (MODEL-GAPS): the capture the engine reports
         to from triggerNote and applyNoteOff - string, fret and technique as
         played - plus the detector's chord in Poly mode (4), BASS_TECH strikes

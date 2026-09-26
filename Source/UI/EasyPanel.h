@@ -26,6 +26,7 @@
 #include "PanelHelpButton.h"
 #include "StageTouches.h"
 #include "PianoRollStrip.h"
+#include "JamWidgets.h"   // FEAT-JAM
 
 namespace luthier
 {
@@ -102,6 +103,9 @@ public:
     /** For tests: the rhythm strip's Feel knob. */
     juce::Slider& getRhythmFeelSlider() noexcept { return rhythmFeelSlider; }
 
+    /** For tests: the strip's JAM group (FEAT-JAM). */
+    JamStripGroup* getJamGroup() noexcept { return jamGroup.get(); }
+
     /** 3.5's dice: a random genre kit. */
     void rollRhythmDice();
 
@@ -170,6 +174,7 @@ private:
     juce::Slider rhythmFeelSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
     juce::TextButton rhythmEnableButton { "OFF" };
     juce::Label rhythmHintLabel, rhythmReadout;
+    std::unique_ptr<JamStripGroup> jamGroup;   // FEAT-JAM: jam-mode 8.2, at the strip's right end
 
     // ---- rig strip (3.2) ---------------------------------------------------------------
     LuthierKnob guitarVolumeKnob { "Volume", LuthierKnob::Size::Small };

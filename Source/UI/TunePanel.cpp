@@ -1260,6 +1260,9 @@ void TunePanel::timerCallback()
 {
     updateTransport();
 
+    if (layersStrip != nullptr)   // FEAT-JAM: jam-mode 11
+        layersStrip->setPercussionReplaced (processor.isTunePercussionReplacedByJam());
+
     if (isShowing())
         showFirstEncounterHintIfDue();
 }

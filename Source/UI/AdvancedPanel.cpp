@@ -1130,6 +1130,7 @@ void AdvancedPanel::buildWorkspace()
     modMatrixPanel  = std::make_unique<ModMatrixPanel> (processor);
     rhythmPanel     = std::make_unique<RhythmPanel> (processor);
     tunePanel       = std::make_unique<TunePanel> (processor, processor.getTunePlayer(), processor.getTuneSession());
+    jamPanel        = std::make_unique<JamPanel> (processor);   // FEAT-JAM
     livePanel       = std::make_unique<LivePanel> (processor);
     routingPanel    = std::make_unique<RoutingPanel> (processor);
     toneMatchPanel  = std::make_unique<ToneMatchPanel> (processor);
@@ -1146,6 +1147,7 @@ void AdvancedPanel::buildWorkspace()
         { "MOD",         modMatrixPanel.get() },
         { "RHYTHM",      rhythmPanel.get() },
         { "TUNE",        tunePanel.get() },
+        { "JAM",         jamPanel.get() },   // FEAT-JAM: jam-mode 8.1, between TUNE and LIVE
         { "LIVE",        livePanel.get() },
         { "ROUTING",     routingPanel.get() },
         { "TONE MATCH",  toneMatchPanel.get() },
@@ -1169,6 +1171,8 @@ void AdvancedPanel::buildWorkspace()
                                                    RangeFamily::buzz, RangeFamily::slide,
                                                    // REALISM-A: string-aging 7, environment 7, body-coupling 5
                                                    RangeFamily::strings, RangeFamily::environment, RangeFamily::body });
+        else if (juce::String (tab.name) == "JAM")   // FEAT-JAM: kit tuning and damping (jam-mode 10)
+            made = new RangesUi::RangeTabButton (tab.name, processor, { RangeFamily::jam });
         else if (juce::String (tab.name) == "WORKSHOP")   // gui-integration 21: the bench's setup strip, pick and slide
             made = new RangesUi::RangeTabButton (tab.name, processor,
                                                  { RangeFamily::buzz, RangeFamily::pick, RangeFamily::slide });
@@ -1475,6 +1479,7 @@ void AdvancedPanel::resized()
         else if (panel == helpTab.get())
             height = juce::jmax (360, visible);
         else if (auto* p = dynamic_cast<TunePanel*> (panel))                 height = juce::jmax (visible, p->getPreferredHeight());
+        else if (auto* p = dynamic_cast<JamPanel*> (panel))                  height = juce::jmax (visible, p->getPreferredHeightFor (workspaceViewport.getMaximumVisibleWidth()));   // FEAT-JAM
         else if (auto* p = dynamic_cast<MidiOutPanel*> (panel))              height = juce::jmax (visible, p->getPreferredHeight());
         else if (auto* p = dynamic_cast<NotationPanel*> (panel))             height = juce::jmax (visible, p->getPreferredHeight());
         else if (auto* p = dynamic_cast<PracticeSetupPanel*> (panel))        height = juce::jmax (visible, p->getPreferredHeight());

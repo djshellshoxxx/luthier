@@ -54,6 +54,10 @@ core.
 | NoiseFloor | 0.15 | noise-floor.md 7; 0 when idle (every new source at 0) |
 | StringEngine sustain shape (12 strings) | +0.3 | sustain-and-decay.md 10, on the StringEngine row; one branch per tick at Legacy |
 | StabilityModel | 0.02 | tuning-stability.md 8; control rate |
+| JamConductor + JamChordFollower | 0.05 | jam-mode.md 14; control rate; <= 0.02 when stopped; 0 when `jam_enabled` is off |
+| JamDrumKit | 0.9 | jam-mode.md 14; all pieces ringing; typically 0.4 |
+| JamBassVoice | 0.6 | jam-mode.md 14; 2 x StringEngine, tone, 2x OS saturation |
+| JamMixer + kit room | 0.15 | jam-mode.md 14; 4-line FDN, pans, meters. Jam total <= 1.7; scenario "Jam" (Rock, 4 voices, band at 5) <= 10 |
 
 **Totals**:
 - **Idle** (silent input, plugin loaded): <= 1.5 units.
@@ -162,6 +166,8 @@ Rolling 200 ms average > 85% of block budget:
 2. Suspend scrolling data stream.
 3. Reduce mod-matrix control rate 2x.
 4. Drop NoiseEngine pool active generators to 8 (from 16) per class.
+   With it (jam-mode.md 13, the step "between 4 and 5"): Jam cymbal banks
+   48 -> 24 modes, hat 32 -> 16. Jam bass and timing are never degraded.
 5. Reduce reverb tap count in convolution reverbs (audible; only if
    still exhausted).
 6. Freeze the shadow `GuitarSpec` audition (if active).

@@ -22,6 +22,7 @@
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "JamWidgets.h"   // FEAT-JAM
 
 namespace luthier
 {
@@ -134,6 +135,12 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    /** For tests: the JAM pill (FEAT-JAM). */
+    JamPill& getJamPill() noexcept { return *jamPill; }
+
+    /** Shows the JAM pill only while jam_enabled is on; the timer calls it. */
+    void refreshJamPill();
+
 private:
     void timerCallback() override;
 
@@ -145,6 +152,7 @@ private:
     std::unique_ptr<SnapshotStrip> snapshotStrip;
     std::unique_ptr<SetlistTriptych> triptych;
     std::unique_ptr<TapPad> tapPad;
+    std::unique_ptr<JamPill> jamPill;   // FEAT-JAM: jam-mode 8.2, after Tap while jam_enabled is on
 
     // --- morph --------------------------------------------------------------------
     juce::TextButton morphEnable { "MORPH" };

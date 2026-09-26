@@ -426,6 +426,9 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "accessibility.shortcut.panic",           "Panic: silence all notes" },
         { "accessibility.shortcut.tapTempo",        "Tap tempo" },
         { "accessibility.shortcut.killSwitch",      "Kill switch" },
+        { "accessibility.shortcut.jamStartStop",    "Jam band: start or stop" },   // FEAT-JAM
+        { "accessibility.shortcut.jamFill",         "Jam band: fill" },
+        { "accessibility.shortcut.jamArm",          "Jam band: arm or disarm" },
         { "accessibility.shortcut.previousItem",    "Previous preset or snapshot" },
         { "accessibility.shortcut.nextItem",        "Next preset or snapshot" },
         { "accessibility.shortcut.previousWorkspaceTab", "Previous workspace tab" },

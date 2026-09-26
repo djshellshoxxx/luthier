@@ -36,6 +36,7 @@
 #include "Workshop/WorkshopBench.h"
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
+#include "Jam/JamEngine.h"   // FEAT-JAM
 #include "Support/InstallLayout.h"
 #include "Support/SoundingNotesPublisher.h"
 
@@ -423,6 +424,52 @@ public:
     /** Releases every string and clears all state. The Panic button. */
     void panic();
 
+    //==========================================================================
+    // Jam mode (jam-mode.md, FEAT-JAM): the band beside the metronome and looper.
+
+    JamEngine&        getJam() noexcept        { return jam; }
+    JamStyleLibrary&  getJamStyles() noexcept  { return jamStyles; }
+
+    /** START / STOP as the J key, the pills and the button (2.1, 2.2). Not
+        undoable (12): transport, like tap tempo. */
+    void jamStartStop();
+    void jamFill();
+
+    /** Alt+J: arms (jam_enabled on) or disarms the band. */
+    void jamArmToggle();
+
+    /** The preset's `jam` block (12). */
+    juce::var getJamBlock() const;
+    void setJamBlock (const juce::var& block);
+
+    /** Picks a user style file (12): one undo entry, "jam-style-file". A
+        malformed file falls back (13) and the warning is returned. */
+    juce::String loadJamStyleFile (const juce::File& file);
+    const juce::String& getJamStyleRef() const noexcept { return jamStyleRef; }
+    const juce::String& getJamStyleWarning() const noexcept { return jamStyleWarning; }
+
+    bool isJamRhythmKitLinked() const noexcept { return jamLinkRhythmKit; }
+    void setJamRhythmKitLinked (bool linked);
+
+    /** 11: "Metronome goes quiet while the band plays", a user preference the
+        editor mirrors here (default on). */
+    void setJamSilencesMetronome (bool silences) noexcept { jamSilencesMetronome.store (silences, std::memory_order_relaxed); }
+    bool doesJamSilenceMetronome() const noexcept { return jamSilencesMetronome.load (std::memory_order_relaxed); }
+
+    /** 8.4: Separate was asked for and the layout has no aux (A or C). */
+    bool isJamSeparateFallingBack() const noexcept { return jamSeparateFallback.load (std::memory_order_relaxed); }
+
+    /** 11: the tune's percussion layer is being replaced by the Jam drums. */
+    bool isTunePercussionReplacedByJam() const noexcept { return jamReplacesPercussion.load (std::memory_order_relaxed); }
+
+    /** The Jam's message-thread work: jam_play mirrored to the band's state,
+        jam_fill_now reset, the linked rhythm kit, garbage (the timer's; tests
+        call it). */
+    void serviceJam();
+
+    /** Tune percussion note-ons that reached the engine so far (JM-42). */
+    int getTunePercussionToEngine() const noexcept { return tunePercussionToEngine.load (std::memory_order_relaxed); }
+
     /** Restores every parameter, the MIDI map and the UI state to defaults. */
     void resetEverything();
 
@@ -656,6 +703,27 @@ private:
         monitor aux bus, because it must not be summed into the main output: the
         whole point of it is that the audience does not hear it. */
     juce::AudioBuffer<float> monitorBuffer;
+
+    // --- jam mode (FEAT-JAM) ---------------------------------------------------------
+    JamStyleLibrary jamStyles;
+    JamEngine jam;
+    juce::MidiBuffer jamNotes, jamTuneBass, jamScratch;
+    juce::AudioBuffer<float> jamMain;
+    juce::String jamStyleRef, jamStyleWarning;
+    bool jamLinkRhythmKit = false;
+    int jamLinkedStyle = -1;
+    std::atomic<bool> jamSilencesMetronome { true }, jamSeparateFallback { false }, jamReplacesPercussion { false };
+    std::atomic<bool> jamTuneHasBass { false };
+    std::atomic<int> tunePercussionToEngine { 0 };
+    std::atomic<double> jamBlockWallMs { 0.0 };
+    bool jamWasEnabled = false;
+    int jamMirrorState = -1;
+    double jamMirrorSince = 0.0;
+    int jamLooperState = 0;
+    std::atomic<float>* jamOutputRaw = nullptr;   ///< looked up once: a lookup by ID allocates
+
+    void onJamTimeline (const TuneTimeline& timeline);
+    void mixJam (juce::AudioBuffer<float>& mainOut, int numSamples) noexcept;
 
     // --- practice tools ---------------------------------------------------------------
     Metronome metronome;

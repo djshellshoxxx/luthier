@@ -339,7 +339,10 @@ One dialog, four destinations:
 - Bit depth: 16 / 24 / 32-float.
 - Sample rate: current host or user-selected.
 - Stem export: main stereo, or every routing bus (aux 1-8) as its own
-  file.
+  file; with the Jam band included, Aux 9 Jam Drums and Aux 10 Jam Bass
+  too (jam-mode.md 9).
+- "Include Jam band" (default on while `jam_enabled`, jam-mode.md 9):
+  audio renders include the band.
 - Loop tail: 0 - 5 s of decay after the final beat.
 - Destination: `~/Documents/Luthier/Renders/` by default.
 
@@ -349,6 +352,8 @@ One dialog, four destinations:
   bass), per string.
 - Export the melody with realism events (bends, slides, vibratos) or
   as plain note-on / note-off.
+- "Include Jam band" (jam-mode.md 9) adds the band's "Jam Drums" and
+  "Jam Bass" tracks.
 
 ### 9.3 Notation
 - MusicXML / Guitar Pro / ASCII TAB (notation-export.md).

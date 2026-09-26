@@ -454,6 +454,11 @@ LiveStrip::LiveStrip (LuthierAudioProcessor& p)
     addAndMakeVisible (*triptych);
     addAndMakeVisible (*tapPad);
 
+    // FEAT-JAM (jam-mode 8.2): a tap starts or stops the band, a long press is FILL.
+    jamPill = std::make_unique<JamPill> (processor, JamPill::Mode::live);
+    addChildComponent (*jamPill);
+    refreshJamPill();
+
     // ---- morph -------------------------------------------------------------------
     morphEnable.setClickingTogglesState (true);
     morphEnable.setTooltip ("Morph continuously between the two snapshot slots.");
@@ -585,10 +590,25 @@ void LiveStrip::showSlotMenu (bool slotB)
     });
 }
 
+void LiveStrip::refreshJamPill()
+{
+    // FEAT-JAM (jam-mode 8.2): the JAM pill shows only while jam_enabled is on.
+    auto* enabled = processor.getState().getParameter (ParamIDs::jamEnabled);
+    const bool show = enabled != nullptr && enabled->getValue() > 0.5f;
+
+    if (jamPill->isVisible() != show)
+    {
+        jamPill->setVisible (show);
+        resized();
+    }
+}
+
 void LiveStrip::timerCallback()
 {
     snapshotStrip->refresh();
     triptych->refresh();
+
+    refreshJamPill();   // FEAT-JAM
 
     const auto& bank = processor.getSnapshots();
 
@@ -650,6 +670,9 @@ void LiveStrip::resized()
     morphEnable.setBounds (takeRight (64));
 
     tapPad->setBounds (takeLeft (64));
+
+    if (jamPill->isVisible())   // FEAT-JAM
+        jamPill->setBounds (takeLeft (88));
     triptych->setBounds (takeLeft (juce::jmax (120, bounds.getWidth() / 3)));
 
     snapshotStrip->setBounds (bounds.withHeight (height));
