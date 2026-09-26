@@ -12,9 +12,13 @@ support and how to produce it.
 | Format | Location |
 |---|---|
 | Windows VST3 | `C:\Program Files\Common Files\VST3\Luthier.vst3` |
-| macOS VST3 | `~/Library/Audio/Plug-Ins/VST3/Luthier.vst3` |
-| macOS AU | `~/Library/Audio/Plug-Ins/Components/Luthier.component` |
+| Windows CLAP | `C:\Program Files\Common Files\CLAP\Luthier.clap` |
+| macOS VST3 | `/Library/Audio/Plug-Ins/VST3/Luthier.vst3` |
+| macOS AU | `/Library/Audio/Plug-Ins/Components/Luthier.component` |
+| macOS CLAP | `/Library/Audio/Plug-Ins/CLAP/Luthier.clap` |
 | Linux VST3 | `~/.vst3/Luthier.vst3` |
+
+**On macOS,** the installer writes to the system `/Library/` folder. You can also hand-copy the plugin bundle to `~/Library/Audio/Plug-Ins/` (your user Library) if you prefer not to use the installer.
 
 `Luthier.vst3` is a **folder**, not a file. Copy the whole thing, not its contents.
 
@@ -68,7 +72,7 @@ you want everything gone.
 5. **Add another folder** with Options > FILE LOCATIONS > Add a preset folder, if you keep presets
    somewhere else - a shared drive, a Dropbox folder, a repository.
 6. **Check the file is valid JSON.** Open it in a text editor; it should start with
-   `{` and contain `"format": "luthierpreset"`. A truncated file is skipped.
+   `{` and contain `"magic": "luthier.preset"` (older presets have `"format": "luthierpreset"`, which is also accepted). A truncated file is skipped.
 
 ### The factory presets are missing
 
@@ -165,7 +169,7 @@ Two causes, both adjustable:
 - **Humanize** adds timing jitter on purpose. Turn the macro down, or zero the
   individual Timing control in Advanced.
 - **Poly mode strums.** A chord is spread over time rather than triggered at once.
-  Set Strum Speed to zero in Advanced for a simultaneous attack.
+  Set Strum Crossing to its maximum (800 strings/s, about 1 ms across six strings) in Advanced, Performance for the fastest attack.
 
 ---
 
