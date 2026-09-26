@@ -635,6 +635,8 @@ AudioPage::AudioPage (LuthierAudioProcessor& p)
     styleNote (latencyLabel, Palette::textMuted, 11.0f);
     addAndMakeVisible (latencyLabel);
 
+    addAndMakeVisible (normalization);   // output-normalization.md 5.1
+
     refresh();
 }
 
@@ -667,8 +669,10 @@ void AudioPage::paint (juce::Graphics& g)
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "QUALITY");
-    drawHeading (g, { 0, 96, getWidth(), 18 }, "DEVICE, RATE AND BUFFER");
-    drawHeading (g, { 0, 214, getWidth(), 18 }, "SIDECHAIN");
+    // output-normalization.md 5.1: the normalization group sits under QUALITY.
+    const int shift = NormalizationOptionsGroup::preferredHeight;
+    drawHeading (g, { 0, 96 + shift, getWidth(), 18 }, "DEVICE, RATE AND BUFFER");
+    drawHeading (g, { 0, 214 + shift, getWidth(), 18 }, "SIDECHAIN");
 }
 
 void AudioPage::resized()
@@ -685,7 +689,11 @@ void AudioPage::resized()
         mainsRegion.setBounds (row.removeFromTop (24).removeFromLeft (200));
     }
 
-    bounds = getLocalBounds().withTrimmedTop (118);
+    // output-normalization.md 5.1: under Oversampling; everything below moves down.
+    const int shift = NormalizationOptionsGroup::preferredHeight;
+    normalization.setBounds (getLocalBounds().withTrimmedTop (68).withHeight (shift - 8));
+
+    bounds = getLocalBounds().withTrimmedTop (118 + shift);
 
     deviceNote.setBounds (bounds.removeFromTop (34));
     bounds.removeFromTop (4);
@@ -693,7 +701,7 @@ void AudioPage::resized()
     bounds.removeFromTop (4);
     latencyLabel.setBounds (bounds.removeFromTop (18));
 
-    bounds = getLocalBounds().withTrimmedTop (236);
+    bounds = getLocalBounds().withTrimmedTop (236 + shift);
     sidechainNote.setBounds (bounds.removeFromTop (48));
 }
 
@@ -2151,6 +2159,9 @@ void PrivacyPage::resized()
 DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
     : OptionsPage (p)
 {
+    styleNote (normalizationLines, Palette::textMuted, 10.5f);   // output-normalization.md 5.4
+    addAndMakeVisible (normalizationLines);
+
     addAndMakeVisible (debugWindowButton);
     debugWindowButton.setTooltip ("The live state and data-stream view (Ctrl+D)");
     debugWindowButton.onClick = [this]
@@ -2246,6 +2257,11 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
                 if (result == 0)
                 {
                     processor.hardResetAndClearCaches();
+
+                    // output-normalization.md 10: this reset turns the preference off.
+                    UiPreferences::get().setBool (OutputNormalization::kPrefDefaultEnabled, false);
+                    UiPreferences::get().setBool (OutputNormalization::kPrefBannerSuppressed, false);
+                    UiPreferences::get().save();
                     refresh();
                 }
             });
@@ -2308,6 +2324,9 @@ void DiagnosticsPage::restoreFirstRun()
 
 void DiagnosticsPage::refresh()
 {
+    // output-normalization.md 5.4: what the normalization stage is doing.
+    normalizationLines.setText (NormalizationUi::diagnosticsLines (processor).joinIntoString ("\n"), juce::dontSendNotification);
+
     crashLogToggle.setToggleState (processor.getDiagnostics().isCrashLogEnabled(),
                                    juce::dontSendNotification);
 
@@ -2377,6 +2396,7 @@ void DiagnosticsPage::resized()
 
     if (audioPath != nullptr)
         audioPath->setBounds (getLocalBounds().withTrimmedTop (352).withHeight (juce::jmax (80, juce::jmin (130, getHeight() - 356))));
+    normalizationLines.setBounds (getLocalBounds().removeFromBottom (48));   // output-normalization.md 5.4
 }
 
 //==============================================================================

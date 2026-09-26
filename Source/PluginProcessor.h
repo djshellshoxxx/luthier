@@ -37,6 +37,7 @@
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
 #include "Jam/JamEngine.h"   // FEAT-JAM
+#include "Support/OutputNormalization.h"   // output-normalization.md
 #include "Support/InstallLayout.h"
 #include "Support/SoundingNotesPublisher.h"
 
@@ -83,6 +84,15 @@ public:
 
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
+
+    /*  output-normalization.md 6: undo, redo and A/B recall restore the sound
+        only; the host restores everything, the normalization setting included. */
+    enum class RestoreScope { full, soundOnly };
+    void restoreState (const void* data, int sizeInBytes, RestoreScope scope);
+
+    /** output-normalization.md: the switch, the target, the calibration. */
+    OutputNormalization& getOutputNormalization() noexcept { return outputNormalization; }
+    OutputNormalization::Status getNormalizationStatus() const { return outputNormalization.getStatus(); }
 
     //==========================================================================
     LuthierEngine&      getEngine() noexcept        { return engine; }
@@ -982,6 +992,10 @@ private:
     int gestureParameterIndex = -1;
 
     juce::StringArray lockedParameters;
+
+    // output-normalization.md: declared last, so every parameter and the engine
+    // exist when its change tracker is built.
+    OutputNormalization outputNormalization { *this };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessor)
 };

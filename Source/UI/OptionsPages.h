@@ -26,6 +26,7 @@
 #include "Theme.h"
 #include "Widgets.h"
 #include "VisualAidsSection.h"   // animated-strings.md 5
+#include "NormalizationOptions.h"   // output-normalization.md 5.1
 #include "AudioPathView.h"
 #include "../Controllers/ControllerProfile.h"
 #include "../Updates/Telemetry.h"
@@ -80,6 +81,12 @@ private:
 
     juce::TextButton deviceButton { "Where are the device settings?" };
     juce::Label deviceNote, sidechainNote, latencyLabel;
+
+    // output-normalization.md 5.1: under Oversampling, in its own group.
+    NormalizationOptionsGroup normalization { processor };
+
+public:
+    NormalizationOptionsGroup& getNormalizationGroup() noexcept { return normalization; }
 };
 
 //==============================================================================
@@ -484,11 +491,16 @@ private:
 
     juce::Label explanation, recorderNote, mirrorNote;
 
+    // output-normalization.md 5.4: the stage on the audio path, with its gain.
+    juce::Label normalizationLines;
+
     /** gui-integration 20: "What's on the audio path right now", with section 5's flags mirror. */
     std::unique_ptr<AudioPathView> audioPath;
 
 public:
     AudioPathView* getAudioPathView() const noexcept { return audioPath.get(); }
+
+private:
 };
 
 //==============================================================================

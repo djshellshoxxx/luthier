@@ -576,6 +576,9 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("toggleWorkshop",   "accessibility.shortcut.toggleWorkshop",   KP ('w', 0, 0));   // gui-integration 17 (VISUAL-WORKSHOP-QA)
     add ("togglePractice",   "accessibility.shortcut.togglePractice",   KP ('d', 0, 0));
 
+    // output-normalization.md 9: rebindable, unbound by default.
+    add ("toggleNormalization", "accessibility.shortcut.toggleNormalization", KP());
+
     add ("panic",            "accessibility.shortcut.panic",            KP ('p', 0, 0));
     add ("tapTempo",         "accessibility.shortcut.tapTempo",         KP ('t', 0, 0));
     add ("killSwitch",       "accessibility.shortcut.killSwitch",       KP ('\\', 0, 0));

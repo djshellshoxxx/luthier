@@ -12,6 +12,10 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     : processor (p)
 {
     addAndMakeVisible (led);
+
+    // output-normalization.md 5.1: visible only while normalization is on.
+    addChildComponent (normalizationBadge);
+    normalizationBadge.onVisibilityChanged = [this] { resized(); };
     led.setSource (&processor);
 
     addAndMakeVisible (guitarSelector);
@@ -585,6 +589,10 @@ void HeaderBar::resized()
 
     bounds.removeFromLeft (20);            // clear the LED
     bounds.removeFromLeft (96 + 14);       // logo and the MIDI dot
+
+    // output-normalization.md 5.1: the badge, only while normalization is on.
+    if (normalizationBadge.isVisible())
+        normalizationBadge.setBounds (bounds.removeFromLeft (NormalizationBadge::preferredWidth + 4).withTrimmedRight (4));
 
     /*  gui-integration.md 2: the header collapses gracefully below 1280. Every
         control keeps its place; below 1280 each takes a little less room so the

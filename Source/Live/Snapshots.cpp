@@ -1,5 +1,6 @@
 #include "Snapshots.h"
 #include "../Parameters.h"   // FEAT-JAM: ParamIDs::isJamTransient
+#include "../Support/ConfigChangeTracker.h"   // output-normalization.md 3.2
 
 namespace luthier
 {
@@ -329,6 +330,9 @@ void SnapshotBank::applyBlend (const juce::var& from, const juce::var& to, doubl
 
     if (toObject == nullptr)
         return;
+
+    // output-normalization.md 3.2: a snapshot is a performance, not a new sound.
+    const PerformanceWriteScope performanceWrites;
 
     const double b = juce::jlimit (0.0, 1.0, blend);
 

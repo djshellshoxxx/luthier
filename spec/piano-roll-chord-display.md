@@ -153,7 +153,8 @@ announcement, rate-limited to one every 1.5 s.
 
 ## 5. Options
 
-Options -> General (the page with "Show tooltips"), a new section,
+Options -> APPEARANCE (the page with "Show tooltips"; there is no
+"General" page: output-normalization.md 5.1 checked the page names), a new section,
 "Visual aids":
 - **Show chord names on the guitar** (default on).
 - **Announce chord names** (default off; enabled only when the one above

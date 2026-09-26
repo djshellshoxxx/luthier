@@ -100,6 +100,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 
     // A preset's pedals come with their settings; build them keeping those.
     presets.onPedalTypesLoaded = [this] { bridge.adoptPedalTypesFromParameters(); };
+
+    // output-normalization.md 4.4: a preset load is a discrete configuration
+    // event, and a cached gain rides the load.
+    presets.onPresetLoaded = [this] { outputNormalization.notifyConfigurationChanged (true); };
     presets.ensureFactoryPresetsInstalled();
     presets.refresh();
 
@@ -308,6 +312,10 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     diagnostics.logValue (LogCategory::Engine, "prepareToPlay sampleRate", sampleRate);
     diagnostics.logValue (LogCategory::Engine, "prepareToPlay blockSize", (double) samplesPerBlock);
+
+    // output-normalization.md 12: the calibration is kept across a rate change;
+    // a new rate family (NormalizationSoundState::rateFamily) re-measures.
+    outputNormalization.getTracker().markConfigDirty (true);
 }
 
 void LuthierAudioProcessor::releaseResources()
@@ -1548,6 +1556,8 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         if (practicePanelOpen)
             looper.renderPlaybackMidi (jamNotes, numSamples);
     }
+    // output-normalization.md 4.3: the calibration render's phrase, as written.
+    outputNormalization.mergeCalibrationDirect (tuneDirect);
 
     engine.setDirectMidi (tuneDirect.isEmpty() ? nullptr : &tuneDirect);
 
@@ -1599,6 +1609,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
         performanceCapture.beginBlock (clock);
     }
+
+    // output-normalization.md 4.1: the change tracker, and the master bus's timeline.
+    outputNormalization.processBlockStart (samplePosition, numSamples, currentSampleRate, isNonRealtime());
 
     {
         auto mainOut = getBusBuffer (buffer, false, 0);
@@ -2395,6 +2408,21 @@ bool LuthierAudioProcessor::loadSetlist (const juce::File& file)
     setlist.setSetlist (loaded);
     setlistFile = file;
 
+    // output-normalization.md 4.4: a setlist step never waits on a measurement.
+    {
+        juce::Array<juce::var> presetVars;
+
+        for (int i = 0; i < loaded.getNumEntries(); ++i)
+        {
+            const juce::File presetFile (loaded.getEntry (i).presetPath);
+
+            if (juce::File::isAbsolutePath (loaded.getEntry (i).presetPath) && presetFile.existsAsFile())
+                presetVars.add (juce::JSON::parse (presetFile));
+        }
+
+        outputNormalization.prefetchPresets (presetVars);
+    }
+
     return applyCurrentSetlistEntry (false);
 }
 
@@ -2559,7 +2587,7 @@ void LuthierAudioProcessor::recallSlot (bool useSlotB)
     auto& source = useSlotB ? slotB : slotA;
 
     if (source.getSize() > 0)
-        setStateInformation (source.getData(), (int) source.getSize());
+        restoreState (source.getData(), (int) source.getSize(), RestoreScope::soundOnly);   // output-normalization.md 6
 }
 
 void LuthierAudioProcessor::copyAtoB()
@@ -2815,7 +2843,7 @@ void LuthierAudioProcessor::applyUndoState (const juce::MemoryBlock& state)
 
     const juce::ScopedValueSetter<bool> guard (restoringForUndo, true);
     const juce::ScopedValueSetter<bool> keepTune (restoringPluginUndo, true);   // the tune keeps its own undo
-    setStateInformation (restored.getData(), (int) restored.getSize());
+    restoreState (restored.getData(), (int) restored.getSize(), RestoreScope::soundOnly);   // output-normalization.md 6: undo keeps the live setting
 }
 
 // action-and-undo.md 3.8
@@ -3027,6 +3055,9 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     root->setProperty ("metronome", metronome.toVar());
     root->setProperty ("clickToMain", isClickToMain());
 
+    // output-normalization.md 6: session state, not preset data.
+    root->setProperty ("normalization", outputNormalization.toVar());
+
     // tune-builder 15: the tune being built is part of the session.
     root->setProperty ("tune", tuneSession.toState());
 
@@ -3097,6 +3128,11 @@ void LuthierAudioProcessor::applyRealismCharacterBlock (const juce::var& charact
 // ==== END REALISM-A state ====
 
 void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+{
+    restoreState (data, sizeInBytes, RestoreScope::full);
+}
+
+void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, RestoreScope scope)
 {
     if (data == nullptr || sizeInBytes <= 0)
         return;
@@ -3240,6 +3276,13 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
         if (auto* p = apvts.getParameter (id))
             if (p->getValue() > 0.5f)
                 p->setValueNotifyingHost (0.0f);
+    // output-normalization.md 6: the host path restores the setting (a state
+    // without the key loads off); undo, redo and A/B keep the live one. Either
+    // way the sound just changed, which is a configuration event.
+    if (scope == RestoreScope::full)
+        outputNormalization.restoreFromSession (root->getProperty ("normalization"), root->hasProperty ("normalization"));
+
+    outputNormalization.notifyConfigurationChanged (false);
 
     // Whatever the host sends next, this state is the one the user saved.
     // (An undo is not a host restore: action-and-undo.md.)

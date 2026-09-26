@@ -252,6 +252,9 @@ void PerStringStrip::mouseDown (const juce::MouseEvent& e)
 RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     : processor (p)
 {
+    addChildComponent (normalizationCaption);   // output-normalization.md 5.4
+    normalizationCaption.setVisible (processor.getOutputNormalization().isEnabled());
+
     auto configureLabel = [this] (juce::Label& label, const juce::String& text)
     {
         label.setText (text, juce::dontSendNotification);
@@ -520,6 +523,9 @@ void RoutingPanel::resized()
 
     layoutLabel.setBounds (bounds.removeFromTop (18));
     latencyLabel.setBounds (bounds.removeFromTop (14));
+
+    if (normalizationCaption.isVisible())   // output-normalization.md 5.4
+        normalizationCaption.setBounds (bounds.removeFromTop (14));
 
     for (auto* strip : auxStrips)
         strip->setBounds (bounds.removeFromTop (AuxStrip::preferredHeight));

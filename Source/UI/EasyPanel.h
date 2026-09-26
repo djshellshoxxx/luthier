@@ -24,6 +24,7 @@
 #include "CircuitPanel.h"
 #include "AmpFacePanel.h"
 #include "PanelHelpButton.h"
+#include "NormalizationBadge.h"   // output-normalization.md 5.1
 #include "StageTouches.h"
 #include "PianoRollStrip.h"
 #include "JamWidgets.h"   // FEAT-JAM
@@ -166,6 +167,13 @@ public:
     juce::Rectangle<int> getAmpCardArea() const noexcept { return ampCardArea; }
 private:
     juce::Label chordLabel;
+
+public:
+    /** output-normalization.md 5.1: the badge under the level meter. */
+    NormalizationBadge& getNormalizationBadge() noexcept { return normalizationBadge; }
+
+private:
+    NormalizationBadge normalizationBadge { processor };
 
     // ---- rhythm strip (3.5) ------------------------------------------------------------
     juce::Label rhythmLabel { {}, "Rhythm" };

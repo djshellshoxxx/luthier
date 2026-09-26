@@ -538,7 +538,33 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "message.exportFailed",     "Could not export: {reason}" },
         { "message.snapshotRecalled", "Recalled snapshot {number}" },
         { "message.tempoDetected",    "Detected {bpm} bpm" },
-        { "message.nullResult",       "Null test: {db} dB" }
+        { "message.nullResult",       "Null test: {db} dB" },
+
+        // ---- output normalization (output-normalization.md 5) ----------------------
+        { "options.audio.normalization.heading",   "OUTPUT NORMALIZATION" },
+        { "options.audio.normalization.switch",    "Normalize output loudness" },
+        { "options.audio.normalization.target",    "Target loudness" },
+        { "options.audio.normalization.targetOff", "Turn normalization on to choose a target." },
+        { "options.audio.normalization.caption",   "Evens out the natural level differences between guitars and settings, so relative levels are no longer realistic: a nylon-string or a clean single-coil will sound louder than it really is next to a high-gain humbucker." },
+        { "options.audio.normalization.note",      "Applies to the main output only. Per-string and aux outputs keep their natural level. The safety limiter stays on while normalization is on." },
+        { "options.audio.normalization.readout.off",          "Off. Each sound plays at its natural level." },
+        { "options.audio.normalization.readout.measuring",    "Measuring this sound..." },
+        { "options.audio.normalization.readout.applied",      "Normalization: {gain} dB (this sound measures {lufs} LUFS)" },
+        { "options.audio.normalization.readout.clampedQuiet", "Normalization: {gain} dB (at the limit; this sound is very quiet)" },
+        { "options.audio.normalization.readout.clampedLoud",  "Normalization: {gain} dB (at the limit; this sound is very loud)" },
+        { "options.audio.normalization.readout.estimate",     "Normalization: about {gain} dB (estimated; measuring failed)" },
+        { "options.audio.normalization.readout.unmeasurable", "This sound is silent on the test phrase; level unchanged." },
+        { "options.audio.normalization.readout.morphing",     "Normalization: {gain} dB (between the two morph presets)" },
+        { "options.audio.normalization.announce",  "Normalization {sign} {value} decibels" },
+        { "banner.normalization.on",       "Output normalization is on. Every sound is brought to the same loudness, so the natural level differences between guitars and settings are gone. Turn it off for realistic relative levels." },
+        { "banner.normalization.options",  "Options" },
+        { "banner.normalization.dontShow", "Don't show again" },
+        { "banner.normalization.failed",   "Normalization could not measure this sound." },
+        { "badge.normalization.tooltip",   "Output normalization {gain} dB, target {target} LUFS. Click for options." },
+        { "badge.normalization.name",      "Output normalization, {sign} {value} decibels" },
+        { "routing.normalization.caption", "Output normalization applies to the main output only." },
+        { "workshop.normalization.note",   "Normalization is on: level differences between parts are evened out. Shadow audition (Alt-hover) still plays at the real level." },
+        { "accessibility.shortcut.toggleNormalization", "Toggle output normalization" },
     };
 
     return catalog;

@@ -1164,6 +1164,9 @@ WorkshopPanel::WorkshopPanel (LuthierAudioProcessor& p)
     categoryBox.onChange = [this] { showCategory (categoryBox.getText()); };
 
     addAndMakeVisible (illustration);
+
+    addChildComponent (normalizationNote);   // output-normalization.md 5.4
+    normalizationNote.setVisible (processor.getOutputNormalization().isEnabled());
     illustration.onSelectionChanged = [this]
     {
         // Selecting a part shows its category in the drawer (section 5's Swap, done for you).
@@ -1908,6 +1911,10 @@ void WorkshopPanel::resized()
     }
 
     area.removeFromTop (Metrics::gridHalf);
+
+    // output-normalization.md 5.4: under the bench header, while normalization is on.
+    if (normalizationNote.isVisible())
+        normalizationNote.setBounds (area.removeFromTop (16));
 
     // onboarding.md 9: the hint sits under the bench header while it shows.
     if (firstHint.isVisible())

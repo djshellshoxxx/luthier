@@ -7,6 +7,7 @@
 #include "UI/JamWidgets.h"   // FEAT-JAM
 #include "Accessibility/Accessibility.h"
 #include "UI/Guitar/StringAnimator.h"   // animated-strings.md 8
+#include "UI/NormalizationOptions.h"   // output-normalization.md 5
 
 namespace luthier
 {
@@ -129,6 +130,15 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
         bench->onSaveAsGuitar = [this] { showSaveGuitarDialog(); };
     header.onOpenOptions = [this] { showOverlay (&optionsPanel); };
 
+    // output-normalization.md 5.1 and 5.3: the badges and the "turned on" banner.
+    header.getNormalizationBadge().onOpenOptions = [this] { openNormalizationOptions(); };
+    easyPanel.getNormalizationBadge().onOpenOptions = [this] { openNormalizationOptions(); };
+    processor.getOutputNormalization().onEnabledByUser = [safeThis = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)]
+    {
+        if (auto* editor = safeThis.getComponent())
+            NormalizationUi::postEnabledBanner (editor->notifications, [safeThis] { if (auto* e = safeThis.getComponent()) e->openNormalizationOptions(); });
+    };
+
     // gui-integration 16 item 13: a control's "Show in Options -> Shortcuts".
     showShortcutInOptions = [safe = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)] (const juce::String& action)
     {
@@ -225,6 +235,7 @@ LuthierAudioProcessorEditor::~LuthierAudioProcessorEditor()
 {
     stopTimer();
     AccessibilitySettings::get().removeChangeListener (this);
+    processor.getOutputNormalization().onEnabledByUser = nullptr;   // output-normalization.md 5.3
 
     processor.getUiState().editorWidth = getWidth();
     processor.getUiState().editorHeight = getHeight();
@@ -756,6 +767,12 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
+    if (is ("toggleNormalization"))   // output-normalization.md 9
+    {
+        NormalizationUi::toggleFromCommand (processor);
+        return true;
+    }
+
     // gui-integration 17: W toggles the Workshop - the WORKSHOP tab in
     // Advanced, the bench overlay in Easy (VISUAL-WORKSHOP-QA).
     if (is ("toggleWorkshop"))
@@ -937,6 +954,12 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
 
 //==============================================================================
+void LuthierAudioProcessorEditor::openNormalizationOptions()
+{
+    if (showOptionsPage ("AUDIO"))
+        NormalizationUi::focusSwitchIn (optionsPanel);
+}
+
 bool LuthierAudioProcessorEditor::showOptionsPage (const juce::String& tabName)
 {
     if (! optionsPanel.showPageNamed (tabName))
@@ -1089,6 +1112,11 @@ void LuthierAudioProcessorEditor::postStartupNotifications()
 */
 void LuthierAudioProcessorEditor::pollForNotifications()
 {
+    // output-normalization.md 12: one warning per session when measuring failed.
+    if (const auto s = processor.getNormalizationStatus();
+        s.enabled && (s.flags & (LoudnessNormalizer::flagFailed | LoudnessNormalizer::flagEstimate)) != 0)
+        NormalizationUi::postFailureBanner (notifications);
+
     /*  ---- the host moved the sample rate --------------------------------------
 
         Claimed rather than compared, because the claim is what clears it: this is

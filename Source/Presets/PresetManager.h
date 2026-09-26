@@ -90,6 +90,9 @@ public:
         (ParameterBridge::adoptPedalTypesFromParameters). */
     std::function<void()> onPedalTypesLoaded;
 
+    /** output-normalization.md 4.4: after a preset file loaded (message thread). */
+    std::function<void()> onPresetLoaded;
+
     /** Called around a whole load (fromVar), so the processor can fade its output
         out before the first parameter moves and back in after the last. Without
         it a ringing note was cut, or jumped to the new preset's level, mid-cycle

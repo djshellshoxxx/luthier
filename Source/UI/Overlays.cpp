@@ -1,3 +1,4 @@
+#include "NormalizationOptions.h"   // output-normalization.md 5.4
 #include "Overlays.h"
 #include "OptionsPages.h"
 #include "../PluginProcessor.h"
@@ -323,7 +324,13 @@ void DebugPanel::refreshState()
          << "  Freeze             " << (engine.getFreezeOverlay().isHolding() ? "holding"
                                           : engine.getFreezeOverlay().isEnabled() ? "capturing"
                                                                                   : "off") << "\n"
-         << "\nSTRINGS\n";
+         << "\nNORMALIZATION\n";
+
+    // output-normalization.md 5.4: normalization gain and true-peak GR.
+    for (const auto& line : NormalizationUi::diagnosticsLines (processor))
+        text << "  " << line << "\n";
+
+    text << "\nSTRINGS\n";
 
     for (int s = 0; s < engine.getNumStrings(); ++s)
     {
