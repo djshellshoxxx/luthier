@@ -653,6 +653,7 @@ bool NormalizationCalibrator::lookupCached (const juce::String& hash, Measuremen
         {
             c.lru.splice (c.lru.begin(), c.lru, it->second);
             out = it->second->second;
+            out.unmeasurable = out.measuredLufs <= Bs1770Meter::kAbsoluteGateLufs;
             out.source = Source::memory;
             return true;
         }
