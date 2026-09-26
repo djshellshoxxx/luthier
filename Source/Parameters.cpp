@@ -1,5 +1,6 @@
 #include "Parameters.h"
 #include "PhysicalRange.h"
+#include "DSP/Amp/MicPlacement.h"   // FEAT-MIC
 #include "Rhythm/StrumGesture.h"
 #include "Presets/RealismStyles.h"   // REALISM-C
 #include "Jam/JamStyle.h"
@@ -982,6 +983,36 @@ APVTS::ParameterLayout Parameters::createLayout()
                                                         juce::AudioParameterIntAttributes().withAutomatable (pro)));
     }
     // ==== END FEAT-ASSIST params ====
+    // ==== BEGIN FEAT-MIC params ====
+    // mic-placement.md 7, in the table's order. Distances and angles are
+    // PhysicalRanges in the `mic` family (PhysicalRange.cpp); these are the
+    // stock declarations.
+    add (floatParam  (ParamIDs::micX,          "Mic 1 X",           -1.4f, 1.4f, 0.35f, 1.0f, "u"));
+    add (floatParam  (ParamIDs::micY,          "Mic 1 Y",           -1.4f, 1.4f, 0.0f,  1.0f, "u"));
+    add (floatParam  (ParamIDs::micDist,       "Mic 1 Distance",     0.0f, 100.0f, 2.5f, 0.4f, "cm"));
+    add (floatParam  (ParamIDs::micAngle,      "Mic 1 Angle",        0.0f, 90.0f, 0.0f,  1.0f, "deg"));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::micSpeaker), "Mic 1 Speaker", 1, 8, 1));
+    add (boolParam   (ParamIDs::micRear,       "Mic 1 Rear",         false));
+    add (floatParam  (ParamIDs::micX2,         "Mic 2 X",           -1.4f, 1.4f, 0.35f, 1.0f, "u"));
+    add (floatParam  (ParamIDs::micY2,         "Mic 2 Y",           -1.4f, 1.4f, 0.0f,  1.0f, "u"));
+    add (floatParam  (ParamIDs::micDist2,      "Mic 2 Distance",     0.0f, 100.0f, 15.0f, 0.4f, "cm"));
+    add (floatParam  (ParamIDs::micAngle2,     "Mic 2 Angle",        0.0f, 90.0f, 45.0f, 1.0f, "deg"));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::micSpeaker2), "Mic 2 Speaker", 1, 8, 1));
+    add (boolParam   (ParamIDs::micRear2,      "Mic 2 Rear",         false));
+    add (choiceParam (ParamIDs::micTofMode,    "Mic Time of Flight", { "Aligned", "Physical" }, 0));
+    add (boolParam   (ParamIDs::micLevelMatch, "Mic Level Match",    true));
+    add (floatParam  (ParamIDs::acMicMix,      "Pickup / Mic Mix",   0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::acMicAlong,    "Ac Mic 1 Along",     0.0f, 4.0f, 3.6f));
+    add (floatParam  (ParamIDs::acMicAcross,   "Ac Mic 1 Across",   -1.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::acMicDist,     "Ac Mic 1 Distance",  0.0f, 100.0f, 20.0f, 0.4f, "cm"));
+    add (floatParam  (ParamIDs::acMicAngle,    "Ac Mic 1 Angle",     0.0f, 90.0f, 15.0f, 1.0f, "deg"));
+    add (boolParam   (ParamIDs::acMic2On,      "Ac Mic 2",           false));
+    add (floatParam  (ParamIDs::acMicAlong2,   "Ac Mic 2 Along",     0.0f, 4.0f, 1.2f));
+    add (floatParam  (ParamIDs::acMicAcross2,  "Ac Mic 2 Across",   -1.0f, 1.0f, -0.4f));
+    add (floatParam  (ParamIDs::acMicDist2,    "Ac Mic 2 Distance",  0.0f, 100.0f, 30.0f, 0.4f, "cm"));
+    add (floatParam  (ParamIDs::acMicAngle2,   "Ac Mic 2 Angle",     0.0f, 90.0f, 0.0f,  1.0f, "deg"));
+    add (floatParam  (ParamIDs::acMicBlend,    "Ac Mic Blend",       0.0f, 1.0f, 0.5f));
+    // ==== END FEAT-MIC params ====
 
     return layout;
 }
@@ -1809,6 +1840,77 @@ void ParameterBridge::applyToEngine() noexcept
         value (ParamIDs::aaEnabled) > 0.5f, (int) value (ParamIDs::aaStyle),
         value (ParamIDs::aaAmount), (int) value (ParamIDs::aaRules), Editions::current()));
     // ==== END FEAT-ASSIST params ====
+    // ==== BEGIN FEAT-MIC params ====
+    // mic-placement.md 5: placement is continuous and block-rate, through
+    // value() so the mod matrix applies. It never reloads an IR.
+    {
+        const auto placement = [this] (const char* x, const char* y, const char* d, const char* a,
+                                       const char* speaker, const char* rear) noexcept
+        {
+            // A float parameter holds 0.35 as 0.34999999: quantised far below
+            // anything audible, the anchor lands exactly on the anchor, and the
+            // stage is bit-transparent there (mic-placement.md 0.2).
+            const auto q = [] (double v, double step) noexcept { return std::round (v / step) * step; };
+
+            MicPlacement p;
+            p.x = q (value (x), 1.0e-5);
+            p.y = q (value (y), 1.0e-5);
+            p.distCm = q (value (d), 1.0e-4);
+            p.angleDeg = q (value (a), 1.0e-4);
+            p.speaker = juce::jlimit (1, 8, (int) std::lround (value (speaker)));
+            p.rear = value (rear) > 0.5f;
+            return p;
+        };
+
+        const auto p1 = placement (ParamIDs::micX, ParamIDs::micY, ParamIDs::micDist, ParamIDs::micAngle,
+                                   ParamIDs::micSpeaker, ParamIDs::micRear);
+        const auto p2 = placement (ParamIDs::micX2, ParamIDs::micY2, ParamIDs::micDist2, ParamIDs::micAngle2,
+                                   ParamIDs::micSpeaker2, ParamIDs::micRear2);
+
+        const auto tof = value (ParamIDs::micTofMode) > 0.5f ? TofMode::Physical : TofMode::Aligned;
+        const bool levelMatch = value (ParamIDs::micLevelMatch) > 0.5f;
+        const bool roomOn = value (ParamIDs::roomOn) > 0.5f;
+        const auto material = (RoomMaterial) juce::jlimit (0, (int) RoomMaterial::NumMaterials - 1,
+                                                           (int) value (ParamIDs::roomMaterial));
+
+        cab.setMicPlacement (0, p1);
+        cab.setMicPlacement (1, p2);
+        cab.setTimeOfFlightMode (tof);
+        cab.setLevelMatch (levelMatch);
+        cab.setRoomMaterialForFloor (material, roomOn);
+
+        auto& ac = engine.getAcousticMicModel();
+        ac.setPlacement (0, { value (ParamIDs::acMicAlong), value (ParamIDs::acMicAcross),
+                              value (ParamIDs::acMicDist), value (ParamIDs::acMicAngle) });
+        ac.setPlacement (1, { value (ParamIDs::acMicAlong2), value (ParamIDs::acMicAcross2),
+                              value (ParamIDs::acMicDist2), value (ParamIDs::acMicAngle2) });
+        ac.setMicType (0, (MicType) juce::jlimit (0, (int) MicType::NumMics - 1, (int) value (ParamIDs::micType)));
+        ac.setMicType (1, (MicType) juce::jlimit (0, (int) MicType::NumMics - 1, (int) value (ParamIDs::micType2)));
+        ac.setSecondMicOn (value (ParamIDs::acMic2On) > 0.5f);
+        ac.setBlend (value (ParamIDs::acMicBlend));
+        ac.setTimeOfFlightMode (tof);
+        ac.setLevelMatch (levelMatch);
+        ac.setFloorReflectivity (MicPlacementModel::floorRhoFor ((int) material, roomOn));
+
+        const double mix = juce::jlimit (0.0, 1.0, (double) value (ParamIDs::acMicMix));
+        engine.setAcousticMicMix (mix);
+
+        // The room hears what the close mics hear: their blend-weighted distance.
+        double closeM = MicPlacementModel::kAnchorDistCm * 0.01;
+
+        if (engine.getGuitarSpec().category == GuitarCategory::Acoustic)
+        {
+            closeM += mix * (ac.getWeightedDistanceM() - closeM);
+        }
+        else if (value (ParamIDs::cabOn) > 0.5f)
+        {
+            const double blend = value (ParamIDs::dualMic) > 0.5f ? (double) value (ParamIDs::micBlend) : 0.0;
+            closeM = 0.01 * ((1.0 - blend) * p1.distCm + blend * p2.distCm);
+        }
+
+        roomEngine.setCloseMicDistance (closeM);
+    }
+    // ==== END FEAT-MIC params ====
 
     // ---- structural change detection ---------------------------------------------
     const bool structural = readStructuralValues() || ! structuralInitialised;
@@ -1910,11 +2012,15 @@ bool ParameterBridge::readStructuralValues() noexcept
     structural |= changed (lastCabType,        (int) value (ParamIDs::cabType));
     structural |= changed (lastSpeaker,        (int) value (ParamIDs::cabSpeaker));
     structural |= changed (lastMicType,        (int) value (ParamIDs::micType));
-    structural |= changed (lastMicPos,         (int) value (ParamIDs::micPosition));
-    structural |= changed (lastMicDist,        (int) value (ParamIDs::micDistance));
+    // mic-placement.md 4: the legacy position and distance are no longer
+    // structural. Only the Acoustic DI, which has no speaker to place a mic
+    // on, still voices itself from them (FEAT-MIC decision).
+    const bool legacyMicStructural = (lastCabType == (int) CabinetType::AcousticDI);
+    structural |= changed (lastMicPos,         (int) value (ParamIDs::micPosition)) && legacyMicStructural;
+    structural |= changed (lastMicDist,        (int) value (ParamIDs::micDistance)) && legacyMicStructural;
     structural |= changed (lastMicType2,       (int) value (ParamIDs::micType2));
-    structural |= changed (lastMicPos2,        (int) value (ParamIDs::micPosition2));
-    structural |= changed (lastMicDist2,       (int) value (ParamIDs::micDistance2));
+    structural |= changed (lastMicPos2,        (int) value (ParamIDs::micPosition2)) && legacyMicStructural;
+    structural |= changed (lastMicDist2,       (int) value (ParamIDs::micDistance2)) && legacyMicStructural;
     structural |= changed (lastRoomSize,       (int) value (ParamIDs::roomSize));
     structural |= changed (lastRoomMaterial,   (int) value (ParamIDs::roomMaterial));
     structural |= changed (lastBridgeType,     (int) value (ParamIDs::bridgeType));

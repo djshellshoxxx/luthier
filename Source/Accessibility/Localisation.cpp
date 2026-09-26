@@ -570,6 +570,37 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "routing.normalization.caption", "Output normalization applies to the main output only." },
         { "workshop.normalization.note",   "Normalization is on: level differences between parts are evened out. Shadow audition (Alt-hover) still plays at the real level." },
         { "accessibility.shortcut.toggleNormalization", "Toggle output normalization" },
+
+        // ---- mic placement (mic-placement.md 6, FEAT-MIC) -------------------------------------
+        { "mic.section.cabinet",      "Cabinet and Mic" },
+        { "mic.section.acoustic",     "Microphones" },
+        { "mic.ring.cap",             "Cap" },
+        { "mic.ring.capEdge",         "Cap Edge" },
+        { "mic.ring.cone",            "Cone" },
+        { "mic.ring.edge",            "Edge" },
+        { "mic.a11y.group",           "Mic {n} placement" },
+        { "mic.a11y.value",           "Mic {n}, {mic}, {where}, {cm} centimetres, {deg} degrees, speaker {speaker} of {of}" },
+        { "mic.a11y.acoustic",        "Mic {n}, {mic}, {where}, {cm} centimetres, {deg} degrees" },
+        { "mic.undo.move",            "Move Mic {n} from {from}, {cm} cm" },
+        { "mic.status.cabinetOff",    "Cabinet is off. Turn it on to place mics." },
+        { "mic.status.acousticDi",    "Acoustic DI has no speaker to mic. Pick a cabinet." },
+        { "mic.status.acousticSilent","External mics are silent. Raise Pickup <-> Mic to hear them." },
+        { "mic.status.bakedIr",       "Placement is baked into your IR." },
+        { "mic.chip.null",            "Mic in its null" },
+        { "mic.chip.automation",      "Driven by automation" },
+        { "mic.plot.title",           "Change from Cap Edge, 2.5 cm" },
+        { "mic.plot.acoustic",        "External mics as heard" },
+        { "mic.plot.notch",           "first notch {hz}" },
+        { "mic.thumb.tooltip",        "Click a speaker to move the focused mic onto it" },
+        { "mic.expand.tooltip",       "Open the mic placement editor" },
+        { "mic.editor.title",         "Mic Placement" },
+        { "mic.editor.grille",        "Grille" },
+        { "mic.editor.reset",         "Reset" },
+        { "mic.editor.side",          "Side View" },
+        { "mic.pad.label",            "Mic: bright <-> warm" },
+        { "mic.pad.close",            "Close" },
+        { "mic.options.snap",         "Snap mics to landmarks" },
+        { "mic.options.plot",         "Show mic response plot" }
     });
 
     return catalog;

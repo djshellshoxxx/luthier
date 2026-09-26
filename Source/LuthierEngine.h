@@ -35,6 +35,7 @@
 #include "DSP/Amp/AmpEngine.h"
 #include "DSP/Amp/CabinetEngine.h"
 #include "DSP/Amp/RoomEngine.h"
+#include "DSP/Body/AcousticMicModel.h"   // mic-placement.md 3
 #include "DSP/Master/MasterBus.h"
 #include "DSP/Master/FreezeOverlay.h"
 #include "Model/Guitar/GuitarLibrary.h"
@@ -305,6 +306,13 @@ public:
     EffectsChain&    getPostEffects() noexcept     { return postEffects; }
     CabinetEngine&   getCabinetEngine() noexcept   { return cabinet; }
     RoomEngine&      getRoomEngine() noexcept      { return room; }
+
+    /** mic-placement.md 3: external mics around an acoustic guitar, mixed
+        against the pickup by ac_mic_mix (0 = today's pickup path alone). */
+    AcousticMicModel& getAcousticMicModel() noexcept { return acMic; }
+    void setAcousticMicMix (double mix) noexcept { acMicMixTarget = juce::jlimit (0.0, 1.0, mix); }
+    double getAcousticMicMix() const noexcept    { return acMicMixTarget; }
+    bool isAcousticMicActive() const noexcept    { return acMicActive; }
     MasterBus&       getMasterBus() noexcept       { return master; }
     FreezeOverlay&   getFreezeOverlay() noexcept   { return freezeOverlay; }
     Validator&       getValidator() noexcept       { return validator; }
@@ -761,6 +769,13 @@ private:
     EffectsChain postEffects;
     CabinetEngine cabinet;
     RoomEngine room;
+
+    // mic-placement.md 3: the acoustic external mics.
+    AcousticMicModel acMic;
+    ExpSmoother acMicMixSmooth;
+    double acMicMixTarget = 0.0;
+    bool acMicActive = false;
+    std::vector<double> acMicBuffer;
     SecretEffect secret;
     MasterBus master;
     FreezeOverlay freezeOverlay;

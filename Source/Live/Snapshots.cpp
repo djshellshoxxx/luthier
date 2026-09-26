@@ -1,6 +1,7 @@
 #include "Snapshots.h"
 #include "../Parameters.h"   // FEAT-JAM: ParamIDs::isJamTransient
 #include "../Support/ConfigChangeTracker.h"   // output-normalization.md 3.2
+#include "../Presets/MicPlacementMigration.h"   // mic-placement.md 4
 
 namespace luthier
 {
@@ -492,7 +493,12 @@ void SnapshotBank::fromVar (const juce::var& state)
     if (const auto* array = root->getProperty ("snapshots").getArray())
         for (const auto& item : *array)
             if ((int) snapshots.size() < kMaxSnapshots)
+            {
                 snapshots.push_back (Snapshot::fromVar (item));
+
+                // mic-placement.md 4: a snapshot from before continuous placement.
+                MicPlacementMigration::apply (snapshots.back().parameters, processor);
+            }
 
     if (root->hasProperty ("crossfadeMs"))
         setCrossfadeMs ((double) root->getProperty ("crossfadeMs"));

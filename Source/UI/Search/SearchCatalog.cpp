@@ -83,6 +83,7 @@ const std::map<juce::String, juce::String>& builtInEnglish()
         { "search.cmd.exportAudio",     "Export audio" },
         { "search.cmd.importMidi",      "Import MIDI" },
         { "search.cmd.retuneAll",       "Retune all" },
+        { "search.cmd.resetMicPlacement", "Reset mic placement" },   // FEAT-MIC (INTEGRATE-2)
         { "search.cmd.newTune",         "New tune" },
         { "search.cmd.recallSnapshot",  "Recall snapshot {n}" },
         { "search.cmd.saveSnapshot",    "Save snapshot to slot {n}" },
@@ -260,6 +261,7 @@ const std::map<juce::String, juce::String>& builtInEnglish()
 
         // ---- synonyms: commands --------------------------------------------------------
         { "search.syn.cmd:panic",             "all notes off|silence|stop|kill" },
+        { "search.syn.cmd:resetMicPlacement", "mic|microphone|mic position|cabinet mic|placement" },   // FEAT-MIC (INTEGRATE-2)
         { "search.syn.cmd:toggleSlideMode",   "slide|bottleneck" },
         { "search.syn.cmd:toggleAdvanced",    "easy|advanced|mode" },
         { "search.syn.cmd:newPreset",         "init|blank|start over" },

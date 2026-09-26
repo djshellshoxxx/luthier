@@ -26,6 +26,7 @@
 #include "RiffBrowser.h"   // riff-library 7.3
 #include "PanelHelpButton.h"
 #include "NormalizationBadge.h"   // output-normalization.md 5.1
+#include "MicPlacementEditor.h"   // mic-placement.md 6.3 (FEAT-MIC)
 #include "StageTouches.h"
 #include "PianoRollStrip.h"
 #include "JamWidgets.h"   // FEAT-JAM
@@ -79,6 +80,12 @@ public:
     ~EasyPanel() override;
 
     std::function<void()> onOpenExport;
+
+    /** mic-placement.md 6.3 (FEAT-MIC): the Cabinet card's pad, and what a
+        double-click on it opens (the expanded editor, as an overlay). */
+    MicPad& getMicPad() noexcept { return micPad; }
+    LuthierKnob& getAcousticMicMixKnob() noexcept { return acMicMix; }
+    std::function<void()> onOpenMicEditor;
 
     /** gui-integration 20 (TUNE-HELP-ONBOARDING): a strip's ? asks the editor
         for Help pinned to it. */
@@ -224,7 +231,10 @@ private:
     AmpFacePanel ampFace { processor, AmpFacePanel::Style::card };
 
     LuthierChoice cabModel { "Cab" }, mic1 { "Mic 1" }, mic2 { "Mic 2" };
-    LuthierKnob micBlend { "Blend", LuthierKnob::Size::Normal };
+    LuthierKnob micBlend { "Blend", LuthierKnob::Size::Small };
+    MicPad micPad { processor };                                         // FEAT-MIC
+    LuthierKnob acMicMix { "Pickup / Mic", LuthierKnob::Size::Small };  // FEAT-MIC
+    bool micPadAcoustic = false;                                         // FEAT-MIC
 
     LuthierChoice roomSize { "Room" };
     LuthierKnob roomMix { "Wet/Dry", LuthierKnob::Size::Normal };

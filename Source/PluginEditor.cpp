@@ -30,6 +30,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
       saveAsPanel (p),
       chordPanel (p),
       workshopOverlay (p),
+      micPlacementOverlay (p),
       secretPanel (p)
 {
     setLookAndFeel (&lookAndFeel);
@@ -196,6 +197,10 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 
     easyPanel.onOpenExport = [this] { showOverlay (&exportPanel); };
     easyPanel.onOpenAssistRhythmTab = [this] { openAssistInRhythmTab(); };   // FEAT-ASSIST
+
+    // mic-placement.md 6.3 (FEAT-MIC): Easy's pad opens the editor as an overlay.
+    easyPanel.onOpenMicEditor = [this] { showOverlay (&micPlacementOverlay); };
+    micPlacementOverlay.getEditor().onClose = [this] { overlayHost.dismiss(); };
 
     // ---- window --------------------------------------------------------------------
     auto& ui = processor.getUiState();

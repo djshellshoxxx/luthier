@@ -55,6 +55,7 @@ void LuthierEngine::applyQuality (const QualityProfile& profile, bool hardSwitch
 
     body.setQualityLevel (profile, hardSwitch);
     cabinet.setQualityLevel (profile, hardSwitch);
+    acMic.setEvaluateEvery (profile.micEvaluateEvery);   // mic-placement.md 3 (INTEGRATE-2)
     room.setTapCount (profile.roomTaps, hardSwitch);
 
     // Events already running finish; only new ones see the smaller pools.

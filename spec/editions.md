@@ -136,7 +136,8 @@ Legend:
 | Pre / post effects racks | `gui-integration.md` 3.2 | Free-limited | 4 + 4 slots (Pro 8 + 8) |
 | Pedals | `Pedal.h` | Free-limited | 15 of 22: Compressor, Noise Gate, Wah, Overdrive, Distortion, Fuzz, Boost, Volume, Chorus, Phaser, Tremolo, Delay, Reverb, Spring Reverb, Graphic EQ. Pro adds Envelope Filter, Octaver, Pitch Shifter, Flanger, Rotary, Parametric EQ, Doubler |
 | Cabinet: model, 2 mics, blend, phase, delay | `gui-integration.md` 4.3 | Both | |
-| Factory IRs | `factory-content.md` 10 | Free-limited | 1 body IR per free guitar family, and per cabinet the on-axis and off-axis positions of the two most used mics (~130 IRs of 720); Pro ships all 720 |
+| Mic placement, acoustic external mics (mic-placement.md, FEAT-MIC) | `mic-placement.md` | Both | Continuous placement is a DSP stage on the anchor IR, so it needs no extra IRs |
+| Factory IRs | `factory-content.md` 10 | Free-limited | 1 body IR per free guitar family, and per cabinet the on-axis and off-axis positions of the two most used mics (~130 IRs of 720); Pro ships all 720. (mic-placement.md, FEAT-MIC): placement needs only each cabinet/speaker's Cap Edge 2.5 cm anchor IR; the other positions are browsable user-IR content |
 | Room | `gui-integration.md` 4.3 | Both | |
 | Tone strip: input, output, wet / dry, width | `gui-integration.md` 3.4 | Both | |
 | User IR loader | `tone-match.md` 1 | Free-limited | One user IR in cab slot 1 (WAV, up to 1 s); body IR and cab 2 user slots Pro |

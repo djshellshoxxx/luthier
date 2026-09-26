@@ -875,6 +875,13 @@ AppearancePage::AppearancePage (LuthierAudioProcessor& p)
 
     addAndMakeVisible (tooltipsToggle);
 
+    // mic-placement.md 6.5 (FEAT-MIC).
+    micSnapToggle.setButtonText (tr ("mic.options.snap"));
+    micPlotToggle.setButtonText (tr ("mic.options.plot"));
+    micSnapToggle.onClick = [this] { UiPreferences::get().setBool ("mic.snapToLandmarks", micSnapToggle.getToggleState()); };
+    micPlotToggle.onClick = [this] { UiPreferences::get().setBool ("mic.showResponsePlot", micPlotToggle.getToggleState()); };
+    addAndMakeVisible (micSnapToggle);
+    addAndMakeVisible (micPlotToggle);
     // piano-roll-chord-display.md 5: user preferences, saved at once, not preset data.
     chordNamesToggle.setTooltip ("The chord or note sounding, written faintly on the guitar's body, then fading");
     chordNamesToggle.onClick = [this]
@@ -967,6 +974,8 @@ void AppearancePage::refresh()
     lowMotionNote.setVisible (processor.getQualityController().getLiveLevel() == QualityLevel::Low);
     tooltipsToggle.setToggleState (processor.getUiState().tooltipsEnabled,
                                    juce::dontSendNotification);
+    micSnapToggle.setToggleState (UiPreferences::get().getBool ("mic.snapToLandmarks", true), juce::dontSendNotification);
+    micPlotToggle.setToggleState (UiPreferences::get().getBool ("mic.showResponsePlot", true), juce::dontSendNotification);
 
     chordNamesToggle.setToggleState (VisualAids::showChordNames(), juce::dontSendNotification);
     announceChordsToggle.setToggleState (VisualAids::announceChordNamesSetting(), juce::dontSendNotification);
@@ -1055,6 +1064,13 @@ void AppearancePage::resized()
     // auto-articulation.md 7.4 (FEAT-ASSIST): Show Performance Assist labels, the
     // last row of VISUAL AIDS.
     assistLabelsToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
+    bounds.removeFromTop (4);
+    {
+        auto row = bounds.removeFromTop (22);   // mic-placement.md 6.5 (FEAT-MIC)
+        micSnapToggle.setBounds (row.removeFromLeft (260));
+        row.removeFromLeft (8);
+        micPlotToggle.setBounds (row.removeFromLeft (220));
+    }
 
     bounds.removeFromTop (4);
     contrastLabel.setBounds (bounds.removeFromTop (18));

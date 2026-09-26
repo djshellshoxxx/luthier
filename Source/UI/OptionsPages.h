@@ -136,6 +136,9 @@ private:
     juce::Label lowMotionNote;   // cpu-quality-modes 5
     juce::ToggleButton tooltipsToggle { "Show tooltips on hover" };
 
+    // mic-placement.md 6.5 (FEAT-MIC): UiPreferences, not preset data.
+    juce::ToggleButton micSnapToggle { "Snap mics to landmarks" };
+    juce::ToggleButton micPlotToggle { "Show mic response plot" };
     // gui-integration 5 / visual-polish.md 5: the accent, the data stream, the noise strip.
     juce::ComboBox accentBox;
     juce::ToggleButton dataStreamToggle { "Scrolling data stream in the footer" };

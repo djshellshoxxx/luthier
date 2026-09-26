@@ -9,6 +9,7 @@
 #include "../../Support/ErrorLog.h"
 #include "../../Practice/PracticeRoutine.h"
 #include "../SetupGroup.h"
+#include "../MicPlacementView.h"   // mic-placement.md 8 (INTEGRATE-2)
 #include "../SlideGroup.h"
 #include "../SlapGroup.h"
 #include "../StrumGroup.h"
@@ -430,6 +431,7 @@ void SearchNavigator::registerActions()
     // "New tune" is a shortcut now (Ctrl+T, TUNE-HELP-ONBOARDING): registered above.
     add ("openChords", "search.cmd.openChords", UndoClass::none);
     add ("clearRecentSearches", "search.cmd.clearRecentSearches", UndoClass::none);
+    add ("resetMicPlacement", "search.cmd.resetMicPlacement", UndoClass::parameter);   // global-search.md 8 (FEAT-MIC)
 
     for (int n = 1; n <= kSnapshotCommands; ++n)
     {
@@ -478,6 +480,26 @@ bool SearchNavigator::performExtendedAction (const juce::String& id)
             editor.advancedPanel.setWorkspaceTabNamed ("WORKSHOP");
         else
             editor.showOverlay (&editor.workshopOverlay);
+
+        return true;
+    }
+
+    if (id == "resetMicPlacement")
+    {
+        // mic-placement.md 7 and 8 (INTEGRATE-2): both mics, electric and
+        // acoustic, back to their default places - one undo entry, as the
+        // expanded editor's Reset does.
+        const juce::StringArray ids { ParamIDs::micX, ParamIDs::micY, ParamIDs::micDist, ParamIDs::micAngle,
+                                      ParamIDs::micSpeaker, ParamIDs::micRear,
+                                      ParamIDs::micX2, ParamIDs::micY2, ParamIDs::micDist2, ParamIDs::micAngle2,
+                                      ParamIDs::micSpeaker2, ParamIDs::micRear2,
+                                      ParamIDs::acMicAlong, ParamIDs::acMicAcross, ParamIDs::acMicDist, ParamIDs::acMicAngle,
+                                      ParamIDs::acMicAlong2, ParamIDs::acMicAcross2, ParamIDs::acMicDist2, ParamIDs::acMicAngle2 };
+        MicEdit edit (processor, SearchCatalog::text ("search.cmd.resetMicPlacement"), ids);
+
+        for (const auto& pid : ids)
+            if (auto* prm = processor.getState().getParameter (pid))
+                prm->setValueNotifyingHost (prm->getDefaultValue());
 
         return true;
     }

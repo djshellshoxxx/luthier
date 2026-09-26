@@ -1113,6 +1113,13 @@ LUTHIER_TEST (Combo, everyParameterSurvivesTheSessionStateRoundTrip)
         if (auto* legacy = source.param (ParamIDs::doublerOn))
             legacy->setValueNotifyingHost (0.0f);
 
+        // doubler_on is legacy: loading it on migrates to a Doubler pedal in an
+        // empty post slot, which rewrites that slot. Whether a round hits it
+        // depended on the seed's draw landing there (FEAT-MIC's appended
+        // parameters moved the draws), so it is held off here.
+        if (auto* legacyDoubler = source.param (ParamIDs::doublerOn))
+            legacyDoubler->setValueNotifyingHost (0.0f);
+
         source.apply();
 
         juce::MemoryBlock blob;

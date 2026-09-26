@@ -109,6 +109,7 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 
     bridge.cachePointers();
     bridge.setModMatrix (&modMatrix);
+    micLegacyAutomation = std::make_unique<MicLegacyAutomation> (apvts);   // mic-placement.md 4
 
     // practice-tools 12.1: the routine runner drives the processor's own tools,
     // the history is the saved one, and the saved defaults apply at start.
@@ -1654,6 +1655,11 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
     {
         auto mainOut = getBusBuffer (buffer, false, 0);
+
+        // mic-placement.md 9: a user IR in a cab slot has its placement baked
+        // in, so that mic's placement stage stands aside.
+        for (int slot = 0; slot < 2; ++slot)
+            engine.getCabinetEngine().setPlacementBypassed (slot, cabIr[(size_t) slot].isEngaged());
 
         if (engineLock.isLocked())
             engine.processBlock (mainOut, midiMessages);

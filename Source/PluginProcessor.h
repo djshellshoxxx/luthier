@@ -11,6 +11,7 @@
 #include "Support/MidiCapture.h"
 #include "Capture/PerformanceCapture.h"
 #include "Presets/PresetMorph.h"
+#include "Presets/MicPlacementMigration.h"   // mic-placement.md 4
 #include "Tune/TuneSession.h"
 #include "Tune/TuneHumCapture.h"
 #include "Support/AudioExporter.h"
@@ -103,6 +104,10 @@ public:
     //==========================================================================
     LuthierEngine&      getEngine() noexcept        { return engine; }
     juce::AudioProcessorValueTreeState& getState() noexcept { return apvts; }
+
+    /** mic-placement.md 4: follows a session still automating the legacy mic
+        Position / Distance. */
+    MicLegacyAutomation& getMicLegacyAutomation() noexcept { return *micLegacyAutomation; }
     PresetManager&      getPresetManager() noexcept { return presets; }
     MidiLearnManager&   getMidiLearn() noexcept     { return midiLearn; }
     MidiCapture&        getMidiCapture() noexcept   { return midiCapture; }
@@ -576,6 +581,8 @@ public:
     struct UiState
     {
         bool advancedMode = false;
+        bool micGrilleVisible = true;   // mic-placement.md 6.5 (per window, not preset data)
+        int  micFocusedHandle = 0;      // mic-placement.md 6.5
         bool liveMode = false;
         bool tooltipsEnabled = true;
         int  selectedString = 0;
@@ -674,6 +681,7 @@ private:
     ParameterBridge bridge;
     PresetManager presets;
     MidiLearnManager midiLearn;
+    std::unique_ptr<MicLegacyAutomation> micLegacyAutomation;   // mic-placement.md 4
     MidiCapture midiCapture;
     PerformanceCapture performanceCapture;
     bool tabDotsOnFretboard = false;   // MODEL-GAPS

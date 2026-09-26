@@ -56,7 +56,8 @@ const std::vector<std::pair<const char*, const char*>>& AnimationPolicy::getPoll
         { "SustainShapeGroup",     "4 Hz: sustain-style combo text" },
         { "TuningStabilityGroup",  "2 Hz: capo-bias text and string count" },
         { "SearchHighlighter",     "the 900 ms pulse runs only when mayAnimate (Transition); otherwise one tick ends the static ring" },   // FEAT-SEARCH (INTEGRATE-2)
-        { "SearchNavigator",       "40 ms one-shot: waits for the SLIDE group to appear after Slide Mode is switched on" }   // FEAT-SEARCH (INTEGRATE-2)
+        { "SearchNavigator",       "40 ms one-shot: waits for the SLIDE group to appear after Slide Mode is switched on" },               // FEAT-SEARCH (INTEGRATE-2)
+        { "MicHandle",             "closes a 200 ms nudge undo group; its 60 ms snap ease runs only when mayAnimate (Transition)" }        // FEAT-MIC (INTEGRATE-2)
     };
 
     return list;

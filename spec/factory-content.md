@@ -279,6 +279,13 @@ to 32-bar riff or progression suitable for the kit.
 - 504 cabinet IRs: 10 cabinets * 8 speakers * multiple mic
   positions and axes. All generated deterministically by
   `scripts/make_irs.py`.
+- (mic-placement.md, FEAT-MIC): the engine loads only each cabinet /
+  speaker's anchor IR (Cap Edge, 2.5 cm) and places the mic with a DSP
+  stage; the other positions are browsable user-IR content. Factory
+  presets keep their legacy mic keys, which migrate on load. Acoustic
+  presets could set `ac_mic_mix` ~0.5 to show the external mics; that is
+  left to this spec's next content pass, since the shipped presets must
+  sound as before (mic-placement.md MP-20).
 
 ## 11. Content update packs (post-release)
 

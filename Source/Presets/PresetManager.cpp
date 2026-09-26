@@ -1,5 +1,6 @@
 #include "PresetManager.h"
 #include "FactoryPresets.h"
+#include "MicPlacementMigration.h"   // mic-placement.md 4
 #include "../Support/IrLibrary.h"
 #include "../Support/ErrorLog.h"
 #include "../UI/UiPreferences.h"   // REALISM-C
@@ -401,7 +402,13 @@ juce::var PresetManager::toVar (const juce::String& name,
                 params->setProperty (withId->paramID, v);
             }
 
-    root->setProperty ("parameters", juce::var (params));
+    // mic-placement.md 4: the nearest discrete Position / Distance goes into
+    // the file for an older Luthier to read; the live parameters are untouched.
+    juce::var written (params);
+    MicPlacementMigration::mirror (written, apvts);
+
+    root->setProperty ("parameters", written);
+    root->setProperty (MicPlacementMigration::kLegacyBlockKey, MicPlacementMigration::captureLiveLegacy (apvts));
 
     /*  advanced-ranges.md 4: which families this preset has unlocked. Written
         beside the parameters because it is what makes their normalised values
@@ -556,7 +563,8 @@ bool PresetManager::fromVar (const juce::var& data)
             // Written by this build too (a known key read back as unknown moved
             // to the front of the next save, so save -> load -> save differed).
             "ranges", "guitar", "midiMap",
-            "jam"   // FEAT-JAM (jam-mode 12)
+            "jam",   // FEAT-JAM (jam-mode 12)
+            MicPlacementMigration::kLegacyBlockKey   // mic-placement.md 4
         };
 
         auto* preserved = new juce::DynamicObject();
@@ -624,6 +632,13 @@ bool PresetManager::fromVar (const juce::var& data)
         ranges = incoming;
         ranges.applyTo (apvts);
 
+        // mic-placement.md 4: an older file's discrete mic placement gains its
+        // continuous values, converted through the ranges just applied.
+        {
+            auto stored = obj->getProperty ("parameters");
+            MicPlacementMigration::apply (stored, apvts);
+        }
+
         for (auto* p : processor.getParameters())
         {
             if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
@@ -637,6 +652,11 @@ bool PresetManager::fromVar (const juce::var& data)
                 }
             }
         }
+
+        // mic-placement.md 4: the live legacy values this build saved beside
+        // the mirror, so a round trip restores exactly what was there.
+        if (obj->hasProperty (MicPlacementMigration::kLegacyBlockKey))
+            MicPlacementMigration::restoreLiveLegacy (obj->getProperty (MicPlacementMigration::kLegacyBlockKey), apvts);
 
         /*  ambiguity-resolutions.md 1: a preset from before the physical loop
             switched feedback on with feedback_on, which no longer does anything;
@@ -1439,6 +1459,11 @@ void PresetManager::randomise (uint64_t seed, const juce::StringArray& lockedPar
 
         p->setValueNotifyingHost ((float) v);
     }
+
+    // mic-placement.md 9 (FEAT-MIC): respecting stock ranges keeps each mic on
+    // the cone (u <= 1) and within 30 cm, where a real session puts it.
+    if (respectStockRanges)
+        MicPlacementMigration::keepPlacementPlausible (apvts, lockedParameters);
 
     currentName = "Random";
     modified = true;
