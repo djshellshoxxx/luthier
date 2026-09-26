@@ -960,7 +960,7 @@ void ParameterBridge::parameterValueChanged (int parameterIndex, float)
     ++writeSerial;
 
     // When, for writtenSinceGuitarType(). Never 0, which means "never written".
-    if (juce::isPositiveAndBelow (parameterIndex, numLastWrite))
+    if (juce::isPositiveAndBelow (parameterIndex, numLastWrite) && stampingWrites.load (std::memory_order_relaxed))
         lastWrite[(size_t) parameterIndex].store (juce::jmax ((juce::uint32) 1, juce::Time::getMillisecondCounter()),
                                                   std::memory_order_relaxed);
 

@@ -585,6 +585,13 @@ bool PresetManager::fromVar (const juce::var& data)
             ranges because there was nothing else to save them against. */
         const bool hasRangesBlock = obj->hasProperty ("ranges");
 
+        // installer.md 8: what this load had to migrate, for the info banner.
+        juce::StringArray migrations;
+
+        if (! hasRangesBlock && obj->hasProperty ("pluginVersion")
+              && obj->getProperty ("pluginVersion").toString() != JucePlugin_VersionString)
+            migrations.add ("ranges");
+
         // guitar-workshop.md 9: retired placement parameters, kept for the guitar.
         for (int slot = 0; slot < 3; ++slot)
         {
@@ -598,6 +605,7 @@ bool PresetManager::fromVar (const juce::var& data)
             {
                 // Their old ranges: 0.02-0.48 linear, and 1-6 mm skewed to 3.5.
                 legacy.present = true;
+                migrations.addIfNotAlreadyThere ("pickup placements");
                 legacy.positionFraction = juce::jmap ((double) params->getProperty (positionId), 0.02, 0.48);
 
                 juce::NormalisableRange<float> heightRange (1.0f, 6.0f);
@@ -639,6 +647,8 @@ bool PresetManager::fromVar (const juce::var& data)
         {
             if (auto* amount = apvts.getParameter (ParamIDs::feedbackAmount))
                 amount->setValueNotifyingHost (amount->convertTo0to1 (50.0f));
+
+            migrations.add ("feedback");
         }
 
         /*  strum-dynamics.md 1.1: live chords cross at strum_crossing_sps. A
@@ -654,6 +664,7 @@ bool PresetManager::fromVar (const juce::var& data)
                 const double ms = oldSpeed->convertFrom0to1 ((float) juce::jlimit (0.0, 1.0, (double) params->getProperty (ParamIDs::strumSpeed)));
                 const double sps = ms > 0.0 ? 1000.0 / ms : 800.0;
                 crossing->setValueNotifyingHost (crossing->convertTo0to1 ((float) juce::jlimit (20.0, 800.0, sps)));
+                migrations.add ("strum speed");
             }
         }
 
@@ -726,6 +737,8 @@ bool PresetManager::fromVar (const juce::var& data)
 
             if (auto* old = apvts.getParameter (ParamIDs::doublerOn))
                 old->setValueNotifyingHost (0.0f);
+
+            migrations.add ("doubler");
         }
 
         if (onPedalTypesLoaded != nullptr)
@@ -745,6 +758,9 @@ bool PresetManager::fromVar (const juce::var& data)
                 ranges.applyTo (apvts);
             }
         }
+
+        if (! migrations.isEmpty())
+            noteMigration (migrations.joinIntoString (", "));
     }
 
     // ---- per-string extras -------------------------------------------------------
@@ -987,6 +1003,23 @@ bool PresetManager::loadPrevious()
 }
 
 //==============================================================================
+juce::File PresetManager::backupFolderFor (const juce::File& target)
+{
+    // installer.md 8: ~/Documents/Luthier/Presets/Backup/<yyyy-mm-dd>/. The
+    // root is the nearest ancestor called Presets (a user preset lives in
+    // Presets/User/<category>/); outside any Presets tree, beside the file.
+    for (auto dir = target.getParentDirectory(); ; dir = dir.getParentDirectory())
+    {
+        if (dir.getFileName() == "Presets")
+            return dir.getChildFile ("Backup");
+
+        if (dir.getParentDirectory() == dir)
+            break;
+    }
+
+    return target.getParentDirectory().getChildFile ("Backup");
+}
+
 void PresetManager::backupBeforeOverwrite (const juce::File& target)
 {
     /*  file-formats 13.4: the version being replaced is kept, filed by the day it
@@ -1001,7 +1034,7 @@ void PresetManager::backupBeforeOverwrite (const juce::File& target)
 
     const auto today = juce::Time::getCurrentTime().formatted ("%Y-%m-%d");
 
-    auto folder = target.getParentDirectory().getChildFile ("Backup").getChildFile (today);
+    auto folder = backupFolderFor (target).getChildFile (today);
 
     if (! folder.createDirectory())
         return;
@@ -1074,7 +1107,9 @@ void PresetManager::pruneOldBackups()
     const auto cutoff = juce::Time::getCurrentTime()
                           - juce::RelativeTime::days ((double) kBackupRetentionDays);
 
-    for (const auto& root : { getUserPresetFolder(), getFactoryPresetFolder() })
+    // installer.md 8: Presets/Backup is the current place; the two below it
+    // are where earlier builds filed backups.
+    for (const auto& root : { getUserPresetFolder().getParentDirectory(), getUserPresetFolder(), getFactoryPresetFolder() })
     {
         auto backups = root.getChildFile ("Backup");
 

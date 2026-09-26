@@ -31,6 +31,7 @@ public:
     int getLatencySamples() const noexcept { return lookDelay; }
     bool isLimiterEnabled() const noexcept { return limiterEnabled; }
 
+
     void processBlock (juce::AudioBuffer<float>& buffer) noexcept;
 
     //==========================================================================

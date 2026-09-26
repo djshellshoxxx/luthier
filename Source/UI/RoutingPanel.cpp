@@ -67,6 +67,7 @@ AuxStrip::AuxStrip (LuthierAudioProcessor& p, int busIndex)
 
     gain.onValueChange = [this]
     {
+        processor.pushUndoAction ("Change " + juce::String (getAuxBusName (bus)) + " gain", "routing-gain", juce::String (bus));   // action-and-undo.md
         routing().setAuxGainDb (bus, gain.getValue());
     };
 
@@ -137,11 +138,13 @@ void AuxStrip::mouseDown (const juce::MouseEvent& e)
 {
     if (muteBounds.contains (e.getPosition()))
     {
+        processor.pushUndoState ((routing().isAuxMuted (bus) ? "Unmute " : "Mute ") + juce::String (getAuxBusName (bus)));   // action-and-undo.md
         routing().setAuxMuted (bus, ! routing().isAuxMuted (bus));
         refresh();
     }
     else if (soloBounds.contains (e.getPosition()))
     {
+        processor.pushUndoState ("Solo " + juce::String (getAuxBusName (bus)));   // action-and-undo.md
         const bool wasSoloed = routing().isAuxSoloed (bus);
 
         // Plain click is exclusive solo; a modifier adds to the solo group, which
@@ -237,6 +240,7 @@ void PerStringStrip::mouseDown (const juce::MouseEvent& e)
     {
         if (cellBounds (s).contains (e.getPosition()))
         {
+            processor.pushUndoState ("Mute/unmute string " + juce::String (s + 1));   // action-and-undo.md
             processor.getRouting().setPerStringMuted (s, ! processor.getRouting().isPerStringMuted (s));
             repaint();
             return;
@@ -289,8 +293,11 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     sidechainToAmp->getButton().setClickingTogglesState (true);
     sidechainToAmp->getButton().onClick = [this]
     {
-        if (! updatingControls)
-            processor.getRouting().setSidechainToAmp (sidechainToAmp->getButton().getToggleState());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoState ("Toggle sidechain to amp");   // action-and-undo.md
+        processor.getRouting().setSidechainToAmp (sidechainToAmp->getButton().getToggleState());
     };
     addAndMakeVisible (*sidechainToAmp);
 
@@ -380,6 +387,7 @@ void RoutingPanel::updateMidiOutFromControls()
         cfg.macroCc[(size_t) m] = (id <= 1) ? -1 : id - 2;
     }
 
+    processor.pushUndoAction ("Change MIDI out", "routing-midi-out", "config");   // action-and-undo.md
     processor.getRouting().setMidiOutConfig (cfg);
     shownMidiOut = cfg;
 }

@@ -47,6 +47,7 @@ public:
 
 private:
     IrSlot& slot();
+    void pushIrEdit (const char* what, bool groups);   // action-and-undo.md
 
     void load (const juce::File& file);
 

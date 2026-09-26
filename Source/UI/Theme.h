@@ -170,6 +170,10 @@ public:
 
     juce::Slider::SliderLayout getSliderLayout (juce::Slider&) override;
 
+    /** Value boxes in the palette's text colour, read when they are made (a
+        palette change re-sends the look and feel, which remakes them). */
+    juce::Label* createSliderTextBox (juce::Slider&) override;
+
     void drawButtonBackground (juce::Graphics&, juce::Button&,
                                const juce::Colour& backgroundColour,
                                bool shouldDrawButtonAsHighlighted,

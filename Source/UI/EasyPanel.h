@@ -24,6 +24,8 @@
 #include "CircuitPanel.h"
 #include "AmpFacePanel.h"
 #include "PanelHelpButton.h"
+#include "StageTouches.h"
+#include "PianoRollStrip.h"
 
 namespace luthier
 {
@@ -144,6 +146,21 @@ private:
     juce::TextButton resetButton { "Reset" };
 
     LevelMeter meter;
+
+    // visual-polish.md 4 (VISUAL-WORKSHOP-QA): the VU needle and the room light.
+    VuMeter vuMeter;
+    RoomLight roomLight;
+    juce::Rectangle<int> ampCardArea;
+
+    // piano-roll-chord-display.md 1: under the guitar, 56 px (Options -> Visual aids).
+    PianoRollStrip pianoRoll { processor, false };
+
+public:
+    VuMeter& getVuMeter() noexcept { return vuMeter; }
+    RoomLight& getRoomLight() noexcept { return roomLight; }
+    PianoRollStrip& getPianoRoll() noexcept { return pianoRoll; }
+    juce::Rectangle<int> getAmpCardArea() const noexcept { return ampCardArea; }
+private:
     juce::Label chordLabel;
 
     // ---- rhythm strip (3.5) ------------------------------------------------------------
@@ -166,10 +183,10 @@ private:
     AmpFacePanel ampFace { processor, AmpFacePanel::Style::card };
 
     LuthierChoice cabModel { "Cab" }, mic1 { "Mic 1" }, mic2 { "Mic 2" };
-    LuthierKnob micBlend { "Blend", LuthierKnob::Size::Small };
+    LuthierKnob micBlend { "Blend", LuthierKnob::Size::Normal };
 
     LuthierChoice roomSize { "Room" };
-    LuthierKnob roomMix { "Wet/Dry", LuthierKnob::Size::Small };
+    LuthierKnob roomMix { "Wet/Dry", LuthierKnob::Size::Normal };
 
     juce::Rectangle<int> rigArea, playingArea, toneArea, rhythmArea;
     juce::Array<std::pair<juce::Rectangle<int>, juce::String>> rigCards;

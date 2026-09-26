@@ -18,34 +18,15 @@ namespace luthier::tests
 }
 
 //==============================================================================
-/*  JM-33's lock trap: every pthread mutex lock and trylock on a thread that
-    has marked itself is counted. The executable's definitions win over
-    libc's, and forward to them. */
+/*  JM-33's lock trap. Blocking locks: AudioThreadSafetyTests.cpp interposes
+    pthread_mutex_lock and counts it on a ThreadProbe-marked thread. Try-locks
+    are counted here as well - the band takes none of either. The executable's
+    definition wins over libc's, and forwards to it. */
 #if JUCE_LINUX
 namespace
 {
     thread_local bool countLocks = false;
     std::atomic<int> lockCount { 0 };
-}
-
-extern "C" int pthread_mutex_lock (pthread_mutex_t* m)
-{
-    using Fn = int (*) (pthread_mutex_t*);
-    static std::atomic<void*> resolved { nullptr };   // no static guard: it could lock
-    auto* raw = resolved.load();
-
-    if (raw == nullptr)
-    {
-        raw = dlsym (RTLD_NEXT, "pthread_mutex_lock");
-        resolved.store (raw);
-    }
-
-    auto real = (Fn) raw;
-
-    if (countLocks)
-        lockCount.fetch_add (1);
-
-    return real (m);
 }
 
 extern "C" int pthread_mutex_trylock (pthread_mutex_t* m)
@@ -488,6 +469,8 @@ LUTHIER_TEST (JamDsp, JM33_noAllocationsAndNoLocks)
     const int64_t total = (int64_t) (seconds * 48000.0);
     long startCount = 0;
 
+    const int locksBefore = ThreadProbe::audioThreadLocks.load();
+
     b.aroundProcess = [&] (bool starting)
     {
         if (starting)
@@ -496,9 +479,11 @@ LUTHIER_TEST (JamDsp, JM33_noAllocationsAndNoLocks)
            #if JUCE_LINUX
             countLocks = true;
            #endif
+            ThreadProbe::markAsAudioThread (true);
         }
         else
         {
+            ThreadProbe::markAsAudioThread (false);
            #if JUCE_LINUX
             countLocks = false;
            #endif
@@ -526,6 +511,8 @@ LUTHIER_TEST (JamDsp, JM33_noAllocationsAndNoLocks)
     }
 
     CHECK_MSG (allocations == 0, juce::String (allocations) + " allocations on the audio path");
+    CHECK_MSG (ThreadProbe::audioThreadLocks.load() == locksBefore,
+               juce::String (ThreadProbe::audioThreadLocks.load() - locksBefore) + " blocking locks on the audio path");
    #if JUCE_LINUX
     CHECK_MSG (lockCount.load() == 0, juce::String (lockCount.load()) + " mutex locks on the audio path");
    #endif

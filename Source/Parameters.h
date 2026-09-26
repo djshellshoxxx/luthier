@@ -652,6 +652,10 @@ public:
     /** True if `id` was written (by anyone) after the guitar type last was. */
     bool writtenSinceGuitarType (const juce::String& id) const noexcept;
 
+    /** While false, writes are not stamped for writtenSinceGuitarType(): the
+        processor's own guitar-parameter writes are the guitar's, not the host's. */
+    void setStampingWrites (bool stamp) noexcept { stampingWrites.store (stamp, std::memory_order_relaxed); }
+
 
     /** The unmodulated value, for the UI, which shows the control where
         automation put it rather than where modulation has pushed it. */
@@ -741,6 +745,7 @@ private:
 
     std::vector<int> slotOfParameter;      ///< parameter index -> (chain * slots + slot) * 16 + (param, or 15 for the type)
     std::atomic<juce::uint32> writeSerial { 0 };
+    std::atomic<bool> stampingWrites { true };
     std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> typeWritten {};
     std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> paramsWritten {};
     juce::Array<juce::AudioProcessorParameter*> watched;
