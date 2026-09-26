@@ -83,6 +83,12 @@ public:
     /** output-normalization.md 4.4: after a preset file loaded (message thread). */
     std::function<void()> onPresetLoaded;
 
+    /** Called around a whole load (fromVar), so the processor can fade its output
+        out before the first parameter moves and back in after the last. Without
+        it a ringing note was cut, or jumped to the new preset's level, mid-cycle
+        (BETA_TEST_REPORT B-06). */
+    std::function<void()> onBeforeLoad, onAfterLoad;
+
     /*  file-formats.md 2 (MODEL-GAPS, TODO 2k): a preset the load had to migrate
         - the legacy `format` magic, no `ranges` block (schema 1, pre-M42), a
         pre-Workshop `guitar.name`, or the retired pickup-placement parameters -
@@ -279,6 +285,12 @@ private:
 
     juce::AudioProcessor& processor;
     juce::AudioProcessorValueTreeState& apvts;
+
+public:
+    /** noise-floor.md 3: the Options default mains region, resolved (REALISM-C). */
+    static bool defaultMainsRegionIs50Hz();
+
+private:
 
     /** advanced-ranges.md: the processor's range state, applied on load and
         written on save. */

@@ -164,7 +164,23 @@ void MasterBus::processBlock (juce::AudioBuffer<float>& buffer) noexcept
         }
 
         // ---- lookahead limiter ------------------------------------------------
-        if (limiterEnabled)
+        /*  The look-ahead line runs whether the limiter is on or not. Fed only
+            while it was on, switching it back on played up to 1.5 ms of stale
+            audio from when it was last on, and toggling it moved the output by
+            the look-ahead - a latency change nothing reported. */
+        if (! limiterEnabled)
+        {
+            lookL[(size_t) lookIndex] = (float) l;
+            lookR[(size_t) lookIndex] = (float) r;
+
+            const int readIndex = (lookIndex - lookDelay) & mask;
+            l = (double) lookL[(size_t) readIndex];
+            r = (double) lookR[(size_t) readIndex];
+
+            lookIndex = (lookIndex + 1) & mask;
+            limiterEnv = 1.0;
+        }
+        else
         {
             lookL[(size_t) lookIndex] = (float) l;
             lookR[(size_t) lookIndex] = (float) r;

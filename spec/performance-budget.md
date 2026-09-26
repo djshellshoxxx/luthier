@@ -51,6 +51,9 @@ core.
 | NoiseEngine::Clank | 0.05 | Slide bar events |
 | SlideEngine | 0.3 | State machine + damping + continuous pitch |
 | BassTechniques (slap collision, limiter) | 0.25 | Bass-family only |
+| NoiseFloor | 0.15 | noise-floor.md 7; 0 when idle (every new source at 0) |
+| StringEngine sustain shape (12 strings) | +0.3 | sustain-and-decay.md 10, on the StringEngine row; one branch per tick at Legacy |
+| StabilityModel | 0.02 | tuning-stability.md 8; control rate |
 
 **Totals**:
 - **Idle** (silent input, plugin loaded): <= 1.5 units.

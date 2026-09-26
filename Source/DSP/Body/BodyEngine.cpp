@@ -119,7 +119,8 @@ double BodyEngine::getAirResonanceHz() const noexcept
 {
     const double airHz = BodyModels::computeAirResonance (config);
 
-    return airHz > 0.0 ? airHz : 110.0;
+    // environment.md 4: the scaled value, so character dead spots follow it.
+    return (airHz > 0.0 ? airHz : 110.0) * runtimeAir;
 }
 
 void BodyEngine::setOutputGainDb (double db) noexcept
@@ -161,11 +162,41 @@ void BodyEngine::applyStagedBank() noexcept
     numActiveModes = stagedCount;
 
     for (int i = 0; i < numActiveModes; ++i)
-    {
         activeModes[(size_t) i] = stagedModes[(size_t) i];
-        resonators[(size_t) i].set (activeModes[(size_t) i].frequencyHz,
-                                    activeModes[(size_t) i].q,
-                                    activeModes[(size_t) i].gain);
+
+    applyRuntimeScaling (true);
+}
+
+void BodyEngine::setRuntimeScaling (double plateFreqMul, double airFreqMul, double plateQMul, double airQMul) noexcept
+{
+    runtimePlate = juce::jlimit (0.25, 4.0, std::isfinite (plateFreqMul) ? plateFreqMul : 1.0);
+    runtimeAir = juce::jlimit (0.25, 4.0, std::isfinite (airFreqMul) ? airFreqMul : 1.0);
+    runtimeQ = juce::jlimit (0.05, 10.0, std::isfinite (plateQMul) ? plateQMul : 1.0);
+    runtimeAirQ = juce::jlimit (0.05, 10.0, std::isfinite (airQMul) ? airQMul : 1.0);
+}
+
+void BodyEngine::applyRuntimeScaling (bool force) noexcept
+{
+    auto moved = [] (double a, double b) { return std::abs (a - b) > 0.0005 * std::abs (b); };
+
+    if (! force && ! moved (runtimePlate, designedPlate) && ! moved (runtimeAir, designedAir)
+                && ! moved (runtimeQ, designedQ) && ! moved (runtimeAirQ, designedAirQ))
+        return;
+
+    designedPlate = runtimePlate;
+    designedAir = runtimeAir;
+    designedQ = runtimeQ;
+    designedAirQ = runtimeAirQ;
+
+    // environment.md 2.6: the air modes follow the speed of sound; the plate
+    // modes follow the wood, in frequency and in loss. The air's Q is not
+    // the wood's: only body_mode_q_scale reaches it.
+    for (int i = 0; i < numActiveModes; ++i)
+    {
+        const auto& m = activeModes[(size_t) i];
+        const double f = m.frequencyHz * (m.isAir ? designedAir : designedPlate);
+        const double q = m.q * (m.isAir ? designedAirQ : designedQ);
+        resonators[(size_t) i].set (f, q, m.gain);
     }
 }
 
@@ -264,6 +295,7 @@ int BodyEngine::getLatencySamples() const noexcept
 void BodyEngine::processBlock (juce::dsp::AudioBlock<float>& block) noexcept
 {
     applyStagedBank();
+    applyRuntimeScaling (false);
 
     const int numSamples = (int) block.getNumSamples();
     const int numChannels = (int) block.getNumChannels();
@@ -358,6 +390,7 @@ void BodyEngine::processBlock (juce::dsp::AudioBlock<float>& block) noexcept
 void BodyEngine::processMono (double* samples, int numSamples) noexcept
 {
     applyStagedBank();
+    applyRuntimeScaling (false);
 
     if (samples == nullptr || numSamples <= 0 || mode == Mode::Bypassed)
         return;

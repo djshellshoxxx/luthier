@@ -28,6 +28,9 @@ public:
     double getGainDb() const noexcept { return gainDb; }
 
     void setLimiterEnabled (bool e) noexcept { limiterEnabled = e; }
+
+    /** The look-ahead delay, on or off (the line always runs). */
+    int getLatencySamples() const noexcept { return lookDelay; }
     bool isLimiterEnabled() const noexcept { return limiterEnabled; }
 
     void processBlock (juce::AudioBuffer<float>& buffer) noexcept;
