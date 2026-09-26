@@ -133,7 +133,14 @@ table) valid.
    parameters by a 250 ms wall-clock window, so a preset load immediately
    followed by a type change produced a different sound depending on how fast
    the blocks rendered (engine behaviour, reported here, not changed).
-16. **Build fixes** outside the spec, needed after the merge: the headless
+16. **`macro_humanize` is Config**, not Performance as 3.1 lists it. It is a
+   preset's setting that no controller moves, and its velocity jitter shifts
+   loudness by about 1 LU between 0.4 and 0.7; rendered at its default, a
+   preset with high humanize missed ON-03's +/-1 LU target.
+17. **`jam_*` parameters are Mix**: jam-mode's band is mixed after the master
+   bus and is never in the reference render (10), so its controls neither
+   change the hash nor request a calibration.
+18. **Build fixes** outside the spec, needed after the merge: the headless
    renderer excluded `PluginEditorOnboarding.cpp` and now compiles
    `UiPreferences.cpp` (PresetManager reads it).
 

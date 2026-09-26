@@ -20,7 +20,8 @@
     knob, a whammy bar, a technique trigger or its strength) must be added to
     kPerformanceIds or kPerformancePrefixes in LoudnessRoles.cpp. A parameter
     that is a *mix or output trim* (master gain, a limiter switch, a tap
-    routing that is not on the main output) must be added to kMixIds.
+    routing that is not on the main output, anything mixed after the master
+    bus such as jam-mode's band) must be added to kMixIds or kMixPrefixes.
 
     ON-26 checks that no id matches both lists, that every id the spec names
     resolves to the role the spec gives it, and that the hash obeys the roles.
