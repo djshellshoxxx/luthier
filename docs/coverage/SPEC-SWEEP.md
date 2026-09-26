@@ -96,3 +96,136 @@ sustainFeaturesStayBounded, seededRandomConfigurations. The eleventh is
 `GuiReach::everyAutomatableParameterHasAVisibleControl`: the 14 `scrape_*`
 parameters (their controls are on the techniques branch) and `pickup_blend`
 (fixed by this sweep) have no control.
+
+## Merge of integration bdf9f1b
+
+Merge commit 8ad54d0 brought in `origin/claude/luthier-cloud-session-5lzlix` at
+bdf9f1b: VISUAL (workshop visuals, undo tiers, QA/perf/installer,
+gui-integration, piano roll groundwork), FEAT-STRINGS, FEAT-JAM,
+FEAT-NORMALIZE, FEAT-CPU, FIX-CROSS and the auditor's Combo fixes. There were
+32 files with conflicts. How each was resolved, and which side won:
+
+- `CMakeLists.txt`: both. `UiPreferences.cpp` stays in the engine sources
+  (sweep, REALISM-C). The `PluginEditor*` filter covers PluginEditorTune
+  (sweep) and PluginEditorOnboarding (FEAT-NORMALIZE).
+- `Pedal.h` / `PedalsDrive.h` / `EffectsChain.cpp` (JG-4 against
+  cpu-quality-modes 2.2): integration's `(effective, nominal, crossfade)`
+  signature is the base. The sweep's virtual on `Pedal` now carries that
+  signature, so the chain still makes a virtual call and needs no
+  `dynamic_cast`.
+- `MasterBus`: both. The GD-8 block counter ticks before the
+  normalization branch, so the normalized path counts blocks too.
+- `Snapshots.cpp`: both exclusions apply. `snapshot_morph` (LP-16) and the
+  jam transients are never captured.
+- `Parameters.cpp/.h`: the FEAT-JAM block goes in unchanged, and the
+  SPEC-SWEEP block stays last in `createLayout` and `ParamIDs`. The sweep's
+  `applyToEngine` block (a comment only) moved after REALISM-B, so it is last
+  there as well. `IntegrationTests` counts `+ 34 FEAT-JAM + 1 SPEC-SWEEP`.
+- Duplicate-parameter check: integration has no snapshot-morph parameter. Its
+  "session morph position" is the B-10 fix that keeps `preset_morph_position`
+  in the session. `snapshot_morph` stays, and LoudnessRoles classes it as
+  Performance, like the preset morph.
+- `PluginEditor`: the footer is integration's. The QualityBadge carries CPU,
+  and the window paints `quality.badge.latency`. `getFooterText()` (UM-60 /
+  TS-16) still returns the whole footer, now through the same string. The
+  ER-19 save-error banner and the installer-8 migration banner are both
+  posted. The sweep's second `UiPreferences.h` include was dropped as a
+  duplicate.
+- `PluginProcessor.h/.cpp`:
+  - Includes and members come from both sides. OutputNormalization is still
+    declared last.
+  - Drawer-shut path: the Jam mix and the CT-11 wizard click can both run.
+  - After `routing.distribute`: the TM-17 Cab Match signal is written, then
+    the Jam aux buses.
+  - `tapTempoAt` (the sweep's testable split) carries the Jam tap.
+  - `recallSlot` uses integration's `restoreState (soundOnly)` and keeps
+    UM-8's slot flag.
+- `PresetManager.h/.cpp`:
+  - Integration's `onPresetLoaded` is called at the same point as the sweep's
+    `onPresetFileLoaded`, so the sweep's hook was dropped as a duplicate. The
+    processor's `onPresetLoaded` runs SM-46's `presetFileLoaded()` and then
+    the normalization notify.
+  - Known keys: both lists.
+  - Backup pruning: integration's three roots, each swept by the sweep's
+    `pruneOldBackupsUnder` (PF-7 per-category folders).
+  - PF-14's absent-means-default reset now respects FEAT-JAM's `keepOnLoad`
+    and the jam transients.
+- `HeaderBar.cpp`: integration's File menu is the base, with Undo history
+  (item 15) and `pushUndoBoundary` on open/import. The sweep's UM-7 split
+  (`buildFileMenu` / `handleFileMenuResult`) and GD-30 learn pulse are
+  re-applied on top.
+- `LiveStrip`: both widgets (LP-11 CC button, JAM pill). A snapshot pad keeps
+  GI-72/GI-86 (click loads, Shift-click writes, an empty pad hints) through
+  integration's undoable `...AsUserAction` calls. The morph-slider polling was
+  dropped because LP-16 attaches the knob to `snapshot_morph`.
+- Timers in `CircuitPanel`, `FretboardComponent`, `GuitarBodyComponent`,
+  `RoutingPanel` and `OutputLed`: integration's AnimationPolicy registration
+  starts them, at the sweep's GD-2/GD-8 `kRefreshHz` rates. The fretboard
+  slide-bar ease follows the applied rate and integration's instant-at-Off
+  rule, and keeps GD-14's stale timestamp. `OutputLed` keeps GD-8's stale
+  dark and 400 ms red hold, plus integration's stepped-readout latch at Low.
+- `GuitarBodyComponent` detune: integration's undo entry is pushed, then the
+  value goes through the sweep's UW-5 command queue. Integration wrote the
+  engine from the message thread there.
+- `RhythmPanel` capo: the sweep's UW-2 (capo is the `capo_fret` parameter),
+  plus integration's "Change rhythm capo" undo entry.
+- `ModMatrixPanel`:
+  - Integration's labelled 24 px rows and drag handle are the base. The
+    sweep's cards controls (MM-14/18/19/20/23/25) use its `sliderRow`, and
+    the phase and sequencer-rate sliders are named.
+  - `preferredHeight` fits eight rows.
+  - The route depth editor is the sweep's (MM-40, depth and offset), and
+    `applyTypedValue` now pushes integration's 3.6 undo entry.
+- `PracticePanel`: both. There are GD-31 LED helpers and integration's
+  `editLayer`. The scale box is integration's undoable change with the sweep's
+  PT-37 custom scale.
+- `ToneMatchPanel`: the sweep's TM-5 worker thread is kept, and the "Load IR"
+  undo entry moved into `finishAnalysis`. Integration ran the deconvolution on
+  the message thread.
+- `EasyPanel`, `AdvancedPanel`, `Widgets.h`, `LiveStrip.h`: both (GD-10
+  arrow width counted in the rhythm row's budget, AR-15 MOD range tab).
+- `Tests/IntegrationTests.cpp`: the count keeps every term.
+
+Changes outside the conflict hunks, needed by the merge:
+
+- `OutputNormalization::stripPresetIdentity` drops the processor blocks the
+  sweep added to a preset (SM-1). Modulation, routing, character and
+  tone-match are hashed from the live modules already. Snapshots, MIDI Learn
+  and rhythm are performance, so capturing a snapshot does not trigger a
+  recalibration.
+- `Resources/NormalizationFactory.json` was regenerated
+  (`scripts/regen_normalization_factory.sh`, 900 entries). Its hashes and
+  levels move with the sweep's presets and audio.
+- `Source/Tests/Golden/NormalizationOffHashes.json` was regenerated because
+  the sweep changes audio. The same-build A/B half of ON-02 passes.
+- The session writes `midiLearn` at its root again. The preset block carries
+  mappings only when there are some (live-performance 11), so undo (3.12),
+  A/B and the host session need the exact set.
+- AnimationPolicy (CQ-22): `NextStrumArrow` registers itself. `LuthierKnob`
+  (the shared ModArcHub), `LiveActionButton`, `MorphSetupPanel` and
+  `MonitorSetupPanel` are allow-listed as poll-only.
+- Tests adjusted:
+  - `JM36` allows the SPEC-SWEEP block after the Jam block.
+  - UndoCoverage settles one block before reading audio-thread state.
+  - `cc11MovesTheMasterLevel` sets aside a CC 11 expression calibration from
+    the user config.
+  - `CQ11` does not count a level switch as a click when the signal has
+    already rung out (second difference below 1e-4, about -80 dBFS). The one
+    switch it flagged was at 10 s, where the value went from 1.9e-5 to 3.6e-5.
+
+Tests after the merge. The targeted suites were run from `build/`, because
+the Golden and CQ source scans resolve relative to the working directory.
+These still fail, and each one fails the same way on a pure integration build
+of bdf9f1b (`/home/user/wt/int`) or on the pre-merge sweep tip:
+
+| Test | Also fails on |
+|---|---|
+| `Combo.snapshotsAndPresetMorph` | bdf9f1b (Combo, owned by the auditor) |
+| `GuiReach.everyAutomatableParameterHasAVisibleControl`: `macro_assign_a/b`, `scrape_*`, `slap_*` | bdf9f1b, whose list also has `pickup_blend` |
+| `CpuQuality.CQ10` (the latched dispersion stages) | bdf9f1b |
+| `CpuQuality.CQ13` (a scenario ratio; this is timing) | bdf9f1b |
+| `CpuQualityUi.CQ22`: NormalizationBadge, NormalizationOptionsGroup, NormalizationCaption, JamPill | bdf9f1b |
+| `MidiExport.luthierRoundTripNullsEveryFactoryPreset`: the first render of "Clean Double-Cut Funk" does not repeat (-31.9 dB) | the pre-merge sweep tip 47c23c5, with the same message. It passes on 366b772, so this is a sweep regression that still needs fixing. |
+
+`EBow.theHarmonicChoiceTakesTheString` failed once in the long run. It passes
+when run alone, both here and on bdf9f1b.
