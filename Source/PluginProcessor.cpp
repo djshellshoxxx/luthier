@@ -75,7 +75,14 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     bridge.onLoadGuitarType = [this] (GuitarType type) { return loadGuitarForType (type); };
     setCapoPart (partLibrary.getDefault (PartType::capo));
     presets.captureGuitarBlock = [this] { return getGuitarBlock(); };
-    presets.onGuitarBlockLoaded = [this] (const juce::var& block) { takeGuitarBlock (block); };
+    presets.onGuitarBlockLoaded = [this] (const juce::var& block)
+    {
+        takeGuitarBlock (block);
+
+        // SPEC-SWEEP: PR-44 - the end of every load: the preset's ranges are
+        // in, so the modulation family's setter clamps follow them.
+        modMatrix.setModulationRangeAdvanced (ranges.isFamilyAdvanced (RangeFamily::modulation));
+    };
 
     // A preset's pedals come with their settings; build them keeping those.
     presets.onPedalTypesLoaded = [this] { bridge.adoptPedalTypesFromParameters(); };
@@ -332,7 +339,11 @@ bool LuthierAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) 
 int LuthierAudioProcessor::setRanges (const RangeState& newState)
 {
     ranges = newState;
-    return ranges.applyTo (apvts);
+    const int clamped = ranges.applyTo (apvts);
+
+    // SPEC-SWEEP: PR-44 / AR-15 - advanced-ranges.md 2.1: the modulation
+    // family is setter clamps in the matrix, not parameter ranges.
+    return clamped + modMatrix.setModulationRangeAdvanced (ranges.isFamilyAdvanced (RangeFamily::modulation));
 }
 
 int LuthierAudioProcessor::changeRanges (const RangeState& newState, const juce::String& undoDescription)
@@ -1714,7 +1725,10 @@ void LuthierAudioProcessor::handleLiveMidi (juce::MidiBuffer& midi) noexcept
 void LuthierAudioProcessor::applySnapshotModules (const Snapshot& snapshot)
 {
     if (snapshot.modMatrix.getDynamicObject() != nullptr)
+    {
+        modMatrix.setModulationRangeAdvanced (ranges.isFamilyAdvanced (RangeFamily::modulation));   // SPEC-SWEEP: PR-44
         modMatrix.fromVar (snapshot.modMatrix);
+    }
 
     if (snapshot.rhythm.getDynamicObject() != nullptr)
         engine.getRhythmEngine().fromVar (snapshot.rhythm);
@@ -2308,7 +2322,10 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
     // modulation-matrix 6: the full matrix travels with the preset. Unknown
     // destinations are dropped and reported rather than refused.
     if (root->hasProperty ("modulation"))
+    {
+        modMatrix.setModulationRangeAdvanced (ranges.isFamilyAdvanced (RangeFamily::modulation));   // SPEC-SWEEP: PR-44
         modMatrix.fromVar (root->getProperty ("modulation"));
+    }
 
     // rhythm-engine 9: the pattern, voicing settings and genre kit travel with
     // the preset as one blob.

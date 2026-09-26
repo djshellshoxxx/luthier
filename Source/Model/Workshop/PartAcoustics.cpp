@@ -301,7 +301,8 @@ bool DerivedAcoustics::operator== (const DerivedAcoustics& o) const
     return same (couplingFraction, o.couplingFraction) && same (terminationMassG, o.terminationMassG)
         && same (sustainScale, o.sustainScale) && same (fretBrightness, o.fretBrightness)
         && same (nutBrightness, o.nutBrightness) && same (bodyGainDb, o.bodyGainDb)
-        && same (airResonanceHz, o.airResonanceHz) && same (body.scaleWidth, o.body.scaleWidth)
+        && same (airResonanceHz, o.airResonanceHz) && same (airResonanceQ, o.airResonanceQ)
+        && same (finishDampingDb, o.finishDampingDb) && same (body.scaleWidth, o.body.scaleWidth)
         && same (body.resonanceTrim, o.body.resonanceTrim) && same (body.age, o.body.age)
         && same (body.scaleDepth, o.body.scaleDepth) && same (body.topThicknessMm, o.body.topThicknessMm)
         && wiring == o.wiring
@@ -421,6 +422,15 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
         d.airResonanceHz = juce::jlimit (chamber.airLo, chamber.airHi, mid * std::sqrt (typical / volume));
     }
 
+    /*  SPEC-SWEEP: PA-14 / PA-15 - the body engine hears these now. The air
+        mode and its Q go to the modal bank as they are. The modes' gain is
+        against a solid body, so it applies to the electric chamberings; an
+        acoustic's body is its whole sound (the mic), not a colour mixed into
+        a pickup, and its level is the output normalisation's business. */
+    d.body.airHzOverride = d.airResonanceHz;
+    d.body.airQOverride = d.airResonanceQ;
+    d.body.modeGainDb = (chambering == "acoustic") ? 0.0 : d.bodyGainDb;
+
     // ---- termination: masses add, couplings multiply (10) ------------------------------------
     d.terminationMassG = num (bridge, "mass_g", 100.0) + num (tail, "mass_g", 0.0) + num (guard, "mass_g", 0.0);
     d.couplingFraction = jointCoupling (str (neck, "joint", "bolt")) * num (bridge, "coupling", 0.55);
@@ -453,6 +463,8 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
     // 9: thick gloss damps an acoustic top slightly (up to -0.5 dB).
     if (chambering == "acoustic")
         d.finishDampingDb = -0.5 * juce::jlimit (0.0, 1.0, (g.finish.gloss - 0.5) * 2.0);
+
+    d.body.topDampingDb = d.finishDampingDb;   // SPEC-SWEEP: PA-56
 
     // Hardware colour does nothing, and this file says so (9).
 

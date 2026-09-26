@@ -144,6 +144,14 @@ public:
     int getControlRateSamples() const noexcept { return controlRateSamples; }
     double getControlRateHz() const noexcept { return controlRateHz; }
 
+    /*  SPEC-SWEEP: PR-44 / AR-15 - advanced-ranges.md 2.1: the `modulation`
+        range family. Locked, every source's rate and time setters clamp to the
+        stock pair, and locking clamps what is already there; unlocked they
+        take the advanced pair. Returns how many values locking clamped.
+        Message thread, like the setters. */
+    int setModulationRangeAdvanced (bool advanced) noexcept;
+    bool isModulationRangeAdvanced() const noexcept { return modulationAdvanced; }
+
     //==========================================================================
     // Routes. Message thread only.
 
@@ -266,6 +274,7 @@ private:
     std::array<ModStepSequencer, ModSourceSlots::numSequencers> sequencers;
     std::array<ModEnvelopeFollower, ModSourceSlots::numFollowers> followers;
     ModRandomSource randomSource;
+    bool modulationAdvanced = false;   // SPEC-SWEEP: PR-44
 
     std::array<std::atomic<float>, ModSourceSlots::count> sourceValues;
 

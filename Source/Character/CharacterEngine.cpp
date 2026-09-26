@@ -464,6 +464,14 @@ void CharacterEngine::setCapacitorDriftRange (double fraction) noexcept
     capacitorDrift = 1.0 + (hashed (9, 0) * 2.0 - 1.0) * capacitorDriftRange;
 }
 
+double CharacterEngine::getToneCapMultiplier() const noexcept
+{
+    if (! isEnabled())
+        return 1.0;
+
+    return 1.0 + (capacitorDrift - 1.0) * getAmount();
+}
+
 //==============================================================================
 double CharacterEngine::getPickupBalanceDb (int stringIndex, int pickupSlot) const noexcept
 {
@@ -496,6 +504,20 @@ double CharacterEngine::getSaddleHeightOffsetMm (int stringIndex) const noexcept
         return 0.0;
 
     return saddleHeightMm[(size_t) stringIndex] * getAmount();
+}
+
+double CharacterEngine::getSaddleIntonationCents (int stringIndex, double fretPosition) const noexcept
+{
+    const double offsetMm = getSaddleHeightOffsetMm (stringIndex);
+
+    if (offsetMm == 0.0 || fretPosition <= 0.0)
+        return 0.0;
+
+    // 0 open, 1 at the 12th, 1.5 at the 24th: the fretted stretch grows as
+    // the vibrating length shortens.
+    const double reach = 2.0 * (1.0 - std::pow (2.0, -juce::jlimit (0.0, 36.0, fretPosition) / 12.0));
+
+    return offsetMm * 1.5 * reach;
 }
 
 double CharacterEngine::getNutMaterialDamping() const noexcept

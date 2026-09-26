@@ -252,6 +252,7 @@ private:
                                  soundhole, bodyAge, airGain;
 
     std::unique_ptr<LuthierChoice> pickupSelector;
+    std::unique_ptr<LuthierKnob> pickupBlend;   // SPEC-SWEEP: SP-17
     std::unique_ptr<LuthierChoice> pickupType[3];
     std::unique_ptr<LuthierChoice> pickupMagnet[3];
     std::unique_ptr<LuthierKnob> pickupVolume[3];

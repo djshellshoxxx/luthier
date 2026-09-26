@@ -317,6 +317,20 @@ void ModMatrix::reset() noexcept
     samplesUntilTick = 0;
 }
 
+// SPEC-SWEEP: PR-44 / AR-15 - advanced-ranges.md 2.1.
+int ModMatrix::setModulationRangeAdvanced (bool advanced) noexcept
+{
+    modulationAdvanced = advanced;
+    int clamped = 0;
+
+    for (auto& l : lfos)       clamped += l.setAdvancedRange (advanced);
+    for (auto& e : envelopes)  clamped += e.setAdvancedRange (advanced);
+    for (auto& s : sequencers) clamped += s.setAdvancedRange (advanced);
+    for (auto& f : followers)  clamped += f.setAdvancedRange (advanced);
+
+    return clamped;
+}
+
 void ModMatrix::releaseResources()
 {
     destinations.clear();
@@ -1008,6 +1022,7 @@ juce::var ModMatrix::toVar() const
         o->setProperty ("direction", (int) s.getDirection());
         o->setProperty ("swing", s.getSwing());
         o->setProperty ("sync", s.isSynced());
+        o->setProperty ("rate", s.getInternalRateHz());   // SPEC-SWEEP: MM-23
 
         juce::Array<juce::var> stepArray;
 
@@ -1125,6 +1140,10 @@ void ModMatrix::fromVar (const juce::var& state)
                 s.setDirection ((ModStepSequencer::Direction) juce::jlimit (0, 4, (int) o->getProperty ("direction")));
                 s.setSwing ((double) o->getProperty ("swing"));
                 s.setSynced ((bool) o->getProperty ("sync"));
+
+                // SPEC-SWEEP: MM-23 - the free-running rate travels too.
+                if (o->hasProperty ("rate"))
+                    s.setInternalRateHz ((double) o->getProperty ("rate"));
 
                 if (auto* stepArray = o->getProperty ("steps").getArray())
                 {

@@ -96,7 +96,13 @@ public:
         string's buzz generator in `pool`. `levels`, `fretted` and
         `fundamentalHz` are per string. Audio thread, once a block. */
     void process (NoiseEngine& pool, const double* levels, const double* fretted,
-                  const double* fundamentalHz, int numStrings, double pluckPosition) noexcept;
+                  const double* fundamentalHz, int numStrings, double pluckPosition,
+                  const double* wearMultiplier = nullptr) noexcept;
+
+    /*  SPEC-SWEEP: CW-12 - character-wear 3: a worn fret sits low, so the
+        string stopped on it is this much closer to the fret in front, per unit
+        of CharacterEngine::getFretBuzzMultiplier above 1. */
+    static constexpr double kWearClearanceMm = 0.1;
 
     void reset() noexcept;
 

@@ -469,6 +469,12 @@ private:
     /** The drift last written into the tuning engine, so a block that did not
         move it does not rewrite it. */
     std::array<double, kMaxStrings> lastAppliedDrift {};
+
+    // SPEC-SWEEP: CW-18 / CW-19 - character-wear 5's jack and piezo saddles.
+    std::array<double, kMaxStrings> saddleGain {};   ///< per-saddle piezo gain, set per block
+    std::vector<double> piezoSumBuffer;              ///< the saddle-weighted string sum
+    double jackGainNow = 1.0;                        ///< ramped towards CharacterEngine::getJackGain
+    double jackRampCoeff = 0.01;                     ///< a 3 ms one-pole
     Validator validator;
 
     double hostPpq = 0.0;

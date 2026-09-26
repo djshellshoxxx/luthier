@@ -104,8 +104,13 @@ public:
     /** Per-pickup volume, as on a Les Paul. */
     void setPickupVolume (int slot, double linearGain) noexcept;
 
-    /** Continuous blend between the two outermost active pickups, 0 to 1.
-        Used by the Easy-mode blend knob. */
+    /** SPEC-SWEEP: CW-20 - one string's sensitivity in one pickup (the pole
+        pieces are never quite level), as a linear gain. 1 is nominal. */
+    void setStringBalance (int slot, int stringIndex, double linearGain) noexcept;
+
+    /** Continuous blend between the two outermost active pickups, 0 to 1:
+        0 is the bridge-side pickup alone, 1 the neck-side one alone, 0.5 both at
+        full level (a centre-detent blend pot). No effect with one pickup on. */
     void setBlend (double blend) noexcept;
 
     /*  The coil the switch has selected, as the guitar's circuit sees it
@@ -189,6 +194,8 @@ private:
     std::array<std::array<Coil, 2>, kMaxPickups> coils {};
     std::array<ExpSmoother, kMaxPickups> slotGain {};
     std::array<double, kMaxPickups> userVolume { { 1.0, 1.0, 1.0 } };
+    // SPEC-SWEEP: CW-20 - stored as (gain - 1) so zero-initialised is nominal.
+    std::array<std::array<double, kMaxStrings>, kMaxPickups> stringBalanceDelta {};
 
     PickupSelector selector = PickupSelector::Bridge;
     SwitchCrossfade selectorFade;
