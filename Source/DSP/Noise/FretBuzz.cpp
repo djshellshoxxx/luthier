@@ -29,14 +29,20 @@ double SetupGeometry::clearanceMm (int stringIndex, double frettedAt, int fret) 
     auto fretTop = [this] (double n)
     {
         const double bow = 1.0 - ((n - 7.0) / 7.0) * ((n - 7.0) / 7.0);
-        return -relief * juce::jmax (0.0, bow);
+
+        // SPEC-SWEEP FB-21: a worn crown sits lower than the board line.
+        const int f = (int) std::round (n);
+        const double wear = (f >= 1 && f <= kMaxFrets) ? fretWearMm[(size_t) f] : 0.0;
+
+        return -relief * juce::jmax (0.0, bow) - wear;
     };
 
     // The open string runs from the nut (its slot clearance over fret 1) to
     // the saddle, whose height is whatever makes the 12th-fret action right.
     const double nut = nutDepth[(size_t) juce::jlimit (0, kMaxStrings - 1, stringIndex)];
     const double x12 = fretPositionMm (12.0);
-    const double action12 = actionFor (stringIndex) + fretTop (12.0);
+    // (The setup is measured against the board line, not a worn 12th fret.)
+    const double action12 = actionFor (stringIndex) + fretTop (12.0) + fretWearMm[12];
     const double saddle = nut + (action12 - nut) * length / x12;
 
     const double x = fretPositionMm ((double) fret);

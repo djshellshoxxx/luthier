@@ -25,9 +25,11 @@
 #include "Practice/Looper.h"
 #include "Practice/BackingTrack.h"
 #include "Practice/Trainers.h"
+#include "Practice/PracticeNoteFeed.h"   // SPEC-SWEEP PT-34
 #include "Practice/PracticeRoutineProgress.h"
 #include "Practice/PracticeRoutineSetup.h"
 #include "ToneMatch/ToneMatch.h"
+#include "ToneMatch/TestSignalPlayer.h"   // SPEC-SWEEP TM-17
 #include "Updates/Telemetry.h"
 #include "PhysicalRange.h"
 #include "Model/Workshop/PartAcoustics.h"
@@ -197,6 +199,8 @@ public:
     BackingTrackPlayer&  getBackingTrack() noexcept { return backingTrack; }
     SessionRecorder&     getSessionRecorder() noexcept { return sessionRecorder; }
     ScaleTrainer&        getScaleTrainer() noexcept { return scaleTrainer; }
+    /** SPEC-SWEEP PT-34: the notes played while the drawer is open, for its trainers. */
+    PracticeNoteFeed&    getPracticeNoteFeed() noexcept { return practiceNoteFeed; }
     EarTrainer&          getEarTrainer() noexcept   { return earTrainer; }
     ProgressionLooper&   getProgressionLooper() noexcept { return progression; }
 
@@ -228,6 +232,8 @@ public:
     IrSlot& getBodyIrSlot() noexcept    { return bodyIr; }
     IrSlot& getCabIrSlot (int index) noexcept { return cabIr[(size_t) juce::jlimit (0, 1, index)]; }
     Capture& getCapture() noexcept     { return capture; }
+    /** SPEC-SWEEP TM-17: the Cab Match test signal, played out of Aux 1 (or the main out). */
+    TestSignalPlayer& getCabMatchSignal() noexcept { return cabMatchSignal; }
 
     //==========================================================================
     // Updates and privacy (updates-telemetry.md).
@@ -564,6 +570,7 @@ private:
     BackingTrackPlayer backingTrack;
     SessionRecorder sessionRecorder;
     ScaleTrainer scaleTrainer;
+    PracticeNoteFeed practiceNoteFeed;   // SPEC-SWEEP PT-34
     EarTrainer earTrainer;
     ProgressionLooper progression;
 
@@ -586,6 +593,8 @@ private:
     IrSlot bodyIr;
     std::array<IrSlot, 2> cabIr;
     Capture capture;
+    TestSignalPlayer cabMatchSignal;                 // SPEC-SWEEP TM-17
+    juce::AudioBuffer<float> testSignalBuffer;       // SPEC-SWEEP TM-17
 
     // --- updates and privacy ---------------------------------------------------------------
     Telemetry telemetry;

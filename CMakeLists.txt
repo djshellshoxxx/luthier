@@ -46,7 +46,7 @@ juce_add_plugin(Luthier
     PRODUCT_NAME                "Luthier"
     IS_SYNTH                    TRUE
     NEEDS_MIDI_INPUT            TRUE
-    NEEDS_MIDI_OUTPUT           FALSE
+    NEEDS_MIDI_OUTPUT           TRUE    # SPEC-SWEEP HI-2/HI-31: producesMidi() is true
     IS_MIDI_EFFECT              FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
     COPY_PLUGIN_AFTER_BUILD     FALSE
@@ -194,6 +194,12 @@ set(LUTHIER_CONSOLE_DEFS
     JUCE_STRICT_REFCOUNTEDPOINTER=1
     JucePlugin_Name="Luthier"
     JucePlugin_VersionString="${PROJECT_VERSION}")
+
+# SPEC-SWEEP PT-24 (practice-tools 3): the TRACK tab offers MP3, so JUCE's own
+# decoder (part of juce_audio_formats, no LGPL code) is switched on.
+set(LUTHIER_FORMAT_DEFS JUCE_USE_MP3AUDIOFORMAT=1)
+list(APPEND LUTHIER_CONSOLE_DEFS ${LUTHIER_FORMAT_DEFS})
+target_compile_definitions(Luthier PUBLIC ${LUTHIER_FORMAT_DEFS})
 
 # The test runner is the one console target that is not headless: it builds the
 # editor, so LUTHIER_HEADLESS has to be 0 or PluginProcessor compiles out the

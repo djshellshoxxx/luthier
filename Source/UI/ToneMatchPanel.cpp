@@ -142,6 +142,30 @@ IrSlotEditor::IrSlotEditor (LuthierAudioProcessor& p, Slot s)
     };
     addAndMakeVisible (reverseButton);
 
+    // SPEC-SWEEP TM-11 (tone-match 1): start and end trim, in samples of the file.
+    for (auto* trim : { &startTrim, &endTrim })
+    {
+        styleSlider (*trim, 0.0, 48000.0, 1.0, " smp");
+        trim->setSkewFactorFromMidPoint (2000.0);
+        addAndMakeVisible (*trim);
+    }
+
+    startTrim.setTitle (juce::String (getSlotName (which)) + " start trim");
+    startTrim.setTooltip ("Samples cut from the start of the impulse response.");
+    startTrim.onValueChange = [this]
+    {
+        if (! updatingControls)
+            slot().setStartTrim ((int) startTrim.getValue());
+    };
+
+    endTrim.setTitle (juce::String (getSlotName (which)) + " end trim");
+    endTrim.setTooltip ("Samples cut from the end of the impulse response.");
+    endTrim.onValueChange = [this]
+    {
+        if (! updatingControls)
+            slot().setEndTrim ((int) endTrim.getValue());
+    };
+
     refresh();
 }
 
@@ -212,6 +236,8 @@ void IrSlotEditor::refresh()
     predelay.setValue (s.getPredelayMs(), juce::dontSendNotification);
     mix.setValue (s.getMix() * 100.0, juce::dontSendNotification);
     reverseButton.setToggleState (s.isReversed(), juce::dontSendNotification);
+    startTrim.setValue (s.getStartTrim(), juce::dontSendNotification);   // SPEC-SWEEP TM-11
+    endTrim.setValue (s.getEndTrim(), juce::dontSendNotification);
 
     const bool loaded = s.isLoaded();
 
@@ -220,6 +246,8 @@ void IrSlotEditor::refresh()
     predelay.setEnabled (loaded);
     mix.setEnabled (loaded);
     reverseButton.setEnabled (loaded);
+    startTrim.setEnabled (loaded);
+    endTrim.setEnabled (loaded);
     clearButton.setEnabled (loaded);
 
     repaint();
@@ -301,6 +329,14 @@ void IrSlotEditor::resized()
         r.removeFromRight (4);
         mix.setBounds (r);
     }
+
+    {
+        // SPEC-SWEEP TM-11.
+        auto r = row (20);
+        startTrim.setBounds (r.removeFromLeft (r.getWidth() / 2 - 2));
+        r.removeFromLeft (4);
+        endTrim.setBounds (r);
+    }
 }
 
 //==============================================================================
@@ -351,6 +387,37 @@ MatchWizard::MatchWizard (LuthierAudioProcessor& p, Kind k)
         preserveDynamics.setClickingTogglesState (true);
         preserveDynamics.setTooltip ("Correct only the spectral shape, not the overall level.");
         addAndMakeVisible (preserveDynamics);
+
+        // SPEC-SWEEP TM-25 (tone-match 3): the band to correct over.
+        styleSlider (lowBand, 20.0, 2000.0, 1.0, " Hz");
+        lowBand.setSkewFactorFromMidPoint (200.0);
+        lowBand.setValue (20.0, juce::dontSendNotification);
+        lowBand.setTitle ("EQ match low band edge");
+        lowBand.setTooltip ("Lowest frequency the match corrects.");
+        addAndMakeVisible (lowBand);
+
+        styleSlider (highBand, 1000.0, 20000.0, 10.0, " Hz");
+        highBand.setSkewFactorFromMidPoint (6000.0);
+        highBand.setValue (20000.0, juce::dontSendNotification);
+        highBand.setTitle ("EQ match high band edge");
+        highBand.setTooltip ("Highest frequency the match corrects.");
+        addAndMakeVisible (highBand);
+    }
+
+    if (kind == Kind::capture)
+    {
+        // SPEC-SWEEP TM-31 / TM-33 (tone-match 4).
+        styleSlider (captureLength, Capture::kMinSeconds, Capture::kMaxSeconds, 0.1, " s");
+        captureLength.setSkewFactorFromMidPoint (10.0);
+        captureLength.setValue (10.0, juce::dontSendNotification);
+        captureLength.setTitle ("Capture length");
+        captureLength.setTooltip ("How long the capture records.");
+        addAndMakeVisible (captureLength);
+
+        autoTrim.setClickingTogglesState (true);
+        autoTrim.setToggleState (true, juce::dontSendNotification);
+        autoTrim.setTooltip ("Trim the silence off each end of the capture before saving.");
+        addAndMakeVisible (autoTrim);
     }
 
     restart();
@@ -408,6 +475,9 @@ juce::String MatchWizard::getStepText() const
 
 void MatchWizard::restart()
 {
+    if (kind == Kind::cabMatch)
+        processor.getCabMatchSignal().stop();   // SPEC-SWEEP TM-17
+
     step = 0;
     haveResult = false;
 
@@ -434,7 +504,22 @@ void MatchWizard::advance()
             // on the sidechain for both matches, or the plugin's own output.
             capture.setSource (kind == Kind::capture ? Capture::Source::mainOut
                                                      : Capture::Source::sidechain);
-            capture.start (kind == Kind::cabMatch ? 6.0 : 10.0);
+
+            if (kind == Kind::cabMatch)
+            {
+                // SPEC-SWEEP TM-17 (tone-match 2): the test signal goes out to the
+                // rig, and the capture starts in the block it does.
+                const auto signal = (CabMatch::TestSignal) juce::jmax (0, signalBox.getSelectedId() - 1);
+                const double rate = processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0;
+
+                processor.getCabMatchSignal().arm (CabMatch::generateTestSignal (signal, rate, 6.0), 6.0);
+            }
+            else
+            {
+                // SPEC-SWEEP TM-31: the capture utility's own length.
+                capture.start (kind == Kind::capture ? captureLength.getValue() : 10.0);
+            }
+
             step = 1;
             actionButton.setButtonText ("Recording...");
             actionButton.setEnabled (false);
@@ -454,7 +539,8 @@ void MatchWizard::advance()
             if (kind == Kind::capture)
             {
                 // The capture utility has only one pass, and it writes a file.
-                capture.autoTrim();
+                if (autoTrim.getToggleState())   // SPEC-SWEEP TM-33
+                    capture.autoTrim();
 
                 const auto file = Capture::getCaptureDirectory().getChildFile (
                     "capture-" + juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M%S") + ".wav");
@@ -537,6 +623,8 @@ void MatchWizard::advance()
                     0, (int) EqMatch::FilterLength::numLengths - 1, lengthBox.getSelectedId() - 1);
 
                 options.aggressiveness = aggressiveness.getValue() * 0.01;
+                options.lowHz = lowBand.getValue();    // SPEC-SWEEP TM-25
+                options.highHz = juce::jmax (lowBand.getValue() * 2.0, highBand.getValue());
                 options.preserveDynamics = preserveDynamics.getToggleState();
 
                 const auto filter = EqMatch::fit (reference, current,
@@ -662,6 +750,21 @@ void MatchWizard::resized()
         preserveDynamics.setBounds (row.removeFromRight (128));
         row.removeFromRight (4);
         aggressiveness.setBounds (row);
+
+        // SPEC-SWEEP TM-25.
+        auto band = bounds.removeFromBottom (24).reduced (0, 1);
+        lowBand.setBounds (band.removeFromLeft (band.getWidth() / 2 - 2));
+        band.removeFromLeft (4);
+        highBand.setBounds (band);
+    }
+
+    if (kind == Kind::capture)
+    {
+        // SPEC-SWEEP TM-31 / TM-33.
+        auto row = bounds.removeFromBottom (24).reduced (0, 1);
+        autoTrim.setBounds (row.removeFromRight (128));
+        row.removeFromRight (4);
+        captureLength.setBounds (row);
     }
 
     stepLabel.setBounds (bounds);

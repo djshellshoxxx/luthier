@@ -666,6 +666,11 @@ void MidiInterpreter::emitVoicedNote (const VoicedNote& note, int64_t timestamp,
     const int offset = juce::jmax (0, blockOffset + extraDelaySamples + jitterSamples);
 
     // If this string is already sounding, that note ends here.
+    // SPEC-SWEEP SQ-8: remember where the finger was, first - a held note
+    // moved by a revoice travels along the string (string-squeak.md 2).
+    const bool wasHeld = slots[(size_t) s].held && technique->isStringActive (s);
+    const double heldFret = wasHeld ? technique->getStringFret (s) : -1.0;
+
     if (slots[(size_t) s].held)
         technique->noteEnded (s, timestamp);
 
@@ -693,6 +698,15 @@ void MidiInterpreter::emitVoicedNote (const VoicedNote& note, int64_t timestamp,
     e.slideSeconds = (slideFromFret >= 0.0)
                        ? technique->slideDurationFor (note.fretPosition - slideFromFret)
                        : 0.0;
+
+    // SPEC-SWEEP SQ-8: a re-struck note whose finger never left the string
+    // (it was still held) and has moved - the shift that squeaks.
+    if (wasHeld && slideFromFret < 0.0 && heldFret > 0.0 && note.fretPosition > 0.0
+        && std::abs (note.fretPosition - heldFret) >= 0.5)
+    {
+        e.shiftFromFret = heldFret;
+        e.shiftSeconds = technique->slideDurationFor (note.fretPosition - heldFret);
+    }
 
     e.pitchHz = tuning->computeFrequency (s, note.fretPosition,
                                           getStringBendCents (s) + detune);

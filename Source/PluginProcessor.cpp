@@ -85,6 +85,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     bridge.cachePointers();
     bridge.setModMatrix (&modMatrix);
 
+    // SPEC-SWEEP TM-6 (tone-match 1): the body IR slot runs inside the engine,
+    // where the body is.
+    engine.setBodyIrSlot (&bodyIr);
+
     // practice-tools 12.1: the routine runner drives the processor's own tools,
     // the history is the saved one, and the saved defaults apply at start.
     practiceRunner.setTargets (getPracticeTargets());
@@ -215,6 +219,7 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     backingTrack.prepare (sampleRate, samplesPerBlock);
 
     clickBuffer.setSize (1, juce::jmax (1, samplesPerBlock), false, true, false);
+    testSignalBuffer.setSize (1, juce::jmax (1, samplesPerBlock), false, true, false);   // SPEC-SWEEP TM-17
     tuneClick.prepare (sampleRate, samplesPerBlock);
     tuneClickBuffer.setSize (1, juce::jmax (1, samplesPerBlock), false, true, false);
     tuneClickRinging = false;
@@ -287,7 +292,9 @@ bool LuthierAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) 
 
     // Rule 2 of routing-io 0: the minimal stereo case must always work, so the
     // main output is the only bus with a hard requirement.
-    if (main != juce::AudioChannelSet::stereo() && main != juce::AudioChannelSet::mono())
+    // SPEC-SWEEP HI-10 (host-integration 2): stereo only - a mono main out is
+    // refused, so the host shows its "not supported" message.
+    if (main != juce::AudioChannelSet::stereo())
         return false;
 
     // The sidechain is optional; if the host enables it, it has to be mono or
@@ -1157,6 +1164,11 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     midiCapture.capture (midiMessages, samplePosition);
     logMidiForDiagnostics (midiMessages);
 
+    // SPEC-SWEEP PT-34 (practice-tools 4): the player's own notes - before the
+    // audition and preview notes are merged in - answer the drawer's trainers.
+    if (practicePanelOpen)
+        practiceNoteFeed.pushNoteOns (midiMessages);
+
     // The audition player and the fretboard preview inject their own MIDI.
     processAuditionMidi (midiMessages, numSamples);
 
@@ -1267,6 +1279,15 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
             slot.process (mainOut.getArrayOfWritePointers(),
                           mainOut.getNumChannels(), numSamples);
 
+        // SPEC-SWEEP TM-17: a Cab Match pass starts its capture in the block
+        // its test signal starts, so both share sample zero.
+        {
+            double captureSeconds = 0.0;
+
+            if (cabMatchSignal.takeStart (captureSeconds))
+                capture.start (captureSeconds);
+        }
+
         // tone-match 4: the capture takes what the plugin produced, or the
         // reference return on the sidechain. It was never fed, so every
         // tone-match wizard waited at "Recording..." for ever.
@@ -1319,6 +1340,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
         if (metronome.isEnabled())
         {
+            metronome.followTempo (blockTempo);   // SPEC-SWEEP PT-6
             metronome.processBlock (clickBuffer.getWritePointer (0), numSamples);
             haveClick = true;
         }
@@ -1382,6 +1404,24 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
     routing.distribute (*this, buffer, engine.getTapBuffers(), engine.getNumStrings(),
                         engine.getNoiseBusData());
+
+    /*  SPEC-SWEEP TM-17 (tone-match 2): the Cab Match test signal goes out to
+        the rig on Aux 1 (DI), in place of what the tap put there - or on the
+        main output when the host gave no aux bus (the standalone app). */
+    if (cabMatchSignal.isPlaying() && numSamples <= testSignalBuffer.getNumSamples())
+    {
+        auto* signal = testSignalBuffer.getWritePointer (0);
+
+        if (cabMatchSignal.render (signal, numSamples))
+        {
+            auto out = getBusCount (false) > 1 && getBus (false, 1) != nullptr && getBus (false, 1)->isEnabled()
+                         ? getBusBuffer (buffer, false, 1)
+                         : getBusBuffer (buffer, false, 0);
+
+            for (int channel = 0; channel < out.getNumChannels(); ++channel)
+                out.copyFrom (channel, 0, signal, numSamples);
+        }
+    }
 
     // live-performance 7: the monitor mix is the performer's own, so it goes to
     // its own bus and never into the main output.

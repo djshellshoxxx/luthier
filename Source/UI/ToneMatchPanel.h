@@ -43,7 +43,7 @@ public:
     bool isInterestedInFileDrag (const juce::StringArray& files) override;
     void filesDropped (const juce::StringArray& files, int x, int y) override;
 
-    static constexpr int preferredHeight = 154;
+    static constexpr int preferredHeight = 176;   // SPEC-SWEEP TM-11: +1 row for the trims
 
 private:
     IrSlot& slot();
@@ -62,6 +62,10 @@ private:
     juce::Slider predelay { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Slider mix { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::TextButton reverseButton { "Reverse" };
+
+    // SPEC-SWEEP TM-11 (tone-match 1): samples trimmed from each end.
+    juce::Slider startTrim { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider endTrim { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
 
     std::unique_ptr<juce::FileChooser> chooser;
 
@@ -88,7 +92,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    static constexpr int preferredHeight = 124;
+    static constexpr int preferredHeight = 148;   // SPEC-SWEEP TM-25/31/33: +1 settings row
 
 private:
     void timerCallback() override;
@@ -110,6 +114,15 @@ private:
     juce::ComboBox signalBox, lengthBox;
     juce::Slider aggressiveness { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::TextButton preserveDynamics { "Preserve dynamics" };
+
+    // SPEC-SWEEP TM-25 (tone-match 3): the band the EQ match corrects over.
+    juce::Slider lowBand { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider highBand { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+
+    // SPEC-SWEEP TM-31 / TM-33 (tone-match 4): how long a capture runs, and
+    // whether its silent ends are trimmed.
+    juce::Slider captureLength { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::TextButton autoTrim { "Auto-trim silence" };
 
     /** The reference and the plugin's own output, recorded in turn. */
     std::vector<float> reference, current;

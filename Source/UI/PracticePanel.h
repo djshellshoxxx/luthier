@@ -25,6 +25,7 @@ namespace luthier
 {
 
 class LuthierAudioProcessor;
+class TuningEngine;   // SPEC-SWEEP PT-39
 
 //==============================================================================
 /** The four-dot beat indicator (practice-tools 1). */
@@ -55,6 +56,9 @@ public:
     /** Called by the drawer's timer while this tab is the visible one. */
     virtual void refresh() {}
 
+    /** SPEC-SWEEP PT-34: a note the player played while this tab was showing. */
+    virtual void notePlayed (int midiNote) { juce::ignoreUnused (midiNote); }
+
 protected:
     LuthierAudioProcessor& processor;
 };
@@ -73,6 +77,7 @@ private:
 
     std::unique_ptr<LuthierToggle> enableToggle;
     std::unique_ptr<LuthierToggle> mainOutToggle;   ///< practice-tools 0.2
+    std::unique_ptr<LuthierToggle> followToggle;    ///< SPEC-SWEEP PT-6: host / tap tempo
     juce::Slider tempoSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::ComboBox signatureBox, subdivisionBox, soundBox;
     juce::Slider levelSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
@@ -113,6 +118,7 @@ private:
         std::unique_ptr<juce::TextButton> select, mute, reverse, halfSpeed, undo;
         std::unique_ptr<juce::ComboBox> mode;
         std::unique_ptr<juce::Slider> level, pan;
+        std::unique_ptr<juce::Slider> lowCut, highCut;   // SPEC-SWEEP PT-20
     };
 
     std::array<LayerStrip, Looper::kMaxLayers> layers;
@@ -148,6 +154,14 @@ private:
     juce::TextButton addMarker { "Mark" };
     juce::ComboBox markerBox;
 
+    // SPEC-SWEEP PT-26 (practice-tools 3): pan, low-cut and high-cut.
+    juce::Slider panSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider lowCutSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider highCutSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+
+    // SPEC-SWEEP PT-30: the name the next marker gets.
+    juce::TextEditor markerName;
+
     std::unique_ptr<juce::FileChooser> chooser;
 
     bool draggingPosition = false;
@@ -162,8 +176,27 @@ public:
     void refresh() override;
     void resized() override;
 
+    /** SPEC-SWEEP PT-34: a played note answers the quiz; a right one asks the next. */
+    void notePlayed (int midiNote) override;
+
+    /** SPEC-SWEEP PT-33: what the fretboard's dots say. */
+    enum class Overlay { notes = 0, intervals, degrees, numOverlays };
+
+    /** SPEC-SWEEP PT-33: the label a pitch class gets under the overlay, or
+        empty when it is not in the scale. */
+    juce::String labelFor (int pitchClass, Overlay overlay);
+
+    /** SPEC-SWEEP PT-37: a custom scale from its steps ("2 1 2 2 1 2 2"). False
+        when the text is not a step list inside an octave. */
+    bool setCustomSteps (const juce::String& steps);
+
+    void paint (juce::Graphics& g) override;   // SPEC-SWEEP PT-33: the scale on a fretboard
+
 private:
     ScaleTrainer& trainer();
+    juce::Label feedbackLabel;   // SPEC-SWEEP PT-34
+    juce::ComboBox overlayBox;   // SPEC-SWEEP PT-33
+    juce::TextEditor customSteps;   // SPEC-SWEEP PT-37
 
     juce::ComboBox keyBox, scaleBox, modeBox;
     juce::Label questionLabel, scoreLabel;
@@ -183,6 +216,12 @@ public:
 
     void refresh() override;
     void resized() override;
+
+    /** SPEC-SWEEP PT-39: where each note of a question is played - string and
+        fret, the lowest free position that sounds it (an octave over when out
+        of reach); -1 when no string is free. Returns `count`. */
+    static int placeOnStrings (const TuningEngine& tuning, int numStrings, const int* midiNotes, int count,
+                               int* stringsOut, int* fretsOut);
 
 private:
     EarTrainer& trainer();

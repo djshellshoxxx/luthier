@@ -48,7 +48,7 @@ namespace
         int count;
     };
 
-    // practice-tools 5: the four named, plus ten more.
+    // practice-tools 5: the five named, plus ten more (SPEC-SWEEP PT-38: was 14).
     const Progression kProgressions[EarTrainer::kNumProgressions] =
     {
         { "I-IV-V",            {  1,  4,  5,  0,  0,  0,  0,  0,  0,  0,  0,  0 },  3 },
@@ -64,7 +64,8 @@ namespace
         { "I-IV-I-V",          {  1,  4,  1,  5,  0,  0,  0,  0,  0,  0,  0,  0 },  4 },
         { "vi-V-IV-V",         { -6,  5,  4,  5,  0,  0,  0,  0,  0,  0,  0,  0 },  4 },
         { "I-vi-ii-V",         {  1, -6, -2,  5,  0,  0,  0,  0,  0,  0,  0,  0 },  4 },
-        { "IV-V-iii-vi",       {  4,  5, -3, -6,  0,  0,  0,  0,  0,  0,  0,  0 },  4 }
+        { "IV-V-iii-vi",       {  4,  5, -3, -6,  0,  0,  0,  0,  0,  0,  0,  0 },  4 },
+        { "I-IV-vi-V",         {  1,  4, -6,  5,  0,  0,  0,  0,  0,  0,  0,  0 },  4 }   // SPEC-SWEEP PT-38
     };
 
     /** The semitone offset of a major-scale degree from its root. */

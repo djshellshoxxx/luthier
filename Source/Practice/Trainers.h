@@ -148,8 +148,8 @@ public:
     /** practice-tools 5: eleven chord qualities. */
     static constexpr int kNumChordQualities = 11;
 
-    /** practice-tools 5: fourteen progressions. */
-    static constexpr int kNumProgressions = 14;
+    /** practice-tools 5: five named progressions and ten more (SPEC-SWEEP PT-38). */
+    static constexpr int kNumProgressions = 15;
 
     static constexpr int kMaxNotesInQuestion = 16;
 

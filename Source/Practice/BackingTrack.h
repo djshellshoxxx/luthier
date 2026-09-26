@@ -15,6 +15,7 @@
 */
 
 #include "../DSP/Common/DspCommon.h"
+#include "TimePitchShifter.h"   // SPEC-SWEEP PT-28/29
 
 // The streaming chain spans three modules: the reader and its source come from
 // juce_audio_formats, the buffering source from juce_audio_basics, and the
@@ -189,6 +190,16 @@ private:
 
     std::atomic<double> pitchSemis { 0.0 };
     std::atomic<double> tempoRatio { 1.0 };
+
+    // SPEC-SWEEP PT-28/29: the pitch and tempo shift, bypassed when neutral.
+    // A seek, stop or new file throws away what it had read ahead.
+    TimePitchShifter shifter;
+    bool shifterActive = false;
+    std::atomic<bool> shifterResetPending { false };
+
+    /** Pulls `count` (<= blockSize) samples from the transport into `left` and
+        `right`, and carries out the loop points and the end of the stream. */
+    void pullFromTransport (float* left, float* right, int count) noexcept;
 
     Biquad lowCutL, lowCutR, highCutL, highCutR;
     double lastLowCut = -1.0, lastHighCut = -1.0;

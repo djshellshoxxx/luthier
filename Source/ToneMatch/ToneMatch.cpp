@@ -512,6 +512,37 @@ void IrSlot::process (float* const* channels, int numChannels, int numSamples) n
     }
 }
 
+void IrSlot::processReplacing (const float* input, float* modelOutput, int numSamples) noexcept
+{
+    if (! isEngaged() || convolution == nullptr || input == nullptr || modelOutput == nullptr || numSamples <= 0)
+        return;
+
+    const double mix = mixAmount.load (std::memory_order_relaxed);
+
+    if (mix <= 0.0)
+        return;
+
+    const int samplesToUse = juce::jmin (numSamples, wetBuffer.getNumSamples());
+
+    if (samplesToUse < 1)
+        return;
+
+    wetBuffer.copyFrom (0, 0, input, samplesToUse);
+
+    {
+        float* channels[] = { wetBuffer.getWritePointer (0) };
+        juce::dsp::AudioBlock<float> block (channels, 1, (size_t) samplesToUse);
+        juce::dsp::ProcessContextReplacing<float> context (block);
+        convolution->process (context);
+    }
+
+    const double gain = dbToGain (gainTrimDb.load (std::memory_order_relaxed));
+    const auto* wet = wetBuffer.getReadPointer (0);
+
+    for (int i = 0; i < samplesToUse; ++i)
+        modelOutput[i] = (float) sanitise ((double) modelOutput[i] * (1.0 - mix) + (double) wet[i] * gain * mix);
+}
+
 //==============================================================================
 juce::var IrSlot::toVar() const
 {

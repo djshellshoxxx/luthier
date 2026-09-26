@@ -71,6 +71,14 @@ struct NoteOnEvent
         imported BASS_TECH event) names for this note, as a BassStepType index;
         -1 lets the slap's own triggers decide. Inert on a guitar. */
     int    bassTechnique = -1;
+
+    /** SPEC-SWEEP SQ-8 (string-squeak.md 2): the fret this string's finger was
+        still holding when the note was re-voiced here - a chord change that
+        moves a held note, the finger travelling along the string without
+        lifting. -1 when the finger was lifted (or nothing was held). The note
+        is still struck as its technique says; this only adds the travel. */
+    double shiftFromFret = -1.0;
+    double shiftSeconds  = 0.0;
 };
 
 struct NoteOffEvent

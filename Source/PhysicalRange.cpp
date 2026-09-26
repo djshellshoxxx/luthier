@@ -145,6 +145,13 @@ namespace
             { "setup_nut_depth_6",         { 0.0f,  1.2f, 0.0f,  4.0f,  0.45f, 1.0f, RangeFamily::buzz } },
             { ParamIDs::setupFretHeight,   { 0.6f,  1.6f, 0.1f,  5.0f,  1.0f,  1.0f, RangeFamily::buzz } },
 
+            // SPEC-SWEEP BT-6 (bass-techniques.md 11): the slap and pop points
+            // are positions on the instrument, so they join the buzz family.
+            // Stock is the declared 5-400 mm (the spec's narrower 20-200 and
+            // 10-150 would re-map saved values); advanced reaches any bridge.
+            { ParamIDs::slapPositionMm,    { 5.0f, 400.0f, 2.0f, 800.0f, 60.0f, 1.0f, RangeFamily::buzz } },
+            { ParamIDs::popPositionMm,     { 5.0f, 400.0f, 2.0f, 800.0f, 40.0f, 1.0f, RangeFamily::buzz } },
+
             // --- slide (slide-guitar.md 7) ----------------------------------
             { ParamIDs::slideSlant,        { -30.0f, 30.0f, -60.0f, 60.0f, 0.0f,  0.5f, RangeFamily::slide } },
             { ParamIDs::slideNoiseAmount,  { 0.0f,   1.0f,  0.0f,   4.0f,  0.4f,  1.0f, RangeFamily::slide } },
@@ -154,7 +161,7 @@ namespace
         return table[index];
     }
 
-    constexpr int kNumEntries = 32;
+    constexpr int kNumEntries = 34;   // SPEC-SWEEP BT-6: +2
 }
 
 const PhysicalRange* RangeRegistry::find (const juce::String& parameterId)

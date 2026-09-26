@@ -1,5 +1,6 @@
 #include "LuthierEngine.h"
 #include "Capture/PerformanceCapture.h"
+#include "ToneMatch/ToneMatch.h"   // SPEC-SWEEP TM-6
 
 namespace luthier
 {
@@ -114,6 +115,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     magneticBuffer.assign ((size_t) maxBlock, 0.0);
     instrumentBuffer.assign ((size_t) maxBlock, 0.0);
     preCircuitBuffer.assign ((size_t) maxBlock, 0.0);   // MODEL-GAPS: Aux 1 pre-circuit
+    bodyIrInput.assign ((size_t) maxBlock, 0.0f);       // SPEC-SWEEP TM-6
     bodyBuffer.setSize (1, maxBlock, false, true, true);
     workBuffer.setSize (2, maxBlock, false, true, true);
     wetDryBuffer.setSize (2, maxBlock, false, true, true);
@@ -1162,7 +1164,20 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
                         fretNoise);
 
     {
-        const auto info = StringNoiseInfo::fromSpec (stringSpecs[(size_t) s], spec.stringMaterial, stringAge);
+        auto info = StringNoiseInfo::fromSpec (stringSpecs[(size_t) s], spec.stringMaterial, stringAge);
+
+        /*  SPEC-SWEEP SQ-27 (string-squeak.md 10): a worn fret lets the string
+            sit closer to the winding's catch point - up to 15 % rougher at
+            full wear and full character. */
+        if (character.isEnabled())
+            info.ageRoughness *= 1.0 + 0.15 * character.getFretWear ((int) std::round (fret))
+                                           * character.getAmount();
+
+        // SPEC-SWEEP SQ-8: a revoice that moved a held note - the finger
+        // travelled, so it can squeak, and the note is still struck below.
+        if (e.shiftFromFret >= 0.0 && e.technique != Technique::Slide && ! slide.isUnderBar (s))
+            playingNoise.onShift (s, info, spec.scaleLengthMm, e.shiftFromFret, fret,
+                                  e.shiftSeconds > 0.0 ? e.shiftSeconds : 0.12, shiftCount++);
 
         if (e.technique == Technique::Slide && e.slideFromFret >= 0.0 && ! slide.isUnderBar (s))
         {
@@ -1344,6 +1359,16 @@ void LuthierEngine::setSetupGeometry (const SetupGeometry& geometry) noexcept
     auto g = geometry;
     g.scaleLengthMm = spec.scaleLengthMm;
     g.numStrings = numStrings;
+
+    /*  SPEC-SWEEP FB-21 (fret-buzz.md 8): the instrument's own fret wear
+        (character-wear 3) lowers each worn crown - up to 0.4 mm at full wear
+        and full character. Called every block from the parameter bridge, so a
+        new seed or a refret reaches the buzz model within a block. */
+    for (int f = 1; f <= SetupGeometry::kMaxFrets; ++f)
+        g.fretWearMm[(size_t) f] = character.isEnabled()
+                                     ? character.getFretWear (f) * character.getAmount() * 0.4
+                                     : 0.0;
+
     fretBuzzModel.setGeometry (g);
 
     // The string's own contact clipper (the older, in-loop half of buzz) takes
@@ -2162,11 +2187,21 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     const bool bodyActive = (body.getMode() != BodyEngine::Mode::Bypassed);
     validator.checkBodyCoupling (bodyActive, samplePosition);
 
+    // SPEC-SWEEP TM-6: an engaged body IR hears what the body model hears.
+    const bool bodyIrEngaged = bodyIrSlot != nullptr && bodyIrSlot->isEngaged()
+                               && numSamples <= (int) bodyIrInput.size();
+
+    if (bodyIrEngaged)
+        std::copy (bodyData, bodyData + numSamples, bodyIrInput.begin());
+
     {
         juce::dsp::AudioBlock<float> block (bodyBuffer);
         auto sub = block.getSubBlock (0, (size_t) numSamples);
         body.processBlock (sub);
     }
+
+    if (bodyIrEngaged)
+        bodyIrSlot->processReplacing (bodyIrInput.data(), bodyData, numSamples);
 
     // ---- 4. combine the transducer paths ------------------------------------
     // The circuit is rebuilt only when something in it changed; a knob move is
