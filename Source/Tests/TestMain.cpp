@@ -10,6 +10,8 @@
 
 #include "TestFramework.h"
 #include <juce_events/juce_events.h>
+#include "../UI/FirstRun.h"
+#include "../UI/Onboarding.h"
 
 using namespace luthier::tests;
 
@@ -24,6 +26,11 @@ namespace
 int main (int argc, char* argv[])
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
+
+    // onboarding.md 5 (TUNE-HELP-ONBOARDING): an editor built by any test must not
+    // apply this machine's OS preferences to the real settings files mid-run.
+    luthier::FirstRun::setStateForTesting (true, false);
+    luthier::Onboarding::setAutomaticForTesting (false);
 
     juce::StringArray filters;
     bool listOnly = false;

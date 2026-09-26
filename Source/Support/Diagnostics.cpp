@@ -45,7 +45,7 @@ void Diagnostics::log (LogCategory category, const char* text, int64_t samplePos
     if (! enabled.load (std::memory_order_relaxed) || text == nullptr)
         return;
 
-    const int index = writeIndex.fetch_add (1, std::memory_order_relaxed) % kRingSize;
+    const int index = (int) (writeIndex.fetch_add (1, std::memory_order_relaxed) % kRingSize);
     auto& r = ring[(size_t) index];
 
     r.category = category;
@@ -71,7 +71,7 @@ void Diagnostics::logValue (LogCategory category, const char* text, double value
 
     log (category, text, samplePos);
 
-    const int index = (writeIndex.load (std::memory_order_relaxed) - 1 + kRingSize) % kRingSize;
+    const int index = (int) ((writeIndex.load (std::memory_order_relaxed) - 1 + kRingSize) % kRingSize);
     ring[(size_t) index].value = value;
     ring[(size_t) index].hasValue = true;
 }
@@ -81,14 +81,14 @@ int Diagnostics::getRecords (Record* dest, int maxRecords) const noexcept
     if (dest == nullptr || maxRecords <= 0)
         return 0;
 
-    const int total = totalWritten.load (std::memory_order_relaxed);
-    const int available = juce::jmin (total, kRingSize);
+    const int64_t total = totalWritten.load (std::memory_order_relaxed);
+    const int available = (int) juce::jmin (total, (int64_t) kRingSize);
     const int count = juce::jmin (available, maxRecords);
-    const int write = writeIndex.load (std::memory_order_relaxed);
+    const int64_t write = writeIndex.load (std::memory_order_relaxed);
 
     for (int i = 0; i < count; ++i)
     {
-        const int index = ((write - count + i) % kRingSize + kRingSize) % kRingSize;
+        const int index = (int) (((write - count + i) % kRingSize + kRingSize) % kRingSize);
         dest[i] = ring[(size_t) index];
     }
 
@@ -176,11 +176,11 @@ void Diagnostics::flushCrashLog (const juce::String& troubleshootingReport)
         crashLogHeaderWritten = true;
     }
 
-    const int total = totalWritten.load();
+    const int64_t total = totalWritten.load();
 
     if (total > crashLogFlushedUpTo)
     {
-        const int toWrite = juce::jmin (total - crashLogFlushedUpTo, kRingSize);
+        const int toWrite = (int) juce::jmin (total - crashLogFlushedUpTo, (int64_t) kRingSize);
 
         std::vector<Record> records ((size_t) toWrite);
         const int count = getRecords (records.data(), toWrite);

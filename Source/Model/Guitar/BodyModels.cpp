@@ -196,7 +196,7 @@ void BodyModels::buildModes (const BodyConfig& cfg, std::vector<BodyMode>& dest)
     // gets a higher Q - the "opened up" quality of an old instrument.
     const double ageQ = 1.0 + juce::jlimit (0.0, 1.0, cfg.age) * 0.55;
 
-    auto addMode = [&dest, &cfg] (double hz, double q, double gain)
+    auto addMode = [&dest, &cfg] (double hz, double q, double gain, bool isAir = false)
     {
         if (dest.size() >= (size_t) kMaxModes)
             return;
@@ -208,6 +208,7 @@ void BodyModels::buildModes (const BodyConfig& cfg, std::vector<BodyMode>& dest)
         m.frequencyHz = hz * cfg.resonanceTrim;
         m.q = juce::jlimit (1.5, 220.0, q);
         m.gain = gain;
+        m.isAir = isAir;
         dest.push_back (m);
     };
 
@@ -219,8 +220,8 @@ void BodyModels::buildModes (const BodyConfig& cfg, std::vector<BodyMode>& dest)
         // The Helmholtz mode and the top's fundamental couple into a pair split
         // either side of the uncoupled frequencies; this is the classic guitar
         // "double resonance" in the low end.
-        addMode (airHz, 16.0 * ageQ, 1.00);
-        addMode (airHz * 1.62, 22.0 * ageQ, 0.42);
+        addMode (airHz, 16.0 * ageQ, 1.00, true);
+        addMode (airHz * 1.62, 22.0 * ageQ, 0.42, true);
 
         // Long-air mode running the length of the box.
         const double lengthM = shape.lowerBoutMm * 0.0016 * widthScale;

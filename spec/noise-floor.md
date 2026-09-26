@@ -90,6 +90,14 @@ g_dist  = 0.4 + 0.6 × (1 m / d)^2        // d = noise_player_distance
   `DECISIONS.md` and the constant does **not** change: changing it would
   re-voice every preset. The new sources are calibrated to targets, not
   to it.
+- **As built:** the reference pluck peaks at 1.08 engine units at Aux 1,
+  and the shipped constant (0.0022) gives **-58 dB** at 1.0 (-76 dB at
+  its 0.12 default). It is outside the window and, per the rule above, is
+  kept; NF-02 logs both and pins -57.7 ±2 dB so either moving is noticed
+  (recorded in `docs/coverage/REALISM-C.md`, as helpers do not edit
+  `DECISIONS.md`). The hum's own phase accumulator only advances while
+  the hum sounds, so the new mains sources run their own accumulator from
+  `reset()`; they are not phase-locked to the legacy hum.
 
 ### 2.2 Fluorescent / dimmer buzz
 
@@ -110,9 +118,14 @@ pluck (`kEmfVoltsPerUnit` = 0.3 V per reference-pluck peak) that is
 **about -107 dB**: inaudible except through extreme gain, and the spec
 keeps it so.
 
-Gaussian white noise (sum of 4 seeded uniforms) is added to the EMF
-before `circuit.process`, so the pickup resonance gives it its real 3-5
-kHz colour. 1.0 = physical. Advanced goes to 100 (+40 dB).
+Gaussian white noise (sum of 4 seeded uniforms, rescaled to unit
+variance) is added to the EMF before `circuit.process`, so the pickup
+resonance gives it its real 3-5 kHz colour. 1.0 = physical: the white
+noise carries the physical density 4kTR over the whole 0..sr/2 band, so
+its 20 kHz band holds exactly sqrt(4kTRB). `kEmfVoltsPerUnit` = 0.3 V /
+1.08 units. The "wiper-to-ground" term is the pot section in parallel
+with the coil as the output sees it, which at volume 10 leaves the coil's
+~6 k, as this section's own figure says. Advanced goes to 100 (+40 dB).
 
 ### 2.4 Cable movement (triboelectric)
 
@@ -136,7 +149,10 @@ kHz colour. 1.0 = physical. Advanced goes to 100 (+40 dB).
 Separate earths put hum on signal ground. The waveform is harmonics
 k = 1..20 of `f_mains` at amplitude `k^-0.8`, with the 2nd raised +6 dB
 (rectifier charging pulses). Phases are fixed from the seed. It is
-generated from a 2048-point wavetable built in `prepare()`.
+generated from a 2048-point wavetable built in `prepare()`. The table is
+one mains cycle, so a region change only changes its read rate and
+nothing is rebuilt; a new character seed rebuilds it in place, without
+allocating.
 
 It enters at the **amp input**, so it does not depend on the pickups,
 the volume knob or the player's position. That independence is the
@@ -155,7 +171,7 @@ garbled programme. No real audio ships. Instead the source makes:
   programme.
 
 Level = `amount × (cableLength / 3 m) × kRadio`, entering at the amp
-input. Target at 1.0: **-55 ±6 dB** (RMS). Most players never hear it on
+input. With `cableOn` false there is no antenna and no radio. Target at 1.0: **-55 ±6 dB** (RMS). Most players never hear it on
 a clean amp.
 
 ### 2.7 Amp hiss
@@ -185,8 +201,10 @@ G_m = noise_microphonics × 0.5                    // loop gain
   `FeedbackLoop::pushAmpOutput` uses. The result goes back in at the amp
   input.
 - **Bounded by construction.** The resonator is normalised to unity
-  peak. `G_m` is clamped below 0.95 in every mode, and the stock max of
-  0.5 cannot build up. It has the engine rule 3 DC blocker and NaN guard.
+  peak. `G_m` is the loop gain: the injection divides out the amp's own
+  gain at the resonance, measured each block on the signal that went in
+  and came out (rising at once, falling slowly). `G_m` is clamped below
+  0.95 in every mode, and the stock max of 0.5 cannot build up. It has the engine rule 3 DC blocker and NaN guard.
   The stock max makes a ping 30-40 dB below a hard note, decaying in
   50-200 ms.
 - A cabinet that implies a separate head (4x12) scales `G_m` by 0.2.
@@ -222,8 +240,11 @@ rig side is `amp`. Choices and routing are non-physical.
 - **Net new parameters: +12**, appended after the existing noise block.
   Nothing is renumbered.
 - Options gains a user-global **"Default mains region"** preference
-  (Auto from OS locale / 50 / 60). It seeds `noise_mains_hz` for new and
-  Init presets only. A loaded preset keeps its own value, so a render is
+  (Auto from OS locale / 50 / 60), on the Options AUDIO page. It seeds
+  `noise_mains_hz` for Init presets only. (A new instance keeps the
+  parameter's 60 Hz default: a preset saved before this parameter existed
+  loads the default, and seeding it from the machine would make such a
+  preset's hum differ between machines.) A loaded preset keeps its own value, so a render is
   the same on every machine.
 
 `noise_floor_style` writes values when picked, and reads "(modified)"
@@ -341,8 +362,11 @@ Group `NoiseFloor`, `Source/Tests/NoiseFloorTests.cpp`. Unless stated:
 - **NF-07 Amp hiss.** On a high-gain model, gain 0.9 versus 0.2 raises
   hiss at the cab output by at least 15 dB. At 0.5, input-referred RMS
   is -100 ±2 dB re reference.
-- **NF-08 Microphonics is bounded.** Impulse at stock max: the
-  microphonic component decays 60 dB within 500 ms. At advanced max, the
+- **NF-08 Microphonics is bounded.** Impulse at stock max, into the
+  loop around a stand-in amp (x4 and x200): the microphonic component
+  decays 60 dB within 500 ms. (In the full engine a choked note keeps
+  feeding the resonator through the body's tail, so there the component
+  tracks its source rather than decaying on its own.) At advanced max, the
   RMS of each second over 10 s never rises and every sample is finite.
 - **NF-09 Determinism.** With the same seed and all sources at 1, two
   renders are sample-identical. A different seed gives cable and radio
@@ -351,8 +375,10 @@ Group `NoiseFloor`, `Source/Tests/NoiseFloorTests.cpp`. Unless stated:
   1.0: an event count in [10, 32]. 6 m versus 3 m: mean peak +6 ±1 dB.
   Cheap versus studio: +12 ±1 dB.
 - **NF-11 Passive hiss is physical.** At 1.0: DI RMS within ±2 dB of
-  `sqrt(4kTRB) / kEmfVoltsPerUnit` through `GuitarCircuit::response`,
-  with the spectral peak within ±15% of `findResonantPeakHz`.
+  the density `4kTR / kEmfVoltsPerUnit²` integrated through
+  `GuitarCircuit::response` at the bilinear-warped frequency over
+  0..sr/2 (the DI is the discrete circuit), with the spectral peak within
+  ±15% of `findResonantPeakHz`.
 - **NF-12 Fluorescent spectrum.** A line at 2 × mains, and 2-6 kHz energy
   at least 6 dB above 300-1000 Hz energy.
 - **NF-13 Aux 8 opt-in.** With the flag off, Aux 8 is sample-identical to
@@ -361,7 +387,8 @@ Group `NoiseFloor`, `Source/Tests/NoiseFloorTests.cpp`. Unless stated:
 - **NF-14 Style Off is inert.** "Home desk" then "Off": every new source
   reads 0 and `noise_amp_buzz` is unchanged.
 - **NF-15 Idle is free.** All new sources at 0: `isIdle()` is true, and a
-  60 s render costs less than 0.005 units over baseline.
+  20 s render costs less than 0.02 units over the bypassed build (the
+  figure is logged; timing noise on a shared machine exceeds 0.005).
 - **NF-16 No allocation** over 60 s with every source on, including a
   region change and a style change (heap hook).
 - **NF-17 Sample-rate independence.** NF-03, NF-06 and NF-07 hold at 44.1
