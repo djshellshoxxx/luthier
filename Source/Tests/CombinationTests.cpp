@@ -1458,6 +1458,34 @@ LUTHIER_TEST (Combo, factoryPresetsAndResetUseTheGuitarsOwnParts)
 }
 
 //==============================================================================
+/*  B-17: a preset on a type with no parts guitar (Custom) plays the compiled
+    guitar, and a transport restart (prepareToPlay) must not bring back the
+    parts guitar that was loaded before it. It did: the processor kept the
+    previous parts guitar marked as loaded and re-applied it in prepareToPlay,
+    so "Transposing Trem Chords" played the default Strat's parts after a
+    restart and its saved session did not (0.285 apart). */
+LUTHIER_TEST (Combo, compiledGuitarSurvivesATransportRestart)
+{
+    Rig r;
+    auto& p = r.p().getPresetManager();
+    const int index = p.indexOfPreset ("Transposing Trem Chords");
+    CHECK_MSG (index >= 0, "the Custom-type factory preset is missing");
+    if (index < 0)
+        return;
+
+    p.loadPreset (index);
+    r.apply();
+    const bool before = r.p().getEngine().isWorkshopGuitar();
+
+    r.p().releaseResources();
+    r.p().prepareToPlay (kSr, kBlock);
+    r.apply();
+    CHECK_MSG (r.p().getEngine().isWorkshopGuitar() == before,
+               juce::String ("prepareToPlay changed the guitar: parts guitar ") + (before ? "on" : "off") + " before, "
+                   + (r.p().getEngine().isWorkshopGuitar() ? "on" : "off") + " after");
+}
+
+//==============================================================================
 /*  The released string itself is damped quickly (sustain-and-decay SUS-08:
     by 250 ms more than 40 dB below its level at note-off). The mix-level decay
     check in Verdict allows the sympathetic ring of the other open strings; this
