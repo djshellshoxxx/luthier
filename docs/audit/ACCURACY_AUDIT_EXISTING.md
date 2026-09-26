@@ -90,6 +90,15 @@ FIXED), plus one GCC build fix. 19 items are proposals or owner decisions.
 | A-08 | Archtop body bracing `parallel`, and `engineBracing` maps it to `HollowParallel` explicitly | `Full Hollow Archtop Body.luthierpart`, `PartAcoustics.cpp` | `AccuracyAudit.archtopIsParallelBraced` |
 | A-11 | P90 part inductance 6.5 H | `P90 Alnico 5 8.2k.luthierpart` | `AccuracyAudit.p90InductanceIsInTheMeasuredRange` |
 | — | Build fix: GCC rejects a local `constexpr` in a lambda's default argument | `Source/Tests/ReviewRegressionTests.cpp` | builds on GCC 13 |
+| — | NormalizationFactory.json: A-07 changes the Flamenca's structural hash, so the 25 entries keyed on it were re-keyed (values from a fresh `--calibrate-factory` run). The other 875 entries are kept byte-identical: a full regeneration on this machine moved about 180 of them by 0.1–1.7 LU across guitar types these fixes do not touch, which is render-environment spread, not these fixes | `Resources/NormalizationFactory.json` | `Normalization.ON27_Cache` and the ON-03 drift gate pass |
+
+Verification: the model/physics suites (Normalization, HarmonicRealism,
+Engine, Tuning*, StringAging, Sustain*, Environment, *Coupling, Workshop*,
+PartAcoustics, Buzz, StringInteraction, Slide, Slap, Feedback, PartSwap,
+ModelGaps, Body, GuitarLibrary, Presets, Pickup, Whammy, Squeak, PickNoise,
+Technique, Character, Circuit, Scrape, EBow, Realism*: 530 tests) pass
+before and after the change. The only failure after the change was ON27,
+which the table update fixes.
 
 Every fix changes only the instruments named in its row. A-05 changes the
 string physics of every acoustic, resonator and 12-string guitar, which use
