@@ -30,7 +30,7 @@ This spec is a ship-gate checklist, and a large part of it is process: the host 
 | QA-24 (§3) | Corrupt preset: every byte flipped is refused or loads — HEAD random mutations | on visual | n/a | `Presets::mutatedPresetsNeverCrashTheLoader`; on visual: `Presets::everyByteOfAFactoryPresetFlippedIsRefusedOrLoads` | OWNED |
 | QA-25 (§3) | Corrupt `.luthierguitar`: every byte flipped | on visual | n/a | on visual: `Workshop::everyByteOfAFactoryGuitarFlippedIsRefusedOrLoads` | OWNED |
 | QA-26 (§3) | Missing IR/part/guitar -> graceful fallback + banner | `PartLibrary` load report, IrSlot | notification banner | `Workshop::aMissingPartFallsBackAndSaysSo`, `WorkshopPresets::aMissingGuitarFileFallsBackToItsType`, `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` | DONE |
-| QA-27 (§4) | Every control has a tooltip — `attachTo` falls back to the parameter name; no test | `UI/Widgets.cpp` attach helpers | all panels | - | NO-TEST |
+| QA-27 (§4) | Every control has a tooltip — `attachTo` falls back to the parameter name; no test | `UI/Widgets.cpp` attach helpers | all panels | `GuiReach::everyVisibleAttachedControlHasATooltip` (default view) | DONE |
 | QA-28 (§4) | Tooltips and labels in every locale, fitting at 100% — catalog API only; no `Resources/i18n` translations; many literal strings | `Accessibility/Localisation.cpp` | Options > language | `Localisation::catalogCoversTheUi`, `Localisation::everyShipLocaleIsOffered` | PARTIAL |
 | QA-29 (§4) | Accessibility role/value; physical units in the announcement — names for attached controls on visual; units not asserted | `Accessibility/*`; on visual: edb6003 | all controls | on visual: `ScreenReader::everyAttachedControlHasAName` | OWNED |
 | QA-30 (§4) | Hover/click/drag/right-click/double-click; reset; value entry and paste | `UI/Widgets.cpp` right-click menu | all controls | `GuiReach::operatingEachControlWritesItsParameter`; on visual: `ContextMenu::everyParameterShowsItsAutomationIdAndBoundOnesTheirShortcut` | DONE |
@@ -51,7 +51,7 @@ This spec is a ship-gate checklist, and a large part of it is process: the host 
 | QA-45 (§5) | Sounds like its name (audio-lead sign-off) | - | n/a | - | MISSING |
 | QA-46 (§5) | DC null: silent in, ≤ -100 dBFS out — with noise floor off, on visual | engine | n/a | `Engine::silenceInSilenceOut`; on visual: `Engine::silenceInSilenceOutWithNoiseFloorOff` | OWNED |
 | QA-47 (§5) | Mono compatibility ≤ 3 dB comb in the presence range | engine | n/a | `Engine::monoCompatibility` | DONE |
-| QA-48 (§5) | Bypass null: bypassed output bit-identical to no plugin — host bypass untested | JUCE default `processBlockBypassed` (not overridden) | host | - | NO-TEST |
+| QA-48 (§5) | Bypass null: bypassed output bit-identical to no plugin — host bypass untested | JUCE default `processBlockBypassed` (instrument: silence) | host | `HostState::bypassOutputsSilence` | DONE |
 | QA-49 (§5) | Pedals: toggle click-free, extremes bounded, zero-mix ≤ -80 dB null | `DSP/Effects`; on visual: 56a4980 | pedal rack | `Effects::everyPedalTypeRunsCleanly`, `Effects::bypassIsTransparent`; on visual: `Effects::toggleIsClickFree`, `Effects::zeroMixIsABypassWithinMinus80` | OWNED |
 | QA-50 (§5) | Amps: cold start, monotonic gain sweep, neutral tone stack flat within 1 dB | on visual: 56a4980 | AMP | on visual: `Amp::coldStartHasNoTransient`, `Amp::gainSweepIsMonotonicAt1kHz`, `Amp::neutralToneStackIsFlatWithin1dB` | OWNED |
 | QA-51 (§5) | Squeak: amount 0 is bit-identical to disabled; 1000 runs byte-identical | `DSP/Noise` squeak | CHARACTER | `Squeak::zeroIsFreeAndSlideModeSuppressesIt`, `Squeak::theProbabilityRollIsDeterministic`; on visual: `Squeak::aThousandRunsAreByteIdentical` | OWNED |
@@ -83,4 +83,4 @@ This spec is a ship-gate checklist, and a large part of it is process: the host 
 | QA-77 (§12) | Final 30-minute human check including a from-scratch Workshop guitar save/reopen | process | n/a | - | MISSING |
 | QA-78 (§13) | 72 h post-release monitoring, support SLA, rehearsed 30-minute rollback, 24 h hotfix path — RELEASING.md covers publishing, not rollback | `docs/RELEASING.md` | n/a | - | MISSING |
 
-<!-- counts DONE=16 NO-GUI=0 NO-TEST=3 PARTIAL=13 MISSING=10 OWNED=36 -->
+<!-- counts DONE=18 NO-GUI=0 NO-TEST=1 PARTIAL=13 MISSING=10 OWNED=36 DEFERRED=0 -->

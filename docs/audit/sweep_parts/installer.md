@@ -41,7 +41,7 @@ This spec has changed most since the baseline. The integration branch now has re
 | IN-35 (§7) | MSI wrapper for Group Policy | - | - | - | MISSING |
 | IN-36 (§8) | Preset without ranges gets a block on load; original backed up to `Presets/Backup/<date>/` — derived rather than stock-only (advanced-ranges supersedes) | `PresetManager::fromVar`, `PresetManager::backupMigratedOriginal` | n/a | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent`, `ModelGapsUi::aMigratedPresetKeepsItsOriginal` | DONE |
 | IN-37 (§8) | Pre-parts guitar reference resolves via `migration.json`; same backup | `PartLibrary` migration table, `PresetManager::needsMigration` | n/a | `GuitarMigration::aPresetNamingAnOldGuitarLoadsItsReplacement`, `GuitarMigration::everyPreM49NameResolvesToItsShippedGuitar` | DONE |
-| IN-38 (§8) | Old `.luthierloop` without event-class tags loads with defaults; `.mid` without the Luthier chunk loads as Generic — untested | `Practice/Looper.cpp` load, `Export/MidiProfiles` import | PRACTICE / MIDI import | - | NO-TEST |
+| IN-38 (§8) | Old `.luthierloop` without event-class tags loads with defaults; `.mid` without the Luthier chunk loads as Generic — untested | `Practice/Looper.cpp` load, `Export/MidiProfiles` import | PRACTICE / MIDI import | `PracticeLooper::anOldLoopWithoutTagsLoads`, `MidiImport::aPlainMidiFileLoadsAsGeneric` | DONE |
 | IN-39 (§8) | Subtle info banner on the first migrated load | on visual: 3b53f8b | banner | on visual: `Editor::aMigratedPresetRaisesOneInfoBanner` | OWNED |
 | IN-40 (§9) | Portable Windows zip: no registry, no Start menu, no auto-update; no writes outside the folder — the plugin still writes `Documents\Luthier` | `package_windows.ps1` portable zip | n/a | CI package build | PARTIAL |
 | IN-41 (§10) | SHA-256 for every installer + PGP-signed manifest + canonical URL | `.github/workflows/release.yml` (SHA256SUMS.txt + gpg) | n/a | CI `release.yml` | DONE |
@@ -54,4 +54,4 @@ This spec has changed most since the baseline. The integration branch now has re
 | IN-48 (§13) | Test: portable Windows writes nothing outside its folder | - | n/a | - | MISSING |
 | IN-49 (§13) | Test: 200 pre-parts fixture presets load, back up and render within -60 dBFS of golden | - | n/a | - | MISSING |
 
-<!-- counts DONE=12 NO-GUI=0 NO-TEST=8 PARTIAL=12 MISSING=10 OWNED=7 -->
+<!-- counts DONE=13 NO-GUI=0 NO-TEST=7 PARTIAL=12 MISSING=10 OWNED=7 DEFERRED=0 -->
