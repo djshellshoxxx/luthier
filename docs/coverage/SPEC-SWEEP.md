@@ -37,6 +37,15 @@ the decisions taken while fixing, and the state of the owned workstreams.
 | Release helper | editions, licensing | `claude/luthier-release` (no commits ahead) | deferred to the end by the coordinator |
 | CLI easter egg | include.md "easter egg", gui-integration signature-notch pixel | none | deferred to last by the coordinator |
 
+### Update 2026-09-26
+
+REALISM-A, REALISM-B, REALISM-C, TECHNIQUES and TUNE-HELP were merged into the
+integration branch (commits 62a537c, bdd86cc, 8d23818, 4439443) and from there into
+this branch. Their rows stay OWNED in the audit tables (verified by the owners'
+coverage docs, `docs/coverage/REALISM-*.md`, `TECHNIQUES.md`,
+`TUNE-HELP-ONBOARDING.md`); the OWNER-GAP bullets in their `.fixes.md` files are
+the requirements those workstreams left open. VISUAL (52 commits) is not merged yet.
+
 ## Phase-2 organisation
 
 Unowned non-DONE rows were split by area over six worktrees (`sweep/state`,
