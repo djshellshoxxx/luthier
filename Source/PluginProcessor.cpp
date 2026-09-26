@@ -269,6 +269,7 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     sliceMidiOut.ensureSize (8192);
     liveMidiKept.ensureSize (8192);
     controllerScratch.ensureSize (8192);   // SPEC-SWEEP CT-4
+    clockTransport.prepare (sampleRate);   // SPEC-SWEEP IR-16
     captureStringCount = -1;   // re-sent at the next drain
     diagnostics.prepare (sampleRate);
 
@@ -1306,6 +1307,24 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         }
 
         engine.setTransportPosition (ppq, playing);
+
+        /*  SPEC-SWEEP (IR-16): with the host stopped, a running MIDI clock
+            (start / continue / stop / song position) drives the grid, at the
+            clock's own tempo (HI-32 above). Position read before this block's
+            messages move it, so the block starts where the last one ended. */
+        {
+            const double clockBpm = midiClockBpm.load (std::memory_order_relaxed);
+            const bool clockWasRunning = clockTransport.isRunning (samplePosition);
+            const double clockPpq = clockTransport.getPpqAt (samplePosition, clockBpm);
+
+            clockTransport.process (midiMessages, numSamples, samplePosition);
+
+            // Only the engine's grid follows it; the tune player keeps its
+            // own clock, as it does whenever the host is stopped.
+            if (! playing && clockWasRunning && clockBpm > 0.0)
+                engine.setTransportPosition (clockPpq, true);
+        }
+
         engine.setHostTimeSeconds (hostSeconds, playing && hostSeconds >= 0.0);
 
         /*  tune-builder 3.6 and 8: the tune plays against the host's clock

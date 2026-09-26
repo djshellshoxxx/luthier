@@ -42,6 +42,7 @@
 #include "Controllers/ControllerStage.h"   // SPEC-SWEEP CT-2/CT-7
 #include "Support/CommandQueue.h"         // SPEC-SWEEP UW-5
 #include "Live/ExpressionStage.h"          // SPEC-SWEEP IR-11
+#include "Live/MidiClockTransport.h"       // SPEC-SWEEP IR-16
 
 namespace luthier
 {
@@ -933,6 +934,12 @@ private:
     CommandQueue<EngineCommand, 128> engineCommands;
     ControllerStage controllerStage;
     ExpressionStage expressionStage;   // IR-11
+    MidiClockTransport clockTransport; // IR-16
+
+public:
+    /** SPEC-SWEEP (IR-16): where incoming MIDI clock says the song is. */
+    const MidiClockTransport& getMidiClockTransport() const noexcept { return clockTransport; }
+private:
     juce::MidiBuffer controllerScratch;
     std::array<std::atomic<bool>, kMaxStrings> stringMuted {};
     std::atomic<bool> aftertouchBends { false };   // PT-23

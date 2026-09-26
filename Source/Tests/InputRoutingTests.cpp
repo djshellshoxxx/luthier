@@ -7,6 +7,8 @@
 
 #include "../PluginProcessor.h"
 #include "../Controllers/ControllerProfile.h"
+#include "../Live/MidiClockTransport.h"
+#include "../Rhythm/Patterns.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -318,4 +320,107 @@ LUTHIER_TEST (InputRouting, profileStageRemapsChannelsAndTime)
 
     CHECK_MSG (onsetAt >= 0 && onsetAt <= arrivesAt - 150,
                "the note sounded at " + juce::String (onsetAt) + ", arrived at " + juce::String (arrivesAt));
+}
+
+/*  IR-16 (input-routing 1.6): with the host stopped, MIDI clock drives the
+    rhythm engine - Start plays it from the top, Stop silences it, and Song
+    Position relocates it. */
+LUTHIER_TEST (InputRouting, midiClockDrivesTheRhythmEngineWhenTheHostIsStopped)
+{
+    // ---- the transport follower on its own ----------------------------------------
+    {
+        MidiClockTransport t;
+        t.prepare (kSr);
+
+        const int perClock = (int) (60.0 / 120.0 * kSr / 24.0);   // 1000 samples at 120 bpm
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::midiStart(), 0);
+
+        for (int c = 0; c < 48; ++c)
+            midi.addEvent (juce::MidiMessage::midiClock(), c * perClock);
+
+        t.process (midi, 48 * perClock, 0);
+        CHECK (t.isRunning (47 * perClock));
+        CHECK_NEAR (t.getPpqAt (47 * perClock, 120.0), 47.0 / 24.0, 1.0e-9);
+
+        midi.clear();
+        midi.addEvent (juce::MidiMessage::songPositionPointer (16), 0);   // bar 2 in 4/4
+        t.process (midi, 1, 48 * perClock);
+        CHECK_NEAR (t.getPpqAt (48 * perClock, 120.0), 4.0, 1.0e-9);
+
+        midi.clear();
+        midi.addEvent (juce::MidiMessage::midiStop(), 0);
+        t.process (midi, 1, 49 * perClock);
+        CHECK (! t.isRunning (49 * perClock));
+    }
+
+    // ---- through the processor -----------------------------------------------------
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& rhythm = processor.getEngine().getRhythmEngine();
+    PatternLibrary patterns;
+    const auto strums = patterns.findByKind (RhythmPattern::Kind::strum);
+    CHECK (! strums.isEmpty());
+
+    if (strums.isEmpty())
+        return;
+
+    rhythm.setPattern (patterns.getPattern (strums[0]));
+    rhythm.setFreeRun (false);   // stopped host, no free-run: only the clock can drive it
+    rhythm.setEnabled (true);
+
+    const double perClock = 60.0 / 120.0 * kSr / 24.0;
+    double nextClock = 0.0;
+    juce::int64 position = 0;
+
+    auto block = [&] (bool clockOn, bool start, bool stop)
+    {
+        juce::MidiBuffer midi;
+
+        if (position == 0)
+            for (int n : { 48, 52, 55 })
+                midi.addEvent (juce::MidiMessage::noteOn (1, n, 0.8f), 0);
+
+        if (start) midi.addEvent (juce::MidiMessage::midiStart(), 0);
+        if (stop)  midi.addEvent (juce::MidiMessage::midiStop(), 0);
+
+        while (clockOn && nextClock < (double) (position + kBlock))
+        {
+            midi.addEvent (juce::MidiMessage::midiClock(), (int) (nextClock - (double) position));
+            nextClock += perClock;
+        }
+
+        if (! clockOn)
+            nextClock = (double) (position + kBlock);
+
+        render (processor, midi);
+        position += kBlock;
+        return rhythm.isDriving();
+    };
+
+    // No clock: the stopped host keeps the engine silent.
+    bool drove = false;
+
+    for (int i = 0; i < 20; ++i)
+        drove = block (false, false, false) || drove;
+
+    CHECK_MSG (! drove, "the rhythm engine drove with the host stopped and no clock");
+
+    // Start and a steady clock: it plays.
+    block (true, true, false);
+
+    for (int i = 0; i < 100; ++i)
+        drove = block (true, false, false) || drove;
+
+    CHECK_MSG (drove, "MIDI clock did not drive the rhythm engine");
+
+    // Stop: it goes quiet again.
+    block (true, false, true);
+    bool droveAfterStop = false;
+
+    for (int i = 0; i < 20; ++i)
+        droveAfterStop = block (true, false, false) || droveAfterStop;
+
+    CHECK_MSG (! droveAfterStop, "the rhythm engine kept driving after MIDI Stop");
 }
