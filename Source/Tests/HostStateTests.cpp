@@ -349,3 +349,38 @@ LUTHIER_TEST (HostState, bypassOutputsSilence)
     for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
         CHECK_NEAR (buffer.getMagnitude (ch, 0, buffer.getNumSamples()), 0.0f, 1.0e-9f);
 }
+
+//==============================================================================
+// HI-45: getNumPrograms/getProgramName/setCurrentProgram enumerate and load
+// the preset bank by index (host-integration.md section 12), untested before.
+LUTHIER_TEST (HostState, programsEnumerateFactoryPresetsAndLoadByIndex)
+{
+    LuthierAudioProcessor p;
+    p.prepareToPlay (48000.0, 256);
+
+    const int factoryCount = p.getPresetManager().getNumPresets();
+    CHECK_MSG (factoryCount > 1, "no factory presets to enumerate, so this proves nothing");
+
+    if (factoryCount <= 1)
+        return;
+
+    CHECK (p.getNumPrograms() == factoryCount);
+
+    for (int i = 0; i < factoryCount; ++i)
+    {
+        const auto* info = p.getPresetManager().getPreset (i);
+        CHECK (info != nullptr);
+
+        if (info == nullptr)
+            continue;
+
+        CHECK (p.getProgramName (i) == info->name);
+    }
+
+    p.setCurrentProgram (factoryCount - 1);
+    CHECK (p.getCurrentProgram() == factoryCount - 1);
+    CHECK (p.getPresetManager().getCurrentPresetIndex() == factoryCount - 1);
+
+    p.setCurrentProgram (0);
+    CHECK (p.getCurrentProgram() == 0);
+}
