@@ -9,17 +9,17 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-3 (§0.3, §3) | Additive over base, (v*depth+offset)*range, clamped to range | `ModMatrix::apply` | n/a | `Modulation::routeModulatesItsDestination` | DONE |
 | MM-4 (§0.4) | Up to 8 sources per destination | `ModMatrix::addRoute` (kMaxRoutesPerDestination) | Modulate menu disables when full | `Modulation::destinationAcceptsEightSourcesAndNoMore` | DONE |
 | MM-5 (§0.4, §3) | Per-route depth and offset -100..+100% (engine) | `ModRoute::depth/offset` | see MM-40 | `Modulation::presetRoundTripIsExact` | DONE |
-| MM-6 (§0.5) | Sources reset on preset load — `PresetManager::loadPreset` never touches the matrix (only session restore / `fromVar` resets) | `ModMatrix::fromVar` -> `reset()` | n/a | - | PARTIAL |
-| MM-7 (§0.5) | Sources reset on snapshot recall (snapshot's matrix `fromVar` resets) — untested | `PluginProcessor::applySnapshotModules` | n/a | - | NO-TEST |
-| MM-8 (§0.5) | Sources reset on transport start — only LFOs in on-transport/grid retrigger and sequencers restart; envelopes/followers/random/free LFOs do not | `ModMatrix::updateSources` (`transportJustStarted`) | n/a | - | PARTIAL |
-| MM-9 (§0.5, §1.1) | Free-running LFO as per-source option — untested | `ModLfo::Retrigger::freeRun` | ADVANCED > MOD, LFO card `retriggerBox` | - | NO-TEST |
-| MM-10 (§0.6, §6) | Matrix stored as compact route array under `modulation` in every preset — only in host session state and snapshots; `PresetManager::toVar` writes no `modulation` | `ModMatrix::toVar`; `PluginProcessor::getStateInformation` | n/a | `Modulation::presetRoundTripIsExact` (matrix only) | PARTIAL |
+| MM-6 (§0.5) | Sources reset on preset load — every preset load goes through `readPresetBlocks` -> `ModMatrix::fromVar`, which asks for a source restart that the next block performs on the audio thread (it used to reset from the message thread, racing the tick) | `ModMatrix::fromVar`, `sourceResetPending`, `processBlock` | n/a | `Modulation::loadingAPresetResetsTheSources` | DONE |
+| MM-7 (§0.5) | Sources reset on snapshot recall | `applySnapshotModules` -> `fromVar` -> deferred reset | n/a | `Modulation::recallingASnapshotResetsTheSources` | DONE |
+| MM-8 (§0.5) | Sources reset on transport start: envelopes, followers, random and sequencers; LFOs per their retrigger mode (free-run exempt by 1.1) | `ModMatrix::updateSources` (`transportJustStarted`) | n/a | `Modulation::transportStartAndNotesRetriggerWhereTheySay` | DONE |
+| MM-9 (§0.5, §1.1) | Free-running LFO as per-source option: ignores notes and transport | `ModLfo::Retrigger::freeRun` | ADVANCED > MOD, LFO card `retriggerBox` | `Modulation::transportStartAndNotesRetriggerWhereTheySay` | DONE |
+| MM-10 (§0.6, §6) | Matrix stored under `modulation` in every preset (state worker's PresetBlocks) | `writePresetBlocks`/`readPresetBlocks` | n/a | `Presets::processorBlocksTravelInThePresetFile`, `Modulation::aPresetFileCarriesTheMatrixExactly` | DONE |
 | MM-11 (§1.1) | LFO x8, 8 shapes incl S+H, random smooth, custom | `Modulation/ModSources.cpp:ModLfo` | MOD LFO card `shapeBox` | `Modulation::lfoFrequencyIsAccurate`, `Modulation::sampleAndHoldHoldsForAWholeCycle` | DONE |
 | MM-12 (§1.1) | LFO custom 8-point breakpoint editor — engine only | `ModLfo::setBreakpoint` | - | - | NO-GUI |
 | MM-13 (§1.1) | LFO rate 0.01-40 Hz or tempo-synced 1/32T..8 bars incl dotted/triplet | `ModLfo`, `ModSyncDivision` | MOD LFO card `rateSlider`, `syncButton`, `divisionBox` | `Modulation::syncedLfoFollowsTheHost`, `Modulation::lfoFrequencyIsAccurate` | DONE |
 | MM-14 (§1.1) | LFO phase offset 0-360 | `ModLfo::setPhaseOffsetDegrees` | MOD LFO card `phaseSlider` | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
 | MM-15 (§1.1) | LFO depth, symmetry, smoothing 0-500 ms, uni/bipolar — untested | `ModLfo::setDepth/setSymmetry/setSmoothingMs/setBipolar` | MOD LFO card sliders, `bipolarButton` | - | NO-TEST |
-| MM-16 (§1.1) | LFO retrigger free/NoteOn/transport/sync boundary — untested | `ModLfo::Retrigger` | MOD LFO card `retriggerBox` | - | NO-TEST |
+| MM-16 (§1.1) | LFO retrigger free/NoteOn/transport (sync-boundary uses the host position) | `ModLfo::Retrigger` | MOD LFO card `retriggerBox` | `Modulation::transportStartAndNotesRetriggerWhereTheySay` (free, note, transport) | DONE |
 | MM-17 (§1.2) | Envelope x4 DAHDSR, 0-30 s stages, sustain 0-100% | `ModEnvelope` | MOD ENV card sliders | `Modulation::envelopeStageTimesAreAccurate` | DONE |
 | MM-18 (§1.2) | Envelope curve per stage | `ModEnvelope::setStageCurve` | MOD ENV card attack/decay/release curve combos | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
 | MM-19 (§1.2) | Envelope retrigger legato/always/one-shot | `ModEnvelope::setRetrigger` | MOD ENV card `envRetriggerBox` | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
@@ -57,8 +57,8 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-51 (§7) | Automation moves base/control; modulation does not move the control; both stack — untested | `ParameterBridge` reads param then `ModMatrix::apply` | knob + arc | - | NO-TEST |
 | MM-T1 (§8) | Test: each source's expected output (LFO freq, EG times, S+H hold) | n/a | n/a | `Modulation::lfoFrequencyIsAccurate`, `Modulation::envelopeStageTimesAreAccurate`, `Modulation::sampleAndHoldHoldsForAWholeCycle` | DONE |
 | MM-T2 (§8) | Test: 1000-route stress under CPU budget | n/a | n/a | `Modulation::thousandRouteStressTest` | DONE |
-| MM-T3 (§8) | Test: preset round trip byte-identical routes — done at `ModMatrix::toVar` level, not through a saved preset file (see MM-10) | n/a | n/a | `Modulation::presetRoundTripIsExact` | PARTIAL |
+| MM-T3 (§8) | Test: preset round trip byte-identical, through a saved preset file | n/a | n/a | `Modulation::aPresetFileCarriesTheMatrixExactly`, `presetRoundTripIsExact` | DONE |
 | MM-T4 (§8) | Test: 5-option selector changes at 1/5..4/5 | n/a | n/a | `Modulation::discreteDestinationsStepAtBoundaries` | DONE |
 | MM-T5 (§8) | Test: seeded random renders byte-identical | n/a | n/a | `Modulation::randomSourcesAreDeterministic` | DONE |
 
-<!-- counts DONE=29 NO-GUI=2 NO-TEST=8 PARTIAL=11 MISSING=5 OWNED=1 -->
+<!-- counts DONE=36 NO-GUI=2 NO-TEST=5 PARTIAL=7 MISSING=5 OWNED=1 -->

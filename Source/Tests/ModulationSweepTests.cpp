@@ -184,3 +184,80 @@ LUTHIER_TEST (ModMatrixUi, theRouteTableEditsDepthAndOffset)
     for (int column = 1; column <= 7; ++column)
         table.paintCell (g, 0, column, 50, 20, false);
 }
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-7 - recalling a snapshot restarts the sources, like a
+    preset load (modulation-matrix 0.5). */
+LUTHIER_TEST (Modulation, recallingASnapshotResetsTheSources)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    processor.getSnapshots().setCrossfadeMs (0.0);   // recall inside the call
+    CHECK (processor.captureSnapshot (0, "A", 1));
+
+    auto& m = processor.getModMatrix();
+    m.getEnvelope (0).setAttackSeconds (0.01);
+    m.noteOn (60, 1.0);
+
+    ModBlockContext context;
+    for (int i = 0; i < 20; ++i)
+        m.processBlock (512, context);
+
+    CHECK (m.getEnvelope (0).isActive());
+
+    CHECK (processor.recallSnapshot (0));
+
+    // Snapshot recall may be applied on the message thread straight away or
+    // queued; either way the matrix restarts at its next block.
+    juce::AudioBuffer<float> buffer (2, 512);
+    juce::MidiBuffer midi;
+    for (int i = 0; i < 4; ++i)
+    {
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+    }
+
+    CHECK (! m.getEnvelope (0).isActive());
+}
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-T3 - modulation-matrix 8: a matrix saved in a preset file
+    and loaded back is the same matrix, byte for byte. */
+LUTHIER_TEST (Modulation, aPresetFileCarriesTheMatrixExactly)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    auto& matrix = processor.getModMatrix();
+    auto& presets = processor.getPresetManager();
+
+    for (const char* destination : { "amp_gain", "amp_bass", "amp_treble" })
+    {
+        ModRoute route;
+        route.sourceId = "lfo1";
+        route.destinationId = destination;
+        route.depth = 0.3f;
+        route.offset = -0.1f;
+        route.curve = ModCurve::sCurve;
+        CHECK (matrix.addRoute (route));
+    }
+
+    matrix.getLfo (0).setRateHz (3.25);
+    matrix.getEnvelope (1).setAttackSeconds (0.75);
+    matrix.getSequencer (0).setInternalRateHz (6.5);
+
+    const auto before = juce::JSON::toString (matrix.toVar(), true);
+
+    auto file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                  .getNonexistentChildFile ("luthier-mm-t3", PresetManager::kFileExtension, false);
+    file.replaceWithText (juce::JSON::toString (presets.toVar ("MM-T3"), false));
+
+    matrix.clearRoutes();
+    matrix.getLfo (0).setRateHz (1.0);
+
+    CHECK (presets.loadPreset (file));
+    const auto after = juce::JSON::toString (matrix.toVar(), true);
+    file.deleteFile();
+
+    CHECK_MSG (before == after, "the matrix changed through a preset file:\n" + before + "\nvs\n" + after);
+}

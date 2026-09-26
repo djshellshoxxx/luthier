@@ -287,6 +287,18 @@ void ModMatrix::resetEnvelopes() noexcept
         e.reset();
 }
 
+void ModMatrix::resetSources() noexcept
+{
+    for (auto& l : lfos)       l.reset();
+    for (auto& e : envelopes)  e.reset();
+    for (auto& s : sequencers) s.reset();
+    for (auto& f : followers)  f.reset();
+
+    randomSource.reset();
+    noteTriggerTicks = 0;
+    samplesUntilTick = 0;
+}
+
 void ModMatrix::reset() noexcept
 {
     for (auto& l : lfos)       l.reset();
@@ -700,6 +712,18 @@ void ModMatrix::updateSources (const ModBlockContext& context) noexcept
 
         for (auto& s : sequencers)
             s.transportStarted();
+
+        /*  SPEC-SWEEP: MM-8 - modulation-matrix 0.5: transport start resets the
+            envelopes, followers and random sources too. An LFO restarts per its
+            own retrigger mode; a free-running one is exempt, since 1.1 makes
+            free-run a per-source choice (DECISIONS note in sweep-notes). */
+        for (auto& e : envelopes)
+            e.reset();
+
+        for (auto& f : followers)
+            f.reset();
+
+        randomSource.reset();
     }
 
     // A new bar redraws the per-bar random value.
@@ -907,6 +931,10 @@ void ModMatrix::applySourceEdit (const ModSourceEdit& e) noexcept
 
 void ModMatrix::processBlock (int numSamples, const ModBlockContext& context) noexcept
 {
+    // SPEC-SWEEP: MM-6 / MM-7 - a preset or snapshot load asked for a restart.
+    if (sourceResetPending.exchange (false, std::memory_order_acq_rel))
+        resetSources();
+
     // SPEC-SWEEP (UW-5): the message thread applies edits itself only while no
     // block runs; if it is doing so now, this block keeps the last offsets.
     const juce::SpinLock::ScopedTryLockType idleGuard (idleApplyLock);
@@ -1313,7 +1341,9 @@ void ModMatrix::fromVar (const juce::var& state)
     setRoutes (loaded);
 
     // modulation-matrix 0.5: sources are stateful and reset on preset load.
-    reset();
+    // SPEC-SWEEP: MM-6 - at the next block, on the audio thread that ticks
+    // them; resetting here raced the audio thread.
+    sourceResetPending.store (true, std::memory_order_release);
 }
 
 } // namespace luthier

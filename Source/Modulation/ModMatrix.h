@@ -239,6 +239,9 @@ public:
     juce::var toVar() const;
     void fromVar (const juce::var& state);
 
+    /** SPEC-SWEEP: MM-6 - true between a load and the block that restarts the sources. */
+    bool isSourceResetPending() const noexcept { return sourceResetPending.load (std::memory_order_acquire); }
+
 private:
     struct CompiledRoute
     {
@@ -288,6 +291,13 @@ private:
     std::array<ModEnvelopeFollower, ModSourceSlots::numFollowers> followers;
     ModRandomSource randomSource;
     bool modulationAdvanced = false;   // SPEC-SWEEP: PR-44
+
+    /*  SPEC-SWEEP: MM-6 / MM-7 - modulation-matrix 0.5: loading a preset or
+        recalling a snapshot restarts every source. fromVar runs on the message
+        thread and the sources tick on the audio thread, so it only asks; the
+        next processBlock does it. */
+    std::atomic<bool> sourceResetPending { false };
+    void resetSources() noexcept;
 
     std::array<std::atomic<float>, ModSourceSlots::count> sourceValues;
 

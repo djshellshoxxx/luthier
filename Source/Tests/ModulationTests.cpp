@@ -1075,3 +1075,90 @@ LUTHIER_TEST (Modulation, controllerSourcesFollowMidi)
     // The LSB adds resolution below one MSB step, which is the point of it.
     CHECK (m.getSourceValue (ModSourceSlots::cc14Base + 1) != m.getSourceValue (ModSourceSlots::ccBase + 1));
 }
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-6 - modulation-matrix 0.5: loading a matrix restarts every
+    source, at the next block (on the thread that ticks them). */
+LUTHIER_TEST (Modulation, loadingAPresetResetsTheSources)
+{
+    ModHarness harness;
+    auto& m = harness.matrix;
+    ModBlockContext context;
+
+    m.getLfo (0).setRateHz (1.0);
+    m.getEnvelope (0).setAttackSeconds (0.01);
+    m.noteOn (60, 1.0);
+
+    for (int i = 0; i < 40; ++i)
+        m.processBlock (kBlock, context);
+
+    CHECK (m.getEnvelope (0).isActive());
+
+    m.fromVar (m.toVar());
+    CHECK (m.isSourceResetPending());
+
+    m.processBlock (128, context);   // one tick after the reset
+    CHECK (! m.isSourceResetPending());
+    CHECK (m.getEnvelope (0).getStage() == ModEnvelope::Stage::idle);
+
+    // The LFO restarted: one tick in, it matches a fresh LFO's first tick.
+    ModHarness fresh;
+    fresh.matrix.getLfo (0).setRateHz (1.0);
+    fresh.matrix.processBlock (128, context);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::lfoBase), fresh.matrix.getSourceValue (ModSourceSlots::lfoBase), 1.0e-6);
+}
+
+/*  SPEC-SWEEP: MM-8 / MM-9 / MM-16 - transport start resets the envelopes,
+    followers and random sources, and each LFO per its retrigger mode: an
+    on-transport LFO restarts, an on-note one restarts on a note, a free-running
+    one ignores both. */
+LUTHIER_TEST (Modulation, transportStartAndNotesRetriggerWhereTheySay)
+{
+    auto setUp = [] (ModMatrix& m)
+    {
+        for (int i = 0; i < 3; ++i)
+            m.getLfo (i).setRateHz (0.7);
+
+        m.getLfo (0).setRetrigger (ModLfo::Retrigger::freeRun);
+        m.getLfo (1).setRetrigger (ModLfo::Retrigger::onTransportStart);
+        m.getLfo (2).setRetrigger (ModLfo::Retrigger::onNoteOn);
+    };
+
+    ModHarness fresh;
+    setUp (fresh.matrix);
+    ModBlockContext plain;
+    fresh.matrix.processBlock (128, plain);
+    const float firstTick = fresh.matrix.getSourceValue (ModSourceSlots::lfoBase);
+
+    ModHarness harness;
+    auto& m = harness.matrix;
+    setUp (m);
+    m.getEnvelope (0).setAttackSeconds (0.01);
+    m.noteOn (60, 1.0);
+
+    for (int i = 0; i < 30; ++i)
+        m.processBlock (kBlock, plain);
+
+    CHECK (m.getEnvelope (0).isActive());
+
+    ModBlockContext start;
+    start.transportJustStarted = true;
+    start.transportRunning = true;
+    m.processBlock (128, start);
+
+    CHECK (m.getEnvelope (0).getStage() == ModEnvelope::Stage::idle);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::lfoBase + 1), firstTick, 1.0e-6);
+    CHECK_MSG (std::abs (m.getSourceValue (ModSourceSlots::lfoBase) - firstTick) > 1.0e-3,
+               "a free-running LFO must not restart on transport start");
+    CHECK_MSG (std::abs (m.getSourceValue (ModSourceSlots::lfoBase + 2) - firstTick) > 1.0e-3,
+               "an on-note LFO must not restart on transport start");
+
+    // A note restarts the on-note LFO and leaves the free-running one alone.
+    for (int i = 0; i < 10; ++i)
+        m.processBlock (kBlock, plain);
+
+    m.noteOn (64, 1.0);
+    m.processBlock (128, plain);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::lfoBase + 2), firstTick, 1.0e-6);
+    CHECK (std::abs (m.getSourceValue (ModSourceSlots::lfoBase) - firstTick) > 1.0e-3);
+}
