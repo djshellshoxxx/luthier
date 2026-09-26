@@ -58,12 +58,12 @@ BenchIllustration::BenchIllustration (LuthierAudioProcessor& p)
     setTitle ("Workshop guitar");
     setDescription ("The guitar on the bench. Tab walks the parts; arrow keys nudge the selected one.");
     rebuild (true);
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
 BenchIllustration::~BenchIllustration()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 const std::vector<GuitarRegion>& BenchIllustration::builderOrder()
@@ -186,6 +186,8 @@ void BenchIllustration::select (GuitarRegion region, int stringIndex)
 //==============================================================================
 void BenchIllustration::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     g.setColour (Palette::panelSunken);
     g.fillRoundedRectangle (getLocalBounds().toFloat(), Metrics::panelCorner);
 

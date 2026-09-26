@@ -145,6 +145,7 @@ public:
         std::function<void()> onPolicyChange, onStaticPoll;
         juce::Timer* timer = nullptr;
         int requestedHz = 0, appliedHz = 0;
+        bool buffered = false;
         std::atomic<int> paints { 0 };
 
         JUCE_DECLARE_NON_COPYABLE (Registration)

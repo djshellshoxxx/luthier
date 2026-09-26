@@ -337,7 +337,10 @@ void IrVariants::process (juce::dsp::Convolution& full, juce::dsp::AudioBlock<fl
         previous = running;
         running = wanted;
         convFor (full, running).reset();
-        fadeTotal = juce::jmax (1, (int) std::round (QualityProfile::kConvolutionFadeSeconds * sr));
+        // The new response is heard only after its partition latency (its
+        // output onset is a step from silence) plus a settle.
+        fadeSettle = partition + QualityProfile::kSwitchSettleSamples;
+        fadeTotal = juce::jmax (1, (int) std::round (QualityProfile::kConvolutionFadeSeconds * sr)) + fadeSettle;
         fadeLeft = fadeTotal;
     }
 
@@ -374,7 +377,7 @@ void IrVariants::process (juce::dsp::Convolution& full, juce::dsp::AudioBlock<fl
 
         for (int i = 0; i < n; ++i)
         {
-            const float t = juce::jmin (1.0f, (float) (start + i + 1) / (float) fadeTotal);
+            const float t = juce::jlimit (0.0f, 1.0f, (float) (start + i + 1 - fadeSettle) / (float) (fadeTotal - fadeSettle));
             out[i] = out[i] * (1.0f - t) + in[i] * t;
         }
     }

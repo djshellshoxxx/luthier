@@ -1717,7 +1717,7 @@ PracticePanel::PracticePanel (LuthierAudioProcessor& p)
 
 PracticePanel::~PracticePanel()
 {
-    stopTimer();
+    motion.stopTimer();
     saveStats();
 }
 
@@ -1760,11 +1760,11 @@ void PracticePanel::setOpen (bool shouldBeOpen)
 
         pausedByClosing = false;
         lastTickMs = juce::Time::getMillisecondCounterHiRes();
-        startTimerHz (20);
+        motion.startTimerHz (*this, 20);
     }
     else
     {
-        stopTimer();
+        motion.stopTimer();
 
         pausedByClosing = runner.getPhase() == PracticeRoutineRunner::Phase::countIn
                           || runner.getPhase() == PracticeRoutineRunner::Phase::running;
@@ -1909,6 +1909,8 @@ void PracticePanel::timerCallback()
 
 void PracticePanel::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     g.setColour (Palette::panel);
     g.fillRect (getLocalBounds());
 

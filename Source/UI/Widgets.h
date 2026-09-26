@@ -12,6 +12,7 @@
       - hover shows the value in place of the label, and a tooltip after 400 ms
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "Theme.h"
 #include "../Modulation/ModMatrix.h"
@@ -308,6 +309,10 @@ private:
     float displayPeakDb = -100.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LevelMeter)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "LevelMeter" };
 };
 
 //==============================================================================
@@ -330,8 +335,13 @@ private:
     LuthierAudioProcessor* processor = nullptr;
     float brightness = 0.0f;
     bool overThreshold = false;
+    double clipLatchedAtMs = -1.0e12;   // cpu-quality-modes 6
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputLed)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "OutputLed" };
 };
 
 //==============================================================================
@@ -366,6 +376,10 @@ private:
     bool resonant = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FeedbackLed)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "FeedbackLed" };
 };
 
 //==============================================================================
@@ -426,6 +440,10 @@ private:
     bool scrolling = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DataStreamDisplay)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Decorative, "DataStreamDisplay" };
 };
 
 //==============================================================================

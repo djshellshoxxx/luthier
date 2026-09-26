@@ -1,6 +1,7 @@
 #include "Overlays.h"
 #include "../PluginProcessor.h"
 #include "../Support/SupportLinks.h"
+#include "QualityOptions.h"   // cpu-quality-modes
 
 namespace luthier
 {
@@ -275,7 +276,7 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
 
 DebugPanel::~DebugPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void DebugPanel::overlayShown()
@@ -284,12 +285,12 @@ void DebugPanel::overlayShown()
     crashLogToggle.setToggleState (processor.getDiagnostics().isCrashLogEnabled(),
                                    juce::dontSendNotification);
     refreshState();
-    startTimerHz (8);
+    motion.startTimerHz (*this, 8);
 }
 
 void DebugPanel::overlayHidden()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void DebugPanel::refreshState()
@@ -305,6 +306,7 @@ void DebugPanel::refreshState()
          << "  CPU (this plugin)  " << juce::String (engine.getCpuEstimate(), 1) << " %\n"
          << "  Oversampling       " << engine.getOversamplingFactor() << "x\n"
          << "  Host tempo         " << juce::String (processor.getHostTempo(), 1) << " BPM\n"
+         << QualityDiagnostics::describe (processor)   // cpu-quality-modes 5
          << "\nINSTRUMENT\n"
          << "  Guitar             " << engine.getGuitarSpec().name << "\n"
          << "  Strings            " << engine.getNumStrings() << "\n"
@@ -806,12 +808,12 @@ ExportPanel::ExportPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (progressBar);
     progressBar.setVisible (false);
 
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);
 }
 
 ExportPanel::~ExportPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void ExportPanel::overlayShown()

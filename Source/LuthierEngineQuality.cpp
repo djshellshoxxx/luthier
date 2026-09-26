@@ -171,7 +171,7 @@ bool LuthierEngine::dropLeastRecentString() noexcept
         return false;
 
     // 7: a 10 ms fade, not a cut.
-    strings[(size_t) victim].fadeToSleep (QualityProfile::kEmergencyFadeSeconds);
+    strings[(size_t) victim].fadeToSleep (QualityProfile::kEmergencyFadeSeconds, true);
     return strings[(size_t) victim].isFadingToSleep();
 }
 

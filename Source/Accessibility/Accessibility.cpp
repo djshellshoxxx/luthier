@@ -561,6 +561,9 @@ void AccessibilitySettings::buildDefaultShortcuts()
         not exist yet; when tune-builder lands, that binding takes it and audition
         moves. */
     add ("audition",         "accessibility.shortcut.audition",         KP (KP::spaceKey));
+
+    // cpu-quality-modes 5: rebindable, unbound by default.
+    add ("cycleCpuQuality",  "quality.shortcut.cycle",                  KP());
 }
 
 bool AccessibilitySettings::rebind (const juce::String& actionId, const juce::KeyPress& key)

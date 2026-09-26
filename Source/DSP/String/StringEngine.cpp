@@ -65,6 +65,7 @@ void StringEngine::reset() noexcept
 
     // cpu-quality-modes 2.4: awake, uncapped until the next excite latches.
     sleeping = false;
+    holdAsleep = false;
     quietSamples = 0;
     fadeLeft = 0;
 
@@ -607,7 +608,7 @@ double StringEngine::getPartialFrequency (int n) const noexcept
     const double delaySamples = smoothedDelay.getCurrent();
     const double pure = juce::jmax (2.0, delaySamples - filterDelayCompensation());
     const double p = loopFilterPole;
-    const double a = dispersionCoeff;
+    const double a = latchedStages < dispersionStages ? cappedCoeff : dispersionCoeff;   // cpu-quality-modes 2.4
 
     double f = (double) n * juce::jmax (constants::kMinStringHz, sr / juce::jmax (1.0, delaySamples));
 
@@ -856,10 +857,12 @@ void StringEngine::setSleepEnabled (bool on) noexcept
         quietSamples = 0;
 }
 
-void StringEngine::fadeToSleep (double seconds) noexcept
+void StringEngine::fadeToSleep (double seconds, bool holdUntilExcited) noexcept
 {
     if (sleepExempt || sleeping || fadeLeft > 0)
         return;
+
+    holdAsleep = holdUntilExcited;
 
     fadeTotal = juce::jmax (1, (int) std::round (seconds * sr));
     fadeLeft = fadeTotal;
@@ -1169,7 +1172,7 @@ double StringEngine::endSample (double couplingInput, double directInput) noexce
     if (sleptThisSample)
     {
         if (stealPending || excitation.isActive() || touchSamplesLeft > 0
-            || std::abs (couplingInput * couplingReceptivity + directInput) > QualityProfile::kSleepCouplingLevel)
+            || (! holdAsleep && std::abs (couplingInput * couplingReceptivity + directInput) > QualityProfile::kSleepCouplingLevel))
         {
             wake();
             beginSample();

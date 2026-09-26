@@ -150,6 +150,11 @@ struct QualityProfile
 
     /** Crossfade lengths (2.2, 2.3, 2.5). */
     static constexpr double kOversamplerFadeSeconds = 0.010;
+
+    /** The new path runs this long unheard before its fade-in starts, so its
+        latency pad and half-band filters have filled (a pad starting empty
+        would otherwise step from zero inside the crossfade). */
+    static constexpr int kSwitchSettleSamples = 32;
     static constexpr double kConvolutionFadeSeconds = 0.020;
     static constexpr double kDroppedVoiceRampSeconds = 0.020;
 

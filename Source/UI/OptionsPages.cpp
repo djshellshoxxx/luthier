@@ -557,6 +557,11 @@ AudioPage::AudioPage (LuthierAudioProcessor& p)
                            "Oversampling for the amp and the drive pedals. 4x is the default; "
                            "2x sounds very close and costs noticeably less.");
 
+    // cpu-quality-modes 5: the QUALITY section, with its note beside oversampling.
+    addAndMakeVisible (quality);
+    addChildComponent (quality.getOversamplingNote());
+    quality.onLayoutChanged = [this] { resized(); repaint(); };
+
     // noise-floor.md 3: seeds noise_mains_hz for new (Init) presets only; a
     // loaded preset keeps its own, so a render is the same on every machine.
     mainsRegion.addItem ("Auto (from your region)", 1);
@@ -619,6 +624,8 @@ AudioPage::AudioPage (LuthierAudioProcessor& p)
 
 void AudioPage::refresh()
 {
+    quality.refresh();   // cpu-quality-modes 5
+
     const bool standalone =
         (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone);
 
@@ -646,8 +653,8 @@ void AudioPage::paint (juce::Graphics& g)
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "QUALITY");
-    drawHeading (g, { 0, 96, getWidth(), 18 }, "DEVICE, RATE AND BUFFER");
-    drawHeading (g, { 0, 214, getWidth(), 18 }, "SIDECHAIN");
+    drawHeading (g, { 0, deviceTop - 22, getWidth(), 18 }, "DEVICE, RATE AND BUFFER");
+    drawHeading (g, { 0, sidechainTop - 22, getWidth(), 18 }, "SIDECHAIN");
 }
 
 void AudioPage::resized()
@@ -655,6 +662,11 @@ void AudioPage::resized()
     auto bounds = getLocalBounds();
 
     bounds.removeFromTop (22);
+
+    // cpu-quality-modes 5: the QUALITY section first, then oversampling with
+    // its "Running at 2x while quality is Medium." note beside it.
+    quality.setBounds (bounds.removeFromTop (quality.getPreferredHeight (getWidth())));
+    bounds.removeFromTop (6);
 
     {
         auto row = bounds.removeFromTop (40);
@@ -664,7 +676,10 @@ void AudioPage::resized()
         mainsRegion.setBounds (row.removeFromTop (24).removeFromLeft (200));
     }
 
-    bounds = getLocalBounds().withTrimmedTop (118);
+    quality.getOversamplingNote().setBounds (bounds.removeFromTop (18));
+
+    deviceTop = bounds.getY() + 26;
+    bounds = getLocalBounds().withTrimmedTop (deviceTop);
 
     deviceNote.setBounds (bounds.removeFromTop (34));
     bounds.removeFromTop (4);
@@ -672,7 +687,8 @@ void AudioPage::resized()
     bounds.removeFromTop (4);
     latencyLabel.setBounds (bounds.removeFromTop (18));
 
-    bounds = getLocalBounds().withTrimmedTop (236);
+    sidechainTop = bounds.getY() + 26;
+    bounds = getLocalBounds().withTrimmedTop (sidechainTop);
     sidechainNote.setBounds (bounds.removeFromTop (48));
 }
 
@@ -810,6 +826,11 @@ AppearancePage::AppearancePage (LuthierAudioProcessor& p)
 
     addAndMakeVisible (reducedMotionToggle);
 
+    // cpu-quality-modes 5: Low turns animation off without touching this toggle.
+    styleNote (lowMotionNote, Palette::textMuted, 11.0f);
+    lowMotionNote.setText (tr ("quality.lowAnimationsOff"), juce::dontSendNotification);
+    addChildComponent (lowMotionNote);
+
     tooltipsToggle.onClick = [this]
     {
         processor.getUiState().tooltipsEnabled = tooltipsToggle.getToggleState();
@@ -841,6 +862,7 @@ void AppearancePage::refresh()
 
     paletteBox.setSelectedId ((int) settings.getPalette() + 1, juce::dontSendNotification);
     reducedMotionToggle.setToggleState (settings.isReducedMotion(), juce::dontSendNotification);
+    lowMotionNote.setVisible (processor.getQualityController().getLiveLevel() == QualityLevel::Low);
     tooltipsToggle.setToggleState (processor.getUiState().tooltipsEnabled,
                                    juce::dontSendNotification);
 
@@ -891,6 +913,8 @@ void AppearancePage::resized()
         row.removeFromLeft (8);
         reducedMotionToggle.setBounds (row.removeFromLeft (160));
     }
+
+    lowMotionNote.setBounds (bounds.removeFromTop (16).withTrimmedLeft (228));   // cpu-quality-modes
 
     bounds.removeFromTop (4);
     contrastLabel.setBounds (bounds.removeFromTop (18));
@@ -1977,6 +2001,11 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
         refresh();
     };
 
+    // cpu-quality-modes 5 / 7: E3's opt-out (the old relief 7 opt-out).
+    emergencyDropToggle.setButtonText (tr ("quality.emergencyDrop"));
+    emergencyDropToggle.onClick = [this] { PerformanceSettings::get().setEmergencyStringDrop (emergencyDropToggle.getToggleState()); };
+    addAndMakeVisible (emergencyDropToggle);
+
     addAndMakeVisible (troubleshootButton);
     troubleshootButton.setTooltip ("Writes a file describing the build, the host and the "
                                    "current state, for a support thread.");
@@ -2027,6 +2056,7 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
                 if (result == 0)
                 {
                     processor.hardResetAndClearCaches();
+                    PerformanceSettings::get().resetToDefaults();   // cpu-quality-modes 10
                     refresh();
                 }
             });
@@ -2087,6 +2117,8 @@ void DiagnosticsPage::restoreFirstRun()
 
 void DiagnosticsPage::refresh()
 {
+    emergencyDropToggle.setToggleState (PerformanceSettings::get().isEmergencyStringDrop(), juce::dontSendNotification);
+
     crashLogToggle.setToggleState (processor.getDiagnostics().isCrashLogEnabled(),
                                    juce::dontSendNotification);
 
@@ -2123,6 +2155,7 @@ void DiagnosticsPage::resized()
     crashLogToggle.setBounds (bounds.removeFromTop (22));
     recorderToggle.setBounds (bounds.removeFromTop (22));
     recorderNote.setBounds (bounds.removeFromTop (16));
+    emergencyDropToggle.setBounds (bounds.removeFromTop (22));   // cpu-quality-modes
 
     bounds = getLocalBounds().withTrimmedTop (172);
 

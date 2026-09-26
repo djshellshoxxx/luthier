@@ -13,12 +13,12 @@ NoiseEventStrip::NoiseEventStrip (LuthierAudioProcessor& p)
     setTitle ("Noise events");
     setTooltip ("The last eight seconds of playing noise: squeak, click, chirp, scrape, buzz "
                 "and clank, as ticks. Taller is louder.");
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
 NoiseEventStrip::~NoiseEventStrip()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 juce::Colour NoiseEventStrip::colourFor (NoiseClass c)
@@ -82,6 +82,8 @@ void NoiseEventStrip::timerCallback()
 
 void NoiseEventStrip::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds().toFloat();
 
     g.setColour (Palette::panelSunken);

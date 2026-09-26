@@ -255,7 +255,7 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     // process may have changed it) and apply the level as a hard switch.
     PerformanceSettings::get().reloadIfChanged();
     cpuLoad.reset();
-    samplesSinceStringDrop = 0;
+    samplesSinceStringDrop = (juce::int64) sampleRate;   // E3 is armed from the start
     lastNonRealtime = isNonRealtime();
     qualityController.setNonRealtime (lastNonRealtime);
     applyQualityForBlock (true);
@@ -648,6 +648,11 @@ void LuthierAudioProcessor::applyEditedGuitar (const WorkshopGuitar& guitar)
 void LuthierAudioProcessor::auditionGuitar (const WorkshopGuitar* candidate)
 {
     if (! partsGuitarLoaded)
+        return;
+
+    // cpu-quality-modes 7, E2: the shadow audition is frozen - a new
+    // candidate waits; ending the audition still restores the guitar.
+    if (candidate != nullptr && qualityController.isShadowAuditionFrozen())
         return;
 
     // The engine plays the candidate; nothing else learns of it.

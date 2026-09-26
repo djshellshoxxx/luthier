@@ -634,12 +634,12 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
     refreshFromEngine();
     refreshBrowserList();
 
-    startTimerHz (20);
+    motion.startTimerHz (*this, 20);
 }
 
 RhythmPanel::~RhythmPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 RhythmEngine& RhythmPanel::rhythm()
@@ -1015,6 +1015,8 @@ int RhythmPanel::preferredHeight() const
 
 void RhythmPanel::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     g.setColour (Palette::panel);
     g.fillRoundedRectangle (getLocalBounds().toFloat(), 4.0f);
 

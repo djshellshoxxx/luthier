@@ -10,12 +10,46 @@ namespace luthier
 GuitarBodyComponent::GuitarBodyComponent (LuthierAudioProcessor& p)
     : processor (p)
 {
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);   // cpu-quality-modes 6
 }
 
 GuitarBodyComponent::~GuitarBodyComponent()
 {
-    stopTimer();
+    motion.stopTimer();
+}
+
+void GuitarBodyComponent::staticRefresh()
+{
+    // Off: a fixed glow on each sounding string; changes only when the set does.
+    rebuildScene (false);
+
+    auto& engine = processor.getEngine();
+    bool changed = ! overlay.reducedMotion;
+    overlay.reducedMotion = ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Decorative);
+
+    if (! overlay.reducedMotion)
+        return;
+
+    for (int s = 0; s < juce::jmin (12, engine.getNumStrings()); ++s)
+    {
+        // Sounding = holding a note, or still audibly ringing after it: a
+        // held note decaying is not a change of state.
+        const float level = (engine.getStringMidiNote (s) >= 0 || engine.getStringLevel (s) > 1.0e-3) ? 1.0f : 0.0f;
+        const auto fret = (float) engine.getStringFret (s);
+
+        changed = changed || level != overlay.stringLevel[(size_t) s]
+                          || std::abs (fret - overlay.stringFret[(size_t) s]) > 0.01f;
+
+        overlay.stringLevel[(size_t) s] = level;
+        overlay.stringFret[(size_t) s] = fret;
+    }
+
+    const auto slideFret = (float) engine.getSlideEngine().getOverlayFret();
+    changed = changed || std::abs (slideFret - overlay.slideFret) > 0.01f;
+    overlay.slideFret = slideFret;
+
+    if (changed)
+        repaint();
 }
 
 //==============================================================================
@@ -149,7 +183,8 @@ void GuitarBodyComponent::timerCallback()
         changed = true;
     }
 
-    const bool reduced = AccessibilitySettings::get().isReducedMotion();
+    // cpu-quality-modes 6: the policy combines Reduced motion and the level.
+    const bool reduced = ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Decorative);
     changed = changed || reduced != overlay.reducedMotion;
     overlay.reducedMotion = reduced;
 
@@ -160,6 +195,8 @@ void GuitarBodyComponent::timerCallback()
 //==============================================================================
 void GuitarBodyComponent::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     if (scene.hits.empty())
         rebuildScene (true);
 

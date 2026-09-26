@@ -909,12 +909,12 @@ void LuthierSlider::mouseDown (const juce::MouseEvent& e)
 LevelMeter::LevelMeter()
 {
     setInterceptsMouseClicks (false, false);
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
 LevelMeter::~LevelMeter()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void LevelMeter::setSource (LuthierAudioProcessor* p)
@@ -938,6 +938,17 @@ void LevelMeter::timerCallback()
     const float newL = toNormalised (master.getPeakLeft());
     const float newR = toNormalised (master.getPeakRight());
 
+    // cpu-quality-modes 6: at Low the meter steps at 10 Hz with no ballistics.
+    if (AnimationPolicy::get().isReadoutStepped())
+    {
+        levelL = peakHoldL = newL;
+        levelR = peakHoldR = newR;
+        holdCountL = holdCountR = 0;
+        displayPeakDb = (float) master.getPeakDb();
+        repaint();
+        return;
+    }
+
     // Fast attack, slow release, so transients are visible but the meter is calm.
     levelL = juce::jmax (newL, levelL * 0.80f);
     levelR = juce::jmax (newR, levelR * 0.80f);
@@ -958,6 +969,8 @@ void LevelMeter::timerCallback()
 
 void LevelMeter::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds();
 
     auto readout = horizontal ? bounds.removeFromRight (46) : bounds.removeFromTop (12);
@@ -1031,12 +1044,12 @@ OutputLed::OutputLed()
     setInterceptsMouseClicks (false, false);
     setTooltip ("Output level. Dark when silent, white as it approaches 0 dBFS, "
                 "red while the signal is over.");
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
 OutputLed::~OutputLed()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void OutputLed::setSource (LuthierAudioProcessor* p)
@@ -1054,6 +1067,21 @@ void OutputLed::timerCallback()
     // -inf is the dark grey; brightness rises toward white as the level nears 0 dB.
     const float target = (float) juce::jlimit (0.0, 1.0, (db + 48.0) / 48.0);
 
+    // cpu-quality-modes 6: at Low no decay, and the clip LED latches (for a
+    // second after the level drops back) instead of pulsing.
+    if (AnimationPolicy::get().isReadoutStepped())
+    {
+        brightness = target;
+        const double now = juce::Time::getMillisecondCounterHiRes();
+
+        if (db > 0.0)
+            clipLatchedAtMs = now;
+
+        overThreshold = (db > 0.0) || now - clipLatchedAtMs < 1000.0;
+        repaint();
+        return;
+    }
+
     brightness = juce::jmax (target, brightness * 0.86f);
     overThreshold = (db > 0.0);
 
@@ -1062,6 +1090,8 @@ void OutputLed::timerCallback()
 
 void OutputLed::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds().toFloat().reduced (2.0f);
     const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
     const auto centre = bounds.getCentre();
@@ -1188,12 +1218,12 @@ FeedbackLed::FeedbackLed (LuthierAudioProcessor& p)
                 "when the loop is sustaining a note on its own");
     AccessibleSetup::configureDescriptive (*this, "Feedback indicator",
                                            "Lights when the feedback loop is sustaining a note");
-    startTimerHz (kRefreshHz);   // gui-engine-dataflow 22
+    motion.startTimerHz (*this, kRefreshHz);   // gui-engine-dataflow 22
 }
 
 FeedbackLed::~FeedbackLed()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void FeedbackLed::refresh()
@@ -1212,6 +1242,8 @@ void FeedbackLed::refresh()
 
 void FeedbackLed::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds().toFloat().reduced (2.0f);
     const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
     const auto centre = bounds.getCentre();
@@ -1239,12 +1271,12 @@ void FeedbackLed::paint (juce::Graphics& g)
 DataStreamDisplay::DataStreamDisplay()
 {
     setInterceptsMouseClicks (false, false);
-    startTimerHz (20);
+    motion.startTimerHz (*this, 20);
 }
 
 DataStreamDisplay::~DataStreamDisplay()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void DataStreamDisplay::setSource (LuthierAudioProcessor* p)
@@ -1259,6 +1291,10 @@ void DataStreamDisplay::setSource (LuthierAudioProcessor* p)
 void DataStreamDisplay::timerCallback()
 {
     if (processor == nullptr)
+        return;
+
+    // cpu-quality-modes 7, E1: the data stream is suspended under load.
+    if (processor->getQualityController().isDataStreamSuspended())
         return;
 
     auto& diagnostics = processor->getDiagnostics();
@@ -1294,6 +1330,8 @@ void DataStreamDisplay::timerCallback()
 
 void DataStreamDisplay::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     if (lines.isEmpty())
         return;
 

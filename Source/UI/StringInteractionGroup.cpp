@@ -40,13 +40,13 @@ StringInteractionGroup::StringInteractionGroup (LuthierAudioProcessor& p)
     attach (thump, ParamIDs::mutedThumpLevel,
             "A strum across a string the fretting hand mutes still hits it: a short pitchless thump.");
 
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);
     timerCallback();
 }
 
 StringInteractionGroup::~StringInteractionGroup()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 juce::String StringInteractionGroup::describeFrettingStyle() const
@@ -78,6 +78,8 @@ void StringInteractionGroup::timerCallback()
 
 void StringInteractionGroup::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     // gui-techniques-updates.md 4's mute zone, in small: band opacity is the palm's weight.
     const int n = juce::jmax (1, processor.getEngine().getNumStrings());
     const float w = (float) palmStrip.getWidth() / (float) n;

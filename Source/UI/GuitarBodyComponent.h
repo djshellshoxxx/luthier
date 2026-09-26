@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
+
 /*  The guitar illustration.
 
     The brief asks for a photo-realistic image of the selected instrument. Shipping
@@ -169,6 +171,14 @@ private:
     juce::Image cache;
     float cacheScale = 1.0f;
     int ticksSinceKeyCheck = 0;
+
+    /*  cpu-quality-modes 6: Decorative. At Off the timer stops; the policy's
+        4 Hz poll calls staticRefresh, which draws a fixed glow on the strings
+        that are sounding and repaints only when that set or a fret changes. */
+    void staticRefresh();
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Decorative, "GuitarBodyComponent",
+                                           [this] { staticRefresh(); repaint(); },
+                                           [this] { staticRefresh(); } };
 
     GuitarOverlay overlay;
     GuitarRegion hoveredRegion = GuitarRegion::none;

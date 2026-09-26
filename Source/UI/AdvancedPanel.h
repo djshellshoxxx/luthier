@@ -91,6 +91,10 @@ public:
     ~AdvancedPanel() override;
 
     void setSelectedString (int index);
+
+    /** cpu-quality-modes 5: column 3's Master oversampling tooltip carries the
+        "Running at 2x while quality is Medium." note ("" when not capped). */
+    void setOversamplingNote (const juce::String& note);
     int getSelectedString() const noexcept { return selectedString; }
 
     /*  Section 4.5: below 1000 points wide, Advanced Mode is unavailable. Three

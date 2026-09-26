@@ -51,6 +51,12 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     chordButton.setTooltip ("Chord library and the live tab display");
     chordButton.onClick = [this] { showOverlay (&chordPanel); };
 
+    // cpu-quality-modes 5: the footer badge, last in the footer's tab order.
+    addAndMakeVisible (qualityBadge);
+    qualityBadge.setExplicitFocusOrder (100000);
+    qualityBadge.onOpen = [this] { openQualityOptions(); };
+    qualityLink.onOversamplingNote = [this] (const juce::String& note) { advancedPanel.setOversamplingNote (note); };   // cpu-quality-modes 5
+
     /*  The notice is in the layout rather than over it, so when it takes itself
         away the window has to give the space back. It goes in before the overlay
         host deliberately: an overlay is the thing in front, and a status strip
@@ -374,10 +380,10 @@ void LuthierAudioProcessorEditor::paint (juce::Graphics& g)
                 footer.reduced (Metrics::windowPadding, 0),
                 juce::Justification::centredRight, false);
 
-    // CPU and latency, where a player can see them without opening anything.
-    g.drawText ("CPU " + juce::String (processor.getEngine().getCpuEstimate(), 1) + "%"
-                + "    latency " + juce::String (processor.getLatencySamples()) + " smp",
-                footer.reduced (Metrics::windowPadding, 0),
+    // cpu-quality-modes 5: the quality badge carries the CPU figure now; the
+    // latency follows it.
+    g.drawText (tr ("quality.badge.latency", { { "n", juce::String (processor.getLatencySamples()) } }),
+                footer.reduced (Metrics::windowPadding, 0).withTrimmedLeft (QualityBadge::preferredWidth + 12),
                 juce::Justification::centredLeft, false);
 }
 
@@ -427,6 +433,7 @@ void LuthierAudioProcessorEditor::resized()
 
     auto footer = bounds.removeFromBottom (Metrics::footerHeight);
     chordButton.setBounds (footer.withSizeKeepingCentre (110, Metrics::footerHeight - 2));
+    qualityBadge.setBounds (footer.reduced (Metrics::windowPadding, 1).removeFromLeft (QualityBadge::preferredWidth));   // cpu-quality-modes
 
     // practice-tools 9: the drawer sits above the footer.
     practicePanel.setBounds (bounds.removeFromBottom (practicePanel.preferredHeight()));
@@ -576,6 +583,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     }
 
     if (is ("help"))            { openHelp (getHelpContext());  return true; }
+    if (is ("cycleCpuQuality")) { qualityLink.cycleQuality();   return true; }   // cpu-quality-modes 5
     if (is ("options"))         { showOverlay (&optionsPanel);  return true; }
     if (is ("presetBrowser"))   { showOverlay (&presetBrowser); return true; }
     if (is ("export"))          { showOverlay (&exportPanel);   return true; }
@@ -810,6 +818,29 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
 
 //==============================================================================
+void LuthierAudioProcessorEditor::openQualityOptions()
+{
+    if (! showOptionsPage ("AUDIO"))
+        return;
+
+    // Focus into the CPU quality group.
+    std::function<QualityOptions* (juce::Component&)> find = [&find] (juce::Component& c) -> QualityOptions*
+    {
+        if (auto* q = dynamic_cast<QualityOptions*> (&c))
+            return q;
+
+        for (auto* child : c.getChildren())
+            if (auto* q = find (*child))
+                return q;
+
+        return nullptr;
+    };
+
+    if (auto* q = find (optionsPanel))
+        if (q->isShowing())
+            q->focusGroup();
+}
+
 bool LuthierAudioProcessorEditor::showOptionsPage (const juce::String& tabName)
 {
     if (! optionsPanel.showPageNamed (tabName))

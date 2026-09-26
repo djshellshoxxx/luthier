@@ -326,7 +326,12 @@ Tabs across the top:
 `AUDIO | MIDI | APPEARANCE | ACCESSIBILITY | LOCALIZATION | EXPRESSION | RANGES | UPDATES | PRIVACY | DIAGNOSTICS | FILE LOCATIONS`
 
 - **AUDIO** (Standalone): output device, buffer, sample rate, sidechain
-  input.
+  input. **QUALITY** (both formats; cpu-quality-modes 5): the CPU quality
+  radio group (Auto | High | Medium | Low, default High), "This instance"
+  override, "Now running" status, "Always render offline at High", "Tell
+  me when Auto changes quality", the oversampling control with its
+  "Running at 2x while quality is Medium." note, and the "What each level
+  changes" disclosure.
 - **MIDI** (Standalone): input port picker, virtual MIDI out toggle.
 - **APPEARANCE**: theme accent tint, palette, reduced motion, UI scale,
   tooltip toggle, scrolling data-stream toggle, noise-event strip
@@ -460,6 +465,9 @@ Right-click any control includes a "Modulate ->" submenu.
 ## 12. Footer
 
 16 px. Left: version. Centre: status line. Right: CPU %, voice count.
+The CPU % is the `QualityBadge` (cpu-quality-modes 5): level label, a
+five-cell load bar and Luthier's share, a focusable button last in the
+footer tab order that opens Options -> AUDIO -> QUALITY.
 
 Scrolling data stream (theme.md) fills empty vertical space in the main
 area, not the footer. Under reduced motion the stream is a static count
@@ -593,6 +601,7 @@ the UI.
 
 | Feature | Backend module | Primary UI location | Secondary access | Shortcut |
 |---|---|---|---|---|
+| CPU quality (High / Medium / Low / Auto; cpu-quality-modes) | QualityController, PerformanceSettings | Options -> AUDIO -> QUALITY | Footer `QualityBadge`; Adv Col 3 Master oversampling tooltip | "Cycle CPU quality" (unbound) |
 | Instrument load | Model::GuitarLibrary | Adv Col 1 GUITAR, Preset browser | Header preset | Ctrl+O |
 | Save As Guitar | Workshop | Workshop header | - | Ctrl+G |
 | Per-string tuning | TuningEngine | Adv Col 1 GUITAR | Easy: headstock click | - |

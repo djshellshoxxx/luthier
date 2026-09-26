@@ -316,8 +316,9 @@ public:
     void setSleepExempt (bool exempt) noexcept { sleepExempt = exempt; if (exempt) wake(); }
 
     /** Fades what is left over `seconds` and then sleeps (ring-out truncation
-        and E3). Ignored while exempt. */
-    void fadeToSleep (double seconds) noexcept;
+        and E3). Ignored while exempt. With `holdUntilExcited` (E3) the string
+        stays asleep through coupling until it is plucked or touched again. */
+    void fadeToSleep (double seconds, bool holdUntilExcited = false) noexcept;
 
     bool isSleeping() const noexcept { return sleeping; }
     bool isFadingToSleep() const noexcept { return fadeLeft > 0; }
@@ -339,14 +340,14 @@ private:
     void latchDispersion() noexcept;
     void applyCappedDispersion() noexcept;
     void goToSleep() noexcept;
-    void wake() noexcept { sleeping = false; quietSamples = 0; }
+    void wake() noexcept { sleeping = false; holdAsleep = false; quietSamples = 0; }
 
     double ruleFourHz = 0.0, ruleTwoHz = 0.0;
     int latchedStages = 8;              ///< dispersionStages unless capped
     double cappedCoeff = 0.0;
     double cappedCompensation = 0.0;    ///< holds the fundamental where High has it
     bool sleepEnabled = false, sleepExempt = false, sleeping = false;
-    bool sleptThisSample = false;
+    bool sleptThisSample = false, holdAsleep = false;
     int quietSamples = 0, sleepAfterSamples = 4410;
     int fadeLeft = 0, fadeTotal = 1;
 

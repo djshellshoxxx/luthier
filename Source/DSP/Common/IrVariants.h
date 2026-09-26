@@ -140,7 +140,7 @@ private:
     int requested = 0;                      ///< the level last asked for
     int running = 0, previous = 0, wanted = 0;
     bool hardResetPending = false;
-    int fadeLeft = 0, fadeTotal = 1;
+    int fadeLeft = 0, fadeTotal = 1, fadeSettle = 0;
     juce::AudioBuffer<float> scratch;
 };
 

@@ -367,12 +367,12 @@ CharacterPanel::CharacterPanel (LuthierAudioProcessor& p)
         addAndMakeVisible (*label);
 
     refreshFromEngine();
-    startTimerHz (4);
+    motion.startTimerHz (*this, 4);
 }
 
 CharacterPanel::~CharacterPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 CharacterEngine& CharacterPanel::character()
@@ -621,6 +621,8 @@ int CharacterPanel::preferredHeight() const
 
 void CharacterPanel::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     g.setColour (Palette::panel);
     g.fillRoundedRectangle (getLocalBounds().toFloat(), 4.0f);
 

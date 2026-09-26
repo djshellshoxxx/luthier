@@ -380,7 +380,8 @@ void AmpEngine::setOversamplingFactor (int effective, int nominal, bool crossfad
 
     // A pad whose length changed restarts empty; the crossfade starts on the
     // old path, so those few samples are not heard.
-    fadeTotal = juce::jmax (1, (int) std::round (QualityProfile::kOversamplerFadeSeconds * sr));
+    fadeTotal = juce::jmax (1, (int) std::round (QualityProfile::kOversamplerFadeSeconds * sr))
+                  + QualityProfile::kSwitchSettleSamples;
     fadeLeft = fadeTotal;
 }
 
@@ -463,7 +464,7 @@ double AmpEngine::processSample (double x) noexcept
         // cpu-quality-modes 2.2: both paths for 10 ms under a linear crossfade.
         const double oldOut = twin.engine->latencyPad.process (twin.engine->processCore (x));
         const double newOut = latencyPad.process (processCore (x));
-        const double t = 1.0 - (double) fadeLeft / (double) fadeTotal;
+        const double t = juce::jlimit (0.0, 1.0, 1.0 - (double) fadeLeft / (double) (fadeTotal - QualityProfile::kSwitchSettleSamples));
         --fadeLeft;
         return sanitise (oldOut * (1.0 - t) + newOut * t);
     }

@@ -121,12 +121,17 @@ private:
     double tapGainsR[kNumTaps] = {};
     Biquad tapFilterL, tapFilterR;
 
-    // cpu-quality-modes: taps are in loudness order already (each reflection
-    // has bounced more than the one before), so "the loudest n" is the first n.
-    int tapRun = kNumTaps, tapTarget = kNumTaps;
-    int tapRampLeft = 0, tapRampTotal = 1;
-    double tapCompL[kNumTaps + 1] = {}, tapCompR[kNumTaps + 1] = {};   ///< per kept count
-    double tapCompNowL = 1.0, tapCompNowR = 1.0;
+    /*  cpu-quality-modes 2.1: the reduced tap set. Taps that share a delay
+        (a big room clamps its later reflections to the buffer's length) are
+        merged first - exactly equivalent - and the loudest `tapTarget` merged
+        taps then run, scaled so their energy equals the full set's. The full
+        and reduced sets crossfade over 20 ms on a switch. */
+    int tapTarget = kNumTaps;
+    int reducedCount = 0;
+    int reducedDelays[kNumTaps] = {};
+    double reducedGainsL[kNumTaps] = {}, reducedGainsR[kNumTaps] = {};
+    double reducedCompL[kNumTaps + 1] = {}, reducedCompR[kNumTaps + 1] = {};
+    double reducedMix = 0.0, reducedStep = 1.0;   ///< 0 = the full set, 1 = the reduced set
     void computeTapCompensation() noexcept;
 
     // Late reverb.

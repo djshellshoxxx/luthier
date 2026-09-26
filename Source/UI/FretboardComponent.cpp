@@ -58,12 +58,12 @@ FretboardComponent::FretboardComponent (LuthierAudioProcessor& p)
     liveNote.fill (-1);
 
     setTooltip ("Click a fret to hear that note. Right-click for string options.");
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);   // cpu-quality-modes 6
 }
 
 FretboardComponent::~FretboardComponent()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 //==============================================================================
@@ -151,7 +151,10 @@ void FretboardComponent::timerCallback()
 
     for (int s = 0; s < numStrings; ++s)
     {
-        const double level = engine.getStringLevel (s);
+        // cpu-quality-modes 6: a fixed glow at Off - holding a note, or still
+        // audibly ringing after it; a held note decaying is not a change.
+        const double level = staticMode ? ((engine.getStringMidiNote (s) >= 0 || engine.getStringLevel (s) > 1.0e-3) ? 1.0 : 0.0)
+                                        : engine.getStringLevel (s);
         const double fret = engine.getStringFret (s);
         const int note = engine.getStringMidiNote (s);
 
@@ -170,8 +173,11 @@ void FretboardComponent::timerCallback()
         const auto& slide = engine.getSlideEngine();
         const double target = slide.getOverlayFret();
 
-        // 80 ms ease at the 30 Hz this runs at.
-        const double ease = 1.0 - std::exp (-(1.0 / 30.0) / 0.080);
+        // 80 ms ease at the 30 Hz this runs at; instant at Off (cpu-quality-modes 6).
+        const double ease = (staticMode || ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition))
+                              ? 1.0 : 1.0 - std::exp (-(1.0 / 30.0) / 0.080);
+        const double barFretBefore = barFret;
+        const float barOpacityBefore = barOpacity;
 
         if (target >= 0.0)
         {
@@ -192,7 +198,10 @@ void FretboardComponent::timerCallback()
         barSlantDegrees = (float) slide.getSettings().slantDegrees;
         barColour = juce::Colour (getSlideMaterial (slide.getBar().material).colour);
 
-        if (barOpacity > 0.0f)
+        if (barOpacity > 0.0f && ! staticMode)
+            changed = true;
+
+        if (staticMode && (barFret != barFretBefore || barOpacity != barOpacityBefore))
             changed = true;
     }
 
@@ -355,6 +364,8 @@ bool FretboardComponent::isNoteInScale (int stringIndex, int fret) const
 //==============================================================================
 void FretboardComponent::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     if (boardArea.isEmpty())
         return;
 

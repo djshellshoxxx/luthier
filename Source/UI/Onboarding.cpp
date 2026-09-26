@@ -712,12 +712,12 @@ DiscoveryLayer::DiscoveryLayer()
 {
     setInterceptsMouseClicks (false, false);
     setAccessible (false);
-    startTimerHz (15);
+    motion.startTimerHz (*this, 15);
 }
 
 DiscoveryLayer::~DiscoveryLayer()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void DiscoveryLayer::addTargets (Kind kind, std::function<std::vector<Target>()> provider)
@@ -800,13 +800,15 @@ void DiscoveryLayer::update()
 
     const bool pulsing = std::any_of (marks.begin(), marks.end(), [] (const Mark& m) { return m.kind == Kind::pulse; });
 
-    if (changed || (pulsing && ! AccessibilitySettings::get().isReducedMotion()))
+    if (changed || (pulsing && AnimationPolicy::get().mayAnimate (AnimationPolicy::Decorative)))
         repaint();
 }
 
 void DiscoveryLayer::paint (juce::Graphics& g)
 {
-    const bool still = AccessibilitySettings::get().isReducedMotion();
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
+    const bool still = ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Decorative);   // cpu-quality-modes 6
     const double phase = std::fmod (juce::Time::getMillisecondCounterHiRes() / 900.0, 1.0);
 
     for (const auto& mark : marks)

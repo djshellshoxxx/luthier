@@ -129,12 +129,12 @@ ModSourceCard::ModSourceCard (LuthierAudioProcessor& p)
     history.fill (0.0f);
 
     setSlot (ModSourceSlots::lfoBase);
-    startTimerHz (20);
+    motion.startTimerHz (*this, 20);
 }
 
 ModSourceCard::~ModSourceCard()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void ModSourceCard::setSlot (int newSlot)
@@ -307,6 +307,8 @@ void ModSourceCard::timerCallback()
 
 void ModSourceCard::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds();
 
     auto header = bounds.removeFromTop (16);

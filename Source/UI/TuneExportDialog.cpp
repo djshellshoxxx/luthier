@@ -129,7 +129,7 @@ TuneExportDialog::TuneExportDialog (LuthierAudioProcessor& p)
 
 TuneExportDialog::~TuneExportDialog()
 {
-    stopTimer();
+    motion.stopTimer();
     cancel = true;
 
     if (worker != nullptr)
@@ -303,7 +303,7 @@ void TuneExportDialog::startAudioExport()
 
     worker->startThread();
     exportButton.setButtonText ("CANCEL");
-    startTimerHz (15);
+    motion.startTimerHz (*this, 15);
 }
 
 void TuneExportDialog::timerCallback()
@@ -320,7 +320,7 @@ void TuneExportDialog::timerCallback()
 
     if (done)
     {
-        stopTimer();
+        motion.stopTimer();
         progress = -1.0;
         exportButton.setButtonText ("EXPORT");
     }
@@ -358,6 +358,8 @@ void TuneExportDialog::launch (LuthierAudioProcessor& processor, juce::Component
 
 void TuneExportDialog::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     g.fillAll (Palette::panel);
     g.setFont (Fonts::label());
     g.setColour (Palette::textMuted);

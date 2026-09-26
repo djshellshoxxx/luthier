@@ -45,7 +45,16 @@ const std::vector<std::pair<const char*, const char*>>& AnimationPolicy::getPoll
         { "StrumGroup",            "5 Hz: control sync" },
         { "StringMaskSelector",    "10 Hz: E-Bow string-mask parameter sync" },
         { "WorkshopPanel",         "20 Hz: guitar-key change, spectrum worker result, audition end" },
-        { "ChordAndTabPanel",      "12 Hz: records tab columns from live notes (a capture, not a display)" }
+        { "ChordAndTabPanel",      "12 Hz: records tab columns from live notes (a capture, not a display)" },
+        { "Registration",          "AnimationPolicy's own API: it starts the timers it was asked to" },
+        { "QualityEditorLink",     "4 Hz: feeds this editor's level into the policy and drains notices" },
+        { "DecayRow",              "4 Hz: sustain-style combo text" },
+        { "DecaySketch",           "4 Hz: redraws only on a parameter change" },
+        { "NoiseFloorGroup",       "4 Hz: noise-floor style combo text" },
+        { "PositionPad",           "10 Hz: redraws only when the player's position parameters change" },
+        { "RightHandToolSelector", "4 Hz: syncs the selected tool with its parameter" },
+        { "SustainShapeGroup",     "4 Hz: sustain-style combo text" },
+        { "TuningStabilityGroup",  "2 Hz: capo-bias text and string count" }
     };
 
     return list;
@@ -280,6 +289,7 @@ AnimationPolicy::Registration::Registration (juce::Component& o, MotionClass cls
     auto& policy = AnimationPolicy::get();
     policy.registry[&owner] = this;
     policy.addListener (this);
+    apply();
 }
 
 AnimationPolicy::Registration::~Registration()
@@ -310,6 +320,17 @@ void AnimationPolicy::Registration::apply()
 {
     const int hz = requestedHz > 0 ? AnimationPolicy::get().frameRateHz (motionClass, requestedHz) : 0;
     appliedHz = hz;
+
+    /*  At Off a Decorative or Transition component is buffered to an image, so
+        a neighbour's repaint (a meter under an overlay, say) reuses the cache
+        instead of calling its paint(): it paints only when it changes itself. */
+    const bool buffer = motionClass != LiveReadout && AnimationPolicy::get().getMotion() == MotionLevel::Off;
+
+    if (buffer != buffered)
+    {
+        buffered = buffer;
+        owner.setBufferedToImage (buffer);
+    }
 
     if (timer != nullptr)
     {

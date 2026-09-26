@@ -653,7 +653,8 @@ void DrivePedalBase::setOversamplingFactor (int effective, int nominal, bool cro
         oversamplerR.down (work);
     }
 
-    fadeTotal = juce::jmax (1, (int) std::round (QualityProfile::kOversamplerFadeSeconds * sr));
+    fadeTotal = juce::jmax (1, (int) std::round (QualityProfile::kOversamplerFadeSeconds * sr))
+                  + QualityProfile::kSwitchSettleSamples;
     fadeLeft = fadeTotal;
 }
 
@@ -693,7 +694,7 @@ void DrivePedalBase::process (double* left, double* right, int numSamples) noexc
         if (fadeLeft > 0)
         {
             // cpu-quality-modes 2.2: old and new paths under a linear crossfade.
-            const double t = 1.0 - (double) fadeLeft / (double) fadeTotal;
+            const double t = juce::jlimit (0.0, 1.0, 1.0 - (double) fadeLeft / (double) (fadeTotal - QualityProfile::kSwitchSettleSamples));
             --fadeLeft;
 
             const double ol = oldPadL.process (oldOversampler.processSample (xl, [this] (double v) { return shape (v); }));

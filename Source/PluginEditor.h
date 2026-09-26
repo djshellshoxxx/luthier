@@ -14,6 +14,7 @@
 #include "UI/Notifications.h"
 #include "Export/MidiImportTargets.h"   // midi-export 5 (MODEL-GAPS)
 #include "UI/Onboarding.h"
+#include "UI/QualityBadge.h"   // cpu-quality-modes
 
 namespace luthier
 {
@@ -73,6 +74,12 @@ public:
         Returns false when there is no such tab, so a caller can tell the
         difference between "opened it" and "that page does not exist here". */
     bool showOptionsPage (const juce::String& tabName);
+
+    /*  cpu-quality-modes 5: the footer badge's destination - Options -> AUDIO
+        with focus in the CPU quality group. */
+    void openQualityOptions();
+    QualityBadge& getQualityBadge() noexcept { return qualityBadge; }
+    QualityEditorLink& getQualityLink() noexcept { return qualityLink; }
 
     //==========================================================================
     // onboarding.md 2-4 (TUNE-HELP-ONBOARDING; PluginEditorOnboarding.cpp).
@@ -177,6 +184,10 @@ private:
     DiscoveryTooltip randomiseTooltip;
 
     juce::TextButton chordButton { "Chords / Tab" };
+
+    // cpu-quality-modes 5 / 6: the footer badge and this editor's link.
+    QualityBadge qualityBadge { processor };
+    QualityEditorLink qualityLink { processor, notifications };
 
     bool advancedMode = false;
     bool secretHovered = false;

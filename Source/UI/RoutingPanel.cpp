@@ -349,12 +349,12 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     }
 
     refreshFromRouting();
-    startTimerHz (15);
+    motion.startTimerHz (*this, 15);
 }
 
 RoutingPanel::~RoutingPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void RoutingPanel::updateMidiOutFromControls()
@@ -491,6 +491,8 @@ int RoutingPanel::preferredHeight() const
 
 void RoutingPanel::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     if (! sidechainMeterBounds.isEmpty())
     {
         drawMeter (g, sidechainMeterBounds,
