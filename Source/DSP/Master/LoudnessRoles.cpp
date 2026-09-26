@@ -10,7 +10,11 @@ namespace
     {
         "guitar_volume", "whammy_position", "playing_mode", "mpe_enabled", "bend_range",
         "strum_speed", "strum_direction", "chord_window", "legato_window", "transpose_lock",
-        "macro_humanize", "preset_morph_position",
+        // macro_humanize is Config here, not Performance as 3.1 lists it: it is
+        // a preset's setting that no controller moves, and its velocity jitter
+        // shifts loudness by about 1 LU (0.4 vs 0.7), so rendering it at its
+        // default missed ON-03's +/-1 LU target (docs/coverage/FEAT-NORMALIZE.md).
+        "preset_morph_position",
 
         // strum-dynamics: strum_crossing_sps ... chuck_damping.
         "strum_crossing_sps", "strum_acceleration", "strum_up_velocity_ratio", "strum_tilt",
@@ -45,10 +49,21 @@ namespace
         return false;
     }
 
+    // 10: jam-mode's band is mixed after the master bus and is never in the
+    // reference render, so none of its controls is part of the sound measured.
+    const char* const kMixPrefixes[] =
+    {
+        "jam_"
+    };
+
     bool inMix (const juce::String& id)
     {
         for (auto* p : kMixIds)
             if (id == p)
+                return true;
+
+        for (auto* p : kMixPrefixes)
+            if (id.startsWith (p))
                 return true;
 
         return false;
@@ -102,7 +117,7 @@ const std::vector<LoudnessRoles::Expectation>& LoudnessRoles::specExpectations()
         { "feedback_on", LoudnessRole::performance },
         { "feedback_amount", LoudnessRole::performance },
         { "hum_timing", LoudnessRole::performance },
-        { "macro_humanize", LoudnessRole::performance },
+        { "macro_humanize", LoudnessRole::config },   // deviation, see kPerformanceIds
         { "preset_morph_position", LoudnessRole::performance },
         { "scrape_pressure", LoudnessRole::performance },
         { "slap_strength", LoudnessRole::performance },
@@ -117,6 +132,7 @@ const std::vector<LoudnessRoles::Expectation>& LoudnessRoles::specExpectations()
         { "master_gain", LoudnessRole::mix },
         { "limiter_on", LoudnessRole::mix },
         { "aux1_pre_circuit", LoudnessRole::mix },
+        { "jam_volume", LoudnessRole::mix },
 
         // 3.1: the pickup selector, per-pickup volumes and the tone knob are
         // Config; so are the amp, the tone strip and oversampling.
