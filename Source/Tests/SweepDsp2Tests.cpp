@@ -11,6 +11,7 @@
 
 #include "../DSP/Noise/FretBuzz.h"
 #include "../DSP/Noise/PlayingNoise.h"
+#include "../DSP/Noise/ScrapeEngine.h"
 #include "../LuthierEngine.h"
 #include "../PluginProcessor.h"
 #include "../Practice/Metronome.h"
@@ -1916,4 +1917,113 @@ LUTHIER_TEST (PickNoise, decayWearAndPositionShapeTheClick)
     nearBridge.pluckPosition = 0.05;
     nearNeck.pluckPosition = 0.4;
     CHECK (PlayingNoise::makeClick (nearBridge, 0, 0.8).brightness > PlayingNoise::makeClick (nearNeck, 0, 0.8).brightness);
+}
+
+//==============================================================================
+//  string-scraping
+//==============================================================================
+LUTHIER_TEST (Scrape, aBendStretchesTheWindingSpacing)
+{
+    // SC-22 (string-scraping.md 5): a bent string is under more tension and
+    // its winding is stretched slightly apart - fewer catches over the same path.
+    auto catches = [] (double bendCents)
+    {
+        ScrapeEngine scrape;
+        scrape.prepare (48000.0, 256);
+        scrape.setNumStrings (6);
+        scrape.setScaleLengthMm (648.0);
+
+        StringNoiseInfo info;
+        info.wound = true;
+        info.windingPitchPerMm = 20.0;
+        info.windingDepth = 0.9;
+
+        for (int s = 0; s < 6; ++s)
+            scrape.setString (s, info, 82.41, 0.0, s == 5 ? bendCents : 0.0);
+
+        ScrapeGesture g;
+        g.stringIndex = 5;
+        g.startPositionMm = 100.0;
+        g.endPositionMm = 600.0;
+        g.durationMs = 500.0;
+        scrape.trigger (g);
+
+        for (int b = 0; b < 120; ++b)
+            scrape.processBlock (256);
+
+        return (double) scrape.getCatchCount (5);
+    };
+
+    const double flat = catches (0.0);
+    const double bent = catches (200.0);
+    const double r = std::pow (2.0, 200.0 / 1200.0);
+    const double factor = 1.0 / (1.0 + 0.003 * (r * r - 1.0));
+
+    CHECK (flat > 9000.0);
+    CHECK_MSG (bent < flat, "a bend did not spread the winding");
+    CHECK_NEAR (bent / flat, factor, 0.0005);
+}
+
+//==============================================================================
+//  strum-dynamics
+//==============================================================================
+LUTHIER_TEST (StrumDynamics, aPalmMuteKeepsPitchAndAChuckDoesNot)
+{
+    // SD-18 (strum-dynamics 6.1): a palm-muted note still has its pitch; a
+    // chuck is the hand flat on the strings and has none to speak of. Measured
+    // as the energy that is left at the note's fundamental after the attack.
+    auto render = [] (bool chuck)
+    {
+        LuthierEngine engine;
+        engine.prepare (48000.0, 256);
+        engine.setGuitarType (GuitarType::Dreadnought);
+
+        NoteOnEvent e;
+        e.stringIndex = 4;
+        e.fretPosition = 2.0;
+        e.velocity = 0.8;
+        e.pitchHz = engine.getTuningEngine().computeFrequency (4, 2.0);
+
+        if (chuck)
+            e.chuck = 1.0;
+        else
+            e.technique = Technique::PalmMute;
+
+        engine.getTechniqueEngine().setPalmMuteAmount (0.7);
+        engine.triggerNoteNow (e);
+
+        std::vector<float> out;
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+
+        for (int b = 0; b < 40; ++b)
+        {
+            buffer.clear();
+            engine.processBlock (buffer, midi);
+            out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 256);
+        }
+
+        // Goertzel at the fundamental over 60-200 ms, relative to the whole.
+        const double hz = e.pitchHz;
+        const int from = 2880, to = 9600;
+        double s1 = 0.0, s2 = 0.0, energy = 1.0e-20;
+        const double coeff = 2.0 * std::cos (juce::MathConstants<double>::twoPi * hz / 48000.0);
+
+        for (int i = from; i < to; ++i)
+        {
+            const double s0 = out[(size_t) i] + coeff * s1 - s2;
+            s2 = s1;
+            s1 = s0;
+            energy += (double) out[(size_t) i] * out[(size_t) i];
+        }
+
+        const double power = s1 * s1 + s2 * s2 - coeff * s1 * s2;
+        return power / (energy * (to - from));
+    };
+
+    const double muted = render (false);
+    const double chucked = render (true);
+
+    CHECK_MSG (muted > 0.05, "a palm mute lost its pitch: " + juce::String (muted));
+    CHECK_MSG (chucked < muted * 0.5, "a chuck kept its pitch: " + juce::String (chucked) + " vs " + juce::String (muted));
 }

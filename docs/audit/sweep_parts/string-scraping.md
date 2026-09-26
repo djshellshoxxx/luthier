@@ -25,7 +25,7 @@ The scrape engine is complete and well tested here: `ScrapeEngine` turns a gestu
 | SC-19 (§4) | Five presets (Classic Rock, Metal Zipper, Slow Ratchet, Nail, Modwheel-Sweep) loadable — defined only in `ScrapeSettings::fromPreset`, called by tests; not in factory presets or browser on any branch | `ScrapeSettings::fromPreset` | none | `Scrape.theFactoryScrapesAreWhatSectionFourSays` | PARTIAL |
 | SC-20 (§5) | Cascade: scrape through a palm mute is duller/thumpier | `ScrapeEngine::setMuteAmount` | n/a | `Scrape.aMuteMakesItDullerAndThumpier` | DONE |
 | SC-21 (§5) | Cascade: slide takes the string (blocked) | `ScrapeEngine::setStringBlocked`; `LuthierEngine` ~1950 | n/a | `Scrape.aPreemptedScrapeFadesOutInTenMilliseconds` | DONE |
-| SC-22 (§5) | Cascade: a bend stretches winding spacing — implemented, no test | `ScrapeEngine::setString(..., bendCents)` | n/a | - | NO-TEST |
+| SC-22 (§5) | Cascade: a bend stretches winding spacing — implemented, no test | `ScrapeEngine::setString(..., bendCents)` | n/a | `Scrape.aBendStretchesTheWindingSpacing` | DONE |
 | SC-23 (§5) | Cascade: tap on the same string damps the scrape — preempt hook here, no TapEngine; on techniques: `Cascade.aTapPreemptsAScrapeOnItsString` | `ScrapeEngine::preempt` | n/a | (branch) `Cascade.aTapPreemptsAScrapeOnItsString` | OWNED |
 | SC-24 (§5) | Scrape on scrape queues; slap/scrape conflict latest wins | `ScrapeEngine` queue; `preempt` | n/a | `Scrape.aScrapeOnAScrapeQueues`, `SlapWiring.slapAndScrapeTakeTheStringFromEachOther` | DONE |
 | SC-25 (§2 GUI) | Controls exposed in the Techniques tab — no TECHNIQUES tab here; on techniques: `TechniquesPanel` SCRAPE sub-tab | n/a | (branch) TECHNIQUES > SCRAPE | (branch) `TechniquesUi.everySubTabRendersItsControls` | OWNED |
