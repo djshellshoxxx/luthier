@@ -1064,3 +1064,41 @@ LUTHIER_TEST (Editor, guitarFileShortcuts)
     CHECK_MSG (editor->getNotifications().getCurrentId() == "reveal-guitar",
                "the banner was '" + editor->getNotifications().getCurrentId() + "'");
 }
+
+/*  KS-21 (docs/KEYBOARD_SHORTCUTS.md "Right-click"): every control's menu offers
+    Enter value, Reset, Copy, Paste, MIDI Learn, Lock and Randomise, and Reset
+    and Lock do what they say. */
+LUTHIER_TEST (Editor, rightClickOffersTheDocumentedItems)
+{
+    LuthierAudioProcessor processor;
+    const juce::String id (ParamIDs::ampTreble);
+
+    juce::StringArray items;
+    const auto menu = buildParameterContextMenu (processor, id);   // the iterator keeps a reference
+    juce::PopupMenu::MenuItemIterator it (menu, true);
+
+    while (it.next())
+        items.add (it.getItem().text);
+
+    for (const char* wanted : { "Enter value", "Reset to default", "Copy value", "Paste value",
+                                "MIDI Learn", "Lock", "Randomise this control" })
+    {
+        bool found = false;
+
+        for (const auto& item : items)
+            found = found || item.startsWith (wanted);
+
+        CHECK_MSG (found, juce::String ("the right-click menu has no '") + wanted + "'");
+    }
+
+    auto* param = processor.getState().getParameter (id);
+    juce::Component owner;
+
+    param->setValueNotifyingHost (0.9f);
+    applyParameterMenuResult (2, owner, processor, id);   // Reset to default
+    CHECK_NEAR (param->getValue(), param->getDefaultValue(), 1.0e-6);
+
+    CHECK (! processor.isParameterLocked (id));
+    applyParameterMenuResult (7, owner, processor, id);   // Lock
+    CHECK (processor.isParameterLocked (id));
+}

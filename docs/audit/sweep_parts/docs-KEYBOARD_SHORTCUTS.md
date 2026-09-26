@@ -24,7 +24,7 @@ Every binding the doc lists exists in `AccessibilitySettings` with the documente
 | KS-18 (doc) | Doc lists every default binding — omits S (slide mode), Ctrl+N (new preset/Init), Ctrl+Alt+E (reveal preset), Ctrl+[ / ] (workspace tab) | `Accessibility.cpp` registry | n/a | n/a (doc) | DONE |
 | KS-19 (Control) | Left-drag adjust, Shift coarse, Ctrl ultra-fine | `UI/Widgets.cpp:LuthierKnob::KnobSlider::mouseDrag` (sensitivity 70/180/1200) | every knob | `Widgets::modifierDragSensitivity` | DONE |
 | KS-20 (Control) | Double-click resets to default | JUCE `SliderParameterAttachment` (`setDoubleClickReturnValue`) via `LuthierKnob::attachTo` | every knob | `Widgets::doubleClickReturnsAKnobToItsDefault` | DONE |
-| KS-21 (Control) | Right-click: Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise | `Widgets.cpp:showParameterContextMenu` | every knob | `Editor::rightClickOffersModulationAndBuildsTheRoute` (Modulate only), `RangesUi::rightClickUnlocksAndRestrictsOneControl` — core items not asserted | NO-TEST |
+| KS-21 (Control) | Right-click: Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise | `Widgets.cpp:showParameterContextMenu` | every knob | `Editor::rightClickOffersTheDocumentedItems` | DONE |
 | KS-22 (Control) | Hover row: value appears above the control, label stays; tooltip 400 ms | `LuthierKnob::paint` showValue | every knob | - | DONE |
 | KS-23 (Fretboard) | Click plays note, higher in lane = harder | `FretboardComponent::mouseDown` velocity from `withinLane` -> `triggerPreviewNote` | Easy/Advanced fretboard | - | NO-TEST |
 | KS-24 (Fretboard) | Right-click: mute string, select string, set capo, scale overlay | `FretboardComponent::mouseDown` popup, `setCapoFret` drives `capoFret` param | fretboard | - | NO-TEST |
