@@ -35,6 +35,7 @@ enum class RangeFamily
     pick,
     slide,
     modulation,
+    jam,            ///< jam-mode.md 10: jam_kit_tuning, jam_kit_damping (FEAT-JAM)
     numFamilies,
 
     /** Returned for a parameter that has no PhysicalRange. */

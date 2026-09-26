@@ -15,6 +15,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "LuthierEngine.h"
 #include "Modulation/ModMatrix.h"
+#include "Jam/JamSettings.h"   // FEAT-JAM
 
 namespace luthier
 {
@@ -362,6 +363,61 @@ namespace ParamIDs
     inline constexpr const char* restStroke                 = "rest_stroke";
     inline constexpr const char* aux1PreCircuit             = "aux1_pre_circuit";
     // ==== END MODEL-GAPS params ====
+
+    // ==== BEGIN FEAT-JAM params ====
+    // jam-mode.md 10: appended in this order and never reordered.
+    inline constexpr const char* jamEnabled         = "jam_enabled";
+    inline constexpr const char* jamPlay            = "jam_play";
+    inline constexpr const char* jamFillNow         = "jam_fill_now";
+    inline constexpr const char* jamStyle           = "jam_style";
+    inline constexpr const char* jamVariation       = "jam_variation";
+    inline constexpr const char* jamIntensity       = "jam_intensity";
+    inline constexpr const char* jamFillEvery       = "jam_fill_every";
+    inline constexpr const char* jamFollow          = "jam_follow";
+    inline constexpr const char* jamPredict         = "jam_predict";
+    inline constexpr const char* jamChordSource     = "jam_chord_source";
+    inline constexpr const char* jamStartMode       = "jam_start_mode";
+    inline constexpr const char* jamCountInBars     = "jam_count_in_bars";
+    inline constexpr const char* jamStopOnSilence   = "jam_stop_on_silence";
+    inline constexpr const char* jamSilenceBars     = "jam_silence_bars";
+    inline constexpr const char* jamEnding          = "jam_ending";
+    inline constexpr const char* jamDynamicsFollow  = "jam_dynamics_follow";
+    inline constexpr const char* jamSwing           = "jam_swing";
+    inline constexpr const char* jamHumanise        = "jam_humanise";
+    inline constexpr const char* jamKit             = "jam_kit";
+    inline constexpr const char* jamKitAuto         = "jam_kit_auto";
+    inline constexpr const char* jamKitTuning       = "jam_kit_tuning";
+    inline constexpr const char* jamKitDamping      = "jam_kit_damping";
+    inline constexpr const char* jamKitRoom         = "jam_kit_room";
+    inline constexpr const char* jamKitWidth        = "jam_kit_width";
+    inline constexpr const char* jamKitPerspective  = "jam_kit_perspective";
+    inline constexpr const char* jamBassVoice       = "jam_bass_voice";
+    inline constexpr const char* jamBassTone        = "jam_bass_tone";
+    inline constexpr const char* jamVolume          = "jam_volume";
+    inline constexpr const char* jamBalance         = "jam_balance";
+    inline constexpr const char* jamDrumsPan        = "jam_drums_pan";
+    inline constexpr const char* jamBassPan         = "jam_bass_pan";
+    inline constexpr const char* jamDrumsMute       = "jam_drums_mute";
+    inline constexpr const char* jamBassMute        = "jam_bass_mute";
+    inline constexpr const char* jamOutput          = "jam_output";
+
+    /** The 34, in table order (JM-36). */
+    inline constexpr const char* const jamParameters[] = {
+        jamEnabled, jamPlay, jamFillNow, jamStyle, jamVariation, jamIntensity, jamFillEvery,
+        jamFollow, jamPredict, jamChordSource, jamStartMode, jamCountInBars, jamStopOnSilence,
+        jamSilenceBars, jamEnding, jamDynamicsFollow, jamSwing, jamHumanise, jamKit, jamKitAuto,
+        jamKitTuning, jamKitDamping, jamKitRoom, jamKitWidth, jamKitPerspective, jamBassVoice,
+        jamBassTone, jamVolume, jamBalance, jamDrumsPan, jamBassPan, jamDrumsMute, jamBassMute,
+        jamOutput };
+    inline constexpr int kNumJamParameters = 34;
+
+    /** jam-mode 10: performance controls, kept out of presets, snapshots,
+        morph and randomise, and off after a host-state reload. */
+    inline bool isJamTransient (const juce::String& id) noexcept
+    {
+        return id == jamPlay || id == jamFillNow;
+    }
+    // ==== END FEAT-JAM params ====
 }
 
 //==============================================================================
@@ -439,6 +495,13 @@ public:
 
     /** Called at the top of processBlock. Real-time safe. */
     void applyToEngine() noexcept;
+
+    // ==== BEGIN FEAT-JAM params ====
+    /** jam-mode 10: the Jam parameters as JamSettings. The band belongs to
+        the processor (0.2), so this is read every block whether or not the
+        engine lock was taken. Real-time safe. */
+    JamSettings readJam() const noexcept;
+    // ==== END FEAT-JAM params ====
 
     /** Applies everything including structural changes. Message thread only;
         used after a preset load. */

@@ -225,6 +225,17 @@ public:
     /** Feeds the looper the MIDI to store alongside the audio. */
     void captureMidi (const juce::MidiBuffer& midi, int numSamples) noexcept;
 
+    /*  jam-mode.md 11 (FEAT-JAM): the playing layers' stored MIDI for this
+        block, so the Jam band keeps following a looped rhythm part. Call
+        before processBlock advances the position. Audio thread; no
+        allocation beyond `out`'s own capacity. */
+    void renderPlaybackMidi (juce::MidiBuffer& out, int numSamples) const noexcept;
+
+    /*  jam-mode 11 (FEAT-JAM): while the band plays, a first recording starts
+        on the next downbeat, this many samples on. Audio thread. */
+    void setRecordStartDelay (int samples) noexcept { recordStartDelay = juce::jmax (0, samples); }
+    int getRecordStartDelay() const noexcept       { return recordStartDelay; }
+
     //==========================================================================
     /** practice-tools 2: bounce all layers to one file, or each to its own. */
     bool exportMixdown (const juce::File& file) const;
@@ -268,6 +279,8 @@ private:
     /** Set by press() and acted on by the audio thread at the loop boundary, so
         that closing a loop lands on the beat rather than on the key press. */
     std::atomic<bool> pendingClose { false };
+
+    int recordStartDelay = 0;   ///< FEAT-JAM: samples before a first recording begins
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Looper)
 };

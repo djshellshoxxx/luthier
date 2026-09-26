@@ -16,6 +16,8 @@ const char* getAuxBusName (int index) noexcept
         case (int) AuxBus::wetFx:     return "Wet FX";
         case (int) AuxBus::monitor:   return "Monitor";
         case kNoiseAux:               return "Noise";
+        case kJamDrumsAux:            return "Jam Drums";   // FEAT-JAM
+        case kJamBassAux:             return "Jam Bass";
         default:                      return "Aux";
     }
 }
@@ -32,6 +34,8 @@ const char* getAuxBusTapDescription (int index) noexcept
         case (int) AuxBus::wetFx:     return "Reverb and delay tails alone";
         case (int) AuxBus::monitor:   return "Monitor mix, post-master";
         case kNoiseAux:               return "Every playing-noise generator summed, pre-body";
+        case kJamDrumsAux:
+        case kJamBassAux:             return "Jam band, post Jam mixer";   // FEAT-JAM
         default:                      return "";
     }
 }
@@ -341,6 +345,13 @@ void RoutingMatrix::distribute (juce::AudioProcessor& processor,
 
         const bool isAux = hasAux && auxIndex >= 0;
 
+        // jam-mode 7 (FEAT-JAM): the band's buses are writeJamBuses's.
+        if (auxIndex == kJamDrumsAux || auxIndex == kJamBassAux)
+        {
+            out.clear();
+            continue;
+        }
+
         if (isAux && auxIndex == kNoiseAux)
         {
             // pick-noise 1.3: every generator summed, pre-body. Mono, on both sides.
@@ -449,6 +460,64 @@ void RoutingMatrix::distribute (juce::AudioProcessor& processor,
 }
 
 //==============================================================================
+bool RoutingMatrix::writeJamBuses (juce::AudioProcessor& processor, juce::AudioBuffer<float>& buffer,
+                                   const float* const* drums, const float* const* bass, int numSamples) noexcept
+{
+    // jam-mode 7 (FEAT-JAM): Aux 9 and 10, through their strips' gain, mute
+    // and solo like every aux. False when the host gave neither bus.
+    if (! layoutHasAux (activeLayout))
+        return false;
+
+    bool wrote = false;
+
+    for (int bus = 1; bus < processor.getBusCount (false); ++bus)
+    {
+        const auto* declared = processor.getBus (false, bus);
+
+        if (declared == nullptr)
+            continue;
+
+        const auto& name = declared->getName();
+        const int index = name == getAuxBusName (kJamDrumsAux) ? kJamDrumsAux
+                        : name == getAuxBusName (kJamBassAux)  ? kJamBassAux : -1;
+
+        if (index < 0)
+            continue;
+
+        auto out = processor.getBusBuffer (buffer, false, bus);
+
+        if (out.getNumChannels() <= 0)
+            continue;
+
+        const float* const* src = index == kJamDrumsAux ? drums : bass;
+        auto& state = auxes[(size_t) index];
+        state.gain.setTarget (isAuxAudible (index)
+                                ? juce::Decibels::decibelsToGain ((double) state.gainDb.load (std::memory_order_relaxed))
+                                : 0.0);
+
+        double peak = 0.0;
+        const int n = juce::jmin (numSamples, out.getNumSamples());
+
+        for (int i = 0; i < n; ++i)
+        {
+            const double g = state.gain.next();
+
+            for (int ch = 0; ch < out.getNumChannels(); ++ch)
+            {
+                const double v = src != nullptr ? (double) src[juce::jmin (ch, 1)][i] * g : 0.0;
+                out.setSample (ch, i, (float) sanitise (v));
+                peak = juce::jmax (peak, std::abs (v));
+            }
+        }
+
+        state.level.store ((float) peak, std::memory_order_relaxed);
+        wrote = true;
+    }
+
+    return wrote;
+}
+
+//==============================================================================
 void RoutingMatrix::setLatencyReport (const LatencyReport& r) noexcept
 {
     latMain.store (r.mainOut, std::memory_order_relaxed);
@@ -510,6 +579,9 @@ juce::var RoutingMatrix::toVar() const
     m->setProperty ("luthierEvents", cfg.luthierEvents);
     m->setProperty ("workshopChanges", cfg.workshopChanges);
     m->setProperty ("channel", cfg.channel);
+    m->setProperty ("jamParts", cfg.jamParts);            // FEAT-JAM
+    m->setProperty ("jamDrumChannel", cfg.jamDrumChannel);
+    m->setProperty ("jamBassChannel", cfg.jamBassChannel);
 
     juce::Array<juce::var> ccArray;
 
@@ -585,6 +657,9 @@ void RoutingMatrix::fromVar (const juce::var& state)
         cfg.luthierEvents = (bool) m->getProperty ("luthierEvents");
         cfg.workshopChanges = (bool) m->getProperty ("workshopChanges");
         cfg.channel = juce::jlimit (1, 16, m->hasProperty ("channel") ? (int) m->getProperty ("channel") : 1);
+        cfg.jamParts = (bool) m->getProperty ("jamParts");   // FEAT-JAM
+        cfg.jamDrumChannel = juce::jlimit (1, 16, m->hasProperty ("jamDrumChannel") ? (int) m->getProperty ("jamDrumChannel") : 10);
+        cfg.jamBassChannel = juce::jlimit (1, 16, m->hasProperty ("jamBassChannel") ? (int) m->getProperty ("jamBassChannel") : 11);
 
         if (auto* ccArray = m->getProperty ("macroCc").getArray())
             for (int i = 0; i < juce::jmin ((int) cfg.macroCc.size(), ccArray->size()); ++i)

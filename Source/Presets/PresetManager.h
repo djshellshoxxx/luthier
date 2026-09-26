@@ -75,6 +75,12 @@ public:
     std::function<juce::var()> captureGuitarBlock;
     std::function<void (const juce::var&)> onGuitarBlockLoaded;
 
+    /** jam-mode.md 12 (FEAT-JAM): the preset's optional `jam` block, supplied on
+        save and handed over on every load (void when a preset has none, which
+        means defaults). Message thread. */
+    std::function<juce::var()> captureJamBlock;
+    std::function<void (const juce::var&)> onJamBlockLoaded;
+
     /** After a load has written its pedal types and their parameters, so the
         pedals can be built with the loaded settings rather than their defaults
         (ParameterBridge::adoptPedalTypesFromParameters). */

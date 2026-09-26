@@ -16,6 +16,7 @@ const char* getRangeFamilyName (RangeFamily family) noexcept
         case RangeFamily::pick:       return "pick";
         case RangeFamily::slide:      return "slide";
         case RangeFamily::modulation: return "modulation";
+        case RangeFamily::jam:        return "jam";   // FEAT-JAM
         case RangeFamily::numFamilies:
         default:                      return "none";
     }
@@ -149,12 +150,16 @@ namespace
             { ParamIDs::slideSlant,        { -30.0f, 30.0f, -60.0f, 60.0f, 0.0f,  0.5f, RangeFamily::slide } },
             { ParamIDs::slideNoiseAmount,  { 0.0f,   1.0f,  0.0f,   4.0f,  0.4f,  1.0f, RangeFamily::slide } },
             { ParamIDs::slideClankAmount,  { 0.0f,   1.0f,  0.0f,   4.0f,  0.45f, 1.0f, RangeFamily::slide } },
+
+            // --- jam kit (jam-mode.md 10, FEAT-JAM): a tension change and head muffling
+            { ParamIDs::jamKitTuning,      { -6.0f,  6.0f,  -12.0f, 12.0f, 0.0f,  0.5f, RangeFamily::jam } },
+            { ParamIDs::jamKitDamping,     { 10.0f,  90.0f, 0.0f,  100.0f, 40.0f, 1.0f, RangeFamily::jam } },
         };
 
         return table[index];
     }
 
-    constexpr int kNumEntries = 32;
+    constexpr int kNumEntries = 32 + 2;   // + 2 FEAT-JAM
 }
 
 const PhysicalRange* RangeRegistry::find (const juce::String& parameterId)

@@ -375,7 +375,8 @@ juce::var PresetManager::toVar (const juce::String& name,
     // saving it would make loading a morph slot drag the slider back.
     for (auto* p : processor.getParameters())
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
-            if (withId->paramID != ParamIDs::presetMorphPosition)
+            if (withId->paramID != ParamIDs::presetMorphPosition
+                  && ! ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: jam-mode 10
             {
                 // Written as it reads back: a skewed range turns a normalised
                 // value into a plain one and back with a float's error, so
@@ -409,6 +410,10 @@ juce::var PresetManager::toVar (const juce::String& name,
     // guitar-workshop.md 8: which guitar, and the whole guitar if it was edited.
     if (captureGuitarBlock != nullptr)
         root->setProperty ("guitar", captureGuitarBlock());
+
+    // jam-mode.md 12 (FEAT-JAM): the band's style file, rhythm-kit link and seed.
+    if (captureJamBlock != nullptr)
+        root->setProperty ("jam", captureJamBlock());
 
     // ---- per-string extras ----------------------------------------------------
     auto* strings = new juce::DynamicObject();
@@ -606,7 +611,8 @@ bool PresetManager::fromVar (const juce::var& data)
         {
             if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
             {
-                if (params->hasProperty (withId->paramID) && withId->paramID != ParamIDs::presetMorphPosition)
+                if (params->hasProperty (withId->paramID) && withId->paramID != ParamIDs::presetMorphPosition
+                      && ! ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM
                 {
                     const double v = (double) params->getProperty (withId->paramID);
                     withId->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, v));
@@ -758,6 +764,9 @@ bool PresetManager::fromVar (const juce::var& data)
     // Last, so the guitar type parameter it may depend on has its new value.
     if (onGuitarBlockLoaded != nullptr)
         onGuitarBlockLoaded (obj->getProperty ("guitar"));
+
+    if (onJamBlockLoaded != nullptr)   // FEAT-JAM: a missing block means defaults
+        onJamBlockLoaded (obj->getProperty ("jam"));
 
     currentName = obj->getProperty ("name").toString();
     currentCategory = obj->getProperty ("category").toString();
@@ -1221,6 +1230,9 @@ void PresetManager::resetToDefaults()
     if (onGuitarBlockLoaded != nullptr)
         onGuitarBlockLoaded ({});
 
+    if (onJamBlockLoaded != nullptr)   // FEAT-JAM
+        onJamBlockLoaded ({});
+
     currentName = "Init";
     currentCategory = "User";
     currentIndex = -1;
@@ -1245,7 +1257,7 @@ bool PresetManager::isRandomisable (const juce::String& paramId)
         ParamIDs::secretFeedback, ParamIDs::secretMix
     };
 
-    return ! excluded.contains (paramId);
+    return ! excluded.contains (paramId) && ! ParamIDs::isJamTransient (paramId);   // FEAT-JAM
 }
 
 void PresetManager::randomise (uint64_t seed, const juce::StringArray& lockedParameters,
