@@ -64,6 +64,14 @@ void LuthierAudioProcessor::writePresetBlocks (juce::DynamicObject& root) const
             if (auto* amount = apvts.getRawParameterValue (ParamIDs::macroCharacter))
                 o->setProperty ("amount", (double) amount->load());
 
+        // string-aging.md 8 / environment.md 6 (REALISM-A): the per-string
+        // aging state and the environment's reference ride in the block.
+        if (auto* o = character.getDynamicObject())
+        {
+            o->setProperty ("aging", engine.getStringAging().toVar());
+            o->setProperty ("environment", engine.getEnvironment().toVar());
+        }
+
         root.setProperty (PresetBlockKeys::character, character);
     }
 
@@ -104,7 +112,11 @@ void LuthierAudioProcessor::readPresetBlocks (const juce::DynamicObject& root)
         midiLearn.fromVar (root.getProperty (PresetBlockKeys::legacyMidiMappings));
     engine.getRhythmEngine().fromVar (pick (PresetBlockKeys::rhythm, PresetBlockKeys::legacyRhythm));
     routing.fromVar (pick (PresetBlockKeys::routing));
-    engine.getCharacterEngine().fromVar (pick (PresetBlockKeys::character));
+    {
+        const auto character = pick (PresetBlockKeys::character);
+        engine.getCharacterEngine().fromVar (character);
+        applyRealismCharacterBlock (character);   // REALISM-A: aging, environment
+    }
 
     if (auto* irs = pick (PresetBlockKeys::toneMatch, PresetBlockKeys::legacyToneMatch).getDynamicObject())
     {

@@ -123,6 +123,7 @@ public:
     LuthierToggle* getAux1PreCircuitToggle() const noexcept { return aux1PreCircuit.get(); }
 
 private:
+    std::unique_ptr<LuthierToggle> noiseFloorToAux8;   // noise-floor.md 5: mirrors CHARACTER's (REALISM-C)
     juce::Rectangle<int> sidechainMeterBounds;
     float sidechainLevel = 0.0f;
 

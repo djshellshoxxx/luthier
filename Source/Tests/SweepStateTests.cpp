@@ -224,7 +224,10 @@ LUTHIER_TEST (Presets, metaBlockRoundTripsAndKeepsCreated)
                           " \"name\": \"flat name\", \"meta\": { \"name\": \"Meta Name\", \"category\": \"Blues\","
                           " \"created\": \"2026-01-14T09:32:00Z\", \"notes\": \"hand-written\" } }");
 
+    // A file load names the preset after its file (as before); the state
+    // itself reads meta.name first.
     CHECK (presets.loadPreset (file));
+    CHECK (presets.fromVar (juce::JSON::parse (file)));
     CHECK_MSG (presets.getCurrentPresetName() == "Meta Name", "meta.name was not read first");
 
     const auto out = folder.getChildFile ("Exported.luthierpreset");

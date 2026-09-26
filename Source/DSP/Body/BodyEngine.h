@@ -95,6 +95,14 @@ public:
         much a note loses depends on how close it is to this (character-wear 2). */
     double getAirResonanceHz() const noexcept;
 
+    /*  environment.md 4 / body-coupling.md 3: block-rate multipliers on the
+        modal bank - plate frequency, air frequency and plate Q. The resonators
+        are re-designed at the next block only when one has moved by more than
+        0.05 %, so 1, 1, 1 costs nothing and changes nothing. Audio thread. */
+    void setRuntimeScaling (double plateFreqMul, double airFreqMul, double plateQMul, double airQMul = 1.0) noexcept;
+    double getRuntimePlateScale() const noexcept { return runtimePlate; }
+    double getRuntimeAirScale() const noexcept { return runtimeAir; }
+
     /** Overall output trim so that switching bodies is not a jump in level. */
     void setOutputGainDb (double db) noexcept;
 
@@ -114,6 +122,11 @@ public:
 private:
     void rebuildModalBank();
     void applyStagedBank() noexcept;
+    void applyRuntimeScaling (bool force) noexcept;
+
+    // setRuntimeScaling's targets and what the resonators were last set from.
+    double runtimePlate = 1.0, runtimeAir = 1.0, runtimeQ = 1.0, runtimeAirQ = 1.0;
+    double designedPlate = 1.0, designedAir = 1.0, designedQ = 1.0, designedAirQ = 1.0;
 
     double sr = 44100.0;
     int maxBlock = 512;

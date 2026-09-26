@@ -73,6 +73,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
         ErrorLog::write (ErrorLog::Severity::warn, "Workshop", "PART_UNREADABLE", error);
 
     bridge.onLoadGuitarType = [this] (GuitarType type) { return loadGuitarForType (type); };
+    bridge.beforeStructuralChange = [this] { fadeOutBeforeStructuralChange(); };
+    bridge.afterStructuralChange  = [this] { fadeInAfterStructuralChange(); };
+    presets.onBeforeLoad = [this] { fadeOutBeforeStructuralChange(); };
+    presets.onAfterLoad  = [this] { fadeInAfterStructuralChange(); };
     setCapoPart (partLibrary.getDefault (PartType::capo));
     presets.captureGuitarBlock = [this] { return getGuitarBlock(); };
     presets.onGuitarBlockLoaded = [this] (const juce::var& block) { takeGuitarBlock (block); };
@@ -169,6 +173,8 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 {
     currentSampleRate = sampleRate;
     currentBlockSize = samplesPerBlock;
+
+    humCapture.prepare (sampleRate);   // tune-builder 13 (TUNE-HELP-ONBOARDING)
 
     // gui-integration 15: left for the window to find, because there may not be
     // one right now. claimSampleRateChange decides whether it is worth saying.
@@ -502,6 +508,12 @@ void LuthierAudioProcessor::setCapoPart (const PartPtr& capo)
     }
 
     engine.getTuningEngine().setCapoStringMask (mask);
+
+    // tuning-stability.md 2.6 (REALISM-C): the capo's pressure, and its gap -
+    // trigger 6 mm, screw 4 mm, partial 6 mm; 5 mm with no capo part.
+    const auto name = capo != nullptr ? capo->name.toLowerCase() : juce::String();
+    const double gap = capo == nullptr ? 5.0 : name.contains ("screw") ? 4.0 : 6.0;
+    engine.setCapoHardware (capo != nullptr ? capo->number ("pressure", 0.7) : 0.7, gap);
 }
 
 bool LuthierAudioProcessor::loadGuitarForType (GuitarType type)
@@ -1008,9 +1020,13 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     const int numSamples = buffer.getNumSamples();
     const int maxSlice = juce::jmax (1, currentBlockSize);
 
+    lastAudioCallbackMs.store (juce::Time::getMillisecondCounterHiRes(), std::memory_order_relaxed);
+    audioThreadId.store (juce::Thread::getCurrentThreadId(), std::memory_order_relaxed);
+
     if (numSamples <= maxSlice)
     {
         processSlice (buffer, midiMessages);
+        applyDeclick (buffer);
         return;
     }
 
@@ -1037,6 +1053,86 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     }
 
     midiMessages.swapWith (sliceMidiOut);
+    applyDeclick (buffer);
+}
+
+//==============================================================================
+void LuthierAudioProcessor::applyDeclick (juce::AudioBuffer<float>& buffer) noexcept
+{
+    const int state = declickState.load (std::memory_order_acquire);
+
+    if (state == declickIdle)
+        return;
+
+    const int n = buffer.getNumSamples();
+    const int channels = getTotalNumOutputChannels();
+
+    // 5 ms each way: long enough to hide a cut mid-cycle, short enough that a
+    // preset switch still feels immediate.
+    const float step = 1.0f / (float) juce::jmax (1.0, 0.005 * currentSampleRate);
+
+    if (state == declickSilent)
+    {
+        for (int ch = 0; ch < juce::jmin (channels, buffer.getNumChannels()); ++ch)
+            buffer.clear (ch, 0, n);
+        return;
+    }
+
+    const bool out = (state == declickFadingOut);
+    float g = declickGain;
+
+    for (int i = 0; i < n; ++i)
+    {
+        g = out ? juce::jmax (0.0f, g - step) : juce::jmin (1.0f, g + step);
+
+        for (int ch = 0; ch < juce::jmin (channels, buffer.getNumChannels()); ++ch)
+            buffer.setSample (ch, i, buffer.getSample (ch, i) * g);
+    }
+
+    declickGain = g;
+
+    if (out && g <= 0.0f)
+        declickState.store (declickSilent, std::memory_order_release);
+    else if (! out && g >= 1.0f)
+        declickState.store (declickIdle, std::memory_order_release);
+}
+
+void LuthierAudioProcessor::fadeOutBeforeStructuralChange()
+{
+    // Nested (a preset load applies structure inside itself): outermost only.
+    if (declickDepth++ > 0)
+        return;
+
+    // Only worth waiting for when a different thread is rendering right now.
+    const bool audioRunning = ! isNonRealtime()
+        && juce::Time::getMillisecondCounterHiRes() - lastAudioCallbackMs.load() < 250.0
+        && audioThreadId.load() != juce::Thread::getCurrentThreadId();
+
+    if (! audioRunning)
+        return;
+
+    declickState.store (declickFadingOut, std::memory_order_release);
+
+    const auto deadline = juce::Time::getMillisecondCounterHiRes() + 60.0;
+
+    while (declickState.load (std::memory_order_acquire) == declickFadingOut
+           && juce::Time::getMillisecondCounterHiRes() < deadline)
+        juce::Thread::sleep (1);
+}
+
+void LuthierAudioProcessor::fadeInAfterStructuralChange()
+{
+    if (--declickDepth > 0)
+        return;
+
+    int expected = declickSilent;
+
+    if (! declickState.compare_exchange_strong (expected, declickFadingIn))
+    {
+        // Timed out mid fade-out (a stalled host): fade in from wherever it got to.
+        expected = declickFadingOut;
+        declickState.compare_exchange_strong (expected, declickFadingIn);
+    }
 }
 
 void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
@@ -1062,6 +1158,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
         engine.setSidechainInput (sidechainCopy.getArrayOfReadPointers(),
                                   sidechainChannels, sidechainSamples);
+
+        // tune-builder 13: the audio input, for a sung melody, while the TUNE tab's Sing is on.
+        humCapture.pushAudio (sidechainCopy.getArrayOfReadPointers(), sidechainChannels, sidechainSamples);
         routing.meterSidechain (sidechainCopy.getArrayOfReadPointers(),
                                 sidechainChannels, sidechainSamples);
     }
@@ -1104,6 +1203,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     // what makes its scheduling sample-accurate rather than merely periodic.
     {
         double ppq = 0.0;
+        double hostSeconds = -1.0;   // environment.md 3.4 (REALISM-A)
         bool playing = false, hasPosition = false;
 
         if (auto* playHead = getPlayHead())
@@ -1117,10 +1217,14 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
                     ppq = *value;
                     hasPosition = true;
                 }
+
+                if (auto seconds = position->getTimeInSeconds())
+                    hostSeconds = *seconds;
             }
         }
 
         engine.setTransportPosition (ppq, playing);
+        engine.setHostTimeSeconds (hostSeconds, playing && hostSeconds >= 0.0);
 
         /*  tune-builder 3.6 and 8: the tune plays against the host's clock
             while the host plays and its own otherwise; its own clock then
@@ -1134,6 +1238,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
         tuneToEngine.clear();
         tuneToMidiOut.clear();
+        tunePlayer.setTempoScale (1.0 + tuneModValue (ParamIDs::tuneTempoDrift) / 100.0);   // tune-builder 14
         tunePlayer.renderBlock (numSamples, host, tuneToEngine, tuneToMidiOut);
         tunePlayer.captureInput (midiMessages);
 
@@ -1151,6 +1256,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         {
             engine.getRhythmEngine().reset();
             modMatrix.resetEnvelopes();
+            tuneStateBoundaries.fetch_add (1, std::memory_order_relaxed);   // observable (TUNE-HELP-ONBOARDING test)
         }
     }
 
@@ -1730,6 +1836,11 @@ void LuthierAudioProcessor::applySnapshotModules (const Snapshot& snapshot)
         if (auto* object = snapshot.bypasses.getDynamicObject();
             object != nullptr && object->hasProperty ("character"))
             engine.getCharacterEngine().fromVar (object->getProperty ("character"));
+
+    // tune-builder 14: a snapshot switches the tune to its section (a footswitch
+    // can move a live rig between sections). Acted on by the timer.
+    if (auto* object = snapshot.bypasses.getDynamicObject(); object != nullptr && object->hasProperty ("tune"))
+        requestTuneSnapshotState (object->getProperty ("tune"));
 }
 
 bool LuthierAudioProcessor::captureSnapshot (int index, const juce::String& label, int colourTag)
@@ -1750,6 +1861,7 @@ bool LuthierAudioProcessor::captureSnapshot (int index, const juce::String& labe
     {
         auto* extras = new juce::DynamicObject();
         extras->setProperty ("character", engine.getCharacterEngine().toVar());
+        extras->setProperty ("tune", captureTuneSnapshotState());   // tune-builder 14
 
         snapshot.bypasses = juce::var (extras);
     }
@@ -1949,7 +2061,16 @@ juce::MemoryBlock LuthierAudioProcessor::captureStateBlock()
 
 std::unique_ptr<juce::AudioProcessor> LuthierAudioProcessor::createOfflineInstance()
 {
-    return std::make_unique<LuthierAudioProcessor>();
+    auto instance = std::make_unique<LuthierAudioProcessor>();
+
+    /*  The exporter builds, renders and destroys this instance on its own
+        thread. Its 30 Hz timer (preset and snapshot recall, morph, capture
+        drain) would run on the message thread against the same instance
+        while the worker renders it, and stopTimer in its destructor, off the
+        message thread, does not wait for a callback already running. An
+        offline render needs none of it. */
+    instance->stopTimer();
+    return instance;
 }
 
 //==============================================================================
@@ -2108,6 +2229,7 @@ void LuthierAudioProcessor::undo()
 
     --undoPosition;
 
+    const juce::ScopedValueSetter<bool> keepTune (restoringPluginUndo, true);
     setStateInformation (entry.state.getData(), (int) entry.state.getSize());
 }
 
@@ -2119,6 +2241,7 @@ void LuthierAudioProcessor::redo()
     ++undoPosition;
 
     const auto& entry = undoStack.getReference (undoPosition);
+    const juce::ScopedValueSetter<bool> keepTune (restoringPluginUndo, true);
     setStateInformation (entry.redoState.getData(), (int) entry.redoState.getSize());
 }
 
@@ -2209,6 +2332,7 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     ui->setProperty ("editorWidth", uiState.editorWidth);
     ui->setProperty ("editorHeight", uiState.editorHeight);
     ui->setProperty ("auditionType", (int) uiState.auditionType);
+    ui->setProperty ("practiceDrawerOpen", uiState.practiceDrawerOpen);   // onboarding 11
     root->setProperty ("ui", juce::var (ui));
 
     juce::Array<juce::var> locks;
@@ -2223,6 +2347,11 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // (PresetBlocks.cpp); the top-level keys below are only read, for sessions
     // saved before.
     root->setProperty ("liveMode", uiState.liveMode);
+
+    // tuning-stability.md 7 (REALISM-C): the strings' wear and the capo
+    // compensation are the session's, not the preset's. (REALISM-A's aging and
+    // environment ride in the preset's character block: PresetBlocks.cpp.)
+    root->setProperty ("stability", engine.getStabilityModel().toVar());
 
     // practice-tools 1: the metronome's settings are part of the session.
     root->setProperty ("metronome", metronome.toVar());
@@ -2241,6 +2370,61 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     destData.reset();
     destData.append (json.toRawUTF8(), json.getNumBytesAsUTF8());
 }
+
+// ==== BEGIN REALISM-A state ====
+void LuthierAudioProcessor::applyRealismCharacterBlock (const juce::var& characterBlock)
+{
+    auto* block = characterBlock.getDynamicObject();
+
+    // string-aging.md 8: an absent block is all zeros.
+    engine.getStringAging().fromVar (block != nullptr ? block->getProperty ("aging") : juce::var());
+
+    if (block != nullptr && block->hasProperty ("environment"))
+        engine.getEnvironment().fromVar (block->getProperty ("environment"));
+
+    if (block == nullptr)
+        return;
+
+    auto setPlain = [this] (const char* id, float plain)
+    {
+        if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (id)))
+            p->setValueNotifyingHost (p->convertTo0to1 (plain));
+    };
+
+    /*  environment.md 6: the old cold / warm choice becomes the temperature
+        whose mean steady-state offset across this guitar's strings is the old
+        +-2.5 x amount cents, tuned at 22 C, Static. The old offset was
+        immediate, so the parts start settled. */
+    if (block->hasProperty ("temperature"))
+    {
+        const auto& character = engine.getCharacterEngine();
+        const double target = character.isEnabled()
+                                ? CharacterEngine::legacyTemperatureOffsetCents (character.getTemperature(), character.getAmount())
+                                : 0.0;
+        const double slope = engine.getEnvironment().steadyCentsPerKelvin();
+
+        if (target != 0.0 && slope != 0.0)
+        {
+            setPlain (ParamIDs::envTemperatureC, (float) (EnvironmentModel::kRoomC + target / slope));
+            setPlain (ParamIDs::envTunedAtC, (float) EnvironmentModel::kRoomC);
+            setPlain (ParamIDs::envProfile, 0.0f);
+            engine.getEnvironment().requestSettle();
+        }
+    }
+
+    /*  The old humidity multipliers never reached the audio, so every legacy
+        humidity is 45 %: mapping dry or humid to 30 or 70 would change how a
+        saved preset sounds. */
+    if (block->hasProperty ("humidity"))
+    {
+        if (engine.getCharacterEngine().getHumidity() != Humidity::normal)
+            ErrorLog::write (ErrorLog::Severity::info, "Environment", "LEGACY_HUMIDITY",
+                             "A legacy humidity setting was loaded as 45 % RH, which is how it sounded");
+
+        setPlain (ParamIDs::envHumidityPct, (float) EnvironmentModel::kReferenceRh);
+    }
+}
+// ==== END REALISM-A state ====
 
 void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
@@ -2274,6 +2458,7 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
         uiState.auditionType = (AuditionPhrase::Type) juce::jlimit (
             0, (int) AuditionPhrase::Type::NumTypes - 1, (int) ui->getProperty ("auditionType"));
         auditionType = uiState.auditionType;
+        uiState.practiceDrawerOpen = (bool) ui->getProperty ("practiceDrawerOpen");   // onboarding 11
     }
 
     lockedParameters.clear();
@@ -2309,8 +2494,16 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
 
     uiState.liveMode = (bool) root->getProperty ("liveMode");
 
+    // (SPEC-SWEEP: a session saved before SM-1; the preset block has already
+    // applied its own character, aging and environment.)
     if (root->hasProperty ("character"))
+    {
         engine.getCharacterEngine().fromVar (root->getProperty ("character"));
+        applyRealismCharacterBlock (root->getProperty ("character"));   // REALISM-A
+    }
+    // tuning-stability.md 7 (REALISM-C): after the preset, whose load reset them.
+    if (root->hasProperty ("stability"))
+        engine.getStabilityModel().fromVar (root->getProperty ("stability"));
 
     if (auto* irs = root->getProperty ("toneMatch").getDynamicObject())
     {
@@ -2324,7 +2517,9 @@ void LuthierAudioProcessor::setStateInformation (const void* data, int sizeInByt
 
     setClickToMain (root->hasProperty ("clickToMain") && (bool) root->getProperty ("clickToMain"));
 
-    if (root->hasProperty ("tune"))
+    // The tune keeps its own undo stack (TUNE-HELP-ONBOARDING, DECISIONS "TUNE in
+    // the plugin"): a plugin undo or redo leaves the tune as it is.
+    if (root->hasProperty ("tune") && ! restoringPluginUndo)
         tuneSession.restoreState (root->getProperty ("tune"));
 
     presets.applyExtraState();
@@ -2394,6 +2589,8 @@ void LuthierAudioProcessor::serviceTune()
     // tune-builder 8: a bass plays the tune's bass line itself; any other
     // instrument leaves it to MIDI out.
     tunePlayer.setBassToEngine (engine.getGuitarSpec().category == GuitarCategory::Bass);
+    tuneSession.setFeelOffset (tuneModValue (ParamIDs::tuneFeelMod));   // tune-builder 14
+    applyPendingTuneSection();
     tuneSession.service();
 }
 
