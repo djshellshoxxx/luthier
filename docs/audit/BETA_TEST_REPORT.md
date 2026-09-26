@@ -50,6 +50,9 @@ engine, delay/reverb pedals) are exempt from the decay check.
 | `Combo.structuralChangesWhileAudioRuns` | audio thread running while the message thread changes guitar/pedals/amp/cab/body/oversampling and loads presets | 300 bursts, seed 99 |
 | `Combo.unisonStringsNeverGrowAndPanicSilencesThem` | after every strum pattern; two strings at one pitch | 38 |
 | `Combo.cpuPerFactoryPreset` | CPU table, idle and playing | 36 |
+| `Combo.newFeaturesPairwise` (round 2) | all-pairs over jam mode (enabled, play, style, intensity, start mode, kit), output normalization, the three CPU quality levels, guitar type, amp, pickups, oversampling, playing mode, freeze, feedback, phrase; every eighth row with the band stopped also round-trips the session state | 350 rows, seed 20260926, 43 round trips |
+| `Combo.qualityLevelsForgetWhatWasPlayedAtReset` (round 2) | B-21 at each quality level; a released chord repeats after reset | 3 levels |
+| `Combo.compiledGuitarSurvivesATransportRestart` (round 2) | B-17 | 1 |
 | `GuiReach.*` | editor walked in Easy, Advanced (13 tabs), 6 overlays, 11 Options pages, practice drawer, Live, Slide, headstock and bridge popovers, the hidden-effect pixel, every toggle's sub-view; contexts default, bass, whammy+slide+slap, 3 pedal fills; 2043 controls operated | 265 views |
 
 Phrases: single note, 6-note chord, whole-tone bend up and back, hammer-on
@@ -178,6 +181,12 @@ IN PROGRESS (a helper branch covers it).
 
 - `state-reproducibility-basic`, `-null-cookies`, `-flush`-style checks: `jam_play` and `jam_fill_now` come back 0.0 after the validator set them to 1.0 and reloaded. jam-mode.md 10 and JM-35 make them transient on purpose: "Host state restores them off, so opening a project never starts the band." The validator cannot tell a deliberate transient from a lost value; a CLAP-side answer would be to flag them as non-state parameters, which JUCE's wrapper does not expose. Left as designed.
 - 'Whammy Up' (`whammy_up`, a skewed range) comes back one float ulp off (0.0568653494 vs 0.0568653531): the same normalised -> plain -> normalised non-idempotence as B-16's 'Distance to Amp'. Harmless to audio.
+
+### B-21 At Medium/Low CPU quality, what was played before a reset changed the next render. FIXED (`ee0e4a9`, round 2)
+
+- Found by `Combo.newFeaturesPairwise`'s state round trip (row 8, seed 20260926: Classic T-Style, Custom amp, Guitar Controller mode, quality Low): the rig and a fresh instance restoring its session differed by 0.057. Only when an earlier row had played in Mono or Poly; bisected to the quality level (High 0, Medium 0.0009, Low 0.057).
+- Cause: `LuthierEngine::reset` left the cpu-quality-modes 2.4 ring-out bookkeeping (`qualityNotePeak`, `qualityRingOutEligible`, `qualityLastExcite`, `qualitySilentSamples`) behind. A string released before the reset stayed "eligible to ring out" against the old note's peak, so its sympathetic ring after the reset was faded to sleep at Medium/Low where a fresh instance let it ring.
+- Fix: reset clears them; `resetRealismB` also reseeds the release-stagger generator (string-interaction.md 0.3: stagger repeats bit-for-bit). Regression test `Combo.qualityLevelsForgetWhatWasPlayedAtReset` (fails before at Medium and Low, passes after).
 
 ### Harness corrections in round 2 (test physics, not engine changes)
 
