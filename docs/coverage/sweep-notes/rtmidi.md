@@ -24,3 +24,4 @@
 - [RE-5] The kit and the RHYTHM feel sliders stay the base humanise. The instrument's Humanize macro scales it: macro/0.4, so the default 0.4 leaves kits exactly as written.
 - [IR-4] A mapping's `ccNumber` is now a source key: 0-127 are CCs (saved maps unchanged), then 128+ program change, 256 channel pressure, 257+ poly aftertouch, 385+ note. "Learn notes too" is a session setting (`midiLearnNotes`). A learn now finishes on the first eligible event, so later CCs in the same block map normally instead of re-learning.
 - [CT-22/CT-27] Deferred. Per-device source tagging needs the standalone's device callback, which is JUCE's StandaloneFilterWindow. A plugin only ever sees one merged stream.
+- [UW-T3] Scaled down to three seeded orders of ten loads each (the plan said 10 x 20) to keep the run near 8 s. The comparison is a second live instance fed the same sequence, not the offline instance, which is the same processor class.

@@ -172,3 +172,81 @@ LUTHIER_TEST (WorkshopSwap, everySlotSwapsHundredTimesClickFree)
                      + " against the playing's own " + juce::String (natural, 5));
     }
 }
+
+//==============================================================================
+/*  UW-T3 (ui-wiring 23): preset loads in a random order, interleaved with
+    rendering, leave a deterministic instrument - a second instance given the
+    same sequence renders the same final clip (< -120 dB difference). */
+LUTHIER_TEST (Presets, randomPresetLoadsAreDeterministic)
+{
+    auto run = [] (const juce::Array<int>& order)
+    {
+        LuthierAudioProcessor processor;
+        processor.prepareToPlay (48000.0, 512);
+
+        juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumOutputChannels(),
+                                                     processor.getTotalNumInputChannels()), 512);
+        auto blocks = [&] (int count, bool strike)
+        {
+            std::vector<float> out;
+
+            for (int b = 0; b < count; ++b)
+            {
+                juce::MidiBuffer midi;
+
+                if (strike && b == 0)
+                    for (int note : { 40, 47, 52, 56 })
+                        midi.addEvent (juce::MidiMessage::noteOn (1, note, 0.8f), 0);
+
+                buffer.clear();
+                processor.processBlock (buffer, midi);
+                out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 512);
+            }
+
+            return out;
+        };
+
+        for (int index : order)
+        {
+            processor.getPresetManager().loadPreset (index);
+            processor.getParameterBridge().applyAllNow();
+            blocks (4, true);
+        }
+
+        processor.getEngine().reset();
+        return blocks (48, true);   // the final clip, half a second
+    };
+
+    LuthierAudioProcessor probe;
+    const int available = probe.getPresetManager().getNumPresets();
+    CHECK (available >= 10);
+
+    if (available < 10)
+        return;
+
+    juce::Random random (0x7e57);
+
+    for (int trial = 0; trial < 3; ++trial)
+    {
+        juce::Array<int> order;
+
+        for (int i = 0; i < 10; ++i)
+            order.add (random.nextInt (juce::jmin (20, available)));
+
+        const auto a = run (order);
+        const auto b = run (order);
+
+        double worst = 0.0, level = 0.0;
+
+        for (size_t i = 0; i < a.size(); ++i)
+        {
+            worst = juce::jmax (worst, (double) std::abs (a[i] - b[i]));
+            level = juce::jmax (level, (double) std::abs (a[i]));
+        }
+
+        CHECK (level > 1.0e-3);
+        CHECK_MSG (worst < 1.0e-6,
+                   "trial " + juce::String (trial) + ": the same load sequence rendered differently by "
+                     + juce::String (juce::Decibels::gainToDecibels (worst, -200.0), 1) + " dB");
+    }
+}

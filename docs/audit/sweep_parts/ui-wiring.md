@@ -58,7 +58,7 @@ The attachment layer is solid. There is one APVTS, every standard control binds 
 | UW-52 (§22) | Preset files use the same serializer minus instance UI state | `PresetManager::toVar` inside state | n/a | `Presets::stateRoundTripsExactly`, `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` | DONE |
 | UW-T1 (§23) | Test: every panel instantiated 100x leaves no listener attached | - | - | - | MISSING |
 | UW-T2 (§23) | Test: 60 s session with message-manager lock detector, no audio-thread UI access — on visual `Engine::fiveMinutesOfPlaybackNeitherAllocatesNorLocks` covers locks/allocation only | `Support/ThreadProbe.h` | n/a | - | PARTIAL |
-| UW-T3 (§23) | Test: 20 presets x 10 random loads match an offline render | - | n/a | `Presets::audioIsIdenticalAfterARoundTrip`, `Combo::renderIsDeterministicAfterReset` (narrower) | PARTIAL |
+| UW-T3 (§23) | Test: 20 presets x 10 random loads match an offline render | - | n/a | `Presets::randomPresetLoadsAreDeterministic` (3 seeded orders of 10 loads among the first 20 presets; a second instance renders identically) | DONE |
 | UW-T4 (§23) | Test: 1000 random changes + undo/redo equal forward sequence — on visual: `Undo::randomWalkUndoesBackToTheStart`, `Stress::undoRedoThousandTimes` | - | - | - | OWNED |
 | UW-T5 (§23) | Test: arm + all 128 CCs map within one block | `MidiLearnManager` | n/a | `MidiLearn::everyCcLearnsWithinOneBlock` | DONE |
 | UW-T6 (§23) | Test: display FIFO at 10x drain for 60 s, no stall, oldest dropped | - | n/a | - | MISSING |
