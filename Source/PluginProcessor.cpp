@@ -1197,6 +1197,15 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     // plugin is off the host's clock). Setting only the host's tempo here
     // overwrote the tap on the very next block.
     blockTempo = tapTempo.getEffectiveBpm (hostTempo.load(), hostPlaying);
+
+    /*  SPEC-SWEEP HI-32 (host-integration 7): with the host's transport stopped
+        (the standalone app), an incoming MIDI clock is the tempo. */
+    midiClock.process (midiMessages, (double) samplePosition / juce::jmax (1.0, currentSampleRate), currentSampleRate);
+    midiClockBpm.store (hostPlaying ? 0.0 : midiClock.getBpm(), std::memory_order_relaxed);
+
+    if (midiClockBpm.load (std::memory_order_relaxed) > 0.0)
+        blockTempo = midiClockBpm.load (std::memory_order_relaxed);
+
     engine.setTempoBpm (blockTempo);
 
     // The rhythm engine's grid is locked to the host's own position, which is
@@ -1953,6 +1962,10 @@ void LuthierAudioProcessor::tapTempoNow()
 
 double LuthierAudioProcessor::getEffectiveTempo() const noexcept
 {
+    // SPEC-SWEEP HI-32: a running MIDI clock, while the host is stopped.
+    if (const double clock = midiClockBpm.load (std::memory_order_relaxed); clock > 0.0)
+        return clock;
+
     return tapTempo.getEffectiveBpm (hostTempo.load(), transportWasRunning);
 }
 

@@ -1,4 +1,5 @@
 #include "Looper.h"
+#include "../Export/MidiProfiles.h"   // SPEC-SWEEP MX-25
 
 namespace luthier
 {
@@ -1110,7 +1111,8 @@ bool SessionRecorder::stop (const juce::File& directory)
     return saveLastTake (directory);
 }
 
-bool SessionRecorder::saveLastTake (const juce::File& directory, double seconds) const
+bool SessionRecorder::saveLastTake (const juce::File& directory, double seconds,
+                                    const MidiExportOptions* midiOptions) const
 {
     lastSaved.clear();
 
@@ -1159,7 +1161,24 @@ bool SessionRecorder::saveLastTake (const juce::File& directory, double seconds)
     {
         const juce::ScopedLock sl (midiLock);
 
-        if (haveMidi && midi.getNumEvents() > 0)
+        if (haveMidi && midi.getNumEvents() > 0 && midiOptions != nullptr)
+        {
+            // SPEC-SWEEP MX-25: the take's events are on its own sample clock,
+            // at the 120 bpm the bare file below assumes too.
+            MidiPerformance performance (sr);
+            performance.setTempo (120.0);
+
+            for (int i = 0; i < midi.getNumEvents(); ++i)
+                if (const auto* event = midi.getEventPointer (i))
+                    performance.addMessage ((juce::int64) event->message.getTimeStamp(), event->message);
+
+            const auto midiTarget = directory.getChildFile ("session-" + stamp + ".mid");
+            midiTarget.deleteFile();
+
+            juce::String error;
+            wroteMidi = MidiProfiles::exportToFile (performance, *midiOptions, midiTarget, &error);
+        }
+        else if (haveMidi && midi.getNumEvents() > 0)
         {
             juce::MidiFile midiFile;
             juce::MidiMessageSequence sequence (midi);

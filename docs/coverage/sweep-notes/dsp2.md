@@ -16,3 +16,5 @@
 - [SG-10] Slide pressure above 0.8 chokes the note: at 1.0 up to 35 % comes off the sustain scale.
 - [HI-29] The host time signature reaches the practice metronome while it follows. The rhythm engine is step-based and has no metre, so that part is left open.
 - [TM-5] Cab/EQ match analysis runs on a juce::Thread::launch worker, and only the saved file and the result text come back through callAsync. Cancelling (restart) drops a result that is still on its way.
+- [HI-32] While the host transport is stopped, a running MIDI clock sets the tempo and wins over a tapped one (it is an active external master). Stop, or a gap longer than 0.5 s, releases it.
+- [MX-25] The session take writes its MIDI through `MidiProfiles::exportToFile` with the MIDI export defaults, passed in by the SESSION tab. The engine-only targets (the CLI) cannot see the UI defaults, so without options the old bare file is still written.

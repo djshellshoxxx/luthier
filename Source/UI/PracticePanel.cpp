@@ -1813,7 +1813,10 @@ void SessionTab::visibilityChanged()
 
 bool SessionTab::saveTake()
 {
-    const bool saved = processor.getSessionRecorder().saveLastTake (SessionRecorder::getSessionDirectory());
+    // SPEC-SWEEP MX-25: the MIDI in the user's default export profile.
+    const auto midiOptions = MidiExportDefaults::load();
+    const bool saved = processor.getSessionRecorder().saveLastTake (SessionRecorder::getSessionDirectory(),
+                                                                    0.0, &midiOptions);
 
     statusLabel.setText (saved ? "Saved to your Sessions folder."
                                : "There is nothing recorded to save.",

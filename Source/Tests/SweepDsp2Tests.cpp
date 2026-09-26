@@ -20,6 +20,7 @@
 #include "../Practice/TimePitchShifter.h"
 #include "../ToneMatch/ToneMatch.h"
 #include "../Export/MidiImportTargets.h"
+#include "../Practice/PracticeRoutineSetup.h"
 #include "../UI/PracticePanel.h"
 #include "../UI/ToneMatchPanel.h"
 
@@ -1462,4 +1463,137 @@ LUTHIER_TEST (PracticeTrack, theTimePitchShiftDoesNotAllocate)
 
     for (auto v : left)
         CHECK (std::isfinite (v));
+}
+
+LUTHIER_TEST (PracticeGaps, sessionSaveMidiFollowsTheDefaultProfile)
+{
+    // MX-25 (midi-export 8): the session's MIDI is written like any export.
+    for (const auto profile : { MidiProfile::generic, MidiProfile::luthier })
+    {
+        SessionRecorderSetup setup;
+        setup.ringMinutes = 1.0;
+        setup.recordAudio = false;
+        setup.recordMidi = true;
+
+        SessionRecorder recorder;
+        CHECK (setup.applyTo (recorder, 48000.0));
+        recorder.setEnabled (true);
+
+        juce::AudioBuffer<float> block (2, 512);
+        block.clear();
+
+        for (int b = 0; b < 100; ++b)
+        {
+            juce::MidiBuffer midi;
+
+            if (b == 3)  midi.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 17);
+            if (b == 60) midi.addEvent (juce::MidiMessage::noteOff (1, 60), 5);
+
+            recorder.captureMidi (midi, 512);
+            recorder.processBlock (block, 512);
+        }
+
+        auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-session-profile");
+        dir.deleteRecursively();
+        dir.createDirectory();
+
+        MidiExportOptions options;
+        options.profile = profile;
+        CHECK (recorder.saveLastTake (dir, 0.0, &options));
+
+        const auto files = dir.findChildFiles (juce::File::findFiles, false, "*.mid");
+        CHECK (files.size() == 1);
+
+        if (files.size() == 1)
+        {
+            MidiPerformance read (48000.0);
+            const auto result = MidiProfiles::importFromFile (files[0], read, 48000.0);
+            CHECK (result.ok);
+            CHECK_MSG (result.detectedProfile == profile, "the session MIDI was not written in the chosen profile");
+        }
+
+        dir.deleteRecursively();
+    }
+}
+
+LUTHIER_TEST (ToneMatch, anEqReferenceCanBeAFile)
+{
+    // TM-23 (tone-match 3.1): a dropped file is the reference; the wizard
+    // goes straight on to recording Luthier's own pass.
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    MatchWizard wizard (processor, MatchWizard::Kind::eqMatch);
+    wizard.setSize (500, MatchWizard::preferredHeight);
+
+    juce::WavAudioFormat wav;
+    const auto file = writeSine (wav, ".wav", 440.0, 1.0, 44100.0);
+
+    CHECK (wizard.isInterestedInFileDrag ({ file.getFullPathName() }));
+    wizard.filesDropped ({ file.getFullPathName() }, 0, 0);
+
+    CHECK (wizard.getStep() == 2);
+    CHECK_MSG (std::abs (wizard.getReferenceLength() - 48000) < 100,
+               "the reference was not resampled to the plugin's rate: " + juce::String (wizard.getReferenceLength()));
+    CHECK (processor.getCapture().isRecording());
+    CHECK (processor.getCapture().getSource() == Capture::Source::mainOut);
+
+    MatchWizard cab (processor, MatchWizard::Kind::cabMatch);
+    CHECK (! cab.isInterestedInFileDrag ({ file.getFullPathName() }));
+
+    file.deleteFile();
+}
+
+LUTHIER_TEST (LiveTapTempo, midiClockDrivesTheTempoWhenTheHostIsStopped)
+{
+    // HI-32 (host-integration 7): 24 clocks a beat at 100 bpm, no host transport.
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    const double samplesPerClock = 48000.0 * 60.0 / (100.0 * 24.0);   // 1200
+    double nextClock = 0.0;
+    juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumOutputChannels()), 512);
+
+    for (int b = 0; b < 300; ++b)
+    {
+        juce::MidiBuffer midi;
+        const double blockStart = b * 512.0;
+
+        while (nextClock < blockStart + 512.0)
+        {
+            midi.addEvent (juce::MidiMessage::midiClock(), (int) (nextClock - blockStart));
+            nextClock += samplesPerClock;
+        }
+
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+    }
+
+    CHECK_NEAR (processor.getEffectiveTempo(), 100.0, 0.5);
+
+    // Stop: the clock no longer sets the tempo.
+    {
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::midiStop(), 0);
+        processor.processBlock (buffer, midi);
+    }
+
+    CHECK (std::abs (processor.getEffectiveTempo() - 100.0) > 0.5);
+
+    // And the tracker on its own: a gap restarts the count.
+    MidiClockTempo clock;
+    juce::MidiBuffer midi;
+
+    for (int i = 0; i < 30; ++i)
+        midi.addEvent (juce::MidiMessage::midiClock(), i * 1000);   // 120 bpm
+
+    clock.process (midi, 0.0, 48000.0);
+    CHECK_NEAR (clock.getBpm(), 120.0, 0.01);
+
+    juce::MidiBuffer later;
+    later.addEvent (juce::MidiMessage::midiClock(), 0);
+    clock.process (later, 10.0, 48000.0);
+    CHECK (clock.getBpm() == 0.0);
+
+    processor.releaseResources();
 }

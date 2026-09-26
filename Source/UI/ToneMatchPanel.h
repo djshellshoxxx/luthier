@@ -79,6 +79,7 @@ private:
 /** The cab-match and EQ-match wizards, and the capture utility
     (tone-match 2, 3 and 4). */
 class MatchWizard : public juce::Component,
+                    public juce::FileDragAndDropTarget,   // SPEC-SWEEP TM-23
                     private juce::Timer
 {
 public:
@@ -93,6 +94,17 @@ public:
     void resized() override;
 
     static constexpr int preferredHeight = 148;   // SPEC-SWEEP TM-25/31/33: +1 settings row
+
+    /*  SPEC-SWEEP TM-23 (tone-match 3.1): the EQ match's reference can be an
+        audio file, dropped or loaded, instead of a sidechain recording. The
+        wizard then goes straight to recording Luthier's own pass. */
+    bool isInterestedInFileDrag (const juce::StringArray& files) override;
+    void filesDropped (const juce::StringArray& files, int x, int y) override;
+    bool useReferenceFile (const juce::File& file);
+
+    /** SPEC-SWEEP TM-23: where the wizard is, for tests. */
+    int getStep() const noexcept { return step; }
+    int getReferenceLength() const noexcept { return (int) reference.size(); }
 
 private:
     void timerCallback() override;
@@ -116,6 +128,7 @@ private:
 
     juce::Label stepLabel, resultLabel;
     juce::TextButton actionButton { "Start" }, cancelButton { "Cancel" };
+    juce::TextButton referenceButton { "Reference file..." };   // SPEC-SWEEP TM-23
 
     juce::ComboBox signalBox, lengthBox;
     juce::Slider aggressiveness { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };

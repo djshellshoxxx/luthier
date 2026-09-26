@@ -21,6 +21,7 @@
 #include "Live/Snapshots.h"
 #include "Live/Setlist.h"
 #include "Live/TapTempo.h"
+#include "Live/MidiClockTempo.h"   // SPEC-SWEEP HI-32
 #include "Live/LiveControls.h"
 #include "Practice/Metronome.h"
 #include "Practice/Looper.h"
@@ -709,6 +710,8 @@ private:
 
     /** This block's tempo: the host's, or the tapped one when that wins. */
     double blockTempo = 120.0;
+    MidiClockTempo midiClock;                    // SPEC-SWEEP HI-32
+    std::atomic<double> midiClockBpm { 0.0 };    // SPEC-SWEEP HI-32: 0 = no clock
     int hostTimeSigNumerator = 0, hostTimeSigDenominator = 0;   // SPEC-SWEEP HI-29: 0 = the host gave none
 
     double currentSampleRate = 44100.0;

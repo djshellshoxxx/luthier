@@ -26,7 +26,7 @@ The IR slot machinery (windowed-sinc resampling, truncation, trim/predelay/rever
 | TM-20 (§2) | Deconvolve, trim to max, Hann fade last 5% | `CabMatch::deconvolve` | n/a | `ToneMatch::sweepDeconvolutionRecoversTheSourceIr` | DONE |
 | TM-21 (§2) | Save to IRs/Cab Match/<name>.wav + sidecar, auto-load into current cab slot — untested | `CabMatch::saveIr`, `getMatchDirectory`, `MatchWizard::advance` | Cab Match wizard | - | NO-TEST |
 | TM-22 (§2) | Progress bar, estimated tail length, null-test result | `MatchWizard::paint/timerCallback`, `CabMatch::measureNull` | Cab Match wizard `resultLabel` | `ToneMatch::nullMeasurementIsCorrect` | DONE |
-| TM-23 (§3.1) | EQ reference by dragging an audio file or looping sidechain — only sidechain recording; no file drop on EQ Match | `MatchWizard::advance` | EQ Match wizard | - | PARTIAL |
+| TM-23 (§3.1) | EQ reference by dragging an audio file or looping sidechain — only sidechain recording; no file drop on EQ Match | `MatchWizard::useReferenceFile` | EQ Match drop target + "Reference file..." button | `ToneMatch.anEqReferenceCanBeAFile` | DONE |
 | TM-24 (§3.2-3.3) | Long-term spectra, min-phase FIR 256/1024/4096 | `EqMatch::measureSpectrum/fit` | EQ Match `lengthBox` | `ToneMatch::everyFilterLengthProducesAFilter` | DONE |
 | TM-25 (§3) | Match band full-range or user band — engine only (`Options.lowHz/highHz`), wizard never sets it | `EqMatch::Options` | EQ Match low/high band sliders -> `Options.lowHz/highHz` | `ToneMatch.thePanelReachesTrimBandLengthAndSearch` | DONE |
 | TM-26 (§3) | Aggressiveness 0-100% | `EqMatch::Options::aggressiveness` | EQ Match `aggressiveness` slider | `ToneMatch::eqMatchRespectsItsBandAndOptions` | DONE |

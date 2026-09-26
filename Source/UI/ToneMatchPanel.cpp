@@ -388,6 +388,24 @@ MatchWizard::MatchWizard (LuthierAudioProcessor& p, Kind k)
         preserveDynamics.setTooltip ("Correct only the spectral shape, not the overall level.");
         addAndMakeVisible (preserveDynamics);
 
+        // SPEC-SWEEP TM-23 (tone-match 3.1): a reference from a file.
+        referenceButton.setTooltip ("Use an audio file as the reference instead of recording it. "
+                                    "You can also drop one onto this card.");
+        referenceButton.onClick = [this]
+        {
+            chooser = std::make_unique<juce::FileChooser> ("Choose a reference recording",
+                                                           juce::File::getSpecialLocation (juce::File::userMusicDirectory),
+                                                           "*.wav;*.aif;*.aiff;*.flac;*.mp3");
+
+            chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                                  [this] (const juce::FileChooser& fc)
+            {
+                if (fc.getResult() != juce::File())
+                    useReferenceFile (fc.getResult());
+            });
+        };
+        addAndMakeVisible (referenceButton);
+
         // SPEC-SWEEP TM-25 (tone-match 3): the band to correct over.
         styleSlider (lowBand, 20.0, 2000.0, 1.0, " Hz");
         lowBand.setSkewFactorFromMidPoint (200.0);
@@ -701,6 +719,89 @@ void MatchWizard::advance()
     repaint();
 }
 
+bool MatchWizard::isInterestedInFileDrag (const juce::StringArray& files)
+{
+    if (kind != Kind::eqMatch)
+        return false;
+
+    for (const auto& path : files)
+    {
+        const auto extension = juce::File (path).getFileExtension().toLowerCase();
+
+        if (extension == ".wav" || extension == ".aif" || extension == ".aiff"
+              || extension == ".flac" || extension == ".mp3")
+            return true;
+    }
+
+    return false;
+}
+
+void MatchWizard::filesDropped (const juce::StringArray& files, int, int)
+{
+    for (const auto& path : files)
+        if (useReferenceFile (juce::File (path)))
+            break;
+}
+
+bool MatchWizard::useReferenceFile (const juce::File& file)
+{
+    // SPEC-SWEEP TM-23: read the file as the reference (mono, at the plugin's
+    // rate), then record Luthier's own pass as step 2.
+    if (kind != Kind::eqMatch || analysing || ! file.existsAsFile())
+        return false;
+
+    juce::AudioFormatManager formats;
+    formats.registerBasicFormats();
+
+    std::unique_ptr<juce::AudioFormatReader> reader (formats.createReaderFor (file));
+
+    if (reader == nullptr || reader->lengthInSamples <= 0)
+    {
+        resultLabel.setText ("Could not read " + file.getFileName() + ".", juce::dontSendNotification);
+        return false;
+    }
+
+    const double rate = processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0;
+    const int length = (int) juce::jmin (reader->lengthInSamples, (juce::int64) (Capture::kMaxSeconds * reader->sampleRate));
+
+    juce::AudioBuffer<float> audio ((int) juce::jmax (1u, juce::jmin (2u, reader->numChannels)), length);
+    reader->read (&audio, 0, length, 0, true, audio.getNumChannels() > 1);
+
+    std::vector<float> mono ((size_t) length, 0.0f);
+
+    for (int c = 0; c < audio.getNumChannels(); ++c)
+        for (int i = 0; i < length; ++i)
+            mono[(size_t) i] += audio.getSample (c, i) / (float) audio.getNumChannels();
+
+    // Linear resampling to the plugin's rate: the fit is a long-term spectrum.
+    const double ratio = reader->sampleRate / rate;
+    const int outLength = juce::jmax (1, (int) (length / juce::jmax (1.0e-6, ratio)));
+    reference.assign ((size_t) outLength, 0.0f);
+
+    for (int i = 0; i < outLength; ++i)
+    {
+        const double at = i * ratio;
+        const int j = juce::jmin (length - 1, (int) at);
+        const int k = juce::jmin (length - 1, j + 1);
+        const double t = at - j;
+        reference[(size_t) i] = (float) (mono[(size_t) j] * (1.0 - t) + mono[(size_t) k] * t);
+    }
+
+    // Step 2: Luthier's own pass, as long as the reference (up to the capture's limit).
+    auto& capture = processor.getCapture();
+    capture.reset();
+    capture.setSource (Capture::Source::mainOut);
+    capture.start (juce::jlimit (Capture::kMinSeconds, Capture::kMaxSeconds, (double) outLength / rate));
+
+    step = 2;
+    actionButton.setButtonText ("Recording...");
+    actionButton.setEnabled (false);
+    resultLabel.setText ("Reference: " + file.getFileName(), juce::dontSendNotification);
+    stepLabel.setText (getStepText(), juce::dontSendNotification);
+    repaint();
+    return true;
+}
+
 void MatchWizard::finishAnalysis (const juce::File& file, const juce::String& text, int slotIndex,
                                   double nullDb, bool fitted)
 {
@@ -800,6 +901,8 @@ void MatchWizard::resized()
 
     if (kind == Kind::eqMatch)
     {
+        referenceButton.setBounds (buttons.removeFromRight (120).reduced (1));   // SPEC-SWEEP TM-23
+
         auto row = bounds.removeFromBottom (24).reduced (0, 1);
 
         lengthBox.setBounds (row.removeFromLeft (96));
