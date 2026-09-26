@@ -830,44 +830,13 @@ void FretboardComponent::mouseDown (const juce::MouseEvent& e)
 
     if (e.mods.isPopupMenu())
     {
-        juce::PopupMenu menu;
-        menu.setLookAndFeel (&getLookAndFeel());
+        juce::Component::SafePointer<FretboardComponent> safe (this);
 
-        menu.addSectionHeader ("String " + juce::String (s + 1)
-                               + "  |  fret " + juce::String (f));
-        menu.addItem (1, "Mute string", true, isStringMuted (s));
-        menu.addItem (2, "Select string", true, s == selectedString);
-        menu.addSeparator();
-        menu.addItem (3, "Set capo here", f > 0, capoFret == f);
-        menu.addItem (4, "Remove capo", capoFret > 0);
-        menu.addSeparator();
-
-        juce::PopupMenu scaleMenu;
-
-        for (int i = 0; i < (int) ScaleOverlay::NumScales; ++i)
-            scaleMenu.addItem (100 + i, getScaleName ((ScaleOverlay) i), true, (int) scale == i);
-
-        menu.addSubMenu ("Scale overlay", scaleMenu);
-
-        juce::PopupMenu rootMenu;
-
-        for (int i = 0; i < 12; ++i)
-            rootMenu.addItem (200 + i, TuningEngine::noteName (60 + i).dropLastCharacters (1),
-                              true, scaleRoot == i);
-
-        menu.addSubMenu ("Scale root", rootMenu);
-
-        menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
-                            [this, s, f] (int result)
+        buildContextMenu (s, f).showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
+                                               [safe, s, f] (int result)
         {
-            if (result == 1)      setStringMuted (s, ! isStringMuted (s));
-            else if (result == 2) { setSelectedString (s); if (onStringSelected) onStringSelected (s); }
-            else if (result == 3) setCapoFret (f);
-            else if (result == 4) setCapoFret (0);
-            else if (result >= 100 && result < 100 + (int) ScaleOverlay::NumScales)
-                setScaleOverlay ((ScaleOverlay) (result - 100), scaleRoot);
-            else if (result >= 200 && result < 212)
-                setScaleOverlay (scale, result - 200);
+            if (safe != nullptr)
+                safe->applyContextMenuResult (s, f, result);
         });
 
         return;
@@ -892,8 +861,69 @@ void FretboardComponent::mouseDown (const juce::MouseEvent& e)
 
     const int effectiveFret = juce::jmax (f, capoFret);
 
+    lastClickVelocity = velocity;   // SPEC-SWEEP KS-23
     processor.triggerPreviewNote (s, (double) effectiveFret, velocity);
     playingString = s;
+}
+
+// SPEC-SWEEP (KS-24): built and applied apart so the menu can be tested.
+juce::PopupMenu FretboardComponent::buildContextMenu (int s, int f)
+{
+    juce::PopupMenu menu;
+    menu.setLookAndFeel (&getLookAndFeel());
+
+    menu.addSectionHeader ("String " + juce::String (s + 1)
+                           + "  |  fret " + juce::String (f));
+    menu.addItem (1, "Mute string", true, isStringMuted (s));
+    menu.addItem (2, "Select string", true, s == selectedString);
+    menu.addSeparator();
+    menu.addItem (3, "Set capo here", f > 0, capoFret == f);
+    menu.addItem (4, "Remove capo", capoFret > 0);
+    menu.addSeparator();
+
+    juce::PopupMenu scaleMenu;
+
+    for (int i = 0; i < (int) ScaleOverlay::NumScales; ++i)
+        scaleMenu.addItem (100 + i, getScaleName ((ScaleOverlay) i), true, (int) scale == i);
+
+    menu.addSubMenu ("Scale overlay", scaleMenu);
+
+    juce::PopupMenu rootMenu;
+
+    for (int i = 0; i < 12; ++i)
+        rootMenu.addItem (200 + i, TuningEngine::noteName (60 + i).dropLastCharacters (1),
+                          true, scaleRoot == i);
+
+    menu.addSubMenu ("Scale root", rootMenu);
+
+    return menu;
+}
+
+void FretboardComponent::applyContextMenuResult (int s, int f, int result)
+{
+    if (! juce::isPositiveAndBelow (s, numStrings))
+        return;
+
+    if (result == 1)      setStringMuted (s, ! isStringMuted (s));
+    else if (result == 2) { setSelectedString (s); if (onStringSelected) onStringSelected (s); }
+    else if (result == 3) setCapoFret (f);
+    else if (result == 4) setCapoFret (0);
+    else if (result >= 100 && result < 100 + (int) ScaleOverlay::NumScales)
+        setScaleOverlay ((ScaleOverlay) (result - 100), scaleRoot);
+    else if (result >= 200 && result < 212)
+        setScaleOverlay (scale, result - 200);
+}
+
+juce::Point<int> FretboardComponent::pointOnString (int stringIndex, int fret, float withinLane) const
+{
+    const float laneHeight = (float) boardArea.getHeight() / (float) juce::jmax (1, numStrings);
+    const float y = stringY (stringIndex) - laneHeight * 0.5f + laneHeight * juce::jlimit (0.0f, 1.0f, withinLane);
+
+    // mouseDown takes ceil (fretAtX): the middle of the space behind the fret.
+    const float x = fret <= 0 ? fretX (0.0) - 2.0f
+                              : 0.5f * (fretX ((double) fret - 1.0) + fretX ((double) fret));
+
+    return juce::Point<float> (x, y).roundToInt();
 }
 
 void FretboardComponent::mouseUp (const juce::MouseEvent&)

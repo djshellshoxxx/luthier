@@ -1102,3 +1102,101 @@ LUTHIER_TEST (Editor, rightClickOffersTheDocumentedItems)
     applyParameterMenuResult (7, owner, processor, id);   // Lock
     CHECK (processor.isParameterLocked (id));
 }
+
+/*  KS-13: Ctrl+S saves over the current user preset (the parameter change is
+    in the file afterwards and the preset is no longer modified). */
+LUTHIER_TEST (Editor, ctrlSSavesTheCurrentUserPreset)
+{
+    EditorFixture f;
+    auto& presets = f.processor.getPresetManager();
+
+    const auto name = "Sweep KS13 " + juce::String (juce::Random::getSystemRandom().nextInt (1000000));
+    CHECK (presets.saveAs (name, "User"));
+
+    const auto* info = presets.getPreset (presets.getCurrentPresetIndex());
+    const auto file = info != nullptr ? info->file : juce::File();
+    CHECK_MSG (file.existsAsFile(), "saveAs left no file for " + name);
+
+    auto* treble = f.processor.getState().getParameter (ParamIDs::ampTreble);
+    const float wanted = treble->getValue() > 0.5f ? 0.1f : 0.9f;
+    treble->setValueNotifyingHost (wanted);
+    presets.markModified();
+
+    CHECK (f.press (shortcutFor ("save")));
+    CHECK (! presets.isCurrentPresetModified());
+    CHECK (presets.getLastSaveError().isEmpty());
+
+    // Move away, then reload the file: the saved value comes back.
+    treble->setValueNotifyingHost (0.5f);
+    CHECK (presets.loadPreset (file));
+    CHECK_NEAR (treble->getValue(), wanted, 0.01);
+
+    const auto backups = PresetManager::backupFolderFor (file);
+    backups.getChildFile (file.getFileName()).deleteFile();
+    file.deleteFile();
+}
+
+/*  KS-23: a click on the fretboard plays the string, and higher in the lane is
+    harder. KS-24: right-click mutes or selects the string, sets and removes the
+    capo (the capo parameter) and picks the scale overlay and its root. */
+LUTHIER_TEST (Editor, fretboardClicksAndItsMenu)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    FretboardComponent board (processor);
+    board.setSize (900, 220);
+
+    auto click = [&board] (juce::Point<int> p)
+    {
+        auto source = juce::Desktop::getInstance().getMainMouseSource();
+        const auto pf = p.toFloat();
+        const juce::MouseEvent e (source, pf, {}, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                  &board, &board, juce::Time::getCurrentTime(), pf,
+                                  juce::Time::getCurrentTime(), 1, false);
+        board.mouseDown (e);
+        board.mouseUp (e);
+    };
+
+    const int string = 2, fret = 3;
+
+    click (board.pointOnString (string, fret, 0.1f));
+    const double high = board.getLastClickVelocity();
+    CHECK (board.getSelectedString() == string);
+
+    click (board.pointOnString (string, fret, 0.9f));
+    const double low = board.getLastClickVelocity();
+
+    CHECK_MSG (high > low + 0.3, "top of the lane " + juce::String (high, 2)
+                                   + ", bottom " + juce::String (low, 2));
+
+    juce::Array<int> ids;
+    const auto menu = board.buildContextMenu (string, fret);
+    juce::PopupMenu::MenuItemIterator it (menu, true);
+
+    while (it.next())
+        if (it.getItem().itemID != 0)
+            ids.add (it.getItem().itemID);
+
+    for (int id : { 1, 2, 3, 4, 100, 101, 200, 211 })
+        CHECK_MSG (ids.contains (id), "the fretboard menu has no item " + juce::String (id));
+
+    board.applyContextMenuResult (4, fret, 1);
+    CHECK (board.isStringMuted (4));
+    board.applyContextMenuResult (4, fret, 1);
+    CHECK (! board.isStringMuted (4));
+
+    board.applyContextMenuResult (1, fret, 2);
+    CHECK (board.getSelectedString() == 1);
+
+    auto* capo = processor.getState().getParameter (ParamIDs::capoFret);
+    board.applyContextMenuResult (string, 5, 3);
+    CHECK_NEAR (capo->getValue() * 12.0f, 5.0f, 0.01f);
+    board.applyContextMenuResult (string, 5, 4);
+    CHECK_NEAR (capo->getValue(), 0.0f, 1.0e-6f);
+
+    board.applyContextMenuResult (string, fret, 101);
+    CHECK ((int) board.getScaleOverlay() == 1);
+    board.applyContextMenuResult (string, fret, 207);
+    CHECK (board.getScaleRoot() == 7);
+}

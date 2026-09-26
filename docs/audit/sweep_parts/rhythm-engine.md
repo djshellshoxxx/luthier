@@ -36,10 +36,10 @@ The rhythm engine is functionally complete: chord detector (84 templates, 30 ms 
 | RE-30 (§7) | Kits as JSON under Resources/Genres — built in code; user dir scanned | `GenreKitLibrary::getFactoryDirectory` | - | `GenreKits::kitsRoundTripThroughJson` | PARTIAL |
 | RE-31 (§8.1) | Genre dropdown + randomize dice | `GenreKit::randomPattern` | RHYTHM `genreBox`, `diceButton` | `GenreKits::randomPatternStaysInsideTheKit` | DONE |
 | RE-32 (§8.2) | Capo up/down | `RhythmEngine::setCapoFret` -> TuningEngine | RHYTHM `capoDown/capoUp` | `GenreKits::capoRemovesFretsBelowItAndMovesThePitch` | DONE |
-| RE-33 (§8.3) | Strum grid 16/32 steps, right-click dynamic/mask/delete — no UI test | n/a | RHYTHM `StrumGrid::mouseDown` | - | NO-TEST |
+| RE-33 (§8.3) | Strum grid 16/32 steps, right-click dynamic/mask/delete — no UI test | n/a | RHYTHM `StrumGrid::mouseDown` | RhythmPanelUi::strumGridThirtyTwoStepsAndItsMenu | DONE |
 | RE-34 (§8.4) | Fingerpick grid 5 rows — no UI test | n/a | RHYTHM `FingerpickGrid` | `RhythmPanelUi::fingerpickGridTogglesAFingerStep` | DONE |
 | RE-35 (§8.5) | Swing places the offbeat at swing x the pair (0.66 = triplet); range 50-75% kept (below 50% would rush), see sweep-notes | `RhythmPattern::setSwing`, processBlock | RHYTHM `swingSlider` | `RhythmPatterns::swingDelaysTheOffbeats` | DONE |
-| RE-36 (§8.6) | Pattern browser: tag filter, load, save, export — untested | `PatternLibrary::findByTag` | RHYTHM `tagFilterBox`, `patternList`, LOAD/SAVE/EXPORT | - | NO-TEST |
+| RE-36 (§8.6) | Pattern browser: tag filter, load, save, export — untested | `PatternLibrary::findByTag` | RHYTHM `tagFilterBox`, `patternList`, LOAD/SAVE/EXPORT | RhythmPanelUi::patternBrowserFiltersLoadsAndSaves | PARTIAL |
 | RE-37 (§8.7) | Live indicators: chord, fretboard dots, next-strum light — untested | `getCurrentChord`, `getNextStrumType` | RHYTHM `RhythmIndicators` | `RhythmPanelUi::indicatorsShowChordVoicingAndNextStroke` | DONE |
 | RE-38 (§8) | Easy strip: kit, feel, on/off, Mono hint — only feel knob tested | `EasyPanel::buildRhythmStrip` | Easy `rhythmGenreBox`, `rhythmFeelSlider`, `rhythmEnableButton`, `rhythmHintLabel` | `EasyLayout::theRhythmStripEnablesAKitAndHintsInMono` | DONE |
 | RE-39 (§9) | Writes only NoteOn/NoteOff/palm-mute | `RhythmEngine::emitNote`, `releaseAll` | n/a | `GenreKits::everyKitSoundsWhenApplied` | DONE |

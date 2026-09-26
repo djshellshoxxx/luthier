@@ -1,5 +1,4 @@
 - [RE-27] effort S — DEFER: factory patterns compiled into the binary are more robust than loose JSON (no install-path lookup); user directory `~/Documents/Luthier/Rhythm` already works. Record in DECISIONS.md.
 - [RE-30] effort S — DEFER: same as RE-27 for `Resources/Genres/`; kits are in code and the user Genres folder is scanned. Record in DECISIONS.md.
-- [RE-33] effort S — Add `RhythmPanelUi::strumGridCellsEditThePattern`: construct `RhythmPanel`, click a `StrumGrid` cell, drive the popup menu ids 100+/200+/300 via the handler, assert `RhythmEngine::getPattern()` changed.
-- [RE-36] effort S — Add `RhythmPanelUi::browserFiltersLoadsAndSaves`: pick a tag in `tagFilterBox`, assert `visiblePatterns`, LOAD installs into the engine, SAVE writes a `.luthierpattern` to a temp user dir.
+- [RE-36] EXPORT opens a FileChooser, which a test cannot drive; filter, LOAD and SAVE are tested.
 - [RE-40] effort S — Preset storage done (SPEC-SWEEP state, `rhythm_engine` block). Remaining: an automatable host parameter `rhythm_enabled` bound to `RhythmEngine::setEnabled` in `ParameterBridge`, attached to `enableToggle`/Easy `rhythmEnableButton`.

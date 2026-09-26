@@ -16,7 +16,7 @@ Every binding the doc lists exists in `AccessibilitySettings` with the documente
 | KS-10 (Presets) | Shift+1-9 recall snapshot 10-18 — digit read from the key code | `keyPressed` digit branch | n/a | `Editor::digitsRecallSnapshots` | DONE |
 | KS-11 (Presets) | PageUp/PageDown previous/next setlist entry | `keyPressed setlistPrevious/Next` -> `Setlist::next/previous` | n/a | `Editor::pageKeysStepTheSetlist` | DONE |
 | KS-12 (File) | Ctrl+O browser, Ctrl+Shift+S Save As, Ctrl+E export, Ctrl+, Options, Ctrl+D debug | `keyPressed presetBrowser/saveAs/export/options/debugPanel` | overlays | `Editor::everyOverlayShortcutOpens...`, `GuiReach::everyAutomatableParameterHasAVisibleControl` walk | DONE |
-| KS-13 (File) | Ctrl+S saves current preset (falls back to Save As) | `keyPressed "save"` -> `PresetManager::saveCurrent` | n/a | - | NO-TEST |
+| KS-13 (File) | Ctrl+S saves current preset (falls back to Save As) | `keyPressed "save"` -> `PresetManager::saveCurrent` | n/a | Editor::ctrlSSavesTheCurrentUserPreset | DONE |
 | KS-14 (File) | Ctrl+G save guitar as .luthierguitar; Ctrl+Shift+E reveal guitar file | `keyPressed saveGuitarAs/revealGuitar`, `showSaveGuitarDialog` | dialog | `Editor::guitarFileShortcuts` (Ctrl+Shift+E on an edited guitar) | PARTIAL |
 | KS-15 (File) | Ctrl+L arm MIDI Learn then click a control | `keyPressed midiLearnArm` -> `setMidiLearnArmed`, `MidiLearnArmLayer` | overlay layer | `Editor::ctrlLArmsMidiLearn` | DONE |
 | KS-16 (File) | Ctrl+Z / Ctrl+Shift+Z undo/redo | `keyPressed undo/redo` -> `processor.undo/redo` | n/a | `Editor::undoRedoAndABKeysReachTheProcessor` | DONE |
@@ -26,8 +26,8 @@ Every binding the doc lists exists in `AccessibilitySettings` with the documente
 | KS-20 (Control) | Double-click resets to default | JUCE `SliderParameterAttachment` (`setDoubleClickReturnValue`) via `LuthierKnob::attachTo` | every knob | `Widgets::doubleClickReturnsAKnobToItsDefault` | DONE |
 | KS-21 (Control) | Right-click: Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise | `Widgets.cpp:showParameterContextMenu` | every knob | `Editor::rightClickOffersTheDocumentedItems` | DONE |
 | KS-22 (Control) | Hover row: value appears above the control, label stays; tooltip 400 ms | `LuthierKnob::paint` showValue | every knob | - | DONE |
-| KS-23 (Fretboard) | Click plays note, higher in lane = harder | `FretboardComponent::mouseDown` velocity from `withinLane` -> `triggerPreviewNote` | Easy/Advanced fretboard | - | NO-TEST |
-| KS-24 (Fretboard) | Right-click: mute string, select string, set capo, scale overlay | `FretboardComponent::mouseDown` popup, `setCapoFret` drives `capoFret` param | fretboard | - | NO-TEST |
+| KS-23 (Fretboard) | Click plays note, higher in lane = harder | `FretboardComponent::mouseDown` velocity from `withinLane` -> `triggerPreviewNote` | Easy/Advanced fretboard | Editor::fretboardClicksAndItsMenu | DONE |
+| KS-24 (Fretboard) | Right-click: mute string, select string, set capo, scale overlay | `FretboardComponent::mouseDown` popup, `setCapoFret` drives `capoFret` param | fretboard | Editor::fretboardClicksAndItsMenu | DONE |
 | KS-25 (Illustration) | Click pickup selects it; click switch advances position; drag knob = volume/tone | `GuitarBodyComponent::mouseDown/mouseDrag` | guitar illustration | `Editor::illustrationClicksSelectPickupAndStepSwitch` | DONE |
 | KS-26 (Pedal rack) | Drag slot onto another reorders; right-click clear slot / reset pedal | `PedalRack.cpp:PedalSlotComponent::mouseUp/onReorderRequested`, `PedalRack::reorder`; menu items 1/2 | Advanced pedal rack | `PedalRack::dragOntoAnotherSlotReorders` (the clear/reset menu items are not driven) | DONE |
 | KS-27 (Overlay) | Escape, click outside, Close button all close; only one overlay at a time | `Overlays.cpp:OverlayHost::mouseDown/dismiss`, `closeButton` | every overlay | `Editor::overlaysCloseFromTheScrimAndTheirCloseButton` | DONE |
