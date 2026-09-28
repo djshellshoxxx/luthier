@@ -1,5 +1,9 @@
 # Coordinator plan: finish, beta-test, fork (product-owner order, 2026-09-26)
 
+## Linux and Windows community beta path (2026-09-28, product owner)
+
+The product owner now wants the fastest credible community beta on **Linux and Windows**, before the Free/Pro fork and before the full expansion wave. Follow [the Linux and Windows beta release plan](plans/BETA_LINUX_WINDOWS.md) for scope, blocker gates, platform builds, portable packaging, and clean-host testing. This newer direction supersedes the Windows pause below **for beta work only**; macOS remains deferred. The coordinator still owns merges and must verify the beta gates before publishing either platform build.
+
 ## Phase 1: every helper finishes
 Merge into `claude/luthier-cloud-session-5lzlix` once each branch reports done and green:
 
