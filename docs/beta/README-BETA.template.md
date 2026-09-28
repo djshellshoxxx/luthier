@@ -41,11 +41,20 @@ Compare the downloaded file's checksum with the release manifest before installi
 5. Change **[main control tested]** and listen for the change.
 6. Save the project, close the host, reopen the project, and check that the preset and sound return.
 
-If a step fails, stop and use the [bug report template](BUG_REPORT_TEMPLATE.md). Include the host, OS, archive checksum, and exact steps. Do not attach private or copyrighted projects unless you have permission.
+If a step fails, stop and report it to [beta contact / bug-report destination] with these details:
+
+- Luthier version, archive filename and SHA-256, and source commit if available
+- OS version and architecture; host and exact version; plugin format
+- Audio interface, driver, sample rate, buffer size, preset, project, and relevant control values
+- Expected and observed result, how often it occurs, and impact
+- Exact reproduction steps, relevant log excerpt, and workaround if any
+- Whether it reproduces in a new project
+
+Attach only material you are allowed to share. Remove account names, personal paths, license keys, and unrelated project content before posting.
 
 ## Replace or remove
 
 - **Linux:** run the installed `~/.local/share/luthier/uninstall.sh` for a user install, or `/usr/local/share/luthier/uninstall.sh` for a system install. Do not add `--purge` unless you intend to delete user data.
 - **Windows:** close the DAW and standalone. Remove the copied `Luthier.vst3` bundle and the `C:\ProgramData\Luthier\Resources` folder only if no other Luthier version uses it; remove the extracted portable folder. This does not remove your files in Documents\Luthier.
 
-Read the [Linux and Windows beta plan](../plans/BETA_LINUX_WINDOWS.md) for the release gates and platform scope.
+The release manifest records the release gates and platform scope.
