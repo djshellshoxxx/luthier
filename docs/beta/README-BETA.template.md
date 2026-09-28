@@ -4,7 +4,7 @@
 
 **Version:** [beta version]  
 **Platform/archive:** [Linux x86-64 .tar.gz / Windows x64 portable .zip]  
-**Archive SHA-256:** [checksum]  
+**Archive SHA-256:** See the adjacent `<archive>.sha256` sidecar or release manifest; do not embed an archive's own hash in this file.  
 **Status:** [not tested / testing / verified for the listed hosts]
 
 ## Before you start
