@@ -590,7 +590,7 @@ void EasyPanel::resized()
             return inner;
         };
 
-        // TODO 2h: prioritize the six-knob face while keeping both compact rack rows usable.
+        // Give the amp face two generous rows while keeping the compact rack rows usable.
         auto circuit = card (0.12f, "Guitar");
         {
             auto knobs = circuit.removeFromLeft (circuit.getWidth() / 2);
