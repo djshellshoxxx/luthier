@@ -32,7 +32,7 @@ The build scripts default to `build-ci/`, stage products in `dist/linux` or `dis
 
 Linux packaging command: `scripts/package_linux.sh`. The tarball includes `install.sh` and `uninstall.sh`; the .deb is produced only when `dpkg-deb` is available.
 
-Windows build/stage command: as above. Record the exact portable packaging command used. The current `scripts/package_windows.ps1` builds an Inno Setup installer before it creates the portable ZIP. The beta plan calls for a tested installer-free portable path; do not assume `-PortableOnly` exists until that implementation is merged and verified.
+Windows build/stage command: as above. Once PR #10 (`codex/luthier-portable-windows-beta`) is merged into the integration branch and its Windows packaging path has been tested on a Windows worker, run `scripts/package_windows.ps1 -PortableOnly -BetaReadme <completed-file>` and record the exact command and test evidence. Until both merge and Windows verification are complete, do not use or claim this installer-free path for the release; the current integration script still runs Inno Setup before creating the ZIP.
 
 Checksum commands: Linux `sha256sum <archive>`; Windows PowerShell `Get-FileHash <archive> -Algorithm SHA256`.
 
