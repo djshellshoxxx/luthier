@@ -2,7 +2,7 @@
 
 Branch: `codex/luthier-qa-robustness`  
 Base reviewed: `1a0805a679ac1677898bfd37d75fb9a52961058a`  
-Reproduction seed: `0xC0DE513` (`218948883` decimal)  
+Reproduction seed: `0xC0DE513` (`202237203` decimal)  
 Test: `Source/Tests/CodexQA_Robustness.cpp`
 
 ## Coverage added
@@ -11,7 +11,7 @@ Test: `Source/Tests/CodexQA_Robustness.cpp`
 
 `CodexRobustness.seededParameterMidiAndBlockMatrix` traverses 12 rate/block combinations with all parameters at normalized minimum, maximum, or seeded interior values. It sends seeded notes on random MIDI channels and applies the same output checks. The first two iterations use boundary values; later iterations repeat the extremes and randomized interiors.
 
-The 4.0 peak is a gross runaway guard, not a guarantee of suitable output loudness. Three blocks per case catch immediate faults; longer delayed failures need a separate soak test. A crash aborts the test process, and the last suite/case printed by the runner narrows reproduction. With the seed and preset index/name, the case is deterministic for a given factory bank.
+The 4.0 peak is a gross runaway guard, not a guarantee of suitable output loudness. Three blocks per case catch immediate faults; longer delayed failures need a separate soak test. A crash aborts the test process. The seed and preset index make the case deterministic for a given factory bank; use a debugger or temporary local trace to isolate an abort.
 
 ## Existing coverage considered
 
