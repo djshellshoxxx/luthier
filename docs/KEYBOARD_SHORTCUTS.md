@@ -22,7 +22,7 @@ them with a search box. The defaults are below.
 | `D` | Open or close the Practice drawer |
 | `P` | Panic - stop every string immediately |
 | `T` | Tap tempo |
-| `\\` | Kill switch |
+| `\` | Kill switch |
 
 ## Presets and snapshots
 
