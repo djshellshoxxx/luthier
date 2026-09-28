@@ -591,7 +591,7 @@ void EasyPanel::resized()
         };
 
         // TODO 2h: prioritize the six-knob face while keeping both compact rack rows usable.
-        auto circuit = card (0.14f, "Guitar");
+        auto circuit = card (0.12f, "Guitar");
         {
             auto knobs = circuit.removeFromLeft (circuit.getWidth() / 2);
             guitarVolumeKnob.setBounds (knobs.removeFromLeft (knobs.getWidth() / 2));
@@ -601,7 +601,7 @@ void EasyPanel::resized()
 
         preRack.setBounds (card (0.085f, "Pre-effects"));
 
-        auto amp = card (0.39f, "Amp");
+        auto amp = card (0.42f, "Amp");
         {
             ampCardArea = amp;
             ampModel.setBounds (amp.removeFromTop (26));
@@ -611,7 +611,7 @@ void EasyPanel::resized()
 
         postRack.setBounds (card (0.085f, "Post-effects"));
 
-        auto cab = card (0.18f, "Cabinet");
+        auto cab = card (0.17f, "Cabinet");
         {
             // The blend knob gets the taller top row, so it is a knob and not a dot (TODO V).
             auto top = cab.removeFromTop (cab.getHeight() * 11 / 20);
