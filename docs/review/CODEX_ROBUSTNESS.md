@@ -21,6 +21,22 @@ The 4.0 peak is a gross runaway guard, not a guarantee of suitable output loudne
 
 The new matrix combines these dimensions and tests host state after each factory preset.
 
+## QA progress review (2026-09-28)
+
+Static review against integration commit `4e191393deff6f67aa9edda01b63843c6a4963c1`
+found that the three-block renderer did not actually finish with a clean release:
+block 3 inserted All Notes Off only for channel 1 at sample zero, then also inserted
+a new note-on at a random later sample on channels 1-4. The fixture therefore
+usually ended with an active voice and did not isolate the release path. The test
+now schedules note-ons only in the first two blocks and sends All Notes Off for
+all four used channels in the third. This is a test-harness correction; it does
+not claim a production defect.
+
+**NOT RUN:** the correction has not been compiled or executed. The integration
+commit still has no associated GitHub Actions run, and this connector-only
+workspace has no authenticated checkout/JUCE build. Required gate remains the
+focused `CodexRobustness` command below.
+
 ## Findings, in priority order
 
 1. **Verification pending:** I could not run a Linux compile or test. The GitHub connector can read and write this private repository, but the shell has no authenticated Git checkout (`git ls-remote https://github.com/djshellshoxxx/luthier.git HEAD` returned `could not read Username`). The handoff also records that Actions jobs fail at account spending limit (`docs/HANDOFF.md:37-38`). No preset or parameter combination is therefore claimed to pass or fail. The coordinator should compile and execute this test before merging.
