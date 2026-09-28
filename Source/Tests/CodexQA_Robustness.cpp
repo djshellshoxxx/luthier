@@ -38,13 +38,23 @@ namespace
         for (int block = 0; block < 3; ++block)
         {
             juce::MidiBuffer midi;
-            const int note = 36 + rng.nextInt (49);
-            midi.addEvent (juce::MidiMessage::noteOn (1 + rng.nextInt (4), note,
-                                                       (juce::uint8) (20 + rng.nextInt (108))),
-                           rng.nextInt (size));
 
-            if (block == 2)
-                midi.addEvent (juce::MidiMessage::allNotesOff (1), 0);
+            if (block < 2)
+            {
+                const int note = 36 + rng.nextInt (49);
+                midi.addEvent (juce::MidiMessage::noteOn (1 + rng.nextInt (4), note,
+                                                           (juce::uint8) (20 + rng.nextInt (108))),
+                               rng.nextInt (size));
+            }
+            else
+            {
+                // Release every channel used above. The old fixture sent channel 1
+                // All Notes Off before scheduling another random-channel note-on in
+                // this same block, so it normally ended with a held voice and never
+                // isolated the release path.
+                for (int channel = 1; channel <= 4; ++channel)
+                    midi.addEvent (juce::MidiMessage::allNotesOff (channel), 0);
+            }
 
             audio.clear();
             processor.processBlock (audio, midi);
