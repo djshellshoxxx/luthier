@@ -20,6 +20,10 @@
     "Azure/trusted-signing-action", DigiCert KeyLocker's smctl, ...) - see
     docs/RELEASING.md.
 
+.PARAMETER BetaReadme
+    Path to a completed README-BETA.md. Defaults to docs/beta/README-BETA.md.
+    Required for the portable archive; templates and placeholders are rejected.
+
 .PARAMETER PortableOnly
     Package staged products without locating, installing or invoking Inno Setup.
 
@@ -31,6 +35,7 @@
 param(
     [string] $Version = $env:VERSION,
     [string] $DistDir = 'dist',
+    [string] $BetaReadme = 'docs/beta/README-BETA.md',
     [switch] $PortableOnly
 )
 
@@ -122,6 +127,17 @@ try {
     }
 
     #-------------------------------------------------------------- portable zip
+    if ($BetaReadme -match '\.template\.md$') {
+        throw "Pass a completed README-BETA.md, not the template: $BetaReadme"
+    }
+    if (-not (Test-Path -LiteralPath $BetaReadme -PathType Leaf)) {
+        throw "Completed beta README not found at $BetaReadme. Pass -BetaReadme with a reviewed README-BETA.md."
+    }
+    $betaReadmeText = Get-Content -LiteralPath $BetaReadme -Raw
+    if ([string]::IsNullOrWhiteSpace($betaReadmeText) -or
+        $betaReadmeText -match '\[[^\]\r\n]+\](?!\()|\{\{[^}]+\}\}|\b(?:TODO|TBD|REPLACE ME)\b|Release owner: replace every bracketed field') {
+        throw "Beta README contains a template field or placeholder: $BetaReadme"
+    }
     # installer.md 9: unpacks anywhere; no registry, no start menu. The content
     # sits in Resources beside the exe, where IrLibrary finds it first.
     Write-Step 'Building the portable zip'
@@ -129,6 +145,7 @@ try {
     New-Item -ItemType Directory -Path $portable | Out-Null
     try {
     Copy-Item (Join-Path $stage 'Luthier.exe') $portable
+    Copy-Item -LiteralPath $BetaReadme -Destination (Join-Path $portable 'README-BETA.md')
     Copy-Item -Recurse (Join-Path $stage 'Resources') (Join-Path $portable 'Resources')
     Copy-Item -Recurse (Join-Path $stage 'Luthier.vst3') $portable
     if (Test-Path (Join-Path $stage 'Luthier.clap')) { Copy-Item (Join-Path $stage 'Luthier.clap') $portable }
