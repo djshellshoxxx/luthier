@@ -18,6 +18,7 @@ them with a search box. The defaults are below.
 | `Tab` | Switch between Easy and Advanced |
 | `S` | Slide Mode on or off |
 | `L` | Live Mode on or off |
+| `W` | Toggle Workshop |
 | `D` | Open or close the Practice drawer |
 | `P` | Panic - stop every string immediately |
 | `T` | Tap tempo |
