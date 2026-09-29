@@ -44,7 +44,7 @@ public:
     bool isInterestedInFileDrag (const juce::StringArray& files) override;
     void filesDropped (const juce::StringArray& files, int x, int y) override;
 
-    static constexpr int preferredHeight = 154;
+    static constexpr int preferredHeight = 176;
 
 private:
     IrSlot& slot();
@@ -62,6 +62,8 @@ private:
     juce::ComboBox channelBox;
     juce::Slider gainTrim { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Slider predelay { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider startTrim { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider endTrim { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Slider mix { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::TextButton reverseButton { "Reverse" };
 
