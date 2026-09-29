@@ -7,13 +7,13 @@ The shared `NoiseEngine` pool is implemented: six classes, fixed pools, oldest-s
 - The rake fires only from keyswitches while SCRAPE is armed. There is no Easy gesture.
 - There is no "noise rides the instrument" test.
 
-Pool degradation, the pick illustration and the audio-thread allocation test exist only on the visual branch.
+Pool degradation (quality-mode Low), the pick illustration and the audio-thread allocation test are all present on this checkout.
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | PN-1 (§1) | Pools 16/16/16/8/16/8, allocated in prepare() | `DSP/Noise/NoiseEngine.h:kPoolSizes`, `NoiseEngine::prepare` | n/a | `NoisePool.aFullPoolStealsTheOldest` | DONE |
 | PN-2 (§1) | A full pool steals the oldest generator | `NoiseEngine::trigger` | n/a | `NoisePool.aFullPoolStealsTheOldest` | DONE |
-| PN-3 (§1) | Degradation step 4 halves every pool | `NoiseEngine::setDegraded` (no caller here) | n/a | - | OWNED (on visual: CpuRelief `halveNoisePools` calls `setDegraded`; CpuReliefTests) |
+| PN-3 (§1) | Degradation step 4 halves every pool | `NoiseEngine::setDegraded`; `LuthierEngine::setQualityLevel` (`LuthierEngineQuality.cpp` 61) applies `QualityProfile::noiseDegraded` at Low | n/a | `CpuQuality.noisePoolsHalveAtLowAndNeverUnderLoadAtHigh`, `NoisePool.aFullPoolStealsTheOldest` | DONE |
 | PN-4 (§1) | Per-material noise textures synthesised once, read at a random offset — only 5 shared texture classes, not one per material | `NoiseEngine::prepare` (`NoiseTexture` enum) | n/a | `NoisePool.aSeedRepeatsExactly` | PARTIAL |
 | PN-5 (§1.1) | Generator = excitation → 1-3 pole resonator → envelope | `DSP/Noise/NoiseEngine.h:NoiseGenerator` | n/a | `NoisePool.aSeedRepeatsExactly` | DONE |
 | PN-6 (§1.2) | Click enters the excitation; chirp, scrape and other classes enter pre-body — no test that noise goes through body/pickup | `NoiseEngine::process` (excitation vs surface out); `LuthierEngine.cpp` string loop | n/a | - | NO-TEST |
@@ -32,7 +32,7 @@ Pool degradation, the pick illustration and the audio-thread allocation test exi
 | PN-19 (§6) | Fingers: nail/flesh blend and fingertip release noise about 12 dB under the pick's, wound strings only | `PlayingNoise::makeFingertipNoise` | ADVANCED, `AdvancedPanel::nailVsFlesh` | `PickNoise.fingersNeitherClickNorChirp` | DONE |
 | PN-20 (§7) | Click/chirp/scrape amounts, stock 0-1, advanced 0-4, pick family | `Parameters.cpp:504-506`; `PhysicalRange.cpp:128-130` | CHARACTER > PICK | `Ranges.everyPhysicalRangeIsValid` | DONE |
 | PN-21 (§8) | PICK group on CHARACTER: striker dropdowns, material, thickness, tip, bevel, wear, angle, click, chirp, scrape | `UI/NoiseGroups.cpp` | CHARACTER > PICK, `NoiseGroups` ctor | `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
-| PN-22 (§8) | Pick drawn at true size, rotated by angle, 8 px drag handles | - | - | - | OWNED (on visual: `GuitarRenderer::pickPath/pickHandle`, illustration drag sets `pick_angle`) |
+| PN-22 (§8) | Pick drawn at true size, rotated by angle, 8 px drag handles | `GuitarRenderer::pickPath/pickHandle` (`GuitarRenderer.cpp` ~2939, 3121) | Workshop bench pick drag sets `pick_angle` (`WorkshopPanel`) | `WorkshopAccessories.thePickIsDraggedAndTurnedOnTheBench` | DONE |
 | PN-T1 (§9) | Test: click scales as vel^0.7 within 1 dB | - | - | `PickNoise.clickScalesWithVelocityToThePower0_7` | DONE |
 | PN-T2 (§9) | Test: nylon 0.6 mm clicks an octave above metal 3 mm | - | - | `PickNoise.clickPitchTracksMaterialAndThickness` | DONE |
 | PN-T3 (§9) | Test: angle lowers click and raises chirp | - | - | `PickNoise.angleTradesClickForChirp` | DONE |
@@ -40,7 +40,7 @@ Pool degradation, the pick illustration and the audio-thread allocation test exi
 | PN-T5 (§9) | Test: two bodies give different click spectra; amount 0 is bit-identical to noise off — missing | - | - | - | NO-TEST |
 | PN-T6 (§9) | Test: zero amounts take no generator over 10 000 notes | - | - | `NoisePool.zeroIsFree` | DONE |
 | PN-T7 (§9) | Test: 20 clicks into a 16-pool | - | - | `NoisePool.aFullPoolStealsTheOldest` | DONE |
-| PN-T8 (§9) | Test: no audio-thread allocation for noise | - | - | - | OWNED (on visual: `Engine.fiveMinutesOfPlaybackNeitherAllocatesNorLocks`) |
+| PN-T8 (§9) | Test: no audio-thread allocation for noise | n/a | n/a | `Engine.fiveMinutesOfPlaybackNeitherAllocatesNorLocks` (whole engine, noise at defaults) | DONE |
 | PN-T9 (§9) | Test: a fixed seed is byte-identical | - | - | `NoisePool.aSeedRepeatsExactly` | DONE |
 
-<!-- counts DONE=21 NO-GUI=0 NO-TEST=3 PARTIAL=4 MISSING=0 OWNED=3 -->
+<!-- counts DONE=24 NO-GUI=0 NO-TEST=3 PARTIAL=4 MISSING=0 OWNED=0 -->

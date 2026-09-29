@@ -1,6 +1,6 @@
 ## environment.md
 
-REALISM-A has landed on this checkout: `Character/EnvironmentModel.*` replaces `CharacterEngine`'s three-step temperature and unused humidity multipliers, with the five parameters, the `environment` family, lags, profiles and the seekable clock, body scaling, setup deltas, the corrosion hook, legacy migration and the CHARACTER ENVIRONMENT group with its sparkline, and `Environment.ENV01..ENV15` are registered. Still open: the SETUP humidity readout line (ENV-20), a test for the convolution-mode note (ENV-19) and the `spec/performance-budget.md` row (ENV-22).
+REALISM-A has landed on this checkout: `Character/EnvironmentModel.*` replaces `CharacterEngine`'s three-step temperature and unused humidity multipliers, with the five parameters, the `environment` family, lags, profiles and the seekable clock, body scaling, setup deltas, the corrosion hook, legacy migration and the CHARACTER ENVIRONMENT group with its sparkline, and `Environment.ENV01..ENV15` are registered. Still open: the SETUP humidity readout line (ENV-20), a test for the convolution-mode note (ENV-19, NO-TEST) and the `spec/performance-budget.md` row (ENV-22).
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -23,9 +23,9 @@ REALISM-A has landed on this checkout: `Character/EnvironmentModel.*` replaces `
 | ENV-17 (§6) | Reference pair in character block; legacy temperature -> °C, humidity -> 45 % (logged) | `EnvironmentModel::toVar/fromVar`; `applyRealismCharacterBlock` | n/a | `Environment.ENV11_legacyTemperatureAndHumidityMigrate` | DONE |
 | ENV-18 (§7) | CHARACTER ENVIRONMENT group: controls, Retune, 10 Hz readouts (string/neck/body temp, RH, cents), 60 s low-E sparkline | n/a | `UI/RealismGroups.*:EnvironmentGroup`, `EnvironmentSparkline` | `RealismUi.theCharacterPanelCarriesTheGroups` | DONE |
 | ENV-19 (§7) | Convolution-mode note "Body shift applies to modal bodies…" — label shown in convolution mode only (`EnvironmentGroup` refresh); no test | n/a | `EnvironmentGroup` `convolutionNote` | - | NO-TEST |
-| ENV-20 (§7) | SETUP action/relief readouts show "+0.12 mm (humidity)" secondary line — owner defers | none | none (owner deferred) | - | MISSING |
+| ENV-20 (§7) | SETUP action/relief readouts show "+0.12 mm (humidity)" secondary line - not implemented (no humidity text in the SETUP group) | none | none (owner deferred) | - | MISSING |
 | ENV-21 (§7) | CHARACTER padlock covers `environment` | n/a | `AdvancedPanel` CHARACTER `RangeTabButton` | `Environment.ENV15_budgetSafetyAndCorners` | DONE |
-| ENV-22 (§8) | Budget 0.02 units, NaN guards, clamps (freq 0.7-1.3, Q 0.5-2, ±300 c) — perf-budget.md row not added by owner | `computeOutputs` clamps | n/a | `Environment.ENV15_budgetSafetyAndCorners` | PARTIAL |
+| ENV-22 (§8) | Budget 0.02 units, NaN guards, clamps (freq 0.7-1.3, Q 0.5-2, +-300 c) - clamps and `Environment.ENV15_budgetSafetyAndCorners` exist; spec/performance-budget.md has no Environment row | `Character/EnvironmentModel` `computeOutputs` clamps | n/a | `Environment.ENV15_budgetSafetyAndCorners` | PARTIAL |
 | ENV-23 (§9 ENV-01) | Room no-op bit-identical | - | n/a | `Environment.ENV01_theRoomIsANoOp` | DONE |
 | ENV-24 (§9 ENV-02) | Steady slope | - | n/a | `Environment.ENV02_steadySlopeFromTheStringsOwnNumbers` | DONE |
 | ENV-25 (§9 ENV-03) | Cold-case overshoot | - | n/a | `Environment.ENV03_coldCaseOvershootsThenSettles` | DONE |

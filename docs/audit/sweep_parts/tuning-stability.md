@@ -22,7 +22,7 @@ REALISM-C has landed on this checkout: `Model/Playing/StabilityModel.*` with all
 | TS-16 (§3) | Glide 250 ms ringing / snap silent; ≤ 0.5 c per block | `advance` | n/a | `TuningStability.smoothGlides` | DONE |
 | TS-17 (§3) | Auto-retune Off/Idle (10 s silent)/Stop/Idle+Stop | `advance` | auto-retune dropdown | `TuningStability.autoRetuneOnIdle`, `TuningStability.autoRetuneOnTransportStop` | DONE |
 | TS-18 (§3) | Atomic command mask consumed at block start; not undoable | `requestRetune(mask)` | n/a | `RealismUi.theOffsetStripRetunesTheStringItIsClickedOn` | DONE |
-| TS-19 (§3) | Retune is a MIDI Learn action target (rising edge CC >= 64) — owner defers | none (hook `requestRetuneAll()` only) | none | - | MISSING |
+| TS-19 (§3) | Retune is a MIDI Learn action target (rising edge CC >= 64) - not implemented; `requestRetuneAll()` is called only from the CHARACTER Retune button (`CharacterPanel.cpp:467`) and tests | none (hook `requestRetuneAll()` only) | CHARACTER Retune button only | - | MISSING |
 | TS-20 (§4) | 8 params stability_amount + six scales + auto_retune; `strings` family | `Parameters.*`, `PhysicalRange.cpp` | TUNING STABILITY group | Ranges suite, `RealismUi.everyRealismCParameterHasAControlOnTheCharacterTab` | DONE |
 | TS-21 (§5) | onTuningChanged from tuning preset / 12-string / detune / fine-tune; preset loads suppress events | `LuthierEngine::setTuningPreset`, `TuningPopover` | n/a | `TuningStability.backlashNeedsADownwardApproach`, `TuningStability.floatingEquilibrium` | DONE |
 | TS-22 (§5) | Amount 0: advance returns, stabilityCents exactly 0 | - | n/a | `TuningStability.offIsInert` | DONE |
