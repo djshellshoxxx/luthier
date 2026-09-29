@@ -607,9 +607,8 @@ void EasyPanel::resized()
             return inner;
         };
 
-        // TODO 2h: the amp card gets the height the racks' second rows did not
-        // need, so its six knobs sit full size on the face at 1200 x 720.
-        auto circuit = card (0.15f, "Guitar");
+        // Give the amp face two generous rows while keeping the compact rack rows usable.
+        auto circuit = card (0.12f, "Guitar");
         {
             auto knobs = circuit.removeFromLeft (circuit.getWidth() / 2);
             guitarVolumeKnob.setBounds (knobs.removeFromLeft (knobs.getWidth() / 2));
@@ -617,9 +616,9 @@ void EasyPanel::resized()
             circuitView->setBounds (circuit.reduced (2));
         }
 
-        preRack.setBounds (card (0.09f, "Pre-effects"));
+        preRack.setBounds (card (0.085f, "Pre-effects"));
 
-        auto amp = card (0.34f, "Amp");
+        auto amp = card (0.42f, "Amp");
         {
             ampCardArea = amp;
             ampModel.setBounds (amp.removeFromTop (26));
@@ -627,9 +626,9 @@ void EasyPanel::resized()
             ampFace.setBounds (amp);
         }
 
-        postRack.setBounds (card (0.09f, "Post-effects"));
+        postRack.setBounds (card (0.085f, "Post-effects"));
 
-        auto cab = card (0.20f, "Cabinet");
+        auto cab = card (0.17f, "Cabinet");
         {
             // The blend knob gets the taller top row, so it is a knob and not a dot (TODO V).
             auto top = cab.removeFromTop (cab.getHeight() * 11 / 20);
@@ -639,7 +638,7 @@ void EasyPanel::resized()
             mic2.setBounds (cab);
         }
 
-        auto room = card (0.13f, "Room");
+        auto room = card (0.12f, "Room");
         {
             roomLight.setBounds (rigCards.getLast().first);
             roomSize.setBounds (room.removeFromLeft (room.getWidth() / 2));
