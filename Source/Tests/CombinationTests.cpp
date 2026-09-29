@@ -1096,7 +1096,15 @@ LUTHIER_TEST (Combo, everyParameterSurvivesTheSessionStateRoundTrip)
 
         for (auto* prm : source.p().getParameters())
             if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (prm))
-                r->setValueNotifyingHost (r->convertTo0to1 (r->convertFrom0to1 (uni (rng))));
+            {
+                const float v = uni (rng);   // drawn for every parameter, so the sequence is kept
+
+                // FEAT-ASSIST: the hidden legacy doubler_on is left off - B-07's
+                // migration moves it into a post-amp slot on load, which the
+                // comparison below already excludes for doubler_on itself.
+                if (r->getParameterID() != ParamIDs::doublerOn)
+                    r->setValueNotifyingHost (r->convertTo0to1 (r->convertFrom0to1 (v)));
+            }
 
         // FEAT-JAM: doubler_on is legacy (excluded below) and every load
         // migrates it into a Doubler pedal in a post slot; left on at random it
@@ -1104,6 +1112,13 @@ LUTHIER_TEST (Combo, everyParameterSurvivesTheSessionStateRoundTrip)
         // Jam parameters moved every later round's random draws.
         if (auto* legacy = source.param (ParamIDs::doublerOn))
             legacy->setValueNotifyingHost (0.0f);
+
+        // doubler_on is legacy: loading it on migrates to a Doubler pedal in an
+        // empty post slot, which rewrites that slot. Whether a round hits it
+        // depended on the seed's draw landing there (FEAT-MIC's appended
+        // parameters moved the draws), so it is held off here.
+        if (auto* legacyDoubler = source.param (ParamIDs::doublerOn))
+            legacyDoubler->setValueNotifyingHost (0.0f);
 
         source.apply();
 
@@ -1606,4 +1621,85 @@ LUTHIER_TEST (Combo, liftingTheSustainPedalReleasesItsNotes)
                    juce::String (type) + ": after pedal-up " + juce::String (damped) + " played strings damped, "
                      + juce::String (open) + " still open");
     }
+}
+
+//==============================================================================
+/*  auto-articulation.md AA-42 (FEAT-ASSIST): Performance Assist on, crossed with
+    Slide Mode, feedback, the E-Bow, whammy, capo 5, drop D, a 12-string and a
+    5-string bass, in all eight styles, every ComboHarness phrase: the output is
+    finite, bounded and present, and every note the capture saw lies on a
+    string of the instrument, between its nut (or capo) and its last fret. */
+LUTHIER_TEST (Combo, performanceAssistAcrossContexts)
+{
+    FindingLog log { "Combo.performanceAssist" };
+
+    struct Context
+    {
+        const char* name;
+        std::function<void (Rig&)> setup;
+    };
+
+    const std::vector<Context> contexts =
+    {
+        { "slide mode", [] (Rig& r) { r.setIndex (ParamIDs::slideGuitar, 1); } },
+        { "feedback",   [] (Rig& r) { r.setPlain (ParamIDs::feedbackAmount, 60.0f); } },
+        { "e-bow",      [] (Rig& r) { r.setIndex (ParamIDs::ebowEnable, 1); } },
+        { "whammy",     [] (Rig& r) { r.setNormalised (ParamIDs::whammyPos, 0.8f); } },
+        { "capo 5",     [] (Rig& r) { r.setIndex (ParamIDs::capoFret, 5); } },
+        { "drop D",     [] (Rig& r) { r.setIndex (ParamIDs::tuningPreset, (int) TuningPreset::DropD); } },
+        { "12-string",  [] (Rig& r) { r.setIndex (ParamIDs::guitarType, (int) GuitarType::TwelveString); } },
+        { "5-string",   [] (Rig& r) { r.setIndex (ParamIDs::guitarType, (int) GuitarType::FiveStringBass); } },
+    };
+
+    const int styles = juce::jmax (1, (int) std::round (AutoArticulationStyles::kNumStyles * juce::jmin (1.0, scale())));
+
+    for (const auto& context : contexts)
+    {
+        for (int style = 0; style < styles; ++style)
+        {
+            for (int ph = 0; ph < (int) Phrase::numPhrases; ++ph)
+            {
+                Rig rig;
+                rig.p().resetEverything();
+                context.setup (rig);
+                rig.setIndex (ParamIDs::aaEnabled, 1);
+                rig.setIndex (ParamIDs::aaStyle, style);
+                rig.setIndex (ParamIDs::playingMode, ph % 2 == 0 ? (int) PlayingMode::Mono : (int) PlayingMode::Poly);
+                rig.apply();
+                rig.processSilence (2);
+
+                const auto stats = rig.render ((Phrase) ph, 1.0);
+                const juce::String label = juce::String (context.name) + " style=" + AutoArticulationStyles::get (style).name
+                                         + " phrase=" + phraseName ((Phrase) ph);
+
+                Verdict v;
+                v.expectDecay = false;        // an E-Bow, feedback and a slide sustain by design
+                v.checkIdleFloor = false;
+                judgeAndLog (ctx, log, rig, label, stats, v);
+
+                // Every captured note is on a string, inside its range.
+                auto& capture = rig.p().getPerformanceCapture();
+                capture.drain();
+                auto& tuning = rig.p().getEngine().getTuningEngine();
+                const int strings = rig.p().getEngine().getNumStrings();
+
+                for (const auto& note : capture.getNotes())
+                {
+                    ++ctx.checks;
+                    const bool inRange = note.stringIndex >= 0 && note.stringIndex < strings && note.fret >= -1.0e-6
+                                         && note.fret <= tuning.getHighestPlayableFret (note.stringIndex) + 1.0e-6;
+
+                    if (! inRange)
+                    {
+                        const auto why = "note " + juce::String (note.midiNote) + " on string " + juce::String (note.stringIndex)
+                                       + " fret " + juce::String (note.fret, 2) + " is outside the string";
+                        ctx.fail (why + " | " + label);
+                        log.add (label, why);
+                    }
+                }
+            }
+        }
+    }
+
+    log.flush();
 }

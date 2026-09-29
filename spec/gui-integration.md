@@ -154,7 +154,9 @@ Vertical stack of module cards, top to bottom:
 2. **Pre-effects rack** (compact, 8 slots)
 3. **Amp** (large: model, gain, bass, mid, treble, presence, master)
 4. **Post-effects rack** (compact, 8 slots)
-5. **Cabinet** (model, mic 1, mic 2, blend)
+5. **Cabinet** (model, mic 1, mic 2, blend; (mic-placement.md, FEAT-MIC): plus the
+   bright <-> warm / close <-> far mic pad, which opens the placement
+   overlay, and on acoustics a Pickup <-> Mic knob in place of the mics)
 6. **Room** (size, wet/dry)
 
 Each effect slot is a click target that opens the pedal's full controls
@@ -244,6 +246,11 @@ tab strip at the top.
 - **AMP**: model, tone controls, sag, bright, bias, master.
 - **POST-EFFECTS RACK**: 8 slots.
 - **CAB**: model, mic 1, mic 2, blend, phase, delay.
+  (mic-placement.md, FEAT-MIC): the legacy position / distance combos are replaced by the
+  mic placement view (cabinet face with draggable mic handles, speaker
+  thumbnails, response plot and an expand button that opens the placement
+  editor over Columns 3 and 4). On an acoustic guitar the section reads
+  MICS and shows the body with the external mic handles.
 - **ROOM**: model, size, dampening, wet/dry.
 - **SUSTAIN** (from ambiguity-resolutions.md 2): Freeze row (enable,
   capture ms, level, attack, release, tonal LP / HP). E-Bow row (enable,
@@ -627,6 +634,8 @@ the UI.
 | Post-effects rack | PostEffectsChain | Adv Col 3 POST-FX | Easy rig strip | - |
 | Amp model / tone / sag | AmpEngine | Adv Col 3 AMP | Easy rig strip | - |
 | Cabinet, mic 1, mic 2 | CabinetEngine | Adv Col 3 CAB | Easy rig strip | - |
+| Mic placement (x, y, distance, angle, speaker, rear, ToF, level match) (mic-placement.md, FEAT-MIC) | CabinetEngine `MicPlacementStage` | Adv Col 3 CAB placement view + editor | Easy Cabinet card mic pad + overlay | - |
+| Acoustic external mics (mic-placement.md, FEAT-MIC) | AcousticMicModel | Adv Col 3 MICS (acoustic) | Easy Cabinet card Pickup <-> Mic | - |
 | Room | RoomEngine | Adv Col 3 ROOM | Easy rig strip | - |
 | Feedback simulation | AmpEngine | Adv Col 3 SUSTAIN (feedback readout) | - | - |
 | Freeze | MasterBus overlay | Adv Col 3 SUSTAIN | - | - |

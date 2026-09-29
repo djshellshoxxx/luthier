@@ -7,6 +7,7 @@
 #include "NotationPanel.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
+#include "Search/LiveControls.h"   // global-search.md 3.2 (FEAT-SEARCH)
 
 namespace luthier
 {
@@ -214,6 +215,15 @@ void AdvancedPanel::Column::addControl (juce::Component* component, int height)
     items.add (item);
 }
 
+void AdvancedPanel::Column::renameSection (const juce::String& from, const juce::String& to)
+{
+    for (auto& item : items)
+        if (item.heading == from)
+            item.heading = to;
+
+    repaint();
+}
+
 void AdvancedPanel::Column::addGap (int height)
 {
     Item item;
@@ -320,6 +330,19 @@ AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
         viewports[i].setScrollBarsShown (true, false);
         viewports[i].setScrollBarThickness (8);
         addAndMakeVisible (viewports[i]);
+
+        // global-search.md 3.2 (FEAT-SEARCH): the column is a place; opening
+        // it leaves WORKSHOP, which takes columns 2 and 3 over.
+        search::SearchAnchors::tag (viewports[i], "column:" + juce::String (i + 1), [this]
+        {
+            if (isWorkshopShowing())
+                for (int t = 0; t < workspacePanels.size(); ++t)
+                    if (workspacePanels[t] != workshopPanel.get())
+                    {
+                        showWorkspaceTab (t);
+                        break;
+                    }
+        });
     }
 
     workspaceViewport.setScrollBarsShown (true, false);
@@ -902,7 +925,8 @@ void AdvancedPanel::buildColumn3()
 
     // ---- cabinet --------------------------------------------------------------------------
     column.addGap (Metrics::grid);
-    column.addSection ("Cabinet and Mic");
+    micSectionTitle = MicUi::text ("mic.section.cabinet");
+    column.addSection (micSectionTitle);
 
     addToggle (cabOn, "Cabinet", ParamIDs::cabOn, "Speaker and microphone simulation");
     addChoice (cabType, "Cabinet", ParamIDs::cabType, "Cabinet size and back construction");
@@ -911,15 +935,16 @@ void AdvancedPanel::buildColumn3()
              "A broken-in speaker has a looser surround: lower and less peaky");
 
     addChoice (micType, "Mic 1", ParamIDs::micType, "First microphone");
-    addChoice (micPosition, "Position 1", ParamIDs::micPosition,
-               "On axis at the dust cap is brightest; off axis at the cone edge is darkest");
-    addChoice (micDistance, "Distance 1", ParamIDs::micDistance,
-               "Close gives proximity bass; far trades it for room");
-
     addToggle (dualMic, "Second mic", ParamIDs::dualMic, "Blend a second microphone");
     addChoice (micType2, "Mic 2", ParamIDs::micType2, "Second microphone");
-    addChoice (micPosition2, "Position 2", ParamIDs::micPosition2, "Second mic position");
-    addChoice (micDistance2, "Distance 2", ParamIDs::micDistance2, "Second mic distance");
+
+    /*  mic-placement.md 6.1 (FEAT-MIC): the placement view replaces the
+        Position and Distance combos; they live on inside it as the Quick
+        choices, their canonical controls. */
+    micView = std::make_unique<MicPlacementView> (processor);
+    micView->onOpenEditor = [this] { if (isMicEditorShowing()) closeMicEditor(); else openMicEditor(); };
+    micView->onFamilyChanged = [this] { if (getWidth() > 0) resized(); };
+    column.addControl (micView.get(), micView->getPreferredHeight());
 
     addKnob (micBlend, "Mic Blend", ParamIDs::micBlend, "Balance between the two mics");
     addKnob (micWidth, "Width", ParamIDs::micWidth,
@@ -1113,6 +1138,71 @@ juce::String AdvancedPanel::Column::getSectionContaining (const juce::Component*
     return {};
 }
 
+//==============================================================================
+// global-search.md 3.2 (FEAT-SEARCH)
+juce::StringArray AdvancedPanel::Column::getSections() const
+{
+    juce::StringArray headings;
+
+    for (const auto& item : items)
+        if (item.heading.isNotEmpty())
+            headings.add (item.heading);
+
+    return headings;
+}
+
+int AdvancedPanel::Column::getSectionY (const juce::String& heading) const
+{
+    int y = Metrics::grid;
+
+    for (const auto& item : items)
+    {
+        if (item.heading.equalsIgnoreCase (heading))
+            return y;
+
+        y += item.height + Metrics::gridHalf;
+    }
+
+    return -1;
+}
+
+juce::StringArray AdvancedPanel::getColumnSections (int column) const
+{
+    return juce::isPositiveAndBelow (column - 1, 3) && columns[column - 1] != nullptr
+             ? columns[column - 1]->getSections() : juce::StringArray();
+}
+
+juce::String AdvancedPanel::getColumnSectionFor (const juce::Component* c, int& column) const
+{
+    for (int i = 0; i < 3; ++i)
+        if (columns[i] != nullptr && c != nullptr && columns[i]->isParentOf (c))
+        {
+            column = i + 1;
+            return columns[i]->getSectionContaining (c);
+        }
+
+    column = 0;
+    return {};
+}
+
+bool AdvancedPanel::revealColumnSection (const juce::String& heading)
+{
+    for (int i = 0; i < 3; ++i)
+    {
+        const int y = columns[i] != nullptr ? columns[i]->getSectionY (heading) : -1;
+
+        if (y < 0)
+            continue;
+
+        search::SearchAnchors::open (viewports[i]);
+        resized();
+        viewports[i].setViewPosition (0, juce::jmax (0, y - Metrics::grid));
+        return true;
+    }
+
+    return false;
+}
+
 std::vector<PanelHelpButton*> AdvancedPanel::getHelpButtons() const
 {
     std::vector<PanelHelpButton*> result;
@@ -1140,6 +1230,35 @@ juce::Button* AdvancedPanel::getWorkspaceTabButton (const juce::String& tabName)
     return nullptr;
 }
 
+//==============================================================================
+void AdvancedPanel::openMicEditor()   // mic-placement.md 6.2 (FEAT-MIC)
+{
+    if (micEditor == nullptr)
+    {
+        micEditor = std::make_unique<MicPlacementEditor> (processor);
+        micEditor->onClose = [this] { closeMicEditor(); };
+        addChildComponent (*micEditor);
+    }
+
+    micEditor->setVisible (true);
+    resized();
+    micEditor->resized();   // the family may have changed while it was closed
+    micEditor->grabKeyboardFocus();
+}
+
+void AdvancedPanel::closeMicEditor()
+{
+    if (micEditor == nullptr || ! micEditor->isVisible())
+        return;
+
+    micEditor->setVisible (false);
+    resized();
+
+    // Focus back to the button that opened it (6.2).
+    if (micView != nullptr)
+        micView->restoreFocusToExpand();
+}
+
 bool AdvancedPanel::isWorkshopShowing() const noexcept
 {
     return workshopPanel != nullptr && juce::isPositiveAndBelow (workspaceTab, workspacePanels.size())
@@ -1153,6 +1272,7 @@ void AdvancedPanel::buildWorkspace()
     rhythmPanel     = std::make_unique<RhythmPanel> (processor);
     tunePanel       = std::make_unique<TunePanel> (processor, processor.getTunePlayer(), processor.getTuneSession());
     jamPanel        = std::make_unique<JamPanel> (processor);   // FEAT-JAM
+    riffsPanel      = std::make_unique<RiffBrowser> (processor, false);   // riff-library 7.1
     livePanel       = std::make_unique<LivePanel> (processor);
     routingPanel    = std::make_unique<RoutingPanel> (processor);
     toneMatchPanel  = std::make_unique<ToneMatchPanel> (processor);
@@ -1170,6 +1290,7 @@ void AdvancedPanel::buildWorkspace()
         { "RHYTHM",      rhythmPanel.get() },
         { "TUNE",        tunePanel.get() },
         { "JAM",         jamPanel.get() },   // FEAT-JAM: jam-mode 8.1, between TUNE and LIVE
+        { "RIFFS",       riffsPanel.get() },   // riff-library 7.1: between TUNE and LIVE
         { "LIVE",        livePanel.get() },
         { "ROUTING",     routingPanel.get() },
         { "TONE MATCH",  toneMatchPanel.get() },
@@ -1218,9 +1339,18 @@ void AdvancedPanel::buildWorkspace()
                                           "Workspace tab. Shows the " + juce::String (tab.name)
                                             + " panel in column four.");
 
-        addAndMakeVisible (*button);
-
         workspacePanels.add (tab.panel);
+    }
+
+    // FEAT-RIFFS: the strip lays the buttons out, scrolling when they overflow.
+    {
+        juce::Array<juce::Button*> buttons;
+
+        for (auto* b : workspaceTabs)
+            buttons.add (b);
+
+        workspaceStrip.setTabs (buttons);
+        addAndMakeVisible (workspaceStrip);
     }
 
     /*  Section 4.4: the last-used tab persists across sessions in the plugin's
@@ -1301,6 +1431,8 @@ void AdvancedPanel::showWorkspaceTab (int index, bool remember)
 
     for (int i = 0; i < workspaceTabs.size(); ++i)
         workspaceTabs[i]->setToggleState (i == workspaceTab, juce::dontSendNotification);
+
+    workspaceStrip.setSelectedIndex (workspaceTab);
 
     /*  Only the selected panel is on screen. Without this the panels that are not
         in the viewport keep whatever visibility they were built with, and a test
@@ -1440,51 +1572,42 @@ void AdvancedPanel::resized()
     const int tabsRight = bounds.getRight() - Metrics::buttonHeight - Metrics::gridHalf;
     workspaceTabStrip = bounds.withHeight (Metrics::buttonHeight).withRight (tabsRight);
 
-    if (! workspaceTabs.isEmpty())
-    {
-        /*  The strip wraps onto more rows when one row would clip the names
-            (TODO V screenshots: at 1280 the tabs read "NE MATC", "HARACTE").
-            A tab wants its widest name plus padding. */
-        const int gap = Metrics::gridHalf;
-        const int count = workspaceTabs.size();
-        const auto font = Fonts::ui (11.0f, true);
-        const int available = tabsRight - bounds.getX();
-        int wanted = 0;
-
-        for (auto* tab : workspaceTabs)
-            wanted = juce::jmax (wanted, juce::roundToInt (font.getStringWidthFloat (tab->getButtonText().toUpperCase())) + 14);
-
-        const int perRowMax = juce::jmax (1, (available + gap) / (wanted + gap));
-        const int rows = (count + perRowMax - 1) / perRowMax;
-        const int perRow = (count + rows - 1) / rows;
-        int next = 0;
-
-        for (int r = 0; r < rows; ++r)
-        {
-            auto tabStrip = bounds.removeFromTop (Metrics::buttonHeight).withRight (tabsRight);
-            const int inRow = juce::jmin (perRow, count - next);
-            const int width = (tabStrip.getWidth() - gap * (perRow - 1)) / perRow;
-
-            for (int i = 0; i < inRow; ++i)
-            {
-                workspaceTabs[next++]->setBounds (tabStrip.removeFromLeft (width));
-                tabStrip.removeFromLeft (gap);
-            }
-
-            workspaceTabStrip = workspaceTabStrip.getUnion (tabStrip.withX (workspaceTabStrip.getX()));
-
-            if (r < rows - 1)
-                bounds.removeFromTop (2);
-        }
-    }
-    else
-    {
-        bounds.removeFromTop (Metrics::buttonHeight);
-    }
+    // FEAT-RIFFS: one row. WorkspaceTabStrip gives each tab its label's width
+    // (sharing out any spare room) and, when they do not all fit, scrolls with
+    // arrows and an overflow menu, keeping the selected tab whole on screen.
+    workspaceStrip.setBounds (workspaceTabStrip);
+    bounds.removeFromTop (Metrics::buttonHeight);
 
     bounds.removeFromTop (Metrics::gridHalf);
 
     workspaceViewport.setBounds (bounds.reduced (1, 0));
+
+    // mic-placement.md 6.2 (FEAT-MIC): the expanded editor takes Column 3 and
+    // the workspace under the tab strip; the strip stays.
+    if (isMicEditorShowing())
+    {
+        auto takeover = bounds;
+
+        if (viewports[2].isVisible())
+            takeover = takeover.getUnion (viewports[2].getBounds().withTop (bounds.getY()));
+
+        micEditor->setBounds (takeover);
+        micEditor->toFront (false);
+    }
+
+    viewports[2].setVisible (viewports[2].isVisible() && ! isMicEditorShowing());
+    workspaceViewport.setVisible (! isMicEditorShowing());
+
+    if (micView != nullptr)
+    {
+        const auto title = micView->getSectionTitle();
+
+        if (title != micSectionTitle)
+        {
+            columns[2]->renameSection (micSectionTitle, title);
+            micSectionTitle = title;
+        }
+    }
 
     // The panel keeps whatever height it asked for and takes the viewport's
     // width, so the workspace scrolls vertically exactly as a column does. The
@@ -1502,6 +1625,8 @@ void AdvancedPanel::resized()
             height = juce::jmax (440, visible);   // the bench fits a 1280x800 window without scrolling (TODO V)
         else if (panel == helpTab.get())
             height = juce::jmax (360, visible);
+        else if (panel == riffsPanel.get())
+            height = juce::jmax (480, visible);   // riff-library 7.2
         else if (auto* p = dynamic_cast<TunePanel*> (panel))                 height = juce::jmax (visible, p->getPreferredHeight());
         else if (auto* p = dynamic_cast<JamPanel*> (panel))                  height = juce::jmax (visible, p->getPreferredHeightFor (workspaceViewport.getMaximumVisibleWidth()));   // FEAT-JAM
         else if (auto* p = dynamic_cast<MidiOutPanel*> (panel))              height = juce::jmax (visible, p->getPreferredHeight());

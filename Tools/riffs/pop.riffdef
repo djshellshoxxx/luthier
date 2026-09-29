@@ -1,0 +1,244 @@
+defaults author L origin original date 2026-09-24
+
+# Pop: 6 riffs, 6 licks, 6 strums, 6 bass lines. All original.
+# Chords use shape strings, low string to high.
+
+# ---------------------------------------------------------------- riffs
+
+riff pop.riff.radio-mute-pulse-1 "Radio Mute Pulse 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 110   meter 4/4   feel straight
+  difficulty 1   tags palm-mute eighths verse   free yes
+  chords 0:C 4:G 8:Am 12:F
+  play:
+    e: 5.3pm 5.3pm 5.3pm 4.2pm 5.3pm 5.3pm 4.5pm 4.2pm |
+    e: 6.3pm 6.3pm 6.3pm 5.2pm 6.3pm 6.3pm 5.5pm 5.2pm |
+    e: 6.5pm 6.5pm 6.5pm 5.3pm 6.5pm 6.5pm 5.7pm 5.3pm |
+    e: 4.3pm 4.3pm 4.3pm 3.2pm 4.3pm 4.3pm 3.5pm 3.2pm |
+
+riff pop.riff.shimmer-arpeggio-1 "Shimmer Arpeggio 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 96   meter 4/4   feel straight
+  difficulty 2   tags arpeggio let-ring drone
+  chords 0:G 4:Cadd9 8:Em7 12:Dsus4
+  play:
+    e: 6.3lr 4.0lr 2.3lr 3.0lr 1.3lr 3.0lr 2.3lr 4.0lr |
+    e: 5.3lr 4.2lr 2.3lr 3.0lr 1.3lr 3.0lr 2.3lr 4.2lr |
+    e: 6.0lr 4.2lr 2.3lr 3.0lr 1.3lr 3.0lr 2.3lr 4.2lr |
+    e: 4.0lr 3.2lr 2.3lr 1.2lr  q: 1.3lr 2.3lr |
+
+riff pop.riff.glossy-stab-riff-1 "Glossy Stab Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A ionian   tempo 118   meter 4/4   feel straight
+  difficulty 2   tags offbeat staccato triads
+  chords 0:A 3:E 4:F#m 6:D
+  play:
+    e: r [xxx655]' r [xxx655]'  s: r [xxx655]' r [xxx655]'  e: r [xxx454]' |
+    e: r [xxx675]' r [xxx675]'  q: [xxx775]'  e: [xxx775]' r |
+
+riff pop.riff.chime-hook-riff-1 "Chime Hook Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key D ionian   tempo 104   meter 4/4   feel straight
+  difficulty 3   tags hook arpeggio hammer-on let-ring
+  chords 0:D 4:Asus4
+  play:
+    s: 4.0lr 3.2 h3.4 2.3 1.2 2.3 3.2 h3.4  e: 1.2lr 2.3  q: 1.0lr |
+    s: 5.0lr 3.2 h3.4 2.3 1.2 2.3 3.2 h3.4  e: 1.0lr 2.3  q: 1.2lr |
+
+riff pop.riff.radio-octave-drive-1 "Radio Octave Drive 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 124   meter 4/4   feel driving
+  difficulty 3   tags octaves chorus eighths
+  chords 0:G 2:D 4:Am 6:C
+  play:
+    e: [3x5xxx] [3x5xxx] s: [3x5xxx] [3x5xxx] e: [7x9xxx]  e: [x5x7xx] [x5x7xx] s: [x5x7xx] [x5x7xx] e: [x3x5xx] |
+    e: [5x7xxx] [5x7xxx] s: [5x7xxx] [5x7xxx] e: [3x5xxx]  q: [x2x4xx] [x3x5xx] |
+
+riff pop.riff.glassy-harmonic-riff-1 "Glassy Harmonic Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 92   meter 4/4   feel laid_back
+  difficulty 2   tags harmonics intro chime
+  chords 0:G 4:D 6:G
+  play:
+    q: 3.12<> 2.12<> 1.12<>  e: 2.7<> 3.7<> |
+    q: 4.7<> 3.7<>  e: 2.5<> 1.5<>  q: 3.5<> |
+
+# ---------------------------------------------------------------- licks
+
+riff pop.lick.radio-hook-slide-1 "Radio Hook Slide 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 100   meter 4/4   feel straight
+  difficulty 2   tags hook slide vocal-line   free yes
+  chords 0:F 4:C
+  play:
+    e: 2.5 2.6 2.8  q: 2.8/10  e: 2.10 1.8 2.10 |
+    e: 1.8 1.7 2.8 2.10  q.: 2.8~  e: r |
+
+riff pop.lick.tapped-sparkle-lick-1 "Tapped Sparkle Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A ionian   tempo 112   meter 4/4   feel straight
+  difficulty 4   tags tapping pull-off sparkle
+  chords 0:F#m 2:D 3:A 4:A 6:E
+  play:
+    s: 1.14T p1.9 p1.5 1.9  1.14T p1.9 p1.5 1.9  1.16T p1.9 p1.5 1.9  1.17T p1.9 p1.5 1.9 |
+    s: 1.17T p1.12 p1.9 1.12  1.16T p1.12 p1.9 1.12  e: 1.14T p1.9  q: 1.12~ |
+
+riff pop.lick.bell-tone-lick-1 "Bell Tone Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 90   meter 4/4   feel laid_back
+  difficulty 3   tags artificial-harmonic bell intro
+  chords 0:G 2:D 4:C 6:G
+  play:
+    q: 3.4ah 2.3ah  e: 3.2ah 4.4ah  q: 3.0ah |
+    e: 2.5ah 2.3ah 3.4ah 3.2ah  h: 3.0ah~ |
+
+riff pop.lick.chorus-answer-lick-1 "Chorus Answer Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key D major_pentatonic   tempo 96   meter 4/4   feel straight
+  difficulty 2   tags hammer-on answer-phrase pentatonic
+  chords 0:D 4:G 6:D
+  play:
+    e: 3.2 h3.4 2.3 3.4  q: 2.3  e: 2.5 h2.7 |
+    e: 2.7 2.5 3.4 3.2  h: 2.3 |
+
+riff pop.lick.tap-harmonic-hook-1 "Tap Harmonic Hook 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E ionian   tempo 100   meter 4/4   feel straight
+  difficulty 3   tags tapped-harmonic chime hook
+  chords 0:E 4:A
+  play:
+    q: 4.2tah 3.1tah  e: 2.0tah 1.0tah  q: 3.1tah |
+    q: 5.0tah 4.2tah  e: 3.2tah 2.2tah  q: 1.0tah |
+
+riff pop.lick.bridge-climb-lick-1 "Bridge Climb Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A aeolian   tempo 88   meter 4/4   feel straight
+  difficulty 3   tags bend bridge melodic
+  chords 0:Am 2:G 4:F 6:G
+  play:
+    e: 1.5 1.8 2.8 1.5  q: 2.10b2  e: 2.8 1.5 |
+    s: 1.8 1.10 1.8 1.5  e: 2.8 2.6  q: 3.7b2r  e: 3.5 3.9 |
+
+# ---------------------------------------------------------------- strums
+
+riff pop.strum.radio-four-chord-strum-1 "Radio Four-Chord Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 100   meter 4/4   feel straight
+  difficulty 1   tags open-chords beginner verse   free yes
+  chords 0:G 4:D 8:Em 12:C
+  play:
+    q: D[320003]  e: D[320003] U[320003] ~ U[320003] D[320003] U[320003] |
+    q: D[xx0232]  e: D[xx0232] U[xx0232] ~ U[xx0232] D[xx0232] U[xx0232] |
+    q: D[022000]  e: D[022000] U[022000] ~ U[022000] D[022000] U[022000] |
+    q: D[x32010]  e: D[x32010] U[x32010] ~ U[x32010] D[x32010] U[x32010] |
+
+riff pop.strum.glossy-sixteenth-strum-1 "Glossy Sixteenth Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 92   meter 4/4   feel straight
+  difficulty 3   tags sixteenths accents chorus
+  chords 0:C 2:Am 4:F 6:G
+  play:
+    s: D[x32010]! ~ U[x32010] ~  ~ U[x32010] D[x32010] U[x32010]  D[x02210]! ~ U[x02210] ~  ~ U[x02210] D[x02210] U[x02210] |
+    s: D[133211]! ~ U[133211] ~  ~ U[133211] D[133211] U[133211]  D[320003]! ~ U[320003] D[320003]  e: D[320003]! Dx[320003] |
+
+riff pop.strum.ballad-sway-strum-1 "Ballad Sway Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key A aeolian   tempo 90   meter 6/8   feel laid_back
+  difficulty 1   tags ballad let-ring compound-time   free yes
+  chords 0:Am 3:F 6:C 9:G
+  play:
+    e: D[x02210]lr ~ U[x02210] D[x02210] ~ U[x02210] |
+    e: D[xx3211]lr ~ U[xx3211] D[xx3211] ~ U[xx3211] |
+    e: D[x32010]lr ~ U[x32010] D[x32010] ~ U[x32010] |
+    q.: D[320003]lr  e: D[320003] U[320003] D[320003] |
+
+riff pop.strum.radio-chuck-strum-1 "Radio Chuck Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key D ionian   tempo 108   meter 4/4   feel straight
+  difficulty 2   tags chuck backbeat groove
+  chords 0:D 2:Bm 4:G 6:A
+  play:
+    e: D[xx0232] U[xx0232] Dx[xx0232] U[xx0232]  D[x24432] ~ Dx[x24432] U[x24432] |
+    e: D[320033] U[320033] Dx[320033] U[320033]  D[x02220] U[x02220] Dx[x02220] U[x02220] |
+
+riff pop.strum.anthem-chorus-strum-1 "Anthem Chorus Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key A ionian   tempo 120   meter 4/4   feel driving
+  difficulty 2   tags chorus accents big-chords
+  chords 0:A 2:E 4:F#m 6:D
+  play:
+    e: D[x02220]! D[x02220] U[x02220] D[x02220]  D[022100]! U[022100] D[022100] U[022100] |
+    e: D[244222]! D[244222] U[244222] D[244222]  q: D[xx0232]! D[xx0232]! |
+
+riff pop.strum.muted-verse-strum-1 "Muted Verse Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 104   meter 4/4   feel straight
+  difficulty 3   tags palm-mute verse sixteenths
+  chords 0:C 4:G 6:Am
+  play:
+    s: D[x32010]pm U[x32010]pm D[x32010]pm U[x32010]pm  e: D[x32010]! U[x32010]  s: D[x32010]pm U[x32010]pm D[x32010]pm U[x32010]pm  e: D[x32010]! U[x32010] |
+    s: D[320003]pm U[320003]pm D[320003]pm U[320003]pm  e: D[320003]! U[320003]  s: D[x02210]pm U[x02210]pm D[x02210]pm U[x02210]pm  q: D[x02210]! |
+
+# ---------------------------------------------------------------- bass
+
+riff pop.bass.radio-root-bass-1 "Radio Root Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key C ionian   tempo 110   meter 4/4   feel straight
+  difficulty 1   tags root-notes eighths octave   free yes
+  chords 0:C 4:G 8:Am 12:F
+  play:
+    e: 3.3 3.3 3.3 3.3 3.3 3.3 1.5 2.5 |
+    e: 4.3 4.3 4.3 4.3 4.3 4.3 2.5 4.5 |
+    e: 4.5 4.5 4.5 4.5 4.5 4.5 2.7 4.3 |
+    e: 4.1 4.1 4.1 4.1 4.1 4.1 2.3 4.3 |
+
+riff pop.bass.chorus-walk-bass-1 "Chorus Walk Bass 1"
+  type bass   instrument bass5   tuning standard   capo 0
+  key G ionian   tempo 100   meter 4/4   feel straight
+  difficulty 2   tags five-string passing-tones chorus
+  chords 0:G 4:Em 8:C 12:D
+  play:
+    q: 4.3  e: 4.3 3.2  q: 2.0  e: 3.2 3.0 |
+    q: 4.0  e: 4.0 4.2  q: 4.3  e: 4.2 4.0 |
+    q: 5.1  e: 5.1 4.0  q: 4.3  e: 3.0 3.2 |
+    q: 5.3  e: 5.3 3.0  q: 5.3  e: 4.2 4.3 |
+
+riff pop.bass.glossy-ghost-bass-1 "Glossy Ghost Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key A aeolian   tempo 104   meter 4/4   feel straight
+  difficulty 3   tags ghost-notes syncopation groove
+  chords 0:Am 2:C 4:F 6:C 7:G
+  play:
+    s: 4.5 4.5g 4.5 r  e: 4.5g 3.3  s: 3.3 r 4.5 4.5g  e: 2.5 3.3 |
+    s: 4.1 4.1g 4.1 r  e: 4.1g 3.3  s: 3.3 r 4.3 4.3g  e: 2.5 4.3 |
+
+riff pop.bass.octave-bounce-bass-1 "Octave Bounce Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key D ionian   tempo 118   meter 4/4   feel driving
+  difficulty 3   tags octaves dance sixteenths
+  chords 0:D 4:Bm 8:G 12:A
+  play:
+    s: 3.5 r 1.7 r  3.5 3.5 1.7 r  e: 3.5 1.7  s: 3.5 1.7 r 1.7 |
+    s: 3.2 r 1.4 r  3.2 3.2 1.4 r  e: 3.2 1.4  s: 3.2 1.4 r 1.4 |
+    s: 4.3 r 2.5 r  4.3 4.3 2.5 r  e: 4.3 2.5  s: 4.3 2.5 r 2.5 |
+    s: 4.5 r 2.7 r  4.5 4.5 2.7 r  e: 4.5 2.7  q: 3.4 |
+
+riff pop.bass.ballad-anchor-bass-1 "Ballad Anchor Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key F ionian   tempo 72   meter 4/4   feel laid_back
+  difficulty 1   tags ballad whole-notes roots
+  chords 0:F 4:C/E 8:Dm 12:Bb 15:C
+  play:
+    h: 4.1  q: 3.3 4.1 |
+    h: 4.0  q: 3.3 4.0 |
+    h: 3.5  q: 2.3 3.5 |
+    h.: 3.1  q: 3.3 |
+
+riff pop.bass.sixteenth-hook-bass-1 "Sixteenth Hook Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key E aeolian   tempo 120   meter 4/4   feel straight
+  difficulty 4   tags sixteenths melodic syncopation
+  chords 0:Em 4:C 7:D
+  play:
+    s: 4.0 r 4.0 2.2  r 4.0 3.2 2.0  4.0 r 2.2 2.0  3.2 2.2 1.4 2.2 |
+    s: 3.3 r 3.3 2.5  r 3.3 2.2 2.5  3.3 r 2.5 3.3  e: 4.3 4.2 |

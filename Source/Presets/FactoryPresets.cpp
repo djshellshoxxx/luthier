@@ -670,6 +670,112 @@ namespace
                 r.values.emplace_back (P::useFingers, 1.0);
             }
 
+            // ==== BEGIN FEAT-ASSIST presets ====
+            //==================================================================
+            // ASSIST (auto-articulation.md: one preset per style, Assist on)
+            //==================================================================
+            auto assist = [] (PresetRecipe& r, int style, int mode)
+            {
+                r.values.emplace_back (ParamIDs::aaEnabled, 1.0);
+                r.values.emplace_back (ParamIDs::aaStyle, (double) style);
+                r.values.emplace_back (ParamIDs::aaAmount, 60.0);
+                r.values.emplace_back (ParamIDs::aaRules, 511.0);
+                r.values.emplace_back (P::playingMode, (double) mode);
+            };
+
+            {
+                auto& r = make ("Assist Clean Pop Lead", "Assist",
+                                "Play a melody on a keyboard: slurs where you play legato, "
+                                "gentle vibrato on the long notes.", "assist,clean,lead,keyboard");
+                addCommon (r, Strat, StdTune, Twin, C2x12Open, Jensen, SM57, CapEdge, CloseMic);
+                addAmp (r, 0.22, 0.5, 0.5, 0.6, 0.45, 0.7);
+                addMacros (r, 0.55, 0.25, 0.10, 0.55, 0.30, 0.35);
+                r.values.emplace_back (P::pickupSelector, MidNeck);
+                assist (r, 0, MonoMode);
+            }
+
+            {
+                auto& r = make ("Assist Blues Lead", "Assist",
+                                "Wide vibrato, bends into phrase starts and the odd fall "
+                                "off a long note.", "assist,blues,lead");
+                addCommon (r, LesPaul, StdTune, Plexi, C4x12Vintage, Greenback, SM57, CapEdge, CloseMic);
+                addAmp (r, 0.55, 0.55, 0.60, 0.55, 0.45, 0.62);
+                addMacros (r, 0.60, 0.30, 0.45, 0.50, 0.30, 0.40);
+                r.values.emplace_back (P::pickupSelector, NeckPu);
+                assist (r, 1, MonoMode);
+            }
+
+            {
+                auto& r = make ("Assist Rock Rhythm", "Assist",
+                                "Chords strum with the beat and low eighths chug "
+                                "palm-muted. Drop in a MIDI clip and press play.", "assist,rock,rhythm");
+                addCommon (r, LesPaul, StdTune, JCM800, C4x12, V30, SM57, CapEdge, CloseMic);
+                addAmp (r, 0.62, 0.55, 0.55, 0.60, 0.50, 0.60);
+                addMacros (r, 0.65, 0.25, 0.55, 0.55, 0.15, 0.40);
+                r.values.emplace_back (P::pickupSelector, BridgePu);
+                assist (r, 2, PolyMode);
+            }
+
+            {
+                auto& r = make ("Assist Metal Chug", "Assist",
+                                "Tight palm-muted chugs, downstroke strums and long legato "
+                                "runs.", "assist,metal,rhythm");
+                addCommon (r, RG, DropDTune, Recto, C4x12, V30, SM57, CapEdge, CloseMic);
+                addAmp (r, 0.80, 0.60, 0.40, 0.62, 0.55, 0.55);
+                addMacros (r, 0.75, 0.20, 0.80, 0.60, 0.10, 0.30);
+                r.values.emplace_back (P::pickupSelector, BridgePu);
+                addPedal (r, false, 0, Gate, { 0.40, 0.10, 0.10, 0.16 });
+                assist (r, 3, PolyMode);
+            }
+
+            {
+                auto& r = make ("Assist Jazz Comping", "Assist",
+                                "Downstroke comping in one position, slow light vibrato and "
+                                "slide-ins on the melody.", "assist,jazz,comping");
+                addCommon (r, ES335, StdTune, Twin, C1x12Open, Jensen, R121, AxisCentre, MediumMic);
+                addAmp (r, 0.20, 0.60, 0.50, 0.40, 0.30, 0.70);
+                addMacros (r, 0.40, 0.35, 0.08, 0.40, 0.30, 0.40);
+                r.values.emplace_back (P::pickupSelector, NeckPu);
+                assist (r, 4, PolyMode);
+            }
+
+            {
+                auto& r = make ("Assist Country Twang", "Assist",
+                                "Open strings, whole-step bends into notes and light "
+                                "chicken-pickin' mutes.", "assist,country,lead");
+                addCommon (r, Tele, StdTune, DeluxeAmp, C1x12Open, Jensen, SM57, CapEdge, CloseMic);
+                addAmp (r, 0.30, 0.50, 0.50, 0.65, 0.55, 0.70);
+                addMacros (r, 0.70, 0.22, 0.18, 0.62, 0.25, 0.35);
+                r.values.emplace_back (P::pickupSelector, BridgePu);
+                assist (r, 5, MonoMode);
+            }
+
+            {
+                auto& r = make ("Assist Fingerstyle Acoustic", "Assist",
+                                "Chords roll thumb-first across the fingers; melodies ring "
+                                "on open strings.", "assist,acoustic,fingerstyle");
+                addCommon (r, Dread, StdTune, AcousticDI, CabDI, Greenback, C414, AxisCentre, MediumMic);
+                addAmp (r, 0.05, 0.5, 0.5, 0.52, 0.3, 0.75);
+                addMacros (r, 0.45, 0.80, 0.0, 0.50, 0.30, 0.45);
+                addStrings (r, PhosBronze, AcLight, BrokenIn, 0.24, Flesh);
+                r.values.emplace_back (P::useFingers, 1.0);
+                assist (r, 6, PolyMode);
+            }
+
+            {
+                auto& r = make ("Assist Bass Groove", "Assist",
+                                "Slides into notes, long slurs, double-stops together: a "
+                                "bass line from any MIDI.", "assist,bass,groove");
+                addCommon (r, PBass, BassTune, SVT, C8x10, BassSpk, D112, AxisCentre, CloseMic);
+                addAmp (r, 0.30, 0.60, 0.48, 0.45, 0.30, 0.70);
+                addMacros (r, 0.42, 0.20, 0.16, 0.40, 0.10, 0.40);
+                addStrings (r, NPS, BassStdG, BrokenIn, 0.20, Flesh);
+                addRoom (r, IsoBooth, DryRoom, 0.06);
+                r.values.emplace_back (P::useFingers, 1.0);
+                assist (r, 7, MonoMode);
+            }
+            // ==== END FEAT-ASSIST presets ====
+
             return b;
         }();
 
@@ -779,6 +885,13 @@ juce::var FactoryPresets::toVar (const Definition& def, const juce::AudioProcess
         if (! explicitlySet)
             params->removeProperty (id);
     }
+    // mic-placement.md 4: the recipes are written in the discrete Position /
+    // Distance terms, so the continuous placement is left out and the load
+    // maps it, exactly as for any other file that predates it.
+    for (const char* id : { ParamIDs::micX, ParamIDs::micY, ParamIDs::micDist, ParamIDs::micAngle,
+                            ParamIDs::micSpeaker, ParamIDs::micRear, ParamIDs::micX2, ParamIDs::micY2,
+                            ParamIDs::micDist2, ParamIDs::micAngle2, ParamIDs::micSpeaker2, ParamIDs::micRear2 })
+        params->removeProperty (id);
 
     root->setProperty ("parameters", juce::var (params));
 

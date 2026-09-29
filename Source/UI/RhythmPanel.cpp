@@ -1,5 +1,6 @@
 #include "RhythmPanel.h"
 #include "../PluginProcessor.h"
+#include "../PluginEditor.h"   // FEAT-ASSIST: the PLAYING group's ?
 
 namespace luthier
 {
@@ -608,6 +609,22 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
 
     // bass-techniques 9 (MODEL-GAPS): the bass step grid appears on a bass, and
     // the panel grows or shrinks by its height.
+    // auto-articulation.md 7.2 (FEAT-ASSIST): PLAYING, above the enable row.
+    playingGroup = std::make_unique<PerformanceAssistGroup> (processor);
+    playingGroup->onLayoutChanged = [this]
+    {
+        if (getHeight() > 0)
+            setSize (getWidth(), preferredHeight());
+
+        resized();
+    };
+    playingGroup->onHelp = [this]
+    {
+        if (auto* editor = findParentComponentOfClass<LuthierAudioProcessorEditor>())
+            editor->openHelpTopic ("performance-assist");
+    };
+    addAndMakeVisible (*playingGroup);
+
     bassGridGroup = std::make_unique<BassGridGroup> (processor);
     addChildComponent (*bassGridGroup);
     bassGridGroup->onShownChanged = [this]
@@ -1090,7 +1107,8 @@ void RhythmPanel::timerCallback()
 //==============================================================================
 int RhythmPanel::preferredHeight() const
 {
-    return 14 + Metrics::buttonHeight            // enable row
+    return (playingGroup != nullptr ? playingGroup->preferredHeight() + 4 : 0)   // PLAYING (FEAT-ASSIST)
+         + 14 + Metrics::buttonHeight            // enable row
          + 16 + 26                               // genre heading + kit row
          + 12                                    // rig hint
          + 16 + 26 + 22 + 22 + 22 + 26           // voicing heading + controls (+ hand span, RE-12)
@@ -1125,6 +1143,10 @@ void RhythmPanel::resized()
         bounds.removeFromTop (gap);
         return r;
     };
+
+    // ---- PLAYING (auto-articulation.md 7.2, FEAT-ASSIST) ----------------------------
+    if (playingGroup != nullptr)
+        playingGroup->setBounds (row (playingGroup->preferredHeight(), 4));
 
     // ---- enable ------------------------------------------------------------------
     {

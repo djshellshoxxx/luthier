@@ -97,6 +97,9 @@ struct CapturedNote
     Technique technique = Technique::Pluck;
     int harmonicPartial = 0;
 
+    /** auto-articulation.md 9 (FEAT-ASSIST): the aa_rules bits that decided it. */
+    juce::uint16 autoRules = 0;
+
     /** Techniques reported while it sounded (palm mute, vibrato, ...). */
     std::vector<ScoreTechnique> marks;
 
@@ -216,7 +219,12 @@ public:
     void bend (int sampleOffset, int stringIndex, double cents) noexcept;
 
     /** A technique that starts during a note (palm mute, vibrato, ...). */
-    void mark (int sampleOffset, int stringIndex, ScoreTechnique::Type type, double value = 0.0) noexcept;
+    void mark (int sampleOffset, int stringIndex, ScoreTechnique::Type type, double value = 0.0,
+               double secondValue = 0.0) noexcept;
+
+    /** auto-articulation.md 9 (FEAT-ASSIST): Performance Assist's bits for the
+        note just reported on the string. */
+    void autoRules (int sampleOffset, int stringIndex, juce::uint16 rules) noexcept;
 
     /** notation-export 4: the detector's chord, where it changes. At most 15
         characters are kept. The caller must not allocate to produce `name`. */

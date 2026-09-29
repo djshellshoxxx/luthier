@@ -16,6 +16,7 @@
 #include "LuthierEngine.h"
 #include "Modulation/ModMatrix.h"
 #include "Jam/JamSettings.h"   // FEAT-JAM
+#include "Support/Edition.h"   // FEAT-ASSIST
 
 namespace luthier
 {
@@ -528,6 +529,44 @@ namespace ParamIDs
     // a modulation destination. Never captured into a snapshot itself.
     inline constexpr const char* snapshotMorph = "snapshot_morph";
     // ==== END SPEC-SWEEP params ====
+    // ==== BEGIN FEAT-ASSIST params ====
+    // auto-articulation.md 6: Performance Assist.
+    inline constexpr const char* aaEnabled = "aa_enabled";
+    inline constexpr const char* aaStyle   = "aa_style";
+    inline constexpr const char* aaAmount  = "aa_amount";
+    inline constexpr const char* aaRules   = "aa_rules";
+    // ==== END FEAT-ASSIST params ====
+    // ==== BEGIN FEAT-MIC params ====
+    // mic-placement.md 7: continuous mic placement. The legacy mic_position /
+    // mic_distance pairs above stay for compatibility; the engine no longer
+    // reads them (section 4).
+    inline constexpr const char* micX           = "mic_x";
+    inline constexpr const char* micY           = "mic_y";
+    inline constexpr const char* micDist        = "mic_dist";
+    inline constexpr const char* micAngle       = "mic_angle";
+    inline constexpr const char* micSpeaker     = "mic_speaker";
+    inline constexpr const char* micRear        = "mic_rear";
+    inline constexpr const char* micX2          = "mic_x_2";
+    inline constexpr const char* micY2          = "mic_y_2";
+    inline constexpr const char* micDist2       = "mic_dist_2";
+    inline constexpr const char* micAngle2      = "mic_angle_2";
+    inline constexpr const char* micSpeaker2    = "mic_speaker_2";
+    inline constexpr const char* micRear2       = "mic_rear_2";
+    inline constexpr const char* micTofMode     = "mic_tof_mode";
+    inline constexpr const char* micLevelMatch  = "mic_level_match";
+    inline constexpr const char* acMicMix       = "ac_mic_mix";
+    inline constexpr const char* acMicAlong     = "ac_mic_along";
+    inline constexpr const char* acMicAcross    = "ac_mic_across";
+    inline constexpr const char* acMicDist      = "ac_mic_dist";
+    inline constexpr const char* acMicAngle     = "ac_mic_angle";
+    inline constexpr const char* acMic2On       = "ac_mic_2_on";
+    inline constexpr const char* acMicAlong2    = "ac_mic_along_2";
+    inline constexpr const char* acMicAcross2   = "ac_mic_across_2";
+    inline constexpr const char* acMicDist2     = "ac_mic_dist_2";
+    inline constexpr const char* acMicAngle2    = "ac_mic_angle_2";
+    inline constexpr const char* acMicBlend     = "ac_mic_blend";
+    inline constexpr int kNumMicPlacementParams = 25;
+    // ==== END FEAT-MIC params ====
 }
 
 //==============================================================================
@@ -590,6 +629,12 @@ public:
     static juce::StringArray roomMaterialNames();
     static juce::StringArray pedalTypeNames();
     static juce::StringArray oversamplingNames();
+
+    /** FEAT-ASSIST (auto-articulation.md 4.2, 11): the four aa_* values as the
+        engine plays them - Free resolves a Pro style to its nearest Free one
+        and plays every rule. */
+    static AutoArticulationSettings effectiveAssistSettings (bool enabled, int style, float amountPercent,
+                                                             int rules, Edition edition) noexcept;
 };
 
 //==============================================================================

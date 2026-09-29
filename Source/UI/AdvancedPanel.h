@@ -37,7 +37,10 @@
 #include "JamPanel.h"   // FEAT-JAM
 #include "PracticeSetupPanel.h"
 #include "HelpTab.h"
+#include "RiffBrowser.h"         // riff-library 7.1
+#include "WorkspaceTabStrip.h"   // FEAT-RIFFS: the strip scrolls when the tabs overflow
 #include "PanelHelpButton.h"
+#include "MicPlacementEditor.h"   // mic-placement.md 6 (FEAT-MIC)
 
 namespace luthier
 {
@@ -132,8 +135,23 @@ public:
     /** True while the WORKSHOP tab has taken over columns 3 and 4. */
     bool isWorkshopShowing() const noexcept;
 
+    /*  mic-placement.md 6.1 / 6.2 (FEAT-MIC): the CAB section's placement view,
+        and the expanded editor, which takes over Columns 3 and 4 the way the
+        Workshop does while Column 4's tab strip stays visible. */
+    MicPlacementView* getMicPlacementView() const noexcept { return micView.get(); }
+    MicPlacementEditor* getMicPlacementEditor() const noexcept { return micEditor.get(); }
+    void openMicEditor();
+    void closeMicEditor();
+    bool isMicEditorShowing() const noexcept { return micEditor != nullptr && micEditor->isVisible(); }
+
     /** The HELP tab (gui-integration 4.4). */
     HelpTab* getHelpTab() const noexcept { return helpTab.get(); }
+
+    /** riff-library 7.1: the RIFFS tab, between TUNE and LIVE. */
+    RiffBrowser* getRiffsPanel() const noexcept { return riffsPanel.get(); }
+
+    /** The strip the tab buttons live in (it scrolls when they overflow). */
+    WorkspaceTabStrip& getWorkspaceTabStrip() noexcept { return workspaceStrip; }
 
     /** Opens the HELP tab pinned to a topic (a tab name, a column section, an
         Options page). */
@@ -178,6 +196,20 @@ public:
     static constexpr const char* workspaceTabPreferenceKey = "advanced.workspaceTab";
     static constexpr const char* workspaceTabNamePreferenceKey = "advanced.workspaceTabName";
 
+    //==========================================================================
+    // global-search.md 3.2 (FEAT-SEARCH): column section headings are drawn,
+    // not components, so the palette asks here.
+
+    /** The section headings of column 1-3, in order. */
+    juce::StringArray getColumnSections (int column) const;
+
+    /** The column (1-3) and section heading holding `c`; empty if none. */
+    juce::String getColumnSectionFor (const juce::Component* c, int& column) const;
+
+    /** Brings a column section on screen (leaving WORKSHOP if it hides the
+        column) and scrolls its heading into view. */
+    bool revealColumnSection (const juce::String& heading);
+
     void paint (juce::Graphics&) override;
     void resized() override;
 
@@ -200,6 +232,12 @@ private:
 
         /** The heading of the section holding `c`, or empty. */
         juce::String getSectionContaining (const juce::Component* c) const;
+
+        /** FEAT-SEARCH: the headings, and where one starts (-1 if absent). */
+        juce::StringArray getSections() const;
+        int getSectionY (const juce::String& heading) const;
+        /** Retitles a section in place (mic-placement.md 6.1: "Microphones"). */
+        void renameSection (const juce::String& from, const juce::String& to);
 
         /** gui-integration 16 and 20: the section heading at a height, the ?
             on each heading, and Help on either. */
@@ -249,6 +287,7 @@ private:
     std::unique_ptr<Column> columns[3];
 
     juce::OwnedArray<juce::TextButton> workspaceTabs;
+    WorkspaceTabStrip workspaceStrip;
     juce::Array<juce::Component*> workspacePanels;
     juce::Viewport workspaceViewport;
     int workspaceTab = 0;
@@ -310,6 +349,9 @@ private:
     std::unique_ptr<AmpFacePanel> ampFace;
 
     std::unique_ptr<LuthierToggle> cabOn, dualMic;
+    std::unique_ptr<MicPlacementView> micView;          // FEAT-MIC
+    std::unique_ptr<MicPlacementEditor> micEditor;      // FEAT-MIC
+    juce::String micSectionTitle;                       // FEAT-MIC
     std::unique_ptr<LuthierChoice> cabType, cabSpeaker, micType, micPosition, micDistance,
                                    micType2, micPosition2, micDistance2;
     std::unique_ptr<LuthierKnob> speakerAge, micBlend, micWidth, micPhase;
@@ -332,6 +374,7 @@ private:
     std::unique_ptr<RhythmPanel> rhythmPanel;
     std::unique_ptr<TunePanel> tunePanel;
     std::unique_ptr<JamPanel> jamPanel;   // FEAT-JAM: jam-mode 8.1
+    std::unique_ptr<RiffBrowser> riffsPanel;   // riff-library 7.1
     std::unique_ptr<PracticeSetupPanel> practiceSetupPanel;
     std::unique_ptr<HelpTab> helpTab;
     std::unique_ptr<LivePanel> livePanel;

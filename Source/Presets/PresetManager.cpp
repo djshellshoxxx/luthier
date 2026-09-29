@@ -1,5 +1,6 @@
 #include "PresetManager.h"
 #include "FactoryPresets.h"
+#include "MicPlacementMigration.h"   // mic-placement.md 4
 #include "../Support/IrLibrary.h"
 #include "../Support/ErrorLog.h"
 #include "../UI/UiPreferences.h"   // REALISM-C
@@ -440,7 +441,13 @@ juce::var PresetManager::toVar (const juce::String& name,
                 params->setProperty (withId->paramID, v);
             }
 
-    root->setProperty ("parameters", juce::var (params));
+    // mic-placement.md 4: the nearest discrete Position / Distance goes into
+    // the file for an older Luthier to read; the live parameters are untouched.
+    juce::var written (params);
+    MicPlacementMigration::mirror (written, apvts);
+
+    root->setProperty ("parameters", written);
+    root->setProperty (MicPlacementMigration::kLegacyBlockKey, MicPlacementMigration::captureLiveLegacy (apvts));
 
     /*  advanced-ranges.md 4: which families this preset has unlocked. Written
         beside the parameters because it is what makes their normalised values
@@ -619,7 +626,8 @@ bool PresetManager::fromVar (const juce::var& data)
             "ranges", "guitar", "midiMap",
             // SPEC-SWEEP: the spec's spellings of the processor blocks.
             "midi_mappings", "rhythm_engine", "tone_match",
-            "jam"   // FEAT-JAM (jam-mode 12)
+            "jam",   // FEAT-JAM (jam-mode 12)
+            MicPlacementMigration::kLegacyBlockKey   // mic-placement.md 4
         };
 
         auto* preserved = new juce::DynamicObject();
@@ -687,6 +695,13 @@ bool PresetManager::fromVar (const juce::var& data)
         ranges = incoming;
         ranges.applyTo (apvts);
 
+        // mic-placement.md 4: an older file's discrete mic placement gains its
+        // continuous values, converted through the ranges just applied.
+        {
+            auto stored = obj->getProperty ("parameters");
+            MicPlacementMigration::apply (stored, apvts);
+        }
+
         for (auto* p : processor.getParameters())
         {
             if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
@@ -712,6 +727,11 @@ bool PresetManager::fromVar (const juce::var& data)
                 }
             }
         }
+
+        // mic-placement.md 4: the live legacy values this build saved beside
+        // the mirror, so a round trip restores exactly what was there.
+        if (obj->hasProperty (MicPlacementMigration::kLegacyBlockKey))
+            MicPlacementMigration::restoreLiveLegacy (obj->getProperty (MicPlacementMigration::kLegacyBlockKey), apvts);
 
         /*  ambiguity-resolutions.md 1: a preset from before the physical loop
             switched feedback on with feedback_on, which no longer does anything;
@@ -772,6 +792,14 @@ bool PresetManager::fromVar (const juce::var& data)
                 setPlain (ParamIDs::bodyCouplingAmount, 0.0f);
         }
         // ==== END REALISM-A legacy load ====
+
+        /*  auto-articulation.md 8 (FEAT-ASSIST): a preset from before Performance
+            Assist has no aa_* keys and loads with the defaults - off, which is
+            the sound it was saved with - whatever the last preset had. */
+        for (const char* id : { ParamIDs::aaEnabled, ParamIDs::aaStyle, ParamIDs::aaAmount, ParamIDs::aaRules })
+            if (! params->hasProperty (id))
+                if (auto* p = apvts.getParameter (id))
+                    p->setValueNotifyingHost (p->getDefaultValue());
 
         /*  ambiguity-resolutions.md 3: the doubler became a post-amp pedal. A
             preset that had the old engine doubler on gets a Doubler in its first
@@ -1664,6 +1692,11 @@ void PresetManager::randomise (uint64_t seed, const juce::StringArray& lockedPar
 
         p->setValueNotifyingHost ((float) v);
     }
+
+    // mic-placement.md 9 (FEAT-MIC): respecting stock ranges keeps each mic on
+    // the cone (u <= 1) and within 30 cm, where a real session puts it.
+    if (respectStockRanges)
+        MicPlacementMigration::keepPlacementPlausible (apvts, lockedParameters);
 
     currentName = "Random";
     modified = true;

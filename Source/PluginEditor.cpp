@@ -7,6 +7,9 @@
 #include "Accessibility/Accessibility.h"
 #include "UI/Guitar/StringAnimator.h"   // animated-strings.md 8
 #include "UI/NormalizationOptions.h"   // output-normalization.md 5
+#include "UI/Search/SearchNavigator.h"   // global-search.md (FEAT-SEARCH)
+#include "UI/Search/CommandPalette.h"
+#include "UI/Search/RiffSearchProvider.h"   // INTEGRATE-2
 
 namespace luthier
 {
@@ -27,6 +30,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
       saveAsPanel (p),
       chordPanel (p),
       workshopOverlay (p),
+      micPlacementOverlay (p),
       secretPanel (p)
 {
     setLookAndFeel (&lookAndFeel);
@@ -91,7 +95,13 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     // The overlay host sits on top of everything and is invisible until used.
     addChildComponent (overlayHost);
 
+    // global-search.md 6.2 (FEAT-SEARCH): the palette sits above the overlay
+    // host and below the MIDI-learn arm layer; the highlight ring above all.
+    searchNav = std::make_unique<search::SearchNavigator> (*this, p);
+    addChildComponent (searchNav->getPalette());
+
     addChildComponent (midiLearnArmLayer);
+    addChildComponent (searchNav->getHighlighter());
 
     header.onMidiLearnArmChanged = [this] (bool armed) { setMidiLearnArmed (armed); };
     header.onImportMidi = [this] (const juce::File& file) { importMidiFile (file); };   // midi-export 5 (MODEL-GAPS)
@@ -117,23 +127,20 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 
     // ---- header wiring -----------------------------------------------------------
     header.onModeChanged = [this] (bool advanced) { setAdvancedMode (advanced); };
-    header.onOpenHelp = [this] { openHelp (getHelpContext()); };
+    // global-search.md 4.3 (FEAT-SEARCH): the header's buttons run the same
+    // commands as their shortcuts, through performAction.
+    header.onOpenHelp = [this] { performAction ("help"); };
+    header.onOpenSearch = [this] { performAction ("search"); };
 
     // gui-integration.md 6: the wrench opens the WORKSHOP tab in Advanced mode
     // and the same bench as an overlay in Easy mode.
-    header.onOpenWorkshop = [this]
-    {
-        if (advancedMode)
-            advancedPanel.setWorkspaceTabNamed ("WORKSHOP");
-        else
-            showOverlay (&workshopOverlay);
-    };
+    header.onOpenWorkshop = [this] { performAction ("openWorkshop"); };   // FEAT-SEARCH
 
     workshopOverlay.getPanel().onSaveAsGuitar = [this] { showSaveGuitarDialog(); };
 
     if (auto* bench = advancedPanel.getWorkshopPanel())
         bench->onSaveAsGuitar = [this] { showSaveGuitarDialog(); };
-    header.onOpenOptions = [this] { showOverlay (&optionsPanel); };
+    header.onOpenOptions = [this] { performAction ("options"); };
 
     // output-normalization.md 5.1 and 5.3: the badges and the "turned on" banner.
     header.getNormalizationBadge().onOpenOptions = [this] { openNormalizationOptions(); };
@@ -158,8 +165,8 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
         safe->showOverlay (&safe->optionsPanel);
     };
     header.onOpenRanges = [this] { showOptionsPage ("RANGES"); };
-    header.onOpenExport = [this] { showOverlay (&exportPanel); };
-    header.onOpenPresetBrowser = [this] { showOverlay (&presetBrowser); };
+    header.onOpenExport = [this] { performAction ("export"); };
+    header.onOpenPresetBrowser = [this] { performAction ("presetBrowser"); };
     header.onSaveAs = [this] { showOverlay (&saveAsPanel); };
 
     // The overlay and the HELP tab are one HelpTab in two places; both reach
@@ -172,6 +179,10 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
             showOverlay (&optionsPanel);
             optionsPanel.showShortcutTable();
         };
+
+        // global-search.md 6.1 (FEAT-SEARCH): the HELP tab's Search field opens
+        // the palette on the ? scope.
+        help.onOpenSearch = [this] (const juce::String& text) { searchNav->openPalette ("? " + text); };
     };
 
     wireHelp (helpPanel.getView());
@@ -185,6 +196,11 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     presetBrowser.saveAsPanelRequested = [this] { showOverlay (&saveAsPanel); };
 
     easyPanel.onOpenExport = [this] { showOverlay (&exportPanel); };
+    easyPanel.onOpenAssistRhythmTab = [this] { openAssistInRhythmTab(); };   // FEAT-ASSIST
+
+    // mic-placement.md 6.3 (FEAT-MIC): Easy's pad opens the editor as an overlay.
+    easyPanel.onOpenMicEditor = [this] { showOverlay (&micPlacementOverlay); };
+    micPlacementOverlay.getEditor().onClose = [this] { overlayHost.dismiss(); };
 
     // ---- window --------------------------------------------------------------------
     auto& ui = processor.getUiState();
@@ -224,6 +240,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     seenRangeGeneration = RangeState::getGeneration();
     startTimerHz (4);
 
+    buildSearchProviders();   // global-search.md 8 (FEAT-SEARCH)
     // onboarding.md 2-4 (TUNE-HELP-ONBOARDING): banner, tour, first-week hints.
     setupOnboarding();
 
@@ -258,6 +275,16 @@ juce::String LuthierAudioProcessorEditor::advancedUnavailableMessage()
     return "Advanced Mode needs a window at least "
              + juce::String (AdvancedPanel::minimumUsableWidth)
              + " points wide. Widen the window to use it.";
+}
+
+void LuthierAudioProcessorEditor::openAssistInRhythmTab()
+{
+    // FEAT-ASSIST (auto-articulation.md 7.1): the PLAYING group lives in RHYTHM.
+    setAdvancedMode (true);
+    header.setAdvancedMode (advancedMode);
+
+    if (advancedMode)
+        advancedPanel.setWorkspaceTabNamed ("RHYTHM");
 }
 
 void LuthierAudioProcessorEditor::setAdvancedMode (bool advanced)
@@ -544,6 +571,9 @@ void LuthierAudioProcessorEditor::resized()
 
     overlayHost.setBounds (getLocalBounds());
     midiLearnArmLayer.setBounds (getLocalBounds());
+
+    if (searchNav != nullptr)   // FEAT-SEARCH
+        searchNav->layout (getLocalBounds(), Metrics::headerHeight);
     discovery.setBounds (getLocalBounds());
     tour.setBounds (getLocalBounds());
 }
@@ -652,20 +682,25 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         of the table and false of the plugin: this function used to hard-code its
         keys, so rebinding a shortcut changed the row in the table and nothing
         else. Going through the registry is what connects them.
+
+        global-search.md 4.3 (FEAT-SEARCH): the commands themselves are in
+        performAction, so the search palette and the header's buttons run the
+        same code as the keys. What stays here is what is not a command: Escape
+        and the digits.
     */
     auto& shortcuts = AccessibilitySettings::get();
-
-    auto is = [&shortcuts, &key] (const char* actionId)
-    {
-        const auto* binding = shortcuts.findShortcut (actionId);
-        return binding != nullptr && binding->key == key;
-    };
 
     // Escape always closes whatever is open, and is deliberately not rebindable:
     // accessibility 2 makes it the way out of a dialog, so it cannot be lost to a
     // clumsy rebind. An overlay handles it when focused; this is the backstop.
     if (key == juce::KeyPress::escapeKey)
     {
+        if (searchNav != nullptr && searchNav->isPaletteOpen())   // FEAT-SEARCH
+        {
+            searchNav->closePalette();
+            return true;
+        }
+
         // onboarding 3: "Escape ends the tour."
         if (tour.isRunning())
         {
@@ -687,6 +722,61 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
         return false;
     }
+
+    // FEAT-JAM: jam-mode 8.2. Its keys do nothing while a text field has focus.
+    if (JamShortcuts::handle (processor, key))
+        return true;
+
+    if (const auto actionId = shortcuts.findAction (key); actionId.isNotEmpty() && ! actionId.startsWith ("jam") && performAction (actionId))
+        return true;
+
+    /*  live-performance 2: digits recall snapshots directly, shifted for the
+        second bank of nine.
+
+        These are not in the rebind registry. Eighteen rows for eighteen digits
+        would bury the table section 17 wants a user to be able to read, and the
+        binding is positional rather than nominal - digit n recalls snapshot n, so
+        there is nothing meaningful to rebind it to. GAPS.md records the
+        deviation. */
+    if (const auto character = key.getTextCharacter();
+        character >= '1' && character <= '9')
+    {
+        const int index = (character - '1')
+                            + (key.getModifiers().isShiftDown() ? 9 : 0);
+
+        if (index < processor.getSnapshots().getNumSnapshots())
+        {
+            processor.recallSnapshot (index);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+//==============================================================================
+/*  global-search.md 8 (FEAT-SEARCH): the built-in providers, then any a
+    feature registers. Add a feature's provider after initialise():
+
+        searchNav->getIndex().addProvider (std::make_unique<RiffProvider> (...));
+
+    docs/SEARCH_INTEGRATION.md has the contract. */
+void LuthierAudioProcessorEditor::buildSearchProviders()
+{
+    searchNav->initialise();
+
+    // riff-library (FEAT-RIFFS, INTEGRATE-2): every riff is a riff: item that
+    // opens the RIFFS tab at it.
+    searchNav->getIndex().addProvider (std::make_unique<search::RiffSearchProvider> (processor.getRiffLibrary(),
+                                                                                    [this] { return advancedPanel.getRiffsPanel(); }));
+}
+
+//==============================================================================
+bool LuthierAudioProcessorEditor::performAction (const juce::String& actionId)
+{
+    // global-search.md 4.3 (FEAT-SEARCH): keyPressed's chain, moved as-is.
+    auto is = [&actionId] (const char* id) { return actionId == id; };
 
     if (is ("help"))            { openHelp (getHelpContext());  return true; }
     if (is ("cycleCpuQuality")) { qualityLink.cycleQuality();   return true; }   // cpu-quality-modes 5
@@ -770,6 +860,18 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
+    // riff-library 7.1: R selects the RIFFS tab in Advanced and toggles the
+    // Riff drawer in Easy.
+    if (is ("riffs"))
+    {
+        if (advancedMode)
+            advancedPanel.setWorkspaceTabNamed ("RIFFS");
+        else
+            easyPanel.setRiffDrawerOpen (! easyPanel.isRiffDrawerOpen());
+
+        return true;
+    }
+
     if (is ("toggleAdvanced"))
     {
         // SPEC-SWEEP (USER_MANUAL UM-13 / PROGRESS PR-40): the mode switch is
@@ -812,6 +914,13 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
+    // auto-articulation.md 7.5 (FEAT-ASSIST): A toggles Performance Assist.
+    if (is ("toggleAssist"))
+    {
+        AssistUi::toggle (processor);
+        return true;
+    }
+
     if (is ("toggleSlideMode"))
     {
         HeaderBar::toggleSlideMode (processor);
@@ -847,8 +956,10 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         StringAnimationSettings::setEnabled (! StringAnimationSettings::isEnabled());
         return true;
     }
-    if (JamShortcuts::handle (processor, key))   // FEAT-JAM: jam-mode 8.2
-        return true;
+    // FEAT-JAM: jam-mode 8.2 (keyPressed keeps the text-field guard).
+    if (is ("jamStartStop")) { processor.jamStartStop(); return true; }
+    if (is ("jamFill"))      { processor.jamFill();      return true; }
+    if (is ("jamArm"))       { processor.jamArmToggle(); return true; }
     if (is ("tapTempo"))  { processor.tapTempoNow(); return true; }
 
     if (is ("killSwitch"))
@@ -987,9 +1098,9 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         }
     }
 
-    return false;
+    // Commands with no key, and the palette itself (global-search.md 4.3).
+    return searchNav != nullptr && searchNav->performExtendedAction (actionId);
 }
-
 
 //==============================================================================
 void LuthierAudioProcessorEditor::openNormalizationOptions()

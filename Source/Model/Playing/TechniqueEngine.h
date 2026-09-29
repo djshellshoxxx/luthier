@@ -96,6 +96,19 @@ public:
                       int& harmonicPartial,
                       double& slideFromFret) noexcept;
 
+    /** auto-articulation.md 4.2 (FEAT-ASSIST): the same decision, and whether a
+        controller trigger chose it (the explicit branches: palm mute, pinch,
+        harmonic trigger or velocity, tap, slide guitar, muted pick, Slide
+        Mode). */
+    Technique decide (int stringIndex, double newFret, double velocity, int64_t timestampSamples,
+                      int& harmonicPartial, double& slideFromFret, bool& explicitOut) noexcept;
+
+    /** FEAT-ASSIST: false while Performance Assist owns legato (its rule 1 or 2
+        on); decide() then skips its own hammer-on / slide inference. */
+    void setLegatoInferenceEnabled (bool e) noexcept { legatoInference = e; }
+    bool isLegatoInferenceEnabled() const noexcept { return legatoInference; }
+    bool isSlideMode() const noexcept { return slideMode; }
+
     /** Records that a note ended, so the next note on that string is not treated
         as legato. */
     void noteEnded (int stringIndex, int64_t timestampSamples) noexcept;
@@ -149,6 +162,7 @@ private:
     double legatoVelocity = 0.63;
 
     bool hammerOnEnabled = true;
+    bool legatoInference = true;   // FEAT-ASSIST
     bool slideEnabled = true;
 };
 

@@ -1,0 +1,281 @@
+defaults author L origin original date 2026-09-24
+
+# ---------------------------------------------------------------- riffs
+
+riff blues.riff.shuffle-box-riff-1 "Shuffle Box Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A blues   tempo 96   meter 4/4   feel shuffle
+  difficulty 1   tags shuffle twelve-bar   free yes
+  chords 0:A5 8:D5 12:E5
+  play:
+    t8: [x02xxx] ~ [x02xxx] [x02xxx] ~ [x02xxx] [x04xxx] ~ [x04xxx] [x04xxx] ~ [x04xxx] |
+    t8: [x02xxx] ~ [x02xxx] [x04xxx] ~ [x04xxx] [x05xxx] ~ [x05xxx] [x04xxx] ~ [x04xxx] |
+    t8: [xx02xx] ~ [xx02xx] [xx02xx] ~ [xx02xx] [xx04xx] ~ [xx04xx] [xx05xx] ~ [xx04xx] |
+    t8: [02xxxx] ~ [02xxxx] [04xxxx] ~ [05xxxx] [04xxxx] ~ [02xxxx] q: [02xxxx] |
+
+riff blues.riff.low-down-stomp-riff-1 "Low-Down Stomp Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E blues   tempo 88   meter 4/4   feel shuffle
+  difficulty 2   tags open-position single-note
+  chords 0:E7
+  play:
+    t8: 6.0 ~ 6.0 6.3 ~ 6.0 5.0 ~ 5.1 5.2 ~ 6.0 |
+    t8: 6.0 ~ 6.0 4.0 h4.2 ~ 5.2 ~ 6.3 6.0 ~ r |
+
+riff blues.riff.stop-time-hit-riff-1 "Stop-Time Hit Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A blues   tempo 104   meter 4/4   feel shuffle
+  difficulty 2   tags stop-time hits
+  chords 0:A7
+  play:
+    q: [5-7-5-6-5-5]' r r t8: r 3.5 3.7 |
+    t8: 3.5 ~ 2.5 2.8 ~ 2.5 3.7 ~ 3.5 q: [5-7-5-6-5-5]' |
+
+riff blues.riff.slow-grind-riff-1 "Slow Grind Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key G blues   tempo 66   meter 4/4   feel shuffle
+  difficulty 3   tags slow-blues muted
+  chords 0:G7
+  play:
+    t8: 6.3 5.x 6.3 6.6 ~ 6.3 5.5 5.x 5.4 5.3 ~ 6.6 |
+    t8: 6.3 5.x 6.3 4.5 ~ 4.3 5.5 ~ 5.3 q: 6.3/out |
+
+riff blues.riff.double-stop-shuffle-riff-1 "Double-Stop Shuffle Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A mixolydian   tempo 112   meter 4/4   feel shuffle
+  difficulty 3   tags double-stops shuffle
+  chords 0:A7
+  play:
+    t8: [xxx65x]/in ~ [xxx65x] [xxx78x] ~ [xxx65x] 4.7 ~ 4.5 5.7 ~ 5.5 |
+    t8: [xxx65x]/in ~ [xxx65x] [xxx78x] ~ [xxx78x] [xxx65x] ~ [xxx55x] 4.7 ~ ~ |
+
+riff blues.riff.rolling-bass-string-riff-1 "Rolling Bass-String Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E blues   tempo 132   meter 4/4   feel shuffle
+  difficulty 4   tags open-position fast
+  chords 0:E7
+  play:
+    t8: 6.0 6.0 4.2 5.0 5.0 4.2 6.0 6.0 4.2 3.3 p3.0 4.2 |
+    t8: 6.0 6.0 4.2 5.2 5.0 4.2 6.3 6.0 4.2 4.2 p4.0 5.2 |
+
+# ---------------------------------------------------------------- licks
+
+riff blues.lick.box-one-bend-lick-1 "Box-One Bend Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A minor_pentatonic   tempo 80   meter 4/4   feel shuffle
+  difficulty 2   tags box-1 bends   free yes
+  chords 0:A7 4:D7
+  play:
+    t8: r 1.5 1.8 2.8b2 ~ 2.5 1.5 ~ 2.5 3.7 ~ 3.5 |
+    t8: 3.7b2 ~ ~ 3.7 ~ 3.5 h: 4.7~ |
+
+riff blues.lick.turnaround-crawl-lick-1 "Turnaround Crawl Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A blues   tempo 84   meter 4/4   feel shuffle
+  difficulty 2   tags turnaround chromatic
+  chords 0:A7 4:E7
+  play:
+    t8: [x-x-7-x-10-x] ~ [xx7x9x] [xx7x8x] ~ [xx7x7x] [xx7x6x] ~ [xx7x5x] 5.7 ~ 6.5 |
+    t8: 6.5 ~ 6.4 6.3 ~ 6.2 q: [020130] r |
+
+riff blues.lick.wailing-bend-lick-1 "Wailing Bend Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A minor_pentatonic   tempo 76   meter 4/4   feel shuffle
+  difficulty 3   tags upper-register bends
+  chords 0:A7
+  play:
+    t8: 2.20b2 ~ ~ 1.17 ~ 2.20b2r 2.17 ~ 3.19 3.17 ~ 3.19 |
+    t8: 3.19b2 ~ 3.17 2.17 ~ 3.19 h: 4.19~ |
+
+riff blues.lick.slow-cry-lick-1 "Slow Cry Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E minor_pentatonic   tempo 60   meter 4/4   feel shuffle
+  difficulty 4   tags slow-blues bends
+  chords 0:E7
+  play:
+    t8: r r 2.15pb2r ~ ~ 1.12 1.15b1 ~ 1.12 2.15 2.12 ~ |
+    t8: 3.14b2 ~ 3.12 2.12 ~ 3.14 h: 4.14~ |
+
+riff blues.lick.slide-in-answer-lick-1 "Slide-In Answer Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A minor_pentatonic   tempo 92   meter 4/4   feel shuffle
+  difficulty 2   tags call-response box-1
+  chords 0:A7 4:D7
+  play:
+    t8: 2.8/in ~ p2.5 3.7 ~ 3.5 q: 4.7 r |
+    t8: r 3.5 3.7 1.8/in ~ p1.5 2.8 ~ 2.5 q: 3.7 |
+
+riff blues.lick.triplet-run-lick-1 "Triplet Run Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A minor_pentatonic   tempo 100   meter 4/4   feel shuffle
+  difficulty 4   tags legato triplets
+  chords 0:A7
+  play:
+    t8: 1.8 p1.5 2.8 2.5 h2.8 p2.5 3.7 p3.5 4.7 3.5 h3.7 3.5 |
+    t8: 4.7 4.5 h4.7 5.7 5.5 5.7 q: 4.5 4.7~ |
+
+riff blues.lick.minor-moan-lick-1 "Minor Moan Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A minor_pentatonic   tempo 70   meter 4/4   feel shuffle
+  difficulty 3   tags minor-blues slow-blues
+  chords 0:Am7 4:Dm7
+  play:
+    t8: 1.8b2 ~ ~ 1.5 ~ 2.8 2.6\5 ~ 2.5 3.7 ~ 3.5 |
+    t8: 3.7b2 ~ 3.5 4.7 ~ 5.7 h: 4.7~ |
+
+riff blues.lick.upper-box-lick-1 "Upper Box Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A minor_pentatonic   tempo 88   meter 4/4   feel shuffle
+  difficulty 3   tags box-2 slides
+  chords 0:A7
+  play:
+    t8: 3.7/9 ~ 3.9 2.8 ~ 2.10b2r 1.8 ~ 2.10 2.8 ~ 3.9 |
+    t8: 1.10b2r ~ 1.8 2.10 ~ 2.8 h: 3.9\out |
+
+riff blues.lick.trill-shake-lick-1 "Trill Shake Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E minor_pentatonic   tempo 72   meter 4/4   feel shuffle
+  difficulty 4   tags trill box-1
+  chords 0:E7
+  play:
+    q: 1.12tr15 ~ t8: 1.15 1.12 2.15 2.15b2 ~ 2.12 |
+    t8: 3.12 3.14 ~ 2.12 ~ 3.14 h: 4.14~ |
+
+riff blues.lick.ghosted-call-lick-1 "Ghosted Call Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G blues   tempo 96   meter 4/4   feel shuffle
+  difficulty 3   tags call-response ghost-notes
+  chords 0:G7
+  play:
+    t8: 3.5g 3.5 ~ 2.6b2 ~ 2.3 1.3\in ~ 2.6 1.3 ~ 2.3 |
+    t8: 3.5g 3.3 ~ 4.5 ~ 4.3 5.5 ~ 5.3 q: 6.3 |
+
+riff blues.lick.easy-answer-lick-1 "Easy Answer Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A minor_pentatonic   tempo 80   meter 4/4   feel shuffle
+  difficulty 1   tags beginner box-1   free yes
+  chords 0:A7
+  play:
+    q: 1.5 2.8 2.5 e: 3.7 3.5 |
+    h: 4.7 q: 5.7 r |
+
+riff blues.lick.open-e-fill-lick-1 "Open-E Fill Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E blues   tempo 96   meter 4/4   feel shuffle
+  difficulty 2   tags open-position fill
+  chords 0:E7
+  play:
+    t8: 3.0 h3.2 ~ 2.0 ~ 1.3b1r 1.0 ~ 2.3 2.0 ~ 3.2 |
+    t8: 6.0 6.3 ~ 5.0 h5.2 ~ h: 4.2\out |
+
+# ---------------------------------------------------------------- strums
+
+riff blues.strum.shuffle-comp-strum-1 "Shuffle Comp Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key A mixolydian   tempo 100   meter 4/4   feel shuffle
+  difficulty 1   tags open-chords twelve-bar   free yes
+  chords 0:A7 4:D7 8:A7 12:E7
+  play:
+    t8: D[x02020] ~ U[x02020] D[x02020] ~ U[x02020] D[x02020] ~ ~ r r U[x02020] |
+    t8: D[xx0212] ~ U[xx0212] D[xx0212] ~ ~ D[xx0212] ~ U[xx0212] r r U[xx0212] |
+    t8: D[x02020] ~ U[x02020] r r U[x02020] D[x02020] ~ U[x02020] D[x02020] ~ ~ |
+    t8: D[020100] ~ U[020100] D[020100] ~ U[020100] q: D[020100] r |
+
+riff blues.strum.ninth-chord-stab-strum-1 "Ninth Chord Stab Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key G mixolydian   tempo 104   meter 4/4   feel shuffle
+  difficulty 3   tags ninth-chords stabs
+  chords 0:G9 8:C9 12:D9 14:C9 15:D9
+  play:
+    t8: r r D[x-10-9-10-10-10] ~ ~ U[x-9-8-9-9-9] D[x-10-9-10-10-10] ~ r r r U[x-10-9-10-10-10] |
+    t8: D[x-10-9-10-10-10] ~ r r r U[x-10-9-10-10-10] D[x-10-9-10-10-10] ~ r U[x-9-8-9-9-9] ~ D[x-10-9-10-10-10] |
+    t8: r r D[x-3-2-3-3-3] ~ ~ U[x-3-2-3-3-3] D[x-3-2-3-3-3] ~ r r r U[x-3-2-3-3-3] |
+    t8: D[x-5-4-5-5-5] ~ r U[x-5-4-5-5-5] ~ r D[x-3-2-3-3-3] ~ r q: D[x-5-4-5-5-5] |
+
+riff blues.strum.slow-twelve-eight-strum-1 "Slow Twelve-Eight Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key A aeolian   tempo 60   meter 4/4   feel shuffle
+  difficulty 2   tags minor-blues slow-blues
+  chords 0:Am7 4:Dm7 6:E7
+  play:
+    t8: D[x02010] U[x02010] D[x02010] D[x02010] ~ U[x02010] D[x02010] U[x02010] D[x02010] D[x02010] ~ ~ |
+    t8: D[xx0211] U[xx0211] D[xx0211] D[xx0211] ~ U[xx0211] D[020100] ~ U[020100] D[020100] ~ ~ |
+
+riff blues.strum.quick-change-strum-1 "Quick-Change Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key E mixolydian   tempo 120   meter 4/4   feel shuffle
+  difficulty 2   tags open-chords quick-change
+  chords 0:E7 4:A7 8:E7 12:B7
+  play:
+    t8: D[022130] ~ U[022130] D[022130] ~ U[022130] D[022130] r U[022130] D[022130] ~ U[022130] |
+    t8: D[x02020] ~ U[x02020] r r U[x02020] D[x02020] ~ U[x02020] D[x02020] ~ ~ |
+    t8: D[022130] ~ ~ D[022130] ~ U[022130] r r U[022130] D[022130] ~ U[022130] |
+    t8: D[x21202] ~ U[x21202] D[x21202] ~ U[x21202] q: D[x21202] D[x21202] |
+
+# ---------------------------------------------------------------- bass
+
+riff blues.bass.walking-shuffle-bass-1 "Walking Shuffle Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key A mixolydian   tempo 96   meter 4/4   feel shuffle
+  difficulty 2   tags shuffle twelve-bar   free yes
+  chords 0:A7 4:D7 8:E7 12:A7
+  play:
+    t8: 3.0 ~ 3.0 3.4 ~ 2.2 2.4 ~ 2.5 2.4 ~ 2.2 |
+    t8: 2.0 ~ 2.0 2.4 ~ 1.2 1.4 ~ 1.5 1.4 ~ 1.2 |
+    t8: 4.0 ~ 4.0 4.4 ~ 3.2 3.4 ~ 3.5 3.4 ~ 3.2 |
+    t8: 3.0 ~ 3.4 2.2 ~ 3.4 q: 3.0 r |
+
+riff blues.bass.slow-minor-bass-1 "Slow Minor Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key A aeolian   tempo 64   meter 4/4   feel laid_back
+  difficulty 1   tags minor-blues slow-blues
+  chords 0:Am7 4:Dm7 8:E7 12:Am7
+  play:
+    h: 3.0 q: 2.2 3.3 |
+    h: 2.0 q: 2.3 3.5 |
+    h: 4.0 q: 3.2 4.4 |
+    w: 3.0 |
+
+riff blues.bass.quarter-walk-bass-1 "Quarter Walk Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key E mixolydian   tempo 110   meter 4/4   feel swing
+  difficulty 2   tags walking chromatic
+  chords 0:E7 8:A7 12:B7
+  play:
+    q: 4.0 4.4 3.2 3.4 |
+    q: 3.5 3.4 3.2 3.1 |
+    q: 3.0 3.4 2.2 3.1 |
+    q: 3.2 2.1 2.4 2.2 |
+
+riff blues.bass.stop-time-bass-1 "Stop-Time Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key A blues   tempo 104   meter 4/4   feel shuffle
+  difficulty 3   tags stop-time fills
+  chords 0:A7
+  play:
+    q: 3.0 r r t8: 4.3 4.4 4.5 |
+    q: 3.0 r r t8: 2.2 3.4 3.3 |
+    t8: 3.0 ~ 2.2 2.4 ~ 2.5 3.0 ~ 3.3 3.4 ~ 2.2 |
+    t8: 3.0 ~ 3.0 2.2 ~ 2.2 q: 3.0 r |
+
+riff blues.bass.octave-shuffle-bass-1 "Octave Shuffle Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key E blues   tempo 120   meter 4/4   feel shuffle
+  difficulty 3   tags octaves shuffle
+  chords 0:E7 8:A7 12:E7
+  play:
+    t8: 4.0 ~ 2.2 4.0 ~ 2.2 4.3 ~ 2.5 4.5 ~ 2.7 |
+    t8: 4.0 ~ 2.2 4.0 ~ 2.2 3.2 ~ 1.4 3.1 ~ 1.3 |
+    t8: 3.0 ~ 1.2 3.0 ~ 1.2 3.3 ~ 1.5 3.4 ~ 1.6 |
+    t8: 4.0 ~ 2.2 4.3 ~ 4.4 q: 4.0 r |
+
+riff blues.bass.chromatic-walkup-bass-1 "Chromatic Walkup Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key G blues   tempo 140   meter 4/4   feel swing
+  difficulty 4   tags walking chromatic triplets
+  chords 0:G7 4:C7 8:D7
+  play:
+    q: 4.3 t8: 3.2 3.3 3.4 q: 3.5 t8: 2.3 2.2 2.1 |
+    q: 3.3 3.2 t8: 3.3 ~ 2.0 q: 2.2 |
+    q: 3.5 t8: 2.2 2.3 2.4 q: 1.2 t8: 1.5 1.4 1.3 |
+    q: 1.2 t8: 2.4 2.3 2.2 q: 2.0 4.4 |

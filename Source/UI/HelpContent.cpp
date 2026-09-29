@@ -1,4 +1,5 @@
 #include "HelpContent.h"
+#include "Search/SearchMatcher.h"   // FEAT-SEARCH
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
 
@@ -151,12 +152,13 @@ namespace
 
         { "workspace", "Column 4: The Workspace", "workspace|Column 4|tabs",
           "Column 4 is a tab strip with one panel behind each tab. The tabs, in order:\n\n"
-          "WORKSHOP, MOD, RHYTHM, TUNE, JAM, LIVE, ROUTING, TONE MATCH, CHARACTER, PRACTICE, NOTATION, MIDI OUT, "
+          "WORKSHOP, MOD, RHYTHM, TUNE, JAM, RIFFS, LIVE, ROUTING, TONE MATCH, CHARACTER, PRACTICE, NOTATION, MIDI OUT, "
           "CONTROLLERS, HELP.\n\n"
           "Each has its own topic in this list. {key:previousWorkspaceTab} and {key:nextWorkspaceTab} step "
           "through them, wrapping at the ends, and the tab you had open last is the one that opens next time. "
           "WORKSHOP is different from the others: it takes over columns 3 and 4, and the tab strip stays so "
-          "you can leave it again." },
+          "you can leave it again. When there are more tabs than room, the strip scrolls: the arrows at its "
+          "ends step it, and the ... button lists every tab." },
 
         { "workshop", "WORKSHOP", "WORKSHOP|bench|Workshop bench|parts",
           "The bench. Every part of the guitar is a real part you can swap, and the illustration is the "
@@ -246,6 +248,18 @@ namespace
           "Loops record your guitar only; session takes include the band. Loading a bass makes you the bassist: "
           "the Jam bass rests. Two plugin instances jamming means two drummers.",
         },
+        // riff-library 7.1
+        { "riffs", "RIFFS", "RIFFS|riff|riffs|lick|licks|riff library|audition",
+          "A library of original riffs, licks, strum parts and bass lines, each with its techniques written "
+          "in - bends, slides, hammer-ons, palm mutes, harmonics.\n\n"
+          "- Search, the genre chips and the filter row narrow the list; \"Fits this instrument\" hides what "
+          "would need another instrument.\n"
+          "- Space plays the selected riff through your current sound, in any key and at any tempo. On the "
+          "host's clock it starts on the next bar.\n"
+          "- Drag .mid drags it onto a MIDI track (Alt for Generic); Add to Tune puts it in the selected "
+          "section; Looper records it as a layer; Learn It opens it in the practice tab reader at 70%.\n"
+          "- + Save riff keeps a phrase you just played as your own riff.\n\n"
+          "{key:riffs} opens this tab (and the Riff drawer in Easy mode). Nothing here is saved in presets." },
 
         { "live", "LIVE", "LIVE|live mode|snapshots|snapshot|setlist|morph",
           "The setup surface for playing live. The live strip along the bottom of the window ({key:toggleLiveMode}) "
@@ -353,6 +367,26 @@ namespace
           "A legato move never re-picks the string: the vibration carries through and only the pitch changes, "
           "which is what makes a slide sound like one note rather than two." },
 
+        // auto-articulation.md 7.5 (FEAT-ASSIST).
+        { "performance-assist", "Performance Assist", "Performance Assist|PLAYING group|auto articulation|AUTO pill|assist",
+          "Performance Assist turns plain MIDI - a keyboard, a DAW clip, the piano roll or the Tune melody - into "
+          "a guitar performance, without keyswitches. Switch it on with the AUTO pill in the playing strip, the "
+          "PLAYING group at the top of the RHYTHM tab, or {key:toggleAssist}.\n\n"
+          "- Positions: each note goes on the string a guitarist would choose, keeping the hand in one box.\n"
+          "- Legato: overlapping notes on one string become hammer-ons and pull-offs; a long overlap or a "
+          "position shift becomes a slide.\n"
+          "- Vibrato: a held lead note gets vibrato after a moment, as a player's hand does.\n"
+          "- Attack and alternate picking: accents are brighter, quick runs alternate down- and up-strokes.\n"
+          "- Strums: chords strum down on the beat and up off it; Fingerstyle rolls thumb first; Bass plays "
+          "double-stops together.\n"
+          "- Palm mute: low chugs and repeated low notes are muted, and a mute lifts if you hold the note.\n"
+          "- Ornaments: the occasional bend into a note, slide-in or fall, in the lead styles.\n\n"
+          "The style menu shapes all of it and Amount scales it; the rule switches turn single rules off. What "
+          "you ask for explicitly always wins: a palm-mute pedal, a harmonic trigger, a slap or a tap is kept. "
+          "It is off in Guitar Controller and MPE modes, where the controller already articulates. Every "
+          "decision is labelled on the fretboard (Options -> Appearance -> Show Performance Assist labels) and "
+          "listed in the PLAYING group, and it reaches the notation and MIDI export as played." },
+
         { "modes", "Playing Modes", "playing mode|mode|mono|poly|guitar controller mode",
           "MONO / LEAD\n"
           "Every note goes to one string, chosen to keep the hand near where it already is. Overlapping notes "
@@ -424,6 +458,33 @@ namespace
           "are fixed too.\n\n"
           "On any control, mouse modifiers do not change: Shift-drag is coarse, Ctrl-drag (Cmd on macOS) is "
           "ultra-fine, double-click resets and right-click opens the control's menu." },
+
+        // global-search.md 6.3 (FEAT-SEARCH): F1 in the palette opens this.
+        { "search", "Search", "search|search everything|command palette|find",
+          "Search finds anything in Luthier and takes you there: every control, every place (tab, column "
+          "section, Options page, drawer tab, overlay), every command, every preset, guitar and part, every "
+          "Help topic and every keyboard shortcut.\n\n"
+          "OPEN IT\n"
+          "Press {key:search}, click the magnifier in the header, or type in the Search field at the top of "
+          "this tab. {key:search} again, or Escape, closes it and puts focus back where it was.\n\n"
+          "FIND\n"
+          "Type part of a name. Typos, abbreviations (\"tb\" for Treble Bleed) and other words for the same "
+          "thing (\"drive\" for the amp's gain, \"reverb\" for the room) all work. A first character narrows "
+          "the search: > commands and shortcuts, ? help, # presets, guitars, parts and pedals, the at sign for places, "
+          "= controls only. The chips under the field do the same.\n\n"
+          "GO\n"
+          "Enter goes to the result: the control is shown, scrolled into view, focused and ringed, so the "
+          "arrow keys adjust it straight away. If it lives in the other mode, Search switches mode for you "
+          "and says so ({key:toggleAdvanced} returns); Options -> Accessibility -> Search can make it ask "
+          "first. Ctrl+Enter goes to a control without changing it.\n\n"
+          "SET A VALUE\n"
+          "Type a value after a control's name - \"gain 7\", \"concert a 442 Hz\", \"room 50%\", "
+          "\"treble bleed off\" - and Enter sets it, as one undoable edit. Shift+Enter sets it and keeps "
+          "Search open. Alt+Left and Alt+Right nudge the selected control; add Shift for a fine step.\n\n"
+          "MORE\n"
+          "Alt+Enter, or right-clicking a row, shows everything else a result can do: a control's own "
+          "right-click menu, or Load, Reveal file, Fit to this guitar and so on. Recent results come first "
+          "when the field is empty; Options -> Accessibility -> Search turns remembering them off." },
 
         { "troubleshooting", "Troubleshooting", "troubleshooting|install|installation|uninstall|no sound|crash|"
           "crackles|cpu",
@@ -636,7 +697,9 @@ namespace
     /** "Tone-Match  tab" -> "tone match". */
     juce::String normalise (juce::String name)
     {
-        name = name.replaceCharacter ('-', ' ').replaceCharacter ('_', ' ').toLowerCase().trim();
+        // global-search.md 4.1 (FEAT-SEARCH): one rule for "the same name",
+        // shared with the search matcher (case, accents, separators, spaces).
+        name = search::SearchMatcher::normalise (name);
 
         for (const char* suffix : { " tab", " panel" })
             if (name.endsWith (suffix))
@@ -656,10 +719,10 @@ namespace
 
     const Group kGroups[] =
     {
-        { "Help and navigation", "help|showShortcuts|options|toggleAdvanced|previousWorkspaceTab|"
+        { "Help and navigation", "help|search|showShortcuts|options|toggleAdvanced|previousWorkspaceTab|"
                                  "nextWorkspaceTab|debugPanel" },
         { "Playing",             "panic|killSwitch|tapTempo|audition|toggleLiveMode|toggleSlideMode|toggleWorkshop|"
-                                 "togglePractice|midiLearnArm|jamStartStop|jamFill|jamArm" },   // FEAT-JAM
+                                 "togglePractice|midiLearnArm|jamStartStop|jamFill|jamArm|toggleAssist" },   // FEAT-JAM
         { "Presets, snapshots and setlists", "previousItem|nextItem|setlistPrevious|setlistNext|abCompare|"
                                  "randomise|resetAll|newPreset|presetBrowser" },
         { "Files and editing",   "undo|redo|redoAlt|undoAcrossBoundary|save|saveAs|revealPreset|saveGuitarAs|revealGuitar|export|newTune" }

@@ -385,6 +385,10 @@ LUTHIER_TEST (JamPlugin, JM36_jamParametersAreTheLast34InTableOrder)
     const int n = params.size();
     CHECK (n > ParamIDs::kNumJamParameters);
 
+    // INTEGRATE-2: the 34 were last when FEAT-JAM landed; workstreams merged
+    // after it (FEAT-ASSIST, FEAT-MIC) append their own blocks behind them. The
+    // rule is the append-only one: one contiguous block in table order, and no
+    // jam_ parameter anywhere else.
     int first = -1;
 
     for (int i = 0; i < n && first < 0; ++i)
@@ -407,10 +411,6 @@ LUTHIER_TEST (JamPlugin, JM36_jamParametersAreTheLast34InTableOrder)
         if (i < first || i >= first + ParamIDs::kNumJamParameters)
             if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (params[i]))
                 CHECK_MSG (! withId->paramID.startsWith ("jam_"), withId->paramID + " sits outside the Jam block");
-
-    // Only the SPEC-SWEEP block (currently snapshot_morph) follows it.
-    CHECK_MSG (n - (first + ParamIDs::kNumJamParameters) == 1,
-               juce::String (n - (first + ParamIDs::kNumJamParameters)) + " parameters follow the Jam block");
 }
 
 //==============================================================================

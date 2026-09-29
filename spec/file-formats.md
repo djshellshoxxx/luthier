@@ -108,6 +108,14 @@ Migration: schema 1 (pre-M42) had no `ranges` block. Loader adds
 Schema 2 (pre-M49) had `guitar.name` string instead of `guitar.reference`.
 Loader consults `Resources/Guitars/migration.json` to convert.
 
+(mic-placement.md, FEAT-MIC): `ranges.families` also accepts `"mic"` (mic distance and
+angle; absent reads as `"stock"`). A preset that has `mic_position` /
+`mic_distance` (and `_2`) but no `mic_x` etc. is migrated on load to the
+continuous placement keys. On save the legacy keys are written as the
+nearest mirror of the placement (so older builds still load it), and an
+optional `"micLegacy"` object records the automation-facing legacy values
+exactly; readers that do not know it ignore it.
+
 Backup on migration: original file moved to
 `~/Documents/Luthier/Presets/Backup/<yyyy-mm-dd>/<name>-v<schema>.luthierpreset`.
 

@@ -20,6 +20,7 @@ const char* getRangeFamilyName (RangeFamily family) noexcept
         case RangeFamily::environment: return "environment";   // REALISM-A
         case RangeFamily::body:        return "body";          // REALISM-A
         case RangeFamily::jam:        return "jam";   // FEAT-JAM
+        case RangeFamily::mic:        return "mic";   // mic-placement.md 7
         case RangeFamily::numFamilies:
         default:                      return "none";
     }
@@ -230,6 +231,15 @@ namespace
             // --- jam kit (jam-mode.md 10, FEAT-JAM): a tension change and head muffling
             { ParamIDs::jamKitTuning,      { -6.0f,  6.0f,  -12.0f, 12.0f, 0.0f,  0.5f, RangeFamily::jam } },
             { ParamIDs::jamKitDamping,     { 10.0f,  90.0f, 0.0f,  100.0f, 40.0f, 1.0f, RangeFamily::jam } },
+            // --- mic (mic-placement.md 7, FEAT-MIC) -------------------------
+            { ParamIDs::micDist,     { 0.0f, 100.0f, 0.0f, 200.0f, 2.5f,  0.4f, RangeFamily::mic } },
+            { ParamIDs::micAngle,    { 0.0f,  90.0f, 0.0f, 180.0f, 0.0f,  1.0f, RangeFamily::mic } },
+            { ParamIDs::micDist2,    { 0.0f, 100.0f, 0.0f, 200.0f, 15.0f, 0.4f, RangeFamily::mic } },
+            { ParamIDs::micAngle2,   { 0.0f,  90.0f, 0.0f, 180.0f, 45.0f, 1.0f, RangeFamily::mic } },
+            { ParamIDs::acMicDist,   { 0.0f, 100.0f, 0.0f, 300.0f, 20.0f, 0.4f, RangeFamily::mic } },
+            { ParamIDs::acMicAngle,  { 0.0f,  90.0f, 0.0f, 180.0f, 15.0f, 1.0f, RangeFamily::mic } },
+            { ParamIDs::acMicDist2,  { 0.0f, 100.0f, 0.0f, 300.0f, 30.0f, 0.4f, RangeFamily::mic } },
+            { ParamIDs::acMicAngle2, { 0.0f,  90.0f, 0.0f, 180.0f, 0.0f,  1.0f, RangeFamily::mic } },
         };
 
         count = (int) (sizeof (table) / sizeof (table[0]));

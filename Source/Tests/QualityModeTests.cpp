@@ -79,6 +79,9 @@ LUTHIER_TEST (CpuQuality, CQ01_profileTableMatchesTheSpec)
     CHECK (h.modIntervalMultiplier == 1 && m.modIntervalMultiplier == 1 && l.modIntervalMultiplier == 2);
     CHECK (h.modFastLfoHz == 20.0);
 
+    // Mic placement (INTEGRATE-2): a moving mic evaluates every other step at Low.
+    CHECK (h.micEvaluateEvery == 1 && m.micEvaluateEvery == 1 && l.micEvaluateEvery == 2);
+
     // Sleep and ring-out.
     CHECK (! h.idleSleep && m.idleSleep && l.idleSleep);
     CHECK (h.ringOutDb == 0.0 && m.ringOutDb == -80.0 && l.ringOutDb == -60.0);

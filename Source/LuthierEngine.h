@@ -35,6 +35,7 @@
 #include "DSP/Amp/AmpEngine.h"
 #include "DSP/Amp/CabinetEngine.h"
 #include "DSP/Amp/RoomEngine.h"
+#include "DSP/Body/AcousticMicModel.h"   // mic-placement.md 3
 #include "DSP/Master/MasterBus.h"
 #include "DSP/Master/FreezeOverlay.h"
 #include "Model/Guitar/GuitarLibrary.h"
@@ -46,6 +47,7 @@
 #include "Rhythm/RhythmEngine.h"
 #include "Character/CharacterEngine.h"
 #include "Support/QualityProfile.h"   // cpu-quality-modes
+#include "Riffs/RiffPlayer.h"   // riff-library 5.3
 #include "Character/EnvironmentModel.h"          // environment.md (REALISM-A)
 #include "DSP/String/StringAging.h"              // string-aging.md (REALISM-A)
 #include "DSP/Coupling/BodyCouplingBank.h"       // body-coupling.md (REALISM-A)
@@ -305,6 +307,13 @@ public:
     EffectsChain&    getPostEffects() noexcept     { return postEffects; }
     CabinetEngine&   getCabinetEngine() noexcept   { return cabinet; }
     RoomEngine&      getRoomEngine() noexcept      { return room; }
+
+    /** mic-placement.md 3: external mics around an acoustic guitar, mixed
+        against the pickup by ac_mic_mix (0 = today's pickup path alone). */
+    AcousticMicModel& getAcousticMicModel() noexcept { return acMic; }
+    void setAcousticMicMix (double mix) noexcept { acMicMixTarget = juce::jlimit (0.0, 1.0, mix); }
+    double getAcousticMicMix() const noexcept    { return acMicMixTarget; }
+    bool isAcousticMicActive() const noexcept    { return acMicActive; }
     MasterBus&       getMasterBus() noexcept       { return master; }
     FreezeOverlay&   getFreezeOverlay() noexcept   { return freezeOverlay; }
     Validator&       getValidator() noexcept       { return validator; }
@@ -431,6 +440,16 @@ public:
     /** The rhythm engine sits between the interpreter and the technique engine
         and rewrites the event stream when it is switched on. */
     RhythmEngine& getRhythmEngine() noexcept { return rhythm; }
+
+    /** riff-library 5.3: the riff audition player, played into the strings
+        after the direct notes of each sub-block. */
+    RiffPlayer& getRiffPlayer() noexcept { return riffPlayer; }
+    const RiffPlayer& getRiffPlayer() const noexcept { return riffPlayer; }
+    /** The cents a riff note's bend holds a string at (tests). */
+    double getRiffBendCents (int stringIndex) const noexcept
+    {
+        return riffBendCents[(size_t) juce::jlimit (0, kMaxStrings - 1, stringIndex)];
+    }
     const RhythmEngine& getRhythmEngine() const noexcept { return rhythm; }
 
     /** The instrument's physical imperfections (character-wear.md). Applied at
@@ -626,6 +645,20 @@ public:
     float getPalmWeight (int s) const noexcept { return palmWeightDisplay[(size_t) juce::jlimit (0, kMaxStrings - 1, s)].load (std::memory_order_relaxed); }
     // ==== END REALISM-B engine ====
 
+    // ==== BEGIN FEAT-ASSIST ====
+    /*  Performance Assist (auto-articulation.md 4.2). The glue is in
+        LuthierEngineAssist.cpp. */
+    void setAutoArticulation (const AutoArticulationSettings& s) noexcept { midi.setAutoArticulation (s); }
+    AutoArticulator& getAutoArticulator() noexcept { return midi.getAutoArticulator(); }
+    const AutoArticulator& getAutoArticulator() const noexcept { return midi.getAutoArticulator(); }
+
+    /** Why Assist is not running, for the notice line (5). */
+    AssistBypass getAssistBypass() const noexcept;
+
+    /** 5: the Luthier-profile import player's notes are pre-articulated. */
+    void setAssistPreArticulated (bool pre) noexcept { assistPreArticulated = pre; }
+    // ==== END FEAT-ASSIST ====
+
 private:
     /** Moves a block's events onto the schedule, converting their offsets to
         absolute sample positions. */
@@ -666,6 +699,16 @@ private:
     PlayEventQueue events;
     PlayEventQueue rhythmEvents;
     PlayEventQueue directEvents;
+
+    // riff-library 5.3: the riff player, its sub-block's events, and the bend
+    // each string's riff note holds (added to the MIDI bend per block).
+    RiffPlayer riffPlayer;
+    RiffPlayer::Output riffOut;
+    std::array<double, kMaxStrings> riffBendCents {};
+    int subBlockOffset = 0;   ///< samples into the host block this sub-block starts at
+    void playRiffEvents (int numSamples) noexcept;
+    bool schedulingRiff = false;   ///< scheduleEvents is taking the riff player's queue
+    bool firingRiff = false;       ///< the event being fired came from the riff player
     const juce::MidiBuffer* directMidi = nullptr;      ///< for the current processBlock
     const juce::MidiBuffer* directForSubBlock = nullptr;
     juce::MidiBuffer directSlice;
@@ -725,9 +768,15 @@ private:
         NoteOffEvent noteOff {};
         int64_t absoluteSample = 0;
         bool fingerAlternated = false;   ///< bass-techniques 6: already given its finger's timing
+        bool fromRiff = false;           ///< riff-library 5.3: a riff audition event
         bool staggered = false;   ///< REALISM-B: string-interaction.md 4 delayed this note-off
         bool cancelled = false;   ///< REALISM-B: a new note on the string took it first
+
+        int kind = 0;                    ///< FEAT-ASSIST: kDampingLift is auto-articulation.md 3.6's mute lift
+        juce::uint32 serial = 0;         ///< FEAT-ASSIST: the note the lift belongs to
     };
+
+    static constexpr int kDampingLift = 1;   // FEAT-ASSIST
 
     static constexpr int kMaxScheduledEvents = 192;
     std::array<ScheduledEvent, kMaxScheduledEvents> scheduled {};
@@ -755,6 +804,13 @@ private:
     EffectsChain postEffects;
     CabinetEngine cabinet;
     RoomEngine room;
+
+    // mic-placement.md 3: the acoustic external mics.
+    AcousticMicModel acMic;
+    ExpSmoother acMicMixSmooth;
+    double acMicMixTarget = 0.0;
+    bool acMicActive = false;
+    std::vector<double> acMicBuffer;
     SecretEffect secret;
     MasterBus master;
     FreezeOverlay freezeOverlay;
@@ -1095,6 +1151,19 @@ private:
     void refreshAirCoupling() noexcept;
     SlapStrike makeToolStrike (const NoteOnEvent& e, int slapType) const noexcept;
     // ==== END REALISM-B engine state ====
+
+    // ==== BEGIN FEAT-ASSIST (auto-articulation.md; LuthierEngineAssist.cpp) ====
+    bool assistPreArticulated = false;
+    std::array<juce::uint32, kMaxStrings> assistNoteSerial {};
+    std::array<juce::int64, kMaxStrings> assistLiftStart {};
+    std::array<double, kMaxStrings> assistLiftFrom {};
+    std::array<double, kMaxStrings> assistLastPitch {};
+    void assistSetContext (bool rhythmPass) noexcept;
+    void assistNoteStarted (const NoteOnEvent& e, int s, double fret) noexcept;
+    void assistFireLift (const ScheduledEvent& e) noexcept;
+    double assistPerBlockCents (int s, int numSamples, double& vib) noexcept;
+    void assistReset() noexcept;
+    // ==== END FEAT-ASSIST ====
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierEngine)
 };
