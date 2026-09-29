@@ -695,12 +695,15 @@ LUTHIER_TEST (ToneMatch, irTrimControlsReachThePersistedSlotAndFitTheCard)
     CHECK (processor.getBodyIrSlot().getStartTrim() == 64);
     CHECK (processor.getBodyIrSlot().getEndTrim() == 128);
 
-    IrSlot restored;
-    restored.prepare (kSr, 512);
-    restored.fromVar (processor.getBodyIrSlot().toVar());
+    juce::MemoryBlock state;
+    processor.getStateInformation (state);
 
-    CHECK (restored.getStartTrim() == 64);
-    CHECK (restored.getEndTrim() == 128);
+    LuthierAudioProcessor restored;
+    restored.prepareToPlay (kSr, 512);
+    restored.setStateInformation (state.getData(), (int) state.getSize());
+
+    CHECK (restored.getBodyIrSlot().getStartTrim() == 64);
+    CHECK (restored.getBodyIrSlot().getEndTrim() == 128);
 
     for (int width : { 280, 420 })
     {
