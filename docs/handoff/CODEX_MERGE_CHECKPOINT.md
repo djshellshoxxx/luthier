@@ -1,9 +1,15 @@
 # Codex mega-merge checkpoint (2026-09-29) — REPLAY RECIPE for Claude
 
 Codex built `codex/luthier-beta` LOCALLY but COULD NOT PUSH (no GitHub creds in
-its shell). The branch is NOT on origin. Use this as the exact recipe to REPLAY
-the merge on origin after the Claude weekly reset (all source branches ARE on
-origin). Do not wait for codex/luthier-beta to appear.
+its shell). Use this as the exact recipe to REPLAY the merge on origin after the
+Claude weekly reset (all source branches ARE on origin).
+
+POST-RESET FIRST STEP (Option B check): run `git ls-remote origin codex/luthier-beta`.
+- If it EXISTS: Codex's push (Option B) succeeded. Fetch it, verify it compiles
+  and the non-Combo suite passes, confirm param count 563 and B-18/B-19, then
+  continue the merge from integrate-2 on THAT branch. Do not replay from scratch.
+- If it is ABSENT: Option B failed. Replay the recipe below on a fresh pushable
+  branch off integration.
 
 ## Recipe (verified to compile by Codex)
 - Base: codex/luthier-beta from origin/claude/luthier-cloud-session-5lzlix (@ e9492ef).
