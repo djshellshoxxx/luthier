@@ -1,0 +1,9 @@
+# Contributing and Status
+
+Start with [`docs/HANDOFF.md`](https://github.com/djshellshoxxx/luthier/blob/master/docs/HANDOFF.md) and [`spec/INDEX.md`](https://github.com/djshellshoxxx/luthier/blob/master/spec/INDEX.md). The former describes the current integration workflow; the latter maps design specifications and build order. Check the source and tests on your target branch before implementing a spec item.
+
+Changes to plugin parameters require special care: parameter IDs and ordering are host automation contracts. The handoff calls for append-only additions in the marked layout sections, mirrored IDs and bridge code, visible controls for automatable parameters, and updates to the literal parameter count in `Source/Tests/IntegrationTests.cpp`. Read [`spec/DECISIONS.md`](https://github.com/djshellshoxxx/luthier/blob/master/spec/DECISIONS.md) and [`spec/ui-wiring.md`](https://github.com/djshellshoxxx/luthier/blob/master/spec/ui-wiring.md) before editing those paths. Run relevant tests and the complete Linux suite before proposing integration.
+
+The handoff designates an integration branch and a coordinator-managed merge process for external contributions. The branch and workflow can change, so check current repository guidance and open pull requests. Do not treat a draft PR as merged code.
+
+As of the dated 2026-09-26 handoff, Linux is the integration platform, expansion and audits are underway, Windows and macOS validation is paused, and CI jobs may be blocked by the account spending limit. Public release readiness requires the release guide's signing, installation and manual checks. See [`docs/KNOWN_ISSUES.md`](https://github.com/djshellshoxxx/luthier/blob/master/docs/KNOWN_ISSUES.md) and [`docs/RELEASING.md`](https://github.com/djshellshoxxx/luthier/blob/master/docs/RELEASING.md).
