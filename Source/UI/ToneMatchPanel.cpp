@@ -138,6 +138,33 @@ IrSlotEditor::IrSlotEditor (LuthierAudioProcessor& p, Slot s)
     };
     addAndMakeVisible (predelay);
 
+    // tone-match 1: persisted length trim at each end of the loaded IR.
+    styleSlider (startTrim, 0.0, 1000000.0, 1.0, " start");
+    startTrim.setComponentID ("ir-start-trim");
+    startTrim.setTooltip ("Samples removed from the start of the impulse response.");
+    startTrim.onValueChange = [this]
+    {
+        if (updatingControls)
+            return;
+
+        pushIrEdit ("start trim", true);
+        slot().setStartTrim ((int) startTrim.getValue());
+    };
+    addAndMakeVisible (startTrim);
+
+    styleSlider (endTrim, 0.0, 1000000.0, 1.0, " end");
+    endTrim.setComponentID ("ir-end-trim");
+    endTrim.setTooltip ("Samples removed from the end of the impulse response.");
+    endTrim.onValueChange = [this]
+    {
+        if (updatingControls)
+            return;
+
+        pushIrEdit ("end trim", true);
+        slot().setEndTrim ((int) endTrim.getValue());
+    };
+    addAndMakeVisible (endTrim);
+
     styleSlider (mix, 0.0, 100.0, 1.0, " %");
     mix.setTooltip ("How much of the impulse response against the built-in model.");
     mix.onValueChange = [this]
@@ -237,6 +264,8 @@ void IrSlotEditor::refresh()
     channelBox.setSelectedId (s.getChannel() + 2, juce::dontSendNotification);
     gainTrim.setValue (s.getGainTrimDb(), juce::dontSendNotification);
     predelay.setValue (s.getPredelayMs(), juce::dontSendNotification);
+    startTrim.setValue (s.getStartTrim(), juce::dontSendNotification);
+    endTrim.setValue (s.getEndTrim(), juce::dontSendNotification);
     mix.setValue (s.getMix() * 100.0, juce::dontSendNotification);
     reverseButton.setToggleState (s.isReversed(), juce::dontSendNotification);
 
@@ -245,6 +274,8 @@ void IrSlotEditor::refresh()
     channelBox.setEnabled (loaded);
     gainTrim.setEnabled (loaded);
     predelay.setEnabled (loaded);
+    startTrim.setEnabled (loaded);
+    endTrim.setEnabled (loaded);
     mix.setEnabled (loaded);
     reverseButton.setEnabled (loaded);
     clearButton.setEnabled (loaded);
@@ -321,6 +352,13 @@ void IrSlotEditor::resized()
     channelBox.setBounds (row (24));
     gainTrim.setBounds (row (20));
     predelay.setBounds (row (20));
+
+    {
+        auto r = row (20);
+        startTrim.setBounds (r.removeFromLeft (r.getWidth() / 2).reduced (0, 1));
+        r.removeFromLeft (4);
+        endTrim.setBounds (r.reduced (0, 1));
+    }
 
     {
         auto r = row (20);
