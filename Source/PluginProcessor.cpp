@@ -3,6 +3,7 @@
 #include "Workshop/FamilyDefaults.h"   // guitar-illustration.md 12.3 (VISUAL-WORKSHOP-QA)
 #include "Presets/FactoryPresets.h"
 #include "Support/ErrorLog.h"
+#include "Support/HostClock.h"
 #include "Model/Guitar/BassDefaults.h"   // MODEL-GAPS
 
 /*  The test runner and the offline renderer build this file, so that the things
@@ -1486,7 +1487,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     {
         if (auto position = playHead->getPosition())
         {
-            if (auto bpm = position->getBpm())
+            if (auto bpm = position->getBpm(); bpm && HostClock::isValidTempo (*bpm))
                 hostTempo.store (*bpm);
 
             hostPlaying = position->getIsPlaying();
@@ -1521,13 +1522,13 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
             {
                 playing = position->getIsPlaying();
 
-                if (auto value = position->getPpqPosition())
+                if (auto value = position->getPpqPosition(); value && HostClock::isValidPosition (*value))
                 {
                     ppq = *value;
                     hasPosition = true;
                 }
 
-                if (auto seconds = position->getTimeInSeconds())
+                if (auto seconds = position->getTimeInSeconds(); seconds && HostClock::isValidPosition (*seconds))
                     hostSeconds = *seconds;
 
                 // SPEC-SWEEP HI-29: the host's metre, for the practice click.
