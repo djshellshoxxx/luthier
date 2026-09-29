@@ -14,15 +14,35 @@ endif()
 
 option(LUTHIER_BUILD_TESTS "Build the Luthier unit-test runner" ON)
 option(LUTHIER_BUILD_CLI   "Build the offline batch-render CLI"  ON)
+# Link-time optimisation for the plugin targets. On for shipped builds; CI turns
+# it off on ordinary pushes, where it doubles the link time and defeats the
+# compiler cache, and keeps it on for nightly and release builds.
+option(LUTHIER_LTO         "Link-time optimise the plugin targets" ON)
 
 add_subdirectory(ThirdParty/JUCE)
+
+# CLAP comes from clap-juce-extensions when it has been fetched beside JUCE
+# (scripts/setup_linux.sh and the CI workflows fetch it); without it the build
+# simply has no CLAP target.
+set(LUTHIER_CLAP_EXTENSIONS "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/clap-juce-extensions")
+if (EXISTS "${LUTHIER_CLAP_EXTENSIONS}/CMakeLists.txt")
+    add_subdirectory("${LUTHIER_CLAP_EXTENSIONS}" EXCLUDE_FROM_ALL)
+    set(LUTHIER_HAS_CLAP TRUE)
+else()
+    set(LUTHIER_HAS_CLAP FALSE)
+endif()
+
+set(LUTHIER_FORMATS VST3 Standalone)
+if (APPLE)
+    list(APPEND LUTHIER_FORMATS AU)
+endif()
 
 juce_add_plugin(Luthier
     COMPANY_NAME                "Luthier Audio"
     BUNDLE_ID                   "com.luthieraudio.luthier"
     PLUGIN_MANUFACTURER_CODE    Ltha
     PLUGIN_CODE                 Lthr
-    FORMATS                     VST3 Standalone
+    FORMATS                     ${LUTHIER_FORMATS}
     PRODUCT_NAME                "Luthier"
     IS_SYNTH                    TRUE
     NEEDS_MIDI_INPUT            TRUE
@@ -31,6 +51,14 @@ juce_add_plugin(Luthier
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
     COPY_PLUGIN_AFTER_BUILD     FALSE
     VST3_CATEGORIES             "Instrument" "Synth"
+    AU_MAIN_TYPE                kAudioUnitType_MusicDevice
+    # macOS notarisation needs the hardened runtime; the sidechain input needs
+    # the audio-input entitlement under it and a usage string in the standalone.
+    # (scripts/package_macos.sh applies the same entitlements when it re-signs.)
+    HARDENED_RUNTIME_ENABLED    TRUE
+    HARDENED_RUNTIME_OPTIONS    com.apple.security.device.audio-input
+    MICROPHONE_PERMISSION_ENABLED TRUE
+    MICROPHONE_PERMISSION_TEXT  "Luthier uses audio input for its sidechain."
     ICON_BIG                    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon.png"
     ICON_SMALL                  "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon_small.png")
 
@@ -46,6 +74,7 @@ set(LUTHIER_WIP_REGEX "Source/WIP/")
 list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "${LUTHIER_WIP_REGEX}")
 
 target_sources(Luthier PRIVATE ${LUTHIER_SOURCES})
+
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Source" FILES ${LUTHIER_SOURCES})
 
 target_compile_definitions(Luthier PUBLIC
@@ -57,7 +86,9 @@ target_compile_definitions(Luthier PUBLIC
     JUCE_REPORT_APP_USAGE=0
     JUCE_STRICT_REFCOUNTEDPOINTER=1
     JUCE_MODAL_LOOPS_PERMITTED=0
-    JUCE_SILENCE_XCODE_15_LINKER_WARNING=1)
+    JUCE_SILENCE_XCODE_15_LINKER_WARNING=1
+    # installer.md 1.3 / 13.6: Source/StandaloneApp.cpp opens files it is given.
+    JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=1)
 
 target_include_directories(Luthier PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
 
@@ -67,8 +98,17 @@ target_link_libraries(Luthier PRIVATE
     # SHA-256, for the license activation proof (updates-telemetry 5).
     juce::juce_cryptography
     PUBLIC
-    juce::juce_recommended_config_flags
-    juce::juce_recommended_lto_flags)
+    juce::juce_recommended_config_flags)
+
+if (LUTHIER_LTO)
+    target_link_libraries(Luthier PUBLIC juce::juce_recommended_lto_flags)
+endif()
+
+if (LUTHIER_HAS_CLAP)
+    clap_juce_extensions_plugin(TARGET Luthier
+        CLAP_ID "com.luthieraudio.luthier"
+        CLAP_FEATURES instrument synthesizer stereo)
+endif()
 
 #==============================================================================
 # Resources
@@ -97,11 +137,29 @@ function(luthier_copy_resources target destination)
     endif()
 endfunction()
 
-luthier_copy_resources(Luthier_VST3
-    "$<TARGET_FILE_DIR:Luthier_VST3>/../../Resources")
+# A bundle's resources belong in Contents/Resources, one level up from the
+# binary on every platform (Contents/MacOS on macOS, Contents/<arch> for a VST3
+# elsewhere); anything written to a macOS bundle root breaks its code signature.
+luthier_copy_resources(Luthier_VST3 "$<TARGET_FILE_DIR:Luthier_VST3>/../Resources")
 
-luthier_copy_resources(Luthier_Standalone
-    "$<TARGET_FILE_DIR:Luthier_Standalone>/Resources")
+if (APPLE)
+    luthier_copy_resources(Luthier_AU   "$<TARGET_FILE_DIR:Luthier_AU>/../Resources")
+    luthier_copy_resources(Luthier_CLAP "$<TARGET_FILE_DIR:Luthier_CLAP>/../Resources")
+else()
+    # A CLAP on Windows and Linux is a single file: its resources go beside it,
+    # as they do for the standalone.
+    luthier_copy_resources(Luthier_CLAP "$<TARGET_FILE_DIR:Luthier_CLAP>/Resources")
+endif()
+
+# The standalone wants them next to the exe, except that on macOS it is an app
+# bundle too, and files beside the binary in Contents/MacOS count as unsigned code.
+if (APPLE)
+    luthier_copy_resources(Luthier_Standalone
+        "$<TARGET_FILE_DIR:Luthier_Standalone>/../Resources")
+else()
+    luthier_copy_resources(Luthier_Standalone
+        "$<TARGET_FILE_DIR:Luthier_Standalone>/Resources")
+endif()
 
 #==============================================================================
 # Test runner and offline renderer
@@ -117,7 +175,7 @@ luthier_copy_resources(Luthier_Standalone
 # reference to the editor.
 set(LUTHIER_ENGINE_SOURCES ${LUTHIER_SOURCES})
 list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "Source/UI/")
-list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor\.(cpp|h)$")
+list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor[A-Za-z]*\.(cpp|h)$")   # FEAT-NORMALIZE: PluginEditorOnboarding.cpp too
 
 # The UI, as its own list. The renderer does not want it - it renders offline and
 # has no window - but the test runner does. With Source/UI out of every target
@@ -125,7 +183,7 @@ list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor\.(cpp|h)$")
 # LuthierAudioProcessorEditor, and the panels could be verified only by opening
 # the plugin in a host by hand.
 set(LUTHIER_UI_SOURCES ${LUTHIER_SOURCES})
-list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor\.(cpp|h)$")
+list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor[A-Za-z]*\.(cpp|h)$")   # FEAT-NORMALIZE: PluginEditorOnboarding.cpp too
 
 set(LUTHIER_CONSOLE_DEFS
     LUTHIER_HEADLESS=1
@@ -145,6 +203,8 @@ set(LUTHIER_CONSOLE_DEFS
 set(LUTHIER_TEST_DEFS ${LUTHIER_CONSOLE_DEFS})
 list(REMOVE_ITEM LUTHIER_TEST_DEFS LUTHIER_HEADLESS=1)
 list(APPEND LUTHIER_TEST_DEFS LUTHIER_HEADLESS=0)
+# notation-export 7.1 (MODEL-GAPS): CircuitTests.cpp counts allocations; the other suites' checks compile in.
+list(APPEND LUTHIER_TEST_DEFS LUTHIER_ALLOCATION_COUNTER=1)
 
 if (LUTHIER_BUILD_TESTS)
     file(GLOB LUTHIER_TEST_SOURCES CONFIGURE_DEPENDS
@@ -184,7 +244,10 @@ if (LUTHIER_BUILD_CLI)
 
     target_sources(LuthierRender PRIVATE
                    ${LUTHIER_ENGINE_SOURCES}
-                   "${CMAKE_CURRENT_SOURCE_DIR}/Tools/RenderCli.cpp")
+                   "${CMAKE_CURRENT_SOURCE_DIR}/Tools/RenderCli.cpp"
+                   # PresetManager reads UiPreferences (plain file I/O, no UI);
+                   # FEAT-NORMALIZE restored the renderer's link after that landed.
+                   "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/UiPreferences.cpp")
 
     target_include_directories(LuthierRender PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
     target_compile_definitions(LuthierRender PRIVATE ${LUTHIER_CONSOLE_DEFS})
@@ -197,4 +260,72 @@ if (LUTHIER_BUILD_CLI)
         juce::juce_recommended_config_flags)
 
     luthier_copy_resources(LuthierRender "$<TARGET_FILE_DIR:LuthierRender>/Resources")
+endif()
+
+#==============================================================================
+# Install and packaging (installer.md 3, 4, 10)
+#
+# Linux: `cpack` in the build tree makes Luthier-<version>-linux-x64.tar.gz and
+# luthier_<version>_amd64.deb. The layout is installer.md 3.1's:
+#   VST3        <prefix>/lib/vst3/Luthier.vst3
+#   standalone  <prefix>/bin/luthier
+#   content     <prefix>/share/luthier        (IrLibrary looks there)
+#   desktop     <prefix>/share/applications/luthier.desktop
+#   MIME        <prefix>/share/mime/packages/luthier.xml (the six associations)
+#   icons       <prefix>/share/icons/hicolor/{128x128,512x512}/apps/luthier.png
+# SOURCE_DATE_EPOCH, when set, makes the archives reproducible (installer.md 10).
+#==============================================================================
+if (UNIX AND NOT APPLE)
+    set(LUTHIER_ARTEFACTS "${CMAKE_CURRENT_BINARY_DIR}/Luthier_artefacts/$<CONFIG>")
+
+    # The bundle's own copy of Resources (the build's convenience) is left out:
+    # the package ships the content once, in share/luthier, where IrLibrary
+    # finds it from the plugin too.
+    install(DIRECTORY "${LUTHIER_ARTEFACTS}/VST3/Luthier.vst3"
+            DESTINATION lib/vst3 USE_SOURCE_PERMISSIONS COMPONENT main
+            REGEX "/Luthier.vst3/Resources(/|$)" EXCLUDE)
+    install(PROGRAMS "${LUTHIER_ARTEFACTS}/Standalone/Luthier"
+            DESTINATION bin RENAME luthier COMPONENT main)
+    install(DIRECTORY "${LUTHIER_RESOURCES}/"
+            DESTINATION share/luthier COMPONENT main
+            PATTERN "*.ico" EXCLUDE)
+    install(FILES packaging/linux/luthier.desktop DESTINATION share/applications COMPONENT main)
+    install(FILES packaging/linux/luthier.xml DESTINATION share/mime/packages COMPONENT main)
+    install(FILES Resources/icon.png DESTINATION share/icons/hicolor/512x512/apps RENAME luthier.png COMPONENT main)
+    install(FILES Resources/icon_small.png DESTINATION share/icons/hicolor/128x128/apps RENAME luthier.png COMPONENT main)
+    install(FILES THIRD_PARTY_LICENCES.txt DESTINATION share/doc/luthier COMPONENT main)
+    install(PROGRAMS packaging/linux/install.sh packaging/linux/uninstall.sh
+            DESTINATION . COMPONENT tarball)
+
+    set(CPACK_PACKAGE_NAME "luthier")
+    set(CPACK_PACKAGE_VENDOR "Luthier Audio")
+    set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Physically modelled guitar and bass instrument (VST3 and standalone)")
+    set(CPACK_PACKAGE_CONTACT "Luthier Audio <support@luthier.audio>")
+    set(CPACK_GENERATOR "TGZ;DEB")
+    set(CPACK_PROJECT_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/CPackProjectConfig.cmake")
+
+    # One package per generator, whatever the components.
+    set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
+    set(CPACK_DEB_COMPONENT_INSTALL ON)
+    set(CPACK_COMPONENTS_GROUPING ALL_COMPONENTS_IN_ONE)
+
+    # installer.md 3 names.
+    set(CPACK_ARCHIVE_FILE_NAME "Luthier-${PROJECT_VERSION}-linux-x64")
+    set(CPACK_PACKAGE_FILE_NAME "Luthier-${PROJECT_VERSION}-linux-x64")
+    set(CPACK_DEBIAN_FILE_NAME "luthier_${PROJECT_VERSION}_amd64.deb")
+    # The top-level folder (tarball only) is set per generator in CPackProjectConfig.cmake.
+
+    # installer.md 3.3: ALSA always; JACK or PipeWire for low latency; X11
+    # (JUCE opens libX11 and friends at run time, so they are named here).
+    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "sound")
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS
+        "libasound2 | libasound2t64, libfreetype6, libfontconfig1, libx11-6, libxext6, libxrandr2, libxinerama1, libxcursor1, libatomic1, libstdc++6, libc6")
+    set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "pipewire-jack | libjack-jackd2-0 | libjack0")
+    set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+        "${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/postinst;${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/postrm")
+    set(CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION ON)
+
+    include(CPack)
 endif()

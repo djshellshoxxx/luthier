@@ -25,6 +25,8 @@
 #include "../Source/Support/AudioExporter.h"
 #include "../Source/Support/IrLibrary.h"
 #include "../Source/Rhythm/GenreKit.h"
+#include "../Source/PluginProcessor.h"                      // output-normalization.md 4.4
+#include "../Source/Support/NormalizationCalibrator.h"      // output-normalization.md 4.4
 
 using namespace luthier;
 
@@ -41,7 +43,7 @@ public:
                             .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
           apvts (*this, nullptr, "LUTHIER", Parameters::createLayout()),
           bridge (apvts, engine),
-          presets (*this, apvts, engine)
+          presets (*this, apvts, engine, ranges)
     {
         // Same order as the plugin: the recipes need the parameter ranges before
         // the bank can be written, and the bank has to be on disk before a scan
@@ -84,6 +86,7 @@ public:
     LuthierEngine engine;
     juce::AudioProcessorValueTreeState apvts;
     ParameterBridge bridge;
+    RangeState ranges;   // advanced-ranges.md: presets carry their ranges block
     PresetManager presets;
 };
 
@@ -112,6 +115,9 @@ struct Options
     bool showHelp = false;
 
     juce::File writeRhythmResourcesTo;
+
+    // output-normalization.md 4.4: build Resources/NormalizationFactory.json.
+    juce::File calibrateFactoryTo;
 };
 
 void printUsage()
@@ -142,6 +148,8 @@ void printUsage()
         "  --normalise [dBFS]       normalise the result, default target -1 dBFS\n"
         "\n"
         "INFORMATION\n"
+        "  --calibrate-factory <f>  measure every factory preset x guitar type for output\n"
+        "                           normalization and write the factory table (4.4)\n"
         "  --list-presets           list every preset that can be loaded\n"
         "  --list-guitars           list every instrument\n"
         "  --list-phrases           list the built-in audition phrases\n"
@@ -179,6 +187,7 @@ bool parseArguments (int argc, char* argv[], Options& options)
         else if (arg == "--list-presets")              options.listPresets = true;
         else if (arg == "--list-guitars")              options.listGuitars = true;
         else if (arg == "--list-phrases")              options.listPhrases = true;
+        else if (arg == "--calibrate-factory")         options.calibrateFactoryTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
         else if (arg == "--write-rhythm-resources")    options.writeRhythmResourcesTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
         else if (arg == "--normalise" || arg == "--normalize")
         {
@@ -611,6 +620,92 @@ int render (RenderHost& host, const Options& options, const juce::MidiMessageSeq
 } // namespace
 
 //==============================================================================
+//==============================================================================
+/*  output-normalization.md 4.4: the factory calibration table. Every factory
+    preset on its own guitar and on every guitar type is loaded into a fresh
+    processor (as a user would load it), hashed exactly as the live instance
+    hashes it, and measured by the same reference render. */
+int calibrateFactory (const juce::File& out)
+{
+    const int presets = FactoryPresets::getNumPresets();
+    const int types = (int) GuitarType::NumTypes;
+    int done = 0, failed = 0;
+
+    for (int pr = 0; pr < presets; ++pr)
+    {
+        for (int g = -1; g < types; ++g)
+        {
+            auto p = std::make_unique<LuthierAudioProcessor>();
+            p->prepareToPlay (48000.0, 256);
+
+            auto& manager = p->getPresetManager();
+            const auto& def = FactoryPresets::getPreset (pr);
+            const int index = manager.indexOfPreset (def.name);
+
+            if (index < 0 || ! manager.loadPreset (index))
+            {
+                std::cerr << "cannot load " << def.name << std::endl;
+                ++failed;
+                continue;
+            }
+
+            p->getParameterBridge().applyAllNow();
+
+            if (g >= 0)
+                if (auto* prm = p->getState().getParameter (ParamIDs::guitarType))
+                {
+                    prm->setValueNotifyingHost (prm->convertTo0to1 ((float) g));
+                    p->getParameterBridge().applyAllNow();
+                }
+
+            auto& n = p->getOutputNormalization();
+            n.refreshStructuralSnapshot();
+            const auto state = n.captureSoundState();
+            const auto hash = NormalizationCalibrator::hashSoundState (state, *p);
+            const auto m = NormalizationCalibrator::renderAndMeasure (NormalizationCalibrator::makeRenderState (state, *p));
+
+            if (! m.ok)
+            {
+                std::cerr << "render failed: " << def.name << " / " << g << std::endl;
+                ++failed;
+                continue;
+            }
+
+            auto plain = [&p] (const char* id) -> double
+            {
+                if (auto* prm = p->getState().getParameter (id))
+                    return prm->convertFrom0to1 (prm->getValue());
+                return 0.0;
+            };
+
+            auto normalised = [&p] (const char* id) -> double
+            {
+                if (auto* prm = p->getState().getParameter (id))
+                    return prm->getValue();
+                return 0.0;
+            };
+
+            NormalizationCalibrator::addFactoryEntry (hash, m.measuredLufs, (int) std::lround (plain ("guitar_type")),
+                                                      (int) std::lround (plain ("amp_model")), normalised ("amp_gain"),
+                                                      juce::String (def.name) + (g < 0 ? juce::String (" (own guitar)")
+                                                                                         : " / " + juce::String (g)));
+
+            if (++done % 25 == 0)
+                std::cout << "calibrated " << done << " / " << presets * (types + 1) << std::endl;
+        }
+    }
+
+    if (! NormalizationCalibrator::writeFactoryTable (out))
+    {
+        std::cerr << "cannot write " << out.getFullPathName() << std::endl;
+        return 1;
+    }
+
+    std::cout << "wrote " << NormalizationCalibrator::getNumFactoryEntries() << " entries to "
+              << out.getFullPathName() << " (" << failed << " failed)" << std::endl;
+    return failed == 0 ? 0 : 2;
+}
+
 int main (int argc, char* argv[])
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
@@ -631,6 +726,13 @@ int main (int argc, char* argv[])
     if (options.listPresets) return listPresets (host);
     if (options.listGuitars) return listGuitars();
     if (options.listPhrases) return listPhrases();
+
+    if (options.calibrateFactoryTo != juce::File())
+    {
+        // Start from an empty table: this run is the whole of it.
+        NormalizationCalibrator::setFactoryTableFileForTesting (juce::File::createTempFile (".json"));
+        return calibrateFactory (options.calibrateFactoryTo);
+    }
 
     if (options.writeRhythmResourcesTo != juce::File())
         return writeRhythmResources (options.writeRhythmResourcesTo);

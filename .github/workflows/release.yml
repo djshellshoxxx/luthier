@@ -1,0 +1,109 @@
+# Release: a version tag (v1.2.3, v1.3.0-beta1) builds, tests and validates on
+# every platform at full strictness with LTO, builds the installers, and
+# uploads them with SHA-256 checksums to a DRAFT GitHub Release. A person
+# reviews the draft and publishes it; nothing here publishes on its own.
+#
+# See docs/RELEASING.md for the whole procedure and the signing secrets.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to (re)build a draft release for, e.g. v1.0.0'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Check version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - id: v
+        name: Tag matches CMakeLists.txt
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          tag="$TAG"
+          version="${tag#v}"
+          # project(Luthier VERSION x.y.z ...) is the one source of the version.
+          cmake_version="$(sed -nE 's/^project\(Luthier VERSION ([0-9.]+).*/\1/p' CMakeLists.txt | tr -d '\r')"
+          # A pre-release suffix (-beta1, -rc2) is allowed on top of the CMake version.
+          if [ "${version%%-*}" != "$cmake_version" ]; then
+            echo "::error::Tag $tag does not match project VERSION $cmake_version in CMakeLists.txt"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and package
+    needs: version
+    uses: ./.github/workflows/build.yml
+    with:
+      strictness: 10
+      lto: true
+      package: true
+      version: ${{ needs.version.outputs.version }}
+      ref: ${{ needs.version.outputs.tag }}
+    secrets: inherit
+
+  draft:
+    name: Draft GitHub Release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installers-*
+          path: release
+          merge-multiple: true
+
+      - name: Checksums (installer.md 10)
+        working-directory: release
+        run: |
+          ls -la
+          sha256sum -- * | grep -v 'SHA256SUMS' > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Sign the checksum manifest
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        working-directory: release
+        run: |
+          if [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "::warning::GPG_PRIVATE_KEY not set: SHA256SUMS.txt is unsigned"
+            exit 0
+          fi
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" \
+              --armor --detach-sign --output SHA256SUMS.txt.asc SHA256SUMS.txt
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: Luthier ${{ needs.version.outputs.version }}
+          draft: true
+          prerelease: ${{ contains(needs.version.outputs.version, '-') }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: release/*

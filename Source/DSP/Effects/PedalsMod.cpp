@@ -708,8 +708,10 @@ void DelayPedal::process (double* left, double* right, int numSamples) noexcept
 
         writeIndex = (writeIndex + 1) & mask;
 
-        left[i]  = sanitise (dcL.process (left[i]  * (1.0 - mix * 0.35) + wetL * mix));
-        right[i] = sanitise (dcR.process (right[i] * (1.0 - mix * 0.35) + wetR * mix));
+        // qa-polish.md 5.9: the DC blocker is on the wet path only, so the dry
+        // path is untouched and Mix 0 is a true bypass.
+        left[i]  = sanitise (left[i]  * (1.0 - mix * 0.35) + dcL.process (wetL * mix));
+        right[i] = sanitise (right[i] * (1.0 - mix * 0.35) + dcR.process (wetR * mix));
     }
 }
 
@@ -740,6 +742,11 @@ void ReverbPedal::prepare (double sampleRate, int maxBlockSize)
 
     dcL.prepare (sr, 12.0);
     dcR.prepare (sr, 12.0);
+
+    // Sized for the longest line rebuildLines can ask for, so a Size or
+    // Character change on the audio thread never allocates.
+    for (int i = 0; i < kFdnSize; ++i)
+        lines[i].assign ((size_t) (sr * kMaxLineSeconds) + 1, 0.0);
 
     resetParametersToDefault();
     rebuildLines();
@@ -789,11 +796,13 @@ void ReverbPedal::parameterChanged (int index, double value)
 
     switch (index)
     {
-        case 0: size = value; needsRebuild = true; break;
+        // The bridge re-sends every parameter every block; only a real change
+        // may rebuild, or the tail is wiped each block and the pedal is dry.
+        case 0: needsRebuild = value != size; size = value; break;
         case 1: decaySeconds = value; break;
         case 2: damping = value; break;
         case 3: preDelayMs = value; break;
-        case 4: character = (int) value; needsRebuild = true; break;
+        case 4: needsRebuild = (int) value != character; character = (int) value; break;
         case 5: mix = value; break;
         default: break;
     }
@@ -823,8 +832,13 @@ void ReverbPedal::rebuildLines()
 
     for (int i = 0; i < kFdnSize; ++i)
     {
-        lineLengths[i] = juce::jlimit (64, (int) (sr * 0.35), (int) (primes[i] * scale));
-        lines[i].assign ((size_t) lineLengths[i], 0.0);
+        lineLengths[i] = juce::jlimit (64, (int) (sr * kMaxLineSeconds), (int) (primes[i] * scale));
+
+        if (lines[i].size() < (size_t) lineLengths[i])   // only before prepare
+            lines[i].assign ((size_t) lineLengths[i], 0.0);
+        else
+            std::fill (lines[i].begin(), lines[i].begin() + lineLengths[i], 0.0);
+
         lineIndex[i] = 0;
     }
 }

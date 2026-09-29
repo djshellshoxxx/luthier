@@ -16,6 +16,8 @@
 
 #include "../Common/DspCommon.h"
 #include "../Common/ConvolutionInstaller.h"
+#include "../Common/IrVariants.h"
+#include "../../Support/QualityProfile.h"
 #include "../../Model/Guitar/BodyModels.h"
 #include <atomic>
 #include <vector>
@@ -95,6 +97,14 @@ public:
         much a note loses depends on how close it is to this (character-wear 2). */
     double getAirResonanceHz() const noexcept;
 
+    /*  environment.md 4 / body-coupling.md 3: block-rate multipliers on the
+        modal bank - plate frequency, air frequency and plate Q. The resonators
+        are re-designed at the next block only when one has moved by more than
+        0.05 %, so 1, 1, 1 costs nothing and changes nothing. Audio thread. */
+    void setRuntimeScaling (double plateFreqMul, double airFreqMul, double plateQMul, double airQMul = 1.0) noexcept;
+    double getRuntimePlateScale() const noexcept { return runtimePlate; }
+    double getRuntimeAirScale() const noexcept { return runtimeAir; }
+
     /** Overall output trim so that switching bodies is not a jump in level. */
     void setOutputGainDb (double db) noexcept;
 
@@ -107,6 +117,21 @@ public:
     /** Latency the convolution path adds, in samples. Reported to the host. */
     int getLatencySamples() const noexcept;
 
+    //==========================================================================
+    /*  cpu-quality-modes 2.1 / 2.3: the level's IR variant and modal cap. The
+        modes that run are the eight lowest-frequency ones plus the rest by
+        energy; dropped modes ramp to 0 over 20 ms before being skipped (a hard
+        switch drops them at once). Audio thread. */
+    void setQualityLevel (const QualityProfile& profile, bool hard) noexcept;
+
+    /** Modes actually running (<= getNumModes()). */
+    int getRunningModeCount() const noexcept { return juce::jmin (modeRunCount, numActiveModes); }
+
+    /** The priority order the modal cap uses: indices into getModes(). */
+    const int* getModePriority() const noexcept { return modePriority.data(); }
+
+    const IrVariants& getIrVariants() const noexcept { return irVariants; }
+
     /** Number of active modes in the modal bank. */
     int getNumModes() const noexcept { return numActiveModes; }
     const BodyMode* getModes() const noexcept { return activeModes.data(); }
@@ -114,6 +139,11 @@ public:
 private:
     void rebuildModalBank();
     void applyStagedBank() noexcept;
+    void applyRuntimeScaling (bool force) noexcept;
+
+    // setRuntimeScaling's targets and what the resonators were last set from.
+    double runtimePlate = 1.0, runtimeAir = 1.0, runtimeQ = 1.0, runtimeAirQ = 1.0;
+    double designedPlate = 1.0, designedAir = 1.0, designedQ = 1.0, designedAirQ = 1.0;
 
     double sr = 44100.0;
     int maxBlock = 512;
@@ -153,6 +183,19 @@ private:
     std::atomic<bool> stagedReady { false };
 
     std::vector<BodyMode> buildScratch;
+
+    // --- cpu-quality-modes ----------------------------------------------------
+    IrVariants irVariants;
+    std::array<int, BodyModels::kMaxModes> modePriority {}, stagedPriority {};
+    int modeCap = BodyModels::kMaxModes;
+    int modeRunCount = BodyModels::kMaxModes;   ///< modes processed (priority order)
+    int modeTarget = BodyModels::kMaxModes;     ///< where a ramp ends
+    int modeRampLeft = 0, modeRampTotal = 1;
+
+    void updateModeRun (bool hard) noexcept;
+    bool modesCapped() const noexcept { return modeRunCount < numActiveModes || modeRampLeft > 0; }
+    inline double runModes (double in, int sampleInBlock) noexcept;
+    void advanceModeRamp (int numSamples) noexcept;
 
     // --- shared --------------------------------------------------------------
     Biquad airShelf;

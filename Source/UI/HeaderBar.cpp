@@ -1,4 +1,5 @@
 #include "HeaderBar.h"
+#include "UndoHistoryPanel.h"
 #include "MidiOutPanel.h"
 #include "MidiExportDefaults.h"
 #include "NotationPanel.h"
@@ -11,6 +12,10 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     : processor (p)
 {
     addAndMakeVisible (led);
+
+    // output-normalization.md 5.1: visible only while normalization is on.
+    addChildComponent (normalizationBadge);
+    normalizationBadge.onVisibilityChanged = [this] { resized(); };
     led.setSource (&processor);
 
     addAndMakeVisible (guitarSelector);
@@ -27,21 +32,11 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     // ---- preset ---------------------------------------------------------------
     addAndMakeVisible (presetPrev);
     presetPrev.setTooltip ("Previous preset");
-    presetPrev.onClick = [this]
-    {
-        processor.pushUndoState ("Load preset");
-        processor.getPresetManager().loadPrevious();
-        processor.getParameterBridge().applyAllNow();
-    };
+    presetPrev.onClick = [this] { processor.stepPresetAsUserAction (false); };   // action-and-undo.md 3.8
 
     addAndMakeVisible (presetNext);
     presetNext.setTooltip ("Next preset");
-    presetNext.onClick = [this]
-    {
-        processor.pushUndoState ("Load preset");
-        processor.getPresetManager().loadNext();
-        processor.getParameterBridge().applyAllNow();
-    };
+    presetNext.onClick = [this] { processor.stepPresetAsUserAction (true); };    // action-and-undo.md 3.8
 
     addAndMakeVisible (presetName);
     presetName.setTooltip ("Click to browse the preset bank");
@@ -154,12 +149,12 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     refreshPresetDisplay();
     updateUndoRedoState();
 
-    startTimerHz (6);
+    motion.startTimerHz (*this, 6);
 }
 
 HeaderBar::~HeaderBar()
 {
-    stopTimer();
+    motion.stopTimer();
     processor.getPresetManager().removeChangeListener (this);
     processor.getMidiLearn().removeChangeListener (this);
 }
@@ -287,6 +282,42 @@ void HeaderBar::timerCallback()
 }
 
 //==============================================================================
+juce::PopupMenu HeaderBar::buildUndoHistoryMenu (const LuthierAudioProcessor& processor)
+{
+    juce::PopupMenu menu;
+    menu.addSectionHeader ("Undo back to before...");
+
+    for (const auto& item : processor.getUndoHistory (20))
+    {
+        // action-and-undo.md 5: boundaries drawn as rules with a subtitle.
+        if (item.boundary)
+        {
+            menu.addSeparator();
+            menu.addSectionHeader (item.description);
+        }
+
+        menu.addItem (1 + item.stepsBack, item.description);
+    }
+
+    return menu;
+}
+
+void HeaderBar::applyUndoHistoryChoice (LuthierAudioProcessor& processor, int result)
+{
+    if (result > 1)
+        processor.undoSteps (result - 1);
+}
+
+void HeaderBar::showUndoHistory()
+{
+    // action-and-undo.md 9: the list with its search box, in a callout.
+    auto panel = std::make_unique<UndoHistoryPanel> (processor);
+    auto* raw = panel.get();
+
+    auto& box = juce::CallOutBox::launchAsynchronously (std::move (panel), fileMenuButton.getScreenBounds(), nullptr);
+    raw->onChosen = [&box] { box.dismiss(); };
+}
+
 void HeaderBar::showFileMenu()
 {
     auto& manager = processor.getPresetManager();
@@ -299,6 +330,7 @@ void HeaderBar::showFileMenu()
     menu.addItem (3, "Open preset file...");
     menu.addSeparator();
     menu.addItem (4, "Import preset...");
+    menu.addItem (14, "Import MIDI...");   // midi-export 5 (MODEL-GAPS)
     menu.addItem (5, "Export preset...");
     menu.addSeparator();
     menu.addItem (6, "Export audio...");
@@ -311,6 +343,8 @@ void HeaderBar::showFileMenu()
     menu.addItem (9, "Open render folder");
     menu.addSeparator();
     menu.addItem (10, "Options...");
+    menu.addSeparator();
+    menu.addItem (15, "Undo history...", processor.getNumUndoSteps() > 0);   // action-and-undo.md 9
     menu.addSeparator();
     menu.addItem (11, "Randomise");
     menu.addItem (12, "Reset all settings to default");
@@ -351,7 +385,7 @@ void HeaderBar::showFileMenu()
                     if (file == juce::File())
                         return;
 
-                    processor.pushUndoState (isImport ? "Import preset" : "Open preset");
+                    processor.pushUndoBoundary ((isImport ? "Import preset " : "Load preset ") + file.getFileNameWithoutExtension());   // action-and-undo.md 5
 
                     if (isImport)
                         processor.getPresetManager().importPreset (file);
@@ -457,24 +491,51 @@ void HeaderBar::showFileMenu()
                     if (file == juce::File())
                         return;
 
-                    juce::String error;
-                    const bool ok = NotationTakeExport::write (processor, NotationTakeExport::formatForFile (file),
-                                                               file, {}, {}, &error);
+                    auto report = [file] (bool ok, const juce::String& error)
+                    {
+                        juce::NativeMessageBox::showAsync (
+                            juce::MessageBoxOptions()
+                                .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
+                                                  : juce::MessageBoxIconType::WarningIcon)
+                                .withTitle (ok ? "Notation exported" : "Could not export")
+                                .withMessage (ok ? "Saved to\n" + file.getFullPathName() : error)
+                                .withButton ("OK"),
+                            nullptr);
+                    };
 
-                    juce::NativeMessageBox::showAsync (
-                        juce::MessageBoxOptions()
-                            .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
-                                              : juce::MessageBoxIconType::WarningIcon)
-                            .withTitle (ok ? "Notation exported" : "Could not export")
-                            .withMessage (ok ? "Saved to\n" + file.getFullPathName() : error)
-                            .withButton ("OK"),
-                        nullptr);
+                    // notation-export 0.1: written on the export worker (MODEL-GAPS).
+                    juce::String error;
+
+                    if (! NotationTakeExport::writeAsync (processor, NotationTakeExport::formatForFile (file),
+                                                          file, {}, {}, report, &error))
+                        report (false, error);
                 });
                 break;
             }
 
             case 12:
                 processor.resetEverything();
+                break;
+
+            case 14:
+            {
+                // midi-export 5 (MODEL-GAPS): the window asks where it goes.
+                auto chooser = std::make_shared<juce::FileChooser> (
+                    "Import MIDI", juce::File::getSpecialLocation (juce::File::userDocumentsDirectory), "*.mid;*.midi");
+
+                chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                                      [this, chooser] (const juce::FileChooser& fc)
+                {
+                    const auto file = fc.getResult();
+
+                    if (file != juce::File() && onImportMidi)
+                        onImportMidi (file);
+                });
+                break;
+            }
+
+            case 15:   // action-and-undo.md 9
+                showUndoHistory();
                 break;
 
             default:
@@ -488,6 +549,8 @@ void HeaderBar::showFileMenu()
 //==============================================================================
 void HeaderBar::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds();
 
     g.setColour (Palette::panel);
@@ -497,12 +560,17 @@ void HeaderBar::paint (juce::Graphics& g)
     g.setColour (Palette::edge);
     g.fillRect (bounds.removeFromBottom (1));
 
-    // ---- logo -------------------------------------------------------------------
-    auto logoArea = getLocalBounds().withTrimmedLeft (28).withWidth (96);
+    // ---- logo: the brass headstock mark and the name in the display face ---------
+    // (visual-polish.md 6.2 and 6.4, TODO V). The window's own notch sits under
+    // this strip, so the mark is drawn here, beside the name.
+    auto logoArea = getLocalBounds().withTrimmedLeft (22).withWidth (102);
+
+    LuthierLookAndFeel::drawSignatureNotch (g, { logoArea.getX() - 4, (getHeight() - 28) / 2, 20, 28 }, Palette::accent);
+    logoArea.removeFromLeft (18);
 
     g.setColour (Palette::textPrimary);
-    g.setFont (Fonts::ui (16.0f, true));
-    Fonts::drawTrackedText (g, "LUTHIER", logoArea, juce::Justification::centredLeft, 0.14f);
+    g.setFont (Fonts::display (24.0f));
+    Fonts::drawTrackedText (g, "LUTHIER", logoArea, juce::Justification::centredLeft, 0.12f);
 
     // ---- MIDI activity indicator ---------------------------------------------------
     const bool active = processor.getEngine().getMidiInterpreter().getActiveNoteCount() > 0;
@@ -524,41 +592,52 @@ void HeaderBar::resized()
     bounds.removeFromLeft (20);            // clear the LED
     bounds.removeFromLeft (96 + 14);       // logo and the MIDI dot
 
+    // output-normalization.md 5.1: the badge, only while normalization is on.
+    if (normalizationBadge.isVisible())
+        normalizationBadge.setBounds (bounds.removeFromLeft (NormalizationBadge::preferredWidth + 4).withTrimmedRight (4));
+
+    /*  gui-integration.md 2: the header collapses gracefully below 1280. Every
+        control keeps its place; below 1280 each takes a little less room so the
+        preset name keeps at least a readable width (at 1200 it was 24 points and
+        read "INIT" in a box barely wider than the word - TODO V screenshots). */
+    const bool compact = getWidth() < 1280;
+    auto w = [compact] (int full, int small) { return compact ? small : full; };
+
     // ---- right-hand cluster ---------------------------------------------------------
-    modeButton.setBounds (bounds.removeFromRight (84).reduced (2, 0));
+    modeButton.setBounds (bounds.removeFromRight (w (84, 78)).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
-    liveButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
-    slideButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
-    workshopButton.setBounds (bounds.removeFromRight (82).reduced (2, 0));
+    liveButton.setBounds (bounds.removeFromRight (w (52, 44)).reduced (2, 0));
+    slideButton.setBounds (bounds.removeFromRight (w (52, 46)).reduced (2, 0));
+    workshopButton.setBounds (bounds.removeFromRight (w (82, 74)).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
-    helpButton.setBounds (bounds.removeFromRight (30).reduced (2, 0));
-    panicButton.setBounds (bounds.removeFromRight (56).reduced (2, 0));
-    midiLearnButton.setBounds (bounds.removeFromRight (54).reduced (2, 0));
-
-    bounds.removeFromRight (Metrics::gridHalf);
-
-    redoButton.setBounds (bounds.removeFromRight (50).reduced (2, 0));
-    undoButton.setBounds (bounds.removeFromRight (50).reduced (2, 0));
+    helpButton.setBounds (bounds.removeFromRight (w (30, 26)).reduced (2, 0));
+    panicButton.setBounds (bounds.removeFromRight (w (56, 50)).reduced (2, 0));
+    midiLearnButton.setBounds (bounds.removeFromRight (w (54, 48)).reduced (2, 0));
 
     bounds.removeFromRight (Metrics::gridHalf);
 
-    copyAB.setBounds (bounds.removeFromRight (40).reduced (2, 0));
-    compareB.setBounds (bounds.removeFromRight (28).reduced (2, 0));
-    compareA.setBounds (bounds.removeFromRight (28).reduced (2, 0));
+    redoButton.setBounds (bounds.removeFromRight (w (50, 44)).reduced (2, 0));
+    undoButton.setBounds (bounds.removeFromRight (w (50, 44)).reduced (2, 0));
+
+    bounds.removeFromRight (Metrics::gridHalf);
+
+    copyAB.setBounds (bounds.removeFromRight (w (40, 36)).reduced (2, 0));
+    compareB.setBounds (bounds.removeFromRight (w (28, 26)).reduced (2, 0));
+    compareA.setBounds (bounds.removeFromRight (w (28, 26)).reduced (2, 0));
 
     bounds.removeFromRight (Metrics::grid);
 
     // ---- left-hand cluster -------------------------------------------------------------
-    guitarSelector.setBounds (bounds.removeFromLeft (150).reduced (2, 3));
+    guitarSelector.setBounds (bounds.removeFromLeft (w (150, 124)).reduced (2, 3));
     bounds.removeFromLeft (Metrics::gridHalf);
 
-    tuningSelector.setBounds (bounds.removeFromLeft (128).reduced (2, 3));
+    tuningSelector.setBounds (bounds.removeFromLeft (w (128, 104)).reduced (2, 3));
     bounds.removeFromLeft (Metrics::grid);
 
     // ---- preset, filling whatever is left -----------------------------------------------
-    fileMenuButton.setBounds (bounds.removeFromRight (56).reduced (2, 0));
+    fileMenuButton.setBounds (bounds.removeFromRight (w (56, 46)).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
     presetPrev.setBounds (bounds.removeFromLeft (24).reduced (1, 3));

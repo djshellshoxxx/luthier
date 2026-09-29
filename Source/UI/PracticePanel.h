@@ -9,6 +9,7 @@
     and the processor stops rendering the tools at all.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
@@ -102,6 +103,8 @@ public:
     void resized() override;
 
 private:
+    /** action-and-undo.md 3.14: a layer setting change as one grouped entry. */
+    void editLayer (int layer, const char* what, const std::function<void()>& change);
     Looper& looper();
 
     juce::TextButton transportButton { "Record" }, stopButton { "Stop" }, clearButton { "Clear" };
@@ -212,6 +215,14 @@ public:
     void refresh() override;
     void resized() override;
 
+    /*  Opens a tab file as the Open button's chooser does, and notes it in the
+        library's recent list (practice-tools 11.2). `libraryFile` is the
+        library it is noted in. True when the file was read. MODEL-GAPS (TODO
+        11: tested through here rather than the chooser). */
+    bool openTab (const juce::File& file, const juce::File& libraryFile = PracticeLibrary::getLibraryFile());
+
+    const PerformanceScore& getScore() const noexcept { return score; }
+
 private:
     juce::TextButton openButton { "Open..." }, exportButton { "Export..." };
     juce::Label statusLabel;
@@ -258,7 +269,39 @@ private:
     static SessionRecorderSetup storedSetup();
 
     std::unique_ptr<LuthierToggle> enableToggle;
-    juce::TextButton saveButton { "Save last take" }, openFolderButton { "Open folder" };
+
+    /*  midi-export 4.2 / TODO 10 (MODEL-GAPS): the Save button is also a drag
+        source. Dragging it saves the take if it has not been, then drags the
+        saved MIDI (and the WAV) out to the host or the desktop. */
+    class SaveButton final : public juce::TextButton
+    {
+    public:
+        explicit SaveButton (SessionTab& t) : juce::TextButton ("Save last take"), tab (t) {}
+        void mouseDown (const juce::MouseEvent& e) override { dragged = false; juce::TextButton::mouseDown (e); }
+        void mouseDrag (const juce::MouseEvent& e) override;
+        void mouseUp (const juce::MouseEvent& e) override;
+
+        /*  What a drag hands out now, for the tests (saving first if nothing is
+            saved): midi-export 4.2's MIDI file - the take's span of the
+            performance capture, Luthier profile, or Generic with Alt - then
+            the WAV. The recorder's raw MIDI stands in when nothing was captured. */
+        juce::StringArray filesToDrag (bool forceGeneric = false);
+
+    private:
+        SessionTab& tab;
+        bool dragged = false;
+    };
+
+public:
+    SaveButton& getSaveButton() noexcept { return saveButton; }
+    LuthierToggle& getEnableToggle() noexcept { return *enableToggle; }
+    juce::String getStatusText() const { return statusLabel.getText(); }
+
+private:
+    bool saveTake();
+
+    SaveButton saveButton { *this };
+    juce::TextButton openFolderButton { "Open folder" };
     juce::Label lengthLabel, statusLabel, warningLabel;
     double requestedMinutes = 0.0;
     double storedMinutes = SessionRecorder::kDefaultMinutes;   ///< read when shown, not per refresh
@@ -339,6 +382,10 @@ private:
     int dragStartHeight = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PracticePanel)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "PracticePanel" };
 };
 
 } // namespace luthier

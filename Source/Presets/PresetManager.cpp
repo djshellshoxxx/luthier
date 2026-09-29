@@ -2,6 +2,7 @@
 #include "FactoryPresets.h"
 #include "../Support/IrLibrary.h"
 #include "../Support/ErrorLog.h"
+#include "../UI/UiPreferences.h"   // REALISM-C
 
 namespace luthier
 {
@@ -375,8 +376,21 @@ juce::var PresetManager::toVar (const juce::String& name,
     // saving it would make loading a morph slot drag the slider back.
     for (auto* p : processor.getParameters())
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
-            if (withId->paramID != ParamIDs::presetMorphPosition)
-                params->setProperty (withId->paramID, (double) withId->getValue());
+            if (withId->paramID != ParamIDs::presetMorphPosition
+                  && ! ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: jam-mode 10
+            {
+                // Store the normalised value exactly as get() reports it. Load
+                // applies it back with setValueNotifyingHost (a normalised set,
+                // no plain-value round trip), so (float) of this double restores
+                // the identical value: save -> load -> save is stable, and a
+                // reload reproduces get() to the bit (clap-validator
+                // state-reproducibility). An earlier fixed-point nudge through
+                // convertFrom0to1/convertTo0to1 shifted skewed params by up to a
+                // float ULP away from get(), which that validator flags.
+                const double v = (double) withId->getValue();
+
+                params->setProperty (withId->paramID, v);
+            }
 
     root->setProperty ("parameters", juce::var (params));
 
@@ -388,6 +402,10 @@ juce::var PresetManager::toVar (const juce::String& name,
     // guitar-workshop.md 8: which guitar, and the whole guitar if it was edited.
     if (captureGuitarBlock != nullptr)
         root->setProperty ("guitar", captureGuitarBlock());
+
+    // jam-mode.md 12 (FEAT-JAM): the band's style file, rhythm-kit link and seed.
+    if (captureJamBlock != nullptr)
+        root->setProperty ("jam", captureJamBlock());
 
     // ---- per-string extras ----------------------------------------------------
     auto* strings = new juce::DynamicObject();
@@ -407,7 +425,16 @@ juce::var PresetManager::toVar (const juce::String& name,
     strings->setProperty ("numStrings", n);
     strings->setProperty ("customGaugeInches", writeArray (extra.customGaugeInches, n));
     strings->setProperty ("detuneCents", writeArray (extra.detuneCents, n));
-    strings->setProperty ("realismDetuneCents", writeArray (extra.realismDetuneCents, n));
+    // Derived from a float parameter, so it carries float noise; 0.0001 cents
+    // is far below hearing and makes save -> load -> save stable.
+    {
+        auto rounded = extra.realismDetuneCents;
+
+        for (auto& c : rounded)
+            c = std::round (c * 1.0e4) / 1.0e4;
+
+        strings->setProperty ("realismDetuneCents", writeArray (rounded, n));
+    }
     strings->setProperty ("fineTuneCents", writeArray (extra.fineTuneCents, n));
     strings->setProperty ("openFrequencyHz", writeArray (extra.openFrequencyHz, n));
     strings->setProperty ("useCustomTuning", extra.useCustomTuning);
@@ -442,6 +469,13 @@ juce::var PresetManager::toVar (const juce::String& name,
 //==============================================================================
 bool PresetManager::fromVar (const juce::var& data)
 {
+    struct LoadFade
+    {
+        explicit LoadFade (PresetManager& m) : manager (m) { if (manager.onBeforeLoad != nullptr) manager.onBeforeLoad(); }
+        ~LoadFade() { if (manager.onAfterLoad != nullptr) manager.onAfterLoad(); }
+        PresetManager& manager;
+    } fade (*this);
+
     auto* obj = data.getDynamicObject();
 
     if (obj == nullptr)
@@ -509,7 +543,11 @@ bool PresetManager::fromVar (const juce::var& data)
             "magic", "format", "schemaVersion", "pluginVersion", "name", "category",
             "author", "description", "tags", "parameters", "strings", "extras",
             "lockedParameters", "midiMappings", "modulation", "snapshots",
-            "rhythmEngine", "routing", "character", "toneMatch"
+            "rhythmEngine", "routing", "character", "toneMatch",
+            // Written by this build too (a known key read back as unknown moved
+            // to the front of the next save, so save -> load -> save differed).
+            "ranges", "guitar", "midiMap",
+            "jam"   // FEAT-JAM (jam-mode 12)
         };
 
         auto* preserved = new juce::DynamicObject();
@@ -538,6 +576,13 @@ bool PresetManager::fromVar (const juce::var& data)
             ranges because there was nothing else to save them against. */
         const bool hasRangesBlock = obj->hasProperty ("ranges");
 
+        // installer.md 8: what this load had to migrate, for the info banner.
+        juce::StringArray migrations;
+
+        if (! hasRangesBlock && obj->hasProperty ("pluginVersion")
+              && obj->getProperty ("pluginVersion").toString() != JucePlugin_VersionString)
+            migrations.add ("ranges");
+
         // guitar-workshop.md 9: retired placement parameters, kept for the guitar.
         for (int slot = 0; slot < 3; ++slot)
         {
@@ -551,6 +596,7 @@ bool PresetManager::fromVar (const juce::var& data)
             {
                 // Their old ranges: 0.02-0.48 linear, and 1-6 mm skewed to 3.5.
                 legacy.present = true;
+                migrations.addIfNotAlreadyThere ("pickup placements");
                 legacy.positionFraction = juce::jmap ((double) params->getProperty (positionId), 0.02, 0.48);
 
                 juce::NormalisableRange<float> heightRange (1.0f, 6.0f);
@@ -573,7 +619,9 @@ bool PresetManager::fromVar (const juce::var& data)
         {
             if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
             {
-                if (params->hasProperty (withId->paramID) && withId->paramID != ParamIDs::presetMorphPosition)
+                if (params->hasProperty (withId->paramID) && withId->paramID != ParamIDs::presetMorphPosition
+                      && ! ParamIDs::isJamTransient (withId->paramID)   // FEAT-JAM
+                      && ! (keepOnLoad != nullptr && keepOnLoad (withId->paramID)))
                 {
                     const double v = (double) params->getProperty (withId->paramID);
                     withId->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, v));
@@ -590,6 +638,8 @@ bool PresetManager::fromVar (const juce::var& data)
         {
             if (auto* amount = apvts.getParameter (ParamIDs::feedbackAmount))
                 amount->setValueNotifyingHost (amount->convertTo0to1 (50.0f));
+
+            migrations.add ("feedback");
         }
 
         /*  strum-dynamics.md 1.1: live chords cross at strum_crossing_sps. A
@@ -605,8 +655,39 @@ bool PresetManager::fromVar (const juce::var& data)
                 const double ms = oldSpeed->convertFrom0to1 ((float) juce::jlimit (0.0, 1.0, (double) params->getProperty (ParamIDs::strumSpeed)));
                 const double sps = ms > 0.0 ? 1000.0 / ms : 800.0;
                 crossing->setValueNotifyingHost (crossing->convertTo0to1 ((float) juce::jlimit (20.0, 800.0, sps)));
+                migrations.add ("strum speed");
             }
         }
+
+        // ==== BEGIN REALISM-A legacy load ====
+        /*  string-aging.md 8: a preset from before the continuous model had only
+            the three-step choice. Its hours are that row's anchor and the
+            detail is 0, which is the old table exactly - it sounds as it did.
+            body-coupling.md 6: likewise without the body's return path. */
+        {
+            auto setPlain = [this] (const char* id, float plain)
+            {
+                if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (id)))
+                    p->setValueNotifyingHost (p->convertTo0to1 (plain));
+            };
+
+            if (! params->hasProperty (ParamIDs::stringAgeHours))
+            {
+                int age = 1;   // the old default, Broken In
+
+                if (auto* old = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (ParamIDs::stringAge)))
+                    age = juce::jlimit (0, 2, juce::roundToInt (old->convertFrom0to1 (old->getValue())));
+
+                static constexpr float kAnchorHours[] = { 0.0f, 12.0f, 120.0f };
+                setPlain (ParamIDs::stringAgeHours, kAnchorHours[age]);
+                setPlain (ParamIDs::stringAgeDetail, 0.0f);
+                setPlain (ParamIDs::stringCoating, 0.0f);
+            }
+
+            if (! params->hasProperty (ParamIDs::bodyCouplingAmount))
+                setPlain (ParamIDs::bodyCouplingAmount, 0.0f);
+        }
+        // ==== END REALISM-A legacy load ====
 
         /*  ambiguity-resolutions.md 3: the doubler became a post-amp pedal. A
             preset that had the old engine doubler on gets a Doubler in its first
@@ -647,6 +728,8 @@ bool PresetManager::fromVar (const juce::var& data)
 
             if (auto* old = apvts.getParameter (ParamIDs::doublerOn))
                 old->setValueNotifyingHost (0.0f);
+
+            migrations.add ("doubler");
         }
 
         if (onPedalTypesLoaded != nullptr)
@@ -666,6 +749,9 @@ bool PresetManager::fromVar (const juce::var& data)
                 ranges.applyTo (apvts);
             }
         }
+
+        if (! migrations.isEmpty())
+            noteMigration (migrations.joinIntoString (", "));
     }
 
     // ---- per-string extras -------------------------------------------------------
@@ -681,6 +767,7 @@ bool PresetManager::fromVar (const juce::var& data)
         extra.numStrings = juce::jlimit (1, kMaxStrings, (int) strings->getProperty ("numStrings"));
         extra.useCustomTuning = strings->getProperty ("useCustomTuning");
 
+        extraStateValid = true;
         readArray ("customGaugeInches", extra.customGaugeInches, kMaxStrings);
         readArray ("detuneCents", extra.detuneCents, kMaxStrings);
         readArray ("realismDetuneCents", extra.realismDetuneCents, kMaxStrings);
@@ -691,6 +778,13 @@ bool PresetManager::fromVar (const juce::var& data)
         if (auto* a = strings->getProperty ("muted").getArray())
             for (int i = 0; i < juce::jmin (a->size(), kMaxStrings); ++i)
                 extra.stringMuted[(size_t) i] = (bool) (*a)[i];
+    }
+    else
+    {
+        // No block (every factory preset): the defaults, over every string, not
+        // whatever detune, gauges and temperament the last preset left.
+        resetExtraState();
+        extra.numStrings = kMaxStrings;
     }
 
     // ---- MIDI map ----------------------------------------------------------------
@@ -709,10 +803,21 @@ bool PresetManager::fromVar (const juce::var& data)
                 interp.setCcTarget (cc, (MidiTarget) target);
         }
     }
+    else
+    {
+        engine.getMidiInterpreter().resetCcMapToDefaults();   // not the last preset's map
+    }
 
     // Last, so the guitar type parameter it may depend on has its new value.
     if (onGuitarBlockLoaded != nullptr)
         onGuitarBlockLoaded (obj->getProperty ("guitar"));
+
+    // tuning-stability.md 7 (REALISM-C): sigma from the preset's string age,
+    // capoComp cleared, every offset cleared.
+    if (auto* age = dynamic_cast<juce::AudioParameterChoice*> (apvts.getParameter (ParamIDs::stringAge)))
+        engine.getStabilityModel().beginPresetLoad ((StringAge) juce::jlimit (0, (int) StringAge::NumAges - 1, age->getIndex()));
+    if (onJamBlockLoaded != nullptr)   // FEAT-JAM: a missing block means defaults
+        onJamBlockLoaded (obj->getProperty ("jam"));
 
     currentName = obj->getProperty ("name").toString();
     currentCategory = obj->getProperty ("category").toString();
@@ -751,6 +856,7 @@ void PresetManager::applyExtraState()
 
 void PresetManager::captureExtraState()
 {
+    extraStateValid = true;
     const auto& tuningEngine = engine.getTuningEngine();
     extra.numStrings = engine.getNumStrings();
 
@@ -759,7 +865,10 @@ void PresetManager::captureExtraState()
         const auto& t = tuningEngine.getStringTuning (i);
         extra.detuneCents[(size_t) i] = t.detuneCents;
         extra.realismDetuneCents[(size_t) i] = t.realismDetuneCents;
-        extra.fineTuneCents[(size_t) i] = t.fineTuneCents;
+        // string-aging.md 5 (REALISM-A): the aging detune rides on the fine
+        // tune and is rebuilt from the parameters on load, so only what is
+        // left beyond it is state.
+        extra.fineTuneCents[(size_t) i] = t.fineTuneCents - engine.getStringAging().computeNow (i).detuneCents;
         extra.openFrequencyHz[(size_t) i] = t.openFrequencyHz;
         extra.customGaugeInches[(size_t) i] = engine.getCustomStringGauge (i);
     }
@@ -855,10 +964,19 @@ bool PresetManager::loadPreset (const juce::File& file)
     currentFile = file;
     applyExtraState();
 
+    // file-formats 2 (MODEL-GAPS): a migrated file's original is kept.
+    lastMigrationBackup = needsMigration (parsed)
+                            ? backupMigratedOriginal (file, (int) parsed.getProperty ("schemaVersion", 0))
+                            : juce::File();
+
     lastLoadError.clear();
 
     modified = false;
     sendChangeMessage();
+
+    if (onPresetLoaded != nullptr)
+        onPresetLoaded();   // output-normalization.md 4.4
+
     return true;
 }
 
@@ -880,6 +998,23 @@ bool PresetManager::loadPrevious()
 }
 
 //==============================================================================
+juce::File PresetManager::backupFolderFor (const juce::File& target)
+{
+    // installer.md 8: ~/Documents/Luthier/Presets/Backup/<yyyy-mm-dd>/. The
+    // root is the nearest ancestor called Presets (a user preset lives in
+    // Presets/User/<category>/); outside any Presets tree, beside the file.
+    for (auto dir = target.getParentDirectory(); ; dir = dir.getParentDirectory())
+    {
+        if (dir.getFileName() == "Presets")
+            return dir.getChildFile ("Backup");
+
+        if (dir.getParentDirectory() == dir)
+            break;
+    }
+
+    return target.getParentDirectory().getChildFile ("Backup");
+}
+
 void PresetManager::backupBeforeOverwrite (const juce::File& target)
 {
     /*  file-formats 13.4: the version being replaced is kept, filed by the day it
@@ -894,7 +1029,7 @@ void PresetManager::backupBeforeOverwrite (const juce::File& target)
 
     const auto today = juce::Time::getCurrentTime().formatted ("%Y-%m-%d");
 
-    auto folder = target.getParentDirectory().getChildFile ("Backup").getChildFile (today);
+    auto folder = backupFolderFor (target).getChildFile (today);
 
     if (! folder.createDirectory())
         return;
@@ -909,12 +1044,67 @@ void PresetManager::backupBeforeOverwrite (const juce::File& target)
     target.copyFileTo (destination);
 }
 
+bool PresetManager::needsMigration (const juce::var& data)
+{
+    auto* obj = data.getDynamicObject();
+
+    if (obj == nullptr)
+        return false;
+
+    // The spelling of the magic before file-formats.md named it.
+    if (obj->getProperty ("magic").toString() != kMagic)
+        return true;
+
+    // Schema 1 (pre-M42): no ranges block.
+    if (! obj->hasProperty ("ranges"))
+        return true;
+
+    // Pre-M49: the guitar by name rather than by reference.
+    const auto guitar = obj->getProperty ("guitar");
+
+    if (guitar.isObject() && guitar.hasProperty ("name") && ! guitar.hasProperty ("reference"))
+        return true;
+
+    // guitar-workshop.md 9: pickup placements that were parameters.
+    if (auto* params = obj->getProperty ("parameters").getDynamicObject())
+        for (int slot = 0; slot < 3; ++slot)
+            if (params->hasProperty (ParamIDs::pickupPosition (slot)))
+                return true;
+
+    return false;
+}
+
+juce::File PresetManager::backupMigratedOriginal (const juce::File& original, int schema)
+{
+    if (! original.existsAsFile())
+        return {};
+
+    const auto backups = original.getParentDirectory().getChildFile ("Backup");
+    const auto name = original.getFileNameWithoutExtension() + "-v" + juce::String (juce::jmax (0, schema)) + kFileExtension;
+
+    // Once per file and schema, whichever day it was filed.
+    if (backups.isDirectory())
+        for (const auto& entry : juce::RangedDirectoryIterator (backups, false, "*", juce::File::findDirectories))
+            if (entry.getFile().getChildFile (name).existsAsFile())
+                return entry.getFile().getChildFile (name);
+
+    auto folder = backups.getChildFile (juce::Time::getCurrentTime().formatted ("%Y-%m-%d"));
+
+    if (! folder.createDirectory())
+        return {};
+
+    const auto destination = folder.getChildFile (name);
+    return original.copyFileTo (destination) ? destination : juce::File();
+}
+
 void PresetManager::pruneOldBackups()
 {
     const auto cutoff = juce::Time::getCurrentTime()
                           - juce::RelativeTime::days ((double) kBackupRetentionDays);
 
-    for (const auto& root : { getUserPresetFolder(), getFactoryPresetFolder() })
+    // installer.md 8: Presets/Backup is the current place; the two below it
+    // are where earlier builds filed backups.
+    for (const auto& root : { getUserPresetFolder().getParentDirectory(), getUserPresetFolder(), getFactoryPresetFolder() })
     {
         auto backups = root.getChildFile ("Backup");
 
@@ -1089,11 +1279,23 @@ bool PresetManager::exportPreset (const juce::File& destination)
 }
 
 //==============================================================================
-void PresetManager::resetToDefaults()
+bool PresetManager::defaultMainsRegionIs50Hz()
 {
-    for (auto* p : processor.getParameters())
-        p->setValueNotifyingHost (p->getDefaultValue());
+    // noise-floor.md 3: Auto from the OS region, or the user's 50 / 60.
+    const int pref = UiPreferences::get().getInt ("defaultMainsRegion", 0);
 
+    if (pref == 1) return true;
+    if (pref == 2) return false;
+
+    static const juce::StringArray sixtyHz { "US", "CA", "MX", "BR", "CO", "VE", "KR", "TW", "PH", "SA",
+                                             "CR", "PA", "GT", "HN", "NI", "SV", "DO", "PR", "CU", "EC",
+                                             "PE", "JP", "LR", "BS", "BZ", "GU", "AS", "TT" };
+    const auto region = juce::SystemStats::getUserRegion().toUpperCase();
+    return region.isNotEmpty() && ! sixtyHz.contains (region);
+}
+
+void PresetManager::resetExtraState()
+{
     extra = ExtraState {};
     extra.customGaugeInches.fill (0.0);
     extra.detuneCents.fill (0.0);
@@ -1104,13 +1306,35 @@ void PresetManager::resetToDefaults()
 
     for (int i = 0; i < 12; ++i)
         extra.customTemperament[(size_t) i] = std::pow (2.0, i / 12.0);
+}
+
+void PresetManager::resetToDefaults()
+{
+    for (auto* p : processor.getParameters())
+        p->setValueNotifyingHost (p->getDefaultValue());
+
+    resetExtraState();
 
     engine.getMidiInterpreter().resetCcMapToDefaults();
     applyExtraState();
 
-    // The default guitar type's factory guitar, as shipped, under the defaults.
+    // noise-floor.md 3 (REALISM-C): the user's default mains region seeds an
+    // Init preset. A loaded preset keeps its own.
+    if (auto* mains = apvts.getParameter (ParamIDs::noiseMainsHz))
+        mains->setValueNotifyingHost (mains->convertTo0to1 (defaultMainsRegionIs50Hz() ? 1.0f : 0.0f));
+
+    // The default guitar type's factory guitar, as shipped: its parts win over the
+    // layout defaults just written (a reset used to leave an X-braced spruce top
+    // and 500k pots on the default solid-body, BETA_TEST_REPORT B-05).
     if (onGuitarBlockLoaded != nullptr)
-        onGuitarBlockLoaded ({});
+    {
+        auto* block = new juce::DynamicObject();
+        block->setProperty ("partsWin", true);
+        onGuitarBlockLoaded (juce::var (block));
+    }
+
+    if (onJamBlockLoaded != nullptr)   // FEAT-JAM
+        onJamBlockLoaded ({});
 
     currentName = "Init";
     currentCategory = "User";
@@ -1136,7 +1360,10 @@ bool PresetManager::isRandomisable (const juce::String& paramId)
         ParamIDs::secretFeedback, ParamIDs::secretMix
     };
 
-    return ! excluded.contains (paramId);
+    // tune-builder 14 (TUNE-HELP-ONBOARDING): the tune's timeline controls are
+    // not part of a sound.
+    return ! excluded.contains (paramId) && ! paramId.startsWith ("tune_")
+        && ! ParamIDs::isJamTransient (paramId);   // FEAT-JAM
 }
 
 void PresetManager::randomise (uint64_t seed, const juce::StringArray& lockedParameters,

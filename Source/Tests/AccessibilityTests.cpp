@@ -430,11 +430,17 @@ LUTHIER_TEST (Accessibility, shortcutsRebindAndRefuseClashes)
     CHECK_MSG (shortcuts.size() >= 15,
                "only " + juce::String ((int) shortcuts.size()) + " shortcuts defined");
 
-    // No two actions share a key to begin with.
+    // No two actions share a key to begin with. Unbound is not a key: several
+    // actions are unbound by default by their specs (output-normalization 9,
+    // animated-strings 8, cpu-quality-modes 5), and rebind() never treats
+    // unbound as a clash either.
     for (size_t i = 0; i < shortcuts.size(); ++i)
     {
         for (size_t j = i + 1; j < shortcuts.size(); ++j)
         {
+            if (! shortcuts[i].key.isValid())
+                continue;
+
             CHECK_MSG (! (shortcuts[i].key == shortcuts[j].key),
                        shortcuts[i].id + " and " + shortcuts[j].id + " share a key");
         }
@@ -615,6 +621,10 @@ LUTHIER_TEST (Accessibility, shortcutDefaultsMatchTheCanonicalTable)
         { "setlistNext",     KP (KP::pageDownKey) },
         { "undo",            KP ('z', cmd, 0) },
         { "redo",            KP ('z', cmd | shift, 0) },
+        { "undoAcrossBoundary", KP ('z', cmd | juce::ModifierKeys::altModifier, 0) },   // action-and-undo.md 9
+       #if ! JUCE_MAC
+        { "redoAlt",         KP ('y', cmd, 0) },   // action-and-undo.md 9
+       #endif
         { "save",            KP ('s', cmd, 0) },
         { "saveAs",          KP ('s', cmd | shift, 0) },
         { "presetBrowser",   KP ('o', cmd, 0) },
@@ -657,9 +667,10 @@ LUTHIER_TEST (Accessibility, noTwoShortcutsShareADefaultKey)
 
     const auto& shortcuts = settings.getShortcuts();
 
+    // Unbound is not a shared key (see shortcutsRebindAndRefuseClashes).
     for (size_t i = 0; i < shortcuts.size(); ++i)
         for (size_t j = i + 1; j < shortcuts.size(); ++j)
-            CHECK_MSG (! (shortcuts[i].key == shortcuts[j].key),
+            CHECK_MSG (! shortcuts[i].key.isValid() || ! (shortcuts[i].key == shortcuts[j].key),
                        shortcuts[i].id + " and " + shortcuts[j].id
                          + " both default to " + shortcuts[i].key.getTextDescription());
 }

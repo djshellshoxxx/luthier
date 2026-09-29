@@ -85,7 +85,10 @@ public:
     //==========================================================================
     /** Writes into the layer at `position`, mixing or replacing according to the
         mode. Audio thread. */
-    void record (const float* left, const float* right, int position, int numSamples) noexcept;
+    /** Writes a block at `position`. With `wrapLength` > 0 (an overdub on a
+        closed loop) the write wraps at the loop's end the way playback does. */
+    void record (const float* left, const float* right, int position, int numSamples,
+                 int wrapLength = 0) noexcept;
 
     /** Adds the layer's contribution into a stereo pair. Audio thread. */
     void playInto (float* left, float* right, int position, int numSamples,
@@ -98,6 +101,11 @@ public:
     bool redo();
 
     bool canUndo() const noexcept { return undoFilled; }
+
+    /** Sizes undo / redo to the layer on first use. Message thread. */
+    void ensureHistoryBuffers();
+    /** Empties the layer but keeps its audio in the undo buffer. Message thread. */
+    void clearKeepingUndo();
     bool canRedo() const noexcept { return redoFilled; }
 
     //==========================================================================
@@ -175,7 +183,14 @@ public:
     void press() noexcept;
 
     void stop() noexcept;
+
+    /*  Empties every layer, keeping each one's audio in its undo buffer so a
+        clear can be taken back (action-and-undo.md 3.14: deleting a layer is
+        restorable, recording one is not). Message thread. */
     void clear();
+
+    /** Puts back what the last clear() removed. False if nothing to restore. */
+    bool restoreCleared();
 
     /** practice-tools 2: a loop is quantised to bars when the metronome is
         running. The caller supplies the bar length; zero means free. */
@@ -183,6 +198,17 @@ public:
     {
         barLengthSamples.store (juce::jmax (0, samples), std::memory_order_relaxed);
     }
+
+    /*  The PRACTICE tab's default loop length (practice-tools 11.2, MODEL-GAPS
+        TODO 11): the first recording closes itself at this many samples, on
+        the sample. 0 lets the player close it. */
+    void setDefaultLengthSamples (int samples) noexcept
+    {
+        defaultLengthSamples.store (juce::jmax (0, samples), std::memory_order_relaxed);
+    }
+
+    int getDefaultLengthSamples() const noexcept { return defaultLengthSamples.load (std::memory_order_relaxed); }
+    double getSampleRate() const noexcept { return sr; }
 
     int getLoopLengthSamples() const noexcept { return loopLength.load (std::memory_order_relaxed); }
     int getPlayPosition() const noexcept { return playPosition.load (std::memory_order_relaxed); }
@@ -208,13 +234,45 @@ public:
         layer's playback into the buffer. Audio thread. */
     void processBlock (juce::AudioBuffer<float>& buffer, int numSamples) noexcept;
 
-    /** Feeds the looper the MIDI to store alongside the audio. */
+    /** Feeds the looper the MIDI to store alongside the audio. Audio thread:
+        the events go into a pre-sized lock-free FIFO (performance-budget.md
+        0.4 - a MidiMessageSequence allocates), and drainPendingMidi moves them
+        into the layers. Events past the FIFO's capacity between drains are
+        dropped rather than allocated for. */
     void captureMidi (const juce::MidiBuffer& midi, int numSamples) noexcept;
+
+    /*  jam-mode.md 11 (FEAT-JAM): the playing layers' stored MIDI for this
+        block, so the Jam band keeps following a looped rhythm part. Call
+        before processBlock advances the position. Audio thread; no
+        allocation beyond `out`'s own capacity. */
+    void renderPlaybackMidi (juce::MidiBuffer& out, int numSamples) const noexcept;
+
+    /*  jam-mode 11 (FEAT-JAM): while the band plays, a first recording starts
+        on the next downbeat, this many samples on. Audio thread. */
+    void setRecordStartDelay (int samples) noexcept { recordStartDelay = juce::jmax (0, samples); }
+    int getRecordStartDelay() const noexcept       { return recordStartDelay; }
+    /** Moves captured MIDI into the layers' sequences. Message thread; the
+        processor's timer calls it, and save() does before writing. */
+    void drainPendingMidi();
+
+    static constexpr int kMidiFifoSize = 8192;
 
     //==========================================================================
     /** practice-tools 2: bounce all layers to one file, or each to its own. */
     bool exportMixdown (const juce::File& file) const;
     bool exportStems (const juce::File& directory) const;
+
+    /*  midi-export 5 (MODEL-GAPS, TODO 10): an imported MIDI file, rendered,
+        loaded as a layer. Replaces `layer`'s audio; on an empty looper the
+        audio sets the loop length (capped at the capacity), otherwise it is
+        fitted to the loop. The looper must be stopped. Message thread. */
+    bool loadLayerAudio (int layer, const juce::AudioBuffer<float>& audio);
+    /** tune-builder 14 (TUNE-HELP-ONBOARDING): "the looper can capture a whole
+        Tune render into a loop layer". Stops the looper, writes `audio` (stereo,
+        at the looper's rate) into the layer, truncated to the capacity, and makes
+        it the loop's length when no other layer holds anything. Message thread.
+        Returns the samples taken. */
+    int importLayer (int layerIndex, const juce::AudioBuffer<float>& audio);
 
     /** The `.luthierloop` file: settings, MIDI and the audio of every layer. */
     bool save (const juce::File& file) const;
@@ -233,14 +291,37 @@ private:
     std::array<LoopLayer, kMaxLayers> layers;
 
     std::atomic<int> state { (int) State::stopped };
+
+    /** The live input of an overdub, kept while the layers play into the
+        buffer, so the active layer's old take is heard and only the live
+        signal is recorded over it. */
+    static constexpr int kOverdubChunk = 256;
+    std::array<float, kOverdubChunk> overdubL {}, overdubR {};
     std::atomic<int> loopLength { 0 };
+    int clearedLoopLength = 0;   // action-and-undo.md 3.14
     std::atomic<int> playPosition { 0 };
     std::atomic<int> activeLayer { 0 };
     std::atomic<int> barLengthSamples { 0 };
+    std::atomic<int> defaultLengthSamples { 0 };
+
+    // performance-budget.md 0.4: captureMidi's lock-free hand-over.
+    struct PendingMidi
+    {
+        int layer = 0;
+        int position = 0;
+        int size = 0;
+        juce::uint8 bytes[3] {};
+    };
+
+    juce::AbstractFifo midiFifo { kMidiFifoSize };
+    std::array<PendingMidi, kMidiFifoSize> pendingMidi {};
+    std::array<std::atomic<int>, kMaxLayers> pendingPerLayer {};   // FEAT-JAM: renderPlaybackMidi skips a layer still being drained
 
     /** Set by press() and acted on by the audio thread at the loop boundary, so
         that closing a loop lands on the beat rather than on the key press. */
     std::atomic<bool> pendingClose { false };
+
+    int recordStartDelay = 0;   ///< FEAT-JAM: samples before a first recording begins
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Looper)
 };
@@ -291,11 +372,45 @@ public:
     /** Writes the block into the ring. Audio thread; never allocates. */
     void processBlock (const juce::AudioBuffer<float>& buffer, int numSamples) noexcept;
 
+    /*  Audio thread; never allocates (MODEL-GAPS, TODO 11): the events go into
+        a fixed FIFO that the message thread moves into the take (drainMidi,
+        and saveLastTake itself). SysEx and anything longer than three bytes
+        is not kept. */
     void captureMidi (const juce::MidiBuffer& midi, int numSamples) noexcept;
 
+    /** Message thread: moves what captureMidi queued into the take. */
+    void drainMidi();
+
+    /*  midi-export 5 (MODEL-GAPS, TODO 10): an imported MIDI file added to the
+        session, after what it already holds. Timestamps in samples. Message
+        thread. Returns the number of events added. */
+    int importMidi (const juce::MidiMessageSequence& sequence);
+
+    int getNumMidiEvents() const;
+
+    //==========================================================================
+    /*  practice-tools 8 / the PRACTICE tab's session setup (MODEL-GAPS, TODO 11):
+        whether the take records audio, MIDI, or both, and whether stopping the
+        recorder saves the take. */
+    void setRecordAudio (bool shouldRecord) noexcept { recordAudio.store (shouldRecord, std::memory_order_relaxed); }
+    void setRecordMidi (bool shouldRecord) noexcept  { recordMidi.store (shouldRecord, std::memory_order_relaxed); }
+    void setAutoSaveOnStop (bool shouldSave) noexcept { autoSaveOnStop = shouldSave; }
+    bool isRecordingAudio() const noexcept { return recordAudio.load (std::memory_order_relaxed); }
+    bool isRecordingMidi() const noexcept  { return recordMidi.load (std::memory_order_relaxed); }
+    bool isAutoSavingOnStop() const noexcept { return autoSaveOnStop; }
+
+    /*  The SESSION stop: turns the recorder off and, with auto-save on, saves
+        what it holds into `directory`. Returns true when a take was saved.
+        Message thread. */
+    bool stop (const juce::File& directory);
+
     /** practice-tools 8: freezes the buffer to a WAV and a MIDI file, named by
-        timestamp. Message thread. */
+        timestamp - each only when that part is recorded. True if anything was
+        written. Message thread. */
     bool saveLastTake (const juce::File& directory, double seconds = 0.0) const;
+
+    /** What the last save wrote (the WAV, the MIDI, or both), for the drag-out. */
+    juce::Array<juce::File> getLastSavedFiles() const { return lastSaved; }
 
     /** practice-tools 8: temp files older than a day go, unless they were saved. */
     static void cleanUpOldTempFiles (const juce::File& directory, double olderThanHours = 24.0);
@@ -305,13 +420,29 @@ public:
 
 private:
     juce::AudioBuffer<float> ring;
-    juce::MidiMessageSequence midi;
+    mutable juce::MidiMessageSequence midi;
     juce::CriticalSection midiLock;
+
+    /** Held by prepare() while it resizes the ring; processBlock only try-locks
+        it. The ring can be resized while recording (PRACTICE setup's ring
+        length), which used to free it under the audio thread. */
+    juce::SpinLock ringLock;
 
     double sr = 44100.0;
     int capacity = 0;
 
     std::atomic<bool> enabled { false };
+    std::atomic<bool> recordAudio { true }, recordMidi { true };
+    bool autoSaveOnStop = false;
+    mutable juce::Array<juce::File> lastSaved;
+
+    // MODEL-GAPS: the audio thread's MIDI, until the message thread takes it.
+    struct QueuedMidi { int64_t sample = 0; juce::uint8 bytes[3] {}; int size = 0; };
+    static constexpr int kMidiFifoSize = 8192;
+    std::vector<QueuedMidi> midiQueue = std::vector<QueuedMidi> ((size_t) kMidiFifoSize);
+    mutable juce::AbstractFifo midiFifo { kMidiFifoSize };
+    void drainMidiLocked() const;
+
     std::atomic<int> writePosition { 0 };
     std::atomic<int> recorded { 0 };
 

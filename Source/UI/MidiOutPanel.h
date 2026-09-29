@@ -62,7 +62,9 @@ public:
 
     //==========================================================================
     // For tests: the controls, by what they do.
-    enum class Source { passThrough, rhythm, strings, macroCc, tune, events, workshop, numSources };
+    enum class Source { passThrough, rhythm, strings, macroCc, tune, events, workshop,
+                        jam,   // FEAT-JAM: jam-mode 9, the band's parts
+                        numSources };
 
     juce::Button& getProfileButton (MidiProfile profile) noexcept;
     juce::Button& getClassToggle (LuthierEventClass eventClass) noexcept;
@@ -73,6 +75,7 @@ public:
     juce::ComboBox& getPpqBox() noexcept                { return ppqBox; }
     juce::ComboBox& getSplitBox() noexcept              { return splitBox; }
     juce::ComboBox& getRangeBox() noexcept              { return rangeBox; }
+    juce::ComboBox& getJamChannelBox (bool bass) noexcept { return bass ? jamBassChannel : jamDrumChannel; }   // FEAT-JAM
     juce::ComboBox& getMacroCcBox (int macro) noexcept  { return macroCc[juce::jlimit (0, ParamIDs::kNumMacros - 1, macro)]; }
     juce::String getPreviewText() const                 { return previewText; }
     juce::String getCaptureText() const                 { return captureText; }
@@ -92,6 +95,14 @@ private:
     void updateEnablement();
     void updateCaptureReadout (bool force);
     double rangeSeconds() const;
+
+public:
+    /** 4.1's range for `performance`, the MIDI capture's (MODEL-GAPS: marked region, current section). */
+    juce::Range<juce::int64> chosenRange (const MidiPerformance& performance) const;
+    juce::TextButton& getMarkInButton() noexcept  { return markInButton; }
+    juce::TextButton& getMarkOutButton() noexcept { return markOutButton; }
+
+private:
 
     void saveProfileAs();
     void loadProfile();
@@ -113,6 +124,7 @@ private:
     juce::ComboBox rangeBox;
     juce::Slider secondsSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::TextButton exportButton { "EXPORT MIDI..." };
+    juce::TextButton markInButton { "MARK IN" }, markOutButton { "MARK OUT" };   // MODEL-GAPS
     std::unique_ptr<DragSource> dragSource;
     juce::String captureText, previewText;
     int shownEventCount = -1;
@@ -121,6 +133,8 @@ private:
     std::unique_ptr<LuthierToggle> liveEnable;
     juce::OwnedArray<LuthierToggle> sourceToggles;
     juce::ComboBox liveChannel;
+    juce::ComboBox jamDrumChannel, jamBassChannel;   // FEAT-JAM: jam-mode 9
+    juce::Label jamChannelLabel;                     // FEAT-JAM
     juce::ComboBox macroCc[ParamIDs::kNumMacros];
     juce::Label macroCcLabels[ParamIDs::kNumMacros];
 

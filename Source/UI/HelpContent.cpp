@@ -43,7 +43,7 @@ namespace
           "Every topic in this list is also reachable from the panel it describes: {key:help} opens Help on the "
           "panel you are working in." },
 
-        { "interface", "The Interface", "GUI|window|header|EASY|Easy mode|ADVANCED|Advanced mode",
+        { "interface", "The Interface", "GUI|window|header|EASY|Easy mode|ADVANCED|Advanced mode|Tone",
           "HEADER (always visible)\n"
           "- Output LED, top left: dark when silent, brightening as the level approaches 0 dBFS, red while the "
           "signal is over.\n"
@@ -77,7 +77,7 @@ namespace
           "Below 1000 points wide the window cannot fit four columns, so Advanced is unavailable and says so. "
           "The practice drawer ({key:togglePractice}) opens along the bottom in either mode." },
 
-        { "controls", "Controls", "control|knob|right-click|MIDI LEARN|lock|locks",
+        { "controls", "Controls", "control|knob|right-click|MIDI LEARN|lock|locks|Playing|macros strip",
           "Every control behaves the same way.\n\n"
           "- Drag: adjust, vertically or horizontally, whichever you start with.\n"
           "- Shift-drag: coarse. Ctrl-drag (Cmd on macOS): ultra-fine.\n"
@@ -119,7 +119,7 @@ namespace
 
         { "signal-capture", "Column 2: Signal Capture",
           "Signal capture|PICKUPS|Pickups|CIRCUIT|Circuit|PRE-FX|PRE-EFFECTS RACK|Pedalboard (before the amp)|"
-          "Pedalboard|Playing Hand|String Noise",
+          "Pedalboard|Playing Hand|String Noise|Pre-effects",
           "- Pickups: the selector, then per slot the type, the magnet and the volume, and coil tap. "
           "Position is drawn on the instrument; move it in the Workshop.\n"
           "- Circuit: the guitar's own electronics - volume and tone pots and their taper, the tone capacitor, "
@@ -133,8 +133,8 @@ namespace
           "with its own amount." },
 
         { "amplification", "Column 3: Amplification",
-          "Amplification|AMP|Amplifier|POST-FX|POST-EFFECTS RACK|Effects Loop (after the amp)|Effects Loop|CAB|"
-          "Cabinet and Mic|Cabinet|ROOM|Room|SUSTAIN|Sustain|Performance|Humanise|Humanize|Master",
+          "Amplification|Rig|AMP|Amplifier|POST-FX|POST-EFFECTS RACK|Effects Loop (after the amp)|Effects Loop|CAB|"
+          "Cabinet and Mic|Cabinet|ROOM|Room|SUSTAIN|Sustain|Performance|Humanise|Humanize|Master|Post-effects",
           "- Amplifier: the model and its face - gain, bass, mid, treble, presence, master - with the bright, "
           "mid boost and standby switches. Standby mutes the amp.\n"
           "- Effects loop (after the amp): the post-amp pedal slots.\n"
@@ -151,7 +151,7 @@ namespace
 
         { "workspace", "Column 4: The Workspace", "workspace|Column 4|tabs",
           "Column 4 is a tab strip with one panel behind each tab. The tabs, in order:\n\n"
-          "WORKSHOP, MOD, RHYTHM, TUNE, LIVE, ROUTING, TONE MATCH, CHARACTER, PRACTICE, NOTATION, MIDI OUT, "
+          "WORKSHOP, MOD, RHYTHM, TUNE, JAM, LIVE, ROUTING, TONE MATCH, CHARACTER, PRACTICE, NOTATION, MIDI OUT, "
           "CONTROLLERS, HELP.\n\n"
           "Each has its own topic in this list. {key:previousWorkspaceTab} and {key:nextWorkspaceTab} step "
           "through them, wrapping at the ends, and the tab you had open last is the one that opens next time. "
@@ -196,19 +196,56 @@ namespace
 
         { "tune", "TUNE", "TUNE|tune builder|composition|song|melody|progression",
           "A sketchpad for a whole tune in about three minutes, top to bottom:\n\n"
-          "- Header: title, new, load, save, export, tempo, key and mode.\n"
-          "- Sections: one tab per section, coloured by its role. Right-click to rename, duplicate, delete, "
-          "repeat, tag the role or link its rhythm.\n"
-          "- Progression: type chords in shorthand, such as [Verse] Am F C G. It is read as you type, and "
-          "anything it cannot read is underlined where it sits.\n"
-          "- Rhythm: the genre kit, feel and strum each section plays with.\n"
-          "- Melody: a piano roll. Draw notes with the mouse, snapped to the grid and the key; right-click a "
-          "note to delete or lock it. Auto, Record and Improvise write one for you, and never touch a locked "
-          "note.\n"
-          "- Transport: back, play and pause, forward, loop, count-in and metronome.\n\n"
+          "- Header: title, new (templates and the example tunes, {key:newTune}), load, save, export, tempo, "
+          "key and mode.\n"
+          "- Sections: the setlist timeline above the tabs sets the play order - drag a tab onto it, drag its "
+          "blocks to reorder, right-click for repeats. The tabs are coloured by role; drag one to reorder, "
+          "right-click to rename, duplicate, Vary (a subtle sibling), delete, repeat, tag the role or link "
+          "its rhythm.\n"
+          "- Progression: type chords in shorthand, such as [Verse] Am F C G, or use the pills: click one to "
+          "edit it, drag it to move it, drag its right edge to lengthen it, right-click to insert, duplicate, "
+          "copy, paste or try a substitution. TOOLS has the diatonic palette, suggest next chord, "
+          "reharmonize, transpose and modal shift.\n"
+          "- Rhythm: the genre kit (it brings its tempo and feel), feel and strum; PALETTE adds the kit's "
+          "chords, KIT sets its tempo.\n"
+          "- Melody: a piano roll. Draw notes; click to select, Shift-click or Shift-drag for more; drag to "
+          "move; arrows nudge; Ctrl+X, C and V; right-click for velocity, articulation, technique and lock. "
+          "Auto, Record, Sing (with an audio input) and Improvise write one for you and never touch a locked "
+          "note. STYLE plays it with another instrument's phrasing. EDIT switches the roll to the bass line "
+          "or the countermelody.\n"
+          "- Bass and layers: the bass mode, and pad, arpeggio, countermelody and percussion, each with its "
+          "own on/off, volume and pan.\n"
+          "- Transport: back, play and pause, forward, loop, count-in, metronome, and TO LOOPER, which puts "
+          "the whole tune in a looper layer to practise over.\n\n"
+          "Export ({key:export}) is one screen: audio with optional aux-bus stems, MIDI in the Luthier or "
+          "Generic profile, MusicXML / Guitar Pro / ASCII tab, or the project with its preset and guitar. "
+          "The Tune Feel and Tune Tempo Drift parameters can be automated or modulated to move the tune "
+          "over time, and a snapshot remembers the section it was taken in.\n\n"
           "With the tab focused, save ({key:save}) and export ({key:export}) act on the tune rather than the "
           "preset, and undo steps through the tune's own history. Playback keeps going when the window is "
           "closed." },
+
+        // FEAT-JAM (jam-mode.md 8): the band.
+        { "jam", "JAM", "JAM|jam mode|jam band|band|backing band|drums|drummer|bass player",
+          "A drummer and a bass player who follow your chords. Arm the band (the JAM pill, {key:jamArm}) and play "
+          "a chord: the band starts with it and follows every change. {key:jamStartStop} starts or stops it now, "
+          "{key:jamFill} plays a fill into the next bar.\n\n"
+          "- STYLE: ten styles (Rock, Pop, Funk, Blues Shuffle, Country, Metal, Reggae, Jazz Swing, Ballad, EDM), "
+          "each with grooves A and B, or a .luthierjam file of your own (User). Link guitar rhythm kit also switches "
+          "the guitar's rhythm genre kit.\n"
+          "- FEEL: intensity 1 to 5, fills, swing and how human it plays; Dynamics follow plays up and down with you.\n"
+          "- FOLLOW: chords from your playing, the tune, or Auto (the tune while it plays). Tight follows at once, "
+          "Bar waits for the bar line; Predict repeats anticipates a progression you repeat.\n"
+          "- START/STOP: Auto starts with the host's transport, the tune, or your first note; the count-in is the "
+          "band's sticks. It stops when you stop playing, with an ending if you like. The metronome goes quiet "
+          "while the drums are heard (a preference here).\n"
+          "- KIT, BASS, MIXER: five synthesized kits, four basses, the band's volume, balance and pans, and the "
+          "output - Main, or Separate on Aux 9 Jam Drums and Aux 10 Jam Bass (the multi-out layouts).\n"
+          "- LANES: what the band plays this bar and the chords around it; drag the last bars out as MIDI, or "
+          "Export MIDI. MIDI OUT's Jam band switch sends the band live on channels 10 and 11.\n\n"
+          "Loops record your guitar only; session takes include the band. Loading a bass makes you the bassist: "
+          "the Jam bass rests. Two plugin instances jamming means two drummers.",
+        },
 
         { "live", "LIVE", "LIVE|live mode|snapshots|snapshot|setlist|morph",
           "The setup surface for playing live. The live strip along the bottom of the window ({key:toggleLiveMode}) "
@@ -437,6 +474,149 @@ namespace
           "If Luthier is hard-crashing, send BOTH the crash log and the troubleshooting file to support, with a "
           "description of what you were doing when it happened." },
 
+        // ==== BEGIN TUNE-HELP-ONBOARDING topics ====
+        { "first-steps", "First Steps and the Tour", "tour|take the tour|first run|first-run|onboarding|"
+          "welcome banner|restore first-run experience|hints",
+          "THREE WAYS IN (onboarding)\n"
+          "- 30 seconds: play. The default preset is a finished sound; nothing needs setting up.\n"
+          "- 2 minutes: take the tour, then press Randomise a few times for fresh sounds.\n"
+          "- 5 minutes: take the tour, open one of the example tunes in the TUNE tab (Load, then the Examples "
+          "folder), press play, and swap the guitar in the Workshop while it loops.\n\n"
+          "THE TOUR\n"
+          "Twelve stops, one callout each, pointing at the control it describes: playing, presets, Advanced "
+          "mode, the guitar, the rig, the workspace, the Workshop, the TUNE tab, snapshots, the practice drawer, "
+          "Slide Mode and Options. Next and Back move between stops, Skip or Escape ends it, and the Take the "
+          "tour button at the top of this page starts it again at any time.\n\n"
+          "THE FIRST WEEK\n"
+          "For your first seven launches (or seven days, whichever comes first) new things are marked: a ? "
+          "pulses the first time you see it, every workspace tab you have not opened yet carries a small dot, "
+          "and the Workshop wrench, the TUNE tab and the Slide switch pulse once. After that the hints go "
+          "quiet.\n\n"
+          "STARTING OVER\n"
+          "Options -> Diagnostics -> Restore first-run experience puts your settings back to a fresh install's "
+          "and brings back the welcome banner, the tour offer and every one-time hint. Your presets, guitars, "
+          "tunes and parts are kept." },
+
+        { "whats-new", "What's New", "what's new|whats new|changelog|release notes|NEW|upgrade",
+          "Each release lists what it added in CHANGELOG.md, installed beside this manual. Anything a new "
+          "version adds is marked NEW where you reach it for a week after you first run that version.\n\n"
+          "RECENT ADDITIONS\n"
+          "- The real guitar on screen, drawn from its parts.\n"
+          "- The Workshop: swap bodies, necks, pickups, bridges and strings, and hear what changed.\n"
+          "- MIDI export with realism events, and live MIDI out.\n"
+          "- Feedback that behaves like feedback, and a real E-Bow.\n"
+          "- The TUNE tab: sketch a whole tune, with a melody, bass and layers, and export it as audio, MIDI or "
+          "notation from one dialog.\n"
+          "- The welcome tour, and first-week hints." },
+        // ==== END TUNE-HELP-ONBOARDING topics ====
+
+        /*  ==== BEGIN TUNE-HELP-ONBOARDING topics for other workstreams ====
+            Features other workstreams add (the TECHNIQUES tab's sub-tabs,
+            the CHARACTER groups of the phase 2b specs), each as its own
+            topic so the panel's ? or Docs can pin to it by name. Written from
+            their specs; kept apart so a workstream can edit its own entry. */
+        { "technique-slap", "Techniques: Slap", "Slap|SLAP|Slap sub-tab|slap technique|thumb slap|pop|finger pop|palm slap|body tap",
+          "Slap is a strike, not a pluck: the thumb, a popping finger, the palm or a hand on the body hits the "
+          "string (or the top) and the string rattles against the frets.\n\n"
+          "- Slap type: Thumb Slap, Finger Pop, Palm Slap or Body Tap.\n"
+          "- Trigger: a velocity zone, a keyswitch, a CC, an MPE zone or the Playing strip button.\n"
+          "- Contact position and force: where along the string it lands and how hard.\n"
+          "- String mask: which strings a slap hits.\n"
+          "- Ghost mode: the fretting hand mutes first, for a pitchless thump.\n"
+          "- Rebound and snap-back: the thumb's double hit, and how hard a bass string clacks back on the "
+          "fretboard.\n"
+          "- Body tap: which part of the body the hand meets, and so which resonances answer." },
+
+        { "technique-scrape", "Techniques: Scrape", "Scrape|SCRAPE|Scrape sub-tab|string scrape|scraping|pick scrape|zipper",
+          "A pick or a nail drawn along a wound string: the tip catches each winding in turn, so the pitch of the "
+          "zipper follows how fast you move and how tightly the string is wound. It is a real event on the "
+          "string, so it shows up in the string's ring, in the pickups and through the amp exactly as the rest "
+          "of the note does. The Scrape controls set how it is triggered, its direction, speed and pressure, "
+          "and which strings it crosses." },
+
+        { "technique-muting", "Techniques: Muting", "Muting|MUTING|Muting sub-tab|mute|palm mute|chuka|mute pattern|mute grid",
+          "Muting as rhythm: metal chugs, funk chukas, reggae skanks.\n\n"
+          "- A 16-step grid: paint each step open, palm-muted, fretting-hand muted or dead.\n"
+          "- Master mute mode overrides the grid with one kind of mute for every step.\n"
+          "- Palm position and pressure: where the palm rests and how hard.\n"
+          "- Fretting-hand style: a rock spread across the strings, or a classical fingertip.\n"
+          "- Chuka source: what makes a strum a chuka (by default, a very soft one).\n"
+          "- Humanise: the chance a step slips between open and muted, and the ghost-note level." },
+
+        { "technique-tapping", "Techniques: Tapping", "Tapping|TAPPING|Tapping sub-tab|tap|two-hand tapping|taps|hammer-on|pull-off",
+          "A tap is a fret event, not a pluck: a right-hand finger presses the string onto a fret sharply and "
+          "the string between that fret and the bridge sounds.\n\n"
+          "- Trigger: right-hand notes on MIDI channel 2 by default, a keyswitch, or the fretboard's tap layer.\n"
+          "- Strength curve: how velocity becomes tap strength.\n"
+          "- Auto pull-off: lifting a tap with a fretted note held plays the pull-off.\n"
+          "- Hammer-on threshold: how soft a legato note can be and still count as a hammer-on.\n"
+          "- Flick, default length, how many taps a string can hold, and snapping taps to frets (off for "
+          "microtonal taps)." },
+
+        { "technique-bends", "Techniques: Microtonal Bends", "Microtonal Bends|MICROTONAL BENDS|Microtonal Bends sub-tab|"
+          "microtonal|bend quantise|pre-bend|quarter tone|scala",
+          "Pitch on a string is continuous, so bends and vibrato are not limited to semitones.\n\n"
+          "- Bend source and range, for all strings and per string (MPE Y by default): 200 cents unless you "
+          "widen it.\n"
+          "- Vibrato: its source, rate, depth and how long after the note it starts.\n"
+          "- Bend quantise: none, quarter tones, semitones, 24-EDO or a loaded .scl / .tun scale.\n"
+          "- Pre-bend: start a note bent and release into pitch.\n"
+          "- Bend and release curves: linear, exponential (as a finger does it) or drawn." },
+
+        { "technique-cascade", "Techniques: Combining Them", "technique cascade|cascade|combining techniques|"
+          "technique conflicts|compatibility",
+          "Techniques combine the way they do on a real guitar. Each belongs to a class - what controls the "
+          "pitch, what excites the string, what damps it - and two that would fight over the same string at "
+          "the same moment cannot both be armed on it: the tab greys out the one that conflicts and says why. "
+          "Techniques on different strings, or in different classes, always combine." },
+
+        { "string-aging", "Character: String Aging", "STRING AGING|String Aging|string age|fresh strings|dead strings",
+          "Fresh strings are bright, zingy and long-sustaining; dead ones are dull, short and play slightly "
+          "out of tune up the neck. The STRING AGING group in the CHARACTER tab sets how old the set is and "
+          "how it has been played, and the brightness, sustain and intonation follow." },
+
+        { "environment-group", "Character: Environment", "Environment group|ENVIRONMENT group|temperature|humidity|"
+          "climate|acclimatise",
+          "Steel and wood respond to the room. The ENVIRONMENT group in the CHARACTER tab sets temperature and "
+          "humidity: cold strings go flat and drift back as they warm, a humid room lifts an acoustic's top "
+          "and its action, a dry one back-bows the neck and wakes fret buzz." },
+
+        { "body-coupling", "Character: Body Coupling", "BODY COUPLING|Body Coupling|wolf note|wolf notes|body feedback",
+          "The strings drive the body and the body pushes back. The BODY COUPLING group in the CHARACTER tab "
+          "sets how strongly, which is what gives an acoustic its wolf notes - a note on the top's main "
+          "resonance that blooms, warbles or dies early - and lets the body's own resonances ring on." },
+
+        { "harmonics-group", "Character: Harmonics", "HARMONICS|Harmonics|harmonic|natural harmonic|touch harmonic",
+          "A harmonic is a string touched at a node: every partial with a node there survives and the rest die "
+          "within a few periods. The HARMONICS row in the CHARACTER tab's PICK group sets the touch - its "
+          "pressure, the finger's width, how long it rests and how it leaves - which decides how pure the "
+          "harmonic is and how much of the fundamental leaks through." },
+
+        { "right-hand", "Character: Right Hand", "RIGHT HAND|Right Hand|fingerstyle|rest stroke|free stroke|nail|thumb",
+          "What touches the string and how it lets go. The RIGHT HAND group in the CHARACTER tab sets nail "
+          "against flesh, rest or free stroke, the thumb, Travis-style muting, hybrid picking snap and how "
+          "much each finger varies - the difference between a classical player, a Travis picker and a "
+          "flamenco player." },
+
+        { "noise-floor", "Character: Noise Floor", "NOISE FLOOR|Noise Floor|hum|hiss|buzz|60 cycle|noise gate",
+          "A real rig is never silent. The NOISE FLOOR group in the CHARACTER tab adds pickup hum, preamp hiss "
+          "and the cable and room, each where it enters a real chain, so the guitar's volume, the pickup type "
+          "and the amp's gain act on it as they do on a real rig. All of it can be turned off." },
+
+        { "sustain-shape", "Character: Sustain Shape", "SUSTAIN SHAPE|Sustain Shape|decay|two-stage decay|"
+          "pitch sag|release",
+          "A plucked note falls fast for the first half second and then settles into a long tail, starts a "
+          "touch sharp, and sags as the finger lifts at the end. The SUSTAIN SHAPE group in the CHARACTER tab "
+          "sets each of those stages." },
+
+        { "tuning-stability", "Character: Tuning Stability", "TUNING STABILITY|Tuning Stability|string stretch|"
+          "nut binding|tuner slip|floating bridge detune",
+          "Guitars go out of tune for reasons: new strings stretch flat, a hard bend sticks in the nut and "
+          "comes back sharp, a loose tuner lets go, a floating bridge detunes the other strings when one is "
+          "bent, a capo pulls everything sharp. The tuning-stability controls in the CHARACTER tab set how "
+          "much of each your guitar does." },
+        // ==== END TUNE-HELP-ONBOARDING topics for other workstreams ====
+
         { "about", "About and Licence", "about|licence|license|version|links|support|homepage|github|source",
           "Luthier - a physically-modelled guitar. No samples.\n\n"
           "(c) Luthier Audio. All rights reserved.\n\n"
@@ -478,11 +658,11 @@ namespace
     {
         { "Help and navigation", "help|showShortcuts|options|toggleAdvanced|previousWorkspaceTab|"
                                  "nextWorkspaceTab|debugPanel" },
-        { "Playing",             "panic|killSwitch|tapTempo|audition|toggleLiveMode|toggleSlideMode|"
-                                 "togglePractice|midiLearnArm" },
+        { "Playing",             "panic|killSwitch|tapTempo|audition|toggleLiveMode|toggleSlideMode|toggleWorkshop|"
+                                 "togglePractice|midiLearnArm|jamStartStop|jamFill|jamArm" },   // FEAT-JAM
         { "Presets, snapshots and setlists", "previousItem|nextItem|setlistPrevious|setlistNext|abCompare|"
                                  "randomise|resetAll|newPreset|presetBrowser" },
-        { "Files and editing",   "undo|redo|save|saveAs|revealPreset|saveGuitarAs|revealGuitar|export" }
+        { "Files and editing",   "undo|redo|redoAlt|undoAcrossBoundary|save|saveAs|revealPreset|saveGuitarAs|revealGuitar|export|newTune" }
     };
 
     constexpr const char* kOtherGroup = "Other";

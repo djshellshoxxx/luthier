@@ -26,6 +26,7 @@
 #include "ChordDetector.h"
 #include "Patterns.h"
 #include "StrumGesture.h"
+#include "BassStepGrid.h"
 
 #include "../Model/Playing/PlayingEvents.h"
 #include "../Model/Playing/RubricVoicer.h"
@@ -96,10 +97,30 @@ public:
     void setPattern (const RhythmPattern& pattern);
     RhythmPattern getPattern() const;
 
+    /*  bass-techniques 9 (MODEL-GAPS): the bass step grid. Message thread; the
+        audio thread sees it next block. On a bass (setBassFamily) a grid with
+        any step in it plays instead of the strum pattern; an empty one leaves
+        the pattern in charge. */
+    void setBassGrid (const BassStepGrid& grid);
+    BassStepGrid getBassGrid() const;
+
+    /** Whether the loaded guitar is a bass. The engine sets it every block. */
+    void setBassFamily (bool isBass) noexcept { bassFamily.store (isBass, std::memory_order_relaxed); }
+    bool isBassFamily() const noexcept { return bassFamily.load (std::memory_order_relaxed); }
+
+    /** True when the grid, not the strum pattern, is what plays. */
+    bool isBassGridActive() const noexcept;
+
     void setHumanise (const RhythmHumanise& h) noexcept;
     RhythmHumanise getHumanise() const noexcept;
 
     void setVoicingStyle (VoicingStyle style) noexcept { voicingStyle.store ((int) style, std::memory_order_relaxed); }
+
+    /*  ambiguity-resolutions 4.3 / 4.7 (MODEL-GAPS): what the Bass style voices -
+        the root only, root and fifth, or a walking approach. Saved with the
+        rhythm engine's state; the RHYTHM tab shows it when the style is Bass. */
+    void setBassPattern (RubricBassPattern p) noexcept { bassPattern.store ((int) p, std::memory_order_relaxed); }
+    RubricBassPattern getBassPattern() const noexcept { return (RubricBassPattern) bassPattern.load (std::memory_order_relaxed); }
     VoicingStyle getVoicingStyle() const noexcept { return (VoicingStyle) voicingStyle.load (std::memory_order_relaxed); }
 
     /** 0..100: how many of the held notes get voiced (rhythm-engine 3). */
@@ -146,6 +167,9 @@ public:
     /** 7: the STRUM group's settings, pushed every block by the ParameterBridge.
         Their crossing velocity is the plugin-global default (1.1 source 4). */
     void setStrumSettings (const StrumSettings& s) noexcept { strumSettings = s.clamped(); }
+
+    /** REALISM-B, string-interaction.md 6: the muted-string thump's level; 0 emits nothing. */
+    void setMutedThumpLevel (double level) noexcept { mutedThumpLevel = juce::jlimit (0.0, 1.0, level); }
     StrumSettings getStrumSettings() const noexcept { return strumSettings; }
 
     double getStrumEvenness() const noexcept { return strumEvenness.load (std::memory_order_relaxed); }
@@ -184,6 +208,10 @@ public:
     // Live state, for the UI.
 
     ChordSymbol getCurrentChord() const noexcept { return currentChord; }
+
+    /** The detector's reading of what is held now, whether or not the engine is
+        on (notation-export 4: the capture's chord track). Audio thread. */
+    ChordSymbol detectHeldChord() const noexcept { return detector.detect (detector.getHeldNotes(), detector.getNumHeldNotes()); }
     const ChordVoicing& getCurrentVoicing() const noexcept { return currentVoicing; }
     int getCurrentStep() const noexcept { return lastStepPlayed.load (std::memory_order_relaxed); }
     StrumType getNextStrumType() const noexcept { return (StrumType) nextStrumType.load (std::memory_order_relaxed); }
@@ -197,9 +225,8 @@ private:
         documented as running in microseconds. */
     void revoice() noexcept;
 
-    /** Chooses which of the held notes to voice, according to the style and
-        density. Writes into `dest` and returns how many. */
-    int selectNotesForStyle (int* dest, int maxNotes) noexcept;
+    // selectNotesForStyle is retired (ambiguity-resolutions 4, MODEL-GAPS):
+    // the rubric voicer chooses the notes, style and density included.
 
     void scheduleStrum (const StrumStep& step, double sourceSps, int sampleOffset,
                         PlayEventQueue& out) noexcept;
@@ -208,9 +235,14 @@ private:
                              PlayEventQueue& out) noexcept;
 
     void emitNote (int stringIndex, double velocity, bool muted, double chuck,
-                   int strikerMaterial, int sampleOffset, PlayEventQueue& out) noexcept;
+                   int strikerMaterial, int sampleOffset, PlayEventQueue& out, int finger = -1) noexcept;
 
     void releaseAll (int sampleOffset, PlayEventQueue& out) noexcept;
+
+    // bass-techniques 9 (MODEL-GAPS).
+    int processBassGrid (const BassStepGrid& grid, double startBeats, double endBeats,
+                         double beatsPerSample, int numSamples, PlayEventQueue& out) noexcept;
+    void emitBassStep (const BassStep& step, int sampleOffset, int lengthSamples, PlayEventQueue& out) noexcept;
 
     double sr = 44100.0;
     int maxBlock = 512;
@@ -227,6 +259,7 @@ private:
     std::atomic<bool> enabled { false };
     std::atomic<bool> freeRun { false };
     std::atomic<int> voicingStyle { (int) VoicingStyle::open };
+    std::atomic<int> bassPattern { (int) RubricBassPattern::root };
     std::atomic<double> voicingDensity { 100.0 };
     std::atomic<int> handPositionHint { 0 };
     // No capoFret here any more: TuningEngine owns the one capo. See setCapoFret.
@@ -234,6 +267,7 @@ private:
     std::atomic<double> strumDurationMs { 0.0 };  // no kit crossing until a kit sets one
 
     StrumSettings strumSettings;
+    double mutedThumpLevel = 0.0;   // REALISM-B
     std::atomic<double> strumFeel { 0.5 };
     StrumGesture gesture;
     juce::uint32 strumCount = 0;
@@ -246,6 +280,10 @@ private:
     mutable juce::CriticalSection patternLock;
     RhythmPattern patterns[2];
     std::atomic<int> livePattern { 0 };
+
+    BassStepGrid bassGrids[2];
+    std::atomic<int> liveBassGrid { 0 };
+    std::atomic<bool> bassFamily { false };
 
     mutable juce::CriticalSection humaniseLock;
     RhythmHumanise humanise;

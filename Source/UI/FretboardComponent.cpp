@@ -1,5 +1,6 @@
 #include "FretboardComponent.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Accessibility.h"
 
 namespace luthier
 {
@@ -50,7 +51,9 @@ const char* getScaleName (ScaleOverlay s) noexcept
 
 //==============================================================================
 FretboardComponent::FretboardComponent (LuthierAudioProcessor& p)
-    : processor (p)
+    : processor (p),
+      animator (*this, p.getEngine().getSoundingNotes(),
+                [this] (StringMotionGeometry& g) { return fillMotionGeometry (g); })
 {
     muted.fill (false);
     liveFret.fill (0.0);
@@ -58,12 +61,12 @@ FretboardComponent::FretboardComponent (LuthierAudioProcessor& p)
     liveNote.fill (-1);
 
     setTooltip ("Click a fret to hear that note. Right-click for string options.");
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);   // cpu-quality-modes 6
 }
 
 FretboardComponent::~FretboardComponent()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 //==============================================================================
@@ -71,6 +74,12 @@ void FretboardComponent::setScaleOverlay (ScaleOverlay s, int root)
 {
     scale = s;
     scaleRoot = ((root % 12) + 12) % 12;
+    repaint();
+}
+
+void FretboardComponent::setGhostDots (const std::vector<GhostDot>& dots)
+{
+    ghostDots = dots;
     repaint();
 }
 
@@ -149,16 +158,30 @@ void FretboardComponent::timerCallback()
     numStrings = juce::jlimit (1, 12, strings);
     numFrets = juce::jlimit (12, 27, spec.maxFrets);
 
+    // animated-strings.md 2.6 and 4.3: the animator reads its gates on this tick.
+    animator.poll();
+    const bool motion = animator.isMotionActive();
+
+    if (motion)
+        refreshStringLooks (false);
+
     for (int s = 0; s < numStrings; ++s)
     {
-        const double level = engine.getStringLevel (s);
+        // cpu-quality-modes 6: a fixed glow at Off - holding a note, or still
+        // audibly ringing after it; a held note decaying is not a change.
+        const double level = staticMode ? ((engine.getStringMidiNote (s) >= 0 || engine.getStringLevel (s) > 1.0e-3) ? 1.0 : 0.0)
+                                        : engine.getStringLevel (s);
         const double fret = engine.getStringFret (s);
         const int note = engine.getStringMidiNote (s);
 
-        if (std::abs (level - liveLevel[(size_t) s]) > 0.0008
-            || std::abs (fret - liveFret[(size_t) s]) > 0.01
-            || note != liveNote[(size_t) s])
+        const bool levelMoved = std::abs (level - liveLevel[(size_t) s]) > 0.0008;
+
+        if (std::abs (fret - liveFret[(size_t) s]) > 0.01 || note != liveNote[(size_t) s])
             changed = true;
+        else if (levelMoved && ! motion)
+            changed = true;
+        else if (levelMoved)
+            repaint (noteDotArea (s, fret));   // the ghost repaints the string itself (4.3)
 
         liveLevel[(size_t) s] = level;
         liveFret[(size_t) s] = fret;
@@ -170,8 +193,11 @@ void FretboardComponent::timerCallback()
         const auto& slide = engine.getSlideEngine();
         const double target = slide.getOverlayFret();
 
-        // 80 ms ease at the 30 Hz this runs at.
-        const double ease = 1.0 - std::exp (-(1.0 / 30.0) / 0.080);
+        // 80 ms ease at the 30 Hz this runs at; instant at Off (cpu-quality-modes 6).
+        const double ease = (staticMode || ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition))
+                              ? 1.0 : 1.0 - std::exp (-(1.0 / 30.0) / 0.080);
+        const double barFretBefore = barFret;
+        const float barOpacityBefore = barOpacity;
 
         if (target >= 0.0)
         {
@@ -192,12 +218,164 @@ void FretboardComponent::timerCallback()
         barSlantDegrees = (float) slide.getSettings().slantDegrees;
         barColour = juce::Colour (getSlideMaterial (slide.getBar().material).colour);
 
-        if (barOpacity > 0.0f)
+        if (barOpacity > 0.0f && ! staticMode)
+            changed = true;
+
+        if (staticMode && (barFret != barFretBefore || barOpacity != barOpacityBefore))
             changed = true;
     }
 
+    // ---- notation-export 3: the current bar as tablature dots (MODEL-GAPS) --------
+    {
+        const auto before = tabDots.size();
+        const auto newestBefore = tabDots.empty() ? -1.0 : tabDots.back().fret;
+        refreshTabDots();
+
+        if (tabDots.size() != before || (! tabDots.empty() && tabDots.back().fret != newestBefore))
+            changed = true;
+    }
+    if (refreshRealismB())   // REALISM-B: contact rings, palm bands, tool glyphs
+        changed = true;
+
     if (changed)
         repaint();
+}
+
+//==============================================================================
+//  animated-strings.md 2.1, 2.3 and 6.1
+//==============================================================================
+bool FretboardComponent::fillMotionGeometry (StringMotionGeometry& geometry)
+{
+    if (boardArea.isEmpty())
+        return false;
+
+    // The fretboard has no bridge: the bridge point is the scale-length point
+    // fretX implies, beyond the board's end (2.1).
+    const double total = 1.0 - 1.0 / std::pow (2.0, (double) numFrets / 12.0);
+    const float nutX = fretX (0.0);
+    const float endX = (float) boardArea.getRight();
+    const float virtualBridge = nutX + (endX - nutX) / (float) juce::jmax (1.0e-6, total);
+
+    geometry.numStrings = juce::jlimit (0, StringMotionGeometry::kMaxStrings, numStrings);
+
+    for (int s = 0; s < geometry.numStrings; ++s)
+    {
+        auto& out = geometry.strings[(size_t) s];
+        out.nut = { nutX, stringY (s) };
+        out.bridge = { virtualBridge, stringY (s) };
+        out.strokeWidthPx = stringThickness (s);
+    }
+
+    geometry.numFrets = (float) numFrets;
+    geometry.clip = boardArea.toFloat();
+    return geometry.numStrings > 0;
+}
+
+void FretboardComponent::refreshStringLooks (bool force)
+{
+    if (! force && ++ticksSinceLooksCheck < 15)
+        return;
+
+    ticksSinceLooksCheck = 0;
+
+    const auto& guitar = processor.getCurrentGuitar();
+    const auto key = GuitarRenderer::keyFor (guitar, GuitarRenderer::Options {});
+
+    if (force || key != looksKey)
+    {
+        looksKey = key;
+        looks = GuitarRenderer::stringLooks (guitar);
+    }
+}
+
+float FretboardComponent::stringThickness (int s) const
+{
+    const float base = 0.9f + 1.5f * ((float) s / (float) juce::jmax (1, numStrings - 1));
+
+    float sum = 0.0f;
+    int count = 0;
+
+    for (int i = 0; i < numStrings; ++i)
+        if (looks[(size_t) i].widthMm > 0.0f)
+        {
+            sum += looks[(size_t) i].widthMm;
+            ++count;
+        }
+
+    if (count == 0 || ! juce::isPositiveAndBelow (s, 12) || looksKey == 0)
+        return base;
+
+    // The rule's mean thickness, spread by gauge: a 0.46" string is drawn 4.6x a 0.10" one.
+    const float meanBase = 0.9f + 0.75f;
+    return juce::jlimit (0.6f, 5.0f, meanBase * looks[(size_t) s].widthMm / (sum / (float) count));
+}
+
+juce::Rectangle<int> FretboardComponent::noteDotArea (int s, double fret) const
+{
+    const float x = (fret < 0.05) ? fretX (0.0) - 6.0f
+                                  : (fretX (juce::jmax (0.0, fret - 1.0)) + fretX (fret)) * 0.5f;
+    const float r = 7.0f * 1.7f + 2.0f;
+    return juce::Rectangle<float> (x - r, stringY (s) - r, 2.0f * r, 2.0f * r).getSmallestIntegerContainer();
+}
+
+void FretboardComponent::refreshTabDots()
+{
+    tabDots.clear();
+
+    if (! processor.isShowingTabDotsOnFretboard())
+        return;
+
+    const auto& capture = processor.getPerformanceCapture();
+    const auto& notes = capture.getNotes();
+
+    if (notes.empty())
+        return;
+
+    // The bar the newest note is in: on the host's grid when it was played in
+    // time, otherwise the last bar's worth of seconds at the host tempo.
+    const auto& newest = notes.back();
+    const double bpm = juce::jmax (20.0, processor.getHostTempo());
+    const auto& meters = capture.getMeters();
+    const int numerator = meters.empty() ? 4 : meters.back().numerator;
+    const int denominator = meters.empty() ? 4 : meters.back().denominator;
+    const double barBeats = (double) numerator * 4.0 / (double) juce::jmax (1, denominator);
+
+    std::vector<size_t> inBar;
+
+    if (newest.musical)
+    {
+        const double barStart = std::floor (newest.startPpq / barBeats + 1.0e-9) * barBeats;
+
+        for (size_t i = notes.size(); i-- > 0;)
+        {
+            if (! notes[i].musical || notes[i].startPpq < barStart)
+                break;
+
+            inBar.push_back (i);
+        }
+    }
+    else
+    {
+        const double barSeconds = barBeats * 60.0 / bpm;
+        const auto from = newest.startSample - (juce::int64) (barSeconds * juce::jmax (1.0, processor.getSampleRate()));
+
+        for (size_t i = notes.size(); i-- > 0;)
+        {
+            if (notes[i].startSample <= from)
+                break;
+
+            inBar.push_back (i);
+        }
+    }
+
+    const float n = (float) juce::jmax ((size_t) 1, inBar.size());
+
+    // Oldest first, so the newest is drawn on top.
+    for (size_t k = inBar.size(); k-- > 0;)
+    {
+        const auto& note = notes[inBar[k]];
+        tabDots.push_back ({ note.stringIndex, note.fret, (float) k / n });
+    }
 }
 
 //==============================================================================
@@ -283,9 +461,59 @@ bool FretboardComponent::isNoteInScale (int stringIndex, int fret) const
 //==============================================================================
 void FretboardComponent::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     if (boardArea.isEmpty())
         return;
 
+    /*  animated-strings.md 4.4 and 11: while the strings animate, the static board
+        is blitted from a cache so a dirty-rect frame costs only what moves. With
+        the animation off it is painted directly, exactly as it always was. */
+    if (animator.isAnimationEnabled())
+    {
+        const float scale = juce::Component::getApproximateScaleFactorForComponent (this);
+        const auto key = staticLayerKey (scale);
+
+        if (staticCache.isNull() || key != staticCacheKey)
+        {
+            staticCache = juce::Image (juce::Image::ARGB, juce::jmax (1, juce::roundToInt ((float) getWidth() * scale)),
+                                       juce::jmax (1, juce::roundToInt ((float) getHeight() * scale)), true);
+            juce::Graphics cg (staticCache);
+            cg.addTransform (juce::AffineTransform::scale (scale));
+            paintStaticLayer (cg);
+            paintFretNumbers (cg);
+            staticCacheKey = key;
+        }
+
+        g.drawImage (staticCache, getLocalBounds().toFloat());
+        paintLiveLayer (g);
+        return;
+    }
+
+    staticCache = {};
+    paintStaticLayer (g);
+    paintLiveLayer (g);
+    paintFretNumbers (g);
+}
+
+juce::int64 FretboardComponent::staticLayerKey (float scale) const
+{
+    auto key = juce::String (getWidth()) + "x" + juce::String (getHeight()) + "@" + juce::String (scale, 3)
+               + "|" + juce::String (numFrets) + "|" + juce::String (numStrings) + "|" + juce::String (capoFret)
+               + "|" + juce::String (scaleRoot) + "|" + juce::String ((int) compact)
+               + "|" + juce::String ((int) AccessibilitySettings::get().getPalette())
+               + "|" + juce::String ((int) this->scale);
+
+    // The scale overlay follows the tuning, so its pitch classes are part of the key.
+    if (this->scale != ScaleOverlay::None)
+        for (int s = 0; s < numStrings; ++s)
+            key << "," << pitchClassAt (s, 0);
+
+    return key.hashCode64();
+}
+
+void FretboardComponent::paintStaticLayer (juce::Graphics& g)
+{
     const float nutX = fretX (0.0);
 
     // ---- board --------------------------------------------------------------
@@ -368,6 +596,33 @@ void FretboardComponent::paint (juce::Graphics& g)
         g.drawRect (x - 3.0f, (float) boardArea.getY() - 2.0f, 6.0f, (float) boardArea.getHeight() + 4.0f, 1.0f);
     }
 
+}
+
+void FretboardComponent::paintLiveLayer (juce::Graphics& g)
+{
+    const float nutX = fretX (0.0);
+
+    // ---- tablature dots (notation-export 3, MODEL-GAPS) ------------------------------
+    for (const auto& dot : tabDots)
+    {
+        if (! juce::isPositiveAndBelow (dot.stringIndex, numStrings))
+            continue;
+
+        // A fretted note sits between its fret wire and the one before; open at the nut.
+        const float x = dot.fret <= 0.0 ? fretX (0.0) - 6.0f
+                                        : 0.5f * (fretX (dot.fret) + fretX (juce::jmax (0.0, dot.fret - 1.0)));
+        const float y = stringY (dot.stringIndex);
+        const float r = compact ? 5.0f : 7.0f;
+        const auto colour = Palette::secondary.withAlpha (1.0f - 0.6f * dot.age);
+
+        g.setColour (colour);
+        g.fillEllipse (x - r, y - r, 2.0f * r, 2.0f * r);
+        g.setColour (Palette::backgroundDeep);
+        g.setFont (Fonts::ui (compact ? 8.0f : 9.0f, true));
+        g.drawText (juce::String (juce::roundToInt (dot.fret)), juce::Rectangle<float> (x - r, y - r, 2.0f * r, 2.0f * r),
+                    juce::Justification::centred, false);
+    }
+
     // ---- slide bar (gui-integration 21) -------------------------------------------
     // A 6 px rounded bar in the material's colour at 80%, over the strings at
     // the bar's position and rotated by its slant.
@@ -405,7 +660,33 @@ void FretboardComponent::paint (juce::Graphics& g)
         // to suggest movement.
         const double level = liveLevel[(size_t) s];
 
-        if (level > 0.0015)
+        // animated-strings.md 2.3 and 4.4: a moving string is drawn as its ghost,
+        // which replaces the "excitement" blur.
+        if (const auto* motion = animator.getFrameToPaint())
+        {
+            if (juce::isPositiveAndBelow (s, motion->numStrings) && motion->strings[(size_t) s].active)
+            {
+                const auto& str = motion->strings[(size_t) s];
+
+                if (str.swept.intersects (g.getClipBounds().toFloat()))
+                {
+                    juce::Graphics::ScopedSaveState save (g);
+                    g.reduceClipRegion (boardArea);
+
+                    GuitarRenderer::SpeakingStyle style;
+                    style.highContrast = AccessibilitySettings::get().getPalette() == PaletteId::highContrast;
+                    style.highContrastColour = Palette::textPrimary;
+
+                    auto look = looks[(size_t) s];
+                    look.dashedWinding = false;   // the fretboard's strings are plain lines
+                    GuitarRenderer::paintMotionGhost (g, str, look, stringThickness (s), motion->quality, style);
+                }
+
+                continue;
+            }
+        }
+
+        if (level > 0.0015 && ! animator.isMotionActive())
         {
             const float excitement = (float) juce::jlimit (0.0, 1.0, level * 14.0);
 
@@ -451,6 +732,22 @@ void FretboardComponent::paint (juce::Graphics& g)
         }
     }
 
+    // ---- ghost fingering (piano-roll-chord-display.md 3) ---------------------------
+    for (const auto& dot : ghostDots)
+    {
+        if (! juce::isPositiveAndBelow (dot.string, numStrings))
+            continue;
+
+        const double fret = dot.fret;   // as the sounding dots draw the engine's fret, so the ghost is where the note will light
+        const float x = (fret < 0.05) ? nutX - 6.0f
+                                      : (fretX (juce::jmax (0.0, fret - 1.0)) + fretX (fret)) * 0.5f;
+        const float y = stringY (dot.string);
+        const float radius = 6.5f;
+
+        g.setColour (Palette::textPrimary.withAlpha (0.85f));
+        g.drawEllipse (x - radius, y - radius, radius * 2.0f, radius * 2.0f, 1.6f);
+    }
+
     // ---- hover ---------------------------------------------------------------------
     if (hoverString >= 0 && hoverFret >= 0)
     {
@@ -461,6 +758,13 @@ void FretboardComponent::paint (juce::Graphics& g)
         g.setColour (Palette::textPrimary.withAlpha (0.45f));
         g.drawEllipse (x - 7.0f, y - 7.0f, 14.0f, 14.0f, 1.2f);
     }
+
+    paintRealismB (g);   // REALISM-B
+}
+
+void FretboardComponent::paintFretNumbers (juce::Graphics& g)
+{
+    const float nutX = fretX (0.0);
 
     // ---- fret numbers ----------------------------------------------------------------
     if (! compact)

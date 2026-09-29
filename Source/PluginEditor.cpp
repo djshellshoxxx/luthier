@@ -1,6 +1,12 @@
 #include "PluginEditor.h"
+#include "UI/NewFeatureDots.h"
+#include "UI/FirstRun.h"
 #include "UI/RangesUi.h"
+#include "UI/UiPreferences.h"
+#include "UI/JamWidgets.h"   // FEAT-JAM
 #include "Accessibility/Accessibility.h"
+#include "UI/Guitar/StringAnimator.h"   // animated-strings.md 8
+#include "UI/NormalizationOptions.h"   // output-normalization.md 5
 
 namespace luthier
 {
@@ -25,8 +31,20 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 {
     setLookAndFeel (&lookAndFeel);
 
+    // onboarding.md 5 (TUNE-HELP-ONBOARDING): the OS-following defaults, once per
+    // install, before anything reads the palette.
+    if (FirstRun::applyIfFirstRun())
+        applyFirstRunPreset();
+
     shownPalette = Palette::current();
     AccessibilitySettings::get().addChangeListener (this);
+
+    // accessibility.md 4: the UI scale (75-200 %) was stored and offered but
+    // never applied; the host is told through the editor's scale factor.
+    setScaleFactor ((float) AccessibilitySettings::get().getUiScale());
+
+    // gui-integration 20's NEW dots: the first launch of this version starts the week.
+    NewFeatureDots::noteLaunch (JucePlugin_VersionString, juce::Time::getCurrentTime());
 
     addAndMakeVisible (header);
     addChildComponent (liveStrip);
@@ -35,12 +53,27 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     // practice-tools 9: the drawer changes the space the panels have, so the
     // window relays out when it opens or is dragged taller.
     practicePanel.onHeightChanged = [this] { resized(); };
+
+    // onboarding.md 11: the drawer reopens as it was left.
+    practicePanel.setOpen (processor.getUiState().practiceDrawerOpen);
     addChildComponent (easyPanel);
     addChildComponent (advancedPanel);
 
     addAndMakeVisible (chordButton);
+
+    // gui-integration 12: the footer's data stream, one line of the internals.
+    addChildComponent (dataStream);
+    dataStream.setNumLines (1);
+    dataStream.setSource (&processor);
+    dataStream.setVisible (DataStreamDisplay::isEnabledByUser());
     chordButton.setTooltip ("Chord library and the live tab display");
     chordButton.onClick = [this] { showOverlay (&chordPanel); };
+
+    // cpu-quality-modes 5: the footer badge, last in the footer's tab order.
+    addAndMakeVisible (qualityBadge);
+    qualityBadge.setExplicitFocusOrder (100000);
+    qualityBadge.onOpen = [this] { openQualityOptions(); };
+    qualityLink.onOversamplingNote = [this] (const juce::String& note) { advancedPanel.setOversamplingNote (note); };   // cpu-quality-modes 5
 
     /*  The notice is in the layout rather than over it, so when it takes itself
         away the window has to give the space back. It goes in before the overlay
@@ -61,6 +94,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     addChildComponent (midiLearnArmLayer);
 
     header.onMidiLearnArmChanged = [this] (bool armed) { setMidiLearnArmed (armed); };
+    header.onImportMidi = [this] (const juce::File& file) { importMidiFile (file); };   // midi-export 5 (MODEL-GAPS)
 
     midiLearnArmLayer.onTargetPicked = [this] (juce::String parameterId)
     {
@@ -100,6 +134,29 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     if (auto* bench = advancedPanel.getWorkshopPanel())
         bench->onSaveAsGuitar = [this] { showSaveGuitarDialog(); };
     header.onOpenOptions = [this] { showOverlay (&optionsPanel); };
+
+    // output-normalization.md 5.1 and 5.3: the badges and the "turned on" banner.
+    header.getNormalizationBadge().onOpenOptions = [this] { openNormalizationOptions(); };
+    easyPanel.getNormalizationBadge().onOpenOptions = [this] { openNormalizationOptions(); };
+    processor.getOutputNormalization().onEnabledByUser = [safeThis = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)]
+    {
+        if (auto* editor = safeThis.getComponent())
+            NormalizationUi::postEnabledBanner (editor->notifications, [safeThis] { if (auto* e = safeThis.getComponent()) e->openNormalizationOptions(); });
+    };
+
+    // gui-integration 16 item 13: a control's "Show in Options -> Shortcuts".
+    showShortcutInOptions = [safe = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)] (const juce::String& action)
+    {
+        if (safe == nullptr)
+            return;
+
+        juce::String description;
+        if (const auto* binding = AccessibilitySettings::get().findShortcut (action))
+            description = tr (binding->descriptionKey);
+
+        safe->optionsPanel.showShortcutTable (description);
+        safe->showOverlay (&safe->optionsPanel);
+    };
     header.onOpenRanges = [this] { showOptionsPage ("RANGES"); };
     header.onOpenExport = [this] { showOverlay (&exportPanel); };
     header.onOpenPresetBrowser = [this] { showOverlay (&presetBrowser); };
@@ -167,6 +224,9 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     seenRangeGeneration = RangeState::getGeneration();
     startTimerHz (4);
 
+    // onboarding.md 2-4 (TUNE-HELP-ONBOARDING): banner, tour, first-week hints.
+    setupOnboarding();
+
     /*  gui-integration 15. Last in the constructor, because a banner posting
         itself makes the strip visible and calls resized(), and everything it
         lays out has to exist by then. */
@@ -177,9 +237,11 @@ LuthierAudioProcessorEditor::~LuthierAudioProcessorEditor()
 {
     stopTimer();
     AccessibilitySettings::get().removeChangeListener (this);
+    processor.getOutputNormalization().onEnabledByUser = nullptr;   // output-normalization.md 5.3
 
     processor.getUiState().editorWidth = getWidth();
     processor.getUiState().editorHeight = getHeight();
+    processor.getUiState().practiceDrawerOpen = practicePanel.isOpen();   // onboarding 11
 
     tooltips.setLookAndFeel (nullptr);
     setLookAndFeel (nullptr);
@@ -225,6 +287,28 @@ void LuthierAudioProcessorEditor::setAdvancedMode (bool advanced)
 void LuthierAudioProcessorEditor::showOverlay (OverlayPanel* panel)
 {
     overlayHost.show (panel);
+}
+
+void LuthierAudioProcessorEditor::toggleWorkshop()
+{
+    if (advancedMode)
+    {
+        if (advancedPanel.isWorkshopShowing())
+        {
+            advancedPanel.setWorkspaceTab (juce::jmax (1, tabBeforeWorkshop));
+        }
+        else
+        {
+            tabBeforeWorkshop = advancedPanel.getWorkspaceTab();
+            advancedPanel.setWorkspaceTabNamed ("WORKSHOP");
+        }
+        return;
+    }
+
+    if (overlayHost.getCurrentOverlay() == &workshopOverlay)
+        overlayHost.dismiss();
+    else
+        showOverlay (&workshopOverlay);
 }
 
 void LuthierAudioProcessorEditor::showSaveGuitarDialog()
@@ -360,11 +444,17 @@ void LuthierAudioProcessorEditor::paint (juce::Graphics& g)
                 footer.reduced (Metrics::windowPadding, 0),
                 juce::Justification::centredRight, false);
 
-    // CPU and latency, where a player can see them without opening anything.
-    g.drawText ("CPU " + juce::String (processor.getEngine().getCpuEstimate(), 1) + "%"
-                + "    latency " + juce::String (processor.getLatencySamples()) + " smp",
-                footer.reduced (Metrics::windowPadding, 0),
+    // cpu-quality-modes 5: the quality badge carries the CPU figure now; the
+    // latency follows it.
+    g.drawText (tr ("quality.badge.latency", { { "n", juce::String (processor.getLatencySamples()) } }),
+                footer.reduced (Metrics::windowPadding, 0).withTrimmedLeft (QualityBadge::preferredWidth + 12),
                 juce::Justification::centredLeft, false);
+
+    // action-and-undo.md 12: Options -> Diagnostics "Show undo depth".
+    if (UiPreferences::get().getBool (UndoHistory::kShowDepthPreference, false))
+        g.drawText (UndoHistory::describeDepth (processor.getNumUndoSteps(), processor.getNumRedoSteps()),
+                    footer.reduced (Metrics::windowPadding, 0).withTrimmedRight (70),
+                    juce::Justification::centredRight, false);
 }
 
 void LuthierAudioProcessorEditor::resized()
@@ -401,6 +491,11 @@ void LuthierAudioProcessorEditor::resized()
         notifications.setBounds (bounds.removeFromTop (NotificationCentre::preferredHeight)
                                    .reduced (Metrics::windowPadding, 2));
 
+    // onboarding.md 2: the welcome banner, also under the header.
+    if (welcomeBanner.isVisible())
+        welcomeBanner.setBounds (bounds.removeFromTop (WelcomeBanner::preferredHeight)
+                                   .reduced (Metrics::windowPadding, 2));
+
     // live-performance 10: the live strip attaches under the header when Live
     // Mode is on, and takes no space at all when it is off.
     if (liveStrip.isVisible())
@@ -408,6 +503,12 @@ void LuthierAudioProcessorEditor::resized()
 
     auto footer = bounds.removeFromBottom (Metrics::footerHeight);
     chordButton.setBounds (footer.withSizeKeepingCentre (110, Metrics::footerHeight - 2));
+    qualityBadge.setBounds (footer.reduced (Metrics::windowPadding, 1).removeFromLeft (QualityBadge::preferredWidth));   // cpu-quality-modes
+
+    // 12: the data stream runs between the CPU readout and the chords button.
+    // cpu-quality-modes 5: after the quality badge and its latency text.
+    dataStream.setBounds (footer.withTrimmedLeft (Metrics::windowPadding + QualityBadge::preferredWidth + 12 + 96)
+                                .withRight (chordButton.getX() - Metrics::grid));
 
     // practice-tools 9: the drawer sits above the footer.
     practicePanel.setBounds (bounds.removeFromBottom (practicePanel.preferredHeight()));
@@ -423,6 +524,8 @@ void LuthierAudioProcessorEditor::resized()
 
     overlayHost.setBounds (getLocalBounds());
     midiLearnArmLayer.setBounds (getLocalBounds());
+    discovery.setBounds (getLocalBounds());
+    tour.setBounds (getLocalBounds());
 }
 
 //==============================================================================
@@ -475,6 +578,9 @@ void LuthierAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaste
     Palette::remap (*this, shownPalette, wanted);
     shownPalette = wanted;
 
+    if (std::abs (getTransform().getScaleFactor() - (float) settings.getUiScale()) > 1.0e-3f)
+        setScaleFactor ((float) settings.getUiScale());   // accessibility.md 4
+
     lookAndFeel.refreshColours();
     sendLookAndFeelChange();
     repaint();
@@ -484,6 +590,17 @@ void LuthierAudioProcessorEditor::timerCallback()
 {
     updateLiveStripVisibility();
     pollForNotifications();
+
+    // gui-integration 20: mark this version's new entry points, once the window is built.
+    if (! newDotsApplied)
+    {
+        newDotsApplied = true;
+        NewFeatureDots::apply (*this, JucePlugin_VersionString, juce::Time::getCurrentTime());
+    }
+
+    // visual-polish.md 5: "Follow the guitar" takes the accent from the finish.
+    AccessibilitySettings::get().setGuitarAccentSource (
+        juce::Colour::fromString ("ff" + processor.getCurrentGuitar().finish.colourA.trimCharactersAtStart ("#")));
 
     // practice-tools 11.2: the PRACTICE tab's START opens the drawer on the
     // routine's first tool.
@@ -532,6 +649,13 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     // clumsy rebind. An overlay handles it when focused; this is the backstop.
     if (key == juce::KeyPress::escapeKey)
     {
+        // onboarding 3: "Escape ends the tour."
+        if (tour.isRunning())
+        {
+            tour.skip();
+            return true;
+        }
+
         if (processor.getMidiLearn().isArmed())
         {
             setMidiLearnArmed (false);
@@ -548,9 +672,11 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     }
 
     if (is ("help"))            { openHelp (getHelpContext());  return true; }
+    if (is ("cycleCpuQuality")) { qualityLink.cycleQuality();   return true; }   // cpu-quality-modes 5
     if (is ("options"))         { showOverlay (&optionsPanel);  return true; }
     if (is ("presetBrowser"))   { showOverlay (&presetBrowser); return true; }
     if (is ("export"))          { showOverlay (&exportPanel);   return true; }
+    if (is ("newTune"))         { openNewTune();                return true; }   // tune-builder 2 (TUNE-HELP-ONBOARDING)
     if (is ("debugPanel"))      { showOverlay (&debugPanel);    return true; }
 
     /*  Section 17's "New preset": load Init, which is the factory preset whose own
@@ -559,7 +685,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         thing a shortcut in this window can do. */
     if (is ("newPreset"))
     {
-        processor.pushUndoState ("New preset");
+        processor.pushUndoBoundary ("New preset");   // action-and-undo.md 5
 
         auto& presets = processor.getPresetManager();
         const int init = presets.indexOfPreset ("Init");
@@ -647,6 +773,20 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
+    if (is ("toggleNormalization"))   // output-normalization.md 9
+    {
+        NormalizationUi::toggleFromCommand (processor);
+        return true;
+    }
+
+    // gui-integration 17: W toggles the Workshop - the WORKSHOP tab in
+    // Advanced, the bench overlay in Easy (VISUAL-WORKSHOP-QA).
+    if (is ("toggleWorkshop"))
+    {
+        toggleWorkshop();
+        return true;
+    }
+
     if (is ("toggleSlideMode"))
     {
         HeaderBar::toggleSlideMode (processor);
@@ -664,6 +804,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     {
         practicePanel.setOpen (! practicePanel.isOpen());
         resized();
+        processor.getUiState().practiceDrawerOpen = practicePanel.isOpen();
         return true;
     }
 
@@ -674,6 +815,15 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     }
 
     if (is ("panic"))     { processor.panic();       return true; }
+
+    // animated-strings.md 8: the rebindable, unbound-by-default toggle.
+    if (is ("toggleStringAnimation"))
+    {
+        StringAnimationSettings::setEnabled (! StringAnimationSettings::isEnabled());
+        return true;
+    }
+    if (JamShortcuts::handle (processor, key))   // FEAT-JAM: jam-mode 8.2
+        return true;
     if (is ("tapTempo"))  { processor.tapTempoNow(); return true; }
 
     if (is ("killSwitch"))
@@ -704,12 +854,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
             return true;
         }
 
-        processor.pushUndoState ("Load preset");
-
-        if (forward) processor.getPresetManager().loadNext();
-        else         processor.getPresetManager().loadPrevious();
-
-        processor.getParameterBridge().applyAllNow();
+        processor.stepPresetAsUserAction (forward);   // action-and-undo.md 3.8
         return true;
     }
 
@@ -726,8 +871,43 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return false;
     }
 
-    if (is ("undo")) { processor.undo(); return true; }
-    if (is ("redo")) { processor.redo(); return true; }
+    if (is ("undo"))
+    {
+        // action-and-undo.md 5: plain undo stops at a boundary and says how to cross it.
+        if (processor.isUndoStoppedAtBoundary())
+            notifications.post ({ "undo-boundary",
+                                  "Undo stopped at a preset or guitar load. Ctrl+Alt+Z goes further back.",
+                                  Notification::Level::info });
+        else
+            processor.undo();
+
+        return true;
+    }
+
+    if (is ("undoAcrossBoundary"))
+    {
+        // action-and-undo.md 9: crossing a boundary asks first, in a banner.
+        if (! processor.isUndoStoppedAtBoundary())
+        {
+            processor.undo();
+            return true;
+        }
+
+        Notification n;
+        n.id = "undo-boundary";
+        n.message = "Undo past the load, back to \"" + processor.getUndoHistory (1)[0].description + "\"?";
+        n.level = Notification::Level::warning;
+        n.actionText = "Undo";
+        n.action = [safeThis = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this)]
+        {
+            if (safeThis != nullptr)
+                safeThis->processor.undoAcrossBoundary();
+        };
+        notifications.post (n);
+        return true;
+    }
+
+    if (is ("redo") || is ("redoAlt")) { processor.redo(); return true; }   // action-and-undo.md 9
 
     if (is ("save"))
     {
@@ -743,7 +923,7 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
     if (is ("resetAll"))
     {
-        processor.pushUndoState ("Reset everything");
+        // action-and-undo.md 0.1: resetEverything pushes its own entry.
         processor.resetEverything();
         return true;
     }
@@ -780,6 +960,35 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
 
 //==============================================================================
+void LuthierAudioProcessorEditor::openNormalizationOptions()
+{
+    if (showOptionsPage ("AUDIO"))
+        NormalizationUi::focusSwitchIn (optionsPanel);
+}
+
+void LuthierAudioProcessorEditor::openQualityOptions()
+{
+    if (! showOptionsPage ("AUDIO"))
+        return;
+
+    // Focus into the CPU quality group.
+    std::function<QualityOptions* (juce::Component&)> find = [&find] (juce::Component& c) -> QualityOptions*
+    {
+        if (auto* q = dynamic_cast<QualityOptions*> (&c))
+            return q;
+
+        for (auto* child : c.getChildren())
+            if (auto* q = find (*child))
+                return q;
+
+        return nullptr;
+    };
+
+    if (auto* q = find (optionsPanel))
+        if (q->isShowing())
+            q->focusGroup();
+}
+
 bool LuthierAudioProcessorEditor::showOptionsPage (const juce::String& tabName)
 {
     if (! optionsPanel.showPageNamed (tabName))
@@ -932,6 +1141,11 @@ void LuthierAudioProcessorEditor::postStartupNotifications()
 */
 void LuthierAudioProcessorEditor::pollForNotifications()
 {
+    // output-normalization.md 12: one warning per session when measuring failed.
+    if (const auto s = processor.getNormalizationStatus();
+        s.enabled && (s.flags & (LoudnessNormalizer::flagFailed | LoudnessNormalizer::flagEstimate)) != 0)
+        NormalizationUi::postFailureBanner (notifications);
+
     /*  ---- the host moved the sample rate --------------------------------------
 
         Claimed rather than compared, because the claim is what clears it: this is
@@ -961,6 +1175,9 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         notifications.post (std::move (n));
     }
 
+    // The CPU limit banner (performance-budget.md 8, relief 7) is now E3's,
+    // posted by QualityEditorLink (cpu-quality-modes 7).
+
     // ---- a part a guitar asked for and could not have (gui-integration 15) -----
     for (const auto& message : processor.takeGuitarNotices())
     {
@@ -985,6 +1202,28 @@ void LuthierAudioProcessorEditor::pollForNotifications()
             n.message = presetError;
             n.level = Notification::Level::warning;
 
+            notifications.post (std::move (n));
+        }
+    }
+
+    // ---- installer.md 8: a load that migrated an old file ----------------------
+    /*  "A subtle info banner on the first affected load": one per window, not
+        one per migrated preset, however many old presets are browsed. */
+    if (const auto generation = processor.getPresetManager().getMigrationGeneration();
+        generation != seenMigrationGeneration)
+    {
+        seenMigrationGeneration = generation;
+
+        if (! migrationBannerShown)
+        {
+            migrationBannerShown = true;
+
+            Notification n;
+            n.id = "migrated";
+            n.message = "This preset was made with an older version of Luthier and has been "
+                        "updated (" + processor.getPresetManager().getLastMigration()
+                        + "). Saving it keeps the original in Presets/Backup.";
+            n.level = Notification::Level::info;
             notifications.post (std::move (n));
         }
     }
@@ -1052,6 +1291,63 @@ void LuthierAudioProcessorEditor::openHelp (const juce::String& topic)
 
     helpPanel.showTopicFor (topic);
     showOverlay (&helpPanel);
+}
+
+//==============================================================================
+// midi-export 5 (MODEL-GAPS): MIDI import by menu or by drop, then the target.
+bool LuthierAudioProcessorEditor::isInterestedInFileDrag (const juce::StringArray& files)
+{
+    for (const auto& f : files)
+        if (MidiImportTargets::isMidiFile (juce::File (f)))
+            return true;
+
+    return false;
+}
+
+void LuthierAudioProcessorEditor::filesDropped (const juce::StringArray& files, int, int)
+{
+    for (const auto& f : files)
+        if (MidiImportTargets::isMidiFile (juce::File (f)))
+        {
+            importMidiFile (juce::File (f));
+            return;
+        }
+}
+
+void LuthierAudioProcessorEditor::importMidiFile (const juce::File& file, std::optional<MidiImportTarget> target)
+{
+    auto run = [safe = juce::Component::SafePointer<LuthierAudioProcessorEditor> (this), file] (MidiImportTarget chosen)
+    {
+        if (safe == nullptr)
+            return;
+
+        safe->lastMidiImport = MidiImportTargets::importFile (safe->processor, file, chosen);
+
+        Notification n;
+        n.id = "midi-import";
+        n.message = safe->lastMidiImport.message;
+        n.level = safe->lastMidiImport.ok ? Notification::Level::info : Notification::Level::warning;
+        safe->notifications.post (std::move (n));
+    };
+
+    if (target.has_value())
+    {
+        run (*target);
+        return;
+    }
+
+    juce::PopupMenu menu;
+    menu.addSectionHeader ("Import " + file.getFileName() + " into");
+
+    for (int t = 0; t < (int) MidiImportTarget::numTargets; ++t)
+        menu.addItem (t + 1, getMidiImportTargetName ((MidiImportTarget) t));
+
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&header),
+                        [run] (int result)
+    {
+        if (result > 0)
+            run ((MidiImportTarget) (result - 1));
+    });
 }
 
 } // namespace luthier

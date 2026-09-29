@@ -13,6 +13,7 @@
     control's right-click menu, and dragging a source card onto a control.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
@@ -41,7 +42,13 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    static constexpr int preferredHeight = 150;
+    /*  gui-integration 11.2 / ui-wiring 12: the card's header is the handle a
+        source is dragged by onto any control; the ghost is the card at 60%. */
+    void mouseDrag (const juce::MouseEvent&) override;
+    static juce::var dragDescriptionFor (int slot);
+
+    static constexpr int kRowHeight = 24, kLabelWidth = 66;
+    static constexpr int preferredHeight = 16 + 36 + 2 + 7 * kRowHeight + 4;   ///< the LFO's seven rows fit
 
 private:
     void timerCallback() override;
@@ -68,6 +75,10 @@ private:
     int historyWrite = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ModSourceCard)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Decorative, "ModSourceCard" };
 };
 
 //==============================================================================

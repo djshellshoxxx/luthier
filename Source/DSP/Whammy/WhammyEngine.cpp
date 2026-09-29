@@ -90,6 +90,14 @@ void WhammyEngine::setPosition (double normalised) noexcept
 
 void WhammyEngine::setRange (double downSemitones, double upSemitones) noexcept
 {
+    // A hardtail has no arm. The bridge sends the user's ranges every block,
+    // which used to undo setBridgeType (Fixed)'s zero range.
+    if (bridgeType == BridgeType::Fixed)
+    {
+        downRange = upRange = 0.0;
+        return;
+    }
+
     downRange = juce::jlimit (0.0, 36.0, downSemitones);
     upRange = juce::jlimit (0.0, 24.0, upSemitones);
 }

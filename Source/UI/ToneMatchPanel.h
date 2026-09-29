@@ -11,6 +11,7 @@
     and the panel stays interactive throughout.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
@@ -47,6 +48,7 @@ public:
 
 private:
     IrSlot& slot();
+    void pushIrEdit (const char* what, bool groups);   // action-and-undo.md
 
     void load (const juce::File& file);
 
@@ -120,6 +122,10 @@ private:
     std::unique_ptr<juce::FileChooser> chooser;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MatchWizard)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "MatchWizard" };
 };
 
 //==============================================================================

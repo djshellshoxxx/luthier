@@ -29,6 +29,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../../Model/Workshop/PartLibrary.h"
+#include "StringMotion.h"   // animated-strings.md 4.4
 
 #include <array>
 #include <vector>
@@ -45,6 +46,7 @@ enum class GuitarRegion
     pickupNeck, pickupMiddle, pickupBridge,
     strings, neck, fretboard, nut, headstock, tuners,
     controls, selector, jack,
+    pick, slideBar, capo,        ///< the player's accessories, overlays on the bench (workshop-ui.md 4)
     numRegions
 };
 
@@ -94,6 +96,9 @@ struct GuitarScene
     std::vector<Shape> overStrings;           ///< tuner posts and string trees, over the strings
     std::vector<Hit> hits;                    ///< in z-order, back to front
 
+    /** Section 16, per string (engine index): "String 6: ... wound, 46 gauge." */
+    std::vector<juce::String> stringDescriptions;
+
     /** Per string (engine index), where it leaves the saddle and reaches the nut. */
     std::vector<juce::Point<float>> saddlePoints, nutPoints;
     int numFrets = 22;
@@ -127,6 +132,50 @@ struct GuitarOverlay
     GuitarRegion selected = GuitarRegion::none;
     juce::Colour accent { 0xffd4a24c };
     bool reducedMotion = false;
+
+    // Layers 28-29 and the capo (gui-integration.md 21, workshop-ui.md 2).
+    float slideSlantDeg = 0.0f;
+    juce::Colour slideColour { 0xffcfe3e8 };   ///< the bar's material (slide-guitar.md 2.1)
+    int capoFret = 0;                          ///< 0 = no capo
+    juce::uint32 capoMask = 0xffffffffu;       ///< a partial capo's strings (engine index)
+    float pickPositionMm = -1.0f;              ///< from the saddle; < 0 = no pick drawn
+    float pickAngleDeg = 0.0f;
+    float pickSizeMm = 30.0f;                  ///< drawn at true relative size
+    bool handles = false;                      ///< the bench's 8 px accent drag handles
+
+    // Section 19's played-note dots (IllustrationMotion.h), when a caller times them.
+    bool useDots = false;
+    std::array<float, 12> dotAlpha {}, dotFret {};
+
+    // piano-roll-chord-display.md 3: a voicing shown before it sounds, as hollow
+    // dots (fret from the nut; < 0 = none).
+    std::array<float, 12> ghostFret { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+    juce::Colour ghostColour { juce::Colours::white };
+
+    // Section 16: parts a reduced-motion change outlines instead of fading.
+    std::array<bool, (size_t) GuitarRegion::numRegions> changed {};
+    juce::Colour changedColour { 0xff6fa58a };
+    /** animated-strings.md 2.3: the motion ghost replaces layer 26's glow along the
+        string; the played-note dot stays. */
+    bool motionActive = false;
+};
+
+//==============================================================================
+/** animated-strings.md 6.1: how a string looks, per material (section 10). */
+struct StringLook
+{
+    juce::Colour colour { 0xffc8c8c8 }, winding { 0xff909090 };
+    float widthMm = 0.3f;
+    float minWidthPx = 1.0f;
+    bool wound = false;
+    bool dashedWinding = false;
+};
+
+/** animated-strings.md 2.3: the High-contrast palette's drawing of moving strings. */
+struct GuitarSpeakingStyle
+{
+    bool highContrast = false;                        ///< Low-style drawing in `highContrastColour`
+    juce::Colour highContrastColour { 0xffffffff };
 };
 
 //==============================================================================
@@ -152,17 +201,76 @@ public:
     /** Paints the static scene. */
     static void paint (juce::Graphics& g, const GuitarScene& scene, const juce::AffineTransform& mmToPx);
 
+    //==========================================================================
+    // animated-strings.md 4.4 and 6.1.
+
+    struct PaintLayers
+    {
+        /** Draw each string only tail -> saddle and nut -> post: the speaking
+            lengths are painted per frame by paintSpeakingLengths (layer 25a). */
+        bool omitSpeakingLengths = false;
+    };
+
+    static void paint (juce::Graphics& g, const GuitarScene& scene, const juce::AffineTransform& mmToPx,
+                       PaintLayers layers);
+
+    using SpeakingStyle = GuitarSpeakingStyle;
+
+    /** Layer 25a: every string's speaking length, saddle to nut. With a null frame
+        (or for a string at rest) it is the static line paintString draws; a moving
+        string is drawn as its motion ghost. */
+    static void paintSpeakingLengths (juce::Graphics& g, const GuitarScene& scene, const juce::AffineTransform& mmToPx,
+                                      const StringMotionFrame* frame, SpeakingStyle style = {});
+
+    /** The ghost of one moving string, in pixels (2.3's table). Shared with the
+        fretboard. `widthPx` is the string's drawn width. */
+    static void paintMotionGhost (juce::Graphics& g, const StringMotionFrame::String& string,
+                                  const StringLook& look, float widthPx, StringAnimationQuality quality,
+                                  SpeakingStyle style = {});
+
+    /** paintString's width rule: the gauge at this zoom, floored at section 10's minimum. */
+    static float stringWidthPx (float widthMm, float minWidthPx, float pxPerMm) noexcept;
+
+    /** 6.1: every string's look for a guitar, from the same StringLine loop the
+        illustration uses, so the fretboard and the illustration never disagree. */
+    static std::array<StringLook, 12> stringLooks (const WorkshopGuitar& guitar);
+    static StringLook lookOf (const GuitarScene::StringLine& line);
+
     /** Paints the live overlay (section 2.2) over an already painted scene. */
     static void paintOverlay (juce::Graphics& g, const GuitarScene& scene,
                               const juce::AffineTransform& mmToPx, const GuitarOverlay& overlay);
+
+    //==========================================================================
+    // The accessories' outlines in millimetres, shared by paintOverlay and the
+    // bench's hit test so what is drawn is what is clicked.
+
+    /** The capo across the strings just behind `fret` (only the masked strings for a partial one). */
+    static juce::Path capoPath (const GuitarScene& scene, int fret, juce::uint32 mask = 0xffffffffu);
+
+    /** The slide bar across every string at `fret`, rotated by `slantDeg` about its centre. */
+    static juce::Path slidePath (const GuitarScene& scene, float fret, float slantDeg);
+
+    /** A standard pick, `sizeMm` tall, over the strings `positionMm` from the saddle, turned by `angleDeg`. */
+    static juce::Path pickPath (const GuitarScene& scene, float positionMm, float angleDeg, float sizeMm);
+
+    /** The pick's rotate handle (its corner), mm. */
+    static juce::Point<float> pickHandle (const GuitarScene& scene, float positionMm, float angleDeg, float sizeMm);
+
+    /** The slide's rotate handle (its bass end), mm. */
+    static juce::Point<float> slideHandle (const GuitarScene& scene, float fret, float slantDeg);
 
     /** The topmost region under a point given in millimetres (section 13.1). */
     static const GuitarScene::Hit* hitTest (const GuitarScene& scene, juce::Point<float> mm);
 
     /** Renders a guitar to an image, fitted with a margin: thumbnails and tests. */
     static juce::Image render (const WorkshopGuitar& guitar, int width, int height,
-                               juce::Colour background = juce::Colours::transparentBlack,
-                               Options options = {});
+                               juce::Colour background,
+                               Options options);
+    static juce::Image render (const WorkshopGuitar& guitar, int width, int height,
+                               juce::Colour background = juce::Colours::transparentBlack)
+    {
+        return render (guitar, width, height, background, Options {});
+    }
 
     //==========================================================================
     // Section 10 and 11 tables, public so the tests can hold the renderer to them.

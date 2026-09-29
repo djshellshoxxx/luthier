@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Plug-ins inherit the host's entitlements; they carry none of their own
+         beyond what notarisation needs (hardened runtime is set by codesign). -->
+</dict>
+</plist>

@@ -13,10 +13,12 @@
     one more section in that list, which is where every other rig control lives.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "NormalizationOptions.h"   // output-normalization.md 5.4
 #include "../Routing/RoutingMatrix.h"
 #include "../Parameters.h"
 
@@ -110,11 +112,28 @@ private:
 
     juce::Label layoutLabel, latencyLabel, sidechainLabel;
 
+    // output-normalization.md 5.4: "applies to the main output only", while on.
+    NormalizationCaption normalizationCaption { processor, "routing.normalization.caption" };
+
+public:
+    NormalizationCaption& getNormalizationCaption() noexcept { return normalizationCaption; }
+
+private:
+
     juce::OwnedArray<AuxStrip> auxStrips;
     std::unique_ptr<PerStringStrip> perStringStrip;
 
     // --- sidechain --------------------------------------------------------------
     std::unique_ptr<LuthierToggle> sidechainToAmp;
+
+    // ambiguity-resolutions 8 / routing-io 2 (MODEL-GAPS): Aux 1 before or after the circuit.
+    std::unique_ptr<LuthierToggle> aux1PreCircuit;
+
+public:
+    LuthierToggle* getAux1PreCircuitToggle() const noexcept { return aux1PreCircuit.get(); }
+
+private:
+    std::unique_ptr<LuthierToggle> noiseFloorToAux8;   // noise-floor.md 5: mirrors CHARACTER's (REALISM-C)
     juce::Rectangle<int> sidechainMeterBounds;
     float sidechainLevel = 0.0f;
 
@@ -131,6 +150,10 @@ private:
     MidiOutConfig shownMidiOut;   ///< what the controls show; a difference means someone else changed it
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RoutingPanel)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "RoutingPanel" };
 };
 
 } // namespace luthier

@@ -15,11 +15,13 @@
     panels already went.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
 #include "Widgets.h"
 #include "StrumGroup.h"
+#include "BassGridGroup.h"   // bass-techniques 9 (MODEL-GAPS)
 #include "../Rhythm/GenreKit.h"
 
 namespace luthier
@@ -194,6 +196,14 @@ private:
     // control and source line replace the old strum-duration slider.
     std::unique_ptr<StrumGroup> strumGroup;
 
+    // bass-techniques 9 (MODEL-GAPS): the bass step grid, only on a bass.
+    std::unique_ptr<BassGridGroup> bassGridGroup;
+
+public:
+    BassGridGroup* getBassGridGroup() const noexcept { return bassGridGroup.get(); }
+
+private:
+
     // --- browser ------------------------------------------------------------------
     juce::ComboBox tagFilterBox;
     juce::ListBox patternList;
@@ -227,6 +237,10 @@ private:
     bool updatingControls = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RhythmPanel)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "RhythmPanel" };
 };
 
 } // namespace luthier

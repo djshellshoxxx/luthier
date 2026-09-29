@@ -1,4 +1,5 @@
 #include "NotationPanel.h"
+#include "CaptureRanges.h"   // MODEL-GAPS
 #include "MidiExportDefaults.h"
 #include "../PluginProcessor.h"
 #include "../Presets/PresetManager.h"
@@ -67,6 +68,100 @@ bool NotationTakeExport::write (LuthierAudioProcessor& processor, NotationFormat
 }
 
 //==============================================================================
+// notation-export 0.1 (MODEL-GAPS): export off the message thread.
+namespace
+{
+    struct ExportWorker
+    {
+        juce::ThreadPool pool { juce::ThreadPoolOptions{}.withThreadName ("Notation export").withNumberOfThreads (1) };
+        std::atomic<juce::Thread::ThreadID> lastThread { nullptr };
+        std::atomic<int> busy { 0 };
+    };
+
+    ExportWorker& exportWorker()
+    {
+        static ExportWorker worker;
+        return worker;
+    }
+}
+
+juce::Thread::ThreadID NotationTakeExport::getLastWorkerThread() noexcept
+{
+    return exportWorker().lastThread.load();
+}
+
+bool NotationTakeExport::isBusy() noexcept
+{
+    return exportWorker().busy.load() > 0;
+}
+
+bool NotationTakeExport::writeAsync (LuthierAudioProcessor& processor, NotationFormat format, const juce::File& destination,
+                                     const CaptureScoreOptions& capture, const NotationExportOptions& options,
+                                     std::function<void (bool, const juce::String&)> done, juce::String* error)
+{
+    auto& take = processor.getPerformanceCapture();
+    processor.drainPerformanceCapture();
+
+    if (take.getNotes().empty())
+    {
+        if (error != nullptr)
+            *error = "Nothing has been captured yet. Play something first.";
+
+        return false;
+    }
+
+    // Snapshots: the take keeps changing while the worker writes.
+    auto score = std::make_shared<PerformanceScore>();
+    std::shared_ptr<MidiPerformance> performance;
+    MidiExportOptions profile;
+
+    if (format == NotationFormat::midi)
+    {
+        const double rate = processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0;
+        performance = std::make_shared<MidiPerformance> (take.toPerformance (rate, capture));
+        profile = MidiExportDefaults::load();
+    }
+    else
+    {
+        take.toScore (*score, capture);
+    }
+
+    auto& worker = exportWorker();
+    ++worker.busy;
+
+    worker.pool.addJob ([score, performance, profile, format, destination, options, done = std::move (done)]
+    {
+        exportWorker().lastThread.store (juce::Thread::getCurrentThreadId());
+
+        juce::String message;
+        bool ok = false;
+
+        if (performance != nullptr)
+        {
+            ok = MidiProfiles::exportToFile (*performance, profile, destination, &message);
+        }
+        else
+        {
+            NotationExporter exporter;
+            ok = exporter.write (*score, format, destination, options);
+
+            if (! ok)
+                message = exporter.getLastError();
+        }
+
+        --exportWorker().busy;   // the writing is done; the report follows on the message thread
+
+        juce::MessageManager::callAsync ([ok, message, done]
+        {
+            if (done != nullptr)
+                done (ok, message);
+        });
+    });
+
+    return true;
+}
+
+//==============================================================================
 NotationPanel::NotationPanel (LuthierAudioProcessor& p)
     : processor (p)
 {
@@ -113,6 +208,11 @@ NotationPanel::NotationPanel (LuthierAudioProcessor& p)
     showTab = makeToggle ("SHOW TAB", "Show the last bars of what you played as tab.", [this] { resized(); refresh(); });
     showTab->getButton().setToggleState (true, juce::dontSendNotification);
 
+    // notation-export 3 (MODEL-GAPS): the current bar as dots on the fretboard.
+    fretboardDots = makeToggle ("ON FRETBOARD", "Draw the bar you are playing on the fretboard as tablature dots.",
+                                [this] { processor.setTabDotsOnFretboard (fretboardDots->getButton().getToggleState()); });
+    fretboardDots->getButton().setToggleState (processor.isShowingTabDotsOnFretboard(), juce::dontSendNotification);
+
     for (int bars = 1; bars <= 8; ++bars)
         barsBox.addItem (juce::String (bars) + (bars == 1 ? " bar" : " bars"), bars);
 
@@ -151,9 +251,15 @@ NotationPanel::NotationPanel (LuthierAudioProcessor& p)
     formatBox.onChange = [this] { resized(); updatePreview(); };
     setUpBox (formatBox, "Notation format", "What to export the take as.");
 
-    rangeBox.addItem ("Entire capture", 1);
-    rangeBox.addItem ("Last N seconds", 2);
+    CaptureRanges::addItems (rangeBox);   // midi-export 4.1's four (MODEL-GAPS)
     rangeBox.setSelectedId (1, juce::dontSendNotification);
+
+    markInButton.setTooltip ("Start the marked region here");
+    markOutButton.setTooltip ("End the marked region here");
+    markInButton.onClick = [this] { processor.drainPerformanceCapture(); processor.getPerformanceCapture().markIn(); updatePreview(); };
+    markOutButton.onClick = [this] { processor.drainPerformanceCapture(); processor.getPerformanceCapture().markOut(); updatePreview(); };
+    addChildComponent (markInButton);
+    addChildComponent (markOutButton);
     rangeBox.onChange = [this] { resized(); updatePreview(); };
     setUpBox (rangeBox, "Export range", "How much of the take to export.");
 
@@ -198,12 +304,12 @@ NotationPanel::NotationPanel (LuthierAudioProcessor& p)
 
     setSize (320, getPreferredHeight());
     refresh();
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);
 }
 
 NotationPanel::~NotationPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 //==============================================================================
@@ -229,7 +335,7 @@ CaptureScoreOptions NotationPanel::currentCaptureOptions() const
 {
     CaptureScoreOptions options;
     options.quantiseBeats = kGrids[(size_t) juce::jlimit (0, 4, quantiseBox.getSelectedId() - 1)];
-    options.lastSeconds = rangeBox.getSelectedId() == 2 ? lastSeconds.getValue() : 0.0;
+    CaptureRanges::apply (processor, rangeBox.getSelectedId(), lastSeconds.getValue(), options);   // MODEL-GAPS
     return options;
 }
 
@@ -295,6 +401,8 @@ void NotationPanel::updatePreview()
     lineWidth.setVisible (format == NotationFormat::asciiTab);
     chordDiagrams->setVisible (format == NotationFormat::guitarPro);
     lastSeconds.setVisible (rangeBox.getSelectedId() == 2);
+    markInButton.setVisible (rangeBox.getSelectedId() == CaptureRanges::markedRegion);
+    markOutButton.setVisible (rangeBox.getSelectedId() == CaptureRanges::markedRegion);
 
     // 5: a preview of the first bar, for MusicXML and ASCII.
     if (take.getNotes().empty() || (format != NotationFormat::musicXml && format != NotationFormat::asciiTab))
@@ -345,6 +453,13 @@ bool NotationPanel::exportTo (const juce::File& destination, juce::String* error
                                       currentOptions(), error);
 }
 
+bool NotationPanel::exportToAsync (const juce::File& destination, std::function<void (bool, const juce::String&)> done,
+                                   juce::String* error)
+{
+    return NotationTakeExport::writeAsync (processor, currentFormat(), destination, currentCaptureOptions(),
+                                           currentOptions(), std::move (done), error);
+}
+
 void NotationPanel::exportWithChooser()
 {
     const auto format = currentFormat();
@@ -363,16 +478,22 @@ void NotationPanel::exportWithChooser()
         if (safe == nullptr || chosen == juce::File())
             return;
 
-        juce::String error;
-        const bool ok = safe->exportTo (chosen, &error);
+        auto report = [chosen] (bool ok, const juce::String& error)
+        {
+            juce::NativeMessageBox::showAsync (juce::MessageBoxOptions()
+                                                   .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
+                                                                     : juce::MessageBoxIconType::WarningIcon)
+                                                   .withTitle (ok ? "Notation exported" : "Could not export")
+                                                   .withMessage (ok ? "Saved to\n" + chosen.getFullPathName() : error)
+                                                   .withButton ("OK"),
+                                               nullptr);
+        };
 
-        juce::NativeMessageBox::showAsync (juce::MessageBoxOptions()
-                                               .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
-                                                                 : juce::MessageBoxIconType::WarningIcon)
-                                               .withTitle (ok ? "Notation exported" : "Could not export")
-                                               .withMessage (ok ? "Saved to\n" + chosen.getFullPathName() : error)
-                                               .withButton ("OK"),
-                                           nullptr);
+        // notation-export 0.1: written on the export worker (MODEL-GAPS).
+        juce::String error;
+
+        if (! safe->exportToAsync (chosen, report, &error))
+            report (false, error);
     });
 }
 
@@ -388,6 +509,8 @@ int NotationPanel::getPreferredHeight() const
 
 void NotationPanel::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     LuthierLookAndFeel::drawSectionHeader (g, captureHeader, "CAPTURE");
     LuthierLookAndFeel::drawSectionHeader (g, tabHeader, "LIVE TAB");
     LuthierLookAndFeel::drawSectionHeader (g, exportHeader, "EXPORT");
@@ -425,7 +548,7 @@ void NotationPanel::resized()
     bounds.removeFromTop (Metrics::grid);
 
     tabHeader = bounds.removeFromTop (kHeader);
-    split (row(), { showTab.get(), &barsBox });
+    split (row(), { showTab.get(), fretboardDots.get(), &barsBox });
     split (row(), { &densityBox, &speedBox });
     tabView.setBounds (bounds.removeFromTop (180));
     chordBounds = bounds.removeFromTop (22);
@@ -434,6 +557,11 @@ void NotationPanel::resized()
     exportHeader = bounds.removeFromTop (kHeader);
     split (row(), { &formatBox, &quantiseBox });
     split (row(), { &rangeBox, &lastSeconds });
+    {
+        auto r = lastSeconds.getBounds();
+        markInButton.setBounds (r.removeFromLeft (r.getWidth() / 2).reduced (1, 0));
+        markOutButton.setBounds (r.reduced (1, 0));
+    }
 
     {
         auto r = row();

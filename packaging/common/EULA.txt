@@ -1,0 +1,17 @@
+LUTHIER END USER LICENCE AGREEMENT
+
+PLACEHOLDER - the product owner must replace this file with the real licence
+before a public release (docs/RELEASING.md, "Before the first public release").
+
+Copyright (c) Luthier Audio. All rights reserved.
+
+This software is provided under licence, not sold. Until the final agreement
+is supplied, it may be used for evaluation only, and is provided "as is",
+without warranty of any kind, express or implied. In no event shall the
+authors be liable for any claim, damages or other liability arising from the
+use of the software.
+
+Third-party components: JUCE (juce.com), used under its commercial or AGPLv3
+licence as applicable; the VST3 SDK (Steinberg Media Technologies GmbH), used
+under its MIT licence; the CLAP SDK and clap-juce-extensions (MIT licence).
+VST is a registered trademark of Steinberg Media Technologies GmbH.

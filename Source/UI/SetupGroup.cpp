@@ -13,12 +13,12 @@ BuzzHeatmap::BuzzHeatmap (LuthierAudioProcessor& p)
     setTitle ("Buzz heatmap");
     setTooltip ("Each fret, each string: how close it is to buzzing right now. "
                 "Filled with a dot is buzzing; outlined is within 0.05 mm.");
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
 BuzzHeatmap::~BuzzHeatmap()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 BuzzHeatmap::CellState BuzzHeatmap::stateFor (float excessMm) noexcept
@@ -63,6 +63,8 @@ void BuzzHeatmap::timerCallback()
 
 void BuzzHeatmap::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds().toFloat();
 
     g.setColour (Palette::panelSunken);

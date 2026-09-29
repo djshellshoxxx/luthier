@@ -1,4 +1,5 @@
 #include "RoomEngine.h"
+#include "../../Support/QualityProfile.h"
 
 namespace luthier
 {
@@ -57,6 +58,9 @@ void RoomEngine::prepare (double sampleRate, int maxBlockSize)
     erMask = erSize - 1;
     erBuffer.assign ((size_t) erSize, 0.0);
     erIndex = 0;
+
+    for (int i = 0; i < kFdnSize; ++i)
+        lines[i].assign ((size_t) (sr * 0.45) + 1, 0.0);   // rebuild's longest line
 
     for (int i = 0; i < kFdnSize; ++i)
         lineDamp[i].prepare (sr);
@@ -124,8 +128,15 @@ void RoomEngine::setRoomBlend (double blend) noexcept
 
 void RoomEngine::setDecayScale (double scale) noexcept
 {
-    decayScale = juce::jlimit (0.25, 4.0, scale);
-    rebuild();
+    const double clamped = juce::jlimit (0.25, 4.0, scale);
+
+    // Sent every block by the parameter bridge: only the loop gain depends on it,
+    // and rebuilding would clear the late reverb every block.
+    if (clamped == decayScale)
+        return;
+
+    decayScale = clamped;
+    updateFeedbackGain();
 }
 
 void RoomEngine::setWidth (double width) noexcept
@@ -170,6 +181,8 @@ void RoomEngine::rebuild()
         tapGainsR[i] = gain * (1.0 - pan);
     }
 
+    computeTapCompensation();
+
     tapFilterL.setLowpass (sr, juce::jmin (mat.dampingHz, sr * 0.46), 0.707);
     tapFilterR.setLowpass (sr, juce::jmin (mat.dampingHz * 0.94, sr * 0.46), 0.707);
 
@@ -181,10 +194,97 @@ void RoomEngine::rebuild()
     for (int i = 0; i < kFdnSize; ++i)
     {
         lineLengths[i] = juce::jlimit (64, (int) (sr * 0.45), (int) (primes[i] * scale));
-        lines[i].assign ((size_t) lineLengths[i], 0.0);
+
+        // Sized in prepare for the longest line, so a room change never
+        // reallocates under the audio thread.
+        if (lines[i].size() < (size_t) lineLengths[i])
+            lines[i].assign ((size_t) lineLengths[i], 0.0);
+        else
+            std::fill (lines[i].begin(), lines[i].begin() + lineLengths[i], 0.0);
+
         lineIndex[i] = 0;
         lineDamp[i].setCutoff (juce::jmin (mat.dampingHz, sr * 0.46));
     }
+
+    updateFeedbackGain();
+}
+
+void RoomEngine::computeTapCompensation() noexcept
+{
+    // Merge taps at the same delay: exactly the same output, fewer reads.
+    reducedCount = 0;
+
+    for (int i = 0; i < kNumTaps; ++i)
+    {
+        int k = 0;
+
+        while (k < reducedCount && reducedDelays[k] != tapDelays[i])
+            ++k;
+
+        if (k == reducedCount)
+        {
+            reducedDelays[k] = tapDelays[i];
+            reducedGainsL[k] = reducedGainsR[k] = 0.0;
+            ++reducedCount;
+        }
+
+        reducedGainsL[k] += tapGainsL[i];
+        reducedGainsR[k] += tapGainsR[i];
+    }
+
+    // Loudest first.
+    for (int i = 1; i < reducedCount; ++i)
+        for (int j = i; j > 0; --j)
+        {
+            const double a = reducedGainsL[j] * reducedGainsL[j] + reducedGainsR[j] * reducedGainsR[j];
+            const double b = reducedGainsL[j - 1] * reducedGainsL[j - 1] + reducedGainsR[j - 1] * reducedGainsR[j - 1];
+
+            if (a <= b)
+                break;
+
+            std::swap (reducedDelays[j], reducedDelays[j - 1]);
+            std::swap (reducedGainsL[j], reducedGainsL[j - 1]);
+            std::swap (reducedGainsR[j], reducedGainsR[j - 1]);
+        }
+
+    // Energy compensation for the first n merged taps.
+    double allL = 0.0, allR = 0.0;
+
+    for (int k = 0; k < reducedCount; ++k)
+    {
+        allL += reducedGainsL[k] * reducedGainsL[k];
+        allR += reducedGainsR[k] * reducedGainsR[k];
+    }
+
+    double sumL = 0.0, sumR = 0.0;
+    reducedCompL[0] = reducedCompR[0] = 1.0;
+
+    for (int n = 1; n <= kNumTaps; ++n)
+    {
+        if (n <= reducedCount)
+        {
+            sumL += reducedGainsL[n - 1] * reducedGainsL[n - 1];
+            sumR += reducedGainsR[n - 1] * reducedGainsR[n - 1];
+        }
+
+        reducedCompL[n] = sumL > 0.0 ? std::sqrt (allL / sumL) : 1.0;
+        reducedCompR[n] = sumR > 0.0 ? std::sqrt (allR / sumR) : 1.0;
+    }
+}
+
+void RoomEngine::setTapCount (int count, bool hard) noexcept
+{
+    tapTarget = juce::jlimit (1, kNumTaps, count);
+    reducedStep = 1.0 / juce::jmax (1.0, std::round (QualityProfile::kDroppedVoiceRampSeconds * sr));
+
+    if (hard)
+        reducedMix = tapTarget < kNumTaps ? 1.0 : 0.0;
+}
+
+void RoomEngine::updateFeedbackGain() noexcept
+{
+    const auto& room = kRooms[(size_t) juce::jlimit (0, (int) RoomSize::NumRoomSizes - 1, (int) roomSize)];
+    const auto& mat = kMaterials[(size_t) juce::jlimit (0, (int) RoomMaterial::NumMaterials - 1, (int) material)];
 
     double avgLength = 0.0;
 
@@ -237,11 +337,39 @@ void RoomEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
 
         double erL = 0.0, erR = 0.0;
 
-        for (int i = 0; i < kNumTaps; ++i)
+        // cpu-quality-modes 2.1: the full set, the reduced set, or both while switching.
+        const double reducedGoal = tapTarget < kNumTaps ? 1.0 : 0.0;
+
+        if (reducedMix != reducedGoal)
+            reducedMix = reducedGoal > reducedMix ? juce::jmin (reducedGoal, reducedMix + reducedStep)
+                                                  : juce::jmax (reducedGoal, reducedMix - reducedStep);
+
+        if (reducedMix < 1.0)
         {
-            const double s = erBuffer[(size_t) ((erIndex - tapDelays[i]) & erMask)];
-            erL += s * tapGainsL[i];
-            erR += s * tapGainsR[i];
+            for (int i = 0; i < kNumTaps; ++i)
+            {
+                const double s = erBuffer[(size_t) ((erIndex - tapDelays[i]) & erMask)];
+                erL += s * tapGainsL[i];
+                erR += s * tapGainsR[i];
+            }
+        }
+
+        if (reducedMix > 0.0)
+        {
+            const int n = juce::jmin (tapTarget, reducedCount);
+            double rL = 0.0, rR = 0.0;
+
+            for (int k = 0; k < n; ++k)
+            {
+                const double s = erBuffer[(size_t) ((erIndex - reducedDelays[k]) & erMask)];
+                rL += s * reducedGainsL[k];
+                rR += s * reducedGainsR[k];
+            }
+
+            rL *= reducedCompL[n];
+            rR *= reducedCompR[n];
+            erL = erL * (1.0 - reducedMix) + rL * reducedMix;
+            erR = erR * (1.0 - reducedMix) + rR * reducedMix;
         }
 
         erIndex = (erIndex + 1) & erMask;

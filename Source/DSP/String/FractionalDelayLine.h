@@ -91,6 +91,42 @@ public:
         }
     }
 
+    /** A stateless extra tap (harmonic-realism.md 2's node comb): always
+        Lagrange-5, so reading it never disturbs the allpass mode's state. */
+    inline double readTap (double delaySamples) const noexcept
+    {
+        return readLagrange5 (juce::jlimit (1.0, getMaxDelay(), delaySamples));
+    }
+
+    /** A comb tap's kernel, computed once for a delay and reused while the
+        delay holds (the harmonic contact's comb, harmonic-realism.md 8).
+
+        Linear: the comb only has to line its taps up on the node partials,
+        and at a harmonic's partials (a few hundred Hz to a few kHz) linear
+        interpolation's error is a fraction of a dB of extra loss on the
+        upper node partials - which decay faster anyway. Lagrange-5 taps cost
+        1.5 units for six strings at n = 8; these cost a third of that. */
+    struct TapKernel
+    {
+        double delay = -1.0;
+        int    index = 1;
+        double frac = 0.0;
+    };
+
+    static void makeKernel (TapKernel& k, double delaySamples) noexcept
+    {
+        k.delay = delaySamples;
+        k.index = juce::jmax (1, (int) std::floor (delaySamples));
+        k.frac = juce::jlimit (0.0, 1.0, delaySamples - (double) k.index);
+    }
+
+    inline double readKernel (const TapKernel& k) const noexcept
+    {
+        const double a = buffer[(size_t) ((writeIndex - k.index) & mask)];
+        const double b = buffer[(size_t) ((writeIndex - k.index - 1) & mask)];
+        return a + (b - a) * k.frac;
+    }
+
     /** Phase delay contributed by the interpolator itself, in samples, at DC.
         Lagrange interpolators are exact at DC; the allpass contributes none either,
         because its coefficient is derived from the fraction we asked for. */
@@ -157,7 +193,7 @@ private:
         return ((c3 * d + c2) * d + c1) * d + c0;
     }
 
-    inline double readLagrange5 (double delaySamples) noexcept
+    inline double readLagrange5 (double delaySamples) const noexcept
     {
         // Centre the 6-tap kernel so the fraction sits in the middle of the span,
         // which is where Lagrange interpolation is most accurate.

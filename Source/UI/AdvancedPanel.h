@@ -20,6 +20,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
+#include "PianoRollStrip.h"
 #include "RoutingPanel.h"
 #include "ModMatrixPanel.h"
 #include "RhythmPanel.h"
@@ -33,8 +34,10 @@
 #include "PedalRack.h"
 #include "AmpFacePanel.h"
 #include "TunePanel.h"
+#include "JamPanel.h"   // FEAT-JAM
 #include "PracticeSetupPanel.h"
 #include "HelpTab.h"
+#include "PanelHelpButton.h"
 
 namespace luthier
 {
@@ -90,6 +93,10 @@ public:
     ~AdvancedPanel() override;
 
     void setSelectedString (int index);
+
+    /** cpu-quality-modes 5: column 3's Master oversampling tooltip carries the
+        "Running at 2x while quality is Medium." note ("" when not capped). */
+    void setOversamplingNote (const juce::String& note);
     int getSelectedString() const noexcept { return selectedString; }
 
     /*  Section 4.5: below 1000 points wide, Advanced Mode is unavailable. Three
@@ -99,6 +106,9 @@ public:
     static constexpr int minimumUsableWidth = 1000;
 
     FretboardComponent& getFretboard() noexcept { return fretboard; }
+
+    /** piano-roll-chord-display.md 1: the strip under the fretboard. */
+    PianoRollStrip& getPianoRoll() noexcept { return *pianoRoll; }
 
     //==========================================================================
     /*  Column 4's tab strip (section 4.4).
@@ -135,6 +145,16 @@ public:
     juce::String getHelpContextFor (const juce::Component* focused) const;
 
     void setWorkspaceTab (int index);
+
+    //==========================================================================
+    /*  TUNE-HELP-ONBOARDING (gui-integration 20, onboarding 3 and 4): the ?
+        icons on every column section and on the workspace, and where the tour
+        and the first-week hints find things. */
+    std::vector<PanelHelpButton*> getHelpButtons() const;
+    PanelHelpButton& getWorkspaceHelpButton() noexcept { return workspaceHelp; }
+    juce::Component* getColumnViewport (int column) noexcept;
+    juce::Button* getWorkspaceTabButton (const juce::String& tabName) const;
+    juce::Rectangle<int> getWorkspaceTabStripBounds() const noexcept { return workspaceTabStrip; }
 
     /*  Selects a tab by the name on it. For callers that want a particular panel
         and should not have to know where it sits - a notification banner offering
@@ -181,6 +201,13 @@ private:
         /** The heading of the section holding `c`, or empty. */
         juce::String getSectionContaining (const juce::Component* c) const;
 
+        /** gui-integration 16 and 20: the section heading at a height, the ?
+            on each heading, and Help on either. */
+        juce::String getSectionAt (int y) const;
+        std::function<void (const juce::String&)> onHelp;
+        juce::OwnedArray<PanelHelpButton> helpButtons;
+        void mouseDown (const juce::MouseEvent&) override;
+
     private:
         struct Item
         {
@@ -188,6 +215,7 @@ private:
             juce::String heading;
             int height = 0;
             bool isGap = false;
+            PanelHelpButton* help = nullptr;
         };
 
         juce::String title;
@@ -211,6 +239,10 @@ private:
     GuitarBodyComponent guitarBody;
     FretboardComponent fretboard;
 
+    // piano-roll-chord-display.md 1: under the fretboard, the strip grown by its height.
+    std::unique_ptr<PianoRollStrip> pianoRoll;
+    int getGuitarStripHeight (int boundsHeight) const;
+
     // Columns 1 to 3. Column 4 is the workspace below, which is not a Column:
     // it shows one panel at a time rather than stacking them.
     juce::Viewport viewports[3];
@@ -220,6 +252,10 @@ private:
     juce::Array<juce::Component*> workspacePanels;
     juce::Viewport workspaceViewport;
     int workspaceTab = 0;
+
+    // gui-integration 20: the workspace panel's ?, at the end of the tab strip.
+    PanelHelpButton workspaceHelp;
+    juce::Rectangle<int> workspaceTabStrip;
 
     /*  Where resized() put the column dividers, so paint() draws them in the
         same places. Below 1280 the layout stacks columns 2 and 3, and a paint
@@ -231,8 +267,10 @@ private:
 
     // --- column 1 -----------------------------------------------------------------
     juce::OwnedArray<StringRow> stringRows;
-    std::unique_ptr<LuthierChoice> stringMaterial, stringGauge, stringAge;
+    std::unique_ptr<LuthierChoice> stringMaterial, stringGauge;
+    std::unique_ptr<LuthierKnob> stringAgeHours, bodyCoupling;   // REALISM-A
     std::unique_ptr<LuthierKnob> realismDetune, intonation, sustain;
+    std::unique_ptr<DecayRow> decayRow;   // sustain-and-decay.md 8 (REALISM-C)
     std::unique_ptr<LuthierToggle> driftToggle;
 
     // --- column 2 -----------------------------------------------------------------
@@ -292,6 +330,7 @@ private:
     std::unique_ptr<ModMatrixPanel> modMatrixPanel;
     std::unique_ptr<RhythmPanel> rhythmPanel;
     std::unique_ptr<TunePanel> tunePanel;
+    std::unique_ptr<JamPanel> jamPanel;   // FEAT-JAM: jam-mode 8.1
     std::unique_ptr<PracticeSetupPanel> practiceSetupPanel;
     std::unique_ptr<HelpTab> helpTab;
     std::unique_ptr<LivePanel> livePanel;

@@ -30,7 +30,7 @@ void EffectsChain::prepare (double sampleRate, int maxBlockSize)
         }
     }
 
-    setOversamplingFactor (oversamplingFactor);
+    setOversamplingFactor (effectiveFactor, oversamplingFactor, false);
     retired.clear();
 }
 
@@ -66,7 +66,7 @@ void EffectsChain::setSlotType (int slot, PedalType type)
         replacement->setMix (slots[(size_t) slot].mix);
 
         if (auto* drive = dynamic_cast<DrivePedalBase*> (replacement.get()))
-            drive->setOversamplingFactor (oversamplingFactor);
+            drive->setOversamplingFactor (effectiveFactor, oversamplingFactor, false);
     }
 
     {
@@ -107,6 +107,36 @@ const Pedal* EffectsChain::getPedal (int slot) const noexcept
         return nullptr;
 
     return slots[(size_t) slot].pedal.get();
+}
+
+void EffectsChain::applySlotState (int slot, bool bypassed, double mix,
+                                   const float* normalisedParams, int numParams) noexcept
+{
+    if (! juce::isPositiveAndBelow (slot, kNumSlots))
+        return;
+
+    // The message thread swaps pedals under this lock and frees the old one
+    // straight after; reaching into a slot without it used a freed pedal
+    // (pluginval: "pure virtual method called" during automation).
+    const juce::ScopedTryLock sl (swapLock);
+
+    if (! sl.isLocked())
+        return;
+
+    auto& s = slots[(size_t) slot];
+    s.bypassed = bypassed;
+    s.mix = juce::jlimit (0.0, 1.0, mix);
+
+    if (s.pedal == nullptr)
+        return;
+
+    s.pedal->setBypassed (s.bypassed);
+    s.pedal->setMix (s.mix);
+
+    const int n = juce::jmin (numParams, s.pedal->getNumParameters(), Pedal::kMaxParams);
+
+    for (int p = 0; p < n; ++p)
+        s.pedal->setParameterNormalised (p, normalisedParams[p]);
 }
 
 void EffectsChain::setSlotBypassed (int slot, bool bypassed) noexcept
@@ -200,13 +230,14 @@ void EffectsChain::setExpression (double value) noexcept
             slot.pedal->setExpression (expression);
 }
 
-void EffectsChain::setOversamplingFactor (int factor) noexcept
+void EffectsChain::setOversamplingFactor (int effective, int nominal, bool crossfade) noexcept
 {
-    oversamplingFactor = juce::jlimit (1, 8, factor);
+    oversamplingFactor = juce::jlimit (1, 8, nominal);
+    effectiveFactor = juce::jlimit (1, oversamplingFactor, effective);
 
     for (auto& slot : slots)
         if (auto* drive = dynamic_cast<DrivePedalBase*> (slot.pedal.get()))
-            drive->setOversamplingFactor (oversamplingFactor);
+            drive->setOversamplingFactor (effectiveFactor, oversamplingFactor, crossfade);
 }
 
 int EffectsChain::getLatencySamples() const noexcept

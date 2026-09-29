@@ -271,6 +271,12 @@ namespace
                 addStrings (r, PureNickel, RegularG, BrokenIn, 0.24, Celluloid);
                 addRoom (r, LiveRoom, WoodRoom, 0.26);
                 r.values.emplace_back (P::pickupSelector, NeckPu);
+
+                // A single coil into a germanium fuzz into a Plexi turns mains hum
+                // into a buzz 12-18 dB under the playing at the default Amp Buzz.
+                // Players of this rig shield the guitar (or ride its volume): a
+                // quieter room, not a gate that would cut the fuzz's decay.
+                r.values.emplace_back (P::ampBuzz, 0.04);
                 addPedal (r, false, 0, Fuzz, { 0.72, 0.48, 0.40, 0.52, 0.0 });
             }
 
@@ -756,7 +762,45 @@ juce::var FactoryPresets::toVar (const Definition& def, const juce::AudioProcess
         }
     }
 
+    /*  REALISM-A: the factory bank is voiced on the legacy string-age table and
+        without the body's return path until the listening pass re-voices it
+        (body-coupling.md 6, string-aging.md 8). Leaving these keys out makes
+        the loader's legacy mapping apply, so every factory preset sounds as
+        it did. A recipe that sets one explicitly keeps it. */
+    for (const char* id : { ParamIDs::stringAgeHours, ParamIDs::stringAgeDetail, ParamIDs::bodyCouplingAmount })
+    {
+        bool explicitlySet = false;
+
+        for (int i = 0; i < def.numEntries; ++i)
+            explicitlySet = explicitlySet || juce::String (def.entries[i].paramId) == id;
+
+        if (! explicitlySet)
+            params->removeProperty (id);
+    }
+
     root->setProperty ("parameters", juce::var (params));
+
+    /*  The guitar's own parts (pickups, body woods, bracing, circuit, strings)
+        are the guitar's, not the preset's: the parameter block above holds their
+        layout defaults, which put three single coils and an X-braced spruce top
+        on every factory SG, Les Paul and 335 (BETA_TEST_REPORT B-05). So the
+        guitar block says the parts win, and lists the recipe's own values to put
+        back over them - a recipe that picks the tuning or the strings keeps them. */
+    {
+        auto* guitar = new juce::DynamicObject();
+        guitar->setProperty ("partsWin", true);
+
+        auto* keep = new juce::DynamicObject();
+
+        for (int i = 0; i < def.numEntries; ++i)
+            if (params->hasProperty (def.entries[i].paramId))
+                keep->setProperty (def.entries[i].paramId, params->getProperty (def.entries[i].paramId));
+
+        guitar->setProperty ("keep", juce::var (keep));
+        root->setProperty ("guitar", juce::var (guitar));
+    }
+
+    root->setProperty ("factoryRevision", kFactoryRevision);
 
     return juce::var (root);
 }
@@ -800,9 +844,21 @@ void FactoryPresets::writeAll (const juce::File& folder)
         auto file = folder.getChildFile (juce::File::createLegalFileName (def.category))
                           .getChildFile (juce::File::createLegalFileName (def.name) + ".luthierpreset");
 
-        // Never overwrite: a user who edited a factory preset keeps their edit.
+        /*  Never overwrite a user's edit. A file this generator wrote at an
+            older revision is not an edit - PresetManager never writes
+            factoryRevision, and before revision 2 a factory file had no guitar
+            block while every saved preset has one - so it is regenerated. */
         if (file.existsAsFile())
-            continue;
+        {
+            const auto existing = juce::JSON::parse (file);
+            const bool generated = existing.hasProperty ("factoryRevision")
+                                     || (! existing.hasProperty ("guitar")
+                                         && existing.getProperty ("author", {}).toString() == "Luthier Audio");
+            const int revision = (int) existing.getProperty ("factoryRevision", 1);
+
+            if (! generated || revision >= kFactoryRevision)
+                continue;
+        }
 
         file.getParentDirectory().createDirectory();
 

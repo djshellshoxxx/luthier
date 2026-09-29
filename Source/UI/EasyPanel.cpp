@@ -120,9 +120,22 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     : processor (p),
       guitarBody (p),
       preRack (p, false),
-      postRack (p, true)
+      postRack (p, true),
+      vuMeter (p),
+      roomLight (p)
 {
     addAndMakeVisible (guitarBody);
+
+    // gui-integration 20 (TUNE-HELP-ONBOARDING): a ? on every strip.
+    for (auto* help : getHelpButtons())
+    {
+        addAndMakeVisible (help);
+        help->onHelp = [this] (const juce::String& topic)
+        {
+            if (onOpenHelp != nullptr)
+                onOpenHelp (topic);
+        };
+    }
 
     // ---- playing strip (3.3) -------------------------------------------------------
     struct MacroSetup
@@ -175,6 +188,10 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
                                   "Mono routes every note to one string with legato between them. "
                                   "Poly voices chords across the strings. Guitar Controller maps "
                                   "MIDI channel to string for hex pickups and MPE.");
+
+    // REALISM-B, fingerstyle-attack.md 7: the Tool selector, beside the mode.
+    toolSelector = std::make_unique<RightHandToolSelector> (processor);
+    addAndMakeVisible (*toolSelector);
 
     // ---- tone strip (3.4) ------------------------------------------------------------
     inputKnob.attachTo (processor, ParamIDs::inputGain, "Input gain: how hard the guitar hits the pedals and the amp.");
@@ -251,6 +268,30 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
 
     // ---- meter and chord readout -------------------------------------------------------
     addAndMakeVisible (meter);
+
+    // output-normalization.md 5.1: the badge under the meter, while on.
+    addChildComponent (normalizationBadge);
+    normalizationBadge.onVisibilityChanged = [this] { resized(); };
+
+    // visual-polish.md 4: the room light sits behind the ROOM card's controls.
+    addAndMakeVisible (roomLight);
+    roomLight.toBack();
+    addChildComponent (vuMeter);
+    vuMeter.setVisible (VuMeter::isEnabledByUser());
+
+    // piano-roll-chord-display.md 1, 3: the piano roll under the guitar; Easy
+    // has no fretboard, so "Show fingering" draws on the illustration.
+    addChildComponent (pianoRoll);
+    pianoRoll.onLayoutChanged = [this] { resized(); };
+    pianoRoll.onGhostDots = [this] (const std::vector<FretboardComponent::GhostDot>& dots)
+    {
+        std::vector<std::pair<int, double>> pairs;
+
+        for (const auto& d : dots)
+            pairs.emplace_back (d.string, d.fret);
+
+        guitarBody.setGhostDots (pairs);
+    };
     meter.setSource (&processor);
 
     addAndMakeVisible (chordLabel);
@@ -392,6 +433,10 @@ void EasyPanel::buildRhythmStrip()
     rhythmReadout.setTooltip ("The chord the rhythm engine is playing, and the next strum");
     addAndMakeVisible (rhythmReadout);
 
+    // FEAT-JAM (jam-mode 8.2): the band's pill, style, intensity and volume.
+    jamGroup = std::make_unique<JamStripGroup> (processor);
+    addAndMakeVisible (*jamGroup);
+
     refreshRhythmStrip();
 }
 
@@ -487,9 +532,7 @@ void EasyPanel::applyStylePreset (int listIndex)
     if (! juce::isPositiveAndBelow (listIndex, stylePresetIndices.size()))
         return;
 
-    processor.pushUndoState ("Load style");
-    processor.getPresetManager().loadPreset (stylePresetIndices[listIndex]);
-    processor.getParameterBridge().applyAllNow();
+    processor.loadPresetAsUserAction (stylePresetIndices[listIndex]);   // action-and-undo.md 3.8
 }
 
 //==============================================================================
@@ -547,7 +590,9 @@ void EasyPanel::resized()
             return inner;
         };
 
-        auto circuit = card (0.20f, "Guitar");
+        // TODO 2h: the amp card gets the height the racks' second rows did not
+        // need, so its six knobs sit full size on the face at 1200 x 720.
+        auto circuit = card (0.15f, "Guitar");
         {
             auto knobs = circuit.removeFromLeft (circuit.getWidth() / 2);
             guitarVolumeKnob.setBounds (knobs.removeFromLeft (knobs.getWidth() / 2));
@@ -555,22 +600,22 @@ void EasyPanel::resized()
             circuitView->setBounds (circuit.reduced (2));
         }
 
-        preRack.setBounds (card (0.12f, "Pre-effects"));
+        preRack.setBounds (card (0.09f, "Pre-effects"));
 
-        auto amp = card (0.26f, "Amp");
+        auto amp = card (0.34f, "Amp");
         {
-            // TODO 2h: the knobs sit on the face in one row, each with the card's
-            // full width to share, rather than two cramped rows of three.
-            ampModel.setBounds (amp.removeFromTop (juce::jmin (amp.getHeight() / 3, 44)));
+            ampCardArea = amp;
+            ampModel.setBounds (amp.removeFromTop (26));
             amp.removeFromTop (2);
             ampFace.setBounds (amp);
         }
 
-        postRack.setBounds (card (0.12f, "Post-effects"));
+        postRack.setBounds (card (0.09f, "Post-effects"));
 
-        auto cab = card (0.17f, "Cabinet");
+        auto cab = card (0.20f, "Cabinet");
         {
-            auto top = cab.removeFromTop (cab.getHeight() / 2);
+            // The blend knob gets the taller top row, so it is a knob and not a dot (TODO V).
+            auto top = cab.removeFromTop (cab.getHeight() * 11 / 20);
             cabModel.setBounds (top.removeFromLeft (top.getWidth() / 2));
             micBlend.setBounds (top);
             mic1.setBounds (cab.removeFromLeft (cab.getWidth() / 2));
@@ -579,6 +624,7 @@ void EasyPanel::resized()
 
         auto room = card (0.13f, "Room");
         {
+            roomLight.setBounds (rigCards.getLast().first);
             roomSize.setBounds (room.removeFromLeft (room.getWidth() / 2));
             roomMix.setBounds (room);
         }
@@ -596,16 +642,36 @@ void EasyPanel::resized()
 
     // 3.1: the guitar, with the level meter and the chord beside it.
     auto guitarArea = bounds;
-    auto meterColumn = guitarArea.removeFromRight (28);
+    auto meterColumn = guitarArea.removeFromRight (normalizationBadge.isVisible() ? NormalizationBadge::preferredWidth : 28);
+
+    if (normalizationBadge.isVisible())   // output-normalization.md 5.1
+        normalizationBadge.setBounds (meterColumn.removeFromBottom (24).reduced (0, 2));
+
     meter.setBounds (meterColumn.reduced (4, Metrics::grid));
     chordLabel.setBounds (guitarArea.removeFromTop (20).removeFromRight (120));
+    // piano-roll-chord-display.md 1: the roll strip under the guitar illustration.
+    pianoRoll.setVisible (pianoRoll.isWanted());
+
+    if (pianoRoll.isVisible())
+    {
+        pianoRoll.setBounds (guitarArea.removeFromBottom (PianoRollStrip::kEasyHeight));
+        guitarArea.removeFromBottom (Metrics::gridHalf);
+    }
+
     guitarBody.setBounds (guitarArea);
+
+    // visual-polish.md 4: the VU needle over the guitar's top-left corner, beside the level meter's column.
+    vuMeter.setBounds (guitarArea.getX() + 4, guitarArea.getY() - 16, 128, 66);
 
     // 3.3 playing strip: mode, then the macros, then the whammy if fitted.
     {
         auto r = playingArea.reduced (4, 2);
         r.removeFromTop (14);
         playingModeSelector.setBounds (r.removeFromLeft (130).withSizeKeepingCentre (130, juce::jmin (48, r.getHeight())));
+        r.removeFromLeft (Metrics::grid);
+
+        // REALISM-B: the Tool selector takes a share of the strip beside the mode.
+        toolSelector->setBounds (r.removeFromLeft (juce::jlimit (140, 280, r.getWidth() / 3)));
         r.removeFromLeft (Metrics::grid);
 
         juce::Array<LuthierKnob*> knobs { &attackKnob, &bodyKnob, &driveKnob, &toneKnob, &spaceKnob, &humanizeKnob, &characterKnob };
@@ -643,17 +709,64 @@ void EasyPanel::resized()
         resetButton.setBounds (bottom.reduced (2, 0));
     }
 
+    // gui-integration 20: each strip's ? at its top right.
+    {
+        const int s = PanelHelpButton::kSize;
+        rigHelp.setBounds (rigArea.getRight() - s - 6, rigArea.getY() + 3, s, s);
+        playingHelp.setBounds (playingArea.getRight() - s - 4, playingArea.getY() + 1, s - 2, s - 2);
+        toneHelp.setBounds (toneArea.getRight() - s - 4, toneArea.getY() + 1, s - 2, s - 2);
+        rhythmHelp.setBounds (rhythmArea.getRight() - s - 4, rhythmArea.getCentreY() - s / 2, s, s);
+    }
+
     // 3.5 rhythm strip: kit and dice, feel, on/off, the readout.
     {
         auto r = rhythmArea.reduced (4, 6);
+        r.removeFromRight (PanelHelpButton::kSize + 4);   // the strip's ?
+        /*  FEAT-JAM (jam-mode 8.2): the JAM group sits at the right end and never
+            hides the band's style, level or state, so on a narrow window the
+            rest of the strip gives way first - the hint, then the readout, then
+            the genre box, then the group itself down to its minimum. Only
+            when even that does not fit (narrower than the window's minimum)
+            is the group hidden rather than drawn outside the strip. */
+        const bool hasJam = jamGroup != nullptr;
+        const int fixedW = 56 + 48 + Metrics::grid + 52 + Metrics::grid;
+        constexpr int feelMin = 60;
+        int genreW = 170, readoutW = 110, hintW = hasJam ? 90 : 110;
+        int jamW = hasJam ? JamStripGroup::preferredWidth : 0;
+        int deficit = fixedW + genreW + jamW + readoutW + hintW + feelMin - r.getWidth();
+
+        auto give = [&deficit] (int& w, int minimum)
+        {
+            const int cut = juce::jlimit (0, juce::jmax (0, w - minimum), deficit);
+            w -= cut;
+            deficit -= cut;
+        };
+
+        give (hintW, 0);
+        give (readoutW, 70);
+        give (genreW, 110);
+
+        if (hasJam)
+        {
+            give (jamW, JamStripGroup::minimumWidth);
+            jamGroup->setVisible (deficit <= 0);
+
+            if (deficit > 0)
+                jamW = 0;
+        }
+
         rhythmLabel.setBounds (r.removeFromLeft (56));
-        rhythmGenreBox.setBounds (r.removeFromLeft (170));
+        rhythmGenreBox.setBounds (r.removeFromLeft (genreW));
         rhythmDice.setBounds (r.removeFromLeft (48).reduced (2, 0));
         r.removeFromLeft (Metrics::grid);
         rhythmEnableButton.setBounds (r.removeFromLeft (52));
         r.removeFromLeft (Metrics::grid);
-        rhythmReadout.setBounds (r.removeFromRight (110));
-        rhythmHintLabel.setBounds (r.removeFromRight (110));
+
+        if (hasJam)
+            jamGroup->setBounds (r.removeFromRight (jamW));
+
+        rhythmReadout.setBounds (r.removeFromRight (readoutW));
+        rhythmHintLabel.setBounds (r.removeFromRight (hintW));
         rhythmFeelSlider.setBounds (r);
     }
 }

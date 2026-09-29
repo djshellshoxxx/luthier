@@ -416,7 +416,7 @@ LUTHIER_TEST (Engine, sampleRateChangesAreSurvived)
     // Engine rule 5: the plugin must survive a host switching rates mid-session.
     LuthierEngine engine;
 
-    for (double rate : { 44100.0, 48000.0, 88200.0, 96000.0, 192000.0, 44100.0 })
+    for (double rate : { 44100.0, 48000.0, 88200.0, 96000.0, 176400.0, 192000.0, 44100.0 }) // qa-polish.md 1.3
     {
         engine.prepare (rate, kBlock);
 
@@ -652,9 +652,15 @@ LUTHIER_TEST (Parameters, everyParameterHasAUniqueIdAndSaneDefault)
         implementation detail, and something that should have to be changed on
         purpose. docs/CHANGELOG.md quotes this number; if you change the set,
         change it there too. */
-    CHECK_MSG (seen.size() == 425,
+    CHECK_MSG (seen.size() == 450 + 3   // MODEL-GAPS
+                             + 15   // REALISM-A
+                             + 29   // REALISM-B
+                             + 29   // REALISM-C
+                             + 2    // TUNE-HELP-ONBOARDING
+                             + 34   // FEAT-JAM
+                             ,
                "the parameter list has changed size: " + juce::String (seen.size())
-                 + " parameters, expected 425 - saved host automation is indexed "
+                 + " parameters, not the expected total - saved host automation is indexed "
                    "against this list");
 }
 
@@ -765,7 +771,8 @@ LUTHIER_TEST (Presets, stateRoundTripsExactly)
 
         // A preset never carries the morph position (ambiguity-resolutions 5).
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
-            if (withId->paramID == ParamIDs::presetMorphPosition)
+            if (withId->paramID == ParamIDs::presetMorphPosition
+                  || ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: jam-mode 10
                 continue;
 
         if (std::abs (now - then) > 1.0e-4f)
@@ -1014,6 +1021,25 @@ LUTHIER_TEST (Parameters, fuzzAcrossTenThousandStates)
             {
                 ctx.fail ("fuzz state " + juce::String (i) + " produced non-finite audio");
                 break;
+            }
+
+            // qa-polish.md 2.2: no denormal escapes the engine's flushing.
+            {
+                int tiny = 0;
+
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                    for (int k = 0; k < buffer.getNumSamples(); ++k)
+                    {
+                        const auto v = std::abs (buffer.getSample (ch, k));
+                        tiny += (v > 0.0f && v < 1.0e-30f) ? 1 : 0;
+                    }
+
+                if (tiny > 0)
+                {
+                    ctx.fail ("fuzz state " + juce::String (i) + " let " + juce::String (tiny)
+                              + " denormal-range samples out");
+                    break;
+                }
             }
 
             auto mono = toMono (buffer);

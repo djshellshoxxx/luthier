@@ -318,34 +318,61 @@ CharacterPanel::CharacterPanel (LuthierAudioProcessor& p)
     noiseGroups = std::make_unique<NoiseGroups> (processor);
     addAndMakeVisible (*noiseGroups);
 
+    // REALISM-B: the PICK group's HARMONICS row, RIGHT HAND and STRING INTERACTION.
+    harmonicsGroup = std::make_unique<HarmonicsGroup> (processor);
+    rightHandGroup = std::make_unique<RightHandGroup> (processor);
+    interactionGroup = std::make_unique<StringInteractionGroup> (processor);
+    addAndMakeVisible (*harmonicsGroup);
+    addAndMakeVisible (*rightHandGroup);
+    addAndMakeVisible (*interactionGroup);
+    // REALISM-C (tuning-stability.md 6, noise-floor.md 5, sustain-and-decay.md 8).
+    tuningStabilityGroup = std::make_unique<TuningStabilityGroup> (processor);
+    addAndMakeVisible (*tuningStabilityGroup);
+    noiseFloorGroup = std::make_unique<NoiseFloorGroup> (processor);
+    addAndMakeVisible (*noiseFloorGroup);
+    sustainShapeGroup = std::make_unique<SustainShapeGroup> (processor);
+    addAndMakeVisible (*sustainShapeGroup);
+
     setupGroup = std::make_unique<SetupGroup> (processor);
     addAndMakeVisible (*setupGroup);
+
+    // REALISM-A: string-aging.md 7, environment.md 7, body-coupling.md 5.
+    stringAgingGroup = std::make_unique<StringAgingGroup> (processor);
+    environmentGroup = std::make_unique<EnvironmentGroup> (processor);
+    bodyCouplingGroup = std::make_unique<BodyCouplingGroup> (processor);
+    addAndMakeVisible (*stringAgingGroup);
+    addAndMakeVisible (*environmentGroup);
+    addAndMakeVisible (*bodyCouplingGroup);
 
     // SLIDE appears only in Slide Mode, so the panel re-fits when it does.
     slideGroup = std::make_unique<SlideGroup> (processor);
     addChildComponent (*slideGroup);
     slideGroup->onShownChanged = [this] { fitToContent(); };
 
+    // bass-techniques 9 (MODEL-GAPS): SLAP appears only on a bass.
+    slapGroup = std::make_unique<SlapGroup> (processor);
+    addChildComponent (*slapGroup);
+    slapGroup->onShownChanged = [this] { fitToContent(); };
+
     fitToContent();
 
     styleHeading (seedHeading,        "CHARACTER");
     styleHeading (mapsHeading,        "DEAD SPOTS AND FRET WEAR");
-    styleHeading (tunerHeading,       "TUNERS");
+    styleHeading (tunerHeading,       "TUNING STABILITY");   // tuning-stability.md 6
     styleHeading (electronicsHeading, "AGED ELECTRONICS");
     styleHeading (bodyHeading,        "BODY");
-    styleHeading (environmentHeading, "ENVIRONMENT");
 
     for (auto* label : { &seedHeading, &mapsHeading, &tunerHeading,
-                         &electronicsHeading, &bodyHeading, &environmentHeading })
+                         &electronicsHeading, &bodyHeading })
         addAndMakeVisible (*label);
 
     refreshFromEngine();
-    startTimerHz (4);
+    motion.startTimerHz (*this, 4);
 }
 
 CharacterPanel::~CharacterPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 CharacterEngine& CharacterPanel::character()
@@ -368,6 +395,7 @@ void CharacterPanel::buildControls()
 
     newCharacterButton.onClick = [this]
     {
+        processor.pushUndoAction ("New character", "character-edit", "reroll");   // action-and-undo.md 3.15
         character().reroll();
         refreshFromEngine();
         deadSpotMap->refresh();
@@ -381,8 +409,11 @@ void CharacterPanel::buildControls()
     enableToggle->getButton().setClickingTogglesState (true);
     enableToggle->getButton().onClick = [this]
     {
-        if (! updatingControls)
-            character().setEnabled (enableToggle->getButton().getToggleState());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Turn character on/off", "character-edit", "enabled");   // action-and-undo.md 3.15
+        character().setEnabled (enableToggle->getButton().getToggleState());
     };
 
     enableToggle->setTooltip ("All of the instrument's physical imperfections at once.");
@@ -394,15 +425,20 @@ void CharacterPanel::buildControls()
     // Easy's macro and this slider are one control, automatable and saved.
     amountSlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            if (auto* p = processor.getState().getParameter (ParamIDs::macroCharacter))
-                p->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, (float) (amountSlider.getValue() * 0.01)));
+        if (updatingControls)
+            return;
+
+        if (auto* p = processor.getState().getParameter (ParamIDs::macroCharacter))
+        {
+            processor.pushUndoAction ("Change character amount", "character-edit", "amount");   // action-and-undo.md 3.15
+            p->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, (float) (amountSlider.getValue() * 0.01)));
+        }
     };
     addAndMakeVisible (amountSlider);
 
     // ---- maps -----------------------------------------------------------------------
     refretButton.setTooltip ("New frets: clears the whole wear map.");
-    refretButton.onClick = [this] { character().refret(); fretWearMap->refresh(); };
+    refretButton.onClick = [this] { processor.pushUndoAction ("Refret", "character-edit", "refret"); character().refret(); fretWearMap->refresh(); };
     addAndMakeVisible (refretButton);
 
     // ---- tuners ---------------------------------------------------------------------
@@ -410,13 +446,28 @@ void CharacterPanel::buildControls()
     loosenessSlider.setTooltip ("How badly the machine heads hold their tuning.");
     loosenessSlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            character().setTunerLooseness (loosenessSlider.getValue());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change tuner looseness", "character-edit", "looseness");   // action-and-undo.md 3.15
+        character().setTunerLooseness (loosenessSlider.getValue());
     };
     addAndMakeVisible (loosenessSlider);
 
-    retuneButton.setTooltip ("Puts every string back in tune and starts drifting again.");
-    retuneButton.onClick = [this] { character().retune(); refreshFromEngine(); };
+    retuneButton.setTooltip ("Puts every string back in tune - the tuner drift, the room's pull "
+                             "and every tuning-stability offset - lowest string first, as a tech would. "
+                             "Not undoable: it is tuning, not an edit.");
+    retuneButton.onClick = [this]
+    {
+        // environment.md 3.2 (REALISM-A): one Retune for the tuners and the room.
+        environmentGroup->retune();
+        // tuning-stability.md 3 (REALISM-C): the command reaches the audio thread at
+        // the next block, which also clears the character drift; the direct call
+        // keeps the readout honest when no audio is running.
+        processor.getEngine().getStabilityModel().requestRetuneAll();
+        character().retune();
+        refreshFromEngine();
+    };
     addAndMakeVisible (retuneButton);
 
     driftLabel.setFont (juce::Font (juce::FontOptions (9.0f)));
@@ -428,8 +479,11 @@ void CharacterPanel::buildControls()
     potLinearitySlider.setTooltip ("How far the volume pot's taper has worn from nominal.");
     potLinearitySlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            character().setPotLinearityAmount (potLinearitySlider.getValue() * 0.01);
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change pot wear", "character-edit", "potLinearity");   // action-and-undo.md 3.15
+        character().setPotLinearityAmount (potLinearitySlider.getValue() * 0.01);
     };
     addAndMakeVisible (potLinearitySlider);
 
@@ -438,8 +492,11 @@ void CharacterPanel::buildControls()
                                "marked value.");
     capDriftSlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            character().setCapacitorDriftRange (capDriftSlider.getValue() * 0.01);
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change capacitor drift", "character-edit", "capDrift");   // action-and-undo.md 3.15
+        character().setCapacitorDriftRange (capDriftSlider.getValue() * 0.01);
     };
     addAndMakeVisible (capDriftSlider);
 
@@ -448,8 +505,11 @@ void CharacterPanel::buildControls()
                            "Off by default, because it will surprise you.");
     jackToggle.onClick = [this]
     {
-        if (! updatingControls)
-            character().setJackIntermittentEnabled (jackToggle.getToggleState());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Toggle intermittent jack", "character-edit", "jack");   // action-and-undo.md 3.15
+        character().setJackIntermittentEnabled (jackToggle.getToggleState());
     };
     addAndMakeVisible (jackToggle);
 
@@ -457,8 +517,11 @@ void CharacterPanel::buildControls()
     boneNutToggle.setTooltip ("Bone damps the string less than a synthetic nut.");
     boneNutToggle.onClick = [this]
     {
-        if (! updatingControls)
-            character().setBoneNut (boneNutToggle.getToggleState());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Toggle bone nut", "character-edit", "boneNut");   // action-and-undo.md 3.15
+        character().setBoneNut (boneNutToggle.getToggleState());
     };
     addAndMakeVisible (boneNutToggle);
 
@@ -468,35 +531,13 @@ void CharacterPanel::buildControls()
                               "a lower air resonance and less high-frequency damping.");
     bodyAgeSlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            character().setBodyAge (bodyAgeSlider.getValue());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change body age", "character-edit", "bodyAge");   // action-and-undo.md 3.15
+        character().setBodyAge (bodyAgeSlider.getValue());
     };
     addAndMakeVisible (bodyAgeSlider);
-
-    // ---- environment --------------------------------------------------------------------
-    for (int i = 0; i < (int) Temperature::numTemperatures; ++i)
-        temperatureBox.addItem (getTemperatureName ((Temperature) i), i + 1);
-
-    temperatureBox.onChange = [this]
-    {
-        if (! updatingControls)
-            character().setTemperature ((Temperature) (temperatureBox.getSelectedId() - 1));
-    };
-
-    temperatureBox.setTooltip ("A cold instrument plays sharp, a warm one flat.");
-    addAndMakeVisible (temperatureBox);
-
-    for (int i = 0; i < (int) Humidity::numHumidities; ++i)
-        humidityBox.addItem (getHumidityName ((Humidity) i), i + 1);
-
-    humidityBox.onChange = [this]
-    {
-        if (! updatingControls)
-            character().setHumidity ((Humidity) (humidityBox.getSelectedId() - 1));
-    };
-
-    humidityBox.setTooltip ("Damp wood is lossier and softer; dry wood is stiffer.");
-    addAndMakeVisible (humidityBox);
 
     sessionLabel.setFont (juce::Font (juce::FontOptions (9.0f)));
     sessionLabel.setColour (juce::Label::textColourId, Palette::textDisabled);
@@ -506,6 +547,7 @@ void CharacterPanel::buildControls()
     allFreshButton.setTooltip ("A machine-perfect instrument: no wear of any kind.");
     allFreshButton.onClick = [this]
     {
+        processor.pushUndoAction ("Character: all fresh", "character-edit", "allFresh");   // action-and-undo.md 3.15
         character().setAllFresh();
         refreshFromEngine();
         deadSpotMap->refresh();
@@ -515,6 +557,7 @@ void CharacterPanel::buildControls()
     allOldButton.setTooltip ("A well-used one, for comparison.");
     allOldButton.onClick = [this]
     {
+        processor.pushUndoAction ("Character: all old", "character-edit", "allOld");   // action-and-undo.md 3.15
         character().setAllOld();
         refreshFromEngine();
         deadSpotMap->refresh();
@@ -548,8 +591,6 @@ void CharacterPanel::refreshFromEngine()
 
     bodyAgeSlider.setValue (engine.getBodyAge(), juce::dontSendNotification);
 
-    temperatureBox.setSelectedId ((int) engine.getTemperature() + 1, juce::dontSendNotification);
-    humidityBox.setSelectedId ((int) engine.getHumidity() + 1, juce::dontSendNotification);
 }
 
 void CharacterPanel::timerCallback()
@@ -588,17 +629,29 @@ int CharacterPanel::preferredHeight() const
          + 16 + DeadSpotMap::preferredHeight
          + FretWearMap::preferredHeight + 26          // maps and refret
          + 16 + 22 + 26 + 12                          // tuners
+         + 4 + tuningStabilityGroup->preferredHeight()  // TUNING STABILITY (REALISM-C)
          + 16 + 22 + 22 + 26                          // electronics
+         + 8 + noiseFloorGroup->preferredHeight()     // NOISE FLOOR (REALISM-C)
+         + 8 + sustainShapeGroup->preferredHeight()   // SUSTAIN SHAPE (REALISM-C)
          + 16 + 22                                    // body
-         + 16 + 26 + 12                               // environment
+         + 12                                         // session readout
+         + 8 + environmentGroup->preferredHeight()    // ENVIRONMENT (environment.md 7)
          + 26 + 24                                    // presets
          + 8 + noiseGroups->preferredHeight()         // STRING NOISE and PICK
+         + 8 + stringAgingGroup->preferredHeight()    // STRING AGING (string-aging.md 7)
+         + 8 + HarmonicsGroup::preferredHeight        // REALISM-B: PICK -> HARMONICS
+         + 8 + rightHandGroup->preferredHeight()      // REALISM-B: RIGHT HAND
+         + 8 + StringInteractionGroup::preferredHeight // REALISM-B: STRING INTERACTION
          + 8 + setupGroup->preferredHeight()          // SETUP
-         + 8 + slideGroup->preferredHeight();         // SLIDE, only in Slide Mode
+         + 8 + bodyCouplingGroup->preferredHeight()   // BODY COUPLING (body-coupling.md 5)
+         + 8 + slideGroup->preferredHeight()          // SLIDE, only in Slide Mode
+         + 8 + slapGroup->preferredHeight();          // SLAP, only on a bass (MODEL-GAPS)
 }
 
 void CharacterPanel::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     g.setColour (Palette::panel);
     g.fillRoundedRectangle (getLocalBounds().toFloat(), 4.0f);
 
@@ -646,6 +699,9 @@ void CharacterPanel::resized()
 
     driftLabel.setBounds (row (12));
 
+    bounds.removeFromTop (4);
+    tuningStabilityGroup->setBounds (bounds.removeFromTop (tuningStabilityGroup->preferredHeight()));
+
     // ---- electronics ---------------------------------------------------------------
     electronicsHeading.setBounds (row (16));
     potLinearitySlider.setBounds (row (22));
@@ -658,21 +714,21 @@ void CharacterPanel::resized()
         boneNutToggle.setBounds (r);
     }
 
+    // noise-floor.md 5: after aged electronics.
+    bounds.removeFromTop (8);
+    noiseFloorGroup->setBounds (bounds.removeFromTop (noiseFloorGroup->preferredHeight()));
+    bounds.removeFromTop (8);
+    sustainShapeGroup->setBounds (bounds.removeFromTop (sustainShapeGroup->preferredHeight()));
+
     // ---- body ----------------------------------------------------------------------
     bodyHeading.setBounds (row (16));
     bodyAgeSlider.setBounds (row (22));
 
-    // ---- environment -----------------------------------------------------------------
-    environmentHeading.setBounds (row (16));
-
-    {
-        auto r = row (26);
-        temperatureBox.setBounds (r.removeFromLeft (r.getWidth() / 2 - 2));
-        r.removeFromLeft (4);
-        humidityBox.setBounds (r);
-    }
-
     sessionLabel.setBounds (row (12));
+
+    bounds.removeFromTop (8);
+    environmentGroup->setBounds (bounds.removeFromTop (environmentGroup->preferredHeight()));
+    bounds.removeFromTop (2);
 
     // ---- presets --------------------------------------------------------------------
     {
@@ -685,11 +741,28 @@ void CharacterPanel::resized()
     bounds.removeFromTop (8);
     noiseGroups->setBounds (bounds.removeFromTop (noiseGroups->preferredHeight()));
 
+    // REALISM-B.
+    bounds.removeFromTop (8);
+    harmonicsGroup->setBounds (bounds.removeFromTop (HarmonicsGroup::preferredHeight));
+    bounds.removeFromTop (8);
+    rightHandGroup->setBounds (bounds.removeFromTop (rightHandGroup->preferredHeight()));
+    bounds.removeFromTop (8);
+    interactionGroup->setBounds (bounds.removeFromTop (StringInteractionGroup::preferredHeight));
+
+    bounds.removeFromTop (8);
+    stringAgingGroup->setBounds (bounds.removeFromTop (stringAgingGroup->preferredHeight()));
+
     bounds.removeFromTop (8);
     setupGroup->setBounds (bounds.removeFromTop (setupGroup->preferredHeight()));
 
     bounds.removeFromTop (8);
+    bodyCouplingGroup->setBounds (bounds.removeFromTop (bodyCouplingGroup->preferredHeight()));
+
+    bounds.removeFromTop (8);
     slideGroup->setBounds (bounds.removeFromTop (slideGroup->preferredHeight()));
+
+    bounds.removeFromTop (8);
+    slapGroup->setBounds (bounds.removeFromTop (slapGroup->preferredHeight()));
 }
 
 } // namespace luthier

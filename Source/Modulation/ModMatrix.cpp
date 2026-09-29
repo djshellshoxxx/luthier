@@ -3,6 +3,13 @@
 namespace luthier
 {
 
+/*  MODEL-GAPS (ambiguity-resolutions 8): offsets are in parameter units, so the
+    audio path's +-4 guard (sanitise) must not clamp them - it held every
+    percent, millisecond and hertz destination to four units of movement. Only
+    a non-finite value is refused here; apply() clamps to the parameter's range. */
+static double finiteOrZero (double x) noexcept { return std::isfinite (x) ? x : 0.0; }
+
+
 //==============================================================================
 namespace
 {
@@ -183,6 +190,14 @@ ModMatrix::ModMatrix()
 
     for (auto& v : macroValues)
         v.store (0.0f);
+
+    // The two followers default to watching different things, because two
+    // followers on the same signal is never what anyone wanted. Set here, not
+    // in prepare(), which a host calls after restoring a session.
+    followers[0].setSource (ModEnvelopeFollower::Source::mainOutput);
+
+    if (followers.size() > 1)
+        followers[1].setSource (ModEnvelopeFollower::Source::sidechain);
 }
 
 ModMatrix::~ModMatrix() = default;
@@ -215,13 +230,6 @@ void ModMatrix::prepare (double newSampleRate, int newBlockSize,
         f.prepare (controlRateHz);
 
     randomSource.prepare (controlRateHz, 0xD1CED1CEull);
-
-    // The two followers default to watching different things, because two
-    // followers on the same signal is never what anyone wanted.
-    followers[0].setSource (ModEnvelopeFollower::Source::mainOutput);
-
-    if (followers.size() > 1)
-        followers[1].setSource (ModEnvelopeFollower::Source::sidechain);
 
     // --- destinations ------------------------------------------------------------
     const auto& parameters = state.processor.getParameters();
@@ -808,11 +816,25 @@ void ModMatrix::processBlock (int numSamples, const ModBlockContext& context) no
             const int live = liveTable.load (std::memory_order_acquire);
             const auto& table = tables[(size_t) live];
 
+            // cpu-quality-modes 2.1: routes every Nth tick at Low, unless an LFO is fast.
+            int multiplier = intervalMultiplier;
+
+            if (multiplier > 1)
+                for (const auto& l : lfos)
+                    if (l.getRateHz() > intervalFastLfoHz)
+                        multiplier = 1;
+
+            lastEffectiveMultiplier = multiplier;
+            const bool evaluateRoutes = multiplier <= 1 || (tickCounter % multiplier) == 0;
+            tickCounter = (tickCounter + 1) % 64;
+
             // Clear only the destinations this table touches. Zeroing all three
             // hundred parameters every tick would cost more than the routing.
-            for (int destination : table.touchedDestinations)
-                targetOffsets[(size_t) destination].store (0.0f, std::memory_order_relaxed);
+            if (evaluateRoutes)
+                for (int destination : table.touchedDestinations)
+                    targetOffsets[(size_t) destination].store (0.0f, std::memory_order_relaxed);
 
+            if (evaluateRoutes)
             for (const auto& route : table.routes)
             {
                 const float raw = sourceValues[(size_t) route.sourceSlot].load (std::memory_order_relaxed);
@@ -828,8 +850,14 @@ void ModMatrix::processBlock (int numSamples, const ModBlockContext& context) no
                 const auto previous = targetOffsets[(size_t) route.destinationIndex]
                                         .load (std::memory_order_relaxed);
 
+                // In parameter units, so the guard is the destination's own span
+                // (eight routes at full depth plus offset), not the audio
+                // guard's +-4, which would pin a Hz or ms destination.
+                const double sum = (double) previous + contribution;
+                const double limit = 16.0 * (double) info.range;
+
                 targetOffsets[(size_t) route.destinationIndex]
-                    .store ((float) sanitise ((double) previous + contribution),
+                    .store ((float) (std::isfinite (sum) ? juce::jlimit (-limit, limit, sum) : 0.0),
                             std::memory_order_relaxed);
             }
 
@@ -886,13 +914,19 @@ float ModMatrix::apply (int parameterIndex, float baseValue) const noexcept
         // modulation-matrix 4: a discrete destination only changes when the
         // modulated position crosses an integer boundary.
         const float normalised = (value - info.minimum) / info.range;
+        // Rounded to the nearest of the numSteps positions 0 .. numSteps - 1.
         const int index = juce::jlimit (0, info.numSteps - 1,
-                                        (int) std::floor (normalised * (float) info.numSteps + 0.5f));
+                                        juce::roundToInt (normalised * (float) (info.numSteps - 1)));
 
         value = info.minimum + (float) index * (info.range / (float) juce::jmax (1, info.numSteps - 1));
     }
 
-    return juce::jlimit (info.minimum, info.maximum, (float) sanitise ((double) value));
+    // Not sanitise(): its +-4 is an audio-sample guard, and this is a value in
+    // the parameter's own units (Hz, ms, a choice index).
+    if (! std::isfinite (value))
+        value = baseValue;
+
+    return juce::jlimit (info.minimum, info.maximum, value);
 }
 
 //==============================================================================

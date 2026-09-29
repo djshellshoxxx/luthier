@@ -581,9 +581,9 @@ LUTHIER_TEST (Editor, everyWorkspaceTabSelectsAndPaints)
     panel.setVisible (true);
     panel.setSize (1600, 900);
 
-    // In order: tune-builder 3 puts TUNE between RHYTHM and LIVE; practice-tools
+    // In order: tune-builder 3 puts TUNE between RHYTHM and LIVE (jam-mode 8.1: JAM after TUNE); practice-tools
     // 11 puts PRACTICE between CHARACTER and NOTATION.
-    const juce::StringArray tabNames { "WORKSHOP", "MOD", "RHYTHM", "TUNE", "LIVE", "ROUTING", "TONE MATCH",
+    const juce::StringArray tabNames { "WORKSHOP", "MOD", "RHYTHM", "TUNE", "JAM", "LIVE", "ROUTING", "TONE MATCH",
                                        "CHARACTER", "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "HELP" };
 
     CHECK_MSG (panel.getNumWorkspaceTabs() == tabNames.size(),
@@ -1121,7 +1121,7 @@ LUTHIER_TEST (Editor, everyHitRegionOnTheIllustrationDescribesItself)
     /*  A real MouseEvent, built on the desktop's own mouse source. The component
         has no peer, so nothing delivers events to it - but mouseMove is an
         ordinary method and the event is an ordinary value. */
-    auto& source = juce::Desktop::getInstance().getMainMouseSource();
+    auto source = juce::Desktop::getInstance().getMainMouseSource();
 
     auto tooltipAt = [&body, &source] (juce::Point<float> p)
     {

@@ -30,6 +30,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <vector>
+#include <atomic>
 
 namespace luthier
 {
@@ -122,9 +123,31 @@ public:
         before returning; otherwise `advance` carries it the rest of the way. */
     bool recall (int index);
 
-    /** Called once per block by the processor, with the block's duration. Moves
-        an in-flight recall along. */
+    /** Message thread. Moves an in-flight recall along by this much time. */
     void advance (double secondsElapsed);
+
+    /** Audio thread: adds a block's duration to the time the next
+        advancePending() applies. The crossfade keeps the audio thread's clock,
+        but its work - a String-keyed read of every parameter, the midpoint's
+        module fromVar calls, the change message - is done on the message
+        thread, which also owns recallFrom and the snapshot list; doing it on
+        the audio thread raced recall() and state restores (use-after-free). */
+    void noteAudioTime (double seconds) noexcept
+    {
+        auto current = pendingSeconds.load (std::memory_order_relaxed);
+        while (! pendingSeconds.compare_exchange_weak (current, current + seconds,
+                                                       std::memory_order_relaxed)) {}
+    }
+
+    /** Message thread (the processor's timer): applies the audio time noted
+        since the last call. */
+    void advancePending()
+    {
+        const double seconds = pendingSeconds.exchange (0.0, std::memory_order_relaxed);
+
+        if (recallActive)
+            advance (seconds);
+    }
 
     bool isRecalling() const noexcept { return recallActive; }
     int getCurrentSnapshot() const noexcept { return currentIndex; }
@@ -202,6 +225,7 @@ private:
 
     // --- recall -------------------------------------------------------------------
     bool recallActive = false;
+    std::atomic<double> pendingSeconds { 0.0 };
     bool recallMidpointDone = false;
     double recallPosition = 0.0;
     double recallSeconds = 0.0;

@@ -248,7 +248,7 @@ void TunePlayer::setClock (double ppq) noexcept
 {
     clockBase = ppq;
     clockSamples = 0;
-    clockSamplesPerQuarter = sampleRate * 60.0 / juce::jmax (1.0, tempo);
+    clockSamplesPerQuarter = sampleRate * 60.0 / juce::jmax (1.0, tempo * tempoScale.load (std::memory_order_relaxed));
 }
 
 int TunePlayer::offsetOf (double absolute) const noexcept
@@ -770,7 +770,7 @@ void TunePlayer::renderBlock (int numSamples, const HostInfo& host,
     followingHost.store (hostDriving, std::memory_order_relaxed);
 
     blockTransport.followingHost = hostDriving;
-    blockTransport.bpm = hostDriving ? host.bpm : tempo;
+    blockTransport.bpm = hostDriving ? host.bpm : tempo * tempoScale.load (std::memory_order_relaxed);
     blockTransport.ppq = from;
     blockTransport.running = from >= suppressBefore - kEps;
     blockRecordable = blockTransport.running;
@@ -789,7 +789,8 @@ void TunePlayer::renderBlock (int numSamples, const HostInfo& host,
             // The clock moves by samples; a new tempo re-anchors it here.
             clockSamples += numSamples;
 
-            if (std::abs (sampleRate * 60.0 / juce::jmax (1.0, tempo) - clockSamplesPerQuarter) > 1.0e-9)
+            if (std::abs (sampleRate * 60.0 / juce::jmax (1.0, tempo * tempoScale.load (std::memory_order_relaxed))
+                            - clockSamplesPerQuarter) > 1.0e-9)
                 setClock (clockPosition());
         }
 

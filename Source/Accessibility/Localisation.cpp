@@ -1,4 +1,5 @@
 #include "Localisation.h"
+#include "QualityStrings.h"   // cpu-quality-modes
 
 namespace luthier
 {
@@ -251,7 +252,8 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         meaning, because a translator works from the key's context as much as
         from its English text.
     */
-    static const std::map<juce::String, juce::String> catalog =
+    // cpu-quality-modes: the CPU-quality strings live in QualityStrings.cpp.
+    static const std::map<juce::String, juce::String> catalog = QualityStrings::mergeInto (
     {
         // ---- application ------------------------------------------------------------
         { "app.name",                 "Luthier" },
@@ -421,10 +423,14 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "accessibility.shortcut.toggleAdvanced",  "Switch Easy / Advanced mode" },
         { "accessibility.shortcut.toggleLiveMode",  "Toggle Live Mode" },
         { "accessibility.shortcut.toggleSlideMode", "Toggle Slide Mode" },
+        { "accessibility.shortcut.toggleWorkshop", "Toggle Workshop" },
         { "accessibility.shortcut.togglePractice",  "Open the practice drawer" },
         { "accessibility.shortcut.panic",           "Panic: silence all notes" },
         { "accessibility.shortcut.tapTempo",        "Tap tempo" },
         { "accessibility.shortcut.killSwitch",      "Kill switch" },
+        { "accessibility.shortcut.jamStartStop",    "Jam band: start or stop" },   // FEAT-JAM
+        { "accessibility.shortcut.jamFill",         "Jam band: fill" },
+        { "accessibility.shortcut.jamArm",          "Jam band: arm or disarm" },
         { "accessibility.shortcut.previousItem",    "Previous preset or snapshot" },
         { "accessibility.shortcut.nextItem",        "Next preset or snapshot" },
         { "accessibility.shortcut.previousWorkspaceTab", "Previous workspace tab" },
@@ -433,6 +439,8 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "accessibility.shortcut.setlistNext",     "Next setlist entry" },
         { "accessibility.shortcut.undo",            "Undo" },
         { "accessibility.shortcut.redo",            "Redo" },
+        { "accessibility.shortcut.redoAlt",         "Redo (Ctrl+Y)" },
+        { "accessibility.shortcut.undoAcrossBoundary", "Undo past a preset or guitar load" },
         { "accessibility.shortcut.save",            "Save preset" },
         { "accessibility.shortcut.saveAs",          "Save preset as..." },
         { "accessibility.shortcut.newPreset",       "New preset (loads Init)" },
@@ -453,9 +461,21 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "accessibility.shortcut.resetAll",        "Reset all" },
         { "accessibility.shortcut.midiLearnArm",    "Arm MIDI Learn" },
         { "accessibility.shortcut.export",          "Open export" },
+        { "accessibility.shortcut.newTune",         "New tune" },
         { "accessibility.shortcut.options",         "Open options" },
         { "accessibility.shortcut.debugPanel",      "Open the debug panel" },
         { "accessibility.shortcut.audition",        "Audition" },
+        { "accessibility.shortcut.toggleStringAnimation", "Toggle string animation" },
+
+        // ---- animated-strings.md 5 and 8: Options -> Appearance -> Visual aids ------------------
+        { "options.appearance.visualAids.heading",        "VISUAL AIDS" },
+        { "options.appearance.visualAids.animateStrings", "Animate strings" },
+        { "options.appearance.visualAids.quality",        "Quality" },
+        { "options.appearance.visualAids.qualityName",    "String animation quality" },
+        { "options.appearance.visualAids.qualityLow",     "Low" },
+        { "options.appearance.visualAids.qualityHigh",    "High" },
+        { "options.appearance.visualAids.help",           "Strings vibrate on the guitar and fretboard while they sound. Display only: no effect on the sound." },
+        { "options.appearance.visualAids.paused",         "Paused while Reduced motion is on." },
 
         // ---- accessible descriptions -----------------------------------------------------------
         { "a11y.knob.role",           "Rotary control" },
@@ -520,8 +540,34 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "message.exportFailed",     "Could not export: {reason}" },
         { "message.snapshotRecalled", "Recalled snapshot {number}" },
         { "message.tempoDetected",    "Detected {bpm} bpm" },
-        { "message.nullResult",       "Null test: {db} dB" }
-    };
+        { "message.nullResult",       "Null test: {db} dB" },
+
+        // ---- output normalization (output-normalization.md 5) ----------------------
+        { "options.audio.normalization.heading",   "OUTPUT NORMALIZATION" },
+        { "options.audio.normalization.switch",    "Normalize output loudness" },
+        { "options.audio.normalization.target",    "Target loudness" },
+        { "options.audio.normalization.targetOff", "Turn normalization on to choose a target." },
+        { "options.audio.normalization.caption",   "Evens out the natural level differences between guitars and settings, so relative levels are no longer realistic: a nylon-string or a clean single-coil will sound louder than it really is next to a high-gain humbucker." },
+        { "options.audio.normalization.note",      "Applies to the main output only. Per-string and aux outputs keep their natural level. The safety limiter stays on while normalization is on." },
+        { "options.audio.normalization.readout.off",          "Off. Each sound plays at its natural level." },
+        { "options.audio.normalization.readout.measuring",    "Measuring this sound..." },
+        { "options.audio.normalization.readout.applied",      "Normalization: {gain} dB (this sound measures {lufs} LUFS)" },
+        { "options.audio.normalization.readout.clampedQuiet", "Normalization: {gain} dB (at the limit; this sound is very quiet)" },
+        { "options.audio.normalization.readout.clampedLoud",  "Normalization: {gain} dB (at the limit; this sound is very loud)" },
+        { "options.audio.normalization.readout.estimate",     "Normalization: about {gain} dB (estimated; measuring failed)" },
+        { "options.audio.normalization.readout.unmeasurable", "This sound is silent on the test phrase; level unchanged." },
+        { "options.audio.normalization.readout.morphing",     "Normalization: {gain} dB (between the two morph presets)" },
+        { "options.audio.normalization.announce",  "Normalization {sign} {value} decibels" },
+        { "banner.normalization.on",       "Output normalization is on. Every sound is brought to the same loudness, so the natural level differences between guitars and settings are gone. Turn it off for realistic relative levels." },
+        { "banner.normalization.options",  "Options" },
+        { "banner.normalization.dontShow", "Don't show again" },
+        { "banner.normalization.failed",   "Normalization could not measure this sound." },
+        { "badge.normalization.tooltip",   "Output normalization {gain} dB, target {target} LUFS. Click for options." },
+        { "badge.normalization.name",      "Output normalization, {sign} {value} decibels" },
+        { "routing.normalization.caption", "Output normalization applies to the main output only." },
+        { "workshop.normalization.note",   "Normalization is on: level differences between parts are evened out. Shadow audition (Alt-hover) still plays at the real level." },
+        { "accessibility.shortcut.toggleNormalization", "Toggle output normalization" },
+    });
 
     return catalog;
 }

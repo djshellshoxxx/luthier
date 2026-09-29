@@ -10,6 +10,9 @@
 
 #include "TestFramework.h"
 #include <juce_events/juce_events.h>
+#include "../UI/FirstRun.h"
+#include "../UI/Onboarding.h"
+#include "../Support/QualityController.h"
 
 using namespace luthier::tests;
 
@@ -24,6 +27,16 @@ namespace
 int main (int argc, char* argv[])
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
+
+    // onboarding.md 5 (TUNE-HELP-ONBOARDING): an editor built by any test must not
+    // apply this machine's OS preferences to the real settings files mid-run.
+    luthier::FirstRun::setStateForTesting (true, false);
+    luthier::Onboarding::setAutomaticForTesting (false);
+
+    // cpu-quality-modes 7 (superseding performance-budget.md 8): a busy test
+    // machine must not trigger the governor (dropped strings, a frozen
+    // audition) inside unrelated tests.
+    luthier::QualityController::setGovernorEnabledGlobally (false);
 
     juce::StringArray filters;
     bool listOnly = false;

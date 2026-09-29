@@ -1,5 +1,7 @@
 #include "PracticePanel.h"
 #include "../PluginProcessor.h"
+#include "MidiOutPanel.h"        // MODEL-GAPS: the drag-out take
+#include "MidiExportDefaults.h"
 
 namespace luthier
 {
@@ -384,7 +386,16 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
     stopButton.onClick = [this] { looper().stop(); refresh(); };
     addAndMakeVisible (stopButton);
 
-    clearButton.onClick = [this] { looper().clear(); refresh(); };
+    clearButton.onClick = [this]
+    {
+        // action-and-undo.md 3.14: a cleared loop can be restored.
+        auto* looperPtr = &looper();
+        looper().clear();
+        processor.pushUndoCallback ("Clear looper", "looper-clear", {},
+                                    [looperPtr] { looperPtr->restoreCleared(); },
+                                    [looperPtr] { looperPtr->clear(); });
+        refresh();
+    };
     addAndMakeVisible (clearButton);
 
     styleReadout (statusLabel);
@@ -402,7 +413,7 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
         strip.mute->setClickingTogglesState (true);
         strip.mute->onClick = [this, i]
         {
-            looper().getLayer (i).setMuted (layers[(size_t) i].mute->getToggleState());
+            editLayer (i, "mute", [this, i] { looper().getLayer (i).setMuted (layers[(size_t) i].mute->getToggleState()); });   // action-and-undo.md 3.14
         };
         addAndMakeVisible (*strip.mute);
 
@@ -410,7 +421,7 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
         strip.reverse->setClickingTogglesState (true);
         strip.reverse->onClick = [this, i]
         {
-            looper().getLayer (i).setReversed (layers[(size_t) i].reverse->getToggleState());
+            editLayer (i, "reverse", [this, i] { looper().getLayer (i).setReversed (layers[(size_t) i].reverse->getToggleState()); });   // action-and-undo.md 3.14
         };
         addAndMakeVisible (*strip.reverse);
 
@@ -418,7 +429,7 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
         strip.halfSpeed->setClickingTogglesState (true);
         strip.halfSpeed->onClick = [this, i]
         {
-            looper().getLayer (i).setHalfSpeed (layers[(size_t) i].halfSpeed->getToggleState());
+            editLayer (i, "halfSpeed", [this, i] { looper().getLayer (i).setHalfSpeed (layers[(size_t) i].halfSpeed->getToggleState()); });   // action-and-undo.md 3.14
         };
         addAndMakeVisible (*strip.halfSpeed);
 
@@ -430,7 +441,7 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
         strip.mode->setSelectedId (1, juce::dontSendNotification);
         strip.mode->onChange = [this, i]
         {
-            looper().getLayer (i).setMode ((LayerMode) (layers[(size_t) i].mode->getSelectedId() - 1));
+            editLayer (i, "mode", [this, i] { looper().getLayer (i).setMode ((LayerMode) (layers[(size_t) i].mode->getSelectedId() - 1)); });   // action-and-undo.md 3.14
         };
         addAndMakeVisible (*strip.mode);
 
@@ -440,7 +451,7 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
         strip.level->setValue (0.0, juce::dontSendNotification);
         strip.level->onValueChange = [this, i]
         {
-            looper().getLayer (i).setLevelDb (layers[(size_t) i].level->getValue());
+            editLayer (i, "level", [this, i] { looper().getLayer (i).setLevelDb (layers[(size_t) i].level->getValue()); });   // action-and-undo.md 3.14
         };
         addAndMakeVisible (*strip.level);
 
@@ -450,7 +461,7 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
         strip.pan->setValue (0.0, juce::dontSendNotification);
         strip.pan->onValueChange = [this, i]
         {
-            looper().getLayer (i).setPan (layers[(size_t) i].pan->getValue());
+            editLayer (i, "pan", [this, i] { looper().getLayer (i).setPan (layers[(size_t) i].pan->getValue()); });   // action-and-undo.md 3.14
         };
         addAndMakeVisible (*strip.pan);
 
@@ -540,6 +551,21 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
 Looper& LooperTab::looper()
 {
     return processor.getLooper();
+}
+
+void LooperTab::editLayer (int index, const char* what, const std::function<void()>& change)
+{
+    auto* layer = &looper().getLayer (index);
+    const auto before = layer->settingsToVar();
+
+    change();
+
+    const auto after = layer->settingsToVar();
+    processor.pushUndoCallback ("Change loop layer " + juce::String (index + 1) + " " + what, "looper-layer",
+                                juce::String (index) + what,
+                                // The layer is the processor's; the tab may be gone by then.
+                                [layer, before] { layer->settingsFromVar (before); },
+                                [layer, after] { layer->settingsFromVar (after); });
 }
 
 void LooperTab::refresh()
@@ -672,7 +698,17 @@ TrackTab::TrackTab (LuthierAudioProcessor& p)
                               [this] (const juce::FileChooser& fc)
         {
             if (fc.getResult() != juce::File())
-                track().load (fc.getResult());
+            {
+                // action-and-undo.md 3.14: practice-track-load.
+                auto* player = &track();
+                const auto before = player->isLoaded() ? player->getFile() : juce::File();
+                const auto after = fc.getResult();
+
+                if (track().load (after))
+                    processor.pushUndoCallback ("Load backing track " + after.getFileName(), "practice-track-load", {},
+                                                [player, before] { if (before.existsAsFile()) player->load (before); else player->unload(); },
+                                                [player, after] { player->load (after); });
+            }
 
             refresh();
         });
@@ -875,7 +911,16 @@ ScaleTab::ScaleTab (LuthierAudioProcessor& p)
         keyBox.addItem (noteNames[i], i + 1);
 
     keyBox.setSelectedId (1, juce::dontSendNotification);
-    keyBox.onChange = [this] { trainer().setKey (keyBox.getSelectedId() - 1); repaint(); };
+    keyBox.onChange = [this]
+    {
+        // action-and-undo.md 3.14: practice-scale, grouped.
+        auto* t = &trainer();
+        const int before = t->getKey(), after = keyBox.getSelectedId() - 1;
+        processor.pushUndoCallback ("Change practice key", "practice-scale", "key",
+                                    [t, before] { t->setKey (before); }, [t, after] { t->setKey (after); });
+        trainer().setKey (after);
+        repaint();
+    };
     addAndMakeVisible (keyBox);
 
     for (int i = 0; i < (int) ScaleType::custom; ++i)
@@ -884,7 +929,13 @@ ScaleTab::ScaleTab (LuthierAudioProcessor& p)
     scaleBox.setSelectedId (1, juce::dontSendNotification);
     scaleBox.onChange = [this]
     {
-        trainer().setScale ((ScaleType) (scaleBox.getSelectedId() - 1));
+        // action-and-undo.md 3.14: practice-scale, grouped.
+        auto* t = &trainer();
+        const auto before = t->getScale();
+        const auto after = (ScaleType) (scaleBox.getSelectedId() - 1);
+        processor.pushUndoCallback ("Change practice scale", "practice-scale", "scale",
+                                    [t, before] { t->setScale (before); }, [t, after] { t->setScale (after); });
+        trainer().setScale (after);
         repaint();
     };
     addAndMakeVisible (scaleBox);
@@ -1133,6 +1184,37 @@ void EarTab::resized()
 }
 
 //==============================================================================
+bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFile)
+{
+    const bool read = importer.read (file, score);
+
+    if (read)
+    {
+        // practice-tools 11.2: the PRACTICE tab lists recent tab files.
+        PracticeLibrary library;
+        library.load (libraryFile);
+        library.noteTabOpened (file);
+
+        juce::String error;
+        library.save (libraryFile, error);
+
+        statusLabel.setText (juce::String (score.getTotalNoteCount()) + " notes from "
+                               + file.getFileName(),
+                             juce::dontSendNotification);
+
+        statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+    }
+    else
+    {
+        statusLabel.setText (importer.getLastError(), juce::dontSendNotification);
+        statusLabel.setColour (juce::Label::textColourId, Palette::warning);
+    }
+
+    refresh();
+    return read;
+}
+
+//==============================================================================
 TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
     : PracticeTab (p)
 {
@@ -1149,32 +1231,8 @@ TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
         {
             const auto file = fc.getResult();
 
-            if (file == juce::File())
-                return;
-
-            if (importer.read (file, score))
-            {
-                // practice-tools 11.2: the PRACTICE tab lists recent tab files.
-                PracticeLibrary library;
-                library.load (PracticeLibrary::getLibraryFile());
-                library.noteTabOpened (file);
-
-                juce::String error;
-                library.save (PracticeLibrary::getLibraryFile(), error);
-
-                statusLabel.setText (juce::String (score.getTotalNoteCount()) + " notes from "
-                                       + file.getFileName(),
-                                     juce::dontSendNotification);
-
-                statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
-            }
-            else
-            {
-                statusLabel.setText (importer.getLastError(), juce::dontSendNotification);
-                statusLabel.setColour (juce::Label::textColourId, Palette::warning);
-            }
-
-            refresh();
+            if (file != juce::File())
+                openTab (file);
         });
     };
 
@@ -1408,9 +1466,14 @@ SessionTab::SessionTab (LuthierAudioProcessor& p)
             const auto setup = storedSetup();
             requestedMinutes = storedMinutes = setup.ringMinutes;
             setup.applyTo (recorder, processor.getSampleRate());
+            recorder.setEnabled (true);
+        }
+        else if (recorder.stop (SessionRecorder::getSessionDirectory()))
+        {
+            // practice-tools 11.2's auto-save (MODEL-GAPS): stopping kept the take.
+            statusLabel.setText ("Saved to your Sessions folder.", juce::dontSendNotification);
         }
 
-        recorder.setEnabled (on);
         refresh();
     };
 
@@ -1424,15 +1487,9 @@ SessionTab::SessionTab (LuthierAudioProcessor& p)
     addAndMakeVisible (lengthLabel);
 
     saveButton.setTooltip ("Freeze what is in the buffer to a WAV and a MIDI file.");
-    saveButton.onClick = [this]
-    {
-        const bool saved = processor.getSessionRecorder()
-                             .saveLastTake (SessionRecorder::getSessionDirectory());
-
-        statusLabel.setText (saved ? "Saved to your Sessions folder."
-                                   : "There is nothing recorded to save.",
-                             juce::dontSendNotification);
-    };
+    saveButton.setTooltip ("Freeze what is in the buffer to a WAV and a MIDI file. "
+                           "Drag this button to drop the take into your DAW.");
+    saveButton.onClick = [this] { saveTake(); };
 
     openFolderButton.onClick = [this]
     {
@@ -1460,6 +1517,87 @@ void SessionTab::visibilityChanged()
         storedMinutes = storedSetup().ringMinutes;
         refresh();
     }
+}
+
+bool SessionTab::saveTake()
+{
+    const bool saved = processor.getSessionRecorder().saveLastTake (SessionRecorder::getSessionDirectory());
+
+    statusLabel.setText (saved ? "Saved to your Sessions folder."
+                               : "There is nothing recorded to save.",
+                         juce::dontSendNotification);
+    return saved;
+}
+
+juce::StringArray SessionTab::SaveButton::filesToDrag (bool forceGeneric)
+{
+    auto& recorder = tab.processor.getSessionRecorder();
+    auto files = recorder.getLastSavedFiles();
+
+    if (files.isEmpty() && tab.saveTake())
+        files = recorder.getLastSavedFiles();
+
+    juce::StringArray paths;
+    bool haveTakeMidi = false;
+
+    // midi-export 4.2: a valid MIDI file in the Luthier profile (Generic with
+    // Alt), of the take's span of what the engine played.
+    const auto performance = MidiTakeExport::capturedPerformance (tab.processor);
+    const double seconds = (double) recorder.getRecordedSamples() / juce::jmax (1.0, tab.processor.getSampleRate());
+
+    if (performance.getLengthInSamples() > 0)
+    {
+        auto defaults = MidiExportDefaults::load();
+        defaults.range = seconds > 0.0 ? performance.getLastSecondsRange (seconds) : juce::Range<juce::int64>();
+
+        const auto midi = MidiProfiles::writeDragOutFile (performance, forceGeneric, defaults);
+
+        if (midi.existsAsFile())
+        {
+            paths.add (midi.getFullPathName());
+            haveTakeMidi = true;
+        }
+    }
+
+    for (const auto& f : files)
+        if (f.existsAsFile())
+        {
+            if (f.hasFileExtension ("mid"))
+            {
+                if (! haveTakeMidi)
+                    paths.insert (0, f.getFullPathName());   // nothing captured: the raw take, first
+            }
+            else
+            {
+                paths.add (f.getFullPathName());
+            }
+        }
+
+    return paths;
+}
+
+void SessionTab::SaveButton::mouseDrag (const juce::MouseEvent& e)
+{
+    if (dragged || e.getDistanceFromDragStart() < 6)
+        return;
+
+    dragged = true;
+    const auto paths = filesToDrag (e.mods.isAltDown());
+
+    if (! paths.isEmpty())
+        juce::DragAndDropContainer::performExternalDragDropOfFiles (paths, false, this);
+}
+
+void SessionTab::SaveButton::mouseUp (const juce::MouseEvent& e)
+{
+    // A drag is not also a click.
+    if (dragged)
+    {
+        setState (juce::Button::buttonNormal);
+        return;
+    }
+
+    juce::TextButton::mouseUp (e);
 }
 
 SessionRecorderSetup SessionTab::storedSetup()
@@ -1628,7 +1766,7 @@ PracticePanel::PracticePanel (LuthierAudioProcessor& p)
 
 PracticePanel::~PracticePanel()
 {
-    stopTimer();
+    motion.stopTimer();
     saveStats();
 }
 
@@ -1671,11 +1809,11 @@ void PracticePanel::setOpen (bool shouldBeOpen)
 
         pausedByClosing = false;
         lastTickMs = juce::Time::getMillisecondCounterHiRes();
-        startTimerHz (20);
+        motion.startTimerHz (*this, 20);
     }
     else
     {
-        stopTimer();
+        motion.stopTimer();
 
         pausedByClosing = runner.getPhase() == PracticeRoutineRunner::Phase::countIn
                           || runner.getPhase() == PracticeRoutineRunner::Phase::running;
@@ -1820,6 +1958,8 @@ void PracticePanel::timerCallback()
 
 void PracticePanel::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     g.setColour (Palette::panel);
     g.fillRect (getLocalBounds());
 

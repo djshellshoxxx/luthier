@@ -166,10 +166,11 @@ void SnapshotStrip::mouseDown (const juce::MouseEvent& event)
         return;
     }
 
+    // action-and-undo.md 3.7
     if (! processor.getSnapshots().getSnapshot (index).isEmpty())
-        processor.recallSnapshot (index);
+        processor.recallSnapshotAsUserAction (index);
     else
-        processor.captureSnapshot (index);
+        processor.captureSnapshotAsUserAction (index);
 
     refresh();
 }
@@ -203,7 +204,7 @@ void SnapshotStrip::showSlotMenu (int index)
 
         if (result == 1)
         {
-            processor.captureSnapshot (index);
+            processor.captureSnapshotAsUserAction (index, processor.getSnapshots().getSnapshot (index).label);
         }
         else if (result == 2)
         {
@@ -222,7 +223,7 @@ void SnapshotStrip::showSlotMenu (int index)
 
             editor->onReturnKey = [this, editor, index, &box]
             {
-                processor.getSnapshots().setLabel (index, editor->getText());
+                processor.renameSnapshotAsUserAction (index, editor->getText());   // action-and-undo.md 3.7
                 refresh();
                 repaint();
 
@@ -233,11 +234,11 @@ void SnapshotStrip::showSlotMenu (int index)
         }
         else if (result == 3)
         {
-            processor.getSnapshots().setSnapshot (index, Snapshot {});
+            processor.deleteSnapshotAsUserAction (index, false);   // action-and-undo.md 3.7
         }
         else if (result >= 100 && result < 100 + Snapshot::kNumColourTags)
         {
-            processor.getSnapshots().setColourTag (index, result - 100);
+            processor.setSnapshotColourAsUserAction (index, result - 100);   // action-and-undo.md 3.7
         }
 
         refresh();
@@ -381,12 +382,12 @@ TapPad::TapPad (LuthierAudioProcessor& p)
     setTooltip ("Tap tempo. Tap four times or more. While the host is playing, "
                 "the host's tempo wins unless internal tempo is forced.");
 
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
 TapPad::~TapPad()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void TapPad::timerCallback()
@@ -399,6 +400,14 @@ void TapPad::timerCallback()
 
     bool shouldRepaint = false;
 
+    // cpu-quality-modes 6: no flash at Off; the BPM still updates.
+    if (! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition))
+    {
+        shouldRepaint = beatLit;
+        beatLit = false;
+        lastBeatMs = now;
+    }
+    else
     if (now - lastBeatMs >= beatMs)
     {
         lastBeatMs = now;
@@ -423,6 +432,8 @@ void TapPad::timerCallback()
 
 void TapPad::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     drawLiveButton (g, getLocalBounds(), {}, beatLit, Palette::accent, true);
 
     g.setColour (Palette::textMuted);
@@ -452,6 +463,11 @@ LiveStrip::LiveStrip (LuthierAudioProcessor& p)
     addAndMakeVisible (*snapshotStrip);
     addAndMakeVisible (*triptych);
     addAndMakeVisible (*tapPad);
+
+    // FEAT-JAM (jam-mode 8.2): a tap starts or stops the band, a long press is FILL.
+    jamPill = std::make_unique<JamPill> (processor, JamPill::Mode::live);
+    addChildComponent (*jamPill);
+    refreshJamPill();
 
     // ---- morph -------------------------------------------------------------------
     morphEnable.setClickingTogglesState (true);
@@ -525,12 +541,12 @@ LiveStrip::LiveStrip (LuthierAudioProcessor& p)
     addAndMakeVisible (monitorLevel);
 
     refreshMorphControls();
-    startTimerHz (20);
+    motion.startTimerHz (*this, 20);
 }
 
 LiveStrip::~LiveStrip()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void LiveStrip::refreshMorphControls()
@@ -584,10 +600,25 @@ void LiveStrip::showSlotMenu (bool slotB)
     });
 }
 
+void LiveStrip::refreshJamPill()
+{
+    // FEAT-JAM (jam-mode 8.2): the JAM pill shows only while jam_enabled is on.
+    auto* enabled = processor.getState().getParameter (ParamIDs::jamEnabled);
+    const bool show = enabled != nullptr && enabled->getValue() > 0.5f;
+
+    if (jamPill->isVisible() != show)
+    {
+        jamPill->setVisible (show);
+        resized();
+    }
+}
+
 void LiveStrip::timerCallback()
 {
     snapshotStrip->refresh();
     triptych->refresh();
+
+    refreshJamPill();   // FEAT-JAM
 
     const auto& bank = processor.getSnapshots();
 
@@ -600,6 +631,8 @@ void LiveStrip::timerCallback()
 
 void LiveStrip::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     g.setColour (Palette::panel);
     g.fillRect (getLocalBounds());
 
@@ -649,6 +682,9 @@ void LiveStrip::resized()
     morphEnable.setBounds (takeRight (64));
 
     tapPad->setBounds (takeLeft (64));
+
+    if (jamPill->isVisible())   // FEAT-JAM
+        jamPill->setBounds (takeLeft (88));
     triptych->setBounds (takeLeft (juce::jmax (120, bounds.getWidth() / 3)));
 
     snapshotStrip->setBounds (bounds.withHeight (height));

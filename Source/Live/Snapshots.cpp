@@ -1,4 +1,6 @@
 #include "Snapshots.h"
+#include "../Parameters.h"   // FEAT-JAM: ParamIDs::isJamTransient
+#include "../Support/ConfigChangeTracker.h"   // output-normalization.md 3.2
 
 namespace luthier
 {
@@ -135,8 +137,12 @@ bool SnapshotBank::isDiscrete (const juce::AudioProcessorParameter& parameter) n
     // A choice or a boolean has no meaningful value between two settings. Asking
     // the parameter itself rather than testing its type catches the custom
     // parameter classes too.
+    // Integer parameters too: here they are string bitmasks and CC numbers,
+    // where a value between two settings is a different mask or controller
+    // (a morph from strings 1-2 to 5-6 passed through arbitrary subsets).
     return parameter.isDiscrete() || parameter.isBoolean()
-             || parameter.getNumSteps() <= 2;
+             || parameter.getNumSteps() <= 2
+             || dynamic_cast<const juce::AudioParameterInt*> (&parameter) != nullptr;
 }
 
 //==============================================================================
@@ -179,7 +185,8 @@ bool SnapshotBank::capture (int index, const juce::String& label, int colourTag)
 
     for (auto* p : processor.getParameters())
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
-            parameters->setProperty (withId->paramID, (double) withId->getValue());
+            if (! ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: jam-mode 10
+                parameters->setProperty (withId->paramID, (double) withId->getValue());
 
     snapshot.parameters = juce::var (parameters);
 
@@ -323,6 +330,9 @@ void SnapshotBank::applyBlend (const juce::var& from, const juce::var& to, doubl
 
     if (toObject == nullptr)
         return;
+
+    // output-normalization.md 3.2: a snapshot is a performance, not a new sound.
+    const PerformanceWriteScope performanceWrites;
 
     const double b = juce::jlimit (0.0, 1.0, blend);
 

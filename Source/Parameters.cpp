@@ -1,6 +1,9 @@
 #include "Parameters.h"
 #include "PhysicalRange.h"
 #include "Rhythm/StrumGesture.h"
+#include "Presets/RealismStyles.h"   // REALISM-C
+#include "Jam/JamStyle.h"
+#include "Jam/JamEdition.h"   // FEAT-JAM   // FEAT-JAM
 
 namespace luthier
 {
@@ -85,9 +88,20 @@ namespace
             disagreement would silently re-map every preset ever saved. */
         RangeRegistry::noteDeclaration (id, min, max);
 
+        /*  Text a host shows and types back (host-integration.md 3): a fixed
+            number of decimals for the range - four significant places over
+            its span - so value -> text -> value -> text is stable. JUCE's
+            default prints seven decimals, and the float round trip of the
+            seventh drifted (CLAP validator, param-conversions).
+            Values are shown as numbers only; the unit is the label. */
+        const int decimals = juce::jlimit (0, 6, 4 - (int) std::ceil (std::log10 (juce::jmax (1.0e-6f, max - min))));
+
         return std::make_unique<juce::AudioParameterFloat> (
             pid (id), name, range, def,
-            juce::AudioParameterFloatAttributes().withLabel (unit));
+            juce::AudioParameterFloatAttributes()
+                .withLabel (unit)
+                .withStringFromValueFunction ([decimals] (float v, int) { return juce::String (v, decimals); })
+                .withValueFromStringFunction ([] (const juce::String& t) { return t.getFloatValue(); }));
     }
 
     /*  A resistance, shown and typed the way it is printed on a part. Declared
@@ -195,6 +209,13 @@ juce::StringArray Parameters::stringGaugeNames()
 juce::StringArray Parameters::stringAgeNames()
 {
     return { "Fresh", "Broken In", "Old" };
+}
+
+// environment.md 3.1 (REALISM-A): the order is the EnvProfile enum's.
+juce::StringArray Parameters::envProfileNames()
+{
+    return { "Static", "Stage lights", "Outdoor evening", "Cold case to room",
+             "Air-conditioned studio", "Humid club" };
 }
 
 juce::StringArray Parameters::pickMaterialNames()
@@ -525,7 +546,7 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::slideNoiseAmount,      "Slide Noise",         0.0f,   1.0f,  0.4f));
     add (floatParam  (ParamIDs::slideClankAmount,      "Slide Clank",         0.0f,   1.0f,  0.45f));
     add (floatParam  (ParamIDs::slideIntonationAssist, "Intonation Assist",   0.0f,   1.0f,  0.15f));
-    add (floatParam (ParamIDs::ampBuzz,      "Amp Buzz",      0.0f, 1.0f, 0.12f));
+    add (floatParam (ParamIDs::ampBuzz,      "Single-coil Hum", 0.0f, 1.0f, 0.12f));   // noise-floor.md 1: relabelled, same ID
 
     // --- body -----------------------------------------------------------------
     add (choiceParam (ParamIDs::bodyMode,      "Body Mode",     bodyModeNames(), 0));
@@ -747,6 +768,177 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::chuckAmount,          "Chuck Amount",         0.0f, 1.0f, 0.0f));
     add (floatParam  (ParamIDs::chuckDamping,         "Chuck Damping",        0.0f, 1.0f, 0.92f));
 
+    // bass-techniques.md 2-5, string-slap-technique.md 1: the slap (params 426-450).
+    add (floatParam  (ParamIDs::slapStrength,       "Slap Strength",       0.0f, 1.0f, 0.70f));
+    add (floatParam  (ParamIDs::slapPositionMm,     "Slap Position",       5.0f, 400.0f, 60.0f, 1.0f, "mm"));
+    add (floatParam  (ParamIDs::slapThumbHardness,  "Thumb Hardness",      0.0f, 1.0f, 0.55f));
+    add (floatParam  (ParamIDs::slapFretContact,    "Slap Fret Contact",   0.0f, 1.0f, 0.80f));
+    add (floatParam  (ParamIDs::popStrength,        "Pop Strength",        0.0f, 1.0f, 0.75f));
+    add (floatParam  (ParamIDs::popPositionMm,      "Pop Position",        5.0f, 400.0f, 40.0f, 1.0f, "mm"));
+    add (boolParam   (ParamIDs::doubleThumpEnabled, "Double Thump", false));
+    add (floatParam  (ParamIDs::doubleThumpUpRatio, "Double Thump Up Ratio", 0.0f, 1.0f, 0.65f));
+    add (floatParam  (ParamIDs::ghostLevel,         "Ghost Level",         0.0f, 1.0f, 0.45f));
+    add (floatParam  (ParamIDs::ghostDamping,       "Ghost Damping",       0.0f, 1.0f, 0.94f));
+    add (boolParam   (ParamIDs::ghostAuto,          "Auto Ghost", true));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::ghostVelocityThreshold), "Ghost Velocity Threshold", 1, 127, 32));
+    add (boolParam   (ParamIDs::slapArmed,          "Slap Armed", false));
+    add (choiceParam (ParamIDs::slapType,           "Slap Type", { "Thumb Slap", "Finger Pop", "Palm Slap", "Body Tap" }, 0));
+    add (choiceParam (ParamIDs::slapTrigger,        "Slap Trigger", { "Keyswitch", "CC", "MPE Zone", "Button Only", "Velocity Zone" }, 0));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::slapVelocityZone), "Slap Velocity Zone", 1, 127, 100));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::slapTriggerCc), "Slap Trigger CC", 0, 127, 86));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::slapGhostCc), "Slap Ghost CC", 0, 127, 87));
+    add (floatParam  (ParamIDs::slapForce,          "Slap Force",          0.0f, 1.0f, 0.6f));
+    add (floatParam  (ParamIDs::slapPalmPositionMm, "Palm Slap Position",  5.0f, 400.0f, 100.0f, 1.0f, "mm"));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::slapStringMask), "Slap Strings", 0, (1 << kMaxStrings) - 1, 0));
+    add (boolParam   (ParamIDs::slapGhostMode,      "Slap Ghost Mode", false));
+    add (floatParam  (ParamIDs::slapReboundGap,     "Rebound Gap",         1.0f, 500.0f, 60.0f, 0.5f, "ms"));
+    add (floatParam  (ParamIDs::slapSnapBack,       "Snap-Back",           0.0f, 1.0f, 0.5f));
+    add (choiceParam (ParamIDs::slapBodyPart,       "Body Tap Resonance", { "Top", "Side", "Back" }, 0));
+
+    // ==== BEGIN MODEL-GAPS params ====
+    add (floatParam  (ParamIDs::fingerAlternationVariation, "Finger Alternation", 0.0f, 1.0f, 0.25f));
+    add (boolParam   (ParamIDs::restStroke,                 "Rest Stroke", true));
+    add (boolParam   (ParamIDs::aux1PreCircuit,             "Aux 1 Pre-Circuit", false));
+    // ==== END MODEL-GAPS params ====
+    // ==== BEGIN REALISM-A params ====
+    // string-aging.md 4: hours skewed so 24 h sits mid-travel; the default is the
+    // old Broken In row (12 h), which is what `string_age`'s default was.
+    add (floatParam  (ParamIDs::stringAgeHours,    "String Age",          0.0f, 200.0f, 12.0f, 0.12f, "h"));
+    add (floatParam  (ParamIDs::stringCorrosivity, "Hand Corrosivity",    0.5f, 2.0f,   1.0f,  1.0f,  "x"));
+    add (floatParam  (ParamIDs::stringAgeDetail,   "Aging Detail",        0.0f, 1.0f,   1.0f));
+    add (choiceParam (ParamIDs::stringCoating,     "Coating",             { "None", "Thin", "Thick" }, 0));
+    add (choiceParam (ParamIDs::stringAgeAccrual,  "Age While Playing",   { "Off", "Real time", "x10", "x100" }, 0));
+    // environment.md 5
+    add (floatParam  (ParamIDs::envTemperatureC,   "Ambient Temperature", 5.0f,  40.0f, 22.0f, 1.0f, "C"));
+    add (floatParam  (ParamIDs::envTunedAtC,       "Tuned At",            5.0f,  40.0f, 22.0f, 1.0f, "C"));
+    add (floatParam  (ParamIDs::envHumidityPct,    "Humidity",            20.0f, 85.0f, 45.0f, 1.0f, "% RH"));
+    add (choiceParam (ParamIDs::envProfile,        "Session Profile",     envProfileNames(), 0));
+    add (choiceParam (ParamIDs::envClock,          "Profile Clock",       { "Host timeline", "Free-running" }, 0));
+    // body-coupling.md 4
+    add (floatParam  (ParamIDs::bodyCouplingAmount, "Body Coupling",      0.0f, 1.0f, 1.0f));
+    add (floatParam  (ParamIDs::bodyModeMassScale,  "Body Mode Mass",     0.5f, 2.0f, 1.0f, 1.0f / 3.0f, "x"));
+    add (floatParam  (ParamIDs::bodyModeQScale,     "Body Mode Q",        0.5f, 2.0f, 1.0f, 1.0f / 3.0f, "x"));
+    add (floatParam  (ParamIDs::bodyModeFreqScale,  "Body Mode Tuning",   0.9f, 1.1f, 1.0f, 0.5f, "x"));
+    add (choiceParam (ParamIDs::bodyCouplingModes,  "Coupling Modes",     { "4", "8", "12", "16" }, 1));
+    // ==== END REALISM-A params ====
+    // ==== BEGIN REALISM-B params ====
+    // harmonic-realism.md 5: +8. Physical rows join the pick family (PhysicalRange.cpp).
+    {
+        const juce::StringArray offsets { "12", "7", "5", "4", "19", "24" };
+        add (floatParam  (ParamIDs::harmonicTouchPressure, "Harmonic Touch",       0.2f, 1.0f, 0.6f));
+        add (floatParam  (ParamIDs::harmonicFingerWidth,   "Finger Contact Width", 1.0f, 6.0f, 2.5f, 1.0f, "mm"));
+        add (floatParam  (ParamIDs::harmonicTouchTime,     "Touch Time",           20.0f, 200.0f, 70.0f, 1.0f, "ms"));
+        add (floatParam  (ParamIDs::harmonicBriefTouch,    "Pinch / Tap Graze",    3.0f, 20.0f, 8.0f, 1.0f, "ms"));
+        add (floatParam  (ParamIDs::pinchThumbOffsetMm,    "Thumb Offset",         2.0f, 12.0f, 6.0f, 1.0f, "mm"));
+        add (choiceParam (ParamIDs::artificialHarmonicOffset, "Artificial Offset", offsets, 0));
+        add (choiceParam (ParamIDs::tappedHarmonicOffset,  "Tapped Offset",        offsets, 0));
+        add (choiceParam (ParamIDs::harmonicNoteMapping,   "Harmonic Notes",       { "Touch fret", "Sounding" }, 0));
+    }
+
+    // string-interaction.md 7: +7.
+    add (floatParam  (ParamIDs::couplingAirAmount,   "Air Coupling",       0.0f, 1.0f, 1.0f));
+    add (floatParam  (ParamIDs::palmMuteSpread,      "Palm Width",         20.0f, 60.0f, 35.0f, 1.0f, "mm"));
+    add (floatParam  (ParamIDs::adjacentMuteAmount,  "Neighbour Mute",     0.0f, 1.0f, 0.6f));
+    add (floatParam  (ParamIDs::releaseStaggerMs,    "Release Stagger",    0.0f, 40.0f, 12.0f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::releaseStaggerBias,  "Stagger Order",     -1.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::pickupApertureScale, "Pole Aperture",      0.5f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::mutedThumpLevel,     "Muted-String Thump", 0.0f, 1.0f, 0.5f));
+
+    // fingerstyle-attack.md 6: +14.
+    add (floatParam  (ParamIDs::fingerFleshReleaseMs, "Flesh Release",   0.04f, 0.20f, 0.0723f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::fingerNailReleaseMs,  "Nail Release",    0.015f, 0.06f, 0.0227f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::thumbPositionOffset,  "Thumb Position", -0.05f, 0.10f, 0.04f));
+    add (floatParam  (ParamIDs::restStrokeDamping,    "Rest Damping",    0.0f, 1.0f, 0.8f));
+    add (choiceParam (ParamIDs::rhStroke,             "Stroke",          rhStrokeNames(), 0));
+    add (choiceParam (ParamIDs::rhStyle,              "Right-Hand Style", rhStyleNames(), 0));
+
+    for (int n = 1; n <= 6; ++n)
+        add (choiceParam (ParamIDs::rhStringTool (n), "String " + juce::String (n) + " Tool", rhToolNames(), 0));
+
+    add (floatParam  (ParamIDs::thumbPalmMute,        "Thumb Palm Mute", 0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::hybridSnap,           "Hybrid Snap",     0.0f, 1.0f, 0.3f));
+    // ==== END REALISM-B params ====
+    // ==== BEGIN REALISM-C params ====
+    // Every default is neutral: existing presets render as before
+    // (noise-floor.md 0.5, sustain-and-decay.md 0.3, tuning-stability.md 0).
+    add (choiceParam (ParamIDs::noiseMainsHz,        "Mains Region",        { "60 Hz", "50 Hz" }, 0));
+    add (floatParam  (ParamIDs::noisePlayerAngle,    "Facing Angle",        0.0f, 90.0f, 0.0f, 1.0f, "deg"));
+    add (floatParam  (ParamIDs::noisePlayerDistance, "Distance to Amp",     0.3f, 5.0f, 1.0f, 0.149f, "m"));
+    add (floatParam  (ParamIDs::noiseFluorescent,    "Fluorescent Buzz",    0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noisePassiveHiss,    "Passive Hiss",        0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseCableMovement,  "Cable Movement",      0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseRadio,          "Radio Pickup",        0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseGroundLoop,     "Ground Loop",         0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseAmpHiss,        "Amp Hiss",            0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::noiseMicrophonics,   "Microphonics",        0.0f, 1.0f, 0.0f));
+    add (boolParam   (ParamIDs::noiseFloorToAux8,    "Noise Floor on Aux 8", false));
+    add (choiceParam (ParamIDs::noiseFloorStyle,     "Noise Floor Style",   RealismStyles::noiseFloorStyleNames(), 0));
+
+    add (floatParam  (ParamIDs::sustainAttackTransient, "Attack Transient", 0.0f,  1.0f,  0.0f));
+    add (floatParam  (ParamIDs::sustainAttackTime,      "Attack Time",      5.0f,  80.0f, 30.0f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::sustainFastShare,       "Fast Decay Share", 0.0f,  0.9f,  0.0f));
+    add (floatParam  (ParamIDs::sustainFastRatio,       "Fast Decay Ratio", 0.05f, 0.5f,  0.2f));
+    add (floatParam  (ParamIDs::sustainTensionMod,      "Tension Pitch",    0.0f,  1.5f,  0.0f));
+    add (floatParam  (ParamIDs::sustainReleaseTime,     "Release Time",     0.0f,  60.0f, 0.0f, 1.0f, "ms"));
+    add (floatParam  (ParamIDs::sustainReleaseSag,      "Release Sag",      0.0f,  8.0f,  0.0f, 1.0f, "mm"));
+    add (floatParam  (ParamIDs::sustainReleaseRing,     "Release Ring",     0.0f,  0.3f,  0.0f));
+    add (choiceParam (ParamIDs::sustainStyle,           "Sustain Style",    RealismStyles::sustainStyleNames(), 0));
+
+    add (floatParam  (ParamIDs::stabilityAmount,      "Tuning Instability", 0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::stabilitySettling,    "String Settling",    0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilityNutBinding,  "Nut Binding",        0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilityBacklash,    "Tuner Backlash",     0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilitySaddleCreep, "Bridge / Saddle",    0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilityBendMemory,  "Bend Memory",        0.0f, 2.0f, 1.0f));
+    add (floatParam  (ParamIDs::stabilityCapoBias,    "Capo Bias",          0.0f, 2.0f, 1.0f));
+    add (choiceParam (ParamIDs::stabilityAutoRetune,  "Auto Retune",        { "Off", "Idle", "Transport Stop", "Idle + Stop" }, 1));
+    // ==== END REALISM-C params ====
+    // ==== BEGIN TUNE-HELP-ONBOARDING params ====
+    // tune-builder 14: read by the processor for the TUNE tab's player and
+    // session (LuthierAudioProcessor::applyTuneModulation), not by the engine.
+    add (floatParam  (ParamIDs::tuneFeelMod,        "Tune Feel",          -1.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::tuneTempoDrift,     "Tune Tempo Drift",  -10.0f, 10.0f, 0.0f, 1.0f, "%"));
+    // ==== END TUNE-HELP-ONBOARDING params ====
+
+    // ==== BEGIN FEAT-JAM params ====
+    // jam-mode.md 10: the band's 34, appended in table order, never reordered.
+    // jam_kit_tuning and jam_kit_damping are physical (RangeFamily::jam).
+    add (boolParam   (ParamIDs::jamEnabled,        "Jam Enabled", false));
+    add (boolParam   (ParamIDs::jamPlay,           "Jam Play", false));
+    add (boolParam   (ParamIDs::jamFillNow,        "Jam Fill Now", false));
+    add (choiceParam (ParamIDs::jamStyle,          "Jam Style", JamStyleLibrary::getStyleChoiceNames(), 0));
+    add (choiceParam (ParamIDs::jamVariation,      "Jam Variation", { "A", "B" }, 0));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::jamIntensity), "Jam Intensity", 1, 5, 3));
+    add (choiceParam (ParamIDs::jamFillEvery,      "Jam Fill Every", { "Off", "2 bars", "4 bars", "8 bars", "16 bars" }, 3));
+    add (choiceParam (ParamIDs::jamFollow,         "Jam Follow", { "Tight", "Natural", "Relaxed", "Bar" }, 1));
+    add (boolParam   (ParamIDs::jamPredict,        "Jam Predict", true));
+    add (choiceParam (ParamIDs::jamChordSource,    "Jam Chord Source", { "Auto", "Live", "Tune" }, 0));
+    add (choiceParam (ParamIDs::jamStartMode,      "Jam Start Mode", { "Auto", "Host Transport", "First Note", "Count-In", "Tap In" }, 0));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::jamCountInBars), "Jam Count In Bars", 0, 2, 1));
+    add (boolParam   (ParamIDs::jamStopOnSilence,  "Jam Stop On Silence", true));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::jamSilenceBars), "Jam Silence Bars", 1, 8, 2));
+    add (boolParam   (ParamIDs::jamEnding,         "Jam Ending", true));
+    add (boolParam   (ParamIDs::jamDynamicsFollow, "Jam Dynamics Follow", true));
+    add (floatParam  (ParamIDs::jamSwing,          "Jam Swing", -50.0f, 50.0f, 0.0f, 1.0f, "%"));
+    add (floatParam  (ParamIDs::jamHumanise,       "Jam Humanise", 0.0f, 100.0f, 50.0f, 1.0f, "%"));
+    add (choiceParam (ParamIDs::jamKit,            "Jam Kit", { "Studio", "Vintage", "Arena", "Jazz", "Machine" }, 0));
+    add (boolParam   (ParamIDs::jamKitAuto,        "Jam Kit Auto", true));
+    add (floatParam  (ParamIDs::jamKitTuning,      "Jam Kit Tuning", -6.0f, 6.0f, 0.0f, 0.5f, "st"));
+    add (floatParam  (ParamIDs::jamKitDamping,     "Jam Kit Damping", 10.0f, 90.0f, 40.0f, 1.0f, "%"));
+    add (floatParam  (ParamIDs::jamKitRoom,        "Jam Kit Room", 0.0f, 100.0f, 25.0f, 1.0f, "%"));
+    add (floatParam  (ParamIDs::jamKitWidth,       "Jam Kit Width", 0.0f, 100.0f, 70.0f, 1.0f, "%"));
+    add (choiceParam (ParamIDs::jamKitPerspective, "Jam Kit Perspective", { "Audience", "Drummer" }, 0));
+    add (choiceParam (ParamIDs::jamBassVoice,      "Jam Bass Voice", { "Auto", "Finger", "Pick", "Muted Pick", "Upright" }, 0));
+    add (floatParam  (ParamIDs::jamBassTone,       "Jam Bass Tone", 0.0f, 1.0f, 0.5f));
+    add (floatParam  (ParamIDs::jamVolume,         "Jam Volume", -60.0f, 6.0f, -6.0f, 1.0f, "dB"));
+    add (floatParam  (ParamIDs::jamBalance,        "Jam Balance", -1.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::jamDrumsPan,       "Jam Drums Pan", -1.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::jamBassPan,        "Jam Bass Pan", -1.0f, 1.0f, 0.0f));
+    add (boolParam   (ParamIDs::jamDrumsMute,      "Jam Drums Mute", false));
+    add (boolParam   (ParamIDs::jamBassMute,       "Jam Bass Mute", false));
+    add (choiceParam (ParamIDs::jamOutput,         "Jam Output", { "Main", "Separate", "Main + Separate" }, 0));
+    // ==== END FEAT-JAM params ====
+
     return layout;
 }
 
@@ -766,6 +958,22 @@ ParameterBridge::~ParameterBridge()
 
 void ParameterBridge::parameterValueChanged (int parameterIndex, float)
 {
+    ++writeSerial;
+
+    // When, for writtenSinceGuitarType(). Never 0, which means "never written".
+    if (juce::isPositiveAndBelow (parameterIndex, numLastWrite) && stampingWrites.load (std::memory_order_relaxed))
+        lastWrite[(size_t) parameterIndex].store (juce::jmax ((juce::uint32) 1, juce::Time::getMillisecondCounter()),
+                                                  std::memory_order_relaxed);
+
+    // A type the player picked in the UI arrives inside a gesture (the
+    // attachments wrap every edit in one); a host, a session, a preset or a
+    // snapshot writes without one.
+    const bool byPlayer = juce::isPositiveAndBelow (parameterIndex, numLastWrite)
+                            && inGesture[(size_t) parameterIndex].load (std::memory_order_relaxed);
+
+    if (parameterIndex == guitarTypeIndex)
+        guitarTypeByPlayer.store (byPlayer, std::memory_order_relaxed);
+
     if (! juce::isPositiveAndBelow (parameterIndex, (int) slotOfParameter.size()))
         return;
 
@@ -776,12 +984,46 @@ void ParameterBridge::parameterValueChanged (int parameterIndex, float)
 
     const int which = code % 16;
     const int chain = (code / 16) / EffectsChain::kNumSlots, slot = (code / 16) % EffectsChain::kNumSlots;
-    const auto serial = ++writeSerial;
+    const auto serial = writeSerial.load (std::memory_order_relaxed);
 
     if (which == 15)
+    {
         typeWritten[(size_t) chain][(size_t) slot].store (serial, std::memory_order_relaxed);
+        typeByPlayer[(size_t) chain][(size_t) slot].store (byPlayer, std::memory_order_relaxed);
+    }
     else
         paramsWritten[(size_t) chain][(size_t) slot].store (serial, std::memory_order_relaxed);
+}
+
+void ParameterBridge::parameterGestureChanged (int parameterIndex, bool starting)
+{
+    if (juce::isPositiveAndBelow (parameterIndex, numLastWrite))
+        inGesture[(size_t) parameterIndex].store (starting, std::memory_order_relaxed);
+}
+
+bool ParameterBridge::writtenSinceGuitarType (const juce::String& id) const noexcept
+{
+    const int index = parameterIndex (id);
+
+    if (! juce::isPositiveAndBelow (index, numLastWrite) || ! juce::isPositiveAndBelow (guitarTypeIndex, numLastWrite))
+        return false;
+
+    /*  Written with the type (a session restore, a flush of automation, a
+        snapshot - all land within a few ms, in any order) or after it: the
+        host's value. A value set well before the type changed is the old
+        guitar's, and the new guitar replaces it. */
+    constexpr juce::uint32 togetherMs = 250;
+    const auto written = lastWrite[(size_t) index].load (std::memory_order_relaxed);
+    const auto type = lastWrite[(size_t) guitarTypeIndex].load (std::memory_order_relaxed);
+
+    if (written == 0 || type == 0)
+        return false;
+
+    // The player picked the guitar: only what they have touched since is theirs.
+    if (guitarTypeByPlayer.load (std::memory_order_relaxed))
+        return (int) (written - type) > 0;
+
+    return (int) (written - type) > - (int) togetherMs;
 }
 
 void ParameterBridge::cachePointers()
@@ -806,6 +1048,58 @@ void ParameterBridge::cachePointers()
         }
     }
 
+    // The audio thread's lookup table (see FastEntry).
+    {
+        size_t size = 1;
+        while (size < (size_t) parameters.size() * 4)
+            size <<= 1;
+
+        fastTable.assign (size, FastEntry {});
+        fastMask = size - 1;
+
+        for (int i = 0; i < parameters.size(); ++i)
+        {
+            auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameters[i]);
+
+            if (withId == nullptr)
+                continue;
+
+            const std::string id = withId->paramID.toStdString();
+            const auto h = hashId (id.c_str());
+            size_t slotIndex = (size_t) h & fastMask;
+
+            while (fastTable[slotIndex].index >= 0)
+                slotIndex = (slotIndex + 1) & fastMask;
+
+            auto& e = fastTable[slotIndex];
+            e.hash = h;
+            e.id = id;
+            e.index = i;
+            e.pointer = apvts.getRawParameterValue (withId->paramID);
+        }
+
+        for (int chain = 0; chain < 2; ++chain)
+            for (int slot = 0; slot < EffectsChain::kNumSlots; ++slot)
+            {
+                slotBypassIds[(size_t) chain][(size_t) slot] = ParamIDs::slotBypass (chain == 1, slot).toStdString();
+                slotMixIds[(size_t) chain][(size_t) slot] = ParamIDs::slotMix (chain == 1, slot).toStdString();
+                slotTypeIds[(size_t) chain][(size_t) slot] = ParamIDs::slotType (chain == 1, slot).toStdString();
+
+                for (int p = 0; p < Pedal::kMaxParams; ++p)
+                    slotParamIds[(size_t) chain][(size_t) slot][(size_t) p] = ParamIDs::slotParam (chain == 1, slot, p).toStdString();
+            }
+
+        for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
+        {
+            pickupTypeIds[(size_t) slot] = ParamIDs::pickupType (slot).toStdString();
+            pickupMagnetIds[(size_t) slot] = ParamIDs::pickupMagnet (slot).toStdString();
+            pickupVolumeIds[(size_t) slot] = ParamIDs::pickupVolume (slot).toStdString();
+        }
+
+        for (int n = 1; n <= ParamIDs::kNumNutDepths; ++n)
+            nutDepthIds[(size_t) n] = ParamIDs::setupNutDepth (n).toStdString();
+    }
+
     // The pedal slots' write order (see parameterValueChanged).
     for (auto* p : watched)
         p->removeListener (this);
@@ -815,6 +1109,20 @@ void ParameterBridge::cachePointers()
 
     static_assert (Pedal::kMaxParams < 15, "the slot code keeps 15 for the type");
 
+    // Every parameter reports its writes, for writtenSinceGuitarType().
+    numLastWrite = parameters.size();
+    lastWrite.reset (new std::atomic<juce::uint32>[(size_t) numLastWrite]);
+    inGesture.reset (new std::atomic<bool>[(size_t) numLastWrite]);
+    for (int i = 0; i < numLastWrite; ++i)
+    {
+        lastWrite[(size_t) i].store (0, std::memory_order_relaxed);
+        inGesture[(size_t) i].store (false, std::memory_order_relaxed);
+        parameters[i]->addListener (this);
+        watched.add (parameters[i]);
+    }
+    guitarTypeIndex = parameterIndex (ParamIDs::guitarType);
+
+
     auto watch = [this, &parameters] (const juce::String& id, int code)
     {
         const int index = parameterIndex (id);
@@ -822,8 +1130,6 @@ void ParameterBridge::cachePointers()
         if (juce::isPositiveAndBelow (index, parameters.size()))
         {
             slotOfParameter[(size_t) index] = code;
-            parameters[index]->addListener (this);
-            watched.add (parameters[index]);
         }
     };
 
@@ -838,6 +1144,73 @@ void ParameterBridge::cachePointers()
                 watch (ParamIDs::slotParam (chain == 1, slot, p), base + p);
         }
     }
+}
+
+juce::uint64 ParameterBridge::hashId (const char* id) noexcept
+{
+    // FNV-1a.
+    juce::uint64 h = 1469598103934665603ull;
+
+    for (auto* c = id; c != nullptr && *c != 0; ++c)
+        h = (h ^ (juce::uint8) *c) * 1099511628211ull;
+
+    return h;
+}
+
+const ParameterBridge::FastEntry* ParameterBridge::find (const char* id) const noexcept
+{
+    if (id == nullptr || fastTable.empty())
+        return nullptr;
+
+    const auto h = hashId (id);
+
+    for (size_t i = (size_t) h & fastMask, probes = 0; probes <= fastMask; i = (i + 1) & fastMask, ++probes)
+    {
+        const auto& e = fastTable[i];
+
+        if (e.pointer == nullptr && e.index < 0)
+            return nullptr;
+
+        if (e.hash == h && e.id == id)
+            return &e;
+    }
+
+    return nullptr;
+}
+
+int ParameterBridge::parameterIndex (const char* id) const noexcept
+{
+    if (auto* e = find (id))
+        return e->index;
+
+    return -1;
+}
+
+float ParameterBridge::baseValue (const char* id) const noexcept
+{
+    if (auto* ptr = raw (id))
+        return ptr->load (std::memory_order_relaxed);
+
+    return 0.0f;
+}
+
+std::atomic<float>* ParameterBridge::raw (const char* id) const noexcept
+{
+    if (auto* e = find (id))
+        return e->pointer;
+
+    return nullptr;
+}
+
+float ParameterBridge::value (const char* id) const noexcept
+{
+    const auto* e = find (id);
+    const float base = (e != nullptr && e->pointer != nullptr) ? e->pointer->load (std::memory_order_relaxed) : 0.0f;
+
+    if (modMatrix == nullptr || ! modMatrix->isActive())
+        return base;
+
+    return modMatrix->apply (e != nullptr ? e->index : -1, base);
 }
 
 int ParameterBridge::parameterIndex (const juce::String& id) const noexcept
@@ -869,6 +1242,61 @@ float ParameterBridge::value (const juce::String& id) const noexcept
 
     return modMatrix->apply (parameterIndex (id), base);
 }
+
+// ==== BEGIN FEAT-JAM params ====
+JamSettings ParameterBridge::readJam() const noexcept
+{
+    // jam-mode 10. Read through value(), so modulation and automation apply.
+    JamSettings j;
+    j.enabled        = value (ParamIDs::jamEnabled) > 0.5f;
+    j.play           = value (ParamIDs::jamPlay) > 0.5f;
+    j.fillNow        = value (ParamIDs::jamFillNow) > 0.5f;
+    j.style          = juce::roundToInt (value (ParamIDs::jamStyle));
+    j.variation      = juce::roundToInt (value (ParamIDs::jamVariation));
+    j.intensity      = juce::roundToInt (value (ParamIDs::jamIntensity));
+    j.fillEvery      = juce::roundToInt (value (ParamIDs::jamFillEvery));
+    j.follow         = juce::roundToInt (value (ParamIDs::jamFollow));
+    j.predict        = value (ParamIDs::jamPredict) > 0.5f;
+    j.chordSource    = juce::roundToInt (value (ParamIDs::jamChordSource));
+    j.startMode      = juce::roundToInt (value (ParamIDs::jamStartMode));
+    j.countInBars    = juce::roundToInt (value (ParamIDs::jamCountInBars));
+    j.stopOnSilence  = value (ParamIDs::jamStopOnSilence) > 0.5f;
+    j.silenceBars    = juce::roundToInt (value (ParamIDs::jamSilenceBars));
+    j.ending         = value (ParamIDs::jamEnding) > 0.5f;
+    j.dynamicsFollow = value (ParamIDs::jamDynamicsFollow) > 0.5f;
+    j.swing          = value (ParamIDs::jamSwing);
+    j.humanise       = value (ParamIDs::jamHumanise);
+    j.kit            = juce::roundToInt (value (ParamIDs::jamKit));
+    j.kitAuto        = value (ParamIDs::jamKitAuto) > 0.5f;
+    j.kitTuning      = value (ParamIDs::jamKitTuning);
+    j.kitDamping     = value (ParamIDs::jamKitDamping);
+    j.kitRoom        = value (ParamIDs::jamKitRoom);
+    j.kitWidth       = value (ParamIDs::jamKitWidth);
+    j.perspective    = juce::roundToInt (value (ParamIDs::jamKitPerspective));
+    j.bassVoice      = juce::roundToInt (value (ParamIDs::jamBassVoice));
+    j.bassTone       = value (ParamIDs::jamBassTone);
+    j.volumeDb       = value (ParamIDs::jamVolume);
+    j.balance        = value (ParamIDs::jamBalance);
+    j.drumsPan       = value (ParamIDs::jamDrumsPan);
+    j.bassPan        = value (ParamIDs::jamBassPan);
+    j.drumsMute      = value (ParamIDs::jamDrumsMute) > 0.5f;
+    j.bassMute       = value (ParamIDs::jamBassMute) > 0.5f;
+    j.output         = juce::roundToInt (value (ParamIDs::jamOutput));
+
+    // jam-mode 15: a Free build plays the nearest Free choice and keeps the stored value.
+    if constexpr (JamEdition::kIsFree)
+    {
+        j.style = JamEdition::nearestFree (JamEdition::Item::style, j.style);
+        j.kit = JamEdition::nearestFree (JamEdition::Item::kit, j.kit);
+        j.bassVoice = JamEdition::nearestFree (JamEdition::Item::bassVoice, j.bassVoice);
+        j.output = JamEdition::nearestFree (JamEdition::Item::output, j.output);
+        j.kitTuning = 0.0;
+        j.kitDamping = 40.0;
+    }
+
+    return j;
+}
+// ==== END FEAT-JAM params ====
 
 //==============================================================================
 void ParameterBridge::applyToEngine() noexcept
@@ -957,7 +1385,7 @@ void ParameterBridge::applyToEngine() noexcept
         setup.sitarMode     = value (ParamIDs::setupSitarMode) > 0.5f;
 
         for (int s = 0; s < SetupGeometry::kMaxStrings; ++s)
-            setup.nutDepth[(size_t) s] = value (ParamIDs::setupNutDepth (s % ParamIDs::kNumNutDepths + 1));
+            setup.nutDepth[(size_t) s] = value (nutDepthIds[(size_t) (s % ParamIDs::kNumNutDepths + 1)].c_str());
 
         engine.setSetupGeometry (setup);
     }
@@ -999,7 +1427,7 @@ void ParameterBridge::applyToEngine() noexcept
 
     for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
     {
-        pickups.setPickupVolume (slot, value (ParamIDs::pickupVolume (slot)));
+        pickups.setPickupVolume (slot, value (pickupVolumeIds[(size_t) slot].c_str()));
     }
 
     // ---- performance -------------------------------------------------------------
@@ -1043,6 +1471,70 @@ void ParameterBridge::applyToEngine() noexcept
         rhythm.setStrumSettings (strum);
         interp.setStrumSettings (strum);
     }
+
+    // ---- slap (bass-techniques.md 2-5, string-slap-technique.md 1) ---------------
+    {
+        SlapSettings slap;
+        slap.armed                  = value (ParamIDs::slapArmed) > 0.5f;
+        slap.type                   = (SlapType) juce::jlimit (0, (int) SlapType::numTypes - 1, (int) value (ParamIDs::slapType));
+        slap.trigger                = (TriggerSource) juce::jlimit (0, (int) TriggerSource::numSources - 1,
+                                                                    (int) value (ParamIDs::slapTrigger));
+        slap.velocityZone           = juce::roundToInt (value (ParamIDs::slapVelocityZone));
+        slap.triggerCc              = juce::roundToInt (value (ParamIDs::slapTriggerCc));
+        slap.ghostCc                = juce::roundToInt (value (ParamIDs::slapGhostCc));
+        slap.slapStrength           = value (ParamIDs::slapStrength);
+        slap.slapPositionMm         = value (ParamIDs::slapPositionMm);
+        slap.thumbHardness          = value (ParamIDs::slapThumbHardness);
+        slap.fretContact            = value (ParamIDs::slapFretContact);
+        slap.popStrength            = value (ParamIDs::popStrength);
+        slap.popPositionMm          = value (ParamIDs::popPositionMm);
+        slap.doubleThump            = value (ParamIDs::doubleThumpEnabled) > 0.5f;
+        slap.upRatio                = value (ParamIDs::doubleThumpUpRatio);
+        slap.ghostLevel             = value (ParamIDs::ghostLevel);
+        slap.ghostDamping           = value (ParamIDs::ghostDamping);
+        slap.ghostAuto              = value (ParamIDs::ghostAuto) > 0.5f;
+        slap.ghostVelocityThreshold = juce::roundToInt (value (ParamIDs::ghostVelocityThreshold));
+        slap.force                  = value (ParamIDs::slapForce);
+        slap.palmPositionMm         = value (ParamIDs::slapPalmPositionMm);
+        slap.stringMask             = juce::roundToInt (value (ParamIDs::slapStringMask));
+        slap.ghostMode              = value (ParamIDs::slapGhostMode) > 0.5f;
+        slap.reboundGapMs           = value (ParamIDs::slapReboundGap);
+        slap.snapBack               = value (ParamIDs::slapSnapBack);
+        slap.bodyPart               = (BodyPart) juce::jlimit (0, (int) BodyPart::numParts - 1, (int) value (ParamIDs::slapBodyPart));
+        engine.setSlapSettings (slap);
+    }
+
+    // ==== BEGIN REALISM-A params ====
+    {
+        // string-aging.md 5
+        StringAging::Inputs in;
+        in.hours = value (ParamIDs::stringAgeHours);
+        in.corrosivity = value (ParamIDs::stringCorrosivity);
+        in.detail = value (ParamIDs::stringAgeDetail);
+        in.coating = (StringCoating) juce::jlimit (0, (int) StringCoating::numCoatings - 1,
+                                                   juce::roundToInt (value (ParamIDs::stringCoating)));
+        in.accrual = (AgeAccrual) juce::jlimit (0, (int) AgeAccrual::numRates - 1,
+                                                juce::roundToInt (value (ParamIDs::stringAgeAccrual)));
+        engine.getStringAging().setInputs (in);
+
+        // environment.md 5
+        EnvironmentModel::Inputs env;
+        env.temperatureC = value (ParamIDs::envTemperatureC);
+        env.tunedAtC = value (ParamIDs::envTunedAtC);
+        env.humidityPct = value (ParamIDs::envHumidityPct);
+        env.profile = (EnvProfile) juce::jlimit (0, (int) EnvProfile::numProfiles - 1,
+                                                 juce::roundToInt (value (ParamIDs::envProfile)));
+        env.clock = (EnvClock) juce::jlimit (0, (int) EnvClock::numClocks - 1,
+                                             juce::roundToInt (value (ParamIDs::envClock)));
+        engine.getEnvironment().setInputs (env);
+
+        // body-coupling.md 4
+        engine.getBodyCoupling().setAmount (value (ParamIDs::bodyCouplingAmount));
+        engine.getBodyCoupling().setModeCount (4 * (1 + juce::jlimit (0, 3, juce::roundToInt (value (ParamIDs::bodyCouplingModes)))));
+        engine.setBodyModeScales (value (ParamIDs::bodyModeFreqScale), value (ParamIDs::bodyModeQScale),
+                                  value (ParamIDs::bodyModeMassScale));
+    }
+    // ==== END REALISM-A params ====
 
     auto& tech = engine.getTechniqueEngine();
     tech.setLegatoWindowMs (value (ParamIDs::legatoWindow));
@@ -1189,18 +1681,81 @@ void ParameterBridge::applyToEngine() noexcept
 
         for (int slot = 0; slot < EffectsChain::kNumSlots; ++slot)
         {
-            fx.setSlotBypassed (slot, value (ParamIDs::slotBypass (post, slot)) > 0.5f);
-            fx.setSlotMix (slot, value (ParamIDs::slotMix (post, slot)));
+            // Under the chain's swap lock: the message thread may be replacing
+            // this slot's pedal right now.
+            std::array<float, Pedal::kMaxParams> params {};
 
-            if (auto* pedal = fx.getPedal (slot))
-            {
-                const int numParams = juce::jmin (pedal->getNumParameters(), Pedal::kMaxParams);
+            for (int p = 0; p < Pedal::kMaxParams; ++p)
+                params[(size_t) p] = value (slotParamIds[(size_t) chain][(size_t) slot][(size_t) p].c_str());
 
-                for (int p = 0; p < numParams; ++p)
-                    pedal->setParameterNormalised (p, value (ParamIDs::slotParam (post, slot, p)));
-            }
+            fx.applySlotState (slot, value (slotBypassIds[(size_t) chain][(size_t) slot].c_str()) > 0.5f,
+                               value (slotMixIds[(size_t) chain][(size_t) slot].c_str()), params.data(), Pedal::kMaxParams);
         }
     }
+
+    // ==== BEGIN MODEL-GAPS params ====
+    {
+        BassFingerstyleSettings fingers;
+        fingers.alternationVariation = value (ParamIDs::fingerAlternationVariation);
+        fingers.restStroke = value (ParamIDs::restStroke) > 0.5f;
+        engine.setBassFingerstyle (fingers);
+        engine.setAuxDiPreCircuit (value (ParamIDs::aux1PreCircuit) > 0.5f);
+    }
+    // ==== END MODEL-GAPS params ====
+    // ==== BEGIN REALISM-C params ====
+    // noise-floor.md 4.5: the settings once per block; the region drives the
+    // pickups' hum and the noise floor together.
+    {
+        NoiseFloorSettings nf;
+        nf.mainsHz        = (int) value (ParamIDs::noiseMainsHz) == 1 ? 50.0 : 60.0;
+        nf.angleDegrees   = value (ParamIDs::noisePlayerAngle);
+        nf.distanceMetres = value (ParamIDs::noisePlayerDistance);
+        nf.fluorescent    = value (ParamIDs::noiseFluorescent);
+        nf.passiveHiss    = value (ParamIDs::noisePassiveHiss);
+        nf.cableMovement  = value (ParamIDs::noiseCableMovement);
+        nf.radio          = value (ParamIDs::noiseRadio);
+        nf.groundLoop     = value (ParamIDs::noiseGroundLoop);
+        nf.ampHiss        = value (ParamIDs::noiseAmpHiss);
+        nf.microphonics   = value (ParamIDs::noiseMicrophonics);
+        nf.toAux8         = value (ParamIDs::noiseFloorToAux8) > 0.5f;
+        engine.setNoiseFloorSettings (nf);
+        engine.getNoiseFloor().setHumForMeter (value (ParamIDs::ampBuzz));
+        engine.getPickupEngine().setMainsFrequency (nf.mainsHz);
+    }
+
+    // sustain-and-decay.md 7: the shape, set at block rate.
+    {
+        StringEngine::SustainShape shape;
+        shape.attackTransient   = value (ParamIDs::sustainAttackTransient);
+        shape.attackTimeSeconds = value (ParamIDs::sustainAttackTime) * 0.001;
+        shape.fastShare         = value (ParamIDs::sustainFastShare);
+        shape.fastRatio         = value (ParamIDs::sustainFastRatio);
+        shape.tensionMod        = value (ParamIDs::sustainTensionMod);
+        shape.releaseSeconds    = value (ParamIDs::sustainReleaseTime) * 0.001;
+        shape.releaseSagMm      = value (ParamIDs::sustainReleaseSag);
+        shape.releaseRing       = value (ParamIDs::sustainReleaseRing);
+
+        // 4: +25 c in stock, +50 c in advanced. A value past its stock end is
+        // only reachable with the strings family unlocked.
+        shape.advanced = shape.tensionMod > 1.5 || shape.attackTransient > 1.0 || shape.fastShare > 0.9;
+        engine.setSustainShape (shape);
+    }
+
+    // tuning-stability.md 4.
+    {
+        StabilitySettings st;
+        st.amount      = value (ParamIDs::stabilityAmount);
+        st.settling    = value (ParamIDs::stabilitySettling);
+        st.nutBinding  = value (ParamIDs::stabilityNutBinding);
+        st.backlash    = value (ParamIDs::stabilityBacklash);
+        st.saddleCreep = value (ParamIDs::stabilitySaddleCreep);
+        st.bendMemory  = value (ParamIDs::stabilityBendMemory);
+        st.capoBias    = value (ParamIDs::stabilityCapoBias);
+        st.autoRetune  = (AutoRetune) juce::jlimit (0, (int) AutoRetune::numModes - 1,
+                                                    (int) value (ParamIDs::stabilityAutoRetune));
+        engine.getStabilityModel().setSettings (st);
+    }
+    // ==== END REALISM-C params ====
 
     // ---- structural change detection ---------------------------------------------
     const bool structural = readStructuralValues() || ! structuralInitialised;
@@ -1210,6 +1765,69 @@ void ParameterBridge::applyToEngine() noexcept
         structuralPending.store (true);
         triggerAsyncUpdate();
     }
+
+    // ==== BEGIN REALISM-B params ====
+    {
+        // harmonic-realism.md 5.
+        HarmonicTouchSettings touch;
+        touch.pressure      = value (ParamIDs::harmonicTouchPressure);
+        touch.fingerWidthMm = value (ParamIDs::harmonicFingerWidth);
+        touch.touchSeconds  = value (ParamIDs::harmonicTouchTime) * 0.001;
+        touch.briefSeconds  = value (ParamIDs::harmonicBriefTouch) * 0.001;
+        touch.thumbOffsetMm = value (ParamIDs::pinchThumbOffsetMm);
+        engine.setHarmonicTouch (touch);
+
+        MidiInterpreter::HarmonicSettings mapping;
+        mapping.artificialOffsetChoice = juce::roundToInt (value (ParamIDs::artificialHarmonicOffset));
+        mapping.tappedOffsetChoice     = juce::roundToInt (value (ParamIDs::tappedHarmonicOffset));
+        mapping.soundingPitch          = value (ParamIDs::harmonicNoteMapping) > 0.5f;
+
+        for (int s = 0; s < kMaxStrings; ++s)
+            mapping.inharmonicityB[s] = engine.getString (s).getPhysical().inharmonicityB;
+
+        engine.getMidiInterpreter().setHarmonicSettings (mapping);
+
+        // fingerstyle-attack.md 6.
+        RightHandSettings hand;
+        hand.fleshReleaseMs      = value (ParamIDs::fingerFleshReleaseMs);
+        hand.nailReleaseMs       = value (ParamIDs::fingerNailReleaseMs);
+        hand.thumbPositionOffset = value (ParamIDs::thumbPositionOffset);
+        hand.restStrokeDamping   = value (ParamIDs::restStrokeDamping);
+        hand.stroke = (RhStroke) juce::jlimit (0, (int) RhStroke::numStrokes - 1, juce::roundToInt (value (ParamIDs::rhStroke)));
+        hand.style  = (RhStyle) juce::jlimit (0, (int) RhStyle::numStyles - 1, juce::roundToInt (value (ParamIDs::rhStyle)));
+
+        for (int n = 1; n <= 6; ++n)
+            hand.stringTool[(size_t) (n - 1)] = (RhTool) juce::jlimit (0, (int) RhTool::numTools - 1,
+                                                                       juce::roundToInt (value (ParamIDs::rhStringTool (n))));
+
+        hand.thumbPalmMute = value (ParamIDs::thumbPalmMute);
+        hand.hybridSnap    = value (ParamIDs::hybridSnap);
+
+        // Reused from bass-techniques.md 11 when that spec's parameters exist.
+        if (raw (ParamIDs::fingerAlternationVariation) != nullptr)
+            hand.alternationVariation = value (ParamIDs::fingerAlternationVariation);
+
+        if (raw (ParamIDs::bassRestStroke) != nullptr)
+            hand.bassRestStroke = value (ParamIDs::bassRestStroke) > 0.5f;
+
+        engine.setRightHand (hand);
+
+        // string-interaction.md 7.
+        StringInteractionSettings interaction;
+        interaction.airAmount          = value (ParamIDs::couplingAirAmount);
+        interaction.palmSpreadMm       = value (ParamIDs::palmMuteSpread);
+        interaction.adjacentMute       = value (ParamIDs::adjacentMuteAmount);
+        interaction.releaseStaggerMs   = value (ParamIDs::releaseStaggerMs);
+        interaction.releaseStaggerBias = value (ParamIDs::releaseStaggerBias);
+        interaction.apertureScale      = value (ParamIDs::pickupApertureScale);
+        interaction.mutedThumpLevel    = value (ParamIDs::mutedThumpLevel);
+
+        // 3's fretting style: muting-rhythm.md's when it lands; until then a
+        // classical right hand means classical, arched fingers.
+        interaction.frettingStyle = hand.style == RhStyle::classical ? 0.1 : 1.0;
+        engine.setStringInteraction (interaction);
+    }
+    // ==== END REALISM-B params ====
 }
 
 bool ParameterBridge::readStructuralValues() noexcept
@@ -1229,7 +1847,8 @@ bool ParameterBridge::readStructuralValues() noexcept
     structural |= changed (lastTuning,         (int) value (ParamIDs::tuningPreset));
     structural |= changed (lastStringMaterial, (int) value (ParamIDs::stringMaterial));
     structural |= changed (lastStringGauge,    (int) value (ParamIDs::stringGauge));
-    structural |= changed (lastStringAge,      (int) value (ParamIDs::stringAge));
+    // string-aging.md 1: string_age is inert after load (the loader maps it to
+    // string_age_hours); it no longer rebuilds the strings. (REALISM-A)
     structural |= changed (lastBodyMode,       (int) value (ParamIDs::bodyMode));
     structural |= changed (lastBracing,        (int) value (ParamIDs::bodyBracing));
     structural |= changed (lastTopWood,        (int) value (ParamIDs::bodyTopWood));
@@ -1253,14 +1872,14 @@ bool ParameterBridge::readStructuralValues() noexcept
 
     for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
     {
-        structural |= changed (lastPickupType[slot],   (int) value (ParamIDs::pickupType (slot)));
-        structural |= changed (lastPickupMagnet[slot], (int) value (ParamIDs::pickupMagnet (slot)));
+        structural |= changed (lastPickupType[slot],   (int) value (pickupTypeIds[(size_t) slot].c_str()));
+        structural |= changed (lastPickupMagnet[slot], (int) value (pickupMagnetIds[(size_t) slot].c_str()));
     }
 
     for (int chain = 0; chain < 2; ++chain)
         for (int slot = 0; slot < EffectsChain::kNumSlots; ++slot)
             structural |= changed (lastSlotType[chain][slot],
-                                   (int) value (ParamIDs::slotType (chain == 1, slot)));
+                                   (int) value (slotTypeIds[(size_t) chain][(size_t) slot].c_str()));
 
     return structural;
 }
@@ -1303,14 +1922,42 @@ void ParameterBridge::pushSlotParameters (bool post, int slot)
 }
 
 //==============================================================================
+namespace
+{
+    /** Runs the fade hooks around the outermost structural pass only: a guitar
+        load inside a preset load re-enters applyAllNow. Message thread. */
+    struct StructuralFade
+    {
+        StructuralFade (int& depthIn, const std::function<void()>& before, const std::function<void()>& afterIn)
+            : depth (depthIn), after (afterIn)
+        {
+            if (depth++ == 0 && before != nullptr)
+                before();
+        }
+
+        ~StructuralFade()
+        {
+            if (--depth == 0 && after != nullptr)
+                after();
+        }
+
+        int& depth;
+        const std::function<void()>& after;
+    };
+}
+
 void ParameterBridge::handleAsyncUpdate()
 {
+    const StructuralFade fade (structuralDepth, beforeStructuralChange, afterStructuralChange);
+    const juce::ScopedLock sl (engineLock);
     applyStructural();
     structuralPending.store (false);
 }
 
 void ParameterBridge::applyAllNow()
 {
+    const StructuralFade fade (structuralDepth, beforeStructuralChange, afterStructuralChange);
+    const juce::ScopedLock sl (engineLock);
     structuralInitialised = false;
     applyToEngine();
     cancelPendingUpdate();
@@ -1354,7 +2001,6 @@ void ParameterBridge::applyStructural()
 
     engine.setStringMaterial ((StringMaterial) juce::jlimit (0, (int) StringMaterial::NumMaterials - 1, lastStringMaterial));
     engine.setStringGauge ((StringGauge) juce::jlimit (0, (int) StringGauge::NumGauges - 1, lastStringGauge));
-    engine.setStringAge ((StringAge) juce::jlimit (0, (int) StringAge::NumAges - 1, lastStringAge));
     engine.setFretless (value (ParamIDs::fretless) > 0.5f);
 
     // ---- body ------------------------------------------------------------------
@@ -1370,6 +2016,7 @@ void ParameterBridge::applyStructural()
         cfg.soundHoleScale = value (ParamIDs::bodySoundhole);
         cfg.age = value (ParamIDs::bodyAge);
         engine.getBodyEngine().setBodyConfig (cfg);
+        engine.rebuildBodyCoupling();   // body-coupling.md 3: one body, two views (REALISM-A)
 
         const int mode = juce::jlimit (0, 3, lastBodyMode);
         engine.getBodyEngine().setMode (mode == 0 ? BodyEngine::Mode::Convolution
@@ -1476,8 +2123,12 @@ void ParameterBridge::applyStructural()
                 // snapshot, a morph) keeps them; one the player has just picked
                 // starts at its own defaults, written back into the parameters
                 // so the UI and the preset agree with what is loaded.
-                const bool settingsCameWithIt = paramsWritten[(size_t) chain][(size_t) slot].load (std::memory_order_relaxed)
-                                              > typeWritten[(size_t) chain][(size_t) slot].load (std::memory_order_relaxed);
+                // Only a player's pick in the UI starts at the pedal's defaults;
+                // a host, session, preset or snapshot writes type and settings
+                // together, in whatever order its events arrive.
+                const bool settingsCameWithIt = ! typeByPlayer[(size_t) chain][(size_t) slot].load (std::memory_order_relaxed)
+                                              || paramsWritten[(size_t) chain][(size_t) slot].load (std::memory_order_relaxed)
+                                                   > typeWritten[(size_t) chain][(size_t) slot].load (std::memory_order_relaxed);
 
                 if (settingsCameWithIt)
                     pushSlotParameters (post, slot);
@@ -1498,6 +2149,12 @@ void ParameterBridge::applyStructural()
 
     // Anything that depends on the string physics has to be recomputed last.
     engine.refreshStringPhysics();
+
+    // ==== BEGIN REALISM-C params ====
+    // tuning-stability.md 7: a preset's own tuning changes are applied by now;
+    // later ones are the player's, and events again.
+    engine.getStabilityModel().endStructuralApply();
+    // ==== END REALISM-C params ====
 }
 
 } // namespace luthier
