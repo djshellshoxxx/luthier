@@ -60,7 +60,10 @@ juce_add_plugin(Luthier
     MICROPHONE_PERMISSION_ENABLED TRUE
     MICROPHONE_PERMISSION_TEXT  "Luthier uses audio input for its sidechain."
     ICON_BIG                    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon.png"
-    ICON_SMALL                  "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon_small.png")
+    ICON_SMALL                  "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon_small.png"
+    # installer.md 2.1.6 (IN-20): Launch Services associations for the six Luthier
+    # file types; Finder hands the file to StandaloneApp.cpp (anotherInstanceStarted).
+    DOCUMENT_EXTENSIONS         luthierpreset luthierguitar luthiertune luthierloop luthierset midprofile)
 
 file(GLOB_RECURSE LUTHIER_SOURCES CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/Source/*.cpp"
