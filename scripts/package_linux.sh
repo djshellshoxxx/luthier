@@ -23,10 +23,22 @@ SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct 2>/dev/null ||
 export SOURCE_DATE_EPOCH
 
 if [ -n "${BETA_README:-}" ]; then
-    [ -s "$BETA_README" ] && [ "${BETA_README##*/}" != 'README-BETA.template.md' ] || {
+    [ -s "$BETA_README" ] && [[ "$BETA_README" != *.template.md ]] || {
         echo "BETA_README must point to a nonempty completed README-BETA.md" >&2; exit 1;
     }
-    if grep -Eq '\[[A-Z][A-Z _/-]*\]|\b(TODO|TBD)\b' "$BETA_README"; then
+    # Keep the acceptance gate in line with the portable Windows package.
+    # A Markdown link is valid, but an unlinked bracketed field is not.
+    if python3 - "$BETA_README" <<'PY'
+import pathlib
+import re
+import sys
+
+text = pathlib.Path(sys.argv[1]).read_text(encoding='utf-8')
+sys.exit(not bool(re.search(
+    r'\[[^\]\r\n]+\](?!\()|\{\{[^}]+\}\}|\b(?:TODO|TBD|REPLACE ME)\b|'
+    r'Release owner: replace every bracketed field', text, re.IGNORECASE)))
+PY
+    then
         echo "BETA_README still contains a placeholder" >&2; exit 1
     fi
 fi
