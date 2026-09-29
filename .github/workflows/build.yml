@@ -1,7 +1,7 @@
 # Build, test and validate Luthier on Linux, Windows (MSVC) and macOS (universal).
 #
-# Called per push by ci-cadence.yml (Linux every push, Windows every 3rd and
-# macOS every 15th successful Linux build: plugin targets + LuthierTests +
+# Called per push and pull request by ci-cadence.yml (Linux, Windows and macOS
+# in parallel on every push: plugin targets + LuthierTests +
 # LuthierRender, unit tests, pluginval at strictness 5, clap-validator). On
 # manual dispatch: any platforms, LTO on and pluginval at strictness 10.
 # release.yml calls this workflow with package=true to build the installers

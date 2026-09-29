@@ -1,15 +1,9 @@
-# The product owner's build cadence (2026-09-26), to keep GitHub Actions
-# minutes in check:
-#   - Linux builds and tests on every push to the integration and edition
-#     branches.
-#   - Windows also builds on every 3rd successful Linux build.
-#   - macOS also builds on every 15th successful Linux build (macOS minutes
-#     cost 10x Linux ones).
+# Build cadence (2026-09-29): the repository is public, so GitHub-hosted
+# Linux, Windows and macOS runners are free. Every push to an integration or
+# edition branch, and every pull request, builds and tests all three
+# platforms in parallel. (The earlier every-3rd / every-15th gate existed only
+# to save paid minutes and has been removed.)
 # Any platform can still be run by hand: Actions -> build -> Run workflow.
-#
-# Counting: every Linux build that passes uploads a tiny marker artefact named
-# ci-linux-success. The gate counts those markers (one API call), so a failed
-# Linux build never advances the count. Markers are kept 90 days.
 name: ci
 
 on:
@@ -17,10 +11,18 @@ on:
     branches:
       - master
       - main
-      - claude/luthier-cloud-session-5lzlix   # integration
+      - claude/luthier-cloud-session-5lzlix   # previous integration branch
+      - claude/ecstatic-hawking-prpppy        # integration (2026-09-29)
       - claude/luthier-free
       - claude/luthier-pro
     tags-ignore: ['v*']   # release.yml handles version tags
+    paths-ignore:
+      - 'spec/**'
+      - 'docs/**'
+      - '**/*.md'
+      - 'troubleshooting/**'
+      - '*.png'
+  pull_request:
     paths-ignore:
       - 'spec/**'
       - 'docs/**'
@@ -45,49 +47,8 @@ jobs:
       platforms: linux
     secrets: inherit
 
-  gate:
-    name: Cadence
-    needs: linux
-    runs-on: ubuntu-latest
-    outputs:
-      windows: ${{ steps.count.outputs.windows }}
-      macos: ${{ steps.count.outputs.macos }}
-      number: ${{ steps.count.outputs.number }}
-    steps:
-      - id: count
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          before=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=ci-linux-success&per_page=1" --jq '.total_count')
-          n=$((before + 1))
-          # PAUSED 2026-09-26 (owner request): Windows and macOS builds are held
-          # until the project is fully complete. The cadence logic below is kept
-          # but forced off. To resume: restore the modulo lines and delete the
-          # two "false  # PAUSED" overrides.
-          windows=false; macos=false
-          # [ $((n % 3)) -eq 0 ] && windows=true    # PAUSED
-          # [ $((n % 15)) -eq 0 ] && macos=true     # PAUSED
-          windows=false   # PAUSED until project complete
-          macos=false     # PAUSED until project complete
-          echo "number=$n" >> "$GITHUB_OUTPUT"
-          echo "windows=$windows" >> "$GITHUB_OUTPUT"
-          echo "macos=$macos" >> "$GITHUB_OUTPUT"
-          {
-            echo "### Successful Linux build #$n"
-            echo "- Windows this time: $windows (PAUSED until project complete)"
-            echo "- macOS this time: $macos (PAUSED until project complete)"
-          } >> "$GITHUB_STEP_SUMMARY"
-          echo "$n" > marker.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ci-linux-success
-          path: marker.txt
-          retention-days: 90
-
   windows:
     name: Windows
-    needs: gate
-    if: needs.gate.outputs.windows == 'true'
     uses: ./.github/workflows/build.yml
     with:
       platforms: windows
@@ -95,8 +56,6 @@ jobs:
 
   macos:
     name: macOS
-    needs: gate
-    if: needs.gate.outputs.macos == 'true'
     uses: ./.github/workflows/build.yml
     with:
       platforms: macos
