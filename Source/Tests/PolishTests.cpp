@@ -354,3 +354,75 @@ LUTHIER_TEST (Localisation, theOptionsPageChoosesLocaleAndFallback)
     loc.setFallbackLocale (oldFallback);
     AccessibilitySettings::get().save();
 }
+
+//==============================================================================
+/*  A11Y-47: a screen-reader smoke over the editor. Every button, combo box,
+    slider and text field on screen in Easy and in Advanced has an accessible
+    name (title, or a button's own text) and a role: what NVDA, VoiceOver and
+    Orca read for it. */
+namespace
+{
+    struct A11yScan
+    {
+        int checked = 0;
+        juce::StringArray unnamed;
+
+        void walk (juce::Component& root, juce::Component& c, const juce::String& where)
+        {
+            for (auto* child : c.getChildren())
+            {
+                const bool interactive = dynamic_cast<juce::Button*> (child) != nullptr
+                                         || dynamic_cast<juce::ComboBox*> (child) != nullptr
+                                         || dynamic_cast<juce::Slider*> (child) != nullptr
+                                         || dynamic_cast<juce::TextEditor*> (child) != nullptr;
+
+                if (interactive && child->isShowing() && child->getWidth() > 0 && child->getHeight() > 0
+                    && ! child->isAccessibilityIgnored())
+                {
+                    ++checked;
+
+                    if (auto* handler = child->getAccessibilityHandler())
+                    {
+                        if (handler->getTitle().isEmpty())
+                            unnamed.add (where + ": " + juce::String (typeid (*child).name()) + " \"" + child->getName() + "\"");
+                    }
+                }
+
+                walk (root, *child, where);
+            }
+        }
+    };
+}
+
+LUTHIER_TEST (ScreenReader, everyInteractiveControlOnScreenHasAName)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    CHECK (editor != nullptr);
+
+    if (editor == nullptr)
+        return;
+
+    editor->setVisible (true);
+    editor->setSize (1600, 900);
+
+    A11yScan easy;
+    easy.walk (*editor, *editor, "Easy");
+
+    editor->keyPressed (AccessibilitySettings::get().findShortcut ("toggleAdvanced")->key);
+    A11yScan advanced;
+    advanced.walk (*editor, *editor, "Advanced");
+
+    CHECK_MSG (easy.checked > 10, "the scan found almost nothing in Easy");
+    CHECK_MSG (advanced.checked > easy.checked, "Advanced should show more controls than Easy");
+
+    juce::StringArray all;
+    all.addArray (easy.unnamed);
+    all.addArray (advanced.unnamed);
+    all.removeDuplicates (false);
+
+    CHECK_MSG (all.isEmpty(), juce::String (all.size()) + " unnamed control(s) of "
+                                + juce::String (easy.checked + advanced.checked) + ":\n  "
+                                + all.joinIntoString ("\n  "));
+}
