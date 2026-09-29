@@ -344,3 +344,6 @@ Plan while constrained:
 - WHEN CLAUDE WEEKLY RESETS: the coordinator itself does consolidation -> beta
   (per docs/plans/BETA_LINUX_WINDOWS.md) on one branch, single-threaded, token-
   lean. No parallel fleet until budget is healthy. Cap Opus sessions at 1-2.
+
+## Merge recipe available (2026-09-29)
+Replay consolidation from docs/handoff/CODEX_MERGE_CHECKPOINT.md (Codex mapped it but could not push; codex/luthier-beta is NOT on origin). Resume at integrate-2 conflicts, then remaining deltas, then beta.
