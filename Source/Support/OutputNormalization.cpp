@@ -19,9 +19,22 @@ namespace
         auto copy = presetVar.clone();
 
         if (auto* o = copy.getDynamicObject())
+        {
             for (const char* key : { "parameters", "name", "category", "author", "description",
                                      "tags", "pluginVersion", "midiMap" })
                 o->removeProperty (key);
+
+            /*  Merge with SPEC-SWEEP (SM-1, Presets/PresetBlocks.cpp): a preset now
+                carries the processor's blocks. Modulation, routing, character and
+                the tone-match slots are hashed from the live modules beside the
+                preset (captureStructural), and the snapshot bank, MIDI Learn and
+                the rhythm engine are performance, not the sound: capturing a
+                snapshot must not ask for a recalibration. */
+            for (const char* key : { "modulation", "snapshots", "midi_mappings", "midiMappings",
+                                     "rhythm_engine", "rhythmEngine", "routing", "character",
+                                     "tone_match", "toneMatch" })
+                o->removeProperty (key);
+        }
 
         return copy;
     }

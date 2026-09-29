@@ -96,9 +96,21 @@ pieces glow with what each string is doing.
 - Click the selector switch to advance its position.
 - Drag the volume and tone knobs on the body.
 
-Below the illustration, a **piano roll** shows the melody with chord names above it.
-This is the live tab display from the TUNE tab, showing what is currently playing
-and letting you edit the melody and chord progression while the music plays.
+The fretboard on the illustration shows the notes as they sound - and what is lit
+is what is actually ringing, including notes the chord voicer put somewhere you did
+not expect, which is exactly when you want to see it.
+
+The **playable fretboard** is the strip across the top of Advanced mode:
+
+- Click a fret to hear that note. How high in the string's lane you click sets how
+  hard it is picked.
+- Right-click for mute, capo, string selection and scale overlays.
+
+Fret spacing follows the real rule, so the frets crowd together up the neck exactly
+as they do on the instrument.
+
+To the right, a scrolling readout shows what is happening inside the plugin - MIDI,
+parameter changes, engine events. It stops when nothing is happening.
 
 ### Middle band - the macros
 
@@ -110,7 +122,7 @@ and letting you edit the melody and chord progression while the music plays.
 | **Tone** | global tone, dark to bright. Moves the guitar's tone control and the amp's treble together. |
 | **Space** | room and ambience. |
 | **Humanize** | timing, velocity, tuning and attack variation. At zero the plugin is machine-perfect. |
-| **Character** | wear, dead spots, fret noise, aged electronics and environment. Adds life and imperfection. |
+| **Character** | dead spots, tuner drift, fret wear, body age and string noise together - the amount on the CHARACTER tab, which has each one on its own. |
 
 Under each: a **dice** (randomise just this one) and a **padlock** (exclude it from
 Randomise).
@@ -258,7 +270,7 @@ Every control behaves the same way.
 | `Shift` + drag | Coarse |
 | `Ctrl` / `Cmd` + drag | Ultra-fine |
 | Double-click | Reset to default |
-| Hover | The value appears above the control; a tooltip follows after 400 ms |
+| Hover | The value appears above the control (the label stays); a tooltip follows after 400 ms |
 | Right-click | Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise, Modulate |
 
 ### MIDI Learn

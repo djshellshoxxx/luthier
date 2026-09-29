@@ -972,6 +972,17 @@ LUTHIER_TEST (Editor, theHeadstockPopoverEditsPerStringTuning)
     if (detune.size() != strings)
         return;
 
+    /*  SPEC-SWEEP (UW-5): the detune goes through the processor's command queue
+        and lands at the top of the next audio block, so each check renders one. */
+    auto renderOneBlock = [&processor]
+    {
+        juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumInputChannels(),
+                                                     processor.getTotalNumOutputChannels()), kBlock);
+        juce::MidiBuffer midi;
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+    };
+
     //--------------------------------------------------------------------------
     // Each one writes to its own string, and only to its own string.
     for (int i = 0; i < strings; ++i)
@@ -979,6 +990,7 @@ LUTHIER_TEST (Editor, theHeadstockPopoverEditsPerStringTuning)
         const double wanted = -37.5 + (double) i;
 
         detune[i]->setValue (wanted, juce::sendNotificationSync);
+        renderOneBlock();
 
         CHECK_MSG (std::abs (tuning.getStringTuning (i).detuneCents - wanted) < 1.0e-6,
                    "string " + juce::String (i + 1) + " detune did not reach the engine");
@@ -994,6 +1006,7 @@ LUTHIER_TEST (Editor, theHeadstockPopoverEditsPerStringTuning)
     const double openBefore = tuning.getEffectiveOpenFrequency (0);
 
     detune[0]->setValue (0.0, juce::sendNotificationSync);
+    renderOneBlock();
 
     const double openAtZero = tuning.getEffectiveOpenFrequency (0);
 

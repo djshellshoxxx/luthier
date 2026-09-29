@@ -177,6 +177,10 @@ public:
     void record (Category category, const juce::String& eventName,
                  const std::map<juce::String, juce::String>& fields = {});
 
+    /** SPEC-SWEEP: UT-2 - whether a field may be recorded at all: an allowlisted
+        key with a value that cannot be a path, an address or free text. */
+    static bool isAllowedField (const juce::String& key, const juce::String& value);
+
     /** Sends the day's records, if the category is on and a day has passed.
         Worker thread. Returns false if there was nothing to send or it was not
         allowed. */

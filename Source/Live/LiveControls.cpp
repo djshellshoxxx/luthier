@@ -408,6 +408,7 @@ void ExpressionCalibrationSet::set (const ExpressionCalibration& calibration)
 
     calibrations[(size_t) calibration.ccNumber] = calibration;
     present[(size_t) calibration.ccNumber] = true;
+    ++version;
 }
 
 void ExpressionCalibrationSet::remove (int ccNumber)
@@ -418,11 +419,13 @@ void ExpressionCalibrationSet::remove (int ccNumber)
     present[(size_t) ccNumber] = false;
     calibrations[(size_t) ccNumber] = ExpressionCalibration {};
     calibrations[(size_t) ccNumber].ccNumber = ccNumber;
+    ++version;
 }
 
 void ExpressionCalibrationSet::clear()
 {
     present.fill (false);
+    ++version;
 
     for (int cc = 0; cc < 128; ++cc)
     {

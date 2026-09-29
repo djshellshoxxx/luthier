@@ -59,6 +59,7 @@ namespace luthier
 {
 
 class PerformanceCapture;
+class IrSlot;   // SPEC-SWEEP TM-6
 
 //==============================================================================
 class LuthierEngine
@@ -392,6 +393,7 @@ public:
     int getEffectiveOversamplingFactor() const noexcept { return effectiveOversamplingFactor (oversamplingFactor, sr); }
 
     void setTempoBpm (double bpm) noexcept;
+    double getTempoBpm() const noexcept { return tempoBpm; }   // SPEC-SWEEP: LP-25 (tests)
 
     /** Host transport position, for the rhythm engine's grid. */
     void setTransportPosition (double ppqPosition, bool isPlaying) noexcept
@@ -409,6 +411,11 @@ public:
         and the slide bar. Null (the default) reports nothing. The capture must
         outlive the engine or be cleared first. */
     void setPerformanceCapture (PerformanceCapture* c) noexcept { perfCapture = c; }
+
+    /** SPEC-SWEEP TM-6 (tone-match 1): the TONE MATCH body IR slot, which
+        replaces the body's response while engaged. Owned by the caller, set
+        before audio starts; nullptr for none. */
+    void setBodyIrSlot (IrSlot* slot) noexcept { bodyIrSlot = slot; }
     PerformanceCapture* getPerformanceCapture() const noexcept { return perfCapture; }
 
     /*  ambiguity-resolutions 8 / routing-io 2 (MODEL-GAPS): Aux 1 (DI) taps the
@@ -538,6 +545,12 @@ public:
         the next processBlock call; pass nullptr for none. Audio thread. */
     void setDirectMidi (const juce::MidiBuffer* direct) noexcept { directMidi = direct; }
 
+    /** SPEC-SWEEP (RE-41, routing-io MIDI out): where the rhythm engine's strokes
+        go as MIDI for the next processBlock - note on/off, channel = string + 1,
+        at their samples. A stroke scheduled past the block's end is held and
+        written in the block it lands in. nullptr for none. Audio thread. */
+    void setRhythmMidiOut (juce::MidiBuffer* out) noexcept { rhythmMidiOut = out; }
+
     /** The real work. processBlock splits anything larger than the block size
         the engine was prepared for and calls this for each piece. */
     void processSubBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) noexcept;
@@ -552,6 +565,13 @@ public:
     // Live state for the UI. All lock-free reads.
 
     double getStringLevel (int i) const noexcept;
+
+    /** SPEC-SWEEP (character-wear 7 test): the sustain multiplier the note now on
+        string i started with (dead spot x fret wear x nut x slide x parts). */
+    double getNoteSustainScale (int i) const noexcept
+    {
+        return juce::isPositiveAndBelow (i, kMaxStrings) ? noteSustainScale[(size_t) i] : 1.0;
+    }
     double getStringFrequency (int i) const noexcept;
     int    getStringMidiNote (int i) const noexcept;
     double getStringFret (int i) const noexcept;
@@ -670,9 +690,24 @@ private:
     std::atomic<double> pendingBodyTap { 0.0 };
     // ==== END REALISM-A state ====
 
+    // SPEC-SWEEP (RE-41): the rhythm engine's strokes as MIDI out.
+    struct PendingRhythmMidi { juce::uint8 bytes[3]; int samplesFromNow; };
+    static constexpr int kMaxPendingRhythmMidi = 128;
+    std::array<PendingRhythmMidi, kMaxPendingRhythmMidi> pendingRhythmMidi {};
+    int numPendingRhythmMidi = 0;
+    juce::MidiBuffer* rhythmMidiOut = nullptr;
+    void writeRhythmMidi (const PlayEventQueue& strokes) noexcept;
+    void flushRhythmMidi (int numSamples) noexcept;
+
     /** The drift last written into the tuning engine, so a block that did not
         move it does not rewrite it. */
     std::array<double, kMaxStrings> lastAppliedDrift {};
+
+    // SPEC-SWEEP: CW-18 / CW-19 - character-wear 5's jack and piezo saddles.
+    std::array<double, kMaxStrings> saddleGain {};   ///< per-saddle piezo gain, set per block
+    std::vector<double> piezoSumBuffer;              ///< the saddle-weighted string sum
+    double jackGainNow = 1.0;                        ///< ramped towards CharacterEngine::getJackGain
+    double jackRampCoeff = 0.01;                     ///< a 3 ms one-pole
     Validator validator;
 
     double hostPpq = 0.0;
@@ -785,6 +820,8 @@ private:
 
     // ---- MODEL-GAPS: capture reporting and fingerstyle bass --------------------
     PerformanceCapture* perfCapture = nullptr;
+    IrSlot* bodyIrSlot = nullptr;           // SPEC-SWEEP TM-6
+    std::vector<float> bodyIrInput;         // SPEC-SWEEP TM-6: the body's excitation, kept for the IR
     juce::int64 hostBlockStart = 0;
     ChordSymbol lastCapturedChord;
     double lastCapturedBarFret = -2.0;

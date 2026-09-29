@@ -116,6 +116,15 @@ bool GenreKit::loadFrom (const juce::File& file)
     if (parsed.getDynamicObject() == nullptr)
         return false;
 
+    /*  SPEC-SWEEP: FF-5/FF-12 (file-formats 0.2, 0.5). Files written before the
+        marker carry none and still load; a file with some other magic, or a
+        schema newer than this build, is refused. */
+    if (const auto magic = parsed.getProperty ("magic", {}).toString(); magic.isNotEmpty() && magic != "luthier.genrekit")
+        return false;
+
+    if ((int) parsed.getProperty ("schema", 1) > 1)
+        return false;
+
     auto loaded = fromVar (parsed);
 
     if (! loaded.isValid())
@@ -128,7 +137,18 @@ bool GenreKit::loadFrom (const juce::File& file)
 bool GenreKit::saveTo (const juce::File& file) const
 {
     file.getParentDirectory().createDirectory();
-    return file.replaceWithText (juce::JSON::toString (toVar(), false));
+
+    // SPEC-SWEEP: FF-5/FF-12 - the file's marker and schema, file only (the
+    // same var is embedded in presets and snapshots without them).
+    auto data = toVar();
+
+    if (auto* object = data.getDynamicObject())
+    {
+        object->setProperty ("magic", "luthier.genrekit");
+        object->setProperty ("schema", 1);
+    }
+
+    return file.replaceWithText (juce::JSON::toString (data, false));
 }
 
 //==============================================================================

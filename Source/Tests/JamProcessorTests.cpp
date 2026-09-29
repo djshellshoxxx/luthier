@@ -376,20 +376,41 @@ LUTHIER_TEST (JamPlugin, JM35_presetsSnapshotsAndHostState)
 
 LUTHIER_TEST (JamPlugin, JM36_jamParametersAreTheLast34InTableOrder)
 {
+    /*  Merge with SPEC-SWEEP: the 34 were appended last, in table order, and
+        stay one contiguous block. A block appended after them (the spec
+        sweep's, which the parameter-list rule keeps last) may follow; nothing
+        named jam_ may sit before or after the block. */
     LuthierAudioProcessor p;
     const auto& params = p.getParameters();
     const int n = params.size();
     CHECK (n > ParamIDs::kNumJamParameters);
 
+    int first = -1;
+
+    for (int i = 0; i < n && first < 0; ++i)
+        if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (params[i]))
+            if (withId->paramID == ParamIDs::jamParameters[0])
+                first = i;
+
+    CHECK (first >= 0 && first + ParamIDs::kNumJamParameters <= n);
+
+    if (first < 0 || first + ParamIDs::kNumJamParameters > n)
+        return;
+
     for (int i = 0; i < ParamIDs::kNumJamParameters; ++i)
     {
-        auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (params[n - ParamIDs::kNumJamParameters + i]);
+        auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (params[first + i]);
         CHECK (withId != nullptr && withId->paramID == ParamIDs::jamParameters[i]);
     }
 
-    for (int i = 0; i < n - ParamIDs::kNumJamParameters; ++i)
-        if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (params[i]))
-            CHECK_MSG (! withId->paramID.startsWith ("jam_"), withId->paramID + " sits before the Jam block");
+    for (int i = 0; i < n; ++i)
+        if (i < first || i >= first + ParamIDs::kNumJamParameters)
+            if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (params[i]))
+                CHECK_MSG (! withId->paramID.startsWith ("jam_"), withId->paramID + " sits outside the Jam block");
+
+    // Only the SPEC-SWEEP block (currently snapshot_morph) follows it.
+    CHECK_MSG (n - (first + ParamIDs::kNumJamParameters) == 1,
+               juce::String (n - (first + ParamIDs::kNumJamParameters)) + " parameters follow the Jam block");
 }
 
 //==============================================================================

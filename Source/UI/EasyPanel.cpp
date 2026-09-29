@@ -430,9 +430,13 @@ void EasyPanel::buildRhythmStrip()
     rhythmReadout.setFont (Fonts::mono (13.0f));
     rhythmReadout.setColour (juce::Label::textColourId, Palette::accent);
     rhythmReadout.setJustificationType (juce::Justification::centredRight);
-    rhythmReadout.setTooltip ("The chord the rhythm engine is playing, and the next strum");
+    rhythmReadout.setTooltip ("The chord the rhythm engine is playing");
     addAndMakeVisible (rhythmReadout);
 
+    // SPEC-SWEEP (GD-10): the next strum is its own 60 Hz arrow now.
+    nextStrumArrow = std::make_unique<NextStrumArrow> (processor);
+    nextStrumArrow->setTooltip ("The next strum's direction; it flashes on each stroke");
+    addAndMakeVisible (*nextStrumArrow);
     // FEAT-JAM (jam-mode 8.2): the band's pill, style, intensity and volume.
     jamGroup = std::make_unique<JamStripGroup> (processor);
     addAndMakeVisible (*jamGroup);
@@ -480,13 +484,9 @@ void EasyPanel::refreshRhythmStrip()
 
     if (on)
     {
+        // SPEC-SWEEP (GD-10): the arrow is NextStrumArrow's; this is the chord.
         const auto chord = processor.getEngine().getLastChordName();
-        const auto next = engine.getNextStrumType();
-        const auto arrow = next == StrumType::down || next == StrumType::downMute ? juce::String::fromUTF8 ("\xe2\x86\x93")
-                         : next == StrumType::up || next == StrumType::upMute     ? juce::String::fromUTF8 ("\xe2\x86\x91")
-                         : next == StrumType::rest                                ? juce::String ("-")
-                                                                                  : juce::String ("~");
-        readout = (chord.isNotEmpty() ? chord : juce::String ("--")) + "  " + arrow;
+        readout = chord.isNotEmpty() ? chord : juce::String ("--");
     }
 
     rhythmReadout.setText (readout, juce::dontSendNotification);
@@ -536,17 +536,34 @@ void EasyPanel::applyStylePreset (int listIndex)
 }
 
 //==============================================================================
+// SPEC-SWEEP (GD-9): the last chord stays up, dimmed after three quiet seconds,
+// rather than vanishing the moment the hand lifts.
+void EasyPanel::tickChordReadout (double nowMs)
+{
+    const auto chord = processor.getEngine().getLastChordName();
+    const int activeNotes = processor.getEngine().getMidiInterpreter().getActiveNoteCount();
+
+    if (activeNotes > 0 && chord.isNotEmpty())
+    {
+        if (chordLabel.getText() != chord)
+            chordLabel.setText (chord, juce::dontSendNotification);
+
+        lastChordMs = nowMs;
+    }
+
+    const bool dim = nowMs - lastChordMs > kChordStaleMs;
+    const auto colour = dim ? Palette::textMuted : Palette::accent;
+
+    if (chordLabel.findColour (juce::Label::textColourId) != colour)
+        chordLabel.setColour (juce::Label::textColourId, colour);
+}
+
+//==============================================================================
 void EasyPanel::timerCallback()
 {
     auditionButton.setButtonText (processor.isAuditioning() ? "Stop" : "Audition");
 
-    const auto chord = processor.getEngine().getLastChordName();
-    const int activeNotes = processor.getEngine().getMidiInterpreter().getActiveNoteCount();
-
-    if (activeNotes == 0)
-        chordLabel.setText ({}, juce::dontSendNotification);
-    else if (chord.isNotEmpty())
-        chordLabel.setText (chord, juce::dontSendNotification);
+    tickChordReadout (juce::Time::getMillisecondCounterHiRes());   // SPEC-SWEEP GD-9
 
     // Keep the style list in step with preset changes made elsewhere.
     const int current = processor.getPresetManager().getCurrentPresetIndex();
@@ -729,7 +746,7 @@ void EasyPanel::resized()
             when even that does not fit (narrower than the window's minimum)
             is the group hidden rather than drawn outside the strip. */
         const bool hasJam = jamGroup != nullptr;
-        const int fixedW = 56 + 48 + Metrics::grid + 52 + Metrics::grid;
+        const int fixedW = 56 + 48 + Metrics::grid + 52 + Metrics::grid + 20;   // + SPEC-SWEEP GD-10's arrow
         constexpr int feelMin = 60;
         int genreW = 170, readoutW = 110, hintW = hasJam ? 90 : 110;
         int jamW = hasJam ? JamStripGroup::preferredWidth : 0;
@@ -765,6 +782,7 @@ void EasyPanel::resized()
         if (hasJam)
             jamGroup->setBounds (r.removeFromRight (jamW));
 
+        nextStrumArrow->setBounds (r.removeFromRight (20));   // SPEC-SWEEP GD-10
         rhythmReadout.setBounds (r.removeFromRight (readoutW));
         rhythmHintLabel.setBounds (r.removeFromRight (hintW));
         rhythmFeelSlider.setBounds (r);

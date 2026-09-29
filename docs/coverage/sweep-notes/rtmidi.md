@@ -1,0 +1,20 @@
+# SPEC-SWEEP notes: rtmidi worker
+
+- [RE-2] Pattern, bass grid and humanise reach the audio thread through a new `Support/TripleBuffer.h` (wait-free, reader never copies, only the writer frees) instead of the double buffer plus copy. The double buffer also had a race: two quick `setPattern` calls could write the slot the audio thread was still reading.
+- [RE-2] `getHumanise` took a CriticalSection on the audio thread. The audio thread now reads the triple-buffered copy, and the lock only serialises writers.
+- [RE-2 test] The global operator-new counter does not see `juce::HeapBlock` (it calls malloc directly), so the old `StringArray` copy would not have tripped it on its own. The test adds a concurrent writer thread to cover the race as well.
+- [UW-5/CB-17] `Support/CommandQueue.h` is an SPSC POD queue that the audio thread drains after the parameter bridge. It carries panic, string mute, string detune, rhythm reset and the aftertouch target. `LuthierAudioProcessor::panic()` now takes effect on the next block, not synchronously.
+- [UW-5] ModSourceCard posts a `ModSourceEdit` to `ModMatrix::postSourceEdit`, which the matrix applies at the top of `processBlock`. If no block has run for 250 ms (a stopped host), the message thread applies the edit itself under a SpinLock that `processBlock` only try-locks.
+- [CT-7] Choosing a profile (`processor.applyControllerProfile`) writes `mpe_enabled` and `bend_range` to match the profile, so the bridge carries the profile's values instead of fighting them. The rest of the profile reaches the interpreter on the audio thread (`Controllers/ControllerStage`). MPE member bends now use the member range (48); before, they used the per-string table (2 st).
+- [CT-4/CT-12] Latency compensation can only move events earlier inside the block they arrived in (clamped to sample 0). A note can never sound before it arrives, so the "carry into the next block" half of CT-12 does not apply. The wizard warns when the latency exceeds two host blocks.
+- [CT-18] MPE sticky strings: a member channel keeps its last string while that string can reach the pitch and no other channel holds it. Otherwise it takes the voicer's choice, then the nearest free string.
+- [PT-21] CC 11 master level scales `master_gain` in the bridge with a squared taper (0 maps to -60 dB). CCs mapped to the Drive/Tone/Space/Body/Attack targets move the macro parameters from the processor timer.
+- [PT-23] Aftertouch-to-bend is a session setting (Options > Controllers toggle), not a new parameter. `MidiTarget::PitchBend` is appended after REALISM-B's targets.
+- [PT-2, PT-29] The doc was narrowed: velocity-triggered harmonics and MPE timbre are not wired. Timbre is read per note but changes no sound yet.
+- [IR-14] "Bank + PC" is the default, which keeps live-performance 2. "PC only" is a session setting (Options > MIDI toggle), not a routing-matrix field.
+- [RE-35] Swing now places the offbeat at swing x the pair (0.66 means triplet feel). Before, it moved only half as far. The 50-75% slider range stays; spec 5 says 0-100%, but values below 50% would pull the offbeat early.
+- [RE-12] The hand span (3-7, default 5) is a rhythm-engine setting saved in the rhythm blob. The Wide style adds one fret.
+- [PR-13] `NEEDS_MIDI_OUTPUT TRUE`. The test target is a console app without the JucePlugin_* defines, so `PluginBuses::midiOutputIsDeclaredToTheHost` reads CMakeLists.txt.
+- [env] The shared `/home/user/luthier/ThirdParty/JUCE` became a symlink to itself partway through the sweep, which broke every worktree build. This worktree now has its own untracked clones of JUCE 8.0.10 and clap-juce-extensions@55525c9 (the versions `scripts/ci_build.sh` pins) in `ThirdParty/`.
+- [GD-10] The next-strum arrow is a separate component (`UI/NextStrumArrow`). The Easy rhythm readout now shows only the chord.
+- [GD-26] Deferred: a `kill_switch_active` parameter would be a new automatable parameter. The momentary toggle it needs (UW-14) is in place.

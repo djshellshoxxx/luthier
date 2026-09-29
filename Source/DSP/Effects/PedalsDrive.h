@@ -216,8 +216,9 @@ public:
     void setOversamplingFactor (int factor) noexcept { setOversamplingFactor (factor, factor, false); }
 
     /** cpu-quality-modes 2.2: run at `effective`, pad to `nominal`'s latency,
-        crossfading old and new paths over 10 ms when asked. */
-    void setOversamplingFactor (int effective, int nominal, bool crossfade) noexcept;
+        crossfading old and new paths over 10 ms when asked.
+        SPEC-SWEEP JG-4: overrides Pedal's virtual so the chain needs no dynamic_cast. */
+    void setOversamplingFactor (int effective, int nominal, bool crossfade) noexcept override;
 
     int getEffectiveOversamplingFactor() const noexcept { return oversampler.getFactor(); }
 

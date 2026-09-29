@@ -59,6 +59,9 @@ public:
 
     void resetMeters() noexcept;
 
+    /** SPEC-SWEEP (GD-8): blocks processed so far, so a display can tell a
+        fresh reading from one left over when audio stopped. */
+    juce::uint32 getBlockCount() const noexcept { return blockCount.load (std::memory_order_relaxed); }
     //==========================================================================
     /*  output-normalization.md 4.1: the calibrated gain stage. While the
         normalizer is inactive, processBlock runs the loop it always ran; while
@@ -138,6 +141,7 @@ private:
     double gainDb = 0.0;
 
     bool limiterEnabled = true;
+    std::atomic<juce::uint32> blockCount { 0 };   // SPEC-SWEEP GD-8
     double ceilingLinear = 0.966;
     double limiterEnv = 0.0;
     double limiterAttack = 0.0;

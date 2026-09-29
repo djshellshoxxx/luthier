@@ -20,6 +20,7 @@
 */
 
 #include "../DSP/Common/DspCommon.h"
+#include "ModRanges.h"   // SPEC-SWEEP: PR-44
 
 #include <array>
 #include <cmath>
@@ -105,9 +106,20 @@ public:
     void setShape (Shape s) noexcept { shape = s; }
     Shape getShape() const noexcept { return shape; }
 
-    /** Free rate in Hz, used when sync is off. */
-    void setRateHz (double hz) noexcept { rateHz = juce::jlimit (0.01, 40.0, hz); }
+    /** Free rate in Hz, used when sync is off. Clamped to the `modulation`
+        range family's stock or advanced pair (SPEC-SWEEP: PR-44). */
+    void setRateHz (double hz) noexcept { rateHz = ModRanges::lfoRateHz (advancedRange).clamp (hz); }
     double getRateHz() const noexcept { return rateHz; }
+
+    /** SPEC-SWEEP: PR-44 - locks or unlocks the rate's range; locking clamps
+        the current rate. Returns how many values were clamped. */
+    int setAdvancedRange (bool advanced) noexcept
+    {
+        advancedRange = advanced;
+        const double before = rateHz;
+        setRateHz (rateHz);
+        return rateHz != before ? 1 : 0;
+    }
 
     void setSynced (bool s) noexcept { synced = s; }
     bool isSynced() const noexcept { return synced; }
@@ -171,6 +183,7 @@ private:
     Retrigger retrigger = Retrigger::freeRun;
 
     double rateHz = 1.0;
+    bool advancedRange = false;   // SPEC-SWEEP: PR-44
     bool synced = false;
     ModSyncDivision division = ModSyncDivision::quarter;
 
@@ -214,10 +227,22 @@ public:
     void reset() noexcept;
 
     void setDelaySeconds (double s) noexcept   { delayTime = clampTime (s); }
-    void setAttackSeconds (double s) noexcept  { attackTime = clampTime (s); }
+    // SPEC-SWEEP: PR-44 - attack, decay and release are the `modulation`
+    // range family's; delay and hold are not in its table and keep 0-30 s.
+    void setAttackSeconds (double s) noexcept  { attackTime = ModRanges::envelopeSeconds (advancedRange).clamp (s); }
     void setHoldSeconds (double s) noexcept    { holdTime = clampTime (s); }
-    void setDecaySeconds (double s) noexcept   { decayTime = clampTime (s); }
-    void setReleaseSeconds (double s) noexcept { releaseTime = clampTime (s); }
+    void setDecaySeconds (double s) noexcept   { decayTime = ModRanges::envelopeSeconds (advancedRange).clamp (s); }
+    void setReleaseSeconds (double s) noexcept { releaseTime = ModRanges::envelopeSeconds (advancedRange).clamp (s); }
+
+    int setAdvancedRange (bool advanced) noexcept
+    {
+        advancedRange = advanced;
+        const double a = attackTime, d = decayTime, r = releaseTime;
+        setAttackSeconds (a);
+        setDecaySeconds (d);
+        setReleaseSeconds (r);
+        return (attackTime != a ? 1 : 0) + (decayTime != d ? 1 : 0) + (releaseTime != r ? 1 : 0);
+    }
 
     double getDelaySeconds() const noexcept   { return delayTime; }
     double getAttackSeconds() const noexcept  { return attackTime; }
@@ -262,6 +287,7 @@ private:
     double delayTime = 0.0, attackTime = 0.005, holdTime = 0.0;
     double decayTime = 0.15, releaseTime = 0.2;
     double sustainLevel = 0.7;
+    bool advancedRange = false;   // SPEC-SWEEP: PR-44
 
     std::array<ModCurve, (size_t) Stage::numStages> curves {};
 
@@ -316,7 +342,16 @@ public:
     /** Internal clock rate, used when the sequencer is not synced to the host. */
     void setSynced (bool s) noexcept { synced = s; }
     bool isSynced() const noexcept { return synced; }
-    void setInternalRateHz (double hz) noexcept { internalRateHz = juce::jlimit (0.05, 40.0, hz); }
+    void setInternalRateHz (double hz) noexcept { internalRateHz = ModRanges::sequencerRateHz (advancedRange).clamp (hz); }
+    double getInternalRateHz() const noexcept { return internalRateHz; }
+
+    int setAdvancedRange (bool advanced) noexcept   // SPEC-SWEEP: PR-44
+    {
+        advancedRange = advanced;
+        const double before = internalRateHz;
+        setInternalRateHz (internalRateHz);
+        return internalRateHz != before ? 1 : 0;
+    }
 
     void transportStarted() noexcept;
 
@@ -334,6 +369,7 @@ private:
     double swing = 0.0;
     bool synced = true;
     double internalRateHz = 4.0;
+    bool advancedRange = false;   // SPEC-SWEEP: PR-44
 
     std::array<Step, kMaxSteps> steps {};
 
@@ -366,6 +402,15 @@ public:
     double getAttackMs() const noexcept { return attackMs; }
     double getReleaseMs() const noexcept { return releaseMs; }
 
+    int setAdvancedRange (bool advanced) noexcept   // SPEC-SWEEP: PR-44
+    {
+        advancedRange = advanced;
+        const double a = attackMs, r = releaseMs;
+        setAttackMs (a);
+        setReleaseMs (r);
+        return (attackMs != a ? 1 : 0) + (releaseMs != r ? 1 : 0);
+    }
+
     void setDetection (Detection d) noexcept { detection = d; }
     Detection getDetection() const noexcept { return detection; }
 
@@ -390,6 +435,7 @@ public:
 private:
     double controlRate = 344.0;
     double attackMs = 10.0, releaseMs = 200.0;
+    bool advancedRange = false;   // SPEC-SWEEP: PR-44
     double attackCoeff = 0.0, releaseCoeff = 0.0;
 
     Detection detection = Detection::peak;

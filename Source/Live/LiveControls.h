@@ -227,6 +227,10 @@ public:
 
     juce::Array<int> getCalibratedCcNumbers() const;
 
+    /** SPEC-SWEEP (IR-11): bumped by every change to the calibrations, so the
+        processor knows when to republish its audio-thread lookup table. */
+    juce::uint32 getVersion() const noexcept { return version; }
+
     //==========================================================================
     /** The running state of the calibration wizard (live-performance 8). */
     enum class WizardStage { idle = 0, heel, toe, done };
@@ -256,6 +260,7 @@ public:
 private:
     std::array<ExpressionCalibration, 128> calibrations {};
     std::array<bool, 128> present {};
+    juce::uint32 version = 0;   // SPEC-SWEEP IR-11
 
     // --- wizard --------------------------------------------------------------------
     WizardStage stage = WizardStage::idle;

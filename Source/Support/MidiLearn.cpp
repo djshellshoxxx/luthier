@@ -32,6 +32,7 @@ void MidiLearnManager::startLearning (const juce::String& parameterId)
         learningParameter = parameterId;
     }
 
+    waitingSinceMs = juce::Time::getMillisecondCounter();   // SPEC-SWEEP: ER-38
     learning.store (true);
 
     // performance-budget.md 0.5: posting a message from the audio thread takes
@@ -57,6 +58,9 @@ void MidiLearnManager::cancelLearning()
 void MidiLearnManager::setArmed (bool shouldBeArmed)
 {
     const bool wasArmed = armed.exchange (shouldBeArmed);
+
+    if (shouldBeArmed && ! wasArmed)
+        waitingSinceMs = juce::Time::getMillisecondCounter();   // SPEC-SWEEP: ER-38
 
     /*  Disarming cancels a learn in flight, and does so even when the arm flag was
         already clear.
@@ -86,6 +90,19 @@ bool MidiLearnManager::claimArmedLearn (const juce::String& parameterId)
     startLearning (parameterId);
 
     // startLearning already broadcasts, so the header sees both changes at once.
+    return true;
+}
+
+bool MidiLearnManager::expireIfIdle (juce::uint32 nowMs)
+{
+    // SPEC-SWEEP: ER-38. A learn that caught its CC has already disarmed.
+    if (! armed.load() && ! learning.load())
+        return false;
+
+    if (nowMs - waitingSinceMs < kArmTimeoutMs)
+        return false;
+
+    setArmed (false);   // cancels a learn in flight as well
     return true;
 }
 
@@ -267,6 +284,55 @@ void MidiLearnManager::setMappingRange (const juce::String& parameterId, double 
 }
 
 //==============================================================================
+void MidiLearnManager::processMidi (juce::MidiBuffer& midi, juce::MidiBuffer& scratch) noexcept
+{
+    if (learning.load (std::memory_order_relaxed))
+    {
+        // The event the const overload will learn: the first CC it does not skip.
+        int learnedIndex = -1, index = 0;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isController())
+            {
+                const int cc = message.getControllerNumber();
+
+                if (! (cc == 64 || cc == 66 || cc == 123 || cc == 120))
+                {
+                    learnedIndex = index;
+                    break;
+                }
+            }
+
+            ++index;
+        }
+
+        if (learnedIndex >= 0)
+        {
+            processMidi (static_cast<const juce::MidiBuffer&> (midi));   // learns it, maps the rest
+
+            scratch.clear();
+            index = 0;
+
+            for (const auto metadata : midi)
+                if (index++ != learnedIndex)
+                    scratch.addEvent (metadata.data, metadata.numBytes, metadata.samplePosition);
+
+            midi.clear();
+
+            for (const auto metadata : scratch)
+                midi.addEvent (metadata.data, metadata.numBytes, metadata.samplePosition);
+
+            scratch.clear();
+            return;
+        }
+    }
+
+    processMidi (static_cast<const juce::MidiBuffer&> (midi));
+}
+
 void MidiLearnManager::processMidi (const juce::MidiBuffer& midi) noexcept
 {
     const bool isLearningNow = learning.load (std::memory_order_relaxed);
@@ -364,6 +430,10 @@ void MidiLearnManager::fromVar (const juce::var& data)
                 {
                     Mapping m;
                     m.parameterId = obj->getProperty ("parameter").toString();
+
+                    // SPEC-SWEEP: FF-26 - file-formats.md 2 spells it `param`.
+                    if (m.parameterId.isEmpty())
+                        m.parameterId = obj->getProperty ("param").toString();
                     m.ccNumber = (int) obj->getProperty ("cc");
                     m.channel = (int) obj->getProperty ("channel");
                     m.rangeMin = obj->hasProperty ("min") ? (double) obj->getProperty ("min") : 0.0;

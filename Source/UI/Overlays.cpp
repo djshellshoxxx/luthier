@@ -2,6 +2,7 @@
 #include "Overlays.h"
 #include "OptionsPages.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Accessibility.h"   // SPEC-SWEEP: A11Y-10
 #include "../Support/SupportLinks.h"
 #include "QualityOptions.h"   // cpu-quality-modes
 
@@ -92,6 +93,14 @@ void OverlayHost::show (OverlayPanel* panel)
     if (current != nullptr && current != panel)
         dismiss();
 
+    // SPEC-SWEEP: A11Y-11 - remember who opened it, unless that is inside an
+    // overlay itself (one overlay replacing another keeps the first launcher).
+    if (current == nullptr)
+    {
+        auto* focused = juce::Component::getCurrentlyFocusedComponent();
+        launcher = (focused != nullptr && ! isParentOf (focused)) ? focused : nullptr;
+    }
+
     current = panel;
     current->onDismiss = [this] { dismiss(); };
 
@@ -110,6 +119,12 @@ void OverlayHost::show (OverlayPanel* panel)
 
     current->overlayShown();
     current->grabKeyboardFocus();
+
+    // SPEC-SWEEP: A11Y-10 - announce it and put focus on its first control, so
+    // tabbing starts inside the dialog. Escape still reaches the panel: an
+    // unhandled key travels up to it.
+    AccessibleSetup::announceOverlayOpened (*current, current->getName().isNotEmpty() ? current->getName()
+                                                                                    : juce::String ("Dialog"));
 }
 
 void OverlayHost::dismiss()
@@ -128,8 +143,13 @@ void OverlayHost::dismiss()
 
     setVisible (false);
 
-    if (auto* parent = getParentComponent())
+    // SPEC-SWEEP: A11Y-11 - focus goes back where it came from.
+    if (auto* back = launcher.getComponent(); back != nullptr && back->isShowing() && back->getWantsKeyboardFocus())
+        back->grabKeyboardFocus();
+    else if (auto* parent = getParentComponent())
         parent->grabKeyboardFocus();
+
+    launcher = nullptr;
 }
 
 void OverlayHost::paint (juce::Graphics& g)
@@ -963,13 +983,7 @@ void ExportPanel::startExport()
                     .withIconType (result.success ? juce::MessageBoxIconType::InfoIcon
                                                   : juce::MessageBoxIconType::WarningIcon)
                     .withTitle (result.success ? "Export finished" : "Export failed")
-                    .withMessage (result.success
-                                    ? "Saved\n  " + result.file.getFileName()
-                                      + "\n\nLocation\n  " + result.file.getParentDirectory().getFullPathName()
-                                      + "\n\nLength\n  " + juce::String (result.lengthSeconds, 2) + " seconds"
-                                      + "\n\nQuality\n  " + result.qualityDescription
-                                      + "\n\nPeak\n  " + juce::String (result.peakDb, 2) + " dBFS"
-                                    : result.message)
+                    .withMessage (AudioExporter::describeResult (result))   // SPEC-SWEEP INC-16
                     .withButton ("OK"),
                 nullptr);
         });

@@ -1006,3 +1006,72 @@ LUTHIER_TEST (Modulation, aRouteAtZeroLeavesEveryChoiceWhereItIs)
 
     CHECK_MSG (false, "no choice parameter with three or more options");
 }
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-1 - modulation-matrix 0.1: control rate is a thirty-second
+    of the block, floored at 128 samples. */
+LUTHIER_TEST (Modulation, controlRateIsABlockOver32FlooredAt128)
+{
+    ModHarness harness;
+
+    harness.matrix.prepare (kSr, 512, harness.apvts);
+    CHECK (harness.matrix.getControlRateSamples() == 128);
+    CHECK_NEAR (harness.matrix.getControlRateHz(), kSr / 128.0, 1.0e-9);
+
+    harness.matrix.prepare (kSr, 8192, harness.apvts);
+    CHECK (harness.matrix.getControlRateSamples() == 256);
+    CHECK_NEAR (harness.matrix.getControlRateHz(), kSr / 256.0, 1.0e-9);
+}
+
+/*  SPEC-SWEEP: MM-26 - modulation-matrix 1.5: the note sources follow notes. */
+LUTHIER_TEST (Modulation, noteSourcesFollowNotes)
+{
+    ModHarness harness;
+    auto& m = harness.matrix;
+    ModBlockContext context;
+
+    m.noteOn (64, 0.8);
+    m.processBlock (128, context);   // one tick
+
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::noteVelocity), 0.8, 1.0e-6);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::notePitch), 64.0 / 127.0, 1.0e-6);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::noteTrigger), 1.0, 1.0e-6);
+    CHECK (m.getSourceValue (ModSourceSlots::notesHeld) > 0.0f);
+
+    m.processBlock (128, context);   // the trigger is one tick wide
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::noteTrigger), 0.0, 1.0e-6);
+
+    m.setAftertouch (0.4);
+    m.setPolyAftertouch (0.6);
+    m.processBlock (128, context);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::aftertouch), 0.4, 1.0e-6);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::polyAftertouch), 0.6, 1.0e-6);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::channelPressure), 0.4, 1.0e-6);
+
+    m.noteOff();
+    m.processBlock (128, context);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::notesHeld), 0.0, 1.0e-6);
+}
+
+/*  SPEC-SWEEP: MM-27 - modulation-matrix 1.6: CCs, 14-bit pairs, pitch bend
+    and the mod wheel. */
+LUTHIER_TEST (Modulation, controllerSourcesFollowMidi)
+{
+    ModHarness harness;
+    auto& m = harness.matrix;
+    ModBlockContext context;
+
+    m.setControllerValue (74, 0.5);
+    m.setControllerValue (1, 64.0 / 127.0);    // MSB, and the mod wheel
+    m.setControllerValue (33, 0.5);            // its LSB
+    m.setPitchBend (-1.0);
+    m.processBlock (128, context);
+
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::ccBase + 74), 0.5, 1.0e-6);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::modWheel), 64.0 / 127.0, 1.0e-6);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::cc14Base + 1), 64.0 / 127.0 + 0.5 / 128.0, 1.0e-6);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::pitchBend), -1.0, 1.0e-6);
+
+    // The LSB adds resolution below one MSB step, which is the point of it.
+    CHECK (m.getSourceValue (ModSourceSlots::cc14Base + 1) != m.getSourceValue (ModSourceSlots::ccBase + 1));
+}

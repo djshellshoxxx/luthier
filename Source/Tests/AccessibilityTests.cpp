@@ -201,7 +201,7 @@ LUTHIER_TEST (Accessibility, uiScaleStepsAndFontFloor)
     settings.setUiScale (0.75);
 
     for (float points : { 8.0f, 9.0f, 10.0f, 12.0f, 20.0f })
-        CHECK_MSG (settings.scaledFont (points) >= 9.0f,
+        CHECK_MSG (settings.scaledFont (points) >= 10.0f,   // SPEC-SWEEP: A11Y-27
                    "a " + juce::String (points) + "pt font scaled to "
                      + juce::String (settings.scaledFont (points)) + " at 75%");
 

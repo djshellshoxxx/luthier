@@ -201,6 +201,7 @@ double SpeedTrainer::passCompleted (int misses)
 
 void SpeedTrainer::applyTo (Metronome& metronome) const
 {
+    metronome.setFollowsTempo (false);   // SPEC-SWEEP PT-6: the trainer's tempo stays
     metronome.setTempo (tempo);
 }
 

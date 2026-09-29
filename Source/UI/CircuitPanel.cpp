@@ -13,7 +13,7 @@ CircuitResponseView::CircuitResponseView (LuthierAudioProcessor& p)
     setTitle ("Circuit response");
     setInterceptsMouseClicks (false, false);
     refresh();
-    motion.startTimerHz (*this, 15);
+    motion.startTimerHz (*this, kRefreshHz);   // SPEC-SWEEP GD-2 rate, through cpu-quality-modes 6's motion switch
 }
 
 CircuitResponseView::~CircuitResponseView()

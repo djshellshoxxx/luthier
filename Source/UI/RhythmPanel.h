@@ -118,6 +118,18 @@ public:
 
     static constexpr int preferredHeight = 78;
 
+    /** SPEC-SWEEP (RE-37): what the indicators show, for tests. */
+    const juce::String& getChordText() const noexcept { return chordText; }
+    int getNumVoicedDots() const noexcept
+    {
+        int n = 0;
+
+        for (int s = 0; s < numStringsShown; ++s)
+            n += voicedFrets[(size_t) s] >= 0 ? 1 : 0;
+
+        return n;
+    }
+
 private:
     LuthierAudioProcessor& processor;
 
@@ -178,6 +190,16 @@ private:
     juce::ComboBox styleBox;
     juce::Slider densitySlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Slider handPositionSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider handSpanSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };   // SPEC-SWEEP RE-12
+
+    // SPEC-SWEEP (RE-22): the pattern's length and grid, above the strum grid.
+    juce::ComboBox lengthBox, subdivisionBox;
+    void buildGridControls();
+
+public:
+    juce::ComboBox& getLengthBox() noexcept { return lengthBox; }             // tests
+    juce::ComboBox& getSubdivisionBox() noexcept { return subdivisionBox; }   // tests
+private:
     juce::Label capoLabel;
     juce::TextButton capoDown { "-" }, capoUp { "+" };
 

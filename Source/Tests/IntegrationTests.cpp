@@ -21,6 +21,15 @@
 using namespace luthier;
 using namespace luthier::tests;
 
+/*  SPEC-SWEEP: FactoryPresets keeps the processor it reads ranges from in a
+    static. A test that points it at its own local processor must clear it on
+    the way out, or the next PresetManager (every processor's constructor
+    writes the factory bank) reads a destroyed object. */
+struct FactoryRangesReset
+{
+    ~FactoryRangesReset() { FactoryPresets::setProcessorForRanges (nullptr); }
+};
+
 namespace
 {
     constexpr double kSr = 48000.0;
@@ -658,6 +667,7 @@ LUTHIER_TEST (Parameters, everyParameterHasAUniqueIdAndSaneDefault)
                              + 29   // REALISM-C
                              + 2    // TUNE-HELP-ONBOARDING
                              + 34   // FEAT-JAM
+                             + 1    // SPEC-SWEEP
                              ,
                "the parameter list has changed size: " + juce::String (seen.size())
                  + " parameters, not the expected total - saved host automation is indexed "
@@ -693,6 +703,7 @@ LUTHIER_TEST (Presets, everyFactoryPresetLoadsAndPlays)
     // must load, produce sound, and not produce anything non-finite.
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
 
     processor.prepareToPlay (kSr, kBlock);
 
@@ -737,6 +748,7 @@ LUTHIER_TEST (Presets, stateRoundTripsExactly)
 {
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
     processor.prepareToPlay (kSr, kBlock);
 
     RtRandom rng { 0xBEEF };
@@ -839,6 +851,7 @@ LUTHIER_TEST (Presets, audioIsIdenticalAfterARoundTrip)
 
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
     processor.prepareToPlay (kSr, kBlock);
 
     // Humanisation is deliberately random per note, so it has to be off for a
@@ -1282,6 +1295,7 @@ LUTHIER_TEST (Presets, aFileWithoutTheMagicMarkerIsRefused)
 {
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
     processor.prepareToPlay (kSr, kBlock);
 
     processor.presets.captureExtraState();
@@ -1315,6 +1329,7 @@ LUTHIER_TEST (Presets, unknownFieldsSurviveARoundTrip)
 {
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
     processor.prepareToPlay (kSr, kBlock);
 
     processor.presets.captureExtraState();
@@ -1367,6 +1382,7 @@ LUTHIER_TEST (Presets, savingBacksUpTheVersionItReplaces)
 {
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
     processor.prepareToPlay (kSr, kBlock);
 
     auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory)
@@ -1423,6 +1439,7 @@ LUTHIER_TEST (Presets, mutatedPresetsNeverCrashTheLoader)
 {
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
     processor.prepareToPlay (kSr, kBlock);
 
     processor.presets.captureExtraState();
@@ -1580,6 +1597,7 @@ LUTHIER_TEST (ErrorLog, arefusedPresetLoadIsRecordedAndChangesNothing)
 
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
     processor.prepareToPlay (kSr, kBlock);
 
     auto file = folder.getChildFile (juce::String ("Impostor") + PresetManager::kFileExtension);

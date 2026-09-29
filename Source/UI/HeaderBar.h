@@ -89,6 +89,11 @@ public:
         return nullptr;
     }
 
+    /** SPEC-SWEEP (USER_MANUAL UM-7): the File menu, and what choosing an item
+        does. showFileMenu puts the one on screen and routes to the other. */
+    juce::PopupMenu buildFileMenu();
+    void handleFileMenuResult (int result);
+
     void paint (juce::Graphics&) override;
     void resized() override;
 

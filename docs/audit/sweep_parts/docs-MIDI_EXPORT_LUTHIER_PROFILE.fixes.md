@@ -1,0 +1,1 @@
+- [MX-22] DEFERRED: a file just over 4,000,000 events makes parseSmf hold ~4M SmfEvent records (~300-600 MB) before the cap trips; too heavy for the suite. Needs `kMaxEvents` injectable (MidiProfiles.cpp anonymous namespace) first.

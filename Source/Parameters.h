@@ -523,6 +523,11 @@ namespace ParamIDs
         return id == jamPlay || id == jamFillNow;
     }
     // ==== END FEAT-JAM params ====
+    // ==== BEGIN SPEC-SWEEP params ====
+    // live-performance 3 (LP-16): the snapshot morph position, automatable and
+    // a modulation destination. Never captured into a snapshot itself.
+    inline constexpr const char* snapshotMorph = "snapshot_morph";
+    // ==== END SPEC-SWEEP params ====
 }
 
 //==============================================================================

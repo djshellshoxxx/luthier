@@ -54,6 +54,9 @@ void BackingTrackPlayer::prepare (double sampleRate, int maxBlockSize)
     lastLowCut = -1.0;
     lastHighCut = -1.0;
 
+    shifter.prepare();   // SPEC-SWEEP PT-28/29
+    shifterActive = false;
+
     reset();
 }
 
@@ -132,6 +135,7 @@ bool BackingTrackPlayer::load (const juce::File& file)
 
     currentFile = file;
     loaded.store (true, std::memory_order_relaxed);
+    shifterResetPending.store (true, std::memory_order_relaxed);   // SPEC-SWEEP PT-28
 
     markers.clear();
 
@@ -204,12 +208,16 @@ void BackingTrackPlayer::stop() noexcept
 
     if (transport != nullptr)
         transport->setPosition (isLoopEnabled() ? getLoopStartSeconds() : 0.0);
+
+    shifterResetPending.store (true, std::memory_order_relaxed);   // SPEC-SWEEP PT-28
 }
 
 void BackingTrackPlayer::setPositionSeconds (double seconds)
 {
     if (transport != nullptr)
         transport->setPosition (juce::jlimit (0.0, juce::jmax (0.0, lengthSeconds), seconds));
+
+    shifterResetPending.store (true, std::memory_order_relaxed);   // SPEC-SWEEP PT-28
 }
 
 double BackingTrackPlayer::getPositionSeconds() const
@@ -499,21 +507,34 @@ void BackingTrackPlayer::processBlock (juce::AudioBuffer<float>& destination, in
         return;
 
     // ---- pull from the streaming source ------------------------------------------
-    juce::AudioSourceChannelInfo info (&destination, 0, numSamples);
-    transport->getNextAudioBlock (info);
+    /*  SPEC-SWEEP PT-28/29 (practice-tools 3): through the pitch and tempo
+        shift when either is set. The shifter pulls as much input as it needs,
+        a block at a most at a time, so the loop points still apply per pull. */
+    const double tempo = getTempoRatio();
+    const double semitones = getPitchShiftSemitones();
 
-    // ---- loop points --------------------------------------------------------------
-    if (isLoopEnabled())
+    if (TimePitchShifter::isNeutral (tempo, semitones))
     {
-        const double end = getLoopEndSeconds();
-        const double start = getLoopStartSeconds();
+        shifterActive = false;
 
-        if (end > start && transport->getCurrentPosition() >= end)
-            transport->setPosition (start);
+        for (int done = 0; done < numSamples;)
+        {
+            const int count = juce::jmin (numSamples - done, juce::jmax (1, blockSize));
+            pullFromTransport (destination.getWritePointer (0, done), destination.getWritePointer (1, done), count);
+            done += count;
+        }
     }
-    else if (transport->hasStreamFinished())
+    else
     {
-        playing.store (false, std::memory_order_relaxed);
+        if (! shifterActive || shifterResetPending.exchange (false, std::memory_order_relaxed))
+        {
+            shifter.reset();
+            shifterActive = true;
+        }
+
+        shifter.process (destination.getWritePointer (0), destination.getWritePointer (1), numSamples,
+                         tempo, semitones, blockSize,
+                         [this] (float* l, float* r, int count) { pullFromTransport (l, r, count); });
     }
 
     // ---- tone and level ------------------------------------------------------------
@@ -563,6 +584,35 @@ void BackingTrackPlayer::processBlock (juce::AudioBuffer<float>& destination, in
 
         left[i] = (float) sanitise (l * gain * panL);
         right[i] = (float) sanitise (r * gain * panR);
+    }
+}
+
+//==============================================================================
+void BackingTrackPlayer::pullFromTransport (float* left, float* right, int count) noexcept
+{
+    count = juce::jlimit (0, scratch.getNumSamples(), count);
+
+    if (count == 0 || transport == nullptr || scratch.getNumChannels() < 2)
+        return;
+
+    juce::AudioSourceChannelInfo info (&scratch, 0, count);
+    transport->getNextAudioBlock (info);
+
+    juce::FloatVectorOperations::copy (left, scratch.getReadPointer (0), count);
+    juce::FloatVectorOperations::copy (right, scratch.getReadPointer (1), count);
+
+    // ---- loop points --------------------------------------------------------------
+    if (isLoopEnabled())
+    {
+        const double end = getLoopEndSeconds();
+        const double start = getLoopStartSeconds();
+
+        if (end > start && transport->getCurrentPosition() >= end)
+            transport->setPosition (start);
+    }
+    else if (transport->hasStreamFinished())
+    {
+        playing.store (false, std::memory_order_relaxed);
     }
 }
 

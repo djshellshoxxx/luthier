@@ -881,6 +881,27 @@ namespace AccessibleSetup
         component.setHelpText (description);
     }
 
+    bool shouldAnnounce (Announcement kind, AccessibilitySettings::Verbosity verbosity) noexcept
+    {
+        using V = AccessibilitySettings::Verbosity;
+
+        switch (kind)
+        {
+            case Announcement::error:       return true;
+            case Announcement::standard:    return verbosity != V::minimal;
+            case Announcement::valueChange: return verbosity == V::verbose;
+            default:                        return true;
+        }
+    }
+
+    void announce (const juce::String& text, Announcement kind)
+    {
+        if (text.isNotEmpty() && shouldAnnounce (kind, AccessibilitySettings::get().getVerbosity()))
+            juce::AccessibilityHandler::postAnnouncement (
+                text, kind == Announcement::error ? juce::AccessibilityHandler::AnnouncementPriority::high
+                                                  : juce::AccessibilityHandler::AnnouncementPriority::medium);
+    }
+
     void announceOverlayOpened (juce::Component& overlay, const juce::String& name)
     {
         overlay.setTitle (name);
@@ -889,8 +910,17 @@ namespace AccessibleSetup
         // can act on, so tabbing starts inside the dialog rather than behind it.
         const auto announcement = tr ("a11y.dialog.opened", { { "name", name } });
 
-        juce::AccessibilityHandler::postAnnouncement (
-            announcement, juce::AccessibilityHandler::AnnouncementPriority::high);
+        // SPEC-SWEEP: A11Y-43 - minimal verbosity announces errors only.
+        announce (announcement, Announcement::standard);
+
+        // SPEC-SWEEP: A11Y-10 - the first focusable control at any depth, in
+        // the traverser's own order, not only a direct child.
+        if (auto traverser = overlay.createFocusTraverser())
+            if (auto* first = traverser->getDefaultComponent (&overlay))
+            {
+                first->grabKeyboardFocus();
+                return;
+            }
 
         for (auto* child : overlay.getChildren())
         {

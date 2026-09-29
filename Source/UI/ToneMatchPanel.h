@@ -44,7 +44,7 @@ public:
     bool isInterestedInFileDrag (const juce::StringArray& files) override;
     void filesDropped (const juce::StringArray& files, int x, int y) override;
 
-    static constexpr int preferredHeight = 154;
+    static constexpr int preferredHeight = 176;   // SPEC-SWEEP TM-11: +1 row for the trims
 
 private:
     IrSlot& slot();
@@ -65,6 +65,10 @@ private:
     juce::Slider mix { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::TextButton reverseButton { "Reverse" };
 
+    // SPEC-SWEEP TM-11 (tone-match 1): samples trimmed from each end.
+    juce::Slider startTrim { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider endTrim { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+
     std::unique_ptr<juce::FileChooser> chooser;
 
     bool dragging = false;
@@ -77,6 +81,7 @@ private:
 /** The cab-match and EQ-match wizards, and the capture utility
     (tone-match 2, 3 and 4). */
 class MatchWizard : public juce::Component,
+                    public juce::FileDragAndDropTarget,   // SPEC-SWEEP TM-23
                     private juce::Timer
 {
 public:
@@ -90,13 +95,30 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    static constexpr int preferredHeight = 124;
+    static constexpr int preferredHeight = 148;   // SPEC-SWEEP TM-25/31/33: +1 settings row
+
+    /*  SPEC-SWEEP TM-23 (tone-match 3.1): the EQ match's reference can be an
+        audio file, dropped or loaded, instead of a sidechain recording. The
+        wizard then goes straight to recording Luthier's own pass. */
+    bool isInterestedInFileDrag (const juce::StringArray& files) override;
+    void filesDropped (const juce::StringArray& files, int x, int y) override;
+    bool useReferenceFile (const juce::File& file);
+
+    /** SPEC-SWEEP TM-23: where the wizard is, for tests. */
+    int getStep() const noexcept { return step; }
+    int getReferenceLength() const noexcept { return (int) reference.size(); }
 
 private:
     void timerCallback() override;
 
     void advance();
     void restart();
+
+    /** SPEC-SWEEP TM-5: the worker's result, on the message thread. */
+    void finishAnalysis (const juce::File& file, const juce::String& text, int slotIndex,
+                         double nullDb, bool fitted);
+
+    bool analysing = false;   // SPEC-SWEEP TM-5
 
     juce::String getStepText() const;
 
@@ -108,10 +130,20 @@ private:
 
     juce::Label stepLabel, resultLabel;
     juce::TextButton actionButton { "Start" }, cancelButton { "Cancel" };
+    juce::TextButton referenceButton { "Reference file..." };   // SPEC-SWEEP TM-23
 
     juce::ComboBox signalBox, lengthBox;
     juce::Slider aggressiveness { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::TextButton preserveDynamics { "Preserve dynamics" };
+
+    // SPEC-SWEEP TM-25 (tone-match 3): the band the EQ match corrects over.
+    juce::Slider lowBand { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider highBand { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+
+    // SPEC-SWEEP TM-31 / TM-33 (tone-match 4): how long a capture runs, and
+    // whether its silent ends are trimmed.
+    juce::Slider captureLength { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::TextButton autoTrim { "Auto-trim silence" };
 
     /** The reference and the plugin's own output, recorded in turn. */
     std::vector<float> reference, current;
@@ -140,6 +172,12 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    /** SPEC-SWEEP TM-38: the library files the tag filter and search let through. */
+    const juce::Array<juce::File>& getVisibleLibraryFiles() const noexcept { return visibleFiles; }
+
+    /** SPEC-SWEEP TM-38: the library to browse, for tests (normally the IR root's scan). */
+    void setLibraryFilesForTesting (const juce::Array<juce::File>& files) { libraryFiles = files; refreshLibrary(); }
+
 private:
     void refreshLibrary();
     void loadSelectedFromLibrary();
@@ -151,6 +189,7 @@ private:
 
     // --- library browser (tone-match 6) -------------------------------------------
     juce::ComboBox tagFilter;
+    juce::TextEditor searchBox;   // SPEC-SWEEP TM-38: name, tags or notes
     juce::ListBox libraryList;
     juce::TextButton refreshButton { "Rescan" };
     juce::Label libraryHint;

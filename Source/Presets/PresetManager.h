@@ -90,7 +90,28 @@ public:
         (ParameterBridge::adoptPedalTypesFromParameters). */
     std::function<void()> onPedalTypesLoaded;
 
-    /** output-normalization.md 4.4: after a preset file loaded (message thread). */
+    /*  SPEC-SWEEP: SM-1, SM-11, SM-16, FF-24..29, RIO-30..32, LP-9, RE-40.
+        state-model.md 1 / file-formats.md 2: the preset also carries the
+        modulation matrix, the snapshot bank, the MIDI Learn mappings, the
+        rhythm engine, the routing (not the layout), the character state and
+        the tone-match IR slots. They belong to the processor, so it writes
+        them into the root on save and is handed the root at the end of every
+        load; a block the file does not carry goes back to its default rather
+        than keeping the last preset's. Message thread. */
+    std::function<void (juce::DynamicObject&)> capturePresetBlocks;
+    std::function<void (const juce::DynamicObject&)> onPresetBlocksLoaded;
+
+    /*  SPEC-SWEEP: PF-14. Parameters a preset's `parameters` block leaves out
+        are reset to their defaults on load, except these, which belong to the
+        layers above the preset (the morph slider; Slide Mode persists across a
+        load, state-model.md 8.1; jam-mode 10's performance controls). */
+    static bool keepsValueWhenAbsent (const juce::String& paramId);
+
+    /** output-normalization.md 4.4: after a preset file loaded (message thread).
+        Called after loadPreset (File) succeeds - a load the user asked for - but
+        not from fromVar, which undo, A/B and the host session go through as
+        well. (Merge: this is also SPEC-SWEEP SM-46's hook; the sweep's own
+        onPresetFileLoaded duplicated it and was dropped.) */
     std::function<void()> onPresetLoaded;
 
     /** Called around a whole load (fromVar), so the processor can fade its output
@@ -113,6 +134,11 @@ public:
 
     /** Deletes backups older than kBackupRetentionDays. Called once on startup. */
     static void pruneOldBackups();
+
+    /*  SPEC-SWEEP: PF-7/FF-44. The sweep for one preset root, as of `now`:
+        its own Backup folder and each category folder's (a save files the
+        replaced version beside it, in <root>/<Category>/Backup/<date>). */
+    static void pruneOldBackupsUnder (const juce::File& root, juce::Time now);
 
     /*  `ranges` is the processor's RangeState (advanced-ranges.md). It is
         passed by reference rather than reached through the processor because
@@ -179,6 +205,14 @@ public:
         forget. Cleared by the next load that succeeds. */
     juce::String getLastLoadError() const { return lastLoadError; }
 
+    /*  SPEC-SWEEP: ER-19/20/21. Why the last save failed, in a sentence, or
+        empty if it worked. Polled by the window like getLastLoadError. */
+    juce::String getLastSaveError() const { return lastSaveError; }
+
+    /*  SPEC-SWEEP: FF-32/PF-5. Makes the next write fail at a stage, for the
+        atomicity tests: 1 = the temp file cannot be opened (a read-only folder
+        or a full disk), 2 = the rename over the target fails. Reset after use. */
+    static std::atomic<int> failNextWriteForTesting;
     /*  installer.md 8: "User sees a subtle info banner on the first affected
         load." A load that had to migrate something (a derived ranges block, a
         pre-parts guitar name, retired parameters) bumps the generation and says
@@ -291,6 +325,10 @@ private:
 
     /** Set on every load failure beside the error-log line, cleared on success. */
     juce::String lastLoadError;
+    mutable juce::String lastSaveError;   // SPEC-SWEEP: ER-19
+
+    /** SPEC-SWEEP: ER-12/13 - why fromVar refused, as the end of a sentence. */
+    juce::String lastRefusal;
 
     juce::String lastMigration;            // installer.md 8
     juce::uint32 migrationGeneration = 0;
@@ -329,6 +367,12 @@ private:
     int currentIndex = -1;
     juce::String currentName { "Init" };
     juce::String currentCategory { "User" };
+
+    /*  SPEC-SWEEP: FF-20, file-formats 2 `meta`. Kept from the file on load,
+        stamped on save (never in toVar itself, so the host state of an
+        unchanged session stays byte-identical). ISO 8601. */
+    juce::String metaCreated, metaModified, metaVersionCreated, metaNotes;
+    void stampSaveTime();
     bool modified = false;
 
     ExtraState extra;

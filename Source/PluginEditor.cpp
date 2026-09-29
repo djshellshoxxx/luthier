@@ -457,6 +457,26 @@ void LuthierAudioProcessorEditor::paint (juce::Graphics& g)
                     juce::Justification::centredRight, false);
 }
 
+void LuthierAudioProcessorEditor::applyTooltipPreference()
+{
+    // Tooltips are a user preference, so the window is created or torn down to
+    // match rather than the tips being silently empty.
+    // SPEC-SWEEP: LP-39 / GI-76 - Live Mode suppresses tooltips too: a tip
+    // popping over the snapshot strip mid-song is noise.
+    tooltipDelayMs = processor.getUiState().tooltipsEnabled && ! processor.isLiveMode()
+                         ? Metrics::tooltipDelayMs : 0x7fffffff;
+    tooltips.setMillisecondsBeforeTipAppears (tooltipDelayMs);
+}
+
+juce::String LuthierAudioProcessorEditor::getFooterText() const
+{
+    // SPEC-SWEEP (UM-60 / TS-16) over cpu-quality-modes 5: the window paints
+    // only the latency (the QualityBadge carries the CPU figure); this is the
+    // whole footer as a player reads it, badge included.
+    return "CPU " + juce::String (processor.getEngine().getCpuEstimate(), 1) + "%    "
+           + tr ("quality.badge.latency", { { "n", juce::String (processor.getLatencySamples()) } });
+}
+
 void LuthierAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds();
@@ -616,10 +636,7 @@ void LuthierAudioProcessorEditor::timerCallback()
         RangesUi::resyncControls (*this);
     }
 
-    // Tooltips are a user preference, so the window is created or torn down to
-    // match rather than the tips being silently empty.
-    tooltips.setMillisecondsBeforeTipAppears (
-        processor.getUiState().tooltipsEnabled ? Metrics::tooltipDelayMs : 0x7fffffff);
+    applyTooltipPreference();
 
     repaint (getLocalBounds().removeFromBottom (Metrics::footerHeight));
 }
@@ -755,6 +772,14 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
     if (is ("toggleAdvanced"))
     {
+        // SPEC-SWEEP (USER_MANUAL UM-13 / PROGRESS PR-40): the mode switch is
+        // locked while Live Mode is on, from the keyboard as from the header.
+        if (processor.isLiveMode())
+        {
+            inlineNotice.show ("Easy / Advanced is locked while Live Mode is on", InlineNotice::Level::info);
+            return true;
+        }
+
         setAdvancedMode (! advancedMode);
         header.setAdvancedMode (advancedMode);
         return true;
@@ -942,10 +967,17 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         binding is positional rather than nominal - digit n recalls snapshot n, so
         there is nothing meaningful to rebind it to. GAPS.md records the
         deviation. */
-    if (const auto character = key.getTextCharacter();
-        character >= '1' && character <= '9')
+    // SPEC-SWEEP (KS-10): the digit comes from the key code, because Shift+1
+    // types '!' (and something else again on a non-US layout); the text
+    // character is the fallback for a key code outside '1'..'9'.
+    const int keyCode = key.getKeyCode();
+    const auto character = (keyCode >= '1' && keyCode <= '9') ? (juce::juce_wchar) keyCode
+                                                               : key.getTextCharacter();
+
+    if (character >= '1' && character <= '9'
+          && ! key.getModifiers().isCommandDown() && ! key.getModifiers().isAltDown())
     {
-        const int index = (character - '1')
+        const int index = (int) (character - '1')
                             + (key.getModifiers().isShiftDown() ? 9 : 0);
 
         if (index < processor.getSnapshots().getNumSnapshots())
@@ -1188,6 +1220,46 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         notifications.post (std::move (n));
     }
 
+    // ---- SPEC-SWEEP: ER-38 - an arm nobody answered --------------------------
+    if (processor.getMidiLearn().expireIfIdle (juce::Time::getMillisecondCounter()))
+    {
+        Notification n;
+        n.id = "midi-learn-timeout";
+        n.message = "MIDI Learn cancelled (no MIDI received).";
+        n.level = Notification::Level::info;
+        notifications.post (std::move (n));
+    }
+
+    // ---- SPEC-SWEEP: ER-65 - preferences that could not be read -------------
+    if (UiPreferences::get().takeCorruptionNotice())
+    {
+        Notification n;
+        n.id = "preferences-reset";
+        n.message = "Preferences reset (previous file corrupted, backed up).";
+        n.level = Notification::Level::warning;
+        notifications.post (std::move (n));
+    }
+
+    // ---- SPEC-SWEEP: FF-35/SM-31 - a setlist that would not load whole -----
+    for (const auto& message : processor.takeStateWarnings())
+    {
+        Notification n;
+        n.id = "setlist-load";
+        n.message = message;
+        n.level = Notification::Level::warning;
+        notifications.post (std::move (n));
+    }
+
+    // ---- SPEC-SWEEP: SM-46 - what a load did to the layers around it --------
+    for (const auto& message : processor.takeStateNotices())
+    {
+        Notification n;
+        n.id = "state-model";
+        n.message = message;
+        n.level = Notification::Level::info;
+        notifications.post (std::move (n));
+    }
+
     // ---- a preset that would not load ----------------------------------------
     const auto presetError = processor.getPresetManager().getLastLoadError();
 
@@ -1202,6 +1274,23 @@ void LuthierAudioProcessorEditor::pollForNotifications()
             n.message = presetError;
             n.level = Notification::Level::warning;
 
+            notifications.post (std::move (n));
+        }
+    }
+
+    // ---- SPEC-SWEEP: ER-19/20/21 - a save that did not land ------------------
+    const auto saveError = processor.getPresetManager().getLastSaveError();
+
+    if (saveError != reportedPresetSaveError)
+    {
+        reportedPresetSaveError = saveError;
+
+        if (saveError.isNotEmpty())
+        {
+            Notification n;
+            n.id = "preset-save";
+            n.message = saveError;
+            n.level = Notification::Level::warning;
             notifications.post (std::move (n));
         }
     }

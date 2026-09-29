@@ -50,6 +50,15 @@ public:
     static constexpr int minimumWidth = 940;
     static constexpr int minimumHeight = 560;
 
+    /** SPEC-SWEEP (USER_MANUAL UM-60): the footer's CPU share and reported
+        latency, as drawn. */
+    juce::String getFooterText() const;
+
+    /** SPEC-SWEEP (include.md INC-12): applies the tooltip on/off preference to
+        the tooltip window (the timer calls this) and reports the delay it set. */
+    void applyTooltipPreference();
+    int getTooltipDelayMs() const noexcept { return tooltipDelayMs; }
+
     /*  gui-integration 15: the triggers the plugin can raise on its own, checked
         once when the window opens. Public so a test can drive it against a
         processor it has arranged, rather than waiting for a real crash, a real
@@ -149,6 +158,7 @@ private:
 
     LuthierLookAndFeel lookAndFeel;
     juce::TooltipWindow tooltips { this, Metrics::tooltipDelayMs };
+    int tooltipDelayMs = Metrics::tooltipDelayMs;   // SPEC-SWEEP INC-12
 
     HeaderBar header;
     MidiImportOutcome lastMidiImport;   // MODEL-GAPS
@@ -209,6 +219,7 @@ private:
         is not reposted. Without these, dismissing a banner about a preset that
         still will not load would put it straight back on screen. */
     juce::String reportedPresetError, reportedIrError;
+    juce::String reportedPresetSaveError;   // SPEC-SWEEP: ER-19
     juce::uint32 seenMigrationGeneration = 0;   // installer.md 8
     bool migrationBannerShown = false;
 
