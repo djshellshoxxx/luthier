@@ -738,10 +738,17 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         binding is positional rather than nominal - digit n recalls snapshot n, so
         there is nothing meaningful to rebind it to. GAPS.md records the
         deviation. */
-    if (const auto character = key.getTextCharacter();
-        character >= '1' && character <= '9')
+    // SPEC-SWEEP (KS-10): the digit comes from the key code, because Shift+1
+    // types '!' (and something else again on a non-US layout); the text
+    // character is the fallback for a key code outside '1'..'9'.
+    const int keyCode = key.getKeyCode();
+    const auto character = (keyCode >= '1' && keyCode <= '9') ? (juce::juce_wchar) keyCode
+                                                               : key.getTextCharacter();
+
+    if (character >= '1' && character <= '9'
+          && ! key.getModifiers().isCommandDown() && ! key.getModifiers().isAltDown())
     {
-        const int index = (character - '1')
+        const int index = (int) (character - '1')
                             + (key.getModifiers().isShiftDown() ? 9 : 0);
 
         if (index < processor.getSnapshots().getNumSnapshots())
@@ -1070,35 +1077,8 @@ bool LuthierAudioProcessorEditor::performAction (const juce::String& actionId)
         return true;
     }
 
-    /*  live-performance 2: digits recall snapshots directly, shifted for the
-        second bank of nine.
-
-        These are not in the rebind registry. Eighteen rows for eighteen digits
-        would bury the table section 17 wants a user to be able to read, and the
-        binding is positional rather than nominal - digit n recalls snapshot n, so
-        there is nothing meaningful to rebind it to. GAPS.md records the
-        deviation. */
-    // SPEC-SWEEP (KS-10): the digit comes from the key code, because Shift+1
-    // types '!' (and something else again on a non-US layout); the text
-    // character is the fallback for a key code outside '1'..'9'.
-    const int keyCode = key.getKeyCode();
-    const auto character = (keyCode >= '1' && keyCode <= '9') ? (juce::juce_wchar) keyCode
-                                                               : key.getTextCharacter();
-
-    if (character >= '1' && character <= '9'
-          && ! key.getModifiers().isCommandDown() && ! key.getModifiers().isAltDown())
-    {
-        const int index = (int) (character - '1')
-                            + (key.getModifiers().isShiftDown() ? 9 : 0);
-
-        if (index < processor.getSnapshots().getNumSnapshots())
-        {
-            processor.recallSnapshot (index);
-            return true;
-        }
-    }
-
     // Commands with no key, and the palette itself (global-search.md 4.3).
+    // Snapshot digit recall lives in keyPressed (it needs the KeyPress).
     return searchNav != nullptr && searchNav->performExtendedAction (actionId);
 }
 
