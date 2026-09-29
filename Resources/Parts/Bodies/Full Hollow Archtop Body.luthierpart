@@ -20,6 +20,6 @@
     "chambering": "hollow",
     "thickness_mm": 76.0,
     "area_cm2": 1800,
-    "bracing": "x"
+    "bracing": "parallel"
   }
 }

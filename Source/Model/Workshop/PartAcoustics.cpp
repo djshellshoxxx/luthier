@@ -89,6 +89,7 @@ namespace
         if (id == "x" || id == "scalloped_x") return id == "x" ? Bracing::XBrace : Bracing::ForwardShiftedX;
         if (id == "fan")                      return Bracing::FanBrace;
         if (id == "ladder")                   return Bracing::LadderBrace;
+        if (id == "parallel")                 return Bracing::HollowParallel;   // archtop tone bars
         if (chambering == "semi_hollow")      return Bracing::SemiHollowBlock;
         if (chambering == "hollow")           return Bracing::HollowParallel;
         return Bracing::SolidBodyNone;
@@ -122,6 +123,14 @@ namespace
 
         if (strings >= 8) return GuitarType::EightString;
         if (strings == 7) return GuitarType::SevenString;
+
+        // ACCURACY_AUDIT_EXISTING A-03: a baritone is tuned a fourth low (B
+        // standard). Falling through to its body style gave the factory
+        // Baritone Electric E standard on 14-68 strings at 686 mm: 150-185 N
+        // per string against a real baritone set's 75-105 N at B.
+        if (style.contains ("baritone") || g.name.containsIgnoreCase ("baritone"))
+            return GuitarType::BaritoneElectric;
+
         if (style.contains ("semi"))                 return GuitarType::ES335;
         if (style.contains ("archtop"))              return GuitarType::ES335;
         if (style.contains ("slab"))                 return GuitarType::Telecaster;
@@ -143,7 +152,10 @@ namespace
         if (chambering == "acoustic")
         {
             if (g.family == "resonator")              return BodyShape::Resonator;
-            if (g.family == "classical")              return style.contains ("flamenc") ? BodyShape::Flamenco : BodyShape::Classical;
+            // ACCURACY_AUDIT_EXISTING A-07: the same test baseTypeFor makes, name
+            // included, so a flamenca is not a Flamenco type on a Classical body.
+            if (g.family == "classical")              return style.contains ("flamenc") || g.name.containsIgnoreCase ("flamenc")
+                                                               ? BodyShape::Flamenco : BodyShape::Classical;
             if (style.contains ("parlor"))            return BodyShape::Parlor;
             if (style.contains ("jumbo"))             return g.getStringCount() >= 12 ? BodyShape::TwelveStringDread : BodyShape::Jumbo;
             if (style.contains ("auditorium") || style.contains ("gypsy")) return BodyShape::Auditorium;
