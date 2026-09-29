@@ -680,6 +680,7 @@ the UI.
 | Character seed / dead spots / fret wear / tuner drift / body age / environment | CharacterWear | Col 4 CHARACTER | Easy character macro | - |
 | String squeak amount / probability / material / style | StringNoise | Col 4 CHARACTER -> STRING NOISE | Easy character macro (amount only) | - |
 | Pick material / thickness / tip / bevel / angle / wear / click / chirp / scrape | PickNoise | Col 4 CHARACTER -> PICK | - | - |
+| Harmonic contact / offsets / mapping | StringEngine contacts | Col 4 CHARACTER -> PICK -> HARMONICS | - | - |
 | Fret buzz thresholds / setup style / sitar mode / heatmap | FretBuzz | Col 4 CHARACTER -> SETUP | Workshop setup strip | - |
 | Slide material / mass / wall / pressure / slant / noise / clank | SlideEngine | Col 4 CHARACTER -> SLIDE (Slide Mode only), Workshop slide part | Header S | S |
 | Guitar circuit visualiser | GuitarCircuit | Adv Col 2 CIRCUIT, Col 4 CHARACTER -> CIRCUIT | - | - |
