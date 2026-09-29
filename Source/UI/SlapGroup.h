@@ -56,7 +56,8 @@ private:
 
     LuthierSlider slapStrength { "Strength" }, slapPosition { "Position" }, thumbHardness { "Thumb hardness" },
                   fretContact { "Fret contact" }, popStrength { "Strength" }, popPosition { "Position" },
-                  upRatio { "Up-stroke" }, ghostLevel { "Level" }, ghostDamping { "Damping" },
+                  upRatio { "Up-stroke" }, reboundGap { "Rebound gap" },
+                  ghostLevel { "Level" }, ghostDamping { "Damping" },
                   ghostThreshold { "Below velocity" }, alternation { "Alternation" };
     LuthierToggle doubleThump { "Double thump" }, ghostAuto { "Auto ghost" }, restStroke { "Rest stroke" };
 

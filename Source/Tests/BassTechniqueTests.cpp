@@ -928,7 +928,8 @@ LUTHIER_TEST (BassTechniques, theSlapGroupIsShownOnlyOnABass)
 
     for (const char* id : { ParamIDs::slapStrength, ParamIDs::slapPositionMm, ParamIDs::slapThumbHardness,
                             ParamIDs::slapFretContact, ParamIDs::popStrength, ParamIDs::popPositionMm,
-                            ParamIDs::doubleThumpEnabled, ParamIDs::doubleThumpUpRatio, ParamIDs::ghostLevel,
+                            ParamIDs::doubleThumpEnabled, ParamIDs::slapReboundGap,
+                            ParamIDs::doubleThumpUpRatio, ParamIDs::ghostLevel,
                             ParamIDs::ghostDamping, ParamIDs::ghostAuto, ParamIDs::ghostVelocityThreshold,
                             ParamIDs::fingerAlternationVariation, ParamIDs::restStroke })
         CHECK_MSG (ids.contains (id), juce::String (id) + " is not in the SLAP group");
