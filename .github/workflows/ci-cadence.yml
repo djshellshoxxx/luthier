@@ -67,7 +67,7 @@ jobs:
           windows=false; macos=false
           # [ $((n % 3)) -eq 0 ] && windows=true    # PAUSED
           # [ $((n % 15)) -eq 0 ] && macos=true     # PAUSED
-          windows=false   # PAUSED until project complete
+          [ $((n % 3)) -eq 0 ] && windows=true   # beta: Windows re-enabled (PR #9)
           macos=false     # PAUSED until project complete
           echo "number=$n" >> "$GITHUB_OUTPUT"
           echo "windows=$windows" >> "$GITHUB_OUTPUT"

@@ -294,3 +294,13 @@ mechanically). Distinct marker names keep merges clean.
 DEFERRED off the overnight batch (touch the parameter/automation core broadly;
 higher conflict risk with running Claude helpers — do later, serialized):
 midi-learn, randomize+A/B. Claude may take these once the gap helpers settle.
+
+## Windows UN-PAUSED for beta (2026-09-29, owner via PR #9)
+
+Owner's beta plan (docs/plans/BETA_LINUX_WINDOWS.md, merged from PR #9) SUPERSEDES
+the earlier Windows pause FOR BETA WORK. Beta targets: Linux x86-64 VST3/CLAP/
+standalone + Windows x64 VST3/standalone (Windows CLAP optional). macOS is STILL
+last (paused until after beta). Follow the plan's critical path; do not make
+tab-export, new instruments, licensing, or edition-splitting beta prerequisites.
+Windows CI lane re-enabled in ci-cadence.yml (still subject to the Actions budget;
+use an authorized local Windows build if Actions stays blocked).
