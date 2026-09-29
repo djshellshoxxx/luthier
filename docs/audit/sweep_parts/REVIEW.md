@@ -1,6 +1,6 @@
 ## REVIEW.md
 
-REVIEW.md lists ten gaps and five ambiguities in the original four specs, plus a milestone order. On this checkout every gap has a spec, an implementation, a UI home and tests, and every ambiguity is resolved in code. Notation now captures techniques and chords from the engine. The one real shortfall is gap 9: localisation offers 15 locales but ships only the English catalog. Gap 3's drag-to-assign modulation convenience is on visual.
+REVIEW.md lists ten gaps and five ambiguities in the original four specs, plus a milestone order. On this checkout every gap has a spec, an implementation, a UI home and tests, and every ambiguity is resolved in code. Notation now captures techniques and chords from the engine. The one real shortfall is gap 9: localisation offers 15 locales but ships only the English catalog. Gap 3's drag-to-assign modulation convenience has landed (`DragToModulate::*`).
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|

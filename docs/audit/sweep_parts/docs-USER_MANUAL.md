@@ -1,6 +1,6 @@
 ## docs/USER_MANUAL.md
 
-Most of the manual is accurate: the header, the File menu, Advanced columns 1-3, the 13 workspace tabs, the eleven Options pages, the debug window, preset paths and the CLI all exist as described and are reachable (`GuiReach.*` walks every one). The false claims are in Easy mode (it has no fretboard and no scrolling data readout, and has seven macros, not six), the undo depth (200, not 64), and the hover readout. Many behavioural claims (export, CLI, style list, fretboard/illustration clicks, the learn pedal skip) have no test.
+Most of the manual is accurate: the header, the File menu, Advanced columns 1-3, the 14 workspace tabs, the eleven Options pages, the debug window, preset paths and the CLI all exist as described and are reachable (`GuiReach.*` walks every one). The false claims are in Easy mode (it has no fretboard and has seven macros, not six), the undo depth (200, not 64), and the hover readout. Many behavioural claims (export, CLI, style list, fretboard/illustration clicks, the learn pedal skip) have no test.
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -23,7 +23,7 @@ Most of the manual is accurate: the header, the File menu, Advanced columns 1-3,
 | UM-17 (Easy top) | Click pickup / click switch / drag volume & tone on the body | `GuitarBodyComponent::mouseDown/mouseDrag` | illustration | `Editor::everyHitRegionOnTheIllustrationDescribesItself` (tooltips only) | NO-TEST |
 | UM-18 (Easy top) | Manual now says the illustration shows played notes and the playable fretboard is the Advanced top strip (gui-integration 3.1 / DECISIONS "Easy mode separate fretboard is gone") | `FretboardComponent` | `AdvancedPanel::fretboard` only | `ModelGapsUi::theCurrentBarIsDrawnOnTheFretboardAsTabDots` | DONE |
 | UM-19 (Easy top) | Fretboard: click to hear, lane height = pick force; right-click mute/capo/select/scale; real fret spacing | `FretboardComponent::mouseDown`, `fretX` | Advanced strip | - | NO-TEST |
-| UM-20 (Easy top) | Scrolling readout of MIDI/param/engine events to the right — `DataStreamDisplay` is declared but never constructed anywhere | `Widgets.h:DataStreamDisplay` | none | - | OWNED |
+| UM-20 (Easy top) | Scrolling readout of MIDI / param / engine events to the right - `DataStreamDisplay` constructed in the editor, toggle in Options > APPEARANCE | `Widgets.h:DataStreamDisplay` | `PluginEditor.cpp:68` | `DataStream::itKeeps200StopsAfter500msAndHonoursReducedMotion` | DONE |
 | UM-21 (Easy macros) | Macro semantics (Attack contact bandwidth, Body never fully off, Drive adds to amp gain, Tone = guitar tone + amp treble, Space room, Humanize) and they multiply detailed controls | `Parameters.cpp:~1105-1405` | `EasyPanel` macro knobs | `EasyLayout::theToneStripIsHeard` (partial); no per-macro test | NO-TEST |
 | UM-22 (Easy macros) | Dice and padlock under each macro | `LuthierKnob::setShowDiceAndLock/mouseDown` | `EasyPanel` knobs | `Presets::randomiseRespectsLocks` (engine) | NO-TEST |
 | UM-23 (Easy bottom) | Style = factory bank grouped by category | `EasyPanel::refreshStyleList` (`addSectionHeading`) | `EasyPanel::styleBox` | - | NO-TEST |
@@ -65,4 +65,4 @@ Most of the manual is accurate: the header, the File menu, Advanced columns 1-3,
 | UM-59 (Help/debug) | Help content + live shortcut list; debug window (state view, event stream, crash log off on load, troubleshooting export, hard reset keeps user presets) | `HelpTab`, `Overlays.cpp:DebugPanel` | Help, Ctrl+D | `HelpTab::aRebindShowsUpInTheCheatSheetAndTheText`, `Diagnostics::ringBufferAndSelfTestWork` — hard reset untested | DEFERRED |
 | UM-60 (Performance) | Footer shows CPU share and reported latency | `LuthierAudioProcessorEditor::getFooterText` (drawn by paint) | footer | `Editor::headerAndFooterDoWhatTheManualSays` | DONE |
 
-<!-- counts DONE=50 NO-GUI=0 NO-TEST=8 PARTIAL=0 MISSING=0 OWNED=1 DEFERRED=1 -->
+<!-- counts DONE=51 NO-GUI=0 NO-TEST=8 PARTIAL=0 MISSING=0 OWNED=0 DEFERRED=1 -->

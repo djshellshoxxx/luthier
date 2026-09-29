@@ -2,14 +2,7 @@
 
 The physical engine that spec.md describes is real and mostly tested: strings, excitation, inharmonicity, coupling, body IR/modal, pickups, fretless, whammy, amp/cab/mic/room, the three MIDI modes, capture, tab, practice, freeze/E-Bow, the doubler and physical feedback. Guitar types, strings and tunings ship, and File menu presets, WAV export, MIDI Learn and the validator are in place.
 
-Items owned elsewhere:
-- per-string material and gauge: `visual`, Workshop overrides
-- per-string age: realism-a
-- per-string pick/finger tools and finger assignment: realism-b
-- artificial harmonics: realism-b
-- two-stage decay: realism-c
-- pre-bend, the scrape controls and per-string bend ranges: techniques
-- photo-real illustration quality: `visual`
+Merged since: per-string material/gauge (Workshop overrides), per-string pick/finger tools, artificial harmonics, two-stage decay and the illustration rework. Still open from the old branches: pre-bend as a real technique, the scrape controls (no GUI) and per-string bend ranges.
 
 Still missing here, and not owned by another branch:
 - per-string sustain, per-string fretless, per-fret offsets and custom fret positions
@@ -33,7 +26,7 @@ The 12 ship gates need the host, controller and blind-A/B campaigns, and have no
 | SP-6 (§1) | Pick 2-4 ms asymmetric; finger 5-8 ms; thumb low-passed; nail vs pad — no test compares the excitations (see ISS-4) | `Excitation::specFor`; `nail_vs_flesh` | col 2 Playing Hand | `PickNoise.fingersNeitherClickNorChirp` (noise only) | NO-TEST |
 | SP-7 (§1) | Inharmonicity B per string, wound > plain | `StringEngine` dispersion allpass | n/a | `StringEngine.dispersionStretchesPartialsSharp` | DONE |
 | SP-8 (§1) | Sympathetic coupling matrix | `DSP/Coupling/CouplingMatrix` | col 1 Sympathetic `coupling_amount` | `Coupling.aStruckStringRingsItsNeighbour` | DONE |
-| SP-9 (§1) | Two-stage decay (fast HF 200 ms, then slow) | single loop filter + T60 here | - | - | OWNED (realism-c df323e6 sustain shape, `SustainDecay.twoStageKnee`) |
+| SP-9 (§1) | Two-stage decay (fast HF, then slow) | `StringEngine` sustain shape (realism-c) | CHARACTER `SustainShapeGroup` | `SustainDecay.twoStageKnee` | DONE |
 | SP-10 (§1) | Sustain per string in Advanced — global `sustain_scale` only | `StringEngine` T60 | col 1 Sustain (global) | `Sustain.*` | PARTIAL |
 | SP-11 (§2) | Body IR convolution + library for every type (216 IRs) | `DSP/Body/BodyEngine`; `Resources/BodyIRs` | col 1 Body Mode | `Engine.everyGuitarTypeLoadsAndSounds` | DONE |
 | SP-12 (§2) | Modal bank 20-40 modes that shift with dimensions | `BodyEngine` resonators; `BodyModels` | col 1 Body width/depth | `Body.modalBankReproducesTheAirResonance`, `Body.dimensionsMoveTheModes` | DONE |
@@ -50,34 +43,34 @@ The 12 ship gates need the host, controller and blind-A/B campaigns, and have no
 | SP-23 (§4) | Fretless continuous pitch | `fretless` | col 1 Neck `fretlessToggle` | `Engine.fretlessModeIsGenuinelyContinuous` | DONE |
 | SP-24 (§4) | Fretless: no buzz, less sustain, softer attack, vocal slides — only glide tested | `TechniqueEngine` fretless glide | col 1 | `Technique.fretlessTurnsLegatoIntoGlide` | PARTIAL |
 | SP-25 (§4) | Bend in cents, multi-string | pitch bend / MPE per string | n/a | `StringEngine.bendIsSmoothAndReachesTarget` | DONE |
-| SP-26 (§4) | Pre-bend | bend-before-note only | - | - | OWNED (techniques: `bend_prebend_*`, `Bend.aPreBendStartsFlatAndReleases`) |
+| SP-26 (§4) | Pre-bend — bend-before-note works; no dedicated pre-bend parameters or engine path (`preBend` exists only as a score / MIDI-export type) | `TechniqueEngine` bend; `Notation/PerformanceScore.h:Type::preBend` | - | - | PARTIAL |
 | SP-27 (§4) | Vibrato rate 3-8 / depth 5-50; shapes sine, tri, finger, **classical, blues** — classical/blues missing (not on any branch) | `vibrato_*`; `vibratoShapeNames` | col 3 Performance | - | PARTIAL |
 | SP-28 (§4) | Slide legato vs picked; hammer-on; pull-off | `TechniqueEngine` | n/a | `Technique.fastNotesBecomeASlide`, `Technique.legatoBecomesHammerOnAndPullOff` | DONE |
 | SP-29 (§4) | Palm mute with depth | CC67 → `Damping::PalmMute` | n/a (CC); techniques MUTE page on branch | `StringEngine.palmMuteShortensAndDarkens` | DONE |
 | SP-30 (§4) | Natural + pinch harmonics | `Excitation` Harmonic/PinchHarmonic; CC72/73 | n/a (CC) | `Technique.harmonicNodesAreDetected` | DONE |
-| SP-31 (§4) | Artificial harmonic on any fretted note — no trigger here | `Technique::ArtificialHarmonic` | - | - | OWNED (realism-b HR-natural / HR-cc, CC 103/104) |
+| SP-31 (§4) | Artificial harmonic on any fretted note | `Technique::ArtificialHarmonic`; `artificial_harmonic_offset`, CC 103 | CHARACTER `HarmonicsGroup` artificial offset | `HarmonicRealism.HR09_artificialHarmonics` | DONE |
 | SP-32 (§4) | Tapping | CC74 / Tap technique | n/a | `TechniqueTriggers.aControllerFiresOnItsEdges` | DONE |
 | SP-33 (§4) | Slide guitar (bottleneck) toggle for every type | `DSP/Slide/SlideEngine`; `slide_guitar` | header Slide; key S; CHARACTER SLIDE | `Slide.pitchIsContinuous`, `SlideUi.theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` | DONE |
 | SP-34 (§4) | Whammy vintage/Floyd/TransTrem, range, dive-bomb | `WhammyEngine`; `bridge_type`, `whammy_*` | col 1 Bridge; bridge popover; Easy whammy knob | `Whammy.transTremPreservesChordIntervals` | DONE |
-| SP-35 (§4) | String/pick scrape — 14 `scrape_*` params have no control here | `DSP/Noise/ScrapeEngine` | - | `Scrape.*`, `ScrapeEngineWiring.*` | OWNED (techniques GT-3 ScrapePage) |
+| SP-35 (§4) | String/pick scrape — 14 `scrape_*` params, no control in `Source/UI` | `DSP/Noise/ScrapeEngine` | - | `Scrape.*`, `ScrapeEngineWiring.*` | NO-GUI |
 | SP-36 (§4) | Muted picking (distinct from palm) | `Technique::MutedPick`; CC71 | n/a (CC) | - | NO-TEST |
-| SP-37 (§5) | Pick or fingers per string / per note — global `use_fingers` | `use_fingers` | col 2 | - | OWNED (realism-b FA-tools per-string tools) |
+| SP-37 (§5) | Pick or fingers per string / per note — `rh_string_tool_1..6` | `Parameters.h:rhStringTool`; `Rhythm` per-cell finger | CHARACTER `RightHandGroup` per-string tool | `FingerstyleAttack.FA10_perStringTools` | DONE |
 | SP-38 (§5) | Pick material ×6, thickness, angle | `pick_material`, `pick_thickness`, `pick_angle` | col 2; CHARACTER PICK | `PickNoise.clickPitchTracksMaterialAndThickness`, `PickNoise.angleTradesClickForChirp` | DONE |
 | SP-39 (§5) | Pick position in mm from bridge — normalised `pluck_position` | `pluck_position` | col 2 | - | PARTIAL |
-| SP-40 (§5) | Fingers thumb…little with per-string finger assignment | Rhythm pattern fingers only | RHYTHM patterns | `RhythmPatterns.*` | OWNED (realism-b FA-finger / FA-tools) |
+| SP-40 (§5) | Fingers thumb…little with per-string finger assignment — per-cell finger in patterns; default string assignment only, no assignment editor | Rhythm pattern fingers only | RHYTHM patterns cell finger (`RhythmPanel.cpp`) | `FingerstyleAttack.FA09_patternFingersReachTheString`, `RhythmPatterns.*` | PARTIAL |
 | SP-41 (§5) | Nail vs flesh | `nail_vs_flesh` | col 2 | - | NO-TEST |
 | SP-42 (§5) | Strum direction + 2-15 ms delay, strum speed | `strum_direction`, `strum_crossing_sps`; `StrumGesture` | col 3 Performance; RHYTHM STRUM | `StrumDynamics.crossingTimingIsExact` | DONE |
 | SP-43 (§6) | Finger-slide squeak ∝ speed, wound > plain | `NoiseEngine` squeak | CHARACTER STRING NOISE | `Squeak.pitchTracksSpeedAndWinding`, `Squeak.flatwoundIsNearlySilentAndPlainIsSilent` | DONE |
 | SP-44 (§6) | Pick attack transient | pick click/chirp | CHARACTER PICK | `PickNoise.clickScalesWithVelocityToThePower0_7` | DONE |
 | SP-45 (§6) | Fret noise, release noise, body knock | `noise_fret`, `noise_release`, `noise_body_knock` | col 2 String Noise | - | NO-TEST |
 | SP-46 (§6) | Pickup handling noise (switching clicks) | - | - | - | MISSING |
-| SP-47 (§6) | Amp buzz 60 Hz for single-coils, none for humbuckers | `noise_amp_buzz` | col 2 | - | OWNED (realism-c noise-floor NF-R8 mains, NoiseFloor.*) |
+| SP-47 (§6) | Amp buzz 60 Hz for single-coils, none for humbuckers | `noise_amp_buzz` | col 2 | `NoiseFloor.aHumbuckerCancelsHumButNotAGroundLoop`, `NoiseFloor.regionSetsTheHumFrequency` | DONE |
 | SP-48 (§6) | Mechanical sounds: global + per-type volume — no single global level | per-type knobs; `macro_character` | col 2; CHARACTER | `NoiseUi.squeakStylesApplyAndReadModified` | PARTIAL |
 | SP-49 (Types) | 11 electric + 8 acoustic + 5 bass (trademark-renamed) | `Model/Guitar/GuitarLibrary`; `Resources/Guitars` | header guitar selector | `Engine.everyGuitarTypeLoadsAndSounds`, `Trademarks.*` | DONE |
 | SP-50 (Types) | Custom guitar from scratch; save as user preset | Workshop parts; Save As Guitar | WORKSHOP tab; Ctrl+G | `WorkshopPresets.*`, `Workshop.*` | DONE |
 | SP-51 (Strings) | 13 string materials (roundwound as winding) | `StringMaterial` (12) + part `winding` | col 1 String Set | `StringPhysics.nylonIsQuiteDifferentFromSteel` | DONE |
-| SP-52 (Strings) | Gauges XL…Heavy; custom per-string gauge — per-string preset-only here | `StringGauge`; `LuthierEngine::setCustomStringGauge` | col 1 (set) | `StringPhysics.*` | OWNED (on visual f4233b5: WORKSHOP per-string overrides) |
-| SP-53 (Strings) | Material/gauge per string selectable | global only here | - | - | OWNED (on visual f4233b5) |
+| SP-52 (Strings) | Gauges XL…Heavy; custom per-string gauge — WORKSHOP per-string overrides | `StringGauge`; `LuthierEngine::setCustomStringGauge` | col 1 (set); WORKSHOP string inspector (`WorkshopPanel.cpp`) | `StringPhysics.*`, `WorkshopStrings.aPerStringOverrideIsSeenReadHeardAndOneEntry` | DONE |
+| SP-53 (Strings) | Material/gauge per string selectable — WORKSHOP per-string overrides | `Model/Workshop/PartLibrary.h:StringOverride`; `LuthierEngine.cpp` partsStringMaterial | WORKSHOP string inspector | `WorkshopStrings.aPerStringOverrideIsSeenReadHeardAndOneEntry` | DONE |
 | SP-54 (Strings) | Age fresh / broken-in / old | `string_age` | col 1 | `StringPhysics.ageDullsAndShortens` | DONE |
 | SP-55 (Tuning) | Standard + Drop D/C/B, DADGAD, Open G/D/E/C, ½/1 down, Nashville | `TuningPreset` | header tuning selector; headstock popover | `Tuning.everyPresetProducesSaneFrequencies`, `Engine.everyTuningLoadsAndSounds` | DONE |
 | SP-56 (Tuning) | Custom per-string tuning (any note + cents) — preset-only (EN-23) | `openFrequencyHz` | - | - | NO-GUI |
@@ -114,8 +107,8 @@ The 12 ship gates need the host, controller and blind-A/B campaigns, and have no
 | SP-87 (GUI) | Rounded window with cutaway; 1200×720, resizable, aspect locked | `PluginEditor::paint`, constrainer | n/a | `Editor.theProcessorHandsOverAnEditorAtItsDocumentedSize`, `Editor.itLaysOutAndPaintsAcrossItsResizeRange` | DONE |
 | SP-88 (Header) | 48 px header: logo, guitar, tuning, preset ‹›, Save/As/Import/Export, A/B, Undo/Redo, Panic, Easy/Advanced — no header test | `UI/HeaderBar` | header | - | NO-TEST |
 | SP-89 (Easy 1) | Guitar image with pickup switch + tone/volume knobs overlaid; live notes | `GuitarBodyComponent`, `GuitarRenderer` | Easy | `GuitarIllustration.*`, `Editor.everyHitRegionOnTheIllustrationDescribesItself` | DONE |
-| SP-90 (Easy 1) | "Large photo-realistic" image | `GuitarRenderer` | Easy | `GuitarIllustration.*` | OWNED (visual guitar-illustration rework) |
-| SP-91 (Easy 1) | 24-fret clickable fretboard in Easy — removed by DECISIONS (illustration shows notes; fretboard in Advanced) | `FretboardComponent` (Advanced only) | ADVANCED strip | - | PARTIAL |
+| SP-90 (Easy 1) | "Large photo-realistic" image — guitar illustration rework merged | `GuitarRenderer` | Easy | `GuitarIllustration.everyFactoryGuitarRendersWithoutClipping`, `GuitarIllustration.everyFactoryGuitarHasItsParts` | DONE |
+| SP-91 (Easy 1) | 24-fret clickable fretboard in Easy — removed by DECISIONS (illustration shows notes; fretboard in Advanced) | `FretboardComponent` (Advanced only) | ADVANCED strip | - | DEFERRED |
 | SP-92 (Easy 2) | Six **large** macro knobs with dice + lock — knobs are `Size::Small` | `macro_*` | Easy `EasyPanel::attackKnob…humanizeKnob` | `EasyLayout.*` | PARTIAL |
 | SP-93 (Easy 3) | Style dropdown, mode selector, MIDI-in blink, Audition | `EasyPanel::styleBox/playingModeSelector/auditionButton`; `HeaderBar` MIDI dot | Easy | `Audition.everyPhraseProducesUsableMidi` | DONE |
 | SP-94 (Easy 3) | Export / drag-out handle — Export button only; drag-out exists only in PRACTICE Session and MIDI OUT | `ExportPanel` | Easy `exportButton` | - | PARTIAL |
@@ -147,11 +140,11 @@ The 12 ship gates need the host, controller and blind-A/B campaigns, and have no
 | SP-120 (Threading) | Partitioned FFT body convolution | `BodyEngine` partition 128 | n/a | `Engine.latencyIsReportedAndPlausible` | DONE |
 | SP-121 (Threading) | Workers for preset/IR loading and coupling recalculation on tuning change — coupling rebuilt inline | `CabinetEngine`/`BodyEngine` async IR; `CouplingMatrix` | n/a | - | PARTIAL |
 | SP-122 (MIDI) | CC for all continuous params; MPE bend/pressure/timbre; program change recalls presets | `MidiLearn`; `MidiInterpreter` MPE; `PluginProcessor` program change | right-click Learn; MPE toggle | `MidiLearn.mapsAndUnmapsCleanly`, `StateModel.aProgramChangeRightAfterAStateRestoreDoesNotWipeIt` | DONE |
-| SP-123 (MIDI) | Per-string bend range in controller mode — profile-only here | `MidiInterpreter::setStringBendRange` via `ControllerProfile` | CONTROLLERS page (profile) | `Controllers.applyingAProfileConfiguresTheInterpreter` | OWNED (techniques MB-3 `bend_string_range_1..6`) |
+| SP-123 (MIDI) | Per-string bend range in controller mode — profile-only; no `bend_string_range_*` parameters | `MidiInterpreter::setStringBendRange` via `ControllerProfile` | CONTROLLERS page (profile) | `Controllers.applyingAProfileConfiguresTheInterpreter` | PARTIAL |
 | SP-124 (Prefs) | Default preset on load | - | - | - | MISSING |
 | SP-125 (Prefs) | MIDI mapping global defaults — only "clear all" | `MidiPage` | Options > MIDI | - | PARTIAL |
 | SP-126 (Prefs) | Export defaults — MIDI export defaults only; no audio export defaults | `UI/MidiExportDefaults` | MIDI OUT tab | `MidiOutPanel.*` | PARTIAL |
-| SP-127 (Prefs) | Performance: oversampling; FFT block; max polyphony | `oversampling` only | Options > Audio; col 3 Master | `Common.oversamplingSuppressesAliasing` | OWNED (cpu-quality-modes FEAT, spec not yet written) |
+| SP-127 (Prefs) | Performance: oversampling; FFT block; max polyphony — oversampling and quality modes only; no FFT block or polyphony preference | `oversampling`; `UI/QualityOptions.cpp` | Options > Audio / QUALITY; col 3 Master | `Common.oversamplingSuppressesAliasing`, `CpuQualityUi.*` | PARTIAL |
 | SP-128 (Prefs) | Realism defaults (humanise, string age, intonation) | - | - | - | MISSING |
 | SP-129 (Prefs) | Appearance | `AppearancePage` | Options > Appearance | `Theme.aPaletteChangeReachesBuiltComponents` | DONE |
 | SP-130 (Deliv 1) | CMake; Windows VST3 + macOS VST3/AU | `CMakeLists.txt` (AU on Apple) | n/a | CI `.github/workflows/build.yml` matrix | DONE |
@@ -163,11 +156,11 @@ The 12 ship gates need the host, controller and blind-A/B campaigns, and have no
 | SP-136 (Deliv 7) | Signed + notarised installers | `scripts/package_macos.sh`, `package_windows.ps1` (secret-gated), `release.yml` | n/a | CI `release.yml` | DONE |
 | SP-137 (Deliv 8) | CLI batch renderer (MIDI → WAV with preset) — no test | `Tools/RenderCli.cpp` (LuthierRender) | n/a | CTest `LuthierRenderCli` renders `Tools/testdata/two_bars.mid` with "Modern Metal Chug" and checks a WAV of the expected size | DONE |
 | SP-138 (Ship 1-3) | Extreme-parameter stability; no coupling runaway; latency reported | engine | n/a | `StringEngine.survivesExtremeParameters`, `Coupling.cannotRunAway`, `Engine.latencyIsReportedAndPlausible` | DONE |
-| SP-139 (Ship 4) | All 100+ body IRs load without clicks | `BodyEngine` IR installer | n/a | - | OWNED (on visual 6b41cf2: `IrReload.*`) |
+| SP-139 (Ship 4) | All 100+ body IRs load without clicks | `BodyEngine` IR installer | n/a | `IrReload.theFirstNoteAfterALoadIsEveryNote`, `IrReload.throughThePluginAGuitarChangeLeavesNoOnsetDifference` | DONE |
 | SP-140 (Ship 5-7) | Playable chords; fretless continuous; smooth bends (no zipper) | engine | n/a | `ChordVoicer.commonChordsAreVoicedPlayably`, `Engine.fretlessModeIsGenuinelyContinuous`, `StringEngine.bendIsSmoothAndReachesTarget` | DONE |
 | SP-141 (Ship 8-9) | Pluginval L10 both platforms; overlay dismissal tests for every overlay — Escape only | CI; `EditorTests` | n/a | CI pluginval; `Editor.everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` | PARTIAL |
 | SP-142 (Ship 10) | 7 hosts × 30 min without stuck windows / CPU spikes — no record | - | n/a | - | MISSING |
 | SP-143 (Ship 11) | Real GK/TriplePlay + MPE controller end-to-end — no record | - | n/a | - | MISSING |
 | SP-144 (Ship 12) | Blind A/B: 70 %+ can't tell from real guitar — no record | - | n/a | - | MISSING |
 
-<!-- counts DONE=74 NO-GUI=4 NO-TEST=12 PARTIAL=30 MISSING=11 OWNED=0 -->
+<!-- counts DONE=83 NO-GUI=5 NO-TEST=12 PARTIAL=32 MISSING=11 DEFERRED=1 -->

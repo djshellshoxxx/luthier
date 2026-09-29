@@ -1,6 +1,6 @@
 ## harmonic-realism.md
 
-REALISM-B has landed on this checkout: the contact comb and contacts API, all four harmonic kinds, the analytic node search, the sounding-pitch locator, the 8 parameters, CC 103/104, the CHARACTER HARMONICS group and the fretboard contact ring, with `HarmonicRealism.HR01..HR19` registered. Still open: a test for the 0.35 receptivity while touching (HR-11), the gui-integration §19 row (HR-25) and the midi-export `touch_fret`/`partial` fields (HR-27).
+REALISM-B has landed on this checkout: the contact comb and contacts API, all four harmonic kinds, the analytic node search, the sounding-pitch locator, the 8 parameters, CC 103/104, the CHARACTER HARMONICS group and the fretboard contact ring, with `HarmonicRealism.HR01..HR19` registered. Still open: a test for the 0.35 receptivity while touching (HR-11), the gui-integration §19 row (HR-25) and the gui-integration row (HR-25); the midi-export `touch_fret`/`partial` fields (HR-27) are DEFERRED by the spec.
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -28,9 +28,9 @@ REALISM-B has landed on this checkout: the contact comb and contacts API, all fo
 | HR-22 (§6) | CC 103 ArtificialHarmonic, CC 104 TappedHarmonic; decide() priority order | `MidiInterpreter::resetCcMapToDefaults`, `TechniqueEngine::decide` | n/a (MIDI) | `HarmonicRealism.HR19_FA17_luthierExportRoundTrip`, `Technique.controllersTakePriorityOverInference` | DONE |
 | HR-23 (§7) | CHARACTER HARMONICS row in PICK with partial tooltips | n/a | `UI/HarmonicsGroup.*` after PICK in `CharacterPanel` | `RealismBUi.theCharacterTabCarriesTheThreeGroups` | DONE |
 | HR-24 (§7) | Fretboard hollow ring at contact, fading; dashed when missed | `getContactDisplay` | `UI/FretboardRealismB.cpp` | `RealismBUi.theFretboardDrawsTheTouch` | DONE |
-| HR-25 (§7) | gui-integration.md §19 row "Harmonic contact / offsets / mapping" — owner defers | n/a | n/a (doc) | - | MISSING |
+| HR-25 (§7) | gui-integration.md §19 row "Harmonic contact / offsets / mapping" - no such row in spec/gui-integration.md (Feature-to-location index) | n/a | n/a (doc) | - | MISSING |
 | HR-26 (§7) | Preset: plain APVTS params | APVTS | n/a | `FingerstyleAttack.FA17_rangesRealtimeRoundTrip` (same mechanism) | DONE |
-| HR-27 (§7) | midi-export NOTE gains `touch_fret` + `partial` — owner defers | none | n/a | - | MISSING |
+| HR-27 (§7) | midi-export NOTE gains `touch_fret` + `partial` - deferred by spec/harmonic-realism.md (item 10, midi-export owns the capture path); not implemented | none | n/a | - | DEFERRED |
 | HR-28 (§8) | No allocation, reset clears contacts, budget (spec 0.05, owner 1.0 units) | `StringEngine::reset`, `resetRealismB` | n/a | `HarmonicRealism.HR18_realtime` | DONE |
 | HR-29 (§9 HR-01) | Natural harmonic pitch | - | n/a | `HarmonicRealism.HR01_naturalHarmonicPitch` | DONE |
 | HR-30 (§9 HR-02/03) | Fundamental suppressed; not a sine | - | n/a | `HarmonicRealism.HR02_HR03_fundamentalSuppressedAndNotASine` | DONE |

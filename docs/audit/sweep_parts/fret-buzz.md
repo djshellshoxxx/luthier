@@ -1,6 +1,6 @@
 ## fret-buzz.md
 
-The setup geometry and sensed buzz are in and well tested: `SetupGeometry::clearanceMm` (nut-to-saddle line plus a parabolic relief peaking at fret 7, only frets past the finger), block-rate `FretBuzz::sense/process` feeding metallic burst-at-f0 generators, the threshold trim, sitar mode, the six setup styles and the live heatmap, all in CHARACTER > SETUP (`SetupGroup`), with action/relief/nut mirrored in the Workshop. Missing: fret material does not set brightness (no fret-material field exists), fret wear does not move buzz, bends do not change clearance, and there are no budget, no-allocation or heatmap-staleness tests.
+The setup geometry and sensed buzz are in and well tested: `SetupGeometry::clearanceMm` (nut-to-saddle line plus a parabolic relief peaking at fret 7, only frets past the finger), block-rate `FretBuzz::sense/process` feeding metallic burst-at-f0 generators, the threshold trim, sitar mode, the six setup styles and the live heatmap, all in CHARACTER > SETUP (`SetupGroup`), with action/relief/nut mirrored in the Workshop. Missing: fret material sets termination brightness via the part mapping but not the buzz bursts, fret wear does not move buzz, bends do not change clearance, and there are no budget, no-allocation or heatmap-staleness tests.
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -12,7 +12,7 @@ The setup geometry and sensed buzz are in and well tested: `SetupGeometry::clear
 | FB-6 (§3.2) | `setup_buzz_threshold` trims +/-0.15 mm, not a mute | `sense` (trim = (t-0.5) x 0.3) | SETUP `threshold` | `Buzz.theThresholdIsATrimNotAMute` | DONE |
 | FB-7 (§4) | Generator: burst per contact at the fundamental while excess > 0 | `process` (`NoiseEvent::burstHz`) | n/a | `Buzz.buzzStopsAsTheNoteDecays` | DONE |
 | FB-8 (§4) | Spectrum metallic 3-6 kHz, centre rising with contact fret — no test | `process` (startHz 3-6 kHz by fret, metallic texture) | n/a | `Buzz.theCentreRisesWithTheContactFret` | DONE |
-| FB-9 (§4) | Fret material sets brightness (nickel-silver dull, stainless bright, EVO between) — no fret-material field exists | none | n/a | - | MISSING |
+| FB-9 (§4) | Fret material sets brightness (nickel-silver dull, stainless bright, EVO between) - part field `frets.material` maps to `d.fretBrightness` and string termination brightness, but the buzz burst generators in `FretBuzz` ignore it | `PartAcoustics.cpp:fretMaterialBrightness`, `LuthierEngine.cpp` `setTerminationBrightness`; `DSP/Noise/FretBuzz.cpp` (no material input) | WORKSHOP inspector (frets material) | `PartAcoustics::aReferenceGuitarSoundsLikeTheEngineDefault` (default only) | PARTIAL |
 | FB-10 (§4) | Level min(1, excess/0.3) scaled by fret height | `FretBuzz::levelFor` | SETUP `fretHeight` | `Buzz.fretHeightChangesLevelNotPosition` | DONE |
 | FB-11 (§4) | Envelope 0.5 ms attack, decay tracks excess (buzzes on attack, cleans up) | `process` (setSustainLevel / release) | n/a | `Buzz.buzzStopsAsTheNoteDecays` | DONE |
 | FB-12 (§4) | Injection pre-body, also Aux 8 | `NoiseEngine::processSample` surface path | n/a | `PluginBuses.aux8CarriesThePlayingNoiseAndObeysItsStrip` | DONE |
@@ -29,7 +29,7 @@ The setup geometry and sensed buzz are in and well tested: `SetupGeometry::clear
 | FB-23 (§8) | Bass defaults lower action (Factory low) | `Model/Guitar/BassDefaults.cpp` setupStyle 0 | n/a | `BassTechniques.bassDefaultsApplyOnLoad` | DONE |
 | FB-24 (§8) | Slap/pop drive the string into the frets (clack via buzz generator) | `SlapEngine::makeContactBuzz` with `fretBuzzModel` | n/a | `Slap.theClackIsTheFretBuzzGenerator`, `SlapWiring.theClackComesFromTheBuzzGenerator` | DONE |
 | FB-25 (§8) | Squeak and buzz both fire, no ducking — untested | separate pools | n/a | - | NO-TEST |
-| FB-26 (§8) | Bends lift the string: less buzz at the fretted position, more further up — not implemented (`process` gets `currentFret`, no bend input) | none | n/a | - | MISSING |
+| FB-26 (§8) | Bends lift the string: less buzz at the fretted position, more further up - not implemented (`FretBuzz::process` gets `currentFret`, no bend input) | none | n/a | - | MISSING |
 | FB-T1 (§9) | Test: low action buzzes, high does not | | n/a | `Buzz.lowActionBuzzesAndHighActionDoesNot` | DONE |
 | FB-T2 (§9) | Test: buzz stops as the note decays | | n/a | `Buzz.buzzStopsAsTheNoteDecays` | DONE |
 | FB-T3 (§9) | Test: only frets ahead of the finger | | n/a | `Buzz.onlyFretsAheadOfTheFingerBuzz` | DONE |
@@ -41,4 +41,4 @@ The setup geometry and sensed buzz are in and well tested: `SetupGeometry::clear
 | FB-T9 (§9) | Test: block-rate sensing within 0.2-unit budget at 6 voices — missing (visual's `PerfBudget.everyModuleWithinBudget` has no FretBuzz row) | | n/a | - | NO-TEST |
 | FB-T10 (§9) | Test: no allocation on the audio thread — missing | n/a | n/a | `Buzz.noAllocationOnTheAudioThread` | DONE |
 
-<!-- counts DONE=27 NO-GUI=0 NO-TEST=6 PARTIAL=0 MISSING=3 OWNED=0 -->
+<!-- counts DONE=30 NO-GUI=0 NO-TEST=4 PARTIAL=1 MISSING=1 OWNED=0 -->

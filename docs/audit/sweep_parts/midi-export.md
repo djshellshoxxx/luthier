@@ -43,4 +43,4 @@ The codec is complete: 18 event classes with text + SysEx redundancy, Luthier/Ge
 | MX-T8 (§12) | Test: live MIDI-out timing over a 10k-event fuzz | - | n/a | `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` | DONE |
 | MX-T9 (§12) | Test: live SysEx dropped by other hosts, parsed by Luthier | - | n/a | `MidiExport::liveSysExIsDroppedByOtherHostsAndReadByLuthier` | DONE |
 
-<!-- counts DONE=33 NO-GUI=0 NO-TEST=0 PARTIAL=5 MISSING=0 OWNED=0 -->
+<!-- counts DONE=33 NO-GUI=0 NO-TEST=0 PARTIAL=5 MISSING=0 DEFERRED=0 -->

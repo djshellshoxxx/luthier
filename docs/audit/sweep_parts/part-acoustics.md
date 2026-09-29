@@ -1,6 +1,6 @@
 ## part-acoustics.md
 
-`mapSpec` (Model/Workshop/PartAcoustics.cpp) is the one deterministic mapping from parts to engine numbers. It runs once per swap, and every part field it reads can be edited in the WORKSHOP inspector. Wood, joint, bridge/tailpiece/pickguard mass, frets, nut, magnets, covers, pole pieces, position, wiring components and strings all reach the engine. Chambering now reaches the feedback loop (MODEL-GAPS merged). Some computed values are never consumed: `airResonanceHz/Q`, `bodyGainDb`, `finishDampingDb`, and the part's `winding_pitch_per_mm` (PlayingNoise recomputes it). Body modes use BodyModels' own wood table, whose values differ from §1. These fields are not mapped: neck wood/profile, fretboard radius, bridge.piezo, coil_turns, switching, strings.core and tension_kg. Loss-domain damping composition is missing too. nut.friction is on realism-c.
+`mapSpec` (Model/Workshop/PartAcoustics.cpp) is the one deterministic mapping from parts to engine numbers. It runs once per swap, and every part field it reads can be edited in the WORKSHOP inspector. Wood, joint, bridge/tailpiece/pickguard mass, frets, nut, magnets, covers, pole pieces, position, wiring components and strings all reach the engine. Chambering now reaches the feedback loop (MODEL-GAPS merged). Some computed values are never consumed: `airResonanceHz/Q`, `bodyGainDb`, `finishDampingDb`, and the part's `winding_pitch_per_mm` (PlayingNoise recomputes it). Body modes use BodyModels' own wood table, whose values differ from §1. These fields are not mapped: neck wood/profile, fretboard radius, bridge.piezo (family only), switching, strings.core and tension_kg. Loss-domain damping composition is missing too. nut.friction is wired (PA-30).
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -8,11 +8,11 @@
 | PA-2 (§0.2) | Physical units in, DSP units out | `mapSpec`, `stringTensionNewtons` | n/a | `PartAcoustics::scaleLengthSetsTension` | DONE |
 | PA-3 (§0.3) | Monotonic and continuous | `mapSpec` | n/a | `PartAcoustics::theMappingIsMonotonic` | DONE |
 | PA-4 (§0.4) | Honest magnitudes: a small part swap gives a small real delta — no test bounds the size of a swap's spectral change | `mapSpec` multipliers | n/a | - | NO-TEST |
-| PA-5 (§0.5) | Every constant named and sourced — fitted constants have no source: magnet 0.09/-0.9, coupling ×1.4, chamber feedback 0.1-0.8, shape-area 1.3×0.78, fretboard tanδ ×20 | `PartAcoustics.cpp`, `LuthierEngine.cpp:applyWorkshopGuitar` | n/a | - | PARTIAL |
+| PA-5 (§0.5) | Every constant named and sourced - fitted constants in `mapSpec` (magnet 0.09/-0.9, coupling x1.4, chamber feedback 0.1-0.8, shape-area 1.3x0.78, fretboard tan-delta x20) still carry no source comment or spec citation | `PartAcoustics.cpp`, `LuthierEngine.cpp:applyWorkshopGuitar` | n/a | - | PARTIAL |
 | PA-6 (§1) | 17-wood table (ρ, E, tanδ) | `lookUpWood` | WORKSHOP inspector (`WorkshopPanel` fieldEditor -> `WorkshopBench::editField`) | - | NO-TEST |
 | PA-7 (§1.1) | Body/top density and E set mode frequency, `f ∝ sqrt(E/ρ)` — body modes come from `BodyModels` kWoods, which have different ρ/E; the §1 table only trims by a density override | `mapSpec` (`engineWood`, `resonanceTrim`), `Model/Guitar/BodyModels.cpp` | WORKSHOP inspector | `PartAcoustics::theMappingIsMonotonic` (density only) | PARTIAL |
 | PA-8 (§1.1) | tanδ sets mode Q, `Q≈1/(2tanδ)` — Q comes from BodyModels' loss factors (e.g. alder 0.013, not 8.5e-3); §1 tanδ is used only for fretboard brightness | `BodyModels.cpp` (Q from loss factor) | n/a | - | PARTIAL |
-| PA-9 (§1.1, §3) | Neck and fretboard wood/density feed neck mass, body coupling and dead-spot frequency — not mapped | - | - | - | MISSING |
+| PA-9 (§1.1, §3) | Neck and fretboard wood/density feed neck mass, body coupling and dead-spot frequency - not mapped (neck wood unread; fretboard wood tan-delta only trims `fretBrightness`, `PartAcoustics.cpp` ~448-455) | `PartAcoustics.cpp` (fretBrightness only) | - | - | MISSING |
 | PA-10 (§2) | body.wood and a `density_kg_m3` override | `mapSpec` body block | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` | DONE |
 | PA-11 (§2) | body.thickness_mm: mode frequency and mass | `scaleDepth`, `shapeFor` | WORKSHOP inspector | `PartAcoustics::theMappingIsMonotonic`, `PartAcoustics::everyMappedFieldMovesSomething` | DONE |
 | PA-12 (§2) | body.area_cm2: mode frequency ∝ 1/area; air volume | `scaleWidth` | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` | DONE |
@@ -23,10 +23,10 @@
 | PA-17 (§2.1) | Chambering feedback coupling into the feedback loop | `d.feedbackGain` -> `FeedbackLoop::setBodyCoupling` | n/a | `ModelGaps::chamberingFeedsTheFeedbackCoupling` | DONE |
 | PA-18 (§2) | Bracing: acoustic mode splitting | `engineBracing` -> `BodyConfig::bracing` | WORKSHOP inspector | - | NO-TEST |
 | PA-19 (§3) | Scale length -> tension `T=(2Lf)²μ` | `stringTensionNewtons`, `StringMaterials::computeSpec` | WORKSHOP inspector | `PartAcoustics::scaleLengthSetsTension` | DONE |
-| PA-20 (§3) | neck.profile: mass distribution only — not mapped (the renderer only draws it) | - | - | - | MISSING |
+| PA-20 (§3) | neck.profile: mass distribution only - not mapped (`mapSpec` reads neck scale_length_mm, frets, joint only; renderer draws the profile) | - | - | - | MISSING |
 | PA-21 (§3) | Joint coupling: bolt 0.55 / set 0.80 / through 0.95 | `jointCoupling` | WORKSHOP inspector | `PartAcoustics::couplingsMultiply` | DONE |
 | PA-22 (§3) | fretboard.wood: termination damping; harder is brighter | `mapSpec` (tanδ -> `fretBrightness`) | WORKSHOP part swap | - | NO-TEST |
-| PA-23 (§3) | fretboard.radius_mm: buzz clearance geometry — not mapped (DECISIONS lists it as not yet consumed) | - | - | - | MISSING |
+| PA-23 (§3) | fretboard.radius_mm: buzz clearance geometry - not mapped (`mapSpec` has no radius read; buzz uses SetupGeometry only) | - | - | - | MISSING |
 | PA-24 (§4) | frets.material brightness NS .70 / SS .90 / EVO .80 / brass .60, plus buzz spectrum | `fretMaterialBrightness` -> `setTerminationBrightness` | WORKSHOP part swap | `PartAcoustics::aReferenceGuitarSoundsLikeTheEngineDefault` (NS only) | NO-TEST |
 | PA-25 (§4) | frets.height_mm: buzz clearance | `d.setup.fretHeight` | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` | DONE |
 | PA-26 (§4) | frets.width_mm: wider is duller | `mapSpec` fretBrightness | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` | DONE |
@@ -49,12 +49,12 @@
 | PA-43 (§6.1) | Position sets the comb | `spec.position` | WORKSHOP pickup drag | `PartAcoustics::pickupPositionSetsTheComb` | DONE |
 | PA-44 (§6) | Height: output level and magnetic damping | `heightMm` -> `PickupEngine` heightGain, magnet proximity | WORKSHOP wheel/drag | `PartAcoustics::magnetPullShortensSustainAndPullsFlat` | DONE |
 | PA-45 (§7) | Wiring pots, cap, taper, bleed, active -> circuit | `mapSpec` wiring block -> `CircuitComponents` | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` (pots/cap) | DONE |
-| PA-46 (§7) | `switching` topology (3-way/5-way/series/coil tap) — the part field is ignored; the selector parameter works independently | - | - | - | MISSING |
+| PA-46 (§7) | `switching` topology (3-way/5-way/series/coil tap) - part field ignored in `mapSpec`; the selector parameter works independently | - | - | - | MISSING |
 | PA-47 (§8) | gauges_in -> μ and tension | `StringMaterials::computeSpec` | WORKSHOP inspector | `PartAcoustics::scaleLengthSetsTension`, `StringPhysics::thickerStringsAreHeavierAndTighter` | DONE |
 | PA-48 (§8) | winding and winding_material -> squeak/brightness material | `materialFor` | WORKSHOP part swap | - | NO-TEST |
-| PA-49 (§8) | core round/hex: warmth and stiffness — not mapped | - | - | - | MISSING |
-| PA-50 (§8) | winding_pitch_per_mm feeds squeak and chirp — mapped into `d.windingPitchPerMm`, but the engine recomputes 1/wrap in `PlayingNoise` and ignores the part | `mapSpec`; `DSP/Noise/PlayingNoise.cpp` | n/a | - | PARTIAL |
-| PA-51 (§8) | tension_kg[] override — not mapped | - | - | - | MISSING |
+| PA-49 (§8) | core round/hex: warmth and stiffness - not mapped (strings.core unread) | - | - | - | MISSING |
+| PA-50 (§8) | winding_pitch_per_mm feeds squeak and chirp - mapped into `d.windingPitchPerMm` but no LuthierEngine consumer reads it; `PlayingNoise.cpp:19` recomputes 1/wrapMm | `mapSpec` (`PartAcoustics.cpp:527`); `DSP/Noise/PlayingNoise.cpp:19` | n/a | - | PARTIAL |
+| PA-51 (§8) | tension_kg[] override - not mapped (`mapSpec` reads no tension_kg) | - | - | - | MISSING |
 | PA-52 (§8) | Wound μ from core and winding geometry — uses a per-material `woundMassFactor`, not core diameter | `stringLinearDensity`, `StringMaterials` | n/a | - | PARTIAL |
 | PA-53 (§8) | Inharmonicity `B ∝ d⁴E/(TL²)` | `StringMaterials::computeSpec` | n/a | `StringPhysics::woundStringsAreLessStiffThanTheirDiameterSuggests` | DONE |
 | PA-54 (§9) | pickguard.mass_g: top damping on acoustics/thinlines — only added to termination mass | `terminationMassG` | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` | PARTIAL |
@@ -63,7 +63,7 @@
 | PA-57 (§9) | finish.aging -> body break-in | `d.body.age` | n/a (guitar-file field) | - | NO-TEST |
 | PA-58 (§10) | Masses add (bridge + tailpiece + pickguard) | `terminationMassG` | n/a | - | NO-TEST |
 | PA-59 (§10) | Couplings multiply | `couplingFraction` | n/a | `PartAcoustics::couplingsMultiply` | DONE |
-| PA-60 (§10) | Dampings add in the loss domain, `1/Q = Σ1/Q_i` — not implemented; sustain factors multiply | - | - | - | MISSING |
+| PA-60 (§10) | Dampings add in the loss domain, 1/Q = sum 1/Q_i - not implemented; sustain factors still multiply (`partsSustain`, `magnetSustain`) | - | - | - | MISSING |
 | PA-T1 (§11) | Test: every field ±10% moves the rendered spectrum — the test compares the DerivedAcoustics struct only and skips unmapped fields | - | n/a | `PartAcoustics::everyMappedFieldMovesSomething` | PARTIAL |
 | PA-T2 (§11) | Test: monotonicity for density, mass, thickness, inductance and position | - | n/a | `PartAcoustics::theMappingIsMonotonic` | DONE |
 | PA-T3 (§11) | Test: 628 vs 648 mm tension within 1% | - | n/a | `PartAcoustics::scaleLengthSetsTension` | DONE |

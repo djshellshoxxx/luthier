@@ -1,6 +1,6 @@
 ## proposals/visual-polish.md
 
-Most of this approved proposal is built on this checkout: the guitar-shop palette (`UI/Theme.h`), bundled display/sans fonts, engraved plates, corner screws, bell knob, brass fader, mini toggles, guitar key light / sheen / metal / drop shadows (`GuitarRenderer`), amp and pedal faces with Tolex, pilot light, valve glow, knob caps and a brass headstock mark, with `Theme.*`, `Faces.*`, `FacesIntegration.*` tests. Not on this checkout: the VU needle meter, the room light, and the user accent / follow-the-guitar option (`OptionsPages.cpp` says the accent tint is pending). The visual branch has that work (`AppearanceTests.cpp`: `Accent.*`, `StageTouches.*`; Options -> Appearance accent choices, commit 00cd9bc/d39f5a8) plus `Screenshots.everyPanelInEveryPalette`. Owner gaps: no test that opening Advanced with every face visible stays in the UI frame budget, and no check that focus rings are visible in the new accent.
+Most of this approved proposal is built and tested: palette, fonts, plates, guitar lighting, amp and pedal faces, and the merged VU needle meter, room light and user/follow-the-guitar accent (`UI/StageTouches.*`, Options > Appearance, `AppearanceTests.cpp`: `Accent.*`, `StageTouches.*`, `Screenshots.everyPanelInEveryPalette`). Remaining gaps: no test that opening Advanced with every face visible stays in the UI frame budget, and no assertion that focus rings and the brand mark render in the accent.
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -18,21 +18,21 @@ Most of this approved proposal is built on this checkout: the guitar-shop palett
 | VP-12 (§2) | Same knobs/params; layout unaffected | faces | AMP / racks | `FacesIntegration.theAdvancedAmpSectionHasItsControlsOnTheFace`, `FacesIntegration.theEasyAmpCardHasItsKnobsOnTheFace` | DONE |
 | VP-13 (§3) | Model-specific knob caps on faces only, value arc kept | `UI/Faces/KnobCaps` | faces | `Faces.everyKnobCapRendersAndKeepsTheArc` | DONE |
 | VP-14 (§4) | Tube glow follows drive, greys when stale | `AmpFace` drive/driveStale | ADVANCED AMP | `FacesIntegration.theValvesGlowWithTheDriveAndGreyWhenStale` | DONE |
-| VP-15 (§4) | Optional VU needle meter (header / Easy rig strip), ballistics, stale grey | (visual) VU meter | (visual) header / Easy rig | (visual) `StageTouches.theVuNeedleHasBallisticsAndGreysWhenStale` | OWNED |
-| VP-16 (§4) | Room light: ROOM card warms/widens with size and wet | (visual) room light | (visual) ROOM card | (visual) `StageTouches.theRoomLightFollowsSizeAndWet` | OWNED |
+| VP-15 (§4) | Optional VU needle meter (header / Easy rig strip), ballistics, stale grey | `VuMeter` (`UI/StageTouches.cpp`) | Easy rig strip (`EasyPanel`), Options > Appearance toggle | `StageTouches.theVuNeedleHasBallisticsAndGreysWhenStale` | DONE |
+| VP-16 (§4) | Room light: ROOM card warms/widens with size and wet | `RoomLight` (`UI/StageTouches.cpp`) | ROOM card (`EasyPanel`) | `StageTouches.theRoomLightFollowsSizeAndWet` | DONE |
 | VP-17 (§5) | Default / High contrast / Light palettes complete | `Accessibility` PaletteId | Options > APPEARANCE | `Theme.everyTextPairMeetsContrastOnTheThreePalettes`, `Theme.aPaletteChangeReachesBuiltComponents` | DONE |
-| VP-18 (§5) | User accent: brass + 5 others, each >= 4.5:1 on every palette | (visual) accent choices | (visual) Options > Appearance | (visual) `Accent.everyChoiceMeetsContrastOnEveryPalette` | OWNED |
-| VP-19 (§5) | Follow-the-guitar accent from finish colour, contrast-adjusted | (visual) | (visual) Options > Appearance | (visual) `Accent.theWindowTakesTheAccentAndFollowsTheGuitar` | OWNED |
+| VP-18 (§5) | User accent: brass + 5 others, each >= 4.5:1 on every palette | `AccessibilitySettings::getAccentNames` | Options > Appearance accent box (`OptionsPages.cpp`) | `Accent.everyChoiceMeetsContrastOnEveryPalette` | DONE |
+| VP-19 (§5) | Follow-the-guitar accent from finish colour, contrast-adjusted | follow-the-guitar accent (`Accent` code) | Options > Appearance "Follow the guitar" | `Accent.theWindowTakesTheAccentAndFollowsTheGuitar` | DONE |
 | VP-20 (§6.1) | Palette values #1E1511 / #2A1E17 / #EFE3CC / #B9A58A / #D4A24C / #6FA58A; Light maple/cream | `Theme.h` | whole UI | `Theme.theDefaultIsTheGuitarShop` | DONE |
 | VP-21 (§6.2) | Condensed display heading face, warm sans, tabular numbers (bundled open-licence fonts) | `Resources/Fonts`, `Theme.cpp` | whole UI | `Theme.theBundledFontsLoad` | DONE |
 | VP-22 (§6.2-6.3) | Engraved-plate headers; bell knob with outer arc; mini toggles; brass fader; framed panels with corner screws | `Theme::drawRotarySlider/drawLinearSlider/drawCornerScrews`, plates | whole UI | `Theme.controlsRenderInEveryPaletteAndRepeatExactly` | DONE |
-| VP-23 (§6.4) | Brand mark: inlaid brass headstock outline; output LED kept — no test | `Theme.cpp` brand mark; (visual) header name in display face with the mark | header | (visual) `Screenshots.everyPanelInEveryPalette` (by eye) | OWNED |
-| VP-24 (§6.5) | Focus rings restyled to the accent and still visible — colour IDs set, not tested | `Theme.cpp` focusedOutlineColourId | whole UI | - | OWNED |
+| VP-23 (§6.4) | Brand mark: inlaid brass headstock outline; output LED kept - no assertion | `Theme.cpp` brand mark | header | `Screenshots.everyPanelInEveryPalette` (by eye, no assertion) | NO-TEST |
+| VP-24 (§6.5) | Focus rings restyled to the accent and still visible - colour IDs set, not tested | `Theme.cpp` focusedOutlineColourId | whole UI | - | NO-TEST |
 | VP-T1 (§7) | Test: every lit/textured surface renders identically twice | | | `Faces.facesRenderIdenticallyTwice` | DONE |
 | VP-T2 (§7) | Test: HC no gradients/sheen/textures | | | `Theme.highContrastIsFlat`, `Faces.highContrastFacesAreFlat` | DONE |
-| VP-T3 (§7) | Test: every accent option meets 4.5:1 on every palette | | | (visual) `Accent.everyChoiceMeetsContrastOnEveryPalette` | OWNED |
+| VP-T3 (§7) | Test: every accent option meets 4.5:1 on every palette |  |  | `Accent.everyChoiceMeetsContrastOnEveryPalette` | DONE |
 | VP-T4 (§7) | Test: Standby and bypass change pilot and LEDs | | | `Faces.thePilotFollowsStandbyAndTheLedFollowsBypass` | DONE |
 | VP-T5 (§7) | Test: knob/toggle/slider render in all three palettes (PNG review) | | | `Theme.controlsRenderInEveryPaletteAndRepeatExactly`; (visual) `Screenshots.everyPanelInEveryPalette` | DONE |
-| VP-T6 (§7) | Test: opening Advanced with every face visible stays in the UI frame budget — none | | | - | OWNED |
+| VP-T6 (§7) | Test: opening Advanced with every face visible stays in the UI frame budget - none |  |  | - | MISSING |
 
-<!-- counts DONE=22 NO-GUI=0 NO-TEST=0 PARTIAL=0 MISSING=0 OWNED=8 -->
+<!-- counts DONE=27 NO-GUI=0 NO-TEST=2 PARTIAL=0 MISSING=1 DEFERRED=0 -->
