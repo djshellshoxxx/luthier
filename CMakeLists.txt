@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if (MSVC)
-    add_compile_options(/MP1 /bigobj /wd4244 /wd4267 /wd4305 /wd4996)
+    add_compile_options(/MP1 /bigobj /Zc:lambda /wd4244 /wd4267 /wd4305 /wd4996)
     # Keep per-TU memory low: this machine has 4 GB RAM.
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
