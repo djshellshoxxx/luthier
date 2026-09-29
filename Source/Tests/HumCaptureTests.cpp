@@ -3,6 +3,7 @@
 
 #include "TestFramework.h"
 
+#include <cmath>
 #include <limits>
 
 #include "../DSP/Common/PitchTracker.h"
