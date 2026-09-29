@@ -304,3 +304,26 @@ last (paused until after beta). Follow the plan's critical path; do not make
 tab-export, new instruments, licensing, or edition-splitting beta prerequisites.
 Windows CI lane re-enabled in ci-cadence.yml (still subject to the Actions budget;
 use an authorized local Windows build if Actions stays blocked).
+
+## PERF-AUDIT — LAST, low priority, ultra token-lean (2026-09-29, owner)
+
+Owner concern: large codebase may get sluggish; wants ONE agent to find
+speed/efficiency wins WITHOUT breaking anything. LOWEST priority — the
+coordinator launches this ONLY after everything else is done: mega-merge
+landed, beta shipped, all audits/beta clean, editions handled. Never run it
+concurrently with feature/merge work.
+
+When launched (ONE Sonnet helper, branch claude/luthier-perf-audit, TERSE_MODE,
+low effort, token-lean — grep/targeted reads only, NEVER whole-tree reads):
+- Focus on the HOT path first: audio thread (processBlock and everything it
+  calls), per-block/per-sample loops, allocations/locks/virtual calls/denormals
+  in DSP, redundant recomputation, unnecessary copies, oversized buffers.
+- Then non-hot wins: build time, obvious O(n^2), repeated work in UI timers.
+- Deliver docs/audit/PERF_AUDIT.md: ranked findings (file:line | cost | fix |
+  risk | measured or estimated gain). APPLY ONLY changes that are clearly safe,
+  behaviour-identical, and test-covered; everything risky stays a proposal.
+- HARD RULE: no behaviour or audio change; do not weaken/skip tests; full Linux
+  suite must stay green; measure before/after where feasible. If a fix can't be
+  proven safe, propose it, don't apply it.
+- Token budget: keep it to one pass; report + safe micro-fixes only; stop when
+  the report is written and the safe fixes are green.
