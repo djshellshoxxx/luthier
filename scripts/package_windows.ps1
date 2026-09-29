@@ -1,11 +1,13 @@
 <#
 .SYNOPSIS
-    Build the Windows installer from the products scripts/ci_build.ps1 staged.
+    Package the Windows products staged by scripts/ci_build.ps1.
 
 .DESCRIPTION
     Produces dist\installers\Luthier-<version>-Setup-win64.exe with Inno Setup
-    (packaging\windows\Luthier.iss), and a portable zip of the standalone
-    (installer.md 9): dist\installers\Luthier-<version>-portable-win64.zip.
+    (packaging\windows\Luthier.iss), and a portable zip containing the full
+    VST3 bundle, standalone executable and factory Resources:
+    dist\installers\Luthier-<version>-portable-win64.zip.
+    -PortableOnly skips Inno Setup and writes a SHA-256 sidecar.
 
     Code signing runs only when WINDOWS_CERT_PFX_BASE64 (a base64 .pfx) and
     WINDOWS_CERT_PASSWORD are set: the plug-in binaries and the standalone are
@@ -18,6 +20,13 @@
     "Azure/trusted-signing-action", DigiCert KeyLocker's smctl, ...) - see
     docs/RELEASING.md.
 
+.PARAMETER BetaReadme
+    Path to a completed README-BETA.md. Defaults to docs/beta/README-BETA.md.
+    Required for the portable archive; templates and placeholders are rejected.
+
+.PARAMETER PortableOnly
+    Package staged products without locating, installing or invoking Inno Setup.
+
 .PARAMETER Version
     Defaults to $env:VERSION, then to project(VERSION) in CMakeLists.txt.
 #>
@@ -25,7 +34,9 @@
 [CmdletBinding()]
 param(
     [string] $Version = $env:VERSION,
-    [string] $DistDir = 'dist'
+    [string] $DistDir = 'dist',
+    [string] $BetaReadme = 'docs/beta/README-BETA.md',
+    [switch] $PortableOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,6 +54,13 @@ $stage = (Resolve-Path (Join-Path $DistDir 'windows')).Path
 $out   = Join-Path $root "$DistDir/installers"
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
+# Require the complete Windows VST3 bundle before signing or packaging.
+foreach ($required in 'Luthier.exe', 'Resources', 'Luthier.vst3/Contents/x86_64-win/Luthier.vst3') {
+    if (-not (Test-Path (Join-Path $stage $required))) {
+        throw "Staged Windows product missing: $required (run scripts/ci_build.ps1 -Step stage)."
+    }
+}
+
 function Write-Step([string] $message) {
     Write-Host ''
     Write-Host "==> $message" -ForegroundColor Cyan
@@ -50,8 +68,8 @@ function Write-Step([string] $message) {
 
 #------------------------------------------------------------------ signing
 $signing = $false
-$pfx = Join-Path $env:RUNNER_TEMP 'luthier-signing.pfx'
-if (-not $env:RUNNER_TEMP) { $pfx = Join-Path ([System.IO.Path]::GetTempPath()) 'luthier-signing.pfx' }
+$signingTemp = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
+$pfx = Join-Path $signingTemp 'luthier-signing.pfx'
 $timestamp = 'http://timestamp.digicert.com'
 
 $signtool = $null
@@ -62,7 +80,7 @@ if ($env:WINDOWS_CERT_PFX_BASE64 -and $env:WINDOWS_CERT_PASSWORD) {
     if (-not $signtool) { throw 'signtool.exe not found (Windows SDK).' }
     $signing = $true
 } else {
-    Write-Host '::warning::WINDOWS_CERT_PFX_BASE64 / WINDOWS_CERT_PASSWORD not set: the installer is unsigned'
+    Write-Host '::warning::WINDOWS_CERT_PFX_BASE64 / WINDOWS_CERT_PASSWORD not set: the Windows package is unsigned'
 }
 
 function Invoke-Sign([string] $file) {
@@ -83,6 +101,7 @@ try {
         }
     }
 
+    if (-not $PortableOnly) {
     #-------------------------------------------------------------- Inno Setup
     $iscc = Get-Command iscc.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
     if (-not $iscc) {
@@ -105,30 +124,50 @@ try {
     $isccArgs += (Join-Path $root 'packaging/windows/Luthier.iss')
     & $iscc @isccArgs
     if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)." }
+    }
 
     #-------------------------------------------------------------- portable zip
+    if ($BetaReadme -match '\.template\.md$') {
+        throw "Pass a completed README-BETA.md, not the template: $BetaReadme"
+    }
+    if (-not (Test-Path -LiteralPath $BetaReadme -PathType Leaf)) {
+        throw "Completed beta README not found at $BetaReadme. Pass -BetaReadme with a reviewed README-BETA.md."
+    }
+    $betaReadmeText = Get-Content -LiteralPath $BetaReadme -Raw
+    if ([string]::IsNullOrWhiteSpace($betaReadmeText) -or
+        $betaReadmeText -match '\[[^\]\r\n]+\](?!\()|\{\{[^}]+\}\}|\b(?:TODO|TBD|REPLACE ME)\b|Release owner: replace every bracketed field') {
+        throw "Beta README contains a template field or placeholder: $BetaReadme"
+    }
     # installer.md 9: unpacks anywhere; no registry, no start menu. The content
     # sits in Resources beside the exe, where IrLibrary finds it first.
     Write-Step 'Building the portable zip'
-    $portable = Join-Path ([System.IO.Path]::GetTempPath()) "Luthier-$Version-portable"
-    if (Test-Path $portable) { Remove-Item -Recurse -Force $portable }
+    $portable = Join-Path ([System.IO.Path]::GetTempPath()) ("Luthier-$Version-portable-" + [System.IO.Path]::GetRandomFileName())
     New-Item -ItemType Directory -Path $portable | Out-Null
+    try {
     Copy-Item (Join-Path $stage 'Luthier.exe') $portable
+    Copy-Item -LiteralPath $BetaReadme -Destination (Join-Path $portable 'README-BETA.md')
     Copy-Item -Recurse (Join-Path $stage 'Resources') (Join-Path $portable 'Resources')
     Copy-Item -Recurse (Join-Path $stage 'Luthier.vst3') $portable
     if (Test-Path (Join-Path $stage 'Luthier.clap')) { Copy-Item (Join-Path $stage 'Luthier.clap') $portable }
     Set-Content -Path (Join-Path $portable 'README.txt') -Value @"
 Luthier $Version - portable
 
-Run Luthier.exe from this folder. Nothing is written to the registry or the
-Start menu. To use the plug-ins, point your DAW's VST3 or CLAP folder list at
-this folder, or copy Luthier.vst3 / Luthier.clap to
-C:\Program Files\Common Files\VST3 and ...\CLAP (keep Resources beside them).
+Run Luthier.exe with Resources beside it. This archive does not install
+registry entries or Start menu shortcuts. For VST3, copy the entire
+Luthier.vst3 folder into C:\Program Files\Common Files\VST3\, and copy
+Resources into C:\ProgramData\Luthier\Resources\ for factory content.
+If included, Luthier.clap belongs in C:\Program Files\Common Files\CLAP\.
+Close your DAW before replacing the plug-in and rescan after copying.
 "@
     $zip = Join-Path $out "Luthier-$Version-portable-win64.zip"
     if (Test-Path $zip) { Remove-Item -Force $zip }
+    if (Test-Path "$zip.sha256") { Remove-Item -Force "$zip.sha256" }
     Compress-Archive -Path "$portable\*" -DestinationPath $zip
-    Remove-Item -Recurse -Force $portable
+    } finally {
+        Remove-Item -Recurse -Force $portable
+    }
+    $checksum = (Get-FileHash -Algorithm SHA256 -Path $zip).Hash.ToLowerInvariant()
+    Set-Content -Path "$zip.sha256" -Encoding ascii -Value "$checksum  $(Split-Path -Leaf $zip)"
 
     Get-ChildItem $out | Format-Table Name, Length
 }
