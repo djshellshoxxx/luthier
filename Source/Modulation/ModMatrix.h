@@ -27,6 +27,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "ModSourceEdit.h"                 // SPEC-SWEEP UW-5
+#include "../Support/CommandQueue.h"       // SPEC-SWEEP UW-5
 #include "ModSources.h"
 
 #include <atomic>
@@ -158,6 +160,14 @@ public:
     int getEffectiveControlInterval() const noexcept { return controlRateSamples * lastEffectiveMultiplier; }
     double getControlRateHz() const noexcept { return controlRateHz; }
 
+    /*  SPEC-SWEEP: PR-44 / AR-15 - advanced-ranges.md 2.1: the `modulation`
+        range family. Locked, every source's rate and time setters clamp to the
+        stock pair, and locking clamps what is already there; unlocked they
+        take the advanced pair. Returns how many values locking clamped.
+        Message thread, like the setters. */
+    int setModulationRangeAdvanced (bool advanced) noexcept;
+    bool isModulationRangeAdvanced() const noexcept { return modulationAdvanced; }
+
     //==========================================================================
     // Routes. Message thread only.
 
@@ -229,6 +239,13 @@ public:
     ModEnvelopeFollower& getFollower (int index) noexcept;
     ModRandomSource& getRandomSource() noexcept { return randomSource; }
 
+    /** SPEC-SWEEP (UW-5): the UI's way to change a source's settings. Applied
+        by the audio thread at the top of its next processBlock; applied at once
+        when no block has run for kIdleApplyMs (a stopped host). Message thread. */
+    bool postSourceEdit (const ModSourceEdit& edit);
+    int getNumPendingSourceEdits() const noexcept { return sourceEdits.getNumPending(); }
+    static constexpr juce::uint32 kIdleApplyMs = 250;
+
     /** The live value of a source slot, for the UI's source cards. */
     float getSourceValue (int slot) const noexcept;
 
@@ -264,6 +281,10 @@ private:
     };
 
     void rebuildTable();
+    void applySourceEdit (const ModSourceEdit& edit) noexcept;   // SPEC-SWEEP UW-5
+    CommandQueue<ModSourceEdit, 64> sourceEdits;
+    std::atomic<juce::uint32> lastBlockMs { 0 };
+    juce::SpinLock idleApplyLock;
     int destinationIndexFor (const juce::String& parameterId) const;
     void updateSources (const ModBlockContext& context) noexcept;
 
@@ -280,6 +301,7 @@ private:
     std::array<ModStepSequencer, ModSourceSlots::numSequencers> sequencers;
     std::array<ModEnvelopeFollower, ModSourceSlots::numFollowers> followers;
     ModRandomSource randomSource;
+    bool modulationAdvanced = false;   // SPEC-SWEEP: PR-44
 
     std::array<std::atomic<float>, ModSourceSlots::count> sourceValues;
 

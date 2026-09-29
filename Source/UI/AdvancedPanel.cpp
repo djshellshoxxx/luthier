@@ -680,6 +680,11 @@ void AdvancedPanel::buildColumn2()
                               "so at least one pickup is always live.");
     column.addControl (pickupSelector.get(), 36);
 
+    // SPEC-SWEEP: SP-17 / ISS-2 - the continuous blend beside the switch.
+    addKnob (pickupBlend, "Blend", ParamIDs::pickupBlend,
+             "Balance between the two outermost pickups the switch has on: left favours "
+             "the bridge side, right the neck side, centre is both at full level");
+
     for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
     {
         const juce::String n (slot + 1);
@@ -1188,6 +1193,8 @@ void AdvancedPanel::buildWorkspace()
                                                    RangeFamily::buzz, RangeFamily::slide,
                                                    // REALISM-A: string-aging 7, environment 7, body-coupling 5
                                                    RangeFamily::strings, RangeFamily::environment, RangeFamily::body });
+        else if (juce::String (tab.name) == "MOD")   // SPEC-SWEEP: AR-15, the modulation family
+            made = new RangesUi::RangeTabButton (tab.name, processor, { RangeFamily::modulation });
         else if (juce::String (tab.name) == "JAM")   // FEAT-JAM: kit tuning and damping (jam-mode 10)
             made = new RangesUi::RangeTabButton (tab.name, processor, { RangeFamily::jam });
         else if (juce::String (tab.name) == "WORKSHOP")   // gui-integration 21: the bench's setup strip, pick and slide

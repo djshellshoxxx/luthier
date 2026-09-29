@@ -237,6 +237,7 @@ LUTHIER_TEST (Environment, ENV04_theAirModeFollowsTheSpeedOfSound)
 
     // And the body engine's air resonance - which character dead spots read - follows.
     auto engine = makeEngine (GuitarType::Dreadnought);
+    engine->getCharacterEngine().setEnabled (false);   // SPEC-SWEEP: CW-24's break-in rides on the same scaling
     const double before = engine->getBodyEngine().getAirResonanceHz();
     engine->getEnvironment().setInputs (make (42.0));
     renderBlocks (*engine, 1);
@@ -449,7 +450,22 @@ LUTHIER_TEST (Environment, ENV11_legacyTemperatureAndHumidityMigrate)
         juce::MemoryBlock block;
         processor.getStateInformation (block);
         auto root = juce::JSON::parse (block.toString());
-        auto* character = root.getDynamicObject()->getProperty ("character").getDynamicObject();
+
+        // SPEC-SWEEP (SM-1): the session keeps character inside its preset block;
+        // a session saved before that had it at the top level, which is the
+        // legacy shape this test builds.
+        auto* rootObject = root.getDynamicObject();
+        auto characterVar = rootObject->getProperty ("character");
+
+        if (auto* preset = rootObject->getProperty ("preset").getDynamicObject();
+            preset != nullptr && preset->hasProperty ("character"))
+        {
+            characterVar = preset->getProperty ("character");
+            preset->removeProperty ("character");
+            rootObject->setProperty ("character", characterVar);
+        }
+
+        auto* character = characterVar.getDynamicObject();
 
         character->setProperty ("enabled", true);
         character->setProperty ("amount", 0.25);

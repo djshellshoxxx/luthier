@@ -119,6 +119,9 @@ public:
     bool addMessage (juce::int64 sample, const juce::MidiMessage& message, int part = 0);
     const std::vector<PerformanceMessage>& getMessages() const noexcept { return messages; }
 
+    /** SPEC-SWEEP BT-25: the messages, for an export that adjusts them in a copy. */
+    std::vector<PerformanceMessage>& getMessagesForEditing() noexcept { return messages; }
+
     /** Adds an extension event, after any already at the same sample. */
     void addEvent (const LuthierEvent& event);
     const std::vector<LuthierEvent>& getEvents() const noexcept { return events; }

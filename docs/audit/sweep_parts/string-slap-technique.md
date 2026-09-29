@@ -1,0 +1,40 @@
+## string-slap-technique.md
+
+The generalised `SlapEngine` is complete here: four slap types, five trigger sources (velocity zone, keyswitches 15-18, CC, MPE zone, button request), force, per-type contact positions and string masks, ghost mode, rebound gap, snap-back and body-part knocks, with the clack from the fret-buzz generator and body taps bypassing the strings; `Slap.*` / `SlapWiring.*` / `SlapPresets.*` cover every §7 test. On this checkout only the bass subset (SLAP group, bass-only) has controls: the TECHNIQUES > SLAP sub-tab, Slap pill and all generic `slap_*` controls are on the techniques branch, body taps into the body-coupling mode bank on realism-a, and the Slap/Pop tools on realism-b (all OWNED). Not owned by anyone: the five §4 presets are test-only (`SlapSettings::fromPreset`), and the "thumb rebounds by default" wording conflicts with bass-techniques' `double_thump_enabled` default off.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| SS-1 (§0.2) | Slap is a strike plus a slap-buzz event against the frets | `DSP/Slap/SlapEngine::makeContactBuzz` -> fret-buzz generator; `LuthierEngine::playSlapStrike` | n/a | `Slap.theClackIsTheFretBuzzGenerator`, `SlapWiring.theClackComesFromTheBuzzGenerator` | DONE |
+| SS-2 (§0.3) | Position and force independent (position shapes tone, force loudness/buzz) | `SlapEngine::classify` (contactMm, force) | n/a | `Slap.theContactPointIsMeasuredFromTheLastFret`, `Slap.whatANoteBecomes` | DONE |
+| SS-3 (§0.4) | Works on any guitar with wound strings, not bass-only | `SlapEngine` (no family gate on armed slaps) | n/a | `SlapWiring.thePlainHighEIsAudibleButClacksLess` | DONE |
+| SS-4 (§1) | Slap type Thumb/Pop/Palm/Body Tap — engine done, no control here; on techniques: `SlapPage` Slap type + Slap pill popover | `slap_type`; `SlapType` | (branch) TECHNIQUES > SLAP | `Slap.whatANoteBecomes` | OWNED |
+| SS-5 (§1) | Trigger source velocity zone/keyswitch/CC/MPE zone/strip button — no control or button here; on techniques: Trigger/Velocity zone/Trigger CC + Slap pill | `slap_trigger`, `slap_velocity_zone`, `slap_trigger_cc`; `TechniqueTriggers` | (branch) TECHNIQUES > SLAP, Easy pill row | `Slap.theButtonAndTheKeyswitchesQueueTheirStrikes`, `SlapWiring.aThumbSlapIsTheSameHoweverItIsFired` | OWNED |
+| SS-6 (§1) | Contact position defaults 60 thumb / 40 pop / 100 palm — thumb/pop in the bass SLAP group; palm position no control here; on techniques: Palm position knob | `slap_position_mm`, `pop_position_mm`, `slap_palm_position_mm` | CHARACTER > SLAP (bass); (branch) TECHNIQUES > SLAP | `Slap.theContactPointIsMeasuredFromTheLastFret` | OWNED |
+| SS-7 (§1) | Contact force 0-1 default 0.6 — no control here; on techniques: Force knob | `slap_force` | (branch) TECHNIQUES > SLAP | `Slap.whatANoteBecomes` | OWNED |
+| SS-8 (§1) | String mask: bass thumb E/A, palm all — no control here; on techniques: `StringMaskSelector` | `slap_string_mask`, `SlapEngine` effective mask | (branch) TECHNIQUES > SLAP | `Slap.theFactorySlapsAreWhatSectionFourSays` | OWNED |
+| SS-9 (§1) | Ghost mode via modifier keyswitch (16) / dedicated CC (87) — no control here; on techniques: Ghost mode toggle + Ghost CC | `slap_ghost_mode`, `slap_ghost_cc` | (branch) TECHNIQUES > SLAP | `SlapWiring.aGhostIsAThumpWithNoPitch` | OWNED |
+| SS-10 (§1) | Rebound on/off with user gap (default 60 ms) — toggle in the bass SLAP group; gap has no control here; on techniques: Rebound gap knob | `double_thump_enabled`, `slap_rebound_gap` | CHARACTER > SLAP (toggle); (branch) TECHNIQUES > SLAP | `SlapWiring.theDoubleThumpComesBackAtItsGap` | OWNED |
+| SS-11 (§1) | "Double thump on thumb rebounds by default" — `double_thump_enabled` defaults off (bass-techniques 11 says false) | `Parameters.cpp` 768 | n/a | - | PARTIAL |
+| SS-12 (§1) | Snap-back (bass only) — engine done, no control here; on techniques: Snap-back knob | `slap_snap_back` | (branch) TECHNIQUES > SLAP | `Slap.theFactorySlapsAreWhatSectionFourSays` | OWNED |
+| SS-13 (§1, 2) | Body tap resonance top/side/back weighting modes, driven into the body-coupling mode bank — here three fixed resonators (`knockFor`); on realism-a: `BodyCouplingBank::driveDirect` from `applySlapAction`, test BC06 | `SlapEngine` body tap; `slap_body_part` | (branch) TECHNIQUES > SLAP body part | `Slap.theBodyPartWeightsTheKnock`; (branch) `BC06_BC09_aTapRingsTheStringsNearAMode` | OWNED |
+| SS-14 (§2) | SlapEngine trigger / processBlock / reset; consumes TechniqueEngine gestures | `SlapEngine::processBlock`, `reset`; `TechniqueTriggers` | n/a | `Slap.idleAndActiveStayInBudget`, `Slap.theButtonAndTheKeyswitchesQueueTheirStrikes` | DONE |
+| SS-15 (§2) | Body tap bypasses StringEngine | `LuthierEngine::applySlapAction` bodyTap | n/a | `SlapWiring.aBodyTapLeavesTheStringsAlone` | DONE |
+| SS-16 (§2) | Insertion after TechniqueEngine, alongside ScrapeEngine, before StringEngine | `LuthierEngine` block loop (slap.processBlock before strings) | n/a | `SlapWiring.aThumbSlapIsTheSameHoweverItIsFired` | DONE |
+| SS-17 (§3) | Bass slap/pop share SlapEngine; bass controls stay | `SlapEngine` reads `slap_strength` etc. | CHARACTER > SLAP | `SlapWiring.aThumbSlapIsTheSameHoweverItIsFired` | DONE |
+| SS-18 (§3) | Migration: existing bass presets keep working — on techniques: `TechniqueLayer.bassSlapPresetsStillReachTheSlapEngine` (slap_armed introduced there) | `SlapEngine`/preset load | n/a | (branch) `TechniqueLayer.bassSlapPresetsStillReachTheSlapEngine` | OWNED |
+| SS-19 (§4) | Five presets (Bass Standard, Bass Aggressive, Funk Guitar Palm Slap, Acoustic Body Tap, Percussive Fingerstyle) loadable — `SlapSettings::fromPreset` called only by tests on every branch | `SlapSettings::fromPreset` | none | `Slap.theFactorySlapsAreWhatSectionFourSays` | PARTIAL |
+| SS-20 (§5) | Cascade: compatible with palm mute and bend — MuteEngine/BendEngine only on techniques (`Muting.aSlappedNoteCarriesItsMute`, `Bend.aBentSlapPitchesCorrectly`) | n/a here | n/a | (branch) tests named | OWNED |
+| SS-21 (§5) | Cascade: tap alternation — TapEngine only on techniques (`Cascade.everyPairResolvesAsDocumented`) | n/a here | n/a | (branch) `Cascade.everyPairResolvesAsDocumented` | OWNED |
+| SS-22 (§5) | Not compatible with slide (bar under string) or scraping the same string — scrape conflict tested; the slide gate (`classify(e, underBar)`) has no test | `SlapEngine::classify(e, slide.isUnderBar)`; `scrape.preempt`/`slap.preempt` | n/a | `SlapWiring.slapAndScrapeTakeTheStringFromEachOther` (scrape only) | NO-TEST |
+| SS-23 (§6) | GUI: TECHNIQUES > Slap sub-tab — none here; on techniques: `TechniquesPanel` SLAP page | n/a | (branch) TECHNIQUES > SLAP | (branch) `TechniquesUi.everySubTabRendersItsControls` | OWNED |
+| SS-24 (§6) | Playing strip Tool selector gains Slap / Pop — "Slap" style segment (thumb slap / finger pop via `RhTool::slap/pop`) | `RhTool::slap/pop` | Easy `RightHandToolSelector` | `FingerstyleAttack.FA13_slapAndPopTools` | DONE |
+| SS-T1 (§7) | Test: thumb slap 60 mm force 0.6 within 1 dB of the bass reference (all trigger paths agree) | | n/a | `SlapWiring.aThumbSlapIsTheSameHoweverItIsFired` | DONE |
+| SS-T2 (§7) | Test: palm slap broadband, < -25 dB pitched | | n/a | `SlapWiring.aPalmSlapIsBroadbandAndPitchless` | DONE |
+| SS-T3 (§7) | Test: body tap < -60 dB on string outputs | | n/a | `SlapWiring.aBodyTapLeavesTheStringsAlone` | DONE |
+| SS-T4 (§7) | Test: ghost mode thump has no clear pitch | | n/a | `SlapWiring.aGhostIsAThumpWithNoPitch` | DONE |
+| SS-T5 (§7) | Test: rebound gap ± 3 ms | | n/a | `SlapWiring.theDoubleThumpComesBackAtItsGap` | DONE |
+| SS-T6 (§7) | Test: plain string audible with reduced buzz | | n/a | `SlapWiring.thePlainHighEIsAudibleButClacksLess` | DONE |
+| SS-T7 (§7) | Test: CPU idle < 0.05 %, active < 0.6 % | | n/a | `Slap.idleAndActiveStayInBudget` | DONE |
+| SS-T8 (§7) | Test: preset save/restore round-trips every added field | | n/a | `SlapPresets.everySlapFieldRoundTrips` | DONE |
+
+<!-- counts DONE=16 NO-GUI=0 NO-TEST=1 PARTIAL=2 MISSING=0 OWNED=13 -->

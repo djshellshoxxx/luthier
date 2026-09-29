@@ -169,6 +169,8 @@ public:
     MorphCurve getMorphCurve() const noexcept { return morphCurve; }
 
     void setBezierControlPoints (double x1, double y1, double x2, double y2) noexcept;
+    /** SPEC-SWEEP: LP-19 - control point 0..3 (x1, y1, x2, y2), for the editor. */
+    double getBezierControlPoint (int index) const noexcept { return bezier[juce::jlimit (0, 3, index)]; }
 
     /** Moves the morph. Ignored when morphing is off or the slots are empty. */
     void setMorphPosition (double position);

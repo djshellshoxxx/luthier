@@ -50,6 +50,10 @@ PresetManager::PresetManager (juce::AudioProcessor& p,
     // file-formats 13: the retention sweep runs once, at startup.
     pruneOldBackups();
 
+    // SPEC-SWEEP: ER-79/FF-34 - the error log's 30-day retention, in the same
+    // startup sweep (error-recovery 12).
+    ErrorLog::pruneOldLogs (kBackupRetentionDays);
+
     refresh();
 }
 
@@ -270,6 +274,15 @@ void PresetManager::scanFolder (const juce::File& folder, bool factory)
             if (auto* tagArray = obj->getProperty ("tags").getArray())
                 for (const auto& t : *tagArray)
                     info.tags.add (t.toString());
+
+            // SPEC-SWEEP: FF-20 - `meta` wins over the flat keys when present.
+            if (auto* meta = obj->getProperty ("meta").getDynamicObject())
+            {
+                if (meta->getProperty ("name").toString().isNotEmpty())        info.name = meta->getProperty ("name").toString();
+                if (meta->getProperty ("author").toString().isNotEmpty())      info.author = meta->getProperty ("author").toString();
+                if (meta->getProperty ("description").toString().isNotEmpty()) info.description = meta->getProperty ("description").toString();
+                if (meta->getProperty ("category").toString().isNotEmpty())    info.category = meta->getProperty ("category").toString();
+            }
         }
 
         presets.add (info);
@@ -303,6 +316,16 @@ int PresetManager::indexOfPreset (const juce::String& name) const noexcept
 
         if (userMatch < 0)
             userMatch = i;
+    }
+
+    // SPEC-SWEEP: FC-1 - a factory preset asked for by the name it had before
+    // the trademark sweep.
+    if (userMatch < 0)
+    {
+        const auto renamed = FactoryPresets::renamedPreset (name);
+
+        if (renamed != name)
+            return indexOfPreset (renamed);
     }
 
     return userMatch;
@@ -355,7 +378,8 @@ juce::var PresetManager::toVar (const juce::String& name,
             root->setProperty (property.name, property.value);
 
     root->setProperty ("magic", kMagic);
-    root->setProperty ("schemaVersion", kSchemaVersion);
+    root->setProperty ("schema", kSchemaVersion);          // SPEC-SWEEP: FF-2
+    root->setProperty ("schemaVersion", kSchemaVersion);   // read by builds before FF-2
     root->setProperty ("pluginVersion", JucePlugin_VersionString);
     root->setProperty ("name", name.isNotEmpty() ? name : currentName);
     root->setProperty ("category", category.isNotEmpty() ? category : currentCategory);
@@ -368,6 +392,30 @@ juce::var PresetManager::toVar (const juce::String& name,
         tagArray.add (t);
 
     root->setProperty ("tags", tagArray);
+
+    /*  SPEC-SWEEP: FF-20, file-formats 2. The spec's `meta` object; the flat
+        keys above stay beside it for builds that read only those. */
+    {
+        auto* meta = new juce::DynamicObject();
+        meta->setProperty ("name", root->getProperty ("name"));
+        meta->setProperty ("author", root->getProperty ("author"));
+        meta->setProperty ("category", root->getProperty ("category"));
+        meta->setProperty ("tags", tagArray);
+        meta->setProperty ("description", description);
+        meta->setProperty ("notes", metaNotes);
+
+        if (metaCreated.isNotEmpty())
+            meta->setProperty ("created", metaCreated);
+
+        if (metaModified.isNotEmpty())
+            meta->setProperty ("modified", metaModified);
+
+        meta->setProperty ("version_created", metaVersionCreated.isNotEmpty() ? metaVersionCreated
+                                                                              : juce::String (JucePlugin_VersionString));
+        meta->setProperty ("version_modified", JucePlugin_VersionString);
+
+        root->setProperty ("meta", juce::var (meta));
+    }
 
     // ---- parameters ----------------------------------------------------------
     auto* params = new juce::DynamicObject();
@@ -472,6 +520,11 @@ juce::var PresetManager::toVar (const juce::String& name,
 
     root->setProperty ("midiMap", juce::var (midiMap));
 
+    // SPEC-SWEEP: SM-1/SM-16/FF-24..29 - modulation, snapshots, MIDI Learn,
+    // rhythm, routing, character and tone-match travel in the file.
+    if (capturePresetBlocks != nullptr)
+        capturePresetBlocks (*root);
+
     return juce::var (root);
 }
 
@@ -514,26 +567,40 @@ bool PresetManager::fromVar (const juce::var& data)
         return false;
     }
 
-    // A file from a future schema is loaded as best we can rather than refused:
-    // unknown keys are preserved, and every parameter has a default.
-    const int schema = (int) obj->getProperty ("schemaVersion");
+    lastRefusal.clear();
 
-    if (schema <= 0)
+    /*  SPEC-SWEEP: FF-2. file-formats 0.2 names the field `schema`; files from
+        before carry `schemaVersion`. A file with neither is schema 1 and is
+        migrated rather than refused; only a value that is not a number is. */
+    const auto schemaValue = obj->hasProperty ("schema") ? obj->getProperty ("schema")
+                                                         : obj->getProperty ("schemaVersion");
+
+    if (! schemaValue.isVoid() && ! (schemaValue.isInt() || schemaValue.isInt64() || schemaValue.isDouble()))
     {
         ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "BAD_SCHEMA",
                          "Preset has no usable schema version");
         return false;
     }
 
+    const int schema = schemaValue.isVoid() ? 1 : (int) schemaValue;
+
+    if (schema < 1)
+    {
+        // SPEC-SWEEP: ER-13, error-recovery 1: older than anything migratable.
+        ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "UNSUPPORTED_SCHEMA",
+                         "Preset uses a schema older than any this build can migrate");
+        lastRefusal = "uses a format Luthier no longer supports.";
+        return false;
+    }
+
     if (schema > kSchemaVersion)
     {
-        /*  error-recovery 1: "schema newer than the plugin supports".
-
-            Loaded rather than refused, because every parameter has a default and
-            section 0.4 prefers partial success - but it is recorded, because a
-            preset that half-loads and says nothing is exactly the silent
-            degradation ground rule 2 forbids. */
-        ErrorLog::write (ErrorLog::Severity::info, "PresetSystem", "NEWER_SCHEMA",
+        /*  SPEC-SWEEP: ER-12, error-recovery 1: "schema newer than the plugin
+            supports" is refused with a banner. docs/spec-coverage.md C-20
+            resolves the conflict with section 0.4's partial success this way:
+            the specific row beats the general rule, and a half-understood file
+            that then gets re-saved would lose what the newer version wrote. */
+        ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "NEWER_SCHEMA",
                          "Preset was written by a newer version of Luthier",
                          [&]
                          {
@@ -542,6 +609,9 @@ bool PresetManager::fromVar (const juce::var& data)
                              context->setProperty ("supported_schema", kSchemaVersion);
                              return juce::var (context);
                          }());
+
+        lastRefusal = "was made by a newer Luthier version. Update to open.";
+        return false;
     }
 
     /*  file-formats 0.3: hold on to every top-level key this build does not know
@@ -549,13 +619,15 @@ bool PresetManager::fromVar (const juce::var& data)
     {
         static const juce::StringArray known
         {
-            "magic", "format", "schemaVersion", "pluginVersion", "name", "category",
+            "magic", "format", "schema", "schemaVersion", "pluginVersion", "name", "category", "meta",
             "author", "description", "tags", "parameters", "strings", "extras",
             "lockedParameters", "midiMappings", "modulation", "snapshots",
             "rhythmEngine", "routing", "character", "toneMatch",
             // Written by this build too (a known key read back as unknown moved
             // to the front of the next save, so save -> load -> save differed).
             "ranges", "guitar", "midiMap",
+            // SPEC-SWEEP: the spec's spellings of the processor blocks.
+            "midi_mappings", "rhythm_engine", "tone_match",
             "jam"   // FEAT-JAM (jam-mode 12)
         };
 
@@ -634,6 +706,18 @@ bool PresetManager::fromVar (const juce::var& data)
                 {
                     const double v = (double) params->getProperty (withId->paramID);
                     withId->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, v));
+                }
+                else if (! params->hasProperty (withId->paramID) && ! keepsValueWhenAbsent (withId->paramID)
+                           && ! (keepOnLoad != nullptr && keepOnLoad (withId->paramID)))   // merge: FEAT-JAM's keep-on-load wins
+                {
+                    /*  SPEC-SWEEP: PF-14 (docs/PRESET_FORMAT.md): a key the file
+                        leaves out means that parameter's default, not whatever
+                        the last preset set - so a hand-written three-line preset
+                        is the same sound whatever was loaded before it. */
+                    const float d = withId->getDefaultValue();
+
+                    if (withId->getValue() != d)
+                        withId->setValueNotifyingHost (d);
                 }
             }
         }
@@ -828,8 +912,29 @@ bool PresetManager::fromVar (const juce::var& data)
     if (onJamBlockLoaded != nullptr)   // FEAT-JAM: a missing block means defaults
         onJamBlockLoaded (obj->getProperty ("jam"));
 
+    // SPEC-SWEEP: SM-1/SM-16/FF-24..29 - after the parameters and the guitar,
+    // so a snapshot bank or a mod route lands on the preset it belongs to.
+    if (onPresetBlocksLoaded != nullptr)
+        onPresetBlocksLoaded (*obj);
+
     currentName = obj->getProperty ("name").toString();
     currentCategory = obj->getProperty ("category").toString();
+
+    // SPEC-SWEEP: FF-20 - `meta` first, the flat keys for files from before it.
+    {
+        const auto meta = obj->getProperty ("meta");
+
+        if (meta.hasProperty ("name") && meta.getProperty ("name", {}).toString().isNotEmpty())
+            currentName = meta.getProperty ("name", {}).toString();
+
+        if (meta.hasProperty ("category") && meta.getProperty ("category", {}).toString().isNotEmpty())
+            currentCategory = meta.getProperty ("category", {}).toString();
+
+        metaCreated        = meta.getProperty ("created", {}).toString();
+        metaModified       = meta.getProperty ("modified", {}).toString();
+        metaVersionCreated = meta.getProperty ("version_created", {}).toString();
+        metaNotes          = meta.getProperty ("notes", {}).toString();
+    }
 
     if (currentName.isEmpty())
         currentName = "Untitled";
@@ -909,6 +1014,53 @@ bool PresetManager::loadPreset (int index)
     return false;
 }
 
+namespace
+{
+    /*  SPEC-SWEEP: ER-9. juce::CharPointer_UTF8::isValidString does not check
+        that continuation bytes are 10xxxxxx, so a Latin-1 "é" before a quote
+        passes it. This checks the lead byte, every continuation byte, overlong
+        forms and surrogates. */
+    bool isStrictUtf8 (const juce::uint8* data, size_t size) noexcept
+    {
+        for (size_t i = 0; i < size;)
+        {
+            const auto b = data[i];
+
+            if (b < 0x80) { ++i; continue; }
+
+            int extra = 0;
+            juce::uint32 cp = 0;
+
+            if      ((b & 0xe0) == 0xc0) { extra = 1; cp = b & 0x1f; }
+            else if ((b & 0xf0) == 0xe0) { extra = 2; cp = b & 0x0f; }
+            else if ((b & 0xf8) == 0xf0) { extra = 3; cp = b & 0x07; }
+            else return false;
+
+            if (i + (size_t) extra >= size)
+                return false;
+
+            for (int k = 1; k <= extra; ++k)
+            {
+                const auto c = data[i + (size_t) k];
+
+                if ((c & 0xc0) != 0x80)
+                    return false;
+
+                cp = (cp << 6) | (c & 0x3f);
+            }
+
+            static constexpr juce::uint32 minimum[] = { 0, 0x80, 0x800, 0x10000 };
+
+            if (cp < minimum[extra] || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))
+                return false;
+
+            i += (size_t) extra + 1;
+        }
+
+        return true;
+    }
+}
+
 bool PresetManager::loadPreset (const juce::File& file)
 {
     auto context = [&file]
@@ -934,9 +1086,19 @@ bool PresetManager::loadPreset (const juce::File& file)
         return false;
     }
 
-    const auto text = file.loadFileAsString();
+    // SPEC-SWEEP: ER-8, error-recovery 1: "no read permission".
+    if (! file.hasReadAccess())
+    {
+        ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "FILE_PERMISSION",
+                         "Preset cannot be read (permission denied)", context());
 
-    if (text.isEmpty())
+        lastLoadError = "Cannot read " + file.getFileName() + " (permission denied).";
+        return false;
+    }
+
+    juce::MemoryBlock bytes;
+
+    if (! file.loadFileAsData (bytes) || bytes.getSize() == 0)
     {
         ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "FILE_UNREADABLE",
                          "Preset could not be read, or is empty", context());
@@ -945,15 +1107,27 @@ bool PresetManager::loadPreset (const juce::File& file)
         return false;
     }
 
+    // SPEC-SWEEP: ER-9, error-recovery 1: "file is not UTF-8".
+    if (! isStrictUtf8 (static_cast<const juce::uint8*> (bytes.getData()), bytes.getSize()))
+    {
+        ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "NOT_UTF8",
+                         "Preset is not UTF-8 text", context());
+
+        lastLoadError = "File " + file.getFileName() + " is not a valid Luthier file.";
+        return false;
+    }
+
+    const auto text = juce::String::fromUTF8 (static_cast<const char*> (bytes.getData()), (int) bytes.getSize());
     const auto parsed = juce::JSON::parse (text);
 
     if (! parsed.isObject())
     {
-        // error-recovery 1: "file is not JSON".
+        // error-recovery 1: "file is not JSON". SPEC-SWEEP: ER-10, its wording.
         ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "NOT_JSON",
                          "Preset is not valid JSON", context());
 
-        lastLoadError = file.getFileName() + " is not a Luthier preset.";
+        lastLoadError = file.getFileName()
+                          + " is not a valid Luthier file. Re-save it from a working install of Luthier.";
         return false;
     }
 
@@ -963,9 +1137,11 @@ bool PresetManager::loadPreset (const juce::File& file)
                          "Preset was refused; the file is untouched", context());
 
         /*  error-recovery 1 again: the session is left alone on a refusal, and
-            saying so is the difference between a refusal and an apparent freeze. */
-        lastLoadError = file.getFileName()
-                          + " was refused. The current sound is unchanged.";
+            saying so is the difference between a refusal and an apparent freeze.
+            SPEC-SWEEP: ER-12/13 - a schema refusal says which. */
+        lastLoadError = lastRefusal.isNotEmpty()
+                          ? file.getFileName() + " " + lastRefusal
+                          : file.getFileName() + " was refused. The current sound is unchanged.";
         return false;
     }
 
@@ -981,12 +1157,25 @@ bool PresetManager::loadPreset (const juce::File& file)
     lastLoadError.clear();
 
     modified = false;
+
     sendChangeMessage();
 
     if (onPresetLoaded != nullptr)
         onPresetLoaded();   // output-normalization.md 4.4
 
     return true;
+}
+
+bool PresetManager::keepsValueWhenAbsent (const juce::String& paramId)
+{
+    // SPEC-SWEEP: PF-14. The morph slider is a performance control, and Slide
+    // Mode persists across a load (state-model.md 8.1).
+    // Merge: jam-mode 10's performance controls (jam_play, jam_fill_now) are
+    // never in a preset, so a load leaves them alone too.
+    return paramId == ParamIDs::presetMorphPosition
+        || paramId == ParamIDs::slideGuitar
+        || paramId == ParamIDs::slideMode
+        || ParamIDs::isJamTransient (paramId);
 }
 
 bool PresetManager::loadNext()
@@ -1106,17 +1295,33 @@ juce::File PresetManager::backupMigratedOriginal (const juce::File& original, in
     return original.copyFileTo (destination) ? destination : juce::File();
 }
 
+std::atomic<int> PresetManager::failNextWriteForTesting { 0 };
+
 void PresetManager::pruneOldBackups()
 {
-    const auto cutoff = juce::Time::getCurrentTime()
-                          - juce::RelativeTime::days ((double) kBackupRetentionDays);
-
     // installer.md 8: Presets/Backup is the current place; the two below it
-    // are where earlier builds filed backups.
+    // are where earlier builds filed backups. SPEC-SWEEP PF-7: each root's
+    // per-category Backup folders (where earlier builds filed a user preset's
+    // backup) are swept too.
     for (const auto& root : { getUserPresetFolder().getParentDirectory(), getUserPresetFolder(), getFactoryPresetFolder() })
-    {
-        auto backups = root.getChildFile ("Backup");
+        pruneOldBackupsUnder (root, juce::Time::getCurrentTime());
+}
 
+void PresetManager::pruneOldBackupsUnder (const juce::File& root, juce::Time now)
+{
+    const auto cutoff = now - juce::RelativeTime::days ((double) kBackupRetentionDays);
+
+    /*  SPEC-SWEEP: PF-7. backupBeforeOverwrite files a replaced preset beside
+        it, so a user preset's backups are in <root>/<Category>/Backup; the
+        sweep used to look only in <root>/Backup and never found them. */
+    juce::Array<juce::File> backupFolders { root.getChildFile ("Backup") };
+
+    for (const auto& category : root.findChildFiles (juce::File::findDirectories, false))
+        if (category.getFileName() != "Backup")
+            backupFolders.add (category.getChildFile ("Backup"));
+
+    for (const auto& backups : backupFolders)
+    {
         if (! backups.isDirectory())
             continue;
 
@@ -1147,22 +1352,41 @@ void PresetManager::pruneOldBackups()
 
 bool PresetManager::writeToFile (const juce::File& file, const juce::var& data) const
 {
-    file.getParentDirectory().createDirectory();
+    lastSaveError.clear();
 
-    backupBeforeOverwrite (file);
+    // SPEC-SWEEP: FF-32/PF-5 - the injected failure, taken once.
+    const int injected = failNextWriteForTesting.exchange (0);
+
+    file.getParentDirectory().createDirectory();
 
     juce::TemporaryFile temp (file);
 
-    if (auto stream = temp.getFile().createOutputStream())
+    auto stream = injected == 1 ? std::unique_ptr<juce::FileOutputStream>()
+                                : temp.getFile().createOutputStream();
+
+    if (stream != nullptr && ! stream->failedToOpen())
     {
         stream->setPosition (0);
         stream->truncate();
         stream->writeText (juce::JSON::toString (data, false), false, false, "\n");
         stream->flush();
+
+        // SPEC-SWEEP: ER-20 - a full disk shows up as a failed write, and the
+        // target must not be replaced by a truncated file.
+        const bool written = stream->getStatus().wasOk();
         stream.reset();
 
-        if (temp.overwriteTargetFileWithTemporary())
+        /*  The backup is taken once the new version is safely in the temp
+            file, so a save that cannot be written leaves no backup of a file
+            it never replaced. */
+        if (written)
+            backupBeforeOverwrite (file);
+
+        if (written && injected != 2 && temp.overwriteTargetFileWithTemporary())
             return true;
+
+        lastSaveError = "Could not save " + file.getFileName()
+                          + ". The previous version is intact.";
 
         // error-recovery 2: "save succeeded but rename failed". TemporaryFile's
         // destructor removes the temp, so nothing partial is left behind.
@@ -1179,6 +1403,9 @@ bool PresetManager::writeToFile (const juce::File& file, const juce::var& data) 
     }
 
     // error-recovery 2: "destination folder not writable" / "disk full".
+    lastSaveError = "Cannot save to " + file.getParentDirectory().getFullPathName()
+                      + " (permission denied or disk full).";
+
     ErrorLog::write (ErrorLog::Severity::error, "PresetSystem", "SAVE_UNWRITABLE",
                      "Could not open the preset for writing; nothing on disk changed",
                      [&]
@@ -1191,6 +1418,18 @@ bool PresetManager::writeToFile (const juce::File& file, const juce::var& data) 
     return false;
 }
 
+void PresetManager::stampSaveTime()
+{
+    // SPEC-SWEEP: FF-20. `created` survives every later save.
+    metaModified = juce::Time::getCurrentTime().toISO8601 (true);
+
+    if (metaCreated.isEmpty())
+        metaCreated = metaModified;
+
+    if (metaVersionCreated.isEmpty())
+        metaVersionCreated = JucePlugin_VersionString;
+}
+
 bool PresetManager::saveCurrent()
 {
     const auto* info = getPreset (currentIndex);
@@ -1200,6 +1439,7 @@ bool PresetManager::saveCurrent()
         return saveAs (currentName, "User");
 
     captureExtraState();
+    stampSaveTime();   // SPEC-SWEEP: FF-20
 
     if (writeToFile (info->file, toVar (info->name, info->category, info->description, info->tags)))
     {
@@ -1225,6 +1465,7 @@ bool PresetManager::saveAs (const juce::String& name, const juce::String& catego
                                      .getChildFile (safeName + kFileExtension);
 
     captureExtraState();
+    stampSaveTime();   // SPEC-SWEEP: FF-20
 
     if (! writeToFile (file, toVar (name, safeCategory, description, tags)))
         return false;
@@ -1284,6 +1525,7 @@ bool PresetManager::importPreset (const juce::File& source)
 bool PresetManager::exportPreset (const juce::File& destination)
 {
     captureExtraState();
+    stampSaveTime();   // SPEC-SWEEP: FF-20
     return writeToFile (destination, toVar (currentName, currentCategory));
 }
 

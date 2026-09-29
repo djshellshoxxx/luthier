@@ -80,6 +80,19 @@ namespace
 
         int steps() const { return processor.getNumUndoSteps(); }
         void later() { now += 1000.0; }
+
+        /*  Merge with SPEC-SWEEP (UW-2 / UW-5): an edit to audio-thread state
+            (the capo parameter, a string's detune) lands at the top of the next
+            block, so a check of the engine runs one block first. */
+        void settle()
+        {
+            juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumInputChannels(),
+                                                         processor.getTotalNumOutputChannels()), kBlock);
+            buffer.clear();
+            juce::MidiBuffer midi;
+            processor.processBlock (buffer, midi);
+            processor.getParameterBridge().applyAllNow();   // the capo is structural (async)
+        }
     };
 }
 
@@ -173,8 +186,10 @@ LUTHIER_TEST (UndoCoverage, rhythmSettingsAndPatternEditsAreEntries)
     {
         const int before = rhythm.getCapoFret();
         click (*capoUp);
+        f.settle();
         CHECK (rhythm.getCapoFret() == before + 1);
         f.processor.undo();
+        f.settle();
         CHECK (rhythm.getCapoFret() == before);
     }
 
@@ -250,9 +265,11 @@ LUTHIER_TEST (UndoCoverage, headstockDetuneIsOneGroupedEntryPerString)
     detune->setValue (12.0, juce::sendNotificationSync);   // a wheel, no drag start
 
     CHECK_MSG (f.steps() == start + 1, "detune made " + juce::String (f.steps() - start) + " entries");
+    f.settle();
     CHECK_NEAR (tuning.getStringTuning (0).detuneCents, 12.0, 1.0e-6);
 
     f.processor.undo();
+    f.settle();
     CHECK_NEAR (tuning.getStringTuning (0).detuneCents, 0.0, 1.0e-6);
 }
 

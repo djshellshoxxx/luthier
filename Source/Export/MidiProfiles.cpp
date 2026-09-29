@@ -1273,9 +1273,50 @@ juce::MemoryBlock exportToMemory (const MidiPerformance& source, const MidiExpor
         chosen = &extracted;
     }
 
+    const bool luthier = options.profile == MidiProfile::luthier;
+
+    /*  SPEC-SWEEP BT-25 (bass-techniques 10): Generic has no BASS_TECH, so the
+        slap/ghost distinction is kept the only way it can be - in velocity. A
+        slap, pop or thump is at least 110; a ghost at most 30. */
+    MidiPerformance velocityAdjusted;
+
+    if (! luthier && chosen->countEvents (LuthierEventClass::bassTech) > 0)
+    {
+        velocityAdjusted = *chosen;
+        auto& messages = velocityAdjusted.getMessagesForEditing();
+        const auto window = (juce::int64) (0.002 * velocityAdjusted.getSampleRate());
+
+        for (const auto& event : chosen->getEvents())
+        {
+            if (event.eventClass != LuthierEventClass::bassTech)
+                continue;
+
+            const auto tech = event.get ("tech");
+            const bool ghost = tech == "ghost";
+            const bool strike = tech == "slap" || tech == "pop" || tech == "thump";
+
+            if (! ghost && ! strike)
+                continue;
+
+            for (auto& m : messages)
+            {
+                if (! m.message.isNoteOn() || std::abs (m.sample - event.sample) > window)
+                    continue;
+
+                const int velocity = m.message.getVelocity();
+                const int adjusted = ghost ? juce::jmin (velocity, 30) : juce::jmax (velocity, 110);
+
+                if (adjusted != velocity)
+                    m.message = juce::MidiMessage::noteOn (m.message.getChannel(), m.message.getNoteNumber(),
+                                                           (juce::uint8) adjusted);
+            }
+        }
+
+        chosen = &velocityAdjusted;
+    }
+
     const auto& performance = *chosen;
 
-    const bool luthier = options.profile == MidiProfile::luthier;
     const int ppq = options.getPpq();
     const auto tempo = makeFileTempoMap (performance, ppq);
 

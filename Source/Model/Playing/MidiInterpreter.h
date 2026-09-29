@@ -20,6 +20,7 @@
 #include "RubricVoicer.h"
 #include "../../Rhythm/StrumGesture.h"
 #include <array>
+#include <atomic>   // SPEC-SWEEP PT-21
 
 namespace luthier
 {
@@ -58,6 +59,8 @@ enum class MidiTarget
     TappedHarmonic,
     RightHandTool,
     RestStroke,
+
+    PitchBend,     ///< SPEC-SWEEP (PT-23): an upward bend; appended so saved indices keep their meaning
     NumTargets
 };
 
@@ -85,6 +88,40 @@ public:
 
     void setMpeEnabled (bool e) noexcept { mpeEnabled = e; }
     bool isMpeEnabled() const noexcept { return mpeEnabled; }
+
+    /** SPEC-SWEEP (CT-17): the MPE zone's master channel (1 for a lower zone).
+        With MPE on in guitar-controller mode its note-ons are ignored: the master
+        channel carries zone-wide messages, never notes. 0 disables the check. */
+    void setMpeMasterChannel (int channel) noexcept { mpeMasterChannel = juce::jlimit (0, 16, channel); }
+    int getMpeMasterChannel() const noexcept { return mpeMasterChannel; }
+
+    /** SPEC-SWEEP (CT-10): a controller's pitch curve for per-string / per-note
+        bends, sampled at kPitchCurvePoints evenly spaced inputs over 0..1 (the
+        negative half mirrors it). Fewer than two points means linear. The copy
+        is into a fixed array, so the audio thread may call this. */
+    static constexpr int kPitchCurvePoints = 33;
+    void setPitchCurve (const float* points, int numPoints) noexcept;
+    double applyPitchCurve (double normalised) const noexcept;
+
+    /** SPEC-SWEEP (PT-21): CC 11's master level, 0..1 (1 is unity). The
+        parameter bridge folds it into the master bus gain every block. */
+    double getMasterLevel() const noexcept { return masterLevel.load (std::memory_order_relaxed); }
+
+    /** SPEC-SWEEP (PT-21): the newest value a CC mapped to a macro target
+        (Drive, Tone, Space, Body, Attack) sent, 0..1, or -1 if none since the
+        last call. The processor's timer takes these and moves the macro
+        parameters on the message thread. Any thread. */
+    float takeMacroTarget (MidiTarget target) noexcept;
+
+    /** SPEC-SWEEP (CT-14): notes a per-string controller asked for that the
+        string could not reach and were clipped into range (identity rule 2). */
+    juce::uint32 getClippedNoteCount() const noexcept { return clippedNotes.load (std::memory_order_relaxed); }
+
+    /** SPEC-SWEEP (CT-18): the string a member channel last played, or -1. */
+    int getLastStringForChannel (int channel) const noexcept
+    {
+        return juce::isPositiveAndBelow (channel, 17) ? lastStringForChannel[(size_t) channel] : -1;
+    }
 
     /** Pitch-bend range in semitones. MPE controllers default to 48. */
     void setPitchBendRange (double semitones) noexcept;
@@ -308,6 +345,18 @@ private:
     int64_t blockStart = 0;
     int blockLength = 0;
     bool mpeEnabled = false;
+    int mpeMasterChannel = 1;                                // SPEC-SWEEP CT-17
+    std::atomic<double> masterLevel { 1.0 };                 // SPEC-SWEEP PT-21
+    std::atomic<juce::uint32> clippedNotes { 0 };            // SPEC-SWEEP CT-14
+    std::array<std::atomic<float>, 5> macroTargets { { -1.0f, -1.0f, -1.0f, -1.0f, -1.0f } };   // PT-21
+    static int macroTargetSlot (MidiTarget target) noexcept;
+    std::array<float, kPitchCurvePoints> pitchCurve {};      // SPEC-SWEEP CT-10
+    int numPitchCurvePoints = 0;
+    std::array<int, 17> lastStringForChannel { { -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                                                  -1, -1, -1, -1, -1, -1, -1, -1 } };   // CT-18
+
+    /** In MPE guitar-controller mode, the string holding this channel's note. */
+    int mpeStringForChannel (int channel) const noexcept;
 
     double bendRangeSemitones = 2.0;
     std::array<double, kMaxStrings> stringBendRange {};

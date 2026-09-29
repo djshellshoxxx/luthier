@@ -176,6 +176,13 @@ public:
     /** Latency this pedal reports, in samples at the host rate. */
     virtual int getLatencySamples() const noexcept { return 0; }
 
+    /** SPEC-SWEEP (JUCE_CLAUDE_GUIDELINES JG-4): the nonlinear pedals oversample;
+        the rest ignore this. Virtual so the chain needs no dynamic_cast on a path
+        the render thread can reach. Merge: takes integration's cpu-quality-modes
+        2.2 (effective, nominal, crossfade) signature. */
+    virtual void setOversamplingFactor (int /*effective*/, int /*nominal*/, bool /*crossfade*/) noexcept {}
+    void setOversamplingFactor (int factor) noexcept { setOversamplingFactor (factor, factor, false); }
+
     //==========================================================================
     /** Tempo for synced parameters, pushed in from the host each block. */
     void setTempoBpm (double bpm) noexcept { tempoBpm = juce::jlimit (20.0, 300.0, bpm); }

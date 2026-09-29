@@ -1,5 +1,6 @@
 build/
 ThirdParty/JUCE/
+/ThirdParty/JUCE
 *.user
 *.suo
 .vs/
@@ -8,6 +9,10 @@ Renders/
 Tools/__pycache__/
 Tools/outline_previews/
 ThirdParty/clap-juce-extensions/
+/ThirdParty/clap-juce-extensions
 build-ci/
 dist/
 build-asan/
+# Also match symlinks (a trailing slash only matches directories).
+ThirdParty/JUCE
+ThirdParty/clap-juce-extensions

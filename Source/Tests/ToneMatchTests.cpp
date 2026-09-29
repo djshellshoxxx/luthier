@@ -10,6 +10,8 @@
 #include "TestFramework.h"
 
 #include "../ToneMatch/ToneMatch.h"
+#include "../PluginProcessor.h"
+#include "../UI/ToneMatchPanel.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -657,4 +659,63 @@ LUTHIER_TEST (ToneMatch, eqMatchSaysWhatItCannotDo)
                  || description.containsIgnoreCase ("reflection")
                  || description.containsIgnoreCase ("ringing"),
                "the EQ match description does not mention what it cannot capture");
+}
+
+
+//==============================================================================
+/*  tone-match 1 and 6: both persisted length trims must be reachable from each
+    IR card, update the slot, and keep usable bounds at compact and beta widths. */
+LUTHIER_TEST (ToneMatch, irTrimControlsReachThePersistedSlotAndFitTheCard)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, 512);
+
+    IrSlotEditor editor (processor, IrSlotEditor::Slot::body);
+
+    juce::Slider* startTrim = nullptr;
+    juce::Slider* endTrim = nullptr;
+
+    for (auto* child : editor.getChildren())
+    {
+        if (child->getComponentID() == "ir-start-trim")
+            startTrim = dynamic_cast<juce::Slider*> (child);
+        else if (child->getComponentID() == "ir-end-trim")
+            endTrim = dynamic_cast<juce::Slider*> (child);
+    }
+
+    CHECK_MSG (startTrim != nullptr, "the IR card has no start-trim control");
+    CHECK_MSG (endTrim != nullptr, "the IR card has no end-trim control");
+
+    if (startTrim == nullptr || endTrim == nullptr)
+        return;
+
+    startTrim->setValue (64.0, juce::sendNotificationSync);
+    endTrim->setValue (128.0, juce::sendNotificationSync);
+
+    CHECK (processor.getBodyIrSlot().getStartTrim() == 64);
+    CHECK (processor.getBodyIrSlot().getEndTrim() == 128);
+
+    juce::MemoryBlock state;
+    processor.getStateInformation (state);
+
+    LuthierAudioProcessor restored;
+    restored.prepareToPlay (kSr, 512);
+    restored.setStateInformation (state.getData(), (int) state.getSize());
+
+    CHECK (restored.getBodyIrSlot().getStartTrim() == 64);
+    CHECK (restored.getBodyIrSlot().getEndTrim() == 128);
+
+    for (int width : { 280, 420 })
+    {
+        editor.setSize (width, IrSlotEditor::preferredHeight);
+        editor.resized();
+
+        for (auto* slider : { startTrim, endTrim })
+        {
+            CHECK_MSG (! slider->getBounds().isEmpty(),
+                       "a trim control collapsed at width " + juce::String (width));
+            CHECK_MSG (editor.getLocalBounds().contains (slider->getBounds()),
+                       "a trim control escaped the IR card at width " + juce::String (width));
+        }
+    }
 }

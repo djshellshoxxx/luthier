@@ -134,6 +134,17 @@ struct LearnTarget
 
 //==============================================================================
 /** A rotary control with its label below and its value above. */
+class ModArcHub;   // SPEC-SWEEP UW-35 (Widgets.cpp)
+
+/** SPEC-SWEEP (GD-30, gui-engine-dataflow 20): the 1 Hz pulse the armed MIDI
+    Learn button and the control being learned share - on for half a second,
+    off for half a second, on the same clock everywhere. */
+struct LearnPulse
+{
+    static bool isOn (double nowMs) noexcept { return ((juce::int64) (nowMs / 500.0) & 1) == 0; }
+    static bool isOnNow() noexcept { return isOn (juce::Time::getMillisecondCounterHiRes()); }
+};
+
 class LuthierKnob : public juce::Component,
                     public juce::SettableTooltipClient,
                     public LearnTarget,
@@ -186,8 +197,34 @@ public:
     static int preferredWidthFor (Size s) noexcept;
     static int preferredHeightFor (Size s) noexcept;
 
+    /** SPEC-SWEEP (UW-35 / GD-17): called by one shared 30 Hz timer for every
+        attached knob. Repaints when this knob's modulation arc has moved by more
+        than half a pixel (or appeared / gone), so an LFO-driven arc is live
+        without the user touching anything. Returns true if it repainted. */
+    bool pollModulationArc();
+    int getArcRepaintCount() const noexcept { return arcRepaints; }
+
+    /** GD-30: whether the learning outline is in its bright half, and the hub
+        tick that follows the pulse (also called by pollModulationArc). */
+    bool isLearnOutlineBright() const noexcept { return learnPulseOn; }
+    bool pollLearnPulse (double nowMs);
+
+    /** Tests: poll even when the knob is not on screen. */
+    void setPollArcWhileHidden (bool b) noexcept { pollWhileHidden = b; }
+
+    /** The shared hub's refresh rate. */
+    static constexpr int kModArcRefreshHz = 30;
+
 private:
     void updateMidiLearnIndicator();
+
+    std::unique_ptr<juce::SharedResourcePointer<ModArcHub>> arcHub;   // UW-35
+    bool lastArcModulated = false;
+    float lastArcNorm = 0.0f;
+    int arcRepaints = 0;
+    bool pollWhileHidden = false;
+    bool learnPulseOn = true, wasLearning = false;
+    int modIndex = -1;
 
     class KnobSlider : public juce::Slider
     {
@@ -197,6 +234,10 @@ private:
         void mouseDrag (const juce::MouseEvent&) override;
         void mouseEnter (const juce::MouseEvent&) override;
         void mouseExit (const juce::MouseEvent&) override;
+
+        /** SPEC-SWEEP: A11Y-14 - arrows step 1% of the range, Shift 0.1%,
+            Ctrl/Cmd 10%; Home/End go to the ends. */
+        bool keyPressed (const juce::KeyPress&) override;
 
     private:
         LuthierKnob& owner;
@@ -276,12 +317,19 @@ public:
     juce::TextButton& getButton() noexcept { return button; }
     juce::String getLearnParameterId() const override { return paramId; }
 
+    /** SPEC-SWEEP (UW-14, ui-wiring 2): momentary - the parameter is on while
+        the button is held and off when it is let go, each inside a gesture.
+        Call after attachTo. */
+    void setMomentary (bool shouldBeMomentary);
+    bool isMomentary() const noexcept { return momentary; }
+
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
 
 private:
     juce::TextButton button;
     juce::String paramId;
+    bool momentary = false, momentaryHeld = false;
 
     LuthierAudioProcessor* processor = nullptr;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> attachment;
@@ -345,6 +393,17 @@ public:
 
     void paint (juce::Graphics&) override;
 
+    /** SPEC-SWEEP: A11Y-7 - a read-only value a screen reader reads as the
+        peak in dBFS. */
+    std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override;
+    float getDisplayPeakDb() const noexcept { return displayPeakDb; }
+
+    /** SPEC-SWEEP: A11Y-25 (tests) - sets what the meter shows, as a tick would. */
+    void setLevelsForTest (float normalisedL, float normalisedR, float peakDb) noexcept
+    {
+        levelL = normalisedL; levelR = normalisedR; displayPeakDb = peakDb;
+    }
+
 private:
     void timerCallback() override;
 
@@ -377,12 +436,30 @@ public:
     void setSource (LuthierAudioProcessor* processor);
     void paint (juce::Graphics&) override;
 
+    /** SPEC-SWEEP (GD-8, gui-engine-dataflow 3): 60 Hz; red above 0 dBFS and
+        held 400 ms before it re-evaluates; unlit after 100 ms with no new
+        block from the master bus. */
+    static constexpr int kRefreshHz = 60;
+    static constexpr double kRedHoldMs = 400.0;
+    static constexpr double kStaleMs = 100.0;
+    static juce::Colour darkColour() noexcept { return juce::Colour (0xff5a5f66); }
+    static juce::Colour redColour() noexcept  { return juce::Colour (0xfff2544e); }
+
+    /** One refresh at @p nowMs (the timer passes the real clock; tests their own). */
+    void tick (double nowMs);
+    bool isRed() const noexcept { return overThreshold; }
+    bool isLit() const noexcept { return brightness > 0.0f || overThreshold; }
+    float getBrightness() const noexcept { return brightness; }
+
 private:
     void timerCallback() override;
 
     LuthierAudioProcessor* processor = nullptr;
     float brightness = 0.0f;
     bool overThreshold = false;
+    double redSinceMs = -1.0e9;
+    double lastFreshMs = -1.0e9;
+    juce::uint32 lastBlockCount = 0;
     double clipLatchedAtMs = -1.0e12;   // cpu-quality-modes 6
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputLed)

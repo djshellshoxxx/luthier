@@ -229,6 +229,11 @@ MidiImportOutcome MidiImportTargets::importFile (LuthierAudioProcessor& processo
     if (outcome.ok && ! read.warnings.isEmpty())
         outcome.message << " " << read.warnings.joinIntoString (" ");
 
+    // SPEC-SWEEP MX-28 (midi-export 11): the fields the file left out, which
+    // were filled with their defaults, are named rather than applied silently.
+    if (outcome.ok && ! read.defaultedFields.isEmpty())
+        outcome.message << " Defaults used for: " << read.defaultedFields.joinIntoString (", ") << ".";
+
     return outcome;
 }
 

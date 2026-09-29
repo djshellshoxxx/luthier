@@ -57,6 +57,8 @@ const char* getSubdivisionName (Subdivision s) noexcept
         case Subdivision::sixteenth:        return "16";
         case Subdivision::sixteenthTriplet: return "16T";
         case Subdivision::thirtySecond:     return "32";
+        case Subdivision::eighthDotted:     return "8.";
+        case Subdivision::sixteenthDotted:  return "16.";
         case Subdivision::numSubdivisions:
         default:                            return "16";
     }
@@ -71,6 +73,8 @@ double subdivisionsPerBeat (Subdivision s) noexcept
         case Subdivision::sixteenth:        return 4.0;
         case Subdivision::sixteenthTriplet: return 6.0;
         case Subdivision::thirtySecond:     return 8.0;
+        case Subdivision::eighthDotted:     return 4.0 / 3.0;   // a step is three sixteenths
+        case Subdivision::sixteenthDotted:  return 8.0 / 3.0;   // three thirty-seconds
         case Subdivision::numSubdivisions:
         default:                            return 4.0;
     }
@@ -371,6 +375,15 @@ bool RhythmPattern::loadFrom (const juce::File& file)
     if (parsed.getDynamicObject() == nullptr)
         return false;
 
+    /*  SPEC-SWEEP: FF-5/FF-12 (file-formats 0.2, 0.5). Files written before the
+        marker carry none and still load; a file with some other magic, or a
+        schema newer than this build, is refused. */
+    if (const auto magic = parsed.getProperty ("magic", {}).toString(); magic.isNotEmpty() && magic != "luthier.pattern")
+        return false;
+
+    if ((int) parsed.getProperty ("schema", 1) > 1)
+        return false;
+
     *this = fromVar (parsed);
     return true;
 }
@@ -378,7 +391,18 @@ bool RhythmPattern::loadFrom (const juce::File& file)
 bool RhythmPattern::saveTo (const juce::File& file) const
 {
     file.getParentDirectory().createDirectory();
-    return file.replaceWithText (juce::JSON::toString (toVar(), false));
+
+    // SPEC-SWEEP: FF-5/FF-12 - the file's marker and schema, file only (the
+    // same var is embedded in presets and snapshots without them).
+    auto data = toVar();
+
+    if (auto* object = data.getDynamicObject())
+    {
+        object->setProperty ("magic", "luthier.pattern");
+        object->setProperty ("schema", 1);
+    }
+
+    return file.replaceWithText (juce::JSON::toString (data, false));
 }
 
 //==============================================================================

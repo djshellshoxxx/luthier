@@ -1,0 +1,36 @@
+## performance-budget.md
+
+Enforcement on this checkout is thin: `Engine::cpuStaysWithinBudget` (real-time factor < 0.85) and `Combo::cpuPerFactoryPreset` (< 50% of a core per preset) are the only CPU checks, allocation is trapped only in a few unit tests (circuit, capture, tune player), and there is no memory, boot, scaling, oversampling-downgrade or CPU-relief code. The visual branch adds most of the spec: PerfBudgetTests (8 modules, scenario totals, voice/SR scaling, all gated behind `LUTHIER_PERF=1`), boot/load/swap timings, MemoryProbe, audio-thread alloc+lock traps, latency budget and impulse tests, the Oversampler downgrade above 96 kHz, the CpuRelief ladder with the step-7 opt-out and banner, and a nightly dashboard. Missing everywhere: budgets for the other ~19 modules, per-pedal caps and an eco Quality option, the IR/parts/tunes memory tiers, standalone launch time, regression gating against the previous release, and relief steps 3 and 5 (the ladder has no hook for them).
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| PB-1 (§0.1, §1, §10) | Per-module cost <= budget x 1.10, measured in CI — none here | - | n/a | - (visual `PerfBudget::everyModuleWithinBudget`: Coupling, Circuit, Amp, Body, Cab, Room, Master, PreFX) | OWNED |
+| PB-2 (§1, §10) | Budgets for the remaining modules (StringEngine, Pickup, Whammy, PostFX, MidiInterpreter, Rhythm, TuneBuilder, ModMatrix 1024 routes, Meter, Feedback, Freeze, Squeak/PickClick/Chirp/Scrape/FretBuzz/Clank, Slide, BassTechniques) — not measured on any branch | - | n/a | - | MISSING |
+| PB-3 (§0.2) | Modules isolated in the offline renderer over 60 s — visual measures in-process for 10 s | - | n/a | - (visual `PerfBudget::everyModuleWithinBudget`) | OWNED |
+| PB-4 (§0.3) | Regression > 10% vs previous release flagged, > 20% blocks — dashboard publishes numbers, no comparison | - | n/a | - | MISSING |
+| PB-5 (§0.4, §10) | Audio callback allocates zero bytes (heap trap, 5 min playback) — here only per-module traps | `LUTHIER_ALLOCATION_COUNTER` in tests | n/a | `Circuit::sweepingEveryControlDoesNotAllocate`, `Capture::capturingTenThousandNotesDoesNotAllocate` (visual `Engine::fiveMinutesOfPlaybackNeitherAllocatesNorLocks`) | OWNED |
+| PB-6 (§0.5, §10) | Audio callback locks nothing (mutex trap) — `previewLock` ScopedLock paths and tryLock remain here | `PluginProcessor.cpp` | n/a | - (visual `ThreadProbe::theLockTrapSeesALock`, `Engine::fiveMinutesOfPlaybackNeitherAllocatesNorLocks`) | OWNED |
+| PB-7 (§1, §10) | Totals: idle <= 1.5, steady <= 8, realism <= 12, slide <= 18, bass <= 15, heavy <= 22 units — here only < 50% per preset (B-13 idle 8-19%) | - | n/a | `Combo::cpuPerFactoryPreset` (loose) (visual `PerfBudget::scenarioTotals`) | OWNED |
+| PB-8 (§2) | No pedal > 0.5 units; heavier pedals get a Quality param with eco — no Quality param on any pedal | `DSP/Effects/*` | FX racks | - | MISSING |
+| PB-9 (§2) | Ship pedal budgets (reverb 0.4 ... doubler 0.15) measured — only PreFX chain average on visual | - | n/a | - | MISSING |
+| PB-10 (§3, §10) | Baseline RSS <= 350 MB; 900 MB cap; 60-min no monotonic growth — none here | - | n/a | - (visual `Memory::baselineInstanceUnder350MB`, `Memory::sixtyMinuteSessionNoMonotonicGrowth`) | OWNED |
+| PB-11 (§3) | RSS tiers: all IR variants <= 700 MB, full parts library <= 800 MB, tunes <= 820 MB — nowhere | - | n/a | - | MISSING |
+| PB-12 (§3) | Session recorder audio ring disabled by default (outside the cap), fixed size | `Capture/CaptureRing.h` | PRACTICE setup > session, `PracticeSetupPanel` | `PracticeSession::disabledByDefault`, `PracticeSession::ringBufferNeverGrows` | DONE |
+| PB-13 (§4) | Main-out latency <= 128 samples excl. oversampling group delay (reported) | `LuthierEngine::getLatencySamples` | ROUTING tab | `Engine::latencyIsReportedAndPlausible` (plausible only) (visual `Latency::dspLatencyIsWithinBudget`, `Latency::oversamplerReportsItsGroupDelay`) | OWNED |
+| PB-14 (§4) | Per-string aux <= 32, DI (Aux 1 post and pre-circuit) <= 32, Aux 8 <= 128 samples — no pre-circuit tap here | `LuthierEngine::getLatencySamples(AuxBus)` | ROUTING tab (visual adds Aux 1 pre-circuit toggle) | `Routing::perOutputLatencyIsConsistent` (visual `Routing::diPreCircuitBypassesTheCircuit`, `Latency::dspLatencyIsWithinBudget`) | OWNED |
+| PB-15 (§4) | Latency reported per routing-io 7 | `updateRoutingLatencyReport` | ROUTING tab | `Routing::perOutputLatencyIsConsistent` | DONE |
+| PB-16 (§5, §10) | Boot cold <= 400 ms, warm <= 200 ms | - | n/a | - (visual `Boot::coldAndWarmInstantiationStayInBudget`) | OWNED |
+| PB-17 (§5) | Standalone launch to audible <= 1.5 s cold — nowhere | - | n/a | - | MISSING |
+| PB-18 (§5, §10) | Guitar load <= 300 ms, tune load <= 100 ms, part swap <= 50 ms (100 swaps), spectrum delta <= 40 ms (100 renders) — here only a worker budget check | `WorkshopSpectrum` worker | n/a | `WorkshopSpectrum::theWorkerCoalescesAndStaysInBudget` (visual `Workshop::guitarLoadStaysUnder300ms`, `Tune::loadStaysUnder100ms`, `Workshop::hundredRandomPartSwapsStayUnder50ms`, `WorkshopSpectrum::hundredShadowRendersStayUnder40ms`) | OWNED |
+| PB-19 (§10) | Shadow audition budget across 100 Alt-hover events | `WorkshopBench` audition | n/a | - (visual `WorkshopBench::hundredAuditionsStayInBudget`) | OWNED |
+| PB-20 (§6, §10) | Voice-count scaling curve (1/4/8/12 voices) | - | n/a | - (visual `PerfBudget::voiceCountScaling`) | OWNED |
+| PB-21 (§6) | Sympathetic coupling O(N), unheld strings participate | `DSP/String/CouplingMatrix` | n/a | `Coupling::aStruckStringRingsItsNeighbour` | DONE |
+| PB-22 (§7, §10) | Sample-rate scaling curve within 10% | - | n/a | - (visual `PerfBudget::sampleRateScaling`) | OWNED |
+| PB-23 (§7) | Above 96 kHz oversampled modules downgrade 4x -> 2x -> 1x | `DSP/Common/Oversampler.h` (fixed factor here) | n/a | - (visual `Engine::oversamplingDowngradesAbove96k`) | OWNED |
+| PB-24 (§8) | CPU relief ladder at > 85% rolling 200 ms: steps 1, 2, 4, 6, 7 | - | n/a | - (visual `CpuRelief::laddersUpAtEightyFivePercentAndBackDown`, `CpuRelief::theEngineHalvesTheNoisePoolsOnlyUnderLoad`, `CpuReliefUi::streamSuspendsAndAuditionFreezesUnderLoad`, `CpuReliefUi::reliefSevenDropsTheQuietestStringsAndStopsWhenTheLoadFalls`) | OWNED |
+| PB-25 (§8) | Relief step 3 (mod-matrix control rate 2x) and step 5 (fewer reverb taps) — ladder has the steps but no engine hook on any branch | - | n/a | - | MISSING |
+| PB-26 (§8) | Relief 7 opt-out in Options > Diagnostics (default on) with "CPU limit" banner | - | Options > Diagnostics (visual) | - (visual `CpuRelief::stepSevenIsOptOut`, `CpuReliefUi::theOptOutIsSavedAndReachesTheLadder`, `CpuReliefUi::theBannerComesOncePerEpisodeAndGoes`) | OWNED |
+| PB-27 (§9) | Every merge: module costs, preset totals, realism, memory, latency, boot published to a dashboard — CI here runs unit tests only | `.github/workflows/build.yml` | n/a | - (visual `.github/workflows/nightly.yml` perf job + dashboard JSON) | OWNED |
+| PB-28 (§10) | Latency accuracy: delta impulse arrives within 1 sample of reported | - | n/a | - (visual `Latency::anImpulseArrivesWhenReported`) | OWNED |
+
+<!-- counts DONE=3 NO-GUI=0 NO-TEST=0 PARTIAL=0 MISSING=7 OWNED=18 -->

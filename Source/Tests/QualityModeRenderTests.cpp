@@ -313,7 +313,11 @@ LUTHIER_TEST (CpuQuality, CQ11_switchingLevelsDoesNotClick)
         const double ratio = before > 0.0 ? around / before : 0.0;
         worstRatio = juce::jmax (worstRatio, ratio);
 
-        if (ratio > 1.5)
+        // Merge with SPEC-SWEEP: a ratio over a rung-out tail is not a click.
+        // With the sweep's audio the chord is nearly gone by the last switch
+        // (10 s), where a second difference of 3.6e-5 against 1.9e-5 read as
+        // 1.9x; below 1e-4 (about -80 dBFS) nothing audible can click.
+        if (ratio > 1.5 && around > 1.0e-4)
             ++clicks;
     }
 

@@ -22,20 +22,27 @@
 #include "Live/Snapshots.h"
 #include "Live/Setlist.h"
 #include "Live/TapTempo.h"
+#include "Live/MidiClockTempo.h"   // SPEC-SWEEP HI-32
 #include "Live/LiveControls.h"
+#include "Live/LiveInput.h"   // SPEC-SWEEP: LP-11 / LP-33 / LP-34
 #include "Practice/Metronome.h"
 #include "Practice/Looper.h"
 #include "Practice/BackingTrack.h"
 #include "Practice/Trainers.h"
+#include "Practice/PracticeNoteFeed.h"   // SPEC-SWEEP PT-34
 #include "Practice/PracticeRoutineProgress.h"
 #include "Practice/PracticeRoutineSetup.h"
 #include "ToneMatch/ToneMatch.h"
+#include "ToneMatch/TestSignalPlayer.h"   // SPEC-SWEEP TM-17
 #include "Updates/Telemetry.h"
 #include "PhysicalRange.h"
 #include "Model/Workshop/PartAcoustics.h"
 #include "Workshop/WorkshopBench.h"
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
+#include "Controllers/ControllerStage.h"   // SPEC-SWEEP CT-2/CT-7
+#include "Support/CommandQueue.h"         // SPEC-SWEEP UW-5
+#include "Live/ExpressionStage.h"          // SPEC-SWEEP IR-11
 #include "Jam/JamEngine.h"   // FEAT-JAM
 #include "Support/OutputNormalization.h"   // output-normalization.md
 #include "Support/QualityController.h"   // cpu-quality-modes
@@ -198,6 +205,14 @@ public:
     ExpressionCalibrationSet&       getExpression() noexcept       { return expression; }
     const ExpressionCalibrationSet& getExpression() const noexcept { return expression; }
 
+    // SPEC-SWEEP: LP-11 / LP-34 - live actions on CCs, calibrated pedal input.
+    LiveActionMap&   getLiveActions() noexcept    { return liveActions; }
+    ExpressionInput& getExpressionInput() noexcept { return expressionInput; }
+
+    /** SPEC-SWEEP: LP-16 - where the automatable snapshot morph last moved the
+        bank to (the timer follows the parameter, modulation included). */
+    void updateSnapshotMorph();
+
     /** Captures the live state into a snapshot, including the state of the
         modules that do not live in the parameter tree. */
     bool captureSnapshot (int index, const juce::String& label = {}, int colourTag = -1);
@@ -222,6 +237,9 @@ public:
     /** live-performance 5: registers a tap, using the plugin's own clock. */
     void tapTempoNow();
 
+    /** SPEC-SWEEP: LP-26 - a tap stamped elsewhere (a footswitch CC). */
+    void tapTempoAt (double timeSeconds);
+
     /** The tempo everything tempo-synced should use, host or tapped. */
     double getEffectiveTempo() const noexcept;
 
@@ -245,6 +263,8 @@ public:
     BackingTrackPlayer&  getBackingTrack() noexcept { return backingTrack; }
     SessionRecorder&     getSessionRecorder() noexcept { return sessionRecorder; }
     ScaleTrainer&        getScaleTrainer() noexcept { return scaleTrainer; }
+    /** SPEC-SWEEP PT-34: the notes played while the drawer is open, for its trainers. */
+    PracticeNoteFeed&    getPracticeNoteFeed() noexcept { return practiceNoteFeed; }
     EarTrainer&          getEarTrainer() noexcept   { return earTrainer; }
     ProgressionLooper&   getProgressionLooper() noexcept { return progression; }
 
@@ -276,6 +296,8 @@ public:
     IrSlot& getBodyIrSlot() noexcept    { return bodyIr; }
     IrSlot& getCabIrSlot (int index) noexcept { return cabIr[(size_t) juce::jlimit (0, 1, index)]; }
     Capture& getCapture() noexcept     { return capture; }
+    /** SPEC-SWEEP TM-17: the Cab Match test signal, played out of Aux 1 (or the main out). */
+    TestSignalPlayer& getCabMatchSignal() noexcept { return cabMatchSignal; }
 
     //==========================================================================
     // Updates and privacy (updates-telemetry.md).
@@ -383,6 +405,14 @@ public:
     /** The notices applyGuitar raised since the last call (gui-integration 15). */
     juce::StringArray takeGuitarNotices();
 
+    /*  SPEC-SWEEP: SM-46 and friends - info banners about what a state change
+        did to the layers around it ("A/B cleared by preset load."). Taken once
+        by the editor. */
+    juce::StringArray takeStateNotices();
+
+    /** SPEC-SWEEP: FF-35/SM-31 - the same, for warnings (a refused setlist). */
+    juce::StringArray takeStateWarnings();
+
     /*  advanced-ranges.md 5: randomise stays inside stock by default. The
         preference is user-global and lives in UiPreferences, which the engine
         cannot see, so the editor mirrors it here. */
@@ -439,6 +469,49 @@ public:
     void panic();
 
     //==========================================================================
+    // SPEC-SWEEP (UW-5 / CB-17): the UI's writes to audio-thread state go
+    // through this queue and are applied at the top of the next block.
+    bool postEngineCommand (const EngineCommand& command) noexcept { return engineCommands.push (command); }
+    int getNumPendingEngineCommands() const noexcept { return engineCommands.getNumPending(); }
+
+    /** String mute (the fretboard's per-string menu): choked, or open again. */
+    void setStringMuted (int stringIndex, bool muted);
+    bool isStringMuted (int stringIndex) const noexcept;
+
+    /** A string's deliberate detune in cents (the headstock popover). */
+    void setStringDetuneCents (int stringIndex, double cents);
+
+    /** SPEC-SWEEP (PT-23): aftertouch bends instead of adding vibrato. Saved
+        with the session; a setting rather than a parameter. */
+    void setAftertouchBends (bool shouldBend);
+    bool doesAftertouchBend() const noexcept { return aftertouchBends.load(); }
+
+    /** SPEC-SWEEP (IR-14, input-routing 1.4): "Bank + PC" (true, the default)
+        lets Bank Select (CC 0) choose the preset; "PC only" passes CC 0 on. */
+    void setBankSelectChoosesPreset (bool on) noexcept { bankSelectsPreset.store (on); }
+    bool doesBankSelectChoosePreset() const noexcept { return bankSelectsPreset.load(); }
+
+    //==========================================================================
+    // SPEC-SWEEP (CT-2/CT-7): the controller profile the player chose. Its
+    // settings reach the interpreter on the audio thread; its MPE flag and bend
+    // range become the mpe_enabled / bend_range parameters, so the parameter
+    // bridge carries them instead of overwriting them.
+    void applyControllerProfile (const ControllerProfile& profile);
+    juce::String getControllerProfileId() const { return controllerStage.getProfileId(); }
+    ControllerStage& getControllerStage() noexcept { return controllerStage; }
+
+    /** SPEC-SWEEP (CT-11): while the latency wizard listens, the metronome
+        clicks even with the practice drawer shut, and every incoming note-on is
+        measured against the click it answers (ms after it; negative if early)
+        on the audio thread. The Controllers page drains the measurements. */
+    void setLatencyWizardListening (bool listening);
+    bool isLatencyWizardListening() const noexcept { return latencyListening.load(); }
+    int drainLatencyMeasurements (LatencyWizard& wizard);
+
+    /** SPEC-SWEEP (IR-11 / LP-34): republishes the expression calibrations to the
+        audio thread and feeds the calibration wizard what the pedal sent. The
+        processor's timer calls it; so can a test. Message thread. */
+    void serviceExpressionCalibration();
     // Jam mode (jam-mode.md, FEAT-JAM): the band beside the metronome and looper.
 
     JamEngine&        getJam() noexcept        { return jam; }
@@ -736,6 +809,9 @@ private:
     KillSwitch killSwitch;
     MonitorMix monitorMix;
     ExpressionCalibrationSet expression;
+    LiveActionMap liveActions;          // SPEC-SWEEP: LP-11
+    ExpressionInput expressionInput;    // SPEC-SWEEP: LP-33 / LP-34
+    float lastSnapshotMorph = -1.0f;    // SPEC-SWEEP: LP-16
 
     /*  The monitor mix is rendered into its own buffer and then written to the
         monitor aux bus, because it must not be summed into the main output: the
@@ -769,6 +845,7 @@ private:
     BackingTrackPlayer backingTrack;
     SessionRecorder sessionRecorder;
     ScaleTrainer scaleTrainer;
+    PracticeNoteFeed practiceNoteFeed;   // SPEC-SWEEP PT-34
     EarTrainer earTrainer;
     ProgressionLooper progression;
 
@@ -791,6 +868,8 @@ private:
     IrSlot bodyIr;
     std::array<IrSlot, 2> cabIr;
     Capture capture;
+    TestSignalPlayer cabMatchSignal;                 // SPEC-SWEEP TM-17
+    juce::AudioBuffer<float> testSignalBuffer;       // SPEC-SWEEP TM-17
 
     // --- updates and privacy ---------------------------------------------------------------
     Telemetry telemetry;
@@ -824,6 +903,17 @@ private:
     /*  A state load hands over its `guitar` block here; the guitar is then
         loaded (or kept) by loadGuitarForType when the bridge next applies. */
     void takeGuitarBlock (const juce::var& block);
+
+    // SPEC-SWEEP: SM-1/SM-16/FF-24..29 - the preset blocks the processor owns
+    // (Presets/PresetBlocks.cpp). Absent blocks go back to defaultPresetBlocks.
+    void writePresetBlocks (juce::DynamicObject& root) const;
+    void readPresetBlocks (const juce::DynamicObject& root);
+    void captureDefaultPresetBlocks();
+    juce::var defaultPresetBlocks;
+
+    // SPEC-SWEEP: SM-46 - what a user-facing preset load clears (state-model 8.1).
+    void presetFileLoaded();
+    juce::StringArray stateNotices, stateWarnings;
 
     /** Resolves a preset's reference to a guitar file: user, then factory. */
     static juce::File resolveGuitarReference (const juce::String& reference);
@@ -891,6 +981,9 @@ private:
 
     /** This block's tempo: the host's, or the tapped one when that wins. */
     double blockTempo = 120.0;
+    MidiClockTempo midiClock;                    // SPEC-SWEEP HI-32
+    std::atomic<double> midiClockBpm { 0.0 };    // SPEC-SWEEP HI-32: 0 = no clock
+    int hostTimeSigNumerator = 0, hostTimeSigDenominator = 0;   // SPEC-SWEEP HI-29: 0 = the host gave none
 
     double currentSampleRate = 44100.0;
     bool initialStateApplied = false;   ///< the bridge has built the instrument once (prepare or save)
@@ -1021,6 +1114,23 @@ private:
 
     juce::StringArray lockedParameters;
 
+    // SPEC-SWEEP (UW-5, CT-2/CT-4/CT-7)
+    CommandQueue<EngineCommand, 128> engineCommands;
+    ControllerStage controllerStage;
+    ExpressionStage expressionStage;   // IR-11
+    juce::MidiBuffer controllerScratch;
+    std::array<std::atomic<bool>, kMaxStrings> stringMuted {};
+    std::atomic<bool> aftertouchBends { false };   // PT-23
+    std::atomic<bool> bankSelectsPreset { true };  // IR-14
+    juce::uint32 loggedClippedNotes = 0;           // CT-14
+
+    // CT-11: the latency wizard's measurements, audio -> message thread.
+    std::atomic<bool> latencyListening { false };
+    static constexpr int kLatencyFifo = 64;
+    juce::AbstractFifo latencyFifo { kLatencyFifo };
+    std::array<float, kLatencyFifo> latencyMeasurements {};
+    void captureLatencyMeasurements (const juce::MidiBuffer& midi) noexcept;
+    void applyEngineCommand (const EngineCommand& command) noexcept;
     // output-normalization.md: declared last, so every parameter and the engine
     // exist when its change tracker is built.
     OutputNormalization outputNormalization { *this };

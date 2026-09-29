@@ -86,8 +86,9 @@ public:
     /** Takes a copy of what the host sent, before the engine consumes it. */
     void captureInput (const juce::MidiBuffer& incoming) noexcept;
 
-    /** The rhythm engine's generated events for this block. Cleared each block;
-        empty until rhythm-engine.md is wired in. */
+    /** The rhythm engine's generated events for this block (the engine writes
+        them: LuthierEngine::setRhythmMidiOut, channel = string + 1). Cleared
+        each block. */
     juce::MidiBuffer& getRhythmBuffer() noexcept { return rhythm; }
 
     /** Macro values, 0..1, for the CC broadcast. Only a change is transmitted,

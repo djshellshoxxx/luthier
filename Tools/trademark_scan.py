@@ -21,6 +21,8 @@ BRANDS = [
     "Sennheiser", "MD421", "AKG", "C414", "D112", "U87", "Tube Screamer", "Big Muff", "Klon", "Boss",
     "MXR", "Electro-Harmonix", "Uni-Vibe", "Leslie", "D'Addario", "NYXL", "Ernie Ball", "Elixir",
     "Selmer", "Dobro", "Gretsch", "Epiphone", "PRS", "Danelectro", "TransTrem", "Kinman", "Alnico Blue",
+    # SPEC-SWEEP: FC-1 - a pedal and the single-cut's initials in a part name.
+    "Fuzz Face", "LP Wiring",
 ]
 
 LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"')

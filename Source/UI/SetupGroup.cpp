@@ -34,7 +34,8 @@ BuzzHeatmap::CellState BuzzHeatmap::stateFor (float excessMm) noexcept
 
 bool BuzzHeatmap::isStale() const noexcept
 {
-    return juce::Time::getMillisecondCounterHiRes() * 0.001 - lastChange > 2.0;
+    // SPEC-SWEEP (GD-13): stale once the fade has finished.
+    return freshnessFor (juce::Time::getMillisecondCounterHiRes() * 0.001 - lastChange) <= 0.0f;
 }
 
 void BuzzHeatmap::timerCallback()
@@ -79,6 +80,7 @@ void BuzzHeatmap::paint (juce::Graphics& g)
     const float cellW = area.getWidth() / (float) frets;
     const float cellH = area.getHeight() / (float) strings;
     const bool stale = isStale();
+    const float freshness = freshnessFor (juce::Time::getMillisecondCounterHiRes() * 0.001 - lastChange);   // GD-13
 
     for (int s = 0; s < strings; ++s)
     {
@@ -96,17 +98,21 @@ void BuzzHeatmap::paint (juce::Graphics& g)
                 continue;
             }
 
+            // SPEC-SWEEP (GD-13): a going-stale map fades over the empty cell.
+            g.setColour (Palette::edge.withAlpha (0.35f));
+            g.fillRect (cell);
+
             if (state == CellState::buzzing)
             {
-                g.setColour (Palette::accent);
+                g.setColour (Palette::accent.withMultipliedAlpha (freshness));
                 g.fillRect (cell);
 
-                g.setColour (Palette::panelSunken);
+                g.setColour (Palette::panelSunken.withMultipliedAlpha (freshness));
                 g.fillEllipse (cell.withSizeKeepingCentre (3.0f, 3.0f));
             }
             else
             {
-                g.setColour (Palette::warning);
+                g.setColour (Palette::warning.withMultipliedAlpha (freshness));
                 g.drawRect (cell, 1.0f);
             }
         }

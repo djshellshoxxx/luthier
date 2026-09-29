@@ -305,9 +305,18 @@ juce::String Diagnostics::buildTroubleshootingReport (const juce::String& settin
     if (info.sampleRate > 0.0)
         r << " (" << juce::String (info.reportedLatencySamples / info.sampleRate * 1000.0, 2) << " ms)";
 
-    r << "\n"
-      << "\n"
-      << "---- SYSTEM ----------------------------------------------------\n"
+    r << "\n\n";
+
+    // SPEC-SWEEP INC-29: LICENCE and MIDI, from the processor.
+    if (reportSections != nullptr)
+    {
+        const auto sections = reportSections();
+
+        if (sections.isNotEmpty())
+            r << sections.trimEnd() << "\n\n";
+    }
+
+    r << "---- SYSTEM ----------------------------------------------------\n"
       << "OS:               " << juce::SystemStats::getOperatingSystemName() << "\n"
       << "CPU:              " << juce::SystemStats::getCpuModel() << "\n"
       << "CPU vendor:       " << juce::SystemStats::getCpuVendor() << "\n"
@@ -359,6 +368,11 @@ juce::String Diagnostics::buildTroubleshootingReport (const juce::String& settin
       << "================================================================\n";
 
     return r;
+}
+
+void Diagnostics::setReportSectionsProvider (std::function<juce::String()> provider)
+{
+    reportSections = std::move (provider);
 }
 
 juce::File Diagnostics::writeTroubleshootingReport (const juce::String& settingsJson,

@@ -938,6 +938,9 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (boolParam   (ParamIDs::jamBassMute,       "Jam Bass Mute", false));
     add (choiceParam (ParamIDs::jamOutput,         "Jam Output", { "Main", "Separate", "Main + Separate" }, 0));
     // ==== END FEAT-JAM params ====
+    // ==== BEGIN SPEC-SWEEP params ====
+    add (floatParam  (ParamIDs::snapshotMorph, "Snapshot Morph", 0.0f, 1.0f, 0.0f));   // LP-16
+    // ==== END SPEC-SWEEP params ====
 
     return layout;
 }
@@ -1642,7 +1645,13 @@ void ParameterBridge::applyToEngine() noexcept
     roomEngine.setWidth (value (ParamIDs::roomWidth));
 
     // ---- master ------------------------------------------------------------------
-    engine.getMasterBus().setGainDb (value (ParamIDs::masterGain));
+    // SPEC-SWEEP (PT-21): CC 11 (master level) scales the master gain; its
+    // square is the usual expression-pedal taper, and 0 bottoms out at -60 dB.
+    {
+        const double level = engine.getMidiInterpreter().getMasterLevel();
+        const double levelDb = level >= 1.0 ? 0.0 : juce::Decibels::gainToDecibels (level * level, -60.0);
+        engine.getMasterBus().setGainDb (value (ParamIDs::masterGain) + levelDb);
+    }
     engine.setInputGainDb (value (ParamIDs::inputGain));
     engine.setOutputMix (value (ParamIDs::outputMix));
     engine.setStereoWidth (value (ParamIDs::stereoWidth));
@@ -1828,6 +1837,11 @@ void ParameterBridge::applyToEngine() noexcept
         engine.setStringInteraction (interaction);
     }
     // ==== END REALISM-B params ====
+
+    // ==== BEGIN SPEC-SWEEP params ====
+    // snapshot_morph (LP-16) is read by LuthierAudioProcessor::updateSnapshotMorph
+    // on the message thread; the morph writes parameters, so it cannot run here.
+    // ==== END SPEC-SWEEP params ====
 }
 
 bool ParameterBridge::readStructuralValues() noexcept

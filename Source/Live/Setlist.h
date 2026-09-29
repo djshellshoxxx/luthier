@@ -28,6 +28,10 @@ struct SetlistEntry
     int snapshotIndex = 0;
     juce::String notes;
 
+    /** SPEC-SWEEP: SM-31. False when Setlist::loadFrom could not find the
+        entry's preset. Not saved; worked out again on every load. */
+    bool resolved = true;
+
     /** The name to show, which is the preset's file name unless it is empty. */
     juce::String getDisplayName() const;
 
@@ -40,6 +44,11 @@ class Setlist
 {
 public:
     static const char* const kFileExtension;
+
+    /*  SPEC-SWEEP: FF-5. file-formats 0.5's marker. Setlists written before it
+        carry `"format": "luthierset"` and are still accepted. */
+    static const char* const kMagic;
+    static constexpr int kSchema = 1;
 
     Setlist();
 
@@ -68,6 +77,13 @@ public:
     void fromVar (const juce::var& state);
 
     bool loadFrom (const juce::File& file);
+
+    /*  SPEC-SWEEP: FF-35, error-recovery 1. Why the last loadFrom refused the
+        file, in a sentence, or empty. */
+    juce::String getLoadError() const { return loadError; }
+
+    /** SPEC-SWEEP: SM-31. How many entries the last load could not resolve. */
+    int getNumUnresolvedEntries() const noexcept;
     bool saveTo (const juce::File& file) const;
 
     static juce::File getUserDirectory();
@@ -81,6 +97,7 @@ private:
     double defaultBpm = 120.0;
 
     std::vector<SetlistEntry> entries;
+    juce::String loadError;   // SPEC-SWEEP: FF-35
 };
 
 //==============================================================================

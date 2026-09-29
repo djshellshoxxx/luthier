@@ -30,7 +30,10 @@ PitchTracker::Estimate PitchTracker::analyse (const float* x) noexcept
 
     e.rms = std::sqrt (energy / frameSize);
 
-    if (! std::isfinite (e.rms) || e.rms < 1.0e-6)
+    if (! std::isfinite (e.rms))
+        return {};
+
+    if (e.rms < 1.0e-6)
         return e;
 
     const int window = frameSize - maxLag;

@@ -54,7 +54,12 @@ const std::vector<std::pair<const char*, const char*>>& AnimationPolicy::getPoll
         { "PositionPad",           "10 Hz: redraws only when the player's position parameters change" },
         { "RightHandToolSelector", "4 Hz: syncs the selected tool with its parameter" },
         { "SustainShapeGroup",     "4 Hz: sustain-style combo text" },
-        { "TuningStabilityGroup",  "2 Hz: capo-bias text and string count" }
+        { "TuningStabilityGroup",  "2 Hz: capo-bias text and string count" },
+        // SPEC-SWEEP classes, allow-listed at the merge with the integration branch.
+        { "LuthierKnob",           "the shared 30 Hz ModArcHub: a knob repaints only when its modulation arc or learn pulse changes" },
+        { "LiveActionButton",      "10 Hz: the CC assignment text of a live action" },
+        { "MorphSetupPanel",       "6 Hz: morph slot labels and enables" },
+        { "MonitorSetupPanel",     "6 Hz: monitor-mix control sync" }
     };
 
     return list;

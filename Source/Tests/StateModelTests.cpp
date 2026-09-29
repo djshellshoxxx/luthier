@@ -74,7 +74,11 @@ LUTHIER_TEST (StateModel, loadingAPresetLeavesTheLayersAboveItAlone)
     CHECK_MSG (processor.canUndo(), "a preset load cleared the undo stack");
     CHECK_MSG (processor.getMidiLearn().isArmed(),
                "a preset load disarmed MIDI Learn");
-    CHECK_MSG (processor.isSlotBActive(), "a preset load changed the A/B slot");
+
+    /*  SPEC-SWEEP: SM-46. state-model.md 8.1 is the specific rule for A/B and
+        wins over section 2's general "never touches" list: the compare clears,
+        because either slot recalled after a load would silently undo it. */
+    CHECK_MSG (! processor.isSlotBActive(), "a preset load left A/B compare active (state-model 8.1)");
 }
 
 //==============================================================================

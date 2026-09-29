@@ -27,6 +27,7 @@
 */
 
 #include <juce_core/juce_core.h>
+#include <utility>
 
 namespace luthier
 {
@@ -56,10 +57,19 @@ public:
     bool load();
     bool save() const;
 
+    /*  SPEC-SWEEP: ER-65/66, error-recovery 10. A file that exists but does not
+        parse, or names a schema this build does not know, is renamed to
+        `ui.json.corrupted-<yyyymmdd-hhmmss>` and the defaults are used. True
+        once after that happened, for the window's banner. */
+    bool takeCorruptionNotice() noexcept { return std::exchange (recoveredFromCorruption, false); }
+
+    static constexpr int kSchema = 1;
+
 private:
     UiPreferences();
 
     juce::var values;
+    bool recoveredFromCorruption = false;   // SPEC-SWEEP: ER-65
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (UiPreferences)
 };
