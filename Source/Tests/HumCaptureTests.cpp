@@ -3,6 +3,8 @@
 
 #include "TestFramework.h"
 
+#include <limits>
+
 #include "../DSP/Common/PitchTracker.h"
 #include "../PluginProcessor.h"
 #include "../Tune/TuneHarmony.h"
@@ -79,6 +81,25 @@ LUTHIER_TEST (HumCapture, thePitchTrackerFindsAVoicesPitchAndDoubtsNoise)
         s = random.nextFloat() * 2.0f - 1.0f;
 
     CHECK_MSG (tracker.analyse (noise.data()).confidence < TuneHumCapture::kMinConfidence, "noise passed as a pitch");
+}
+
+//==============================================================================
+LUTHIER_TEST (HumCapture, pitchTrackerSanitisesNonFiniteFrames)
+{
+    PitchTracker tracker;
+    tracker.prepare (kSr, 2048);
+
+    std::vector<float> frame (2048, 0.0f);
+
+    for (float invalid : { std::numeric_limits<float>::quiet_NaN(),
+                           std::numeric_limits<float>::infinity() })
+    {
+        frame[0] = invalid;
+        const auto e = tracker.analyse (frame.data());
+        CHECK (std::isfinite (e.frequency) && e.frequency == 0.0);
+        CHECK (std::isfinite (e.confidence) && e.confidence == 0.0);
+        CHECK (std::isfinite (e.rms) && e.rms == 0.0);
+    }
 }
 
 //==============================================================================
