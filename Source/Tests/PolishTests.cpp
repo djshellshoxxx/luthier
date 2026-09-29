@@ -9,6 +9,8 @@
 #include "../Accessibility/Accessibility.h"
 #include "../UI/FretboardComponent.h"
 #include "../UI/Overlays.h"
+#include "../UI/OptionsPages.h"
+#include "../Accessibility/Localisation.h"
 #include "../UI/Theme.h"
 #include "../UI/ValidatorNotices.h"
 #include "../Validator.h"
@@ -295,4 +297,60 @@ LUTHIER_TEST (ValidatorNotices, aCorrectedTensionRaisesOneInfoNotice)
     // History from before the editor opened is not news.
     ValidatorNotices late;
     CHECK (late.poll (validator, 10000).empty());
+}
+
+//==============================================================================
+/*  A11Y-41: numeric readouts are tabular - every digit the same width - whatever
+    the locale, so a value changing does not shuffle the text beside it. */
+LUTHIER_TEST (Fonts, numericReadoutsAreTabular)
+{
+    const auto mono = Fonts::mono (12.0f);
+    const float one = mono.getStringWidthFloat ("1");
+
+    for (const char* digit : { "0", "2", "3", "4", "5", "6", "7", "8", "9", "." })
+        CHECK_NEAR (mono.getStringWidthFloat (digit), one, 0.01f);
+}
+
+/*  A11Y-46: Options > Localization - the language and its fallback are chosen
+    there and reach the localisation state. */
+LUTHIER_TEST (Localisation, theOptionsPageChoosesLocaleAndFallback)
+{
+    LuthierAudioProcessor processor;
+    LocalizationPage page (processor);
+    page.setSize (600, 300);
+
+    juce::Array<juce::ComboBox*> boxes;
+
+    for (auto* child : page.getChildren())
+        if (auto* box = dynamic_cast<juce::ComboBox*> (child))
+            boxes.add (box);
+
+    CHECK (boxes.size() == 2);
+
+    if (boxes.size() != 2)
+        return;
+
+    const auto& locales = Localisation::getShipLocales();
+    CHECK (locales.size() >= 2);
+
+    auto& loc = Localisation::get();
+    const auto oldLocale = loc.getLocale();
+    const auto oldFallback = loc.getFallbackLocale();
+
+    // The boxes show the current state.
+    CHECK (boxes[0]->getSelectedId() >= 1 && boxes[1]->getSelectedId() >= 1);
+
+    boxes[1]->setSelectedId (2, juce::sendNotificationSync);
+    CHECK (loc.getFallbackLocale() == locales[1].code);
+
+    boxes[1]->setSelectedId (1, juce::sendNotificationSync);
+    CHECK (loc.getFallbackLocale() == locales[0].code);
+
+    boxes[0]->setSelectedId (1, juce::sendNotificationSync);
+    CHECK (loc.getLocale() == locales[0].code);
+
+    // Leave the machine as it was found.
+    loc.setLocale (oldLocale);
+    loc.setFallbackLocale (oldFallback);
+    AccessibilitySettings::get().save();
 }
