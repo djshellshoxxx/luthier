@@ -46,6 +46,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
+    std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override;
 
     /** The area inside the title bar and padding, where subclasses put content. */
     juce::Rectangle<int> getContentBounds() const;

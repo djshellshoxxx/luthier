@@ -153,6 +153,13 @@ public:
     void setUiScale (double scale);
     double getUiScale() const noexcept { return uiScale; }
 
+    /** accessibility 4 (A11Y-29): the largest offered step at or below `wanted`
+        at which a window of minWidth x minHeight points still fits `available`.
+        Never below the smallest step. This is the scale the editor applies; the
+        stored preference is left alone, so a bigger screen gets it back. */
+    static double largestScaleThatFits (double wanted, juce::Rectangle<int> available,
+                                        int minWidth, int minHeight) noexcept;
+
     /** The next scale down, for the graceful recovery accessibility 4 asks for
         when a saved window size no longer fits. Returns false at the smallest. */
     bool stepScaleDown();

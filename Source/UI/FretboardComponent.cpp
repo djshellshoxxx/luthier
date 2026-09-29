@@ -60,7 +60,9 @@ FretboardComponent::FretboardComponent (LuthierAudioProcessor& p)
     liveLevel.fill (0.0);
     liveNote.fill (-1);
 
-    setTooltip ("Click a fret to hear that note. Right-click for string options.");
+    setTooltip ("Click a fret to hear that note. Right-click for string options. "
+                "With the keyboard: arrow keys move, Enter plays, M mutes.");
+    setWantsKeyboardFocus (true);   // A11Y-8: FretboardAccess.cpp
     motion.startTimerHz (*this, kRefreshHz);   // SPEC-SWEEP GD-2 rate, via cpu-quality-modes 6
 }
 
