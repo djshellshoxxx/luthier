@@ -110,6 +110,7 @@ public:
         setlist), so the strip does not also reorder. */
     std::function<void (int sectionIndex, juce::Point<int> screen)> onTabDragged;
     std::function<bool (int sectionIndex, juce::Point<int> screen)> onTabDropped;
+    std::function<void()> onLastSectionDeleteRefused;
 
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;

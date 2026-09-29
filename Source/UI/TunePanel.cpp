@@ -1,5 +1,6 @@
 #include "TunePanel.h"
 #include "../PluginProcessor.h"
+#include "../PluginEditor.h"
 #include "../Tune/TuneTemplates.h"
 #include "../Tune/TuneExamples.h"
 #include "../Tune/TuneHarmony.h"
@@ -323,6 +324,13 @@ void TuneSectionStrip::performMenuItem (int sectionIndex, int itemId)
     }
     else if (itemId == deleteItem)
     {
+        if (sectionIndex == 0 && session.getTune().getNumSections() == 1)
+        {
+            if (onLastSectionDeleteRefused)
+                onLastSectionDeleteRefused();
+            return;
+        }
+
         session.edit (TuneEditClass::sectionEdit, "Delete section",
                       [sectionIndex] (Tune& t) { return t.removeSection (sectionIndex); });
     }
@@ -581,6 +589,14 @@ TunePanel::TunePanel (LuthierAudioProcessor& p, TunePlayer& pl, TuneSession& s)
       pianoRoll (s)
 {
     setWantsKeyboardFocus (true);
+
+    sectionStrip.onLastSectionDeleteRefused = [this]
+    {
+        if (auto* editor = dynamic_cast<LuthierAudioProcessorEditor*> (processor.getActiveEditor()))
+            editor->getNotifications().post ({ "tune-last-section",
+                                               "A tune must have at least one section.",
+                                               Notification::Level::warning });
+    };
 
     buildHeader();
     buildProgression();
