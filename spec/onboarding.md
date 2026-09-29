@@ -16,8 +16,8 @@ time they open Luthier and how the plugin behaves for the first hour.
 
 ## 1. Fresh install state
 
-Preset loaded: `Factory / Rock / Modern Overdrive`.
-Guitar: `Les Paul Standard` (from the shipped `.luthierguitar` library).
+Preset loaded: `Factory / Electric / Single-Cut Crunch`.
+Guitar: `Vintage Single-Cut` (from the shipped `.luthierguitar` library).
 Mode: Easy.
 Live Mode: off.
 Practice drawer: collapsed.
@@ -121,7 +121,9 @@ Every install includes:
   show off a different capability: a fingerstyle etude, a jazz standard,
   a folk sketch, a metal riff, a slide blues, a funk-slap bass line.
 - **12 example MIDI clips** in `Resources/Examples/`, one per genre kit.
-- **6 practice backing tracks**, royalty-free.
+- **6 practice backing tracks**, original loops rendered by Luthier itself
+  (`Resources/Practice/BackingTracks/`, listed under the Practice drawer's
+  track tab).
 - **10 example setlists**.
 - **The tour itself** as a reusable interactive walkthrough.
 

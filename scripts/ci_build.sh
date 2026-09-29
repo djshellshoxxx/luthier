@@ -267,7 +267,7 @@ do_stage() {
     # the installed plugins read the shared copy.
     for b in "$out"/Luthier.vst3 "$out"/Luthier.component "$out"/Luthier.clap "$out"/Luthier.app; do
         [ -d "$b/Contents/Resources" ] || continue
-        for d in BodyIRs CabIRs Fonts Guitars Parts Presets Tunes; do
+        for d in BodyIRs CabIRs Examples Fonts Guitars Parts Practice Presets Tunes; do
             rm -rf "$b/Contents/Resources/$d"
         done
         # Our icons came along with the content copy; a bundle's own icon

@@ -2,8 +2,8 @@
 
 /*  The tune template library (tune-builder.md 10; factory-content.md).
 
-    Ten templates ship, as tune-builder 10 lists them (DECISIONS C-16:
-    onboarding's "12" is a miscount). Each is an ordinary `.luthiertune` under
+    Twelve templates ship: tune-builder 10's ten plus Pop four-chord and Funk
+    groove, which bring the library to onboarding 6's twelve. Each is an ordinary `.luthiertune` under
     `Resources/Tunes/Templates/`, so a template is edited the way any tune is
     and loads through the same validated path. Files are named with a two-digit
     prefix so the picker lists them in the spec's order.
@@ -28,7 +28,7 @@ struct TuneTemplate
 class TuneTemplateLibrary
 {
 public:
-    static constexpr int kNumFactoryTemplates = 10;
+    static constexpr int kNumFactoryTemplates = 12;
 
     /** `Resources/Tunes/Templates`, or an invalid File when no Resources folder
         was found. */

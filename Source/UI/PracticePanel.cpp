@@ -1,5 +1,6 @@
 #include "PracticePanel.h"
 #include "../PluginProcessor.h"
+#include "../Practice/BackingTrackLibrary.h"
 #include "MidiOutPanel.h"        // MODEL-GAPS: the drag-out take
 #include "MidiExportDefaults.h"
 #include "../DSP/Common/DspCommon.h"   // SPEC-SWEEP PT-39: hzToMidi
@@ -806,19 +807,31 @@ TrackTab::TrackTab (LuthierAudioProcessor& p)
                               [this] (const juce::FileChooser& fc)
         {
             if (fc.getResult() != juce::File())
-            {
-                // action-and-undo.md 3.14: practice-track-load.
-                auto* player = &track();
-                const auto before = player->isLoaded() ? player->getFile() : juce::File();
-                const auto after = fc.getResult();
-
-                if (track().load (after))
-                    processor.pushUndoCallback ("Load backing track " + after.getFileName(), "practice-track-load", {},
-                                                [player, before] { if (before.existsAsFile()) player->load (before); else player->unload(); },
-                                                [player, after] { player->load (after); });
-            }
+                loadTrack (fc.getResult());
 
             refresh();
+        });
+    };
+
+    // onboarding 6: the six factory backing tracks, listed without a file dialog.
+    factoryButton.setTooltip ("Pick one of the practice backing tracks that ship with Luthier");
+    factoryButton.onClick = [this]
+    {
+        const auto tracks = BackingTrackLibrary::findFactoryTracks();
+        juce::PopupMenu menu;
+
+        for (int i = 0; i < tracks.size(); ++i)
+            menu.addItem (i + 1, BackingTrackLibrary::getDisplayName (tracks[i]),
+                          true, track().isLoaded() && track().getFile() == tracks[i]);
+
+        if (tracks.isEmpty())
+            menu.addItem (1, "No factory backing tracks found", false);
+
+        menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&factoryButton),
+                            [this, tracks] (int result)
+        {
+            if (result >= 1 && result <= tracks.size())
+                loadTrack (tracks[result - 1]);
         });
     };
 
@@ -834,7 +847,7 @@ TrackTab::TrackTab (LuthierAudioProcessor& p)
 
     stopButton.onClick = [this] { track().stop(); refresh(); };
 
-    for (auto* button : { &openButton, &playButton, &stopButton })
+    for (auto* button : { &openButton, &factoryButton, &playButton, &stopButton })
         addAndMakeVisible (*button);
 
     styleReadout (titleLabel, Palette::textPrimary);
@@ -941,6 +954,20 @@ TrackTab::TrackTab (LuthierAudioProcessor& p)
     refresh();
 }
 
+void TrackTab::loadTrack (const juce::File& file)
+{
+    // action-and-undo.md 3.14: practice-track-load.
+    auto* player = &track();
+    const auto before = player->isLoaded() ? player->getFile() : juce::File();
+
+    if (player->load (file))
+        processor.pushUndoCallback ("Load backing track " + file.getFileName(), "practice-track-load", {},
+                                    [player, before] { if (before.existsAsFile()) player->load (before); else player->unload(); },
+                                    [player, file] { player->load (file); });
+
+    refresh();
+}
+
 BackingTrackPlayer& TrackTab::track()
 {
     return processor.getBackingTrack();
@@ -1014,6 +1041,7 @@ void TrackTab::resized()
     {
         RowLayout r { row (Metrics::buttonHeight) };
         openButton.setBounds (r.take (76));
+        factoryButton.setBounds (r.take (84));
         playButton.setBounds (r.take (64));
         stopButton.setBounds (r.take (56));
         titleLabel.setBounds (r.rest());

@@ -12,11 +12,15 @@
 
 #include "../Live/Setlist.h"
 #include "../PluginProcessor.h"
+#include "../Practice/BackingTrackLibrary.h"
+#include "../Presets/FactoryPresets.h"
 #include "../Presets/PresetManager.h"
 #include "../Rhythm/GenreKit.h"
 #include "../Rhythm/Patterns.h"
 #include "../Tune/TuneExamples.h"
 #include "../Tune/TuneMelody.h"
+#include "../Tune/TuneMidi.h"
+#include "../Tune/TuneTemplates.h"
 #include "../UI/TunePanel.h"
 
 using namespace luthier;
@@ -235,4 +239,172 @@ LUTHIER_TEST (SampleContent, anExampleTuneOpensFromTheTuneTabAndPlays)
     panel.getPlayButton().onClick();
     CHECK (processor->getTunePlayer().isPlaying());
     processor->getTunePlayer().stop();
+}
+
+//==============================================================================
+/*  onboarding 6: twelve tune templates, every one parseable and musically sound. */
+LUTHIER_TEST (SampleContent, theTwelveTuneTemplatesShipParseAndPlay)
+{
+    CHECK (TuneTemplateLibrary::kNumFactoryTemplates == 12);
+
+    juce::StringArray errors;
+    const auto templates = TuneTemplateLibrary::loadFactory (&errors);
+    CHECK_MSG (errors.isEmpty(), errors.joinIntoString ("; "));
+    CHECK_MSG (templates.size() == 12, "shipped " + juce::String ((int) templates.size()) + " templates");
+
+    GenreKitLibrary kits;
+    PatternLibrary patterns;
+    juce::StringArray titles;
+
+    for (const auto& t : templates)
+    {
+        CHECK (! titles.contains (t.name));
+        titles.add (t.name);
+        CHECK_MSG (t.tune.validate().isEmpty(), t.name + ": " + t.tune.validate().joinIntoString ("; "));
+        CHECK (t.tune.meta.tempoBpm >= 40.0 && t.tune.meta.tempoBpm <= 240.0);
+
+        for (const auto& s : t.tune.arrangement.sections)
+        {
+            CHECK_MSG (s.genreKitId.isEmpty() || kits.indexOf (s.genreKitId) >= 0, t.name + ": kit " + s.genreKitId);
+            CHECK_MSG (s.rhythmPatternId.isEmpty() || patterns.indexOf (s.rhythmPatternId) >= 0,
+                       t.name + ": pattern " + s.rhythmPatternId);
+        }
+    }
+
+    if (templates.size() < 12)
+        return;
+
+    // The two added to reach onboarding 6's twelve.
+    const auto& pop = templates[10].tune;
+    CHECK (pop.meta.title == "Pop four-chord in G" && pop.meta.keyTonic == 7 && pop.getNumSections() == 2);
+    CHECK (formatProgression (pop.arrangement.sections[0].chords, 4.0, false) == "G D Em C");
+
+    const auto& funk = templates[11].tune;
+    CHECK (funk.meta.title == "Funk groove in E" && funk.meta.keyTonic == 4 && funk.getNumSections() == 1);
+    CHECK (funk.arrangement.sections[0].rhythmPatternId == "Funk Sixteenth");
+    CHECK (TuneTimeline::build (funk).getLengthPpq() == funk.getTotalBeats());
+    CHECK (funk.getTotalBeats() > 0.0);
+}
+
+//==============================================================================
+/*  onboarding 6: six royalty-free backing tracks, that open, are the right
+    length and are not silent. */
+LUTHIER_TEST (SampleContent, theSixBackingTracksShipAndPlay)
+{
+    CHECK (BackingTrackLibrary::kNumFactoryTracks == 6);
+
+    const auto tracks = BackingTrackLibrary::findFactoryTracks();
+    CHECK_MSG (tracks.size() == 6, "found " + juce::String (tracks.size()) + " backing tracks in "
+                                       + BackingTrackLibrary::getFactoryDirectory().getFullPathName());
+
+    juce::AudioFormatManager formats;
+    formats.registerBasicFormats();
+
+    juce::int64 totalBytes = 0;
+    juce::StringArray names;
+
+    for (const auto& file : tracks)
+    {
+        totalBytes += file.getSize();
+        CHECK (! names.contains (BackingTrackLibrary::getDisplayName (file)));
+        names.add (BackingTrackLibrary::getDisplayName (file));
+
+        std::unique_ptr<juce::AudioFormatReader> reader (formats.createReaderFor (file));
+        CHECK_MSG (reader != nullptr, file.getFileName() + " has no reader");
+
+        if (reader == nullptr)
+            continue;
+
+        const double seconds = (double) reader->lengthInSamples / reader->sampleRate;
+        CHECK_MSG (seconds >= 20.0 && seconds <= 90.0, file.getFileName() + " is " + juce::String (seconds) + " s");
+        CHECK (reader->sampleRate >= 32000.0);
+        CHECK (reader->numChannels >= 1 && reader->numChannels <= 2);
+
+        // Audible, not clipping, and not just one instant of sound: measure the
+        // level of one-second windows across the file.
+        juce::AudioBuffer<float> audio ((int) reader->numChannels, (int) reader->sampleRate);
+        int loudWindows = 0, windows = 0;
+        float peak = 0.0f;
+
+        for (juce::int64 pos = 0; pos + (juce::int64) reader->sampleRate <= reader->lengthInSamples;
+             pos += (juce::int64) reader->sampleRate)
+        {
+            reader->read (&audio, 0, audio.getNumSamples(), pos, true, true);
+            ++windows;
+
+            const float rms = audio.getRMSLevel (0, 0, audio.getNumSamples());
+            peak = juce::jmax (peak, audio.getMagnitude (0, audio.getNumSamples()));
+            loudWindows += rms > 0.01f ? 1 : 0;
+        }
+
+        CHECK_MSG (peak > 0.1f && peak <= 1.0f, file.getFileName() + " peak " + juce::String (peak));
+        CHECK_MSG (loudWindows >= windows - 1, file.getFileName() + " has silent stretches");
+
+        // And the player the Practice drawer uses can take it and stream it.
+        BackingTrackPlayer player;
+        player.prepare (48000.0, 512);
+        CHECK_MSG (player.load (file), file.getFileName() + " did not load");
+        CHECK_NEAR (player.getLengthSeconds(), seconds, 0.01);
+
+        juce::Thread::sleep (400);   // the file streams on its own thread
+        player.play();
+
+        juce::AudioBuffer<float> block (2, 512);
+        float played = 0.0f;
+
+        for (int i = 0; i < 200; ++i)
+        {
+            player.processBlock (block, 512);
+            played = juce::jmax (played, block.getMagnitude (0, 512));
+        }
+
+        CHECK_MSG (played > 0.001f, file.getFileName() + " played silence");
+        player.unload();
+    }
+
+    CHECK_MSG (totalBytes < 15 * 1024 * 1024, "backing tracks total " + juce::String (totalBytes) + " bytes");
+}
+
+//==============================================================================
+/*  The factory catalogue mismatch (CODEX_COMPLETENESS_LEDGER, first-run audit):
+    the docs advertised a bank the code never built. The bank is now the
+    documented one; this pins it so the spec and the code cannot drift again. */
+LUTHIER_TEST (SampleContent, theFactoryBankIsTheDocumentedThirtySix)
+{
+    const char* const expected[] =
+    {
+        "Clean Double-Cut Funk", "T-Style Country Twang", "Single-Cut Crunch", "Modern Metal Chug",
+        "Jazz Hollowbody", "Blues Slide", "Shred Lead", "Germanium Fuzz Lead", "Surf Reverb",
+        "Semi-Hollow Chime", "Drop C Riff", "Wah Funk Rhythm", "Octave Fuzz Stoner", "Ambient Swell",
+        "8-String Djent", "Rockabilly Slap", "Tapping Etude", "Fingerstyle Folk", "Strummed Dreadnought",
+        "Parlor Blues", "12-String Jangle", "Nylon Classical", "Flamenco Rasgueado", "Nashville High-Strung",
+        "DADGAD Drone", "Jumbo Bluegrass", "P-Bass Flatwound", "J-Style Fingerstyle", "Fretless Mwah",
+        "Violin Bass Grind", "5-String Low B", "Init", "Dry Instrument", "Physics Showcase",
+        "Transposing Trem Chords", "Microtonal Just"
+    };
+
+    CHECK (FactoryPresets::getNumPresets() == 36);
+
+    if (FactoryPresets::getNumPresets() != 36)
+        return;
+
+    int electric = 0, acoustic = 0, classical = 0, bass = 0, utility = 0;
+
+    for (int i = 0; i < 36; ++i)
+    {
+        const auto& def = FactoryPresets::getPreset (i);
+        CHECK_MSG (juce::String (def.name) == expected[i], juce::String (def.name) + " where " + expected[i] + " was expected");
+
+        const juce::String category (def.category);
+        electric += category == "Electric";
+        acoustic += category == "Acoustic";
+        classical += category == "Classical";
+        bass += category == "Bass";
+        utility += category == "Utility";
+    }
+
+    CHECK (electric == 17 && acoustic + classical == 9 && bass == 5 && utility == 5);
+
+    // The first-run preset the onboarding spec names is in the bank.
+    CHECK (FactoryPresets::getPreset (2).name == juce::String ("Single-Cut Crunch"));
 }
