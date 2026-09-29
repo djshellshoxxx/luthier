@@ -327,3 +327,20 @@ low effort, token-lean — grep/targeted reads only, NEVER whole-tree reads):
   proven safe, propose it, don't apply it.
 - Token budget: keep it to one pass; report + safe micro-fixes only; stop when
   the report is written and the safe fixes are green.
+
+## BUDGET HOLD (2026-09-29): both Claude and Codex constrained
+
+State: Claude seven-day limit = rejected/overage (resets ~2026-09-30); ChatGPT
+Codex low on credits. MEGA-MERGE (Opus) was stopped/archived — it was rate-
+rejected and only burning retries; DO NOT restart it. Consolidation is NOT
+handed to Codex (its credits are low).
+
+Plan while constrained:
+- Do NOT spawn new Claude helpers or send Codex the large beta task now.
+- Codex, if it has any credits, should ONLY finish + push its in-flight lane and
+  write docs/handoff/CODEX_REMAINING.md, then stop. Nothing bigger.
+- Verified done and safe: Fable feedback fix exists on claude/luthier-fable-
+  feedback (VERIFY it carries the commits before trusting; git showed 0 ahead).
+- WHEN CLAUDE WEEKLY RESETS: the coordinator itself does consolidation -> beta
+  (per docs/plans/BETA_LINUX_WINDOWS.md) on one branch, single-threaded, token-
+  lean. No parallel fleet until budget is healthy. Cap Opus sessions at 1-2.
