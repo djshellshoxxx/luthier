@@ -145,7 +145,11 @@ say): *Actions -> release -> Run workflow*, enter the tag.
   Notarized Developer ID*; `auval -v aumu Lthr Ltha` passes.
 - Windows: the installer's signature shows the company name; SmartScreen
   behaviour noted.
-- Linux: `sha256sum -c SHA256SUMS.txt`, `gpg --verify` on the `.asc` files.
+- Linux: `scripts/verify_release.sh <dir> [public-key.asc]` (checksums, every
+  installer listed, `gpg --verify` on the `.asc` files).
+- Linux install cycle: `scripts/test_install_linux.sh Luthier-<v>-linux-x64.tar.gz`
+  (install, upgrade, downgrade, uninstall, purge, all in a throw-away HOME;
+  with no argument it tests synthetic packages built from `packaging/linux`).
 
 ## 7. Before the first public release
 
@@ -158,9 +162,65 @@ say): *Actions -> release -> Run workflow*, enter the tag.
   `.deb`'s libc6 requirement is computed from the binary, and a build on
   `ubuntu-latest` needs that distribution's glibc.
 
-## 8. Known gaps
+## 8. Rollback and hotfix runbook (`installer.md` 12, `qa-polish.md` 13)
 
-- Delta updates (`installer.md` 5.2), `.rpm` packages, the MSI wrapper
+Target: a bad release is withdrawn in 30 minutes, a fixed one is out in 24 hours.
+
+1. **Stop the spread (5 min).** Edit the update manifest so `latest` points at
+   the previous good version (`scripts/release_manifest.sh` regenerates it from
+   a release tag); running plug-ins then stop offering the bad build. Mark the
+   GitHub release as *pre-release* or delete the draft. Old installers stay
+   published: never delete a release people may need to go back to.
+2. **Tell people (10 min).** Pin an issue with the symptom, the affected
+   versions and the workaround. Users go back by installing the previous
+   installer over the top: the Windows installer asks before replacing a newer
+   version, the macOS `.pkg` and Linux `install.sh` replace it silently (Linux
+   removes the old manifest first, so no file from the newer build survives).
+   User data in `~/Documents/Luthier` is untouched by any of this.
+3. **Fix (up to 24 h).** Branch from the last good tag, cherry-pick only the
+   fix, bump the patch version, run the section 6 checks, tag, let `release.yml`
+   build. Point the manifest at the hotfix once the checks pass.
+4. **Monitor (72 h).** Watch the issue tracker and support inbox; a second
+   report of the same crash reopens step 1.
+
+## 9. Why the installers ask for what they ask for
+
+- **Windows needs administrator rights.** The VST3 and CLAP folders live under
+  `C:\Program Files\Common Files`, and the factory content under
+  `C:\ProgramData\Luthier`, which every plug-in format finds there. The
+  portable zip needs no rights but is copied by hand.
+- **macOS needs an administrator password** for `/Library/Audio/Plug-Ins` and
+  `/Library/Application Support/Luthier`.
+- **Linux needs none by default:** `install.sh` installs for the current user
+  (`~/.vst3`, `~/.clap`, `~/.local`); `--system` (root) installs under
+  `/usr/local`. The `.deb` and `.rpm` install under `/usr`.
+- **Cancel and rollback** during an install are Inno Setup's and Installer.app's
+  own: cancelling removes what was copied so far.
+- **Inno exit codes** (`Setup.exe /VERYSILENT`): 0 success; 1 Setup failed to
+  initialise; 2 the user cancelled before installing; 3 a fatal error while
+  preparing the install; 4 a fatal error during the install; 5 the user cancelled
+  (or chose Abort) during the install; 6 Setup was force-terminated; 7 the
+  *Preparing to Install* stage decided Setup cannot proceed; 8 the same, and a
+  restart is needed first. The Inno Setup documentation has the current list.
+- **Managed installs** can pre-place the policy file
+  (`luthier-policy.json`, the path `Policy::getPolicyFile` reads):
+  Windows `Luthier-<v>-Setup-win64.exe /VERYSILENT /POLICY=C:\path\luthier-policy.json`
+  copies it to `C:\ProgramData\Luthier\`; on macOS put it at
+  `/Library/Application Support/Luthier/luthier-policy.json`, on Linux at
+  `/etc/luthier/luthier-policy.json`. A policy can only remove permissions
+  (force telemetry off, name a private update mirror).
+- **The content location is fixed by design** so every format finds one shared
+  copy (`IrLibrary::getCandidateFolders`): `C:\ProgramData\Luthier\Resources`,
+  `/Library/Application Support/Luthier/Resources`,
+  `$XDG_DATA_HOME|~/.local/share/luthier/Resources`, `/usr/local/share/luthier`,
+  `/usr/share/luthier`.
+- **Standalone only:** the Linux `Luthier-<v>-standalone-linux-x64.tar.gz`
+  installs the app and content without the plug-ins; on Windows and macOS untick
+  the plug-in components in the installer.
+
+## 10. Known gaps
+
+- Delta updates (`installer.md` 5.2), the MSI wrapper
   (`installer.md` 7) and the "Refuses to run while a DAW has the plugin
   loaded" check beyond Inno Setup's Restart Manager are not built yet.
 - Inno Setup's `/SILENT`, `/VERYSILENT` and `/DIR=` replace the
